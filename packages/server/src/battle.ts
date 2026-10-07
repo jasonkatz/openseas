@@ -353,6 +353,7 @@ export class BattleManager {
   private sfView(sf: Swordfight): SwordfightView {
     return {
       id: sf.id,
+      kind: sf.battleId ? 'boarding' : 'duel',
       phase: sf.over ? 'over' : 'fighting',
       endsAt: sf.endsAt,
       players: sf.fighters.map((f) => ({ pirateId: f.id, name: f.name, side: f.side, npc: f.npc, state: f.state, ko: !!f.state.ko })),

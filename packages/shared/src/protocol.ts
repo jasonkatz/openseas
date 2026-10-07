@@ -107,6 +107,7 @@ export interface SwordfightPlayerView {
 
 export interface SwordfightView {
   id: string;
+  kind: 'boarding' | 'duel';
   phase: 'fighting' | 'over';
   endsAt: number;
   players: SwordfightPlayerView[];

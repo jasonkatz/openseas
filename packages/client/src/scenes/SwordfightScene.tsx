@@ -89,7 +89,7 @@ export function SwordfightScene({ view }: { view: SwordfightView }) {
   return (
     <div className="puzzle-host" style={{ zIndex: 45 }} onMouseDown={() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); }}>
       <div className="puzzle-top">
-        <span className="title">⚔️ Boarding action</span>
+        <span className="title">⚔️ {view.kind === 'duel' ? 'Duel' : 'Boarding action'}</span>
         <span className="pill" style={{ borderColor: '#29c6d6' }}>{view.sides[0]} · {alive(0)} standing</span>
         <span className="muted">vs</span>
         <span className="pill" style={{ borderColor: '#e5484d' }}>{view.sides[1]} · {alive(1)} standing</span>
@@ -105,8 +105,10 @@ export function SwordfightScene({ view }: { view: SwordfightView }) {
           <div className="modal-backdrop" style={{ position: 'absolute' }}>
             <div className="panel parchment modal" style={{ width: 400 }}>
               <div className="panel-body result">
-                <div className="big">{view.winnerSide === mySide ? 'Victory!' : 'Repelled!'}</div>
-                <p className="fell">{view.winnerSide === mySide ? 'The enemy deck is yours. Booty is being hauled aboard.' : 'The brigands hold their deck. Back to your own ship, and quickly.'}</p>
+                <div className="big">{view.winnerSide === mySide ? 'Victory!' : view.kind === 'duel' ? 'Bested!' : 'Repelled!'}</div>
+                <p className="fell">{view.kind === 'duel'
+                  ? (view.winnerSide === mySide ? 'Your blade carries the day. Drinks are on the loser.' : 'A fair fight, fairly lost. Buy the winner a drink and practise your breakers.')
+                  : (view.winnerSide === mySide ? 'The enemy deck is yours. Booty is being hauled aboard.' : 'The brigands hold their deck. Back to your own ship, and quickly.')}</p>
                 <button className="btn" onClick={clear}>Continue</button>
               </div>
             </div>
