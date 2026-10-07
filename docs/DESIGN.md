@@ -1,0 +1,273 @@
+# openseas — Design Document
+
+`openseas` is a working codename. The real name is decided when art direction lands.
+
+This document records every product and architecture decision made before the first line of
+code. It is the source of truth for scope. When code and this document disagree, fix one of them
+in the same PR. Rationale for the major technical choices lives in [`adr/`](./adr/).
+
+## 1. Vision
+
+A browser-native, touch-first pirate puzzle MMO in the spirit of Puzzle Pirates: crews of pirates
+sail a ship together, each running a duty puzzle whose output drives the shared ship through a
+turn-based sea battle against brigands, then board and fight for booty.
+
+**What it is**
+
+- A spiritual successor. Mechanics are faithful where they are good. Names, art, text, and audio
+  are original. Nothing is copied from the original game.
+- Built for a small live community of friends first. Dozens to low hundreds of concurrent players
+  is the design point.
+- Strictly free. No currency purchases, no subscriptions. The architecture leaves room for
+  cosmetics later but nothing is built for them now.
+
+**What it is not**
+
+- Not a rule-exact clone, and not a redesign. See "Default stance on rules" below.
+- Not a persistent player economy in v1. Shoppes, commodities, and trade are a stated phase 3 goal.
+
+## 2. Legal distance
+
+Puzzle Pirates is a live trademarked product. The distance we keep:
+
+- Original game name, original art, original text, original audio.
+- Puzzle names that are generic nautical terms are kept: Bilging, Sailing, Carpentry, Gunnery,
+  Navigation, Swordfighting, Sea Battle. Anything the original coined gets an original name.
+- Special pieces and other coined terms are renamed.
+- Differences from the original are documented deliberately as they arise, in this document.
+
+## 3. Scope
+
+### 3.1 Puzzles in v1 (the pillage loop)
+
+| Puzzle | Role | Rated against |
+|---|---|---|
+| Bilging | Duty: lowers bilge water | The puzzle |
+| Sailing | Duty: generates movement tokens | The puzzle |
+| Carpentry | Duty: repairs hull damage | The puzzle |
+| Gunnery | Duty: loads cannons | The puzzle |
+| Navigation | Duty: token bonuses and sea battle advantages | The puzzle |
+| Sea Battle | Captain's game: ship versus ship on a grid | Head to head |
+| Swordfighting | Boarding fight: team versus team | Head to head |
+
+Explicitly later: Rigging, Treasure Haul, Rumble, all crafting puzzles, parlor games, Treasure Drop.
+
+### 3.2 Default stance on rules
+
+Rule-faithful scoring and mechanics, with modern feedback, onboarding, and input affordances
+layered on top. Redesign only when a puzzle is demonstrably broken in playtesting, decided case by
+case. Gunnery is the puzzle most likely to invoke this clause.
+
+### 3.3 Puzzle designs
+
+Each puzzle below lists its faithful core and the quality-of-life additions agreed for v1. No duty
+puzzle has undo.
+
+**Bilging.** A 6 wide by 12 tall board of pieces. Swap two horizontally adjacent pieces. Matches of
+3 or more clear; pieces above fall. Combos and multi-clears score higher. The water line rises as
+the ship's bilge fills. Special pieces (equivalents of the original's crab, pufferfish, and
+jellyfish, renamed) ship in v1 because they define the skill ceiling. QoL: match preview on hover
+or touch-hold, a combo meter, tap-then-tap or drag-swap on touch.
+
+**Sailing.** Falling pieces you steer and rotate into a board, clearing by forming groups and
+chaining through the board's structure. Performance feeds movement tokens per turn. QoL: ghost
+piece showing landing position, next-piece preview, swipe-to-move and tap-to-rotate on touch.
+
+**Carpentry.** Polyomino pieces offered from a queue, placed to fill holes in planking. Tighter
+fills with fewer gaps score higher and feed repair output. QoL: drag-and-drop with snap and a
+rotate button, valid-placement highlight, swap between offered pieces.
+
+**Gunnery.** Route powder, wadding, and cannonballs through a column board into cannons in the
+right order to load them. Correct loads feed cannon readiness. QoL: per-cannon load-order
+indicator, highlight of which drop completes a load. Flagged for possible redesign after
+playtesting.
+
+**Navigation.** Arrange and shift pieces to reproduce a target constellation. Completed patterns
+grant token bonuses and sea battle advantages. QoL: target overlay toggle, progress meter.
+
+**Sea Battle.** Square grid with rocks and wind arrows. Per-turn move token pool from Sailing
+(left, forward, right). Up to four moves queued per turn. Simultaneous resolution with collision
+and wind rules. Cannon fire placed left or right per move segment. Damage from hits. The captain
+plays it on a landscape board. Brigand AI chooses moves from a scripted policy with difficulty
+tiers. The ruleset is a pure reducer shared by server, client preview, and AI.
+
+**Swordfighting.** Puyo-style falling colored pairs on each pirate's board. Groups clear; cleared
+groups send breaker blocks to opponents' boards. Team mode distributes each side's attacks. QoL:
+incoming-attack preview, swipe controls. Ships after the duty puzzles; the first playable pillage
+resolves boarding with a stub.
+
+### 3.4 Ship and voyage model
+
+- **Turn clock.** The ship runs on a fixed turn, initially 10 seconds, tuned in playtests. Each
+  turn: Sailing output becomes movement tokens, Gunnery output loads cannons, Bilging output lowers
+  water, Carpentry output repairs damage, Navigation output grants token bonuses and sea battle
+  advantages. Water and damage degrade speed. The sea battle board resolves once per turn.
+- **Ownership.** Ships are owned by individual pirates. Crews are the social unit and the invite
+  list. Every new pirate receives a starter sloop as a zero-cost grant through the single ship
+  acquisition path (shipyard purchase). Future gating raises the grant's requirements or price via
+  content config; it is never a code change.
+- **Ship classes.** Sloop only in v1. Ship class is a content table.
+- **Captaincy.** The owner is captain by default and can hand the wheel to anyone aboard.
+  Permissions for taking a ship out without its owner are a later feature.
+- **Crew size.** A pirate can sail alone. Unstaffed stations produce nothing. Brigand difficulty is
+  a per-encounter tier, not scaled to crew size, in v1. The game is tuned for crews of 3 to 5.
+- **Joining.** Ships at sea appear on the island notice board. Pirates can join mid-voyage and
+  take a free station. The owner can set a ship to invite-only.
+- **Disconnects.** A dropped pirate's station idles for a 2 minute grace period; their seat is
+  held; their puzzle board is discarded, not resumed. If the captain drops, the ship holds position
+  and any sea battle pauses for the same grace period, then the longest-aboard pirate is offered
+  the wheel.
+- **Encounters.** Brigand encounters roll per route leg with a content-defined probability. The
+  captain is prompted to engage or evade. Evading always succeeds in v1.
+- **Booty and loss.** Winning a sea battle and boarding yields currency split among everyone
+  aboard, weighted by duty performance during the fight, with an extra share for the captain.
+  Losing yields nothing. Damage is repaired free at the next dock. No permanent loss, cargo, or
+  sinking in v1.
+
+### 3.5 World
+
+- One ocean. Three islands on a fixed route graph. Legs take roughly 3 to 5 minutes so a full
+  pillage fits in 20 to 30 minutes.
+- Each island is a tiny walkable top-down space: a dock (board ship, shipyard), a tavern (chat,
+  crew), and a notice board (ships recruiting, ships at sea).
+- Islands, routes, brigand tiers, and ship classes are versioned JSON content files in the
+  `content` package, validated against schemas at server start. Adding an island is a PR that adds
+  a file. Only player-generated state lives in the database.
+- AI brigands only at sea. No player-versus-player at sea in v1.
+
+### 3.6 Persistence
+
+Per pirate: name, per-puzzle rating, crew membership and rank, currency balance, voyage history,
+owned ships. No inventory, clothing, or housing in v1.
+
+- Currency is an append-only ledger from day one so a later economy has an auditable base.
+- Ratings use Glicko-2 per puzzle. Duty puzzles are rated against performance thresholds
+  calibrated from the tester pool. Swordfighting and Sea Battle are rated head to head. Players
+  see display tiers only; raw numbers are hidden.
+
+### 3.7 Social
+
+- Text chat with three channels: ship, crew, island-local. Voice is left to Discord.
+- Moderation is mute and block only.
+
+### 3.8 Accounts and access
+
+- Guest-first. A new visitor gets an instant random pirate name with zero friction.
+- Guests can upgrade in place to a Discord or Google account. Pirate, ledger, ratings, and ships
+  carry across. No email/password auth exists.
+- During alpha an invite code is required to create a pirate. This is a config flag.
+
+### 3.9 Platform
+
+- Browser only, no install. Phones are first-class.
+- Portrait for all duty puzzles. Landscape for Sea Battle and the island.
+- Every piece type is distinguishable by shape as well as color. Keyboard play for all puzzles
+  on desktop. Screen-reader support for puzzle boards is out of scope.
+- English only. All player-facing strings go through one message table.
+- No music in v1. Minimal synthesized sound effects via WebAudio, replaced during the art pass.
+
+### 3.10 Art
+
+Deliberately stylish placeholder geometry until the puzzles are proven fun and the full set of
+screens is known. The current intent is generated art under a strict style guide after that.
+
+## 4. Architecture
+
+Rationale lives in the ADRs. This section states what is decided.
+
+### 4.1 Repository layout
+
+pnpm monorepo. Packages:
+
+| Package | Contents | Constraints |
+|---|---|---|
+| `engine` | Puzzle engines, ship simulation, sea battle reducer, brigand AI | Pure TypeScript. Zero runtime dependencies. Deterministic. No I/O, no timers, no randomness except from an injected seeded PRNG. |
+| `protocol` | Zod schemas for every client-server message | Shared by client and server |
+| `content` | World content JSON and its schemas | Validated at server start |
+| `server` | Node 22, `ws`, Drizzle, Better Auth | Owns all authority |
+| `client` | Vite, React, PixiJS v8 | Renders; never authoritative |
+
+### 4.2 Puzzle authority: deterministic replay verification
+
+Every puzzle board is generated from a seed the server issues. The client runs the engine locally
+for instant feel and streams its move log to the server. The server replays the same engine with
+the same seed and move log, derives the score, and rejects any divergence. Cheating is a replay
+mismatch, not an arms race. This is why `engine` must be pure and deterministic.
+
+### 4.3 Realtime
+
+Node with plain `ws`. Rooms are an in-process abstraction (ship, island, swordfight). A single
+server process serves the whole ocean in v1; the room abstraction is the seam for sharding later.
+Messages are JSON validated by Zod schemas from `protocol`. Encoding can change behind the same
+schemas.
+
+### 4.4 Client
+
+PixiJS v8 for every game surface (puzzle boards, sea battle, island). React with Vite for UI
+(menus, chat, panels, lobbies, settings) overlaid on the canvas.
+
+### 4.5 Data
+
+Postgres via Drizzle ORM with generated migrations. Better Auth with its anonymous plugin for
+guests and account linking to Discord and Google.
+
+### 4.6 Hosting and operations
+
+- Server and Postgres on Railway, deployed from `main`.
+- Client as a static build on Vercel, deployed from `main`.
+- Structured logs via pino. Sentry for client and server errors. A Postgres event table for
+  gameplay analytics (puzzle starts and completions, voyage outcomes). No third-party analytics.
+
+## 5. Process
+
+### 5.1 Build order
+
+Puzzles first, each playable solo on a practice page before the next starts, because the puzzles
+have to be fun or nothing else matters. Order: Bilging, Sailing, Carpentry, Gunnery, Navigation,
+Sea Battle, Swordfighting. Bilging goes first because it is the simplest and stress-tests the
+deterministic engine and replay pipeline on the easiest case.
+
+### 5.2 Milestones
+
+| Milestone | Definition of done |
+|---|---|
+| M1 | Bilging practice page live with guest accounts and ratings |
+| M2 | All five duty puzzles live on practice pages |
+| M3 | One ship with real-time crew duty and a voyage between two islands, no combat |
+| M4 | Sea Battle versus AI brigands, boarding stubbed |
+| M5 | Swordfighting boarding and the walkable island |
+| M6 | OAuth upgrade, crews, polish pass |
+
+Every milestone ends with a tester session and a written retro before the next starts.
+
+### 5.3 Testing and quality
+
+- 3 to 5 named testers from the owner's Puzzle Pirates-playing friends, on a private Discord
+  server with a feedback channel and a form link per milestone. The server doubles as voice chat
+  during pillages.
+- Hard metrics tracked from M1: input-to-render latency, server tick jitter, puzzle round
+  completion rate.
+- Every puzzle engine gets property-based tests for determinism (same seed and moves give the
+  same state) before it is wired to the server.
+
+### 5.4 Development workflow
+
+- Node 22 LTS, pnpm, Docker Compose for local Postgres. One `pnpm dev` starts database, server,
+  and client.
+- Claude works on branches and opens PRs. CI on GitHub Actions runs typecheck, Vitest, and a
+  Playwright smoke test. The owner reviews and merges.
+- Private repository through the placeholder-art phase. Open-sourcing and license are decided
+  when art direction lands.
+
+## 6. Deliberate differences from the original
+
+Maintained as they arise.
+
+| Area | Original | openseas | Why |
+|---|---|---|---|
+| Ship ownership | Individuals and crews | Individuals only in v1 | Simpler model; owner likes personal ships |
+| Anti-cheat | Client-reported scores | Server replay verification | Cheap once engines are pure |
+| Evading brigands | Can fail | Always succeeds in v1 | Nothing to lose yet |
+| Loss consequences | Cargo and damage costs | None in v1 | No economy yet |
+| Accounts | Username and password | Guest-first with OAuth upgrade | Zero first-session friction |
+| Island | Large walkable towns | Dock, tavern, notice board | Scope |
