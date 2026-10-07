@@ -12,7 +12,7 @@ export function ShipPanel({ onTakeStation }: { onTakeStation: (id: PuzzleId) => 
   const [chart, setChart] = useState(false);
   const [trade, setTrade] = useState(false);
   const [dest, setDest] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
   if (room?.kind !== 'ship' || !pirate) return null;
   const ship = room.ship;
   const type = SHIP_TYPES[ship.type];

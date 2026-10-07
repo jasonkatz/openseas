@@ -30,7 +30,7 @@ const STEP_MS = 100;
 /** Performance time constant (ms) — EMA of points per second. */
 const RATE_TAU_MS = 20000;
 /** Points per second that counts as perfect play. */
-const TARGET_PPS = 3;
+const TARGET_PPS = 2;
 /** How much open hole cells drag performance down (× open/BREACH_CELLS). */
 const HOLE_PENALTY = 0.4;
 const RATE_DECAY = 1 - STEP_MS / RATE_TAU_MS;

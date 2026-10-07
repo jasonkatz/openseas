@@ -10,11 +10,11 @@ export function deckSpec(type: ShipTypeId): { length: number; width: number; mas
   const masts = { sloop: [-30], cutter: [-70, 70], brig: [-110, 60], frigate: [-150, 0, 150] }[type];
   const l = length / 2, w = width / 2;
   const stations: StationSpot[] = [
-    { id: 'navigation', x: 0, y: l - 70, label: 'Helm' },
-    { id: 'sailing', x: 0, y: masts[0]! + 50, label: 'Sails' },
-    { id: 'gunnery', x: -w + 42, y: 0, label: 'Guns' },
-    { id: 'carpentry', x: w - 42, y: 20, label: 'Carpentry' },
-    { id: 'bilging', x: 0, y: -l + 110, label: 'Bilge' },
+    { id: 'navigation', x: 0, y: l - 72, label: 'Helm' },
+    { id: 'sailing', x: 0, y: -l + 175, label: 'Sails' },
+    { id: 'gunnery', x: -w + 44, y: l * 0.28, label: 'Guns' },
+    { id: 'carpentry', x: w - 44, y: l * 0.28, label: 'Carpentry' },
+    { id: 'bilging', x: 0, y: -l + 92, label: 'Bilge' },
   ];
   return { length, width, masts, stations };
 }

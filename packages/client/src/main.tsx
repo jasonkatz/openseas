@@ -19,6 +19,7 @@ if (devPuzzle && (PUZZLE_IDS as readonly string[]).includes(devPuzzle)) {
     bindNet();
     // Small automation hook used by the e2e smoke test.
     (window as unknown as { __tb_open?: (k: string) => void }).__tb_open = (k) => useStore.getState().setOpenBuilding(k as never);
+    (window as unknown as { __tb_store?: unknown }).__tb_store = useStore;
     root.render(<React.StrictMode><App /></React.StrictMode>);
   });
 }

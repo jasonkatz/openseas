@@ -36,7 +36,7 @@ export const GUST_CHANCE = 0.03;
 /** performance sampling: one sample every window, EMA time constant, normalisation. */
 export const PERF_WINDOW_MS = 100;
 export const PERF_TAU_MS = 15000;
-export const PERF_PTS_PER_SEC = 6;
+export const PERF_PTS_PER_SEC = 3.5;
 export const DEFAULT_DURATION_MS = 150000;
 
 export type Trio = [number, number, number];

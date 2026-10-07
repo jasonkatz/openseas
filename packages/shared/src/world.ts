@@ -56,10 +56,10 @@ export interface ShipType {
   sprite: number;
 }
 export const SHIP_TYPES: Record<ShipTypeId, ShipType> = {
-  sloop:   { id: 'sloop',   name: 'Sloop',   price: 2500,  maxCrew: 6,  cannons: 2, hull: 60,  baseSpeed: 10, holdSize: 40,  maxMoves: 4, sprite: 0 },
-  cutter:  { id: 'cutter',  name: 'Cutter',  price: 7000,  maxCrew: 10, cannons: 3, hull: 90,  baseSpeed: 9,  holdSize: 80,  maxMoves: 4, sprite: 1 },
-  brig:    { id: 'brig',    name: 'Brig',    price: 16000, maxCrew: 16, cannons: 4, hull: 130, baseSpeed: 8,  holdSize: 140, maxMoves: 3, sprite: 2 },
-  frigate: { id: 'frigate', name: 'Frigate', price: 40000, maxCrew: 24, cannons: 6, hull: 200, baseSpeed: 7,  holdSize: 240, maxMoves: 3, sprite: 3 },
+  sloop:   { id: 'sloop',   name: 'Sloop',   price: 2500,  maxCrew: 6,  cannons: 2, hull: 60,  baseSpeed: 15, holdSize: 40,  maxMoves: 4, sprite: 0 },
+  cutter:  { id: 'cutter',  name: 'Cutter',  price: 7000,  maxCrew: 10, cannons: 3, hull: 90,  baseSpeed: 14, holdSize: 80,  maxMoves: 4, sprite: 1 },
+  brig:    { id: 'brig',    name: 'Brig',    price: 16000, maxCrew: 16, cannons: 4, hull: 130, baseSpeed: 12, holdSize: 140, maxMoves: 3, sprite: 2 },
+  frigate: { id: 'frigate', name: 'Frigate', price: 40000, maxCrew: 24, cannons: 6, hull: 200, baseSpeed: 11, holdSize: 240, maxMoves: 3, sprite: 3 },
 };
 
 export const STATIONS: readonly PuzzleId[] = ['bilging', 'sailing', 'carpentry', 'gunnery', 'navigation'];

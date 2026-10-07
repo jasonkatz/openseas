@@ -32,7 +32,7 @@ export const CRAB_CHANCE = 0.02;
 /** Water drops this much per point scored. */
 export const WATER_PER_POINT = 0.004;
 /** Points-per-second that counts as a perfect (1.0) performance. */
-export const PERF_FULL_RATE = 8;
+export const PERF_FULL_RATE = 5;
 /** The EMA is capped here so a burst of play can't bank an unbounded buffer against idle decay. */
 export const PERF_RATE_CAP = PERF_FULL_RATE * 1.5;
 /** Time window (ms) of the performance EMA. */
@@ -126,10 +126,10 @@ export function clearPoints(c: Clear): number {
   return c.kind === 'run' ? runPoints(c.size) : burstPoints(c.size);
 }
 
-/** Water rise per ms at a given difficulty (fills in ~60s at difficulty 0.4 when idle). */
+/** Water rise per ms at a given difficulty (fills in ~180s at difficulty 0.4 when idle, ~100s at 1.0). */
 export function waterRatePerMs(difficulty: number): number {
   const d = clamp01(difficulty);
-  return (0.4 + 1.5 * d) / 60_000;
+  return (0.2 + 0.5 * d) / 72_000;
 }
 
 /** Points earned from the clears of a cascade step with `cascade` (0-based) applied. */

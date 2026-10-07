@@ -185,7 +185,7 @@ export function bindNet(): void {
         break;
       case 'puzzleVerified': break;
       case 'puzzleReward': useStore.setState({ lastReward: { puzzle: msg.puzzle, points: msg.points, performance: msg.performance, poe: msg.poe } }); break;
-      case 'battle': useStore.setState({ battle: msg.state }); break;
+      case 'battle': useStore.setState({ battle: msg.state, battleEnd: s.battle && s.battle.id !== msg.state.id ? null : s.battleEnd }); break;
       case 'battleEnd': useStore.setState({ battleEnd: { ...msg, at: Date.now() } }); break;
       case 'swordfight': useStore.setState({ swordfight: msg.view, puzzle: s.swordfight ? s.puzzle : null, puzzlePending: null }); break;
       case 'swordfightEnd': break;

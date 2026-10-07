@@ -420,7 +420,7 @@ function lockPair(s: State, pair: Pair): State {
       outgoing: [...s.outgoing, { power, seq }],
       damageDealt: s.damageDealt + power,
       windowPower: s.windowPower + power,
-      perf: ema(s.perf, clamp01(power / 8), 0.3),
+      perf: ema(s.perf, clamp01(power / 5), 0.3),
     };
   }
   return spawn(st);
@@ -580,7 +580,7 @@ export function tick(s: State, dtMs: number): State {
     rem -= until;
     if (st.windowMs >= PERF_WINDOW_MS) {
       st.windowMs -= PERF_WINDOW_MS;
-      st.perf = ema(st.perf, clamp01(st.windowPower / 8), 0.4);
+      st.perf = ema(st.perf, clamp01(st.windowPower / 5), 0.4);
       st.windowPower = 0;
     }
     if (st.cur) {

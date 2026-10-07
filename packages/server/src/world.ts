@@ -15,6 +15,8 @@ import { Bots } from './bots';
 
 const START_POE = 3000;
 const HAND_COST = 150;
+/** Per-hex chance of a brigand encounter while sailing (override for testing). */
+const ENCOUNTER_RATE = Number(process.env.TIDEBOUND_ENCOUNTER ?? 0.07);
 const PRESENCE_MS = 100;
 
 export class World {
@@ -681,7 +683,7 @@ export class World {
           // Encounter roll.
           if (v.index < v.path.length - 1 && this.battles.viewFor(ship.id) === null) {
             const roll = Math.random();
-            const danger = 0.07 + (v.to === 'wyrmtooth' || v.from === 'wyrmtooth' ? 0.08 : 0);
+            const danger = ENCOUNTER_RATE + (v.to === 'wyrmtooth' || v.from === 'wyrmtooth' ? 0.08 : 0);
             if (roll < danger && v.index > 1) {
               this.battles.startEncounter(ship);
               break;

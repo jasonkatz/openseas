@@ -205,3 +205,28 @@ kbd { display: inline-block; padding: 1px 6px; border-radius: 5px; border: 1px s
 .center { text-align: center; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: rgba(240,217,168,0.25); border-radius: 6px; }
+
+.parchment .tag { background: rgba(74, 47, 18, 0.14); color: #4a2f12; }
+.parchment .tag.good { background: rgba(31, 110, 50, 0.18); color: #1f6e32; }
+.parchment .tag.bad { background: rgba(166, 43, 48, 0.16); color: #a62b30; }
+.parchment .btn.ghost { color: #4a2f12; border-color: #8a6a3c; }
+
+/* ---- phones ---- */
+@media (max-width: 700px) {
+  .topbar { gap: 8px; padding: 0 10px; }
+  .topbar .brand { font-size: 20px; }
+  .topbar .stat .k { display: none; }
+  .topbar .stat.where { display: none; }
+  .topbar .btn.small { padding: 4px 8px; }
+  .puzzle-top { height: auto; min-height: 44px; flex-wrap: wrap; row-gap: 2px; padding: 4px 8px; font-size: 13px; }
+  .puzzle-top .title { font-size: 18px; }
+  .puzzle-top .shipstrip { display: none; }
+  .overlay-right { top: auto; bottom: 0; right: 0; left: 0; width: 100%; max-height: 50%; border-radius: 14px 14px 0 0; gap: 0; }
+  .overlay-right .panel { border-radius: 14px 14px 0 0; }
+  .chat { width: calc(100% - 24px); z-index: 27; }
+  .chat .chat-log { max-height: 110px; }
+  .prompt { max-width: calc(100% - 24px); font-size: 13px; }
+  .modal { max-height: calc(100% - 20px); }
+  .modal-backdrop { padding: 8px; }
+  .station-grid { grid-template-columns: 1fr; }
+}

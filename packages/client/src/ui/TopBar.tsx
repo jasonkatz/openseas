@@ -22,7 +22,7 @@ export function TopBar() {
       <div className="brand">Tidebound</div>
       <div className="stat"><span className="k">Pirate</span>{pirate.name}{crew && <span className="pill">{crew.name}</span>}</div>
       <div className="stat"><span className="k">PoE</span><span className="poe">{pirate.poe.toLocaleString()}</span></div>
-      <div className="stat muted" style={{ fontWeight: 600 }}>{where}</div>
+      <div className="stat muted where" style={{ fontWeight: 600 }}>{where}</div>
       <div className="spacer" />
       {status !== 'open' && <span className="tag bad">{status === 'connecting' ? 'reconnecting…' : 'offline'}</span>}
       <button className="btn ghost small" onClick={() => setMuted(!muted)} title="Toggle sound">{muted ? '🔇' : '🔊'}</button>

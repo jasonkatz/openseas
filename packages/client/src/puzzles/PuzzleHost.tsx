@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { BasePuzzleState, LogEntry } from '@tidebound/shared';
-import { getPuzzle, ratingLabel, SHIP_TYPES, STATION_INFO } from '@tidebound/shared';
+import { aiChoose, garbagePatternFor, getPuzzle, ratingLabel, rngFromSeed, SHIP_TYPES, STATION_INFO, type Rng, type swordfight as SF } from '@tidebound/shared';
 import { useStore, type ActivePuzzle } from '../store';
 import { puzzleViews } from './registry';
 import { play } from '../lib/audio';
@@ -25,6 +25,10 @@ export function PuzzleHost({ active }: { active: ActivePuzzle }) {
   const lastCkRef = useRef(0);
   const lastFrameRef = useRef<number | null>(null);
   const finishedRef = useRef(false);
+  /** Practice swordfights get a local brigand opponent driven by the engine's AI. */
+  const oppRef = useRef<{ state: SF.State; rng: Rng; lastAi: number; name: string; skill: number; mySeq: number; wins: number } | null>(
+    active.puzzle === 'swordfight' ? { state: getPuzzle('swordfight').init((active.seed ^ 0x5bd1e995) >>> 0, active.config), rng: rngFromSeed((active.seed + 7) >>> 0), lastAi: 0, name: BRIGANDS[active.seed % BRIGANDS.length]!, skill: 0.4, mySeq: 0, wins: 0 } : null,
+  );
   const [, bump] = useState(0);
   const [finished, setFinished] = useState(false);
   const [size, setSize] = useState({ w: 900, h: 600 });
@@ -55,6 +59,47 @@ export function PuzzleHost({ active }: { active: ActivePuzzle }) {
       const next = def.tick(stateRef.current, dt);
       stateRef.current = next;
       elapsedRef.current += dt;
+      const opp = oppRef.current;
+      if (opp && !def.isOver(stateRef.current)) {
+        const sdef = getPuzzle('swordfight') as unknown as { tick: (s: SF.State, dt: number) => SF.State; reduce: (s: SF.State, a: unknown) => SF.State };
+        opp.state = sdef.tick(opp.state, dt);
+        opp.lastAi += dt;
+        if (!opp.state.ko && opp.lastAi >= 900 - opp.skill * 500) {
+          opp.lastAi = 0;
+          let actions: unknown[];
+          [opp.rng, actions] = aiChoose(opp.state, opp.rng, opp.skill);
+          for (const a of actions) opp.state = sdef.reduce(opp.state, a);
+        }
+        // Their attacks land on me (as logged actions so the server replay matches).
+        const theirs = opp.state.outgoing;
+        if (theirs.length > 0) {
+          const [drained, attacks] = sfDrain(opp.state);
+          opp.state = drained;
+          for (const atk of attacks) {
+            let pattern: number[][];
+            [opp.rng, pattern] = garbagePatternFor(atk.power, opp.rng);
+            if (pattern.length > 0) dispatchRef.current({ type: 'garbage', pattern });
+          }
+        }
+        // My attacks land on them.
+        const mine = (stateRef.current as unknown as SF.State).outgoing ?? [];
+        for (const atk of mine) {
+          if (atk.seq <= opp.mySeq) continue;
+          opp.mySeq = atk.seq;
+          let pattern: number[][];
+          [opp.rng, pattern] = garbagePatternFor(atk.power, opp.rng);
+          if (pattern.length > 0) opp.state = sdef.reduce(opp.state, { type: 'garbage', pattern });
+        }
+        if (opp.state.ko) {
+          // Next brigand steps up, a little sharper than the last.
+          opp.wins++;
+          play('win');
+          opp.name = BRIGANDS[(active.seed + opp.wins) % BRIGANDS.length]!;
+          opp.skill = Math.min(0.9, opp.skill + 0.12);
+          opp.state = getPuzzle('swordfight').init((active.seed + opp.wins * 7919) >>> 0, active.config) as SF.State;
+          opp.mySeq = 0;
+        }
+      }
       if (def.isOver(next)) {
         checkpoint(true);
         setFinished(true);
@@ -98,6 +143,8 @@ export function PuzzleHost({ active }: { active: ActivePuzzle }) {
     logRef.current.push({ at: elapsedRef.current, a });
     if (def.isOver(next)) { checkpoint(true); setFinished(true); }
   }, [def, checkpoint]);
+  const dispatchRef = useRef(dispatch);
+  dispatchRef.current = dispatch;
 
   const st = stateRef.current;
   const sc = def.score(st);
@@ -117,7 +164,8 @@ export function PuzzleHost({ active }: { active: ActivePuzzle }) {
         <button className="btn ghost small" onClick={() => endPuzzle()}>{finished ? 'Done' : 'Leave shift'}</button>
       </div>
       <div className="puzzle-area" ref={areaRef}>
-        {View ? <View state={st} dispatch={dispatch} width={size.w} height={size.h} now={performance.now()} focused={focused && !finished} />
+        {View ? <View state={st} dispatch={dispatch} width={size.w} height={size.h} now={performance.now()} focused={focused && !finished}
+          others={oppRef.current ? [{ id: 'brigand', name: `${oppRef.current.name}${oppRef.current.wins ? ` (#${oppRef.current.wins + 1})` : ''}`, side: 1, state: oppRef.current.state, ko: oppRef.current.state.ko, isSelf: false }] : undefined} />
           : <div className="muted">No renderer for {active.puzzle}</div>}
         {finished && (
           <div className="modal-backdrop" style={{ position: 'absolute' }}>
@@ -140,7 +188,7 @@ function ShipStrip({ ship }: { ship: { stats: { damage: number; bilge: number; s
   const t = SHIP_TYPES[ship.type];
   const hull = Math.max(0, 1 - ship.stats.damage / t.hull);
   return (
-    <div className="row" style={{ gap: 10, fontSize: 12 }}>
+    <div className="row shipstrip" style={{ gap: 10, fontSize: 12 }}>
       <Mini label="Hull" v={hull} cls={hull < 0.4 ? 'red' : 'green'} />
       <Mini label="Bilge" v={ship.stats.bilge / 100} cls={ship.stats.bilge > 60 ? 'red' : ''} />
       <Mini label="Sails" v={ship.stats.sailPower} cls="gold" />
@@ -162,4 +210,10 @@ function Mini({ label, v, cls }: { label: string; v: number; cls: string }) {
 function fmt(ms: number): string {
   const s = Math.ceil(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+const BRIGANDS = ['Scurvy Pete', 'One-Eyed Marla', 'Mad Hob', 'Red Nell', 'Old Grell', 'Bloody Tam', 'Quiet Bess', 'Lazy Finn', 'Sharp Ysolde', 'Cap\'n Rook'];
+
+function sfDrain(s: SF.State): [SF.State, { power: number; seq: number }[]] {
+  return [{ ...s, outgoing: [] }, s.outgoing];
 }

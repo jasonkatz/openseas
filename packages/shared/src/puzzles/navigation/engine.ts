@@ -30,7 +30,7 @@ export const MAX_LOCKED = 3;
 export const FOG_CLEAR_PER_COURSE = 0.35;
 export const STAR_POINTS = 4;
 /** Points-per-second that maps to performance 1.0. */
-export const TARGET_PPS = 2.5;
+export const TARGET_PPS = 1.8;
 const PERF_ALPHA = 0.05; // per 1s sample => ~20s window
 const PERF_CAP = 1.5;
 const FOG_PERF_PENALTY = 0.3;

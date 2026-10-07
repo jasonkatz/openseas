@@ -28,7 +28,7 @@ export function Tips() {
     setTip(null);
   };
   return (
-    <div className="prompt" style={{ bottom: 'auto', top: 60, maxWidth: 520, zIndex: 50, fontWeight: 600, lineHeight: 1.35 }}>
+    <div className="prompt" style={{ bottom: 18, left: 'auto', right: 14, transform: 'none', maxWidth: 440, zIndex: 50, fontWeight: 600, lineHeight: 1.35 }}>
       <span style={{ fontSize: 20 }}>🦜</span>
       <span>{tip.text}</span>
       <button className="btn small" onClick={dismiss}>Aye</button>

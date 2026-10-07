@@ -382,13 +382,13 @@ describe('bilging: specials', () => {
 });
 
 describe('bilging: water, time & game over', () => {
-  it('water rises over time and fills in ~60s at difficulty 0.4 when idle', () => {
+  it('water rises over time and fills in ~180s at difficulty 0.4 when idle', () => {
     let s = init(1, { difficulty: 0.4, durationMs: 300_000 });
-    expect(waterRatePerMs(0.4) * 60_000).toBeCloseTo(1, 9);
-    s = tick(s, 30_000);
+    expect(waterRatePerMs(0.4) * 180_000).toBeCloseTo(1, 9);
+    s = tick(s, 90_000);
     expect(s.water).toBeCloseTo(0.5, 6);
     expect(s.over).toBe(false);
-    s = tick(s, 30_000);
+    s = tick(s, 92_000);
     expect(s.water).toBe(1);
     expect(s.over).toBe(true);
     expect(s.endReason).toBe('flooded');

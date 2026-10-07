@@ -52,6 +52,8 @@ interface Swordfight {
 }
 
 const SF_DURATION = 100000;
+/** Dev/test: start battles with the ships adjacent and brigands eager to grapple. */
+const BRAWL = process.env.TIDEBOUND_BRAWL === '1';
 
 /** Encounters, sea-battle turns, boarding swordfights, and booty. */
 export class BattleManager {
@@ -89,7 +91,7 @@ export class BattleManager {
     const idx = order.indexOf(ship.type);
     let roll: number;
     [rng, roll] = rngNext(rng);
-    const npcIdx = Math.max(0, Math.min(order.length - 1, idx + (roll < 0.15 ? 1 : roll < 0.55 ? 0 : -1)));
+    const npcIdx = Math.max(0, Math.min(order.length - 1, idx + (roll < 0.08 ? 1 : roll < 0.5 ? 0 : -1)));
     const npcType = order[npcIdx]!;
     const nt = SHIP_TYPES[npcType];
     let npcName: string;
@@ -101,9 +103,10 @@ export class BattleManager {
     const now = Date.now();
     const [rng2, state] = createBattle(uid('b'), [
       { id: ship.id, name: ship.name, type: ship.type, npc: false, side: 0, hull: Math.max(5, type.hull - ship.stats.damage), maxHull: type.hull, cannons: type.cannons, loaded: ship.stats.loaded, crew: [...ship.aboard.map((id) => this.world.data.pirates[id]?.name ?? '?'), ...ship.hands.map((h) => h.name)], sprite: type.sprite },
-      { id: npcShipId, name: npcName, type: npcType, npc: true, side: 1, hull: Math.round(nt.hull * 0.85), maxHull: nt.hull, cannons: nt.cannons, loaded: nt.cannons, crew: npcCrew, sprite: nt.sprite },
+      { id: npcShipId, name: npcName, type: npcType, npc: true, side: 1, hull: Math.round(nt.hull * 0.8), maxHull: nt.hull, cannons: nt.cannons, loaded: Math.ceil(nt.cannons / 2), crew: npcCrew, sprite: nt.sprite },
     ], rng, now, BATTLE_TURN_MS);
     const npcSail = 0.45 + roll * 0.3;
+    if (BRAWL) state.ships = state.ships.map((s, i) => ({ ...s, cell: { q: 5 + i, r: 6 }, heading: i === 0 ? 0 : 2 }));
     const granted = { ...state, ships: state.ships.map((s) => (s.id === ship.id ? grantTokens(s, Math.max(0.3, ship.stats.sailPower), ship.stats.nav, type.maxMoves) : grantTokens(s, npcSail, 0.2, nt.maxMoves))) };
     const b: Battle = { id: state.id, shipId: ship.id, state: granted, rng: rng2, npcShipId, npcType, npcSail, captainReady: false, swordfightId: null, cleanupAt: null, startedAt: now };
     this.battles.set(b.id, b);
@@ -171,8 +174,9 @@ export class BattleManager {
     b.captainReady = false;
     // Sync loaded cannons from ship stats, NPC orders.
     let state = b.state;
-    const [rng, npcO] = npcOrders(state, b.npcShipId, b.rng, 0.65);
+    const [rng, npcO] = npcOrders(state, b.npcShipId, b.rng, 0.5);
     b.rng = rng;
+    if (BRAWL) { npcO.moves = [null, null, null, null]; npcO.grapple = true; }
     state = { ...state, ships: state.ships.map((s) => (s.id === b.npcShipId ? { ...s, orders: npcO } : s.id === ship.id ? { ...s, loaded: ship.stats.loaded } : s)) };
     state = resolveTurn(state, now, BATTLE_RESOLVE_MS);
     // Write back hull & loaded.
@@ -207,7 +211,7 @@ export class BattleManager {
       phaseEndsAt: now + BATTLE_TURN_MS,
       ships: st.ships.map((s) => s.sunk ? s : (s.id === ship.id
         ? { ...grantTokens(s, Math.max(0.25, ship.stats.sailPower) * (1 - ship.stats.bilge / 250), ship.stats.nav, type.maxMoves), loaded: ship.stats.loaded }
-        : { ...grantTokens(s, b.npcSail, 0.2, nt.maxMoves), loaded: Math.min(nt.cannons * 2, s.loaded + Math.round(nt.cannons * 0.75)) })),
+        : { ...grantTokens(s, b.npcSail, 0.2, nt.maxMoves), loaded: Math.min(nt.cannons * 2, s.loaded + Math.ceil(nt.cannons * 0.5)) })),
     };
     this.broadcast(b);
   }

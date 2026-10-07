@@ -29,7 +29,7 @@ export const DEFAULT_DURATION_MS = 150000;
 export const CLEAR_POINTS = [0, 10, 25, 45, 80] as const;
 export const PRIMED_MULT = 1.5;
 /** Points-per-second that maps to performance 1.0. */
-export const PERF_PPS_FULL = 4;
+export const PERF_PPS_FULL = 2.5;
 
 export type Kind = 'powder' | 'wad' | 'shot';
 export const KINDS: readonly Kind[] = ['powder', 'wad', 'shot'];

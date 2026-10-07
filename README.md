@@ -55,3 +55,24 @@ Design notes live in `docs/DESIGN.md`; the puzzle contract in `docs/PUZZLE_AUTHO
 
 Anti-cheat: the client records every action with its elapsed time and streams checkpoints;
 the server replays the log on the same seed and trusts only its own score.
+
+## Server flags
+
+| Env | Default | Meaning |
+|---|---|---|
+| `PORT` | 8787 | HTTP + WebSocket port |
+| `TIDEBOUND_DATA` | `data/world.json` | world snapshot path |
+| `TIDEBOUND_BOTS` | 8 | ambient NPC islanders |
+| `TIDEBOUND_ENCOUNTER` | 0.07 | per-league brigand chance while sailing |
+| `TIDEBOUND_BRAWL` | off (`1`) | dev: battles start adjacent and brigands grapple at once |
+
+## Testing
+
+```bash
+pnpm test                       # engines + server integration
+pnpm --filter @tidebound/client build
+TIDEBOUND_ENCOUNTER=0.7 TIDEBOUND_BRAWL=1 pnpm start &
+node e2e/smoke.mjs              # two headless pirates: island → ship → puzzles → battle
+node e2e/battle.mjs             # drives one pirate straight into a boarding swordfight
+node e2e/shots.mjs http://localhost:5173   # screenshots each puzzle from the local harness (/?puzzle=<id>)
+```

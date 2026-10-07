@@ -94,7 +94,49 @@ interface Timeline { anims: Anim[]; starts: Map<string, ShipStart>; movable: boo
 function inBounds(q: number, r: number): boolean { return q >= 0 && r >= 0 && q < BATTLE_W && r < BATTLE_H; }
 function dirOf(h: number): Cell { return SQ_DIRS[((h % 4) + 4) % 4]!; }
 
-function buildTimeline(state: BattleState, snapshot: Map<string, ShipStart>): Timeline {
+/**
+ * A ship whose first heading-bearing event is a 'turn' never moved before turning, so its
+ * step-1 move was blocked (or it had no F token). The turn came from L or R, giving two
+ * candidate headings; the blocking event says what the forward cell held, which usually
+ * picks one. Falls back to assuming a right turn.
+ */
+function inferHeadingBeforeTurn(state: BattleState, shipId: string, start: ShipStart, afterTurn: number, evs: BattleEvent[]): number {
+  const candidates = [(afterTurn + 3) % 4, (afterTurn + 1) % 4];
+  const guess = candidates[0]!;
+  let blockIdx = -1;
+  for (let i = 0; i < evs.length; i++) {
+    const ev = evs[i]!;
+    if (ev.shipId !== shipId) continue;
+    if (ev.kind === 'turn') break;
+    if (ev.kind === 'rock' || ev.kind === 'blocked' || ev.kind === 'ram') { blockIdx = i; break; }
+  }
+  if (blockIdx < 0) return guess;
+  const blocker = evs[blockIdx]!;
+  // Other ships' cells at that moment: their final cell with later moves undone.
+  const otherCells: Cell[] = [];
+  for (const o of state.ships) {
+    if (o.id === shipId) continue;
+    let q = o.cell.q, r = o.cell.r;
+    for (let i = evs.length - 1; i >= blockIdx; i--) {
+      const ev = evs[i]!;
+      if (ev.shipId === o.id && ev.kind === 'move' && ev.from) { q = ev.from.q; r = ev.from.r; }
+    }
+    otherCells.push({ q, r });
+  }
+  const rocks = state.rocks;
+  const matches: number[] = [];
+  for (const h of candidates) {
+    const d = dirOf(h);
+    const tq = start.q + d.q, tr = start.r + d.r;
+    const offBoard = !inBounds(tq, tr) || rocks.some((c) => c.q === tq && c.r === tr);
+    const shipThere = otherCells.some((c) => c.q === tq && c.r === tr);
+    if (blocker.kind === 'rock' ? offBoard : (shipThere || offBoard)) matches.push(h);
+  }
+  return matches.length === 1 ? matches[0]! : guess;
+}
+
+/** Exported for tests: schedules `state.lastEvents` and derives each ship's pre-turn position. */
+export function buildTimeline(state: BattleState, snapshot: Map<string, ShipStart>): Timeline {
   const evs = state.lastEvents;
   const starts = new Map<string, ShipStart>();
 
@@ -116,9 +158,10 @@ function buildTimeline(state: BattleState, snapshot: Map<string, ShipStart>): Ti
     if (firstHeading && firstHeading.heading !== undefined) {
       if (firstHeading.kind === 'move') st.heading = firstHeading.heading;
       else {
-        // A 'turn' only records the new heading; use the orders-phase snapshot if we have one.
+        // A 'turn' only records the new heading: the ship turned before it ever moved this turn.
+        // Prefer the orders-phase snapshot; otherwise let the blocking event pin the heading down.
         const sn = snapshot.get(s.id);
-        st.heading = sn ? sn.heading : (firstHeading.heading + 3) % 4;
+        st.heading = sn ? sn.heading : inferHeadingBeforeTurn(state, s.id, st, firstHeading.heading, evs);
       }
     }
     st.hull = Math.min(s.maxHull, st.hull);
@@ -781,7 +824,6 @@ export function BattleBoard({ state, myShipId, width, height, now, preview }: Ba
       if (d.flash > 0) { ctx.globalAlpha = d.alpha * d.flash; ctx.fillStyle = '#ff8a8e'; ctx.fillRect(x - bw / 2, by, bw, bh); }
       ctx.restore();
       outlinedText(ctx, s.name, x, by - Math.max(7, cell * 0.16), `bold ${Math.max(9, cell * 0.24)}px ${UI_FONT}`, s.side === mySide ? '#f0d9a8' : '#ffb3b3', 'rgba(0,0,0,0.75)');
-      // Lower the global alpha if sinking.
     };
     for (const s of state.ships) { const d = disp.get(s.id); if (d && d.sunk && d.alpha <= 0.02) drawShipAt(s); }
     for (const s of state.ships) { const d = disp.get(s.id); if (d && !(d.sunk && d.alpha <= 0.02) && s.side !== mySide) drawShipAt(s); }

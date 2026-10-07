@@ -5,12 +5,13 @@ import { chromium } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 
 const base = process.argv[2] ?? 'http://localhost:8787';
-mkdirSync('screens', { recursive: true });
+const OUT = new URL('../screens/', import.meta.url).pathname; mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--use-gl=swiftshader'] });
 const errors = [];
-const shot = async (page, name) => page.screenshot({ path: `screens/${name}.png` });
+const shot = async (page, name) => page.screenshot({ path: `${OUT}${name}.png` });
 const mkPage = async (name) => {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  await ctx.addInitScript(() => { try { localStorage.setItem('tidebound.tips', JSON.stringify(['ashore','deck','sea','battle','sword'])); } catch {} });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`[${name}] ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${name}] console: ${m.text()}`); });
@@ -86,13 +87,14 @@ if (battle) {
   for (let turn = 0; turn < 6; turn++) {
     const ready = a.getByRole('button', { name: /Ready/ });
     if (await ready.count()) {
-      const tok = a.locator('.seg .token').first();
-      if (await tok.count()) await tok.click();
-      const port = a.locator('.shotbtn').first();
-      if (await port.count()) await port.click();
-      const grap = a.getByText(/Grapple/).first();
-      if (await grap.count()) await grap.click().catch(() => {});
-      await ready.click().catch(() => {});
+      const toks = a.locator('.seg .token');
+      const n = await toks.count();
+      for (let i = 0; i < n; i++) await toks.nth(i).click({ timeout: 1500 }).catch(() => {});
+      const port = a.locator('.shotbtn:not([disabled])').first();
+      if (await port.count()) await port.click({ timeout: 2000 }).catch(() => {});
+      const grap = a.locator('input[type=checkbox]').first();
+      if (await grap.count()) await grap.check({ timeout: 2000 }).catch(() => {});
+      await ready.click({ timeout: 2000 }).catch(() => {});
     }
     const sf = await a.waitForSelector('text=Boarding action', { timeout: 12000 }).then(() => true).catch(() => false);
     if (sf) { await a.waitForTimeout(1500); await shot(a, '10-swordfight'); for (let i = 0; i < 30; i++) { await a.keyboard.press(i % 3 ? 'ArrowLeft' : 'ArrowUp'); await a.keyboard.press('Space'); await a.waitForTimeout(150); } await shot(a, '11-swordfight-played'); break; }

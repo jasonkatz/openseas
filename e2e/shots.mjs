@@ -14,7 +14,7 @@ for (const id of Object.keys(keys)) {
   await page.waitForTimeout(800);
   for (let i = 0; i < 30; i++) { await page.keyboard.press(keys[id][i % keys[id].length]); await page.waitForTimeout(90); }
   await page.waitForTimeout(400);
-  await page.screenshot({ path: `screens/puzzle-${id}.png` });
+  await page.screenshot({ path: new URL(`../screens/puzzle-${id}.png`, import.meta.url).pathname });
 }
 console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'ok');
 await browser.close();

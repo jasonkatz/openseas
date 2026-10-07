@@ -1,0 +1,28 @@
+// Phone-width screenshots: island, deck, a puzzle.
+import { chromium } from 'playwright-core';
+const base = process.argv[2] ?? 'http://localhost:8787';
+const out = (n) => new URL(`../screens/${n}.png`, import.meta.url).pathname;
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
+const ctx = await browser.newContext({ viewport: { width: 420, height: 820 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+await ctx.addInitScript(() => { try { localStorage.setItem('tidebound.tips', JSON.stringify(['ashore','deck','sea','battle','sword'])); } catch {} });
+const page = await ctx.newPage();
+const errs = [];
+page.on('pageerror', (e) => errs.push(e.message));
+await page.goto(base);
+await page.screenshot({ path: out('m0-login') });
+await page.getByPlaceholder(/e\.g\./).fill('Mob' + Date.now().toString(36).slice(-4));
+await page.getByRole('button', { name: /Come ashore/ }).click();
+await page.waitForSelector('.topbar');
+await page.waitForTimeout(800);
+await page.screenshot({ path: out('m1-island') });
+await page.evaluate(() => window.__tb_open('dock'));
+await page.getByRole('button', { name: /^Board/ }).first().click();
+await page.waitForSelector('.station-grid');
+await page.waitForTimeout(500);
+await page.screenshot({ path: out('m2-deck') });
+await page.locator('.station', { hasText: 'Bilge' }).click();
+await page.waitForSelector('.puzzle-host');
+await page.waitForTimeout(800);
+await page.screenshot({ path: out('m3-bilging') });
+console.log(errs.length ? 'ERRORS ' + errs.join('\n') : 'ok');
+await browser.close();

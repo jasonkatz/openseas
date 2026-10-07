@@ -11,7 +11,7 @@ export function Chat() {
   const markRead = useStore((s) => s.markChatRead);
   const [channel, setChannel] = useState<'local' | 'crew' | 'global'>('local');
   const [text, setText] = useState('');
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
