@@ -171,4 +171,54 @@ describe('world', () => {
     a.send({ t: 'takeStation', station: 'sailing' });
     expect(ship.stations.sailing).toBe(a.s.pirateId);
   });
+
+  it('founds and joins crews, buys ships, and trades goods from a docked hold', () => {
+    const a = client(world, 'Marla');
+    const b = client(world, 'Finn');
+    a.send({ t: 'createCrew', name: 'Salt Dogs', motto: 'Bark at the moon' });
+    const crew = a.last('crew')!.crew!;
+    expect(crew.captainId).toBe(a.s.pirateId);
+    b.send({ t: 'listCrews' });
+    expect(b.last('crews')!.crews.length).toBe(1);
+    b.send({ t: 'joinCrew', crewId: crew.id });
+    expect(world.data.crews[crew.id]!.members).toContain(b.s.pirateId);
+    // Buy a sloop.
+    a.send({ t: 'buyShip', type: 'sloop', name: 'Gull Biscuit' });
+    const pa = world.data.pirates[a.s.pirateId!]!;
+    expect(pa.poe).toBe(3000 - 2500);
+    const mine = Object.values(world.data.ships).find((sh) => sh.ownerId === pa.id)!;
+    expect(mine.name).toBe('Gull Biscuit');
+    expect(mine.crewId).toBe(crew.id);
+    // Can't afford a frigate.
+    a.send({ t: 'buyShip', type: 'frigate', name: 'Dream' });
+    expect(a.last('toast')!.text).toMatch(/need/);
+    // Board own ship and trade: buy cheap rum at Saltmarrow.
+    a.send({ t: 'boardShip', shipId: mine.id });
+    a.send({ t: 'trade', commodity: 'rum', qty: 10, side: 'buy' });
+    expect(mine.hold.goods.rum).toBe(10);
+    expect(pa.poe).toBe(500 - 13 * 10);
+    a.send({ t: 'trade', commodity: 'rum', qty: 4, side: 'sell' });
+    expect(mine.hold.goods.rum).toBe(6);
+    // Crew mate can board the crew ship; a stranger cannot.
+    b.send({ t: 'boardShip', shipId: mine.id });
+    expect(mine.aboard).toContain(b.s.pirateId);
+    const c = client(world, 'Stranger');
+    c.send({ t: 'boardShip', shipId: mine.id });
+    expect(c.last('toast')!.text).toMatch(/another crew/);
+    // Leaving the crew as captain hands it to the next member.
+    a.send({ t: 'leaveShip' });
+    a.send({ t: 'leaveCrew' });
+    expect(world.data.crews[crew.id]!.captainId).toBe(b.s.pirateId);
+  });
+
+  it('repairs docked ships over time', () => {
+    const a = client(world, 'Marla');
+    const ships = (a.last('room')!.view as { ships: { id: string }[] }).ships;
+    const ship = world.data.ships[ships[0]!.id]!;
+    ship.stats.damage = 40;
+    ship.stats.bilge = 90;
+    for (let i = 0; i < 5; i++) { (world as unknown as { lastTick: number }).lastTick -= 1000; world.tick(); }
+    expect(ship.stats.damage).toBeLessThan(40);
+    expect(ship.stats.bilge).toBeLessThan(90);
+  });
 });

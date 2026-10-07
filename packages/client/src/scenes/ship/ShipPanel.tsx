@@ -46,8 +46,8 @@ export function ShipPanel({ onTakeStation }: { onTakeStation: (id: PuzzleId) => 
           {st.kind === 'sailing' && <div className="bar gold"><i style={{ width: `${Math.round(((st.index + st.progress) / st.path.length) * 100)}%` }} /></div>}
           <Stat label="Hull" v={hull} cls={hull < 0.4 ? 'red' : 'green'} hint={`${Math.round(ship.stats.damage)} damage`} />
           <Stat label="Bilge" v={ship.stats.bilge / 100} cls={ship.stats.bilge > 60 ? 'red' : ''} hint={`${Math.round(ship.stats.bilge)}% water`} />
-          <Stat label="Sails" v={ship.stats.sailPower} cls="gold" hint={ratingLabel(ship.stats.sailPower)} />
-          <Stat label="Helm" v={ship.stats.nav} cls="gold" hint={ratingLabel(ship.stats.nav)} />
+          <Stat label="Sails" v={ship.stats.sailPower} cls="gold" hint={ship.stats.sailPower < 0.02 ? 'slack' : ratingLabel(ship.stats.sailPower)} />
+          <Stat label="Helm" v={ship.stats.nav} cls="gold" hint={ship.stats.nav < 0.02 ? 'unmanned' : ratingLabel(ship.stats.nav)} />
           <div className="kv"><span className="k">Guns</span><span>{ship.stats.loaded} / {type.cannons * 2} loaded</span></div>
           <div className="kv"><span className="k">Hold</span><span>{Object.entries(ship.hold.goods).map(([k, v]) => `${v} ${k}`).join(', ') || 'empty'}</span></div>
 

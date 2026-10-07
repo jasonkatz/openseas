@@ -3,7 +3,7 @@ import type {
 } from '@tidebound/shared';
 import {
   ClientMsgSchema, HOME_ISLAND_ID, ISLANDS, ISLAND_BY_ID, PUZZLE_IDS, SHIP_TYPES, STATIONS, STATION_INFO, COMMODITIES,
-  hexPath, isOceanBlocked, islandAnchorage, randomSeed, rngFromSeed, rngNext, rngInt,
+  hexPath, isOceanBlocked, islandAnchorage, randomSeed, ratingLabel, rngFromSeed, rngNext, rngInt,
 } from '@tidebound/shared';
 import { Store } from './store';
 import { Session } from './session';
@@ -576,6 +576,14 @@ export class World {
     this.store.markDirty();
     this.pushShip(ship);
     this.systemChat('ship', ship.id, `${ship.name} makes port at ${dest.name}. ${dest.tagline}.`);
+    // Duty report: who pulled their weight this voyage.
+    const report = Object.entries(ship.duty)
+      .map(([id, perf]) => ({ name: this.data.pirates[id]?.name ?? ship.hands.find((h) => h.id === id)?.name ?? '?', perf }))
+      .sort((x, y) => y.perf - x.perf)
+      .slice(0, 5)
+      .map((r) => `${r.name} (${ratingLabel(r.perf)})`);
+    if (report.length > 0) this.systemChat('ship', ship.id, `Duty report: ${report.join(', ')}.`);
+    ship.duty = {};
     for (const o of this.piratesOnIsland(dest.id)) this.sendShips(o, this.data.pirates[o.pirateId!]!);
   }
 
@@ -648,6 +656,11 @@ export class World {
     this.lastTick = now;
 
     for (const ship of Object.values(this.data.ships)) {
+      if (ship.status.kind === 'docked') {
+        // Dockyard crews slowly patch hulls and pump bilges of anything tied up at the quay.
+        ship.stats.damage = Math.max(0, ship.stats.damage - 0.6 * dt);
+        ship.stats.bilge = Math.max(0, ship.stats.bilge - 2.5 * dt);
+      }
       if (ship.aboard.length === 0) continue;
       const type = SHIP_TYPES[ship.type];
       const atSea = ship.status.kind !== 'docked';

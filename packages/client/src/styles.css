@@ -221,7 +221,9 @@ kbd { display: inline-block; padding: 1px 6px; border-radius: 5px; border: 1px s
   .puzzle-top { height: auto; min-height: 44px; flex-wrap: wrap; row-gap: 2px; padding: 4px 8px; font-size: 13px; }
   .puzzle-top .title { font-size: 18px; }
   .puzzle-top .shipstrip { display: none; }
-  .overlay-right { top: auto; bottom: 0; right: 0; left: 0; width: 100%; max-height: 50%; border-radius: 14px 14px 0 0; gap: 0; }
+  .overlay-right { top: auto; bottom: 46px; right: 0; left: 0; width: 100%; max-height: 55%; border-radius: 14px 14px 0 0; gap: 0; }
+  .chat.collapsed .chat-input { display: none; }
+  .chat { bottom: 6px; left: 6px; width: calc(100% - 12px); }
   .overlay-right .panel { border-radius: 14px 14px 0 0; }
   .chat { width: calc(100% - 24px); z-index: 27; }
   .chat .chat-log { max-height: 110px; }

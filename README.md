@@ -6,6 +6,20 @@ drive the ship**. Built end to end in TypeScript — Vite + React + Canvas 2D on
 client, a Node WebSocket world server, and a shared package of pure, deterministic
 puzzle engines that the server replays to verify every score.
 
+## A look around
+
+| Island overworld | On deck | Sea battle |
+|---|---|---|
+| ![island](docs/screens/01-island.png) | ![deck](docs/screens/04-ship-deck.png) | ![battle](docs/screens/09-battle.png) |
+
+| Bilging | Sailing | Carpentry |
+|---|---|---|
+| ![bilging](docs/screens/puzzle-bilging.png) | ![sailing](docs/screens/puzzle-sailing.png) | ![carpentry](docs/screens/puzzle-carpentry.png) |
+
+| Gunnery | Navigation | Boarding swordfight |
+|---|---|---|
+| ![gunnery](docs/screens/puzzle-gunnery.png) | ![navigation](docs/screens/puzzle-navigation.png) | ![swordfight](docs/screens/10-swordfight.png) |
+
 ## Play
 
 ```bash

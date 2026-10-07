@@ -35,6 +35,11 @@ export function ShipScene() {
   const layout = (w: number, h: number) => {
     if (!ship) return { cx: w / 2, cy: h / 2, scale: 1 };
     const spec = deckSpec(ship.type);
+    if (w < 700) {
+      // Phone: hull centred in the upper part of the screen, above the bottom sheet.
+      const scale = Math.min(1, (h * 0.5) / (spec.length + 80), (w - 40) / (spec.width + 120));
+      return { cx: w / 2, cy: h * 0.33, scale: Math.max(0.35, scale) };
+    }
     const avail = Math.min(w - 420, w * 0.72);
     const scale = Math.min(1.1, (h - 120) / (spec.length + 120), avail / (spec.width + 160));
     return { cx: Math.max(avail / 2 + 20, (w - 380) / 2), cy: h / 2 + 10, scale: Math.max(0.5, scale) };
