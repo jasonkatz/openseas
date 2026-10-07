@@ -1,0 +1,35 @@
+{
+  "config": {
+    "width": 6,
+    "height": 12,
+    "pieceKinds": 7,
+    "specialChancePerMille": { "keg": 12, "ink": 8, "barnacle": 10 },
+    "initialWaterRow": 3,
+    "waterRisePerMoves": 6,
+    "waterDropPerPoints": 40,
+    "maxMoves": 120
+  },
+  "roundSeconds": 150,
+  "thresholds": [
+    { "score": 60, "rating": 1100 },
+    { "score": 150, "rating": 1300 },
+    { "score": 300, "rating": 1500 },
+    { "score": 500, "rating": 1700 },
+    { "score": 800, "rating": 1900 },
+    { "score": 1200, "rating": 2100 }
+  ],
+  "pieces": [
+    { "nameKey": "bilging.piece.cog", "shape": "gear", "color": "#e6b422" },
+    { "nameKey": "bilging.piece.shell", "shape": "circle", "color": "#f2f0e6" },
+    { "nameKey": "bilging.piece.anchor", "shape": "triangle", "color": "#3b82f6" },
+    { "nameKey": "bilging.piece.plank", "shape": "square", "color": "#8b5a2b" },
+    { "nameKey": "bilging.piece.pearl", "shape": "diamond", "color": "#c084fc" },
+    { "nameKey": "bilging.piece.kelp", "shape": "hexagon", "color": "#22c55e" },
+    { "nameKey": "bilging.piece.coral", "shape": "star", "color": "#f43f5e" }
+  ],
+  "specials": {
+    "keg": { "nameKey": "bilging.special.keg", "color": "#1f2937" },
+    "ink": { "nameKey": "bilging.special.ink", "color": "#312e81" },
+    "barnacle": { "nameKey": "bilging.special.barnacle", "color": "#6b7280" }
+  }
+}

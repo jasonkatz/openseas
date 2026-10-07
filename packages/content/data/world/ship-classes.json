@@ -1,0 +1,12 @@
+[
+  {
+    "id": "sloop",
+    "nameKey": "ship.sloop",
+    "stations": ["bilging", "sailing", "carpentry", "gunnery", "navigation"],
+    "maxCrew": 6,
+    "hull": 100,
+    "cannons": 4,
+    "baseTokens": 4,
+    "price": 5000
+  }
+]

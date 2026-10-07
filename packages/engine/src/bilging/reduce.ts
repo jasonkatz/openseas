@@ -1,0 +1,311 @@
+import { Hasher } from "../hash.js";
+import { seedFromString, type PrngState } from "../prng.js";
+import { colOf, findMatches, groupPoints, idx, rowOf } from "./board.js";
+import { generateBoard, spawnPiece } from "./generate.js";
+import {
+  DEFAULT_BILGING_CONFIG,
+  InvalidMoveError,
+  Special,
+  isSpecial,
+  type BilgingConfig,
+  type BilgingMove,
+  type BilgingState,
+  type ClearRound,
+  type ClearedGroup,
+  type MoveReport,
+  type Piece,
+} from "./types.js";
+
+const BARNACLE_POINTS = 15;
+
+export function createBilgingGame(seed: string, config: BilgingConfig = DEFAULT_BILGING_CONFIG): BilgingState {
+  validateConfig(config);
+  const g = generateBoard(config, seedFromString(`bilging:${seed}`));
+  return {
+    config,
+    cells: g.cells,
+    rng: g.rng,
+    nextId: g.nextId,
+    moveCount: 0,
+    score: 0,
+    waterRow: waterRowFor(config, 0, 0),
+    combo: 0,
+    bestCombo: 0,
+    lastMove: null,
+    finished: false,
+  };
+}
+
+export function validateConfig(cfg: BilgingConfig): void {
+  const ok =
+    Number.isInteger(cfg.width) &&
+    cfg.width >= 3 &&
+    Number.isInteger(cfg.height) &&
+    cfg.height >= 3 &&
+    Number.isInteger(cfg.pieceKinds) &&
+    cfg.pieceKinds >= 3 &&
+    cfg.pieceKinds <= 12 &&
+    cfg.waterRisePerMoves > 0 &&
+    cfg.waterDropPerPoints > 0 &&
+    cfg.maxMoves > 0;
+  if (!ok) throw new Error("invalid bilging config");
+}
+
+export function waterRowFor(cfg: BilgingConfig, moveCount: number, score: number): number {
+  const row =
+    cfg.initialWaterRow +
+    Math.floor(moveCount / cfg.waterRisePerMoves) -
+    Math.floor(score / cfg.waterDropPerPoints);
+  return Math.max(0, Math.min(cfg.height, row));
+}
+
+export function reduceBilging(state: BilgingState, move: BilgingMove): BilgingState {
+  if (state.finished) throw new InvalidMoveError("game is finished", move);
+  switch (move.type) {
+    case "end":
+      return { ...state, finished: true, lastMove: { move, rounds: [], points: 0 } };
+    case "swap":
+      return applySwap(state, move);
+    default: {
+      const never: never = move;
+      throw new InvalidMoveError(`unknown move ${JSON.stringify(never)}`, move);
+    }
+  }
+}
+
+/** Replay a whole move log from a seed. Throws InvalidMoveError on the first illegal move. */
+export function replayBilging(
+  seed: string,
+  moves: readonly BilgingMove[],
+  config: BilgingConfig = DEFAULT_BILGING_CONFIG,
+): BilgingState {
+  let s = createBilgingGame(seed, config);
+  for (const m of moves) s = reduceBilging(s, m);
+  return s;
+}
+
+/** Fingerprint of everything that matters for divergence detection. */
+export function hashBilgingState(state: BilgingState): string {
+  const h = new Hasher();
+  h.int(state.config.width).int(state.config.height).int(state.config.pieceKinds);
+  for (const p of state.cells) h.int(p.id).int(p.kind);
+  h.int(state.nextId).int(state.moveCount).int(state.score).int(state.waterRow).int(state.combo);
+  h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
+  h.int(state.finished ? 1 : 0);
+  return h.digest();
+}
+
+export interface SwapPreview {
+  readonly legal: boolean;
+  /** Cells that would clear immediately (before cascades). Empty for a plain swap. */
+  readonly cells: readonly number[];
+}
+
+/** What a swap would do, without advancing the game. Drives the match preview on hover or hold. */
+export function previewSwap(state: BilgingState, col: number, row: number): SwapPreview {
+  const reason = swapIllegalReason(state, col, row);
+  if (reason !== null) return { legal: false, cells: [] };
+  const cells = state.cells.slice();
+  const i = idx(state.config, col, row);
+  const j = i + 1;
+  [cells[i], cells[j]] = [cells[j]!, cells[i]!];
+  const groups = immediateClears(state.config, cells, i, j);
+  const set = new Set<number>();
+  for (const g of groups) for (const c of g.cells) set.add(c);
+  return { legal: true, cells: [...set].sort((a, b) => a - b) };
+}
+
+export function swapIllegalReason(state: BilgingState, col: number, row: number): string | null {
+  const { width, height } = state.config;
+  if (state.finished) return "game is finished";
+  if (!Number.isInteger(col) || !Number.isInteger(row)) return "non-integer coordinates";
+  if (col < 0 || col >= width - 1 || row < 0 || row >= height) return "out of bounds";
+  const a = state.cells[idx(state.config, col, row)]!;
+  const b = state.cells[idx(state.config, col + 1, row)]!;
+  if ((a.kind === Special.Barnacle || b.kind === Special.Barnacle) && row >= state.waterRow) {
+    return "barnacle above the water line";
+  }
+  return null;
+}
+
+function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap" }>): BilgingState {
+  const reason = swapIllegalReason(state, move.col, move.row);
+  if (reason !== null) throw new InvalidMoveError(reason, move);
+  const cfg = state.config;
+  const i = idx(cfg, move.col, move.row);
+  const j = i + 1;
+
+  const cells: Array<Piece | null> = state.cells.slice();
+  [cells[i], cells[j]] = [cells[j]!, cells[i]!];
+
+  let rng = state.rng;
+  let nextId = state.nextId;
+  const rounds: ClearRound[] = [];
+  let chain = 1;
+
+  let groups = immediateClears(cfg, cells, i, j);
+  const settle = (): void => {
+    while (groups.length > 0) {
+      const base = groups.reduce((sum, g) => sum + g.points, 0);
+      const points = base * groups.length * chain;
+      rounds.push({ chain, groups, points });
+      for (const g of groups) for (const c of g.cells) cells[c] = null;
+      const r = gravityAndRefill(cfg, cells, rng, nextId);
+      rng = r.rng;
+      nextId = r.nextId;
+      chain++;
+      groups = matchGroups(cfg, cells);
+    }
+  };
+  settle();
+
+  // Barnacles climb one row per move, then anything they disturbed settles as part of the chain.
+  if (climbBarnacles(cfg, cells)) {
+    groups = matchGroups(cfg, cells);
+    settle();
+  }
+
+  const points = rounds.reduce((sum, r) => sum + r.points, 0);
+  const score = state.score + points;
+  const moveCount = state.moveCount + 1;
+  const combo = points > 0 ? state.combo + 1 : 0;
+  const report: MoveReport = { move, rounds, points };
+  return {
+    config: cfg,
+    cells: cells as Piece[],
+    rng,
+    nextId,
+    moveCount,
+    score,
+    waterRow: waterRowFor(cfg, moveCount, score),
+    combo,
+    bestCombo: Math.max(state.bestCombo, combo),
+    lastMove: report,
+    finished: moveCount >= cfg.maxMoves,
+  };
+}
+
+function matchGroups(cfg: BilgingConfig, cells: ReadonlyArray<Piece | null>): ClearedGroup[] {
+  return findMatches(cfg, cells).map((g) => ({ cells: g, points: groupPoints(g.length), cause: "match" }));
+}
+
+/**
+ * Everything the swap itself clears: special-piece effects for the two swapped cells plus any
+ * ordinary runs now present on the board. Cells claimed by a special are not counted twice.
+ */
+function immediateClears(cfg: BilgingConfig, cells: ReadonlyArray<Piece | null>, i: number, j: number): ClearedGroup[] {
+  const groups: ClearedGroup[] = [];
+  const claimed = new Set<number>();
+  const claim = (set: Iterable<number>): number[] => {
+    const out: number[] = [];
+    for (const c of set) {
+      if (claimed.has(c)) continue;
+      claimed.add(c);
+      out.push(c);
+    }
+    return out.sort((a, b) => a - b);
+  };
+
+  const a = cells[i]!;
+  const b = cells[j]!;
+  const swapped: Array<[number, Piece, Piece]> = [
+    [i, a, b],
+    [j, b, a],
+  ];
+
+  // Barnacles first: the swap scrapes them off (legality was checked by the caller).
+  for (const [pos, piece] of swapped) {
+    if (piece.kind === Special.Barnacle) {
+      const c = claim([pos]);
+      if (c.length) groups.push({ cells: c, points: BARNACLE_POINTS, cause: "barnacle" });
+    }
+  }
+  // Kegs detonate in a 3x3 around where they landed.
+  for (const [pos, piece] of swapped) {
+    if (piece.kind !== Special.Keg) continue;
+    const col = colOf(cfg, pos);
+    const row = rowOf(cfg, pos);
+    const blast: number[] = [];
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        const c = col + dc;
+        const r = row + dr;
+        if (c < 0 || c >= cfg.width || r < 0 || r >= cfg.height) continue;
+        blast.push(idx(cfg, c, r));
+      }
+    }
+    const c = claim(blast);
+    if (c.length) groups.push({ cells: c, points: c.length, cause: "keg" });
+  }
+  // Ink clouds wipe every piece of the kind they were swapped with.
+  for (const [pos, piece, other] of swapped) {
+    if (piece.kind !== Special.Ink) continue;
+    const wipe: number[] = [pos];
+    if (!isSpecial(other.kind)) {
+      for (let k = 0; k < cells.length; k++) if (cells[k]?.kind === other.kind) wipe.push(k);
+    }
+    const c = claim(wipe);
+    if (c.length) groups.push({ cells: c, points: c.length * 2, cause: "ink" });
+  }
+  // Ordinary runs, minus anything a special already took.
+  for (const g of findMatches(cfg, cells)) {
+    const c = claim(g);
+    if (c.length >= 3) groups.push({ cells: c, points: groupPoints(c.length), cause: "match" });
+    else if (c.length > 0) groups.push({ cells: c, points: c.length, cause: "match" });
+  }
+  return groups;
+}
+
+/** Drop pieces into empty cells column by column and spawn new ones from the top. */
+function gravityAndRefill(
+  cfg: BilgingConfig,
+  cells: Array<Piece | null>,
+  rng: PrngState,
+  nextId: number,
+): { rng: PrngState; nextId: number } {
+  for (let c = 0; c < cfg.width; c++) {
+    let write = 0;
+    for (let r = 0; r < cfg.height; r++) {
+      const p = cells[idx(cfg, c, r)];
+      if (p !== null && p !== undefined) {
+        cells[idx(cfg, c, write)] = p;
+        write++;
+      }
+    }
+    for (let r = write; r < cfg.height; r++) {
+      const s = spawnPiece(cfg, rng, nextId);
+      rng = s.rng;
+      nextId = s.nextId;
+      cells[idx(cfg, c, r)] = s.piece;
+    }
+  }
+  return { rng, nextId };
+}
+
+/** Each barnacle swaps upward with an ordinary piece above it. Returns true if anything moved. */
+function climbBarnacles(cfg: BilgingConfig, cells: Array<Piece | null>): boolean {
+  let moved = false;
+  for (let r = cfg.height - 2; r >= 0; r--) {
+    for (let c = 0; c < cfg.width; c++) {
+      const here = idx(cfg, c, r);
+      const above = idx(cfg, c, r + 1);
+      const p = cells[here];
+      const q = cells[above];
+      if (p?.kind !== Special.Barnacle || !q || isSpecial(q.kind)) continue;
+      cells[here] = q;
+      cells[above] = p;
+      moved = true;
+    }
+  }
+  return moved;
+}
+
+export interface BilgingSummary {
+  readonly score: number;
+  readonly moves: number;
+  readonly bestCombo: number;
+}
+
+export function summarizeBilging(state: BilgingState): BilgingSummary {
+  return { score: state.score, moves: state.moveCount, bestCombo: state.bestCombo };
+}

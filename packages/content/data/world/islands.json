@@ -1,0 +1,5 @@
+[
+  { "id": "saltwick", "nameKey": "island.saltwick", "x": 0, "y": 0, "buildings": ["dock", "tavern", "notice-board"] },
+  { "id": "gullhaven", "nameKey": "island.gullhaven", "x": 8, "y": 3, "buildings": ["dock", "tavern", "notice-board"] },
+  { "id": "emberreef", "nameKey": "island.emberreef", "x": 4, "y": 9, "buildings": ["dock", "tavern", "notice-board"] }
+]

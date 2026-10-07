@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+packages/client/test-results/
+packages/client/playwright-report/
+.DS_Store

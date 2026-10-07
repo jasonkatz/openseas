@@ -69,6 +69,15 @@ the ship's bilge fills. Special pieces (equivalents of the original's crab, puff
 jellyfish, renamed) ship in v1 because they define the skill ceiling. QoL: match preview on hover
 or touch-hold, a combo meter, tap-then-tap or drag-swap on touch.
 
+As built (M1): seven ordinary piece kinds, each with its own silhouette. Specials are the Powder
+Keg (swap to clear a 3 by 3), the Ink Cloud (swap with a piece to clear every piece of that kind),
+and the Barnacle (unmatchable, climbs one row per move, scraped off by swapping it while it is
+below the water line). A connected cleared group of n pieces scores n(n-2); clearing k groups in
+one step multiplies by k; cascade step c multiplies by c. On the practice page the water line is
+a pure function of moves made and points scored, so a replay needs nothing but the move log; from
+M3 the ship injects water events into the log instead. All numbers live in
+`content/data/puzzles/bilging.json` and are tuned in playtests.
+
 **Sailing.** Falling pieces you steer and rotate into a board, clearing by forming groups and
 chaining through the board's structure. Performance feeds movement tokens per turn. QoL: ghost
 piece showing landing position, next-piece preview, swipe-to-move and tap-to-rotate on touch.
@@ -271,3 +280,7 @@ Maintained as they arise.
 | Loss consequences | Cargo and damage costs | None in v1 | No economy yet |
 | Accounts | Username and password | Guest-first with OAuth upgrade | Zero first-session friction |
 | Island | Large walkable towns | Dock, tavern, notice board | Scope |
+| Bilging specials | Crab, pufferfish, jellyfish | Barnacle, Powder Keg, Ink Cloud | Original names (ADR 0001); same roles |
+| Bilging scoring | Original's table | n(n-2) per group, times groups, times cascade step | Published formula, tuned in playtests |
+| Bilging water in practice | Driven by the ship | Driven by moves made and points scored | No ship exists until M3; keeps replays self-contained |
+| Divergent puzzle round | n/a (client-reported) | Rejected outright, unrated, logged | Engines are deterministic; any mismatch is a bug or a cheat |

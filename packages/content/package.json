@@ -1,0 +1,26 @@
+{
+  "name": "@openseas/content",
+  "version": "0.1.0",
+  "private": true,
+  "description": "World content as versioned JSON, validated at startup (ADR 0009). Plus the message table.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "echo no lint"
+  },
+  "dependencies": {
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

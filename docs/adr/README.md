@@ -17,3 +17,4 @@ that supersedes it.
 | [0009](./0009-world-content-as-files.md) | World content as versioned JSON files, not database rows |
 | [0010](./0010-single-ship-acquisition-path.md) | One ship acquisition path to make gating a config change |
 | [0011](./0011-puzzles-first-build-order.md) | Puzzles first, each on a solo practice page |
+| [0012](./0012-source-exports-tsx-runtime.md) | Workspace packages export TypeScript source; the server runs on tsx |
