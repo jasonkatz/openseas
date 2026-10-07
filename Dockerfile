@@ -13,7 +13,6 @@ FROM node:22-alpine
 WORKDIR /app
 COPY --from=build /app/packages/server/dist ./packages/server/dist
 COPY --from=build /app/packages/client/dist ./packages/client/dist
-COPY --from=build /app/node_modules/ws ./node_modules/ws
 ENV PORT=8787 NODE_ENV=production
 EXPOSE 8787
 VOLUME ["/app/data"]

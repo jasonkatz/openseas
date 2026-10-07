@@ -7,7 +7,7 @@ await build({
   format: 'esm',
   target: 'node22',
   outfile: 'dist/index.js',
-  external: ['ws'],
+  external: [],
   sourcemap: true,
   banner: { js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);" },
 });
