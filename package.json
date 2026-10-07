@@ -1,0 +1,16 @@
+{
+  "name": "tidebound",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tidebound — a modern, browser-native puzzle-pirate MMO: duty puzzles, hex sea battles, swordfights, and a living ocean.",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel --stream run dev",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "typecheck": "pnpm -r run typecheck",
+    "start": "node packages/server/dist/index.js"
+  },
+  "engines": { "node": ">=22" }
+}

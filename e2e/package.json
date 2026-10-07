@@ -1,0 +1,7 @@
+{
+  "name": "@tidebound/e2e",
+  "private": true,
+  "type": "module",
+  "scripts": { "smoke": "node smoke.mjs" },
+  "devDependencies": { "playwright-core": "^1.50.0" }
+}
