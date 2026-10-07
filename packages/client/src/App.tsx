@@ -9,6 +9,9 @@ import { PuzzleHost } from './puzzles/PuzzleHost';
 import { SwordfightScene } from './scenes/SwordfightScene';
 import { RewardModal } from './ui/RewardModal';
 import { Tips } from './ui/Tips';
+import { DuelInvite } from './ui/DuelInvite';
+import { useEffect } from 'react';
+import { setAmbientScene, startAmbient } from './lib/ambient';
 
 export function App() {
   const pirate = useStore((s) => s.pirate);
@@ -16,6 +19,16 @@ export function App() {
   const puzzle = useStore((s) => s.puzzle);
   const swordfight = useStore((s) => s.swordfight);
   const reward = useStore((s) => s.lastReward);
+  const muted = useStore((s) => s.muted);
+
+  // Sea ambience: starts on the first gesture, swells at sea, ducks under puzzles.
+  useEffect(() => {
+    const kick = () => startAmbient(useStore.getState().muted);
+    window.addEventListener('pointerdown', kick, { once: true });
+    window.addEventListener('keydown', kick, { once: true });
+    return () => { window.removeEventListener('pointerdown', kick); window.removeEventListener('keydown', kick); };
+  }, []);
+  useEffect(() => { setAmbientScene(puzzle || swordfight ? 'puzzle' : room?.kind === 'ship' ? 'ship' : 'island', muted); }, [puzzle, swordfight, room?.kind, muted]);
 
   if (!pirate) return <div className="app"><Login /><Toasts /></div>;
 
@@ -31,6 +44,7 @@ export function App() {
       <Chat />
       <Toasts />
       <Tips />
+      <DuelInvite />
     </div>
   );
 }

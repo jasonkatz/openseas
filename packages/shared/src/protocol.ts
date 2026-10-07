@@ -51,6 +51,9 @@ export const ClientMsgSchema = z.discriminatedUnion('t', [
   // Swordfight (boarding)
   z.object({ t: z.literal('sfAction'), action: z.unknown() }),
   z.object({ t: z.literal('leaderboard') }),
+  z.object({ t: z.literal('duelChallenge'), pirateId: z.string() }),
+  z.object({ t: z.literal('duelAccept'), id: z.string() }),
+  z.object({ t: z.literal('duelDecline'), id: z.string() }),
   z.object({ t: z.literal('listCrews') }),
   z.object({ t: z.literal('ping'), at: z.number() }),
 ]);
@@ -131,5 +134,7 @@ export type ServerMsg =
   | { t: 'battleEnd'; won: boolean; booty: { poe: number; goods: Partial<Record<CommodityId, number>> } | null; summary: string }
   | { t: 'swordfight'; view: SwordfightView }
   | { t: 'swordfightEnd'; wonSide: 0 | 1; yourSide: 0 | 1 }
+  | { t: 'duelInvite'; id: string; fromId: string; fromName: string }
+  | { t: 'duelCancel'; id: string }
   | { t: 'pong'; at: number; serverTime: number }
   | { t: 'leaderboard'; rows: { name: string; puzzle: PuzzleId; best: number; rating: number }[] };

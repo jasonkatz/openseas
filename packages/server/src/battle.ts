@@ -39,8 +39,11 @@ interface Fighter {
 
 interface Swordfight {
   id: string;
-  battleId: string;
-  shipId: string;
+  /** Null for tavern duels. */
+  battleId: string | null;
+  shipId: string | null;
+  /** Pirates who receive snapshots (duels). */
+  audience: string[];
   rng: Rng;
   fighters: Fighter[];
   endsAt: number;
@@ -60,6 +63,10 @@ export class BattleManager {
   battles = new Map<string, Battle>();
   byShip = new Map<string, string>();
   swordfights = new Map<string, Swordfight>();
+  /** pirate id -> swordfight id, for routing inputs. */
+  sfByPirate = new Map<string, string>();
+  /** Pending duel challenges. */
+  challenges = new Map<string, { id: string; from: string; to: string; at: number }>();
 
   constructor(private world: World) {}
 
@@ -331,8 +338,9 @@ export class BattleManager {
       fighters.push({ id: `npc${i}`, name, side: 1, npc: true, state: def.init(seed, { difficulty, durationMs: SF_DURATION }), lastAi: now, skill: 0.35 + sk * 0.4, lastSeq: 0 });
     });
     b.rng = rng;
-    const sf: Swordfight = { id: uid('f'), battleId: b.id, shipId: ship.id, rng, fighters, endsAt: now + SF_DURATION, lastTick: now, lastBroadcast: 0, over: false, winnerSide: null, sides: [ship.name, npcShip.name] };
+    const sf: Swordfight = { id: uid('f'), battleId: b.id, shipId: ship.id, audience: [], rng, fighters, endsAt: now + SF_DURATION, lastTick: now, lastBroadcast: 0, over: false, winnerSide: null, sides: [ship.name, npcShip.name] };
     this.swordfights.set(sf.id, sf);
+    for (const f of fighters) if (!f.npc) this.sfByPirate.set(f.id, sf.id);
     b.swordfightId = sf.id;
     // End any duty puzzles: everyone fights.
     for (const s of this.world.sessionsOnShip(ship.id)) {
@@ -354,14 +362,13 @@ export class BattleManager {
   }
 
   private broadcastSwordfight(sf: Swordfight): void {
-    this.world.broadcastShip(sf.shipId, { t: 'swordfight', view: this.sfView(sf) });
+    const msg = { t: 'swordfight' as const, view: this.sfView(sf) };
+    if (sf.shipId) this.world.broadcastShip(sf.shipId, msg);
+    for (const id of sf.audience) this.world.byPirate.get(id)?.send(msg);
   }
 
   sfAction(s: Session, p: Pirate, action: unknown): void {
-    const ship = this.world.shipOf(p);
-    if (!ship) return;
-    const b = this.battles.get(this.byShip.get(ship.id) ?? '');
-    const sf = b?.swordfightId ? this.swordfights.get(b.swordfightId) : undefined;
+    const sf = this.swordfights.get(this.sfByPirate.get(p.id) ?? '');
     if (!sf || sf.over) return;
     const f = sf.fighters.find((x) => x.id === p.id);
     if (!f || f.state.ko) return;
@@ -390,6 +397,75 @@ export class BattleManager {
     }
   }
 
+  // ---------------------------------------------------------------- tavern duels
+
+  challenge(s: Session, p: Pirate, targetId: string): void {
+    const target = this.world.data.pirates[targetId];
+    const ts = this.world.byPirate.get(targetId);
+    if (!target || !ts || targetId === p.id) return s.send({ t: 'toast', text: 'No such pirate about.', kind: 'bad' });
+    if (p.location.kind !== 'island' || target.location.kind !== 'island' || p.location.islandId !== target.location.islandId) return s.send({ t: 'toast', text: 'They are not on this island.', kind: 'bad' });
+    if (this.sfByPirate.has(p.id) || this.sfByPirate.has(targetId)) return s.send({ t: 'toast', text: 'Someone is already fighting.', kind: 'bad' });
+    const ch = { id: uid('d'), from: p.id, to: targetId, at: Date.now() };
+    this.challenges.set(ch.id, ch);
+    if (targetId.startsWith('bot')) {
+      // Islanders never refuse a scrap.
+      this.world.systemChat('island', p.location.islandId, `${target.name} cracks their knuckles. "${p.name}, is it? Draw."`);
+      setTimeout(() => this.accept(ts, target, ch.id), 800);
+      return;
+    }
+    ts.send({ t: 'duelInvite', id: ch.id, fromId: p.id, fromName: p.name });
+    s.send({ t: 'toast', text: `You challenge ${target.name}. Waiting for an answer…` });
+    setTimeout(() => { if (this.challenges.delete(ch.id)) { s.send({ t: 'toast', text: `${target.name} did not answer the challenge.` }); ts.send({ t: 'duelCancel', id: ch.id }); } }, 30000);
+  }
+
+  decline(s: Session, p: Pirate, id: string): void {
+    const ch = this.challenges.get(id);
+    if (!ch || ch.to !== p.id) return;
+    this.challenges.delete(id);
+    this.world.byPirate.get(ch.from)?.send({ t: 'toast', text: `${p.name} declines your challenge.` });
+  }
+
+  accept(s: Session, p: Pirate, id: string): void {
+    const ch = this.challenges.get(id);
+    if (!ch || ch.to !== p.id) return;
+    this.challenges.delete(id);
+    const from = this.world.data.pirates[ch.from];
+    const fs = this.world.byPirate.get(ch.from);
+    if (!from || !fs) return;
+    if (this.sfByPirate.has(ch.from) || this.sfByPirate.has(p.id)) return;
+    const def = getPuzzle('swordfight');
+    const now = Date.now();
+    let rng = rngFromSeed(randomSeed());
+    const mk = (pp: Pirate, side: 0 | 1): Fighter => {
+      let seed: number;
+      [rng, seed] = rngInt(rng, 0x7fffffff);
+      const npc = pp.id.startsWith('bot');
+      return { id: pp.id, name: pp.name, side, npc, state: def.init(seed, { difficulty: 0.4, durationMs: SF_DURATION }), lastAi: now, skill: npc ? 0.5 : 0, lastSeq: 0 };
+    };
+    const fighters = [mk(from, 0), mk(p, 1)];
+    const sf: Swordfight = { id: uid('f'), battleId: null, shipId: null, audience: [from.id, p.id].filter((x) => !x.startsWith('bot')), rng, fighters, endsAt: now + SF_DURATION, lastTick: now, lastBroadcast: 0, over: false, winnerSide: null, sides: [from.name, p.name] };
+    this.swordfights.set(sf.id, sf);
+    for (const f of fighters) if (!f.npc) this.sfByPirate.set(f.id, sf.id);
+    for (const sess of [fs, s]) if (sess.puzzleSessionId) this.world.puzzles.end(sess, sess.puzzleSessionId, true);
+    if (from.location.kind === 'island') this.world.systemChat('island', from.location.islandId, `Steel rings out: ${from.name} and ${p.name} duel at the tavern!`);
+    this.broadcastSwordfight(sf);
+  }
+
+  private finishDuel(sf: Swordfight, def: ReturnType<typeof getPuzzle>): void {
+    const winner = sf.fighters.find((f) => f.side === sf.winnerSide);
+    const loser = sf.fighters.find((f) => f.side !== sf.winnerSide);
+    for (const f of sf.fighters) {
+      if (f.npc) continue;
+      const p = this.world.data.pirates[f.id];
+      if (!p) continue;
+      const sc = def.score(f.state);
+      this.world.reward(p, 'swordfight', sc.points + (f.side === sf.winnerSide ? 30 : 0), sc.performance, false);
+    }
+    const w = winner ? this.world.data.pirates[winner.id] : undefined;
+    if (w && w.location.kind === 'island') this.world.systemChat('island', w.location.islandId, `${winner!.name} bests ${loser?.name ?? 'their foe'} in a duel!`);
+    this.swordfights.delete(sf.id);
+  }
+
   private tickSwordfight(sf: Swordfight, now: number): void {
     if (sf.over) return;
     const def = getPuzzle('swordfight');
@@ -416,8 +492,10 @@ export class BattleManager {
         sf.winnerSide = d(0) >= d(1) ? 0 : 1;
       }
       this.broadcastSwordfight(sf);
+      for (const f of sf.fighters) if (!f.npc) this.sfByPirate.delete(f.id);
+      if (!sf.battleId) return this.finishDuel(sf, def);
       const b = this.battles.get(sf.battleId);
-      const ship = this.world.data.ships[sf.shipId];
+      const ship = this.world.data.ships[sf.shipId ?? ''];
       if (b && ship) {
         const won = sf.winnerSide === 0;
         b.state = { ...b.state, phase: 'over', outcome: 'boarded', winnerSide: sf.winnerSide, log: [...b.state.log, won ? 'The deck is ours!' : 'We are driven back to our own deck.'] };

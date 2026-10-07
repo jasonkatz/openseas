@@ -221,4 +221,31 @@ describe('world', () => {
     expect(ship.stats.damage).toBeLessThan(40);
     expect(ship.stats.bilge).toBeLessThan(90);
   });
+
+  it('runs tavern duels between pirates and against islanders', () => {
+    world.bots.spawn(2);
+    const a = client(world, 'Marla');
+    const b = client(world, 'Finn');
+    // Human vs human: challenge, invite, accept, fight.
+    a.send({ t: 'duelChallenge', pirateId: b.s.pirateId! });
+    const inv = b.last('duelInvite')!;
+    expect(inv.fromName).toBe('Marla');
+    b.send({ t: 'duelAccept', id: inv.id });
+    const v = a.last('swordfight')!.view;
+    expect(v.players.map((p) => p.name).sort()).toEqual(['Finn', 'Marla']);
+    const sf = world.battles.swordfights.get(v.id)!;
+    a.send({ t: 'sfAction', action: { type: 'hardDrop' } });
+    for (let i = 0; i < 300 && !sf.over; i++) { sf.lastTick -= 1000; world.battles.tick(Date.now()); b.send({ t: 'sfAction', action: { type: 'hardDrop' } }); }
+    expect(sf.over).toBe(true);
+    expect(world.battles.swordfights.has(sf.id)).toBe(false);
+    expect(world.data.pirates[a.s.pirateId!]!.stats.swordfight.games).toBe(1);
+    // Human vs islander: bots accept automatically (after a short delay).
+    const bot = Object.values(world.data.pirates).find((p) => p.id.startsWith('bot'))!;
+    a.send({ t: 'duelChallenge', pirateId: bot.id });
+    expect(world.battles.challenges.size).toBe(1);
+    const ch = [...world.battles.challenges.values()][0]!;
+    world.battles.accept(world.byPirate.get(bot.id)!, bot, ch.id);
+    const v2 = a.last('swordfight')!.view;
+    expect(v2.players.some((p) => p.npc)).toBe(true);
+  });
 });

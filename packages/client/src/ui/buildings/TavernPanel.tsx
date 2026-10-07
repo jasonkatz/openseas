@@ -5,7 +5,7 @@ import { useStore } from '../../store';
 import { play } from '../../lib/audio';
 import { Tag } from './Tag';
 
-type Tab = 'crews' | 'leaderboard' | 'practice';
+type Tab = 'crews' | 'leaderboard' | 'practice' | 'duel';
 
 export function TavernPanel() {
   const [tab, setTab] = useState<Tab>('crews');
@@ -15,15 +15,16 @@ export function TavernPanel() {
   return (
     <div className="col">
       <div className="row" style={{ gap: 6 }}>
-        {(['crews', 'leaderboard', 'practice'] as Tab[]).map((t) => (
+        {(['crews', 'duel', 'leaderboard', 'practice'] as Tab[]).map((t) => (
           <button key={t} className={`btn small ${tab === t ? '' : 'ghost'}`} style={tab === t ? undefined : { color: 'var(--ink)', borderColor: '#8a6a3c' }} onClick={() => { play('tap'); setTab(t); }}>
-            {t === 'crews' ? 'Crews' : t === 'leaderboard' ? 'Leaderboard' : 'Practice'}
+            {t === 'crews' ? 'Crews' : t === 'duel' ? 'Duel' : t === 'leaderboard' ? 'Leaderboard' : 'Practice'}
           </button>
         ))}
       </div>
       {tab === 'crews' && <CrewsTab />}
       {tab === 'leaderboard' && <LeaderboardTab />}
       {tab === 'practice' && <PracticeTab />}
+      {tab === 'duel' && <DuelTab />}
     </div>
   );
 }
@@ -128,6 +129,29 @@ function PracticeTab() {
             <span className="name"><span style={{ fontSize: 20 }}>{STATION_INFO[id].icon}</span>{STATION_INFO[id].name}</span>
             <span className="who" style={{ color: '#7a6442' }}>{STATION_INFO[id].verb}{id === 'swordfight' ? ' (vs. a brigand)' : ''}</span>
           </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DuelTab() {
+  const presence = useStore((s) => s.presence);
+  const pirate = useStore((s) => s.pirate);
+  const send = useStore((s) => s.send);
+  const others = presence.filter((p) => p.id !== pirate?.id);
+  return (
+    <div className="col">
+      <h3>Duels</h3>
+      <p className="muted">Cross blades with anyone on the island — a friendly swordfight for honour and a little coin. Islanders never refuse.</p>
+      {others.length === 0 && <p className="muted">Nobody else is about. Try the practice yard.</p>}
+      <div className="list">
+        {others.map((p) => (
+          <div key={p.id} className="list-item">
+            <b>{p.name}</b>
+            <span className="muted" style={{ fontSize: 12 }}>{p.id.startsWith('bot') ? 'islander' : p.title ?? 'pirate'}{p.crewName ? ` · ${p.crewName}` : ''}</span>
+            <button className="btn small" style={{ marginLeft: 'auto' }} onClick={() => { play('sword'); send({ t: 'duelChallenge', pirateId: p.id }); }}>Challenge</button>
+          </div>
         ))}
       </div>
     </div>

@@ -32,6 +32,7 @@ export interface AppState {
   lastReward: PuzzleReward | null;
   leaderboard: { name: string; puzzle: PuzzleId; best: number; rating: number }[];
   openBuilding: BuildingKind | null;
+  duelInvite: { id: string; fromId: string; fromName: string } | null;
   muted: boolean;
   loginError: string | null;
   serverNow: () => number;
@@ -77,6 +78,7 @@ export const useStore = create<AppState>((set, get) => ({
   lastReward: null,
   leaderboard: [],
   openBuilding: null,
+  duelInvite: null,
   muted: safeGet('tidebound.muted') === '1',
   loginError: null,
   serverNow: () => net.serverNow(),
@@ -187,8 +189,10 @@ export function bindNet(): void {
       case 'puzzleReward': useStore.setState({ lastReward: { puzzle: msg.puzzle, points: msg.points, performance: msg.performance, poe: msg.poe } }); break;
       case 'battle': useStore.setState({ battle: msg.state, battleEnd: s.battle && s.battle.id !== msg.state.id ? null : s.battleEnd }); break;
       case 'battleEnd': useStore.setState({ battleEnd: { ...msg, at: Date.now() } }); break;
-      case 'swordfight': useStore.setState({ swordfight: msg.view, puzzle: s.swordfight ? s.puzzle : null, puzzlePending: null }); break;
+      case 'swordfight': useStore.setState({ swordfight: msg.view, puzzle: s.swordfight ? s.puzzle : null, puzzlePending: null, duelInvite: null, openBuilding: null }); break;
       case 'swordfightEnd': break;
+      case 'duelInvite': useStore.setState({ duelInvite: { id: msg.id, fromId: msg.fromId, fromName: msg.fromName } }); break;
+      case 'duelCancel': if (s.duelInvite?.id === msg.id) useStore.setState({ duelInvite: null }); break;
       case 'leaderboard': useStore.setState({ leaderboard: msg.rows }); break;
       case 'pong': break;
     }

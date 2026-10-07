@@ -86,7 +86,17 @@ export class World {
     const res = ClientMsgSchema.safeParse(parsed);
     if (!res.success) return s.send({ t: 'error', msg: 'bad message: ' + res.error.issues.map((i) => i.path.join('.') + ' ' + i.message).join('; ') });
     const msg = res.data;
-    s.lastSeen = Date.now();
+    const now = Date.now();
+    s.lastSeen = now;
+    // Token bucket: 30 messages/s sustained, burst of 60. Chat is additionally throttled.
+    s.bucket = Math.min(60, s.bucket + ((now - s.bucketAt) / 1000) * 30);
+    s.bucketAt = now;
+    if (s.bucket < 1) return;
+    s.bucket -= 1;
+    if (msg.t === 'chat') {
+      if (now - s.lastChatAt < 350) return s.send({ t: 'toast', text: 'Easy there — one line at a time.', kind: 'bad' });
+      s.lastChatAt = now;
+    }
     if (msg.t === 'login') return this.login(s, msg);
     if (msg.t === 'ping') return s.send({ t: 'pong', at: msg.at, serverTime: Date.now() });
     const p = s.pirateId ? this.data.pirates[s.pirateId] : undefined;
@@ -126,6 +136,9 @@ export class World {
       case 'battleOrders': return this.battles.orders(s, p, msg);
       case 'battleReady': return this.battles.ready(s, p);
       case 'sfAction': return this.battles.sfAction(s, p, msg.action);
+      case 'duelChallenge': return this.battles.challenge(s, p, msg.pirateId);
+      case 'duelAccept': return this.battles.accept(s, p, msg.id);
+      case 'duelDecline': return this.battles.decline(s, p, msg.id);
       case 'leaderboard': return this.sendLeaderboard(s);
       default: return;
     }

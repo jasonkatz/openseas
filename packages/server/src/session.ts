@@ -10,6 +10,9 @@ export class Session {
   /** Active puzzle session id. */
   puzzleSessionId: string | null = null;
   alive = true;
+  bucket = 60;
+  bucketAt = Date.now();
+  lastChatAt = 0;
 
   constructor(public readonly id: string, public readonly ws: WebSocket) {}
 
