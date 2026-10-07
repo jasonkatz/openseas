@@ -11,6 +11,7 @@ import { token as makeToken, uid } from './ids';
 import { PuzzleManager } from './puzzles';
 import { BattleManager } from './battle';
 import { deckhandName } from './names';
+import { Bots } from './bots';
 
 const START_POE = 3000;
 const HAND_COST = 150;
@@ -22,6 +23,7 @@ export class World {
   byPirate = new Map<string, Session>();           // pirate id -> session
   puzzles: PuzzleManager;
   battles: BattleManager;
+  bots: Bots;
   private lastPresence = 0;
   private lastTick = Date.now();
   /** Per-station latest performance per ship (not persisted). */
@@ -31,6 +33,7 @@ export class World {
     this.store = new Store(dataPath);
     this.puzzles = new PuzzleManager(this);
     this.battles = new BattleManager(this);
+    this.bots = new Bots(this);
     this.ensureNavyShips();
     // Reset transient state from a previous run: everyone starts ashore.
     for (const p of Object.values(this.store.data.pirates)) {
@@ -165,10 +168,14 @@ export class World {
   }
 
   private createPirate(name: string, avatar?: Avatar): Pirate {
+    return this.makePirate(name, avatar, 'p');
+  }
+
+  makePirate(name: string, avatar: Avatar | undefined, prefix: string): Pirate {
     const stats = {} as Pirate['stats'];
     for (const id of PUZZLE_IDS) stats[id] = { games: 0, best: 0, rating: 0 };
     const p: Pirate = {
-      id: uid('p'),
+      id: uid(prefix),
       name,
       avatar: avatar ?? randomAvatar(),
       poe: START_POE,
@@ -281,6 +288,7 @@ export class World {
   sendLeaderboard(s: Session): void {
     const rows: { name: string; puzzle: PuzzleId; best: number; rating: number }[] = [];
     for (const p of Object.values(this.data.pirates)) {
+      if (p.id.startsWith('bot')) continue;
       for (const id of PUZZLE_IDS) {
         const st = p.stats[id];
         if (st && st.games > 0) rows.push({ name: p.name, puzzle: id, best: st.best, rating: st.rating });
@@ -689,6 +697,7 @@ export class World {
     }
 
     this.battles.tick(now);
+    this.bots.tick(now, dt);
 
     // Presence broadcast.
     if (now - this.lastPresence >= PRESENCE_MS) {

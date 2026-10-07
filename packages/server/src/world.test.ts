@@ -76,7 +76,7 @@ describe('world', () => {
     for (let i = 0; i < 2000 && ship.status.kind === 'sailing'; i++) {
       if (ship.status.kind === 'sailing') ship.status.progress += 1;
       world.tick();
-      if (ship.status.kind === 'battle') {
+      if ((ship.status as { kind: string }).kind === 'battle') {
         // abandon the battle quickly for this test
         world.battles.abandon(ship.id);
         ship.status = { kind: 'sailing', from: 'saltmarrow', to: 'gullrock', path, index: Math.min(path.length - 1, i), progress: 0 };

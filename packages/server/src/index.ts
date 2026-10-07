@@ -16,6 +16,7 @@ const MIME: Record<string, string> = {
 };
 
 const world = new World(DATA_PATH);
+world.bots.spawn(Number(process.env.TIDEBOUND_BOTS ?? 8));
 
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://x');

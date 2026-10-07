@@ -8,6 +8,7 @@ import { ShipScene } from './scenes/ShipScene';
 import { PuzzleHost } from './puzzles/PuzzleHost';
 import { SwordfightScene } from './scenes/SwordfightScene';
 import { RewardModal } from './ui/RewardModal';
+import { Tips } from './ui/Tips';
 
 export function App() {
   const pirate = useStore((s) => s.pirate);
@@ -29,6 +30,7 @@ export function App() {
       {reward && <RewardModal reward={reward} />}
       <Chat />
       <Toasts />
+      <Tips />
     </div>
   );
 }
