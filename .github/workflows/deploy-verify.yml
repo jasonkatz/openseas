@@ -1,0 +1,70 @@
+name: Deploy verify
+
+# Runs after CI succeeds on main. Railway and Vercel deploy main on their own (see docs/DEPLOY.md);
+# this job waits for both to serve the merged commit so a merge is known to be usable, not just green.
+# Skips targets whose inputs did not change, mirroring vercel.json ignoreCommand and railway.json
+# watchPatterns. Needs repository variables PRODUCTION_SERVER_URL and PRODUCTION_CLIENT_URL;
+# until they are set it only prints a notice.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy-verify-main
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Production serves the merged commit
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha }}
+      SERVER_URL: ${{ vars.PRODUCTION_SERVER_URL }}
+      CLIENT_URL: ${{ vars.PRODUCTION_CLIENT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+
+      - name: Decide which targets this commit redeploys
+        id: changed
+        run: |
+          # Same path lists as vercel.json ignoreCommand and railway.json watchPatterns.
+          if git diff --quiet HEAD^ HEAD -- packages/server packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json railway.json; then
+            echo "server=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "server=true" >> "$GITHUB_OUTPUT"
+          fi
+          if git diff --quiet HEAD^ HEAD -- packages/client packages/engine packages/protocol packages/content pnpm-lock.yaml vercel.json; then
+            echo "client=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "client=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait for the server (Railway) to report this commit
+        if: steps.changed.outputs.server == 'true'
+        run: |
+          if [ -z "$SERVER_URL" ]; then
+            echo "::notice::PRODUCTION_SERVER_URL is not set; skipping the server check. See docs/DEPLOY.md."
+            exit 0
+          fi
+          .github/scripts/wait-for-commit.sh "$SERVER_URL/health" "$SHA" 1200
+
+      - name: Wait for the client (Vercel) to report this commit
+        if: steps.changed.outputs.client == 'true'
+        run: |
+          if [ -z "$CLIENT_URL" ]; then
+            echo "::notice::PRODUCTION_CLIENT_URL is not set; skipping the client check. See docs/DEPLOY.md."
+            exit 0
+          fi
+          .github/scripts/wait-for-commit.sh "$CLIENT_URL/version.json" "$SHA" 1200
+
+      - name: Nothing to deploy
+        if: steps.changed.outputs.server == 'false' && steps.changed.outputs.client == 'false'
+        run: echo "::notice::This commit touches neither the server nor the client; nothing was redeployed."

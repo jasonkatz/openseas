@@ -23,14 +23,18 @@ const EnvSchema = z.object({
   DISCORD_CLIENT_SECRET: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  // Set by Railway (RAILWAY_GIT_COMMIT_SHA) or by hand (GIT_COMMIT_SHA). Reported by /health so a
+  // post-merge check can tell which commit is live. Empty locally.
+  RAILWAY_GIT_COMMIT_SHA: z.string().optional(),
+  GIT_COMMIT_SHA: z.string().optional(),
 });
 
-export type Env = z.infer<typeof EnvSchema>;
+export type Env = z.infer<typeof EnvSchema> & { COMMIT_SHA: string | null };
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const r = EnvSchema.safeParse(source);
   if (!r.success) {
     throw new Error(`invalid environment:\n${z.prettifyError(r.error)}`);
   }
-  return r.data;
+  return { ...r.data, COMMIT_SHA: r.data.GIT_COMMIT_SHA || r.data.RAILWAY_GIT_COMMIT_SHA || null };
 }

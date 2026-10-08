@@ -53,6 +53,6 @@ migration. Migrations run automatically when the server starts.
 
 ## Deploy
 
-Server and Postgres on Railway from `main` (`railway.json`); set the variables in `.env.example`
-with `CROSS_SITE_COOKIES=true` and `CLIENT_ORIGINS` set to the Vercel URL. Client on Vercel from
-`main` (`vercel.json`) with `VITE_SERVER_URL` set to the Railway URL.
+Merging to `main` deploys. Railway builds the server, Vercel builds the client, and the
+**Deploy verify** workflow confirms both serve the merged commit. One-time setup, variables, and
+rollback are in [docs/DEPLOY.md](docs/DEPLOY.md).
