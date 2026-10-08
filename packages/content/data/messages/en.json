@@ -6,7 +6,6 @@
   "app.connecting": "Rowing out to the ship...",
   "app.connected": "Aboard.",
   "app.footer": "Placeholder art. Puzzle mechanics are the point right now.",
-
   "home.welcome": "Welcome aboard, {name}.",
   "home.guest_hint": "You're a guest. Your pirate lives in this browser until you link an account.",
   "home.practice_heading": "Practice",
@@ -24,7 +23,6 @@
   "home.invite_placeholder": "Ask the quartermaster",
   "home.create_button": "Sign the articles",
   "home.creating": "Signing...",
-
   "error.unauthenticated": "You're not signed in.",
   "error.no_pirate": "No pirate on this account yet.",
   "error.invite_required": "An invite code is needed during the alpha.",
@@ -36,12 +34,11 @@
   "error.rate_limited": "Slow down, sailor.",
   "error.internal": "Something broke below decks.",
   "error.network": "Lost the connection.",
-
   "bilging.title": "Bilging",
   "bilging.start": "Start pumping",
   "bilging.restart": "Pump again",
   "bilging.unrated_start": "Practice unrated",
-  "bilging.how_to": "Tap a piece, then tap its neighbor to swap. Line up three or more to clear them. Keep the water down.",
+  "bilging.how_to": "Tap a tile, then tap its neighbor to swap. Line up three or more of a color to clear them. Tiles float up from the bilge to fill the gap. Keep the water down.",
   "bilging.how_to_keyboard": "Arrows move the cursor, space or enter swaps with the piece to the right.",
   "bilging.score": "Score",
   "bilging.moves": "Moves",
@@ -74,13 +71,12 @@
   "bilging.special.ink": "Ink Cloud",
   "bilging.special.ink_help": "Swap it with a piece to wipe every piece of that kind.",
   "bilging.special.barnacle": "Barnacle",
-  "bilging.special.barnacle_help": "Climbs every move. Scrape it off by swapping it while it's underwater.",
+  "bilging.special.barnacle_help": "Can't be matched. It rides up with the board and comes off on its own once it's above the water line.",
   "bilging.reject.divergence": "your board and the ship's board disagreed",
   "bilging.reject.illegal_move": "an illegal move was sent",
   "bilging.reject.bad_sequence": "moves arrived out of order",
   "bilging.reject.deadline": "the round ran out of time",
   "bilging.reject.too_many_moves": "too many moves were sent",
-
   "tier.greenhorn": "Greenhorn",
   "tier.seaworthy": "Seaworthy",
   "tier.steady": "Steady",
@@ -88,15 +84,17 @@
   "tier.expert": "Expert",
   "tier.elite": "Elite",
   "tier.legend": "Legend",
-
   "island.saltwick": "Saltwick",
   "island.gullhaven": "Gullhaven",
   "island.emberreef": "Ember Reef",
-
   "brigand.cutpurse": "Cutpurse",
   "brigand.marauder": "Marauder",
   "brigand.reaver": "Reaver",
-
   "ship.sloop": "Sloop",
-  "ship.default_name": "The {adjective} {noun}"
+  "ship.default_name": "The {adjective} {noun}",
+  "bilging.setting_marks": "Mark tiles with symbols",
+  "bilging.setting_marks_hint": "For telling colors apart.",
+  "bilging.special.keg_label": "KEG",
+  "bilging.special.ink_label": "INK",
+  "bilging.special.barnacle_label": "RISE"
 }

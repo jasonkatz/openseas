@@ -100,11 +100,14 @@ function crossCheck(world: World, bilgingContent: BilgingContent, tiers: RatingT
   if (bilgingContent.pieces.length < bilgingContent.config.pieceKinds) {
     problems.push(`puzzles/bilging: ${bilgingContent.config.pieceKinds} kinds but only ${bilgingContent.pieces.length} piece definitions`);
   }
-  const shapes = new Set<string>();
+  const marks = new Set<string>();
+  const colors = new Set<string>();
   for (const p of bilgingContent.pieces) {
     need(p.nameKey, "bilging piece");
-    if (shapes.has(p.shape)) problems.push(`puzzles/bilging: shape "${p.shape}" used twice; every kind must differ by shape (rule 6)`);
-    shapes.add(p.shape);
+    if (marks.has(p.mark)) problems.push(`puzzles/bilging: mark "${p.mark}" used twice; every kind must differ by mark (rule 6)`);
+    if (colors.has(p.color)) problems.push(`puzzles/bilging: color "${p.color}" used twice`);
+    marks.add(p.mark);
+    colors.add(p.color);
   }
   for (const s of Object.values(bilgingContent.specials)) need(s.nameKey, "bilging special");
   for (let i = 1; i < bilgingContent.thresholds.length; i++) {

@@ -91,9 +91,13 @@ export const BilgingContentSchema = z.object({
   roundSeconds: z.int().min(10).max(1800),
   /** Performance thresholds the round is rated against (DESIGN.md 3.6). Calibrated from testers. */
   thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
-  /** Message keys and shape names for each ordinary piece kind, index = kind. Rule 6. */
+  /**
+   * Each ordinary piece kind, index = kind. Tiles are colored squares; `mark` names the symbol
+   * drawn inside the tile when the player turns marks on, so kinds stay distinguishable without
+   * color (rule 6).
+   */
   pieces: z
-    .array(z.object({ nameKey: MessageKey, shape: z.string(), color: z.string().regex(/^#[0-9a-f]{6}$/) }))
+    .array(z.object({ nameKey: MessageKey, mark: z.string(), color: z.string().regex(/^#[0-9a-f]{6}$/) }))
     .min(3),
   specials: z.object({
     keg: z.object({ nameKey: MessageKey, color: z.string() }),

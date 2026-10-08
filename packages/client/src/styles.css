@@ -530,8 +530,20 @@ a {
   color: var(--brass);
 }
 
+.legend .toggle {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+  cursor: pointer;
+}
+.legend .toggle input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--brass);
+}
 @media (max-width: 420px) {
-  .legend {
+  .legend .kinds {
     display: none;
   }
 }

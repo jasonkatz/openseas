@@ -64,15 +64,16 @@ Each puzzle below lists its faithful core and the quality-of-life additions agre
 puzzle has undo.
 
 **Bilging.** A 6 wide by 12 tall board of pieces. Swap two horizontally adjacent pieces. Matches of
-3 or more clear; pieces above fall. Combos and multi-clears score higher. The water line rises as
+3 or more clear; the pieces below float up and new pieces enter from the bottom. Combos and
+multi-clears score higher. The water line rises as
 the ship's bilge fills. Special pieces (equivalents of the original's crab, pufferfish, and
 jellyfish, renamed) ship in v1 because they define the skill ceiling. QoL: match preview on hover
 or touch-hold, a combo meter, tap-then-tap or drag-swap on touch.
 
-As built (M1): seven ordinary piece kinds, each with its own silhouette. Specials are the Powder
+As built (M1): seven ordinary piece kinds, colored squares, each with its own optional mark. Specials are the Powder
 Keg (swap to clear a 3 by 3), the Ink Cloud (swap with a piece to clear every piece of that kind),
-and the Barnacle (unmatchable, climbs one row per move, scraped off by swapping it while it is
-below the water line). A connected cleared group of n pieces scores n(n-2); clearing k groups in
+and the Barnacle (unmatchable; it rides up with the board and comes off by itself, for a bonus,
+once it is at or above the water line). A connected cleared group of n pieces scores n(n-2); clearing k groups in
 one step multiplies by k; cascade step c multiplies by c. On the practice page the water line is
 a pure function of moves made and points scored, so a replay needs nothing but the move log; from
 M3 the ship injects water events into the log instead. All numbers live in
@@ -170,8 +171,9 @@ owned ships. No inventory, clothing, or housing in v1.
 
 - Browser only, no install. Phones are first-class.
 - Portrait for all duty puzzles. Landscape for Sea Battle and the island.
-- Every piece type is distinguishable by shape as well as color. Keyboard play for all puzzles
-  on desktop. Screen-reader support for puzzle boards is out of scope.
+- Puzzle tiles are plain colored squares for legibility. Every piece type is also
+  distinguishable without color: a player setting draws a distinct mark on each kind, and special
+  tiles carry an icon and a label. Keyboard play for all puzzles on desktop. Screen-reader support for puzzle boards is out of scope.
 - English only. All player-facing strings go through one message table.
 - No music in v1. Minimal synthesized sound effects via WebAudio, replaced during the art pass.
 
@@ -281,6 +283,7 @@ Maintained as they arise.
 | Accounts | Username and password | Guest-first with OAuth upgrade | Zero first-session friction |
 | Island | Large walkable towns | Dock, tavern, notice board | Scope |
 | Bilging specials | Crab, pufferfish, jellyfish | Barnacle, Powder Keg, Ink Cloud | Original names (ADR 0001); same roles |
+| Tile art | Illustrated pieces | Colored squares, specials with icon and label, optional marks | Owner wants clarity first; marks keep it playable without color |
 | Bilging scoring | Original's table | n(n-2) per group, times groups, times cascade step | Published formula, tuned in playtests |
 | Bilging water in practice | Driven by the ship | Driven by moves made and points scored | No ship exists until M3; keeps replays self-contained |
 | Divergent puzzle round | n/a (client-reported) | Rejected outright, unrated, logged | Engines are deterministic; any mismatch is a bug or a cheat |

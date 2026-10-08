@@ -1,10 +1,10 @@
 /**
  * Bilging: a 6 wide by 12 tall board of pieces. Swap two horizontally adjacent pieces; runs of 3
- * or more clear; pieces above fall and refill from the top. Cascades chain. Water rises as the
- * bilge fills and drops as you clear.
+ * or more clear; the pieces below float up and new pieces enter from the bottom. Cascades chain.
+ * Water rises as the bilge fills and drops as you clear.
  *
  * Coordinates: `col` runs 0..width-1 left to right, `row` runs 0..height-1 BOTTOM to top.
- * Gravity pulls toward row 0. Renderers flip for display.
+ * Pieces rise toward row height-1. Renderers flip for display.
  */
 
 export const BILGING_WIDTH = 6;
@@ -17,8 +17,8 @@ export const SPECIAL_BASE = 100;
  * Special pieces. Original names for the three special-piece roles every Bilging player knows.
  * - Powder Keg: swap it and it detonates, clearing the 3x3 area around where it lands.
  * - Ink Cloud: swap it with an ordinary piece and every piece of that kind on the board clears.
- * - Barnacle: cannot be matched. Climbs one row per move. Scrape it off by swapping it while it is
- *   below the water line; above the water line it will not budge.
+ * - Barnacle: cannot be matched. It rides up with the board as pieces below it clear and comes
+ *   off by itself, for a bonus, once it is at or above the water line.
  */
 export const Special = {
   Keg: SPECIAL_BASE + 0,

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { BilgingState, MoveReport } from "@openseas/engine";
-import { content } from "../content.js";
+import { content, t } from "../content.js";
 import { BilgingRenderer } from "./renderer.js";
 
 export interface BoardProps {
@@ -9,6 +9,7 @@ export interface BoardProps {
   /** Monotonic counter so the same state object can be re-applied after a reset. */
   version: number;
   interactive: boolean;
+  showMarks: boolean;
   onSwap(col: number, row: number): void;
   preview(col: number, row: number): readonly number[];
   onFrame(): void;
@@ -29,6 +30,13 @@ export function BilgingBoard(props: BoardProps) {
       onHover: (c, row) => r.setPreview(latest.current.preview(c, row)),
       onHoverEnd: () => r.setPreview([]),
       onFrame: () => latest.current.onFrame(),
+    }, {
+      showMarks: props.showMarks,
+      labels: {
+        keg: t("bilging.special.keg_label"),
+        ink: t("bilging.special.ink_label"),
+        barnacle: t("bilging.special.barnacle_label"),
+      },
     });
     renderer.current = r;
     let alive = true;
@@ -60,6 +68,10 @@ export function BilgingBoard(props: BoardProps) {
     const r = renderer.current;
     if (r && r.app.renderer) r.setInteractive(props.interactive);
   }, [props.interactive]);
+
+  useEffect(() => {
+    renderer.current?.setShowMarks(props.showMarks);
+  }, [props.showMarks]);
 
   return <div ref={host} className="board-host" data-testid="bilging-board" />;
 }

@@ -122,9 +122,8 @@ export function swapIllegalReason(state: BilgingState, col: number, row: number)
   if (col < 0 || col >= width - 1 || row < 0 || row >= height) return "out of bounds";
   const a = state.cells[idx(state.config, col, row)]!;
   const b = state.cells[idx(state.config, col + 1, row)]!;
-  if ((a.kind === Special.Barnacle || b.kind === Special.Barnacle) && row >= state.waterRow) {
-    return "barnacle above the water line";
-  }
+  void a;
+  void b;
   return null;
 }
 
@@ -143,6 +142,7 @@ function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap
   const rounds: ClearRound[] = [];
   let chain = 1;
 
+  const moveCount = state.moveCount + 1;
   let groups = immediateClears(cfg, cells, i, j);
   const settle = (): void => {
     while (groups.length > 0) {
@@ -150,7 +150,7 @@ function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap
       const points = base * groups.length * chain;
       rounds.push({ chain, groups, points });
       for (const g of groups) for (const c of g.cells) cells[c] = null;
-      const r = gravityAndRefill(cfg, cells, rng, nextId);
+      const r = riseAndRefill(cfg, cells, rng, nextId);
       rng = r.rng;
       nextId = r.nextId;
       chain++;
@@ -159,15 +159,13 @@ function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap
   };
   settle();
 
-  // Barnacles climb one row per move, then anything they disturbed settles as part of the chain.
-  if (climbBarnacles(cfg, cells)) {
-    groups = matchGroups(cfg, cells);
-    settle();
-  }
+  // Barnacles that the board has lifted above the water line come off, and the board settles again.
+  const pointsSoFar = rounds.reduce((sum, r) => sum + r.points, 0);
+  groups = surfacedBarnacles(cfg, cells, waterRowFor(cfg, moveCount, state.score + pointsSoFar));
+  settle();
 
   const points = rounds.reduce((sum, r) => sum + r.points, 0);
   const score = state.score + points;
-  const moveCount = state.moveCount + 1;
   const combo = points > 0 ? state.combo + 1 : 0;
   const report: MoveReport = { move, rounds, points };
   return {
@@ -213,13 +211,6 @@ function immediateClears(cfg: BilgingConfig, cells: ReadonlyArray<Piece | null>,
     [j, b, a],
   ];
 
-  // Barnacles first: the swap scrapes them off (legality was checked by the caller).
-  for (const [pos, piece] of swapped) {
-    if (piece.kind === Special.Barnacle) {
-      const c = claim([pos]);
-      if (c.length) groups.push({ cells: c, points: BARNACLE_POINTS, cause: "barnacle" });
-    }
-  }
   // Kegs detonate in a 3x3 around where they landed.
   for (const [pos, piece] of swapped) {
     if (piece.kind !== Special.Keg) continue;
@@ -256,23 +247,26 @@ function immediateClears(cfg: BilgingConfig, cells: ReadonlyArray<Piece | null>,
   return groups;
 }
 
-/** Drop pieces into empty cells column by column and spawn new ones from the top. */
-function gravityAndRefill(
+/**
+ * The bilge fills from below: pieces float up into empty cells column by column and new pieces
+ * enter from the bottom, out of the water.
+ */
+function riseAndRefill(
   cfg: BilgingConfig,
   cells: Array<Piece | null>,
   rng: PrngState,
   nextId: number,
 ): { rng: PrngState; nextId: number } {
   for (let c = 0; c < cfg.width; c++) {
-    let write = 0;
-    for (let r = 0; r < cfg.height; r++) {
+    let write = cfg.height - 1;
+    for (let r = cfg.height - 1; r >= 0; r--) {
       const p = cells[idx(cfg, c, r)];
       if (p !== null && p !== undefined) {
         cells[idx(cfg, c, write)] = p;
-        write++;
+        write--;
       }
     }
-    for (let r = write; r < cfg.height; r++) {
+    for (let r = write; r >= 0; r--) {
       const s = spawnPiece(cfg, rng, nextId);
       rng = s.rng;
       nextId = s.nextId;
@@ -282,22 +276,15 @@ function gravityAndRefill(
   return { rng, nextId };
 }
 
-/** Each barnacle swaps upward with an ordinary piece above it. Returns true if anything moved. */
-function climbBarnacles(cfg: BilgingConfig, cells: Array<Piece | null>): boolean {
-  let moved = false;
-  for (let r = cfg.height - 2; r >= 0; r--) {
-    for (let c = 0; c < cfg.width; c++) {
-      const here = idx(cfg, c, r);
-      const above = idx(cfg, c, r + 1);
-      const p = cells[here];
-      const q = cells[above];
-      if (p?.kind !== Special.Barnacle || !q || isSpecial(q.kind)) continue;
-      cells[here] = q;
-      cells[above] = p;
-      moved = true;
+/** Barnacles at or above the water line come off the hull. One group per barnacle. */
+function surfacedBarnacles(cfg: BilgingConfig, cells: ReadonlyArray<Piece | null>, waterRow: number): ClearedGroup[] {
+  const groups: ClearedGroup[] = [];
+  for (let i = 0; i < cells.length; i++) {
+    if (cells[i]?.kind === Special.Barnacle && rowOf(cfg, i) >= waterRow) {
+      groups.push({ cells: [i], points: BARNACLE_POINTS, cause: "barnacle" });
     }
   }
-  return moved;
+  return groups;
 }
 
 export interface BilgingSummary {

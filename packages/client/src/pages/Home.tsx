@@ -97,9 +97,10 @@ export function Home() {
               <span className="tile-glyph" aria-hidden="true">
                 <svg viewBox="0 0 64 64" width="56" height="56">
                   <path d="M6 40 Q 16 30 26 40 T 46 40 T 66 40 V 64 H 0 Z" fill="#1a7f8a" opacity=".8" />
-                  <rect x="18" y="10" width="12" height="12" rx="2" fill="#e6b422" />
-                  <circle cx="40" cy="16" r="6" fill="#f2f0e6" />
-                  <polygon points="24,26 36,26 30,38" fill="#3b82f6" />
+                  <rect x="14" y="8" width="14" height="14" rx="3" fill="#f5d021" />
+                  <rect x="32" y="8" width="14" height="14" rx="3" fill="#f2f0e6" />
+                  <rect x="14" y="26" width="14" height="14" rx="3" fill="#3fa7f5" />
+                  <rect x="32" y="26" width="14" height="14" rx="3" fill="#e5355a" />
                 </svg>
               </span>
               <span className="tile-title">{t("home.practice_bilging")}</span>

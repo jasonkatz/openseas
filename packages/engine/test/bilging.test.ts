@@ -239,28 +239,40 @@ describe("bilging rules", () => {
     expect(ink.cells.length).toBe(count + 1);
   });
 
-  it("a barnacle above the water line cannot be swapped, below it is scraped off", () => {
+  it("a barnacle can be swapped like any piece and never matches", () => {
     const base = handBoard(Array.from({ length: 12 }, (_, r) => (r % 2 ? "120453" : "012345")));
-    const high = withCells(base, { [idx(cfg, 0, 8)]: Special.Barnacle });
-    expect(high.waterRow).toBeLessThan(8);
-    expect(swapIllegalReason(high, 0, 8)).toMatch(/barnacle/);
-    expect(() => reduceBilging(high, { type: "swap", col: 0, row: 8 })).toThrow(InvalidMoveError);
-    expect(previewSwap(high, 0, 8).legal).toBe(false);
-
-    const low = withCells(base, { [idx(cfg, 0, 0)]: Special.Barnacle });
-    expect(low.waterRow).toBeGreaterThan(0);
-    const after = reduceBilging(low, { type: "swap", col: 0, row: 0 });
-    const g = after.lastMove!.rounds[0]!.groups.find((x) => x.cause === "barnacle")!;
-    expect(g.cells).toEqual([idx(cfg, 1, 0)]);
-    expect(after.cells.filter((p) => p.kind === Special.Barnacle).length).toBe(0);
+    const s = withCells(base, { [idx(cfg, 0, 0)]: Special.Barnacle, [idx(cfg, 2, 0)]: Special.Barnacle, [idx(cfg, 3, 0)]: Special.Barnacle });
+    expect(swapIllegalReason(s, 0, 0)).toBeNull();
+    expect(findMatches(cfg, s.cells)).toEqual([]);
+    const after = reduceBilging(s, { type: "swap", col: 0, row: 0 });
+    expect(after.lastMove?.points).toBe(0);
+    expect(after.cells[idx(cfg, 1, 0)]!.kind).toBe(Special.Barnacle);
   });
 
-  it("barnacles climb one row per move through ordinary pieces", () => {
+  it("a barnacle comes off once it is at or above the water line", () => {
     const base = handBoard(Array.from({ length: 12 }, (_, r) => (r % 2 ? "120453" : "012345")));
-    const s = withCells(base, { [idx(cfg, 5, 4)]: Special.Barnacle });
+    // Under water (row 1 < waterRow 3): stays. Above (row 8): clears at the end of the move.
+    const s = withCells(base, { [idx(cfg, 5, 1)]: Special.Barnacle, [idx(cfg, 5, 8)]: Special.Barnacle });
+    expect(s.waterRow).toBe(3);
     const after = reduceBilging(s, { type: "swap", col: 0, row: 11 });
-    expect(after.cells[idx(cfg, 5, 5)]!.kind).toBe(Special.Barnacle);
-    expect(after.cells[idx(cfg, 5, 4)]!.kind).toBe(s.cells[idx(cfg, 5, 5)]!.kind);
+    const g = after.lastMove!.rounds.flatMap((r) => r.groups).filter((x) => x.cause === "barnacle");
+    expect(g.map((x) => x.cells)).toEqual([[idx(cfg, 5, 8)]]);
+    expect(after.cells.filter((p) => p.kind === Special.Barnacle).length).toBe(1);
+    expect(after.score).toBe(15);
+  });
+
+  it("pieces rise: clearing lifts what is below and new pieces enter from the bottom", () => {
+    const base = handBoard(Array.from({ length: 12 }, (_, r) => (r % 2 ? "120453" : "012345")));
+    // Build a horizontal three on the top row (row 11) at cols 0..2 after swapping cols 2,3.
+    const s = withCells(base, { [idx(cfg, 0, 11)]: 7, [idx(cfg, 1, 11)]: 7, [idx(cfg, 2, 11)]: 2, [idx(cfg, 3, 11)]: 7, [idx(cfg, 3, 10)]: 9 });
+    expect(findMatches(cfg, s.cells)).toEqual([]);
+    const below = [0, 1, 2].map((c) => s.cells[idx(cfg, c, 10)]!.id);
+    const maxId = Math.max(...s.cells.map((p) => p.id));
+    const after = reduceBilging(s, { type: "swap", col: 2, row: 11 });
+    expect(after.lastMove!.rounds[0]!.groups[0]!.cells).toEqual([idx(cfg, 0, 11), idx(cfg, 1, 11), idx(cfg, 2, 11)]);
+    // What was in row 10 is now in row 11, and the three new pieces sit on row 0.
+    expect([0, 1, 2].map((c) => after.cells[idx(cfg, c, 11)]!.id)).toEqual(below);
+    for (const c of [0, 1, 2]) expect(after.cells[idx(cfg, c, 0)]!.id).toBeGreaterThan(maxId);
   });
 
   it("the water line rises with moves and drops with points", () => {

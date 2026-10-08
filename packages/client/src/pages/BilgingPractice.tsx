@@ -15,6 +15,15 @@ type Outcome =
   | { kind: "unrated"; score: number; moves: number; bestCombo: number };
 
 const bilging = content.puzzles.bilging;
+const MARKS_KEY = "openseas.markTiles";
+
+function readMarks(): boolean {
+  try {
+    return window.localStorage.getItem(MARKS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 export function BilgingPractice() {
   const { pirate, socket, socketStatus, setPirate } = usePirate();
@@ -24,6 +33,7 @@ export function BilgingPractice() {
   const [version, setVersion] = useState(0);
   const [timeLeft, setTimeLeft] = useState(bilging.roundSeconds);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [showMarks, setShowMarks] = useState(readMarks);
   const round = useRef<BilgingRound | null>(null);
   const sessionId = useRef<string | null>(null);
   const canRate = socketStatus === "open" && pirate !== null;
@@ -121,6 +131,14 @@ export function BilgingPractice() {
 
   useEffect(() => () => round.current?.abandon(), []);
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(MARKS_KEY, showMarks ? "1" : "0");
+    } catch {
+      /* private mode */
+    }
+  }, [showMarks]);
+
   const onSwap = useCallback((col: number, row: number) => {
     round.current?.swap(col, row);
   }, []);
@@ -180,7 +198,7 @@ export function BilgingPractice() {
       </section>
 
       <section className="board-wrap">
-        <BilgingBoard state={state} report={report} version={version} interactive={playing} onSwap={onSwap} preview={preview} onFrame={onFrame} />
+        <BilgingBoard state={state} report={report} version={version} interactive={playing} showMarks={showMarks} onSwap={onSwap} preview={preview} onFrame={onFrame} />
 
         {phase !== "playing" && (
           <div className="board-veil">
@@ -219,25 +237,30 @@ export function BilgingPractice() {
       </section>
 
       <aside className="legend">
-        <h2 className="section-title">{t("bilging.legend")}</h2>
-        <ul>
-          {bilging.pieces.slice(0, bilging.config.pieceKinds).map((p) => (
-            <li key={p.nameKey}>
-              <ShapeIcon shape={p.shape} color={p.color} />
-              <span>{t(p.nameKey)}</span>
-            </li>
-          ))}
-        </ul>
         <ul className="specials">
           {(["keg", "ink", "barnacle"] as const).map((k) => (
             <li key={k}>
-              <ShapeIcon shape={k} color={bilging.specials[k].color} />
+              <TileIcon color={bilging.specials[k].color} special={k} />
               <span>
                 <b>{t(bilging.specials[k].nameKey)}</b> {t(`bilging.special.${k}_help`)}
               </span>
             </li>
           ))}
         </ul>
+        <ul className="kinds">
+          {bilging.pieces.slice(0, bilging.config.pieceKinds).map((p) => (
+            <li key={p.nameKey}>
+              <TileIcon color={p.color} mark={showMarks ? p.mark : null} />
+              <span>{t(p.nameKey)}</span>
+            </li>
+          ))}
+        </ul>
+        <label className="toggle">
+          <input type="checkbox" checked={showMarks} onChange={(e) => setShowMarks(e.target.checked)} data-testid="toggle-marks" />
+          <span>
+            {t("bilging.setting_marks")} <small className="muted">{t("bilging.setting_marks_hint")}</small>
+          </span>
+        </label>
       </aside>
     </main>
   );
@@ -265,58 +288,67 @@ function ResultBody({ outcome }: { outcome: Outcome }) {
   );
 }
 
-function ShapeIcon({ shape, color }: { shape: string; color: string }) {
-  const c = color;
-  const body = (() => {
-    switch (shape) {
+function TileIcon({ color, mark, special }: { color: string; mark?: string | null; special?: "keg" | "ink" | "barnacle" }) {
+  const ink = "#0b1526";
+  const markBody = (() => {
+    switch (mark) {
       case "circle":
-        return <circle cx="12" cy="12" r="8" fill={c} />;
+        return <circle cx="12" cy="12" r="3.2" fill={ink} opacity=".75" />;
       case "square":
-        return <rect x="4" y="4" width="16" height="16" rx="2" fill={c} />;
+        return <rect x="8.8" y="8.8" width="6.4" height="6.4" fill={ink} opacity=".75" />;
       case "triangle":
-        return <polygon points="12,3 21,19 3,19" fill={c} />;
+        return <polygon points="12,8.2 15.8,15 8.2,15" fill={ink} opacity=".75" />;
       case "diamond":
-        return <polygon points="12,2 20,12 12,22 4,12" fill={c} />;
+        return <polygon points="12,7.8 16.2,12 12,16.2 7.8,12" fill={ink} opacity=".75" />;
       case "hexagon":
-        return <polygon points="12,2 20.6,7 20.6,17 12,22 3.4,17 3.4,7" fill={c} />;
+        return <polygon points="12,8 15.5,10 15.5,14 12,16 8.5,14 8.5,10" fill={ink} opacity=".75" />;
       case "star":
-        return <polygon points="12,2 14.9,8.6 22,9.3 16.6,14 18.2,21 12,17.3 5.8,21 7.4,14 2,9.3 9.1,8.6" fill={c} />;
+        return <polygon points="12,7.5 13.2,10.6 16.5,10.8 13.9,12.9 14.8,16.2 12,14.4 9.2,16.2 10.1,12.9 7.5,10.8 10.8,10.6" fill={ink} opacity=".75" />;
       case "gear":
         return (
-          <g fill={c}>
-            <circle cx="12" cy="12" r="7" />
-            {Array.from({ length: 8 }, (_, i) => (
-              <rect key={i} x="10.5" y="1" width="3" height="5" transform={`rotate(${i * 45} 12 12)`} />
-            ))}
-            <circle cx="12" cy="12" r="2.5" fill="#070e1a" />
+          <g fill={ink} opacity=".75">
+            <circle cx="12" cy="12" r="3.6" />
+            <circle cx="12" cy="12" r="1.5" fill={color} />
           </g>
         );
+      default:
+        return null;
+    }
+  })();
+  const specialBody = (() => {
+    switch (special) {
       case "keg":
         return (
           <g>
-            <rect x="6" y="5" width="12" height="15" rx="3" fill={c} />
-            <rect x="6" y="9" width="12" height="1.5" fill="#d4a548" />
-            <rect x="6" y="15" width="12" height="1.5" fill="#d4a548" />
-            <circle cx="17" cy="3" r="1.6" fill="#f0604d" />
+            <circle cx="12" cy="13.5" r="4" fill="#f2f0e6" />
+            <rect x="11" y="8" width="2" height="2.5" fill="#f2f0e6" />
+            <circle cx="15.5" cy="6.5" r="1.3" fill="#ffb347" />
           </g>
         );
       case "ink":
         return (
-          <g fill={c}>
-            <circle cx="9" cy="10" r="5.5" />
-            <circle cx="15" cy="9" r="5" />
-            <circle cx="12" cy="15" r="6" />
+          <g fill="#c084fc">
+            <circle cx="9.5" cy="12" r="3" />
+            <circle cx="14.5" cy="11" r="2.6" />
+            <circle cx="12" cy="14.5" r="3.2" />
           </g>
         );
       case "barnacle":
-        return <polygon points="3,20 7,9 10,20 13,5 16,20 18,12 21,20" fill={c} />;
+        return (
+          <g fill="#f2f0e6">
+            <polygon points="12,6 17,11 14.5,11 12,8.5 9.5,11 7,11" />
+            <rect x="7.5" y="13" width="9" height="1.4" opacity=".7" />
+            <rect x="8.8" y="15.5" width="6.4" height="1.4" opacity=".45" />
+          </g>
+        );
       default:
-        return <rect x="4" y="4" width="16" height="16" fill={c} />;
+        return null;
     }
   })();
   return (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-      {body}
+      <rect x="2" y="2" width="20" height="20" rx="4" fill={color} stroke={special ? "#d4a548" : "none"} strokeWidth="1" />
+      {special ? specialBody : markBody}
     </svg>
   );
 }

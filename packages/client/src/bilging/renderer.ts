@@ -1,7 +1,7 @@
 import { Application, Container, Graphics, Text, type FederatedPointerEvent } from "pixi.js";
-import { Special, colOf, isSpecial, rowOf, type BilgingState, type MoveReport } from "@openseas/engine";
+import { Special, colOf, rowOf, type BilgingState, type MoveReport } from "@openseas/engine";
 import type { BilgingContent } from "@openseas/content";
-import { drawShape } from "./shapes.js";
+import { drawTile, type TileStyle } from "./tiles.js";
 
 export interface RendererCallbacks {
   /** The player asked to swap (col,row) with (col+1,row). */
@@ -22,6 +22,12 @@ interface PieceView {
   ty: number;
   vy: number;
   dying: number | null;
+}
+
+export interface RendererOptions {
+  showMarks: boolean;
+  /** Labels drawn inside special tiles, from the message table. */
+  labels: { keg: string; ink: string; barnacle: string };
 }
 
 const COLORS = {
@@ -48,7 +54,8 @@ export class BilgingRenderer {
   private readonly overlay = new Graphics();
   private readonly pieces = new Map<number, PieceView>();
   private readonly colorByKind = new Map<number, number>();
-  private readonly shapeByKind = new Map<number, string>();
+  private readonly markByKind = new Map<number, string>();
+  private showMarks: boolean;
   private cell = 48;
   private ox = 0;
   private oy = 0;
@@ -71,17 +78,40 @@ export class BilgingRenderer {
     private readonly host: HTMLElement,
     private readonly content: BilgingContent,
     private readonly cb: RendererCallbacks,
+    private readonly opts: RendererOptions,
   ) {
+    this.showMarks = opts.showMarks;
     content.pieces.forEach((p, i) => {
       this.colorByKind.set(i, parseInt(p.color.slice(1), 16));
-      this.shapeByKind.set(i, p.shape);
+      this.markByKind.set(i, p.mark);
     });
     this.colorByKind.set(Special.Keg, parseInt(content.specials.keg.color.slice(1), 16));
     this.colorByKind.set(Special.Ink, parseInt(content.specials.ink.color.slice(1), 16));
     this.colorByKind.set(Special.Barnacle, parseInt(content.specials.barnacle.color.slice(1), 16));
-    this.shapeByKind.set(Special.Keg, "keg");
-    this.shapeByKind.set(Special.Ink, "ink");
-    this.shapeByKind.set(Special.Barnacle, "barnacle");
+  }
+
+  private styleFor(kind: number): TileStyle {
+    const color = this.colorByKind.get(kind) ?? 0xffffff;
+    switch (kind) {
+      case Special.Keg:
+        return { color, mark: null, special: "keg", label: this.opts.labels.keg, showMarks: this.showMarks };
+      case Special.Ink:
+        return { color, mark: null, special: "ink", label: this.opts.labels.ink, showMarks: this.showMarks };
+      case Special.Barnacle:
+        return { color, mark: null, special: "barnacle", label: this.opts.labels.barnacle, showMarks: this.showMarks };
+      default:
+        return { color, mark: this.markByKind.get(kind) ?? null, special: null, label: "", showMarks: this.showMarks };
+    }
+  }
+
+  private redrawAll(): void {
+    for (const [, v] of this.pieces) drawTile(v.g, this.cell, this.styleFor(v.kind));
+  }
+
+  setShowMarks(on: boolean): void {
+    if (this.showMarks === on) return;
+    this.showMarks = on;
+    if (this.app.renderer) this.redrawAll();
   }
 
   async init(): Promise<void> {
@@ -167,9 +197,9 @@ export class BilgingRenderer {
       let v = this.pieces.get(p.id);
       if (!v) {
         const g = new Graphics();
-        drawShape(g, this.shapeByKind.get(p.kind) ?? "square", this.cell, this.colorByKind.get(p.kind) ?? 0xffffff);
-        // New pieces drop in from above the board.
-        const spawnY = first ? ty : this.cy(this.height + (this.height - row) * 0.35 + 1);
+        drawTile(g, this.cell, this.styleFor(p.kind));
+        // New pieces float up from below the board.
+        const spawnY = first ? ty : this.cy(-1 - row * 0.35);
         v = { g, kind: p.kind, x: tx, y: spawnY, tx, ty, vy: 0, dying: null };
         g.position.set(v.x, v.y);
         this.pieceLayer.addChild(g);
@@ -246,9 +276,7 @@ export class BilgingRenderer {
       this.gridLayer.moveTo(this.ox, this.oy + r * this.cell).lineTo(this.ox + this.width * this.cell, this.oy + r * this.cell);
     }
     this.gridLayer.stroke({ width: 1, color: COLORS.gridLine, alpha: 0.8 });
-    for (const [, v] of this.pieces) {
-      drawShape(v.g, this.shapeByKind.get(v.kind) ?? "square", this.cell, this.colorByKind.get(v.kind) ?? 0xffffff);
-    }
+    this.redrawAll();
     if (this.state) {
       for (let i = 0; i < this.state.cells.length; i++) {
         const v = this.pieces.get(this.state.cells[i]!.id);
@@ -294,9 +322,9 @@ export class BilgingRenderer {
       const dx = v.tx - v.x;
       if (Math.abs(dy) > 0.5 || Math.abs(dx) > 0.5) {
         moving = true;
-        // Gravity-ish fall with a soft landing; horizontal swaps slide.
-        v.vy = dy > 0 ? Math.min(v.vy + 1.6 * k, this.cell * 0.55) : dy * 0.35;
-        v.y += Math.sign(dy) * Math.min(Math.abs(dy), Math.abs(v.vy) * k * (dy > 0 ? 1 : 1));
+        // Pieces float up with a buoyant acceleration; horizontal swaps slide.
+        v.vy = dy !== 0 ? Math.min(v.vy + 1.6 * k, this.cell * 0.55) : 0;
+        v.y += Math.sign(dy) * Math.min(Math.abs(dy), Math.abs(v.vy) * k);
         v.x += dx * Math.min(1, 0.35 * k);
         if (Math.abs(v.ty - v.y) < 0.5) {
           v.y = v.ty;
@@ -488,7 +516,4 @@ export class BilgingRenderer {
     return true;
   }
 
-  static kindIsSpecial(kind: number): boolean {
-    return isSpecial(kind);
-  }
 }
