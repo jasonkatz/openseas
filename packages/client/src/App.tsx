@@ -1,0 +1,20 @@
+import { Home } from "./pages/Home.jsx";
+import { BilgingPractice } from "./pages/BilgingPractice.jsx";
+import { Router, useRoute } from "./router.jsx";
+import { PirateProvider } from "./state/PirateProvider.jsx";
+
+function Routes() {
+  const { path } = useRoute();
+  if (path === "/practice/bilging") return <BilgingPractice />;
+  return <Home />;
+}
+
+export function App() {
+  return (
+    <Router>
+      <PirateProvider>
+        <Routes />
+      </PirateProvider>
+    </Router>
+  );
+}

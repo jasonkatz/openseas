@@ -1,0 +1,26 @@
+{
+  "name": "@openseas/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zod schemas for every client-server message (ADR 0005).",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "echo no lint"
+  },
+  "dependencies": {
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

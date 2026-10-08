@@ -1,0 +1,14 @@
+{
+  "adjectives": [
+    "Salty", "Brackish", "Windward", "Leeward", "Barnacled", "Weathered", "Sunburnt", "Rusty",
+    "Tattered", "Grinning", "Squinting", "Limping", "Humming", "Whistling", "Sly", "Bold",
+    "Lucky", "Unlucky", "Quiet", "Loud", "Soggy", "Crooked", "Dapper", "Grizzled", "Freckled",
+    "Hoarse", "Wiry", "Burly", "Nimble", "Drowsy", "Fearless", "Sneezing"
+  ],
+  "nouns": [
+    "Gull", "Herring", "Mackerel", "Cuttlefish", "Sandpiper", "Kelp", "Driftwood", "Lantern",
+    "Compass", "Bilgepump", "Capstan", "Keel", "Rudder", "Mainsail", "Bowsprit", "Marlinspike",
+    "Grog", "Hardtack", "Squall", "Tide", "Fathom", "Reef", "Gale", "Plank", "Anchor", "Tern",
+    "Pelican", "Oyster", "Limpet", "Cormorant", "Puffin", "Eel"
+  ]
+}

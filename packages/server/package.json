@@ -1,0 +1,39 @@
+{
+  "name": "@openseas/server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The only authority. Node 22, ws, Drizzle, Better Auth.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "echo no lint",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@openseas/content": "workspace:*",
+    "@openseas/engine": "workspace:*",
+    "@openseas/protocol": "workspace:*",
+    "@sentry/node": "^10.0.0",
+    "better-auth": "^1.4.0",
+    "drizzle-orm": "^0.44.0",
+    "pino": "^9.9.0",
+    "postgres": "^3.4.7",
+    "tsx": "^4.20.0",
+    "ws": "^8.18.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "@types/ws": "^8.18.0",
+    "drizzle-kit": "^0.31.0",
+    "pino-pretty": "^13.1.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
