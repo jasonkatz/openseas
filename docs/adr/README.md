@@ -18,3 +18,4 @@ that supersedes it.
 | [0010](./0010-single-ship-acquisition-path.md) | One ship acquisition path to make gating a config change |
 | [0011](./0011-puzzles-first-build-order.md) | Puzzles first, each on a solo practice page |
 | [0012](./0012-source-exports-tsx-runtime.md) | Workspace packages export TypeScript source; the server runs on tsx |
+| [0013](./0013-cd-platform-git-integrations.md) | Continuous deployment through the hosts' Git integrations, verified from CI |

@@ -70,7 +70,7 @@ export function createHttpHandler(deps: HttpDeps) {
         return;
       }
       if (url.pathname === "/health") {
-        json(res, 200, { ok: true, contentVersion: content.world.version });
+        json(res, 200, { ok: true, contentVersion: content.world.version, commit: env.COMMIT_SHA });
         return;
       }
       if (url.pathname === "/api/me" && req.method === "GET") {
