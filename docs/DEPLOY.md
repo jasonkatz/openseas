@@ -33,6 +33,10 @@ client's domain is needed to finish the server.
 2. In the project, **+ New → Database → PostgreSQL**.
 3. Open the server service → **Settings**:
    - Source: branch `main`, and turn on **Wait for CI** so deploys start only after GitHub checks pass.
+   - **Root Directory must stay at the repository root** (empty or `/`). Setting it to
+     `packages/server` hides `pnpm-lock.yaml` and `railway.json`, so Nixpacks falls back to
+     `npm i`, which fails on `workspace:*` dependencies. `railway.json` already scopes the build
+     and start commands to the server package.
    - Networking → **Generate Domain**. Note it; it is the `SERVER_URL` below.
 4. Server service → **Variables** (raw editor is quickest):
 
