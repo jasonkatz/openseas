@@ -59,6 +59,11 @@ server's CORS list.
    | `LOG_LEVEL` | `info` |
 
    Railway supplies `PORT` itself. The pipeline sets `GIT_COMMIT_SHA` on every deploy.
+   `CLIENT_ORIGINS` must be the browser's exact origin: scheme and host, no path, no trailing
+   slash. Railway stages variable edits; click **Deploy** on the staged change or the running
+   server keeps the old value. The server logs the origins it loaded on boot
+   (`openseas server listening`), and the Deploy pipeline fails with a pointer here if the
+   server rejects a preflight from the client origin.
 5. Project → **Settings → Tokens** → create a **project token** for the `production` environment.
    Copy it; it is `RAILWAY_TOKEN` in step 3.
 
