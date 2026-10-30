@@ -48,7 +48,7 @@ jobs:
           FORCE_CLIENT: ${{ inputs.client == true }}
         run: |
           server=false; client=false
-          if [ "$FORCE_SERVER" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/server packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json railway.json .github/workflows/deploy.yml; then
+          if [ "$FORCE_SERVER" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/server packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json railpack.json .github/workflows/deploy.yml; then
             server=true
           fi
           if [ "$FORCE_CLIENT" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/client packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json vercel.json .github/workflows/deploy.yml; then

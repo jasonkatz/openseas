@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "steps": {
+    "build": {
+      "commands": ["pnpm --filter @openseas/server typecheck"]
+    }
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter @openseas/server start"
+  }
+}
