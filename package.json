@@ -10,6 +10,7 @@
   },
   "scripts": {
     "dev": "pnpm db:up && pnpm -r --parallel --filter @openseas/server --filter @openseas/client dev",
+    "start": "pnpm --filter @openseas/server start",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @openseas/server db:migrate",

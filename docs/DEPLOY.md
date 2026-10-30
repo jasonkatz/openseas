@@ -10,9 +10,9 @@ one GitHub Actions pipeline does the deploying, in order (ADR 0014).
 2. When CI is green, **Deploy** (`.github/workflows/deploy.yml`) starts. It first works out what
    the commit touched; a docs-only merge deploys nothing.
 3. **Server to Railway.** The runner records the commit on the service as `GIT_COMMIT_SHA`,
-   uploads the checkout with `railway up`, and streams the Nixpacks build (`railway.json`).
-   Railway starts the new container, runs migrations on boot, and only swaps traffic once
-   `/health` answers. The job then polls `/health` until it reports the new commit. If the
+   uploads the checkout with `railway up`, and streams the Railpack build (`railpack.json`:
+   install the workspace, typecheck the server, start it). Railway starts the new container,
+   runs migrations on boot, and only swaps traffic once `/health` answers. The job then polls `/health` until it reports the new commit. If the
    server never comes up, the job fails and **the client is not deployed**.
 4. **Client to Vercel.** The runner pulls the project's production settings and env, builds with
    `vercel build` (so the build runs in CI, not on Vercel), deploys the prebuilt output with
@@ -37,8 +37,14 @@ server's CORS list.
 2. **+ New → Database → PostgreSQL**.
 3. **+ New → Empty Service**. Name it `server`. Open it → **Settings**:
    - Networking → **Generate Domain**. Note it; it is `https://<railway domain>` below.
-   - Leave Root Directory empty. `railway.json` is read from the uploaded repo root and already
-     scopes the build and start commands to the server package.
+   - Build → Builder **Railpack** (the default). Leave Root Directory empty: `railpack.json` is
+     read from the uploaded repo root and scopes the build and start commands to the server
+     package.
+   - Deploy → **Healthcheck Path** `/health`, **Healthcheck Timeout** `120`,
+     **Restart Policy** On Failure with `5` retries. These are service settings, not build
+     config, so they live in the dashboard. (Railway's `railway.json` format that used to carry
+     them is deprecated and ignored by Railpack builds; its successor is `railway config` IaC,
+     which we have not adopted yet.)
 4. Server service → **Variables** (raw editor):
 
    | Variable | Value |
@@ -121,5 +127,6 @@ Open the client, start a rated Bilging round, and confirm a result lands.
 
 - Which paths trigger which side, the order, and the timeouts all live in
   `.github/workflows/deploy.yml`.
-- The server's build and start commands live in `railway.json`; the client's in `vercel.json`.
-  Both are read by the CLIs from the checkout, so a change ships with the commit that makes it.
+- The server's build and start commands live in `railpack.json`; the client's in `vercel.json`.
+  Both are read from the checkout at deploy time, so a change ships with the commit that makes it.
+- The server's healthcheck and restart policy are Railway service settings (step 1.3).
