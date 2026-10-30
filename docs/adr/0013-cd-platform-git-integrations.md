@@ -1,6 +1,6 @@
 # 0013. Continuous deployment through the hosts' Git integrations, verified from CI
 
-Status: Accepted
+Status: Superseded by [0014](./0014-cd-pipeline-in-actions.md)
 
 ## Context
 

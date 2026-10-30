@@ -2,12 +2,14 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
 /**
- * Emits `dist/version.json` with the commit the build came from, so the post-merge check
- * (.github/workflows/deploy-verify.yml) can confirm the live client is the merged commit.
- * Vercel sets VERCEL_GIT_COMMIT_SHA; GitHub Actions sets GITHUB_SHA; local builds say "dev".
+ * Emits `dist/version.json` with the commit the build came from, so the deploy pipeline
+ * (.github/workflows/deploy.yml) can confirm the live client is the merged commit.
+ * The pipeline sets COMMIT_SHA; Vercel git builds set VERCEL_GIT_COMMIT_SHA; plain GitHub Actions
+ * sets GITHUB_SHA; local builds say "dev".
  */
 function versionFile(): Plugin {
-  const commit = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? "dev";
+  const commit =
+    process.env.COMMIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? "dev";
   return {
     name: "openseas-version-file",
     apply: "build",

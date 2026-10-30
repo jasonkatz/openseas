@@ -8,3 +8,4 @@ coverage/
 packages/client/test-results/
 packages/client/playwright-report/
 .DS_Store
+.vercel/
