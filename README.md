@@ -53,6 +53,6 @@ migration. Migrations run automatically when the server starts.
 
 ## Deploy
 
-Merging to `main` deploys. Railway builds the server, Vercel builds the client, and the
-**Deploy verify** workflow confirms both serve the merged commit. One-time setup, variables, and
-rollback are in [docs/DEPLOY.md](docs/DEPLOY.md).
+Merging to `main` deploys. Once CI is green, the **Deploy** workflow ships the server to Railway,
+waits for it to be healthy, then ships the client to Vercel. One-time setup, secrets, and rollback
+are in [docs/DEPLOY.md](docs/DEPLOY.md).

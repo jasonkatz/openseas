@@ -19,3 +19,4 @@ that supersedes it.
 | [0011](./0011-puzzles-first-build-order.md) | Puzzles first, each on a solo practice page |
 | [0012](./0012-source-exports-tsx-runtime.md) | Workspace packages export TypeScript source; the server runs on tsx |
 | [0013](./0013-cd-platform-git-integrations.md) | Continuous deployment through the hosts' Git integrations, verified from CI |
+| [0014](./0014-cd-pipeline-in-actions.md) | One Actions pipeline deploys Railway, then Vercel |

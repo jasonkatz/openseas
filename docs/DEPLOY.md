@@ -1,83 +1,106 @@
 # Deploying openseas
 
-Merging to `main` is the release. Nothing is deployed by hand.
+Merging to `main` is the release. Nothing is deployed by hand, and neither host watches the repo:
+one GitHub Actions pipeline does the deploying, in order (ADR 0014).
 
 ## What happens on a merge
 
-1. GitHub Actions runs **CI** (`.github/workflows/ci.yml`): engine purity lint, typecheck, unit and
-   integration tests, migration drift check, client build and Playwright smoke.
-2. **Railway** builds and deploys the server from `railway.json`. The service is set to wait for CI,
-   so a red merge never reaches production. Only commits that touch the server or a package it
-   depends on trigger a build (`watchPatterns`). A deployment replaces the old one only after
-   `/health` answers.
-3. **Vercel** builds and deploys the client from `vercel.json`. Commits that don't touch the client
-   or its packages are skipped (`ignoreCommand`). A failed build leaves the previous deployment live.
-4. **Deploy verify** (`.github/workflows/deploy-verify.yml`) runs once CI is green. It polls the
-   server's `/health` and the client's `/version.json` until both report the merged commit, then
-   goes green. If either target never serves the commit within twenty minutes it goes red, which
-   is the signal to look at the Railway or Vercel build logs.
+1. **CI** (`.github/workflows/ci.yml`) runs on the merge commit: engine purity lint, typecheck,
+   unit and integration tests, migration drift check, client build and Playwright smoke.
+2. When CI is green, **Deploy** (`.github/workflows/deploy.yml`) starts. It first works out what
+   the commit touched; a docs-only merge deploys nothing.
+3. **Server to Railway.** The runner records the commit on the service as `GIT_COMMIT_SHA`,
+   uploads the checkout with `railway up`, and streams the Nixpacks build (`railway.json`).
+   Railway starts the new container, runs migrations on boot, and only swaps traffic once
+   `/health` answers. The job then polls `/health` until it reports the new commit. If the
+   server never comes up, the job fails and **the client is not deployed**.
+4. **Client to Vercel.** The runner pulls the project's production settings and env, builds with
+   `vercel build` (so the build runs in CI, not on Vercel), deploys the prebuilt output with
+   `vercel deploy --prebuilt --prod`, and polls `/version.json` until it reports the commit.
+5. Deploys queue behind each other and never cancel one in flight. Both jobs show up under the
+   repo's **production** environment, so GitHub's Deployments view is the deploy history.
 
-Pull requests get a Vercel preview of the client (unrated play works offline; rated play needs the
-production server, whose CORS list does not include preview URLs). The server has no previews
-(ADR 0008).
+Manual runs: Actions → Deploy → **Run workflow**. Tick "server" or "client" to redeploy a side
+even if nothing under it changed, for example after changing a Railway variable.
+
+There are no preview deployments yet; the client's unrated play works from a local `pnpm dev`.
 
 ## One-time setup
 
-Do these in order: the server's domain is needed before the client can be configured, and the
-client's domain is needed to finish the server.
+Order matters: the server's domain feeds the client's env, and the client's domain feeds the
+server's CORS list.
 
 ### 1. Railway: server and Postgres
 
-1. railway.com → New Project → **Deploy from GitHub repo** → `jasonkatz/puzzle-rebuild`. Install
-   the Railway GitHub app on the repo if asked. Railway picks up `railway.json` from the repo root.
-2. In the project, **+ New → Database → PostgreSQL**.
-3. Open the server service → **Settings**:
-   - Source: branch `main`, and turn on **Wait for CI** so deploys start only after GitHub checks pass.
-   - **Root Directory must stay at the repository root** (empty or `/`). Setting it to
-     `packages/server` hides `pnpm-lock.yaml` and `railway.json`, so Nixpacks falls back to
-     `npm i`, which fails on `workspace:*` dependencies. `railway.json` already scopes the build
-     and start commands to the server package.
-   - Networking → **Generate Domain**. Note it; it is the `SERVER_URL` below.
-4. Server service → **Variables** (raw editor is quickest):
+1. railway.com → **New Project** → **Empty project**. Do not connect the GitHub repo; the pipeline
+   uploads the code.
+2. **+ New → Database → PostgreSQL**.
+3. **+ New → Empty Service**. Name it `server`. Open it → **Settings**:
+   - Networking → **Generate Domain**. Note it; it is `https://<railway domain>` below.
+   - Leave Root Directory empty. `railway.json` is read from the uploaded repo root and already
+     scopes the build and start commands to the server package.
+4. Server service → **Variables** (raw editor):
 
    | Variable | Value |
    |---|---|
    | `NODE_ENV` | `production` |
    | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (reference to the Postgres service) |
-   | `BETTER_AUTH_SECRET` | `openssl rand -base64 48` |
+   | `BETTER_AUTH_SECRET` | output of `openssl rand -base64 48` |
    | `BETTER_AUTH_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
-   | `CLIENT_ORIGINS` | the Vercel production URL, filled in at step 2.4 |
+   | `CLIENT_ORIGINS` | the Vercel production URL, filled in at step 2.5 |
    | `CROSS_SITE_COOKIES` | `true` |
    | `ALPHA_INVITE_CODE` | an invite code, or leave unset to let anyone in |
    | `LOG_LEVEL` | `info` |
 
-   Railway supplies `PORT` and `RAILWAY_GIT_COMMIT_SHA` itself; the server reads both.
-   Migrations run on boot, so no migrate step is needed.
+   Railway supplies `PORT` itself. The pipeline sets `GIT_COMMIT_SHA` on every deploy.
+5. Project → **Settings → Tokens** → create a **project token** for the `production` environment.
+   Copy it; it is `RAILWAY_TOKEN` in step 3.
 
 ### 2. Vercel: client
 
-1. vercel.com → Add New → **Project** → import `jasonkatz/puzzle-rebuild`. Keep the root directory
-   at the repository root; `vercel.json` carries the install, build and output settings.
-2. Settings → General → Node.js version **22.x** (the `engines` field also asks for it).
-3. Settings → Environment Variables → `VITE_SERVER_URL` = `https://<railway domain>` for
-   **Production**. Leave it unset for Preview so previews stay offline-only.
-4. Note the production URL (`openseas.vercel.app` or similar). Back in Railway, set
-   `CLIENT_ORIGINS` to it (comma-separate several origins) and let the server redeploy.
-5. Settings → Deployment Protection: production must open without a Vercel login. The default
-   (Standard Protection) protects previews and deployment URLs only, which is what we want.
+The Vercel project is not connected to GitHub. Create it from the CLI in a local checkout:
 
-### 3. GitHub: variables and branch rules
+```sh
+npm i -g vercel
+vercel login
+vercel link --yes --scope <team-slug> --project openseas   # creates the project, writes .vercel/project.json (gitignored)
+vercel env add VITE_SERVER_URL production                    # paste https://<railway domain>
+cat .vercel/project.json                                     # orgId and projectId for step 3
+```
 
-1. Repo → Settings → Secrets and variables → Actions → **Variables**:
-   - `PRODUCTION_SERVER_URL` = `https://<railway domain>`
-   - `PRODUCTION_CLIENT_URL` = `https://<vercel production domain>`
-   Without these, Deploy verify prints a notice and passes.
-2. Settings → Branches → protect `main`: require the CI checks before merging. This is what makes
-   "merged" mean "green".
+Then in the dashboard, project → **Settings**:
+
+1. General → Node.js version **22.x**.
+2. Deployment Protection → production must open without a Vercel login. Standard Protection
+   (previews and deployment URLs only) is fine.
+3. Note the production domain (`openseas.vercel.app` or similar). Back in Railway, set
+   `CLIENT_ORIGINS` to `https://<that domain>`; comma-separate several origins.
+4. Account → **Settings → Tokens** → create a token scoped to the team. It is `VERCEL_TOKEN` in
+   step 3.
+
+### 3. GitHub: secrets and variables
+
+Repo → **Settings → Secrets and variables → Actions**. Repository scope is fine; the
+`production` environment scope also works and lets you add required reviewers later.
+
+| Kind | Name | Value |
+|---|---|---|
+| Secret | `RAILWAY_TOKEN` | the Railway project token |
+| Secret | `VERCEL_TOKEN` | the Vercel token |
+| Variable | `RAILWAY_SERVICE` | `server` (the Railway service name) |
+| Variable | `VERCEL_ORG_ID` | `orgId` from `.vercel/project.json` |
+| Variable | `VERCEL_PROJECT_ID` | `projectId` from `.vercel/project.json` |
+| Variable | `PRODUCTION_SERVER_URL` | `https://<railway domain>` |
+| Variable | `PRODUCTION_CLIENT_URL` | `https://<vercel production domain>` |
+
+The two URL variables are what let the pipeline wait for the server before deploying the client
+and confirm each side serves the merged commit. Without them it deploys blind and warns.
+
+Finally, **Settings → Branches** → protect `main` and require the CI checks before merging.
 
 ### 4. Check it
 
-Merge a PR, then watch the **Deploy verify** run on `main`. When it is green:
+Actions → Deploy → Run workflow with both boxes ticked. When it is green:
 
 ```sh
 curl https://<railway domain>/health          # {"ok":true,"contentVersion":...,"commit":"<sha>"}
@@ -88,14 +111,15 @@ Open the client, start a rated Bilging round, and confirm a result lands.
 
 ## Rolling back
 
-- Server: Railway → service → Deployments → pick the previous one → **Redeploy**. Migrations are
-  forward-only, so a rollback across a schema change needs a revert PR instead.
-- Client: Vercel → project → Deployments → previous production deployment → **Promote to
-  Production** (instant).
-- Either way, a `git revert` PR is the durable fix and goes out through the normal path.
+- A `git revert` PR is the normal path; it goes out through the pipeline like any merge.
+- Server, instant: Railway → service → Deployments → previous deployment → **Redeploy**.
+  Migrations are forward-only, so a rollback across a schema change needs the revert PR.
+- Client, instant: Vercel → project → Deployments → previous production deployment →
+  **Promote to Production**.
 
 ## Changing deploy behaviour
 
-- Paths that trigger a server build: `railway.json` → `build.watchPatterns`.
-- Paths that trigger a client build: `vercel.json` → `ignoreCommand`.
-- Both lists are mirrored in `deploy-verify.yml`; change all three together.
+- Which paths trigger which side, the order, and the timeouts all live in
+  `.github/workflows/deploy.yml`.
+- The server's build and start commands live in `railway.json`; the client's in `vercel.json`.
+  Both are read by the CLIs from the checkout, so a change ships with the commit that makes it.

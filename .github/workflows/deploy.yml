@@ -1,0 +1,150 @@
+name: Deploy
+
+# Continuous deployment from main (ADR 0014). Runs after CI succeeds on main, or by hand.
+# Order is deliberate: the server goes first and must serve the new commit on /health before the
+# client is built and deployed against it. Each side is skipped when nothing under it changed,
+# unless forced from the manual trigger. Setup and secrets: docs/DEPLOY.md.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      server:
+        description: Deploy the server even if nothing under it changed
+        type: boolean
+        default: false
+      client:
+        description: Deploy the client even if nothing under it changed
+        type: boolean
+        default: false
+
+# Deploys queue behind each other and never cancel one in flight.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  plan:
+    name: What changed
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.changed.outputs.server }}
+      client: ${{ steps.changed.outputs.client }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+          fetch-depth: 2
+      - id: changed
+        env:
+          FORCE_SERVER: ${{ inputs.server == true }}
+          FORCE_CLIENT: ${{ inputs.client == true }}
+        run: |
+          server=false; client=false
+          if [ "$FORCE_SERVER" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/server packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json railway.json .github/workflows/deploy.yml; then
+            server=true
+          fi
+          if [ "$FORCE_CLIENT" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/client packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json vercel.json .github/workflows/deploy.yml; then
+            client=true
+          fi
+          echo "server=$server" >> "$GITHUB_OUTPUT"
+          echo "client=$client" >> "$GITHUB_OUTPUT"
+          echo "commit $SHA: server=$server client=$client"
+
+  server:
+    name: Server to Railway
+    needs: plan
+    if: needs.plan.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE }}
+      SERVER_URL: ${{ vars.PRODUCTION_SERVER_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g @railway/cli
+      - name: Check configuration
+        run: |
+          ok=true
+          [ -n "$RAILWAY_TOKEN" ] || { echo "::error::Secret RAILWAY_TOKEN is not set. See docs/DEPLOY.md, step 1."; ok=false; }
+          [ -n "$RAILWAY_SERVICE" ] || { echo "::error::Variable RAILWAY_SERVICE is not set. See docs/DEPLOY.md, step 1."; ok=false; }
+          [ -n "$SERVER_URL" ] || echo "::warning::Variable PRODUCTION_SERVER_URL is not set, so this job cannot wait for the server to come up before the client deploys."
+          $ok
+      - name: Record the commit on the service
+        run: railway variables --service "$RAILWAY_SERVICE" --set "GIT_COMMIT_SHA=$SHA" --skip-deploys
+      - name: Upload and build
+        run: |
+          railway up --service "$RAILWAY_SERVICE" --ci
+          echo "Server uploaded to Railway service $RAILWAY_SERVICE (commit $SHA)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Wait until the server serves this commit
+        run: |
+          if [ -z "$SERVER_URL" ]; then exit 0; fi
+          .github/scripts/wait-for-commit.sh "$SERVER_URL/health" "$SHA" 900
+
+  client:
+    name: Client to Vercel
+    needs: [plan, server]
+    # always() so a skipped server deploy does not skip the client; a failed one does.
+    if: always() && needs.plan.outputs.client == 'true' && (needs.server.result == 'success' || needs.server.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      CLIENT_URL: ${{ vars.PRODUCTION_CLIENT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: npm install -g vercel
+      - name: Check configuration
+        run: |
+          ok=true
+          [ -n "$VERCEL_TOKEN" ] || { echo "::error::Secret VERCEL_TOKEN is not set. See docs/DEPLOY.md, step 2."; ok=false; }
+          [ -n "$VERCEL_ORG_ID" ] || { echo "::error::Variable VERCEL_ORG_ID is not set. See docs/DEPLOY.md, step 2."; ok=false; }
+          [ -n "$VERCEL_PROJECT_ID" ] || { echo "::error::Variable VERCEL_PROJECT_ID is not set. See docs/DEPLOY.md, step 2."; ok=false; }
+          $ok
+      - name: Pull production settings and env
+        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+      - name: Build
+        env:
+          COMMIT_SHA: ${{ env.SHA }}
+        run: vercel build --prod --token "$VERCEL_TOKEN"
+      - name: Deploy
+        run: |
+          set -o pipefail
+          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN" \
+            --meta githubCommitSha="$SHA" \
+            --meta githubCommitRef=main \
+            --meta githubCommitOrg="${GITHUB_REPOSITORY_OWNER}" \
+            --meta githubCommitRepo="${GITHUB_REPOSITORY#*/}" \
+            | tee deploy-url.txt
+          echo "Client deployed: $(tail -n1 deploy-url.txt) (commit $SHA)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Wait until the client serves this commit
+        run: |
+          if [ -z "$CLIENT_URL" ]; then
+            echo "::warning::Variable PRODUCTION_CLIENT_URL is not set; skipping the post-deploy check."
+            exit 0
+          fi
+          .github/scripts/wait-for-commit.sh "$CLIENT_URL/version.json" "$SHA" 300

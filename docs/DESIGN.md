@@ -226,8 +226,9 @@ guests and account linking to Discord and Google.
 
 - Server and Postgres on Railway, deployed from `main`.
 - Client as a static build on Vercel, deployed from `main`.
-- Merging is releasing. Both hosts deploy through their Git integrations, Railway waits for CI,
-  and a post-merge check confirms both serve the merged commit (ADR 0013, `docs/DEPLOY.md`).
+- Merging is releasing. After CI is green on `main`, one Actions pipeline deploys the server to
+  Railway, waits for it to be healthy on the new commit, then deploys the client to Vercel
+  (ADR 0014, `docs/DEPLOY.md`).
 - Structured logs via pino. Sentry for client and server errors. A Postgres event table for
   gameplay analytics (puzzle starts and completions, voyage outcomes). No third-party analytics.
 
