@@ -1,7 +1,8 @@
 # Deploying openseas
 
-Merging to `main` is the release. Nothing is deployed by hand, and neither host watches the repo:
-one GitHub Actions pipeline does the deploying, in order (ADR 0014).
+Merging to `main` is the release. Nothing is deployed by hand. One GitHub Actions pipeline does
+every production deploy, in order (ADR 0014). Vercel's Git integration is connected only for
+pull request previews; `vercel.json` turns it off for `main` (ADR 0016).
 
 ## What happens on a merge
 
@@ -23,7 +24,14 @@ one GitHub Actions pipeline does the deploying, in order (ADR 0014).
 Manual runs: Actions → Deploy → **Run workflow**. Tick "server" or "client" to redeploy a side
 even if nothing under it changed, for example after changing a Railway variable.
 
-There are no preview deployments yet; the client's unrated play works from a local `pnpm dev`.
+## Previews
+
+Every push to a branch other than `main` gets a Vercel preview on the same `openseas` project
+that serves production, and Vercel comments the URL on the PR. Previews use the project's
+**Preview** env, so `VITE_SERVER_URL` must be set for Preview too (step 2). Previews point at the
+production server: the server only accepts the origins in `CLIENT_ORIGINS`, so calls that need
+CORS or auth fail from a preview URL unless its origin is listed there. Treat previews as a look at
+the UI, not a place to play rated rounds.
 
 ## One-time setup
 
@@ -69,13 +77,14 @@ server's CORS list.
 
 ### 2. Vercel: client
 
-The Vercel project is not connected to GitHub. Create it from the CLI in a local checkout:
+Create the project from the CLI in a local checkout:
 
 ```sh
 npm i -g vercel
 vercel login
 vercel link --yes --scope <team-slug> --project openseas   # creates the project, writes .vercel/project.json (gitignored)
 vercel env add VITE_SERVER_URL production                    # paste https://<railway domain>
+vercel env add VITE_SERVER_URL preview                       # same value; previews use it
 cat .vercel/project.json                                     # orgId and projectId for step 3
 ```
 
@@ -88,6 +97,10 @@ Then in the dashboard, project → **Settings**:
    `CLIENT_ORIGINS` to `https://<that domain>`; comma-separate several origins.
 4. Account → **Settings → Tokens** → create a token scoped to the team. It is `VERCEL_TOKEN` in
    step 3.
+5. Git → **Connect Git Repository** → `jasonkatz/openseas`. This is for previews only:
+   `vercel.json` sets `git.deploymentEnabled.main` to `false`, so pushes to `main` never deploy
+   from Vercel's side and production still goes through the pipeline. Leave Production Branch as
+   `main`.
 
 ### 3. GitHub: secrets and variables
 
