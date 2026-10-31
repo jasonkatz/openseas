@@ -185,6 +185,8 @@ export class CarpentryRenderer {
   private landing: Landing | null = null;
   private flyback: Flyback | null = null;
   private shake: { life: number; max: number } | null = null;
+  /** The ghost turning over on its vertical axis after a flip, so the button always answers. */
+  private flipFx: { life: number; max: number; cx: number } | null = null;
   private refill: { slot: number; life: number; max: number } | null = null;
   private clock = 0;
   private showMarks: boolean;
@@ -916,14 +918,27 @@ export class CarpentryRenderer {
       }
     }
 
+    let ghostX = 0;
     if (this.shake) {
       this.shake.life += dt;
       const k = this.shake.life / this.shake.max;
-      if (k >= 1) {
-        this.shake = null;
-        this.ghostG.x = 0;
-      } else this.ghostG.x = Math.sin(k * Math.PI * 5) * (1 - k) * s * 0.18;
+      if (k >= 1) this.shake = null;
+      else ghostX += Math.sin(k * Math.PI * 5) * (1 - k) * s * 0.18;
     }
+    if (this.flipFx) {
+      // Squash to a sliver about the plank's centre and back out: a card turning over.
+      this.flipFx.life += dt;
+      const k = this.flipFx.life / this.flipFx.max;
+      if (k >= 1) {
+        this.flipFx = null;
+        this.ghostG.scale.x = 1;
+      } else {
+        const sx = Math.max(0.06, Math.abs(Math.cos(k * Math.PI)));
+        this.ghostG.scale.x = sx;
+        ghostX += this.flipFx.cx * (1 - sx);
+      }
+    }
+    this.ghostG.x = ghostX;
 
     if (this.hudPressed) {
       this.hudPressed.life += dt;
@@ -1085,8 +1100,25 @@ export class CarpentryRenderer {
     this.reorient(this.rot + dir, this.flip);
   }
 
+  /**
+   * Flip the plank so that something visibly changes. A mirror-symmetric shape looks the same
+   * mirrored, so it is mirrored the other way instead, and failing that given a quarter turn. Only
+   * the X is the same whatever happens; the ghost still turns over so the press is answered.
+   */
   private doFlip(): void {
-    this.reorient(this.rot, !this.flip);
+    const piece = this.state?.slots[this.slot];
+    if (!piece) return;
+    const key = (rot: number, flip: boolean): string => carpentryOrient(piece.shape, ((rot % 4) + 4) % 4, flip).map(([x, y]) => `${x},${y}`).join(" ");
+    const current = key(this.rot, this.flip);
+    const candidates: Array<[number, boolean]> = [
+      [this.rot, !this.flip],
+      [this.rot + 2, !this.flip],
+      [this.rot + 1, this.flip],
+    ];
+    const next = candidates.find(([rot, flip]) => key(rot, flip) !== current) ?? [this.rot, this.flip];
+    const fp = this.footprint();
+    if (this.cursor && fp) this.flipFx = { life: 0, max: this.dur(200), cx: this.ox + (this.cursor.col + fp.w / 2) * this.cell };
+    this.reorient(next[0], next[1]);
   }
 
   private moveCursor(dc: number, dr: number): void {
