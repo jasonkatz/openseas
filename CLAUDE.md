@@ -7,6 +7,8 @@ mechanics, original everything else. `openseas` is a codename.
 
 - `docs/DESIGN.md` is the source of truth for scope and product decisions. Read it before any
   feature work. If code and the design doc disagree, fix one in the same PR.
+- `docs/puzzles/` holds one spec per puzzle. Before any puzzle work, read its spec and
+  `docs/puzzles/README.md`, which sets the bar every puzzle is held to.
 - `docs/adr/` holds the rationale for every architecture choice. Read the index. Never edit an
   accepted ADR's decision; add a superseding one.
 
