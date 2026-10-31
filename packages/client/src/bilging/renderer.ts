@@ -131,13 +131,14 @@ const rand = (a: number, b: number): number => a + Math.random() * (b - a);
 export class BilgingRenderer {
   readonly app = new Application();
   private readonly board = new Container();
+  /** Frame and well never change between layouts, so they render once into a cached texture. */
+  private readonly staticLayer = new Container();
   private readonly frame = new Graphics();
   private readonly glow = new Graphics();
   private readonly well = new Graphics();
   private readonly pieceLayer = new Container();
   private readonly waterBack = new Graphics();
   private readonly waterLayer = new Graphics();
-  private readonly mask = new Graphics();
   private readonly gauge = new Graphics();
   private readonly overlay = new Graphics();
   private readonly fxLayer = new Container();
@@ -247,8 +248,9 @@ export class BilgingRenderer {
     this.app.canvas.setAttribute("data-testid", "bilging-canvas");
     this.host.appendChild(this.app.canvas);
     this.pieceLayer.sortableChildren = true;
-    this.pieceLayer.mask = this.mask;
-    this.board.addChild(this.frame, this.glow, this.well, this.waterBack, this.pieceLayer, this.waterLayer, this.mask, this.gauge, this.overlay, this.fxLayer, this.calloutLayer);
+    this.staticLayer.addChild(this.frame, this.well);
+    this.staticLayer.cacheAsTexture({ resolution: this.app.renderer.resolution, antialias: true });
+    this.board.addChild(this.staticLayer, this.glow, this.waterBack, this.pieceLayer, this.waterLayer, this.gauge, this.overlay, this.fxLayer, this.calloutLayer);
     this.app.stage.addChild(this.board);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -400,7 +402,8 @@ export class BilgingRenderer {
     tile.anchor.set(0.5);
     const flash = new Sprite(this.flashTex);
     flash.anchor.set(0.5);
-    flash.alpha = 0;
+    // Hidden until the piece clears: an additive sprite on every tile would split the batch per piece.
+    flash.visible = false;
     flash.blendMode = "add";
     c.addChild(tile, flash);
     c.position.set(x, y);
@@ -421,6 +424,7 @@ export class BilgingRenderer {
   private kill(v: PieceView, quiet: boolean): void {
     v.dying = 0;
     v.quiet = quiet;
+    v.flash.visible = !quiet;
     v.c.zIndex = 10;
   }
 
@@ -615,7 +619,7 @@ export class BilgingRenderer {
       }
     }
     w.rect(0, 0, W, H).stroke({ width: 3, color: 0x000000, alpha: 0.55, alignment: 1 });
-    this.mask.clear().rect(0, 0, W, H).fill(0xffffff);
+    this.staticLayer.updateCacheTexture();
   }
 
   /** Bake each kind's tile, the clear flash, and the debris spark to textures at the current size. */
@@ -749,6 +753,10 @@ export class BilgingRenderer {
       const lifted = this.selected && this.selected.col === col && this.selected.row === row ? 0.06 + Math.sin(this.time * 0.008) * 0.02 : 0;
       const sq = v.squash * 0.1;
       v.c.position.set(v.x + nudge, v.y + arc + sq * this.cell * 0.3);
+      // Pieces rising from below the board fade in out of the murk instead of being masked.
+      const below = (v.y - (this.height - 0.5) * this.cell) / this.cell;
+      v.c.visible = below < 1;
+      v.c.alpha = below > 0 ? 1 - below : 1;
       v.c.scale.set(1 + pop + lifted + sq * 0.5, 1 + pop + lifted - sq);
     }
     this.moving = moving;
