@@ -1113,3 +1113,6 @@ a {
 .hud .stat-wide .next-pair {
   padding-top: 2px;
 }
+.legend .shapes li {
+  gap: 4px;
+}

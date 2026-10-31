@@ -144,6 +144,27 @@ export const sfx = {
     tone({ freq: 700, to: 1400, duration: 0.09, type: "square", gain: 0.025 });
     tone({ freq: 1050, duration: 0.18, type: "sine", gain: 0.05, delay: 0.06 });
   },
+  /** Carpentry: a plank nailed down. A mallet knock, duller when the plank hangs over sound hull. */
+  hammer: (waste: boolean) => {
+    noise(0.07, waste ? 0.05 : 0.08, waste ? 900 : 1800, 200);
+    tone({ freq: waste ? 150 : 210, to: waste ? 70 : 95, duration: 0.11, type: "sine", gain: waste ? 0.08 : 0.12 });
+    if (!waste) tone({ freq: 1400, duration: 0.03, type: "triangle", gain: 0.02 });
+  },
+  /** Carpentry: a patched hole's planks lift away. A woody rising sweep. */
+  plankLift: () => {
+    noise(0.3, 0.05, 500, 2600, "bandpass");
+    tone({ freq: 240, to: 480, duration: 0.28, type: "triangle", gain: 0.03 });
+  },
+  /** Carpentry: hull splinters open. A crack and a low groan. */
+  crack: (loud: boolean) => {
+    noise(0.12, loud ? 0.1 : 0.06, 3200, 300, "highpass");
+    tone({ freq: 120, to: 60, duration: loud ? 0.35 : 0.2, type: "sawtooth", gain: loud ? 0.05 : 0.03, delay: 0.03 });
+  },
+  /** A plank will not go there. A short dead thud. */
+  bump: () => {
+    noise(0.05, 0.03, 500, 150);
+    tone({ freq: 110, to: 80, duration: 0.09, type: "triangle", gain: 0.05 });
+  },
   tick: (urgent: boolean) => tone({ freq: urgent ? 1180 : 880, duration: 0.05, type: "square", gain: 0.018 }),
   start: () => {
     tone({ freq: 392, duration: 0.14, type: "triangle", gain: 0.06 });

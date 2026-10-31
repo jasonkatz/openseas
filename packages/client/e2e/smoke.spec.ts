@@ -87,3 +87,35 @@ test("home links to Sailing practice and an unrated round takes keyboard drops",
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });
+
+test("home links to Carpentry practice and planks go down by keyboard and by tap", async ({ page }) => {
+  // The plank tray and board redraw are the heaviest canvas in the suite on the phone profile.
+  test.slow();
+  await page.goto("/");
+  await page.getByRole("link", { name: /Carpentry/ }).click();
+  await expect(page).toHaveURL(/\/practice\/carpentry$/);
+  await page.getByTestId("start-unrated").click();
+  const canvas = page.getByTestId("carpentry-canvas");
+  await expect(canvas).toBeVisible();
+  await expect(page.getByTestId("hud-moves")).toContainText("0");
+  const settled = (): Promise<void> => expectViewMatchesState(page, "carpentry");
+  await settled();
+
+  // Keyboard: pick plank 1, jump to a spot it fits, nail it down.
+  await page.keyboard.press("1");
+  await page.keyboard.press("h");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("hud-moves")).toContainText("1");
+  await settled();
+
+  // Pointer: pick plank 2, find a fit by keyboard, then click the middle of the ghost to nail it.
+  await page.keyboard.press("2");
+  await page.keyboard.press("h");
+  await expect.poll(() => canvas.getAttribute("data-ghost")).toMatch(/^\d+,\d+,\d+,\d+$/);
+  const [col, row, w, h] = (await canvas.getAttribute("data-ghost"))!.split(",").map(Number);
+  const [ox, oy, cell] = (await canvas.getAttribute("data-geometry"))!.split(",").map(Number);
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  await page.mouse.click(box.x + ox! + (col! + w! / 2) * cell!, box.y + oy! + (row! + h! / 2) * cell!);
+  await expect(page.getByTestId("hud-moves")).toContainText("2");
+});

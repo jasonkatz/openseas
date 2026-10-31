@@ -1,0 +1,50 @@
+{
+  "config": {
+    "width": 9,
+    "height": 12,
+    "pieceKinds": 4,
+    "holesAtOnce": 3,
+    "minHolePieces": 1,
+    "maxHolePieces": 3,
+    "basePerCell": 4,
+    "multiplierPercent": {
+      "masterpiece": 300,
+      "craftsmanship": 200,
+      "fair": 150,
+      "sloppy": 100,
+      "pig": 50
+    },
+    "grainBonusPercent": 25,
+    "growAfterMoves": 6,
+    "maxMoves": 60
+  },
+  "roundSeconds": 150,
+  "thresholds": [
+    { "score": 80, "rating": 1100 },
+    { "score": 200, "rating": 1300 },
+    { "score": 400, "rating": 1500 },
+    { "score": 700, "rating": 1700 },
+    { "score": 1100, "rating": 1900 },
+    { "score": 1600, "rating": 2100 }
+  ],
+  "pieces": [
+    { "nameKey": "carpentry.wood.oak", "mark": "square", "texture": "grain", "color": "#c98a4b" },
+    { "nameKey": "carpentry.wood.teak", "mark": "diamond", "texture": "knurl", "color": "#8c5a2b" },
+    { "nameKey": "carpentry.wood.pine", "mark": "triangle", "texture": "fan", "color": "#e3c27a" },
+    { "nameKey": "carpentry.wood.mahogany", "mark": "hexagon", "texture": "nacre", "color": "#7a3b2e" }
+  ],
+  "shapes": [
+    { "nameKey": "carpentry.shape.f" },
+    { "nameKey": "carpentry.shape.i" },
+    { "nameKey": "carpentry.shape.l" },
+    { "nameKey": "carpentry.shape.n" },
+    { "nameKey": "carpentry.shape.p" },
+    { "nameKey": "carpentry.shape.t" },
+    { "nameKey": "carpentry.shape.u" },
+    { "nameKey": "carpentry.shape.v" },
+    { "nameKey": "carpentry.shape.w" },
+    { "nameKey": "carpentry.shape.x" },
+    { "nameKey": "carpentry.shape.y" },
+    { "nameKey": "carpentry.shape.z" }
+  ]
+}
