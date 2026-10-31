@@ -4,5 +4,6 @@ export { InvalidMoveError } from "./errors.js";
 export * from "./bilging/index.js";
 export * from "./sailing/index.js";
 export * from "./carpentry/index.js";
+export * from "./gunnery/index.js";
 export * from "./rating/index.js";
 export * from "./registry.js";

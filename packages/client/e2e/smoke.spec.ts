@@ -130,3 +130,32 @@ test("home links to Carpentry practice and planks go down by keyboard and by tap
   await page.mouse.click(box.x + ox! + (col! + w! / 2) * cell!, box.y + oy! + (row! + h! / 2) * cell!);
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });
+
+test("home links to Gunnery practice and an unrated round takes arrows by key and by tap", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: /Gunnery/ }).click();
+  await expect(page).toHaveURL(/\/practice\/gunnery$/);
+  await page.getByTestId("start-unrated").click();
+  const canvas = page.getByTestId("gunnery-canvas");
+  await expect(canvas).toBeVisible();
+  await expect(page.getByTestId("hud-moves")).toContainText("0");
+
+  // Keyboard: lay an arrow pointing right at the cursor.
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("d");
+  await expect(page.getByTestId("hud-moves")).toContainText("1");
+
+  // Pointer: tap a deck cell near the top-left of the deck.
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  const cell = Math.min(box.width / 9, box.height / 11);
+  const ox = box.x + (box.width - cell * 9) / 2;
+  const oy = box.y + (box.height - cell * 11) / 2;
+  await page.mouse.click(ox + cell * 1.5, oy + cell * 1.5);
+  await expect(page.getByTestId("hud-moves")).toContainText("2");
+  // The deck the canvas shows is the deck the engine holds.
+  await expect(async () => {
+    const want = await page.getByTestId("gunnery-board").getAttribute("data-board");
+    expect(await canvas.getAttribute("data-view")).toBe(want);
+  }).toPass({ timeout: 10_000 });
+});

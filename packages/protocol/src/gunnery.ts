@@ -1,0 +1,26 @@
+import { z } from "zod";
+
+const Dir = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]);
+const Tick = z.int().min(0).max(100_000);
+const Cell = z.int().min(0).max(63);
+
+export const GunneryMoveSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("arrow"), col: Cell, row: Cell, dir: Dir, tick: Tick }),
+  z.object({ type: z.literal("remove"), col: Cell, row: Cell, tick: Tick }),
+  z.object({ type: z.literal("wait"), tick: Tick }),
+  z.object({ type: z.literal("end"), tick: Tick }),
+]);
+export type GunneryMoveWire = z.infer<typeof GunneryMoveSchema>;
+
+export const GunneryConfigSchema = z.object({
+  deck: z.array(z.string().regex(/^[#.XBCH]+$/).min(5).max(64)).min(5).max(64),
+  tickMs: z.int().min(20).max(5000),
+  maxTick: z.int().min(1).max(100_000),
+  maxMoves: z.int().min(1).max(10_000),
+  maxArrows: z.int().min(1).max(20),
+  perKindOnDeck: z.int().min(1).max(8),
+  spawnEveryTicks: z.int().min(1).max(1000),
+  fireAfterTicks: z.int().min(1).max(10_000),
+  loadPoints: z.int().min(0).max(100_000),
+});
+export type GunneryConfigWire = z.infer<typeof GunneryConfigSchema>;

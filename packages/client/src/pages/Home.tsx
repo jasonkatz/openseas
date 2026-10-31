@@ -30,8 +30,23 @@ const LIVE: Array<{ id: string; glyph: ReactNode }> = [
       </svg>
     ),
   },
+  {
+    id: "gunnery",
+    glyph: (
+      <svg viewBox="0 0 64 64" width="56" height="56">
+        <rect x="6" y="6" width="52" height="52" rx="6" fill="#4e3419" />
+        <rect x="10" y="10" width="44" height="44" rx="4" fill="#7a5533" />
+        <rect x="6" y="20" width="12" height="10" rx="3" fill="#3a3f47" />
+        <rect x="46" y="34" width="12" height="10" rx="3" fill="#3a3f47" />
+        <circle cx="32" cy="32" r="7" fill="#5c3d21" stroke="#d4a548" strokeWidth="2" />
+        <circle cx="22" cy="42" r="4" fill="#2b2b33" />
+        <circle cx="40" cy="20" r="4" fill="#f2f0e6" />
+        <path d="M24 24h10m0 0l-3-3m3 3l-3 3" fill="none" stroke="#f5d58a" strokeWidth="2.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
 ];
-const SOON = ["gunnery", "navigation"];
+const SOON = ["navigation"];
 
 export function Home() {
   const { phase, pirate, error, inviteRequired, createPirate } = usePirate();

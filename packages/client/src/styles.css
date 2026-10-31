@@ -1116,3 +1116,44 @@ a {
 .legend .shapes li {
   gap: 4px;
 }
+
+/* ---- gunnery HUD */
+.cannon-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cannon-chip {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 10px) auto;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.12);
+  font-size: 11px;
+}
+.cannon-chip i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.cannon-chip i.lit {
+  background: var(--brass);
+}
+.cannon-chip small {
+  margin-left: 4px;
+  color: var(--parchment-dim);
+  white-space: nowrap;
+}
+.cannon-chip.ready {
+  box-shadow: inset 0 0 0 1px var(--brass);
+}
+.cannon-chip.fouled {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+.cannon-chip.fouled small {
+  color: var(--danger);
+}
