@@ -61,9 +61,14 @@ case. Gunnery is the puzzle most likely to invoke this clause.
 ### 3.3 Puzzle designs
 
 Each puzzle below lists its faithful core and the quality-of-life additions agreed for v1. No duty
-puzzle has undo.
+puzzle has undo. The full spec for each puzzle lives in [`docs/puzzles/`](./puzzles/), one file
+per puzzle in a shared template. [`docs/puzzles/README.md`](./puzzles/README.md) records what
+Bilging taught us and the bar every later puzzle is held to: rules verified against the original
+before the engine, a pressure model with clamps and no banking, step-by-step move reports, the
+view-equals-engine check, a perf budget on a slow phone, readability without color, phones first,
+and a feedback checklist.
 
-**Bilging.** A 6 wide by 12 tall board of pieces. Swap two horizontally adjacent pieces. Matches of
+**Bilging.** ([spec](./puzzles/bilging.md)) A 6 wide by 12 tall board of pieces. Swap two horizontally adjacent pieces. Matches of
 3 or more clear; the pieces below float up and new pieces enter from the bottom. Combos and
 multi-clears score higher. The water line rises as
 the ship's bilge fills. Special pieces (equivalents of the original's crab, pufferfish, and
@@ -104,29 +109,29 @@ client for display. Tile art is painted once per layout with Canvas 2D and share
 On phones the top bar is the whole HUD (score, time, moves, a combo chip) and the board takes the
 rest of the screen; combo, water, connection and the piece legend open in a panel over the board.
 
-**Sailing.** Falling pieces you steer and rotate into a board, clearing by forming groups and
+**Sailing.** ([spec](./puzzles/sailing.md)) Falling pieces you steer and rotate into a board, clearing by forming groups and
 chaining through the board's structure. Performance feeds movement tokens per turn. QoL: ghost
 piece showing landing position, next-piece preview, swipe-to-move and tap-to-rotate on touch.
 
-**Carpentry.** Polyomino pieces offered from a queue, placed to fill holes in planking. Tighter
+**Carpentry.** ([spec](./puzzles/carpentry.md)) Polyomino pieces offered from a queue, placed to fill holes in planking. Tighter
 fills with fewer gaps score higher and feed repair output. QoL: drag-and-drop with snap and a
 rotate button, valid-placement highlight, swap between offered pieces.
 
-**Gunnery.** Route powder, wadding, and cannonballs through a column board into cannons in the
+**Gunnery.** ([spec](./puzzles/gunnery.md)) Route powder, wadding, and cannonballs through a column board into cannons in the
 right order to load them. Correct loads feed cannon readiness. QoL: per-cannon load-order
 indicator, highlight of which drop completes a load. Flagged for possible redesign after
 playtesting.
 
-**Navigation.** Arrange and shift pieces to reproduce a target constellation. Completed patterns
+**Navigation.** ([spec](./puzzles/navigation.md)) Arrange and shift pieces to reproduce a target constellation. Completed patterns
 grant token bonuses and sea battle advantages. QoL: target overlay toggle, progress meter.
 
-**Sea Battle.** Square grid with rocks and wind arrows. Per-turn move token pool from Sailing
+**Sea Battle.** ([spec](./puzzles/sea-battle.md)) Square grid with rocks and wind arrows. Per-turn move token pool from Sailing
 (left, forward, right). Up to four moves queued per turn. Simultaneous resolution with collision
 and wind rules. Cannon fire placed left or right per move segment. Damage from hits. The captain
 plays it on a landscape board. Brigand AI chooses moves from a scripted policy with difficulty
 tiers. The ruleset is a pure reducer shared by server, client preview, and AI.
 
-**Swordfighting.** Puyo-style falling colored pairs on each pirate's board. Groups clear; cleared
+**Swordfighting.** ([spec](./puzzles/swordfighting.md)) Puyo-style falling colored pairs on each pirate's board. Groups clear; cleared
 groups send breaker blocks to opponents' boards. Team mode distributes each side's attacks. QoL:
 incoming-attack preview, swipe controls. Ships after the duty puzzles; the first playable pillage
 resolves boarding with a stub.
@@ -196,7 +201,7 @@ owned ships. No inventory, clothing, or housing in v1.
 
 - Browser only, no install. Phones are first-class.
 - Portrait for all duty puzzles. Landscape for Sea Battle and the island.
-- Puzzle tiles are plain colored squares for legibility. Every piece type is also
+- Puzzle tiles are colored squares for legibility, each kind with its own surface texture. Every piece type is also
   distinguishable without color: a player setting draws a distinct mark on each kind, and special
   tiles carry an icon and a label. Keyboard play for all puzzles on desktop. Screen-reader support for puzzle boards is out of scope.
 - English only. All player-facing strings go through one message table.
@@ -262,7 +267,9 @@ guests and account linking to Discord and Google.
 ### 5.1 Build order
 
 Puzzles first, each playable solo on a practice page before the next starts, because the puzzles
-have to be fun or nothing else matters. Order: Bilging, Sailing, Carpentry, Gunnery, Navigation,
+have to be fun or nothing else matters. Each puzzle goes spec, engine, practice page, feel, one PR
+each, and its spec's "Rules to verify" list is signed off by the owner before the engine PR
+(`docs/puzzles/README.md`, Gates). Order: Bilging, Sailing, Carpentry, Gunnery, Navigation,
 Sea Battle, Swordfighting. Bilging goes first because it is the simplest and stress-tests the
 deterministic engine and replay pipeline on the easiest case.
 
@@ -287,7 +294,12 @@ Every milestone ends with a tester session and a written retro before the next s
 - Hard metrics tracked from M1: input-to-render latency, server tick jitter, puzzle round
   completion rate.
 - Every puzzle engine gets property-based tests for determinism (same seed and moves give the
-  same state) before it is wired to the server.
+  same state) before it is wired to the server, plus a model-based test for every pressure it
+  tracks and a check that its move reports end at its final state.
+- Every board puzzle's smoke test checks that the board drawn on the canvas equals the engine's
+  board after the round starts and after moves.
+- A renderer change is measured on an emulated Pixel 7 under software GL; its p50 frame time must
+  not regress against `main`.
 
 ### 5.4 Development workflow
 
