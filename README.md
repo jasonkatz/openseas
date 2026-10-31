@@ -12,8 +12,9 @@ then board and fight for booty.
 
 ## Status
 
-Milestone 1: the Bilging practice page with guest accounts and ratings. Sailing is next, after
-the tester session and retro for M1.
+Milestone 2 in progress: all five duty puzzles (Bilging, Sailing, Carpentry, Gunnery,
+Navigation) on practice pages with guest accounts and ratings, landing as a stack of PRs in
+build order. Each needs its tester session before its numbers are trusted.
 
 ## Layout
 
