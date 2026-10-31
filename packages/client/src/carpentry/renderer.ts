@@ -39,10 +39,6 @@ export interface CarpentryRendererOptions {
   streakLabel(count: number): string;
   grainLabel: string;
   grewLabel: string;
-  /** The toolbar under a plank set down on the hull. */
-  turnLabel: string;
-  flipLabel: string;
-  nailLabel: string;
 }
 
 type Oriented = Array<[number, number]>;
@@ -135,7 +131,7 @@ interface Drag {
   offY: number;
 }
 
-type HudAction = "rotate" | "flip" | "nail";
+type HudAction = "ccw" | "cw" | "flip" | "nail";
 
 const COLORS = {
   hullA: 0x6b4423,
@@ -175,7 +171,6 @@ export class CarpentryRenderer {
   private readonly trayPiecesG = new Graphics();
   private readonly trayText = new Container();
   private readonly hudG = new Graphics();
-  private readonly hudText = new Container();
   private readonly dragG = new Graphics();
   private readonly textLayer = new Container();
   private readonly colorByKind = new Map<number, number>();
@@ -217,7 +212,6 @@ export class CarpentryRenderer {
   private drag: Drag | null = null;
   /** The toolbar's buttons, in canvas pixels, while it shows. */
   private hudRects: Array<{ x: number; y: number; w: number; h: number; action: HudAction }> = [];
-  private hudLabels: Text[] = [];
   private hudPressed: { action: HudAction; life: number } | null = null;
   /** True after touch input: the toolbar shows for a plank set down. A mouse hovers and clicks instead. */
   private touchUI = false;
@@ -259,7 +253,7 @@ export class CarpentryRenderer {
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.app.canvas.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
     this.host.appendChild(this.app.canvas);
-    this.root.addChild(this.hull, this.holesG, this.holeFxG, this.planksG, this.markLayer, this.fxG, this.ghostG, this.trayG, this.trayPiecesG, this.trayText, this.hudG, this.hudText, this.dragG, this.textLayer);
+    this.root.addChild(this.hull, this.holesG, this.holeFxG, this.planksG, this.markLayer, this.fxG, this.ghostG, this.trayG, this.trayPiecesG, this.trayText, this.hudG, this.dragG, this.textLayer);
     this.app.stage.addChild(this.root);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -601,8 +595,9 @@ export class CarpentryRenderer {
   }
 
   /**
-   * The toolbar under a plank set down by touch: Turn, Flip and Nail follow the plank, below it or
-   * above it near the keel. Hidden while the plank is in hand and for a mouse, which hovers and clicks.
+   * The toolbar under a plank set down by touch: turn either way, flip, and a hammer to nail. It
+   * follows the plank, below it or above it near the keel. Hidden while the plank is in hand and for a
+   * mouse, which hovers and clicks.
    */
   private drawHud(): void {
     const g = this.hudG;
@@ -610,18 +605,15 @@ export class CarpentryRenderer {
     this.hudRects = [];
     const fp = this.footprint();
     const show = this.state && this.interactive && !this.state.finished && this.cursor && fp && this.touchUI && !this.drag?.moved;
-    if (!show) {
-      for (const t of this.hudLabels) t.visible = false;
-      return;
-    }
+    if (!show) return;
     const s = this.cell;
     const cursor = this.cursor!;
     const legal = this.check(cursor.col, cursor.row)?.legal ?? false;
-    const bh = Math.max(44, s * 1.2);
-    const bw = Math.max(bh * 1.7, s * 2.2);
-    const gap = Math.max(4, s * 0.12);
-    const W = bw * 3 + gap * 4;
-    const H = bh + gap * 2;
+    const b = Math.max(46, s * 1.25);
+    const gap = Math.max(5, s * 0.14);
+    const actions: HudAction[] = ["ccw", "cw", "flip", "nail"];
+    const W = b * actions.length + gap * (actions.length + 1);
+    const H = b + gap * 2;
     const wanted = this.ox + (cursor.col + fp!.w / 2) * s - W / 2;
     const x0 = Math.max(this.ox - 4, Math.min(this.ox + this.width * s + 4 - W, wanted));
     let y0 = this.oy + (cursor.row + fp!.h) * s + s * 0.2;
@@ -629,40 +621,27 @@ export class CarpentryRenderer {
     g.roundRect(x0, y0 + 3, W, H, 12).fill({ color: 0x000000, alpha: 0.4 });
     g.roundRect(x0, y0, W, H, 12).fill({ color: COLORS.ink, alpha: 0.94 });
     g.roundRect(x0, y0, W, H, 12).stroke({ width: 1.5, color: COLORS.brass, alpha: 0.55 });
-    const actions: HudAction[] = ["rotate", "flip", "nail"];
     actions.forEach((action, i) => {
-      const x = x0 + gap + i * (bw + gap);
+      const x = x0 + gap + i * (b + gap);
       const y = y0 + gap;
       const down = this.hudPressed?.action === action;
       const enabled = action !== "nail" || legal;
       const dy = down ? 1 : 0;
       if (action === "nail") {
-        g.roundRect(x, y + dy, bw, bh, 9).fill({ color: enabled ? COLORS.legal : 0x2b3a4a, alpha: enabled ? (down ? 0.8 : 1) : 0.7 });
-        g.roundRect(x, y + dy, bw, bh, 9).stroke({ width: 1.5, color: enabled ? 0xffffff : 0x5a6a7a, alpha: 0.7 });
+        g.roundRect(x, y + dy, b, b, 9).fill({ color: enabled ? COLORS.legal : 0x2b3a4a, alpha: enabled ? (down ? 0.8 : 1) : 0.7 });
+        g.roundRect(x, y + dy, b, b, 9).stroke({ width: 1.5, color: enabled ? 0xffffff : 0x5a6a7a, alpha: 0.7 });
       } else {
-        g.roundRect(x, y + dy, bw, bh, 9).fill({ color: down ? 0x4a3018 : 0x2a1b10 });
-        g.roundRect(x, y + dy, bw, bh, 9).stroke({ width: 1.5, color: down ? COLORS.brassLight : COLORS.brass, alpha: 0.85 });
+        g.roundRect(x, y + dy, b, b, 9).fill({ color: down ? 0x4a3018 : 0x2a1b10 });
+        g.roundRect(x, y + dy, b, b, 9).stroke({ width: 1.5, color: down ? COLORS.brassLight : COLORS.brass, alpha: 0.85 });
       }
-      this.hudRects.push({ x, y, w: bw, h: bh, action });
-      const label = this.hudLabel(i, action);
-      label.visible = true;
-      label.style.fontSize = Math.max(12, Math.min(s * 0.42, bw / 4.4));
-      label.style.fill = action === "nail" ? (enabled ? COLORS.ink : 0x8a96a4) : COLORS.brassLight;
-      label.position.set(x + bw / 2, y + bh / 2 + dy);
+      this.hudRects.push({ x, y, w: b, h: b, action });
+      const cx = x + b / 2;
+      const cy = y + b / 2 + dy;
+      const r = b * 0.27;
+      if (action === "ccw" || action === "cw") drawTurnIcon(g, cx, cy, r, action === "cw", COLORS.brassLight);
+      else if (action === "flip") drawFlipIcon(g, cx, cy, r, COLORS.brassLight);
+      else drawHammerIcon(g, cx, cy, r, enabled ? COLORS.ink : 0x8a96a4);
     });
-  }
-
-  private hudLabel(i: number, action: HudAction): Text {
-    let t = this.hudLabels[i];
-    if (!t) {
-      t = new Text({ text: "", style: { fontFamily: FONT, fontSize: 14, fontWeight: "700", fill: COLORS.brassLight } });
-      t.anchor.set(0.5);
-      this.hudText.addChild(t);
-      this.hudLabels[i] = t;
-    }
-    const text = action === "rotate" ? `⟳ ${this.opts.turnLabel}` : action === "flip" ? `⇄ ${this.opts.flipLabel}` : `✓ ${this.opts.nailLabel}`;
-    if (t.text !== text) t.text = text;
-    return t;
   }
 
   private paintGhost(g: Graphics, check: CarpentryPlacementCheck | null, col: number, row: number, strength: number): void {
@@ -1218,7 +1197,8 @@ export class CarpentryRenderer {
     const button = this.hudRects.find((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
     if (button) {
       this.hudPressed = { action: button.action, life: 0 };
-      if (button.action === "rotate") this.rotate();
+      if (button.action === "cw") this.rotate(1);
+      else if (button.action === "ccw") this.rotate(-1);
       else if (button.action === "flip") this.doFlip();
       else if (this.cursor) this.placeAt(this.cursor.col, this.cursor.row, null);
       this.drawHud();
@@ -1426,6 +1406,42 @@ export class CarpentryRenderer {
         return false;
     }
   }
+}
+
+/** A three-quarter arc with an arrowhead, curling clockwise or back. */
+function drawTurnIcon(g: Graphics, cx: number, cy: number, r: number, clockwise: boolean, color: number): void {
+  const start = clockwise ? Math.PI * 0.75 : Math.PI * 0.25;
+  const end = clockwise ? Math.PI * 0.25 : Math.PI * 0.75;
+  // The arc continues the current path, so start it at its own first point.
+  g.moveTo(cx + r * Math.cos(start), cy + r * Math.sin(start));
+  g.arc(cx, cy, r, start, end, !clockwise).stroke({ width: Math.max(2, r * 0.28), color, cap: "round" });
+  // Arrowhead along the tangent at the end of the arc.
+  const ex = cx + r * Math.cos(end);
+  const ey = cy + r * Math.sin(end);
+  const dir = clockwise ? 1 : -1;
+  const tx = -Math.sin(end) * dir;
+  const ty = Math.cos(end) * dir;
+  const k = r * 0.75;
+  g.poly([ex + tx * k * 0.9, ey + ty * k * 0.9, ex - tx * k * 0.3 + ty * k * 0.6, ey - ty * k * 0.3 - tx * k * 0.6, ex - tx * k * 0.3 - ty * k * 0.6, ey - ty * k * 0.3 + tx * k * 0.6]).fill(color);
+}
+
+/** Two triangles mirrored across a dashed axis. */
+function drawFlipIcon(g: Graphics, cx: number, cy: number, r: number, color: number): void {
+  const w = Math.max(1.5, r * 0.2);
+  for (let y = -r; y < r; y += r * 0.5) g.moveTo(cx, cy + y).lineTo(cx, cy + Math.min(r, y + r * 0.25)).stroke({ width: w, color, alpha: 0.8 });
+  const gapX = r * 0.3;
+  g.poly([cx - gapX, cy - r * 0.8, cx - gapX, cy + r * 0.8, cx - r * 1.1, cy + r * 0.8]).stroke({ width: w, color, join: "round" });
+  g.poly([cx + gapX, cy - r * 0.8, cx + gapX, cy + r * 0.8, cx + r * 1.1, cy + r * 0.8]).fill(color);
+}
+
+/** A mallet: a broad head on a tilted handle. */
+function drawHammerIcon(g: Graphics, cx: number, cy: number, r: number, color: number): void {
+  const a = -Math.PI / 5;
+  const rot = (x: number, y: number): [number, number] => [cx + x * Math.cos(a) - y * Math.sin(a), cy + x * Math.sin(a) + y * Math.cos(a)];
+  const head = [rot(-r * 1.0, -r * 1.05), rot(r * 1.0, -r * 1.05), rot(r * 1.0, -r * 0.4), rot(-r * 1.0, -r * 0.4)].flat();
+  const handle = [rot(-r * 0.17, -r * 0.4), rot(r * 0.17, -r * 0.4), rot(r * 0.17, r * 1.3), rot(-r * 0.17, r * 1.3)].flat();
+  g.poly(handle).fill(color);
+  g.poly(head).fill(color);
 }
 
 /** Board cells of a plank as offsets from its top-left corner. */

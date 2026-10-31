@@ -162,7 +162,8 @@ masterpiece. The round ends after `maxMoves` planks or the clock. Control is bui
 plank's centre: it sits under the pointer (lifted above a finger), and a spot that will not take it
 snaps to a neighbouring one that will, so dropping near a hole is enough. A mouse carries the plank
 by hovering and nails it with a click; right-click or the wheel turns it. Touch drags the plank
-and sets it down by letting go over the hull, where a toolbar follows it with Turn, Flip and Nail;
+and sets it down by letting go over the hull, where an icon toolbar follows it (turn either way,
+flip, and a hammer to nail);
 letting go or dragging off the hull sends it back to its slot, and a tap on bare hull brings it
 there. Turning pivots about the
 centre so the ghost stays put. The keyboard picks a slot, moves, turns either way, flips, and jumps
