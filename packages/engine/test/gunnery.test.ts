@@ -7,13 +7,17 @@ import {
   InvalidMoveError,
   advanceGunnery,
   cannonNeeds,
+  cannonOutcome,
   createGunneryGame,
   gunneryCellAt,
+  gunneryDropInterval,
   hashGunneryState,
   parseGunneryDeck,
+  predictGunneryPath,
   reduceGunnery,
   replayGunnery,
   type Dir,
+  type GunneryConfig,
   type GunneryMove,
   type GunneryPiece,
   type GunneryState,
@@ -58,25 +62,53 @@ function expectInvariants(state: GunneryState): void {
     expect(gunneryCellAt(state.deck, p.col, p.row)).toBe("deck");
   }
   expect(state.arrows.length).toBeLessThanOrEqual(state.config.maxArrows);
+  expect(state.pieces.length).toBeLessThanOrEqual(state.config.maxOnDeck);
+  expect(state.queue.length).toBe(state.config.queueLength);
   const ids = state.pieces.map((p) => p.id);
   expect(new Set(ids).size).toBe(ids.length);
+  for (const c of state.cannons) {
+    expect(c.loaded).toBeGreaterThanOrEqual(0);
+    expect(c.loaded).toBeLessThanOrEqual(3);
+    if (c.fouled) expect(c.loaded).toBe(0);
+    expect(c.firesAt !== null).toBe(c.loaded === 3);
+  }
 }
+
+/** No drops: a quiet deck to set pieces on by hand. */
+const quiet: GunneryConfig = { ...cfg, spawnEveryTicks: 100_000, spawnEveryTicksMin: 100_000 };
+
+/** A quiet state with the given pieces and cannon 1 (east, row 3) patched. */
+function deckWith(pieces: GunneryPiece[], cannonPatch: Partial<GunneryState["cannons"][number]> = {}): GunneryState {
+  const base = createGunneryGame("quiet", quiet);
+  const cannons = base.cannons.map((c, i) => (i === 1 ? { ...c, ...cannonPatch } : c));
+  return { ...base, lastDrop: 0, pieces, cannons, nextId: 1000 };
+}
+
+/** A piece two cells short of the east cannon on row 3, rolling at it. */
+const atEast = (kind: number, id = 500): GunneryPiece => ({ id, kind, col: 6, row: 3, dir: 0 });
 
 describe("gunnery deck", () => {
   it("parses the default deck", () => {
     const d = parseGunneryDeck(cfg.deck);
     expect(d.width).toBe(9);
     expect(d.height).toBe(11);
-    expect(d.cannons.length).toBe(4);
-    expect(d.barrel).toEqual({ col: 4, row: 5 });
+    expect(d.cannons).toEqual([
+      { col: 0, row: 3 },
+      { col: 8, row: 3 },
+      { col: 0, row: 7 },
+      { col: 8, row: 7 },
+    ]);
+    expect(d.barrel).toEqual({ col: 4, row: 0 });
+    expect(d.drop).toEqual({ col: 4, row: 1, dir: 1 });
   });
 
   it("rejects malformed decks", () => {
-    expect(() => parseGunneryDeck(["#####", "#...#", "#.B.#", "#...#", "####"])).toThrow(/width/);
-    expect(() => parseGunneryDeck(["#####", "#...#", "#.B.#", "#...#", "#####"])).toThrow(/no cannons/);
-    expect(() => parseGunneryDeck(["#####", "#...C", "#.Q.#", "#...#", "#####"])).toThrow(/unknown symbol/);
-    expect(() => parseGunneryDeck(["#####", "#...C", "#.B.#", "#.B.#", "#####"])).toThrow(/more than one barrel/);
-    expect(() => parseGunneryDeck(["#####", "#...C", "#.B..", "#...#", "#####"])).toThrow(/open rim/);
+    expect(() => parseGunneryDeck(["##B##", "#...#", "#...#", "#...#", "####"])).toThrow(/width/);
+    expect(() => parseGunneryDeck(["##B##", "#...#", "#...#", "#...#", "#####"])).toThrow(/no cannons/);
+    expect(() => parseGunneryDeck(["##B##", "#...C", "#.Q.#", "#...#", "#####"])).toThrow(/unknown symbol/);
+    expect(() => parseGunneryDeck(["##B##", "#...C", "#...#", "#...#", "##B##"])).toThrow(/more than one chute/);
+    expect(() => parseGunneryDeck(["##B##", "#...C", "#....", "#...#", "#####"])).toThrow(/open rim/);
+    expect(() => parseGunneryDeck(["#####", "#...C", "#.B.#", "#...#", "#####"])).toThrow(/exactly one deck cell/);
   });
 });
 
@@ -143,18 +175,39 @@ describe("gunnery rules", () => {
     );
   });
 
-  it("the barrel never over-supplies a kind", () => {
+  it("the chute deals each bag in full before the next, in the order it previews", () => {
     fc.assert(
-      fc.property(fc.string(), fc.nat({ max: 200 }), (seed, ticks) => {
-        const s = advanceGunnery(createGunneryGame(seed), ticks);
-        const spawnedNow = s.lastMove?.events.filter((e) => e.type === "spawn" && e.tick === s.tick) ?? [];
-        if (spawnedNow.length === 0) return;
-        const counts = new Array<number>(GUNNERY_KINDS).fill(0);
-        for (const p of s.pieces) counts[p.kind]!++;
-        for (const e of spawnedNow) expect(counts[e.kind!]).toBeLessThanOrEqual(cfg.perKindOnDeck);
+      fc.property(fc.string(), (seed) => {
+        const start = createGunneryGame(seed);
+        const s = advanceGunnery(start, 160);
+        const dropped = (s.lastMove?.events ?? []).filter((e) => e.type === "spawn").map((e) => e.kind!);
+        expect(dropped.slice(0, start.queue.length)).toEqual(start.queue);
+        const size = cfg.bag.reduce((a, b) => a + b, 0);
+        for (let at = 0; at + size <= dropped.length; at += size) {
+          const counts = new Array<number>(GUNNERY_KINDS).fill(0);
+          for (const k of dropped.slice(at, at + size)) counts[k]!++;
+          expect(counts).toEqual([...cfg.bag]);
+        }
+        expect(dropped.length).toBeGreaterThanOrEqual(size * 2);
       }),
-      { numRuns: 100 },
+      { numRuns: 40 },
     );
+  });
+
+  it("drops quicken from spawnEveryTicks to spawnEveryTicksMin over the round", () => {
+    expect(gunneryDropInterval(cfg, 0)).toBe(cfg.spawnEveryTicks);
+    expect(gunneryDropInterval(cfg, cfg.maxTick)).toBe(cfg.spawnEveryTicksMin);
+    for (let t = 1; t <= cfg.maxTick; t++) expect(gunneryDropInterval(cfg, t)).toBeLessThanOrEqual(gunneryDropInterval(cfg, t - 1));
+  });
+
+  it("with no arrows every piece falls straight down the middle and out the scupper", () => {
+    let s = createGunneryGame("fall");
+    s = advanceGunnery(s, 2);
+    expect(s.pieces).toEqual([{ id: 1, kind: s.pieces[0]!.kind, col: 4, row: 1, dir: 1 }]);
+    s = advanceGunnery(s, 11);
+    expect(s.pieces.find((p) => p.id === 1)).toBeUndefined();
+    expect(s.lastMove?.events.some((e) => e.type === "exit" && e.pieceId === 1)).toBe(true);
+    expect(s.score).toBe(0);
   });
 
   it("rejects ticks that go backwards, beyond the round, or after the end", () => {
@@ -171,7 +224,8 @@ describe("gunnery rules", () => {
   });
 
   it("evicts the oldest arrow past maxArrows and replaces an arrow on the same cell", () => {
-    let s = createGunneryGame("arrows");
+    const c: GunneryConfig = { ...cfg, maxArrows: 3 };
+    let s = createGunneryGame("arrows", c);
     s = reduceGunnery(s, { type: "arrow", col: 1, row: 1, dir: 0, tick: 0 });
     s = reduceGunnery(s, { type: "arrow", col: 2, row: 1, dir: 1, tick: 0 });
     s = reduceGunnery(s, { type: "arrow", col: 3, row: 1, dir: 2, tick: 0 });
@@ -189,85 +243,161 @@ describe("gunnery rules", () => {
   });
 });
 
-/** A state with a single piece of `kind` rolling toward the cannon at row 2 on the east side. */
-function aimed(kind: number, cannonsPatch: Partial<GunneryState["cannons"][number]> = {}, pieceOverride: Partial<GunneryPiece> = {}): GunneryState {
-  const base = createGunneryGame("aim", { ...cfg, perKindOnDeck: 1, spawnEveryTicks: 10_000 });
-  const piece: GunneryPiece = { id: 500, kind, col: 6, row: 2, dir: 0, ...pieceOverride };
-  const cannons = base.cannons.map((c, i) => (i === 1 ? { ...c, ...cannonsPatch } : c));
-  return { ...base, pieces: [piece], cannons, nextId: 501 };
-}
-
 describe("gunnery cannons", () => {
-  it("loads powder, wad, shot in order and scores on the third, then fires itself", () => {
-    let s = aimed(GunneryKind.Powder);
+  it("loads powder, wad, shot in order, scores each step, fires and comes back clean", () => {
+    let s = deckWith([atEast(GunneryKind.Powder)]);
+    expect(cannonNeeds(s.cannons[1]!)).toBe(GunneryKind.Powder);
     s = advanceGunnery(s, 2);
     expect(s.pieces.length).toBe(0);
     expect(s.cannons[1]!.loaded).toBe(1);
+    expect(s.score).toBe(cfg.stepPoints);
     expect(cannonNeeds(s.cannons[1]!)).toBe(GunneryKind.Wad);
-    s = { ...s, pieces: [{ id: 501, kind: GunneryKind.Wad, col: 6, row: 2, dir: 0 }] };
-    s = advanceGunnery(s, 4);
+    s = advanceGunnery({ ...s, pieces: [atEast(GunneryKind.Wad, 501)] }, 4);
     expect(s.cannons[1]!.loaded).toBe(2);
-    s = { ...s, pieces: [{ id: 502, kind: GunneryKind.Shot, col: 6, row: 2, dir: 0 }] };
-    s = advanceGunnery(s, 6);
+    s = advanceGunnery({ ...s, pieces: [atEast(GunneryKind.Shot, 502)] }, 6);
     expect(s.cannons[1]!.loaded).toBe(3);
-    expect(s.score).toBe(cfg.loadPoints);
+    expect(cannonNeeds(s.cannons[1]!)).toBeNull();
+    expect(s.score).toBe(cfg.stepPoints * 2 + cfg.loadPoints);
     expect(s.combo).toBe(1);
     expect(s.loads).toBe(1);
-    expect(s.lastMove?.events.some((e) => e.type === "loaded" && e.cannon === 1)).toBe(true);
+    expect(s.lastMove?.events.find((e) => e.type === "loaded")).toMatchObject({ cannon: 1, points: cfg.loadPoints });
     expect(s.cannons[1]!.firesAt).toBe(6 + cfg.fireAfterTicks);
     s = advanceGunnery(s, 6 + cfg.fireAfterTicks);
-    expect(s.cannons[1]!.fouled).toBe(true);
-    expect(s.cannons[1]!.loaded).toBe(0);
-    expect(s.lastMove?.events.some((e) => e.type === "fire")).toBe(true);
+    expect(s.cannons[1]).toMatchObject({ loaded: 0, fouled: false, firesAt: null });
+    expect(s.lastMove?.events.some((e) => e.type === "fire" && e.cannon === 1)).toBe(true);
   });
 
-  it("a wrong piece fouls the cannon and breaks the combo; water cleans it", () => {
-    let s = aimed(GunneryKind.Shot);
+  it("each load in a combo is worth comboStep more, up to the cap", () => {
+    let s = deckWith([atEast(GunneryKind.Shot)], { loaded: 2 });
+    s = { ...s, combo: 2 };
+    s = advanceGunnery(s, 2);
+    expect(s.combo).toBe(3);
+    expect(s.score).toBe(cfg.loadPoints + cfg.comboStep * 2);
+    let capped = deckWith([atEast(GunneryKind.Shot)], { loaded: 2 });
+    capped = advanceGunnery({ ...capped, combo: 50 }, 2);
+    expect(capped.score).toBe(cfg.loadPoints + cfg.comboStep * cfg.comboCap);
+  });
+
+  it("a wrong piece fouls the cannon and breaks the combo; a fouled cannon turns all but water away", () => {
+    let s = deckWith([atEast(GunneryKind.Shot)], { loaded: 1 });
     s = { ...s, combo: 3 };
     s = advanceGunnery(s, 2);
-    expect(s.cannons[1]!.fouled).toBe(true);
+    expect(s.cannons[1]).toMatchObject({ loaded: 0, fouled: true });
+    expect(cannonNeeds(s.cannons[1]!)).toBe(GunneryKind.Water);
     expect(s.combo).toBe(0);
     expect(s.fouls).toBe(1);
-    s = { ...s, pieces: [{ id: 600, kind: GunneryKind.Powder, col: 6, row: 2, dir: 0 }] };
-    s = advanceGunnery(s, 4);
+    // Powder at the gun port turns right (down) along the gunwale instead of going in.
+    s = advanceGunnery({ ...s, pieces: [atEast(GunneryKind.Powder, 600)] }, 4);
+    expect(s.pieces).toEqual([{ id: 600, kind: GunneryKind.Powder, col: 7, row: 4, dir: 1 }]);
     expect(s.cannons[1]!.fouled).toBe(true);
-    expect(s.lastMove?.events.some((e) => e.type === "waste")).toBe(true);
-    s = { ...s, pieces: [{ id: 601, kind: GunneryKind.Water, col: 6, row: 2, dir: 0 }] };
-    s = advanceGunnery(s, 6);
-    expect(s.cannons[1]!.fouled).toBe(false);
+    s = advanceGunnery({ ...s, pieces: [atEast(GunneryKind.Water, 601)] }, 6);
+    expect(s.cannons[1]).toMatchObject({ loaded: 0, fouled: false });
     expect(s.lastMove?.events.some((e) => e.type === "clean")).toBe(true);
   });
 
-  it("water washes a part-loaded cannon back to empty", () => {
-    let s = aimed(GunneryKind.Water, { loaded: 2 });
-    s = advanceGunnery(s, 2);
-    expect(s.cannons[1]!.loaded).toBe(0);
-    expect(s.cannons[1]!.fouled).toBe(false);
-  });
-
-  it("a hatch swallows a piece", () => {
-    let s = aimed(GunneryKind.Powder, {}, { col: 6, row: 4, dir: 0 });
+  it("water in a clean cannon splashes harmlessly, whatever it holds", () => {
+    let s = deckWith([atEast(GunneryKind.Water)], { loaded: 2 });
     s = advanceGunnery(s, 2);
     expect(s.pieces.length).toBe(0);
-    expect(s.lastMove?.events.some((e) => e.type === "exit")).toBe(true);
+    expect(s.cannons[1]).toMatchObject({ loaded: 2, fouled: false });
+    expect(s.lastMove?.events.some((e) => e.type === "splash")).toBe(true);
   });
 
-  it("an arrow turns a piece, a wall turns it right, and two pieces bounce apart", () => {
-    let s = aimed(GunneryKind.Powder, {}, { col: 2, row: 1, dir: 0 });
+  it("a full cannon waiting to fire turns pieces away", () => {
+    const c = { col: 8, row: 3, loaded: 3, fouled: false, firesAt: 50 };
+    for (let k = 0; k < GUNNERY_KINDS; k++) expect(cannonOutcome(c, k)).toBe("blocked");
+    const s = advanceGunnery(deckWith([atEast(GunneryKind.Powder)], c), 2);
+    expect(s.pieces[0]).toMatchObject({ col: 7, row: 4 });
+  });
+});
+
+describe("gunnery rolling", () => {
+  it("an arrow turns a piece and a wall turns it right", () => {
+    let s = deckWith([{ id: 1, kind: 0, col: 2, row: 1, dir: 0 }]);
     s = reduceGunnery(s, { type: "arrow", col: 3, row: 1, dir: 1, tick: 0 });
     s = advanceGunnery(s, 2);
     expect(s.pieces[0]).toMatchObject({ col: 3, row: 2, dir: 1 });
-    // Heading right along row 1 into the east wall at col 8: turns right (down) along the wall.
-    let w = aimed(GunneryKind.Powder, {}, { col: 7, row: 1, dir: 0 });
-    w = advanceGunnery(w, 1);
+    // Heading right along row 1 into the east rail: turns right (down) along it.
+    const w = advanceGunnery(deckWith([{ id: 1, kind: 0, col: 7, row: 1, dir: 0 }]), 1);
     expect(w.pieces[0]).toMatchObject({ col: 7, row: 2, dir: 1 });
-    // Head on: both reverse without moving.
-    let b = aimed(GunneryKind.Powder, {}, { col: 2, row: 1, dir: 0 });
-    b = { ...b, pieces: [...b.pieces, { id: 777, kind: GunneryKind.Wad, col: 3, row: 1, dir: 2 }] };
+  });
+
+  it("two pieces meeting head on both turn back", () => {
+    let b = deckWith([
+      { id: 1, kind: 0, col: 2, row: 1, dir: 0 },
+      { id: 2, kind: 1, col: 3, row: 1, dir: 2 },
+    ]);
     b = advanceGunnery(b, 1);
     expect(b.pieces.map((p) => [p.col, p.dir])).toEqual([
       [2, 2],
       [3, 0],
     ]);
+  });
+
+  it("a line of pieces rolls together, and a piece behind a stopped one waits", () => {
+    let s = deckWith([
+      { id: 1, kind: 0, col: 4, row: 4, dir: 1 },
+      { id: 2, kind: 1, col: 4, row: 3, dir: 1 },
+      { id: 3, kind: 2, col: 4, row: 2, dir: 1 },
+    ]);
+    s = advanceGunnery(s, 1);
+    expect(s.pieces.map((p) => p.row)).toEqual([5, 4, 3]);
+    // Box the leader in by meeting it head on; the two behind it wait in line.
+    s = { ...s, pieces: [...s.pieces, { id: 4, kind: 3, col: 4, row: 6, dir: 3 }] };
+    s = advanceGunnery(s, 2);
+    expect(s.pieces.map((p) => [p.id, p.row])).toEqual([
+      [1, 5],
+      [2, 4],
+      [3, 3],
+      [4, 6],
+    ]);
+  });
+
+  it("two pieces after the same cell: the older goes, the younger waits", () => {
+    let s = deckWith([
+      { id: 1, kind: 0, col: 3, row: 5, dir: 0 },
+      { id: 2, kind: 1, col: 4, row: 4, dir: 1 },
+    ]);
+    s = advanceGunnery(s, 1);
+    expect(s.pieces).toEqual([
+      { id: 1, kind: 0, col: 4, row: 5, dir: 0 },
+      { id: 2, kind: 1, col: 4, row: 4, dir: 1 },
+    ]);
+  });
+
+  it("the predicted path is where a lone piece actually rolls", () => {
+    fc.assert(
+      fc.property(fc.array(fc.tuple(fc.nat(), fc.nat({ max: 3 })), { maxLength: 4 }), fc.nat(), fc.nat({ max: 3 }), (arrowPicks, at, dir) => {
+        let s = deckWith([]);
+        const cells = deckCells(s);
+        for (const [c, d] of arrowPicks) {
+          const cell = cells[c % cells.length]!;
+          s = reduceGunnery(s, { type: "arrow", col: cell.col, row: cell.row, dir: d as Dir, tick: 0 });
+        }
+        const start = cells[at % cells.length]!;
+        const piece: GunneryPiece = { id: 7, kind: GunneryKind.Water, col: start.col, row: start.row, dir: dir as Dir };
+        s = { ...s, pieces: [piece] };
+        const path = predictGunneryPath(s, piece, 12);
+        let t = s;
+        for (let i = 0; i < path.cells.length; i++) {
+          t = advanceGunnery(t, i + 1);
+          expect(t.pieces[0]).toMatchObject(path.cells[i]!);
+        }
+        if (path.end) {
+          t = advanceGunnery(t, path.cells.length + 1);
+          expect(t.pieces.length).toBe(0);
+        }
+      }),
+      { numRuns: 150 },
+    );
+  });
+
+  it("predicts what a cannon will make of a piece", () => {
+    const s = deckWith([atEast(GunneryKind.Shot)], { loaded: 2 });
+    expect(predictGunneryPath(s, s.pieces[0]!, 5)).toEqual({ cells: [{ col: 7, row: 3 }], end: { type: "cannon", cannon: 1, outcome: "loaded" } });
+    const f = deckWith([atEast(GunneryKind.Wad)]);
+    expect(predictGunneryPath(f, f.pieces[0]!, 5).end).toEqual({ type: "cannon", cannon: 1, outcome: "foul" });
+    const o = deckWith([{ id: 1, kind: 0, col: 4, row: 8, dir: 1 }]);
+    expect(predictGunneryPath(o, o.pieces[0]!, 5)).toEqual({ cells: [{ col: 4, row: 9 }], end: { type: "overboard" } });
   });
 });

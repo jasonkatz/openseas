@@ -1,38 +1,44 @@
 {
   "config": {
     "deck": [
-      "#########",
+      "####B####",
+      "#.......#",
       "#.......#",
       "C.......C",
-      "#...X...#",
-      "H.......H",
-      "#...B...#",
-      "H.......H",
-      "#...X...#",
+      "#.......#",
+      "#.......#",
+      "#.......#",
       "C.......C",
       "#.......#",
-      "#########"
+      "#.......#",
+      "####H####"
     ],
-    "tickMs": 220,
-    "maxTick": 720,
-    "maxMoves": 400,
-    "maxArrows": 3,
-    "perKindOnDeck": 2,
-    "spawnEveryTicks": 4,
-    "fireAfterTicks": 20,
-    "loadPoints": 100
+    "tickMs": 200,
+    "maxTick": 760,
+    "maxMoves": 1000,
+    "maxArrows": 4,
+    "maxOnDeck": 8,
+    "spawnEveryTicks": 6,
+    "spawnEveryTicksMin": 3,
+    "queueLength": 3,
+    "bag": [2, 2, 2, 1],
+    "fireAfterTicks": 3,
+    "stepPoints": 10,
+    "loadPoints": 100,
+    "comboStep": 25,
+    "comboCap": 8
   },
   "roundSeconds": 150,
   "thresholds": [
-    { "score": 200, "rating": 1100 },
-    { "score": 500, "rating": 1300 },
-    { "score": 900, "rating": 1500 },
-    { "score": 1400, "rating": 1700 },
-    { "score": 2000, "rating": 1900 },
-    { "score": 2800, "rating": 2100 }
+    { "score": 400, "rating": 1100 },
+    { "score": 1000, "rating": 1300 },
+    { "score": 2000, "rating": 1500 },
+    { "score": 3200, "rating": 1700 },
+    { "score": 4800, "rating": 1900 },
+    { "score": 6800, "rating": 2100 }
   ],
   "pieces": [
-    { "nameKey": "gunnery.piece.powder", "mark": "square", "texture": "grain", "color": "#2b2b33" },
+    { "nameKey": "gunnery.piece.powder", "mark": "square", "texture": "grain", "color": "#3b3b47" },
     { "nameKey": "gunnery.piece.wad", "mark": "circle", "texture": "fan", "color": "#f2f0e6" },
     { "nameKey": "gunnery.piece.shot", "mark": "diamond", "texture": "knurl", "color": "#5b6470" },
     { "nameKey": "gunnery.piece.water", "mark": "triangle", "texture": "waves", "color": "#3fa7f5" }

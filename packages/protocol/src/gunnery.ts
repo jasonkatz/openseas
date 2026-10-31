@@ -18,9 +18,15 @@ export const GunneryConfigSchema = z.object({
   maxTick: z.int().min(1).max(100_000),
   maxMoves: z.int().min(1).max(10_000),
   maxArrows: z.int().min(1).max(20),
-  perKindOnDeck: z.int().min(1).max(8),
+  maxOnDeck: z.int().min(1).max(64),
   spawnEveryTicks: z.int().min(1).max(1000),
+  spawnEveryTicksMin: z.int().min(1).max(1000),
+  queueLength: z.int().min(0).max(8),
+  bag: z.array(z.int().min(0).max(64)).length(4),
   fireAfterTicks: z.int().min(1).max(10_000),
+  stepPoints: z.int().min(0).max(100_000),
   loadPoints: z.int().min(0).max(100_000),
+  comboStep: z.int().min(0).max(100_000),
+  comboCap: z.int().min(0).max(1000),
 });
 export type GunneryConfigWire = z.infer<typeof GunneryConfigSchema>;

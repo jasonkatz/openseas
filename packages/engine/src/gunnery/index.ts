@@ -8,9 +8,13 @@ export {
   summarizeGunnery,
   parseDeck as parseGunneryDeck,
   cannonNeeds,
+  cannonOutcome,
+  dropInterval as gunneryDropInterval,
+  predictPath as predictGunneryPath,
   isDeck as gunneryIsDeck,
   pieceAt as gunneryPieceAt,
   cellAt as gunneryCellAt,
   validateConfig as validateGunneryConfig,
   type GunnerySummary,
+  type PredictedPath as GunneryPredictedPath,
 } from "./reduce.js";

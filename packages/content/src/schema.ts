@@ -175,7 +175,7 @@ export const CarpentryContentSchema = DutyPuzzleBaseSchema.extend({
 
 export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
   config: z.object({
-    /** One string per row: # wall, . deck, X crate, B barrel, C cannon, H hatch. */
+    /** One string per row: # wall, . deck, X crate, B chute, C cannon, H scupper. */
     deck: z
       .array(z.string().regex(/^[#.XBCH]+$/, "deck rows use # . X B C H"))
       .min(5)
@@ -185,16 +185,23 @@ export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
         const all = rows.join("");
         const count = (ch: string): number => all.split(ch).length - 1;
         if (count("C") !== 4) ctx.addIssue({ code: "custom", message: "deck needs exactly four cannons" });
-        if (count("B") !== 1) ctx.addIssue({ code: "custom", message: "deck needs exactly one barrel" });
+        if (count("B") !== 1) ctx.addIssue({ code: "custom", message: "deck needs exactly one chute" });
       }),
     tickMs: z.int().min(20).max(5000),
     maxTick: z.int().min(1),
     maxMoves: z.int().min(1),
     maxArrows: z.int().min(1).max(20),
-    perKindOnDeck: z.int().min(1).max(8),
+    maxOnDeck: z.int().min(1),
     spawnEveryTicks: z.int().min(1),
+    spawnEveryTicksMin: z.int().min(1),
+    queueLength: z.int().min(0).max(8),
+    /** Pieces per refill of the chute's shuffled bag: powder, wad, shot, water. */
+    bag: z.array(z.int().min(0)).length(4),
     fireAfterTicks: z.int().min(1),
+    stepPoints: z.int().min(0),
     loadPoints: z.int().min(0),
+    comboStep: z.int().min(0),
+    comboCap: z.int().min(0),
   }),
   /** Powder, wad, shot, water, in that order (the engine's kind numbers). */
   pieces: z.array(PieceStyleSchema).length(4),

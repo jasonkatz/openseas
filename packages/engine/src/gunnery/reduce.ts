@@ -10,6 +10,7 @@ import {
   GunneryKind,
   type Arrow,
   type Cannon,
+  type CannonOutcome,
   type DeckCell,
   type Dir,
   type GunneryConfig,
@@ -39,13 +40,13 @@ export function parseDeck(rows: readonly string[]): ParsedDeck {
       if (!cell) throw new Error(`gunnery deck: unknown symbol "${ch}" at ${col},${row}`);
       cells.push(cell);
       if (cell === "barrel") {
-        if (barrel) throw new Error("gunnery deck: more than one barrel");
+        if (barrel) throw new Error("gunnery deck: more than one chute");
         barrel = { col, row };
       }
       if (cell === "cannon") cannons.push({ col, row });
     }
   });
-  if (!barrel) throw new Error("gunnery deck: no barrel");
+  if (!barrel) throw new Error("gunnery deck: no chute");
   if (cannons.length === 0) throw new Error("gunnery deck: no cannons");
   // The rim must be solid so pieces never leave the grid.
   for (let col = 0; col < width; col++) {
@@ -54,8 +55,18 @@ export function parseDeck(rows: readonly string[]): ParsedDeck {
   for (let row = 0; row < rows.length; row++) {
     for (const col of [0, width - 1]) if (cells[row * width + col] === "deck") throw new Error("gunnery deck: open rim");
   }
-  return { width, height: rows.length, cells, barrel, cannons };
+  const b: { col: number; row: number } = barrel;
+  const open = DIRS.filter((d) => {
+    const col = b.col + DX[d]!;
+    const row = b.row + DY[d]!;
+    return col >= 0 && col < width && row >= 0 && row < rows.length && cells[row * width + col] === "deck";
+  });
+  if (open.length !== 1) throw new Error("gunnery deck: the chute must touch exactly one deck cell");
+  const dir = open[0]!;
+  return { width, height: rows.length, cells, barrel: b, drop: { col: b.col + DX[dir]!, row: b.row + DY[dir]!, dir }, cannons };
 }
+
+const isNat = (n: number): boolean => Number.isInteger(n) && n >= 0;
 
 export function validateConfig(cfg: GunneryConfig): void {
   parseDeck(cfg.deck);
@@ -70,14 +81,25 @@ export function validateConfig(cfg: GunneryConfig): void {
     Number.isInteger(cfg.maxArrows) &&
     cfg.maxArrows >= 1 &&
     cfg.maxArrows <= 20 &&
-    Number.isInteger(cfg.perKindOnDeck) &&
-    cfg.perKindOnDeck >= 1 &&
-    cfg.perKindOnDeck <= 8 &&
+    Number.isInteger(cfg.maxOnDeck) &&
+    cfg.maxOnDeck >= 1 &&
     Number.isInteger(cfg.spawnEveryTicks) &&
-    cfg.spawnEveryTicks >= 1 &&
+    Number.isInteger(cfg.spawnEveryTicksMin) &&
+    cfg.spawnEveryTicksMin >= 1 &&
+    cfg.spawnEveryTicksMin <= cfg.spawnEveryTicks &&
+    isNat(cfg.queueLength) &&
+    cfg.queueLength <= 8 &&
+    cfg.bag.length === GUNNERY_KINDS &&
+    cfg.bag.every(isNat) &&
+    cfg.bag[GunneryKind.Powder]! >= 1 &&
+    cfg.bag[GunneryKind.Wad]! >= 1 &&
+    cfg.bag[GunneryKind.Shot]! >= 1 &&
     Number.isInteger(cfg.fireAfterTicks) &&
     cfg.fireAfterTicks >= 1 &&
-    cfg.loadPoints >= 0;
+    isNat(cfg.stepPoints) &&
+    isNat(cfg.loadPoints) &&
+    isNat(cfg.comboStep) &&
+    isNat(cfg.comboCap);
   if (!ok) throw new Error("invalid gunnery config");
 }
 
@@ -88,6 +110,9 @@ export const cellAt = (deck: ParsedDeck, col: number, row: number): DeckCell =>
 export function createGunneryGame(seed: string, config: GunneryConfig = DEFAULT_GUNNERY_CONFIG): GunneryState {
   validateConfig(config);
   const deck = parseDeck(config.deck);
+  const supply: Supply = { rng: seedFromString(`gunnery:${seed}`), bag: [] };
+  const queue: number[] = [];
+  for (let i = 0; i < config.queueLength; i++) queue.push(draw(config, supply));
   return {
     config,
     deck,
@@ -95,9 +120,13 @@ export function createGunneryGame(seed: string, config: GunneryConfig = DEFAULT_
     pieces: [],
     arrows: [],
     cannons: deck.cannons.map((c) => ({ col: c.col, row: c.row, loaded: 0, fouled: false, firesAt: null })),
+    queue,
+    bag: supply.bag,
+    // The first piece drops two ticks in, so the round opens with something already moving.
+    lastDrop: 2 - config.spawnEveryTicks,
     arrowSeq: 0,
     nextId: 1,
-    rng: seedFromString(`gunnery:${seed}`),
+    rng: supply.rng,
     moveCount: 0,
     score: 0,
     combo: 0,
@@ -179,7 +208,13 @@ export function hashGunneryState(state: GunneryState): string {
   for (const a of state.arrows) h.int(a.col).int(a.row).int(a.dir).int(a.seq);
   h.int(-2);
   for (const c of state.cannons) h.int(c.loaded).int(c.fouled ? 1 : 0).int(c.firesAt ?? -1);
-  h.int(state.arrowSeq).int(state.nextId).int(state.moveCount).int(state.score).int(state.combo).int(state.loads).int(state.fouls).int(state.arrowsPlaced);
+  h.int(-3);
+  for (const k of state.queue) h.int(k);
+  h.int(-4);
+  for (const k of state.bag) h.int(k);
+  h.int(-5);
+  h.int(state.lastDrop).int(state.arrowSeq).int(state.nextId).int(state.moveCount).int(state.score);
+  h.int(state.combo).int(state.bestCombo).int(state.loads).int(state.fouls).int(state.arrowsPlaced);
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.finished ? 1 : 0);
   return h.digest();
@@ -195,10 +230,28 @@ export function summarizeGunnery(state: GunneryState): GunnerySummary {
   return { score: state.score, moves: state.moveCount, bestCombo: state.bestCombo };
 }
 
-/** The kind a cannon needs next, or null when it is fouled or fully loaded. */
+/** The kind a cannon wants next: water when fouled, nothing while it is full and about to fire. */
 export function cannonNeeds(c: Cannon): number | null {
-  if (c.fouled || c.loaded >= 3) return null;
+  if (c.firesAt !== null || c.loaded >= 3) return null;
+  if (c.fouled) return GunneryKind.Water;
   return c.loaded;
+}
+
+/** What a piece of `kind` would do to this cannon if it rolled in now. */
+export function cannonOutcome(c: Cannon, kind: number): CannonOutcome {
+  if (c.firesAt !== null || c.loaded >= 3) return "blocked";
+  if (kind === GunneryKind.Water) return c.fouled ? "clean" : "splash";
+  if (c.fouled) return "blocked";
+  if (kind === c.loaded) return c.loaded === 2 ? "loaded" : "load";
+  return "foul";
+}
+
+/** Ticks between drops at `tick`: `spawnEveryTicks` at the start, quickening to the minimum. */
+export function dropInterval(cfg: GunneryConfig, tick: number): number {
+  const span = cfg.spawnEveryTicks - cfg.spawnEveryTicksMin;
+  if (span <= 0) return cfg.spawnEveryTicks;
+  const steps = Math.floor(((span + 1) * Math.max(0, tick)) / cfg.maxTick);
+  return Math.max(cfg.spawnEveryTicksMin, cfg.spawnEveryTicks - steps);
 }
 
 export function isDeck(state: GunneryState, col: number, row: number): boolean {
@@ -209,12 +262,76 @@ export function pieceAt(state: GunneryState, col: number, row: number): GunneryP
   return state.pieces.find((p) => p.col === col && p.row === row);
 }
 
+const opposite = (d: Dir): Dir => ((d + 2) % 4) as Dir;
+const right = (d: Dir): Dir => ((d + 1) % 4) as Dir;
+const left = (d: Dir): Dir => ((d + 3) % 4) as Dir;
+
+/** Whether a piece of `kind` is turned away by the cell at col,row. Other pieces never count here. */
+function solid(deck: ParsedDeck, cannons: readonly Cannon[], col: number, row: number, kind: number): boolean {
+  const cell = cellAt(deck, col, row);
+  if (cell === "deck" || cell === "hatch") return false;
+  if (cell !== "cannon") return true;
+  const c = cannons.find((x) => x.col === col && x.row === row);
+  return !c || cannonOutcome(c, kind) === "blocked";
+}
+
+/**
+ * The way a piece rolls next: the arrow under it if any, else its heading; if that is shut, turn
+ * right, else left, else back. Null when boxed in on every side.
+ */
+function heading(deck: ParsedDeck, cannons: readonly Cannon[], arrows: readonly Arrow[], p: GunneryPiece): Dir | null {
+  const arrow = arrows.find((a) => a.col === p.col && a.row === p.row);
+  const d0 = arrow ? arrow.dir : p.dir;
+  for (const d of [d0, right(d0), left(d0), opposite(d0)]) {
+    if (!solid(deck, cannons, p.col + DX[d]!, p.row + DY[d]!, p.kind)) return d;
+  }
+  return null;
+}
+
+export interface PredictedPath {
+  /** Deck cells the piece will roll through, in order, not counting where it is now. */
+  readonly cells: ReadonlyArray<{ readonly col: number; readonly row: number }>;
+  /** Where the path ends within the look-ahead, if it ends: into a cannon or overboard. */
+  readonly end: { readonly type: "cannon"; readonly cannon: number; readonly outcome: CannonOutcome } | { readonly type: "overboard" } | null;
+}
+
+/**
+ * Where a piece is headed over the next `steps` ticks if nothing else gets in its way, with
+ * `arrows` (default: the ones on deck) and the cannons as they are now. Other pieces are ignored,
+ * so this is a guide for the player, not a promise.
+ */
+export function predictPath(state: GunneryState, piece: GunneryPiece, steps: number, arrows: readonly Arrow[] = state.arrows): PredictedPath {
+  const cells: Array<{ col: number; row: number }> = [];
+  let p = piece;
+  for (let i = 0; i < steps; i++) {
+    const d = heading(state.deck, state.cannons, arrows, p);
+    if (d === null) break;
+    const col = p.col + DX[d]!;
+    const row = p.row + DY[d]!;
+    const cell = cellAt(state.deck, col, row);
+    if (cell === "cannon") {
+      const ci = state.cannons.findIndex((c) => c.col === col && c.row === row);
+      return { cells, end: { type: "cannon", cannon: ci, outcome: cannonOutcome(state.cannons[ci]!, p.kind) } };
+    }
+    if (cell === "hatch") return { cells, end: { type: "overboard" } };
+    p = { ...p, col, row, dir: d };
+    cells.push({ col, row });
+  }
+  return { cells, end: null };
+}
+
 // ---- simulation
 
-interface Sim {
+interface Supply {
+  rng: PrngState;
+  bag: number[];
+}
+
+interface Sim extends Supply {
   pieces: GunneryPiece[];
   cannons: Cannon[];
-  rng: PrngState;
+  queue: number[];
+  lastDrop: number;
   nextId: number;
   score: number;
   combo: number;
@@ -224,11 +341,34 @@ interface Sim {
   events: GunneryEvent[];
 }
 
+/** Next kind out of the bag, refilling and shuffling it when empty. */
+function draw(cfg: GunneryConfig, s: Supply): number {
+  if (s.bag.length === 0) {
+    const bag: number[] = [];
+    cfg.bag.forEach((n, kind) => {
+      for (let i = 0; i < n; i++) bag.push(kind);
+    });
+    for (let i = bag.length - 1; i > 0; i--) {
+      const r = nextInt(s.rng, i + 1);
+      s.rng = r.state;
+      const j = r.value;
+      [bag[i], bag[j]] = [bag[j]!, bag[i]!];
+    }
+    s.bag = bag;
+  }
+  const [kind, ...rest] = s.bag;
+  s.bag = rest;
+  return kind!;
+}
+
 function simulate(state: GunneryState, toTick: number): { state: GunneryState; events: GunneryEvent[] } {
   if (toTick <= state.tick) return { state, events: [] };
   const sim: Sim = {
     pieces: state.pieces.slice(),
     cannons: state.cannons.slice(),
+    queue: state.queue.slice(),
+    bag: state.bag.slice(),
+    lastDrop: state.lastDrop,
     rng: state.rng,
     nextId: state.nextId,
     score: state.score,
@@ -243,7 +383,7 @@ function simulate(state: GunneryState, toTick: number): { state: GunneryState; e
     tick++;
     fireCannons(sim, tick);
     movePieces(state, sim, tick);
-    if (tick % state.config.spawnEveryTicks === 0) spawn(state, sim, tick);
+    spawn(state, sim, tick);
   }
   return {
     state: {
@@ -251,6 +391,9 @@ function simulate(state: GunneryState, toTick: number): { state: GunneryState; e
       tick,
       pieces: sim.pieces,
       cannons: sim.cannons,
+      queue: sim.queue,
+      bag: sim.bag,
+      lastDrop: sim.lastDrop,
       rng: sim.rng,
       nextId: sim.nextId,
       score: sim.score,
@@ -267,127 +410,145 @@ function fireCannons(sim: Sim, tick: number): void {
   sim.cannons = sim.cannons.map((c, i) => {
     if (c.firesAt === null || c.firesAt > tick) return c;
     sim.events.push({ tick, type: "fire", cannon: i });
-    return { ...c, loaded: 0, fouled: true, firesAt: null };
+    return { ...c, loaded: 0, fouled: false, firesAt: null };
   });
 }
 
-const opposite = (d: Dir): Dir => ((d + 2) % 4) as Dir;
-const right = (d: Dir): Dir => ((d + 1) % 4) as Dir;
-const left = (d: Dir): Dir => ((d + 3) % 4) as Dir;
+type Target = { dir: Dir; col: number; row: number; into: "deck" | "cannon" | "hatch" } | null;
 
-/** One tick of rolling, piece by piece in id order. */
+/**
+ * One tick of rolling, all pieces at once. Each piece picks its heading from the arrows and the
+ * deck alone. Two pieces meeting head on both turn back and stay put. A piece waits a tick when
+ * the cell ahead holds a piece that is not leaving, or when a piece with a lower id is moving into
+ * the same cell (or the same cannon) this tick. Pieces in a line all roll together.
+ */
 function movePieces(state: GunneryState, sim: Sim, tick: number): void {
   const deck = state.deck;
-  const order = sim.pieces.map((p) => p.id);
-  // A piece bounced by an earlier piece has had its turn: it does not also roll this tick.
-  const done = new Set<number>();
-  for (const id of order) {
-    if (done.has(id)) continue;
-    const i = sim.pieces.findIndex((p) => p.id === id);
-    if (i < 0) continue; // already consumed this tick
-    let piece = sim.pieces[i]!;
-    const arrow = state.arrows.find((a) => a.col === piece.col && a.row === piece.row);
-    if (arrow && arrow.dir !== piece.dir) piece = { ...piece, dir: arrow.dir };
+  const pieces = sim.pieces;
+  const n = pieces.length;
+  if (n === 0) return;
+  const key = (col: number, row: number): number => row * deck.width + col;
+  const at = new Map<number, number>();
+  pieces.forEach((p, i) => at.set(key(p.col, p.row), i));
 
-    const attempt = (d: Dir): "moved" | "piece" | "blocked" => {
-      const col = piece.col + DX[d]!;
-      const row = piece.row + DY[d]!;
-      const cell = cellAt(deck, col, row);
-      if (cell === "cannon") {
-        const ci = sim.cannons.findIndex((c) => c.col === col && c.row === row);
-        consume(state, sim, tick, ci, piece);
-        sim.pieces.splice(i, 1);
-        return "moved";
-      }
-      if (cell === "hatch") {
-        sim.events.push({ tick, type: "exit", pieceId: piece.id, kind: piece.kind });
-        sim.pieces.splice(i, 1);
-        return "moved";
-      }
-      if (cell !== "deck") return "blocked";
-      const other = sim.pieces.findIndex((p) => p.col === col && p.row === row);
-      if (other >= 0) {
-        // Both reverse; neither moves this tick.
-        const o = sim.pieces[other]!;
-        sim.pieces[other] = { ...o, dir: opposite(o.dir) };
-        sim.pieces[i] = { ...piece, dir: opposite(d) };
-        done.add(o.id);
-        return "piece";
-      }
-      sim.pieces[i] = { ...piece, col, row, dir: d };
-      return "moved";
-    };
+  const targets: Target[] = pieces.map((p) => {
+    const dir = heading(deck, sim.cannons, state.arrows, p);
+    if (dir === null) return null;
+    const col = p.col + DX[dir]!;
+    const row = p.row + DY[dir]!;
+    const cell = cellAt(deck, col, row);
+    return { dir, col, row, into: cell === "cannon" ? "cannon" : cell === "hatch" ? "hatch" : "deck" };
+  });
+  const dirs: Dir[] = pieces.map((p, i) => targets[i]?.dir ?? opposite(p.dir));
+  const moving: boolean[] = targets.map((t) => t !== null);
 
-    const r0 = attempt(piece.dir);
-    if (r0 !== "blocked") continue;
-    const r1 = attempt(right(piece.dir));
-    if (r1 !== "blocked") continue;
-    const r2 = attempt(left(piece.dir));
-    if (r2 !== "blocked") continue;
-    const back = opposite(piece.dir);
-    const r3 = attempt(back);
-    if (r3 === "blocked") sim.pieces[i] = { ...piece, dir: back };
+  // Head on: two pieces trying to swap cells both turn back.
+  for (let i = 0; i < n; i++) {
+    const t = targets[i];
+    if (!t || t.into !== "deck" || !moving[i]) continue;
+    const j = at.get(key(t.col, t.row));
+    if (j === undefined || j === i) continue;
+    const u = targets[j];
+    if (u && u.into === "deck" && u.col === pieces[i]!.col && u.row === pieces[i]!.row) {
+      moving[i] = false;
+      moving[j] = false;
+      dirs[i] = opposite(t.dir);
+      dirs[j] = opposite(u.dir);
+    }
   }
+
+  // Settle who waits: only ever stops pieces, so it ends.
+  for (let changed = true; changed; ) {
+    changed = false;
+    const claimed = new Set<number>();
+    for (let i = 0; i < n; i++) {
+      if (!moving[i]) continue;
+      const t = targets[i]!;
+      const k = key(t.col, t.row);
+      const occ = t.into === "deck" ? at.get(k) : undefined;
+      if ((occ !== undefined && occ !== i && !moving[occ]) || claimed.has(k)) {
+        moving[i] = false;
+        changed = true;
+        continue;
+      }
+      claimed.add(k);
+    }
+  }
+
+  const next: GunneryPiece[] = [];
+  for (let i = 0; i < n; i++) {
+    const p = pieces[i]!;
+    const t = targets[i];
+    if (!moving[i] || !t) {
+      next.push(dirs[i] === p.dir ? p : { ...p, dir: dirs[i]! });
+      continue;
+    }
+    if (t.into === "cannon") {
+      const ci = sim.cannons.findIndex((c) => c.col === t.col && c.row === t.row);
+      consume(state, sim, tick, ci, p);
+      continue;
+    }
+    if (t.into === "hatch") {
+      sim.events.push({ tick, type: "exit", pieceId: p.id, kind: p.kind });
+      continue;
+    }
+    next.push({ ...p, col: t.col, row: t.row, dir: t.dir });
+  }
+  sim.pieces = next;
 }
 
 function consume(state: GunneryState, sim: Sim, tick: number, ci: number, piece: GunneryPiece): void {
   const c = sim.cannons[ci]!;
-  const ev = (type: GunneryEvent["type"]): void => {
-    sim.events.push({ tick, type, cannon: ci, pieceId: piece.id, kind: piece.kind });
+  const cfg = state.config;
+  const ev = (type: GunneryEvent["type"], points = 0): void => {
+    sim.events.push({ tick, type, cannon: ci, pieceId: piece.id, kind: piece.kind, ...(points ? { points } : {}) });
   };
-  if (piece.kind === GunneryKind.Water) {
-    sim.cannons[ci] = { ...c, loaded: 0, fouled: false, firesAt: null };
-    ev(c.fouled || c.loaded > 0 ? "clean" : "waste");
-    return;
-  }
-  if (c.fouled) {
-    ev("waste");
-    return;
-  }
-  if (c.loaded < 3 && piece.kind === c.loaded) {
-    const loaded = c.loaded + 1;
-    if (loaded === 3) {
-      sim.cannons[ci] = { ...c, loaded, firesAt: tick + state.config.fireAfterTicks };
-      sim.score += state.config.loadPoints;
+  switch (cannonOutcome(c, piece.kind)) {
+    case "load":
+      sim.cannons[ci] = { ...c, loaded: c.loaded + 1 };
+      sim.score += cfg.stepPoints;
+      ev("load", cfg.stepPoints);
+      return;
+    case "loaded": {
+      sim.cannons[ci] = { ...c, loaded: 3, firesAt: tick + cfg.fireAfterTicks };
       sim.combo += 1;
       sim.bestCombo = Math.max(sim.bestCombo, sim.combo);
       sim.loads += 1;
-      ev("loaded");
-    } else {
-      sim.cannons[ci] = { ...c, loaded };
-      ev("load");
+      const points = cfg.loadPoints + cfg.comboStep * Math.min(sim.combo - 1, cfg.comboCap);
+      sim.score += points;
+      ev("loaded", points);
+      return;
     }
-    return;
+    case "clean":
+      sim.cannons[ci] = { ...c, loaded: 0, fouled: false };
+      ev("clean");
+      return;
+    case "splash":
+      ev("splash");
+      return;
+    case "foul":
+      sim.cannons[ci] = { ...c, loaded: 0, fouled: true };
+      sim.combo = 0;
+      sim.fouls += 1;
+      ev("foul");
+      return;
+    case "blocked":
+      // Pieces turn away from a blocked cannon before they reach it; nothing to do.
+      return;
   }
-  sim.cannons[ci] = { ...c, loaded: 0, fouled: true, firesAt: null };
-  sim.combo = 0;
-  sim.fouls += 1;
-  ev("foul");
 }
 
-/** The barrel tops up any kind below perKindOnDeck, one piece per spawn tick, into a free neighbour. */
+/** The chute drops the head of the queue when the rhythm says so, the deck has room and the drop cell is clear. */
 function spawn(state: GunneryState, sim: Sim, tick: number): void {
-  const counts = new Array<number>(GUNNERY_KINDS).fill(0);
-  for (const p of sim.pieces) counts[p.kind] = (counts[p.kind] ?? 0) + 1;
-  const deficient: number[] = [];
-  for (let k = 0; k < GUNNERY_KINDS; k++) if (counts[k]! < state.config.perKindOnDeck) deficient.push(k);
-  if (deficient.length === 0) return;
-  const { barrel } = state.deck;
-  const exits: Dir[] = [];
-  for (const d of DIRS) {
-    const col = barrel.col + DX[d]!;
-    const row = barrel.row + DY[d]!;
-    if (cellAt(state.deck, col, row) !== "deck") continue;
-    if (sim.pieces.some((p) => p.col === col && p.row === row)) continue;
-    exits.push(d);
-  }
-  if (exits.length === 0) return;
-  const k = nextInt(sim.rng, deficient.length);
-  const e = nextInt(k.state, exits.length);
-  sim.rng = e.state;
-  const kind = deficient[k.value]!;
-  const dir = exits[e.value]!;
-  const piece: GunneryPiece = { id: sim.nextId++, kind, col: barrel.col + DX[dir]!, row: barrel.row + DY[dir]!, dir };
+  const cfg = state.config;
+  if (tick - sim.lastDrop < dropInterval(cfg, tick)) return;
+  if (sim.pieces.length >= cfg.maxOnDeck) return;
+  const { drop } = state.deck;
+  if (sim.pieces.some((p) => p.col === drop.col && p.row === drop.row)) return;
+  const kind = cfg.queueLength > 0 ? sim.queue.shift()! : draw(cfg, sim);
+  if (cfg.queueLength > 0) sim.queue.push(draw(cfg, sim));
+  const piece: GunneryPiece = { id: sim.nextId++, kind, col: drop.col, row: drop.row, dir: drop.dir };
   sim.pieces.push(piece);
+  sim.lastDrop = tick;
   sim.events.push({ tick, type: "spawn", pieceId: piece.id, kind });
 }
