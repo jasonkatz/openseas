@@ -91,7 +91,8 @@ them, and the new offer, so the renderer can play place, finish, then the new pl
 ## 11. Exploits
 
 - **Banking repair:** closed by the cap at current damage.
-- **Discard cycling** for a perfect piece: if discards exist, each costs a move or a point.
+- **Discard cycling** for a perfect piece: if discards exist, each costs a move or a point. The
+  no-fit reroll costs points for the same reason.
 - **Stalling:** the clock runs.
 
 ## 12. Feedback plan
@@ -129,5 +130,9 @@ move" is applied; the repair cap model test; report agreement; view-equals-engin
 
 ## 16. Open questions
 
-- What happens when no offered piece fits? Recommended: a free discard of the whole offer, logged
-  as a move.
+None open.
+
+Decided:
+
+- When no offered piece fits anywhere, the player rerolls the whole offer for a score penalty
+  (content), logged as a move. Leaving the board in a no-fit state is a mistake you pay for.

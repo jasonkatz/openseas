@@ -123,6 +123,9 @@ check.
 
 ## 16. Open questions
 
-- Redesign trigger: what tester signal sends Gunnery back to the drawing board? Recommended: a
-  median tester rating of "not fun" after two sessions, or a completion rate well below the other
-  duties.
+None open.
+
+Decided:
+
+- No fixed redesign trigger. Whether Gunnery is redesigned is the owner's call after playing it
+  with testers.

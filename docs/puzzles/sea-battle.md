@@ -129,5 +129,9 @@ engine smoke check after each turn.
 
 ## 16. Open questions
 
-- Practice page: recommended a solo battle against the lowest brigand tier with fixed token and
-  load income, so captains can learn the rules before M4's voyages.
+None open.
+
+Decided:
+
+- Sea Battle gets a solo practice page against the lowest brigand tier, with fixed token and load
+  income, so captains learn the rules before M4's voyages.

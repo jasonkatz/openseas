@@ -89,8 +89,8 @@ Sailing has real-time gravity, which Bilging did not. The engine must stay pure 
   tolerance, and a `t` that lags its clock by more than a tolerance, so a client cannot slow time
   down to think. Both tolerances live in content.
 
-This is an architecture decision and needs an ADR ("time in the move log") before the engine PR.
-Swordfighting will reuse it.
+Decided by the owner: timestamps on moves, over fixed tick moves or server-driven gravity. It
+still gets an ADR ("time in the move log") before the engine PR. Swordfighting will reuse it.
 
 ## 9. Client-only timing costs
 
@@ -146,6 +146,10 @@ server time checks; view-equals-engine smoke check.
 
 ## 16. Open questions
 
-- Does a top-out end the round? Recommended: no; clear the top rows with a score penalty, so a
-  practice round always runs its full clock.
 - Hard drop: recommended yes on every input method.
+
+Decided:
+
+- Top-out does not end the round. The top rows clear with a score penalty and play continues,
+  so a round always runs its full clock and a station never goes dark mid-voyage. If the original
+  ended the round, this is a section 6 entry.

@@ -119,5 +119,9 @@ view-equals-engine smoke check on each board.
 
 ## 16. Open questions
 
-- Practice page: recommended a solo board against a scripted attacker that sends fixed patterns on
+None open.
+
+Decided:
+
+- Swordfighting gets a solo practice page against a scripted attacker that sends fixed patterns on
   a piece count, rated against the puzzle like the duties until real duels exist.

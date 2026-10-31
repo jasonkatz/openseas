@@ -111,5 +111,9 @@ reachable from the current board; report agreement; view-equals-engine smoke che
 
 ## 16. Open questions
 
-- Generated or hand-made patterns? Recommended: a hand-made library in content, so difficulty is
-  tunable and every pattern is known to be reachable.
+None open.
+
+Decided:
+
+- Target patterns come from a hand-made library in content, not a generator, so difficulty is
+  tunable and every pattern is known to be reachable. A content test checks reachability.
