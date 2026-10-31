@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Must list exactly the engine's PUZZLE_IDS; the server checks the two agree at compile time. */
-export const PuzzleIdSchema = z.enum(["bilging", "sailing", "carpentry", "gunnery"]);
+export const PuzzleIdSchema = z.enum(["bilging", "sailing", "carpentry", "gunnery", "navigation"]);
 export type PuzzleIdWire = z.infer<typeof PuzzleIdSchema>;
 
 export const RatingViewSchema = z.object({

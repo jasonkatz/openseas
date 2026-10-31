@@ -8,6 +8,7 @@ import bilging from "../data/puzzles/bilging.json" with { type: "json" };
 import sailing from "../data/puzzles/sailing.json" with { type: "json" };
 import carpentry from "../data/puzzles/carpentry.json" with { type: "json" };
 import gunnery from "../data/puzzles/gunnery.json" with { type: "json" };
+import navigation from "../data/puzzles/navigation.json" with { type: "json" };
 import ratingTiers from "../data/rating-tiers.json" with { type: "json" };
 import names from "../data/names.json" with { type: "json" };
 import en from "../data/messages/en.json" with { type: "json" };
@@ -17,12 +18,14 @@ import {
   GunneryContentSchema,
   MessagesSchema,
   NamesSchema,
+  NavigationContentSchema,
   RatingTierSchema,
   SailingContentSchema,
   WorldSchema,
   type BilgingContent,
   type CarpentryContent,
   type GunneryContent,
+  type NavigationContent,
   type PieceStyle,
   type RatingTier,
   type SailingContent,
@@ -37,6 +40,7 @@ export interface PuzzleContent {
   readonly sailing: SailingContent;
   readonly carpentry: CarpentryContent;
   readonly gunnery: GunneryContent;
+  readonly navigation: NavigationContent;
 }
 export type PuzzleContentId = keyof PuzzleContent;
 
@@ -73,6 +77,7 @@ export function loadContent(): Content {
     sailing: parse("puzzles/sailing", SailingContentSchema, sailing),
     carpentry: parse("puzzles/carpentry", CarpentryContentSchema, carpentry),
     gunnery: parse("puzzles/gunnery", GunneryContentSchema, gunnery),
+    navigation: parse("puzzles/navigation", NavigationContentSchema, navigation),
   };
   const tiers = parse("rating-tiers", z.array(RatingTierSchema).min(1), ratingTiers);
   const nameLists = parse("names", NamesSchema, names);
@@ -124,7 +129,7 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
   for (const id of Object.keys(puzzles) as PuzzleContentId[]) {
     const p = puzzles[id];
     const where = `puzzles/${id}`;
-    checkPieces(where, p.pieces, "pieceKinds" in p.config ? p.config.pieceKinds : p.pieces.length, messages, problems);
+    if ("pieces" in p) checkPieces(where, p.pieces, "pieceKinds" in p.config ? p.config.pieceKinds : p.pieces.length, messages, problems);
     for (let i = 1; i < p.thresholds.length; i++) {
       const a = p.thresholds[i - 1]!;
       const b = p.thresholds[i]!;
@@ -140,6 +145,28 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
     problems.push("puzzles/gunnery: maxTick * tickMs must cover roundSeconds");
   }
   if (puzzles.sailing.config.platformSpanMax > puzzles.sailing.config.width) problems.push("puzzles/sailing: platform span exceeds the board width");
+  {
+    const nav = puzzles.navigation;
+    if (nav.colors.length < nav.config.colors) problems.push(`puzzles/navigation: ${nav.config.colors} colors but only ${nav.colors.length} defined`);
+    if (nav.shapes.length < nav.config.shapes) problems.push(`puzzles/navigation: ${nav.config.shapes} shapes but only ${nav.shapes.length} defined`);
+    if (nav.config.maxStars > nav.config.rings * nav.config.octants) problems.push("puzzles/navigation: maxStars exceeds the chart's slots");
+    if (nav.config.maxMoves < nav.config.maxDrops) problems.push("puzzles/navigation: maxMoves must be at least maxDrops");
+    const seenColor = new Set<string>();
+    const seenMark = new Set<string>();
+    for (const c of nav.colors) {
+      need(c.nameKey, "navigation color");
+      if (seenColor.has(c.color)) problems.push(`puzzles/navigation: color "${c.color}" used twice`);
+      if (seenMark.has(c.mark)) problems.push(`puzzles/navigation: mark "${c.mark}" used twice; every color must differ by mark (rule 6)`);
+      seenColor.add(c.color);
+      seenMark.add(c.mark);
+    }
+    const seenShape = new Set<string>();
+    for (const sh of nav.shapes) {
+      need(sh.nameKey, "navigation shape");
+      if (seenShape.has(sh.shape)) problems.push(`puzzles/navigation: shape "${sh.shape}" used twice`);
+      seenShape.add(sh.shape);
+    }
+  }
   if (problems.length) throw new ContentError(problems.join("\n"));
 }
 

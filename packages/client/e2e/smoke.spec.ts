@@ -164,3 +164,31 @@ test("home links to Gunnery practice and an unrated round lays arrows by key and
   // The deck the canvas shows is the deck the engine holds.
   await expectViewMatchesState(page, "gunnery");
 });
+
+test("home links to Navigation practice and an unrated round takes a keyboard turn and drops", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: /Navigation/ }).click();
+  await expect(page).toHaveURL(/\/practice\/navigation$/);
+  await page.getByTestId("start-unrated").click();
+  const canvas = page.getByTestId("navigation-canvas");
+  await expect(canvas).toBeVisible();
+  await expect(page.getByTestId("hud-moves")).toContainText("0");
+
+  // Turn the selected ring (free), then drop the star.
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByTestId("hud-moves")).toContainText("0");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("hud-moves")).toContainText("1");
+  await expect(async () => {
+    const want = await page.getByTestId("navigation-board").getAttribute("data-board");
+    const shown = await canvas.getAttribute("data-view");
+    expect(want).toBeTruthy();
+    expect(shown).toBe(want);
+  }).toPass({ timeout: 10_000 });
+
+  // Pointer: a tap on the compass rose in the center drops the next star.
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.getByTestId("hud-moves")).toContainText("2");
+});
