@@ -117,7 +117,7 @@ interface Timer {
 
 interface Drag {
   id: number;
-  slot: number;
+  slot: number | null;
   /** Where the finger went down: a tray slot, the resting ghost, or bare hull. */
   from: "tray" | "ghost" | "board";
   x0: number;
@@ -206,7 +206,8 @@ export class CarpentryRenderer {
   private viewStale = true;
   private holeFxDirty = true;
   /** Selection: which tray slot, its orientation, and where the plank's centre sits (in cells, fractional). */
-  private slot = 0;
+  /** The tray slot in hand, or null until the player picks one. A round starts with none. */
+  private slot: number | null = null;
   private rot = 0;
   private flip = false;
   private anchor: { cx: number; cy: number } | null = null;
@@ -318,7 +319,10 @@ export class CarpentryRenderer {
     } else if (prev && rep && rep.move.type === "place" && rep.placed) {
       this.playMove(prev, state);
     }
-    if (this.slot >= state.slots.length) this.slot = 0;
+    if (reset || (this.slot !== null && this.slot >= state.slots.length)) {
+      this.slot = null;
+      this.drawTrayFrame();
+    }
     this.syncCursor();
     this.drawHoles();
     this.drawPlanks();
@@ -648,7 +652,7 @@ export class CarpentryRenderer {
 
   private paintGhost(g: Graphics, check: CarpentryPlacementCheck | null, col: number, row: number, strength: number): void {
     const s = this.cell;
-    const piece = this.state!.slots[this.slot];
+    const piece = this.slot === null ? null : this.state!.slots[this.slot];
     if (!piece) return;
     const cells = carpentryOrient(piece.shape, this.rot, this.flip);
     const legal = check?.legal ?? false;
@@ -996,20 +1000,20 @@ export class CarpentryRenderer {
     this.app.canvas.setAttribute("data-cursor", this.cursor ? `${this.cursor.col},${this.cursor.row}` : "");
     this.app.canvas.setAttribute("data-ghost", this.cursor && fp ? `${this.cursor.col},${this.cursor.row},${fp.w},${fp.h}` : "");
     this.app.canvas.setAttribute("data-geometry", `${this.ox},${this.oy},${this.cell}`);
-    this.app.canvas.setAttribute("data-orient", `${this.slot},${this.rot},${this.flip ? 1 : 0}`);
+    this.app.canvas.setAttribute("data-orient", `${this.slot ?? -1},${this.rot},${this.flip ? 1 : 0}`);
     this.app.canvas.setAttribute("data-hud", this.hudRects.map((r) => `${r.action}:${Math.round(r.x + r.w / 2)},${Math.round(r.y + r.h / 2)}`).join(";"));
   }
 
   // ---- selection and placement
 
   private check(col: number, row: number): CarpentryPlacementCheck | null {
-    if (!this.state) return null;
+    if (!this.state || this.slot === null) return null;
     return carpentryCheckPlacement(this.state, this.slot, this.rot, this.flip, col, row);
   }
 
   /** The selected plank's oriented cells and bounding box. */
   private footprint(): { cells: Oriented; w: number; h: number } | null {
-    const piece = this.state?.slots[this.slot];
+    const piece = this.slot === null ? null : this.state?.slots[this.slot];
     if (!piece) return null;
     const cells = carpentryOrient(piece.shape, this.rot, this.flip);
     const { w, h } = carpentryExtent(cells);
@@ -1044,7 +1048,8 @@ export class CarpentryRenderer {
    */
   private anchorNear(x: number, y: number, liftCells: number): void {
     const fp = this.footprint();
-    if (!fp || !this.state) return;
+    const slot = this.slot;
+    if (!fp || !this.state || slot === null) return;
     const cx = (x - this.ox) / this.cell;
     const cy = (y - this.oy) / this.cell - liftCells;
     if (cx < -0.6 || cx > this.width + 0.6 || cy < -0.6 || cy > this.height + 0.6) {
@@ -1060,7 +1065,7 @@ export class CarpentryRenderer {
       for (let dc = -1; dc <= 1; dc++) {
         const col = col0 + dc;
         const row = row0 + dr;
-        const check = carpentryCheckPlacement(this.state, this.slot, this.rot, this.flip, col, row, holeOf);
+        const check = carpentryCheckPlacement(this.state, slot, this.rot, this.flip, col, row, holeOf);
         if (!check.legal) continue;
         const d = Math.hypot(col + fp.w / 2 - cx, row + fp.h / 2 - cy);
         if (!best || d < best.d - 1e-6 || (Math.abs(d - best.d) < 1e-6 && check.wasteCells.length < best.waste)) best = { col, row, d, waste: check.wasteCells.length };
@@ -1129,7 +1134,7 @@ export class CarpentryRenderer {
    * cycled in reading order from the cursor.
    */
   private jumpToFit(): void {
-    if (!this.state) return;
+    if (!this.state || this.slot === null) return;
     const holeOf = carpentryHoleIndex(this.state);
     const total = this.width * this.height;
     let bestWaste = Infinity;
@@ -1152,6 +1157,7 @@ export class CarpentryRenderer {
 
   /** Nail the plank down at the ghost, or refuse with a shake. */
   private placeAt(col: number, row: number, from: { x: number; y: number } | null): boolean {
+    if (this.slot === null) return false;
     const check = this.check(col, row);
     if (!check?.legal) {
       this.anchorAt(col, row);
@@ -1278,6 +1284,7 @@ export class CarpentryRenderer {
     this.drawGhost();
     const g = this.dragG;
     g.clear();
+    if (this.slot === null) return;
     const piece = this.state.slots[this.slot]!;
     const m = this.cell * 1.04;
     const x0 = px - (fp.w * m) / 2;
@@ -1329,6 +1336,7 @@ export class CarpentryRenderer {
         return;
       }
       // Let go off the hull: back to its slot.
+      if (this.slot === null) return;
       const piece = this.state.slots[this.slot]!;
       const home = this.miniOrigin(this.slot, fp.cells);
       const px = x + d.offX * this.cell - (fp.w * this.cell) / 2;
@@ -1377,6 +1385,8 @@ export class CarpentryRenderer {
   /** Keyboard: 1-3 pick a plank, arrows move it, R or E turn, Q turns back, F flips, H finds a fit, Enter or Space nails it. */
   keyboard(key: string): boolean {
     if (!this.interactive || !this.state) return false;
+    // Anything done to a plank needs one in hand; the keyboard starts with the first slot.
+    if (this.slot === null && !["1", "2", "3", "Escape"].includes(key)) this.select(0);
     switch (key) {
       case "1":
       case "2":

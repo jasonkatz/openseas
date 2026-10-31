@@ -158,7 +158,8 @@ sloppy work, four or more a pig's breakfast. Points are area times `basePerCell`
 rating's multiplier, plus a quarter more when every plank's grain runs across, times the current
 masterpiece streak; the streak is the combo and a lesser patch resets it. A hole left alone while
 `growAfterMoves` planks go elsewhere widens by one cell, and a widened hole can no longer be a
-masterpiece. The round ends after `maxMoves` planks or the clock. Control is built around the
+masterpiece. The round ends after `maxMoves` planks or the clock. A round starts with no plank in
+hand; the player picks one from the tray. Control is built around the
 plank's centre: it sits under the pointer (lifted above a finger), and a spot that will not take it
 snaps to a neighbouring one that will, so dropping near a hole is enough. A mouse carries the plank
 by hovering and nails it with a click; right-click or the wheel turns it. Touch drags the plank
