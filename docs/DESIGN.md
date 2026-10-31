@@ -108,11 +108,11 @@ rest of the screen; combo, water, connection and the piece legend open in a pane
 chaining through the board's structure. Performance feeds movement tokens per turn. QoL: ghost
 piece showing landing position, next-piece preview, swipe-to-move and tap-to-rotate on touch.
 
-As built (M2): an 8 wide by 16 tall rigging; the cells are small because nothing is tapped
-individually, so the whole board fits a phone screen. Pieces are discs, not tiles, so Sailing
+As built (M2): a 10 wide by 20 tall rigging; the cells are small because nothing is tapped
+individually, so the whole board fits a phone screen with room to work in. Pieces are discs, not tiles, so Sailing
 never reads as Bilging: conjoined pairs of two discs in three kinds (sailcloth with a canvas weave,
 rope coiled in rings, sea with rolling ripples), each with an optional mark, and the two halves of
-a pair stay visibly joined while both are on the board. Four platforms sit in the board at a time:
+a pair stay visibly joined while both are on the board. Five platforms sit in the board at a time:
 a plank shelf spanning two to four cells of one row, some of them outlined round targets that want
 a kind, the rest blanks. A platform is a shelf: a disc never falls out of a platform cell, but
 discs fall into them. When every target on a platform holds its kind the platform clears, its

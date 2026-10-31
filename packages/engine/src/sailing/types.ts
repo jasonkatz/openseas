@@ -9,8 +9,8 @@
 
 import type { PrngState } from "../prng.js";
 
-export const SAILING_WIDTH = 8;
-export const SAILING_HEIGHT = 16;
+export const SAILING_WIDTH = 10;
+export const SAILING_HEIGHT = 20;
 
 export interface SailingConfig {
   readonly width: number;
@@ -35,12 +35,12 @@ export const DEFAULT_SAILING_CONFIG: SailingConfig = {
   width: SAILING_WIDTH,
   height: SAILING_HEIGHT,
   pieceKinds: 3,
-  platformsAtOnce: 4,
+  platformsAtOnce: 5,
   platformSpanMin: 2,
   platformSpanMax: 4,
   platformPoints: 6,
   runPoints: 4,
-  maxMoves: 100,
+  maxMoves: 110,
   topOutPenalty: 40,
 };
 
