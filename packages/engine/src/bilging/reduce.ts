@@ -28,7 +28,8 @@ export function createBilgingGame(seed: string, config: BilgingConfig = DEFAULT_
     nextId: g.nextId,
     moveCount: 0,
     score: 0,
-    waterRow: waterRowFor(config, 0, 0),
+    water: config.initialWaterRow * waterUnitsPerRow(config),
+    waterRow: config.initialWaterRow,
     combo: 0,
     bestCombo: 0,
     lastMove: null,
@@ -45,18 +46,34 @@ export function validateConfig(cfg: BilgingConfig): void {
     Number.isInteger(cfg.pieceKinds) &&
     cfg.pieceKinds >= 3 &&
     cfg.pieceKinds <= 12 &&
+    Number.isInteger(cfg.waterRisePerMoves) &&
     cfg.waterRisePerMoves > 0 &&
+    Number.isInteger(cfg.waterDropPerPoints) &&
     cfg.waterDropPerPoints > 0 &&
+    Number.isInteger(cfg.minWaterRow) &&
+    cfg.minWaterRow >= 0 &&
+    cfg.minWaterRow <= cfg.initialWaterRow &&
+    cfg.initialWaterRow <= cfg.height &&
     cfg.maxMoves > 0;
   if (!ok) throw new Error("invalid bilging config");
 }
 
-export function waterRowFor(cfg: BilgingConfig, moveCount: number, score: number): number {
-  const row =
-    cfg.initialWaterRow +
-    Math.floor(moveCount / cfg.waterRisePerMoves) -
-    Math.floor(score / cfg.waterDropPerPoints);
-  return Math.max(0, Math.min(cfg.height, row));
+export function waterUnitsPerRow(cfg: BilgingConfig): number {
+  return cfg.waterRisePerMoves * cfg.waterDropPerPoints;
+}
+
+/**
+ * The water after one move that scored `points`: it rises by 1/waterRisePerMoves of a row and
+ * drains a row per waterDropPerPoints points, then settles between the floor and the top.
+ */
+export function waterAfterMove(cfg: BilgingConfig, water: number, points: number): number {
+  const per = waterUnitsPerRow(cfg);
+  const next = water + cfg.waterDropPerPoints - points * cfg.waterRisePerMoves;
+  return Math.max(cfg.minWaterRow * per, Math.min(cfg.height * per, next));
+}
+
+export function waterRowOf(cfg: BilgingConfig, water: number): number {
+  return Math.floor(water / waterUnitsPerRow(cfg));
 }
 
 export function reduceBilging(state: BilgingState, move: BilgingMove): BilgingState {
@@ -89,7 +106,7 @@ export function hashBilgingState(state: BilgingState): string {
   const h = new Hasher();
   h.int(state.config.width).int(state.config.height).int(state.config.pieceKinds);
   for (const p of state.cells) h.int(p.id).int(p.kind);
-  h.int(state.nextId).int(state.moveCount).int(state.score).int(state.waterRow).int(state.combo);
+  h.int(state.nextId).int(state.moveCount).int(state.score).int(state.water).int(state.waterRow).int(state.combo);
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.finished ? 1 : 0);
   return h.digest();
@@ -161,12 +178,13 @@ function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap
 
   // Barnacles that the board has lifted above the water line come off, and the board settles again.
   const pointsSoFar = rounds.reduce((sum, r) => sum + r.points, 0);
-  groups = surfacedBarnacles(cfg, cells, waterRowFor(cfg, moveCount, state.score + pointsSoFar));
+  groups = surfacedBarnacles(cfg, cells, waterRowOf(cfg, waterAfterMove(cfg, state.water, pointsSoFar)));
   settle();
 
   const points = rounds.reduce((sum, r) => sum + r.points, 0);
   const score = state.score + points;
   const combo = points > 0 ? state.combo + 1 : 0;
+  const water = waterAfterMove(cfg, state.water, points);
   const report: MoveReport = { move, rounds, points };
   return {
     config: cfg,
@@ -175,7 +193,8 @@ function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap
     nextId,
     moveCount,
     score,
-    waterRow: waterRowFor(cfg, moveCount, score),
+    water,
+    waterRow: waterRowOf(cfg, water),
     combo,
     bestCombo: Math.max(state.bestCombo, combo),
     lastMove: report,

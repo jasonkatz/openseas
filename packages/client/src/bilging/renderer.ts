@@ -21,6 +21,8 @@ export interface RendererOptions {
   labels: { keg: string; ink: string; barnacle: string };
   /** Formats the callout shown for cascade step `chain` (2 and up), from the message table. */
   chainLabel(chain: number): string;
+  /** A swap below the water line takes this long, and the board takes no other swap meanwhile. */
+  underwaterSwapMs: number;
 }
 
 interface PieceView {
@@ -37,6 +39,9 @@ interface PieceView {
   sx: number;
   slide: number;
   slideDir: number;
+  slideMs: number;
+  /** Underwater slides ease in and out instead of snapping across. */
+  slideSlow: boolean;
   /** Landing squash, 1 right after arriving, decaying to 0. */
   squash: number;
   /** Ms since this piece started clearing, or null while it lives. */
@@ -119,6 +124,7 @@ const easeOutBack = (t: number): number => {
   const c = 1.7;
   return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2;
 };
+const easeInOutSine = (t: number): number => -(Math.cos(Math.PI * t) - 1) / 2;
 const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
 const rand = (a: number, b: number): number => a + Math.random() * (b - a);
 
@@ -174,6 +180,11 @@ export class BilgingRenderer {
   private selected: { col: number; row: number } | null = null;
   private cursor: { col: number; row: number } | null = null;
   private hoverPair: { col: number; row: number } | null = null;
+  /** Underwater swaps hold the board until `lockedUntil` (renderer time, ms). */
+  private lockedUntil = 0;
+  private slowPair: { col: number; row: number } | null = null;
+  private denied: { col: number; row: number; at: number } | null = null;
+  private slideMs = SWAP_MS;
   private previewCells: readonly number[] = [];
   private dragStart: { col: number; row: number; x: number; y: number } | null = null;
   private dragDx = 0;
@@ -323,7 +334,11 @@ export class BilgingRenderer {
       this.waitMs = 0;
       // A state without a move is a new game. Piece ids restart at 0 in every game, so no view
       // from the previous board may be reused or it would keep drawing the old kinds.
-      if (!report) for (const id of [...this.pieces.keys()]) this.remove(id);
+      if (!report) {
+        for (const id of [...this.pieces.keys()]) this.remove(id);
+        this.lockedUntil = 0;
+        this.slowPair = null;
+      }
       this.place(state.cells, prev === null || !report);
       if (!prev) this.waterShown = state.waterRow;
       return;
@@ -339,9 +354,19 @@ export class BilgingRenderer {
     const swapped = prev.cells.slice();
     const i = row * this.width + col;
     [swapped[i], swapped[i + 1]] = [swapped[i + 1]!, swapped[i]!];
+    // Below the water line pieces swap slowly, and the board holds until they land.
+    const slow = row < prev.waterRow && this.opts.underwaterSwapMs > 0;
+    const swapMs = slow ? this.opts.underwaterSwapMs : SWAP_MS;
+    if (slow) {
+      this.lockedUntil = this.time + swapMs;
+      this.slowPair = { col, row };
+      this.burst(this.cx(col) + this.cell / 2, this.cy(row), COLORS.foam, 5);
+    }
     this.steps.push(() => {
+      this.slideMs = swapMs;
       this.place(swapped, false);
-      return report.rounds.length ? SWAP_MS : 0;
+      this.slideMs = SWAP_MS;
+      return report.rounds.length || slow ? swapMs : 0;
     });
     for (const round of report.rounds) {
       this.steps.push(() => {
@@ -383,6 +408,8 @@ export class BilgingRenderer {
         v.sx = v.x;
         v.slide = 0;
         v.slideDir = tx > v.x ? -1 : 1;
+        v.slideMs = this.slideMs;
+        v.slideSlow = this.slideMs > SWAP_MS;
       }
       v.tx = tx;
       v.ty = ty;
@@ -413,7 +440,7 @@ export class BilgingRenderer {
     c.addChild(tile, flash);
     c.position.set(x, y);
     this.pieceLayer.addChild(c);
-    const v: PieceView = { c, tile, flash, kind: p.kind, x, y, tx: x, ty: y, vy: 0, sx: x, slide: 1, slideDir: 0, squash: 0, dying: null, quiet: false };
+    const v: PieceView = { c, tile, flash, kind: p.kind, x, y, tx: x, ty: y, vy: 0, sx: x, slide: 1, slideDir: 0, slideMs: SWAP_MS, slideSlow: false, squash: 0, dying: null, quiet: false };
     this.pieces.set(p.id, v);
     return v;
   }
@@ -573,9 +600,10 @@ export class BilgingRenderer {
     if (!this.app.renderer) return;
     const w = this.app.screen.width;
     const h = this.app.screen.height;
-    const padFor = (cell: number): number => Math.max(8, Math.round(cell * 0.22));
+    // The frame is kept thin so the tiles get as much of the screen as possible.
+    const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.15));
     let cell = Math.floor(Math.min(w / this.width, h / this.height));
-    cell = Math.floor(Math.min((w - padFor(cell) * 2 - 14) / this.width, (h - padFor(cell) * 2) / this.height));
+    cell = Math.floor(Math.min((w - padFor(cell) * 2 - 2) / this.width, (h - padFor(cell) * 2 - 2) / this.height));
     this.cell = Math.max(12, cell);
     this.pad = padFor(this.cell);
     this.ox = Math.floor((w - this.cell * this.width) / 2);
@@ -749,11 +777,12 @@ export class BilgingRenderer {
       let arc = 0;
       let pop = 0;
       if (v.slide < 1) {
-        v.slide = Math.min(1, v.slide + dt / (this.reduced ? 60 : SWAP_MS));
-        const e = easeOutBack(v.slide);
+        // Reduced motion shortens ordinary slides; an underwater slide is a gameplay cost and stays.
+        v.slide = Math.min(1, v.slide + dt / (v.slideSlow || !this.reduced ? v.slideMs : 60));
+        const e = v.slideSlow ? easeInOutSine(v.slide) : easeOutBack(v.slide);
         v.x = v.sx + (v.tx - v.sx) * e;
-        arc = Math.sin(Math.PI * v.slide) * this.cell * 0.1 * v.slideDir;
-        pop = Math.sin(Math.PI * v.slide) * 0.08;
+        arc = Math.sin(Math.PI * v.slide) * this.cell * (v.slideSlow ? 0.05 : 0.1) * v.slideDir;
+        pop = v.slideSlow ? 0 : Math.sin(Math.PI * v.slide) * 0.08;
         v.c.zIndex = v.slideDir < 0 ? 2 : 1;
         if (v.slide === 1) {
           v.x = v.tx;
@@ -929,6 +958,8 @@ export class BilgingRenderer {
       g.poly([mx - a * 1.6, my, mx - a * 0.4, my - a, mx - a * 0.4, my + a]).fill({ color, alpha });
       g.poly([mx + a * 1.6, my, mx + a * 0.4, my - a, mx + a * 0.4, my + a]).fill({ color, alpha });
     };
+    if (this.slowPair && this.time < this.lockedUntil) pair(this.slowPair.col, this.slowPair.row, COLORS.foam, 0.45 + 0.4 * pulse);
+    if (this.denied && this.time - this.denied.at < 260) pair(this.denied.col, this.denied.row, COLORS.danger, 1 - (this.time - this.denied.at) / 260);
     if (this.hoverPair && !this.selected) pair(this.hoverPair.col, this.hoverPair.row, COLORS.brass, 0.55);
     if (this.cursor && this.interactive) pair(this.cursor.col, this.cursor.row, COLORS.brass, 0.95);
     if (this.selected) {
@@ -945,6 +976,15 @@ export class BilgingRenderer {
   }
 
   // ---- input: tap-then-tap, drag-swap, hold-to-preview, hover-to-preview
+
+  /** Every swap the player asks for passes here; an underwater swap still settling refuses it. */
+  private requestSwap(col: number, row: number): void {
+    if (this.time < this.lockedUntil) {
+      this.denied = { col, row, at: this.time };
+      return;
+    }
+    this.cb.onSwap(col, row);
+  }
 
   private pointerDown(e: FederatedPointerEvent): void {
     if (!this.interactive) return;
@@ -973,7 +1013,7 @@ export class BilgingRenderer {
           this.dragStart = null;
           this.dragDx = 0;
           this.selected = null;
-          this.cb.onSwap(col, row);
+          this.requestSwap(col, row);
           return;
         }
       }
@@ -1000,7 +1040,7 @@ export class BilgingRenderer {
     if (this.selected && this.selected.row === cell.row && Math.abs(this.selected.col - cell.col) === 1) {
       const col = Math.min(this.selected.col, cell.col);
       this.selected = null;
-      this.cb.onSwap(col, cell.row);
+      this.requestSwap(col, cell.row);
       return;
     }
     this.selected = this.selected && this.selected.col === cell.col && this.selected.row === cell.row ? null : cell;
@@ -1060,7 +1100,7 @@ export class BilgingRenderer {
       case "Enter": {
         const col = Math.min(c.col, this.width - 2);
         this.setCursor({ col: c.col, row: c.row });
-        this.cb.onSwap(col, c.row);
+        this.requestSwap(col, c.row);
         return true;
       }
       default:

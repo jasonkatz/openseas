@@ -71,6 +71,8 @@
   "bilging.standing": "Standing",
   "bilging.result_rejected_title": "Round not counted",
   "bilging.legend": "Pieces and specials",
+  "bilging.details_show": "Show combo, water and pieces",
+  "bilging.details_hide": "Hide details",
   "bilging.piece.cog": "Cog",
   "bilging.piece.shell": "Shell",
   "bilging.piece.anchor": "Anchor",

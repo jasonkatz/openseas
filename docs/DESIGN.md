@@ -74,17 +74,25 @@ As built (M1): seven ordinary piece kinds, colored squares, each with its own op
 Keg (swap to clear a 3 by 3), the Ink Cloud (swap with a piece to clear every piece of that kind),
 and the Barnacle (unmatchable; it rides up with the board and comes off by itself, for a bonus,
 once it is at or above the water line). A connected cleared group of n pieces scores n(n-2); clearing k groups in
-one step multiplies by k; cascade step c multiplies by c. On the practice page the water line is
-a pure function of moves made and points scored, so a replay needs nothing but the move log; from
-M3 the ship injects water events into the log instead. All numbers live in
+one step multiplies by k; cascade step c multiplies by c. On the practice page the water is a level
+carried in the game state: every move raises it a sixth of a row, every 40 points drain a row, and
+it never drops below a floor of 3 rows. Pumping while already at the floor is wasted, so points
+cannot be banked to hold the water down later. It is still a pure function of the move log, so a
+replay needs nothing else; from M3 the ship injects water events into the log instead. Below the
+water line pieces swap slowly: the swap takes `underwaterSwapMs` and the board takes no other swap
+until it lands, so working underwater costs time against the clock. That cost is client timing
+only, like the original's; scores never depend on it. All numbers live in
 `content/data/puzzles/bilging.json` and are tuned in playtests.
 
 Feedback as built: each move plays back step by step, swap then every cascade step clearing and
 rising in turn, from the per-step boards the engine's move report carries. A new move
-fast-forwards whatever is still animating, so input never waits. Clears burst with debris, score
+fast-forwards whatever is still animating, so input never waits, except behind an underwater
+swap. Clears burst with debris, score
 popups and a callout for chains; kegs and ink clouds shake the board; the frame glows with the
 combo; submerged pieces stay readable because the water body sits behind them. Sound and the
 personal best are per device; the personal best is display only and never reaches the server.
+On phones the top bar is the whole HUD (score, time, moves, a combo chip) and the board takes the
+rest of the screen; combo, water, connection and the piece legend open in a panel over the board.
 
 **Sailing.** Falling pieces you steer and rotate into a board, clearing by forming groups and
 chaining through the board's structure. Performance feeds movement tokens per turn. QoL: ghost
@@ -295,5 +303,5 @@ Maintained as they arise.
 | Bilging specials | Crab, pufferfish, jellyfish | Barnacle, Powder Keg, Ink Cloud | Original names (ADR 0001); same roles |
 | Tile art | Illustrated pieces | Colored squares, specials with icon and label, optional marks | Owner wants clarity first; marks keep it playable without color |
 | Bilging scoring | Original's table | n(n-2) per group, times groups, times cascade step | Published formula, tuned in playtests |
-| Bilging water in practice | Driven by the ship | Driven by moves made and points scored | No ship exists until M3; keeps replays self-contained |
+| Bilging water in practice | Driven by the ship | Rises with moves, drains with points, floor of 3 rows | No ship exists until M3; keeps replays self-contained |
 | Divergent puzzle round | n/a (client-reported) | Rejected outright, unrated, logged | Engines are deterministic; any mismatch is a bug or a cheat |

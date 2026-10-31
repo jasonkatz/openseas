@@ -19,6 +19,9 @@ import {
   type BilgingMove,
   type BilgingState,
   type Piece,
+  waterAfterMove,
+  waterRowOf,
+  waterUnitsPerRow,
 } from "../src/index.js";
 
 const cfg = DEFAULT_BILGING_CONFIG;
@@ -303,17 +306,37 @@ describe("bilging rules", () => {
     );
   });
 
-  it("the water line rises with moves and drops with points", () => {
+  it("the water rises with every move, drains with points, and never leaves [floor, top]", () => {
+    const per = cfg.waterRisePerMoves * cfg.waterDropPerPoints;
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
-        const { state } = playRandom(seed, picks);
-        const expected =
-          cfg.initialWaterRow +
-          Math.floor(state.moveCount / cfg.waterRisePerMoves) -
-          Math.floor(state.score / cfg.waterDropPerPoints);
-        expect(state.waterRow).toBe(Math.max(0, Math.min(cfg.height, expected)));
+        let state = createBilgingGame(seed, cfg);
+        let water = cfg.initialWaterRow * per;
+        for (const pick of picks) {
+          const move = randomLegalMove(state, pick);
+          if (!move || state.finished) break;
+          state = reduceBilging(state, move);
+          water += cfg.waterDropPerPoints - state.lastMove!.points * cfg.waterRisePerMoves;
+          water = Math.max(cfg.minWaterRow * per, Math.min(cfg.height * per, water));
+          expect(state.water).toBe(water);
+          expect(state.waterRow).toBe(Math.floor(water / per));
+          expect(state.waterRow).toBeGreaterThanOrEqual(cfg.minWaterRow);
+        }
       }),
     );
+  });
+
+  it("pumping at the floor is wasted: points scored there do not hold the water down later", () => {
+    const per = waterUnitsPerRow(cfg);
+    const floor = cfg.minWaterRow * per;
+    // A huge clear while already at the floor leaves the water at the floor, not below it...
+    let water = waterAfterMove(cfg, floor, 1000);
+    expect(water).toBe(floor);
+    // ...so the next waterRisePerMoves scoreless moves raise it a full row, as if it never happened.
+    for (let i = 0; i < cfg.waterRisePerMoves; i++) water = waterAfterMove(cfg, water, 0);
+    expect(waterRowOf(cfg, water)).toBe(cfg.minWaterRow + 1);
+    // And it never overflows the top.
+    expect(waterRowOf(cfg, waterAfterMove(cfg, cfg.height * per, 0))).toBe(cfg.height);
   });
 
   it("rejects out-of-range swaps and moves after the end", () => {

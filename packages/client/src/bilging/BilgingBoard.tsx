@@ -41,6 +41,7 @@ export function BilgingBoard(props: BoardProps) {
         barnacle: t("bilging.special.barnacle_label"),
       },
       chainLabel: (chain) => t("bilging.chain_label", { chain }),
+      underwaterSwapMs: content.puzzles.bilging.underwaterSwapMs,
     });
     renderer.current = r;
     let alive = true;

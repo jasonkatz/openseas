@@ -46,6 +46,19 @@ function recordBest(score: number): boolean {
   return true;
 }
 
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia?.(query).matches ?? false);
+  useEffect(() => {
+    const mq = window.matchMedia?.(query);
+    if (!mq) return;
+    const onChange = (): void => setMatches(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+}
+
 /** Eases a displayed number toward its target so score changes read as a tally, not a jump. */
 function useTally(target: number, ms = 450): number {
   const [shown, setShown] = useState(target);
@@ -82,6 +95,8 @@ export function BilgingPractice() {
   const [muted, setMutedState] = useState(isMuted);
   const [best, setBest] = useState(readBest);
   const [splash, setSplash] = useState(0);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const wide = useMediaQuery("(min-width: 900px)");
   const round = useRef<BilgingRound | null>(null);
   const sessionId = useRef<string | null>(null);
   const canRate = socketStatus === "open" && pirate !== null;
@@ -220,182 +235,253 @@ export function BilgingPractice() {
   const lowTime = playing && timeLeft <= 10;
   const moves = state?.moveCount ?? 0;
 
-  return (
-    <main className="page puzzle">
-      <header className="puzzle-bar">
-        <Link to="/" className="icon-btn" aria-label={t("app.back")}>
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-            <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </Link>
-        <h1 className="puzzle-title">{t("bilging.title")}</h1>
-        <span
-          className={`pip ${socketStatus === "open" ? "pip-live" : socketStatus === "connecting" ? "pip-wait" : "pip-off"}`}
-          title={socketStatus === "open" ? t("app.connected") : socketStatus === "connecting" ? t("app.connecting") : t("app.offline")}
-        >
-          <i aria-hidden="true" />
-          {socketStatus === "open" ? t("app.status_live") : socketStatus === "connecting" ? t("app.status_connecting") : t("app.status_offline")}
-        </span>
-        <button className="icon-btn" onClick={toggleMute} aria-label={muted ? t("app.unmute") : t("app.mute")} aria-pressed={muted} data-testid="toggle-sound">
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="none" />
-            {muted ? <path d="M16 9.5l5 5m0-5l-5 5" /> : <path d="M15.5 9a4 4 0 010 6M18 6.5a7.5 7.5 0 010 11" />}
-          </svg>
-        </button>
-      </header>
+  const statusClass = socketStatus === "open" ? "pip-live" : socketStatus === "connecting" ? "pip-wait" : "pip-off";
+  const statusLong = socketStatus === "open" ? t("app.connected") : socketStatus === "connecting" ? t("app.connecting") : t("app.offline");
+  const statusShort = socketStatus === "open" ? t("app.status_live") : socketStatus === "connecting" ? t("app.status_connecting") : t("app.status_offline");
 
-      <section className="hud" aria-live="off">
-        <div className="stat stat-score">
-          <span className="stat-label">{t("bilging.score")}</span>
-          <span className="stat-value" data-testid="hud-score">
-            <span key={state?.score ?? 0} className={state?.score ? "bump" : undefined}>
-              {score}
-            </span>
+  const backLink = (
+    <Link to="/" className="icon-btn" aria-label={t("app.back")}>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </Link>
+  );
+  const statusPip = (
+    <span className={`pip ${statusClass}`} title={statusLong}>
+      <i aria-hidden="true" />
+      {statusShort}
+    </span>
+  );
+  const muteButton = (
+    <button className="icon-btn" onClick={toggleMute} aria-label={muted ? t("app.unmute") : t("app.mute")} aria-pressed={muted} data-testid="toggle-sound">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="none" />
+        {muted ? <path d="M16 9.5l5 5m0-5l-5 5" /> : <path d="M15.5 9a4 4 0 010 6M18 6.5a7.5 7.5 0 010 11" />}
+      </svg>
+    </button>
+  );
+  const coreStats = (
+    <>
+      <div className="stat stat-score">
+        <span className="stat-label">{t("bilging.score")}</span>
+        <span className="stat-value" data-testid="hud-score">
+          <span key={state?.score ?? 0} className={state?.score ? "bump" : undefined}>
+            {score}
           </span>
-        </div>
-        <div className={`stat ${lowTime ? "stat-urgent" : ""}`}>
-          <span className="stat-label">{t("bilging.time")}</span>
-          <span className={`stat-value ${lowTime ? "urgent" : ""}`} data-testid="hud-time">
-            {fmt(shownTime)}
-          </span>
-          <span className="bar" aria-hidden="true">
-            <i style={{ width: `${(shownTime / bilging.roundSeconds) * 100}%` }} />
-          </span>
-        </div>
-        <div className="stat">
-          <span className="stat-label">{t("bilging.moves")}</span>
-          <span className="stat-value" data-testid="hud-moves">
-            {moves}
-            <small>/{bilging.config.maxMoves}</small>
-          </span>
-          <span className="bar bar-moves" aria-hidden="true">
-            <i style={{ width: `${(1 - moves / bilging.config.maxMoves) * 100}%` }} />
-          </span>
-        </div>
-        <div className="stat stat-wide">
-          <span className="stat-label">{t("bilging.combo")}</span>
-          <span className={`combo-meter ${combo >= 6 ? "hot" : ""}`} aria-label={t("bilging.combo_label", { count: combo })}>
-            {Array.from({ length: COMBO_PIPS }, (_, i) => (
-              <i key={i} className={i < Math.min(COMBO_PIPS, combo) ? "lit" : ""} />
-            ))}
-            <b data-testid="hud-combo" key={combo}>
-              {combo ? t("bilging.combo_label", { count: combo }) : ""}
+          {!wide && combo > 1 && (
+            <b className={`combo-chip ${combo >= 6 ? "hot" : ""}`} key={combo}>
+              ×{combo}
             </b>
+          )}
+        </span>
+      </div>
+      <div className={`stat ${lowTime ? "stat-urgent" : ""}`}>
+        <span className="stat-label">{t("bilging.time")}</span>
+        <span className={`stat-value ${lowTime ? "urgent" : ""}`} data-testid="hud-time">
+          {fmt(shownTime)}
+        </span>
+        <span className="bar" aria-hidden="true">
+          <i style={{ width: `${(shownTime / bilging.roundSeconds) * 100}%` }} />
+        </span>
+      </div>
+      <div className="stat">
+        <span className="stat-label">{t("bilging.moves")}</span>
+        <span className="stat-value" data-testid="hud-moves">
+          {moves}
+          <small>/{bilging.config.maxMoves}</small>
+        </span>
+        <span className="bar bar-moves" aria-hidden="true">
+          <i style={{ width: `${(1 - moves / bilging.config.maxMoves) * 100}%` }} />
+        </span>
+      </div>
+    </>
+  );
+  const comboAndWater = (
+    <>
+      <div className="stat stat-wide">
+        <span className="stat-label">{t("bilging.combo")}</span>
+        <span className={`combo-meter ${combo >= 6 ? "hot" : ""}`} aria-label={t("bilging.combo_label", { count: combo })}>
+          {Array.from({ length: COMBO_PIPS }, (_, i) => (
+            <i key={i} className={i < Math.min(COMBO_PIPS, combo) ? "lit" : ""} />
+          ))}
+          <b data-testid="hud-combo" key={combo}>
+            {combo ? t("bilging.combo_label", { count: combo }) : ""}
+          </b>
+        </span>
+      </div>
+      <div className="stat stat-wide">
+        <span className="stat-label">{t("bilging.water")}</span>
+        <span className="water-row">
+          <span className={`water-meter ${danger ? "danger" : ""}`}>
+            <i style={{ width: `${Math.round(waterFrac * 100)}%` }} />
           </span>
-        </div>
-        <div className="stat stat-wide">
-          <span className="stat-label">{t("bilging.water")}</span>
-          <span className="water-row">
-            <span className={`water-meter ${danger ? "danger" : ""}`}>
-              <i style={{ width: `${Math.round(waterFrac * 100)}%` }} />
+          {danger && playing && <em className="water-warn">{t("bilging.water_danger")}</em>}
+        </span>
+      </div>
+    </>
+  );
+  const legendBody = (
+    <>
+      <ul className="specials">
+        {(["keg", "ink", "barnacle"] as const).map((k) => (
+          <li key={k}>
+            <TileIcon color={bilging.specials[k].color} special={k} />
+            <span>
+              <b>{t(bilging.specials[k].nameKey)}</b> {t(`bilging.special.${k}_help`)}
             </span>
-            {danger && playing && <em className="water-warn">{t("bilging.water_danger")}</em>}
-          </span>
+          </li>
+        ))}
+      </ul>
+      <ul className="kinds">
+        {bilging.pieces.slice(0, bilging.config.pieceKinds).map((p) => (
+          <li key={p.nameKey}>
+            <TileIcon color={p.color} mark={showMarks ? p.mark : null} />
+            <span>{t(p.nameKey)}</span>
+          </li>
+        ))}
+      </ul>
+      <label className="toggle">
+        <input type="checkbox" checked={showMarks} onChange={(e) => setShowMarks(e.target.checked)} data-testid="toggle-marks" />
+        <span>
+          {t("bilging.setting_marks")} <small className="muted">{t("bilging.setting_marks_hint")}</small>
+        </span>
+      </label>
+    </>
+  );
+
+  const board = (
+    <section className={`board-wrap ${lowTime ? "low-time" : ""} ${playing ? "is-playing" : ""}`}>
+      <BilgingBoard
+        state={state}
+        report={report}
+        version={version}
+        interactive={playing && !detailsOpen}
+        showMarks={showMarks}
+        onSwap={onSwap}
+        preview={preview}
+        onFrame={onFrame}
+        onClear={onClear}
+      />
+      {playing && splash > 0 && (
+        <div className="splash" key={splash} aria-hidden="true">
+          {t("bilging.go")}
         </div>
-      </section>
+      )}
 
-      <section className={`board-wrap ${lowTime ? "low-time" : ""} ${playing ? "is-playing" : ""}`}>
-        <BilgingBoard
-          state={state}
-          report={report}
-          version={version}
-          interactive={playing}
-          showMarks={showMarks}
-          onSwap={onSwap}
-          preview={preview}
-          onFrame={onFrame}
-          onClear={onClear}
-        />
-        {playing && splash > 0 && (
-          <div className="splash" key={splash} aria-hidden="true">
-            {t("bilging.go")}
-          </div>
-        )}
-
-        {!playing && (
-          <div className="board-veil">
-            {phase === "idle" && (
-              <div className="veil-card">
-                <p className="eyebrow">{t("bilging.eyebrow")}</p>
-                <h2>{t("bilging.title")}</h2>
-                <div className="tile-row" aria-hidden="true">
-                  {bilging.pieces.slice(0, bilging.config.pieceKinds).map((p, i) => (
-                    <span key={p.nameKey} style={{ animationDelay: `${i * 70}ms` }}>
-                      <TileIcon color={p.color} mark={showMarks ? p.mark : null} />
-                    </span>
-                  ))}
-                </div>
-                <p className="how">{t("bilging.how_to")}</p>
-                <p className="how how-kbd">{t("bilging.how_to_keyboard")}</p>
-                {best > 0 && <p className="best-line">{t("bilging.best", { score: best })}</p>}
-                {!canRate && socketStatus !== "connecting" && <p className="note">{t("app.offline")}</p>}
-                <div className="stack">
-                  <button className="btn btn-brass" onClick={startRated} disabled={!canRate} data-testid="start-rated">
-                    {t("bilging.start")}
-                  </button>
-                  <button className="btn btn-ghost" onClick={startUnrated} data-testid="start-unrated">
-                    {t("bilging.unrated_start")}
-                  </button>
-                </div>
+      {!playing && (
+        <div className="board-veil">
+          {phase === "idle" && (
+            <div className="veil-card">
+              <p className="eyebrow">{t("bilging.eyebrow")}</p>
+              <h2>{t("bilging.title")}</h2>
+              <div className="tile-row" aria-hidden="true">
+                {bilging.pieces.slice(0, bilging.config.pieceKinds).map((p, i) => (
+                  <span key={p.nameKey} style={{ animationDelay: `${i * 70}ms` }}>
+                    <TileIcon color={p.color} mark={showMarks ? p.mark : null} />
+                  </span>
+                ))}
               </div>
-            )}
-            {phase === "starting" && (
-              <p className="status">
-                <span className="spinner" aria-hidden="true" />
-                {t("app.connecting")}
-              </p>
-            )}
-            {phase === "waiting" && (
-              <p className="status">
-                <span className="spinner" aria-hidden="true" />
-                {t("bilging.waiting_result")}
-              </p>
-            )}
-            {phase === "result" && outcome && (
-              <div className="veil-card" data-testid="result">
-                <p className="eyebrow">{t("bilging.round_over")}</p>
-                <ResultBody outcome={outcome} />
-                <div className="stack">
-                  <button className="btn btn-brass" onClick={canRate ? startRated : startUnrated} data-testid="restart">
-                    {t("bilging.restart")}
-                  </button>
-                  <Link to="/" className="btn btn-ghost">
-                    {t("app.back")}
-                  </Link>
-                </div>
+              <p className="how">{t("bilging.how_to")}</p>
+              <p className="how how-kbd">{t("bilging.how_to_keyboard")}</p>
+              {best > 0 && <p className="best-line">{t("bilging.best", { score: best })}</p>}
+              {!canRate && socketStatus !== "connecting" && <p className="note">{t("app.offline")}</p>}
+              <div className="stack">
+                <button className="btn btn-brass" onClick={startRated} disabled={!canRate} data-testid="start-rated">
+                  {t("bilging.start")}
+                </button>
+                <button className="btn btn-ghost" onClick={startUnrated} data-testid="start-unrated">
+                  {t("bilging.unrated_start")}
+                </button>
               </div>
-            )}
-          </div>
-        )}
-      </section>
+            </div>
+          )}
+          {phase === "starting" && (
+            <p className="status">
+              <span className="spinner" aria-hidden="true" />
+              {t("app.connecting")}
+            </p>
+          )}
+          {phase === "waiting" && (
+            <p className="status">
+              <span className="spinner" aria-hidden="true" />
+              {t("bilging.waiting_result")}
+            </p>
+          )}
+          {phase === "result" && outcome && (
+            <div className="veil-card" data-testid="result">
+              <p className="eyebrow">{t("bilging.round_over")}</p>
+              <ResultBody outcome={outcome} />
+              <div className="stack">
+                <button className="btn btn-brass" onClick={canRate ? startRated : startUnrated} data-testid="restart">
+                  {t("bilging.restart")}
+                </button>
+                <Link to="/" className="btn btn-ghost">
+                  {t("app.back")}
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
-      <details className="legend" open={typeof window !== "undefined" && window.innerWidth >= 900}>
-        <summary>{t("bilging.legend")}</summary>
-        <ul className="specials">
-          {(["keg", "ink", "barnacle"] as const).map((k) => (
-            <li key={k}>
-              <TileIcon color={bilging.specials[k].color} special={k} />
-              <span>
-                <b>{t(bilging.specials[k].nameKey)}</b> {t(`bilging.special.${k}_help`)}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <ul className="kinds">
-          {bilging.pieces.slice(0, bilging.config.pieceKinds).map((p) => (
-            <li key={p.nameKey}>
-              <TileIcon color={p.color} mark={showMarks ? p.mark : null} />
-              <span>{t(p.nameKey)}</span>
-            </li>
-          ))}
-        </ul>
-        <label className="toggle">
-          <input type="checkbox" checked={showMarks} onChange={(e) => setShowMarks(e.target.checked)} data-testid="toggle-marks" />
-          <span>
-            {t("bilging.setting_marks")} <small className="muted">{t("bilging.setting_marks_hint")}</small>
-          </span>
-        </label>
-      </details>
+      {!wide && detailsOpen && (
+        <>
+          <button className="hud-scrim" aria-label={t("bilging.details_hide")} onClick={() => setDetailsOpen(false)} />
+          <div className="hud-panel" data-testid="hud-panel">
+            {statusPip}
+            {comboAndWater}
+            <div className="legend legend-inline">{legendBody}</div>
+          </div>
+        </>
+      )}
+    </section>
+  );
+
+  if (wide) {
+    return (
+      <main className="page puzzle">
+        <header className="puzzle-bar">
+          {backLink}
+          <h1 className="puzzle-title">{t("bilging.title")}</h1>
+          {statusPip}
+          {muteButton}
+        </header>
+        <section className="hud" aria-live="off">
+          {coreStats}
+          {comboAndWater}
+        </section>
+        {board}
+        <details className="legend" open>
+          <summary>{t("bilging.legend")}</summary>
+          {legendBody}
+        </details>
+      </main>
+    );
+  }
+
+  // Phones: the top bar is the HUD, so the board gets every other pixel. Details open over the board.
+  return (
+    <main className="page puzzle puzzle-compact">
+      <header className="puzzle-bar puzzle-bar-compact">
+        {backLink}
+        <section className="hud-strip" aria-live="off">
+          {coreStats}
+        </section>
+        <button
+          className={`icon-btn details-btn ${danger && playing ? "warn" : ""}`}
+          onClick={() => setDetailsOpen((o) => !o)}
+          aria-expanded={detailsOpen}
+          aria-label={detailsOpen ? t("bilging.details_hide") : t("bilging.details_show")}
+          data-testid="toggle-details"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <path d={detailsOpen ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
+          </svg>
+          <i className={`dot ${statusClass}`} aria-hidden="true" />
+        </button>
+        {muteButton}
+      </header>
+      {board}
     </main>
   );
 }

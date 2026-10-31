@@ -16,6 +16,7 @@ export const BilgingConfigSchema = z.object({
     barnacle: z.int().min(0).max(1000),
   }),
   initialWaterRow: z.int().min(0).max(32),
+  minWaterRow: z.int().min(0).max(32),
   waterRisePerMoves: z.int().min(1),
   waterDropPerPoints: z.int().min(1),
   maxMoves: z.int().min(1).max(10_000),

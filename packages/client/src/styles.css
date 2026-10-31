@@ -818,6 +818,142 @@ a {
   height: 20px;
   accent-color: var(--brass);
 }
+/* Phones: one bar carries the HUD and the board takes the rest of the screen. */
+.puzzle-compact {
+  gap: 6px;
+  padding: max(6px, env(safe-area-inset-top)) 6px max(6px, env(safe-area-inset-bottom));
+  max-width: none;
+}
+.puzzle-bar-compact {
+  grid-template-columns: 40px 1fr 40px 40px;
+  gap: 6px;
+}
+.puzzle-bar-compact .icon-btn {
+  width: 40px;
+  height: 40px;
+}
+.hud-strip {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 0 4px;
+}
+.hud-strip .stat {
+  gap: 1px;
+}
+.hud-strip .stat-label {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+}
+.hud-strip .stat-value,
+.hud-strip .stat-score .stat-value {
+  font-size: 21px;
+  white-space: nowrap;
+}
+.hud-strip .stat-value small {
+  font-size: 11px;
+}
+.hud-strip .bar {
+  height: 3px;
+  margin-top: 1px;
+}
+.combo-chip {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  vertical-align: 3px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  color: #1b150c;
+  background: linear-gradient(180deg, #ffe39a, var(--brass));
+  animation: bump 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.combo-chip.hot {
+  background: linear-gradient(180deg, #ffd1a8, #ff8a5b);
+}
+.details-btn {
+  position: relative;
+}
+.details-btn .dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.details-btn .dot.pip-live {
+  color: var(--foam);
+}
+.details-btn .dot.pip-wait {
+  color: var(--parchment-dim);
+}
+.details-btn .dot.pip-off {
+  color: var(--brass);
+}
+.details-btn.warn {
+  color: var(--danger);
+  box-shadow: inset 0 0 0 1px rgba(240, 96, 77, 0.5);
+}
+.puzzle-compact .board-wrap {
+  min-height: 0;
+  border-radius: 12px;
+}
+.hud-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border: 0;
+  padding: 0;
+  background: rgba(7, 14, 26, 0.45);
+  cursor: pointer;
+  animation: fade 0.2s ease both;
+}
+.hud-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  max-height: 100%;
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  padding: 14px;
+  border-radius: 12px;
+  background: linear-gradient(160deg, rgba(28, 43, 72, 0.97), rgba(11, 21, 38, 0.97));
+  box-shadow:
+    inset 0 0 0 1px rgba(239, 227, 198, 0.1),
+    0 20px 40px -16px rgba(0, 0, 0, 0.9);
+  animation: drop 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.hud-panel .stat-wide {
+  width: 100%;
+  grid-column: auto;
+}
+.legend-inline {
+  width: 100%;
+  background: none;
+  box-shadow: none;
+}
+.legend-inline ul,
+.legend-inline .toggle {
+  padding: 0;
+  margin-left: 0;
+  margin-right: 0;
+}
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
 @media (max-width: 420px) {
   .puzzle-title {
     font-size: 24px;
