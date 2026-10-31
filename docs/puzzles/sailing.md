@@ -1,155 +1,170 @@
 # Sailing
 
-Status: spec draft. Next puzzle after Bilging (M2). The "Rules to verify" list needs the owner's
-sign-off before the engine PR, and the time model needs an ADR (section 8).
+Status: spec, rules confirmed by the owner. Next puzzle after Bilging (M2). The time model needs
+an ADR before the engine PR (section 8).
 
 ## 1. Identity
 
-Steady and rhythmic where Bilging is twitchy. You are on deck working lines: pieces arrive on the
-wind and you steer them into place, reading the shape of the board several pieces ahead. The
-pleasure is a clean drop that sets off a chain through the board's structure, and watching your
-output fill a sail. Motifs: canvas, rope, wind gusts, creaking blocks and tackle. The output meter
-is a sail that bellies out as tokens accrue. Sounds are airy: whooshes, rope creaks, a snap of
-canvas on a big clear. No water imagery; that belongs to Bilging.
+Steady and rhythmic where Bilging is twitchy. You are on deck rigging sail: pairs arrive on the
+wind and you steer them onto spars, reading the board a few pairs ahead. The pleasure is a pair
+that completes a spar and sets off a chain as everything above it drops into place, and watching
+your output fill a sail. Motifs: canvas, rope, wind gusts, creaking blocks and tackle. The output
+meter is a sail that bellies out as tokens accrue. Sounds are airy: whooshes, rope creaks, a snap
+of canvas on a big clear. No water imagery; that belongs to Bilging.
 
 ## 2. Faithful core
 
-Falling pieces you steer and rotate into a board. Clears come from forming same-color groups, and
-chains run through the board's structure. Performance feeds movement tokens per ship turn.
+Pairs of colored pieces fall into the board. You steer and rotate them onto **spars**, shelves
+whose slots each want a particular color. Fill every slot on a spar and the spar clears; four of a
+color in a straight line also clear. Pieces left hanging fall, and every further clear is a chain
+step. Clear every spar and a fresh board arrives. Performance feeds movement tokens per ship turn.
 
-## 3. Rules to verify
+## 3. Rules verified
 
-Confidence is ours, before checking the original. The first Bilging build got two of these kinds
-of facts wrong, so none of them ship on belief alone.
+Confirmed by the owner against the original, from research notes (the wiki pages were summarized
+through search extracts, not read in full; see `pp-rules-research` in the PR).
 
-- [ ] **Piece shape.** Belief: pieces are small multi-block sets (mostly two blocks, sometimes
-  three) with blocks of independent colors. Confidence: low.
-- [ ] **Clear condition.** Belief: same-color blocks clear as a group once a threshold is met;
-  is it lines of 3+, connected groups, or something structural? Confidence: low.
-- [ ] **Board structure.** Belief: the board has fixed structure (walls or dividers) that pieces
-  settle against and chains run through. What is it, and is it the same every round? Confidence:
-  low.
-- [ ] **Gravity after a clear.** Do blocks above fall as single blocks, or do pieces stay joined?
-  Confidence: low.
-- [ ] **Speed.** Does drop speed rise during a round? Is there a soft drop and a hard drop?
-  Confidence: medium (there is a fast drop).
-- [ ] **Rotation.** Rotation directions, wall kicks, and whether a piece can rotate against
-  structure. Confidence: low.
-- [ ] **Top-out.** What happens when the board fills: round ends, the board clears with a penalty,
-  or the rows compress? Confidence: low.
-- [ ] **Specials.** Are there special pieces, and what does each do? Any coined names get original
-  ones. Confidence: low.
-- [ ] **Output.** What maps puzzle performance to movement tokens: points, clears, chains, or
-  something else? Confidence: low.
+- [x] 8 wide by 16 tall. Pairs enter from the two center columns.
+- [x] Pieces are joined pairs, three colors.
+- [x] Four or more of a color in a straight row or column clear. Straight lines only, not
+  connected groups, and no diagonals.
+- [x] Spars are solid shelves carrying colored slots. Filling every slot of a spar with the
+  matching color clears those pieces and the spar. All completed spars clear together.
+- [x] A landed pair stays joined until one half clears; then the other half falls. This is how
+  chains are built.
+- [x] Fixed pre-placed squares ("snags") sit on the board and get in the way.
+- [x] No special pieces.
+- [x] Clearing every spar on screen brings a fresh board, with no extra bonus.
+- [x] Top-out: if either spawn cell is still occupied once the board settles, the player loses a
+  flat penalty (20) and gets a fresh board.
+- [x] Boards get harder the longer a player goes without topping out.
+
+Still to pin before the engine PR, with our recommendation:
+
+- How snags clear. Recommended: only as part of a four-in-a-line, and they score the most of any
+  piece.
+- Whether the fast-drop key is a hard drop. Recommended: fast soft drop that still allows moves
+  and rotation, as the research suggests; plus a separate hard drop on touch (swipe down).
+- Exact scoring weights (section 6).
 
 ## 4. Board, pieces and specials
 
-Dimensions and coordinates are fixed once section 3 is verified. Coordinates follow Bilging's
-convention: `row` 0 is the bottom, renderers flip. Each block color gets a unique texture and mark
-from the same tile system as Bilging, validated unique in content, but with its own palette of
-surfaces (canvas weave, rope coil, brass block, tar) so a Sailing board never reads as a Bilging
-board. Structure tiles are drawn as part of the board, not as pieces, and are distinguishable from
-every piece without color.
+8 wide by 16 tall. `col` 0..7 left to right, `row` 0..15 bottom to top, the same convention as
+Bilging; pieces fall toward row 0 here. Spawn cells are the two center columns of the top row.
+
+- **Pieces.** Three colors, each a tile with its own texture and mark from the shared tile system,
+  in a Sailing palette: canvas (cream weave), hemp (tan rope twist), pennant (red with a stripe).
+  The original's water, rope and wind theming is not reused.
+- **Pair link.** A joined pair is drawn with a lashing across the shared edge, so it reads which
+  pieces will fall together.
+- **Spars.** Drawn as part of the board, as timber shelves. Each slot shows a hollow outline of its
+  color's texture and mark, so a slot's color reads without color.
+- **Snags.** Dark tiles with an icon and a label, like Bilging's specials.
+- **Board generation.** Spars and snags are generated from the seed with difficulty rising per
+  board since the last top-out; generator parameters live in content.
 
 ## 5. Input
 
-- Touch: drag horizontally to move the piece column by column; tap to rotate; swipe down to drop.
-  The column under the finger is the target, not a relative nudge, so a fast drag lands where the
-  finger is.
-- Mouse: move to aim, click to rotate, right-click or wheel-down to drop.
-- Keyboard: left and right move, up rotates, down soft-drops, space hard-drops.
-- Ghost piece shows where it will land. Next-piece preview shows the queue (length in content).
+- Touch: drag horizontally to move the pair to the column under the finger (absolute, not a
+  relative nudge); tap to rotate; hold to fast-drop; swipe down to hard-drop.
+- Mouse: move to aim, click to rotate, wheel-down to fast-drop.
+- Keyboard: left and right move, up and down rotate, space fast-drops, shift hard-drops.
+- Ghost pair shows where it will land. Next-pair preview (length in content).
 
 ## 6. Scoring
 
-To be written as an integer formula after section 3, in the same form as Bilging's: a base for
-the group, times groups in a step, times the chain step. If the original's formula is unknown,
-we publish ours and record it in `DESIGN.md` section 6.
+Scored per pair dropped, not per second, as in the original. Integer formula, constants in
+content: points for each piece cleared by a spar (more than a line clear), snags worth the most,
+each chain step multiplying the step's points by its step number, the same chain rule as Bilging.
+The original's exact weights are not known; ours are published and recorded in `DESIGN.md`
+section 6.
 
 ## 7. Pressure and output
 
-- **Practice page.** The pressure is intrinsic: the board fills if you play badly, and speed rises
-  over the round (if verified). No extra meter is invented.
-- **Ship (M3).** Output is movement tokens per ship turn. Tokens are computed from what the player
-  cleared during that turn, from the move log, never reported by the client.
-- **Units and clamps.** Token progress is held in whole units in the state. A token cap per turn
-  stops a burst from banking a voyage's worth of movement; progress beyond the cap is wasted, the
-  same rule as Bilging's water floor. The cap lives in content.
+- **Practice page.** The pressure is intrinsic: the board fills if you play badly, a top-out costs
+  20 and the board, and difficulty rises board by board.
+- **Ship (M3).** Output is movement tokens per ship turn, computed from the move log (points per
+  pair over the turn), never reported by the client. Bilging water slows token generation through
+  the ship model, as in the original.
+- **Units and clamps.** Token progress is whole units in the state. Tokens unused for five ship
+  turns expire (the original's rule, `sea-battle.md`), which is what stops a crew banking a
+  voyage's movement. Progress per turn is capped in content; beyond it is wasted.
 
 ## 8. Time
 
-Sailing has real-time gravity, which Bilging did not. The engine must stay pure (no timers, no
-`Date`), so time enters the move log:
+Sailing has real-time gravity, which Bilging did not. Decided by the owner: **timestamps on
+moves.**
 
 - Every move carries `t`, integer milliseconds since the round started, non-decreasing.
 - The engine applies gravity for the elapsed time between moves deterministically, then the move.
-  A piece that locks without input is a `lock` move the client logs at its own `t`, so a replay
+  A pair that locks without input is a `lock` move the client logs at its own `t`, so a replay
   needs nothing but the log.
 - The server checks `t` against its own clock on receipt: it rejects a `t` in the future beyond a
   tolerance, and a `t` that lags its clock by more than a tolerance, so a client cannot slow time
   down to think. Both tolerances live in content.
 
-Decided by the owner: timestamps on moves, over fixed tick moves or server-driven gravity. It
-still gets an ADR ("time in the move log") before the engine PR. Swordfighting will reuse it.
+This gets an ADR ("time in the move log") before the engine PR. Swordfighting and Gunnery reuse
+it.
 
 ## 9. Client-only timing costs
 
-None planned. Drop speed is a rule and lives in the engine, not the client.
+None. Drop speed is a rule and lives in the engine.
 
 ## 10. Moves and reports
 
-Moves: `move {t, col}`, `rotate {t, dir}`, `drop {t}` (hard), `lock {t}` (gravity lock),
-`end`. A report carries the piece's landing cells and each chain step with its groups (cells,
-block ids, points) and the settled board after the step, exactly like Bilging, so the renderer
-replays chains step by step. Block ids are stable within a game and never reused.
+Moves: `move {t, col}`, `rotate {t, dir}`, `drop {t}` (hard), `lock {t}`, `end`. A report carries
+the pair's landing cells, then each chain step: spars and lines cleared (cells, piece ids, points),
+links broken, and the settled board after the step, exactly like Bilging, so the renderer replays
+chains step by step. A fresh board after a full clear or a top-out is its own step. Piece ids are
+stable within a game and never reused.
 
 ## 11. Exploits
 
-- **Infinite lock delay.** Rotating or moving on the floor resets the lock timer. Cap resets per
-  piece (content), as modern falling-block games do.
+- **Infinite lock delay.** Moving or rotating on a surface resets the lock timer; resets per pair
+  are capped (content).
 - **Time dilation.** Closed by the server clock checks in section 8.
-- **Soft-drop farming.** If soft drop scores, cap it per piece or score none.
-- **Banking tokens.** Closed by the per-turn cap.
+- **Fast-drop farming.** Fast drop scores nothing.
+- **Deliberate top-out** to reroll a bad board: costs 20 and resets difficulty, which lowers later
+  scoring, so it does not pay.
+- **Banking tokens.** Closed by expiry and the per-turn cap.
 
 ## 12. Feedback plan
 
-- Every chain step visible: clear, fall, settle, in turn, from the report.
-- Callouts for multi-group clears and chain steps, in Sailing's words (to be named; nothing from
-  Bilging's set is reused).
-- Streak milestones for consecutive clearing pieces.
-- Output feedback: the sail fills with each token and snaps taut at the cap; a gust sweeps the
-  board on a big chain.
-- Danger: the top rows tint and the creak gets louder as the stack nears the top.
-- A drop that clears nothing lands with a soft thud; a clearing drop lands with a crack.
-- Ambient life: a faint wind ripple across the structure.
-- Sounds fire on on-screen events. Reduced motion respected. Hint (best landing for the current
-  piece) in unrated practice only.
+- Every chain step visible: clear, links break, fall, settle, in turn, from the report.
+- A completed spar lifts away like a yard being hauled up; a line clear snaps like a rope parting.
+- Callouts for clearing two or more spars at once and for chain steps, in Sailing's own words
+  (nothing from Bilging's set is reused).
+- Streak milestones for consecutive pairs that clear something.
+- Output: the sail fills with each token and snaps taut at the cap; a gust sweeps the board on a
+  big chain.
+- Danger: the spawn cells tint and the creak gets louder as the stack nears them. A top-out tangles
+  and drops the board, then the new board unfurls.
+- A pair that clears nothing lands with a soft thud.
+- Ambient: a faint wind ripple across the spars.
+- Sound fires on on-screen events. Reduced motion respected. Hint (the best landing for the current
+  pair) in unrated practice only.
 
 ## 13. Layout
 
-Portrait. Phone: top bar holds back, score with streak chip, time, tokens and mute; the next-piece
-queue sits on the board's edge, not in a panel, because it is used every second. Desktop: board
-left, HUD, queue and legend in a sidebar.
+Portrait. Phone: top bar holds back, score with streak chip, time, tokens and mute; the next-pair
+preview sits on the board's edge, not in a panel, because it is read every second. Desktop: board
+left, HUD, preview and legend in a sidebar.
 
 ## 14. Content
 
-`sailing.json`: board size and structure, block colors with textures and marks, piece set and
-weights, drop speed curve, lock delay and reset cap, queue length, time tolerances, token formula
-and per-turn cap, round seconds, rating thresholds.
+`sailing.json`: board size, piece colors with textures and marks, board generator parameters by
+difficulty, drop speed by difficulty, fast-drop speed, lock delay and reset cap, preview length,
+time tolerances, scoring constants, top-out penalty (20), token formula and per-turn cap, round
+seconds, rating thresholds.
 
 ## 15. Tests
 
-Determinism with timed logs; board invariants (no floating blocks after settle, no overlap);
-report steps end at the final board; gravity applied over a gap equals gravity applied in small
-steps (a property test, since `t` granularity must not change the result); lock-reset cap;
-server time checks; view-equals-engine smoke check.
+Determinism with timed logs; no floating pieces after settle (a piece rests on the floor, a spar,
+another piece, or its linked half); spars clear only when every slot matches; report steps end at
+the final board; gravity over one long gap equals gravity over many short gaps; lock-reset cap;
+top-out detection; server time checks; view-equals-engine smoke check.
 
 ## 16. Open questions
 
-- Hard drop: recommended yes on every input method.
-
-Decided:
-
-- Top-out does not end the round. The top rows clear with a score penalty and play continues,
-  so a round always runs its full clock and a station never goes dark mid-voyage. If the original
-  ended the round, this is a section 6 entry.
+- How snags clear (recommended in section 3).
+- Hard drop: recommended a separate hard drop on every input method.

@@ -7,15 +7,16 @@ the same rule as the design doc.
 | Puzzle | Spec | Status |
 |---|---|---|
 | Bilging | [bilging.md](./bilging.md) | Shipped (M1). The reference spec: match its rigor. |
-| Sailing | [sailing.md](./sailing.md) | Spec draft; rules to verify |
-| Carpentry | [carpentry.md](./carpentry.md) | Spec draft; rules to verify |
-| Gunnery | [gunnery.md](./gunnery.md) | Spec draft; rules to verify, redesign candidate |
-| Navigation | [navigation.md](./navigation.md) | Spec draft; rules to verify |
-| Sea Battle | [sea-battle.md](./sea-battle.md) | Spec draft |
-| Swordfighting | [swordfighting.md](./swordfighting.md) | Spec draft; rules to verify |
+| Sailing | [sailing.md](./sailing.md) | Spec; rules confirmed by the owner; time-model ADR next |
+| Carpentry | [carpentry.md](./carpentry.md) | Spec; rules researched, owner decisions in |
+| Gunnery | [gunnery.md](./gunnery.md) | Spec; rules researched; redesign is the owner's call |
+| Navigation | [navigation.md](./navigation.md) | Spec; rules researched, owner decisions in |
+| Sea Battle | [sea-battle.md](./sea-battle.md) | Spec; rules researched |
+| Swordfighting | [swordfighting.md](./swordfighting.md) | Spec; rules researched, owner decisions in |
 
 Every puzzle keeps its own identity: its own board, motifs, sounds and the feeling it is going for.
-What they share is the bar. The standard below is what Bilging had to learn across PRs #3, #9 and
+What they share is the bar. Research on the original's rules, in our own words with sources and
+the list of coined names to avoid, is in [`research/original-rules.md`](./research/original-rules.md). The standard below is what Bilging had to learn across PRs #3, #9 and
 #10, written down so the next puzzle starts there instead of rediscovering it.
 
 ## What Bilging taught us
@@ -74,7 +75,11 @@ Each lesson names the change that taught it.
     card, rated and unrated starts, offline unrated play, a result card with stats, a local personal
     best (display only), mute and the marks setting. A new puzzle reuses the shell instead of
     rebuilding it.
-13. **Names and differences are recorded as they happen.** Anything the original coined gets an
+13. **Time is a rule, so it goes in the log.** Bilging only moves when the player does. Sailing,
+    Gunnery, Navigation and Swordfighting move on their own, so every move carries `t`, the
+    engine applies elapsed time deterministically, and the server checks `t` against its clock
+    (owner decision; ADR before the Sailing engine).
+14. **Names and differences are recorded as they happen.** Anything the original coined gets an
     original name (ADR 0001). Each deliberate divergence goes into `DESIGN.md` section 6 in the
     same PR.
 

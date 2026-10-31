@@ -109,32 +109,48 @@ client for display. Tile art is painted once per layout with Canvas 2D and share
 On phones the top bar is the whole HUD (score, time, moves, a combo chip) and the board takes the
 rest of the screen; combo, water, connection and the piece legend open in a panel over the board.
 
-**Sailing.** ([spec](./puzzles/sailing.md)) Falling pieces you steer and rotate into a board, clearing by forming groups and
-chaining through the board's structure. Performance feeds movement tokens per turn. QoL: ghost
-piece showing landing position, next-piece preview, swipe-to-move and tap-to-rotate on touch.
+**Sailing.** ([spec](./puzzles/sailing.md)) An 8 by 16 board. Joined pairs in three colors fall
+from the center; you steer and rotate them onto spars whose slots each want a color. Filling a
+spar clears it, four in a straight line also clear, and pieces left hanging fall into chains.
+Clearing every spar brings a fresh board; a top-out costs a flat penalty and the board.
+Performance feeds movement tokens per turn. QoL: ghost pair showing landing position, next-pair
+preview, absolute drag-to-aim and tap-to-rotate on touch.
 
-**Carpentry.** ([spec](./puzzles/carpentry.md)) Polyomino pieces offered from a queue, placed to fill holes in planking. Tighter
-fills with fewer gaps score higher and feed repair output. QoL: drag-and-drop with snap and a
-rotate button, valid-placement highlight, swap between offered pieces.
+**Carpentry.** ([spec](./puzzles/carpentry.md)) Up to four holes in the hull, a size-n hole being 5n
+cells. Pentominoes, which rotate and flip, are offered three at a time and placed to cover them;
+overlap is allowed but costs score. Each closed hole is rated by pieces used against the minimum n.
+Neglected holes grow. Output repairs hull damage. QoL: drag-and-drop with snap, rotate and flip
+gestures, overlap shown before release, a paid reroll of the offer.
 
-**Gunnery.** ([spec](./puzzles/gunnery.md)) Route powder, wadding, and cannonballs through a column board into cannons in the
-right order to load them. Correct loads feed cannon readiness. QoL: per-cannon load-order
-indicator, highlight of which drop completes a load. Flagged for possible redesign after
-playtesting.
+**Gunnery.** ([spec](./puzzles/gunnery.md)) Powder, wads, balls and water buckets roll out of a
+barrel across the deck in real time. You place up to three arrows to steer them into four cannons,
+each loading powder, wad, ball in order; a wrong piece fouls a cannon until a bucket flushes it.
+Scored on speed, then fewest arrows. Loaded cannons are the ship's guns. QoL: per-cannon
+load-order indicator, path preview for an arrow before placing it. Flagged for possible redesign;
+the owner decides after testing.
 
-**Navigation.** ([spec](./puzzles/navigation.md)) Arrange and shift pieces to reproduce a target constellation. Completed patterns
-grant token bonuses and sea battle advantages. QoL: target overlay toggle, progress meter.
+**Navigation.** ([spec](./puzzles/navigation.md)) A round board of three rings, eight positions
+each. Stars fall inward from the rim and you turn one ring at a time to fit them into
+constellation outlines; a completed constellation clears and a new outline arrives. Bigger
+constellations are worth far more. A star stuck on the outer ring is a failure. Completions grant
+token bonuses and sea battle advantages. QoL: landing preview while turning, a hand-made
+constellation library.
 
-**Sea Battle.** ([spec](./puzzles/sea-battle.md)) Square grid with rocks and wind arrows. Per-turn move token pool from Sailing
-(left, forward, right). Up to four moves queued per turn. Simultaneous resolution with collision
-and wind rules. Cannon fire placed left or right per move segment. Damage from hits. The captain
-plays it on a landscape board. Brigand AI chooses moves from a scripted policy with difficulty
-tiers. The ruleset is a pure reducer shared by server, client preview, and AI.
+**Sea Battle.** ([spec](./puzzles/sea-battle.md)) Square grid with tall and short rocks, wind
+tiles and whirlpools. Each turn the captain plans four phases from move tokens (left, forward,
+right; one per phase; unused tokens expire after five turns) and gun tokens. Phases resolve
+simultaneously: movement with ram and collision rules, then wind and whirlpools, then broadside
+fire (range three) and grapples. A grapple hit starts boarding. The captain plays it on a
+landscape board. Brigand AI chooses moves from a scripted policy with difficulty tiers. The
+ruleset is a pure reducer shared by server, client preview, and AI.
 
-**Swordfighting.** ([spec](./puzzles/swordfighting.md)) Puyo-style falling colored pairs on each pirate's board. Groups clear; cleared
-groups send breaker blocks to opponents' boards. Team mode distributes each side's attacks. QoL:
-incoming-attack preview, swipe controls. Ships after the duty puzzles; the first playable pillage
-resolves boarding with a stub.
+**Swordfighting.** ([spec](./puzzles/swordfighting.md)) Breaker style, not Puyo: pairs fall into a
+six-wide board, a breaker shatters every connected block of its color, and same-color rectangles of
+2 by 2 or more fuse into slabs worth far more. Shatters send strikes, colored by the weapon's drop
+pattern, that land as metal blocks and turn ordinary over a few drops; strike generated cancels
+strike incoming. In team fights each fighter picks a target. You lose when the spawn column fills.
+QoL: incoming-strike preview, swipe controls. Ships after the duty puzzles; the first playable
+pillage resolves boarding with a stub.
 
 ### 3.4 Ship and voyage model
 
@@ -328,3 +344,10 @@ Maintained as they arise.
 | Bilging scoring | Original's table | n(n-2) per group, times groups, times cascade step | Published formula, tuned in playtests |
 | Bilging water in practice | Driven by the ship | Rises with moves, drains with points, floor of 3 rows | No ship exists until M3; keeps replays self-contained |
 | Divergent puzzle round | n/a (client-reported) | Rejected outright, unrated, logged | Engines are deterministic; any mismatch is a bug or a cheat |
+| Sailing scoring | Original's weights | Published per-pair formula with Bilging's chain multiplier | Original weights unknown |
+| Carpentry offer | Unconfirmed | Three pieces, place any one; reroll the offer for a penalty | Owner decision |
+| Carpentry neglect | Possibly timed | Holes grow and pieces loosen on move counts | Keeps the engine turn-based |
+| Navigation completion | Unconfirmed | A completed constellation clears and a new outline arrives | Owner decision |
+| Swordfighting counters | Unconfirmed | Strike generated cancels strike queued against you | Owner decision; gives a way back |
+| Swordfighting team fights | Unconfirmed | Each fighter picks a target | Owner decision; adds team tactics |
+| Puzzle names | Coined terms (see `docs/puzzles/research/original-rules.md`) | Spars, snags, slabs, shrapnel, our own callouts and tier names | ADR 0001 |
