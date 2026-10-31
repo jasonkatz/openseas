@@ -132,8 +132,8 @@ and the engine accepts it only if that spot is reachable from the entry by slidi
 the same kicks the client uses, and falling, and nothing holds the pair there. So a pair can be
 steered under a platform, a vertical pair can never straddle a shelf, and a position that floats is
 refused. The client's fall timer and steering are presentation: free fall takes `fallMs` a row, a
-held downward swipe or the down key hurries it to `softDropMs` a row (four times the pace), and
-space drops it outright.
+held downward swipe or the down key hurries it to `softDropMs` a row (four times the pace), with
+steering locked for the length of the swipe, and space drops it outright.
 The next pair is under the player's control the moment the last one lands, while the board below
 plays out its clears, each cascade step waiting for the pieces to land before the next clear.
 Numbers live in `content/data/puzzles/sailing.json`.

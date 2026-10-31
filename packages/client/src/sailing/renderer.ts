@@ -744,7 +744,7 @@ export class SailingRenderer {
     this.drag = { x: e.global.x, y: e.global.y, col: this.falling.col, moved: false, hurried: false };
   }
 
-  /** Drag sideways to steer a column at a time; hold a downward swipe to hurry the fall until the finger lifts. */
+  /** Drag sideways to steer a column at a time; hold a downward swipe to hurry the fall until the finger lifts, with steering locked meanwhile. */
   private pointerMove(e: FederatedPointerEvent): void {
     const d = this.drag;
     const f = this.falling;
@@ -755,6 +755,8 @@ export class SailingRenderer {
       d.hurried = true;
       this.softDrop = true;
     } else if (dy < this.cell * 0.4) this.softDrop = false;
+    // A downward swipe commits to the column it started in: no steering until the finger lifts.
+    if (d.hurried) return;
     const wantCol = d.col + Math.round(dx / this.cell);
     while (f.col < wantCol) {
       const before = f.col;
