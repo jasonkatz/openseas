@@ -23,7 +23,7 @@ export const PUZZLE_CONFIG_SCHEMAS = {
   gunnery: GunneryConfigSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
-/** Any puzzle's move. Loose on purpose: the session narrows it to its own puzzle's schema. */
+/** Every puzzle's move shapes, for consumers that want the union type. Not used on the wire (see ws.ts). */
 export const AnyMoveSchema = z.union([BilgingMoveSchema, SailingMoveSchema, CarpentryMoveSchema, GunneryMoveSchema]);
 export type AnyMoveWire = z.infer<typeof AnyMoveSchema>;
 
