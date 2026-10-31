@@ -182,6 +182,22 @@ right order to load them. Correct loads feed cannon readiness. QoL: per-cannon l
 indicator, highlight of which drop completes a load. Flagged for possible redesign after
 playtesting.
 
+As built (M2): a 9 wide by 11 tall deck drawn from a content map: gunwales, two crates, a barrel
+in the middle, two hatches a side and four cannons, two a side. Powder, wad, shot and water roll
+out of the barrel and keep rolling until they hit something, then turn right, else left, else
+back; two pieces that meet both turn back. The barrel keeps two of each kind on deck. The gunner
+lays arrows on deck cells: a piece rolling onto one turns to follow it. Three arrows at a time; a
+fourth lifts the oldest, and an arrow can be lifted by hand. A cannon takes powder, then wad, then
+shot; the wrong piece fouls it, water empties it whatever its state, and a full load scores
+`loadPoints`, then fires itself after `fireAfterTicks` (the captain's job from M4) and is left
+fouled. Hatches throw a piece overboard. Combo is loads in a row without a foul. Time is integer
+ticks of `tickMs`; every move carries its tick, the client advances its copy once per tick for
+display and logs a wait now and then so loads in flight count, and the server refuses a tick ahead
+of the wall clock (ADR 0015). The round ends on the clock, `maxMoves` or `maxTick`. Touch taps a
+cell to lay an arrow and taps again to turn or lift it, or drags to point it; keyboard moves a
+cursor and lays with W, A, S, D. Still flagged for redesign after playtesting. Numbers and the deck
+live in `content/data/puzzles/gunnery.json`.
+
 **Navigation.** Arrange and shift pieces to reproduce a target constellation. Completed patterns
 grant token bonuses and sea battle advantages. QoL: target overlay toggle, progress meter.
 
@@ -391,3 +407,6 @@ Maintained as they arise.
 | Carpentry holes | Grow in real time when unattended | Dealt as unions of pentominoes; widen by one cell after `growAfterMoves` planks placed elsewhere | Move-driven growth keeps the engine pure; pentomino unions guarantee a masterpiece is possible |
 | Carpentry patched hole | Planking stays visible | Planks come off and the hull is free again; a new hole is dealt | Keeps a practice round busy on a small board |
 | Carpentry scoring | Original's table | Area times `basePerCell` times a rating multiplier, grain bonus, times masterpiece streak | Published formula, tuned in playtests |
+| Gunnery firing | The captain fires loaded cannons in sea battle | A loaded cannon fires itself after `fireAfterTicks` and is left fouled | No ship until M3; keeps the loading loop going in practice |
+| Gunnery time | Continuous rolling | One cell per tick of `tickMs`, carried in the move log | Pure engine; the client interpolates between ticks (ADR 0015) |
+| Gunnery water | Cleans fired or misloaded cannons | Also empties a clean, part-loaded cannon | Same rule, stated plainly; accidental washing is part of the skill |
