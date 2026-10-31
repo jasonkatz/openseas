@@ -49,3 +49,36 @@ test("an unrated Bilging round accepts a keyboard swap and shows the result", as
   await page.mouse.click(ox + cell * 1.5, oy + cell * 11.5);
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });
+
+test("home links to Sailing practice and an unrated round takes keyboard drops", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: /Sailing/ }).click();
+  await expect(page).toHaveURL(/\/practice\/sailing$/);
+  await page.getByTestId("start-unrated").click();
+  const canvas = page.getByTestId("sailing-canvas");
+  await expect(canvas).toBeVisible();
+  await expect(page.getByTestId("hud-moves")).toContainText("0");
+
+  // Steer, rotate, hard drop.
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("hud-moves")).toContainText("1");
+  await expect(async () => {
+    const want = await page.getByTestId("sailing-board").getAttribute("data-board");
+    const shown = await canvas.getAttribute("data-view");
+    expect(want).toBeTruthy();
+    expect(shown).toBe(want);
+  }).toPass({ timeout: 10_000 });
+
+  // Pointer: a downward swipe drops the next pair.
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height * 0.3;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + box.height * 0.25, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByTestId("hud-moves")).toContainText("2");
+});

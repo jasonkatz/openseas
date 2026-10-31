@@ -1094,3 +1094,17 @@ a {
     transition-duration: 0.001s !important;
   }
 }
+
+/* ---- shared practice shell additions (M2) */
+.next-pair {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 28px;
+}
+.legend-note {
+  margin: 4px 0 0;
+}
+.hud .stat-wide .next-pair {
+  padding-top: 2px;
+}

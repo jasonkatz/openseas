@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { BilgingConfigSchema, BilgingMoveSchema } from "./bilging.js";
 import { ErrorCodeSchema, PirateSummarySchema, PuzzleIdSchema, RatingViewSchema } from "./common.js";
+import { BilgingConfigSchema } from "./bilging.js";
+import { AnyMoveSchema } from "./puzzles.js";
+import { SailingConfigSchema } from "./sailing.js";
 
 const SessionId = z.string().min(8).max(64);
 const Hash = z.string().regex(/^[0-9a-f]{8}$/);
@@ -21,7 +23,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     sessionId: SessionId,
     /** 0-based index of this move in the log. */
     seq: z.int().min(0).max(100_000),
-    move: BilgingMoveSchema,
+    move: AnyMoveSchema,
     /** Engine state hash after applying the move, for early divergence detection. */
     hash: Hash,
   }),
@@ -35,16 +37,20 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
-export const PuzzleStartedSchema = z.object({
+const PuzzleStartedBase = z.object({
   type: z.literal("puzzle.started"),
   sessionId: SessionId,
-  puzzle: PuzzleIdSchema,
   seed: z.string(),
-  config: BilgingConfigSchema,
   /** Server clock ms when the round must be finished. The client shows a timer against it. */
   deadlineAt: z.number(),
   serverNow: z.number(),
 });
+
+/** One variant per puzzle so a client narrows `config` by `puzzle`. */
+export const PuzzleStartedSchema = z.discriminatedUnion("puzzle", [
+  PuzzleStartedBase.extend({ puzzle: z.literal("bilging"), config: BilgingConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("sailing"), config: SailingConfigSchema }),
+]);
 
 export const PuzzleResultSchema = z.object({
   type: z.literal("puzzle.result"),
@@ -59,18 +65,20 @@ export const PuzzleResultSchema = z.object({
   tierChange: z.enum(["up", "down", "same"]),
 });
 
-export const ServerMessageSchema = z.discriminatedUnion("type", [
+export const PuzzleRejectedSchema = z.object({
+  type: z.literal("puzzle.rejected"),
+  sessionId: SessionId,
+  reason: z.enum(["divergence", "illegal_move", "bad_sequence", "deadline", "too_many_moves"]),
+  atSeq: z.int().optional(),
+});
+
+export const ServerMessageSchema = z.union([
   z.object({ type: z.literal("pong"), t: z.number(), serverNow: z.number() }),
   z.object({ type: z.literal("welcome"), pirate: PirateSummarySchema, serverNow: z.number() }),
   PuzzleStartedSchema,
   z.object({ type: z.literal("puzzle.ack"), sessionId: SessionId, seq: z.int() }),
   PuzzleResultSchema,
-  z.object({
-    type: z.literal("puzzle.rejected"),
-    sessionId: SessionId,
-    reason: z.enum(["divergence", "illegal_move", "bad_sequence", "deadline", "too_many_moves"]),
-    atSeq: z.int().optional(),
-  }),
+  PuzzleRejectedSchema,
   z.object({ type: z.literal("error"), code: ErrorCodeSchema, detail: z.string().optional() }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;

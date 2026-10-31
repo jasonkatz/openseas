@@ -128,12 +128,3 @@ export interface BilgingState {
   readonly finished: boolean;
 }
 
-export class InvalidMoveError extends Error {
-  constructor(
-    message: string,
-    readonly move: BilgingMove,
-  ) {
-    super(message);
-    this.name = "InvalidMoveError";
-  }
-}

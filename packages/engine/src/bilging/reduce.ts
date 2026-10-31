@@ -1,10 +1,10 @@
+import { InvalidMoveError } from "../errors.js";
 import { Hasher } from "../hash.js";
 import { seedFromString, type PrngState } from "../prng.js";
 import { colOf, findMatches, groupPoints, idx, rowOf } from "./board.js";
 import { generateBoard, spawnPiece } from "./generate.js";
 import {
   DEFAULT_BILGING_CONFIG,
-  InvalidMoveError,
   Special,
   isSpecial,
   type BilgingConfig,

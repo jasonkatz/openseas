@@ -1,0 +1,30 @@
+{
+  "config": {
+    "width": 6,
+    "height": 13,
+    "pieceKinds": 3,
+    "platformsAtOnce": 3,
+    "platformSpanMin": 2,
+    "platformSpanMax": 4,
+    "platformPoints": 6,
+    "runPoints": 4,
+    "maxMoves": 90
+  },
+  "roundSeconds": 150,
+  "fallMs": 900,
+  "softDropMs": 60,
+  "thresholds": [
+    { "score": 40, "rating": 1100 },
+    { "score": 100, "rating": 1300 },
+    { "score": 200, "rating": 1500 },
+    { "score": 350, "rating": 1700 },
+    { "score": 550, "rating": 1900 },
+    { "score": 800, "rating": 2100 }
+  ],
+  "pieces": [
+    { "nameKey": "sailing.piece.canvas", "mark": "circle", "texture": "fan", "color": "#f2f0e6" },
+    { "nameKey": "sailing.piece.rope", "mark": "square", "texture": "knurl", "color": "#f5d021" },
+    { "nameKey": "sailing.piece.sea", "mark": "triangle", "texture": "waves", "color": "#3fa7f5" },
+    { "nameKey": "sailing.piece.kelp", "mark": "hexagon", "texture": "fronds", "color": "#2fbf71" }
+  ]
+}

@@ -76,7 +76,25 @@ export const RatingTierSchema = z.object({
   min: z.number(),
 });
 
-export const BilgingContentSchema = z.object({
+/** Shape and color of one ordinary piece kind, index = kind. Tiles are colored squares, each with
+ * its own surface `texture`; `mark` names the symbol drawn inside when the player turns marks on,
+ * so kinds stay distinguishable without color (rule 6). */
+export const PieceStyleSchema = z.object({
+  nameKey: MessageKey,
+  mark: z.string(),
+  texture: z.enum(["knurl", "fan", "waves", "grain", "nacre", "fronds", "pores"]),
+  color: z.string().regex(/^#[0-9a-f]{6}$/),
+});
+
+/** Fields every duty puzzle's content file has. */
+export const DutyPuzzleBaseSchema = z.object({
+  /** Wall-clock length of a practice round, enforced by the server. */
+  roundSeconds: z.int().min(10).max(1800),
+  /** Performance thresholds the round is rated against (DESIGN.md 3.6). Calibrated from testers. */
+  thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
+});
+
+export const BilgingContentSchema = DutyPuzzleBaseSchema.extend({
   config: z.object({
     width: z.int().min(3),
     height: z.int().min(3),
@@ -88,35 +106,36 @@ export const BilgingContentSchema = z.object({
     waterDropPerPoints: z.int().min(1),
     maxMoves: z.int().min(1),
   }),
-  /** Wall-clock length of a practice round, enforced by the server. */
-  roundSeconds: z.int().min(10).max(1800),
   /**
    * How long a swap below the water line takes to settle, in ms. The board takes no other swap
    * until it lands, so working underwater costs time. Client timing only; scores are unaffected.
    */
   underwaterSwapMs: z.int().min(0).max(5000),
-  /** Performance thresholds the round is rated against (DESIGN.md 3.6). Calibrated from testers. */
-  thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
-  /**
-   * Each ordinary piece kind, index = kind. Tiles are colored squares, each with its own surface
-   * `texture`; `mark` names the symbol drawn inside the tile when the player turns marks on, so
-   * kinds stay distinguishable without color (rule 6).
-   */
-  pieces: z
-    .array(
-      z.object({
-        nameKey: MessageKey,
-        mark: z.string(),
-        texture: z.enum(["knurl", "fan", "waves", "grain", "nacre", "fronds", "pores"]),
-        color: z.string().regex(/^#[0-9a-f]{6}$/),
-      }),
-    )
-    .min(3),
+  pieces: z.array(PieceStyleSchema).min(3),
   specials: z.object({
     keg: z.object({ nameKey: MessageKey, color: z.string() }),
     ink: z.object({ nameKey: MessageKey, color: z.string() }),
     barnacle: z.object({ nameKey: MessageKey, color: z.string() }),
   }),
+});
+
+export const SailingContentSchema = DutyPuzzleBaseSchema.extend({
+  config: z.object({
+    width: z.int().min(4).max(16),
+    height: z.int().min(8).max(32),
+    pieceKinds: z.int().min(2).max(8),
+    platformsAtOnce: z.int().min(0).max(6),
+    platformSpanMin: z.int().min(1),
+    platformSpanMax: z.int().min(1),
+    platformPoints: z.int().min(0),
+    runPoints: z.int().min(0),
+    maxMoves: z.int().min(1),
+  }),
+  /** Ms per row a pair falls on its own. Client timing only; the move log carries landings. */
+  fallMs: z.int().min(50).max(5000),
+  /** Ms per row while the player holds soft drop. */
+  softDropMs: z.int().min(10).max(1000),
+  pieces: z.array(PieceStyleSchema).min(2),
 });
 
 export const NamesSchema = z.object({
@@ -141,5 +160,7 @@ export type BrigandTier = z.infer<typeof BrigandTierSchema>;
 export type ShipClass = z.infer<typeof ShipClassSchema>;
 export type ShipGrant = z.infer<typeof ShipGrantSchema>;
 export type RatingTier = z.infer<typeof RatingTierSchema>;
+export type PieceStyle = z.infer<typeof PieceStyleSchema>;
 export type BilgingContent = z.infer<typeof BilgingContentSchema>;
+export type SailingContent = z.infer<typeof SailingContentSchema>;
 export type World = z.infer<typeof WorldSchema>;
