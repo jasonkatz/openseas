@@ -21,6 +21,8 @@ function versionFile(): Plugin {
 
 export default defineConfig({
   plugins: [react(), versionFile()],
+  // VITE_* vars live in the repo-root .env alongside the server's.
+  envDir: "../..",
   server: {
     port: 5173,
     strictPort: true,
