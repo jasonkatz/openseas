@@ -13,7 +13,7 @@
   },
   "roundSeconds": 150,
   "fallMs": 700,
-  "softDropMs": 140,
+  "softDropMs": 88,
   "thresholds": [
     { "score": 40, "rating": 1100 },
     { "score": 100, "rating": 1300 },
