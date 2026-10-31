@@ -205,9 +205,12 @@ export class CarpentryRenderer {
   private framePending = false;
   private viewStale = true;
   private holeFxDirty = true;
-  /** Selection: which tray slot, its orientation, and where the plank's centre sits (in cells, fractional). */
-  /** The tray slot in hand, or null until the player picks one. A round starts with none. */
+  /**
+   * The tray slot in hand, or null until the player picks one. A round starts with none. Only
+   * `takeSlot` changes it, so a plank always comes out of the tray the way the tray shows it.
+   */
   private slot: number | null = null;
+  /** The orientation of the plank in hand. Unheld planks always show unturned in the tray. */
   private rot = 0;
   private flip = false;
   private anchor: { cx: number; cy: number } | null = null;
@@ -320,7 +323,7 @@ export class CarpentryRenderer {
       this.playMove(prev, state);
     }
     if (reset || (this.slot !== null && this.slot >= state.slots.length)) {
-      this.slot = null;
+      this.takeSlot(null);
       this.drawTrayFrame();
     }
     this.syncCursor();
@@ -389,7 +392,7 @@ export class CarpentryRenderer {
     this.refill = { slot: rep.move.slot, life: 0, max: this.dur(220) };
     this.lastOrigin = this.cursor;
     this.anchor = null;
-    this.slot = null;
+    this.takeSlot(null);
     this.drawTrayFrame();
   }
 
@@ -1078,10 +1081,22 @@ export class CarpentryRenderer {
     this.syncCursor();
   }
 
+  /**
+   * Change the plank in hand. A newly picked plank starts unturned, exactly as its slot showed it,
+   * rather than inheriting the turn of whichever plank was held before.
+   */
+  private takeSlot(slot: number | null): void {
+    if (slot === this.slot) return;
+    this.slot = slot;
+    this.rot = 0;
+    this.flip = false;
+    this.viewStale = true;
+  }
+
   private select(slot: number): void {
     if (!this.state || slot < 0 || slot >= this.state.slots.length) return;
     if (this.slot !== slot) {
-      this.slot = slot;
+      this.takeSlot(slot);
       this.cb.onNudge();
       this.drawTrayFrame();
     }
@@ -1428,7 +1443,7 @@ export class CarpentryRenderer {
       case "Escape":
         // Put the plank back and let go of it entirely.
         this.anchor = null;
-        this.slot = null;
+        this.takeSlot(null);
         this.syncCursor();
         this.drawTrayFrame();
         this.drawTrayPieces();

@@ -101,6 +101,17 @@ test("home links to Carpentry practice and planks go down by keyboard and by tap
   const settled = (): Promise<void> => expectViewMatchesState(page, "carpentry");
   await settled();
 
+  // A turned and flipped plank does not pass its orientation on: the next one picked comes out of
+  // the tray the way the tray shows it.
+  await page.keyboard.press("1");
+  await page.keyboard.press("r");
+  await page.keyboard.press("f");
+  await expect(canvas).not.toHaveAttribute("data-orient", "0,0,0");
+  await page.keyboard.press("2");
+  await expect(canvas).toHaveAttribute("data-orient", "1,0,0");
+  await page.keyboard.press("Escape");
+  await expect(canvas).toHaveAttribute("data-orient", "-1,0,0");
+
   // Keyboard: pick plank 1, jump to a spot it fits, nail it down.
   await page.keyboard.press("1");
   await page.keyboard.press("h");
