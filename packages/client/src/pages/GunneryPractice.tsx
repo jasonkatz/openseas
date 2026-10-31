@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GUNNERY_DEF, advanceGunnery, cannonNeeds, summarizeGunnery, type Dir, type GunneryConfig, type GunneryEvent, type GunneryMove, type GunneryState } from "@openseas/engine";
+import { GUNNERY_DEF, advanceGunnery, summarizeGunnery, type Dir, type GunneryConfig, type GunneryEvent, type GunneryMove, type GunneryState } from "@openseas/engine";
 import { sfx } from "../audio.js";
 import { content, t } from "../content.js";
 import { GunneryBoard } from "../gunnery/GunneryBoard.jsx";
@@ -11,7 +11,6 @@ const gunnery = content.puzzles.gunnery;
 const { tickMs, maxTick } = gunnery.config;
 /** Log a wait after this many ticks without input so loads in flight reach the server. */
 const WAIT_EVERY_TICKS = 20;
-const NEED_KEYS = ["gunnery.needs_powder", "gunnery.needs_wad", "gunnery.needs_shot"] as const;
 
 export function GunneryPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
@@ -83,17 +82,19 @@ export function GunneryPractice() {
           sfx.swap();
           break;
         case "loaded":
-          sfx.clear(2, 5);
-          sfx.multi(2);
+          sfx.clear(Math.min(6, 2 + Math.floor((e.points ?? 0) / 50)), 5);
+          break;
+        case "fire":
+          sfx.keg();
           break;
         case "foul":
           sfx.streakLost();
           break;
         case "clean":
-          sfx.pump(1);
+          sfx.pump(2);
           break;
-        case "fire":
-          sfx.keg();
+        case "splash":
+          sfx.pump(1);
           break;
         case "exit":
           sfx.swapQuiet();
@@ -105,22 +106,12 @@ export function GunneryPractice() {
   }, []);
 
   const pieces = gunnery.pieces;
-  const cannonChips = (
+  const maxArrows = gunnery.config.maxArrows;
+  const loadsStat = (
     <div className="stat stat-wide">
-      <span className="stat-label">{t("gunnery.cannons")}</span>
-      <span className="cannon-chips" data-testid="hud-cannons">
-        {shown.cannons.map((c, i) => {
-          const need = cannonNeeds(c);
-          const label = c.fouled ? t("gunnery.fouled") : c.loaded === 3 ? t("gunnery.loaded") : t(NEED_KEYS[need ?? 0]!);
-          return (
-            <span key={i} className={`cannon-chip ${c.fouled ? "fouled" : c.loaded === 3 ? "ready" : ""}`} title={label}>
-              <i className={c.loaded >= 1 ? "lit" : ""} />
-              <i className={c.loaded >= 2 ? "lit" : ""} />
-              <i className={c.loaded >= 3 ? "lit" : ""} />
-              <small>{label}</small>
-            </span>
-          );
-        })}
+      <span className="stat-label">{t("gunnery.loads")}</span>
+      <span className="stat-value" data-testid="hud-loads">
+        {shown.loads}
       </span>
     </div>
   );
@@ -128,8 +119,13 @@ export function GunneryPractice() {
     <div className="stat stat-wide">
       <span className="stat-label">{t("gunnery.arrows")}</span>
       <span className="stat-value" data-testid="hud-arrows">
+        <span className="arrow-pips" aria-hidden="true">
+          {Array.from({ length: maxArrows }, (_, i) => (
+            <i key={i} className={i < shown.arrows.length ? "used" : ""} />
+          ))}
+        </span>
         {shown.arrows.length}
-        <small>/{gunnery.config.maxArrows}</small>
+        <small>/{maxArrows}</small>
       </span>
     </div>
   );
@@ -153,7 +149,7 @@ export function GunneryPractice() {
       warn={shown.cannons.some((c) => c.fouled)}
       details={
         <>
-          {cannonChips}
+          {loadsStat}
           {arrowStat}
         </>
       }
@@ -184,6 +180,7 @@ export function GunneryPractice() {
             ))}
           </ul>
           <p className="muted small legend-note">{t("gunnery.legend_order")}</p>
+          <p className="muted small legend-note">{t("gunnery.legend_badges")}</p>
           <p className="muted small legend-note">{t("gunnery.legend_arrow")}</p>
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
