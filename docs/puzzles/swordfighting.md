@@ -55,7 +55,7 @@ our own words, never the original's.
 ## 5. Input
 
 As in Sailing: absolute drag to aim, tap to rotate, hold to fast-drop, swipe down to hard-drop;
-the same keys. The incoming-strike preview sits above the board as the blocks about to land, with
+the same keys. Both a steerable fast fall and an instant hard drop, as in Sailing (owner decision). The incoming-strike preview sits above the board as the blocks about to land, with
 the number of the receiver's drops until they do.
 
 ## 6. Scoring
@@ -95,7 +95,6 @@ landing (cells filled) and conversion step, so both screens replay the exchange 
 
 ## 11. Exploits
 
-- **Drops:** both a steerable fast fall and an instant hard drop, as in Sailing (owner decision).
 - **Lag abuse:** a player who withholds moves cannot delay strikes landing on them; landing is
   keyed to their own next drop, and the gravity lock forces drops regardless of input.
 - **Time dilation:** closed by the server clock checks.
