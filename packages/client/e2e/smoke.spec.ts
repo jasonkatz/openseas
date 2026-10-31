@@ -1,4 +1,15 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+/** Once the board settles, what the canvas draws must be the engine's board, piece for piece. */
+async function expectViewMatchesState(page: Page): Promise<void> {
+  const board = page.getByTestId("bilging-board");
+  await expect(async () => {
+    const want = await board.getAttribute("data-board");
+    const shown = await page.getByTestId("bilging-canvas").getAttribute("data-view");
+    expect(want).toBeTruthy();
+    expect(shown).toBe(want);
+  }).toPass({ timeout: 10_000 });
+}
 
 /**
  * Smoke: the client builds, loads, and a Bilging round is playable without the server (unrated).
@@ -18,12 +29,15 @@ test("an unrated Bilging round accepts a keyboard swap and shows the result", as
   const canvas = page.getByTestId("bilging-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toContainText("0");
+  // The round's board replaces the preview board behind the start card.
+  await expectViewMatchesState(page);
 
   // Keyboard: put the cursor somewhere and swap with the piece to the right.
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
+  await expectViewMatchesState(page);
 
   // Pointer: tap two horizontally adjacent cells.
   const box = await canvas.boundingBox();

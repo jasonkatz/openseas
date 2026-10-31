@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { BilgingState, MoveReport } from "@openseas/engine";
+import type { BilgingState, ClearRound, MoveReport } from "@openseas/engine";
 import { content, t } from "../content.js";
 import { BilgingRenderer } from "./renderer.js";
 
@@ -13,6 +13,8 @@ export interface BoardProps {
   onSwap(col: number, row: number): void;
   preview(col: number, row: number): readonly number[];
   onFrame(): void;
+  /** A cascade step is clearing on screen. */
+  onClear(round: ClearRound): void;
 }
 
 /** Hosts the Pixi canvas and forwards input. All drawing lives in the renderer. */
@@ -25,11 +27,12 @@ export function BilgingBoard(props: BoardProps) {
   useEffect(() => {
     const el = host.current;
     if (!el) return;
-    const r = new BilgingRenderer(el, content.puzzles.bilging, {
+    const r: BilgingRenderer = new BilgingRenderer(el, content.puzzles.bilging, {
       onSwap: (c, row) => latest.current.onSwap(c, row),
       onHover: (c, row) => r.setPreview(latest.current.preview(c, row)),
       onHoverEnd: () => r.setPreview([]),
       onFrame: () => latest.current.onFrame(),
+      onClear: (round) => latest.current.onClear(round),
     }, {
       showMarks: props.showMarks,
       labels: {
@@ -37,6 +40,8 @@ export function BilgingBoard(props: BoardProps) {
         ink: t("bilging.special.ink_label"),
         barnacle: t("bilging.special.barnacle_label"),
       },
+      chainLabel: (chain) => t("bilging.chain_label", { chain }),
+      underwaterSwapMs: content.puzzles.bilging.underwaterSwapMs,
     });
     renderer.current = r;
     let alive = true;
@@ -73,5 +78,5 @@ export function BilgingBoard(props: BoardProps) {
     renderer.current?.setShowMarks(props.showMarks);
   }, [props.showMarks]);
 
-  return <div ref={host} className="board-host" data-testid="bilging-board" />;
+  return <div ref={host} className="board-host" data-testid="bilging-board" data-board={props.state?.cells.map((p) => p.kind).join(",")} />;
 }

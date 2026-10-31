@@ -9,11 +9,13 @@
       "barnacle": 10
     },
     "initialWaterRow": 3,
+    "minWaterRow": 3,
     "waterRisePerMoves": 6,
     "waterDropPerPoints": 40,
     "maxMoves": 120
   },
   "roundSeconds": 150,
+  "underwaterSwapMs": 520,
   "thresholds": [
     {
       "score": 60,

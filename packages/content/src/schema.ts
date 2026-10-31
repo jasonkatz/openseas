@@ -83,12 +83,18 @@ export const BilgingContentSchema = z.object({
     pieceKinds: z.int().min(3).max(12),
     specialChancePerMille: z.object({ keg: z.int().min(0), ink: z.int().min(0), barnacle: z.int().min(0) }),
     initialWaterRow: z.int().min(0),
+    minWaterRow: z.int().min(0),
     waterRisePerMoves: z.int().min(1),
     waterDropPerPoints: z.int().min(1),
     maxMoves: z.int().min(1),
   }),
   /** Wall-clock length of a practice round, enforced by the server. */
   roundSeconds: z.int().min(10).max(1800),
+  /**
+   * How long a swap below the water line takes to settle, in ms. The board takes no other swap
+   * until it lands, so working underwater costs time. Client timing only; scores are unaffected.
+   */
+  underwaterSwapMs: z.int().min(0).max(5000),
   /** Performance thresholds the round is rated against (DESIGN.md 3.6). Calibrated from testers. */
   thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
   /**

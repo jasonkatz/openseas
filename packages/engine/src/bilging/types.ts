@@ -51,6 +51,8 @@ export interface BilgingConfig {
   };
   /** Rows under water when the game starts. */
   readonly initialWaterRow: number;
+  /** The bilge never drains below this many rows; pumping at the floor is wasted. */
+  readonly minWaterRow: number;
   /** Water rises one row every this many moves. */
   readonly waterRisePerMoves: number;
   /** Water drops one row every this many points. */
@@ -65,6 +67,7 @@ export const DEFAULT_BILGING_CONFIG: BilgingConfig = {
   pieceKinds: 7,
   specialChancePerMille: { keg: 12, ink: 8, barnacle: 10 },
   initialWaterRow: 3,
+  minWaterRow: 3,
   waterRisePerMoves: 6,
   waterDropPerPoints: 40,
   maxMoves: 120,
@@ -79,6 +82,8 @@ export type BilgingMove =
 export interface ClearedGroup {
   /** Cells cleared, as indices into `cells`. */
   readonly cells: readonly number[];
+  /** Ids of the pieces cleared, in the same order as `cells`, so renderers can animate them. */
+  readonly ids: readonly number[];
   /** Points this group earned before multipliers. */
   readonly points: number;
   readonly cause: "match" | "keg" | "ink" | "barnacle";
@@ -90,6 +95,8 @@ export interface ClearRound {
   readonly groups: readonly ClearedGroup[];
   /** Points for this round after group and chain multipliers. */
   readonly points: number;
+  /** The board once this round's gaps have risen and refilled. Renderers replay cascades from it. */
+  readonly settled: ReadonlyArray<Piece>;
 }
 
 export interface MoveReport {
@@ -106,7 +113,13 @@ export interface BilgingState {
   readonly nextId: number;
   readonly moveCount: number;
   readonly score: number;
-  /** Number of rows under water, 0..height. */
+  /**
+   * Water level in units of 1 / (waterRisePerMoves * waterDropPerPoints) row, so a move's rise
+   * and a point's drain are both whole numbers. Clamped to [minWaterRow, height] rows after
+   * every move, which is what makes pumping at the floor wasted.
+   */
+  readonly water: number;
+  /** Number of rows under water, minWaterRow..height. Derived from `water`. */
   readonly waterRow: number;
   /** Consecutive moves that cleared at least one piece. Drives the combo meter. */
   readonly combo: number;
