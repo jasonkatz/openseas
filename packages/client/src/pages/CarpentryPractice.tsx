@@ -28,15 +28,18 @@ export function CarpentryPractice() {
     [api],
   );
   const onPatched = useCallback((rating: HoleRating, chain: number) => {
+    sfx.plankLift();
     if (rating === "masterpiece") {
       sfx.clear(Math.min(6, chain), 6);
       if (chain >= 2) sfx.multi(chain);
     } else if (rating === "pig") sfx.streakLost();
     else sfx.clear(1, 3);
   }, []);
-  const onNailed = useCallback((waste: boolean) => (waste ? sfx.swapQuiet() : sfx.swap()), []);
-  const onGrew = useCallback(() => sfx.rise(), []);
+  const onNailed = useCallback((waste: boolean) => sfx.hammer(waste), []);
+  const onGrew = useCallback(() => sfx.crack(true), []);
+  const onCracked = useCallback((opening: boolean) => sfx.crack(!opening), []);
   const onNudge = useCallback(() => sfx.tick(false), []);
+  const onBump = useCallback(() => sfx.bump(), []);
 
   const woods = carpentry.pieces.slice(0, carpentry.config.pieceKinds);
 
@@ -104,7 +107,9 @@ export function CarpentryPractice() {
           onPatched={onPatched}
           onNailed={onNailed}
           onGrew={onGrew}
+          onCracked={onCracked}
           onNudge={onNudge}
+          onBump={onBump}
         />
       )}
     />

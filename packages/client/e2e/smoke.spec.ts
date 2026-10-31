@@ -108,14 +108,14 @@ test("home links to Carpentry practice and planks go down by keyboard and by tap
   await expect(page.getByTestId("hud-moves")).toContainText("1");
   await settled();
 
-  // Pointer: pick plank 2, find a fit by keyboard, then tap the ghost's origin cell to nail it.
+  // Pointer: pick plank 2, find a fit by keyboard, then click the middle of the ghost to nail it.
   await page.keyboard.press("2");
   await page.keyboard.press("h");
-  await expect.poll(() => canvas.getAttribute("data-cursor")).toMatch(/^\d+,\d+$/);
-  const [col, row] = (await canvas.getAttribute("data-cursor"))!.split(",").map(Number);
+  await expect.poll(() => canvas.getAttribute("data-ghost")).toMatch(/^\d+,\d+,\d+,\d+$/);
+  const [col, row, w, h] = (await canvas.getAttribute("data-ghost"))!.split(",").map(Number);
   const [ox, oy, cell] = (await canvas.getAttribute("data-geometry"))!.split(",").map(Number);
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
-  await page.mouse.click(box.x + ox! + (col! + 0.5) * cell!, box.y + oy! + (row! + 0.5) * cell!);
+  await page.mouse.click(box.x + ox! + (col! + w! / 2) * cell!, box.y + oy! + (row! + h! / 2) * cell!);
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });

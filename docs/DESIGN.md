@@ -158,10 +158,16 @@ sloppy work, four or more a pig's breakfast. Points are area times `basePerCell`
 rating's multiplier, plus a quarter more when every plank's grain runs across, times the current
 masterpiece streak; the streak is the combo and a lesser patch resets it. A hole left alone while
 `growAfterMoves` planks go elsewhere widens by one cell, and a widened hole can no longer be a
-masterpiece. The round ends after `maxMoves` planks or the clock. Touch drags a plank from the
-tray with snap and a legal/illegal highlight, or taps to place the ghost and taps again to nail;
-keyboard picks a slot, moves, turns, flips, and can jump to the next spot the plank fits. Numbers
-live in `content/data/puzzles/carpentry.json`.
+masterpiece. The round ends after `maxMoves` planks or the clock. Control is built around the
+plank's centre: it sits under the pointer (lifted above a finger), and a spot that will not take it
+snaps to a neighbouring one that will, so dropping near a hole is enough. A mouse carries the plank
+by hovering and nails it with a click; right-click or the wheel turns it. Touch drags from the tray
+or the board with the plank in hand and a second finger turning it, or taps to set the ghost and
+taps it again to nail; a refused drop shakes and flies back to the tray. Turning pivots about the
+centre so the ghost stays put. The keyboard picks a slot, moves, turns either way, flips, and jumps
+through the placements with the least waste. Planks drop in and knock; a patched hole's planks lift
+away; new holes crack open through the planking; a hole two idle planks from widening pulses amber,
+then red. Numbers live in `content/data/puzzles/carpentry.json`.
 
 **Gunnery.** Route powder, wadding, and cannonballs through a column board into cannons in the
 right order to load them. Correct loads feed cannon readiness. QoL: per-cannon load-order

@@ -13,7 +13,9 @@ export interface CarpentryBoardProps {
   onPatched(rating: HoleRating, chain: number): void;
   onNailed(waste: boolean): void;
   onGrew(): void;
+  onCracked(opening: boolean): void;
   onNudge(): void;
+  onBump(): void;
 }
 
 /** Hosts the Pixi canvas and forwards input. All drawing lives in the renderer. */
@@ -23,6 +25,8 @@ export function CarpentryBoard(props: CarpentryBoardProps) {
   const latest = useRef(props);
   latest.current = props;
   const carpentry = content.puzzles.carpentry;
+  // Key hints on the tray buttons only where there is a keyboard to speak of.
+  const hoverable = window.matchMedia?.("(hover: hover)").matches ?? false;
 
   useEffect(() => {
     const el = host.current;
@@ -36,7 +40,9 @@ export function CarpentryBoard(props: CarpentryBoardProps) {
         onPatched: (rating, chain) => latest.current.onPatched(rating, chain),
         onNailed: (waste) => latest.current.onNailed(waste),
         onGrew: () => latest.current.onGrew(),
+        onCracked: (opening) => latest.current.onCracked(opening),
         onNudge: () => latest.current.onNudge(),
+        onBump: () => latest.current.onBump(),
       },
       {
         showMarks: props.showMarks,
@@ -46,6 +52,8 @@ export function CarpentryBoard(props: CarpentryBoardProps) {
         grewLabel: t("carpentry.hole_grew"),
         turnLabel: t("carpentry.rotate"),
         flipLabel: t("carpentry.flip"),
+        turnHint: hoverable ? t("carpentry.rotate_hint") : "",
+        flipHint: hoverable ? t("carpentry.flip_hint") : "",
       },
     );
     renderer.current = r;
