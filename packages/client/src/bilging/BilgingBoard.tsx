@@ -77,5 +77,5 @@ export function BilgingBoard(props: BoardProps) {
     renderer.current?.setShowMarks(props.showMarks);
   }, [props.showMarks]);
 
-  return <div ref={host} className="board-host" data-testid="bilging-board" />;
+  return <div ref={host} className="board-host" data-testid="bilging-board" data-board={props.state?.cells.map((p) => p.kind).join(",")} />;
 }

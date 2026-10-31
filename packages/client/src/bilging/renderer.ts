@@ -183,6 +183,7 @@ export class BilgingRenderer {
   private waitSettle = 0;
   private moving = false;
   private framePending = false;
+  private viewStale = true;
   private destroyed = false;
   private state: BilgingState | null = null;
   private interactive = true;
@@ -312,6 +313,7 @@ export class BilgingRenderer {
     }
     this.waterTarget = state.waterRow;
     this.framePending = true;
+    this.viewStale = true;
     this.selected = null;
     this.previewCells = [];
     this.hoverPair = null;
@@ -319,6 +321,9 @@ export class BilgingRenderer {
     if (!prev || !report || report.move.type !== "swap" || prev.config !== state.config) {
       this.steps = [];
       this.waitMs = 0;
+      // A state without a move is a new game. Piece ids restart at 0 in every game, so no view
+      // from the previous board may be reused or it would keep drawing the old kinds.
+      if (!report) for (const id of [...this.pieces.keys()]) this.remove(id);
       this.place(state.cells, prev === null || !report);
       if (!prev) this.waterShown = state.waterRow;
       return;
@@ -371,7 +376,7 @@ export class BilgingRenderer {
       const tx = this.cx(col);
       const ty = this.cy(row);
       let v = this.pieces.get(p.id);
-      if (!v || v.dying !== null) {
+      if (!v || v.dying !== null || v.kind !== p.kind) {
         if (v) this.remove(p.id);
         v = this.spawn(p, tx, snap ? ty : this.cy(row - fresh[col]!));
       } else if (!snap && v.tx !== tx) {
@@ -670,6 +675,7 @@ export class BilgingRenderer {
     this.time += dt;
     this.runSteps(dt);
     this.movePieces(dt);
+    if (this.viewStale && !this.steps.length && !this.moving && this.waitMs <= 0) this.publishView();
     this.moveFx(dt);
     if (this.shake > 0.002) {
       const a = this.shake * this.cell * 0.5;
@@ -690,6 +696,22 @@ export class BilgingRenderer {
       this.framePending = false;
       this.cb.onFrame();
     }
+  }
+
+  /**
+   * Writes the kinds actually on screen, bottom row first, to the canvas once the board settles.
+   * The smoke test compares it with the engine's board so the view can never silently diverge.
+   */
+  private publishView(): void {
+    this.viewStale = false;
+    const kinds = new Array<string>(this.width * this.height).fill("?");
+    for (const v of this.pieces.values()) {
+      if (v.dying !== null) continue;
+      const col = Math.round(v.tx / this.cell - 0.5);
+      const row = this.height - 1 - Math.round(v.ty / this.cell - 0.5);
+      if (col >= 0 && col < this.width && row >= 0 && row < this.height) kinds[row * this.width + col] = String(v.kind);
+    }
+    this.app.canvas.dataset.view = kinds.join(",");
   }
 
   private movePieces(dt: number): void {
