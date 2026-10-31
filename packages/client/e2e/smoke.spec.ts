@@ -179,12 +179,7 @@ test("home links to Navigation practice and an unrated round takes a keyboard tu
   await expect(page.getByTestId("hud-moves")).toContainText("0");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
-  await expect(async () => {
-    const want = await page.getByTestId("navigation-board").getAttribute("data-board");
-    const shown = await canvas.getAttribute("data-view");
-    expect(want).toBeTruthy();
-    expect(shown).toBe(want);
-  }).toPass({ timeout: 10_000 });
+  await expectViewMatchesState(page, "navigation");
 
   // Pointer: a tap on the compass rose in the center drops the next star.
   const box = await canvas.boundingBox();
