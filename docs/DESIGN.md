@@ -68,7 +68,8 @@ puzzle has undo.
 multi-clears score higher. The water line rises as
 the ship's bilge fills. Special pieces (equivalents of the original's crab, pufferfish, and
 jellyfish, renamed) ship in v1 because they define the skill ceiling. QoL: match preview on hover
-or touch-hold, a combo meter, tap-then-tap or drag-swap on touch.
+or touch-hold, a combo meter, tap-then-tap or drag-swap on touch; on desktop a click swaps the
+hovered pair outright.
 
 As built (M1): seven ordinary piece kinds, colored squares, each with its own surface texture
 (knurled brass, ribbed shell, waves, wood grain, nacre rings, kelp fronds, coral pores) and its own
@@ -129,11 +130,14 @@ lost (never below zero), the combo breaks, fresh platforms are dealt and play go
 ends only after `maxMoves` pairs or when the clock runs out. Every pair enters at the middle of
 the top row; the move the engine logs is the position it came to rest in (column, row, rotation),
 and the engine accepts it only if that spot is reachable from the entry by sliding, turning with
-the same kicks the client uses, and falling, and nothing holds the pair there. So a pair can be
+the same kicks the client uses (either direction), and falling, and nothing holds the pair there. So a pair can be
 steered under a platform, a vertical pair can never straddle a shelf, and a position that floats is
 refused. The client's fall timer and steering are presentation: free fall takes `fallMs` a row, a
-held downward swipe or the down key hurries it to `softDropMs` a row (eight times the pace), with
-steering locked for the length of the swipe, and space drops it outright.
+held downward swipe or holding space hurries it to `softDropMs` a row (ten times the pace), with
+steering locked for the length of the swipe. There is no hard drop. A pair that comes to rest
+locks after 350 ms; a slide or turn while resting restarts that timer at most three times, and
+reaching a lower row restores the restarts. On the keyboard up turns the
+pair clockwise and down turns it counter-clockwise; a tap turns it clockwise.
 The next pair is under the player's control the moment the last one lands, while the board below
 plays out its clears, each cascade step waiting for the pieces to land before the next clear; the
 pair after it is previewed in a strip above the rigging on every layout. The landing ghost is a

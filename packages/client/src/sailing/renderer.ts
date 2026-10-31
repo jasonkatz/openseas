@@ -80,7 +80,10 @@ const COLORS = {
 };
 const CLEAR_MS = 200;
 const DIE_MS = 220;
-const LOCK_MS = 500;
+/** How long a pair rests on the floor, a shelf or a stack before it locks. */
+const LOCK_MS = 350;
+/** Slides and turns that restart the lock timer while resting; after that the timer runs on regardless. Falling to a lower row restores them. */
+const MAX_LOCK_RESETS = 3;
 
 export class SailingRenderer {
   readonly app = new Application();
@@ -132,7 +135,7 @@ export class SailingRenderer {
    * The pair under the player's control, or null between placements. `row` is the anchor's row as
    * a continuous value: the pair occupies row ceil(row) and is part way down to the row below.
    */
-  private falling: { col: number; rot: Rotation; row: number; a: Sprite; b: Sprite; lock: number } | null = null;
+  private falling: { col: number; rot: Rotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number } | null = null;
   private softDrop = false;
   private drag: { x: number; y: number; col: number; moved: boolean; hurried: boolean } | null = null;
 
@@ -379,7 +382,7 @@ export class SailingRenderer {
     a.anchor.set(0.5);
     b.anchor.set(0.5);
     this.fallingLayer.addChild(a, b);
-    this.falling = { col: s.col, rot: s.rot, row: s.row, a, b, lock: 0 };
+    this.falling = { col: s.col, rot: s.rot, row: s.row, a, b, lock: 0, resets: 0, low: s.row };
     this.softDrop = false;
     this.positionFalling();
   }
@@ -413,41 +416,42 @@ export class SailingRenderer {
     }
   }
 
+  /** A slide or turn while resting restarts the lock, but only a few times, so the pair cannot be shuffled forever. */
+  private resetLock(): void {
+    const f = this.falling;
+    if (!f || f.lock === 0 || f.resets >= MAX_LOCK_RESETS) return;
+    f.lock = 0;
+    f.resets++;
+  }
+
   private tryMove(dcol: number): void {
     const f = this.falling;
     if (!f || !this.interactive) return;
     const R = Math.ceil(f.row);
     if (!this.mayOccupy(f.col + dcol, R, f.rot)) return;
     f.col += dcol;
-    f.lock = 0;
+    this.resetLock();
     this.settleIfResting();
     this.cb.onNudge();
     this.positionFalling();
   }
 
-  /** Turn clockwise with the engine's kicks, so what the player sees is a position the engine accepts. */
-  private tryRotate(): void {
+  /** Turn clockwise (1) or counter-clockwise (-1) with the engine's kicks, so what the player sees is a position the engine accepts. */
+  private tryRotate(dir: 1 | -1 = 1): void {
     const f = this.falling;
     if (!f || !this.interactive) return;
     const R = Math.ceil(f.row);
-    const rot = ((f.rot + 1) % 4) as Rotation;
+    const rot = ((f.rot + dir + 4) % 4) as Rotation;
     for (const kick of SAILING_ROTATION_KICKS) {
       if (!this.mayOccupy(f.col + kick, R, rot)) continue;
       f.col += kick;
       f.rot = rot;
-      f.lock = 0;
+      this.resetLock();
       this.settleIfResting();
       this.cb.onNudge();
       this.positionFalling();
       return;
     }
-  }
-
-  private hardDrop(): void {
-    const f = this.falling;
-    if (!f || !this.interactive || !this.state) return;
-    f.row = sailingLandingRow(this.state, f.col, Math.ceil(f.row), f.rot);
-    this.commit();
   }
 
   private commit(): void {
@@ -783,7 +787,7 @@ export class SailingRenderer {
     if (f && this.state) bar(f.a.x, f.a.y, f.b.x, f.b.y, this.state.current.a, this.state.current.b);
   }
 
-  /** Gravity on the falling pair: one row per fallMs, twice as fast while hurried, then a short lock once it rests. */
+  /** Gravity on the falling pair: one row per fallMs, softDropMs while hurried, then a short lock once it rests. */
   private fall(dt: number): void {
     const f = this.falling;
     if (!f || !this.interactive || this.steps.length || !this.state) return;
@@ -797,6 +801,12 @@ export class SailingRenderer {
     }
     const per = this.softDrop ? this.opts.softDropMs : this.opts.fallMs;
     f.row = Math.max(R - 1, f.row - dt / per);
+    // Reaching a new lowest row is fresh ground: the lock and its resets start over.
+    if (Math.ceil(f.row) < f.low) {
+      f.low = Math.ceil(f.row);
+      f.lock = 0;
+      f.resets = 0;
+    }
     this.positionFalling();
   }
 
@@ -863,14 +873,14 @@ export class SailingRenderer {
     this.softDrop = false;
   }
 
-  /** Keyboard: arrows steer, up turns, down hurries while held, space or enter drops. */
+  /** Keyboard: left and right steer, up turns clockwise, down turns counter-clockwise, space hurries while held. */
   keyboard(key: string, down: boolean): boolean {
-    if (key === "ArrowDown" && !down) {
+    if (key === " " && !down) {
       this.softDrop = false;
       return true;
     }
     if (!this.interactive) return false;
-    if (key === "ArrowDown") {
+    if (key === " ") {
       this.softDrop = true;
       return true;
     }
@@ -885,11 +895,12 @@ export class SailingRenderer {
       case "ArrowUp":
       case "x":
       case "X":
-        this.tryRotate();
+        this.tryRotate(1);
         return true;
-      case " ":
-      case "Enter":
-        this.hardDrop();
+      case "ArrowDown":
+      case "z":
+      case "Z":
+        this.tryRotate(-1);
         return true;
       default:
         return false;

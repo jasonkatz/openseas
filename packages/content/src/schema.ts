@@ -142,7 +142,7 @@ export const SailingContentSchema = DutyPuzzleBaseSchema.extend({
   }),
   /** Ms per row a pair falls on its own. Client timing only; the move log carries landings. */
   fallMs: z.int().min(50).max(5000),
-  /** Ms per row while the player hurries the pair (a held swipe on touch, the down arrow on a keyboard); a quarter of fallMs. */
+  /** Ms per row while the player hurries the pair (a held swipe on touch, space on a keyboard); a tenth of fallMs. */
   softDropMs: z.int().min(10).max(5000),
   pieces: z.array(SailPieceStyleSchema).min(2),
 });
