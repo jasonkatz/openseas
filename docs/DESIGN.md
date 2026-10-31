@@ -108,6 +108,22 @@ rest of the screen; combo, water, connection and the piece legend open in a pane
 chaining through the board's structure. Performance feeds movement tokens per turn. QoL: ghost
 piece showing landing position, next-piece preview, swipe-to-move and tap-to-rotate on touch.
 
+As built (M2): a 6 wide by 13 tall rigging. Pieces are conjoined pairs of two segments in three
+kinds (sailcloth, rope, sea), each with its own texture and optional mark. Three platforms sit in
+the board at a time: a plank shelf spanning two to four cells of one row, some of them outlined
+targets that want a kind, the rest blanks. A platform is a shelf: a segment never falls out of a
+platform cell, but segments fall into them. When every target on a platform holds its kind the
+platform clears, its target segments go, the shelf is gone and a new platform appears on an empty
+row elsewhere. Runs of four or more of a kind, across or down, clear as well; crossing runs count
+as one group. Linked halves fall together until one is cleared. Each step of a cascade multiplies
+by its chain number, and several groups in one step multiply by their count, as in Bilging. A run
+of n scores `runPoints * (n - 3)`; a platform scores `platformPoints` per target. The round ends
+after `maxMoves` pairs, when the clock runs out, or when no pair can enter the top row. The move
+the engine logs is the landing column and rotation; the client's fall timer, steering and soft
+drop are presentation, and a pair can only be steered to columns it could still drop into from the
+top, so the client never shows a landing the engine would refuse. Numbers live in
+`content/data/puzzles/sailing.json`.
+
 **Carpentry.** Polyomino pieces offered from a queue, placed to fill holes in planking. Tighter
 fills with fewer gaps score higher and feed repair output. QoL: drag-and-drop with snap and a
 rotate button, valid-placement highlight, swap between offered pieces.
@@ -316,3 +332,7 @@ Maintained as they arise.
 | Bilging scoring | Original's table | n(n-2) per group, times groups, times cascade step | Published formula, tuned in playtests |
 | Bilging water in practice | Driven by the ship | Rises with moves, drains with points, floor of 3 rows | No ship exists until M3; keeps replays self-contained |
 | Divergent puzzle round | n/a (client-reported) | Rejected outright, unrated, logged | Engines are deterministic; any mismatch is a bug or a cheat |
+| Sailing piece control | Free fall with steering under overhangs | The move is a landing column and rotation; the pair drops straight from the top | Keeps the move log small and the engine pure; tucking under overhangs is lost (ADR 0015) |
+| Sailing platforms | Targets on fixed structures | Platforms are shelves of 2 to 4 cells with outlined targets and blanks; a cleared one respawns on an empty row | Same role, original layout; respawn keeps a practice round busy |
+| Sailing scoring | Original's table | Run of n scores `runPoints * (n - 3)`, platform scores `platformPoints` per target, times groups, times chain step | Published formula, tuned in playtests |
+| Timed puzzle rounds | Real-time simulation | Integer ticks carried in every move; the server rejects ticks ahead of the wall clock | Keeps engines pure and replayable (ADR 0015) |
