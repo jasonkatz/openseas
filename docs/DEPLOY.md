@@ -1,8 +1,7 @@
 # Deploying openseas
 
-Merging to `main` is the release. Nothing is deployed by hand. One GitHub Actions pipeline does
-every production deploy, in order (ADR 0014). Vercel's Git integration is connected only for
-pull request previews; `vercel.json` turns it off for `main` (ADR 0016).
+Merging to `main` is the release. Nothing is deployed by hand, and neither host watches the repo:
+one GitHub Actions pipeline does the deploying, in order (ADR 0014).
 
 ## What happens on a merge
 
@@ -26,12 +25,19 @@ even if nothing under it changed, for example after changing a Railway variable.
 
 ## Previews
 
-Every push to a branch other than `main` gets a Vercel preview on the same `openseas` project
-that serves production, and Vercel comments the URL on the PR. Previews use the project's
-**Preview** env, so `VITE_SERVER_URL` must be set for Preview too (step 2). Previews point at the
-production server: the server only accepts the origins in `CLIENT_ORIGINS`, so calls that need
-CORS or auth fail from a preview URL unless its origin is listed there. Treat previews as a look at
-the UI, not a place to play rated rounds.
+Every pull request that touches the client or what it depends on gets a preview: the **Preview**
+workflow (`.github/workflows/preview.yml`) builds the client in CI with `vercel build` against
+the project's **Preview** env, deploys it with `vercel deploy --prebuilt` (no `--prod`) to the
+same `openseas` project, and keeps one comment on the PR updated with the URL. Vercel's Git
+integration is not connected (ADR 0016).
+
+- It uses the same `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` as the Deploy pipeline,
+  but runs without the `production` environment, so they must be **repository**-scoped (step 3).
+  Pull requests from forks get no secrets; their preview job skips with a warning.
+- `VITE_SERVER_URL` must be set for Preview as well as Production (step 2).
+- Previews point at the production server, which only accepts the origins in `CLIENT_ORIGINS`.
+  Anything that needs the server fails from a preview URL. Use previews to look at UI.
+- Deployment Protection's Standard Protection keeps previews behind a Vercel login.
 
 ## One-time setup
 
@@ -77,14 +83,14 @@ server's CORS list.
 
 ### 2. Vercel: client
 
-Create the project from the CLI in a local checkout:
+The Vercel project is not connected to GitHub. Create it from the CLI in a local checkout:
 
 ```sh
 npm i -g vercel
 vercel login
 vercel link --yes --scope <team-slug> --project openseas   # creates the project, writes .vercel/project.json (gitignored)
 vercel env add VITE_SERVER_URL production                    # paste https://<railway domain>
-vercel env add VITE_SERVER_URL preview                       # same value; previews use it
+vercel env add VITE_SERVER_URL preview                       # same value; PR previews use it
 cat .vercel/project.json                                     # orgId and projectId for step 3
 ```
 
@@ -97,15 +103,13 @@ Then in the dashboard, project → **Settings**:
    `CLIENT_ORIGINS` to `https://<that domain>`; comma-separate several origins.
 4. Account → **Settings → Tokens** → create a token scoped to the team. It is `VERCEL_TOKEN` in
    step 3.
-5. Git → **Connect Git Repository** → `jasonkatz/openseas`. This is for previews only:
-   `vercel.json` sets `git.deploymentEnabled.main` to `false`, so pushes to `main` never deploy
-   from Vercel's side and production still goes through the pipeline. Leave Production Branch as
-   `main`.
 
 ### 3. GitHub: secrets and variables
 
-Repo → **Settings → Secrets and variables → Actions**. Repository scope is fine; the
-`production` environment scope also works and lets you add required reviewers later.
+Repo → **Settings → Secrets and variables → Actions**. Use repository scope for the Vercel
+entries: the Preview workflow runs on pull requests outside the `production` environment and
+cannot read environment-scoped values. The Railway entries can live on `production` if you want
+required reviewers there later.
 
 | Kind | Name | Value |
 |---|---|---|

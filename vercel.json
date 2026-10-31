@@ -4,6 +4,5 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm --filter @openseas/client build",
   "outputDirectory": "packages/client/dist",
-  "git": { "deploymentEnabled": { "main": false } },
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
