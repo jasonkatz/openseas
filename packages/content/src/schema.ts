@@ -173,6 +173,33 @@ export const CarpentryContentSchema = DutyPuzzleBaseSchema.extend({
   shapes: z.array(z.object({ nameKey: MessageKey })).length(12),
 });
 
+export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
+  config: z.object({
+    /** One string per row: # wall, . deck, X crate, B barrel, C cannon, H hatch. */
+    deck: z
+      .array(z.string().regex(/^[#.XBCH]+$/, "deck rows use # . X B C H"))
+      .min(5)
+      .superRefine((rows, ctx) => {
+        const width = rows[0]!.length;
+        if (rows.some((r) => r.length !== width)) ctx.addIssue({ code: "custom", message: "deck rows must be the same width" });
+        const all = rows.join("");
+        const count = (ch: string): number => all.split(ch).length - 1;
+        if (count("C") !== 4) ctx.addIssue({ code: "custom", message: "deck needs exactly four cannons" });
+        if (count("B") !== 1) ctx.addIssue({ code: "custom", message: "deck needs exactly one barrel" });
+      }),
+    tickMs: z.int().min(20).max(5000),
+    maxTick: z.int().min(1),
+    maxMoves: z.int().min(1),
+    maxArrows: z.int().min(1).max(20),
+    perKindOnDeck: z.int().min(1).max(8),
+    spawnEveryTicks: z.int().min(1),
+    fireAfterTicks: z.int().min(1),
+    loadPoints: z.int().min(0),
+  }),
+  /** Powder, wad, shot, water, in that order (the engine's kind numbers). */
+  pieces: z.array(PieceStyleSchema).length(4),
+});
+
 export const NamesSchema = z.object({
   adjectives: z.array(z.string().min(2)).min(20),
   nouns: z.array(z.string().min(2)).min(20),
@@ -200,4 +227,5 @@ export type SailPieceStyle = z.infer<typeof SailPieceStyleSchema>;
 export type BilgingContent = z.infer<typeof BilgingContentSchema>;
 export type SailingContent = z.infer<typeof SailingContentSchema>;
 export type CarpentryContent = z.infer<typeof CarpentryContentSchema>;
+export type GunneryContent = z.infer<typeof GunneryContentSchema>;
 export type World = z.infer<typeof WorldSchema>;

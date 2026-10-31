@@ -7,12 +7,14 @@ import shipGrants from "../data/world/ship-grants.json" with { type: "json" };
 import bilging from "../data/puzzles/bilging.json" with { type: "json" };
 import sailing from "../data/puzzles/sailing.json" with { type: "json" };
 import carpentry from "../data/puzzles/carpentry.json" with { type: "json" };
+import gunnery from "../data/puzzles/gunnery.json" with { type: "json" };
 import ratingTiers from "../data/rating-tiers.json" with { type: "json" };
 import names from "../data/names.json" with { type: "json" };
 import en from "../data/messages/en.json" with { type: "json" };
 import {
   BilgingContentSchema,
   CarpentryContentSchema,
+  GunneryContentSchema,
   MessagesSchema,
   NamesSchema,
   RatingTierSchema,
@@ -20,6 +22,7 @@ import {
   WorldSchema,
   type BilgingContent,
   type CarpentryContent,
+  type GunneryContent,
   type PieceStyle,
   type RatingTier,
   type SailingContent,
@@ -33,6 +36,7 @@ export interface PuzzleContent {
   readonly bilging: BilgingContent;
   readonly sailing: SailingContent;
   readonly carpentry: CarpentryContent;
+  readonly gunnery: GunneryContent;
 }
 export type PuzzleContentId = keyof PuzzleContent;
 
@@ -68,6 +72,7 @@ export function loadContent(): Content {
     bilging: parse("puzzles/bilging", BilgingContentSchema, bilging),
     sailing: parse("puzzles/sailing", SailingContentSchema, sailing),
     carpentry: parse("puzzles/carpentry", CarpentryContentSchema, carpentry),
+    gunnery: parse("puzzles/gunnery", GunneryContentSchema, gunnery),
   };
   const tiers = parse("rating-tiers", z.array(RatingTierSchema).min(1), ratingTiers);
   const nameLists = parse("names", NamesSchema, names);
@@ -119,7 +124,7 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
   for (const id of Object.keys(puzzles) as PuzzleContentId[]) {
     const p = puzzles[id];
     const where = `puzzles/${id}`;
-    checkPieces(where, p.pieces, p.config.pieceKinds, messages, problems);
+    checkPieces(where, p.pieces, "pieceKinds" in p.config ? p.config.pieceKinds : p.pieces.length, messages, problems);
     for (let i = 1; i < p.thresholds.length; i++) {
       const a = p.thresholds[i - 1]!;
       const b = p.thresholds[i]!;
@@ -131,6 +136,9 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
   for (const s of Object.values(puzzles.bilging.specials)) need(s.nameKey, "bilging special");
   for (const sh of puzzles.carpentry.shapes) need(sh.nameKey, "carpentry shape");
   if (puzzles.carpentry.config.maxHolePieces < puzzles.carpentry.config.minHolePieces) problems.push("puzzles/carpentry: maxHolePieces below minHolePieces");
+  if (puzzles.gunnery.config.maxTick * puzzles.gunnery.config.tickMs < puzzles.gunnery.roundSeconds * 1000) {
+    problems.push("puzzles/gunnery: maxTick * tickMs must cover roundSeconds");
+  }
   if (puzzles.sailing.config.platformSpanMax > puzzles.sailing.config.width) problems.push("puzzles/sailing: platform span exceeds the board width");
   if (problems.length) throw new ContentError(problems.join("\n"));
 }

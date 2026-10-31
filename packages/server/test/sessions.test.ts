@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_BILGING_CONFIG,
   DEFAULT_CARPENTRY_CONFIG,
+  DEFAULT_GUNNERY_CONFIG,
   DEFAULT_SAILING_CONFIG,
   PUZZLE_IDS,
   PUZZLES,
@@ -24,6 +25,7 @@ function manager(now: { t: number }, overrides: Partial<SessionManagerOptions> &
       bilging: { roundMs: 60_000, config: { ...DEFAULT_BILGING_CONFIG, ...bilging } },
       sailing: { roundMs: 60_000, config: DEFAULT_SAILING_CONFIG },
       carpentry: { roundMs: 60_000, config: DEFAULT_CARPENTRY_CONFIG },
+      gunnery: { roundMs: 60_000, config: DEFAULT_GUNNERY_CONFIG },
     },
     now: () => now.t,
     randomSeed: () => `seed-${n++}`,
@@ -119,12 +121,25 @@ describe("PuzzleSessionManager", () => {
       const s = m.start("p1", id);
       const def = PUZZLES[id];
       // A client that only ever sends "end" is honest, if dull: every engine accepts it.
-      const client = def.reduce(def.create(s.seed, s.config), { type: "end" });
-      expect(m.move(s, 0, { type: "end" }, def.hash(client))).toEqual({ ok: true, seq: 0 });
+      const client = def.reduce(def.create(s.seed, s.config), { type: "end", tick: 0 });
+      expect(m.move(s, 0, { type: "end", tick: 0 }, def.hash(client))).toEqual({ ok: true, seq: 0 });
       const r = m.finish(s, def.hash(client));
       expect(r.ok).toBe(true);
       if (r.ok) expect(r.summary).toEqual({ score: 0, moves: 0, bestCombo: 0 });
     }
+  });
+
+  it("rejects a timed move that claims a tick ahead of the wall clock", () => {
+    const now = { t: 0 };
+    const m = manager(now);
+    const s = m.start("p1", "gunnery");
+    const def = PUZZLES.gunnery;
+    // 10 ticks of 220ms claimed 1s in: fine. 100 ticks (22s) claimed 1s in: a lie.
+    now.t = 1000;
+    const okMove = { type: "wait", tick: 4 };
+    expect(m.move(s, 0, okMove, def.hash(def.reduce(s.state, okMove)))).toEqual({ ok: true, seq: 0 });
+    const lie = { type: "wait", tick: 100 };
+    expect(m.move(s, 1, lie, def.hash(def.reduce(s.state, lie)))).toMatchObject({ ok: false, reason: "illegal_move" });
   });
 
   it("caps the move count at the configured maximum", () => {
