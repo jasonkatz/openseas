@@ -1101,13 +1101,14 @@ export class CarpentryRenderer {
   }
 
   /**
-   * Mirror the plank left to right. The ghost turns over on its vertical axis as it does, so the
-   * press is answered even for a symmetric plank, which lands looking as it did.
+   * Mirror the plank left to right as it appears. The engine mirrors the base shape before turning
+   * it, so a mirror of the turned plank is the base mirror with the turn reversed. The ghost turns
+   * over on its vertical axis as it does, so a plank symmetric on screen still answers the press.
    */
   private doFlip(): void {
     const fp = this.footprint();
     if (this.cursor && fp) this.flipFx = { life: 0, max: this.dur(280), cx: this.ox + (this.cursor.col + fp.w / 2) * this.cell };
-    this.reorient(this.rot, !this.flip);
+    this.reorient((4 - this.rot) % 4, !this.flip);
   }
 
   private moveCursor(dc: number, dr: number): void {
