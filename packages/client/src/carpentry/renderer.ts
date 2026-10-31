@@ -385,10 +385,12 @@ export class CarpentryRenderer {
       this.covers.push({ cells: [grown.cell], delay: landMs + 80, life: 0, max: this.dur(420), opening: false, grew: true });
       this.at(landMs + 80, () => this.callout(this.opts.grewLabel, COLORS.illegal, 0.62));
     }
-    // The slot refilled under the player: show the new plank arriving, and keep the ghost if it still fits.
+    // The slot refills under the player, and nothing is in hand until they pick again.
     this.refill = { slot: rep.move.slot, life: 0, max: this.dur(220) };
     this.lastOrigin = this.cursor;
     this.anchor = null;
+    this.slot = null;
+    this.drawTrayFrame();
   }
 
   // ---- layout and drawing
@@ -1424,10 +1426,13 @@ export class CarpentryRenderer {
         this.jumpToFit();
         return true;
       case "Escape":
+        // Put the plank back and let go of it entirely.
         this.anchor = null;
+        this.slot = null;
         this.syncCursor();
-        this.drawGhost();
+        this.drawTrayFrame();
         this.drawTrayPieces();
+        this.drawGhost();
         return true;
       case " ":
       case "Enter":
