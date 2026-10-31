@@ -425,12 +425,12 @@ export class SailingRenderer {
     this.positionFalling();
   }
 
-  /** Turn clockwise with the engine's kicks, so what the player sees is a position the engine accepts. */
-  private tryRotate(): void {
+  /** Turn clockwise (1) or counter-clockwise (-1) with the engine's kicks, so what the player sees is a position the engine accepts. */
+  private tryRotate(dir: 1 | -1 = 1): void {
     const f = this.falling;
     if (!f || !this.interactive) return;
     const R = Math.ceil(f.row);
-    const rot = ((f.rot + 1) % 4) as Rotation;
+    const rot = ((f.rot + dir + 4) % 4) as Rotation;
     for (const kick of SAILING_ROTATION_KICKS) {
       if (!this.mayOccupy(f.col + kick, R, rot)) continue;
       f.col += kick;
@@ -856,15 +856,14 @@ export class SailingRenderer {
     this.softDrop = false;
   }
 
-  /** Keyboard: arrows steer, up turns, down or space hurries while held. */
+  /** Keyboard: left and right steer, up turns clockwise, down turns counter-clockwise, space hurries while held. */
   keyboard(key: string, down: boolean): boolean {
-    const hurry = key === "ArrowDown" || key === " ";
-    if (hurry && !down) {
+    if (key === " " && !down) {
       this.softDrop = false;
       return true;
     }
     if (!this.interactive) return false;
-    if (hurry) {
+    if (key === " ") {
       this.softDrop = true;
       return true;
     }
@@ -879,7 +878,12 @@ export class SailingRenderer {
       case "ArrowUp":
       case "x":
       case "X":
-        this.tryRotate();
+        this.tryRotate(1);
+        return true;
+      case "ArrowDown":
+      case "z":
+      case "Z":
+        this.tryRotate(-1);
         return true;
       default:
         return false;

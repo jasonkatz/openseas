@@ -232,6 +232,25 @@ describe("sailing rules", () => {
     for (const r of rests) if (r.type === "place") expect(sailingLandingRow(state, r.col, r.row, r.rot)).toBe(r.row);
   });
 
+  it("a pair turns either way: a counter-clockwise turn from the entry, with its kick, is accepted", () => {
+    const base = createSailingGame("turns");
+    const { width, height } = base.config;
+    const s = Math.floor((width - 2) / 2);
+    // Wall off the column under the entry and the one to its left, leaving a shaft to the right.
+    const cells = base.cells.slice();
+    for (let row = 0; row < height - 1; row++) {
+      for (let col = 0; col < width; col++) {
+        if (col !== s + 1) cells[sailingIdx(base.config, col, row)] = { id: 10_000 + row * width + col, kind: 0, pair: 10_000 + row * width + col };
+      }
+    }
+    const state: SailingState = { ...base, cells, platforms: [] };
+    const rests = legalMoves(state);
+    // Counter-clockwise from rotation 0 is rotation 3; the kick of +1 drops it down the shaft.
+    expect(rests).toContainEqual({ type: "place", col: s + 1, row: 1, rot: 3 });
+    expect(rests).toContainEqual({ type: "place", col: s + 1, row: 1, rot: 1 });
+    expect(() => reduceSailing(state, { type: "place", col: s + 1, row: 1, rot: 3 })).not.toThrow();
+  });
+
   it("a satisfied platform clears its targets and scores platformPoints per target", () => {
     // Build a state by hand: one platform of span 2 with two targets of kind 0 on row 2.
     const base = createSailingGame("by-hand");
