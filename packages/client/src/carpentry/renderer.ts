@@ -1101,24 +1101,13 @@ export class CarpentryRenderer {
   }
 
   /**
-   * Flip the plank so that something visibly changes. A mirror-symmetric shape looks the same
-   * mirrored, so it is mirrored the other way instead, and failing that given a quarter turn. Only
-   * the X is the same whatever happens; the ghost still turns over so the press is answered.
+   * Mirror the plank left to right. The ghost turns over on its vertical axis as it does, so the
+   * press is answered even for a symmetric plank, which lands looking as it did.
    */
   private doFlip(): void {
-    const piece = this.state?.slots[this.slot];
-    if (!piece) return;
-    const key = (rot: number, flip: boolean): string => carpentryOrient(piece.shape, ((rot % 4) + 4) % 4, flip).map(([x, y]) => `${x},${y}`).join(" ");
-    const current = key(this.rot, this.flip);
-    const candidates: Array<[number, boolean]> = [
-      [this.rot, !this.flip],
-      [this.rot + 2, !this.flip],
-      [this.rot + 1, this.flip],
-    ];
-    const next = candidates.find(([rot, flip]) => key(rot, flip) !== current) ?? [this.rot, this.flip];
     const fp = this.footprint();
-    if (this.cursor && fp) this.flipFx = { life: 0, max: this.dur(200), cx: this.ox + (this.cursor.col + fp.w / 2) * this.cell };
-    this.reorient(next[0], next[1]);
+    if (this.cursor && fp) this.flipFx = { life: 0, max: this.dur(280), cx: this.ox + (this.cursor.col + fp.w / 2) * this.cell };
+    this.reorient(this.rot, !this.flip);
   }
 
   private moveCursor(dc: number, dr: number): void {

@@ -163,8 +163,8 @@ plank's centre: it sits under the pointer (lifted above a finger), and a spot th
 snaps to a neighbouring one that will, so dropping near a hole is enough. A mouse carries the plank
 by hovering and nails it with a click; right-click or the wheel turns it. Touch drags the plank
 and sets it down by letting go over the hull, where an icon toolbar follows it (turn either way,
-flip, and a hammer to nail; Flip always changes the shape, mirroring a symmetric plank the other
-way or turning it, so the button is never a dud);
+flip, and a hammer to nail; the ghost visibly turns over on a flip, so a symmetric plank that lands
+looking the same still answers the press);
 letting go or dragging off the hull sends it back to its slot, and a tap on bare hull brings it
 there. Turning pivots about the
 centre so the ghost stays put. The keyboard picks a slot, moves, turns either way, flips, and jumps
