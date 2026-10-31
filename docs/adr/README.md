@@ -21,3 +21,4 @@ that supersedes it.
 | [0013](./0013-cd-platform-git-integrations.md) | Continuous deployment through the hosts' Git integrations, verified from CI |
 | [0014](./0014-cd-pipeline-in-actions.md) | One Actions pipeline deploys Railway, then Vercel |
 | [0015](./0015-puzzle-registry.md) | One puzzle registry drives every engine; timed engines carry their clock in the move log |
+| [0016](./0016-ci-built-previews.md) | PR previews are built in CI and deployed to the production Vercel project |

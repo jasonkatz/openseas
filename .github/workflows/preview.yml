@@ -1,0 +1,103 @@
+name: Preview
+
+# Builds the client for every pull request and deploys it as a preview on the same Vercel project
+# that serves production (ADR 0016). Vercel's Git integration is not used; this replaces it.
+# Previews talk to the production server. Setup: docs/DEPLOY.md, "Previews".
+
+on:
+  pull_request:
+    paths:
+      - packages/client/**
+      - packages/engine/**
+      - packages/protocol/**
+      - packages/content/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - package.json
+      - vercel.json
+      - .github/workflows/preview.yml
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  client:
+    name: Client preview on Vercel
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+      BRANCH: ${{ github.event.pull_request.head.ref }}
+    steps:
+      - name: Check configuration
+        id: config
+        # Pull requests from forks get no secrets. Skip quietly instead of failing their checks.
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::warning::VERCEL_TOKEN, VERCEL_ORG_ID or VERCEL_PROJECT_ID is not available to this run, so no preview is deployed. They must be repository-scoped, not only on the production environment. See docs/DEPLOY.md, \"Previews\"."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.ready == 'true'
+        with:
+          ref: ${{ env.SHA }}
+      - uses: pnpm/action-setup@v4
+        if: steps.config.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: steps.config.outputs.ready == 'true'
+        run: npm install -g vercel
+      - name: Pull preview settings and env
+        if: steps.config.outputs.ready == 'true'
+        run: vercel pull --yes --environment=preview --token "$VERCEL_TOKEN"
+      - name: Build
+        if: steps.config.outputs.ready == 'true'
+        env:
+          COMMIT_SHA: ${{ env.SHA }}
+        run: vercel build --token "$VERCEL_TOKEN"
+      - name: Deploy
+        id: deploy
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          set -o pipefail
+          vercel deploy --prebuilt --token "$VERCEL_TOKEN" \
+            --meta githubCommitSha="$SHA" \
+            --meta githubCommitRef="$BRANCH" \
+            --meta githubCommitOrg="${GITHUB_REPOSITORY_OWNER}" \
+            --meta githubCommitRepo="${GITHUB_REPOSITORY#*/}" \
+            --meta githubPrId="${{ github.event.pull_request.number }}" \
+            | tee deploy-url.txt
+          url="$(tail -n1 deploy-url.txt)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Client preview: $url (commit $SHA)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Comment the preview URL on the pull request
+        if: steps.config.outputs.ready == 'true'
+        uses: actions/github-script@v7
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        with:
+          script: |
+            const marker = "<!-- openseas-preview -->";
+            const body = `${marker}\n**Client preview:** ${process.env.URL}\n\nCommit \`${process.env.SHA.slice(0, 7)}\`. Talks to the production server.`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.user.type === "Bot" && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

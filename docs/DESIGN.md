@@ -319,6 +319,8 @@ guests and account linking to Discord and Google.
 - Merging is releasing. After CI is green on `main`, one Actions pipeline deploys the server to
   Railway, waits for it to be healthy on the new commit, then deploys the client to Vercel
   (ADR 0014, `docs/DEPLOY.md`).
+- Every pull request that touches the client gets a Vercel preview on the production project,
+  built and deployed from CI (ADR 0016).
 - Structured logs via pino. Sentry for client and server errors. A Postgres event table for
   gameplay analytics (puzzle starts and completions, voyage outcomes). No third-party analytics.
 

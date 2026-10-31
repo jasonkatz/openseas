@@ -23,7 +23,21 @@ one GitHub Actions pipeline does the deploying, in order (ADR 0014).
 Manual runs: Actions → Deploy → **Run workflow**. Tick "server" or "client" to redeploy a side
 even if nothing under it changed, for example after changing a Railway variable.
 
-There are no preview deployments yet; the client's unrated play works from a local `pnpm dev`.
+## Previews
+
+Every pull request that touches the client or what it depends on gets a preview: the **Preview**
+workflow (`.github/workflows/preview.yml`) builds the client in CI with `vercel build` against
+the project's **Preview** env, deploys it with `vercel deploy --prebuilt` (no `--prod`) to the
+same `openseas` project, and keeps one comment on the PR updated with the URL. Vercel's Git
+integration is not connected (ADR 0016).
+
+- It uses the same `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` as the Deploy pipeline,
+  but runs without the `production` environment, so they must be **repository**-scoped (step 3).
+  Pull requests from forks get no secrets; their preview job skips with a warning.
+- `VITE_SERVER_URL` must be set for Preview as well as Production (step 2).
+- Previews point at the production server, which only accepts the origins in `CLIENT_ORIGINS`.
+  Anything that needs the server fails from a preview URL. Use previews to look at UI.
+- Deployment Protection's Standard Protection keeps previews behind a Vercel login.
 
 ## One-time setup
 
@@ -76,6 +90,7 @@ npm i -g vercel
 vercel login
 vercel link --yes --scope <team-slug> --project openseas   # creates the project, writes .vercel/project.json (gitignored)
 vercel env add VITE_SERVER_URL production                    # paste https://<railway domain>
+vercel env add VITE_SERVER_URL preview                       # same value; PR previews use it
 cat .vercel/project.json                                     # orgId and projectId for step 3
 ```
 
@@ -91,8 +106,10 @@ Then in the dashboard, project → **Settings**:
 
 ### 3. GitHub: secrets and variables
 
-Repo → **Settings → Secrets and variables → Actions**. Repository scope is fine; the
-`production` environment scope also works and lets you add required reviewers later.
+Repo → **Settings → Secrets and variables → Actions**. Use repository scope for the Vercel
+entries: the Preview workflow runs on pull requests outside the `production` environment and
+cannot read environment-scoped values. The Railway entries can live on `production` if you want
+required reviewers there later.
 
 | Kind | Name | Value |
 |---|---|---|
