@@ -491,7 +491,7 @@ function paintSpecialSurface(ctx: CanvasRenderingContext2D, s: number, x0: numbe
 // ---- marks and icons
 
 /** Symbols for the marks setting: dark ink on a light badge, so they read over every texture. */
-function paintMark(ctx: CanvasRenderingContext2D, s: number, mark: string): void {
+export function paintMark(ctx: CanvasRenderingContext2D, s: number, mark: string): void {
   const c = s / 2;
   const r = s * 0.14;
   ctx.beginPath();

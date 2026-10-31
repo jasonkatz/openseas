@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
 import { eq } from "drizzle-orm";
-import { createBilgingGame, hashBilgingState, reduceBilging, swapIllegalReason, type BilgingMove, type BilgingState } from "@openseas/engine";
+import { PUZZLES, PUZZLE_IDS, createBilgingGame, hashBilgingState, reduceBilging, swapIllegalReason, type BilgingMove, type BilgingState } from "@openseas/engine";
 import { parseServerMessage, type MeResponse, type ServerMessage } from "@openseas/protocol";
 import { createApp, type App } from "../src/app.js";
 import { mergeGuestIntoAccount } from "../src/auth.js";
@@ -140,7 +140,7 @@ describeDb("server integration", () => {
     ws.send(JSON.stringify({ type: "puzzle.start", puzzle: "bilging" }));
     const started = await next();
     expect(started.type).toBe("puzzle.started");
-    if (started.type !== "puzzle.started") return;
+    if (started.type !== "puzzle.started" || started.puzzle !== "bilging") return;
 
     let state: BilgingState = createBilgingGame(started.seed, started.config);
     const moves: BilgingMove[] = [];
@@ -170,7 +170,7 @@ describeDb("server integration", () => {
     // A cheater who sends a different hash is rejected on the spot.
     ws.send(JSON.stringify({ type: "puzzle.start", puzzle: "bilging" }));
     const started2 = await next();
-    if (started2.type !== "puzzle.started") throw new Error("expected start");
+    if (started2.type !== "puzzle.started" || started2.puzzle !== "bilging") throw new Error("expected start");
     const s2 = createBilgingGame(started2.seed, started2.config);
     ws.send(JSON.stringify({ type: "puzzle.move", sessionId: started2.sessionId, seq: 0, move: firstLegal(s2), hash: "00000000" }));
     const rejected = await next();
@@ -179,6 +179,29 @@ describeDb("server integration", () => {
     const rows = await app.db.select().from(schema.puzzleRound).where(eq(schema.puzzleRound.id, started.sessionId));
     expect(rows[0]).toMatchObject({ score: state.score, moves: 25, rejectedReason: null });
     expect((rows[0]!.moveLog as unknown[]).length).toBe(25);
+
+    // Every other registered puzzle plays a short honest round over the same wire and is rated separately.
+    for (const id of PUZZLE_IDS.filter((p) => p !== "bilging")) {
+      ws.send(JSON.stringify({ type: "puzzle.start", puzzle: id }));
+      const st = await next();
+      if (st.type !== "puzzle.started") throw new Error("expected start");
+      expect(st.puzzle).toBe(id);
+      const def = PUZZLES[id];
+      const final = def.reduce(def.create(st.seed, st.config), { type: "end" });
+      ws.send(JSON.stringify({ type: "puzzle.move", sessionId: st.sessionId, seq: 0, move: { type: "end" }, hash: def.hash(final) }));
+      ws.send(JSON.stringify({ type: "puzzle.finish", sessionId: st.sessionId, hash: def.hash(final) }));
+      const res = await next();
+      expect(res).toMatchObject({ type: "puzzle.result", verified: true, rating: { puzzle: id, rounds: 1 } });
+    }
+    // A Bilging move sent to a Sailing round is an illegal move, not a crash.
+    ws.send(JSON.stringify({ type: "puzzle.start", puzzle: "sailing" }));
+    const st3 = await next();
+    if (st3.type !== "puzzle.started") throw new Error("expected start");
+    ws.send(JSON.stringify({ type: "puzzle.move", sessionId: st3.sessionId, seq: 0, move: { type: "swap", col: 0, row: 0 }, hash: "00000000" }));
+    expect(await next()).toMatchObject({ type: "puzzle.rejected", reason: "illegal_move" });
+
+    const me = (await (await fetch(`${base}/api/me`, { headers: { cookie } })).json()) as MeResponse;
+    expect(me.pirate?.ratings.map((r) => r.puzzle).sort()).toEqual([...PUZZLE_IDS].sort());
     ws.close();
   });
 

@@ -1,22 +1,4 @@
-import {
-  InvalidMoveError,
-  createBilgingGame,
-  hashBilgingState,
-  reduceBilging,
-  summarizeBilging,
-  type BilgingConfig,
-  type BilgingMove,
-  type BilgingState,
-  type BilgingSummary,
-  type PuzzleId,
-} from "@openseas/engine";
-import type { BilgingConfigWire, BilgingMoveWire } from "@openseas/protocol";
-
-// The wire shapes must be assignable to the engine's. If this stops compiling, protocol and engine drifted.
-const _moveCheck: (m: BilgingMoveWire) => BilgingMove = (m) => m;
-const _configCheck: (c: BilgingConfigWire) => BilgingConfig = (c) => c;
-void _moveCheck;
-void _configCheck;
+import { InvalidMoveError, PUZZLES, type AnyPuzzleDef, type PuzzleId, type PuzzleSummary } from "@openseas/engine";
 
 export type RejectReason = "divergence" | "illegal_move" | "bad_sequence" | "deadline" | "too_many_moves";
 
@@ -24,53 +6,64 @@ export interface PuzzleSession {
   readonly id: string;
   readonly pirateId: string;
   readonly puzzle: PuzzleId;
+  readonly def: AnyPuzzleDef;
   readonly seed: string;
-  readonly config: BilgingConfig;
+  readonly config: unknown;
   readonly startedAt: number;
   readonly deadlineAt: number;
-  state: BilgingState;
-  moves: BilgingMove[];
+  state: unknown;
+  moves: unknown[];
   closed: boolean;
 }
 
 export type MoveOutcome = { ok: true; seq: number } | { ok: false; reason: RejectReason; atSeq: number };
 
 export type FinishOutcome =
-  | { ok: true; state: BilgingState; summary: BilgingSummary; moves: readonly BilgingMove[] }
+  | { ok: true; state: unknown; summary: PuzzleSummary; moves: readonly unknown[] }
   | { ok: false; reason: RejectReason };
+
+export interface PuzzleRoundOptions {
+  roundMs: number;
+  config: unknown;
+}
 
 export interface SessionManagerOptions {
   /** Grace after the deadline during which late moves are still accepted, for network latency. */
   graceMs: number;
-  roundMs: number;
-  config: BilgingConfig;
+  /** Round length and engine config per puzzle, from content. */
+  puzzles: Readonly<Record<PuzzleId, PuzzleRoundOptions>>;
   now: () => number;
   randomSeed: () => string;
   randomId: () => string;
 }
 
 /**
- * Authoritative puzzle sessions (ADR 0003). Replays each client move as it arrives and rejects the
- * round on the first divergence, illegal move, or sequencing error. Holds no I/O: the service layer
- * persists outcomes.
+ * Authoritative puzzle sessions (ADR 0003) for every engine in the registry. Replays each client
+ * move as it arrives and rejects the round on the first divergence, illegal move, or sequencing
+ * error. Holds no I/O: the service layer persists outcomes.
  */
 export class PuzzleSessionManager {
   private readonly sessions = new Map<string, PuzzleSession>();
 
-  constructor(private readonly opts: SessionManagerOptions) {}
+  constructor(private readonly opts: SessionManagerOptions) {
+    for (const id of Object.keys(opts.puzzles) as PuzzleId[]) PUZZLES[id].validateConfig(opts.puzzles[id].config);
+  }
 
   start(pirateId: string, puzzle: PuzzleId): PuzzleSession {
     const now = this.opts.now();
     const seed = this.opts.randomSeed();
+    const def = PUZZLES[puzzle];
+    const { roundMs, config } = this.opts.puzzles[puzzle];
     const session: PuzzleSession = {
       id: this.opts.randomId(),
       pirateId,
       puzzle,
+      def,
       seed,
-      config: this.opts.config,
+      config,
       startedAt: now,
-      deadlineAt: now + this.opts.roundMs,
-      state: createBilgingGame(seed, this.opts.config),
+      deadlineAt: now + roundMs,
+      state: def.create(seed, config),
       moves: [],
       closed: false,
     };
@@ -82,19 +75,24 @@ export class PuzzleSessionManager {
     return this.sessions.get(id);
   }
 
-  move(session: PuzzleSession, seq: number, move: BilgingMove, hash: string): MoveOutcome {
+  /** `move` must already be validated against the session's puzzle schema. */
+  move(session: PuzzleSession, seq: number, move: unknown, hash: string): MoveOutcome {
     if (session.closed) return { ok: false, reason: "deadline", atSeq: seq };
     if (seq !== session.moves.length) return this.reject(session, "bad_sequence", seq);
-    if (this.opts.now() > session.deadlineAt + this.opts.graceMs) return this.reject(session, "deadline", seq);
-    if (session.moves.length >= session.config.maxMoves) return this.reject(session, "too_many_moves", seq);
-    let next: BilgingState;
+    const now = this.opts.now();
+    if (now > session.deadlineAt + this.opts.graceMs) return this.reject(session, "deadline", seq);
+    if (session.moves.length >= session.def.maxMoves(session.config)) return this.reject(session, "too_many_moves", seq);
+    // Engines with their own clock may not claim a time ahead of the wall clock.
+    const claimed = session.def.moveTimeMs?.(move, session.config);
+    if (claimed !== undefined && session.startedAt + claimed > now + this.opts.graceMs) return this.reject(session, "illegal_move", seq);
+    let next: unknown;
     try {
-      next = reduceBilging(session.state, move);
+      next = session.def.reduce(session.state, move);
     } catch (e) {
       if (e instanceof InvalidMoveError) return this.reject(session, "illegal_move", seq);
       throw e;
     }
-    if (hashBilgingState(next) !== hash) return this.reject(session, "divergence", seq);
+    if (session.def.hash(next) !== hash) return this.reject(session, "divergence", seq);
     session.state = next;
     session.moves.push(move);
     return { ok: true, seq };
@@ -102,12 +100,12 @@ export class PuzzleSessionManager {
 
   finish(session: PuzzleSession, hash: string | null): FinishOutcome {
     if (session.closed) return { ok: false, reason: "deadline" };
-    if (hash !== null && hashBilgingState(session.state) !== hash) {
+    if (hash !== null && session.def.hash(session.state) !== hash) {
       this.close(session);
       return { ok: false, reason: "divergence" };
     }
     this.close(session);
-    return { ok: true, state: session.state, summary: summarizeBilging(session.state), moves: session.moves };
+    return { ok: true, state: session.state, summary: session.def.summarize(session.state), moves: session.moves };
   }
 
   close(session: PuzzleSession): void {

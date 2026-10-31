@@ -1,14 +1,22 @@
 import { expect, test, type Page } from "@playwright/test";
 
-/** Once the board settles, what the canvas draws must be the engine's board, piece for piece. */
-async function expectViewMatchesState(page: Page): Promise<void> {
-  const board = page.getByTestId("bilging-board");
+/**
+ * Once the board settles, what the canvas draws must be the engine's board, piece for piece. Both
+ * attributes are read in one evaluation so a board that advances on a clock cannot change between
+ * the reads, and so a slow CI runner spends one round trip per poll, not two.
+ */
+async function expectViewMatchesState(page: Page, puzzle: string): Promise<void> {
   await expect(async () => {
-    const want = await board.getAttribute("data-board");
-    const shown = await page.getByTestId("bilging-canvas").getAttribute("data-view");
+    const [want, shown] = await page.evaluate(
+      (id) => [
+        document.querySelector(`[data-testid="${id}-board"]`)?.getAttribute("data-board") ?? null,
+        document.querySelector(`[data-testid="${id}-canvas"]`)?.getAttribute("data-view") ?? null,
+      ],
+      puzzle,
+    );
     expect(want).toBeTruthy();
     expect(shown).toBe(want);
-  }).toPass({ timeout: 10_000 });
+  }).toPass({ timeout: 15_000 });
 }
 
 /**
@@ -30,14 +38,14 @@ test("an unrated Bilging round accepts a keyboard swap and shows the result", as
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toContainText("0");
   // The round's board replaces the preview board behind the start card.
-  await expectViewMatchesState(page);
+  await expectViewMatchesState(page, "bilging");
 
   // Keyboard: put the cursor somewhere and swap with the piece to the right.
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
-  await expectViewMatchesState(page);
+  await expectViewMatchesState(page, "bilging");
 
   // Pointer: tap two horizontally adjacent cells.
   const box = await canvas.boundingBox();
@@ -47,5 +55,35 @@ test("an unrated Bilging round accepts a keyboard swap and shows the result", as
   const oy = box.y + (box.height - cell * 12) / 2;
   await page.mouse.click(ox + cell * 0.5, oy + cell * 11.5);
   await page.mouse.click(ox + cell * 1.5, oy + cell * 11.5);
+  await expect(page.getByTestId("hud-moves")).toContainText("2");
+});
+
+test("home links to Sailing practice and an unrated round takes keyboard drops", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: /Sailing/ }).click();
+  await expect(page).toHaveURL(/\/practice\/sailing$/);
+  await page.getByTestId("start-unrated").click();
+  const canvas = page.getByTestId("sailing-canvas");
+  await expect(canvas).toBeVisible();
+  await expect(page.getByTestId("hud-moves")).toContainText("0");
+
+  // Steer, rotate, hard drop.
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("hud-moves")).toContainText("1");
+  await expectViewMatchesState(page, "sailing");
+
+  // Pointer: a tap turns the pair, a sideways drag steers it; then a key drops it.
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height * 0.3;
+  await page.mouse.click(x, y);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + box.width * 0.2, y, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });

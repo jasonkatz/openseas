@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { Content } from "@openseas/content";
-import { NEW_RATING, tierFor } from "@openseas/engine";
+import { NEW_RATING, isPuzzleId, tierFor } from "@openseas/engine";
 import type { PirateSummary } from "@openseas/protocol";
 import { schema, type Db } from "./db/index.js";
 import { balance } from "./ledger.js";
@@ -63,12 +63,10 @@ export async function summarizePirate(db: Db, content: Content, pirateId: string
     guest,
     balance: coins,
     ships: ships.map((s) => ({ id: s.id, classId: s.classId, name: s.name })),
-    ratings: ratings
-      .filter((r) => r.puzzle === "bilging")
-      .map((r) => ({
-        puzzle: "bilging" as const,
-        tier: tierFor(r.rating ?? NEW_RATING.rating, content.ratingTiers).key,
-        rounds: r.rounds,
-      })),
+    ratings: ratings.flatMap((r) =>
+      isPuzzleId(r.puzzle)
+        ? [{ puzzle: r.puzzle, tier: tierFor(r.rating ?? NEW_RATING.rating, content.ratingTiers).key, rounds: r.rounds }]
+        : [],
+    ),
   };
 }

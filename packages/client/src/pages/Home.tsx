@@ -1,7 +1,24 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { content, t } from "../content.js";
 import { usePirate } from "../state/PirateProvider.jsx";
 import { Link } from "../router.jsx";
+
+/** Practice pages that have shipped, in milestone order. The rest stay greyed out. */
+const LIVE: Array<{ id: string; glyph: ReactNode }> = [
+  {
+    id: "sailing",
+    glyph: (
+      <svg viewBox="0 0 64 64" width="56" height="56">
+        <rect x="8" y="40" width="48" height="6" rx="2" fill="#8a6136" />
+        <rect x="14" y="26" width="12" height="12" rx="3" fill="#f2f0e6" />
+        <rect x="28" y="26" width="12" height="12" rx="3" fill="#f5d021" />
+        <rect x="28" y="12" width="12" height="12" rx="3" fill="#3fa7f5" />
+        <rect x="42" y="26" width="12" height="12" rx="3" fill="none" stroke="#3fa7f5" strokeWidth="2" strokeDasharray="3 2" />
+      </svg>
+    ),
+  },
+];
+const SOON = ["carpentry", "gunnery", "navigation"];
 
 export function Home() {
   const { phase, pirate, error, inviteRequired, createPirate } = usePirate();
@@ -107,10 +124,21 @@ export function Home() {
               <span className="tile-blurb">{t("home.practice_bilging_blurb")}</span>
             </Link>
           </li>
-          {["Sailing", "Carpentry", "Gunnery", "Navigation"].map((name) => (
-            <li key={name}>
+          {LIVE.map((p) => (
+            <li key={p.id}>
+              <Link to={`/practice/${p.id}`} className="practice-tile live">
+                <span className="tile-glyph" aria-hidden="true">
+                  {p.glyph}
+                </span>
+                <span className="tile-title">{t(`home.practice_${p.id}`)}</span>
+                <span className="tile-blurb">{t(`home.practice_${p.id}_blurb`)}</span>
+              </Link>
+            </li>
+          ))}
+          {SOON.map((id) => (
+            <li key={id}>
               <div className="practice-tile soon" aria-disabled="true">
-                <span className="tile-title">{name}</span>
+                <span className="tile-title">{t(`home.practice_${id}`)}</span>
                 <span className="tile-blurb">{t("home.coming_soon")}</span>
               </div>
             </li>

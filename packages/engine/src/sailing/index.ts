@@ -1,0 +1,22 @@
+export * from "./types.js";
+export {
+  createSailingGame,
+  reduceSailing,
+  replaySailing,
+  hashSailingState,
+  summarizeSailing,
+  pairCells as sailingPairCells,
+  placeIllegalReason as sailingPlaceIllegalReason,
+  restingPlacements as sailingRestingPlacements,
+  reachableRests as sailingReachableRests,
+  spawnPosition as sailingSpawnPosition,
+  spawnFree as sailingSpawnFree,
+  fits as sailingFits,
+  canDrop as sailingCanDrop,
+  landingRow as sailingLandingRow,
+  shelfMask as sailingShelfMask,
+  ROTATION_KICKS as SAILING_ROTATION_KICKS,
+  idx as sailingIdx,
+  validateConfig as validateSailingConfig,
+  type SailingSummary,
+} from "./reduce.js";

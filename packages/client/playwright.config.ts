@@ -4,7 +4,8 @@ const port = 4173;
 
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30_000,
+  // CI runners draw the phone profile several times slower than a laptop; give them room.
+  timeout: process.env.CI ? 60_000 : 30_000,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {

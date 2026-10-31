@@ -247,11 +247,14 @@ a {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 12px;
 }
 .practice-grid li:first-child {
   grid-column: 1 / -1;
+}
+.practice-grid li {
+  min-width: 0;
 }
 .practice-tile {
   display: grid;
@@ -290,9 +293,11 @@ a {
 }
 .tile-title {
   grid-area: title;
+  min-width: 0;
   font-family: var(--font-display);
   font-size: 24px;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 .tile-blurb {
   grid-area: blurb;
@@ -1093,4 +1098,18 @@ a {
     animation-duration: 0.001s !important;
     transition-duration: 0.001s !important;
   }
+}
+
+/* ---- shared practice shell additions (M2) */
+.next-pair {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 28px;
+}
+.legend-note {
+  margin: 4px 0 0;
+}
+.hud .stat-wide .next-pair {
+  padding-top: 2px;
 }

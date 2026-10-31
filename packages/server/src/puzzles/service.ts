@@ -1,12 +1,18 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { Content } from "@openseas/content";
-import type { BilgingMove, PuzzleId } from "@openseas/engine";
-import type { ClientMetrics, PuzzleResult, PuzzleStarted, ServerMessage } from "@openseas/protocol";
+import { PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
+import { parseMoveFor, type ClientMetrics, type PuzzleIdWire, type PuzzleResult, type PuzzleStarted, type ServerMessage } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
 import type { Logger } from "../log.js";
 import { rateDutyRound } from "../ratings.js";
-import { PuzzleSessionManager, type PuzzleSession, type RejectReason } from "./sessions.js";
+import { PuzzleSessionManager, type PuzzleRoundOptions, type PuzzleSession, type RejectReason } from "./sessions.js";
+
+// The protocol's puzzle ids and the engine's must be the same set. If this stops compiling, they drifted.
+const _idCheck: (p: PuzzleIdWire) => PuzzleId = (p) => p;
+const _idCheckBack: (p: PuzzleId) => PuzzleIdWire = (p) => p;
+void _idCheck;
+void _idCheckBack;
 
 const GRACE_MS = 5_000;
 
@@ -20,11 +26,14 @@ export class PuzzleService {
     private readonly log: Logger,
     now: () => number = Date.now,
   ) {
-    const bilging = content.puzzles.bilging;
+    const puzzles = {} as Record<PuzzleId, PuzzleRoundOptions>;
+    for (const id of PUZZLE_IDS) {
+      const c = content.puzzles[id];
+      puzzles[id] = { roundMs: c.roundSeconds * 1000, config: c.config };
+    }
     this.sessions = new PuzzleSessionManager({
       graceMs: GRACE_MS,
-      roundMs: bilging.roundSeconds * 1000,
-      config: bilging.config,
+      puzzles,
       now,
       randomSeed: () => randomBytes(16).toString("hex"),
       randomId: () => randomUUID(),
@@ -36,6 +45,7 @@ export class PuzzleService {
     void recordEvent(this.db, pirateId, "puzzle.started", { puzzle, sessionId: s.id }).catch((e) =>
       this.log.warn({ err: e }, "event write failed"),
     );
+    // The config came from content for this puzzle, so it matches the wire variant for `puzzle`.
     return {
       type: "puzzle.started",
       sessionId: s.id,
@@ -44,12 +54,13 @@ export class PuzzleService {
       config: s.config,
       deadlineAt: s.deadlineAt,
       serverNow: s.startedAt,
-    };
+    } as PuzzleStarted;
   }
 
-  /** Returns the message to send back, if any. */
-  async move(session: PuzzleSession, seq: number, move: BilgingMove, hash: string): Promise<ServerMessage | null> {
-    const r = this.sessions.move(session, seq, move, hash);
+  /** Returns the message to send back, if any. `move` is any puzzle's move; it is narrowed here. */
+  async move(session: PuzzleSession, seq: number, move: unknown, hash: string): Promise<ServerMessage | null> {
+    const parsed = parseMoveFor(session.puzzle, move);
+    const r = parsed === null ? this.sessions.move(session, seq, { type: "__not_a_move__" }, hash) : this.sessions.move(session, seq, parsed, hash);
     if (r.ok) return null;
     await this.persistRejected(session, r.reason, null);
     return { type: "puzzle.rejected", sessionId: session.id, reason: r.reason, atSeq: r.atSeq };
@@ -97,7 +108,7 @@ export class PuzzleService {
       };
       return msg;
     });
-    this.log.info({ pirateId: session.pirateId, score: result.score, moves: result.moves }, "round scored");
+    this.log.info({ pirateId: session.pirateId, puzzle: session.puzzle, score: result.score, moves: result.moves }, "round scored");
     return result;
   }
 
@@ -126,16 +137,17 @@ export class PuzzleService {
   }
 
   private async persistRejected(session: PuzzleSession, reason: RejectReason, metrics: ClientMetrics | null): Promise<void> {
-    this.log.warn({ pirateId: session.pirateId, sessionId: session.id, reason }, "round rejected");
+    this.log.warn({ pirateId: session.pirateId, sessionId: session.id, puzzle: session.puzzle, reason }, "round rejected");
+    const summary = session.def.summarize(session.state);
     try {
       await this.db.insert(schema.puzzleRound).values({
         id: session.id,
         pirateId: session.pirateId,
         puzzle: session.puzzle,
         seed: session.seed,
-        score: session.state.score,
+        score: summary.score,
         moves: session.moves.length,
-        bestCombo: session.state.bestCombo,
+        bestCombo: summary.bestCombo,
         rejectedReason: reason,
         moveLog: session.moves as unknown[],
         metrics: metrics ?? null,

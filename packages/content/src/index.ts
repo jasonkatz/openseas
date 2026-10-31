@@ -5,6 +5,7 @@ import brigandTiers from "../data/world/brigand-tiers.json" with { type: "json" 
 import shipClasses from "../data/world/ship-classes.json" with { type: "json" };
 import shipGrants from "../data/world/ship-grants.json" with { type: "json" };
 import bilging from "../data/puzzles/bilging.json" with { type: "json" };
+import sailing from "../data/puzzles/sailing.json" with { type: "json" };
 import ratingTiers from "../data/rating-tiers.json" with { type: "json" };
 import names from "../data/names.json" with { type: "json" };
 import en from "../data/messages/en.json" with { type: "json" };
@@ -13,17 +14,27 @@ import {
   MessagesSchema,
   NamesSchema,
   RatingTierSchema,
+  SailingContentSchema,
   WorldSchema,
   type BilgingContent,
+  type PieceStyle,
   type RatingTier,
+  type SailingContent,
   type World,
 } from "./schema.js";
 
 export * from "./schema.js";
 
+/** Content for every duty puzzle, keyed by puzzle id. */
+export interface PuzzleContent {
+  readonly bilging: BilgingContent;
+  readonly sailing: SailingContent;
+}
+export type PuzzleContentId = keyof PuzzleContent;
+
 export interface Content {
   readonly world: World;
-  readonly puzzles: { readonly bilging: BilgingContent };
+  readonly puzzles: PuzzleContent;
   readonly ratingTiers: readonly RatingTier[];
   readonly names: z.infer<typeof NamesSchema>;
   readonly messages: Readonly<Record<string, string>>;
@@ -49,13 +60,16 @@ export function loadContent(): Content {
     shipClasses,
     shipGrants,
   });
-  const bilgingContent = parse("puzzles/bilging", BilgingContentSchema, bilging);
+  const puzzles: PuzzleContent = {
+    bilging: parse("puzzles/bilging", BilgingContentSchema, bilging),
+    sailing: parse("puzzles/sailing", SailingContentSchema, sailing),
+  };
   const tiers = parse("rating-tiers", z.array(RatingTierSchema).min(1), ratingTiers);
   const nameLists = parse("names", NamesSchema, names);
   const messages = parse("messages/en", MessagesSchema, en);
 
-  crossCheck(world, bilgingContent, tiers, messages);
-  return { world, puzzles: { bilging: bilgingContent }, ratingTiers: tiers, names: nameLists, messages };
+  crossCheck(world, puzzles, tiers, messages);
+  return { world, puzzles, ratingTiers: tiers, names: nameLists, messages };
 }
 
 function parse<T>(file: string, schema: z.ZodType<T>, data: unknown): T {
@@ -64,7 +78,7 @@ function parse<T>(file: string, schema: z.ZodType<T>, data: unknown): T {
   return r.data;
 }
 
-function crossCheck(world: World, bilgingContent: BilgingContent, tiers: RatingTier[], messages: Record<string, string>): void {
+function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], messages: Record<string, string>): void {
   const problems: string[] = [];
   const need = (key: string, where: string): void => {
     if (!(key in messages)) problems.push(`${where}: missing message key "${key}"`);
@@ -97,28 +111,38 @@ function crossCheck(world: World, bilgingContent: BilgingContent, tiers: RatingT
   for (let i = 1; i < tiers.length; i++) {
     if (tiers[i]!.min <= tiers[i - 1]!.min) problems.push("rating-tiers: tiers must be in ascending order");
   }
-  if (bilgingContent.pieces.length < bilgingContent.config.pieceKinds) {
-    problems.push(`puzzles/bilging: ${bilgingContent.config.pieceKinds} kinds but only ${bilgingContent.pieces.length} piece definitions`);
+  for (const id of Object.keys(puzzles) as PuzzleContentId[]) {
+    const p = puzzles[id];
+    const where = `puzzles/${id}`;
+    checkPieces(where, p.pieces, p.config.pieceKinds, messages, problems);
+    for (let i = 1; i < p.thresholds.length; i++) {
+      const a = p.thresholds[i - 1]!;
+      const b = p.thresholds[i]!;
+      if (b.score <= a.score || b.rating <= a.rating) problems.push(`${where}: thresholds must ascend in score and rating`);
+    }
+    need(`home.practice_${id}`, where);
+    need(`home.practice_${id}_blurb`, where);
   }
+  for (const s of Object.values(puzzles.bilging.specials)) need(s.nameKey, "bilging special");
+  if (puzzles.sailing.config.platformSpanMax > puzzles.sailing.config.width) problems.push("puzzles/sailing: platform span exceeds the board width");
+  if (problems.length) throw new ContentError(problems.join("\n"));
+}
+
+/** Every kind must differ by mark, color, and texture so pieces stay apart without color (rule 6). */
+function checkPieces(where: string, pieces: ReadonlyArray<Pick<PieceStyle, "nameKey" | "mark" | "color"> & { texture: string }>, kinds: number, messages: Record<string, string>, problems: string[]): void {
+  if (pieces.length < kinds) problems.push(`${where}: ${kinds} kinds but only ${pieces.length} piece definitions`);
   const marks = new Set<string>();
   const colors = new Set<string>();
   const textures = new Set<string>();
-  for (const p of bilgingContent.pieces) {
-    need(p.nameKey, "bilging piece");
-    if (marks.has(p.mark)) problems.push(`puzzles/bilging: mark "${p.mark}" used twice; every kind must differ by mark (rule 6)`);
-    if (colors.has(p.color)) problems.push(`puzzles/bilging: color "${p.color}" used twice`);
-    if (textures.has(p.texture)) problems.push(`puzzles/bilging: texture "${p.texture}" used twice; every kind must differ by texture`);
+  for (const p of pieces) {
+    if (!(p.nameKey in messages)) problems.push(`${where}: missing message key "${p.nameKey}"`);
+    if (marks.has(p.mark)) problems.push(`${where}: mark "${p.mark}" used twice; every kind must differ by mark (rule 6)`);
+    if (colors.has(p.color)) problems.push(`${where}: color "${p.color}" used twice`);
+    if (textures.has(p.texture)) problems.push(`${where}: texture "${p.texture}" used twice; every kind must differ by texture`);
     marks.add(p.mark);
     colors.add(p.color);
     textures.add(p.texture);
   }
-  for (const s of Object.values(bilgingContent.specials)) need(s.nameKey, "bilging special");
-  for (let i = 1; i < bilgingContent.thresholds.length; i++) {
-    const a = bilgingContent.thresholds[i - 1]!;
-    const b = bilgingContent.thresholds[i]!;
-    if (b.score <= a.score || b.rating <= a.rating) problems.push("puzzles/bilging: thresholds must ascend in score and rating");
-  }
-  if (problems.length) throw new ContentError(problems.join("\n"));
 }
 
 /** Look up a player-facing string. Unknown keys return the key itself so a miss is visible, never silent. */

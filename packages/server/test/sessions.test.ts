@@ -1,25 +1,32 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_BILGING_CONFIG,
+  DEFAULT_SAILING_CONFIG,
+  PUZZLE_IDS,
+  PUZZLES,
   createBilgingGame,
   hashBilgingState,
   reduceBilging,
   swapIllegalReason,
+  type BilgingConfig,
   type BilgingMove,
   type BilgingState,
 } from "@openseas/engine";
-import { PuzzleSessionManager } from "../src/puzzles/sessions.js";
+import { PuzzleSessionManager, type SessionManagerOptions } from "../src/puzzles/sessions.js";
 
-function manager(now: { t: number }, overrides: Partial<ConstructorParameters<typeof PuzzleSessionManager>[0]> = {}) {
+function manager(now: { t: number }, overrides: Partial<SessionManagerOptions> & { bilging?: Partial<BilgingConfig> } = {}) {
   let n = 0;
+  const { bilging, ...rest } = overrides;
   return new PuzzleSessionManager({
     graceMs: 1000,
-    roundMs: 60_000,
-    config: DEFAULT_BILGING_CONFIG,
+    puzzles: {
+      bilging: { roundMs: 60_000, config: { ...DEFAULT_BILGING_CONFIG, ...bilging } },
+      sailing: { roundMs: 60_000, config: DEFAULT_SAILING_CONFIG },
+    },
     now: () => now.t,
     randomSeed: () => `seed-${n++}`,
     randomId: () => `session-${n++}`,
-    ...overrides,
+    ...rest,
   });
 }
 
@@ -38,7 +45,7 @@ describe("PuzzleSessionManager", () => {
     const m = manager(now);
     const s = m.start("p1", "bilging");
     // The client mirrors the engine from the seed the server issued.
-    let client = createBilgingGame(s.seed, s.config);
+    let client = createBilgingGame(s.seed, s.config as BilgingConfig);
     for (let i = 0; i < 10; i++) {
       const move = firstLegal(client);
       client = reduceBilging(client, move);
@@ -58,7 +65,7 @@ describe("PuzzleSessionManager", () => {
     const now = { t: 0 };
     const m = manager(now);
     const s = m.start("p1", "bilging");
-    const client = createBilgingGame(s.seed, s.config);
+    const client = createBilgingGame(s.seed, s.config as BilgingConfig);
     const move = firstLegal(client);
     const r = m.move(s, 0, move, "00000000");
     expect(r).toEqual({ ok: false, reason: "divergence", atSeq: 0 });
@@ -77,7 +84,7 @@ describe("PuzzleSessionManager", () => {
     const now = { t: 0 };
     const m = manager(now);
     const s = m.start("p1", "bilging");
-    const client = createBilgingGame(s.seed, s.config);
+    const client = createBilgingGame(s.seed, s.config as BilgingConfig);
     const move = firstLegal(client);
     expect(m.move(s, 1, move, hashBilgingState(reduceBilging(client, move)))).toMatchObject({ ok: false, reason: "bad_sequence" });
   });
@@ -93,7 +100,7 @@ describe("PuzzleSessionManager", () => {
     const now = { t: 0 };
     const m = manager(now);
     const s = m.start("p1", "bilging");
-    const client = createBilgingGame(s.seed, s.config);
+    const client = createBilgingGame(s.seed, s.config as BilgingConfig);
     const move = firstLegal(client);
     now.t = 60_000 + 500; // inside grace
     expect(m.move(s, 0, move, hashBilgingState(reduceBilging(client, move)))).toEqual({ ok: true, seq: 0 });
@@ -103,11 +110,26 @@ describe("PuzzleSessionManager", () => {
     expect(m.move(s, 1, next, "00000000")).toMatchObject({ ok: false, reason: "deadline" });
   });
 
+  it("drives every registered engine through an honest round", () => {
+    for (const id of PUZZLE_IDS) {
+      const now = { t: 0 };
+      const m = manager(now);
+      const s = m.start("p1", id);
+      const def = PUZZLES[id];
+      // A client that only ever sends "end" is honest, if dull: every engine accepts it.
+      const client = def.reduce(def.create(s.seed, s.config), { type: "end" });
+      expect(m.move(s, 0, { type: "end" }, def.hash(client))).toEqual({ ok: true, seq: 0 });
+      const r = m.finish(s, def.hash(client));
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.summary).toEqual({ score: 0, moves: 0, bestCombo: 0 });
+    }
+  });
+
   it("caps the move count at the configured maximum", () => {
     const now = { t: 0 };
-    const m = manager(now, { config: { ...DEFAULT_BILGING_CONFIG, maxMoves: 2 } });
+    const m = manager(now, { bilging: { maxMoves: 2 } });
     const s = m.start("p1", "bilging");
-    let client = createBilgingGame(s.seed, s.config);
+    let client = createBilgingGame(s.seed, s.config as BilgingConfig);
     for (let i = 0; i < 2; i++) {
       const move = firstLegal(client);
       client = reduceBilging(client, move);

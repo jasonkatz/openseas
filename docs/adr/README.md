@@ -20,3 +20,4 @@ that supersedes it.
 | [0012](./0012-source-exports-tsx-runtime.md) | Workspace packages export TypeScript source; the server runs on tsx |
 | [0013](./0013-cd-platform-git-integrations.md) | Continuous deployment through the hosts' Git integrations, verified from CI |
 | [0014](./0014-cd-pipeline-in-actions.md) | One Actions pipeline deploys Railway, then Vercel |
+| [0015](./0015-puzzle-registry.md) | One puzzle registry drives every engine; timed engines carry their clock in the move log |
