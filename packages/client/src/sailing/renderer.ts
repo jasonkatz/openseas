@@ -443,13 +443,6 @@ export class SailingRenderer {
     }
   }
 
-  private hardDrop(): void {
-    const f = this.falling;
-    if (!f || !this.interactive || !this.state) return;
-    f.row = sailingLandingRow(this.state, f.col, Math.ceil(f.row), f.rot);
-    this.commit();
-  }
-
   private commit(): void {
     const f = this.falling;
     if (!f || !this.state) return;
@@ -863,14 +856,15 @@ export class SailingRenderer {
     this.softDrop = false;
   }
 
-  /** Keyboard: arrows steer, up turns, down hurries while held, space or enter drops. */
+  /** Keyboard: arrows steer, up turns, down or space hurries while held. */
   keyboard(key: string, down: boolean): boolean {
-    if (key === "ArrowDown" && !down) {
+    const hurry = key === "ArrowDown" || key === " ";
+    if (hurry && !down) {
       this.softDrop = false;
       return true;
     }
     if (!this.interactive) return false;
-    if (key === "ArrowDown") {
+    if (hurry) {
       this.softDrop = true;
       return true;
     }
@@ -886,10 +880,6 @@ export class SailingRenderer {
       case "x":
       case "X":
         this.tryRotate();
-        return true;
-      case " ":
-      case "Enter":
-        this.hardDrop();
         return true;
       default:
         return false;

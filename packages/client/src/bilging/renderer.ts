@@ -1132,7 +1132,7 @@ export class BilgingRenderer {
     }
   }
 
-  // ---- input: tap-then-tap, drag-swap, hold-to-preview, hover-to-preview
+  // ---- input: click-to-swap, tap-then-tap, drag-swap, hold-to-preview, hover-to-preview
 
   /** Every swap the player asks for passes here; an underwater swap still settling refuses it. */
   private requestSwap(col: number, row: number): void {
@@ -1192,6 +1192,15 @@ export class BilgingRenderer {
     const cell = this.cellAt(e.global.x, e.global.y);
     if (!start || !cell || cell.col !== start.col || cell.row !== start.row) {
       this.hoverEnd();
+      return;
+    }
+    // A mouse click swaps the hovered pair outright; touch keeps tap-then-tap.
+    if (e.pointerType === "mouse") {
+      this.selected = null;
+      this.cursor = null;
+      const col = Math.min(cell.col, this.width - 2);
+      this.hoverPair = { col, row: cell.row };
+      this.requestSwap(col, cell.row);
       return;
     }
     // Tap.
