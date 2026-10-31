@@ -11,6 +11,7 @@ import {
   sailingLandingRow,
   sailingPairCells,
   sailingRestingPlacements,
+  sailingShelfMask,
   sailingSpawnFree,
   type Platform,
   type Rotation,
@@ -44,8 +45,11 @@ const picksArb = fc.array(fc.nat({ max: 10_000 }), { minLength: 0, maxLength: 70
 /** Every segment must rest on something: the floor, a shelf, another segment, or its linked half. */
 function expectSettled(state: SailingState): void {
   const { width, height } = state.config;
+  const mask = sailingShelfMask(state.config, state.platforms);
   const shelf = new Set<number>();
-  for (const p of state.platforms) for (let i = 0; i < p.span; i++) shelf.add(sailingIdx(state.config, p.col + i, p.row));
+  mask.forEach((v, i) => {
+    if (v) shelf.add(i);
+  });
   for (let i = 0; i < state.cells.length; i++) {
     const s = state.cells[i];
     if (!s) continue;
@@ -73,21 +77,29 @@ describe("sailing board", () => {
         expect(s.platforms.length).toBeGreaterThanOrEqual(cfg.platformsAtOnce - 2);
         expect(s.platforms.length).toBeLessThanOrEqual(cfg.platformsAtOnce);
         for (const p of s.platforms) {
-          expect(p.targets.some((t) => t !== null)).toBe(true);
-          expect(p.col + p.span).toBeLessThanOrEqual(cfg.width);
-          expect(p.row).toBeGreaterThanOrEqual(2);
+          expect(p.cells.some((c) => c.want !== null)).toBe(true);
+          for (const c of p.cells) {
+            expect(c.col).toBeGreaterThanOrEqual(0);
+            expect(c.col).toBeLessThan(cfg.width);
+            expect(c.row).toBeGreaterThanOrEqual(2);
+            expect(c.row).toBeLessThanOrEqual(cfg.height - 4);
+          }
         }
         expect(s.finished).toBe(false);
       }),
     );
   });
 
-  it("platforms never share or neighbour a row", () => {
+  it("platforms never touch, not even at a corner", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const { state } = playRandom(seed, picks);
-        const rows = state.platforms.map((p) => p.row).sort((a, b) => a - b);
-        for (let i = 1; i < rows.length; i++) expect(rows[i]! - rows[i - 1]!).toBeGreaterThan(1);
+        const ps = state.platforms;
+        for (let i = 0; i < ps.length; i++) {
+          for (let j = i + 1; j < ps.length; j++) {
+            for (const a of ps[i]!.cells) for (const b of ps[j]!.cells) expect(Math.abs(a.col - b.col) > 1 || Math.abs(a.row - b.row) > 1).toBe(true);
+          }
+        }
       }),
       { numRuns: 100 },
     );
@@ -174,7 +186,7 @@ describe("sailing rules", () => {
           }
         }
         for (const p of state.platforms) {
-          const satisfied = p.targets.every((t, i) => t === null || kind(p.col + i, p.row) === t);
+          const satisfied = p.cells.every((c) => c.want === null || kind(c.col, c.row) === c.want);
           expect(satisfied).toBe(false);
         }
       }),
@@ -205,7 +217,7 @@ describe("sailing rules", () => {
 
   it("a pair can be steered under a platform", () => {
     const base = createSailingGame("tuck");
-    const platform: Platform = { id: 5, row: 10, col: 4, span: 3, targets: [0, null, 1] };
+    const platform: Platform = { id: 5, cells: [{ col: 4, row: 10, want: 0 }, { col: 5, row: 10, want: null }, { col: 6, row: 10, want: 1 }] };
     const state: SailingState = { ...base, platforms: [platform] };
     const rests = legalMoves(state);
     // The floor cells directly beneath the platform are reachable by falling beside it and sliding in.
@@ -223,7 +235,7 @@ describe("sailing rules", () => {
   it("a satisfied platform clears its targets and scores platformPoints per target", () => {
     // Build a state by hand: one platform of span 2 with two targets of kind 0 on row 2.
     const base = createSailingGame("by-hand");
-    const platform: Platform = { id: 99, row: 2, col: 1, span: 2, targets: [0, 0] };
+    const platform: Platform = { id: 99, cells: [{ col: 1, row: 2, want: 0 }, { col: 2, row: 2, want: 0 }] };
     const state: SailingState = { ...base, platforms: [platform], current: { a: 0, b: 0 }, next: { a: 1, b: 2 } };
     const next = reduceSailing(state, { type: "place", col: 1, row: 2, rot: 0 });
     expect(next.lastMove?.rounds.length).toBe(1);
@@ -238,12 +250,24 @@ describe("sailing rules", () => {
 
   it("a platform is a shelf: segments rest in it instead of falling through", () => {
     const base = createSailingGame("shelf");
-    const platform: Platform = { id: 7, row: 4, col: 2, span: 2, targets: [1, null] };
+    const platform: Platform = { id: 7, cells: [{ col: 2, row: 4, want: 1 }, { col: 3, row: 4, want: null }] };
     const state: SailingState = { ...base, platforms: [platform], current: { a: 0, b: 0 } };
     const next = reduceSailing(state, { type: "place", col: 2, row: 4, rot: 0 });
     expect(next.lastMove?.landed?.cells).toEqual([sailingIdx(cfg, 2, 4), sailingIdx(cfg, 3, 4)]);
     // Falling through the shelf is not a legal rest.
     expect(() => reduceSailing(state, { type: "place", col: 2, row: 3, rot: 0 })).toThrow(InvalidMoveError);
+  });
+
+  it("a stack has its shelf under its bottom cell only, so it fills from the top by falling in", () => {
+    const base = createSailingGame("stack-shape");
+    const platform: Platform = { id: 99, cells: [{ col: 3, row: 5, want: 0 }, { col: 3, row: 6, want: 1 }, { col: 3, row: 7, want: null }] };
+    const state: SailingState = { ...base, platforms: [platform], current: { a: 0, b: 1 } };
+    // A vertical pair dropped down column 3 passes the upper cells and rests on the shelf under row 5.
+    expect(sailingLandingRow(state, 3, state.config.height - 1, 1)).toBe(6);
+    const next = reduceSailing(state, { type: "place", col: 3, row: 6, rot: 1 });
+    // Both targets satisfied at once: the stack clears.
+    expect(next.lastMove?.rounds[0]?.groups[0]?.cause).toBe("platform");
+    expect(next.platforms.find((p) => p.id === 99)).toBeUndefined();
   });
 
   it("four in a row clears and cascades multiply by chain", () => {

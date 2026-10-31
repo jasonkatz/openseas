@@ -19,6 +19,7 @@ export interface SailingConfig {
   readonly pieceKinds: number;
   /** Platforms on the board at once. */
   readonly platformsAtOnce: number;
+  /** Shortest and longest horizontal bar; stacks, L shapes and squares are dealt alongside bars. */
   readonly platformSpanMin: number;
   readonly platformSpanMax: number;
   /** Points per target when a platform clears. */
@@ -52,13 +53,21 @@ export interface Segment {
   readonly pair: number;
 }
 
+export interface PlatformCell {
+  readonly col: number;
+  readonly row: number;
+  /** The kind this cell wants, or null for a blank cell that holds anything. */
+  readonly want: number | null;
+}
+
+/**
+ * A platform is a connected shape of cells: a bar, a stack, an L or a square. A cell with no cell
+ * of the same platform directly beneath it has a shelf under it, so discs rest in it; cells above
+ * fill by falling in on top. Discs may slide into any platform cell from the side.
+ */
 export interface Platform {
   readonly id: number;
-  readonly row: number;
-  readonly col: number;
-  readonly span: number;
-  /** One entry per cell left to right: the color the cell wants, or null for a blank shelf cell. */
-  readonly targets: ReadonlyArray<number | null>;
+  readonly cells: readonly PlatformCell[];
 }
 
 /** The kinds of the two halves of a falling pair. */

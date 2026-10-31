@@ -6,6 +6,7 @@ import {
   sailingIdx,
   sailingLandingRow,
   sailingPairCells,
+  sailingShelfMask,
   sailingSpawnPosition,
   type Platform,
   type Rotation,
@@ -508,29 +509,55 @@ export class SailingRenderer {
     this.staticLayer.updateCacheTexture();
   }
 
-  /** Platforms: a plank shelf across the span, outlined target cells in their color, blank cells hatched. */
+  /**
+   * Platforms: one continuous outlined shape per platform, a plank under every cell that has a
+   * shelf, round target outlines in their color and a faint ring for blank cells. Circles sit at
+   * the exact cell centre so the ghost and the landed disc line up with them.
+   */
   private drawPlatforms(): void {
     const g = this.platformLayer;
     g.clear();
     const s = this.cell;
+    if (!this.state) return;
+    const shelf = sailingShelfMask(this.state.config, this.platforms);
     for (const p of this.platforms) {
-      const x0 = p.col * s;
-      const yTop = (this.height - p.row - 1) * s;
-      const W = p.span * s;
-      g.roundRect(x0 + 2, yTop + s - s * 0.16, W - 4, s * 0.2, 3).fill({ color: COLORS.plankDark });
-      g.roundRect(x0 + 2, yTop + s - s * 0.2, W - 4, s * 0.16, 3).fill({ color: COLORS.plank });
-      for (let i = 0; i < p.span; i++) {
-        const x = x0 + i * s;
-        const want = p.targets[i];
-        const inset = s * 0.1;
-        if (want === null || want === undefined) {
-          g.circle(x + s / 2, yTop + s / 2 - s * 0.05, s * 0.3).stroke({ width: 1, color: COLORS.rope, alpha: 0.28 });
+      const has = (col: number, row: number): boolean => p.cells.some((c) => c.col === col && c.row === row);
+      // Body: the union of the cells.
+      for (const c of p.cells) {
+        const x = c.col * s;
+        const y = (this.height - c.row - 1) * s;
+        g.rect(x, y, s, s).fill({ color: COLORS.plank, alpha: 0.1 });
+      }
+      // Outline: every cell edge that faces outside the shape.
+      for (const c of p.cells) {
+        const x = c.col * s;
+        const y = (this.height - c.row - 1) * s;
+        if (!has(c.col, c.row + 1)) g.moveTo(x, y).lineTo(x + s, y);
+        if (!has(c.col, c.row - 1)) g.moveTo(x, y + s).lineTo(x + s, y + s);
+        if (!has(c.col - 1, c.row)) g.moveTo(x, y).lineTo(x, y + s);
+        if (!has(c.col + 1, c.row)) g.moveTo(x + s, y).lineTo(x + s, y + s);
+      }
+      g.stroke({ width: Math.max(1.5, s * 0.05), color: COLORS.rope, alpha: 0.5 });
+      // Planks under the shelf cells.
+      for (const c of p.cells) {
+        if (!shelf[sailingIdx(this.state.config, c.col, c.row)]) continue;
+        const x = c.col * s;
+        const y = (this.height - c.row - 1) * s;
+        g.roundRect(x + 1, y + s - s * 0.14, s - 2, s * 0.16, 3).fill({ color: COLORS.plankDark });
+        g.roundRect(x + 1, y + s - s * 0.17, s - 2, s * 0.12, 3).fill({ color: COLORS.plank });
+      }
+      // Targets.
+      for (const c of p.cells) {
+        const cx = this.cx(c.col);
+        const cy = this.cy(c.row);
+        if (c.want === null) {
+          g.circle(cx, cy, s * 0.3).stroke({ width: 1, color: COLORS.rope, alpha: 0.3 });
           continue;
         }
-        const color = this.colorByKind.get(want) ?? 0xffffff;
-        g.circle(x + s / 2, yTop + s / 2 - s * 0.05, s * 0.36).fill({ color, alpha: 0.16 });
-        g.circle(x + s / 2, yTop + s / 2 - s * 0.05, s * 0.36).stroke({ width: 2, color, alpha: 0.85 });
-        drawMark(g, x + s / 2, yTop + s / 2 - s * 0.05, s * 0.18, this.markByKind.get(want) ?? "circle", color);
+        const color = this.colorByKind.get(c.want) ?? 0xffffff;
+        g.circle(cx, cy, s * 0.4).fill({ color, alpha: 0.16 });
+        g.circle(cx, cy, s * 0.4).stroke({ width: 2, color, alpha: 0.85 });
+        drawMark(g, cx, cy, s * 0.18, this.markByKind.get(c.want) ?? "circle", color);
       }
     }
   }

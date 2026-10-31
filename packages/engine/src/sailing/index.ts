@@ -14,6 +14,7 @@ export {
   fits as sailingFits,
   canDrop as sailingCanDrop,
   landingRow as sailingLandingRow,
+  shelfMask as sailingShelfMask,
   ROTATION_KICKS as SAILING_ROTATION_KICKS,
   idx as sailingIdx,
   validateConfig as validateSailingConfig,

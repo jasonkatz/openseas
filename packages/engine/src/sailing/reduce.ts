@@ -4,6 +4,7 @@ import { nextInt, seedFromString, type PrngState } from "../prng.js";
 import {
   DEFAULT_SAILING_CONFIG,
   type Platform,
+  type PlatformCell,
   type Rotation,
   type SailingClearRound,
   type SailingClearedGroup,
@@ -235,8 +236,8 @@ export function hashSailingState(state: SailingState): string {
     else h.int(s.id).int(s.kind).int(s.pair);
   }
   for (const p of state.platforms) {
-    h.int(p.id).int(p.row).int(p.col).int(p.span);
-    for (const t of p.targets) h.int(t === null ? -1 : t);
+    h.int(p.id).int(p.cells.length);
+    for (const c of p.cells) h.int(c.col).int(c.row).int(c.want === null ? -1 : c.want);
   }
   h.int(state.current.a).int(state.current.b).int(state.next.a).int(state.next.b);
   h.int(state.nextId).int(state.nextPair).int(state.nextPlatformId).int(state.moveCount).int(state.score).int(state.combo);
@@ -348,12 +349,18 @@ function applyPlace(state: SailingState, move: Extract<SailingMove, { type: "pla
   };
 }
 
-/** 1 for every cell that is part of a platform (a shelf under it). */
-function platformMask(cfg: SailingConfig, platforms: readonly Platform[]): Uint8Array {
+/** 1 for every platform cell with a shelf under it: one with no cell of the same platform directly beneath. */
+export function shelfMask(cfg: SailingConfig, platforms: readonly Platform[]): Uint8Array {
   const mask = new Uint8Array(cfg.width * cfg.height);
-  for (const p of platforms) for (let i = 0; i < p.span; i++) mask[idx(cfg, p.col + i, p.row)] = 1;
+  for (const p of platforms) {
+    for (const c of p.cells) {
+      const below = p.cells.some((o) => o.col === c.col && o.row === c.row - 1);
+      if (!below) mask[idx(cfg, c.col, c.row)] = 1;
+    }
+  }
   return mask;
 }
+const platformMask = shelfMask;
 
 /** A unit (one or two cells) can fall one row when none of its cells sits on a shelf and every cell below is free or its own. */
 function canFall(cfg: SailingConfig, cells: ReadonlyArray<Segment | null>, shelf: Uint8Array, unit: readonly number[]): boolean {
@@ -440,11 +447,10 @@ function findClears(cfg: SailingConfig, cells: ReadonlyArray<Segment | null>, pl
   for (const p of platforms) {
     const targetCells: number[] = [];
     let satisfied = true;
-    for (let i = 0; i < p.span; i++) {
-      const want = p.targets[i];
-      if (want === null || want === undefined) continue;
-      const c = idx(cfg, p.col + i, p.row);
-      if (cells[c]?.kind !== want) {
+    for (const cell of p.cells) {
+      if (cell.want === null) continue;
+      const c = idx(cfg, cell.col, cell.row);
+      if (cells[c]?.kind !== cell.want) {
         satisfied = false;
         break;
       }
@@ -457,10 +463,36 @@ function findClears(cfg: SailingConfig, cells: ReadonlyArray<Segment | null>, pl
   return groups;
 }
 
+/** Shapes a platform can take, as cells relative to a bottom-left origin (row up). Bars come from config. */
+const FIXED_SHAPES: ReadonlyArray<ReadonlyArray<readonly [number, number]>> = [
+  [[0, 0], [0, 1]], // stack of two
+  [[0, 0], [0, 1], [0, 2]], // stack of three
+  [[0, 0], [1, 0], [0, 1]], // L, corner bottom left
+  [[0, 0], [1, 0], [1, 1]], // L, corner bottom right
+  [[0, 0], [0, 1], [1, 1]], // L, corner top left
+  [[1, 0], [0, 1], [1, 1]], // L, corner top right
+  [[0, 0], [1, 0], [0, 1], [1, 1]], // square
+];
+
+function platformShapes(cfg: SailingConfig): ReadonlyArray<ReadonlyArray<readonly [number, number]>> {
+  const bars: Array<ReadonlyArray<readonly [number, number]>> = [];
+  for (let span = cfg.platformSpanMin; span <= cfg.platformSpanMax; span++) {
+    bars.push(Array.from({ length: span }, (_, i) => [i, 0] as const));
+  }
+  return [...bars, ...FIXED_SHAPES];
+}
+
+/** Two platforms must not touch, not even at a corner, so each shape reads on its own. */
+function touches(a: readonly PlatformCell[], b: readonly PlatformCell[]): boolean {
+  for (const x of a) for (const y of b) if (Math.abs(x.col - y.col) <= 1 && Math.abs(x.row - y.row) <= 1) return true;
+  return false;
+}
+
 /**
- * Bring the platform count back up to `platformsAtOnce`. A platform needs its span and the cells
- * above it empty, rows 2..height-4, and a row's gap from every other platform. When nothing fits
- * the spawn is retried after the next move.
+ * Bring the platform count back up to `platformsAtOnce`. A shape is dealt where every cell and the
+ * cell above each of its top cells are empty, rows 2..height-4, clear of every other platform.
+ * Each cell wants a kind two times in three, else it is blank; at least one cell wants something.
+ * When nothing fits the deal is retried after the next move.
  */
 function spawnPlatforms(
   cfg: SailingConfig,
@@ -470,43 +502,49 @@ function spawnPlatforms(
   nextPlatformId: number,
 ): { platforms: Platform[]; rng: PrngState; nextPlatformId: number } {
   const out = platforms.slice();
+  const shapes = platformShapes(cfg);
   while (out.length < cfg.platformsAtOnce) {
-    const spanRoll = nextInt(rng, cfg.platformSpanMax - cfg.platformSpanMin + 1);
-    rng = spanRoll.state;
-    const span = cfg.platformSpanMin + spanRoll.value;
+    const shapeRoll = nextInt(rng, shapes.length);
+    rng = shapeRoll.state;
+    const shape = shapes[shapeRoll.value]!;
+    const w = Math.max(...shape.map(([c]) => c)) + 1;
+    const h = Math.max(...shape.map(([, r]) => r)) + 1;
     const spots: Array<{ row: number; col: number }> = [];
-    for (let row = 2; row <= cfg.height - 4; row++) {
-      if (out.some((p) => Math.abs(p.row - row) <= 1)) continue;
-      for (let col = 0; col + span <= cfg.width; col++) {
+    for (let row = 2; row + h - 1 <= cfg.height - 4; row++) {
+      for (let col = 0; col + w <= cfg.width; col++) {
+        const placed: PlatformCell[] = shape.map(([dc, dr]) => ({ col: col + dc, row: row + dr, want: null }));
         let free = true;
-        for (let i = 0; i < span && free; i++) {
-          if (cells[idx(cfg, col + i, row)] !== null || cells[idx(cfg, col + i, row + 1)] !== null) free = false;
+        for (const c of placed) {
+          if (cells[idx(cfg, c.col, c.row)] !== null) free = false;
+          const topOfColumn = !placed.some((o) => o.col === c.col && o.row === c.row + 1);
+          if (topOfColumn && c.row + 1 < cfg.height && cells[idx(cfg, c.col, c.row + 1)] !== null) free = false;
+          if (!free) break;
         }
-        if (free) spots.push({ row, col });
+        if (free && out.every((p) => !touches(p.cells, placed))) spots.push({ row, col });
       }
     }
     if (spots.length === 0) break;
     const pick = nextInt(rng, spots.length);
     rng = pick.state;
     const spot = spots[pick.value]!;
-    const targets: Array<number | null> = [];
-    for (let i = 0; i < span; i++) {
+    const dealt: PlatformCell[] = [];
+    for (const [dc, dr] of shape) {
       const blank = nextInt(rng, 3);
       rng = blank.state;
-      if (blank.value === 0 && span > 1) {
-        targets.push(null);
-        continue;
+      let want: number | null = null;
+      if (blank.value !== 0 || shape.length === 1) {
+        const kind = nextInt(rng, cfg.pieceKinds);
+        rng = kind.state;
+        want = kind.value;
       }
+      dealt.push({ col: spot.col + dc, row: spot.row + dr, want });
+    }
+    if (!dealt.some((c) => c.want !== null)) {
       const kind = nextInt(rng, cfg.pieceKinds);
       rng = kind.state;
-      targets.push(kind.value);
+      dealt[0] = { ...dealt[0]!, want: kind.value };
     }
-    if (!targets.some((t) => t !== null)) {
-      const kind = nextInt(rng, cfg.pieceKinds);
-      rng = kind.state;
-      targets[0] = kind.value;
-    }
-    out.push({ id: nextPlatformId++, row: spot.row, col: spot.col, span, targets });
+    out.push({ id: nextPlatformId++, cells: dealt });
   }
   return { platforms: out, rng, nextPlatformId };
 }

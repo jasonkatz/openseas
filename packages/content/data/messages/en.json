@@ -173,5 +173,5 @@
   "sailing.piece.sea": "Sea",
   "sailing.piece.salt": "Salt",
   "sailing.wipe_label": "Rigging fouled! -{points}",
-  "sailing.legend_platform": "A platform. Fill each outlined cell with its color to clear it; blank cells hold anything."
+  "sailing.legend_platform": "A platform: a bar, a stack, an L or a square. Fill each outlined cell with its color to clear it; blank cells hold anything. Discs rest on the planks and slide in from the side."
 }
