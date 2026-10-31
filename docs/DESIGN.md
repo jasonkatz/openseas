@@ -231,6 +231,23 @@ and a shake, fouling puffs smoke. Numbers and the deck live in `content/data/puz
 **Navigation.** Arrange and shift pieces to reproduce a target constellation. Completed patterns
 grant token bonuses and sea battle advantages. QoL: target overlay toggle, progress meter.
 
+As built (M2): a round chart of three rings and eight octants. Stars come in three shapes (spark,
+star, comet) and three colors, so shape alone tells kinds apart; marks add the color's symbol. The
+constellation is a set of hollow markers fixed to the chart, each wanting a kind in a slot. Stars
+arrive one at a time at an octant the deal chooses; the navigator turns any ring a step either way
+(stars ride with their ring, markers stay put) and then lets the star fall to the innermost empty
+slot of its octant. A marker is filled while a matching star sits on it, and a turn can fill one as
+well as a drop. When every marker is filled the constellation is charted: those stars go, points
+are `n * n * starPoints` times the chain of constellations charted without a booch, plus an
+efficiency bonus when it took at most `2n` drops, and a new constellation is dealt, larger as the
+round goes on and drawing half its kinds from stars already on the chart so strays stay useful.
+Dropping into a full octant is a booch: that octant is swept clear, `boochPenalty` is lost and the
+chain breaks. Turns are logged but free; the round ends after `maxDrops` drops or the clock. Touch
+drags or taps a ring to turn it and taps the star or the center to drop; keyboard picks a ring
+with up and down, turns with left and right, drops with enter. A toggle hides the markers for
+players who want to chart from memory; a meter shows filled markers. Numbers live in
+`content/data/puzzles/navigation.json`.
+
 **Sea Battle.** Square grid with rocks and wind arrows. Per-turn move token pool from Sailing
 (left, forward, right). Up to four moves queued per turn. Simultaneous resolution with collision
 and wind rules. Cannon fire placed left or right per move segment. Damage from hits. The captain
@@ -447,3 +464,6 @@ Maintained as they arise.
 | Gunnery arrows | Limited | No limit, one per plank | Playtest: the cap made routing around the crates a chore; the move log is still bounded by `maxMoves` |
 | Gunnery time | Continuous rolling | One cell per tick of `tickMs`, carried in the move log | Pure engine; the client interpolates between ticks (ADR 0015) |
 | Gunnery water | Cleans fired or misloaded cannons | Cleans a fouled cannon; splashes harmlessly in a clean one | Firing no longer fouls, so water is only for fouls |
+| Navigation booch | Turns the ship around | Sweeps the full octant, costs `boochPenalty`, breaks the chain | No ship yet; the sweep keeps the chart playable |
+| Navigation constellations | Fixed progression | Size grows with completions; half the kinds are drawn from stars already on the chart | Keeps stray stars useful on a small chart |
+| Navigation scoring | Original's table | `n * n * starPoints`, times chain, plus an efficiency bonus within `2n` drops | Published formula, tuned in playtests |
