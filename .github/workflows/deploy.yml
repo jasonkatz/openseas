@@ -69,6 +69,7 @@ jobs:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE }}
       SERVER_URL: ${{ vars.PRODUCTION_SERVER_URL }}
+      CLIENT_URL: ${{ vars.PRODUCTION_CLIENT_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -94,6 +95,22 @@ jobs:
         run: |
           if [ -z "$SERVER_URL" ]; then exit 0; fi
           .github/scripts/wait-for-commit.sh "$SERVER_URL/health" "$SHA" 900
+      - name: Server accepts requests from the client origin
+        # The browser preflights every API call. If CLIENT_ORIGINS on the Railway service does not
+        # list the client's exact origin, the game is unusable even though both deploys are green.
+        run: |
+          if [ -z "$SERVER_URL" ] || [ -z "$CLIENT_URL" ]; then exit 0; fi
+          origin="${CLIENT_URL%/}"
+          allowed="$(curl -sS --max-time 15 -o /dev/null -D - -X OPTIONS \
+            -H "Origin: $origin" -H "Access-Control-Request-Method: GET" \
+            -H "Access-Control-Request-Headers: content-type" \
+            "$SERVER_URL/api/me" | tr -d '\r' | awk 'tolower($1)=="access-control-allow-origin:" {print $2}')"
+          if [ "$allowed" = "$origin" ]; then
+            echo "server allows $origin"
+          else
+            echo "::error::The server does not allow the client origin. Preflight from $origin returned Access-Control-Allow-Origin='${allowed:-<none>}'. Set CLIENT_ORIGINS on the Railway service to exactly $origin (comma-separate several) and deploy the change. See docs/DEPLOY.md step 1.4."
+            exit 1
+          fi
 
   client:
     name: Client to Vercel
