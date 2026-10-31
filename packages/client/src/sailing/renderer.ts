@@ -42,6 +42,8 @@ export interface SailingRendererOptions {
   platformLabel: string;
   /** Callout when the rigging is cleared for `points`. */
   wipeLabel(points: number): string;
+  /** Caption for the next-pair preview above the board. */
+  nextLabel: string;
 }
 
 interface PieceView {
@@ -92,6 +94,13 @@ export class SailingRenderer {
   private readonly pieceLayer = new Container();
   private readonly fallingLayer = new Container();
   private readonly fxLayer = new Container();
+  /** The next pair, previewed in a strip above the rigging so it is visible on every layout. */
+  private readonly nextLayer = new Container();
+  private readonly nextA = new Sprite(Texture.WHITE);
+  private readonly nextB = new Sprite(Texture.WHITE);
+  private readonly nextLink = new Graphics();
+  private nextText: Text | null = null;
+  private strip = 0;
   private readonly pieces = new Map<number, PieceView>();
   private readonly popups: Popup[] = [];
   private readonly textures = new Map<number, Texture>();
@@ -170,7 +179,12 @@ export class SailingRenderer {
     this.host.appendChild(this.app.canvas);
     this.staticLayer.addChild(this.frame, this.well);
     this.staticLayer.cacheAsTexture({ resolution: this.app.renderer.resolution, antialias: true });
-    this.board.addChild(this.staticLayer, this.platformLayer, this.ghost, this.linkLayer, this.pieceLayer, this.fallingLayer, this.fxLayer);
+    this.nextA.anchor.set(0.5);
+    this.nextB.anchor.set(0.5);
+    this.nextText = new Text({ text: this.opts.nextLabel, style: { fontFamily: "Atkinson Hyperlegible, Avenir Next, Segoe UI, sans-serif", fontSize: 11, fontWeight: "700", fill: 0xc9bb9a, letterSpacing: 2 } });
+    this.nextText.anchor.set(1, 0.5);
+    this.nextLayer.addChild(this.nextText, this.nextLink, this.nextA, this.nextB);
+    this.board.addChild(this.staticLayer, this.platformLayer, this.ghost, this.linkLayer, this.pieceLayer, this.fallingLayer, this.fxLayer, this.nextLayer);
     this.app.stage.addChild(this.board);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -215,6 +229,7 @@ export class SailingRenderer {
     this.state = state;
     this.framePending = true;
     this.viewStale = true;
+    this.updateNext();
     const report = state.lastMove;
     if (!prev || !report || report.move.type !== "place" || !report.landed) {
       this.finishSteps();
@@ -383,7 +398,19 @@ export class SailingRenderer {
     if (!f || !this.state) return false;
     const R = Math.ceil(f.row);
     if (!sailingFits(this.state, col, row, rot)) return false;
-    return f.row === R || sailingFits(this.state, col, row - 1, rot);
+    // Mid-fall, the row being entered must be free too, unless the pair would rest here anyway.
+    return f.row === R || !sailingCanDrop(this.state, col, row, rot) || sailingFits(this.state, col, row - 1, rot);
+  }
+
+  /** After a slide or turn mid-fall into a spot with a shelf or a stack under it, the pair sits up on it instead of sinking past. */
+  private settleIfResting(): void {
+    const f = this.falling;
+    if (!f || !this.state) return;
+    const R = Math.ceil(f.row);
+    if (f.row !== R && !sailingCanDrop(this.state, f.col, R, f.rot)) {
+      f.row = R;
+      f.lock = 0;
+    }
   }
 
   private tryMove(dcol: number): void {
@@ -393,6 +420,7 @@ export class SailingRenderer {
     if (!this.mayOccupy(f.col + dcol, R, f.rot)) return;
     f.col += dcol;
     f.lock = 0;
+    this.settleIfResting();
     this.cb.onNudge();
     this.positionFalling();
   }
@@ -408,6 +436,7 @@ export class SailingRenderer {
       f.col += kick;
       f.rot = rot;
       f.lock = 0;
+      this.settleIfResting();
       this.cb.onNudge();
       this.positionFalling();
       return;
@@ -444,14 +473,28 @@ export class SailingRenderer {
     const landRow = sailingLandingRow(this.state, f.col, R, f.rot);
     const land = sailingPairCells(this.state.config, f.col, landRow, f.rot);
     if (land) {
+      const wantAt = new Map<number, number | null>();
+      for (const p of this.platforms) for (const c of p.cells) wantAt.set(sailingIdx(this.state.config, c.col, c.row), c.want);
       for (const [c, kind] of [
         [land.a, this.state.current.a],
         [land.b, this.state.current.b],
       ] as const) {
         const x = this.cx(c % this.width);
         const y = this.cy(Math.floor(c / this.width));
-        g.circle(x, y, this.cell * 0.4).stroke({ width: 2, color: this.colorByKind.get(kind) ?? 0xffffff, alpha: 0.75 });
-        g.circle(x, y, this.cell * 0.4).fill({ color: this.colorByKind.get(kind) ?? 0xffffff, alpha: 0.12 });
+        const color = this.colorByKind.get(kind) ?? 0xffffff;
+        const s = this.cell;
+        if (wantAt.get(c) === kind) {
+          // The landing fills a target of its own kind: a soft glow around the target ring.
+          for (const [r, a] of [
+            [0.62, 0.1],
+            [0.55, 0.18],
+            [0.48, 0.3],
+          ] as const) g.circle(x, y, s * r).fill({ color, alpha: a });
+          g.circle(x, y, s * 0.47).stroke({ width: 2, color: mix(color, 0xffffff, 0.5), alpha: 0.9 });
+        } else {
+          // Plain landing: a thin outer ring, so a target ring underneath stays readable.
+          g.circle(x, y, s * 0.46).stroke({ width: 1.5, color, alpha: 0.6 });
+        }
       }
     }
   }
@@ -463,19 +506,48 @@ export class SailingRenderer {
     const w = this.app.screen.width;
     const h = this.app.screen.height;
     const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.15));
-    let cell = Math.floor(Math.min(w / this.width, h / this.height));
-    cell = Math.floor(Math.min((w - padFor(cell) * 2 - 2) / this.width, (h - padFor(cell) * 2 - 2) / this.height));
+    // One extra row's worth of height is kept above the board for the next-pair strip.
+    const rows = this.height + 1.2;
+    let cell = Math.floor(Math.min(w / this.width, h / rows));
+    cell = Math.floor(Math.min((w - padFor(cell) * 2 - 2) / this.width, (h - padFor(cell) * 2 - 2) / rows));
     this.cell = Math.max(12, cell);
     this.pad = padFor(this.cell);
+    this.strip = Math.round(this.cell * 1.2);
     this.ox = Math.floor((w - this.cell * this.width) / 2);
-    this.oy = Math.floor((h - this.cell * this.height) / 2);
+    this.oy = Math.floor((h - this.cell * this.height - this.strip) / 2) + this.strip;
     this.board.position.set(this.ox, this.oy);
     this.drawFrame();
     this.bake();
     this.drawPlatforms();
+    this.layoutNext();
     if (this.state) this.place(this.state.cells, true);
     this.positionFalling();
     this.steps = [];
+  }
+
+  /** The next-pair strip: caption on the left of two small discs in the top-right corner of the frame. */
+  private layoutNext(): void {
+    const s = this.cell;
+    const W = this.width * s;
+    const y = -this.strip / 2 - 1;
+    const scale = 0.72;
+    this.nextA.scale.set(scale);
+    this.nextB.scale.set(scale);
+    this.nextB.position.set(W - s * 0.55, y);
+    this.nextA.position.set(W - s * 0.55 - s * scale, y);
+    this.nextLink.clear();
+    const lw = s * 0.26;
+    this.nextLink.roundRect(this.nextA.x, y - lw / 2, this.nextB.x - this.nextA.x, lw, lw / 2).fill({ color: 0x1a2a44, alpha: 0.9 });
+    if (this.nextText) {
+      this.nextText.style.fontSize = Math.max(9, Math.round(s * 0.34));
+      this.nextText.position.set(this.nextA.x - s * scale * 0.6 - 4, y);
+    }
+  }
+
+  private updateNext(): void {
+    if (!this.state) return;
+    this.nextA.texture = this.textures.get(this.state.next.a) ?? Texture.WHITE;
+    this.nextB.texture = this.textures.get(this.state.next.b) ?? Texture.WHITE;
   }
 
   private drawFrame(): void {
@@ -484,9 +556,12 @@ export class SailingRenderer {
     const H = this.height * this.cell;
     const p = this.pad;
     g.clear();
-    g.roundRect(-p - 2, -p + 4, W + p * 2 + 4, H + p * 2, p + 6).fill({ color: 0x000000, alpha: 0.45 });
-    g.roundRect(-p, -p, W + p * 2, H + p * 2, p + 4).fill(this.woodFill);
-    g.roundRect(-p, -p, W + p * 2, H + p * 2, p + 4).stroke({ width: 1.5, color: 0x6b4a2e, alpha: 0.9 });
+    const top = -p - this.strip;
+    g.roundRect(-p - 2, top + 4, W + p * 2 + 4, H + p * 2 + this.strip, p + 6).fill({ color: 0x000000, alpha: 0.45 });
+    g.roundRect(-p, top, W + p * 2, H + p * 2 + this.strip, p + 4).fill(this.woodFill);
+    g.roundRect(-p, top, W + p * 2, H + p * 2 + this.strip, p + 4).stroke({ width: 1.5, color: 0x6b4a2e, alpha: 0.9 });
+    // A darker ledge for the next-pair strip.
+    g.roundRect(0, -this.strip + 2, W, this.strip - 4, 4).fill({ color: 0x000000, alpha: 0.28 });
     // Rope lashings down both sides.
     for (let r = 1; r < this.height; r += 2) {
       const y = r * this.cell;
@@ -571,6 +646,7 @@ export class SailingRenderer {
       this.textures.set(kind, new Texture({ source: new CanvasSource({ resource: canvas, resolution: r.resolution }) }));
     }
     for (const v of this.pieces.values()) v.s.texture = this.textures.get(v.kind) ?? Texture.WHITE;
+    this.updateNext();
     if (this.falling && this.state) {
       this.falling.a.texture = this.textures.get(this.state.current.a) ?? Texture.WHITE;
       this.falling.b.texture = this.textures.get(this.state.current.b) ?? Texture.WHITE;
@@ -712,12 +788,12 @@ export class SailingRenderer {
     const f = this.falling;
     if (!f || !this.interactive || this.steps.length || !this.state) return;
     const R = Math.ceil(f.row);
-    if (f.row === R) {
-      if (!sailingCanDrop(this.state, f.col, R, f.rot)) {
-        f.lock += dt;
-        if (f.lock >= LOCK_MS) this.commit();
-        return;
-      }
+    if (!sailingCanDrop(this.state, f.col, R, f.rot)) {
+      f.row = R;
+      f.lock += dt;
+      this.positionFalling();
+      if (f.lock >= LOCK_MS) this.commit();
+      return;
     }
     const per = this.softDrop ? this.opts.softDropMs : this.opts.fallMs;
     f.row = Math.max(R - 1, f.row - dt / per);

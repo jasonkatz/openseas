@@ -45,6 +45,7 @@ export function SailingBoard(props: SailingBoardProps) {
         chainLabel: (chain) => t("practice.chain_label", { chain }),
         platformLabel: t("sailing.platform_cleared"),
         wipeLabel: (points) => t("sailing.wipe_label", { points }),
+        nextLabel: t("sailing.next").toUpperCase(),
       },
     );
     renderer.current = r;

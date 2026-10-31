@@ -135,7 +135,11 @@ refused. The client's fall timer and steering are presentation: free fall takes 
 held downward swipe or the down key hurries it to `softDropMs` a row (four times the pace), with
 steering locked for the length of the swipe, and space drops it outright.
 The next pair is under the player's control the moment the last one lands, while the board below
-plays out its clears, each cascade step waiting for the pieces to land before the next clear.
+plays out its clears, each cascade step waiting for the pieces to land before the next clear; the
+pair after it is previewed in a strip above the rigging on every layout. The landing ghost is a
+thin ring so the target under it stays readable, and glows when the disc would fill a target of
+its own kind. Sliding into a spot that rests (a shelf or a stack beneath) mid-fall sits the pair up
+on it rather than letting it sink past.
 Numbers live in `content/data/puzzles/sailing.json`.
 
 **Carpentry.** Polyomino pieces offered from a queue, placed to fill holes in planking. Tighter
