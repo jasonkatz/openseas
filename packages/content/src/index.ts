@@ -102,12 +102,15 @@ function crossCheck(world: World, bilgingContent: BilgingContent, tiers: RatingT
   }
   const marks = new Set<string>();
   const colors = new Set<string>();
+  const textures = new Set<string>();
   for (const p of bilgingContent.pieces) {
     need(p.nameKey, "bilging piece");
     if (marks.has(p.mark)) problems.push(`puzzles/bilging: mark "${p.mark}" used twice; every kind must differ by mark (rule 6)`);
     if (colors.has(p.color)) problems.push(`puzzles/bilging: color "${p.color}" used twice`);
+    if (textures.has(p.texture)) problems.push(`puzzles/bilging: texture "${p.texture}" used twice; every kind must differ by texture`);
     marks.add(p.mark);
     colors.add(p.color);
+    textures.add(p.texture);
   }
   for (const s of Object.values(bilgingContent.specials)) need(s.nameKey, "bilging special");
   for (let i = 1; i < bilgingContent.thresholds.length; i++) {

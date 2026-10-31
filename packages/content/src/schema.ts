@@ -98,12 +98,19 @@ export const BilgingContentSchema = z.object({
   /** Performance thresholds the round is rated against (DESIGN.md 3.6). Calibrated from testers. */
   thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
   /**
-   * Each ordinary piece kind, index = kind. Tiles are colored squares; `mark` names the symbol
-   * drawn inside the tile when the player turns marks on, so kinds stay distinguishable without
-   * color (rule 6).
+   * Each ordinary piece kind, index = kind. Tiles are colored squares, each with its own surface
+   * `texture`; `mark` names the symbol drawn inside the tile when the player turns marks on, so
+   * kinds stay distinguishable without color (rule 6).
    */
   pieces: z
-    .array(z.object({ nameKey: MessageKey, mark: z.string(), color: z.string().regex(/^#[0-9a-f]{6}$/) }))
+    .array(
+      z.object({
+        nameKey: MessageKey,
+        mark: z.string(),
+        texture: z.enum(["knurl", "fan", "waves", "grain", "nacre", "fronds", "pores"]),
+        color: z.string().regex(/^#[0-9a-f]{6}$/),
+      }),
+    )
     .min(3),
   specials: z.object({
     keg: z.object({ nameKey: MessageKey, color: z.string() }),

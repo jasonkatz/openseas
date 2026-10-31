@@ -3,7 +3,9 @@ import { createBilgingGame, type BilgingState, type ClearRound, type MoveReport 
 import type { PuzzleResult, ServerMessage } from "@openseas/protocol";
 import { isMuted, setMuted, sfx } from "../audio.js";
 import { BilgingBoard } from "../bilging/BilgingBoard.jsx";
+import type { MoveShown } from "../bilging/renderer.js";
 import { BilgingRound } from "../bilging/round.js";
+import { tileDataUrl, type SpecialName, type TileTexture } from "../bilging/tiles.js";
 import { content, t } from "../content.js";
 import { Link } from "../router.jsx";
 import { usePirate } from "../state/PirateProvider.jsx";
@@ -96,6 +98,10 @@ export function BilgingPractice() {
   const [best, setBest] = useState(readBest);
   const [splash, setSplash] = useState(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [hinted, setHinted] = useState(false);
+  const [pumped, setPumped] = useState(0);
+  /** Rows pumped down this round, counted from the water row before each move. */
+  const pumpedRef = useRef({ rows: 0, water: 0 });
   const wide = useMediaQuery("(min-width: 900px)");
   const round = useRef<BilgingRound | null>(null);
   const sessionId = useRef<string | null>(null);
@@ -104,19 +110,26 @@ export function BilgingPractice() {
   const beginRound = useCallback(
     (seed: string, deadlineAt: number, rated: { sessionId: string } | null) => {
       round.current?.abandon();
+      pumpedRef.current = { rows: 0, water: bilging.config.initialWaterRow };
       const r = new BilgingRound({
         seed,
         config: bilging.config,
         deadlineAt,
         rated: rated ? { socket, sessionId: rated.sessionId } : null,
         onChange: (s, rep) => {
+          if (rep) pumpedRef.current.rows += Math.max(0, pumpedRef.current.water - s.waterRow);
+          pumpedRef.current.water = s.waterRow;
           setState(s);
           setReport(rep);
           setVersion((v) => v + 1);
-          if (rep) sfx.swap();
+          if (rep) {
+            if (rep.points > 0) sfx.swap();
+            else sfx.swapQuiet();
+          }
         },
         onFinished: () => {
           sfx.end();
+          setPumped(pumpedRef.current.rows);
           if (rated) setPhase("waiting");
           else {
             const s = round.current?.state;
@@ -130,6 +143,7 @@ export function BilgingPractice() {
         },
       });
       round.current = r;
+      setHinted(rated === null);
       sessionId.current = rated?.sessionId ?? null;
       setOutcome(null);
       setTimeLeft(Math.max(0, Math.ceil((deadlineAt - Date.now()) / 1000)));
@@ -220,6 +234,33 @@ export function BilgingPractice() {
     if (causes.has("ink")) sfx.ink();
     if (causes.has("barnacle")) sfx.barnacle();
     if (causes.has("match")) sfx.clear(r.chain, r.groups.reduce((n, g) => n + g.ids.length, 0));
+    const runs = r.groups.filter((g) => g.cause === "match" && g.ids.length >= 3).length;
+    if (runs >= 2) sfx.multi(runs);
+  }, []);
+  const onMoveShown = useCallback((m: MoveShown) => {
+    if (m.milestone) sfx.streak(m.milestone);
+    else if (m.lostCombo >= 3) sfx.streakLost();
+    if (m.waterRows < 0) sfx.pump(-m.waterRows);
+    else if (m.waterRows > 0) sfx.rise();
+    if (m.enteredDanger) sfx.alarm();
+  }, []);
+  /** The swap that clears the most pieces right now, for the idle hint. */
+  const findHint = useCallback((): { col: number; row: number } | null => {
+    const r = round.current;
+    if (!r || r.rated) return null;
+    let best: { col: number; row: number } | null = null;
+    let most = 0;
+    const { width, height } = r.state.config;
+    for (let row = 0; row < height; row++) {
+      for (let col = 0; col < width - 1; col++) {
+        const n = r.preview(col, row).length;
+        if (n > most) {
+          most = n;
+          best = { col, row };
+        }
+      }
+    }
+    return best;
   }, []);
   const toggleMute = useCallback(() => {
     setMuted(!isMuted());
@@ -325,7 +366,7 @@ export function BilgingPractice() {
       <ul className="specials">
         {(["keg", "ink", "barnacle"] as const).map((k) => (
           <li key={k}>
-            <TileIcon color={bilging.specials[k].color} special={k} />
+            <TileIcon color={bilging.specials[k].color} special={k} label={t(`bilging.special.${k}_label`)} />
             <span>
               <b>{t(bilging.specials[k].nameKey)}</b> {t(`bilging.special.${k}_help`)}
             </span>
@@ -335,7 +376,7 @@ export function BilgingPractice() {
       <ul className="kinds">
         {bilging.pieces.slice(0, bilging.config.pieceKinds).map((p) => (
           <li key={p.nameKey}>
-            <TileIcon color={p.color} mark={showMarks ? p.mark : null} />
+            <TileIcon color={p.color} texture={p.texture} mark={showMarks ? p.mark : null} />
             <span>{t(p.nameKey)}</span>
           </li>
         ))}
@@ -361,6 +402,9 @@ export function BilgingPractice() {
         preview={preview}
         onFrame={onFrame}
         onClear={onClear}
+        onMoveShown={onMoveShown}
+        hints={playing && hinted}
+        findHint={findHint}
       />
       {playing && splash > 0 && (
         <div className="splash" key={splash} aria-hidden="true">
@@ -377,12 +421,13 @@ export function BilgingPractice() {
               <div className="tile-row" aria-hidden="true">
                 {bilging.pieces.slice(0, bilging.config.pieceKinds).map((p, i) => (
                   <span key={p.nameKey} style={{ animationDelay: `${i * 70}ms` }}>
-                    <TileIcon color={p.color} mark={showMarks ? p.mark : null} />
+                    <TileIcon color={p.color} texture={p.texture} mark={showMarks ? p.mark : null} size={30} />
                   </span>
                 ))}
               </div>
               <p className="how">{t("bilging.how_to")}</p>
               <p className="how how-kbd">{t("bilging.how_to_keyboard")}</p>
+              <p className="how how-kbd">{t("bilging.hint_note")}</p>
               {best > 0 && <p className="best-line">{t("bilging.best", { score: best })}</p>}
               {!canRate && socketStatus !== "connecting" && <p className="note">{t("app.offline")}</p>}
               <div className="stack">
@@ -410,7 +455,7 @@ export function BilgingPractice() {
           {phase === "result" && outcome && (
             <div className="veil-card" data-testid="result">
               <p className="eyebrow">{t("bilging.round_over")}</p>
-              <ResultBody outcome={outcome} />
+              <ResultBody outcome={outcome} pumped={pumped} />
               <div className="stack">
                 <button className="btn btn-brass" onClick={canRate ? startRated : startUnrated} data-testid="restart">
                   {t("bilging.restart")}
@@ -486,7 +531,7 @@ export function BilgingPractice() {
   );
 }
 
-function ResultBody({ outcome }: { outcome: Outcome }) {
+function ResultBody({ outcome, pumped }: { outcome: Outcome; pumped: number }) {
   if (outcome.kind === "rejected") {
     return (
       <>
@@ -508,6 +553,10 @@ function ResultBody({ outcome }: { outcome: Outcome }) {
         <div>
           <dt>{t("bilging.best_combo")}</dt>
           <dd>{r.bestCombo}</dd>
+        </div>
+        <div>
+          <dt>{t("bilging.result_pumped")}</dt>
+          <dd>{pumped}</dd>
         </div>
         {outcome.kind === "rated" && (
           <div>
@@ -541,71 +590,21 @@ function ResultScore({ score }: { score: number }) {
   );
 }
 
-function TileIcon({ color, mark, special }: { color: string; mark?: string | null; special?: "keg" | "ink" | "barnacle" }) {
-  const ink = "#0b1526";
-  const markBody = (() => {
-    switch (mark) {
-      case "circle":
-        return <circle cx="12" cy="12" r="3.2" fill={ink} opacity=".75" />;
-      case "square":
-        return <rect x="8.8" y="8.8" width="6.4" height="6.4" fill={ink} opacity=".75" />;
-      case "triangle":
-        return <polygon points="12,8.2 15.8,15 8.2,15" fill={ink} opacity=".75" />;
-      case "diamond":
-        return <polygon points="12,7.8 16.2,12 12,16.2 7.8,12" fill={ink} opacity=".75" />;
-      case "hexagon":
-        return <polygon points="12,8 15.5,10 15.5,14 12,16 8.5,14 8.5,10" fill={ink} opacity=".75" />;
-      case "star":
-        return <polygon points="12,7.5 13.2,10.6 16.5,10.8 13.9,12.9 14.8,16.2 12,14.4 9.2,16.2 10.1,12.9 7.5,10.8 10.8,10.6" fill={ink} opacity=".75" />;
-      case "gear":
-        return (
-          <g fill={ink} opacity=".75">
-            <circle cx="12" cy="12" r="3.6" />
-            <circle cx="12" cy="12" r="1.5" fill={color} />
-          </g>
-        );
-      default:
-        return null;
-    }
-  })();
-  const specialBody = (() => {
-    switch (special) {
-      case "keg":
-        return (
-          <g>
-            <circle cx="12" cy="13.5" r="4" fill="#f2f0e6" />
-            <rect x="11" y="8" width="2" height="2.5" fill="#f2f0e6" />
-            <circle cx="15.5" cy="6.5" r="1.3" fill="#ffb347" />
-          </g>
-        );
-      case "ink":
-        return (
-          <g fill="#c084fc">
-            <circle cx="9.5" cy="12" r="3" />
-            <circle cx="14.5" cy="11" r="2.6" />
-            <circle cx="12" cy="14.5" r="3.2" />
-          </g>
-        );
-      case "barnacle":
-        return (
-          <g fill="#f2f0e6">
-            <polygon points="12,6 17,11 14.5,11 12,8.5 9.5,11 7,11" />
-            <rect x="7.5" y="13" width="9" height="1.4" opacity=".7" />
-            <rect x="8.8" y="15.5" width="6.4" height="1.4" opacity=".45" />
-          </g>
-        );
-      default:
-        return null;
-    }
-  })();
-  return (
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="tile-icon">
-      <rect x="2" y="3.2" width="20" height="20" rx="4.4" fill="#000" opacity=".35" />
-      <rect x="2" y="2" width="20" height="20" rx="4.4" fill={color} stroke={special ? "#d4a548" : "none"} strokeWidth="1.2" />
-      <rect x="4" y="3.5" width="16" height="6" rx="3" fill="#fff" opacity=".2" />
-      {special ? specialBody : markBody}
-    </svg>
+/** A legend tile: the same painted art the board uses, as an image. */
+function TileIcon(props: { color: string; texture?: TileTexture; mark?: string | null; special?: SpecialName; label?: string; size?: number }) {
+  const size = props.size ?? 22;
+  const src = tileDataUrl(
+    {
+      color: parseInt(props.color.slice(1), 16),
+      texture: props.texture ?? null,
+      mark: props.mark ?? null,
+      special: props.special ?? null,
+      label: props.label ?? "",
+      showMarks: Boolean(props.mark),
+    },
+    size,
   );
+  return <img src={src} width={size} height={size} alt="" aria-hidden="true" className="tile-icon" draggable={false} />;
 }
 
 function fmt(seconds: number): string {

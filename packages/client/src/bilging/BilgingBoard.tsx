@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { BilgingState, ClearRound, MoveReport } from "@openseas/engine";
 import { content, t } from "../content.js";
-import { BilgingRenderer } from "./renderer.js";
+import { BilgingRenderer, type MoveShown } from "./renderer.js";
 
 export interface BoardProps {
   state: BilgingState | null;
@@ -15,6 +15,11 @@ export interface BoardProps {
   onFrame(): void;
   /** A cascade step is clearing on screen. */
   onClear(round: ClearRound): void;
+  /** A move finished playing out on screen. */
+  onMoveShown(shown: MoveShown): void;
+  /** Idle hints are on (unrated practice only). */
+  hints: boolean;
+  findHint(): { col: number; row: number } | null;
 }
 
 /** Hosts the Pixi canvas and forwards input. All drawing lives in the renderer. */
@@ -33,6 +38,8 @@ export function BilgingBoard(props: BoardProps) {
       onHoverEnd: () => r.setPreview([]),
       onFrame: () => latest.current.onFrame(),
       onClear: (round) => latest.current.onClear(round),
+      onMoveShown: (shown) => latest.current.onMoveShown(shown),
+      findHint: () => latest.current.findHint(),
     }, {
       showMarks: props.showMarks,
       labels: {
@@ -41,6 +48,8 @@ export function BilgingBoard(props: BoardProps) {
         barnacle: t("bilging.special.barnacle_label"),
       },
       chainLabel: (chain) => t("bilging.chain_label", { chain }),
+      multiLabel: (groups) => t(groups >= 4 ? "bilging.multi_4" : groups === 3 ? "bilging.multi_3" : "bilging.multi_2"),
+      streakLabel: (count) => t("bilging.streak_label", { count }),
       underwaterSwapMs: content.puzzles.bilging.underwaterSwapMs,
     });
     renderer.current = r;
@@ -50,6 +59,7 @@ export function BilgingBoard(props: BoardProps) {
       const p = latest.current;
       if (p.state) r.setState(p.state, null);
       r.setInteractive(p.interactive);
+      r.setHints(p.hints);
     });
     const onKey = (e: KeyboardEvent): void => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -73,6 +83,11 @@ export function BilgingBoard(props: BoardProps) {
     const r = renderer.current;
     if (r && r.app.renderer) r.setInteractive(props.interactive);
   }, [props.interactive]);
+
+  useEffect(() => {
+    const r = renderer.current;
+    if (r && r.app.renderer) r.setHints(props.hints);
+  }, [props.hints]);
 
   useEffect(() => {
     renderer.current?.setShowMarks(props.showMarks);
