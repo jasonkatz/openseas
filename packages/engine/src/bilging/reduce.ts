@@ -148,11 +148,11 @@ function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap
     while (groups.length > 0) {
       const base = groups.reduce((sum, g) => sum + g.points, 0);
       const points = base * groups.length * chain;
-      rounds.push({ chain, groups, points });
       for (const g of groups) for (const c of g.cells) cells[c] = null;
       const r = riseAndRefill(cfg, cells, rng, nextId);
       rng = r.rng;
       nextId = r.nextId;
+      rounds.push({ chain, groups, points, settled: cells.slice() as Piece[] });
       chain++;
       groups = matchGroups(cfg, cells);
     }
@@ -184,7 +184,11 @@ function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap
 }
 
 function matchGroups(cfg: BilgingConfig, cells: ReadonlyArray<Piece | null>): ClearedGroup[] {
-  return findMatches(cfg, cells).map((g) => ({ cells: g, points: groupPoints(g.length), cause: "match" }));
+  return findMatches(cfg, cells).map((g) => ({ cells: g, ids: idsAt(cells, g), points: groupPoints(g.length), cause: "match" }));
+}
+
+function idsAt(cells: ReadonlyArray<Piece | null>, at: readonly number[]): number[] {
+  return at.map((c) => cells[c]!.id);
 }
 
 /**
@@ -226,7 +230,7 @@ function immediateClears(cfg: BilgingConfig, cells: ReadonlyArray<Piece | null>,
       }
     }
     const c = claim(blast);
-    if (c.length) groups.push({ cells: c, points: c.length, cause: "keg" });
+    if (c.length) groups.push({ cells: c, ids: idsAt(cells, c), points: c.length, cause: "keg" });
   }
   // Ink clouds wipe every piece of the kind they were swapped with.
   for (const [pos, piece, other] of swapped) {
@@ -236,13 +240,13 @@ function immediateClears(cfg: BilgingConfig, cells: ReadonlyArray<Piece | null>,
       for (let k = 0; k < cells.length; k++) if (cells[k]?.kind === other.kind) wipe.push(k);
     }
     const c = claim(wipe);
-    if (c.length) groups.push({ cells: c, points: c.length * 2, cause: "ink" });
+    if (c.length) groups.push({ cells: c, ids: idsAt(cells, c), points: c.length * 2, cause: "ink" });
   }
   // Ordinary runs, minus anything a special already took.
   for (const g of findMatches(cfg, cells)) {
     const c = claim(g);
-    if (c.length >= 3) groups.push({ cells: c, points: groupPoints(c.length), cause: "match" });
-    else if (c.length > 0) groups.push({ cells: c, points: c.length, cause: "match" });
+    if (c.length >= 3) groups.push({ cells: c, ids: idsAt(cells, c), points: groupPoints(c.length), cause: "match" });
+    else if (c.length > 0) groups.push({ cells: c, ids: idsAt(cells, c), points: c.length, cause: "match" });
   }
   return groups;
 }
@@ -281,7 +285,7 @@ function surfacedBarnacles(cfg: BilgingConfig, cells: ReadonlyArray<Piece | null
   const groups: ClearedGroup[] = [];
   for (let i = 0; i < cells.length; i++) {
     if (cells[i]?.kind === Special.Barnacle && rowOf(cfg, i) >= waterRow) {
-      groups.push({ cells: [i], points: BARNACLE_POINTS, cause: "barnacle" });
+      groups.push({ cells: [i], ids: [cells[i]!.id], points: BARNACLE_POINTS, cause: "barnacle" });
     }
   }
   return groups;

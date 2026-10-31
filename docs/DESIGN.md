@@ -79,6 +79,13 @@ a pure function of moves made and points scored, so a replay needs nothing but t
 M3 the ship injects water events into the log instead. All numbers live in
 `content/data/puzzles/bilging.json` and are tuned in playtests.
 
+Feedback as built: each move plays back step by step, swap then every cascade step clearing and
+rising in turn, from the per-step boards the engine's move report carries. A new move
+fast-forwards whatever is still animating, so input never waits. Clears burst with debris, score
+popups and a callout for chains; kegs and ink clouds shake the board; the frame glows with the
+combo; submerged pieces stay readable because the water body sits behind them. Sound and the
+personal best are per device; the personal best is display only and never reaches the server.
+
 **Sailing.** Falling pieces you steer and rotate into a board, clearing by forming groups and
 chaining through the board's structure. Performance feeds movement tokens per turn. QoL: ghost
 piece showing landing position, next-piece preview, swipe-to-move and tap-to-rotate on touch.

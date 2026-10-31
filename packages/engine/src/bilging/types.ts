@@ -79,6 +79,8 @@ export type BilgingMove =
 export interface ClearedGroup {
   /** Cells cleared, as indices into `cells`. */
   readonly cells: readonly number[];
+  /** Ids of the pieces cleared, in the same order as `cells`, so renderers can animate them. */
+  readonly ids: readonly number[];
   /** Points this group earned before multipliers. */
   readonly points: number;
   readonly cause: "match" | "keg" | "ink" | "barnacle";
@@ -90,6 +92,8 @@ export interface ClearRound {
   readonly groups: readonly ClearedGroup[];
   /** Points for this round after group and chain multipliers. */
   readonly points: number;
+  /** The board once this round's gaps have risen and refilled. Renderers replay cascades from it. */
+  readonly settled: ReadonlyArray<Piece>;
 }
 
 export interface MoveReport {

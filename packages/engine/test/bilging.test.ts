@@ -275,6 +275,34 @@ describe("bilging rules", () => {
     for (const c of [0, 1, 2]) expect(after.cells[idx(cfg, c, 0)]!.id).toBeGreaterThan(maxId);
   });
 
+  it("move reports describe each cascade step: cleared ids leave, and the last step is the final board", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        let state = createBilgingGame(seed, cfg);
+        for (const pick of picks) {
+          const move = randomLegalMove(state, pick);
+          if (!move || state.finished) break;
+          const before = new Map(state.cells.map((p, i) => [p.id, i]));
+          state = reduceBilging(state, move);
+          const rounds = state.lastMove!.rounds;
+          let board: ReadonlyArray<Piece> | null = null;
+          for (const round of rounds) {
+            for (const g of round.groups) {
+              expect(g.ids.length).toBe(g.cells.length);
+              if (round.chain === 1) for (const id of g.ids) expect(before.has(id)).toBe(true);
+              const left = new Set(round.settled.map((p) => p.id));
+              for (const id of g.ids) expect(left.has(id)).toBe(false);
+            }
+            expect(round.settled.length).toBe(cfg.width * cfg.height);
+            board = round.settled;
+          }
+          if (board) expect(board).toEqual(state.cells);
+        }
+      }),
+      { numRuns: 60 },
+    );
+  });
+
   it("the water line rises with moves and drops with points", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
