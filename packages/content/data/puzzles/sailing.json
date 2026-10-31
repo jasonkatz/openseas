@@ -1,19 +1,19 @@
 {
   "config": {
-    "width": 10,
+    "width": 12,
     "height": 20,
     "pieceKinds": 3,
-    "platformsAtOnce": 5,
+    "platformsAtOnce": 6,
     "platformSpanMin": 2,
     "platformSpanMax": 4,
     "platformPoints": 6,
     "runPoints": 4,
-    "maxMoves": 110,
+    "maxMoves": 120,
     "topOutPenalty": 40
   },
   "roundSeconds": 150,
   "fallMs": 700,
-  "softDropMs": 60,
+  "softDropMs": 350,
   "thresholds": [
     { "score": 40, "rating": 1100 },
     { "score": 100, "rating": 1300 },

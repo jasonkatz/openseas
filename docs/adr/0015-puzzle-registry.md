@@ -38,9 +38,10 @@ happen far more often than scoring actions.
 4. **Free actions are moves too, with a separate cap.** Rotations in Navigation and placements in
    Sailing are logged like any other move. `maxMoves` caps the log length the server will hold;
    engines that count something else as the round's budget (drops, pairs) carry their own cap in
-   config. Steering a falling pair is not logged at all: Sailing's move is the landing column and
-   rotation, and the engine drops the pair from the top, which is a documented divergence
-   (DESIGN.md section 6).
+   config. Steering a falling pair is not logged at all: Sailing's move is the position the pair
+   came to rest in, and the engine accepts it only if that position is reachable from the entry by
+   sliding, turning and falling, so the log stays one entry per pair without giving up steering
+   under platforms (DESIGN.md section 6).
 
 ## Consequences
 

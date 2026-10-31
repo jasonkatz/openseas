@@ -39,8 +39,8 @@ export function SailingPractice() {
   const { state } = api;
 
   const onPlace = useCallback(
-    (col: number, rot: Rotation) => {
-      api.apply({ type: "place", col, rot });
+    (col: number, row: number, rot: Rotation) => {
+      api.apply({ type: "place", col, row, rot });
     },
     [api],
   );

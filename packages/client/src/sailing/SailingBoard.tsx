@@ -8,7 +8,7 @@ export interface SailingBoardProps {
   version: number;
   interactive: boolean;
   showMarks: boolean;
-  onPlace(col: number, rot: Rotation): void;
+  onPlace(col: number, row: number, rot: Rotation): void;
   onFrame(): void;
   onClear(round: SailingClearRound): void;
   onLanded(): void;
@@ -31,7 +31,7 @@ export function SailingBoard(props: SailingBoardProps) {
       el,
       sailing,
       {
-        onPlace: (c, rot) => latest.current.onPlace(c, rot),
+        onPlace: (c, row, rot) => latest.current.onPlace(c, row, rot),
         onFrame: () => latest.current.onFrame(),
         onClear: (round) => latest.current.onClear(round),
         onLanded: () => latest.current.onLanded(),

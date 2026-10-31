@@ -21,6 +21,9 @@ export const rowOf = (cfg: SailingConfig, i: number): number => Math.floor(i / c
 
 type Cells = Array<Segment | null>;
 
+/** Rotation kicks tried in order when a turn does not fit where the pair is: in place, one left, one right. */
+export const ROTATION_KICKS: readonly number[] = [0, -1, 1];
+
 export function validateConfig(cfg: SailingConfig): void {
   const ok =
     Number.isInteger(cfg.width) &&
@@ -34,7 +37,7 @@ export function validateConfig(cfg: SailingConfig): void {
     cfg.pieceKinds <= 8 &&
     Number.isInteger(cfg.platformsAtOnce) &&
     cfg.platformsAtOnce >= 0 &&
-    cfg.platformsAtOnce <= 6 &&
+    cfg.platformsAtOnce <= 8 &&
     Number.isInteger(cfg.platformSpanMin) &&
     cfg.platformSpanMin >= 1 &&
     cfg.platformSpanMax >= cfg.platformSpanMin &&
@@ -82,58 +85,126 @@ function dealPair(cfg: SailingConfig, rng: PrngState): { pair: SailingPair; rng:
   return { pair: { a: a.value, b: b.value }, rng: b.state };
 }
 
-/** The two cells a pair occupies when anchored at (col, top) with rotation rot, a first then b. */
-export function pairCells(cfg: SailingConfig, col: number, top: number, rot: Rotation): { a: number; b: number } | null {
+/** Every pair enters here: horizontal, in the middle of the top row. */
+export function spawnPosition(cfg: SailingConfig): { col: number; row: number; rot: Rotation } {
+  return { col: Math.floor((cfg.width - 2) / 2), row: cfg.height - 1, rot: 0 };
+}
+
+/** The two cells a pair occupies when anchored at (col, row) with rotation rot, a first then b. */
+export function pairCells(cfg: SailingConfig, col: number, row: number, rot: Rotation): { a: number; b: number } | null {
   const inb = (c: number, r: number): boolean => c >= 0 && c < cfg.width && r >= 0 && r < cfg.height;
   switch (rot) {
     case 0:
-      return inb(col, top) && inb(col + 1, top) ? { a: idx(cfg, col, top), b: idx(cfg, col + 1, top) } : null;
+      return inb(col, row) && inb(col + 1, row) ? { a: idx(cfg, col, row), b: idx(cfg, col + 1, row) } : null;
     case 1:
-      return inb(col, top) && inb(col, top - 1) ? { a: idx(cfg, col, top - 1), b: idx(cfg, col, top) } : null;
+      return inb(col, row) && inb(col, row - 1) ? { a: idx(cfg, col, row - 1), b: idx(cfg, col, row) } : null;
     case 2:
-      return inb(col, top) && inb(col + 1, top) ? { a: idx(cfg, col + 1, top), b: idx(cfg, col, top) } : null;
+      return inb(col, row) && inb(col + 1, row) ? { a: idx(cfg, col + 1, row), b: idx(cfg, col, row) } : null;
     case 3:
-      return inb(col, top) && inb(col, top - 1) ? { a: idx(cfg, col, top), b: idx(cfg, col, top - 1) } : null;
+      return inb(col, row) && inb(col, row - 1) ? { a: idx(cfg, col, row), b: idx(cfg, col, row - 1) } : null;
     default:
       return null;
   }
 }
 
-export function placeIllegalReason(state: SailingState, col: number, rot: number): string | null {
+/**
+ * True when the pair fits at (col, row, rot): both cells on the board and empty, and, for a
+ * vertical pair, the upper half not in a platform cell, since the shelf under that cell would run
+ * between the two halves.
+ */
+export function fits(state: SailingState, col: number, row: number, rot: Rotation): boolean {
+  return fitsWith(state, platformMask(state.config, state.platforms), col, row, rot);
+}
+
+function fitsWith(state: SailingState, shelf: Uint8Array, col: number, row: number, rot: Rotation): boolean {
+  const cells = pairCells(state.config, col, row, rot);
+  if (cells === null || state.cells[cells.a] !== null || state.cells[cells.b] !== null) return false;
+  if (rot === 1 || rot === 3) {
+    const upper = Math.max(cells.a, cells.b);
+    if (shelf[upper]) return false;
+  }
+  return true;
+}
+
+/** True when the pair at (col, row, rot) can fall one row: nothing beneath either half and no shelf under it. */
+export function canDrop(state: SailingState, col: number, row: number, rot: Rotation): boolean {
+  return canDropWith(state, platformMask(state.config, state.platforms), col, row, rot);
+}
+
+function canDropWith(state: SailingState, shelf: Uint8Array, col: number, row: number, rot: Rotation): boolean {
+  const cells = pairCells(state.config, col, row, rot);
+  if (!cells) return false;
+  return canFall(state.config, state.cells, shelf, [cells.a, cells.b]);
+}
+
+/** The pair can be entered at all: the spawn cells are free. When they are not, the rigging is full. */
+export function spawnFree(state: SailingState): boolean {
+  const s = spawnPosition(state.config);
+  return fits(state, s.col, s.row, s.rot);
+}
+
+const key = (col: number, row: number, rot: number): number => (rot * 64 + row) * 64 + col;
+
+/**
+ * Every resting position the current pair can reach from the spawn by sliding, turning (with
+ * kicks) and falling. Sliding is allowed at any height, so a pair can be tucked under a platform.
+ * Returns a set of packed `col,row,rot` keys; see `restingPlacements` for a list.
+ */
+export function reachableRests(state: SailingState): Set<number> {
+  const cfg = state.config;
+  const shelf = platformMask(cfg, state.platforms);
+  const start = spawnPosition(cfg);
+  const rests = new Set<number>();
+  if (state.finished || !fitsWith(state, shelf, start.col, start.row, start.rot)) return rests;
+  const seen = new Set<number>([key(start.col, start.row, start.rot)]);
+  const queue: Array<{ col: number; row: number; rot: Rotation }> = [start];
+  const visit = (col: number, row: number, rot: Rotation): void => {
+    const k = key(col, row, rot);
+    if (seen.has(k) || !fitsWith(state, shelf, col, row, rot)) return;
+    seen.add(k);
+    queue.push({ col, row, rot });
+  };
+  while (queue.length) {
+    const p = queue.shift()!;
+    if (canDropWith(state, shelf, p.col, p.row, p.rot)) visit(p.col, p.row - 1, p.rot);
+    else rests.add(key(p.col, p.row, p.rot));
+    visit(p.col - 1, p.row, p.rot);
+    visit(p.col + 1, p.row, p.rot);
+    const rot = ((p.rot + 1) % 4) as Rotation;
+    for (const kick of ROTATION_KICKS) {
+      if (fitsWith(state, shelf, p.col + kick, p.row, rot)) {
+        visit(p.col + kick, p.row, rot);
+        break;
+      }
+    }
+  }
+  return rests;
+}
+
+export function restingPlacements(state: SailingState): Array<{ col: number; row: number; rot: Rotation }> {
+  const out: Array<{ col: number; row: number; rot: Rotation }> = [];
+  for (const k of reachableRests(state)) {
+    const col = k % 64;
+    const row = Math.floor(k / 64) % 64;
+    const rot = Math.floor(k / 4096) as Rotation;
+    out.push({ col, row, rot });
+  }
+  return out.sort((a, b) => a.rot - b.rot || a.row - b.row || a.col - b.col);
+}
+
+export function placeIllegalReason(state: SailingState, col: number, row: number, rot: number): string | null {
   if (state.finished) return "game is finished";
-  if (!Number.isInteger(col) || !Number.isInteger(rot) || rot < 0 || rot > 3) return "bad placement";
-  const cells = pairCells(state.config, col, state.config.height - 1, rot as Rotation);
-  if (!cells) return "out of bounds";
-  if (state.cells[cells.a] !== null || state.cells[cells.b] !== null) return "spawn cells occupied";
+  if (!Number.isInteger(col) || !Number.isInteger(row) || !Number.isInteger(rot) || rot < 0 || rot > 3) return "bad placement";
+  if (!fits(state, col, row, rot as Rotation)) return "does not fit";
+  if (!reachableRests(state).has(key(col, row, rot))) return "not reachable";
   return null;
 }
 
-export function hasLegalPlacement(state: SailingState): boolean {
-  if (state.finished) return false;
-  for (let rot = 0; rot < 4; rot++) {
-    for (let col = 0; col < state.config.width; col++) {
-      const cells = pairCells(state.config, col, state.config.height - 1, rot as Rotation);
-      if (cells && state.cells[cells.a] === null && state.cells[cells.b] === null) return true;
-    }
-  }
-  return false;
-}
-
-/** Where the current pair would come to rest, for the ghost piece. Null when the placement is illegal. */
-export function landingCells(state: SailingState, col: number, rot: Rotation): { a: number; b: number } | null {
-  if (placeIllegalReason(state, col, rot) !== null) return null;
-  const cfg = state.config;
-  const start = pairCells(cfg, col, cfg.height - 1, rot)!;
-  const shelf = platformMask(cfg, state.platforms);
-  let a = start.a;
-  let b = start.b;
-  for (;;) {
-    const unit = [a, b];
-    if (!canFall(cfg, state.cells, shelf, unit)) break;
-    a -= cfg.width;
-    b -= cfg.width;
-  }
-  return { a, b };
+/** Where a pair at (col, row, rot) comes to rest if it falls straight down from there. */
+export function landingRow(state: SailingState, col: number, row: number, rot: Rotation): number {
+  let r = row;
+  while (canDrop(state, col, r, rot)) r--;
+  return r;
 }
 
 export function reduceSailing(state: SailingState, move: SailingMove): SailingState {
@@ -187,7 +258,7 @@ export function summarizeSailing(state: SailingState): SailingSummary {
 // ---- internals
 
 function applyPlace(state: SailingState, move: Extract<SailingMove, { type: "place" }>): SailingState {
-  const reason = placeIllegalReason(state, move.col, move.rot);
+  const reason = placeIllegalReason(state, move.col, move.row, move.rot);
   if (reason !== null) throw new InvalidMoveError(reason, move);
   const cfg = state.config;
   const cells: Cells = state.cells.slice();
@@ -196,7 +267,7 @@ function applyPlace(state: SailingState, move: Extract<SailingMove, { type: "pla
   let nextId = state.nextId;
   let nextPlatformId = state.nextPlatformId;
 
-  const landing = landingCells(state, move.col, move.rot)!;
+  const landing = pairCells(cfg, move.col, move.row, move.rot)!;
   const pair = state.nextPair;
   const segA: Segment = { id: nextId++, kind: state.current.a, pair };
   const segB: Segment = { id: nextId++, kind: state.current.b, pair };
@@ -235,10 +306,10 @@ function applyPlace(state: SailingState, move: Extract<SailingMove, { type: "pla
   let combo = points > 0 ? state.combo + 1 : 0;
   let score = state.score + points;
   let wipe: SailingMoveReport["wipe"] = null;
-  // Topped out: the next pair has nowhere to enter. Clear the rigging, charge the penalty, deal
-  // fresh platforms and carry on; the round ends on its clock or move budget, never by filling up.
+  // Topped out: the next pair cannot enter at the spawn. Clear the rigging, charge the penalty,
+  // deal fresh platforms and carry on; the round ends on its clock or move budget, never by filling up.
   const probe: SailingState = { ...state, cells, platforms, current: state.next, finished: false };
-  if (!hasLegalPlacement(probe)) {
+  if (!spawnFree(probe)) {
     const ids = cells.filter((s): s is Segment => s !== null).map((s) => s.id);
     cells.fill(null);
     const fresh = spawnPlatforms(cfg, cells, [], dealt.rng, nextPlatformId);

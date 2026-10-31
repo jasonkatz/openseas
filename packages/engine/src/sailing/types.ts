@@ -9,7 +9,7 @@
 
 import type { PrngState } from "../prng.js";
 
-export const SAILING_WIDTH = 10;
+export const SAILING_WIDTH = 12;
 export const SAILING_HEIGHT = 20;
 
 export interface SailingConfig {
@@ -35,12 +35,12 @@ export const DEFAULT_SAILING_CONFIG: SailingConfig = {
   width: SAILING_WIDTH,
   height: SAILING_HEIGHT,
   pieceKinds: 3,
-  platformsAtOnce: 5,
+  platformsAtOnce: 6,
   platformSpanMin: 2,
   platformSpanMax: 4,
   platformPoints: 6,
   runPoints: 4,
-  maxMoves: 110,
+  maxMoves: 120,
   topOutPenalty: 40,
 };
 
@@ -75,8 +75,12 @@ export interface SailingPair {
 export type Rotation = 0 | 1 | 2 | 3;
 
 export type SailingMove =
-  /** Place the current pair with its anchor in column `col` at rotation `rot` and let it fall. */
-  | { readonly type: "place"; readonly col: number; readonly rot: Rotation }
+  /**
+   * Rest the current pair with its anchor at (col, row) in rotation `rot`. The engine accepts any
+   * resting position reachable from the spawn by sliding, turning and falling, so a pair can be
+   * steered under a platform; it rejects positions that float or could not be reached.
+   */
+  | { readonly type: "place"; readonly col: number; readonly row: number; readonly rot: Rotation }
   | { readonly type: "end" };
 
 export interface SailingClearedGroup {

@@ -74,14 +74,16 @@ test("home links to Sailing practice and an unrated round takes keyboard drops",
   await expect(page.getByTestId("hud-moves")).toContainText("1");
   await expectViewMatchesState(page, "sailing");
 
-  // Pointer: a downward swipe drops the next pair.
+  // Pointer: a tap turns the pair, a sideways drag steers it; then a key drops it.
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
   const x = box.x + box.width / 2;
   const y = box.y + box.height * 0.3;
+  await page.mouse.click(x, y);
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(x, y + box.height * 0.25, { steps: 6 });
+  await page.mouse.move(x + box.width * 0.2, y, { steps: 6 });
   await page.mouse.up();
+  await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });

@@ -8,8 +8,10 @@ import {
   reduceSailing,
   replaySailing,
   sailingIdx,
-  sailingLandingCells,
-  sailingPlaceIllegalReason,
+  sailingLandingRow,
+  sailingPairCells,
+  sailingRestingPlacements,
+  sailingSpawnFree,
   type Platform,
   type Rotation,
   type SailingMove,
@@ -20,13 +22,7 @@ import {
 const cfg = DEFAULT_SAILING_CONFIG;
 
 function legalMoves(state: SailingState): SailingMove[] {
-  const out: SailingMove[] = [];
-  for (let rot = 0; rot < 4; rot++) {
-    for (let col = 0; col < state.config.width; col++) {
-      if (sailingPlaceIllegalReason(state, col, rot) === null) out.push({ type: "place", col, rot: rot as Rotation });
-    }
-  }
-  return out;
+  return sailingRestingPlacements(state).map((p) => ({ type: "place" as const, ...p }));
 }
 
 function playRandom(seed: string, picks: readonly number[], config = cfg): { moves: SailingMove[]; state: SailingState } {
@@ -73,7 +69,9 @@ describe("sailing board", () => {
       fc.property(fc.string(), (seed) => {
         const s = createSailingGame(seed);
         expect(s.cells.every((c) => c === null)).toBe(true);
-        expect(s.platforms.length).toBe(cfg.platformsAtOnce);
+        // Random spots can crowd each other out of the row spacing; the shortfall is dealt after the next move.
+        expect(s.platforms.length).toBeGreaterThanOrEqual(cfg.platformsAtOnce - 2);
+        expect(s.platforms.length).toBeLessThanOrEqual(cfg.platformsAtOnce);
         for (const p of s.platforms) {
           expect(p.targets.some((t) => t !== null)).toBe(true);
           expect(p.col + p.span).toBeLessThanOrEqual(cfg.width);
@@ -184,7 +182,7 @@ describe("sailing rules", () => {
     );
   });
 
-  it("a pair lands where the ghost said it would", () => {
+  it("a pair rests exactly where it was placed, and every resting place is a floor for a straight fall", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         let state = createSailingGame(seed);
@@ -194,9 +192,10 @@ describe("sailing rules", () => {
           if (!legal.length) break;
           const m = legal[p % legal.length]!;
           if (m.type !== "place") break;
-          const ghost = sailingLandingCells(state, m.col, m.rot)!;
+          expect(sailingLandingRow(state, m.col, m.row, m.rot)).toBe(m.row);
+          const cells = sailingPairCells(state.config, m.col, m.row, m.rot)!;
           const next = reduceSailing(state, m);
-          expect(next.lastMove?.landed?.cells).toEqual([ghost.a, ghost.b]);
+          expect(next.lastMove?.landed?.cells).toEqual([cells.a, cells.b]);
           state = next;
         }
       }),
@@ -204,12 +203,29 @@ describe("sailing rules", () => {
     );
   });
 
+  it("a pair can be steered under a platform", () => {
+    const base = createSailingGame("tuck");
+    const platform: Platform = { id: 5, row: 10, col: 4, span: 3, targets: [0, null, 1] };
+    const state: SailingState = { ...base, platforms: [platform] };
+    const rests = legalMoves(state);
+    // The floor cells directly beneath the platform are reachable by falling beside it and sliding in.
+    expect(rests).toContainEqual({ type: "place", col: 4, row: 0, rot: 0 });
+    expect(rests).toContainEqual({ type: "place", col: 5, row: 1, rot: 1 });
+    // The platform itself is a landing spot too.
+    expect(rests).toContainEqual({ type: "place", col: 4, row: 10, rot: 0 });
+    // A vertical pair can never straddle the shelf: top half on the platform, bottom half beneath it.
+    expect(rests).not.toContainEqual({ type: "place", col: 4, row: 10, rot: 1 });
+    expect(rests).not.toContainEqual({ type: "place", col: 5, row: 10, rot: 3 });
+    // Nothing rests in mid-air.
+    for (const r of rests) if (r.type === "place") expect(sailingLandingRow(state, r.col, r.row, r.rot)).toBe(r.row);
+  });
+
   it("a satisfied platform clears its targets and scores platformPoints per target", () => {
     // Build a state by hand: one platform of span 2 with two targets of kind 0 on row 2.
     const base = createSailingGame("by-hand");
     const platform: Platform = { id: 99, row: 2, col: 1, span: 2, targets: [0, 0] };
     const state: SailingState = { ...base, platforms: [platform], current: { a: 0, b: 0 }, next: { a: 1, b: 2 } };
-    const next = reduceSailing(state, { type: "place", col: 1, rot: 0 });
+    const next = reduceSailing(state, { type: "place", col: 1, row: 2, rot: 0 });
     expect(next.lastMove?.rounds.length).toBe(1);
     const round = next.lastMove!.rounds[0]!;
     expect(round.groups[0]?.cause).toBe("platform");
@@ -224,8 +240,10 @@ describe("sailing rules", () => {
     const base = createSailingGame("shelf");
     const platform: Platform = { id: 7, row: 4, col: 2, span: 2, targets: [1, null] };
     const state: SailingState = { ...base, platforms: [platform], current: { a: 0, b: 0 } };
-    const next = reduceSailing(state, { type: "place", col: 2, rot: 0 });
+    const next = reduceSailing(state, { type: "place", col: 2, row: 4, rot: 0 });
     expect(next.lastMove?.landed?.cells).toEqual([sailingIdx(cfg, 2, 4), sailingIdx(cfg, 3, 4)]);
+    // Falling through the shelf is not a legal rest.
+    expect(() => reduceSailing(state, { type: "place", col: 2, row: 3, rot: 0 })).toThrow(InvalidMoveError);
   });
 
   it("four in a row clears and cascades multiply by chain", () => {
@@ -234,20 +252,22 @@ describe("sailing rules", () => {
     // Three kind-0 segments on the floor, columns 0..2; the drop adds a vertical pair at column 3 with a at the bottom.
     for (let c = 0; c < 3; c++) cells[sailingIdx(cfg, c, 0)] = { id: 1000 + c, kind: 0, pair: 500 + c };
     const state: SailingState = { ...base, cells, platforms: [], current: { a: 0, b: 1 } };
-    const next = reduceSailing(state, { type: "place", col: 3, rot: 1 });
+    const next = reduceSailing(state, { type: "place", col: 3, row: 1, rot: 1 });
     expect(next.lastMove?.rounds[0]?.groups[0]?.cause).toBe("run");
     expect(next.lastMove?.rounds[0]?.points).toBe(cfg.runPoints);
     // The surviving half (kind 1) fell to the floor.
     expect(next.cells[sailingIdx(cfg, 3, 0)]?.kind).toBe(1);
   });
 
-  it("rejects placements on occupied spawn cells and moves after the end", () => {
-    const base = createSailingGame("illegal");
-    expect(() => reduceSailing(base, { type: "place", col: cfg.width - 1, rot: 0 })).toThrow(InvalidMoveError);
-    expect(() => reduceSailing(base, { type: "place", col: 2, rot: 5 as Rotation })).toThrow(InvalidMoveError);
+  it("rejects floating, out-of-bounds and malformed placements, and moves after the end", () => {
+    const base: SailingState = { ...createSailingGame("illegal"), platforms: [] };
+    expect(() => reduceSailing(base, { type: "place", col: cfg.width - 1, row: 0, rot: 0 })).toThrow(InvalidMoveError);
+    // Mid-air on an empty board: it fits, but nothing holds it there.
+    expect(() => reduceSailing(base, { type: "place", col: 2, row: 5, rot: 0 })).toThrow(InvalidMoveError);
+    expect(() => reduceSailing(base, { type: "place", col: 2, row: 0, rot: 5 as Rotation })).toThrow(InvalidMoveError);
     const ended = reduceSailing(base, { type: "end" });
     expect(ended.finished).toBe(true);
-    expect(() => reduceSailing(ended, { type: "place", col: 0, rot: 0 })).toThrow(InvalidMoveError);
+    expect(() => reduceSailing(ended, { type: "place", col: 0, row: 0, rot: 0 })).toThrow(InvalidMoveError);
   });
 
   it("finishes at maxMoves", () => {
@@ -263,7 +283,9 @@ describe("sailing rules", () => {
     for (let i = 0; i < 400 && !wiped; i++) {
       const legal = legalMoves(state);
       expect(legal.length).toBeGreaterThan(0);
-      state = reduceSailing(state, legal[0]!);
+      // Pile everything up in the middle so the entry blocks.
+      const mid = legal.filter((m) => m.type === "place" && Math.abs(m.col - cfg.width / 2) <= 1);
+      state = reduceSailing(state, (mid[0] ?? legal[0])!);
       if (state.lastMove?.wipe) wiped = state;
     }
     expect(wiped).not.toBeNull();
@@ -279,11 +301,14 @@ describe("sailing rules", () => {
     expect(legalMoves(w).length).toBeGreaterThan(0);
   });
 
-  it("a placement is always available while the round runs", () => {
+  it("the entry is always free while the round runs", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const { state } = playRandom(seed, picks);
-        if (!state.finished) expect(legalMoves(state).length).toBeGreaterThan(0);
+        if (!state.finished) {
+          expect(sailingSpawnFree(state)).toBe(true);
+          expect(legalMoves(state).length).toBeGreaterThan(0);
+        }
       }),
       { numRuns: 100 },
     );

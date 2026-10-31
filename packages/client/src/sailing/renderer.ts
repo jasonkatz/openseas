@@ -1,9 +1,12 @@
 import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
+  SAILING_ROTATION_KICKS,
+  sailingCanDrop,
+  sailingFits,
   sailingIdx,
-  sailingLandingCells,
+  sailingLandingRow,
   sailingPairCells,
-  sailingPlaceIllegalReason,
+  sailingSpawnPosition,
   type Platform,
   type Rotation,
   type SailingClearRound,
@@ -15,8 +18,8 @@ import { mix } from "../bilging/tiles.js";
 import { discCanvas, type DiscStyle, type SailTexture } from "./discs.js";
 
 export interface SailingCallbacks {
-  /** The player committed the falling pair to column `col` at rotation `rot`. */
-  onPlace(col: number, rot: Rotation): void;
+  /** The player's pair came to rest with its anchor at (col, row) in rotation `rot`. */
+  onPlace(col: number, row: number, rot: Rotation): void;
   /** First frame drawn after a new state arrived. */
   onFrame(): void;
   /** A cascade step is clearing on screen now. */
@@ -31,7 +34,7 @@ export interface SailingCallbacks {
 
 export interface SailingRendererOptions {
   showMarks: boolean;
-  /** Ms per row of free fall, and while soft-dropping. From content. */
+  /** Ms per row of free fall, and while the pair is hurried (a held swipe or the down key). From content. */
   fallMs: number;
   softDropMs: number;
   chainLabel(chain: number): string;
@@ -115,11 +118,13 @@ export class SailingRenderer {
   private destroyed = false;
   private interactive = false;
   private time = 0;
-  /** The pair under the player's control, or null between placements. */
+  /**
+   * The pair under the player's control, or null between placements. `row` is the anchor's row as
+   * a continuous value: the pair occupies row ceil(row) and is part way down to the row below.
+   */
   private falling: { col: number; rot: Rotation; row: number; a: Sprite; b: Sprite; lock: number } | null = null;
   private softDrop = false;
-  private fallClock = 0;
-  private drag: { x: number; y: number; col: number; moved: boolean; dropped: boolean } | null = null;
+  private drag: { x: number; y: number; col: number; moved: boolean; hurried: boolean } | null = null;
 
   constructor(
     private readonly host: HTMLElement,
@@ -321,7 +326,7 @@ export class SailingRenderer {
         v.x = x;
         v.y = y;
         v.s.position.set(x, y);
-      }
+      } else if (v.x !== x || v.y !== y) this.moving = true;
     }
     for (const [id, v] of this.pieces) if (!seen.has(id) && v.dying === null) this.kill(v);
   }
@@ -348,22 +353,17 @@ export class SailingRenderer {
 
   // ---- the falling pair
 
+  /** Every pair enters at the engine's spawn. If that is blocked the engine has already wiped the board. */
   private spawnFalling(): void {
     if (!this.state || this.falling || this.state.finished) return;
-    const rot: Rotation = 0;
-    let col = Math.floor((this.width - 2) / 2);
-    if (sailingPlaceIllegalReason(this.state, col, rot) !== null) {
-      const legal = Array.from({ length: this.width }, (_, c) => c).find((c) => sailingPlaceIllegalReason(this.state!, c, rot) === null);
-      if (legal === undefined) return;
-      col = legal;
-    }
+    const s = sailingSpawnPosition(this.state.config);
+    if (!sailingFits(this.state, s.col, s.row, s.rot)) return;
     const a = new Sprite(this.textures.get(this.state.current.a) ?? Texture.WHITE);
     const b = new Sprite(this.textures.get(this.state.current.b) ?? Texture.WHITE);
     a.anchor.set(0.5);
     b.anchor.set(0.5);
     this.fallingLayer.addChild(a, b);
-    this.falling = { col, rot, row: this.height - 1, a, b, lock: 0 };
-    this.fallClock = 0;
+    this.falling = { col: s.col, rot: s.rot, row: s.row, a, b, lock: 0 };
     this.softDrop = false;
     this.positionFalling();
   }
@@ -376,37 +376,36 @@ export class SailingRenderer {
     this.ghost.clear();
   }
 
-  /** Row the anchor would rest at for (col, rot), or null when the placement is illegal. */
-  private restRow(col: number, rot: Rotation): number | null {
-    if (!this.state) return null;
-    const land = sailingLandingCells(this.state, col, rot);
-    if (!land) return null;
-    return Math.max(Math.floor(land.a / this.width), Math.floor(land.b / this.width));
+  /** The pair may occupy (col, row, rot) now: it fits there and, mid-fall, in the row it is entering too. */
+  private mayOccupy(col: number, row: number, rot: Rotation): boolean {
+    const f = this.falling;
+    if (!f || !this.state) return false;
+    const R = Math.ceil(f.row);
+    if (!sailingFits(this.state, col, row, rot)) return false;
+    return f.row === R || sailingFits(this.state, col, row - 1, rot);
   }
 
   private tryMove(dcol: number): void {
     const f = this.falling;
     if (!f || !this.interactive) return;
-    const col = f.col + dcol;
-    const rest = this.restRow(col, f.rot);
-    if (rest === null || rest > Math.ceil(f.row)) return;
-    f.col = col;
-    f.row = Math.max(f.row, rest);
+    const R = Math.ceil(f.row);
+    if (!this.mayOccupy(f.col + dcol, R, f.rot)) return;
+    f.col += dcol;
     f.lock = 0;
     this.cb.onNudge();
     this.positionFalling();
   }
 
+  /** Turn clockwise with the engine's kicks, so what the player sees is a position the engine accepts. */
   private tryRotate(): void {
     const f = this.falling;
     if (!f || !this.interactive) return;
+    const R = Math.ceil(f.row);
     const rot = ((f.rot + 1) % 4) as Rotation;
-    for (const col of [f.col, f.col - 1, f.col + 1]) {
-      const rest = this.restRow(col, rot);
-      if (rest === null || rest > Math.ceil(f.row)) continue;
-      f.col = col;
+    for (const kick of SAILING_ROTATION_KICKS) {
+      if (!this.mayOccupy(f.col + kick, R, rot)) continue;
+      f.col += kick;
       f.rot = rot;
-      f.row = Math.max(f.row, rest);
       f.lock = 0;
       this.cb.onNudge();
       this.positionFalling();
@@ -414,51 +413,39 @@ export class SailingRenderer {
     }
   }
 
-  private stepDown(): void {
-    const f = this.falling;
-    if (!f || !this.interactive) return;
-    const rest = this.restRow(f.col, f.rot);
-    if (rest === null) return;
-    f.row = Math.max(rest, Math.floor(f.row) - 1);
-    this.fallClock = 0;
-    this.positionFalling();
-  }
-
   private hardDrop(): void {
     const f = this.falling;
-    if (!f || !this.interactive) return;
-    const rest = this.restRow(f.col, f.rot);
-    if (rest === null) return;
-    f.row = rest;
+    if (!f || !this.interactive || !this.state) return;
+    f.row = sailingLandingRow(this.state, f.col, Math.ceil(f.row), f.rot);
     this.commit();
   }
 
   private commit(): void {
     const f = this.falling;
     if (!f || !this.state) return;
-    const col = f.col;
-    const rot = f.rot;
+    const row = Math.ceil(f.row);
+    f.row = row;
     this.positionFalling();
-    this.cb.onPlace(col, rot);
+    this.cb.onPlace(f.col, row, f.rot);
   }
 
   private positionFalling(): void {
     const f = this.falling;
-    if (!f) return;
-    const top = Math.max(0, Math.min(this.height - 1, f.row));
-    const cells = sailingPairCells(this.state!.config, f.col, Math.ceil(top), f.rot);
     const g = this.ghost;
     g.clear();
+    if (!f || !this.state) return;
+    const R = Math.ceil(f.row);
+    const cells = sailingPairCells(this.state.config, f.col, R, f.rot);
     if (!cells) return;
-    const frac = Math.ceil(top) - top;
-    const dy = frac * this.cell;
+    const dy = (R - f.row) * this.cell;
     f.a.position.set(this.cx(cells.a % this.width), this.cy(Math.floor(cells.a / this.width)) + dy);
     f.b.position.set(this.cx(cells.b % this.width), this.cy(Math.floor(cells.b / this.width)) + dy);
-    const land = this.state ? sailingLandingCells(this.state, f.col, f.rot) : null;
+    const landRow = sailingLandingRow(this.state, f.col, R, f.rot);
+    const land = sailingPairCells(this.state.config, f.col, landRow, f.rot);
     if (land) {
       for (const [c, kind] of [
-        [land.a, this.state!.current.a],
-        [land.b, this.state!.current.b],
+        [land.a, this.state.current.a],
+        [land.b, this.state.current.b],
       ] as const) {
         const x = this.cx(c % this.width);
         const y = this.cy(Math.floor(c / this.width));
@@ -618,10 +605,12 @@ export class SailingRenderer {
     while (this.waitMs <= 0 && this.steps.length) {
       const r = this.steps.shift()!();
       if (r === "settle") {
+        // Wait for the next frame to measure movement, so pieces land before the next step fires.
         this.waitSettle = 1;
         this.waitMs = 0;
-        if (this.moving) return;
-      } else this.waitMs = r;
+        return;
+      }
+      this.waitMs = r;
     }
   }
 
@@ -691,21 +680,20 @@ export class SailingRenderer {
     if (f && this.state) bar(f.a.x, f.a.y, f.b.x, f.b.y, this.state.current.a, this.state.current.b);
   }
 
-  /** Gravity on the falling pair: one row per fallMs, faster while soft-dropping, then a short lock. */
+  /** Gravity on the falling pair: one row per fallMs, twice as fast while hurried, then a short lock once it rests. */
   private fall(dt: number): void {
     const f = this.falling;
-    if (!f || !this.interactive || this.steps.length) return;
-    const rest = this.restRow(f.col, f.rot);
-    if (rest === null) return;
-    if (f.row <= rest) {
-      f.row = rest;
-      f.lock += dt;
-      this.positionFalling();
-      if (f.lock >= LOCK_MS) this.commit();
-      return;
+    if (!f || !this.interactive || this.steps.length || !this.state) return;
+    const R = Math.ceil(f.row);
+    if (f.row === R) {
+      if (!sailingCanDrop(this.state, f.col, R, f.rot)) {
+        f.lock += dt;
+        if (f.lock >= LOCK_MS) this.commit();
+        return;
+      }
     }
     const per = this.softDrop ? this.opts.softDropMs : this.opts.fallMs;
-    f.row = Math.max(rest, f.row - dt / per);
+    f.row = Math.max(R - 1, f.row - dt / per);
     this.positionFalling();
   }
 
@@ -726,20 +714,20 @@ export class SailingRenderer {
 
   private pointerDown(e: FederatedPointerEvent): void {
     if (!this.interactive || !this.falling) return;
-    this.drag = { x: e.global.x, y: e.global.y, col: this.falling.col, moved: false, dropped: false };
+    this.drag = { x: e.global.x, y: e.global.y, col: this.falling.col, moved: false, hurried: false };
   }
 
+  /** Drag sideways to steer a column at a time; hold a downward swipe to hurry the fall until the finger lifts. */
   private pointerMove(e: FederatedPointerEvent): void {
     const d = this.drag;
     const f = this.falling;
-    if (!d || !f || d.dropped) return;
+    if (!d || !f) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
-    if (dy > this.cell * 1.4 && Math.abs(dx) < this.cell) {
-      d.dropped = true;
-      this.hardDrop();
-      return;
-    }
+    if (dy > this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
+      d.hurried = true;
+      this.softDrop = true;
+    } else if (dy < this.cell * 0.4) this.softDrop = false;
     const wantCol = d.col + Math.round(dx / this.cell);
     while (f.col < wantCol) {
       const before = f.col;
@@ -758,7 +746,8 @@ export class SailingRenderer {
   private pointerUp(e: FederatedPointerEvent): void {
     const d = this.drag;
     this.drag = null;
-    if (!d || !this.falling || d.dropped) return;
+    this.softDrop = false;
+    if (!d || !this.falling || d.hurried) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
     if (!d.moved && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate();
@@ -766,9 +755,10 @@ export class SailingRenderer {
 
   private pointerCancel(): void {
     this.drag = null;
+    this.softDrop = false;
   }
 
-  /** Keyboard: arrows steer, up rotates, down soft-drops, space or enter hard-drops. */
+  /** Keyboard: arrows steer, up turns, down hurries while held, space or enter drops. */
   keyboard(key: string, down: boolean): boolean {
     if (key === "ArrowDown" && !down) {
       this.softDrop = false;
@@ -776,7 +766,6 @@ export class SailingRenderer {
     }
     if (!this.interactive) return false;
     if (key === "ArrowDown") {
-      if (!this.softDrop) this.stepDown();
       this.softDrop = true;
       return true;
     }
