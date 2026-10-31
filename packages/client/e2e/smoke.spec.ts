@@ -89,6 +89,8 @@ test("home links to Sailing practice and an unrated round takes keyboard drops",
 });
 
 test("home links to Carpentry practice and planks go down by keyboard and by tap", async ({ page }) => {
+  // The plank tray and board redraw are the heaviest canvas in the suite on the phone profile.
+  test.slow();
   await page.goto("/");
   await page.getByRole("link", { name: /Carpentry/ }).click();
   await expect(page).toHaveURL(/\/practice\/carpentry$/);
@@ -96,14 +98,7 @@ test("home links to Carpentry practice and planks go down by keyboard and by tap
   const canvas = page.getByTestId("carpentry-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toContainText("0");
-  const settled = async (): Promise<void> => {
-    await expect(async () => {
-      const want = await page.getByTestId("carpentry-board").getAttribute("data-board");
-      const shown = await canvas.getAttribute("data-view");
-      expect(want).toBeTruthy();
-      expect(shown).toBe(want);
-    }).toPass({ timeout: 10_000 });
-  };
+  const settled = (): Promise<void> => expectViewMatchesState(page, "carpentry");
   await settled();
 
   // Keyboard: pick plank 1, jump to a spot it fits, nail it down.
