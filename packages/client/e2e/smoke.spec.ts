@@ -154,8 +154,5 @@ test("home links to Gunnery practice and an unrated round takes arrows by key an
   await page.mouse.click(ox + cell * 1.5, oy + cell * 1.5);
   await expect(page.getByTestId("hud-moves")).toContainText("2");
   // The deck the canvas shows is the deck the engine holds.
-  await expect(async () => {
-    const want = await page.getByTestId("gunnery-board").getAttribute("data-board");
-    expect(await canvas.getAttribute("data-view")).toBe(want);
-  }).toPass({ timeout: 10_000 });
+  await expectViewMatchesState(page, "gunnery");
 });
