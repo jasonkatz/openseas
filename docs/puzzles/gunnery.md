@@ -38,10 +38,9 @@ after research.
   Medium.
 - [x] **Scoring.** Speed first (time on board per gun loaded), then fewest arrows. High on the
   order, medium on the formula.
-- [ ] **Barrel order.** How the barrel chooses its next piece. Recommended: a seeded bag weighted
-  toward what the guns need, with weights in content.
-- [ ] **Flushing an empty cannon.** Whether it wastes anything. Recommended: harmless, the bucket
-  is just used up.
+- [x] **Barrel order.** Unconfirmed in the original; decided by the owner: a seeded bag weighted
+  toward what the cannons currently need, weights in content.
+- [x] **Flushing an empty cannon.** Unconfirmed; default: harmless, the bucket is just used up.
 
 ## 4. Board, pieces and specials
 
@@ -140,7 +139,7 @@ agreement; view-equals-engine smoke check.
 
 ## 16. Open questions
 
-- Barrel order and empty-cannon flush (recommended in section 3).
+None open.
 
 Decided by the owner:
 

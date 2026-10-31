@@ -95,6 +95,7 @@ landing (cells filled) and conversion step, so both screens replay the exchange 
 
 ## 11. Exploits
 
+- **Drops:** both a steerable fast fall and an instant hard drop, as in Sailing (owner decision).
 - **Lag abuse:** a player who withholds moves cannot delay strikes landing on them; landing is
   keyed to their own next drop, and the gravity lock forces drops regardless of input.
 - **Time dilation:** closed by the server clock checks.

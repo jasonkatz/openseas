@@ -39,13 +39,12 @@ through search extracts, not read in full; see `pp-rules-research` in the PR).
   flat penalty (20) and gets a fresh board.
 - [x] Boards get harder the longer a player goes without topping out.
 
-Still to pin before the engine PR, with our recommendation:
+Decided by the owner where the original was unconfirmed:
 
-- How snags clear. Recommended: only as part of a four-in-a-line, and they score the most of any
-  piece.
-- Whether the fast-drop key is a hard drop. Recommended: fast soft drop that still allows moves
-  and rotation, as the research suggests; plus a separate hard drop on touch (swipe down).
-- Exact scoring weights (section 6).
+- [x] Snags clear only as part of a four-in-a-line, and score the most of any piece.
+- [x] Both a steerable fast fall (faithful) and a separate instant hard drop.
+
+Still open: exact scoring weights (section 6).
 
 ## 4. Board, pieces and specials
 
@@ -166,5 +165,4 @@ top-out detection; server time checks; view-equals-engine smoke check.
 
 ## 16. Open questions
 
-- How snags clear (recommended in section 3).
-- Hard drop: recommended a separate hard drop on every input method.
+None open; snags and drops are decided in section 3.

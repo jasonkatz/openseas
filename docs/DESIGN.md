@@ -350,4 +350,8 @@ Maintained as they arise.
 | Navigation completion | Unconfirmed | A completed constellation clears and a new outline arrives | Owner decision |
 | Swordfighting counters | Unconfirmed | Strike generated cancels strike queued against you | Owner decision; gives a way back |
 | Swordfighting team fights | Unconfirmed | Each fighter picks a target | Owner decision; adds team tactics |
+| Sailing drops | Steerable fast fall | Fast fall plus an instant hard drop | Owner decision |
+| Sailing snags | Unconfirmed | Clear only in a four-in-a-line, worth the most | Owner decision |
+| Gunnery barrel | Unconfirmed | Seeded bag weighted to what the cannons need | Owner decision |
+| Sea Battle shots | Unconfirmed past ships | A shot stops at the first ship in line | Owner decision |
 | Puzzle names | Coined terms (see `docs/puzzles/research/original-rules.md`) | Spars, snags, slabs, shrapnel, our own callouts and tier names | ADR 0001 |

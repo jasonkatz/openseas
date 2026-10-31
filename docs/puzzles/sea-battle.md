@@ -41,17 +41,16 @@ after research.
 - [x] **Cannons.** Broadside only, range three, fired in step three after movement. Large ships
   fire two shots per side per phase. High.
 - [x] **Gun tokens.** One per loaded cannon; they carry over and do not expire. High.
-- [x] **Grapple.** Range one, one side per phase, and no cannon fire that phase. High on range,
-  conflicting on whether fire is blocked for both sides or only the grappling side; recommended
-  both sides (the newer rule).
+- [x] **Grapple.** Range one, one side per phase. Sources conflict on whether it blocks fire for
+  both ships or only the grappler; decided by the owner: no cannon fire from either side that
+  phase (the newer rule).
 - [x] **Damage into boarding.** Carries into Swordfighting as pre-filled rows. High.
 - [ ] **Turn geometry.** A turn moves the ship forward then sideways into its new heading.
   Inferred; check in play.
-- [ ] **Line of sight past ships.** Do ships block shots? Recommended: yes, the first ship in line
-  takes the hit.
-- [ ] **Queue limit.** Maximum tokens queued per turn: four phases, one move each, is the natural
-  cap. Recommended.
-- [ ] **Grid size.** One source says 24 by 24; recommended per-map sizes in content.
+- [x] **Line of sight past ships.** Unconfirmed; decided by the owner: a shot stops at the first
+  ship in its line, friend or foe.
+- [x] **Queue limit.** Four phases, one move each. Default.
+- [x] **Grid size.** One source says 24 by 24; default: per-map sizes in content.
 
 ## 4. Board, pieces and specials
 
@@ -152,7 +151,7 @@ view-equals-engine smoke check after each turn.
 
 ## 16. Open questions
 
-- Turn geometry, line of sight past ships, queue limit, grid size (recommended in section 3).
+- Turn geometry: check in play before the engine PR.
 
 Decided by the owner:
 
