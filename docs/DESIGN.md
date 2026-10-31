@@ -146,6 +146,23 @@ Numbers live in `content/data/puzzles/sailing.json`.
 fills with fewer gaps score higher and feed repair output. QoL: drag-and-drop with snap and a
 rotate button, valid-placement highlight, swap between offered pieces.
 
+As built (M2): a 9 wide by 12 tall stretch of hull with up to three holes open at once. A hole is
+dealt as one to three pentominoes laid edge to edge, so its area is a multiple of five and a
+perfect fill exists; holes never touch. Three planks wait in a tray, each one of the twelve
+pentominoes with a wood kind (cosmetic) and a grain that turns with it. A plank goes down anywhere
+it covers at least one open cell of exactly one hole; cells it lays over hull or over another plank
+are waste. When every cell of a hole is covered it is patched, its planks come off and a new hole
+is dealt elsewhere. The patch is rated by extra planks beyond the minimum (area over five):
+none is a masterpiece (which also demands no waste), one craftsmanship, two a fair job, three
+sloppy work, four or more a pig's breakfast. Points are area times `basePerCell` times the
+rating's multiplier, plus a quarter more when every plank's grain runs across, times the current
+masterpiece streak; the streak is the combo and a lesser patch resets it. A hole left alone while
+`growAfterMoves` planks go elsewhere widens by one cell, and a widened hole can no longer be a
+masterpiece. The round ends after `maxMoves` planks or the clock. Touch drags a plank from the
+tray with snap and a legal/illegal highlight, or taps to place the ghost and taps again to nail;
+keyboard picks a slot, moves, turns, flips, and can jump to the next spot the plank fits. Numbers
+live in `content/data/puzzles/carpentry.json`.
+
 **Gunnery.** Route powder, wadding, and cannonballs through a column board into cannons in the
 right order to load them. Correct loads feed cannon readiness. QoL: per-cannon load-order
 indicator, highlight of which drop completes a load. Flagged for possible redesign after
@@ -355,3 +372,6 @@ Maintained as they arise.
 | Sailing scoring | Original's table | Run of n scores `runPoints * (n - 3)`, platform scores `platformPoints` per target, times groups, times chain step | Published formula, tuned in playtests |
 | Sailing top-out | Board full ends the board | The rigging is cleared for `topOutPenalty` points and play continues to the clock | A filled board should cost, not stop, a two-minute practice round |
 | Timed puzzle rounds | Real-time simulation | Integer ticks carried in every move; the server rejects ticks ahead of the wall clock | Keeps engines pure and replayable (ADR 0015) |
+| Carpentry holes | Grow in real time when unattended | Dealt as unions of pentominoes; widen by one cell after `growAfterMoves` planks placed elsewhere | Move-driven growth keeps the engine pure; pentomino unions guarantee a masterpiece is possible |
+| Carpentry patched hole | Planking stays visible | Planks come off and the hull is free again; a new hole is dealt | Keeps a practice round busy on a small board |
+| Carpentry scoring | Original's table | Area times `basePerCell` times a rating multiplier, grain bonus, times masterpiece streak | Published formula, tuned in playtests |
