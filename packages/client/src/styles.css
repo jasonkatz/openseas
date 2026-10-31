@@ -638,7 +638,7 @@ a {
   display: block;
   animation: bob 2.4s ease-in-out infinite;
 }
-.tile-row svg {
+.tile-row img {
   width: 30px;
   height: 30px;
 }

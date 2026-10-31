@@ -46,36 +46,43 @@
     {
       "nameKey": "bilging.piece.cog",
       "mark": "gear",
+      "texture": "knurl",
       "color": "#f5d021"
     },
     {
       "nameKey": "bilging.piece.shell",
       "mark": "circle",
+      "texture": "fan",
       "color": "#f2f0e6"
     },
     {
       "nameKey": "bilging.piece.anchor",
       "mark": "triangle",
+      "texture": "waves",
       "color": "#3fa7f5"
     },
     {
       "nameKey": "bilging.piece.plank",
       "mark": "square",
+      "texture": "grain",
       "color": "#f3772a"
     },
     {
       "nameKey": "bilging.piece.pearl",
       "mark": "diamond",
+      "texture": "nacre",
       "color": "#a66cf5"
     },
     {
       "nameKey": "bilging.piece.kelp",
       "mark": "hexagon",
+      "texture": "fronds",
       "color": "#2fbf71"
     },
     {
       "nameKey": "bilging.piece.coral",
       "mark": "star",
+      "texture": "pores",
       "color": "#e5355a"
     }
   ],

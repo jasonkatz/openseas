@@ -1,7 +1,7 @@
-import { Application, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
+import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import { Special, type BilgingState, type ClearRound, type MoveReport, type Piece } from "@openseas/engine";
 import type { BilgingContent } from "@openseas/content";
-import { buildFlash, buildTile, mix, type TileStyle } from "./tiles.js";
+import { buildFlash, mix, tileCanvas, type TileStyle, type TileTexture } from "./tiles.js";
 
 export interface RendererCallbacks {
   /** The player asked to swap (col,row) with (col+1,row). */
@@ -13,6 +13,23 @@ export interface RendererCallbacks {
   onFrame(): void;
   /** A cascade step is clearing on screen now. Drives sound so it lines up with what is seen. */
   onClear(round: ClearRound): void;
+  /** A move finished playing out. Streak and water changes land here, in step with the screen. */
+  onMoveShown(shown: MoveShown): void;
+  /** The swap a hint should point at, or null when there is none. Asked only while hints are on. */
+  findHint(): { col: number; row: number } | null;
+}
+
+export interface MoveShown {
+  /** Consecutive scoring moves after this one; 0 when this move broke the streak. */
+  combo: number;
+  /** The streak this move broke, or 0. */
+  lostCombo: number;
+  /** Combo milestone this move reached (3, 5, 8, 12, ...), or 0. */
+  milestone: number;
+  /** Whole rows the water moved: negative when pumped down. */
+  waterRows: number;
+  /** The water just crossed into the danger half. */
+  enteredDanger: boolean;
 }
 
 export interface RendererOptions {
@@ -21,6 +38,10 @@ export interface RendererOptions {
   labels: { keg: string; ink: string; barnacle: string };
   /** Formats the callout shown for cascade step `chain` (2 and up), from the message table. */
   chainLabel(chain: number): string;
+  /** Callout for clearing `groups` (2 and up) runs in one step, from the message table. */
+  multiLabel(groups: number): string;
+  /** Callout for a streak milestone of `count` scoring moves in a row, from the message table. */
+  streakLabel(count: number): string;
   /** A swap below the water line takes this long, and the board takes no other swap meanwhile. */
   underwaterSwapMs: number;
 }
@@ -110,6 +131,13 @@ const COLORS = {
 const SWAP_MS = 120;
 const CLEAR_MS = 190;
 const DIE_MS = 230;
+/** No input for this long in a hinted round and the board points at a scoring swap. */
+const HINT_IDLE_MS = 6000;
+
+/** Streak milestones that earn a callout and a fanfare: 3, 5, 8, 12, then every 5. */
+export function streakMilestone(combo: number): boolean {
+  return combo === 3 || combo === 5 || combo === 8 || combo === 12 || (combo > 12 && combo % 5 === 0);
+}
 
 const linear = (vertical: boolean, stops: readonly number[]): FillGradient =>
   new FillGradient({
@@ -156,6 +184,7 @@ export class BilgingRenderer {
   private readonly bubbles: Bubble[] = [];
   private readonly colorByKind = new Map<number, number>();
   private readonly markByKind = new Map<number, string>();
+  private readonly textureByKind = new Map<number, TileTexture>();
   private readonly textures = new Map<number, Texture>();
   private readonly woodFill = linear(false, [COLORS.woodBottom, COLORS.woodTop, COLORS.woodBottom]);
   private readonly wellFill = linear(true, [COLORS.wellTop, COLORS.wellBottom]);
@@ -198,6 +227,13 @@ export class BilgingRenderer {
   private destroyed = false;
   private state: BilgingState | null = null;
   private interactive = true;
+  /** Board punch: a brief scale-up on big clears, decaying to 0. */
+  private punch = 0;
+  private hints = false;
+  private lastInputAt = 0;
+  private hint: { col: number; row: number } | null = null;
+  private hintCheckedAt = -1;
+  private sparkClock = 0;
 
   constructor(
     private readonly host: HTMLElement,
@@ -209,6 +245,7 @@ export class BilgingRenderer {
     content.pieces.forEach((p, i) => {
       this.colorByKind.set(i, parseInt(p.color.slice(1), 16));
       this.markByKind.set(i, p.mark);
+      this.textureByKind.set(i, p.texture);
     });
     this.colorByKind.set(Special.Keg, parseInt(content.specials.keg.color.slice(1), 16));
     this.colorByKind.set(Special.Ink, parseInt(content.specials.ink.color.slice(1), 16));
@@ -220,6 +257,7 @@ export class BilgingRenderer {
     const special = kind === Special.Keg ? "keg" : kind === Special.Ink ? "ink" : kind === Special.Barnacle ? "barnacle" : null;
     return {
       color,
+      texture: special ? null : (this.textureByKind.get(kind) ?? null),
       mark: special ? null : (this.markByKind.get(kind) ?? null),
       special,
       label: special ? this.opts.labels[special] : "",
@@ -298,6 +336,18 @@ export class BilgingRenderer {
     }
   }
 
+  /** Idle hints, for unrated practice only: a rated round is the player's own work. */
+  setHints(on: boolean): void {
+    this.hints = on;
+    this.lastInputAt = this.time;
+    this.hint = null;
+  }
+
+  private noteInput(): void {
+    this.lastInputAt = this.time;
+    this.hint = null;
+  }
+
   setPreview(cells: readonly number[]): void {
     this.previewCells = cells;
   }
@@ -371,7 +421,9 @@ export class BilgingRenderer {
     for (const round of report.rounds) {
       this.steps.push(() => {
         this.clear(round);
-        return CLEAR_MS;
+        // Bigger steps hold a beat longer so the hit lands before the board moves again.
+        const size = round.groups.reduce((n, g) => n + g.ids.length, 0);
+        return CLEAR_MS + Math.min(110, (round.chain - 1) * 30 + Math.max(0, size - 4) * 10);
       });
       this.steps.push(() => {
         this.place(round.settled, false);
@@ -380,9 +432,33 @@ export class BilgingRenderer {
     }
     this.steps.push(() => {
       this.place(state.cells, false);
+      this.moveShown(prev, state);
       return 0;
     });
+    this.noteInput();
     this.runSteps(0);
+  }
+
+  /** Streak and water feedback once a move has finished playing. */
+  private moveShown(prev: BilgingState, state: BilgingState): void {
+    const half = state.config.height * 0.5;
+    const shown: MoveShown = {
+      combo: state.combo,
+      lostCombo: state.combo === 0 ? prev.combo : 0,
+      milestone: state.combo > prev.combo && streakMilestone(state.combo) ? state.combo : 0,
+      waterRows: state.waterRow - prev.waterRow,
+      enteredDanger: prev.waterRow < half && state.waterRow >= half,
+    };
+    if (shown.milestone) {
+      this.callout(this.opts.streakLabel(shown.milestone), 2 + Math.min(4, shown.milestone / 3), 0x8ff0d8);
+      this.ring((this.width * this.cell) / 2, (this.height * this.cell) / 2, this.cell, this.cell * 6, COLORS.brassLight, 700, 0.08);
+    }
+    if (shown.waterRows < 0) {
+      // Pumped: the surface throws spray where the new line settles.
+      const top = (this.height - state.waterRow) * this.cell;
+      for (let k = 0; k < this.width; k++) this.burst(this.cx(k), top, COLORS.foam, this.reduced ? 1 : 3, 0.6);
+    }
+    this.cb.onMoveShown(shown);
   }
 
   /**
@@ -474,17 +550,26 @@ export class BilgingRenderer {
         sx += v.x;
         sy += v.y;
         n++;
-        this.burst(v.x, v.y, this.fxColor(v.kind), group.cause === "match" ? 6 : 9);
+        this.burst(v.x, v.y, this.fxColor(v.kind), group.cause === "match" ? 5 + Math.min(5, group.ids.length - 3) : 9);
+      }
+      if (group.cause === "match" && group.ids.length) {
+        const center = this.centerOf(group.ids);
+        const first = this.pieces.get(group.ids[0]!);
+        const big = group.ids.length >= 5;
+        this.ring(center.x, center.y, this.cell * 0.3, this.cell * (big ? 2.2 : 1.3), first ? this.fxColor(first.kind) : COLORS.select, big ? 480 : 340, big ? 0.1 : 0.06);
+        if (big) this.bump(0.03 + Math.min(0.03, (group.ids.length - 5) * 0.01));
       }
       if (group.cause === "keg" && group.ids.length) {
         const center = this.centerOf(group.ids);
         this.ring(center.x, center.y, this.cell * 0.3, this.cell * 2.1, 0xffb347, 420, 0.14);
         this.ring(center.x, center.y, this.cell * 0.2, this.cell * 1.4, 0xfff1c9, 260, 0.08);
         this.kick(0.22);
+        this.bump(0.05);
       } else if (group.cause === "ink" && group.ids.length) {
         const center = this.centerOf(group.ids);
         this.ring(center.x, center.y, this.cell * 0.4, this.cell * 4.5, 0xc084fc, 620, 0.1);
         this.kick(0.12);
+        this.bump(0.04);
       } else if (group.cause === "barnacle") {
         const center = this.centerOf(group.ids);
         this.ring(center.x, center.y, this.cell * 0.3, this.cell * 0.9, COLORS.select, 360, 0.06);
@@ -496,7 +581,11 @@ export class BilgingRenderer {
       const mult = round.chain > 1 ? ` ×${round.chain}` : groups > 1 ? ` ×${groups}` : "";
       this.popup(sx / n, sy / n, `+${round.points}${mult}`, round.chain >= 3 ? 0xff9a6b : round.chain === 2 || groups > 1 ? COLORS.brassLight : COLORS.select, 0.46 + Math.min(0.24, round.points / 400));
     }
-    if (round.chain >= 2) this.callout(this.opts.chainLabel(round.chain), round.chain);
+    const runs = round.groups.filter((g) => g.cause === "match" && g.ids.length >= 3).length;
+    const lines: string[] = [];
+    if (runs >= 2) lines.push(this.opts.multiLabel(runs));
+    if (round.chain >= 2) lines.push(this.opts.chainLabel(round.chain));
+    if (lines.length) this.callout(lines.join("\n"), round.chain + (runs >= 2 ? runs - 1 : 0));
   }
 
   private centerOf(ids: readonly number[]): { x: number; y: number } {
@@ -525,14 +614,14 @@ export class BilgingRenderer {
 
   // ---- effects
 
-  private burst(x: number, y: number, color: number, count: number): void {
+  private burst(x: number, y: number, color: number, count: number, speedScale = 1): void {
     if (this.reduced) count = Math.ceil(count / 3);
     for (let k = 0; k < count; k++) {
       const s = new Sprite(this.sparkTex);
       s.anchor.set(0.5);
       s.tint = mix(color, 0xffffff, Math.random() * 0.35);
       const a = rand(0, Math.PI * 2);
-      const speed = this.cell * rand(0.0025, 0.007);
+      const speed = this.cell * rand(0.0025, 0.007) * speedScale;
       s.position.set(x + Math.cos(a) * this.cell * 0.2, y + Math.sin(a) * this.cell * 0.2);
       s.scale.set(rand(0.55, 1.1));
       s.rotation = rand(0, Math.PI);
@@ -567,7 +656,7 @@ export class BilgingRenderer {
     this.popups.push({ t, life: 0, max: 950, y0: t.y, rise: this.cell * 0.9, scale: 1 });
   }
 
-  private callout(text: string, chain: number): void {
+  private callout(text: string, chain: number, color?: number): void {
     for (const p of this.popups) if (p.t.parent === this.calloutLayer) p.life = Math.max(p.life, p.max - 120);
     const t = new Text({
       text,
@@ -576,7 +665,8 @@ export class BilgingRenderer {
         fontStyle: "italic",
         fontSize: Math.max(26, this.cell * (0.8 + Math.min(0.5, chain * 0.08))),
         fontWeight: "900",
-        fill: chain >= 4 ? 0xff9a6b : COLORS.brassLight,
+        fill: color ?? (chain >= 4 ? 0xff9a6b : COLORS.brassLight),
+        align: "center",
         stroke: { color: COLORS.ink, width: Math.max(4, this.cell * 0.12), join: "round" },
         dropShadow: { color: 0x000000, alpha: 0.6, blur: 8, distance: 3, angle: Math.PI / 2 },
       },
@@ -594,6 +684,11 @@ export class BilgingRenderer {
     this.shake = Math.min(0.35, Math.max(this.shake, amount));
   }
 
+  private bump(amount: number): void {
+    if (this.reduced) return;
+    this.punch = Math.min(0.07, Math.max(this.punch, amount));
+  }
+
   // ---- layout and baking
 
   private layout(): void {
@@ -608,7 +703,8 @@ export class BilgingRenderer {
     this.pad = padFor(this.cell);
     this.ox = Math.floor((w - this.cell * this.width) / 2);
     this.oy = Math.floor((h - this.cell * this.height) / 2);
-    this.board.position.set(this.ox, this.oy);
+    this.board.pivot.set((this.cell * this.width) / 2, (this.cell * this.height) / 2);
+    this.board.position.set(this.ox + this.board.pivot.x, this.oy + this.board.pivot.y);
     this.drawFrame();
     this.bake();
     if (this.state) this.place(this.state.cells, true);
@@ -664,9 +760,8 @@ export class BilgingRenderer {
     const frame = new Rectangle(-s / 2, -s / 2, s, s);
     const kinds = [...this.colorByKind.keys()];
     for (const kind of kinds) {
-      const view = buildTile(s, this.styleFor(kind));
-      this.textures.set(kind, r.generateTexture({ target: view, frame, resolution: r.resolution, antialias: true }));
-      view.destroy({ children: true });
+      const canvas = tileCanvas(s, this.styleFor(kind), r.resolution);
+      this.textures.set(kind, new Texture({ source: new CanvasSource({ resource: canvas, resolution: r.resolution }) }));
     }
     const flash = buildFlash(s);
     this.flashTex = r.generateTexture({ target: flash, frame, resolution: r.resolution, antialias: true });
@@ -705,14 +800,25 @@ export class BilgingRenderer {
     this.movePieces(dt);
     if (this.viewStale && !this.steps.length && !this.moving && this.waitMs <= 0) this.publishView();
     this.moveFx(dt);
+    const bx = this.ox + this.board.pivot.x;
+    const by = this.oy + this.board.pivot.y;
     if (this.shake > 0.002) {
       const a = this.shake * this.cell * 0.5;
-      this.board.position.set(this.ox + rand(-a, a), this.oy + rand(-a, a));
+      this.board.position.set(bx + rand(-a, a), by + rand(-a, a));
       this.shake *= Math.pow(0.82, dt / 16.67);
     } else if (this.shake !== 0) {
       this.shake = 0;
-      this.board.position.set(this.ox, this.oy);
+      this.board.position.set(bx, by);
     }
+    if (this.punch > 0.001) {
+      this.board.scale.set(1 + this.punch);
+      this.punch *= Math.pow(0.8, dt / 16.67);
+    } else if (this.punch !== 0) {
+      this.punch = 0;
+      this.board.scale.set(1);
+    }
+    this.updateHint();
+    this.emitSparks(dt);
     const k = Math.min(1, dt / 16.67);
     this.waterShown += (this.waterTarget - this.waterShown) * Math.min(1, 0.06 * k);
     if (Math.abs(this.waterTarget - this.waterShown) < 0.003) this.waterShown = this.waterTarget;
@@ -723,6 +829,41 @@ export class BilgingRenderer {
     if (this.framePending) {
       this.framePending = false;
       this.cb.onFrame();
+    }
+  }
+
+  /** After a quiet spell in a hinted round, pick a scoring swap to point at. */
+  private updateHint(): void {
+    if (!this.hints || !this.interactive || this.steps.length || this.moving || this.time < this.lockedUntil) {
+      this.hint = null;
+      this.hintCheckedAt = -1;
+      return;
+    }
+    if (this.time - this.lastInputAt < HINT_IDLE_MS) return;
+    if (this.hint || this.hintCheckedAt === this.lastInputAt) return;
+    this.hintCheckedAt = this.lastInputAt;
+    this.hint = this.cb.findHint();
+  }
+
+  /** Lit kegs throw the odd spark from their fuse, so a keg on the board catches the eye. */
+  private emitSparks(dt: number): void {
+    if (this.reduced) return;
+    this.sparkClock += dt;
+    if (this.sparkClock < 140) return;
+    this.sparkClock = 0;
+    for (const v of this.pieces.values()) {
+      if (v.kind !== Special.Keg || v.dying !== null || Math.random() > 0.3) continue;
+      const fx = v.x + this.cell * 0.18;
+      const fy = v.y - this.cell * (this.cell >= 36 ? 0.26 : 0.19);
+      const s = new Sprite(this.sparkTex);
+      s.anchor.set(0.5);
+      s.tint = Math.random() > 0.5 ? 0xffd27a : 0xffb347;
+      s.scale.set(rand(0.25, 0.45));
+      s.position.set(fx, fy);
+      this.fxLayer.addChild(s);
+      const a = rand(-Math.PI * 0.95, -Math.PI * 0.05);
+      const speed = this.cell * rand(0.0015, 0.0035);
+      this.particles.push({ s, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, spin: rand(-0.02, 0.02), life: 0, max: rand(260, 420) });
     }
   }
 
@@ -803,12 +944,27 @@ export class BilgingRenderer {
       }
       const lifted = this.selected && this.selected.col === col && this.selected.row === row ? 0.06 + Math.sin(this.time * 0.008) * 0.02 : 0;
       const sq = v.squash * 0.1;
-      v.c.position.set(v.x + nudge, v.y + arc + sq * this.cell * 0.3);
+      // Submerged pieces sway with the bilge; at rest only, so moving pieces stay crisp.
+      let sway = 0;
+      let rot = 0;
+      if (!this.reduced && v.slide === 1 && v.y === v.ty && row < this.waterShown - 0.2) {
+        const ph = this.time * 0.0019 + col * 0.9 + row * 0.6;
+        sway = Math.sin(ph) * this.cell * 0.022;
+        rot = Math.sin(ph + 0.8) * 0.025;
+      }
+      // A hinted pair wiggles in short bursts.
+      if (this.hint && this.hint.row === row && (col === this.hint.col || col === this.hint.col + 1)) {
+        const cycle = (this.time - this.lastInputAt - HINT_IDLE_MS) % 1500;
+        if (cycle < 520) rot += Math.sin(cycle * 0.045) * 0.13 * (1 - cycle / 520);
+      }
+      v.c.rotation = rot;
+      v.c.position.set(v.x + nudge + sway, v.y + arc + sq * this.cell * 0.3);
       // Pieces rising from below the board fade in out of the murk instead of being masked.
       const below = (v.y - (this.height - 0.5) * this.cell) / this.cell;
       v.c.visible = below < 1;
       v.c.alpha = below > 0 ? 1 - below : 1;
-      v.c.scale.set(1 + pop + lifted + sq * 0.5, 1 + pop + lifted - sq);
+      const breathe = v.kind === Special.Ink || v.kind === Special.Keg ? Math.sin(this.time * 0.005 + v.tx) * 0.025 : 0;
+      v.c.scale.set(1 + pop + lifted + breathe + sq * 0.5, 1 + pop + lifted + breathe - sq);
     }
     this.moving = moving;
   }
@@ -958,6 +1114,7 @@ export class BilgingRenderer {
       g.poly([mx - a * 1.6, my, mx - a * 0.4, my - a, mx - a * 0.4, my + a]).fill({ color, alpha });
       g.poly([mx + a * 1.6, my, mx + a * 0.4, my - a, mx + a * 0.4, my + a]).fill({ color, alpha });
     };
+    if (this.hint) pair(this.hint.col, this.hint.row, COLORS.preview, 0.35 + 0.35 * pulse);
     if (this.slowPair && this.time < this.lockedUntil) pair(this.slowPair.col, this.slowPair.row, COLORS.foam, 0.45 + 0.4 * pulse);
     if (this.denied && this.time - this.denied.at < 260) pair(this.denied.col, this.denied.row, COLORS.danger, 1 - (this.time - this.denied.at) / 260);
     if (this.hoverPair && !this.selected) pair(this.hoverPair.col, this.hoverPair.row, COLORS.brass, 0.55);
@@ -988,6 +1145,7 @@ export class BilgingRenderer {
 
   private pointerDown(e: FederatedPointerEvent): void {
     if (!this.interactive) return;
+    this.noteInput();
     const cell = this.cellAt(e.global.x, e.global.y);
     if (!cell) return;
     this.dragStart = { ...cell, x: e.global.x, y: e.global.y };
@@ -1082,6 +1240,7 @@ export class BilgingRenderer {
   /** Keyboard: move the cursor; swap with the piece to the right. */
   keyboard(key: string): boolean {
     if (!this.interactive) return false;
+    this.noteInput();
     const c = this.cursor ?? { col: 0, row: this.height - 1 };
     switch (key) {
       case "ArrowLeft":

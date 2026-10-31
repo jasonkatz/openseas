@@ -110,5 +110,11 @@
   "bilging.setting_marks_hint": "For telling colors apart.",
   "bilging.special.keg_label": "KEG",
   "bilging.special.ink_label": "INK",
-  "bilging.special.barnacle_label": "RISE"
+  "bilging.special.barnacle_label": "RISE",
+  "bilging.multi_2": "Double!",
+  "bilging.multi_3": "Triple!",
+  "bilging.multi_4": "Full broadside!",
+  "bilging.streak_label": "{count} in a row!",
+  "bilging.hint_note": "Practice rounds point at a scoring swap if you stop for a few seconds.",
+  "bilging.result_pumped": "Rows pumped"
 }

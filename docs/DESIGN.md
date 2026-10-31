@@ -70,7 +70,9 @@ the ship's bilge fills. Special pieces (equivalents of the original's crab, puff
 jellyfish, renamed) ship in v1 because they define the skill ceiling. QoL: match preview on hover
 or touch-hold, a combo meter, tap-then-tap or drag-swap on touch.
 
-As built (M1): seven ordinary piece kinds, colored squares, each with its own optional mark. Specials are the Powder
+As built (M1): seven ordinary piece kinds, colored squares, each with its own surface texture
+(knurled brass, ribbed shell, waves, wood grain, nacre rings, kelp fronds, coral pores) and its own
+optional mark. Specials are the Powder
 Keg (swap to clear a 3 by 3), the Ink Cloud (swap with a piece to clear every piece of that kind),
 and the Barnacle (unmatchable; it rides up with the board and comes off by itself, for a bonus,
 once it is at or above the water line). A connected cleared group of n pieces scores n(n-2); clearing k groups in
@@ -91,6 +93,14 @@ swap. Clears burst with debris, score
 popups and a callout for chains; kegs and ink clouds shake the board; the frame glows with the
 combo; submerged pieces stay readable because the water body sits behind them. Sound and the
 personal best are per device; the personal best is display only and never reaches the server.
+Juice on top of that, all presentation only: clearing two or more runs in one step calls out
+Double, Triple or Full broadside; bigger steps hold a beat longer and punch the board; streak
+milestones (3, 5, 8, 12, then every 5 scoring moves in a row) earn a callout and a fanfare, and
+breaking a streak of 3+ sounds a fall; pumping the water down throws spray and a pump sound,
+crossing into the danger half sounds an alarm; submerged pieces sway, kegs spark and specials
+breathe. Unrated practice only: after six seconds without input the board wiggles the swap that
+clears the most pieces. Rated rounds never hint. The result card adds rows pumped, counted on the
+client for display. Tile art is painted once per layout with Canvas 2D and shared with the legend.
 On phones the top bar is the whole HUD (score, time, moves, a combo chip) and the board takes the
 rest of the screen; combo, water, connection and the piece legend open in a panel over the board.
 
@@ -301,7 +311,8 @@ Maintained as they arise.
 | Accounts | Username and password | Guest-first with OAuth upgrade | Zero first-session friction |
 | Island | Large walkable towns | Dock, tavern, notice board | Scope |
 | Bilging specials | Crab, pufferfish, jellyfish | Barnacle, Powder Keg, Ink Cloud | Original names (ADR 0001); same roles |
-| Tile art | Illustrated pieces | Colored squares, specials with icon and label, optional marks | Owner wants clarity first; marks keep it playable without color |
+| Tile art | Illustrated pieces | Colored squares with a distinct surface texture per kind, specials with icon and label, optional marks | Owner wants clarity first; textures and marks keep kinds apart without color |
+| Bilging hints | None | Idle hint in unrated practice only | Teaches newcomers; rated rounds stay unaided |
 | Bilging scoring | Original's table | n(n-2) per group, times groups, times cascade step | Published formula, tuned in playtests |
 | Bilging water in practice | Driven by the ship | Rises with moves, drains with points, floor of 3 rows | No ship exists until M3; keeps replays self-contained |
 | Divergent puzzle round | n/a (client-reported) | Rejected outright, unrated, logged | Engines are deterministic; any mismatch is a bug or a cheat |

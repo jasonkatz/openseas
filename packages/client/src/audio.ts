@@ -96,13 +96,41 @@ const note = (step: number): number => 392 * Math.pow(2, LADDER[Math.min(LADDER.
 
 export const sfx = {
   swap: () => tone({ freq: 520, to: 380, duration: 0.07, type: "triangle", gain: 0.05 }),
+  /** A swap that clears nothing: a softer, woodier knock so scoring swaps stand out. */
+  swapQuiet: () => tone({ freq: 300, to: 220, duration: 0.06, type: "triangle", gain: 0.035 }),
   /** One cascade step. `chain` 1 is the swap's own clear; each later step climbs the ladder. */
   clear: (chain: number, pieces: number) => {
     const f = note(chain - 1);
     tone({ freq: f, duration: 0.22, type: "sine", gain: 0.09 });
     tone({ freq: f * 1.5, duration: 0.18, type: "triangle", gain: 0.03, delay: 0.02 });
     if (pieces >= 5) tone({ freq: f * 2, duration: 0.3, type: "sine", gain: 0.04, delay: 0.06 });
+    // Deep steps land with a low thump under the chime.
+    if (chain >= 3) tone({ freq: 140, to: 70, duration: 0.25, type: "sine", gain: 0.12 });
     noise(0.12, 0.04, 2400, 600);
+  },
+  /** Clearing two or more runs at once: a quick bright arpeggio over the clear. */
+  multi: (groups: number) => {
+    for (let i = 0; i < Math.min(4, groups); i++) tone({ freq: note(4 + i * 2), duration: 0.16, type: "triangle", gain: 0.035, delay: 0.05 + i * 0.05 });
+  },
+  /** A streak milestone: a short rising fanfare, higher for longer streaks. */
+  streak: (count: number) => {
+    const lift = Math.min(4, Math.floor(count / 4));
+    [0, 2, 4, 5].forEach((step, i) => tone({ freq: note(step + lift), duration: 0.22, type: "square", gain: 0.022, delay: i * 0.07 }));
+    tone({ freq: note(7 + lift), duration: 0.5, type: "triangle", gain: 0.05, delay: 0.28 });
+  },
+  /** A streak of three or more just ended. */
+  streakLost: () => tone({ freq: 330, to: 180, duration: 0.3, type: "sine", gain: 0.04 }),
+  /** The water dropped a row: a pump stroke and a glug. */
+  pump: (rows: number) => {
+    noise(0.22, 0.07, 400, 1600, "bandpass");
+    for (let i = 0; i < Math.min(3, rows); i++) tone({ freq: 180 + i * 40, to: 420 + i * 60, duration: 0.12, type: "sine", gain: 0.06, delay: 0.05 + i * 0.1 });
+  },
+  /** The water rose a row. */
+  rise: () => tone({ freq: 260, to: 150, duration: 0.25, type: "sine", gain: 0.035 }),
+  /** The water crossed into the danger half. */
+  alarm: () => {
+    tone({ freq: 620, duration: 0.14, type: "square", gain: 0.03 });
+    tone({ freq: 460, duration: 0.18, type: "square", gain: 0.03, delay: 0.16 });
   },
   keg: () => {
     noise(0.5, 0.22, 900, 60);
