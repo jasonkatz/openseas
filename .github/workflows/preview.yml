@@ -71,12 +71,19 @@ jobs:
       - name: Deploy
         id: deploy
         if: steps.config.outputs.ready == 'true'
+        # A deployment Vercel blocks never finishes; fail in minutes rather than at the job timeout.
+        timeout-minutes: 5
         run: |
           set -o pipefail
-          # Plain meta keys on purpose: the githubCommit* keys make Vercel credit the deployment to
-          # the commit's author, and on a Hobby team a commit by anyone outside the team (Claude's
-          # noreply address, say) leaves the deployment BLOCKED and this step waiting until timeout.
-          vercel deploy --prebuilt --token "$VERCEL_TOKEN" \
+          # Deploy from a copy of .vercel outside the checkout. The CLI reads the last commit from
+          # the git repo it runs in and attaches it as githubCommit* metadata, which makes Vercel
+          # credit the deployment to the commit's author; on a Hobby team a commit authored outside
+          # the team (Claude's noreply address, say) leaves the deployment BLOCKED. Outside a repo
+          # there is no commit to read, and the deployment is credited to the token's owner.
+          out="$RUNNER_TEMP/preview"
+          mkdir -p "$out"
+          cp -R .vercel "$out/"
+          vercel deploy --prebuilt --cwd "$out" --token "$VERCEL_TOKEN" \
             --meta commitSha="$SHA" \
             --meta commitRef="$BRANCH" \
             --meta repo="${GITHUB_REPOSITORY}" \
