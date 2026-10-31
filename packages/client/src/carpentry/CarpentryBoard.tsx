@@ -25,8 +25,6 @@ export function CarpentryBoard(props: CarpentryBoardProps) {
   const latest = useRef(props);
   latest.current = props;
   const carpentry = content.puzzles.carpentry;
-  // Key hints on the tray buttons only where there is a keyboard to speak of.
-  const hoverable = window.matchMedia?.("(hover: hover)").matches ?? false;
 
   useEffect(() => {
     const el = host.current;
@@ -50,10 +48,6 @@ export function CarpentryBoard(props: CarpentryBoardProps) {
         streakLabel: (count) => t("carpentry.streak_label", { count }),
         grainLabel: t("carpentry.grain_bonus"),
         grewLabel: t("carpentry.hole_grew"),
-        turnLabel: t("carpentry.rotate"),
-        flipLabel: t("carpentry.flip"),
-        turnHint: hoverable ? t("carpentry.rotate_hint") : "",
-        flipHint: hoverable ? t("carpentry.flip_hint") : "",
       },
     );
     renderer.current = r;
