@@ -39,6 +39,10 @@ export interface CarpentryRendererOptions {
   streakLabel(count: number): string;
   grainLabel: string;
   grewLabel: string;
+  /** The toolbar under a plank set down on the hull. */
+  turnLabel: string;
+  flipLabel: string;
+  nailLabel: string;
 }
 
 type Oriented = Array<[number, number]>;
@@ -120,32 +124,18 @@ interface Drag {
   slot: number;
   /** Where the finger went down: a tray slot, the resting ghost, or bare hull. */
   from: "tray" | "ghost" | "board";
-  t0: number;
   x0: number;
   y0: number;
   x: number;
   y: number;
   moved: boolean;
   touch: boolean;
-  startedOnSelected: boolean;
   /** Anchor minus pointer, in cells, once the plank is in hand. */
   offX: number;
   offY: number;
-  /** Where the plank lay when grabbed, so a flick can flip it in place. */
-  anchor0: { cx: number; cy: number } | null;
-  /** Recent pointer positions, for the speed at release. */
-  samples: Array<{ t: number; x: number; y: number }>;
 }
 
-/** The last single tap on the hull, so a second one within the window nails the plank. */
-interface Tap {
-  t: number;
-  x: number;
-  y: number;
-  kind: "rotate" | "move";
-  rot: number;
-  flip: boolean;
-}
+type HudAction = "rotate" | "flip" | "nail";
 
 const COLORS = {
   hullA: 0x6b4423,
@@ -163,14 +153,10 @@ const COLORS = {
   ink: 0x0b1526,
 };
 const TRAY_ROWS = 3.1;
-const DOUBLE_TAP_MS = 320;
 const LIFT_TOUCH = 1.15;
 const MARK_GLYPH: Record<string, string> = { square: "■", diamond: "◆", triangle: "▲", hexagon: "⬢", circle: "●", star: "★" };
 const FONT = "Atkinson Hyperlegible, sans-serif";
 const DISPLAY = "Fraunces, Georgia, serif";
-
-/** Wall-clock time for gestures; the game clock steps per frame and misreads quick touches. */
-const now = (): number => (typeof performance !== "undefined" ? performance.now() : 0);
 
 const easeOut = (k: number): number => 1 - (1 - k) ** 3;
 const easeIn = (k: number): number => k * k;
@@ -188,6 +174,8 @@ export class CarpentryRenderer {
   private readonly trayG = new Graphics();
   private readonly trayPiecesG = new Graphics();
   private readonly trayText = new Container();
+  private readonly hudG = new Graphics();
+  private readonly hudText = new Container();
   private readonly dragG = new Graphics();
   private readonly textLayer = new Container();
   private readonly colorByKind = new Map<number, number>();
@@ -227,7 +215,12 @@ export class CarpentryRenderer {
   private anchor: { cx: number; cy: number } | null = null;
   private cursor: { col: number; row: number } | null = null;
   private drag: Drag | null = null;
-  private lastTap: Tap | null = null;
+  /** The toolbar's buttons, in canvas pixels, while it shows. */
+  private hudRects: Array<{ x: number; y: number; w: number; h: number; action: HudAction }> = [];
+  private hudLabels: Text[] = [];
+  private hudPressed: { action: HudAction; life: number } | null = null;
+  /** True after touch input: the toolbar shows for a plank set down. A mouse hovers and clicks instead. */
+  private touchUI = false;
   /** Where the plank was when the player nailed it, so the landing starts from there. */
   private pendingLand: { x: number; y: number; slot: number } | null = null;
   /** Where the last plank went, so the keyboard picks up from there after the ghost clears. */
@@ -266,7 +259,7 @@ export class CarpentryRenderer {
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.app.canvas.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
     this.host.appendChild(this.app.canvas);
-    this.root.addChild(this.hull, this.holesG, this.holeFxG, this.planksG, this.markLayer, this.fxG, this.ghostG, this.trayG, this.trayPiecesG, this.trayText, this.dragG, this.textLayer);
+    this.root.addChild(this.hull, this.holesG, this.holeFxG, this.planksG, this.markLayer, this.fxG, this.ghostG, this.trayG, this.trayPiecesG, this.trayText, this.hudG, this.hudText, this.dragG, this.textLayer);
     this.app.stage.addChild(this.root);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -396,7 +389,6 @@ export class CarpentryRenderer {
     this.refill = { slot: rep.move.slot, life: 0, max: this.dur(220) };
     this.lastOrigin = this.cursor;
     this.anchor = null;
-    this.lastTap = null;
   }
 
   // ---- layout and drawing
@@ -601,10 +593,76 @@ export class CarpentryRenderer {
   private drawGhost(): void {
     const g = this.ghostG;
     g.clear();
-    if (!this.state || !this.interactive || this.state.finished) return;
-    if (!this.cursor) return;
-    const check = this.check(this.cursor.col, this.cursor.row);
-    this.paintGhost(g, check, this.cursor.col, this.cursor.row, this.drag?.moved ? 0.8 : 1);
+    if (this.state && this.interactive && !this.state.finished && this.cursor) {
+      const check = this.check(this.cursor.col, this.cursor.row);
+      this.paintGhost(g, check, this.cursor.col, this.cursor.row, this.drag?.moved ? 0.8 : 1);
+    }
+    this.drawHud();
+  }
+
+  /**
+   * The toolbar under a plank set down by touch: Turn, Flip and Nail follow the plank, below it or
+   * above it near the keel. Hidden while the plank is in hand and for a mouse, which hovers and clicks.
+   */
+  private drawHud(): void {
+    const g = this.hudG;
+    g.clear();
+    this.hudRects = [];
+    const fp = this.footprint();
+    const show = this.state && this.interactive && !this.state.finished && this.cursor && fp && this.touchUI && !this.drag?.moved;
+    if (!show) {
+      for (const t of this.hudLabels) t.visible = false;
+      return;
+    }
+    const s = this.cell;
+    const cursor = this.cursor!;
+    const legal = this.check(cursor.col, cursor.row)?.legal ?? false;
+    const bh = Math.max(44, s * 1.2);
+    const bw = Math.max(bh * 1.7, s * 2.2);
+    const gap = Math.max(4, s * 0.12);
+    const W = bw * 3 + gap * 4;
+    const H = bh + gap * 2;
+    const wanted = this.ox + (cursor.col + fp!.w / 2) * s - W / 2;
+    const x0 = Math.max(this.ox - 4, Math.min(this.ox + this.width * s + 4 - W, wanted));
+    let y0 = this.oy + (cursor.row + fp!.h) * s + s * 0.2;
+    if (y0 + H > this.oy + this.height * s + 4) y0 = this.oy + cursor.row * s - s * 0.2 - H;
+    g.roundRect(x0, y0 + 3, W, H, 12).fill({ color: 0x000000, alpha: 0.4 });
+    g.roundRect(x0, y0, W, H, 12).fill({ color: COLORS.ink, alpha: 0.94 });
+    g.roundRect(x0, y0, W, H, 12).stroke({ width: 1.5, color: COLORS.brass, alpha: 0.55 });
+    const actions: HudAction[] = ["rotate", "flip", "nail"];
+    actions.forEach((action, i) => {
+      const x = x0 + gap + i * (bw + gap);
+      const y = y0 + gap;
+      const down = this.hudPressed?.action === action;
+      const enabled = action !== "nail" || legal;
+      const dy = down ? 1 : 0;
+      if (action === "nail") {
+        g.roundRect(x, y + dy, bw, bh, 9).fill({ color: enabled ? COLORS.legal : 0x2b3a4a, alpha: enabled ? (down ? 0.8 : 1) : 0.7 });
+        g.roundRect(x, y + dy, bw, bh, 9).stroke({ width: 1.5, color: enabled ? 0xffffff : 0x5a6a7a, alpha: 0.7 });
+      } else {
+        g.roundRect(x, y + dy, bw, bh, 9).fill({ color: down ? 0x4a3018 : 0x2a1b10 });
+        g.roundRect(x, y + dy, bw, bh, 9).stroke({ width: 1.5, color: down ? COLORS.brassLight : COLORS.brass, alpha: 0.85 });
+      }
+      this.hudRects.push({ x, y, w: bw, h: bh, action });
+      const label = this.hudLabel(i, action);
+      label.visible = true;
+      label.style.fontSize = Math.max(12, Math.min(s * 0.42, bw / 4.4));
+      label.style.fill = action === "nail" ? (enabled ? COLORS.ink : 0x8a96a4) : COLORS.brassLight;
+      label.position.set(x + bw / 2, y + bh / 2 + dy);
+    });
+  }
+
+  private hudLabel(i: number, action: HudAction): Text {
+    let t = this.hudLabels[i];
+    if (!t) {
+      t = new Text({ text: "", style: { fontFamily: FONT, fontSize: 14, fontWeight: "700", fill: COLORS.brassLight } });
+      t.anchor.set(0.5);
+      this.hudText.addChild(t);
+      this.hudLabels[i] = t;
+    }
+    const text = action === "rotate" ? `⟳ ${this.opts.turnLabel}` : action === "flip" ? `⇄ ${this.opts.flipLabel}` : `✓ ${this.opts.nailLabel}`;
+    if (t.text !== text) t.text = text;
+    return t;
   }
 
   private paintGhost(g: Graphics, check: CarpentryPlacementCheck | null, col: number, row: number, strength: number): void {
@@ -888,6 +946,14 @@ export class CarpentryRenderer {
       } else this.ghostG.x = Math.sin(k * Math.PI * 5) * (1 - k) * s * 0.18;
     }
 
+    if (this.hudPressed) {
+      this.hudPressed.life += dt;
+      if (this.hudPressed.life > 110) {
+        this.hudPressed = null;
+        this.drawHud();
+      }
+    }
+
     if (this.refill) {
       this.refill.life += dt;
       if (this.refill.life >= this.refill.max) this.refill = null;
@@ -937,6 +1003,7 @@ export class CarpentryRenderer {
     this.app.canvas.setAttribute("data-ghost", this.cursor && fp ? `${this.cursor.col},${this.cursor.row},${fp.w},${fp.h}` : "");
     this.app.canvas.setAttribute("data-geometry", `${this.ox},${this.oy},${this.cell}`);
     this.app.canvas.setAttribute("data-orient", `${this.slot},${this.rot},${this.flip ? 1 : 0}`);
+    this.app.canvas.setAttribute("data-hud", this.hudRects.map((r) => `${r.action}:${Math.round(r.x + r.w / 2)},${Math.round(r.y + r.h / 2)}`).join(";"));
   }
 
   // ---- selection and placement
@@ -1128,20 +1195,6 @@ export class CarpentryRenderer {
     return cell.col >= this.cursor.col && cell.col < this.cursor.col + fp.w && cell.row >= this.cursor.row && cell.row < this.cursor.row + fp.h;
   }
 
-  /** Horizontal speed over the last 100 ms of a drag, in pixels per millisecond. A finger that stopped reads as zero. */
-  private releaseSpeed(d: Drag): number {
-    const last = d.samples[d.samples.length - 1];
-    if (!last) return 0;
-    let first = last;
-    for (let i = d.samples.length - 2; i >= 0; i--) {
-      const sample = d.samples[i]!;
-      if (last.t - sample.t > 100) break;
-      first = sample;
-    }
-    const dt = Math.max(16, last.t - first.t);
-    return Math.abs(last.x - first.x) / dt;
-  }
-
   /** Whether a drag carries the plank. A finger on bare hull only taps or swipes; a mouse always carries. */
   private carries(d: Drag): boolean {
     return d.from !== "board" || !d.touch;
@@ -1150,32 +1203,41 @@ export class CarpentryRenderer {
   private pointerDown(e: FederatedPointerEvent): void {
     if (!this.interactive || !this.state) return;
     const { x, y } = e.global;
-    // A second finger while a plank is in hand turns it; a right click turns it any time.
-    if (this.drag && e.pointerId !== this.drag.id) {
-      if (this.drag.moved && this.carries(this.drag)) this.rotate();
-      return;
-    }
+    // One finger at a time; a right click turns the plank.
+    if (this.drag && e.pointerId !== this.drag.id) return;
     if (e.button === 2) {
       this.rotate();
       return;
     }
     if (e.button !== 0) return;
     const touch = e.pointerType !== "mouse";
-    const base = { id: e.pointerId, t0: now(), x0: x, y0: y, x, y, moved: false, touch, anchor0: this.anchor, samples: [{ t: now(), x, y }] };
+    if (this.touchUI !== touch) {
+      this.touchUI = touch;
+      this.drawGhost();
+    }
+    const button = this.hudRects.find((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
+    if (button) {
+      this.hudPressed = { action: button.action, life: 0 };
+      if (button.action === "rotate") this.rotate();
+      else if (button.action === "flip") this.doFlip();
+      else if (this.cursor) this.placeAt(this.cursor.col, this.cursor.row, null);
+      this.drawHud();
+      return;
+    }
+    const base = { id: e.pointerId, x0: x, y0: y, x, y, moved: false, touch };
     const slot = this.slotAt(x, y);
     if (slot !== null) {
-      const startedOnSelected = slot === this.slot;
       this.select(slot);
-      this.drag = { ...base, slot, from: "tray", startedOnSelected, offX: 0, offY: touch ? -LIFT_TOUCH : 0 };
+      this.drag = { ...base, slot, from: "tray", offX: 0, offY: touch ? -LIFT_TOUCH : 0 };
       return;
     }
     if (!this.onBoard(x, y)) return;
     if (this.anchor && this.onGhost(x, y)) {
       // Grabbing the plank keeps it under the same point of the finger.
-      this.drag = { ...base, slot: this.slot, from: "ghost", startedOnSelected: false, offX: this.anchor.cx - (x - this.ox) / this.cell, offY: this.anchor.cy - (y - this.oy) / this.cell };
+      this.drag = { ...base, slot: this.slot, from: "ghost", offX: this.anchor.cx - (x - this.ox) / this.cell, offY: this.anchor.cy - (y - this.oy) / this.cell };
       return;
     }
-    this.drag = { ...base, slot: this.slot, from: "board", startedOnSelected: false, offX: 0, offY: 0 };
+    this.drag = { ...base, slot: this.slot, from: "board", offX: 0, offY: 0 };
   }
 
   private pointerMove(e: FederatedPointerEvent): void {
@@ -1185,6 +1247,7 @@ export class CarpentryRenderer {
     if (!d) {
       // A mouse hovering over the hull carries the plank with it.
       if (e.pointerType === "mouse" && this.onBoard(x, y)) {
+        this.touchUI = false;
         this.anchorNear(x, y, 0);
         this.drawGhost();
         this.drawTrayPieces();
@@ -1194,11 +1257,10 @@ export class CarpentryRenderer {
     if (e.pointerId !== d.id) return;
     d.x = x;
     d.y = y;
-    d.samples.push({ t: now(), x, y });
-    if (d.samples.length > 8) d.samples.shift();
     if (!d.moved && Math.hypot(x - d.x0, y - d.y0) > this.cell * 0.3) {
       d.moved = true;
       this.drawTrayPieces();
+      this.drawHud();
     }
     if (d.moved && this.carries(d)) this.followDrag();
   }
@@ -1236,46 +1298,31 @@ export class CarpentryRenderer {
   private pointerUp(e: FederatedPointerEvent): void {
     const d = this.drag;
     if (!d || e.pointerId !== d.id) return;
+    const { x, y } = e.global;
+    if (d.moved && this.state && this.interactive && this.carries(d)) {
+      // Judge the plank where the finger lifted, not where the last processed move left it.
+      d.x = x;
+      d.y = y;
+      this.followDrag();
+    }
     this.drag = null;
     if (!this.state || !this.interactive) {
       this.dragG.clear();
       return;
     }
-    const { x, y } = e.global;
-    const dx = x - d.x0;
-    const dy = y - d.y0;
-    const held = now() - d.t0;
     const fp = this.footprint();
     if (d.moved) {
-      // Judge the plank where the finger lifted, not where the last processed move left it.
-      d.x = x;
-      d.y = y;
-      d.samples.push({ t: now(), x, y });
-      if (this.carries(d)) this.followDrag();
       this.dragG.clear();
-      if (!fp) {
+      if (!fp || !this.carries(d)) {
         this.drawTrayPieces();
-        return;
-      }
-      if (!this.carries(d)) {
-        // A sideways swipe across bare hull flips the plank.
-        if (Math.abs(dx) > this.cell * 1.2 && Math.abs(dy) < this.cell * 0.8 && held < 600) this.doFlip();
-        return;
-      }
-      // A short sideways flick of the plank flips it where it lay. A nudge stops before the finger
-      // lifts; a flick is still moving, so the speed at release tells them apart.
-      if (d.from === "ghost" && d.touch && d.anchor0 && this.anchor && held < 400 && Math.abs(dx) > this.cell * 0.8 && Math.abs(dx) < this.cell * 3 && Math.abs(dy) < this.cell * 0.7 && this.releaseSpeed(d) > this.cell * 0.015) {
-        this.anchor = d.anchor0;
-        this.syncCursor();
-        this.doFlip();
-        this.drawTrayPieces();
+        this.drawGhost();
         return;
       }
       if (this.anchor) {
-        // Let go over the hull: the plank rests there until it is turned, flipped, moved or nailed.
-        this.lastTap = null;
+        // Let go over the hull: the plank rests there with its toolbar until it is moved or nailed.
         this.drawGhost();
         this.drawTrayPieces();
+        this.viewStale = true;
         this.cb.onNudge();
         return;
       }
@@ -1289,10 +1336,7 @@ export class CarpentryRenderer {
       this.drawGhost();
       return;
     }
-    if (d.from === "tray") {
-      if (d.startedOnSelected) this.rotate();
-      return;
-    }
+    if (d.from === "tray") return;
     const cell = this.boardCell(x, y);
     if (!cell) return;
     if (!d.touch) {
@@ -1301,23 +1345,8 @@ export class CarpentryRenderer {
       if (this.cursor) this.placeAt(this.cursor.col, this.cursor.row, null);
       return;
     }
-    // Touch. A second tap within the window nails the plank; a tap that turned it is undone first,
-    // since the player double-tapped the plank as it lay.
-    const prev = this.lastTap;
-    if (prev && now() - prev.t < DOUBLE_TAP_MS && Math.hypot(x - prev.x, y - prev.y) < this.cell * 1.5) {
-      this.lastTap = null;
-      if (prev.kind === "rotate") this.reorient(prev.rot, prev.flip);
-      if (this.cursor) this.placeAt(this.cursor.col, this.cursor.row, null);
-      return;
-    }
-    if (d.from === "ghost") {
-      // A tap on the resting plank turns it.
-      this.lastTap = { t: now(), x, y, kind: "rotate", rot: this.rot, flip: this.flip };
-      this.rotate();
-      return;
-    }
-    // A tap on bare hull brings the plank there.
-    this.lastTap = { t: now(), x, y, kind: "move", rot: this.rot, flip: this.flip };
+    // Touch: a tap on the plank does nothing (its toolbar is right there); a tap on bare hull brings it.
+    if (d.from === "ghost") return;
     this.anchorNear(x, y, 0);
     this.cb.onNudge();
     this.drawGhost();

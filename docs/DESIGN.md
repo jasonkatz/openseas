@@ -161,10 +161,10 @@ masterpiece streak; the streak is the combo and a lesser patch resets it. A hole
 masterpiece. The round ends after `maxMoves` planks or the clock. Control is built around the
 plank's centre: it sits under the pointer (lifted above a finger), and a spot that will not take it
 snaps to a neighbouring one that will, so dropping near a hole is enough. A mouse carries the plank
-by hovering and nails it with a click; right-click or the wheel turns it. Touch has no buttons:
-dragging grabs the plank, letting go over the hull sets it down as a ghost, and letting go or
-dragging off the hull sends it back to its slot; a tap on the resting plank turns it, a sideways
-swipe flips it, and a double-tap nails it. Turning pivots about the
+by hovering and nails it with a click; right-click or the wheel turns it. Touch drags the plank
+and sets it down by letting go over the hull, where a toolbar follows it with Turn, Flip and Nail;
+letting go or dragging off the hull sends it back to its slot, and a tap on bare hull brings it
+there. Turning pivots about the
 centre so the ghost stays put. The keyboard picks a slot, moves, turns either way, flips, and jumps
 through the placements with the least waste. Planks drop in and knock; a patched hole's planks lift
 away; new holes crack open through the planking; a hole two idle planks from widening pulses amber,

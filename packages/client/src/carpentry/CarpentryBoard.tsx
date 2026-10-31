@@ -48,6 +48,9 @@ export function CarpentryBoard(props: CarpentryBoardProps) {
         streakLabel: (count) => t("carpentry.streak_label", { count }),
         grainLabel: t("carpentry.grain_bonus"),
         grewLabel: t("carpentry.hole_grew"),
+        turnLabel: t("carpentry.rotate"),
+        flipLabel: t("carpentry.flip"),
+        nailLabel: t("carpentry.nail"),
       },
     );
     renderer.current = r;
