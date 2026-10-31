@@ -367,7 +367,7 @@ describe("gunnery rolling", () => {
 
   it("the predicted path is where a lone piece actually rolls", () => {
     fc.assert(
-      fc.property(fc.array(fc.tuple(fc.nat(), fc.nat({ max: 3 })), { maxLength: 4 }), fc.nat(), fc.nat({ max: 3 }), (arrowPicks, at, dir) => {
+      fc.property(fc.array(fc.tuple(fc.nat(), fc.nat({ max: 3 })), { maxLength: 4 }), fc.nat(), fc.nat({ max: 3 }), fc.nat(), (arrowPicks, at, dir, firing) => {
         let s = deckWith([]);
         const cells = deckCells(s);
         for (const [c, d] of arrowPicks) {
@@ -376,7 +376,9 @@ describe("gunnery rolling", () => {
         }
         const start = cells[at % cells.length]!;
         const piece: GunneryPiece = { id: 7, kind: GunneryKind.Water, col: start.col, row: start.row, dir: dir as Dir };
-        s = { ...s, pieces: [piece] };
+        // One cannon is full and fires a few ticks in, so the path must see it change.
+        const cannons = s.cannons.map((c, i) => (i === firing % s.cannons.length ? { ...c, loaded: 3, firesAt: 1 + (at % 6) } : c));
+        s = { ...s, pieces: [piece], cannons };
         const path = predictGunneryPath(s, piece, 12);
         let t = s;
         for (let i = 0; i < path.cells.length; i++) {
@@ -397,6 +399,9 @@ describe("gunnery rolling", () => {
     expect(predictGunneryPath(s, s.pieces[0]!, 5)).toEqual({ cells: [{ col: 7, row: 3 }], end: { type: "cannon", cannon: 1, outcome: "loaded" } });
     const f = deckWith([atEast(GunneryKind.Wad)]);
     expect(predictGunneryPath(f, f.pieces[0]!, 5).end).toEqual({ type: "cannon", cannon: 1, outcome: "foul" });
+    // A full cannon that will have fired by the time the piece arrives takes it as empty.
+    const later = deckWith([{ ...atEast(GunneryKind.Shot), col: 5 }], { loaded: 3, firesAt: 2 });
+    expect(predictGunneryPath(later, later.pieces[0]!, 5).end).toEqual({ type: "cannon", cannon: 1, outcome: "foul" });
     const o = deckWith([{ id: 1, kind: 0, col: 4, row: 8, dir: 1 }]);
     expect(predictGunneryPath(o, o.pieces[0]!, 5)).toEqual({ cells: [{ col: 4, row: 9 }], end: { type: "overboard" } });
   });

@@ -297,21 +297,24 @@ export interface PredictedPath {
 
 /**
  * Where a piece is headed over the next `steps` ticks if nothing else gets in its way, with
- * `arrows` (default: the ones on deck) and the cannons as they are now. Other pieces are ignored,
- * so this is a guide for the player, not a promise.
+ * `arrows` (default: the ones on deck) and the cannons as they will be (full ones fire on time).
+ * Other pieces are ignored, so this is a guide for the player, not a promise.
  */
 export function predictPath(state: GunneryState, piece: GunneryPiece, steps: number, arrows: readonly Arrow[] = state.arrows): PredictedPath {
   const cells: Array<{ col: number; row: number }> = [];
   let p = piece;
   for (let i = 0; i < steps; i++) {
-    const d = heading(state.deck, state.cannons, arrows, p);
+    // Cannons as they will be on that tick: a full one has fired by then if its time has come.
+    const tick = state.tick + i + 1;
+    const cannons = state.cannons.map((c) => (c.firesAt !== null && c.firesAt <= tick ? { ...c, loaded: 0, fouled: false, firesAt: null } : c));
+    const d = heading(state.deck, cannons, arrows, p);
     if (d === null) break;
     const col = p.col + DX[d]!;
     const row = p.row + DY[d]!;
     const cell = cellAt(state.deck, col, row);
     if (cell === "cannon") {
-      const ci = state.cannons.findIndex((c) => c.col === col && c.row === row);
-      return { cells, end: { type: "cannon", cannon: ci, outcome: cannonOutcome(state.cannons[ci]!, p.kind) } };
+      const ci = cannons.findIndex((c) => c.col === col && c.row === row);
+      return { cells, end: { type: "cannon", cannon: ci, outcome: cannonOutcome(cannons[ci]!, p.kind) } };
     }
     if (cell === "hatch") return { cells, end: { type: "overboard" } };
     p = { ...p, col, row, dir: d };
