@@ -182,6 +182,8 @@ describeDb("server integration", () => {
 
     // Every other registered puzzle plays a short honest round over the same wire and is rated separately.
     for (const id of PUZZLE_IDS.filter((p) => p !== "bilging")) {
+      // Stay under the connection's message rate limit across five puzzles.
+      await new Promise((resolve) => setTimeout(resolve, 250));
       ws.send(JSON.stringify({ type: "puzzle.start", puzzle: id }));
       const st = await next();
       if (st.type !== "puzzle.started") throw new Error("expected start");
