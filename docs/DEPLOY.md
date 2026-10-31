@@ -38,6 +38,12 @@ integration is not connected (ADR 0016).
 - Previews point at the production server, which only accepts the origins in `CLIENT_ORIGINS`.
   Anything that needs the server fails from a preview URL. Use previews to look at UI.
 - Deployment Protection's Standard Protection keeps previews behind a Vercel login.
+- The preview deploy tags the commit with plain meta keys (`commitSha`, `commitRef`, `prNumber`),
+  not Vercel's `githubCommit*` keys. With those, Vercel credits the deployment to the commit's
+  author, and on a Hobby team a commit authored outside the team (Claude's commits are) is
+  **BLOCKED**, which leaves `vercel deploy` waiting until the job times out. Without them the
+  deployment is credited to the owner of `VERCEL_TOKEN`. Production deploys keep the
+  `githubCommit*` keys: they ship merge commits, which the owner authors.
 
 ## One-time setup
 

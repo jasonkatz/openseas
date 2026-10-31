@@ -73,12 +73,14 @@ jobs:
         if: steps.config.outputs.ready == 'true'
         run: |
           set -o pipefail
+          # Plain meta keys on purpose: the githubCommit* keys make Vercel credit the deployment to
+          # the commit's author, and on a Hobby team a commit by anyone outside the team (Claude's
+          # noreply address, say) leaves the deployment BLOCKED and this step waiting until timeout.
           vercel deploy --prebuilt --token "$VERCEL_TOKEN" \
-            --meta githubCommitSha="$SHA" \
-            --meta githubCommitRef="$BRANCH" \
-            --meta githubCommitOrg="${GITHUB_REPOSITORY_OWNER}" \
-            --meta githubCommitRepo="${GITHUB_REPOSITORY#*/}" \
-            --meta githubPrId="${{ github.event.pull_request.number }}" \
+            --meta commitSha="$SHA" \
+            --meta commitRef="$BRANCH" \
+            --meta repo="${GITHUB_REPOSITORY}" \
+            --meta prNumber="${{ github.event.pull_request.number }}" \
             | tee deploy-url.txt
           url="$(tail -n1 deploy-url.txt)"
           echo "url=$url" >> "$GITHUB_OUTPUT"
