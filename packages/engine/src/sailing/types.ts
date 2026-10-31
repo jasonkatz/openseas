@@ -9,8 +9,8 @@
 
 import type { PrngState } from "../prng.js";
 
-export const SAILING_WIDTH = 6;
-export const SAILING_HEIGHT = 13;
+export const SAILING_WIDTH = 8;
+export const SAILING_HEIGHT = 16;
 
 export interface SailingConfig {
   readonly width: number;
@@ -27,18 +27,21 @@ export interface SailingConfig {
   readonly runPoints: number;
   /** The round ends after this many pairs. */
   readonly maxMoves: number;
+  /** Points lost when the rigging fills to the top and is cleared. Score never drops below zero. */
+  readonly topOutPenalty: number;
 }
 
 export const DEFAULT_SAILING_CONFIG: SailingConfig = {
   width: SAILING_WIDTH,
   height: SAILING_HEIGHT,
   pieceKinds: 3,
-  platformsAtOnce: 3,
+  platformsAtOnce: 4,
   platformSpanMin: 2,
   platformSpanMax: 4,
   platformPoints: 6,
   runPoints: 4,
-  maxMoves: 90,
+  maxMoves: 100,
+  topOutPenalty: 40,
 };
 
 export interface Segment {
@@ -100,6 +103,11 @@ export interface SailingMoveReport {
   readonly landed: { readonly cells: readonly [number, number]; readonly ids: readonly [number, number] } | null;
   readonly rounds: readonly SailingClearRound[];
   readonly points: number;
+  /**
+   * Set when, after this placement, no pair could enter the top row: the rigging was cleared,
+   * `penalty` points were lost and new platforms dealt. `ids` are the segments swept away.
+   */
+  readonly wipe: { readonly ids: readonly number[]; readonly penalty: number; readonly platforms: readonly Platform[] } | null;
 }
 
 export interface SailingState {

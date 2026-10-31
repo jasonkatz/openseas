@@ -129,7 +129,7 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
 }
 
 /** Every kind must differ by mark, color, and texture so pieces stay apart without color (rule 6). */
-function checkPieces(where: string, pieces: readonly PieceStyle[], kinds: number, messages: Record<string, string>, problems: string[]): void {
+function checkPieces(where: string, pieces: ReadonlyArray<Pick<PieceStyle, "nameKey" | "mark" | "color"> & { texture: string }>, kinds: number, messages: Record<string, string>, problems: string[]): void {
   if (pieces.length < kinds) problems.push(`${where}: ${kinds} kinds but only ${pieces.length} piece definitions`);
   const marks = new Set<string>();
   const colors = new Set<string>();

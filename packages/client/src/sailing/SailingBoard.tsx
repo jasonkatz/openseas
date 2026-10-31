@@ -13,6 +13,7 @@ export interface SailingBoardProps {
   onClear(round: SailingClearRound): void;
   onLanded(): void;
   onNudge(): void;
+  onWipe(): void;
 }
 
 /** Hosts the Pixi canvas and forwards input. All drawing lives in the renderer. */
@@ -35,6 +36,7 @@ export function SailingBoard(props: SailingBoardProps) {
         onClear: (round) => latest.current.onClear(round),
         onLanded: () => latest.current.onLanded(),
         onNudge: () => latest.current.onNudge(),
+        onWipe: () => latest.current.onWipe(),
       },
       {
         showMarks: props.showMarks,
@@ -42,6 +44,7 @@ export function SailingBoard(props: SailingBoardProps) {
         softDropMs: sailing.softDropMs,
         chainLabel: (chain) => t("practice.chain_label", { chain }),
         platformLabel: t("sailing.platform_cleared"),
+        wipeLabel: (points) => t("sailing.wipe_label", { points }),
       },
     );
     renderer.current = r;

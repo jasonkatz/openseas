@@ -108,20 +108,26 @@ rest of the screen; combo, water, connection and the piece legend open in a pane
 chaining through the board's structure. Performance feeds movement tokens per turn. QoL: ghost
 piece showing landing position, next-piece preview, swipe-to-move and tap-to-rotate on touch.
 
-As built (M2): a 6 wide by 13 tall rigging. Pieces are conjoined pairs of two segments in three
-kinds (sailcloth, rope, sea), each with its own texture and optional mark. Three platforms sit in
-the board at a time: a plank shelf spanning two to four cells of one row, some of them outlined
-targets that want a kind, the rest blanks. A platform is a shelf: a segment never falls out of a
-platform cell, but segments fall into them. When every target on a platform holds its kind the
-platform clears, its target segments go, the shelf is gone and a new platform appears on an empty
-row elsewhere. Runs of four or more of a kind, across or down, clear as well; crossing runs count
-as one group. Linked halves fall together until one is cleared. Each step of a cascade multiplies
-by its chain number, and several groups in one step multiply by their count, as in Bilging. A run
-of n scores `runPoints * (n - 3)`; a platform scores `platformPoints` per target. The round ends
-after `maxMoves` pairs, when the clock runs out, or when no pair can enter the top row. The move
-the engine logs is the landing column and rotation; the client's fall timer, steering and soft
-drop are presentation, and a pair can only be steered to columns it could still drop into from the
-top, so the client never shows a landing the engine would refuse. Numbers live in
+As built (M2): an 8 wide by 16 tall rigging; the cells are small because nothing is tapped
+individually, so the whole board fits a phone screen. Pieces are discs, not tiles, so Sailing
+never reads as Bilging: conjoined pairs of two discs in three kinds (sailcloth with a canvas weave,
+rope coiled in rings, sea with rolling ripples), each with an optional mark, and the two halves of
+a pair stay visibly joined while both are on the board. Four platforms sit in the board at a time:
+a plank shelf spanning two to four cells of one row, some of them outlined round targets that want
+a kind, the rest blanks. A platform is a shelf: a disc never falls out of a platform cell, but
+discs fall into them. When every target on a platform holds its kind the platform clears, its
+target discs go, the shelf is gone and a new platform appears on an empty row elsewhere. Runs of
+four or more of a kind, across or down, clear as well; crossing runs count as one group. Linked
+halves fall together until one is cleared. Each step of a cascade multiplies by its chain number,
+and several groups in one step multiply by their count, as in Bilging. A run of n scores
+`runPoints * (n - 3)`; a platform scores `platformPoints` per target. If the rigging fills until
+no pair can enter the top row, it is cleared: every disc is swept away, `topOutPenalty` points are
+lost (never below zero), the combo breaks, fresh platforms are dealt and play goes on. The round
+ends only after `maxMoves` pairs or when the clock runs out. The move the engine logs is the
+landing column and rotation; the client's fall timer, steering and soft drop are presentation, and
+a pair can only be steered to columns it could still drop into from the top, so the client never
+shows a landing the engine would refuse. The next pair is under the player's control the moment
+the last one lands, while the board below plays out its clears. Numbers live in
 `content/data/puzzles/sailing.json`.
 
 **Carpentry.** Polyomino pieces offered from a queue, placed to fill holes in planking. Tighter
@@ -335,4 +341,5 @@ Maintained as they arise.
 | Sailing piece control | Free fall with steering under overhangs | The move is a landing column and rotation; the pair drops straight from the top | Keeps the move log small and the engine pure; tucking under overhangs is lost (ADR 0015) |
 | Sailing platforms | Targets on fixed structures | Platforms are shelves of 2 to 4 cells with outlined targets and blanks; a cleared one respawns on an empty row | Same role, original layout; respawn keeps a practice round busy |
 | Sailing scoring | Original's table | Run of n scores `runPoints * (n - 3)`, platform scores `platformPoints` per target, times groups, times chain step | Published formula, tuned in playtests |
+| Sailing top-out | Board full ends the board | The rigging is cleared for `topOutPenalty` points and play continues to the clock | A filled board should cost, not stop, a two-minute practice round |
 | Timed puzzle rounds | Real-time simulation | Integer ticks carried in every move; the server rejects ticks ahead of the wall clock | Keeps engines pure and replayable (ADR 0015) |

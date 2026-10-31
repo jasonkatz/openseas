@@ -256,9 +256,36 @@ describe("sailing rules", () => {
     expect(state.finished).toBe(true);
   });
 
-  it("tops out when the spawn row is blocked", () => {
-    const { state } = playRandom("stack", Array.from({ length: 200 }, () => 0), { ...cfg, pieceKinds: 8, platformsAtOnce: 0, maxMoves: 500 });
-    expect(state.finished).toBe(true);
-    expect(state.moveCount).toBeLessThan(500);
+  it("a top-out wipes the rigging, charges the penalty, deals new platforms, and play goes on", () => {
+    const config = { ...cfg, pieceKinds: 8, maxMoves: 500 };
+    let state = createSailingGame("stack", config);
+    let wiped: SailingState | null = null;
+    for (let i = 0; i < 400 && !wiped; i++) {
+      const legal = legalMoves(state);
+      expect(legal.length).toBeGreaterThan(0);
+      state = reduceSailing(state, legal[0]!);
+      if (state.lastMove?.wipe) wiped = state;
+    }
+    expect(wiped).not.toBeNull();
+    const w = wiped!;
+    expect(w.finished).toBe(false);
+    expect(w.cells.every((c) => c === null)).toBe(true);
+    expect(w.platforms.length).toBe(config.platformsAtOnce);
+    expect(w.lastMove!.wipe!.penalty).toBe(config.topOutPenalty);
+    expect(w.lastMove!.wipe!.ids.length).toBeGreaterThan(0);
+    expect(w.combo).toBe(0);
+    expect(w.score).toBeGreaterThanOrEqual(0);
+    // And a placement is always available afterwards.
+    expect(legalMoves(w).length).toBeGreaterThan(0);
+  });
+
+  it("a placement is always available while the round runs", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        const { state } = playRandom(seed, picks);
+        if (!state.finished) expect(legalMoves(state).length).toBeGreaterThan(0);
+      }),
+      { numRuns: 100 },
+    );
   });
 });

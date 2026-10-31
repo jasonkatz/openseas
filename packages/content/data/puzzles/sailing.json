@@ -1,14 +1,15 @@
 {
   "config": {
-    "width": 6,
-    "height": 13,
+    "width": 8,
+    "height": 16,
     "pieceKinds": 3,
-    "platformsAtOnce": 3,
+    "platformsAtOnce": 4,
     "platformSpanMin": 2,
     "platformSpanMax": 4,
     "platformPoints": 6,
     "runPoints": 4,
-    "maxMoves": 90
+    "maxMoves": 100,
+    "topOutPenalty": 40
   },
   "roundSeconds": 150,
   "fallMs": 900,
@@ -22,9 +23,9 @@
     { "score": 800, "rating": 2100 }
   ],
   "pieces": [
-    { "nameKey": "sailing.piece.canvas", "mark": "circle", "texture": "fan", "color": "#f2f0e6" },
-    { "nameKey": "sailing.piece.rope", "mark": "square", "texture": "knurl", "color": "#f5d021" },
-    { "nameKey": "sailing.piece.sea", "mark": "triangle", "texture": "waves", "color": "#3fa7f5" },
-    { "nameKey": "sailing.piece.kelp", "mark": "hexagon", "texture": "fronds", "color": "#2fbf71" }
+    { "nameKey": "sailing.piece.canvas", "mark": "circle", "texture": "weave", "color": "#f2f0e6" },
+    { "nameKey": "sailing.piece.rope", "mark": "square", "texture": "coil", "color": "#f5d021" },
+    { "nameKey": "sailing.piece.sea", "mark": "triangle", "texture": "ripple", "color": "#3fa7f5" },
+    { "nameKey": "sailing.piece.salt", "mark": "hexagon", "texture": "speckle", "color": "#c9a0dc" }
   ]
 }

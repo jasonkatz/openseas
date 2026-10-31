@@ -11,7 +11,8 @@ import {
   type Segment,
 } from "@openseas/engine";
 import type { SailingContent } from "@openseas/content";
-import { mix, tileCanvas, type TileStyle, type TileTexture } from "../bilging/tiles.js";
+import { mix } from "../bilging/tiles.js";
+import { discCanvas, type DiscStyle, type SailTexture } from "./discs.js";
 
 export interface SailingCallbacks {
   /** The player committed the falling pair to column `col` at rotation `rot`. */
@@ -24,6 +25,8 @@ export interface SailingCallbacks {
   onLanded(): void;
   /** The pair moved, rotated or dropped: a soft tick. */
   onNudge(): void;
+  /** The rigging filled to the top and was cleared for a penalty. */
+  onWipe(): void;
 }
 
 export interface SailingRendererOptions {
@@ -33,11 +36,14 @@ export interface SailingRendererOptions {
   softDropMs: number;
   chainLabel(chain: number): string;
   platformLabel: string;
+  /** Callout when the rigging is cleared for `points`. */
+  wipeLabel(points: number): string;
 }
 
 interface PieceView {
   s: Sprite;
   kind: number;
+  pair: number;
   x: number;
   y: number;
   tx: number;
@@ -64,10 +70,11 @@ const COLORS = {
   rope: 0xd8b574,
   plank: 0x8a6136,
   plankDark: 0x4e3419,
+  danger: 0xf0604d,
 };
 const CLEAR_MS = 200;
 const DIE_MS = 220;
-const LOCK_MS = 320;
+const LOCK_MS = 500;
 
 export class SailingRenderer {
   readonly app = new Application();
@@ -77,6 +84,7 @@ export class SailingRenderer {
   private readonly well = new Graphics();
   private readonly platformLayer = new Graphics();
   private readonly ghost = new Graphics();
+  private readonly linkLayer = new Graphics();
   private readonly pieceLayer = new Container();
   private readonly fallingLayer = new Container();
   private readonly fxLayer = new Container();
@@ -85,7 +93,7 @@ export class SailingRenderer {
   private readonly textures = new Map<number, Texture>();
   private readonly colorByKind = new Map<number, number>();
   private readonly markByKind = new Map<number, string>();
-  private readonly textureByKind = new Map<number, TileTexture>();
+  private readonly textureByKind = new Map<number, SailTexture>();
   private readonly woodFill = linear(false, [COLORS.woodBottom, COLORS.woodTop, COLORS.woodBottom]);
   private readonly skyFill = linear(true, [COLORS.skyTop, COLORS.skyBottom]);
   private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -129,13 +137,11 @@ export class SailingRenderer {
     this.height = content.config.height;
   }
 
-  private styleFor(kind: number): TileStyle {
+  private styleFor(kind: number): DiscStyle {
     return {
       color: this.colorByKind.get(kind) ?? 0xffffff,
-      texture: this.textureByKind.get(kind) ?? null,
+      texture: this.textureByKind.get(kind) ?? "speckle",
       mark: this.markByKind.get(kind) ?? null,
-      special: null,
-      label: "",
       showMarks: this.showMarks,
     };
   }
@@ -158,7 +164,7 @@ export class SailingRenderer {
     this.host.appendChild(this.app.canvas);
     this.staticLayer.addChild(this.frame, this.well);
     this.staticLayer.cacheAsTexture({ resolution: this.app.renderer.resolution, antialias: true });
-    this.board.addChild(this.staticLayer, this.platformLayer, this.ghost, this.pieceLayer, this.fallingLayer, this.fxLayer);
+    this.board.addChild(this.staticLayer, this.platformLayer, this.ghost, this.linkLayer, this.pieceLayer, this.fallingLayer, this.fxLayer);
     this.app.stage.addChild(this.board);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -225,8 +231,9 @@ export class SailingRenderer {
     const kindA = state.lastMove && prev.current.a;
     const kindB = prev.current.b;
     const start = f ? { ax: f.a.x, ay: f.a.y, bx: f.b.x, by: f.b.y } : null;
-    const va = this.spawn({ id: ia, kind: kindA, pair: 0 }, start?.ax ?? this.cx(ca % this.width), start?.ay ?? this.cy(Math.floor(ca / this.width)));
-    const vb = this.spawn({ id: ib, kind: kindB, pair: 0 }, start?.bx ?? this.cx(cb % this.width), start?.by ?? this.cy(Math.floor(cb / this.width)));
+    const pairId = state.nextPair - 1;
+    const va = this.spawn({ id: ia, kind: kindA, pair: pairId }, start?.ax ?? this.cx(ca % this.width), start?.ay ?? this.cy(Math.floor(ca / this.width)));
+    const vb = this.spawn({ id: ib, kind: kindB, pair: pairId }, start?.bx ?? this.cx(cb % this.width), start?.by ?? this.cy(Math.floor(cb / this.width)));
     va.tx = this.cx(ca % this.width);
     va.ty = this.cy(Math.floor(ca / this.width));
     vb.tx = this.cx(cb % this.width);
@@ -236,6 +243,9 @@ export class SailingRenderer {
       f.b.destroy();
     }
     this.cb.onLanded();
+    // The next pair is under the player's control at once; it only starts falling once the
+    // board below has finished playing out, so input never waits on an animation.
+    if (this.interactive && !state.finished) this.spawnFalling();
     this.steps.push(() => "settle");
     for (const round of report.rounds) {
       this.steps.push(() => {
@@ -261,11 +271,23 @@ export class SailingRenderer {
         return "settle";
       });
     }
+    if (report.wipe) {
+      const wipe = report.wipe;
+      this.steps.push(() => {
+        this.cb.onWipe();
+        this.callout(this.opts.wipeLabel(wipe.penalty), COLORS.danger);
+        for (const id of wipe.ids) {
+          const v = this.pieces.get(id);
+          if (v) v.dying = 0;
+        }
+        return this.reduced ? 80 : 420;
+      });
+    }
     this.steps.push(() => {
       this.platforms = state.platforms;
       this.drawPlatforms();
       this.place(state.cells, false);
-      if (this.interactive && !state.finished) this.spawnFalling();
+      if (this.interactive && !state.finished && !this.falling) this.spawnFalling();
       return 0;
     });
   }
@@ -309,7 +331,7 @@ export class SailingRenderer {
     sprite.anchor.set(0.5);
     sprite.position.set(x, y);
     this.pieceLayer.addChild(sprite);
-    const v: PieceView = { s: sprite, kind: s.kind, x, y, tx: x, ty: y, dying: null };
+    const v: PieceView = { s: sprite, kind: s.kind, pair: s.pair, x, y, tx: x, ty: y, dying: null };
     this.pieces.set(s.id, v);
     return v;
   }
@@ -440,9 +462,8 @@ export class SailingRenderer {
       ] as const) {
         const x = this.cx(c % this.width);
         const y = this.cy(Math.floor(c / this.width));
-        const h = this.cell * 0.42;
-        g.roundRect(x - h, y - h, h * 2, h * 2, this.cell * 0.16).stroke({ width: 2, color: this.colorByKind.get(kind) ?? 0xffffff, alpha: 0.75 });
-        g.roundRect(x - h, y - h, h * 2, h * 2, this.cell * 0.16).fill({ color: this.colorByKind.get(kind) ?? 0xffffff, alpha: 0.12 });
+        g.circle(x, y, this.cell * 0.4).stroke({ width: 2, color: this.colorByKind.get(kind) ?? 0xffffff, alpha: 0.75 });
+        g.circle(x, y, this.cell * 0.4).fill({ color: this.colorByKind.get(kind) ?? 0xffffff, alpha: 0.12 });
       }
     }
   }
@@ -516,13 +537,13 @@ export class SailingRenderer {
         const want = p.targets[i];
         const inset = s * 0.1;
         if (want === null || want === undefined) {
-          g.roundRect(x + inset, yTop + inset, s - inset * 2, s - inset * 2 - s * 0.14, s * 0.14).stroke({ width: 1, color: COLORS.rope, alpha: 0.22 });
+          g.circle(x + s / 2, yTop + s / 2 - s * 0.05, s * 0.3).stroke({ width: 1, color: COLORS.rope, alpha: 0.28 });
           continue;
         }
         const color = this.colorByKind.get(want) ?? 0xffffff;
-        g.roundRect(x + inset, yTop + inset, s - inset * 2, s - inset * 2 - s * 0.14, s * 0.14).fill({ color, alpha: 0.16 });
-        g.roundRect(x + inset, yTop + inset, s - inset * 2, s - inset * 2 - s * 0.14, s * 0.14).stroke({ width: 2, color, alpha: 0.85 });
-        drawMark(g, x + s / 2, yTop + s / 2 - s * 0.07, s * 0.2, this.markByKind.get(want) ?? "circle", color);
+        g.circle(x + s / 2, yTop + s / 2 - s * 0.05, s * 0.36).fill({ color, alpha: 0.16 });
+        g.circle(x + s / 2, yTop + s / 2 - s * 0.05, s * 0.36).stroke({ width: 2, color, alpha: 0.85 });
+        drawMark(g, x + s / 2, yTop + s / 2 - s * 0.05, s * 0.18, this.markByKind.get(want) ?? "circle", color);
       }
     }
   }
@@ -532,7 +553,7 @@ export class SailingRenderer {
     if (!r) return;
     const old = [...this.textures.values()];
     for (const kind of this.colorByKind.keys()) {
-      const canvas = tileCanvas(this.cell, this.styleFor(kind), r.resolution);
+      const canvas = discCanvas(this.cell, this.styleFor(kind), r.resolution);
       this.textures.set(kind, new Texture({ source: new CanvasSource({ resource: canvas, resolution: r.resolution }) }));
     }
     for (const v of this.pieces.values()) v.s.texture = this.textures.get(v.kind) ?? Texture.WHITE;
@@ -580,6 +601,7 @@ export class SailingRenderer {
     this.movePieces(dt);
     this.moveFx(dt);
     this.fall(dt);
+    this.drawLinks();
     if (this.framePending && this.steps.length === 0 && !this.moving) {
       this.framePending = false;
       this.cb.onFrame();
@@ -638,6 +660,35 @@ export class SailingRenderer {
         this.popups.splice(i, 1);
       }
     }
+  }
+
+  /** Halves of a pair stay visibly joined: a bar between them while both are on the board and adjacent. */
+  private drawLinks(): void {
+    const g = this.linkLayer;
+    g.clear();
+    const byPair = new Map<number, PieceView[]>();
+    for (const v of this.pieces.values()) {
+      if (v.dying !== null) continue;
+      const list = byPair.get(v.pair);
+      if (list) list.push(v);
+      else byPair.set(v.pair, [v]);
+    }
+    const bar = (ax: number, ay: number, bx: number, by: number, ka: number, kb: number): void => {
+      const dx = bx - ax;
+      const dy = by - ay;
+      if (Math.hypot(dx, dy) > this.cell * 1.08) return;
+      const w = this.cell * 0.34;
+      const color = mix(mix(this.colorByKind.get(ka) ?? 0xffffff, this.colorByKind.get(kb) ?? 0xffffff, 0.5), 0x000000, 0.45);
+      if (Math.abs(dx) > Math.abs(dy)) g.roundRect(Math.min(ax, bx), ay - w / 2, Math.abs(dx), w, w / 2).fill({ color, alpha: 0.95 });
+      else g.roundRect(ax - w / 2, Math.min(ay, by), w, Math.abs(dy), w / 2).fill({ color, alpha: 0.95 });
+    };
+    for (const list of byPair.values()) {
+      if (list.length !== 2) continue;
+      const [a, b] = list as [PieceView, PieceView];
+      bar(a.s.x, a.s.y, b.s.x, b.s.y, a.kind, b.kind);
+    }
+    const f = this.falling;
+    if (f && this.state) bar(f.a.x, f.a.y, f.b.x, f.b.y, this.state.current.a, this.state.current.b);
   }
 
   /** Gravity on the falling pair: one row per fallMs, faster while soft-dropping, then a short lock. */
@@ -719,12 +770,14 @@ export class SailingRenderer {
 
   /** Keyboard: arrows steer, up rotates, down soft-drops, space or enter hard-drops. */
   keyboard(key: string, down: boolean): boolean {
+    if (key === "ArrowDown" && !down) {
+      this.softDrop = false;
+      return true;
+    }
     if (!this.interactive) return false;
     if (key === "ArrowDown") {
-      if (down) {
-        if (!this.softDrop) this.stepDown();
-        this.softDrop = true;
-      } else this.softDrop = false;
+      if (!this.softDrop) this.stepDown();
+      this.softDrop = true;
       return true;
     }
     if (!down) return false;

@@ -41,6 +41,8 @@ export function validateConfig(cfg: SailingConfig): void {
     cfg.platformSpanMax <= cfg.width &&
     cfg.platformPoints >= 0 &&
     cfg.runPoints >= 0 &&
+    Number.isInteger(cfg.topOutPenalty) &&
+    cfg.topOutPenalty >= 0 &&
     Number.isInteger(cfg.maxMoves) &&
     cfg.maxMoves > 0;
   if (!ok) throw new Error("invalid sailing config");
@@ -55,7 +57,7 @@ export function createSailingGame(seed: string, config: SailingConfig = DEFAULT_
   const p2 = dealPair(config, rng);
   rng = p2.rng;
   const spawned = spawnPlatforms(config, cells, [], rng, 1);
-  const state: SailingState = {
+  return {
     config,
     cells,
     platforms: spawned.platforms,
@@ -72,7 +74,6 @@ export function createSailingGame(seed: string, config: SailingConfig = DEFAULT_
     lastMove: null,
     finished: false,
   };
-  return { ...state, finished: !hasLegalPlacement(state) };
 }
 
 function dealPair(cfg: SailingConfig, rng: PrngState): { pair: SailingPair; rng: PrngState } {
@@ -139,7 +140,7 @@ export function reduceSailing(state: SailingState, move: SailingMove): SailingSt
   if (state.finished) throw new InvalidMoveError("game is finished", move);
   switch (move.type) {
     case "end":
-      return { ...state, finished: true, lastMove: { move, landed: null, rounds: [], points: 0 } };
+      return { ...state, finished: true, lastMove: { move, landed: null, rounds: [], points: 0, wipe: null } };
     case "place":
       return applyPlace(state, move);
     default: {
@@ -231,32 +232,49 @@ function applyPlace(state: SailingState, move: Extract<SailingMove, { type: "pla
   const points = rounds.reduce((sum, r) => sum + r.points, 0);
   const dealt = dealPair(cfg, rng);
   const moveCount = state.moveCount + 1;
-  const combo = points > 0 ? state.combo + 1 : 0;
+  let combo = points > 0 ? state.combo + 1 : 0;
+  let score = state.score + points;
+  let wipe: SailingMoveReport["wipe"] = null;
+  // Topped out: the next pair has nowhere to enter. Clear the rigging, charge the penalty, deal
+  // fresh platforms and carry on; the round ends on its clock or move budget, never by filling up.
+  const probe: SailingState = { ...state, cells, platforms, current: state.next, finished: false };
+  if (!hasLegalPlacement(probe)) {
+    const ids = cells.filter((s): s is Segment => s !== null).map((s) => s.id);
+    cells.fill(null);
+    const fresh = spawnPlatforms(cfg, cells, [], dealt.rng, nextPlatformId);
+    platforms = fresh.platforms;
+    nextPlatformId = fresh.nextPlatformId;
+    rng = fresh.rng;
+    score = Math.max(0, score - cfg.topOutPenalty);
+    combo = 0;
+    wipe = { ids, penalty: cfg.topOutPenalty, platforms: platforms.slice() };
+  } else {
+    rng = dealt.rng;
+  }
   const report: SailingMoveReport = {
     move,
     landed: { cells: [landing.a, landing.b], ids: [segA.id, segB.id] },
     rounds,
     points,
+    wipe,
   };
-  const next: SailingState = {
+  return {
     config: cfg,
     cells,
     platforms,
     current: state.next,
     next: dealt.pair,
-    rng: dealt.rng,
+    rng,
     nextId,
     nextPair: pair + 1,
     nextPlatformId,
     moveCount,
-    score: state.score + points,
+    score,
     combo,
     bestCombo: Math.max(state.bestCombo, combo),
     lastMove: report,
     finished: moveCount >= cfg.maxMoves,
   };
-  if (!next.finished && !hasLegalPlacement(next)) return { ...next, finished: true };
-  return next;
 }
 
 /** 1 for every cell that is part of a platform (a shelf under it). */

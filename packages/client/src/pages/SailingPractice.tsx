@@ -3,7 +3,7 @@ import { SAILING_DEF, summarizeSailing, type Rotation, type SailingClearRound, t
 import { sfx } from "../audio.js";
 import { content, t } from "../content.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../puzzles/PracticeShell.jsx";
-import { TileIcon } from "../puzzles/TileIcon.jsx";
+import { DiscIcon } from "../sailing/DiscIcon.jsx";
 import { usePractice } from "../puzzles/usePractice.js";
 import { SailingBoard } from "../sailing/SailingBoard.jsx";
 
@@ -12,14 +12,19 @@ const sailing = content.puzzles.sailing;
 export function SailingPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
   const [platformsCleared, setPlatformsCleared] = useState(0);
-  const cleared = useRef(0);
+  const [wipes, setWipes] = useState(0);
+  const cleared = useRef({ platforms: 0, wipes: 0 });
 
   const onMove = useCallback((s: SailingState, prev: SailingState) => {
-    if (prev.moveCount === 0 && s.moveCount <= 1) cleared.current = 0;
+    if (prev.moveCount === 0 && s.moveCount <= 1) cleared.current = { platforms: 0, wipes: 0 };
     const n = s.lastMove?.rounds.reduce((sum, r) => sum + r.groups.filter((g) => g.cause === "platform").length, 0) ?? 0;
     if (n) {
-      cleared.current += n;
-      setPlatformsCleared(cleared.current);
+      cleared.current.platforms += n;
+      setPlatformsCleared(cleared.current.platforms);
+    }
+    if (s.lastMove?.wipe) {
+      cleared.current.wipes += 1;
+      setWipes(cleared.current.wipes);
     }
   }, []);
 
@@ -47,10 +52,15 @@ export function SailingPractice() {
   }, []);
   const onLanded = useCallback(() => sfx.swapQuiet(), []);
   const onNudge = useCallback(() => sfx.tick(false), []);
+  const onWipe = useCallback(() => {
+    sfx.alarm();
+    sfx.streakLost();
+  }, []);
 
   const startRound = (start: () => void) => () => {
-    cleared.current = 0;
+    cleared.current = { platforms: 0, wipes: 0 };
     setPlatformsCleared(0);
+    setWipes(0);
     start();
   };
 
@@ -59,8 +69,8 @@ export function SailingPractice() {
     <div className="stat stat-wide">
       <span className="stat-label">{t("sailing.next")}</span>
       <span className="next-pair" data-testid="hud-next">
-        <TileIcon color={pieces[state.next.a]!.color} texture={pieces[state.next.a]!.texture} mark={showMarks ? pieces[state.next.a]!.mark : null} size={26} />
-        <TileIcon color={pieces[state.next.b]!.color} texture={pieces[state.next.b]!.texture} mark={showMarks ? pieces[state.next.b]!.mark : null} size={26} />
+        <DiscIcon color={pieces[state.next.a]!.color} texture={pieces[state.next.a]!.texture} mark={showMarks ? pieces[state.next.a]!.mark : null} size={26} />
+        <DiscIcon color={pieces[state.next.b]!.color} texture={pieces[state.next.b]!.texture} mark={showMarks ? pieces[state.next.b]!.mark : null} size={26} />
       </span>
     </div>
   );
@@ -83,17 +93,23 @@ export function SailingPractice() {
       splash={t("sailing.go")}
       details={nextPreview}
       resultRows={
-        <div>
-          <dt>{t("sailing.platforms")}</dt>
-          <dd>{platformsCleared}</dd>
-        </div>
+        <>
+          <div>
+            <dt>{t("sailing.platforms")}</dt>
+            <dd>{platformsCleared}</dd>
+          </div>
+          <div>
+            <dt>{t("sailing.wipes")}</dt>
+            <dd>{wipes}</dd>
+          </div>
+        </>
       }
       legend={
         <>
           <ul className="kinds">
             {pieces.map((p) => (
               <li key={p.nameKey}>
-                <TileIcon color={p.color} texture={p.texture} mark={showMarks ? p.mark : null} />
+                <DiscIcon color={p.color} texture={p.texture} mark={showMarks ? p.mark : null} />
                 <span>{t(p.nameKey)}</span>
               </li>
             ))}
@@ -113,6 +129,7 @@ export function SailingPractice() {
           onClear={onClear}
           onLanded={onLanded}
           onNudge={onNudge}
+          onWipe={onWipe}
         />
       )}
     />

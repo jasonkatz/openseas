@@ -119,6 +119,14 @@ export const BilgingContentSchema = DutyPuzzleBaseSchema.extend({
   }),
 });
 
+/** Sailing pieces are discs with their own surfaces, so they never read as Bilging tiles. */
+export const SailPieceStyleSchema = z.object({
+  nameKey: MessageKey,
+  mark: z.string(),
+  texture: z.enum(["weave", "coil", "ripple", "speckle"]),
+  color: z.string().regex(/^#[0-9a-f]{6}$/),
+});
+
 export const SailingContentSchema = DutyPuzzleBaseSchema.extend({
   config: z.object({
     width: z.int().min(4).max(16),
@@ -130,12 +138,13 @@ export const SailingContentSchema = DutyPuzzleBaseSchema.extend({
     platformPoints: z.int().min(0),
     runPoints: z.int().min(0),
     maxMoves: z.int().min(1),
+    topOutPenalty: z.int().min(0),
   }),
   /** Ms per row a pair falls on its own. Client timing only; the move log carries landings. */
   fallMs: z.int().min(50).max(5000),
   /** Ms per row while the player holds soft drop. */
   softDropMs: z.int().min(10).max(1000),
-  pieces: z.array(PieceStyleSchema).min(2),
+  pieces: z.array(SailPieceStyleSchema).min(2),
 });
 
 export const NamesSchema = z.object({
@@ -161,6 +170,7 @@ export type ShipClass = z.infer<typeof ShipClassSchema>;
 export type ShipGrant = z.infer<typeof ShipGrantSchema>;
 export type RatingTier = z.infer<typeof RatingTierSchema>;
 export type PieceStyle = z.infer<typeof PieceStyleSchema>;
+export type SailPieceStyle = z.infer<typeof SailPieceStyleSchema>;
 export type BilgingContent = z.infer<typeof BilgingContentSchema>;
 export type SailingContent = z.infer<typeof SailingContentSchema>;
 export type World = z.infer<typeof WorldSchema>;
