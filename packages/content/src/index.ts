@@ -6,17 +6,20 @@ import shipClasses from "../data/world/ship-classes.json" with { type: "json" };
 import shipGrants from "../data/world/ship-grants.json" with { type: "json" };
 import bilging from "../data/puzzles/bilging.json" with { type: "json" };
 import sailing from "../data/puzzles/sailing.json" with { type: "json" };
+import carpentry from "../data/puzzles/carpentry.json" with { type: "json" };
 import ratingTiers from "../data/rating-tiers.json" with { type: "json" };
 import names from "../data/names.json" with { type: "json" };
 import en from "../data/messages/en.json" with { type: "json" };
 import {
   BilgingContentSchema,
+  CarpentryContentSchema,
   MessagesSchema,
   NamesSchema,
   RatingTierSchema,
   SailingContentSchema,
   WorldSchema,
   type BilgingContent,
+  type CarpentryContent,
   type PieceStyle,
   type RatingTier,
   type SailingContent,
@@ -29,6 +32,7 @@ export * from "./schema.js";
 export interface PuzzleContent {
   readonly bilging: BilgingContent;
   readonly sailing: SailingContent;
+  readonly carpentry: CarpentryContent;
 }
 export type PuzzleContentId = keyof PuzzleContent;
 
@@ -63,6 +67,7 @@ export function loadContent(): Content {
   const puzzles: PuzzleContent = {
     bilging: parse("puzzles/bilging", BilgingContentSchema, bilging),
     sailing: parse("puzzles/sailing", SailingContentSchema, sailing),
+    carpentry: parse("puzzles/carpentry", CarpentryContentSchema, carpentry),
   };
   const tiers = parse("rating-tiers", z.array(RatingTierSchema).min(1), ratingTiers);
   const nameLists = parse("names", NamesSchema, names);
@@ -124,6 +129,8 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
     need(`home.practice_${id}_blurb`, where);
   }
   for (const s of Object.values(puzzles.bilging.specials)) need(s.nameKey, "bilging special");
+  for (const sh of puzzles.carpentry.shapes) need(sh.nameKey, "carpentry shape");
+  if (puzzles.carpentry.config.maxHolePieces < puzzles.carpentry.config.minHolePieces) problems.push("puzzles/carpentry: maxHolePieces below minHolePieces");
   if (puzzles.sailing.config.platformSpanMax > puzzles.sailing.config.width) problems.push("puzzles/sailing: platform span exceeds the board width");
   if (problems.length) throw new ContentError(problems.join("\n"));
 }

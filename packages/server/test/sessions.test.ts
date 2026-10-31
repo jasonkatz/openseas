@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_BILGING_CONFIG,
+  DEFAULT_CARPENTRY_CONFIG,
   DEFAULT_SAILING_CONFIG,
   PUZZLE_IDS,
   PUZZLES,
@@ -22,6 +23,7 @@ function manager(now: { t: number }, overrides: Partial<SessionManagerOptions> &
     puzzles: {
       bilging: { roundMs: 60_000, config: { ...DEFAULT_BILGING_CONFIG, ...bilging } },
       sailing: { roundMs: 60_000, config: DEFAULT_SAILING_CONFIG },
+      carpentry: { roundMs: 60_000, config: DEFAULT_CARPENTRY_CONFIG },
     },
     now: () => now.t,
     randomSeed: () => `seed-${n++}`,

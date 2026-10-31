@@ -17,8 +17,21 @@ const LIVE: Array<{ id: string; glyph: ReactNode }> = [
       </svg>
     ),
   },
+  {
+    id: "carpentry",
+    glyph: (
+      <svg viewBox="0 0 64 64" width="56" height="56">
+        <rect x="6" y="10" width="52" height="44" rx="4" fill="#6b4423" />
+        <rect x="6" y="24" width="52" height="1.5" fill="#3a2412" opacity=".8" />
+        <rect x="6" y="39" width="52" height="1.5" fill="#3a2412" opacity=".8" />
+        <path d="M22 18h16v10h10v10H32v10H22z" fill="#0a0608" />
+        <rect x="22" y="18" width="16" height="10" rx="1.5" fill="#c98a4b" stroke="#3a2412" />
+        <rect x="22" y="28" width="10" height="10" rx="1.5" fill="#c98a4b" stroke="#3a2412" />
+      </svg>
+    ),
+  },
 ];
-const SOON = ["carpentry", "gunnery", "navigation"];
+const SOON = ["gunnery", "navigation"];
 
 export function Home() {
   const { phase, pirate, error, inviteRequired, createPirate } = usePirate();

@@ -14,6 +14,17 @@ import {
   type BilgingState,
 } from "./bilging/index.js";
 import {
+  DEFAULT_CARPENTRY_CONFIG,
+  createCarpentryGame,
+  hashCarpentryState,
+  reduceCarpentry,
+  summarizeCarpentry,
+  validateCarpentryConfig,
+  type CarpentryConfig,
+  type CarpentryMove,
+  type CarpentryState,
+} from "./carpentry/index.js";
+import {
   DEFAULT_SAILING_CONFIG,
   createSailingGame,
   hashSailingState,
@@ -26,7 +37,7 @@ import {
 } from "./sailing/index.js";
 
 /** Every puzzle the engine knows about. Extended one at a time per the milestone ladder. */
-export const PUZZLE_IDS = ["bilging", "sailing"] as const;
+export const PUZZLE_IDS = ["bilging", "sailing", "carpentry"] as const;
 export type PuzzleId = (typeof PUZZLE_IDS)[number];
 
 /** What every finished round reports. The database row and the result message share this shape. */
@@ -80,12 +91,25 @@ export const SAILING_DEF: PuzzleDef<SailingState, SailingMove, SailingConfig> = 
   maxMoves: (c) => c.maxMoves,
 };
 
+export const CARPENTRY_DEF: PuzzleDef<CarpentryState, CarpentryMove, CarpentryConfig> = {
+  id: "carpentry",
+  defaultConfig: DEFAULT_CARPENTRY_CONFIG,
+  validateConfig: validateCarpentryConfig,
+  create: createCarpentryGame,
+  reduce: reduceCarpentry,
+  hash: hashCarpentryState,
+  summarize: summarizeCarpentry,
+  isFinished: (s) => s.finished,
+  maxMoves: (c) => c.maxMoves,
+};
+
 /** The engine behind each puzzle id, erased to `unknown` shapes for generic drivers. */
 export type AnyPuzzleDef = PuzzleDef<unknown, unknown, unknown>;
 
 export const PUZZLES: Readonly<Record<PuzzleId, AnyPuzzleDef>> = {
   bilging: BILGING_DEF as unknown as AnyPuzzleDef,
   sailing: SAILING_DEF as unknown as AnyPuzzleDef,
+  carpentry: CARPENTRY_DEF as unknown as AnyPuzzleDef,
 };
 
 export function isPuzzleId(x: unknown): x is PuzzleId {

@@ -1,4 +1,5 @@
 export * from "./bilging.js";
+export * from "./carpentry.js";
 export * from "./common.js";
 export * from "./http.js";
 export * from "./puzzles.js";

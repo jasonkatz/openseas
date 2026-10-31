@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BilgingConfigSchema, BilgingMoveSchema } from "./bilging.js";
+import { CarpentryConfigSchema, CarpentryMoveSchema } from "./carpentry.js";
 import type { PuzzleIdWire } from "./common.js";
 import { SailingConfigSchema, SailingMoveSchema } from "./sailing.js";
 
@@ -10,15 +11,17 @@ import { SailingConfigSchema, SailingMoveSchema } from "./sailing.js";
 export const PUZZLE_MOVE_SCHEMAS = {
   bilging: BilgingMoveSchema,
   sailing: SailingMoveSchema,
+  carpentry: CarpentryMoveSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
 export const PUZZLE_CONFIG_SCHEMAS = {
   bilging: BilgingConfigSchema,
   sailing: SailingConfigSchema,
+  carpentry: CarpentryConfigSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
 /** Any puzzle's move. Loose on purpose: the session narrows it to its own puzzle's schema. */
-export const AnyMoveSchema = z.union([BilgingMoveSchema, SailingMoveSchema]);
+export const AnyMoveSchema = z.union([BilgingMoveSchema, SailingMoveSchema, CarpentryMoveSchema]);
 export type AnyMoveWire = z.infer<typeof AnyMoveSchema>;
 
 export type MoveWireFor<P extends PuzzleIdWire> = z.infer<(typeof PUZZLE_MOVE_SCHEMAS)[P]>;

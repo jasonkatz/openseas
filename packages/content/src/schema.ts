@@ -147,6 +147,32 @@ export const SailingContentSchema = DutyPuzzleBaseSchema.extend({
   pieces: z.array(SailPieceStyleSchema).min(2),
 });
 
+export const CarpentryContentSchema = DutyPuzzleBaseSchema.extend({
+  config: z.object({
+    width: z.int().min(5).max(20),
+    height: z.int().min(5).max(24),
+    pieceKinds: z.int().min(1).max(8),
+    holesAtOnce: z.int().min(1).max(6),
+    minHolePieces: z.int().min(1).max(6),
+    maxHolePieces: z.int().min(1).max(6),
+    basePerCell: z.number().min(0),
+    multiplierPercent: z.object({
+      masterpiece: z.number().min(0),
+      craftsmanship: z.number().min(0),
+      fair: z.number().min(0),
+      sloppy: z.number().min(0),
+      pig: z.number().min(0),
+    }),
+    grainBonusPercent: z.number().min(0),
+    growAfterMoves: z.int().min(1),
+    maxMoves: z.int().min(1),
+  }),
+  /** Wood kinds planks come in. Cosmetic: shape tells planks apart; wood adds variety. */
+  pieces: z.array(PieceStyleSchema).min(1),
+  /** Display names for the twelve pentominoes, index = engine shape. */
+  shapes: z.array(z.object({ nameKey: MessageKey })).length(12),
+});
+
 export const NamesSchema = z.object({
   adjectives: z.array(z.string().min(2)).min(20),
   nouns: z.array(z.string().min(2)).min(20),
@@ -173,4 +199,5 @@ export type PieceStyle = z.infer<typeof PieceStyleSchema>;
 export type SailPieceStyle = z.infer<typeof SailPieceStyleSchema>;
 export type BilgingContent = z.infer<typeof BilgingContentSchema>;
 export type SailingContent = z.infer<typeof SailingContentSchema>;
+export type CarpentryContent = z.infer<typeof CarpentryContentSchema>;
 export type World = z.infer<typeof WorldSchema>;
