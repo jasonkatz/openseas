@@ -133,8 +133,10 @@ and the engine accepts it only if that spot is reachable from the entry by slidi
 the same kicks the client uses (either direction), and falling, and nothing holds the pair there. So a pair can be
 steered under a platform, a vertical pair can never straddle a shelf, and a position that floats is
 refused. The client's fall timer and steering are presentation: free fall takes `fallMs` a row, a
-held downward swipe or holding space hurries it to `softDropMs` a row (eight times the pace), with
-steering locked for the length of the swipe. There is no hard drop. On the keyboard up turns the
+held downward swipe or holding space hurries it to `softDropMs` a row (ten times the pace), with
+steering locked for the length of the swipe. There is no hard drop. A pair that comes to rest
+locks after 350 ms; a slide or turn while resting restarts that timer at most three times, and
+reaching a lower row restores the restarts. On the keyboard up turns the
 pair clockwise and down turns it counter-clockwise; a tap turns it clockwise.
 The next pair is under the player's control the moment the last one lands, while the board below
 plays out its clears, each cascade step waiting for the pieces to land before the next clear; the
