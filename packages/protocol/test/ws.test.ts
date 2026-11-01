@@ -40,7 +40,7 @@ describe("protocol", () => {
       damage: 40,
       loaded: 2,
       cannons: 4,
-      lastTurn: { turn: 9, outputs: { sailing: 110 }, held: false, speed: 1000, tokens: 4 },
+      lastTurn: { turn: 9, outputs: { bilging: 0, sailing: 110, carpentry: 0, gunnery: 0, navigation: 0 }, held: false, speed: 1000, tokens: 4 },
       nextTurnAt: 1_000_000,
       turnMs: 10_000,
       voyagesCompleted: 0,
