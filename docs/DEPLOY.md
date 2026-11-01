@@ -25,29 +25,57 @@ even if nothing under it changed, for example after changing a Railway variable.
 
 ## Previews
 
-Every pull request that touches the client or what it depends on gets a preview: the **Preview**
-workflow (`.github/workflows/preview.yml`) builds the client in CI with `vercel build` against
-the project's **Preview** env, deploys it with `vercel deploy --prebuilt` (no `--prod`) to the
-same `openseas` project, and keeps one comment on the PR updated with the URL. Vercel's Git
-integration is not connected (ADR 0016).
+Every pull request that touches a package or the build configuration gets its own full stack
+(ADR 0017), built by the **Preview** workflow (`.github/workflows/preview.yml`):
 
-- It uses the same `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` as the Deploy pipeline,
-  but runs without the `production` environment, so they must be **repository**-scoped (step 3).
-  Pull requests from forks get no secrets; their preview job skips with a warning.
-- `VITE_SERVER_URL` must be set for Preview as well as Production (step 2).
-- Previews point at the production server, which only accepts the origins in `CLIENT_ORIGINS`.
-  Anything that needs the server fails from a preview URL. Use previews to look at UI.
-- Deployment Protection's Standard Protection keeps previews behind a Vercel login.
+1. **Server and database on Railway.** A Railway environment `pr-<number>` is created the first
+   time by duplicating `production`: same services, same variables and settings, fresh volumes,
+   so it has its own server and its own **empty** Postgres (the server's migrations build the
+   schema on first boot). It gets its own `BETTER_AUTH_SECRET`. The job waits for Postgres,
+   generates a Railway domain for the server, sets `CLIENT_ORIGINS` to the client address below
+   and `GIT_COMMIT_SHA`, uploads the PR's commit with `railway up`, and polls `/health` until it
+   reports the commit. Later pushes reuse the environment and just upload again.
+2. **Client on Vercel.** The client is built in CI with `vercel build` against the project's
+   **Preview** env, with `VITE_SERVER_URL` replaced by the PR server, deployed with
+   `vercel deploy --prebuilt` (no `--prod`) to the same `openseas` project (ADR 0016), and aliased
+   to `<PREVIEW_ALIAS_PREFIX>-<number>.vercel.app` (default `openseas-pr-<number>`). The alias is
+   stable across pushes, which is what lets the server allow the client's origin before either
+   side deploys.
+3. One comment on the PR carries both URLs and is updated on every push.
+
+**Preview cleanup** (`.github/workflows/preview-cleanup.yml`) deletes the Railway environment,
+its database and the alias when the PR closes, and sweeps daily for `pr-*` environments whose PR
+is already closed. Vercel keeps the preview deployments; they cost nothing idle.
+
+- The Railway side needs `RAILWAY_API_TOKEN` and `RAILWAY_PROJECT_ID` (step 1.6), **repository**-
+  scoped like the Vercel entries: preview runs happen outside the `production` environment. The
+  token is a **workspace** token, not the project token the Deploy pipeline uses; project tokens
+  are scoped to one environment and cannot create others. If the Railway entries are missing the
+  server job skips with a warning and the client preview talks to the production server, which
+  rejects its origin: UI only, as before ADR 0017.
+- Pull requests from forks get no secrets; both jobs skip with a warning.
+- Each open code PR runs a server and a Postgres on Railway until it closes. Close PRs you are
+  done with. To tear one down by hand, run **Preview cleanup** with the PR number; run it with no
+  number to sweep.
+- Deployment Protection's Standard Protection keeps the client preview behind a Vercel login.
+  The server's `/health` and API are public, as production's are.
+- The preview database is empty: you arrive as a new guest. Social sign-in does not work from a
+  preview (the OAuth apps' redirect URIs are production's); guest accounts do.
+- A new production variable or setting is picked up by the next *new* preview environment, since
+  it is a duplicate. An existing `pr-*` environment keeps what it copied; close and reopen the PR,
+  or run **Preview cleanup** for it and push again, to recreate it.
 - A pull request only gets a preview from a push made after its branch carries this workflow, and
   only a push starts it (retargeting or editing the PR does not). For a PR that missed it, run
   **Preview** by hand from the Actions tab with the PR number; it looks the head up and deploys it.
-- The preview deploys from a copy of `.vercel` outside the git checkout, tagged with plain meta
+- The client deploys from a copy of `.vercel` outside the git checkout, tagged with plain meta
   keys (`commitSha`, `commitRef`, `prNumber`). Inside a checkout the Vercel CLI reads the last
   commit and attaches it as `githubCommit*` metadata, which makes Vercel credit the deployment to
   the commit's author; on a Hobby team a commit authored outside the team (Claude's commits are)
   is **BLOCKED**. Outside a repo the deployment is credited to the owner of `VERCEL_TOKEN`. The
   deploy step times out after five minutes so a blocked deployment fails fast. Production deploys
   run inside the checkout: they ship merge commits, which the owner authors.
+- If the alias step fails because the `vercel.app` name is taken, set the repository variable
+  `PREVIEW_ALIAS_PREFIX` to something unique and re-run.
 
 ## One-time setup
 
@@ -90,6 +118,11 @@ server's CORS list.
    server rejects a preflight from the client origin.
 5. Project → **Settings → Tokens** → create a **project token** for the `production` environment.
    Copy it; it is `RAILWAY_TOKEN` in step 3.
+6. For previews (ADR 0017): workspace → **Settings → Tokens** → create a **workspace token**.
+   It is `RAILWAY_API_TOKEN` in step 3. Note the project ID (Project → **Settings → General**, or
+   the UUID in the dashboard URL); it is `RAILWAY_PROJECT_ID`. The Postgres service must be named
+   `Postgres` (the default) or set `RAILWAY_DATABASE_SERVICE` in step 3. The server's restart
+   policy and healthcheck from step 3 are copied into every preview environment.
 
 ### 2. Vercel: client
 
@@ -100,7 +133,7 @@ npm i -g vercel
 vercel login
 vercel link --yes --scope <team-slug> --project openseas   # creates the project, writes .vercel/project.json (gitignored)
 vercel env add VITE_SERVER_URL production                    # paste https://<railway domain>
-vercel env add VITE_SERVER_URL preview                       # same value; PR previews use it
+vercel env add VITE_SERVER_URL preview                       # same value; a PR preview replaces it with its own server
 cat .vercel/project.json                                     # orgId and projectId for step 3
 ```
 
@@ -116,16 +149,20 @@ Then in the dashboard, project → **Settings**:
 
 ### 3. GitHub: secrets and variables
 
-Repo → **Settings → Secrets and variables → Actions**. Use repository scope for the Vercel
-entries: the Preview workflow runs on pull requests outside the `production` environment and
-cannot read environment-scoped values. The Railway entries can live on `production` if you want
+Repo → **Settings → Secrets and variables → Actions**. Use repository scope for the Vercel and
+preview entries: the Preview workflows run on pull requests outside the `production` environment
+and cannot read environment-scoped values. `RAILWAY_TOKEN` can live on `production` if you want
 required reviewers there later.
 
 | Kind | Name | Value |
 |---|---|---|
-| Secret | `RAILWAY_TOKEN` | the Railway project token |
+| Secret | `RAILWAY_TOKEN` | the Railway project token (production deploys) |
+| Secret | `RAILWAY_API_TOKEN` | the Railway workspace token (previews) |
 | Secret | `VERCEL_TOKEN` | the Vercel token |
-| Variable | `RAILWAY_SERVICE` | `server` (the Railway service name) |
+| Variable | `RAILWAY_SERVICE` | `server` (the Railway service name; previews assume `server` if unset) |
+| Variable | `RAILWAY_PROJECT_ID` | the Railway project ID (previews) |
+| Variable | `RAILWAY_DATABASE_SERVICE` | optional; the Postgres service name if not `Postgres` |
+| Variable | `PREVIEW_ALIAS_PREFIX` | optional; preview clients live at `<prefix>-<pr>.vercel.app`, default `openseas-pr` |
 | Variable | `VERCEL_ORG_ID` | `orgId` from `.vercel/project.json` |
 | Variable | `VERCEL_PROJECT_ID` | `projectId` from `.vercel/project.json` |
 | Variable | `PRODUCTION_SERVER_URL` | `https://<railway domain>` |
@@ -162,3 +199,6 @@ Open the client, start a rated Bilging round, and confirm a result lands.
 - The server's build and start commands live in `railpack.json`; the client's in `vercel.json`.
   Both are read from the checkout at deploy time, so a change ships with the commit that makes it.
 - The server's healthcheck and restart policy are Railway service settings (step 1.3).
+- Which paths get a preview, the environment naming and the alias scheme live in
+  `.github/workflows/preview.yml`; teardown and the sweep schedule in
+  `.github/workflows/preview-cleanup.yml`.

@@ -1,0 +1,135 @@
+name: Preview cleanup
+
+# Tears down what preview.yml built (ADR 0017): deletes the pull request's Railway environment
+# (server, database and its data) and the client's alias when the PR closes, and sweeps daily for
+# environments whose PR closed while this could not run. Vercel keeps the preview deployments
+# themselves; they cost nothing idle. Setup: docs/DEPLOY.md, "Previews".
+#
+# Run by hand with a PR number to tear down one preview, or without one to sweep.
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to tear down (leave empty to sweep closed PRs)
+        type: number
+        required: false
+
+# Shares the preview's group so a deploy still running for a PR that just closed is cancelled.
+concurrency:
+  group: preview-${{ github.event.pull_request.number || inputs.pr || 'sweep' }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+  RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+  RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE || 'server' }}
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+  ALIAS_PREFIX: ${{ vars.PREVIEW_ALIAS_PREFIX || 'openseas-pr' }}
+
+jobs:
+  teardown:
+    name: Tear down one preview
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.pr)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PR: ${{ github.event.pull_request.number || inputs.pr }}
+    steps:
+      - name: Check configuration
+        id: config
+        # Fork PRs never got a preview and get no secrets here either.
+        run: |
+          railway=true; vercel=true
+          { [ -n "$RAILWAY_API_TOKEN" ] && [ -n "$RAILWAY_PROJECT_ID" ]; } || railway=false
+          { [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; } || vercel=false
+          echo "railway=$railway" >> "$GITHUB_OUTPUT"
+          echo "vercel=$vercel" >> "$GITHUB_OUTPUT"
+          [ "$railway" = true ] || echo "::warning::RAILWAY_API_TOKEN or RAILWAY_PROJECT_ID is not available to this run; not touching Railway."
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Delete the Railway environment
+        if: steps.config.outputs.railway == 'true'
+        run: |
+          npm install -g @railway/cli
+          railway link --project "$RAILWAY_PROJECT_ID" --environment production --service "$RAILWAY_SERVICE"
+          name="pr-$PR"
+          id="$(railway environment list --json | jq -r --arg name "$name" '.environments[] | select(.name == $name) | .id')"
+          if [ -z "$id" ]; then
+            echo "no Railway environment named $name; nothing to delete"
+            exit 0
+          fi
+          railway environment delete "$name" --yes --json
+          echo "Deleted Railway environment $name" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove the client alias
+        if: steps.config.outputs.vercel == 'true'
+        run: |
+          npm install -g vercel
+          host="$ALIAS_PREFIX-$PR.vercel.app"
+          if vercel alias rm "$host" --yes --token "$VERCEL_TOKEN"; then
+            echo "Removed alias $host" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "no alias $host to remove"
+          fi
+      - name: Note it on the pull request
+        if: steps.config.outputs.railway == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = "<!-- openseas-preview -->";
+            const { owner, repo } = context.repo;
+            const issue_number = Number(process.env.PR);
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.user.type === "Bot" && c.body.includes(marker));
+            if (!existing) return;
+            const body = `${marker}\n**Preview** torn down: the Railway environment \`pr-${issue_number}\` and its database are gone.`;
+            await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+
+  sweep:
+    name: Sweep environments of closed pull requests
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.pr)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Check configuration
+        run: |
+          if [ -z "$RAILWAY_API_TOKEN" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
+            echo "::error::RAILWAY_API_TOKEN or RAILWAY_PROJECT_ID is not set. See docs/DEPLOY.md, \"Previews\"."
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g @railway/cli
+      - name: Delete pr-<n> environments whose pull request is closed
+        # Only a PR GitHub reports as closed or merged is torn down; an unknown number is left alone.
+        run: |
+          railway link --project "$RAILWAY_PROJECT_ID" --environment production --service "$RAILWAY_SERVICE"
+          deleted=0
+          for name in $(railway environment list --json | jq -r '.environments[].name | select(test("^pr-[0-9]+$"))'); do
+            pr="${name#pr-}"
+            state="$(gh pr view "$pr" --json state --jq .state 2>/dev/null || echo UNKNOWN)"
+            case "$state" in
+              CLOSED|MERGED)
+                echo "#$pr is $state; deleting $name"
+                railway environment delete "$name" --yes --json
+                deleted=$((deleted + 1))
+                ;;
+              *) echo "#$pr is $state; keeping $name" ;;
+            esac
+          done
+          echo "Swept $deleted preview environment(s)" >> "$GITHUB_STEP_SUMMARY"
