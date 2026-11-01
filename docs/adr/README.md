@@ -24,3 +24,4 @@ that supersedes it.
 | [0016](./0016-ci-built-previews.md) | PR previews are built in CI and deployed to the production Vercel project |
 | [0017](./0017-railway-environment-per-pull-request.md) | Every pull request gets its own Railway environment, created from CI |
 | [0018](./0018-ship-reducer-and-duty-binding.md) | The ship is a pure reducer on a turn clock; duty boards bind to stations and feed it per turn |
+| [0019](./0019-threejs-overworld.md) | The overworld is an isometric three.js diorama; PixiJS keeps the boards |

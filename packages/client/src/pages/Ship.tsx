@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CrewView, ShipSnapshot, StationWire } from "@openseas/protocol";
 import { content, t } from "../content.js";
+import { Overworld, chartLocation } from "../overworld/Overworld.jsx";
 import { Link } from "../router.jsx";
 import { DutyStation } from "../ship/DutyStation.jsx";
 import { usePirate } from "../state/PirateProvider.jsx";
@@ -75,6 +76,16 @@ function Aboard({ ship, me, clockOffset, notices, error, clearError, actions }: 
   }, [routes, destination]);
 
   const untilTurn = ship.nextTurnAt === null ? null : Math.max(0, ship.nextTurnAt - clockOffset - now);
+  const chartShips = useMemo(() => [{ id: ship.shipId, name: ship.name, kind: "aboard" as const, location: chartLocation(ship.location) }], [ship.shipId, ship.name, ship.location]);
+  const reachable = useMemo(() => (captain ? routes.map((r) => r.to) : []), [captain, routes]);
+  const onIsland = useCallback(
+    (id: string) => {
+      const r = routes.find((x) => x.to === id);
+      if (r) setDestination(r.id);
+    },
+    [routes],
+  );
+  const destinationIsland = routes.find((r) => r.id === destination)?.to ?? null;
   const hail = ship.location.kind === "at-sea" ? ship.location.hail : null;
   const stations = content.world.shipClasses.find((c) => c.id === ship.classId)?.stations ?? [];
   const lastOutput = mine?.station && ship.lastTurn ? (ship.lastTurn.outputs[mine.station] ?? 0) : null;
@@ -93,6 +104,7 @@ function Aboard({ ship, me, clockOffset, notices, error, clearError, actions }: 
         <h2>
           {ship.name} <small className="muted">{className(ship.classId)}</small>
         </h2>
+        <Overworld compact ships={chartShips} here={dockedAt} selected={destinationIsland} reachable={reachable} onIsland={onIsland} smoothMs={ship.turnMs} />
         {ship.location.kind === "at-sea" && (
           <div className="voyage-line">
             <span className="water-meter progress-meter voyage-meter" aria-label={t("ship.progress_label", { percent: Math.round(ship.location.progress / 10) })}>
@@ -182,6 +194,7 @@ function Aboard({ ship, me, clockOffset, notices, error, clearError, actions }: 
           <h3 className="card-title">{t("ship.wheel_heading")}</h3>
           {ship.location.kind === "docked" && routes.length > 0 && (
             <div className="stack">
+              <p className="muted small">{t("ship.tap_island")}</p>
               <label className="field">
                 <span>{t("ship.destination")}</span>
                 <select value={destination} onChange={(e) => setDestination(e.target.value)} data-testid="destination">

@@ -25,7 +25,7 @@ session.
 | `packages/protocol` | Zod schemas for every client-server message. |
 | `packages/content` | World content and the message table as JSON, validated at startup. |
 | `packages/server` | Node 22, `ws`, Drizzle, Better Auth. The only authority. |
-| `packages/client` | Vite, React, PixiJS v8. Renders; never authoritative. |
+| `packages/client` | Vite, React, PixiJS v8 for boards, three.js for the chart. Renders; never authoritative. |
 
 ## Run it
 

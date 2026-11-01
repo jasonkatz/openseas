@@ -352,5 +352,16 @@
   "error.bad_route": "No route goes that way from here.",
   "error.station_taken": "Someone is already at that station.",
   "error.no_station": "Take a station first.",
-  "error.not_hailed": "Nobody is hailing the ship."
+  "error.not_hailed": "Nobody is hailing the ship.",
+  "home.chart_button": "Open the chart",
+  "sea.title": "The chart",
+  "sea.list_link": "List",
+  "sea.tap_hint": "Tap an island to see who's recruiting there, or a ship to board it.",
+  "sea.you_are_here": "You're here",
+  "sea.island_route": "About {minutes} minutes' sail from {island}",
+  "sea.no_route": "No lane runs there from here",
+  "sea.none_here": "No ship is recruiting here.",
+  "sea.your_ship": "Your ship, waiting at the dock.",
+  "sea.no_webgl": "This browser can't draw the chart. The list shows the same ships.",
+  "ship.tap_island": "Tap an island on the chart, or pick one below."
 }

@@ -207,3 +207,16 @@ test("the ship page and the notice board render without the server and point bac
   await expect(page.getByText("No ship is recruiting here.")).toBeVisible();
   await expect(page.getByText("No ship is at sea.")).toBeVisible();
 });
+
+test("the chart draws the islands and picks one by its label", async ({ page }) => {
+  await page.goto("/sea");
+  const chart = page.getByTestId("overworld");
+  await expect(chart).toHaveAttribute("data-islands", "3");
+  await expect(chart).toHaveAttribute("data-ready", "1", { timeout: 20_000 });
+  await expect(chart.locator("canvas")).toBeVisible();
+  const labels = chart.locator(".ow-label-island");
+  await expect(labels).toHaveCount(3);
+  await labels.filter({ hasText: "Gullhaven" }).click();
+  await expect(page.getByTestId("sea-panel").getByRole("heading", { name: "Gullhaven" })).toBeVisible();
+  await expect(labels.filter({ hasText: "Gullhaven" })).toHaveClass(/selected/);
+});

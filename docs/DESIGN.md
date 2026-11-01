@@ -341,6 +341,18 @@ chat yet (M6). The first numbers in `ocean.json` are guesses for the tester sess
   a file. Only player-generated state lives in the database.
 - AI brigands only at sea. No player-versus-player at sea in v1.
 
+As built (M3): the chart is an isometric three.js diorama (ADR 0019). Islands rise from a lit,
+slowly heaving sea with shallows and foam at their shores; each is decorated from its id with a
+seeded PRNG (sand, turf, a hill, palms, rocks, a cottage with a chimney, a dock with a notice
+board at its foot, and a lighthouse on the island farthest from the middle of the ocean), so it
+looks the same on every device. Sea lanes are dashes marching along a gentle curve between
+islands. Ships are chunky sloops that bob and heel; the player's own ship flies a brass flag and
+a marker, others fly parchment. Clouds drift and throw shadows; gulls circle. Islands and ships
+carry HTML labels that can be tapped; the island the player stands on is flagged. The chart page
+(`/sea`) lists who is recruiting at a tapped island and boards a tapped ship; the ship page shows
+the same chart small, with the ship easing along its lane between turns, and the captain picks a
+destination by tapping an island. The notice board list stays as the plain view.
+
 ### 3.6 Persistence
 
 Per pirate: name, per-puzzle rating, crew membership and rank, currency balance, voyage history,
@@ -392,7 +404,7 @@ pnpm monorepo. Packages:
 | `protocol` | Zod schemas for every client-server message | Shared by client and server |
 | `content` | World content JSON and its schemas | Validated at server start |
 | `server` | Node 22, `ws`, Drizzle, Better Auth | Owns all authority |
-| `client` | Vite, React, PixiJS v8 | Renders; never authoritative |
+| `client` | Vite, React, PixiJS v8, three.js for the chart | Renders; never authoritative |
 
 ### 4.2 Puzzle authority: deterministic replay verification
 
@@ -410,8 +422,9 @@ schemas.
 
 ### 4.4 Client
 
-PixiJS v8 for every game surface (puzzle boards, sea battle, island). React with Vite for UI
-(menus, chat, panels, lobbies, settings) overlaid on the canvas.
+PixiJS v8 for puzzle boards, the sea battle and the island. three.js, isometric, for the ocean
+chart (ADR 0019). React with Vite for UI (menus, chat, panels, lobbies, settings) overlaid on
+the canvas.
 
 ### 4.5 Data
 

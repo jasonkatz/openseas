@@ -170,7 +170,10 @@ export function Home() {
                   </button>
                 ))
             )}
-            <Link to="/board" className="btn btn-ghost" data-testid="notice-board-link">
+            <Link to="/sea" className="btn btn-ghost" data-testid="chart-link">
+              {t("home.chart_button")}
+            </Link>
+            <Link to="/board" className="link-line" data-testid="notice-board-link">
               {t("ship.notice_board")}
             </Link>
           </div>
