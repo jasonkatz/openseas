@@ -58,6 +58,8 @@ export interface GunneryConfig {
   /** Extra points per load already in the combo, up to `comboCap` of them. */
   readonly comboStep: number;
   readonly comboCap: number;
+  /** Points for a broadside: every gun has fired since the last one. */
+  readonly broadsidePoints: number;
 }
 
 export const DEFAULT_GUNNERY_DECKS: ReadonlyArray<readonly string[]> = [
@@ -214,6 +216,7 @@ export const DEFAULT_GUNNERY_CONFIG: GunneryConfig = {
   loadPoints: 100,
   comboStep: 25,
   comboCap: 8,
+  broadsidePoints: 300,
 };
 
 export interface GunneryPiece {
@@ -252,8 +255,11 @@ export type CannonOutcome = "load" | "loaded" | "foul" | "clean" | "splash" | "b
 
 export interface GunneryEvent {
   readonly tick: number;
-  /** `load` a step, `loaded` a full cannon, `splash` water into a clean cannon, `exit` out a hatch. */
-  readonly type: "load" | "loaded" | "foul" | "clean" | "splash" | "fire" | "spawn" | "exit";
+  /**
+   * `load` a step, `loaded` a full cannon, `splash` water into a clean cannon, `exit` out a hatch,
+   * `broadside` every gun fired since the last one.
+   */
+  readonly type: "load" | "loaded" | "foul" | "clean" | "splash" | "fire" | "broadside" | "spawn" | "exit";
   /** Index into `cannons` for cannon events. */
   readonly cannon?: number;
   readonly pieceId?: number;
@@ -308,6 +314,9 @@ export interface GunneryState {
   readonly bestCombo: number;
   readonly loads: number;
   readonly fouls: number;
+  /** Per cannon: has it fired since the last broadside? When all have, a broadside scores and this clears. */
+  readonly firedSince: readonly boolean[];
+  readonly broadsides: number;
   readonly arrowsPlaced: number;
   readonly lastMove: GunneryMoveReport | null;
   readonly finished: boolean;

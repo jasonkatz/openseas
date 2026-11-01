@@ -27,5 +27,6 @@ export const GunneryConfigSchema = z.object({
   loadPoints: z.int().min(0).max(100_000),
   comboStep: z.int().min(0).max(100_000),
   comboCap: z.int().min(0).max(1000),
+  broadsidePoints: z.int().min(0).max(100_000),
 });
 export type GunneryConfigWire = z.infer<typeof GunneryConfigSchema>;

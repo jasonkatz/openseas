@@ -103,7 +103,8 @@ export function validateConfig(cfg: GunneryConfig): void {
     isNat(cfg.stepPoints) &&
     isNat(cfg.loadPoints) &&
     isNat(cfg.comboStep) &&
-    isNat(cfg.comboCap);
+    isNat(cfg.comboCap) &&
+    isNat(cfg.broadsidePoints);
   if (!ok) throw new Error("invalid gunnery config");
 }
 
@@ -140,6 +141,8 @@ export function createGunneryGame(seed: string, config: GunneryConfig = DEFAULT_
     bestCombo: 0,
     loads: 0,
     fouls: 0,
+    firedSince: deck.cannons.map(() => false),
+    broadsides: 0,
     arrowsPlaced: 0,
     lastMove: null,
     finished: false,
@@ -217,6 +220,8 @@ export function hashGunneryState(state: GunneryState): string {
   h.int(-5);
   h.int(state.lastDrop).int(state.nextId).int(state.moveCount).int(state.score);
   h.int(state.combo).int(state.bestCombo).int(state.loads).int(state.fouls).int(state.arrowsPlaced);
+  for (const f of state.firedSince) h.int(f ? 1 : 0);
+  h.int(state.broadsides);
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.finished ? 1 : 0);
   return h.digest();
@@ -489,6 +494,8 @@ interface Sim extends Supply {
   bestCombo: number;
   loads: number;
   fouls: number;
+  firedSince: boolean[];
+  broadsides: number;
   events: GunneryEvent[];
 }
 
@@ -527,12 +534,14 @@ function simulate(state: GunneryState, toTick: number): { state: GunneryState; e
     bestCombo: state.bestCombo,
     loads: state.loads,
     fouls: state.fouls,
+    firedSince: state.firedSince.slice(),
+    broadsides: state.broadsides,
     events: [],
   };
   let tick = state.tick;
   while (tick < toTick) {
     tick++;
-    fireCannons(sim, tick);
+    fireCannons(state, sim, tick);
     movePieces(state, sim, tick);
     spawn(state, sim, tick);
   }
@@ -552,17 +561,28 @@ function simulate(state: GunneryState, toTick: number): { state: GunneryState; e
       bestCombo: sim.bestCombo,
       loads: sim.loads,
       fouls: sim.fouls,
+      firedSince: sim.firedSince,
+      broadsides: sim.broadsides,
     },
     events: sim.events,
   };
 }
 
-function fireCannons(sim: Sim, tick: number): void {
+/** Full cannons whose time has come fire; once every gun has fired since the last broadside, that is one. */
+function fireCannons(state: GunneryState, sim: Sim, tick: number): void {
   sim.cannons = sim.cannons.map((c, i) => {
     if (c.firesAt === null || c.firesAt > tick) return c;
     sim.events.push({ tick, type: "fire", cannon: i });
+    sim.firedSince[i] = true;
     return { ...c, loaded: 0, fouled: false, firesAt: null };
   });
+  if (sim.firedSince.length > 0 && sim.firedSince.every(Boolean)) {
+    const points = state.config.broadsidePoints;
+    sim.score += points;
+    sim.broadsides += 1;
+    sim.firedSince = sim.firedSince.map(() => false);
+    sim.events.push({ tick, type: "broadside", points });
+  }
 }
 
 type Target = { dir: Dir; col: number; row: number; into: "deck" | "cannon" | "hatch" } | null;

@@ -204,7 +204,9 @@ after `fireAfterTicks` (the captain's job from M4) and comes back clean, turning
 then. A wrong piece fouls a cannon and loses its load; a fouled cannon turns away everything but
 water, which washes it clean; water in a clean cannon splashes harmlessly. Powder and wad score
 `stepPoints`, a full load `loadPoints` plus `comboStep` for each load already in the combo, up to
-`comboCap`; the combo is full loads in a row without a foul. Time is integer ticks of `tickMs`; every
+`comboCap`; the combo is full loads in a row without a foul. Every gun carries a lamp that lights
+when it fires; once all four are lit, the ship fires a broadside worth `broadsidePoints` and the
+lamps go out, so feeding one handy gun all round leaves the biggest points on the table. Time is integer ticks of `tickMs`; every
 move carries its tick, the client advances its copy once per tick for display and logs a wait now
 and then so loads in flight count, and the server refuses a tick ahead of the wall clock (ADR 0015).
 The round ends on the clock, `maxMoves` or `maxTick`.
@@ -436,6 +438,7 @@ Maintained as they arise.
 | Carpentry patched hole | Planking stays visible | Planks come off and the hull is free again; a new hole is dealt | Keeps a practice round busy on a small board |
 | Carpentry scoring | Original's table | Area times `basePerCell` times a rating multiplier, grain bonus, times masterpiece streak | Published formula, tuned in playtests |
 | Gunnery firing | The captain fires loaded cannons in sea battle | A loaded cannon fires itself after `fireAfterTicks` and comes back clean | No ship until M3; a load should feel like a reward, not leave a mess |
+| Gunnery broadside | The captain decides when and which guns fire | Every gun fired since the last broadside scores `broadsidePoints` | Playtest: nothing rewarded loading more than the nearest gun; a broadside also sets up what the captain wants from gunners in M4 |
 | Gunnery supply | Pieces come into play around the board | One chute drops a previewed, bag-shuffled stream down the middle; unsteered pieces roll overboard | Playtest found random spawns unreadable; a single stream makes every arrow a clear decision |
 | Gunnery collisions | Pieces bounce off each other | Pieces queue behind each other; only head-on meetings turn both back | Bouncing made routes impossible to predict |
 | Gunnery fouled cannon | Takes pieces and wastes them | Turns everything but water away | A foul costs the load and the combo; it should not also eat the next pieces |

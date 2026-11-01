@@ -31,7 +31,7 @@ export interface GunneryCallbacks {
 export interface GunneryRendererOptions {
   showMarks: boolean;
   tickMs: number;
-  labels: { fouled: string; clean: string; next: string };
+  labels: { fouled: string; clean: string; next: string; broadside: string };
 }
 
 interface PieceView {
@@ -170,6 +170,8 @@ export class GunneryRenderer {
   private destroyed = false;
   private time = 0;
   private shake = 0;
+  /** ms left on the broadside flash: every gun's lamp blazes. */
+  private broadsideFlash = 0;
   private cursor: { col: number; row: number } | null = null;
   private hover: { col: number; row: number; fx: number; fy: number } | null = null;
   private press: { x: number; y: number; col: number; row: number; touch: boolean; dragged: boolean; dir: Dir } | null = null;
@@ -373,6 +375,14 @@ export class GunneryRenderer {
   }
 
   private eventFx(state: GunneryState, e: GunneryEvent): void {
+    if (e.type === "broadside") {
+      // Every gun has fired since the last one: the whole deck shakes and the lamps blaze.
+      this.broadsideFlash = 1400;
+      this.shake = Math.max(this.shake, 520);
+      state.cannons.forEach((_, i) => (this.glow[i] = 1400));
+      this.popup((this.width * this.cell) / 2, (this.height * this.cell) / 2, `${this.opts.labels.broadside} +${e.points ?? 0}`, COLORS.flash, 0.8);
+      return;
+    }
     if (e.cannon === undefined) return;
     const i = e.cannon;
     const c = state.cannons[i]!;
@@ -675,6 +685,17 @@ export class GunneryRenderer {
           fx.circle(x + s * (0.3 + k * 0.2) + wob, y + s * (0.16 - k * 0.04), s * (0.1 + k * 0.025)).fill({ color: COLORS.smoke, alpha: 0.7 });
         }
       }
+      // Broadside lamp in the gun's outer top corner: lit once the gun has fired since the last broadside.
+      const lit = this.state?.firedSince[i] ?? false;
+      const lx = c.col === 0 ? x + s * 0.15 : x + s * 0.85;
+      const ly = y + s * 0.15;
+      const lr = s * 0.125;
+      const blaze = this.broadsideFlash > 0 ? 0.6 + 0.4 * Math.sin(this.time / 50) : 0;
+      if (lit || blaze > 0) {
+        fx.circle(lx, ly, lr * 1.9).fill({ color: COLORS.flash, alpha: 0.22 + blaze * 0.3 });
+        fx.circle(lx, ly, lr).fill({ color: blaze > 0 ? 0xffffff : COLORS.flash });
+      } else fx.circle(lx, ly, lr).fill({ color: 0x1a120a });
+      fx.circle(lx, ly, lr).stroke({ width: Math.max(1, s * 0.03), color: COLORS.brass, alpha: 0.85 });
       const hit = this.hit[i] ?? 0;
       if (hit > 0) fx.roundRect(x + 1, y + 1, s - 2, s - 2, s * 0.16).stroke({ width: 3, color: COLORS.danger, alpha: hit / 700 });
 
@@ -872,9 +893,10 @@ export class GunneryRenderer {
       fx.circle(p.x, p.y, p.r).fill({ color: p.color, alpha: p.alpha * (1 - k) });
     }
     for (const arr of [this.glow, this.recoil, this.hit]) for (let i = 0; i < arr.length; i++) if ((arr[i] ?? 0) > 0) arr[i] = Math.max(0, arr[i]! - dt);
+    this.broadsideFlash = Math.max(0, this.broadsideFlash - dt);
     if (this.shake > 0 && !this.reduced) {
       this.shake = Math.max(0, this.shake - dt);
-      const a = (this.shake / 220) * this.cell * 0.08;
+      const a = Math.min(2, this.shake / 220) * this.cell * 0.08;
       this.board.position.set(this.origin.x + (Math.random() - 0.5) * a, this.origin.y + (Math.random() - 0.5) * a);
     } else this.board.position.set(this.origin.x, this.origin.y);
     this.drawCannons();

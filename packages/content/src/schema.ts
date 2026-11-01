@@ -213,6 +213,8 @@ export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
     loadPoints: z.int().min(0),
     comboStep: z.int().min(0),
     comboCap: z.int().min(0),
+    /** Points when every gun has fired since the last broadside. */
+    broadsidePoints: z.int().min(0),
   }),
   /** Powder, wad, shot, water, in that order (the engine's kind numbers). */
   pieces: z.array(PieceStyleSchema).length(4),

@@ -150,16 +150,17 @@
     "stepPoints": 10,
     "loadPoints": 100,
     "comboStep": 25,
-    "comboCap": 8
+    "comboCap": 8,
+    "broadsidePoints": 300
   },
   "roundSeconds": 150,
   "thresholds": [
-    { "score": 300, "rating": 1100 },
-    { "score": 800, "rating": 1300 },
-    { "score": 1600, "rating": 1500 },
-    { "score": 2600, "rating": 1700 },
-    { "score": 3800, "rating": 1900 },
-    { "score": 5400, "rating": 2100 }
+    { "score": 400, "rating": 1100 },
+    { "score": 1100, "rating": 1300 },
+    { "score": 2200, "rating": 1500 },
+    { "score": 3600, "rating": 1700 },
+    { "score": 5400, "rating": 1900 },
+    { "score": 7800, "rating": 2100 }
   ],
   "pieces": [
     { "nameKey": "gunnery.piece.powder", "mark": "square", "texture": "grain", "color": "#3b3b47" },

@@ -87,6 +87,9 @@ export function GunneryPractice() {
         case "fire":
           sfx.keg();
           break;
+        case "broadside":
+          sfx.streak(12);
+          break;
         case "foul":
           sfx.streakLost();
           break;
@@ -111,6 +114,19 @@ export function GunneryPractice() {
       <span className="stat-label">{t("gunnery.loads")}</span>
       <span className="stat-value" data-testid="hud-loads">
         {shown.loads}
+      </span>
+    </div>
+  );
+  const broadsideStat = (
+    <div className="stat stat-wide">
+      <span className="stat-label">{t("gunnery.broadside")}</span>
+      <span className="stat-value" data-testid="hud-broadside">
+        <span className="broadside-lamps" aria-label={t("gunnery.broadside_lamps", { lit: shown.firedSince.filter(Boolean).length, total: shown.firedSince.length })}>
+          {shown.firedSince.map((lit, i) => (
+            <i key={i} className={lit ? "lit" : ""} />
+          ))}
+        </span>
+        {shown.broadsides > 0 && <small>×{shown.broadsides}</small>}
       </span>
     </div>
   );
@@ -142,6 +158,7 @@ export function GunneryPractice() {
       warn={shown.cannons.some((c) => c.fouled)}
       details={
         <>
+          {broadsideStat}
           {loadsStat}
           {arrowStat}
         </>
@@ -151,6 +168,10 @@ export function GunneryPractice() {
           <div>
             <dt>{t("gunnery.result_loads")}</dt>
             <dd>{state.loads}</dd>
+          </div>
+          <div>
+            <dt>{t("gunnery.result_broadsides")}</dt>
+            <dd>{state.broadsides}</dd>
           </div>
           <div>
             <dt>{t("gunnery.result_fouls")}</dt>
@@ -173,6 +194,7 @@ export function GunneryPractice() {
             ))}
           </ul>
           <p className="muted small legend-note">{t("gunnery.legend_order")}</p>
+          <p className="muted small legend-note">{t("gunnery.legend_broadside", { points: gunnery.config.broadsidePoints })}</p>
           <p className="muted small legend-note">{t("gunnery.legend_badges")}</p>
           <p className="muted small legend-note">{t("gunnery.legend_arrow")}</p>
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />

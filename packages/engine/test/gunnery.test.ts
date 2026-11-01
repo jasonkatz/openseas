@@ -379,6 +379,42 @@ describe("gunnery cannons", () => {
   });
 });
 
+describe("gunnery broadsides", () => {
+  /** The quiet deck with cannon i full and firing at firesAt[i] (null: left empty). */
+  const firing = (firesAt: Array<number | null>): GunneryState => {
+    const s = deckWith([]);
+    return { ...s, cannons: s.cannons.map((c, i) => (firesAt[i] === null ? c : { ...c, loaded: 3, firesAt: firesAt[i]! })) };
+  };
+
+  it("once every gun has fired, in any order, a broadside scores and the set starts again", () => {
+    let s = firing([4, 1, 3, 2]);
+    s = advanceGunnery(s, 3);
+    expect(s.firedSince).toEqual([false, true, true, true]);
+    expect(s.broadsides).toBe(0);
+    expect(s.score).toBe(0);
+    s = advanceGunnery(s, 4);
+    expect(s.broadsides).toBe(1);
+    expect(s.score).toBe(cfg.broadsidePoints);
+    expect(s.firedSince).toEqual([false, false, false, false]);
+    expect(s.lastMove?.events.filter((e) => e.type === "broadside")).toEqual([{ tick: 4, type: "broadside", points: cfg.broadsidePoints }]);
+  });
+
+  it("firing the same gun again does not fill the set", () => {
+    let s = firing([1, null, null, null]);
+    s = advanceGunnery(s, 2);
+    s = { ...s, cannons: s.cannons.map((c, i) => (i === 0 ? { ...c, loaded: 3, firesAt: 3 } : c)) };
+    s = advanceGunnery(s, 5);
+    expect(s.firedSince).toEqual([true, false, false, false]);
+    expect(s.broadsides).toBe(0);
+  });
+
+  it("four guns firing on the same tick make one broadside", () => {
+    const s = advanceGunnery(firing([2, 2, 2, 2]), 2);
+    expect(s.broadsides).toBe(1);
+    expect(s.lastMove?.events.filter((e) => e.type === "fire")).toHaveLength(4);
+  });
+});
+
 describe("gunnery rolling", () => {
   it("an arrow turns a piece and a wall turns it right", () => {
     let s = deckWith([{ id: 1, kind: 0, col: 2, row: 1, dir: 0 }]);
