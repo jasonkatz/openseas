@@ -25,6 +25,17 @@ export class Room<M> {
     return this.members.has(memberId);
   }
 
+  get(memberId: string): RoomMember<M> | undefined {
+    return this.members.get(memberId);
+  }
+
+  send(memberId: string, message: M): boolean {
+    const m = this.members.get(memberId);
+    if (!m) return false;
+    m.send(message);
+    return true;
+  }
+
   get size(): number {
     return this.members.size;
   }

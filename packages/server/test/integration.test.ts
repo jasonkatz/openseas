@@ -164,7 +164,7 @@ describeDb("server integration", () => {
     expect(result.score).toBe(state.score);
     expect(result.moves).toBe(25);
     expect(result.verified).toBe(true);
-    expect(result.rating.rounds).toBe(1);
+    expect(result.rating?.rounds).toBe(1);
     expect(result.tierChange).toBe("same");
 
     // A cheater who sends a different hash is rejected on the spot.

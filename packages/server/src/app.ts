@@ -1,3 +1,4 @@
+import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { loadContent, type Content } from "@openseas/content";
@@ -8,6 +9,7 @@ import type { Env } from "./env.js";
 import { createHttpHandler } from "./http.js";
 import type { Logger } from "./log.js";
 import { PuzzleService } from "./puzzles/service.js";
+import { ShipService } from "./ships/service.js";
 import { createWsServer } from "./ws.js";
 
 export interface App {
@@ -15,6 +17,7 @@ export interface App {
   db: Db;
   content: Content;
   puzzles: PuzzleService;
+  ships: ShipService;
   listen(port: number): Promise<number>;
   close(): Promise<void>;
 }
@@ -28,8 +31,13 @@ export async function createApp(env: Env, log: Logger, opts: { now?: () => numbe
 
   const auth = createAuth(env, db, log);
   const puzzles = new PuzzleService(db, content, log, opts.now);
+  const ships = new ShipService(db, content, log, puzzles, {
+    ...(opts.now ? { now: opts.now } : {}),
+    randomSeed: () => randomBytes(16).toString("hex"),
+    randomId: () => randomUUID(),
+  });
   const http = createHttpHandler({ env, db, auth, content, log });
-  const ws = createWsServer({ db, auth, content, log, puzzles });
+  const ws = createWsServer({ db, auth, content, log, puzzles, ships });
 
   const server = createServer((req, res) => void http(req, res));
   server.on("upgrade", (req, socket, head) => {
@@ -42,21 +50,25 @@ export async function createApp(env: Env, log: Logger, opts: { now?: () => numbe
   });
 
   let sweeper: NodeJS.Timeout | null = null;
+  let ticker: NodeJS.Timeout | null = null;
 
   return {
     server,
     db,
     content,
     puzzles,
+    ships,
     listen: (port) =>
       new Promise((resolve) => {
         server.listen(port, () => {
           sweeper = setInterval(() => void puzzles.sweep(), 5_000);
+          ticker = setInterval(() => void ships.tick(), 1_000);
           resolve((server.address() as AddressInfo).port);
         });
       }),
     close: async () => {
       if (sweeper) clearInterval(sweeper);
+      if (ticker) clearInterval(ticker);
       for (const client of ws.wss.clients) client.close(1001, "server shutting down");
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await puzzles.sweep();

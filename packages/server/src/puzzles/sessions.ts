@@ -2,6 +2,13 @@ import { InvalidMoveError, PUZZLES, type AnyPuzzleDef, type PuzzleId, type Puzzl
 
 export type RejectReason = "divergence" | "illegal_move" | "bad_sequence" | "deadline" | "too_many_moves";
 
+/** A round played at a ship's station rather than on a practice page. */
+export interface DutyBinding {
+  readonly shipId: string;
+  readonly station: PuzzleId;
+  readonly voyageId: string;
+}
+
 export interface PuzzleSession {
   readonly id: string;
   readonly pirateId: string;
@@ -11,6 +18,8 @@ export interface PuzzleSession {
   readonly config: unknown;
   readonly startedAt: number;
   readonly deadlineAt: number;
+  /** Set when the board belongs to a ship; its points feed the ship each turn. */
+  readonly duty: DutyBinding | null;
   state: unknown;
   moves: unknown[];
   closed: boolean;
@@ -49,7 +58,7 @@ export class PuzzleSessionManager {
     for (const id of Object.keys(opts.puzzles) as PuzzleId[]) PUZZLES[id].validateConfig(opts.puzzles[id].config);
   }
 
-  start(pirateId: string, puzzle: PuzzleId): PuzzleSession {
+  start(pirateId: string, puzzle: PuzzleId, duty: DutyBinding | null = null): PuzzleSession {
     const now = this.opts.now();
     const seed = this.opts.randomSeed();
     const def = PUZZLES[puzzle];
@@ -63,6 +72,7 @@ export class PuzzleSessionManager {
       config,
       startedAt: now,
       deadlineAt: now + roundMs,
+      duty,
       state: def.create(seed, config),
       moves: [],
       closed: false,
@@ -106,6 +116,16 @@ export class PuzzleSessionManager {
     }
     this.close(session);
     return { ok: true, state: session.state, summary: session.def.summarize(session.state), moves: session.moves };
+  }
+
+  /** True once the round has run its clock or the engine ended it: the only rounds a duty board is rated for. */
+  ranFull(session: PuzzleSession): boolean {
+    return this.opts.now() >= session.deadlineAt - this.opts.graceMs || session.def.isFinished(session.state);
+  }
+
+  /** The score so far, for a ship taking a station's output mid-round. */
+  score(session: PuzzleSession): number {
+    return session.def.summarize(session.state).score;
   }
 
   close(session: PuzzleSession): void {

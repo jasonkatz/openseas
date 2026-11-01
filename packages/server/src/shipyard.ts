@@ -18,12 +18,14 @@ export async function purchaseShip(
   price: number,
   grantId: string | null,
   name: string,
+  /** The island the ship is delivered to: where the pirate stands. */
+  islandId: string,
 ): Promise<{ shipId: string; balance: number }> {
   const shipClass = content.world.shipClasses.find((c) => c.id === classId);
   if (!shipClass) throw new Error(`unknown ship class ${classId}`);
   const balance = await appendLedger(tx, pirateId, -price, "ship.purchase", grantId ?? classId);
   const shipId = randomUUID();
-  await tx.insert(schema.ship).values({ id: shipId, ownerId: pirateId, classId, name, grantId });
+  await tx.insert(schema.ship).values({ id: shipId, ownerId: pirateId, classId, name, grantId, islandId });
   return { shipId, balance };
 }
 
@@ -52,6 +54,7 @@ export async function applyAutomaticGrants(
   pirateId: string,
   pirateName: string,
   ctx: GrantContext,
+  islandId: string,
 ): Promise<string[]> {
   const granted: string[] = [];
   for (const grant of content.world.shipGrants) {
@@ -66,7 +69,7 @@ export async function applyAutomaticGrants(
     }
     const [adjective, noun] = pirateName.split(" ");
     const shipName = msg(content, "ship.default_name", { adjective: adjective ?? "Salty", noun: noun ?? "Gull" });
-    await purchaseShip(tx, content, pirateId, grant.shipClassId, grant.price, grant.id, shipName);
+    await purchaseShip(tx, content, pirateId, grant.shipClassId, grant.price, grant.id, shipName, islandId);
     granted.push(grant.id);
   }
   return granted;
