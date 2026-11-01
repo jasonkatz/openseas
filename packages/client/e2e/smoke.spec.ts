@@ -172,15 +172,14 @@ test("home links to Navigation practice and an unrated round turns a ring by key
   await page.getByTestId("start-unrated").click();
   const canvas = page.getByTestId("navigation-canvas");
   await expect(canvas).toBeVisible();
+  // Stars come down on their own clock, so the count is only ever compared with a reading taken just before.
   const landed = async (): Promise<number> => Number((await page.getByTestId("hud-moves").textContent())?.trim() ?? "0");
-  expect(await landed()).toBe(0);
 
-  // Turn the selected ring: a star has not come down for that.
+  // Turn the selected ring, then bring the falling star down with enter.
   await page.keyboard.press("ArrowRight");
-  expect(await landed()).toBe(0);
-  // Enter brings the falling star down now.
+  const beforeKey = await landed();
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("hud-moves")).not.toHaveText("0");
+  await expect.poll(landed).toBeGreaterThan(beforeKey);
   await expectViewMatchesState(page, "navigation");
 
   // Pointer: a tap on the compass rose in the center brings the next star down.
