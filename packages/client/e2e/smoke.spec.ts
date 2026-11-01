@@ -164,3 +164,36 @@ test("home links to Gunnery practice and an unrated round lays arrows by key and
   // The deck the canvas shows is the deck the engine holds.
   await expectViewMatchesState(page, "gunnery");
 });
+
+test("home links to Navigation practice and an unrated round turns a ring by key and brings stars down by key and by tap", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: /Navigation/ }).click();
+  await expect(page).toHaveURL(/\/practice\/navigation$/);
+  await page.getByTestId("start-unrated").click();
+  const canvas = page.getByTestId("navigation-canvas");
+  await expect(canvas).toBeVisible();
+  // Stars come down on their own clock, so the count is only ever compared with a reading taken just before.
+  const landed = async (): Promise<number> => Number((await page.getByTestId("hud-moves").textContent())?.trim() ?? "0");
+
+  // Turn the selected ring, then bring the falling star down with enter.
+  await page.keyboard.press("ArrowRight");
+  const beforeKey = await landed();
+  await page.keyboard.press("Enter");
+  await expect.poll(landed).toBeGreaterThan(beforeKey);
+  await expectViewMatchesState(page, "navigation");
+
+  // Pointer: a tap on the compass rose in the center brings the next star down.
+  const before = await landed();
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  const geom = (await canvas.getAttribute("data-geom"))?.split(",").map(Number);
+  if (!geom || geom.length !== 3) throw new Error("no chart geometry");
+  await page.mouse.click(box.x + geom[0]!, box.y + geom[1]!);
+  await expect
+    .poll(landed)
+    .toBeGreaterThan(before);
+  // Stars keep falling on the clock: left alone, the count still rises.
+  const now = await landed();
+  await expect.poll(landed, { timeout: 15_000 }).toBeGreaterThan(now);
+  await expectViewMatchesState(page, "navigation");
+});

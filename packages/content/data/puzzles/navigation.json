@@ -1,0 +1,39 @@
+{
+  "config": {
+    "rings": 3,
+    "octants": 8,
+    "shapes": 3,
+    "colors": 3,
+    "startStars": 3,
+    "maxStars": 8,
+    "reuseChancePercent": 50,
+    "starPoints": 10,
+    "efficiencyBonus": 30,
+    "runPoints": 5,
+    "boochPenalty": 40,
+    "tickMs": 100,
+    "maxTick": 1500,
+    "maxMoves": 2000,
+    "fallTicks": 36,
+    "fallTicksMin": 18
+  },
+  "roundSeconds": 150,
+  "thresholds": [
+    { "score": 60, "rating": 1100 },
+    { "score": 150, "rating": 1300 },
+    { "score": 300, "rating": 1500 },
+    { "score": 500, "rating": 1700 },
+    { "score": 800, "rating": 1900 },
+    { "score": 1200, "rating": 2100 }
+  ],
+  "colors": [
+    { "nameKey": "navigation.color.gold", "mark": "circle", "color": "#f5d021" },
+    { "nameKey": "navigation.color.ice", "mark": "triangle", "color": "#7fd7ff" },
+    { "nameKey": "navigation.color.ember", "mark": "square", "color": "#ff6b5e" }
+  ],
+  "shapes": [
+    { "nameKey": "navigation.shape.spark", "shape": "spark" },
+    { "nameKey": "navigation.shape.star", "shape": "star" },
+    { "nameKey": "navigation.shape.comet", "shape": "comet" }
+  ]
+}

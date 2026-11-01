@@ -25,6 +25,17 @@ import {
   type CarpentryState,
 } from "./carpentry/index.js";
 import {
+  DEFAULT_NAVIGATION_CONFIG,
+  createNavigationGame,
+  hashNavigationState,
+  reduceNavigation,
+  summarizeNavigation,
+  validateNavigationConfig,
+  type NavigationConfig,
+  type NavigationMove,
+  type NavigationState,
+} from "./navigation/index.js";
+import {
   DEFAULT_SAILING_CONFIG,
   createSailingGame,
   hashSailingState,
@@ -48,7 +59,7 @@ import {
 } from "./gunnery/index.js";
 
 /** Every puzzle the engine knows about. Extended one at a time per the milestone ladder. */
-export const PUZZLE_IDS = ["bilging", "sailing", "carpentry", "gunnery"] as const;
+export const PUZZLE_IDS = ["bilging", "sailing", "carpentry", "gunnery", "navigation"] as const;
 export type PuzzleId = (typeof PUZZLE_IDS)[number];
 
 /** What every finished round reports. The database row and the result message share this shape. */
@@ -114,6 +125,19 @@ export const CARPENTRY_DEF: PuzzleDef<CarpentryState, CarpentryMove, CarpentryCo
   maxMoves: (c) => c.maxMoves,
 };
 
+export const NAVIGATION_DEF: PuzzleDef<NavigationState, NavigationMove, NavigationConfig> = {
+  id: "navigation",
+  defaultConfig: DEFAULT_NAVIGATION_CONFIG,
+  validateConfig: validateNavigationConfig,
+  create: createNavigationGame,
+  reduce: reduceNavigation,
+  hash: hashNavigationState,
+  summarize: summarizeNavigation,
+  isFinished: (s) => s.finished,
+  maxMoves: (c) => c.maxMoves,
+  moveTimeMs: (m, c) => m.tick * c.tickMs,
+};
+
 export const GUNNERY_DEF: PuzzleDef<GunneryState, GunneryMove, GunneryConfig> = {
   id: "gunnery",
   defaultConfig: DEFAULT_GUNNERY_CONFIG,
@@ -126,7 +150,6 @@ export const GUNNERY_DEF: PuzzleDef<GunneryState, GunneryMove, GunneryConfig> = 
   maxMoves: (c) => c.maxMoves,
   moveTimeMs: (m, c) => m.tick * c.tickMs,
 };
-
 /** The engine behind each puzzle id, erased to `unknown` shapes for generic drivers. */
 export type AnyPuzzleDef = PuzzleDef<unknown, unknown, unknown>;
 
@@ -135,6 +158,7 @@ export const PUZZLES: Readonly<Record<PuzzleId, AnyPuzzleDef>> = {
   sailing: SAILING_DEF as unknown as AnyPuzzleDef,
   carpentry: CARPENTRY_DEF as unknown as AnyPuzzleDef,
   gunnery: GUNNERY_DEF as unknown as AnyPuzzleDef,
+  navigation: NAVIGATION_DEF as unknown as AnyPuzzleDef,
 };
 
 export function isPuzzleId(x: unknown): x is PuzzleId {

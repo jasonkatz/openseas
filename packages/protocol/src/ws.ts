@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ErrorCodeSchema, PirateSummarySchema, PuzzleIdSchema, RatingViewSchema } from "./common.js";
 import { BilgingConfigSchema } from "./bilging.js";
 import { CarpentryConfigSchema } from "./carpentry.js";
+import { NavigationConfigSchema } from "./navigation.js";
 import { SailingConfigSchema } from "./sailing.js";
 import { GunneryConfigSchema } from "./gunnery.js";
 
@@ -58,6 +59,7 @@ export const PuzzleStartedSchema = z.discriminatedUnion("puzzle", [
   PuzzleStartedBase.extend({ puzzle: z.literal("sailing"), config: SailingConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("carpentry"), config: CarpentryConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("gunnery"), config: GunneryConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("navigation"), config: NavigationConfigSchema }),
 ]);
 
 export const PuzzleResultSchema = z.object({

@@ -1137,3 +1137,6 @@ a {
     inset 0 0 0 2px var(--brass),
     0 0 8px rgba(255, 210, 122, 0.7);
 }
+.progress-meter i {
+  background: linear-gradient(90deg, var(--brass-deep), var(--brass));
+}

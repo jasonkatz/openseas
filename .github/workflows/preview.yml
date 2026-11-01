@@ -3,8 +3,17 @@ name: Preview
 # Builds the client for every pull request and deploys it as a preview on the same Vercel project
 # that serves production (ADR 0016). Vercel's Git integration is not used; this replaces it.
 # Previews talk to the production server. Setup: docs/DEPLOY.md, "Previews".
+#
+# It can also be run by hand for a pull request number, for a PR whose last push did not start it
+# (one opened before this workflow existed, say). From the default branch's Actions tab.
 
 on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to build a preview for
+        type: number
+        required: true
   pull_request:
     paths:
       - packages/client/**
@@ -18,7 +27,7 @@ on:
       - .github/workflows/preview.yml
 
 concurrency:
-  group: preview-${{ github.event.pull_request.number }}
+  group: preview-${{ github.event.pull_request.number || inputs.pr }}
   cancel-in-progress: true
 
 permissions:
@@ -34,9 +43,24 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-      SHA: ${{ github.event.pull_request.head.sha }}
-      BRANCH: ${{ github.event.pull_request.head.ref }}
     steps:
+      - name: Which pull request
+        id: pr
+        # From the event when a pull request started this run; looked up by number when run by hand.
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            let pr = context.payload.pull_request;
+            if (!pr) {
+              const number = Number(context.payload.inputs.pr);
+              if (!Number.isInteger(number) || number <= 0) core.setFailed(`not a pull request number: ${context.payload.inputs.pr}`);
+              pr = (await github.rest.pulls.get({ owner, repo, pull_number: number })).data;
+            }
+            core.setOutput("number", String(pr.number));
+            core.setOutput("sha", pr.head.sha);
+            core.setOutput("ref", pr.head.ref);
+            core.info(`pull request #${pr.number}: ${pr.head.ref} at ${pr.head.sha}`);
       - name: Check configuration
         id: config
         # Pull requests from forks get no secrets. Skip quietly instead of failing their checks.
@@ -50,7 +74,7 @@ jobs:
       - uses: actions/checkout@v4
         if: steps.config.outputs.ready == 'true'
         with:
-          ref: ${{ env.SHA }}
+          ref: ${{ steps.pr.outputs.sha }}
       - uses: pnpm/action-setup@v4
         if: steps.config.outputs.ready == 'true'
       - uses: actions/setup-node@v4
@@ -66,13 +90,17 @@ jobs:
       - name: Build
         if: steps.config.outputs.ready == 'true'
         env:
-          COMMIT_SHA: ${{ env.SHA }}
+          COMMIT_SHA: ${{ steps.pr.outputs.sha }}
         run: vercel build --token "$VERCEL_TOKEN"
       - name: Deploy
         id: deploy
         if: steps.config.outputs.ready == 'true'
         # A deployment Vercel blocks never finishes; fail in minutes rather than at the job timeout.
         timeout-minutes: 5
+        env:
+          SHA: ${{ steps.pr.outputs.sha }}
+          BRANCH: ${{ steps.pr.outputs.ref }}
+          PR: ${{ steps.pr.outputs.number }}
         run: |
           set -o pipefail
           # Deploy from a copy of .vercel outside the checkout. The CLI reads the last commit from
@@ -87,7 +115,7 @@ jobs:
             --meta commitSha="$SHA" \
             --meta commitRef="$BRANCH" \
             --meta repo="${GITHUB_REPOSITORY}" \
-            --meta prNumber="${{ github.event.pull_request.number }}" \
+            --meta prNumber="$PR" \
             | tee deploy-url.txt
           url="$(tail -n1 deploy-url.txt)"
           echo "url=$url" >> "$GITHUB_OUTPUT"
@@ -97,12 +125,14 @@ jobs:
         uses: actions/github-script@v7
         env:
           URL: ${{ steps.deploy.outputs.url }}
+          SHA: ${{ steps.pr.outputs.sha }}
+          PR: ${{ steps.pr.outputs.number }}
         with:
           script: |
             const marker = "<!-- openseas-preview -->";
             const body = `${marker}\n**Client preview:** ${process.env.URL}\n\nCommit \`${process.env.SHA.slice(0, 7)}\`. Talks to the production server.`;
             const { owner, repo } = context.repo;
-            const issue_number = context.payload.pull_request.number;
+            const issue_number = Number(process.env.PR);
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
             const existing = comments.find((c) => c.user.type === "Bot" && c.body.includes(marker));
             if (existing) {

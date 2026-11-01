@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 import { GUNNERY_DEF, advanceGunnery, summarizeGunnery, type Dir, type GunneryConfig, type GunneryEvent, type GunneryMove, type GunneryState } from "@openseas/engine";
 import { sfx } from "../audio.js";
 import { content, t } from "../content.js";
@@ -6,11 +6,11 @@ import { GunneryBoard } from "../gunnery/GunneryBoard.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../puzzles/PracticeShell.jsx";
 import { gunneryPieceUrl } from "../gunnery/pieces.js";
 import { usePractice } from "../puzzles/usePractice.js";
+import { useTicked } from "../puzzles/useTicked.js";
 
 const gunnery = content.puzzles.gunnery;
 const { tickMs, maxTick } = gunnery.config;
-/** Log a wait after this many ticks without input so loads in flight reach the server. */
-const WAIT_EVERY_TICKS = 20;
+const waitAt = (tick: number): GunneryMove => ({ type: "wait", tick });
 
 export function GunneryPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
@@ -21,58 +21,16 @@ export function GunneryPractice() {
     roundSeconds: gunnery.roundSeconds,
     summarize: summarizeGunnery,
   });
-  const { state, phase } = api;
-  // What the deck shows: the engine state advanced to the current tick. Display only until a move logs it.
-  const [shown, setShown] = useState<GunneryState>(state);
-  const finalWaitSent = useRef(false);
-
-  /** The tick the clock says it is now, one behind so a claim never runs ahead of the server's clock. */
-  const currentTick = useCallback((): number => {
-    const r = api.current();
-    if (!r) return 0;
-    const start = r.opts.deadlineAt - gunnery.roundSeconds * 1000;
-    return Math.max(0, Math.min(maxTick, Math.floor((Date.now() - start) / tickMs) - 1));
-  }, [api]);
-
-  useEffect(() => {
-    if (phase !== "playing") {
-      setShown(state);
-      finalWaitSent.current = false;
-      return;
-    }
-    const step = (): void => {
-      const r = api.current();
-      if (!r || r.isFinished) return;
-      const tick = currentTick();
-      const msLeft = r.opts.deadlineAt - Date.now();
-      if (msLeft < 600 && !finalWaitSent.current) {
-        finalWaitSent.current = true;
-        api.apply({ type: "wait", tick }, false);
-        return;
-      }
-      if (tick - r.state.tick >= WAIT_EVERY_TICKS) {
-        api.apply({ type: "wait", tick }, false);
-        return;
-      }
-      setShown(advanceGunnery(r.state, tick));
-    };
-    step();
-    const id = window.setInterval(step, tickMs);
-    return () => window.clearInterval(id);
-  }, [phase, api, currentTick]);
-
-  // A logged move resets the display baseline.
-  useEffect(() => {
-    if (phase === "playing") setShown(advanceGunnery(state, Math.max(state.tick, currentTick())));
-  }, [state, phase, currentTick]);
+  const { state } = api;
+  const { shown, moveTick } = useTicked(api, { tickMs, maxTick, roundSeconds: gunnery.roundSeconds, advance: advanceGunnery, wait: waitAt });
 
   const onArrow = useCallback(
     (col: number, row: number, dir: Dir | null) => {
-      const tick = Math.max(currentTick(), api.current()?.state.tick ?? 0);
+      const tick = moveTick();
       const ok = api.apply(dir === null ? { type: "remove", col, row, tick } : { type: "arrow", col, row, dir, tick });
       if (ok) sfx.tick(false);
     },
-    [api, currentTick],
+    [api, moveTick],
   );
 
   const onEvents = useCallback((events: readonly GunneryEvent[]) => {

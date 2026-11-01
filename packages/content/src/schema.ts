@@ -220,6 +220,44 @@ export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
   pieces: z.array(PieceStyleSchema).length(4),
 });
 
+/** Star styles: a kind is shape x color, so each axis is listed on its own. */
+export const StarColorSchema = z.object({
+  nameKey: MessageKey,
+  /** Symbol drawn on the star when marks are on, so colors stay apart without color (rule 6). */
+  mark: z.string(),
+  color: z.string().regex(/^#[0-9a-f]{6}$/),
+});
+export const StarShapeSchema = z.object({
+  nameKey: MessageKey,
+  shape: z.enum(["spark", "star", "comet"]),
+});
+
+export const NavigationContentSchema = DutyPuzzleBaseSchema.extend({
+  config: z.object({
+    rings: z.int().min(1).max(6),
+    octants: z.int().min(3).max(16),
+    shapes: z.int().min(1).max(6),
+    colors: z.int().min(1).max(8),
+    startStars: z.int().min(1),
+    maxStars: z.int().min(1),
+    reuseChancePercent: z.int().min(0).max(100),
+    starPoints: z.int().min(0),
+    efficiencyBonus: z.int().min(0),
+    /** A run of n loose stars of a kind scores runPoints * (n - 2). */
+    runPoints: z.int().min(0),
+    boochPenalty: z.int().min(0),
+    /** Wall-clock ms per tick on the client; the server bounds claimed ticks with it. */
+    tickMs: z.int().min(20).max(5000),
+    maxTick: z.int().min(1),
+    maxMoves: z.int().min(1),
+    /** Ticks a star takes to fall at the start of the round, and by the end. */
+    fallTicks: z.int().min(1),
+    fallTicksMin: z.int().min(1),
+  }),
+  colors: z.array(StarColorSchema).min(1),
+  shapes: z.array(StarShapeSchema).min(1),
+});
+
 export const NamesSchema = z.object({
   adjectives: z.array(z.string().min(2)).min(20),
   nouns: z.array(z.string().min(2)).min(20),
@@ -248,4 +286,7 @@ export type BilgingContent = z.infer<typeof BilgingContentSchema>;
 export type SailingContent = z.infer<typeof SailingContentSchema>;
 export type CarpentryContent = z.infer<typeof CarpentryContentSchema>;
 export type GunneryContent = z.infer<typeof GunneryContentSchema>;
+export type NavigationContent = z.infer<typeof NavigationContentSchema>;
+export type StarColor = z.infer<typeof StarColorSchema>;
+export type StarShape = z.infer<typeof StarShapeSchema>;
 export type World = z.infer<typeof WorldSchema>;
