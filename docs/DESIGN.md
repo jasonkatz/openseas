@@ -187,7 +187,7 @@ a phone held upright), drawn at random from a set of content maps at the start o
 seed picks it, so replays agree). Each map has its own crates, hatches and gun rows, and the engine
 refuses any map that is not fit to play: with no arrows, a piece starting anywhere must leave by a
 hatch (no loop built in), the stream from the chute must leave without running into a gun, and
-every gun must be reachable from the chute with at most three arrows before spray takes the piece.
+every gun must be reachable from the chute with at most three arrows on a route of at most 30 ticks.
 The maps were found by searching for layouts that pass, then picked by hand for variety. A chute in
 the top rail drops one piece at a time onto the deck, heading down the middle until crates turn it;
 whatever is not steered rolls out through a hatch within a few seconds. The chute draws
@@ -198,9 +198,8 @@ two a side; each takes a route of one to three arrows from the stream. Pieces ro
 cell per tick until something turns them: an arrow under a piece turns it to follow it; a wall
 turns it right, else left, else back. Pieces roll together: one behind a stopped piece waits, two
 after the same cell let the older go, and two meeting head on both turn back. The gunner lays as
-many arrows as they like, one per plank; a loop has to be built out of them. Spray washes any piece
-overboard `lifeTicks` after it drops, so a parked piece does not last long either; a ring around each piece
-runs down over its life, turning amber, then red and blinking. A cannon takes powder, then wad, then shot; a full one fires itself
+many arrows as they like, one per plank; a loop has to be built out of them, and a new deck every
+round means building it anew. A cannon takes powder, then wad, then shot; a full one fires itself
 after `fireAfterTicks` (the captain's job from M4) and comes back clean, turning pieces away until
 then. A wrong piece fouls a cannon and loses its load; a fouled cannon turns away everything but
 water, which washes it clean; water in a clean cannon splashes harmlessly. Powder and wad score
@@ -437,7 +436,6 @@ Maintained as they arise.
 | Gunnery collisions | Pieces bounce off each other | Pieces queue behind each other; only head-on meetings turn both back | Bouncing made routes impossible to predict |
 | Gunnery fouled cannon | Takes pieces and wastes them | Turns everything but water away | A foul costs the load and the combo; it should not also eat the next pieces |
 | Gunnery route preview | None | A piece headed into a cannon shows its route, green or red for what it will do there | Makes a busy deck readable; routes for every piece were noise in playtest |
-| Gunnery piece life | Pieces stay on the board until used or lost | Spray washes a piece overboard `lifeTicks` after it drops | Playtest: with no arrow limit, parking pieces in a loop around the deck made it easy |
 | Gunnery deck | One board | A random pick from content maps each round, each checked for no built-in loop and every gun in reach | Playtest: on one board, players found the loop and worked off it all round; a new board keeps them reading routes |
 | Gunnery arrows | Limited | No limit, one per plank | Playtest: the cap made routing around the crates a chore; the move log is still bounded by `maxMoves` |
 | Gunnery time | Continuous rolling | One cell per tick of `tickMs`, carried in the move log | Pure engine; the client interpolates between ticks (ADR 0015) |

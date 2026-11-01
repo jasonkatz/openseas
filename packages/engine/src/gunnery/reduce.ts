@@ -74,7 +74,7 @@ export function validateConfig(cfg: GunneryConfig): void {
   cfg.decks.forEach((rows, i) => {
     const deck = parseDeck(rows);
     if (deck.width !== first.width || deck.height !== first.height) throw new Error(`gunnery deck ${i}: every deck must be ${first.width} by ${first.height}`);
-    const problems = deckProblems(deck, cfg.lifeTicks);
+    const problems = deckProblems(deck);
     if (problems.length) throw new Error(`gunnery deck ${i}: ${problems.join("; ")}`);
   });
   const ok =
@@ -87,8 +87,6 @@ export function validateConfig(cfg: GunneryConfig): void {
     cfg.maxMoves > 0 &&
     Number.isInteger(cfg.maxOnDeck) &&
     cfg.maxOnDeck >= 1 &&
-    Number.isInteger(cfg.lifeTicks) &&
-    cfg.lifeTicks >= 1 &&
     Number.isInteger(cfg.spawnEveryTicks) &&
     Number.isInteger(cfg.spawnEveryTicksMin) &&
     cfg.spawnEveryTicksMin >= 1 &&
@@ -207,7 +205,7 @@ export function replayGunnery(seed: string, moves: readonly GunneryMove[], confi
 export function hashGunneryState(state: GunneryState): string {
   const h = new Hasher();
   h.int(state.deckIndex).int(state.deck.width).int(state.deck.height).int(state.tick);
-  for (const p of state.pieces) h.int(p.id).int(p.kind).int(p.col).int(p.row).int(p.dir).int(p.born);
+  for (const p of state.pieces) h.int(p.id).int(p.kind).int(p.col).int(p.row).int(p.dir);
   h.int(-1);
   for (const a of state.arrows) h.int(a.col).int(a.row).int(a.dir);
   h.int(-2);
@@ -260,11 +258,11 @@ export function dropInterval(cfg: GunneryConfig, tick: number): number {
 
 /**
  * For each gun, the fewest arrows (then fewest ticks) a piece needs to roll from the chute into it,
- * within MAX_ARROWS_TO_A_GUN arrows and before spray takes it; null where it can't be done. A piece
+ * within MAX_ARROWS_TO_A_GUN arrows and MAX_TICKS_TO_A_GUN ticks; null where it can't be done. A piece
  * may turn at a plank only with an arrow (cost 1), unless that is the way it would roll anyway.
  * Arrows are counted per turn, not per plank, so this is a guide to a deck's difficulty.
  */
-export function gunReach(deck: ParsedDeck, lifeTicks: number): Array<{ arrows: number; ticks: number } | null> {
+export function gunReach(deck: ParsedDeck): Array<{ arrows: number; ticks: number } | null> {
   const natural = (col: number, row: number, d: Dir): Dir | null => {
     for (const x of [d, right(d), left(d), opposite(d)]) {
       const c = cellAt(deck, col + DX[x]!, row + DY[x]!);
@@ -289,7 +287,7 @@ export function gunReach(deck: ParsedDeck, lifeTicks: number): Array<{ arrows: n
         const c = cellAt(deck, col, row);
         const arrows = s.arrows + (x === nat ? 0 : 1);
         const ticks = s.ticks + 1;
-        if (arrows > MAX_ARROWS_TO_A_GUN || ticks >= lifeTicks) continue;
+        if (arrows > MAX_ARROWS_TO_A_GUN || ticks > MAX_TICKS_TO_A_GUN) continue;
         if (c === "cannon") {
           const gi = deck.cannons.findIndex((g) => g.col === col && g.row === row);
           const r = reached.get(gi);
@@ -304,15 +302,17 @@ export function gunReach(deck: ParsedDeck, lifeTicks: number): Array<{ arrows: n
 
 /** How many arrows a gun may need, at most, to be reached from the chute. */
 export const MAX_ARROWS_TO_A_GUN = 3;
+/** How long the route to a gun may be, at most, in ticks. */
+export const MAX_TICKS_TO_A_GUN = 30;
 
 /**
  * Why a deck is not fit to play, or nothing. A fit deck has no loop built in: with no arrows,
  * a piece starting on any plank heading any way leaves by a hatch (counting cannons as walls,
  * since a gun may turn a piece away). The stream from the chute leaves without running into a
- * gun. And every gun can be reached from the chute with at most MAX_ARROWS_TO_A_GUN arrows,
- * soon enough that the piece is not washed overboard on the way.
+ * gun. And every gun can be reached from the chute with at most MAX_ARROWS_TO_A_GUN arrows, in at
+ * most MAX_TICKS_TO_A_GUN ticks.
  */
-export function deckProblems(deck: ParsedDeck, lifeTicks: number): string[] {
+export function deckProblems(deck: ParsedDeck): string[] {
   const problems: string[] = [];
   const open = (col: number, row: number, gunsOpen: boolean): boolean => {
     const c = cellAt(deck, col, row);
@@ -381,7 +381,7 @@ export function deckProblems(deck: ParsedDeck, lifeTicks: number): string[] {
   }
   if (follow(deck.drop.col, deck.drop.row, deck.drop.dir, true) !== "hatch") problems.push("the unsteered stream does not leave by a hatch");
 
-  const reach = gunReach(deck, lifeTicks);
+  const reach = gunReach(deck);
   deck.cannons.forEach((g, i) => {
     if (!reach[i]) problems.push(`the gun at ${g.col},${g.row} cannot be reached from the chute in ${MAX_ARROWS_TO_A_GUN} arrows`);
   });
@@ -429,7 +429,6 @@ export interface PredictedPath {
   readonly end:
     | { readonly type: "cannon"; readonly cannon: number; readonly outcome: CannonOutcome }
     | { readonly type: "overboard" }
-    | { readonly type: "washed" }
     | null;
 }
 
@@ -444,7 +443,6 @@ export function predictPath(state: GunneryState, piece: GunneryPiece, steps: num
   for (let i = 0; i < steps; i++) {
     // Cannons as they will be on that tick: a full one has fired by then if its time has come.
     const tick = state.tick + i + 1;
-    if (tick - p.born >= state.config.lifeTicks) return { cells, end: { type: "washed" } };
     const cannons = state.cannons.map((c) => (c.firesAt !== null && c.firesAt <= tick ? { ...c, loaded: 0, fouled: false, firesAt: null } : c));
     const d = heading(state.deck, cannons, arrows, p);
     if (d === null) break;
@@ -535,7 +533,6 @@ function simulate(state: GunneryState, toTick: number): { state: GunneryState; e
   while (tick < toTick) {
     tick++;
     fireCannons(sim, tick);
-    washPieces(state, sim, tick);
     movePieces(state, sim, tick);
     spawn(state, sim, tick);
   }
@@ -558,17 +555,6 @@ function simulate(state: GunneryState, toTick: number): { state: GunneryState; e
     },
     events: sim.events,
   };
-}
-
-/** Spray takes any piece that has been on deck `lifeTicks`. */
-function washPieces(state: GunneryState, sim: Sim, tick: number): void {
-  const life = state.config.lifeTicks;
-  if (!sim.pieces.some((p) => tick - p.born >= life)) return;
-  sim.pieces = sim.pieces.filter((p) => {
-    if (tick - p.born < life) return true;
-    sim.events.push({ tick, type: "washed", pieceId: p.id, kind: p.kind });
-    return false;
-  });
 }
 
 function fireCannons(sim: Sim, tick: number): void {
@@ -712,7 +698,7 @@ function spawn(state: GunneryState, sim: Sim, tick: number): void {
   if (sim.pieces.some((p) => p.col === drop.col && p.row === drop.row)) return;
   const kind = cfg.queueLength > 0 ? sim.queue.shift()! : draw(cfg, sim);
   if (cfg.queueLength > 0) sim.queue.push(draw(cfg, sim));
-  const piece: GunneryPiece = { id: sim.nextId++, kind, col: drop.col, row: drop.row, dir: drop.dir, born: tick };
+  const piece: GunneryPiece = { id: sim.nextId++, kind, col: drop.col, row: drop.row, dir: drop.dir };
   sim.pieces.push(piece);
   sim.lastDrop = tick;
   sim.events.push({ tick, type: "spawn", pieceId: piece.id, kind });

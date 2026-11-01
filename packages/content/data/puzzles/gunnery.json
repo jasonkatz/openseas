@@ -142,7 +142,6 @@
     "maxTick": 760,
     "maxMoves": 1000,
     "maxOnDeck": 8,
-    "lifeTicks": 40,
     "spawnEveryTicks": 8,
     "spawnEveryTicksMin": 4,
     "queueLength": 3,

@@ -19,6 +19,7 @@ export {
   deckProblems as gunneryDeckProblems,
   gunReach as gunneryGunReach,
   MAX_ARROWS_TO_A_GUN,
+  MAX_TICKS_TO_A_GUN,
   type GunnerySummary,
   type PredictedPath as GunneryPredictedPath,
 } from "./reduce.js";

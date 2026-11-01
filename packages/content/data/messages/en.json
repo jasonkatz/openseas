@@ -208,7 +208,7 @@
   "carpentry.shape.y": "Y plank",
   "carpentry.shape.z": "Z plank",
   "gunnery.title": "Gunnery",
-  "gunnery.how_to": "Pieces drop from the chute, roll down the middle and off the crates over the side. Steer them into the cannons with arrows: powder, then wad, then shot, and the gun fires. A wrong piece fouls a cannon until water washes it out. Don't dawdle: spray washes any piece overboard a few seconds after it drops (watch the ring around it). Tap or click toward an edge of a plank to point an arrow that way, or swipe across it; do it again to lift it.",
+  "gunnery.how_to": "Pieces drop from the chute and roll until something turns them; anything you don't steer rolls out a hatch. Every round is on a different deck. Steer them into the cannons with arrows: powder, then wad, then shot, and the gun fires. A wrong piece fouls a cannon until water washes it out. Tap or click toward an edge of a plank to point an arrow that way, or swipe across it; do it again to lift it.",
   "gunnery.how_to_keyboard": "Arrow keys move the cursor. W, A, S, D lay an arrow that way; Space or Backspace lifts it.",
   "gunnery.go": "Run out the guns!",
   "gunnery.piece.powder": "Powder",
@@ -225,6 +225,5 @@
   "gunnery.result_arrows": "Arrows laid",
   "gunnery.legend_order": "Each cannon takes powder, then wad, then shot, and fires when full. A wrong piece fouls it; only water gets into a fouled cannon, and washes it clean.",
   "gunnery.legend_arrow": "An arrow turns any piece that rolls onto it. There is no limit on arrows; right-click lifts one.",
-  "gunnery.legend_life": "The ring around a piece is its time on deck. It turns amber, then red, and then spray washes the piece overboard.",
   "gunnery.legend_badges": "The badge on a cannon is the piece it wants next; the pips below show its load. When a piece is headed into a cannon its route lights up: green if the cannon wants it, red if it will foul it."
 }

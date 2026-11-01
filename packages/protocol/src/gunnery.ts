@@ -18,7 +18,6 @@ export const GunneryConfigSchema = z.object({
   maxTick: z.int().min(1).max(100_000),
   maxMoves: z.int().min(1).max(10_000),
   maxOnDeck: z.int().min(1).max(64),
-  lifeTicks: z.int().min(1).max(100_000),
   spawnEveryTicks: z.int().min(1).max(1000),
   spawnEveryTicksMin: z.int().min(1).max(1000),
   queueLength: z.int().min(0).max(8),
