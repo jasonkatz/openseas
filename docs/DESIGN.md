@@ -182,6 +182,52 @@ right order to load them. Correct loads feed cannon readiness. QoL: per-cannon l
 indicator, highlight of which drop completes a load. Flagged for possible redesign after
 playtesting.
 
+As built (M2, redesigned over several playtests under 3.2): a 9 wide by 15 tall deck (tall, to fill
+a phone held upright), drawn at random from a set of content maps at the start of each round (the
+seed picks it, so replays agree). Each map has its own crates, hatches and gun rows, and the engine
+refuses any map that is not fit to play: with no arrows, a piece starting anywhere must leave by a
+hatch (no loop built in), the stream from the chute must leave without running into a gun, and
+every gun must be reachable from the chute with at most three arrows on a route of at most 30 ticks.
+The maps were found by searching for layouts that pass, then picked by hand for variety. A chute in
+the top rail drops one piece at a time onto the deck, heading down the middle until crates turn it;
+whatever is not steered rolls out through a hatch within a few seconds. The chute draws
+from a shuffled bag (two powder, two wad, two shot, one water), shows the next three in the rail
+beside it, holds back while `maxOnDeck` pieces are out, and quickens from one drop every
+`spawnEveryTicks` to every `spawnEveryTicksMin` over the round. Four cannons sit in the side rails,
+two a side; each takes a route of one to three arrows from the stream. Pieces roll a
+cell per tick until something turns them: an arrow under a piece turns it to follow it; a wall
+turns it right, else left, else back. Pieces roll together: one behind a stopped piece waits, two
+after the same cell let the older go, and two meeting head on both turn back. The gunner lays as
+many arrows as they like, one per plank; a loop has to be built out of them, and a new deck every
+round means building it anew. A cannon takes powder, then wad, then shot; a full one fires itself
+after `fireAfterTicks` (the captain's job from M4) and comes back clean, turning pieces away until
+then. A wrong piece fouls a cannon and loses its load; a fouled cannon turns away everything but
+water, which washes it clean; water in a clean cannon splashes harmlessly. Powder and wad score
+`stepPoints`, a full load `loadPoints` plus `comboStep` for each load already in the combo, up to
+`comboCap`; the combo is full loads in a row without a foul. Every gun carries a lamp that lights
+when it fires; once all four are lit, the ship fires a broadside worth `broadsidePoints` and the
+lamps go out, so feeding one handy gun all round leaves the biggest points on the table. Time is integer ticks of `tickMs`; every
+move carries its tick, the client advances its copy once per tick for display and logs a wait now
+and then so loads in flight count, and the server refuses a tick ahead of the wall clock (ADR 0015).
+The round ends on the clock, `maxMoves` or `maxTick`.
+
+Reading the deck is the point of the QoL: every piece carries a chevron for its heading. A piece
+headed into a cannon shows its route as dots, green when the piece is what the cannon wants (or
+water for a fouled one) and red when it will foul it, and that cannon gets a matching ring (the
+"highlight of which drop completes a load" above); pieces headed anywhere else show no route. The
+preview accounts for full cannons firing before the piece arrives. Each cannon
+shows the piece it wants next as a badge, with powder, wad and shot pips below for its load. A
+mouse hovering a plank shows a ghost arrow pointing toward the nearest edge, and every trail
+redraws as if it were laid; a click commits it, the same
+click again lifts it, and right-click lifts. Touch taps the same way or swipes across a plank to
+point an arrow. Keyboard moves a cursor, lays with W, A, S, D and lifts with Space or Backspace.
+Gunnery has its own piece art rather than the coloured tiles of the other puzzles: powder is a
+charred keg with brass hoops, wad a cream bundle of sailcloth tied with twine, shot an iron
+cannonball and water a wooden bucket brimming blue. Each has its own silhouette (barrel, square
+bundle, ball, tapered bucket), so they read apart without colour, and the marks setting adds a
+symbol badge to each. Loads pop their points, a full cannon glows and sparks, firing recoils with a muzzle flash, smoke
+and a shake, fouling puffs smoke. Numbers and the deck live in `content/data/puzzles/gunnery.json`.
+
 **Navigation.** Arrange and shift pieces to reproduce a target constellation. Completed patterns
 grant token bonuses and sea battle advantages. QoL: target overlay toggle, progress meter.
 
@@ -391,3 +437,13 @@ Maintained as they arise.
 | Carpentry holes | Grow in real time when unattended | Dealt as unions of pentominoes; widen by one cell after `growAfterMoves` planks placed elsewhere | Move-driven growth keeps the engine pure; pentomino unions guarantee a masterpiece is possible |
 | Carpentry patched hole | Planking stays visible | Planks come off and the hull is free again; a new hole is dealt | Keeps a practice round busy on a small board |
 | Carpentry scoring | Original's table | Area times `basePerCell` times a rating multiplier, grain bonus, times masterpiece streak | Published formula, tuned in playtests |
+| Gunnery firing | The captain fires loaded cannons in sea battle | A loaded cannon fires itself after `fireAfterTicks` and comes back clean | No ship until M3; a load should feel like a reward, not leave a mess |
+| Gunnery broadside | The captain decides when and which guns fire | Every gun fired since the last broadside scores `broadsidePoints` | Playtest: nothing rewarded loading more than the nearest gun; a broadside also sets up what the captain wants from gunners in M4 |
+| Gunnery supply | Pieces come into play around the board | One chute drops a previewed, bag-shuffled stream down the middle; unsteered pieces roll overboard | Playtest found random spawns unreadable; a single stream makes every arrow a clear decision |
+| Gunnery collisions | Pieces bounce off each other | Pieces queue behind each other; only head-on meetings turn both back | Bouncing made routes impossible to predict |
+| Gunnery fouled cannon | Takes pieces and wastes them | Turns everything but water away | A foul costs the load and the combo; it should not also eat the next pieces |
+| Gunnery route preview | None | A piece headed into a cannon shows its route, green or red for what it will do there | Makes a busy deck readable; routes for every piece were noise in playtest |
+| Gunnery deck | One board | A random pick from content maps each round, each checked for no built-in loop and every gun in reach | Playtest: on one board, players found the loop and worked off it all round; a new board keeps them reading routes |
+| Gunnery arrows | Limited | No limit, one per plank | Playtest: the cap made routing around the crates a chore; the move log is still bounded by `maxMoves` |
+| Gunnery time | Continuous rolling | One cell per tick of `tickMs`, carried in the move log | Pure engine; the client interpolates between ticks (ADR 0015) |
+| Gunnery water | Cleans fired or misloaded cannons | Cleans a fouled cannon; splashes harmlessly in a clean one | Firing no longer fouls, so water is only for fouls |

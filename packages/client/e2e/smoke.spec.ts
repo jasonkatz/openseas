@@ -130,3 +130,37 @@ test("home links to Carpentry practice and planks go down by keyboard and by tap
   await page.mouse.click(box.x + ox! + (col! + w! / 2) * cell!, box.y + oy! + (row! + h! / 2) * cell!);
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });
+
+test("home links to Gunnery practice and an unrated round lays arrows by key and by tap, and lifts one by tapping again", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: /Gunnery/ }).click();
+  await expect(page).toHaveURL(/\/practice\/gunnery$/);
+  await page.getByTestId("start-unrated").click();
+  const canvas = page.getByTestId("gunnery-canvas");
+  await expect(canvas).toBeVisible();
+  await expect(page.getByTestId("hud-moves")).toContainText("0");
+
+  // Keyboard: lay an arrow pointing right at the cursor.
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("d");
+  await expect(page.getByTestId("hud-moves")).toContainText("1");
+
+  // Pointer: tap a deck cell near the top-left of the deck.
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  // The renderer says where its grid sits on the canvas.
+  const [gx, gy, cell] = ((await canvas.getAttribute("data-geom")) ?? "").split(",").map(Number) as [number, number, number];
+  const ox = box.x + gx;
+  const oy = box.y + gy;
+  await page.mouse.click(ox + cell * 1.5, oy + cell * 1.5);
+  await expect(page.getByTestId("hud-moves")).toContainText("2");
+  // The view string ends with the arrows on deck as col.row.dir.
+  const board = page.getByTestId("gunnery-board");
+  await expect(board).toHaveAttribute("data-board", /\|(.*,)?1\.1\.\d(,.*)?$/);
+  // The same tap again lifts that arrow.
+  await page.mouse.click(ox + cell * 1.5, oy + cell * 1.5);
+  await expect(page.getByTestId("hud-moves")).toContainText("3");
+  await expect(board).not.toHaveAttribute("data-board", /\|(.*,)?1\.1\.\d(,.*)?$/);
+  // The deck the canvas shows is the deck the engine holds.
+  await expectViewMatchesState(page, "gunnery");
+});

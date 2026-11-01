@@ -182,13 +182,15 @@ describeDb("server integration", () => {
 
     // Every other registered puzzle plays a short honest round over the same wire and is rated separately.
     for (const id of PUZZLE_IDS.filter((p) => p !== "bilging")) {
+      // Stay under the connection's message rate limit across five puzzles.
+      await new Promise((resolve) => setTimeout(resolve, 250));
       ws.send(JSON.stringify({ type: "puzzle.start", puzzle: id }));
       const st = await next();
       if (st.type !== "puzzle.started") throw new Error("expected start");
       expect(st.puzzle).toBe(id);
       const def = PUZZLES[id];
-      const final = def.reduce(def.create(st.seed, st.config), { type: "end" });
-      ws.send(JSON.stringify({ type: "puzzle.move", sessionId: st.sessionId, seq: 0, move: { type: "end" }, hash: def.hash(final) }));
+      const final = def.reduce(def.create(st.seed, st.config), { type: "end", tick: 0 });
+      ws.send(JSON.stringify({ type: "puzzle.move", sessionId: st.sessionId, seq: 0, move: { type: "end", tick: 0 }, hash: def.hash(final) }));
       ws.send(JSON.stringify({ type: "puzzle.finish", sessionId: st.sessionId, hash: def.hash(final) }));
       const res = await next();
       expect(res).toMatchObject({ type: "puzzle.result", verified: true, rating: { puzzle: id, rounds: 1 } });

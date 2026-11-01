@@ -2,8 +2,8 @@ import { z } from "zod";
 import { ErrorCodeSchema, PirateSummarySchema, PuzzleIdSchema, RatingViewSchema } from "./common.js";
 import { BilgingConfigSchema } from "./bilging.js";
 import { CarpentryConfigSchema } from "./carpentry.js";
-import { AnyMoveSchema } from "./puzzles.js";
 import { SailingConfigSchema } from "./sailing.js";
+import { GunneryConfigSchema } from "./gunnery.js";
 
 const SessionId = z.string().min(8).max(64);
 const Hash = z.string().regex(/^[0-9a-f]{8}$/);
@@ -24,7 +24,12 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     sessionId: SessionId,
     /** 0-based index of this move in the log. */
     seq: z.int().min(0).max(100_000),
-    move: AnyMoveSchema,
+    /**
+     * Any puzzle's move, kept loose on the wire: a union would let the first matching variant strip
+     * fields another puzzle needs (a Gunnery `end` carries a tick). The server narrows it to the
+     * session's own puzzle schema; a move that fails that check is an illegal move.
+     */
+    move: z.looseObject({ type: z.string().min(1).max(32) }),
     /** Engine state hash after applying the move, for early divergence detection. */
     hash: Hash,
   }),
@@ -52,6 +57,7 @@ export const PuzzleStartedSchema = z.discriminatedUnion("puzzle", [
   PuzzleStartedBase.extend({ puzzle: z.literal("bilging"), config: BilgingConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("sailing"), config: SailingConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("carpentry"), config: CarpentryConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("gunnery"), config: GunneryConfigSchema }),
 ]);
 
 export const PuzzleResultSchema = z.object({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseClientMessage, parseServerMessage } from "../src/index.js";
+import { parseClientMessage, parseMoveFor, parseServerMessage } from "../src/index.js";
 
 describe("protocol", () => {
   it("accepts a well-formed move and rejects junk", () => {
@@ -15,6 +15,13 @@ describe("protocol", () => {
     expect(parseClientMessage({ type: "puzzle.move", sessionId: "x", seq: -1, move: {}, hash: "zz" })).toBeNull();
     expect(parseClientMessage({ type: "nope" })).toBeNull();
     expect(parseClientMessage("string")).toBeNull();
+  });
+
+  it("keeps every field of a move on the wire so the server can narrow it per puzzle", () => {
+    const m = parseClientMessage({ type: "puzzle.move", sessionId: "abcdefgh12345678", seq: 0, move: { type: "end", tick: 12 }, hash: "deadbeef" });
+    expect(m?.type === "puzzle.move" && m.move).toEqual({ type: "end", tick: 12 });
+    expect(parseMoveFor("gunnery", { type: "end", tick: 12 })).toEqual({ type: "end", tick: 12 });
+    expect(parseMoveFor("sailing", { type: "swap", col: 0, row: 0 })).toBeNull();
   });
 
   it("round-trips a server result", () => {
