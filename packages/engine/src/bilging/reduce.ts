@@ -176,10 +176,15 @@ function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap
   };
   settle();
 
-  // Barnacles that the board has lifted above the water line come off, and the board settles again.
-  const pointsSoFar = rounds.reduce((sum, r) => sum + r.points, 0);
-  groups = surfacedBarnacles(cfg, cells, waterRowOf(cfg, waterAfterMove(cfg, state.water, pointsSoFar)));
-  settle();
+  // Barnacles that the board has lifted to or above the water line come off, and the board settles
+  // again. That settling can lift further barnacles (or the bonus can drain the water past one), so
+  // repeat until none is left above the line: a move never ends with a barnacle that should be off.
+  for (;;) {
+    const pointsSoFar = rounds.reduce((sum, r) => sum + r.points, 0);
+    groups = surfacedBarnacles(cfg, cells, waterRowOf(cfg, waterAfterMove(cfg, state.water, pointsSoFar)));
+    if (groups.length === 0) break;
+    settle();
+  }
 
   const points = rounds.reduce((sum, r) => sum + r.points, 0);
   const score = state.score + points;
