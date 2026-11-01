@@ -99,6 +99,9 @@ export function GunneryPractice() {
         case "exit":
           sfx.swapQuiet();
           break;
+        case "washed":
+          sfx.rise();
+          break;
         default:
           break;
       }
@@ -175,6 +178,7 @@ export function GunneryPractice() {
           <p className="muted small legend-note">{t("gunnery.legend_order")}</p>
           <p className="muted small legend-note">{t("gunnery.legend_badges")}</p>
           <p className="muted small legend-note">{t("gunnery.legend_arrow")}</p>
+          <p className="muted small legend-note">{t("gunnery.legend_life")}</p>
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }

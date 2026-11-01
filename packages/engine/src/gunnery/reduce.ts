@@ -80,6 +80,8 @@ export function validateConfig(cfg: GunneryConfig): void {
     cfg.maxMoves > 0 &&
     Number.isInteger(cfg.maxOnDeck) &&
     cfg.maxOnDeck >= 1 &&
+    Number.isInteger(cfg.lifeTicks) &&
+    cfg.lifeTicks >= 1 &&
     Number.isInteger(cfg.spawnEveryTicks) &&
     Number.isInteger(cfg.spawnEveryTicksMin) &&
     cfg.spawnEveryTicksMin >= 1 &&
@@ -194,7 +196,7 @@ export function replayGunnery(seed: string, moves: readonly GunneryMove[], confi
 export function hashGunneryState(state: GunneryState): string {
   const h = new Hasher();
   h.int(state.deck.width).int(state.deck.height).int(state.tick);
-  for (const p of state.pieces) h.int(p.id).int(p.kind).int(p.col).int(p.row).int(p.dir);
+  for (const p of state.pieces) h.int(p.id).int(p.kind).int(p.col).int(p.row).int(p.dir).int(p.born);
   h.int(-1);
   for (const a of state.arrows) h.int(a.col).int(a.row).int(a.dir);
   h.int(-2);
@@ -283,7 +285,11 @@ export interface PredictedPath {
   /** Deck cells the piece will roll through, in order, not counting where it is now. */
   readonly cells: ReadonlyArray<{ readonly col: number; readonly row: number }>;
   /** Where the path ends within the look-ahead, if it ends: into a cannon or overboard. */
-  readonly end: { readonly type: "cannon"; readonly cannon: number; readonly outcome: CannonOutcome } | { readonly type: "overboard" } | null;
+  readonly end:
+    | { readonly type: "cannon"; readonly cannon: number; readonly outcome: CannonOutcome }
+    | { readonly type: "overboard" }
+    | { readonly type: "washed" }
+    | null;
 }
 
 /**
@@ -297,6 +303,7 @@ export function predictPath(state: GunneryState, piece: GunneryPiece, steps: num
   for (let i = 0; i < steps; i++) {
     // Cannons as they will be on that tick: a full one has fired by then if its time has come.
     const tick = state.tick + i + 1;
+    if (tick - p.born >= state.config.lifeTicks) return { cells, end: { type: "washed" } };
     const cannons = state.cannons.map((c) => (c.firesAt !== null && c.firesAt <= tick ? { ...c, loaded: 0, fouled: false, firesAt: null } : c));
     const d = heading(state.deck, cannons, arrows, p);
     if (d === null) break;
@@ -376,6 +383,7 @@ function simulate(state: GunneryState, toTick: number): { state: GunneryState; e
   while (tick < toTick) {
     tick++;
     fireCannons(sim, tick);
+    washPieces(state, sim, tick);
     movePieces(state, sim, tick);
     spawn(state, sim, tick);
   }
@@ -398,6 +406,17 @@ function simulate(state: GunneryState, toTick: number): { state: GunneryState; e
     },
     events: sim.events,
   };
+}
+
+/** Spray takes any piece that has been on deck `lifeTicks`. */
+function washPieces(state: GunneryState, sim: Sim, tick: number): void {
+  const life = state.config.lifeTicks;
+  if (!sim.pieces.some((p) => tick - p.born >= life)) return;
+  sim.pieces = sim.pieces.filter((p) => {
+    if (tick - p.born < life) return true;
+    sim.events.push({ tick, type: "washed", pieceId: p.id, kind: p.kind });
+    return false;
+  });
 }
 
 function fireCannons(sim: Sim, tick: number): void {
@@ -541,7 +560,7 @@ function spawn(state: GunneryState, sim: Sim, tick: number): void {
   if (sim.pieces.some((p) => p.col === drop.col && p.row === drop.row)) return;
   const kind = cfg.queueLength > 0 ? sim.queue.shift()! : draw(cfg, sim);
   if (cfg.queueLength > 0) sim.queue.push(draw(cfg, sim));
-  const piece: GunneryPiece = { id: sim.nextId++, kind, col: drop.col, row: drop.row, dir: drop.dir };
+  const piece: GunneryPiece = { id: sim.nextId++, kind, col: drop.col, row: drop.row, dir: drop.dir, born: tick };
   sim.pieces.push(piece);
   sim.lastDrop = tick;
   sim.events.push({ tick, type: "spawn", pieceId: piece.id, kind });

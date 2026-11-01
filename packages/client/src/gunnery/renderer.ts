@@ -43,6 +43,8 @@ interface PieceView {
   k: number;
   /** Heading for the chevron. */
   dir: Dir;
+  /** Tick it dropped; its life ring runs down from here. */
+  born: number;
   /** ms since the piece left the deck; it slides to `exit` and fades. */
   dying: number | null;
   exit: { x: number; y: number } | null;
@@ -160,6 +162,8 @@ export class GunneryRenderer {
   private readonly deck: ParsedDeck;
   private state: GunneryState | null = null;
   private lastEventTick = -1;
+  /** `time` when the current state arrived, to run life rings down smoothly between ticks. */
+  private stateAt = 0;
   private interactive = false;
   private framePending = false;
   private destroyed = false;
@@ -299,6 +303,7 @@ export class GunneryRenderer {
     if (!this.app.renderer) return;
     const reset = !this.state || state.tick < this.state.tick || state.deck !== this.state.deck;
     this.state = state;
+    this.stateAt = this.time;
     this.framePending = true;
     if (reset) {
       this.lastEventTick = state.tick;
@@ -320,6 +325,10 @@ export class GunneryRenderer {
       } else if (e.type === "exit") {
         const v = this.pieces.get(e.pieceId);
         if (v) exits.set(e.pieceId, { x: v.tx + DX[v.dir]! * this.cell, y: v.ty + DY[v.dir]! * this.cell });
+      } else if (e.type === "washed") {
+        // Spray took it where it stands.
+        const v = this.pieces.get(e.pieceId);
+        if (v) this.burst(v.s.x, v.s.y, COLORS.water, 10, 0.7);
       }
     }
 
@@ -338,7 +347,7 @@ export class GunneryRenderer {
         s.position.set(bx, by);
         s.scale.set(0.5);
         this.pieceLayer.addChild(s);
-        v = { s, kind: p.kind, fx: bx, fy: by, tx: x, ty: y, k: 0, dir: p.dir, dying: null, exit: null };
+        v = { s, kind: p.kind, fx: bx, fy: by, tx: x, ty: y, k: 0, dir: p.dir, born: p.born, dying: null, exit: null };
         this.pieces.set(p.id, v);
       } else if (v.tx !== x || v.ty !== y) {
         v.fx = v.s.x;
@@ -746,13 +755,32 @@ export class GunneryRenderer {
     g.rect(h.col * s, h.row * s, s, s).fill({ color: COLORS.cursor, alpha: 0.08 });
   }
 
-  /** A chevron on each piece's leading edge so its heading reads at a glance. */
+  /**
+   * A chevron on each piece's leading edge so its heading reads at a glance, and a ring that runs
+   * down over the piece's life on deck: pale, then amber, then red and blinking before spray takes it.
+   */
   private drawHeadings(): void {
     const g = this.headG;
     g.clear();
     const s = this.cell;
+    const st = this.state;
+    const life = st?.config.lifeTicks ?? 1;
+    const between = Math.min(1, (this.time - this.stateAt) / Math.max(60, this.opts.tickMs));
     for (const v of this.pieces.values()) {
       if (v.dying !== null) continue;
+      if (st) {
+        const left = Math.max(0, Math.min(1, 1 - (st.tick - v.born + between) / life));
+        const r = s * 0.5;
+        const color = left > 0.5 ? 0xefe3c6 : left > 0.25 ? 0xf0a640 : COLORS.danger;
+        const alpha = left > 0.25 ? 0.75 : 0.55 + 0.45 * Math.sin(this.time / 70);
+        const a0 = -Math.PI / 2;
+        g.circle(v.s.x, v.s.y, r).stroke({ width: Math.max(1.5, s * 0.05), color: 0x000000, alpha: 0.25 });
+        if (left > 0) {
+          g.moveTo(v.s.x + Math.cos(a0) * r, v.s.y + Math.sin(a0) * r)
+            .arc(v.s.x, v.s.y, r, a0, a0 + Math.PI * 2 * left)
+            .stroke({ width: Math.max(2, s * 0.07), color, alpha, cap: "round" });
+        }
+      }
       const dx = DX[v.dir]!;
       const dy = DY[v.dir]!;
       const tip = s * 0.5;

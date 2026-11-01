@@ -191,6 +191,8 @@ export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
     maxTick: z.int().min(1),
     maxMoves: z.int().min(1),
     maxOnDeck: z.int().min(1),
+    /** Ticks a piece lasts on deck before spray washes it overboard. */
+    lifeTicks: z.int().min(1),
     spawnEveryTicks: z.int().min(1),
     spawnEveryTicksMin: z.int().min(1),
     queueLength: z.int().min(0).max(8),

@@ -194,7 +194,9 @@ sit behind the centre crates and take a route of two or three arrows. Pieces rol
 cell per tick until something turns them: an arrow under a piece turns it to follow it; a wall
 turns it right, else left, else back. Pieces roll together: one behind a stopped piece waits, two
 after the same cell let the older go, and two meeting head on both turn back. The gunner lays as
-many arrows as they like, one per plank. A cannon takes powder, then wad, then shot; a full one fires itself
+many arrows as they like, one per plank. Spray washes any piece overboard `lifeTicks` after it
+drops, so pieces cannot be parked in a loop and picked off at leisure; a ring around each piece
+runs down over its life, turning amber, then red and blinking. A cannon takes powder, then wad, then shot; a full one fires itself
 after `fireAfterTicks` (the captain's job from M4) and comes back clean, turning pieces away until
 then. A wrong piece fouls a cannon and loses its load; a fouled cannon turns away everything but
 water, which washes it clean; water in a clean cannon splashes harmlessly. Powder and wad score
@@ -431,6 +433,7 @@ Maintained as they arise.
 | Gunnery collisions | Pieces bounce off each other | Pieces queue behind each other; only head-on meetings turn both back | Bouncing made routes impossible to predict |
 | Gunnery fouled cannon | Takes pieces and wastes them | Turns everything but water away | A foul costs the load and the combo; it should not also eat the next pieces |
 | Gunnery route preview | None | A piece headed into a cannon shows its route, green or red for what it will do there | Makes a busy deck readable; routes for every piece were noise in playtest |
+| Gunnery piece life | Pieces stay on the board until used or lost | Spray washes a piece overboard `lifeTicks` after it drops | Playtest: with no arrow limit, parking pieces in a loop around the deck made it easy |
 | Gunnery arrows | Limited | No limit, one per plank | Playtest: the cap made routing around the crates a chore; the move log is still bounded by `maxMoves` |
 | Gunnery time | Continuous rolling | One cell per tick of `tickMs`, carried in the move log | Pure engine; the client interpolates between ticks (ADR 0015) |
 | Gunnery water | Cleans fired or misloaded cannons | Cleans a fouled cannon; splashes harmlessly in a clean one | Firing no longer fouls, so water is only for fouls |

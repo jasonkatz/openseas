@@ -39,6 +39,8 @@ export interface GunneryConfig {
   readonly maxMoves: number;
   /** The chute holds back while this many pieces are on deck. */
   readonly maxOnDeck: number;
+  /** Spray washes a piece overboard this many ticks after it drops, so nothing can be parked for long. */
+  readonly lifeTicks: number;
   /** Ticks between drops at the start of the round. */
   readonly spawnEveryTicks: number;
   /** Ticks between drops by the end of the round; the rhythm quickens evenly towards it. */
@@ -81,7 +83,8 @@ export const DEFAULT_GUNNERY_CONFIG: GunneryConfig = {
   tickMs: 200,
   maxTick: 760,
   maxMoves: 1000,
-  maxOnDeck: 10,
+  maxOnDeck: 8,
+  lifeTicks: 40,
   spawnEveryTicks: 8,
   spawnEveryTicksMin: 4,
   queueLength: 3,
@@ -99,6 +102,8 @@ export interface GunneryPiece {
   readonly col: number;
   readonly row: number;
   readonly dir: Dir;
+  /** Tick it dropped from the chute; it washes overboard at `born + lifeTicks`. */
+  readonly born: number;
 }
 
 /** The gunner may lay as many as they like, one per deck cell. */
@@ -129,8 +134,8 @@ export type CannonOutcome = "load" | "loaded" | "foul" | "clean" | "splash" | "b
 
 export interface GunneryEvent {
   readonly tick: number;
-  /** `load` a step, `loaded` a full cannon, `splash` water into a clean cannon, `exit` overboard. */
-  readonly type: "load" | "loaded" | "foul" | "clean" | "splash" | "fire" | "spawn" | "exit";
+  /** `load` a step, `loaded` a full cannon, `splash` water into a clean cannon, `exit` out a hatch, `washed` overboard by spray. */
+  readonly type: "load" | "loaded" | "foul" | "clean" | "splash" | "fire" | "spawn" | "exit" | "washed";
   /** Index into `cannons` for cannon events. */
   readonly cannon?: number;
   readonly pieceId?: number;

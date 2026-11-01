@@ -60,6 +60,7 @@ function expectInvariants(state: GunneryState): void {
     expect(seen.has(key), `two pieces at ${key}`).toBe(false);
     seen.add(key);
     expect(gunneryCellAt(state.deck, p.col, p.row)).toBe("deck");
+    expect(state.tick - p.born, "no piece outlives lifeTicks").toBeLessThan(state.config.lifeTicks);
   }
   const arrowCells = state.arrows.map((a) => `${a.col},${a.row}`);
   expect(new Set(arrowCells).size, "one arrow per cell").toBe(arrowCells.length);
@@ -76,7 +77,7 @@ function expectInvariants(state: GunneryState): void {
 }
 
 /** No drops: a quiet deck to set pieces on by hand. */
-const quiet: GunneryConfig = { ...cfg, spawnEveryTicks: 100_000, spawnEveryTicksMin: 100_000 };
+const quiet: GunneryConfig = { ...cfg, spawnEveryTicks: 100_000, spawnEveryTicksMin: 100_000, lifeTicks: 100_000 };
 
 /** A quiet state with the given pieces and cannon 1 (east, row 3) patched. */
 function deckWith(pieces: GunneryPiece[], cannonPatch: Partial<GunneryState["cannons"][number]> = {}): GunneryState {
@@ -86,7 +87,7 @@ function deckWith(pieces: GunneryPiece[], cannonPatch: Partial<GunneryState["can
 }
 
 /** A piece two cells short of the east cannon on row 3, rolling at it. */
-const atEast = (kind: number, id = 500): GunneryPiece => ({ id, kind, col: 6, row: 3, dir: 0 });
+const atEast = (kind: number, id = 500): GunneryPiece => ({ id, kind, col: 6, row: 3, dir: 0, born: 0 });
 
 describe("gunnery deck", () => {
   it("parses the default deck", () => {
@@ -204,7 +205,7 @@ describe("gunnery rules", () => {
   it("with no arrows every piece falls down the middle, turns off the centre crates and goes out the port hatch", () => {
     let s = createGunneryGame("fall");
     s = advanceGunnery(s, 2);
-    expect(s.pieces).toEqual([{ id: 1, kind: s.pieces[0]!.kind, col: 4, row: 1, dir: 1 }]);
+    expect(s.pieces).toEqual([{ id: 1, kind: s.pieces[0]!.kind, col: 4, row: 1, dir: 1, born: 2 }]);
     s = advanceGunnery(s, 7);
     expect(s.pieces.find((p) => p.id === 1)).toMatchObject({ col: 4, row: 6 });
     s = advanceGunnery(s, 8);
@@ -290,7 +291,7 @@ describe("gunnery cannons", () => {
     expect(s.fouls).toBe(1);
     // Powder at the gun port turns right (down) along the gunwale instead of going in.
     s = advanceGunnery({ ...s, pieces: [atEast(GunneryKind.Powder, 600)] }, 4);
-    expect(s.pieces).toEqual([{ id: 600, kind: GunneryKind.Powder, col: 7, row: 4, dir: 1 }]);
+    expect(s.pieces).toEqual([{ id: 600, kind: GunneryKind.Powder, col: 7, row: 4, dir: 1, born: 0 }]);
     expect(s.cannons[1]!.fouled).toBe(true);
     s = advanceGunnery({ ...s, pieces: [atEast(GunneryKind.Water, 601)] }, 6);
     expect(s.cannons[1]).toMatchObject({ loaded: 0, fouled: false });
@@ -315,22 +316,22 @@ describe("gunnery cannons", () => {
 
 describe("gunnery rolling", () => {
   it("an arrow turns a piece and a wall turns it right", () => {
-    let s = deckWith([{ id: 1, kind: 0, col: 2, row: 1, dir: 0 }]);
+    let s = deckWith([{ id: 1, kind: 0, col: 2, row: 1, dir: 0, born: 0 }]);
     s = reduceGunnery(s, { type: "arrow", col: 3, row: 1, dir: 1, tick: 0 });
     s = advanceGunnery(s, 2);
     expect(s.pieces[0]).toMatchObject({ col: 3, row: 2, dir: 1 });
     // Heading right along row 1 into the east rail: turns right (down) along it.
-    const w = advanceGunnery(deckWith([{ id: 1, kind: 0, col: 7, row: 1, dir: 0 }]), 1);
+    const w = advanceGunnery(deckWith([{ id: 1, kind: 0, col: 7, row: 1, dir: 0, born: 0 }]), 1);
     expect(w.pieces[0]).toMatchObject({ col: 7, row: 2, dir: 1 });
     // Rolling down onto the centre crates: turns right, which is screen left.
-    const c = advanceGunnery(deckWith([{ id: 1, kind: 0, col: 4, row: 6, dir: 1 }]), 1);
+    const c = advanceGunnery(deckWith([{ id: 1, kind: 0, col: 4, row: 6, dir: 1, born: 0 }]), 1);
     expect(c.pieces[0]).toMatchObject({ col: 3, row: 6, dir: 2 });
   });
 
   it("two pieces meeting head on both turn back", () => {
     let b = deckWith([
-      { id: 1, kind: 0, col: 2, row: 1, dir: 0 },
-      { id: 2, kind: 1, col: 3, row: 1, dir: 2 },
+      { id: 1, kind: 0, col: 2, row: 1, dir: 0, born: 0 },
+      { id: 2, kind: 1, col: 3, row: 1, dir: 2, born: 0 },
     ]);
     b = advanceGunnery(b, 1);
     expect(b.pieces.map((p) => [p.col, p.dir])).toEqual([
@@ -341,14 +342,14 @@ describe("gunnery rolling", () => {
 
   it("a line of pieces rolls together, and a piece behind a stopped one waits", () => {
     let s = deckWith([
-      { id: 1, kind: 0, col: 4, row: 4, dir: 1 },
-      { id: 2, kind: 1, col: 4, row: 3, dir: 1 },
-      { id: 3, kind: 2, col: 4, row: 2, dir: 1 },
+      { id: 1, kind: 0, col: 4, row: 4, dir: 1, born: 0 },
+      { id: 2, kind: 1, col: 4, row: 3, dir: 1, born: 0 },
+      { id: 3, kind: 2, col: 4, row: 2, dir: 1, born: 0 },
     ]);
     s = advanceGunnery(s, 1);
     expect(s.pieces.map((p) => p.row)).toEqual([5, 4, 3]);
     // Box the leader in by meeting it head on; the two behind it wait in line.
-    s = { ...s, pieces: [...s.pieces, { id: 4, kind: 3, col: 4, row: 6, dir: 3 }] };
+    s = { ...s, pieces: [...s.pieces, { id: 4, kind: 3, col: 4, row: 6, dir: 3, born: 0 }] };
     s = advanceGunnery(s, 2);
     expect(s.pieces.map((p) => [p.id, p.row])).toEqual([
       [1, 5],
@@ -360,19 +361,19 @@ describe("gunnery rolling", () => {
 
   it("two pieces after the same cell: the older goes, the younger waits", () => {
     let s = deckWith([
-      { id: 1, kind: 0, col: 1, row: 2, dir: 0 },
-      { id: 2, kind: 1, col: 2, row: 1, dir: 1 },
+      { id: 1, kind: 0, col: 1, row: 2, dir: 0, born: 0 },
+      { id: 2, kind: 1, col: 2, row: 1, dir: 1, born: 0 },
     ]);
     s = advanceGunnery(s, 1);
     expect(s.pieces).toEqual([
-      { id: 1, kind: 0, col: 2, row: 2, dir: 0 },
-      { id: 2, kind: 1, col: 2, row: 1, dir: 1 },
+      { id: 1, kind: 0, col: 2, row: 2, dir: 0, born: 0 },
+      { id: 2, kind: 1, col: 2, row: 1, dir: 1, born: 0 },
     ]);
   });
 
   it("the predicted path is where a lone piece actually rolls", () => {
     fc.assert(
-      fc.property(fc.array(fc.tuple(fc.nat(), fc.nat({ max: 3 })), { maxLength: 4 }), fc.nat(), fc.nat({ max: 3 }), fc.nat(), (arrowPicks, at, dir, firing) => {
+      fc.property(fc.array(fc.tuple(fc.nat(), fc.nat({ max: 3 })), { maxLength: 4 }), fc.nat(), fc.nat({ max: 3 }), fc.nat(), fc.integer({ min: 2, max: 20 }), (arrowPicks, at, dir, firing, life) => {
         let s = deckWith([]);
         const cells = deckCells(s);
         for (const [c, d] of arrowPicks) {
@@ -380,10 +381,11 @@ describe("gunnery rolling", () => {
           s = reduceGunnery(s, { type: "arrow", col: cell.col, row: cell.row, dir: d as Dir, tick: 0 });
         }
         const start = cells[at % cells.length]!;
-        const piece: GunneryPiece = { id: 7, kind: GunneryKind.Water, col: start.col, row: start.row, dir: dir as Dir };
+        const piece: GunneryPiece = { id: 7, kind: GunneryKind.Water, col: start.col, row: start.row, dir: dir as Dir, born: 0 };
         // One cannon is full and fires a few ticks in, so the path must see it change.
         const cannons = s.cannons.map((c, i) => (i === firing % s.cannons.length ? { ...c, loaded: 3, firesAt: 1 + (at % 6) } : c));
-        s = { ...s, pieces: [piece], cannons };
+        // A short life, so some paths end with the piece washed overboard on the way.
+        s = { ...s, pieces: [piece], cannons, config: { ...s.config, lifeTicks: life } };
         const path = predictGunneryPath(s, piece, 12);
         let t = s;
         for (let i = 0; i < path.cells.length; i++) {
@@ -399,6 +401,20 @@ describe("gunnery rolling", () => {
     );
   });
 
+  it("spray washes a piece overboard lifeTicks after it drops, and the preview says so", () => {
+    let s = deckWith([{ id: 1, kind: 0, col: 1, row: 1, dir: 0, born: 0 }]);
+    s = { ...s, config: { ...s.config, lifeTicks: 5 } };
+    expect(predictGunneryPath(s, s.pieces[0]!, 12)).toEqual({
+      cells: [1, 2, 3, 4].map((i) => ({ col: 1 + i, row: 1 })),
+      end: { type: "washed" },
+    });
+    s = advanceGunnery(s, 4);
+    expect(s.pieces).toHaveLength(1);
+    s = advanceGunnery(s, 5);
+    expect(s.pieces).toHaveLength(0);
+    expect(s.lastMove?.events).toEqual([{ tick: 5, type: "washed", pieceId: 1, kind: 0 }]);
+  });
+
   it("predicts what a cannon will make of a piece", () => {
     const s = deckWith([atEast(GunneryKind.Shot)], { loaded: 2 });
     expect(predictGunneryPath(s, s.pieces[0]!, 5)).toEqual({ cells: [{ col: 7, row: 3 }], end: { type: "cannon", cannon: 1, outcome: "loaded" } });
@@ -407,7 +423,7 @@ describe("gunnery rolling", () => {
     // A full cannon that will have fired by the time the piece arrives takes it as empty.
     const later = deckWith([{ ...atEast(GunneryKind.Shot), col: 5 }], { loaded: 3, firesAt: 2 });
     expect(predictGunneryPath(later, later.pieces[0]!, 5).end).toEqual({ type: "cannon", cannon: 1, outcome: "foul" });
-    const o = deckWith([{ id: 1, kind: 0, col: 4, row: 12, dir: 1 }]);
+    const o = deckWith([{ id: 1, kind: 0, col: 4, row: 12, dir: 1, born: 0 }]);
     expect(predictGunneryPath(o, o.pieces[0]!, 5)).toEqual({ cells: [{ col: 4, row: 13 }], end: { type: "overboard" } });
   });
 });
