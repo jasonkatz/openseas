@@ -376,6 +376,25 @@ describe("bilging rules", () => {
     );
   });
 
+  it("regression: a barnacle lifted above the water by a barnacle's own refill comes off in the same move", () => {
+    // fast-check counterexample: on the third move a barnacle came off, the refill lifted another
+    // barnacle to cell 32 above the water line, and it stayed there until the next (plain) swap
+    // cleared it, which the preview could not predict.
+    let state = createBilgingGame("@m");
+    for (const p of [8211, 9701, 7543, 0]) {
+      const m = randomLegalMove(state, p);
+      if (!m || m.type !== "swap") throw new Error("expected a swap");
+      const pv = previewSwap(state, m.col, m.row);
+      state = reduceBilging(state, m);
+      const first = state.lastMove!.rounds[0];
+      const actual = first ? [...new Set(first.groups.flatMap((g) => g.cells))].sort((a, b) => a - b) : [];
+      expect(pv.cells).toEqual(actual);
+      state.cells.forEach((piece, i) => {
+        if (piece.kind === Special.Barnacle) expect(Math.floor(i / cfg.width)).toBeLessThan(state.waterRow);
+      });
+    }
+  });
+
   it("every ordinary kind is below the special base", () => {
     const { state } = playRandom("kinds", Array.from({ length: 60 }, (_, i) => i * 31));
     for (const p of state.cells) {
