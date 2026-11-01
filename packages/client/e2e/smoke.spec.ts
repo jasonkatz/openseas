@@ -165,25 +165,36 @@ test("home links to Gunnery practice and an unrated round lays arrows by key and
   await expectViewMatchesState(page, "gunnery");
 });
 
-test("home links to Navigation practice and an unrated round takes a keyboard turn and drops", async ({ page }) => {
+test("home links to Navigation practice and an unrated round turns a ring by key and brings stars down by key and by tap", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: /Navigation/ }).click();
   await expect(page).toHaveURL(/\/practice\/navigation$/);
   await page.getByTestId("start-unrated").click();
   const canvas = page.getByTestId("navigation-canvas");
   await expect(canvas).toBeVisible();
-  await expect(page.getByTestId("hud-moves")).toContainText("0");
+  const landed = async (): Promise<number> => Number((await page.getByTestId("hud-moves").textContent())?.trim() ?? "0");
+  expect(await landed()).toBe(0);
 
-  // Turn the selected ring (free), then drop the star.
+  // Turn the selected ring: a star has not come down for that.
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByTestId("hud-moves")).toContainText("0");
+  expect(await landed()).toBe(0);
+  // Enter brings the falling star down now.
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("hud-moves")).toContainText("1");
+  await expect(page.getByTestId("hud-moves")).not.toHaveText("0");
   await expectViewMatchesState(page, "navigation");
 
-  // Pointer: a tap on the compass rose in the center drops the next star.
+  // Pointer: a tap on the compass rose in the center brings the next star down.
+  const before = await landed();
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(page.getByTestId("hud-moves")).toContainText("2");
+  const geom = (await canvas.getAttribute("data-geom"))?.split(",").map(Number);
+  if (!geom || geom.length !== 3) throw new Error("no chart geometry");
+  await page.mouse.click(box.x + geom[0]!, box.y + geom[1]!);
+  await expect
+    .poll(landed)
+    .toBeGreaterThan(before);
+  // Stars keep falling on the clock: left alone, the count still rises.
+  const now = await landed();
+  await expect.poll(landed, { timeout: 15_000 }).toBeGreaterThan(now);
+  await expectViewMatchesState(page, "navigation");
 });

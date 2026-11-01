@@ -231,22 +231,36 @@ and a shake, fouling puffs smoke. Numbers and the deck live in `content/data/puz
 **Navigation.** Arrange and shift pieces to reproduce a target constellation. Completed patterns
 grant token bonuses and sea battle advantages. QoL: target overlay toggle, progress meter.
 
-As built (M2): a round chart of three rings and eight octants. Stars come in three shapes (spark,
-star, comet) and three colors, so shape alone tells kinds apart; marks add the color's symbol. The
-constellation is a set of hollow markers fixed to the chart, each wanting a kind in a slot. Stars
-arrive one at a time at an octant the deal chooses; the navigator turns any ring a step either way
-(stars ride with their ring, markers stay put) and then lets the star fall to the innermost empty
-slot of its octant. A marker is filled while a matching star sits on it, and a turn can fill one as
-well as a drop. When every marker is filled the constellation is charted: those stars go, points
-are `n * n * starPoints` times the chain of constellations charted without a booch, plus an
-efficiency bonus when it took at most `2n` drops, and a new constellation is dealt, larger as the
-round goes on and drawing half its kinds from stars already on the chart so strays stay useful.
-Dropping into a full octant is a booch: that octant is swept clear, `boochPenalty` is lost and the
-chain breaks. Turns are logged but free; the round ends after `maxDrops` drops or the clock. Touch
-drags or taps a ring to turn it and taps the star or the center to drop; keyboard picks a ring
-with up and down, turns with left and right, drops with enter. A toggle hides the markers for
-players who want to chart from memory; a meter shows filled markers. Numbers live in
-`content/data/puzzles/navigation.json`.
+As built (M2, reworked after a first pass that let a star hover until the navigator dropped it and
+let it pass through stars already on the chart): a round chart of three rings and eight octants,
+with time carried in the move log as in Gunnery (ADR 0015). Stars come in three shapes (spark, star,
+comet) and three colors, so shape alone tells kinds apart; marks add the color's symbol. The
+constellation is a set of hollow markers fixed to the chart, each wanting a kind in a slot, joined
+by faint lines so it reads as a figure. Stars fall one at a time from the sky into the top octant,
+taking `fallTicks` at the start of the round and quickening to `fallTicksMin` by the end; the
+navigator turns any ring a step either way while it falls (stars ride with their ring, markers stay
+put), or taps to bring it down at once. A star falls inward until it meets another and rests in the
+ring outside it, or at the center of an empty column, so a star on the middle ring blocks the center
+behind it and a star in the outer slot at the top shuts the column. A marker is filled while a
+matching star sits on it, and a turn can fill one as well as a landing. When every marker is filled
+the constellation is charted: those stars go, points are `n * n * starPoints` times the chain of
+constellations charted without a booch, plus an efficiency bonus when it took at most `2n`
+landings, and a new constellation is dealt, larger as the round goes on and drawing half its kinds
+from stars already on the chart so strays stay useful. Three or more loose stars of one kind in a
+row, around a ring or down a column, clear for `runPoints` per star beyond two; a star on its marker
+is charted, not loose, and never clears this way. A star arriving while the top outer slot is taken
+is a booch: the top column is swept, `boochPenalty` is lost and the chain breaks. Every move
+carries its tick; the client advances its copy once per tick and logs a wait now and then so
+landings count, and the server refuses a tick ahead of the wall clock. The round ends on the clock,
+`maxTick` or `maxMoves`. Touch drags or taps a ring to turn it and taps the sky, the falling star or
+the center to bring it down; keyboard picks a ring with up and down, turns with left and right,
+drops with enter or space. Reading aids: a dotted path from the star to the ring where it will rest,
+gold when that spot is its own marker, a red cross and a red outer band when the column is shut;
+markers wanting the falling star's kind beckon; in unrated rounds, after a pause, chevrons point at
+the ring to turn and which way, from a search over the rings' turns. A toggle hides the markers for
+players who want to chart from memory; a meter shows filled markers. Landings glow, a charted
+constellation flashes its lines and bursts, a run clears with a popup, a booch shakes the chart.
+Numbers live in `content/data/puzzles/navigation.json`.
 
 **Sea Battle.** Square grid with rocks and wind arrows. Per-turn move token pool from Sailing
 (left, forward, right). Up to four moves queued per turn. Simultaneous resolution with collision
@@ -464,6 +478,11 @@ Maintained as they arise.
 | Gunnery arrows | Limited | No limit, one per plank | Playtest: the cap made routing around the crates a chore; the move log is still bounded by `maxMoves` |
 | Gunnery time | Continuous rolling | One cell per tick of `tickMs`, carried in the move log | Pure engine; the client interpolates between ticks (ADR 0015) |
 | Gunnery water | Cleans fired or misloaded cannons | Cleans a fouled cannon; splashes harmlessly in a clean one | Firing no longer fouls, so water is only for fouls |
-| Navigation booch | Turns the ship around | Sweeps the full octant, costs `boochPenalty`, breaks the chain | No ship yet; the sweep keeps the chart playable |
+| Navigation time | Stars fall in real time | One star in the sky at a time, falling `fallTicks` to `fallTicksMin` on the engine clock, carried in the move log | Pure engine; the server can tell a stalled star from a quick one (ADR 0015) |
+| Navigation entry | Stars fall into the top of the chart | Same: the top octant; a tap or enter brings the star down early | A fixed entry keeps the mental model stable: bring the right spot to the top |
+| Navigation landing | A star stops against the first star it meets | Same; the outer slot taken means no room | Gaps on a ring matter, so turning is also defence |
+| Navigation booch | Turns the ship around | Sweeps the top column, costs `boochPenalty`, breaks the chain | No ship yet; the sweep keeps the chart playable (as Sailing's top-out costs rather than stops) |
+| Navigation runs | Rows of a kind clear | Three or more loose stars of a kind around a ring or down a column clear for `runPoints * (n - 2)`; stars on markers never do | Gives strays an outlet; charted stars must stay safe from it |
 | Navigation constellations | Fixed progression | Size grows with completions; half the kinds are drawn from stars already on the chart | Keeps stray stars useful on a small chart |
-| Navigation scoring | Original's table | `n * n * starPoints`, times chain, plus an efficiency bonus within `2n` drops | Published formula, tuned in playtests |
+| Navigation scoring | Original's table | `n * n * starPoints`, times chain, plus an efficiency bonus within `2n` landings | Published formula, tuned in playtests |
+| Navigation hints | None | After a pause in unrated practice, chevrons on the ring to turn | Teaches newcomers, as in Bilging; rated rounds stay unaided |
