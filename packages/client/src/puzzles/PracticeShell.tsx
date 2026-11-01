@@ -347,7 +347,7 @@ function ResultBody({ outcome, rows }: { outcome: PracticeOutcome; rows?: ReactN
           <dd>{r.bestCombo}</dd>
         </div>
         {rows}
-        {outcome.kind === "rated" && (
+        {outcome.kind === "rated" && outcome.result.rating && (
           <div>
             <dt>{t("practice.standing")}</dt>
             <dd>{t(`tier.${outcome.result.rating.tier}`)}</dd>
@@ -356,9 +356,11 @@ function ResultBody({ outcome, rows }: { outcome: PracticeOutcome; rows?: ReactN
       </dl>
       {outcome.kind === "rated" ? (
         <>
-          <p className={`tier-line tier-${outcome.result.tierChange}`}>
-            {t(`practice.tier_${outcome.result.tierChange}`, { tier: t(`tier.${outcome.result.rating.tier}`) })}
-          </p>
+          {outcome.result.rating && outcome.result.tierChange && (
+            <p className={`tier-line tier-${outcome.result.tierChange}`}>
+              {t(`practice.tier_${outcome.result.tierChange}`, { tier: t(`tier.${outcome.result.rating.tier}`) })}
+            </p>
+          )}
           <p className="muted small">{outcome.result.verified ? t("practice.result_verified") : t("practice.result_unverified")}</p>
         </>
       ) : (

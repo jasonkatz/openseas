@@ -1140,3 +1140,243 @@ a {
 .progress-meter i {
   background: linear-gradient(90deg, var(--brass-deep), var(--brass));
 }
+
+/* ---- the ship page and the notice board (M3) */
+
+.card-title {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: 0.01em;
+}
+.card-title + .card-title,
+.ships + .card-title,
+.muted + .card-title {
+  margin-top: 16px;
+}
+.ship-card h2 small {
+  font-size: 15px;
+  font-weight: 400;
+  font-family: var(--font-body);
+  letter-spacing: 0;
+}
+.voyage-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 12px;
+}
+.voyage-meter {
+  flex: 1;
+  height: 12px;
+}
+.voyage-meter i {
+  background: linear-gradient(90deg, var(--brass-deep), var(--brass));
+}
+.meters {
+  margin: 8px 0 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+.meter {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.meter dt {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--parchment-dim);
+}
+.meter dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+}
+.meter dd .water-meter {
+  flex: 1;
+}
+.meter dd small {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--parchment-dim);
+  min-width: 3.2em;
+  text-align: right;
+}
+.turn-line {
+  margin: 12px 0 0;
+  display: grid;
+  gap: 4px;
+}
+.turn-line .bar i {
+  transition: width 0.45s linear;
+  background: var(--foam);
+}
+.hail {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(240, 96, 77, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(240, 96, 77, 0.5);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.hail p {
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+.hail .btn {
+  width: 100%;
+}
+.stations {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.stations .btn {
+  font-size: 15px;
+  padding: 12px 10px;
+}
+.stations .btn small {
+  display: block;
+  font-weight: 400;
+  font-size: 12px;
+}
+.outputs-line {
+  margin: 10px 0 0;
+}
+.crew {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.crew li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(239, 227, 198, 0.08);
+}
+.crew li:first-child {
+  border-top: 0;
+}
+.crew li.away {
+  opacity: 0.55;
+}
+.crew-name {
+  font-weight: 700;
+}
+.crew-role {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--parchment-dim);
+}
+.crew-role .tier-chip {
+  font-size: 12px;
+  padding: 2px 8px;
+}
+.field select {
+  font: inherit;
+  font-size: 17px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.6);
+  color: #1b150c;
+}
+.log {
+  list-style: none;
+  margin: 0;
+  padding: 0 4px;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--parchment-dim);
+}
+.log li {
+  animation: fade 0.3s ease both;
+}
+.ships {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.ships li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.06);
+}
+.ships li .btn {
+  padding: 10px 16px;
+  font-size: 15px;
+  flex: 0 0 auto;
+}
+.ships li small {
+  color: #6b5a3a;
+}
+.duty {
+  display: grid;
+  gap: 10px;
+}
+.duty .board-wrap,
+.duty .duty-strip {
+  grid-area: auto;
+}
+.duty .board-wrap {
+  min-height: min(72vh, 520px);
+}
+.card-parchment .btn-ghost {
+  color: #2b2113;
+  box-shadow: inset 0 0 0 1px rgba(43, 33, 19, 0.35);
+}
+.card-parchment .muted,
+.card-parchment .status {
+  color: #6b5a3a;
+}
+.card-parchment .field select {
+  background: rgba(255, 255, 255, 0.75);
+}
+.duty-strip {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: linear-gradient(160deg, rgba(28, 43, 72, 0.75), rgba(11, 21, 38, 0.75));
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.07);
+}
+.veil-card-slim {
+  text-align: center;
+}
+.veil-card-slim .result-score {
+  font-size: 44px;
+}
+.ship .error {
+  cursor: pointer;
+}
+@media (min-width: 900px) {
+  .ship,
+  .board {
+    max-width: 820px;
+  }
+  .duty .board-wrap {
+    min-height: 600px;
+  }
+}

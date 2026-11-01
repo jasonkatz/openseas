@@ -170,6 +170,7 @@ export function BilgingPractice() {
       socket.onMessage((m: ServerMessage) => {
         switch (m.type) {
           case "puzzle.started":
+            if (m.puzzle !== "bilging" || m.duty) return;
             beginRound(m.seed, m.deadlineAt - socket.clockOffset, { sessionId: m.sessionId });
             break;
           case "puzzle.result": {
@@ -178,9 +179,10 @@ export function BilgingPractice() {
             if (newBest) setBest(m.score);
             setOutcome({ kind: "rated", result: m, newBest });
             setPhase("result");
-            if (pirate) {
-              const others = pirate.ratings.filter((r) => r.puzzle !== m.rating.puzzle);
-              setPirate({ ...pirate, ratings: [...others, m.rating] });
+            if (pirate && m.rating) {
+              const rating = m.rating;
+              const others = pirate.ratings.filter((r) => r.puzzle !== rating.puzzle);
+              setPirate({ ...pirate, ratings: [...others, rating] });
             }
             break;
           }
@@ -558,7 +560,7 @@ function ResultBody({ outcome, pumped }: { outcome: Outcome; pumped: number }) {
           <dt>{t("bilging.result_pumped")}</dt>
           <dd>{pumped}</dd>
         </div>
-        {outcome.kind === "rated" && (
+        {outcome.kind === "rated" && outcome.result.rating && (
           <div>
             <dt>{t("bilging.standing")}</dt>
             <dd>{t(`tier.${outcome.result.rating.tier}`)}</dd>
@@ -567,9 +569,11 @@ function ResultBody({ outcome, pumped }: { outcome: Outcome; pumped: number }) {
       </dl>
       {outcome.kind === "rated" ? (
         <>
-          <p className={`tier-line tier-${outcome.result.tierChange}`}>
-            {t(`bilging.tier_${outcome.result.tierChange}`, { tier: t(`tier.${outcome.result.rating.tier}`) })}
-          </p>
+          {outcome.result.rating && outcome.result.tierChange && (
+            <p className={`tier-line tier-${outcome.result.tierChange}`}>
+              {t(`bilging.tier_${outcome.result.tierChange}`, { tier: t(`tier.${outcome.result.rating.tier}`) })}
+            </p>
+          )}
           <p className="muted small">{outcome.result.verified ? t("bilging.result_verified") : t("bilging.result_unverified")}</p>
         </>
       ) : (

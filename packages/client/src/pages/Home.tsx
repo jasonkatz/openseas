@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { content, t } from "../content.js";
 import { usePirate } from "../state/PirateProvider.jsx";
+import { useShip } from "../state/ShipProvider.jsx";
 import { Link } from "../router.jsx";
 
 /** Practice pages that have shipped, in milestone order. The rest stay greyed out. */
@@ -61,8 +62,11 @@ const LIVE: Array<{ id: string; glyph: ReactNode }> = [
 ];
 const SOON: string[] = [];
 
+const islandName = (id: string): string => t(content.world.islands.find((i) => i.id === id)?.nameKey ?? id);
+
 export function Home() {
-  const { phase, pirate, error, inviteRequired, createPirate } = usePirate();
+  const { phase, pirate, error, inviteRequired, createPirate, socketStatus } = usePirate();
+  const { ship, boardShip } = useShip();
   const [invite, setInvite] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -144,6 +148,32 @@ export function Home() {
               <dt>{t("home.balance", { coins: pirate.balance })}</dt>
             </div>
           </dl>
+        </section>
+      )}
+
+      {pirate && (
+        <section className="card card-parchment sea" data-testid="sea-card">
+          <p className="eyebrow">{t("home.ashore_at", { island: islandName(ship?.location.kind === "docked" ? ship.location.islandId : pirate.islandId) })}</p>
+          <h2>{t("home.sea_heading")}</h2>
+          <p>{t("home.sea_blurb")}</p>
+          <div className="stack">
+            {ship ? (
+              <Link to="/ship" className="btn btn-brass" data-testid="aboard-link">
+                {t("home.aboard", { ship: ship.name })}
+              </Link>
+            ) : (
+              pirate.ships
+                .filter((s) => s.islandId === pirate.islandId)
+                .map((s) => (
+                  <button key={s.id} className="btn btn-brass" onClick={() => boardShip(s.id)} disabled={socketStatus !== "open"} data-testid="board-own-ship">
+                    {t("home.board_ship", { ship: s.name })}
+                  </button>
+                ))
+            )}
+            <Link to="/board" className="btn btn-ghost" data-testid="notice-board-link">
+              {t("ship.notice_board")}
+            </Link>
+          </div>
         </section>
       )}
 

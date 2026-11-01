@@ -20,6 +20,11 @@ export interface PracticeOptions<S, M, C> {
   summarize(state: S): { score: number; moves: number; bestCombo: number };
   /** Fires after every applied move with the new and previous state, for sound and counters. */
   onMove?(state: S, prev: S): void;
+  /**
+   * Bind the round to a ship station: a rated start deals a duty board aboard that ship, and only
+   * boards dealt for it are taken up. Practice rounds ignore duty boards and the other way round.
+   */
+  duty?: { shipId: string; station: PuzzleId } | null;
 }
 
 export interface PracticeApi<S, M> {
@@ -71,6 +76,8 @@ function recordBest(puzzle: PuzzleId, score: number): boolean {
  */
 export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeApi<S, M> {
   const { puzzle, def, config, roundSeconds, summarize, onMove } = opts;
+  const duty = opts.duty ?? null;
+  const dutyShipId = duty?.shipId ?? null;
   const { pirate, socket, socketStatus, setPirate } = usePirate();
   const [phase, setPhase] = useState<PracticePhase>("idle");
   // A fixed board sits behind the start card so the page never opens empty.
@@ -83,6 +90,8 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
   const sessionId = useRef<string | null>(null);
   const latest = useRef(opts);
   latest.current = opts;
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
   const canRate = socketStatus === "open" && pirate !== null;
 
   const beginRound = useCallback(
@@ -131,8 +140,11 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
 
   const startRated = useCallback(() => {
     setPhase("starting");
-    if (!socket.send({ type: "puzzle.start", puzzle })) startUnrated();
-  }, [socket, startUnrated, puzzle]);
+    const sent = socket.send(dutyShipId ? { type: "duty.start" } : { type: "puzzle.start", puzzle });
+    if (sent) return;
+    if (dutyShipId) setPhase("idle");
+    else startUnrated();
+  }, [socket, startUnrated, puzzle, dutyShipId]);
 
   useEffect(
     () =>
@@ -140,31 +152,39 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
         switch (m.type) {
           case "puzzle.started":
             if (m.puzzle !== puzzle) return;
+            if (dutyShipId ? m.duty?.shipId !== dutyShipId || m.duty.station !== puzzle : m.duty !== undefined) return;
             beginRound(m.seed, m.config as C, m.deadlineAt - socket.clockOffset, { sessionId: m.sessionId });
             break;
           case "puzzle.result": {
             if (m.sessionId !== sessionId.current) return;
-            const newBest = recordBest(puzzle, m.score);
+            // The server may end a duty board before the clock does; the board takes no more moves.
+            round.current?.stop();
+            const newBest = dutyShipId ? false : recordBest(puzzle, m.score);
             if (newBest) setBest(m.score);
             setOutcome({ kind: "rated", result: m, newBest });
             setPhase("result");
-            if (pirate) {
-              const others = pirate.ratings.filter((r) => r.puzzle !== m.rating.puzzle);
-              setPirate({ ...pirate, ratings: [...others, m.rating] });
+            if (pirate && m.rating) {
+              const rating = m.rating;
+              const others = pirate.ratings.filter((r) => r.puzzle !== rating.puzzle);
+              setPirate({ ...pirate, ratings: [...others, rating] });
             }
             break;
           }
           case "puzzle.rejected":
             if (m.sessionId !== sessionId.current) return;
-            round.current?.abandon();
+            round.current?.stop();
             setOutcome({ kind: "rejected", reason: m.reason });
             setPhase("result");
+            break;
+          case "error":
+            // An error straight after asking for a board means no board is coming.
+            if (phaseRef.current === "starting") setPhase("idle");
             break;
           default:
             break;
         }
       }),
-    [socket, beginRound, pirate, setPirate, puzzle],
+    [socket, beginRound, pirate, setPirate, puzzle, dutyShipId],
   );
 
   // Round clock, with a tick for each of the last ten seconds.

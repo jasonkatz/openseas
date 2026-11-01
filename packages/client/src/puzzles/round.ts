@@ -100,4 +100,9 @@ export class PuzzleRound<S, M, C> {
     this.finished = true;
     if (this.opts.rated) this.opts.rated.socket.send({ type: "puzzle.abandon", sessionId: this.opts.rated.sessionId });
   }
+
+  /** The server already closed the round (a duty board cut short): take no more input, send nothing. */
+  stop(): void {
+    this.finished = true;
+  }
 }

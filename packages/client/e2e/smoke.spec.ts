@@ -197,3 +197,13 @@ test("home links to Navigation practice and an unrated round turns a ring by key
   await expect.poll(landed, { timeout: 15_000 }).toBeGreaterThan(now);
   await expectViewMatchesState(page, "navigation");
 });
+
+test("the ship page and the notice board render without the server and point back to each other", async ({ page }) => {
+  await page.goto("/ship");
+  await expect(page.getByRole("heading", { name: "You're ashore" })).toBeVisible();
+  await page.getByRole("link", { name: "Notice board" }).click();
+  await expect(page).toHaveURL(/\/board$/);
+  await expect(page.getByRole("heading", { name: "Ships", exact: true })).toBeVisible();
+  await expect(page.getByText("No ship is recruiting here.")).toBeVisible();
+  await expect(page.getByText("No ship is at sea.")).toBeVisible();
+});
