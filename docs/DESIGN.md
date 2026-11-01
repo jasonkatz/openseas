@@ -183,14 +183,18 @@ indicator, highlight of which drop completes a load. Flagged for possible redesi
 playtesting.
 
 As built (M2, redesigned after the first playtest under 3.2): a 9 wide by 15 tall deck (tall, to fill a phone held upright) drawn from
-a content map, with crates in the middle. A chute in the top rail drops one piece at a time onto the
+a content map, with crates in the middle and crates against the side rails either side of every
+gun port. A chute in the top rail drops one piece at a time onto the
 deck, heading straight down the middle until it meets the centre crates and turns off them; whatever
 is not steered rolls out through a hatch in the side rail (or the scupper in the bottom rail). The chute draws
 from a shuffled bag (two powder, two wad, two shot, one water), shows the next three in the rail
 beside it, holds back while `maxOnDeck` pieces are out, and quickens from one drop every
 `spawnEveryTicks` to every `spawnEveryTicksMin` over the round. Four cannons sit in the side rails at
-the ends of two rows: one arrow in the stream sends a piece into an upper gun, while the lower guns
-sit behind the centre crates and take a route of two or three arrows. Pieces roll a
+the ends of two rows, reachable only along their own row: the wall crates break the lane along each
+rail, so nothing circling the deck passes a gun port. One arrow in the stream sends a piece into an
+upper gun; the lower guns sit behind the centre crates and take a two-arrow route. Below the centre
+crates, every path a piece takes with no arrows leaves the deck (a test pins this), so holding a
+piece there means building the loop yourself. Pieces roll a
 cell per tick until something turns them: an arrow under a piece turns it to follow it; a wall
 turns it right, else left, else back. Pieces roll together: one behind a stopped piece waits, two
 after the same cell let the older go, and two meeting head on both turn back. The gunner lays as
