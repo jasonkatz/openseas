@@ -5,6 +5,7 @@ import { CarpentryConfigSchema } from "./carpentry.js";
 import { NavigationConfigSchema } from "./navigation.js";
 import { SailingConfigSchema } from "./sailing.js";
 import { GunneryConfigSchema } from "./gunnery.js";
+import { BoardShipSchema, ShipEventWireSchema, ShipSnapshotSchema, StationSchema } from "./ship.js";
 
 const SessionId = z.string().min(8).max(64);
 const Hash = z.string().regex(/^[0-9a-f]{8}$/);
@@ -41,6 +42,23 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     metrics: ClientMetricsSchema.optional(),
   }),
   z.object({ type: z.literal("puzzle.abandon"), sessionId: SessionId }),
+  /** Board a ship at the pirate's island, or one at sea from the notice board. */
+  z.object({ type: z.literal("ship.board"), shipId: z.string().min(1).max(64) }),
+  z.object({ type: z.literal("ship.leave") }),
+  /** Take a station aboard the pirate's ship, or null to stand down. */
+  z.object({ type: z.literal("ship.station"), station: StationSchema.nullable() }),
+  /** Captain only: set sail along a route leg from the island the ship is docked at. */
+  z.object({ type: z.literal("ship.sail"), routeId: z.string().min(1).max(64) }),
+  /** Captain only: evade the brigand that hailed the ship. */
+  z.object({ type: z.literal("ship.evade") }),
+  /** Captain only: hand the wheel to someone aboard. */
+  z.object({ type: z.literal("ship.wheel"), pirateId: z.string().min(1).max(64) }),
+  /** Owner only: whether others may board. */
+  z.object({ type: z.literal("ship.lock"), inviteOnly: z.boolean() }),
+  /** Start a board at the pirate's station; the ship must be at sea. Moves flow as puzzle.move. */
+  z.object({ type: z.literal("duty.start") }),
+  /** Ships at the pirate's island and ships at sea. */
+  z.object({ type: z.literal("board.list") }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
@@ -51,6 +69,8 @@ const PuzzleStartedBase = z.object({
   /** Server clock ms when the round must be finished. The client shows a timer against it. */
   deadlineAt: z.number(),
   serverNow: z.number(),
+  /** Present when the round is a duty board aboard a ship rather than practice. */
+  duty: z.object({ shipId: z.string(), station: StationSchema }).optional(),
 });
 
 /** One variant per puzzle so a client narrows `config` by `puzzle`. */
@@ -70,9 +90,10 @@ export const PuzzleResultSchema = z.object({
   bestCombo: z.int().min(0),
   /** False when the client's hash diverged from the server replay; the server's numbers stand. */
   verified: z.boolean(),
-  rating: RatingViewSchema,
-  /** "up", "down", or "same" relative to the tier before the round. */
-  tierChange: z.enum(["up", "down", "same"]),
+  /** Null when the round was not rated: a duty board cut short by docking or standing down. */
+  rating: RatingViewSchema.nullable(),
+  /** "up", "down", or "same" relative to the tier before the round; null when unrated. */
+  tierChange: z.enum(["up", "down", "same"]).nullable(),
 });
 
 export const PuzzleRejectedSchema = z.object({
@@ -89,11 +110,16 @@ export const ServerMessageSchema = z.union([
   z.object({ type: z.literal("puzzle.ack"), sessionId: SessionId, seq: z.int() }),
   PuzzleResultSchema,
   PuzzleRejectedSchema,
+  z.object({ type: z.literal("ship.state"), ship: ShipSnapshotSchema, events: z.array(ShipEventWireSchema), serverNow: z.number() }),
+  /** The pirate is no longer aboard: they went ashore, or their held seat timed out. */
+  z.object({ type: z.literal("ship.left"), shipId: z.string(), reason: z.enum(["left", "timed_out"]) }),
+  z.object({ type: z.literal("board.ships"), islandId: z.string(), ships: z.array(BoardShipSchema), serverNow: z.number() }),
   z.object({ type: z.literal("error"), code: ErrorCodeSchema, detail: z.string().optional() }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 export type PuzzleStarted = z.infer<typeof PuzzleStartedSchema>;
 export type PuzzleResult = z.infer<typeof PuzzleResultSchema>;
+export type ShipStateMessage = Extract<ServerMessage, { type: "ship.state" }>;
 
 export function parseClientMessage(raw: unknown): ClientMessage | null {
   const r = ClientMessageSchema.safeParse(raw);
