@@ -462,6 +462,17 @@ export function predictPath(state: GunneryState, piece: GunneryPiece, steps: num
   return { cells, end: null };
 }
 
+/**
+ * The way a piece will roll on the next tick (with `arrows`, default the ones on deck): the arrow
+ * under it, else its heading, else whatever the rails and crates turn it to. Null when boxed in.
+ * A piece about to turn at a wall or go out of a hatch shows it here before it moves.
+ */
+export function nextHeading(state: GunneryState, piece: GunneryPiece, arrows: readonly Arrow[] = state.arrows): Dir | null {
+  const tick = state.tick + 1;
+  const cannons = state.cannons.map((c) => (c.firesAt !== null && c.firesAt <= tick ? { ...c, loaded: 0, fouled: false, firesAt: null } : c));
+  return heading(state.deck, cannons, arrows, piece);
+}
+
 // ---- simulation
 
 interface Supply {
@@ -643,7 +654,7 @@ function movePieces(state: GunneryState, sim: Sim, tick: number): void {
       continue;
     }
     if (t.into === "hatch") {
-      sim.events.push({ tick, type: "exit", pieceId: p.id, kind: p.kind });
+      sim.events.push({ tick, type: "exit", pieceId: p.id, kind: p.kind, col: t.col, row: t.row });
       continue;
     }
     next.push({ ...p, col: t.col, row: t.row, dir: t.dir });

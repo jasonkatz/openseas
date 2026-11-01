@@ -263,6 +263,9 @@ export interface GunneryEvent {
   readonly cannon?: number;
   readonly pieceId?: number;
   readonly kind?: number;
+  /** For `exit`, the hatch the piece went out through (it may have turned on its last step). */
+  readonly col?: number;
+  readonly row?: number;
   /** Points this event scored. */
   readonly points?: number;
 }

@@ -11,6 +11,7 @@ export {
   cannonOutcome,
   dropInterval as gunneryDropInterval,
   predictPath as predictGunneryPath,
+  nextHeading as gunneryNextHeading,
   isDeck as gunneryIsDeck,
   pieceAt as gunneryPieceAt,
   cellAt as gunneryCellAt,

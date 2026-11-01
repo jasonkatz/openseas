@@ -13,6 +13,7 @@ import {
   gunneryDeckProblems,
   gunneryDropInterval,
   gunneryGunReach,
+  gunneryNextHeading,
   hashGunneryState,
   parseGunneryDeck,
   predictGunneryPath,
@@ -272,7 +273,9 @@ describe("gunnery rules", () => {
       expect(s.pieces).toEqual([{ id: 1, kind: s.pieces[0]!.kind, col: 4, row: 1, dir: 1, born: 2 }]);
       s = advanceGunnery(s, 30);
       expect(s.pieces.find((p) => p.id === 1), `deck ${i}`).toBeUndefined();
-      expect(s.lastMove?.events.some((e) => e.type === "exit" && e.pieceId === 1), `deck ${i}`).toBe(true);
+      const exit = s.lastMove?.events.find((e) => e.type === "exit" && e.pieceId === 1);
+      // The event names the hatch, so the client can show the piece going out where it really did.
+      expect(gunneryCellAt(s.deck, exit!.col!, exit!.row!), `deck ${i}`).toBe("hatch");
       expect(s.lastMove?.events.some((e) => e.cannon !== undefined), `deck ${i}`).toBe(false);
       expect(s.score).toBe(0);
     });
@@ -475,6 +478,15 @@ describe("gunnery rolling", () => {
     s = advanceGunnery(s, 5);
     expect(s.pieces).toHaveLength(0);
     expect(s.lastMove?.events).toEqual([{ tick: 5, type: "washed", pieceId: 1, kind: 0 }]);
+  });
+
+  it("a piece turned by the rail on its last step goes out the hatch it turned to, and says so first", () => {
+    // Bottom-right corner of the test deck: the rail is ahead, the hatch at 7,14 below.
+    let s = deckWith([{ id: 1, kind: 0, col: 7, row: 13, dir: 0, born: 0 }]);
+    expect(gunneryNextHeading(s, s.pieces[0]!)).toBe(1);
+    s = advanceGunnery(s, 1);
+    expect(s.pieces).toHaveLength(0);
+    expect(s.lastMove?.events).toEqual([{ tick: 1, type: "exit", pieceId: 1, kind: 0, col: 7, row: 14 }]);
   });
 
   it("predicts what a cannon will make of a piece", () => {

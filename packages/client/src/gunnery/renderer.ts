@@ -6,6 +6,7 @@ import {
   gunneryCellAt,
   parseGunneryDeck,
   predictGunneryPath,
+  gunneryNextHeading,
   type Arrow,
   type CannonOutcome,
   type Dir,
@@ -41,8 +42,10 @@ interface PieceView {
   ty: number;
   /** 0..1 progress from (fx,fy) to (tx,ty). */
   k: number;
-  /** Heading for the chevron. */
+  /** Heading it last rolled in. */
   dir: Dir;
+  /** The way it will roll next (turns at rails and arrows included), for the chevron. */
+  next: Dir;
   /** Tick it dropped; its life ring runs down from here. */
   born: number;
   /** ms since the piece left the deck; it slides to `exit` and fades. */
@@ -330,9 +333,9 @@ export class GunneryRenderer {
       if (e.cannon !== undefined) {
         const c = state.cannons[e.cannon]!;
         exits.set(e.pieceId, { x: this.cx(c.col), y: this.cy(c.row) });
-      } else if (e.type === "exit") {
-        const v = this.pieces.get(e.pieceId);
-        if (v) exits.set(e.pieceId, { x: v.tx + DX[v.dir]! * this.cell, y: v.ty + DY[v.dir]! * this.cell });
+      } else if (e.type === "exit" && e.col !== undefined && e.row !== undefined) {
+        // Into the hatch it really went through: a wall may have turned it on its last step.
+        exits.set(e.pieceId, { x: this.cx(e.col), y: this.cy(e.row) });
       } else if (e.type === "washed") {
         // Spray took it where it stands.
         const v = this.pieces.get(e.pieceId);
@@ -355,7 +358,7 @@ export class GunneryRenderer {
         s.position.set(bx, by);
         s.scale.set(0.5);
         this.pieceLayer.addChild(s);
-        v = { s, kind: p.kind, fx: bx, fy: by, tx: x, ty: y, k: 0, dir: p.dir, born: p.born, dying: null, exit: null };
+        v = { s, kind: p.kind, fx: bx, fy: by, tx: x, ty: y, k: 0, dir: p.dir, born: p.born, next: p.dir, dying: null, exit: null };
         this.pieces.set(p.id, v);
       } else if (v.tx !== x || v.ty !== y) {
         v.fx = v.s.x;
@@ -468,6 +471,8 @@ export class GunneryRenderer {
     const arrows = arrowsWith(s.arrows, this.interactive ? this.ghost : null);
     for (const p of s.pieces) {
       const path = predictGunneryPath(s, p, LOOK_AHEAD, arrows);
+      const v = this.pieces.get(p.id);
+      if (v) v.next = gunneryNextHeading(s, p, arrows) ?? p.dir;
       this.paths.push({ id: p.id, kind: p.kind, path });
       if (path.end?.type === "cannon") {
         const eta = path.cells.length + 1;
@@ -777,7 +782,8 @@ export class GunneryRenderer {
   }
 
   /**
-   * A chevron on each piece's leading edge so its heading reads at a glance, and a ring that runs
+   * A chevron on each piece's leading edge pointing the way it will roll next (a turn at a rail or an
+   * arrow shows before it happens), and a ring that runs
    * down over the piece's life on deck: pale, then amber, then red and blinking before spray takes it.
    */
   private drawHeadings(): void {
@@ -802,8 +808,8 @@ export class GunneryRenderer {
             .stroke({ width: Math.max(2, s * 0.07), color, alpha, cap: "round" });
         }
       }
-      const dx = DX[v.dir]!;
-      const dy = DY[v.dir]!;
+      const dx = DX[v.next]!;
+      const dy = DY[v.next]!;
       const tip = s * 0.5;
       const back = s * 0.36;
       const w = s * 0.12;
