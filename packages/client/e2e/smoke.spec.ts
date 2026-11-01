@@ -148,9 +148,10 @@ test("home links to Gunnery practice and an unrated round lays arrows by key and
   // Pointer: tap a deck cell near the top-left of the deck.
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
-  const cell = Math.min(box.width / 9, box.height / 15);
-  const ox = box.x + (box.width - cell * 9) / 2;
-  const oy = box.y + (box.height - cell * 15) / 2;
+  // The renderer says where its grid sits on the canvas.
+  const [gx, gy, cell] = ((await canvas.getAttribute("data-geom")) ?? "").split(",").map(Number) as [number, number, number];
+  const ox = box.x + gx;
+  const oy = box.y + gy;
   await page.mouse.click(ox + cell * 1.5, oy + cell * 1.5);
   await expect(page.getByTestId("hud-moves")).toContainText("2");
   // The view string ends with the arrows on deck as col.row.dir.

@@ -175,17 +175,29 @@ export const CarpentryContentSchema = DutyPuzzleBaseSchema.extend({
 
 export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
   config: z.object({
-    /** One string per row: # wall, . deck, X crate, B chute, C cannon, H scupper. */
-    deck: z
-      .array(z.string().regex(/^[#.XBCH]+$/, "deck rows use # . X B C H"))
-      .min(5)
-      .superRefine((rows, ctx) => {
-        const width = rows[0]!.length;
-        if (rows.some((r) => r.length !== width)) ctx.addIssue({ code: "custom", message: "deck rows must be the same width" });
-        const all = rows.join("");
-        const count = (ch: string): number => all.split(ch).length - 1;
-        if (count("C") !== 4) ctx.addIssue({ code: "custom", message: "deck needs exactly four cannons" });
-        if (count("B") !== 1) ctx.addIssue({ code: "custom", message: "deck needs exactly one chute" });
+    /**
+     * The decks a round may be played on; the seed picks one. One string per row: # wall,
+     * . plank, X crate, B chute, C cannon, H hatch. The engine checks at startup that each has no
+     * loop built in, a stream that leaves, and every gun within reach.
+     */
+    decks: z
+      .array(
+        z
+          .array(z.string().regex(/^[#.XBCH]+$/, "deck rows use # . X B C H"))
+          .min(5)
+          .superRefine((rows, ctx) => {
+            const width = rows[0]!.length;
+            if (rows.some((r) => r.length !== width)) ctx.addIssue({ code: "custom", message: "deck rows must be the same width" });
+            const all = rows.join("");
+            const count = (ch: string): number => all.split(ch).length - 1;
+            if (count("C") !== 4) ctx.addIssue({ code: "custom", message: "deck needs exactly four cannons" });
+            if (count("B") !== 1) ctx.addIssue({ code: "custom", message: "deck needs exactly one chute" });
+          }),
+      )
+      .min(1)
+      .superRefine((decks, ctx) => {
+        const [w, h] = [decks[0]![0]!.length, decks[0]!.length];
+        if (decks.some((d) => d.length !== h || d[0]!.length !== w)) ctx.addIssue({ code: "custom", message: "every deck must be the same size" });
       }),
     tickMs: z.int().min(20).max(5000),
     maxTick: z.int().min(1),

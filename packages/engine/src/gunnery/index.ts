@@ -15,6 +15,9 @@ export {
   pieceAt as gunneryPieceAt,
   cellAt as gunneryCellAt,
   validateConfig as validateGunneryConfig,
+  deckProblems as gunneryDeckProblems,
+  gunReach as gunneryGunReach,
+  MAX_ARROWS_TO_A_GUN,
   type GunnerySummary,
   type PredictedPath as GunneryPredictedPath,
 } from "./reduce.js";

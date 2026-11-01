@@ -27,10 +27,12 @@ export type DeckCell = "wall" | "deck" | "crate" | "barrel" | "cannon" | "hatch"
 
 export interface GunneryConfig {
   /**
-   * The deck, one string per row: # wall, . deck, X crate, B chute, C cannon, H scupper. The chute
-   * must touch exactly one deck cell: pieces drop onto it heading away from the chute.
+   * The decks a round may be played on; the seed picks one. Each is one string per row: # wall,
+   * . plank, X crate, B chute, C cannon, H hatch. The chute must touch exactly one plank: pieces
+   * drop onto it heading away from the chute. All decks are the same size, and each must pass
+   * `deckProblems` (no loop built in, a stream that leaves, every gun within reach).
    */
-  readonly deck: readonly string[];
+  readonly decks: ReadonlyArray<readonly string[]>;
   /** Wall-clock ms per tick on the client; the server uses it to bound claimed ticks. */
   readonly tickMs: number;
   /** No move may claim a tick beyond this; the round is over by then. */
@@ -60,26 +62,147 @@ export interface GunneryConfig {
   readonly comboCap: number;
 }
 
-export const DEFAULT_GUNNERY_DECK: readonly string[] = [
-  "####B####",
-  "#.......#",
-  "#.......#",
-  "C.......C",
-  "#.......#",
-  "#.X...X.#",
-  "H.......H",
-  "#..XXX..#",
-  "#.......#",
-  "#.......#",
-  "#.X...X.#",
-  "#.......#",
-  "C.......C",
-  "#.......#",
-  "####H####",
+export const DEFAULT_GUNNERY_DECKS: ReadonlyArray<readonly string[]> = [
+  [
+    "####B####",
+    "#.......#",
+    "C.......C",
+    "#.......#",
+    "#..X.X..#",
+    "#.X...X.#",
+    "H.......H",
+    "#.X...X.#",
+    "#.......#",
+    "#.XX.XX.#",
+    "#.......#",
+    "C.......C",
+    "#.......#",
+    "#.......#",
+    "####H##H#",
+  ],
+  [
+    "#H##B#H##",
+    "#.......#",
+    "#.......#",
+    "#.......#",
+    "C..XXX..C",
+    "#.......#",
+    "#.X...X.#",
+    "#...X...#",
+    "#..X.X..#",
+    "#.......#",
+    "#..X.X..#",
+    "#.......#",
+    "C.......C",
+    "#.......#",
+    "#########",
+  ],
+  [
+    "#H##B#H##",
+    "#.......#",
+    "#.......#",
+    "#.......#",
+    "#.X...X.#",
+    "C.X...X.C",
+    "#.......#",
+    "#..X.X..#",
+    "#.XX.XX.#",
+    "#.......#",
+    "#.......#",
+    "C.......C",
+    "#.......#",
+    "#.......#",
+    "####H####",
+  ],
+  [
+    "#H##B#HH#",
+    "#.......#",
+    "#.......#",
+    "#.......#",
+    "#.......#",
+    "C...X...C",
+    "#...X...#",
+    "H..X.X..H",
+    "#..X.X..#",
+    "#.X...X.#",
+    "#.......#",
+    "#..X.X..#",
+    "C.......C",
+    "#.......#",
+    "#########",
+  ],
+  [
+    "##H#B####",
+    "#.......#",
+    "#.......#",
+    "C.......C",
+    "H.X...X.H",
+    "#.......#",
+    "#.X...X.#",
+    "#.X...X.#",
+    "#.......#",
+    "#.......#",
+    "C.X...X.C",
+    "#..X.X..#",
+    "#.......#",
+    "#.......#",
+    "####H##H#",
+  ],
+  [
+    "#H##B#HH#",
+    "#.......#",
+    "#.......#",
+    "#.......#",
+    "#.X...X.#",
+    "C.......C",
+    "#.......#",
+    "#.XXXXX.#",
+    "#.......#",
+    "#..X.X..#",
+    "#.......#",
+    "C.......C",
+    "#.......#",
+    "#.......#",
+    "#########",
+  ],
+  [
+    "#HH#B####",
+    "#.......#",
+    "#.......#",
+    "#.......#",
+    "#..XXX..#",
+    "C..XXX..C",
+    "#..XXX..#",
+    "#.......#",
+    "#.......#",
+    "#.......#",
+    "#.......#",
+    "C.......C",
+    "#.......#",
+    "#.......#",
+    "#H#######",
+  ],
+  [
+    "#H##B####",
+    "#.......#",
+    "#.......#",
+    "H.......H",
+    "C.......C",
+    "#.......#",
+    "#.XXXXX.#",
+    "#.......#",
+    "#.......#",
+    "#.......#",
+    "C..XXX..C",
+    "#...X...#",
+    "#.......#",
+    "#.......#",
+    "#####HH##",
+  ],
 ];
 
 export const DEFAULT_GUNNERY_CONFIG: GunneryConfig = {
-  deck: DEFAULT_GUNNERY_DECK,
+  decks: DEFAULT_GUNNERY_DECKS,
   tickMs: 200,
   maxTick: 760,
   maxMoves: 1000,
@@ -165,6 +288,8 @@ export interface ParsedDeck {
 
 export interface GunneryState {
   readonly config: GunneryConfig;
+  /** Which of `config.decks` this round is played on, and that deck parsed. */
+  readonly deckIndex: number;
   readonly deck: ParsedDeck;
   readonly tick: number;
   readonly pieces: readonly GunneryPiece[];

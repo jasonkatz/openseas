@@ -182,20 +182,24 @@ right order to load them. Correct loads feed cannon readiness. QoL: per-cannon l
 indicator, highlight of which drop completes a load. Flagged for possible redesign after
 playtesting.
 
-As built (M2, redesigned after the first playtest under 3.2): a 9 wide by 15 tall deck (tall, to fill a phone held upright) drawn from
-a content map, with crates in the middle. A chute in the top rail drops one piece at a time onto the
-deck, heading straight down the middle until it meets the centre crates and turns off them; whatever
-is not steered rolls out through a hatch in the side rail (or the scupper in the bottom rail). The chute draws
+As built (M2, redesigned over several playtests under 3.2): a 9 wide by 15 tall deck (tall, to fill
+a phone held upright), drawn at random from a set of content maps at the start of each round (the
+seed picks it, so replays agree). Each map has its own crates, hatches and gun rows, and the engine
+refuses any map that is not fit to play: with no arrows, a piece starting anywhere must leave by a
+hatch (no loop built in), the stream from the chute must leave without running into a gun, and
+every gun must be reachable from the chute with at most three arrows before spray takes the piece.
+The maps were found by searching for layouts that pass, then picked by hand for variety. A chute in
+the top rail drops one piece at a time onto the deck, heading down the middle until crates turn it;
+whatever is not steered rolls out through a hatch within a few seconds. The chute draws
 from a shuffled bag (two powder, two wad, two shot, one water), shows the next three in the rail
 beside it, holds back while `maxOnDeck` pieces are out, and quickens from one drop every
-`spawnEveryTicks` to every `spawnEveryTicksMin` over the round. Four cannons sit in the side rails at
-the ends of two rows: one arrow in the stream sends a piece into an upper gun, while the lower guns
-sit behind the centre crates and take a route of two or three arrows. Pieces roll a
+`spawnEveryTicks` to every `spawnEveryTicksMin` over the round. Four cannons sit in the side rails,
+two a side; each takes a route of one to three arrows from the stream. Pieces roll a
 cell per tick until something turns them: an arrow under a piece turns it to follow it; a wall
 turns it right, else left, else back. Pieces roll together: one behind a stopped piece waits, two
 after the same cell let the older go, and two meeting head on both turn back. The gunner lays as
-many arrows as they like, one per plank. Spray washes any piece overboard `lifeTicks` after it
-drops, so pieces cannot be parked in a loop and picked off at leisure; a ring around each piece
+many arrows as they like, one per plank; a loop has to be built out of them. Spray washes any piece
+overboard `lifeTicks` after it drops, so a parked piece does not last long either; a ring around each piece
 runs down over its life, turning amber, then red and blinking. A cannon takes powder, then wad, then shot; a full one fires itself
 after `fireAfterTicks` (the captain's job from M4) and comes back clean, turning pieces away until
 then. A wrong piece fouls a cannon and loses its load; a fouled cannon turns away everything but
@@ -434,6 +438,7 @@ Maintained as they arise.
 | Gunnery fouled cannon | Takes pieces and wastes them | Turns everything but water away | A foul costs the load and the combo; it should not also eat the next pieces |
 | Gunnery route preview | None | A piece headed into a cannon shows its route, green or red for what it will do there | Makes a busy deck readable; routes for every piece were noise in playtest |
 | Gunnery piece life | Pieces stay on the board until used or lost | Spray washes a piece overboard `lifeTicks` after it drops | Playtest: with no arrow limit, parking pieces in a loop around the deck made it easy |
+| Gunnery deck | One board | A random pick from content maps each round, each checked for no built-in loop and every gun in reach | Playtest: on one board, players found the loop and worked off it all round; a new board keeps them reading routes |
 | Gunnery arrows | Limited | No limit, one per plank | Playtest: the cap made routing around the crates a chore; the move log is still bounded by `maxMoves` |
 | Gunnery time | Continuous rolling | One cell per tick of `tickMs`, carried in the move log | Pure engine; the client interpolates between ticks (ADR 0015) |
 | Gunnery water | Cleans fired or misloaded cannons | Cleans a fouled cannon; splashes harmlessly in a clean one | Firing no longer fouls, so water is only for fouls |

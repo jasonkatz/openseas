@@ -13,7 +13,7 @@ export const GunneryMoveSchema = z.discriminatedUnion("type", [
 export type GunneryMoveWire = z.infer<typeof GunneryMoveSchema>;
 
 export const GunneryConfigSchema = z.object({
-  deck: z.array(z.string().regex(/^[#.XBCH]+$/).min(5).max(64)).min(5).max(64),
+  decks: z.array(z.array(z.string().regex(/^[#.XBCH]+$/).min(5).max(64)).min(5).max(64)).min(1).max(32),
   tickMs: z.int().min(20).max(5000),
   maxTick: z.int().min(1).max(100_000),
   maxMoves: z.int().min(1).max(10_000),

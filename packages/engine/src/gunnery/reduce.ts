@@ -69,7 +69,14 @@ export function parseDeck(rows: readonly string[]): ParsedDeck {
 const isNat = (n: number): boolean => Number.isInteger(n) && n >= 0;
 
 export function validateConfig(cfg: GunneryConfig): void {
-  parseDeck(cfg.deck);
+  if (!Array.isArray(cfg.decks) || cfg.decks.length === 0) throw new Error("gunnery config: no decks");
+  const first = parseDeck(cfg.decks[0]!);
+  cfg.decks.forEach((rows, i) => {
+    const deck = parseDeck(rows);
+    if (deck.width !== first.width || deck.height !== first.height) throw new Error(`gunnery deck ${i}: every deck must be ${first.width} by ${first.height}`);
+    const problems = deckProblems(deck, cfg.lifeTicks);
+    if (problems.length) throw new Error(`gunnery deck ${i}: ${problems.join("; ")}`);
+  });
   const ok =
     Number.isInteger(cfg.tickMs) &&
     cfg.tickMs >= 20 &&
@@ -108,12 +115,16 @@ export const cellAt = (deck: ParsedDeck, col: number, row: number): DeckCell =>
 
 export function createGunneryGame(seed: string, config: GunneryConfig = DEFAULT_GUNNERY_CONFIG): GunneryState {
   validateConfig(config);
-  const deck = parseDeck(config.deck);
-  const supply: Supply = { rng: seedFromString(`gunnery:${seed}`), bag: [] };
+  // The seed picks the deck first, then deals the bag.
+  const pick = nextInt(seedFromString(`gunnery:${seed}`), config.decks.length);
+  const deckIndex = pick.value;
+  const deck = parseDeck(config.decks[deckIndex]!);
+  const supply: Supply = { rng: pick.state, bag: [] };
   const queue: number[] = [];
   for (let i = 0; i < config.queueLength; i++) queue.push(draw(config, supply));
   return {
     config,
+    deckIndex,
     deck,
     tick: 0,
     pieces: [],
@@ -195,7 +206,7 @@ export function replayGunnery(seed: string, moves: readonly GunneryMove[], confi
 
 export function hashGunneryState(state: GunneryState): string {
   const h = new Hasher();
-  h.int(state.deck.width).int(state.deck.height).int(state.tick);
+  h.int(state.deckIndex).int(state.deck.width).int(state.deck.height).int(state.tick);
   for (const p of state.pieces) h.int(p.id).int(p.kind).int(p.col).int(p.row).int(p.dir).int(p.born);
   h.int(-1);
   for (const a of state.arrows) h.int(a.col).int(a.row).int(a.dir);
@@ -245,6 +256,136 @@ export function dropInterval(cfg: GunneryConfig, tick: number): number {
   if (span <= 0) return cfg.spawnEveryTicks;
   const steps = Math.floor(((span + 1) * Math.max(0, tick)) / cfg.maxTick);
   return Math.max(cfg.spawnEveryTicksMin, cfg.spawnEveryTicks - steps);
+}
+
+/**
+ * For each gun, the fewest arrows (then fewest ticks) a piece needs to roll from the chute into it,
+ * within MAX_ARROWS_TO_A_GUN arrows and before spray takes it; null where it can't be done. A piece
+ * may turn at a plank only with an arrow (cost 1), unless that is the way it would roll anyway.
+ * Arrows are counted per turn, not per plank, so this is a guide to a deck's difficulty.
+ */
+export function gunReach(deck: ParsedDeck, lifeTicks: number): Array<{ arrows: number; ticks: number } | null> {
+  const natural = (col: number, row: number, d: Dir): Dir | null => {
+    for (const x of [d, right(d), left(d), opposite(d)]) {
+      const c = cellAt(deck, col + DX[x]!, row + DY[x]!);
+      if (c === "deck" || c === "hatch") return x;
+    }
+    return null;
+  };
+  const best = new Map<number, { arrows: number; ticks: number }>();
+  const reached = new Map<number, { arrows: number; ticks: number }>();
+  let frontier: Array<{ col: number; row: number; d: Dir; arrows: number; ticks: number }> = [{ ...deck.drop, d: deck.drop.dir, arrows: 0, ticks: 0 }];
+  while (frontier.length) {
+    const next: typeof frontier = [];
+    for (const s of frontier) {
+      const key = (s.row * deck.width + s.col) * 4 + s.d;
+      const b = best.get(key);
+      if (b && (b.arrows < s.arrows || (b.arrows === s.arrows && b.ticks <= s.ticks))) continue;
+      best.set(key, { arrows: s.arrows, ticks: s.ticks });
+      const nat = natural(s.col, s.row, s.d);
+      for (const x of DIRS) {
+        const col = s.col + DX[x]!;
+        const row = s.row + DY[x]!;
+        const c = cellAt(deck, col, row);
+        const arrows = s.arrows + (x === nat ? 0 : 1);
+        const ticks = s.ticks + 1;
+        if (arrows > MAX_ARROWS_TO_A_GUN || ticks >= lifeTicks) continue;
+        if (c === "cannon") {
+          const gi = deck.cannons.findIndex((g) => g.col === col && g.row === row);
+          const r = reached.get(gi);
+          if (!r || arrows < r.arrows || (arrows === r.arrows && ticks < r.ticks)) reached.set(gi, { arrows, ticks });
+        } else if (c === "deck") next.push({ col, row, d: x, arrows, ticks });
+      }
+    }
+    frontier = next;
+  }
+  return deck.cannons.map((_, i) => reached.get(i) ?? null);
+}
+
+/** How many arrows a gun may need, at most, to be reached from the chute. */
+export const MAX_ARROWS_TO_A_GUN = 3;
+
+/**
+ * Why a deck is not fit to play, or nothing. A fit deck has no loop built in: with no arrows,
+ * a piece starting on any plank heading any way leaves by a hatch (counting cannons as walls,
+ * since a gun may turn a piece away). The stream from the chute leaves without running into a
+ * gun. And every gun can be reached from the chute with at most MAX_ARROWS_TO_A_GUN arrows,
+ * soon enough that the piece is not washed overboard on the way.
+ */
+export function deckProblems(deck: ParsedDeck, lifeTicks: number): string[] {
+  const problems: string[] = [];
+  const open = (col: number, row: number, gunsOpen: boolean): boolean => {
+    const c = cellAt(deck, col, row);
+    return c === "deck" || c === "hatch" || (gunsOpen && c === "cannon");
+  };
+  const natural = (col: number, row: number, d: Dir, gunsOpen: boolean): Dir | null => {
+    for (const x of [d, right(d), left(d), opposite(d)]) if (open(col + DX[x]!, row + DY[x]!, gunsOpen)) return x;
+    return null;
+  };
+  /** Follows an unsteered piece: where it ends up, or "loop". */
+  const follow = (col: number, row: number, d: Dir, gunsOpen: boolean): "hatch" | "cannon" | "loop" => {
+    const seen = new Set<number>();
+    for (;;) {
+      const key = (row * deck.width + col) * 4 + d;
+      if (seen.has(key)) return "loop";
+      seen.add(key);
+      const nd = natural(col, row, d, gunsOpen);
+      if (nd === null) return "loop";
+      col += DX[nd]!;
+      row += DY[nd]!;
+      d = nd;
+      const c = cellAt(deck, col, row);
+      if (c === "hatch") return "hatch";
+      if (c === "cannon") return "cannon";
+    }
+  };
+  // Every start, guns shut. Paths merge, so each (plank, heading) is settled once: walking from a
+  // start, every state on the way shares the walk's ending (1 leaves by a hatch, 2 never does).
+  const ending = new Uint8Array(deck.width * deck.height * 4);
+  const settle = (col: number, row: number, d0: Dir): number => {
+    const path: number[] = [];
+    const onPath = new Set<number>();
+    let d = d0;
+    let result = 2;
+    for (;;) {
+      const key = (row * deck.width + col) * 4 + d;
+      if (ending[key]) {
+        result = ending[key]!;
+        break;
+      }
+      if (onPath.has(key)) break;
+      onPath.add(key);
+      path.push(key);
+      const nd = natural(col, row, d, false);
+      if (nd === null) break;
+      col += DX[nd]!;
+      row += DY[nd]!;
+      d = nd;
+      if (cellAt(deck, col, row) === "hatch") {
+        result = 1;
+        break;
+      }
+    }
+    for (const k of path) ending[k] = result;
+    return result;
+  };
+  outer: for (let row = 0; row < deck.height; row++) {
+    for (let col = 0; col < deck.width; col++) {
+      if (cellAt(deck, col, row) !== "deck") continue;
+      const d = DIRS.find((x) => settle(col, row, x) === 2);
+      if (d !== undefined) {
+        problems.push(`a piece at ${col},${row} heading ${d} circles forever`);
+        break outer;
+      }
+    }
+  }
+  if (follow(deck.drop.col, deck.drop.row, deck.drop.dir, true) !== "hatch") problems.push("the unsteered stream does not leave by a hatch");
+
+  const reach = gunReach(deck, lifeTicks);
+  deck.cannons.forEach((g, i) => {
+    if (!reach[i]) problems.push(`the gun at ${g.col},${g.row} cannot be reached from the chute in ${MAX_ARROWS_TO_A_GUN} arrows`);
+  });
+  return problems;
 }
 
 export function isDeck(state: GunneryState, col: number, row: number): boolean {

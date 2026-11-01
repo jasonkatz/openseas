@@ -10,7 +10,9 @@ import {
   cannonOutcome,
   createGunneryGame,
   gunneryCellAt,
+  gunneryDeckProblems,
   gunneryDropInterval,
+  gunneryGunReach,
   hashGunneryState,
   parseGunneryDeck,
   predictGunneryPath,
@@ -76,8 +78,27 @@ function expectInvariants(state: GunneryState): void {
   }
 }
 
-/** No drops: a quiet deck to set pieces on by hand. */
-const quiet: GunneryConfig = { ...cfg, spawnEveryTicks: 100_000, spawnEveryTicksMin: 100_000, lifeTicks: 100_000 };
+/** One fit deck, so the rule tests below have fixed coordinates: guns at rows 3 and 12, crates at 4,7 and around. */
+const TEST_DECK: readonly string[] = [
+  "#H##B####",
+  "#.......#",
+  "#.......#",
+  "C.......C",
+  "#..X.X..#",
+  "#.......#",
+  "#.......#",
+  "#...X...#",
+  "#.......#",
+  "#.X...X.#",
+  "#.XX.XX.#",
+  "#.......#",
+  "C.......C",
+  "#.......#",
+  "#H#H###H#",
+];
+
+/** No drops, one deck: a quiet deck to set pieces on by hand. Pieces last long enough not to matter. */
+const quiet: GunneryConfig = { ...cfg, decks: [TEST_DECK], spawnEveryTicks: 100_000, spawnEveryTicksMin: 100_000, lifeTicks: 100_000 };
 
 /** A quiet state with the given pieces and cannon 1 (east, row 3) patched. */
 function deckWith(pieces: GunneryPiece[], cannonPatch: Partial<GunneryState["cannons"][number]> = {}): GunneryState {
@@ -90,8 +111,8 @@ function deckWith(pieces: GunneryPiece[], cannonPatch: Partial<GunneryState["can
 const atEast = (kind: number, id = 500): GunneryPiece => ({ id, kind, col: 6, row: 3, dir: 0, born: 0 });
 
 describe("gunnery deck", () => {
-  it("parses the default deck", () => {
-    const d = parseGunneryDeck(cfg.deck);
+  it("parses a deck", () => {
+    const d = parseGunneryDeck(TEST_DECK);
     expect(d.width).toBe(9);
     expect(d.height).toBe(15);
     expect(d.cannons).toEqual([
@@ -111,6 +132,48 @@ describe("gunnery deck", () => {
     expect(() => parseGunneryDeck(["##B##", "#...C", "#...#", "#...#", "##B##"])).toThrow(/more than one chute/);
     expect(() => parseGunneryDeck(["##B##", "#...C", "#....", "#...#", "#####"])).toThrow(/open rim/);
     expect(() => parseGunneryDeck(["#####", "#...C", "#.B.#", "#...#", "#####"])).toThrow(/exactly one deck cell/);
+  });
+});
+
+describe("gunnery decks", () => {
+  it("every deck in the default config is fit: no loop built in, a stream that leaves, every gun in reach", () => {
+    expect(cfg.decks.length).toBeGreaterThan(1);
+    cfg.decks.forEach((rows, i) => {
+      const deck = parseGunneryDeck(rows);
+      expect(gunneryDeckProblems(deck, cfg.lifeTicks), `deck ${i}`).toEqual([]);
+      for (const r of gunneryGunReach(deck, cfg.lifeTicks)) expect(r!.arrows, `deck ${i}`).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("rejects a deck with a loop built in, naming where", () => {
+    // Open deck, a hatch only straight below the chute: pieces following the rails circle forever.
+    const loopy = ["####B####", "#.......#", "#.......#", "C.......C", ...Array.from({ length: 8 }, () => "#.......#"), "C.......C", "#.......#", "####H####"];
+    expect(gunneryDeckProblems(parseGunneryDeck(loopy), 40)[0]).toMatch(/circles forever/);
+    expect(() => createGunneryGame("x", { ...cfg, decks: [...cfg.decks, loopy] })).toThrow(/deck \d+: a piece at/);
+  });
+
+  it("rejects a deck whose stream runs into a gun, or a gun nothing can reach", () => {
+    // A crate under row 3 of the stream turns it right (screen left) along row 3, into the west gun.
+    const streamed = TEST_DECK.map((r, i) => (i === 4 ? "#..XXX..#" : r));
+    expect(gunneryDeckProblems(parseGunneryDeck(streamed), 40)).toContain("the unsteered stream does not leave by a hatch");
+    // A piece lives 3 ticks: no gun is reachable in time.
+    expect(gunneryDeckProblems(parseGunneryDeck(TEST_DECK), 3).some((p) => /cannot be reached/.test(p))).toBe(true);
+  });
+
+  it("the seed picks the deck: the same seed always, and every deck turns up", () => {
+    const seen = new Set<number>();
+    for (let i = 0; i < 200; i++) {
+      const a = createGunneryGame(`s${i}`);
+      expect(createGunneryGame(`s${i}`).deckIndex).toBe(a.deckIndex);
+      expect(a.deck).toEqual(parseGunneryDeck(cfg.decks[a.deckIndex]!));
+      seen.add(a.deckIndex);
+    }
+    expect(seen.size).toBe(cfg.decks.length);
+  });
+
+  it("rejects decks of different sizes", () => {
+    const small = TEST_DECK.slice(0, 14).map((r, i) => (i === 13 ? "#H#H###H#" : r));
+    expect(() => createGunneryGame("x", { ...cfg, decks: [TEST_DECK, small] })).toThrow(/same|9 by 15|deck 1/);
   });
 });
 
@@ -202,18 +265,17 @@ describe("gunnery rules", () => {
     for (let t = 1; t <= cfg.maxTick; t++) expect(gunneryDropInterval(cfg, t)).toBeLessThanOrEqual(gunneryDropInterval(cfg, t - 1));
   });
 
-  it("with no arrows every piece falls down the middle, turns off the centre crates and goes out the port hatch", () => {
-    let s = createGunneryGame("fall");
-    s = advanceGunnery(s, 2);
-    expect(s.pieces).toEqual([{ id: 1, kind: s.pieces[0]!.kind, col: 4, row: 1, dir: 1, born: 2 }]);
-    s = advanceGunnery(s, 7);
-    expect(s.pieces.find((p) => p.id === 1)).toMatchObject({ col: 4, row: 6 });
-    s = advanceGunnery(s, 8);
-    expect(s.pieces.find((p) => p.id === 1)).toMatchObject({ col: 3, row: 6, dir: 2 });
-    s = advanceGunnery(s, 11);
-    expect(s.pieces.find((p) => p.id === 1)).toBeUndefined();
-    expect(s.lastMove?.events.some((e) => e.type === "exit" && e.pieceId === 1)).toBe(true);
-    expect(s.score).toBe(0);
+  it("with no arrows, on every deck, the stream leaves by a hatch without touching a gun", () => {
+    cfg.decks.forEach((_, i) => {
+      let s = { ...createGunneryGame("fall", { ...cfg, decks: [cfg.decks[i]!] }) };
+      s = advanceGunnery(s, 2);
+      expect(s.pieces).toEqual([{ id: 1, kind: s.pieces[0]!.kind, col: 4, row: 1, dir: 1, born: 2 }]);
+      s = advanceGunnery(s, 30);
+      expect(s.pieces.find((p) => p.id === 1), `deck ${i}`).toBeUndefined();
+      expect(s.lastMove?.events.some((e) => e.type === "exit" && e.pieceId === 1), `deck ${i}`).toBe(true);
+      expect(s.lastMove?.events.some((e) => e.cannon !== undefined), `deck ${i}`).toBe(false);
+      expect(s.score).toBe(0);
+    });
   });
 
   it("rejects ticks that go backwards, beyond the round, or after the end", () => {
@@ -230,7 +292,7 @@ describe("gunnery rules", () => {
   });
 
   it("takes any number of arrows, one per cell: a new arrow on a cell replaces the old", () => {
-    let s = createGunneryGame("arrows");
+    let s = createGunneryGame("arrows", { ...cfg, decks: [TEST_DECK] });
     const cells = deckCells(s).slice(0, 30);
     cells.forEach((c, i) => {
       s = reduceGunnery(s, { type: "arrow", col: c.col, row: c.row, dir: (i % 4) as Dir, tick: 0 });
@@ -423,7 +485,7 @@ describe("gunnery rolling", () => {
     // A full cannon that will have fired by the time the piece arrives takes it as empty.
     const later = deckWith([{ ...atEast(GunneryKind.Shot), col: 5 }], { loaded: 3, firesAt: 2 });
     expect(predictGunneryPath(later, later.pieces[0]!, 5).end).toEqual({ type: "cannon", cannon: 1, outcome: "foul" });
-    const o = deckWith([{ id: 1, kind: 0, col: 4, row: 12, dir: 1, born: 0 }]);
-    expect(predictGunneryPath(o, o.pieces[0]!, 5)).toEqual({ cells: [{ col: 4, row: 13 }], end: { type: "overboard" } });
+    const o = deckWith([{ id: 1, kind: 0, col: 3, row: 12, dir: 1, born: 0 }]);
+    expect(predictGunneryPath(o, o.pieces[0]!, 5)).toEqual({ cells: [{ col: 3, row: 13 }], end: { type: "overboard" } });
   });
 });

@@ -98,6 +98,8 @@ const COLORS = {
   water: 0x7fd0ff,
 };
 const DIE_MS = 200;
+/** Height of the queue strip above the deck, in cells. */
+const QUEUE_STRIP = 0.75;
 /** How many cells ahead the route preview looks. */
 const LOOK_AHEAD = 12;
 
@@ -158,8 +160,8 @@ export class GunneryRenderer {
   private width = 9;
   private height = 11;
   private origin = { x: 0, y: 0 };
-  /** The deck from content; it never changes within a round, so it is painted once per layout. */
-  private readonly deck: ParsedDeck;
+  /** The round's deck; it never changes within a round, so it is painted once per round and per layout. */
+  private deck: ParsedDeck;
   private state: GunneryState | null = null;
   private lastEventTick = -1;
   /** `time` when the current state arrived, to run life rings down smoothly between ticks. */
@@ -196,7 +198,8 @@ export class GunneryRenderer {
       this.markByKind.set(i, p.mark);
       this.textureByKind.set(i, p.texture);
     });
-    this.deck = parseGunneryDeck(content.config.deck);
+    // Every deck is the same size; the round's own deck replaces this one when its first state arrives.
+    this.deck = parseGunneryDeck(content.config.decks[0]!);
     this.width = this.deck.width;
     this.height = this.deck.height;
   }
@@ -302,6 +305,11 @@ export class GunneryRenderer {
   setState(state: GunneryState): void {
     if (!this.app.renderer) return;
     const reset = !this.state || state.tick < this.state.tick || state.deck !== this.state.deck;
+    if (state.deckIndex !== this.state?.deckIndex || !this.state) {
+      // A round on a different deck: repaint the planks, crates, hatches and guns.
+      this.deck = state.deck;
+      this.drawDeck();
+    }
     this.state = state;
     this.stateAt = this.time;
     this.framePending = true;
@@ -477,12 +485,18 @@ export class GunneryRenderer {
     const w = this.app.screen.width;
     const h = this.app.screen.height;
     const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.12));
-    let cell = Math.floor(Math.min(w / this.width, h / this.height));
-    cell = Math.floor(Math.min((w - padFor(cell) * 2 - 2) / this.width, (h - padFor(cell) * 2 - 2) / this.height));
+    // Above the deck, a strip for the chute's queue: the rail itself may hold hatches.
+    const rows = this.height + QUEUE_STRIP;
+    let cell = Math.floor(Math.min(w / this.width, h / rows));
+    cell = Math.floor(Math.min((w - padFor(cell) * 2 - 2) / this.width, (h - padFor(cell) * 3 - 2) / rows));
     this.cell = Math.max(12, cell);
     this.pad = padFor(this.cell);
-    this.origin = { x: Math.floor((w - this.cell * this.width) / 2), y: Math.floor((h - this.cell * this.height) / 2) };
+    const above = this.cell * QUEUE_STRIP + this.pad;
+    const total = above + this.pad + this.cell * this.height + this.pad;
+    this.origin = { x: Math.floor((w - this.cell * this.width) / 2), y: Math.floor((h - total) / 2 + above + this.pad) };
     this.board.position.set(this.origin.x, this.origin.y);
+    // Where the grid sits on the canvas, for tests that tap a cell.
+    this.app.canvas.setAttribute("data-geom", `${this.origin.x},${this.origin.y},${this.cell}`);
     this.drawDeck();
     this.bake();
     this.layoutQueue();
@@ -680,9 +694,10 @@ export class GunneryRenderer {
       const hit = this.hit[i] ?? 0;
       if (hit > 0) fx.roundRect(x + 1, y + 1, s - 2, s - 2, s * 0.16).stroke({ width: 3, color: COLORS.danger, alpha: hit / 700 });
 
-      // Load pips in the rail below: powder, wad, shot.
-      const py = y + s * 1.12;
+      // Load pips in the rail below (above, where a hatch sits below): powder, wad, shot.
       const pw = s * 0.24;
+      const below = gunneryCellAt(this.deck, c.col, c.row + 1) === "wall";
+      const py = below ? y + s * 1.12 : y - s * 0.12 - pw;
       const gap = s * 0.06;
       const px0 = x + (s - pw * 3 - gap * 2) / 2;
       for (let k = 0; k < 3; k++) {
@@ -721,7 +736,12 @@ export class GunneryRenderer {
     }
     const { barrel } = this.deck;
     this.nextLabel.style.fontSize = Math.max(9, this.cell * 0.22);
-    this.nextLabel.position.set(this.cx(barrel.col) - this.cell * 0.62, this.cy(barrel.row));
+    this.nextLabel.position.set(this.cx(barrel.col) - this.cell * 0.55, this.queueY());
+  }
+
+  /** Centre line of the queue strip above the deck. */
+  private queueY(): number {
+    return -this.pad * 2 - (this.cell * QUEUE_STRIP) / 2;
   }
 
   private drawQueue(): void {
@@ -731,10 +751,11 @@ export class GunneryRenderer {
     this.state.queue.forEach((kind, i) => {
       const sp = this.queueSprites[i]!;
       sp.texture = this.textures.get(kind) ?? Texture.WHITE;
-      const scale = i === 0 ? 0.62 : 0.5;
+      // The next piece sits right above the chute; the ones after it trail off to the right.
+      const scale = i === 0 ? 0.72 : 0.56;
       sp.scale.set(scale);
-      sp.alpha = i === 0 ? 1 : 0.7 - i * 0.12;
-      sp.position.set(this.cx(barrel.col + 1 + i), this.cy(barrel.row));
+      sp.alpha = i === 0 ? 1 : 0.75 - i * 0.12;
+      sp.position.set(this.cx(barrel.col) + i * this.cell * 0.8 + (i > 0 ? this.cell * 0.1 : 0), this.queueY());
     });
   }
 
