@@ -182,7 +182,7 @@ right order to load them. Correct loads feed cannon readiness. QoL: per-cannon l
 indicator, highlight of which drop completes a load. Flagged for possible redesign after
 playtesting.
 
-As built (M2, redesigned after the first playtest under 3.2): an 11 wide by 13 tall deck drawn from
+As built (M2, redesigned after the first playtest under 3.2): a 9 wide by 15 tall deck (tall, to fill a phone held upright) drawn from
 a content map, with crates in the middle. A chute in the top rail drops one piece at a time onto the
 deck, heading straight down the middle until it meets the centre crates and turns off them; whatever
 is not steered rolls out through a hatch in the side rail (or the scupper in the bottom rail). The chute draws
