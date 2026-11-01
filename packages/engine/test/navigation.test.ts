@@ -3,13 +3,20 @@ import fc from "fast-check";
 import {
   DEFAULT_NAVIGATION_CONFIG,
   InvalidMoveError,
+  NAVIGATION_ENTRY_OCTANT,
+  advanceNavigation,
   createNavigationGame,
   hashNavigationState,
+  navigationFallDuration,
+  navigationFilledCount,
+  navigationFindRuns,
+  navigationHint,
   navigationLandingSlot,
   navigationSlotOf,
   reduceNavigation,
   replayNavigation,
   type Marker,
+  type NavigationConfig,
   type NavigationMove,
   type NavigationState,
   type Star,
@@ -17,29 +24,30 @@ import {
 
 const cfg = DEFAULT_NAVIGATION_CONFIG;
 
-/** Picks: 0..rings*2-1 rotate (ring, dir); the rest drop. Roughly one drop per three moves. */
-function moveFor(state: NavigationState, pick: number): NavigationMove {
+/** Picks come in pairs: what to do, and how many ticks on. Roughly two turns per drop or wait. */
+function moveFor(state: NavigationState, what: number, gap: number): NavigationMove {
   const n = state.config.rings * 2;
-  const k = pick % (n + Math.ceil(n / 2));
-  if (k < n) return { type: "rotate", ring: Math.floor(k / 2), dir: k % 2 === 0 ? 1 : -1 };
-  return { type: "drop" };
+  const tick = Math.min(state.config.maxTick, state.tick + (gap % 12));
+  const k = what % (n + 2);
+  if (k < n) return { type: "rotate", ring: Math.floor(k / 2), dir: k % 2 === 0 ? 1 : -1, tick };
+  return k === n ? { type: "drop", tick } : { type: "wait", tick };
 }
 
 function playRandom(seed: string, picks: readonly number[], config = cfg): { moves: NavigationMove[]; state: NavigationState } {
   let state = createNavigationGame(seed, config);
   const moves: NavigationMove[] = [];
-  for (const p of picks) {
+  for (let i = 0; i + 1 < picks.length; i += 2) {
     if (state.finished) break;
-    const m = moveFor(state, p);
+    const m = moveFor(state, picks[i]!, picks[i + 1]!);
     moves.push(m);
     state = reduceNavigation(state, m);
   }
   return { moves, state };
 }
 
-const picksArb = fc.array(fc.nat({ max: 10_000 }), { minLength: 0, maxLength: 120 });
+const picksArb = fc.array(fc.nat({ max: 10_000 }), { minLength: 0, maxLength: 240 });
 
-function ringKinds(state: NavigationState, ring: number): number[] {
+function ringIds(state: NavigationState, ring: number): number[] {
   const out: number[] = [];
   for (let o = 0; o < state.config.octants; o++) {
     const s = state.slots[navigationSlotOf(state.config, ring, o)];
@@ -52,8 +60,32 @@ function isComplete(state: NavigationState): boolean {
   return state.markers.length > 0 && state.markers.every((m) => state.slots[navigationSlotOf(state.config, m.ring, m.octant)]?.kind === m.kind);
 }
 
+/** A state with the given stars placed, for rule tests. Ids are the slot numbers. */
+function withStars(base: NavigationState, stars: Record<number, number>, markers: readonly Marker[] = base.markers): NavigationState {
+  const slots: Array<Star | null> = base.slots.slice();
+  for (const [slot, kind] of Object.entries(stars)) slots[Number(slot)] = { id: 100 + Number(slot), kind };
+  return { ...base, slots, markers };
+}
+
+function expectInvariants(state: NavigationState): void {
+  expect(state.slots.length).toBe(state.config.rings * state.config.octants);
+  const ids = state.slots.filter((s): s is Star => s !== null).map((s) => s.id);
+  expect(new Set(ids).size, "one star per slot, one slot per star").toBe(ids.length);
+  for (const id of ids) expect(id).toBeLessThan(state.nextId);
+  const markerSlots = new Set(state.markers.map((m) => navigationSlotOf(state.config, m.ring, m.octant)));
+  expect(markerSlots.size).toBe(state.markers.length);
+  expect(state.markers.length).toBeGreaterThan(0);
+  expect(state.markers.length).toBeLessThanOrEqual(state.config.maxStars);
+  expect(isComplete(state), "a completed constellation never survives a move").toBe(false);
+  expect(navigationFindRuns(state.config, state.slots, state.markers), "no run of loose stars survives a move").toEqual([]);
+  expect(state.falling.landTick).toBeGreaterThan(state.falling.startTick);
+  expect(state.falling.landTick).toBeGreaterThan(state.tick);
+  expect(state.score).toBeGreaterThanOrEqual(0);
+  expect(state.tick).toBeLessThanOrEqual(state.config.maxTick);
+}
+
 describe("navigation chart", () => {
-  it("starts empty with a constellation of startStars distinct slots", () => {
+  it("starts empty with a constellation of startStars distinct slots and a star in the sky", () => {
     fc.assert(
       fc.property(fc.string(), (seed) => {
         const s = createNavigationGame(seed);
@@ -63,9 +95,29 @@ describe("navigation chart", () => {
         const slots = new Set(s.markers.map((m) => navigationSlotOf(cfg, m.ring, m.octant)));
         expect(slots.size).toBe(s.markers.length);
         for (const m of s.markers) expect(m.kind).toBeLessThan(cfg.shapes * cfg.colors);
+        expect(s.falling.startTick).toBe(0);
+        expect(s.falling.landTick).toBe(cfg.fallTicks);
         expect(s.finished).toBe(false);
       }),
     );
+  });
+
+  it("the fall quickens from fallTicks to fallTicksMin over the round", () => {
+    expect(navigationFallDuration(cfg, 0)).toBe(cfg.fallTicks);
+    expect(navigationFallDuration(cfg, cfg.maxTick)).toBe(cfg.fallTicksMin);
+    let last = cfg.fallTicks;
+    for (let t = 0; t <= cfg.maxTick; t += 50) {
+      const d = navigationFallDuration(cfg, t);
+      expect(d).toBeLessThanOrEqual(last);
+      expect(d).toBeGreaterThanOrEqual(cfg.fallTicksMin);
+      last = d;
+    }
+  });
+
+  it("rejects a bad config", () => {
+    expect(() => createNavigationGame("x", { ...cfg, fallTicksMin: cfg.fallTicks + 1 })).toThrow();
+    expect(() => createNavigationGame("x", { ...cfg, maxStars: cfg.rings * cfg.octants + 1 })).toThrow();
+    expect(() => createNavigationGame("x", { ...cfg, shapes: 1, colors: 1 })).toThrow();
   });
 });
 
@@ -95,9 +147,9 @@ describe("navigation determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         let state = createNavigationGame(seed);
-        for (const p of picks) {
+        for (let i = 0; i + 1 < picks.length; i += 2) {
           if (state.finished) break;
-          const m = moveFor(state, p);
+          const m = moveFor(state, picks[i]!, picks[i + 1]!);
           const before = JSON.stringify(state);
           reduceNavigation(state, m);
           expect(JSON.stringify(state)).toBe(before);
@@ -107,6 +159,27 @@ describe("navigation determinism (ADR 0003)", () => {
       { numRuns: 50 },
     );
   });
+
+  it("advancing to a tick shows the same chart a wait logged at that tick produces", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, fc.nat({ max: 200 }), (seed, picks, ahead) => {
+        const { state } = playRandom(seed, picks);
+        fc.pre(!state.finished);
+        const tick = Math.min(cfg.maxTick, state.tick + ahead);
+        fc.pre(tick > state.tick);
+        const shown = advanceNavigation(state, tick);
+        const logged = reduceNavigation(state, { type: "wait", tick });
+        expect(shown.slots).toEqual(logged.slots);
+        expect(shown.markers).toEqual(logged.markers);
+        expect(shown.falling).toEqual(logged.falling);
+        expect(shown.score).toBe(logged.score);
+        expect(shown.lastMove?.events).toEqual(logged.lastMove?.events);
+        expect(shown.logLength).toBe(state.logLength);
+        expect(logged.logLength).toBe(state.logLength + 1);
+      }),
+      { numRuns: 100 },
+    );
+  });
 });
 
 describe("navigation rules", () => {
@@ -114,22 +187,24 @@ describe("navigation rules", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         let state = createNavigationGame(seed);
-        for (const p of picks) {
+        for (let i = 0; i + 1 < picks.length; i += 2) {
           if (state.finished) break;
-          const m = moveFor(state, p);
+          const m = moveFor(state, picks[i]!, picks[i + 1]!);
           const next = reduceNavigation(state, m);
-          // Markers are distinct slots and a completed constellation never survives a move.
-          const slots = new Set(next.markers.map((x) => navigationSlotOf(cfg, x.ring, x.octant)));
-          expect(slots.size).toBe(next.markers.length);
-          expect(isComplete(next)).toBe(false);
-          // Ids are unique; a rotation keeps the same stars on the ring.
-          const ids = next.slots.filter((s): s is Star => s !== null).map((s) => s.id);
-          expect(new Set(ids).size).toBe(ids.length);
-          if (m.type === "rotate" && next.lastMove?.completions.length === 0) {
-            expect(ringKinds(next, m.ring)).toEqual(ringKinds(state, m.ring));
-            for (let r = 0; r < cfg.rings; r++) if (r !== m.ring) expect(ringKinds(next, r)).toEqual(ringKinds(state, r));
+          expectInvariants(next);
+          expect(next.tick).toBe(m.tick);
+          if (m.type === "rotate") {
+            // A turn keeps the ring's stars (unless it charted or cleared some).
+            if (!next.lastMove!.events.length) expect(ringIds(next, m.ring)).toEqual(ringIds(state, m.ring));
+            expect(next.moveCount).toBe(state.moveCount + 1);
           }
-          expect(next.score).toBeGreaterThanOrEqual(0);
+          if (m.type === "wait") expect(next.moveCount).toBe(state.moveCount);
+          expect(next.logLength).toBe(state.logLength + 1);
+          // Every event is newer than the last.
+          const seqs = next.lastMove!.events.map((e) => e.seq);
+          for (let k = 1; k < seqs.length; k++) expect(seqs[k]).toBeGreaterThan(seqs[k - 1]!);
+          if (seqs.length) expect(seqs[0]).toBe(state.eventSeq + 1);
+          expect(next.eventSeq).toBe(state.eventSeq + seqs.length);
           state = next;
         }
       }),
@@ -137,114 +212,241 @@ describe("navigation rules", () => {
     );
   });
 
-  it("a rotation carries every star one octant clockwise for dir +1", () => {
-    const base = createNavigationGame("spin");
-    const slots = base.slots.slice();
-    slots[navigationSlotOf(cfg, 1, 0)] = { id: 100, kind: 0 };
-    slots[navigationSlotOf(cfg, 1, cfg.octants - 1)] = { id: 101, kind: 1 };
-    const state: NavigationState = { ...base, slots, markers: [] };
-    const next = reduceNavigation(state, { type: "rotate", ring: 1, dir: 1 });
-    expect(next.slots[navigationSlotOf(cfg, 1, 1)]?.id).toBe(100);
-    expect(next.slots[navigationSlotOf(cfg, 1, 0)]?.id).toBe(101);
-    expect(next.moveCount).toBe(0);
-    expect(next.logLength).toBe(1);
+  it("time only moves forward and never past the round", () => {
+    const s = createNavigationGame("t");
+    const later = reduceNavigation(s, { type: "wait", tick: 50 });
+    expect(() => reduceNavigation(later, { type: "wait", tick: 49 })).toThrow(InvalidMoveError);
+    expect(() => reduceNavigation(later, { type: "rotate", ring: 0, dir: 1, tick: cfg.maxTick + 1 })).toThrow(InvalidMoveError);
+    expect(() => reduceNavigation(later, { type: "rotate", ring: cfg.rings, dir: 1, tick: 60 })).toThrow(InvalidMoveError);
+    const end = reduceNavigation(later, { type: "wait", tick: cfg.maxTick });
+    expect(end.finished).toBe(true);
+    expect(() => reduceNavigation(end, { type: "wait", tick: cfg.maxTick })).toThrow(InvalidMoveError);
   });
 
-  it("a dropped star lands on the innermost empty slot of its octant", () => {
-    const base = createNavigationGame("land");
-    const o = base.current.octant;
-    const slots = base.slots.slice();
-    slots[navigationSlotOf(cfg, 0, o)] = { id: 100, kind: 0 };
-    const state: NavigationState = { ...base, slots, markers: [] };
-    expect(navigationLandingSlot(state)).toBe(navigationSlotOf(cfg, 1, o));
-    const next = reduceNavigation(state, { type: "drop" });
-    expect(next.lastMove?.landed?.slot).toBe(navigationSlotOf(cfg, 1, o));
-    expect(next.slots[navigationSlotOf(cfg, 1, o)]?.kind).toBe(base.current.kind);
-    expect(next.current).toEqual(base.next);
-    expect(next.moveCount).toBe(1);
+  it("a star comes down by itself when its fall ends, landing at the center of the entry octant on an empty chart", () => {
+    const s = createNavigationGame("fall");
+    const before = reduceNavigation(s, { type: "wait", tick: s.falling.landTick - 1 });
+    expect(before.landings).toBe(0);
+    const after = reduceNavigation(before, { type: "wait", tick: s.falling.landTick });
+    expect(after.landings).toBe(1);
+    const land = after.lastMove!.events.find((e) => e.type === "land");
+    expect(land).toBeDefined();
+    if (land?.type === "land") {
+      expect(land.slot).toBe(navigationSlotOf(cfg, 0, NAVIGATION_ENTRY_OCTANT));
+      expect(land.kind).toBe(s.falling.kind);
+      expect(land.tick).toBe(s.falling.landTick);
+    }
+    // The next star set off the moment the last came down.
+    expect(after.falling.kind).toBe(s.next);
+    expect(after.falling.startTick).toBe(s.falling.landTick);
+    expect(after.falling.landTick).toBe(s.falling.landTick + navigationFallDuration(cfg, s.falling.landTick));
   });
 
-  it("a drop into a full octant is a booch: the octant is swept, points are lost, the combo resets", () => {
-    const base = createNavigationGame("booch");
-    const o = base.current.octant;
-    const slots = base.slots.slice();
-    for (let r = 0; r < cfg.rings; r++) slots[navigationSlotOf(cfg, r, o)] = { id: 100 + r, kind: 0 };
-    const state: NavigationState = { ...base, slots, markers: [], score: 100, combo: 3 };
-    const next = reduceNavigation(state, { type: "drop" });
-    expect(next.lastMove?.booch).toEqual({ octant: o, ids: [100, 101, 102], penalty: cfg.boochPenalty });
-    for (let r = 0; r < cfg.rings; r++) expect(next.slots[navigationSlotOf(cfg, r, o)]).toBeNull();
-    expect(next.score).toBe(100 - cfg.boochPenalty);
-    expect(next.combo).toBe(0);
-    const broke = reduceNavigation({ ...state, score: 5 }, { type: "drop" });
-    expect(broke.score).toBe(0);
+  it("a long wait brings down every star whose fall ended, in order", () => {
+    const s = createNavigationGame("many");
+    const tick = cfg.fallTicks * 3;
+    const after = reduceNavigation(s, { type: "wait", tick });
+    const lands = after.lastMove!.events.filter((e) => e.type === "land" || e.type === "booch");
+    expect(lands.length).toBe(after.landings);
+    expect(after.landings).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < lands.length; i++) expect(lands[i]!.tick).toBeGreaterThanOrEqual(lands[i - 1]!.tick);
   });
 
-  it("completing a constellation scores n*n*starPoints times the chain, plus the efficiency bonus, and deals a new one", () => {
-    const base = createNavigationGame("complete");
-    const o = base.current.octant;
+  it("a star falls inward until it meets another, and rests outside it", () => {
+    const s = createNavigationGame("stack");
+    const top = (r: number): number => navigationSlotOf(cfg, r, NAVIGATION_ENTRY_OCTANT);
+    expect(navigationLandingSlot(s)).toBe(top(0));
+    expect(navigationLandingSlot(withStars(s, { [top(0)]: 0 }))).toBe(top(1));
+    expect(navigationLandingSlot(withStars(s, { [top(0)]: 0, [top(1)]: 0 }))).toBe(top(2));
+    // A star on the middle ring with the center empty still blocks: the new star rests outside it.
+    expect(navigationLandingSlot(withStars(s, { [top(1)]: 0 }))).toBe(top(2));
+    // The outer slot taken means no room at all.
+    expect(navigationLandingSlot(withStars(s, { [top(2)]: 0 }))).toBeNull();
+  });
+
+  it("a drop brings the star down now", () => {
+    const s = createNavigationGame("drop");
+    const dropped = reduceNavigation(s, { type: "drop", tick: 5 });
+    expect(dropped.landings).toBe(1);
+    expect(dropped.lastMove!.events[0]!.type).toBe("land");
+    expect(dropped.falling.startTick).toBe(5);
+    expect(dropped.moveCount).toBe(1);
+  });
+
+  it("a drop on the tick a star came down on its own is not a second drop", () => {
+    const s = createNavigationGame("double");
+    const dropped = reduceNavigation(s, { type: "drop", tick: s.falling.landTick });
+    expect(dropped.landings).toBe(1);
+    expect(dropped.falling.kind).toBe(s.next);
+  });
+
+  it("a star arriving at a blocked octant is a booch: the octant is swept, points are lost, the chain breaks", () => {
+    const s = createNavigationGame("booch");
+    const top = (r: number): number => navigationSlotOf(cfg, r, NAVIGATION_ENTRY_OCTANT);
+    const far: Marker[] = [{ ring: 0, octant: 4, kind: 0 }];
+    const kinds = [1, 2, 4];
+    const blocked = { ...withStars(s, { [top(0)]: kinds[0]!, [top(1)]: kinds[1]!, [top(2)]: kinds[2]! }, far), score: 100, combo: 3 };
+    const after = reduceNavigation(blocked, { type: "drop", tick: 3 });
+    const booch = after.lastMove!.events.find((e) => e.type === "booch");
+    expect(booch).toBeDefined();
+    if (booch?.type === "booch") {
+      expect(booch.octant).toBe(NAVIGATION_ENTRY_OCTANT);
+      expect(booch.ids.length).toBe(cfg.rings);
+    }
+    // Only the outer slot need be taken for a booch; the sweep takes what is there.
+    const thin = withStars(s, { [top(2)]: 2 }, far);
+    const swept = reduceNavigation(thin, { type: "drop", tick: 3 });
+    const ev = swept.lastMove!.events.find((e) => e.type === "booch");
+    if (ev?.type === "booch") {
+      expect(ev.ids.length).toBe(1);
+      expect(swept.slots[top(2)]).toBeNull();
+      expect(ev.penalty).toBe(cfg.boochPenalty);
+    }
+    for (let r = 0; r < cfg.rings; r++) expect(after.slots[top(r)]).toBeNull();
+    expect(after.score).toBe(100 - cfg.boochPenalty);
+    expect(after.combo).toBe(0);
+    expect(after.booches).toBe(1);
+    expect(after.landings).toBe(1);
+  });
+
+  it("the score never goes below zero on a booch", () => {
+    const s = createNavigationGame("floor");
+    const top = (r: number): number => navigationSlotOf(cfg, r, NAVIGATION_ENTRY_OCTANT);
+    const blocked = withStars(s, { [top(0)]: 1, [top(1)]: 2, [top(2)]: 4 }, [{ ring: 0, octant: 4, kind: 0 }]);
+    expect(reduceNavigation(blocked, { type: "drop", tick: 1 }).score).toBe(0);
+  });
+
+  it("filling the last marker charts the constellation, scores n*n*starPoints times the chain, and deals a new one", () => {
+    const s = createNavigationGame("chart");
     const markers: Marker[] = [
-      { ring: 0, octant: (o + 1) % cfg.octants, kind: 2 },
-      { ring: 1, octant: o, kind: base.current.kind },
+      { ring: 1, octant: 2, kind: 3 },
+      { ring: 1, octant: 3, kind: 5 },
+      { ring: 2, octant: 6, kind: 1 },
     ];
-    const slots = base.slots.slice();
-    slots[navigationSlotOf(cfg, 0, (o + 1) % cfg.octants)] = { id: 100, kind: 2 };
-    slots[navigationSlotOf(cfg, 0, o)] = { id: 101, kind: 5 };
-    const state: NavigationState = { ...base, slots, markers, combo: 1, dropsSinceDeal: 0 };
-    const next = reduceNavigation(state, { type: "drop" });
-    expect(next.lastMove?.completions.length).toBe(1);
-    const c = next.lastMove!.completions[0]!;
-    expect(c.chain).toBe(2);
-    expect(c.efficient).toBe(true);
-    expect(c.points).toBe(2 * 2 * cfg.starPoints * 2 + cfg.efficiencyBonus);
-    expect(next.score).toBe(c.points);
-    expect(next.combo).toBe(2);
-    expect(next.completed).toBe(1);
-    expect(next.dropsSinceDeal).toBe(0);
-    expect(next.slots[navigationSlotOf(cfg, 0, (o + 1) % cfg.octants)]).toBeNull();
-    expect(next.slots[navigationSlotOf(cfg, 1, o)]).toBeNull();
-    expect(next.slots[navigationSlotOf(cfg, 0, o)]?.id).toBe(101);
-    expect(next.markers.length).toBe(cfg.startStars);
-    expect(isComplete(next)).toBe(false);
+    // Two of three in place; the third sits one octant off on ring 2.
+    const slot = (r: number, o: number): number => navigationSlotOf(cfg, r, o);
+    const ready = { ...withStars(s, { [slot(1, 2)]: 3, [slot(1, 3)]: 5, [slot(2, 5)]: 1 }, markers), combo: 1, landingsSinceDeal: 4 };
+    expect(navigationFilledCount(cfg, ready.slots, ready.markers)).toBe(2);
+    const after = reduceNavigation(ready, { type: "rotate", ring: 2, dir: 1, tick: 2 });
+    const charted = after.lastMove!.events.find((e) => e.type === "charted");
+    expect(charted).toBeDefined();
+    if (charted?.type === "charted") {
+      expect(charted.completion.chain).toBe(2);
+      expect(charted.completion.efficient).toBe(true);
+      expect(charted.completion.points).toBe(3 * 3 * cfg.starPoints * 2 + cfg.efficiencyBonus);
+      expect(charted.completion.ids.length).toBe(3);
+    }
+    expect(after.completed).toBe(1);
+    expect(after.combo).toBe(2);
+    expect(after.bestCombo).toBe(2);
+    expect(after.landingsSinceDeal).toBe(0);
+    for (const m of markers) expect(after.slots[slot(m.ring, m.octant)]).toBeNull();
+    expect(after.markers).not.toEqual(markers);
+    expect(after.markers.length).toBe(cfg.startStars);
   });
 
-  it("a slow completion earns no efficiency bonus and constellations grow with completions", () => {
-    const base = createNavigationGame("slow");
-    const o = base.current.octant;
-    const markers: Marker[] = [{ ring: 0, octant: o, kind: base.current.kind }];
-    const state: NavigationState = { ...base, markers, dropsSinceDeal: 10, completed: 4 };
-    const next = reduceNavigation(state, { type: "drop" });
-    expect(next.lastMove?.completions[0]?.efficient).toBe(false);
-    expect(next.lastMove?.completions[0]?.points).toBe(cfg.starPoints);
-    expect(next.markers.length).toBe(Math.min(cfg.maxStars, cfg.startStars + Math.floor(5 / 2)));
+  it("a constellation taking more than 2n landings earns no efficiency bonus", () => {
+    const s = createNavigationGame("slow");
+    const markers: Marker[] = [{ ring: 0, octant: 1, kind: 2 }];
+    const ready = { ...withStars(s, { [navigationSlotOf(cfg, 0, 0)]: 2 }, markers), landingsSinceDeal: 3 };
+    const after = reduceNavigation(ready, { type: "rotate", ring: 0, dir: 1, tick: 1 });
+    const charted = after.lastMove!.events.find((e) => e.type === "charted");
+    if (charted?.type === "charted") {
+      expect(charted.completion.efficient).toBe(false);
+      expect(charted.completion.points).toBe(cfg.starPoints);
+    } else throw new Error("no completion");
   });
 
-  it("rotating a ring onto its markers completes the constellation too", () => {
-    const base = createNavigationGame("turn");
-    const markers: Marker[] = [{ ring: 2, octant: 3, kind: 1 }];
-    const slots = base.slots.slice();
-    slots[navigationSlotOf(cfg, 2, 2)] = { id: 100, kind: 1 };
-    const state: NavigationState = { ...base, slots, markers };
-    const next = reduceNavigation(state, { type: "rotate", ring: 2, dir: 1 });
-    expect(next.lastMove?.completions.length).toBe(1);
-    expect(next.slots.every((s) => s === null)).toBe(true);
+  it("constellations grow with completions up to maxStars", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        const { state } = playRandom(seed, picks);
+        expect(state.markers.length).toBe(Math.min(cfg.maxStars, cfg.startStars + Math.floor(state.completed / 2)));
+      }),
+      { numRuns: 30 },
+    );
   });
 
-  it("rejects bad rings and directions, and moves after the end", () => {
-    const base = createNavigationGame("illegal");
-    expect(() => reduceNavigation(base, { type: "rotate", ring: cfg.rings, dir: 1 })).toThrow(InvalidMoveError);
-    expect(() => reduceNavigation(base, { type: "rotate", ring: 0, dir: 2 as 1 })).toThrow(InvalidMoveError);
-    const ended = reduceNavigation(base, { type: "end" });
-    expect(ended.finished).toBe(true);
-    expect(() => reduceNavigation(ended, { type: "drop" })).toThrow(InvalidMoveError);
+  it("three loose stars of a kind in a row around a ring clear for runPoints * (n - 2)", () => {
+    const s = createNavigationGame("run");
+    const slot = (r: number, o: number): number => navigationSlotOf(cfg, r, o);
+    const markers: Marker[] = [{ ring: 0, octant: 0, kind: 7 }];
+    const ready = withStars(s, { [slot(1, 3)]: 4, [slot(1, 4)]: 4, [slot(1, 6)]: 4 }, markers);
+    expect(navigationFindRuns(cfg, ready.slots, ready.markers)).toEqual([]);
+    // Turning ring 1 can't bring them together; place the third next to them instead and turn ring 0 as the move.
+    const lined = withStars(s, { [slot(1, 3)]: 4, [slot(1, 4)]: 4, [slot(1, 5)]: 4 }, markers);
+    const runs = navigationFindRuns(cfg, lined.slots, lined.markers);
+    expect(runs.length).toBe(1);
+    expect(runs[0]!.slots).toEqual([slot(1, 3), slot(1, 4), slot(1, 5)]);
+    expect(runs[0]!.points).toBe(cfg.runPoints);
+    const after = reduceNavigation(lined, { type: "rotate", ring: 0, dir: 1, tick: 1 });
+    expect(after.lastMove!.events.some((e) => e.type === "run")).toBe(true);
+    expect(after.score).toBe(cfg.runPoints);
+    expect(after.runsCleared).toBe(1);
+    for (let o = 3; o <= 5; o++) expect(after.slots[slot(1, o)]).toBeNull();
   });
 
-  it("finishes at maxDrops, and at maxMoves of log even without drops", () => {
-    const { state } = playRandom("short", Array.from({ length: 200 }, (_, i) => i * 31), { ...cfg, maxDrops: 5, maxMoves: 500 });
-    expect(state.moveCount).toBe(5);
-    expect(state.finished).toBe(true);
-    let s = createNavigationGame("spinny", { ...cfg, maxDrops: 4, maxMoves: 4 });
-    for (let i = 0; i < 4; i++) s = reduceNavigation(s, { type: "rotate", ring: 0, dir: 1 });
+  it("runs wrap around the ring and are counted once", () => {
+    const s = createNavigationGame("wrap");
+    const slot = (r: number, o: number): number => navigationSlotOf(cfg, r, o);
+    const lined = withStars(s, { [slot(2, 7)]: 1, [slot(2, 0)]: 1, [slot(2, 1)]: 1, [slot(2, 2)]: 1 }, [{ ring: 0, octant: 0, kind: 7 }]);
+    const runs = navigationFindRuns(cfg, lined.slots, lined.markers);
+    expect(runs.length).toBe(1);
+    expect(runs[0]!.slots.length).toBe(4);
+    expect(runs[0]!.points).toBe(cfg.runPoints * 2);
+    const full: Record<number, number> = {};
+    for (let o = 0; o < cfg.octants; o++) full[slot(0, o)] = 2;
+    const ring = navigationFindRuns(cfg, withStars(s, full, [{ ring: 2, octant: 0, kind: 7 }]).slots, [{ ring: 2, octant: 0, kind: 7 }]);
+    expect(ring.length).toBe(1);
+    expect(ring[0]!.slots.length).toBe(cfg.octants);
+  });
+
+  it("a full octant of one kind clears down the rings", () => {
+    const s = createNavigationGame("column");
+    const slot = (r: number, o: number): number => navigationSlotOf(cfg, r, o);
+    const lined = withStars(s, { [slot(0, 5)]: 6, [slot(1, 5)]: 6, [slot(2, 5)]: 6 }, [{ ring: 0, octant: 0, kind: 7 }]);
+    const runs = navigationFindRuns(cfg, lined.slots, lined.markers);
+    expect(runs.length).toBe(1);
+    expect(runs[0]!.slots).toEqual([slot(0, 5), slot(1, 5), slot(2, 5)]);
+  });
+
+  it("a star on its marker is charted, not loose: it never joins a run", () => {
+    const s = createNavigationGame("safe");
+    const slot = (r: number, o: number): number => navigationSlotOf(cfg, r, o);
+    const markers: Marker[] = [
+      { ring: 1, octant: 4, kind: 4 },
+      { ring: 0, octant: 0, kind: 7 },
+    ];
+    const lined = withStars(s, { [slot(1, 3)]: 4, [slot(1, 4)]: 4, [slot(1, 5)]: 4 }, markers);
+    expect(navigationFindRuns(cfg, lined.slots, lined.markers)).toEqual([]);
+  });
+
+  it("the hint points at a turn that fills a marker, or at opening the column", () => {
+    const s = createNavigationGame("hint");
+    const slot = (r: number, o: number): number => navigationSlotOf(cfg, r, o);
+    // A gold spark one octant short of its marker: turn ring 1 clockwise.
+    const near = withStars(s, { [slot(1, 2)]: 0 }, [{ ring: 1, octant: 3, kind: 0 }]);
+    expect(navigationHint(near)).toEqual({ ring: 1, dir: 1 });
+    // The star in the sky wants the outer ring, but the outer slot above the entry is taken: move it.
+    const blocked = { ...withStars(s, { [slot(2, 0)]: 5, [slot(0, 0)]: 5, [slot(1, 0)]: 5 }, [{ ring: 2, octant: 2, kind: 1 }]), falling: { ...s.falling, kind: 1 } };
+    const h = navigationHint(blocked);
+    expect(h).not.toBeNull();
+    expect(h!.ring).toBe(2);
+    // Nothing on the chart and a star no marker wants: no hint.
+    const idle = { ...withStars(s, {}, [{ ring: 0, octant: 0, kind: 3 }]), falling: { ...s.falling, kind: 4 } };
+    expect(navigationHint(idle)).toBeNull();
+  });
+
+  it("the round ends on the clock or when the log is full", () => {
+    const small: NavigationConfig = { ...cfg, maxMoves: 3 };
+    let s = createNavigationGame("log", small);
+    s = reduceNavigation(s, { type: "rotate", ring: 0, dir: 1, tick: 1 });
+    s = reduceNavigation(s, { type: "wait", tick: 2 });
+    expect(s.finished).toBe(false);
+    s = reduceNavigation(s, { type: "rotate", ring: 1, dir: -1, tick: 3 });
     expect(s.finished).toBe(true);
-    expect(s.moveCount).toBe(0);
+    const ended = reduceNavigation(createNavigationGame("end"), { type: "end", tick: 10 });
+    expect(ended.finished).toBe(true);
+    expect(ended.moveCount).toBe(0);
   });
 });

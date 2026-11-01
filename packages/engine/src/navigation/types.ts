@@ -1,11 +1,16 @@
 /**
- * Navigation: a star chart of concentric rings split into octants. Stars fall from the rim toward
- * the center, one at a time, into an octant the chart deals. The navigator turns the rings so each
- * star lands on, or is later carried onto, the hollow marker of its kind. When every marker of the
- * constellation holds its star the constellation completes and a larger one is dealt.
+ * Navigation: a round star chart of concentric rings split into octants. Stars fall one at a time
+ * from the sky above the chart into the top octant, on the engine's clock, and come to rest against
+ * the first star they meet (or at the center). The navigator turns the rings so each star lands
+ * where the constellation wants it, or is carried onto its marker later. When every marker of the
+ * constellation holds its star the constellation is charted and a larger one is dealt. Three or
+ * more loose stars of a kind in a row, around a ring or down an octant, clear.
  *
- * Slot index = ring * octants + octant. Ring 0 is innermost. Octant 0 is at the top; octants
- * increase clockwise. Rotating a ring by +1 carries every star on it to octant + 1.
+ * Slot index = ring * octants + octant. Ring 0 is innermost. Octant 0 is at the top, where stars
+ * enter; octants increase clockwise. Rotating a ring by +1 carries every star on it to octant + 1.
+ *
+ * Time is data: every move carries the integer `tick` it happens at, and the reducer lands any
+ * star whose fall ends by that tick first. Nothing here reads a clock (ADR 0003, ADR 0015).
  */
 
 import type { PrngState } from "../prng.js";
@@ -23,14 +28,22 @@ export interface NavigationConfig {
   readonly reuseChancePercent: number;
   /** Points per completion are n * n * starPoints, times the chain. */
   readonly starPoints: number;
-  /** Added when a constellation of n markers completes within 2n drops of being dealt. */
+  /** Added when a constellation of n markers completes within 2n landings of being dealt. */
   readonly efficiencyBonus: number;
-  /** Lost when a star is dropped into a full octant. Score never goes below zero. */
+  /** A run of n loose stars of a kind scores runPoints * (n - 2). */
+  readonly runPoints: number;
+  /** Lost when a star arrives at a blocked octant. Score never goes below zero. */
   readonly boochPenalty: number;
-  /** The round ends after this many drops. */
-  readonly maxDrops: number;
-  /** Longest move log the server accepts: drops plus rotations. */
+  /** Wall-clock ms per tick on the client; the server uses it to bound claimed ticks. */
+  readonly tickMs: number;
+  /** No move may claim a tick beyond this; the round is over by then. */
+  readonly maxTick: number;
+  /** Longest move log the server accepts: turns, drops and waits. */
   readonly maxMoves: number;
+  /** Ticks a star takes to fall at the start of the round. */
+  readonly fallTicks: number;
+  /** Ticks a star takes to fall by the end of the round; the fall quickens evenly towards it. */
+  readonly fallTicksMin: number;
 }
 
 export const DEFAULT_NAVIGATION_CONFIG: NavigationConfig = {
@@ -43,9 +56,13 @@ export const DEFAULT_NAVIGATION_CONFIG: NavigationConfig = {
   reuseChancePercent: 50,
   starPoints: 10,
   efficiencyBonus: 30,
+  runPoints: 5,
   boochPenalty: 40,
-  maxDrops: 80,
-  maxMoves: 1200,
+  tickMs: 100,
+  maxTick: 1500,
+  maxMoves: 2000,
+  fallTicks: 36,
+  fallTicksMin: 18,
 };
 
 export interface Star {
@@ -60,18 +77,21 @@ export interface Marker {
   readonly kind: number;
 }
 
-/** The star about to fall: what it is and the octant the chart dealt it. */
+/** The star in the sky: what it is, when it set off and when it comes down. */
 export interface FallingStar {
   readonly kind: number;
-  readonly octant: number;
+  readonly startTick: number;
+  readonly landTick: number;
 }
 
 export type NavigationMove =
   /** Turn one ring by one octant: dir +1 is clockwise. */
-  | { readonly type: "rotate"; readonly ring: number; readonly dir: -1 | 1 }
-  /** Let the current star fall into its octant. */
-  | { readonly type: "drop" }
-  | { readonly type: "end" };
+  | { readonly type: "rotate"; readonly ring: number; readonly dir: -1 | 1; readonly tick: number }
+  /** Bring the falling star down now instead of waiting out its fall. */
+  | { readonly type: "drop"; readonly tick: number }
+  /** Nothing but time passing, so landings in flight reach the server. */
+  | { readonly type: "wait"; readonly tick: number }
+  | { readonly type: "end"; readonly tick: number };
 
 export interface Completion {
   readonly markers: readonly Marker[];
@@ -82,33 +102,52 @@ export interface Completion {
   readonly points: number;
 }
 
+export interface Run {
+  readonly kind: number;
+  /** Slots cleared, in order along the ring or down the octant. */
+  readonly slots: readonly number[];
+  readonly ids: readonly number[];
+  readonly points: number;
+}
+
+export type NavigationEvent =
+  /** A star came to rest. */
+  | { readonly seq: number; readonly tick: number; readonly type: "land"; readonly slot: number; readonly id: number; readonly kind: number; readonly onMarker: boolean }
+  /** A star arrived at a blocked octant: the octant is swept clear. */
+  | { readonly seq: number; readonly tick: number; readonly type: "booch"; readonly octant: number; readonly ids: readonly number[]; readonly penalty: number }
+  | { readonly seq: number; readonly tick: number; readonly type: "charted"; readonly completion: Completion }
+  | { readonly seq: number; readonly tick: number; readonly type: "run"; readonly run: Run };
+
 export interface NavigationMoveReport {
   readonly move: NavigationMove;
-  /** Where the dropped star came to rest. */
-  readonly landed: { readonly slot: number; readonly id: number } | null;
-  /** A drop into a full octant: the stars swept off the chart. */
-  readonly booch: { readonly octant: number; readonly ids: readonly number[]; readonly penalty: number } | null;
-  /** Constellations completed by this move, in order (a drop can complete one, and the redeal can complete another at once). */
-  readonly completions: readonly Completion[];
+  /** Everything that happened from the previous state's tick up to and including this move's tick. */
+  readonly events: readonly NavigationEvent[];
   readonly points: number;
 }
 
 export interface NavigationState {
   readonly config: NavigationConfig;
+  readonly tick: number;
   /** Index = ring * octants + octant. Null is empty. */
   readonly slots: ReadonlyArray<Star | null>;
   readonly markers: readonly Marker[];
-  readonly current: FallingStar;
-  readonly next: FallingStar;
+  readonly falling: FallingStar;
+  /** The kind of the star after the falling one. */
+  readonly next: number;
   readonly rng: PrngState;
   readonly nextId: number;
-  /** Drops so far. Rotations are free. */
+  readonly eventSeq: number;
+  /** Logged moves other than waits: turns and drops. */
   readonly moveCount: number;
-  /** Every move in the log, rotations included. */
+  /** Every move in the log, waits included. */
   readonly logLength: number;
-  /** Drops since the current constellation was dealt, for the efficiency bonus. */
-  readonly dropsSinceDeal: number;
+  /** Stars that have come down, booches included. */
+  readonly landings: number;
+  /** Landings since the current constellation was dealt, for the efficiency bonus. */
+  readonly landingsSinceDeal: number;
   readonly completed: number;
+  readonly booches: number;
+  readonly runsCleared: number;
   readonly score: number;
   /** Consecutive completions without a booch. */
   readonly combo: number;

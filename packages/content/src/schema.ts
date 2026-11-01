@@ -243,9 +243,16 @@ export const NavigationContentSchema = DutyPuzzleBaseSchema.extend({
     reuseChancePercent: z.int().min(0).max(100),
     starPoints: z.int().min(0),
     efficiencyBonus: z.int().min(0),
+    /** A run of n loose stars of a kind scores runPoints * (n - 2). */
+    runPoints: z.int().min(0),
     boochPenalty: z.int().min(0),
-    maxDrops: z.int().min(1),
+    /** Wall-clock ms per tick on the client; the server bounds claimed ticks with it. */
+    tickMs: z.int().min(20).max(5000),
+    maxTick: z.int().min(1),
     maxMoves: z.int().min(1),
+    /** Ticks a star takes to fall at the start of the round, and by the end. */
+    fallTicks: z.int().min(1),
+    fallTicksMin: z.int().min(1),
   }),
   colors: z.array(StarColorSchema).min(1),
   shapes: z.array(StarShapeSchema).min(1),

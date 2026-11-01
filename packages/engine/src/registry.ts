@@ -135,6 +135,7 @@ export const NAVIGATION_DEF: PuzzleDef<NavigationState, NavigationMove, Navigati
   summarize: summarizeNavigation,
   isFinished: (s) => s.finished,
   maxMoves: (c) => c.maxMoves,
+  moveTimeMs: (m, c) => m.tick * c.tickMs,
 };
 
 export const GUNNERY_DEF: PuzzleDef<GunneryState, GunneryMove, GunneryConfig> = {

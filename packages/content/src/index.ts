@@ -149,8 +149,9 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
     const nav = puzzles.navigation;
     if (nav.colors.length < nav.config.colors) problems.push(`puzzles/navigation: ${nav.config.colors} colors but only ${nav.colors.length} defined`);
     if (nav.shapes.length < nav.config.shapes) problems.push(`puzzles/navigation: ${nav.config.shapes} shapes but only ${nav.shapes.length} defined`);
+    if (nav.config.maxTick * nav.config.tickMs < nav.roundSeconds * 1000) problems.push("puzzles/navigation: maxTick * tickMs must cover roundSeconds");
+    if (nav.config.fallTicksMin > nav.config.fallTicks) problems.push("puzzles/navigation: fallTicksMin above fallTicks");
     if (nav.config.maxStars > nav.config.rings * nav.config.octants) problems.push("puzzles/navigation: maxStars exceeds the chart's slots");
-    if (nav.config.maxMoves < nav.config.maxDrops) problems.push("puzzles/navigation: maxMoves must be at least maxDrops");
     const seenColor = new Set<string>();
     const seenMark = new Set<string>();
     for (const c of nav.colors) {
