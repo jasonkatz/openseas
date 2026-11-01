@@ -123,8 +123,9 @@ function dealConstellation(cfg: NavigationConfig, slots: ReadonlyArray<Star | nu
 
 /**
  * Where a star falling into the entry octant comes to rest on these slots: it falls inward until
- * it meets a star, and rests in the ring outside it (or at the center). Null when the outermost
- * slot is taken, so there is no room: a booch.
+ * it meets a star, and rests in the ring outside it (or at the center). Columns are always packed
+ * toward the center, so this is the innermost empty slot. Null when the outermost slot is taken,
+ * so there is no room: a booch.
  */
 export function landingSlotOn(cfg: NavigationConfig, slots: ReadonlyArray<Star | null>): number | null {
   for (let r = cfg.rings - 1; r >= 0; r--) {
@@ -260,7 +261,7 @@ export function hint(state: NavigationState): NavigationHint | null {
   for (let r = 0; r < cfg.rings; r++) {
     for (let d = -half; d <= half; d++) {
       if (d === 0) continue;
-      const gain = filledCount(cfg, rotated(cfg, state.slots, r, d), state.markers) - before;
+      const gain = filledCount(cfg, settled(cfg, rotated(cfg, state.slots, r, d)).slots, state.markers) - before;
       if (gain <= 0) continue;
       const steps = Math.abs(d);
       if (!best || gain > best.gain || (gain === best.gain && steps < best.steps)) best = { steps, gain, ring: r, dir: d > 0 ? 1 : -1 };
@@ -281,13 +282,14 @@ export function hint(state: NavigationState): NavigationHint | null {
         steps += Math.abs(offsets[r]!);
       }
     }
+    if (steps > 0) slots = settled(cfg, slots).slots;
     const slot = landingSlotOn(cfg, slots);
     if (slot !== null) {
       const L = ringOf(cfg, slot);
       const withStar: Slots = slots.slice();
       withStar[slot] = { id: -1, kind };
       for (let e = -half; e <= half; e++) {
-        const after = e === 0 ? withStar : rotated(cfg, withStar, L, e);
+        const after = e === 0 ? withStar : settled(cfg, rotated(cfg, withStar, L, e)).slots;
         const gain = filledCount(cfg, after, state.markers) - before;
         if (gain <= 0) continue;
         const total = steps + Math.abs(e);
@@ -315,6 +317,28 @@ export function hint(state: NavigationState): NavigationHint | null {
     if (i === cfg.rings) break;
   }
   return plan?.first ?? null;
+}
+
+/** `slots` with every column packed toward the center, and which stars moved to do it. */
+export function settled(cfg: NavigationConfig, slots: ReadonlyArray<Star | null>): { slots: Slots; moves: Array<{ id: number; from: number; to: number }> } {
+  const out: Slots = slots.slice();
+  const moves: Array<{ id: number; from: number; to: number }> = [];
+  for (let o = 0; o < cfg.octants; o++) {
+    let to = 0;
+    for (let r = 0; r < cfg.rings; r++) {
+      const from = slotOf(cfg, r, o);
+      const star = slots[from];
+      if (!star) continue;
+      const dest = slotOf(cfg, to, o);
+      if (dest !== from) {
+        out[dest] = star;
+        out[from] = null;
+        moves.push({ id: star.id, from, to: dest });
+      }
+      to++;
+    }
+  }
+  return { slots: out, moves };
 }
 
 /** `slots` with ring `ring` turned `steps` octants clockwise (negative for the other way). */
@@ -453,41 +477,60 @@ function rotateRing(w: Work, ring: number, dir: -1 | 1): Work {
   return w;
 }
 
-/** After any change to the slots: chart completed constellations (the redeal may complete at once, so loop), then clear runs of loose stars. */
+/** Pack every column toward the center; a fall event when anything moved. */
+function settle(w: Work): boolean {
+  const r = settled(w.cfg, w.slots);
+  if (!r.moves.length) return false;
+  w.slots = r.slots;
+  w.events.push({ seq: ++w.eventSeq, tick: w.tick, type: "fall", moves: r.moves });
+  return true;
+}
+
+/**
+ * After any change to the slots: stars slide inward to pack their columns, completed
+ * constellations are charted (the redeal may complete at once, so that loops), runs of loose stars
+ * clear, and since each of those opens slots, the whole thing repeats until the chart is still.
+ */
 function resolve(w: Work): Work {
   const cfg = w.cfg;
   for (;;) {
-    const filled = w.markers.length > 0 && w.markers.every((m) => w.slots[slotOf(cfg, m.ring, m.octant)]?.kind === m.kind);
-    if (!filled) break;
-    const n = w.markers.length;
-    const ids = w.markers.map((m) => w.slots[slotOf(cfg, m.ring, m.octant)]!.id);
-    for (const m of w.markers) w.slots[slotOf(cfg, m.ring, m.octant)] = null;
-    const chain = w.combo + 1;
-    const efficient = w.landingsSinceDeal <= 2 * n;
-    const points = n * n * cfg.starPoints * chain + (efficient ? cfg.efficiencyBonus : 0);
-    const completion: Completion = { markers: w.markers, ids, chain, efficient, points };
-    w.events.push({ seq: ++w.eventSeq, tick: w.tick, type: "charted", completion });
-    w.score += points;
-    w.combo = chain;
-    w.bestCombo = Math.max(w.bestCombo, chain);
-    w.completed++;
-    w.landingsSinceDeal = 0;
-    const dealt = dealConstellation(cfg, w.slots, w.rng, w.completed);
-    w.markers = dealt.markers;
-    w.rng = dealt.rng;
-  }
-  const runs = findRuns(cfg, w.slots, w.markers);
-  if (runs.length) {
-    const cleared = new Set<number>();
-    for (const run of runs) {
-      w.events.push({ seq: ++w.eventSeq, tick: w.tick, type: "run", run });
-      w.score += run.points;
-      w.runsCleared++;
-      for (const s of run.slots) cleared.add(s);
+    settle(w);
+    let changed = false;
+    for (;;) {
+      const filled = w.markers.length > 0 && w.markers.every((m) => w.slots[slotOf(cfg, m.ring, m.octant)]?.kind === m.kind);
+      if (!filled) break;
+      changed = true;
+      const n = w.markers.length;
+      const ids = w.markers.map((m) => w.slots[slotOf(cfg, m.ring, m.octant)]!.id);
+      for (const m of w.markers) w.slots[slotOf(cfg, m.ring, m.octant)] = null;
+      const chain = w.combo + 1;
+      const efficient = w.landingsSinceDeal <= 2 * n;
+      const points = n * n * cfg.starPoints * chain + (efficient ? cfg.efficiencyBonus : 0);
+      const completion: Completion = { markers: w.markers, ids, chain, efficient, points };
+      w.events.push({ seq: ++w.eventSeq, tick: w.tick, type: "charted", completion });
+      w.score += points;
+      w.combo = chain;
+      w.bestCombo = Math.max(w.bestCombo, chain);
+      w.completed++;
+      w.landingsSinceDeal = 0;
+      const dealt = dealConstellation(cfg, w.slots, w.rng, w.completed);
+      w.markers = dealt.markers;
+      w.rng = dealt.rng;
     }
-    for (const s of cleared) w.slots[s] = null;
+    const runs = findRuns(cfg, w.slots, w.markers);
+    if (runs.length) {
+      changed = true;
+      const cleared = new Set<number>();
+      for (const run of runs) {
+        w.events.push({ seq: ++w.eventSeq, tick: w.tick, type: "run", run });
+        w.score += run.points;
+        w.runsCleared++;
+        for (const s of run.slots) cleared.add(s);
+      }
+      for (const s of cleared) w.slots[s] = null;
+    }
+    if (!changed) return w;
   }
-  return w;
 }
 
 /**

@@ -2,9 +2,10 @@
  * Navigation: a round star chart of concentric rings split into octants. Stars fall one at a time
  * from the sky above the chart into the top octant, on the engine's clock, and come to rest against
  * the first star they meet (or at the center). The navigator turns the rings so each star lands
- * where the constellation wants it, or is carried onto its marker later. When every marker of the
- * constellation holds its star the constellation is charted and a larger one is dealt. Three or
- * more loose stars of a kind in a row, around a ring or down an octant, clear.
+ * where the constellation wants it, or is carried onto its marker later. Stars always pack toward
+ * the center: a turn that opens a slot under an outer star lets it slide in. When every marker of
+ * the constellation holds its star the constellation is charted and a larger one is dealt. Three
+ * or more loose stars of a kind in a row, around a ring or down an octant, clear.
  *
  * Slot index = ring * octants + octant. Ring 0 is innermost. Octant 0 is at the top, where stars
  * enter; octants increase clockwise. Rotating a ring by +1 carries every star on it to octant + 1.
@@ -115,6 +116,8 @@ export type NavigationEvent =
   | { readonly seq: number; readonly tick: number; readonly type: "land"; readonly slot: number; readonly id: number; readonly kind: number; readonly onMarker: boolean }
   /** A star arrived at a blocked octant: the octant is swept clear. */
   | { readonly seq: number; readonly tick: number; readonly type: "booch"; readonly octant: number; readonly ids: readonly number[]; readonly penalty: number }
+  /** Stars slid inward to pack their columns after a turn or a clearing: each star's old and new slot. */
+  | { readonly seq: number; readonly tick: number; readonly type: "fall"; readonly moves: ReadonlyArray<{ readonly id: number; readonly from: number; readonly to: number }> }
   | { readonly seq: number; readonly tick: number; readonly type: "charted"; readonly completion: Completion }
   | { readonly seq: number; readonly tick: number; readonly type: "run"; readonly run: Run };
 

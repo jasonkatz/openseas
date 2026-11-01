@@ -240,8 +240,10 @@ by faint lines so it reads as a figure. Stars fall one at a time from the sky in
 taking `fallTicks` at the start of the round and quickening to `fallTicksMin` by the end; the
 navigator turns any ring a step either way while it falls (stars ride with their ring, markers stay
 put), or taps to bring it down at once. A star falls inward until it meets another and rests in the
-ring outside it, or at the center of an empty column, so a star on the middle ring blocks the center
-behind it and a star in the outer slot at the top shuts the column. A marker is filled while a
+ring outside it, or at the center of an empty column, and every column stays packed toward the
+center: a turn that opens a slot under an outer star lets the stars above it slide in, which can
+fill a marker, make a run, or unmake one. A star in the outer slot at the top shuts the column. A
+marker is filled while a
 matching star sits on it, and a turn can fill one as well as a landing. When every marker is filled
 the constellation is charted: those stars go, points are `n * n * starPoints` times the chain of
 constellations charted without a booch, plus an efficiency bonus when it took at most `2n`
@@ -480,7 +482,7 @@ Maintained as they arise.
 | Gunnery water | Cleans fired or misloaded cannons | Cleans a fouled cannon; splashes harmlessly in a clean one | Firing no longer fouls, so water is only for fouls |
 | Navigation time | Stars fall in real time | One star in the sky at a time, falling `fallTicks` to `fallTicksMin` on the engine clock, carried in the move log | Pure engine; the server can tell a stalled star from a quick one (ADR 0015) |
 | Navigation entry | Stars fall into the top of the chart | Same: the top octant; a tap or enter brings the star down early | A fixed entry keeps the mental model stable: bring the right spot to the top |
-| Navigation landing | A star stops against the first star it meets | Same; the outer slot taken means no room | Gaps on a ring matter, so turning is also defence |
+| Navigation landing | A star stops against the first star it meets; stars slide inward when the ring under them opens | Same; the outer slot taken means no room | Columns stay packed, so turning an inner ring moves the rings outside it too |
 | Navigation booch | Turns the ship around | Sweeps the top column, costs `boochPenalty`, breaks the chain | No ship yet; the sweep keeps the chart playable (as Sailing's top-out costs rather than stops) |
 | Navigation runs | Rows of a kind clear | Three or more loose stars of a kind around a ring or down a column clear for `runPoints * (n - 2)`; stars on markers never do | Gives strays an outlet; charted stars must stay safe from it |
 | Navigation constellations | Fixed progression | Size grows with completions; half the kinds are drawn from stars already on the chart | Keeps stray stars useful on a small chart |

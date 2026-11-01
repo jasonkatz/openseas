@@ -78,6 +78,9 @@ export function NavigationPractice() {
         case "run":
           sfx.multi(e.run.slots.length - 1);
           break;
+        case "fall":
+          sfx.swapQuiet();
+          break;
         default:
           break;
       }

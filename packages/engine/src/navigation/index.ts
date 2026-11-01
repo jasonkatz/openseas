@@ -13,6 +13,7 @@ export {
   filledCount as navigationFilledCount,
   fallDuration as navigationFallDuration,
   findRuns as navigationFindRuns,
+  settled as navigationSettled,
   hint as navigationHint,
   rotateIllegalReason as navigationRotateIllegalReason,
   slotOf as navigationSlotOf,

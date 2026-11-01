@@ -12,6 +12,7 @@ import {
   navigationFindRuns,
   navigationHint,
   navigationLandingSlot,
+  navigationSettled,
   navigationSlotOf,
   reduceNavigation,
   replayNavigation,
@@ -76,6 +77,14 @@ function expectInvariants(state: NavigationState): void {
   expect(markerSlots.size).toBe(state.markers.length);
   expect(state.markers.length).toBeGreaterThan(0);
   expect(state.markers.length).toBeLessThanOrEqual(state.config.maxStars);
+  for (let o = 0; o < state.config.octants; o++) {
+    let gap = false;
+    for (let r = 0; r < state.config.rings; r++) {
+      const s = state.slots[navigationSlotOf(state.config, r, o)];
+      if (s === null) gap = true;
+      else expect(gap, `octant ${o}: a star on ring ${r} above an empty slot`).toBe(false);
+    }
+  }
   expect(isComplete(state), "a completed constellation never survives a move").toBe(false);
   expect(navigationFindRuns(state.config, state.slots, state.markers), "no run of loose stars survives a move").toEqual([]);
   expect(state.falling.landTick).toBeGreaterThan(state.falling.startTick);
@@ -258,7 +267,7 @@ describe("navigation rules", () => {
     expect(navigationLandingSlot(s)).toBe(top(0));
     expect(navigationLandingSlot(withStars(s, { [top(0)]: 0 }))).toBe(top(1));
     expect(navigationLandingSlot(withStars(s, { [top(0)]: 0, [top(1)]: 0 }))).toBe(top(2));
-    // A star on the middle ring with the center empty still blocks: the new star rests outside it.
+    // Columns are always packed, but the rule on its own still rests a star against the first one it meets.
     expect(navigationLandingSlot(withStars(s, { [top(1)]: 0 }))).toBe(top(2));
     // The outer slot taken means no room at all.
     expect(navigationLandingSlot(withStars(s, { [top(2)]: 0 }))).toBeNull();
@@ -323,9 +332,13 @@ describe("navigation rules", () => {
       { ring: 1, octant: 3, kind: 5 },
       { ring: 2, octant: 6, kind: 1 },
     ];
-    // Two of three in place; the third sits one octant off on ring 2.
+    // Two of three in place, held up by strangers on the rings inside; the third sits one octant off on ring 2.
     const slot = (r: number, o: number): number => navigationSlotOf(cfg, r, o);
-    const ready = { ...withStars(s, { [slot(1, 2)]: 3, [slot(1, 3)]: 5, [slot(2, 5)]: 1 }, markers), combo: 1, landingsSinceDeal: 4 };
+    const ready = {
+      ...withStars(s, { [slot(0, 2)]: 7, [slot(0, 3)]: 8, [slot(0, 5)]: 7, [slot(0, 6)]: 8, [slot(1, 5)]: 8, [slot(1, 6)]: 7, [slot(1, 2)]: 3, [slot(1, 3)]: 5, [slot(2, 5)]: 1 }, markers),
+      combo: 1,
+      landingsSinceDeal: 4,
+    };
     expect(navigationFilledCount(cfg, ready.slots, ready.markers)).toBe(2);
     const after = reduceNavigation(ready, { type: "rotate", ring: 2, dir: 1, tick: 2 });
     const charted = after.lastMove!.events.find((e) => e.type === "charted");
@@ -421,14 +434,62 @@ describe("navigation rules", () => {
     expect(navigationFindRuns(cfg, lined.slots, lined.markers)).toEqual([]);
   });
 
+  it("stars slide inward when a turn opens the slot under them", () => {
+    const s = createNavigationGame("gravity");
+    const slot = (r: number, o: number): number => navigationSlotOf(cfg, r, o);
+    const far: Marker[] = [{ ring: 0, octant: 0, kind: 7 }];
+    // Octant 3: a star on ring 0 holds one up on ring 1 and another on ring 2. Turning ring 0 away drops both.
+    const stacked = withStars(s, { [slot(0, 3)]: 1, [slot(1, 3)]: 2, [slot(2, 3)]: 4 }, far);
+    const after = reduceNavigation(stacked, { type: "rotate", ring: 0, dir: 1, tick: 1 });
+    expect(after.slots[slot(0, 4)]?.kind).toBe(1);
+    expect(after.slots[slot(0, 3)]?.kind).toBe(2);
+    expect(after.slots[slot(1, 3)]?.kind).toBe(4);
+    expect(after.slots[slot(2, 3)]).toBeNull();
+    const fall = after.lastMove!.events.find((e) => e.type === "fall");
+    expect(fall).toBeDefined();
+    if (fall?.type === "fall") {
+      expect(fall.moves).toEqual([
+        { id: 100 + slot(1, 3), from: slot(1, 3), to: slot(0, 3) },
+        { id: 100 + slot(2, 3), from: slot(2, 3), to: slot(1, 3) },
+      ]);
+    }
+    // A packed chart has nothing to settle.
+    expect(navigationSettled(cfg, after.slots).moves).toEqual([]);
+  });
+
+  it("a star that slides onto its marker charts, and a run made by the slide clears", () => {
+    const s = createNavigationGame("slide");
+    const slot = (r: number, o: number): number => navigationSlotOf(cfg, r, o);
+    const markers: Marker[] = [{ ring: 0, octant: 5, kind: 3 }];
+    // The marker's star waits on ring 1 above a stranger on ring 0; turn ring 0 and it drops onto the marker.
+    const held = withStars(s, { [slot(0, 5)]: 0, [slot(1, 5)]: 3 }, markers);
+    const after = reduceNavigation(held, { type: "rotate", ring: 0, dir: 1, tick: 1 });
+    expect(after.lastMove!.events.map((e) => e.type)).toEqual(["fall", "charted"]);
+    expect(after.completed).toBe(1);
+    // Ring 0: a stranger at 4, a gap at 5, embers at 6 and 7; an ember held up on ring 1 above the stranger.
+    // Turning ring 0 back a step moves the stranger to 3 and the embers to 5 and 6, opens slot 4, and the held
+    // ember drops into it: three embers in a row at 4, 5 and 6.
+    const run = withStars(s, { [slot(0, 4)]: 0, [slot(0, 6)]: 5, [slot(0, 7)]: 5, [slot(1, 4)]: 5 }, [{ ring: 2, octant: 1, kind: 7 }]);
+    const cleared = reduceNavigation(run, { type: "rotate", ring: 0, dir: -1, tick: 1 });
+    expect(cleared.lastMove!.events.map((e) => e.type)).toEqual(["fall", "run"]);
+    expect(cleared.runsCleared).toBe(1);
+    expect(cleared.score).toBe(cfg.runPoints);
+    for (const o of [4, 5, 6]) expect(cleared.slots[slot(0, o)]).toBeNull();
+    expect(cleared.slots[slot(0, 3)]?.kind).toBe(0);
+  });
+
   it("the hint points at a turn that fills a marker, or at opening the column", () => {
     const s = createNavigationGame("hint");
     const slot = (r: number, o: number): number => navigationSlotOf(cfg, r, o);
-    // A gold spark one octant short of its marker: turn ring 1 clockwise.
-    const near = withStars(s, { [slot(1, 2)]: 0 }, [{ ring: 1, octant: 3, kind: 0 }]);
+    // A gold spark one octant short of its marker, with ring 0 holding it up on both octants: turn ring 1 clockwise.
+    const near = withStars(s, { [slot(0, 2)]: 8, [slot(0, 3)]: 7, [slot(1, 2)]: 0 }, [{ ring: 1, octant: 3, kind: 0 }]);
     expect(navigationHint(near)).toEqual({ ring: 1, dir: 1 });
-    // The star in the sky wants the outer ring, but the outer slot above the entry is taken: move it.
-    const blocked = { ...withStars(s, { [slot(2, 0)]: 5, [slot(0, 0)]: 5, [slot(1, 0)]: 5 }, [{ ring: 2, octant: 2, kind: 1 }]), falling: { ...s.falling, kind: 1 } };
+    // The star in the sky wants the outer ring at octant 2 (held up there by two strangers), but the outer slot
+    // above the entry is taken: move it.
+    const blocked = {
+      ...withStars(s, { [slot(2, 0)]: 5, [slot(0, 0)]: 5, [slot(1, 0)]: 6, [slot(0, 2)]: 7, [slot(1, 2)]: 8 }, [{ ring: 2, octant: 2, kind: 1 }]),
+      falling: { ...s.falling, kind: 1 },
+    };
     const h = navigationHint(blocked);
     expect(h).not.toBeNull();
     expect(h!.ring).toBe(2);
