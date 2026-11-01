@@ -38,6 +38,9 @@ integration is not connected (ADR 0016).
 - Previews point at the production server, which only accepts the origins in `CLIENT_ORIGINS`.
   Anything that needs the server fails from a preview URL. Use previews to look at UI.
 - Deployment Protection's Standard Protection keeps previews behind a Vercel login.
+- A pull request only gets a preview from a push made after its branch carries this workflow, and
+  only a push starts it (retargeting or editing the PR does not). For a PR that missed it, run
+  **Preview** by hand from the Actions tab with the PR number; it looks the head up and deploys it.
 - The preview deploys from a copy of `.vercel` outside the git checkout, tagged with plain meta
   keys (`commitSha`, `commitRef`, `prNumber`). Inside a checkout the Vercel CLI reads the last
   commit and attaches it as `githubCommit*` metadata, which makes Vercel credit the deployment to
