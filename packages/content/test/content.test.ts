@@ -9,6 +9,14 @@ describe("content", () => {
     expect(c.world.shipGrants[0]?.price).toBe(0);
     expect(c.puzzles.bilging.config.width).toBe(6);
     expect(c.ratingTiers[0]?.min).toBe(0);
+    expect(c.world.startIslandId).toBe("saltwick");
+    expect(c.world.ship.turnSeconds).toBe(10);
+    for (const p of Object.values(c.puzzles)) expect(p.parScore).toBeGreaterThan(0);
+  });
+
+  it("a turn at full speed divides every leg evenly enough to land within one turn", () => {
+    const c = loadContent();
+    for (const r of c.world.routes) expect(r.durationSeconds % c.world.ship.turnSeconds).toBe(0);
   });
 
   it("every island is reachable from every other", () => {
@@ -37,7 +45,7 @@ describe("content", () => {
   });
 
   it("rejects a route to an unknown island at the schema level", () => {
-    expect(() => WorldSchema.parse({ version: 1, islands: [], routes: [], brigandTiers: [], shipClasses: [], shipGrants: [] })).toThrow();
+    expect(() => WorldSchema.parse({ version: 1, startIslandId: "x", islands: [], routes: [], brigandTiers: [], shipClasses: [], shipGrants: [] })).toThrow();
   });
 
   it("message lookup substitutes variables and surfaces misses", () => {

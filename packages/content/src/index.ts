@@ -1,4 +1,5 @@
 import { z } from "zod";
+import ocean from "../data/world/ocean.json" with { type: "json" };
 import islands from "../data/world/islands.json" with { type: "json" };
 import routes from "../data/world/routes.json" with { type: "json" };
 import brigandTiers from "../data/world/brigand-tiers.json" with { type: "json" };
@@ -65,7 +66,7 @@ export class ContentError extends Error {
  */
 export function loadContent(): Content {
   const world = parse("world", WorldSchema, {
-    version: 1,
+    ...ocean,
     islands,
     routes,
     brigandTiers,
@@ -104,6 +105,10 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
   const ratingTierKeys = new Set(tiers.map((t) => t.key));
 
   for (const i of world.islands) need(i.nameKey, `island ${i.id}`);
+  if (!islandIds.has(world.startIslandId)) problems.push(`ocean: unknown start island ${world.startIslandId}`);
+  if (world.ship.maxSpeed < world.ship.idleSpeed) problems.push("ocean: ship.maxSpeed below ship.idleSpeed");
+  if (world.ship.encounterWindow.to < world.ship.encounterWindow.from) problems.push("ocean: ship.encounterWindow ends before it starts");
+  if (world.ship.turnSeconds * 2 > Math.min(...world.routes.map((r) => r.durationSeconds))) problems.push("ocean: ship.turnSeconds too long for the shortest leg");
   for (const r of world.routes) {
     if (!islandIds.has(r.from)) problems.push(`route ${r.id}: unknown island ${r.from}`);
     if (!islandIds.has(r.to)) problems.push(`route ${r.id}: unknown island ${r.to}`);
@@ -137,6 +142,9 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
     }
     need(`home.practice_${id}`, where);
     need(`home.practice_${id}_blurb`, where);
+    const first = p.thresholds[0]!.score;
+    const last = p.thresholds[p.thresholds.length - 1]!.score;
+    if (p.parScore < first || p.parScore > last) problems.push(`${where}: parScore must sit within the thresholds (${first}..${last})`);
   }
   for (const s of Object.values(puzzles.bilging.specials)) need(s.nameKey, "bilging special");
   for (const sh of puzzles.carpentry.shapes) need(sh.nameKey, "carpentry shape");

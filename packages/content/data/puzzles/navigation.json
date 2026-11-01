@@ -18,6 +18,7 @@
     "fallTicksMin": 18
   },
   "roundSeconds": 150,
+  "parScore": 300,
   "thresholds": [
     { "score": 60, "rating": 1100 },
     { "score": 150, "rating": 1300 },
