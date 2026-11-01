@@ -2,7 +2,6 @@ import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, T
 import {
   DX,
   DY,
-  GunneryKind,
   cannonNeeds,
   gunneryCellAt,
   parseGunneryDeck,
@@ -98,9 +97,7 @@ const COLORS = {
 };
 const DIE_MS = 200;
 /** How many cells ahead the route preview looks. */
-const LOOK_AHEAD = 10;
-/** How many of those the dotted trail shows. */
-const TRAIL = 6;
+const LOOK_AHEAD = 12;
 
 /** One string that names what the deck shows: pieces by cell, cannon states, arrows, the tick. Shared with the page. */
 export function gunneryViewString(state: GunneryState): string {
@@ -110,18 +107,11 @@ export function gunneryViewString(state: GunneryState): string {
   return `t${state.tick}|${pieces.join(",")}|${cannons.join(",")}|${arrows.join(",")}`;
 }
 
-/** The arrows on deck if `ghost` were laid or lifted, oldest evicted past `max`. Also which arrow that evicts. */
-function arrowsWith(arrows: readonly Arrow[], ghost: Ghost | null, max: number): { arrows: readonly Arrow[]; evicted: Arrow | null } {
-  if (!ghost) return { arrows, evicted: null };
+/** The arrows on deck if `ghost` were laid or lifted. */
+function arrowsWith(arrows: readonly Arrow[], ghost: Ghost | null): readonly Arrow[] {
+  if (!ghost) return arrows;
   const kept = arrows.filter((a) => a.col !== ghost.col || a.row !== ghost.row);
-  if (ghost.lift) return { arrows: kept, evicted: null };
-  const next = [...kept, { col: ghost.col, row: ghost.row, dir: ghost.dir, seq: Number.MAX_SAFE_INTEGER }];
-  let evicted: Arrow | null = null;
-  if (next.length > max) {
-    evicted = next.reduce((o, a) => (a.seq < o.seq ? a : o));
-    return { arrows: next.filter((a) => a !== evicted), evicted };
-  }
-  return { arrows: next, evicted };
+  return ghost.lift ? kept : [...kept, { col: ghost.col, row: ghost.row, dir: ghost.dir }];
 }
 
 /** Which way a point inside a cell leans: toward the nearest edge. */
@@ -179,7 +169,6 @@ export class GunneryRenderer {
   private hover: { col: number; row: number; fx: number; fy: number } | null = null;
   private press: { x: number; y: number; col: number; row: number; touch: boolean; dragged: boolean; dir: Dir } | null = null;
   private ghost: Ghost | null = null;
-  private evicted: Arrow | null = null;
   private paths: Array<{ id: number; kind: number; path: GunneryPredictedPath }> = [];
   /** For each cannon, what the soonest piece headed into it will do, and in how many ticks. */
   private incoming: Array<{ outcome: CannonOutcome; eta: number; kind: number } | null> = [];
@@ -459,8 +448,7 @@ export class GunneryRenderer {
     this.paths = [];
     this.incoming = [];
     if (!s) return;
-    const { arrows, evicted } = arrowsWith(s.arrows, this.interactive ? this.ghost : null, s.config.maxArrows);
-    this.evicted = evicted;
+    const arrows = arrowsWith(s.arrows, this.interactive ? this.ghost : null);
     for (const p of s.pieces) {
       const path = predictGunneryPath(s, p, LOOK_AHEAD, arrows);
       this.paths.push({ id: p.id, kind: p.kind, path });
@@ -569,23 +557,23 @@ export class GunneryRenderer {
     this.staticLayer.updateCacheTexture();
   }
 
-  /** Every piece's route over the next few cells, and a ring on any cannon something is headed into. */
+  /**
+   * Routes only for pieces headed into a cannon: green when the cannon wants the piece (or water
+   * for a fouled one), red when it will foul it. Everything else is left plain; the heading
+   * chevron on each piece is enough there.
+   */
   private drawPaths(): void {
     const g = this.pathG;
     g.clear();
     if (!this.state) return;
     const s = this.cell;
-    for (const { kind, path } of this.paths) {
-      // A route into a cannon shows what it will do there: green for a load or a wash, red for a foul.
-      const outcome = path.end?.type === "cannon" ? path.end.outcome : null;
-      const marked = outcome !== null && outcome !== "splash";
-      const color = marked ? (isGood(outcome) ? COLORS.good : COLORS.danger) : mix(this.colorByKind.get(kind) ?? 0xffffff, 0xffffff, kind === GunneryKind.Powder ? 0.45 : 0.15);
-      // Into a cannon, the whole route shows however long it is, so the warning comes early.
-      const n = marked ? path.cells.length : Math.min(TRAIL, path.cells.length);
-      for (let i = 0; i < n; i++) {
-        const c = path.cells[i]!;
-        const a = marked ? 0.85 - 0.04 * i : 0.45 * (1 - i / (TRAIL + 1));
-        g.circle(this.cx(c.col), this.cy(c.row), s * (marked ? 0.1 : 0.075)).fill({ color, alpha: a });
+    for (const { path } of this.paths) {
+      if (path.end?.type !== "cannon" || path.end.outcome === "splash" || path.end.outcome === "blocked") continue;
+      const color = isGood(path.end.outcome) ? COLORS.good : COLORS.danger;
+      const pts = path.cells;
+      for (let i = 0; i < pts.length; i++) {
+        const c = pts[i]!;
+        g.circle(this.cx(c.col), this.cy(c.row), s * 0.1).fill({ color, alpha: 0.85 - 0.04 * i });
       }
     }
   }
@@ -600,12 +588,11 @@ export class GunneryRenderer {
       const x = this.cx(a.col);
       const y = this.cy(a.row);
       const lifting = this.ghost && this.ghost.col === a.col && this.ghost.row === a.row;
-      const evicting = this.evicted && this.evicted.col === a.col && this.evicted.row === a.row;
-      const alpha = lifting || evicting ? 0.35 : 1;
+      const alpha = lifting ? 0.35 : 1;
       g.roundRect(x - s * 0.44, y - s * 0.44, s * 0.88, s * 0.88, s * 0.16).fill({ color: COLORS.arrow, alpha: 0.18 * alpha });
       g.roundRect(x - s * 0.44, y - s * 0.44, s * 0.88, s * 0.88, s * 0.16).stroke({ width: 1.5, color: COLORS.arrow, alpha: 0.55 * alpha });
       drawArrowGlyph(g, x, y, s * 0.3, a.dir, COLORS.arrow, alpha);
-      if (evicting || (lifting && this.ghost!.lift)) {
+      if (lifting && this.ghost!.lift) {
         // This arrow goes if the pointer commits: a cross over it.
         const r = s * 0.22;
         g.moveTo(x - r, y - r).lineTo(x + r, y + r).moveTo(x + r, y - r).lineTo(x - r, y + r).stroke({ width: Math.max(2, s * 0.07), color: COLORS.danger, alpha: 0.9, cap: "round" });

@@ -78,9 +78,6 @@ export function validateConfig(cfg: GunneryConfig): void {
     cfg.maxTick > 0 &&
     Number.isInteger(cfg.maxMoves) &&
     cfg.maxMoves > 0 &&
-    Number.isInteger(cfg.maxArrows) &&
-    cfg.maxArrows >= 1 &&
-    cfg.maxArrows <= 20 &&
     Number.isInteger(cfg.maxOnDeck) &&
     cfg.maxOnDeck >= 1 &&
     Number.isInteger(cfg.spawnEveryTicks) &&
@@ -124,7 +121,6 @@ export function createGunneryGame(seed: string, config: GunneryConfig = DEFAULT_
     bag: supply.bag,
     // The first piece drops two ticks in, so the round opens with something already moving.
     lastDrop: 2 - config.spawnEveryTicks,
-    arrowSeq: 0,
     nextId: 1,
     rng: supply.rng,
     moveCount: 0,
@@ -161,13 +157,8 @@ export function reduceGunnery(state: GunneryState, move: GunneryMove): GunnerySt
       if (!isDeck(next, move.col, move.row)) throw new InvalidMoveError("not a deck cell", move);
       if (!(DIRS as readonly number[]).includes(move.dir)) throw new InvalidMoveError("bad direction", move);
       const kept = next.arrows.filter((a) => a.col !== move.col || a.row !== move.row);
-      const arrow: Arrow = { col: move.col, row: move.row, dir: move.dir, seq: next.arrowSeq };
-      let arrows = [...kept, arrow];
-      while (arrows.length > next.config.maxArrows) {
-        const oldest = arrows.reduce((o, a) => (a.seq < o.seq ? a : o));
-        arrows = arrows.filter((a) => a !== oldest);
-      }
-      next = { ...next, arrows, arrowSeq: next.arrowSeq + 1, arrowsPlaced: next.arrowsPlaced + 1 };
+      const arrows: Arrow[] = [...kept, { col: move.col, row: move.row, dir: move.dir }];
+      next = { ...next, arrows, arrowsPlaced: next.arrowsPlaced + 1 };
       break;
     }
     default: {
@@ -205,7 +196,7 @@ export function hashGunneryState(state: GunneryState): string {
   h.int(state.deck.width).int(state.deck.height).int(state.tick);
   for (const p of state.pieces) h.int(p.id).int(p.kind).int(p.col).int(p.row).int(p.dir);
   h.int(-1);
-  for (const a of state.arrows) h.int(a.col).int(a.row).int(a.dir).int(a.seq);
+  for (const a of state.arrows) h.int(a.col).int(a.row).int(a.dir);
   h.int(-2);
   for (const c of state.cannons) h.int(c.loaded).int(c.fouled ? 1 : 0).int(c.firesAt ?? -1);
   h.int(-3);
@@ -213,7 +204,7 @@ export function hashGunneryState(state: GunneryState): string {
   h.int(-4);
   for (const k of state.bag) h.int(k);
   h.int(-5);
-  h.int(state.lastDrop).int(state.arrowSeq).int(state.nextId).int(state.moveCount).int(state.score);
+  h.int(state.lastDrop).int(state.nextId).int(state.moveCount).int(state.score);
   h.int(state.combo).int(state.bestCombo).int(state.loads).int(state.fouls).int(state.arrowsPlaced);
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.finished ? 1 : 0);

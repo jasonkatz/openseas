@@ -190,7 +190,6 @@ export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
     tickMs: z.int().min(20).max(5000),
     maxTick: z.int().min(1),
     maxMoves: z.int().min(1),
-    maxArrows: z.int().min(1).max(20),
     maxOnDeck: z.int().min(1),
     spawnEveryTicks: z.int().min(1),
     spawnEveryTicksMin: z.int().min(1),

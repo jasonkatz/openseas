@@ -106,7 +106,6 @@ export function GunneryPractice() {
   }, []);
 
   const pieces = gunnery.pieces;
-  const maxArrows = gunnery.config.maxArrows;
   const loadsStat = (
     <div className="stat stat-wide">
       <span className="stat-label">{t("gunnery.loads")}</span>
@@ -119,13 +118,7 @@ export function GunneryPractice() {
     <div className="stat stat-wide">
       <span className="stat-label">{t("gunnery.arrows")}</span>
       <span className="stat-value" data-testid="hud-arrows">
-        <span className="arrow-pips" aria-hidden="true">
-          {Array.from({ length: maxArrows }, (_, i) => (
-            <i key={i} className={i < shown.arrows.length ? "used" : ""} />
-          ))}
-        </span>
         {shown.arrows.length}
-        <small>/{maxArrows}</small>
       </span>
     </div>
   );

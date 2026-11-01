@@ -1116,20 +1116,3 @@ a {
 .legend .shapes li {
   gap: 4px;
 }
-
-/* ---- gunnery HUD */
-.arrow-pips {
-  display: inline-flex;
-  gap: 4px;
-  margin-right: 6px;
-  vertical-align: middle;
-}
-.arrow-pips i {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  box-shadow: inset 0 0 0 1.5px var(--brass);
-}
-.arrow-pips i.used {
-  background: var(--brass);
-}

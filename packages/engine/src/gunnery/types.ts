@@ -37,7 +37,6 @@ export interface GunneryConfig {
   readonly maxTick: number;
   /** The round ends after this many logged moves (arrows and waits). */
   readonly maxMoves: number;
-  readonly maxArrows: number;
   /** The chute holds back while this many pieces are on deck. */
   readonly maxOnDeck: number;
   /** Ticks between drops at the start of the round. */
@@ -60,17 +59,19 @@ export interface GunneryConfig {
 }
 
 export const DEFAULT_GUNNERY_DECK: readonly string[] = [
-  "####B####",
-  "#.......#",
-  "#.......#",
-  "C.......C",
-  "#.......#",
-  "#.......#",
-  "#.......#",
-  "C.......C",
-  "#.......#",
-  "#.......#",
-  "####H####",
+  "#####B#####",
+  "#.........#",
+  "#.........#",
+  "C.........C",
+  "#.........#",
+  "#..X...X..#",
+  "H.........H",
+  "#...XXX...#",
+  "#.........#",
+  "#.........#",
+  "C..X...X..C",
+  "#.........#",
+  "#####H#####",
 ];
 
 export const DEFAULT_GUNNERY_CONFIG: GunneryConfig = {
@@ -78,10 +79,9 @@ export const DEFAULT_GUNNERY_CONFIG: GunneryConfig = {
   tickMs: 200,
   maxTick: 760,
   maxMoves: 1000,
-  maxArrows: 4,
-  maxOnDeck: 8,
-  spawnEveryTicks: 6,
-  spawnEveryTicksMin: 3,
+  maxOnDeck: 10,
+  spawnEveryTicks: 8,
+  spawnEveryTicksMin: 4,
   queueLength: 3,
   bag: [2, 2, 2, 1],
   fireAfterTicks: 3,
@@ -99,12 +99,11 @@ export interface GunneryPiece {
   readonly dir: Dir;
 }
 
+/** The gunner may lay as many as they like, one per deck cell. */
 export interface Arrow {
   readonly col: number;
   readonly row: number;
   readonly dir: Dir;
-  /** Placement order, for evicting the oldest. */
-  readonly seq: number;
 }
 
 export interface Cannon {
@@ -170,7 +169,6 @@ export interface GunneryState {
   readonly bag: readonly number[];
   /** Tick of the last drop. */
   readonly lastDrop: number;
-  readonly arrowSeq: number;
   readonly nextId: number;
   readonly rng: PrngState;
   readonly moveCount: number;
