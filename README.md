@@ -12,9 +12,10 @@ then board and fight for booty.
 
 ## Status
 
-Milestone 2 in progress: all five duty puzzles (Bilging, Sailing, Carpentry, Gunnery,
-Navigation) on practice pages with guest accounts and ratings, landing as a stack of PRs in
-build order. Each needs its tester session before its numbers are trusted.
+Milestone 3 in progress: all five duty puzzles are on practice pages (M2); one ship with
+real-time crew duty sails between islands, with a notice board, stations, a turn clock and
+voyages, no combat yet. The ship's numbers and each puzzle's par are guesses until the tester
+session.
 
 ## Layout
 

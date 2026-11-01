@@ -81,7 +81,8 @@ one step multiplies by k; cascade step c multiplies by c. On the practice page t
 carried in the game state: every move raises it a sixth of a row, every 40 points drain a row, and
 it never drops below a floor of 3 rows. Pumping while already at the floor is wasted, so points
 cannot be banked to hold the water down later. It is still a pure function of the move log, so a
-replay needs nothing else; from M3 the ship injects water events into the log instead. Below the
+replay needs nothing else. Aboard a ship the board keeps its own water for now; the ship's bilge
+is shown on the ship page, and feeding it into the board's log is a later pass (ADR 0018). Below the
 water line pieces swap slowly: the swap takes `underwaterSwapMs` and the board takes no other swap
 until it lands, so working underwater costs time against the clock. That cost is client timing
 only, like the original's; scores never depend on it. All numbers live in
@@ -307,6 +308,28 @@ resolves boarding with a stub.
   Losing yields nothing. Damage is repaired free at the next dock. No permanent loss, cargo, or
   sinking in v1.
 
+As built (M3): the ship is a pure reducer in `engine` run by the server every ten seconds
+(ADR 0018), with its tuning in `content/data/world/ocean.json`. A pirate boards their own ship
+from the home page or any ship with someone aboard from the island's notice board, which also
+lists ships at sea; boarding at sea is allowed from any island. Aboard, they pick a free station;
+once the ship is under way a practice-length board of that puzzle is dealt, and another as soon
+as it ends. Each turn a station's output is its points since the last turn as a percentage of
+the puzzle's `parScore` scaled to the turn, capped at 200%: Bilging pumps, Carpentry repairs,
+Sailing and Navigation add speed (Navigation adds tokens too, for M4), Gunnery loads the cannons.
+Water comes in every turn and faster as the hull wears; the hull wears a little every turn; both
+slow the ship, and an unstaffed ship still drifts at an idle speed. The captain picks a destination
+among the routes from the island and sets sail; a leg of n seconds takes n seconds at full speed.
+Encounters are rolled when the ship sails, within the middle of the leg; a hail waits three turns
+for the captain to evade and then the brigand loses interest. Arrival docks the ship, pumps the
+bilge and repairs the hull for free, moves every pirate aboard to the island, and closes the
+voyage row. A dropped pirate's seat and station are held for `graceTurns`; their board is cut
+short at once and counts, unrated. A dropped captain holds the ship; when the grace runs out the
+wheel passes to the longest-aboard connected pirate. Nobody left aboard at sea sends the ship
+back to the island it left. The owner can set the ship to crew only, which in v1 means nobody
+else can board. The ship page shows the voyage, bilge, hull, speed, cannons, the next turn, the
+crew with stations, the station picker, the captain's controls and a log of what happened. No
+chat yet (M6). The first numbers in `ocean.json` are guesses for the tester session.
+
 ### 3.5 World
 
 - One ocean. Three islands on a fixed route graph. Legs take roughly 3 to 5 minutes so a full
@@ -459,6 +482,10 @@ Maintained as they arise.
 | Anti-cheat | Client-reported scores | Server replay verification | Cheap once engines are pure |
 | Evading brigands | Can fail | Always succeeds in v1 | Nothing to lose yet |
 | Loss consequences | Cargo and damage costs | None in v1 | No economy yet |
+| Hull wear at sea | Only from combat and rocks | A little every turn | Gives Carpentry work before combat lands at M4 |
+| Duty boards | One endless board per station | Practice-length boards dealt back to back; only full boards are rated | Keeps the practice thresholds valid at sea (ADR 0018) |
+| Empty ship at sea | Drifts where it is | Returns to the island it left | Nothing to lose yet, and no ghost ships to tick |
+| Captain drops | The wheel is offered | The wheel is handed to the longest-aboard pirate after the grace | No prompt to answer yet |
 | Accounts | Username and password | Guest-first with OAuth upgrade | Zero first-session friction |
 | Island | Large walkable towns | Dock, tavern, notice board | Scope |
 | Bilging specials | Crab, pufferfish, jellyfish | Barnacle, Powder Keg, Ink Cloud | Original names (ADR 0001); same roles |
