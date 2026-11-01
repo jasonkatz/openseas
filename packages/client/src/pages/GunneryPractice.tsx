@@ -4,7 +4,7 @@ import { sfx } from "../audio.js";
 import { content, t } from "../content.js";
 import { GunneryBoard } from "../gunnery/GunneryBoard.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../puzzles/PracticeShell.jsx";
-import { TileIcon } from "../puzzles/TileIcon.jsx";
+import { gunneryPieceUrl } from "../gunnery/pieces.js";
 import { usePractice } from "../puzzles/usePractice.js";
 
 const gunnery = content.puzzles.gunnery;
@@ -165,9 +165,9 @@ export function GunneryPractice() {
       legend={
         <>
           <ul className="kinds">
-            {pieces.map((p) => (
+            {pieces.map((p, kind) => (
               <li key={p.nameKey}>
-                <TileIcon color={p.color} texture={p.texture} mark={showMarks ? p.mark : null} />
+                <img src={gunneryPieceUrl(kind, showMarks ? p.mark : null, 26)} width={26} height={26} alt="" aria-hidden="true" className="tile-icon" draggable={false} />
                 <span>{t(p.nameKey)}</span>
               </li>
             ))}

@@ -16,7 +16,8 @@ import {
   type ParsedDeck,
 } from "@openseas/engine";
 import type { GunneryContent } from "@openseas/content";
-import { mix, tileCanvas, type TileStyle, type TileTexture } from "../bilging/tiles.js";
+import { mix } from "../bilging/tiles.js";
+import { gunneryPieceCanvas } from "./pieces.js";
 
 export interface GunneryCallbacks {
   /** The player laid an arrow (`dir` set) or lifted one (`dir` null) on a deck cell. */
@@ -152,7 +153,6 @@ export class GunneryRenderer {
   private readonly textures = new Map<number, Texture>();
   private readonly colorByKind = new Map<number, number>();
   private readonly markByKind = new Map<number, string>();
-  private readonly textureByKind = new Map<number, TileTexture>();
   private readonly plankFill = linear(true, [COLORS.plank, COLORS.plankDark]);
   private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   private showMarks: boolean;
@@ -195,23 +195,11 @@ export class GunneryRenderer {
     content.pieces.forEach((p, i) => {
       this.colorByKind.set(i, parseInt(p.color.slice(1), 16));
       this.markByKind.set(i, p.mark);
-      this.textureByKind.set(i, p.texture);
     });
     // Every deck is the same size; the round's own deck replaces this one when its first state arrives.
     this.deck = parseGunneryDeck(content.config.decks[0]!);
     this.width = this.deck.width;
     this.height = this.deck.height;
-  }
-
-  private styleFor(kind: number): TileStyle {
-    return {
-      color: this.colorByKind.get(kind) ?? 0xffffff,
-      texture: this.textureByKind.get(kind) ?? null,
-      mark: this.markByKind.get(kind) ?? null,
-      special: null,
-      label: "",
-      showMarks: this.showMarks,
-    };
   }
 
   async init(): Promise<void> {
@@ -798,7 +786,7 @@ export class GunneryRenderer {
     if (!r) return;
     const old = [...this.textures.values()];
     for (const kind of this.colorByKind.keys()) {
-      const canvas = tileCanvas(Math.round(this.cell * 0.86), this.styleFor(kind), r.resolution);
+      const canvas = gunneryPieceCanvas(Math.round(this.cell * 0.96), kind, this.showMarks ? (this.markByKind.get(kind) ?? null) : null, r.resolution);
       this.textures.set(kind, new Texture({ source: new CanvasSource({ resource: canvas, resolution: r.resolution }) }));
     }
     for (const v of this.pieces.values()) v.s.texture = this.textures.get(v.kind) ?? Texture.WHITE;

@@ -219,7 +219,11 @@ mouse hovering a plank shows a ghost arrow pointing toward the nearest edge, and
 redraws as if it were laid; a click commits it, the same
 click again lifts it, and right-click lifts. Touch taps the same way or swipes across a plank to
 point an arrow. Keyboard moves a cursor, lays with W, A, S, D and lifts with Space or Backspace.
-Loads pop their points, a full cannon glows and sparks, firing recoils with a muzzle flash, smoke
+Gunnery has its own piece art rather than the coloured tiles of the other puzzles: powder is a
+charred keg with brass hoops, wad a cream bundle of sailcloth tied with twine, shot an iron
+cannonball and water a wooden bucket brimming blue. Each has its own silhouette (barrel, square
+bundle, ball, tapered bucket), so they read apart without colour, and the marks setting adds a
+symbol badge to each. Loads pop their points, a full cannon glows and sparks, firing recoils with a muzzle flash, smoke
 and a shake, fouling puffs smoke. Numbers and the deck live in `content/data/puzzles/gunnery.json`.
 
 **Navigation.** Arrange and shift pieces to reproduce a target constellation. Completed patterns
