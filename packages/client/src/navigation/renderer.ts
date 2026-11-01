@@ -1,37 +1,47 @@
 import { Application, Container, Graphics, Text, type FederatedPointerEvent } from "pixi.js";
 import {
+  NAVIGATION_ENTRY_OCTANT,
   navigationColorOf,
+  navigationHint,
   navigationLandingSlot,
   navigationOctantOf,
   navigationRingOf,
   navigationShapeOf,
   navigationSlotOf,
   type Completion,
+  type Marker,
+  type NavigationEvent,
+  type NavigationHint,
   type NavigationState,
 } from "@openseas/engine";
 import type { NavigationContent } from "@openseas/content";
 import { paintStar, type StarShapeName } from "./stars.js";
 
 export interface NavigationCallbacks {
-  onRotate(ring: number, dir: -1 | 1): void;
+  /** The player turned a ring. False when the engine refused it. */
+  onRotate(ring: number, dir: -1 | 1): boolean;
   onDrop(): void;
   /** First frame drawn after a new state arrived. */
   onFrame(): void;
-  onLanded(): void;
-  onBooch(): void;
-  onCharted(c: Completion): void;
+  /** Events newer than anything shown before, in order, for sound. */
+  onEvents(events: readonly NavigationEvent[]): void;
   onNudge(): void;
 }
 
 export interface NavigationRendererOptions {
   showMarks: boolean;
   showMarkers: boolean;
-  chartedLabel: string;
-  boochLabel: string;
-  chainLabel(chain: number): string;
-  efficientLabel: string;
-  /** Label over the next-star badge the chart draws when the canvas is taller than the chart. */
-  nextLabel: string;
+  /** Idle hints, for unrated practice only. */
+  hints: boolean;
+  tickMs: number;
+  labels: {
+    charted: string;
+    booch: string;
+    run: string;
+    chain(chain: number): string;
+    efficient: string;
+    next: string;
+  };
 }
 
 interface StarView {
@@ -45,7 +55,10 @@ interface StarView {
   tx: number;
   ty: number;
   dying: number | null;
-  flash: number;
+  /** How it goes: charted stars swell and shine, swept ones shrink. */
+  flash: boolean;
+  /** ms left on the landing glow. */
+  glow: number;
 }
 
 interface Popup {
@@ -53,6 +66,17 @@ interface Popup {
   life: number;
   max: number;
   y0: number;
+}
+
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  r: number;
+  color: number;
+  life: number;
+  max: number;
 }
 
 interface Pending {
@@ -68,27 +92,41 @@ const COLORS = {
   brass: 0xd4a548,
   brassLight: 0xf5d58a,
   danger: 0xf0604d,
+  good: 0x6fdc8c,
   select: 0xf2f0e6,
+  line: 0x9fb4e0,
 };
 const SPIN_MS = 170;
-const LAND_MS = 240;
-const DIE_MS = 260;
+const LAND_MS = 220;
+const DIE_MS = 300;
+/** No input for this long in a hinted round and the chart points at a turn. */
+const HINT_IDLE_MS = 1200;
+
+/** What the chart shows, for the smoke test: the kind in every slot. Shared with the page's board host. */
+export function navigationViewString(state: NavigationState): string {
+  return state.slots.map((s) => s?.kind ?? -1).join(",");
+}
 
 export class NavigationRenderer {
   readonly app = new Application();
   private readonly chart = new Container();
   private readonly sky = new Graphics();
+  private readonly linesLayer = new Graphics();
   private readonly markerLayer = new Graphics();
+  private readonly pulseLayer = new Graphics();
   private readonly highlight = new Graphics();
   private readonly ringLayers: Container[] = [];
   private readonly ringSpin: number[] = [];
   private readonly path = new Graphics();
   private readonly fallingLayer = new Graphics();
+  private readonly hintLayer = new Graphics();
+  private readonly fxG = new Graphics();
   private readonly nextBadge = new Graphics();
   private readonly nextText = new Text({ text: "", style: { fontFamily: "Atkinson Hyperlegible, sans-serif", fontSize: 11, fontWeight: "700", fill: 0xc9bb9a, letterSpacing: 2 } });
   private readonly fxLayer = new Container();
   private readonly stars = new Map<number, StarView>();
   private readonly popups: Popup[] = [];
+  private readonly particles: Particle[] = [];
   private readonly pending: Pending[] = [];
   private readonly colorHex: number[] = [];
   private readonly colorMark: string[] = [];
@@ -96,15 +134,20 @@ export class NavigationRenderer {
   private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   private showMarks: boolean;
   private showMarkers: boolean;
+  private hints: boolean;
   private rings: number;
   private octants: number;
   private cx = 0;
   private cy = 0;
   private R = 100;
+  /** Room above the chart for the falling star to come out of. */
+  private skyGap = 0;
   private time = 0;
   private state: NavigationState | null = null;
-  private shownMarkers: NavigationState["markers"] = [];
-  private shownCurrent: NavigationState["current"] | null = null;
+  private lastSeq = 0;
+  /** When the shown tick last changed, for smoothing the fall between ticks. */
+  private tickAt = 0;
+  private shownMarkers: readonly Marker[] = [];
   private interactive = false;
   private framePending = false;
   private viewStale = true;
@@ -112,7 +155,14 @@ export class NavigationRenderer {
   private selectedRing = 1;
   private keyboardUsed = false;
   private shake = 0;
-  private drag: { ring: number | null; zone: "ring" | "center" | "falling" | null; angle: number; acc: number; moved: boolean; x: number } | null = null;
+  /** ms left on the constellation-line flash, and the markers it lights. */
+  private lineFlash = 0;
+  private lineFlashMarkers: readonly Marker[] = [];
+  private fallY: number | null = null;
+  private lastInputAt = 0;
+  private hint: NavigationHint | null = null;
+  private hintFor: NavigationState | null = null;
+  private drag: { ring: number | null; zone: "ring" | "center" | "sky" | null; angle: number; acc: number; moved: boolean; x: number } | null = null;
 
   constructor(
     private readonly host: HTMLElement,
@@ -122,6 +172,7 @@ export class NavigationRenderer {
   ) {
     this.showMarks = opts.showMarks;
     this.showMarkers = opts.showMarkers;
+    this.hints = opts.hints;
     this.rings = content.config.rings;
     this.octants = content.config.octants;
     for (const c of content.colors) {
@@ -148,16 +199,16 @@ export class NavigationRenderer {
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "navigation-canvas");
     this.host.appendChild(this.app.canvas);
-    this.chart.addChild(this.sky, this.highlight, this.markerLayer);
+    this.chart.addChild(this.sky, this.linesLayer, this.highlight, this.markerLayer, this.pulseLayer);
     for (let r = 0; r < this.rings; r++) {
       const c = new Container();
       this.ringLayers.push(c);
       this.ringSpin.push(0);
       this.chart.addChild(c);
     }
-    this.chart.addChild(this.path, this.fallingLayer, this.fxLayer);
+    this.chart.addChild(this.path, this.hintLayer, this.fallingLayer, this.fxG, this.fxLayer);
     this.nextText.anchor.set(0.5, 1);
-    this.nextText.text = this.opts.nextLabel.toUpperCase();
+    this.nextText.text = this.opts.labels.next.toUpperCase();
     this.app.stage.addChild(this.chart, this.nextBadge, this.nextText);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -178,8 +229,9 @@ export class NavigationRenderer {
   setInteractive(on: boolean): void {
     this.interactive = on;
     if (!on) this.drag = null;
-    this.drawFalling();
+    this.lastInputAt = this.time;
     this.drawHighlight();
+    this.drawNextBadge();
   }
 
   setShowMarks(on: boolean): void {
@@ -187,105 +239,161 @@ export class NavigationRenderer {
     this.showMarks = on;
     this.repaintStars();
     this.drawMarkers();
-    this.drawFalling();
+    this.drawNextBadge();
   }
 
   setShowMarkers(on: boolean): void {
     if (this.showMarkers === on) return;
     this.showMarkers = on;
     this.drawMarkers();
+    this.drawLines();
   }
 
-  /** A new engine state. Plays the last move back; anything still animating fast-forwards. */
+  setHints(on: boolean): void {
+    this.hints = on;
+    this.hint = null;
+    this.hintFor = null;
+    this.hintLayer.clear();
+  }
+
+  /** A new displayed state, usually one tick on. Plays back whatever happened since the last one. */
   setState(state: NavigationState): void {
     if (!this.app.renderer) return;
     const prev = this.state;
+    const fresh = state.tick === 0 && state.eventSeq === 0 && state.logLength === 0;
+    const reset = !prev || fresh || state.eventSeq < prev.eventSeq || state.nextId < prev.nextId;
+    if (!prev || state.tick !== prev.tick) this.tickAt = this.time;
     this.state = state;
     this.framePending = true;
     this.viewStale = true;
-    const report = state.lastMove;
-    this.flushPending();
-    if (!prev || !report || report.move.type === "end") {
+    if (reset) {
+      this.flushPending();
+      for (const v of this.stars.values()) v.g.destroy();
+      this.stars.clear();
+      this.lastSeq = state.eventSeq;
       this.shownMarkers = state.markers;
-      this.shownCurrent = state.current;
+      this.fallY = null;
+      this.lineFlash = 0;
+      this.hint = null;
+      this.hintFor = null;
       this.place(state, true);
       this.drawMarkers();
-      this.drawFalling();
+      this.drawLines();
+      this.drawNextBadge();
       return;
     }
-    let delay = 0;
-    if (report.move.type === "rotate") {
-      const dir = report.move.dir;
-      const ring = report.move.ring;
-      this.ringSpin[ring] = (this.ringSpin[ring] ?? 0) - dir * ((Math.PI * 2) / this.octants);
-      this.ringLayers[ring]!.rotation = this.ringSpin[ring]!;
-    }
-    if (report.landed) {
-      const slot = report.landed.slot;
-      const ring = navigationRingOf(state.config, slot);
-      const octant = navigationOctantOf(state.config, slot);
-      const v = this.spawnStar(report.landed.id, state.slots[slot]!.kind, ring, octant);
-      // Start where the falling star hovers: outside the rim at the octant's angle.
-      const a = this.angleOf(octant);
-      v.x = Math.cos(a) * this.R * 0.93;
-      v.y = Math.sin(a) * this.R * 0.93;
-      v.g.position.set(v.x, v.y);
-      this.cb.onLanded();
-      delay = this.reduced ? 60 : LAND_MS;
-    }
-    if (report.booch) {
-      for (const id of report.booch.ids) {
-        const v = this.stars.get(id);
-        if (v) v.dying = 0;
+    const events = (state.lastMove?.events ?? []).filter((e) => e.seq > this.lastSeq);
+    if (events.length) {
+      this.lastSeq = events[events.length - 1]!.seq;
+      let delay = 0;
+      for (const e of events) {
+        switch (e.type) {
+          case "land": {
+            const ring = navigationRingOf(state.config, e.slot);
+            const octant = navigationOctantOf(state.config, e.slot);
+            const v = this.spawnStar(e.id, e.kind, ring, octant);
+            // Start where the falling star was last drawn, on the entry spoke.
+            v.x = 0;
+            v.y = this.fallY ?? -this.R;
+            v.g.position.set(v.x, v.y);
+            v.glow = e.onMarker ? 900 : 350;
+            if (e.onMarker) this.burst(0, -this.ringRadius(ring), this.colorHex[navigationColorOf(state.config, e.kind)] ?? 0xffffff, 8, 0.7);
+            this.fallY = null;
+            delay = Math.max(delay, this.reduced ? 60 : LAND_MS);
+            break;
+          }
+          case "booch": {
+            for (const id of e.ids) {
+              const v = this.stars.get(id);
+              if (v) {
+                v.dying = 0;
+                v.flash = false;
+              }
+            }
+            this.shake = 1;
+            this.fallY = null;
+            this.callout(this.opts.labels.booch, COLORS.danger);
+            this.popup(0, -this.ringRadius(this.rings - 1), `-${e.penalty}`, COLORS.danger);
+            this.burst(0, -this.ringRadius(1), COLORS.danger, 14, 1.1);
+            break;
+          }
+          case "charted": {
+            const c = e.completion;
+            this.pending.push({
+              at: this.time + delay,
+              run: () => this.playCharted(c),
+            });
+            delay += this.reduced ? 80 : 360;
+            break;
+          }
+          case "run": {
+            const run = e.run;
+            this.pending.push({
+              at: this.time + delay,
+              run: () => {
+                let sx = 0;
+                let sy = 0;
+                for (const id of run.ids) {
+                  const v = this.stars.get(id);
+                  if (!v) continue;
+                  v.dying = 0;
+                  v.flash = true;
+                  sx += v.tx;
+                  sy += v.ty;
+                  this.burst(v.tx, v.ty, this.colorHex[run.kind % this.colorHex.length] ?? 0xffffff, 5, 0.5);
+                }
+                const n = Math.max(1, run.ids.length);
+                this.popup(sx / n, sy / n, `${this.opts.labels.run} +${run.points}`, COLORS.good, 0.8);
+              },
+            });
+            delay += this.reduced ? 40 : 160;
+            break;
+          }
+        }
       }
-      this.shake = 1;
-      this.cb.onBooch();
-      this.callout(this.opts.boochLabel, COLORS.danger);
-      this.popup(this.cx * 0 + Math.cos(this.angleOf(report.booch.octant)) * this.R * 0.5, Math.sin(this.angleOf(report.booch.octant)) * this.R * 0.5, `-${report.booch.penalty}`, COLORS.danger);
-    }
-    // Stars not in the new state and not already dying (swept by a completion) go after the landing shows.
-    for (const c of report.completions) {
-      const completion = c;
+      this.cb.onEvents(events);
       this.pending.push({
         at: this.time + delay,
         run: () => {
-          for (const id of completion.ids) {
-            const v = this.stars.get(id);
-            if (v) {
-              v.flash = 1;
-              v.dying = 0;
-            }
-          }
-          this.cb.onCharted(completion);
-          this.callout(this.opts.chartedLabel + (completion.chain >= 2 ? ` ${this.opts.chainLabel(completion.chain)}` : ""), COLORS.brassLight);
-          this.popup(0, -this.R * 0.08, `+${completion.points}`, COLORS.brass);
-          if (completion.efficient) this.popup(0, this.R * 0.12, this.opts.efficientLabel, COLORS.select);
+          this.shownMarkers = state.markers;
+          this.drawMarkers();
+          this.drawLines();
+          this.place(state, false);
         },
       });
-      delay += this.reduced ? 80 : 320;
-    }
-    this.pending.push({
-      at: this.time + delay,
-      run: () => {
+      this.place(state, false, true);
+    } else {
+      // Nothing happened: the rings may have turned, so stars glide to their slots.
+      this.place(state, false, this.pending.length > 0);
+      if (!this.pending.length) {
         this.shownMarkers = state.markers;
-        this.drawMarkers();
-        this.place(state, false);
-      },
-    });
-    // The next falling star appears once the landing has played.
-    this.pending.push({
-      at: this.time + (report.landed ? (this.reduced ? 60 : LAND_MS) : 0),
-      run: () => {
-        this.shownCurrent = state.current;
-        this.drawFalling();
-      },
-    });
-    this.place(state, false, true);
+        this.drawLines();
+      }
+    }
+    this.drawNextBadge();
+  }
+
+  private playCharted(c: Completion): void {
+    const cfg = this.state?.config;
+    for (const id of c.ids) {
+      const v = this.stars.get(id);
+      if (v) {
+        v.flash = true;
+        v.dying = 0;
+        this.burst(v.tx, v.ty, COLORS.brassLight, 10, 1);
+      }
+    }
+    this.lineFlash = this.reduced ? 300 : 900;
+    this.lineFlashMarkers = c.markers;
+    this.callout(this.opts.labels.charted + (c.chain >= 2 ? ` ${this.opts.labels.chain(c.chain)}` : ""), COLORS.brassLight);
+    this.popup(0, -this.R * 0.08, `+${c.points}`, COLORS.brass);
+    if (c.efficient) this.popup(0, this.R * 0.14, this.opts.labels.efficient, COLORS.select, 0.8);
+    if (cfg && c.chain >= 3) this.shake = Math.max(this.shake, 0.4);
   }
 
   private flushPending(): void {
     while (this.pending.length) this.pending.shift()!.run();
-    for (const v of this.stars.values()) {
+    for (const v of [...this.stars.values()]) {
       v.x = v.tx;
       v.y = v.ty;
       v.g.position.set(v.x, v.y);
@@ -324,14 +432,23 @@ export class NavigationRenderer {
         v.g.position.set(v.x, v.y);
       }
     }
-    if (!keepGone) for (const [id, v] of this.stars) if (!seen.has(id) && v.dying === null) v.dying = 0;
+    if (!keepGone) {
+      for (const [id, v] of this.stars) {
+        if (!seen.has(id) && v.dying === null) {
+          v.dying = 0;
+          v.flash = false;
+        }
+      }
+    }
   }
 
   private spawnStar(id: number, kind: number, ring: number, octant: number): StarView {
+    const old = this.stars.get(id);
+    if (old) return old;
     const g = new Graphics();
     const a = this.angleOf(octant);
     const rad = this.ringRadius(ring);
-    const v: StarView = { g, kind, ring, octant, x: Math.cos(a) * rad, y: Math.sin(a) * rad, tx: Math.cos(a) * rad, ty: Math.sin(a) * rad, dying: null, flash: 0 };
+    const v: StarView = { g, kind, ring, octant, x: Math.cos(a) * rad, y: Math.sin(a) * rad, tx: Math.cos(a) * rad, ty: Math.sin(a) * rad, dying: null, flash: false, glow: 0 };
     g.position.set(v.x, v.y);
     this.paintStarView(v);
     this.ringLayers[ring]!.addChild(g);
@@ -340,8 +457,7 @@ export class NavigationRenderer {
   }
 
   private paintStarView(v: StarView): void {
-    const cfg = this.state?.config;
-    const colors = cfg?.colors ?? this.colorHex.length;
+    const colors = this.state?.config.colors ?? this.colorHex.length;
     const shape = Math.floor(v.kind / colors);
     const color = v.kind % colors;
     v.g.clear();
@@ -364,29 +480,49 @@ export class NavigationRenderer {
 
   // ---- geometry
 
+  /** Octant 0 is centered at the top, where stars enter. */
   private angleOf(octant: number): number {
-    return -Math.PI / 2 + ((octant + 0.5) * Math.PI * 2) / this.octants;
+    return -Math.PI / 2 + (octant * Math.PI * 2) / this.octants;
+  }
+  private innerRadius(): number {
+    return this.R * 0.2;
   }
   private bandWidth(): number {
-    return (this.R * 0.8 - this.R * 0.18) / this.rings;
+    return (this.R * 0.82 - this.innerRadius()) / this.rings;
   }
   private ringRadius(ring: number): number {
-    return this.R * 0.18 + (ring + 0.5) * this.bandWidth();
+    return this.innerRadius() + (ring + 0.5) * this.bandWidth();
   }
   private starSize(): number {
     return Math.min(this.bandWidth() * 0.36, ((this.ringRadius(0) * Math.PI * 2) / this.octants) * 0.34);
+  }
+  /** Where the falling star starts, in chart space. */
+  private skyY(): number {
+    return -(this.R + Math.max(this.starSize() * 1.2, this.skyGap * 0.6));
   }
 
   private layout(): void {
     if (!this.app.renderer) return;
     const w = this.app.screen.width;
     const h = this.app.screen.height;
+    let R = Math.max(40, Math.min(w, h) / 2 - 6);
+    // On a tall canvas, leave sky above the chart for the star to fall out of.
+    const spare = h - 2 * R - 12;
+    this.skyGap = spare > 0 ? Math.min(spare, R * 0.45) : 0;
+    if (spare <= 0 && h < w) {
+      // Wide and short: shrink a touch so the sky still shows.
+      R = Math.max(40, h / 2 - 6 - h * 0.08);
+      this.skyGap = h * 0.16;
+    }
+    this.R = R;
     this.cx = w / 2;
-    this.cy = h / 2;
-    this.R = Math.max(40, Math.min(w, h) / 2 - 6);
+    this.cy = this.skyGap + R + (h - this.skyGap - 2 * R) / 2;
     this.chart.position.set(this.cx, this.cy);
+    // Where the chart sits on the canvas, for tests that tap it.
+    this.app.canvas.setAttribute("data-geom", `${Math.round(this.cx)},${Math.round(this.cy)},${Math.round(R)}`);
     this.drawSky();
     this.drawMarkers();
+    this.drawLines();
     this.drawHighlight();
     for (const v of this.stars.values()) {
       const a = this.angleOf(v.octant);
@@ -396,7 +532,7 @@ export class NavigationRenderer {
       v.g.position.set(v.x, v.y);
     }
     this.repaintStars();
-    this.drawFalling();
+    this.drawNextBadge();
   }
 
   private drawSky(): void {
@@ -404,7 +540,6 @@ export class NavigationRenderer {
     const R = this.R;
     g.clear();
     g.circle(0, 0, R).fill({ color: COLORS.sky });
-    g.circle(0, 0, R).stroke({ width: 3, color: COLORS.brass, alpha: 0.8 });
     // Faint background stars.
     let seed = 7;
     const rnd = (): number => {
@@ -417,7 +552,7 @@ export class NavigationRenderer {
       g.circle(Math.cos(a) * d, Math.sin(a) * d, 0.6 + rnd() * 1.1).fill({ color: 0xffffff, alpha: 0.12 + rnd() * 0.25 });
     }
     // Ring bands.
-    const inner = R * 0.18;
+    const inner = this.innerRadius();
     const bw = this.bandWidth();
     for (let r = 0; r < this.rings; r++) {
       const r0 = inner + r * bw;
@@ -427,12 +562,17 @@ export class NavigationRenderer {
       g.circle(0, 0, r1).stroke({ width: 1.2, color: COLORS.ringLine, alpha: 0.6 });
     }
     g.circle(0, 0, inner).stroke({ width: 1.2, color: COLORS.ringLine, alpha: 0.6 });
-    // Octant spokes, from the hole to the rim.
+    // Octant spokes, between octants, from the hole to the rim.
+    const half = Math.PI / this.octants;
     for (let o = 0; o < this.octants; o++) {
-      const a = -Math.PI / 2 + (o * Math.PI * 2) / this.octants;
-      g.moveTo(Math.cos(a) * inner, Math.sin(a) * inner).lineTo(Math.cos(a) * R * 0.8, Math.sin(a) * R * 0.8);
+      const a = this.angleOf(o) + half;
+      g.moveTo(Math.cos(a) * inner, Math.sin(a) * inner).lineTo(Math.cos(a) * R * 0.82, Math.sin(a) * R * 0.82);
     }
     g.stroke({ width: 1, color: COLORS.ringLine, alpha: 0.35 });
+    // The entry: a brass notch in the rim at the top where stars come in.
+    const notch = this.starSize() * 1.6;
+    g.moveTo(-notch, -R - 1).lineTo(0, -R + notch * 0.8).lineTo(notch, -R - 1).stroke({ width: 2, color: COLORS.brass, alpha: 0.7 });
+    g.circle(0, 0, R).stroke({ width: 3, color: COLORS.brass, alpha: 0.8 });
     // A compass rose in the hole.
     g.circle(0, 0, inner * 0.55).fill({ color: COLORS.skyEdge, alpha: 0.9 });
     g.circle(0, 0, inner * 0.55).stroke({ width: 1.5, color: COLORS.brass, alpha: 0.7 });
@@ -442,16 +582,27 @@ export class NavigationRenderer {
     }
   }
 
+  private markerPos(m: Marker): { x: number; y: number } {
+    const a = this.angleOf(m.octant);
+    const rad = this.ringRadius(m.ring);
+    return { x: Math.cos(a) * rad, y: Math.sin(a) * rad };
+  }
+
+  private markerHeld(m: Marker): boolean {
+    const s = this.state;
+    if (!s) return false;
+    return s.slots[navigationSlotOf(s.config, m.ring, m.octant)]?.kind === m.kind;
+  }
+
   private drawMarkers(): void {
     const g = this.markerLayer;
     g.clear();
     if (!this.showMarkers || !this.state) return;
     const cfg = this.state.config;
     for (const m of this.shownMarkers) {
-      const a = this.angleOf(m.octant);
-      const rad = this.ringRadius(m.ring);
+      const p = this.markerPos(m);
       const color = navigationColorOf(cfg, m.kind);
-      paintStar(g, Math.cos(a) * rad, Math.sin(a) * rad, this.starSize() * 1.18, {
+      paintStar(g, p.x, p.y, this.starSize() * 1.18, {
         shape: this.shapeName[navigationShapeOf(cfg, m.kind)] ?? "star",
         color: this.colorHex[color] ?? 0xffffff,
         hollow: true,
@@ -460,85 +611,164 @@ export class NavigationRenderer {
     }
   }
 
+  /** The constellation's figure: faint lines joining its markers in order around the chart, bright where both ends hold. */
+  private drawLines(): void {
+    const g = this.linesLayer;
+    g.clear();
+    if (!this.showMarkers || !this.state || this.shownMarkers.length < 2) return;
+    const ms = [...this.shownMarkers].sort((a, b) => a.octant - b.octant || a.ring - b.ring);
+    for (let i = 0; i < ms.length - 1; i++) {
+      const a = ms[i]!;
+      const b = ms[i + 1]!;
+      const pa = this.markerPos(a);
+      const pb = this.markerPos(b);
+      const lit = this.markerHeld(a) && this.markerHeld(b);
+      g.moveTo(pa.x, pa.y).lineTo(pb.x, pb.y).stroke({ width: lit ? 2 : 1.2, color: lit ? COLORS.brassLight : COLORS.line, alpha: lit ? 0.75 : 0.28 });
+    }
+  }
+
   private drawHighlight(): void {
     const g = this.highlight;
     g.clear();
     if (!this.keyboardUsed || !this.interactive) return;
-    const r0 = this.R * 0.18 + this.selectedRing * this.bandWidth();
+    const r0 = this.innerRadius() + this.selectedRing * this.bandWidth();
     g.circle(0, 0, r0 + this.bandWidth()).stroke({ width: 2.5, color: COLORS.select, alpha: 0.7 });
     g.circle(0, 0, r0).stroke({ width: 2.5, color: COLORS.select, alpha: 0.7 });
   }
 
-  /** The falling star at the rim, with a dotted path to its landing slot, or a warning when the octant is full. */
+  /** The star on its way down the entry spoke, the path ahead of it and the ring where it will rest. */
   private drawFalling(): void {
     const g = this.fallingLayer;
     const p = this.path;
+    const pulse = this.pulseLayer;
     g.clear();
     p.clear();
+    pulse.clear();
     const state = this.state;
-    const cur = this.shownCurrent;
-    this.drawNextBadge();
-    if (!state || !cur || !this.interactive || state.finished) return;
-    const cfg = state.config;
-    const a = this.angleOf(cur.octant);
-    const rim = this.R * 0.93;
-    const color = navigationColorOf(cfg, cur.kind);
-    // Where it would land, judged on the state as shown (markers may still be catching up, slots are current).
-    const landing = navigationLandingSlot({ ...state, current: cur });
-    const end = landing === null ? this.R * 0.18 : this.ringRadius(navigationRingOf(cfg, landing));
-    const dots = 7;
-    for (let i = 1; i <= dots; i++) {
-      const d = rim - ((rim - end) * i) / (dots + 1);
-      p.circle(Math.cos(a) * d, Math.sin(a) * d, Math.max(1.2, this.starSize() * 0.12)).fill({ color: landing === null ? COLORS.danger : 0xffffff, alpha: 0.45 });
+    if (!state || !this.interactive || state.finished) {
+      this.fallY = null;
+      return;
     }
-    if (landing === null) {
+    const cfg = state.config;
+    const f = state.falling;
+    const span = Math.max(1, f.landTick - f.startTick);
+    const frac = this.reduced ? 0 : Math.min(1, (this.time - this.tickAt) / this.opts.tickMs);
+    const k = Math.max(0, Math.min(1, (state.tick + frac - f.startTick) / span));
+    const landing = navigationLandingSlot(state);
+    const blocked = landing === null;
+    const endY = blocked ? -this.ringRadius(this.rings - 1) - this.bandWidth() * 0.5 : -this.ringRadius(navigationRingOf(cfg, landing));
+    const startY = this.skyY();
+    // Ease in, so the star drifts out of the sky and hurries toward the chart.
+    const y = startY + (endY - startY) * (k * k * 0.6 + k * 0.4);
+    this.fallY = y;
+    const size = this.starSize();
+    const color = navigationColorOf(cfg, f.kind);
+    // Dotted path from the star to where it rests.
+    const dots = 6;
+    for (let i = 1; i <= dots; i++) {
+      const d = y + ((endY - y) * i) / (dots + 1);
+      p.circle(0, d, Math.max(1.2, size * 0.12)).fill({ color: blocked ? COLORS.danger : 0xffffff, alpha: 0.4 });
+    }
+    const onMarker = !blocked && state.markers.some((m) => navigationSlotOf(cfg, m.ring, m.octant) === landing && m.kind === f.kind);
+    const beat = 0.5 + 0.5 * Math.sin(this.time * 0.012);
+    if (blocked) {
       const d = this.ringRadius(this.rings - 1);
-      const s = this.starSize() * 0.6;
-      const x = Math.cos(a) * d;
-      const y = Math.sin(a) * d;
-      p.moveTo(x - s, y - s).lineTo(x + s, y + s).moveTo(x + s, y - s).lineTo(x - s, y + s).stroke({ width: 3, color: COLORS.danger, alpha: 0.8 });
+      const s = size * 0.6;
+      p.moveTo(-s, -d - s).lineTo(s, -d + s).moveTo(s, -d - s).lineTo(-s, -d + s).stroke({ width: 3, color: COLORS.danger, alpha: 0.85, cap: "round" });
+      // The whole outer band pulses red: the column is shut.
+      p.circle(0, 0, this.innerRadius() + this.rings * this.bandWidth()).stroke({ width: 3, color: COLORS.danger, alpha: 0.25 + 0.35 * beat });
     } else {
       const d = this.ringRadius(navigationRingOf(cfg, landing));
-      g.circle(Math.cos(a) * d, Math.sin(a) * d, this.starSize() * 1.1).stroke({ width: 1.5, color: 0xffffff, alpha: 0.35 });
+      g.circle(0, -d, size * (1.15 + 0.1 * beat)).stroke({ width: onMarker ? 2.5 : 1.5, color: onMarker ? COLORS.brassLight : 0xffffff, alpha: onMarker ? 0.6 + 0.4 * beat : 0.35 });
     }
-    paintStar(g, Math.cos(a) * rim, Math.sin(a) * rim, this.starSize() * 1.05, {
-      shape: this.shapeName[navigationShapeOf(cfg, cur.kind)] ?? "star",
+    // Markers wanting this kind beckon.
+    if (this.showMarkers) {
+      for (const m of state.markers) {
+        if (m.kind !== f.kind || this.markerHeld(m)) continue;
+        const mp = this.markerPos(m);
+        pulse.circle(mp.x, mp.y, size * (1.5 + 0.25 * beat)).stroke({ width: 1.5, color: this.colorHex[color] ?? 0xffffff, alpha: 0.15 + 0.3 * beat });
+      }
+    }
+    // A short trail behind the star.
+    for (let i = 1; i <= 3; i++) {
+      g.circle(0, y - i * size * 0.55, size * (0.5 - i * 0.12)).fill({ color: this.colorHex[color] ?? 0xffffff, alpha: 0.25 - i * 0.06 });
+    }
+    paintStar(g, 0, y, size * 1.05, {
+      shape: this.shapeName[navigationShapeOf(cfg, f.kind)] ?? "star",
       color: this.colorHex[color] ?? 0xffffff,
       hollow: false,
       mark: this.showMarks ? (this.colorMark[color] ?? null) : null,
     });
   }
 
-  /** On tall canvases the space above the chart shows the star after this one. */
+  /** In the sky beside the entry: the star after this one. */
   private drawNextBadge(): void {
     const g = this.nextBadge;
     g.clear();
     this.nextText.visible = false;
     const state = this.state;
-    const top = this.cy - this.R;
     const size = this.starSize();
-    if (!state || top < size * 4 || !this.interactive || state.finished) return;
+    if (!state || !this.interactive || state.finished) return;
     const cfg = state.config;
-    const x = this.cx;
-    const y = top * 0.55;
-    const color = navigationColorOf(cfg, state.next.kind);
-    g.roundRect(x - size * 2.2, y - size * 1.5, size * 4.4, size * 3, size * 0.6).fill({ color: COLORS.skyEdge, alpha: 0.7 });
+    const room = this.cy - this.R;
+    const x = this.cx + this.R * 0.55;
+    const y = room > size * 4 ? room * 0.5 : this.cy - this.R * 0.78;
+    const color = navigationColorOf(cfg, state.next);
+    g.roundRect(x - size * 2.2, y - size * 1.5, size * 4.4, size * 3, size * 0.6).fill({ color: COLORS.skyEdge, alpha: 0.75 });
     g.roundRect(x - size * 2.2, y - size * 1.5, size * 4.4, size * 3, size * 0.6).stroke({ width: 1, color: COLORS.brass, alpha: 0.5 });
-    paintStar(g, x, y, size * 0.95, {
-      shape: this.shapeName[navigationShapeOf(cfg, state.next.kind)] ?? "star",
+    paintStar(g, x, y, size * 0.9, {
+      shape: this.shapeName[navigationShapeOf(cfg, state.next)] ?? "star",
       color: this.colorHex[color] ?? 0xffffff,
       hollow: false,
       mark: this.showMarks ? (this.colorMark[color] ?? null) : null,
     });
-    this.nextText.visible = true;
-    this.nextText.style.fontSize = Math.max(10, size * 0.55);
-    this.nextText.position.set(x, y - size * 1.7);
+    if (room > size * 4) {
+      this.nextText.visible = true;
+      this.nextText.style.fontSize = Math.max(10, size * 0.55);
+      this.nextText.position.set(x, y - size * 1.7);
+    }
   }
 
-  private popup(x: number, y: number, text: string, color: number): void {
+  /** After a quiet spell in a hinted round, chevrons on the ring to turn, pointing the way. */
+  private drawHint(): void {
+    const g = this.hintLayer;
+    const state = this.state;
+    if (!this.hints || !this.interactive || !state || state.finished || this.time - this.lastInputAt < HINT_IDLE_MS) {
+      if (this.hint) g.clear();
+      this.hint = null;
+      return;
+    }
+    if (this.hintFor !== state) {
+      this.hintFor = state;
+      this.hint = navigationHint(state);
+      g.clear();
+    }
+    const h = this.hint;
+    g.clear();
+    if (!h) return;
+    const rad = this.ringRadius(h.ring);
+    const size = this.starSize() * 0.6;
+    const beat = 0.5 + 0.5 * Math.sin(this.time * 0.01);
+    for (let i = 0; i < 4; i++) {
+      const a = i * (Math.PI / 2) + Math.PI / 4;
+      const x = Math.cos(a) * rad;
+      const y = Math.sin(a) * rad;
+      // Tangent in the direction of travel: clockwise on screen is +dir.
+      const tx = -Math.sin(a) * h.dir;
+      const ty = Math.cos(a) * h.dir;
+      const nx = -ty;
+      const ny = tx;
+      g.moveTo(x - tx * size + nx * size * 0.7, y - ty * size + ny * size * 0.7)
+        .lineTo(x + tx * size * 0.4, y + ty * size * 0.4)
+        .lineTo(x - tx * size - nx * size * 0.7, y - ty * size - ny * size * 0.7)
+        .stroke({ width: 3, color: COLORS.select, alpha: 0.35 + 0.5 * beat, cap: "round", join: "round" });
+    }
+  }
+
+  private popup(x: number, y: number, text: string, color: number, scale = 1): void {
     const t = new Text({
       text,
-      style: { fontFamily: "Fraunces, Georgia, serif", fontSize: Math.max(12, this.R * 0.09), fontWeight: "700", fill: color, stroke: { color: 0x000000, width: 3 } },
+      style: { fontFamily: "Fraunces, Georgia, serif", fontSize: Math.max(12, this.R * 0.09 * scale), fontWeight: "700", fill: color, stroke: { color: 0x000000, width: 3 } },
     });
     t.anchor.set(0.5);
     t.position.set(x, y);
@@ -557,6 +787,16 @@ export class NavigationRenderer {
     this.popups.push({ t, life: 0, max: this.reduced ? 400 : 1000, y0: t.y });
   }
 
+  private burst(x: number, y: number, color: number, n: number, power: number): void {
+    if (this.reduced) return;
+    const s = this.starSize();
+    for (let k = 0; k < n; k++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = (0.03 + Math.random() * 0.07) * power * (s / 10);
+      this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: s * (0.12 + Math.random() * 0.1), color, life: 0, max: 380 + Math.random() * 260 });
+    }
+  }
+
   // ---- per frame
 
   private tick(dt: number): void {
@@ -572,16 +812,22 @@ export class NavigationRenderer {
       this.ringLayers[r]!.rotation = next;
       if (next !== 0) busy = true;
     }
-    const speed = this.reduced ? 1 : Math.min(1, dt / LAND_MS) * 1.6;
+    const speed = this.reduced ? 1 : Math.min(1, dt / LAND_MS) * 1.7;
     for (const v of [...this.stars.values()]) {
       if (v.dying !== null) {
         v.dying += dt;
         const q = Math.min(1, v.dying / DIE_MS);
         v.g.alpha = 1 - q;
-        v.g.scale.set(v.flash ? 1 + q * 0.9 : 1 - q * 0.4);
+        v.g.scale.set(v.flash ? 1 + q * 1.1 : 1 - q * 0.5);
         if (q >= 1) this.kill(v);
         else busy = true;
         continue;
+      }
+      if (v.glow > 0) {
+        v.glow = Math.max(0, v.glow - dt);
+        const q = v.glow / 900;
+        v.g.scale.set(1 + 0.25 * q * (0.5 + 0.5 * Math.sin(this.time * 0.02)));
+        if (v.glow === 0) v.g.scale.set(1);
       }
       if (v.x !== v.tx || v.y !== v.ty) {
         v.x += (v.tx - v.x) * speed;
@@ -604,11 +850,43 @@ export class NavigationRenderer {
         this.popups.splice(i, 1);
       }
     }
+    const fx = this.fxG;
+    fx.clear();
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i]!;
+      p.life += dt;
+      if (p.life >= p.max) {
+        this.particles.splice(i, 1);
+        continue;
+      }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.985;
+      p.vy *= 0.985;
+      const q = 1 - p.life / p.max;
+      fx.circle(p.x, p.y, p.r * q).fill({ color: p.color, alpha: 0.9 * q });
+    }
+    if (this.lineFlash > 0) {
+      this.lineFlash = Math.max(0, this.lineFlash - dt);
+      const q = this.lineFlash / 900;
+      const ms = [...this.lineFlashMarkers].sort((a, b) => a.octant - b.octant || a.ring - b.ring);
+      for (let i = 0; i < ms.length - 1; i++) {
+        const pa = this.markerPos(ms[i]!);
+        const pb = this.markerPos(ms[i + 1]!);
+        fx.moveTo(pa.x, pa.y).lineTo(pb.x, pb.y).stroke({ width: 3 + 4 * q, color: COLORS.brassLight, alpha: 0.9 * q });
+      }
+      for (const m of ms) {
+        const p = this.markerPos(m);
+        fx.circle(p.x, p.y, this.starSize() * (1.4 + 1.5 * (1 - q))).stroke({ width: 2, color: COLORS.brassLight, alpha: 0.7 * q });
+      }
+    }
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - dt / 350);
       const s = this.shake * this.R * 0.03;
       this.chart.position.set(this.cx + Math.sin(this.time * 0.09) * s, this.cy + Math.cos(this.time * 0.07) * s);
-    }
+    } else this.chart.position.set(this.cx, this.cy);
+    this.drawFalling();
+    this.drawHint();
     if (this.framePending && !busy) {
       this.framePending = false;
       this.cb.onFrame();
@@ -629,16 +907,17 @@ export class NavigationRenderer {
 
   // ---- input
 
-  private zoneAt(x: number, y: number): { zone: "ring" | "center" | "falling" | null; ring: number | null; angle: number } {
+  private zoneAt(x: number, y: number): { zone: "ring" | "center" | "sky" | null; ring: number | null; angle: number } {
     const dx = x - this.cx;
     const dy = y - this.cy;
     const d = Math.hypot(dx, dy);
     const angle = Math.atan2(dy, dx);
-    const inner = this.R * 0.18;
-    const outer = this.R * 0.8;
+    const inner = this.innerRadius();
+    const outer = this.R * 0.82;
     if (d < inner) return { zone: "center", ring: null, angle };
     if (d <= outer) return { zone: "ring", ring: Math.min(this.rings - 1, Math.floor((d - inner) / this.bandWidth())), angle };
-    if (d <= this.R * 1.08) return { zone: "falling", ring: null, angle };
+    // The rim and everything above the chart is the sky: a tap there brings the star down.
+    if (d <= this.R * 1.1 || y < this.cy - this.R * 0.8) return { zone: "sky", ring: null, angle };
     return { zone: null, ring: null, angle };
   }
 
@@ -670,7 +949,7 @@ export class NavigationRenderer {
     const d = this.drag;
     this.drag = null;
     if (!d || !this.interactive) return;
-    if (d.zone === "center" || d.zone === "falling") {
+    if (d.zone === "center" || d.zone === "sky") {
       this.drop();
       return;
     }
@@ -683,28 +962,44 @@ export class NavigationRenderer {
 
   private rotate(ring: number, dir: -1 | 1): void {
     if (!this.interactive) return;
+    this.lastInputAt = this.time;
     this.selectedRing = ring;
     this.drawHighlight();
+    if (!this.cb.onRotate(ring, dir)) return;
     this.cb.onNudge();
-    this.cb.onRotate(ring, dir);
+    // Turn the ring at once, ahead of the state: the stars shift a slot and the ring swings back into place.
+    this.ringSpin[ring] = (this.ringSpin[ring] ?? 0) - dir * ((Math.PI * 2) / this.octants);
+    this.ringLayers[ring]!.rotation = this.ringSpin[ring]!;
+    for (const v of this.stars.values()) {
+      if (v.ring !== ring || v.dying !== null) continue;
+      v.octant = (((v.octant + dir) % this.octants) + this.octants) % this.octants;
+      const a = this.angleOf(v.octant);
+      const rad = this.ringRadius(ring);
+      v.tx = v.x = Math.cos(a) * rad;
+      v.ty = v.y = Math.sin(a) * rad;
+      v.g.position.set(v.x, v.y);
+    }
   }
 
   private drop(): void {
     if (!this.interactive) return;
+    this.lastInputAt = this.time;
     this.cb.onDrop();
   }
 
-  /** Keyboard: up/down pick a ring (up is outward), left/right turn it, enter or space drops. */
+  /** Keyboard: up/down pick a ring (up is outward), left/right turn it, enter or space brings the star down. */
   keyboard(key: string): boolean {
     if (!this.interactive) return false;
     switch (key) {
       case "ArrowUp":
         this.keyboardUsed = true;
+        this.lastInputAt = this.time;
         this.selectedRing = Math.min(this.rings - 1, this.selectedRing + 1);
         this.drawHighlight();
         return true;
       case "ArrowDown":
         this.keyboardUsed = true;
+        this.lastInputAt = this.time;
         this.selectedRing = Math.max(0, this.selectedRing - 1);
         this.drawHighlight();
         return true;
@@ -726,5 +1021,4 @@ export class NavigationRenderer {
   }
 }
 
-/** Slot helper re-exported for the page's progress meter. */
-export { navigationSlotOf };
+export { NAVIGATION_ENTRY_OCTANT };

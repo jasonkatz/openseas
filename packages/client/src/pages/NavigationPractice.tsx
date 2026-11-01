@@ -1,11 +1,14 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   NAVIGATION_DEF,
+  advanceNavigation,
   navigationColorOf,
+  navigationLandingSlot,
   navigationMarkerFilled,
   navigationShapeOf,
   summarizeNavigation,
-  type Completion,
+  type NavigationConfig,
+  type NavigationEvent,
   type NavigationMove,
   type NavigationState,
 } from "@openseas/engine";
@@ -15,9 +18,12 @@ import { NavigationBoard } from "../navigation/NavigationBoard.jsx";
 import { StarIcon } from "../navigation/StarIcon.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../puzzles/PracticeShell.jsx";
 import { usePractice } from "../puzzles/usePractice.js";
+import { useTicked } from "../puzzles/useTicked.js";
 
 const navigation = content.puzzles.navigation;
+const { tickMs, maxTick } = navigation.config;
 const MARKERS_KEY = "openseas.navigation.markers";
+const waitAt = (tick: number): NavigationMove => ({ type: "wait", tick });
 
 function readMarkersFlag(): boolean {
   try {
@@ -30,8 +36,6 @@ function readMarkersFlag(): boolean {
 export function NavigationPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
   const [showMarkers, setShowMarkersState] = useState(readMarkersFlag);
-  const [tally, setTally] = useState({ charted: 0, booched: 0 });
-  const counts = useRef({ charted: 0, booched: 0 });
 
   const setShowMarkers = (on: boolean): void => {
     setShowMarkersState(on);
@@ -42,41 +46,43 @@ export function NavigationPractice() {
     }
   };
 
-  const onMove = useCallback((s: NavigationState) => {
-    const r = s.lastMove;
-    if (!r) return;
-    if (r.completions.length || r.booch) {
-      counts.current = { charted: counts.current.charted + r.completions.length, booched: counts.current.booched + (r.booch ? 1 : 0) };
-      setTally(counts.current);
-    }
-  }, []);
-
-  const api = usePractice<NavigationState, NavigationMove, typeof navigation.config>({
+  const api = usePractice<NavigationState, NavigationMove, NavigationConfig>({
     puzzle: "navigation",
     def: NAVIGATION_DEF,
     config: navigation.config,
     roundSeconds: navigation.roundSeconds,
     summarize: summarizeNavigation,
-    onMove,
   });
   const { state } = api;
+  const { shown, moveTick } = useTicked(api, { tickMs, maxTick, roundSeconds: navigation.roundSeconds, advance: advanceNavigation, wait: waitAt });
 
-  const onRotate = useCallback((ring: number, dir: -1 | 1) => void api.apply({ type: "rotate", ring, dir }), [api]);
-  const onDrop = useCallback(() => void api.apply({ type: "drop" }), [api]);
-  const onLanded = useCallback(() => sfx.swapQuiet(), []);
-  const onBooch = useCallback(() => sfx.streakLost(), []);
-  const onCharted = useCallback((c: Completion) => {
-    sfx.clear(c.chain, c.markers.length);
-    if (c.chain >= 3) sfx.streak(c.chain);
-    if (c.efficient) sfx.barnacle();
-  }, []);
+  const onRotate = useCallback((ring: number, dir: -1 | 1): boolean => api.apply({ type: "rotate", ring, dir, tick: moveTick() }), [api, moveTick]);
+  const onDrop = useCallback(() => void api.apply({ type: "drop", tick: moveTick() }), [api, moveTick]);
   const onNudge = useCallback(() => sfx.tick(false), []);
-
-  const startRound = (start: () => void) => () => {
-    counts.current = { charted: 0, booched: 0 };
-    setTally(counts.current);
-    start();
-  };
+  const onEvents = useCallback((events: readonly NavigationEvent[]) => {
+    for (const e of events) {
+      switch (e.type) {
+        case "land":
+          if (e.onMarker) sfx.swap();
+          else sfx.swapQuiet();
+          break;
+        case "booch":
+          sfx.streakLost();
+          sfx.keg();
+          break;
+        case "charted":
+          sfx.clear(e.completion.chain, e.completion.markers.length);
+          if (e.completion.chain >= 3) sfx.streak(e.completion.chain);
+          if (e.completion.efficient) sfx.barnacle();
+          break;
+        case "run":
+          sfx.multi(e.run.slots.length - 1);
+          break;
+        default:
+          break;
+      }
+    }
+  }, []);
 
   const colors = navigation.colors.slice(0, navigation.config.colors);
   const shapes = navigation.shapes.slice(0, navigation.config.shapes);
@@ -85,15 +91,20 @@ export function NavigationPractice() {
     const s = shapes[navigationShapeOf(navigation.config, kind)]!;
     return <StarIcon shape={s.shape} color={c.color} mark={showMarks ? c.mark : null} hollow={hollow} size={size} />;
   };
-  const filled = state.markers.filter((m) => navigationMarkerFilled(state, m)).length;
-  const total = state.markers.length;
+  const filled = shown.markers.filter((m) => navigationMarkerFilled(shown, m)).length;
+  const total = shown.markers.length;
+  const blocked = api.phase === "playing" && navigationLandingSlot(shown) === null;
 
   const details = (
     <>
       <div className="stat stat-wide">
         <span className="stat-label">{t("navigation.next")}</span>
         <span className="next-pair" data-testid="hud-next">
-          {starOf(state.next.kind, 26)}
+          {starOf(shown.falling.kind, 26)}
+          <span className="muted" aria-hidden="true">
+            ›
+          </span>
+          {starOf(shown.next, 22)}
         </span>
       </div>
       <div className="stat stat-wide">
@@ -118,25 +129,35 @@ export function NavigationPractice() {
       best={api.best}
       roundSeconds={navigation.roundSeconds}
       timeLeft={api.timeLeft}
-      score={state.score}
-      moves={state.moveCount}
-      maxMoves={navigation.config.maxDrops}
-      combo={state.combo}
+      score={shown.score}
+      moves={shown.landings}
+      movesLabel={t("navigation.stars")}
+      combo={shown.combo}
       canRate={api.canRate}
-      onStartRated={startRound(api.startRated)}
-      onStartUnrated={startRound(api.startUnrated)}
+      onStartRated={api.startRated}
+      onStartUnrated={api.startUnrated}
       splash={t("navigation.go")}
-      howTo={<p className="how how-kbd">{t("navigation.booch_note")}</p>}
+      warn={blocked}
+      howTo={
+        <>
+          <p className="how how-kbd">{t("navigation.booch_note")}</p>
+          <p className="how how-kbd">{t("navigation.hint_note")}</p>
+        </>
+      }
       details={details}
       resultRows={
         <>
           <div>
             <dt>{t("navigation.result_charted")}</dt>
-            <dd>{tally.charted}</dd>
+            <dd>{state.completed}</dd>
+          </div>
+          <div>
+            <dt>{t("navigation.result_runs")}</dt>
+            <dd>{state.runsCleared}</dd>
           </div>
           <div>
             <dt>{t("navigation.result_booched")}</dt>
-            <dd>{tally.booched}</dd>
+            <dd>{state.booches}</dd>
           </div>
         </>
       }
@@ -164,6 +185,8 @@ export function NavigationPractice() {
               <span>{t("navigation.legend_marker")}</span>
             </li>
           </ul>
+          <p className="muted small legend-note">{t("navigation.legend_landing")}</p>
+          <p className="muted small legend-note">{t("navigation.legend_runs")}</p>
           <label className="toggle">
             <input type="checkbox" checked={showMarkers} onChange={(e) => setShowMarkers(e.target.checked)} data-testid="toggle-markers" />
             <span>
@@ -175,17 +198,15 @@ export function NavigationPractice() {
       }
       board={(interactive) => (
         <NavigationBoard
-          state={state}
-          version={api.version}
+          state={shown}
           interactive={interactive}
           showMarks={showMarks}
           showMarkers={showMarkers}
+          hints={!api.rated}
           onRotate={onRotate}
           onDrop={onDrop}
           onFrame={api.markRendered}
-          onLanded={onLanded}
-          onBooch={onBooch}
-          onCharted={onCharted}
+          onEvents={onEvents}
           onNudge={onNudge}
         />
       )}

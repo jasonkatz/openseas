@@ -74,7 +74,10 @@ export interface ShellProps {
   timeLeft: number;
   score: number;
   moves: number;
-  maxMoves: number;
+  /** The move cap for the HUD bar; leave it out for puzzles whose count is not against a cap. */
+  maxMoves?: number;
+  /** Label for the moves stat when "Moves" is not the word (e.g. stars landed). */
+  movesLabel?: string;
   combo: number;
   canRate: boolean;
   onStartRated(): void;
@@ -171,14 +174,16 @@ export function PracticeShell(p: ShellProps) {
         </span>
       </div>
       <div className="stat">
-        <span className="stat-label">{t("practice.moves")}</span>
+        <span className="stat-label">{p.movesLabel ?? t("practice.moves")}</span>
         <span className="stat-value" data-testid="hud-moves">
           {p.moves}
-          <small>/{p.maxMoves}</small>
+          {p.maxMoves !== undefined && <small>/{p.maxMoves}</small>}
         </span>
-        <span className="bar bar-moves" aria-hidden="true">
-          <i style={{ width: `${(1 - p.moves / p.maxMoves) * 100}%` }} />
-        </span>
+        {p.maxMoves !== undefined && (
+          <span className="bar bar-moves" aria-hidden="true">
+            <i style={{ width: `${(1 - p.moves / p.maxMoves) * 100}%` }} />
+          </span>
+        )}
       </div>
     </>
   );

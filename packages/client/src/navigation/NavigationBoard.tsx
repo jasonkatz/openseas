@@ -1,20 +1,20 @@
 import { useEffect, useRef } from "react";
-import type { Completion, NavigationState } from "@openseas/engine";
+import type { NavigationEvent, NavigationState } from "@openseas/engine";
 import { content, t } from "../content.js";
-import { NavigationRenderer } from "./renderer.js";
+import { NavigationRenderer, navigationViewString } from "./renderer.js";
 
 export interface NavigationBoardProps {
+  /** The state as shown: the engine advanced to the current tick. */
   state: NavigationState;
-  version: number;
   interactive: boolean;
   showMarks: boolean;
   showMarkers: boolean;
-  onRotate(ring: number, dir: -1 | 1): void;
+  /** Idle hints, for unrated practice only. */
+  hints: boolean;
+  onRotate(ring: number, dir: -1 | 1): boolean;
   onDrop(): void;
   onFrame(): void;
-  onLanded(): void;
-  onBooch(): void;
-  onCharted(c: Completion): void;
+  onEvents(events: readonly NavigationEvent[]): void;
   onNudge(): void;
 }
 
@@ -35,19 +35,22 @@ export function NavigationBoard(props: NavigationBoardProps) {
         onRotate: (ring, dir) => latest.current.onRotate(ring, dir),
         onDrop: () => latest.current.onDrop(),
         onFrame: () => latest.current.onFrame(),
-        onLanded: () => latest.current.onLanded(),
-        onBooch: () => latest.current.onBooch(),
-        onCharted: (c) => latest.current.onCharted(c),
+        onEvents: (events) => latest.current.onEvents(events),
         onNudge: () => latest.current.onNudge(),
       },
       {
         showMarks: props.showMarks,
         showMarkers: props.showMarkers,
-        chartedLabel: t("navigation.charted"),
-        boochLabel: t("navigation.booch"),
-        chainLabel: (chain) => t("practice.chain_label", { chain }),
-        efficientLabel: t("navigation.efficient"),
-        nextLabel: t("navigation.next"),
+        hints: props.hints,
+        tickMs: content.puzzles.navigation.config.tickMs,
+        labels: {
+          charted: t("navigation.charted"),
+          booch: t("navigation.booch"),
+          run: t("navigation.run"),
+          chain: (chain) => t("practice.chain_label", { chain }),
+          efficient: t("navigation.efficient"),
+          next: t("navigation.next"),
+        },
       },
     );
     renderer.current = r;
@@ -73,7 +76,7 @@ export function NavigationBoard(props: NavigationBoardProps) {
   useEffect(() => {
     const r = renderer.current;
     if (r && r.app.renderer) r.setState(props.state);
-  }, [props.state, props.version]);
+  }, [props.state]);
 
   useEffect(() => {
     const r = renderer.current;
@@ -88,5 +91,9 @@ export function NavigationBoard(props: NavigationBoardProps) {
     renderer.current?.setShowMarkers(props.showMarkers);
   }, [props.showMarkers]);
 
-  return <div ref={host} className="board-host" data-testid="navigation-board" data-board={props.state.slots.map((s) => s?.kind ?? -1).join(",")} />;
+  useEffect(() => {
+    renderer.current?.setHints(props.hints);
+  }, [props.hints]);
+
+  return <div ref={host} className="board-host" data-testid="navigation-board" data-board={navigationViewString(props.state)} />;
 }
