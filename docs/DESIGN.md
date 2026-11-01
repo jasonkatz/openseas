@@ -260,7 +260,11 @@ drops with enter or space. Reading aids: a dotted path from the star to the ring
 gold when that spot is its own marker, a red cross and a red outer band when the column is shut;
 markers wanting the falling star's kind beckon; in unrated rounds, after a pause, chevrons point at
 the ring to turn and which way, from a search over the rings' turns. A toggle hides the markers for
-players who want to chart from memory; a meter shows filled markers. Landings glow, a charted
+players who want to chart from memory; a meter shows filled markers. The chart is as wide as the
+screen, with a small hub and a thin rim so the rings get the width; the top octant is tinted as
+the lane stars fall down. On a phone held upright the height left over holds a row of turn
+buttons per ring, outermost first, and a button to bring the star down, so a turn is one tap
+rather than a drag on a narrow ring. Landings glow, a charted
 constellation flashes its lines and bursts, a run clears with a popup, a booch shakes the chart.
 Numbers live in `content/data/puzzles/navigation.json`.
 

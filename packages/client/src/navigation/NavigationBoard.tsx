@@ -50,6 +50,8 @@ export function NavigationBoard(props: NavigationBoardProps) {
           chain: (chain) => t("practice.chain_label", { chain }),
           efficient: t("navigation.efficient"),
           next: t("navigation.next"),
+          ring: (ring, rings) => (rings === 3 ? t(["navigation.ring_inner", "navigation.ring_middle", "navigation.ring_outer"][ring]!) : t("navigation.ring_n", { n: rings - ring })),
+          drop: t("navigation.drop_now"),
         },
       },
     );

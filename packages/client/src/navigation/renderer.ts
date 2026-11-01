@@ -41,6 +41,9 @@ export interface NavigationRendererOptions {
     chain(chain: number): string;
     efficient: string;
     next: string;
+    /** Name of a ring for the turn buttons, outermost first. */
+    ring(ring: number, rings: number): string;
+    drop: string;
   };
 }
 
@@ -124,6 +127,13 @@ export class NavigationRenderer {
   private readonly nextBadge = new Graphics();
   private readonly nextText = new Text({ text: "", style: { fontFamily: "Atkinson Hyperlegible, sans-serif", fontSize: 11, fontWeight: "700", fill: 0xc9bb9a, letterSpacing: 2 } });
   private readonly fxLayer = new Container();
+  private readonly controlsG = new Graphics();
+  private readonly controlsLayer = new Container();
+  private readonly controlTexts: Text[] = [];
+  /** Turn and drop buttons under the chart on tall screens; empty when there is no room. */
+  private buttons: Array<{ x: number; y: number; w: number; h: number; ring: number | null; dir: -1 | 1 | 0; pressed: number }> = [];
+  /** Height the controls take at the bottom of the canvas, 0 when hidden. */
+  private controlsH = 0;
   private readonly stars = new Map<number, StarView>();
   private readonly popups: Popup[] = [];
   private readonly particles: Particle[] = [];
@@ -154,6 +164,8 @@ export class NavigationRenderer {
   private destroyed = false;
   private selectedRing = 1;
   private keyboardUsed = false;
+  /** ms left showing which ring a button turned. */
+  private ringFlash = 0;
   private shake = 0;
   /** ms left on the constellation-line flash, and the markers it lights. */
   private lineFlash = 0;
@@ -209,7 +221,8 @@ export class NavigationRenderer {
     this.chart.addChild(this.path, this.hintLayer, this.fallingLayer, this.fxG, this.fxLayer);
     this.nextText.anchor.set(0.5, 1);
     this.nextText.text = this.opts.labels.next.toUpperCase();
-    this.app.stage.addChild(this.chart, this.nextBadge, this.nextText);
+    this.controlsLayer.addChild(this.controlsG);
+    this.app.stage.addChild(this.chart, this.nextBadge, this.nextText, this.controlsLayer);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
     this.app.stage.on("pointerdown", (e) => this.pointerDown(e));
@@ -232,6 +245,7 @@ export class NavigationRenderer {
     this.lastInputAt = this.time;
     this.drawHighlight();
     this.drawNextBadge();
+    this.drawControls();
   }
 
   setShowMarks(on: boolean): void {
@@ -485,10 +499,13 @@ export class NavigationRenderer {
     return -Math.PI / 2 + (octant * Math.PI * 2) / this.octants;
   }
   private innerRadius(): number {
-    return this.R * 0.2;
+    return this.R * 0.15;
+  }
+  private outerRadius(): number {
+    return this.R * 0.94;
   }
   private bandWidth(): number {
-    return (this.R * 0.82 - this.innerRadius()) / this.rings;
+    return (this.outerRadius() - this.innerRadius()) / this.rings;
   }
   private ringRadius(ring: number): number {
     return this.innerRadius() + (ring + 0.5) * this.bandWidth();
@@ -505,21 +522,25 @@ export class NavigationRenderer {
     if (!this.app.renderer) return;
     const w = this.app.screen.width;
     const h = this.app.screen.height;
-    let R = Math.max(40, Math.min(w, h) / 2 - 6);
-    // On a tall canvas, leave sky above the chart for the star to fall out of.
-    const spare = h - 2 * R - 12;
-    this.skyGap = spare > 0 ? Math.min(spare, R * 0.45) : 0;
-    if (spare <= 0 && h < w) {
-      // Wide and short: shrink a touch so the sky still shows.
-      R = Math.max(40, h / 2 - 6 - h * 0.08);
-      this.skyGap = h * 0.16;
-    }
+    const maxR = Math.max(40, Math.min(w, h) / 2 - 6);
+    // On a tall screen the chart is as wide as the canvas, and the height left over goes to sky
+    // above it and, when there is enough, a row of turn buttons per ring and a drop button below.
+    const rowH = Math.max(44, Math.min(60, w * 0.13));
+    const wantControls = rowH * (this.rings + 1) + 12;
+    let controlsH = 0;
+    if (h - wantControls - 12 >= 2 * maxR * 0.86 + maxR * 0.25) controlsH = wantControls;
+    let R = Math.min(maxR, (h - controlsH - 12) / 2.25);
+    if (h < w && h - 2 * R - 12 <= 0) R = Math.max(40, h / 2 - 6 - h * 0.08);
+    this.controlsH = controlsH;
     this.R = R;
+    const spare = h - controlsH - 2 * R - 12;
+    this.skyGap = spare > 0 ? Math.min(spare, R * 0.45) : h < w ? h * 0.16 : 0;
     this.cx = w / 2;
-    this.cy = this.skyGap + R + (h - this.skyGap - 2 * R) / 2;
+    this.cy = 6 + this.skyGap + R + Math.max(0, spare - this.skyGap) / 2;
     this.chart.position.set(this.cx, this.cy);
     // Where the chart sits on the canvas, for tests that tap it.
     this.app.canvas.setAttribute("data-geom", `${Math.round(this.cx)},${Math.round(this.cy)},${Math.round(R)}`);
+    this.layoutControls(w, h, rowH);
     this.drawSky();
     this.drawMarkers();
     this.drawLines();
@@ -533,6 +554,72 @@ export class NavigationRenderer {
     }
     this.repaintStars();
     this.drawNextBadge();
+  }
+
+  /** One row per ring, outermost at the top like the chart, each with a turn button either side; a drop button last. */
+  private layoutControls(w: number, h: number, rowH: number): void {
+    this.buttons = [];
+    for (const t of this.controlTexts) t.destroy();
+    this.controlTexts.length = 0;
+    this.controlsLayer.visible = this.controlsH > 0;
+    if (this.controlsH === 0) {
+      this.controlsG.clear();
+      return;
+    }
+    const top = h - this.controlsH + 6;
+    const pad = Math.max(10, w * 0.04);
+    const btn = rowH - 8;
+    const labelStyle = { fontFamily: "Atkinson Hyperlegible, sans-serif", fontSize: Math.max(12, rowH * 0.3), fontWeight: "700" as const, fill: 0xc9bb9a, letterSpacing: 1.5 };
+    for (let i = 0; i < this.rings; i++) {
+      const ring = this.rings - 1 - i;
+      const y = top + i * rowH + rowH / 2;
+      this.buttons.push({ x: pad, y: y - btn / 2, w: btn * 1.6, h: btn, ring, dir: -1, pressed: 0 });
+      this.buttons.push({ x: w - pad - btn * 1.6, y: y - btn / 2, w: btn * 1.6, h: btn, ring, dir: 1, pressed: 0 });
+      const t = new Text({ text: this.opts.labels.ring(ring, this.rings).toUpperCase(), style: labelStyle });
+      t.anchor.set(0.5);
+      t.position.set(w / 2, y);
+      this.controlsLayer.addChild(t);
+      this.controlTexts.push(t);
+    }
+    const dy = top + this.rings * rowH + rowH / 2;
+    this.buttons.push({ x: pad, y: dy - btn / 2, w: w - pad * 2, h: btn, ring: null, dir: 0, pressed: 0 });
+    const d = new Text({ text: this.opts.labels.drop.toUpperCase(), style: { ...labelStyle, fill: 0x0b1526 } });
+    d.anchor.set(0.5);
+    d.position.set(w / 2, dy);
+    this.controlsLayer.addChild(d);
+    this.controlTexts.push(d);
+    this.drawControls();
+  }
+
+  private drawControls(): void {
+    const g = this.controlsG;
+    g.clear();
+    if (this.controlsH === 0) return;
+    for (const b of this.buttons) {
+      const press = b.pressed > 0 ? b.pressed / 160 : 0;
+      const r = b.h * 0.3;
+      if (b.dir === 0) {
+        g.roundRect(b.x, b.y, b.w, b.h, r).fill({ color: press ? COLORS.brassLight : COLORS.brass, alpha: this.interactive ? 0.95 : 0.4 });
+        continue;
+      }
+      g.roundRect(b.x, b.y, b.w, b.h, r).fill({ color: COLORS.skyEdge, alpha: this.interactive ? 0.9 : 0.4 });
+      g.roundRect(b.x, b.y, b.w, b.h, r).stroke({ width: 1.5, color: press ? COLORS.select : COLORS.brass, alpha: 0.5 + 0.5 * press });
+      // A curved arrow: an arc with a head, bending the way the ring will turn.
+      const cx = b.x + b.w / 2;
+      const cy = b.y + b.h / 2;
+      const ar = b.h * 0.26;
+      const sweep = b.dir === 1 ? [Math.PI * 1.15, Math.PI * 1.85] : [Math.PI * 1.85, Math.PI * 1.15];
+      const sx = cx + Math.cos(sweep[0]!) * ar;
+      const sy = cy + ar * 0.35 + Math.sin(sweep[0]!) * ar;
+      g.moveTo(sx, sy)
+        .arc(cx, cy + ar * 0.35, ar, sweep[0]!, sweep[1]!, b.dir === -1)
+        .stroke({ width: Math.max(2.5, b.h * 0.08), color: press ? COLORS.select : COLORS.brassLight, alpha: 0.95, cap: "round" });
+      const ex = cx + Math.cos(sweep[1]!) * ar;
+      const ey = cy + ar * 0.35 + Math.sin(sweep[1]!) * ar;
+      const hd = b.h * 0.14;
+      const dirx = b.dir === 1 ? 1 : -1;
+      g.poly([ex + dirx * hd * 0.2, ey + hd * 0.9, ex - dirx * hd * 1.1, ey - hd * 0.15, ex + dirx * hd * 0.7, ey - hd * 0.6]).fill({ color: press ? COLORS.select : COLORS.brassLight, alpha: 0.95 });
+    }
   }
 
   private drawSky(): void {
@@ -562,11 +649,16 @@ export class NavigationRenderer {
       g.circle(0, 0, r1).stroke({ width: 1.2, color: COLORS.ringLine, alpha: 0.6 });
     }
     g.circle(0, 0, inner).stroke({ width: 1.2, color: COLORS.ringLine, alpha: 0.6 });
-    // Octant spokes, between octants, from the hole to the rim.
+    // The entry lane: the top octant, a shade lighter, so the column stars fall into reads at a glance.
     const half = Math.PI / this.octants;
+    const outer = this.outerRadius();
+    const a0 = this.angleOf(0) - half;
+    const a1 = this.angleOf(0) + half;
+    g.moveTo(Math.cos(a0) * inner, Math.sin(a0) * inner).arc(0, 0, outer, a0, a1).lineTo(Math.cos(a1) * inner, Math.sin(a1) * inner).arc(0, 0, inner, a1, a0, true).fill({ color: COLORS.line, alpha: 0.09 });
+    // Octant spokes, between octants, from the hole to the rim.
     for (let o = 0; o < this.octants; o++) {
       const a = this.angleOf(o) + half;
-      g.moveTo(Math.cos(a) * inner, Math.sin(a) * inner).lineTo(Math.cos(a) * R * 0.82, Math.sin(a) * R * 0.82);
+      g.moveTo(Math.cos(a) * inner, Math.sin(a) * inner).lineTo(Math.cos(a) * outer, Math.sin(a) * outer);
     }
     g.stroke({ width: 1, color: COLORS.ringLine, alpha: 0.35 });
     // The entry: a brass notch in the rim at the top where stars come in.
@@ -574,11 +666,11 @@ export class NavigationRenderer {
     g.moveTo(-notch, -R - 1).lineTo(0, -R + notch * 0.8).lineTo(notch, -R - 1).stroke({ width: 2, color: COLORS.brass, alpha: 0.7 });
     g.circle(0, 0, R).stroke({ width: 3, color: COLORS.brass, alpha: 0.8 });
     // A compass rose in the hole.
-    g.circle(0, 0, inner * 0.55).fill({ color: COLORS.skyEdge, alpha: 0.9 });
-    g.circle(0, 0, inner * 0.55).stroke({ width: 1.5, color: COLORS.brass, alpha: 0.7 });
+    g.circle(0, 0, inner * 0.7).fill({ color: COLORS.skyEdge, alpha: 0.9 });
+    g.circle(0, 0, inner * 0.7).stroke({ width: 1.5, color: COLORS.brass, alpha: 0.7 });
     for (let i = 0; i < 4; i++) {
       const a = -Math.PI / 2 + (i * Math.PI) / 2;
-      g.poly([Math.cos(a) * inner * 0.5, Math.sin(a) * inner * 0.5, Math.cos(a + 0.5) * inner * 0.12, Math.sin(a + 0.5) * inner * 0.12, Math.cos(a - 0.5) * inner * 0.12, Math.sin(a - 0.5) * inner * 0.12]).fill({ color: COLORS.brass, alpha: 0.8 });
+      g.poly([Math.cos(a) * inner * 0.62, Math.sin(a) * inner * 0.62, Math.cos(a + 0.5) * inner * 0.15, Math.sin(a + 0.5) * inner * 0.15, Math.cos(a - 0.5) * inner * 0.15, Math.sin(a - 0.5) * inner * 0.15]).fill({ color: COLORS.brass, alpha: 0.8 });
     }
   }
 
@@ -630,10 +722,11 @@ export class NavigationRenderer {
   private drawHighlight(): void {
     const g = this.highlight;
     g.clear();
-    if (!this.keyboardUsed || !this.interactive) return;
+    if ((!this.keyboardUsed && this.ringFlash <= 0) || !this.interactive) return;
+    const alpha = this.keyboardUsed ? 0.7 : 0.7 * Math.min(1, this.ringFlash / 300);
     const r0 = this.innerRadius() + this.selectedRing * this.bandWidth();
-    g.circle(0, 0, r0 + this.bandWidth()).stroke({ width: 2.5, color: COLORS.select, alpha: 0.7 });
-    g.circle(0, 0, r0).stroke({ width: 2.5, color: COLORS.select, alpha: 0.7 });
+    g.circle(0, 0, r0 + this.bandWidth()).stroke({ width: 2.5, color: COLORS.select, alpha });
+    g.circle(0, 0, r0).stroke({ width: 2.5, color: COLORS.select, alpha });
   }
 
   /** The star on its way down the entry spoke, the path ahead of it and the ring where it will rest. */
@@ -880,6 +973,18 @@ export class NavigationRenderer {
         fx.circle(p.x, p.y, this.starSize() * (1.4 + 1.5 * (1 - q))).stroke({ width: 2, color: COLORS.brassLight, alpha: 0.7 * q });
       }
     }
+    let pressing = false;
+    for (const b of this.buttons) {
+      if (b.pressed > 0) {
+        b.pressed = Math.max(0, b.pressed - dt);
+        pressing = true;
+      }
+    }
+    if (pressing) this.drawControls();
+    if (this.ringFlash > 0) {
+      this.ringFlash = Math.max(0, this.ringFlash - dt);
+      this.drawHighlight();
+    }
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - dt / 350);
       const s = this.shake * this.R * 0.03;
@@ -913,7 +1018,7 @@ export class NavigationRenderer {
     const d = Math.hypot(dx, dy);
     const angle = Math.atan2(dy, dx);
     const inner = this.innerRadius();
-    const outer = this.R * 0.82;
+    const outer = this.outerRadius();
     if (d < inner) return { zone: "center", ring: null, angle };
     if (d <= outer) return { zone: "ring", ring: Math.min(this.rings - 1, Math.floor((d - inner) / this.bandWidth())), angle };
     // The rim and everything above the chart is the sky: a tap there brings the star down.
@@ -923,6 +1028,19 @@ export class NavigationRenderer {
 
   private pointerDown(e: FederatedPointerEvent): void {
     if (!this.interactive) return;
+    const b = this.buttonAt(e.global.x, e.global.y);
+    if (b) {
+      b.pressed = 160;
+      this.drawControls();
+      if (b.dir === 0) this.drop();
+      else {
+        this.rotate(b.ring!, b.dir);
+        this.ringFlash = 600;
+        this.drawHighlight();
+      }
+      this.drag = null;
+      return;
+    }
     const z = this.zoneAt(e.global.x, e.global.y);
     this.drag = { ring: z.ring, zone: z.zone, angle: z.angle, acc: 0, moved: false, x: e.global.x };
   }
@@ -943,6 +1061,12 @@ export class NavigationRenderer {
       d.moved = true;
       this.rotate(d.ring, dir);
     }
+  }
+
+  private buttonAt(x: number, y: number): (typeof this.buttons)[number] | null {
+    if (this.controlsH === 0) return null;
+    for (const b of this.buttons) if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b;
+    return null;
   }
 
   private pointerUp(e: FederatedPointerEvent): void {
