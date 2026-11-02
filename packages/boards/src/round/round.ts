@@ -2,13 +2,23 @@ import { InvalidMoveError, type PuzzleDef } from "@openseas/engine";
 import type { ClientMetrics } from "@openseas/protocol";
 import type { GameSocket } from "../api/socket.js";
 import { LatencyMeter } from "../metrics.js";
+import type { Clock } from "./clock.js";
+
+/** One applied move and the engine's state hash after it. Rated rounds send exactly this. */
+export interface LoggedMove<M> {
+  readonly seq: number;
+  readonly move: M;
+  readonly hash: string;
+}
 
 export interface RoundOptions<S, M, C> {
   def: PuzzleDef<S, M, C>;
   seed: string;
   config: C;
-  /** Local wall-clock ms when the round ends. */
+  /** Round start and end on `clock`. Timed engines count their ticks from `startedAt`. */
+  startedAt: number;
   deadlineAt: number;
+  clock: Clock;
   /** Present for rated rounds; the move log streams to the server as it happens. */
   rated: { socket: GameSocket; sessionId: string } | null;
   onChange(state: S, prev: S | null): void;
@@ -16,13 +26,14 @@ export interface RoundOptions<S, M, C> {
 }
 
 /**
- * One practice round of any puzzle on the client. Runs the engine locally for instant feel and
- * streams the move log (ADR 0003). Never computes anything the server will not recompute.
+ * One round of any puzzle on the client. Runs the engine locally for instant feel and streams the
+ * move log (ADR 0003). Never computes anything the server will not recompute. Keeps the log it
+ * sent, with the hash after every move, so a harness can replay and compare it.
  */
 export class PuzzleRound<S, M, C> {
   state: S;
   readonly metrics = new LatencyMeter();
-  private seq = 0;
+  readonly log: LoggedMove<M>[] = [];
   private finished = false;
 
   constructor(readonly opts: RoundOptions<S, M, C>) {
@@ -37,6 +48,11 @@ export class PuzzleRound<S, M, C> {
 
   get isFinished(): boolean {
     return this.finished;
+  }
+
+  /** The engine's hash of the current state. */
+  get hash(): string {
+    return this.opts.def.hash(this.state);
   }
 
   /** True when the engine accepts the move right now. Cheap enough for input gating. */
@@ -64,14 +80,16 @@ export class PuzzleRound<S, M, C> {
     if (countsAsInput) this.metrics.markInput();
     const prev = this.state;
     this.state = next;
-    const seq = this.seq++;
+    const seq = this.log.length;
+    const hash = this.opts.def.hash(next);
+    this.log.push({ seq, move, hash });
     if (this.opts.rated) {
       this.opts.rated.socket.send({
         type: "puzzle.move",
         sessionId: this.opts.rated.sessionId,
         seq,
         move: move as never,
-        hash: this.opts.def.hash(next),
+        hash,
       });
     }
     this.opts.onChange(next, prev);
@@ -88,7 +106,7 @@ export class PuzzleRound<S, M, C> {
       this.opts.rated.socket.send({
         type: "puzzle.finish",
         sessionId: this.opts.rated.sessionId,
-        hash: this.opts.def.hash(this.state),
+        hash: this.hash,
         metrics,
       });
     }

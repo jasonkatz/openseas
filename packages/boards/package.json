@@ -1,0 +1,39 @@
+{
+  "name": "@openseas/boards",
+  "version": "0.1.0",
+  "private": true,
+  "description": "What the game and the harness render with: the puzzle boards (PixiJS renderers, art, sound), the round runner that streams move logs, and the connection to the server. Renders; never authoritative (ADR 0019).",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "test": "echo \"boards has no unit tests; the harness smoke drives every board\"",
+    "lint": "echo no lint"
+  },
+  "dependencies": {
+    "@openseas/content": "workspace:*",
+    "@openseas/engine": "workspace:*",
+    "@openseas/protocol": "workspace:*",
+    "better-auth": "^1.4.0",
+    "pixi.js": "^8.6.0"
+  },
+  "peerDependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.0"
+  }
+}

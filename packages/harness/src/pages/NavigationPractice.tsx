@@ -1,6 +1,5 @@
 import { useCallback, useState } from "react";
 import {
-  NAVIGATION_DEF,
   advanceNavigation,
   navigationColorOf,
   navigationLandingSlot,
@@ -12,16 +11,13 @@ import {
   type NavigationMove,
   type NavigationState,
 } from "@openseas/engine";
-import { sfx } from "../audio.js";
-import { content, t } from "../content.js";
-import { NavigationBoard } from "../navigation/NavigationBoard.jsx";
-import { StarIcon } from "../navigation/StarIcon.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../puzzles/PracticeShell.jsx";
-import { usePractice } from "../puzzles/usePractice.js";
-import { useTicked } from "../puzzles/useTicked.js";
+import { NavigationBoard, StarIcon, content, sfx, t, useTicked } from "@openseas/boards";
+import { useBench } from "../bench/useBench.jsx";
+import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { usePractice } from "../practice/usePractice.js";
+import { NAVIGATION } from "../puzzles.js";
 
 const navigation = content.puzzles.navigation;
-const { tickMs, maxTick } = navigation.config;
 const MARKERS_KEY = "openseas.navigation.markers";
 const waitAt = (tick: number): NavigationMove => ({ type: "wait", tick });
 
@@ -48,16 +44,19 @@ export function NavigationPractice() {
 
   const api = usePractice<NavigationState, NavigationMove, NavigationConfig>({
     puzzle: "navigation",
-    def: NAVIGATION_DEF,
+    def: NAVIGATION.def,
     config: navigation.config,
     roundSeconds: navigation.roundSeconds,
     summarize: summarizeNavigation,
   });
+  const bench = useBench(NAVIGATION, api);
   const { state } = api;
-  const { shown, moveTick } = useTicked(api, { tickMs, maxTick, roundSeconds: navigation.roundSeconds, advance: advanceNavigation, wait: waitAt });
+  const cfg = api.round?.config ?? navigation.config;
+  const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceNavigation, wait: waitAt });
+  const shown = bench.reviewState ?? ticked.shown;
 
-  const onRotate = useCallback((ring: number, dir: -1 | 1): boolean => api.apply({ type: "rotate", ring, dir, tick: moveTick() }), [api, moveTick]);
-  const onDrop = useCallback(() => void api.apply({ type: "drop", tick: moveTick() }), [api, moveTick]);
+  const onRotate = useCallback((ring: number, dir: -1 | 1): boolean => api.apply({ type: "rotate", ring, dir, tick: ticked.moveTick() }), [api, ticked]);
+  const onDrop = useCallback(() => void api.apply({ type: "drop", tick: ticked.moveTick() }), [api, ticked]);
   const onNudge = useCallback(() => sfx.tick(false), []);
   const onEvents = useCallback((events: readonly NavigationEvent[]) => {
     for (const e of events) {
@@ -87,11 +86,11 @@ export function NavigationPractice() {
     }
   }, []);
 
-  const colors = navigation.colors.slice(0, navigation.config.colors);
-  const shapes = navigation.shapes.slice(0, navigation.config.shapes);
+  const colors = navigation.colors.slice(0, shown.config.colors);
+  const shapes = navigation.shapes.slice(0, shown.config.shapes);
   const starOf = (kind: number, size: number, hollow = false) => {
-    const c = colors[navigationColorOf(navigation.config, kind)]!;
-    const s = shapes[navigationShapeOf(navigation.config, kind)]!;
+    const c = colors[navigationColorOf(shown.config, kind)]!;
+    const s = shapes[navigationShapeOf(shown.config, kind)]!;
     return <StarIcon shape={s.shape} color={c.color} mark={showMarks ? c.mark : null} hollow={hollow} size={size} />;
   };
   const filled = shown.markers.filter((m) => navigationMarkerFilled(shown, m)).length;
@@ -130,7 +129,7 @@ export function NavigationPractice() {
       phase={api.phase}
       outcome={api.outcome}
       best={api.best}
-      roundSeconds={navigation.roundSeconds}
+      roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
       moves={shown.landings}
@@ -139,6 +138,9 @@ export function NavigationPractice() {
       canRate={api.canRate}
       onStartRated={api.startRated}
       onStartUnrated={api.startUnrated}
+      onStartLab={bench.startLab}
+      labReady={bench.labReady}
+      labSummary={bench.labSummary}
       splash={t("navigation.go")}
       warn={blocked}
       howTo={
@@ -199,13 +201,16 @@ export function NavigationPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
+      bench={bench.bench}
+      reviewBar={bench.reviewBar}
       board={(interactive) => (
         <NavigationBoard
+          key={bench.reviewKey ?? "live"}
           state={shown}
           interactive={interactive}
           showMarks={showMarks}
           showMarkers={showMarkers}
-          hints={!api.rated}
+          hints={bench.hints}
           onRotate={onRotate}
           onDrop={onDrop}
           onFrame={api.markRendered}

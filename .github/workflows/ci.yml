@@ -49,8 +49,14 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/openseas_test
 
   smoke:
-    name: Client build and Playwright smoke
+    # The game and the harness each build and run their Playwright smoke. The harness smoke drives
+    # every board, so a board change is proven there (ADR 0019); the game's smoke covers its shell.
+    name: Build and Playwright smoke
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [client, harness]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -59,13 +65,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @openseas/client exec playwright install --with-deps chromium
-      - run: pnpm --filter @openseas/client test:smoke
+      - run: pnpm --filter @openseas/${{ matrix.app }} exec playwright install --with-deps chromium
+      - run: pnpm --filter @openseas/${{ matrix.app }} test:smoke
         env:
           CI: "true"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
-          path: packages/client/playwright-report
+          name: playwright-report-${{ matrix.app }}
+          path: packages/${{ matrix.app }}/playwright-report
           retention-days: 7

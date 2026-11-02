@@ -12,7 +12,7 @@ importers:
         specifier: ~5.9.3
         version: 5.9.3
 
-  packages/client:
+  packages/boards:
     dependencies:
       '@openseas/content':
         specifier: workspace:*
@@ -29,6 +29,40 @@ importers:
       pixi.js:
         specifier: ^8.6.0
         version: 8.22.0
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.1.0
+        version: 19.3.0(@types/react@19.3.0)
+      react:
+        specifier: ^19.1.0
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.1.0
+        version: 19.3.0(react@19.3.0)
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.1.0
+        version: 7.3.7(@types/node@22.20.5)(tsx@4.23.15)
+
+  packages/client:
+    dependencies:
+      '@openseas/boards':
+        specifier: workspace:*
+        version: link:../boards
+      '@openseas/content':
+        specifier: workspace:*
+        version: link:../content
+      '@openseas/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@openseas/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       react:
         specifier: ^19.1.0
         version: 19.3.0
@@ -76,6 +110,52 @@ importers:
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.5)(tsx@4.23.15)
+
+  packages/harness:
+    dependencies:
+      '@openseas/boards':
+        specifier: workspace:*
+        version: link:../boards
+      '@openseas/content':
+        specifier: workspace:*
+        version: link:../content
+      '@openseas/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@openseas/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      react:
+        specifier: ^19.1.0
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.1.0
+        version: 19.3.0(react@19.3.0)
+      zod:
+        specifier: ^4.1.0
+        version: 4.6.5
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.56.0
+        version: 1.64.0
+      '@types/react':
+        specifier: ^19.1.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.1.0
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitejs/plugin-react':
+        specifier: ^5.0.0
+        version: 5.2.0(vite@7.3.7(@types/node@22.20.5)(tsx@4.23.15))
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.1.0
+        version: 7.3.7(@types/node@22.20.5)(tsx@4.23.15)
       vitest:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@22.20.5)(tsx@4.23.15)

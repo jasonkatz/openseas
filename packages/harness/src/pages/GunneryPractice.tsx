@@ -1,36 +1,37 @@
 import { useCallback } from "react";
-import { GUNNERY_DEF, advanceGunnery, summarizeGunnery, type Dir, type GunneryConfig, type GunneryEvent, type GunneryMove, type GunneryState } from "@openseas/engine";
-import { sfx } from "../audio.js";
-import { content, t } from "../content.js";
-import { GunneryBoard } from "../gunnery/GunneryBoard.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../puzzles/PracticeShell.jsx";
-import { gunneryPieceUrl } from "../gunnery/pieces.js";
-import { usePractice } from "../puzzles/usePractice.js";
-import { useTicked } from "../puzzles/useTicked.js";
+import { advanceGunnery, summarizeGunnery, type Dir, type GunneryConfig, type GunneryEvent, type GunneryMove, type GunneryState } from "@openseas/engine";
+import { GunneryBoard, content, gunneryPieceUrl, sfx, t, useTicked } from "@openseas/boards";
+import { useBench } from "../bench/useBench.jsx";
+import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { usePractice } from "../practice/usePractice.js";
+import { GUNNERY } from "../puzzles.js";
 
 const gunnery = content.puzzles.gunnery;
-const { tickMs, maxTick } = gunnery.config;
 const waitAt = (tick: number): GunneryMove => ({ type: "wait", tick });
 
 export function GunneryPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<GunneryState, GunneryMove, GunneryConfig>({
     puzzle: "gunnery",
-    def: GUNNERY_DEF,
+    def: GUNNERY.def,
     config: gunnery.config,
     roundSeconds: gunnery.roundSeconds,
     summarize: summarizeGunnery,
   });
+  const bench = useBench(GUNNERY, api);
   const { state } = api;
-  const { shown, moveTick } = useTicked(api, { tickMs, maxTick, roundSeconds: gunnery.roundSeconds, advance: advanceGunnery, wait: waitAt });
+  // The clock runs on the round's own config: a lab round may have changed maxTick.
+  const cfg = api.round?.config ?? gunnery.config;
+  const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceGunnery, wait: waitAt });
+  const shown = bench.reviewState ?? ticked.shown;
 
   const onArrow = useCallback(
     (col: number, row: number, dir: Dir | null) => {
-      const tick = moveTick();
+      const tick = ticked.moveTick();
       const ok = api.apply(dir === null ? { type: "remove", col, row, tick } : { type: "arrow", col, row, dir, tick });
       if (ok) sfx.tick(false);
     },
-    [api, moveTick],
+    [api, ticked],
   );
 
   const onEvents = useCallback((events: readonly GunneryEvent[]) => {
@@ -103,15 +104,18 @@ export function GunneryPractice() {
       phase={api.phase}
       outcome={api.outcome}
       best={api.best}
-      roundSeconds={gunnery.roundSeconds}
+      roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
-      moves={state.moveCount}
-      maxMoves={gunnery.config.maxMoves}
+      moves={shown.moveCount}
+      maxMoves={shown.config.maxMoves}
       combo={shown.combo}
       canRate={api.canRate}
       onStartRated={api.startRated}
       onStartUnrated={api.startUnrated}
+      onStartLab={bench.startLab}
+      labReady={bench.labReady}
+      labSummary={bench.labSummary}
       splash={t("gunnery.go")}
       warn={shown.cannons.some((c) => c.fouled)}
       details={
@@ -152,14 +156,16 @@ export function GunneryPractice() {
             ))}
           </ul>
           <p className="muted small legend-note">{t("gunnery.legend_order")}</p>
-          <p className="muted small legend-note">{t("gunnery.legend_broadside", { points: gunnery.config.broadsidePoints })}</p>
+          <p className="muted small legend-note">{t("gunnery.legend_broadside", { points: shown.config.broadsidePoints })}</p>
           <p className="muted small legend-note">{t("gunnery.legend_badges")}</p>
           <p className="muted small legend-note">{t("gunnery.legend_arrow")}</p>
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
+      bench={bench.bench}
+      reviewBar={bench.reviewBar}
       board={(interactive) => (
-        <GunneryBoard state={shown} interactive={interactive} showMarks={showMarks} onArrow={onArrow} onFrame={api.markRendered} onEvents={onEvents} />
+        <GunneryBoard key={bench.reviewKey ?? "live"} state={shown} interactive={interactive} showMarks={showMarks} onArrow={onArrow} onFrame={api.markRendered} onEvents={onEvents} />
       )}
     />
   );

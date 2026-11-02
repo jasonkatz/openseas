@@ -5,15 +5,17 @@ name: Preview
 #   1. A Railway environment named pr-<number>, duplicated from production the first time, so it
 #      has its own server service and its own fresh, empty Postgres. The PR's commit is uploaded
 #      into it with `railway up` and the job waits until /health reports that commit.
-#   2. A client built in CI against that server (VITE_SERVER_URL) and deployed to the production
-#      Vercel project as a preview (ADR 0016), under a stable alias per PR so the server can list
-#      the client's origin in CLIENT_ORIGINS before either side deploys.
+#   2. The game client and the puzzle harness (ADR 0019), each built in CI against that server
+#      (VITE_SERVER_URL) and deployed to its own production Vercel project as a preview (ADR 0016),
+#      under a stable alias per PR so the server can list both origins in CLIENT_ORIGINS before
+#      anything deploys.
 #
 # One PR comment carries the URLs. preview-cleanup.yml tears everything down when the PR closes.
 # Neither host is connected to the repository. Setup and secrets: docs/DEPLOY.md, "Previews".
 #
 # Without the Railway secrets (a fork PR, or before they are set up) the server job skips with a
-# warning and the client preview talks to the production server, as it did before ADR 0017.
+# warning and the previews talk to the production server, as they did before ADR 0017. Without
+# VERCEL_HARNESS_PROJECT_ID the harness preview skips with a warning and the game still previews.
 #
 # It can also be run by hand for a pull request number, for a PR whose last push did not start it
 # (one opened before this workflow existed, say). From the default branch's Actions tab.
@@ -54,6 +56,7 @@ jobs:
       ref: ${{ steps.pr.outputs.ref }}
       environment: pr-${{ steps.pr.outputs.number }}
       client_host: ${{ vars.PREVIEW_ALIAS_PREFIX || 'openseas-pr' }}-${{ steps.pr.outputs.number }}.vercel.app
+      harness_host: ${{ vars.PREVIEW_HARNESS_ALIAS_PREFIX || 'openseas-harness-pr' }}-${{ steps.pr.outputs.number }}.vercel.app
     steps:
       - id: pr
         # From the event when a pull request started this run; looked up by number when run by hand.
@@ -91,14 +94,15 @@ jobs:
       SOURCE_ENVIRONMENT: production
       ENVIRONMENT: ${{ needs.pr.outputs.environment }}
       SHA: ${{ needs.pr.outputs.sha }}
-      CLIENT_ORIGIN: https://${{ needs.pr.outputs.client_host }}
+      # Both front ends' stable aliases: the server allows each before either deploys.
+      CLIENT_ORIGINS: https://${{ needs.pr.outputs.client_host }},https://${{ needs.pr.outputs.harness_host }}
     steps:
       - name: Check configuration
         id: config
         # Pull requests from forks get no secrets. Skip quietly instead of failing their checks.
         run: |
           if [ -z "$RAILWAY_API_TOKEN" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
-            echo "::warning::RAILWAY_API_TOKEN or RAILWAY_PROJECT_ID is not available to this run, so no server preview is deployed; the client preview will talk to the production server. They must be repository-scoped. See docs/DEPLOY.md, \"Previews\"."
+            echo "::warning::RAILWAY_API_TOKEN or RAILWAY_PROJECT_ID is not available to this run, so no server preview is deployed; the previews will talk to the production server. They must be repository-scoped. See docs/DEPLOY.md, \"Previews\"."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -164,11 +168,11 @@ jobs:
           fi
           echo "url=https://$host" >> "$GITHUB_OUTPUT"
           echo "server: https://$host"
-      - name: Point the server at the client and record the commit
+      - name: Point the server at the previews and record the commit
         if: steps.config.outputs.ready == 'true'
         run: |
           railway variables --environment "$ENVIRONMENT" --service "$RAILWAY_SERVICE" --skip-deploys \
-            --set "CLIENT_ORIGINS=$CLIENT_ORIGIN" \
+            --set "CLIENT_ORIGINS=$CLIENT_ORIGINS" \
             --set "GIT_COMMIT_SHA=$SHA"
       - name: Upload and build
         if: steps.config.outputs.ready == 'true'
@@ -186,12 +190,15 @@ jobs:
     needs: [pr, server]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      url: ${{ steps.alias.outputs.url }}
     env:
+      APP: client
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       SERVER_URL: ${{ needs.server.outputs.url }}
-      CLIENT_HOST: ${{ needs.pr.outputs.client_host }}
+      HOST: ${{ needs.pr.outputs.client_host }}
       SHA: ${{ needs.pr.outputs.sha }}
       BRANCH: ${{ needs.pr.outputs.ref }}
       PR: ${{ needs.pr.outputs.number }}
@@ -201,7 +208,7 @@ jobs:
         # Pull requests from forks get no secrets. Skip quietly instead of failing their checks.
         run: |
           if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
-            echo "::warning::VERCEL_TOKEN, VERCEL_ORG_ID or VERCEL_PROJECT_ID is not available to this run, so no preview is deployed. They must be repository-scoped, not only on the production environment. See docs/DEPLOY.md, \"Previews\"."
+            echo "::warning::VERCEL_TOKEN, VERCEL_ORG_ID or VERCEL_PROJECT_ID is not available to this run, so no client preview is deployed. They must be repository-scoped, not only on the production environment. See docs/DEPLOY.md, \"Previews\"."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -219,91 +226,101 @@ jobs:
           cache: pnpm
       - if: steps.config.outputs.ready == 'true'
         run: npm install -g vercel
-      - name: Pull preview settings and env
+      - name: Build and deploy the preview
         if: steps.config.outputs.ready == 'true'
-        run: vercel pull --yes --environment=preview --token "$VERCEL_TOKEN"
-      - name: Point the client at this PR's server
-        if: steps.config.outputs.ready == 'true' && env.SERVER_URL != ''
-        # `vercel build` reads the pulled env from this file. Replace the project's preview
-        # VITE_SERVER_URL (the production server) with the PR server.
-        run: |
-          f=.vercel/.env.preview.local
-          touch "$f"
-          grep -v '^VITE_SERVER_URL=' "$f" > "$f.next" || true
-          printf 'VITE_SERVER_URL="%s"\n' "$SERVER_URL" >> "$f.next"
-          mv "$f.next" "$f"
-          echo "client will talk to $SERVER_URL"
-      - name: Build
-        if: steps.config.outputs.ready == 'true'
-        env:
-          COMMIT_SHA: ${{ needs.pr.outputs.sha }}
-          # Belt and braces with the file edit above; empty means "keep the pulled value".
-          VITE_SERVER_URL: ${{ needs.server.outputs.url }}
-        run: |
-          if [ -z "$VITE_SERVER_URL" ]; then unset VITE_SERVER_URL; fi
-          vercel build --token "$VERCEL_TOKEN"
-      - name: Deploy
         id: deploy
-        if: steps.config.outputs.ready == 'true'
-        # A deployment Vercel blocks never finishes; fail in minutes rather than at the job timeout.
-        timeout-minutes: 5
-        run: |
-          set -o pipefail
-          # Deploy from a copy of .vercel outside the checkout. The CLI reads the last commit from
-          # the git repo it runs in and attaches it as githubCommit* metadata, which makes Vercel
-          # credit the deployment to the commit's author; on a Hobby team a commit authored outside
-          # the team (Claude's noreply address, say) leaves the deployment BLOCKED. Outside a repo
-          # there is no commit to read, and the deployment is credited to the token's owner.
-          out="$RUNNER_TEMP/preview"
-          mkdir -p "$out"
-          cp -R .vercel "$out/"
-          vercel deploy --prebuilt --cwd "$out" --token "$VERCEL_TOKEN" \
-            --meta commitSha="$SHA" \
-            --meta commitRef="$BRANCH" \
-            --meta repo="${GITHUB_REPOSITORY}" \
-            --meta prNumber="$PR" \
-            | tee deploy-url.txt
-          url="$(tail -n1 deploy-url.txt)"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Client preview: $url (commit $SHA)" >> "$GITHUB_STEP_SUMMARY"
+        timeout-minutes: 10
+        run: .github/scripts/vercel-preview.sh
       - name: Stable address for this PR
         if: steps.config.outputs.ready == 'true'
-        # The PR server only accepts requests from this origin, so the alias is not optional.
-        # Through the REST API rather than `vercel alias set`: the CLI loads the token's user first,
-        # and a team-scoped token has none ("User not found"). The API takes a deployment URL.
+        id: alias
         env:
           URL: ${{ steps.deploy.outputs.url }}
+        run: .github/scripts/vercel-alias.sh
+
+  harness:
+    name: Harness preview on Vercel
+    needs: [pr, server]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      url: ${{ steps.alias.outputs.url }}
+    env:
+      APP: harness
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      # The harness's own Vercel project, rooted in packages/harness (docs/DEPLOY.md, step 2b).
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_HARNESS_PROJECT_ID }}
+      SERVER_URL: ${{ needs.server.outputs.url }}
+      HOST: ${{ needs.pr.outputs.harness_host }}
+      SHA: ${{ needs.pr.outputs.sha }}
+      BRANCH: ${{ needs.pr.outputs.ref }}
+      PR: ${{ needs.pr.outputs.number }}
+    steps:
+      - name: Check configuration
+        id: config
         run: |
-          deployment="${URL#https://}"
-          body="$(curl -sS --max-time 30 -o /dev/stdout -w '\n%{http_code}' -X POST \
-            "https://api.vercel.com/v2/deployments/$deployment/aliases?teamId=$VERCEL_ORG_ID" \
-            -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
-            -d "{\"alias\":\"$CLIENT_HOST\"}")"
-          status="${body##*$'\n'}"
-          if [ "$status" = 200 ] || [ "$status" = 201 ]; then
-            echo "aliased $deployment to https://$CLIENT_HOST"
-            echo "Client preview alias: https://$CLIENT_HOST" >> "$GITHUB_STEP_SUMMARY"
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ]; then
+            echo "::warning::VERCEL_TOKEN or VERCEL_ORG_ID is not available to this run, so no harness preview is deployed. See docs/DEPLOY.md, \"Previews\"."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::warning::Variable VERCEL_HARNESS_PROJECT_ID is not set, so no harness preview is deployed. Create the harness project and set it to get one. See docs/DEPLOY.md, step 2b."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::Could not alias $deployment to $CLIENT_HOST (HTTP $status): ${body%$'\n'*}. If that name is taken on vercel.app, set the repository variable PREVIEW_ALIAS_PREFIX to something unique and re-run. See docs/DEPLOY.md, \"Previews\"."
-            exit 1
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
-      - name: Comment the URLs on the pull request
+      - uses: actions/checkout@v4
         if: steps.config.outputs.ready == 'true'
-        uses: actions/github-script@v7
+        with:
+          ref: ${{ needs.pr.outputs.sha }}
+      - uses: pnpm/action-setup@v4
+        if: steps.config.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: steps.config.outputs.ready == 'true'
+        run: npm install -g vercel
+      - name: Build and deploy the preview
+        if: steps.config.outputs.ready == 'true'
+        id: deploy
+        timeout-minutes: 10
+        run: .github/scripts/vercel-preview.sh
+      - name: Stable address for this PR
+        if: steps.config.outputs.ready == 'true'
+        id: alias
         env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: .github/scripts/vercel-alias.sh
+
+  comment:
+    name: Comment the URLs on the pull request
+    needs: [pr, server, client, harness]
+    if: always() && needs.pr.result == 'success' && (needs.client.outputs.url != '' || needs.harness.outputs.url != '')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          CLIENT_URL: ${{ needs.client.outputs.url }}
+          HARNESS_URL: ${{ needs.harness.outputs.url }}
+          SERVER_URL: ${{ needs.server.outputs.url }}
+          SHA: ${{ needs.pr.outputs.sha }}
           ENVIRONMENT: ${{ needs.pr.outputs.environment }}
+          PR: ${{ needs.pr.outputs.number }}
         with:
           script: |
             const marker = "<!-- openseas-preview -->";
-            const { CLIENT_HOST, SERVER_URL, SHA, ENVIRONMENT, PR } = process.env;
+            const { CLIENT_URL, HARNESS_URL, SERVER_URL, SHA, ENVIRONMENT, PR } = process.env;
             const server = SERVER_URL
               ? `[${SERVER_URL}](${SERVER_URL}/health) in Railway environment \`${ENVIRONMENT}\`, with its own empty database`
-              : "the production server (no `RAILWAY_API_TOKEN` for this run), so anything that needs the server will fail from the preview";
+              : "the production server (no `RAILWAY_API_TOKEN` for this run), so anything that needs the server will fail from the previews";
             const body = [
               marker,
               `**Preview** for commit \`${SHA.slice(0, 7)}\``,
               "",
-              `- Client: https://${CLIENT_HOST}`,
+              `- Game: ${CLIENT_URL ? CLIENT_URL : "not deployed (see the client preview job)"}`,
+              `- Harness: ${HARNESS_URL ? HARNESS_URL : "not deployed (set `VERCEL_HARNESS_PROJECT_ID`; see docs/DEPLOY.md step 2b)"}`,
               `- Server: ${server}`,
               "",
               SERVER_URL ? "Torn down when this pull request closes." : "",

@@ -1,11 +1,10 @@
 import { useCallback, useRef, useState } from "react";
-import { SAILING_DEF, summarizeSailing, type Rotation, type SailingClearRound, type SailingMove, type SailingState } from "@openseas/engine";
-import { sfx } from "../audio.js";
-import { content, t } from "../content.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../puzzles/PracticeShell.jsx";
-import { DiscIcon } from "../sailing/DiscIcon.jsx";
-import { usePractice } from "../puzzles/usePractice.js";
-import { SailingBoard } from "../sailing/SailingBoard.jsx";
+import { summarizeSailing, type Rotation, type SailingClearRound, type SailingConfig, type SailingMove, type SailingState } from "@openseas/engine";
+import { DiscIcon, SailingBoard, content, sfx, t } from "@openseas/boards";
+import { useBench } from "../bench/useBench.jsx";
+import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { usePractice } from "../practice/usePractice.js";
+import { SAILING } from "../puzzles.js";
 
 const sailing = content.puzzles.sailing;
 
@@ -28,15 +27,17 @@ export function SailingPractice() {
     }
   }, []);
 
-  const api = usePractice<SailingState, SailingMove, typeof sailing.config>({
+  const api = usePractice<SailingState, SailingMove, SailingConfig>({
     puzzle: "sailing",
-    def: SAILING_DEF,
+    def: SAILING.def,
     config: sailing.config,
     roundSeconds: sailing.roundSeconds,
     summarize: summarizeSailing,
     onMove,
   });
+  const bench = useBench(SAILING, api);
   const { state } = api;
+  const shown = bench.reviewState ?? state;
 
   const onPlace = useCallback(
     (col: number, row: number, rot: Rotation) => {
@@ -64,13 +65,13 @@ export function SailingPractice() {
     start();
   };
 
-  const pieces = sailing.pieces.slice(0, sailing.config.pieceKinds);
+  const pieces = sailing.pieces.slice(0, shown.config.pieceKinds);
   const nextPreview = (
     <div className="stat stat-wide">
       <span className="stat-label">{t("sailing.next")}</span>
       <span className="next-pair" data-testid="hud-next">
-        <DiscIcon color={pieces[state.next.a]!.color} texture={pieces[state.next.a]!.texture} mark={showMarks ? pieces[state.next.a]!.mark : null} size={26} />
-        <DiscIcon color={pieces[state.next.b]!.color} texture={pieces[state.next.b]!.texture} mark={showMarks ? pieces[state.next.b]!.mark : null} size={26} />
+        <DiscIcon color={pieces[shown.next.a]!.color} texture={pieces[shown.next.a]!.texture} mark={showMarks ? pieces[shown.next.a]!.mark : null} size={26} />
+        <DiscIcon color={pieces[shown.next.b]!.color} texture={pieces[shown.next.b]!.texture} mark={showMarks ? pieces[shown.next.b]!.mark : null} size={26} />
       </span>
     </div>
   );
@@ -81,15 +82,18 @@ export function SailingPractice() {
       phase={api.phase}
       outcome={api.outcome}
       best={api.best}
-      roundSeconds={sailing.roundSeconds}
+      roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
-      score={state.score}
-      moves={state.moveCount}
-      maxMoves={sailing.config.maxMoves}
-      combo={state.combo}
+      score={shown.score}
+      moves={shown.moveCount}
+      maxMoves={shown.config.maxMoves}
+      combo={shown.combo}
       canRate={api.canRate}
       onStartRated={startRound(api.startRated)}
       onStartUnrated={startRound(api.startUnrated)}
+      onStartLab={startRound(bench.startLab)}
+      labReady={bench.labReady}
+      labSummary={bench.labSummary}
       splash={t("sailing.go")}
       details={nextPreview}
       resultRows={
@@ -118,9 +122,12 @@ export function SailingPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
+      bench={bench.bench}
+      reviewBar={bench.reviewBar}
       board={(interactive) => (
         <SailingBoard
-          state={state}
+          key={bench.reviewKey ?? "live"}
+          state={shown}
           version={api.version}
           interactive={interactive}
           showMarks={showMarks}

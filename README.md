@@ -17,9 +17,14 @@ practice pages with guest accounts and ratings. Each still needs its tester sess
 numbers are trusted.
 
 Milestone 3 restarted (ADR 0018): the game becomes one graphical experience, opening on the
-overworld with in-world navigation, menus and the puzzles embedded at the ship's stations; the
-practice pages become a separate puzzle harness. A first pass built the ship as pages (PRs #24
-and #25, closed) and is kept on its branches for parts.
+overworld with in-world navigation, menus and the puzzles embedded at the ship's stations. A first
+pass built the ship as pages (PRs #24 and #25, closed) and is kept on its branches for parts.
+
+The practice pages now live in the **puzzle harness** at [test.openseas.online](https://test.openseas.online)
+(ADR 0019): the same boards, engines and server as the game, one puzzle at a time, with a bench
+for lab rounds (chosen seed, config overrides, a clock that pauses and steps), an inspector, a
+replay check and log review. That is where testers practice and thresholds are calibrated. The
+game at openseas.online opens on the pirate's card until the M3 shell lands.
 
 ## Layout
 
@@ -29,8 +34,9 @@ and #25, closed) and is kept on its branches for parts.
 | `packages/protocol` | Zod schemas for every client-server message. |
 | `packages/content` | World content and the message table as JSON, validated at startup. |
 | `packages/server` | Node 22, `ws`, Drizzle, Better Auth. The only authority. |
-| `packages/client` | The game, one graphical experience. Vite, React, PixiJS v8. Renders; never authoritative. |
-| `packages/harness` | The puzzle test harness (planned, ADR 0018): the practice pages, one per engine, as a separate app. |
+| `packages/boards` | What both front ends render with: the PixiJS boards and their art and sound, the round runner, the tick clock, the server connection (ADR 0019). Renders; never authoritative. |
+| `packages/client` | The game, one graphical experience. Vite, React. Renders; never authoritative. |
+| `packages/harness` | The puzzle test harness: one page per engine around the shared boards, plus the bench (lab rounds, scenarios as links, inspector, replay review). A developer and tester tool, never linked from the game. |
 
 ## Run it
 
@@ -39,11 +45,14 @@ Needs Node 22, pnpm 10, and Docker (for Postgres).
 ```sh
 pnpm install
 cp .env.example .env            # defaults work for local dev
-pnpm dev                        # starts Postgres, the server on :8080, the client on :5173
+pnpm dev                        # starts Postgres, the server on :8080, the game on :5173, the harness on :5174
+pnpm dev:harness                # or just the server and the harness
 ```
 
-Open http://localhost:5173. You get a guest pirate and a starter sloop at once; set
-`ALPHA_INVITE_CODE` in `.env` to require an invite.
+Open http://localhost:5174 for the harness (http://localhost:5173 is the game). You get a guest
+pirate and a starter sloop at once; set `ALPHA_INVITE_CODE` in `.env` to require an invite. A
+harness page's query string is its scenario, for example
+`http://localhost:5174/gunnery?seed=keg-3&seconds=60&c.spawnEveryTicks=20&start=lab`.
 
 ## Check it
 
@@ -52,7 +61,7 @@ pnpm typecheck                  # every package
 pnpm test                       # engine property tests, protocol, content, server unit tests
 TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/openseas pnpm test   # plus server integration
 pnpm --filter @openseas/engine lint                                                # engine purity guard
-pnpm --filter @openseas/client exec playwright install chromium && pnpm test:smoke # client smoke
+pnpm --filter @openseas/harness exec playwright install chromium && pnpm test:smoke # game and harness smoke
 ```
 
 Schema changes: edit `packages/server/src/db/schema.ts`, then `pnpm db:generate` and commit the
@@ -61,6 +70,7 @@ migration. Migrations run automatically when the server starts.
 ## Deploy
 
 Merging to `main` deploys. Once CI is green, the **Deploy** workflow ships the server to Railway,
-waits for it to be healthy, then ships the client to Vercel. Every pull request that touches code
-gets its own server, database and client preview, linked from a comment on the PR. One-time
-setup, secrets, and rollback are in [docs/DEPLOY.md](docs/DEPLOY.md).
+waits for it to be healthy, then ships the game and the harness to their two Vercel projects.
+Every pull request that touches code gets its own server, database, game preview and harness
+preview, linked from a comment on the PR. One-time setup, secrets, and rollback are in
+[docs/DEPLOY.md](docs/DEPLOY.md).
