@@ -72,14 +72,17 @@ jobs:
           echo "Deleted Railway environment $name" >> "$GITHUB_STEP_SUMMARY"
       - name: Remove the client alias
         if: steps.config.outputs.vercel == 'true'
+        # REST rather than `vercel alias rm`, which needs a user behind the token (see preview.yml).
         run: |
-          npm install -g vercel
           host="$ALIAS_PREFIX-$PR.vercel.app"
-          if vercel alias rm "$host" --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"; then
-            echo "Removed alias $host" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "no alias $host to remove"
-          fi
+          status="$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X DELETE \
+            "https://api.vercel.com/v2/aliases/$host?teamId=$VERCEL_ORG_ID" \
+            -H "Authorization: Bearer $VERCEL_TOKEN")"
+          case "$status" in
+            200) echo "Removed alias $host" >> "$GITHUB_STEP_SUMMARY" ;;
+            404) echo "no alias $host to remove" ;;
+            *) echo "::warning::Could not remove alias $host (HTTP $status); remove it in the Vercel dashboard." ;;
+          esac
       - name: Note it on the pull request
         if: steps.config.outputs.railway == 'true'
         uses: actions/github-script@v7

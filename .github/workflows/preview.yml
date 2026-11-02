@@ -269,15 +269,22 @@ jobs:
       - name: Stable address for this PR
         if: steps.config.outputs.ready == 'true'
         # The PR server only accepts requests from this origin, so the alias is not optional.
-        # Unlike deploy, alias does not take the team from .vercel/project.json; without --scope
-        # it looks the alias up under the token's user and fails with "User not found".
+        # Through the REST API rather than `vercel alias set`: the CLI loads the token's user first,
+        # and a team-scoped token has none ("User not found"). The API takes a deployment URL.
         env:
           URL: ${{ steps.deploy.outputs.url }}
         run: |
-          if vercel alias set "$URL" "$CLIENT_HOST" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"; then
+          deployment="${URL#https://}"
+          body="$(curl -sS --max-time 30 -o /dev/stdout -w '\n%{http_code}' -X POST \
+            "https://api.vercel.com/v2/deployments/$deployment/aliases?teamId=$VERCEL_ORG_ID" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
+            -d "{\"alias\":\"$CLIENT_HOST\"}")"
+          status="${body##*$'\n'}"
+          if [ "$status" = 200 ] || [ "$status" = 201 ]; then
+            echo "aliased $deployment to https://$CLIENT_HOST"
             echo "Client preview alias: https://$CLIENT_HOST" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::error::Could not alias $URL to $CLIENT_HOST. If that name is taken on vercel.app, set the repository variable PREVIEW_ALIAS_PREFIX to something unique and re-run. See docs/DEPLOY.md, \"Previews\"."
+            echo "::error::Could not alias $deployment to $CLIENT_HOST (HTTP $status): ${body%$'\n'*}. If that name is taken on vercel.app, set the repository variable PREVIEW_ALIAS_PREFIX to something unique and re-run. See docs/DEPLOY.md, \"Previews\"."
             exit 1
           fi
       - name: Comment the URLs on the pull request
