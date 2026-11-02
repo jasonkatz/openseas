@@ -55,5 +55,6 @@ migration. Migrations run automatically when the server starts.
 ## Deploy
 
 Merging to `main` deploys. Once CI is green, the **Deploy** workflow ships the server to Railway,
-waits for it to be healthy, then ships the client to Vercel. One-time setup, secrets, and rollback
-are in [docs/DEPLOY.md](docs/DEPLOY.md).
+waits for it to be healthy, then ships the client to Vercel. Every pull request that touches code
+gets its own server, database and client preview, linked from a comment on the PR. One-time
+setup, secrets, and rollback are in [docs/DEPLOY.md](docs/DEPLOY.md).

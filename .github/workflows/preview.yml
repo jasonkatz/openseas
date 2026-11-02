@@ -1,8 +1,19 @@
 name: Preview
 
-# Builds the client for every pull request and deploys it as a preview on the same Vercel project
-# that serves production (ADR 0016). Vercel's Git integration is not used; this replaces it.
-# Previews talk to the production server. Setup: docs/DEPLOY.md, "Previews".
+# Every pull request that touches code gets its own full stack (ADR 0017):
+#
+#   1. A Railway environment named pr-<number>, duplicated from production the first time, so it
+#      has its own server service and its own fresh, empty Postgres. The PR's commit is uploaded
+#      into it with `railway up` and the job waits until /health reports that commit.
+#   2. A client built in CI against that server (VITE_SERVER_URL) and deployed to the production
+#      Vercel project as a preview (ADR 0016), under a stable alias per PR so the server can list
+#      the client's origin in CLIENT_ORIGINS before either side deploys.
+#
+# One PR comment carries the URLs. preview-cleanup.yml tears everything down when the PR closes.
+# Neither host is connected to the repository. Setup and secrets: docs/DEPLOY.md, "Previews".
+#
+# Without the Railway secrets (a fork PR, or before they are set up) the server job skips with a
+# warning and the client preview talks to the production server, as it did before ADR 0017.
 #
 # It can also be run by hand for a pull request number, for a PR whose last push did not start it
 # (one opened before this workflow existed, say). From the default branch's Actions tab.
@@ -16,15 +27,14 @@ on:
         required: true
   pull_request:
     paths:
-      - packages/client/**
-      - packages/engine/**
-      - packages/protocol/**
-      - packages/content/**
+      - packages/**
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - package.json
+      - railpack.json
       - vercel.json
       - .github/workflows/preview.yml
+      - .github/scripts/**
 
 concurrency:
   group: preview-${{ github.event.pull_request.number || inputs.pr }}
@@ -35,17 +45,17 @@ permissions:
   pull-requests: write
 
 jobs:
-  client:
-    name: Client preview on Vercel
+  pr:
+    name: Which pull request
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    outputs:
+      number: ${{ steps.pr.outputs.number }}
+      sha: ${{ steps.pr.outputs.sha }}
+      ref: ${{ steps.pr.outputs.ref }}
+      environment: pr-${{ steps.pr.outputs.number }}
+      client_host: ${{ vars.PREVIEW_ALIAS_PREFIX || 'openseas-pr' }}-${{ steps.pr.outputs.number }}.vercel.app
     steps:
-      - name: Which pull request
-        id: pr
+      - id: pr
         # From the event when a pull request started this run; looked up by number when run by hand.
         uses: actions/github-script@v7
         with:
@@ -61,6 +71,131 @@ jobs:
             core.setOutput("sha", pr.head.sha);
             core.setOutput("ref", pr.head.ref);
             core.info(`pull request #${pr.number}: ${pr.head.ref} at ${pr.head.sha}`);
+
+  server:
+    name: Server and database on Railway
+    needs: pr
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      url: ${{ steps.domain.outputs.url }}
+    env:
+      # A workspace (or account) token, not a project token: project tokens are scoped to one
+      # environment and cannot create or deploy to others.
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      # The CLI reads RAILWAY_PROJECT_ID itself, so no `railway link` (which needs a user, not a
+      # workspace token). Every command names its environment and service explicitly.
+      RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+      RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE || 'server' }}
+      RAILWAY_DATABASE_SERVICE: ${{ vars.RAILWAY_DATABASE_SERVICE || 'Postgres' }}
+      SOURCE_ENVIRONMENT: production
+      ENVIRONMENT: ${{ needs.pr.outputs.environment }}
+      SHA: ${{ needs.pr.outputs.sha }}
+      CLIENT_ORIGIN: https://${{ needs.pr.outputs.client_host }}
+    steps:
+      - name: Check configuration
+        id: config
+        # Pull requests from forks get no secrets. Skip quietly instead of failing their checks.
+        run: |
+          if [ -z "$RAILWAY_API_TOKEN" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
+            echo "::warning::RAILWAY_API_TOKEN or RAILWAY_PROJECT_ID is not available to this run, so no server preview is deployed; the client preview will talk to the production server. They must be repository-scoped. See docs/DEPLOY.md, \"Previews\"."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.ready == 'true'
+        with:
+          ref: ${{ needs.pr.outputs.sha }}
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.ready == 'true'
+        with:
+          node-version: 22
+      - if: steps.config.outputs.ready == 'true'
+        run: npm install -g @railway/cli
+      - name: Create the environment if it does not exist
+        id: create
+        if: steps.config.outputs.ready == 'true'
+        # Duplicating production copies its services, variables (the references to the Postgres
+        # service's DATABASE_URL and to RAILWAY_PUBLIC_DOMAIN resolve inside the new environment)
+        # and settings, and creates fresh volumes, so the database starts empty.
+        # The server service has no source to deploy until `railway up` below. A new environment
+        # gets its own auth secret rather than production's.
+        run: |
+          existing="$(railway environment list --json | jq -r --arg name "$ENVIRONMENT" '.environments[] | select(.name == $name) | .id')"
+          if [ -n "$existing" ]; then
+            echo "environment $ENVIRONMENT exists ($existing)"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          railway environment new "$ENVIRONMENT" --duplicate "$SOURCE_ENVIRONMENT" --json
+          secret="$(openssl rand -base64 48)"
+          echo "::add-mask::$secret"
+          railway variables --environment "$ENVIRONMENT" --service "$RAILWAY_SERVICE" --skip-deploys \
+            --set "BETTER_AUTH_SECRET=$secret"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+          echo "Created Railway environment $ENVIRONMENT from $SOURCE_ENVIRONMENT" >> "$GITHUB_STEP_SUMMARY"
+      - name: Wait for the database
+        if: steps.config.outputs.ready == 'true'
+        # The server runs migrations on boot and gives up after a few crashes, so do not upload it
+        # until Postgres has a successful deployment. A duplicated database comes up in a minute.
+        run: |
+          deadline=$((SECONDS + 600))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            status="$(railway deployment list --environment "$ENVIRONMENT" --service "$RAILWAY_DATABASE_SERVICE" --limit 1 --json | jq -r '.[0].status // "NONE"')"
+            case "$status" in
+              SUCCESS) echo "$RAILWAY_DATABASE_SERVICE is up"; exit 0 ;;
+              FAILED|CRASHED) echo "::error::$RAILWAY_DATABASE_SERVICE deployment in $ENVIRONMENT is $status. Check it in the Railway dashboard."; exit 1 ;;
+              *) echo "$RAILWAY_DATABASE_SERVICE: $status"; sleep 10 ;;
+            esac
+          done
+          echo "::error::$RAILWAY_DATABASE_SERVICE in $ENVIRONMENT did not come up within 10 minutes."
+          exit 1
+      - name: Public domain for the server
+        id: domain
+        if: steps.config.outputs.ready == 'true'
+        # Generates a Railway domain the first time; prints the existing one after that.
+        run: |
+          out="$(railway domain --environment "$ENVIRONMENT" --service "$RAILWAY_SERVICE" --json)"
+          host="$(printf '%s' "$out" | jq -r '.domain // .domains[0] // empty' | sed -e 's#^https\?://##' -e 's#/$##')"
+          if [ -z "$host" ]; then
+            echo "::error::Could not get a domain for $RAILWAY_SERVICE in $ENVIRONMENT. railway domain said: $out"
+            exit 1
+          fi
+          echo "url=https://$host" >> "$GITHUB_OUTPUT"
+          echo "server: https://$host"
+      - name: Point the server at the client and record the commit
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          railway variables --environment "$ENVIRONMENT" --service "$RAILWAY_SERVICE" --skip-deploys \
+            --set "CLIENT_ORIGINS=$CLIENT_ORIGIN" \
+            --set "GIT_COMMIT_SHA=$SHA"
+      - name: Upload and build
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          railway up --environment "$ENVIRONMENT" --service "$RAILWAY_SERVICE" --ci
+          echo "Server preview uploaded to Railway environment $ENVIRONMENT (commit $SHA)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Wait until the server serves this commit
+        if: steps.config.outputs.ready == 'true'
+        env:
+          URL: ${{ steps.domain.outputs.url }}
+        run: .github/scripts/wait-for-commit.sh "$URL/health" "$SHA" 900
+
+  client:
+    name: Client preview on Vercel
+    needs: [pr, server]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      SERVER_URL: ${{ needs.server.outputs.url }}
+      CLIENT_HOST: ${{ needs.pr.outputs.client_host }}
+      SHA: ${{ needs.pr.outputs.sha }}
+      BRANCH: ${{ needs.pr.outputs.ref }}
+      PR: ${{ needs.pr.outputs.number }}
+    steps:
       - name: Check configuration
         id: config
         # Pull requests from forks get no secrets. Skip quietly instead of failing their checks.
@@ -74,7 +209,7 @@ jobs:
       - uses: actions/checkout@v4
         if: steps.config.outputs.ready == 'true'
         with:
-          ref: ${{ steps.pr.outputs.sha }}
+          ref: ${{ needs.pr.outputs.sha }}
       - uses: pnpm/action-setup@v4
         if: steps.config.outputs.ready == 'true'
       - uses: actions/setup-node@v4
@@ -87,20 +222,31 @@ jobs:
       - name: Pull preview settings and env
         if: steps.config.outputs.ready == 'true'
         run: vercel pull --yes --environment=preview --token "$VERCEL_TOKEN"
+      - name: Point the client at this PR's server
+        if: steps.config.outputs.ready == 'true' && env.SERVER_URL != ''
+        # `vercel build` reads the pulled env from this file. Replace the project's preview
+        # VITE_SERVER_URL (the production server) with the PR server.
+        run: |
+          f=.vercel/.env.preview.local
+          touch "$f"
+          grep -v '^VITE_SERVER_URL=' "$f" > "$f.next" || true
+          printf 'VITE_SERVER_URL="%s"\n' "$SERVER_URL" >> "$f.next"
+          mv "$f.next" "$f"
+          echo "client will talk to $SERVER_URL"
       - name: Build
         if: steps.config.outputs.ready == 'true'
         env:
-          COMMIT_SHA: ${{ steps.pr.outputs.sha }}
-        run: vercel build --token "$VERCEL_TOKEN"
+          COMMIT_SHA: ${{ needs.pr.outputs.sha }}
+          # Belt and braces with the file edit above; empty means "keep the pulled value".
+          VITE_SERVER_URL: ${{ needs.server.outputs.url }}
+        run: |
+          if [ -z "$VITE_SERVER_URL" ]; then unset VITE_SERVER_URL; fi
+          vercel build --token "$VERCEL_TOKEN"
       - name: Deploy
         id: deploy
         if: steps.config.outputs.ready == 'true'
         # A deployment Vercel blocks never finishes; fail in minutes rather than at the job timeout.
         timeout-minutes: 5
-        env:
-          SHA: ${{ steps.pr.outputs.sha }}
-          BRANCH: ${{ steps.pr.outputs.ref }}
-          PR: ${{ steps.pr.outputs.number }}
         run: |
           set -o pipefail
           # Deploy from a copy of .vercel outside the checkout. The CLI reads the last commit from
@@ -120,19 +266,50 @@ jobs:
           url="$(tail -n1 deploy-url.txt)"
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Client preview: $url (commit $SHA)" >> "$GITHUB_STEP_SUMMARY"
-      - name: Comment the preview URL on the pull request
+      - name: Stable address for this PR
+        if: steps.config.outputs.ready == 'true'
+        # The PR server only accepts requests from this origin, so the alias is not optional.
+        # Through the REST API rather than `vercel alias set`: the CLI loads the token's user first,
+        # and a team-scoped token has none ("User not found"). The API takes a deployment URL.
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          deployment="${URL#https://}"
+          body="$(curl -sS --max-time 30 -o /dev/stdout -w '\n%{http_code}' -X POST \
+            "https://api.vercel.com/v2/deployments/$deployment/aliases?teamId=$VERCEL_ORG_ID" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
+            -d "{\"alias\":\"$CLIENT_HOST\"}")"
+          status="${body##*$'\n'}"
+          if [ "$status" = 200 ] || [ "$status" = 201 ]; then
+            echo "aliased $deployment to https://$CLIENT_HOST"
+            echo "Client preview alias: https://$CLIENT_HOST" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::Could not alias $deployment to $CLIENT_HOST (HTTP $status): ${body%$'\n'*}. If that name is taken on vercel.app, set the repository variable PREVIEW_ALIAS_PREFIX to something unique and re-run. See docs/DEPLOY.md, \"Previews\"."
+            exit 1
+          fi
+      - name: Comment the URLs on the pull request
         if: steps.config.outputs.ready == 'true'
         uses: actions/github-script@v7
         env:
-          URL: ${{ steps.deploy.outputs.url }}
-          SHA: ${{ steps.pr.outputs.sha }}
-          PR: ${{ steps.pr.outputs.number }}
+          ENVIRONMENT: ${{ needs.pr.outputs.environment }}
         with:
           script: |
             const marker = "<!-- openseas-preview -->";
-            const body = `${marker}\n**Client preview:** ${process.env.URL}\n\nCommit \`${process.env.SHA.slice(0, 7)}\`. Talks to the production server.`;
+            const { CLIENT_HOST, SERVER_URL, SHA, ENVIRONMENT, PR } = process.env;
+            const server = SERVER_URL
+              ? `[${SERVER_URL}](${SERVER_URL}/health) in Railway environment \`${ENVIRONMENT}\`, with its own empty database`
+              : "the production server (no `RAILWAY_API_TOKEN` for this run), so anything that needs the server will fail from the preview";
+            const body = [
+              marker,
+              `**Preview** for commit \`${SHA.slice(0, 7)}\``,
+              "",
+              `- Client: https://${CLIENT_HOST}`,
+              `- Server: ${server}`,
+              "",
+              SERVER_URL ? "Torn down when this pull request closes." : "",
+            ].join("\n");
             const { owner, repo } = context.repo;
-            const issue_number = Number(process.env.PR);
+            const issue_number = Number(PR);
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
             const existing = comments.find((c) => c.user.type === "Bot" && c.body.includes(marker));
             if (existing) {
