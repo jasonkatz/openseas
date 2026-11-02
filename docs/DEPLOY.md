@@ -49,8 +49,10 @@ is already closed. Vercel keeps the preview deployments; they cost nothing idle.
 
 - The Railway side needs `RAILWAY_API_TOKEN` and `RAILWAY_PROJECT_ID` (step 1.6), **repository**-
   scoped like the Vercel entries: preview runs happen outside the `production` environment. The
-  token is a **workspace** token, not the project token the Deploy pipeline uses; project tokens
-  are scoped to one environment and cannot create others. If the Railway entries are missing the
+  token is a **workspace** token (an account token also works), not the project token the Deploy
+  pipeline uses; project tokens are scoped to one environment and cannot create others. The
+  workflows never run `railway link`, which needs a user: the CLI picks the project up from the
+  `RAILWAY_PROJECT_ID` variable and every command names its environment and service. If the Railway entries are missing the
   server job skips with a warning and the client preview talks to the production server, which
   rejects its origin: UI only, as before ADR 0017.
 - Pull requests from forks get no secrets; both jobs skip with a warning.

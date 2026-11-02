@@ -30,8 +30,7 @@ permissions:
 
 env:
   RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
-  RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
-  RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE || 'server' }}
+  RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }} # read by the Railway CLI itself; no `railway link`
   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
   VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
@@ -63,7 +62,6 @@ jobs:
         if: steps.config.outputs.railway == 'true'
         run: |
           npm install -g @railway/cli
-          railway link --project "$RAILWAY_PROJECT_ID" --environment production --service "$RAILWAY_SERVICE"
           name="pr-$PR"
           id="$(railway environment list --json | jq -r --arg name "$name" '.environments[] | select(.name == $name) | .id')"
           if [ -z "$id" ]; then
@@ -118,7 +116,6 @@ jobs:
       - name: Delete pr-<n> environments whose pull request is closed
         # Only a PR GitHub reports as closed or merged is torn down; an unknown number is left alone.
         run: |
-          railway link --project "$RAILWAY_PROJECT_ID" --environment production --service "$RAILWAY_SERVICE"
           deleted=0
           for name in $(railway environment list --json | jq -r '.environments[].name | select(test("^pr-[0-9]+$"))'); do
             pr="${name#pr-}"

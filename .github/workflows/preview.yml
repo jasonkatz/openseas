@@ -83,6 +83,8 @@ jobs:
       # A workspace (or account) token, not a project token: project tokens are scoped to one
       # environment and cannot create or deploy to others.
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      # The CLI reads RAILWAY_PROJECT_ID itself, so no `railway link` (which needs a user, not a
+      # workspace token). Every command names its environment and service explicitly.
       RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
       RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE || 'server' }}
       RAILWAY_DATABASE_SERVICE: ${{ vars.RAILWAY_DATABASE_SERVICE || 'Postgres' }}
@@ -111,10 +113,6 @@ jobs:
           node-version: 22
       - if: steps.config.outputs.ready == 'true'
         run: npm install -g @railway/cli
-      - name: Link the project
-        if: steps.config.outputs.ready == 'true'
-        # Links the checkout directory to the project; later commands name the environment explicitly.
-        run: railway link --project "$RAILWAY_PROJECT_ID" --environment "$SOURCE_ENVIRONMENT" --service "$RAILWAY_SERVICE"
       - name: Create the environment if it does not exist
         id: create
         if: steps.config.outputs.ready == 'true'
