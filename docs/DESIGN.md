@@ -355,6 +355,47 @@ owned ships. No inventory, clothing, or housing in v1.
 Deliberately stylish placeholder geometry until the puzzles are proven fun and the full set of
 screens is known. The current intent is generated art under a strict style guide after that.
 
+### 3.11 One experience: the shell, navigation and embedded puzzles
+
+The game is one continuous graphical experience, not a set of pages (ADR 0018). This section is
+the desired approach; the parts marked open are decided as they are built.
+
+- **The overworld is home.** A pirate opens the game and is on the ocean chart at their island,
+  the isometric diorama: islands with their buildings, sea lanes, ships at the docks and under
+  way. Everything the pirate can do starts from something they can see and tap on it.
+- **Islands are places on the chart.** Tapping an island moves in on it; its buildings are the
+  menus. The dock boards a ship or buys one at the shipyard. The notice board lists ships
+  recruiting and ships at sea. The tavern is chat and crew. Leaving a building moves back out to
+  the chart. The M5 walkable island grows out of this view rather than replacing it.
+- **The ship is a view inside the same scene.** Boarding moves in on the ship: the hull, the
+  stations, who is at each, the bilge and the hull meters, the wheel. The chart stays visible
+  around it while under way, with the ship easing along its lane between turns. The captain picks
+  a destination by tapping an island on the chart.
+- **Puzzles play at the station.** Taking a station opens that puzzle's board inside the ship
+  view, with a slim HUD that shows the ship (bilge, hull, speed, the next turn) as well as the
+  board, so a pirate pumping sees the water drop. Ending a board closes back into the ship. Sea
+  Battle (M4) is the captain's board in the same place; Swordfighting (M5) opens over the ship when
+  boarding happens.
+- **One menu, in the scene.** Settings, sound, the accessibility marks, account linking and
+  leaving a ship live in a single menu that opens over the scene and looks the same everywhere.
+  No page has a different frame, header or back button.
+- **Transitions are moves, not loads.** Moving in on an island, boarding, taking a station and
+  opening a board animate within the scene; the pirate always knows where they are. A URL may
+  deep-link to a place for sharing; opening it lands in the scene at that place.
+- **Touch first, as everywhere.** Everything above is tappable at phone size; the boards keep the
+  touch affordances built in M1 and M2.
+- **In-world practice** (open): a tavern table where a pirate plays a duty puzzle alone, rated,
+  may replace the harness as the public way to practice. Until it exists the harness is where
+  testers practice and thresholds are calibrated.
+- **Open technical decisions**, each for its own ADR: the renderer for the unified scene (the
+  world in three.js with PixiJS boards layered over it, or one renderer for both), how a board is
+  embedded in the ship view, and how the harness and the game share board code.
+
+**The puzzle harness** is a separate application for testing the puzzles themselves: the practice
+pages as built in M1 and M2, one per engine, rated and unrated, with the HUD, legend, result card,
+settings and Playwright smoke. It is a developer and tester tool, never linked from the game, and
+talks to the same server (ADR 0018).
+
 ## 4. Architecture
 
 Rationale lives in the ADRs. This section states what is decided.
@@ -369,7 +410,8 @@ pnpm monorepo. Packages:
 | `protocol` | Zod schemas for every client-server message | Shared by client and server |
 | `content` | World content JSON and its schemas | Validated at server start |
 | `server` | Node 22, `ws`, Drizzle, Better Auth | Owns all authority |
-| `client` | Vite, React, PixiJS v8 | Renders; never authoritative |
+| `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, PixiJS v8, three.js | Renders; never authoritative |
+| `harness` | The puzzle test harness: one practice page per engine, as built in M1 and M2 | A developer and tester tool; never linked from the game; renders, never authoritative |
 
 ### 4.2 Puzzle authority: deterministic replay verification
 
@@ -387,8 +429,12 @@ schemas.
 
 ### 4.4 Client
 
-PixiJS v8 for every game surface (puzzle boards, sea battle, island). React with Vite for UI
-(menus, chat, panels, lobbies, settings) overlaid on the canvas.
+Two applications on the same server (ADR 0018). The game is one scene: the overworld, islands,
+the ship, menus and the puzzle boards embedded in one frame (section 3.11). PixiJS v8 draws the
+puzzle boards, the sea battle and the island; the overworld is an isometric three.js diorama
+(first built in the closed M3 pass). React with Vite is the UI layer, used for in-scene menus,
+HUDs and panels, not for pages. Which renderer owns the unified scene, and how boards embed in
+it, are open (section 3.11). The harness is React pages with PixiJS boards, as built in M1 and M2.
 
 ### 4.5 Data
 
@@ -417,18 +463,27 @@ have to be fun or nothing else matters. Order: Bilging, Sailing, Carpentry, Gunn
 Sea Battle, Swordfighting. Bilging goes first because it is the simplest and stress-tests the
 deterministic engine and replay pipeline on the easiest case.
 
+The practice pages live on as the puzzle harness, a separate application (ADR 0018). A puzzle is
+still proven there first, with its tester session, and only then embedded in the game.
+
 ### 5.2 Milestones
 
 | Milestone | Definition of done |
 |---|---|
 | M1 | Bilging practice page live with guest accounts and ratings |
 | M2 | All five duty puzzles live on practice pages |
-| M3 | One ship with real-time crew duty and a voyage between two islands, no combat |
+| M3 | The one-experience shell (section 3.11): the overworld as home with in-world navigation and menus; one ship with embedded crew duty and a voyage between two islands, no combat. The practice pages move to the harness |
 | M4 | Sea Battle versus AI brigands, boarding stubbed |
 | M5 | Swordfighting boarding and the walkable island |
 | M6 | OAuth upgrade, crews, polish pass |
 
 Every milestone ends with a tester session and a written retro before the next starts.
+
+M3 was restarted. A first pass built the ship, a notice board and an isometric chart as pages on
+the practice-page structure (pull requests #24 and #25, closed unmerged) and felt disjointed: the
+test harness with ship pages bolted on (ADR 0018). Its ship reducer, duty binding, server rooms
+and chart scene stay on their branches, `claude/m3-ship-voyage` and `claude/m3-overworld`, as
+parts for the restart.
 
 ### 5.3 Testing and quality
 
@@ -444,8 +499,9 @@ Every milestone ends with a tester session and a written retro before the next s
 
 - Node 22 LTS, pnpm, Docker Compose for local Postgres. One `pnpm dev` starts database, server,
   and client.
-- Claude works on branches and opens PRs. CI on GitHub Actions runs typecheck, Vitest, and a
-  Playwright smoke test. The owner reviews and merges.
+- Claude works on branches and opens PRs. CI on GitHub Actions runs typecheck, Vitest, and
+  Playwright smoke tests: the harness's per-puzzle smoke, and a smoke of the game's shell from the
+  chart to a board and back. The owner reviews and merges.
 - Private repository through the placeholder-art phase. Open-sourcing and license are decided
   when art direction lands.
 
