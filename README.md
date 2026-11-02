@@ -12,9 +12,14 @@ then board and fight for booty.
 
 ## Status
 
-Milestone 2 in progress: all five duty puzzles (Bilging, Sailing, Carpentry, Gunnery,
-Navigation) on practice pages with guest accounts and ratings, landing as a stack of PRs in
-build order. Each needs its tester session before its numbers are trusted.
+Milestone 2 done: all five duty puzzles (Bilging, Sailing, Carpentry, Gunnery, Navigation) on
+practice pages with guest accounts and ratings. Each still needs its tester session before its
+numbers are trusted.
+
+Milestone 3 restarted (ADR 0018): the game becomes one graphical experience, opening on the
+overworld with in-world navigation, menus and the puzzles embedded at the ship's stations; the
+practice pages become a separate puzzle harness. A first pass built the ship as pages (PRs #24
+and #25, closed) and is kept on its branches for parts.
 
 ## Layout
 
@@ -24,7 +29,8 @@ build order. Each needs its tester session before its numbers are trusted.
 | `packages/protocol` | Zod schemas for every client-server message. |
 | `packages/content` | World content and the message table as JSON, validated at startup. |
 | `packages/server` | Node 22, `ws`, Drizzle, Better Auth. The only authority. |
-| `packages/client` | Vite, React, PixiJS v8. Renders; never authoritative. |
+| `packages/client` | The game, one graphical experience. Vite, React, PixiJS v8. Renders; never authoritative. |
+| `packages/harness` | The puzzle test harness (planned, ADR 0018): the practice pages, one per engine, as a separate app. |
 
 ## Run it
 
