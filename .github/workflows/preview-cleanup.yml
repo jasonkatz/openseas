@@ -77,7 +77,7 @@ jobs:
         run: |
           npm install -g vercel
           host="$ALIAS_PREFIX-$PR.vercel.app"
-          if vercel alias rm "$host" --yes --token "$VERCEL_TOKEN"; then
+          if vercel alias rm "$host" --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"; then
             echo "Removed alias $host" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "no alias $host to remove"

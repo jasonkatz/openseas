@@ -271,10 +271,12 @@ jobs:
       - name: Stable address for this PR
         if: steps.config.outputs.ready == 'true'
         # The PR server only accepts requests from this origin, so the alias is not optional.
+        # Unlike deploy, alias does not take the team from .vercel/project.json; without --scope
+        # it looks the alias up under the token's user and fails with "User not found".
         env:
           URL: ${{ steps.deploy.outputs.url }}
         run: |
-          if vercel alias set "$URL" "$CLIENT_HOST" --token "$VERCEL_TOKEN"; then
+          if vercel alias set "$URL" "$CLIENT_HOST" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"; then
             echo "Client preview alias: https://$CLIENT_HOST" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "::error::Could not alias $URL to $CLIENT_HOST. If that name is taken on vercel.app, set the repository variable PREVIEW_ALIAS_PREFIX to something unique and re-run. See docs/DEPLOY.md, \"Previews\"."
