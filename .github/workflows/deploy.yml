@@ -4,8 +4,8 @@ name: Deploy
 # Order is deliberate: the server goes first and must serve the new commit on /health before the
 # two front ends are built and deployed against it. The game (client) and the puzzle harness
 # (ADR 0019) are separate Vercel projects and deploy in parallel after the server. Each side is
-# skipped when nothing under it changed, unless forced from the manual trigger. Setup and secrets:
-# docs/DEPLOY.md.
+# skipped when nothing under its paths changed since the commit it reports as live, unless forced
+# from the manual trigger (.github/scripts/plan-deploy.sh). Setup and secrets: docs/DEPLOY.md.
 
 on:
   workflow_run:
@@ -48,28 +48,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.SHA }}
-          fetch-depth: 2
+          # Full history: each side is compared with the commit it reports as live, which may be
+          # several merges back when a deploy was skipped or a CI run on main never happened.
+          fetch-depth: 0
       - id: changed
         env:
           FORCE_SERVER: ${{ inputs.server == true }}
           FORCE_CLIENT: ${{ inputs.client == true }}
           FORCE_HARNESS: ${{ inputs.harness == true }}
-        run: |
-          server=false; client=false; harness=false
-          shared="packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json .github/workflows/deploy.yml"
-          if [ "$FORCE_SERVER" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/server $shared railpack.json; then
-            server=true
-          fi
-          if [ "$FORCE_CLIENT" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/client packages/boards $shared vercel.json; then
-            client=true
-          fi
-          if [ "$FORCE_HARNESS" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/harness packages/boards $shared; then
-            harness=true
-          fi
-          echo "server=$server" >> "$GITHUB_OUTPUT"
-          echo "client=$client" >> "$GITHUB_OUTPUT"
-          echo "harness=$harness" >> "$GITHUB_OUTPUT"
-          echo "commit $SHA: server=$server client=$client harness=$harness"
+          SERVER_URL: ${{ vars.PRODUCTION_SERVER_URL }}
+          CLIENT_URL: ${{ vars.PRODUCTION_CLIENT_URL }}
+          HARNESS_URL: ${{ vars.PRODUCTION_HARNESS_URL }}
+        # A side deploys when its live commit differs from this one under the paths it is built
+        # from. The live commit comes from the side itself (/health, /version.json); when it cannot
+        # be read, or is not in this history, the side deploys. Diffing against HEAD^ instead would
+        # miss every merge whose own deploy never ran.
+        run: .github/scripts/plan-deploy.sh
 
   server:
     name: Server to Railway

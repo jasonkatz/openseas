@@ -7,8 +7,12 @@ one GitHub Actions pipeline does the deploying, in order (ADR 0014).
 
 1. **CI** (`.github/workflows/ci.yml`) runs on the merge commit: engine purity lint, typecheck,
    unit and integration tests, migration drift check, client build and Playwright smoke.
-2. When CI is green, **Deploy** (`.github/workflows/deploy.yml`) starts. It first works out what
-   the commit touched; a docs-only merge deploys nothing.
+2. When CI is green, **Deploy** (`.github/workflows/deploy.yml`) starts. It first asks each side
+   what it is running (`/health` for the server, `/version.json` for the game and the harness)
+   and compares that commit with the merge under the paths the side is built from; a side with
+   nothing changed since its live commit is skipped, so a docs-only merge deploys nothing, and a
+   merge whose own deploy never ran (a cancelled CI run on `main`, say) is caught up by the next
+   one. A side whose live commit cannot be read deploys.
 3. **Server to Railway.** The runner records the commit on the service as `GIT_COMMIT_SHA`,
    uploads the checkout with `railway up`, and streams the Railpack build (`railpack.json`:
    install the workspace, typecheck the server, start it). Railway starts the new container,
