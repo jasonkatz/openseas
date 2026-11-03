@@ -46,6 +46,14 @@ out="$RUNNER_TEMP/preview-$APP"
 rm -rf "$out"
 mkdir -p "$out"
 cp -R .vercel "$out/"
+# A project with a Root Directory (the harness: packages/harness) is refused by `vercel deploy`
+# unless that directory exists under the deploy cwd, even for a prebuilt deployment that uploads
+# only .vercel/output. Recreate it, empty, in the copy.
+root="$(jq -r '.settings.rootDirectory // empty' .vercel/project.json 2>/dev/null || true)"
+if [ -n "$root" ]; then
+  mkdir -p "$out/$root"
+  echo "$APP has Root Directory $root"
+fi
 set -o pipefail
 vercel deploy --prebuilt --cwd "$out" --token "$VERCEL_TOKEN" \
   --meta commitSha="$SHA" \
