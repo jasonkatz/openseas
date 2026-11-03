@@ -196,6 +196,13 @@ GitHub; the pipeline deploys it.
    to `CLIENT_ORIGINS` on the server service (comma after the game's origin) and deploy the staged
    change; until then the harness deploys but cannot sign in, and the Deploy workflow's harness
    job fails on its origin check with a pointer here.
+7. **A token that can see the project.** Vercel tokens can be scoped to the whole account, to a
+   team, or to a single project, and a project-scoped token reports every other project as
+   `Project not found`. Either `VERCEL_TOKEN` is scoped to the **team** (it then covers both
+   projects), or add a second secret `VERCEL_HARNESS_TOKEN` scoped to `openseas-harness`
+   (Account → **Settings → Tokens**, scope: that project; or `vercel tokens create "openseas
+   harness CI" --project <harness project id>`). The harness jobs use `VERCEL_HARNESS_TOKEN` when
+   it is set and `VERCEL_TOKEN` otherwise, and say so when the token cannot see the project.
 
 ### 3. GitHub: secrets and variables
 
@@ -208,7 +215,8 @@ required reviewers there later.
 |---|---|---|
 | Secret | `RAILWAY_TOKEN` | the Railway project token (production deploys) |
 | Secret | `RAILWAY_API_TOKEN` | the Railway workspace token (previews) |
-| Secret | `VERCEL_TOKEN` | the Vercel token |
+| Secret | `VERCEL_TOKEN` | the Vercel token: team-scoped, or scoped to the game's project |
+| Secret | `VERCEL_HARNESS_TOKEN` | optional; a token scoped to the harness project, when `VERCEL_TOKEN` is not team-scoped (step 2b.7) |
 | Variable | `RAILWAY_SERVICE` | `server` (the Railway service name; previews assume `server` if unset) |
 | Variable | `RAILWAY_PROJECT_ID` | the Railway project ID (previews) |
 | Variable | `RAILWAY_DATABASE_SERVICE` | optional; the Postgres service name if not `Postgres` |

@@ -183,7 +183,10 @@ jobs:
     timeout-minutes: 20
     environment: production
     env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      # A token that can see the harness project: VERCEL_HARNESS_TOKEN if set (a token scoped to
+      # the harness project), else VERCEL_TOKEN (which must then be scoped to the team, not to the
+      # game's project; a project-scoped token reports the other project as "not found").
+      VERCEL_TOKEN: ${{ secrets.VERCEL_HARNESS_TOKEN || secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       # The harness is its own Vercel project, rooted in packages/harness (docs/DEPLOY.md, step 2b).
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_HARNESS_PROJECT_ID }}
@@ -207,7 +210,12 @@ jobs:
           [ -n "$VERCEL_PROJECT_ID" ] || { echo "::error::Variable VERCEL_HARNESS_PROJECT_ID is not set: the harness has no Vercel project to deploy to. See docs/DEPLOY.md, step 2b."; ok=false; }
           $ok
       - name: Pull production settings and env
-        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+        run: |
+          set -o pipefail
+          if ! vercel pull --yes --environment=production --token "$VERCEL_TOKEN" 2>&1 | tee pull.log; then
+            grep -q "Project not found" pull.log && echo "::error::The Vercel token cannot see the harness project (prj id in VERCEL_HARNESS_PROJECT_ID). A token scoped to the game's project reports every other project as not found: add a secret VERCEL_HARNESS_TOKEN scoped to the harness project, or make VERCEL_TOKEN a team-scoped token. See docs/DEPLOY.md, step 2b.7."
+            exit 1
+          fi
       - name: Build
         env:
           COMMIT_SHA: ${{ env.SHA }}

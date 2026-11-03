@@ -247,7 +247,10 @@ jobs:
       url: ${{ steps.alias.outputs.url }}
     env:
       APP: harness
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      # A token that can see the harness project: VERCEL_HARNESS_TOKEN if set (a token scoped to
+      # the harness project), else VERCEL_TOKEN (which must then be scoped to the team, not to the
+      # game's project; a project-scoped token reports the other project as "not found").
+      VERCEL_TOKEN: ${{ secrets.VERCEL_HARNESS_TOKEN || secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       # The harness's own Vercel project, rooted in packages/harness (docs/DEPLOY.md, step 2b).
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_HARNESS_PROJECT_ID }}

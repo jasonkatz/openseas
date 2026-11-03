@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
 # Builds one front end (APP: client or harness) in CI against the PR server and deploys it as a
 # preview of its own Vercel project (ADR 0016, ADR 0019). Shared by the two preview jobs.
-# Needs: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID, SHA, BRANCH, PR, APP; SERVER_URL optional.
+# Needs: VERCEL_TOKEN (one that can see this app's project), VERCEL_ORG_ID, VERCEL_PROJECT_ID, SHA,
+# BRANCH, PR, APP; SERVER_URL optional.
 # Writes `url=<deployment url>` to GITHUB_OUTPUT.
 set -euo pipefail
 
 : "${APP:?}" "${VERCEL_TOKEN:?}" "${VERCEL_ORG_ID:?}" "${VERCEL_PROJECT_ID:?}" "${SHA:?}" "${BRANCH:?}" "${PR:?}"
 
-vercel pull --yes --environment=preview --token "$VERCEL_TOKEN"
+set -o pipefail
+if ! vercel pull --yes --environment=preview --token "$VERCEL_TOKEN" 2>&1 | tee pull.log; then
+  if grep -q "Project not found" pull.log; then
+    echo "::error::The Vercel token cannot see the $APP project ($VERCEL_PROJECT_ID). A token scoped to one project reports every other project as not found: for the harness, add a secret VERCEL_HARNESS_TOKEN scoped to the harness project, or make VERCEL_TOKEN a team-scoped token. See docs/DEPLOY.md, step 2b.7."
+  fi
+  exit 1
+fi
 
 # `vercel build` reads the pulled env from this file. Replace the project's preview
 # VITE_SERVER_URL (the production server) with the PR server, when there is one.
