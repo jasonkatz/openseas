@@ -414,9 +414,11 @@ standing. Boarding moves in on the deck: vitals (bilge, hull, speed, cannons), t
 stations with who holds each and last turn's output, the crew as pegs on the deck and as a list,
 the wheel (the captain picks a destination on the chart and sets sail; a hail asks them to evade),
 the ship chat and the ship's log. Taking a station opens its board in a layer over the dimmed
-world with a slim HUD above it (bilge, hull, speed, next turn, board score and clock, last turn's
-output); boards are dealt back to back while the ship is at sea, a station standing down or the
-ship docking cuts the board short, and the board returns to the deck. One menu holds sound, the
+world; the board gets the screen, with one thin bar above it (the way back, the station's name,
+the board's score and clock, and the ship as three small bars) that unfolds on a tap into the full
+ship status and last turn's output; boards are dealt back to back while the ship is at sea, a
+station standing down or the ship docking cuts the board short, and the board returns to the
+deck. Docked ships tie up alongside the dock, the first on its near side and the next on its far. One menu holds sound, the
 marks setting, the account and sign-out. Toasts carry what happens aboard. A software renderer gets
 a lighter world; without WebGL the cards still carry every action.
 

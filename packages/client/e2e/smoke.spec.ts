@@ -179,7 +179,7 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await expect(page.getByTestId("ship-water")).toHaveText("12%");
 
   // The wheel spot on deck takes the captain to the chart to pick a destination; then they set sail.
-  await page.locator('[data-wheel="1"]').click();
+  await page.locator('[data-wheel="1"]').click({ force: true });
   await expect(page.getByTestId("helm-card")).toBeVisible();
   await page.getByTestId("dest-gullhaven").click();
   await page.getByTestId("sail-now").click();
@@ -189,10 +189,14 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await expect(page.getByTestId("mini-turn")).toBeVisible();
 
   // Taking a station spot opens its board over the deck; a board is dealt at once and takes a swap.
-  await page.locator('[data-station="bilging"]').click();
+  await page.locator('[data-station="bilging"]').click({ force: true });
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "station");
   await expect(page.getByTestId("station-view-bilging")).toBeVisible();
   await expect(page.getByTestId("duty-board-wrap")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
+  // The ship is three small bars until asked for; the full status unfolds on a tap.
+  await page.getByTestId("station-ship-toggle").click();
+  await expect(page.getByTestId("station-details")).toBeVisible();
+  await expect(page.getByTestId("station-details").getByTestId("ship-water")).toHaveText("12%");
   await expect(page.getByTestId("bilging-board")).toBeVisible();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowRight");

@@ -110,7 +110,9 @@ const LANE_BULGE = 0.16;
 const DASH_STEP = 0.55;
 /** The island's footprint on the water, beach and all; the view is fitted to it. */
 const ISLAND_R = 1.9;
-const SHIP_HALF_H = 0.62;
+/** The deck view: the hull fills a phone's width; on a wide screen the whole ship, mast and all, fits its height. */
+const SHIP_HALF_W = 0.62;
+const SHIP_HALF_H = 0.95;
 const AZIMUTHS = [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4];
 const SPOT_H = 36;
 const SPOT_W = 170;
@@ -734,7 +736,7 @@ varying float vWave;`,
     if (input.focus.kind === "ship") {
       const sv = this.ships.get(input.focus.id);
       const center = sv ? sv.model.group.position.clone().setY(0.45) : this.center.clone();
-      const halfH = Math.max(SHIP_HALF_H / vh, (SHIP_HALF_H * 1.1) / (aspect * vw));
+      const halfH = Math.max(SHIP_HALF_H / vh, SHIP_HALF_W / (aspect * vw));
       return { center, halfH, anchorY, anchorX };
     }
     return this.fitAll(input, this.azimuth, aspect, vh, vw, anchorY, anchorX);
@@ -913,13 +915,16 @@ varying float vWave;`,
           continue;
         }
         g.visible = true;
+        // Tied up alongside the dock: the first ship on its near side, the next on the far side, and so on out.
         const n = docked.get(iv.island.id) ?? 0;
         docked.set(iv.island.id, n + 1);
         const base = Math.atan2(iv.model.dockDir.y, iv.model.dockDir.x);
-        const angle = base + (n === 0 ? 0 : (n % 2 === 1 ? 1 : -1) * Math.ceil(n / 2) * 0.42);
-        const r = 2.35;
-        g.position.set(iv.island.x + Math.cos(angle) * r, 0, iv.island.y + Math.sin(angle) * r);
-        g.rotation.y = -(angle + Math.PI / 2);
+        const along = 1.95;
+        const beside = (n % 2 === 0 ? 1 : -1) * (0.5 + Math.floor(n / 2) * 0.55);
+        const px = Math.cos(base) * along - Math.sin(base) * beside;
+        const pz = Math.sin(base) * along + Math.cos(base) * beside;
+        g.position.set(iv.island.x + px, 0, iv.island.y + pz);
+        g.rotation.y = -base + (n % 2 === 0 ? 0 : Math.PI);
       } else {
         const lane = sv.laneKey ? this.lanes.get(sv.laneKey) : null;
         if (!lane) {
@@ -989,12 +994,15 @@ varying float vWave;`,
     this.placeSpots(spots);
     if (aboard) {
       const deckSpots: { spot: Spot; world: THREE.Vector3 }[] = [];
+      // Pins ride the hull itself, bob and all, so each sits on its thing.
+      const body = aboard.model.body;
+      const inv = 1 / 0.85;
       for (const [st, spot] of this.stationSpots) {
         if (spot.el.classList.contains("ow-hidden")) continue;
-        deckSpots.push({ spot, world: aboard.model.group.localToWorld(aboard.model.anchors[st].clone()) });
+        deckSpots.push({ spot, world: body.localToWorld(aboard.model.anchors[st].clone().multiplyScalar(inv)) });
       }
       if (this.wheelSpot && !this.wheelSpot.el.classList.contains("ow-hidden")) {
-        deckSpots.push({ spot: this.wheelSpot, world: aboard.model.group.localToWorld(aboard.model.wheel.clone().add(new THREE.Vector3(0, 0.12, 0))) });
+        deckSpots.push({ spot: this.wheelSpot, world: body.localToWorld(aboard.model.wheel.clone().add(new THREE.Vector3(0, 0.1, 0)).multiplyScalar(inv)) });
       }
       this.placeCallouts(deckSpots);
     }

@@ -337,7 +337,7 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
   const boat = shaded(new THREE.CylinderGeometry(0.06, 0.03, 0.2, 6), mat(PALETTE.hull));
   boat.rotation.z = Math.PI / 2;
   boat.scale.set(1, 1, 0.6);
-  boat.position.set(1.6, 0.02, -0.32);
+  boat.position.set(1.0, 0.02, 0.34);
   dock.add(boat);
   dock.rotation.y = -dockAngle;
   group.add(dock);
@@ -497,7 +497,7 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
   hit.position.y = 0.05;
   group.add(hit);
 
-  const dockEnd = new THREE.Vector3(Math.cos(dockAngle) * 2.3, 0.4, Math.sin(dockAngle) * 2.3);
+  const dockEnd = new THREE.Vector3(Math.cos(dockAngle) * 1.85, 0.36, Math.sin(dockAngle) * 1.85);
   const boardSpot = new THREE.Vector3(Math.cos(dockAngle) * 0.98 + Math.sin(dockAngle) * 0.3, 0.8, Math.sin(dockAngle) * 0.98 - Math.cos(dockAngle) * 0.3);
   const anchors: Record<Building, THREE.Vector3> = {
     dock: dockEnd,
@@ -781,11 +781,11 @@ export function buildShip(kind: "yours" | "aboard" | "other"): ShipModel {
   const s = 0.85;
   const local = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(x * s, y * s, z * s);
   const anchors: Record<Station, THREE.Vector3> = {
-    bilging: local(0.22, 0.42, -0.07),
-    sailing: local(-0.2, 0.9, 0.03),
-    carpentry: local(0.42, 0.38, 0.08),
-    gunnery: local(0.05, 0.36, 0.2),
-    navigation: local(-0.3, 0.5, 0.07),
+    bilging: local(0.22, 0.4, -0.07),
+    sailing: local(-0.2, 0.76, 0.03),
+    carpentry: local(0.42, 0.36, 0.08),
+    gunnery: local(0.05, 0.35, 0.18),
+    navigation: local(-0.3, 0.48, 0.07),
   };
   const standing: Record<Station, THREE.Vector3> = {
     bilging: local(0.22, 0.3, 0.05),
