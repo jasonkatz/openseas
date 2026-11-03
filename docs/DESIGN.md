@@ -393,12 +393,13 @@ the desired approach; the parts marked open are decided as they are built.
 As built (M3): the world is an isometric diorama of primitives, sea shader, clouds and gulls,
 filling the viewport from sign-in to sign-out. The three islands each carry the landmark their
 content names (a lighthouse that sweeps, a windmill that turns, a volcano that smokes), a tavern,
-a dock with a lantern and the notice board at its foot; sea lanes are dashed curves with a buoy at
-the midpoint; every ship with a crew is a sloop model bobbing at a dock or easing along its lane
+a dock with a lantern and the notice board at its foot; sea lanes are dashed curves from coast to coast with a buoy at
+the midpoint, so a leg's progress is progress across the water; every ship with a crew is a sloop model bobbing at a dock or easing along its lane
 between turns, with a wake under way. The view is the game: it takes the screen, and the camera glides
 between three kinds of focus: the island the pirate stands on (home, filling the frame), the deck
-of the ship they are aboard (closer still, the hull and its stations filling the frame, followed
-along its lane), and the whole ocean (the chart, behind a map button, where islands are tapped to
+of the ship they are aboard (the hull itself filling the frame as its own little place, mast and
+sea cropped away, clouds kept off it, followed along its lane; the chart is where the ship's
+position in the ocean is seen), and the whole ocean (the chart, behind a map button, where islands are tapped to
 look closer). Places are `/` (home), `/chart`, `/island/:id` (with `/dock`, `/tavern`,
 `/notice`), `/ship`, `/ship/:station` and `/ship/helm`. The card for the place is folded to a
 thin strip at the bottom of a phone (the right of a wide screen) with the place's name and, aboard,

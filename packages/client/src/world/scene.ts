@@ -110,9 +110,10 @@ const LANE_BULGE = 0.16;
 const DASH_STEP = 0.55;
 /** The island's footprint on the water, beach and all; the view is fitted to it. */
 const ISLAND_R = 1.9;
-/** The deck view: the hull fills a phone's width; on a wide screen the whole ship, mast and all, fits its height. */
-const SHIP_HALF_W = 0.62;
-const SHIP_HALF_H = 0.7;
+/** The deck view: the hull itself fills the frame, its own little place; the mast and the sea around it fall outside. */
+const DECK_MIN_HALF_H = 0.42;
+/** Lanes run coast to coast, so a ship's progress along a leg is its progress across the water. */
+const COAST_R = 2.1;
 const AZIMUTHS = [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4];
 const SPOT_H = 36;
 const SPOT_W = 170;
@@ -307,6 +308,8 @@ export class WorldScene {
       sv.label.classList.toggle("ow-label-board", boardable);
       sv.label.dataset.board = boardable ? input.boardLabel : "";
     }
+    // Clouds drift over the chart and the islands; over a deck they would hide the thing being looked at.
+    for (const c of this.clouds) c.group.visible = focusShip === null;
     this.host.classList.toggle("is-dimmed", input.dimmed);
     this.updateView(first || focusChanged ? first : false);
     if (!this.running || this.reducedMotion) this.render(0);
@@ -402,8 +405,11 @@ export class WorldScene {
       const ia = this.islands.get(a);
       const ib = this.islands.get(b);
       if (!ia || !ib) continue;
-      const pa = new THREE.Vector3(ia.island.x, 0.12, ia.island.y);
-      const pb = new THREE.Vector3(ib.island.x, 0.12, ib.island.y);
+      const ca = new THREE.Vector3(ia.island.x, 0.12, ia.island.y);
+      const cb = new THREE.Vector3(ib.island.x, 0.12, ib.island.y);
+      const across = cb.clone().sub(ca).normalize();
+      const pa = ca.clone().addScaledVector(across, COAST_R);
+      const pb = cb.clone().addScaledVector(across, -COAST_R);
       const mid = pa.clone().lerp(pb, 0.5);
       const dir = pb.clone().sub(pa);
       const len = dir.length();
@@ -735,9 +741,9 @@ varying float vWave;`,
     }
     if (input.focus.kind === "ship") {
       const sv = this.ships.get(input.focus.id);
-      if (!sv) return { center: this.center.clone(), halfH: SHIP_HALF_H, anchorY, anchorX };
-      // Fit the ship as it lies: end-on at a dock it is narrow, broadside on a lane it is long.
-      const center = sv.model.group.position.clone().setY(0.45);
+      if (!sv) return { center: this.center.clone(), halfH: DECK_MIN_HALF_H, anchorY, anchorX };
+      // Fit the deck as it lies: end-on at a dock it is narrow, broadside on a lane it is long.
+      const center = sv.model.group.position.clone().setY(0.3);
       const probe = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
       probe.position.copy(center).add(isoDirection(this.azimuth).multiplyScalar(60));
       probe.lookAt(center);
@@ -745,21 +751,21 @@ varying float vWave;`,
       const inv = probe.matrixWorldInverse;
       let spanX = 0;
       let spanY = 0;
-      const hx = 0.62;
-      const hz = 0.4;
+      const hx = 0.72;
+      const hz = 0.36;
       for (const [dx, dz] of [
         [-hx, -hz],
         [hx, -hz],
         [-hx, hz],
         [hx, hz],
       ]) {
-        for (const y of [0, 1.2]) {
+        for (const y of [0.05, 0.5]) {
           this.tmp.set(dx!, y, dz!).applyMatrix4(sv.model.group.matrixWorld).sub(center).add(center).applyMatrix4(inv);
           spanX = Math.max(spanX, Math.abs(this.tmp.x));
           spanY = Math.max(spanY, Math.abs(this.tmp.y));
         }
       }
-      const halfH = Math.max(SHIP_HALF_H / vh, (spanY * 1.25) / vh, (spanX * 1.2) / (aspect * vw), SHIP_HALF_W);
+      const halfH = Math.max(DECK_MIN_HALF_H, (spanY * 1.12) / vh, (spanX * 1.08) / (aspect * vw));
       return { center, halfH, anchorY, anchorX };
     }
     return this.fitAll(input, this.azimuth, aspect, vh, vw, anchorY, anchorX);
