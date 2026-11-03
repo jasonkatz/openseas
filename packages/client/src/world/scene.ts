@@ -310,6 +310,16 @@ export class WorldScene {
     }
     // Clouds drift over the chart and the islands; over a deck they would hide the thing being looked at.
     for (const c of this.clouds) c.group.visible = focusShip === null;
+    // On deck the sails go to glass, so no angle of the canvas ever hides a station.
+    for (const [id, sv] of this.ships) {
+      const glass = id === focusShip;
+      for (const m of sv.model.canvas) {
+        const material = m.material as THREE.Material & { opacity: number };
+        material.opacity = glass ? 0.22 : 1;
+        material.depthWrite = !glass;
+        m.castShadow = !glass;
+      }
+    }
     this.host.classList.toggle("is-dimmed", input.dimmed);
     this.updateView(first || focusChanged ? first : false);
     if (!this.running || this.reducedMotion) this.render(0);

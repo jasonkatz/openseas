@@ -536,6 +536,8 @@ export interface ShipModel {
   body: THREE.Group;
   hit: THREE.Mesh;
   sail: THREE.Mesh;
+  /** The canvas: main, jib and seams. On deck it goes to glass so it never hides a station. */
+  canvas: THREE.Mesh[];
   flag: THREE.Mesh;
   wake: THREE.Mesh;
   marker: THREE.Mesh;
@@ -737,23 +739,26 @@ export function buildShip(kind: "yours" | "aboard" | "other"): ShipModel {
     pos.setZ(i, -0.1 * Math.cos((x / 0.56) * Math.PI) * Math.cos((y / 0.62) * Math.PI));
   }
   sailGeo.computeVertexNormals();
-  const sail = shaded(sailGeo, mat(PALETTE.sail, { side: THREE.DoubleSide }));
+  const sail = shaded(sailGeo, mat(PALETTE.sail, { side: THREE.DoubleSide, transparent: true }));
   sail.position.set(-0.2, 0.76, 0.03);
   body.add(sail);
+  const canvas: THREE.Mesh[] = [sail];
   for (let i = 1; i < 4; i++) {
-    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.004, 0.002), new THREE.MeshBasicMaterial({ color: 0xcfc6ad }));
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.004, 0.002), new THREE.MeshBasicMaterial({ color: 0xcfc6ad, transparent: true }));
     seam.position.set(-0.2, 0.47 + i * 0.15, 0.09);
     body.add(seam);
+    canvas.push(seam);
   }
   const jibShape = new THREE.Shape();
   jibShape.moveTo(0, 0);
   jibShape.lineTo(0.5, 0);
   jibShape.lineTo(0, 0.6);
   jibShape.closePath();
-  const jib = shaded(new THREE.ShapeGeometry(jibShape), mat(PALETTE.sail, { side: THREE.DoubleSide }));
+  const jib = shaded(new THREE.ShapeGeometry(jibShape), mat(PALETTE.sail, { side: THREE.DoubleSide, transparent: true }));
   jib.position.set(0.14, 0.42, -0.02);
   jib.rotation.y = -0.15;
   body.add(jib);
+  canvas.push(jib);
 
   const flag = new THREE.Mesh(
     new THREE.PlaneGeometry(0.18, 0.09, 3, 1),
@@ -795,7 +800,7 @@ export function buildShip(kind: "yours" | "aboard" | "other"): ShipModel {
     navigation: local(-0.3, 0.42, -0.07),
   };
   const idleSpots = [local(0.0, 0.3, 0.06), local(-0.12, 0.3, 0.08), local(0.32, 0.3, -0.05), local(0.12, 0.3, -0.02), local(-0.14, 0.3, -0.1), local(0.44, 0.3, -0.04)];
-  return { group, body, hit, sail, flag, wake, marker, anchors, standing, idleSpots, wheel: local(-0.17, 0.42, 0), cannons };
+  return { group, body, hit, sail, canvas, flag, wake, marker, anchors, standing, idleSpots, wheel: local(-0.17, 0.42, 0), cannons };
 }
 
 export interface CrewPeg {
