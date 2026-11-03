@@ -126,6 +126,8 @@ describeDb("server integration", () => {
     ws.on("message", (d) => {
       const m = parseServerMessage(JSON.parse(d.toString()));
       expect(m).not.toBeNull();
+      // Who is ashore is pushed whenever it changes; this test is about the round.
+      if (m!.type === "island.presence") return;
       const w = waiters.shift();
       if (w) w(m!);
       else inbox.push(m!);
@@ -164,7 +166,7 @@ describeDb("server integration", () => {
     expect(result.score).toBe(state.score);
     expect(result.moves).toBe(25);
     expect(result.verified).toBe(true);
-    expect(result.rating.rounds).toBe(1);
+    expect(result.rating?.rounds).toBe(1);
     expect(result.tierChange).toBe("same");
 
     // A cheater who sends a different hash is rejected on the spot.

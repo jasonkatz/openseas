@@ -32,8 +32,8 @@ export async function createPirate(db: Db, content: Content, userId: string): Pr
     if (taken) continue;
     const id = randomUUID();
     await db.transaction(async (tx) => {
-      await tx.insert(schema.pirate).values({ id, userId, name });
-      await applyAutomaticGrants(tx, content, id, name, { voyagesCompleted: 0, bestRating: null });
+      await tx.insert(schema.pirate).values({ id, userId, name, islandId: content.world.startIslandId });
+      await applyAutomaticGrants(tx, content, id, name, { voyagesCompleted: 0, bestRating: null }, content.world.startIslandId);
       await recordEvent(tx, id, "pirate.created", {});
     });
     return { id, name };
@@ -62,7 +62,8 @@ export async function summarizePirate(db: Db, content: Content, pirateId: string
     name: p.name,
     guest,
     balance: coins,
-    ships: ships.map((s) => ({ id: s.id, classId: s.classId, name: s.name })),
+    islandId: p.islandId ?? content.world.startIslandId,
+    ships: ships.map((s) => ({ id: s.id, classId: s.classId, name: s.name, islandId: s.islandId ?? content.world.startIslandId })),
     ratings: ratings.flatMap((r) =>
       isPuzzleId(r.puzzle)
         ? [{ puzzle: r.puzzle, tier: tierFor(r.rating ?? NEW_RATING.rating, content.ratingTiers).key, rounds: r.rounds }]

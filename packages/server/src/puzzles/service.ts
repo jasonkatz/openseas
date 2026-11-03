@@ -6,7 +6,7 @@ import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
 import type { Logger } from "../log.js";
 import { rateDutyRound } from "../ratings.js";
-import { PuzzleSessionManager, type PuzzleRoundOptions, type PuzzleSession, type RejectReason } from "./sessions.js";
+import { PuzzleSessionManager, type DutyBinding, type PuzzleRoundOptions, type PuzzleSession, type RejectReason } from "./sessions.js";
 
 // The protocol's puzzle ids and the engine's must be the same set. If this stops compiling, they drifted.
 const _idCheck: (p: PuzzleIdWire) => PuzzleId = (p) => p;
@@ -19,6 +19,11 @@ const GRACE_MS = 5_000;
 /** Coordinates the in-memory session manager with persistence. One instance per process. */
 export class PuzzleService {
   readonly sessions: PuzzleSessionManager;
+  /**
+   * Called once for every duty session as it ends, before it is closed, so the ship can take the
+   * board's last points. Set by the ship service.
+   */
+  onDutyEnd: ((session: PuzzleSession) => void) | null = null;
 
   constructor(
     private readonly db: Db,
@@ -40,9 +45,9 @@ export class PuzzleService {
     });
   }
 
-  start(pirateId: string, puzzle: PuzzleId): PuzzleStarted {
-    const s = this.sessions.start(pirateId, puzzle);
-    void recordEvent(this.db, pirateId, "puzzle.started", { puzzle, sessionId: s.id }).catch((e) =>
+  start(pirateId: string, puzzle: PuzzleId, duty: DutyBinding | null = null): PuzzleStarted {
+    const s = this.sessions.start(pirateId, puzzle, duty);
+    void recordEvent(this.db, pirateId, "puzzle.started", { puzzle, sessionId: s.id, ...(duty ? { voyageId: duty.voyageId } : {}) }).catch((e) =>
       this.log.warn({ err: e }, "event write failed"),
     );
     // The config came from content for this puzzle, so it matches the wire variant for `puzzle`.
@@ -54,6 +59,7 @@ export class PuzzleService {
       config: s.config,
       deadlineAt: s.deadlineAt,
       serverNow: s.startedAt,
+      ...(duty ? { duty: { shipId: duty.shipId, station: duty.station } } : {}),
     } as PuzzleStarted;
   }
 
@@ -62,18 +68,26 @@ export class PuzzleService {
     const parsed = parseMoveFor(session.puzzle, move);
     const r = parsed === null ? this.sessions.move(session, seq, { type: "__not_a_move__" }, hash) : this.sessions.move(session, seq, parsed, hash);
     if (r.ok) return null;
+    // A rejected duty board still fed the ship what it had earned before the bad move.
+    if (session.duty) this.onDutyEnd?.(session);
     await this.persistRejected(session, r.reason, null);
     return { type: "puzzle.rejected", sessionId: session.id, reason: r.reason, atSeq: r.atSeq };
   }
 
+  /**
+   * Score a round. A practice round is always rated; a duty board only when it ran its full clock
+   * or the engine ended it, so a board cut short by docking counts but moves no rating.
+   */
   async finish(session: PuzzleSession, hash: string | null, metrics: ClientMetrics | null): Promise<ServerMessage> {
+    const rated = session.duty === null || this.sessions.ranFull(session);
+    this.endDuty(session);
     const r = this.sessions.finish(session, hash);
     if (!r.ok) {
       await this.persistRejected(session, r.reason, metrics);
       return { type: "puzzle.rejected", sessionId: session.id, reason: r.reason };
     }
     const result = await this.db.transaction(async (tx) => {
-      const rating = await rateDutyRound(tx, this.content, session.pirateId, session.puzzle, r.summary.score);
+      const rating = rated ? await rateDutyRound(tx, this.content, session.pirateId, session.puzzle, r.summary.score) : null;
       await tx.insert(schema.puzzleRound).values({
         id: session.id,
         pirateId: session.pirateId,
@@ -83,6 +97,8 @@ export class PuzzleService {
         moves: r.summary.moves,
         bestCombo: r.summary.bestCombo,
         rejectedReason: null,
+        voyageId: session.duty?.voyageId ?? null,
+        rated,
         moveLog: r.moves as unknown[],
         metrics: metrics ?? null,
         startedAt: new Date(session.startedAt),
@@ -92,8 +108,9 @@ export class PuzzleService {
         sessionId: session.id,
         score: r.summary.score,
         moves: r.summary.moves,
-        ratingBefore: rating.before.rating,
-        ratingAfter: rating.after.rating,
+        rated,
+        ...(session.duty ? { voyageId: session.duty.voyageId, shipId: session.duty.shipId } : {}),
+        ...(rating ? { ratingBefore: rating.before.rating, ratingAfter: rating.after.rating } : {}),
         ...(metrics ? { metrics } : {}),
       });
       const msg: PuzzleResult = {
@@ -103,18 +120,37 @@ export class PuzzleService {
         moves: r.summary.moves,
         bestCombo: r.summary.bestCombo,
         verified: true,
-        rating: rating.view,
-        tierChange: rating.tierChange,
+        rating: rating ? rating.view : null,
+        tierChange: rating ? rating.tierChange : null,
       };
       return msg;
     });
-    this.log.info({ pirateId: session.pirateId, puzzle: session.puzzle, score: result.score, moves: result.moves }, "round scored");
+    this.log.info({ pirateId: session.pirateId, puzzle: session.puzzle, score: result.score, moves: result.moves, rated }, "round scored");
     return result;
   }
 
   async abandon(session: PuzzleSession): Promise<void> {
+    this.endDuty(session);
     this.sessions.close(session);
     await this.persistRejected(session, "deadline", null);
+  }
+
+  /**
+   * End a duty board early (the ship docked, the pirate stood down or dropped). A board with moves
+   * counts, unrated; an untouched one is dropped. Returns the result to send, if any.
+   */
+  async cutShort(session: PuzzleSession): Promise<ServerMessage | null> {
+    if (session.closed) return null;
+    if (session.moves.length === 0) {
+      this.endDuty(session);
+      this.sessions.close(session);
+      return null;
+    }
+    return this.finish(session, null, null);
+  }
+
+  private endDuty(session: PuzzleSession): void {
+    if (session.duty && !session.closed) this.onDutyEnd?.(session);
   }
 
   /**
@@ -149,6 +185,8 @@ export class PuzzleService {
         moves: session.moves.length,
         bestCombo: summary.bestCombo,
         rejectedReason: reason,
+        voyageId: session.duty?.voyageId ?? null,
+        rated: false,
         moveLog: session.moves as unknown[],
         metrics: metrics ?? null,
         startedAt: new Date(session.startedAt),
