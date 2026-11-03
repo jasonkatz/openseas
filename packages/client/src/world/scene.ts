@@ -112,7 +112,7 @@ const DASH_STEP = 0.55;
 const ISLAND_R = 1.9;
 /** The deck view: the hull fills a phone's width; on a wide screen the whole ship, mast and all, fits its height. */
 const SHIP_HALF_W = 0.62;
-const SHIP_HALF_H = 0.95;
+const SHIP_HALF_H = 0.7;
 const AZIMUTHS = [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4];
 const SPOT_H = 36;
 const SPOT_W = 170;
@@ -735,8 +735,31 @@ varying float vWave;`,
     }
     if (input.focus.kind === "ship") {
       const sv = this.ships.get(input.focus.id);
-      const center = sv ? sv.model.group.position.clone().setY(0.45) : this.center.clone();
-      const halfH = Math.max(SHIP_HALF_H / vh, SHIP_HALF_W / (aspect * vw));
+      if (!sv) return { center: this.center.clone(), halfH: SHIP_HALF_H, anchorY, anchorX };
+      // Fit the ship as it lies: end-on at a dock it is narrow, broadside on a lane it is long.
+      const center = sv.model.group.position.clone().setY(0.45);
+      const probe = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
+      probe.position.copy(center).add(isoDirection(this.azimuth).multiplyScalar(60));
+      probe.lookAt(center);
+      probe.updateMatrixWorld();
+      const inv = probe.matrixWorldInverse;
+      let spanX = 0;
+      let spanY = 0;
+      const hx = 0.62;
+      const hz = 0.4;
+      for (const [dx, dz] of [
+        [-hx, -hz],
+        [hx, -hz],
+        [-hx, hz],
+        [hx, hz],
+      ]) {
+        for (const y of [0, 1.2]) {
+          this.tmp.set(dx!, y, dz!).applyMatrix4(sv.model.group.matrixWorld).sub(center).add(center).applyMatrix4(inv);
+          spanX = Math.max(spanX, Math.abs(this.tmp.x));
+          spanY = Math.max(spanY, Math.abs(this.tmp.y));
+        }
+      }
+      const halfH = Math.max(SHIP_HALF_H / vh, (spanY * 1.25) / vh, (spanX * 1.2) / (aspect * vw), SHIP_HALF_W);
       return { center, halfH, anchorY, anchorX };
     }
     return this.fitAll(input, this.azimuth, aspect, vh, vw, anchorY, anchorX);
