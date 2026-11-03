@@ -306,24 +306,29 @@ jobs:
       - uses: actions/github-script@v7
         env:
           CLIENT_URL: ${{ needs.client.outputs.url }}
+          CLIENT_RESULT: ${{ needs.client.result }}
           HARNESS_URL: ${{ needs.harness.outputs.url }}
+          HARNESS_RESULT: ${{ needs.harness.result }}
           SERVER_URL: ${{ needs.server.outputs.url }}
           SHA: ${{ needs.pr.outputs.sha }}
           ENVIRONMENT: ${{ needs.pr.outputs.environment }}
           PR: ${{ needs.pr.outputs.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             const marker = "<!-- openseas-preview -->";
-            const { CLIENT_URL, HARNESS_URL, SERVER_URL, SHA, ENVIRONMENT, PR } = process.env;
+            const { CLIENT_URL, CLIENT_RESULT, HARNESS_URL, HARNESS_RESULT, SERVER_URL, SHA, ENVIRONMENT, PR, RUN_URL } = process.env;
             const server = SERVER_URL
               ? `[${SERVER_URL}](${SERVER_URL}/health) in Railway environment \`${ENVIRONMENT}\`, with its own empty database`
               : "the production server (no `RAILWAY_API_TOKEN` for this run), so anything that needs the server will fail from the previews";
+            // A job with no URL either skipped (configuration missing, with a warning) or failed (its log says why).
+            const line = (url, result, skipped) => (url ? url : result === "failure" ? `the preview job failed; see [its log](${RUN_URL})` : skipped);
             const body = [
               marker,
               `**Preview** for commit \`${SHA.slice(0, 7)}\``,
               "",
-              `- Game: ${CLIENT_URL ? CLIENT_URL : "not deployed (see the client preview job)"}`,
-              `- Harness: ${HARNESS_URL ? HARNESS_URL : "not deployed (set `VERCEL_HARNESS_PROJECT_ID`; see docs/DEPLOY.md step 2b)"}`,
+              `- Game: ${line(CLIENT_URL, CLIENT_RESULT, "not deployed (Vercel secrets missing for this run; see the client preview job)")}`,
+              `- Harness: ${line(HARNESS_URL, HARNESS_RESULT, "not deployed (set `VERCEL_HARNESS_PROJECT_ID`; see docs/DEPLOY.md step 2b)")}`,
               `- Server: ${server}`,
               "",
               SERVER_URL ? "Torn down when this pull request closes." : "",
