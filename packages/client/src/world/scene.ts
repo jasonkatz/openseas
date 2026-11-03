@@ -742,10 +742,12 @@ varying float vWave;`,
     if (input.focus.kind === "ship") {
       const sv = this.ships.get(input.focus.id);
       if (!sv) return { center: this.center.clone(), halfH: DECK_MIN_HALF_H, anchorY, anchorX };
-      // Fit the deck as it lies: end-on at a dock it is narrow, broadside on a lane it is long.
+      // The deck is looked at broadside from its open side, so neither the dock nor a neighbour stands in the way.
       const center = sv.model.group.position.clone().setY(0.3);
+      const az = this.deckAzimuth(sv);
+      this.rig.setAzimuth(az);
       const probe = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
-      probe.position.copy(center).add(isoDirection(this.azimuth).multiplyScalar(60));
+      probe.position.copy(center).add(isoDirection(az).multiplyScalar(60));
       probe.lookAt(center);
       probe.updateMatrixWorld();
       const inv = probe.matrixWorldInverse;
@@ -829,14 +831,28 @@ varying float vWave;`,
     }
     if (best !== this.azimuth) {
       this.azimuth = best;
-      this.rig.setAzimuth(best);
+      if (this.input?.focus.kind !== "ship") this.rig.setAzimuth(best, true);
       this.sun.position.copy(this.center).add(isoDirection(best + Math.PI * 0.6).multiplyScalar(14).setY(14));
     }
   }
 
   private updateView(immediate: boolean): void {
     if (!this.input) return;
+    if (this.input.focus.kind !== "ship") this.rig.setAzimuth(this.azimuth, immediate || this.reducedMotion);
     this.rig.setView(this.viewFor(this.input), immediate || this.reducedMotion);
+  }
+
+  /** The azimuth that looks at a ship's side from the water: away from the island it is docked at, else its starboard side. */
+  private deckAzimuth(sv: ShipView): number {
+    const g = sv.model.group;
+    const forward = new THREE.Vector3(1, 0, 0).applyQuaternion(g.quaternion);
+    const side = new THREE.Vector3(-forward.z, 0, forward.x);
+    const docked = sv.ship.location.kind === "docked" ? this.islands.get(sv.ship.location.islandId) : undefined;
+    if (docked) {
+      const away = g.position.clone().sub(docked.model.group.position);
+      if (away.dot(side) < 0) side.negate();
+    }
+    return Math.atan2(side.z, side.x);
   }
 
   private resize(): void {
@@ -982,6 +998,16 @@ varying float vWave;`,
       sv.model.marker.rotation.y = t * 1.5;
       sv.model.marker.visible = sv.ship.kind !== "other" && this.input.focus.kind !== "ship";
     }
+    // On deck, a neighbour tied up alongside would stand between the camera and the deck; it steps out of the view.
+    if (this.input.focus.kind === "ship") {
+      const mine = this.ships.get(this.input.focus.id);
+      if (mine) {
+        for (const sv of this.ships.values()) {
+          if (sv === mine || !sv.model.group.visible) continue;
+          if (sv.model.group.position.distanceTo(mine.model.group.position) < 2.2) sv.model.group.visible = false;
+        }
+      }
+    }
   }
 
   private placeLabels(): void {
@@ -1022,16 +1048,20 @@ varying float vWave;`,
     const aboard = focus?.kind === "ship" ? this.ships.get(focus.id) : undefined;
     this.placeSpots(spots);
     if (aboard) {
-      const deckSpots: { spot: Spot; world: THREE.Vector3 }[] = [];
-      // Pins ride the hull itself, bob and all, so each sits on its thing.
+      const deckSpots: { spot: Spot; world: THREE.Vector3; still: THREE.Vector3 }[] = [];
+      // Pins ride the hull itself, bob and all, so each sits on its thing; the labels stand on the
+      // ship's steady frame so the column holds still.
       const body = aboard.model.body;
+      const steady = aboard.model.group;
       const inv = 1 / 0.85;
       for (const [st, spot] of this.stationSpots) {
         if (spot.el.classList.contains("ow-hidden")) continue;
-        deckSpots.push({ spot, world: body.localToWorld(aboard.model.anchors[st].clone().multiplyScalar(inv)) });
+        const local = aboard.model.anchors[st].clone().multiplyScalar(inv);
+        deckSpots.push({ spot, world: body.localToWorld(local.clone()), still: steady.localToWorld(aboard.model.anchors[st].clone()) });
       }
       if (this.wheelSpot && !this.wheelSpot.el.classList.contains("ow-hidden")) {
-        deckSpots.push({ spot: this.wheelSpot, world: body.localToWorld(aboard.model.wheel.clone().add(new THREE.Vector3(0, 0.1, 0)).multiplyScalar(inv)) });
+        const local = aboard.model.wheel.clone().add(new THREE.Vector3(0, 0.1, 0));
+        deckSpots.push({ spot: this.wheelSpot, world: body.localToWorld(local.clone().multiplyScalar(inv)), still: steady.localToWorld(local.clone()) });
       }
       this.placeCallouts(deckSpots);
     }
@@ -1041,26 +1071,29 @@ varying float vWave;`,
    * The deck's spots are a hand's width apart, so their labels stand in a column beside the ship,
    * in deck order, each with a leader to its pin: a callout diagram rather than a pile of pills.
    */
-  private placeCallouts(spots: { spot: Spot; world: THREE.Vector3 }[]): void {
+  private placeCallouts(spots: { spot: Spot; world: THREE.Vector3; still: THREE.Vector3 }[]): void {
     if (spots.length === 0) return;
     const w = this.host.clientWidth;
     const h = this.host.clientHeight;
     const cam = this.rig.camera;
     const insets = this.input?.insets ?? { top: 0, bottom: 0, left: 0, right: 0 };
-    const pins: { spot: Spot; x: number; y: number }[] = [];
+    const pins: { spot: Spot; x: number; y: number; sy: number }[] = [];
     let minX = Infinity;
     let maxX = -Infinity;
     let maxWidth = 0;
-    for (const { spot, world } of spots) {
+    for (const { spot, world, still } of spots) {
       this.tmp.copy(world).project(cam);
       const x = (this.tmp.x * 0.5 + 0.5) * w;
       const y = (-this.tmp.y * 0.5 + 0.5) * h;
-      pins.push({ spot, x, y });
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
+      this.tmp.copy(still).project(cam);
+      const sx = (this.tmp.x * 0.5 + 0.5) * w;
+      const sy = (-this.tmp.y * 0.5 + 0.5) * h;
+      pins.push({ spot, x, y, sy });
+      minX = Math.min(minX, sx);
+      maxX = Math.max(maxX, sx);
       maxWidth = Math.max(maxWidth, spot.el.offsetWidth);
     }
-    pins.sort((a, b) => a.y - b.y);
+    pins.sort((a, b) => a.sy - b.sy);
     const gap = 44;
     // The column stands on whichever side has more room, and never past the screen's edge.
     const roomRight = w * (1 - insets.right) - 8 - (maxX + 56);
@@ -1069,7 +1102,7 @@ varying float vWave;`,
     const col = right ? Math.min(maxX + 56, w * (1 - insets.right) - 8 - maxWidth) : Math.max(minX - 56, w * insets.left + 8 + maxWidth);
     const top = h * insets.top + 24;
     const bottom = h * (1 - insets.bottom) - 24;
-    const meanY = pins.reduce((n, p) => n + p.y, 0) / pins.length;
+    const meanY = pins.reduce((n, p) => n + p.sy, 0) / pins.length;
     let y0 = meanY - ((pins.length - 1) * gap) / 2;
     y0 = Math.max(top, Math.min(bottom - (pins.length - 1) * gap, y0));
     pins.forEach((p, i) => {

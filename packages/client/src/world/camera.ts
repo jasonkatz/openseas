@@ -28,13 +28,19 @@ export class CameraRig {
   private readonly target: View = { center: new THREE.Vector3(), halfH: 10, anchorY: 0.5, anchorX: 0.5 };
   private readonly shown: View = { center: new THREE.Vector3(), halfH: 10, anchorY: 0.5, anchorX: 0.5 };
   private started = false;
-  private direction = isoDirection(Math.PI / 4);
+  private targetAzimuth = Math.PI / 4;
+  private shownAzimuth = Math.PI / 4;
   /** Seconds for the glide to cover most of the distance. */
   speed = 0.42;
 
-  /** Which diagonal the camera looks down. Changing it is a cut, so the scene does it only on a resize. */
-  setAzimuth(azimuth: number): void {
-    this.direction = isoDirection(azimuth);
+  /** Which way the camera looks down at the world. It swings round to a new azimuth as it glides. */
+  setAzimuth(azimuth: number, immediate = false): void {
+    this.targetAzimuth = azimuth;
+    if (immediate || !this.started) this.shownAzimuth = azimuth;
+  }
+
+  get azimuth(): number {
+    return this.shownAzimuth;
   }
 
   setView(v: View, immediate = false): void {
@@ -58,8 +64,13 @@ export class CameraRig {
     this.shown.halfH = Math.exp(THREE.MathUtils.lerp(Math.log(this.shown.halfH), Math.log(this.target.halfH), k));
     this.shown.anchorY += (this.target.anchorY - this.shown.anchorY) * k;
     this.shown.anchorX += (this.target.anchorX - this.shown.anchorX) * k;
+    // The short way round between the two azimuths.
+    let dAz = (this.targetAzimuth - this.shownAzimuth) % (Math.PI * 2);
+    if (dAz > Math.PI) dAz -= Math.PI * 2;
+    if (dAz < -Math.PI) dAz += Math.PI * 2;
+    this.shownAzimuth += dAz * k;
     this.apply(aspect);
-    return this.shown.center.distanceTo(this.target.center) > 0.002 || Math.abs(this.shown.halfH - this.target.halfH) > 0.002;
+    return this.shown.center.distanceTo(this.target.center) > 0.002 || Math.abs(this.shown.halfH - this.target.halfH) > 0.002 || Math.abs(dAz) > 0.002;
   }
 
   /** The world point under a screen position, on the y = 0 plane, for picking. */
@@ -69,7 +80,7 @@ export class CameraRig {
 
   private apply(aspect: number): void {
     const c = this.shown.center;
-    this.camera.position.copy(c).add(this.direction.clone().multiplyScalar(DISTANCE));
+    this.camera.position.copy(c).add(isoDirection(this.shownAzimuth).multiplyScalar(DISTANCE));
     this.camera.lookAt(c);
     const halfH = this.shown.halfH;
     const halfW = halfH * aspect;

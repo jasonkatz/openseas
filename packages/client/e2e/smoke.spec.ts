@@ -118,6 +118,21 @@ class FakeShip {
   }
 }
 
+/** Tap a spot hung on the geometry once the camera has stopped gliding; the hull it rides bobs, so Playwright's own stillness check never passes. */
+async function tapSpot(page: Page, selector: string): Promise<void> {
+  const spot = page.locator(selector);
+  await expect(spot).toBeVisible();
+  let last = "";
+  for (let i = 0; i < 12; i++) {
+    const box = await spot.boundingBox();
+    const key = box ? `${Math.round(box.x)},${Math.round(box.y)}` : "";
+    if (key && key === last) break;
+    last = key;
+    await page.waitForTimeout(250);
+  }
+  await spot.click({ force: true });
+}
+
 /** Stand a fake server behind the page: HTTP for sign-in and the pirate, a routed socket for the rest. */
 async function fakeServer(page: Page): Promise<{ ship: () => FakeShip | null }> {
   let ship: FakeShip | null = null;
@@ -160,7 +175,7 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "island");
 
   // A building spot in the world opens its room in the card: the tavern knows who is ashore and takes a line of chat.
-  await page.locator('[data-island="saltwick"][data-building="tavern"]').click();
+  await tapSpot(page, '[data-island="saltwick"][data-building="tavern"]');
   await expect(page.getByTestId("sheet")).toHaveAttribute("data-open", "1");
   await expect(page.getByTestId("tavern-panel")).toBeVisible();
   await page.getByTestId("chat-input-island").fill("ahoy");
@@ -170,7 +185,7 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await expect(page.getByTestId("sheet")).toHaveAttribute("data-open", "0");
 
   // The dock boards the pirate's own sloop; the scene moves in on the deck.
-  await page.locator('[data-island="saltwick"][data-building="dock"]').click();
+  await tapSpot(page, '[data-island="saltwick"][data-building="dock"]');
   await expect(page.getByTestId("dock-panel")).toBeVisible();
   await page.getByTestId("board-ship-ship-1").click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
@@ -179,7 +194,7 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await expect(page.getByTestId("ship-water")).toHaveText("12%");
 
   // The wheel spot on deck takes the captain to the chart to pick a destination; then they set sail.
-  await page.locator('[data-wheel="1"]').click({ force: true });
+  await tapSpot(page, '[data-wheel="1"]');
   await expect(page.getByTestId("helm-card")).toBeVisible();
   await page.getByTestId("dest-gullhaven").click();
   await page.getByTestId("sail-now").click();
@@ -189,7 +204,7 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await expect(page.getByTestId("mini-turn")).toBeVisible();
 
   // Taking a station spot opens its board over the deck; a board is dealt at once and takes a swap.
-  await page.locator('[data-station="bilging"]').click({ force: true });
+  await tapSpot(page, '[data-station="bilging"]');
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "station");
   await expect(page.getByTestId("station-view-bilging")).toBeVisible();
   await expect(page.getByTestId("duty-board-wrap")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
