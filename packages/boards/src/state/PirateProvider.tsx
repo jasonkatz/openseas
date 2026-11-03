@@ -103,7 +103,7 @@ export function PirateProvider({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       socket.onMessage((m) => {
-        if (m.type === "welcome") setPirateState(m.pirate);
+        if (m.type === "welcome" || m.type === "pirate.updated") setPirateState(m.pirate);
       }),
     [socket],
   );

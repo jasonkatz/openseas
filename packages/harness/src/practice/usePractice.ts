@@ -223,9 +223,10 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
             if (newBest) setBest(m.score);
             setOutcome({ kind: "rated", result: m, newBest });
             setPhase("result");
-            if (pirate) {
-              const others = pirate.ratings.filter((r) => r.puzzle !== m.rating.puzzle);
-              setPirate({ ...pirate, ratings: [...others, m.rating] });
+            if (pirate && m.rating) {
+              const rating = m.rating;
+              const others = pirate.ratings.filter((r) => r.puzzle !== rating.puzzle);
+              setPirate({ ...pirate, ratings: [...others, rating] });
             }
             break;
           }
