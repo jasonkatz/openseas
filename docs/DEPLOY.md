@@ -185,8 +185,9 @@ GitHub; the pipeline deploys it.
    it with its own server).
 4. **Settings → Domains**: add `test.openseas.online`. `openseas.online` is already verified on
    the team, so no ownership challenge follows, but its DNS is hosted at the registrar (Hover),
-   not Vercel: add a **CNAME** record there, name `test`, value the target Vercel shows next to the
-   domain (normally `cname.vercel-dns.com`). The domain turns valid once the record propagates.
+   not Vercel: add a record there for `test`, either a **CNAME** to the target Vercel shows next
+   to the domain (normally `cname.vercel-dns.com`) or an **A** record to Vercel's IP as the apex
+   has. The domain turns valid once the record propagates; Vercel's domain page says when it does.
 5. **Settings → Deployment Protection**: Standard Protection, as for the game, so previews and
    deployment URLs need a Vercel login and `test.openseas.online` opens without one. Testers are
    not team members.
