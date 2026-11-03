@@ -12,6 +12,7 @@
     "topOutPenalty": 40
   },
   "roundSeconds": 150,
+  "parScore": 200,
   "fallMs": 700,
   "softDropMs": 70,
   "thresholds": [

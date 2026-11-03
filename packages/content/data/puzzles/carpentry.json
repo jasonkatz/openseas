@@ -19,6 +19,7 @@
     "maxMoves": 60
   },
   "roundSeconds": 150,
+  "parScore": 400,
   "thresholds": [
     { "score": 80, "rating": 1100 },
     { "score": 200, "rating": 1300 },

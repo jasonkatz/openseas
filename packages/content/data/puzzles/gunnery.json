@@ -154,6 +154,7 @@
     "broadsidePoints": 300
   },
   "roundSeconds": 150,
+  "parScore": 2200,
   "thresholds": [
     { "score": 400, "rating": 1100 },
     { "score": 1100, "rating": 1300 },

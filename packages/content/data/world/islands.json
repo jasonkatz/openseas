@@ -1,5 +1,41 @@
 [
-  { "id": "saltwick", "nameKey": "island.saltwick", "x": 0, "y": 0, "buildings": ["dock", "tavern", "notice-board"] },
-  { "id": "gullhaven", "nameKey": "island.gullhaven", "x": 8, "y": 3, "buildings": ["dock", "tavern", "notice-board"] },
-  { "id": "emberreef", "nameKey": "island.emberreef", "x": 4, "y": 9, "buildings": ["dock", "tavern", "notice-board"] }
+  {
+    "id": "saltwick",
+    "nameKey": "island.saltwick",
+    "blurbKey": "island.saltwick_blurb",
+    "x": 0,
+    "y": 0,
+    "landmark": "lighthouse",
+    "buildings": [
+      "dock",
+      "tavern",
+      "notice-board"
+    ]
+  },
+  {
+    "id": "gullhaven",
+    "nameKey": "island.gullhaven",
+    "blurbKey": "island.gullhaven_blurb",
+    "x": 8,
+    "y": 3,
+    "landmark": "windmill",
+    "buildings": [
+      "dock",
+      "tavern",
+      "notice-board"
+    ]
+  },
+  {
+    "id": "emberreef",
+    "nameKey": "island.emberreef",
+    "blurbKey": "island.emberreef_blurb",
+    "x": 4,
+    "y": 9,
+    "landmark": "volcano",
+    "buildings": [
+      "dock",
+      "tavern",
+      "notice-board"
+    ]
+  }
 ]
