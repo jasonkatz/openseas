@@ -32,6 +32,7 @@ export function World({ input, events }: WorldProps) {
           onShip: (id) => latest.current.events.onShip(id),
           onBuilding: (islandId, b) => latest.current.events.onBuilding(islandId, b),
           onStation: (st) => latest.current.events.onStation(st),
+          onWheel: () => latest.current.events.onWheel(),
         });
         s.onReady = () => setReady(true);
         s.setInput(latest.current.input);

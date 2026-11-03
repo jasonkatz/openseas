@@ -65,6 +65,8 @@ export interface Deck {
   shipId: string;
   stations: DeckStation[];
   crew: DeckCrew[];
+  /** The wheel's spot: what it offers the viewer, or null to show none (not the captain). */
+  wheel: { label: string; who: string | null } | null;
 }
 /** Fractions of the viewport covered by the shell's panels, so the focus lands in the clear. */
 export interface Insets {
@@ -92,22 +94,35 @@ export interface WorldInput {
   insets: Insets;
   /** Dim the world: a board is open over it. */
   dimmed: boolean;
+  /** The word on the viewer's own docked ships at the island in focus. */
+  boardLabel: string;
 }
 export interface WorldEvents {
   onIsland(id: string): void;
   onShip(id: string): void;
   onBuilding(islandId: string, building: Building): void;
   onStation(station: Station): void;
+  onWheel(): void;
 }
 
 const SEA_SIZE = 110;
 const LANE_BULGE = 0.16;
 const DASH_STEP = 0.55;
-const ISLAND_HALF_H = 3.1;
-const SHIP_HALF_H = 1.05;
+/** The island's footprint on the water, beach and all; the view is fitted to it. */
+const ISLAND_R = 1.9;
+const SHIP_HALF_H = 0.62;
 const AZIMUTHS = [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4];
-const SPOT_H = 40;
-const SPOT_W = 120;
+const SPOT_H = 36;
+const SPOT_W = 170;
+const SPOT_DX = 18;
+const SPOT_DY = -12;
+
+/** A tappable thing hung on the geometry: a pin at the anchor, a label beside it, a leader between. */
+interface Spot {
+  el: HTMLButtonElement;
+  pin: HTMLElement;
+  line: SVGLineElement;
+}
 
 interface Lane {
   key: string;
@@ -133,7 +148,7 @@ interface IslandView {
   island: WorldIsland;
   model: IslandModel;
   label: HTMLDivElement;
-  spots: Map<Building, HTMLButtonElement>;
+  spots: Map<Building, Spot>;
 }
 interface Cloud {
   group: THREE.Group;
@@ -165,7 +180,9 @@ export class WorldScene {
   private readonly lanes = new Map<string, Lane>();
   private readonly ships = new Map<string, ShipView>();
   private readonly pegs = new Map<string, CrewPeg>();
-  private readonly stationSpots = new Map<Station, HTMLButtonElement>();
+  private readonly stationSpots = new Map<Station, Spot>();
+  private wheelSpot: Spot | null = null;
+  private readonly leaders: SVGSVGElement;
   private readonly clouds: Cloud[] = [];
   private readonly gulls: Gull[] = [];
   private readonly raycaster = new THREE.Raycaster();
@@ -207,15 +224,20 @@ export class WorldScene {
     this.renderer.domElement.style.touchAction = "none";
     this.renderer.domElement.setAttribute("data-testid", "world-canvas");
     host.appendChild(this.renderer.domElement);
+    this.leaders = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    this.leaders.setAttribute("class", "ow-leaders");
+    host.appendChild(this.leaders);
     this.labels = document.createElement("div");
     this.labels.className = "ow-labels";
     host.appendChild(this.labels);
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.08;
 
     this.scene.fog = new THREE.Fog(0xa9dcea, 46, 100);
-    this.scene.add(new THREE.HemisphereLight(0xd4f0ff, 0x2f5a46, 1.15));
-    this.sun = new THREE.DirectionalLight(0xfff2d9, 2.1);
+    this.scene.add(new THREE.HemisphereLight(0xdff4ff, 0x35604a, 1.35));
+    this.sun = new THREE.DirectionalLight(0xfff0d0, 2.4);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(1024, 1024);
+    this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0015;
     this.sun.shadow.normalBias = 0.02;
     this.sun.shadow.intensity = 0.55;
@@ -268,7 +290,8 @@ export class WorldScene {
       iv.label.classList.toggle("reachable", input.reachable.includes(id));
       // The focused island's name is on the card; its buildings take over.
       iv.label.classList.toggle("ow-hidden", id === focusIsland || focusShip !== null);
-      for (const spot of iv.spots.values()) spot.classList.toggle("ow-hidden", id !== focusIsland);
+      for (const spot of iv.spots.values()) hideSpot(spot, id !== focusIsland);
+      iv.model.ring.visible = iv.model.ring.visible && focusIsland === null;
     }
     for (const [id, sv] of this.ships) {
       sv.label.classList.toggle("selected", id === input.selectedShip);
@@ -277,6 +300,10 @@ export class WorldScene {
       const quiet = sv.ship.kind === "other" && id !== input.selectedShip && !(docked && docked === input.selected) && !(docked && docked === focusIsland);
       sv.label.classList.toggle("ow-label-quiet", quiet);
       sv.label.classList.toggle("ow-hidden", focusShip !== null);
+      // The viewer's own ship at the island in focus is a tap away from boarding.
+      const boardable = sv.ship.kind === "yours" && docked !== null && docked === focusIsland;
+      sv.label.classList.toggle("ow-label-board", boardable);
+      sv.label.dataset.board = boardable ? input.boardLabel : "";
     }
     this.host.classList.toggle("is-dimmed", input.dimmed);
     this.updateView(first || focusChanged ? first : false);
@@ -316,6 +343,7 @@ export class WorldScene {
     this.renderer.dispose();
     el.remove();
     this.labels.remove();
+    this.leaders.remove();
   }
 
   // ---- layout
@@ -324,7 +352,7 @@ export class WorldScene {
     for (const iv of this.islands.values()) {
       this.scene.remove(iv.model.group);
       iv.label.remove();
-      for (const s of iv.spots.values()) s.remove();
+      for (const s of iv.spots.values()) removeSpot(s);
     }
     this.islands.clear();
     for (const lane of this.lanes.values()) {
@@ -349,12 +377,12 @@ export class WorldScene {
       this.scene.add(model.group);
       const label = this.makeLabel("ow-label ow-label-island", island.name, () => this.events.onIsland(island.id));
       label.dataset.island = island.id;
-      const spots = new Map<Building, HTMLButtonElement>();
+      const spots = new Map<Building, Spot>();
       for (const b of island.buildings) {
         const spot = this.makeSpot(`ow-spot ow-spot-${b.kind}`, b.label, () => this.events.onBuilding(island.id, b.kind));
-        spot.dataset.building = b.kind;
-        spot.dataset.island = island.id;
-        spot.classList.add("ow-hidden");
+        spot.el.dataset.building = b.kind;
+        spot.el.dataset.island = island.id;
+        hideSpot(spot, true);
         spots.set(b.kind, spot);
       }
       this.islands.set(island.id, { island, model, label, spots });
@@ -467,7 +495,8 @@ export class WorldScene {
     if (!deck || !sv) {
       for (const peg of this.pegs.values()) peg.group.removeFromParent();
       this.pegs.clear();
-      for (const spot of this.stationSpots.values()) spot.classList.add("ow-hidden");
+      for (const spot of this.stationSpots.values()) hideSpot(spot, true);
+      if (this.wheelSpot) hideSpot(this.wheelSpot, true);
       return;
     }
     const seen = new Set<string>();
@@ -485,7 +514,7 @@ export class WorldScene {
         peg.group.userData.key = key;
         this.pegs.set(c.pirateId, peg);
       }
-      if (peg.group.parent !== sv.model.group) sv.model.group.add(peg.group);
+      if (peg.group.parent !== sv.model.body) sv.model.body.add(peg.group);
       const spot = c.station ? sv.model.standing[c.station] : c.captain ? sv.model.wheel.clone().add(new THREE.Vector3(-0.08, -0.1, 0)) : sv.model.idleSpots[idle++ % sv.model.idleSpots.length]!;
       peg.group.position.copy(spot);
       peg.group.userData.phase = hashPhase(c.pirateId);
@@ -500,21 +529,32 @@ export class WorldScene {
       const ds = deck.stations.find((s) => s.station === st);
       let spot = this.stationSpots.get(st);
       if (!ds) {
-        spot?.classList.add("ow-hidden");
+        if (spot) hideSpot(spot, true);
         continue;
       }
       if (!spot) {
         spot = this.makeSpot(`ow-spot ow-spot-station ow-spot-${st}`, ds.label, () => this.events.onStation(st));
-        spot.dataset.station = st;
+        spot.el.dataset.station = st;
         this.stationSpots.set(st, spot);
       }
-      spot.classList.remove("ow-hidden");
-      spot.classList.toggle("is-mine", ds.mine);
-      spot.classList.toggle("is-taken", ds.holder !== null && !ds.mine);
-      const who = spot.querySelector(".ow-spot-who");
+      hideSpot(spot, false);
+      spot.el.classList.toggle("is-mine", ds.mine);
+      spot.el.classList.toggle("is-taken", ds.holder !== null && !ds.mine);
+      const who = spot.el.querySelector(".ow-spot-who");
       if (who) who.textContent = ds.holder ?? "";
-      spot.setAttribute("aria-label", ds.holder ? `${ds.label}: ${ds.holder}` : ds.label);
+      spot.el.setAttribute("aria-label", ds.holder ? `${ds.label}: ${ds.holder}` : ds.label);
     }
+    if (deck.wheel) {
+      if (!this.wheelSpot) {
+        this.wheelSpot = this.makeSpot("ow-spot ow-spot-wheel", deck.wheel.label, () => this.events.onWheel());
+        this.wheelSpot.el.dataset.wheel = "1";
+      }
+      const name = this.wheelSpot.el.querySelector(".ow-spot-name");
+      if (name) name.textContent = deck.wheel.label;
+      const who = this.wheelSpot.el.querySelector(".ow-spot-who");
+      if (who) who.textContent = deck.wheel.who ?? "";
+      hideSpot(this.wheelSpot, false);
+    } else if (this.wheelSpot) hideSpot(this.wheelSpot, true);
   }
 
   private removeShip(sv: ShipView): void {
@@ -543,24 +583,58 @@ export class WorldScene {
     return el;
   }
 
-  private makeSpot(className: string, text: string, onTap: () => void): HTMLButtonElement {
+  private makeSpot(className: string, text: string, onTap: () => void): Spot {
     const el = document.createElement("button");
     el.type = "button";
     el.className = className;
-    const pin = document.createElement("i");
-    pin.className = "ow-spot-pin";
     const name = document.createElement("span");
     name.className = "ow-spot-name";
     name.textContent = text;
     const who = document.createElement("small");
     who.className = "ow-spot-who";
-    el.append(pin, name, who);
+    el.append(name, who);
     el.addEventListener("click", (e) => {
       e.preventDefault();
       onTap();
     });
-    this.labels.appendChild(el);
-    return el;
+    const pin = document.createElement("i");
+    pin.className = `ow-pin ${className.replace(/\bow-spot\b/g, "").trim().replace(/ow-spot-/g, "ow-pin-")}`;
+    pin.addEventListener("click", onTap);
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("class", "ow-leader");
+    this.leaders.appendChild(line);
+    this.labels.append(pin, el);
+    return { el, pin, line };
+  }
+
+  /** Project spots to the screen, keep their labels apart, and draw a leader from each pin to its label. */
+  private placeSpots(spots: { spot: Spot; world: THREE.Vector3 }[]): void {
+    const w = this.host.clientWidth;
+    const h = this.host.clientHeight;
+    const cam = this.rig.camera;
+    const placed: { spot: Spot; x: number; y: number; lx: number; ly: number; flip: boolean }[] = [];
+    for (const { spot, world } of spots) {
+      this.tmp.copy(world).project(cam);
+      const x = (this.tmp.x * 0.5 + 0.5) * w;
+      const y = (-this.tmp.y * 0.5 + 0.5) * h;
+      const flip = x + SPOT_DX + spot.el.offsetWidth > w - 8;
+      placed.push({ spot, x, y, lx: flip ? x - SPOT_DX : x + SPOT_DX, ly: y + SPOT_DY, flip });
+    }
+    placed.sort((a, b) => a.ly - b.ly);
+    for (let i = 0; i < placed.length; i++) {
+      const p = placed[i]!;
+      for (let j = 0; j < i; j++) {
+        const q = placed[j]!;
+        if (Math.abs(q.lx - p.lx) < SPOT_W && p.ly - q.ly < SPOT_H) p.ly = q.ly + SPOT_H;
+      }
+      p.spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+      p.spot.el.style.transform = `translate(${p.lx.toFixed(1)}px, ${p.ly.toFixed(1)}px)${p.flip ? " translate(-100%, 0)" : ""}`;
+      p.spot.el.classList.toggle("is-flipped", p.flip);
+      p.spot.line.setAttribute("x1", p.x.toFixed(1));
+      p.spot.line.setAttribute("y1", p.y.toFixed(1));
+      p.spot.line.setAttribute("x2", p.lx.toFixed(1));
+      p.spot.line.setAttribute("y2", p.ly.toFixed(1));
+    }
   }
 
   // ---- the sea
@@ -654,7 +728,7 @@ varying float vWave;`,
       const iv = this.islands.get(input.focus.id);
       const center = iv ? new THREE.Vector3(iv.island.x, 0.35, iv.island.y) : this.center.clone();
       // On a tall phone the island's width is the limit; on a wide screen its height.
-      const halfH = Math.max(ISLAND_HALF_H / vh, (ISLAND_HALF_H * 1.05) / (aspect * vw));
+      const halfH = Math.max((ISLAND_R * 1.15) / vh, ISLAND_R / (aspect * vw));
       return { center, halfH, anchorY, anchorX };
     }
     if (input.focus.kind === "ship") {
@@ -864,9 +938,11 @@ varying float vWave;`,
         g.position.set(p.x, 0, p.z);
         g.rotation.y = -Math.atan2(tan.z, tan.x);
       }
-      g.position.y = Math.sin(t * 1.7 + sv.phase) * 0.035;
-      g.rotation.z = Math.sin(t * 1.1 + sv.phase) * 0.06;
-      g.rotation.x = Math.sin(t * 0.8 + sv.phase * 1.3) * 0.03;
+      // The bob lives on the body so the group, which labels and pegs hang off, holds still.
+      const body = sv.model.body;
+      body.position.y = Math.sin(t * 1.7 + sv.phase) * 0.035;
+      body.rotation.z = Math.sin(t * 1.1 + sv.phase) * 0.06;
+      body.rotation.x = Math.sin(t * 0.8 + sv.phase * 1.3) * 0.03;
       sv.model.flag.rotation.y = Math.sin(t * 5 + sv.phase) * 0.3;
       sv.model.marker.position.y = 1.75 + Math.sin(t * 3 + sv.phase) * 0.08;
       sv.model.marker.rotation.y = t * 1.5;
@@ -884,37 +960,91 @@ varying float vWave;`,
       const sy = (-this.tmp.y * 0.5 + 0.5) * h;
       el.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
     };
+    const spots: { spot: Spot; world: THREE.Vector3 }[] = [];
     for (const iv of this.islands.values()) {
       place(iv.label, this.tmp2.set(iv.island.x, 2.4, iv.island.y));
       for (const [b, spot] of iv.spots) {
-        if (spot.classList.contains("ow-hidden")) continue;
-        place(spot, iv.model.group.localToWorld(this.tmp2.copy(iv.model.anchors[b])));
+        if (spot.el.classList.contains("ow-hidden")) continue;
+        spots.push({ spot, world: iv.model.group.localToWorld(iv.model.anchors[b].clone()) });
       }
     }
+    const shipLabels: { el: HTMLDivElement; x: number; y: number }[] = [];
     for (const sv of this.ships.values()) {
       sv.label.style.display = sv.model.group.visible ? "" : "none";
-      place(sv.label, this.tmp2.set(sv.model.group.position.x, 0.2, sv.model.group.position.z));
+      if (!sv.model.group.visible || sv.label.classList.contains("ow-hidden") || sv.label.classList.contains("ow-label-quiet")) continue;
+      this.tmp.set(sv.model.group.position.x, 0.2, sv.model.group.position.z).project(cam);
+      shipLabels.push({ el: sv.label, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h });
+    }
+    shipLabels.sort((a, b) => a.y - b.y);
+    for (let i = 0; i < shipLabels.length; i++) {
+      const p = shipLabels[i]!;
+      for (let j = 0; j < i; j++) {
+        const q = shipLabels[j]!;
+        if (Math.abs(q.x - p.x) < (q.el.offsetWidth + p.el.offsetWidth) / 2 + 6 && p.y - q.y < 26) p.y = q.y + 26;
+      }
+      p.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
     }
     const focus = this.input?.focus;
     const aboard = focus?.kind === "ship" ? this.ships.get(focus.id) : undefined;
+    this.placeSpots(spots);
     if (aboard) {
-      // Station spots hang off a small deck; keep them apart so every one stays readable and tappable.
-      const placed: { el: HTMLElement; x: number; y: number }[] = [];
+      const deckSpots: { spot: Spot; world: THREE.Vector3 }[] = [];
       for (const [st, spot] of this.stationSpots) {
-        if (spot.classList.contains("ow-hidden")) continue;
-        this.tmp.copy(aboard.model.group.localToWorld(this.tmp2.copy(aboard.model.anchors[st]))).project(cam);
-        placed.push({ el: spot, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h });
+        if (spot.el.classList.contains("ow-hidden")) continue;
+        deckSpots.push({ spot, world: aboard.model.group.localToWorld(aboard.model.anchors[st].clone()) });
       }
-      placed.sort((a, b) => a.y - b.y);
-      for (let i = 0; i < placed.length; i++) {
-        const p = placed[i]!;
-        for (let j = 0; j < i; j++) {
-          const q = placed[j]!;
-          if (Math.abs(q.x - p.x) < SPOT_W && p.y - q.y < SPOT_H) p.y = q.y + SPOT_H;
-        }
-        p.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+      if (this.wheelSpot && !this.wheelSpot.el.classList.contains("ow-hidden")) {
+        deckSpots.push({ spot: this.wheelSpot, world: aboard.model.group.localToWorld(aboard.model.wheel.clone().add(new THREE.Vector3(0, 0.12, 0))) });
       }
+      this.placeCallouts(deckSpots);
     }
+  }
+
+  /**
+   * The deck's spots are a hand's width apart, so their labels stand in a column beside the ship,
+   * in deck order, each with a leader to its pin: a callout diagram rather than a pile of pills.
+   */
+  private placeCallouts(spots: { spot: Spot; world: THREE.Vector3 }[]): void {
+    if (spots.length === 0) return;
+    const w = this.host.clientWidth;
+    const h = this.host.clientHeight;
+    const cam = this.rig.camera;
+    const insets = this.input?.insets ?? { top: 0, bottom: 0, left: 0, right: 0 };
+    const pins: { spot: Spot; x: number; y: number }[] = [];
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let maxWidth = 0;
+    for (const { spot, world } of spots) {
+      this.tmp.copy(world).project(cam);
+      const x = (this.tmp.x * 0.5 + 0.5) * w;
+      const y = (-this.tmp.y * 0.5 + 0.5) * h;
+      pins.push({ spot, x, y });
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      maxWidth = Math.max(maxWidth, spot.el.offsetWidth);
+    }
+    pins.sort((a, b) => a.y - b.y);
+    const gap = 44;
+    // The column stands on whichever side has more room, and never past the screen's edge.
+    const roomRight = w * (1 - insets.right) - 8 - (maxX + 56);
+    const roomLeft = minX - 56 - (w * insets.left + 8);
+    const right = roomRight >= roomLeft;
+    const col = right ? Math.min(maxX + 56, w * (1 - insets.right) - 8 - maxWidth) : Math.max(minX - 56, w * insets.left + 8 + maxWidth);
+    const top = h * insets.top + 24;
+    const bottom = h * (1 - insets.bottom) - 24;
+    const meanY = pins.reduce((n, p) => n + p.y, 0) / pins.length;
+    let y0 = meanY - ((pins.length - 1) * gap) / 2;
+    y0 = Math.max(top, Math.min(bottom - (pins.length - 1) * gap, y0));
+    pins.forEach((p, i) => {
+      const ly = y0 + i * gap;
+      p.spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+      p.spot.el.style.transform = `translate(${col.toFixed(1)}px, ${ly.toFixed(1)}px)${right ? "" : " translate(-100%, 0)"}`;
+      p.spot.el.classList.toggle("is-flipped", !right);
+      p.spot.line.setAttribute("x1", p.x.toFixed(1));
+      p.spot.line.setAttribute("y1", p.y.toFixed(1));
+      p.spot.line.setAttribute("x2", (right ? col : col).toFixed(1));
+      p.spot.line.setAttribute("y2", (ly + 14).toFixed(1));
+    });
   }
 
   // ---- picking
@@ -978,6 +1108,18 @@ function isSoftwareRenderer(renderer: THREE.WebGLRenderer): boolean {
   } catch {
     return false;
   }
+}
+
+function hideSpot(spot: Spot, hidden: boolean): void {
+  spot.el.classList.toggle("ow-hidden", hidden);
+  spot.pin.classList.toggle("ow-hidden", hidden);
+  spot.line.classList.toggle("ow-hidden", hidden);
+}
+
+function removeSpot(spot: Spot): void {
+  spot.el.remove();
+  spot.pin.remove();
+  spot.line.remove();
 }
 
 function focusKey(f: Focus): string {

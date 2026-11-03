@@ -16,12 +16,29 @@ function Meter({ label, value, danger, testId, invert }: { label: string; value:
 }
 
 /** The ship's vitals: bilge, hull, speed, cannons and the turn clock. Shown on deck and above every board. */
-export function ShipHud({ ship, slim = false }: { ship: ShipSnapshot; slim?: boolean }) {
+export function ShipHud({ ship, slim = false, mini = false }: { ship: ShipSnapshot; slim?: boolean; mini?: boolean }) {
   const { socket } = usePirate();
   const atSea = ship.location.kind === "at-sea";
   const now = useNow(atSea);
   const untilTurn = ship.nextTurnAt === null ? null : Math.max(0, ship.nextTurnAt - socket.clockOffset - now);
   const speed = atSea && ship.lastTurn && !ship.lastTurn.held ? Math.round(ship.lastTurn.speed / 10) : null;
+  if (mini) {
+    return (
+      <div className="ship-mini" aria-label={t("ship.title")}>
+        <span className="mini-meter" title={t("ship.bilge")}>
+          <i className={ship.water >= 500 ? "danger" : ""} style={{ width: `${ship.water / 10}%` }} />
+        </span>
+        <span className="mini-meter" title={t("ship.hull")}>
+          <i className={`hull ${ship.damage >= 500 ? "danger" : ""}`} style={{ width: `${100 - ship.damage / 10}%` }} />
+        </span>
+        {atSea && untilTurn !== null && (
+          <span className="mini-turn" title={t("ship.next_turn", { seconds: Math.ceil(untilTurn / 1000) })} data-testid="mini-turn">
+            <i style={{ width: `${100 - (untilTurn / ship.turnMs) * 100}%` }} />
+          </span>
+        )}
+      </div>
+    );
+  }
   return (
     <div className={`ship-hud ${slim ? "ship-hud-slim" : ""}`} data-testid="ship-hud">
       <Meter label={t("ship.bilge")} value={ship.water} danger={ship.water >= 500} testId="ship-water" />

@@ -109,6 +109,20 @@ body {
 .ow-label-aboard {
   color: var(--brass);
 }
+.ow-label-board::after {
+  content: " · " attr(data-board);
+  color: var(--brass);
+  font-weight: 700;
+}
+.ow-label-board {
+  color: var(--parchment);
+  background: var(--ink-glass);
+  font-size: 14px;
+  padding: 5px 11px;
+  box-shadow:
+    inset 0 0 0 1px rgba(212, 165, 72, 0.6),
+    0 8px 20px -10px rgba(0, 0, 0, 0.8);
+}
 .ow-label-quiet {
   opacity: 0;
   pointer-events: none;
@@ -117,7 +131,78 @@ body {
   display: none !important;
 }
 
-/* Spots: tappable buildings and stations hung on the geometry. */
+/* Spots: a pin at the thing, a label beside it, a leader between. */
+.ow-leaders {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.ow-leader {
+  stroke: rgba(239, 227, 198, 0.75);
+  stroke-width: 1.5;
+}
+.ow-pin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--brass);
+  box-shadow:
+    0 0 0 3px rgba(9, 18, 32, 0.8),
+    0 0 0 5px rgba(239, 227, 198, 0.45),
+    0 4px 10px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  cursor: pointer;
+  animation: pin-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.ow-pin::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+  border: 2px solid rgba(239, 227, 198, 0.5);
+  animation: pin-pulse 2.2s ease-out infinite;
+}
+.ow-pin-tavern {
+  background: #e06a4f;
+}
+.ow-pin-notice-board {
+  background: var(--parchment);
+}
+.ow-pin-station {
+  background: var(--foam);
+}
+.ow-pin-station.ow-pin-bilging,
+.ow-pin-station.ow-pin-sailing,
+.ow-pin-station.ow-pin-carpentry,
+.ow-pin-station.ow-pin-gunnery,
+.ow-pin-station.ow-pin-navigation {
+  background: var(--foam);
+}
+.ow-pin-wheel {
+  background: var(--brass);
+}
+@keyframes pin-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pin-pulse {
+  0% {
+    opacity: 0.9;
+    scale: 0.5;
+  }
+  100% {
+    opacity: 0;
+    scale: 1.3;
+  }
+}
 .ow-spot {
   position: absolute;
   left: 0;
@@ -125,110 +210,68 @@ body {
   pointer-events: auto;
   cursor: pointer;
   display: grid;
-  grid-template-columns: auto auto;
-  grid-template-areas:
-    "pin name"
-    "pin who";
-  column-gap: 8px;
+  grid-template-columns: auto;
   align-items: center;
-  padding: 6px 12px 6px 8px;
+  padding: 5px 11px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--ink-glass);
   color: var(--parchment);
   font: inherit;
   text-align: left;
-  translate: -50% -100%;
-  margin-top: -10px;
+  margin-top: -14px;
   box-shadow:
-    inset 0 0 0 1px rgba(239, 227, 198, 0.2),
+    inset 0 0 0 1px rgba(239, 227, 198, 0.22),
     0 10px 24px -12px rgba(0, 0, 0, 0.9);
   animation: spot-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   touch-action: manipulation;
-}
-.ow-spot::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -7px;
-  width: 12px;
-  height: 12px;
-  background: var(--ink-glass);
-  translate: -50% 0;
-  rotate: 45deg;
-  box-shadow: inset -1px -1px 0 rgba(239, 227, 198, 0.2);
-}
-.ow-spot-pin {
-  grid-area: pin;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--brass);
-  box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.25);
-}
-.ow-spot-tavern .ow-spot-pin {
-  background: #e06a4f;
-}
-.ow-spot-notice-board .ow-spot-pin {
-  background: var(--parchment);
+  white-space: nowrap;
 }
 .ow-spot-name {
-  grid-area: name;
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 15px;
-  white-space: nowrap;
+  line-height: 1.1;
 }
 .ow-spot-who {
-  grid-area: who;
   font-size: 11px;
   color: var(--parchment-dim);
-  white-space: nowrap;
 }
 .ow-spot-who:empty {
   display: none;
-}
-.ow-spot-station {
-  padding: 4px 10px 4px 6px;
-  border-radius: 12px;
-}
-.ow-spot-station .ow-spot-pin {
-  background: var(--foam);
-  width: 20px;
-  height: 20px;
-}
-.ow-spot-station .ow-spot-name {
-  font-size: 14px;
 }
 .ow-spot-station.is-mine {
   box-shadow:
     inset 0 0 0 2px var(--brass),
     0 10px 24px -12px rgba(0, 0, 0, 0.9);
 }
-.ow-spot-station.is-mine .ow-spot-pin {
-  background: var(--brass);
-}
 .ow-spot-station.is-taken {
-  opacity: 0.75;
+  opacity: 0.8;
 }
-.ow-spot-station.is-taken .ow-spot-pin {
-  background: var(--parchment-dim);
+.ow-spot-wheel {
+  box-shadow:
+    inset 0 0 0 1px rgba(212, 165, 72, 0.7),
+    0 10px 24px -12px rgba(0, 0, 0, 0.9);
+}
+.ow-spot-wheel .ow-spot-name {
+  color: var(--brass);
 }
 .ow-spot:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.12);
 }
 .ow-spot:active {
-  scale: 0.97;
+  filter: brightness(1.25);
 }
 @keyframes spot-in {
   from {
     opacity: 0;
-    margin-top: 0;
   }
 }
 
 .has-station .topbar,
-.has-station .sheet {
+.has-station .sheet,
+.has-station .ow-labels,
+.has-station .ow-leaders {
   display: none;
 }
 
@@ -250,19 +293,36 @@ body {
 }
 .topbar .who {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 6px 14px;
-  border-radius: 14px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
   background: var(--ink-glass);
   box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.14);
   min-width: 0;
   flex: 0 1 auto;
 }
+.who .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.who .dot.pip-live {
+  color: var(--foam);
+  box-shadow: 0 0 8px var(--foam);
+}
+.who .dot.pip-wait {
+  color: var(--parchment-dim);
+}
+.who .dot.pip-off {
+  color: var(--brass);
+}
 .who-name {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.1;
   white-space: nowrap;
   overflow: hidden;
@@ -272,15 +332,23 @@ body {
   font-size: 12px;
   color: var(--brass);
 }
-.topbar .pip {
-  margin-left: auto;
-  background: var(--ink-glass);
+.topbar .who-coins {
+  padding-left: 6px;
+  border-left: 1px solid rgba(239, 227, 198, 0.2);
 }
 .topbar .icon-btn {
   background: var(--ink-glass);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.14);
+}
+.topbar .icon-btn:first-of-type {
+  margin-left: auto;
+}
+.topbar .icon-btn.is-on {
+  color: var(--brass);
+  box-shadow: inset 0 0 0 2px var(--brass);
 }
 
-/* ---- the sheet: the card for the place */
+/* ---- the sheet: the card for the place, folded to a strip until it is wanted */
 
 .sheet {
   position: absolute;
@@ -288,45 +356,144 @@ body {
   display: flex;
   flex-direction: column;
   pointer-events: none;
-}
-.sheet > .card {
-  pointer-events: auto;
   background: var(--ink-glass);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   box-shadow:
     inset 0 0 0 1px rgba(239, 227, 198, 0.12),
     0 -10px 40px -20px rgba(0, 0, 0, 0.9);
+  transition:
+    max-height 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
+    width 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+  overflow: hidden;
+}
+.sheet > * {
+  pointer-events: auto;
+}
+.sheet-handle {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  flex: none;
+  touch-action: manipulation;
+}
+.sheet-handle .chev {
+  transition: rotate 0.3s ease;
+  color: var(--parchment-dim);
+}
+.sheet.is-open .sheet-handle .chev {
+  rotate: 180deg;
+}
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.strip-text {
+  display: grid;
+  min-width: 0;
+}
+.strip-text b {
+  font-family: var(--font-display);
+  font-size: 17px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.strip-text small {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ship-mini {
+  display: grid;
+  gap: 4px;
+  width: 92px;
+  flex: none;
+}
+.mini-meter,
+.mini-turn {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.mini-meter i,
+.mini-turn i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--tide), var(--foam));
+  transition: width 0.6s ease;
+}
+.mini-meter i.hull {
+  background: linear-gradient(90deg, #7a5533, var(--brass));
+}
+.mini-meter i.danger {
+  background: var(--danger);
+}
+.mini-turn {
+  height: 3px;
+}
+.mini-turn i {
+  background: var(--parchment-dim);
+  transition: width 0.4s linear;
+}
+.sheet-body {
   overflow: auto;
   overscroll-behavior: contain;
-  animation: sheet-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  min-height: 0;
+}
+.sheet:not(.is-open) .sheet-body {
+  visibility: hidden;
+}
+.sheet-body > .card {
+  padding: 0 16px max(16px, env(safe-area-inset-bottom));
+  animation: fade 0.3s ease both;
 }
 .shell-tall .sheet {
   left: 0;
   right: 0;
   bottom: 0;
-}
-.shell-tall .sheet > .card {
   border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
-  max-height: 48vh;
-  padding: 16px 16px max(16px, env(safe-area-inset-bottom));
+  max-height: 64px;
+  padding-bottom: env(safe-area-inset-bottom);
 }
-.shell-tall.place-chart .sheet > .card {
-  max-height: 32vh;
+.shell-tall .sheet.is-open {
+  max-height: 62vh;
 }
-.shell-tall.place-helm .sheet > .card {
-  max-height: 44vh;
+.shell-tall .sheet-body {
+  max-height: calc(62vh - 66px);
 }
 .shell-wide .sheet {
-  top: 72px;
+  top: 70px;
   right: 16px;
   bottom: 16px;
-  width: min(400px, 38vw);
+  width: 300px;
+  max-height: 64px;
+  border-radius: 18px;
 }
-.shell-wide .sheet > .card {
-  border-radius: var(--sheet-radius);
-  max-height: 100%;
-  padding: 18px 18px 20px;
+.shell-wide .sheet.is-open {
+  width: min(420px, 38vw);
+  max-height: calc(100% - 86px);
+}
+.shell-wide .sheet-body {
+  max-height: calc(100vh - 86px - 66px);
+}
+.shell-wide .sheet-body > .card {
+  padding: 0 18px 20px;
 }
 @keyframes sheet-in {
   from {
@@ -752,6 +919,49 @@ body {
   box-shadow: inset 0 0 0 2px var(--brass);
 }
 
+.hail-banner {
+  position: absolute;
+  left: 50%;
+  bottom: 84px;
+  translate: -50% 0;
+  z-index: 8;
+  width: min(92vw, 380px);
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--ink-glass);
+  box-shadow:
+    inset 0 0 0 1px rgba(240, 96, 77, 0.7),
+    0 20px 40px -20px rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  animation: pulse-glow 1.2s ease-in-out infinite;
+}
+.shell-wide .hail-banner {
+  bottom: 24px;
+  left: 24px;
+  translate: 0 0;
+}
+.hail-banner .hail-title {
+  margin: 0;
+  font-size: 18px;
+}
+.hail-banner p {
+  margin: 0;
+}
+.hail-inline {
+  position: static;
+  translate: 0 0;
+  width: auto;
+  animation: none;
+  padding: 8px 12px;
+}
+.shell-wide .hail-inline {
+  left: auto;
+  bottom: auto;
+}
+
 /* ---- the station layer: a board over the deck */
 
 .station-layer {
@@ -858,6 +1068,7 @@ body {
   position: absolute;
   left: 50%;
   top: max(66px, calc(env(safe-area-inset-top) + 58px));
+  pointer-events: none;
   translate: -50% 0;
   z-index: 6;
   display: grid;

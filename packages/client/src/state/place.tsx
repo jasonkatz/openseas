@@ -9,6 +9,8 @@ export type IslandRoom = "none" | "dock" | "tavern" | "notice";
  * the URL mirrors it so a place can be shared, and opening the URL lands in the scene there.
  */
 export type Place =
+  /** Where the pirate is: their island when ashore, the deck when aboard. */
+  | { kind: "home" }
   /** The whole ocean, with an island picked or not. */
   | { kind: "chart"; pick: string | null }
   /** Moved in on an island, inside one of its buildings or standing outside. */
@@ -26,8 +28,10 @@ const ROOMS = new Set<string>(["dock", "tavern", "notice"]);
 
 export function placeToPath(p: Place): string {
   switch (p.kind) {
+    case "home":
+      return "/";
     case "chart":
-      return p.pick ? `/?pick=${encodeURIComponent(p.pick)}` : "/";
+      return p.pick ? `/chart?pick=${encodeURIComponent(p.pick)}` : "/chart";
     case "island":
       return p.room === "none" ? `/island/${p.id}` : `/island/${p.id}/${p.room}`;
     case "deck":
@@ -50,8 +54,11 @@ export function pathToPlace(pathname: string, search: string): Place {
     if (parts[1] && STATIONS.has(parts[1])) return { kind: "station", station: parts[1] as StationWire };
     return { kind: "deck" };
   }
-  const pick = new URLSearchParams(search).get("pick");
-  return { kind: "chart", pick: pick && ISLAND_IDS.has(pick) ? pick : null };
+  if (parts[0] === "chart") {
+    const pick = new URLSearchParams(search).get("pick");
+    return { kind: "chart", pick: pick && ISLAND_IDS.has(pick) ? pick : null };
+  }
+  return { kind: "home" };
 }
 
 export function samePlace(a: Place, b: Place): boolean {

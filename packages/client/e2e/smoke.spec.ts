@@ -146,28 +146,31 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   const server = await fakeServer(page);
   await page.goto("/");
 
-  // The pirate is signed in and standing on the chart at the start island.
-  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "chart");
-  await expect(page.getByTestId("pirate-name")).toHaveText(ME.name);
-  await expect(page.getByTestId("chart-card")).toContainText("Saltwick");
-  await expect(page.getByTestId("world")).toBeVisible();
-
-  // Moving in on the island is a camera move: the frame stays, the card changes.
-  await page.goto("/island/saltwick");
+  // The pirate is signed in and standing on their island; the card is folded to a strip.
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "island");
-  await expect(page.getByTestId("island-card")).toContainText("Saltwick");
+  await expect(page.getByTestId("pirate-name")).toHaveText(ME.name);
+  await expect(page.getByTestId("sheet")).toHaveAttribute("data-open", "0");
   await expect(page.getByTestId("world")).toHaveAttribute("data-focus", "island:saltwick");
 
-  // The tavern knows who is ashore and takes a line of chat.
-  await page.getByTestId("building-tavern").click();
+  // The map button zooms out to the chart and back; the frame stays.
+  await page.getByTestId("map-toggle").click();
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "chart");
+  await expect(page.getByTestId("world")).toHaveAttribute("data-focus", "all");
+  await page.getByTestId("map-toggle").click();
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "island");
+
+  // A building spot in the world opens its room in the card: the tavern knows who is ashore and takes a line of chat.
+  await page.locator('[data-island="saltwick"][data-building="tavern"]').click();
+  await expect(page.getByTestId("sheet")).toHaveAttribute("data-open", "1");
   await expect(page.getByTestId("tavern-panel")).toBeVisible();
   await page.getByTestId("chat-input-island").fill("ahoy");
   await page.getByTestId("chat-input-island").press("Enter");
   await expect(page.getByTestId("chat-island")).toContainText("ahoy");
   await page.getByTestId("island-back").click();
+  await expect(page.getByTestId("sheet")).toHaveAttribute("data-open", "0");
 
   // The dock boards the pirate's own sloop; the scene moves in on the deck.
-  await page.getByTestId("building-dock").click();
+  await page.locator('[data-island="saltwick"][data-building="dock"]').click();
   await expect(page.getByTestId("dock-panel")).toBeVisible();
   await page.getByTestId("board-ship-ship-1").click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
@@ -175,16 +178,18 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await expect(page.getByTestId("world")).toHaveAttribute("data-focus", "ship:ship-1");
   await expect(page.getByTestId("ship-water")).toHaveText("12%");
 
-  // The captain picks a destination on the chart and sets sail.
-  await page.getByTestId("set-sail").click();
+  // The wheel spot on deck takes the captain to the chart to pick a destination; then they set sail.
+  await page.locator('[data-wheel="1"]').click();
   await expect(page.getByTestId("helm-card")).toBeVisible();
   await page.getByTestId("dest-gullhaven").click();
   await page.getByTestId("sail-now").click();
-  await expect(page.getByTestId("ship-progress")).toContainText("0%");
-  await expect(page.getByTestId("turn-line")).toBeVisible();
+  // Under way, the card folds back to its strip: the ship's name, where it is bound, and the turn clock.
+  await expect(page.getByTestId("sheet")).toHaveAttribute("data-open", "0");
+  await expect(page.getByTestId("sheet")).toContainText("Gullhaven");
+  await expect(page.getByTestId("mini-turn")).toBeVisible();
 
-  // Taking a station opens its board over the deck; a board is dealt at once and takes a swap.
-  await page.getByTestId("station-bilging").click();
+  // Taking a station spot opens its board over the deck; a board is dealt at once and takes a swap.
+  await page.locator('[data-station="bilging"]').click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "station");
   await expect(page.getByTestId("station-view-bilging")).toBeVisible();
   await expect(page.getByTestId("duty-board-wrap")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
@@ -199,12 +204,14 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
     })
     .toBeGreaterThan(0);
 
-  // Back to the deck, then ashore: the scene pulls out to the island.
+  // Back to the deck, then ashore from the unfolded card: the scene pulls out to the island.
   await page.getByTestId("station-back").click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
+  await page.getByTestId("sheet-toggle").click();
   await page.getByTestId("go-ashore").click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "island");
-  await expect(page.getByTestId("island-card")).toBeVisible();
+  await expect(page.getByTestId("world")).toHaveAttribute("data-focus", "island:saltwick");
+  await expect(page.getByTestId("sheet")).toContainText("Saltwick");
 
   // The menu is the same everywhere and carries the settings.
   await page.getByTestId("menu-open").click();

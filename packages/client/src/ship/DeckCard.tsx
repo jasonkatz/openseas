@@ -22,7 +22,6 @@ export function DeckCard({ ship, me, onStation, onHelm }: DeckCardProps) {
   const captain = ship.captainId === me;
   const owner = ship.ownerId === me;
   const atSea = ship.location.kind === "at-sea";
-  const hail = ship.location.kind === "at-sea" ? ship.location.hail : null;
   const stations = content.world.shipClasses.find((c) => c.id === ship.classId)?.stations ?? [];
 
   const location =
@@ -50,20 +49,6 @@ export function DeckCard({ ship, me, onStation, onHelm }: DeckCardProps) {
       </header>
 
       <ShipHud ship={ship} />
-
-      {hail && (
-        <div className="hail" role="alert" data-testid="ship-hail">
-          <p className="hail-title">{t("ship.hailed", { brigand: tierName(hail.tierId) })}</p>
-          <p className="muted small">{t("ship.hail_blurb")}</p>
-          {captain ? (
-            <button className="btn btn-brass" onClick={evade} data-testid="evade">
-              {t("ship.evade")}
-            </button>
-          ) : (
-            <p className="muted small">{t("ship.hail_wait")}</p>
-          )}
-        </div>
-      )}
 
       <div className="section">
         <h3 className="section-head">{t("ship.stations")}</h3>

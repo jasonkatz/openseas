@@ -395,12 +395,18 @@ filling the viewport from sign-in to sign-out. The three islands each carry the 
 content names (a lighthouse that sweeps, a windmill that turns, a volcano that smokes), a tavern,
 a dock with a lantern and the notice board at its foot; sea lanes are dashed curves with a buoy at
 the midpoint; every ship with a crew is a sloop model bobbing at a dock or easing along its lane
-between turns, with a wake under way. The camera glides between three kinds of focus: the whole
-ocean (the chart), one island, and the ship the pirate is aboard, which it follows. Places are
-`/`, `/island/:id` (with `/dock`, `/tavern`, `/notice`), `/ship`, `/ship/:station` and
-`/ship/helm`. A card for the place sits at the bottom of a phone and down the right of a wide
-screen; the same actions hang on the geometry as spots (a building on its island, a station on the
-deck, with who is at it), so a tap in the world or on the card does the same thing. The dock lists
+between turns, with a wake under way. The view is the game: it takes the screen, and the camera glides
+between three kinds of focus: the island the pirate stands on (home, filling the frame), the deck
+of the ship they are aboard (closer still, the hull and its stations filling the frame, followed
+along its lane), and the whole ocean (the chart, behind a map button, where islands are tapped to
+look closer). Places are `/` (home), `/chart`, `/island/:id` (with `/dock`, `/tavern`,
+`/notice`), `/ship`, `/ship/:station` and `/ship/helm`. The card for the place is folded to a
+thin strip at the bottom of a phone (the right of a wide screen) with the place's name and, aboard,
+mini bilge, hull and turn-clock bars; it unfolds on a tap or when a room or the helm needs it, and
+folds again on every move so the view stays clear. The same actions hang on the geometry as spots:
+a pin at the thing with a label beside it and a leader between (a building on its island; on the
+deck, each station with who is at it and the wheel, laid out as a callout column beside the hull),
+so a tap in the world or on the card does the same thing. A brigand's hail floats over the view. The dock lists
 the pirate's ships here and the shipyard (every class with its price, bought with the one
 acquisition path, ADR 0010); the notice board lists ships recruiting here and ships at sea, each
 joinable; the tavern lists who is ashore, carries the island chat channel and shows the pirate's

@@ -1,11 +1,13 @@
 import type { ShipSnapshot, StationWire } from "@openseas/protocol";
 import { t } from "@openseas/boards";
 import { fmtClock, stationName } from "../names.js";
+import { HailBanner } from "../shell/HailBanner.jsx";
 import { DutyBoard } from "./duty/DutyBoards.jsx";
 import { ShipHud } from "./ShipHud.jsx";
 
 export interface StationViewProps {
   ship: ShipSnapshot;
+  me: string;
   station: StationWire;
   showMarks: boolean;
   onBack(): void;
@@ -16,7 +18,7 @@ export interface StationViewProps {
  * and the board's own numbers, the board below, and the way back to the deck. Boards are dealt as
  * long as the ship is at sea.
  */
-export function StationView({ ship, station, showMarks, onBack }: StationViewProps) {
+export function StationView({ ship, me, station, showMarks, onBack }: StationViewProps) {
   const atSea = ship.location.kind === "at-sea";
   const lastOutput = ship.lastTurn ? (ship.lastTurn.outputs[station] ?? 0) : null;
   return (
@@ -37,6 +39,7 @@ export function StationView({ ship, station, showMarks, onBack }: StationViewPro
                 <span className="station-ship muted">{ship.name}</span>
               </header>
               <ShipHud ship={ship} slim />
+              <HailBanner ship={ship} me={me} inline />
               <div className="duty-strip" aria-live="off">
                 <div className="stat stat-score">
                   <span className="stat-label">{t("ship.duty_score")}</span>

@@ -20,8 +20,9 @@ too, or keep both renderers and compose them in one frame.
 1. **The world is one three.js scene that fills the viewport for the whole session.** It holds
    the sea, the islands with their buildings and landmarks, the sea lanes, every ship with a crew
    aboard, and the deck of the ship the pirate is on. An isometric orthographic camera glides
-   between three kinds of focus: the whole ocean, one island, and one ship it follows along its
-   lane. There are no pages: a place is a camera target plus a card. The scene computes nothing:
+   between three kinds of focus: one island (home, filling the frame), one ship it follows along
+   its lane (closer, the deck filling the frame), and the whole ocean behind a map button. There
+   are no pages: a place is a camera target plus a card, folded to a strip until it is wanted. The scene computes nothing:
    it draws content and server snapshots (ADR 0003).
 2. **The boards stay PixiJS and open in a layer over the world.** A station's board is the same
    `boards` component the harness drives, mounted in a station layer that covers the scene while
