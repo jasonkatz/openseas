@@ -13,7 +13,7 @@ const EnvSchema = z.object({
   BETTER_AUTH_URL: z.string().url().default("http://localhost:8080"),
   CLIENT_ORIGINS: z
     .string()
-    .default("http://localhost:5173")
+    .default("http://localhost:5173,http://localhost:5174")
     .transform((s) => s.split(",").map((o) => o.trim()).filter(Boolean)),
   CROSS_SITE_COOKIES: Bool,
   ALPHA_INVITE_CODE: z.string().optional().transform((v) => (v && v.length > 0 ? v : null)),

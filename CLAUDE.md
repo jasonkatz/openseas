@@ -29,9 +29,11 @@ mechanics, original everything else. `openseas` is a codename.
 ## Stack
 
 TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `protocol` (Zod schemas), `content`,
-`server` (ws, Drizzle, Better Auth), `client` (Vite, React, PixiJS v8). Postgres. Railway for
-server and database, Vercel for the client. Vitest with property-based determinism tests on
-engines, Playwright smoke on the client.
+`boards` (the PixiJS boards, round runner and server connection both front ends share, ADR 0019),
+`server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React), `harness` (the puzzle test
+bench at test.openseas.online: the practice pages plus lab rounds, inspector and replay review).
+Postgres. Railway for server and database, Vercel for the game and the harness as two projects.
+Vitest with property-based determinism tests on engines, Playwright smoke on both front ends.
 
 ## Workflow
 
@@ -41,3 +43,6 @@ engines, Playwright smoke on the client.
 - Property-based determinism tests are written before an engine is wired to the server.
 - Record any new architecture decision as an ADR in the same PR.
 - Record any deliberate divergence from the original in `docs/DESIGN.md` section 6.
+- A board change is proven in the harness: its smoke drives every board and must stay green. The
+  harness is never linked from the game. `boards` is presentation and transport only: nothing in it
+  may compute a score, and a lab round may never run on a config the server would refuse.

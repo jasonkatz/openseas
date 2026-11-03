@@ -6,6 +6,8 @@ coverage/
 .env.*
 !.env.example
 packages/client/test-results/
+packages/harness/test-results/
+packages/harness/playwright-report/
 packages/client/playwright-report/
 .DS_Store
 .vercel/

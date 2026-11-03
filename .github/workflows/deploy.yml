@@ -2,8 +2,10 @@ name: Deploy
 
 # Continuous deployment from main (ADR 0014). Runs after CI succeeds on main, or by hand.
 # Order is deliberate: the server goes first and must serve the new commit on /health before the
-# client is built and deployed against it. Each side is skipped when nothing under it changed,
-# unless forced from the manual trigger. Setup and secrets: docs/DEPLOY.md.
+# two front ends are built and deployed against it. The game (client) and the puzzle harness
+# (ADR 0019) are separate Vercel projects and deploy in parallel after the server. Each side is
+# skipped when nothing under it changed, unless forced from the manual trigger. Setup and secrets:
+# docs/DEPLOY.md.
 
 on:
   workflow_run:
@@ -17,7 +19,11 @@ on:
         type: boolean
         default: false
       client:
-        description: Deploy the client even if nothing under it changed
+        description: Deploy the game client even if nothing under it changed
+        type: boolean
+        default: false
+      harness:
+        description: Deploy the puzzle harness even if nothing under it changed
         type: boolean
         default: false
 
@@ -37,6 +43,7 @@ jobs:
     outputs:
       server: ${{ steps.changed.outputs.server }}
       client: ${{ steps.changed.outputs.client }}
+      harness: ${{ steps.changed.outputs.harness }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,17 +53,23 @@ jobs:
         env:
           FORCE_SERVER: ${{ inputs.server == true }}
           FORCE_CLIENT: ${{ inputs.client == true }}
+          FORCE_HARNESS: ${{ inputs.harness == true }}
         run: |
-          server=false; client=false
-          if [ "$FORCE_SERVER" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/server packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json railpack.json .github/workflows/deploy.yml; then
+          server=false; client=false; harness=false
+          shared="packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json .github/workflows/deploy.yml"
+          if [ "$FORCE_SERVER" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/server $shared railpack.json; then
             server=true
           fi
-          if [ "$FORCE_CLIENT" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/client packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json vercel.json .github/workflows/deploy.yml; then
+          if [ "$FORCE_CLIENT" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/client packages/boards $shared vercel.json; then
             client=true
+          fi
+          if [ "$FORCE_HARNESS" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/harness packages/boards $shared; then
+            harness=true
           fi
           echo "server=$server" >> "$GITHUB_OUTPUT"
           echo "client=$client" >> "$GITHUB_OUTPUT"
-          echo "commit $SHA: server=$server client=$client"
+          echo "harness=$harness" >> "$GITHUB_OUTPUT"
+          echo "commit $SHA: server=$server client=$client harness=$harness"
 
   server:
     name: Server to Railway
@@ -70,6 +83,7 @@ jobs:
       RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE }}
       SERVER_URL: ${{ vars.PRODUCTION_SERVER_URL }}
       CLIENT_URL: ${{ vars.PRODUCTION_CLIENT_URL }}
+      HARNESS_URL: ${{ vars.PRODUCTION_HARNESS_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -100,17 +114,12 @@ jobs:
         # list the client's exact origin, the game is unusable even though both deploys are green.
         run: |
           if [ -z "$SERVER_URL" ] || [ -z "$CLIENT_URL" ]; then exit 0; fi
-          origin="${CLIENT_URL%/}"
-          allowed="$(curl -sS --max-time 15 -o /dev/null -D - -X OPTIONS \
-            -H "Origin: $origin" -H "Access-Control-Request-Method: GET" \
-            -H "Access-Control-Request-Headers: content-type" \
-            "$SERVER_URL/api/me" | tr -d '\r' | awk 'tolower($1)=="access-control-allow-origin:" {print $2}')"
-          if [ "$allowed" = "$origin" ]; then
-            echo "server allows $origin"
-          else
-            echo "::error::The server does not allow the client origin. Preflight from $origin returned Access-Control-Allow-Origin='${allowed:-<none>}'. Set CLIENT_ORIGINS on the Railway service to exactly $origin (comma-separate several) and deploy the change. See docs/DEPLOY.md step 1.4."
-            exit 1
-          fi
+          .github/scripts/check-origin.sh "$SERVER_URL" "$CLIENT_URL" "the game client"
+      - name: Server accepts requests from the harness origin
+        # Same check for the harness; a warning only, so a missing origin never blocks the game.
+        run: |
+          if [ -z "$SERVER_URL" ] || [ -z "$HARNESS_URL" ]; then exit 0; fi
+          .github/scripts/check-origin.sh "$SERVER_URL" "$HARNESS_URL" "the harness" || echo "::warning::The server does not allow the harness origin yet; the harness job repeats this check and fails if it is still missing."
 
   client:
     name: Client to Vercel
@@ -165,3 +174,81 @@ jobs:
             exit 0
           fi
           .github/scripts/wait-for-commit.sh "$CLIENT_URL/version.json" "$SHA" 300
+
+  harness:
+    name: Harness to Vercel
+    needs: [plan, server]
+    if: always() && needs.plan.outputs.harness == 'true' && (needs.server.result == 'success' || needs.server.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      # A token that can see the harness project: VERCEL_HARNESS_TOKEN if set (a token scoped to
+      # the harness project), else VERCEL_TOKEN (which must then be scoped to the team, not to the
+      # game's project; a project-scoped token reports the other project as "not found").
+      VERCEL_TOKEN: ${{ secrets.VERCEL_HARNESS_TOKEN || secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      # The harness is its own Vercel project, rooted in packages/harness (docs/DEPLOY.md, step 2b).
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_HARNESS_PROJECT_ID }}
+      HARNESS_URL: ${{ vars.PRODUCTION_HARNESS_URL }}
+      SERVER_URL: ${{ vars.PRODUCTION_SERVER_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: npm install -g vercel
+      - name: Check configuration
+        run: |
+          ok=true
+          [ -n "$VERCEL_TOKEN" ] || { echo "::error::Secret VERCEL_TOKEN is not set. See docs/DEPLOY.md, step 2."; ok=false; }
+          [ -n "$VERCEL_ORG_ID" ] || { echo "::error::Variable VERCEL_ORG_ID is not set. See docs/DEPLOY.md, step 2."; ok=false; }
+          [ -n "$VERCEL_PROJECT_ID" ] || { echo "::error::Variable VERCEL_HARNESS_PROJECT_ID is not set: the harness has no Vercel project to deploy to. See docs/DEPLOY.md, step 2b."; ok=false; }
+          $ok
+      - name: Pull production settings and env
+        run: |
+          set -o pipefail
+          if ! vercel pull --yes --environment=production --token "$VERCEL_TOKEN" 2>&1 | tee pull.log; then
+            grep -q "Project not found" pull.log && echo "::error::The Vercel token cannot see the harness project (prj id in VERCEL_HARNESS_PROJECT_ID). A token scoped to the game's project reports every other project as not found: add a secret VERCEL_HARNESS_TOKEN scoped to the harness project, or make VERCEL_TOKEN a team-scoped token. See docs/DEPLOY.md, step 2b.7."
+            exit 1
+          fi
+      - name: Build
+        env:
+          COMMIT_SHA: ${{ env.SHA }}
+        # The project's Root Directory is packages/harness, so the build runs there and reads
+        # packages/harness/vercel.json; the output lands in .vercel/output at the repo root.
+        run: |
+          vercel build --prod --token "$VERCEL_TOKEN"
+          test -d .vercel/output || { echo "::error::vercel build produced no .vercel/output; is the harness project's Root Directory packages/harness? See docs/DEPLOY.md, step 2b."; exit 1; }
+      - name: Deploy
+        run: |
+          set -o pipefail
+          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN" \
+            --meta githubCommitSha="$SHA" \
+            --meta githubCommitRef=main \
+            --meta githubCommitOrg="${GITHUB_REPOSITORY_OWNER}" \
+            --meta githubCommitRepo="${GITHUB_REPOSITORY#*/}" \
+            | tee deploy-url.txt
+          echo "Harness deployed: $(tail -n1 deploy-url.txt) (commit $SHA)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Wait until the harness serves this commit
+        run: |
+          if [ -z "$HARNESS_URL" ]; then
+            echo "::warning::Variable PRODUCTION_HARNESS_URL is not set; skipping the post-deploy checks."
+            exit 0
+          fi
+          .github/scripts/wait-for-commit.sh "$HARNESS_URL/version.json" "$SHA" 300
+      - name: Deep links open
+        # Every puzzle page is a deep link; without the SPA rewrite from packages/harness/vercel.json
+        # a shared scenario link would 404, which is the harness's whole point.
+        run: |
+          if [ -z "$HARNESS_URL" ]; then exit 0; fi
+          status="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$HARNESS_URL/bilging?seed=deploy-check")"
+          if [ "$status" = 200 ]; then echo "deep links open ($status)"; else echo "::error::$HARNESS_URL/bilging returned HTTP $status; the SPA rewrite is not in effect. Check that the project's Root Directory is packages/harness so its vercel.json is read. See docs/DEPLOY.md, step 2b."; exit 1; fi
+      - name: Server accepts requests from the harness origin
+        run: |
+          if [ -z "$SERVER_URL" ] || [ -z "$HARNESS_URL" ]; then exit 0; fi
+          .github/scripts/check-origin.sh "$SERVER_URL" "$HARNESS_URL" "the harness"

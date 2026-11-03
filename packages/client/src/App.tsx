@@ -1,27 +1,17 @@
+import { PirateProvider } from "@openseas/boards";
 import { Home } from "./pages/Home.jsx";
-import { BilgingPractice } from "./pages/BilgingPractice.jsx";
-import { GunneryPractice } from "./pages/GunneryPractice.jsx";
-import { NavigationPractice } from "./pages/NavigationPractice.jsx";
-import { SailingPractice } from "./pages/SailingPractice.jsx";
-import { CarpentryPractice } from "./pages/CarpentryPractice.jsx";
-import { Router, useRoute } from "./router.jsx";
-import { PirateProvider } from "./state/PirateProvider.jsx";
+import { Router } from "./router.jsx";
 
-function Routes() {
-  const { path } = useRoute();
-  if (path === "/practice/bilging") return <BilgingPractice />;
-  if (path === "/practice/sailing") return <SailingPractice />;
-  if (path === "/practice/carpentry") return <CarpentryPractice />;
-  if (path === "/practice/gunnery") return <GunneryPractice />;
-  if (path === "/practice/navigation") return <NavigationPractice />;
-  return <Home />;
-}
-
+/**
+ * The game: one graphical experience (ADR 0018, DESIGN.md 3.11), being rebuilt from the shell out.
+ * The practice pages live in the harness now. Until the shell lands, the game opens on the
+ * pirate's card and nothing more.
+ */
 export function App() {
   return (
     <Router>
       <PirateProvider>
-        <Routes />
+        <Home />
       </PirateProvider>
     </Router>
   );

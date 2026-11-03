@@ -1,25 +1,26 @@
 import { useCallback } from "react";
-import { CARPENTRY_DEF, PENTOMINO_LETTERS, carpentryOrient, summarizeCarpentry, type CarpentryMove, type CarpentryState, type HoleRating } from "@openseas/engine";
-import { sfx } from "../audio.js";
-import { content, t } from "../content.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../puzzles/PracticeShell.jsx";
-import { TileIcon } from "../puzzles/TileIcon.jsx";
-import { usePractice } from "../puzzles/usePractice.js";
-import { CarpentryBoard } from "../carpentry/CarpentryBoard.jsx";
+import { PENTOMINO_LETTERS, carpentryOrient, summarizeCarpentry, type CarpentryConfig, type CarpentryMove, type CarpentryState, type HoleRating } from "@openseas/engine";
+import { CarpentryBoard, TileIcon, content, sfx, t } from "@openseas/boards";
+import { useBench } from "../bench/useBench.jsx";
+import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { usePractice } from "../practice/usePractice.js";
+import { CARPENTRY } from "../puzzles.js";
 
 const carpentry = content.puzzles.carpentry;
 
 export function CarpentryPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
 
-  const api = usePractice<CarpentryState, CarpentryMove, typeof carpentry.config>({
+  const api = usePractice<CarpentryState, CarpentryMove, CarpentryConfig>({
     puzzle: "carpentry",
-    def: CARPENTRY_DEF,
+    def: CARPENTRY.def,
     config: carpentry.config,
     roundSeconds: carpentry.roundSeconds,
     summarize: summarizeCarpentry,
   });
+  const bench = useBench(CARPENTRY, api);
   const { state } = api;
+  const shown = bench.reviewState ?? state;
 
   const onPlace = useCallback(
     (slot: number, rot: number, flip: boolean, col: number, row: number) => {
@@ -41,7 +42,7 @@ export function CarpentryPractice() {
   const onNudge = useCallback(() => sfx.tick(false), []);
   const onBump = useCallback(() => sfx.bump(), []);
 
-  const woods = carpentry.pieces.slice(0, carpentry.config.pieceKinds);
+  const woods = carpentry.pieces.slice(0, shown.config.pieceKinds);
 
   return (
     <PracticeShell
@@ -49,21 +50,24 @@ export function CarpentryPractice() {
       phase={api.phase}
       outcome={api.outcome}
       best={api.best}
-      roundSeconds={carpentry.roundSeconds}
+      roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
-      score={state.score}
-      moves={state.moveCount}
-      maxMoves={carpentry.config.maxMoves}
-      combo={state.combo}
+      score={shown.score}
+      moves={shown.moveCount}
+      maxMoves={shown.config.maxMoves}
+      combo={shown.combo}
       canRate={api.canRate}
       onStartRated={api.startRated}
       onStartUnrated={api.startUnrated}
+      onStartLab={bench.startLab}
+      labReady={bench.labReady}
+      labSummary={bench.labSummary}
       splash={t("carpentry.go")}
       details={
         <div className="stat stat-wide">
           <span className="stat-label">{t("carpentry.holes_patched")}</span>
           <span className="stat-value" data-testid="hud-patched">
-            {state.patchedCount}
+            {shown.patchedCount}
           </span>
         </div>
       }
@@ -96,9 +100,12 @@ export function CarpentryPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
+      bench={bench.bench}
+      reviewBar={bench.reviewBar}
       board={(interactive) => (
         <CarpentryBoard
-          state={state}
+          key={bench.reviewKey ?? "live"}
+          state={shown}
           version={api.version}
           interactive={interactive}
           showMarks={showMarks}

@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PracticeApi } from "./usePractice.js";
+import type { PuzzleRound } from "./round.js";
+
+/** What the tick clock needs from whoever runs the round: the live round and a way to log a wait. */
+export interface TickedHost<S, M> {
+  readonly state: S;
+  /** "playing" while a round runs; anything else freezes the display at the engine state. */
+  readonly phase: string;
+  current(): PuzzleRound<S, M, unknown> | null;
+  apply(move: M, countsAsInput?: boolean): boolean;
+}
 
 export interface TickedOptions<S, M> {
   tickMs: number;
   maxTick: number;
-  roundSeconds: number;
   /** The engine's "state at a later tick" without logging a move. */
   advance(state: S, tick: number): S;
   /** The engine's wait move at a tick. */
@@ -23,45 +31,44 @@ export interface TickedApi<S> {
 /**
  * The clock for engines whose moves carry ticks (ADR 0015). Each tick the displayed state advances;
  * every so often, and once more right before the deadline, a wait is logged so the server sees the
- * same passage of time. The tick runs one behind the wall clock so a claim never gets ahead of the
- * server's view of it.
+ * same passage of time. The tick runs one behind the round's clock so a claim never gets ahead of
+ * the server's view of it. Time is read from the round's clock, so a harness can slow or pause it.
  */
-export function useTicked<S extends { readonly tick: number }, M>(api: PracticeApi<S, M>, opts: TickedOptions<S, M>): TickedApi<S> {
-  const { tickMs, maxTick, roundSeconds } = opts;
+export function useTicked<S extends { readonly tick: number }, M>(host: TickedHost<S, M>, opts: TickedOptions<S, M>): TickedApi<S> {
+  const { tickMs, maxTick } = opts;
   const waitEvery = opts.waitEveryTicks ?? 20;
-  const { state, phase } = api;
+  const { state, phase } = host;
   const [shown, setShown] = useState<S>(state);
   const finalWaitSent = useRef(false);
-  // The practice api and options are read through refs so the interval below outlives re-renders.
-  const latest = useRef({ api, opts });
-  latest.current = { api, opts };
+  // The host and options are read through refs so the interval below outlives re-renders.
+  const latest = useRef({ host, opts });
+  latest.current = { host, opts };
 
   const currentTick = useCallback((): number => {
-    const r = latest.current.api.current();
+    const r = latest.current.host.current();
     if (!r) return 0;
-    const start = r.opts.deadlineAt - roundSeconds * 1000;
-    return Math.max(0, Math.min(maxTick, Math.floor((Date.now() - start) / tickMs) - 1));
-  }, [roundSeconds, maxTick, tickMs]);
+    return Math.max(0, Math.min(maxTick, Math.floor((r.opts.clock.now() - r.opts.startedAt) / tickMs) - 1));
+  }, [maxTick, tickMs]);
 
   useEffect(() => {
     if (phase !== "playing") {
-      setShown(latest.current.api.state);
+      setShown(latest.current.host.state);
       finalWaitSent.current = false;
       return;
     }
     const step = (): void => {
-      const { api: a, opts: o } = latest.current;
-      const r = a.current();
+      const { host: h, opts: o } = latest.current;
+      const r = h.current();
       if (!r || r.isFinished) return;
       const tick = currentTick();
-      const msLeft = r.opts.deadlineAt - Date.now();
+      const msLeft = r.opts.deadlineAt - r.opts.clock.now();
       if (msLeft < 600 && !finalWaitSent.current) {
         finalWaitSent.current = true;
-        a.apply(o.wait(tick), false);
+        h.apply(o.wait(tick), false);
         return;
       }
       if (tick - r.state.tick >= waitEvery) {
-        a.apply(o.wait(tick), false);
+        h.apply(o.wait(tick), false);
         return;
       }
       setShown(o.advance(r.state, tick));
@@ -74,9 +81,10 @@ export function useTicked<S extends { readonly tick: number }, M>(api: PracticeA
   // A logged move resets the display baseline.
   useEffect(() => {
     if (phase === "playing") setShown(latest.current.opts.advance(state, Math.max(state.tick, currentTick())));
+    else setShown(state);
   }, [state, phase, currentTick]);
 
-  const moveTick = useCallback((): number => Math.max(currentTick(), latest.current.api.current()?.state.tick ?? 0), [currentTick]);
+  const moveTick = useCallback((): number => Math.max(currentTick(), latest.current.host.current()?.state.tick ?? 0), [currentTick]);
 
   return { shown, moveTick };
 }

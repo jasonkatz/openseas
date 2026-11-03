@@ -2,7 +2,7 @@
   "name": "@openseas/client",
   "version": "0.1.0",
   "private": true,
-  "description": "Renders; never authoritative. Vite, React, PixiJS v8.",
+  "description": "The game: one graphical experience (ADR 0018). Renders; never authoritative. Vite, React, PixiJS v8 through @openseas/boards.",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -14,11 +14,10 @@
     "lint": "echo no lint"
   },
   "dependencies": {
+    "@openseas/boards": "workspace:*",
     "@openseas/content": "workspace:*",
     "@openseas/engine": "workspace:*",
     "@openseas/protocol": "workspace:*",
-    "better-auth": "^1.4.0",
-    "pixi.js": "^8.6.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

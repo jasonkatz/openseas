@@ -24,3 +24,4 @@ that supersedes it.
 | [0016](./0016-ci-built-previews.md) | PR previews are built in CI and deployed to the production Vercel project |
 | [0017](./0017-railway-environment-per-pull-request.md) | Every pull request gets its own Railway environment, created from CI |
 | [0018](./0018-one-experience-and-a-puzzle-harness.md) | The game is one graphical experience; the puzzle practice pages become a separate harness |
+| [0019](./0019-boards-package-and-harness-bench.md) | One `boards` package draws for both applications; the harness is a bench around it |

@@ -391,10 +391,31 @@ the desired approach; the parts marked open are decided as they are built.
   world in three.js with PixiJS boards layered over it, or one renderer for both), how a board is
   embedded in the ship view, and how the harness and the game share board code.
 
-**The puzzle harness** is a separate application for testing the puzzles themselves: the practice
-pages as built in M1 and M2, one per engine, rated and unrated, with the HUD, legend, result card,
-settings and Playwright smoke. It is a developer and tester tool, never linked from the game, and
-talks to the same server (ADR 0018).
+**The puzzle harness** is a separate application for testing the puzzles themselves, at
+`test.openseas.online` (ADR 0018, ADR 0019). One page per engine carries the practice frame as
+built in M1 and M2 (start card, HUD, legend, result card, settings) around the same board the game
+draws, and a bench beside it:
+
+- **Three kinds of round.** Rated and unrated rounds are the game's own, untouched: rated through
+  the server and counted, unrated local on a random seed. A *lab* round is the harness's: it runs
+  locally on a chosen seed, a config made of the content config plus overrides, a chosen length
+  and a clock that can be slowed, paused and stepped a tick at a time. A lab config must pass the
+  same two checks the server applies to content (the wire schema and the engine's validator), so a
+  lab round is always one the server could have issued.
+- **Scenarios are links.** Seed, overrides, length, clock and hints live in the page's query
+  string; a condition worth testing is one URL, and a page opened with `start=lab` begins at once.
+  Presets name the conditions worth reaching for (specials galore, a quiet Gunnery deck, an
+  eight-star constellation, a one-minute round), and a seed finder searches for an opening board
+  that satisfies a probe (a keg on the board, deck 3, a comet first).
+- **The inspector** shows the engine's state, its hash, what differs from content, and the move log
+  with the hash after every move, exactly what a rated round sends.
+- **Replay is proven, not assumed.** When a round ends the bench replays its log from the seed and
+  compares every hash. A round can be copied out as JSON and pasted back on any machine (a
+  `puzzle_round` row from the database works too) and stepped through on the board, forward and
+  back, to the move a rejected round failed on.
+
+It is a developer and tester tool, never linked from the game, and talks to the same server. It
+is where testers practice and thresholds are calibrated until the game has in-world practice.
 
 ## 4. Architecture
 
@@ -410,8 +431,9 @@ pnpm monorepo. Packages:
 | `protocol` | Zod schemas for every client-server message | Shared by client and server |
 | `content` | World content JSON and its schemas | Validated at server start |
 | `server` | Node 22, `ws`, Drizzle, Better Auth | Owns all authority |
-| `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, PixiJS v8, three.js | Renders; never authoritative |
-| `harness` | The puzzle test harness: one practice page per engine, as built in M1 and M2 | A developer and tester tool; never linked from the game; renders, never authoritative |
+| `boards` | What both applications render with: the PixiJS boards and their art and sound, the round runner that streams move logs, the tick clock, the server connection, the shared stylesheet (ADR 0019) | Presentation and transport only; computes nothing the server does not recompute; no pages or routes |
+| `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
+| `harness` | The puzzle test harness (section 3.11): the practice frame per engine around the shared boards, plus the bench: lab rounds, scenarios, inspector, replay review | A developer and tester tool; never linked from the game; renders, never authoritative |
 
 ### 4.2 Puzzle authority: deterministic replay verification
 
@@ -434,7 +456,8 @@ the ship, menus and the puzzle boards embedded in one frame (section 3.11). Pixi
 puzzle boards, the sea battle and the island; the overworld is an isometric three.js diorama
 (first built in the closed M3 pass). React with Vite is the UI layer, used for in-scene menus,
 HUDs and panels, not for pages. Which renderer owns the unified scene, and how boards embed in
-it, are open (section 3.11). The harness is React pages with PixiJS boards, as built in M1 and M2.
+it, are open (section 3.11). The harness is React pages with the same PixiJS boards, from the shared
+`boards` package (ADR 0019), with its bench beside them.
 
 ### 4.5 Data
 
@@ -500,8 +523,9 @@ parts for the restart.
 - Node 22 LTS, pnpm, Docker Compose for local Postgres. One `pnpm dev` starts database, server,
   and client.
 - Claude works on branches and opens PRs. CI on GitHub Actions runs typecheck, Vitest, and
-  Playwright smoke tests: the harness's per-puzzle smoke, and a smoke of the game's shell from the
-  chart to a board and back. The owner reviews and merges.
+  Playwright smoke tests: the harness's per-puzzle smoke (which drives every board, and the bench's
+  lab, review and clock paths), and a smoke of the game's shell, from the chart to a board and back
+  once M3 lands. The owner reviews and merges.
 - Private repository through the placeholder-art phase. Open-sourcing and license are decided
   when art direction lands.
 
