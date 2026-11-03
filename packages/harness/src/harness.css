@@ -369,3 +369,12 @@
     top: 10px;
   }
 }
+
+/* ---- sign-in on the status card */
+.sign-in {
+  gap: 8px;
+  align-items: flex-start;
+}
+.sign-in .field input {
+  min-width: 220px;
+}

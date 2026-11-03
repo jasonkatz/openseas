@@ -375,7 +375,7 @@
   "harness.home.status": "This bench",
   "harness.home.pirate": "Playing as",
   "harness.home.guest": "guest",
-  "harness.home.needs_pirate": "No pirate yet: the server wants an invite code. Create one in the game first.",
+  "harness.home.needs_pirate": "No pirate on this server yet. Sign the articles to play rated rounds; the pirate is the same one the game sees.",
   "harness.home.server": "Server",
   "harness.home.server_same_origin": "same origin",
   "harness.home.server_commit": "commit {commit}",
@@ -389,5 +389,7 @@
   "harness.home.review_blurb": "Paste a round copied from a bench, or a puzzle_round row from the database, to step through it on its board.",
   "harness.home.review_open": "Open",
   "harness.home.footer": "A developer and tester tool. Not part of the game and not linked from it.",
-  "harness.scenario_locked": "The form opens again when the round ends."
+  "harness.scenario_locked": "The form opens again when the round ends.",
+  "harness.home.not_signed_in": "Not signed in",
+  "harness.needs_pirate_note": "No pirate on this server yet. Sign the articles on the home page to play rated rounds; unrated and lab rounds work without one."
 }

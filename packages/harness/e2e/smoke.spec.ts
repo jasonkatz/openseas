@@ -305,3 +305,32 @@ test("a lab round's clock can start paused, step a tick at a time, and run again
   await expect(readout).not.toContainText("paused");
   await expect(time).not.toHaveText(frozen!, { timeout: 5_000 });
 });
+
+/** A server that is up but wants an alpha invite code, as a preview copied from production does. */
+async function mockInviteGatedServer(page: Page): Promise<void> {
+  let pirate: unknown = null;
+  await page.route("**/api/me", (route) => route.fulfill({ json: { pirate, inviteRequired: true } }));
+  await page.route("**/api/auth/get-session", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "null" }));
+  await page.route("**/api/auth/sign-in/anonymous", (route) => route.fulfill({ json: { token: "t", user: { id: "u1", isAnonymous: true } } }));
+  await page.route("**/api/pirate", async (route) => {
+    const body = route.request().postDataJSON() as { inviteCode?: string };
+    if (body?.inviteCode !== "secret") return route.fulfill({ status: 403, json: { error: "invite_invalid" } });
+    pirate = { id: "p1", name: "Smoke Tester", guest: true, balance: 0, ratings: [], ships: [] };
+    return route.fulfill({ status: 201, json: { pirate } });
+  });
+}
+
+test("with a server that wants an invite code, the home signs the pirate in and the start card says so until then", async ({ page }) => {
+  await mockInviteGatedServer(page);
+  await page.goto("/bilging");
+  await expect(page.getByText("Sign the articles on the home page")).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByTestId("sign-in")).toBeVisible();
+  await expect(page.getByTestId("status-card")).toContainText("Not signed in");
+  await page.getByTestId("sign-in-invite").fill("wrong");
+  await page.getByTestId("sign-in-submit").click();
+  await expect(page.getByTestId("sign-in")).toContainText("isn't right");
+  await page.getByTestId("sign-in-invite").fill("secret");
+  await page.getByTestId("sign-in-submit").click();
+  await expect(page.getByTestId("status-pirate")).toContainText("Smoke Tester");
+});

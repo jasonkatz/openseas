@@ -66,8 +66,11 @@ is already closed. Vercel keeps the preview deployments; they cost nothing idle.
   number to sweep.
 - Deployment Protection's Standard Protection keeps both previews behind a Vercel login.
   The server's `/health` and API are public, as production's are.
-- The preview database is empty: you arrive as a new guest. Social sign-in does not work from a
-  preview (the OAuth apps' redirect URIs are production's); guest accounts do.
+- The preview database is empty: you arrive as a new guest. A preview environment copies
+  production's `ALPHA_INVITE_CODE`, so the first visit asks for the invite code; both the game's
+  and the harness's home pages take it, and the pirate it creates is shared by both front ends on
+  that preview. Social sign-in does not work from a preview (the OAuth apps' redirect URIs are
+  production's); guest accounts do.
 - A new production variable or setting is picked up by the next *new* preview environment, since
   it is a duplicate. An existing `pr-*` environment keeps what it copied; close and reopen the PR,
   or run **Preview cleanup** for it and push again, to recreate it.

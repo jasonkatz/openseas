@@ -115,7 +115,7 @@ const COMBO_PIPS = 8;
  * card, phone details panel, and room for the harness bench.
  */
 export function PracticeShell(p: ShellProps) {
-  const { socketStatus } = usePirate();
+  const { socketStatus, phase: piratePhase } = usePirate();
   const [muted, setMutedState] = useState(isMuted);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [benchOpen, setBenchOpen] = useState(false);
@@ -258,7 +258,9 @@ export function PracticeShell(p: ShellProps) {
               <p className="how how-kbd">{t(`${prefix}.how_to_keyboard`)}</p>
               {p.howTo}
               {p.best > 0 && <p className="best-line">{t("practice.best", { score: p.best })}</p>}
-              {!p.canRate && socketStatus !== "connecting" && <p className="note">{t("app.offline")}</p>}
+              {!p.canRate && socketStatus !== "connecting" && (
+                <p className="note">{piratePhase === "needs-pirate" ? t("harness.needs_pirate_note") : piratePhase === "loading" ? t("app.loading") : t("app.offline")}</p>
+              )}
               <div className="stack">
                 <button className="btn btn-brass" onClick={p.onStartRated} disabled={!p.canRate} data-testid="start-rated">
                   {t("practice.start")}

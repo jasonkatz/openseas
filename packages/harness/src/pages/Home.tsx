@@ -80,13 +80,25 @@ function useServerCommit(): { commit: string | null; failed: boolean } {
 }
 
 export function Home() {
-  const { phase, pirate, socketStatus } = usePirate();
+  const { phase, pirate, socketStatus, error, inviteRequired, createPirate } = usePirate();
   const { navigate } = useRoute();
   const server = useServerCommit();
   const [paste, setPaste] = useState("");
   const [pasteError, setPasteError] = useState<string | null>(null);
-  const statusClass = socketStatus === "open" ? "pip-live" : socketStatus === "connecting" ? "pip-wait" : "pip-off";
-  const statusText = socketStatus === "open" ? t("app.status_live") : socketStatus === "connecting" ? t("app.status_connecting") : t("app.status_offline");
+  const [invite, setInvite] = useState("");
+  const [signing, setSigning] = useState(false);
+  // The socket only opens once there is a pirate; before that the pip would read "offline" for a
+  // server that answered, so the row says what is true instead.
+  const statusClass = phase !== "ready" ? "pip-wait" : socketStatus === "open" ? "pip-live" : socketStatus === "connecting" ? "pip-wait" : "pip-off";
+  const statusText =
+    phase === "needs-pirate" ? t("harness.home.not_signed_in") : phase !== "ready" ? t("app.status_connecting") : socketStatus === "open" ? t("app.status_live") : socketStatus === "connecting" ? t("app.status_connecting") : t("app.status_offline");
+
+  const signIn = async (e: FormEvent): Promise<void> => {
+    e.preventDefault();
+    setSigning(true);
+    await createPirate(invite.trim() || undefined);
+    setSigning(false);
+  };
 
   const openRound = (e: FormEvent): void => {
     e.preventDefault();
@@ -116,7 +128,21 @@ export function Home() {
             <dd data-testid="status-pirate">
               {phase === "loading" && t("app.loading")}
               {phase === "offline" && t("app.offline")}
-              {phase === "needs-pirate" && t("harness.home.needs_pirate")}
+              {phase === "needs-pirate" && (
+                <form onSubmit={signIn} className="stack sign-in" data-testid="sign-in">
+                  <span>{t("harness.home.needs_pirate")}</span>
+                  {inviteRequired && (
+                    <label className="field">
+                      <span>{t("home.invite_label")}</span>
+                      <input value={invite} onChange={(e) => setInvite(e.target.value)} placeholder={t("home.invite_placeholder")} autoComplete="off" autoCapitalize="none" data-testid="sign-in-invite" />
+                    </label>
+                  )}
+                  {error && <span className="error small">{t(`error.${error}`)}</span>}
+                  <button className="btn btn-brass btn-mini" disabled={signing} type="submit" data-testid="sign-in-submit">
+                    {signing ? t("home.creating") : t("home.create_button")}
+                  </button>
+                </form>
+              )}
               {pirate && (
                 <>
                   {pirate.name}
