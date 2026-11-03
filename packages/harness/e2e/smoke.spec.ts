@@ -211,6 +211,9 @@ test("home links to Navigation and an unrated round turns a ring by key and brin
 });
 
 test("a lab round opens from a link with its seed and config, replays clean, and its log can be reviewed", async ({ page }) => {
+  // Three animated swaps, a review with board remounts and several settle checks: the longest test
+  // in the suite, and right at the budget on the CI phone profile.
+  test.slow();
   await page.goto("/bilging?seed=smoke-1&seconds=30&c.maxMoves=3&start=lab");
   const canvas = page.getByTestId("bilging-canvas");
   await expect(canvas).toBeVisible();
