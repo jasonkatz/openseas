@@ -54,7 +54,8 @@ export function validateConfig(cfg: BilgingConfig): void {
     cfg.minWaterRow >= 0 &&
     cfg.minWaterRow <= cfg.initialWaterRow &&
     cfg.initialWaterRow <= cfg.height &&
-    cfg.maxMoves > 0;
+    cfg.maxMoves > 0 &&
+    typeof cfg.shipWater === "boolean";
   if (!ok) throw new Error("invalid bilging config");
 }
 
@@ -67,6 +68,8 @@ export function waterUnitsPerRow(cfg: BilgingConfig): number {
  * drains a row per waterDropPerPoints points, then settles between the floor and the top.
  */
 export function waterAfterMove(cfg: BilgingConfig, water: number, points: number): number {
+  // Aboard a ship the bilge is the ship's; a swap leaves it where the last water event put it.
+  if (cfg.shipWater) return water;
   const per = waterUnitsPerRow(cfg);
   const next = water + cfg.waterDropPerPoints - points * cfg.waterRisePerMoves;
   return Math.max(cfg.minWaterRow * per, Math.min(cfg.height * per, next));
@@ -79,6 +82,8 @@ export function waterRowOf(cfg: BilgingConfig, water: number): number {
 export function reduceBilging(state: BilgingState, move: BilgingMove): BilgingState {
   if (state.finished) throw new InvalidMoveError("game is finished", move);
   switch (move.type) {
+    case "water":
+      return applyWater(state, move);
     case "end":
       return { ...state, finished: true, lastMove: { move, rounds: [], points: 0 } };
     case "swap":
@@ -143,6 +148,19 @@ export function swapIllegalReason(state: BilgingState, col: number, row: number)
   void b;
   return null;
 }
+
+/** The ship's water, as the ship's turn reported it. Counts as no move: the combo, the clock and the move cap are untouched. */
+function applyWater(state: BilgingState, move: Extract<BilgingMove, { type: "water" }>): BilgingState {
+  const cfg = state.config;
+  if (!cfg.shipWater) throw new InvalidMoveError("the board keeps its own water", move);
+  if (state.finished) throw new InvalidMoveError("game is finished", move);
+  if (!Number.isInteger(move.row) || move.row < 0 || move.row > cfg.height) throw new InvalidMoveError("water row out of range", move);
+  const water = move.row * waterUnitsPerRow(cfg);
+  return { ...state, water, waterRow: move.row, lastMove: { move, rounds: [], points: 0 } };
+}
+
+/** Water events the ship may inject over a board's life, on top of the swaps the cap allows. */
+export const SHIP_WATER_EVENTS_MAX = 64;
 
 function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap" }>): BilgingState {
   const reason = swapIllegalReason(state, move.col, move.row);

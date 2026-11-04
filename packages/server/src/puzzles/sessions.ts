@@ -7,6 +7,12 @@ export interface DutyBinding {
   readonly shipId: string;
   readonly station: PuzzleId;
   readonly voyageId: string;
+  /** Bilging only: the ship's bilge in rows when the board is dealt. */
+  readonly water?: number;
+}
+
+function isWaterMove(move: unknown): move is { type: "water"; row: number } {
+  return typeof move === "object" && move !== null && (move as { type?: unknown }).type === "water";
 }
 
 export interface PuzzleSession {
@@ -20,6 +26,8 @@ export interface PuzzleSession {
   readonly deadlineAt: number;
   /** Set when the board belongs to a ship; its points feed the ship each turn. */
   readonly duty: DutyBinding | null;
+  /** Bilging duty only: the ship's bilge in rows as last told to the client. A water move must say this. */
+  shipWaterRow: number | null;
   state: unknown;
   moves: unknown[];
   closed: boolean;
@@ -62,7 +70,9 @@ export class PuzzleSessionManager {
     const now = this.opts.now();
     const seed = this.opts.randomSeed();
     const def = PUZZLES[puzzle];
-    const { roundMs, config } = this.opts.puzzles[puzzle];
+    const { roundMs, config: content } = this.opts.puzzles[puzzle];
+    // Aboard a ship the Bilging board's water is the ship's bilge (DESIGN.md 3.3).
+    const config = duty && puzzle === "bilging" ? { ...(content as object), shipWater: true } : content;
     const session: PuzzleSession = {
       id: this.opts.randomId(),
       pirateId,
@@ -73,6 +83,7 @@ export class PuzzleSessionManager {
       startedAt: now,
       deadlineAt: now + roundMs,
       duty,
+      shipWaterRow: duty?.water ?? null,
       state: def.create(seed, config),
       moves: [],
       closed: false,
@@ -92,6 +103,8 @@ export class PuzzleSessionManager {
     const now = this.opts.now();
     if (now > session.deadlineAt + this.opts.graceMs) return this.reject(session, "deadline", seq);
     if (session.moves.length >= session.def.maxMoves(session.config)) return this.reject(session, "too_many_moves", seq);
+    // A water event is the ship's word, not the client's: it must repeat what the ship said.
+    if (isWaterMove(move) && move.row !== session.shipWaterRow) return this.reject(session, "illegal_move", seq);
     // Engines with their own clock may not claim a time ahead of the wall clock.
     const claimed = session.def.moveTimeMs?.(move, session.config);
     if (claimed !== undefined && session.startedAt + claimed > now + this.opts.graceMs) return this.reject(session, "illegal_move", seq);

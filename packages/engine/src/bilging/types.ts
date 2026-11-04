@@ -57,8 +57,14 @@ export interface BilgingConfig {
   readonly waterRisePerMoves: number;
   /** Water drops one row every this many points. */
   readonly waterDropPerPoints: number;
-  /** The game ends after this many moves. The ship clock will replace this at M3. */
+  /** The game ends after this many swaps. Aboard a ship the ship's clock ends the board first. */
   readonly maxMoves: number;
+  /**
+   * Aboard a ship the water is the ship's bilge, not the board's own: swaps neither raise nor
+   * drain it, and `water` moves, injected into the log from the ship's turns, set it (DESIGN.md
+   * 3.3). On the practice page this is false and the board keeps its own water.
+   */
+  readonly shipWater: boolean;
 }
 
 export const DEFAULT_BILGING_CONFIG: BilgingConfig = {
@@ -71,11 +77,14 @@ export const DEFAULT_BILGING_CONFIG: BilgingConfig = {
   waterRisePerMoves: 6,
   waterDropPerPoints: 40,
   maxMoves: 120,
+  shipWater: false,
 };
 
 export type BilgingMove =
   /** Swap the piece at (col,row) with the piece at (col+1,row). */
   | { readonly type: "swap"; readonly col: number; readonly row: number }
+  /** The ship's bilge is this many rows deep: a water event from the ship's turn (shipWater only). */
+  | { readonly type: "water"; readonly row: number }
   /** End the round early. */
   | { readonly type: "end" };
 

@@ -221,9 +221,28 @@ export class ShipService {
     if (!me || me.station === null) throw new ShipError("no_station");
     if (!room.state.voyage || !room.voyageId) throw new ShipError("not_at_sea");
     await this.endStation(room, me.station);
-    const started = this.puzzles.start(pirateId, me.station, { shipId: room.shipId, station: me.station, voyageId: room.voyageId });
+    const water = me.station === "bilging" ? this.bilgeRows(room) : undefined;
+    const started = this.puzzles.start(pirateId, me.station, { shipId: room.shipId, station: me.station, voyageId: room.voyageId, ...(water !== undefined ? { water } : {}) });
     room.stations.set(me.station, { sessionId: started.sessionId, lastScore: 0 });
     return started;
+  }
+
+  /** The ship's bilge as rows of the Bilging board: the board's water is the ship's (DESIGN.md 3.3). */
+  bilgeRows(room: ShipRoom): number {
+    const height = this.content.puzzles.bilging.config.height;
+    return Math.min(height, Math.round((room.state.water * height) / 1000));
+  }
+
+  /** After a turn, tell the pirate at the pump how deep the bilge is now; their board logs it as a water event. */
+  private pushBilge(room: ShipRoom): void {
+    const ss = room.stations.get("bilging");
+    if (!ss) return;
+    const session = this.puzzles.sessions.get(ss.sessionId);
+    if (!session || session.closed) return;
+    const row = this.bilgeRows(room);
+    if (session.shipWaterRow === row) return;
+    session.shipWaterRow = row;
+    room.conns.send(session.pirateId, { type: "duty.water", sessionId: session.id, row });
   }
 
   // ---- connections
@@ -265,6 +284,7 @@ export class ShipService {
             room.nextTurnAt += this.turnMs;
             turns += 1;
             await this.settle(room);
+            if (this.rooms.has(room.shipId)) this.pushBilge(room);
           }
           if (turns > 0 && this.rooms.has(room.shipId)) this.broadcast(room, []);
         } catch (e) {

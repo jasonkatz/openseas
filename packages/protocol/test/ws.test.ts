@@ -89,3 +89,12 @@ describe("ship protocol", () => {
     expect(parseServerMessage({ type: "ship.state", ship: { ...ship, water: 1001 }, events: [], serverNow: 1 })).toBeNull();
   });
 });
+
+describe("bilging water events", () => {
+  it("ride the wire as moves and narrow to Bilging", () => {
+    expect(parseMoveFor("bilging", { type: "water", row: 4 })).toEqual({ type: "water", row: 4 });
+    expect(parseMoveFor("bilging", { type: "water", row: 40 })).toBeNull();
+    expect(parseMoveFor("sailing", { type: "water", row: 4 })).toBeNull();
+    expect(parseServerMessage({ type: "duty.water", sessionId: "abcdefgh12345678", row: 3 })).toEqual({ type: "duty.water", sessionId: "abcdefgh12345678", row: 3 });
+  });
+});

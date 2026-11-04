@@ -4,6 +4,7 @@
  */
 import {
   DEFAULT_BILGING_CONFIG,
+  SHIP_WATER_EVENTS_MAX,
   createBilgingGame,
   hashBilgingState,
   reduceBilging,
@@ -98,7 +99,7 @@ export const BILGING_DEF: PuzzleDef<BilgingState, BilgingMove, BilgingConfig> = 
   hash: hashBilgingState,
   summarize: summarizeBilging,
   isFinished: (s) => s.finished,
-  maxMoves: (c) => c.maxMoves,
+  maxMoves: (c) => c.maxMoves + (c.shipWater ? SHIP_WATER_EVENTS_MAX : 0),
 };
 
 export const SAILING_DEF: PuzzleDef<SailingState, SailingMove, SailingConfig> = {
