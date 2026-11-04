@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_BATTLE_CONFIG,
   DEFAULT_BILGING_CONFIG,
   DEFAULT_CARPENTRY_CONFIG,
   DEFAULT_GUNNERY_CONFIG,
@@ -28,6 +29,7 @@ function manager(now: { t: number }, overrides: Partial<SessionManagerOptions> &
       carpentry: { roundMs: 60_000, config: DEFAULT_CARPENTRY_CONFIG },
       gunnery: { roundMs: 60_000, config: DEFAULT_GUNNERY_CONFIG },
       navigation: { roundMs: 60_000, config: DEFAULT_NAVIGATION_CONFIG },
+      battle: { roundMs: 60_000, config: DEFAULT_BATTLE_CONFIG },
     },
     now: () => now.t,
     randomSeed: () => `seed-${n++}`,

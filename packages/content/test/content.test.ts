@@ -11,7 +11,8 @@ describe("content", () => {
     expect(c.ratingTiers[0]?.min).toBe(0);
     expect(c.world.startIslandId).toBe("saltwick");
     expect(c.world.ship.turnSeconds).toBe(10);
-    for (const p of Object.values(c.puzzles)) expect(p.parScore).toBeGreaterThan(0);
+    for (const p of Object.values(c.puzzles)) if ("parScore" in p) expect(p.parScore).toBeGreaterThan(0);
+    expect(c.puzzles.battle.config.boards.length).toBeGreaterThan(0);
   });
 
   it("every leg is a whole number of ship turns, so a ship at full speed lands on a turn", () => {

@@ -12,10 +12,15 @@ const content = JSON.parse(readFileSync(new URL("../../content/data/puzzles/bilg
   config: Record<string, unknown>;
   roundSeconds: number;
 };
+const battle = JSON.parse(readFileSync(new URL("../../content/data/puzzles/battle.json", import.meta.url), "utf8")) as {
+  config: Record<string, unknown>;
+  roundSeconds: number;
+};
 
 const ME = { id: "p-me", name: "Salty Gull", guest: true, balance: 0, islandId: "saltwick", ratings: [], ships: [{ id: "ship-1", classId: "sloop", name: "The Salty Gull", islandId: "saltwick" }] };
 
-type Loc = { kind: "docked"; islandId: string } | { kind: "at-sea"; routeId: string; from: string; to: string; progress: number; hail: null };
+type Hail = { tierId: string; sinceTurn: number } | null;
+type Loc = { kind: "docked"; islandId: string } | { kind: "at-sea"; routeId: string; from: string; to: string; progress: number; hail: Hail; battle: Hail };
 
 /** A pretend ship room: one crew member, boards dealt on request, every turn a little further along. */
 class FakeShip {
@@ -23,7 +28,16 @@ class FakeShip {
   location: Loc = { kind: "docked", islandId: "saltwick" };
   turn = 0;
   sessions = 0;
+  /** Commit moves the captain's battle board sent. */
+  commits = 0;
   constructor(readonly ws: WebSocketRoute) {}
+
+  /** A brigand hails the ship. */
+  hail(): void {
+    if (this.location.kind !== "at-sea") return;
+    this.location = { ...this.location, hail: { tierId: "marauder", sinceTurn: this.turn } };
+    this.state([{ type: "hailed", tierId: "marauder" }]);
+  }
 
   snapshot(now: number) {
     return {
@@ -81,9 +95,32 @@ class FakeShip {
         this.state([{ type: "station", pirateId: ME.id, name: ME.name, station: this.station }]);
         return;
       case "ship.sail":
-        this.location = { kind: "at-sea", routeId: m.routeId as string, from: "saltwick", to: "gullhaven", progress: 0, hail: null };
+        this.location = { kind: "at-sea", routeId: m.routeId as string, from: "saltwick", to: "gullhaven", progress: 0, hail: null, battle: null };
         this.state([{ type: "sailed", routeId: m.routeId }]);
         return;
+      case "ship.engage": {
+        if (this.location.kind !== "at-sea" || !this.location.hail) {
+          this.send({ type: "error", code: "not_hailed" });
+          return;
+        }
+        const tierId = this.location.hail.tierId;
+        this.location = { ...this.location, hail: null, battle: { tierId, sinceTurn: this.turn } };
+        this.sessions += 1;
+        const sessionId = `battle-${this.sessions}-0000000`;
+        this.state([{ type: "engaged", tierId }]);
+        this.send({
+          type: "puzzle.started",
+          sessionId,
+          puzzle: "battle",
+          seed: `smoke-fight-${this.sessions}`,
+          config: { ...battle.config, turnSeconds: 10, supply: null },
+          deadlineAt: now + 600_000,
+          serverNow: now,
+          battle: { shipId: "ship-1", tierId },
+        });
+        this.send({ type: "battle.supply", sessionId, left: 1, forward: 2, right: 1, cannons: 2, hull: 40 });
+        return;
+      }
       case "duty.start": {
         if (!this.station || this.location.kind !== "at-sea") {
           this.send({ type: "error", code: this.station ? "not_at_sea" : "no_station" });
@@ -102,8 +139,17 @@ class FakeShip {
         });
         return;
       }
-      case "puzzle.move":
+      case "puzzle.move": {
+        const move = m.move as { type: string };
+        if (move.type !== "commit" || this.location.kind !== "at-sea" || !this.location.battle) return;
+        // One plot is a whole fight here: the brigand strikes her colours and the purse is shared.
+        this.commits += 1;
+        const tierId = this.location.battle.tierId;
+        this.send({ type: "puzzle.result", sessionId: m.sessionId, score: 740, moves: 1, bestCombo: 1, verified: true, rating: null, tierChange: null });
+        this.location = { ...this.location, battle: null };
+        this.state([{ type: "battle_ended", tierId, outcome: "boarded", booty: 600, turns: 1 }]);
         return;
+      }
       case "puzzle.finish":
       case "puzzle.abandon":
         this.send({ type: "puzzle.result", sessionId: m.sessionId, score: 12, moves: 1, bestCombo: 1, verified: true, rating: null, tierChange: null });
@@ -252,4 +298,41 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await page.getByTestId("toggle-marks").check();
   await page.getByTestId("menu-close").click();
   await expect(page.getByTestId("menu")).toHaveCount(0);
+});
+
+test("a brigand's hail is engaged at the wheel and the captain's battle board opens over the deck", async ({ page }) => {
+  test.setTimeout(180_000);
+  const server = await fakeServer(page);
+  await page.goto("/");
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "island");
+  await tapSpot(page, '[data-island="saltwick"][data-building="dock"]');
+  await page.getByTestId("board-ship-ship-1").click();
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
+  await tapSpot(page, '[data-wheel="1"]');
+  await page.getByTestId("dest-gullhaven").click();
+  await page.getByTestId("sail-now").click();
+  await expect(page.getByTestId("sheet")).toContainText("Gullhaven");
+
+  // The hail floats over the view with the captain's two answers; engaging deals the battle board.
+  await expect.poll(() => server.ship() !== null).toBe(true);
+  server.ship()!.hail();
+  await expect(page.getByTestId("ship-hail")).toBeVisible();
+  await page.getByTestId("engage").click();
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "battle");
+  await expect(page.getByTestId("battle-view")).toBeVisible();
+  await expect(page.getByTestId("battle-view")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
+  await expect(page.getByTestId("battle-canvas")).toBeVisible();
+  await expect(page.getByTestId("sheet")).toContainText("Marauder");
+  // The ship's deal is on the board: tokens to plot with. Plot ahead and sail it now.
+  await page.keyboard.press("w");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /"move":"forward"/);
+  await page.keyboard.press("Enter");
+  await expect.poll(() => server.ship()?.commits ?? 0).toBeGreaterThan(0);
+  // The fight is over: the outcome card, the purse in a toast, and the deck again.
+  await expect(page.getByTestId("battle-result")).toBeVisible();
+  await expect(page.getByTestId("toasts")).toContainText("Marauder");
+  await page.getByTestId("battle-back").click();
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
+  await page.getByTestId("sheet-toggle").click();
+  await expect(page.getByTestId("ship-log")).toContainText("Marauder");
 });

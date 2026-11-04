@@ -1,5 +1,5 @@
 [
-  { "id": "cutpurse", "nameKey": "brigand.cutpurse", "shipClassId": "sloop", "movesPerTurn": 2, "accuracy": 0.5, "aggression": 0.4, "booty": 300 },
-  { "id": "marauder", "nameKey": "brigand.marauder", "shipClassId": "sloop", "movesPerTurn": 3, "accuracy": 0.65, "aggression": 0.6, "booty": 600 },
-  { "id": "reaver", "nameKey": "brigand.reaver", "shipClassId": "sloop", "movesPerTurn": 4, "accuracy": 0.8, "aggression": 0.8, "booty": 1200 }
+  {"id": "cutpurse", "nameKey": "brigand.cutpurse", "shipClassId": "sloop", "movesPerTurn": 2, "reloadPerTurn": 1, "accuracy": 0.5, "aggression": 0.4, "booty": 300},
+  {"id": "marauder", "nameKey": "brigand.marauder", "shipClassId": "sloop", "movesPerTurn": 3, "reloadPerTurn": 1, "accuracy": 0.65, "aggression": 0.6, "booty": 600},
+  {"id": "reaver", "nameKey": "brigand.reaver", "shipClassId": "sloop", "movesPerTurn": 4, "reloadPerTurn": 2, "accuracy": 0.8, "aggression": 0.8, "booty": 1200}
 ]

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BattleConfigSchema, BattleMoveSchema } from "./battle.js";
 import { BilgingConfigSchema, BilgingMoveSchema } from "./bilging.js";
 import { CarpentryConfigSchema, CarpentryMoveSchema } from "./carpentry.js";
 import type { PuzzleIdWire } from "./common.js";
@@ -16,6 +17,7 @@ export const PUZZLE_MOVE_SCHEMAS = {
   carpentry: CarpentryMoveSchema,
   gunnery: GunneryMoveSchema,
   navigation: NavigationMoveSchema,
+  battle: BattleMoveSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
 export const PUZZLE_CONFIG_SCHEMAS = {
@@ -24,10 +26,11 @@ export const PUZZLE_CONFIG_SCHEMAS = {
   carpentry: CarpentryConfigSchema,
   gunnery: GunneryConfigSchema,
   navigation: NavigationConfigSchema,
+  battle: BattleConfigSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
 /** Every puzzle's move shapes, for consumers that want the union type. Not used on the wire (see ws.ts). */
-export const AnyMoveSchema = z.union([BilgingMoveSchema, SailingMoveSchema, CarpentryMoveSchema, GunneryMoveSchema, NavigationMoveSchema]);
+export const AnyMoveSchema = z.union([BilgingMoveSchema, SailingMoveSchema, CarpentryMoveSchema, GunneryMoveSchema, NavigationMoveSchema, BattleMoveSchema]);
 export type AnyMoveWire = z.infer<typeof AnyMoveSchema>;
 
 export type MoveWireFor<P extends PuzzleIdWire> = z.infer<(typeof PUZZLE_MOVE_SCHEMAS)[P]>;

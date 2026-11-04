@@ -210,6 +210,46 @@ test("home links to Navigation and an unrated round turns a ring by key and brin
   await expectViewMatchesState(page, "navigation");
 });
 
+test("home links to Sea Battle and an unrated fight plots by key and by tap and sails its plot", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("tile-battle").click();
+  await expect(page).toHaveURL(/\/battle$/);
+  await page.getByTestId("start-unrated").click();
+  const canvas = page.getByTestId("battle-canvas");
+  await expect(canvas).toBeVisible();
+  await expect(page.getByTestId("hud-moves")).toContainText("0/20");
+  await expectViewMatchesState(page, "battle");
+
+  // Keyboard: plot forward, forward, arm the port guns on the second move, then sail with enter.
+  await page.keyboard.press("w");
+  await page.keyboard.press("w");
+  await page.keyboard.press("q");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /"move":"forward".*"move":"forward","port":true/);
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("hud-moves")).toContainText("1/20");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", '{"segments":[],"grapple":false}');
+  await expectViewMatchesState(page, "battle");
+
+  // Pointer: the renderer says where its buttons sit; tap the left token, then the sail button.
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  const rect = async (id: string): Promise<number[]> => {
+    const attr = (await canvas.getAttribute("data-buttons")) ?? "";
+    const entry = attr.split(";").find((e) => e.startsWith(`${id}=`));
+    if (!entry) throw new Error(`no button ${id} in ${attr}`);
+    return entry.slice(id.length + 1).split(",").map(Number);
+  };
+  const tap = async (id: string): Promise<void> => {
+    const [x, y, w, h] = await rect(id);
+    await page.mouse.click(box.x + x! + w! / 2, box.y + y! + h! / 2);
+  };
+  await tap("token:left");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /"move":"left"/);
+  await tap("sail");
+  await expect(page.getByTestId("hud-moves")).toContainText("2/20");
+  await expectViewMatchesState(page, "battle");
+});
+
 test("a lab round opens from a link with its seed and config, replays clean, and its log can be reviewed", async ({ page }) => {
   // Three animated swaps, a review with board remounts and several settle checks: the longest test
   // in the suite, and right at the budget on the CI phone profile.

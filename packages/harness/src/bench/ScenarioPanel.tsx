@@ -57,7 +57,8 @@ export function ScenarioPanel<S, M, C>({ puzzle, scenario, labConfig, validation
   const copyLink = (): void => {
     void copyText(shareLink(window.location.origin, window.location.pathname, scenario)).then((ok) => setCopied(ok ? t("harness.copied") : t("harness.copy_failed")));
   };
-  const presetName = (id: string): string => (id.startsWith("deck_") ? t("harness.preset.deck", { n: id.slice(5) }) : t(`harness.preset.${id}`));
+  const presetName = (id: string): string =>
+    id.startsWith("deck_") ? t("harness.preset.deck", { n: id.slice(5) }) : id.startsWith("board_") ? t("harness.preset.board", { n: id.slice(6) }) : t(`harness.preset.${id}`);
 
   const overrideCount = Object.keys(scenario.overrides).length;
   if (locked) {

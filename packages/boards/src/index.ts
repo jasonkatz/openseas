@@ -27,3 +27,5 @@ export { gunneryViewString } from "./gunnery/renderer.js";
 export { NavigationBoard, type NavigationBoardProps } from "./navigation/NavigationBoard.jsx";
 export { StarIcon } from "./navigation/StarIcon.jsx";
 export { navigationViewString } from "./navigation/renderer.js";
+export { BattleBoard, type BattleBoardProps } from "./battle/BattleBoard.jsx";
+export { battleViewString } from "./battle/renderer.js";

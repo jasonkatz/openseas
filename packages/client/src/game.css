@@ -1192,6 +1192,25 @@ body {
   margin-top: 4px;
 }
 
+/* ---- the battle layer: the captain's board, landscape, wider than a station */
+
+.shell-wide .battle-layer {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "bar"
+    "board";
+  width: min(100%, 1100px);
+}
+.battle-line {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(240, 96, 77, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(240, 96, 77, 0.35);
+}
+
 /* ---- menu and toasts */
 
 .scrim {

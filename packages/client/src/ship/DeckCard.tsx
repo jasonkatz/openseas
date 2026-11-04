@@ -11,13 +11,15 @@ export interface DeckCardProps {
   me: string;
   onStation(station: StationWire): void;
   onHelm(): void;
+  /** The captain's way to the battle board while a fight is on. */
+  onBattle(): void;
 }
 
 /**
  * The deck, unfolded: the ship's vitals, the stations, the crew, the wheel, the chat and the log.
  * Its header (where the ship is, what to do next) is the sheet's, above. The next thing to do leads.
  */
-export function DeckCard({ ship, me, onStation, onHelm }: DeckCardProps) {
+export function DeckCard({ ship, me, onStation, onHelm, onBattle }: DeckCardProps) {
   const { notices, error, clearError, takeStation, leave, handWheel, lock } = useShip();
   const [wheelTo, setWheelTo] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
@@ -25,6 +27,7 @@ export function DeckCard({ ship, me, onStation, onHelm }: DeckCardProps) {
   const captain = ship.captainId === me;
   const owner = ship.ownerId === me;
   const atSea = ship.location.kind === "at-sea";
+  const battle = ship.location.kind === "at-sea" ? ship.location.battle : null;
   const stations = content.world.shipClasses.find((c) => c.id === ship.classId)?.stations ?? [];
 
   return (
@@ -32,6 +35,17 @@ export function DeckCard({ ship, me, onStation, onHelm }: DeckCardProps) {
       <p className="visually-hidden">
         {ship.name} <small className="muted">{className(ship.classId)}</small>
       </p>
+      {battle && (
+        <div className="battle-line" data-testid="deck-battle">
+          <b>{t("ship.in_battle", { brigand: tierName(battle.tierId) })}</b>
+          <p className="muted small">{captain ? t("ship.battle_blurb") : t("ship.battle_captain")}</p>
+          {captain && (
+            <button className="btn btn-brass btn-wide" onClick={onBattle} data-testid="to-battle">
+              {t("ship.battle_open")}
+            </button>
+          )}
+        </div>
+      )}
       {captain && !atSea && (
         <button className="btn btn-brass btn-wide" onClick={onHelm} data-testid="set-sail">
           {t("ship.set_sail")}
@@ -189,6 +203,12 @@ export function describeEvent(e: ShipEventWire): ReactNode {
       return t("ship.log_hailed", { brigand: tierName(e.tierId) });
     case "evaded":
       return t(e.auto ? "ship.log_evaded_auto" : "ship.log_evaded", { brigand: tierName(e.tierId) });
+    case "engaged":
+      return t("ship.log_engaged", { brigand: tierName(e.tierId) });
+    case "battle_ended": {
+      const key = e.outcome === "boarded" || e.outcome === "crippled" ? "ship.log_battle_won" : e.outcome === "boarded_by" || e.outcome === "crippled_by" ? "ship.log_battle_lost" : e.outcome === "disengaged" ? "ship.log_battle_disengaged" : "ship.log_battle_broke_off";
+      return t(key, { brigand: tierName(e.tierId), turns: e.turns, booty: e.booty });
+    }
     case "arrived":
       return t("ship.log_arrived", { island: islandName(e.islandId), minutes: minutes(e.turns * content.world.ship.turnSeconds) });
     case "abandoned":

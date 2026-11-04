@@ -21,6 +21,8 @@ export interface RoundOptions<S, M, C> {
   clock: Clock;
   /** Present for rated rounds; the move log streams to the server as it happens. */
   rated: { socket: GameSocket; sessionId: string } | null;
+  /** Moves the server already holds (a round resumed after a reconnect): replayed from the seed, never sent again. */
+  replay?: readonly M[];
   onChange(state: S, prev: S | null): void;
   onFinished(): void;
 }
@@ -38,6 +40,11 @@ export class PuzzleRound<S, M, C> {
 
   constructor(readonly opts: RoundOptions<S, M, C>) {
     this.state = opts.def.create(opts.seed, opts.config);
+    for (const move of opts.replay ?? []) {
+      const next = opts.def.reduce(this.state, move);
+      this.log.push({ seq: this.log.length, move, hash: opts.def.hash(next) });
+      this.state = next;
+    }
     opts.onChange(this.state, null);
     if (opts.def.isFinished(this.state)) this.finish();
   }

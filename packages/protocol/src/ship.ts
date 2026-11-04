@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { PuzzleIdSchema } from "./common.js";
+import { BattleOutcomeSchema } from "./battle.js";
+import { DutyPuzzleIdSchema } from "./common.js";
 
 /** Stations are the duty puzzles. */
-export const StationSchema = PuzzleIdSchema;
+export const StationSchema = DutyPuzzleIdSchema;
 export type StationWire = z.infer<typeof StationSchema>;
 
 const Id = z.string().min(1).max(64);
@@ -28,6 +29,8 @@ export const ShipLocationSchema = z.discriminatedUnion("kind", [
     progress: Permille,
     /** A brigand waiting on the captain's answer. */
     hail: z.object({ tierId: Id, sinceTurn: z.int().min(0) }).nullable(),
+    /** The fight under way: the ship holds position while the captain sails the battle board. */
+    battle: z.object({ tierId: Id, sinceTurn: z.int().min(0) }).nullable(),
   }),
 ]);
 export type ShipLocation = z.infer<typeof ShipLocationSchema>;
@@ -75,6 +78,9 @@ export const ShipEventWireSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("sailed"), routeId: Id }),
   z.object({ type: z.literal("hailed"), tierId: Id }),
   z.object({ type: z.literal("evaded"), tierId: Id, auto: z.boolean() }),
+  z.object({ type: z.literal("engaged"), tierId: Id }),
+  /** The fight is over. `booty` is the whole purse paid out on a win, in coins; 0 otherwise. */
+  z.object({ type: z.literal("battle_ended"), tierId: Id, outcome: BattleOutcomeSchema, booty: z.int().min(0), turns: z.int().min(0) }),
   z.object({ type: z.literal("arrived"), islandId: Id, turns: z.int().min(0) }),
   z.object({ type: z.literal("abandoned"), islandId: Id }),
 ]);

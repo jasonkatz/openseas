@@ -233,6 +233,14 @@ export function createWsServer(deps: WsDeps) {
       case "ship.evade":
         await ships.evade(conn.pirateId);
         return;
+      case "ship.engage": {
+        await dropActive(conn);
+        const started = await ships.engage(conn.pirateId);
+        conn.activeSessionId = started.sessionId;
+        send(ws, started);
+        ships.supplyNow(conn.pirateId);
+        return;
+      }
       case "ship.wheel":
         await ships.wheel(conn.pirateId, msg.pirateId);
         return;

@@ -143,6 +143,14 @@ export function reduceShip(state: ShipState, move: ShipMove): ShipState {
       return turn(state);
     case "evade":
       return evade(state, move);
+    case "engage":
+      return engage(state, move);
+    case "hit":
+      return hit(state, move);
+    case "fired":
+      return fired(state, move);
+    case "battle_end":
+      return battleEnd(state, move);
     case "away":
       return away(state, move.pirateId, move);
     case "back":
@@ -247,7 +255,7 @@ function sail(state: ShipState, leg: LegPlan, move: ShipMove): ShipState {
     ...state,
     rng,
     islandId: null,
-    voyage: { leg, progress: 0, startedTurn: state.turn, encounter, hail: null },
+    voyage: { leg, progress: 0, startedTurn: state.turn, encounter, hail: null, battle: null },
     pending: zeroOutputs(),
     events: [{ type: "sailed", routeId: leg.routeId }],
   };
@@ -267,6 +275,40 @@ function evade(state: ShipState, move: ShipMove): ShipState {
     ...state,
     voyage: { ...v, hail: null, encounter: { ...v.encounter, resolved: true } },
     events: [{ type: "evaded", tierId: v.hail.tierId, auto: false }],
+  };
+}
+
+function engage(state: ShipState, move: ShipMove): ShipState {
+  const v = state.voyage;
+  if (!v || !v.hail || !v.encounter) throw new InvalidMoveError("no brigand to engage", move);
+  if (v.battle) throw new InvalidMoveError("already in battle", move);
+  return {
+    ...state,
+    voyage: { ...v, hail: null, battle: { tierId: v.hail.tierId, sinceTurn: state.turn } },
+    events: [{ type: "engaged", tierId: v.hail.tierId }],
+  };
+}
+
+function hit(state: ShipState, move: Extract<ShipMove, { type: "hit" }>): ShipState {
+  if (!state.voyage?.battle) throw new InvalidMoveError("not in battle", move);
+  if (!int(move.damage, 0, PERMILLE)) throw new InvalidMoveError("bad damage", move);
+  return { ...state, damage: clamp(state.damage + move.damage, 0, PERMILLE), events: [] };
+}
+
+function fired(state: ShipState, move: Extract<ShipMove, { type: "fired" }>): ShipState {
+  if (!state.voyage?.battle) throw new InvalidMoveError("not in battle", move);
+  if (!int(move.shots, 0, 1000)) throw new InvalidMoveError("bad shots", move);
+  return { ...state, loaded: Math.max(0, state.loaded - move.shots), events: [] };
+}
+
+function battleEnd(state: ShipState, move: Extract<ShipMove, { type: "battle_end" }>): ShipState {
+  const v = state.voyage;
+  if (!v || !v.battle || !v.encounter) throw new InvalidMoveError("not in battle", move);
+  if (!int(move.booty, 0, 1_000_000_000) || !int(move.turns, 0, 1_000_000)) throw new InvalidMoveError("bad battle end", move);
+  return {
+    ...state,
+    voyage: { ...v, battle: null, encounter: { ...v.encounter, resolved: true } },
+    events: [{ type: "battle_ended", tierId: v.battle.tierId, outcome: move.outcome, booty: move.booty, turns: move.turns }],
   };
 }
 
@@ -326,7 +368,8 @@ function turn(state: ShipState): ShipState {
   let speed = Math.min(r.maxSpeed, r.idleSpeed + Math.floor((r.sailSpeed * outputs.sailing) / 100) + Math.floor((r.navSpeed * outputs.navigation) / 100));
   speed = Math.floor((speed * (PERMILLE - Math.floor((water * r.waterSlow) / PERMILLE))) / PERMILLE);
   speed = Math.floor((speed * (PERMILLE - Math.floor((damage * r.damageSlow) / PERMILLE))) / PERMILLE);
-  const advanced = Math.min(v.leg.lengthUnits - v.progress, speed * r.turnSeconds);
+  // In a fight the ship holds position; the stations still drive the battle board.
+  const advanced = v.battle ? 0 : Math.min(v.leg.lengthUnits - v.progress, speed * r.turnSeconds);
   const progress = v.progress + advanced;
 
   let loaded = s.loaded;
@@ -375,7 +418,9 @@ export function hashShipState(s: ShipState): string {
     const v = s.voyage;
     h.str(v.leg.routeId).int(v.progress).int(v.startedTurn);
     if (v.encounter) h.str(v.encounter.tierId).int(v.encounter.atUnits).int(v.encounter.resolved ? 1 : 0);
+    h.int(v.hail ? 1 : 0).int(v.battle ? 1 : 0);
     if (v.hail) h.str(v.hail.tierId).int(v.hail.sinceTurn);
+    if (v.battle) h.str(v.battle.tierId).int(v.battle.sinceTurn);
   }
   return h.digest();
 }

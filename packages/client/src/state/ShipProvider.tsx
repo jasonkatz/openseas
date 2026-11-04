@@ -26,6 +26,8 @@ export interface ShipContextValue {
   takeStation(station: StationWire | null): void;
   sail(routeId: string): void;
   evade(): void;
+  /** Captain only: fight the brigand that hailed. The battle board is dealt as a puzzle session. */
+  engage(): void;
   handWheel(pirateId: string): void;
   lock(inviteOnly: boolean): void;
   listBoard(): void;
@@ -59,6 +61,8 @@ const SHIP_ERRORS = new Set<ErrorCode>([
   "no_such_class",
   "short_of_coins",
   "aboard_a_ship",
+  "in_battle",
+  "not_in_battle",
 ]);
 
 /** Everything the client knows about the ship it is aboard comes from `ship.state`; nothing is simulated here. */
@@ -137,6 +141,7 @@ export function ShipProvider({ children }: { children: ReactNode }) {
       takeStation: (station) => send({ type: "ship.station", station }),
       sail: (routeId) => send({ type: "ship.sail", routeId }),
       evade: () => send({ type: "ship.evade" }),
+      engage: () => send({ type: "ship.engage" }),
       handWheel: (pirateId) => send({ type: "ship.wheel", pirateId }),
       lock: (inviteOnly) => send({ type: "ship.lock", inviteOnly }),
       listBoard: () => void socket.send({ type: "board.list" }),

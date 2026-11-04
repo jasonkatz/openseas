@@ -1,4 +1,5 @@
 import {
+  BATTLE_DEF,
   BILGING_DEF,
   CARPENTRY_DEF,
   GUNNERY_DEF,
@@ -6,6 +7,9 @@ import {
   SAILING_DEF,
   Special,
   navigationShapeOf,
+  type BattleConfig,
+  type BattleMove,
+  type BattleState,
   type BilgingConfig,
   type BilgingMove,
   type BilgingState,
@@ -27,7 +31,7 @@ import {
 import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
 import type { z } from "zod";
-import { PRESETS, deckPresets, type Preset } from "./scenario/presets.js";
+import { PRESETS, boardPresets, deckPresets, type Preset } from "./scenario/presets.js";
 
 /** A condition on an opening state the seed finder can search for. Named by `harness.probe.<puzzle>.<id>`. */
 export interface SeedProbe<S> {
@@ -137,6 +141,22 @@ export const NAVIGATION: HarnessPuzzle<NavigationState, NavigationMove, Navigati
   hints: true,
 };
 
+export const BATTLE: HarnessPuzzle<BattleState, BattleMove, BattleConfig> = {
+  id: "battle",
+  def: BATTLE_DEF,
+  config: c.battle.config,
+  roundSeconds: c.battle.roundSeconds,
+  configSchema: PUZZLE_CONFIG_SCHEMAS.battle,
+  presets: [...PRESETS.battle, ...boardPresets(c.battle.config.boards)],
+  probes: [
+    ...c.battle.config.boards.map((_, i) => ({ id: "board", vars: { n: i + 1 }, test: (s: BattleState) => s.boardIndex === i })),
+    { id: "sloop_ahead", test: (s) => s.ships[0].x === s.ships[1].x },
+  ],
+  locked: [],
+  ticked: null,
+  hints: false,
+};
+
 /** Every puzzle on the bench, erased for generic code (the home page, the review loader). */
 export const HARNESS_PUZZLES: Readonly<Record<PuzzleId, HarnessPuzzle<unknown, unknown, unknown>>> = {
   bilging: BILGING as unknown as HarnessPuzzle<unknown, unknown, unknown>,
@@ -144,4 +164,5 @@ export const HARNESS_PUZZLES: Readonly<Record<PuzzleId, HarnessPuzzle<unknown, u
   carpentry: CARPENTRY as unknown as HarnessPuzzle<unknown, unknown, unknown>,
   gunnery: GUNNERY as unknown as HarnessPuzzle<unknown, unknown, unknown>,
   navigation: NAVIGATION as unknown as HarnessPuzzle<unknown, unknown, unknown>,
+  battle: BATTLE as unknown as HarnessPuzzle<unknown, unknown, unknown>,
 };
