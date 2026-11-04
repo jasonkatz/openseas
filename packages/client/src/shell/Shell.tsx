@@ -102,11 +102,22 @@ export function Shell() {
     if (place.kind === "helm" && ship && (ship.location.kind !== "docked" || !captain)) go({ kind: "home" });
   }, [place.kind, ship, captain, go]);
 
-  // Rooms and the helm want their card open; arriving anywhere else folds it so the view is clear.
+  // Rooms and the helm want their card open; arriving anywhere else folds it so the view is clear,
+  // except when the pirate stepped back a level in the card, which stays open where they came from.
   const placeKey = place.kind === "island" ? `${place.kind}:${place.id}:${place.room}` : place.kind === "station" ? `station:${place.station}` : place.kind;
+  const openOnArrive = useRef(false);
   useEffect(() => {
-    setSheetOpen((place.kind === "island" && place.room !== "none") || place.kind === "helm");
+    setSheetOpen(openOnArrive.current || (place.kind === "island" && place.room !== "none") || place.kind === "helm");
+    openOnArrive.current = false;
   }, [placeKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Go somewhere as a step back in the card: the card stays open there. */
+  const goBack = useCallback(
+    (next: Place) => {
+      openOnArrive.current = true;
+      go(next);
+    },
+    [go],
+  );
 
   // ---- the notice board doubles as the chart's list of ships: refresh it while looking around.
   useEffect(() => {
@@ -329,7 +340,7 @@ export function Shell() {
     };
   } else if (ship && place.kind === "helm") {
     card = <HelmCard ship={ship} pick={helmPick} onPick={setHelmPick} onCancel={() => go({ kind: "home" })} />;
-    head = { title: t("ship.set_sail"), subtitle: ship.name, next: t("next.helm"), back: { onClick: () => go({ kind: "home" }), testId: "helm-back" } };
+    head = { title: t("ship.set_sail"), subtitle: ship.name, next: t("next.helm"), back: { onClick: () => goBack({ kind: "home" }), testId: "helm-back" } };
   } else if (place.kind === "island") {
     const isHere = place.id === (here ?? ashoreAt);
     const roomKey = place.room === "dock" ? "island.dock" : place.room === "tavern" ? "island.tavern" : place.room === "notice" ? "island.notice_board" : null;
@@ -339,13 +350,7 @@ export function Shell() {
           title: t(roomKey),
           subtitle: islandName(place.id),
           next: t(`${roomKey}_blurb`),
-          back: {
-            onClick: () => {
-              go({ kind: "island", id: place.id, room: "none" });
-              setSheetOpen(false);
-            },
-            testId: "island-back",
-          },
+          back: { onClick: () => goBack({ kind: "island", id: place.id, room: "none" }), testId: "island-back" },
         }
       : {
           title: islandName(place.id),

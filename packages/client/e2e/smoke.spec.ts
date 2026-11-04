@@ -183,7 +183,12 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await page.getByTestId("chat-input-island").fill("ahoy");
   await page.getByTestId("chat-input-island").press("Enter");
   await expect(page.getByTestId("chat-island")).toContainText("ahoy");
+  // Back steps out of the room to the island's buildings with the card still open; the chevron folds it.
   await page.getByTestId("island-back").click();
+  await expect(page.getByTestId("sheet")).toHaveAttribute("data-open", "1");
+  await expect(page.getByTestId("island-card")).toHaveAttribute("data-room", "none");
+  await expect(page.getByTestId("building-dock")).toBeVisible();
+  await page.getByTestId("sheet-toggle").click();
   await expect(page.getByTestId("sheet")).toHaveAttribute("data-open", "0");
 
   // The dock boards the pirate's own sloop; the scene moves in on the deck.
