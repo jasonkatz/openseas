@@ -65,8 +65,8 @@ export interface Deck {
   shipId: string;
   stations: DeckStation[];
   crew: DeckCrew[];
-  /** The wheel's spot: what it offers the viewer, or null to show none (not the captain). */
-  wheel: { label: string; who: string | null } | null;
+  /** The wheel's spot: what it offers the viewer, or null to show none (not the captain). `primary` marks it as the next thing to do. */
+  wheel: { label: string; who: string | null; primary: boolean } | null;
 }
 /** Fractions of the viewport covered by the shell's panels, so the focus lands in the clear. */
 export interface Insets {
@@ -571,6 +571,7 @@ export class WorldScene {
       if (name) name.textContent = deck.wheel.label;
       const who = this.wheelSpot.el.querySelector(".ow-spot-who");
       if (who) who.textContent = deck.wheel.who ?? "";
+      this.wheelSpot.el.classList.toggle("is-primary", deck.wheel.primary);
       hideSpot(this.wheelSpot, false);
     } else if (this.wheelSpot) hideSpot(this.wheelSpot, true);
   }
@@ -1078,8 +1079,11 @@ varying float vWave;`,
   }
 
   /**
-   * The deck's spots are a hand's width apart, so their labels stand in a column beside the ship,
-   * in deck order, each with a leader to its pin: a callout diagram rather than a pile of pills.
+   * The deck's spots are a hand's width apart, so their labels stand in two columns, one each side
+   * of the hull: a pin on the port half of the deck gets its label on the left, a pin on the
+   * starboard half on the right, each column in deck order from bow to stern. Leaders never cross
+   * and stay short: a callout diagram rather than a pile of pills. When one side has no room
+   * (the card unfolded beside the ship) every label stands on the other.
    */
   private placeCallouts(spots: { spot: Spot; world: THREE.Vector3; still: THREE.Vector3 }[]): void {
     if (spots.length === 0) return;
@@ -1087,7 +1091,7 @@ varying float vWave;`,
     const h = this.host.clientHeight;
     const cam = this.rig.camera;
     const insets = this.input?.insets ?? { top: 0, bottom: 0, left: 0, right: 0 };
-    const pins: { spot: Spot; x: number; y: number; sy: number }[] = [];
+    const pins: { spot: Spot; x: number; y: number; sx: number; sy: number }[] = [];
     let minX = Infinity;
     let maxX = -Infinity;
     let maxWidth = 0;
@@ -1098,33 +1102,50 @@ varying float vWave;`,
       this.tmp.copy(still).project(cam);
       const sx = (this.tmp.x * 0.5 + 0.5) * w;
       const sy = (-this.tmp.y * 0.5 + 0.5) * h;
-      pins.push({ spot, x, y, sy });
+      pins.push({ spot, x, y, sx, sy });
       minX = Math.min(minX, sx);
       maxX = Math.max(maxX, sx);
       maxWidth = Math.max(maxWidth, spot.el.offsetWidth);
     }
-    pins.sort((a, b) => a.sy - b.sy);
+    const leftEdge = w * insets.left + 8;
+    const rightEdge = w * (1 - insets.right) - 8;
+    const roomRight = rightEdge - (maxX + 40);
+    const roomLeft = minX - 40 - leftEdge;
+    // Two columns of equal weight, the portmost half of the pins on the left, unless one side has
+    // no room at all (the card unfolded beside the ship) or there are too few spots to split;
+    // otherwise everything on the roomier side.
+    const both = roomRight > 0 && roomLeft > 0 && pins.length > 2;
+    const byX = [...pins].sort((a, b) => a.sx - b.sx);
+    const half = Math.ceil(byX.length / 2);
+    const sides: { right: boolean; pins: typeof pins }[] = both
+      ? [
+          { right: false, pins: byX.slice(0, half) },
+          { right: true, pins: byX.slice(half) },
+        ]
+      : [{ right: roomRight >= roomLeft, pins }];
     const gap = 44;
-    // The column stands on whichever side has more room, and never past the screen's edge.
-    const roomRight = w * (1 - insets.right) - 8 - (maxX + 56);
-    const roomLeft = minX - 56 - (w * insets.left + 8);
-    const right = roomRight >= roomLeft;
-    const col = right ? Math.min(maxX + 56, w * (1 - insets.right) - 8 - maxWidth) : Math.max(minX - 56, w * insets.left + 8 + maxWidth);
     const top = h * insets.top + 24;
     const bottom = h * (1 - insets.bottom) - 24;
-    const meanY = pins.reduce((n, p) => n + p.sy, 0) / pins.length;
-    let y0 = meanY - ((pins.length - 1) * gap) / 2;
-    y0 = Math.max(top, Math.min(bottom - (pins.length - 1) * gap, y0));
-    pins.forEach((p, i) => {
-      const ly = y0 + i * gap;
-      p.spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
-      p.spot.el.style.transform = `translate(${col.toFixed(1)}px, ${ly.toFixed(1)}px)${right ? "" : " translate(-100%, 0)"}`;
-      p.spot.el.classList.toggle("is-flipped", !right);
-      p.spot.line.setAttribute("x1", p.x.toFixed(1));
-      p.spot.line.setAttribute("y1", p.y.toFixed(1));
-      p.spot.line.setAttribute("x2", (right ? col : col).toFixed(1));
-      p.spot.line.setAttribute("y2", (ly + 14).toFixed(1));
-    });
+    for (const side of sides) {
+      if (side.pins.length === 0) continue;
+      const colPins = side.pins.sort((a, b) => a.sy - b.sy);
+      const nearest = side.right ? Math.max(...colPins.map((p) => p.sx)) : Math.min(...colPins.map((p) => p.sx));
+      // The column stands a hand's width off the pins it serves, and never past the screen's edge.
+      const col = side.right ? Math.min(nearest + 40, rightEdge - maxWidth) : Math.max(nearest - 40, leftEdge + maxWidth);
+      const meanY = colPins.reduce((n, p) => n + p.sy, 0) / colPins.length;
+      let y0 = meanY - ((colPins.length - 1) * gap) / 2;
+      y0 = Math.max(top, Math.min(bottom - (colPins.length - 1) * gap, y0));
+      colPins.forEach((p, i) => {
+        const ly = y0 + i * gap;
+        p.spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+        p.spot.el.style.transform = `translate(${col.toFixed(1)}px, ${ly.toFixed(1)}px)${side.right ? "" : " translate(-100%, 0)"}`;
+        p.spot.el.classList.toggle("is-flipped", !side.right);
+        p.spot.line.setAttribute("x1", p.x.toFixed(1));
+        p.spot.line.setAttribute("y1", p.y.toFixed(1));
+        p.spot.line.setAttribute("x2", col.toFixed(1));
+        p.spot.line.setAttribute("y2", (ly + 14).toFixed(1));
+      });
+    }
   }
 
   // ---- picking

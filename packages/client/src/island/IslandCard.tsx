@@ -13,14 +13,13 @@ export interface IslandCardProps {
   /** The island the pirate stands on. */
   here: string;
   onRoom(room: IslandRoom): void;
-  onBack(): void;
 }
 
 const ROOM_OF: Record<string, IslandRoom> = { dock: "dock", tavern: "tavern", "notice-board": "notice" };
 const KEY_OF: Record<IslandRoom, string> = { none: "", dock: "island.dock", tavern: "island.tavern", notice: "island.notice_board" };
 
-/** An island moved in on: its buildings are the menus (DESIGN.md 3.11). */
-export function IslandCard({ id, room, here, onRoom, onBack }: IslandCardProps) {
+/** An island moved in on: its buildings are the menus (DESIGN.md 3.11). The header is the sheet's, above. */
+export function IslandCard({ id, room, here, onRoom }: IslandCardProps) {
   const island = content.world.islands.find((i) => i.id === id);
   const isHere = id === here;
   const route = !isHere ? routeBetween(here, id) : null;
@@ -28,24 +27,10 @@ export function IslandCard({ id, room, here, onRoom, onBack }: IslandCardProps) 
 
   return (
     <section className="card island-card" data-testid="island-card" data-island={id} data-room={room}>
-      <header className="card-head with-back">
-        <button className="icon-btn" onClick={room === "none" ? onBack : () => onRoom("none")} aria-label={t("app.back")} data-testid="island-back">
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-            <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        <div>
-          <p className="eyebrow">
-            {room !== "none" ? t(KEY_OF[room]) : isHere ? t("world.you_are_here") : route ? t("world.sail_from_here", { minutes: minutes(route.durationSeconds), island: islandName(here) }) : t("world.no_lane", { island: islandName(here) })}
-          </p>
-          <h2>{islandName(id)}</h2>
-        </div>
-      </header>
-
       {room === "none" && (
         <>
           <p className="blurb">{islandBlurb(id)}</p>
-          {!isHere && <p className="note">{t("world.far_away", { island: islandName(here) })}</p>}
+          {!isHere && <p className="note">{route ? t("world.sail_from_here", { minutes: minutes(route.durationSeconds), island: islandName(here) }) : t("world.no_lane", { island: islandName(here) })}</p>}
           <ul className="buildings">
             {island.buildings.map((b) => (
               <li key={b}>

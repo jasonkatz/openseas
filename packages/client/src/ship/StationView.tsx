@@ -13,19 +13,24 @@ export interface StationViewProps {
   station: StationWire;
   showMarks: boolean;
   onBack(): void;
+  /** The captain's way to the wheel from a station that is waiting for the ship to sail. */
+  onHelm(): void;
 }
 
 /**
  * A station with its board open, over the deck (DESIGN.md 3.11). The board gets the screen: one
  * thin bar above it carries the way back, the station's name, the board's score and clock, and the
- * ship as three small bars (bilge, hull, the turn). A tap on them unfolds the full ship status and
- * last turn's output; a wide screen shows it unfolded. Boards are dealt as long as the ship is at sea.
+ * ship as two labeled bars (bilge, hull) with the turn clock. A tap on them unfolds the full ship
+ * status and last turn's output; a wide screen keeps it unfolded in a rail beside the board. Boards
+ * are dealt as long as the ship is at sea; docked, the station says what it is waiting for.
  */
-export function StationView({ ship, me, station, showMarks, onBack }: StationViewProps) {
+export function StationView({ ship, me, station, showMarks, onBack, onHelm }: StationViewProps) {
   const wide = useMediaQuery("(min-width: 900px)");
   const [open, setOpen] = useState(false);
   const details = open || wide;
   const atSea = ship.location.kind === "at-sea";
+  const captain = ship.captainId === me;
+  const captainName = ship.crew.find((c) => c.captain)?.name ?? "";
   const lastOutput = ship.lastTurn ? (ship.lastTurn.outputs[station] ?? 0) : null;
   return (
     <section className="station-layer" data-testid={`station-view-${station}`}>
@@ -52,41 +57,37 @@ export function StationView({ ship, me, station, showMarks, onBack }: StationVie
                   </span>
                 </div>
                 <button className={`station-ship ${details ? "is-open" : ""}`} onClick={() => setOpen((o) => !o)} aria-expanded={details} aria-label={t("ship.title")} data-testid="station-ship-toggle">
-                  <ShipHud ship={ship} slim mini />
+                  <ShipHud ship={ship} mini />
                 </button>
               </header>
               {details && (
-                <div className="station-details" data-testid="station-details">
+                <aside className="station-details" data-testid="station-details">
                   <ShipHud ship={ship} slim />
-                  <div className="duty-strip">
-                    <div className="stat">
-                      <span className="stat-label">{t("ship.duty_output")}</span>
-                      <span className="stat-value" data-testid="duty-output">
-                        {lastOutput === null ? t("ship.output_none") : t("ship.output_percent", { percent: lastOutput })}
-                      </span>
-                    </div>
-                    <div className="stat">
-                      <span className="stat-label">{t("ship.duty_board")}</span>
-                      <span className="stat-value">{fmtClock(api.timeLeft)}</span>
-                      <span className="bar" aria-hidden="true">
-                        <i style={{ width: `${(api.timeLeft / Math.max(1, api.roundSeconds)) * 100}%` }} />
-                      </span>
-                    </div>
-                    <div className="stat">
-                      <span className="stat-label">{t("ship.duty_score")}</span>
-                      <span className="stat-value">{score}</span>
-                    </div>
-                  </div>
-                </div>
+                  <p className="last-turn muted small" data-testid="duty-output">
+                    {lastOutput === null ? t("ship.last_turn_none") : t("ship.last_turn_output", { percent: lastOutput })}
+                  </p>
+                  <HailBanner ship={ship} me={me} inline />
+                </aside>
               )}
-              <HailBanner ship={ship} me={me} inline />
+              {!details && <HailBanner ship={ship} me={me} inline />}
               <div className={`board-wrap ${lowTime ? "low-time" : ""} ${playing ? "is-playing" : ""}`} data-testid="duty-board-wrap" data-phase={api.phase}>
                 {board(playing)}
                 {!playing && (
                   <div className="board-veil">
                     {!atSea && (
-                      <div className="veil-card veil-card-slim">
-                        <p className="how">{t("ship.duty_waits_for_sea")}</p>
+                      <div className="veil-card veil-card-slim" data-testid="duty-docked">
+                        <p className="eyebrow">{stationName(station)}</p>
+                        <p className="how">{captain ? t("ship.duty_waits_for_sea") : t("ship.waiting_for_captain", { captain: captainName })}</p>
+                        <div className="row">
+                          {captain && (
+                            <button className="btn btn-brass" onClick={onHelm} data-testid="duty-set-sail">
+                              {t("ship.set_sail")}
+                            </button>
+                          )}
+                          <button className="btn btn-ghost" onClick={onBack}>
+                            {t("ship.duty_back")}
+                          </button>
+                        </div>
                       </div>
                     )}
                     {atSea && (api.phase === "idle" || api.phase === "dealing") && (

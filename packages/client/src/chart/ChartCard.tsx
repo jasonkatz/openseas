@@ -1,5 +1,5 @@
 import type { BoardShip } from "@openseas/protocol";
-import { content, t, usePirate } from "@openseas/boards";
+import { t, usePirate } from "@openseas/boards";
 import { className, islandName, minutes, routeBetween } from "../names.js";
 import { useShip } from "../state/ShipProvider.jsx";
 
@@ -13,7 +13,7 @@ export interface ChartCardProps {
   onClearPick(): void;
 }
 
-/** The ocean at a glance: where the pirate stands, who is out, and what was tapped. */
+/** The ocean at a glance: who is out, and what was tapped. The header above says where the pirate stands. */
 export function ChartCard({ here, pick, shipPick, aboard, onIsland, onBackAboard, onClearPick }: ChartCardProps) {
   const { pirate, socketStatus } = usePirate();
   const { board, boardShip, error } = useShip();
@@ -24,29 +24,21 @@ export function ChartCard({ here, pick, shipPick, aboard, onIsland, onBackAboard
 
   return (
     <section className="card chart-card" data-testid="chart-card">
-      {aboard ? (
-        <>
-          <p className="eyebrow">{t("world.aboard", { ship: "" }).trim()}</p>
-          <button className="btn btn-brass" onClick={onBackAboard} data-testid="back-aboard">
-            {t("ship.duty_back")}
-          </button>
-        </>
-      ) : (
-        <>
-          <p className="eyebrow">{t("world.ashore_at", { island: islandName(here) })}</p>
-          {!pick && !shipPick && <h2 className="chart-title">{t("world.tap_hint")}</h2>}
-        </>
+      {aboard && (
+        <button className="btn btn-brass" onClick={onBackAboard} data-testid="back-aboard">
+          {t("ship.duty_back")}
+        </button>
       )}
 
       {pick && (
         <div className="pick" data-testid="chart-pick">
-          <h2>{islandName(pick)}</h2>
+          <h3 className="pick-name">{islandName(pick)}</h3>
           <p className="muted small">
             {pick === here ? t("world.you_are_here") : routeBetween(here, pick) ? t("world.sail_from_here", { minutes: minutes(routeBetween(here, pick)!.durationSeconds), island: islandName(here) }) : t("world.no_lane", { island: islandName(here) })}
           </p>
           <div className="row">
             <button className="btn btn-brass" onClick={() => onIsland(pick)} data-testid="visit-island">
-              {islandName(pick)}
+              {t("world.look_closer")}
             </button>
             <button className="btn btn-ghost" onClick={onClearPick}>
               {t("app.back")}
@@ -90,7 +82,6 @@ export function ChartCard({ here, pick, shipPick, aboard, onIsland, onBackAboard
       )}
       {!online && <p className="note">{t("app.offline")}</p>}
       {error && <p className="error">{t(`error.${error}`)}</p>}
-      {content.world.islands.length > 0 && null}
     </section>
   );
 }

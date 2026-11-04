@@ -407,12 +407,15 @@ sea cropped away, clouds kept off it, followed along its lane; the chart is wher
 position in the ocean is seen), and the whole ocean (the chart, behind a map button, where islands are tapped to
 look closer). Places are `/` (home), `/chart`, `/island/:id` (with `/dock`, `/tavern`,
 `/notice`), `/ship`, `/ship/:station` and `/ship/helm`. The card for the place is folded to a
-thin strip at the bottom of a phone (the right of a wide screen) with the place's name and, aboard,
-mini bilge, hull and turn-clock bars; it unfolds on a tap or when a room or the helm needs it, and
-folds again on every move so the view stays clear. The same actions hang on the geometry as spots:
-a pin at the thing with a label beside it and a leader between (a building on its island; on the
-deck, each station with who is at it and the wheel, laid out as a callout column beside the hull),
-so a tap in the world or on the card does the same thing. A brigand's hail floats over the view. The dock lists
+thin strip at the bottom of a phone (the right of a wide screen) that is the card's one header: the
+place's name, where the pirate is, one line saying the obvious next thing to do (board the ship at
+the dock, set sail, take a station) and, aboard, bilge, hull and turn-clock bars with their labels
+and numbers; it unfolds on a tap or when a room or the helm needs it, and folds again on every move
+so the view stays clear. The same actions hang on the geometry as spots: a pin at the thing with a
+label beside it and a leader between (a building on its island; on the deck, each station with who
+is at it and the wheel, the labels standing in two columns either side of the hull so no leader
+crosses another, the wheel lit as the next thing to do when the captain can sail), so a tap in the
+world or on the card does the same thing. A brigand's hail floats over the view. The dock lists
 the pirate's ships here and the shipyard (every class with its price, bought with the one
 acquisition path, ADR 0010); the notice board lists ships recruiting here and ships at sea, each
 joinable; the tavern lists who is ashore, carries the island chat channel and shows the pirate's
@@ -421,8 +424,10 @@ stations with who holds each and last turn's output, the crew as pegs on the dec
 the wheel (the captain picks a destination on the chart and sets sail; a hail asks them to evade),
 the ship chat and the ship's log. Taking a station opens its board in a layer over the dimmed
 world; the board gets the screen, with one thin bar above it (the way back, the station's name,
-the board's score and clock, and the ship as three small bars) that unfolds on a tap into the full
-ship status and last turn's output; boards are dealt back to back while the ship is at sea, a
+the board's score and clock, and the ship as labeled bilge and hull bars with the turn clock) that
+unfolds on a tap into the full ship status and last turn's output, kept unfolded in a rail beside
+the board on a wide screen; a station taken while docked says it is waiting for the ship to sail
+and hands the captain the wheel; boards are dealt back to back while the ship is at sea, a
 station standing down or the ship docking cuts the board short, and the board returns to the
 deck. Docked ships tie up alongside the dock, the first on its near side and the next on its far. One menu holds sound, the
 marks setting, the account and sign-out. Toasts carry what happens aboard. A software renderer gets

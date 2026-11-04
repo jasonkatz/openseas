@@ -256,6 +256,23 @@ body {
 .ow-spot-wheel .ow-spot-name {
   color: var(--brass);
 }
+.ow-spot-wheel.is-primary {
+  background: linear-gradient(180deg, #e9bd63, var(--brass) 55%, var(--brass-deep));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 10px 24px -10px rgba(212, 165, 72, 0.9);
+  animation: spot-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both, primary-glow 1.6s ease-in-out infinite;
+}
+.ow-spot-wheel.is-primary .ow-spot-name {
+  color: #1b150c;
+}
+@keyframes primary-glow {
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 0 0 6px rgba(212, 165, 72, 0.25);
+  }
+}
 .ow-spot:hover {
   filter: brightness(1.12);
 }
@@ -340,10 +357,28 @@ body {
   background: var(--ink-glass);
   box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.14);
 }
-.topbar .icon-btn:first-of-type {
+.pill-btn {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 14px 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink-glass);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.14);
+  color: var(--parchment);
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  touch-action: manipulation;
 }
-.topbar .icon-btn.is-on {
+.pill-btn:hover {
+  background: rgba(9, 18, 32, 0.95);
+}
+.pill-btn.is-on {
   color: var(--brass);
   box-shadow: inset 0 0 0 2px var(--brass);
 }
@@ -362,29 +397,47 @@ body {
   box-shadow:
     inset 0 0 0 1px rgba(239, 227, 198, 0.12),
     0 -10px 40px -20px rgba(0, 0, 0, 0.9);
-  transition:
-    max-height 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
-    width 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition: width 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
   overflow: hidden;
 }
 .sheet > * {
   pointer-events: auto;
 }
-.sheet-handle {
+.sheet-head {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "back handle"
+    "next next";
+  align-items: center;
+  column-gap: 4px;
+  padding: 6px 8px 0 8px;
+  flex: none;
+}
+.sheet-back {
+  grid-area: back;
+  background: rgba(255, 255, 255, 0.06);
+}
+.sheet-handle {
+  grid-area: handle;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 10px 14px;
+  min-height: 52px;
+  padding: 4px 6px 4px 8px;
   border: 0;
+  border-radius: 12px;
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
-  flex: none;
   touch-action: manipulation;
+}
+.sheet-handle:hover {
+  background: rgba(255, 255, 255, 0.04);
 }
 .sheet-handle .chev {
   transition: rotate 0.3s ease;
@@ -393,11 +446,19 @@ body {
 .sheet.is-open .sheet-handle .chev {
   rotate: 180deg;
 }
-.strip {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
+/* The one line that says what to do next; it stays whether the card is folded or not. */
+.next-step {
+  grid-area: next;
+  margin: 0;
+  padding: 6px 8px 10px 10px;
+  font-size: 13.5px;
+  line-height: 1.3;
+  color: var(--brass);
+  border-top: 1px solid rgba(239, 227, 198, 0.1);
+}
+.next-step::before {
+  content: "\25B8  ";
+  opacity: 0.8;
 }
 .strip-text {
   display: grid;
@@ -419,9 +480,33 @@ body {
 }
 .ship-mini {
   display: grid;
-  gap: 4px;
-  width: 92px;
+  gap: 3px;
+  width: 128px;
   flex: none;
+  font-size: 10.5px;
+  line-height: 1;
+}
+.mini-row {
+  display: grid;
+  grid-template-columns: 30px 1fr 30px;
+  align-items: center;
+  gap: 5px;
+}
+.mini-row small {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--parchment-dim);
+}
+.mini-row b {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.mini-row.danger b {
+  color: var(--danger);
 }
 .mini-meter,
 .mini-turn {
@@ -441,11 +526,11 @@ body {
 .mini-meter i.hull {
   background: linear-gradient(90deg, #7a5533, var(--brass));
 }
-.mini-meter i.danger {
+.mini-row.danger .mini-meter i {
   background: var(--danger);
 }
 .mini-turn {
-  height: 3px;
+  height: 4px;
 }
 .mini-turn i {
   background: var(--parchment-dim);
@@ -457,7 +542,7 @@ body {
   min-height: 0;
 }
 .sheet:not(.is-open) .sheet-body {
-  visibility: hidden;
+  display: none;
 }
 .sheet-body > .card {
   padding: 0 16px max(16px, env(safe-area-inset-bottom));
@@ -468,29 +553,25 @@ body {
   right: 0;
   bottom: 0;
   border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
-  max-height: 64px;
+  max-height: 62vh;
   padding-bottom: env(safe-area-inset-bottom);
 }
-.shell-tall .sheet.is-open {
-  max-height: 62vh;
-}
 .shell-tall .sheet-body {
-  max-height: calc(62vh - 66px);
+  max-height: calc(62vh - 100px);
 }
 .shell-wide .sheet {
   top: 70px;
   right: 16px;
-  bottom: 16px;
-  width: 300px;
-  max-height: 64px;
+  width: 340px;
+  max-height: calc(100% - 86px);
   border-radius: 18px;
 }
 .shell-wide .sheet.is-open {
-  width: min(420px, 38vw);
-  max-height: calc(100% - 86px);
+  width: min(440px, 38vw);
+  bottom: 16px;
 }
 .shell-wide .sheet-body {
-  max-height: calc(100vh - 86px - 66px);
+  max-height: calc(100vh - 86px - 100px);
 }
 .shell-wide .sheet-body > .card {
   padding: 0 18px 20px;
@@ -501,10 +582,6 @@ body {
     translate: 0 16px;
   }
 }
-.card-head {
-  margin-bottom: 10px;
-}
-.card-head h2,
 .sheet .card h2 {
   margin: 2px 0 4px;
   font-family: var(--font-display);
@@ -512,17 +589,30 @@ body {
   font-size: 24px;
   line-height: 1.1;
 }
-.card-head.with-back {
-  display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 10px;
-  align-items: center;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
-.chart-title {
-  font-weight: 400 !important;
-  font-style: italic;
-  font-size: 20px !important;
-  color: var(--parchment-dim);
+.btn-wide {
+  width: 100%;
+  margin-bottom: 12px;
+}
+.section-row {
+  margin-top: 0;
+}
+.section-row .section-head {
+  margin-bottom: 0;
+}
+.pick-name {
+  margin: 0 0 2px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 22px;
 }
 .blurb {
   margin: 0 0 12px;
@@ -976,6 +1066,34 @@ body {
   width: min(100%, 560px);
   animation: fade 0.3s ease both;
 }
+.shell-wide .station-layer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas:
+    "bar rail"
+    "hail rail"
+    "board rail";
+  gap: 8px 12px;
+  width: min(100%, 880px);
+  padding: 12px 16px;
+}
+.shell-wide .station-bar {
+  grid-area: bar;
+}
+.shell-wide .station-details {
+  grid-area: rail;
+  align-content: start;
+}
+.shell-wide .station-layer > .hail-banner {
+  grid-area: hail;
+}
+.shell-wide .station-layer > .board-wrap {
+  grid-area: board;
+}
+.shell-wide .station-ship {
+  display: none;
+}
 .station-bar {
   display: grid;
   grid-template-columns: 44px 1fr auto;
@@ -1023,12 +1141,16 @@ body {
   box-shadow: inset 0 0 0 2px var(--brass);
 }
 .station-ship .ship-mini {
-  width: 72px;
+  width: 118px;
 }
 .station-details {
   display: grid;
   gap: 6px;
   animation: fade 0.2s ease both;
+}
+.station-details .last-turn {
+  margin: 0;
+  padding: 0 4px;
 }
 .station-bar .icon-btn {
   background: var(--ink-glass);
@@ -1056,14 +1178,6 @@ body {
 .ship-hud-slim .meter-value {
   font-size: 16px;
 }
-.duty-strip {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
-  gap: 8px 12px;
-  padding: 8px 12px;
-  border-radius: 14px;
-  background: var(--ink-glass);
-}
 .station-layer .board-wrap {
   flex: 1 1 auto;
   min-height: 0;
@@ -1073,6 +1187,9 @@ body {
 }
 .veil-card-slim {
   padding: 16px;
+}
+.veil-card-slim .row {
+  margin-top: 4px;
 }
 
 /* ---- menu and toasts */

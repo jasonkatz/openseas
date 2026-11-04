@@ -23,9 +23,20 @@ export function validateConfig<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, config: 
   } catch (e) {
     errors.push(e instanceof Error ? e.message : String(e));
   }
-  // A config the schema would strip or coerce is not the config the engine saw.
-  if (parsed.success && JSON.stringify(parsed.data) !== JSON.stringify(config)) errors.push("config: fields the wire schema does not know");
+  // A config the schema would strip or coerce is not the config the engine saw. Key order is not
+  // a difference: the content schema and the wire schema may declare the same fields in a
+  // different order, and the server compares values, not spellings.
+  if (parsed.success && canonical(parsed.data) !== canonical(config)) errors.push("config: fields the wire schema does not know");
   return { ok: errors.length === 0, errors };
+}
+
+/** JSON with every object's keys sorted, so two configs compare by value alone. */
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) => {
+    if (typeof v !== "object" || v === null || Array.isArray(v)) return v;
+    const o = v as Record<string, unknown>;
+    return Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]]));
+  });
 }
 
 export const prettyIssue = (e: z.ZodError): string => z.prettifyError(e);

@@ -26,11 +26,23 @@ function worldLocation(l: ShipLocation): WorldShipLocation {
 /** A place with "home" resolved to where the pirate actually is. */
 type Resolved = Exclude<Place, { kind: "home" }>;
 
+/** What the sheet's head says for the place: one header for the card, folded or not. */
+interface Head {
+  title: string;
+  /** Where the pirate is, in a few words. */
+  subtitle: string;
+  /** The one thing to do next, if there is an obvious one. */
+  next: string | null;
+  back: { onClick(): void; testId: string } | null;
+  extra?: ReactNode;
+}
+
 /**
  * The one experience (ADR 0018, ADR 0020): the world is the view and takes the screen. A thin bar
  * on top, a card for the place folded to a strip at the bottom (or the side) until it is wanted,
  * the station layer over it all when a board is open, one menu. Moving between places is a camera
- * move in the world and a different card; nothing reloads.
+ * move in the world and a different card; nothing reloads. The strip always says where the pirate
+ * is and what to do next, so nobody has to guess.
  */
 export function Shell() {
   const { pirate, socketStatus } = usePirate();
@@ -50,6 +62,7 @@ export function Shell() {
   const aboard = ship !== null;
   const myStation = ship?.crew.find((c) => c.pirateId === me)?.station ?? null;
   const captain = ship?.captainId === me;
+  const captainName = ship?.crew.find((c) => c.captain)?.name ?? null;
 
   const place = useMemo<Resolved>(() => {
     if (rawPlace.kind !== "home") return rawPlace;
@@ -89,11 +102,22 @@ export function Shell() {
     if (place.kind === "helm" && ship && (ship.location.kind !== "docked" || !captain)) go({ kind: "home" });
   }, [place.kind, ship, captain, go]);
 
-  // Rooms and the helm want their card open; arriving anywhere else folds it so the view is clear.
+  // Rooms and the helm want their card open; arriving anywhere else folds it so the view is clear,
+  // except when the pirate stepped back a level in the card, which stays open where they came from.
   const placeKey = place.kind === "island" ? `${place.kind}:${place.id}:${place.room}` : place.kind === "station" ? `station:${place.station}` : place.kind;
+  const openOnArrive = useRef(false);
   useEffect(() => {
-    setSheetOpen((place.kind === "island" && place.room !== "none") || place.kind === "helm");
+    setSheetOpen(openOnArrive.current || (place.kind === "island" && place.room !== "none") || place.kind === "helm");
+    openOnArrive.current = false;
   }, [placeKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Go somewhere as a step back in the card: the card stays open there. */
+  const goBack = useCallback(
+    (next: Place) => {
+      openOnArrive.current = true;
+      go(next);
+    },
+    [go],
+  );
 
   // ---- the notice board doubles as the chart's list of ships: refresh it while looking around.
   useEffect(() => {
@@ -117,8 +141,10 @@ export function Shell() {
         sfx.streak(5);
         toast(t("ship.arrived_blurb", { island: islandName(e.islandId) }), "good", 6000);
         if (place.kind === "station") go({ kind: "home" });
-      } else if (e.type === "evaded" || e.type === "sailed" || e.type === "boarded" || e.type === "left" || e.type === "wheel") {
-        if (!(e.type === "boarded" && e.pirateId === me)) toast(describeEvent(e) as string);
+      } else if (e.type === "wheel") {
+        toast(e.pirateId === me ? t("toast.wheel_yours") : (describeEvent(e) as string));
+      } else if (e.type === "evaded" || e.type === "sailed" || e.type === "left" || (e.type === "boarded" && e.pirateId !== me)) {
+        toast(describeEvent(e) as string);
       }
     }
   }, [notices, toast, me, place.kind, go]);
@@ -157,7 +183,7 @@ export function Shell() {
   const deck = useMemo<Deck | null>(() => {
     if (!ship) return null;
     const stations = content.world.shipClasses.find((c) => c.id === ship.classId)?.stations ?? [];
-    const captainName = ship.crew.find((c) => c.captain)?.name ?? null;
+    const docked = ship.location.kind === "docked";
     return {
       shipId: ship.shipId,
       stations: stations.map((st) => {
@@ -165,15 +191,15 @@ export function Shell() {
         return { station: st, label: stationName(st), holder: holder ? (holder.pirateId === me ? t("ship.you") : holder.name) : null, mine: holder?.pirateId === me };
       }),
       crew: ship.crew.map((c) => ({ pirateId: c.pirateId, station: c.station, mine: c.pirateId === me, captain: c.captain })),
-      wheel: { label: captain ? (ship.location.kind === "docked" ? t("ship.wheel_sail") : t("ship.wheel_at_sea")) : t("ship.wheel_spot"), who: captain ? null : captainName },
+      wheel: { label: captain ? (docked ? t("ship.wheel_sail") : t("ship.wheel_at_sea")) : t("ship.wheel_spot"), who: captain ? null : captainName, primary: captain && docked },
     };
-  }, [ship, me, captain]);
+  }, [ship, me, captain, captainName]);
 
   const reachable = useMemo(() => (place.kind === "helm" && ship?.location.kind === "docked" ? content.world.routes.filter((r) => r.from === (ship.location as { islandId: string }).islandId).map((r) => r.to) : []), [place.kind, ship]);
 
   const insets = useMemo<Insets>(() => {
     if (wide) return { top: 0.08, bottom: 0.03, left: 0.02, right: sheetOpen ? 0.38 : 0.06 };
-    if (!sheetOpen) return { top: 0.1, bottom: place.kind === "deck" ? 0.17 : 0.12, left: 0.02, right: 0.02 };
+    if (!sheetOpen) return { top: 0.1, bottom: place.kind === "deck" ? 0.19 : 0.14, left: 0.02, right: 0.02 };
     return { top: 0.1, bottom: 0.52, left: 0.02, right: 0.02 };
   }, [wide, sheetOpen, place.kind]);
 
@@ -264,14 +290,16 @@ export function Shell() {
     },
     [ship, me, takeStation, go, toast],
   );
+  const onHelm = useCallback(() => {
+    setHelmPick(null);
+    go({ kind: "helm" });
+  }, [go]);
   const onWheel = useCallback(() => {
     if (!ship) return;
     sfx.tick(false);
-    if (captain && ship.location.kind === "docked") {
-      setHelmPick(null);
-      go({ kind: "helm" });
-    } else setSheetOpen(true);
-  }, [ship, captain, go]);
+    if (captain && ship.location.kind === "docked") onHelm();
+    else setSheetOpen(true);
+  }, [ship, captain, onHelm]);
   const events = useMemo(() => ({ onIsland, onShip, onBuilding, onStation, onWheel }), [onIsland, onShip, onBuilding, onStation, onWheel]);
 
   const onMap = useCallback(() => {
@@ -281,52 +309,55 @@ export function Shell() {
     go(place.kind === "chart" ? { kind: "home" } : { kind: "chart", pick: null });
   }, [place.kind, go]);
 
-  // ---- the card for the place, and the strip it folds to
+  // ---- what to do next, ashore: the strip says it so the first minute needs no guessing.
+  const ashoreNext = useMemo(() => {
+    const mine = pirate?.ships ?? [];
+    const hereShip = mine.find((s) => s.islandId === ashoreAt);
+    if (hereShip) return t("next.ashore_board", { ship: hereShip.name });
+    const away = mine[0];
+    if (away) return t("next.ashore_ship_away", { ship: away.name, island: islandName(away.islandId) });
+    return t("next.ashore_no_ship");
+  }, [pirate, ashoreAt]);
+
+  // ---- the card for the place, and the one header it folds to
   let card: ReactNode = null;
-  let strip: ReactNode = null;
+  let head: Head;
   if (ship && (place.kind === "deck" || place.kind === "station")) {
-    card = <DeckCard ship={ship} me={me} onStation={onStation} onHelm={() => (setHelmPick(null), go({ kind: "helm" }))} />;
-    strip = (
-      <div className="strip strip-ship">
-        <div className="strip-text">
-          <b>{ship.name}</b>
-          <small className="muted">
-            {ship.location.kind === "docked" ? t("ship.docked_at", { island: islandName(ship.location.islandId) }) : t("ship.under_way", { from: islandName(ship.location.from), to: islandName(ship.location.to) })}
-          </small>
-        </div>
-        <ShipHud ship={ship} slim mini />
-      </div>
-    );
+    const docked = ship.location.kind === "docked";
+    card = <DeckCard ship={ship} me={me} onStation={onStation} onHelm={onHelm} />;
+    head = {
+      title: ship.name,
+      subtitle: docked ? t("ship.docked_at", { island: islandName((ship.location as { islandId: string }).islandId) }) : t("ship.bound_for", { island: islandName((ship.location as { to: string }).to), percent: Math.round((ship.location as { progress: number }).progress / 10) }),
+      next: docked
+        ? captain
+          ? t("next.docked_captain")
+          : t("next.docked_crew", { captain: captainName ?? "" })
+        : myStation
+          ? t("next.at_sea_at_station", { station: stationName(myStation) })
+          : t("next.at_sea_no_station"),
+      back: null,
+      extra: <ShipHud ship={ship} mini />,
+    };
   } else if (ship && place.kind === "helm") {
     card = <HelmCard ship={ship} pick={helmPick} onPick={setHelmPick} onCancel={() => go({ kind: "home" })} />;
-    strip = (
-      <div className="strip">
-        <div className="strip-text">
-          <b>{t("ship.pick_destination")}</b>
-        </div>
-      </div>
-    );
+    head = { title: t("ship.set_sail"), subtitle: ship.name, next: t("next.helm"), back: { onClick: () => goBack({ kind: "home" }), testId: "helm-back" } };
   } else if (place.kind === "island") {
-    card = (
-      <IslandCard
-        id={place.id}
-        room={place.room}
-        here={here ?? ashoreAt}
-        onRoom={(room) => {
-          go({ kind: "island", id: place.id, room });
-          if (room === "none") setSheetOpen(false);
-        }}
-        onBack={() => go({ kind: "chart", pick: null })}
-      />
-    );
-    strip = (
-      <div className="strip">
-        <div className="strip-text">
-          <b>{islandName(place.id)}</b>
-          <small className="muted">{place.id === here ? t("world.you_are_here") : t("world.far_away", { island: islandName(ashoreAt) })}</small>
-        </div>
-      </div>
-    );
+    const isHere = place.id === (here ?? ashoreAt);
+    const roomKey = place.room === "dock" ? "island.dock" : place.room === "tavern" ? "island.tavern" : place.room === "notice" ? "island.notice_board" : null;
+    card = <IslandCard id={place.id} room={place.room} here={here ?? ashoreAt} onRoom={(room) => go({ kind: "island", id: place.id, room })} />;
+    head = roomKey
+      ? {
+          title: t(roomKey),
+          subtitle: islandName(place.id),
+          next: t(`${roomKey}_blurb`),
+          back: { onClick: () => goBack({ kind: "island", id: place.id, room: "none" }), testId: "island-back" },
+        }
+      : {
+          title: islandName(place.id),
+          subtitle: isHere ? t("world.you_are_here") : t("world.ashore_at", { island: islandName(ashoreAt) }),
+          next: isHere ? ashoreNext : t("next.far_island", { island: islandName(ashoreAt) }),
+          back: null,
+        };
   } else {
     card = (
       <ChartCard
@@ -342,14 +373,12 @@ export function Shell() {
         onClearPick={() => (setShipPick(null), go({ kind: "chart", pick: null }))}
       />
     );
-    strip = (
-      <div className="strip">
-        <div className="strip-text">
-          <b>{t("world.chart_title")}</b>
-          <small className="muted">{aboard ? t("world.aboard", { ship: ship?.name ?? "" }) : t("world.ashore_at", { island: islandName(ashoreAt) })}</small>
-        </div>
-      </div>
-    );
+    head = {
+      title: t("world.chart_title"),
+      subtitle: aboard ? t("world.aboard", { ship: ship?.name ?? "" }) : t("world.ashore_at", { island: islandName(ashoreAt) }),
+      next: aboard ? t("next.chart_aboard") : t("next.chart"),
+      back: null,
+    };
   }
 
   const stationOpen = ship && place.kind === "station" ? place.station : null;
@@ -360,15 +389,33 @@ export function Shell() {
       <TopBar onMenu={() => setMenuOpen(true)} onMap={onMap} onChart={place.kind === "chart"} />
       {ship && !stationOpen && <HailBanner ship={ship} me={me} />}
       <aside className={`sheet ${sheetOpen ? "is-open" : ""}`} data-testid="sheet" data-open={sheetOpen ? "1" : "0"}>
-        <button className="sheet-handle" onClick={() => setSheetOpen((o) => !o)} aria-expanded={sheetOpen} data-testid="sheet-toggle">
-          {strip}
-          <svg className="chev" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M6 14l6-6 6 6" />
-          </svg>
-        </button>
+        <div className="sheet-head">
+          {head.back && (
+            <button className="icon-btn sheet-back" onClick={head.back.onClick} aria-label={t("app.back")} data-testid={head.back.testId}>
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+          <button className="sheet-handle" onClick={() => setSheetOpen((o) => !o)} aria-expanded={sheetOpen} data-testid="sheet-toggle">
+            <span className="strip-text">
+              <b>{head.title}</b>
+              <small className="muted">{head.subtitle}</small>
+            </span>
+            {head.extra}
+            <svg className="chev" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 14l6-6 6 6" />
+            </svg>
+          </button>
+          {head.next && (
+            <p className="next-step" data-testid="next-step">
+              {head.next}
+            </p>
+          )}
+        </div>
         <div className="sheet-body">{card}</div>
       </aside>
-      {stationOpen && ship && <StationView ship={ship} me={me} station={stationOpen} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
+      {stationOpen && ship && <StationView ship={ship} me={me} station={stationOpen} showMarks={showMarks} onBack={() => go({ kind: "home" })} onHelm={onHelm} />}
       {menuOpen && <Menu showMarks={showMarks} onShowMarks={setShowMarks} onClose={() => setMenuOpen(false)} />}
       <Toasts />
     </div>
