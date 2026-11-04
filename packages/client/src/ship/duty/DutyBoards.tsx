@@ -28,7 +28,7 @@ import {
   type SailingMove,
   type SailingState,
 } from "@openseas/engine";
-import type { StationWire } from "@openseas/protocol";
+import type { PuzzleStarted, ServerMessage, StationWire } from "@openseas/protocol";
 import { BilgingBoard, CarpentryBoard, GunneryBoard, NavigationBoard, SailingBoard, content, sfx, useTicked, type BilgingMoveShown } from "@openseas/boards";
 import { useDuty, type DutyApi } from "./useDuty.js";
 
@@ -49,8 +49,19 @@ export interface DutyProps {
 // ---- one adapter per station: the board and its sounds, as in the harness
 
 const bilging = content.puzzles.bilging;
+/** The ship's bilge arrives as water events: one with the deal, then one whenever a turn changes it. */
+const dealtWater = (started: PuzzleStarted): BilgingMove[] => (started.duty?.water !== undefined ? [{ type: "water", row: started.duty.water }] : []);
+const shipWater = (m: ServerMessage, sessionId: string): BilgingMove | null => (m.type === "duty.water" && m.sessionId === sessionId ? { type: "water", row: m.row } : null);
 function BilgingDuty({ active, showMarks, children }: DutyProps) {
-  const api = useDuty<BilgingState, BilgingMove, typeof bilging.config>({ puzzle: "bilging", def: BILGING_DEF, config: bilging.config, roundSeconds: bilging.roundSeconds, active });
+  const api = useDuty<BilgingState, BilgingMove, typeof bilging.config>({
+    puzzle: "bilging",
+    def: BILGING_DEF,
+    config: bilging.config,
+    roundSeconds: bilging.roundSeconds,
+    active,
+    dealt: dealtWater,
+    shipMove: shipWater,
+  });
   const { state } = api;
   const onSwap = useCallback(
     (col: number, row: number) => {

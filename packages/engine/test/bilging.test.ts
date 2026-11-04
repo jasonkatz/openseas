@@ -424,3 +424,60 @@ function withCells(state: BilgingState, overrides: Record<number, number>): Bilg
   }
   return { ...state, cells, nextId };
 }
+
+describe("bilging aboard a ship (DESIGN.md 3.3)", () => {
+  const aboard: BilgingConfig = { ...cfg, shipWater: true };
+
+  it("water events set the water; swaps neither raise nor drain it", () => {
+    let s = createBilgingGame("ship", aboard);
+    expect(s.waterRow).toBe(cfg.initialWaterRow);
+    s = reduceBilging(s, { type: "water", row: 0 });
+    expect(s.waterRow).toBe(0);
+    expect(s.water).toBe(0);
+    expect(s.moveCount).toBe(0);
+    expect(s.lastMove).toMatchObject({ move: { type: "water", row: 0 }, points: 0, rounds: [] });
+    for (let i = 0; i < 20; i++) {
+      const m = randomLegalMove(s, i * 7);
+      if (!m) break;
+      s = reduceBilging(s, m);
+      expect(s.waterRow).toBe(0);
+    }
+    expect(s.moveCount).toBe(20);
+    s = reduceBilging(s, { type: "water", row: 9 });
+    expect(s.waterRow).toBe(9);
+    expect(s.water).toBe(9 * waterUnitsPerRow(aboard));
+    expect(s.moveCount).toBe(20);
+  });
+
+  it("a water event below the floor or above the top, or on a practice board, is refused", () => {
+    const s = createBilgingGame("ship", aboard);
+    expect(() => reduceBilging(s, { type: "water", row: -1 })).toThrow(InvalidMoveError);
+    expect(() => reduceBilging(s, { type: "water", row: aboard.height + 1 })).toThrow(InvalidMoveError);
+    expect(() => reduceBilging(s, { type: "water", row: 1.5 })).toThrow(InvalidMoveError);
+    const practice = createBilgingGame("ship", cfg);
+    expect(() => reduceBilging(practice, { type: "water", row: 2 })).toThrow(InvalidMoveError);
+  });
+
+  it("replays bit for bit with water events in the log", () => {
+    fc.assert(
+      fc.property(fc.string(), fc.array(fc.nat({ max: 1_000_000 }), { minLength: 0, maxLength: 60 }), (seed, picks) => {
+        let state = createBilgingGame(seed, aboard);
+        const moves: BilgingMove[] = [];
+        for (const p of picks) {
+          const m: BilgingMove | null = p % 5 === 0 ? { type: "water", row: (p >> 3) % (aboard.height + 1) } : randomLegalMove(state, p);
+          if (!m) break;
+          state = reduceBilging(state, m);
+          moves.push(m);
+        }
+        const again = replayBilging(seed, moves, aboard);
+        expect(hashBilgingState(again)).toBe(hashBilgingState(state));
+        expect(again).toEqual(state);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  it("the config refuses a non-boolean shipWater", () => {
+    expect(() => createBilgingGame("x", { ...cfg, shipWater: 1 as unknown as boolean })).toThrow();
+  });
+});

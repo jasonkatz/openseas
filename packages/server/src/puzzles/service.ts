@@ -59,7 +59,7 @@ export class PuzzleService {
       config: s.config,
       deadlineAt: s.deadlineAt,
       serverNow: s.startedAt,
-      ...(duty ? { duty: { shipId: duty.shipId, station: duty.station } } : {}),
+      ...(duty ? { duty: { shipId: duty.shipId, station: duty.station, ...(duty.water !== undefined ? { water: duty.water } : {}) } } : {}),
     } as PuzzleStarted;
   }
 

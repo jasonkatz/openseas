@@ -76,7 +76,14 @@ const PuzzleStartedBase = z.object({
   deadlineAt: z.number(),
   serverNow: z.number(),
   /** Present when the round is a duty board aboard a ship rather than practice. */
-  duty: z.object({ shipId: z.string(), station: StationSchema }).optional(),
+  duty: z
+    .object({
+      shipId: z.string(),
+      station: StationSchema,
+      /** Bilging only: the ship's bilge in rows when the board was dealt; the board's first move sets it. */
+      water: z.int().min(0).max(32).optional(),
+    })
+    .optional(),
 });
 
 /** One variant per puzzle so a client narrows `config` by `puzzle`. */
@@ -120,6 +127,8 @@ export const ServerMessageSchema = z.union([
   /** The pirate is no longer aboard: they went ashore, or their held seat timed out. */
   z.object({ type: z.literal("ship.left"), shipId: z.string(), reason: z.enum(["left", "timed_out"]) }),
   z.object({ type: z.literal("board.ships"), islandId: z.string(), ships: z.array(BoardShipSchema), serverNow: z.number() }),
+  /** The ship's bilge changed at a turn: the Bilging board at this session logs a water move with this row. */
+  z.object({ type: z.literal("duty.water"), sessionId: SessionId, row: z.int().min(0).max(32) }),
   /** The pirate's own summary changed: they came ashore somewhere new, or bought a ship. */
   z.object({ type: z.literal("pirate.updated"), pirate: PirateSummarySchema }),
   z.object({

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PuzzleDef, PuzzleId } from "@openseas/engine";
-import type { PuzzleResult, ServerMessage } from "@openseas/protocol";
+import type { PuzzleResult, PuzzleStarted, ServerMessage } from "@openseas/protocol";
 import { PuzzleRound, sfx, usePirate, wallClock, type TickedHost } from "@openseas/boards";
 
 export type DutyPhase = "idle" | "dealing" | "playing" | "waiting" | "result";
@@ -15,6 +15,10 @@ export interface DutyOptions<S, M, C> {
   /** True while the pirate is at this station and the ship is at sea: boards are dealt back to back. */
   active: boolean;
   onMove?(state: S, prev: S): void;
+  /** Moves the ship injects into a freshly dealt board, from what the deal says (the bilge's depth). */
+  dealt?(started: PuzzleStarted): M[];
+  /** A move the ship injects into the running board from a server message, or null. */
+  shipMove?(message: ServerMessage, sessionId: string): M | null;
 }
 
 export interface DutyApi<S, M> extends TickedHost<S, M> {
@@ -122,6 +126,7 @@ export function useDuty<S, M, C>(opts: DutyOptions<S, M, C>): DutyApi<S, M> {
             setOutcome(null);
             setPhase("playing");
             sfx.start();
+            for (const move of latest.current.dealt?.(m) ?? []) r.apply(move, false);
             break;
           }
           case "puzzle.result":
@@ -137,6 +142,14 @@ export function useDuty<S, M, C>(opts: DutyOptions<S, M, C>): DutyApi<S, M> {
             setOutcome({ kind: "rejected", reason: m.reason });
             setPhase("result");
             break;
+          case "duty.water": {
+            const sid = sessionId.current;
+            const r = round.current;
+            if (!sid || !r || m.sessionId !== sid) return;
+            const move = latest.current.shipMove?.(m, sid);
+            if (move !== null && move !== undefined) r.apply(move, false);
+            break;
+          }
           case "error":
             if (m.code === "not_at_sea" || m.code === "no_station" || m.code === "not_aboard") {
               holdUntil.current = Date.now() + RETRY_MS;

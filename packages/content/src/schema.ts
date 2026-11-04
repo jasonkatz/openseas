@@ -143,6 +143,8 @@ export const BilgingContentSchema = DutyPuzzleBaseSchema.extend({
     minWaterRow: z.int().min(0),
     waterRisePerMoves: z.int().min(1),
     waterDropPerPoints: z.int().min(1),
+    /** Practice boards keep their own water; the server sets this true for a board dealt aboard a ship. */
+    shipWater: z.boolean().default(false),
     maxMoves: z.int().min(1),
   }),
   /**

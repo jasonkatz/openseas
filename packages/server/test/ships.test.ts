@@ -204,20 +204,27 @@ describeDb("ships over the wire", () => {
     const crewRows = await app.db.select().from(schema.voyageCrew).where(eq(schema.voyageCrew.voyageId, voyages[0]!.id));
     expect(crewRows.map((r) => r.pirateId).sort()).toEqual([owner.me.id, mate.me.id].sort());
 
-    // The mate's bilging board is dealt bound to the ship, and its points count at the next turn.
+    // The mate's bilging board is dealt bound to the ship, with the ship's bilge as its water
+    // (DESIGN.md 3.3): the board's first move is the water event the deal carries.
     b.send({ type: "duty.start" });
     const started = await b.until("puzzle.started");
     if (started.puzzle !== "bilging") throw new Error("expected a bilging board");
-    expect(started.duty).toEqual({ shipId, station: "bilging" });
+    expect(started.duty).toEqual({ shipId, station: "bilging", water: 0 });
+    expect(started.config.shipWater).toBe(true);
     let state = createBilgingGame(started.seed, started.config);
-    for (let i = 0; i < 12; i++) {
-      const move = scoringMove(state);
+    let seq = 0;
+    const log = (move: BilgingMove): void => {
       state = reduceBilging(state, move);
-      b.send({ type: "puzzle.move", sessionId: started.sessionId, seq: i, move, hash: hashBilgingState(state) });
-    }
+      b.send({ type: "puzzle.move", sessionId: started.sessionId, seq: seq++, move, hash: hashBilgingState(state) });
+    };
+    log({ type: "water", row: 0 });
+    expect(state.waterRow).toBe(0);
+    for (let i = 0; i < 12; i++) log(scoringMove(state));
     expect(state.score).toBeGreaterThan(0);
+    expect(state.waterRow).toBe(0);
     await new Promise((r) => setTimeout(r, 100));
 
+    // The turn takes the board's points, and water comes in: the pump hears the new depth.
     await turn();
     const t1 = await a.until("ship.state", (m) => m.ship.turn === 1);
     expect(t1.ship.lastTurn).toMatchObject({ turn: 1, held: false });
@@ -225,12 +232,41 @@ describeDb("ships over the wire", () => {
     expect(t1.ship.lastTurn!.outputs.sailing).toBe(0);
     expect(t1.ship.location.kind === "at-sea" && t1.ship.location.progress).toBeGreaterThan(0);
     expect(t1.ship.nextTurnAt).toBeGreaterThan(clock.t);
+    // Nobody is at the sails, so the bilge fills faster than one pirate pumps it over a few turns.
+    for (let i = 0; i < 6; i++) await turn();
+    const water = await b.until("duty.water", (m) => m.sessionId === started.sessionId);
+    expect(water.row).toBeGreaterThan(0);
+    // The ship may have spoken again since; what counts is its latest word. A water event that
+    // says anything else is refused as an illegal move.
+    const current = app.ships.bilgeRows(app.ships.room(shipId)!);
+    expect(current).toBeGreaterThanOrEqual(water.row);
+    const wrong = reduceBilging(state, { type: "water", row: current + 1 });
+    b.send({ type: "puzzle.move", sessionId: started.sessionId, seq, move: { type: "water", row: current + 1 }, hash: hashBilgingState(wrong) });
+    const rejected = await b.until("puzzle.rejected", (m) => m.sessionId === started.sessionId);
+    expect(rejected).toMatchObject({ reason: "illegal_move", atSeq: seq });
 
-    // Standing down cuts the board short: it counts, unrated.
+    // A fresh board picks the ship's bilge up where it is now and takes the ship's word for the depth.
+    b.send({ type: "duty.start" });
+    const again = await b.until("puzzle.started");
+    if (again.puzzle !== "bilging") throw new Error("expected a bilging board");
+    expect(again.duty?.water).toBe(app.ships.bilgeRows(app.ships.room(shipId)!));
+    state = createBilgingGame(again.seed, again.config);
+    seq = 0;
+    const log2 = (move: BilgingMove): void => {
+      state = reduceBilging(state, move);
+      b.send({ type: "puzzle.move", sessionId: again.sessionId, seq: seq++, move, hash: hashBilgingState(state) });
+    };
+    log2({ type: "water", row: again.duty!.water! });
+    for (let i = 0; i < 12; i++) log2(scoringMove(state));
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Standing down cuts the board short: it counts, unrated. The water event is in the log but is no move.
     b.send({ type: "ship.station", station: null });
-    const cut = await b.until("puzzle.result");
-    expect(cut).toMatchObject({ sessionId: started.sessionId, score: state.score, moves: 12, verified: true, rating: null, tierChange: null });
-    const round = await app.db.select().from(schema.puzzleRound).where(eq(schema.puzzleRound.id, started.sessionId));
+    const cut = await b.until("puzzle.result", (m) => m.sessionId === again.sessionId);
+    expect(cut).toMatchObject({ sessionId: again.sessionId, score: state.score, moves: 12, verified: true, rating: null, tierChange: null });
+    const started2 = { sessionId: again.sessionId };
+    void started2;
+    const round = await app.db.select().from(schema.puzzleRound).where(eq(schema.puzzleRound.id, again.sessionId));
     expect(round[0]).toMatchObject({ rated: false, voyageId: voyages[0]!.id, rejectedReason: null });
     const ratings = await app.db.select().from(schema.rating).where(eq(schema.rating.pirateId, mate.me.id));
     expect(ratings).toHaveLength(0);

@@ -81,7 +81,12 @@ one step multiplies by k; cascade step c multiplies by c. On the practice page t
 carried in the game state: every move raises it a sixth of a row, every 40 points drain a row, and
 it never drops below a floor of 3 rows. Pumping while already at the floor is wasted, so points
 cannot be banked to hold the water down later. It is still a pure function of the move log, so a
-replay needs nothing else; from M3 the ship injects water events into the log instead. Below the
+replay needs nothing else. Aboard a ship (M3) the board's config carries `shipWater` and the water
+is the ship's bilge: swaps neither raise nor drain it, and the ship injects water events into the
+log instead, one with the deal and one whenever a turn changes the depth. The client logs each as a
+`water` move; the server accepts a water move only when it repeats the depth the ship last gave
+that board, so the log stays the whole story and the client never sets its own water. A water
+event is no move: it counts toward nothing and breaks no combo. Below the
 water line pieces swap slowly: the swap takes `underwaterSwapMs` and the board takes no other swap
 until it lands, so working underwater costs time against the clock. That cost is client timing
 only, like the original's; scores never depend on it. All numbers live in
@@ -582,7 +587,7 @@ Maintained as they arise.
 | Tile art | Illustrated pieces | Colored squares with a distinct surface texture per kind, specials with icon and label, optional marks | Owner wants clarity first; textures and marks keep kinds apart without color |
 | Bilging hints | None | Idle hint in unrated practice only | Teaches newcomers; rated rounds stay unaided |
 | Bilging scoring | Original's table | n(n-2) per group, times groups, times cascade step | Published formula, tuned in playtests |
-| Bilging water in practice | Driven by the ship | Rises with moves, drains with points, floor of 3 rows | No ship exists until M3; keeps replays self-contained |
+| Bilging water | Driven by the ship | In practice: rises with moves, drains with points, floor of 3 rows. Aboard: the ship's bilge, injected into the move log as water events the server vouches for | Replays stay self-contained either way: the log is the whole story (ADR 0003) |
 | Divergent puzzle round | n/a (client-reported) | Rejected outright, unrated, logged | Engines are deterministic; any mismatch is a bug or a cheat |
 | Sailing piece control | Free fall in real time | The move is the resting position; the engine checks it is reachable from the entry by sliding, turning and falling | One move per pair keeps the log small while steering under platforms stays possible (ADR 0015) |
 | Sailing platforms | Targets on fixed structures | Platforms are shapes (bars, stacks, L's, squares) with outlined targets and blanks; shelves sit under their bottom cells; a cleared one is dealt again elsewhere | Same role, original layouts; shapes make tucking and stacking matter |

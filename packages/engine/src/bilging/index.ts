@@ -1,6 +1,7 @@
 export * from "./types.js";
 export { findMatches, groupPoints, idx, colOf, rowOf } from "./board.js";
 export {
+  SHIP_WATER_EVENTS_MAX,
   createBilgingGame,
   reduceBilging,
   replayBilging,
