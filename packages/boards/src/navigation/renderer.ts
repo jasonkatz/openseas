@@ -210,6 +210,7 @@ export class NavigationRenderer {
     }
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "navigation-canvas");
+    this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.host.appendChild(this.app.canvas);
     this.chart.addChild(this.sky, this.linesLayer, this.highlight, this.markerLayer, this.pulseLayer);
     for (let r = 0; r < this.rings; r++) {

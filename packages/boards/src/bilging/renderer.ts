@@ -296,6 +296,7 @@ export class BilgingRenderer {
     }
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "bilging-canvas");
+    this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.host.appendChild(this.app.canvas);
     this.pieceLayer.sortableChildren = true;
     this.staticLayer.addChild(this.frame, this.well);
