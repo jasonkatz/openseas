@@ -5,6 +5,8 @@ import { loadContent } from "@openseas/content";
 import { EMPTY_SCENARIO, formatScenario, parseScenario, shareLink } from "../src/scenario/codec.js";
 import { applyOverrides, diffConfig, getPath, leaves, pruneOverrides } from "../src/scenario/overrides.js";
 import { PRESETS, deckPresets } from "../src/scenario/presets.js";
+import { validateConfig } from "../src/scenario/validate.js";
+import type { HarnessPuzzle } from "../src/puzzles.js";
 
 const content = loadContent();
 
@@ -65,6 +67,22 @@ describe("scenario codec", () => {
     expect(link).toBe("https://test.openseas.online/bilging?seed=a+b&start=lab");
     expect(formatScenario(EMPTY_SCENARIO)).toBe("");
   });
+});
+
+describe("lab validation", () => {
+  for (const id of PUZZLE_IDS) {
+    // The two checks the validator runs, without the boards the harness's puzzle table drags in.
+    const puzzle = { configSchema: PUZZLE_CONFIG_SCHEMAS[id], def: PUZZLES[id] } as unknown as HarnessPuzzle<unknown, unknown, unknown>;
+    it(`${id}: the content config itself passes, whatever order its keys come in`, () => {
+      const base = content.puzzles[id].config as Record<string, unknown>;
+      expect(validateConfig(puzzle, base).errors).toEqual([]);
+      // The content schema may fill a defaulted field in a different place than the wire schema
+      // declares it; the lab validator compares values, not key order.
+      const reversed = Object.fromEntries(Object.entries(base).reverse());
+      expect(validateConfig(puzzle, reversed).errors).toEqual([]);
+      expect(validateConfig(puzzle, { ...base, bogus: 1 }).ok).toBe(false);
+    });
+  }
 });
 
 describe("presets", () => {
