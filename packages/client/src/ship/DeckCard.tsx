@@ -13,9 +13,12 @@ export interface DeckCardProps {
   onHelm(): void;
 }
 
-/** The deck: where the ship is, its vitals, the stations, the crew, the wheel and the log. */
+/**
+ * The deck, unfolded: the ship's vitals, the stations, the crew, the wheel, the chat and the log.
+ * Its header (where the ship is, what to do next) is the sheet's, above. The next thing to do leads.
+ */
 export function DeckCard({ ship, me, onStation, onHelm }: DeckCardProps) {
-  const { notices, error, clearError, takeStation, evade, leave, handWheel, lock } = useShip();
+  const { notices, error, clearError, takeStation, leave, handWheel, lock } = useShip();
   const [wheelTo, setWheelTo] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
   const mine = ship.crew.find((c) => c.pirateId === me) ?? null;
@@ -24,35 +27,38 @@ export function DeckCard({ ship, me, onStation, onHelm }: DeckCardProps) {
   const atSea = ship.location.kind === "at-sea";
   const stations = content.world.shipClasses.find((c) => c.id === ship.classId)?.stations ?? [];
 
-  const location =
-    ship.location.kind === "docked"
-      ? t("ship.docked_at", { island: islandName(ship.location.islandId) })
-      : t("ship.under_way", { from: islandName(ship.location.from), to: islandName(ship.location.to) });
-
   return (
     <section className="card deck-card" data-testid="deck-card">
-      <header className="card-head">
-        <p className="eyebrow">{location}</p>
-        <h2>
-          {ship.name} <small className="muted">{className(ship.classId)}</small>
-        </h2>
-        {ship.location.kind === "at-sea" && (
-          <div className="voyage-line">
-            <span className="progress-meter" aria-label={t("ship.progress_label", { percent: Math.round(ship.location.progress / 10) })}>
-              <i style={{ width: `${ship.location.progress / 10}%` }} />
-            </span>
-            <small className="muted" data-testid="ship-progress">
-              {t("ship.progress_label", { percent: Math.round(ship.location.progress / 10) })}
-            </small>
-          </div>
-        )}
-      </header>
+      <p className="visually-hidden">
+        {ship.name} <small className="muted">{className(ship.classId)}</small>
+      </p>
+      {captain && !atSea && (
+        <button className="btn btn-brass btn-wide" onClick={onHelm} data-testid="set-sail">
+          {t("ship.set_sail")}
+        </button>
+      )}
+      {ship.location.kind === "at-sea" && (
+        <div className="voyage-line">
+          <span className="progress-meter" aria-label={t("ship.progress_label", { percent: Math.round(ship.location.progress / 10) })}>
+            <i style={{ width: `${ship.location.progress / 10}%` }} />
+          </span>
+          <small className="muted" data-testid="ship-progress">
+            {t("ship.progress_label", { percent: Math.round(ship.location.progress / 10) })}
+          </small>
+        </div>
+      )}
 
       <ShipHud ship={ship} />
 
       <div className="section">
-        <h3 className="section-head">{t("ship.stations")}</h3>
-        <p className="muted small">{atSea ? t("ship.your_station_hint") : t("ship.duty_waits_for_sea")}</p>
+        <div className="row between section-row">
+          <h3 className="section-head">{t("ship.stations")}</h3>
+          {mine?.station && (
+            <button className="btn btn-ghost btn-small" onClick={() => takeStation(null)} data-testid="stand-down">
+              {t("ship.stand_down")}
+            </button>
+          )}
+        </div>
         <div className="stations" data-testid="stations">
           {stations.map((s) => {
             const holder = ship.crew.find((c) => c.station === s);
@@ -73,11 +79,6 @@ export function DeckCard({ ship, me, onStation, onHelm }: DeckCardProps) {
             );
           })}
         </div>
-        {mine?.station && (
-          <button className="btn btn-ghost btn-small" onClick={() => takeStation(null)} data-testid="stand-down">
-            {t("ship.stand_down")}
-          </button>
-        )}
       </div>
 
       <div className="section">
@@ -92,13 +93,7 @@ export function DeckCard({ ship, me, onStation, onHelm }: DeckCardProps) {
       {captain && (
         <div className="section">
           <h3 className="section-head">{t("ship.wheel_heading")}</h3>
-          {ship.location.kind === "docked" ? (
-            <button className="btn btn-brass" onClick={onHelm} data-testid="set-sail">
-              {t("ship.set_sail")}
-            </button>
-          ) : (
-            <p className="muted small">{t("ship.captain_at_sea")}</p>
-          )}
+          {atSea && <p className="muted small">{t("ship.captain_at_sea")}</p>}
           {ship.crew.length > 1 && (
             <div className="row">
               <select value={wheelTo} onChange={(e) => setWheelTo(e.target.value)} aria-label={t("ship.hand_wheel")}>
@@ -121,7 +116,7 @@ export function DeckCard({ ship, me, onStation, onHelm }: DeckCardProps) {
 
       <div className="section">
         <button className="btn btn-ghost btn-small" onClick={() => setChatOpen((o) => !o)} aria-expanded={chatOpen} data-testid="ship-chat-toggle">
-          {t("chat.ship")}
+          {t("chat.ship_toggle")}
         </button>
         {chatOpen && <Chat channel="ship" />}
       </div>
@@ -215,8 +210,6 @@ export function HelmCard({ ship, pick, onPick, onCancel }: { ship: ShipSnapshot;
   const chosen = from && pick ? routeBetween(from, pick) : null;
   return (
     <section className="card helm-card" data-testid="helm-card">
-      <p className="eyebrow">{ship.name}</p>
-      <h2>{t("ship.pick_destination")}</h2>
       <p className="muted small">{t("ship.pick_destination_blurb")}</p>
       <ul className="dest-list">
         {routes.map((r) => (

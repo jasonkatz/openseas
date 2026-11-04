@@ -166,6 +166,8 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await expect(page.getByTestId("pirate-name")).toHaveText(ME.name);
   await expect(page.getByTestId("sheet")).toHaveAttribute("data-open", "0");
   await expect(page.getByTestId("world")).toHaveAttribute("data-focus", "island:saltwick");
+  // The strip says the obvious next thing to do: board the sloop at the dock.
+  await expect(page.getByTestId("next-step")).toContainText("The Salty Gull");
 
   // The map button zooms out to the chart and back; the frame stays.
   await page.getByTestId("map-toggle").click();
@@ -192,6 +194,9 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await expect(page.getByTestId("deck-card")).toContainText("The Salty Gull");
   await expect(page.getByTestId("world")).toHaveAttribute("data-focus", "ship:ship-1");
   await expect(page.getByTestId("ship-water")).toHaveText("12%");
+  // Docked, the next thing is the wheel; the wheel spot is lit as such.
+  await expect(page.getByTestId("next-step")).toContainText("set sail");
+  await expect(page.locator('[data-wheel="1"]')).toHaveClass(/is-primary/);
 
   // The wheel spot on deck takes the captain to the chart to pick a destination; then they set sail.
   await tapSpot(page, '[data-wheel="1"]');
@@ -202,14 +207,18 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await expect(page.getByTestId("sheet")).toHaveAttribute("data-open", "0");
   await expect(page.getByTestId("sheet")).toContainText("Gullhaven");
   await expect(page.getByTestId("mini-turn")).toBeVisible();
+  // At sea without a station, the next thing is a station.
+  await expect(page.getByTestId("next-step")).toContainText("station");
 
   // Taking a station spot opens its board over the deck; a board is dealt at once and takes a swap.
   await tapSpot(page, '[data-station="bilging"]');
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "station");
   await expect(page.getByTestId("station-view-bilging")).toBeVisible();
   await expect(page.getByTestId("duty-board-wrap")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
-  // The ship is three small bars until asked for; the full status unfolds on a tap.
-  await page.getByTestId("station-ship-toggle").click();
+  // On a phone the ship is two labeled bars until asked for, and the full status unfolds on a tap;
+  // a wide screen keeps it unfolded in a rail beside the board.
+  const shipToggle = page.getByTestId("station-ship-toggle");
+  if (await shipToggle.isVisible()) await shipToggle.click();
   await expect(page.getByTestId("station-details")).toBeVisible();
   await expect(page.getByTestId("station-details").getByTestId("ship-water")).toHaveText("12%");
   await expect(page.getByTestId("bilging-board")).toBeVisible();
