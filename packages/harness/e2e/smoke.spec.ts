@@ -326,7 +326,9 @@ async function mockInviteGatedServer(page: Page): Promise<void> {
 test("with a server that wants an invite code, the home signs the pirate in and the start card says so until then", async ({ page }) => {
   await mockInviteGatedServer(page);
   await page.goto("/bilging");
-  await expect(page.getByText("Sign the articles on the home page")).toBeVisible();
+  // A cold worker on the CI phone profile spends its first seconds bringing up the board's renderer,
+  // and the start card only says this once the sign-in round trip lands after that.
+  await expect(page.getByText("Sign the articles on the home page")).toBeVisible({ timeout: 20_000 });
   await page.goto("/");
   await expect(page.getByTestId("sign-in")).toBeVisible();
   await expect(page.getByTestId("status-card")).toContainText("Not signed in");
