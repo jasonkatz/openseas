@@ -15,6 +15,7 @@
     "maxMoves": 120
   },
   "roundSeconds": 150,
+  "parScore": 300,
   "underwaterSwapMs": 520,
   "thresholds": [
     {

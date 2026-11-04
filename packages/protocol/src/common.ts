@@ -19,7 +19,9 @@ export const PirateSummarySchema = z.object({
   guest: z.boolean(),
   balance: z.int(),
   ratings: z.array(RatingViewSchema),
-  ships: z.array(z.object({ id: z.string(), classId: z.string(), name: z.string() })),
+  ships: z.array(z.object({ id: z.string(), classId: z.string(), name: z.string(), islandId: z.string() })),
+  /** The island the pirate stands on when not aboard a ship. */
+  islandId: z.string(),
 });
 export type PirateSummary = z.infer<typeof PirateSummarySchema>;
 
@@ -35,5 +37,22 @@ export const ErrorCodeSchema = z.enum([
   "session_closed",
   "rate_limited",
   "internal",
+  "no_ship",
+  "ship_elsewhere",
+  "ship_full",
+  "ship_locked",
+  "already_aboard",
+  "not_aboard",
+  "not_captain",
+  "not_owner",
+  "not_docked",
+  "not_at_sea",
+  "bad_route",
+  "station_taken",
+  "no_station",
+  "not_hailed",
+  "no_such_class",
+  "short_of_coins",
+  "aboard_a_ship",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;

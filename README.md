@@ -16,15 +16,18 @@ Milestone 2 done: all five duty puzzles (Bilging, Sailing, Carpentry, Gunnery, N
 practice pages with guest accounts and ratings. Each still needs its tester session before its
 numbers are trusted.
 
-Milestone 3 restarted (ADR 0018): the game becomes one graphical experience, opening on the
-overworld with in-world navigation, menus and the puzzles embedded at the ship's stations. A first
-pass built the ship as pages (PRs #24 and #25, closed) and is kept on its branches for parts.
+Milestone 3 built (ADR 0018, ADR 0020): the game is one graphical experience. A pirate signs in
+and is in the world until they sign out: an isometric three.js ocean with three islands, their
+docks, taverns and notice boards, ships at the docks and under way. Board your sloop, take a
+station on deck and its puzzle opens over the world while the ship sails; the captain picks a
+destination on the chart, brigands hail on the way and are evaded (no combat until M4). Island
+and ship chat, presence, the shipyard and a ship's log are in. Its tester session is next.
 
 The practice pages now live in the **puzzle harness** at [test.openseas.online](https://test.openseas.online)
 (ADR 0019): the same boards, engines and server as the game, one puzzle at a time, with a bench
 for lab rounds (chosen seed, config overrides, a clock that pauses and steps), an inspector, a
 replay check and log review. That is where testers practice and thresholds are calibrated. The
-game at openseas.online opens on the pirate's card until the M3 shell lands.
+game is at openseas.online.
 
 ## Layout
 
@@ -35,7 +38,7 @@ game at openseas.online opens on the pirate's card until the M3 shell lands.
 | `packages/content` | World content and the message table as JSON, validated at startup. |
 | `packages/server` | Node 22, `ws`, Drizzle, Better Auth. The only authority. |
 | `packages/boards` | What both front ends render with: the PixiJS boards and their art and sound, the round runner, the tick clock, the server connection (ADR 0019). Renders; never authoritative. |
-| `packages/client` | The game, one graphical experience. Vite, React. Renders; never authoritative. |
+| `packages/client` | The game, one graphical experience: the three.js world with the boards over it (ADR 0020). Vite, React. Renders; never authoritative. |
 | `packages/harness` | The puzzle test harness: one page per engine around the shared boards, plus the bench (lab rounds, scenarios as links, inspector, replay review). A developer and tester tool, never linked from the game. |
 
 ## Run it

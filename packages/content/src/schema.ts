@@ -12,6 +12,10 @@ export const IslandSchema = z.object({
   y: z.number(),
   /** Which buildings this island has. v1 islands all have the same three. */
   buildings: z.array(z.enum(["dock", "tavern", "notice-board"])).min(1),
+  /** The landmark the chart draws on the island, so each reads apart at a glance. */
+  landmark: z.enum(["lighthouse", "windmill", "volcano", "fort", "none"]).default("none"),
+  /** Message-table key for the island card's one-line description. */
+  blurbKey: MessageKey,
 });
 
 export const RouteLegSchema = z.object({
@@ -86,10 +90,45 @@ export const PieceStyleSchema = z.object({
   color: z.string().regex(/^#[0-9a-f]{6}$/),
 });
 
+/** The ship simulation's tuning. Mirrors the engine's ShipRules; the engine validates it again. */
+export const ShipRulesSchema = z.object({
+  turnSeconds: z.int().min(1).max(600),
+  waterIntakePerTurn: z.int().min(0).max(1000),
+  waterIntakeAtFullDamage: z.int().min(0).max(1000),
+  pumpPerTurn: z.int().min(0).max(1000),
+  wearPerTurn: z.int().min(0).max(1000),
+  repairPerTurn: z.int().min(0).max(1000),
+  idleSpeed: z.int().min(0).max(10_000),
+  sailSpeed: z.int().min(0).max(10_000),
+  navSpeed: z.int().min(0).max(10_000),
+  maxSpeed: z.int().min(0).max(10_000),
+  waterSlow: z.int().min(0).max(1000),
+  damageSlow: z.int().min(0).max(1000),
+  loadPerTurn: z.int().min(0).max(100_000),
+  navTokens: z.int().min(0).max(100),
+  maxOutputPercent: z.int().min(100).max(10_000),
+  graceTurns: z.int().min(0).max(100_000),
+  hailTurns: z.int().min(1).max(100_000),
+  encounterWindow: z.object({ from: z.int().min(0).max(1000), to: z.int().min(0).max(1000) }),
+});
+
+/** The ocean itself: the content version, where new pirates start, and how ships behave at sea. */
+export const OceanSchema = z.object({
+  version: z.int().min(1),
+  /** Where every new pirate, and their starter ship, begins. */
+  startIslandId: Id,
+  ship: ShipRulesSchema,
+});
+
 /** Fields every duty puzzle's content file has. */
 export const DutyPuzzleBaseSchema = z.object({
   /** Wall-clock length of a practice round, enforced by the server. */
   roundSeconds: z.int().min(10).max(1800),
+  /**
+   * The score a steady, competent player makes in one practice round. Aboard a ship a station's
+   * output each turn is its points as a percentage of this, scaled to the turn's length.
+   */
+  parScore: z.int().min(1),
   /** Performance thresholds the round is rated against (DESIGN.md 3.6). Calibrated from testers. */
   thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
 });
@@ -265,8 +304,7 @@ export const NamesSchema = z.object({
 
 export const MessagesSchema = z.record(MessageKey, z.string());
 
-export const WorldSchema = z.object({
-  version: z.int().min(1),
+export const WorldSchema = OceanSchema.extend({
   islands: z.array(IslandSchema).min(1),
   routes: z.array(RouteLegSchema),
   brigandTiers: z.array(BrigandTierSchema),
@@ -290,3 +328,6 @@ export type NavigationContent = z.infer<typeof NavigationContentSchema>;
 export type StarColor = z.infer<typeof StarColorSchema>;
 export type StarShape = z.infer<typeof StarShapeSchema>;
 export type World = z.infer<typeof WorldSchema>;
+export type ShipRules = z.infer<typeof ShipRulesSchema>;
+export type Ocean = z.infer<typeof OceanSchema>;
+export type IslandLandmark = Island["landmark"];

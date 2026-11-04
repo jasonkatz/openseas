@@ -30,7 +30,7 @@ mechanics, original everything else. `openseas` is a codename.
 
 TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `protocol` (Zod schemas), `content`,
 `boards` (the PixiJS boards, round runner and server connection both front ends share, ADR 0019),
-`server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React), `harness` (the puzzle test
+`server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `harness` (the puzzle test
 bench at test.openseas.online: the practice pages plus lab rounds, inspector and replay review).
 Postgres. Railway for server and database, Vercel for the game and the harness as two projects.
 Vitest with property-based determinism tests on engines, Playwright smoke on both front ends.

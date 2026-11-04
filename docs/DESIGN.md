@@ -387,9 +387,41 @@ the desired approach; the parts marked open are decided as they are built.
 - **In-world practice** (open): a tavern table where a pirate plays a duty puzzle alone, rated,
   may replace the harness as the public way to practice. Until it exists the harness is where
   testers practice and thresholds are calibrated.
-- **Open technical decisions**, each for its own ADR: the renderer for the unified scene (the
-  world in three.js with PixiJS boards layered over it, or one renderer for both), how a board is
-  embedded in the ship view, and how the harness and the game share board code.
+- **Technical decisions**: the world is one three.js scene with the PixiJS boards opening in a
+  layer over it (ADR 0020); the harness and the game share board code through `boards` (ADR 0019).
+
+As built (M3): the world is an isometric diorama of primitives, sea shader, clouds and gulls,
+filling the viewport from sign-in to sign-out. The three islands each carry the landmark their
+content names (a lighthouse that sweeps, a windmill that turns, a volcano that smokes), a tavern,
+a dock with a lantern and the notice board at its foot; sea lanes are dashed curves from coast to coast with a buoy at
+the midpoint, so a leg's progress is progress across the water; every ship with a crew is a sloop model bobbing at a dock or easing along its lane
+between turns, with a wake under way. The view is the game: it takes the screen, and the camera glides
+between three kinds of focus: the island the pirate stands on (home, filling the frame), the deck
+of the ship they are aboard (the hull itself filling the frame as its own little place, mast and
+sea cropped away, clouds kept off it, followed along its lane; the chart is where the ship's
+position in the ocean is seen), and the whole ocean (the chart, behind a map button, where islands are tapped to
+look closer). Places are `/` (home), `/chart`, `/island/:id` (with `/dock`, `/tavern`,
+`/notice`), `/ship`, `/ship/:station` and `/ship/helm`. The card for the place is folded to a
+thin strip at the bottom of a phone (the right of a wide screen) with the place's name and, aboard,
+mini bilge, hull and turn-clock bars; it unfolds on a tap or when a room or the helm needs it, and
+folds again on every move so the view stays clear. The same actions hang on the geometry as spots:
+a pin at the thing with a label beside it and a leader between (a building on its island; on the
+deck, each station with who is at it and the wheel, laid out as a callout column beside the hull),
+so a tap in the world or on the card does the same thing. A brigand's hail floats over the view. The dock lists
+the pirate's ships here and the shipyard (every class with its price, bought with the one
+acquisition path, ADR 0010); the notice board lists ships recruiting here and ships at sea, each
+joinable; the tavern lists who is ashore, carries the island chat channel and shows the pirate's
+standing. Boarding moves in on the deck: vitals (bilge, hull, speed, cannons), the turn clock, the
+stations with who holds each and last turn's output, the crew as pegs on the deck and as a list,
+the wheel (the captain picks a destination on the chart and sets sail; a hail asks them to evade),
+the ship chat and the ship's log. Taking a station opens its board in a layer over the dimmed
+world; the board gets the screen, with one thin bar above it (the way back, the station's name,
+the board's score and clock, and the ship as three small bars) that unfolds on a tap into the full
+ship status and last turn's output; boards are dealt back to back while the ship is at sea, a
+station standing down or the ship docking cuts the board short, and the board returns to the
+deck. Docked ships tie up alongside the dock, the first on its near side and the next on its far. One menu holds sound, the
+marks setting, the account and sign-out. Toasts carry what happens aboard. A software renderer gets
+a lighter world; without WebGL the cards still carry every action.
 
 **The puzzle harness** is a separate application for testing the puzzles themselves, at
 `test.openseas.online` (ADR 0018, ADR 0019). One page per engine carries the practice frame as
@@ -453,11 +485,11 @@ schemas.
 
 Two applications on the same server (ADR 0018). The game is one scene: the overworld, islands,
 the ship, menus and the puzzle boards embedded in one frame (section 3.11). PixiJS v8 draws the
-puzzle boards, the sea battle and the island; the overworld is an isometric three.js diorama
-(first built in the closed M3 pass). React with Vite is the UI layer, used for in-scene menus,
-HUDs and panels, not for pages. Which renderer owns the unified scene, and how boards embed in
-it, are open (section 3.11). The harness is React pages with the same PixiJS boards, from the shared
-`boards` package (ADR 0019), with its bench beside them.
+puzzle boards and (from M4) the sea battle; the world is an isometric three.js scene that fills
+the viewport for the whole session, and the boards open in a layer over it (ADR 0020). React with
+Vite is the UI layer, used for in-scene cards, HUDs, menus and the spots hung on the geometry, not
+for pages. The harness is React pages with the same PixiJS boards, from the shared `boards`
+package (ADR 0019), with its bench beside them.
 
 ### 4.5 Data
 
@@ -504,9 +536,11 @@ Every milestone ends with a tester session and a written retro before the next s
 
 M3 was restarted. A first pass built the ship, a notice board and an isometric chart as pages on
 the practice-page structure (pull requests #24 and #25, closed unmerged) and felt disjointed: the
-test harness with ship pages bolted on (ADR 0018). Its ship reducer, duty binding, server rooms
-and chart scene stay on their branches, `claude/m3-ship-voyage` and `claude/m3-overworld`, as
-parts for the restart.
+test harness with ship pages bolted on (ADR 0018). The restart kept its ship reducer, duty
+binding, server rooms and chart models as parts and built the one experience around them
+(section 3.11, ADR 0020): the world as home, islands and their buildings as the menus, the ship
+and its stations in the scene, boards over it, chat and presence in the tavern and aboard. Its
+tester session is next; the sea battle (M4) opens as the captain's board in the same place.
 
 ### 5.3 Testing and quality
 
@@ -540,7 +574,10 @@ Maintained as they arise.
 | Evading brigands | Can fail | Always succeeds in v1 | Nothing to lose yet |
 | Loss consequences | Cargo and damage costs | None in v1 | No economy yet |
 | Accounts | Username and password | Guest-first with OAuth upgrade | Zero first-session friction |
-| Island | Large walkable towns | Dock, tavern, notice board | Scope |
+| Island | Large walkable towns | Dock, tavern, notice board, as spots on a diorama | Scope; the M5 walkable island grows out of this view |
+| Ship at sea | Continuous movement | A turn every `turnSeconds`; each station's board points since the last turn become its output as a percentage of par | Pure engine on the server; the client eases the ship between snapshots (ADR 0020) |
+| Duty boards aboard | Continuous play at a station | Boards of the practice length dealt back to back; a board cut short by docking or standing down counts but moves no standing | Rated rounds stay whole rounds; the ship still gets every point |
+| Brigand encounters | A fight | Hailed in a window along the leg; the captain evades, or the brigand loses interest after `hailTurns` | No combat until M4 |
 | Bilging specials | Crab, pufferfish, jellyfish | Barnacle, Powder Keg, Ink Cloud | Original names (ADR 0001); same roles |
 | Tile art | Illustrated pieces | Colored squares with a distinct surface texture per kind, specials with icon and label, optional marks | Owner wants clarity first; textures and marks keep kinds apart without color |
 | Bilging hints | None | Idle hint in unrated practice only | Teaches newcomers; rated rounds stay unaided |

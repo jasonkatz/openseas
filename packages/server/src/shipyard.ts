@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import type { Content, ShipGrant } from "@openseas/content";
 import { msg } from "@openseas/content";
 import { tierFor } from "@openseas/engine";
-import { schema, type Tx } from "./db/index.js";
+import { schema, type Db, type Tx } from "./db/index.js";
 import { appendLedger } from "./ledger.js";
 
 /**
@@ -18,12 +18,14 @@ export async function purchaseShip(
   price: number,
   grantId: string | null,
   name: string,
+  /** The island the ship is delivered to: where the pirate stands. */
+  islandId: string,
 ): Promise<{ shipId: string; balance: number }> {
   const shipClass = content.world.shipClasses.find((c) => c.id === classId);
   if (!shipClass) throw new Error(`unknown ship class ${classId}`);
   const balance = await appendLedger(tx, pirateId, -price, "ship.purchase", grantId ?? classId);
   const shipId = randomUUID();
-  await tx.insert(schema.ship).values({ id: shipId, ownerId: pirateId, classId, name, grantId });
+  await tx.insert(schema.ship).values({ id: shipId, ownerId: pirateId, classId, name, grantId, islandId });
   return { shipId, balance };
 }
 
@@ -52,6 +54,7 @@ export async function applyAutomaticGrants(
   pirateId: string,
   pirateName: string,
   ctx: GrantContext,
+  islandId: string,
 ): Promise<string[]> {
   const granted: string[] = [];
   for (const grant of content.world.shipGrants) {
@@ -66,8 +69,38 @@ export async function applyAutomaticGrants(
     }
     const [adjective, noun] = pirateName.split(" ");
     const shipName = msg(content, "ship.default_name", { adjective: adjective ?? "Salty", noun: noun ?? "Gull" });
-    await purchaseShip(tx, content, pirateId, grant.shipClassId, grant.price, grant.id, shipName);
+    await purchaseShip(tx, content, pirateId, grant.shipClassId, grant.price, grant.id, shipName, islandId);
     granted.push(grant.id);
   }
   return granted;
+}
+
+/**
+ * A pirate buys a ship at the yard of the island they stand on. The same path as the starter grant
+ * (ADR 0010), at the class's price. Names the ship from the content name lists.
+ */
+export async function buyShip(
+  db: Db,
+  content: Content,
+  pirateId: string,
+  classId: string,
+  islandId: string,
+  pick: (n: number) => number,
+): Promise<{ shipId: string; name: string; balance: number }> {
+  const shipClass = content.world.shipClasses.find((c) => c.id === classId);
+  if (!shipClass) throw new NoSuchClassError(classId);
+  const adjective = content.names.adjectives[pick(content.names.adjectives.length)] ?? "Salty";
+  const noun = content.names.nouns[pick(content.names.nouns.length)] ?? "Gull";
+  const name = msg(content, "ship.default_name", { adjective, noun });
+  return db.transaction(async (tx) => {
+    const r = await purchaseShip(tx, content, pirateId, classId, shipClass.price, null, name, islandId);
+    return { ...r, name };
+  });
+}
+
+export class NoSuchClassError extends Error {
+  constructor(readonly classId: string) {
+    super(`no such ship class ${classId}`);
+    this.name = "NoSuchClassError";
+  }
 }

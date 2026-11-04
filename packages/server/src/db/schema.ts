@@ -88,6 +88,8 @@ export const pirate = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
     name: text().notNull(),
+    /** Where the pirate stands when not aboard a ship. Null means the ocean's start island. */
+    islandId: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("pirate_user_id_uidx").on(t.userId), uniqueIndex("pirate_name_uidx").on(t.name)],
@@ -104,6 +106,8 @@ export const ship = pgTable(
     name: text().notNull(),
     /** The grant that produced this ship, or null for a paid purchase (ADR 0010). */
     grantId: text(),
+    /** The island the ship is docked at, or was last docked at while at sea. Null means the start island. */
+    islandId: text(),
     acquiredAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("ship_owner_id_idx").on(t.ownerId)],
@@ -156,12 +160,55 @@ export const puzzleRound = pgTable(
     bestCombo: integer().notNull(),
     /** Null when the round counted; otherwise why the server threw it out. */
     rejectedReason: text(),
+    /** Set for a duty board played aboard a ship; null for practice. */
+    voyageId: text(),
+    /** False for a board that counted but was not rated: a duty board cut short by docking. */
+    rated: boolean().notNull().default(true),
     moveLog: jsonb().notNull().$type<unknown[]>(),
     metrics: jsonb().$type<Record<string, unknown>>(),
     startedAt: timestamp({ withTimezone: true }).notNull(),
     finishedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("puzzle_round_pirate_id_idx").on(t.pirateId, t.puzzle)],
+);
+
+/** One leg sailed by one ship (DESIGN.md 3.4, 3.6). Written when the ship sets sail, closed on arrival or abandonment. */
+export const voyage = pgTable(
+  "voyage",
+  {
+    id: text().primaryKey(),
+    shipId: text()
+      .notNull()
+      .references(() => ship.id, { onDelete: "cascade" }),
+    routeId: text().notNull(),
+    captainId: text()
+      .notNull()
+      .references(() => pirate.id, { onDelete: "cascade" }),
+    startedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp({ withTimezone: true }),
+    /** "arrived" or "abandoned"; null while under way. A server restart leaves it null. */
+    outcome: text(),
+    turns: integer().notNull().default(0),
+    /** The brigand tier rolled for the leg and whether it was evaded, or null for a clear leg. */
+    encounter: jsonb().$type<{ tierId: string; evaded: boolean }>(),
+  },
+  (t) => [index("voyage_ship_id_idx").on(t.shipId)],
+);
+
+/** Who was aboard for a voyage, so a pirate has a voyage history and grants can count voyages. */
+export const voyageCrew = pgTable(
+  "voyage_crew",
+  {
+    voyageId: text()
+      .notNull()
+      .references(() => voyage.id, { onDelete: "cascade" }),
+    pirateId: text()
+      .notNull()
+      .references(() => pirate.id, { onDelete: "cascade" }),
+    boardedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    leftAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.voyageId, t.pirateId] }), index("voyage_crew_pirate_id_idx").on(t.pirateId)],
 );
 
 /** Gameplay analytics (DESIGN.md 4.6). No third-party analytics. */
@@ -182,8 +229,17 @@ export const pirateRelations = relations(pirate, ({ many, one }) => ({
   ships: many(ship),
   ratings: many(rating),
 }));
-export const shipRelations = relations(ship, ({ one }) => ({
+export const shipRelations = relations(ship, ({ one, many }) => ({
   owner: one(pirate, { fields: [ship.ownerId], references: [pirate.id] }),
+  voyages: many(voyage),
+}));
+export const voyageRelations = relations(voyage, ({ one, many }) => ({
+  ship: one(ship, { fields: [voyage.shipId], references: [ship.id] }),
+  crew: many(voyageCrew),
+}));
+export const voyageCrewRelations = relations(voyageCrew, ({ one }) => ({
+  voyage: one(voyage, { fields: [voyageCrew.voyageId], references: [voyage.id] }),
+  pirate: one(pirate, { fields: [voyageCrew.pirateId], references: [pirate.id] }),
 }));
 export const ratingRelations = relations(rating, ({ one }) => ({
   pirate: one(pirate, { fields: [rating.pirateId], references: [pirate.id] }),
