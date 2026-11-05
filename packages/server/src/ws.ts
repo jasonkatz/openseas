@@ -278,6 +278,13 @@ export function createWsServer(deps: WsDeps) {
         send(ws, social.presence(islandId));
         return;
       }
+      case "melee.join": {
+        await dropActive(conn);
+        const started = await ships.meleeJoin(conn.pirateId);
+        conn.activeSessionId = started.sessionId;
+        send(ws, started);
+        return;
+      }
       default: {
         const never: never = msg;
         void never;

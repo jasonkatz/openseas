@@ -1,0 +1,48 @@
+{
+  "config": {
+    "width": 6,
+    "height": 12,
+    "colors": 4,
+    "breakerPermille": 170,
+    "ripenMoves": 3,
+    "cellPoints": 10,
+    "slabBonus": 4,
+    "attackPoints": 24,
+    "offset": true,
+    "landAfterTicks": 15,
+    "incomingCapRows": 3,
+    "blades": [
+      { "id": "cutlass", "columns": [0, 1, 2, 3, 4, 5] },
+      { "id": "sabre", "columns": [2, 3, 1, 4, 2, 3, 0, 5] },
+      { "id": "dirk", "columns": [0, 5, 1, 4, 0, 5, 2, 3] }
+    ],
+    "player": true,
+    "blade": 0,
+    "allies": [],
+    "foes": [{ "thinkTicks": 14, "skill": 60, "blade": 1 }],
+    "winPoints": 400,
+    "tickMs": 200,
+    "dropTicks": 2,
+    "fallTicks": 4,
+    "maxTick": 1500,
+    "maxMoves": 2000
+  },
+  "roundSeconds": 240,
+  "softDropMs": 60,
+  "thresholds": [
+    { "score": 80, "rating": 1100 },
+    { "score": 200, "rating": 1300 },
+    { "score": 450, "rating": 1500 },
+    { "score": 700, "rating": 1700 },
+    { "score": 1000, "rating": 1900 },
+    { "score": 1400, "rating": 2100 }
+  ],
+  "pieces": [
+    { "nameKey": "swordfight.piece.crimson", "mark": "circle", "texture": "facet", "color": "#e5355a" },
+    { "nameKey": "swordfight.piece.gold", "mark": "square", "texture": "rivet", "color": "#f5d021" },
+    { "nameKey": "swordfight.piece.sea", "mark": "triangle", "texture": "scale", "color": "#3fa7f5" },
+    { "nameKey": "swordfight.piece.kelp", "mark": "diamond", "texture": "hatch", "color": "#4ad66d" },
+    { "nameKey": "swordfight.piece.violet", "mark": "hexagon", "texture": "swirl", "color": "#c9a0dc" },
+    { "nameKey": "swordfight.piece.pearl", "mark": "star", "texture": "rings", "color": "#f2f0e6" }
+  ]
+}

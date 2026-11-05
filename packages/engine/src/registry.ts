@@ -59,6 +59,17 @@ import {
   type SailingState,
 } from "./sailing/index.js";
 import {
+  DEFAULT_SWORDFIGHT_CONFIG,
+  createSwordfightGame,
+  hashSwordfightState,
+  reduceSwordfight,
+  summarizeSwordfight,
+  validateSwordfightConfig,
+  type SwordfightConfig,
+  type SwordfightMove,
+  type SwordfightState,
+} from "./swordfight/index.js";
+import {
   DEFAULT_GUNNERY_CONFIG,
   createGunneryGame,
   hashGunneryState,
@@ -71,7 +82,7 @@ import {
 } from "./gunnery/index.js";
 
 /** Every puzzle the engine knows about. Extended one at a time per the milestone ladder. */
-export const PUZZLE_IDS = ["bilging", "sailing", "carpentry", "gunnery", "navigation", "battle"] as const;
+export const PUZZLE_IDS = ["bilging", "sailing", "carpentry", "gunnery", "navigation", "battle", "swordfight"] as const;
 export type PuzzleId = (typeof PUZZLE_IDS)[number];
 /** The duty puzzles: the ones a station aboard a ship plays. Sea Battle is the captain's game, not a station. */
 export const DUTY_PUZZLE_IDS = ["bilging", "sailing", "carpentry", "gunnery", "navigation"] as const;
@@ -177,6 +188,19 @@ export const BATTLE_DEF: PuzzleDef<BattleState, BattleMove, BattleConfig> = {
   maxMoves: (c) => c.maxMoves,
 };
 
+export const SWORDFIGHT_DEF: PuzzleDef<SwordfightState, SwordfightMove, SwordfightConfig> = {
+  id: "swordfight",
+  defaultConfig: DEFAULT_SWORDFIGHT_CONFIG,
+  validateConfig: validateSwordfightConfig,
+  create: createSwordfightGame,
+  reduce: reduceSwordfight,
+  hash: hashSwordfightState,
+  summarize: summarizeSwordfight,
+  isFinished: (s) => s.finished,
+  maxMoves: (c) => c.maxMoves,
+  moveTimeMs: (m, c) => m.tick * c.tickMs,
+};
+
 /** The engine behind each puzzle id, erased to `unknown` shapes for generic drivers. */
 export type AnyPuzzleDef = PuzzleDef<unknown, unknown, unknown>;
 
@@ -187,6 +211,7 @@ export const PUZZLES: Readonly<Record<PuzzleId, AnyPuzzleDef>> = {
   gunnery: GUNNERY_DEF as unknown as AnyPuzzleDef,
   navigation: NAVIGATION_DEF as unknown as AnyPuzzleDef,
   battle: BATTLE_DEF as unknown as AnyPuzzleDef,
+  swordfight: SWORDFIGHT_DEF as unknown as AnyPuzzleDef,
 };
 
 export function isPuzzleId(x: unknown): x is PuzzleId {

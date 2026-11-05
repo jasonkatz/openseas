@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Must list exactly the engine's PUZZLE_IDS; the server checks the two agree at compile time. */
-export const PuzzleIdSchema = z.enum(["bilging", "sailing", "carpentry", "gunnery", "navigation", "battle"]);
+export const PuzzleIdSchema = z.enum(["bilging", "sailing", "carpentry", "gunnery", "navigation", "battle", "swordfight"]);
 export type PuzzleIdWire = z.infer<typeof PuzzleIdSchema>;
 
 /** The duty puzzles, played at a station aboard. Sea Battle is the captain's game, not a station. */
@@ -60,5 +60,6 @@ export const ErrorCodeSchema = z.enum([
   "aboard_a_ship",
   "in_battle",
   "not_in_battle",
+  "not_in_melee",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;

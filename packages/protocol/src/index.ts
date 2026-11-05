@@ -8,4 +8,5 @@ export * from "./navigation.js";
 export * from "./puzzles.js";
 export * from "./sailing.js";
 export * from "./ship.js";
+export * from "./swordfight.js";
 export * from "./ws.js";
