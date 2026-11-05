@@ -30,7 +30,10 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: Dec
   const owner = ship.ownerId === me;
   const atSea = ship.location.kind === "at-sea";
   const battle = ship.location.kind === "at-sea" ? ship.location.battle : null;
-  const stations = content.world.shipClasses.find((c) => c.id === ship.classId)?.stations ?? [];
+  const shipClass = content.world.shipClasses.find((c) => c.id === ship.classId);
+  const stations = shipClass?.stations ?? [];
+  /** The stations the captain may order a deckhand to: the class's, never the chart table. */
+  const mateStations = shipClass?.mateStations ?? [];
   const hands = ship.crew.some((c) => c.mate);
 
   return (
@@ -115,7 +118,7 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: Dec
         <h3 className="section-head">{t("ship.crew_heading", { count: ship.crew.length, max: ship.maxCrew })}</h3>
         <ul className="crew" data-testid="crew">
           {ship.crew.map((c) => (
-            <CrewRow key={c.pirateId} c={c} me={me} orders={captain && c.mate ? { stations, crew: ship.crew, assign } : null} />
+            <CrewRow key={c.pirateId} c={c} me={me} orders={captain && c.mate ? { stations: mateStations, crew: ship.crew, assign } : null} />
           ))}
         </ul>
       </div>
@@ -185,7 +188,7 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: Dec
   );
 }
 
-/** What the captain may order a deckhand: the ship's stations, with those a pirate holds greyed. */
+/** What the captain may order a deckhand: the stations deckhands work, with those a pirate holds greyed. */
 interface Orders {
   stations: readonly StationWire[];
   crew: readonly CrewView[];

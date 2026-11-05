@@ -377,7 +377,7 @@ live in `content/data/puzzles/swordfight.json`.
   percent of par from the ship's PRNG, so a replay reproduces it (ADR 0023). A pirate may take
   any deckhand's station at any time; the hand steps aside and, after `mateRestTurns` turns so
   the pirate settles in, works the next open station it will, or waits on deck for one. The
-  captain can also order a deckhand to any station the ship has, the chart table included, or
+  captain can also order a deckhand to any of those four stations, never the chart table, or
   stand it down; another deckhand there steps aside, a pirate there never does. A pirate
   boarding a full ship relieves a deckhand. Deckhands never have the wheel, never drop, earn no
   booty, and are paid off when the ship docks or the last pirate leaves. They look like pirates,

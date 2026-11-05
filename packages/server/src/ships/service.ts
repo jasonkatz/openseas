@@ -260,13 +260,13 @@ export class ShipService {
     await this.afterChange(room);
   }
 
-  /** The captain sends a deckhand to a station, or stands it down. A pirate's station is never taken from them. */
+  /** The captain sends a deckhand to a station it works, or stands it down. A pirate's station is never taken from them. */
   async assign(pirateId: string, mateId: string, station: Station | null): Promise<void> {
     const room = this.roomOf(pirateId);
     if (!room) throw new ShipError("not_aboard");
     if (room.state.captainId !== pirateId) throw new ShipError("not_captain");
     this.apply(room, { type: "assign", pirateId: mateId, station }, (e) =>
-      e.message === "station taken" ? "station_taken" : e.message === "not a deckhand" ? "not_deckhand" : e.message === "not aboard" ? "not_aboard" : "no_station",
+      e.message === "station taken" ? "station_taken" : e.message === "not a deckhand" ? "not_deckhand" : e.message === "not aboard" ? "not_aboard" : "not_mate_station",
     );
     await this.afterChange(room);
   }

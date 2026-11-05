@@ -67,6 +67,7 @@ const SHIP_ERRORS = new Set<ErrorCode>([
   "not_in_battle",
   "is_deckhand",
   "not_deckhand",
+  "not_mate_station",
 ]);
 
 /** Everything the client knows about the ship it is aboard comes from `ship.state`; nothing is simulated here. */

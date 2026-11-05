@@ -485,13 +485,17 @@ describeDb("ships over the wire", () => {
     expect(started.puzzle).toBe("sailing");
     expect(started.duty).toMatchObject({ shipId, station: "sailing" });
 
-    // The captain can order the hand straight to the chart table, with no rest; a turn later it is working there.
+    // The chart table is a pirate's job: the order is refused. The captain can order the hand
+    // straight to the open station, with no rest; a turn later it is working there.
     a.send({ type: "ship.assign", pirateId: atSails.pirateId, station: "navigation" });
-    const ordered = await a.until("ship.state", (m) => m.ship.crew.some((c) => c.pirateId === atSails.pirateId && c.station === "navigation"));
-    expect(ordered.events).toEqual([{ type: "station", pirateId: atSails.pirateId, name: atSails.name, station: "navigation" }]);
+    expect(await a.until("error")).toMatchObject({ code: "not_mate_station" });
+    const spare = sloop.mateStations.find((st) => !took.ship.crew.some((c) => c.station === st))!;
+    a.send({ type: "ship.assign", pirateId: atSails.pirateId, station: spare });
+    const ordered = await a.until("ship.state", (m) => m.ship.crew.some((c) => c.pirateId === atSails.pirateId && c.station === spare));
+    expect(ordered.events).toEqual([{ type: "station", pirateId: atSails.pirateId, name: atSails.name, station: spare }]);
     await turn();
     const worked = await a.until("ship.state", (m) => m.ship.lastTurn !== null && m.ship.lastTurn.turn >= ordered.ship.turn + 1);
-    expect(worked.ship.lastTurn!.outputs.navigation).toBeGreaterThan(0);
+    expect(worked.ship.lastTurn!.outputs[spare]).toBeGreaterThan(0);
     // Orders go to deckhands only, and never onto a pirate's station.
     a.send({ type: "ship.assign", pirateId: owner.me.id, station: "bilging" });
     expect(await a.until("error")).toMatchObject({ code: "not_deckhand" });

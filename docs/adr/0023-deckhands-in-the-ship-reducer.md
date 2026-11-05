@@ -32,7 +32,7 @@ a server-side scheduler that plays moves into the engine, or the engine itself.
    deckhand's station succeeds where another pirate's would be refused: the hand's station goes
    to null with `idleFromTurn` set `mateRestTurns` ahead. On each turn the reducer seats every
    rested idle hand at the first open station it works, as a `station` event like anyone's. The
-   captain may also order a hand to any station the ship has (`assign`), the chart table included,
+   captain may also order a hand to any of the stations it works (`assign`), never the chart table,
    or stand it down; another hand there steps aside and looks again next turn, a pirate there is
    never displaced. A pirate boarding a ship full of deckhands relieves one (the idle one first)
    rather than being turned away.

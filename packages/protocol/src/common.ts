@@ -63,5 +63,6 @@ export const ErrorCodeSchema = z.enum([
   "not_in_melee",
   "is_deckhand",
   "not_deckhand",
+  "not_mate_station",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;

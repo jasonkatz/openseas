@@ -293,14 +293,14 @@ function station(state: ShipState, pirateId: string, which: Station | null, move
   return { ...state, crew, events: [{ type: "station", pirateId, station: which }] };
 }
 
-/** A pirate's order to a deckhand: work this station (any the ship has), or stand down for a rest. */
+/** A pirate's order to a deckhand: work this station (one of the stations deckhands work), or stand down for a rest. */
 function assign(state: ShipState, pirateId: string, which: Station | null, move: ShipMove): ShipState {
   const hand = crewMember(state, pirateId);
   if (!hand) throw new InvalidMoveError("not aboard", move);
   if (!hand.mate) throw new InvalidMoveError("not a deckhand", move);
   let displaced: CrewMember | null = null;
   if (which !== null) {
-    if (!isStation(which) || !state.config.shipClass.stations.includes(which)) throw new InvalidMoveError("no such station aboard", move);
+    if (!isStation(which) || !state.config.shipClass.mateStations.includes(which)) throw new InvalidMoveError("not a deckhand's station", move);
     const holder = crewAtStation(state, which);
     if (holder && holder.pirateId !== pirateId) {
       if (!holder.mate) throw new InvalidMoveError("station taken", move);

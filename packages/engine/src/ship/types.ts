@@ -36,7 +36,7 @@ export interface ShipClassSpec {
    * (AI crew, DESIGN.md 3.4) to make up the number; they go ashore when the ship docks.
    */
   readonly minCrew: number;
-  /** The stations a deckhand will work, in order of preference. Never the chart table. */
+  /** The stations a deckhand works, in order of preference, by itself or by order. Never the chart table. */
   readonly mateStations: readonly Station[];
   readonly cannons: number;
   /** Movement tokens per sea battle turn at full sailing output (M4). */
@@ -177,8 +177,9 @@ export type ShipMove =
   /** Hand the wheel to someone aboard. The server checks the caller is the captain. */
   | { readonly type: "wheel"; readonly pirateId: string }
   /**
-   * Order a deckhand to a station the ship has, or stand it down with null. The server checks the
-   * caller is the captain. A pirate at the station is never displaced; another deckhand steps aside.
+   * Order a deckhand to one of the stations it works (`mateStations`, never the chart table), or
+   * stand it down with null. The server checks the caller is the captain. A pirate at the station
+   * is never displaced; another deckhand steps aside.
    */
   | { readonly type: "assign"; readonly pirateId: string; readonly station: Station | null }
   | { readonly type: "lock"; readonly inviteOnly: boolean }
