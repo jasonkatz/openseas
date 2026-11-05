@@ -72,23 +72,26 @@ test("an unrated Bilging round accepts a keyboard swap and shows the result", as
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });
 
-test("home links to Sailing and an unrated round takes keyboard drops", async ({ page }) => {
+test("home links to Sailing and an unrated round takes keyboard and held-press drops", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("tile-sailing").click();
   await expect(page).toHaveURL(/\/sailing$/);
   await page.getByTestId("start-unrated").click();
   const canvas = page.getByTestId("sailing-canvas");
   await expect(canvas).toBeVisible();
-  await expect(page.getByTestId("hud-moves")).toContainText("0");
+  const moves = page.getByTestId("hud-moves");
+  await expect(moves).toHaveText(/^0\//);
 
-  // Steer, rotate, hard drop.
+  // Steer and rotate, then hold space: the hurried pair reaches the floor in a couple of seconds
+  // where free fall over twenty rows would take fourteen.
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowUp");
-  await page.keyboard.press("Enter");
-  await expect(page.getByTestId("hud-moves")).toContainText("1");
+  await page.keyboard.down(" ");
+  await expect(moves).toHaveText(/^1\//, { timeout: 8_000 });
+  await page.keyboard.up(" ");
   await expectViewMatchesState(page, "sailing");
 
-  // Pointer: a tap turns the pair, a sideways drag steers it; then a key drops it.
+  // Pointer: a tap turns the pair, a sideways drag steers it, and a press held still hurries it down.
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
   const x = box.x + box.width / 2;
@@ -98,8 +101,11 @@ test("home links to Sailing and an unrated round takes keyboard drops", async ({
   await page.mouse.down();
   await page.mouse.move(x + box.width * 0.2, y, { steps: 6 });
   await page.mouse.up();
-  await page.keyboard.press("Enter");
-  await expect(page.getByTestId("hud-moves")).toContainText("2");
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await expect(moves).toHaveText(/^2\//, { timeout: 8_000 });
+  await page.mouse.up();
+  await expectViewMatchesState(page, "sailing");
 });
 
 test("home links to Carpentry and planks go down by keyboard and by tap", async ({ page }) => {
