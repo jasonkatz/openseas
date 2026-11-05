@@ -15,7 +15,7 @@ import {
 import type { SwordfightContent } from "@openseas/content";
 import { mix } from "../bilging/tiles.js";
 import { drawMark } from "../sailing/renderer.js";
-import { WRACK_COLOR, blockCanvas, type BlockStyle, type SwordTexture } from "./art.js";
+import { WRACK_COLOR, blockCanvas, wrackStage, type BlockStyle, type SwordTexture } from "./art.js";
 
 /** A board in the melee that is not in this fight's state: another pirate's, or a brigand's run by the server. */
 export interface RemoteBoard {
@@ -71,10 +71,10 @@ export function swordfightViewString(state: SwordfightState): string {
 
 interface PieceView {
   s: Sprite;
-  /** The ripen counter on wrack, or null. */
-  label: Text | null;
   kind: SwordCell["kind"];
   color: number;
+  /** Wrack: the drops left before it ripens, which picks its look. 0 otherwise. */
+  ripen: number;
   x: number;
   y: number;
   tx: number;
@@ -258,9 +258,9 @@ export class SwordfightRenderer {
     this.height = content.config.height;
   }
 
-  private styleFor(color: number, kind: SwordCell["kind"]): BlockStyle {
+  private styleFor(color: number, kind: SwordCell["kind"], ripen: number): BlockStyle {
     const st = this.styles[Math.max(0, color)] ?? { color: 0xffffff, texture: "rings" as const, mark: "circle" };
-    return { color: st.color, texture: st.texture, mark: st.mark, kind, showMarks: this.showMarks };
+    return { color: st.color, texture: st.texture, mark: st.mark, kind, showMarks: this.showMarks, ripen };
   }
 
   private colorOf(color: number): number {
@@ -499,10 +499,9 @@ export class SwordfightRenderer {
               if (v) {
                 v.kind = "block";
                 v.color = color;
+                v.ripen = 0;
                 v.s.texture = this.texture(color, "block", 1, 1);
                 v.flash = 1;
-                v.label?.destroy();
-                v.label = null;
               }
             }
             return this.reduced ? 40 : 160;
@@ -539,7 +538,7 @@ export class SwordfightRenderer {
               const i = ev.cells[k]!;
               const col = i % this.width;
               const row = Math.floor(i / this.width);
-              const cell: SwordCell = { id: ev.ids[k]!, color: -1, kind: "wrack", ripen: state.config.ripenMoves, slab: 0 };
+              const cell: SwordCell = { id: ev.ids[k]!, color: ev.colors[k] ?? 0, kind: "wrack", ripen: state.config.ripenMoves, slab: 0 };
               this.cells[i] = cell;
               const v = this.spawn(cell, this.cx(col), this.cy(this.height + 1 + (k % 3)));
               v.tx = this.cx(col);
@@ -615,21 +614,12 @@ export class SwordfightRenderer {
       const y = this.cy(Math.floor(i / this.width));
       let v = this.pieces.get(c.id);
       if (!v) v = this.spawn(c, x, snap ? y : y - this.cell * 2);
-      else if (v.kind !== c.kind || v.color !== c.color) {
+      else if (v.kind !== c.kind || v.color !== c.color || v.ripen !== c.ripen) {
+        // Wrack a drop closer to ripening changes its look: the texture is keyed on the stage too.
         v.kind = c.kind;
         v.color = c.color;
-        v.s.texture = this.texture(c.color, c.kind, 1, 1);
-      }
-      if (c.kind === "wrack") {
-        if (!v.label) {
-          v.label = new Text({ text: "", style: { fontFamily: FONT, fontSize: Math.max(9, this.cell * 0.38), fontWeight: "700", fill: COLORS.bone, stroke: { color: 0x000000, width: 3 } } });
-          v.label.anchor.set(0.5);
-          v.s.addChild(v.label);
-        }
-        v.label.text = String(c.ripen);
-      } else if (v.label) {
-        v.label.destroy();
-        v.label = null;
+        v.ripen = c.ripen;
+        v.s.texture = this.texture(c.color, c.kind, 1, 1, c.ripen);
       }
       v.tx = x;
       v.ty = y;
@@ -670,11 +660,11 @@ export class SwordfightRenderer {
   }
 
   private spawn(c: SwordCell, x: number, y: number): PieceView {
-    const sprite = new Sprite(this.texture(c.color, c.kind, 1, 1));
+    const sprite = new Sprite(this.texture(c.color, c.kind, 1, 1, c.ripen));
     sprite.anchor.set(0.5);
     sprite.position.set(x, y);
     this.pieceLayer.addChild(sprite);
-    const v: PieceView = { s: sprite, label: null, kind: c.kind, color: c.color, x, y, tx: x, ty: y, dying: null, flash: 0 };
+    const v: PieceView = { s: sprite, kind: c.kind, color: c.color, ripen: c.ripen, x, y, tx: x, ty: y, dying: null, flash: 0 };
     this.pieces.set(c.id, v);
     return v;
   }
@@ -689,12 +679,14 @@ export class SwordfightRenderer {
     v.s.destroy();
   }
 
-  private texture(color: number, kind: SwordCell["kind"], w: number, h: number): Texture {
-    const key = `${color}:${kind}:${w}x${h}:${this.showMarks ? 1 : 0}:${this.cell}`;
+  /** The texture for a block; `ripen` is the drops left on wrack, which picks its stage. */
+  private texture(color: number, kind: SwordCell["kind"], w: number, h: number, ripen = 0): Texture {
+    const stage = kind === "wrack" ? wrackStage(ripen) : "";
+    const key = `${color}:${kind}:${stage}:${w}x${h}:${this.showMarks ? 1 : 0}:${this.cell}`;
     let t = this.textures.get(key);
     if (!t) {
       const r = this.app.renderer;
-      const canvas = blockCanvas(this.cell, w, h, this.styleFor(color, kind), r.resolution);
+      const canvas = blockCanvas(this.cell, w, h, this.styleFor(color, kind, ripen), r.resolution);
       t = new Texture({ source: new CanvasSource({ resource: canvas, resolution: r.resolution }) });
       this.textures.set(key, t);
     }
@@ -705,7 +697,7 @@ export class SwordfightRenderer {
   private bake(): void {
     const old = [...this.textures.values()];
     this.textures.clear();
-    for (const v of this.pieces.values()) v.s.texture = this.texture(v.color, v.kind, 1, 1);
+    for (const v of this.pieces.values()) v.s.texture = this.texture(v.color, v.kind, 1, 1, v.ripen);
     for (const v of this.slabs.values()) v.s.texture = this.texture(v.color, "block", v.w, v.h);
     if (this.falling && this.state?.config.player) {
       const cur = this.state.boards[0]!.current;
@@ -795,12 +787,16 @@ export class SwordfightRenderer {
   /** The pair in hand when the last placement was made, for a half that shattered at once. */
   private lastPair: { a: { color: number; breaker: boolean }; b: { color: number; breaker: boolean } } | null = null;
 
-  /** The pair may sit at (pc, rot, row): inside the board and over free cells. Two rows above the well are open sky. */
+  /**
+   * The pair may sit at (pc, rot, row): inside the board and over free cells. Two rows above the
+   * well are open sky, but only over a column whose top cell is free: a pair never passes over a
+   * full column, which is the engine's "no way through" refusal.
+   */
   private fits(pc: number, rot: SwordRotation, row: number): boolean {
     const h = halves(pc, rot, row);
     for (const [c, r] of [h.a, h.b]) {
       if (c < 0 || c >= this.width || r < 0 || r >= this.height + 2) return false;
-      if (r < this.height && this.cells[r * this.width + c]) return false;
+      if (this.cells[Math.min(r, this.height - 1) * this.width + c]) return false;
     }
     return true;
   }

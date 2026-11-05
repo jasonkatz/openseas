@@ -437,8 +437,8 @@ function resolve(cfg: SwordfightConfig, w: Work, board: number, tick: number, ch
   }
 }
 
-/** Wrack that has been on the board long enough turns into blocks of a random color each. */
-function ripen(cfg: SwordfightConfig, w: Work, board: number, tick: number, rng: PrngState, events: SwordfightEvent[]): PrngState {
+/** Wrack that has been on the board long enough turns into a block of the color it landed with. */
+function ripen(w: Work, board: number, tick: number, events: SwordfightEvent[]): void {
   const ids: number[] = [];
   const colors: number[] = [];
   for (let i = 0; i < w.cells.length; i++) {
@@ -449,14 +449,11 @@ function ripen(cfg: SwordfightConfig, w: Work, board: number, tick: number, rng:
       w.cells[i] = { ...c, ripen: left };
       continue;
     }
-    const r = nextInt(rng, cfg.colors);
-    rng = r.state;
-    w.cells[i] = { ...c, kind: "block", color: r.value, ripen: 0 };
+    w.cells[i] = { ...c, kind: "block", ripen: 0 };
     ids.push(c.id);
-    colors.push(r.value);
+    colors.push(c.color);
   }
   if (ids.length) events.push({ tick, board, type: "ripened", ids, colors });
-  return rng;
 }
 
 export interface DropResult {
@@ -488,7 +485,7 @@ export function applyDrop(cfg: SwordfightConfig, board: SwordBoard, boardIndex: 
   const r1 = resolve(cfg, w, boardIndex, tick, 0, events, nextSlabId);
   nextSlabId = r1.nextSlabId;
   const before = events.length;
-  rng = ripen(cfg, w, boardIndex, tick, rng, events);
+  ripen(w, boardIndex, tick, events);
   let points = r1.points;
   let chain = r1.chain;
   if (events.length > before) {
@@ -500,15 +497,19 @@ export function applyDrop(cfg: SwordfightConfig, board: SwordBoard, boardIndex: 
   return { cells: w.cells, slabs: w.slabs, points, chain, rng, nextId, nextSlabId, events };
 }
 
-/** Land waiting wrack on a board, up to the cap, in the blades' columns. */
-function landWrack(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number, tick: number, nextId: number, events: SwordfightEvent[]): { board: SwordBoard; nextId: number } {
-  if (board.pending.length === 0) return { board, nextId };
+/**
+ * Land waiting wrack on a board, up to the cap, in the blades' columns. Each block is dealt the
+ * color it will ripen into as it lands, so the board can show the color coming.
+ */
+function landWrack(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number, tick: number, nextId: number, rng: PrngState, events: SwordfightEvent[]): { board: SwordBoard; nextId: number; rng: PrngState } {
+  if (board.pending.length === 0) return { board, nextId, rng };
   const cells: Cells = board.cells.slice();
   let cursor = board.cursor;
   let budget = cfg.incomingCapRows * cfg.width;
   const pending: PendingAttack[] = [];
   const landedCells: number[] = [];
   const ids: number[] = [];
+  const colors: number[] = [];
   let full = false;
   let bladeShown = board.pending[0]!.blade;
   for (const p of board.pending) {
@@ -522,10 +523,13 @@ function landWrack(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number,
         const h = colHeight(cfg, cells, col);
         if (h >= cfg.height) continue;
         const i = idx(cfg, col, h);
-        const cell: SwordCell = { id: nextId++, color: -1, kind: "wrack", ripen: cfg.ripenMoves, slab: 0 };
+        const r = nextInt(rng, cfg.colors);
+        rng = r.state;
+        const cell: SwordCell = { id: nextId++, color: r.value, kind: "wrack", ripen: cfg.ripenMoves, slab: 0 };
         cells[i] = cell;
         landedCells.push(i);
         ids.push(cell.id);
+        colors.push(cell.color);
         placed = true;
         break;
       }
@@ -539,8 +543,8 @@ function landWrack(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number,
     if (left > 0) pending.push({ wrack: left, blade: p.blade });
     bladeShown = p.blade;
   }
-  if (landedCells.length) events.push({ tick, board: boardIndex, type: "landed", cells: landedCells, ids, blade: bladeShown });
-  return { board: { ...board, cells, cursor, pending: full ? [] : pending, pendingSince: pending.length && !full ? tick : -1 }, nextId };
+  if (landedCells.length) events.push({ tick, board: boardIndex, type: "landed", cells: landedCells, ids, colors, blade: bladeShown });
+  return { board: { ...board, cells, cursor, pending: full ? [] : pending, pendingSince: pending.length && !full ? tick : -1 }, nextId, rng };
 }
 
 // ---- the fight
@@ -635,9 +639,10 @@ function dropOn(cfg: SwordfightConfig, sim: Sim, i: number, col: number, rot: Sw
     board = { ...board, sent: board.sent + wrack };
   }
   // What was still waiting lands now.
-  const landed = landWrack(cfg, board, i, tick, sim.nextId, sim.events);
+  const landed = landWrack(cfg, board, i, tick, sim.nextId, sim.rng, sim.events);
   board = landed.board;
   sim.nextId = landed.nextId;
+  sim.rng = landed.rng;
   // The next pair.
   const dealt = dealPair(cfg, sim.rng);
   sim.rng = dealt.rng;
@@ -648,9 +653,10 @@ function dropOn(cfg: SwordfightConfig, sim: Sim, i: number, col: number, rot: Sw
 }
 
 function landOn(cfg: SwordfightConfig, sim: Sim, i: number, tick: number): void {
-  const landed = landWrack(cfg, sim.boards[i]!, i, tick, sim.nextId, sim.events);
+  const landed = landWrack(cfg, sim.boards[i]!, i, tick, sim.nextId, sim.rng, sim.events);
   sim.boards[i] = landed.board;
   sim.nextId = landed.nextId;
+  sim.rng = landed.rng;
   if (boardOut(cfg, landed.board)) markOut(sim, i, tick);
   checkEnd(cfg, sim, tick);
 }

@@ -201,7 +201,11 @@ export function SwordfightPractice() {
               <span>{t("swordfight.legend_breaker")}</span>
             </li>
             <li>
-              <BlockIcon color="#6c6f78" texture="rings" kind="wrack" />
+              <span className="stages">
+                {[3, 2, 1].map((ripen) => (
+                  <BlockIcon key={ripen} color={pieces[0]!.color} texture={pieces[0]!.texture} mark={showMarks ? pieces[0]!.mark : null} kind="wrack" ripen={ripen} />
+                ))}
+              </span>
               <span>{t("swordfight.legend_wrack")}</span>
             </li>
           </ul>
