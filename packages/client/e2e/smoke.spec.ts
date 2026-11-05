@@ -344,7 +344,7 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   // Taking a deckhand's station spot opens its board over the deck; the hand steps aside, a board is dealt at once and takes a swap.
   await tapSpot(page, '[data-station="bilging"]');
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "station");
-  await expect.poll(() => server.ship()?.hands.find((h) => h.pirateId === "mate:2")?.station ?? "unset").toBeNull();
+  await expect.poll(() => server.ship()?.hands.find((h) => h.pirateId === "mate:2")?.station === null).toBe(true);
   await expect(page.getByTestId("station-view-bilging")).toBeVisible();
   await expect(page.getByTestId("duty-board-wrap")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
   // On a phone the ship is two labeled bars until asked for, and the full status unfolds on a tap;
