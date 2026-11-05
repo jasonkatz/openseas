@@ -760,7 +760,7 @@
   "swordfight.piece.pearl": "Pearl",
   "swordfight.legend_breaker": "A breaker carries a blade. Set it down touching its color and everything of that color joined to it shatters.",
   "swordfight.legend_slab": "Blocks of one color in a rectangle fuse into a slab. Bigger slabs are worth far more when they shatter.",
-  "swordfight.legend_wrack": "Wrack is stone and cannot be broken until it ripens. Two drops before it does it takes on a tint of the color it will turn; one drop before, that color shows clear.",
+  "swordfight.legend_wrack": "Wrack is stone and cannot be broken until it ripens, two drops after it lands. After the first drop it shows the color it will turn.",
   "swordfight.legend_blades": "A blade is where your wrack lands on the other side: the cutlass spreads it, the sabre piles it in the middle, the dirk at the edges.",
   "swordfight.over": "The fight is over.",
   "swordfight.no_fight": "There is no fight on. Back to the deck.",

@@ -4,12 +4,11 @@ import { mix, paintMark } from "../bilging/tiles.js";
  * Swordfight blocks are beveled squares, each color with its own surface (cut facets, riveted
  * steel, fish scale, cross-hatch, a swirl, rings), so colors read apart by pattern too, and a
  * mark badge when marks are on (CLAUDE.md rule 6). A breaker is a block of its color with a
- * blade across it. Wrack is grey stone with cracks that ripens in stages, with no number on it:
- * fresh wrack is solid stone; with two drops left the stone takes on a tint of the color it will
- * turn, its surface showing faintly through the cracks; with one drop left it is a lighter, clearer
- * version of that, the color nearly through and the cracks fading. The cracks stay at every
- * stage, so wrack never reads as a block, with or without color. A slab is one block the size of
- * all its cells: the same surface tiled, one bevel, one gloss, so it reads as a single heavy thing.
+ * blade across it. Wrack is grey stone with cracks that ripens in two drops, with no number on it:
+ * it lands as solid stone, and with one drop left it shows its color coming, the stone tinted
+ * toward the color it will turn with its surface showing through the cracks. The cracks stay, so
+ * wrack never reads as a block, with or without color. A slab is one block the size of all its
+ * cells: the same surface tiled, one bevel, one gloss, so it reads as a single heavy thing.
  */
 export type SwordTexture = "facet" | "rivet" | "scale" | "hatch" | "swirl" | "rings";
 
@@ -20,27 +19,18 @@ export interface BlockStyle {
   mark: string | null;
   kind: "block" | "breaker" | "wrack";
   showMarks: boolean;
-  /** Wrack only: the drops left before it ripens. Anything past two is fresh stone. */
+  /** Wrack only: the drops left before it ripens. Anything past one is fresh stone. */
   ripen?: number;
 }
 
 export const WRACK_COLOR = 0x6c6f78;
 
-/** How far along wrack is: stone until two drops are left, then a hint of its color, then clear with one. */
-export type WrackStage = "stone" | "hint" | "clear";
-export const wrackStage = (ripen: number): WrackStage => (ripen <= 1 ? "clear" : ripen === 2 ? "hint" : "stone");
+/** How far along wrack is: stone until one drop is left, then a hint of its color. */
+export type WrackStage = "stone" | "hint";
+export const wrackStage = (ripen: number): WrackStage => (ripen <= 1 ? "hint" : "stone");
 
-/** The body color of wrack at a stage: grey, grey tinted toward its color, then a lighter, clearer version of that. */
-export function wrackBody(color: number, stage: WrackStage): number {
-  switch (stage) {
-    case "stone":
-      return WRACK_COLOR;
-    case "hint":
-      return mix(WRACK_COLOR, color, 0.42);
-    default:
-      return mix(mix(WRACK_COLOR, color, 0.82), 0xffffff, 0.2);
-  }
-}
+/** The body color of wrack at a stage: grey, then grey tinted well toward its color and lifted a little. */
+export const wrackBody = (color: number, stage: WrackStage): number => (stage === "stone" ? WRACK_COLOR : mix(mix(WRACK_COLOR, color, 0.6), 0xffffff, 0.08));
 const BONE = 0xf2f0e6;
 const INK = 0x0b1526;
 
@@ -86,16 +76,15 @@ export function paintBlock(ctx: CanvasRenderingContext2D, s: number, w: number, 
   ctx.fillStyle = body;
   ctx.fillRect(x0, y0, W, H);
   if (stage) {
-    // Ripening wrack: its coming surface shows through, faintly with two drops left and nearly
-    // whole with one, and the cracks fade as it clears.
-    if (stage !== "stone") {
+    // Wrack about to ripen: its coming surface shows through, under lighter cracks.
+    if (stage === "hint") {
       ctx.save();
-      ctx.globalAlpha = stage === "hint" ? 0.4 : 0.8;
+      ctx.globalAlpha = 0.55;
       for (let cy = 0; cy < h; cy++) for (let cx = 0; cx < w; cx++) paintSurface(ctx, s, cx * s, cy * s, base, style.texture);
       ctx.restore();
     }
     ctx.save();
-    ctx.globalAlpha = stage === "clear" ? 0.45 : 1;
+    ctx.globalAlpha = stage === "hint" ? 0.7 : 1;
     paintCracks(ctx, s, w, h);
     ctx.restore();
   } else for (let cy = 0; cy < h; cy++) for (let cx = 0; cx < w; cx++) paintSurface(ctx, s, cx * s, cy * s, base, style.texture);
@@ -115,7 +104,7 @@ export function paintBlock(ctx: CanvasRenderingContext2D, s: number, w: number, 
   // Rim. A slab wears a heavier, lighter border so it reads as one forged thing.
   roundRect(ctx, x0 + 0.75, y0 + 0.75, W - 1.5, H - 1.5, r);
   ctx.lineWidth = Math.max(1, s * 0.025);
-  ctx.strokeStyle = css(0xffffff, stage === "stone" ? 0.12 : stage === "hint" ? 0.18 : stage === "clear" ? 0.3 : 0.24);
+  ctx.strokeStyle = css(0xffffff, stage === "stone" ? 0.12 : stage === "hint" ? 0.2 : 0.24);
   ctx.stroke();
   if (slab) {
     const bw = Math.max(2, s * 0.07);
@@ -143,12 +132,12 @@ export function paintBlock(ctx: CanvasRenderingContext2D, s: number, w: number, 
     }
     return;
   }
-  if ((style.kind === "block" || (stage && stage !== "stone")) && style.showMarks && style.mark) {
-    // One badge at the centre of the block, whatever its size. Ripening wrack wears its coming
-    // mark faintly, then clearly, so the color coming reads without color too.
+  if ((style.kind === "block" || stage === "hint") && style.showMarks && style.mark) {
+    // One badge at the centre of the block, whatever its size. Wrack about to ripen wears its
+    // coming mark, a little faint, so the color coming reads without color too.
     ctx.save();
     ctx.translate((s * w) / 2 - s / 2, (s * h) / 2 - s / 2);
-    ctx.globalAlpha = stage === "hint" ? 0.45 : stage === "clear" ? 0.85 : 1;
+    ctx.globalAlpha = stage === "hint" ? 0.7 : 1;
     paintMark(ctx, s, style.mark);
     ctx.restore();
   }

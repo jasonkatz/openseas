@@ -202,7 +202,7 @@ export function SwordfightPractice() {
             </li>
             <li>
               <span className="stages">
-                {[3, 2, 1].map((ripen) => (
+                {[2, 1].map((ripen) => (
                   <BlockIcon key={ripen} color={pieces[0]!.color} texture={pieces[0]!.texture} mark={showMarks ? pieces[0]!.mark : null} kind="wrack" ripen={ripen} />
                 ))}
               </span>

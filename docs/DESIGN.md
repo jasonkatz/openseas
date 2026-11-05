@@ -332,8 +332,8 @@ of the sender's blade (content: the cutlass spreads it, the sabre piles it in th
 at the edges, each a list of columns taken in turn). Wrack is grey stone and unbreakable; each
 block is dealt the color it will turn as it lands, and after `ripenMoves` of the board's drops it
 turns into a block of that color, which fuses and shatters like any other. It carries no number:
-with two drops left the stone takes on a tint of its color, and with one left the color shows
-clear and light, so a player reads what is coming from the block itself. An upright pair whose column has one
+it lands as solid stone, and with one drop left (the second of two, in content) the stone takes
+on its color, so a player reads what is coming from the block itself. An upright pair whose column has one
 free cell left rests its lower half there and the upper half falls away over the top. A board whose
 entry (the top cell of the column pairs come in down) is covered is out; a side with no board
 standing has lost, and a win is
@@ -681,7 +681,7 @@ Maintained as they arise.
 | Swordfight pairs | Fall in real time | The move is the column and rotation the pair rested in, at its tick; the engine drops the halves; a rest sooner than `dropTicks` after the pair appeared is refused | One move per pair keeps the log small; the tick bounds how fast a hand can be (ADR 0015) |
 | Swordfight slabs | Rectangles of a color fuse into a big block | Same: a two-by-two fuses, a slab grows by a full strip along a side, and can hang over a hole | Faithful; the strip rule keeps fusing deterministic |
 | Swordfight attacks | Sprinkles land on the opponent at once, in the sword's pattern | Wrack waits on the target board and lands at its next drop or after `landAfterTicks`; it first cancels wrack waiting on the sender's board | A beat to see an attack coming and answer it; the timer means stalling never dodges one |
-| Swordfight wrack ripening | Grey until it turns, with no word of the color | Wrack is dealt its color as it lands and shows it through in two stages before it turns | Planning around what is coming is the skill; a hidden color is luck |
+| Swordfight wrack ripening | Grey until it turns, with no word of the color | Wrack is dealt its color as it lands and shows it the drop before it turns | Planning around what is coming is the skill; a hidden color is luck |
 | Swordfight team targeting | Attacks spread over the opposing team | Each attack goes whole to the opposing board with the least on it | Reads on a phone: one board takes the hit, and the lightest one |
 | Swordfight opponents | Other pirates, or brigands when boarding | Brigands (and lab allies) are a scripted hand inside the reducer; a melee aboard routes attacks between every pirate's own fight and the brigand crew's | A practice fight replays from one log; each pirate's board aboard verifies on its own (ADR 0022) |
 | Swordfight rating | Head to head | By score against content thresholds, in practice and aboard alike | No human opponent until duels; head-to-head rating comes with them (as Sea Battle, ADR 0021) |

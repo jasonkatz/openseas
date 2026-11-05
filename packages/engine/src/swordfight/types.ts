@@ -92,7 +92,7 @@ export const DEFAULT_SWORDFIGHT_CONFIG: SwordfightConfig = {
   height: SWORDFIGHT_HEIGHT,
   colors: 4,
   breakerPermille: 170,
-  ripenMoves: 3,
+  ripenMoves: 2,
   cellPoints: 10,
   slabBonus: 4,
   attackPoints: 24,

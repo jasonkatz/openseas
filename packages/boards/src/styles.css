@@ -811,7 +811,7 @@ a {
   align-items: center;
   gap: 6px;
 }
-/* Wrack's three looks as it ripens, side by side before their one line of text. */
+/* Wrack's two looks as it ripens, side by side before their one line of text. */
 .legend .stages {
   display: flex;
   flex: none;
