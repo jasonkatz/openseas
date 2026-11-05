@@ -1122,9 +1122,11 @@ a {
 }
 
 /* ---- shared practice shell additions (M2) */
+/* The next pair stands the way it falls: upright, one half over the other. */
 .next-pair {
   display: inline-flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 2px;
   align-items: center;
   min-height: 28px;
 }

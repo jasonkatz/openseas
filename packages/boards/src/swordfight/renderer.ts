@@ -153,6 +153,8 @@ const CLEAR_MS = 240;
 const DIE_MS = 240;
 const LOCK_MS = 350;
 const MAX_LOCK_RESETS = 3;
+/** The strip above the well, in cells: tall enough for the next pair stacked the way it falls. */
+const STRIP_ROWS = 1.6;
 /** A mini board's cell as a share of the player's: the other boards sit small in the margin so the player's board is the thing. */
 const MINI_SCALE = 0.3;
 const FONT = "Atkinson Hyperlegible, Avenir Next, Segoe UI, sans-serif";
@@ -959,7 +961,7 @@ export class SwordfightRenderer {
     const h = this.app.screen.height;
     const n = this.miniCount();
     const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.15));
-    const rows = this.height + 1.3;
+    const rows = this.height + STRIP_ROWS;
     // The player's board is centred. With other boards in the fight each side keeps a margin wide
     // enough for a column of minis a little under their full share (a phone's width is the bound
     // there, and the board matters more), and the minis take the right one.
@@ -969,7 +971,7 @@ export class SwordfightRenderer {
     cell = Math.floor(Math.min((w - padFor(cell) * 2 - 2) / cols, (h - padFor(cell) * 2 - 2) / rows));
     this.cell = Math.max(12, cell);
     this.pad = padFor(this.cell);
-    this.strip = Math.round(this.cell * 1.3);
+    this.strip = Math.round(this.cell * STRIP_ROWS);
     const boardW = this.cell * this.width;
     this.ox = Math.floor((w - boardW) / 2);
     this.oy = Math.floor((h - this.cell * this.height - this.strip) / 2) + this.strip;
@@ -984,18 +986,20 @@ export class SwordfightRenderer {
     this.steps = [];
   }
 
+  /** The next pair stands in the strip the way it will fall: upright, with b above a (`spawnFalling` starts at rotation 1). */
   private layoutStrip(): void {
     const s = this.cell;
     const y = -this.strip / 2 - 1;
-    const scale = 0.68;
+    const scale = 0.62;
     this.nextA.scale.set(scale);
     this.nextB.scale.set(scale);
+    const x = this.nextText ? s * 0.15 + this.nextText.width + s * 0.5 : s * 0.5;
     if (this.nextText) {
       this.nextText.style.fontSize = Math.max(9, Math.round(s * 0.3));
       this.nextText.position.set(s * 0.15, y);
-      this.nextA.position.set(this.nextText.x + this.nextText.width + s * 0.5, y);
-    } else this.nextA.position.set(s * 0.5, y);
-    this.nextB.position.set(this.nextA.x + s * scale + 2, y);
+    }
+    this.nextB.position.set(x, y - (s * scale) / 2 - 1);
+    this.nextA.position.set(x, y + (s * scale) / 2 + 1);
     if (this.incomingText) {
       this.incomingText.style.fontSize = Math.max(9, Math.round(s * 0.32));
       this.incomingText.position.set(this.width * s - s * 0.15, y);
