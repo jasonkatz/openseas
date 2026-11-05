@@ -6,6 +6,7 @@ import { CarpentryPractice } from "./pages/CarpentryPractice.jsx";
 import { GunneryPractice } from "./pages/GunneryPractice.jsx";
 import { NavigationPractice } from "./pages/NavigationPractice.jsx";
 import { SailingPractice } from "./pages/SailingPractice.jsx";
+import { SwordfightPractice } from "./pages/SwordfightPractice.jsx";
 import { Router, useRoute } from "./router.jsx";
 
 /** One route per engine. The scenario a page opens on rides in the query string (scenario/codec.ts). */
@@ -17,6 +18,7 @@ function Routes() {
   if (path === "/gunnery") return <GunneryPractice />;
   if (path === "/navigation") return <NavigationPractice />;
   if (path === "/battle") return <BattlePractice />;
+  if (path === "/swordfight") return <SwordfightPractice />;
   return <Home />;
 }
 

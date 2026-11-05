@@ -29,3 +29,6 @@ export { StarIcon } from "./navigation/StarIcon.jsx";
 export { navigationViewString } from "./navigation/renderer.js";
 export { BattleBoard, type BattleBoardProps } from "./battle/BattleBoard.jsx";
 export { battleViewString } from "./battle/renderer.js";
+export { SwordfightBoard, type SwordfightBoardProps } from "./swordfight/SwordfightBoard.jsx";
+export { BlockIcon } from "./swordfight/BlockIcon.jsx";
+export { swordfightViewString, swordfightBoardString, type RemoteBoard as MeleeRemoteBoard } from "./swordfight/renderer.js";

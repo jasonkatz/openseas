@@ -62,6 +62,40 @@ export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
     { id: "full_magazine", overrides: { "supply.cannons": 4 } },
     { id: "three_turns", overrides: { maxTurns: 3 }, roundSeconds: 60 },
   ],
+  swordfight: [
+    { id: "duel_quick", overrides: { foes: [{ thinkTicks: 10, skill: 60, blade: 1 }] } },
+    { id: "duel_sharp", overrides: { foes: [{ thinkTicks: 12, skill: 100, blade: 2 }] } },
+    { id: "duel_dull", overrides: { foes: [{ thinkTicks: 20, skill: 30, blade: 0 }] } },
+    {
+      id: "two_foes",
+      overrides: {
+        foes: [
+          { thinkTicks: 14, skill: 60, blade: 1 },
+          { thinkTicks: 16, skill: 50, blade: 0 },
+        ],
+      },
+    },
+    {
+      id: "crew_melee",
+      overrides: {
+        allies: [
+          { thinkTicks: 14, skill: 60, blade: 0 },
+          { thinkTicks: 16, skill: 50, blade: 2 },
+        ],
+        foes: [
+          { thinkTicks: 14, skill: 60, blade: 1 },
+          { thinkTicks: 14, skill: 55, blade: 1 },
+          { thinkTicks: 16, skill: 50, blade: 0 },
+        ],
+      },
+    },
+    { id: "no_offset", overrides: { offset: false } },
+    { id: "breakers_galore", overrides: { breakerPermille: 400 } },
+    { id: "five_colors", overrides: { colors: 5 } },
+    { id: "sabre", overrides: { blade: 1 } },
+    { id: "one_minute", overrides: {}, roundSeconds: 60 },
+    { id: "slow_motion", overrides: {}, speed: 0.25 },
+  ],
 };
 
 /** One preset per Sea Battle board, so a fight can be pinned to a board the seed would not have picked. */
