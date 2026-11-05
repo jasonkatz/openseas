@@ -6,7 +6,8 @@
  * everything of that color connected to it goes, slabs and all, and whatever falls into place may
  * set off the next breaker (a chain). Breaking sends wrack to the other side: grey blocks that
  * land in the pattern of the sender's blade and ripen into colored blocks after a few drops. A
- * board whose entry cells are covered is out; a side with no board standing has lost.
+ * board whose entry (the top cell of the column pairs come in down) is covered, or whose pair has
+ * nowhere left to rest, is out; a side with no board standing has lost.
  *
  * Time is ticks carried in moves (ADR 0015). AI boards act on their own cadence inside the
  * reducer, from the fight's PRNG, so a fight against brigands replays from one log. Aboard a ship

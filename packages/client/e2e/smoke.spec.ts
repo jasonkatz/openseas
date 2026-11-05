@@ -410,8 +410,17 @@ test("a boarding takes everyone to the rail: the swordfight board opens over the
   server.ship()!.hail();
   await page.getByTestId("engage").click();
   await expect(page.getByTestId("battle-view")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
-  await page.keyboard.press("w");
-  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /"move":"forward"/);
+  await expect(page.getByTestId("battle-canvas")).toBeVisible();
+  // The board takes keys once its canvas is live; ask again until the plot shows the move.
+  await expect
+    .poll(
+      async () => {
+        await page.keyboard.press("w");
+        return page.getByTestId("battle-plan").getAttribute("data-plan");
+      },
+      { timeout: 15_000 },
+    )
+    .toMatch(/"move":"forward"/);
   await page.keyboard.press("Enter");
   await expect.poll(() => server.ship()?.commits ?? 0).toBeGreaterThan(0);
 

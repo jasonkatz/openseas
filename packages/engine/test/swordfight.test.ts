@@ -391,7 +391,8 @@ describe("wrack", () => {
 describe("the fight", () => {
   it("a covered entry puts the board out, and the only board on a side out loses the fight", () => {
     let s = createSwordfightGame("x", alone);
-    const tall = ["......", "......", "......", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0..."];
+    // Ten blocks in the entry column: the pair rests in the top two cells and covers the entry.
+    const tall = ["......", "......", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1..."];
     s = drawn(s, tall, [blk(2), blk(3)]);
     s = reduceSwordfight(s, place(2, 1, 2));
     expect(s.boards[0]!.out).toBe(true);
@@ -399,6 +400,28 @@ describe("the fight", () => {
     expect(s.outcome).toBe("lost");
     expect(s.lastMove!.events.map((e) => e.type)).toContain("out");
     expect(() => reduceSwordfight(s, wait(5))).toThrow(/finished/);
+  });
+
+  it("only the top cell of the entry column counts; a board with room beside the entry fights on, one with nowhere to rest is out", () => {
+    let s = createSwordfightGame("x", alone);
+    // Eleven blocks in the entry column: no vertical drop there, but sideways drops beside it.
+    const tall = ["......", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1..."];
+    s = drawn(s, tall, [blk(2), blk(3)]);
+    s = reduceSwordfight(s, place(0, 0, 2));
+    expect(s.boards[0]!.out).toBe(false);
+    expect(swordfightLegalDrops(alone, s.boards[0]!).length).toBeGreaterThan(0);
+    // Every cell full but the entry's top cell and one far away: wrack lands in the far one (the
+    // dirk tries columns 0, 5, 1, 4 first), and the pair has nowhere left to rest.
+    const rows: string[] = [];
+    for (let r = 0; r < 12; r++) rows.push(r === 0 ? "01.1.1" : "010101");
+    let t = createSwordfightGame("x", { ...alone, landAfterTicks: 2 });
+    t = drawn(t, rows, [blk(2), blk(3)]);
+    t = reduceSwordfight(t, { type: "incoming", board: 0, wrack: 1, blade: 2, tick: 1 });
+    t = reduceSwordfight(t, wait(3));
+    expect(t.boards[0]!.cells[swordfightIdx(alone, 4, 11)]?.kind).toBe("wrack");
+    expect(t.boards[0]!.cells[swordfightIdx(alone, 2, 11)]).toBeNull();
+    expect(t.boards[0]!.out).toBe(true);
+    expect(t.outcome).toBe("lost");
   });
 
   it("the server's word ends a fight whose foes are outside it, with the win's points; the player may yield", () => {
@@ -427,7 +450,7 @@ describe("the fight", () => {
     expect(s.boards[1]!.drops).toBe(6);
     expectInvariants(s);
     // Bury the foe: cover its entry; its next drop, wherever it goes, finds the entry covered.
-    const tall = ["......", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1..."];
+    const tall = ["..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1..."];
     s = drawn(s, tall, undefined, 1);
     s = reduceSwordfight(s, wait(35));
     expect(s.boards[1]!.out).toBe(true);

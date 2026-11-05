@@ -156,10 +156,14 @@ export function colHeight(cfg: SwordfightConfig, cells: ReadonlyArray<SwordCell 
   return h;
 }
 
-/** The entry is covered when either of the two cells a pair appears in holds something. */
+/** The entry is covered when the top cell of the column a pair comes in down holds something. */
 export function entryBlocked(cfg: SwordfightConfig, cells: ReadonlyArray<SwordCell | null>): boolean {
-  const c = spawnCol(cfg);
-  return cells[idx(cfg, c, cfg.height - 1)] !== null || cells[idx(cfg, c, cfg.height - 2)] !== null;
+  return cells[idx(cfg, spawnCol(cfg), cfg.height - 1)] !== null;
+}
+
+/** A board is out when its entry is covered, or when the pair in hand has nowhere at all to come to rest. */
+export function boardOut(cfg: SwordfightConfig, board: SwordBoard): boolean {
+  return entryBlocked(cfg, board.cells) || legalDrops(cfg, board).length === 0;
 }
 
 /** The columns the two halves occupy for an anchor column and rotation, a then b. */
@@ -633,7 +637,7 @@ function dropOn(cfg: SwordfightConfig, sim: Sim, i: number, col: number, rot: Sw
   sim.rng = dealt.rng;
   board = { ...board, current: board.next, next: dealt.pair, spawnedAt: tick };
   sim.boards[i] = board;
-  if (entryBlocked(cfg, board.cells)) markOut(sim, i, tick);
+  if (boardOut(cfg, board)) markOut(sim, i, tick);
   checkEnd(cfg, sim, tick);
 }
 
@@ -641,7 +645,7 @@ function landOn(cfg: SwordfightConfig, sim: Sim, i: number, tick: number): void 
   const landed = landWrack(cfg, sim.boards[i]!, i, tick, sim.nextId, sim.events);
   sim.boards[i] = landed.board;
   sim.nextId = landed.nextId;
-  if (entryBlocked(cfg, landed.board.cells)) markOut(sim, i, tick);
+  if (boardOut(cfg, landed.board)) markOut(sim, i, tick);
   checkEnd(cfg, sim, tick);
 }
 

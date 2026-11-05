@@ -29,9 +29,12 @@ export interface RemoteBoard {
   readonly points: number;
 }
 
+/** What the engine said to a rest: taken, not yet (too soon after the pair appeared), or never there. */
+export type PlaceAnswer = "placed" | "wait" | "refused";
+
 export interface SwordfightCallbacks {
-  /** The player's pair came to rest. False when the engine will not take it yet (too soon); the board asks again. */
-  onPlace(col: number, rot: SwordRotation): boolean;
+  /** The player's pair came to rest. "wait" means the engine will take it shortly and the board asks again. */
+  onPlace(col: number, rot: SwordRotation): PlaceAnswer;
   /** First frame drawn after a new state arrived. */
   onFrame(): void;
   /** Fresh events as they are shown, for sound. */
@@ -188,6 +191,13 @@ export class SwordfightRenderer {
   private readonly fxLayer = new Container();
   private readonly stripLayer = new Container();
   private readonly stripG = new Graphics();
+  private readonly warnG = new Graphics();
+  /** The well's shape: the falling pair is clipped to it, so a pair slides in from above the board. */
+  private readonly wellMask = new Graphics();
+  private pendingShown = 0;
+  /** Ms without a pair in hand while one is due, and ms a taken pair has waited for its state. */
+  private idleMs = 0;
+  private placedMs = 0;
   private readonly nextA = new Sprite(Texture.WHITE);
   private readonly nextB = new Sprite(Texture.WHITE);
   private nextText: Text | null = null;
@@ -282,9 +292,10 @@ export class SwordfightRenderer {
     this.nextText.anchor.set(0, 0.5);
     this.incomingText = new Text({ text: "", style: { fontFamily: FONT, fontSize: 12, fontWeight: "700", fill: COLORS.bone } });
     this.incomingText.anchor.set(1, 0.5);
-    this.stripLayer.addChild(this.stripG, this.nextText, this.nextA, this.nextB, this.incomingText);
+    this.stripLayer.addChild(this.stripG, this.warnG, this.nextText, this.nextA, this.nextB, this.incomingText);
+    this.fallingLayer.mask = this.wellMask;
     this.fxLayer.addChild(this.fxG);
-    this.board.addChild(this.staticLayer, this.ghost, this.pieceLayer, this.slabLayer, this.fallingLayer, this.fxLayer, this.stripLayer, this.veil);
+    this.board.addChild(this.staticLayer, this.ghost, this.pieceLayer, this.slabLayer, this.wellMask, this.fallingLayer, this.fxLayer, this.stripLayer, this.veil);
     this.app.stage.addChild(this.board, this.miniLayer);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -713,7 +724,8 @@ export class SwordfightRenderer {
     const b = s.boards[0]!;
     if (b.out) return;
     const pc = swordfightSpawnCol(s.config);
-    const row = this.height - 2;
+    // The pair starts above the well and slides in; only the top cell of its column can bar it.
+    const row = this.height;
     if (!this.fits(pc, 1, row)) return;
     const a = new Sprite(this.texture(b.current.a.color, b.current.a.breaker ? "breaker" : "block", 1, 1));
     const bb = new Sprite(this.texture(b.current.b.color, b.current.b.breaker ? "breaker" : "block", 1, 1));
@@ -722,6 +734,8 @@ export class SwordfightRenderer {
     this.fallingLayer.addChild(a, bb);
     this.falling = { pc, rot: 1, row, a, b: bb, lock: 0, resets: 0, low: row, refused: 0, placed: false };
     this.softDrop = false;
+    this.idleMs = 0;
+    this.placedMs = 0;
     this.positionFalling();
   }
 
@@ -779,11 +793,12 @@ export class SwordfightRenderer {
   /** The pair in hand when the last placement was made, for a half that shattered at once. */
   private lastPair: { a: { color: number; breaker: boolean }; b: { color: number; breaker: boolean } } | null = null;
 
+  /** The pair may sit at (pc, rot, row): inside the board and over free cells. Two rows above the well are open sky. */
   private fits(pc: number, rot: SwordRotation, row: number): boolean {
     const h = halves(pc, rot, row);
     for (const [c, r] of [h.a, h.b]) {
-      if (c < 0 || c >= this.width || r < 0 || r >= this.height) return false;
-      if (this.cells[r * this.width + c]) return false;
+      if (c < 0 || c >= this.width || r < 0 || r >= this.height + 2) return false;
+      if (r < this.height && this.cells[r * this.width + c]) return false;
     }
     return true;
   }
@@ -812,7 +827,7 @@ export class SwordfightRenderer {
     const f = this.falling;
     if (!f) return;
     let R = Math.ceil(f.row);
-    while (R < this.height - 1 && !this.fits(f.pc, f.rot, R)) R += 1;
+    while (R < this.height + 1 && !this.fits(f.pc, f.rot, R)) R += 1;
     if (!this.fits(f.pc, f.rot, R)) {
       this.dropFalling();
       return;
@@ -853,25 +868,33 @@ export class SwordfightRenderer {
     this.positionFalling();
   }
 
-  /** Turn the loose half around the pivot: clockwise is 1 → 0 → 3 → 2, with a kick either way when the turn does not fit. */
+  /**
+   * Turn the loose half around the pivot: clockwise is 1 → 0 → 3 → 2. A turn that does not fit
+   * tries a kick either way, then a lift of one row (the other half would go through the floor
+   * or a block), and when the pair is boxed into one column it turns twice instead, so the halves
+   * swap ends.
+   */
   private tryRotate(dir: 1 | -1): void {
     const f = this.falling;
     if (!f || !this.interactive || f.placed) return;
     const R = Math.ceil(f.row);
-    const rot = ((f.rot + (dir === 1 ? 3 : 1)) % 4) as SwordRotation;
-    for (const kick of [0, -1, 1]) {
-      // A turn that would put the other half below the floor lifts the pair a row instead.
-      let row = R;
-      if (rot === 3 && row === 0) row = 1;
-      if (!this.mayOccupy(f.pc + kick, rot, row)) continue;
-      f.pc += kick;
-      f.rot = rot;
-      f.row = row === R ? f.row : row;
-      this.resetLock();
-      this.settleIfResting();
-      this.cb.onNudge();
-      this.positionFalling();
-      return;
+    const once = ((f.rot + (dir === 1 ? 3 : 1)) % 4) as SwordRotation;
+    const twice = ((f.rot + 2) % 4) as SwordRotation;
+    for (const rot of [once, twice]) {
+      for (const lift of [0, 1]) {
+        for (const kick of [0, -1, 1]) {
+          const row = R + lift;
+          if (!this.mayOccupy(f.pc + kick, rot, row)) continue;
+          f.pc += kick;
+          f.rot = rot;
+          if (lift) f.row = row;
+          this.resetLock();
+          this.settleIfResting();
+          this.cb.onNudge();
+          this.positionFalling();
+          return;
+        }
+      }
     }
   }
 
@@ -883,9 +906,21 @@ export class SwordfightRenderer {
     f.row = R;
     this.positionFalling();
     if (s.config.player) this.lastPair = s.boards[0]!.current;
-    const ok = this.cb.onPlace(anchorOf(f.pc, f.rot), f.rot);
-    if (ok) f.placed = true;
-    else f.refused = 120;
+    const answer = this.cb.onPlace(anchorOf(f.pc, f.rot), f.rot);
+    if (answer === "placed") {
+      f.placed = true;
+      this.placedMs = 0;
+    } else if (answer === "wait") f.refused = 120;
+    else {
+      // The engine's board is not the one shown: take its word, lift the pair clear and carry on.
+      this.cells = s.config.player ? s.boards[0]!.cells.slice() : this.cells;
+      this.shownSlabs = s.config.player ? s.boards[0]!.slabs.slice() : this.shownSlabs;
+      this.place(false);
+      f.refused = 0;
+      f.lock = 0;
+      f.resets = 0;
+      this.refitFalling();
+    }
   }
 
   private positionFalling(): void {
@@ -934,6 +969,7 @@ export class SwordfightRenderer {
     this.ox = n > 0 ? this.pad + 2 : Math.floor((w - boardW) / 2);
     this.oy = Math.floor((h - this.cell * this.height - this.strip) / 2) + this.strip;
     this.board.position.set(this.ox, this.oy);
+    this.wellMask.clear().rect(0, 0, this.cell * this.width, this.cell * this.height).fill(0xffffff);
     this.drawFrame();
     this.bake();
     this.layoutStrip();
@@ -982,13 +1018,25 @@ export class SwordfightRenderer {
       g.roundRect(x, y - bw / 2, bw, bw, bw * 0.2).stroke({ width: 1, color: 0xffffff, alpha: 0.25 });
     }
     if (this.incomingText) {
-      this.incomingText.text = pending > 0 ? String(pending) : "";
-      this.incomingText.style.fill = pending >= this.width * 2 ? COLORS.danger : COLORS.bone;
+      this.incomingText.text = pending > 0 ? `${this.opts.labels.incoming.toUpperCase()} ${pending}` : "";
+      this.incomingText.style.fill = pending > 0 ? COLORS.danger : COLORS.bone;
+      this.incomingText.style.fontSize = Math.max(10, Math.round(cs * (pending > 0 ? 0.4 : 0.32)));
     }
-    if (pending > 0) {
-      const inset = Math.min(1, pending / (this.width * 3));
-      g.rect(0, -this.strip + 2, this.width * cs, this.strip - 4).fill({ color: COLORS.danger, alpha: 0.06 + inset * 0.16 });
-    }
+    this.pendingShown = pending;
+    this.drawWarn();
+  }
+
+  /** Wrack on its way: the strip pulses red, harder the more there is, so it is never missed. */
+  private drawWarn(): void {
+    const g = this.warnG;
+    g.clear();
+    const pending = this.pendingShown;
+    if (pending <= 0) return;
+    const cs = this.cell;
+    const heat = Math.min(1, pending / (this.width * 2));
+    const pulse = 0.5 + 0.5 * Math.sin(this.time / (pending >= this.width ? 110 : 180));
+    g.rect(0, -this.strip + 2, this.width * cs, this.strip - 4).fill({ color: COLORS.danger, alpha: 0.12 + heat * 0.18 + pulse * 0.18 });
+    g.roundRect(-this.pad + 1, -this.strip - this.pad + 1, this.width * cs + this.pad * 2 - 2, this.strip - 2, this.pad).stroke({ width: 2, color: COLORS.danger, alpha: 0.35 + pulse * 0.5 });
   }
 
   private drawFrame(): void {
@@ -1017,10 +1065,10 @@ export class SwordfightRenderer {
         w.roundRect(c * this.cell + inset, r * this.cell + inset, this.cell - inset * 2, this.cell - inset * 2, this.cell * 0.16).fill({ color: 0xffffff, alpha: 0.03 });
       }
     }
-    // The entry: the two cells a pair appears in, marked so filling them reads as the end.
+    // The entry: the top cell of the column pairs come in down, marked so covering it reads as the end.
     const sc = swordfightSpawnCol({ width: this.width } as SwordfightConfig);
-    w.roundRect(sc * this.cell + 2, 2, this.cell - 4, this.cell * 2 - 4, 6).stroke({ width: 1.5, color: COLORS.danger, alpha: 0.35 });
-    w.moveTo(0, this.cell * 2).lineTo(W, this.cell * 2).stroke({ width: 1, color: 0xffffff, alpha: 0.12 });
+    w.roundRect(sc * this.cell + 2, 2, this.cell - 4, this.cell - 4, 6).stroke({ width: 1.5, color: COLORS.danger, alpha: 0.35 });
+    w.moveTo(0, this.cell).lineTo(W, this.cell).stroke({ width: 1, color: 0xffffff, alpha: 0.12 });
     w.rect(0, 0, W, H).stroke({ width: 3, color: 0x000000, alpha: 0.55, alignment: 1 });
     this.staticLayer.updateCacheTexture();
   }
@@ -1133,7 +1181,7 @@ export class SwordfightRenderer {
       g.roundRect(-3, -3, W + 6, H + 6, 5).stroke({ width: 1, color: m.side === 1 ? COLORS.danger : COLORS.good, alpha: 0.5 });
       g.rect(0, 0, W, H).fill({ color: COLORS.deckBottom });
       const sc = swordfightSpawnCol({ width: this.width } as SwordfightConfig);
-      g.rect(sc * s, 0, s, s * 2).fill({ color: COLORS.danger, alpha: 0.12 });
+      g.rect(sc * s, 0, s, s).fill({ color: COLORS.danger, alpha: 0.12 });
       // Slabs read as one block in a snapshot too: adjacent cells of one color in a rectangle are drawn without seams.
       const rows = m.cells.length === this.width * this.height ? m.cells : "";
       for (let r = 0; r < this.height; r++) {
@@ -1218,6 +1266,8 @@ export class SwordfightRenderer {
     this.moveFx(dt);
     this.fall(dt);
     this.drawShake();
+    if (this.pendingShown > 0) this.drawWarn();
+    this.watch(dt);
     let miniDirty = false;
     for (const m of this.minis) {
       if (m.flash > 0) {
@@ -1236,6 +1286,39 @@ export class SwordfightRenderer {
       this.cb.onFrame();
     }
     if (this.viewStale && this.steps.length === 0 && !this.moving) this.publishView();
+  }
+
+  /**
+   * Nothing on screen may ever leave the player without a pair: if one is due and missing for long,
+   * deal it; if a taken pair has waited too long for its state, let it be asked for again.
+   */
+  private watch(dt: number): void {
+    const s = this.state;
+    if (!s || !s.config.player || !this.interactive || s.finished || s.boards[0]!.out || this.steps.length > 0) {
+      this.idleMs = 0;
+      return;
+    }
+    const f = this.falling;
+    if (!f) {
+      this.idleMs += dt;
+      if (this.idleMs > 700) {
+        this.idleMs = 0;
+        this.cells = s.boards[0]!.cells.slice();
+        this.shownSlabs = s.boards[0]!.slabs.slice();
+        this.place(false);
+        this.spawnFalling();
+      }
+      return;
+    }
+    this.idleMs = 0;
+    if (f.placed) {
+      this.placedMs += dt;
+      if (this.placedMs > 1500) {
+        f.placed = false;
+        f.lock = 0;
+        this.placedMs = 0;
+      }
+    } else this.placedMs = 0;
   }
 
   private runSteps(dt: number): void {
@@ -1259,6 +1342,11 @@ export class SwordfightRenderer {
     let moving = false;
     const speed = this.reduced ? 1 : 0.02 * this.cell;
     const step = (v: { x: number; y: number; tx: number; ty: number }): boolean => {
+      if (!Number.isFinite(v.tx) || !Number.isFinite(v.ty) || !Number.isFinite(v.x) || !Number.isFinite(v.y)) {
+        v.x = Number.isFinite(v.tx) ? v.tx : 0;
+        v.y = Number.isFinite(v.ty) ? v.ty : 0;
+        return false;
+      }
       if (v.y === v.ty && v.x === v.tx) return false;
       const d = speed * dt;
       v.y = v.y < v.ty ? Math.min(v.ty, v.y + d) : Math.max(v.ty, v.y - d);
@@ -1366,7 +1454,9 @@ export class SwordfightRenderer {
       return;
     }
     const fallMs = this.state.config.fallTicks * this.state.config.tickMs;
-    const per = this.softDrop ? this.opts.softDropMs : fallMs;
+    // Sliding in from above the well is quick; the fall proper starts once the pair is on the board.
+    const entering = f.row > this.height - 1;
+    const per = this.softDrop ? this.opts.softDropMs : entering ? fallMs / 5 : fallMs;
     f.row = Math.max(R - 1, f.row - dt / per);
     if (Math.ceil(f.row) < f.low) {
       f.low = Math.ceil(f.row);

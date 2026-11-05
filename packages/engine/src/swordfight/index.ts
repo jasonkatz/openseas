@@ -14,6 +14,7 @@ export {
   pairCols as swordfightPairCols,
   colHeight as swordfightColHeight,
   entryBlocked as swordfightEntryBlocked,
+  boardOut as swordfightBoardOut,
   spawnCol as swordfightSpawnCol,
   opposingSideExternal as swordfightOpposingSideExternal,
   standing as swordfightStanding,

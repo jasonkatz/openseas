@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { SwordRotation, SwordfightEvent, SwordfightState } from "@openseas/engine";
 import { content, t } from "../content.js";
-import { SwordfightRenderer, swordfightViewString, type RemoteBoard } from "./renderer.js";
+import { SwordfightRenderer, swordfightViewString, type PlaceAnswer, type RemoteBoard } from "./renderer.js";
 
 export interface SwordfightBoardProps {
   state: SwordfightState;
@@ -9,8 +9,8 @@ export interface SwordfightBoardProps {
   showMarks: boolean;
   /** Boards in the melee that are not in this state: the crew's and the brigands', aboard. */
   remote?: readonly RemoteBoard[];
-  /** The player's pair came to rest. Return false when the engine will not take it yet; the board asks again. */
-  onPlace(col: number, rot: SwordRotation): boolean;
+  /** The player's pair came to rest: taken, "wait" (too soon; the board asks again) or "refused" (the board lifts it clear). */
+  onPlace(col: number, rot: SwordRotation): PlaceAnswer;
   onFrame(): void;
   onEvents(events: readonly SwordfightEvent[]): void;
   onNudge(): void;

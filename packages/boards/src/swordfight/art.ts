@@ -42,7 +42,8 @@ export function paintBlock(ctx: CanvasRenderingContext2D, s: number, w: number, 
   const H = s * h - inset * 2;
   const r = s * 0.14;
   const lip = s * 0.06;
-  const base = style.kind === "wrack" ? WRACK_COLOR : style.kind === "breaker" ? mix(style.color, 0x000000, 0.12) : style.color;
+  const slab = style.kind === "block" && w * h > 1;
+  const base = style.kind === "wrack" ? WRACK_COLOR : style.kind === "breaker" ? mix(style.color, 0x000000, 0.12) : slab ? mix(style.color, 0x000000, 0.14) : style.color;
 
   // Contact shadow, a darker underside, then the body.
   roundRect(ctx, x0, y0 + lip * 1.5, W, H, r);
@@ -75,11 +76,22 @@ export function paintBlock(ctx: CanvasRenderingContext2D, s: number, w: number, 
   ctx.fillStyle = shade;
   ctx.fillRect(x0, y0 + H - s * 0.3, W, s * 0.3);
   ctx.restore();
-  // Rim.
+  // Rim. A slab wears a heavier, lighter border so it reads as one forged thing.
   roundRect(ctx, x0 + 0.75, y0 + 0.75, W - 1.5, H - 1.5, r);
   ctx.lineWidth = Math.max(1, s * 0.025);
   ctx.strokeStyle = css(0xffffff, style.kind === "wrack" ? 0.12 : 0.24);
   ctx.stroke();
+  if (slab) {
+    const bw = Math.max(2, s * 0.07);
+    roundRect(ctx, x0 + bw / 2, y0 + bw / 2, W - bw, H - bw, r * 1.3);
+    ctx.lineWidth = bw;
+    ctx.strokeStyle = css(mix(style.color, 0xffffff, 0.5), 0.95);
+    ctx.stroke();
+    roundRect(ctx, x0 + bw * 1.5, y0 + bw * 1.5, W - bw * 3, H - bw * 3, r);
+    ctx.lineWidth = Math.max(1, s * 0.02);
+    ctx.strokeStyle = css(mix(style.color, 0x000000, 0.5), 0.6);
+    ctx.stroke();
+  }
   if (style.kind === "breaker") {
     roundRect(ctx, x0, y0, W, H, r);
     ctx.lineWidth = Math.max(1.5, s * 0.05);

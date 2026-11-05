@@ -1,6 +1,17 @@
 import { useCallback } from "react";
-import { advanceSwordfight, summarizeSwordfight, swordfightColHeight, swordfightStanding, type SwordRotation, type SwordfightConfig, type SwordfightEvent, type SwordfightMove, type SwordfightState } from "@openseas/engine";
-import { BlockIcon, SwordfightBoard, content, sfx, t, useTicked } from "@openseas/boards";
+import {
+  advanceSwordfight,
+  summarizeSwordfight,
+  swordfightColHeight,
+  swordfightPlaceIllegalReason,
+  swordfightStanding,
+  type SwordRotation,
+  type SwordfightConfig,
+  type SwordfightEvent,
+  type SwordfightMove,
+  type SwordfightState,
+} from "@openseas/engine";
+import { BlockIcon, SwordfightBoard, content, sfx, t, useTicked, type SwordfightPlaceAnswer } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -26,7 +37,15 @@ export function SwordfightPractice() {
   const shown = bench.reviewState ?? ticked.shown;
   const playing = api.phase === "playing";
 
-  const onPlace = useCallback((col: number, rot: SwordRotation): boolean => api.apply({ type: "place", col, rot, tick: ticked.moveTick() }), [api, ticked]);
+  const onPlace = useCallback(
+    (col: number, rot: SwordRotation): SwordfightPlaceAnswer => {
+      const tick = ticked.moveTick();
+      if (api.apply({ type: "place", col, rot, tick })) return "placed";
+      const r = api.current();
+      return r && swordfightPlaceIllegalReason(r.state, col, rot, tick) === "too soon" ? "wait" : "refused";
+    },
+    [api, ticked],
+  );
   const onNudge = useCallback(() => sfx.tick(false), []);
   const onEvents = useCallback((events: readonly SwordfightEvent[]) => {
     for (const e of events) {

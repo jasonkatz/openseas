@@ -1,7 +1,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { SWORDFIGHT_DEF, advanceSwordfight, type SwordRotation, type SwordfightConfig, type SwordfightMove, type SwordfightState } from "@openseas/engine";
+import { SWORDFIGHT_DEF, advanceSwordfight, swordfightPlaceIllegalReason, type SwordRotation, type SwordfightConfig, type SwordfightMove, type SwordfightState } from "@openseas/engine";
 import type { MeleeBoardWire, PuzzleResult, ServerMessage, ShipSnapshot } from "@openseas/protocol";
-import { PuzzleRound, content, sfx, t, usePirate, wallClock, useTicked, type MeleeRemoteBoard } from "@openseas/boards";
+import { PuzzleRound, content, sfx, t, usePirate, wallClock, useTicked, type MeleeRemoteBoard, type SwordfightPlaceAnswer } from "@openseas/boards";
 import { useShip } from "../../state/ShipProvider.jsx";
 
 export type MeleePhase = "idle" | "dealing" | "playing" | "waiting" | "result";
@@ -14,8 +14,8 @@ export interface MeleeApi {
   /** Every other board in the melee, as the server last described them. */
   others: readonly MeleeRemoteBoard[];
   outcome: MeleeOutcomeView | null;
-  /** The player's pair came to rest. False when the engine will not take it yet. */
-  place(col: number, rot: SwordRotation): boolean;
+  /** The player's pair came to rest: taken, not yet, or never there. */
+  place(col: number, rot: SwordRotation): SwordfightPlaceAnswer;
   /** The pirate yields: their board is lost. */
   yieldFight(): void;
   /** The pirate has read the outcome: clear the board. */
@@ -187,10 +187,12 @@ function useMelee(ship: ShipSnapshot | null): MeleeApi {
   useEffect(() => () => round.current?.abandon(), []);
 
   const place = useCallback(
-    (col: number, rot: SwordRotation): boolean => {
+    (col: number, rot: SwordRotation): SwordfightPlaceAnswer => {
       const r = round.current;
-      if (!r || r.isFinished) return false;
-      return r.apply({ type: "place", col, rot, tick: tickNow() }) !== null;
+      if (!r || r.isFinished) return "refused";
+      const tick = tickNow();
+      if (r.apply({ type: "place", col, rot, tick }) !== null) return "placed";
+      return swordfightPlaceIllegalReason(r.state, col, rot, tick) === "too soon" ? "wait" : "refused";
     },
     [tickNow],
   );

@@ -308,9 +308,11 @@ groups send breaker blocks to opponents' boards. Team mode distributes each side
 incoming-attack preview, swipe controls. Ships after the duty puzzles; the first playable pillage
 resolves boarding with a stub.
 
-As built (M5, ADR 0022): every pirate in a fight has a 6 wide by 12 tall board. Pairs of blocks
-in four colors (crimson, gold, sea, kelp, each with its own surface and optional mark) appear in
-the middle of the top row, vertical; the player steers, turns and hurries them, and the move the
+As built (M5, ADR 0022): every pirate in a fight has a 6 wide by 14 tall board. Pairs of blocks
+in four colors (crimson, gold, sea, kelp, each with its own surface and optional mark) slide in
+from above the middle column, vertical; the player steers, turns (a turn that does not fit kicks
+sideways, lifts a row, or, boxed into one column, turns twice so the halves swap ends) and hurries
+them, and the move the
 engine logs is the column and rotation the pair came to rest in, with the tick it happened at
 (ADR 0015); the engine drops each half to the top of its column, so a sideways pair whose columns
 differ lands at two heights. Blocks of one color that make a two-by-two fuse into a slab, and a
@@ -329,8 +331,9 @@ waits there, shown above the board as a count, and lands at that board's next dr
 of the sender's blade (content: the cutlass spreads it, the sabre piles it in the middle, the dirk
 at the edges, each a list of columns taken in turn). Wrack is grey and unbreakable, carries a
 count of the drops until it ripens, and after `ripenMoves` of the board's drops turns into blocks
-of random colors, which fuse and shatter like any other. A board whose entry cells (the two the
-pair appears in) are covered is out; a side with no board standing has lost, and a win is
+of random colors, which fuse and shatter like any other. A board whose entry (the top cell of the
+column pairs come in down) is covered, or whose pair has nowhere left to rest, is out; a side with
+no board standing has lost, and a win is
 `winPoints`. A pair may not come to rest sooner than `dropTicks` after it appeared; the fall
 itself is client timing (`fallTicks` a row, `softDropMs` while hurried, a short lock on resting)
 and never reaches the score. AI pirates (brigands in practice, allies in the lab's team fights)
@@ -341,9 +344,11 @@ every roll from the fight's PRNG, so a practice fight replays from one log. Aboa
 fight is a melee: each pirate's board is its own fight with the brigand crew outside it, attacks
 leave as events the server routes and arrive as `incoming` moves the server vouches for, the
 brigand crew's boards run on the server from the tier's `swordsmen`, and everyone sees every board.
-Feedback: the pair's landing shows as outlines (bold for a breaker), slabs fuse with a flash and
-a callout for big ones, breaks burst and tally, chains and big shatters call out, wrack flies to
-the board it is sent to and rains in from above, ripening flashes, the entry is outlined, and the
+Feedback: the pair's landing shows as outlines (bold for a breaker), slabs are darker than loose
+blocks with a heavy light border, and fuse with a flash and a callout for big ones, breaks burst
+and tally, chains and big shatters call out, wrack flies to the board it is sent to, waits under a
+red strip that pulses harder the more there is, and rains in from above, ripening flashes, the
+entry is outlined, and the
 other boards sit beside the player's as small live boards with their names, waiting wrack and a
 cross when they are out. Touch drags to steer, taps to turn and holds a downward swipe to hurry;
 the keyboard steers with the arrows, turns with up, down, X and Z and hurries with space. Numbers
