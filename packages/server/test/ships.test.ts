@@ -598,17 +598,36 @@ describeDb("ships over the wire", () => {
     expect(state.finished).toBe(true);
     const result = await a.until("puzzle.result", (m) => m.sessionId === fight.sessionId);
     expect(result.score).toBe(state.score);
+    // Either boarding opens the melee instead of paying out (M5): everyone gets a board and the
+    // ship holds. Bury the brigand crew in wrack so the rail is won and the purse comes through.
+    const boarding = state.outcome === "boarded" || state.outcome === "boarded_by";
+    if (boarding) {
+      await a.until("ship.state", (m) => m.events.some((e) => e.type === "boarding"));
+      await a.until("puzzle.started", (m) => m.puzzle === "swordfight");
+      await b.until("puzzle.started", (m) => m.puzzle === "swordfight");
+      const run = room().melee!;
+      let crew = run.crew;
+      crew.boards.forEach((_, i) => {
+        crew = reduceSwordfight(crew, { type: "incoming", board: i, wrack: 200, blade: 0, tick: crew.tick });
+      });
+      for (let i = 0; i < 40 && !crew.finished; i++) crew = reduceSwordfight(crew, { type: "wait", tick: Math.min(crew.config.maxTick, crew.tick + 20) });
+      expect(crew.finished).toBe(true);
+      run.crew = crew;
+      await turn();
+    }
+    const expectedOutcome = boarding ? "boarded" : state.outcome;
     const ended = await a.until("ship.state", (m) => m.ship.turn >= turnAtHail2 && m.events.some((e) => e.type === "battle_ended"));
     const event = ended.events.find((e) => e.type === "battle_ended");
     if (!event || event.type !== "battle_ended") throw new Error("no battle_ended event");
-    expect(event.outcome).toBe(state.outcome);
+    expect(event.outcome).toBe(expectedOutcome);
     expect(event.turns).toBe(state.turn);
-    const won = state.outcome === "boarded" || state.outcome === "crippled";
+    const won = expectedOutcome === "boarded" || expectedOutcome === "crippled";
     expect(event.booty).toBe(won ? tierTwo.booty : 0);
     expect((ended.ship.location as { battle: unknown }).battle).toBeNull();
+    expect(ended.ship.melee).toBeNull();
     const voyages = await app.db.select().from(schema.voyage).where(eq(schema.voyage.shipId, shipId));
-    const fought = voyages.find((x) => x.encounter?.outcome === state.outcome && x.encounter?.tierId === tierTwo.id);
-    expect(fought?.encounter).toMatchObject({ tierId: tierTwo.id, evaded: false, outcome: state.outcome, booty: event.booty });
+    const fought = voyages.find((x) => x.encounter?.outcome === expectedOutcome && x.encounter?.tierId === tierTwo.id);
+    expect(fought?.encounter).toMatchObject({ tierId: tierTwo.id, evaded: false, outcome: expectedOutcome, booty: event.booty });
     const ledger = await app.db.select().from(schema.ledgerEntry).where(eq(schema.ledgerEntry.pirateId, owner.me.id));
     const paid = ledger.filter((e) => e.reason === "booty").reduce((n, e) => n + e.delta, 0);
     const mateLedger = await app.db.select().from(schema.ledgerEntry).where(eq(schema.ledgerEntry.pirateId, mate.me.id));
@@ -693,8 +712,9 @@ describeDb("ships over the wire", () => {
     // Put the brigand alongside and hurt: a grapple ends the sea battle with a boarding. Both
     // copies of the board are set the same way, so the log still agrees.
     const session = app.puzzles.sessions.get(fight.sessionId)!;
-    const me = state.ships[0];
-    // Alongside, hurt, and with nothing to sail or fire, so she can only wait for the hooks.
+    // Our hull sound (a long hunt wears it, and a hurt captain can be boarded first); the brigand
+    // alongside, hurt, and with nothing to sail or fire, so she can only wait for the hooks.
+    const me = { ...state.ships[0], damage: 0 };
     state = { ...state, ships: [me, { ...state.ships[1], x: me.x, y: me.y - 1, damage: fight.config.grappleDamage, loaded: 0, tokens: { left: 0, forward: 0, right: 0 } }] };
     session.state = state;
     state = reduceBattle(state, { type: "commit", segments: [], grapple: true });
