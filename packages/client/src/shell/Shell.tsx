@@ -5,6 +5,7 @@ import { ChartCard } from "../chart/ChartCard.jsx";
 import { IslandCard } from "../island/IslandCard.jsx";
 import { islandName, stationName, tierName } from "../names.js";
 import { BattleView } from "../ship/battle/BattleView.jsx";
+import { useBattleApi } from "../ship/battle/useBattle.js";
 import { DeckCard, HelmCard, describeEvent } from "../ship/DeckCard.jsx";
 import { ShipHud } from "../ship/ShipHud.jsx";
 import { StationView } from "../ship/StationView.jsx";
@@ -49,6 +50,7 @@ export function Shell() {
   const { pirate, socketStatus } = usePirate();
   const { ship, notices, listBoard, board, boardShip, takeStation, error } = useShip();
   const { place: rawPlace, go } = usePlace();
+  const battle = useBattleApi();
   const { toast } = useToasts();
   const wide = useMediaQuery("(min-width: 900px)");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -104,23 +106,25 @@ export function Shell() {
     if (place.kind === "helm" && ship && (ship.location.kind !== "docked" || !captain)) go({ kind: "home" });
   }, [place.kind, ship, captain, go]);
 
-  // The captain's fight opens the battle board over the deck; it closes a beat after the fight ends,
-  // so the outcome can be read. Anyone else on the battle place is sent back to the deck.
+  // The captain's fight opens the battle board over the deck. Once the fight is over the outcome
+  // stays up until the captain dismisses it; a board with nothing to show closes after a beat.
+  // Anyone else on the battle place is sent back to the deck.
   const wasFighting = useRef(false);
   useEffect(() => {
     if (fight && captain && !wasFighting.current) go({ kind: "battle" });
     wasFighting.current = fight !== null && captain;
   }, [fight, captain, go]);
+  const battlePhase = battle.phase;
   useEffect(() => {
     if (place.kind !== "battle") return;
     if (!ship || !captain) {
       go({ kind: "home" });
       return;
     }
-    if (fight) return;
-    const id = window.setTimeout(() => go({ kind: "home" }), 6000);
+    if (fight || battlePhase === "result") return;
+    const id = window.setTimeout(() => go({ kind: "home" }), 3000);
     return () => window.clearTimeout(id);
-  }, [place.kind, ship, captain, fight, go]);
+  }, [place.kind, ship, captain, fight, battlePhase, go]);
 
   // Rooms and the helm want their card open; arriving anywhere else folds it so the view is clear,
   // except when the pirate stepped back a level in the card, which stays open where they came from.

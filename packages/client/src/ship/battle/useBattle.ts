@@ -19,6 +19,8 @@ export interface BattleApi {
   /** True when the board was handed back after a reconnect. */
   resumed: boolean;
   commit(plan: BattlePlan): void;
+  /** The captain has read the outcome: clear the board for the next fight. */
+  dismiss(): void;
   markRendered(): void;
 }
 
@@ -103,14 +105,13 @@ function useBattle(ship: ShipSnapshot | null): BattleApi {
     [socket],
   );
 
-  // The ship says when the fight is over; the board follows it off.
+  // The ship says when the fight is over. A board still in play with nothing scored (the fight was
+  // cut short) is dropped after a beat; a scored outcome stays until the captain dismisses it.
   useEffect(() => {
-    if (inBattle || phase === "idle") return;
-    if (phase === "playing" || phase === "waiting") {
-      round.current?.abandon();
-      round.current = null;
-      sessionId.current = null;
-    }
+    if (inBattle || phase === "idle" || phase === "result") return;
+    round.current?.abandon();
+    round.current = null;
+    sessionId.current = null;
     const id = window.setTimeout(() => {
       setPhase("idle");
       setOutcome(null);
@@ -145,8 +146,15 @@ function useBattle(ship: ShipSnapshot | null): BattleApi {
     if (r.apply({ type: "commit", ...plan }) !== null) sfx.swap();
   }, []);
   const markRendered = useCallback(() => round.current?.metrics.markRendered(), []);
+  const dismiss = useCallback(() => {
+    if (round.current && !round.current.isFinished) return;
+    round.current = null;
+    sessionId.current = null;
+    setPhase("idle");
+    setOutcome(null);
+  }, []);
 
-  return { phase, state, turnLeftMs, turnMs, commitSignal, outcome, resumed, commit, markRendered };
+  return { phase, state, turnLeftMs, turnMs, commitSignal, outcome, resumed, commit, dismiss, markRendered };
 }
 
 const Ctx = createContext<BattleApi | null>(null);

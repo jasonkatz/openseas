@@ -595,19 +595,7 @@ export class BattleRenderer {
     if (key === this.bakedKey) return;
     this.bakedKey = key;
     const r = this.app.renderer.resolution;
-    for (const t of this.textures.values()) t.destroy(true);
-    this.textures.clear();
-    const shipPx = Math.ceil(this.cell * SHIP_SCALE);
-    this.textures.set("ship0", texture(paintShip(shipPx, 0, this.opts.showMarks, r), r));
-    this.textures.set("ship1", texture(paintShip(shipPx, 1, this.opts.showMarks, r), r));
-    this.textures.set("eddy", texture(paintEddy(Math.ceil(this.cell * 1.1), r), r));
-    this.textures.set("ball", texture(paintBall(Math.max(6, Math.ceil(this.cell * 0.3)), r), r));
-    this.textures.set("caustic", texture(paintCaustic(128, 1), 1));
-    const iconPx = 28;
-    this.textures.set("cannon0", texture(paintCannon(iconPx, false, r), r));
-    this.textures.set("cannon1", texture(paintCannon(iconPx, true, r), r));
-    if (board) this.textures.set("sea", texture(paintSea(board, this.cell, r), r));
-    // Sprites are rebuilt on the new textures.
+    // Sprites go before their textures, so nothing is destroyed while still bound.
     if (this.shipSprites) for (const s of this.shipSprites) s.destroy();
     this.shipSprites = null;
     for (const s of this.ghostSprites) s.destroy();
@@ -621,6 +609,18 @@ export class BattleRenderer {
       this.caustic.destroy();
       this.caustic = null;
     }
+    for (const t of this.textures.values()) t.destroy(true);
+    this.textures.clear();
+    const shipPx = Math.ceil(this.cell * SHIP_SCALE);
+    this.textures.set("ship0", texture(paintShip(shipPx, 0, this.opts.showMarks, r), r));
+    this.textures.set("ship1", texture(paintShip(shipPx, 1, this.opts.showMarks, r), r));
+    this.textures.set("eddy", texture(paintEddy(Math.ceil(this.cell * 1.1), r), r));
+    this.textures.set("ball", texture(paintBall(Math.max(6, Math.ceil(this.cell * 0.3)), r), r));
+    this.textures.set("caustic", texture(paintCaustic(128, 1), 1));
+    const iconPx = 28;
+    this.textures.set("cannon0", texture(paintCannon(iconPx, false, r), r));
+    this.textures.set("cannon1", texture(paintCannon(iconPx, true, r), r));
+    if (board) this.textures.set("sea", texture(paintSea(board, this.cell, r), r));
   }
 
   private drawFrame(): void {

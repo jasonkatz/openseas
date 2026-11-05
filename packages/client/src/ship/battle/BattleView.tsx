@@ -19,6 +19,10 @@ export interface BattleViewProps {
  */
 export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
   const api = useBattleApi();
+  const back = useCallback(() => {
+    api.dismiss();
+    onBack();
+  }, [api, onBack]);
   const fight = ship.location.kind === "at-sea" ? ship.location.battle : null;
   const brigand = fight ? tierName(fight.tierId) : t("battle.brigand");
   const playing = api.phase === "playing";
@@ -39,7 +43,7 @@ export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
   return (
     <section className="station-layer battle-layer" data-testid="battle-view" data-phase={api.phase}>
       <header className="station-bar">
-        <button className="icon-btn" onClick={onBack} aria-label={t("ship.battle_back")} data-testid="battle-back">
+        <button className="icon-btn" onClick={back} aria-label={t("ship.battle_back")} data-testid="battle-back">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
             <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -75,7 +79,7 @@ export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
             {api.phase === "idle" && (
               <div className="veil-card veil-card-slim" data-testid="battle-idle">
                 <p className="how">{fight ? t("ship.battle_dealing") : t("battle.no_fight")}</p>
-                <button className="btn btn-ghost" onClick={onBack}>
+                <button className="btn btn-ghost" onClick={back}>
                   {t("ship.battle_back")}
                 </button>
               </div>
@@ -97,7 +101,7 @@ export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
                     <p className="result-score">{api.outcome.result.score}</p>
                   </>
                 )}
-                <button className="btn btn-brass" onClick={onBack}>
+                <button className="btn btn-brass" onClick={back}>
                   {t("ship.battle_back")}
                 </button>
               </div>

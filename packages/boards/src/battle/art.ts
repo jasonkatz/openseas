@@ -126,12 +126,29 @@ export function paintSea(board: ParsedBoard, cell: number, resolution: number): 
       paintSurf(ctx, board, x, y, cell, rnd);
     }
   }
+  // Winds blow as one current along each run of cells that share a heading, not a stamp a cell.
+  const seen = new Set<number>();
   for (let y = 0; y < board.height; y++) {
     for (let x = 0; x < board.width; x++) {
       const c = battleCellAt(board, x, y);
-      if (!c) continue;
-      if (c.kind === "rock") paintRock(ctx, (x + 0.5) * cell, (y + 0.5) * cell, cell, seeded(x * 977 + y * 31 + 7));
-      else if (c.kind === "wind") paintWind(ctx, (x + 0.5) * cell, (y + 0.5) * cell, cell, c.heading);
+      if (!c || c.kind !== "wind" || seen.has(y * board.width + x)) continue;
+      const along = c.heading === 1 || c.heading === 3;
+      const run: Array<[number, number]> = [];
+      let [rx, ry] = [x, y];
+      while (true) {
+        const cell = battleCellAt(board, rx, ry);
+        if (!cell || cell.kind !== "wind" || cell.heading !== c.heading || seen.has(ry * board.width + rx)) break;
+        seen.add(ry * board.width + rx);
+        run.push([rx, ry]);
+        if (along) rx += 1;
+        else ry += 1;
+      }
+      paintGust(ctx, run, c.heading, cell, rnd);
+    }
+  }
+  for (let y = 0; y < board.height; y++) {
+    for (let x = 0; x < board.width; x++) {
+      if (battleCellAt(board, x, y)?.kind === "rock") paintRock(ctx, (x + 0.5) * cell, (y + 0.5) * cell, cell, seeded(x * 977 + y * 31 + 7));
     }
   }
 
@@ -237,35 +254,83 @@ function paintRock(ctx: CanvasRenderingContext2D, cx: number, cy: number, cell: 
   ctx.stroke(path);
 }
 
-function paintWind(ctx: CanvasRenderingContext2D, cx: number, cy: number, cell: number, heading: number): void {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate((heading * Math.PI) / 2);
-  ctx.lineCap = "round";
-  // A soft wash the way the wind blows, then three streamlines with chevron heads.
-  const wash = ctx.createLinearGradient(0, cell * 0.45, 0, -cell * 0.45);
-  wash.addColorStop(0, "rgba(150,220,255,0)");
-  wash.addColorStop(1, "rgba(150,220,255,0.14)");
+/**
+ * A gust along a run of wind cells: a few tapered strands that thicken and brighten toward the
+ * head, swaying a little, with one soft chevron at the head of the main strand to settle which
+ * way it blows. A run of four cells is one current, not four stamps.
+ */
+function paintGust(ctx: CanvasRenderingContext2D, run: ReadonlyArray<readonly [number, number]>, heading: number, cell: number, rnd: () => number): void {
+  const first = run[0]!;
+  const last = run[run.length - 1]!;
+  const dx = [0, 1, 0, -1][heading]!;
+  const dy = [-1, 0, 1, 0][heading]!;
+  // The run's cells in blowing order: the head is downwind.
+  const forward = heading === 1 || heading === 2;
+  const head = forward ? last : first;
+  const tail = forward ? first : last;
+  // A short run overhangs its cells more and blows thicker, so one cell of wind still reads.
+  const over = run.length === 1 ? 0.5 : run.length === 2 ? 0.42 : 0.35;
+  const bold = run.length <= 2 ? 1.5 : 1.15;
+  const tx = (tail[0] + 0.5) * cell - dx * cell * over;
+  const ty = (tail[1] + 0.5) * cell - dy * cell * over;
+  const hx = (head[0] + 0.5) * cell + dx * cell * over;
+  const hy = (head[1] + 0.5) * cell + dy * cell * over;
+  const L = Math.hypot(hx - tx, hy - ty);
+  const px = -dy;
+  const py = dx;
+  // A faint wash over the run, brighter downwind.
+  const wash = ctx.createLinearGradient(tx, ty, hx, hy);
+  wash.addColorStop(0, "rgba(150,220,255,0.02)");
+  wash.addColorStop(1, "rgba(150,220,255,0.12)");
   ctx.fillStyle = wash;
-  ctx.fillRect(-cell * 0.45, -cell * 0.45, cell * 0.9, cell * 0.9);
-  for (const k of [-1, 0, 1]) {
-    const x = k * cell * 0.22;
-    const len = cell * (k === 0 ? 0.76 : 0.56);
-    const y0 = len / 2;
-    const y1 = -len / 2;
-    ctx.beginPath();
-    ctx.moveTo(x, y0);
-    ctx.bezierCurveTo(x - cell * 0.08, y0 * 0.4, x + cell * 0.08, y1 * 0.4, x, y1);
-    ctx.strokeStyle = "rgba(170,228,255,0.7)";
-    ctx.lineWidth = Math.max(1.2, cell * 0.055);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x - cell * 0.1, y1 + cell * 0.11);
-    ctx.lineTo(x, y1);
-    ctx.lineTo(x + cell * 0.1, y1 + cell * 0.11);
-    ctx.stroke();
+  for (const [cx, cy] of run) ctx.fillRect(cx * cell + 1, cy * cell + 1, cell - 2, cell - 2);
+  const strands = [-0.24, 0, 0.24];
+  for (const k of strands) {
+    const offset = k * cell + (rnd() - 0.5) * cell * 0.08;
+    const amp = cell * (0.04 + rnd() * 0.04);
+    const freq = 1 + Math.round(L / (cell * 2.2));
+    const phase = rnd() * Math.PI * 2;
+    const main = k === 0;
+    const start = main ? 0 : 0.08 + rnd() * 0.12;
+    const end = main ? 1 : 0.8 + rnd() * 0.12;
+    const steps = Math.max(12, Math.round(L / 3));
+    const left: Array<[number, number]> = [];
+    const right: Array<[number, number]> = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = start + ((end - start) * i) / steps;
+      const u = (t - start) / (end - start);
+      const sway = Math.sin(phase + u * Math.PI * freq) * amp;
+      const cx = tx + (hx - tx) * t + px * (offset + sway);
+      const cy = ty + (hy - ty) * t + py * (offset + sway);
+      // Thin at the tail, full near the head, rounding off at the tip.
+      const w = bold * (cell * (main ? 0.02 : 0.015) + cell * (main ? 0.06 : 0.04) * Math.sin(Math.min(1, u * 1.12) * Math.PI * 0.5) * (u > 0.92 ? (1 - u) / 0.08 : 1));
+      left.push([cx + px * w, cy + py * w]);
+      right.push([cx - px * w, cy - py * w]);
+    }
+    const path = new Path2D();
+    left.forEach(([x, y], i) => (i === 0 ? path.moveTo(x, y) : path.lineTo(x, y)));
+    for (let i = right.length - 1; i >= 0; i--) path.lineTo(right[i]![0], right[i]![1]);
+    path.closePath();
+    const ink = ctx.createLinearGradient(tx, ty, hx, hy);
+    ink.addColorStop(0, "rgba(180,230,255,0)");
+    ink.addColorStop(0.5, `rgba(180,230,255,${main ? 0.6 : 0.4})`);
+    ink.addColorStop(1, `rgba(215,242,255,${main ? 0.95 : 0.7})`);
+    ctx.fillStyle = ink;
+    ctx.fill(path);
   }
-  ctx.restore();
+  // One chevron at the head of the current.
+  ctx.strokeStyle = "rgba(220,245,255,0.85)";
+  ctx.lineWidth = Math.max(1.2, cell * 0.065 * bold);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const ax = hx - dx * cell * 0.08;
+  const ay = hy - dy * cell * 0.08;
+  const back = cell * 0.22 * bold;
+  ctx.beginPath();
+  ctx.moveTo(ax - dx * back + px * back * 0.8, ay - dy * back + py * back * 0.8);
+  ctx.lineTo(ax, ay);
+  ctx.lineTo(ax - dx * back - px * back * 0.8, ay - dy * back - py * back * 0.8);
+  ctx.stroke();
 }
 
 // ---- eddies
