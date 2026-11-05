@@ -5,6 +5,7 @@ import {
   GUNNERY_DEF,
   NAVIGATION_DEF,
   SAILING_DEF,
+  SWORDFIGHT_DEF,
   Special,
   navigationShapeOf,
   type BattleConfig,
@@ -27,6 +28,9 @@ import {
   type SailingConfig,
   type SailingMove,
   type SailingState,
+  type SwordfightConfig,
+  type SwordfightMove,
+  type SwordfightState,
 } from "@openseas/engine";
 import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
@@ -157,6 +161,22 @@ export const BATTLE: HarnessPuzzle<BattleState, BattleMove, BattleConfig> = {
   hints: false,
 };
 
+export const SWORDFIGHT: HarnessPuzzle<SwordfightState, SwordfightMove, SwordfightConfig> = {
+  id: "swordfight",
+  def: SWORDFIGHT_DEF,
+  config: c.swordfight.config,
+  roundSeconds: c.swordfight.roundSeconds,
+  configSchema: PUZZLE_CONFIG_SCHEMAS.swordfight,
+  presets: PRESETS.swordfight,
+  probes: [
+    { id: "breaker_first", test: (s) => s.boards[0]!.current.a.breaker || s.boards[0]!.current.b.breaker },
+    { id: "double_first", test: (s) => s.boards[0]!.current.a.color === s.boards[0]!.current.b.color && !s.boards[0]!.current.a.breaker && !s.boards[0]!.current.b.breaker },
+  ],
+  locked: ["tickMs", "player"],
+  ticked: { tickMs: c.swordfight.config.tickMs },
+  hints: false,
+};
+
 /** Every puzzle on the bench, erased for generic code (the home page, the review loader). */
 export const HARNESS_PUZZLES: Readonly<Record<PuzzleId, HarnessPuzzle<unknown, unknown, unknown>>> = {
   bilging: BILGING as unknown as HarnessPuzzle<unknown, unknown, unknown>,
@@ -165,4 +185,5 @@ export const HARNESS_PUZZLES: Readonly<Record<PuzzleId, HarnessPuzzle<unknown, u
   gunnery: GUNNERY as unknown as HarnessPuzzle<unknown, unknown, unknown>,
   navigation: NAVIGATION as unknown as HarnessPuzzle<unknown, unknown, unknown>,
   battle: BATTLE as unknown as HarnessPuzzle<unknown, unknown, unknown>,
+  swordfight: SWORDFIGHT as unknown as HarnessPuzzle<unknown, unknown, unknown>,
 };

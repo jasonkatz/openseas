@@ -180,6 +180,8 @@ export type ShipEvent =
   | { readonly type: "evaded"; readonly tierId: string; readonly auto: boolean }
   | { readonly type: "engaged"; readonly tierId: string }
   | { readonly type: "battle_ended"; readonly tierId: string; readonly outcome: ShipBattleOutcome; readonly booty: number; readonly turns: number }
+  /** A boarding opened the melee at the rail (M5). The server says so; the reducer never does. */
+  | { readonly type: "boarding"; readonly tierId: string }
   | { readonly type: "arrived"; readonly islandId: string; readonly turns: number }
   /** Nobody left aboard at sea: the ship is back at the island it left. */
   | { readonly type: "abandoned"; readonly islandId: string };

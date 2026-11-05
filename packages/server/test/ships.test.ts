@@ -9,11 +9,14 @@ import { loadContent } from "@openseas/content";
 import {
   createBattleGame,
   createBilgingGame,
+  createSwordfightGame,
   hashBattleState,
   hashBilgingState,
+  hashSwordfightState,
   reduceBattle,
   reduceBilging,
   reduceShip,
+  reduceSwordfight,
   swapIllegalReason,
   type BattleMove,
   type BattlePlan,
@@ -22,6 +25,7 @@ import {
   type BilgingMove,
   type BilgingState,
   type MoveToken,
+  type SwordfightMove,
 } from "@openseas/engine";
 import { parseServerMessage, type MeResponse, type PirateSummary, type ServerMessage } from "@openseas/protocol";
 import { createApp, type App } from "../src/app.js";
@@ -594,17 +598,36 @@ describeDb("ships over the wire", () => {
     expect(state.finished).toBe(true);
     const result = await a.until("puzzle.result", (m) => m.sessionId === fight.sessionId);
     expect(result.score).toBe(state.score);
+    // Either boarding opens the melee instead of paying out (M5): everyone gets a board and the
+    // ship holds. Bury the brigand crew in wrack so the rail is won and the purse comes through.
+    const boarding = state.outcome === "boarded" || state.outcome === "boarded_by";
+    if (boarding) {
+      await a.until("ship.state", (m) => m.events.some((e) => e.type === "boarding"));
+      await a.until("puzzle.started", (m) => m.puzzle === "swordfight");
+      await b.until("puzzle.started", (m) => m.puzzle === "swordfight");
+      const run = room().melee!;
+      let crew = run.crew;
+      crew.boards.forEach((_, i) => {
+        crew = reduceSwordfight(crew, { type: "incoming", board: i, wrack: 200, blade: 0, tick: crew.tick });
+      });
+      for (let i = 0; i < 40 && !crew.finished; i++) crew = reduceSwordfight(crew, { type: "wait", tick: Math.min(crew.config.maxTick, crew.tick + 20) });
+      expect(crew.finished).toBe(true);
+      run.crew = crew;
+      await turn();
+    }
+    const expectedOutcome = boarding ? "boarded" : state.outcome;
     const ended = await a.until("ship.state", (m) => m.ship.turn >= turnAtHail2 && m.events.some((e) => e.type === "battle_ended"));
     const event = ended.events.find((e) => e.type === "battle_ended");
     if (!event || event.type !== "battle_ended") throw new Error("no battle_ended event");
-    expect(event.outcome).toBe(state.outcome);
+    expect(event.outcome).toBe(expectedOutcome);
     expect(event.turns).toBe(state.turn);
-    const won = state.outcome === "boarded" || state.outcome === "crippled";
+    const won = expectedOutcome === "boarded" || expectedOutcome === "crippled";
     expect(event.booty).toBe(won ? tierTwo.booty : 0);
     expect((ended.ship.location as { battle: unknown }).battle).toBeNull();
+    expect(ended.ship.melee).toBeNull();
     const voyages = await app.db.select().from(schema.voyage).where(eq(schema.voyage.shipId, shipId));
-    const fought = voyages.find((x) => x.encounter?.outcome === state.outcome && x.encounter?.tierId === tierTwo.id);
-    expect(fought?.encounter).toMatchObject({ tierId: tierTwo.id, evaded: false, outcome: state.outcome, booty: event.booty });
+    const fought = voyages.find((x) => x.encounter?.outcome === expectedOutcome && x.encounter?.tierId === tierTwo.id);
+    expect(fought?.encounter).toMatchObject({ tierId: tierTwo.id, evaded: false, outcome: expectedOutcome, booty: event.booty });
     const ledger = await app.db.select().from(schema.ledgerEntry).where(eq(schema.ledgerEntry.pirateId, owner.me.id));
     const paid = ledger.filter((e) => e.reason === "booty").reduce((n, e) => n + e.delta, 0);
     const mateLedger = await app.db.select().from(schema.ledgerEntry).where(eq(schema.ledgerEntry.pirateId, mate.me.id));
@@ -638,6 +661,146 @@ describeDb("ships over the wire", () => {
     expect((lost.ship.location as { battle: unknown }).battle).toBeNull();
     a.ws.close();
     b.ws.close();
+  });
+
+  it("a boarding opens the melee for everyone aboard, the server routes the wrack, and the rail decides the booty", async () => {
+    const owner = await pirate();
+    const mate = await pirate();
+    const a = await connect(owner.cookie);
+    const b = await connect(mate.cookie);
+    const shipId = owner.me.ships[0]!.id;
+    a.send({ type: "ship.board", shipId });
+    await a.until("ship.state");
+    b.send({ type: "ship.board", shipId });
+    await b.until("ship.state", (m) => m.ship.crew.length === 2);
+    const room = (): ReturnType<typeof app.ships.room> & object => app.ships.room(shipId)!;
+    const waitRoom = async (pred: (r: ReturnType<typeof room>) => boolean): Promise<void> => {
+      for (let i = 0; i < 300; i++) {
+        if (pred(room())) return;
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      throw new Error("the ship never got there");
+    };
+    const huntHail = async (): Promise<string> => {
+      for (let leg = 0; leg < 12; leg++) {
+        if (!room().state.voyage) {
+          const route = content.world.routes.find((r) => r.from === room().state.islandId)!;
+          a.send({ type: "ship.sail", routeId: route.id });
+          await waitRoom((r) => r.state.voyage !== null);
+        }
+        for (let i = 0; i < 600; i++) {
+          const v = room().state.voyage;
+          if (!v) break;
+          if (v.hail) return v.hail.tierId;
+          await turn();
+        }
+      }
+      throw new Error("no brigand hailed the ship in a dozen legs");
+    };
+    const tierId = await huntHail();
+    const tier = content.world.brigandTiers.find((t) => t.id === tierId)!;
+    const turnAtHail = room().state.turn;
+    a.send({ type: "ship.engage" });
+    const fight = await a.until("puzzle.started");
+    if (fight.puzzle !== "battle") throw new Error("expected a battle board");
+    await a.until("ship.state", (m) => m.ship.turn >= turnAtHail && m.events.some((e) => e.type === "engaged"));
+    const deal = await a.until("battle.supply", (m) => m.sessionId === fight.sessionId);
+    let state = createBattleGame(fight.seed, fight.config);
+    state = reduceBattle(state, { type: "supply", left: deal.left, forward: deal.forward, right: deal.right, cannons: deal.cannons, hull: deal.hull });
+    a.send({ type: "puzzle.move", sessionId: fight.sessionId, seq: 0, move: { type: "supply", left: deal.left, forward: deal.forward, right: deal.right, cannons: deal.cannons, hull: deal.hull }, hash: hashBattleState(state) });
+    await waitRoom(() => app.puzzles.sessions.get(fight.sessionId)?.moves.length === 1);
+    // Put the brigand alongside and hurt: a grapple ends the sea battle with a boarding. Both
+    // copies of the board are set the same way, so the log still agrees.
+    const session = app.puzzles.sessions.get(fight.sessionId)!;
+    // Our hull sound (a long hunt wears it, and a hurt captain can be boarded first); the brigand
+    // alongside, hurt, and with nothing to sail or fire, so she can only wait for the hooks.
+    const me = { ...state.ships[0], damage: 0 };
+    state = { ...state, ships: [me, { ...state.ships[1], x: me.x, y: me.y - 1, damage: fight.config.grappleDamage, loaded: 0, tokens: { left: 0, forward: 0, right: 0 } }] };
+    session.state = state;
+    state = reduceBattle(state, { type: "commit", segments: [], grapple: true });
+    expect(state.outcome).toBe("boarded");
+    a.send({ type: "puzzle.move", sessionId: fight.sessionId, seq: 1, move: { type: "commit", segments: [], grapple: true }, hash: hashBattleState(state) });
+    await a.until("puzzle.result", (m) => m.sessionId === fight.sessionId);
+
+    // Everyone aboard gets a board at the rail; the ship says so and holds.
+    const boarding = await a.until("ship.state", (m) => m.events.some((e) => e.type === "boarding"));
+    expect(boarding.ship.melee).toEqual({ tierId });
+    expect((boarding.ship.location as { battle: unknown }).battle).not.toBeNull();
+    const mineA = await a.until("puzzle.started", (m) => m.puzzle === "swordfight");
+    const mineB = await b.until("puzzle.started", (m) => m.puzzle === "swordfight");
+    if (mineA.puzzle !== "swordfight" || mineB.puzzle !== "swordfight") throw new Error("expected swordfight boards");
+    expect(mineA.melee).toEqual({ shipId, tierId });
+    expect(mineA.config.foes).toEqual([]);
+    expect(mineA.config.player).toBe(true);
+    const boards = await a.until("melee.boards", (m) => m.boards.length === 4);
+    expect(boards.boards.filter((x) => x.side === 1)).toHaveLength(2);
+    expect(boards.boards.filter((x) => x.side === 0).map((x) => x.pirateId).sort()).toEqual([owner.me.id, mate.me.id].sort());
+    expect(room().melee?.crew.boards.every((x) => x.ai?.skill === tier.swordsmen.skill)).toBe(true);
+    const progress = room().state.voyage!.progress;
+
+    // The mate drops their board: that was their one board in this melee. A pirate who comes
+    // aboard mid-fight gets one of their own.
+    b.send({ type: "puzzle.abandon", sessionId: mineB.sessionId });
+    await waitRoom((r) => r.melee !== null && !r.melee.fights.has(mate.me.id));
+    b.send({ type: "melee.join" });
+    expect(await b.until("error")).toMatchObject({ code: "not_in_melee" });
+    const late = await pirate();
+    const c = await connect(late.cookie);
+    c.send({ type: "ship.board", shipId });
+    await c.until("ship.state", (m) => m.ship.melee !== null);
+    c.send({ type: "melee.join" });
+    const lateBoard = await c.until("puzzle.started", (m) => m.puzzle === "swordfight");
+    if (lateBoard.puzzle !== "swordfight") throw new Error("expected a swordfight board");
+    expect(lateBoard.melee).toEqual({ shipId, tierId });
+    await c.until("melee.boards", (m) => m.boards.some((x) => x.pirateId === late.me.id));
+
+    // The owner's board logs time; the ship holds position while the rail is fought over.
+    let mine = createSwordfightGame(mineA.seed, mineA.config);
+    let seq = 0;
+    const log = (move: SwordfightMove): void => {
+      mine = reduceSwordfight(mine, move);
+      a.send({ type: "puzzle.move", sessionId: mineA.sessionId, seq: seq++, move, hash: hashSwordfightState(mine) });
+    };
+    log({ type: "wait", tick: 1 });
+    await turn();
+    expect(room().state.voyage!.progress).toBe(progress);
+    await waitRoom(() => app.puzzles.sessions.get(mineA.sessionId)?.moves.length === 1);
+
+    // Bury the brigand crew in wrack until every board of theirs is out: the rail is won.
+    const run = room().melee!;
+    let crew = run.crew;
+    crew.boards.forEach((_, i) => {
+      crew = reduceSwordfight(crew, { type: "incoming", board: i, wrack: 200, blade: 0, tick: crew.tick });
+    });
+    for (let i = 0; i < 40 && !crew.finished; i++) crew = reduceSwordfight(crew, { type: "wait", tick: Math.min(crew.config.maxTick, crew.tick + 20) });
+    expect(crew.finished).toBe(true);
+    run.crew = crew;
+    await turn();
+    const over = await a.until("melee.over", (m) => m.sessionId === mineA.sessionId);
+    expect(over.won).toBe(true);
+    mine = reduceSwordfight(mine, { type: "end", won: true, tick: Math.max(mine.tick, over.tick) });
+    const result = await a.until("puzzle.result", (m) => m.sessionId === mineA.sessionId);
+    expect(result.score).toBe(mine.score);
+    expect(result.score).toBe(mineA.config.winPoints);
+    const ended = await a.until("ship.state", (m) => m.events.some((e) => e.type === "battle_ended"));
+    const event = ended.events.find((e) => e.type === "battle_ended");
+    if (!event || event.type !== "battle_ended") throw new Error("no battle_ended event");
+    expect(event).toMatchObject({ tierId, outcome: "boarded", booty: tier.booty });
+    expect(ended.ship.melee).toBeNull();
+    expect((ended.ship.location as { battle: unknown }).battle).toBeNull();
+    await waitRoom((r) => r.melee === null);
+    await c.until("puzzle.result", (m) => m.sessionId === lateBoard.sessionId);
+    let paid = 0;
+    for (const id of [owner.me.id, mate.me.id, late.me.id]) {
+      const ledger = await app.db.select().from(schema.ledgerEntry).where(eq(schema.ledgerEntry.pirateId, id));
+      paid += ledger.filter((e) => e.reason === "booty").reduce((n, e) => n + e.delta, 0);
+    }
+    expect(paid).toBe(tier.booty);
+    await turn();
+    expect(room().state.voyage === null || room().state.voyage!.progress > progress).toBe(true);
+    a.ws.close();
+    b.ws.close();
+    c.ws.close();
   });
 
   it("the shipyard sells a ship at the class price and refuses a pirate who is short or aboard", async () => {

@@ -308,6 +308,53 @@ groups send breaker blocks to opponents' boards. Team mode distributes each side
 incoming-attack preview, swipe controls. Ships after the duty puzzles; the first playable pillage
 resolves boarding with a stub.
 
+As built (M5, ADR 0022): every pirate in a fight has a 6 wide by 14 tall board. Pairs of blocks
+in four colors (crimson, gold, sea, kelp, each with its own surface and optional mark) slide in
+from above the middle column, vertical; the player steers, turns (a turn that does not fit kicks
+sideways, lifts a row, or, boxed into one column, turns twice so the halves swap ends) and hurries
+them, and the move the
+engine logs is the column and rotation the pair came to rest in, with the tick it happened at
+(ADR 0015); the engine drops each half to the top of its column, so a sideways pair whose columns
+differ lands at two heights. Blocks of one color that make a two-by-two fuse into a slab, and a
+slab grows by a full strip along any side, loose blocks or a slab of the same span, so slabs can
+hang over a hole. A breaker is a block of a color with a blade across it, dealt `breakerPermille`
+of the time; when it comes to rest touching its color, everything of that color joined to it
+shatters, slabs and all, and a breaker that touches nothing of its color waits where it lands
+until its color falls against it. Each step of the cascade multiplies by its chain number, and
+several breakers firing in one step multiply by their count, as in Bilging. A block scores
+`cellPoints`; a slab of n blocks scores `cellPoints * n + slabBonus * n(n-1)/2`, so a big slab is
+worth far more than its blocks. Points become wrack at `attackPoints` a block (the remainder
+carries over); wrack first cancels wrack waiting to land on the sender's own board (`offset`,
+which the lab can turn off), and the rest goes to the opposing board with the least on it. It
+waits there, shown above the board as a count, and lands at that board's next drop or after
+`landAfterTicks`, whichever comes first, at most `incomingCapRows` rows at a time, in the columns
+of the sender's blade (content: the cutlass spreads it, the sabre piles it in the middle, the dirk
+at the edges, each a list of columns taken in turn). Wrack is grey and unbreakable, carries a
+count of the drops until it ripens, and after `ripenMoves` of the board's drops turns into blocks
+of random colors, which fuse and shatter like any other. An upright pair whose column has one
+free cell left rests its lower half there and the upper half falls away over the top. A board whose
+entry (the top cell of the column pairs come in down) is covered is out; a side with no board
+standing has lost, and a win is
+`winPoints`. A pair may not come to rest sooner than `dropTicks` after it appeared; the fall
+itself is client timing (`fallTicks` a row, `softDropMs` while hurried, a short lock on resting)
+and never reaches the score. AI pirates (brigands in practice, allies in the lab's team fights)
+play inside the reducer: each drops every `thinkTicks`, choosing from every drop it could make,
+played out with the same rules, by what it broke, the slabs it left, blocks kept together and how
+high it stands, taking the best `skill` percent of the time and one of the next best otherwise,
+every roll from the fight's PRNG, so a practice fight replays from one log. Aboard a ship the
+fight is a melee: each pirate's board is its own fight with the brigand crew outside it, attacks
+leave as events the server routes and arrive as `incoming` moves the server vouches for, the
+brigand crew's boards run on the server from the tier's `swordsmen`, and everyone sees every board.
+Feedback: the pair's landing shows as outlines (bold for a breaker), slabs are darker than loose
+blocks with a heavy light border, and fuse with a flash and a callout for big ones, breaks burst
+and tally, chains and big shatters call out, wrack flies to the board it is sent to, waits as a
+flashing count above the board, and rains in from above, ripening flashes, the
+entry is outlined, and the
+other boards sit beside the player's as small live boards with their names, waiting wrack and a
+cross when they are out. Touch drags to steer, taps to turn and holds a downward swipe to hurry;
+the keyboard steers with the arrows, turns with up, down, X and Z and hurries with space. Numbers
+live in `content/data/puzzles/swordfight.json`.
+
 ### 3.4 Ship and voyage model
 
 - **Turn clock.** The ship runs on a fixed turn, initially 10 seconds, tuned in playtests. Each
@@ -628,7 +675,13 @@ Maintained as they arise.
 | Sea battle winds and whirlpools | Winds push once on entry; whirlpools carry and spin | Winds carry a ship a cell every segment it sits on one; eddies spin her a quarter turn each segment | Simple rules that read on a phone grid; sitting on either is a choice |
 | Sea battle ramming | Damage by size | Both ships take `ramDamage` and neither moves | Equal ships |
 | Sea battle sinking | Ships do not sink against brigands | A wrecked hull ends the fight, won or lost; no ship is lost | No permanent loss (3.4) |
-| Sea battle boarding | A swordfight | A grapple from alongside against a hull at `grappleDamage` or worse ends the fight at once; the sounder hull boards when both could | M5 opens Swordfighting where the stub resolves |
+| Sea battle boarding | A swordfight | A grapple from alongside against a hull at `grappleDamage` or worse ends the sea battle at once; the sounder hull boards when both could, and the melee decides the booty (M5) | Either boarding opens the melee; whoever boards, the crew that holds the rail takes the purse |
+| Swordfight pairs | Fall in real time | The move is the column and rotation the pair rested in, at its tick; the engine drops the halves; a rest sooner than `dropTicks` after the pair appeared is refused | One move per pair keeps the log small; the tick bounds how fast a hand can be (ADR 0015) |
+| Swordfight slabs | Rectangles of a color fuse into a big block | Same: a two-by-two fuses, a slab grows by a full strip along a side, and can hang over a hole | Faithful; the strip rule keeps fusing deterministic |
+| Swordfight attacks | Sprinkles land on the opponent at once, in the sword's pattern | Wrack waits on the target board and lands at its next drop or after `landAfterTicks`; it first cancels wrack waiting on the sender's board | A beat to see an attack coming and answer it; the timer means stalling never dodges one |
+| Swordfight team targeting | Attacks spread over the opposing team | Each attack goes whole to the opposing board with the least on it | Reads on a phone: one board takes the hit, and the lightest one |
+| Swordfight opponents | Other pirates, or brigands when boarding | Brigands (and lab allies) are a scripted hand inside the reducer; a melee aboard routes attacks between every pirate's own fight and the brigand crew's | A practice fight replays from one log; each pirate's board aboard verifies on its own (ADR 0022) |
+| Swordfight rating | Head to head | By score against content thresholds, in practice and aboard alike | No human opponent until duels; head-to-head rating comes with them (as Sea Battle, ADR 0021) |
 | Sea battle rating | Head to head | By score against content thresholds, against AI brigands | No human opponent until player-versus-player at sea (ADR 0021) |
 | Sea battle tokens | Typed tokens from the sails | The ship's turn output as tokens: half forward, the rest split between the turns; Navigation adds `navTokens` | One number from the ship, split the same way every time |
 | Bilging specials | Crab, pufferfish, jellyfish | Barnacle, Powder Keg, Ink Cloud | Original names (ADR 0001); same roles |

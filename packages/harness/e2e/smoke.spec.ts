@@ -258,6 +258,42 @@ test("home links to Sea Battle and an unrated fight plots by key and by tap and 
   await expectViewMatchesState(page, "battle");
 });
 
+test("home links to Swordfighting and an unrated fight drops pairs by keyboard and by touch", async ({ page }) => {
+  // Two drops hurried down a twelve-row board, with the brigand's board redrawn beside it, on the phone profile.
+  test.slow();
+  await page.goto("/");
+  await page.getByTestId("tile-swordfight").click();
+  await expect(page).toHaveURL(/\/swordfight$/);
+  await page.getByTestId("start-unrated").click();
+  const canvas = page.getByTestId("swordfight-canvas");
+  await expect(canvas).toBeVisible();
+  await expect(page.getByTestId("hud-moves")).toContainText("0");
+  await expectViewMatchesState(page, "swordfight");
+
+  // Keyboard: steer left, turn, and hurry the pair down until it rests and the engine takes it.
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.down(" ");
+  await expect(page.getByTestId("hud-moves")).toContainText("1", { timeout: 30_000 });
+  await page.keyboard.up(" ");
+  await expectViewMatchesState(page, "swordfight");
+
+  // Pointer: a tap turns the pair, a sideways drag steers it; then the key hurries it down.
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  const x = box.x + box.width * 0.3;
+  const y = box.y + box.height * 0.3;
+  await page.mouse.click(x, y);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + box.width * 0.15, y, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.down(" ");
+  await expect(page.getByTestId("hud-moves")).toContainText("2", { timeout: 30_000 });
+  await page.keyboard.up(" ");
+  await expectViewMatchesState(page, "swordfight");
+});
+
 test("a lab round opens from a link with its seed and config, replays clean, and its log can be reviewed", async ({ page }) => {
   // Three animated swaps, a review with board remounts and several settle checks: the longest test
   // in the suite, and right at the budget on the CI phone profile.

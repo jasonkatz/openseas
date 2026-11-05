@@ -42,6 +42,13 @@ export const BrigandTierSchema = z.object({
   aggression: z.number().min(0).max(1),
   /** Booty paid out on a win, in coins, before the duty-weighted split. */
   booty: z.int().min(0),
+  /** The brigand crew at the rail when a boarding happens (M5): one board per pirate aboard, each with this hand. */
+  swordsmen: z.object({
+    thinkTicks: z.int().min(1).max(10_000),
+    skill: z.int().min(0).max(100),
+    /** Index into the swordfight content's blades. */
+    blade: z.int().min(0).max(15),
+  }),
 });
 
 export const ShipClassSchema = z.object({
@@ -352,6 +359,51 @@ export const BattleContentSchema = z.object({
   }),
 });
 
+/** Swordfight blocks are beveled squares with their own surface per color, so they never read as Bilging tiles. */
+export const SwordPieceStyleSchema = z.object({
+  nameKey: MessageKey,
+  mark: z.string(),
+  texture: z.enum(["facet", "rivet", "scale", "hatch", "swirl", "rings"]),
+  color: z.string().regex(/^#[0-9a-f]{6}$/),
+});
+
+/** The boarding fight: not a duty board, so no par; rated against thresholds until there is a human opponent (ADR 0022). */
+export const SwordfightContentSchema = z.object({
+  /** Wall-clock length of a practice fight, enforced by the server. Aboard, the melee has its own length. */
+  roundSeconds: z.int().min(10).max(1800),
+  thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
+  config: z.object({
+    width: z.int().min(4).max(10),
+    height: z.int().min(6).max(20),
+    colors: z.int().min(3).max(6),
+    breakerPermille: z.int().min(0).max(1000),
+    ripenMoves: z.int().min(1).max(20),
+    cellPoints: z.int().min(0).max(1000),
+    slabBonus: z.int().min(0).max(1000),
+    attackPoints: z.int().min(1).max(100_000),
+    offset: z.boolean(),
+    landAfterTicks: z.int().min(1).max(10_000),
+    incomingCapRows: z.int().min(1).max(20),
+    /** Each blade's wrack lands in these columns, in turn. */
+    blades: z.array(z.object({ id: Id, columns: z.array(z.int().min(0).max(9)).min(1).max(64) })).min(1).max(16),
+    /** True in content; the server sets it false for the brigand crew's fight, which has no player in it. */
+    player: z.boolean(),
+    blade: z.int().min(0).max(15),
+    allies: z.array(z.object({ thinkTicks: z.int().min(1).max(10_000), skill: z.int().min(0).max(100), blade: z.int().min(0).max(15) })).max(8),
+    /** The practice foes. Aboard, the server empties this and the brigand crew fights from outside the board. */
+    foes: z.array(z.object({ thinkTicks: z.int().min(1).max(10_000), skill: z.int().min(0).max(100), blade: z.int().min(0).max(15) })).max(8),
+    winPoints: z.int().min(0),
+    tickMs: z.int().min(20).max(5000),
+    dropTicks: z.int().min(0).max(1000),
+    fallTicks: z.int().min(1).max(1000),
+    maxTick: z.int().min(1),
+    maxMoves: z.int().min(1),
+  }),
+  /** Ms per row while the player hurries the pair; free fall is fallTicks * tickMs a row. Client timing only. */
+  softDropMs: z.int().min(10).max(5000),
+  pieces: z.array(SwordPieceStyleSchema).min(3),
+});
+
 export const NamesSchema = z.object({
   adjectives: z.array(z.string().min(2)).min(20),
   nouns: z.array(z.string().min(2)).min(20),
@@ -381,6 +433,8 @@ export type CarpentryContent = z.infer<typeof CarpentryContentSchema>;
 export type GunneryContent = z.infer<typeof GunneryContentSchema>;
 export type NavigationContent = z.infer<typeof NavigationContentSchema>;
 export type BattleContent = z.infer<typeof BattleContentSchema>;
+export type SwordfightContent = z.infer<typeof SwordfightContentSchema>;
+export type SwordPieceStyle = z.infer<typeof SwordPieceStyleSchema>;
 export type StarColor = z.infer<typeof StarColorSchema>;
 export type StarShape = z.infer<typeof StarShapeSchema>;
 export type World = z.infer<typeof WorldSchema>;

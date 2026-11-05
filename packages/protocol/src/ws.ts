@@ -6,6 +6,7 @@ import { CarpentryConfigSchema } from "./carpentry.js";
 import { NavigationConfigSchema } from "./navigation.js";
 import { SailingConfigSchema } from "./sailing.js";
 import { GunneryConfigSchema } from "./gunnery.js";
+import { MeleeBoardSchema, SwordfightConfigSchema } from "./swordfight.js";
 import { BoardShipSchema, ChatChannelSchema, ShipEventWireSchema, ShipSnapshotSchema, StationSchema } from "./ship.js";
 
 const SessionId = z.string().min(8).max(64);
@@ -68,6 +69,8 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("chat.send"), channel: ChatChannelSchema, text: z.string().trim().min(1).max(280) }),
   /** Who is ashore at the pirate's island right now. */
   z.object({ type: z.literal("island.who") }),
+  /** Aboard, in a boarding melee without a board (joined late, or back from a drop): deal one. */
+  z.object({ type: z.literal("melee.join") }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
@@ -89,6 +92,8 @@ const PuzzleStartedBase = z.object({
     .optional(),
   /** Present when the round is the captain's sea battle aboard a ship. */
   battle: z.object({ shipId: z.string(), tierId: z.string() }).optional(),
+  /** Present when the round is the pirate's board in a boarding melee aboard a ship (M5). */
+  melee: z.object({ shipId: z.string(), tierId: z.string() }).optional(),
   /**
    * A fight the captain reconnected to: the moves the server already holds, in order. The client
    * replays them from the seed without sending them again and carries on from there.
@@ -104,6 +109,7 @@ export const PuzzleStartedSchema = z.discriminatedUnion("puzzle", [
   PuzzleStartedBase.extend({ puzzle: z.literal("gunnery"), config: GunneryConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("navigation"), config: NavigationConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("battle"), config: BattleConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("swordfight"), config: SwordfightConfigSchema }),
 ]);
 
 export const PuzzleResultSchema = z.object({
@@ -150,6 +156,12 @@ export const ServerMessageSchema = z.union([
     cannons: z.int().min(0).max(32),
     hull: z.int().min(0).max(1000),
   }),
+  /** Wrack from another board in the melee: the pirate's board logs an incoming move with exactly these numbers, in this order. */
+  z.object({ type: z.literal("melee.incoming"), sessionId: SessionId, wrack: z.int().min(1).max(999), blade: z.int().min(0).max(15), from: z.string() }),
+  /** Every board in the melee, for the boards beside the pirate's own. Sent whenever one changes. */
+  z.object({ type: z.literal("melee.boards"), shipId: z.string(), boards: z.array(MeleeBoardSchema), serverNow: z.number() }),
+  /** The melee is decided for the side outside the pirate's board: their board logs an end move saying this. */
+  z.object({ type: z.literal("melee.over"), sessionId: SessionId, won: z.boolean(), tick: z.int().min(0).max(1_000_000) }),
   /** The pirate's own summary changed: they came ashore somewhere new, or bought a ship. */
   z.object({ type: z.literal("pirate.updated"), pirate: PirateSummarySchema }),
   z.object({
@@ -169,6 +181,7 @@ export type PuzzleStarted = z.infer<typeof PuzzleStartedSchema>;
 export type PuzzleResult = z.infer<typeof PuzzleResultSchema>;
 export type ShipStateMessage = Extract<ServerMessage, { type: "ship.state" }>;
 export type ChatMessage = Extract<ServerMessage, { type: "chat.message" }>;
+export type MeleeBoardsMessage = Extract<ServerMessage, { type: "melee.boards" }>;
 
 export function parseClientMessage(raw: unknown): ClientMessage | null {
   const r = ClientMessageSchema.safeParse(raw);

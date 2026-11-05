@@ -104,6 +104,27 @@ export class PuzzleRound<S, M, C> {
     return next;
   }
 
+  /**
+   * Apply a move the server already logged for this round (the melee's end, which it decided and
+   * wrote itself): nothing is sent, the round is finished here as it is there.
+   */
+  settleLocal(move: M): void {
+    if (this.finished) return;
+    let next: S;
+    try {
+      next = this.opts.def.reduce(this.state, move);
+    } catch (e) {
+      if (!(e instanceof InvalidMoveError)) throw e;
+      next = this.state;
+    }
+    const prev = this.state;
+    this.state = next;
+    if (next !== prev) this.log.push({ seq: this.log.length, move, hash: this.opts.def.hash(next) });
+    this.finished = true;
+    this.opts.onChange(next, prev);
+    this.opts.onFinished();
+  }
+
   /** Called when the clock runs out, the board locks, or the player stops. Idempotent. */
   finish(): void {
     if (this.finished) return;

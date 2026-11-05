@@ -1,0 +1,28 @@
+export * from "./types.js";
+export {
+  createSwordfightGame,
+  reduceSwordfight,
+  replaySwordfight,
+  advanceSwordfight,
+  hashSwordfightState,
+  summarizeSwordfight,
+  validateConfig as validateSwordfightConfig,
+  placeIllegalReason as swordfightPlaceIllegalReason,
+  dropIllegalReason as swordfightDropIllegalReason,
+  legalDrops as swordfightLegalDrops,
+  landingCells as swordfightLandingCells,
+  pairCols as swordfightPairCols,
+  colHeight as swordfightColHeight,
+  entryBlocked as swordfightEntryBlocked,
+  boardOut as swordfightBoardOut,
+  spawnCol as swordfightSpawnCol,
+  opposingSideExternal as swordfightOpposingSideExternal,
+  standing as swordfightStanding,
+  boardString as swordfightBoardString,
+  boardLoad as swordfightBoardLoad,
+  applyDrop as swordfightApplyDrop,
+  idx as swordfightIdx,
+  type SwordfightSummary,
+  type DropResult as SwordfightDropResult,
+} from "./reduce.js";
+export { chooseAiDrop as chooseSwordfightAiDrop, type AiDrop as SwordfightAiDrop } from "./ai.js";

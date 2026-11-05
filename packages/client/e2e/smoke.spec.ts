@@ -16,6 +16,9 @@ const battle = JSON.parse(readFileSync(new URL("../../content/data/puzzles/battl
   config: Record<string, unknown>;
   roundSeconds: number;
 };
+const swordfight = JSON.parse(readFileSync(new URL("../../content/data/puzzles/swordfight.json", import.meta.url), "utf8")) as {
+  config: Record<string, unknown> & { width: number; height: number };
+};
 
 const ME = { id: "p-me", name: "Salty Gull", guest: true, balance: 0, islandId: "saltwick", ratings: [], ships: [{ id: "ship-1", classId: "sloop", name: "The Salty Gull", islandId: "saltwick" }] };
 
@@ -30,7 +33,44 @@ class FakeShip {
   sessions = 0;
   /** Commit moves the captain's battle board sent. */
   commits = 0;
+  /** The boarding melee, once a grapple lands: moves the pirate's swordfight board sent. */
+  melee: { tierId: string } | null = null;
+  meleeMoves = 0;
+  /** When set, a won sea battle boards the brigand instead of paying out at once. */
+  boarding = false;
   constructor(readonly ws: WebSocketRoute) {}
+
+  /** Grappling hooks over: the melee opens with a board for the pirate and one brigand at the rail. */
+  board(): void {
+    if (this.location.kind !== "at-sea" || !this.location.battle) return;
+    const now = Date.now();
+    const tierId = this.location.battle.tierId;
+    this.melee = { tierId };
+    this.sessions += 1;
+    const sessionId = `melee-${this.sessions}-0000000`;
+    this.state([{ type: "boarding", tierId }]);
+    this.send({
+      type: "puzzle.started",
+      sessionId,
+      puzzle: "swordfight",
+      seed: `smoke-melee-${this.sessions}`,
+      config: { ...swordfight.config, foes: [], allies: [] },
+      deadlineAt: now + 300_000,
+      serverNow: now,
+      melee: { shipId: "ship-1", tierId },
+    });
+    const empty = ".".repeat(swordfight.config.width * swordfight.config.height);
+    this.send({
+      type: "melee.boards",
+      shipId: "ship-1",
+      boards: [
+        { pirateId: ME.id, name: ME.name, side: 0, cells: empty, pending: 0, out: false, points: 0 },
+        { pirateId: null, name: "", side: 1, cells: empty, pending: 0, out: false, points: 0 },
+      ],
+      serverNow: now,
+    });
+    this.send({ type: "melee.incoming", sessionId, wrack: 2, blade: 0, from: tierId });
+  }
 
   /** A brigand hails the ship. */
   hail(): void {
@@ -59,6 +99,7 @@ class FakeShip {
       nextTurnAt: now + 10_000,
       turnMs: 10_000,
       voyagesCompleted: 0,
+      melee: this.melee,
     };
   }
 
@@ -141,11 +182,27 @@ class FakeShip {
       }
       case "puzzle.move": {
         const move = m.move as { type: string };
+        if (this.melee && String(m.sessionId).startsWith("melee-")) {
+          this.meleeMoves += 1;
+          if (move.type !== "place") return;
+          // One drop wins the rail here: the brigand crew is beaten and the purse shared.
+          const tierId = this.melee.tierId;
+          this.send({ type: "melee.over", sessionId: m.sessionId, won: true, tick: 0 });
+          this.send({ type: "puzzle.result", sessionId: m.sessionId, score: 400, moves: 1, bestCombo: 0, verified: true, rating: null, tierChange: null });
+          this.melee = null;
+          if (this.location.kind === "at-sea") this.location = { ...this.location, battle: null };
+          this.state([{ type: "battle_ended", tierId, outcome: "boarded", booty: 600, turns: 1 }]);
+          return;
+        }
         if (move.type !== "commit" || this.location.kind !== "at-sea" || !this.location.battle) return;
         // One plot is a whole fight here: the brigand strikes her colours and the purse is shared.
         this.commits += 1;
         const tierId = this.location.battle.tierId;
         this.send({ type: "puzzle.result", sessionId: m.sessionId, score: 740, moves: 1, bestCombo: 1, verified: true, rating: null, tierChange: null });
+        if (this.boarding) {
+          this.board();
+          return;
+        }
         this.location = { ...this.location, battle: null };
         this.state([{ type: "battle_ended", tierId, outcome: "boarded", booty: 600, turns: 1 }]);
         return;
@@ -335,4 +392,52 @@ test("a brigand's hail is engaged at the wheel and the captain's battle board op
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
   await page.getByTestId("sheet-toggle").click();
   await expect(page.getByTestId("ship-log")).toContainText("Marauder");
+});
+
+test("a boarding takes everyone to the rail: the swordfight board opens over the deck and the melee pays out", async ({ page }) => {
+  test.setTimeout(180_000);
+  const server = await fakeServer(page);
+  await page.goto("/");
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "island");
+  await tapSpot(page, '[data-island="saltwick"][data-building="dock"]');
+  await page.getByTestId("board-ship-ship-1").click();
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
+  await tapSpot(page, '[data-wheel="1"]');
+  await page.getByTestId("dest-gullhaven").click();
+  await page.getByTestId("sail-now").click();
+  await expect.poll(() => server.ship() !== null).toBe(true);
+  server.ship()!.boarding = true;
+  server.ship()!.hail();
+  await page.getByTestId("engage").click();
+  await expect(page.getByTestId("battle-view")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
+  await expect(page.getByTestId("battle-canvas")).toBeVisible();
+  // The board takes keys once its canvas is live; ask again until the plot shows the move.
+  await expect
+    .poll(
+      async () => {
+        await page.keyboard.press("w");
+        return page.getByTestId("battle-plan").getAttribute("data-plan");
+      },
+      { timeout: 15_000 },
+    )
+    .toMatch(/"move":"forward"/);
+  await page.keyboard.press("Enter");
+  await expect.poll(() => server.ship()?.commits ?? 0).toBeGreaterThan(0);
+
+  // The grapple lands: the melee opens, everyone is sent to the rail, the board is dealt and the brigand's wrack is announced.
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "melee", { timeout: 15_000 });
+  await expect(page.getByTestId("melee-view")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
+  await expect(page.getByTestId("swordfight-canvas")).toBeVisible();
+  await expect(page.getByTestId("toasts")).toContainText("Boarding");
+  await expect(page.getByTestId("sheet")).toContainText("Boarding the Marauder");
+  // The board logs the announced wrack and its waits, then a drop: one is enough for this brigand.
+  await expect.poll(() => server.ship()?.meleeMoves ?? 0).toBeGreaterThan(0);
+  await page.keyboard.down(" ");
+  await expect(page.getByTestId("melee-view")).toHaveAttribute("data-phase", "result", { timeout: 20_000 });
+  await page.keyboard.up(" ");
+  await expect(page.getByTestId("melee-result")).toBeVisible();
+  await expect(page.getByTestId("melee-result")).toContainText("Victory");
+  await expect(page.getByTestId("toasts")).toContainText("Marauder");
+  await page.getByTestId("melee-back").click();
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
 });

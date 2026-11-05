@@ -13,13 +13,15 @@ export interface DeckCardProps {
   onHelm(): void;
   /** The captain's way to the battle board while a fight is on. */
   onBattle(): void;
+  /** Everyone's way to the rail while a boarding melee is on. */
+  onMelee(): void;
 }
 
 /**
  * The deck, unfolded: the ship's vitals, the stations, the crew, the wheel, the chat and the log.
  * Its header (where the ship is, what to do next) is the sheet's, above. The next thing to do leads.
  */
-export function DeckCard({ ship, me, onStation, onHelm, onBattle }: DeckCardProps) {
+export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: DeckCardProps) {
   const { notices, error, clearError, takeStation, leave, handWheel, lock } = useShip();
   const [wheelTo, setWheelTo] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
@@ -35,7 +37,16 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle }: DeckCardProp
       <p className="visually-hidden">
         {ship.name} <small className="muted">{className(ship.classId)}</small>
       </p>
-      {battle && (
+      {ship.melee && (
+        <div className="battle-line" data-testid="deck-melee">
+          <b>{t("ship.in_melee", { brigand: tierName(ship.melee.tierId) })}</b>
+          <p className="muted small">{t("ship.melee_blurb")}</p>
+          <button className="btn btn-brass btn-wide" onClick={onMelee} data-testid="to-melee">
+            {t("ship.melee_open")}
+          </button>
+        </div>
+      )}
+      {battle && !ship.melee && (
         <div className="battle-line" data-testid="deck-battle">
           <b>{t("ship.in_battle", { brigand: tierName(battle.tierId) })}</b>
           <p className="muted small">{captain ? t("ship.battle_blurb") : t("ship.battle_captain")}</p>
@@ -209,6 +220,8 @@ export function describeEvent(e: ShipEventWire): ReactNode {
       const key = e.outcome === "boarded" || e.outcome === "crippled" ? "ship.log_battle_won" : e.outcome === "boarded_by" || e.outcome === "crippled_by" ? "ship.log_battle_lost" : e.outcome === "disengaged" ? "ship.log_battle_disengaged" : "ship.log_battle_broke_off";
       return t(key, { brigand: tierName(e.tierId), turns: e.turns, booty: e.booty });
     }
+    case "boarding":
+      return t("toast.boarding");
     case "arrived":
       return t("ship.log_arrived", { island: islandName(e.islandId), minutes: minutes(e.turns * content.world.ship.turnSeconds) });
     case "abandoned":

@@ -11,6 +11,7 @@ import carpentry from "../data/puzzles/carpentry.json" with { type: "json" };
 import gunnery from "../data/puzzles/gunnery.json" with { type: "json" };
 import navigation from "../data/puzzles/navigation.json" with { type: "json" };
 import battle from "../data/puzzles/battle.json" with { type: "json" };
+import swordfight from "../data/puzzles/swordfight.json" with { type: "json" };
 import ratingTiers from "../data/rating-tiers.json" with { type: "json" };
 import names from "../data/names.json" with { type: "json" };
 import en from "../data/messages/en.json" with { type: "json" };
@@ -24,6 +25,7 @@ import {
   NavigationContentSchema,
   RatingTierSchema,
   SailingContentSchema,
+  SwordfightContentSchema,
   WorldSchema,
   type BattleContent,
   type BilgingContent,
@@ -33,6 +35,7 @@ import {
   type PieceStyle,
   type RatingTier,
   type SailingContent,
+  type SwordfightContent,
   type World,
 } from "./schema.js";
 
@@ -48,9 +51,10 @@ export interface DutyPuzzleContent {
 }
 export type DutyPuzzleContentId = keyof DutyPuzzleContent;
 
-/** Every puzzle's content: the duty puzzles and the captain's sea battle. */
+/** Every puzzle's content: the duty puzzles, the captain's sea battle and the boarding fight. */
 export interface PuzzleContent extends DutyPuzzleContent {
   readonly battle: BattleContent;
+  readonly swordfight: SwordfightContent;
 }
 export type PuzzleContentId = keyof PuzzleContent;
 export const DUTY_PUZZLE_CONTENT_IDS: readonly DutyPuzzleContentId[] = ["bilging", "sailing", "carpentry", "gunnery", "navigation"];
@@ -90,6 +94,7 @@ export function loadContent(): Content {
     gunnery: parse("puzzles/gunnery", GunneryContentSchema, gunnery),
     navigation: parse("puzzles/navigation", NavigationContentSchema, navigation),
     battle: parse("puzzles/battle", BattleContentSchema, battle),
+    swordfight: parse("puzzles/swordfight", SwordfightContentSchema, swordfight),
   };
   const tiers = parse("rating-tiers", z.array(RatingTierSchema).min(1), ratingTiers);
   const nameLists = parse("names", NamesSchema, names);
@@ -134,6 +139,7 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
   for (const t of world.brigandTiers) {
     need(t.nameKey, `brigand tier ${t.id}`);
     if (!classIds.has(t.shipClassId)) problems.push(`brigand tier ${t.id}: unknown ship class ${t.shipClassId}`);
+    if (t.swordsmen.blade >= puzzles.swordfight.config.blades.length) problems.push(`brigand tier ${t.id}: unknown blade ${t.swordsmen.blade}`);
   }
   for (const c of world.shipClasses) need(c.nameKey, `ship class ${c.id}`);
   for (const g of world.shipGrants) {
@@ -150,7 +156,7 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
   for (const id of Object.keys(puzzles) as PuzzleContentId[]) {
     const p = puzzles[id];
     const where = `puzzles/${id}`;
-    if ("pieces" in p) checkPieces(where, p.pieces, "pieceKinds" in p.config ? p.config.pieceKinds : p.pieces.length, messages, problems);
+    if ("pieces" in p) checkPieces(where, p.pieces, "pieceKinds" in p.config ? p.config.pieceKinds : "colors" in p.config ? p.config.colors : p.pieces.length, messages, problems);
     for (let i = 1; i < p.thresholds.length; i++) {
       const a = p.thresholds[i - 1]!;
       const b = p.thresholds[i]!;
@@ -173,6 +179,22 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
       const cls = world.shipClasses.find((c) => c.id === t.shipClassId);
       if (cls && t.reloadPerTurn > cls.cannons) problems.push(`brigand tier ${t.id}: reloads more cannons than its ${cls.id} carries`);
     }
+  }
+  {
+    const sf = puzzles.swordfight;
+    const c = sf.config;
+    if (c.maxTick * c.tickMs < sf.roundSeconds * 1000) problems.push("puzzles/swordfight: maxTick * tickMs must cover roundSeconds");
+    if (!c.player) problems.push("puzzles/swordfight: content plays with the player at board 0");
+    if (c.blade >= c.blades.length) problems.push("puzzles/swordfight: the player's blade is not in blades");
+    for (const a of [...c.allies, ...c.foes]) if (a.blade >= c.blades.length) problems.push("puzzles/swordfight: an AI's blade is not in blades");
+    const seen = new Set<string>();
+    for (const b of c.blades) {
+      need(`swordfight.blade.${b.id}`, "swordfight blade");
+      if (seen.has(b.id)) problems.push(`puzzles/swordfight: blade "${b.id}" twice`);
+      seen.add(b.id);
+      for (const col of b.columns) if (col >= c.width) problems.push(`puzzles/swordfight: blade "${b.id}" lands past the board`);
+    }
+    if (c.incomingCapRows > c.height) problems.push("puzzles/swordfight: incomingCapRows exceeds the board");
   }
   for (const s of Object.values(puzzles.bilging.specials)) need(s.nameKey, "bilging special");
   for (const sh of puzzles.carpentry.shapes) need(sh.nameKey, "carpentry shape");
