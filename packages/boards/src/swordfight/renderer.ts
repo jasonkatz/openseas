@@ -153,6 +153,8 @@ const CLEAR_MS = 240;
 const DIE_MS = 240;
 const LOCK_MS = 350;
 const MAX_LOCK_RESETS = 3;
+/** A mini board's cell as a share of the player's: the other boards sit small in the margin so the player's board is the thing. */
+const MINI_SCALE = 0.3;
 const FONT = "Atkinson Hyperlegible, Avenir Next, Segoe UI, sans-serif";
 const DISPLAY = "Fraunces, Georgia, serif";
 
@@ -958,14 +960,18 @@ export class SwordfightRenderer {
     const n = this.miniCount();
     const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.15));
     const rows = this.height + 1.3;
-    const mainMaxW = n > 0 ? w * 0.68 : w;
-    let cell = Math.floor(Math.min(mainMaxW / this.width, h / rows));
-    cell = Math.floor(Math.min((mainMaxW - padFor(cell) * 2 - 2) / this.width, (h - padFor(cell) * 2 - 2) / rows));
+    // The player's board is centred. With other boards in the fight each side keeps a margin wide
+    // enough for a column of minis a little under their full share (a phone's width is the bound
+    // there, and the board matters more), and the minis take the right one.
+    const sideCells = n > 0 ? this.width * MINI_SCALE * 0.8 + 0.7 : 0;
+    const cols = this.width + sideCells * 2;
+    let cell = Math.floor(Math.min(w / cols, h / rows));
+    cell = Math.floor(Math.min((w - padFor(cell) * 2 - 2) / cols, (h - padFor(cell) * 2 - 2) / rows));
     this.cell = Math.max(12, cell);
     this.pad = padFor(this.cell);
     this.strip = Math.round(this.cell * 1.3);
     const boardW = this.cell * this.width;
-    this.ox = n > 0 ? this.pad + 2 : Math.floor((w - boardW) / 2);
+    this.ox = Math.floor((w - boardW) / 2);
     this.oy = Math.floor((h - this.cell * this.height - this.strip) / 2) + this.strip;
     this.board.position.set(this.ox, this.oy);
     this.wellMask.clear().rect(0, 0, this.cell * this.width, this.cell * this.height).fill(0xffffff);
@@ -1139,29 +1145,33 @@ export class SwordfightRenderer {
     else this.drawMinis();
   }
 
+  /**
+   * The other boards, small, in the margin right of the player's board: a column from the top of
+   * the well, more columns beside it when there is room and the fight has many, and smaller still
+   * when the column would not fit the height.
+   */
   private layoutMinis(w: number, h: number): void {
     const n = this.minis.length;
     if (n === 0) return;
-    const left = this.ox + this.width * this.cell + this.pad * 2 + 6;
+    const left = this.ox + this.width * this.cell + this.pad + 6;
     const avail = Math.max(10, w - left - this.pad);
-    const perRow = Math.max(1, Math.min(n, Math.floor(avail / (this.width * 9))));
-    const rowsN = Math.ceil(n / perRow);
     const gap = 8;
-    let mc = Math.floor(Math.min((avail - (perRow - 1) * gap) / perRow / this.width, (h - this.pad * 2 - rowsN * 18) / rowsN / (this.height + 0.3), this.cell * 0.6));
+    const label = 16;
+    const want = Math.max(5, Math.floor(this.cell * MINI_SCALE));
+    const perRow = Math.max(1, Math.min(n, Math.floor((avail + gap) / (want * this.width + gap))));
+    const rowsN = Math.ceil(n / perRow);
+    let mc = Math.floor(Math.min(want, (avail - (perRow - 1) * gap) / perRow / this.width, (h - this.oy - this.pad - rowsN * label - (rowsN - 1) * gap) / rowsN / this.height));
     mc = Math.max(5, mc);
     const bw = mc * this.width;
     const bh = mc * this.height;
-    const totalH = rowsN * (bh + 18) + (rowsN - 1) * gap;
-    const y0 = Math.max(this.pad, Math.floor((h - totalH) / 2)) + 16;
+    const y0 = this.oy + label;
     this.minis.forEach((m, i) => {
       const r = Math.floor(i / perRow);
       const c = i % perRow;
-      const rowCount = Math.min(perRow, n - r * perRow);
-      const rowW = rowCount * bw + (rowCount - 1) * gap;
-      m.x = left + Math.floor((avail - rowW) / 2) + c * (bw + gap);
-      m.y = y0 + r * (bh + 18 + gap);
+      m.x = left + c * (bw + gap);
+      m.y = y0 + r * (bh + label + gap);
       m.cell = mc;
-      m.label.style.fontSize = Math.max(9, Math.min(12, mc * 1.4));
+      m.label.style.fontSize = Math.max(8, Math.min(11, mc * 1.1));
       m.pendingLabel.style.fontSize = m.label.style.fontSize;
       m.label.position.set(m.x, m.y - 2);
       m.pendingLabel.position.set(m.x + bw, m.y - 2);

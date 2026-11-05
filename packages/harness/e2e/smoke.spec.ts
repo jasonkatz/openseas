@@ -259,7 +259,7 @@ test("home links to Sea Battle and an unrated fight plots by key and by tap and 
 });
 
 test("home links to Swordfighting and an unrated fight drops pairs by keyboard and by touch", async ({ page }) => {
-  // Two drops hurried down a twelve-row board, with the brigand's board redrawn beside it, on the phone profile.
+  // Two drops hurried down a seventeen-row board, with the brigand's board small beside it, on the phone profile.
   test.slow();
   await page.goto("/");
   await page.getByTestId("tile-swordfight").click();
