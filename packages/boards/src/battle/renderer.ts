@@ -1020,25 +1020,44 @@ export class BattleRenderer {
     this.app.canvas.setAttribute("data-buttons", this.buttons.map((b) => `${b.id}=${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)},${Math.round(b.h)}`).join(";"));
   }
 
+  /**
+   * A move token: forward is a straight arrow; a turn runs up a short shaft, sweeps through a
+   * quarter circle and ends in a head pointing the new way. One stroke weight and one head shape
+   * for all three, so they read as a set.
+   */
   private paintToken(g: Graphics, t: MoveToken | null, x: number, y: number, size: number, color: number, lit: boolean): void {
     const r = size * 0.5;
-    const width = Math.max(2, size * 0.17);
+    const width = Math.max(2, size * 0.16);
+    const head = r * 0.42;
     if (lit) g.circle(x, y, r * 1.1).fill({ color, alpha: 0.12 });
+    const arrowhead = (tipX: number, tipY: number, dx: number, dy: number): void => {
+      // A filled triangle with its tip at (tipX, tipY), pointing along (dx, dy).
+      const bx = tipX - dx * head;
+      const by = tipY - dy * head;
+      g.poly([tipX, tipY, bx + dy * head * 0.75, by - dx * head * 0.75, bx - dy * head * 0.75, by + dx * head * 0.75]).fill(color);
+    };
     if (t === null) {
-      g.circle(x, y, r * 0.38).stroke({ width, color });
+      g.circle(x, y, r * 0.42).stroke({ width, color });
+      g.circle(x, y, r * 0.1).fill(color);
       return;
     }
     if (t === "forward") {
-      g.moveTo(x, y + r * 0.85).lineTo(x, y - r * 0.75).stroke({ width, color, cap: "round" });
-      g.moveTo(x - r * 0.55, y - r * 0.2).lineTo(x, y - r * 0.85).lineTo(x + r * 0.55, y - r * 0.2).stroke({ width, color, cap: "round", join: "round" });
+      g.moveTo(x, y + r * 0.85).lineTo(x, y - r * 0.5).stroke({ width, color, cap: "round" });
+      arrowhead(x, y - r * 0.9, 0, -1);
       return;
     }
-    // A curved course bending left or right, with a head.
     const dir = t === "left" ? -1 : 1;
-    g.moveTo(x - dir * r * 0.15, y + r * 0.85);
-    g.quadraticCurveTo(x - dir * r * 0.15, y - r * 0.45, x + dir * r * 0.65, y - r * 0.45);
+    const R = r * 0.8;
+    const sx = x - dir * r * 0.4;
+    // The shaft, then the sweep: a quarter circle whose centre sits beside the shaft's top.
+    g.moveTo(sx, y + r * 0.85).lineTo(sx, y + r * 0.1).stroke({ width, color, cap: "round" });
+    const cx = sx + dir * R;
+    const cy = y + r * 0.1;
+    if (dir === 1) g.arc(cx, cy, R, Math.PI, Math.PI * 1.5);
+    else g.arc(cx, cy, R, 0, -Math.PI * 0.5, true);
     g.stroke({ width, color, cap: "round" });
-    g.moveTo(x + dir * r * 0.15, y - r * 0.95).lineTo(x + dir * r * 0.75, y - r * 0.45).lineTo(x + dir * r * 0.15, y + r * 0.05).stroke({ width, color, cap: "round", join: "round" });
+    // The head sits at the top of the sweep, pointing the new way, a touch past the arc's end.
+    arrowhead(cx + dir * head * 0.6, cy - R, dir, 0);
   }
 
   /** A backspace key: a pointed cap with a cross in it. */
