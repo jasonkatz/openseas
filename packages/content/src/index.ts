@@ -141,7 +141,14 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
     if (!classIds.has(t.shipClassId)) problems.push(`brigand tier ${t.id}: unknown ship class ${t.shipClassId}`);
     if (t.swordsmen.blade >= puzzles.swordfight.config.blades.length) problems.push(`brigand tier ${t.id}: unknown blade ${t.swordsmen.blade}`);
   }
-  for (const c of world.shipClasses) need(c.nameKey, `ship class ${c.id}`);
+  for (const c of world.shipClasses) {
+    need(c.nameKey, `ship class ${c.id}`);
+    if (c.minCrew > c.maxCrew) problems.push(`ship class ${c.id}: minCrew above maxCrew`);
+    for (const st of c.mateStations) if (!c.stations.includes(st)) problems.push(`ship class ${c.id}: deckhands would work ${st}, which it does not have`);
+    if (new Set(c.mateStations).size !== c.mateStations.length) problems.push(`ship class ${c.id}: mateStations repeats a station`);
+  }
+  if (world.ship.mateOutput.max < world.ship.mateOutput.min) problems.push("ocean: ship.mateOutput ends below where it starts");
+  if (world.ship.mateOutput.max > world.ship.maxOutputPercent) problems.push("ocean: ship.mateOutput exceeds maxOutputPercent");
   for (const g of world.shipGrants) {
     if (!classIds.has(g.shipClassId)) problems.push(`ship grant ${g.id}: unknown ship class ${g.shipClassId}`);
     if (g.requires.minTier !== null && !ratingTierKeys.has(g.requires.minTier)) {

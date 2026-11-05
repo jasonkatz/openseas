@@ -31,6 +31,10 @@ export function validateShipConfig(cfg: ShipConfig): void {
     c.stations.every(isStation) &&
     new Set(c.stations).size === c.stations.length &&
     int(c.maxCrew, 1, 1000) &&
+    int(c.minCrew, 0, c.maxCrew) &&
+    Array.isArray(c.mateStations) &&
+    c.mateStations.every((st) => isStation(st) && c.stations.includes(st)) &&
+    new Set(c.mateStations).size === c.mateStations.length &&
     int(c.cannons, 0, 100) &&
     int(c.baseTokens, 0, 100) &&
     int(r.turnSeconds, 1, 600) &&
@@ -52,6 +56,9 @@ export function validateShipConfig(cfg: ShipConfig): void {
     int(r.hailTurns, 1, 100_000) &&
     int(r.encounterWindow.from, 0, PERMILLE) &&
     int(r.encounterWindow.to, r.encounterWindow.from, PERMILLE) &&
+    int(r.mateOutput.min, 0, r.maxOutputPercent) &&
+    int(r.mateOutput.max, r.mateOutput.min, r.maxOutputPercent) &&
+    int(r.mateRestTurns, 0, 100_000) &&
     STATIONS.every((s) => int(cfg.par[s], 1, 1_000_000));
   if (!ok) throw new Error("invalid ship config");
 }
@@ -107,10 +114,21 @@ export function crewAtStation(state: ShipState, station: Station): CrewMember | 
   return state.crew.find((c) => c.station === station) ?? null;
 }
 
-/** The longest-aboard crew member, preferring one who is connected. Null when nobody is aboard. */
+/** The pirates aboard: the crew without its deckhands. */
+export function pirates(crew: readonly CrewMember[]): CrewMember[] {
+  return crew.filter((c) => !c.mate);
+}
+
+/** The deckhands aboard. */
+export function mates(crew: readonly CrewMember[]): CrewMember[] {
+  return crew.filter((c) => c.mate);
+}
+
+/** The longest-aboard pirate, preferring one who is connected. Null when no pirate is aboard; a deckhand never has the wheel. */
 export function longestAboard(crew: readonly CrewMember[]): CrewMember | null {
   let best: CrewMember | null = null;
   for (const c of crew) {
+    if (c.mate) continue;
     if (best === null) {
       best = c;
       continue;
@@ -133,6 +151,8 @@ export function reduceShip(state: ShipState, move: ShipMove): ShipState {
       return station(state, move.pirateId, move.station, move);
     case "wheel":
       return wheel(state, move.pirateId, move);
+    case "assign":
+      return assign(state, move.pirateId, move.station, move);
     case "lock":
       return { ...state, inviteOnly: move.inviteOnly, events: [] };
     case "sail":
@@ -163,22 +183,80 @@ export function reduceShip(state: ShipState, move: ShipMove): ShipState {
 }
 
 function board(state: ShipState, pirateId: string): ShipState {
-  if (typeof pirateId !== "string" || pirateId.length === 0) throw new InvalidMoveError("bad pirate id", { type: "board", pirateId });
+  if (typeof pirateId !== "string" || pirateId.length === 0 || pirateId.startsWith(MATE_PREFIX)) throw new InvalidMoveError("bad pirate id", { type: "board", pirateId });
   if (crewMember(state, pirateId)) throw new InvalidMoveError("already aboard", { type: "board", pirateId });
-  if (state.crew.length >= state.config.shipClass.maxCrew) throw new InvalidMoveError("ship is full", { type: "board", pirateId });
-  const member: CrewMember = { pirateId, station: null, boardedSeq: state.nextBoardedSeq, awaySinceTurn: null };
-  const events: ShipEvent[] = [{ type: "boarded", pirateId }];
-  let captainId = state.captainId;
+  let s: ShipState = { ...state, events: [] };
+  if (s.crew.length >= s.config.shipClass.maxCrew) {
+    // A deckhand gives up its berth to a pirate: the idle one first, else the last signed on.
+    const hands = mates(s.crew);
+    const spare = hands.find((m) => m.station === null) ?? hands[hands.length - 1];
+    if (!spare) throw new InvalidMoveError("ship is full", { type: "board", pirateId });
+    s = payOff(s, [spare.pirateId]);
+  }
+  const member: CrewMember = { pirateId, station: null, boardedSeq: s.nextBoardedSeq, awaySinceTurn: null, mate: false, idleFromTurn: null };
+  const events: ShipEvent[] = [...s.events, { type: "boarded", pirateId }];
+  let captainId = s.captainId;
   if (captainId === null) {
     captainId = pirateId;
     events.push({ type: "wheel", pirateId });
   }
-  return { ...state, crew: [...state.crew, member], nextBoardedSeq: state.nextBoardedSeq + 1, captainId, events };
+  return { ...s, crew: [...s.crew, member], nextBoardedSeq: s.nextBoardedSeq + 1, captainId, events };
+}
+
+const MATE_PREFIX = "mate:";
+
+/** Deckhands go ashore. Appends to `state.events`. */
+function payOff(state: ShipState, pirateIds: readonly string[]): ShipState {
+  if (pirateIds.length === 0) return state;
+  const gone = new Set(pirateIds);
+  return { ...state, crew: state.crew.filter((c) => !gone.has(c.pirateId)), events: [...state.events, { type: "paid_off", pirateIds: [...pirateIds] }] };
+}
+
+/** The stations a deckhand may take right now, in the class's order of preference. */
+function openMateStations(state: ShipState): Station[] {
+  return state.config.shipClass.mateStations.filter((st) => !crewAtStation(state, st));
+}
+
+/**
+ * Setting sail short-handed signs on deckhands up to the class's `minCrew`, each at the first
+ * open station it will work; any left over wait on deck for one to open. Appends to `state.events`.
+ */
+function hire(state: ShipState): ShipState {
+  const c = state.config.shipClass;
+  const wanted = Math.min(c.maxCrew, c.minCrew) - state.crew.length;
+  if (wanted <= 0) return state;
+  let s = state;
+  const open = openMateStations(s);
+  for (let i = 0; i < wanted; i++) {
+    const station = open.shift() ?? null;
+    const pirateId = `${MATE_PREFIX}${s.nextBoardedSeq}`;
+    const member: CrewMember = { pirateId, station, boardedSeq: s.nextBoardedSeq, awaySinceTurn: null, mate: true, idleFromTurn: station ? null : s.turn };
+    s = { ...s, crew: [...s.crew, member], nextBoardedSeq: s.nextBoardedSeq + 1, events: [...s.events, { type: "hired", pirateId, station }] };
+  }
+  return s;
+}
+
+/** Deckhands whose rest is over take the open stations, in boarding order. Appends to `state.events`. */
+function reseatMates(state: ShipState): ShipState {
+  let s = state;
+  for (const m of mates(s.crew)) {
+    if (m.station !== null || m.idleFromTurn === null || s.turn < m.idleFromTurn) continue;
+    const station = openMateStations(s)[0];
+    if (!station) continue;
+    s = {
+      ...s,
+      crew: s.crew.map((c) => (c.pirateId === m.pirateId ? { ...c, station, idleFromTurn: null } : c)),
+      events: [...s.events, { type: "station", pirateId: m.pirateId, station }],
+    };
+  }
+  return s;
 }
 
 /** Removes a crew member, passing the wheel or abandoning the voyage as needed. Appends to `state.events`. */
 function leave(state: ShipState, pirateId: string, reason: "left" | "timed_out"): ShipState {
-  if (!crewMember(state, pirateId)) throw new InvalidMoveError("not aboard", { type: "leave", pirateId });
+  const me = crewMember(state, pirateId);
+  if (!me) throw new InvalidMoveError("not aboard", { type: "leave", pirateId });
+  if (me.mate) throw new InvalidMoveError("not a pirate", { type: "leave", pirateId });
   const crew = state.crew.filter((c) => c.pirateId !== pirateId);
   const events: ShipEvent[] = [...state.events, { type: "left", pirateId, reason }];
   let captainId = state.captainId;
@@ -188,9 +266,11 @@ function leave(state: ShipState, pirateId: string, reason: "left" | "timed_out")
     if (next) events.push({ type: "wheel", pirateId: next.pirateId });
   }
   let next: ShipState = { ...state, crew, captainId, events };
-  if (crew.length === 0 && state.voyage) {
+  // The deckhands work for the pirates; with the last one gone they go too, and the ship is empty.
+  if (pirates(crew).length === 0) next = payOff(next, mates(crew).map((m) => m.pirateId));
+  if (next.crew.length === 0 && state.voyage) {
     const islandId = state.voyage.leg.from;
-    next = { ...next, voyage: null, islandId, water: 0, damage: 0, loading: 0, pending: zeroOutputs(), events: [...events, { type: "abandoned", islandId }] };
+    next = { ...next, voyage: null, islandId, water: 0, damage: 0, loading: 0, pending: zeroOutputs(), events: [...next.events, { type: "abandoned", islandId }] };
   }
   return next;
 }
@@ -198,17 +278,51 @@ function leave(state: ShipState, pirateId: string, reason: "left" | "timed_out")
 function station(state: ShipState, pirateId: string, which: Station | null, move: ShipMove): ShipState {
   const me = crewMember(state, pirateId);
   if (!me) throw new InvalidMoveError("not aboard", move);
+  if (me.mate) throw new InvalidMoveError("not a pirate", move);
+  let relieved: CrewMember | null = null;
   if (which !== null) {
     if (!isStation(which) || !state.config.shipClass.stations.includes(which)) throw new InvalidMoveError("no such station aboard", move);
     const holder = crewAtStation(state, which);
-    if (holder && holder.pirateId !== pirateId) throw new InvalidMoveError("station taken", move);
+    if (holder && holder.pirateId !== pirateId) {
+      if (!holder.mate) throw new InvalidMoveError("station taken", move);
+      relieved = holder;
+    }
   }
-  const crew = state.crew.map((c) => (c.pirateId === pirateId ? { ...c, station: which } : c));
+  const restUntil = state.turn + state.config.rules.mateRestTurns;
+  const crew = state.crew.map((c) => (c.pirateId === pirateId ? { ...c, station: which } : c === relieved ? { ...c, station: null, idleFromTurn: restUntil } : c));
+  return { ...state, crew, events: [{ type: "station", pirateId, station: which }] };
+}
+
+/** A pirate's order to a deckhand: work this station (one of the stations deckhands work), or stand down for a rest. */
+function assign(state: ShipState, pirateId: string, which: Station | null, move: ShipMove): ShipState {
+  const hand = crewMember(state, pirateId);
+  if (!hand) throw new InvalidMoveError("not aboard", move);
+  if (!hand.mate) throw new InvalidMoveError("not a deckhand", move);
+  let displaced: CrewMember | null = null;
+  if (which !== null) {
+    if (!isStation(which) || !state.config.shipClass.mateStations.includes(which)) throw new InvalidMoveError("not a deckhand's station", move);
+    const holder = crewAtStation(state, which);
+    if (holder && holder.pirateId !== pirateId) {
+      if (!holder.mate) throw new InvalidMoveError("station taken", move);
+      displaced = holder;
+    }
+  }
+  if (hand.station === which) return { ...state, events: [] };
+  const restUntil = state.turn + state.config.rules.mateRestTurns;
+  const crew = state.crew.map((c) =>
+    c.pirateId === pirateId
+      ? { ...c, station: which, idleFromTurn: which === null ? restUntil : null }
+      : c === displaced
+        ? { ...c, station: null, idleFromTurn: state.turn }
+        : c,
+  );
   return { ...state, crew, events: [{ type: "station", pirateId, station: which }] };
 }
 
 function wheel(state: ShipState, pirateId: string, move: ShipMove): ShipState {
-  if (!crewMember(state, pirateId)) throw new InvalidMoveError("not aboard", move);
+  const to = crewMember(state, pirateId);
+  if (!to) throw new InvalidMoveError("not aboard", move);
+  if (to.mate) throw new InvalidMoveError("not a pirate", move);
   if (state.captainId === pirateId) throw new InvalidMoveError("already at the wheel", move);
   return { ...state, captainId: pirateId, events: [{ type: "wheel", pirateId }] };
 }
@@ -251,19 +365,21 @@ function sail(state: ShipState, leg: LegPlan, move: ShipMove): ShipState {
     rng = at.state;
     encounter = { tierId, atUnits: lo + at.value, resolved: false };
   }
-  return {
+  return hire({
     ...state,
     rng,
     islandId: null,
     voyage: { leg, progress: 0, startedTurn: state.turn, encounter, hail: null, battle: null },
     pending: zeroOutputs(),
     events: [{ type: "sailed", routeId: leg.routeId }],
-  };
+  });
 }
 
 function duty(state: ShipState, which: Station, points: number, move: ShipMove): ShipState {
   if (!state.voyage) throw new InvalidMoveError("not at sea", move);
-  if (!isStation(which) || !crewAtStation(state, which)) throw new InvalidMoveError("station unstaffed", move);
+  const holder = isStation(which) ? crewAtStation(state, which) : null;
+  if (!holder) throw new InvalidMoveError("station unstaffed", move);
+  if (holder.mate) throw new InvalidMoveError("a deckhand plays no board", move);
   if (!int(points, 0, 1_000_000_000)) throw new InvalidMoveError("bad points", move);
   return { ...state, pending: { ...state.pending, [which]: state.pending[which] + points }, events: [] };
 }
@@ -315,6 +431,7 @@ function battleEnd(state: ShipState, move: Extract<ShipMove, { type: "battle_end
 function away(state: ShipState, pirateId: string, move: ShipMove): ShipState {
   const me = crewMember(state, pirateId);
   if (!me) throw new InvalidMoveError("not aboard", move);
+  if (me.mate) throw new InvalidMoveError("not a pirate", move);
   if (me.awaySinceTurn !== null) throw new InvalidMoveError("already away", move);
   const crew = state.crew.map((c) => (c.pirateId === pirateId ? { ...c, awaySinceTurn: state.turn } : c));
   return { ...state, crew, events: [] };
@@ -323,6 +440,7 @@ function away(state: ShipState, pirateId: string, move: ShipMove): ShipState {
 function back(state: ShipState, pirateId: string, move: ShipMove): ShipState {
   const me = crewMember(state, pirateId);
   if (!me) throw new InvalidMoveError("not aboard", move);
+  if (me.mate) throw new InvalidMoveError("not a pirate", move);
   if (me.awaySinceTurn === null) throw new InvalidMoveError("not away", move);
   const crew = state.crew.map((c) => (c.pirateId === pirateId ? { ...c, awaySinceTurn: null } : c));
   return { ...state, crew, events: [] };
@@ -344,6 +462,9 @@ function turn(state: ShipState): ShipState {
   const v = s.voyage;
   if (!v) return { ...s, pending: zeroOutputs() };
 
+  // Deckhands relieved a while ago find another station to work.
+  s = reseatMates(s);
+
   const r = s.config.rules;
   const captain = s.captainId ? crewMember(s, s.captainId) : null;
   const held = captain === null || captain.awaySinceTurn !== null;
@@ -354,8 +475,16 @@ function turn(state: ShipState): ShipState {
     return { ...s, pending: zeroOutputs(), lastTurn: report };
   }
 
+  // A pirate's output is their board's points; a deckhand's is a passable roll from the ship's PRNG.
+  let rng = s.rng;
   for (const st of STATIONS) {
-    if (crewAtStation(s, st)) outputs[st] = outputPercent(s.config, st, s.pending[st]);
+    const who = crewAtStation(s, st);
+    if (!who) continue;
+    if (who.mate) {
+      const roll = nextInt(rng, r.mateOutput.max - r.mateOutput.min + 1);
+      rng = roll.state;
+      outputs[st] = r.mateOutput.min + roll.value;
+    } else outputs[st] = outputPercent(s.config, st, s.pending[st]);
   }
 
   const water = clamp(
@@ -395,12 +524,14 @@ function turn(state: ShipState): ShipState {
   }
 
   report = { turn: turnNo, outputs, held: false, speed, advanced, tokens };
-  s = { ...s, water, damage, loaded, loading, tokens, pending: zeroOutputs(), lastTurn: report, events };
+  s = { ...s, rng, water, damage, loaded, loading, tokens, pending: zeroOutputs(), lastTurn: report, events };
 
   if (progress >= v.leg.lengthUnits) {
     if (hail) events.push({ type: "evaded", tierId: hail.tierId, auto: true });
-    events.push({ type: "arrived", islandId: v.leg.to, turns: turnNo - v.startedTurn });
-    return { ...s, islandId: v.leg.to, voyage: null, water: 0, damage: 0, loading: 0, voyagesCompleted: s.voyagesCompleted + 1, events };
+    // The deckhands are paid off in port; the next voyage signs on fresh ones if it needs them.
+    s = payOff({ ...s, events }, mates(s.crew).map((m) => m.pirateId));
+    const arrived: ShipEvent[] = [...s.events, { type: "arrived", islandId: v.leg.to, turns: turnNo - v.startedTurn }];
+    return { ...s, islandId: v.leg.to, voyage: null, water: 0, damage: 0, loading: 0, voyagesCompleted: s.voyagesCompleted + 1, events: arrived };
   }
   return { ...s, voyage: { ...v, progress, encounter, hail } };
 }
@@ -412,7 +543,7 @@ export function hashShipState(s: ShipState): string {
   h.str(s.captainId ?? "");
   h.str(s.islandId ?? "");
   h.int(s.rng.a).int(s.rng.b).int(s.rng.c).int(s.rng.d);
-  for (const c of s.crew) h.str(c.pirateId).str(c.station ?? "").int(c.boardedSeq).int(c.awaySinceTurn ?? -1);
+  for (const c of s.crew) h.str(c.pirateId).str(c.station ?? "").int(c.boardedSeq).int(c.awaySinceTurn ?? -1).int(c.mate ? 1 : 0).int(c.idleFromTurn ?? -1);
   for (const st of STATIONS) h.int(s.pending[st]);
   if (s.voyage) {
     const v = s.voyage;

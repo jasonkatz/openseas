@@ -9,6 +9,7 @@ import {
   crewAtStation,
   crewMember,
   legUnits,
+  pirates,
   progressPermille,
   reduceShip,
   reduceSwordfight,
@@ -31,6 +32,7 @@ import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
 import { appendLedger } from "../ledger.js";
 import type { Logger } from "../log.js";
+import { randomPirateName } from "../pirates.js";
 import type { PuzzleService } from "../puzzles/service.js";
 import type { PuzzleSession, ShipSupply } from "../puzzles/sessions.js";
 import { Room, type RoomMember } from "../rooms.js";
@@ -233,8 +235,9 @@ export class ShipService {
     room.voyageId = voyageId;
     await this.db.transaction(async (tx) => {
       await tx.insert(schema.voyage).values({ id: voyageId, shipId: room.shipId, routeId, captainId: pirateId, startedAt: new Date(this.now()) });
-      await tx.insert(schema.voyageCrew).values(room.state.crew.map((c) => ({ voyageId, pirateId: c.pirateId, boardedAt: new Date(this.now()) })));
-      await recordEvent(tx, pirateId, "voyage.started", { shipId: room.shipId, voyageId, routeId, crew: room.state.crew.length });
+      const crew = pirates(room.state.crew);
+      await tx.insert(schema.voyageCrew).values(crew.map((c) => ({ voyageId, pirateId: c.pirateId, boardedAt: new Date(this.now()) })));
+      await recordEvent(tx, pirateId, "voyage.started", { shipId: room.shipId, voyageId, routeId, crew: crew.length, mates: room.state.crew.length - crew.length });
     });
     await this.afterChange(room);
   }
@@ -253,7 +256,18 @@ export class ShipService {
     if (room.state.captainId !== pirateId) throw new ShipError("not_captain");
     // The battle board is the captain's own; the wheel changes hands once the fight is over.
     if (room.battle) throw new ShipError("in_battle");
-    this.apply(room, { type: "wheel", pirateId: toPirateId }, () => "not_aboard");
+    this.apply(room, { type: "wheel", pirateId: toPirateId }, (e) => (e.message === "not a pirate" ? "is_deckhand" : "not_aboard"));
+    await this.afterChange(room);
+  }
+
+  /** The captain sends a deckhand to a station it works, or stands it down. A pirate's station is never taken from them. */
+  async assign(pirateId: string, mateId: string, station: Station | null): Promise<void> {
+    const room = this.roomOf(pirateId);
+    if (!room) throw new ShipError("not_aboard");
+    if (room.state.captainId !== pirateId) throw new ShipError("not_captain");
+    this.apply(room, { type: "assign", pirateId: mateId, station }, (e) =>
+      e.message === "station taken" ? "station_taken" : e.message === "not a deckhand" ? "not_deckhand" : e.message === "not aboard" ? "not_aboard" : "not_mate_station",
+    );
     await this.afterChange(room);
   }
 
@@ -392,7 +406,8 @@ export class ShipService {
     const tier = this.content.world.brigandTiers.find((t) => t.id === tierId);
     const won = battleIsWin(outcome);
     const booty = won && tier ? tier.booty : 0;
-    const crew = room.state.crew.map((c) => ({ pirateId: c.pirateId, captain: c.pirateId === room.state.captainId, points: points.get(c.pirateId) ?? 0 }));
+    // Deckhands work for their keep; the purse is the pirates'.
+    const crew = pirates(room.state.crew).map((c) => ({ pirateId: c.pirateId, captain: c.pirateId === room.state.captainId, points: points.get(c.pirateId) ?? 0 }));
     const shares = booty > 0 ? splitBooty(booty, crew) : new Map<string, number>();
     if (room.state.voyage?.battle) {
       try {
@@ -426,7 +441,8 @@ export class ShipService {
    * Returns false when nobody is there to fight, in which case the sea battle settles as it stood.
    */
   private openMelee(room: ShipRoom, tier: BrigandTier, dutyPoints: Map<string, number>, turns: number): boolean {
-    const connected = room.state.crew.filter((c) => c.awaySinceTurn === null && room.conns.has(c.pirateId));
+    // Deckhands hold no board and never fight; a pirate's seat may be held while they are away.
+    const connected = room.state.crew.filter((c) => !c.mate && c.awaySinceTurn === null && room.conns.has(c.pirateId));
     if (connected.length === 0 || room.melee) return false;
     const base = this.content.puzzles.swordfight.config;
     const now = this.now();
@@ -752,18 +768,20 @@ export class ShipService {
         try {
           if (room.melee) await this.advanceMelee(room);
           let turns = 0;
+          const events: ShipEvent[] = [];
           while (this.now() >= room.nextTurnAt && turns < 1000) {
             this.takeTurnPoints(room);
             room.state = reduceShip(room.state, { type: "turn" });
             room.nextTurnAt += this.turnMs;
             turns += 1;
+            events.push(...room.state.events);
             await this.settle(room);
             if (this.rooms.has(room.shipId)) {
               this.pushBilge(room);
               this.pushSupply(room);
             }
           }
-          if (turns > 0 && this.rooms.has(room.shipId)) this.broadcast(room, []);
+          if (turns > 0 && this.rooms.has(room.shipId)) this.broadcast(room, events);
         } catch (e) {
           this.log.error({ err: e, shipId: room.shipId }, "ship turn failed");
         }
@@ -787,7 +805,7 @@ export class ShipService {
         name: room.name,
         classId: room.shipClass.id,
         captainName: (s.captainId && room.names.get(s.captainId)) || "",
-        crew: s.crew.length,
+        crew: pirates(s.crew).length,
         maxCrew: room.shipClass.maxCrew,
         location: location(s),
         inviteOnly: s.inviteOnly,
@@ -873,6 +891,9 @@ export class ShipService {
         case "left":
           await this.putAshore(room, e.pirateId, e.reason);
           break;
+        case "hired":
+          room.names.set(e.pirateId, this.mateName(room));
+          break;
         case "arrived":
           await this.arrive(room, e.islandId, e.turns);
           break;
@@ -929,7 +950,7 @@ export class ShipService {
 
   private async arrive(room: ShipRoom, islandId: string, turns: number): Promise<void> {
     for (const st of [...room.stations.keys()]) await this.endStation(room, st);
-    const crewIds = room.state.crew.map((c) => c.pirateId);
+    const crewIds = pirates(room.state.crew).map((c) => c.pirateId);
     const voyageId = room.voyageId;
     room.voyageId = null;
     await this.db.transaction(async (tx) => {
@@ -967,6 +988,19 @@ export class ShipService {
     room.conns.broadcast(this.stateMessage(room, events));
   }
 
+  /**
+   * A deckhand looks like any pirate: a name from the same lists, unlike anyone's aboard. The
+   * snapshot's `mate` flag, not the name, is what tells players it is not one of them.
+   */
+  private mateName(room: ShipRoom): string {
+    const taken = new Set(room.names.values());
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const name = randomPirateName(this.content);
+      if (!taken.has(name)) return name;
+    }
+    return `${randomPirateName(this.content)} ${room.names.size + 1}`;
+  }
+
   stateMessage(room: ShipRoom, events: readonly ShipEvent[]): ServerMessage {
     return { type: "ship.state", ship: this.snapshot(room), events: events.map((e) => wireEvent(room, e)), serverNow: this.now() };
   }
@@ -979,6 +1013,7 @@ export class ShipService {
       station: c.station,
       captain: c.pirateId === s.captainId,
       away: c.awaySinceTurn !== null,
+      mate: c.mate,
     }));
     return {
       shipId: room.shipId,
@@ -1013,7 +1048,7 @@ export function shipConfigFor(content: Content, shipClass: ShipClass): ShipConfi
     par[st] = Math.max(1, Math.round((p.parScore * rules.turnSeconds) / p.roundSeconds));
   }
   return {
-    shipClass: { id: shipClass.id, stations: shipClass.stations, maxCrew: shipClass.maxCrew, cannons: shipClass.cannons, baseTokens: shipClass.baseTokens },
+    shipClass: { id: shipClass.id, stations: shipClass.stations, maxCrew: shipClass.maxCrew, minCrew: shipClass.minCrew, mateStations: shipClass.mateStations, cannons: shipClass.cannons, baseTokens: shipClass.baseTokens },
     rules,
     par,
   };
@@ -1085,6 +1120,10 @@ function wireEvent(room: ShipRoom, e: ShipEvent): ShipEventWire {
       return { type: "station", pirateId: e.pirateId, name: name(e.pirateId), station: e.station };
     case "wheel":
       return { type: "wheel", pirateId: e.pirateId, name: name(e.pirateId) };
+    case "hired":
+      return { type: "hired", pirateId: e.pirateId, name: name(e.pirateId), station: e.station };
+    case "paid_off":
+      return { type: "paid_off", names: e.pirateIds.map(name) };
     default:
       return e;
   }

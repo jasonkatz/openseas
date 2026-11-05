@@ -28,3 +28,4 @@ that supersedes it.
 | [0020](./0020-three-js-world-with-boards-over-it.md) | The world is a three.js scene; the PixiJS boards open over it in one frame |
 | [0021](./0021-sea-battle-as-the-captains-board.md) | Sea Battle is the captain's board: a turn-commit engine with the brigand inside it |
 | [0022](./0022-swordfight-melee-routed-by-the-server.md) | Swordfighting is one board per pirate; the server routes a melee's attacks as vouched moves |
+| [0023](./0023-deckhands-in-the-ship-reducer.md) | Deckhands: AI crew live inside the ship reducer and produce output, not play |

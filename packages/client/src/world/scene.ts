@@ -54,12 +54,16 @@ export interface DeckStation {
   /** Who is at it, or null when open. */
   holder: string | null;
   mine: boolean;
+  /** Held by a deckhand, so the viewer may take it. */
+  mate: boolean;
 }
 export interface DeckCrew {
   pirateId: string;
   station: Station | null;
   mine: boolean;
   captain: boolean;
+  /** A deckhand: drawn apart from the pirates so nobody mistakes it for a player. */
+  mate: boolean;
 }
 export interface Deck {
   shipId: string;
@@ -522,13 +526,13 @@ export class WorldScene {
     for (const c of deck.crew) {
       seen.add(c.pirateId);
       let peg = this.pegs.get(c.pirateId);
-      const key = `${c.mine}:${c.captain}`;
+      const key = `${c.mine}:${c.captain}:${c.mate}`;
       if (peg && peg.group.userData.key !== key) {
         peg.group.removeFromParent();
         peg = undefined;
       }
       if (!peg) {
-        peg = buildCrewPeg(c.mine, c.captain);
+        peg = buildCrewPeg(c.mine, c.captain, c.mate);
         peg.group.userData.key = key;
         this.pegs.set(c.pirateId, peg);
       }
@@ -557,7 +561,9 @@ export class WorldScene {
       }
       hideSpot(spot, false);
       spot.el.classList.toggle("is-mine", ds.mine);
-      spot.el.classList.toggle("is-taken", ds.holder !== null && !ds.mine);
+      spot.el.classList.toggle("is-taken", ds.holder !== null && !ds.mine && !ds.mate);
+      spot.el.classList.toggle("is-mate", ds.mate);
+      spot.el.dataset.holder = ds.holder === null ? "open" : ds.mine ? "me" : ds.mate ? "mate" : "pirate";
       const who = spot.el.querySelector(".ow-spot-who");
       if (who) who.textContent = ds.holder ?? "";
       spot.el.setAttribute("aria-label", ds.holder ? `${ds.label}: ${ds.holder}` : ds.label);

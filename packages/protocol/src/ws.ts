@@ -57,6 +57,8 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("ship.engage") }),
   /** Captain only: hand the wheel to someone aboard. */
   z.object({ type: z.literal("ship.wheel"), pirateId: z.string().min(1).max(64) }),
+  /** Captain only: send a deckhand to one of the stations it works, or stand it down with null. */
+  z.object({ type: z.literal("ship.assign"), pirateId: z.string().min(1).max(64), station: StationSchema.nullable() }),
   /** Owner only: whether others may board. */
   z.object({ type: z.literal("ship.lock"), inviteOnly: z.boolean() }),
   /** Start a board at the pirate's station; the ship must be at sea. Moves flow as puzzle.move. */

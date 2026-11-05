@@ -22,7 +22,7 @@ export interface DeckCardProps {
  * Its header (where the ship is, what to do next) is the sheet's, above. The next thing to do leads.
  */
 export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: DeckCardProps) {
-  const { notices, error, clearError, takeStation, leave, handWheel, lock } = useShip();
+  const { notices, error, clearError, takeStation, leave, handWheel, lock, assign } = useShip();
   const [wheelTo, setWheelTo] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
   const mine = ship.crew.find((c) => c.pirateId === me) ?? null;
@@ -30,7 +30,11 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: Dec
   const owner = ship.ownerId === me;
   const atSea = ship.location.kind === "at-sea";
   const battle = ship.location.kind === "at-sea" ? ship.location.battle : null;
-  const stations = content.world.shipClasses.find((c) => c.id === ship.classId)?.stations ?? [];
+  const shipClass = content.world.shipClasses.find((c) => c.id === ship.classId);
+  const stations = shipClass?.stations ?? [];
+  /** The stations the captain may order a deckhand to: the class's, never the chart table. */
+  const mateStations = shipClass?.mateStations ?? [];
+  const hands = ship.crew.some((c) => c.mate);
 
   return (
     <section className="card deck-card" data-testid="deck-card">
@@ -88,29 +92,33 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: Dec
           {stations.map((s) => {
             const holder = ship.crew.find((c) => c.station === s);
             const isMine = holder?.pirateId === me;
+            const hand = Boolean(holder?.mate);
             const out = ship.lastTurn?.outputs[s];
             return (
               <button
                 key={s}
-                className={`station-btn ${isMine ? "is-mine" : holder ? "is-taken" : ""}`}
-                disabled={Boolean(holder && !isMine)}
+                className={`station-btn ${isMine ? "is-mine" : hand ? "is-mate" : holder ? "is-taken" : ""}`}
+                disabled={Boolean(holder && !isMine && !hand)}
                 onClick={() => onStation(s)}
                 data-testid={`station-${s}`}
+                data-holder={holder ? (hand ? "mate" : isMine ? "me" : "pirate") : "open"}
+                title={hand && holder ? t("ship.take_over", { name: holder.name }) : undefined}
               >
                 <span className="station-name">{stationName(s)}</span>
-                <small className="station-who">{holder ? (isMine ? t("ship.you") : holder.name) : t("ship.station_free")}</small>
+                <small className="station-who">{holder ? (isMine ? t("ship.you") : hand ? t("ship.mate_who", { name: holder.name }) : holder.name) : t("ship.station_free")}</small>
                 {atSea && out !== undefined && <b className="station-out">{t("ship.output_percent", { percent: out })}</b>}
               </button>
             );
           })}
         </div>
+        {hands && <p className="muted small">{t("ship.deckhands_note")}</p>}
       </div>
 
       <div className="section">
         <h3 className="section-head">{t("ship.crew_heading", { count: ship.crew.length, max: ship.maxCrew })}</h3>
         <ul className="crew" data-testid="crew">
           {ship.crew.map((c) => (
-            <CrewRow key={c.pirateId} c={c} me={me} />
+            <CrewRow key={c.pirateId} c={c} me={me} orders={captain && c.mate ? { stations: mateStations, crew: ship.crew, assign } : null} />
           ))}
         </ul>
       </div>
@@ -119,12 +127,12 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: Dec
         <div className="section">
           <h3 className="section-head">{t("ship.wheel_heading")}</h3>
           {atSea && <p className="muted small">{t("ship.captain_at_sea")}</p>}
-          {ship.crew.length > 1 && (
+          {ship.crew.some((c) => c.pirateId !== me && !c.mate) && (
             <div className="row">
               <select value={wheelTo} onChange={(e) => setWheelTo(e.target.value)} aria-label={t("ship.hand_wheel")}>
                 <option value="">{t("ship.hand_wheel_pick")}</option>
                 {ship.crew
-                  .filter((c) => c.pirateId !== me)
+                  .filter((c) => c.pirateId !== me && !c.mate)
                   .map((c) => (
                     <option key={c.pirateId} value={c.pirateId}>
                       {c.name}
@@ -180,19 +188,62 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: Dec
   );
 }
 
-function CrewRow({ c, me }: { c: CrewView; me: string }) {
+/** What the captain may order a deckhand: the stations deckhands work, with those a pirate holds greyed. */
+interface Orders {
+  stations: readonly StationWire[];
+  crew: readonly CrewView[];
+  assign(pirateId: string, station: StationWire | null): void;
+}
+
+function CrewRow({ c, me, orders }: { c: CrewView; me: string; orders: Orders | null }) {
   return (
-    <li className={c.away ? "away" : ""}>
+    <li className={`${c.away ? "away" : ""} ${c.mate ? "is-mate" : ""}`} data-testid={c.mate ? "crew-mate" : "crew-pirate"}>
       <span className="crew-name">
         {c.name}
         {c.pirateId === me && <small className="muted"> ({t("ship.you")})</small>}
       </span>
       <span className="crew-role">
         {c.captain && <b className="tier-chip">{t("ship.captain")}</b>}
-        {c.station ? stationName(c.station) : t("ship.no_station")}
+        {c.mate && (
+          <b className="mate-chip" title={t("ship.mate_hint")}>
+            <MateMark /> {t("ship.mate")}
+          </b>
+        )}
+        {orders ? (
+          <select
+            className="assign"
+            value={c.station ?? ""}
+            onChange={(e) => orders.assign(c.pirateId, e.target.value ? (e.target.value as StationWire) : null)}
+            aria-label={t("ship.assign", { name: c.name })}
+            data-testid={`assign-${c.pirateId}`}
+          >
+            <option value="">{c.station ? t("ship.assign_stand_down") : t("ship.assign_pick")}</option>
+            {orders.stations.map((s) => {
+              const holder = orders.crew.find((x) => x.station === s);
+              return (
+                <option key={s} value={s} disabled={Boolean(holder && !holder.mate)}>
+                  {stationName(s)}
+                  {holder && holder.pirateId !== c.pirateId ? ` · ${holder.name}` : ""}
+                </option>
+              );
+            })}
+          </select>
+        ) : (
+          <>{c.station ? stationName(c.station) : t("ship.no_station")}</>
+        )}
         {c.away && <em className="muted"> · {t("ship.away")}</em>}
       </span>
     </li>
+  );
+}
+
+/** The deckhand's mark: a knot of rope, drawn so it reads apart from a pirate's chip without color. */
+function MateMark() {
+  return (
+    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <circle cx="8" cy="8" r="5.2" strokeDasharray="2.4 2" />
+      <path d="M5.5 8h5M8 5.5v5" />
+    </svg>
   );
 }
 
@@ -200,6 +251,10 @@ export function describeEvent(e: ShipEventWire): ReactNode {
   switch (e.type) {
     case "boarded":
       return t("ship.log_boarded", { name: e.name });
+    case "hired":
+      return e.station ? t("ship.log_hired", { name: e.name, station: stationName(e.station) }) : t("ship.log_hired_idle", { name: e.name });
+    case "paid_off":
+      return t("ship.log_paid_off", { names: e.names.join(", ") });
     case "left":
       return t(e.reason === "timed_out" ? "ship.log_timed_out" : "ship.log_left", { name: e.name });
     case "station":

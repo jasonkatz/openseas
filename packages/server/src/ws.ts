@@ -244,6 +244,9 @@ export function createWsServer(deps: WsDeps) {
       case "ship.wheel":
         await ships.wheel(conn.pirateId, msg.pirateId);
         return;
+      case "ship.assign":
+        await ships.assign(conn.pirateId, msg.pirateId, msg.station);
+        return;
       case "ship.lock":
         await ships.lock(conn.pirateId, msg.inviteOnly);
         return;

@@ -57,6 +57,13 @@ export const ShipClassSchema = z.object({
   /** Stations aboard. Unstaffed stations produce nothing. */
   stations: z.array(z.enum(["bilging", "sailing", "carpentry", "gunnery", "navigation"])),
   maxCrew: z.int().min(1).max(60),
+  /**
+   * The crew the ship sails with at the least (DESIGN.md 3.4). Setting sail with fewer aboard
+   * signs on deckhands, AI crew, to make up the number; they are paid off when the ship docks.
+   */
+  minCrew: z.int().min(0).max(60),
+  /** The stations deckhands work, in order of preference. Never the chart table: that is a pirate's call. */
+  mateStations: z.array(z.enum(["bilging", "sailing", "carpentry", "gunnery"])),
   hull: z.int().min(1),
   cannons: z.int().min(0),
   /** Movement token pool size per sea battle turn at full sailing output. */
@@ -119,6 +126,10 @@ export const ShipRulesSchema = z.object({
   graceTurns: z.int().min(0).max(100_000),
   hailTurns: z.int().min(1).max(100_000),
   encounterWindow: z.object({ from: z.int().min(0).max(1000), to: z.int().min(0).max(1000) }),
+  /** A deckhand's output per turn, percent of par, rolled between these: a passable job, never a star turn. */
+  mateOutput: z.object({ min: z.int().min(0).max(10_000), max: z.int().min(0).max(10_000) }),
+  /** Turns a deckhand relieved by a pirate waits before working another station. */
+  mateRestTurns: z.int().min(0).max(100_000),
 });
 
 /** The ocean itself: the content version, where new pirates start, and how ships behave at sea. */

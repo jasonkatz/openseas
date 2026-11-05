@@ -21,13 +21,21 @@ const swordfight = JSON.parse(readFileSync(new URL("../../content/data/puzzles/s
 };
 
 const ME = { id: "p-me", name: "Salty Gull", guest: true, balance: 0, islandId: "saltwick", ratings: [], ships: [{ id: "ship-1", classId: "sloop", name: "The Salty Gull", islandId: "saltwick" }] };
+/** The deckhands a short-handed sloop signs on as it sails (DESIGN.md 3.4), at the stations they work first. */
+const HANDS = [
+  { pirateId: "mate:1", name: "Brackish Eel", station: "sailing" },
+  { pirateId: "mate:2", name: "Windward Tern", station: "bilging" },
+  { pirateId: "mate:3", name: "Drowsy Limpet", station: "carpentry" },
+];
 
 type Hail = { tierId: string; sinceTurn: number } | null;
 type Loc = { kind: "docked"; islandId: string } | { kind: "at-sea"; routeId: string; from: string; to: string; progress: number; hail: Hail; battle: Hail };
 
-/** A pretend ship room: one crew member, boards dealt on request, every turn a little further along. */
+/** A pretend ship room: one pirate and the deckhands, boards dealt on request, every turn a little further along. */
 class FakeShip {
   station: string | null = null;
+  /** Deckhands aboard and where each stands; signed on at sail. */
+  hands: { pirateId: string; name: string; station: string | null }[] = [];
   location: Loc = { kind: "docked", islandId: "saltwick" };
   turn = 0;
   sessions = 0;
@@ -86,7 +94,10 @@ class FakeShip {
       classId: "sloop",
       ownerId: ME.id,
       captainId: ME.id,
-      crew: [{ pirateId: ME.id, name: ME.name, station: this.station, captain: true, away: false }],
+      crew: [
+        { pirateId: ME.id, name: ME.name, station: this.station, captain: true, away: false, mate: false },
+        ...this.hands.map((h) => ({ ...h, captain: false, away: false, mate: true })),
+      ],
       maxCrew: 6,
       inviteOnly: false,
       location: this.location,
@@ -133,11 +144,21 @@ class FakeShip {
         return;
       case "ship.station":
         this.station = m.station as string | null;
+        // A deckhand at the station steps aside for the pirate.
+        this.hands = this.hands.map((h) => (h.station === this.station ? { ...h, station: null } : h));
         this.state([{ type: "station", pirateId: ME.id, name: ME.name, station: this.station }]);
         return;
+      case "ship.assign": {
+        const hand = this.hands.find((h) => h.pirateId === m.pirateId);
+        if (!hand) return;
+        hand.station = m.station as string | null;
+        this.state([{ type: "station", pirateId: hand.pirateId, name: hand.name, station: hand.station }]);
+        return;
+      }
       case "ship.sail":
         this.location = { kind: "at-sea", routeId: m.routeId as string, from: "saltwick", to: "gullhaven", progress: 0, hail: null, battle: null };
-        this.state([{ type: "sailed", routeId: m.routeId }]);
+        this.hands = HANDS.map((h) => ({ ...h }));
+        this.state([{ type: "sailed", routeId: m.routeId }, ...this.hands.map((h) => ({ type: "hired", pirateId: h.pirateId, name: h.name, station: h.station }))]);
         return;
       case "ship.engage": {
         if (this.location.kind !== "at-sea" || !this.location.hail) {
@@ -317,10 +338,20 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await expect(page.getByTestId("mini-turn")).toBeVisible();
   // At sea without a station, the next thing is a station.
   await expect(page.getByTestId("next-step")).toContainText("station");
+  // Sailing alone signed on deckhands: they stand at stations, marked apart from the pirates, and the log says so.
+  await expect(page.locator('[data-station="bilging"]')).toHaveAttribute("data-holder", "mate");
+  await expect(page.locator('[data-station="bilging"]')).toContainText("Windward Tern");
+  await page.getByTestId("sheet-toggle").click();
+  await expect(page.getByTestId("crew-mate")).toHaveCount(3);
+  await expect(page.getByTestId("crew-mate").first()).toContainText("Deckhand");
+  await expect(page.getByTestId("ship-log")).toContainText("signed on as a deckhand");
+  await expect(page.getByTestId("station-bilging")).toBeEnabled();
+  await page.getByTestId("sheet-toggle").click();
 
-  // Taking a station spot opens its board over the deck; a board is dealt at once and takes a swap.
+  // Taking a deckhand's station spot opens its board over the deck; the hand steps aside, a board is dealt at once and takes a swap.
   await tapSpot(page, '[data-station="bilging"]');
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "station");
+  await expect.poll(() => server.ship()?.hands.find((h) => h.pirateId === "mate:2")?.station === null).toBe(true);
   await expect(page.getByTestId("station-view-bilging")).toBeVisible();
   await expect(page.getByTestId("duty-board-wrap")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
   // On a phone the ship is two labeled bars until asked for, and the full status unfolds on a tap;
@@ -340,10 +371,15 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
     })
     .toBeGreaterThan(0);
 
-  // Back to the deck, then ashore from the unfolded card: the scene pulls out to the island.
+  // Back to the deck. The captain orders the hand they relieved to the guns; the log says so.
   await page.getByTestId("station-back").click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
   await page.getByTestId("sheet-toggle").click();
+  await page.getByTestId("assign-mate:2").selectOption("gunnery");
+  await expect.poll(() => server.ship()?.hands.find((h) => h.pirateId === "mate:2")?.station ?? null).toBe("gunnery");
+  await expect(page.locator('[data-station="gunnery"]')).toHaveAttribute("data-holder", "mate");
+  await expect(page.getByTestId("ship-log")).toContainText("Windward Tern took the Guns");
+  // Then ashore from the unfolded card: the scene pulls out to the island.
   await page.getByTestId("go-ashore").click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "island");
   await expect(page.getByTestId("world")).toHaveAttribute("data-focus", "island:saltwick");
