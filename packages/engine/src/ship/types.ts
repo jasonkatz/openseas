@@ -176,6 +176,11 @@ export type ShipMove =
   | { readonly type: "station"; readonly pirateId: string; readonly station: Station | null }
   /** Hand the wheel to someone aboard. The server checks the caller is the captain. */
   | { readonly type: "wheel"; readonly pirateId: string }
+  /**
+   * Order a deckhand to a station the ship has, or stand it down with null. The server checks the
+   * caller is the captain. A pirate at the station is never displaced; another deckhand steps aside.
+   */
+  | { readonly type: "assign"; readonly pirateId: string; readonly station: Station | null }
   | { readonly type: "lock"; readonly inviteOnly: boolean }
   | { readonly type: "sail"; readonly leg: LegPlan }
   /** Points a station's board earned since its last report. Consumed by the next turn. */

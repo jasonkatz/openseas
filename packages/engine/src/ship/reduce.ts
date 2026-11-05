@@ -151,6 +151,8 @@ export function reduceShip(state: ShipState, move: ShipMove): ShipState {
       return station(state, move.pirateId, move.station, move);
     case "wheel":
       return wheel(state, move.pirateId, move);
+    case "assign":
+      return assign(state, move.pirateId, move.station, move);
     case "lock":
       return { ...state, inviteOnly: move.inviteOnly, events: [] };
     case "sail":
@@ -288,6 +290,32 @@ function station(state: ShipState, pirateId: string, which: Station | null, move
   }
   const restUntil = state.turn + state.config.rules.mateRestTurns;
   const crew = state.crew.map((c) => (c.pirateId === pirateId ? { ...c, station: which } : c === relieved ? { ...c, station: null, idleFromTurn: restUntil } : c));
+  return { ...state, crew, events: [{ type: "station", pirateId, station: which }] };
+}
+
+/** A pirate's order to a deckhand: work this station (any the ship has), or stand down for a rest. */
+function assign(state: ShipState, pirateId: string, which: Station | null, move: ShipMove): ShipState {
+  const hand = crewMember(state, pirateId);
+  if (!hand) throw new InvalidMoveError("not aboard", move);
+  if (!hand.mate) throw new InvalidMoveError("not a deckhand", move);
+  let displaced: CrewMember | null = null;
+  if (which !== null) {
+    if (!isStation(which) || !state.config.shipClass.stations.includes(which)) throw new InvalidMoveError("no such station aboard", move);
+    const holder = crewAtStation(state, which);
+    if (holder && holder.pirateId !== pirateId) {
+      if (!holder.mate) throw new InvalidMoveError("station taken", move);
+      displaced = holder;
+    }
+  }
+  if (hand.station === which) return { ...state, events: [] };
+  const restUntil = state.turn + state.config.rules.mateRestTurns;
+  const crew = state.crew.map((c) =>
+    c.pirateId === pirateId
+      ? { ...c, station: which, idleFromTurn: which === null ? restUntil : null }
+      : c === displaced
+        ? { ...c, station: null, idleFromTurn: state.turn }
+        : c,
+  );
   return { ...state, crew, events: [{ type: "station", pirateId, station: which }] };
 }
 

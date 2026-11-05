@@ -796,6 +796,11 @@ body {
 .crew li.is-mate .crew-name {
   color: var(--parchment-dim);
 }
+.crew .assign {
+  max-width: 11rem;
+  font-size: 13px;
+  padding: 4px 6px;
+}
 .mate-chip {
   display: inline-flex;
   gap: 5px;

@@ -31,9 +31,11 @@ a server-side scheduler that plays moves into the engine, or the engine itself.
 3. **The pirate's choice wins; the hand comes back after a rest.** A `station` move onto a
    deckhand's station succeeds where another pirate's would be refused: the hand's station goes
    to null with `idleFromTurn` set `mateRestTurns` ahead. On each turn the reducer seats every
-   rested idle hand at the first open station it works, as a `station` event like anyone's. A
-   pirate boarding a ship full of deckhands relieves one (the idle one first) rather than being
-   turned away.
+   rested idle hand at the first open station it works, as a `station` event like anyone's. The
+   captain may also order a hand to any station the ship has (`assign`), the chart table included,
+   or stand it down; another hand there steps aside and looks again next turn, a pirate there is
+   never displaced. A pirate boarding a ship full of deckhands relieves one (the idle one first)
+   rather than being turned away.
 4. **Hands come and go with the voyage.** They are paid off (`paid_off`) when the ship docks and
    when the last pirate leaves, so a docked ship never has any, and the next sailing signs on fresh
    ones. They earn no booty: the split is among pirates.

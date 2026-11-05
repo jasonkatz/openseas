@@ -22,7 +22,7 @@ export interface DeckCardProps {
  * Its header (where the ship is, what to do next) is the sheet's, above. The next thing to do leads.
  */
 export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: DeckCardProps) {
-  const { notices, error, clearError, takeStation, leave, handWheel, lock } = useShip();
+  const { notices, error, clearError, takeStation, leave, handWheel, lock, assign } = useShip();
   const [wheelTo, setWheelTo] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
   const mine = ship.crew.find((c) => c.pirateId === me) ?? null;
@@ -115,7 +115,7 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: Dec
         <h3 className="section-head">{t("ship.crew_heading", { count: ship.crew.length, max: ship.maxCrew })}</h3>
         <ul className="crew" data-testid="crew">
           {ship.crew.map((c) => (
-            <CrewRow key={c.pirateId} c={c} me={me} />
+            <CrewRow key={c.pirateId} c={c} me={me} orders={captain && c.mate ? { stations, crew: ship.crew, assign } : null} />
           ))}
         </ul>
       </div>
@@ -185,7 +185,14 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: Dec
   );
 }
 
-function CrewRow({ c, me }: { c: CrewView; me: string }) {
+/** What the captain may order a deckhand: the ship's stations, with those a pirate holds greyed. */
+interface Orders {
+  stations: readonly StationWire[];
+  crew: readonly CrewView[];
+  assign(pirateId: string, station: StationWire | null): void;
+}
+
+function CrewRow({ c, me, orders }: { c: CrewView; me: string; orders: Orders | null }) {
   return (
     <li className={`${c.away ? "away" : ""} ${c.mate ? "is-mate" : ""}`} data-testid={c.mate ? "crew-mate" : "crew-pirate"}>
       <span className="crew-name">
@@ -199,7 +206,28 @@ function CrewRow({ c, me }: { c: CrewView; me: string }) {
             <MateMark /> {t("ship.mate")}
           </b>
         )}
-        {c.station ? stationName(c.station) : t("ship.no_station")}
+        {orders ? (
+          <select
+            className="assign"
+            value={c.station ?? ""}
+            onChange={(e) => orders.assign(c.pirateId, e.target.value ? (e.target.value as StationWire) : null)}
+            aria-label={t("ship.assign", { name: c.name })}
+            data-testid={`assign-${c.pirateId}`}
+          >
+            <option value="">{c.station ? t("ship.assign_stand_down") : t("ship.assign_pick")}</option>
+            {orders.stations.map((s) => {
+              const holder = orders.crew.find((x) => x.station === s);
+              return (
+                <option key={s} value={s} disabled={Boolean(holder && !holder.mate)}>
+                  {stationName(s)}
+                  {holder && holder.pirateId !== c.pirateId ? ` · ${holder.name}` : ""}
+                </option>
+              );
+            })}
+          </select>
+        ) : (
+          <>{c.station ? stationName(c.station) : t("ship.no_station")}</>
+        )}
         {c.away && <em className="muted"> · {t("ship.away")}</em>}
       </span>
     </li>

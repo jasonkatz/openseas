@@ -250,8 +250,10 @@ describeDb("ships over the wire", () => {
     expect(joined.ship.crew.map((c) => c.name).sort()).toEqual([owner.me.name, mate.me.name].sort());
     await a.until("ship.state", (m) => m.ship.crew.length === 2);
 
-    // Only the captain sails; the mate is refused.
+    // Only the captain sails or orders the deckhands about; the mate is refused.
     b.send({ type: "ship.sail", routeId: "saltwick-gullhaven" });
+    expect(await b.until("error")).toMatchObject({ code: "not_captain" });
+    b.send({ type: "ship.assign", pirateId: "mate:9", station: "gunnery" });
     expect(await b.until("error")).toMatchObject({ code: "not_captain" });
     b.send({ type: "duty.start" });
     expect(await b.until("error")).toMatchObject({ code: "no_station" });
@@ -483,8 +485,22 @@ describeDb("ships over the wire", () => {
     expect(started.puzzle).toBe("sailing");
     expect(started.duty).toMatchObject({ shipId, station: "sailing" });
 
-    // After the rest the hand takes the next open station it works, and the log says so.
-    const open = sloop.mateStations.find((st) => !took.ship.crew.some((c) => c.station === st))!;
+    // The captain can order the hand straight to the chart table, with no rest; a turn later it is working there.
+    a.send({ type: "ship.assign", pirateId: atSails.pirateId, station: "navigation" });
+    const ordered = await a.until("ship.state", (m) => m.ship.crew.some((c) => c.pirateId === atSails.pirateId && c.station === "navigation"));
+    expect(ordered.events).toEqual([{ type: "station", pirateId: atSails.pirateId, name: atSails.name, station: "navigation" }]);
+    await turn();
+    const worked = await a.until("ship.state", (m) => m.ship.lastTurn !== null && m.ship.lastTurn.turn >= ordered.ship.turn + 1);
+    expect(worked.ship.lastTurn!.outputs.navigation).toBeGreaterThan(0);
+    // Orders go to deckhands only, and never onto a pirate's station.
+    a.send({ type: "ship.assign", pirateId: owner.me.id, station: "bilging" });
+    expect(await a.until("error")).toMatchObject({ code: "not_deckhand" });
+    a.send({ type: "ship.assign", pirateId: atSails.pirateId, station: "sailing" });
+    expect(await a.until("error")).toMatchObject({ code: "station_taken" });
+    // Stood down, the hand rests, then takes the next open station it works, and the log says so.
+    a.send({ type: "ship.assign", pirateId: atSails.pirateId, station: null });
+    const stood = await a.until("ship.state", (m) => m.ship.crew.some((c) => c.pirateId === atSails.pirateId && c.station === null));
+    const open = sloop.mateStations.find((st) => !stood.ship.crew.some((c) => c.station === st))!;
     await turn(content.world.ship.mateRestTurns);
     const moved = await a.until("ship.state", (m) => m.ship.crew.some((c) => c.pirateId === atSails.pirateId && c.station === open));
     expect(moved.events).toContainEqual({ type: "station", pirateId: atSails.pirateId, name: atSails.name, station: open });

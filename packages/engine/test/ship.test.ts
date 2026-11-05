@@ -68,6 +68,7 @@ function randomMove(state: ShipState, pick: number): ShipMove {
     case 9:
       return { type: "turn" };
     case 10:
+      if (pick % 3 === 2) return { type: "assign", pirateId: aboard, station: pick % 2 === 0 ? null : STATIONS[Math.floor(pick / 300) % STATIONS.length]! };
       return pick % 2 === 0 ? { type: "away", pirateId: aboard } : { type: "back", pirateId: aboard };
     default: {
       const k = pick % 7;
@@ -195,7 +196,7 @@ describe("ship invariants", () => {
           expect(m.pirateId).not.toBe(s.captainId);
           expect(m.awaySinceTurn).toBeNull();
           expect(m.station === null).toBe(m.idleFromTurn !== null);
-          if (m.station) expect(MATE_STATIONS).toContain(m.station);
+          if (m.station) expect(STATIONS).toContain(m.station);
         }
       }),
       { numRuns: 300 },
@@ -641,6 +642,39 @@ describe("ship deckhands (DESIGN.md 3.4)", () => {
     s = reduceShip(s, { type: "board", pirateId: "p4" });
     expect(mates(s.crew)).toEqual([]);
     expect(() => reduceShip(s, { type: "board", pirateId: "p5" })).toThrow(InvalidMoveError);
+  });
+
+  it("a deckhand can be ordered to any station the ship has, or stood down; a pirate's station is never taken", () => {
+    let s = underway("orders", { gunnery: "p1" });
+    const [a, b] = mateIds(s) as [string, string, string];
+    expect(crewMember(s, a)!.station).toBe("sailing");
+    // To the chart table, which deckhands never pick for themselves; it works there like anywhere.
+    s = reduceShip(s, { type: "assign", pirateId: a, station: "navigation" });
+    expect(crewMember(s, a)).toMatchObject({ station: "navigation", idleFromTurn: null });
+    expect(s.events).toEqual([{ type: "station", pirateId: a, station: "navigation" }]);
+    s = reduceShip(s, { type: "turn" });
+    expect(s.lastTurn!.outputs.navigation).toBeGreaterThanOrEqual(rules.mateOutput.min);
+    expect(s.lastTurn!.outputs.sailing).toBe(0);
+    // Onto another deckhand's station: that hand steps aside and finds the open one next turn.
+    s = reduceShip(s, { type: "assign", pirateId: a, station: "bilging" });
+    expect(crewMember(s, a)!.station).toBe("bilging");
+    expect(crewMember(s, b)).toMatchObject({ station: null, idleFromTurn: s.turn });
+    s = reduceShip(s, { type: "turn" });
+    expect(crewMember(s, b)!.station).toBe("sailing");
+    // The same order twice changes nothing; a pirate's station is refused; so is nonsense.
+    expect(reduceShip(s, { type: "assign", pirateId: a, station: "bilging" }).events).toEqual([]);
+    expect(() => reduceShip(s, { type: "assign", pirateId: a, station: "gunnery" })).toThrow(InvalidMoveError);
+    expect(() => reduceShip(s, { type: "assign", pirateId: "p1", station: "sailing" })).toThrow(InvalidMoveError);
+    expect(() => reduceShip(s, { type: "assign", pirateId: "p9", station: "sailing" })).toThrow(InvalidMoveError);
+    expect(() => reduceShip(s, { type: "assign", pirateId: a, station: "rigging" as Station })).toThrow(InvalidMoveError);
+    // Stood down, the hand rests like one relieved, then goes back to work.
+    s = reduceShip(s, { type: "assign", pirateId: a, station: null });
+    expect(crewMember(s, a)).toMatchObject({ station: null, idleFromTurn: s.turn + rules.mateRestTurns });
+    expect(s.events).toEqual([{ type: "station", pirateId: a, station: null }]);
+    s = turns(s, rules.mateRestTurns - 1);
+    expect(crewMember(s, a)!.station).toBeNull();
+    s = reduceShip(s, { type: "turn" });
+    expect(crewMember(s, a)!.station).toBe("bilging");
   });
 
   it("the deckhands' work replays exactly", () => {

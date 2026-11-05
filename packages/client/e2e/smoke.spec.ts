@@ -148,6 +148,13 @@ class FakeShip {
         this.hands = this.hands.map((h) => (h.station === this.station ? { ...h, station: null } : h));
         this.state([{ type: "station", pirateId: ME.id, name: ME.name, station: this.station }]);
         return;
+      case "ship.assign": {
+        const hand = this.hands.find((h) => h.pirateId === m.pirateId);
+        if (!hand) return;
+        hand.station = m.station as string | null;
+        this.state([{ type: "station", pirateId: hand.pirateId, name: hand.name, station: hand.station }]);
+        return;
+      }
       case "ship.sail":
         this.location = { kind: "at-sea", routeId: m.routeId as string, from: "saltwick", to: "gullhaven", progress: 0, hail: null, battle: null };
         this.hands = HANDS.map((h) => ({ ...h }));
@@ -364,10 +371,15 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
     })
     .toBeGreaterThan(0);
 
-  // Back to the deck, then ashore from the unfolded card: the scene pulls out to the island.
+  // Back to the deck. The captain orders the hand they relieved to the guns; the log says so.
   await page.getByTestId("station-back").click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
   await page.getByTestId("sheet-toggle").click();
+  await page.getByTestId("assign-mate:2").selectOption("gunnery");
+  await expect.poll(() => server.ship()?.hands.find((h) => h.pirateId === "mate:2")?.station ?? null).toBe("gunnery");
+  await expect(page.locator('[data-station="gunnery"]')).toHaveAttribute("data-holder", "mate");
+  await expect(page.getByTestId("ship-log")).toContainText("Windward Tern took the Guns");
+  // Then ashore from the unfolded card: the scene pulls out to the island.
   await page.getByTestId("go-ashore").click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "island");
   await expect(page.getByTestId("world")).toHaveAttribute("data-focus", "island:saltwick");
