@@ -2,6 +2,7 @@ import { PirateProvider, usePirate } from "@openseas/boards";
 import { Landing } from "./shell/Landing.jsx";
 import { Shell } from "./shell/Shell.jsx";
 import { BattleProvider } from "./ship/battle/useBattle.js";
+import { MeleeProvider } from "./ship/melee/useMelee.js";
 import { PlaceProvider } from "./state/place.jsx";
 import { ShipProvider } from "./state/ShipProvider.jsx";
 import { SocialProvider } from "./state/SocialProvider.jsx";
@@ -17,13 +18,15 @@ function Game() {
   return (
     <ShipProvider>
       <BattleProvider>
-        <SocialProvider>
-          <ToastProvider>
-            <PlaceProvider>
-              <Shell />
-            </PlaceProvider>
-          </ToastProvider>
-        </SocialProvider>
+        <MeleeProvider>
+          <SocialProvider>
+            <ToastProvider>
+              <PlaceProvider>
+                <Shell />
+              </PlaceProvider>
+            </ToastProvider>
+          </SocialProvider>
+        </MeleeProvider>
       </BattleProvider>
     </ShipProvider>
   );

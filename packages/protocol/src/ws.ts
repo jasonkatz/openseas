@@ -161,7 +161,7 @@ export const ServerMessageSchema = z.union([
   /** Every board in the melee, for the boards beside the pirate's own. Sent whenever one changes. */
   z.object({ type: z.literal("melee.boards"), shipId: z.string(), boards: z.array(MeleeBoardSchema), serverNow: z.number() }),
   /** The melee is decided for the side outside the pirate's board: their board logs an end move saying this. */
-  z.object({ type: z.literal("melee.over"), sessionId: SessionId, won: z.boolean() }),
+  z.object({ type: z.literal("melee.over"), sessionId: SessionId, won: z.boolean(), tick: z.int().min(0).max(1_000_000) }),
   /** The pirate's own summary changed: they came ashore somewhere new, or bought a ship. */
   z.object({ type: z.literal("pirate.updated"), pirate: PirateSummarySchema }),
   z.object({

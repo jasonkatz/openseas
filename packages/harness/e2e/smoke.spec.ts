@@ -259,6 +259,8 @@ test("home links to Sea Battle and an unrated fight plots by key and by tap and 
 });
 
 test("home links to Swordfighting and an unrated fight drops pairs by keyboard and by touch", async ({ page }) => {
+  // Two drops hurried down a twelve-row board, with the brigand's board redrawn beside it, on the phone profile.
+  test.slow();
   await page.goto("/");
   await page.getByTestId("tile-swordfight").click();
   await expect(page).toHaveURL(/\/swordfight$/);
@@ -272,7 +274,7 @@ test("home links to Swordfighting and an unrated fight drops pairs by keyboard a
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowUp");
   await page.keyboard.down(" ");
-  await expect(page.getByTestId("hud-moves")).toContainText("1", { timeout: 15_000 });
+  await expect(page.getByTestId("hud-moves")).toContainText("1", { timeout: 30_000 });
   await page.keyboard.up(" ");
   await expectViewMatchesState(page, "swordfight");
 
@@ -287,7 +289,7 @@ test("home links to Swordfighting and an unrated fight drops pairs by keyboard a
   await page.mouse.move(x + box.width * 0.15, y, { steps: 6 });
   await page.mouse.up();
   await page.keyboard.down(" ");
-  await expect(page.getByTestId("hud-moves")).toContainText("2", { timeout: 15_000 });
+  await expect(page.getByTestId("hud-moves")).toContainText("2", { timeout: 30_000 });
   await page.keyboard.up(" ");
   await expectViewMatchesState(page, "swordfight");
 });

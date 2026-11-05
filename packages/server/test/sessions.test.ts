@@ -148,6 +148,47 @@ describe("PuzzleSessionManager", () => {
     expect(m.move(s, 1, lie, def.hash(def.reduce(s.state, lie)))).toMatchObject({ ok: false, reason: "illegal_move" });
   });
 
+  it("a melee board logs only the wrack the server announced, in order, and never its own win", () => {
+    const now = { t: 0 };
+    const m = manager(now);
+    const def = PUZZLES.swordfight;
+    const config = { ...DEFAULT_SWORDFIGHT_CONFIG, foes: [] };
+    const s = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "cutpurse" });
+    let client = def.create(s.seed, config);
+    const log = (seq: number, move: unknown) => {
+      const next = def.reduce(client, move);
+      const r = m.move(s, seq, move, def.hash(next));
+      if (r.ok) client = next;
+      return r;
+    };
+    now.t = 1000;
+    // Nothing announced: incoming is refused and the round is closed.
+    expect(log(0, { type: "incoming", board: 0, wrack: 3, blade: 0, tick: 2 })).toMatchObject({ ok: false, reason: "illegal_move" });
+    const s2 = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "cutpurse" });
+    client = def.create(s2.seed, config);
+    s2.meleeIncoming.push({ wrack: 3, blade: 1 }, { wrack: 5, blade: 0 });
+    const log2 = (seq: number, move: unknown) => {
+      const next = def.reduce(client, move);
+      const r = m.move(s2, seq, move, def.hash(next));
+      if (r.ok) client = next;
+      return r;
+    };
+    // The announced wrack, in order; a different amount, blade or board is a lie.
+    expect(log2(0, { type: "wait", tick: 1 })).toEqual({ ok: true, seq: 0 });
+    expect(log2(1, { type: "incoming", board: 0, wrack: 3, blade: 1, tick: 2 })).toEqual({ ok: true, seq: 1 });
+    expect(s2.meleeIncoming).toEqual([{ wrack: 5, blade: 0 }]);
+    expect(log2(2, { type: "incoming", board: 0, wrack: 5, blade: 0, tick: 3 })).toEqual({ ok: true, seq: 2 });
+    expect(s2.meleeIncoming).toEqual([]);
+    // A win over foes outside the board is the server's word, never the client's.
+    expect(log2(3, { type: "end", won: true, tick: 4 })).toMatchObject({ ok: false, reason: "illegal_move" });
+    // The server writes that end itself and the log still replays.
+    const s3 = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "cutpurse" });
+    expect(m.inject(s3, { type: "end", won: true, tick: 2 })).toBe(true);
+    expect(s3.moves).toEqual([{ type: "end", won: true, tick: 2 }]);
+    const r = m.finish(s3, null);
+    expect(r.ok && r.summary.score).toBe(config.winPoints);
+  });
+
   it("caps the move count at the configured maximum", () => {
     const now = { t: 0 };
     const m = manager(now, { bilging: { maxMoves: 2 } });

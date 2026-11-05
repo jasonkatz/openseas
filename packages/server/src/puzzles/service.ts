@@ -6,7 +6,7 @@ import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
 import type { Logger } from "../log.js";
 import { rateDutyRound } from "../ratings.js";
-import { PuzzleSessionManager, type BattleBinding, type DutyBinding, type PuzzleRoundOptions, type PuzzleSession, type RejectReason, type RoundOverride } from "./sessions.js";
+import { PuzzleSessionManager, type BattleBinding, type DutyBinding, type MeleeBinding, type PuzzleRoundOptions, type PuzzleSession, type RejectReason, type RoundOverride } from "./sessions.js";
 
 // The protocol's puzzle ids and the engine's must be the same set. If this stops compiling, they drifted.
 const _idCheck: (p: PuzzleIdWire) => PuzzleId = (p) => p;
@@ -31,6 +31,10 @@ export class PuzzleService {
    * result sent to the captain if there was one. Set by the ship service.
    */
   onBattleEnd: ((session: PuzzleSession, how: "finished" | "rejected" | "abandoned", result: ServerMessage | null) => void) | null = null;
+  /** A melee board took a move: the ship routes what it sent. Set by the ship service. */
+  onMeleeMove: ((session: PuzzleSession) => void) | null = null;
+  /** A melee board's session is over, however it ended. Called after it is closed. Set by the ship service. */
+  onMeleeEnd: ((session: PuzzleSession, how: "finished" | "rejected" | "abandoned", result: ServerMessage | null) => void) | null = null;
 
   constructor(
     private readonly db: Db,
@@ -69,6 +73,25 @@ export class PuzzleService {
     return this.startedMessage(s);
   }
 
+  /** Deal a pirate's board in a boarding melee, on the melee's config (no foes in it; the brigand crew is outside). */
+  startMelee(pirateId: string, melee: MeleeBinding, override: RoundOverride): PuzzleStarted {
+    const s = this.sessions.start(pirateId, "swordfight", null, null, override, melee);
+    void recordEvent(this.db, pirateId, "puzzle.started", { puzzle: "swordfight", sessionId: s.id, voyageId: melee.voyageId, tierId: melee.tierId }).catch((e) =>
+      this.log.warn({ err: e }, "event write failed"),
+    );
+    return this.startedMessage(s);
+  }
+
+  /**
+   * The server's word on a melee board (ADR 0022): the end move, written into the log here, then
+   * the round scored. Returns the result sent to the pirate, or null when the session was gone.
+   */
+  async endMelee(session: PuzzleSession, won: boolean, tick: number): Promise<ServerMessage | null> {
+    if (session.closed) return null;
+    this.sessions.inject(session, { type: "end", won, tick });
+    return this.finish(session, null, null);
+  }
+
   /** The deal as the client sees it; with `resume`, a battle the captain reconnected to. */
   startedMessage(s: PuzzleSession, resume = false): PuzzleStarted {
     const duty = s.duty;
@@ -83,6 +106,7 @@ export class PuzzleService {
       serverNow: s.startedAt,
       ...(duty ? { duty: { shipId: duty.shipId, station: duty.station, ...(duty.water !== undefined ? { water: duty.water } : {}) } } : {}),
       ...(s.battle ? { battle: { shipId: s.battle.shipId, tierId: s.battle.tierId } } : {}),
+      ...(s.melee ? { melee: { shipId: s.melee.shipId, tierId: s.melee.tierId } } : {}),
       ...(resume ? { resume: { moves: s.moves } } : {}),
     } as PuzzleStarted;
   }
@@ -93,6 +117,7 @@ export class PuzzleService {
     const r = parsed === null ? this.sessions.move(session, seq, { type: "__not_a_move__" }, hash) : this.sessions.move(session, seq, parsed, hash);
     if (r.ok) {
       if (session.battle) this.onBattleMove?.(session);
+      if (session.melee) this.onMeleeMove?.(session);
       return null;
     }
     // A rejected duty board still fed the ship what it had earned before the bad move.
@@ -100,6 +125,7 @@ export class PuzzleService {
     await this.persistRejected(session, r.reason, null);
     const rejected: ServerMessage = { type: "puzzle.rejected", sessionId: session.id, reason: r.reason, atSeq: r.atSeq };
     if (session.battle) this.onBattleEnd?.(session, "rejected", rejected);
+    if (session.melee) this.onMeleeEnd?.(session, "rejected", rejected);
     return rejected;
   }
 
@@ -115,6 +141,7 @@ export class PuzzleService {
       await this.persistRejected(session, r.reason, metrics);
       const rejected: ServerMessage = { type: "puzzle.rejected", sessionId: session.id, reason: r.reason };
       if (session.battle) this.onBattleEnd?.(session, "rejected", rejected);
+      if (session.melee) this.onMeleeEnd?.(session, "rejected", rejected);
       return rejected;
     }
     const result = await this.db.transaction(async (tx) => {
@@ -128,7 +155,7 @@ export class PuzzleService {
         moves: r.summary.moves,
         bestCombo: r.summary.bestCombo,
         rejectedReason: null,
-        voyageId: session.duty?.voyageId ?? session.battle?.voyageId ?? null,
+        voyageId: session.duty?.voyageId ?? session.battle?.voyageId ?? session.melee?.voyageId ?? null,
         rated,
         moveLog: r.moves as unknown[],
         metrics: metrics ?? null,
@@ -142,6 +169,7 @@ export class PuzzleService {
         rated,
         ...(session.duty ? { voyageId: session.duty.voyageId, shipId: session.duty.shipId } : {}),
         ...(session.battle ? { voyageId: session.battle.voyageId, shipId: session.battle.shipId, tierId: session.battle.tierId } : {}),
+        ...(session.melee ? { voyageId: session.melee.voyageId, shipId: session.melee.shipId, tierId: session.melee.tierId } : {}),
         ...(rating ? { ratingBefore: rating.before.rating, ratingAfter: rating.after.rating } : {}),
         ...(metrics ? { metrics } : {}),
       });
@@ -159,6 +187,7 @@ export class PuzzleService {
     });
     this.log.info({ pirateId: session.pirateId, puzzle: session.puzzle, score: result.score, moves: result.moves, rated }, "round scored");
     if (session.battle) this.onBattleEnd?.(session, "finished", result);
+    if (session.melee) this.onMeleeEnd?.(session, "finished", result);
     return result;
   }
 
@@ -167,6 +196,7 @@ export class PuzzleService {
     this.sessions.close(session);
     await this.persistRejected(session, "deadline", null);
     if (session.battle) this.onBattleEnd?.(session, "abandoned", null);
+    if (session.melee) this.onMeleeEnd?.(session, "abandoned", null);
   }
 
   /**
@@ -219,7 +249,7 @@ export class PuzzleService {
         moves: session.moves.length,
         bestCombo: summary.bestCombo,
         rejectedReason: reason,
-        voyageId: session.duty?.voyageId ?? session.battle?.voyageId ?? null,
+        voyageId: session.duty?.voyageId ?? session.battle?.voyageId ?? session.melee?.voyageId ?? null,
         rated: false,
         moveLog: session.moves as unknown[],
         metrics: metrics ?? null,

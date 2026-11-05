@@ -193,8 +193,8 @@ export type SwordfightMove =
   | { readonly type: "wait"; readonly tick: number }
   /** Aboard only: wrack from a board outside this fight, as the server announced it. */
   | { readonly type: "incoming"; readonly board: number; readonly wrack: number; readonly blade: number; readonly tick: number }
-  /** The fight is over for this board: the player yields, or the server says the side outside this fight is beaten. */
-  | { readonly type: "end"; readonly won: boolean; readonly tick: number };
+  /** The fight is over for this board: the player yields (`won` false or absent), or the server says the side outside this fight is beaten. */
+  | { readonly type: "end"; readonly won?: boolean; readonly tick: number };
 
 export type SwordfightOutcome = "won" | "lost";
 

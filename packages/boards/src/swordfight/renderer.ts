@@ -1,5 +1,6 @@
 import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
+  swordfightBoardString,
   swordfightIdx,
   swordfightLandingCells,
   swordfightSpawnCol,
@@ -58,18 +59,6 @@ export interface SwordfightRendererOptions {
     won: string;
     lost: string;
   };
-}
-
-/** One board as a string, top row first, the way melee snapshots and the smoke test read it. */
-export function swordfightBoardString(cfg: SwordfightConfig, cells: ReadonlyArray<SwordCell | null>): string {
-  let out = "";
-  for (let r = cfg.height - 1; r >= 0; r--) {
-    for (let c = 0; c < cfg.width; c++) {
-      const cell = cells[swordfightIdx(cfg, c, r)];
-      out += !cell ? "." : cell.kind === "wrack" ? "#" : cell.kind === "breaker" ? String.fromCharCode(65 + cell.color) : String(cell.color);
-    }
-  }
-  return out;
 }
 
 /** What the board shows, for the smoke test: the player's board. */

@@ -17,6 +17,8 @@ export {
   spawnCol as swordfightSpawnCol,
   opposingSideExternal as swordfightOpposingSideExternal,
   standing as swordfightStanding,
+  boardString as swordfightBoardString,
+  boardLoad as swordfightBoardLoad,
   applyDrop as swordfightApplyDrop,
   idx as swordfightIdx,
   type SwordfightSummary,

@@ -66,6 +66,8 @@ export const ShipSnapshotSchema = z.object({
   nextTurnAt: z.number().nullable(),
   turnMs: z.int().min(1000),
   voyagesCompleted: z.int().min(0),
+  /** The boarding melee under way (M5): everyone aboard fights at the rail while the ship holds position. */
+  melee: z.object({ tierId: Id }).nullable(),
 });
 export type ShipSnapshot = z.infer<typeof ShipSnapshotSchema>;
 
@@ -81,6 +83,8 @@ export const ShipEventWireSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("engaged"), tierId: Id }),
   /** The fight is over. `booty` is the whole purse paid out on a win, in coins; 0 otherwise. */
   z.object({ type: z.literal("battle_ended"), tierId: Id, outcome: BattleOutcomeSchema, booty: z.int().min(0), turns: z.int().min(0) }),
+  /** A boarding opened the melee: steel out, everyone to the rail. */
+  z.object({ type: z.literal("boarding"), tierId: Id }),
   z.object({ type: z.literal("arrived"), islandId: Id, turns: z.int().min(0) }),
   z.object({ type: z.literal("abandoned"), islandId: Id }),
 ]);

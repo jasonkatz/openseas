@@ -758,12 +758,13 @@ export function reduceSwordfight(state: SwordfightState, move: SwordfightMove): 
       return finish(state, sim, move, move.tick);
     }
     case "end": {
-      if (typeof move.won !== "boolean") throw new InvalidMoveError("bad end", move);
-      if (move.won && !opposingSideExternal(cfg, 0)) throw new InvalidMoveError("the foes are in this fight; beat them", move);
+      if (move.won !== undefined && typeof move.won !== "boolean") throw new InvalidMoveError("bad end", move);
+      const won = move.won === true;
+      if (won && !opposingSideExternal(cfg, 0)) throw new InvalidMoveError("the foes are in this fight; beat them", move);
       const sim = simulate(state, move.tick);
       if (!sim.finished) {
         sim.finished = true;
-        sim.outcome = move.won ? "won" : "lost";
+        sim.outcome = won ? "won" : "lost";
         sim.events.push({ tick: move.tick, board: cfg.player ? 0 : -1, type: "ended", outcome: sim.outcome });
       }
       return finish(state, sim, move, move.tick);
@@ -818,6 +819,23 @@ export interface SwordfightSummary {
 export function summarizeSwordfight(s: SwordfightState): SwordfightSummary {
   const player = s.config.player ? s.boards[0]! : null;
   return { score: s.score, moves: player ? player.drops : s.moveCount, bestCombo: player ? player.bestChain : 0 };
+}
+
+/** A board as a string, top row first: `.` empty, 0-5 a color, A-F a breaker, `#` wrack. Melee snapshots and the smoke test read it. */
+export function boardString(cfg: SwordfightConfig, cells: ReadonlyArray<SwordCell | null>): string {
+  let out = "";
+  for (let r = cfg.height - 1; r >= 0; r--) {
+    for (let c = 0; c < cfg.width; c++) {
+      const cell = cells[idx(cfg, c, r)];
+      out += !cell ? "." : cell.kind === "wrack" ? "#" : cell.kind === "breaker" ? String.fromCharCode(65 + cell.color) : String(cell.color);
+    }
+  }
+  return out;
+}
+
+/** What is on a board: filled cells plus wrack waiting to land. The server sends attacks to the opposing board with the least. */
+export function boardLoad(b: SwordBoard): number {
+  return load(b);
 }
 
 /** The boards on a side that are still standing. */

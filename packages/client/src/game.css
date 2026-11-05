@@ -1211,6 +1211,25 @@ body {
   box-shadow: inset 0 0 0 1px rgba(240, 96, 77, 0.35);
 }
 
+/* ---- the melee layer: the pirate's board with the rest of the rail beside it */
+
+.shell-wide .melee-layer {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "bar"
+    "board"
+    "yield";
+  width: min(100%, 980px);
+}
+.melee-yield {
+  justify-self: end;
+  grid-area: yield;
+}
+.station-bar .icon-btn:disabled {
+  opacity: 0.35;
+}
+
 /* ---- menu and toasts */
 
 .scrim {

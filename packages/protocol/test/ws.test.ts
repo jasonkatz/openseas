@@ -84,6 +84,7 @@ describe("ship protocol", () => {
       nextTurnAt: 1000,
       turnMs: 10000,
       voyagesCompleted: 0,
+      melee: null,
     };
     expect(parseServerMessage({ type: "ship.state", ship, events: [{ type: "sailed", routeId: "a-b" }], serverNow: 1 })).not.toBeNull();
     expect(parseServerMessage({ type: "ship.state", ship: { ...ship, water: 1001 }, events: [], serverNow: 1 })).toBeNull();

@@ -9,7 +9,7 @@ export const SwordfightMoveSchema = z.discriminatedUnion("type", [
   /** Aboard only: wrack from a board outside this fight, as the server announced it. */
   z.object({ type: z.literal("incoming"), board: z.int().min(0).max(16), wrack: z.int().min(1).max(999), blade: z.int().min(0).max(15), tick: Tick }),
   /** The fight is over for this board: the player yields, or the server says the other side is beaten. */
-  z.object({ type: z.literal("end"), won: z.boolean(), tick: Tick }),
+  z.object({ type: z.literal("end"), won: z.boolean().optional(), tick: Tick }),
 ]);
 export type SwordfightMoveWire = z.infer<typeof SwordfightMoveSchema>;
 
