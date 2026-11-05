@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Text, type FederatedPointerEvent } from "pixi.js";
+import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, TilingSprite, type FederatedPointerEvent } from "pixi.js";
 import {
   BATTLE_PERMILLE,
   battleArcCells,
@@ -15,6 +15,7 @@ import {
   type ShipIndex,
   type Side,
 } from "@openseas/engine";
+import { paintBall, paintCannon, paintCaustic, paintEddy, paintSea, paintShip } from "./art.js";
 
 export interface BattleCallbacks {
   /** The captain sailed the plot: by the button, the key, or the host's turn clock. */
@@ -64,6 +65,8 @@ interface ShipView {
   damage: number;
   /** ms of hit flash left. */
   flash: number;
+  /** True while a tween carries it, for the wake. */
+  moving: boolean;
 }
 
 interface Tween {
@@ -77,6 +80,7 @@ interface Shot {
   to: { x: number; y: number };
   hit: boolean;
   ship: ShipIndex;
+  ball: Sprite;
 }
 
 /** One beat of a resolved turn's playback. */
@@ -107,6 +111,17 @@ interface Particle {
   alpha: number;
   life: number;
   max: number;
+  /** Drawn as an ellipse flattened to the water. */
+  flat?: boolean;
+}
+
+interface Ring {
+  x: number;
+  y: number;
+  life: number;
+  max: number;
+  r: number;
+  color: number;
 }
 
 interface Button {
@@ -118,41 +133,39 @@ interface Button {
 }
 
 const COLORS = {
-  sea: 0x0d2b45,
-  seaLight: 0x154266,
-  grid: 0x1f4f78,
-  rock: 0x3d3a44,
-  rockLight: 0x5a5663,
-  wind: 0x7fd7ff,
-  eddy: 0x9ad7c6,
-  you: 0xefe3c6,
-  youTrim: 0xd4a548,
-  brigand: 0x1b1a22,
-  brigandTrim: 0xf0604d,
+  woodTop: 0x4a3322,
+  woodBottom: 0x2a1b10,
+  woodEdge: 0x6b4a2e,
+  rope: 0xd8b574,
   arc: 0xf5d58a,
   arcEnemy: 0xf0604d,
-  ghost: 0xefe3c6,
   good: 0x6fdc8c,
+  warn: 0xf5d58a,
   danger: 0xf0604d,
   brass: 0xd4a548,
   brassLight: 0xf5d58a,
+  brassDeep: 0x8f6a22,
   ink: 0x070e1a,
   inkGlass: 0x121a2b,
+  inkDeep: 0x0b1526,
   text: 0xefe3c6,
   muted: 0x9aa7bd,
   flash: 0xfff3c4,
   smoke: 0x8a93a3,
-  splash: 0x9fd8ff,
+  splash: 0xd8f0ff,
+  foam: 0xe6f6ff,
+  splinter: 0x9a6a3a,
+  wind: 0xaae4ff,
+  eddy: 0xd6f4f0,
 };
-const MOVE_MS = 420;
-const PUSH_MS = 300;
-const SPIN_MS = 260;
-const SHOT_MS = 360;
+const MOVE_MS = 460;
+const PUSH_MS = 320;
+const SPIN_MS = 280;
+const SHOT_MS = 380;
 const END_MS = 900;
 const FONT = "Atkinson Hyperlegible, sans-serif";
 const DISPLAY = "Fraunces, Georgia, serif";
-
-const TOKENS: readonly MoveToken[] = ["left", "forward", "right"];
+const SHIP_SCALE = 2.1;
 
 /** What the board shows, for the smoke test: both ships, the turn and the outcome. */
 export function battleViewString(state: BattleState): string {
@@ -160,25 +173,49 @@ export function battleViewString(state: BattleState): string {
   return `${state.turn}:${ships}:${state.outcome ?? "-"}`;
 }
 
+function linear(vertical: boolean, stops: number[]): FillGradient {
+  const g = new FillGradient({ type: "linear", start: { x: 0, y: 0 }, end: vertical ? { x: 0, y: 1 } : { x: 1, y: 0 }, textureSpace: "local" });
+  stops.forEach((c, i) => g.addColorStop(i / Math.max(1, stops.length - 1), c));
+  return g;
+}
+
+function texture(canvas: HTMLCanvasElement, resolution: number): Texture {
+  return new Texture({ source: new CanvasSource({ resource: canvas, resolution }) });
+}
+
 export class BattleRenderer {
   readonly app = new Application();
   private readonly world = new Container();
-  private readonly staticLayer = new Container();
-  private readonly seaG = new Graphics();
+  private readonly frameG = new Graphics();
+  private readonly seaLayer = new Container();
+  private seaSprite: Sprite | null = null;
+  private caustic: TilingSprite | null = null;
+  private readonly eddyLayer = new Container();
   private readonly arcG = new Graphics();
+  private readonly ghostLayer = new Container();
   private readonly ghostG = new Graphics();
-  private readonly shipG = new Graphics();
+  private readonly wakeG = new Graphics();
+  private readonly shipLayer = new Container();
+  private readonly hullG = new Graphics();
+  private readonly ballLayer = new Container();
   private readonly fxG = new Graphics();
-  private readonly hudG = new Graphics();
-  private readonly stripG = new Graphics();
-  private readonly textLayer = new Container();
-  private readonly stripTexts = new Container();
-  private readonly hudTexts = new Container();
   private readonly fxLayer = new Container();
+  private readonly hudG = new Graphics();
+  private readonly hudTexts = new Container();
+  private readonly stripG = new Graphics();
+  private readonly stripIcons = new Container();
+  private readonly stripTexts = new Container();
+  private readonly brassFill = linear(true, [0xe9bd63, COLORS.brass, COLORS.brassDeep]);
+  private readonly inkFill = linear(true, [0x1a2438, COLORS.inkDeep]);
+  private readonly woodFill = linear(true, [COLORS.woodBottom, COLORS.woodTop, COLORS.woodBottom]);
+  private readonly textures = new Map<string, Texture>();
+  private shipSprites: [Sprite, Sprite] | null = null;
+  private ghostSprites: Sprite[] = [];
+  private ghostTexts: Text[] = [];
   private state: BattleState | null = null;
   private ships: [ShipView, ShipView] = [
-    { x: 0, y: 0, rot: 0, damage: 0, flash: 0 },
-    { x: 0, y: 0, rot: Math.PI, damage: 0, flash: 0 },
+    { x: 0, y: 0, rot: 0, damage: 0, flash: 0, moving: false },
+    { x: 0, y: 0, rot: Math.PI, damage: 0, flash: 0, moving: false },
   ];
   private shownTurn = -1;
   private shownOutcome: BattleOutcome | null = null;
@@ -187,6 +224,7 @@ export class BattleRenderer {
   private stepT = 0;
   private popups: Popup[] = [];
   private particles: Particle[] = [];
+  private rings: Ring[] = [];
   private segments: BattleSegment[] = [];
   private grapple = false;
   private selected = 0;
@@ -197,6 +235,7 @@ export class BattleRenderer {
   private destroyed = false;
   private shake = 0;
   private endFlash = 0;
+  private time = 0;
   private turnLeftMs: number | null = null;
   private turnMs = 1;
   /** Geometry. */
@@ -205,11 +244,13 @@ export class BattleRenderer {
   private gy = 0;
   private cols = 1;
   private rows = 1;
+  private pad = 10;
   private vertical = false;
   private strip = { x: 0, y: 0, w: 0, h: 0 };
   private hud = { x: 0, y: 0, w: 0, h: 0 };
   private readonly reduced = typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
   private stripDirty = true;
+  private bakedKey = "";
 
   constructor(
     private readonly host: HTMLElement,
@@ -234,9 +275,9 @@ export class BattleRenderer {
     this.app.canvas.setAttribute("data-testid", "battle-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.host.appendChild(this.app.canvas);
-    this.staticLayer.addChild(this.seaG);
-    this.world.addChild(this.staticLayer, this.arcG, this.ghostG, this.shipG, this.fxG, this.fxLayer, this.textLayer);
-    this.app.stage.addChild(this.world, this.hudG, this.hudTexts, this.stripG, this.stripTexts);
+    this.ghostLayer.addChild(this.ghostG);
+    this.world.addChild(this.frameG, this.seaLayer, this.eddyLayer, this.arcG, this.ghostLayer, this.wakeG, this.shipLayer, this.hullG, this.ballLayer, this.fxG, this.fxLayer);
+    this.app.stage.addChild(this.world, this.hudG, this.hudTexts, this.stripG, this.stripIcons, this.stripTexts);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
     this.app.stage.on("pointerdown", (e) => this.pointerDown(e));
@@ -247,7 +288,13 @@ export class BattleRenderer {
 
   destroy(): void {
     this.destroyed = true;
-    if (this.app.renderer) this.app.destroy(true, { children: true });
+    if (this.app.renderer) {
+      this.app.destroy(true, { children: true });
+      for (const t of this.textures.values()) t.destroy(true);
+      this.brassFill.destroy();
+      this.inkFill.destroy();
+      this.woodFill.destroy();
+    }
   }
 
   setInteractive(on: boolean): void {
@@ -259,7 +306,12 @@ export class BattleRenderer {
   setShowMarks(on: boolean): void {
     if (this.opts.showMarks === on) return;
     this.opts.showMarks = on;
-    this.drawShips();
+    if (this.app.renderer) {
+      this.bakedKey = "";
+      this.bake();
+      this.drawShips();
+      this.drawPreview();
+    }
   }
 
   setShowArcs(on: boolean): void {
@@ -300,10 +352,11 @@ export class BattleRenderer {
     if (boardChanged) this.layout();
     if (reset) {
       this.queue = [];
-      this.step = null;
+      this.clearStep();
       this.popups.forEach((p) => p.t.destroy());
       this.popups = [];
       this.particles = [];
+      this.rings = [];
       this.snap(state);
       this.shownTurn = state.turn;
       this.shownOutcome = state.outcome;
@@ -327,6 +380,11 @@ export class BattleRenderer {
     this.app.canvas.setAttribute("data-view", battleViewString(state));
   }
 
+  private clearStep(): void {
+    if (this.step) for (const sh of this.step.shots) sh.ball.destroy();
+    this.step = null;
+  }
+
   private resetPlan(state: BattleState): void {
     this.segments = Array.from({ length: state.config.segments }, () => ({ move: null, port: false, starboard: false }));
     this.selected = 0;
@@ -337,7 +395,7 @@ export class BattleRenderer {
   private snap(state: BattleState): void {
     for (const i of [0, 1] as const) {
       const s = state.ships[i];
-      this.ships[i] = { x: this.cx(s.x), y: this.cy(s.y), rot: (s.heading * Math.PI) / 2, damage: s.damage, flash: 0 };
+      this.ships[i] = { x: this.cx(s.x), y: this.cy(s.y), rot: (s.heading * Math.PI) / 2, damage: s.damage, flash: 0, moving: false };
     }
     this.drawShips();
   }
@@ -394,7 +452,8 @@ export class BattleRenderer {
             const t = e.blocked === "ship" ? this.opts.labels.rammed : this.opts.labels.rocks;
             this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 1.2, t, COLORS.danger, 0.55);
             this.shake = Math.max(this.shake, 260);
-            this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.smoke, 8, 0.7);
+            this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.splinter, 10, 0.8);
+            this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.foam, 8, 0.7, true);
           }
         }
         this.cb.onEvents(events);
@@ -415,9 +474,22 @@ export class BattleRenderer {
           const v = this.ships[e.ship];
           const last = e.cells[e.cells.length - 1];
           const to = last ? { x: this.cx(last.x), y: this.cy(last.y) } : { x: v.x, y: v.y };
-          step.shots.push({ from: { x: v.x, y: v.y }, to, hit: e.hit, ship: e.ship });
-          this.burst(v.x, v.y, COLORS.flash, 5, 0.5);
-          this.burst(v.x, v.y, COLORS.smoke, 6, 0.6);
+          const ball = new Sprite(this.textures.get("ball") ?? Texture.WHITE);
+          ball.anchor.set(0.5);
+          ball.position.set(v.x, v.y);
+          this.ballLayer.addChild(ball);
+          step.shots.push({ from: { x: v.x, y: v.y }, to, hit: e.hit, ship: e.ship, ball });
+          // Muzzle flash and smoke off the firing side.
+          const side = e.side === "port" ? -1 : 1;
+          const ang = v.rot - Math.PI / 2 + (side * Math.PI) / 2;
+          const mx = v.x + Math.cos(ang) * this.cell * 0.3;
+          const my = v.y + Math.sin(ang) * this.cell * 0.3;
+          this.particles.push({ x: mx, y: my, vx: 0, vy: 0, r: this.cell * 0.4, grow: 0.05, color: COLORS.flash, alpha: 0.95, life: 0, max: 160 });
+          for (let k = 0; k < (this.reduced ? 0 : 8); k++) {
+            const a = ang + (Math.random() - 0.5) * 0.9;
+            const sp = 0.03 + Math.random() * 0.06;
+            this.particles.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: this.cell * 0.1, grow: 0.012, color: COLORS.smoke, alpha: 0.55, life: 0, max: 700 + Math.random() * 500 });
+          }
         }
         this.shake = Math.max(this.shake, 140);
         this.cb.onEvents(events);
@@ -463,7 +535,7 @@ export class BattleRenderer {
     return t;
   }
 
-  // ---- geometry
+  // ---- geometry and baking
 
   private cx(x: number): number {
     return this.gx + (x + 0.5) * this.cell;
@@ -479,138 +551,183 @@ export class BattleRenderer {
     const board = this.state?.board;
     this.cols = board?.width ?? 18;
     this.rows = board?.height ?? 14;
-    const hudH = Math.max(34, Math.min(48, H * 0.08));
+    const hudH = Math.max(36, Math.min(50, H * 0.08));
     this.vertical = H > W * 1.05;
-    const pad = 6;
+    const gutter = 8;
+    const sized = (availW: number, availH: number): void => {
+      // The frame takes half a cell a side; solve for the cell that fits with it.
+      this.cell = Math.max(8, Math.floor(Math.min(availW / (this.cols + 1), availH / (this.rows + 1))));
+      this.pad = Math.max(8, Math.floor(this.cell * 0.5));
+    };
     if (this.vertical) {
-      const stripH = Math.max(150, Math.min(210, H * 0.3));
-      const availW = W - pad * 2;
-      const availH = H - hudH - stripH - pad * 3;
-      this.cell = Math.max(8, Math.floor(Math.min(availW / this.cols, availH / this.rows)));
+      const stripH = Math.max(156, Math.min(216, H * 0.3));
+      const availW = W - gutter * 2;
+      const availH = H - hudH - stripH - gutter * 3;
+      sized(availW, availH);
       this.gx = Math.floor((W - this.cols * this.cell) / 2);
-      this.gy = hudH + pad + Math.floor((availH - this.rows * this.cell) / 2);
-      this.hud = { x: pad, y: 0, w: W - pad * 2, h: hudH };
-      this.strip = { x: pad, y: H - stripH - pad, w: W - pad * 2, h: stripH };
+      this.gy = hudH + gutter + Math.floor((availH - this.rows * this.cell) / 2);
+      this.hud = { x: gutter, y: 0, w: W - gutter * 2, h: hudH };
+      this.strip = { x: gutter, y: H - stripH - gutter, w: W - gutter * 2, h: stripH };
     } else {
-      const stripW = Math.max(190, Math.min(260, W * 0.3));
-      const availW = W - stripW - pad * 3;
-      const availH = H - hudH - pad * 2;
-      this.cell = Math.max(8, Math.floor(Math.min(availW / this.cols, availH / this.rows)));
-      this.gx = pad + Math.floor((availW - this.cols * this.cell) / 2);
-      this.gy = hudH + pad + Math.floor((availH - this.rows * this.cell) / 2);
-      this.hud = { x: pad, y: 0, w: availW, h: hudH };
-      this.strip = { x: W - stripW - pad, y: pad, w: stripW, h: H - pad * 2 };
+      const stripW = Math.max(196, Math.min(264, W * 0.3));
+      const availW = W - stripW - gutter * 3;
+      const availH = H - hudH - gutter * 2;
+      sized(availW, availH);
+      this.gx = gutter + Math.floor((availW - this.cols * this.cell) / 2);
+      this.gy = hudH + gutter + Math.floor((availH - this.rows * this.cell) / 2);
+      this.hud = { x: gutter, y: 0, w: availW, h: hudH };
+      this.strip = { x: W - stripW - gutter, y: gutter, w: stripW, h: H - gutter * 2 };
     }
     this.app.canvas.setAttribute("data-geom", `${this.gx},${this.gy},${this.cell}`);
-    this.drawSea();
+    this.bake();
+    this.drawFrame();
+    this.placeSea();
     if (this.state) this.snap(this.state);
     this.drawPreview();
     this.drawHud();
     this.stripDirty = true;
   }
 
-  // ---- static board
-
-  private drawSea(): void {
-    const g = this.seaG;
-    g.clear();
-    const w = this.cols * this.cell;
-    const h = this.rows * this.cell;
-    g.roundRect(this.gx - 3, this.gy - 3, w + 6, h + 6, 8).fill(COLORS.ink);
-    g.rect(this.gx, this.gy, w, h).fill(COLORS.sea);
-    for (let y = 0; y < this.rows; y++) {
-      for (let x = 0; x < this.cols; x++) {
-        if ((x + y) % 2 === 0) g.rect(this.gx + x * this.cell, this.gy + y * this.cell, this.cell, this.cell).fill({ color: COLORS.seaLight, alpha: 0.35 });
-      }
-    }
-    for (let x = 0; x <= this.cols; x++) g.moveTo(this.gx + x * this.cell, this.gy).lineTo(this.gx + x * this.cell, this.gy + h).stroke({ width: 1, color: COLORS.grid, alpha: 0.5 });
-    for (let y = 0; y <= this.rows; y++) g.moveTo(this.gx, this.gy + y * this.cell).lineTo(this.gx + w, this.gy + y * this.cell).stroke({ width: 1, color: COLORS.grid, alpha: 0.5 });
+  /** Paint every texture for this cell size and board, once. */
+  private bake(): void {
     const board = this.state?.board;
-    if (!board) return;
-    const c = this.cell;
+    const key = `${this.cell}:${this.cols}x${this.rows}:${this.state?.boardIndex ?? -1}:${this.opts.showMarks ? 1 : 0}`;
+    if (key === this.bakedKey) return;
+    this.bakedKey = key;
+    const r = this.app.renderer.resolution;
+    for (const t of this.textures.values()) t.destroy(true);
+    this.textures.clear();
+    const shipPx = Math.ceil(this.cell * SHIP_SCALE);
+    this.textures.set("ship0", texture(paintShip(shipPx, 0, this.opts.showMarks, r), r));
+    this.textures.set("ship1", texture(paintShip(shipPx, 1, this.opts.showMarks, r), r));
+    this.textures.set("eddy", texture(paintEddy(Math.ceil(this.cell * 1.1), r), r));
+    this.textures.set("ball", texture(paintBall(Math.max(6, Math.ceil(this.cell * 0.3)), r), r));
+    this.textures.set("caustic", texture(paintCaustic(128, 1), 1));
+    const iconPx = 28;
+    this.textures.set("cannon0", texture(paintCannon(iconPx, false, r), r));
+    this.textures.set("cannon1", texture(paintCannon(iconPx, true, r), r));
+    if (board) this.textures.set("sea", texture(paintSea(board, this.cell, r), r));
+    // Sprites are rebuilt on the new textures.
+    if (this.shipSprites) for (const s of this.shipSprites) s.destroy();
+    this.shipSprites = null;
+    for (const s of this.ghostSprites) s.destroy();
+    this.ghostSprites = [];
+    for (const e of this.eddyLayer.removeChildren()) e.destroy();
+    if (this.seaSprite) {
+      this.seaSprite.destroy();
+      this.seaSprite = null;
+    }
+    if (this.caustic) {
+      this.caustic.destroy();
+      this.caustic = null;
+    }
+  }
+
+  private drawFrame(): void {
+    const g = this.frameG;
+    g.clear();
+    const W = this.cols * this.cell;
+    const H = this.rows * this.cell;
+    const p = this.pad;
+    const x = this.gx;
+    const y = this.gy;
+    g.roundRect(x - p - 2, y - p + 4, W + p * 2 + 4, H + p * 2, p + 6).fill({ color: 0x000000, alpha: 0.45 });
+    g.roundRect(x - p, y - p, W + p * 2, H + p * 2, p + 4).fill(this.woodFill);
+    g.roundRect(x - p, y - p, W + p * 2, H + p * 2, p + 4).stroke({ width: 1.5, color: COLORS.woodEdge, alpha: 0.9 });
+    // Rope lashings along the long rails, and brass pins at the corners.
+    for (let c = 1; c < this.cols; c += 2) {
+      const lx = x + c * this.cell;
+      g.moveTo(lx - 2, y - p).lineTo(lx + 2, y).moveTo(lx + 2, y + H).lineTo(lx - 2, y + H + p);
+    }
+    g.stroke({ width: Math.max(1.5, p * 0.25), color: COLORS.rope, alpha: 0.5 });
+    for (const [px, py] of [
+      [x - p / 2, y - p / 2],
+      [x + W + p / 2, y - p / 2],
+      [x - p / 2, y + H + p / 2],
+      [x + W + p / 2, y + H + p / 2],
+    ]) {
+      g.circle(px!, py!, Math.max(2, p * 0.22)).fill(COLORS.brass).stroke({ width: 1, color: COLORS.brassDeep });
+    }
+    // The water sits in a well with a dark lip.
+    g.rect(x, y, W, H).stroke({ width: 3, color: 0x000000, alpha: 0.55, alignment: 1 });
+  }
+
+  private placeSea(): void {
+    const sea = this.textures.get("sea");
+    if (!sea) return;
+    if (!this.seaSprite) {
+      this.seaSprite = new Sprite(sea);
+      this.seaLayer.addChild(this.seaSprite);
+    } else this.seaSprite.texture = sea;
+    this.seaSprite.position.set(this.gx, this.gy);
+    const W = this.cols * this.cell;
+    const H = this.rows * this.cell;
+    const caustic = this.textures.get("caustic");
+    if (caustic && !this.reduced) {
+      if (!this.caustic) {
+        this.caustic = new TilingSprite({ texture: caustic, width: W, height: H });
+        this.caustic.alpha = 0.5;
+        this.seaLayer.addChild(this.caustic);
+      }
+      this.caustic.width = W;
+      this.caustic.height = H;
+      this.caustic.position.set(this.gx, this.gy);
+      this.caustic.tileScale.set(Math.max(0.6, this.cell / 40));
+    }
+    // Eddies spin on their own.
+    for (const e of this.eddyLayer.removeChildren()) e.destroy();
+    const board = this.state?.board;
+    const eddyTex = this.textures.get("eddy");
+    if (!board || !eddyTex) return;
     for (let y = 0; y < board.height; y++) {
       for (let x = 0; x < board.width; x++) {
-        const cell = battleCellAt(board, x, y);
-        if (!cell) continue;
-        const px = this.cx(x);
-        const py = this.cy(y);
-        if (cell.kind === "rock") {
-          const r = c * 0.46;
-          g.poly([px - r, py + r * 0.6, px - r * 0.6, py - r * 0.5, px - r * 0.1, py - r, px + r * 0.5, py - r * 0.7, px + r, py + r * 0.2, px + r * 0.6, py + r, px - r * 0.5, py + r]).fill(COLORS.rock);
-          g.poly([px - r * 0.6, py - r * 0.5, px - r * 0.1, py - r, px + r * 0.5, py - r * 0.7, px + r * 0.2, py - r * 0.1, px - r * 0.3, py]).fill({ color: COLORS.rockLight, alpha: 0.7 });
-        } else if (cell.kind === "wind") {
-          const ang = (cell.heading * Math.PI) / 2;
-          const len = c * 0.36;
-          for (const k of [-1, 1]) {
-            const ox = Math.cos(ang + Math.PI / 2) * c * 0.16 * k;
-            const oy = Math.sin(ang + Math.PI / 2) * c * 0.16 * k;
-            const tx = px + ox + Math.cos(ang - Math.PI / 2) * len;
-            const ty = py + oy + Math.sin(ang - Math.PI / 2) * len;
-            const bx = px + ox - Math.cos(ang - Math.PI / 2) * len * 0.5;
-            const by = py + oy - Math.sin(ang - Math.PI / 2) * len * 0.5;
-            g.moveTo(bx, by).lineTo(tx, ty).stroke({ width: Math.max(1.5, c * 0.07), color: COLORS.wind, alpha: 0.75 });
-            const hx = Math.cos(ang - Math.PI / 2);
-            const hy = Math.sin(ang - Math.PI / 2);
-            g.moveTo(tx - hx * c * 0.14 + hy * c * 0.12, ty - hy * c * 0.14 - hx * c * 0.12)
-              .lineTo(tx, ty)
-              .lineTo(tx - hx * c * 0.14 - hy * c * 0.12, ty - hy * c * 0.14 + hx * c * 0.12)
-              .stroke({ width: Math.max(1.5, c * 0.07), color: COLORS.wind, alpha: 0.75 });
-          }
-        } else if (cell.kind === "eddy") {
-          let r = c * 0.42;
-          let a = 0;
-          g.moveTo(px + r, py);
-          for (let i = 1; i <= 28; i++) {
-            a = (i / 28) * Math.PI * 3;
-            r = c * 0.42 * (1 - i / 32);
-            g.lineTo(px + Math.cos(a) * r, py + Math.sin(a) * r);
-          }
-          g.stroke({ width: Math.max(1.5, c * 0.07), color: COLORS.eddy, alpha: 0.8 });
-        }
+        if (battleCellAt(board, x, y)?.kind !== "eddy") continue;
+        const s = new Sprite(eddyTex);
+        s.anchor.set(0.5);
+        s.position.set(this.cx(x), this.cy(y));
+        s.rotation = (x * 7 + y * 3) % 6;
+        this.eddyLayer.addChild(s);
       }
     }
   }
 
   // ---- ships, preview, arcs
 
-  private drawShips(): void {
-    const g = this.shipG;
-    g.clear();
-    for (const i of [1, 0] as const) {
-      const v = this.ships[i];
-      this.paintShip(g, v.x, v.y, v.rot, i, 1, v.flash > 0 ? 1 : 0.0);
-      // Hull bar under the ship.
-      const w = this.cell * 0.9;
-      const hull = 1 - v.damage / BATTLE_PERMILLE;
-      g.rect(v.x - w / 2, v.y + this.cell * 0.46, w, Math.max(2, this.cell * 0.09)).fill({ color: COLORS.ink, alpha: 0.8 });
-      g.rect(v.x - w / 2, v.y + this.cell * 0.46, w * hull, Math.max(2, this.cell * 0.09)).fill(hull > 0.5 ? COLORS.good : COLORS.danger);
+  private shipSprite(i: ShipIndex): Sprite {
+    if (!this.shipSprites) {
+      const make = (who: ShipIndex): Sprite => {
+        const s = new Sprite(this.textures.get(`ship${who}`) ?? Texture.WHITE);
+        s.anchor.set(0.5);
+        return s;
+      };
+      this.shipSprites = [make(0), make(1)];
+      this.shipLayer.addChild(this.shipSprites[1], this.shipSprites[0]);
     }
+    return this.shipSprites[i];
   }
 
-  private paintShip(g: Graphics, x: number, y: number, rot: number, who: ShipIndex, alpha: number, flash: number): void {
+  private drawShips(): void {
+    const g = this.hullG;
+    g.clear();
     const c = this.cell;
-    const L = c * 0.42;
-    const Wd = c * 0.26;
-    const cos = Math.cos(rot - Math.PI / 2);
-    const sin = Math.sin(rot - Math.PI / 2);
-    const P = (fx: number, fy: number): [number, number] => [x + fx * cos - fy * sin, y + fx * sin + fy * cos];
-    const pts = [P(L, 0), P(L * 0.35, Wd), P(-L, Wd * 0.85), P(-L, -Wd * 0.85), P(L * 0.35, -Wd)].flat();
-    const fill = flash > 0 ? COLORS.flash : who === 0 ? COLORS.you : COLORS.brigand;
-    const trim = who === 0 ? COLORS.youTrim : COLORS.brigandTrim;
-    g.poly(pts).fill({ color: fill, alpha }).stroke({ width: Math.max(1.5, c * 0.08), color: trim, alpha });
-    // The deck line and a mark at the bow, so the two ships read apart without color (rule 6).
-    const [mx, my] = P(-L * 0.2, 0);
-    if (who === 0) g.circle(mx, my, c * 0.09).fill({ color: trim, alpha });
-    else {
-      const [ax, ay] = P(-L * 0.45, -Wd * 0.45);
-      const [bx, by] = P(L * 0.05, Wd * 0.45);
-      const [cx2, cy2] = P(-L * 0.45, Wd * 0.45);
-      const [dx, dy] = P(L * 0.05, -Wd * 0.45);
-      g.moveTo(ax, ay).lineTo(bx, by).moveTo(cx2, cy2).lineTo(dx, dy).stroke({ width: Math.max(1.5, c * 0.07), color: trim, alpha });
-    }
-    if (this.opts.showMarks) {
-      const [tx, ty] = P(L * 0.75, 0);
-      g.circle(tx, ty, c * 0.07).fill({ color: who === 0 ? COLORS.ink : COLORS.text, alpha });
+    for (const i of [1, 0] as const) {
+      const v = this.ships[i];
+      const s = this.shipSprite(i);
+      const bob = v.moving || this.reduced ? 0 : 1;
+      s.position.set(v.x, v.y + Math.sin(this.time / 850 + i * 1.7) * c * 0.025 * bob);
+      s.rotation = v.rot + Math.sin(this.time / 1100 + i * 2.3) * 0.03 * bob;
+      const hurt = v.damage / BATTLE_PERMILLE;
+      s.tint = v.flash > 0 ? 0xffb38a : hurt > 0.5 ? 0xd8c8c0 : 0xffffff;
+      // Hull bar under the ship: rounded, with a dark well, lit brass when she can be boarded.
+      const w = c * 0.95;
+      const h = Math.max(3, c * 0.1);
+      const bx = v.x - w / 2;
+      const by = v.y + c * 0.5;
+      const hull = 1 - hurt;
+      g.roundRect(bx - 1, by - 1, w + 2, h + 2, h).fill({ color: COLORS.ink, alpha: 0.85 });
+      g.roundRect(bx, by, Math.max(h, w * hull), h, h / 2).fill(hull > 0.5 ? COLORS.good : hull > 0.25 ? COLORS.warn : COLORS.danger);
+      const grappleAt = this.state ? this.state.config.grappleDamage / BATTLE_PERMILLE : 0.5;
+      if (hurt >= grappleAt) g.roundRect(bx - 1, by - 1, w + 2, h + 2, h).stroke({ width: 1.5, color: COLORS.brassLight, alpha: 0.6 + Math.sin(this.time / 200) * 0.3 });
     }
   }
 
@@ -620,6 +737,9 @@ export class BattleRenderer {
     const a = this.arcG;
     g.clear();
     a.clear();
+    for (const t of this.ghostTexts) t.destroy();
+    this.ghostTexts = [];
+    for (const s of this.ghostSprites) s.visible = false;
     const s = this.state;
     if (!s || s.finished) return;
     const plan = this.plan();
@@ -632,46 +752,59 @@ export class BattleRenderer {
       if (this.opts.showArcs) {
         for (const side of ["port", "starboard"] as const) {
           if (!seg[side]) continue;
-          for (const cell of battleArcCells(s.board, p, side, s.config.cannonRange)) {
-            a.rect(this.gx + cell.x * c + 2, this.gy + cell.y * c + 2, c - 4, c - 4).fill({ color: COLORS.arc, alpha: 0.28 });
-          }
+          const cells = battleArcCells(s.board, p, side, s.config.cannonRange);
+          cells.forEach((cell, k) => {
+            const inset = 3;
+            a.roundRect(this.gx + cell.x * c + inset, this.gy + cell.y * c + inset, c - inset * 2, c - inset * 2, c * 0.18).fill({ color: COLORS.arc, alpha: 0.3 - k * 0.06 });
+          });
         }
       }
       if (seg.move !== null) {
-        g.moveTo(this.cx(prev.x), this.cy(prev.y)).lineTo(this.cx(p.x), this.cy(p.y)).stroke({ width: Math.max(1.5, c * 0.06), color: COLORS.ghost, alpha: 0.45 });
-        this.paintShip(g, this.cx(p.x), this.cy(p.y), (p.heading * Math.PI) / 2, 0, 0.35, 0);
+        // A dashed course line, then the ghost of the ship where the move ends, numbered.
+        const x0 = this.cx(prev.x);
+        const y0 = this.cy(prev.y);
+        const x1 = this.cx(p.x);
+        const y1 = this.cy(p.y);
+        const n = 5;
+        for (let k = 0; k < n; k++) {
+          const t0 = k / n;
+          const t1 = (k + 0.5) / n;
+          g.moveTo(x0 + (x1 - x0) * t0, y0 + (y1 - y0) * t0).lineTo(x0 + (x1 - x0) * t1, y0 + (y1 - y0) * t1);
+        }
+        g.stroke({ width: Math.max(1.5, c * 0.07), color: COLORS.text, alpha: 0.55, cap: "round" });
+        let ghost = this.ghostSprites[i];
+        if (!ghost) {
+          ghost = new Sprite(this.textures.get("ship0") ?? Texture.WHITE);
+          ghost.anchor.set(0.5);
+          ghost.alpha = 0.4;
+          this.ghostLayer.addChild(ghost);
+          this.ghostSprites[i] = ghost;
+        }
+        ghost.texture = this.textures.get("ship0") ?? Texture.WHITE;
+        ghost.visible = true;
+        ghost.position.set(x1, y1);
+        ghost.rotation = (p.heading * Math.PI) / 2;
+        // The number rides a brass badge off the ship's quarter.
+        const bx = x1 + c * 0.42;
+        const by = y1 - c * 0.42;
+        g.circle(bx, by, c * 0.24).fill(COLORS.brass).stroke({ width: 1, color: COLORS.ink, alpha: 0.8 });
+        const t = new Text({ text: String(i + 1), style: { fontFamily: FONT, fontSize: Math.max(9, c * 0.34), fontWeight: "700", fill: COLORS.ink } });
+        t.anchor.set(0.5);
+        t.position.set(bx, by);
+        this.ghostLayer.addChild(t);
+        this.ghostTexts.push(t);
       }
       prev = p;
     });
     // Where the brigand's guns reach from where it stands, so the captain sees the danger.
-    if (this.opts.showArcs) {
+    if (this.opts.showArcs && s.ships[1].loaded > 0) {
       const them: Pose = { x: s.ships[1].x, y: s.ships[1].y, heading: s.ships[1].heading };
-      if (s.ships[1].loaded > 0) {
-        for (const side of ["port", "starboard"] as const) {
-          for (const cell of battleArcCells(s.board, them, side, s.config.cannonRange)) {
-            a.rect(this.gx + cell.x * c + 5, this.gy + cell.y * c + 5, c - 10, c - 10).stroke({ width: 1.5, color: COLORS.arcEnemy, alpha: 0.5 });
-          }
+      for (const side of ["port", "starboard"] as const) {
+        for (const cell of battleArcCells(s.board, them, side, s.config.cannonRange)) {
+          a.roundRect(this.gx + cell.x * c + 5, this.gy + cell.y * c + 5, c - 10, c - 10, c * 0.14).stroke({ width: 1.5, color: COLORS.arcEnemy, alpha: 0.55 });
         }
       }
     }
-    this.drawGhostNumbers(plan, poses);
-  }
-
-  private ghostTexts: Text[] = [];
-
-  private drawGhostNumbers(plan: BattlePlan, poses: Pose[]): void {
-    for (const t of this.ghostTexts) t.destroy();
-    this.ghostTexts = [];
-    plan.segments.forEach((seg, i) => {
-      const p = poses[i];
-      if (!p || seg.move === null) return;
-      const t = new Text({ text: String(i + 1), style: { fontFamily: FONT, fontSize: Math.max(9, this.cell * 0.42), fontWeight: "700", fill: COLORS.ink } });
-      t.anchor.set(0.5);
-      t.position.set(this.cx(p.x), this.cy(p.y));
-      t.alpha = 0.8;
-      this.textLayer.addChild(t);
-      this.ghostTexts.push(t);
-    });
   }
 
   // ---- the HUD: both hulls, loads, the turn
@@ -685,7 +818,7 @@ export class BattleRenderer {
     const { x, y, w, h } = this.hud;
     const half = (w - 8) / 2;
     const fs = Math.max(10, Math.min(13, h * 0.3));
-    const barH = Math.max(5, h * 0.18);
+    const barH = Math.max(6, h * 0.2);
     const panels: Array<{ px: number; who: ShipIndex; label: string }> = [
       { px: x, who: 0, label: this.opts.labels.you },
       { px: x + half + 8, who: 1, label: this.opts.labels.brigand },
@@ -693,23 +826,30 @@ export class BattleRenderer {
     for (const p of panels) {
       const ship = s.ships[p.who];
       const hull = 1 - ship.damage / BATTLE_PERMILLE;
-      g.roundRect(p.px, y + 2, half, h - 4, 6).fill({ color: COLORS.inkGlass, alpha: 0.9 });
-      const name = new Text({ text: p.label, style: { fontFamily: FONT, fontSize: fs, fontWeight: "700", fill: p.who === 0 ? COLORS.you : COLORS.brigandTrim, letterSpacing: 1 } });
-      name.position.set(p.px + 8, y + 5);
+      g.roundRect(p.px, y + 4, half, h - 4, 8).fill({ color: 0x000000, alpha: 0.35 });
+      g.roundRect(p.px, y + 2, half, h - 4, 8).fill(this.inkFill);
+      g.roundRect(p.px, y + 2, half, h - 4, 8).stroke({ width: 1, color: COLORS.text, alpha: 0.12 });
+      const name = new Text({ text: p.label.toUpperCase(), style: { fontFamily: FONT, fontSize: fs - 1, fontWeight: "700", fill: p.who === 0 ? COLORS.brassLight : COLORS.danger, letterSpacing: 2 } });
+      name.position.set(p.px + 10, y + 6);
       this.hudTexts.addChild(name);
       const hullText = new Text({ text: `${this.opts.labels.hull} ${Math.round(hull * 100)}%`, style: { fontFamily: FONT, fontSize: fs - 1, fill: COLORS.muted } });
       hullText.anchor.set(1, 0);
-      hullText.position.set(p.px + half - 8, y + 5);
+      hullText.position.set(p.px + half - 10, y + 6);
       this.hudTexts.addChild(hullText);
-      const bx = p.px + 8;
-      const by = y + h - barH - 6;
-      const bw = half - 16 - (ship.cannons > 0 ? ship.cannons * (barH + 3) + 10 : 0);
-      g.rect(bx, by, bw, barH).fill({ color: COLORS.ink, alpha: 0.9 });
-      g.rect(bx, by, bw * hull, barH).fill(hull > 0.5 ? COLORS.good : COLORS.danger);
-      if (ship.damage >= s.config.grappleDamage) g.rect(bx, by, bw, barH).stroke({ width: 1.5, color: COLORS.brassLight, alpha: 0.9 });
+      const bx = p.px + 10;
+      const by = y + h - barH - 7;
+      const lampW = ship.cannons > 0 ? ship.cannons * (barH + 4) + 8 : 0;
+      const bw = half - 20 - lampW;
+      g.roundRect(bx, by, bw, barH, barH / 2).fill({ color: COLORS.ink, alpha: 0.95 });
+      g.roundRect(bx, by, Math.max(barH, bw * hull), barH, barH / 2).fill(hull > 0.5 ? COLORS.good : hull > 0.25 ? COLORS.warn : COLORS.danger);
+      g.roundRect(bx + 1, by + 1, Math.max(barH, bw * hull) - 2, barH * 0.4, barH / 3).fill({ color: 0xffffff, alpha: 0.18 });
+      if (ship.damage >= s.config.grappleDamage) g.roundRect(bx - 1, by - 1, bw + 2, barH + 2, barH / 2 + 1).stroke({ width: 1.5, color: COLORS.brassLight, alpha: 0.9 });
       for (let i = 0; i < ship.cannons; i++) {
-        const lx = bx + bw + 10 + i * (barH + 3);
-        g.circle(lx + barH / 2, by + barH / 2, barH / 2).fill(i < ship.loaded ? COLORS.brassLight : COLORS.ink).stroke({ width: 1, color: COLORS.brass, alpha: 0.8 });
+        const lx = bx + bw + 8 + i * (barH + 4) + barH / 2;
+        const ly = by + barH / 2;
+        const lit = i < ship.loaded;
+        if (lit) g.circle(lx, ly, barH * 0.85).fill({ color: COLORS.brassLight, alpha: 0.2 });
+        g.circle(lx, ly, barH / 2).fill(lit ? COLORS.brassLight : COLORS.ink).stroke({ width: 1, color: lit ? COLORS.brassDeep : COLORS.brass, alpha: 0.9 });
       }
     }
     this.stripDirty = true;
@@ -722,127 +862,170 @@ export class BattleRenderer {
     const g = this.stripG;
     g.clear();
     for (const t of this.stripTexts.removeChildren()) t.destroy();
+    for (const t of this.stripIcons.removeChildren()) t.destroy();
     this.buttons = [];
     const s = this.state;
     if (!s) return;
     const { x, y, w, h } = this.strip;
-    g.roundRect(x, y, w, h, 10).fill({ color: COLORS.inkGlass, alpha: 0.92 });
+    g.roundRect(x, y + 3, w, h, 12).fill({ color: 0x000000, alpha: 0.4 });
+    g.roundRect(x, y, w, h, 12).fill(this.inkFill);
+    g.roundRect(x, y, w, h, 12).stroke({ width: 1, color: COLORS.text, alpha: 0.12 });
     const me = s.ships[0];
     const n = s.config.segments;
     const live = this.interactive && !s.finished;
     const fs = Math.max(10, Math.min(13, this.vertical ? h * 0.075 : w * 0.055));
-    const label = (text: string, tx: number, ty: number, color = COLORS.text, size = fs, anchorX = 0.5, weight: "400" | "700" = "700"): Text => {
-      const t = new Text({ text, style: { fontFamily: FONT, fontSize: size, fontWeight: weight, fill: color } });
+    const label = (text: string, tx: number, ty: number, color = COLORS.text, size = fs, anchorX = 0.5, weight: "400" | "700" = "700", spacing = 0): Text => {
+      const t = new Text({ text, style: { fontFamily: FONT, fontSize: size, fontWeight: weight, fill: color, letterSpacing: spacing } });
       t.anchor.set(anchorX, 0.5);
       t.position.set(tx, ty);
       this.stripTexts.addChild(t);
       return t;
     };
-    const button = (id: string, bx: number, by: number, bw: number, bh: number, on: boolean, enabled: boolean, color = COLORS.brass): void => {
+    const button = (id: string, bx: number, by: number, bw: number, bh: number, kind: "brass" | "ink" | "ghost", enabled: boolean): void => {
       const press = this.pressed?.id === id ? 1 - Math.min(1, this.pressed.t / 160) : 0;
-      g.roundRect(bx, by, bw, bh, 7).fill({ color: on ? color : COLORS.ink, alpha: enabled ? 0.95 : 0.4 });
-      g.roundRect(bx, by, bw, bh, 7).stroke({ width: 1.5 + press * 2, color: on ? COLORS.brassLight : color, alpha: enabled ? 0.9 : 0.35 });
+      const alpha = enabled ? 1 : 0.4;
+      const r = 8;
+      if (kind === "brass") {
+        g.roundRect(bx, by + 2, bw, bh, r).fill({ color: COLORS.brass, alpha: 0.35 * alpha });
+        g.roundRect(bx, by + press, bw, bh, r).fill(this.brassFill);
+        if (!enabled) g.roundRect(bx, by, bw, bh, r).fill({ color: COLORS.inkDeep, alpha: 0.55 });
+        g.roundRect(bx + 1, by + 1 + press, bw - 2, bh * 0.45, r - 1).fill({ color: 0xffffff, alpha: 0.18 * alpha });
+      } else if (kind === "ink") {
+        g.roundRect(bx, by + 2, bw, bh, r).fill({ color: 0x000000, alpha: 0.35 });
+        g.roundRect(bx, by + press, bw, bh, r).fill({ color: COLORS.ink, alpha: 0.95 });
+        g.roundRect(bx, by + press, bw, bh, r).stroke({ width: 1, color: COLORS.brass, alpha: 0.55 * alpha });
+        g.roundRect(bx + 1, by + 1 + press, bw - 2, bh * 0.4, r - 1).fill({ color: 0xffffff, alpha: 0.05 });
+      } else {
+        g.roundRect(bx, by + press, bw, bh, r).stroke({ width: 1, color: COLORS.text, alpha: 0.3 * alpha });
+      }
       if (enabled) this.buttons.push({ id, x: bx, y: by, w: bw, h: bh });
     };
     // Turn clock.
-    const top = y + 8;
-    const turnText = label(this.opts.labels.turn(s.turn + 1, s.config.maxTurns), x + 10, top + fs * 0.6, COLORS.muted, fs, 0, "400");
-    void turnText;
-    const clockW = w - 20;
-    const clockY = top + fs * 1.4;
-    g.rect(x + 10, clockY, clockW, 4).fill({ color: COLORS.ink, alpha: 0.9 });
+    const top = y + 10;
+    label(this.opts.labels.turn(s.turn + 1, s.config.maxTurns).toUpperCase(), x + 12, top + fs * 0.6, COLORS.muted, fs - 2, 0, "700", 2);
+    const clockW = w - 24;
+    const clockY = top + fs * 1.5;
+    g.roundRect(x + 12, clockY, clockW, 5, 2.5).fill({ color: COLORS.ink, alpha: 0.95 });
     if (this.turnLeftMs !== null && live) {
       const k = Math.max(0, Math.min(1, this.turnLeftMs / this.turnMs));
-      g.rect(x + 10, clockY, clockW * k, 4).fill(k < 0.25 ? COLORS.danger : COLORS.brass);
+      g.roundRect(x + 12, clockY, Math.max(5, clockW * k), 5, 2.5).fill(k < 0.25 ? COLORS.danger : COLORS.brass);
     }
     // Slots.
-    const slotTop = clockY + 12;
+    const slotTop = clockY + 14;
     const gap = 6;
-    const canW = Math.max(16, Math.min(26, this.vertical ? (w - 20) / n / 4 : w * 0.11));
+    const canW = Math.max(18, Math.min(28, this.vertical ? (w - 24) / n / 4 : w * 0.12));
     let slotW: number;
     let slotH: number;
-    let slotX = (i: number): number => x + 10 + i * ((w - 20) / n);
+    let slotX = (i: number): number => x + 12 + i * ((w - 24) / n);
     let slotY = (_i: number): number => slotTop;
     if (this.vertical) {
-      slotW = (w - 20) / n - gap;
-      slotH = Math.max(34, h * 0.26);
+      slotW = (w - 24) / n - gap;
+      slotH = Math.max(36, h * 0.26);
     } else {
-      slotW = w - 20;
-      slotH = Math.max(30, Math.min(44, (h - slotTop + y - 150) / n - gap));
-      slotX = () => x + 10;
+      slotW = w - 24;
+      slotH = Math.max(32, Math.min(46, (h - slotTop + y - 156) / n - gap));
+      slotX = () => x + 12;
       slotY = (i) => slotTop + i * (slotH + gap);
     }
+    const cannonTex = (lit: boolean): Texture => this.textures.get(lit ? "cannon1" : "cannon0") ?? Texture.WHITE;
     for (let i = 0; i < n; i++) {
       const seg = this.segments[i] ?? { move: null, port: false, starboard: false };
       const sx = slotX(i);
       const sy = slotY(i);
       const sel = this.selected === i && live;
-      g.roundRect(sx, sy, slotW, slotH, 8).fill({ color: COLORS.ink, alpha: 0.9 });
-      g.roundRect(sx, sy, slotW, slotH, 8).stroke({ width: sel ? 2.5 : 1, color: sel ? COLORS.brassLight : COLORS.grid, alpha: sel ? 1 : 0.7 });
+      g.roundRect(sx, sy, slotW, slotH, 9).fill({ color: COLORS.ink, alpha: 0.9 });
+      g.roundRect(sx + 1, sy + 1, slotW - 2, slotH - 2, 8).stroke({ width: 1, color: 0xffffff, alpha: 0.05 });
+      if (sel) {
+        g.roundRect(sx - 1, sy - 1, slotW + 2, slotH + 2, 10).stroke({ width: 2, color: COLORS.brassLight, alpha: 0.95 });
+        g.roundRect(sx - 3, sy - 3, slotW + 6, slotH + 6, 12).stroke({ width: 3, color: COLORS.brass, alpha: 0.25 });
+      } else g.roundRect(sx, sy, slotW, slotH, 9).stroke({ width: 1, color: COLORS.brass, alpha: 0.25 });
       if (live) this.buttons.push({ id: `slot:${i}`, x: sx + canW, y: sy, w: slotW - canW * 2, h: slotH });
       const midX = sx + slotW / 2;
       const midY = sy + slotH / 2;
-      // The move icon.
-      this.paintToken(g, seg.move, midX, midY, Math.min(slotH * 0.6, slotW * 0.3), seg.move === null ? COLORS.muted : COLORS.brassLight);
-      label(String(i + 1), sx + canW + 4, sy + fs * 0.7, COLORS.muted, fs - 2, 0, "400");
-      // Port and starboard guns on the slot's sides.
+      // The move glyph, lit brass when plotted.
+      this.paintToken(g, seg.move, midX, midY, Math.min(slotH * 0.62, slotW * 0.32), seg.move === null ? COLORS.muted : COLORS.brassLight, seg.move !== null);
+      label(String(i + 1), sx + canW + 5, sy + fs * 0.75, COLORS.muted, fs - 2, 0, "400");
+      // Port and starboard guns on the slot's sides: a cannon each, its lamp lit when armed.
       for (const side of ["port", "starboard"] as const) {
         const bx = side === "port" ? sx + 3 : sx + slotW - canW - 3;
         const on = seg[side];
         const can = live && (on || me.loaded > this.shotsPlanned());
-        g.roundRect(bx, sy + 3, canW, slotH - 6, 6).fill({ color: on ? COLORS.danger : COLORS.inkGlass, alpha: can || on ? 0.95 : 0.35 });
-        g.circle(bx + canW / 2, midY, Math.min(canW, slotH) * 0.22).fill(on ? COLORS.flash : COLORS.muted).stroke({ width: 1, color: COLORS.ink });
+        g.roundRect(bx, sy + 3, canW, slotH - 6, 7).fill({ color: on ? COLORS.danger : COLORS.inkDeep, alpha: on ? 0.75 : can ? 0.95 : 0.4 });
+        if (on) g.roundRect(bx, sy + 3, canW, slotH - 6, 7).stroke({ width: 1, color: COLORS.flash, alpha: 0.6 });
+        const icon = new Sprite(cannonTex(on));
+        icon.anchor.set(0.5);
+        const ip = Math.min(canW, slotH - 6) * 0.95;
+        icon.width = ip;
+        icon.height = ip;
+        icon.position.set(bx + canW / 2, midY);
+        icon.rotation = side === "port" ? -Math.PI / 2 : Math.PI / 2;
+        icon.alpha = can || on ? 1 : 0.45;
+        this.stripIcons.addChild(icon);
         if (can) this.buttons.push({ id: `fire:${i}:${side}`, x: bx, y: sy, w: canW + 3, h: slotH });
       }
     }
     // Tokens tray.
-    const trayY = this.vertical ? slotTop + slotH + 8 : slotY(n - 1) + slotH + 10;
-    const trayH = Math.max(28, Math.min(40, this.vertical ? h * 0.2 : 36));
+    const trayY = this.vertical ? slotTop + slotH + 10 : slotY(n - 1) + slotH + 12;
+    const trayH = Math.max(30, Math.min(42, this.vertical ? h * 0.2 : 38));
     const trayItems: Array<MoveToken | null> = ["left", "forward", "right", null];
-    const trayW = (w - 20 - gap * 3) / 4;
+    const trayW = (w - 24 - gap * 3) / 4;
     trayItems.forEach((t, i) => {
-      const bx = x + 10 + i * (trayW + gap);
+      const bx = x + 12 + i * (trayW + gap);
       const count = t === null ? null : me.tokens[t];
       const enabled = live && (t === null || (count ?? 0) > this.tokensPlanned(t));
-      button(`token:${t ?? "hold"}`, bx, trayY, trayW, trayH, false, enabled, COLORS.brass);
-      this.paintToken(g, t, bx + trayW * 0.35, trayY + trayH / 2, trayH * 0.5, enabled ? COLORS.brassLight : COLORS.muted);
+      button(`token:${t ?? "hold"}`, bx, trayY, trayW, trayH, "ink", enabled);
+      this.paintToken(g, t, bx + trayW * 0.34, trayY + trayH / 2, trayH * 0.52, enabled ? COLORS.brassLight : COLORS.muted, enabled);
       if (t !== null && count !== null) label(`×${count - this.tokensPlanned(t)}`, bx + trayW * 0.72, trayY + trayH / 2, enabled ? COLORS.text : COLORS.muted, fs);
       else label(this.opts.labels.hold, bx + trayW * 0.7, trayY + trayH / 2, enabled ? COLORS.text : COLORS.muted, fs - 2);
     });
     // Grapple, clear, sail.
-    const rowY = trayY + trayH + 8;
-    const rowH = Math.max(30, Math.min(42, this.vertical ? h * 0.2 : 40));
+    const rowY = trayY + trayH + 10;
+    const rowH = Math.max(32, Math.min(44, this.vertical ? h * 0.2 : 42));
     const ready = s.ships[1].damage >= s.config.grappleDamage;
-    const gw = (w - 20 - gap * 2) * 0.3;
-    button("grapple", x + 10, rowY, gw, rowH, this.grapple, live, ready ? COLORS.brassLight : COLORS.brass);
-    label(this.opts.labels.grapple, x + 10 + gw / 2, rowY + rowH / 2, this.grapple ? COLORS.ink : COLORS.text, fs - 1);
-    const cw = (w - 20 - gap * 2) * 0.2;
-    button("clear", x + 10 + gw + gap, rowY, cw, rowH, false, live, COLORS.muted);
-    label(this.opts.labels.clear, x + 10 + gw + gap + cw / 2, rowY + rowH / 2, COLORS.muted, fs - 2);
-    const sw = w - 20 - gw - cw - gap * 2;
-    button("sail", x + 10 + gw + cw + gap * 2, rowY, sw, rowH, true, live, COLORS.brass);
-    label(this.opts.labels.sail, x + 10 + gw + cw + gap * 2 + sw / 2, rowY + rowH / 2, COLORS.ink, fs);
+    const gw = (w - 24 - gap * 2) * 0.3;
+    button("grapple", x + 12, rowY, gw, rowH, this.grapple ? "brass" : "ink", live);
+    if (ready && live && !this.grapple) g.roundRect(x + 12, rowY, gw, rowH, 8).stroke({ width: 2, color: COLORS.brassLight, alpha: 0.5 + Math.sin(this.time / 220) * 0.4 });
+    this.paintHook(g, x + 12 + fs * 1.3, rowY + rowH / 2, fs * 0.9, this.grapple ? COLORS.ink : COLORS.brassLight);
+    label(this.opts.labels.grapple, x + 12 + fs * 2.3, rowY + rowH / 2, this.grapple ? COLORS.ink : COLORS.text, fs - 1, 0);
+    const cw = (w - 24 - gap * 2) * 0.2;
+    button("clear", x + 12 + gw + gap, rowY, cw, rowH, "ghost", live);
+    label(this.opts.labels.clear, x + 12 + gw + gap + cw / 2, rowY + rowH / 2, COLORS.muted, fs - 2);
+    const sw = w - 24 - gw - cw - gap * 2;
+    button("sail", x + 12 + gw + cw + gap * 2, rowY, sw, rowH, "brass", live);
+    label(this.opts.labels.sail, x + 12 + gw + cw + gap * 2 + sw / 2, rowY + rowH / 2, 0x1b150c, fs);
     if (ready && live) label(this.opts.labels.grappleReady, x + w / 2, rowY + rowH + fs, COLORS.brassLight, fs - 2);
     // Where the strip's buttons are, for the smoke test's taps.
     this.app.canvas.setAttribute("data-buttons", this.buttons.map((b) => `${b.id}=${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)},${Math.round(b.h)}`).join(";"));
   }
 
-  private paintToken(g: Graphics, t: MoveToken | null, x: number, y: number, size: number, color: number): void {
+  private paintToken(g: Graphics, t: MoveToken | null, x: number, y: number, size: number, color: number, lit: boolean): void {
     const r = size * 0.5;
+    const width = Math.max(2, size * 0.17);
+    if (lit) g.circle(x, y, r * 1.1).fill({ color, alpha: 0.12 });
     if (t === null) {
-      g.circle(x, y, r * 0.35).stroke({ width: 2, color });
+      g.circle(x, y, r * 0.38).stroke({ width, color });
       return;
     }
     if (t === "forward") {
-      g.poly([x, y - r, x + r * 0.7, y + r * 0.6, x, y + r * 0.2, x - r * 0.7, y + r * 0.6]).fill(color);
+      g.moveTo(x, y + r * 0.85).lineTo(x, y - r * 0.75).stroke({ width, color, cap: "round" });
+      g.moveTo(x - r * 0.55, y - r * 0.2).lineTo(x, y - r * 0.85).lineTo(x + r * 0.55, y - r * 0.2).stroke({ width, color, cap: "round", join: "round" });
       return;
     }
-    // A curved turn: an arc with an arrowhead, bending left or right.
+    // A curved course bending left or right, with a head.
     const dir = t === "left" ? -1 : 1;
-    g.moveTo(x - dir * r * 0.1, y + r * 0.9);
-    g.quadraticCurveTo(x - dir * r * 0.1, y - r * 0.5, x + dir * r * 0.7, y - r * 0.5);
-    g.stroke({ width: Math.max(2, size * 0.16), color });
-    g.poly([x + dir * r * 1.05, y - r * 0.5, x + dir * r * 0.45, y - r * 1.0, x + dir * r * 0.45, y]).fill(color);
+    g.moveTo(x - dir * r * 0.15, y + r * 0.85);
+    g.quadraticCurveTo(x - dir * r * 0.15, y - r * 0.45, x + dir * r * 0.65, y - r * 0.45);
+    g.stroke({ width, color, cap: "round" });
+    g.moveTo(x + dir * r * 0.15, y - r * 0.95).lineTo(x + dir * r * 0.75, y - r * 0.45).lineTo(x + dir * r * 0.15, y + r * 0.05).stroke({ width, color, cap: "round", join: "round" });
+  }
+
+  /** A grappling hook. */
+  private paintHook(g: Graphics, x: number, y: number, size: number, color: number): void {
+    const w = Math.max(1.5, size * 0.16);
+    g.moveTo(x, y - size * 0.5).lineTo(x, y + size * 0.15).stroke({ width: w, color, cap: "round" });
+    g.arc(x, y + size * 0.15, size * 0.38, Math.PI * 0.1, Math.PI * 0.9).stroke({ width: w, color, cap: "round" });
+    g.arc(x, y + size * 0.15, size * 0.38, Math.PI * 1.1, Math.PI * 1.9).stroke({ width: w, color, cap: "round" });
+    g.circle(x, y - size * 0.5, w * 0.9).fill(color);
   }
 
   private tokensPlanned(t: MoveToken): number {
@@ -950,14 +1133,12 @@ export class BattleRenderer {
         const side: Side = key === "q" || key === "Q" ? "port" : "starboard";
         if (!seg[side] && this.state.ships[0].loaded <= this.shotsPlanned()) return true;
         this.setSegment(i, { ...seg, [side]: !seg[side] });
-        this.stripDirty = true;
         return true;
       }
       case "Backspace": {
         const i = this.lastPlotted();
         this.setSegment(i, { move: null, port: false, starboard: false });
         this.selected = i;
-        this.stripDirty = true;
         return true;
       }
       case "g":
@@ -1005,6 +1186,7 @@ export class BattleRenderer {
   // ---- animation
 
   private tick(dt: number): void {
+    this.time += dt;
     if (this.pressed) {
       this.pressed.t += dt;
       if (this.pressed.t > 160) this.pressed = null;
@@ -1015,7 +1197,13 @@ export class BattleRenderer {
       this.stepT = 0;
       this.step.begin();
     }
-    let shipsDirty = false;
+    // The water moves: light drifts over it, eddies turn.
+    if (this.caustic && !this.reduced) {
+      this.caustic.tilePosition.x += dt * 0.006;
+      this.caustic.tilePosition.y += dt * 0.004;
+    }
+    if (!this.reduced) for (const e of this.eddyLayer.children) e.rotation += dt * 0.0012;
+    for (const v of this.ships) v.moving = false;
     if (this.step) {
       this.stepT += dt;
       const k = Math.min(1, this.stepT / this.step.ms);
@@ -1025,7 +1213,16 @@ export class BattleRenderer {
         v.x = tw.from.x + (tw.to.x - tw.from.x) * ease;
         v.y = tw.from.y + (tw.to.y - tw.from.y) * ease;
         v.rot = tw.from.rot + (tw.to.rot - tw.from.rot) * ease;
-        shipsDirty = true;
+        v.moving = tw.from.x !== tw.to.x || tw.from.y !== tw.to.y;
+        if (v.moving && !this.reduced && Math.random() < 0.6) this.wake(v);
+      }
+      // Cannonballs in flight, trailing smoke.
+      for (const sh of this.step.shots) {
+        const x = sh.from.x + (sh.to.x - sh.from.x) * k;
+        const y = sh.from.y + (sh.to.y - sh.from.y) * k - Math.sin(k * Math.PI) * this.cell * 0.55;
+        sh.ball.position.set(x, y);
+        sh.ball.scale.set(1 + Math.sin(k * Math.PI) * 0.35);
+        if (!this.reduced && Math.random() < 0.5) this.particles.push({ x, y, vx: 0, vy: -0.004, r: this.cell * 0.06, grow: 0.01, color: COLORS.smoke, alpha: 0.35, life: 0, max: 400 });
       }
       if (k >= 1) {
         for (const tw of this.step.tweens) {
@@ -1036,15 +1233,18 @@ export class BattleRenderer {
         }
         // Shots land as the step ends.
         for (const sh of this.step.shots) {
+          sh.ball.destroy();
           if (sh.hit) {
             this.hurt(sh.ship === 0 ? 1 : 0, this.state?.config.shotDamage ?? 0);
             this.popup(sh.to.x, sh.to.y - this.cell * 0.9, sh.ship === 0 ? this.opts.labels.hit : this.opts.labels.hitTaken, sh.ship === 0 ? COLORS.brassLight : COLORS.danger, 0.6);
-            this.burst(sh.to.x, sh.to.y, COLORS.flash, 10, 0.9);
+            this.particles.push({ x: sh.to.x, y: sh.to.y, vx: 0, vy: 0, r: this.cell * 0.3, grow: 0.06, color: COLORS.flash, alpha: 0.95, life: 0, max: 200 });
+            this.burst(sh.to.x, sh.to.y, COLORS.splinter, 12, 1);
             this.burst(sh.to.x, sh.to.y, COLORS.smoke, 8, 0.8);
             this.shake = Math.max(this.shake, 300);
           } else {
             this.popup(sh.to.x, sh.to.y - this.cell * 0.7, this.opts.labels.miss, COLORS.splash, 0.35);
-            this.burst(sh.to.x, sh.to.y, COLORS.splash, 7, 0.6);
+            this.rings.push({ x: sh.to.x, y: sh.to.y, life: 0, max: 600, r: this.cell * 0.5, color: COLORS.foam });
+            this.burst(sh.to.x, sh.to.y, COLORS.splash, 9, 0.7, true);
           }
         }
         this.step = null;
@@ -1052,34 +1252,21 @@ export class BattleRenderer {
           this.snap(this.state);
           this.drawPreview();
         }
-        shipsDirty = true;
       }
     }
-    for (const v of this.ships) {
-      if (v.flash > 0) {
-        v.flash -= dt;
-        shipsDirty = true;
-      }
-    }
-    if (shipsDirty) this.drawShips();
+    for (const v of this.ships) if (v.flash > 0) v.flash -= dt;
+    this.drawShips();
     // Camera shake.
     if (this.shake > 0) {
       this.shake -= dt;
       const a = this.reduced ? 0 : (this.shake / 400) * 4;
       this.world.position.set((Math.random() - 0.5) * a, (Math.random() - 0.5) * a);
     } else this.world.position.set(0, 0);
-    // Shots in flight.
+    // Wakes, splashes and smoke.
     const fx = this.fxG;
+    const wk = this.wakeG;
     fx.clear();
-    if (this.step && this.step.shots.length) {
-      const k = Math.min(1, this.stepT / this.step.ms);
-      for (const sh of this.step.shots) {
-        const x = sh.from.x + (sh.to.x - sh.from.x) * k;
-        const y = sh.from.y + (sh.to.y - sh.from.y) * k - Math.sin(k * Math.PI) * this.cell * 0.5;
-        fx.circle(x, y, Math.max(2, this.cell * 0.12)).fill(COLORS.ink).stroke({ width: 1, color: COLORS.text, alpha: 0.6 });
-      }
-    }
-    // Particles.
+    wk.clear();
     this.particles = this.particles.filter((p) => {
       p.life += dt;
       if (p.life >= p.max) return false;
@@ -1087,7 +1274,17 @@ export class BattleRenderer {
       p.y += p.vy * dt;
       p.r += p.grow * dt;
       const a = p.alpha * (1 - p.life / p.max);
-      fx.circle(p.x, p.y, Math.max(0.5, p.r)).fill({ color: p.color, alpha: a });
+      const layer = p.flat ? wk : fx;
+      if (p.flat) layer.ellipse(p.x, p.y, Math.max(0.5, p.r) * 1.4, Math.max(0.5, p.r) * 0.7).fill({ color: p.color, alpha: a });
+      else layer.circle(p.x, p.y, Math.max(0.5, p.r)).fill({ color: p.color, alpha: a });
+      return true;
+    });
+    this.rings = this.rings.filter((r) => {
+      r.life += dt;
+      const k = r.life / r.max;
+      if (k >= 1) return false;
+      const rad = r.r * (0.3 + k * 1.2);
+      wk.ellipse(r.x, r.y, rad, rad * 0.55).stroke({ width: Math.max(1, this.cell * 0.06 * (1 - k)), color: r.color, alpha: 0.7 * (1 - k) });
       return true;
     });
     // Popups.
@@ -1114,20 +1311,28 @@ export class BattleRenderer {
     }
   }
 
+  /** Foam off the stern of a ship under way. */
+  private wake(v: ShipView): void {
+    const back = v.rot + Math.PI / 2;
+    const sx = v.x + Math.cos(back) * this.cell * 0.38 + (Math.random() - 0.5) * this.cell * 0.25;
+    const sy = v.y + Math.sin(back) * this.cell * 0.38 + (Math.random() - 0.5) * this.cell * 0.25;
+    this.particles.push({ x: sx, y: sy, vx: Math.cos(back) * 0.01, vy: Math.sin(back) * 0.01, r: this.cell * 0.07, grow: 0.012, color: COLORS.foam, alpha: 0.5, life: 0, max: 520 + Math.random() * 300, flat: true });
+  }
+
   private popup(x: number, y: number, text: string, color: number, scale: number, max = 1100): void {
-    const t = new Text({ text, style: { fontFamily: DISPLAY, fontSize: Math.max(11, this.cell * 0.9 * scale), fontWeight: "700", fill: color, stroke: { color: COLORS.ink, width: 3 } } });
+    const t = new Text({ text, style: { fontFamily: DISPLAY, fontSize: Math.max(11, this.cell * 0.9 * scale), fontWeight: "700", fontStyle: "italic", fill: color, stroke: { color: COLORS.ink, width: 3 } } });
     t.anchor.set(0.5);
     t.position.set(x, y);
     this.fxLayer.addChild(t);
     this.popups.push({ t, life: 0, max, y0: y });
   }
 
-  private burst(x: number, y: number, color: number, n: number, power: number): void {
+  private burst(x: number, y: number, color: number, n: number, power: number, flat = false): void {
     if (this.reduced) return;
     for (let k = 0; k < n; k++) {
       const a = Math.random() * Math.PI * 2;
       const sp = (0.03 + Math.random() * 0.07) * power;
-      this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: this.cell * 0.07, grow: 0.004 * power, color, alpha: 0.9, life: 0, max: 360 + Math.random() * 260 });
+      this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * (flat ? 0.5 : 1), r: this.cell * 0.06, grow: flat ? 0.006 : 0.003 * power, color, alpha: 0.9, life: 0, max: 360 + Math.random() * 260, flat });
     }
   }
 }
