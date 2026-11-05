@@ -244,6 +244,14 @@ test("home links to Sea Battle and an unrated fight plots by key and by tap and 
     await page.mouse.click(box.x + x! + w! / 2, box.y + y! + h! / 2);
   };
   await tap("token:left");
+  await tap("token:forward");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /"move":"left".*"move":"forward"/);
+  // Undo takes back the last move only; clear takes the whole plot, ghosts and all.
+  await tap("undo");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /^\{"segments":\[\{"move":"left","port":false,"starboard":false\}\],"grapple":false\}$/);
+  await tap("clear");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", '{"segments":[],"grapple":false}');
+  await tap("token:left");
   await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /"move":"left"/);
   await tap("sail");
   await expect(page.getByTestId("hud-moves")).toContainText("2/20");

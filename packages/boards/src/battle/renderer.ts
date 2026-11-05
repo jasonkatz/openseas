@@ -387,9 +387,22 @@ export class BattleRenderer {
 
   private resetPlan(state: BattleState): void {
     this.segments = Array.from({ length: state.config.segments }, () => ({ move: null, port: false, starboard: false }));
+    this.grapple = false;
     this.selected = 0;
     this.stripDirty = true;
+    this.drawPreview();
     this.cb.onPlanChange(this.plan());
+  }
+
+  /** Take back the last plotted move (its guns with it) and select that slot again. */
+  private undo(): void {
+    const i = this.lastPlotted();
+    const seg = this.segments[i];
+    if (!seg || (seg.move === null && !seg.port && !seg.starboard)) return;
+    this.setSegment(i, { move: null, port: false, starboard: false });
+    this.selected = i;
+    this.stripDirty = true;
+    this.cb.onNudge();
   }
 
   private snap(state: BattleState): void {
@@ -982,17 +995,26 @@ export class BattleRenderer {
     const rowY = trayY + trayH + 10;
     const rowH = Math.max(32, Math.min(44, this.vertical ? h * 0.2 : 42));
     const ready = s.ships[1].damage >= s.config.grappleDamage;
-    const gw = (w - 24 - gap * 2) * 0.3;
+    const plotted = this.segments.some((seg) => seg.move !== null || seg.port || seg.starboard);
+    const inner = w - 24 - gap * 3;
+    const gw = inner * 0.3;
     button("grapple", x + 12, rowY, gw, rowH, this.grapple ? "brass" : "ink", live);
     if (ready && live && !this.grapple) g.roundRect(x + 12, rowY, gw, rowH, 8).stroke({ width: 2, color: COLORS.brassLight, alpha: 0.5 + Math.sin(this.time / 220) * 0.4 });
     this.paintHook(g, x + 12 + fs * 1.3, rowY + rowH / 2, fs * 0.9, this.grapple ? COLORS.ink : COLORS.brassLight);
     label(this.opts.labels.grapple, x + 12 + fs * 2.3, rowY + rowH / 2, this.grapple ? COLORS.ink : COLORS.text, fs - 1, 0);
-    const cw = (w - 24 - gap * 2) * 0.2;
-    button("clear", x + 12 + gw + gap, rowY, cw, rowH, "ghost", live);
-    label(this.opts.labels.clear, x + 12 + gw + gap + cw / 2, rowY + rowH / 2, COLORS.muted, fs - 2);
-    const sw = w - 24 - gw - cw - gap * 2;
-    button("sail", x + 12 + gw + cw + gap * 2, rowY, sw, rowH, "brass", live);
-    label(this.opts.labels.sail, x + 12 + gw + cw + gap * 2 + sw / 2, rowY + rowH / 2, 0x1b150c, fs);
+    // Take back the last move, or the whole plot.
+    const uw = Math.max(rowH, inner * 0.13);
+    const ux = x + 12 + gw + gap;
+    button("undo", ux, rowY, uw, rowH, "ghost", live && plotted);
+    this.paintBackspace(g, ux + uw / 2, rowY + rowH / 2, fs * 1.1, live && plotted ? COLORS.text : COLORS.muted);
+    const cw = inner * 0.17;
+    const cx = ux + uw + gap;
+    button("clear", cx, rowY, cw, rowH, "ghost", live && plotted);
+    label(this.opts.labels.clear, cx + cw / 2, rowY + rowH / 2, live && plotted ? COLORS.text : COLORS.muted, fs - 2);
+    const sx = cx + cw + gap;
+    const sw = x + w - 12 - sx;
+    button("sail", sx, rowY, sw, rowH, "brass", live);
+    label(this.opts.labels.sail, sx + sw / 2, rowY + rowH / 2, 0x1b150c, fs);
     if (ready && live) label(this.opts.labels.grappleReady, x + w / 2, rowY + rowH + fs, COLORS.brassLight, fs - 2);
     // Where the strip's buttons are, for the smoke test's taps.
     this.app.canvas.setAttribute("data-buttons", this.buttons.map((b) => `${b.id}=${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)},${Math.round(b.h)}`).join(";"));
@@ -1017,6 +1039,15 @@ export class BattleRenderer {
     g.quadraticCurveTo(x - dir * r * 0.15, y - r * 0.45, x + dir * r * 0.65, y - r * 0.45);
     g.stroke({ width, color, cap: "round" });
     g.moveTo(x + dir * r * 0.15, y - r * 0.95).lineTo(x + dir * r * 0.75, y - r * 0.45).lineTo(x + dir * r * 0.15, y + r * 0.05).stroke({ width, color, cap: "round", join: "round" });
+  }
+
+  /** A backspace key: a pointed cap with a cross in it. */
+  private paintBackspace(g: Graphics, x: number, y: number, size: number, color: number): void {
+    const w = Math.max(1.5, size * 0.14);
+    const h = size * 0.36;
+    g.moveTo(x - size * 0.6, y).lineTo(x - size * 0.25, y - h).lineTo(x + size * 0.55, y - h).lineTo(x + size * 0.55, y + h).lineTo(x - size * 0.25, y + h).closePath().stroke({ width: w, color, join: "round" });
+    const k = size * 0.14;
+    g.moveTo(x - k * 0.3, y - k).lineTo(x + k * 1.7, y + k).moveTo(x + k * 1.7, y - k).lineTo(x - k * 0.3, y + k).stroke({ width: w, color, cap: "round" });
   }
 
   /** A grappling hook. */
@@ -1055,9 +1086,12 @@ export class BattleRenderer {
     const [kind, a, b] = id.split(":");
     if (kind === "slot") {
       const i = Number(a);
-      if (this.selected === i) this.setSegment(i, { ...this.segments[i]!, move: null });
-      else this.selected = i;
+      const seg = this.segments[i]!;
+      if (seg.move !== null) this.setSegment(i, { ...seg, move: null });
+      this.selected = i;
       this.cb.onNudge();
+    } else if (kind === "undo") {
+      this.undo();
     } else if (kind === "fire") {
       const i = Number(a);
       const side = b as Side;
@@ -1135,12 +1169,9 @@ export class BattleRenderer {
         this.setSegment(i, { ...seg, [side]: !seg[side] });
         return true;
       }
-      case "Backspace": {
-        const i = this.lastPlotted();
-        this.setSegment(i, { move: null, port: false, starboard: false });
-        this.selected = i;
+      case "Backspace":
+        this.undo();
         return true;
-      }
       case "g":
       case "G":
         this.grapple = !this.grapple;
