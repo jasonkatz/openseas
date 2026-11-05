@@ -441,7 +441,8 @@ export class ShipService {
    * Returns false when nobody is there to fight, in which case the sea battle settles as it stood.
    */
   private openMelee(room: ShipRoom, tier: BrigandTier, dutyPoints: Map<string, number>, turns: number): boolean {
-    const connected = room.state.crew.filter((c) => c.awaySinceTurn === null && room.conns.has(c.pirateId));
+    // Deckhands hold no board and never fight; a pirate's seat may be held while they are away.
+    const connected = room.state.crew.filter((c) => !c.mate && c.awaySinceTurn === null && room.conns.has(c.pirateId));
     if (connected.length === 0 || room.melee) return false;
     const base = this.content.puzzles.swordfight.config;
     const now = this.now();
