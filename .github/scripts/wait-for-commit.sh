@@ -12,8 +12,9 @@ deadline=$((SECONDS + timeout))
 last=""
 
 while [ "$SECONDS" -lt "$deadline" ]; do
-  # Cache-bust so a CDN never hands back the previous deployment's file.
-  body="$(curl -fsS --max-time 15 "${url}?t=$(date +%s)" 2>/dev/null || true)"
+  # Cache-bust so a CDN never hands back the previous deployment's file. Follow redirects: the
+  # game's apex domain answers with a 308 to www, and the redirect body has no commit in it.
+  body="$(curl -fsSL --max-time 15 "${url}?t=$(date +%s)" 2>/dev/null || true)"
   live="$(printf '%s' "$body" | sed -n 's/.*"commit":"\([0-9a-f]*\)".*/\1/p')"
   if [ "$live" = "$sha" ]; then
     echo "$url serves $sha"

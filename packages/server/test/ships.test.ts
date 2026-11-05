@@ -13,6 +13,7 @@ import {
   hashBilgingState,
   reduceBattle,
   reduceBilging,
+  reduceShip,
   swapIllegalReason,
   type BattleMove,
   type BattlePlan,
@@ -578,14 +579,11 @@ describeDb("ships over the wire", () => {
     };
     const deal = await a.until("battle.supply", (m) => m.sessionId === fight.sessionId);
     log({ type: "supply", left: deal.left, forward: deal.forward, right: deal.right, cannons: deal.cannons, hull: deal.hull });
-    let result: Extract<ServerMessage, { type: "puzzle.result" }> | null = null;
-    for (let i = 0; i < fight.config.maxTurns + 2 && !result; i++) {
+    for (let i = 0; i < fight.config.maxTurns + 2 && !state.finished; i++) {
       log({ type: "commit", ...plainPlan(state) });
-      if (state.finished) {
-        result = await a.until("puzzle.result", (m) => m.sessionId === fight.sessionId);
-        break;
-      }
-      // The ship takes the turn's hits and shots before its next turn deals again.
+      if (state.finished) break;
+      // The ship takes the turn's hits and shots before its next turn deals again. A deal that
+      // reports a wrecked hull ends the fight by itself, so the loop checks again before plotting.
       await waitRoom((r) => r.battle !== null && r.battle.turnsSeen === state.turn);
       expect(room().state.loaded).toBeLessThanOrEqual(fight.config.cannons);
       await turn();
@@ -593,8 +591,9 @@ describeDb("ships over the wire", () => {
       expect(supply.cannons).toBeLessThanOrEqual(fight.config.cannons);
       log({ type: "supply", left: supply.left, forward: supply.forward, right: supply.right, cannons: supply.cannons, hull: supply.hull });
     }
-    expect(result).not.toBeNull();
-    expect(result!.score).toBe(state.score);
+    expect(state.finished).toBe(true);
+    const result = await a.until("puzzle.result", (m) => m.sessionId === fight.sessionId);
+    expect(result.score).toBe(state.score);
     const ended = await a.until("ship.state", (m) => m.ship.turn >= turnAtHail2 && m.events.some((e) => e.type === "battle_ended"));
     const event = ended.events.find((e) => e.type === "battle_ended");
     if (!event || event.type !== "battle_ended") throw new Error("no battle_ended event");
@@ -615,6 +614,28 @@ describeDb("ships over the wire", () => {
       expect(paid).toBeGreaterThan(matePaid);
       await a.until("pirate.updated", (m) => m.pirate.balance === paid);
     }
+
+    // A deal can end the fight by itself: a hull the ship reports as wrecked is a loss the moment
+    // the board logs it, with no turn plotted, and the server owes the captain the result.
+    const tierId3 = await huntHail();
+    const turnAtHail3 = room().state.turn;
+    a.send({ type: "ship.engage" });
+    const last = await a.until("puzzle.started", (m) => m.sessionId !== fight.sessionId && m.sessionId !== started.sessionId);
+    if (last.puzzle !== "battle") throw new Error("expected a battle board");
+    await a.until("ship.state", (m) => m.ship.turn >= turnAtHail3 && m.events.some((e) => e.type === "engaged"));
+    await a.until("battle.supply", (m) => m.sessionId === last.sessionId);
+    room().state = reduceShip(room().state, { type: "hit", damage: 1000 });
+    await turn();
+    const wrecked = await a.until("battle.supply", (m) => m.sessionId === last.sessionId);
+    expect(wrecked.hull).toBe(1000);
+    state = createBattleGame(last.seed, last.config);
+    state = reduceBattle(state, { type: "supply", left: wrecked.left, forward: wrecked.forward, right: wrecked.right, cannons: wrecked.cannons, hull: wrecked.hull });
+    expect(state.finished).toBe(true);
+    a.send({ type: "puzzle.move", sessionId: last.sessionId, seq: 0, move: { type: "supply", left: wrecked.left, forward: wrecked.forward, right: wrecked.right, cannons: wrecked.cannons, hull: wrecked.hull }, hash: hashBattleState(state) });
+    expect((await a.until("puzzle.result", (m) => m.sessionId === last.sessionId)).score).toBe(state.score);
+    const lost = await a.until("ship.state", (m) => m.ship.turn >= turnAtHail3 && m.events.some((e) => e.type === "battle_ended"));
+    expect(lost.events).toContainEqual({ type: "battle_ended", tierId: tierId3, outcome: state.outcome, booty: 0, turns: 0 });
+    expect((lost.ship.location as { battle: unknown }).battle).toBeNull();
     a.ws.close();
     b.ws.close();
   });
