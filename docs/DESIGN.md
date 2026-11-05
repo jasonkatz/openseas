@@ -331,9 +331,10 @@ waits there, shown above the board as a count, and lands at that board's next dr
 of the sender's blade (content: the cutlass spreads it, the sabre piles it in the middle, the dirk
 at the edges, each a list of columns taken in turn). Wrack is grey and unbreakable, carries a
 count of the drops until it ripens, and after `ripenMoves` of the board's drops turns into blocks
-of random colors, which fuse and shatter like any other. A board whose entry (the top cell of the
-column pairs come in down) is covered, or whose pair has nowhere left to rest, is out; a side with
-no board standing has lost, and a win is
+of random colors, which fuse and shatter like any other. An upright pair whose column has one
+free cell left rests its lower half there and the upper half falls away over the top. A board whose
+entry (the top cell of the column pairs come in down) is covered is out; a side with no board
+standing has lost, and a win is
 `winPoints`. A pair may not come to rest sooner than `dropTicks` after it appeared; the fall
 itself is client timing (`fallTicks` a row, `softDropMs` while hurried, a short lock on resting)
 and never reaches the score. AI pirates (brigands in practice, allies in the lab's team fights)
@@ -346,8 +347,8 @@ leave as events the server routes and arrive as `incoming` moves the server vouc
 brigand crew's boards run on the server from the tier's `swordsmen`, and everyone sees every board.
 Feedback: the pair's landing shows as outlines (bold for a breaker), slabs are darker than loose
 blocks with a heavy light border, and fuse with a flash and a callout for big ones, breaks burst
-and tally, chains and big shatters call out, wrack flies to the board it is sent to, waits under a
-red strip that pulses harder the more there is, and rains in from above, ripening flashes, the
+and tally, chains and big shatters call out, wrack flies to the board it is sent to, waits as a
+flashing count above the board, and rains in from above, ripening flashes, the
 entry is outlined, and the
 other boards sit beside the player's as small live boards with their names, waiting wrack and a
 cross when they are out. Touch drags to steer, taps to turn and holds a downward swipe to hurry;

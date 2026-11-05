@@ -766,6 +766,8 @@ export class SwordfightRenderer {
       [cells[1], ids[1], prevB],
     ] as const;
     for (const [i, id, prev] of pending) {
+      // A half that fell away over the top: it was above the well and is simply gone.
+      if (i < 0) continue;
       const col = i % this.width;
       const row = Math.floor(i / this.width);
       const known = find(id);
@@ -941,6 +943,7 @@ export class SwordfightRenderer {
       [land[0], cur.a],
       [land[1], cur.b],
     ] as const) {
+      if (i < 0) continue;
       const x = i % this.width;
       const y = Math.floor(i / this.width);
       const color = this.colorOf(piece.color);
@@ -1018,25 +1021,26 @@ export class SwordfightRenderer {
       g.roundRect(x, y - bw / 2, bw, bw, bw * 0.2).stroke({ width: 1, color: 0xffffff, alpha: 0.25 });
     }
     if (this.incomingText) {
-      this.incomingText.text = pending > 0 ? `${this.opts.labels.incoming.toUpperCase()} ${pending}` : "";
-      this.incomingText.style.fill = pending > 0 ? COLORS.danger : COLORS.bone;
-      this.incomingText.style.fontSize = Math.max(10, Math.round(cs * (pending > 0 ? 0.4 : 0.32)));
+      this.incomingText.text = pending > 0 ? String(pending) : "";
+      this.incomingText.style.fill = pending >= this.width * 2 ? COLORS.danger : COLORS.bone;
+      this.incomingText.style.fontSize = Math.max(9, Math.round(cs * 0.34));
     }
+    if (pending > 0) {
+      const heat = Math.min(1, pending / (this.width * 3));
+      this.warnG.clear().rect(0, -this.strip + 2, this.width * cs, this.strip - 4).fill({ color: COLORS.danger, alpha: 0.06 + heat * 0.16 });
+    } else this.warnG.clear();
     this.pendingShown = pending;
     this.drawWarn();
   }
 
-  /** Wrack on its way: the strip pulses red, harder the more there is, so it is never missed. */
+  /** Wrack on its way: the count, its blocks and the tint flash so they are not missed, quicker the more there is. */
   private drawWarn(): void {
-    const g = this.warnG;
-    g.clear();
     const pending = this.pendingShown;
-    if (pending <= 0) return;
-    const cs = this.cell;
-    const heat = Math.min(1, pending / (this.width * 2));
-    const pulse = 0.5 + 0.5 * Math.sin(this.time / (pending >= this.width ? 110 : 180));
-    g.rect(0, -this.strip + 2, this.width * cs, this.strip - 4).fill({ color: COLORS.danger, alpha: 0.12 + heat * 0.18 + pulse * 0.18 });
-    g.roundRect(-this.pad + 1, -this.strip - this.pad + 1, this.width * cs + this.pad * 2 - 2, this.strip - 2, this.pad).stroke({ width: 2, color: COLORS.danger, alpha: 0.35 + pulse * 0.5 });
+    const on = pending > 0;
+    const pulse = on ? 0.55 + 0.45 * Math.max(0, Math.sin(this.time / (pending >= this.width ? 120 : 200))) : 1;
+    this.stripG.alpha = pulse;
+    this.warnG.alpha = pulse;
+    if (this.incomingText) this.incomingText.alpha = pulse;
   }
 
   private drawFrame(): void {

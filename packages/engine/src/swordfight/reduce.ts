@@ -161,9 +161,9 @@ export function entryBlocked(cfg: SwordfightConfig, cells: ReadonlyArray<SwordCe
   return cells[idx(cfg, spawnCol(cfg), cfg.height - 1)] !== null;
 }
 
-/** A board is out when its entry is covered, or when the pair in hand has nowhere at all to come to rest. */
+/** A board is out when its entry is covered. While it is free an upright drop there is always possible, so nothing else can strand a pair. */
 export function boardOut(cfg: SwordfightConfig, board: SwordBoard): boolean {
-  return entryBlocked(cfg, board.cells) || legalDrops(cfg, board).length === 0;
+  return entryBlocked(cfg, board.cells);
 }
 
 /** The columns the two halves occupy for an anchor column and rotation, a then b. */
@@ -181,15 +181,21 @@ export function pairCols(col: number, rot: SwordRotation): [number, number] {
   }
 }
 
-/** Where the halves come to rest when dropped from above: cell indices for a and b, or null when there is no room. */
+/**
+ * Where the halves come to rest when dropped from above: cell indices for a and b, or null when
+ * there is no room. An upright pair in a column with one free cell rests its lower half in the
+ * top cell and the upper half falls away over the top (-1): the entry is then covered for the
+ * next pair, which is how a board is lost.
+ */
 export function landingCells(cfg: SwordfightConfig, cells: ReadonlyArray<SwordCell | null>, col: number, rot: SwordRotation): [number, number] | null {
   const [ca, cb] = pairCols(col, rot);
   if (ca < 0 || cb < 0 || ca >= cfg.width || cb >= cfg.width) return null;
   if (rot === 1 || rot === 3) {
     const h = colHeight(cfg, cells, col);
-    if (h + 2 > cfg.height) return null;
+    if (h >= cfg.height) return null;
+    const upper = h + 1 < cfg.height ? idx(cfg, col, h + 1) : -1;
     // 1: a below b. 3: b below a.
-    return rot === 1 ? [idx(cfg, col, h), idx(cfg, col, h + 1)] : [idx(cfg, col, h + 1), idx(cfg, col, h)];
+    return rot === 1 ? [idx(cfg, col, h), upper] : [upper, idx(cfg, col, h)];
   }
   const ha = colHeight(cfg, cells, ca);
   const hb = colHeight(cfg, cells, cb);
@@ -476,8 +482,8 @@ export function applyDrop(cfg: SwordfightConfig, board: SwordBoard, boardIndex: 
   const mk = (p: SwordPiece): SwordCell => ({ id: nextId++, color: p.color, kind: p.breaker ? "breaker" : "block", ripen: 0, slab: 0 });
   const ca = mk(board.current.a);
   const cb = mk(board.current.b);
-  w.cells[land[0]] = ca;
-  w.cells[land[1]] = cb;
+  if (land[0] >= 0) w.cells[land[0]] = ca;
+  if (land[1] >= 0) w.cells[land[1]] = cb;
   events.push({ tick, board: boardIndex, type: "placed", cells: land, ids: [ca.id, cb.id] });
   const r1 = resolve(cfg, w, boardIndex, tick, 0, events, nextSlabId);
   nextSlabId = r1.nextSlabId;

@@ -200,7 +200,7 @@ export type SwordfightMove =
 export type SwordfightOutcome = "won" | "lost";
 
 export type SwordfightEvent =
-  /** A pair came to rest: the two cells and ids, a then b. */
+  /** A pair came to rest: the two cells and ids, a then b. A cell of -1 is a half that fell away over the top. */
   | { readonly tick: number; readonly board: number; readonly type: "placed"; readonly cells: readonly [number, number]; readonly ids: readonly [number, number] }
   /** Blocks fused into slabs (new or grown). */
   | { readonly tick: number; readonly board: number; readonly type: "fused"; readonly slabs: readonly Slab[] }

@@ -402,7 +402,23 @@ describe("the fight", () => {
     expect(() => reduceSwordfight(s, wait(5))).toThrow(/finished/);
   });
 
-  it("only the top cell of the entry column counts; a board with room beside the entry fights on, one with nowhere to rest is out", () => {
+  it("an upright pair in a column with one free cell rests its lower half in the top cell; the upper half falls away, and the next pair finds the entry covered", () => {
+    let s = createSwordfightGame("x", alone);
+    const tall = ["......", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1..."];
+    s = drawn(s, tall, [blk(2), blk(3)]);
+    expect(swordfightLandingCells(alone, s.boards[0]!.cells, 2, 1)).toEqual([swordfightIdx(alone, 2, 11), -1]);
+    expect(swordfightLandingCells(alone, s.boards[0]!.cells, 2, 3)).toEqual([-1, swordfightIdx(alone, 2, 11)]);
+    expect(swordfightPlaceIllegalReason(s, 2, 1, 5)).toBeNull();
+    s = reduceSwordfight(s, place(2, 1, 5));
+    const placed = s.lastMove!.events.find((e) => e.type === "placed");
+    expect(placed && placed.type === "placed" ? placed.cells : null).toEqual([swordfightIdx(alone, 2, 11), -1]);
+    expect(s.boards[0]!.cells[swordfightIdx(alone, 2, 11)]?.color).toBe(2);
+    expect(s.boards[0]!.cells.filter((c) => c?.color === 3)).toHaveLength(0);
+    expect(s.boards[0]!.out).toBe(true);
+    expect(s.outcome).toBe("lost");
+  });
+
+  it("only the top cell of the entry column counts; a board with room beside the entry fights on, and the last free cell still takes a drop", () => {
     let s = createSwordfightGame("x", alone);
     // Eleven blocks in the entry column: no vertical drop there, but sideways drops beside it.
     const tall = ["......", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1...", "..0...", "..1..."];
@@ -411,7 +427,7 @@ describe("the fight", () => {
     expect(s.boards[0]!.out).toBe(false);
     expect(swordfightLegalDrops(alone, s.boards[0]!).length).toBeGreaterThan(0);
     // Every cell full but the entry's top cell and one far away: wrack lands in the far one (the
-    // dirk tries columns 0, 5, 1, 4 first), and the pair has nowhere left to rest.
+    // dirk tries columns 0, 5, 1, 4 first), and the pair can still drop into the entry's last cell.
     const rows: string[] = [];
     for (let r = 0; r < 12; r++) rows.push(r === 0 ? "01.1.1" : "010101");
     let t = createSwordfightGame("x", { ...alone, landAfterTicks: 2 });
@@ -420,8 +436,13 @@ describe("the fight", () => {
     t = reduceSwordfight(t, wait(3));
     expect(t.boards[0]!.cells[swordfightIdx(alone, 4, 11)]?.kind).toBe("wrack");
     expect(t.boards[0]!.cells[swordfightIdx(alone, 2, 11)]).toBeNull();
+    expect(t.boards[0]!.out).toBe(false);
+    expect(swordfightLegalDrops(alone, t.boards[0]!)).toEqual([
+      { col: 2, rot: 1 },
+      { col: 2, rot: 3 },
+    ]);
+    t = reduceSwordfight(t, place(2, 1, 5));
     expect(t.boards[0]!.out).toBe(true);
-    expect(t.outcome).toBe("lost");
   });
 
   it("the server's word ends a fight whose foes are outside it, with the win's points; the player may yield", () => {
