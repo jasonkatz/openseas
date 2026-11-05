@@ -179,6 +179,7 @@ export class SailingRenderer {
     }
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "sailing-canvas");
+    this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.host.appendChild(this.app.canvas);
     this.staticLayer.addChild(this.frame, this.well);
     this.staticLayer.cacheAsTexture({ resolution: this.app.renderer.resolution, antialias: true });
