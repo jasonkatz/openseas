@@ -303,14 +303,17 @@ export class ShipService {
     if (!room || !room.battle || room.battle.sessionId !== session.id) return;
     const state = session.state as BattleState;
     const report = state.lastTurn;
-    if (!report || report.turn <= room.battle.turnsSeen) return;
-    room.battle.turnsSeen = report.turn;
-    if (room.state.voyage?.battle) {
-      if (report.shots > 0) room.state = reduceShip(room.state, { type: "fired", shots: report.shots });
-      if (report.damageTaken > 0) room.state = reduceShip(room.state, { type: "hit", damage: report.damageTaken });
+    if (report && report.turn > room.battle.turnsSeen) {
+      room.battle.turnsSeen = report.turn;
+      if (room.state.voyage?.battle) {
+        if (report.shots > 0) room.state = reduceShip(room.state, { type: "fired", shots: report.shots });
+        if (report.damageTaken > 0) room.state = reduceShip(room.state, { type: "hit", damage: report.damageTaken });
+      }
+      this.broadcast(room, []);
     }
-    this.broadcast(room, []);
-    if (state.finished) {
+    // A turn can end the fight, and so can a deal that reports a wrecked hull: either way the
+    // engine has the outcome and the captain is owed the result.
+    if (state.finished && !session.closed) {
       // Settle now rather than wait for the captain's finish message: the outcome is the engine's.
       void this.puzzles
         .finish(session, null, null)

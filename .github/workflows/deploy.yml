@@ -56,7 +56,7 @@ jobs:
           FORCE_HARNESS: ${{ inputs.harness == true }}
         run: |
           server=false; client=false; harness=false
-          shared="packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json .github/workflows/deploy.yml"
+          shared="packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json .github/workflows/deploy.yml .github/scripts"
           if [ "$FORCE_SERVER" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/server $shared railpack.json; then
             server=true
           fi

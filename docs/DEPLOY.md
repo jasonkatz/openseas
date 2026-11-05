@@ -17,7 +17,8 @@ one GitHub Actions pipeline does the deploying, in order (ADR 0014).
 4. **Game and harness to Vercel**, in parallel, each to its own project (ADR 0019). For each,
    the runner pulls the project's production settings and env, builds with `vercel build` (so the
    build runs in CI, not on Vercel), deploys the prebuilt output with `vercel deploy --prebuilt
-   --prod`, and polls `/version.json` until it reports the commit. The harness job then checks
+   --prod`, and polls `/version.json` until it reports the commit (following the apex domain's
+   redirect to `www`). The harness job then checks
    that a deep link such as `/bilging` answers 200 (the SPA rewrite from
    `packages/harness/vercel.json` is in effect) and that the server allows the harness origin.
 5. Deploys queue behind each other and never cancel one in flight. All jobs show up under the
