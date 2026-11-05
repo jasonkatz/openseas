@@ -279,6 +279,30 @@ and wind rules. Cannon fire placed left or right per move segment. Damage from h
 plays it on a landscape board. Brigand AI chooses moves from a scripted policy with difficulty
 tiers. The ruleset is a pure reducer shared by server, client preview, and AI.
 
+As built (M4, ADR 0021): a board from `content/data/puzzles/battle.json` (the seed picks one of
+three: open water with a reef, the narrows, the maelstrom), 18 by 14 cells of water, rocks, winds
+(`^ > v <`) and eddies (`@`), the captain starting at the bottom facing north and the brigand at
+the top facing south. A turn is a plot of up to `segments` moves, each a token (left, forward,
+right) or a hold, with port and starboard guns per move and a grapple flag; the board shows the
+plotted path as numbered ghosts and shades the cells each plotted broadside reaches, and outlines
+the brigand's reach. A turn carries the ship one cell forward and then swings her, so nothing turns
+in place. The brigand plots at the same time (its mind is in the reducer, so it replays), and both
+plots sail segment by segment: moves first, with a rock or an edge stopping a ship (rocks cost
+`rockDamage`) and two ships bound for one cell, or one sailing into a ship that holds, stopping
+both for `ramDamage`; then winds, which carry a ship one cell every segment it sits on one, and
+eddies, which spin her a quarter turn clockwise; then the guns, a shot reaching `cannonRange`
+cells to its side and stopping at a rock, each costing a load and dealing `shotDamage`; then the
+hulls. A ship at `grappleDamage` or worse can be boarded from the cell alongside by a ship that
+wants to, which ends the fight (the boarding stub); when both could, the sounder hull boards. A
+wrecked hull ends it too; `maxTurns` without either and the brigand breaks off; the captain can
+break off at any time. Score is `hitPoints` a hit, and `winPoints` plus `turnBonus` per turn to
+spare on a win; the combo is turns in a row with a hit. Tokens are dealt every turn in practice
+(`supply`) and aboard by the ship: half the turn's tokens forward, the rest split between the
+turns, plus the loaded cannons and the hull. Brigand tiers differ by tokens, reloads, accuracy and
+aggression (`brigand-tiers.json`): the cutpurse is slow and sloppy, the reaver closes fast, fires
+true and grapples the moment it can. The harness practice page fights the content brigand with
+presets per tier, per board and for faster or slower turns.
+
 **Swordfighting.** Puyo-style falling colored pairs on each pirate's board. Groups clear; cleared
 groups send breaker blocks to opponents' boards. Team mode distributes each side's attacks. QoL:
 incoming-attack preview, swipe controls. Ships after the duty puzzles; the first playable pillage
@@ -306,9 +330,13 @@ resolves boarding with a stub.
   and any sea battle pauses for the same grace period, then the longest-aboard pirate is offered
   the wheel.
 - **Encounters.** Brigand encounters roll per route leg with a content-defined probability. The
-  captain is prompted to engage or evade. Evading always succeeds in v1.
+  captain is prompted to engage or evade. Evading always succeeds in v1. Engaging holds the ship
+  in place for the fight; the stations keep producing, and what they make reaches the battle
+  board every turn (M4).
 - **Booty and loss.** Winning a sea battle and boarding yields currency split among everyone
-  aboard, weighted by duty performance during the fight, with an extra share for the captain.
+  aboard, weighted by duty performance during the fight, with an extra share for the captain:
+  two base shares for the captain, one for everyone else, each scaled between half and full by
+  the pirate's duty points during the fight against the best aboard (ADR 0021).
   Losing yields nothing. Damage is repaired free at the next dock. No permanent loss, cargo, or
   sinking in v1.
 
@@ -552,6 +580,12 @@ binding, server rooms and chart models as parts and built the one experience aro
 and its stations in the scene, boards over it, chat and presence in the tavern and aboard. Its
 tester session is next; the sea battle (M4) opens as the captain's board in the same place.
 
+M4 as built: engaging a hail deals the captain a battle board bound to the ship (ADR 0021); it
+opens over the deck in the station layer, the ship's turn clock sails the plot, the crew's stations
+feed it, and a win pays the tier's booty through the ledger. Boarding is stubbed: a grapple that
+lands ends the fight. The practice page and its presets are on the harness. Its tester session
+follows M3's.
+
 ### 5.3 Testing and quality
 
 - 3 to 5 named testers from the owner's Puzzle Pirates-playing friends, on a private Discord
@@ -587,7 +621,16 @@ Maintained as they arise.
 | Island | Large walkable towns | Dock, tavern, notice board, as spots on a diorama | Scope; the M5 walkable island grows out of this view |
 | Ship at sea | Continuous movement | A turn every `turnSeconds`; each station's board points since the last turn become its output as a percentage of par | Pure engine on the server; the client eases the ship between snapshots (ADR 0020) |
 | Duty boards aboard | Continuous play at a station | Boards of the practice length dealt back to back; a board cut short by docking or standing down counts but moves no standing | Rated rounds stay whole rounds; the ship still gets every point |
-| Brigand encounters | A fight | Hailed in a window along the leg; the captain evades, or the brigand loses interest after `hailTurns` | No combat until M4 |
+| Brigand encounters | A fight | Hailed in a window along the leg; the captain engages or evades, or the brigand loses interest after `hailTurns` | One hail per leg keeps a leg readable |
+| Sea battle turn | Moves placed as tokens arrive, resolved on a timer | The whole plot is one `commit` move; the ship's turn clock (the practice clock in the harness) sails it as it stands | A pure engine with no clock; the log is the fight (ADR 0021) |
+| Sea battle brigand | Server-side AI | A scripted policy inside the reducer, drawing on the fight's PRNG | The replay reproduces the brigand, so a fight can be reviewed and verified like any round |
+| Sea battle ship size | Sloops, cutters and larger ships | Sloops only: one cell, one shot a side per move | Sloop only in v1 (3.4) |
+| Sea battle winds and whirlpools | Winds push once on entry; whirlpools carry and spin | Winds carry a ship a cell every segment it sits on one; eddies spin her a quarter turn each segment | Simple rules that read on a phone grid; sitting on either is a choice |
+| Sea battle ramming | Damage by size | Both ships take `ramDamage` and neither moves | Equal ships |
+| Sea battle sinking | Ships do not sink against brigands | A wrecked hull ends the fight, won or lost; no ship is lost | No permanent loss (3.4) |
+| Sea battle boarding | A swordfight | A grapple from alongside against a hull at `grappleDamage` or worse ends the fight at once; the sounder hull boards when both could | M5 opens Swordfighting where the stub resolves |
+| Sea battle rating | Head to head | By score against content thresholds, against AI brigands | No human opponent until player-versus-player at sea (ADR 0021) |
+| Sea battle tokens | Typed tokens from the sails | The ship's turn output as tokens: half forward, the rest split between the turns; Navigation adds `navTokens` | One number from the ship, split the same way every time |
 | Bilging specials | Crab, pufferfish, jellyfish | Barnacle, Powder Keg, Ink Cloud | Original names (ADR 0001); same roles |
 | Tile art | Illustrated pieces | Colored squares with a distinct surface texture per kind, specials with icon and label, optional marks | Owner wants clarity first; textures and marks keep kinds apart without color |
 | Bilging hints | None | Idle hint in unrated practice only | Teaches newcomers; rated rounds stay unaided |
@@ -602,7 +645,7 @@ Maintained as they arise.
 | Carpentry holes | Grow in real time when unattended | Dealt as unions of pentominoes; widen by one cell after `growAfterMoves` planks placed elsewhere | Move-driven growth keeps the engine pure; pentomino unions guarantee a masterpiece is possible |
 | Carpentry patched hole | Planking stays visible | Planks come off and the hull is free again; a new hole is dealt | Keeps a practice round busy on a small board |
 | Carpentry scoring | Original's table | Area times `basePerCell` times a rating multiplier, grain bonus, times masterpiece streak | Published formula, tuned in playtests |
-| Gunnery firing | The captain fires loaded cannons in sea battle | A loaded cannon fires itself after `fireAfterTicks` and comes back clean | No ship until M3; a load should feel like a reward, not leave a mess |
+| Gunnery firing | The captain fires loaded cannons in sea battle | On the Gunnery board a loaded cannon fires itself after `fireAfterTicks` and comes back clean, for the gunner's score; the ship keeps a count of loaded cannons from Gunnery output, and in a sea battle the captain fires those | The board stays a whole puzzle of its own; the captain still decides when the ship's guns speak (ADR 0021) |
 | Gunnery broadside | The captain decides when and which guns fire | Every gun fired since the last broadside scores `broadsidePoints` | Playtest: nothing rewarded loading more than the nearest gun; a broadside also sets up what the captain wants from gunners in M4 |
 | Gunnery supply | Pieces come into play around the board | One chute drops a previewed, bag-shuffled stream down the middle; unsteered pieces roll overboard | Playtest found random spawns unreadable; a single stream makes every arrow a clear decision |
 | Gunnery collisions | Pieces bounce off each other | Pieces queue behind each other; only head-on meetings turn both back | Bouncing made routes impossible to predict |

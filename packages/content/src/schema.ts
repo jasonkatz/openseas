@@ -34,8 +34,10 @@ export const BrigandTierSchema = z.object({
   id: Id,
   nameKey: MessageKey,
   shipClassId: Id,
-  /** Difficulty knobs consumed by the sea battle AI at M4. */
-  movesPerTurn: z.int().min(1).max(4),
+  /** Difficulty knobs the sea battle's brigand AI runs on (DESIGN.md 3.3). */
+  movesPerTurn: z.int().min(1).max(8),
+  /** Cannons the brigand reloads each turn of a fight. */
+  reloadPerTurn: z.int().min(0).max(32),
   accuracy: z.number().min(0).max(1),
   aggression: z.number().min(0).max(1),
   /** Booty paid out on a win, in coins, before the duty-weighted split. */
@@ -299,6 +301,57 @@ export const NavigationContentSchema = DutyPuzzleBaseSchema.extend({
   shapes: z.array(StarShapeSchema).min(1),
 });
 
+/** The captain's sea battle: not a duty board, so no par; rated against thresholds until there is a human opponent. */
+export const BattleContentSchema = z.object({
+  /** Wall-clock length of a practice fight, enforced by the server. Aboard, the fight runs on the ship's turns. */
+  roundSeconds: z.int().min(10).max(1800),
+  thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
+  config: z.object({
+    /** `.` water, `#` rock, `^ > v <` winds, `@` eddies, `A` the captain's start (facing north), `B` the brigand's (south). */
+    boards: z
+      .array(
+        z
+          .array(z.string().regex(/^[.#^>v<@AB]+$/, "board rows use . # ^ > v < @ A B"))
+          .min(5)
+          .superRefine((rows, ctx) => {
+            const width = rows[0]!.length;
+            if (rows.some((r) => r.length !== width)) ctx.addIssue({ code: "custom", message: "board rows must be the same width" });
+            const all = rows.join("");
+            if (all.split("A").length !== 2) ctx.addIssue({ code: "custom", message: "a board needs exactly one A" });
+            if (all.split("B").length !== 2) ctx.addIssue({ code: "custom", message: "a board needs exactly one B" });
+          }),
+      )
+      .min(1),
+    segments: z.int().min(1).max(8),
+    turnSeconds: z.int().min(3).max(600),
+    tokenCap: z.int().min(1).max(32),
+    cannonRange: z.int().min(1).max(16),
+    shotDamage: z.int().min(0).max(1000),
+    rockDamage: z.int().min(0).max(1000),
+    ramDamage: z.int().min(0).max(1000),
+    grappleDamage: z.int().min(0).max(1000),
+    maxTurns: z.int().min(1).max(200),
+    cannons: z.int().min(0).max(32),
+    startLoaded: z.int().min(0).max(32),
+    startDamage: z.int().min(0).max(999),
+    /** Practice deals these every turn. Aboard, the server sets this null and the ship supplies the board. */
+    supply: z.object({ left: z.int().min(0).max(32), forward: z.int().min(0).max(32), right: z.int().min(0).max(32), cannons: z.int().min(0).max(32) }).nullable(),
+    /** The practice brigand. Aboard, the encounter's tier replaces it. */
+    brigand: z.object({
+      cannons: z.int().min(0).max(32),
+      tokensPerTurn: z.int().min(0).max(32),
+      reloadPerTurn: z.int().min(0).max(32),
+      accuracy: z.int().min(0).max(100),
+      aggression: z.int().min(0).max(100),
+      startDamage: z.int().min(0).max(999),
+    }),
+    hitPoints: z.int().min(0),
+    winPoints: z.int().min(0),
+    turnBonus: z.int().min(0),
+    maxMoves: z.int().min(1),
+  }),
+});
+
 export const NamesSchema = z.object({
   adjectives: z.array(z.string().min(2)).min(20),
   nouns: z.array(z.string().min(2)).min(20),
@@ -327,6 +380,7 @@ export type SailingContent = z.infer<typeof SailingContentSchema>;
 export type CarpentryContent = z.infer<typeof CarpentryContentSchema>;
 export type GunneryContent = z.infer<typeof GunneryContentSchema>;
 export type NavigationContent = z.infer<typeof NavigationContentSchema>;
+export type BattleContent = z.infer<typeof BattleContentSchema>;
 export type StarColor = z.infer<typeof StarColorSchema>;
 export type StarShape = z.infer<typeof StarShapeSchema>;
 export type World = z.infer<typeof WorldSchema>;

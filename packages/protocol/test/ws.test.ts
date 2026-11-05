@@ -74,7 +74,7 @@ describe("ship protocol", () => {
       crew: [{ pirateId: "p1", name: "Salty Gull", station: "sailing", captain: true, away: false }],
       maxCrew: 6,
       inviteOnly: false,
-      location: { kind: "at-sea", routeId: "a-b", from: "a", to: "b", progress: 250, hail: null },
+      location: { kind: "at-sea", routeId: "a-b", from: "a", to: "b", progress: 250, hail: null, battle: null },
       turn: 3,
       water: 120,
       damage: 24,

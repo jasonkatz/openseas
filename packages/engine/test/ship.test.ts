@@ -63,8 +63,16 @@ function randomMove(state: ShipState, pick: number): ShipMove {
       return { type: "turn" };
     case 10:
       return pick % 2 === 0 ? { type: "away", pirateId: aboard } : { type: "back", pirateId: aboard };
-    default:
-      return pick % 3 === 0 ? { type: "evade" } : pick % 3 === 1 ? { type: "lock", inviteOnly: pick % 2 === 0 } : { type: "turn" };
+    default: {
+      const k = pick % 7;
+      if (k === 0) return { type: "evade" };
+      if (k === 1) return { type: "lock", inviteOnly: pick % 2 === 0 };
+      if (k === 2) return { type: "engage" };
+      if (k === 3) return { type: "hit", damage: Math.floor(pick / 7) % 300 };
+      if (k === 4) return { type: "fired", shots: Math.floor(pick / 7) % 5 };
+      if (k === 5) return { type: "battle_end", outcome: pick % 2 === 0 ? "boarded" : "broke_off", booty: Math.floor(pick / 7) % 1000, turns: Math.floor(pick / 7) % 20 };
+      return { type: "turn" };
+    }
   }
 }
 
@@ -363,6 +371,43 @@ describe("ship encounters", () => {
     // A second hail never comes on the same leg.
     const later = turns(ignored, 100);
     expect(later.islandId).toBe("b");
+  });
+
+  it("the captain can engage; the ship then holds position until the fight ends", () => {
+    let s = certain("engage");
+    expect(() => reduceShip(s, { type: "engage" })).toThrow(InvalidMoveError);
+    while (!s.voyage!.hail) s = reduceShip(s, { type: "turn" });
+    const tier = s.voyage!.hail!.tierId;
+    s = reduceShip(s, { type: "station", pirateId: "p1", station: "sailing" });
+    const fighting = reduceShip(s, { type: "engage" });
+    expect(fighting.voyage!.hail).toBeNull();
+    expect(fighting.voyage!.battle).toEqual({ tierId: tier, sinceTurn: s.turn });
+    expect(fighting.events).toEqual([{ type: "engaged", tierId: tier }]);
+    expect(() => reduceShip(fighting, { type: "engage" })).toThrow(InvalidMoveError);
+    expect(() => reduceShip(fighting, { type: "evade" })).toThrow(InvalidMoveError);
+    // Turns pass without the ship advancing, but the stations still produce.
+    const held = turns(fighting, 3, (st) => reduceShip(st, { type: "duty", station: "sailing", points: par.sailing }));
+    expect(held.voyage!.progress).toBe(fighting.voyage!.progress);
+    expect(held.lastTurn!.tokens).toBeGreaterThan(0);
+    expect(held.voyage!.battle).not.toBeNull();
+    // The battle board's hits and shots reach the hull and the magazine.
+    const hitShip = reduceShip({ ...held, loaded: 3 }, { type: "hit", damage: 150 });
+    expect(hitShip.damage).toBe(held.damage + 150);
+    const firedShip = reduceShip(hitShip, { type: "fired", shots: 2 });
+    expect(firedShip.loaded).toBe(1);
+    expect(reduceShip(firedShip, { type: "fired", shots: 5 }).loaded).toBe(0);
+    expect(() => reduceShip(firedShip, { type: "hit", damage: -1 })).toThrow(InvalidMoveError);
+    // Ending the fight resolves the encounter for good and the leg resumes.
+    const over = reduceShip(firedShip, { type: "battle_end", outcome: "boarded", booty: 600, turns: 7 });
+    expect(over.voyage!.battle).toBeNull();
+    expect(over.voyage!.encounter!.resolved).toBe(true);
+    expect(over.events).toEqual([{ type: "battle_ended", tierId: tier, outcome: "boarded", booty: 600, turns: 7 }]);
+    expect(() => reduceShip(over, { type: "hit", damage: 1 })).toThrow(InvalidMoveError);
+    expect(() => reduceShip(over, { type: "battle_end", outcome: "boarded", booty: 0, turns: 0 })).toThrow(InvalidMoveError);
+    const on = turns(over, 1);
+    expect(on.voyage!.progress).toBeGreaterThan(over.voyage!.progress);
+    expect(on.voyage!.hail).toBeNull();
+    expect(hashShipState(fighting)).not.toBe(hashShipState(s));
   });
 
   it("a zero chance leg is always clear", () => {

@@ -138,7 +138,12 @@ export interface Voyage {
   readonly encounter: Encounter | null;
   /** A brigand waiting for the captain's answer. */
   readonly hail: { readonly tierId: string; readonly sinceTurn: number } | null;
+  /** The fight under way: the ship holds position until it ends (M4). */
+  readonly battle: { readonly tierId: string; readonly sinceTurn: number } | null;
 }
+
+/** How a fight ended, from the captain's side; the battle engine's outcome. */
+export type ShipBattleOutcome = "boarded" | "crippled" | "boarded_by" | "crippled_by" | "broke_off" | "disengaged";
 
 export type ShipMove =
   | { readonly type: "board"; readonly pirateId: string }
@@ -153,6 +158,14 @@ export type ShipMove =
   | { readonly type: "duty"; readonly station: Station; readonly points: number }
   | { readonly type: "turn" }
   | { readonly type: "evade" }
+  /** Fight the brigand that hailed. The captain's battle board is dealt by the server. */
+  | { readonly type: "engage" }
+  /** The battle board reports hull damage taken this turn, permille. */
+  | { readonly type: "hit"; readonly damage: number }
+  /** The battle board reports cannons fired this turn. */
+  | { readonly type: "fired"; readonly shots: number }
+  /** The fight is over. `booty` is the purse on a win, in coins; the voyage resumes. */
+  | { readonly type: "battle_end"; readonly outcome: ShipBattleOutcome; readonly booty: number; readonly turns: number }
   /** A crew member's connection dropped; their seat is held for a grace period. */
   | { readonly type: "away"; readonly pirateId: string }
   | { readonly type: "back"; readonly pirateId: string };
@@ -165,6 +178,8 @@ export type ShipEvent =
   | { readonly type: "sailed"; readonly routeId: string }
   | { readonly type: "hailed"; readonly tierId: string }
   | { readonly type: "evaded"; readonly tierId: string; readonly auto: boolean }
+  | { readonly type: "engaged"; readonly tierId: string }
+  | { readonly type: "battle_ended"; readonly tierId: string; readonly outcome: ShipBattleOutcome; readonly booty: number; readonly turns: number }
   | { readonly type: "arrived"; readonly islandId: string; readonly turns: number }
   /** Nobody left aboard at sea: the ship is back at the island it left. */
   | { readonly type: "abandoned"; readonly islandId: string };

@@ -189,8 +189,8 @@ export const voyage = pgTable(
     /** "arrived" or "abandoned"; null while under way. A server restart leaves it null. */
     outcome: text(),
     turns: integer().notNull().default(0),
-    /** The brigand tier rolled for the leg and whether it was evaded, or null for a clear leg. */
-    encounter: jsonb().$type<{ tierId: string; evaded: boolean }>(),
+    /** The brigand tier rolled for the leg and whether it was evaded, or null for a clear leg. A fight adds its outcome and purse. */
+    encounter: jsonb().$type<{ tierId: string; evaded: boolean; outcome?: string; booty?: number }>(),
   },
   (t) => [index("voyage_ship_id_idx").on(t.shipId)],
 );

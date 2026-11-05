@@ -3,7 +3,9 @@ import type { ShipLocation, StationWire } from "@openseas/protocol";
 import { content, sfx, t, usePirate } from "@openseas/boards";
 import { ChartCard } from "../chart/ChartCard.jsx";
 import { IslandCard } from "../island/IslandCard.jsx";
-import { islandName, stationName } from "../names.js";
+import { islandName, stationName, tierName } from "../names.js";
+import { BattleView } from "../ship/battle/BattleView.jsx";
+import { useBattleApi } from "../ship/battle/useBattle.js";
 import { DeckCard, HelmCard, describeEvent } from "../ship/DeckCard.jsx";
 import { ShipHud } from "../ship/ShipHud.jsx";
 import { StationView } from "../ship/StationView.jsx";
@@ -48,6 +50,7 @@ export function Shell() {
   const { pirate, socketStatus } = usePirate();
   const { ship, notices, listBoard, board, boardShip, takeStation, error } = useShip();
   const { place: rawPlace, go } = usePlace();
+  const battle = useBattleApi();
   const { toast } = useToasts();
   const wide = useMediaQuery("(min-width: 900px)");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -63,6 +66,7 @@ export function Shell() {
   const myStation = ship?.crew.find((c) => c.pirateId === me)?.station ?? null;
   const captain = ship?.captainId === me;
   const captainName = ship?.crew.find((c) => c.captain)?.name ?? null;
+  const fight = ship?.location.kind === "at-sea" ? ship.location.battle : null;
 
   const place = useMemo<Resolved>(() => {
     if (rawPlace.kind !== "home") return rawPlace;
@@ -101,6 +105,26 @@ export function Shell() {
   useEffect(() => {
     if (place.kind === "helm" && ship && (ship.location.kind !== "docked" || !captain)) go({ kind: "home" });
   }, [place.kind, ship, captain, go]);
+
+  // The captain's fight opens the battle board over the deck. Once the fight is over the outcome
+  // stays up until the captain dismisses it; a board with nothing to show closes after a beat.
+  // Anyone else on the battle place is sent back to the deck.
+  const wasFighting = useRef(false);
+  useEffect(() => {
+    if (fight && captain && !wasFighting.current) go({ kind: "battle" });
+    wasFighting.current = fight !== null && captain;
+  }, [fight, captain, go]);
+  const battlePhase = battle.phase;
+  useEffect(() => {
+    if (place.kind !== "battle") return;
+    if (!ship || !captain) {
+      go({ kind: "home" });
+      return;
+    }
+    if (fight || battlePhase === "result") return;
+    const id = window.setTimeout(() => go({ kind: "home" }), 3000);
+    return () => window.clearTimeout(id);
+  }, [place.kind, ship, captain, fight, battlePhase, go]);
 
   // Rooms and the helm want their card open; arriving anywhere else folds it so the view is clear,
   // except when the pirate stepped back a level in the card, which stays open where they came from.
@@ -143,6 +167,18 @@ export function Shell() {
         if (place.kind === "station") go({ kind: "home" });
       } else if (e.type === "wheel") {
         toast(e.pirateId === me ? t("toast.wheel_yours") : (describeEvent(e) as string));
+      } else if (e.type === "engaged") {
+        sfx.alarm();
+        toast(describeEvent(e) as string, "warn", 5000);
+      } else if (e.type === "battle_ended") {
+        const won = e.outcome === "boarded" || e.outcome === "crippled";
+        const lost = e.outcome === "boarded_by" || e.outcome === "crippled_by";
+        if (won) sfx.streak(8);
+        toast(
+          won ? t("toast.battle_won", { brigand: tierName(e.tierId), coins: e.booty }) : lost ? t("toast.battle_lost", { brigand: tierName(e.tierId) }) : t("toast.battle_broke_off", { brigand: tierName(e.tierId) }),
+          won ? "good" : lost ? "warn" : "plain",
+          7000,
+        );
       } else if (e.type === "evaded" || e.type === "sailed" || e.type === "left" || (e.type === "boarded" && e.pirateId !== me)) {
         toast(describeEvent(e) as string);
       }
@@ -223,7 +259,7 @@ export function Shell() {
       smoothMs: content.world.ship.turnSeconds * 1000,
       deck,
       insets,
-      dimmed: place.kind === "station" || menuOpen,
+      dimmed: place.kind === "station" || place.kind === "battle" || menuOpen,
       boardLabel: t("ship.board_spot"),
     }),
     [ships, aboard, ashoreAt, focus, place, helmPick, reachable, shipPick, deck, insets, menuOpen],
@@ -294,6 +330,7 @@ export function Shell() {
     setHelmPick(null);
     go({ kind: "helm" });
   }, [go]);
+  const onBattle = useCallback(() => go({ kind: "battle" }), [go]);
   const onWheel = useCallback(() => {
     if (!ship) return;
     sfx.tick(false);
@@ -322,19 +359,27 @@ export function Shell() {
   // ---- the card for the place, and the one header it folds to
   let card: ReactNode = null;
   let head: Head;
-  if (ship && (place.kind === "deck" || place.kind === "station")) {
+  if (ship && (place.kind === "deck" || place.kind === "station" || place.kind === "battle")) {
     const docked = ship.location.kind === "docked";
-    card = <DeckCard ship={ship} me={me} onStation={onStation} onHelm={onHelm} />;
+    card = <DeckCard ship={ship} me={me} onStation={onStation} onHelm={onHelm} onBattle={onBattle} />;
     head = {
       title: ship.name,
-      subtitle: docked ? t("ship.docked_at", { island: islandName((ship.location as { islandId: string }).islandId) }) : t("ship.bound_for", { island: islandName((ship.location as { to: string }).to), percent: Math.round((ship.location as { progress: number }).progress / 10) }),
+      subtitle: docked
+        ? t("ship.docked_at", { island: islandName((ship.location as { islandId: string }).islandId) })
+        : fight
+          ? t("ship.in_battle", { brigand: tierName(fight.tierId) })
+          : t("ship.bound_for", { island: islandName((ship.location as { to: string }).to), percent: Math.round((ship.location as { progress: number }).progress / 10) }),
       next: docked
         ? captain
           ? t("next.docked_captain")
           : t("next.docked_crew", { captain: captainName ?? "" })
-        : myStation
-          ? t("next.at_sea_at_station", { station: stationName(myStation) })
-          : t("next.at_sea_no_station"),
+        : fight
+          ? captain
+            ? t("next.battle_captain")
+            : t("next.battle_crew")
+          : myStation
+            ? t("next.at_sea_at_station", { station: stationName(myStation) })
+            : t("next.at_sea_no_station"),
       back: null,
       extra: <ShipHud ship={ship} mini />,
     };
@@ -382,12 +427,13 @@ export function Shell() {
   }
 
   const stationOpen = ship && place.kind === "station" ? place.station : null;
+  const battleOpen = Boolean(ship && place.kind === "battle");
 
   return (
-    <div className={`shell ${wide ? "shell-wide" : "shell-tall"} place-${place.kind} ${stationOpen ? "has-station" : ""} ${sheetOpen ? "sheet-open" : "sheet-folded"}`} data-testid="shell" data-place={place.kind}>
+    <div className={`shell ${wide ? "shell-wide" : "shell-tall"} place-${place.kind} ${stationOpen || battleOpen ? "has-station" : ""} ${sheetOpen ? "sheet-open" : "sheet-folded"}`} data-testid="shell" data-place={place.kind}>
       <World input={input} events={events} />
       <TopBar onMenu={() => setMenuOpen(true)} onMap={onMap} onChart={place.kind === "chart"} />
-      {ship && !stationOpen && <HailBanner ship={ship} me={me} />}
+      {ship && !stationOpen && !battleOpen && <HailBanner ship={ship} me={me} />}
       <aside className={`sheet ${sheetOpen ? "is-open" : ""}`} data-testid="sheet" data-open={sheetOpen ? "1" : "0"}>
         <div className="sheet-head">
           {head.back && (
@@ -416,6 +462,7 @@ export function Shell() {
         <div className="sheet-body">{card}</div>
       </aside>
       {stationOpen && ship && <StationView ship={ship} me={me} station={stationOpen} showMarks={showMarks} onBack={() => go({ kind: "home" })} onHelm={onHelm} />}
+      {battleOpen && ship && <BattleView ship={ship} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
       {menuOpen && <Menu showMarks={showMarks} onShowMarks={setShowMarks} onClose={() => setMenuOpen(false)} />}
       <Toasts />
     </div>

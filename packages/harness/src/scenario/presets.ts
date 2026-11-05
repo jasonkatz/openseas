@@ -53,7 +53,21 @@ export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
     { id: "no_reuse", overrides: { reuseChancePercent: 0 } },
     { id: "slow_motion", overrides: {}, speed: 0.25 },
   ],
+  battle: [
+    { id: "cutpurse", overrides: { "brigand.tokensPerTurn": 2, "brigand.reloadPerTurn": 1, "brigand.accuracy": 50, "brigand.aggression": 40 } },
+    { id: "reaver", overrides: { "brigand.tokensPerTurn": 4, "brigand.reloadPerTurn": 2, "brigand.accuracy": 80, "brigand.aggression": 80 } },
+    { id: "dead_eye", overrides: { "brigand.tokensPerTurn": 4, "brigand.reloadPerTurn": 4, "brigand.accuracy": 100, "brigand.aggression": 100 } },
+    { id: "quick_turns", overrides: { turnSeconds: 6 } },
+    { id: "long_turns", overrides: { turnSeconds: 30 }, roundSeconds: 600 },
+    { id: "full_magazine", overrides: { "supply.cannons": 4 } },
+    { id: "three_turns", overrides: { maxTurns: 3 }, roundSeconds: 60 },
+  ],
 };
+
+/** One preset per Sea Battle board, so a fight can be pinned to a board the seed would not have picked. */
+export function boardPresets(boards: ReadonlyArray<readonly string[]>): Preset[] {
+  return boards.map((board, i) => ({ id: `board_${i + 1}`, overrides: { boards: [board] } }));
+}
 
 /** One preset per Gunnery deck, so a round can be pinned to a deck the seed would not have picked. */
 export function deckPresets(decks: ReadonlyArray<readonly string[]>): Preset[] {

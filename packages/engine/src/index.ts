@@ -6,6 +6,7 @@ export * from "./sailing/index.js";
 export * from "./carpentry/index.js";
 export * from "./gunnery/index.js";
 export * from "./navigation/index.js";
+export * from "./battle/index.js";
 export * from "./rating/index.js";
 export * from "./registry.js";
 export * from "./ship/index.js";

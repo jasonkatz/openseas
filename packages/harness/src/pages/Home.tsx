@@ -56,6 +56,17 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
       <circle cx="46" cy="40" r="4" fill="#ff6b5e" />
     </svg>
   ),
+  battle: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0d2b45" />
+      <path d="M4 20h56M4 36h56M20 4v56M36 4v56" stroke="#1f4f78" strokeWidth="1.5" />
+      <path d="M14 46l6-12 6 12z" fill="#efe3c6" stroke="#d4a548" strokeWidth="1.5" />
+      <path d="M50 18l-6 12-6-12z" fill="#1b1a22" stroke="#f0604d" strokeWidth="1.5" />
+      <path d="M28 40h10" stroke="#f5d58a" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="40" cy="40" r="3" fill="#fff3c4" />
+      <path d="M46 48l4-6 4 6" fill="none" stroke="#7fd7ff" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
 };
 
 /** The server's commit from /health, so the bench always says what it is testing against. */

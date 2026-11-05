@@ -10,10 +10,12 @@ import sailing from "../data/puzzles/sailing.json" with { type: "json" };
 import carpentry from "../data/puzzles/carpentry.json" with { type: "json" };
 import gunnery from "../data/puzzles/gunnery.json" with { type: "json" };
 import navigation from "../data/puzzles/navigation.json" with { type: "json" };
+import battle from "../data/puzzles/battle.json" with { type: "json" };
 import ratingTiers from "../data/rating-tiers.json" with { type: "json" };
 import names from "../data/names.json" with { type: "json" };
 import en from "../data/messages/en.json" with { type: "json" };
 import {
+  BattleContentSchema,
   BilgingContentSchema,
   CarpentryContentSchema,
   GunneryContentSchema,
@@ -23,6 +25,7 @@ import {
   RatingTierSchema,
   SailingContentSchema,
   WorldSchema,
+  type BattleContent,
   type BilgingContent,
   type CarpentryContent,
   type GunneryContent,
@@ -36,14 +39,21 @@ import {
 export * from "./schema.js";
 
 /** Content for every duty puzzle, keyed by puzzle id. */
-export interface PuzzleContent {
+export interface DutyPuzzleContent {
   readonly bilging: BilgingContent;
   readonly sailing: SailingContent;
   readonly carpentry: CarpentryContent;
   readonly gunnery: GunneryContent;
   readonly navigation: NavigationContent;
 }
+export type DutyPuzzleContentId = keyof DutyPuzzleContent;
+
+/** Every puzzle's content: the duty puzzles and the captain's sea battle. */
+export interface PuzzleContent extends DutyPuzzleContent {
+  readonly battle: BattleContent;
+}
 export type PuzzleContentId = keyof PuzzleContent;
+export const DUTY_PUZZLE_CONTENT_IDS: readonly DutyPuzzleContentId[] = ["bilging", "sailing", "carpentry", "gunnery", "navigation"];
 
 export interface Content {
   readonly world: World;
@@ -79,6 +89,7 @@ export function loadContent(): Content {
     carpentry: parse("puzzles/carpentry", CarpentryContentSchema, carpentry),
     gunnery: parse("puzzles/gunnery", GunneryContentSchema, gunnery),
     navigation: parse("puzzles/navigation", NavigationContentSchema, navigation),
+    battle: parse("puzzles/battle", BattleContentSchema, battle),
   };
   const tiers = parse("rating-tiers", z.array(RatingTierSchema).min(1), ratingTiers);
   const nameLists = parse("names", NamesSchema, names);
@@ -147,11 +158,21 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
     }
     need(`home.practice_${id}`, where);
     need(`home.practice_${id}_blurb`, where);
+    if (!("parScore" in p)) continue;
     need(`station.${id}`, where);
     need(`station.${id}_blurb`, where);
     const first = p.thresholds[0]!.score;
     const last = p.thresholds[p.thresholds.length - 1]!.score;
     if (p.parScore < first || p.parScore > last) problems.push(`${where}: parScore must sit within the thresholds (${first}..${last})`);
+  }
+  {
+    const b = puzzles.battle;
+    if (b.config.maxTurns * b.config.turnSeconds > b.roundSeconds) problems.push("puzzles/battle: roundSeconds must cover maxTurns turns of turnSeconds");
+    if (b.config.startLoaded > b.config.cannons) problems.push("puzzles/battle: startLoaded exceeds cannons");
+    for (const t of world.brigandTiers) {
+      const cls = world.shipClasses.find((c) => c.id === t.shipClassId);
+      if (cls && t.reloadPerTurn > cls.cannons) problems.push(`brigand tier ${t.id}: reloads more cannons than its ${cls.id} carries`);
+    }
   }
   for (const s of Object.values(puzzles.bilging.specials)) need(s.nameKey, "bilging special");
   for (const sh of puzzles.carpentry.shapes) need(sh.nameKey, "carpentry shape");

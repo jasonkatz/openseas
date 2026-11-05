@@ -20,7 +20,9 @@ export type Place =
   /** Aboard, at a station with its board open. */
   | { kind: "station"; station: StationWire }
   /** Aboard, the captain picking a destination on the chart. */
-  | { kind: "helm" };
+  | { kind: "helm" }
+  /** Aboard, the captain at the sea battle board (M4). */
+  | { kind: "battle" };
 
 const ISLAND_IDS = new Set(content.world.islands.map((i) => i.id));
 const STATIONS = new Set<string>(["bilging", "sailing", "carpentry", "gunnery", "navigation"]);
@@ -40,6 +42,8 @@ export function placeToPath(p: Place): string {
       return `/ship/${p.station}`;
     case "helm":
       return "/ship/helm";
+    case "battle":
+      return "/ship/battle";
   }
 }
 
@@ -51,6 +55,7 @@ export function pathToPlace(pathname: string, search: string): Place {
   }
   if (parts[0] === "ship") {
     if (parts[1] === "helm") return { kind: "helm" };
+    if (parts[1] === "battle") return { kind: "battle" };
     if (parts[1] && STATIONS.has(parts[1])) return { kind: "station", station: parts[1] as StationWire };
     return { kind: "deck" };
   }

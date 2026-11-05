@@ -3,6 +3,17 @@
  * without knowing its shapes. Each engine stays its own strongly typed module; this is the seam.
  */
 import {
+  DEFAULT_BATTLE_CONFIG,
+  createBattleGame,
+  hashBattleState,
+  reduceBattle,
+  summarizeBattle,
+  validateBattleConfig,
+  type BattleConfig,
+  type BattleMove,
+  type BattleState,
+} from "./battle/index.js";
+import {
   DEFAULT_BILGING_CONFIG,
   SHIP_WATER_EVENTS_MAX,
   createBilgingGame,
@@ -60,8 +71,11 @@ import {
 } from "./gunnery/index.js";
 
 /** Every puzzle the engine knows about. Extended one at a time per the milestone ladder. */
-export const PUZZLE_IDS = ["bilging", "sailing", "carpentry", "gunnery", "navigation"] as const;
+export const PUZZLE_IDS = ["bilging", "sailing", "carpentry", "gunnery", "navigation", "battle"] as const;
 export type PuzzleId = (typeof PUZZLE_IDS)[number];
+/** The duty puzzles: the ones a station aboard a ship plays. Sea Battle is the captain's game, not a station. */
+export const DUTY_PUZZLE_IDS = ["bilging", "sailing", "carpentry", "gunnery", "navigation"] as const;
+export type DutyPuzzleId = (typeof DUTY_PUZZLE_IDS)[number];
 
 /** What every finished round reports. The database row and the result message share this shape. */
 export interface PuzzleSummary {
@@ -151,6 +165,18 @@ export const GUNNERY_DEF: PuzzleDef<GunneryState, GunneryMove, GunneryConfig> = 
   maxMoves: (c) => c.maxMoves,
   moveTimeMs: (m, c) => m.tick * c.tickMs,
 };
+export const BATTLE_DEF: PuzzleDef<BattleState, BattleMove, BattleConfig> = {
+  id: "battle",
+  defaultConfig: DEFAULT_BATTLE_CONFIG,
+  validateConfig: validateBattleConfig,
+  create: createBattleGame,
+  reduce: reduceBattle,
+  hash: hashBattleState,
+  summarize: summarizeBattle,
+  isFinished: (s) => s.finished,
+  maxMoves: (c) => c.maxMoves,
+};
+
 /** The engine behind each puzzle id, erased to `unknown` shapes for generic drivers. */
 export type AnyPuzzleDef = PuzzleDef<unknown, unknown, unknown>;
 
@@ -160,8 +186,13 @@ export const PUZZLES: Readonly<Record<PuzzleId, AnyPuzzleDef>> = {
   carpentry: CARPENTRY_DEF as unknown as AnyPuzzleDef,
   gunnery: GUNNERY_DEF as unknown as AnyPuzzleDef,
   navigation: NAVIGATION_DEF as unknown as AnyPuzzleDef,
+  battle: BATTLE_DEF as unknown as AnyPuzzleDef,
 };
 
 export function isPuzzleId(x: unknown): x is PuzzleId {
   return typeof x === "string" && (PUZZLE_IDS as readonly string[]).includes(x);
+}
+
+export function isDutyPuzzleId(x: unknown): x is DutyPuzzleId {
+  return typeof x === "string" && (DUTY_PUZZLE_IDS as readonly string[]).includes(x);
 }

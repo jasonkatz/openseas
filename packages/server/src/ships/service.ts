@@ -1,14 +1,18 @@
 import { and, eq, inArray } from "drizzle-orm";
-import type { Content, RouteLeg, ShipClass } from "@openseas/content";
+import type { BrigandTier, Content, RouteLeg, ShipClass } from "@openseas/content";
 import {
   InvalidMoveError,
   STATIONS,
+  battleIsWin,
   createShip,
   crewAtStation,
   crewMember,
   legUnits,
   progressPermille,
   reduceShip,
+  type BattleConfig,
+  type BattleState,
+  type ShipBattleOutcome,
   type ShipConfig,
   type ShipEvent,
   type ShipMove,
@@ -18,9 +22,10 @@ import {
 import type { BoardShip, CrewView, ErrorCode, PuzzleStarted, ServerMessage, ShipEventWire, ShipLocation, ShipSnapshot } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
+import { appendLedger } from "../ledger.js";
 import type { Logger } from "../log.js";
 import type { PuzzleService } from "../puzzles/service.js";
-import type { PuzzleSession } from "../puzzles/sessions.js";
+import type { PuzzleSession, ShipSupply } from "../puzzles/sessions.js";
 import { Room, type RoomMember } from "../rooms.js";
 
 /** A request the ship refuses. The code is sent to the client as is. */
@@ -37,6 +42,18 @@ interface StationSession {
   lastScore: number;
 }
 
+/** The captain's fight in progress (M4): its board session, and what the crew earned during it. */
+interface BattleRun {
+  sessionId: string;
+  tierId: string;
+  /** Duty points per pirate since the fight began, for the booty split. */
+  dutyPoints: Map<string, number>;
+  /** The last battle turn the ship has taken hits and shots from. */
+  turnsSeen: number;
+  /** The ship's hull as the board last learned it, to read what a turn took off it. */
+  hullSent: number;
+}
+
 /** One ship with people aboard. Exists from the first boarding until the last pirate goes ashore. */
 export class ShipRoom {
   /** Connections of the crew, keyed by pirate id. A dropped pirate is not in here but is still aboard. */
@@ -45,6 +62,7 @@ export class ShipRoom {
   readonly names = new Map<string, string>();
   readonly stations = new Map<Station, StationSession>();
   voyageId: string | null = null;
+  battle: BattleRun | null = null;
   state: ShipState;
 
   constructor(
@@ -94,6 +112,8 @@ export class ShipService {
     this.now = opts.now ?? Date.now;
     for (const c of content.world.shipClasses) this.configs.set(c.id, shipConfigFor(content, c));
     puzzles.onDutyEnd = (session) => this.takeFinalPoints(session);
+    puzzles.onBattleMove = (session) => this.takeBattleTurn(session);
+    puzzles.onBattleEnd = (session, how, result) => void this.battleEnded(session, how, result).catch((e) => log.error({ err: e, sessionId: session.id }, "battle end failed"));
   }
 
   get turnMs(): number {
@@ -201,7 +221,153 @@ export class ShipService {
     const room = this.roomOf(pirateId);
     if (!room) throw new ShipError("not_aboard");
     if (room.state.captainId !== pirateId) throw new ShipError("not_captain");
+    // The battle board is the captain's own; the wheel changes hands once the fight is over.
+    if (room.battle) throw new ShipError("in_battle");
     this.apply(room, { type: "wheel", pirateId: toPirateId }, () => "not_aboard");
+    await this.afterChange(room);
+  }
+
+  // ---- the sea battle (M4)
+
+  /**
+   * The captain fights the brigand that hailed. The ship holds position; the battle board is a
+   * puzzle session on the ship's own config: the tier's knobs, the ship's guns and hull, the
+   * ship's turn. Returns the deal; the caller sends it, then calls `supplyNow` for the first deal.
+   */
+  async engage(pirateId: string): Promise<PuzzleStarted> {
+    const room = this.roomOf(pirateId);
+    if (!room) throw new ShipError("not_aboard");
+    if (room.state.captainId !== pirateId) throw new ShipError("not_captain");
+    if (room.battle) throw new ShipError("in_battle");
+    const hail = room.state.voyage?.hail;
+    if (!hail || !room.voyageId) throw new ShipError("not_hailed");
+    const tier = this.content.world.brigandTiers.find((t) => t.id === hail.tierId);
+    if (!tier) throw new ShipError("not_hailed");
+    this.apply(room, { type: "engage" }, () => "not_hailed");
+    const config = this.battleConfigFor(room, tier);
+    const rules = this.content.world.ship;
+    // Room for every turn, the captain's grace period if they drop, and a minute to spare.
+    const roundMs = (config.maxTurns + rules.graceTurns) * this.turnMs + 60_000;
+    const started = this.puzzles.startBattle(pirateId, { shipId: room.shipId, voyageId: room.voyageId, tierId: tier.id }, { config, roundMs });
+    room.battle = { sessionId: started.sessionId, tierId: tier.id, dutyPoints: new Map(), turnsSeen: 0, hullSent: room.state.damage };
+    this.log.info({ shipId: room.shipId, tierId: tier.id, sessionId: started.sessionId }, "battle engaged");
+    await this.afterChange(room);
+    return started;
+  }
+
+  /** The battle board's config aboard: content's rules with the ship's guns and hull, the tier's brigand, the ship's turn. */
+  battleConfigFor(room: ShipRoom, tier: BrigandTier): BattleConfig {
+    const base = this.content.puzzles.battle.config;
+    const theirClass = this.content.world.shipClasses.find((c) => c.id === tier.shipClassId) ?? room.shipClass;
+    return {
+      ...base,
+      turnSeconds: this.content.world.ship.turnSeconds,
+      cannons: room.shipClass.cannons,
+      startLoaded: Math.min(room.shipClass.cannons, room.state.loaded),
+      startDamage: Math.min(999, room.state.damage),
+      supply: null,
+      brigand: {
+        cannons: theirClass.cannons,
+        tokensPerTurn: tier.movesPerTurn,
+        reloadPerTurn: tier.reloadPerTurn,
+        accuracy: Math.round(tier.accuracy * 100),
+        aggression: Math.round(tier.aggression * 100),
+        startDamage: 0,
+      },
+    };
+  }
+
+  /** Tell the captain's board what the ship brings right now. Called after the deal is sent and after every turn. */
+  supplyNow(pirateId: string): void {
+    const room = this.roomOf(pirateId);
+    if (room) this.pushSupply(room);
+  }
+
+  private pushSupply(room: ShipRoom): void {
+    const run = room.battle;
+    if (!run) return;
+    const session = this.puzzles.sessions.get(run.sessionId);
+    if (!session || session.closed) return;
+    const s = room.state;
+    const supply: ShipSupply = { ...splitTokens(s.tokens), cannons: Math.min(room.shipClass.cannons, s.loaded), hull: s.damage };
+    session.shipSupply = supply;
+    run.hullSent = s.damage;
+    room.conns.send(session.pirateId, { type: "battle.supply", sessionId: session.id, ...supply });
+  }
+
+  /** A battle turn resolved on the captain's board: the ship takes the hits and spends the shots. */
+  private takeBattleTurn(session: PuzzleSession): void {
+    const run = session.battle;
+    if (!run) return;
+    const room = this.rooms.get(run.shipId);
+    if (!room || !room.battle || room.battle.sessionId !== session.id) return;
+    const state = session.state as BattleState;
+    const report = state.lastTurn;
+    if (!report || report.turn <= room.battle.turnsSeen) return;
+    room.battle.turnsSeen = report.turn;
+    if (room.state.voyage?.battle) {
+      if (report.shots > 0) room.state = reduceShip(room.state, { type: "fired", shots: report.shots });
+      if (report.damageTaken > 0) room.state = reduceShip(room.state, { type: "hit", damage: report.damageTaken });
+    }
+    this.broadcast(room, []);
+    if (state.finished) {
+      // Settle now rather than wait for the captain's finish message: the outcome is the engine's.
+      void this.puzzles
+        .finish(session, null, null)
+        .then((result) => room.conns.send(session.pirateId, result))
+        .catch((e) => this.log.error({ err: e, sessionId: session.id }, "battle finish failed"));
+    }
+  }
+
+  /** The battle session closed, however it closed: pay out, tell the ship, log it. */
+  private async battleEnded(session: PuzzleSession, how: "finished" | "rejected" | "abandoned", _result: ServerMessage | null): Promise<void> {
+    const run = session.battle;
+    if (!run) return;
+    const room = this.rooms.get(run.shipId);
+    if (!room || !room.battle || room.battle.sessionId !== session.id) return;
+    const state = session.state as BattleState;
+    const outcome: ShipBattleOutcome = state.outcome ?? (how === "abandoned" ? "disengaged" : "broke_off");
+    await this.settleBattle(room, outcome, state.turn);
+  }
+
+  /** Cut the captain's fight short: they left, dropped past the grace period, or the ship emptied. */
+  private async cutBattleShort(room: ShipRoom, outcome: ShipBattleOutcome): Promise<void> {
+    const run = room.battle;
+    if (!run) return;
+    const session = this.puzzles.sessions.get(run.sessionId);
+    const turns = session ? (session.state as BattleState).turn : 0;
+    // Settle first so the session's own end hook finds nothing left to do.
+    await this.settleBattle(room, outcome, turns);
+    if (session && !session.closed) {
+      const result = await this.puzzles.cutShort(session);
+      if (result) room.conns.send(session.pirateId, result);
+    }
+  }
+
+  private async settleBattle(room: ShipRoom, outcome: ShipBattleOutcome, turns: number): Promise<void> {
+    const run = room.battle;
+    if (!run) return;
+    room.battle = null;
+    const tier = this.content.world.brigandTiers.find((t) => t.id === run.tierId);
+    const won = battleIsWin(outcome);
+    const booty = won && tier ? tier.booty : 0;
+    const crew = room.state.crew.map((c) => ({ pirateId: c.pirateId, captain: c.pirateId === room.state.captainId, points: run.dutyPoints.get(c.pirateId) ?? 0 }));
+    const shares = booty > 0 ? splitBooty(booty, crew) : new Map<string, number>();
+    if (room.state.voyage?.battle) {
+      try {
+        room.state = reduceShip(room.state, { type: "battle_end", outcome, booty, turns });
+      } catch (e) {
+        if (!(e instanceof InvalidMoveError)) throw e;
+      }
+    }
+    const voyageId = room.voyageId;
+    await this.db.transaction(async (tx) => {
+      for (const [pirateId, coins] of shares) if (coins > 0) await appendLedger(tx, pirateId, coins, "booty", voyageId);
+      if (voyageId) await tx.update(schema.voyage).set({ encounter: { tierId: run.tierId, evaded: false, outcome, booty } }).where(eq(schema.voyage.id, voyageId));
+      await recordEvent(tx, room.state.captainId, "ship.battle_ended", { shipId: room.shipId, voyageId, tierId: run.tierId, outcome, booty, turns, shares: Object.fromEntries(shares) });
+    });
+    this.log.info({ shipId: room.shipId, tierId: run.tierId, outcome, booty, turns }, "battle ended");
+    if (shares.size) this.onSummaryChanged?.([...shares.keys()]);
     await this.afterChange(room);
   }
 
@@ -255,6 +421,15 @@ export class ShipService {
     if (me?.awaySinceTurn !== null && me) room.state = reduceShip(room.state, { type: "back", pirateId });
     room.conns.join(conn);
     conn.send(this.stateMessage(room, []));
+    // The captain's fight waited for them: hand the board back with every move so far, and the deal they missed.
+    const run = room.battle;
+    if (run) {
+      const session = this.puzzles.sessions.get(run.sessionId);
+      if (session && !session.closed && session.pirateId === pirateId) {
+        conn.send(this.puzzles.startedMessage(session, true));
+        if (session.shipSupply) conn.send({ type: "battle.supply", sessionId: session.id, ...session.shipSupply });
+      }
+    }
   }
 
   /** A pirate's socket closed. Their seat is held for the grace period; their board is discarded. */
@@ -284,7 +459,10 @@ export class ShipService {
             room.nextTurnAt += this.turnMs;
             turns += 1;
             await this.settle(room);
-            if (this.rooms.has(room.shipId)) this.pushBilge(room);
+            if (this.rooms.has(room.shipId)) {
+              this.pushBilge(room);
+              this.pushSupply(room);
+            }
           }
           if (turns > 0 && this.rooms.has(room.shipId)) this.broadcast(room, []);
         } catch (e) {
@@ -365,6 +543,9 @@ export class ShipService {
   private report(room: ShipRoom, station: Station, points: number): void {
     if (points <= 0 || !room.state.voyage || !crewAtStation(room.state, station)) return;
     room.state = reduceShip(room.state, { type: "duty", station, points });
+    const run = room.battle;
+    const who = crewAtStation(room.state, station);
+    if (run && who) run.dutyPoints.set(who.pirateId, (run.dutyPoints.get(who.pirateId) ?? 0) + points);
   }
 
   /** Cut short whatever board is running at a station. */
@@ -402,6 +583,7 @@ export class ShipService {
         case "sailed":
         case "hailed":
         case "evaded":
+        case "engaged":
           void recordEvent(this.db, room.state.captainId, `ship.${e.type}`, { shipId: room.shipId, voyageId: room.voyageId, ...e }).catch((err) =>
             this.log.warn({ err }, "event write failed"),
           );
@@ -422,6 +604,8 @@ export class ShipService {
       const session = this.puzzles.sessions.get(ss.sessionId);
       if (session?.pirateId === pirateId) await this.endStation(room, st);
     }
+    // The captain's fight goes with them: the ship breaks off.
+    if (room.battle && this.puzzles.sessions.get(room.battle.sessionId)?.pirateId === pirateId) await this.cutBattleShort(room, "disengaged");
     const islandId = room.state.islandId ?? room.state.voyage?.leg.from ?? this.content.world.startIslandId;
     await this.db.update(schema.pirate).set({ islandId }).where(eq(schema.pirate.id, pirateId));
     if (room.voyageId) {
@@ -457,6 +641,7 @@ export class ShipService {
 
   private async abandon(room: ShipRoom, islandId: string): Promise<void> {
     for (const st of [...room.stations.keys()]) await this.endStation(room, st);
+    if (room.battle) await this.cutBattleShort(room, "disengaged");
     const voyageId = room.voyageId;
     room.voyageId = null;
     await this.db.transaction(async (tx) => {
@@ -538,7 +723,7 @@ export function legPlan(route: RouteLeg) {
 function location(s: ShipState): ShipLocation {
   if (s.voyage) {
     const v = s.voyage;
-    return { kind: "at-sea", routeId: v.leg.routeId, from: v.leg.from, to: v.leg.to, progress: progressPermille(s), hail: v.hail };
+    return { kind: "at-sea", routeId: v.leg.routeId, from: v.leg.from, to: v.leg.to, progress: progressPermille(s), hail: v.hail, battle: v.battle };
   }
   return { kind: "docked", islandId: s.islandId ?? "" };
 }
@@ -546,6 +731,37 @@ function location(s: ShipState): ShipLocation {
 function encounterOf(room: ShipRoom): { tierId: string; evaded: boolean } | null {
   const e = room.state.voyage?.encounter;
   return e ? { tierId: e.tierId, evaded: e.resolved } : null;
+}
+
+/** The ship's movement tokens as the battle board's kinds: half forward, the rest split between the turns. */
+export function splitTokens(n: number): { left: number; forward: number; right: number } {
+  const forward = Math.ceil(n / 2);
+  const rest = n - forward;
+  const left = Math.ceil(rest / 2);
+  return { left, forward, right: rest - left };
+}
+
+/**
+ * Booty split among everyone aboard, weighted by duty performance during the fight, with an extra
+ * share for the captain (DESIGN.md 3.4): a base of two shares for the captain and one for everyone
+ * else, each scaled between half and full by the pirate's points against the best aboard. What the
+ * floors leave over goes to the captain. Integer arithmetic throughout.
+ */
+export function splitBooty(total: number, crew: ReadonlyArray<{ pirateId: string; captain: boolean; points: number }>): Map<string, number> {
+  const out = new Map<string, number>();
+  if (total <= 0 || crew.length === 0) return out;
+  const top = Math.max(0, ...crew.map((c) => c.points));
+  const weights = crew.map((c) => (c.captain ? 2 : 1) * (top > 0 ? 50 + Math.floor((50 * c.points) / top) : 100));
+  const sum = weights.reduce((a, b) => a + b, 0);
+  let paid = 0;
+  crew.forEach((c, i) => {
+    const coins = Math.floor((total * weights[i]!) / sum);
+    out.set(c.pirateId, coins);
+    paid += coins;
+  });
+  const captain = crew.find((c) => c.captain) ?? crew[0]!;
+  out.set(captain.pirateId, (out.get(captain.pirateId) ?? 0) + (total - paid));
+  return out;
 }
 
 function wireEvent(room: ShipRoom, e: ShipEvent): ShipEventWire {

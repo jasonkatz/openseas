@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ErrorCodeSchema, PirateSummarySchema, PuzzleIdSchema, RatingViewSchema } from "./common.js";
+import { BattleConfigSchema } from "./battle.js";
 import { BilgingConfigSchema } from "./bilging.js";
 import { CarpentryConfigSchema } from "./carpentry.js";
 import { NavigationConfigSchema } from "./navigation.js";
@@ -51,6 +52,8 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("ship.sail"), routeId: z.string().min(1).max(64) }),
   /** Captain only: evade the brigand that hailed the ship. */
   z.object({ type: z.literal("ship.evade") }),
+  /** Captain only: fight the brigand that hailed the ship. The battle board is dealt as a puzzle session. */
+  z.object({ type: z.literal("ship.engage") }),
   /** Captain only: hand the wheel to someone aboard. */
   z.object({ type: z.literal("ship.wheel"), pirateId: z.string().min(1).max(64) }),
   /** Owner only: whether others may board. */
@@ -84,6 +87,13 @@ const PuzzleStartedBase = z.object({
       water: z.int().min(0).max(32).optional(),
     })
     .optional(),
+  /** Present when the round is the captain's sea battle aboard a ship. */
+  battle: z.object({ shipId: z.string(), tierId: z.string() }).optional(),
+  /**
+   * A fight the captain reconnected to: the moves the server already holds, in order. The client
+   * replays them from the seed without sending them again and carries on from there.
+   */
+  resume: z.object({ moves: z.array(z.looseObject({ type: z.string().min(1).max(32) })) }).optional(),
 });
 
 /** One variant per puzzle so a client narrows `config` by `puzzle`. */
@@ -93,6 +103,7 @@ export const PuzzleStartedSchema = z.discriminatedUnion("puzzle", [
   PuzzleStartedBase.extend({ puzzle: z.literal("carpentry"), config: CarpentryConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("gunnery"), config: GunneryConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("navigation"), config: NavigationConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("battle"), config: BattleConfigSchema }),
 ]);
 
 export const PuzzleResultSchema = z.object({
@@ -129,6 +140,16 @@ export const ServerMessageSchema = z.union([
   z.object({ type: z.literal("board.ships"), islandId: z.string(), ships: z.array(BoardShipSchema), serverNow: z.number() }),
   /** The ship's bilge changed at a turn: the Bilging board at this session logs a water move with this row. */
   z.object({ type: z.literal("duty.water"), sessionId: SessionId, row: z.int().min(0).max(32) }),
+  /** A ship turn passed during a battle: the captain's board logs a supply move with exactly these numbers. */
+  z.object({
+    type: z.literal("battle.supply"),
+    sessionId: SessionId,
+    left: z.int().min(0).max(32),
+    forward: z.int().min(0).max(32),
+    right: z.int().min(0).max(32),
+    cannons: z.int().min(0).max(32),
+    hull: z.int().min(0).max(1000),
+  }),
   /** The pirate's own summary changed: they came ashore somewhere new, or bought a ship. */
   z.object({ type: z.literal("pirate.updated"), pirate: PirateSummarySchema }),
   z.object({

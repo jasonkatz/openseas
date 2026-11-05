@@ -26,3 +26,4 @@ that supersedes it.
 | [0018](./0018-one-experience-and-a-puzzle-harness.md) | The game is one graphical experience; the puzzle practice pages become a separate harness |
 | [0019](./0019-boards-package-and-harness-bench.md) | One `boards` package draws for both applications; the harness is a bench around it |
 | [0020](./0020-three-js-world-with-boards-over-it.md) | The world is a three.js scene; the PixiJS boards open over it in one frame |
+| [0021](./0021-sea-battle-as-the-captains-board.md) | Sea Battle is the captain's board: a turn-commit engine with the brigand inside it |

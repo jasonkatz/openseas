@@ -1,6 +1,7 @@
 import { PirateProvider, usePirate } from "@openseas/boards";
 import { Landing } from "./shell/Landing.jsx";
 import { Shell } from "./shell/Shell.jsx";
+import { BattleProvider } from "./ship/battle/useBattle.js";
 import { PlaceProvider } from "./state/place.jsx";
 import { ShipProvider } from "./state/ShipProvider.jsx";
 import { SocialProvider } from "./state/SocialProvider.jsx";
@@ -15,13 +16,15 @@ function Game() {
   if (phase !== "ready" || !pirate) return <Landing />;
   return (
     <ShipProvider>
-      <SocialProvider>
-        <ToastProvider>
-          <PlaceProvider>
-            <Shell />
-          </PlaceProvider>
-        </ToastProvider>
-      </SocialProvider>
+      <BattleProvider>
+        <SocialProvider>
+          <ToastProvider>
+            <PlaceProvider>
+              <Shell />
+            </PlaceProvider>
+          </ToastProvider>
+        </SocialProvider>
+      </BattleProvider>
     </ShipProvider>
   );
 }
