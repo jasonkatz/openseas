@@ -35,7 +35,7 @@ export interface SailingCallbacks {
 
 export interface SailingRendererOptions {
   showMarks: boolean;
-  /** Ms per row of free fall, and while the pair is hurried (a held swipe or the down key). From content. */
+  /** Ms per row of free fall, and while the pair is hurried (a held tap or the space key). From content. */
   fallMs: number;
   softDropMs: number;
   chainLabel(chain: number): string;
@@ -82,6 +82,8 @@ const CLEAR_MS = 200;
 const DIE_MS = 220;
 /** How long a pair rests on the floor, a shelf or a stack before it locks. */
 const LOCK_MS = 350;
+/** How long a finger must stay put before the touch is a hurry rather than a tap. */
+const HOLD_MS = 250;
 /** Slides and turns that restart the lock timer while resting; after that the timer runs on regardless. Falling to a lower row restores them. */
 const MAX_LOCK_RESETS = 3;
 
@@ -137,7 +139,11 @@ export class SailingRenderer {
    */
   private falling: { col: number; rot: Rotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number } | null = null;
   private softDrop = false;
-  private drag: { x: number; y: number; col: number; moved: boolean; hurried: boolean } | null = null;
+  /**
+   * The finger or mouse button currently down. `at` is the board time it landed; `still` stays true
+   * until it travels further than a tap allows; `hurried` once a hold has turned into a hurry.
+   */
+  private drag: { x: number; y: number; at: number; col: number; moved: boolean; still: boolean; hurried: boolean } | null = null;
 
   constructor(
     private readonly host: HTMLElement,
@@ -695,6 +701,7 @@ export class SailingRenderer {
     this.runSteps(dt);
     this.movePieces(dt);
     this.moveFx(dt);
+    this.holdCheck();
     this.fall(dt);
     this.drawLinks();
     if (this.framePending && this.steps.length === 0 && !this.moving) {
@@ -828,22 +835,29 @@ export class SailingRenderer {
 
   private pointerDown(e: FederatedPointerEvent): void {
     if (!this.interactive || !this.falling) return;
-    this.drag = { x: e.global.x, y: e.global.y, col: this.falling.col, moved: false, hurried: false };
+    this.drag = { x: e.global.x, y: e.global.y, at: this.time, col: this.falling.col, moved: false, still: true, hurried: false };
   }
 
-  /** Drag sideways to steer a column at a time; hold a downward swipe to hurry the fall until the finger lifts, with steering locked meanwhile. */
+  /**
+   * A finger that stays put for HOLD_MS becomes a hurry that lasts until it lifts. The delay keeps a
+   * plain tap a turn; any travel before it elapses makes the touch a drag instead.
+   */
+  private holdCheck(): void {
+    const d = this.drag;
+    if (!d || !d.still || d.hurried || this.time - d.at < HOLD_MS) return;
+    d.hurried = true;
+    this.softDrop = true;
+  }
+
+  /** Drag sideways to steer a column at a time. A hold that has become a hurry locks steering until the finger lifts. */
   private pointerMove(e: FederatedPointerEvent): void {
     const d = this.drag;
     const f = this.falling;
     if (!d || !f) return;
+    if (d.hurried) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
-    if (dy > this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
-      d.hurried = true;
-      this.softDrop = true;
-    } else if (dy < this.cell * 0.4) this.softDrop = false;
-    // A downward swipe commits to the column it started in: no steering until the finger lifts.
-    if (d.hurried) return;
+    if (Math.abs(dx) >= this.cell * 0.4 || Math.abs(dy) >= this.cell * 0.4) d.still = false;
     const wantCol = d.col + Math.round(dx / this.cell);
     while (f.col < wantCol) {
       const before = f.col;
@@ -866,7 +880,7 @@ export class SailingRenderer {
     if (!d || !this.falling || d.hurried) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
-    if (!d.moved && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate();
+    if (!d.moved && d.still && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate();
   }
 
   private pointerCancel(): void {

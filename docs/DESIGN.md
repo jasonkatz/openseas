@@ -138,8 +138,9 @@ and the engine accepts it only if that spot is reachable from the entry by slidi
 the same kicks the client uses (either direction), and falling, and nothing holds the pair there. So a pair can be
 steered under a platform, a vertical pair can never straddle a shelf, and a position that floats is
 refused. The client's fall timer and steering are presentation: free fall takes `fallMs` a row, a
-held downward swipe or holding space hurries it to `softDropMs` a row (ten times the pace), with
-steering locked for the length of the swipe. There is no hard drop. A pair that comes to rest
+touch held still for 250 ms, or holding space, hurries it to `softDropMs` a row (ten times the
+pace) for as long as the hold lasts, with steering locked meanwhile; the delay is what keeps a
+plain tap a turn. There is no hard drop. A pair that comes to rest
 locks after 350 ms; a slide or turn while resting restarts that timer at most three times, and
 reaching a lower row restores the restarts. On the keyboard up turns the
 pair clockwise and down turns it counter-clockwise; a tap turns it clockwise.
