@@ -16,6 +16,8 @@ export const CrewViewSchema = z.object({
   captain: z.boolean(),
   /** Dropped; their seat is held for the grace period. */
   away: z.boolean(),
+  /** A deckhand: AI crew signed on when the ship sailed short-handed, not a player (DESIGN.md 3.4). */
+  mate: z.boolean(),
 });
 export type CrewView = z.infer<typeof CrewViewSchema>;
 
@@ -75,6 +77,10 @@ export type ShipSnapshot = z.infer<typeof ShipSnapshotSchema>;
 export const ShipEventWireSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("boarded"), pirateId: Id, name: z.string() }),
   z.object({ type: z.literal("left"), pirateId: Id, name: z.string(), reason: z.enum(["left", "timed_out"]) }),
+  /** A deckhand signed on as the ship sailed, at a station or waiting for one to open. */
+  z.object({ type: z.literal("hired"), pirateId: Id, name: z.string(), station: StationSchema.nullable() }),
+  /** Deckhands went ashore: the ship docked, emptied of pirates, or needed the berth. */
+  z.object({ type: z.literal("paid_off"), names: z.array(z.string()) }),
   z.object({ type: z.literal("station"), pirateId: Id, name: z.string(), station: StationSchema.nullable() }),
   z.object({ type: z.literal("wheel"), pirateId: Id, name: z.string() }),
   z.object({ type: z.literal("sailed"), routeId: Id }),

@@ -10,5 +10,7 @@ export {
   crewMember,
   crewAtStation,
   longestAboard,
+  pirates,
+  mates,
   progressPermille,
 } from "./reduce.js";

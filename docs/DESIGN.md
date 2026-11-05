@@ -370,6 +370,18 @@ live in `content/data/puzzles/swordfight.json`.
   Permissions for taking a ship out without its owner are a later feature.
 - **Crew size.** A pirate can sail alone. Unstaffed stations produce nothing. Brigand difficulty is
   a per-encounter tier, not scaled to crew size, in v1. The game is tuned for crews of 3 to 5.
+- **Deckhands.** A ship that sets sail with fewer aboard than its class's `minCrew` (four on a
+  sloop) signs on deckhands to make up the number: AI crew who take the open stations the class
+  lists for them, in order (sails, pump, carpentry, guns; never the chart table). A deckhand plays
+  no board: each turn its station's output is a passable roll between `mateOutput.min` and `.max`
+  percent of par from the ship's PRNG, so a replay reproduces it (ADR 0023). A pirate may take
+  any deckhand's station at any time; the hand steps aside and, after `mateRestTurns` turns so
+  the pirate settles in, works the next open station it will, or waits on deck for one. A pirate
+  boarding a full ship relieves a deckhand. Deckhands never have the wheel, never drop, earn no
+  booty, and are paid off when the ship docks or the last pirate leaves. They look like pirates,
+  with names from the same lists, but are always marked as deckhands wherever crew are shown:
+  a chip in the crew list, the word on their station, and a different figure on deck (a smock
+  and kerchief, not a coat and hat), so nobody mistakes one for a player.
 - **Joining.** Ships at sea appear on the island notice board. Pirates can join mid-voyage and
   take a free station. The owner can set a ship to invite-only.
 - **Disconnects.** A dropped pirate's station idles for a 2 minute grace period; their seat is
@@ -661,6 +673,7 @@ Maintained as they arise.
 | Area | Original | openseas | Why |
 |---|---|---|---|
 | Ship ownership | Individuals and crews | Individuals only in v1 | Simpler model; owner likes personal ships |
+| AI crew | Hired at port for wages, with their own ratings, and sent to a station by the captain | Deckhands sign on by themselves when a ship sails short of `minCrew`, work the open stations the class lists in order, step aside for any pirate and come back after a rest; free; paid off at the dock | Short crews still sail a working ship; no economy yet; the pirate's choice of station always wins (ADR 0023) |
 | Anti-cheat | Client-reported scores | Server replay verification | Cheap once engines are pure |
 | Evading brigands | Can fail | Always succeeds in v1 | Nothing to lose yet |
 | Loss consequences | Cargo and damage costs | None in v1 | No economy yet |

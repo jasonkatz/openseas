@@ -98,11 +98,11 @@ export function Shell() {
   useEffect(() => {
     if (place.kind !== "station" || !ship || !online) return;
     const holder = ship.crew.find((c) => c.station === place.station);
-    if (holder && holder.pirateId !== me) {
+    if (holder && holder.pirateId !== me && !holder.mate) {
       go({ kind: "home" });
       return;
     }
-    if (!holder && myStation !== place.station) takeStation(place.station);
+    if ((!holder || holder.mate) && myStation !== place.station) takeStation(place.station);
   }, [place, ship, online, me, myStation, takeStation, go]);
 
   // A helm place needs a docked ship and the wheel.
@@ -248,9 +248,15 @@ export function Shell() {
       shipId: ship.shipId,
       stations: stations.map((st) => {
         const holder = ship.crew.find((c) => c.station === st) ?? null;
-        return { station: st, label: stationName(st), holder: holder ? (holder.pirateId === me ? t("ship.you") : holder.name) : null, mine: holder?.pirateId === me };
+        return {
+          station: st,
+          label: stationName(st),
+          holder: holder ? (holder.pirateId === me ? t("ship.you") : holder.mate ? t("ship.mate_who", { name: holder.name }) : holder.name) : null,
+          mine: holder?.pirateId === me,
+          mate: Boolean(holder?.mate),
+        };
       }),
-      crew: ship.crew.map((c) => ({ pirateId: c.pirateId, station: c.station, mine: c.pirateId === me, captain: c.captain })),
+      crew: ship.crew.map((c) => ({ pirateId: c.pirateId, station: c.station, mine: c.pirateId === me, captain: c.captain, mate: c.mate })),
       wheel: { label: captain ? (docked ? t("ship.wheel_sail") : t("ship.wheel_at_sea")) : t("ship.wheel_spot"), who: captain ? null : captainName, primary: captain && docked },
     };
   }, [ship, me, captain, captainName]);
@@ -340,12 +346,13 @@ export function Shell() {
     (st: StationWire) => {
       if (!ship) return;
       const holder = ship.crew.find((c) => c.station === st);
-      if (holder && holder.pirateId !== me) {
+      if (holder && holder.pirateId !== me && !holder.mate) {
         toast(t("error.station_taken"), "warn");
         return;
       }
       sfx.swap();
-      if (!holder) takeStation(st);
+      // An open station, or a deckhand's: the hand steps aside for a pirate.
+      if (!holder || holder.mate) takeStation(st);
       go({ kind: "station", station: st });
     },
     [ship, me, takeStation, go, toast],

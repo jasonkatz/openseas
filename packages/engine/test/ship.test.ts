@@ -9,7 +9,10 @@ import {
   hashShipState,
   legUnits,
   longestAboard,
+  mates,
   outputPercent,
+  pirates,
+  crewAtStation,
   reduceShip,
   replayShip,
   type LegPlan,
@@ -19,9 +22,12 @@ import {
   type Station,
 } from "../src/index.js";
 
-const sloop = { id: "sloop", stations: [...STATIONS], maxCrew: 4, cannons: 4, baseTokens: 4 };
+const MATE_STATIONS: Station[] = ["sailing", "bilging", "carpentry", "gunnery"];
+const sloop = { id: "sloop", stations: [...STATIONS], maxCrew: 4, minCrew: 4, mateStations: MATE_STATIONS, cannons: 4, baseTokens: 4 };
 const par = { bilging: 20, sailing: 15, carpentry: 12, gunnery: 10, navigation: 8 };
 const cfg: ShipConfig = { shipClass: sloop, rules: DEFAULT_SHIP_RULES, par };
+/** The same sloop with no deckhands, for tests about an unstaffed ship. */
+const bare: ShipConfig = { ...cfg, shipClass: { ...sloop, minCrew: 0 } };
 
 const ISLANDS = ["a", "b", "c"];
 const legs: LegPlan[] = [];
@@ -94,8 +100,8 @@ function play(seed: string, picks: readonly number[], config = cfg): { moves: Sh
 const picksArb = fc.array(fc.nat({ max: 1_000_000 }), { minLength: 0, maxLength: 120 });
 
 /** Boards p1 as captain at p-station duty, sets sail on the first leg from "a". */
-function underway(seed = "s", stations: Partial<Record<Station, string>> = {}): ShipState {
-  let s = createShip(seed, cfg, "a");
+function underway(seed = "s", stations: Partial<Record<Station, string>> = {}, config = cfg): ShipState {
+  let s = createShip(seed, config, "a");
   s = reduceShip(s, { type: "board", pirateId: "p1" });
   for (const [st, who] of Object.entries(stations)) {
     if (who !== "p1") s = reduceShip(s, { type: "board", pirateId: who });
@@ -179,9 +185,17 @@ describe("ship invariants", () => {
         if (s.voyage) {
           expect(s.voyage.progress).toBeGreaterThanOrEqual(0);
           expect(s.voyage.progress).toBeLessThan(s.voyage.leg.lengthUnits);
-          expect(s.crew.length).toBeGreaterThan(0);
+          expect(pirates(s.crew).length).toBeGreaterThan(0);
         } else {
           expect(ISLANDS).toContain(s.islandId);
+          // Deckhands are paid off in port.
+          expect(mates(s.crew)).toEqual([]);
+        }
+        for (const m of mates(s.crew)) {
+          expect(m.pirateId).not.toBe(s.captainId);
+          expect(m.awaySinceTurn).toBeNull();
+          expect(m.station === null).toBe(m.idleFromTurn !== null);
+          if (m.station) expect(MATE_STATIONS).toContain(m.station);
         }
       }),
       { numRuns: 300 },
@@ -229,11 +243,13 @@ describe("ship crew", () => {
   it("prefers a connected pirate for the wheel, then the longest aboard", () => {
     expect(longestAboard([])).toBeNull();
     const crew = [
-      { pirateId: "late", station: null, boardedSeq: 3, awaySinceTurn: null },
-      { pirateId: "early-away", station: null, boardedSeq: 1, awaySinceTurn: 2 },
-      { pirateId: "mid", station: null, boardedSeq: 2, awaySinceTurn: null },
+      { pirateId: "mate:0", station: null, boardedSeq: 0, awaySinceTurn: null, mate: true, idleFromTurn: 0 },
+      { pirateId: "late", station: null, boardedSeq: 3, awaySinceTurn: null, mate: false, idleFromTurn: null },
+      { pirateId: "early-away", station: null, boardedSeq: 1, awaySinceTurn: 2, mate: false, idleFromTurn: null },
+      { pirateId: "mid", station: null, boardedSeq: 2, awaySinceTurn: null, mate: false, idleFromTurn: null },
     ];
     expect(longestAboard(crew)?.pirateId).toBe("mid");
+    expect(longestAboard([crew[0]!])).toBeNull();
   });
 });
 
@@ -261,7 +277,7 @@ describe("ship voyage", () => {
   });
 
   it("nobody sailing means idle speed, water rising and the hull wearing", () => {
-    let s = underway("idle");
+    let s = underway("idle", {}, bare);
     s = turns(s, 5);
     expect(s.lastTurn?.outputs).toEqual({ bilging: 0, sailing: 0, carpentry: 0, gunnery: 0, navigation: 0 });
     // Intake, plus a little more as the hull wears.
@@ -289,7 +305,7 @@ describe("ship voyage", () => {
   });
 
   it("gunnery loads the cannons and stops at the last one", () => {
-    let s = underway("guns", { gunnery: "p1" });
+    let s = underway("guns", { gunnery: "p1" }, bare);
     const load = (st: ShipState): ShipState => reduceShip(st, { type: "duty", station: "gunnery", points: par.gunnery });
     s = turns(s, 1, load);
     expect(s.loaded).toBe(0);
@@ -312,7 +328,7 @@ describe("ship voyage", () => {
   });
 
   it("arriving docks the ship, pumps the bilge and repairs the hull for free", () => {
-    let s = underway("dock");
+    let s = underway("dock", {}, bare);
     s = turns(s, 10);
     expect(s.water).toBeGreaterThan(0);
     expect(s.damage).toBeGreaterThan(0);
@@ -329,7 +345,7 @@ describe("ship voyage", () => {
 
 describe("ship encounters", () => {
   const certain = (seed: string): ShipState => {
-    let s = createShip(seed, cfg, "a");
+    let s = createShip(seed, bare, "a");
     s = reduceShip(s, { type: "board", pirateId: "p1" });
     return reduceShip(s, { type: "sail", leg: { ...legFrom("a"), encounterChancePercent: 100 } });
   };
@@ -460,7 +476,7 @@ describe("ship disconnects (DESIGN.md 3.4)", () => {
   });
 
   it("an empty ship at sea goes back to the island it left", () => {
-    let s = underway("empty");
+    let s = underway("empty", {}, bare);
     s = turns(s, 3);
     s = reduceShip(s, { type: "leave", pirateId: "p1" });
     expect(s.voyage).toBeNull();
@@ -471,10 +487,183 @@ describe("ship disconnects (DESIGN.md 3.4)", () => {
   });
 });
 
+describe("ship deckhands (DESIGN.md 3.4)", () => {
+  const rules = DEFAULT_SHIP_RULES;
+  const mateIds = (s: ShipState): string[] => mates(s.crew).map((m) => m.pirateId);
+
+  it("setting sail short-handed signs on deckhands up to minCrew, at the mate stations in order", () => {
+    const s = underway("hands", { gunnery: "p1" });
+    expect(s.crew).toHaveLength(4);
+    expect(pirates(s.crew).map((c) => c.pirateId)).toEqual(["p1"]);
+    expect(mates(s.crew).map((m) => m.station)).toEqual(["sailing", "bilging", "carpentry"]);
+    expect(mates(s.crew).every((m) => m.pirateId.startsWith("mate:") && m.idleFromTurn === null && m.awaySinceTurn === null)).toBe(true);
+    expect(s.events).toEqual([
+      { type: "sailed", routeId: "a-b" },
+      ...mates(s.crew).map((m) => ({ type: "hired", pirateId: m.pirateId, station: m.station })),
+    ]);
+    expect(s.captainId).toBe("p1");
+    // A deckhand is not a pirate: it holds no board, drops no connection, takes no wheel and never leaves on its own.
+    const mate = mateIds(s)[0]!;
+    for (const move of [
+      { type: "duty", station: "sailing", points: 5 },
+      { type: "away", pirateId: mate },
+      { type: "back", pirateId: mate },
+      { type: "wheel", pirateId: mate },
+      { type: "leave", pirateId: mate },
+      { type: "station", pirateId: mate, station: "gunnery" },
+      { type: "board", pirateId: "mate:9" },
+    ] as ShipMove[]) {
+      expect(() => reduceShip(s, move)).toThrow(InvalidMoveError);
+    }
+  });
+
+  it("a full crew sails without deckhands; one short gets one, left waiting if its stations are taken", () => {
+    let full = createShip("full", cfg, "a");
+    for (const p of ["p1", "p2", "p3", "p4"]) full = reduceShip(full, { type: "board", pirateId: p });
+    full = reduceShip(full, { type: "sail", leg: legFrom("a") });
+    expect(mates(full.crew)).toEqual([]);
+    expect(full.events).toEqual([{ type: "sailed", routeId: "a-b" }]);
+
+    let s = createShip("one-short", cfg, "a");
+    for (const [i, p] of ["p1", "p2", "p3"].entries()) {
+      s = reduceShip(s, { type: "board", pirateId: p });
+      s = reduceShip(s, { type: "station", pirateId: p, station: MATE_STATIONS[i]! });
+    }
+    s = reduceShip(s, { type: "sail", leg: legFrom("a") });
+    expect(mates(s.crew).map((m) => m.station)).toEqual(["gunnery"]);
+
+    // Every station a deckhand would work is taken: it waits on deck and takes the first that opens.
+    let busy = createShip("busy", { ...cfg, shipClass: { ...sloop, maxCrew: 6, minCrew: 5 } }, "a");
+    for (const [i, p] of ["p1", "p2", "p3", "p4"].entries()) {
+      busy = reduceShip(busy, { type: "board", pirateId: p });
+      busy = reduceShip(busy, { type: "station", pirateId: p, station: MATE_STATIONS[i]! });
+    }
+    busy = reduceShip(busy, { type: "sail", leg: legFrom("a") });
+    expect(mates(busy.crew)).toMatchObject([{ station: null, idleFromTurn: 0 }]);
+    expect(busy.events.at(-1)).toEqual({ type: "hired", pirateId: mateIds(busy)[0], station: null });
+    busy = turns(busy, 2);
+    expect(mates(busy.crew)[0]!.station).toBeNull();
+    busy = reduceShip(busy, { type: "station", pirateId: "p3", station: null });
+    busy = reduceShip(busy, { type: "turn" });
+    expect(mates(busy.crew)[0]).toMatchObject({ station: "carpentry", idleFromTurn: null });
+    expect(busy.events).toContainEqual({ type: "station", pirateId: mateIds(busy)[0], station: "carpentry" });
+  });
+
+  it("deckhands do a passable job: output between mateOutput.min and max every turn, from the ship's PRNG", () => {
+    let s = underway("work");
+    const seen = new Set<number>();
+    for (let i = 0; i < 30; i++) {
+      s = reduceShip(s, { type: "turn" });
+      if (!s.voyage) break;
+      for (const st of ["sailing", "bilging", "carpentry"] as const) {
+        const out = s.lastTurn!.outputs[st];
+        expect(out).toBeGreaterThanOrEqual(rules.mateOutput.min);
+        expect(out).toBeLessThanOrEqual(rules.mateOutput.max);
+        seen.add(out);
+      }
+      expect(s.lastTurn!.outputs.gunnery).toBe(0);
+      expect(s.lastTurn!.outputs.navigation).toBe(0);
+    }
+    expect(seen.size).toBeGreaterThan(3);
+    // Faster than an unstaffed ship, slower than one at par.
+    const crewed = turns(underway("work"), 3).lastTurn!.speed;
+    const idle = turns(underway("work", {}, bare), 3).lastTurn!.speed;
+    expect(crewed).toBeGreaterThan(idle);
+    expect(crewed).toBeLessThan(1000);
+    expect(turns(underway("work"), 3).water).toBeLessThan(turns(underway("work", {}, bare), 3).water);
+  });
+
+  it("a pirate takes a deckhand's station; the deckhand rests, then works another open one", () => {
+    let s = underway("relieve");
+    s = turns(s, 2);
+    const hand = mates(s.crew).find((m) => m.station === "sailing")!;
+    s = reduceShip(s, { type: "station", pirateId: "p1", station: "sailing" });
+    expect(crewMember(s, "p1")!.station).toBe("sailing");
+    expect(crewMember(s, hand.pirateId)).toMatchObject({ station: null, idleFromTurn: s.turn + rules.mateRestTurns });
+    expect(s.events).toEqual([{ type: "station", pirateId: "p1", station: "sailing" }]);
+    // Gunnery is open, but the deckhand waits out its rest first.
+    s = turns(s, rules.mateRestTurns - 1);
+    expect(crewMember(s, hand.pirateId)!.station).toBeNull();
+    s = reduceShip(s, { type: "turn" });
+    expect(crewMember(s, hand.pirateId)).toMatchObject({ station: "gunnery", idleFromTurn: null });
+    expect(s.events).toContainEqual({ type: "station", pirateId: hand.pirateId, station: "gunnery" });
+    expect(s.lastTurn!.outputs.gunnery).toBeGreaterThan(0);
+    // Taking the same station again right away is a no-op for the deckhand's rest.
+    const other = mates(s.crew).find((m) => m.station === "bilging")!;
+    s = reduceShip(s, { type: "station", pirateId: "p1", station: "bilging" });
+    expect(crewMember(s, other.pirateId)!.station).toBeNull();
+    expect(crewAtStation(s, "sailing")).toBeNull();
+    // With sailing open, the relieved hand goes there once rested.
+    s = turns(s, rules.mateRestTurns);
+    expect(crewMember(s, other.pirateId)!.station).toBe("sailing");
+  });
+
+  it("deckhands are paid off in port, and go when the last pirate does", () => {
+    let s = underway("port");
+    const hired = mateIds(s);
+    expect(hired).toHaveLength(3);
+    while (s.voyage) s = reduceShip(s, { type: "turn" });
+    expect(s.islandId).toBe("b");
+    expect(mates(s.crew)).toEqual([]);
+    expect(s.crew.map((c) => c.pirateId)).toEqual(["p1"]);
+    const paid = s.events.find((e) => e.type === "paid_off");
+    expect(paid).toEqual({ type: "paid_off", pirateIds: hired });
+    expect(s.events.indexOf(paid!)).toBeLessThan(s.events.findIndex((e) => e.type === "arrived"));
+    // Sailing again signs on fresh hands with new ids.
+    s = reduceShip(s, { type: "sail", leg: legFrom("b") });
+    expect(mateIds(s)).toHaveLength(3);
+    expect(mateIds(s).some((id) => hired.includes(id))).toBe(false);
+
+    let gone = underway("gone");
+    gone = reduceShip(gone, { type: "board", pirateId: "p2" });
+    expect(mates(gone.crew)).toHaveLength(2);
+    gone = reduceShip(gone, { type: "leave", pirateId: "p1" });
+    expect(gone.captainId).toBe("p2");
+    expect(mates(gone.crew)).toHaveLength(2);
+    gone = reduceShip(gone, { type: "leave", pirateId: "p2" });
+    expect(gone.crew).toEqual([]);
+    expect(gone.islandId).toBe("a");
+    expect(gone.events.map((e) => e.type)).toEqual(["left", "paid_off", "abandoned"]);
+  });
+
+  it("a pirate boarding a ship full of deckhands relieves one, the idle one first", () => {
+    let s = underway("berth");
+    expect(s.crew).toHaveLength(sloop.maxCrew);
+    const [first, second] = mateIds(s) as [string, string, string];
+    s = reduceShip(s, { type: "board", pirateId: "p2" });
+    expect(s.crew).toHaveLength(sloop.maxCrew);
+    expect(mateIds(s)).toEqual([first, second]);
+    expect(s.events).toEqual([{ type: "paid_off", pirateIds: [mateIds(underway("berth"))[2]!] }, { type: "boarded", pirateId: "p2" }]);
+    s = reduceShip(s, { type: "station", pirateId: "p2", station: "sailing" });
+    expect(crewMember(s, first)!.station).toBeNull();
+    s = reduceShip(s, { type: "board", pirateId: "p3" });
+    expect(mateIds(s)).toEqual([second]);
+    s = reduceShip(s, { type: "board", pirateId: "p4" });
+    expect(mates(s.crew)).toEqual([]);
+    expect(() => reduceShip(s, { type: "board", pirateId: "p5" })).toThrow(InvalidMoveError);
+  });
+
+  it("the deckhands' work replays exactly", () => {
+    fc.assert(
+      fc.property(fc.string(), fc.nat({ max: 40 }), (seed, n) => {
+        const a = turns(underway(seed, { gunnery: "p1" }), n);
+        const b = turns(underway(seed, { gunnery: "p1" }), n);
+        expect(hashShipState(a)).toBe(hashShipState(b));
+        expect(a.lastTurn).toEqual(b.lastTurn);
+      }),
+      { numRuns: 50 },
+    );
+  });
+});
+
 describe("ship config", () => {
   it("rejects nonsense", () => {
     expect(() => createShip("x", { ...cfg, par: { ...par, sailing: 0 } }, "a")).toThrow();
     expect(() => createShip("x", { ...cfg, shipClass: { ...sloop, stations: ["sailing", "sailing"] } }, "a")).toThrow();
+    expect(() => createShip("x", { ...cfg, shipClass: { ...sloop, minCrew: 5 } }, "a")).toThrow();
+    expect(() => createShip("x", { ...cfg, shipClass: { ...sloop, mateStations: ["sailing", "sailing"] } }, "a")).toThrow();
+    expect(() => createShip("x", { ...cfg, shipClass: { ...sloop, stations: ["sailing"], mateStations: ["bilging"] } }, "a")).toThrow();
+    expect(() => createShip("x", { ...cfg, rules: { ...DEFAULT_SHIP_RULES, mateOutput: { min: 80, max: 60 } } }, "a")).toThrow();
     expect(() => createShip("x", { ...cfg, rules: { ...DEFAULT_SHIP_RULES, maxSpeed: 10 } }, "a")).toThrow();
     expect(() => createShip("x", cfg, "")).toThrow();
   });

@@ -19,6 +19,8 @@
     "maxOutputPercent": 200,
     "graceTurns": 12,
     "hailTurns": 3,
-    "encounterWindow": { "from": 250, "to": 800 }
+    "encounterWindow": { "from": 250, "to": 800 },
+    "mateOutput": { "min": 55, "max": 85 },
+    "mateRestTurns": 3
   }
 }

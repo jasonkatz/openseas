@@ -4,6 +4,8 @@
     "nameKey": "ship.sloop",
     "stations": ["bilging", "sailing", "carpentry", "gunnery", "navigation"],
     "maxCrew": 6,
+    "minCrew": 4,
+    "mateStations": ["sailing", "bilging", "carpentry", "gunnery"],
     "hull": 100,
     "cannons": 4,
     "baseTokens": 4,

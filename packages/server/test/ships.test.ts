@@ -47,6 +47,8 @@ describe("ship config from content", () => {
     expect(cfg.par.bilging).toBe(Math.round((b.parScore * content.world.ship.turnSeconds) / b.roundSeconds));
     expect(cfg.par.bilging).toBeGreaterThan(0);
     expect(cfg.shipClass.stations).toEqual(content.world.shipClasses[0]!.stations);
+    expect(cfg.shipClass.minCrew).toBe(content.world.shipClasses[0]!.minCrew);
+    expect(cfg.shipClass.mateStations).toEqual(content.world.shipClasses[0]!.mateStations);
     expect(cfg.rules).toBe(content.world.ship);
   });
 
@@ -270,11 +272,27 @@ describeDb("ships over the wire", () => {
     const sailed = await a.until("ship.state", (m) => m.ship.location.kind === "at-sea");
     expect(sailed.ship.location).toMatchObject({ kind: "at-sea", routeId: "saltwick-gullhaven", from: start, to: "gullhaven", progress: 0 });
     await b.until("ship.state", (m) => m.ship.location.kind === "at-sea");
+    // Two pirates short of the sloop's four, so two deckhands signed on at the open stations the
+    // class lists first (DESIGN.md 3.4), named like pirates but flagged, and never in the database.
+    const sloop = content.world.shipClasses.find((c) => c.id === "sloop")!;
+    const hands = sailed.ship.crew.filter((c) => c.mate);
+    expect(hands).toHaveLength(sloop.minCrew - 2);
+    expect(hands.map((h) => h.station)).toEqual(sloop.mateStations.filter((st) => st !== "bilging" && st !== "sailing").slice(0, hands.length));
+    for (const h of hands) {
+      expect(h.name).toMatch(/^\S+ \S+$/);
+      expect(h.captain).toBe(false);
+      expect([owner.me.name, mate.me.name]).not.toContain(h.name);
+    }
+    expect(sailed.events.filter((e) => e.type === "hired")).toHaveLength(hands.length);
+    expect(sailed.events).toContainEqual({ type: "hired", pirateId: hands[0]!.pirateId, name: hands[0]!.name, station: hands[0]!.station });
     const voyages = await app.db.select().from(schema.voyage).where(eq(schema.voyage.shipId, shipId));
     expect(voyages).toHaveLength(1);
     expect(voyages[0]).toMatchObject({ routeId: "saltwick-gullhaven", captainId: owner.me.id, outcome: null });
     const crewRows = await app.db.select().from(schema.voyageCrew).where(eq(schema.voyageCrew.voyageId, voyages[0]!.id));
     expect(crewRows.map((r) => r.pirateId).sort()).toEqual([owner.me.id, mate.me.id].sort());
+    // The wheel can go to a pirate, never to a deckhand.
+    a.send({ type: "ship.wheel", pirateId: hands[0]!.pirateId });
+    expect(await a.until("error")).toMatchObject({ code: "is_deckhand" });
 
     // The mate's bilging board is dealt bound to the ship, with the ship's bilge as its water
     // (DESIGN.md 3.3): the board's first move is the water event the deal carries.
@@ -302,6 +320,11 @@ describeDb("ships over the wire", () => {
     expect(t1.ship.lastTurn).toMatchObject({ turn: 1, held: false });
     expect(t1.ship.lastTurn!.outputs.bilging).toBeGreaterThan(0);
     expect(t1.ship.lastTurn!.outputs.sailing).toBe(0);
+    // The deckhands turned in a passable job at their stations without a board.
+    for (const h of hands) {
+      expect(t1.ship.lastTurn!.outputs[h.station!]).toBeGreaterThanOrEqual(content.world.ship.mateOutput.min);
+      expect(t1.ship.lastTurn!.outputs[h.station!]).toBeLessThanOrEqual(content.world.ship.mateOutput.max);
+    }
     expect(t1.ship.location.kind === "at-sea" && t1.ship.location.progress).toBeGreaterThan(0);
     expect(t1.ship.nextTurnAt).toBeGreaterThan(clock.t);
     // Nobody is at the sails, so the bilge fills faster than one pirate pumps it over a few turns.
@@ -350,6 +373,11 @@ describeDb("ships over the wire", () => {
     const arrived = await a.until("ship.state", atGullhaven);
     expect(arrived.ship.water).toBe(0);
     expect(arrived.ship.voyagesCompleted).toBe(1);
+    // In port the deckhands are paid off, by name, and only the pirates remain aboard.
+    expect(arrived.ship.crew.some((c) => c.mate)).toBe(false);
+    expect(arrived.ship.crew).toHaveLength(2);
+    expect(arrived.events).toContainEqual({ type: "paid_off", names: hands.map((h) => h.name) });
+    expect(arrived.events.some((e) => e.type === "arrived")).toBe(true);
     await b.until("ship.state", atGullhaven);
     const [v] = await app.db.select().from(schema.voyage).where(eq(schema.voyage.id, voyages[0]!.id));
     expect(v).toMatchObject({ outcome: "arrived" });
@@ -410,7 +438,7 @@ describeDb("ships over the wire", () => {
     b.ws.close();
     await a.until("ship.state", (m) => m.ship.crew.some((c) => c.away));
     await turn(content.world.ship.graceTurns + 1);
-    const alone = await a.until("ship.state", (m) => m.ship.crew.length === 1);
+    const alone = await a.until("ship.state", (m) => m.ship.crew.filter((c) => !c.mate).length === 1);
     expect(alone.ship.location.kind).toBe("at-sea");
     const [mateRow] = await app.db.select().from(schema.pirate).where(eq(schema.pirate.id, mate.me.id));
     expect(mateRow?.islandId).toBe(content.world.startIslandId);
@@ -429,6 +457,46 @@ describeDb("ships over the wire", () => {
     expect(shipRow?.islandId).toBe(content.world.startIslandId);
     const voyages = await app.db.select().from(schema.voyage).where(eq(schema.voyage.shipId, shipId));
     expect(voyages[0]).toMatchObject({ outcome: "abandoned" });
+  });
+
+  it("a pirate takes a deckhand's station and gets a board; the hand finds another after its rest", async () => {
+    const owner = await pirate();
+    const shipId = owner.me.ships[0]!.id;
+    const a = await connect(owner.cookie);
+    a.send({ type: "ship.board", shipId });
+    await a.until("ship.state");
+    a.send({ type: "ship.sail", routeId: "saltwick-gullhaven" });
+    const sailed = await a.until("ship.state", (m) => m.ship.location.kind === "at-sea");
+    const sloop = content.world.shipClasses.find((c) => c.id === "sloop")!;
+    const hands = sailed.ship.crew.filter((c) => c.mate);
+    expect(hands).toHaveLength(sloop.minCrew - 1);
+    expect(hands.map((h) => h.station)).toEqual(sloop.mateStations.slice(0, hands.length));
+    const atSails = hands.find((h) => h.station === "sailing")!;
+
+    // Taking the sails from the hand is allowed where another pirate's station is refused; the hand steps aside.
+    a.send({ type: "ship.station", station: "sailing" });
+    const took = await a.until("ship.state", (m) => m.ship.crew.some((c) => c.pirateId === owner.me.id && c.station === "sailing"));
+    expect(took.ship.crew.find((c) => c.pirateId === atSails.pirateId)).toMatchObject({ station: null, mate: true });
+    expect(took.events).toEqual([{ type: "station", pirateId: owner.me.id, name: owner.me.name, station: "sailing" }]);
+    a.send({ type: "duty.start" });
+    const started = await a.until("puzzle.started");
+    expect(started.puzzle).toBe("sailing");
+    expect(started.duty).toMatchObject({ shipId, station: "sailing" });
+
+    // After the rest the hand takes the next open station it works, and the log says so.
+    const open = sloop.mateStations.find((st) => !took.ship.crew.some((c) => c.station === st))!;
+    await turn(content.world.ship.mateRestTurns);
+    const moved = await a.until("ship.state", (m) => m.ship.crew.some((c) => c.pirateId === atSails.pirateId && c.station === open));
+    expect(moved.events).toContainEqual({ type: "station", pirateId: atSails.pirateId, name: atSails.name, station: open });
+    expect(moved.ship.lastTurn!.outputs[open]).toBeGreaterThan(0);
+
+    // The last pirate leaving takes the deckhands with them: the ship is abandoned and the room goes.
+    a.send({ type: "ship.leave" });
+    expect(await a.until("ship.left")).toMatchObject({ shipId, reason: "left" });
+    await expect.poll(() => app.ships.size).toBe(0);
+    const [shipRow] = await app.db.select().from(schema.ship).where(eq(schema.ship.id, shipId));
+    expect(shipRow?.islandId).toBe(content.world.startIslandId);
+    a.ws.close();
   });
 
   it("the owner can lock the ship; a locked ship refuses other pirates", async () => {
@@ -642,6 +710,11 @@ describeDb("ships over the wire", () => {
     // the board logs it, with no turn plotted, and the server owes the captain the result.
     const tierId3 = await huntHail();
     const turnAtHail3 = room().state.turn;
+    // A deckhand at carpentry would patch the hull between turns; the mate takes it over (and,
+    // with no board, patches nothing), so the wreck stays a wreck.
+    b.send({ type: "ship.station", station: "carpentry" });
+    await a.until("ship.state", (m) => m.ship.crew.some((c) => c.pirateId === mate.me.id && c.station === "carpentry"));
+    expect(room().state.crew.some((c) => c.mate && c.station === "carpentry")).toBe(false);
     a.send({ type: "ship.engage" });
     const last = await a.until("puzzle.started", (m) => m.sessionId !== fight.sessionId && m.sessionId !== started.sessionId);
     if (last.puzzle !== "battle") throw new Error("expected a battle board");

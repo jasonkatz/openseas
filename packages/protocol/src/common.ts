@@ -61,5 +61,6 @@ export const ErrorCodeSchema = z.enum([
   "in_battle",
   "not_in_battle",
   "not_in_melee",
+  "is_deckhand",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;

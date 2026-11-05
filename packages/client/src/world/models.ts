@@ -42,6 +42,9 @@ export const PALETTE = {
   smoke: 0x9aa0a8,
   pirate: 0xe08a5a,
   pirateCoat: 0x2f4b8f,
+  mateSmock: 0xd9cfae,
+  mateKerchief: 0x7a3b3b,
+  rope: 0xb8945a,
 } as const;
 
 const mat = (color: number, extra: Partial<THREE.MeshLambertMaterialParameters> = {}): THREE.MeshLambertMaterial =>
@@ -808,18 +811,40 @@ export interface CrewPeg {
   hat: THREE.Mesh;
 }
 
-/** A pirate as a peg: coat, head, hat. The player's own peg wears brass. */
-export function buildCrewPeg(mine: boolean, captain: boolean): CrewPeg {
+/**
+ * A pirate as a peg: coat, head, hat. The player's own peg wears brass. A deckhand is a different
+ * silhouette, not just a different color (rule 6): a smock of sailcloth, a kerchief where a pirate
+ * wears a hat, and a coil of rope slung over the shoulder.
+ */
+export function buildCrewPeg(mine: boolean, captain: boolean, mate = false): CrewPeg {
   const group = new THREE.Group();
-  const coat = shaded(new THREE.CylinderGeometry(0.03, 0.038, 0.09, 7), mat(mine ? PALETTE.brass : PALETTE.pirateCoat));
-  coat.position.y = 0.045;
+  const coat = shaded(
+    mate ? new THREE.CylinderGeometry(0.034, 0.03, 0.085, 7) : new THREE.CylinderGeometry(0.03, 0.038, 0.09, 7),
+    mat(mine ? PALETTE.brass : mate ? PALETTE.mateSmock : PALETTE.pirateCoat),
+  );
+  coat.position.y = mate ? 0.0425 : 0.045;
   group.add(coat);
   const head = shaded(new THREE.SphereGeometry(0.028, 7, 6), mat(PALETTE.pirate));
   head.position.y = 0.11;
   group.add(head);
-  const hat = shaded(captain ? new THREE.BoxGeometry(0.09, 0.02, 0.05) : new THREE.CylinderGeometry(0.032, 0.036, 0.015, 7), mat(captain ? PALETTE.iron : PALETTE.roof));
-  hat.position.y = 0.135;
-  group.add(hat);
+  let hat: THREE.Mesh;
+  if (mate) {
+    // A kerchief: a cap hugging the head, knotted at the back.
+    hat = shaded(new THREE.SphereGeometry(0.03, 7, 5, 0, Math.PI * 2, 0, Math.PI * 0.5), mat(PALETTE.mateKerchief));
+    hat.position.y = 0.112;
+    group.add(hat);
+    const knot = shaded(new THREE.BoxGeometry(0.014, 0.01, 0.02), mat(PALETTE.mateKerchief));
+    knot.position.set(0, 0.112, -0.03);
+    group.add(knot);
+    const coil = shaded(new THREE.TorusGeometry(0.02, 0.006, 5, 10), mat(PALETTE.rope));
+    coil.position.set(0.028, 0.075, 0);
+    coil.rotation.y = Math.PI / 2;
+    group.add(coil);
+  } else {
+    hat = shaded(captain ? new THREE.BoxGeometry(0.09, 0.02, 0.05) : new THREE.CylinderGeometry(0.032, 0.036, 0.015, 7), mat(captain ? PALETTE.iron : PALETTE.roof));
+    hat.position.y = 0.135;
+    group.add(hat);
+  }
   return { group, hat };
 }
 

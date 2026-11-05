@@ -71,7 +71,10 @@ describe("ship protocol", () => {
       classId: "sloop",
       ownerId: "p1",
       captainId: "p1",
-      crew: [{ pirateId: "p1", name: "Salty Gull", station: "sailing", captain: true, away: false }],
+      crew: [
+        { pirateId: "p1", name: "Salty Gull", station: "sailing", captain: true, away: false, mate: false },
+        { pirateId: "mate:1", name: "Brackish Eel", station: "bilging", captain: false, away: false, mate: true },
+      ],
       maxCrew: 6,
       inviteOnly: false,
       location: { kind: "at-sea", routeId: "a-b", from: "a", to: "b", progress: 250, hail: null, battle: null },
@@ -87,6 +90,14 @@ describe("ship protocol", () => {
       melee: null,
     };
     expect(parseServerMessage({ type: "ship.state", ship, events: [{ type: "sailed", routeId: "a-b" }], serverNow: 1 })).not.toBeNull();
+    // Deckhands sign on and are paid off as events with names, like any crew change.
+    const hands = [
+      { type: "hired", pirateId: "mate:1", name: "Brackish Eel", station: "bilging" },
+      { type: "hired", pirateId: "mate:2", name: "Windward Tern", station: null },
+      { type: "paid_off", names: ["Brackish Eel", "Windward Tern"] },
+    ];
+    expect(parseServerMessage({ type: "ship.state", ship, events: hands, serverNow: 1 })).not.toBeNull();
+    expect(parseServerMessage({ type: "ship.state", ship: { ...ship, crew: [{ ...ship.crew[0], mate: undefined }] }, events: [], serverNow: 1 })).toBeNull();
     expect(parseServerMessage({ type: "ship.state", ship: { ...ship, water: 1001 }, events: [], serverNow: 1 })).toBeNull();
   });
 });

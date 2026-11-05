@@ -31,6 +31,13 @@ export interface ShipClassSpec {
   readonly id: string;
   readonly stations: readonly Station[];
   readonly maxCrew: number;
+  /**
+   * The crew the ship sails with at the least. Setting sail with fewer aboard signs on deckhands
+   * (AI crew, DESIGN.md 3.4) to make up the number; they go ashore when the ship docks.
+   */
+  readonly minCrew: number;
+  /** The stations a deckhand will work, in order of preference. Never the chart table. */
+  readonly mateStations: readonly Station[];
   readonly cannons: number;
   /** Movement tokens per sea battle turn at full sailing output (M4). */
   readonly baseTokens: number;
@@ -74,6 +81,13 @@ export interface ShipRules {
   readonly hailTurns: number;
   /** Where along a leg an encounter may happen, permille of its length. */
   readonly encounterWindow: { readonly from: number; readonly to: number };
+  /**
+   * A deckhand's output each turn, as a percentage of par: a passable job, rolled between these
+   * from the ship's PRNG. No board is played; the number is the whole of a deckhand's work.
+   */
+  readonly mateOutput: { readonly min: number; readonly max: number };
+  /** Turns a deckhand relieved by a pirate waits before working another station, so the pirate settles in first. */
+  readonly mateRestTurns: number;
 }
 
 export const DEFAULT_SHIP_RULES: ShipRules = {
@@ -95,6 +109,8 @@ export const DEFAULT_SHIP_RULES: ShipRules = {
   graceTurns: 12,
   hailTurns: 3,
   encounterWindow: { from: 250, to: 800 },
+  mateOutput: { min: 55, max: 85 },
+  mateRestTurns: 3,
 };
 
 export interface ShipConfig {
@@ -105,12 +121,20 @@ export interface ShipConfig {
 }
 
 export interface CrewMember {
+  /** A pirate's id, or `mate:<seq>` for a deckhand: ids the engine mints, never a pirate's. */
   readonly pirateId: string;
   readonly station: Station | null;
   /** Boarding order, for "longest aboard". Never reused within a ship's life. */
   readonly boardedSeq: number;
   /** The turn the pirate dropped, or null while connected. Their seat is held for `graceTurns`. */
   readonly awaySinceTurn: number | null;
+  /**
+   * A deckhand: AI crew signed on when the ship sailed short-handed (DESIGN.md 3.4). Never the
+   * captain, never away, never on a board; a pirate may take its station at any time.
+   */
+  readonly mate: boolean;
+  /** A deckhand off its station: the turn from which it looks for another. Null otherwise. */
+  readonly idleFromTurn: number | null;
 }
 
 /** A route leg as the server reads it from content, plus the roll inputs the engine needs. */
@@ -173,6 +197,10 @@ export type ShipMove =
 export type ShipEvent =
   | { readonly type: "boarded"; readonly pirateId: string }
   | { readonly type: "left"; readonly pirateId: string; readonly reason: "left" | "timed_out" }
+  /** A deckhand signed on as the ship sailed, at a station or waiting for one. */
+  | { readonly type: "hired"; readonly pirateId: string; readonly station: Station | null }
+  /** Deckhands went ashore: the ship docked, emptied of pirates, or needed the berth. */
+  | { readonly type: "paid_off"; readonly pirateIds: readonly string[] }
   | { readonly type: "station"; readonly pirateId: string; readonly station: Station | null }
   | { readonly type: "wheel"; readonly pirateId: string }
   | { readonly type: "sailed"; readonly routeId: string }
