@@ -88,9 +88,24 @@ export interface PuzzleSession {
   state: unknown;
   moves: unknown[];
   closed: boolean;
+  /** Times this board was handed back to its client after a move went missing (ADR 0024). */
+  resyncs: number;
+  /** Handed back and not yet heard from at the right number: moves still in flight from the old board are dropped. */
+  resyncing: boolean;
 }
 
-export type MoveOutcome = { ok: true; seq: number } | { ok: false; reason: RejectReason; atSeq: number };
+/** A ship's board handed back this many times is thrown out on the next missing move. */
+export const MAX_RESYNCS = 3;
+
+/**
+ * `resync`: the move's number was not the next one, and the board is one its client can rebuild
+ * from the server's log (a melee or a sea battle). `handBack` is true when the caller must send it
+ * back now; false while an earlier hand-back is still on its way and the move is just dropped.
+ */
+export type MoveOutcome =
+  | { ok: true; seq: number }
+  | { ok: false; reason: RejectReason; atSeq: number }
+  | { ok: "resync"; atSeq: number; handBack: boolean };
 
 export type FinishOutcome =
   | { ok: true; state: unknown; summary: PuzzleSummary; moves: readonly unknown[] }
@@ -150,6 +165,8 @@ export class PuzzleSessionManager {
       state: def.create(seed, config),
       moves: [],
       closed: false,
+      resyncs: 0,
+      resyncing: false,
     };
     this.sessions.set(session.id, session);
     return session;
@@ -162,7 +179,18 @@ export class PuzzleSessionManager {
   /** `move` must already be validated against the session's puzzle schema. */
   move(session: PuzzleSession, seq: number, move: unknown, hash: string): MoveOutcome {
     if (session.closed) return { ok: false, reason: "deadline", atSeq: seq };
-    if (seq !== session.moves.length) return this.reject(session, "bad_sequence", seq);
+    if (seq !== session.moves.length) {
+      // A move lost on the way (ADR 0024): a ship's board is handed back with the server's log
+      // instead of thrown out. Moves the old board already sent are dropped until the new one speaks.
+      if (session.resyncing) return { ok: "resync", atSeq: seq, handBack: false };
+      if (this.canResync(session)) {
+        session.resyncs += 1;
+        session.resyncing = true;
+        return { ok: "resync", atSeq: seq, handBack: true };
+      }
+      return this.reject(session, "bad_sequence", seq);
+    }
+    session.resyncing = false;
     const now = this.opts.now();
     if (now > session.deadlineAt + this.opts.graceMs) return this.reject(session, "deadline", seq);
     if (session.moves.length >= session.def.maxMoves(session.config)) return this.reject(session, "too_many_moves", seq);
@@ -193,6 +221,19 @@ export class PuzzleSessionManager {
     if (isSupplyMove(move)) session.shipSupply = null;
     if (isIncomingMove(move)) session.meleeIncoming.shift();
     return { ok: true, seq };
+  }
+
+  /** Boards whose client rebuilds from a resumed deal: a melee board and the captain's sea battle. */
+  private canResync(session: PuzzleSession): boolean {
+    return (session.melee !== null || session.battle !== null) && session.resyncs < MAX_RESYNCS;
+  }
+
+  /**
+   * True when a finish should be dropped unanswered: the board was handed back and this claim comes
+   * from the old one, which no longer matches the server's log. The rebuilt board finishes again.
+   */
+  staleFinish(session: PuzzleSession, hash: string | null): boolean {
+    return session.resyncing && hash !== null && session.def.hash(session.state) !== hash;
   }
 
   /**

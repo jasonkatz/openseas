@@ -2,7 +2,7 @@ import { z } from "zod";
 import { CrewRankSchema, CrewTagSchema, RatingViewSchema } from "./common.js";
 
 /**
- * Crews (M6, ADR 0024): the social unit and the invite list (DESIGN.md 3.4, 3.7). Not the crew of a
+ * Crews (M6, ADR 0025): the social unit and the invite list (DESIGN.md 3.4, 3.7). Not the crew of a
  * ship, which is whoever is aboard it (`CrewViewSchema` in ship.ts): a crew is a lasting band of
  * pirates with a name, a flag and ranks, and its members sail on any ship.
  */

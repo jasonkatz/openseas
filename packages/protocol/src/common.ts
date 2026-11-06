@@ -18,7 +18,7 @@ export type RatingView = z.infer<typeof RatingViewSchema>;
 
 const PartId = z.string().regex(/^[a-z][a-z0-9-]*$/).max(32);
 
-/** Crew ranks, highest first (M6, ADR 0024). The commodore leads; officers recruit; sailors sail. */
+/** Crew ranks, highest first (M6, ADR 0025). The commodore leads; officers recruit; sailors sail. */
 export const CrewRankSchema = z.enum(["commodore", "officer", "sailor"]);
 export type CrewRank = z.infer<typeof CrewRankSchema>;
 

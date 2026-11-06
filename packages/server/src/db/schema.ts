@@ -212,7 +212,7 @@ export const voyageCrew = pgTable(
 );
 
 /**
- * A crew (M6, ADR 0024): a lasting band of pirates with a name, a flag and ranks. Its tallies are
+ * A crew (M6, ADR 0025): a lasting band of pirates with a name, a flag and ranks. Its tallies are
  * kept on the row as they happen, so the board of crews needs no aggregate over voyages.
  */
 export const crew = pgTable(

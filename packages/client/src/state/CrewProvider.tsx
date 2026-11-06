@@ -102,7 +102,7 @@ export function describeCrewNotice(n: CrewNotice): string {
 }
 
 /**
- * The pirate's crew (M6, ADR 0024), as the server pushes it. Notices float up as toasts with
+ * The pirate's crew (M6, ADR 0025), as the server pushes it. Notices float up as toasts with
  * something to do where there is one: answer an invitation, catch crewmates at sea.
  */
 export function CrewProvider({ children }: { children: ReactNode }) {

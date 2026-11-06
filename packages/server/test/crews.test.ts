@@ -1,5 +1,5 @@
 /**
- * Crews (M6, ADR 0024) over the wire: founding, invitations, ranks, crew chat, crew-only ships, and
+ * Crews (M6, ADR 0025) over the wire: founding, invitations, ranks, crew chat, crew-only ships, and
  * the tallies voyages and victories leave on a crew. Runs against a real Postgres when
  * TEST_DATABASE_URL is set, like the other server tests. Also covers the guest-to-account merge.
  */

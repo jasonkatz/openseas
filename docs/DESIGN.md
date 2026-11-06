@@ -390,7 +390,9 @@ live in `content/data/puzzles/swordfight.json`.
   take a free station. The owner can set a ship to crew only: the owner and the owner's crew may
   board, nobody else (M6).
 - **Disconnects.** A dropped pirate's station idles for a 2 minute grace period; their seat is
-  held; their puzzle board is discarded, not resumed. If the captain drops, the ship holds position
+  held; their duty board is discarded, not resumed. The captain's sea battle board and a melee
+  board are handed back as the server holds them when the pirate reconnects, and also when one of
+  their moves goes missing on the way (ADR 0024). If the captain drops, the ship holds position
   and any sea battle pauses for the same grace period, then the longest-aboard pirate is offered
   the wheel.
 - **Encounters.** Brigand encounters roll per route leg with a content-defined probability. The
@@ -430,7 +432,7 @@ owned ships. No inventory, clothing, or housing in v1.
 - Text chat with three channels: ship, crew, island-local. Voice is left to Discord.
 - Moderation is mute and block only.
 
-**Crews** (M6, ADR 0024). A crew is a lasting band of pirates with a name, a flag and ranks, the
+**Crews** (M6, ADR 0025). A crew is a lasting band of pirates with a name, a flag and ranks, the
 social unit and the invite list; it is not the same thing as whoever is aboard a ship. A pirate is
 in at most one crew.
 
@@ -471,7 +473,7 @@ in at most one crew.
   carry across. No email/password auth exists.
 - During alpha an invite code is required to create a pirate. This is a config flag.
 
-As built (M6, ADR 0025): the menu's account section tells a guest plainly what they risk and
+As built (M6, ADR 0026): the menu's account section tells a guest plainly what they risk and
 offers "keep this pirate with Discord / Google", one button per provider the server has keys for
 (none on a preview, which says linking is not set up). The provider sends the player back to the
 same place with a toast: "Linked to Discord" when the guest's pirate moved onto the account,
@@ -697,7 +699,7 @@ feed it, and a win pays the tier's booty through the ledger. Boarding is stubbed
 lands ends the fight. The practice page and its presets are on the harness. Its tester session
 follows M3's.
 
-M6 as built: crews and the account upgrade are as described in 3.7 and 3.8 (ADR 0024, ADR 0025).
+M6 as built: crews and the account upgrade are as described in 3.7 and 3.8 (ADR 0025, ADR 0026).
 The polish pass that came with them: the top bar shows coins as a coin and a number and gains the
 crew's flag; toasts can carry a button (look at an invitation, join crewmates at sea, keep the
 pirate); every name is a way to that pirate's card; the ship lock reads as crew only and says who;

@@ -108,7 +108,7 @@ export class ShipRoom {
   }
 }
 
-/** What the ship service asks of crews (M6, ADR 0024): who sails with whom, and whose colors a ship flies. */
+/** What the ship service asks of crews (M6, ADR 0025): who sails with whom, and whose colors a ship flies. */
 export interface CrewLookup {
   crewIdOf(pirateId: string): string | null;
   tagOf(pirateId: string): CrewTag | null;
@@ -161,6 +161,11 @@ export class ShipService {
     puzzles.onBattleEnd = (session, how, result) => void this.battleEnded(session, how, result).catch((e) => log.error({ err: e, sessionId: session.id }, "battle end failed"));
     puzzles.onMeleeMove = (session) => void this.takeMeleeMove(session).catch((e) => log.error({ err: e, sessionId: session.id }, "melee move failed"));
     puzzles.onMeleeEnd = (session) => void this.meleeEnded(session).catch((e) => log.error({ err: e, sessionId: session.id }, "melee end failed"));
+    puzzles.onResync = (session) => {
+      const binding = session.melee ?? session.battle;
+      const room = binding ? this.rooms.get(binding.shipId) : undefined;
+      if (room) this.handBack(session, (m) => room.conns.send(session.pirateId, m));
+    };
   }
 
   get turnMs(): number {
@@ -538,8 +543,7 @@ export class ShipService {
     const sessionId = run.fights.get(pirateId);
     const session = sessionId ? this.puzzles.sessions.get(sessionId) : undefined;
     if (session && !session.closed) {
-      room.conns.send(pirateId, this.puzzles.startedMessage(session, true));
-      for (const p of session.meleeIncoming) room.conns.send(pirateId, { type: "melee.incoming", sessionId: session.id, wrack: p.wrack, blade: p.blade, from: run.tierId });
+      this.handBack(session, (m) => room.conns.send(pirateId, m));
     } else if (run.scores.has(pirateId) || !this.dealMelee(room, pirateId)) {
       // A board already fought in this melee is the pirate's one board in it.
       throw new ShipError("not_in_melee");
@@ -774,22 +778,27 @@ export class ShipService {
     const run = room.battle;
     if (run) {
       const session = this.puzzles.sessions.get(run.sessionId);
-      if (session && !session.closed && session.pirateId === pirateId) {
-        conn.send(this.puzzles.startedMessage(session, true));
-        if (session.shipSupply) conn.send({ type: "battle.supply", sessionId: session.id, ...session.shipSupply });
-      }
+      if (session && !session.closed && session.pirateId === pirateId) this.handBack(session, (m) => conn.send(m));
     }
     // Their board at the rail waited too: the fight so far, and the wrack announced while they were away.
     const melee = room.melee;
     const fight = melee?.fights.get(pirateId);
     if (melee && fight) {
       const session = this.puzzles.sessions.get(fight);
-      if (session && !session.closed) {
-        conn.send(this.puzzles.startedMessage(session, true));
-        for (const p of session.meleeIncoming) conn.send({ type: "melee.incoming", sessionId: session.id, wrack: p.wrack, blade: p.blade, from: melee.tierId });
-      }
+      if (session && !session.closed) this.handBack(session, (m) => conn.send(m));
       this.pushBoards(room);
     }
+  }
+
+  /**
+   * Hand a ship's board back to its pirate as the server holds it: the deal with every move logged,
+   * then what the ship announced that the board has not logged yet. Used on reconnect, on a
+   * `melee.join` for a board still held, and after a missing move (ADR 0024).
+   */
+  private handBack(session: PuzzleSession, send: (m: ServerMessage) => void): void {
+    send(this.puzzles.startedMessage(session, true));
+    if (session.battle && session.shipSupply) send({ type: "battle.supply", sessionId: session.id, ...session.shipSupply });
+    if (session.melee) for (const p of session.meleeIncoming) send({ type: "melee.incoming", sessionId: session.id, wrack: p.wrack, blade: p.blade, from: session.melee.tierId });
   }
 
   /** A pirate's socket closed. Their seat is held for the grace period; their board is discarded. */

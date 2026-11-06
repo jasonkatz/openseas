@@ -1,4 +1,4 @@
-# 0024. Crews: a lasting band with a flag, held in memory over Postgres
+# 0025. Crews: a lasting band with a flag, held in memory over Postgres
 
 Status: Accepted. Builds on [0005](./0005-node-ws-realtime.md), [0006](./0006-postgres-drizzle.md),
 [0009](./0009-world-content-as-files.md) and [0010](./0010-single-ship-acquisition-path.md).

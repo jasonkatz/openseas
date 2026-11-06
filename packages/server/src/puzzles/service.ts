@@ -35,6 +35,11 @@ export class PuzzleService {
   onMeleeMove: ((session: PuzzleSession) => void) | null = null;
   /** A melee board's session is over, however it ended. Called after it is closed. Set by the ship service. */
   onMeleeEnd: ((session: PuzzleSession, how: "finished" | "rejected" | "abandoned", result: ServerMessage | null) => void) | null = null;
+  /**
+   * A ship's board missed a move (ADR 0024): send its pirate the board as the server holds it, with
+   * whatever the ship announced that the board has not logged yet. Set by the ship service.
+   */
+  onResync: ((session: PuzzleSession) => void) | null = null;
 
   constructor(
     private readonly db: Db,
@@ -114,7 +119,15 @@ export class PuzzleService {
   /** Returns the message to send back, if any. `move` is any puzzle's move; it is narrowed here. */
   async move(session: PuzzleSession, seq: number, move: unknown, hash: string): Promise<ServerMessage | null> {
     const parsed = parseMoveFor(session.puzzle, move);
+    const expected = session.moves.length;
     const r = parsed === null ? this.sessions.move(session, seq, { type: "__not_a_move__" }, hash) : this.sessions.move(session, seq, parsed, hash);
+    if (r.ok === "resync") {
+      if (r.handBack) {
+        this.log.warn({ pirateId: session.pirateId, sessionId: session.id, puzzle: session.puzzle, seq, expected, resyncs: session.resyncs }, "board handed back after a missing move");
+        this.onResync?.(session);
+      }
+      return null;
+    }
     if (r.ok) {
       if (session.battle) this.onBattleMove?.(session);
       if (session.melee) this.onMeleeMove?.(session);
@@ -122,7 +135,7 @@ export class PuzzleService {
     }
     // A rejected duty board still fed the ship what it had earned before the bad move.
     if (session.duty) this.onDutyEnd?.(session);
-    await this.persistRejected(session, r.reason, null);
+    await this.persistRejected(session, r.reason, null, { seq, expected });
     const rejected: ServerMessage = { type: "puzzle.rejected", sessionId: session.id, reason: r.reason, atSeq: r.atSeq };
     if (session.battle) this.onBattleEnd?.(session, "rejected", rejected);
     if (session.melee) this.onMeleeEnd?.(session, "rejected", rejected);
@@ -236,8 +249,9 @@ export class PuzzleService {
     }
   }
 
-  private async persistRejected(session: PuzzleSession, reason: RejectReason, metrics: ClientMetrics | null): Promise<void> {
-    this.log.warn({ pirateId: session.pirateId, sessionId: session.id, puzzle: session.puzzle, reason }, "round rejected");
+  /** `at`: for a rejected move, the number it carried and the number the server was waiting for. */
+  private async persistRejected(session: PuzzleSession, reason: RejectReason, metrics: ClientMetrics | null, at?: { seq: number; expected: number }): Promise<void> {
+    this.log.warn({ pirateId: session.pirateId, sessionId: session.id, puzzle: session.puzzle, reason, ...at }, "round rejected");
     const summary = session.def.summarize(session.state);
     try {
       await this.db.insert(schema.puzzleRound).values({

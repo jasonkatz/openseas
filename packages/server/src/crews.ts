@@ -62,7 +62,7 @@ export interface CrewServiceOptions {
 export const crewNameKey = (name: string): string => name.trim().replace(/\s+/g, " ").toLowerCase();
 
 /**
- * Crews (M6, ADR 0024): the social unit and the invite list (DESIGN.md 3.4, 3.7). Postgres holds
+ * Crews (M6, ADR 0025): the social unit and the invite list (DESIGN.md 3.4, 3.7). Postgres holds
  * them; this keeps every crew, member and invitation in memory as well, loaded at start and written
  * through on every change, so a ship snapshot or a notice board can say who sails with whom without
  * a query. One server process serves the ocean in v1 (DESIGN.md 4.3), so memory is the truth while

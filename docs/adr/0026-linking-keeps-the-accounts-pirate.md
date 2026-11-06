@@ -1,4 +1,4 @@
-# 0025. Linking a guest: a returning account keeps its own pirate, and we retire the guest
+# 0026. Linking a guest: a returning account keeps its own pirate, and we retire the guest
 
 Status: Accepted. Builds on [0007](./0007-better-auth-guest-first.md).
 

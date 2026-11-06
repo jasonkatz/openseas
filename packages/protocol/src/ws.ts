@@ -75,7 +75,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("island.who") }),
   /** Aboard, in a boarding melee without a board (joined late, or back from a drop): deal one. */
   z.object({ type: z.literal("melee.join") }),
-  // ---- crews (M6, ADR 0024)
+  // ---- crews (M6, ADR 0025)
   /** The pirate's crew and the invitations waiting on them, answered with `crew.state`. */
   z.object({ type: z.literal("crew.info") }),
   /** The board of crews in the tavern, answered with `crew.list`. */

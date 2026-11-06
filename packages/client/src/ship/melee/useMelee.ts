@@ -63,7 +63,10 @@ function useMelee(ship: ShipSnapshot | null): MeleeApi {
         switch (m.type) {
           case "puzzle.started": {
             if (m.puzzle !== "swordfight" || !m.melee) return;
-            round.current?.abandon();
+            // The same board handed back is rebuilt from the server's log; abandoning it would end it there.
+            const handedBack = m.sessionId === sessionId.current;
+            if (handedBack) round.current?.discard();
+            else round.current?.abandon();
             const startedAt = m.serverNow - socket.clockOffset;
             const deadlineAt = m.deadlineAt - socket.clockOffset;
             const replay = (m.resume?.moves ?? []) as SwordfightMove[];
@@ -85,7 +88,7 @@ function useMelee(ship: ShipSnapshot | null): MeleeApi {
             setOutcome(null);
             if (!r.isFinished) {
               setPhase("playing");
-              sfx.start();
+              if (!handedBack) sfx.start();
             }
             break;
           }
