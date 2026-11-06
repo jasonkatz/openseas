@@ -107,7 +107,7 @@ export function SwordfightPractice() {
       <div className="stat stat-wide">
         <span className="stat-label">{t("swordfight.next")}</span>
         {/* Upright, as it will fall: b above a. */}
-        <span className="next-pair" data-testid="hud-next">
+        <span className="next-pair next-pair-upright" data-testid="hud-next">
           {piece(player.next.b)}
           {piece(player.next.a)}
         </span>

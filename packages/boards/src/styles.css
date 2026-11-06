@@ -1122,13 +1122,16 @@ a {
 }
 
 /* ---- shared practice shell additions (M2) */
-/* The next pair stands the way it falls: upright, one half over the other. */
 .next-pair {
   display: inline-flex;
-  flex-direction: column;
-  gap: 2px;
+  gap: 6px;
   align-items: center;
   min-height: 28px;
+}
+/* Swordfight's next pair stands the way it falls: upright, one half over the other. */
+.next-pair-upright {
+  flex-direction: column;
+  gap: 2px;
 }
 .legend-note {
   margin: 4px 0 0;

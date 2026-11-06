@@ -7,7 +7,8 @@ export default defineConfig({
   // CI runners draw the phone profile several times slower than a laptop; give them room.
   timeout: process.env.CI ? 60_000 : 30_000,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? "github" : "list",
+  // In CI an HTML report is written too, so a failure's trace reaches the uploaded artifact.
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: `http://localhost:${port}`,
     trace: "retain-on-failure",
