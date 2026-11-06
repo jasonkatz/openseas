@@ -427,6 +427,19 @@ describe("ship encounters", () => {
     expect(hashShipState(fighting)).not.toBe(hashShipState(s));
   });
 
+  it("a brigand in a fight never hails again, and the fight outlasts the hail's clock", () => {
+    let s = certain("rehail");
+    while (!s.voyage!.hail) s = reduceShip(s, { type: "turn" });
+    let fighting = reduceShip(s, { type: "engage" });
+    for (let i = 0; i < DEFAULT_SHIP_RULES.hailTurns * 3; i++) {
+      fighting = reduceShip(fighting, { type: "turn" });
+      expect(fighting.events.filter((e) => e.type === "hailed" || e.type === "evaded")).toEqual([]);
+      expect(fighting.voyage!.hail).toBeNull();
+      expect(fighting.voyage!.encounter!.resolved).toBe(false);
+    }
+    expect(() => reduceShip(fighting, { type: "evade" })).toThrow(InvalidMoveError);
+  });
+
   it("a zero chance leg is always clear", () => {
     let s = createShip("clear", cfg, "a");
     s = reduceShip(s, { type: "board", pirateId: "p1" });
