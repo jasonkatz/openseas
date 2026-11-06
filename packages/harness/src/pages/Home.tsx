@@ -214,6 +214,30 @@ export function Home() {
         </ul>
       </section>
 
+      <section className="practice">
+        <h2 className="section-title">{t("harness.home.ships")}</h2>
+        <ul className="practice-grid">
+          <li>
+            <Link to="/voyage" className="practice-tile live" data-testid="tile-voyage">
+              <span className="tile-glyph" aria-hidden="true">
+                <svg viewBox="0 0 64 64" width="56" height="56">
+                  <rect x="4" y="4" width="56" height="56" rx="6" fill="#0d2b45" />
+                  <path d="M8 44 Q 20 38 32 44 T 56 44" fill="none" stroke="#1f4f78" strokeWidth="2" />
+                  <path d="M10 22 C 22 14, 40 30, 54 18" fill="none" stroke="#d4a548" strokeWidth="2" strokeDasharray="3 3" />
+                  <circle cx="10" cy="22" r="3.5" fill="#efe3c6" />
+                  <circle cx="54" cy="18" r="3.5" fill="#efe3c6" />
+                  <path d="M24 40h16l-3 6H27z" fill="#8a6136" />
+                  <path d="M32 26v14M32 27l8 10h-8" fill="#efe3c6" stroke="#efe3c6" strokeWidth="1.5" strokeLinejoin="round" />
+                  <path d="M12 54h8M24 54h4M32 54h12" stroke="#5ed3b8" strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+              </span>
+              <span className="tile-title">{t("harness.home.voyage")}</span>
+              <span className="tile-blurb">{t("harness.home.voyage_blurb")}</span>
+            </Link>
+          </li>
+        </ul>
+      </section>
+
       <section className="card card-parchment">
         <h2>{t("harness.home.review")}</h2>
         <p>{t("harness.home.review_blurb")}</p>

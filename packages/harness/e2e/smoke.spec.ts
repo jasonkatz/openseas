@@ -426,3 +426,65 @@ test("with a server that wants an invite code, the home signs the pirate in and 
   await page.getByTestId("sign-in-submit").click();
   await expect(page.getByTestId("status-pirate")).toContainText("Smoke Tester");
 });
+
+/** A route where the given brigand always hails, as the voyage page's query string carries it. */
+const alwaysHailed = (tier: string): string => `w.route.encounterChance=1&w.route.brigands=${encodeURIComponent(JSON.stringify([{ tierId: tier, weight: 1 }]))}`;
+
+test("the voyage bench sails a crew to port, charts the ship and proves the replay", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("tile-voyage").click();
+  await expect(page).toHaveURL(/\/voyage/);
+  await expect(page.getByTestId("voyage-crew")).toBeVisible();
+  // Three pirates aboard a sloop that wants four: one deckhand signs on.
+  await expect(page.getByTestId("voyage-deckhands")).toContainText("1 deckhands sign on");
+  await page.getByTestId("voyage-step").click();
+  await expect(page.getByTestId("voyage-turn")).toHaveText("1");
+  await page.getByTestId("voyage-to-port").click();
+  await expect(page.getByTestId("voyage-summary")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("voyage-phase")).toHaveAttribute("data-phase", "arrived");
+  await expect(page.getByTestId("vchart-progress")).toBeVisible();
+  await expect(page.getByTestId("vchart-outputs")).toBeVisible();
+  await expect(page.getByTestId("voyage-log")).toContainText("Made port");
+  await expect(page.getByTestId("voyage-proof-result")).toHaveAttribute("data-ok", "1");
+});
+
+test("the voyage bench stops for the tester's plot when they have the wheel", async ({ page }, testInfo) => {
+  // Desktop only, as the practice battle: the phone profile drives the same board.
+  test.skip(testInfo.project.name === "phone", "the desktop run covers the board");
+  await page.goto(`/voyage?wheel=you&${alwaysHailed("cutpurse")}`);
+  await page.getByTestId("voyage-to-port").click();
+  await expect(page.getByTestId("voyage-your-plot")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("battle-canvas")).toBeVisible();
+  // Keyboard, as on the practice page: forward, forward with the port guns, sail.
+  await page.keyboard.press("w");
+  await page.keyboard.press("w");
+  await page.keyboard.press("q");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /"move":"forward".*"move":"forward","port":true/);
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("voyage-log")).toContainText("plotted by you");
+  // The AI takes the rest of the fight, and the voyage sails on to its end.
+  for (let i = 0; i < 40 && (await page.getByTestId("voyage-ai-plot").count()) > 0; i++) await page.getByTestId("voyage-ai-plot").click();
+  if (await page.getByTestId("voyage-to-port").isEnabled()) await page.getByTestId("voyage-to-port").click();
+  await expect(page.getByTestId("voyage-proof-result")).toHaveAttribute("data-ok", "1", { timeout: 30_000 });
+  await expect(page.getByTestId("voyage-battle")).toContainText("you 1");
+});
+
+test("the voyage bench sails a batch and opens one of its voyages", async ({ page }) => {
+  await page.goto(`/voyage?runs=4&hail=evade&${alwaysHailed("marauder")}`);
+  await page.getByTestId("voyage-tab-batch").click();
+  await page.getByTestId("voyage-batch-run").click();
+  await expect(page.getByTestId("voyage-batch-stats")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("voyage-batch-stats")).toContainText("4/4");
+  await expect(page.getByTestId("voyage-batch-list").locator("tbody tr")).toHaveCount(4);
+  await page.getByTestId("voyage-batch-open").first().click();
+  await expect(page.getByTestId("voyage-seed")).toHaveValue("voyage-1#1");
+  await expect(page.getByTestId("voyage-summary")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("voyage-log")).toContainText("evades");
+});
+
+test("the voyage bench refuses a world the server would refuse", async ({ page }) => {
+  // A leg must be a whole number of turns: content's own startup check.
+  await page.goto("/voyage?w.route.durationSeconds=215");
+  await expect(page.getByTestId("voyage-invalid")).toContainText("whole number of turns");
+  await expect(page.getByTestId("voyage-sail")).toHaveCount(0);
+});
