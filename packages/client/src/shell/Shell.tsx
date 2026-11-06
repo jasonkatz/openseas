@@ -273,7 +273,7 @@ export function Shell() {
     for (const s of board?.ships ?? []) {
       if (seen.has(s.shipId)) continue;
       seen.add(s.shipId);
-      out.push({ id: s.shipId, name: s.name, kind: s.yours ? "yours" : "other", location: worldLocation(s.location), colors: s.colors?.flag ?? null });
+      out.push({ id: s.shipId, name: s.name, kind: s.yours ? "yours" : "other", location: worldLocation(s.location), colors: s.colors?.flag ?? null, crewmate: s.crewmate });
     }
     // The pirate's own ships fly their crew's colors, wherever they lie.
     for (const s of pirate?.ships ?? []) {

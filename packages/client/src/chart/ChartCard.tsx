@@ -1,5 +1,6 @@
 import type { BoardShip } from "@openseas/protocol";
 import { t, usePirate } from "@openseas/boards";
+import { Flag } from "../crew/Flag.jsx";
 import { className, islandName, minutes, routeBetween } from "../names.js";
 import { useShip } from "../state/ShipProvider.jsx";
 
@@ -51,8 +52,18 @@ export function ChartCard({ here, pick, shipPick, aboard, onIsland, onBackAboard
         <ul className="ships" data-testid="chart-ship">
           <li>
             <span>
-              <b>{picked?.name ?? ownPicked?.name}</b> <small className="muted">{className(picked?.classId ?? ownPicked?.classId ?? "sloop")}</small>
+              {picked?.colors && <Flag flag={picked.colors.flag} size={16} />} <b>{picked?.name ?? ownPicked?.name}</b>{" "}
+              <small className="muted">{className(picked?.classId ?? ownPicked?.classId ?? "sloop")}</small>
               <br />
+              {picked?.colors && (
+                <>
+                  <small className="muted">
+                    {t("notice.colors", { crew: picked.colors.name })}
+                    {picked.crewmate && <> · {t("tavern.crewmate")}</>}
+                  </small>
+                  <br />
+                </>
+              )}
               <small className="muted">
                 {picked
                   ? picked.location.kind === "docked"
@@ -64,7 +75,7 @@ export function ChartCard({ here, pick, shipPick, aboard, onIsland, onBackAboard
             {!aboard && (
               <button
                 className="btn btn-brass btn-small"
-                disabled={!online || (picked ? picked.crew >= picked.maxCrew || (picked.inviteOnly && !picked.yours) || (picked.location.kind === "docked" && picked.location.islandId !== here) : ownPicked!.islandId !== here)}
+                disabled={!online || (picked ? picked.crew >= picked.maxCrew || (picked.inviteOnly && !picked.yours && !picked.crewmate) || (picked.location.kind === "docked" && picked.location.islandId !== here) : ownPicked!.islandId !== here)}
                 onClick={() => boardShip(shipPick!)}
                 data-testid="chart-board"
               >
