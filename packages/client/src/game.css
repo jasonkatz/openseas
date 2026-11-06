@@ -2067,3 +2067,85 @@ body {
   background: var(--foam);
   vertical-align: 1px;
 }
+
+/* A hail at a station: the bar itself turns, so the board never moves. */
+.station-bar.is-hailed {
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 2px var(--danger);
+  background: rgba(240, 96, 77, 0.16);
+  animation: hail-pulse 1.1s ease-in-out infinite alternate;
+}
+@keyframes hail-pulse {
+  to {
+    background: rgba(240, 96, 77, 0.32);
+  }
+}
+.station-hail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #ffd7cf;
+  font-weight: 700;
+}
+.station-hail span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.station-hail svg {
+  flex: none;
+  color: var(--danger);
+}
+.station-hail-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+.station-hail-actions .btn-small {
+  padding: 8px 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .station-bar.is-hailed {
+    animation: none;
+  }
+}
+/* The captain's answers lie over the ship's bars, which keep their room: the bar never changes height. */
+.station-ship-slot {
+  position: relative;
+  display: grid;
+}
+.station-ship-slot.is-hailed > .station-ship {
+  visibility: hidden;
+}
+.station-ship-slot > .station-hail-actions {
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: flex-end;
+}
+.shell-wide .station-ship-slot > .station-hail-actions {
+  position: static;
+}
+/* Both lie in one cell: the slot is as tall as the ship's bars and as wide as whichever is wider. */
+.station-ship-slot > .station-ship,
+.station-ship-slot > .station-hail-actions {
+  grid-area: 1 / 1;
+}
+.station-ship-slot > .station-hail-actions {
+  position: static;
+  inset: auto;
+}
+.station-hail-actions .btn-small {
+  padding: 8px 11px;
+  font-size: 14px;
+}
+/* On a phone the hail has the bar to itself until it passes; score and clock come back after. */
+.shell-tall .station-bar.is-hailed .station-numbers {
+  display: none;
+}
+.station-bar.is-hailed {
+  padding-right: 4px;
+}
+.shell-tall .station-hail {
+  font-size: 18px;
+}

@@ -150,10 +150,17 @@ export function Shell() {
     if ((!holder || holder.mate) && myStation !== place.station) takeStation(place.station);
   }, [place, ship, online, me, myStation, takeStation, go]);
 
-  // A helm place needs a docked ship and the wheel.
+  // A helm place needs a docked ship and the wheel. Once she sails, the captain goes back where they
+  // came to the wheel from: a station's board picks up at once, the deck otherwise.
+  const helmFrom = useRef<StationWire | null>(null);
+  const leaveHelm = useCallback(() => {
+    const from = helmFrom.current;
+    helmFrom.current = null;
+    go(from ? { kind: "station", station: from } : { kind: "home" });
+  }, [go]);
   useEffect(() => {
-    if (place.kind === "helm" && ship && (ship.location.kind !== "docked" || !captain)) go({ kind: "home" });
-  }, [place.kind, ship, captain, go]);
+    if (place.kind === "helm" && ship && (ship.location.kind !== "docked" || !captain)) leaveHelm();
+  }, [place.kind, ship, captain, leaveHelm]);
 
   // The captain's fight opens the battle board over the deck. Once the fight is over the outcome
   // stays up until the captain dismisses it; a board with nothing to show closes after a beat.
@@ -226,7 +233,8 @@ export function Shell() {
       const e = n.event;
       if (e.type === "hailed") {
         sfx.alarm();
-        toast(describeEvent(e) as string, "warn", 6000);
+        // At a station the board's own bar carries the hail; a toast there only gets in the way.
+        if (place.kind !== "station") toast(describeEvent(e) as string, "warn", 6000);
       } else if (e.type === "arrived") {
         sfx.streak(5);
         toast(t("ship.arrived_blurb", { island: islandName(e.islandId) }), "good", 6000);
@@ -409,8 +417,9 @@ export function Shell() {
   );
   const onHelm = useCallback(() => {
     setHelmPick(null);
+    helmFrom.current = place.kind === "station" ? place.station : null;
     go({ kind: "helm" });
-  }, [go]);
+  }, [go, place]);
   const onBattle = useCallback(() => go({ kind: "battle" }), [go]);
   const onMelee = useCallback(() => go({ kind: "melee" }), [go]);
   const onWheel = useCallback(() => {
@@ -470,8 +479,8 @@ export function Shell() {
       extra: <ShipHud ship={ship} mini />,
     };
   } else if (ship && place.kind === "helm") {
-    card = <HelmCard ship={ship} pick={helmPick} onPick={setHelmPick} onCancel={() => go({ kind: "home" })} />;
-    head = { title: t("ship.set_sail"), subtitle: ship.name, next: t("next.helm"), back: { onClick: () => goBack({ kind: "home" }), testId: "helm-back" } };
+    card = <HelmCard ship={ship} pick={helmPick} onPick={setHelmPick} onCancel={leaveHelm} />;
+    head = { title: t("ship.set_sail"), subtitle: ship.name, next: t("next.helm"), back: { onClick: () => (helmFrom.current ? leaveHelm() : goBack({ kind: "home" })), testId: "helm-back" } };
   } else if (place.kind === "island") {
     const isHere = place.id === (here ?? ashoreAt);
     const roomKey = place.room === "dock" ? "island.dock" : place.room === "tavern" ? "island.tavern" : place.room === "notice" ? "island.notice_board" : null;

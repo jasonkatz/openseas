@@ -478,6 +478,40 @@ test("a boarding takes everyone to the rail: the swordfight board opens over the
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
 });
 
+test("setting sail from a station's board goes straight back to it, and a hail turns its bar without moving the board", async ({ page }) => {
+  test.setTimeout(180_000);
+  const server = await fakeServer(page);
+  await page.goto("/");
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "island");
+  await tapSpot(page, '[data-island="saltwick"][data-building="dock"]');
+  await page.getByTestId("board-ship-ship-1").click();
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
+
+  // Docked, the station waits for the sea and hands the captain the wheel.
+  await tapSpot(page, '[data-station="bilging"]');
+  await expect(page.getByTestId("duty-docked")).toBeVisible();
+  await page.getByTestId("duty-set-sail").click();
+  await expect(page.getByTestId("helm-card")).toBeVisible();
+  await page.getByTestId("dest-gullhaven").click();
+  await page.getByTestId("sail-now").click();
+  // Under way, the captain is back at the pump with a board dealt, not on the deck.
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "station");
+  await expect(page.getByTestId("station-view-bilging")).toBeVisible();
+  await expect(page.getByTestId("duty-board-wrap")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
+
+  // A hail turns the bar, with the captain's answers in it; the board stays exactly where it was.
+  const before = await page.getByTestId("duty-board-wrap").boundingBox();
+  server.ship()!.hail();
+  await expect(page.getByTestId("station-hail")).toContainText("Marauder");
+  await expect(page.getByTestId("ship-hail")).toHaveCount(0);
+  await expect(page.getByTestId("toasts")).not.toContainText("Marauder");
+  const after = await page.getByTestId("duty-board-wrap").boundingBox();
+  expect(Math.round(after!.y)).toBe(Math.round(before!.y));
+  expect(Math.round(after!.height)).toBe(Math.round(before!.height));
+  await page.getByTestId("engage").click();
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "battle");
+});
+
 // ---- crews and accounts (M6)
 
 const FLAG_REEF = { field: "crimson", accent: "bone", pattern: "saltire", emblem: "kraken" };

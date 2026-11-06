@@ -975,5 +975,6 @@
   "tavern.crew_answer": "Answer",
   "tavern.crew_found": "Found or join",
   "tavern.crew_board": "Board of crews",
-  "profile.standing": "Standing"
+  "profile.standing": "Standing",
+  "ship.hailed_bar": "{brigand} hails!"
 }

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { ShipSnapshot, StationWire } from "@openseas/protocol";
 import { t } from "@openseas/boards";
-import { fmtClock, stationName } from "../names.js";
-import { HailBanner } from "../shell/HailBanner.jsx";
+import { fmtClock, stationName, tierName } from "../names.js";
+import { useShip } from "../state/ShipProvider.jsx";
 import { useMediaQuery } from "../state/settings.js";
 import { DutyBoard } from "./duty/DutyBoards.jsx";
 import { ShipHud } from "./ShipHud.jsx";
@@ -32,6 +32,10 @@ export function StationView({ ship, me, station, showMarks, onBack, onHelm }: St
   const captain = ship.captainId === me;
   const captainName = ship.crew.find((c) => c.captain)?.name ?? "";
   const lastOutput = ship.lastTurn ? (ship.lastTurn.outputs[station] ?? 0) : null;
+  const { engage, evade } = useShip();
+  // A brigand's hail takes over the bar itself, so nothing above the board moves: the title turns
+  // to the hail and pulses, and the captain's two answers stand in for the ship's bars until it passes.
+  const hail = ship.location.kind === "at-sea" ? ship.location.hail : null;
   return (
     <section className="station-layer" data-testid={`station-view-${station}`}>
       <DutyBoard station={station} active={atSea} showMarks={showMarks}>
@@ -40,14 +44,24 @@ export function StationView({ ship, me, station, showMarks, onBack, onHelm }: St
           const lowTime = playing && api.timeLeft <= 10;
           return (
             <>
-              <header className="station-bar">
+              <header className={`station-bar ${hail ? "is-hailed" : ""}`}>
                 <button className="icon-btn" onClick={onBack} aria-label={t("ship.duty_back")} data-testid="station-back">
                   <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
                     <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </button>
                 <div className="station-head">
-                  <h1 className="station-title">{stationName(station)}</h1>
+                  {hail ? (
+                    <h1 className="station-title station-hail" role="alert" title={captain ? t("ship.hailed", { brigand: tierName(hail.tierId) }) : t("ship.hail_wait")} data-testid="station-hail">
+                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round">
+                        <path d="M12 3l10 18H2z" />
+                        <path d="M12 10v5M12 18v.5" />
+                      </svg>
+                      <span>{t("ship.hailed_bar", { brigand: tierName(hail.tierId) })}</span>
+                    </h1>
+                  ) : (
+                    <h1 className="station-title">{stationName(station)}</h1>
+                  )}
                   <span className="station-numbers" aria-live="off">
                     <b data-testid="duty-score">{score}</b>
                     {combo > 1 && <i className={`combo-chip ${combo >= 6 ? "hot" : ""}`}>×{combo}</i>}
@@ -56,9 +70,21 @@ export function StationView({ ship, me, station, showMarks, onBack, onHelm }: St
                     </span>
                   </span>
                 </div>
-                <button className={`station-ship ${details ? "is-open" : ""}`} onClick={() => setOpen((o) => !o)} aria-expanded={details} aria-label={t("ship.title")} data-testid="station-ship-toggle">
-                  <ShipHud ship={ship} mini />
-                </button>
+                <span className={`station-ship-slot ${hail && captain ? "is-hailed" : ""}`}>
+                  <button className={`station-ship ${details ? "is-open" : ""}`} onClick={() => setOpen((o) => !o)} aria-expanded={details} aria-label={t("ship.title")} aria-hidden={hail && captain ? true : undefined} tabIndex={hail && captain ? -1 : undefined} data-testid="station-ship-toggle">
+                    <ShipHud ship={ship} mini />
+                  </button>
+                  {hail && captain && (
+                    <span className="station-hail-actions">
+                      <button className="btn btn-brass btn-small" onClick={engage} data-testid="engage">
+                        {t("ship.engage")}
+                      </button>
+                      <button className="btn btn-ghost btn-small" onClick={evade} data-testid="evade">
+                        {t("ship.evade")}
+                      </button>
+                    </span>
+                  )}
+                </span>
               </header>
               {details && (
                 <aside className="station-details" data-testid="station-details">
@@ -66,10 +92,8 @@ export function StationView({ ship, me, station, showMarks, onBack, onHelm }: St
                   <p className="last-turn muted small" data-testid="duty-output">
                     {lastOutput === null ? t("ship.last_turn_none") : t("ship.last_turn_output", { percent: lastOutput })}
                   </p>
-                  <HailBanner ship={ship} me={me} inline />
                 </aside>
               )}
-              {!details && <HailBanner ship={ship} me={me} inline />}
               <div className={`board-wrap ${lowTime ? "low-time" : ""} ${playing ? "is-playing" : ""}`} data-testid="duty-board-wrap" data-phase={api.phase}>
                 {board(playing)}
                 {!playing && (
