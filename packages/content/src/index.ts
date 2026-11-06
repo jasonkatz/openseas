@@ -5,6 +5,7 @@ import routes from "../data/world/routes.json" with { type: "json" };
 import brigandTiers from "../data/world/brigand-tiers.json" with { type: "json" };
 import shipClasses from "../data/world/ship-classes.json" with { type: "json" };
 import shipGrants from "../data/world/ship-grants.json" with { type: "json" };
+import crews from "../data/world/crews.json" with { type: "json" };
 import bilging from "../data/puzzles/bilging.json" with { type: "json" };
 import sailing from "../data/puzzles/sailing.json" with { type: "json" };
 import carpentry from "../data/puzzles/carpentry.json" with { type: "json" };
@@ -28,6 +29,8 @@ import {
   SwordfightContentSchema,
   WorldSchema,
   type BattleContent,
+  type CrewFlag,
+  type CrewRules,
   type BilgingContent,
   type CarpentryContent,
   type GunneryContent,
@@ -86,6 +89,7 @@ export function loadContent(): Content {
     brigandTiers,
     shipClasses,
     shipGrants,
+    crews,
   });
   const puzzles: PuzzleContent = {
     bilging: parse("puzzles/bilging", BilgingContentSchema, bilging),
@@ -154,6 +158,22 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
     if (g.requires.minTier !== null && !ratingTierKeys.has(g.requires.minTier)) {
       problems.push(`ship grant ${g.id}: unknown rating tier ${g.requires.minTier}`);
     }
+  }
+  {
+    const c = world.crews;
+    if (c.name.max < c.name.min) problems.push("crews: name.max below name.min");
+    for (const [kind, parts] of [["color", c.colors], ["pattern", c.patterns], ["emblem", c.emblems]] as const) {
+      const ids = new Set<string>();
+      for (const p of parts) {
+        need(p.nameKey, `crew ${kind} ${p.id}`);
+        if (ids.has(p.id)) problems.push(`crews: ${kind} "${p.id}" twice`);
+        ids.add(p.id);
+      }
+    }
+    const hexes = new Set(c.colors.map((x) => x.hex));
+    if (hexes.size !== c.colors.length) problems.push("crews: two flag colors share a hex");
+    const problem = crewFlagProblem(c, c.defaultFlag);
+    if (problem) problems.push(`crews: defaultFlag ${problem}`);
   }
   for (const t of tiers) need(t.nameKey, `rating tier ${t.key}`);
   if (tiers[0]!.min !== 0) problems.push("rating-tiers: the first tier must start at 0");
@@ -251,6 +271,19 @@ function checkPieces(where: string, pieces: ReadonlyArray<Pick<PieceStyle, "name
     colors.add(p.color);
     textures.add(p.texture);
   }
+}
+
+/**
+ * Why a flag is not one the crew rules allow, or null when it is. The server checks every flag a
+ * founder sends with this; the field and accent must differ so the emblem always shows.
+ */
+export function crewFlagProblem(rules: CrewRules, flag: CrewFlag): string | null {
+  if (!rules.colors.some((x) => x.id === flag.field)) return `unknown field color "${flag.field}"`;
+  if (!rules.colors.some((x) => x.id === flag.accent)) return `unknown accent color "${flag.accent}"`;
+  if (flag.field === flag.accent) return "field and accent are the same color";
+  if (!rules.patterns.some((x) => x.id === flag.pattern)) return `unknown pattern "${flag.pattern}"`;
+  if (!rules.emblems.some((x) => x.id === flag.emblem)) return `unknown emblem "${flag.emblem}"`;
+  return null;
 }
 
 /** Look up a player-facing string. Unknown keys return the key itself so a miss is visible, never silent. */

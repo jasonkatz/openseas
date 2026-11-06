@@ -30,3 +30,5 @@ that supersedes it.
 | [0022](./0022-swordfight-melee-routed-by-the-server.md) | Swordfighting is one board per pirate; the server routes a melee's attacks as vouched moves |
 | [0023](./0023-deckhands-in-the-ship-reducer.md) | Deckhands: AI crew live inside the ship reducer and produce output, not play |
 | [0024](./0024-ship-boards-handed-back-after-a-missing-move.md) | A ship's board is handed back after a missing move, not thrown out |
+| [0025](./0025-crews-in-memory-over-postgres.md) | Crews: a lasting band with a flag, held in memory over Postgres |
+| [0026](./0026-linking-keeps-the-accounts-pirate.md) | Linking a guest: a returning account keeps its own pirate, and we retire the guest |

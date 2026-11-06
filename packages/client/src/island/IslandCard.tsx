@@ -1,7 +1,10 @@
 import { useEffect } from "react";
 import type { BoardShip } from "@openseas/protocol";
 import { content, t, usePirate } from "@openseas/boards";
+import { Flag } from "../crew/Flag.jsx";
+import { RankChip } from "../crew/CrewPanel.jsx";
 import { className, islandBlurb, islandName, minutes, routeBetween } from "../names.js";
+import { useCrew } from "../state/CrewProvider.jsx";
 import { useShip } from "../state/ShipProvider.jsx";
 import { useSocial } from "../state/SocialProvider.jsx";
 import type { IslandRoom } from "../state/place.jsx";
@@ -115,7 +118,7 @@ function DockPanel({ islandId }: { islandId: string }) {
 
 /** Ships recruiting at this dock and ships at sea, as the server lists them. */
 export function NoticeBoardPanel({ islandId }: { islandId: string }) {
-  const { pirate, socketStatus } = usePirate();
+  const { socketStatus } = usePirate();
   const { board, listBoard, boardShip, error, clearError } = useShip();
   const online = socketStatus === "open";
   useEffect(() => {
@@ -124,16 +127,17 @@ export function NoticeBoardPanel({ islandId }: { islandId: string }) {
   const ships = board?.ships ?? [];
   const docked = ships.filter((s) => s.location.kind === "docked" && s.location.islandId === islandId);
   const atSea = ships.filter((s) => s.location.kind === "at-sea");
-  const canJoin = (s: BoardShip): boolean => online && s.crew < s.maxCrew && (!s.inviteOnly || s.yours);
+  const canJoin = (s: BoardShip): boolean => online && s.crew < s.maxCrew && (!s.inviteOnly || s.yours || s.crewmate);
   const row = (s: BoardShip) => (
-    <li key={s.shipId}>
+    <li key={s.shipId} className={s.crewmate ? "is-crewmate" : ""} data-testid={`notice-ship-${s.shipId}`}>
       <span>
-        <b>{s.name}</b> <small className="muted">{className(s.classId)}</small>
+        {s.colors && <Flag flag={s.colors.flag} size={16} />} <b>{s.name}</b> <small className="muted">{className(s.classId)}</small>
         <br />
         <small className="muted">
+          {s.colors && <>{t("notice.colors", { crew: s.colors.name })} · </>}
           {t("notice.captain", { name: s.captainName })} · {t("notice.crew", { count: s.crew, max: s.maxCrew })}
           {s.location.kind === "at-sea" && <> · {t("notice.bound_for", { island: islandName(s.location.to), percent: Math.round(s.location.progress / 10) })}</>}
-          {s.inviteOnly && <> · {t("notice.locked")}</>}
+          {s.inviteOnly && <> · {s.crewmate ? t("notice.locked_yours") : t("notice.locked")}</>}
           {s.crew >= s.maxCrew && <> · {t("notice.full")}</>}
         </small>
       </span>
@@ -161,15 +165,15 @@ export function NoticeBoardPanel({ islandId }: { islandId: string }) {
           {t(`error.${error}`)}
         </p>
       )}
-      {pirate && null}
     </div>
   );
 }
 
-/** Who is ashore, the island's chat, and the pirate's own standing. */
+/** Who is ashore, the island's chat, the crew table, and the pirate's own standing. */
 function TavernPanel() {
   const { pirate, socketStatus } = usePirate();
   const { presence, askWho } = useSocial();
+  const { crew, rank, invites, openPanel, showProfile } = useCrew();
   const online = socketStatus === "open";
   useEffect(() => {
     if (online) askWho();
@@ -181,13 +185,46 @@ function TavernPanel() {
       {others.length === 0 ? (
         <p className="muted small">{t("tavern.alone")}</p>
       ) : (
-        <ul className="patrons">
+        <ul className="patrons" data-testid="patrons">
           {others.map((p) => (
-            <li key={p.pirateId}>{p.name}</li>
+            <li key={p.pirateId}>
+              <button className="pirate-link" onClick={() => showProfile({ pirateId: p.pirateId })} data-testid={`patron-${p.pirateId}`}>
+                {p.name}
+              </button>
+              {p.crew && (
+                <small className="muted patron-crew">
+                  <Flag flag={p.crew.flag} size={13} /> {p.crew.name}
+                  {crew && p.crew.id === crew.id && <> · {t("tavern.crewmate")}</>}
+                </small>
+              )}
+            </li>
           ))}
         </ul>
       )}
       <Chat channel="island" />
+      <h3 className="section-head">{t("tavern.crew_table")}</h3>
+      <div className="crew-table" data-testid="tavern-crew">
+        {crew ? (
+          <>
+            <Flag flag={crew.flag} size={30} />
+            <span>
+              <b>{crew.name}</b> {rank && <RankChip rank={rank} />}
+              <br />
+              <small className="muted">{t("tavern.crew_line", { members: crew.members.length, online: crew.members.filter((m) => m.where.kind !== "offline").length })}</small>
+            </span>
+          </>
+        ) : (
+          <span className="muted small">{invites.length > 0 ? t("tavern.crew_invited", { count: invites.length }) : t("tavern.crew_none")}</span>
+        )}
+        <div className="row">
+          <button className="btn btn-brass btn-small" onClick={() => openPanel("crew")} data-testid="tavern-crew-open">
+            {crew ? t("tavern.crew_open") : invites.length > 0 ? t("tavern.crew_answer") : t("tavern.crew_found")}
+          </button>
+          <button className="btn btn-ghost btn-small" onClick={() => openPanel("board")} data-testid="tavern-crew-board">
+            {t("tavern.crew_board")}
+          </button>
+        </div>
+      </div>
       <h3 className="section-head">{t("tavern.standing")}</h3>
       {pirate && pirate.ratings.length === 0 && <p className="muted small">{t("tavern.no_standing")}</p>}
       <div className="standing">

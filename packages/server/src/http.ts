@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import type { Content } from "@openseas/content";
 import { CreatePirateRequestSchema, type ErrorCode, type MeResponse } from "@openseas/protocol";
-import type { Auth } from "./auth.js";
+import { configuredProviders, linkedProviders, type Auth } from "./auth.js";
 import type { Db } from "./db/index.js";
 import type { Env } from "./env.js";
 import type { Logger } from "./log.js";
@@ -75,8 +75,9 @@ export function createHttpHandler(deps: HttpDeps) {
       }
       if (url.pathname === "/api/me" && req.method === "GET") {
         const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+        const providers = configuredProviders(env);
         if (!session) {
-          const body: MeResponse = { pirate: null, inviteRequired: env.ALPHA_INVITE_CODE !== null };
+          const body: MeResponse = { pirate: null, inviteRequired: env.ALPHA_INVITE_CODE !== null, providers, linked: [] };
           json(res, 200, body);
           return;
         }
@@ -84,6 +85,8 @@ export function createHttpHandler(deps: HttpDeps) {
         const body: MeResponse = {
           pirate: p ? await summarizePirate(db, content, p.id, Boolean(session.user.isAnonymous)) : null,
           inviteRequired: env.ALPHA_INVITE_CODE !== null,
+          providers,
+          linked: session.user.isAnonymous ? [] : await linkedProviders(db, session.user.id),
         };
         json(res, 200, body);
         return;

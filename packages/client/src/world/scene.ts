@@ -9,6 +9,7 @@
  */
 import * as THREE from "three";
 import type { IslandLandmark } from "@openseas/content";
+import type { CrewFlagWire } from "@openseas/protocol";
 import { CameraRig, isoDirection, type View } from "./camera.js";
 import {
   PALETTE,
@@ -19,6 +20,7 @@ import {
   buildGull,
   buildIsland,
   buildShip,
+  dressShip,
   type Building,
   type CrewPeg,
   type GullModel,
@@ -46,6 +48,10 @@ export interface WorldShip {
   name: string;
   kind: "yours" | "aboard" | "other";
   location: WorldShipLocation;
+  /** The owner's crew flag (M6): flown at the masthead and painted on the mainsail. Null flies none. */
+  colors: CrewFlagWire | null;
+  /** Someone else's ship flying the viewer's own crew's colors: named on the chart like the viewer's own. */
+  crewmate?: boolean;
 }
 export type Focus = { kind: "all" } | { kind: "island"; id: string } | { kind: "ship"; id: string };
 export interface DeckStation {
@@ -304,8 +310,9 @@ export class WorldScene {
       sv.label.classList.toggle("selected", id === input.selectedShip);
       // Other people's ships are named only when picked, or when their island is, so a busy dock stays legible.
       const docked = sv.ship.location.kind === "docked" ? sv.ship.location.islandId : null;
-      const quiet = sv.ship.kind === "other" && id !== input.selectedShip && !(docked && docked === input.selected) && !(docked && docked === focusIsland);
+      const quiet = sv.ship.kind === "other" && !sv.ship.crewmate && id !== input.selectedShip && !(docked && docked === input.selected) && !(docked && docked === focusIsland);
       sv.label.classList.toggle("ow-label-quiet", quiet);
+      sv.label.classList.toggle("ow-label-crew", Boolean(sv.ship.crewmate));
       sv.label.classList.toggle("ow-hidden", focusShip !== null);
       // The viewer's own ship at the island in focus is a tap away from boarding.
       const boardable = sv.ship.kind === "yours" && docked !== null && docked === focusIsland;
@@ -490,6 +497,7 @@ export class WorldScene {
       }
       sv.ship = ship;
       sv.label.textContent = ship.name;
+      dressShip(sv.model, ship.colors);
       if (ship.location.kind === "at-sea") {
         const [a, b] = ship.location.from < ship.location.to ? [ship.location.from, ship.location.to] : [ship.location.to, ship.location.from];
         const key = `${a}|${b}`;

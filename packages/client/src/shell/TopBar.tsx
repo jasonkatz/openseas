@@ -1,4 +1,7 @@
 import { t, usePirate } from "@openseas/boards";
+import { Flag } from "../crew/Flag.jsx";
+import { useCrew } from "../state/CrewProvider.jsx";
+import { useSocial } from "../state/SocialProvider.jsx";
 
 export interface TopBarProps {
   onMenu(): void;
@@ -7,9 +10,12 @@ export interface TopBarProps {
   onChart: boolean;
 }
 
-/** The one bar over the scene, kept thin: who you are, the chart, the menu. */
+/** The one bar over the scene, kept thin: who you are, your crew, the chart, the menu. */
 export function TopBar({ onMenu, onMap, onChart }: TopBarProps) {
   const { pirate, socketStatus } = usePirate();
+  const { crew, invites, openPanel } = useCrew();
+  const { unread } = useSocial();
+  const waiting = invites.length + (crew ? unread.crew : 0);
   const statusClass = socketStatus === "open" ? "pip-live" : socketStatus === "connecting" ? "pip-wait" : "pip-off";
   const statusShort = socketStatus === "open" ? t("app.status_live") : socketStatus === "connecting" ? t("app.status_connecting") : t("app.status_offline");
   return (
@@ -19,7 +25,13 @@ export function TopBar({ onMenu, onMap, onChart }: TopBarProps) {
         <span className="who-name" data-testid="pirate-name">
           {pirate?.name}
         </span>
-        <span className="who-coins">{t("world.coins", { coins: pirate?.balance ?? 0 })}</span>
+        <span className="who-coins" title={t("world.coins", { coins: pirate?.balance ?? 0 })} aria-label={t("world.coins", { coins: pirate?.balance ?? 0 })} data-testid="pirate-coins">
+          <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+            <circle cx="8" cy="8" r="6.4" fill="currentColor" />
+            <circle cx="8" cy="8" r="4" fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="1.3" />
+          </svg>
+          {pirate?.balance ?? 0}
+        </span>
       </div>
       <button className={`pill-btn ${onChart ? "is-on" : ""}`} onClick={onMap} aria-label={onChart ? t("world.back_home") : t("world.open_chart")} aria-pressed={onChart} data-testid="map-toggle">
         {onChart ? (
@@ -33,6 +45,27 @@ export function TopBar({ onMenu, onMap, onChart }: TopBarProps) {
           </svg>
         )}
         <span>{onChart ? t("world.back_short") : t("world.chart_short")}</span>
+      </button>
+      <button
+        className={`pill-btn crew-btn ${crew ? "has-crew" : ""}`}
+        onClick={() => openPanel(crew && unread.crew > 0 && invites.length === 0 ? "chat" : "crew")}
+        aria-label={crew ? t("crew.open_named", { crew: crew.name }) : t("crew.open")}
+        data-testid="crew-open"
+      >
+        {crew ? (
+          <Flag flag={crew.flag} size={16} decorative />
+        ) : (
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 21V3" />
+            <path d="M6 4h12l-3 4 3 4H6" />
+          </svg>
+        )}
+        <span>{t("crew.short")}</span>
+        {waiting > 0 && (
+          <span className="badge" data-testid="crew-badge">
+            {waiting}
+          </span>
+        )}
       </button>
       <button className="icon-btn" onClick={onMenu} aria-label={t("menu.open")} data-testid="menu-open">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">

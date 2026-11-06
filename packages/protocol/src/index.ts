@@ -2,6 +2,7 @@ export * from "./battle.js";
 export * from "./bilging.js";
 export * from "./carpentry.js";
 export * from "./common.js";
+export * from "./crew.js";
 export * from "./gunnery.js";
 export * from "./http.js";
 export * from "./navigation.js";

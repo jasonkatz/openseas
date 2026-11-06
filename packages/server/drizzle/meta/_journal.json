@@ -15,6 +15,13 @@
       "when": 1793706671571,
       "tag": "0001_ancient_the_anarchist",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793931281990,
+      "tag": "0002_plain_wonder_man",
+      "breakpoints": true
     }
   ]
 }

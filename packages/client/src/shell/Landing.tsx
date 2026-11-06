@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { t, usePirate } from "@openseas/boards";
+import { ProviderButtons } from "./Account.jsx";
 
 /**
  * The only thing before the world: a title card while the guest signs in, an invite form when the
@@ -7,7 +8,7 @@ import { t, usePirate } from "@openseas/boards";
  * takes over and stays until sign-out (DESIGN.md 3.8, 3.11).
  */
 export function Landing() {
-  const { phase, error, inviteRequired, createPirate, refresh } = usePirate();
+  const { phase, error, inviteRequired, createPirate, refresh, providers, playAsGuest } = usePirate();
   const [invite, setInvite] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -50,6 +51,18 @@ export function Landing() {
         </section>
       )}
 
+      {phase === "signed-out" && (
+        <section className="card card-parchment" data-testid="signed-out">
+          <h2>{t("auth.signed_out_title")}</h2>
+          <p>{t("auth.signed_out_blurb")}</p>
+          <ProviderButtons verb="sign_in" />
+          <button className="btn btn-ghost" onClick={() => void playAsGuest()} data-testid="play-as-guest">
+            {t("auth.play_as_guest")}
+          </button>
+          {error === "link_failed" && <p className="error">{t("auth.link_failed")}</p>}
+        </section>
+      )}
+
       {phase === "needs-pirate" && (
         <section className="card card-parchment">
           <h2>{t("home.pirate_create")}</h2>
@@ -66,6 +79,12 @@ export function Landing() {
               {busy ? t("world.entering") : t("world.enter")}
             </button>
           </form>
+          {providers.length > 0 && (
+            <div className="returning">
+              <p className="muted small">{t("auth.returning")}</p>
+              <ProviderButtons verb="sign_in" />
+            </div>
+          )}
         </section>
       )}
 

@@ -211,6 +211,65 @@ export const voyageCrew = pgTable(
   (t) => [primaryKey({ columns: [t.voyageId, t.pirateId] }), index("voyage_crew_pirate_id_idx").on(t.pirateId)],
 );
 
+/**
+ * A crew (M6, ADR 0025): a lasting band of pirates with a name, a flag and ranks. Its tallies are
+ * kept on the row as they happen, so the board of crews needs no aggregate over voyages.
+ */
+export const crew = pgTable(
+  "crew",
+  {
+    id: text().primaryKey(),
+    name: text().notNull(),
+    /** The name folded for uniqueness: lowercase, single spaces. */
+    nameKey: text().notNull(),
+    flag: jsonb().notNull().$type<{ field: string; accent: string; pattern: string; emblem: string }>(),
+    /** Who paid the founding fee. Kept after they leave; the commodore is on crew_member. */
+    founderId: text().references(() => pirate.id, { onDelete: "set null" }),
+    foundedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    /** Voyages that reached port with a member aboard. */
+    voyages: integer().notNull().default(0),
+    /** Brigands beaten with a member aboard. */
+    victories: integer().notNull().default(0),
+    /** Coins paid to members from those victories. */
+    booty: integer().notNull().default(0),
+  },
+  (t) => [uniqueIndex("crew_name_key_uidx").on(t.nameKey)],
+);
+
+/** One crew per pirate: the pirate's id is the key. */
+export const crewMember = pgTable(
+  "crew_member",
+  {
+    pirateId: text()
+      .primaryKey()
+      .references(() => pirate.id, { onDelete: "cascade" }),
+    crewId: text()
+      .notNull()
+      .references(() => crew.id, { onDelete: "cascade" }),
+    /** "commodore", "officer" or "sailor". */
+    rank: text().notNull(),
+    joinedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("crew_member_crew_id_idx").on(t.crewId)],
+);
+
+/** An invitation waiting on a pirate. Answering or withdrawing it deletes the row. */
+export const crewInvite = pgTable(
+  "crew_invite",
+  {
+    crewId: text()
+      .notNull()
+      .references(() => crew.id, { onDelete: "cascade" }),
+    pirateId: text()
+      .notNull()
+      .references(() => pirate.id, { onDelete: "cascade" }),
+    /** Who sent it, by name as it was then: an inviter who leaves the crew still signed it. */
+    byName: text().notNull(),
+    at: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.crewId, t.pirateId] }), index("crew_invite_pirate_id_idx").on(t.pirateId)],
+);
+
 /** Gameplay analytics (DESIGN.md 4.6). No third-party analytics. */
 export const event = pgTable(
   "event",

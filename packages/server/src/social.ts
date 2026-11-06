@@ -1,21 +1,29 @@
 import type { ChatChannel, ServerMessage } from "@openseas/protocol";
 import { Room, RoomRegistry, type RoomMember } from "./rooms.js";
-import type { ShipService } from "./ships/service.js";
+import type { CrewLookup, ShipService } from "./ships/service.js";
 
 /** A request the tavern refuses. The code is sent to the client as is. */
 export class SocialError extends Error {
-  constructor(readonly code: "not_aboard" | "aboard_a_ship") {
+  constructor(readonly code: "not_aboard" | "aboard_a_ship" | "not_in_crew") {
     super(code);
     this.name = "SocialError";
   }
 }
 
+/** Where crew chat goes: every connected member of the sender's crew (M6). */
+export interface CrewChat extends CrewLookup {
+  chat(pirateId: string, message: ServerMessage): void;
+}
+
 /**
- * Who is ashore where, and the two chat channels (DESIGN.md 3.7). Islands are rooms (ADR 0005) of
+ * Who is ashore where, and the three chat channels (DESIGN.md 3.7). Islands are rooms (ADR 0005) of
  * the connected pirates standing on them; a pirate aboard a ship is in no island room. Ship chat
- * goes to the ship room the ship service keeps. Nothing here is persisted: chat is ephemeral in v1.
+ * goes to the ship room the ship service keeps, crew chat to the crew wherever its members are.
+ * Nothing here is persisted: chat is ephemeral in v1.
  */
 export class SocialService {
+  /** Crews, once the crew service exists. */
+  crews: CrewChat | null = null;
   private readonly islands = new RoomRegistry<ServerMessage>();
   private readonly names = new Map<string, string>();
   private readonly where = new Map<string, string>();
@@ -50,12 +58,17 @@ export class SocialService {
 
   presence(islandId: string): ServerMessage {
     const room = this.islands.peek(islandId);
-    const pirates = (room?.memberIds() ?? []).map((pirateId) => ({ pirateId, name: this.names.get(pirateId) ?? pirateId }));
+    const pirates = (room?.memberIds() ?? []).map((pirateId) => ({ pirateId, name: this.names.get(pirateId) ?? pirateId, crew: this.crews?.tagOf(pirateId) ?? null }));
     return { type: "island.presence", islandId, pirates };
   }
 
   chat(pirateId: string, channel: ChatChannel, text: string): void {
     const msg: ServerMessage = { type: "chat.message", channel, pirateId, name: this.names.get(pirateId) ?? pirateId, text, at: this.now() };
+    if (channel === "crew") {
+      if (!this.crews?.crewIdOf(pirateId)) throw new SocialError("not_in_crew");
+      this.crews.chat(pirateId, msg);
+      return;
+    }
     if (channel === "ship") {
       const room = this.ships.roomOf(pirateId);
       if (!room) throw new SocialError("not_aboard");
@@ -65,6 +78,16 @@ export class SocialService {
     const islandId = this.where.get(pirateId);
     if (!islandId) throw new SocialError("aboard_a_ship");
     this.islands.get(islandId).broadcast(msg);
+  }
+
+  /** Crews changed for these pirates: islands where any of them stands hear the new presence, flags and all. */
+  refreshPresence(pirateIds: readonly string[]): void {
+    const islands = new Set<string>();
+    for (const id of pirateIds) {
+      const at = this.where.get(id);
+      if (at) islands.add(at);
+    }
+    for (const islandId of islands) this.islands.peek(islandId)?.broadcast(this.presence(islandId));
   }
 
   // ---- internals

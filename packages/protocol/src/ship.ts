@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { BattleOutcomeSchema } from "./battle.js";
-import { DutyPuzzleIdSchema } from "./common.js";
+import { CrewTagSchema, DutyPuzzleIdSchema } from "./common.js";
 
 /** Stations are the duty puzzles. */
 export const StationSchema = DutyPuzzleIdSchema;
@@ -18,6 +18,8 @@ export const CrewViewSchema = z.object({
   away: z.boolean(),
   /** A deckhand: AI crew signed on when the ship sailed short-handed, not a player (DESIGN.md 3.4). */
   mate: z.boolean(),
+  /** The crew (M6) this pirate belongs to, so shipmates who share one can be told apart. Null for deckhands. */
+  crewId: Id.nullable().default(null),
 });
 export type CrewView = z.infer<typeof CrewViewSchema>;
 
@@ -70,6 +72,8 @@ export const ShipSnapshotSchema = z.object({
   voyagesCompleted: z.int().min(0),
   /** The boarding melee under way (M5): everyone aboard fights at the rail while the ship holds position. */
   melee: z.object({ tierId: Id }).nullable(),
+  /** The owner's crew (M6): the ship flies its flag. Null when the owner is in no crew. */
+  colors: CrewTagSchema.nullable().default(null),
 });
 export type ShipSnapshot = z.infer<typeof ShipSnapshotSchema>;
 
@@ -96,8 +100,8 @@ export const ShipEventWireSchema = z.discriminatedUnion("type", [
 ]);
 export type ShipEventWire = z.infer<typeof ShipEventWireSchema>;
 
-/** Chat channels in v1 (DESIGN.md 3.7). Crew chat arrives with crews in M6. */
-export const ChatChannelSchema = z.enum(["ship", "island"]);
+/** Chat channels in v1 (DESIGN.md 3.7): the ship's, everyone ashore at an island, and the pirate's crew wherever they are. */
+export const ChatChannelSchema = z.enum(["ship", "island", "crew"]);
 export type ChatChannel = z.infer<typeof ChatChannelSchema>;
 
 /** A ship as the notice board lists it. */
@@ -112,5 +116,9 @@ export const BoardShipSchema = z.object({
   inviteOnly: z.boolean(),
   /** The viewer owns it. */
   yours: z.boolean(),
+  /** The owner's crew, whose flag the ship flies, or null. */
+  colors: CrewTagSchema.nullable().default(null),
+  /** The owner is in the viewer's crew: a crew-only ship is open to the viewer. */
+  crewmate: z.boolean().default(false),
 });
 export type BoardShip = z.infer<typeof BoardShipSchema>;

@@ -64,7 +64,7 @@ describeDb("server integration", () => {
     const cookie = await guestSignIn();
 
     const me0 = (await (await fetch(`${base}/api/me`, { headers: { cookie } })).json()) as MeResponse;
-    expect(me0).toEqual({ pirate: null, inviteRequired: true });
+    expect(me0).toEqual({ pirate: null, inviteRequired: true, providers: [], linked: [] });
 
     const noInvite = await fetch(`${base}/api/pirate`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body: "{}" });
     expect(noInvite.status).toBe(403);
@@ -126,8 +126,8 @@ describeDb("server integration", () => {
     ws.on("message", (d) => {
       const m = parseServerMessage(JSON.parse(d.toString()));
       expect(m).not.toBeNull();
-      // Who is ashore is pushed whenever it changes; this test is about the round.
-      if (m!.type === "island.presence") return;
+      // Who is ashore and the pirate's crew are pushed whenever they change; this test is about the round.
+      if (m!.type === "island.presence" || m!.type === "crew.state") return;
       const w = waiters.shift();
       if (w) w(m!);
       else inbox.push(m!);

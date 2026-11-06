@@ -173,6 +173,7 @@ jobs:
         run: |
           railway variables --environment "$ENVIRONMENT" --service "$RAILWAY_SERVICE" --skip-deploys \
             --set "CLIENT_ORIGINS=$CLIENT_ORIGINS" \
+            --set "DISABLE_SOCIAL_SIGN_IN=true" \
             --set "GIT_COMMIT_SHA=$SHA"
       - name: Upload and build
         if: steps.config.outputs.ready == 'true'

@@ -1,4 +1,6 @@
 import { authClient, t, usePirate } from "@openseas/boards";
+import { ConfirmButton } from "../crew/CrewPanel.jsx";
+import { AccountSection } from "./Account.jsx";
 import { useShip } from "../state/ShipProvider.jsx";
 import { useMuted } from "../state/settings.js";
 
@@ -48,7 +50,7 @@ export function Menu({ showMarks, onShowMarks, onClose }: MenuProps) {
         </label>
         <div className="section">
           <h3 className="section-head">{t("menu.account")}</h3>
-          <p className="muted small">{pirate?.guest ? t("menu.guest") : t("menu.linked")}</p>
+          <AccountSection />
           {ship && (
             <button
               className="btn btn-ghost"
@@ -61,10 +63,16 @@ export function Menu({ showMarks, onShowMarks, onClose }: MenuProps) {
               {t("menu.leave_ship")}
             </button>
           )}
-          <button className="btn btn-ghost" onClick={() => void signOut()} data-testid="sign-out">
-            {t("menu.sign_out")}
-          </button>
-          {pirate?.guest && <p className="muted small">{t("menu.sign_out_hint")}</p>}
+          {pirate?.guest ? (
+            <>
+              <ConfirmButton label={t("menu.sign_out")} confirm={t("menu.sign_out_guest_sure")} onConfirm={() => void signOut()} className="btn btn-ghost" testId="sign-out" />
+              <p className="muted small">{t("menu.sign_out_hint")}</p>
+            </>
+          ) : (
+            <button className="btn btn-ghost" onClick={() => void signOut()} data-testid="sign-out">
+              {t("menu.sign_out")}
+            </button>
+          )}
         </div>
         <p className="muted small colophon-line">{t("menu.about")}</p>
       </section>

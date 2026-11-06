@@ -52,10 +52,15 @@ export async function findPirateByUser(db: Db, userId: string): Promise<{ id: st
 export async function summarizePirate(db: Db, content: Content, pirateId: string, guest: boolean): Promise<PirateSummary | null> {
   const [p] = await db.select().from(schema.pirate).where(eq(schema.pirate.id, pirateId));
   if (!p) return null;
-  const [coins, ships, ratings] = await Promise.all([
+  const [coins, ships, ratings, [crew]] = await Promise.all([
     balance(db, pirateId),
     db.select().from(schema.ship).where(eq(schema.ship.ownerId, pirateId)),
     db.select().from(schema.rating).where(eq(schema.rating.pirateId, pirateId)),
+    db
+      .select({ id: schema.crew.id, name: schema.crew.name, flag: schema.crew.flag, rank: schema.crewMember.rank })
+      .from(schema.crewMember)
+      .innerJoin(schema.crew, eq(schema.crew.id, schema.crewMember.crewId))
+      .where(eq(schema.crewMember.pirateId, pirateId)),
   ]);
   return {
     id: p.id,
@@ -69,5 +74,6 @@ export async function summarizePirate(db: Db, content: Content, pirateId: string
         ? [{ puzzle: r.puzzle, tier: tierFor(r.rating ?? NEW_RATING.rating, content.ratingTiers).key, rounds: r.rounds }]
         : [],
     ),
+    crew: crew ? { id: crew.id, name: crew.name, flag: crew.flag, rank: crew.rank === "commodore" || crew.rank === "officer" ? crew.rank : "sailor" } : null,
   };
 }

@@ -47,7 +47,8 @@ describe("ship protocol", () => {
     expect(parseClientMessage({ type: "ship.station", station: "rigging" })).toBeNull();
     expect(parseClientMessage({ type: "chat.send", channel: "ship", text: "  ahoy " })).toEqual({ type: "chat.send", channel: "ship", text: "ahoy" });
     expect(parseClientMessage({ type: "chat.send", channel: "ship", text: "   " })).toBeNull();
-    expect(parseClientMessage({ type: "chat.send", channel: "crew", text: "x" })).toBeNull();
+    expect(parseClientMessage({ type: "chat.send", channel: "crew", text: "x" })).not.toBeNull();
+    expect(parseClientMessage({ type: "chat.send", channel: "fleet", text: "x" })).toBeNull();
   });
 
   it("a duty result may carry no rating", () => {
@@ -72,8 +73,8 @@ describe("ship protocol", () => {
       ownerId: "p1",
       captainId: "p1",
       crew: [
-        { pirateId: "p1", name: "Salty Gull", station: "sailing", captain: true, away: false, mate: false },
-        { pirateId: "mate:1", name: "Brackish Eel", station: "bilging", captain: false, away: false, mate: true },
+        { pirateId: "p1", name: "Salty Gull", station: "sailing", captain: true, away: false, mate: false, crewId: "c1" },
+        { pirateId: "mate:1", name: "Brackish Eel", station: "bilging", captain: false, away: false, mate: true, crewId: null },
       ],
       maxCrew: 6,
       inviteOnly: false,
@@ -88,6 +89,7 @@ describe("ship protocol", () => {
       turnMs: 10000,
       voyagesCompleted: 0,
       melee: null,
+      colors: { id: "c1", name: "The Gulls", flag: { field: "pitch", accent: "bone", pattern: "plain", emblem: "skull" } },
     };
     expect(parseServerMessage({ type: "ship.state", ship, events: [{ type: "sailed", routeId: "a-b" }], serverNow: 1 })).not.toBeNull();
     // Deckhands sign on and are paid off as events with names, like any crew change.
@@ -108,5 +110,43 @@ describe("bilging water events", () => {
     expect(parseMoveFor("bilging", { type: "water", row: 40 })).toBeNull();
     expect(parseMoveFor("sailing", { type: "water", row: 4 })).toBeNull();
     expect(parseServerMessage({ type: "duty.water", sessionId: "abcdefgh12345678", row: 3 })).toEqual({ type: "duty.water", sessionId: "abcdefgh12345678", row: 3 });
+  });
+});
+
+describe("crew protocol (M6)", () => {
+  const flag = { field: "pitch", accent: "bone", pattern: "cross", emblem: "anchor" };
+  it("founds a crew under a tidied name and refuses names that are not words", () => {
+    expect(parseClientMessage({ type: "crew.found", name: "  The   Salt  Dogs ", flag })).toEqual({ type: "crew.found", name: "The Salt Dogs", flag });
+    expect(parseClientMessage({ type: "crew.found", name: "Brine's Own-Crew", flag })).not.toBeNull();
+    expect(parseClientMessage({ type: "crew.found", name: "<script>", flag })).toBeNull();
+    expect(parseClientMessage({ type: "crew.found", name: "   ", flag })).toBeNull();
+    expect(parseClientMessage({ type: "crew.found", name: "Dogs", flag: { ...flag, emblem: "Bad Id" } })).toBeNull();
+  });
+
+  it("carries ranks, answers and profiles", () => {
+    expect(parseClientMessage({ type: "crew.rank", pirateId: "p2", rank: "officer" })).not.toBeNull();
+    expect(parseClientMessage({ type: "crew.rank", pirateId: "p2", rank: "admiral" })).toBeNull();
+    expect(parseClientMessage({ type: "crew.answer", crewId: "c1", accept: true })).not.toBeNull();
+    expect(parseClientMessage({ type: "pirate.profile", name: "Salty Gull" })).not.toBeNull();
+  });
+
+  it("sends the crew with where everyone is, and notices with names", () => {
+    const crew = {
+      id: "c1",
+      name: "The Salt Dogs",
+      flag,
+      foundedAt: 1,
+      stats: { voyages: 3, victories: 1, booty: 600 },
+      members: [
+        { pirateId: "p1", name: "Salty Gull", rank: "commodore", joinedAt: 1, where: { kind: "aboard", shipId: "s1", shipName: "The Gull", islandId: null, to: "gullhaven", progress: 400, joinable: true } },
+        { pirateId: "p2", name: "Brine Hound", rank: "sailor", joinedAt: 2, where: { kind: "ashore", islandId: "saltwick" } },
+        { pirateId: "p3", name: "Kelp Witch", rank: "officer", joinedAt: 3, where: { kind: "offline" } },
+      ],
+      invited: [{ pirateId: "p4", name: "Tide Rat" }],
+    };
+    expect(parseServerMessage({ type: "crew.state", crew, invites: [], serverNow: 1 })).not.toBeNull();
+    expect(parseServerMessage({ type: "crew.state", crew: null, invites: [{ crew: { id: "c1", name: "The Salt Dogs", flag }, members: 3, by: "Salty Gull", at: 1 }], serverNow: 1 })).not.toBeNull();
+    expect(parseServerMessage({ type: "crew.notice", notice: { type: "sailed", names: ["Salty Gull"], shipId: "s1", shipName: "The Gull", to: "gullhaven", joinable: true }, at: 1 })).not.toBeNull();
+    expect(parseServerMessage({ type: "crew.notice", notice: { type: "sailed", names: [], shipId: "s1", shipName: "The Gull", to: "gullhaven", joinable: true }, at: 1 })).toBeNull();
   });
 });

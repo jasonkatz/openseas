@@ -7,6 +7,8 @@
  */
 import * as THREE from "three";
 import type { IslandLandmark } from "@openseas/content";
+import type { CrewFlagWire } from "@openseas/protocol";
+import { drawEmblem, drawFlag, flagColor, flagKey } from "../crew/flag.js";
 import { nextInt, seedFromString, type PrngState } from "@openseas/engine";
 
 export const PALETTE = {
@@ -542,6 +544,10 @@ export interface ShipModel {
   /** The canvas: main, jib and seams. On deck it goes to glass so it never hides a station. */
   canvas: THREE.Mesh[];
   flag: THREE.Mesh;
+  /** The flag's own color when the ship flies no crew's colors. */
+  plainFlag: number;
+  /** The colors the ship is dressed in now, by flag key, or "" for none. */
+  dressed: string;
   wake: THREE.Mesh;
   marker: THREE.Mesh;
   /** Where each station's spot is on the deck, in the ship's local frame. */
@@ -803,7 +809,59 @@ export function buildShip(kind: "yours" | "aboard" | "other"): ShipModel {
     navigation: local(-0.3, 0.42, -0.07),
   };
   const idleSpots = [local(0.0, 0.3, 0.06), local(-0.12, 0.3, 0.08), local(0.32, 0.3, -0.05), local(0.12, 0.3, -0.02), local(-0.14, 0.3, -0.1), local(0.44, 0.3, -0.04)];
-  return { group, body, hit, sail, canvas, flag, wake, marker, anchors, standing, idleSpots, wheel: local(-0.17, 0.42, 0), cannons };
+  const plainFlag = kind === "other" ? PALETTE.parchment : PALETTE.brass;
+  return { group, body, hit, sail, canvas, flag, plainFlag, dressed: "", wake, marker, anchors, standing, idleSpots, wheel: local(-0.17, 0.42, 0), cannons };
+}
+
+function canvasTexture(w: number, h: number, paint: (ctx: CanvasRenderingContext2D) => void): THREE.CanvasTexture | null {
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d");
+  if (!ctx) return null;
+  paint(ctx);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function setMap(mesh: THREE.Mesh, map: THREE.Texture | null, color: number): void {
+  const m = mesh.material as THREE.MeshBasicMaterial | THREE.MeshLambertMaterial;
+  m.map?.dispose();
+  m.map = map;
+  m.color.setHex(map ? 0xffffff : color);
+  m.needsUpdate = true;
+}
+
+/**
+ * Dress a ship in its owner's crew colors (M6): the crew's flag at the masthead and its emblem
+ * across the mainsail, in the flag's field color, so a crew's ships read as one fleet on the chart.
+ * Null strikes the colors. Painted with the same Canvas 2D code as the flags in the cards.
+ */
+export function dressShip(model: ShipModel, colors: CrewFlagWire | null): void {
+  const key = colors ? flagKey(colors) : "";
+  if (model.dressed === key) return;
+  model.dressed = key;
+  if (!colors) {
+    setMap(model.flag, null, model.plainFlag);
+    model.flag.scale.set(1, 1, 1);
+    setMap(model.sail, null, PALETTE.sail);
+    return;
+  }
+  setMap(model.flag, canvasTexture(96, 64, (ctx) => drawFlag(ctx, colors, 96, 64)), model.plainFlag);
+  // The flag's plane is two by one; a crew flag is three by two.
+  model.flag.scale.set(1, 4 / 3, 1);
+  const sailHex = `#${PALETTE.sail.toString(16).padStart(6, "0")}`;
+  setMap(
+    model.sail,
+    canvasTexture(112, 124, (ctx) => {
+      ctx.fillStyle = sailHex;
+      ctx.fillRect(0, 0, 112, 124);
+      drawEmblem(ctx, colors.emblem, 56, 64, 78, flagColor(colors.field), sailHex);
+    }),
+    PALETTE.sail,
+  );
 }
 
 export interface CrewPeg {

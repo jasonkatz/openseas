@@ -23,6 +23,9 @@ const EnvSchema = z.object({
   DISCORD_CLIENT_SECRET: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  // Previews copy production's OAuth keys, but the providers only redirect to production; this
+  // switches social sign-in off there so no button is offered that cannot work.
+  DISABLE_SOCIAL_SIGN_IN: Bool,
   // Set by Railway (RAILWAY_GIT_COMMIT_SHA) or by hand (GIT_COMMIT_SHA). Reported by /health so a
   // post-merge check can tell which commit is live. Empty locally.
   RAILWAY_GIT_COMMIT_SHA: z.string().optional(),

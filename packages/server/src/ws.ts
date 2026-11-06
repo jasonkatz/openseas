@@ -5,6 +5,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import type { Content } from "@openseas/content";
 import { parseClientMessage, type ServerMessage } from "@openseas/protocol";
 import type { Auth } from "./auth.js";
+import { CrewError, type CrewService } from "./crews.js";
 import type { Db } from "./db/index.js";
 import { InsufficientFundsError } from "./ledger.js";
 import type { Logger } from "./log.js";
@@ -23,6 +24,7 @@ export interface WsDeps {
   puzzles: PuzzleService;
   ships: ShipService;
   social: SocialService;
+  crews: CrewService;
 }
 
 interface Conn {
@@ -42,7 +44,7 @@ const BUCKET_SIZE = 40;
 const REFILL_PER_SECOND = 20;
 
 export function createWsServer(deps: WsDeps) {
-  const { db, auth, content, log, puzzles, ships, social } = deps;
+  const { db, auth, content, log, puzzles, ships, social, crews } = deps;
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES });
   /** The newest connection per pirate, for messages addressed to a pirate rather than a room. */
   const conns = new Map<string, Conn>();
@@ -59,6 +61,10 @@ export function createWsServer(deps: WsDeps) {
     if (summary) conn.member.send({ type: "pirate.updated", pirate: summary });
   };
   ships.onSummaryChanged = (ids) => {
+    for (const id of ids) void resend(id).catch((e) => log.warn({ err: e, pirateId: id }, "summary resend failed"));
+  };
+  crews.onSummaryChanged = (ids) => {
+    social.refreshPresence(ids);
     for (const id of ids) void resend(id).catch((e) => log.warn({ err: e, pirateId: id }, "summary resend failed"));
   };
   const ashoreHook = ships.onAshore;
@@ -102,7 +108,7 @@ export function createWsServer(deps: WsDeps) {
     // Listeners go on before anything asynchronous, so no early message is lost.
     ws.on("message", (data) => {
       void handleMessage(ws, conn, data.toString()).catch((e) => {
-        if (e instanceof ShipError || e instanceof SocialError) {
+        if (e instanceof ShipError || e instanceof SocialError || e instanceof CrewError) {
           send(ws, { type: "error", code: e.code });
           return;
         }
@@ -120,12 +126,14 @@ export function createWsServer(deps: WsDeps) {
         if (s) log.debug({ sessionId: s.id }, "connection closed with active session");
       }
       social.disconnected(pirateId, member);
+      crews.disconnected(pirateId, member);
       void ships.disconnect(pirateId, member).catch((e) => log.error({ err: e, pirateId }, "ship disconnect failed"));
     });
 
     send(ws, { type: "welcome", pirate: summary, serverNow: Date.now() });
     ships.reconnect(pirateId, member);
     await social.connected(pirateId, summary.name, member);
+    crews.connected(pirateId, summary.name, member);
   };
 
   const allow = (conn: Conn): boolean => {
@@ -290,6 +298,39 @@ export function createWsServer(deps: WsDeps) {
       case "melee.join":
         await dropActive(conn);
         await ships.meleeJoin(conn.pirateId);
+        return;
+      case "crew.info":
+        send(ws, crews.stateFor(conn.pirateId));
+        return;
+      case "crew.list":
+        send(ws, crews.list());
+        return;
+      case "crew.found":
+        await crews.found(conn.pirateId, msg.name, msg.flag);
+        return;
+      case "crew.flag":
+        await crews.setFlag(conn.pirateId, msg.flag);
+        return;
+      case "crew.invite":
+        await crews.invite(conn.pirateId, msg.name);
+        return;
+      case "crew.uninvite":
+        await crews.uninvite(conn.pirateId, msg.pirateId);
+        return;
+      case "crew.answer":
+        await crews.answer(conn.pirateId, msg.crewId, msg.accept);
+        return;
+      case "crew.leave":
+        await crews.leave(conn.pirateId);
+        return;
+      case "crew.rank":
+        await crews.setRank(conn.pirateId, msg.pirateId, msg.rank);
+        return;
+      case "crew.remove":
+        await crews.remove(conn.pirateId, msg.pirateId);
+        return;
+      case "pirate.profile":
+        send(ws, await crews.profile(conn.pirateId, { pirateId: msg.pirateId, name: msg.name }));
         return;
       default: {
         const never: never = msg;
