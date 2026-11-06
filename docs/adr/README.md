@@ -32,3 +32,4 @@ that supersedes it.
 | [0024](./0024-ship-boards-handed-back-after-a-missing-move.md) | A ship's board is handed back after a missing move, not thrown out |
 | [0025](./0025-crews-in-memory-over-postgres.md) | Crews: a lasting band with a flag, held in memory over Postgres |
 | [0026](./0026-linking-keeps-the-accounts-pirate.md) | Linking a guest: a returning account keeps its own pirate, and we retire the guest |
+| [0027](./0027-voyage-bench-sails-the-engines-as-the-server-does.md) | The voyage bench sails a ship through the engine's reducers, wired as the server wires them |

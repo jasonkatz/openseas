@@ -597,6 +597,22 @@ draws, and a bench beside it:
   `puzzle_round` row from the database works too) and stepped through on the board, forward and
   back, to the move a rejected round failed on.
 
+- **The voyage bench** (`/voyage`, ADR 0027) tests the ship and its crew rather than a puzzle. A
+  scenario is a ship class, a route and its brigands (as content rolls them, always a given tier, or
+  clear sailing), the captain's answer to a hail (engage, evade or let it lapse), a crew in boarding
+  order at their stations with how well each plays (a percent of par per turn, give or take a
+  spread, and a sword hand for the melee), a script of what they do on the way (drop and come back,
+  go ashore, change station) and any of the world's numbers (ship rules, class, route, brigand
+  tiers) changed within what content's own startup checks allow. Deckhands sign on as the reducer
+  signs them on. It sails through the engine's ship, battle and swordfight reducers, wired by the
+  same functions the server uses: one voyage turn by turn, the ship charted (leg, speed, bilge,
+  hull, cannons, tokens, each station's output) with the sea battle on the real board, watched as
+  the AI captain plots it or plotted by the tester, then the boarding melee; or a batch of voyages
+  on derived seeds for the spread (turns to port, how often hailed, fights won, booty), each of
+  which opens as a single voyage. Every voyage's logs replay hash for hash, and the scenario is the
+  page's link. A pirate's board is a number here, not a game, and the melee is one team swordfight
+  rather than the server's routed boards: the bench measures the ship, not the puzzles.
+
 It is a developer and tester tool, never linked from the game, and talks to the same server. It
 is where testers practice and thresholds are calibrated until the game has in-world practice.
 
@@ -610,13 +626,13 @@ pnpm monorepo. Packages:
 
 | Package | Contents | Constraints |
 |---|---|---|
-| `engine` | Puzzle engines, ship simulation, sea battle reducer, brigand AI | Pure TypeScript. Zero runtime dependencies. Deterministic. No I/O, no timers, no randomness except from an injected seeded PRNG. |
+| `engine` | Puzzle engines, ship simulation and how the boards aboard are wired to it, sea battle reducer, brigand AI | Pure TypeScript. Zero runtime dependencies. Deterministic. No I/O, no timers, no randomness except from an injected seeded PRNG. |
 | `protocol` | Zod schemas for every client-server message | Shared by client and server |
 | `content` | World content JSON and its schemas | Validated at server start |
 | `server` | Node 22, `ws`, Drizzle, Better Auth | Owns all authority |
 | `boards` | What both applications render with: the PixiJS boards and their art and sound, the round runner that streams move logs, the tick clock, the server connection, the shared stylesheet (ADR 0019) | Presentation and transport only; computes nothing the server does not recompute; no pages or routes |
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
-| `harness` | The puzzle test harness (section 3.11): the practice frame per engine around the shared boards, plus the bench: lab rounds, scenarios, inspector, replay review | A developer and tester tool; never linked from the game; renders, never authoritative |
+| `harness` | The puzzle test harness (section 3.11): the practice frame per engine around the shared boards, plus the bench: lab rounds, scenarios, inspector, replay review; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
 ### 4.2 Puzzle authority: deterministic replay verification
 
@@ -725,7 +741,7 @@ above the board moves. Its tester session follows M4's.
   and client.
 - Claude works on branches and opens PRs. CI on GitHub Actions runs typecheck, Vitest, and
   Playwright smoke tests: the harness's per-puzzle smoke (which drives every board, and the bench's
-  lab, review and clock paths), and a smoke of the game's shell, from the chart to a board and back
+  lab, review and clock paths, and the voyage bench), and a smoke of the game's shell, from the chart to a board and back
   once M3 lands. The owner reviews and merges.
 - Private repository through the placeholder-art phase. Open-sourcing and license are decided
   when art direction lands.
