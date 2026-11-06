@@ -703,7 +703,11 @@ M6 as built: crews and the account upgrade are as described in 3.7 and 3.8 (ADR 
 The polish pass that came with them: the top bar shows coins as a coin and a number and gains the
 crew's flag; toasts can carry a button (look at an invitation, join crewmates at sea, keep the
 pirate); every name is a way to that pirate's card; the ship lock reads as crew only and says who;
-a few rough strings (an "M6 is coming" line in the menu) are gone. Its tester session follows M4's.
+a few rough strings (an "M6 is coming" line in the menu) are gone. Setting sail from a docked station's board
+brings the captain straight back to that station once she sails. A brigand's hail at a station no
+longer pushes the board down or raises a toast over it: the station's bar turns red and pulses with
+the hail, and for the captain Engage and Evade lie over the ship's bars until it passes, so nothing
+above the board moves. Its tester session follows M4's.
 
 ### 5.3 Testing and quality
 
