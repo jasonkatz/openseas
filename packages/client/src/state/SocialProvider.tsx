@@ -27,8 +27,8 @@ const KEEP = 60;
 export function SocialProvider({ children }: { children: ReactNode }) {
   const { socket } = usePirate();
   const [presence, setPresence] = useState<SocialContextValue["presence"]>(null);
-  const [chat, setChat] = useState<Record<ChatChannel, ChatMessage[]>>({ ship: [], island: [] });
-  const [unread, setUnread] = useState<Record<ChatChannel, number>>({ ship: 0, island: 0 });
+  const [chat, setChat] = useState<Record<ChatChannel, ChatMessage[]>>({ ship: [], island: [], crew: [] });
+  const [unread, setUnread] = useState<Record<ChatChannel, number>>({ ship: 0, island: 0, crew: 0 });
 
   useEffect(
     () =>

@@ -422,12 +422,37 @@ export const NamesSchema = z.object({
 
 export const MessagesSchema = z.record(MessageKey, z.string());
 
+const FlagPart = z.object({ id: Id, nameKey: MessageKey });
+
+/** A crew's flag: a field color, an accent color for the pattern and emblem, a pattern and an emblem (DESIGN.md 3.7). */
+export const CrewFlagSchema = z.object({ field: Id, accent: Id, pattern: Id, emblem: Id });
+
+/**
+ * Crews (M6): the social unit and the invite list (DESIGN.md 3.4, 3.7). What founding one costs, how
+ * big one may grow, and the parts a flag is made of. Every emblem and pattern is a shape, so flags
+ * read apart without color (rule 6).
+ */
+export const CrewRulesSchema = z.object({
+  /** Coins the founder pays into nothing: the first sink in the economy. */
+  foundingFee: z.int().min(0).max(1_000_000),
+  maxMembers: z.int().min(2).max(500),
+  /** Invitations a crew may have waiting at once. */
+  maxInvites: z.int().min(1).max(500),
+  name: z.object({ min: z.int().min(1).max(64), max: z.int().min(1).max(64) }),
+  colors: z.array(FlagPart.extend({ hex: z.string().regex(/^#[0-9a-f]{6}$/) })).min(2),
+  patterns: z.array(FlagPart).min(1),
+  emblems: z.array(FlagPart).min(1),
+  /** The flag a new crew is offered before its founder changes anything. */
+  defaultFlag: CrewFlagSchema,
+});
+
 export const WorldSchema = OceanSchema.extend({
   islands: z.array(IslandSchema).min(1),
   routes: z.array(RouteLegSchema),
   brigandTiers: z.array(BrigandTierSchema),
   shipClasses: z.array(ShipClassSchema).min(1),
   shipGrants: z.array(ShipGrantSchema),
+  crews: CrewRulesSchema,
 });
 
 export type Island = z.infer<typeof IslandSchema>;
@@ -449,6 +474,8 @@ export type SwordPieceStyle = z.infer<typeof SwordPieceStyleSchema>;
 export type StarColor = z.infer<typeof StarColorSchema>;
 export type StarShape = z.infer<typeof StarShapeSchema>;
 export type World = z.infer<typeof WorldSchema>;
+export type CrewRules = z.infer<typeof CrewRulesSchema>;
+export type CrewFlag = z.infer<typeof CrewFlagSchema>;
 export type ShipRules = z.infer<typeof ShipRulesSchema>;
 export type Ocean = z.infer<typeof OceanSchema>;
 export type IslandLandmark = Island["landmark"];

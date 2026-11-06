@@ -8,6 +8,8 @@ import { SailingConfigSchema } from "./sailing.js";
 import { GunneryConfigSchema } from "./gunnery.js";
 import { MeleeBoardSchema, SwordfightConfigSchema } from "./swordfight.js";
 import { BoardShipSchema, ChatChannelSchema, ShipEventWireSchema, ShipSnapshotSchema, StationSchema } from "./ship.js";
+import { CrewFlagWireSchema, CrewRankSchema, CrewTagSchema } from "./common.js";
+import { CrewInfoSchema, CrewInviteSchema, CrewNameSchema, CrewNoticeSchema, CrewRowSchema, PirateProfileSchema } from "./crew.js";
 
 const SessionId = z.string().min(8).max(64);
 const Hash = z.string().regex(/^[0-9a-f]{8}$/);
@@ -73,6 +75,29 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("island.who") }),
   /** Aboard, in a boarding melee without a board (joined late, or back from a drop): deal one. */
   z.object({ type: z.literal("melee.join") }),
+  // ---- crews (M6, ADR 0024)
+  /** The pirate's crew and the invitations waiting on them, answered with `crew.state`. */
+  z.object({ type: z.literal("crew.info") }),
+  /** The board of crews in the tavern, answered with `crew.list`. */
+  z.object({ type: z.literal("crew.list") }),
+  /** Found a crew, paying the founding fee. The founder is its commodore. */
+  z.object({ type: z.literal("crew.found"), name: CrewNameSchema, flag: CrewFlagWireSchema }),
+  /** Commodore only: change the flag. */
+  z.object({ type: z.literal("crew.flag"), flag: CrewFlagWireSchema }),
+  /** Officers and up: invite a pirate by name. */
+  z.object({ type: z.literal("crew.invite"), name: z.string().trim().min(1).max(64) }),
+  /** Officers and up: take back an invitation not yet answered. */
+  z.object({ type: z.literal("crew.uninvite"), pirateId: z.string().min(1).max(64) }),
+  /** Accept or decline an invitation. Accepting leaves any crew the pirate is in. */
+  z.object({ type: z.literal("crew.answer"), crewId: z.string().min(1).max(64), accept: z.boolean() }),
+  /** Leave the crew. A commodore leaving hands the crew to the next in rank; the last one out disbands it. */
+  z.object({ type: z.literal("crew.leave") }),
+  /** Commodore only: set a member's rank. Making someone commodore hands over the crew. */
+  z.object({ type: z.literal("crew.rank"), pirateId: z.string().min(1).max(64), rank: CrewRankSchema }),
+  /** Put a member out of the crew: the commodore anyone, an officer a sailor. */
+  z.object({ type: z.literal("crew.remove"), pirateId: z.string().min(1).max(64) }),
+  /** Another pirate as a tap on their name shows them, by id or by name. */
+  z.object({ type: z.literal("pirate.profile"), pirateId: z.string().min(1).max(64).optional(), name: z.string().trim().min(1).max(64).optional() }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
@@ -175,7 +200,17 @@ export const ServerMessageSchema = z.union([
     at: z.number(),
   }),
   /** Everyone ashore at an island. Sent to those ashore there whenever it changes, and on request. */
-  z.object({ type: z.literal("island.presence"), islandId: z.string(), pirates: z.array(z.object({ pirateId: z.string(), name: z.string() })) }),
+  z.object({
+    type: z.literal("island.presence"),
+    islandId: z.string(),
+    pirates: z.array(z.object({ pirateId: z.string(), name: z.string(), crew: CrewTagSchema.nullable().optional() })),
+  }),
+  /** The pirate's crew as they may see it, and the invitations waiting on them. Sent on connect, on request and whenever either changes. */
+  z.object({ type: z.literal("crew.state"), crew: CrewInfoSchema.nullable(), invites: z.array(CrewInviteSchema), serverNow: z.number() }),
+  z.object({ type: z.literal("crew.list"), crews: z.array(CrewRowSchema) }),
+  /** Something happened to the pirate's crew, or to them as a member of one. */
+  z.object({ type: z.literal("crew.notice"), notice: CrewNoticeSchema, at: z.number() }),
+  z.object({ type: z.literal("pirate.profile"), profile: PirateProfileSchema }),
   z.object({ type: z.literal("error"), code: ErrorCodeSchema, detail: z.string().optional() }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
@@ -184,6 +219,8 @@ export type PuzzleResult = z.infer<typeof PuzzleResultSchema>;
 export type ShipStateMessage = Extract<ServerMessage, { type: "ship.state" }>;
 export type ChatMessage = Extract<ServerMessage, { type: "chat.message" }>;
 export type MeleeBoardsMessage = Extract<ServerMessage, { type: "melee.boards" }>;
+export type CrewStateMessage = Extract<ServerMessage, { type: "crew.state" }>;
+export type CrewNoticeMessage = Extract<ServerMessage, { type: "crew.notice" }>;
 
 export function parseClientMessage(raw: unknown): ClientMessage | null {
   const r = ClientMessageSchema.safeParse(raw);

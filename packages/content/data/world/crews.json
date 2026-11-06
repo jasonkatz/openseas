@@ -1,0 +1,39 @@
+{
+  "foundingFee": 150,
+  "maxMembers": 30,
+  "maxInvites": 20,
+  "name": { "min": 3, "max": 24 },
+  "colors": [
+    { "id": "pitch", "hex": "#1d1c22", "nameKey": "crew.color.pitch" },
+    { "id": "bone", "hex": "#efe6cf", "nameKey": "crew.color.bone" },
+    { "id": "crimson", "hex": "#a8262f", "nameKey": "crew.color.crimson" },
+    { "id": "gold", "hex": "#dba53a", "nameKey": "crew.color.gold" },
+    { "id": "deep", "hex": "#1f5c8a", "nameKey": "crew.color.deep" },
+    { "id": "kelp", "hex": "#3c7a3e", "nameKey": "crew.color.kelp" },
+    { "id": "plum", "hex": "#5f2f6c", "nameKey": "crew.color.plum" },
+    { "id": "rust", "hex": "#b75b24", "nameKey": "crew.color.rust" }
+  ],
+  "patterns": [
+    { "id": "plain", "nameKey": "crew.pattern.plain" },
+    { "id": "band", "nameKey": "crew.pattern.band" },
+    { "id": "pale", "nameKey": "crew.pattern.pale" },
+    { "id": "cross", "nameKey": "crew.pattern.cross" },
+    { "id": "saltire", "nameKey": "crew.pattern.saltire" },
+    { "id": "quarters", "nameKey": "crew.pattern.quarters" },
+    { "id": "border", "nameKey": "crew.pattern.border" },
+    { "id": "chevron", "nameKey": "crew.pattern.chevron" }
+  ],
+  "emblems": [
+    { "id": "skull", "nameKey": "crew.emblem.skull" },
+    { "id": "anchor", "nameKey": "crew.emblem.anchor" },
+    { "id": "compass", "nameKey": "crew.emblem.compass" },
+    { "id": "kraken", "nameKey": "crew.emblem.kraken" },
+    { "id": "star", "nameKey": "crew.emblem.star" },
+    { "id": "swords", "nameKey": "crew.emblem.swords" },
+    { "id": "gull", "nameKey": "crew.emblem.gull" },
+    { "id": "wheel", "nameKey": "crew.emblem.wheel" },
+    { "id": "crown", "nameKey": "crew.emblem.crown" },
+    { "id": "flame", "nameKey": "crew.emblem.flame" }
+  ],
+  "defaultFlag": { "field": "pitch", "accent": "bone", "pattern": "plain", "emblem": "skull" }
+}

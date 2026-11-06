@@ -10,6 +10,7 @@ import { createHttpHandler } from "./http.js";
 import type { Logger } from "./log.js";
 import { PuzzleService } from "./puzzles/service.js";
 import { ShipService } from "./ships/service.js";
+import { CrewService } from "./crews.js";
 import { SocialService } from "./social.js";
 import { createWsServer } from "./ws.js";
 
@@ -20,6 +21,7 @@ export interface App {
   puzzles: PuzzleService;
   ships: ShipService;
   social: SocialService;
+  crews: CrewService;
   listen(port: number): Promise<number>;
   close(): Promise<void>;
 }
@@ -39,8 +41,15 @@ export async function createApp(env: Env, log: Logger, opts: { now?: () => numbe
     randomId: () => randomUUID(),
   });
   const social = new SocialService(ships, opts.now);
+  const crews = new CrewService(db, content, log, ships, social, { ...(opts.now ? { now: opts.now } : {}), randomId: () => randomUUID() });
+  await crews.load();
+  ships.crews = crews;
+  social.crews = crews;
+  ships.onSailed = (room, to, ids) => crews.sailed(room, to, ids);
+  ships.onArrived = (ids) => void crews.tallyVoyage(ids).catch((e) => log.error({ err: e }, "crew voyage tally failed"));
+  ships.onVictory = (room, tierId, shares) => void crews.tallyVictory(room, tierId, shares).catch((e) => log.error({ err: e }, "crew victory tally failed"));
   const http = createHttpHandler({ env, db, auth, content, log });
-  const ws = createWsServer({ db, auth, content, log, puzzles, ships, social });
+  const ws = createWsServer({ db, auth, content, log, puzzles, ships, social, crews });
 
   const server = createServer((req, res) => void http(req, res));
   server.on("upgrade", (req, socket, head) => {
@@ -62,6 +71,7 @@ export async function createApp(env: Env, log: Logger, opts: { now?: () => numbe
     puzzles,
     ships,
     social,
+    crews,
     listen: (port) =>
       new Promise((resolve) => {
         server.listen(port, () => {

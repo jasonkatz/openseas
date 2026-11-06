@@ -16,6 +16,20 @@ export const RatingViewSchema = z.object({
 });
 export type RatingView = z.infer<typeof RatingViewSchema>;
 
+const PartId = z.string().regex(/^[a-z][a-z0-9-]*$/).max(32);
+
+/** Crew ranks, highest first (M6, ADR 0024). The commodore leads; officers recruit; sailors sail. */
+export const CrewRankSchema = z.enum(["commodore", "officer", "sailor"]);
+export type CrewRank = z.infer<typeof CrewRankSchema>;
+
+/** A crew's flag. The parts are content ids (`content/data/world/crews.json`); the server checks them against content. */
+export const CrewFlagWireSchema = z.object({ field: PartId, accent: PartId, pattern: PartId, emblem: PartId });
+export type CrewFlagWire = z.infer<typeof CrewFlagWireSchema>;
+
+/** A crew as it is shown on a ship, a profile or the notice board: enough to fly its flag. */
+export const CrewTagSchema = z.object({ id: z.string().min(1).max(64), name: z.string(), flag: CrewFlagWireSchema });
+export type CrewTag = z.infer<typeof CrewTagSchema>;
+
 export const PirateSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -26,6 +40,8 @@ export const PirateSummarySchema = z.object({
   ships: z.array(z.object({ id: z.string(), classId: z.string(), name: z.string(), islandId: z.string() })),
   /** The island the pirate stands on when not aboard a ship. */
   islandId: z.string(),
+  /** The pirate's crew and their rank in it, or null for a pirate in no crew. */
+  crew: CrewTagSchema.extend({ rank: CrewRankSchema }).nullable().default(null),
 });
 export type PirateSummary = z.infer<typeof PirateSummarySchema>;
 
@@ -64,5 +80,17 @@ export const ErrorCodeSchema = z.enum([
   "is_deckhand",
   "not_deckhand",
   "not_mate_station",
+  "not_in_crew",
+  "already_in_crew",
+  "crew_name_taken",
+  "crew_name_bad",
+  "crew_flag_bad",
+  "crew_rank_low",
+  "crew_full",
+  "crew_invites_full",
+  "no_such_pirate",
+  "no_invite",
+  "already_invited",
+  "already_crewmate",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;

@@ -27,7 +27,7 @@ import {
   type ShipState,
   type Station,
 } from "@openseas/engine";
-import type { BoardShip, CrewView, ErrorCode, MeleeBoardWire, PuzzleStarted, ServerMessage, ShipEventWire, ShipLocation, ShipSnapshot } from "@openseas/protocol";
+import type { BoardShip, CrewTag, CrewView, ErrorCode, MeleeBoardWire, PuzzleStarted, ServerMessage, ShipEventWire, ShipLocation, ShipSnapshot } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
 import { appendLedger } from "../ledger.js";
@@ -108,6 +108,13 @@ export class ShipRoom {
   }
 }
 
+/** What the ship service asks of crews (M6, ADR 0024): who sails with whom, and whose colors a ship flies. */
+export interface CrewLookup {
+  crewIdOf(pirateId: string): string | null;
+  tagOf(pirateId: string): CrewTag | null;
+  sameCrew(a: string, b: string): boolean;
+}
+
 export interface ShipServiceOptions {
   now?: () => number;
   randomSeed: () => string;
@@ -126,6 +133,14 @@ export class ShipService {
   onBoarded: ((pirateId: string) => void) | null = null;
   /** These pirates' summaries changed (a ship or a pirate moved islands); the connection layer re-sends them. */
   onSummaryChanged: ((pirateIds: readonly string[]) => void) | null = null;
+  /** A ship set sail with these pirates aboard, bound for `to`. Crews tell their members ashore. */
+  onSailed: ((room: ShipRoom, to: string, pirateIds: readonly string[]) => void) | null = null;
+  /** A voyage reached port with these pirates aboard. Crews count it. */
+  onArrived: ((pirateIds: readonly string[]) => void) | null = null;
+  /** A brigand was beaten and the purse paid, pirate by pirate. Crews count it. */
+  onVictory: ((room: ShipRoom, tierId: string, shares: ReadonlyMap<string, number>) => void) | null = null;
+  /** Crews, once the crew service exists; without it nobody shares a crew and no ship flies colors. */
+  crews: CrewLookup | null = null;
   private readonly rooms = new Map<string, ShipRoom>();
   private readonly byPirate = new Map<string, string>();
   private readonly configs = new Map<string, ShipConfig>();
@@ -189,7 +204,7 @@ export class ShipService {
     } else if (room.state.islandId !== null && room.state.islandId !== (await this.pirateIsland(pirateId))) {
       throw new ShipError("ship_elsewhere");
     }
-    if (room.state.inviteOnly && pirateId !== room.ownerId) throw new ShipError("ship_locked");
+    if (room.state.inviteOnly && !this.mayBoardLocked(room, pirateId)) throw new ShipError("ship_locked");
     this.apply(room, { type: "board", pirateId }, (e) => (e.message === "ship is full" ? "ship_full" : "already_aboard"));
     room.names.set(pirateId, name);
     room.conns.join(conn);
@@ -200,6 +215,35 @@ export class ShipService {
     void recordEvent(this.db, pirateId, "ship.boarded", { shipId, atSea: room.state.voyage !== null }).catch((e) => this.log.warn({ err: e }, "event write failed"));
     this.onBoarded?.(pirateId);
     await this.afterChange(room);
+  }
+
+  /** A crew-only ship (M6) takes its owner and the owner's crew. */
+  private mayBoardLocked(room: ShipRoom, pirateId: string): boolean {
+    return pirateId === room.ownerId || Boolean(this.crews?.sameCrew(room.ownerId, pirateId));
+  }
+
+  /**
+   * Whether a pirate standing at `islandId` (null when aboard somewhere) could board this ship right
+   * now: not aboard another, a berth free, the ship open to them, and either at sea or at their dock.
+   */
+  canJoin(room: ShipRoom, pirateId: string, islandId: string | null): boolean {
+    if (this.byPirate.has(pirateId)) return false;
+    if (pirates(room.state.crew).length >= room.shipClass.maxCrew) return false;
+    if (room.state.inviteOnly && !this.mayBoardLocked(room, pirateId)) return false;
+    return room.state.islandId === null || room.state.islandId === islandId;
+  }
+
+  /** Where a ship is, as the wire says it. */
+  where(room: ShipRoom): ShipLocation {
+    return location(room.state);
+  }
+
+  /** Crews changed for these pirates: every ship they are aboard or own shows the new colors. */
+  refreshColors(pirateIds: readonly string[]): void {
+    const ids = new Set(pirateIds);
+    for (const room of this.rooms.values()) {
+      if (ids.has(room.ownerId) || room.state.crew.some((c) => ids.has(c.pirateId))) this.broadcast(room, []);
+    }
   }
 
   /** The ships at sea right now, for the chart of a pirate who is ashore. */
@@ -240,6 +284,7 @@ export class ShipService {
       await recordEvent(tx, pirateId, "voyage.started", { shipId: room.shipId, voyageId, routeId, crew: crew.length, mates: room.state.crew.length - crew.length });
     });
     await this.afterChange(room);
+    this.onSailed?.(room, route.to, pirates(room.state.crew).map((c) => c.pirateId));
   }
 
   async evade(pirateId: string): Promise<void> {
@@ -424,6 +469,7 @@ export class ShipService {
     });
     this.log.info({ shipId: room.shipId, tierId, outcome, booty, turns }, "battle ended");
     if (shares.size) this.onSummaryChanged?.([...shares.keys()]);
+    if (won && shares.size) this.onVictory?.(room, tierId, shares);
     await this.afterChange(room);
   }
 
@@ -810,6 +856,8 @@ export class ShipService {
         location: location(s),
         inviteOnly: s.inviteOnly,
         yours: room.ownerId === pirateId,
+        colors: this.crews?.tagOf(room.ownerId) ?? null,
+        crewmate: room.ownerId !== pirateId && Boolean(this.crews?.sameCrew(room.ownerId, pirateId)),
       });
     }
     return { type: "board.ships", islandId, ships, serverNow: this.now() };
@@ -965,6 +1013,7 @@ export class ShipService {
       await recordEvent(tx, room.state.captainId, "voyage.completed", { shipId: room.shipId, voyageId, islandId, turns, crew: crewIds.length });
     });
     this.log.info({ shipId: room.shipId, islandId, turns, crew: crewIds.length }, "ship arrived");
+    if (crewIds.length) this.onArrived?.(crewIds);
     this.onSummaryChanged?.(crewIds.includes(room.ownerId) ? crewIds : [...crewIds, room.ownerId]);
   }
 
@@ -1014,6 +1063,7 @@ export class ShipService {
       captain: c.pirateId === s.captainId,
       away: c.awaySinceTurn !== null,
       mate: c.mate,
+      crewId: c.mate ? null : (this.crews?.crewIdOf(c.pirateId) ?? null),
     }));
     return {
       shipId: room.shipId,
@@ -1035,6 +1085,7 @@ export class ShipService {
       turnMs: this.turnMs,
       voyagesCompleted: s.voyagesCompleted,
       melee: room.melee ? { tierId: room.melee.tierId } : null,
+      colors: this.crews?.tagOf(room.ownerId) ?? null,
     };
   }
 }
