@@ -104,8 +104,10 @@ export function loadContent(): Content {
   const nameLists = parse("names", NamesSchema, names);
   const messages = parse("messages/en", MessagesSchema, en);
 
-  crossCheck(world, puzzles, tiers, messages);
-  return { world, puzzles, ratingTiers: tiers, names: nameLists, messages };
+  const content: Content = { world, puzzles, ratingTiers: tiers, names: nameLists, messages };
+  const problems = contentProblems(content);
+  if (problems.length) throw new ContentError(problems.join("\n"));
+  return content;
 }
 
 function parse<T>(file: string, schema: z.ZodType<T>, data: unknown): T {
@@ -114,7 +116,13 @@ function parse<T>(file: string, schema: z.ZodType<T>, data: unknown): T {
   return r.data;
 }
 
-function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], messages: Record<string, string>): void {
+/**
+ * Everything wrong with content that each file's schema cannot see on its own: ids that refer to
+ * nothing, numbers that must agree across files. `loadContent` refuses content with any; the
+ * harness's voyage bench holds an edited world to the same list (ADR 0027).
+ */
+export function contentProblems(content: Content): string[] {
+  const { world, puzzles, ratingTiers: tiers, messages } = content;
   const problems: string[] = [];
   const need = (key: string, where: string): void => {
     if (!(key in messages)) problems.push(`${where}: missing message key "${key}"`);
@@ -253,7 +261,7 @@ function crossCheck(world: World, puzzles: PuzzleContent, tiers: RatingTier[], m
       seenShape.add(sh.shape);
     }
   }
-  if (problems.length) throw new ContentError(problems.join("\n"));
+  return problems;
 }
 
 /** Every kind must differ by mark, color, and texture so pieces stay apart without color (rule 6). */

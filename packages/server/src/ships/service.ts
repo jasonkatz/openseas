@@ -1,18 +1,22 @@
 import { and, eq, inArray } from "drizzle-orm";
-import type { BrigandTier, Content, RouteLeg, ShipClass } from "@openseas/content";
+import type { BrigandTier, Content, ShipClass } from "@openseas/content";
 import {
   InvalidMoveError,
-  STATIONS,
+  battleConfigAboard,
   battleIsWin,
+  brigandSpecFor,
   createShip,
   createSwordfightGame,
   crewAtStation,
   crewMember,
-  legUnits,
+  legPlan,
   pirates,
   progressPermille,
   reduceShip,
   reduceSwordfight,
+  shipConfigFor as engineShipConfigFor,
+  shipSupply,
+  splitBooty,
   summarizeSwordfight,
   swordfightBoardLoad,
   swordfightBoardString,
@@ -351,24 +355,8 @@ export class ShipService {
 
   /** The battle board's config aboard: content's rules with the ship's guns and hull, the tier's brigand, the ship's turn. */
   battleConfigFor(room: ShipRoom, tier: BrigandTier): BattleConfig {
-    const base = this.content.puzzles.battle.config;
     const theirClass = this.content.world.shipClasses.find((c) => c.id === tier.shipClassId) ?? room.shipClass;
-    return {
-      ...base,
-      turnSeconds: this.content.world.ship.turnSeconds,
-      cannons: room.shipClass.cannons,
-      startLoaded: Math.min(room.shipClass.cannons, room.state.loaded),
-      startDamage: Math.min(999, room.state.damage),
-      supply: null,
-      brigand: {
-        cannons: theirClass.cannons,
-        tokensPerTurn: tier.movesPerTurn,
-        reloadPerTurn: tier.reloadPerTurn,
-        accuracy: Math.round(tier.accuracy * 100),
-        aggression: Math.round(tier.aggression * 100),
-        startDamage: 0,
-      },
-    };
+    return battleConfigAboard(this.content.puzzles.battle.config, room.state, brigandSpecFor(tier, theirClass.cannons));
   }
 
   /** Tell the captain's board what the ship brings right now. Called after the deal is sent and after every turn. */
@@ -383,7 +371,7 @@ export class ShipService {
     const session = this.puzzles.sessions.get(run.sessionId);
     if (!session || session.closed) return;
     const s = room.state;
-    const supply: ShipSupply = { ...splitTokens(s.tokens), cannons: Math.min(room.shipClass.cannons, s.loaded), hull: s.damage };
+    const supply: ShipSupply = shipSupply(s);
     session.shipSupply = supply;
     run.hullSent = s.damage;
     room.conns.send(session.pirateId, { type: "battle.supply", sessionId: session.id, ...supply });
@@ -1099,31 +1087,12 @@ export class ShipService {
   }
 }
 
-/** Derive the engine's config for a class: par per station is the puzzle's par scaled to one turn. */
+/** Derive the engine's config for a class from content (the derivation itself is the engine's, ADR 0027). */
 export function shipConfigFor(content: Content, shipClass: ShipClass): ShipConfig {
-  const rules = content.world.ship;
-  const par = {} as Record<Station, number>;
-  for (const st of STATIONS) {
-    const p = content.puzzles[st];
-    par[st] = Math.max(1, Math.round((p.parScore * rules.turnSeconds) / p.roundSeconds));
-  }
-  return {
-    shipClass: { id: shipClass.id, stations: shipClass.stations, maxCrew: shipClass.maxCrew, minCrew: shipClass.minCrew, mateStations: shipClass.mateStations, cannons: shipClass.cannons, baseTokens: shipClass.baseTokens },
-    rules,
-    par,
-  };
+  return engineShipConfigFor(shipClass, content.world.ship, content.puzzles);
 }
 
-export function legPlan(route: RouteLeg) {
-  return {
-    routeId: route.id,
-    from: route.from,
-    to: route.to,
-    lengthUnits: legUnits(route.durationSeconds),
-    encounterChancePercent: Math.round(route.encounterChance * 100),
-    brigands: route.brigands,
-  };
-}
+export { legPlan, splitBooty, splitTokens } from "@openseas/engine";
 
 function location(s: ShipState): ShipLocation {
   if (s.voyage) {
@@ -1136,37 +1105,6 @@ function location(s: ShipState): ShipLocation {
 function encounterOf(room: ShipRoom): { tierId: string; evaded: boolean } | null {
   const e = room.state.voyage?.encounter;
   return e ? { tierId: e.tierId, evaded: e.resolved } : null;
-}
-
-/** The ship's movement tokens as the battle board's kinds: half forward, the rest split between the turns. */
-export function splitTokens(n: number): { left: number; forward: number; right: number } {
-  const forward = Math.ceil(n / 2);
-  const rest = n - forward;
-  const left = Math.ceil(rest / 2);
-  return { left, forward, right: rest - left };
-}
-
-/**
- * Booty split among everyone aboard, weighted by duty performance during the fight, with an extra
- * share for the captain (DESIGN.md 3.4): a base of two shares for the captain and one for everyone
- * else, each scaled between half and full by the pirate's points against the best aboard. What the
- * floors leave over goes to the captain. Integer arithmetic throughout.
- */
-export function splitBooty(total: number, crew: ReadonlyArray<{ pirateId: string; captain: boolean; points: number }>): Map<string, number> {
-  const out = new Map<string, number>();
-  if (total <= 0 || crew.length === 0) return out;
-  const top = Math.max(0, ...crew.map((c) => c.points));
-  const weights = crew.map((c) => (c.captain ? 2 : 1) * (top > 0 ? 50 + Math.floor((50 * c.points) / top) : 100));
-  const sum = weights.reduce((a, b) => a + b, 0);
-  let paid = 0;
-  crew.forEach((c, i) => {
-    const coins = Math.floor((total * weights[i]!) / sum);
-    out.set(c.pirateId, coins);
-    paid += coins;
-  });
-  const captain = crew.find((c) => c.captain) ?? crew[0]!;
-  out.set(captain.pirateId, (out.get(captain.pirateId) ?? 0) + (total - paid));
-  return out;
 }
 
 function wireEvent(room: ShipRoom, e: ShipEvent): ShipEventWire {

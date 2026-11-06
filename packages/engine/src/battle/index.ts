@@ -28,3 +28,4 @@ export {
   type TurnResolution as BattleTurnResolution,
 } from "./reduce.js";
 export { chooseBrigandPlan, predictCaptain as predictBattleCaptain, enumeratePlans as enumerateBattlePlans } from "./ai.js";
+export { chooseCaptainPlan, type CaptainSpec } from "./captain.js";
