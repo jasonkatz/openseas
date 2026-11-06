@@ -52,7 +52,9 @@ function useBattle(ship: ShipSnapshot | null): BattleApi {
         switch (m.type) {
           case "puzzle.started": {
             if (m.puzzle !== "battle" || !m.battle) return;
-            round.current?.abandon();
+            // The same board handed back is rebuilt from the server's log; abandoning it would end it there.
+            if (m.sessionId === sessionId.current) round.current?.discard();
+            else round.current?.abandon();
             const startedAt = m.serverNow - socket.clockOffset;
             const deadlineAt = m.deadlineAt - socket.clockOffset;
             const replay = (m.resume?.moves ?? []) as BattleMove[];

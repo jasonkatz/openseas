@@ -141,6 +141,14 @@ export class PuzzleRound<S, M, C> {
     this.opts.onFinished();
   }
 
+  /**
+   * Drop the round without a word to the server: the server handed the same board back (a
+   * reconnect, or a missing move, ADR 0024) and a new round rebuilt from its log takes over.
+   */
+  discard(): void {
+    this.finished = true;
+  }
+
   abandon(): void {
     if (this.finished) return;
     this.finished = true;

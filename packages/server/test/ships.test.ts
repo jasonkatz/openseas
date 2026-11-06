@@ -859,6 +859,20 @@ describeDb("ships over the wire", () => {
     expect(room().state.voyage!.progress).toBe(progress);
     await waitRoom(() => app.puzzles.sessions.get(mineA.sessionId)?.moves.length === 1);
 
+    // A move lost on the way (ADR 0024): the next one carries the wrong number, and instead of the
+    // round being thrown out the board is handed back as the server holds it. The rebuilt board goes on.
+    const held = mine;
+    mine = reduceSwordfight(mine, { type: "wait", tick: 2 });
+    seq++;
+    log({ type: "wait", tick: 3 });
+    const back = await a.until("puzzle.started", (m) => m.sessionId === mineA.sessionId && m.resume !== undefined);
+    expect(back.resume?.moves).toEqual([{ type: "wait", tick: 1 }]);
+    expect(app.puzzles.sessions.get(mineA.sessionId)?.closed).toBe(false);
+    mine = held;
+    seq = 1;
+    log({ type: "wait", tick: 4 });
+    await waitRoom(() => app.puzzles.sessions.get(mineA.sessionId)?.moves.length === 2);
+
     // Bury the brigand crew in wrack until every board of theirs is out: the rail is won.
     const run = room().melee!;
     let crew = run.crew;
