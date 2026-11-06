@@ -352,7 +352,12 @@ export class SwordfightRenderer {
     if (!this.app.renderer) return;
     const first = !this.state;
     const sizeChanged = this.state !== null && (this.state.config.width !== state.config.width || this.state.config.height !== state.config.height);
-    const reset = first || sizeChanged || state.tick < this.shownTick || state.moveCount < this.shownMoves;
+    // A different fight at the same tick and move count (a practice page swaps its placeholder for
+    // the real round at tick 0) still resets: with no move logged, the player's pair in hand only
+    // changes when the fight does, and a pair already falling would keep the old fight's colors.
+    const prevPlayer = this.state?.config.player ? this.state.boards[0] : null;
+    const otherFight = prevPlayer !== null && prevPlayer !== undefined && state.config.player && state.moveCount === 0 && this.shownMoves === 0 && state.boards[0]!.current !== prevPlayer.current;
+    const reset = first || sizeChanged || otherFight || state.tick < this.shownTick || state.moveCount < this.shownMoves;
     this.state = state;
     this.framePending = true;
     this.viewStale = true;
