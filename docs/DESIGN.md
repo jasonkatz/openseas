@@ -387,7 +387,8 @@ live in `content/data/puzzles/swordfight.json`.
   a chip in the crew list, the word on their station, and a different figure on deck (a smock
   and kerchief, not a coat and hat), so nobody mistakes one for a player.
 - **Joining.** Ships at sea appear on the island notice board. Pirates can join mid-voyage and
-  take a free station. The owner can set a ship to invite-only.
+  take a free station. The owner can set a ship to crew only: the owner and the owner's crew may
+  board, nobody else (M6).
 - **Disconnects.** A dropped pirate's station idles for a 2 minute grace period; their seat is
   held; their puzzle board is discarded, not resumed. If the captain drops, the ship holds position
   and any sea battle pauses for the same grace period, then the longest-aboard pirate is offered
@@ -429,12 +430,57 @@ owned ships. No inventory, clothing, or housing in v1.
 - Text chat with three channels: ship, crew, island-local. Voice is left to Discord.
 - Moderation is mute and block only.
 
+**Crews** (M6, ADR 0024). A crew is a lasting band of pirates with a name, a flag and ranks, the
+social unit and the invite list; it is not the same thing as whoever is aboard a ship. A pirate is
+in at most one crew.
+
+- **Founding.** Any pirate in no crew founds one in the tavern: a name (3 to 24 letters, digits,
+  spaces, apostrophes and hyphens; unique whatever the case) and a flag, for `foundingFee` coins
+  through the ledger (150 to start, the economy's first sink). The founder is its commodore.
+- **Flags.** A field color, an accent color, a pattern (plain, band, pale, cross, saltire,
+  quarters, border, chevron) and an emblem (skull, anchor, compass rose, kraken, star, crossed
+  swords, gull, ship's wheel, crown, flame), all content ids in `crews.json`. Field and accent must
+  differ. Every pattern and emblem is its own shape and the emblem is outlined in the field color,
+  so flags tell apart without color (rule 6). A "surprise me" die rolls one.
+- **Ranks.** Commodore, officer, sailor, each with its own mark. The commodore sets ranks, changes
+  the flag, hands over command (staying on as an officer) and may put anyone out; officers invite
+  and may put out sailors; sailors sail and chat. A commodore who leaves is succeeded by the next
+  in rank, longest in the crew first; the last one out disbands the crew.
+- **Invitations.** Officers and up invite by name, or from a pirate's card. An invitation waits
+  until it is answered or withdrawn, online or not, and arrives as a toast with a button to look.
+  Accepting while in another crew leaves it (the card asks first). A crew holds `maxMembers`
+  and has at most `maxInvites` waiting.
+- **What a crew does.** Crew chat reaches every member wherever they are. The crew card lists
+  every member with where they are right now (ashore at an island, aboard a ship and where it is
+  bound, or off watch), with a button to board or join at sea when the viewer could. When
+  crewmates set sail the ones ashore are told, with a button to catch them at sea; when a ship
+  with crewmates aboard beats a brigand, the rest hear it. A crew-only ship takes the owner's crew.
+  Ships fly their owner's crew flag at the masthead and its emblem across the mainsail, on the
+  chart and at the dock; the notice board, the deck and the tavern show the flag beside the name.
+- **Tallies and the board of crews.** A crew counts voyages that reached port with a member
+  aboard, brigands beaten, and the coins paid to its members from those wins. The tavern's board
+  of crews ranks every crew by plunder, then victories.
+- **Pirates' cards.** A name in the tavern, the deck's crew list, the crew card or a chat line
+  opens that pirate's card: on watch or not, their crew and rank, voyages to port, their standing
+  tiers, and an invitation to the viewer's crew when the viewer may send one.
+
 ### 3.8 Accounts and access
 
 - Guest-first. A new visitor gets an instant random pirate name with zero friction.
 - Guests can upgrade in place to a Discord or Google account. Pirate, ledger, ratings, and ships
   carry across. No email/password auth exists.
 - During alpha an invite code is required to create a pirate. This is a config flag.
+
+As built (M6, ADR 0025): the menu's account section tells a guest plainly what they risk and
+offers "keep this pirate with Discord / Google", one button per provider the server has keys for
+(none on a preview, which says linking is not set up). The provider sends the player back to the
+same place with a toast: "Linked to Discord" when the guest's pirate moved onto the account,
+"Welcome back" when the account already had a pirate of its own, which wins (the guest stays
+behind, nothing is deleted). A linked pirate sees what is linked and may add the other provider.
+After a guest's first voyage reaches port, a toast offers to keep the pirate, once per browser.
+A guest's sign-out asks twice, since it loses the pirate. A browser that has held a linked
+account opens on a "welcome back" card after sign-out (sign in, or start fresh as a guest)
+instead of making a new guest; the invite-gated landing offers sign-in to returning players too.
 
 ### 3.9 Platform
 
@@ -474,7 +520,9 @@ the desired approach; the parts marked open are decided as they are built.
   boarding happens.
 - **One menu, in the scene.** Settings, sound, the accessibility marks, account linking and
   leaving a ship live in a single menu that opens over the scene and looks the same everywhere.
-  No page has a different frame, header or back button.
+  No page has a different frame, header or back button. The crew card (M6) opens the same way
+  from a flag button in the top bar, which counts invitations and unread crew chat, and from the
+  tavern's crew table; a pirate's card opens over either.
 - **Transitions are moves, not loads.** Moving in on an island, boarding, taking a station and
   opening a board animate within the scene; the pirate always knows where they are. A URL may
   deep-link to a place for sharing; opening it lands in the scene at that place.
@@ -631,7 +679,7 @@ still proven there first, with its tester session, and only then embedded in the
 | M3 | The one-experience shell (section 3.11): the overworld as home with in-world navigation and menus; one ship with embedded crew duty and a voyage between two islands, no combat. The practice pages move to the harness |
 | M4 | Sea Battle versus AI brigands, boarding stubbed |
 | M5 | Swordfighting boarding and the walkable island |
-| M6 | OAuth upgrade, crews, polish pass |
+| M6 | OAuth upgrade (a guest links Discord or Google in place and keeps everything; returning players sign in), crews (found with a name and flag, invite, ranks, crew chat, crew-only ships, crews' colors on ships, tallies and the board of crews, pirates' cards), polish pass |
 
 Every milestone ends with a tester session and a written retro before the next starts.
 
@@ -648,6 +696,12 @@ opens over the deck in the station layer, the ship's turn clock sails the plot, 
 feed it, and a win pays the tier's booty through the ledger. Boarding is stubbed: a grapple that
 lands ends the fight. The practice page and its presets are on the harness. Its tester session
 follows M3's.
+
+M6 as built: crews and the account upgrade are as described in 3.7 and 3.8 (ADR 0024, ADR 0025).
+The polish pass that came with them: the top bar shows coins as a coin and a number and gains the
+crew's flag; toasts can carry a button (look at an invitation, join crewmates at sea, keep the
+pirate); every name is a way to that pirate's card; the ship lock reads as crew only and says who;
+a few rough strings (an "M6 is coming" line in the menu) are gone. Its tester session follows M4's.
 
 ### 5.3 Testing and quality
 
@@ -677,6 +731,10 @@ Maintained as they arise.
 | Area | Original | openseas | Why |
 |---|---|---|---|
 | Ship ownership | Individuals and crews | Individuals only in v1 | Simpler model; owner likes personal ships |
+| Crew ranks | A long ladder of ranks with fine-grained permissions | Three: commodore, officer, sailor | A crew of friends needs a leader, recruiters and everyone else; more can be added to the enum |
+| Flags | A flag is an alliance of crews | A flag is a crew's own banner; no alliances | Alliances need more crews than the design point has; the word reads naturally on a ship |
+| Crew-only ships | Crew-owned ships, with who may sail one set by rank | The owner's toggle: crew only lets the owner's crew board | Ships are personal (3.4); the crew is the invite list |
+| Crew records | Fame from deeds | Voyages, victories and booty counted on the crew; the board of crews ranks by plunder | Plain numbers players can read and chase |
 | AI crew | Hired at port for wages, with their own ratings, and sent to a station by the captain | Deckhands sign on by themselves when a ship sails short of `minCrew`, work the open stations the class lists in order, step aside for any pirate and come back after a rest; free; paid off at the dock | Short crews still sail a working ship; no economy yet; the pirate's choice of station always wins (ADR 0023) |
 | Anti-cheat | Client-reported scores | Server replay verification | Cheap once engines are pure |
 | Evading brigands | Can fail | Always succeeds in v1 | Nothing to lose yet |

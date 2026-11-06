@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ShipLocation, StationWire } from "@openseas/protocol";
-import { content, sfx, t, usePirate } from "@openseas/boards";
+import { LINK_FROM_KEY, content, sfx, t, usePirate } from "@openseas/boards";
+import { CrewDialog } from "../crew/CrewDialog.jsx";
+import { ProfileCard } from "../crew/ProfileCard.jsx";
 import { ChartCard } from "../chart/ChartCard.jsx";
 import { IslandCard } from "../island/IslandCard.jsx";
 import { islandName, stationName, tierName } from "../names.js";
@@ -11,6 +13,7 @@ import { useMeleeApi } from "../ship/melee/useMelee.js";
 import { DeckCard, HelmCard, describeEvent } from "../ship/DeckCard.jsx";
 import { ShipHud } from "../ship/ShipHud.jsx";
 import { StationView } from "../ship/StationView.jsx";
+import { useCrew } from "../state/CrewProvider.jsx";
 import { useShip } from "../state/ShipProvider.jsx";
 import { usePlace, type Place } from "../state/place.jsx";
 import { useMediaQuery, useShowMarks } from "../state/settings.js";
@@ -22,6 +25,18 @@ import { Toasts } from "./Toasts.jsx";
 import { TopBar } from "./TopBar.jsx";
 
 const BOARD_REFRESH_MS = 4000;
+/** Set once the guest has been asked to keep their pirate after a voyage (ADR 0007). */
+const NUDGED_KEY = "openseas.link-nudged";
+
+function once(key: string): boolean {
+  try {
+    if (window.localStorage.getItem(key)) return false;
+    window.localStorage.setItem(key, "1");
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function worldLocation(l: ShipLocation): WorldShipLocation {
   return l.kind === "docked" ? { kind: "docked", islandId: l.islandId } : { kind: "at-sea", from: l.from, to: l.to, progress: l.progress };
@@ -49,8 +64,9 @@ interface Head {
  * is and what to do next, so nobody has to guess.
  */
 export function Shell() {
-  const { pirate, socketStatus } = usePirate();
+  const { pirate, socketStatus, providers } = usePirate();
   const { ship, notices, listBoard, board, boardShip, takeStation, error } = useShip();
+  const crewApi = useCrew();
   const { place: rawPlace, go } = usePlace();
   const battle = useBattleApi();
   const melee = useMeleeApi();
@@ -76,6 +92,35 @@ export function Shell() {
     if (rawPlace.kind !== "home") return rawPlace;
     return ship ? { kind: "deck" } : { kind: "island", id: ashoreAt, room: "none" };
   }, [rawPlace, ship, ashoreAt]);
+
+  // ---- back from a provider: say what happened to the pirate, then tidy the address.
+  const authChecked = useRef(false);
+  useEffect(() => {
+    if (authChecked.current || !pirate) return;
+    authChecked.current = true;
+    const q = new URLSearchParams(window.location.search);
+    const signedIn = q.get("signed_in");
+    const failed = q.get("auth_error") ?? (q.get("error") ? "" : null);
+    if (signedIn === null && failed === null) return;
+    let from: string | null = null;
+    try {
+      from = window.localStorage.getItem(LINK_FROM_KEY);
+      window.localStorage.removeItem(LINK_FROM_KEY);
+    } catch {
+      /* nothing remembered */
+    }
+    const provider = t(`auth.provider_${signedIn ?? failed ?? ""}`);
+    if (failed !== null) toast(t("auth.link_failed"), "warn", 7000);
+    else if (pirate.guest) toast(t("auth.link_failed"), "warn", 7000);
+    else if (from && from !== pirate.id) {
+      sfx.streak(5);
+      toast(t("auth.welcome_back", { name: pirate.name, provider }), "good", 7000);
+    } else {
+      sfx.streak(5);
+      toast(t("auth.linked", { provider }), "good", 7000);
+    }
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [pirate, toast]);
 
   // ---- keep the place honest against the ship: boarding moves in on the deck, going ashore moves out.
   const wasAboard = useRef(false);
@@ -186,6 +231,10 @@ export function Shell() {
         sfx.streak(5);
         toast(t("ship.arrived_blurb", { island: islandName(e.islandId) }), "good", 6000);
         if (place.kind === "station") go({ kind: "home" });
+        // A guest's first voyage is worth keeping: offer to link an account, once (ADR 0007).
+        if (pirate?.guest && providers.length > 0 && once(NUDGED_KEY)) {
+          window.setTimeout(() => toast(t("auth.nudge"), "plain", 12000, { label: t("auth.nudge_action"), run: () => setMenuOpen(true), testId: "toast-link" }), 1500);
+        }
       } else if (e.type === "wheel") {
         toast(e.pirateId === me ? t("toast.wheel_yours") : (describeEvent(e) as string));
       } else if (e.type === "engaged") {
@@ -207,7 +256,7 @@ export function Shell() {
         toast(describeEvent(e) as string);
       }
     }
-  }, [notices, toast, me, place.kind, go]);
+  }, [notices, toast, me, place.kind, go, pirate, providers]);
 
   useEffect(() => {
     if (error && !sheetOpen) toast(t(`error.${error}`), "warn");
@@ -218,18 +267,19 @@ export function Shell() {
     const out: WorldShip[] = [];
     const seen = new Set<string>();
     if (ship) {
-      out.push({ id: ship.shipId, name: ship.name, kind: "aboard", location: worldLocation(ship.location) });
+      out.push({ id: ship.shipId, name: ship.name, kind: "aboard", location: worldLocation(ship.location), colors: ship.colors?.flag ?? null });
       seen.add(ship.shipId);
     }
     for (const s of board?.ships ?? []) {
       if (seen.has(s.shipId)) continue;
       seen.add(s.shipId);
-      out.push({ id: s.shipId, name: s.name, kind: s.yours ? "yours" : "other", location: worldLocation(s.location) });
+      out.push({ id: s.shipId, name: s.name, kind: s.yours ? "yours" : "other", location: worldLocation(s.location), colors: s.colors?.flag ?? null });
     }
+    // The pirate's own ships fly their crew's colors, wherever they lie.
     for (const s of pirate?.ships ?? []) {
       if (seen.has(s.id)) continue;
       seen.add(s.id);
-      out.push({ id: s.id, name: s.name, kind: "yours", location: { kind: "docked", islandId: s.islandId } });
+      out.push({ id: s.id, name: s.name, kind: "yours", location: { kind: "docked", islandId: s.islandId }, colors: pirate?.crew?.flag ?? null });
     }
     return out;
   }, [ship, board, pirate]);
@@ -289,10 +339,10 @@ export function Shell() {
       smoothMs: content.world.ship.turnSeconds * 1000,
       deck,
       insets,
-      dimmed: place.kind === "station" || place.kind === "battle" || place.kind === "melee" || menuOpen,
+      dimmed: place.kind === "station" || place.kind === "battle" || place.kind === "melee" || menuOpen || crewApi.panel !== null,
       boardLabel: t("ship.board_spot"),
     }),
-    [ships, aboard, ashoreAt, focus, place, helmPick, reachable, shipPick, deck, insets, menuOpen],
+    [ships, aboard, ashoreAt, focus, place, helmPick, reachable, shipPick, deck, insets, menuOpen, crewApi.panel],
   );
 
   // ---- taps in the world
@@ -501,7 +551,9 @@ export function Shell() {
       {stationOpen && ship && <StationView ship={ship} me={me} station={stationOpen} showMarks={showMarks} onBack={() => go({ kind: "home" })} onHelm={onHelm} />}
       {battleOpen && ship && <BattleView ship={ship} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
       {meleeOpen && ship && <MeleeView ship={ship} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
+      <CrewDialog />
       {menuOpen && <Menu showMarks={showMarks} onShowMarks={setShowMarks} onClose={() => setMenuOpen(false)} />}
+      <ProfileCard />
       <Toasts />
     </div>
   );

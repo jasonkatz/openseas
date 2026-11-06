@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ChatChannel } from "@openseas/protocol";
 import { t, usePirate } from "@openseas/boards";
+import { useCrew } from "../state/CrewProvider.jsx";
 import { useSocial } from "../state/SocialProvider.jsx";
 
-/** One chat channel: the last lines and a line to send. Ephemeral and plain (DESIGN.md 3.7). */
+/** One chat channel: the last lines and a line to send. Ephemeral and plain (DESIGN.md 3.7). A name opens its pirate's card. */
 export function Chat({ channel }: { channel: ChatChannel }) {
   const { pirate, socketStatus } = usePirate();
   const { chat, say, markRead } = useSocial();
+  const { showProfile } = useCrew();
   const [text, setText] = useState("");
   const list = useRef<HTMLUListElement>(null);
   const lines = chat[channel];
@@ -30,7 +32,10 @@ export function Chat({ channel }: { channel: ChatChannel }) {
         {lines.length === 0 && <li className="muted small chat-empty">{online ? t("chat.empty") : t("chat.offline")}</li>}
         {lines.map((m, i) => (
           <li key={`${m.at}-${i}`} className={m.pirateId === pirate?.id ? "mine" : ""}>
-            <b>{m.name}</b> <span>{m.text}</span>
+            <button className="pirate-link chat-who" onClick={() => showProfile({ pirateId: m.pirateId })}>
+              {m.name}
+            </button>{" "}
+            <span>{m.text}</span>
           </li>
         ))}
       </ul>

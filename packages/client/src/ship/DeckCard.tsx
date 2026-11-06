@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from "react";
-import type { CrewView, ShipEventWire, ShipSnapshot, StationWire } from "@openseas/protocol";
+import type { CrewFlagWire, CrewView, ShipEventWire, ShipSnapshot, StationWire } from "@openseas/protocol";
 import { content, t } from "@openseas/boards";
+import { Flag } from "../crew/Flag.jsx";
 import { Chat } from "../island/Chat.jsx";
+import { useCrew } from "../state/CrewProvider.jsx";
 import { className, islandName, minutes, routeBetween, stationName, tierName } from "../names.js";
 import { useShip, type ShipNotice } from "../state/ShipProvider.jsx";
 import { ShipHud } from "./ShipHud.jsx";
@@ -35,9 +37,15 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: Dec
   /** The stations the captain may order a deckhand to: the class's, never the chart table. */
   const mateStations = shipClass?.mateStations ?? [];
   const hands = ship.crew.some((c) => c.mate);
+  const { crew: myCrew } = useCrew();
 
   return (
     <section className="card deck-card" data-testid="deck-card">
+      {ship.colors && (
+        <p className="deck-colors muted small" data-testid="deck-colors">
+          <Flag flag={ship.colors.flag} size={16} /> {t("ship.flies_colors", { crew: ship.colors.name })}
+        </p>
+      )}
       <p className="visually-hidden">
         {ship.name} <small className="muted">{className(ship.classId)}</small>
       </p>
@@ -118,7 +126,7 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: Dec
         <h3 className="section-head">{t("ship.crew_heading", { count: ship.crew.length, max: ship.maxCrew })}</h3>
         <ul className="crew" data-testid="crew">
           {ship.crew.map((c) => (
-            <CrewRow key={c.pirateId} c={c} me={me} orders={captain && c.mate ? { stations: mateStations, crew: ship.crew, assign } : null} />
+            <CrewRow key={c.pirateId} c={c} me={me} crewmate={Boolean(myCrew && c.crewId === myCrew.id && c.pirateId !== me)} crewFlag={myCrew?.flag ?? null} orders={captain && c.mate ? { stations: mateStations, crew: ship.crew, assign } : null} />
           ))}
         </ul>
       </div>
@@ -159,7 +167,7 @@ export function DeckCard({ ship, me, onStation, onHelm, onBattle, onMelee }: Dec
           <label className="toggle">
             <input type="checkbox" checked={ship.inviteOnly} onChange={(e) => lock(e.target.checked)} data-testid="toggle-lock" />
             <span>
-              {t("ship.lock")} <small className="muted">{t("ship.lock_hint")}</small>
+              {t("ship.lock")} <small className="muted">{myCrew ? t("ship.lock_hint_crew", { crew: myCrew.name }) : t("ship.lock_hint")}</small>
             </span>
           </label>
         )}
@@ -195,12 +203,24 @@ interface Orders {
   assign(pirateId: string, station: StationWire | null): void;
 }
 
-function CrewRow({ c, me, orders }: { c: CrewView; me: string; orders: Orders | null }) {
+function CrewRow({ c, me, orders, crewmate, crewFlag }: { c: CrewView; me: string; orders: Orders | null; crewmate: boolean; crewFlag: CrewFlagWire | null }) {
+  const { showProfile } = useCrew();
   return (
-    <li className={`${c.away ? "away" : ""} ${c.mate ? "is-mate" : ""}`} data-testid={c.mate ? "crew-mate" : "crew-pirate"}>
+    <li className={`${c.away ? "away" : ""} ${c.mate ? "is-mate" : ""} ${crewmate ? "is-crewmate" : ""}`} data-testid={c.mate ? "crew-mate" : "crew-pirate"}>
       <span className="crew-name">
-        {c.name}
+        {c.mate ? (
+          c.name
+        ) : (
+          <button className="pirate-link" onClick={() => showProfile({ pirateId: c.pirateId })}>
+            {c.name}
+          </button>
+        )}
         {c.pirateId === me && <small className="muted"> ({t("ship.you")})</small>}
+        {crewmate && crewFlag && (
+          <small className="crewmate-chip" title={t("ship.crewmate")}>
+            <Flag flag={crewFlag} size={11} decorative /> {t("ship.crewmate")}
+          </small>
+        )}
       </span>
       <span className="crew-role">
         {c.captain && <b className="tier-chip">{t("ship.captain")}</b>}

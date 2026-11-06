@@ -50,6 +50,7 @@ const PROVIDERS: readonly AuthProvider[] = ["discord", "google"];
 
 /** The providers this server has keys for, in a fixed order. */
 export function configuredProviders(env: Env): AuthProvider[] {
+  if (env.DISABLE_SOCIAL_SIGN_IN) return [];
   return PROVIDERS.filter((p) => (p === "discord" ? env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_SECRET : env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET));
 }
 
@@ -65,12 +66,9 @@ export async function linkedProviders(db: Db, userId: string): Promise<AuthProvi
 
 export function createAuth(env: Env, db: Db, log: Logger) {
   const socialProviders: Record<string, { clientId: string; clientSecret: string }> = {};
-  if (env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_SECRET) {
-    socialProviders.discord = { clientId: env.DISCORD_CLIENT_ID, clientSecret: env.DISCORD_CLIENT_SECRET };
-  }
-  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
-    socialProviders.google = { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET };
-  }
+  const offered = configuredProviders(env);
+  if (offered.includes("discord")) socialProviders.discord = { clientId: env.DISCORD_CLIENT_ID!, clientSecret: env.DISCORD_CLIENT_SECRET! };
+  if (offered.includes("google")) socialProviders.google = { clientId: env.GOOGLE_CLIENT_ID!, clientSecret: env.GOOGLE_CLIENT_SECRET! };
 
   return betterAuth({
     secret: env.BETTER_AUTH_SECRET,

@@ -9,6 +9,7 @@
  */
 import * as THREE from "three";
 import type { IslandLandmark } from "@openseas/content";
+import type { CrewFlagWire } from "@openseas/protocol";
 import { CameraRig, isoDirection, type View } from "./camera.js";
 import {
   PALETTE,
@@ -19,6 +20,7 @@ import {
   buildGull,
   buildIsland,
   buildShip,
+  dressShip,
   type Building,
   type CrewPeg,
   type GullModel,
@@ -46,6 +48,8 @@ export interface WorldShip {
   name: string;
   kind: "yours" | "aboard" | "other";
   location: WorldShipLocation;
+  /** The owner's crew flag (M6): flown at the masthead and painted on the mainsail. Null flies none. */
+  colors: CrewFlagWire | null;
 }
 export type Focus = { kind: "all" } | { kind: "island"; id: string } | { kind: "ship"; id: string };
 export interface DeckStation {
@@ -490,6 +494,7 @@ export class WorldScene {
       }
       sv.ship = ship;
       sv.label.textContent = ship.name;
+      dressShip(sv.model, ship.colors);
       if (ship.location.kind === "at-sea") {
         const [a, b] = ship.location.from < ship.location.to ? [ship.location.from, ship.location.to] : [ship.location.to, ship.location.from];
         const key = `${a}|${b}`;

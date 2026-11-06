@@ -73,7 +73,7 @@ export const ShipSnapshotSchema = z.object({
   /** The boarding melee under way (M5): everyone aboard fights at the rail while the ship holds position. */
   melee: z.object({ tierId: Id }).nullable(),
   /** The owner's crew (M6): the ship flies its flag. Null when the owner is in no crew. */
-  colors: CrewTagSchema.nullable(),
+  colors: CrewTagSchema.nullable().default(null),
 });
 export type ShipSnapshot = z.infer<typeof ShipSnapshotSchema>;
 

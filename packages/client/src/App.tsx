@@ -4,6 +4,7 @@ import { Shell } from "./shell/Shell.jsx";
 import { BattleProvider } from "./ship/battle/useBattle.js";
 import { MeleeProvider } from "./ship/melee/useMelee.js";
 import { PlaceProvider } from "./state/place.jsx";
+import { CrewProvider } from "./state/CrewProvider.jsx";
 import { ShipProvider } from "./state/ShipProvider.jsx";
 import { SocialProvider } from "./state/SocialProvider.jsx";
 import { ToastProvider } from "./state/toasts.jsx";
@@ -21,9 +22,11 @@ function Game() {
         <MeleeProvider>
           <SocialProvider>
             <ToastProvider>
-              <PlaceProvider>
-                <Shell />
-              </PlaceProvider>
+              <CrewProvider>
+                <PlaceProvider>
+                  <Shell />
+                </PlaceProvider>
+              </CrewProvider>
             </ToastProvider>
           </SocialProvider>
         </MeleeProvider>
@@ -34,7 +37,7 @@ function Game() {
 
 export function App() {
   return (
-    <PirateProvider>
+    <PirateProvider offerSignIn>
       <Game />
     </PirateProvider>
   );

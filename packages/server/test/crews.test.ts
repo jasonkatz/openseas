@@ -10,7 +10,7 @@ import { eq } from "drizzle-orm";
 import { loadContent } from "@openseas/content";
 import { parseServerMessage, type PirateSummary, type ServerMessage } from "@openseas/protocol";
 import { createApp, type App } from "../src/app.js";
-import { mergeGuestIntoAccount, retireGuest } from "../src/auth.js";
+import { configuredProviders, mergeGuestIntoAccount, retireGuest } from "../src/auth.js";
 import { crewNameKey } from "../src/crews.js";
 import { schema } from "../src/db/index.js";
 import { loadEnv } from "../src/env.js";
@@ -55,6 +55,18 @@ class Client {
     this.inbox.length = 0;
   }
 }
+
+describe("social providers", () => {
+  const base = { DATABASE_URL: "postgres://x", BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret" };
+  it("are offered only with both keys, and never where social sign-in is switched off", () => {
+    expect(configuredProviders(loadEnv(base))).toEqual([]);
+    expect(configuredProviders(loadEnv({ ...base, DISCORD_CLIENT_ID: "a", DISCORD_CLIENT_SECRET: "b" }))).toEqual(["discord"]);
+    expect(configuredProviders(loadEnv({ ...base, GOOGLE_CLIENT_ID: "a" }))).toEqual([]);
+    const both = { ...base, DISCORD_CLIENT_ID: "a", DISCORD_CLIENT_SECRET: "b", GOOGLE_CLIENT_ID: "c", GOOGLE_CLIENT_SECRET: "d" };
+    expect(configuredProviders(loadEnv(both))).toEqual(["discord", "google"]);
+    expect(configuredProviders(loadEnv({ ...both, DISABLE_SOCIAL_SIGN_IN: "true" }))).toEqual([]);
+  });
+});
 
 describe("crew names", () => {
   it("fold to one key whatever the case and spacing", () => {

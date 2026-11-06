@@ -1436,3 +1436,621 @@ body {
     transition: none;
   }
 }
+
+/* ---- crews (M6): flags, the crew card, profiles, the account */
+
+.flag {
+  display: inline-block;
+  vertical-align: middle;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  flex: none;
+}
+.flag-big {
+  border-radius: 4px;
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.25),
+    0 10px 24px -10px rgba(0, 0, 0, 0.9);
+  animation: flag-wave 4.5s ease-in-out infinite;
+  transform-origin: left center;
+}
+@keyframes flag-wave {
+  50% {
+    transform: perspective(160px) rotateY(-9deg) skewY(-1.5deg);
+  }
+}
+.badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  animation: badge-pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+@keyframes badge-pop {
+  from {
+    scale: 0.4;
+  }
+}
+.topbar .crew-btn {
+  margin-left: 0;
+  position: relative;
+  gap: 7px;
+}
+.topbar .crew-btn .badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+}
+.topbar .crew-btn.has-crew .flag {
+  border-radius: 1px;
+}
+@media (max-width: 480px) {
+  .topbar .crew-btn > span:not(.badge) {
+    display: none;
+  }
+  .topbar .crew-btn {
+    padding: 0 12px;
+  }
+}
+.who-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast.has-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  pointer-events: auto;
+}
+.toast-action {
+  flex: none;
+  font: inherit;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #1b150c;
+  background: linear-gradient(180deg, #e9bd63, var(--brass));
+  touch-action: manipulation;
+}
+
+.dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+}
+.crew-dialog {
+  width: min(480px, calc(100% - 24px));
+  padding-top: 18px;
+}
+.scrim-top {
+  z-index: 10;
+}
+.profile-card {
+  z-index: 11;
+  width: min(360px, calc(100% - 32px));
+}
+.profile-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 48px;
+}
+.profile-head .dot,
+.member .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: currentColor;
+}
+.dot.pip-live {
+  color: var(--foam);
+}
+.dot.pip-off {
+  color: rgba(239, 227, 198, 0.3);
+}
+.profile-crew {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.crew-panel {
+  display: grid;
+  gap: 12px;
+}
+.crew-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  align-items: center;
+  padding-right: 44px;
+}
+.crew-head h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.15;
+}
+.crew-head-none .crew-glyph {
+  color: var(--brass);
+}
+.crew-title {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.crew-title small {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.crew-stats {
+  grid-column: 1 / -1;
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.crew-stats li {
+  display: grid;
+  justify-items: center;
+  padding: 8px 4px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.08);
+}
+.crew-stats b {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--brass);
+  line-height: 1.1;
+}
+.crew-stats small {
+  font-size: 11px;
+  color: var(--parchment-dim);
+  text-align: center;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25);
+}
+.tab {
+  flex: 1;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--parchment-dim);
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tab.is-on {
+  background: rgba(239, 227, 198, 0.12);
+  color: var(--parchment);
+  box-shadow: inset 0 -2px 0 var(--brass);
+}
+
+.rank-chip {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(239, 227, 198, 0.25);
+  color: var(--parchment-dim);
+  vertical-align: middle;
+}
+.rank-commodore {
+  color: var(--brass);
+  border-color: rgba(212, 165, 72, 0.55);
+  background: rgba(212, 165, 72, 0.12);
+}
+.rank-officer {
+  color: var(--foam);
+  border-color: rgba(94, 211, 184, 0.45);
+}
+
+.pirate-link {
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(239, 227, 198, 0.3);
+  text-underline-offset: 3px;
+  touch-action: manipulation;
+}
+.pirate-link:hover {
+  text-decoration-color: currentColor;
+}
+.chat-lines .chat-who {
+  color: var(--brass);
+  margin-right: 2px;
+}
+.chat-lines li.mine .chat-who {
+  color: var(--foam);
+}
+
+.members,
+.invited,
+.invites,
+.crew-board {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.member {
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.07);
+}
+.member.is-me {
+  box-shadow: inset 0 0 0 1px rgba(94, 211, 184, 0.35);
+}
+.member.is-offline {
+  opacity: 0.7;
+}
+.member-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.member-name {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+.member .where {
+  font-size: 13px;
+}
+.member-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(239, 227, 198, 0.1);
+}
+.icon-btn-small {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+.btn.is-armed {
+  color: #fff;
+  background: rgba(240, 96, 77, 0.85);
+  box-shadow: none;
+  animation: armed 0.6s ease-in-out infinite alternate;
+}
+@keyframes armed {
+  to {
+    filter: brightness(1.15);
+  }
+}
+.invited li,
+.invite {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.invite {
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(212, 165, 72, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(212, 165, 72, 0.35);
+  animation: rise 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.invite-text {
+  flex: 1;
+  min-width: 0;
+}
+.invite-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.found-form {
+  display: grid;
+  gap: 10px;
+}
+.found-form .field input {
+  font: inherit;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 227, 198, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--parchment);
+}
+.crew-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.flag-editor {
+  display: grid;
+  gap: 10px;
+}
+.flag-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background:
+    radial-gradient(120px 60px at 30% 50%, rgba(255, 255, 255, 0.08), transparent),
+    rgba(0, 0, 0, 0.25);
+}
+.flag-preview .flag {
+  animation: flag-wave 4.5s ease-in-out infinite;
+  transform-origin: left center;
+}
+.flag-preview .btn {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.flag-row {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.flag-row legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--parchment-dim);
+}
+.swatches,
+.flag-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.swatch {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(239, 227, 198, 0.12);
+  touch-action: manipulation;
+  transition: transform 0.1s ease;
+}
+.swatch.is-on {
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 0 0 2px var(--ink-800),
+    0 0 0 4px var(--brass);
+  transform: scale(1.06);
+}
+.flag-choice {
+  display: grid;
+  place-items: center;
+  padding: 5px;
+  border: 0;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.flag-choice.is-on {
+  background: rgba(212, 165, 72, 0.16);
+  box-shadow: inset 0 0 0 2px var(--brass);
+}
+
+.crew-board li {
+  display: grid;
+  grid-template-columns: 22px auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.crew-board li.is-mine {
+  box-shadow: inset 0 0 0 1px rgba(212, 165, 72, 0.5);
+  background: rgba(212, 165, 72, 0.08);
+}
+.crew-board .place {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--parchment-dim);
+  text-align: right;
+}
+.crew-board li:nth-child(-n + 3) .place {
+  color: var(--brass);
+}
+.crew-board .board-name {
+  min-width: 0;
+}
+.crew-board .board-booty {
+  color: var(--brass);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.crew-table {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.08);
+}
+.crew-table > .muted {
+  grid-column: 1 / -1;
+}
+.crew-table .row {
+  grid-column: 1 / -1;
+  gap: 8px;
+}
+.patrons li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.patron-crew {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.crewmate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--foam);
+  border: 1px solid rgba(94, 211, 184, 0.45);
+}
+.crew li.is-crewmate .crew-name {
+  color: var(--foam);
+}
+.ships li.is-crewmate {
+  box-shadow: inset 3px 0 0 var(--foam);
+  padding-left: 10px;
+}
+.deck-colors {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.providers {
+  display: grid;
+  gap: 8px;
+}
+.btn-provider {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  padding: 12px 16px;
+  color: var(--parchment);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.3);
+}
+.btn-provider:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.card-parchment .btn-provider {
+  color: #2b2113;
+  background: rgba(255, 255, 255, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(43, 33, 19, 0.3);
+}
+.card-parchment .btn-ghost {
+  color: #2b2113;
+  box-shadow: inset 0 0 0 1px rgba(43, 33, 19, 0.35);
+}
+.landing .card {
+  display: grid;
+  gap: 12px;
+}
+.landing .card h2,
+.landing .card p {
+  margin: 0;
+}
+.returning {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(43, 33, 19, 0.15);
+}
+.account {
+  display: grid;
+  gap: 8px;
+}
+.account p {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flag-big,
+  .flag-preview .flag,
+  .badge,
+  .invite,
+  .btn.is-armed {
+    animation: none;
+  }
+}
+.topbar .who-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  color: var(--brass);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.crew-dialog,
+.profile-card {
+  background: rgba(9, 18, 32, 0.96);
+}
+.panel .chat + .section-head,
+.panel .crew-table + .section-head {
+  margin-top: 16px;
+}

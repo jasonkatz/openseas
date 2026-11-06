@@ -10,7 +10,7 @@ export { SERVER_URL, wsUrl } from "./api/base.js";
 export { ApiError, getMe, createPirate } from "./api/http.js";
 export { GameSocket, type SocketStatus } from "./api/socket.js";
 export { authClient } from "./api/auth.js";
-export { PirateProvider, usePirate, type PirateContextValue, type PiratePhase } from "./state/PirateProvider.jsx";
+export { LINK_FROM_KEY, PirateProvider, usePirate, type PirateContextValue, type PiratePhase } from "./state/PirateProvider.jsx";
 export * from "./round/clock.js";
 export * from "./round/round.js";
 export * from "./round/useTicked.js";

@@ -71,7 +71,8 @@ is already closed. Vercel keeps the preview deployments; they cost nothing idle.
   production's `ALPHA_INVITE_CODE`, so the first visit asks for the invite code; both the game's
   and the harness's home pages take it, and the pirate it creates is shared by both front ends on
   that preview. Social sign-in does not work from a preview (the OAuth apps' redirect URIs are
-  production's); guest accounts do.
+  production's), so the workflow sets `DISABLE_SOCIAL_SIGN_IN=true` there and the game says
+  linking is not set up instead of offering buttons that cannot work; guest accounts do work.
 - A new production variable or setting is picked up by the next *new* preview environment, since
   it is a duplicate. An existing `pr-*` environment keeps what it copied; close and reopen the PR,
   or run **Preview cleanup** for it and push again, to recreate it.
@@ -120,6 +121,9 @@ server's CORS list.
    | `CROSS_SITE_COOKIES` | `true` |
    | `ALPHA_INVITE_CODE` | an invite code, or leave unset to let anyone in |
    | `LOG_LEVEL` | `info` |
+
+   | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | optional: the Discord OAuth app, see "Social sign-in" below |
+   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional: the Google OAuth client, see "Social sign-in" below |
 
    Railway supplies `PORT` itself. The pipeline sets `GIT_COMMIT_SHA` on every deploy.
    `CLIENT_ORIGINS` must be the browsers' exact origins: scheme and host, no path, no trailing
@@ -273,3 +277,27 @@ read "the same as this board". Open the game and confirm the same pirate is sign
 - Which paths get a preview, the environment naming and the alias scheme live in
   `.github/workflows/preview.yml`; teardown and the sweep schedule in
   `.github/workflows/preview-cleanup.yml`.
+
+## Social sign-in (Discord and Google)
+
+Guests upgrade in place to a Discord or Google account (DESIGN.md 3.8, ADR 0007). A provider is
+offered only when both its variables are set on the server; with neither, the game's menu says
+linking is not set up and everyone plays as a guest. The server reports what it offers in
+`/api/me` (`providers`).
+
+1. **Discord**: <https://discord.com/developers/applications> → New Application → **OAuth2**.
+   Add the redirect `https://<server host>/api/auth/callback/discord` (the server's public URL,
+   the same as `BETTER_AUTH_URL`). Copy the client ID and secret into `DISCORD_CLIENT_ID` and
+   `DISCORD_CLIENT_SECRET`.
+2. **Google**: Google Cloud console → **APIs & Services → Credentials** → Create OAuth client ID,
+   type Web application. Authorized redirect URI `https://<server host>/api/auth/callback/google`;
+   authorized JavaScript origin the game's URL. Copy the ID and secret into `GOOGLE_CLIENT_ID`
+   and `GOOGLE_CLIENT_SECRET`. The consent screen needs only the default scopes (email, profile).
+3. Deploy the staged variables. Sign in as a guest on the game, open the menu, and link: you come
+   back to the same place with a "Linked to …" toast and the menu shows the account.
+
+What linking does: a guest who signs in with a provider for the first time keeps their pirate,
+ledger, ratings, ships and crew on the new account, and the guest's auth user is retired. If the
+provider account already has a pirate (a returning player on a new device), that pirate wins and
+the guest's stays behind on its own guest user; nothing is deleted. A browser that has held a
+linked account offers sign-in rather than a fresh guest after signing out.
