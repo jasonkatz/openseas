@@ -150,7 +150,9 @@ export function createWsServer(deps: WsDeps) {
   };
 
   const handleMessage = async (ws: WebSocket, conn: Conn, raw: string): Promise<void> => {
+    // A dropped message is logged: a dropped puzzle move breaks the client's numbering (ADR 0024).
     if (!allow(conn)) {
+      log.warn({ pirateId: conn.pirateId, type: messageType(raw) }, "message rate limited");
       send(ws, { type: "error", code: "rate_limited" });
       return;
     }
@@ -158,11 +160,13 @@ export function createWsServer(deps: WsDeps) {
     try {
       parsed = JSON.parse(raw);
     } catch {
+      log.warn({ pirateId: conn.pirateId, bytes: raw.length }, "message not json");
       send(ws, { type: "error", code: "bad_message" });
       return;
     }
     const msg = parseClientMessage(parsed);
     if (!msg) {
+      log.warn({ pirateId: conn.pirateId, type: messageType(raw), sample: raw.slice(0, 300) }, "message failed the protocol");
       send(ws, { type: "error", code: "bad_message" });
       return;
     }
@@ -203,6 +207,8 @@ export function createWsServer(deps: WsDeps) {
           send(ws, { type: "error", code: "unknown_session" });
           return;
         }
+        // The old board's claim after a hand-back: the rebuilt board finishes for itself.
+        if (puzzles.sessions.staleFinish(s, msg.hash)) return;
         conn.activeSessionId = null;
         send(ws, await puzzles.finish(s, msg.hash, msg.metrics ?? null));
         return;
@@ -293,4 +299,10 @@ export function createWsServer(deps: WsDeps) {
   };
 
   return { wss, handleUpgrade };
+}
+
+/** The `type` of a raw client message, for a log line; never trusted for anything else. */
+function messageType(raw: string): string | null {
+  const m = /"type"\s*:\s*"([^"]{1,40})"/.exec(raw);
+  return m ? m[1]! : null;
 }

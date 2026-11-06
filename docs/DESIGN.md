@@ -389,7 +389,9 @@ live in `content/data/puzzles/swordfight.json`.
 - **Joining.** Ships at sea appear on the island notice board. Pirates can join mid-voyage and
   take a free station. The owner can set a ship to invite-only.
 - **Disconnects.** A dropped pirate's station idles for a 2 minute grace period; their seat is
-  held; their puzzle board is discarded, not resumed. If the captain drops, the ship holds position
+  held; their duty board is discarded, not resumed. The captain's sea battle board and a melee
+  board are handed back as the server holds them when the pirate reconnects, and also when one of
+  their moves goes missing on the way (ADR 0024). If the captain drops, the ship holds position
   and any sea battle pauses for the same grace period, then the longest-aboard pirate is offered
   the wheel.
 - **Encounters.** Brigand encounters roll per route leg with a content-defined probability. The

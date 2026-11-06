@@ -17,7 +17,7 @@ import {
   type BilgingMove,
   type BilgingState,
 } from "@openseas/engine";
-import { PuzzleSessionManager, type SessionManagerOptions } from "../src/puzzles/sessions.js";
+import { MAX_RESYNCS, PuzzleSessionManager, type SessionManagerOptions } from "../src/puzzles/sessions.js";
 
 function manager(now: { t: number }, overrides: Partial<SessionManagerOptions> & { bilging?: Partial<BilgingConfig> } = {}) {
   let n = 0;
@@ -146,6 +146,45 @@ describe("PuzzleSessionManager", () => {
     expect(m.move(s, 0, okMove, def.hash(def.reduce(s.state, okMove)))).toEqual({ ok: true, seq: 0 });
     const lie = { type: "wait", tick: 100 };
     expect(m.move(s, 1, lie, def.hash(def.reduce(s.state, lie)))).toMatchObject({ ok: false, reason: "illegal_move" });
+  });
+
+  it("hands a ship's board back after a missing move, drops the old board's moves, and gives up after a few", () => {
+    const now = { t: 1000 };
+    const m = manager(now);
+    const def = PUZZLES.swordfight;
+    const config = { ...DEFAULT_SWORDFIGHT_CONFIG, foes: [] };
+    const s = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "cutpurse" });
+    let server = def.create(s.seed, config);
+    now.t = 30_000;
+    let tick = 0;
+    const wait = () => ({ type: "wait", tick: ++tick });
+    const send = (seq: number, move: unknown, state = server) => m.move(s, seq, move, def.hash(def.reduce(state, move)));
+    const accept = (seq: number) => {
+      const move = wait();
+      const r = send(seq, move);
+      if (r.ok === true) server = def.reduce(server, move);
+      return r;
+    };
+    expect(accept(0)).toEqual({ ok: true, seq: 0 });
+    // Move 1 never arrived: move 2 gets the board handed back, and the round stays open.
+    expect(send(2, wait())).toEqual({ ok: "resync", atSeq: 2, handBack: true });
+    expect(m.get(s.id)).toBe(s);
+    // The old board's moves still in flight are dropped without another hand-back, and so is its finish.
+    expect(send(3, wait())).toEqual({ ok: "resync", atSeq: 3, handBack: false });
+    expect(m.staleFinish(s, "ffffffff")).toBe(true);
+    expect(m.staleFinish(s, def.hash(server))).toBe(false);
+    expect(s.moves.length).toBe(1);
+    // The rebuilt board speaks at the right number and play goes on.
+    expect(accept(1)).toEqual({ ok: true, seq: 1 });
+    expect(s.resyncing).toBe(false);
+    expect(m.staleFinish(s, "ffffffff")).toBe(false);
+    // A few hand-backs, then the next missing move throws the round out.
+    for (let i = 1; i < MAX_RESYNCS; i++) {
+      expect(send(9, wait())).toMatchObject({ ok: "resync", handBack: true });
+      expect(accept(s.moves.length)).toMatchObject({ ok: true });
+    }
+    expect(send(99, wait())).toEqual({ ok: false, reason: "bad_sequence", atSeq: 99 });
+    expect(m.get(s.id)).toBeUndefined();
   });
 
   it("a melee board logs only the wrack the server announced, in order, and never its own win", () => {
