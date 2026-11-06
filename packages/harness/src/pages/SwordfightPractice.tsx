@@ -106,9 +106,10 @@ export function SwordfightPractice() {
     <>
       <div className="stat stat-wide">
         <span className="stat-label">{t("swordfight.next")}</span>
-        <span className="next-pair" data-testid="hud-next">
-          {piece(player.next.a)}
+        {/* Upright, as it will fall: b above a. */}
+        <span className="next-pair next-pair-upright" data-testid="hud-next">
           {piece(player.next.b)}
+          {piece(player.next.a)}
         </span>
       </div>
       <div className="stat">
@@ -201,7 +202,11 @@ export function SwordfightPractice() {
               <span>{t("swordfight.legend_breaker")}</span>
             </li>
             <li>
-              <BlockIcon color="#6c6f78" texture="rings" kind="wrack" />
+              <span className="stages">
+                {[2, 1].map((ripen) => (
+                  <BlockIcon key={ripen} color={pieces[0]!.color} texture={pieces[0]!.texture} mark={showMarks ? pieces[0]!.mark : null} kind="wrack" ripen={ripen} />
+                ))}
+              </span>
               <span>{t("swordfight.legend_wrack")}</span>
             </li>
           </ul>

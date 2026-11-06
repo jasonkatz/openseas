@@ -5,7 +5,8 @@
  * a time. A breaker is a block of a color that shatters: when it comes to rest touching its color,
  * everything of that color connected to it goes, slabs and all, and whatever falls into place may
  * set off the next breaker (a chain). Breaking sends wrack to the other side: grey blocks that
- * land in the pattern of the sender's blade and ripen into colored blocks after a few drops. A
+ * land in the pattern of the sender's blade, each dealt the color it ripens into after a few
+ * drops. A
  * board whose entry (the top cell of the column pairs come in down) is covered, or whose pair has
  * nowhere left to rest, is out; a side with no board standing has lost.
  *
@@ -91,7 +92,7 @@ export const DEFAULT_SWORDFIGHT_CONFIG: SwordfightConfig = {
   height: SWORDFIGHT_HEIGHT,
   colors: 4,
   breakerPermille: 170,
-  ripenMoves: 3,
+  ripenMoves: 2,
   cellPoints: 10,
   slabBonus: 4,
   attackPoints: 24,
@@ -126,7 +127,7 @@ export type CellKind = "block" | "breaker" | "wrack";
 export interface SwordCell {
   /** Stable identity for animation. Never reused within a fight. */
   readonly id: number;
-  /** -1 for wrack that has not ripened. */
+  /** For wrack, the color it ripens into: dealt as it lands, and shown through as it ripens. */
   readonly color: number;
   readonly kind: CellKind;
   /** Wrack only: drops left before it ripens. */
@@ -221,8 +222,8 @@ export type SwordfightEvent =
   | { readonly tick: number; readonly board: number; readonly type: "attack"; readonly to: number; readonly wrack: number; readonly offset: number; readonly blade: number }
   /** Wrack arrived from outside and waits on `board`. */
   | { readonly tick: number; readonly board: number; readonly type: "incoming"; readonly wrack: number; readonly blade: number }
-  /** Wrack landed: the cells and ids, in landing order. */
-  | { readonly tick: number; readonly board: number; readonly type: "landed"; readonly cells: readonly number[]; readonly ids: readonly number[]; readonly blade: number }
+  /** Wrack landed: the cells, ids and the colors each will ripen into, in landing order. */
+  | { readonly tick: number; readonly board: number; readonly type: "landed"; readonly cells: readonly number[]; readonly ids: readonly number[]; readonly colors: readonly number[]; readonly blade: number }
   /** A board's entry is covered: its pirate is out of the fight. */
   | { readonly tick: number; readonly board: number; readonly type: "out" }
   | { readonly tick: number; readonly board: number; readonly type: "ended"; readonly outcome: SwordfightOutcome };

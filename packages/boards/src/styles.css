@@ -811,6 +811,12 @@ a {
   align-items: center;
   gap: 6px;
 }
+/* Wrack's two looks as it ripens, side by side before their one line of text. */
+.legend .stages {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
 .legend .specials {
   display: grid;
   gap: 6px;
@@ -1121,6 +1127,11 @@ a {
   gap: 6px;
   align-items: center;
   min-height: 28px;
+}
+/* Swordfight's next pair stands the way it falls: upright, one half over the other. */
+.next-pair-upright {
+  flex-direction: column;
+  gap: 2px;
 }
 .legend-note {
   margin: 4px 0 0;

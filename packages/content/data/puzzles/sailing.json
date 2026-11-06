@@ -14,7 +14,7 @@
   "roundSeconds": 150,
   "parScore": 200,
   "fallMs": 700,
-  "softDropMs": 70,
+  "softDropMs": 44,
   "thresholds": [
     { "score": 40, "rating": 1100 },
     { "score": 100, "rating": 1300 },

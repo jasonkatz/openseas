@@ -34,7 +34,9 @@ const wait = (tick: number): SwordfightMove => ({ type: "wait", tick });
 
 /**
  * Put a drawn board under the player: rows top to bottom, `.` empty, 0-5 a block of that color,
- * A-F a breaker of colors 0-5, `#` unripened wrack (ripens in one drop). No slabs: the first
+ * A-F a breaker of colors 0-5, `#` unripened wrack (ripens in one drop, into a checkerboard of
+ * the colors above 0, so neighbouring wrack never ripens into one rectangle and never into the
+ * color a drawn breaker of 0 is waiting for). No slabs: the first
  * resolution fuses whatever should be fused.
  */
 function drawn(state: SwordfightState, rows: readonly string[], current?: [SwordPiece, SwordPiece], board = 0): SwordfightState {
@@ -47,7 +49,7 @@ function drawn(state: SwordfightState, rows: readonly string[], current?: [Sword
       const ch = line[col]!;
       if (ch === ".") continue;
       let cell: SwordCell;
-      if (ch === "#") cell = { id: nextId++, color: -1, kind: "wrack", ripen: 1, slab: 0 };
+      if (ch === "#") cell = { id: nextId++, color: 1 + ((col + row) % (c.colors - 1)), kind: "wrack", ripen: 1, slab: 0 };
       else if (ch >= "A" && ch <= "F") cell = { id: nextId++, color: ch.charCodeAt(0) - 65, kind: "breaker", ripen: 0, slab: 0 };
       else cell = { id: nextId++, color: Number(ch), kind: "block", ripen: 0, slab: 0 };
       cells[swordfightIdx(c, col, row)] = cell;
@@ -131,13 +133,11 @@ function expectBoardInvariants(c: SwordfightConfig, b: SwordBoard): void {
   }
   for (const cell of b.cells) {
     if (!cell) continue;
-    if (cell.kind === "wrack") {
-      expect(cell.color).toBe(-1);
-      expect(cell.ripen).toBeGreaterThan(0);
-    } else {
-      expect(cell.color).toBeGreaterThanOrEqual(0);
-      expect(cell.color).toBeLessThan(c.colors);
-    }
+    // Wrack carries the color it will ripen into, so every cell has a color in range.
+    expect(cell.color).toBeGreaterThanOrEqual(0);
+    expect(cell.color).toBeLessThan(c.colors);
+    if (cell.kind === "wrack") expect(cell.ripen).toBeGreaterThan(0);
+    else expect(cell.ripen).toBe(0);
   }
   for (const p of b.pending) expect(p.wrack).toBeGreaterThan(0);
   if (b.out) expect(b.pending).toEqual([]);
@@ -334,6 +334,27 @@ describe("wrack", () => {
     expect(ripened.ids).toHaveLength(4);
     expect(s.boards[0]!.cells.filter((c) => c?.kind === "wrack")).toHaveLength(0);
     for (const c of ripened.colors) expect(c).toBeLessThan(cfg.colors);
+  });
+
+  it("wrack is dealt the color it ripens into as it lands, told in the landed event, and keeps it", () => {
+    let s = createSwordfightGame("x", { ...attackCfg, ripenMoves: 2 });
+    s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 4, blade: 0, tick: 1 });
+    s = reduceSwordfight(s, place(2, 1, 3));
+    const landed = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "landed" }> => e.type === "landed")!;
+    expect(landed.colors).toHaveLength(4);
+    const dealt = new Map(landed.ids.map((id, k) => [id, landed.colors[k]!]));
+    const wrack = s.boards[0]!.cells.filter((c): c is SwordCell => c?.kind === "wrack");
+    expect(wrack).toHaveLength(4);
+    for (const c of wrack) {
+      expect(c.color).toBeGreaterThanOrEqual(0);
+      expect(c.color).toBeLessThan(cfg.colors);
+      expect(c.color).toBe(dealt.get(c.id));
+    }
+    s = reduceSwordfight(s, place(5, 1, 6));
+    for (const c of s.boards[0]!.cells) if (c && dealt.has(c.id)) expect(c.color, "the color holds while it ripens").toBe(dealt.get(c.id));
+    s = reduceSwordfight(s, place(5, 1, 9));
+    const ripened = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "ripened" }> => e.type === "ripened")!;
+    for (let k = 0; k < ripened.ids.length; k++) expect(ripened.colors[k], "it ripens into the color it was dealt").toBe(dealt.get(ripened.ids[k]!));
   });
 
   it("waiting wrack lands on its own after landAfterTicks, on a wait", () => {
