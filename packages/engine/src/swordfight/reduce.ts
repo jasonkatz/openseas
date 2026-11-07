@@ -40,7 +40,10 @@ export function validateConfig(cfg: SwordfightConfig): void {
     int(cfg.height, 6, 20) &&
     int(cfg.colors, 3, 6) &&
     int(cfg.breakerPermille, 0, 1000) &&
+    typeof cfg.dealSeed === "string" &&
+    cfg.dealSeed.length <= 200 &&
     int(cfg.ripenMoves, 1, 20) &&
+    int(cfg.wrackMatchPermille, 0, 1000) &&
     int(cfg.cellPoints, 0, 1000) &&
     int(cfg.slabBonus, 0, 1000) &&
     int(cfg.attackPoints, 1, 100_000) &&
@@ -85,9 +88,16 @@ function dealPair(cfg: SwordfightConfig, rng: PrngState): { pair: SwordPair; rng
   return { pair: { a: a.piece, b: b.piece }, rng: b.rng };
 }
 
-function newBoard(cfg: SwordfightConfig, mind: "player" | "ai", side: 0 | 1, ai: SwordAiSpec | null, blade: number, rng: PrngState): { board: SwordBoard; rng: PrngState } {
-  const p1 = dealPair(cfg, rng);
-  const p2 = dealPair(cfg, p1.rng);
+/**
+ * The nth pair of the fight's shared stream. Every board takes pairs from the same stream in the
+ * same order, so no pirate is dealt better pieces than another; it is a pure function of the
+ * fight's seed, independent of the fight's other randomness.
+ */
+export function pairAt(cfg: SwordfightConfig, deal: string, n: number): SwordPair {
+  return dealPair(cfg, seedFromString(`${deal}:${n}`)).pair;
+}
+
+function newBoard(cfg: SwordfightConfig, deal: string, mind: "player" | "ai", side: 0 | 1, ai: SwordAiSpec | null, blade: number, rng: PrngState): { board: SwordBoard; rng: PrngState } {
   return {
     board: {
       mind,
@@ -96,8 +106,9 @@ function newBoard(cfg: SwordfightConfig, mind: "player" | "ai", side: 0 | 1, ai:
       blade,
       cells: new Array<SwordCell | null>(cfg.width * cfg.height).fill(null),
       slabs: [],
-      current: p1.pair,
-      next: p2.pair,
+      current: pairAt(cfg, deal, 0),
+      next: pairAt(cfg, deal, 1),
+      dealt: 2,
       spawnedAt: 0,
       pending: [],
       pendingSince: -1,
@@ -111,30 +122,31 @@ function newBoard(cfg: SwordfightConfig, mind: "player" | "ai", side: 0 | 1, ai:
       out: false,
       nextActTick: ai ? ai.thinkTicks : -1,
     },
-    rng: p2.rng,
+    rng,
   };
 }
 
 export function createSwordfightGame(seed: string, config: SwordfightConfig = DEFAULT_SWORDFIGHT_CONFIG): SwordfightState {
   validateConfig(config);
   let rng = seedFromString(`swordfight:${seed}`);
+  const deal = config.dealSeed === "" ? `swordfight:${seed}:deal` : `swordfight:deal:${config.dealSeed}`;
   const boards: SwordBoard[] = [];
   if (config.player) {
-    const b = newBoard(config, "player", 0, null, config.blade, rng);
+    const b = newBoard(config, deal, "player", 0, null, config.blade, rng);
     boards.push(b.board);
     rng = b.rng;
   }
   for (const ai of config.allies) {
-    const b = newBoard(config, "ai", 0, ai, ai.blade, rng);
+    const b = newBoard(config, deal, "ai", 0, ai, ai.blade, rng);
     boards.push(b.board);
     rng = b.rng;
   }
   for (const ai of config.foes) {
-    const b = newBoard(config, "ai", 1, ai, ai.blade, rng);
+    const b = newBoard(config, deal, "ai", 1, ai, ai.blade, rng);
     boards.push(b.board);
     rng = b.rng;
   }
-  return { config, boards, tick: 0, rng, nextId: 1, nextSlabId: 1, score: 0, moveCount: 0, lastMove: null, finished: false, outcome: null };
+  return { config, deal, boards, tick: 0, rng, nextId: 1, nextSlabId: 1, score: 0, moveCount: 0, lastMove: null, finished: false, outcome: null };
 }
 
 export function replaySwordfight(seed: string, moves: readonly SwordfightMove[], config: SwordfightConfig = DEFAULT_SWORDFIGHT_CONFIG): SwordfightState {
@@ -501,6 +513,29 @@ export function applyDrop(cfg: SwordfightConfig, board: SwordBoard, boardIndex: 
 }
 
 /**
+ * The color a block of wrack landing at (col, row) is dealt. Usually one seen around it, so wrack
+ * ripens into the stuff it sits in and a clean-up is within reach: the block under it counts
+ * three times, each neighbour in its row once. Otherwise, or with nothing around, any color.
+ */
+function wrackColor(cfg: SwordfightConfig, cells: Cells, col: number, row: number, rng: PrngState): { color: number; rng: PrngState } {
+  const seen: number[] = [];
+  const see = (c: SwordCell | null | undefined, weight: number): void => {
+    if (c) for (let k = 0; k < weight; k++) seen.push(c.color);
+  };
+  if (row > 0) see(cells[idx(cfg, col, row - 1)], 3);
+  if (col > 0) see(cells[idx(cfg, col - 1, row)], 1);
+  if (col < cfg.width - 1) see(cells[idx(cfg, col + 1, row)], 1);
+  const match = nextChance(rng, cfg.wrackMatchPermille, 1000);
+  rng = match.state;
+  if (match.value && seen.length > 0) {
+    const pick = nextInt(rng, seen.length);
+    return { color: seen[pick.value]!, rng: pick.state };
+  }
+  const any = nextInt(rng, cfg.colors);
+  return { color: any.value, rng: any.state };
+}
+
+/**
  * Land waiting wrack on a board, up to the cap, in the blades' columns. Each block is dealt the
  * color it will ripen into as it lands, so the board can show the color coming.
  */
@@ -526,9 +561,9 @@ function landWrack(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number,
         const h = colHeight(cfg, cells, col);
         if (h >= cfg.height) continue;
         const i = idx(cfg, col, h);
-        const r = nextInt(rng, cfg.colors);
-        rng = r.state;
-        const cell: SwordCell = { id: nextId++, color: r.value, kind: "wrack", ripen: cfg.ripenMoves, slab: 0 };
+        const dealt = wrackColor(cfg, cells, col, h, rng);
+        rng = dealt.rng;
+        const cell: SwordCell = { id: nextId++, color: dealt.color, kind: "wrack", ripen: cfg.ripenMoves, slab: 0 };
         cells[i] = cell;
         landedCells.push(i);
         ids.push(cell.id);
@@ -553,6 +588,7 @@ function landWrack(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number,
 // ---- the fight
 
 interface Sim {
+  deal: string;
   boards: SwordBoard[];
   rng: PrngState;
   nextId: number;
@@ -657,9 +693,7 @@ function dropOn(cfg: SwordfightConfig, sim: Sim, i: number, col: number, rot: Sw
   sim.nextId = landed.nextId;
   sim.rng = landed.rng;
   // The next pair.
-  const dealt = dealPair(cfg, sim.rng);
-  sim.rng = dealt.rng;
-  board = { ...board, current: board.next, next: dealt.pair, spawnedAt: tick };
+  board = { ...board, current: board.next, next: pairAt(cfg, sim.deal, board.dealt), dealt: board.dealt + 1, spawnedAt: tick };
   sim.boards[i] = board;
   if (boardOut(cfg, board)) markOut(sim, i, tick);
   checkEnd(cfg, sim, tick);
@@ -691,7 +725,7 @@ function aiActs(cfg: SwordfightConfig, sim: Sim, i: number, tick: number): void 
 /** Everything due up to `tick`, in order: landings before drops at the same tick, lower boards first. */
 function simulate(state: SwordfightState, tick: number): Sim {
   const cfg = state.config;
-  const sim: Sim = { boards: state.boards.slice(), rng: state.rng, nextId: state.nextId, nextSlabId: state.nextSlabId, events: [], finished: state.finished, outcome: state.outcome };
+  const sim: Sim = { deal: state.deal, boards: state.boards.slice(), rng: state.rng, nextId: state.nextId, nextSlabId: state.nextSlabId, events: [], finished: state.finished, outcome: state.outcome };
   for (;;) {
     if (sim.finished) break;
     let at = Infinity;
@@ -742,6 +776,7 @@ function finish(state: SwordfightState, sim: Sim, move: SwordfightMove, tick: nu
   const report: SwordfightMoveReport = { move, events: sim.events, points: earned };
   return {
     config: cfg,
+    deal: state.deal,
     boards: sim.boards,
     tick,
     rng: sim.rng,
@@ -837,7 +872,7 @@ export function hashSwordfightState(s: SwordfightState): string {
   h.int(s.rng.a).int(s.rng.b).int(s.rng.c).int(s.rng.d);
   h.int(s.boards.length);
   for (const b of s.boards) {
-    h.int(b.side).int(b.blade).int(b.spawnedAt).int(b.pendingSince).int(b.cursor).int(b.drops).int(b.points).int(b.pool).int(b.sent).int(b.broken).int(b.bestChain).int(b.out ? 1 : 0).int(b.nextActTick);
+    h.int(b.side).int(b.blade).int(b.spawnedAt).int(b.pendingSince).int(b.cursor).int(b.drops).int(b.dealt).int(b.points).int(b.pool).int(b.sent).int(b.broken).int(b.bestChain).int(b.out ? 1 : 0).int(b.nextActTick);
     for (const c of b.cells) {
       if (c === null) h.int(-1);
       else h.int(c.id).int(c.color).int(KINDS.indexOf(c.kind)).int(c.ripen).int(c.slab);

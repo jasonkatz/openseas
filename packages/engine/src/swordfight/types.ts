@@ -46,8 +46,19 @@ export interface SwordfightConfig {
   readonly colors: number;
   /** Chance per block of a falling pair of being a breaker, per mille. */
   readonly breakerPermille: number;
+  /**
+   * Names the shared pair stream. Empty: the fight's own seed does, so every board in this fight is
+   * dealt the same pairs. Fights that should share a deal (the pirates of one crew boarding
+   * together, each on their own board) are given the same name.
+   */
+  readonly dealSeed: string;
   /** Drops on a board before wrack that landed there ripens into colored blocks. */
   readonly ripenMoves: number;
+  /**
+   * Chance per block of wrack, per mille, that it is dealt a color seen around where it lands (the
+   * block under it counts most, then its neighbours in the row) instead of any color at random.
+   */
+  readonly wrackMatchPermille: number;
   /** Points per block broken. */
   readonly cellPoints: number;
   /** A slab of n blocks scores cellPoints * n plus slabBonus * n * (n - 1) / 2 on top. */
@@ -92,9 +103,9 @@ export interface SwordfightConfig {
 }
 
 export const DEFAULT_BLADES: readonly Blade[] = [
-  { id: "cutlass", columns: [0, 1, 2, 3, 4, 5] },
-  { id: "sabre", columns: [2, 3, 1, 4, 2, 3, 0, 5] },
-  { id: "dirk", columns: [0, 5, 1, 4, 0, 5, 2, 3] },
+  { id: "cutlass", columns: [0, 5, 1, 4, 0, 5, 1, 4, 2, 3] },
+  { id: "sabre", columns: [0, 5, 2, 3, 1, 4, 0, 5] },
+  { id: "dirk", columns: [0, 5, 0, 5, 1, 4, 0, 5, 2, 3] },
 ];
 
 export const DEFAULT_SWORDFIGHT_CONFIG: SwordfightConfig = {
@@ -102,7 +113,9 @@ export const DEFAULT_SWORDFIGHT_CONFIG: SwordfightConfig = {
   height: SWORDFIGHT_HEIGHT,
   colors: 4,
   breakerPermille: 170,
+  dealSeed: "",
   ripenMoves: 2,
+  wrackMatchPermille: 750,
   cellPoints: 10,
   slabBonus: 4,
   attackPoints: 24,
@@ -183,6 +196,8 @@ export interface SwordBoard {
   readonly next: SwordPair;
   /** The tick the current pair appeared. */
   readonly spawnedAt: number;
+  /** Pairs of the fight's shared stream this board has been dealt. */
+  readonly dealt: number;
   readonly pending: readonly PendingAttack[];
   /** The tick the oldest waiting attack arrived, or -1. */
   readonly pendingSince: number;
@@ -252,6 +267,8 @@ export interface SwordfightMoveReport {
 
 export interface SwordfightState {
   readonly config: SwordfightConfig;
+  /** Names the fight's shared pair stream: every board is dealt the same pairs in the same order. */
+  readonly deal: string;
   /** Board 0 is the player's when `config.player`; allies follow, then foes. */
   readonly boards: readonly SwordBoard[];
   readonly tick: number;

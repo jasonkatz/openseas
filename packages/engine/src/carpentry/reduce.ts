@@ -98,7 +98,7 @@ export function effectiveGrain(grain: Grain, rot: number): Grain {
   return rot % 2 === 0 ? grain : grain === "h" ? "v" : "h";
 }
 
-/** Board cells a placement covers, or null when it does not fit on the board. */
+/** Board cells a placement covers when every cell is on the board, or null when any is not. */
 export function placementCells(cfg: CarpentryConfig, shape: number, rot: number, flip: boolean, col: number, row: number): number[] | null {
   const cells = orient(shape, rot, flip);
   const { w, h } = extent(cells);
@@ -112,38 +112,73 @@ export interface PlacementCheck {
   readonly cells: readonly number[];
   /** The hole this plank would belong to. */
   readonly holeId: number | null;
-  /** Cells that would count as waste: hull cells and already-covered hole cells. */
+  /** On-board cells that count as waste: hull cells, already-covered hole cells, and cells that are not laid. */
   readonly wasteCells: readonly number[];
+  /** Cells hanging off the board; waste too, and never drawn. */
+  readonly overhang: number;
 }
 
-/** Everything a placement would do, without applying it. Drives the valid-placement highlight. */
+/**
+ * Everything a placement would do, without applying it. Drives the valid-placement highlight.
+ *
+ * A plank may be laid anywhere that covers at least one open hole cell. It joins the hole it
+ * covers most of (the lowest id on a tie). Parts that hang off the board, lie over another hole,
+ * or lie over hull a plank already covers are not laid: they cover nothing and count as waste, so a
+ * hole beside an edge or beside another hole can always be worked.
+ */
 export function checkPlacement(state: CarpentryState, slot: number, rot: number, flip: boolean, col: number, row: number, holeOf?: ReadonlyMap<number, number>): PlacementCheck {
-  const none = (reason: string): PlacementCheck => ({ legal: false, reason, cells: [], holeId: null, wasteCells: [] });
+  const none = (reason: string): PlacementCheck => ({ legal: false, reason, cells: [], holeId: null, wasteCells: [], overhang: 0 });
   if (state.finished) return none("game is finished");
   if (!Number.isInteger(slot) || slot < 0 || slot >= state.slots.length) return none("bad slot");
   if (!Number.isInteger(rot) || rot < 0 || rot > 3 || typeof flip !== "boolean") return none("bad orientation");
   if (!Number.isInteger(col) || !Number.isInteger(row)) return none("bad position");
+  const cfg = state.config;
   const piece = state.slots[slot]!;
-  const cells = placementCells(state.config, piece.shape, rot, flip, col, row);
-  if (!cells) return none("off the board");
+  const oriented = orient(piece.shape, rot, flip);
   if (!holeOf) holeOf = holeIndex(state);
-  let holeId: number | null = null;
-  let freshHoleCells = 0;
-  const wasteCells: number[] = [];
-  for (const c of cells) {
-    const h = holeOf.get(c);
-    if (h === undefined) {
-      if (state.covered[c]! > 0) return { legal: false, reason: "hull already planked there", cells, holeId: null, wasteCells: [] };
-      wasteCells.push(c);
+  // Which hole does this plank work? The one it covers most fresh cells of.
+  const fresh = new Map<number, number>();
+  let overhang = 0;
+  const onBoard: number[] = [];
+  for (const [x, y] of oriented) {
+    const c0 = col + x;
+    const r0 = row + y;
+    if (c0 < 0 || r0 < 0 || c0 >= cfg.width || r0 >= cfg.height) {
+      overhang++;
       continue;
     }
-    if (holeId !== null && holeId !== h) return { legal: false, reason: "plank lies over two holes", cells, holeId: null, wasteCells: [] };
-    holeId = h;
-    if (state.covered[c]! > 0) wasteCells.push(c);
-    else freshHoleCells++;
+    const c = idx(cfg, c0, r0);
+    onBoard.push(c);
+    const h = holeOf.get(c);
+    if (h !== undefined && state.covered[c] === 0) fresh.set(h, (fresh.get(h) ?? 0) + 1);
   }
-  if (holeId === null || freshHoleCells === 0) return { legal: false, reason: "plank covers no open hole cell", cells, holeId: null, wasteCells: [] };
-  return { legal: true, reason: null, cells, holeId, wasteCells };
+  let holeId: number | null = null;
+  let best = 0;
+  for (const [h, n] of fresh) {
+    if (n > best || (n === best && holeId !== null && h < holeId)) {
+      holeId = h;
+      best = n;
+    }
+  }
+  if (holeId === null) return { legal: false, reason: "plank covers no open hole cell", cells: [], holeId: null, wasteCells: [], overhang };
+  const cells: number[] = [];
+  const wasteCells: number[] = [];
+  for (const c of onBoard) {
+    const h = holeOf.get(c);
+    if (h === undefined) {
+      if (state.covered[c]! > 0) wasteCells.push(c); // lies over a plank already on the hull: not laid
+      else {
+        cells.push(c);
+        wasteCells.push(c);
+      }
+    } else if (h !== holeId) {
+      wasteCells.push(c); // another hole: not laid
+    } else {
+      cells.push(c);
+      if (state.covered[c]! > 0) wasteCells.push(c);
+    }
+  }
+  return { legal: true, reason: null, cells, holeId, wasteCells, overhang };
 }
 
 /** Cell index to hole id for every hole cell. */
@@ -247,7 +282,7 @@ function applyPlace(state: CarpentryState, move: Extract<CarpentryMove, { type: 
   let holes: Hole[] = [];
   for (const h of state.holes) {
     if (h.id === plank.holeId) {
-      holes.push({ ...h, pieces: h.pieces + 1, waste: h.waste + check.wasteCells.length, idleMoves: 0, allHorizontal: h.allHorizontal && grain === "h" });
+      holes.push({ ...h, pieces: h.pieces + 1, waste: h.waste + check.wasteCells.length + check.overhang, idleMoves: 0, allHorizontal: h.allHorizontal && grain === "h" });
       continue;
     }
     const idle = h.idleMoves + 1;

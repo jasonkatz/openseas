@@ -174,8 +174,9 @@ As built (M2): a 9 wide by 12 tall stretch of hull with up to three holes open a
 dealt as one to three pentominoes laid edge to edge, so its area is a multiple of five and a
 perfect fill exists; holes never touch. Three planks wait in a tray, each one of the twelve
 pentominoes with a wood kind (cosmetic) and a grain that turns with it. A plank goes down anywhere
-it covers at least one open cell of exactly one hole; cells it lays over hull or over another plank
-are waste. When every cell of a hole is covered it is patched, its planks come off and a new hole
+it covers at least one open cell; it works the hole it covers most of, and cells it lays over hull
+or over another plank are waste. Parts that hang off the board, or lie over a second hole or over
+planked hull, are not laid at all and are waste too, so any hole can be worked from any plank. When every cell of a hole is covered it is patched, its planks come off and a new hole
 is dealt elsewhere. The patch is rated by extra planks beyond the minimum (area over five):
 none is a masterpiece (which also demands no waste), one craftsmanship, two a fair job, three
 sloppy work, four or more a pig's breakfast. Points are area times `basePerCell` times the
@@ -349,10 +350,12 @@ carries over); wrack first cancels wrack waiting to land on the sender's own boa
 which the lab can turn off), and the rest goes to the opposing board with the least on it. It
 waits there, shown above the board as a count, and lands at that board's next drop or after
 `landAfterTicks`, whichever comes first, at most `incomingCapRows` rows at a time, in the columns
-of the sender's blade (content: the cutlass spreads it, the sabre piles it in the middle, the dirk
-at the edges, each a list of columns taken in turn). Wrack is grey stone and unbreakable; each
+of the sender's blade (content: each a list of columns taken in turn, every one weighted toward the
+edges and away from the middle: the cutlass the least, the dirk the most). Wrack is grey stone and unbreakable; each
 block is dealt the color it will turn as it lands, and after `ripenMoves` of the board's drops it
-turns into a block of that color, which fuses and shatters like any other. It carries no number:
+turns into a block of that color (usually one seen around where it lands: the block under it counts
+three times and each neighbour in its row once, `wrackMatchPermille` of the time in content, any
+color otherwise, so an attack mostly turns into something the defender can clear), which fuses and shatters like any other. It carries no number:
 it lands as solid stone, and with one drop left (the second of two, in content) the stone takes
 on its color, so a player reads what is coming from the block itself. An upright pair whose column has one
 free cell left rests its lower half there and the upper half falls away over the top. A board whose
@@ -807,6 +810,7 @@ Maintained as they arise.
 | Sea battle ramming | Damage by size | Both ships take `ramDamage` and neither moves | Equal ships |
 | Sea battle sinking | Ships do not sink against brigands | A wrecked hull ends the fight, won or lost; no ship is lost | No permanent loss (3.4) |
 | Sea battle boarding | A swordfight | A grapple from alongside against a hull at `grappleDamage` or worse ends the sea battle at once; the sounder hull boards when both could, and the melee decides the booty (M5) | Either boarding opens the melee; whoever boards, the crew that holds the rail takes the purse |
+| Swordfight deal | Each pirate is dealt their own pieces | Every board in a fight takes pairs from one shared stream, the nth pair the same for all, derived from the fight's seed; aboard, every pirate's own board is given the melee's seed as `dealSeed`, so the whole crew is dealt alike | An even fight: nobody gets better pieces by luck |
 | Swordfight pairs | Fall in real time | The move is the column and rotation the pair rested in, at its tick; the engine drops the halves; a rest sooner than `dropTicks` after the pair appeared is refused | One move per pair keeps the log small; the tick bounds how fast a hand can be (ADR 0015) |
 | Swordfight slabs | Rectangles of a color fuse into a big block | Same: a two-by-two fuses, a slab grows by a full strip along a side, and can hang over a hole | Faithful; the strip rule keeps fusing deterministic |
 | Swordfight attacks | Sprinkles land on the opponent at once, in the sword's pattern | Wrack waits on the target board and lands at its next drop or after `landAfterTicks`; it first cancels wrack waiting on the sender's board | A beat to see an attack coming and answer it; the timer means stalling never dodges one |
@@ -829,6 +833,7 @@ Maintained as they arise.
 | Duty round length | Real-time play at a station | Every round runs its clock; move limits only bound the move log, and no pace is checked | Scored per second, as the ship pays; quick players should feel quick |
 | Timed puzzle rounds | Real-time simulation | Integer ticks carried in every move; the server rejects ticks ahead of the wall clock | Keeps engines pure and replayable (ADR 0015) |
 | Carpentry holes | Grow in real time when unattended | Dealt as unions of pentominoes; widen by one cell after `growAfterMoves` planks placed elsewhere | Move-driven growth keeps the engine pure; pentomino unions guarantee a masterpiece is possible |
+| Carpentry placement | A plank must sit wholly on the hull and clear of other holes | A plank may hang off the board, or lie over other holes or planked hull; it joins the hole it covers most of, and the parts that are not laid count as waste | Playtest: a hole near an edge or another hole could not be worked in the orientation on offer |
 | Carpentry patched hole | Planking stays visible | Planks come off and the hull is free again; a new hole is dealt | Keeps a practice round busy on a small board |
 | Carpentry scoring | Original's table | Area times `basePerCell` times a rating multiplier, grain bonus, times a masterpiece streak capped at ×2 | An uncapped streak let one late slip decide a round; tuned in playtests |
 | Gunnery firing | The captain fires loaded cannons in sea battle | On the Gunnery board a loaded cannon fires itself after `fireAfterTicks` and comes back clean, for the gunner's score; the ship keeps a count of loaded cannons from Gunnery output, and in a sea battle the captain fires those | The board stays a whole puzzle of its own; the captain still decides when the ship's guns speak (ADR 0021) |

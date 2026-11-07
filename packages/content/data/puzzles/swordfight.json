@@ -4,7 +4,9 @@
     "height": 17,
     "colors": 4,
     "breakerPermille": 170,
+    "dealSeed": "",
     "ripenMoves": 2,
+    "wrackMatchPermille": 750,
     "cellPoints": 10,
     "slabBonus": 4,
     "attackPoints": 24,
@@ -12,9 +14,9 @@
     "landAfterTicks": 25,
     "incomingCapRows": 3,
     "blades": [
-      { "id": "cutlass", "columns": [0, 1, 2, 3, 4, 5] },
-      { "id": "sabre", "columns": [2, 3, 1, 4, 2, 3, 0, 5] },
-      { "id": "dirk", "columns": [0, 5, 1, 4, 0, 5, 2, 3] }
+      { "id": "cutlass", "columns": [0, 5, 1, 4, 0, 5, 1, 4, 2, 3] },
+      { "id": "sabre", "columns": [0, 5, 2, 3, 1, 4, 0, 5] },
+      { "id": "dirk", "columns": [0, 5, 0, 5, 1, 4, 0, 5, 2, 3] }
     ],
     "player": true,
     "blade": 0,

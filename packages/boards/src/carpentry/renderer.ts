@@ -678,7 +678,7 @@ export class CarpentryRenderer {
       if (legal) this.paintPlankCell(g, x + 1, y + 1, s - 2, kindColor, grain, 0.5 * strength);
       else g.rect(x + 2, y + 2, s - 4, s - 4).fill({ color: kindColor, alpha: 0.22 * strength });
     }
-    const set = new Set(cells.map(([x, y]) => (row + y) * this.width + (col + x)).filter((c) => c >= 0));
+    const set = new Set(cells.filter(([x, y]) => col + x >= 0 && col + x < this.width && row + y >= 0 && row + y < this.height).map(([x, y]) => (row + y) * this.width + (col + x)));
     this.strokeRegion(g, set, 2, { width: 2.5, color, alpha: 0.95 * strength });
     if (check) for (const c of check.wasteCells) this.paintWaste(g, this.ox + (c % this.width) * s, this.oy + Math.floor(c / this.width) * s, s, 0.8 * strength);
   }
@@ -1033,8 +1033,9 @@ export class CarpentryRenderer {
       this.viewStale = true;
       return;
     }
-    const col = Math.max(0, Math.min(this.width - fp.w, Math.round(this.anchor.cx - fp.w / 2)));
-    const row = Math.max(0, Math.min(this.height - fp.h, Math.round(this.anchor.cy - fp.h / 2)));
+    // A plank may hang off the hull (the overhang is waste), as long as one cell of its box stays on it.
+    const col = Math.max(1 - fp.w, Math.min(this.width - 1, Math.round(this.anchor.cx - fp.w / 2)));
+    const row = Math.max(1 - fp.h, Math.min(this.height - 1, Math.round(this.anchor.cy - fp.h / 2)));
     this.cursor = { col, row };
     this.viewStale = true;
   }
@@ -1062,8 +1063,8 @@ export class CarpentryRenderer {
       this.syncCursor();
       return;
     }
-    const col0 = Math.max(0, Math.min(this.width - fp.w, Math.round(cx - fp.w / 2)));
-    const row0 = Math.max(0, Math.min(this.height - fp.h, Math.round(cy - fp.h / 2)));
+    const col0 = Math.max(1 - fp.w, Math.min(this.width - 1, Math.round(cx - fp.w / 2)));
+    const row0 = Math.max(1 - fp.h, Math.min(this.height - 1, Math.round(cy - fp.h / 2)));
     const holeOf = carpentryHoleIndex(this.state);
     let best: { col: number; row: number; d: number; waste: number } | null = null;
     for (let dr = -1; dr <= 1; dr++) {
@@ -1073,7 +1074,7 @@ export class CarpentryRenderer {
         const check = carpentryCheckPlacement(this.state, slot, this.rot, this.flip, col, row, holeOf);
         if (!check.legal) continue;
         const d = Math.hypot(col + fp.w / 2 - cx, row + fp.h / 2 - cy);
-        if (!best || d < best.d - 1e-6 || (Math.abs(d - best.d) < 1e-6 && check.wasteCells.length < best.waste)) best = { col, row, d, waste: check.wasteCells.length };
+        if (!best || d < best.d - 1e-6 || (Math.abs(d - best.d) < 1e-6 && check.wasteCells.length + check.overhang < best.waste)) best = { col, row, d, waste: check.wasteCells.length + check.overhang };
       }
     }
     if (best) this.anchor = { cx: best.col + fp.w / 2, cy: best.row + fp.h / 2 };
@@ -1159,8 +1160,9 @@ export class CarpentryRenderer {
     for (let i = 0; i < total; i++) {
       const check = carpentryCheckPlacement(this.state, this.slot, this.rot, this.flip, i % this.width, Math.floor(i / this.width), holeOf);
       if (!check.legal) continue;
-      fits.push({ i, waste: check.wasteCells.length });
-      bestWaste = Math.min(bestWaste, check.wasteCells.length);
+      const waste = check.wasteCells.length + check.overhang;
+      fits.push({ i, waste });
+      bestWaste = Math.min(bestWaste, waste);
     }
     const best = fits.filter((f) => f.waste === bestWaste).map((f) => f.i);
     if (best.length === 0) return;

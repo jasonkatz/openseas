@@ -129,6 +129,9 @@ function leanOf(fx: number, fy: number): Dir {
 
 const isGood = (o: CannonOutcome): boolean => o === "load" || o === "loaded" || o === "clean";
 
+/** Two touch taps on one cell within this long lift its arrow. */
+const DOUBLE_TAP_MS = 350;
+
 export class GunneryRenderer {
   readonly app = new Application();
   private readonly board = new Container();
@@ -174,6 +177,8 @@ export class GunneryRenderer {
   private broadsideFlash = 0;
   private cursor: { col: number; row: number } | null = null;
   private hover: { col: number; row: number; fx: number; fy: number } | null = null;
+  /** The last finished touch tap, so a second one on the same cell soon after lifts its arrow. */
+  private lastTap: { col: number; row: number; at: number } | null = null;
   private press: { x: number; y: number; col: number; row: number; touch: boolean; dragged: boolean; dir: Dir } | null = null;
   private ghost: Ghost | null = null;
   private paths: Array<{ id: number; kind: number; path: GunneryPredictedPath }> = [];
@@ -959,6 +964,19 @@ export class GunneryRenderer {
     this.press = null;
     if (!pr || !this.interactive || !this.state) return;
     const g = this.ghost;
+    if (pr.touch && !pr.dragged) {
+      // Double tap lifts the arrow: the first tap laid or turned it, the second takes it away.
+      const now = performance.now();
+      const last = this.lastTap;
+      if (last && last.col === pr.col && last.row === pr.row && now - last.at <= DOUBLE_TAP_MS) {
+        this.lastTap = null;
+        if (this.state.arrows.some((a) => a.col === pr.col && a.row === pr.row)) this.cb.onArrow(pr.col, pr.row, null);
+        this.setGhost(null);
+        this.drawHover();
+        return;
+      }
+      this.lastTap = { col: pr.col, row: pr.row, at: now };
+    } else this.lastTap = null;
     if (g && g.col === pr.col && g.row === pr.row) {
       if (g.lift) this.cb.onArrow(g.col, g.row, null);
       else {

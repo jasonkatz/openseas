@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import {
+  DEFAULT_BLADES,
   DEFAULT_SWORDFIGHT_CONFIG,
   InvalidMoveError,
   advanceSwordfight,
@@ -13,10 +14,12 @@ import {
   swordfightIdx,
   swordfightLandingCells,
   swordfightLegalDrops,
+  swordfightPairAt as pairAt,
   swordfightPlaceIllegalReason,
   swordfightSpawnCol,
   type SwordBoard,
   type SwordCell,
+  type SwordPair,
   type SwordPiece,
   type SwordRotation,
   type SwordfightConfig,
@@ -302,6 +305,44 @@ describe("breakers and chains", () => {
   });
 });
 
+describe("shared pairs and edge-weighted blades", () => {
+  it("every board in a fight is dealt the same pairs in the same order", () => {
+    const withFoes: SwordfightConfig = { ...cfg, allies: [{ thinkTicks: 3, skill: 50, blade: 0 }], foes: [{ thinkTicks: 5, skill: 50, blade: 1 }, { thinkTicks: 7, skill: 50, blade: 2 }] };
+    let s = createSwordfightGame("shared", withFoes);
+    const same = (a: SwordPair, b: SwordPair): boolean => a.a.color === b.a.color && a.a.breaker === b.a.breaker && a.b.color === b.b.color && a.b.breaker === b.b.breaker;
+    expect(s.boards.length).toBe(4);
+    for (const b of s.boards) {
+      expect(same(b.current, s.boards[0]!.current)).toBe(true);
+      expect(same(b.next, s.boards[0]!.next)).toBe(true);
+    }
+    for (let t = 1; t <= 120 && !s.finished; t++) {
+      s = reduceSwordfight(s, { type: "wait", tick: t });
+      for (const b of s.boards) {
+        expect(same(b.current, pairAt(withFoes, s.deal, b.dealt - 2))).toBe(true);
+        expect(same(b.next, pairAt(withFoes, s.deal, b.dealt - 1))).toBe(true);
+      }
+    }
+    expect(s.boards.some((b) => b.dealt > 2)).toBe(true);
+  });
+
+  it("fights given the same deal name are dealt the same pairs whatever their seeds", () => {
+    const a = createSwordfightGame("pirate-one", { ...cfg, dealSeed: "crew-7" });
+    const b = createSwordfightGame("pirate-two", { ...cfg, dealSeed: "crew-7" });
+    const c = createSwordfightGame("pirate-two", cfg);
+    expect(a.boards[0]!.current).toEqual(b.boards[0]!.current);
+    expect(a.boards[0]!.next).toEqual(b.boards[0]!.next);
+    for (let n = 0; n < 20; n++) expect(pairAt(cfg, a.deal, n)).toEqual(pairAt(cfg, b.deal, n));
+    expect(a.deal).not.toBe(c.deal);
+  });
+
+  it("the stock blades favor the edges over the middle", () => {
+    for (const blade of DEFAULT_BLADES) {
+      const count = (cols: number[]): number => blade.columns.filter((c) => cols.includes(c)).length;
+      expect(count([0, 5])).toBeGreaterThan(count([2, 3]));
+    }
+  });
+});
+
 describe("wrack", () => {
   const attackCfg: SwordfightConfig = { ...alone, attackPoints: 10, cellPoints: 10, offset: true };
 
@@ -323,7 +364,7 @@ describe("wrack", () => {
     expect(s.boards[0]!.pendingSince).toBe(1);
     s = reduceSwordfight(s, place(2, 1, 3));
     const landed = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "landed" }> => e.type === "landed")!;
-    expect(landed.cells.map((c) => c % cfg.width)).toEqual([0, 1, 2, 3]);
+    expect(landed.cells.map((c) => c % cfg.width)).toEqual([0, 5, 1, 4]);
     expect(s.boards[0]!.pending).toEqual([]);
     const wrack = s.boards[0]!.cells.filter((c) => c?.kind === "wrack");
     expect(wrack).toHaveLength(4);
@@ -335,6 +376,31 @@ describe("wrack", () => {
     expect(ripened.ids).toHaveLength(4);
     expect(s.boards[0]!.cells.filter((c) => c?.kind === "wrack")).toHaveLength(0);
     for (const c of ripened.colors) expect(c).toBeLessThan(cfg.colors);
+  });
+
+  it("wrack is dealt the color of what it lands on and beside, when matching is on", () => {
+    let s = createSwordfightGame("x", { ...attackCfg, wrackMatchPermille: 1000 });
+    // Color 2 across the bottom row, columns 0..2; the pair in hand is far from the cutlass columns.
+    s = drawn(s, ["......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "22...2"], [blk(0), blk(0)]);
+    s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 3, blade: 0, tick: 1 });
+    s = reduceSwordfight(s, place(3, 1, 3));
+    const landed = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "landed" }> => e.type === "landed")!;
+    // Columns 0, 5 and 1 land on color-2 blocks, so all three take color 2.
+    expect(landed.cells.map((c) => c % cfg.width)).toEqual([0, 5, 1]);
+    expect(landed.colors).toEqual([2, 2, 2]);
+  });
+
+  it("wrack lands in any color when matching is off", () => {
+    const seen = new Set<number>();
+    for (let n = 0; n < 12; n++) {
+      let s = createSwordfightGame(`any${n}`, { ...attackCfg, wrackMatchPermille: 0 });
+      s = drawn(s, ["......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "222..."], [blk(0), blk(0)]);
+      s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 3, blade: 0, tick: 1 });
+      s = reduceSwordfight(s, place(5, 1, 3));
+      const landed = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "landed" }> => e.type === "landed")!;
+      for (const c of landed.colors) seen.add(c);
+    }
+    expect(seen.size).toBeGreaterThan(1);
   });
 
   it("wrack is dealt the color it ripens into as it lands, told in the landed event, and keeps it", () => {
