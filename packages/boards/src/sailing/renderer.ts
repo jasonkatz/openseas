@@ -635,8 +635,10 @@ export class SailingRenderer {
           continue;
         }
         const color = this.colorByKind.get(c.want) ?? 0xffffff;
+        // The disc is 0.42 of a cell wide, so a wrong disc sitting here would hide a smaller ring.
+        // The ring hugs the cell edge instead, so its color stays readable around any disc.
         g.circle(cx, cy, s * 0.4).fill({ color, alpha: 0.16 });
-        g.circle(cx, cy, s * 0.4).stroke({ width: 2, color, alpha: 0.85 });
+        g.circle(cx, cy, s * 0.46).stroke({ width: Math.max(3, s * 0.08), color, alpha: 0.9 });
         drawMark(g, cx, cy, s * 0.18, this.markByKind.get(c.want) ?? "circle", color);
       }
     }

@@ -7,6 +7,7 @@ import {
   carpentryCheckPlacement,
   carpentryIdx,
   carpentryOrient,
+  carpentryPlacementCells,
   carpentryRateHole,
   createCarpentryGame,
   hashCarpentryState,
@@ -260,16 +261,42 @@ describe("carpentry rules", () => {
     expect(grew).toBeGreaterThan(0);
   });
 
-  it("rejects planks off the board, bad slots, moves after the end, and planks covering no hole", () => {
+  it("a plank may hang off the board or lie over another hole; those parts are waste and lay nothing", () => {
+    const base = createCarpentryGame("overhang");
+    const at = (c: number, r: number): number => carpentryIdx(cfg, c, r);
+    const hole = (id: number, cells: number[]): CarpentryState["holes"][number] => ({ id, cells, pieces: 0, waste: 0, idleMoves: 0, grown: false, allHorizontal: true });
+    const state: CarpentryState = {
+      ...base,
+      holes: [hole(50, [0, 1, 2, 3, 4].map((r) => at(0, r))), hole(51, [2, 3, 4, 5, 6].map((c) => at(c, 0)))],
+      planks: [],
+      covered: new Array<number>(cfg.width * cfg.height).fill(0),
+      slots: [{ shape: 1, grain: "h", kind: 0 }, base.slots[1]!, base.slots[2]!],
+    };
+    // The I plank lies flat at rot 1: two cells left of the board, then hole 50, hull, hole 51.
+    const check = carpentryCheckPlacement(state, 0, 1, false, -2, 0);
+    expect(check.legal).toBe(true);
+    expect(check.holeId).toBe(50);
+    expect(check.overhang).toBe(2);
+    expect(check.cells).toEqual([at(0, 0), at(1, 0)]);
+    expect(check.wasteCells).toEqual([at(1, 0), at(2, 0)]);
+    const next = reduceCarpentry(state, { type: "place", slot: 0, rot: 1, flip: false, col: -2, row: 0 });
+    expect(next.covered[at(2, 0)]).toBe(0);
+    expect(next.covered[at(0, 0)]).toBe(1);
+    expect(next.holes.find((h) => h.id === 50)!.waste).toBe(4);
+    // A plank wholly off every hole still lays nothing.
+    expect(carpentryCheckPlacement(state, 0, 1, false, -4, 8).legal).toBe(false);
+  });
+
+  it("rejects bad slots, moves after the end, and planks covering no hole", () => {
     const s = createCarpentryGame("illegal");
-    expect(() => reduceCarpentry(s, { type: "place", slot: 0, rot: 0, flip: false, col: -1, row: 0 })).toThrow(InvalidMoveError);
     expect(() => reduceCarpentry(s, { type: "place", slot: 5, rot: 0, flip: false, col: 0, row: 0 })).toThrow(InvalidMoveError);
     const holeCells = new Set(s.holes.flatMap((h) => h.cells));
     let found = false;
     for (let row = 0; row < cfg.height && !found; row++) {
       for (let col = 0; col < cfg.width && !found; col++) {
         const check = carpentryCheckPlacement(s, 0, 0, false, col, row);
-        if (check.cells.length && check.cells.every((c) => !holeCells.has(c))) {
+        const cells = carpentryPlacementCells(cfg, s.slots[0]!.shape, 0, false, col, row);
+        if (cells && cells.every((c) => !holeCells.has(c))) {
           expect(check.legal).toBe(false);
           expect(() => reduceCarpentry(s, { type: "place", slot: 0, rot: 0, flip: false, col, row })).toThrow(InvalidMoveError);
           found = true;

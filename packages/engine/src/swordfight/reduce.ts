@@ -41,6 +41,7 @@ export function validateConfig(cfg: SwordfightConfig): void {
     int(cfg.colors, 3, 6) &&
     int(cfg.breakerPermille, 0, 1000) &&
     int(cfg.ripenMoves, 1, 20) &&
+    int(cfg.wrackMatchPermille, 0, 1000) &&
     int(cfg.cellPoints, 0, 1000) &&
     int(cfg.slabBonus, 0, 1000) &&
     int(cfg.attackPoints, 1, 100_000) &&
@@ -501,6 +502,29 @@ export function applyDrop(cfg: SwordfightConfig, board: SwordBoard, boardIndex: 
 }
 
 /**
+ * The color a block of wrack landing at (col, row) is dealt. Usually one seen around it, so wrack
+ * ripens into the stuff it sits in and a clean-up is within reach: the block under it counts
+ * three times, each neighbour in its row once. Otherwise, or with nothing around, any color.
+ */
+function wrackColor(cfg: SwordfightConfig, cells: Cells, col: number, row: number, rng: PrngState): { color: number; rng: PrngState } {
+  const seen: number[] = [];
+  const see = (c: SwordCell | null | undefined, weight: number): void => {
+    if (c) for (let k = 0; k < weight; k++) seen.push(c.color);
+  };
+  if (row > 0) see(cells[idx(cfg, col, row - 1)], 3);
+  if (col > 0) see(cells[idx(cfg, col - 1, row)], 1);
+  if (col < cfg.width - 1) see(cells[idx(cfg, col + 1, row)], 1);
+  const match = nextChance(rng, cfg.wrackMatchPermille, 1000);
+  rng = match.state;
+  if (match.value && seen.length > 0) {
+    const pick = nextInt(rng, seen.length);
+    return { color: seen[pick.value]!, rng: pick.state };
+  }
+  const any = nextInt(rng, cfg.colors);
+  return { color: any.value, rng: any.state };
+}
+
+/**
  * Land waiting wrack on a board, up to the cap, in the blades' columns. Each block is dealt the
  * color it will ripen into as it lands, so the board can show the color coming.
  */
@@ -526,9 +550,9 @@ function landWrack(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number,
         const h = colHeight(cfg, cells, col);
         if (h >= cfg.height) continue;
         const i = idx(cfg, col, h);
-        const r = nextInt(rng, cfg.colors);
-        rng = r.state;
-        const cell: SwordCell = { id: nextId++, color: r.value, kind: "wrack", ripen: cfg.ripenMoves, slab: 0 };
+        const dealt = wrackColor(cfg, cells, col, h, rng);
+        rng = dealt.rng;
+        const cell: SwordCell = { id: nextId++, color: dealt.color, kind: "wrack", ripen: cfg.ripenMoves, slab: 0 };
         cells[i] = cell;
         landedCells.push(i);
         ids.push(cell.id);

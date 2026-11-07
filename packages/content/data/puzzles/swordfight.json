@@ -5,6 +5,7 @@
     "colors": 4,
     "breakerPermille": 170,
     "ripenMoves": 2,
+    "wrackMatchPermille": 750,
     "cellPoints": 10,
     "slabBonus": 4,
     "attackPoints": 24,

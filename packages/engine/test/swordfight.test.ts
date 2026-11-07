@@ -337,6 +337,31 @@ describe("wrack", () => {
     for (const c of ripened.colors) expect(c).toBeLessThan(cfg.colors);
   });
 
+  it("wrack is dealt the color of what it lands on and beside, when matching is on", () => {
+    let s = createSwordfightGame("x", { ...attackCfg, wrackMatchPermille: 1000 });
+    // Color 2 across the bottom row, columns 0..2; the pair in hand is far from the cutlass columns.
+    s = drawn(s, ["......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "222..."], [blk(0), blk(0)]);
+    s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 3, blade: 0, tick: 1 });
+    s = reduceSwordfight(s, place(5, 1, 3));
+    const landed = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "landed" }> => e.type === "landed")!;
+    // Columns 0..2 land on color-2 blocks, so all three take color 2.
+    expect(landed.cells.map((c) => c % cfg.width)).toEqual([0, 1, 2]);
+    expect(landed.colors).toEqual([2, 2, 2]);
+  });
+
+  it("wrack lands in any color when matching is off", () => {
+    const seen = new Set<number>();
+    for (let n = 0; n < 12; n++) {
+      let s = createSwordfightGame(`any${n}`, { ...attackCfg, wrackMatchPermille: 0 });
+      s = drawn(s, ["......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "222..."], [blk(0), blk(0)]);
+      s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 3, blade: 0, tick: 1 });
+      s = reduceSwordfight(s, place(5, 1, 3));
+      const landed = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "landed" }> => e.type === "landed")!;
+      for (const c of landed.colors) seen.add(c);
+    }
+    expect(seen.size).toBeGreaterThan(1);
+  });
+
   it("wrack is dealt the color it ripens into as it lands, told in the landed event, and keeps it", () => {
     let s = createSwordfightGame("x", { ...attackCfg, ripenMoves: 2 });
     s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 4, blade: 0, tick: 1 });

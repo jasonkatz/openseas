@@ -48,6 +48,11 @@ export interface SwordfightConfig {
   readonly breakerPermille: number;
   /** Drops on a board before wrack that landed there ripens into colored blocks. */
   readonly ripenMoves: number;
+  /**
+   * Chance per block of wrack, per mille, that it is dealt a color seen around where it lands (the
+   * block under it counts most, then its neighbours in the row) instead of any color at random.
+   */
+  readonly wrackMatchPermille: number;
   /** Points per block broken. */
   readonly cellPoints: number;
   /** A slab of n blocks scores cellPoints * n plus slabBonus * n * (n - 1) / 2 on top. */
@@ -103,6 +108,7 @@ export const DEFAULT_SWORDFIGHT_CONFIG: SwordfightConfig = {
   colors: 4,
   breakerPermille: 170,
   ripenMoves: 2,
+  wrackMatchPermille: 750,
   cellPoints: 10,
   slabBonus: 4,
   attackPoints: 24,

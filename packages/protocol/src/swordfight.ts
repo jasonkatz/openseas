@@ -30,6 +30,7 @@ export const SwordfightConfigSchema = z.object({
   colors: z.int().min(3).max(6),
   breakerPermille: z.int().min(0).max(1000),
   ripenMoves: z.int().min(1).max(20),
+  wrackMatchPermille: z.int().min(0).max(1000),
   cellPoints: z.int().min(0).max(1000),
   slabBonus: z.int().min(0).max(1000),
   attackPoints: z.int().min(1).max(100_000),
