@@ -1,4 +1,4 @@
-import { drawSprite, spriteRevision } from "../sprites/atlas.js";
+import { drawSprite, spriteRevision, type SpritePuzzle } from "../sprites/atlas.js";
 import { Graphics } from "pixi.js";
 
 /**
@@ -12,6 +12,8 @@ export type TileTexture = "knurl" | "fan" | "waves" | "grain" | "nacre" | "frond
 export type SpecialName = "keg" | "ink" | "barnacle";
 
 export interface TileStyle {
+  /** Other boards may reuse the legend tile with an explicit material sprite. */
+  sprite?: { puzzle: SpritePuzzle; name: string };
   color: number;
   texture: TileTexture | null;
   mark: string | null;
@@ -55,8 +57,8 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 /** Paints one tile into a cell of size `s` whose top-left corner is the context origin. */
 export function paintTile(ctx: CanvasRenderingContext2D, s: number, style: TileStyle): void {
-  const sprite = style.special ?? ({ knurl: "cog", fan: "shell", waves: "anchor", grain: "plank", nacre: "pearl", fronds: "kelp", pores: "coral" } as const)[style.texture ?? "knurl"];
-  if (drawSprite(ctx, "bilging", sprite, 0, 0, s, s)) {
+  const sprite = style.sprite?.name ?? style.special ?? ({ knurl: "cog", fan: "shell", waves: "anchor", grain: "plank", nacre: "pearl", fronds: "kelp", pores: "coral" } as const)[style.texture ?? "knurl"];
+  if (drawSprite(ctx, style.sprite?.puzzle ?? "bilging", sprite, 0, 0, s, s)) {
     if (style.special && s >= 36 && style.label) {
       ctx.font = `700 ${Math.max(7, s * 0.15)}px "Atkinson Hyperlegible", sans-serif`;
       ctx.textAlign = "center";

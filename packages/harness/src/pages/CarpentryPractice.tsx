@@ -81,9 +81,9 @@ export function CarpentryPractice() {
       legend={
         <>
           <ul className="kinds">
-            {woods.map((p) => (
+            {woods.map((p, kind) => (
               <li key={p.nameKey}>
-                <TileIcon color={p.color} texture={p.texture} mark={showMarks ? p.mark : null} />
+                <TileIcon color={p.color} texture={p.texture} mark={showMarks ? p.mark : null} sprite={{ puzzle: "carpentry", name: `${["oak", "teak", "pine", "mahogany"][kind]}-h` }} />
                 <span>{t(p.nameKey)}</span>
               </li>
             ))}
