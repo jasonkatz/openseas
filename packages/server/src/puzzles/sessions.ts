@@ -1,4 +1,17 @@
-import { InvalidMoveError, PUZZLES, type AnyPuzzleDef, type DutyPuzzleId, type PuzzleId, type PuzzleSummary } from "@openseas/engine";
+import {
+  InvalidMoveError,
+  PUZZLES,
+  soloBilgeStart,
+  soloBilgeTurn,
+  soloBilgeTurnsDue,
+  type AnyPuzzleDef,
+  type BilgeBoardFields,
+  type DutyPuzzleId,
+  type PuzzleId,
+  type PuzzleSummary,
+  type ShipRules,
+  type SoloBilge,
+} from "@openseas/engine";
 
 export type RejectReason = "divergence" | "illegal_move" | "bad_sequence" | "deadline" | "too_many_moves";
 
@@ -81,8 +94,13 @@ export interface PuzzleSession {
   readonly melee: MeleeBinding | null;
   /** Melee only: wrack announced to this board, oldest first, each to be logged as an incoming move in turn. */
   meleeIncoming: MeleeIncoming[];
-  /** Bilging duty only: the ship's bilge in rows as last told to the client. A water move must say this. */
+  /**
+   * Bilging only: the bilge in rows as last told to the client, from the ship aboard or, for a
+   * harness round, the lone ship below. A water move must say this.
+   */
   shipWaterRow: number | null;
+  /** A harness Bilging round's lone ship (ADR 0029): its bilge, and how many of its turns have passed. */
+  soloBilge: { bilge: SoloBilge; turns: number } | null;
   /** Battle aboard only: the ship's latest deal, not yet logged by the board. A supply move must say this. */
   shipSupply: ShipSupply | null;
   state: unknown;
@@ -124,6 +142,11 @@ export interface SessionManagerOptions {
   now: () => number;
   randomSeed: () => string;
   randomId: () => string;
+  /**
+   * The ship a harness Bilging round plays against (ADR 0029): the class's rules and Bilging's par
+   * for one turn. Without it a harness Bilging board's water never moves from the deal.
+   */
+  soloBilge?: { rules: ShipRules; par: number };
 }
 
 /**
@@ -145,8 +168,9 @@ export class PuzzleSessionManager {
     const content = override?.config ?? this.opts.puzzles[puzzle].config;
     const roundMs = override?.roundMs ?? this.opts.puzzles[puzzle].roundMs;
     if (override) def.validateConfig(override.config);
-    // Aboard a ship the Bilging board's water is the ship's bilge (DESIGN.md 3.3).
-    const config = duty && puzzle === "bilging" ? { ...(content as object), shipWater: true } : content;
+    // A Bilging board's water is a ship's bilge (DESIGN.md 3.3): the ship's aboard, a lone ship's in the harness.
+    const config = puzzle === "bilging" ? { ...(content as object), shipWater: true } : content;
+    const solo = puzzle === "bilging" && !duty && !battle && !melee ? soloBilgeStart(config as BilgeBoardFields) : null;
     const session: PuzzleSession = {
       id: this.opts.randomId(),
       pirateId,
@@ -160,7 +184,8 @@ export class PuzzleSessionManager {
       battle,
       melee,
       meleeIncoming: [],
-      shipWaterRow: duty?.water ?? null,
+      shipWaterRow: duty?.water ?? solo?.row ?? null,
+      soloBilge: solo ? { bilge: solo, turns: 0 } : null,
       shipSupply: null,
       state: def.create(seed, config),
       moves: [],
@@ -177,6 +202,33 @@ export class PuzzleSessionManager {
   }
 
   /** `move` must already be validated against the session's puzzle schema. */
+  /**
+   * Turn every harness Bilging round's lone ship that is due (ADR 0029), each from the points its
+   * board earned since the last turn. Returns the boards whose bilge now shows a different depth;
+   * the caller tells their clients, which log the depth as a water move, as a duty board does.
+   */
+  turnSoloBilges(): Array<{ session: PuzzleSession; row: number }> {
+    const ship = this.opts.soloBilge;
+    if (!ship) return [];
+    const now = this.opts.now();
+    const changed: Array<{ session: PuzzleSession; row: number }> = [];
+    for (const s of this.sessions.values()) {
+      if (s.closed || !s.soloBilge) continue;
+      // The round's own clock ends at its deadline; no turn falls on or after it.
+      const due = soloBilgeTurnsDue(ship.rules, Math.min(now, s.deadlineAt - 1) - s.startedAt);
+      if (s.soloBilge.turns >= due) continue;
+      let bilge = s.soloBilge.bilge;
+      const score = s.def.summarize(s.state).score;
+      for (let t = s.soloBilge.turns; t < due; t++) bilge = soloBilgeTurn(ship.rules, ship.par, bilge, score, s.config as BilgeBoardFields);
+      s.soloBilge = { bilge, turns: due };
+      if (bilge.row !== s.shipWaterRow) {
+        s.shipWaterRow = bilge.row;
+        changed.push({ session: s, row: bilge.row });
+      }
+    }
+    return changed;
+  }
+
   move(session: PuzzleSession, seq: number, move: unknown, hash: string): MoveOutcome {
     if (session.closed) return { ok: false, reason: "deadline", atSeq: seq };
     if (seq !== session.moves.length) {

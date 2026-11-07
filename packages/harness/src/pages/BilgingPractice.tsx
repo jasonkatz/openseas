@@ -4,6 +4,7 @@ import { BilgingBoard, TileIcon, content, sfx, t, type BilgingMoveShown } from "
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
+import { useSoloBilge } from "../practice/useSoloBilge.js";
 import { BILGING } from "../puzzles.js";
 
 const bilging = content.puzzles.bilging;
@@ -18,6 +19,8 @@ export function BilgingPractice() {
     if (prev.moveCount === 0) pumpedRef.current = 0;
     pumpedRef.current += Math.max(0, prev.waterRow - s.waterRow);
     setPumped(pumpedRef.current);
+    // The lone ship's water is no swap; the board sounds the pump or the rise itself.
+    if (s.lastMove?.move.type === "water") return;
     if (s.lastMove && s.lastMove.points > 0) sfx.swap();
     else sfx.swapQuiet();
   }, []);
@@ -30,6 +33,7 @@ export function BilgingPractice() {
     summarize: summarizeBilging,
     onMove,
   });
+  useSoloBilge(api);
   const bench = useBench(BILGING, api);
   const { state } = api;
   const shown = bench.reviewState ?? state;

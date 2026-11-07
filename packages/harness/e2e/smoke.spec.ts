@@ -342,6 +342,17 @@ test("a lab round opens from a link with its seed and config, replays clean, and
   await expect(page.getByTestId("start-lab")).toBeVisible();
 });
 
+test("a Bilging round plays a lone ship's bilge: the deal brings the board to the bilge's floor", async ({ page }) => {
+  // Dealt eight rows deep on a dry, sound ship (ADR 0029): the round's first move is the ship's
+  // water, three rows, logged as a duty board logs its ship's word. The clock stays paused.
+  await page.goto("/bilging?seed=smoke-water&c.initialWaterRow=8&start=lab&paused=1");
+  await expect(page.getByTestId("bilging-canvas")).toBeVisible();
+  await openBench(page);
+  const log = page.getByTestId("inspector-log").locator("li");
+  await expect(log).toHaveCount(1);
+  await expect(log.first()).toContainText("water row=3");
+});
+
 test("the scenario form refuses a config the server could not issue, and the link follows the form", async ({ page }) => {
   await page.goto("/bilging");
   await openBench(page);

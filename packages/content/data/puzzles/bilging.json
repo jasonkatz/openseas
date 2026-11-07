@@ -12,7 +12,8 @@
     "minWaterRow": 3,
     "waterRisePerMoves": 6,
     "waterDropPerPoints": 40,
-    "maxMoves": 120
+    "maxMoves": 120,
+    "shipWater": true
   },
   "roundSeconds": 150,
   "parScore": 300,

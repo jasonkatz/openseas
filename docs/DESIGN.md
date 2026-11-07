@@ -77,15 +77,21 @@ optional mark. Specials are the Powder
 Keg (swap to clear a 3 by 3), the Ink Cloud (swap with a piece to clear every piece of that kind),
 and the Barnacle (unmatchable; it rides up with the board and comes off by itself, for a bonus,
 once it is at or above the water line). A connected cleared group of n pieces scores n(n-2); clearing k groups in
-one step multiplies by k; cascade step c multiplies by c. On the practice page the water is a level
-carried in the game state: every move raises it a sixth of a row, every 40 points drain a row, and
-it never drops below a floor of 3 rows. Pumping while already at the floor is wasted, so points
-cannot be banked to hold the water down later. It is still a pure function of the move log, so a
-replay needs nothing else. Aboard a ship (M3) the board's config carries `shipWater` and the water
-is the ship's bilge: swaps neither raise nor drain it, and the ship injects water events into the
-log instead, one with the deal and one whenever a turn changes the depth. The client logs each as a
-`water` move; the server accepts a water move only when it repeats the depth the ship last gave
-that board, so the log stays the whole story and the client never sets its own water. A water
+one step multiplies by k; cascade step c multiplies by c. Every board the server deals plays on a ship's bilge (ADR 0029): content sets `shipWater`, so
+swaps neither raise nor drain the water, and the ship injects water events into the log instead, one
+with the deal and one whenever a turn changes the depth. The board reads the bilge as rows and never
+below `minWaterRow`, three rows: a bilge never runs dry, so even a sound, pumped ship keeps the
+bottom three rows underwater and the barnacles under them waiting to be lifted. Aboard a ship (M3)
+the bilge is the ship's. In the harness it is a lone ship's: a sound sloop with nobody else aboard,
+whose bilge each turn takes the class's intake and drains by this board's own output, as the ship's
+turn would. The server turns it for a recorded round and pushes the depth as a ship does; the
+harness turns it on the round's own clock for unrated and lab rounds. The client logs each depth as
+a `water` move; the server accepts a water move only when it repeats the depth it last gave that
+board, so the log stays the whole story and the client never sets its own water. The board's own
+water stays in the engine for lab rounds that turn `shipWater` off: every move raises it a sixth of
+a row, every 40 points drain a row, and it never drops below the same floor. Pumping while already
+at the floor is wasted, so points cannot be banked to hold the water down later. Either way the
+water is a pure function of the move log, so a replay needs nothing else. A water
 event is no move: it counts toward nothing and breaks no combo. Below the
 water line pieces swap slowly: the swap takes `underwaterSwapMs` and the board takes no other swap
 until it lands, so working underwater costs time against the clock. That cost is client timing
@@ -792,7 +798,7 @@ Maintained as they arise.
 | Tile art | Illustrated pieces | Colored squares with a distinct surface texture per kind, specials with icon and label, optional marks | Owner wants clarity first; textures and marks keep kinds apart without color |
 | Bilging hints | None | Idle hint in unrated practice only | Teaches newcomers; rated rounds stay unaided |
 | Bilging scoring | Original's table | n(n-2) per group, times groups, times cascade step | Published formula, tuned in playtests |
-| Bilging water | Driven by the ship | In practice: rises with moves, drains with points, floor of 3 rows. Aboard: the ship's bilge, injected into the move log as water events the server vouches for | Replays stay self-contained either way: the log is the whole story (ADR 0003) |
+| Bilging water | Driven by the ship | The ship's bilge, never read below 3 rows, injected into the move log as water events the server vouches for; the harness plays a lone ship's bilge the same way (ADR 0029) | Replays stay self-contained: the log is the whole story (ADR 0003). A bilge that never reads dry keeps underwater swaps and barnacle setups on a sound ship's board |
 | Divergent puzzle round | n/a (client-reported) | Rejected outright, unrated, logged | Engines are deterministic; any mismatch is a bug or a cheat |
 | Sailing piece control | Free fall in real time | The move is the resting position; the engine checks it is reachable from the entry by sliding, turning and falling | One move per pair keeps the log small while steering under platforms stays possible (ADR 0015) |
 | Sailing platforms | Targets on fixed structures | Platforms are shapes (bars, stacks, L's, squares) with outlined targets and blanks; shelves sit under their bottom cells; a cleared one is dealt again elsewhere | Same role, original layouts; shapes make tucking and stacking matter |

@@ -68,6 +68,19 @@ export function legUnits(durationSeconds: number): number {
   return durationSeconds * UNITS_PER_SECOND;
 }
 
+/**
+ * The bilge after one turn: the class's intake, more through a damaged hull, less what the pump
+ * station's output drains. Every quantity in permille, as the ship carries them. The ship's turn
+ * and the harness's lone Bilging ship (`soloBilgeTurn`) both take water this way.
+ */
+export function bilgeAfterTurn(rules: ShipRules, water: number, damage: number, bilgingOutput: number): number {
+  return clamp(
+    water + rules.waterIntakePerTurn + Math.floor((damage * rules.waterIntakeAtFullDamage) / PERMILLE) - Math.floor((rules.pumpPerTurn * bilgingOutput) / 100),
+    0,
+    PERMILLE,
+  );
+}
+
 /** A station's output for a turn: `points` as a percentage of par, clamped. */
 export function outputPercent(config: ShipConfig, station: Station, points: number): number {
   return Math.min(config.rules.maxOutputPercent, Math.floor((points * 100) / config.par[station]));
@@ -487,11 +500,7 @@ function turn(state: ShipState): ShipState {
     } else outputs[st] = outputPercent(s.config, st, s.pending[st]);
   }
 
-  const water = clamp(
-    s.water + r.waterIntakePerTurn + Math.floor((s.damage * r.waterIntakeAtFullDamage) / PERMILLE) - Math.floor((r.pumpPerTurn * outputs.bilging) / 100),
-    0,
-    PERMILLE,
-  );
+  const water = bilgeAfterTurn(r, s.water, s.damage, outputs.bilging);
   const damage = clamp(s.damage + r.wearPerTurn - Math.floor((r.repairPerTurn * outputs.carpentry) / 100), 0, PERMILLE);
 
   let speed = Math.min(r.maxSpeed, r.idleSpeed + Math.floor((r.sailSpeed * outputs.sailing) / 100) + Math.floor((r.navSpeed * outputs.navigation) / 100));

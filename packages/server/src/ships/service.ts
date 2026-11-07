@@ -14,6 +14,7 @@ import {
   progressPermille,
   reduceShip,
   reduceSwordfight,
+  bilgeRowsFor,
   shipConfigFor as engineShipConfigFor,
   shipSupply,
   splitBooty,
@@ -734,10 +735,9 @@ export class ShipService {
     return started;
   }
 
-  /** The ship's bilge as rows of the Bilging board: the board's water is the ship's (DESIGN.md 3.3). */
+  /** The ship's bilge as rows of the Bilging board, never below its floor: the board's water is the ship's (DESIGN.md 3.3). */
   bilgeRows(room: ShipRoom): number {
-    const height = this.content.puzzles.bilging.config.height;
-    return Math.min(height, Math.round((room.state.water * height) / 1000));
+    return bilgeRowsFor(room.state.water, this.content.puzzles.bilging.config);
   }
 
   /** After a turn, tell the pirate at the pump how deep the bilge is now; their board logs it as a water event. */

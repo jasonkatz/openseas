@@ -34,3 +34,4 @@ that supersedes it.
 | [0026](./0026-linking-keeps-the-accounts-pirate.md) | Linking a guest: a returning account keeps its own pirate, and we retire the guest |
 | [0027](./0027-voyage-bench-sails-the-engines-as-the-server-does.md) | The voyage bench sails a ship through the engine's reducers, wired as the server wires them |
 | [0028](./0028-standing-is-earned-in-the-game.md) | Standing is earned in the game; the harness records rounds and rates each one's performance |
+| [0029](./0029-harness-bilging-plays-a-lone-ships-bilge.md) | The harness plays Bilging against a lone ship's bilge, and a bilge never reads dry |

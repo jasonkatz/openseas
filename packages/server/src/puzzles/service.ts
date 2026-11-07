@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { Content } from "@openseas/content";
-import { PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
+import { PUZZLE_IDS, parPerTurn, type PuzzleId } from "@openseas/engine";
 import { parseMoveFor, type ClientMetrics, type PuzzleIdWire, type PuzzleResult, type PuzzleStarted, type ServerMessage } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
@@ -40,6 +40,8 @@ export class PuzzleService {
    * whatever the ship announced that the board has not logged yet. Set by the ship service.
    */
   onResync: ((session: PuzzleSession) => void) | null = null;
+  /** A harness Bilging round's lone ship turned and its bilge moved (ADR 0029): tell its pirate. Set by the socket server. */
+  onSoloWater: ((session: PuzzleSession, row: number) => void) | null = null;
 
   constructor(
     private readonly db: Db,
@@ -58,7 +60,13 @@ export class PuzzleService {
       now,
       randomSeed: () => randomBytes(16).toString("hex"),
       randomId: () => randomUUID(),
+      soloBilge: { rules: content.world.ship, par: parPerTurn(content.world.ship, content.puzzles.bilging) },
     });
+  }
+
+  /** Once a second: turn the lone ships of harness Bilging rounds that are due, and pass on what moved. */
+  tick(): void {
+    for (const { session, row } of this.sessions.turnSoloBilges()) this.onSoloWater?.(session, row);
   }
 
   start(pirateId: string, puzzle: PuzzleId, duty: DutyBinding | null = null): PuzzleStarted {

@@ -6,6 +6,7 @@ import {
   DEFAULT_GUNNERY_CONFIG,
   DEFAULT_NAVIGATION_CONFIG,
   DEFAULT_SAILING_CONFIG,
+  DEFAULT_SHIP_RULES,
   DEFAULT_SWORDFIGHT_CONFIG,
   PUZZLE_IDS,
   PUZZLES,
@@ -241,5 +242,44 @@ describe("PuzzleSessionManager", () => {
     // The engine itself marks the game finished, so a third move is illegal; either way it is rejected.
     const r = m.move(s, 2, { type: "end" }, "00000000");
     expect(r.ok).toBe(false);
+  });
+
+  it("a harness Bilging round plays a lone ship's bilge: it turns on the round's clock and only its depth is a legal water move", () => {
+    const now = { t: 1000 };
+    // A leaky hull so the bilge climbs past the board's floor inside a one-minute round.
+    const m = manager(now, { soloBilge: { rules: { ...DEFAULT_SHIP_RULES, waterIntakePerTurn: 200 }, par: 20 } });
+    const s = m.start("p1", "bilging");
+    expect((s.config as BilgingConfig).shipWater).toBe(true);
+    // A dry ship reads as the bilge's floor, which is where the board starts.
+    expect(s.shipWaterRow).toBe(3);
+    now.t += 9_999;
+    expect(m.turnSoloBilges()).toEqual([]);
+    // One turn: 200 permille still reads as the floor, so there is nothing to tell the client.
+    now.t += 1;
+    expect(m.turnSoloBilges()).toEqual([]);
+    // Two: 400 permille is five rows.
+    now.t += 10_000;
+    expect(m.turnSoloBilges().map((c) => ({ id: c.session.id, row: c.row }))).toEqual([{ id: s.id, row: 5 }]);
+    expect(s.shipWaterRow).toBe(5);
+    expect(m.turnSoloBilges()).toEqual([]);
+
+    let client = createBilgingGame(s.seed, s.config as BilgingConfig);
+    client = reduceBilging(client, { type: "water", row: 5 });
+    expect(m.move(s, 0, { type: "water", row: 5 }, hashBilgingState(client))).toEqual({ ok: true, seq: 0 });
+    const lie = reduceBilging(client, { type: "water", row: 3 });
+    expect(m.move(s, 1, { type: "water", row: 3 }, hashBilgingState(lie))).toMatchObject({ ok: false, reason: "illegal_move" });
+  });
+
+  it("no lone ship turns after the round's deadline, and a duty board has none", () => {
+    const now = { t: 0 };
+    const m = manager(now, { soloBilge: { rules: { ...DEFAULT_SHIP_RULES, waterIntakePerTurn: 400 }, par: 20 } });
+    const s = m.start("p1", "bilging");
+    now.t = 120_000;
+    m.turnSoloBilges();
+    // A one-minute round has five turns before its deadline, never a sixth.
+    expect(s.soloBilge?.turns).toBe(5);
+    const duty = m.start("p2", "bilging", { shipId: "ship", station: "bilging", voyageId: "v", water: 7 });
+    expect(duty.soloBilge).toBeNull();
+    expect(duty.shipWaterRow).toBe(7);
   });
 });

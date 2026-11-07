@@ -180,7 +180,10 @@ export const ServerMessageSchema = z.union([
   /** The pirate is no longer aboard: they went ashore, or their held seat timed out. */
   z.object({ type: z.literal("ship.left"), shipId: z.string(), reason: z.enum(["left", "timed_out"]) }),
   z.object({ type: z.literal("board.ships"), islandId: z.string(), ships: z.array(BoardShipSchema), serverNow: z.number() }),
-  /** The ship's bilge changed at a turn: the Bilging board at this session logs a water move with this row. */
+  /**
+   * The ship's bilge changed at a turn: the Bilging board at this session logs a water move with this
+   * row. Sent to a duty board by its ship, and to a recorded harness round by its lone ship (ADR 0029).
+   */
   z.object({ type: z.literal("duty.water"), sessionId: SessionId, row: z.int().min(0).max(32) }),
   /** A ship turn passed during a battle: the captain's board logs a supply move with exactly these numbers. */
   z.object({
