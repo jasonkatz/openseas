@@ -160,7 +160,7 @@ export function contentProblems(content: Content): string[] {
     if (new Set(c.mateStations).size !== c.mateStations.length) problems.push(`ship class ${c.id}: mateStations repeats a station`);
   }
   if (world.ship.mateOutput.max < world.ship.mateOutput.min) problems.push("ocean: ship.mateOutput ends below where it starts");
-  if (world.ship.mateOutput.max > world.ship.maxOutputPercent) problems.push("ocean: ship.mateOutput exceeds maxOutputPercent");
+  if (Object.values(world.ship.outputCapPercent).some((cap) => world.ship.mateOutput.max > cap)) problems.push("ocean: ship.mateOutput exceeds a station's outputCapPercent");
   for (const g of world.shipGrants) {
     if (!classIds.has(g.shipClassId)) problems.push(`ship grant ${g.id}: unknown ship class ${g.shipClassId}`);
     if (g.requires.minTier !== null && !ratingTierKeys.has(g.requires.minTier)) {

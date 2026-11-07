@@ -16,7 +16,7 @@
     "damageSlow": 500,
     "loadPerTurn": 500,
     "navTokens": 2,
-    "maxOutputPercent": 200,
+    "outputCapPercent": { "bilging": 1000, "sailing": 350, "carpentry": 1000, "gunnery": 650, "navigation": 1000 },
     "graceTurns": 12,
     "hailTurns": 3,
     "encounterWindow": { "from": 250, "to": 800 },

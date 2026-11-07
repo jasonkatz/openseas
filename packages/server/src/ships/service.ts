@@ -18,6 +18,8 @@ import {
   shipConfigFor as engineShipConfigFor,
   shipSupply,
   splitBooty,
+  turnBootyOutputs,
+  meleeBootyOutput,
   summarizeSwordfight,
   swordfightBoardLoad,
   swordfightBoardString,
@@ -60,8 +62,8 @@ interface StationSession {
 interface BattleRun {
   sessionId: string;
   tierId: string;
-  /** Duty points per pirate since the fight began, for the booty split. */
-  dutyPoints: Map<string, number>;
+  /** What each pirate's station gave the ship since the fight began, in percent of par summed over turns, for the booty (ADR 0030). */
+  dutyOutput: Map<string, number>;
   /** The last battle turn the ship has taken hits and shots from. */
   turnsSeen: number;
   /** The ship's hull as the board last learned it, to read what a turn took off it. */
@@ -81,8 +83,8 @@ export interface MeleeRun {
   fights: Map<string, string>;
   /** Scores of fights already over, for the booty split. */
   scores: Map<string, number>;
-  /** Duty points from the sea battle before the boarding, carried into the split. */
-  dutyPoints: Map<string, number>;
+  /** Output each pirate gave the ship in the sea battle before the boarding, carried into the split. */
+  dutyOutput: Map<string, number>;
   /** Sea battle turns fought before the boarding, for the log. */
   turns: number;
   settling: boolean;
@@ -348,7 +350,7 @@ export class ShipService {
     // Room for every turn, the captain's grace period if they drop, and a minute to spare.
     const roundMs = (config.maxTurns + rules.graceTurns) * this.turnMs + 60_000;
     const started = this.puzzles.startBattle(pirateId, { shipId: room.shipId, voyageId: room.voyageId, tierId: tier.id }, { config, roundMs });
-    room.battle = { sessionId: started.sessionId, tierId: tier.id, dutyPoints: new Map(), turnsSeen: 0, hullSent: room.state.damage };
+    room.battle = { sessionId: started.sessionId, tierId: tier.id, dutyOutput: new Map(), turnsSeen: 0, hullSent: room.state.damage };
     this.log.info({ shipId: room.shipId, tierId: tier.id, sessionId: started.sessionId }, "battle engaged");
     await this.afterChange(room);
     return started;
@@ -436,8 +438,8 @@ export class ShipService {
     room.battle = null;
     const tier = this.content.world.brigandTiers.find((t) => t.id === run.tierId);
     // Either boarding opens the melee at the rail; the melee decides the booty (M5, ADR 0022).
-    if ((outcome === "boarded" || outcome === "boarded_by") && tier && room.state.voyage?.battle && this.openMelee(room, tier, run.dutyPoints, turns)) return;
-    await this.payBattle(room, run.tierId, run.dutyPoints, outcome, turns);
+    if ((outcome === "boarded" || outcome === "boarded_by") && tier && room.state.voyage?.battle && this.openMelee(room, tier, run.dutyOutput, turns)) return;
+    await this.payBattle(room, run.tierId, run.dutyOutput, outcome, turns);
   }
 
   /** The fight is decided: pay out, tell the ship, log it. `points` weights the split per pirate. */
@@ -484,7 +486,7 @@ export class ShipService {
    * board per pirate with the tier's hand, and the ship holds position until the rail is decided.
    * Returns false when nobody is there to fight, in which case the sea battle settles as it stood.
    */
-  private openMelee(room: ShipRoom, tier: BrigandTier, dutyPoints: Map<string, number>, turns: number): boolean {
+  private openMelee(room: ShipRoom, tier: BrigandTier, dutyOutput: Map<string, number>, turns: number): boolean {
     // Deckhands hold no board and never fight; a pirate's seat may be held while they are away.
     const connected = room.state.crew.filter((c) => !c.mate && c.awaySinceTurn === null && room.conns.has(c.pirateId));
     if (connected.length === 0 || room.melee) return false;
@@ -501,7 +503,7 @@ export class ShipService {
       crew: createSwordfightGame(seed, crewConfig),
       fights: new Map(),
       scores: new Map(),
-      dutyPoints,
+      dutyOutput,
       turns,
       settling: false,
     };
@@ -685,8 +687,16 @@ export class ShipService {
       run.scores.set(pirateId, summarizeSwordfight(session.state as SwordfightState).score);
     }
     room.melee = null;
+    // The melee counts as duty turns at each pirate's attack a minute against Swordfight's par (ADR 0030).
+    const sword = this.content.puzzles.swordfight;
+    const meleeMs = this.now() - run.startedAt;
     const points = new Map<string, number>();
-    for (const c of room.state.crew) points.set(c.pirateId, (run.dutyPoints.get(c.pirateId) ?? 0) + (run.scores.get(c.pirateId) ?? 0));
+    for (const c of room.state.crew) {
+      const score = run.scores.get(c.pirateId) ?? 0;
+      const rate = score >= sword.config.winPoints ? score - sword.config.winPoints : score;
+      const melee = run.scores.has(c.pirateId) ? meleeBootyOutput(rate, sword.parRatePerMinute, meleeMs, this.content.world.ship.turnSeconds) : 0;
+      points.set(c.pirateId, (run.dutyOutput.get(c.pirateId) ?? 0) + melee);
+    }
     this.log.info({ shipId: room.shipId, tierId: run.tierId, outcome }, "melee ended");
     await this.payBattle(room, run.tierId, points, outcome, run.turns);
   }
@@ -819,6 +829,8 @@ export class ShipService {
           while (this.now() >= room.nextTurnAt && turns < 1000) {
             this.takeTurnPoints(room);
             room.state = reduceShip(room.state, { type: "turn" });
+            // In a fight, the booty weighs what each pirate's station gave the ship this turn (ADR 0030).
+            if (room.battle) for (const { pirateId, output } of turnBootyOutputs(room.state)) room.battle.dutyOutput.set(pirateId, (room.battle.dutyOutput.get(pirateId) ?? 0) + output);
             room.nextTurnAt += this.turnMs;
             turns += 1;
             events.push(...room.state.events);
@@ -909,9 +921,6 @@ export class ShipService {
   private report(room: ShipRoom, station: Station, points: number): void {
     if (points <= 0 || !room.state.voyage || !crewAtStation(room.state, station)) return;
     room.state = reduceShip(room.state, { type: "duty", station, points });
-    const run = room.battle;
-    const who = crewAtStation(room.state, station);
-    if (run && who) run.dutyPoints.set(who.pirateId, (run.dutyPoints.get(who.pirateId) ?? 0) + points);
   }
 
   /** Cut short whatever board is running at a station. */

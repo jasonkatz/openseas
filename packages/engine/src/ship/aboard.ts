@@ -139,10 +139,38 @@ export function shipSupply(ship: ShipState): ShipSupply {
 }
 
 /**
- * Booty split among everyone aboard, weighted by duty performance during the fight, with an extra
- * share for the captain (DESIGN.md 3.4): a base of two shares for the captain and one for everyone
- * else, each scaled between half and full by the pirate's points against the best aboard. What the
- * floors leave over goes to the captain. Integer arithmetic throughout.
+ * What each pirate gave the ship in the turn just taken, for the booty (ADR 0030): the output of
+ * the station they held, in percent of par after the station's cap, which is what the ship
+ * received. Deckhands earn no booty, and a pirate at no station gave nothing this turn.
+ */
+export function turnBootyOutputs(ship: ShipState): Array<{ pirateId: string; output: number }> {
+  const turn = ship.lastTurn;
+  if (!turn || turn.held) return [];
+  const out: Array<{ pirateId: string; output: number }> = [];
+  for (const c of ship.crew) {
+    if (c.mate || c.station === null) continue;
+    const output = turn.outputs[c.station];
+    if (output > 0) out.push({ pirateId: c.pirateId, output });
+  }
+  return out;
+}
+
+/**
+ * A pirate's melee as duty turns for the booty (ADR 0030): their attack a minute against
+ * Swordfight's par rate, in percent, counted once for every ship's turn the melee lasted.
+ */
+export function meleeBootyOutput(attackPerMinute: number, parRatePerMinute: number, meleeMs: number, turnSeconds: number): number {
+  const turns = Math.max(1, Math.round(meleeMs / (turnSeconds * 1000)));
+  return Math.floor((Math.max(0, attackPerMinute) * 100) / Math.max(1, parRatePerMinute)) * turns;
+}
+
+/**
+ * Booty split among everyone aboard, weighted by what each gave the ship during the fight, with an
+ * extra share for the captain (DESIGN.md 3.4): a base of two shares for the captain and one for
+ * everyone else, each scaled between half and full by the pirate's weight against the best
+ * aboard. The weight is output the ship received plus the melee as duty turns (ADR 0030), so every
+ * station is measured against its own par. What the floors leave over goes to the captain.
+ * Integer arithmetic throughout.
  */
 export function splitBooty(total: number, crew: ReadonlyArray<{ pirateId: string; captain: boolean; points: number }>): Map<string, number> {
   const out = new Map<string, number>();
@@ -201,7 +229,7 @@ export function soloBilgeStart(board: BilgeBoardFields): SoloBilge {
 /** One ship's turn for a lone Bilging board whose score is now `score`. A turn that earned nothing (or less) pumps nothing. */
 export function soloBilgeTurn(rules: ShipRules, par: number, bilge: SoloBilge, score: number, board: BilgeBoardFields): SoloBilge {
   const points = Math.max(0, score - bilge.lastScore);
-  const output = Math.min(rules.maxOutputPercent, Math.floor((points * 100) / Math.max(1, par)));
+  const output = Math.min(rules.outputCapPercent.bilging, Math.floor((points * 100) / Math.max(1, par)));
   const water = bilgeAfterTurn(rules, bilge.water, 0, output);
   return { water, lastScore: score, row: bilgeRowsFor(water, board) };
 }

@@ -127,7 +127,14 @@ export const ShipRulesSchema = z.object({
   damageSlow: z.int().min(0).max(1000),
   loadPerTurn: z.int().min(0).max(100_000),
   navTokens: z.int().min(0).max(100),
-  maxOutputPercent: z.int().min(100).max(10_000),
+  /** Each station's turn output is clamped to its own percent of par (ADR 0030). */
+  outputCapPercent: z.object({
+    bilging: z.int().min(100).max(10_000),
+    sailing: z.int().min(100).max(10_000),
+    carpentry: z.int().min(100).max(10_000),
+    gunnery: z.int().min(100).max(10_000),
+    navigation: z.int().min(100).max(10_000),
+  }),
   graceTurns: z.int().min(0).max(100_000),
   hailTurns: z.int().min(1).max(100_000),
   encounterWindow: z.object({ from: z.int().min(0).max(1000), to: z.int().min(0).max(1000) }),
@@ -406,6 +413,8 @@ export const SwordPieceStyleSchema = z.object({
 export const SwordfightContentSchema = z.object({
   /** Wall-clock length of a practice fight, enforced by the server. Aboard, the melee has its own length. */
   roundSeconds: z.int().min(10).max(1800),
+  /** A steady fighter's attack a minute: the melee counts in the booty as duty turns at a pirate's rate against this (ADR 0030). */
+  parRatePerMinute: z.int().min(1),
   thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
   config: z.object({
     width: z.int().min(4).max(10),

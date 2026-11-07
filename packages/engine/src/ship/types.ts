@@ -9,7 +9,7 @@
  *   long and a turn at full speed covers `turnSeconds * 1000`, so a leg at full speed takes
  *   exactly its nominal time;
  * - a station's output for a turn is a percentage of par, the points a steady player makes in
- *   one turn, clamped to `maxOutputPercent`.
+ *   one turn, clamped to that station's `outputCapPercent`.
  *
  * Time is data: the server applies a `turn` move every `turnSeconds`. Nothing here reads a clock.
  */
@@ -73,8 +73,12 @@ export interface ShipRules {
   readonly loadPerTurn: number;
   /** Extra movement tokens per turn at 100% navigation output (M4). */
   readonly navTokens: number;
-  /** A station's output is clamped to this percentage of par. */
-  readonly maxOutputPercent: number;
+  /**
+   * Each station's output for a turn is clamped to its own percentage of par, set so ordinary
+   * bursts reach the ship whole and only a rare turn is cut short (ADR 0030). Puzzles that score in
+   * lumps (a patched hole, a charted constellation) need more room than ones that score steadily.
+   */
+  readonly outputCapPercent: Readonly<Record<Station, number>>;
   /** Turns a dropped pirate's seat is held before they are put ashore. */
   readonly graceTurns: number;
   /** Turns the captain has to answer a brigand's hail before the ship evades on its own. */
@@ -105,7 +109,7 @@ export const DEFAULT_SHIP_RULES: ShipRules = {
   damageSlow: 500,
   loadPerTurn: 500,
   navTokens: 2,
-  maxOutputPercent: 200,
+  outputCapPercent: { bilging: 1000, sailing: 350, carpentry: 1000, gunnery: 650, navigation: 1000 },
   graceTurns: 12,
   hailTurns: 3,
   encounterWindow: { from: 250, to: 800 },

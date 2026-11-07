@@ -58,6 +58,9 @@ import {
   type SwordfightConfig,
   type SwordfightMove,
   type SwordfightState,
+  turnBootyOutputs,
+  meleeBootyOutput,
+  swordfightScore,
 } from "@openseas/engine";
 import { meleeConfig, type VoyageSetup } from "./scenario.js";
 
@@ -97,8 +100,8 @@ export interface BattleRecord {
   readonly captainId: string;
   /** Who plotted each committed turn. */
   readonly plotters: ReadonlyArray<"ai" | "you">;
-  /** Duty points per pirate during the fight, for the purse. */
-  readonly dutyPoints: Readonly<Record<string, number>>;
+  /** What each pirate's station gave the ship during the fight, in percent of par summed over turns, for the purse (ADR 0030). */
+  readonly dutyOutput: Readonly<Record<string, number>>;
   readonly outcome: BattleOutcome | null;
 }
 
@@ -320,7 +323,7 @@ function engage(w: Work): void {
     startTurn: w.ship.turn + 1,
     captainId: w.ship.captainId ?? "",
     plotters: [],
-    dutyPoints: {},
+    dutyOutput: {},
     outcome: null,
   });
   supply(w);
@@ -349,13 +352,13 @@ function settleBattle(w: Work): void {
       return;
     }
   }
-  payBattle(w, rec.tierId, outcome, rec.dutyPoints, state.turn);
+  payBattle(w, rec.tierId, outcome, rec.dutyOutput, state.turn);
 }
 
 function openMelee(w: Work, tierId: string, boarding: "boarded" | "boarded_by", fighters: string[]): void {
   const tier = w.setup.tiers[tierId]!;
   const hands = fighters.slice(0, 8).map((id) => w.setup.crew.find((c) => c.pirateId === id)!.sword);
-  const config = meleeConfig(w.setup.swordBase, hands, tier.swordsmen);
+  const config = meleeConfig(w.setup.swordBase, hands, tier.swordsmen, tier.scorePercent);
   const seed = `${w.setup.seed}/melee/${w.melees.length + 1}`;
   w.melee = createSwordfightGame(seed, config);
   w.phase = "melee";
@@ -384,11 +387,16 @@ function settleMelee(w: Work, outcome: ShipBattleOutcome): void {
   w.melees[w.melees.length - 1] = { ...rec, outcome };
   w.melee = null;
   note(w, "melee_ended", { tier: rec.tierId, outcome });
-  // The purse is weighted by duty points in the sea battle and each pirate's score at the rail.
+  // The purse weighs what each pirate gave the ship in the sea battle, and their melee as duty
+  // turns at their attack a minute against Swordfight's par (ADR 0030).
   const battle = w.battles[w.battles.length - 1]!;
-  const points: Record<string, number> = { ...battle.dutyPoints };
+  const points: Record<string, number> = { ...battle.dutyOutput };
+  const meleeMs = state.tick * state.config.tickMs;
   rec.fighters.forEach((id, i) => {
-    points[id] = (points[id] ?? 0) + (state.boards[i]?.points ?? 0);
+    const board = state.boards[i];
+    if (!board) return;
+    const rate = swordfightScore(state.config, board.points, state.tick, null);
+    points[id] = (points[id] ?? 0) + meleeBootyOutput(rate, w.setup.meleeParRate, meleeMs, w.setup.ship.rules.turnSeconds);
   });
   payBattle(w, rec.tierId, outcome, points, battle.states[battle.states.length - 1]!.turn);
 }
@@ -487,10 +495,6 @@ export function step(sim: VoyageSim, input: StepInput = {}): VoyageSim {
       const points = Math.round((w.setup.ship.par[me.station] * percent) / 100);
       if (points <= 0) return;
       applyShip(w, { type: "duty", station: me.station, points });
-      if (w.battle) {
-        const rec = lastBattle(w);
-        w.battles[w.battles.length - 1] = { ...rec, dutyPoints: { ...rec.dutyPoints, [c.pirateId]: (rec.dutyPoints[c.pirateId] ?? 0) + points } };
-      }
     });
   }
 
@@ -499,6 +503,13 @@ export function step(sim: VoyageSim, input: StepInput = {}): VoyageSim {
   const brigandDamage = w.battle ? w.battle.ships[1].damage : null;
   const atSea = { water: w.ship.water, damage: w.ship.damage };
   applyShip(w, { type: "turn" });
+  // In a fight, the purse weighs what each pirate's station gave the ship this turn, as the server does (ADR 0030).
+  if (w.battle) {
+    const rec = lastBattle(w);
+    const dutyOutput = { ...rec.dutyOutput };
+    for (const { pirateId, output } of turnBootyOutputs(w.ship)) dutyOutput[pirateId] = (dutyOutput[pirateId] ?? 0) + output;
+    w.battles[w.battles.length - 1] = { ...rec, dutyOutput };
+  }
   const r = w.ship.lastTurn;
   // Making port repairs the ship for the dock; the chart keeps the last readings at sea.
   const reading = w.phase === "arrived" ? atSea : { water: w.ship.water, damage: w.ship.damage };
