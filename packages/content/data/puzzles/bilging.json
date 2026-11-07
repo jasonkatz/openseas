@@ -12,37 +12,23 @@
     "minWaterRow": 3,
     "waterRisePerMoves": 6,
     "waterDropPerPoints": 40,
-    "maxMoves": 120,
-    "shipWater": true
+    "maxMoves": 10000,
+    "shipWater": true,
+    "cascadeMultipliers": [1, 2, 3],
+    "streakStepPercent": 10,
+    "streakMaxPercent": 150,
+    "streakGrace": 1
   },
   "roundSeconds": 150,
-  "parScore": 300,
+  "parScore": 440,
   "underwaterSwapMs": 520,
   "thresholds": [
-    {
-      "score": 60,
-      "rating": 1100
-    },
-    {
-      "score": 150,
-      "rating": 1300
-    },
-    {
-      "score": 300,
-      "rating": 1500
-    },
-    {
-      "score": 500,
-      "rating": 1700
-    },
-    {
-      "score": 800,
-      "rating": 1900
-    },
-    {
-      "score": 1200,
-      "rating": 2100
-    }
+    { "score": 90, "rating": 1100 },
+    { "score": 220, "rating": 1300 },
+    { "score": 440, "rating": 1500 },
+    { "score": 730, "rating": 1700 },
+    { "score": 1170, "rating": 1900 },
+    { "score": 1750, "rating": 2100 }
   ],
   "pieces": [
     {

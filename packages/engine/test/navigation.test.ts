@@ -346,7 +346,10 @@ describe("navigation rules", () => {
     if (charted?.type === "charted") {
       expect(charted.completion.chain).toBe(2);
       expect(charted.completion.efficient).toBe(true);
-      expect(charted.completion.points).toBe(3 * 3 * cfg.starPoints * 2 + cfg.efficiencyBonus);
+      // The second in the chain takes the second entry; four landings for three markers saved two.
+      expect(charted.completion.chainPercent).toBe(cfg.chainPercent[1]);
+      expect(charted.completion.saved).toBe(2);
+      expect(charted.completion.points).toBe(Math.floor((3 * 3 * cfg.starPoints * cfg.chainPercent[1]!) / 100) + 2 * 3 * cfg.starPoints);
       expect(charted.completion.ids.length).toBe(3);
     }
     expect(after.completed).toBe(1);

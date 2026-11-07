@@ -47,6 +47,8 @@ export const BattleConfigSchema = z.object({
   supply: BattleSupplySchema.nullable(),
   brigand: BattleBrigandSchema,
   hitPoints: z.int().min(0).max(1_000_000),
+  hitTakenPoints: z.int().min(0).max(1_000_000),
+  scorePercent: z.int().min(1).max(1000),
   winPoints: z.int().min(0).max(1_000_000),
   turnBonus: z.int().min(0).max(1_000_000),
   maxMoves: z.int().min(1).max(1_000_000),

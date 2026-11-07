@@ -34,8 +34,14 @@ export interface CarpentryConfig {
   readonly grainBonusPercent: number;
   /** A hole left alone for this many placements elsewhere grows by one cell. */
   readonly growAfterMoves: number;
-  /** The round ends after this many planks. */
+  /** A bound on planks that only keeps the move log a sane size: the clock ends a round. A lab can set it low. */
   readonly maxMoves: number;
+  /**
+   * What a masterpiece multiplies by, in percent, by its place in the streak: the first takes the
+   * first entry, and a streak past the end of the list takes the last, the cap. A lesser patch
+   * resets the streak.
+   */
+  readonly streakPercent: readonly number[];
 }
 
 export const DEFAULT_CARPENTRY_CONFIG: CarpentryConfig = {
@@ -49,7 +55,8 @@ export const DEFAULT_CARPENTRY_CONFIG: CarpentryConfig = {
   multiplierPercent: { masterpiece: 300, craftsmanship: 200, fair: 150, sloppy: 100, pig: 50 },
   grainBonusPercent: 25,
   growAfterMoves: 6,
-  maxMoves: 60,
+  maxMoves: 10_000,
+  streakPercent: [100, 125, 150, 175, 200],
 };
 
 /** A plank waiting in one of the three slots. `shape` indexes PENTOMINOES; `kind` is its wood. */
@@ -96,8 +103,10 @@ export interface PatchedHole {
   readonly extra: number;
   readonly waste: number;
   readonly grainBonus: boolean;
-  /** Masterpiece streak this patch counted at (1 for a non-masterpiece). */
+  /** Masterpieces in a row this patch made, itself included (1 for a non-masterpiece). */
   readonly chain: number;
+  /** What the streak multiplied this patch by, in percent (100 for a non-masterpiece). */
+  readonly streakPercent: number;
   readonly points: number;
 }
 

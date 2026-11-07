@@ -77,7 +77,15 @@ optional mark. Specials are the Powder
 Keg (swap to clear a 3 by 3), the Ink Cloud (swap with a piece to clear every piece of that kind),
 and the Barnacle (unmatchable; it rides up with the board and comes off by itself, for a bonus,
 once it is at or above the water line). A connected cleared group of n pieces scores n(n-2); clearing k groups in
-one step multiplies by k; cascade step c multiplies by c. Every board the server deals plays on a ship's bilge (ADR 0029): content sets `shipWater`, so
+one step multiplies by k, with no cap, because a planned double is the skill; cascade step c
+multiplies by `cascadeMultipliers` (×1, ×2, ×3, and ×3 past that), so a lucky refill cascade cannot
+outweigh a setup. Barnacles that come off together take the group multiplier and no cascade's: k at
+once score 15 × k × k, the biggest lift on the board, earned by holding them under the line and
+lifting them together. A move's points are then multiplied by the streak: each scoring move in a
+row adds `streakStepPercent` (10%) from the second on, up to `streakMaxPercent` (×1.5); one swap
+that scores nothing (`streakGrace`, a setup) keeps the streak and a second in a row breaks it. The
+round runs its clock: `maxMoves` only bounds the log, so a score is points in a round's 150
+seconds, the same thing the ship pays per turn. Every board the server deals plays on a ship's bilge (ADR 0029): content sets `shipWater`, so
 swaps neither raise nor drain the water, and the ship injects water events into the log instead, one
 with the deal and one whenever a turn changes the depth. The board reads the bilge as rows and never
 below `minWaterRow`, three rows: a bilge never runs dry, so even a sound, pumped ship keeps the
@@ -133,12 +141,13 @@ and the cells above fill by falling in, while any cell can be entered from the s
 target on a platform holds its kind the platform clears, its target discs go, the shape is gone and
 a new one is dealt elsewhere. Runs of
 four or more of a kind, across or down, clear as well; crossing runs count as one group. Linked
-halves fall together until one is cleared. Each step of a cascade multiplies by its chain number,
-and several groups in one step multiply by their count, as in Bilging. A run of n scores
+halves fall together until one is cleared. Each step of a chain multiplies by `chainMultipliers`
+(×1, ×3, ×6, ×10, and ×10 past that), steeply, because a chain through the rigging is Sailing's
+skill; several groups in one step multiply by their count, as in Bilging. A run of n scores
 `runPoints * (n - 3)`; a platform scores `platformPoints` per target. If the rigging fills until
 no pair can enter the top row, it is cleared: every disc is swept away, `topOutPenalty` points are
 lost (never below zero), the combo breaks, fresh platforms are dealt and play goes on. The round
-ends only after `maxMoves` pairs or when the clock runs out. Every pair enters at the middle of
+ends on the clock; `maxMoves` only bounds the log. Every pair enters at the middle of
 the top row; the move the engine logs is the position it came to rest in (column, row, rotation),
 and the engine accepts it only if that spot is reachable from the entry by sliding, turning with
 the same kicks the client uses (either direction), and falling, and nothing holds the pair there. So a pair can be
@@ -170,10 +179,13 @@ are waste. When every cell of a hole is covered it is patched, its planks come o
 is dealt elsewhere. The patch is rated by extra planks beyond the minimum (area over five):
 none is a masterpiece (which also demands no waste), one craftsmanship, two a fair job, three
 sloppy work, four or more a pig's breakfast. Points are area times `basePerCell` times the
-rating's multiplier, plus a quarter more when every plank's grain runs across, times the current
-masterpiece streak; the streak is the combo and a lesser patch resets it. A hole left alone while
+rating's multiplier, plus a quarter more when every plank's grain runs across, times the
+masterpiece streak's multiplier: `streakPercent` gives ×1 for the first masterpiece in a row, then
+×1.25, ×1.5, ×1.75, and ×2 from the fifth on; a lesser patch resets it. Per plank the rating
+already slopes steeply (on a ten-cell hole a masterpiece is 60 a plank, a fair job 15), so the
+streak is a bonus on top, never the whole round. A hole left alone while
 `growAfterMoves` planks go elsewhere widens by one cell, and a widened hole can no longer be a
-masterpiece. The round ends after `maxMoves` planks or the clock. A round starts with no plank in
+masterpiece. The round ends on the clock; `maxMoves` only bounds the log. A round starts with no plank in
 hand; the player picks one from the tray. Control is built around the
 plank's centre: it sits under the pointer (lifted above a finger), and a spot that will not take it
 snaps to a neighbouring one that will, so dropping near a hole is enough. A mouse carries the plank
@@ -257,8 +269,9 @@ fill a marker, make a run, or unmake one. A star in the outer slot at the top sh
 marker is filled while a
 matching star sits on it, and a turn can fill one as well as a landing. When every marker is filled
 the constellation is charted: those stars go, points are `n * n * starPoints` times the chain of
-constellations charted without a booch, plus an efficiency bonus when it took at most `2n`
-landings, and a new constellation is dealt, larger as the round goes on and drawing half its kinds
+constellations charted without a booch (`chainPercent`: ×1, ×1.25, ×1.5, ×1.75, then ×2), plus
+`n * starPoints` for every landing under `2n` it took since it was dealt, so one charted in its
+minimum n landings earns as much again as its stars; then a new constellation is dealt, larger as the round goes on and drawing half its kinds
 from stars already on the chart so strays stay useful. Three or more loose stars of one kind in a
 row, around a ring or down a column, clear for `runPoints` per star beyond two; a star on its marker
 is charted, not loose, and never clears this way. A star arriving while the top outer slot is taken
@@ -301,8 +314,10 @@ cells to its side and stopping at a rock, each costing a load and dealing `shotD
 hulls. A ship at `grappleDamage` or worse can be boarded from the cell alongside by a ship that
 wants to, which ends the fight (the boarding stub); when both could, the sounder hull boards. A
 wrecked hull ends it too; `maxTurns` without either and the brigand breaks off; the captain can
-break off at any time. Score is `hitPoints` a hit, and `winPoints` plus `turnBonus` per turn to
-spare on a win; the combo is turns in a row with a hit. Tokens are dealt every turn in practice
+break off at any time. Score is `hitPoints` a hit landed less `hitTakenPoints` a hit taken, so hits
+score as the margin (never below zero), and `winPoints` plus `turnBonus` per turn to spare on a win;
+every turn's points are scaled by `scorePercent`, 100 in practice and aboard the tier's (cutpurse
+×0.5, marauder ×1, reaver ×2), so a harder brigand rates higher. The combo is turns in a row with a hit. Tokens are dealt every turn in practice
 (`supply`) and aboard by the ship: half the turn's tokens forward, the rest split between the
 turns, plus the loaded cannons and the hull. Brigand tiers differ by tokens, reloads, accuracy and
 aggression (`brigand-tiers.json`): the cutpurse is slow and sloppy, the reaver closes fast, fires
@@ -342,8 +357,12 @@ it lands as solid stone, and with one drop left (the second of two, in content) 
 on its color, so a player reads what is coming from the block itself. An upright pair whose column has one
 free cell left rests its lower half there and the upper half falls away over the top. A board whose
 entry (the top cell of the column pairs come in down) is covered is out; a side with no board
-standing has lost, and a win is
-`winPoints`. A pair may not come to rest sooner than `dropTicks` after it appeared; the fall
+standing has lost. The score is the player's attack a minute: every point their board broke,
+whether its wrack cancelled what was coming or went over, over the fight to its end (a board that
+goes out early keeps its clock running), counted as at least `minRateSeconds`, and scaled by
+`scorePercent` (the tier's, aboard). A win adds the band `winPoints` and any other end is kept
+under it, so every win outranks every loss and the rate ranks fights within each. The board
+shows attack a minute and blocks broken; a fight's result leads with won or lost. A pair may not come to rest sooner than `dropTicks` after it appeared; the fall
 itself is client timing (`fallTicks` a row, `softDropMs` while hurried, a short lock on resting)
 and never reaches the score. AI pirates (brigands in practice, allies in the lab's team fights)
 play inside the reducer: each drops every `thinkTicks`, choosing from every drop it could make,
@@ -791,23 +810,24 @@ Maintained as they arise.
 | Swordfight wrack ripening | Grey until it turns, with no word of the color | Wrack is dealt its color as it lands and shows it the drop before it turns | Planning around what is coming is the skill; a hidden color is luck |
 | Swordfight team targeting | Attacks spread over the opposing team | Each attack goes whole to the opposing board with the least on it | Reads on a phone: one board takes the hit, and the lightest one |
 | Swordfight opponents | Other pirates, or brigands when boarding | Brigands (and lab allies) are a scripted hand inside the reducer; a melee aboard routes attacks between every pirate's own fight and the brigand crew's | A practice fight replays from one log; each pirate's board aboard verifies on its own (ADR 0022) |
-| Swordfight rating | Head to head | By score against content thresholds, in practice and aboard alike | No human opponent until duels; head-to-head rating comes with them (as Sea Battle, ADR 0021) |
-| Sea battle rating | Head to head | By score against content thresholds, against AI brigands | No human opponent until player-versus-player at sea (ADR 0021) |
+| Swordfight rating | Head to head | By attack a minute, with every win in a band above every loss, scaled by the brigand tier, against content thresholds, in practice and aboard alike | No human opponent until duels; head-to-head rating comes with them (as Sea Battle, ADR 0021) |
+| Sea battle rating | Head to head | By the hit margin and the win, scaled by the brigand tier, against content thresholds, against AI brigands | No human opponent until player-versus-player at sea (ADR 0021) |
 | Sea battle tokens | Typed tokens from the sails | The ship's turn output as tokens: half forward, the rest split between the turns; Navigation adds `navTokens` | One number from the ship, split the same way every time |
 | Bilging specials | Crab, pufferfish, jellyfish | Barnacle, Powder Keg, Ink Cloud | Original names (ADR 0001); same roles |
 | Tile art | Illustrated pieces | Colored squares with a distinct surface texture per kind, specials with icon and label, optional marks | Owner wants clarity first; textures and marks keep kinds apart without color |
 | Bilging hints | None | Idle hint in unrated practice only | Teaches newcomers; rated rounds stay unaided |
-| Bilging scoring | Original's table | n(n-2) per group, times groups, times cascade step | Published formula, tuned in playtests |
+| Bilging scoring | Original's table | n(n-2) per group, times groups, times a capped cascade table; barnacles lifted together 15 × k²; a capped streak multiplier that survives one setup swap | Rewards planned multi-group swaps over refill luck (the owner's reward review); tuned in playtests |
 | Bilging water | Driven by the ship | The ship's bilge, never read below 3 rows, injected into the move log as water events the server vouches for; the harness plays a lone ship's bilge the same way (ADR 0029) | Replays stay self-contained: the log is the whole story (ADR 0003). A bilge that never reads dry keeps underwater swaps and barnacle setups on a sound ship's board |
 | Divergent puzzle round | n/a (client-reported) | Rejected outright, unrated, logged | Engines are deterministic; any mismatch is a bug or a cheat |
 | Sailing piece control | Free fall in real time | The move is the resting position; the engine checks it is reachable from the entry by sliding, turning and falling | One move per pair keeps the log small while steering under platforms stays possible (ADR 0015) |
 | Sailing platforms | Targets on fixed structures | Platforms are shapes (bars, stacks, L's, squares) with outlined targets and blanks; shelves sit under their bottom cells; a cleared one is dealt again elsewhere | Same role, original layouts; shapes make tucking and stacking matter |
-| Sailing scoring | Original's table | Run of n scores `runPoints * (n - 3)`, platform scores `platformPoints` per target, times groups, times chain step | Published formula, tuned in playtests |
+| Sailing scoring | Original's table | Run of n scores `runPoints * (n - 3)`, platform scores `platformPoints` per target, times groups, times a steep capped chain table | Chains through the rigging are the skill; tuned in playtests |
 | Sailing top-out | Board full ends the board | The rigging is cleared for `topOutPenalty` points and play continues to the clock | A filled board should cost, not stop, a two-minute practice round |
+| Duty round length | Real-time play at a station | Every round runs its clock; move limits only bound the move log, and no pace is checked | Scored per second, as the ship pays; quick players should feel quick |
 | Timed puzzle rounds | Real-time simulation | Integer ticks carried in every move; the server rejects ticks ahead of the wall clock | Keeps engines pure and replayable (ADR 0015) |
 | Carpentry holes | Grow in real time when unattended | Dealt as unions of pentominoes; widen by one cell after `growAfterMoves` planks placed elsewhere | Move-driven growth keeps the engine pure; pentomino unions guarantee a masterpiece is possible |
 | Carpentry patched hole | Planking stays visible | Planks come off and the hull is free again; a new hole is dealt | Keeps a practice round busy on a small board |
-| Carpentry scoring | Original's table | Area times `basePerCell` times a rating multiplier, grain bonus, times masterpiece streak | Published formula, tuned in playtests |
+| Carpentry scoring | Original's table | Area times `basePerCell` times a rating multiplier, grain bonus, times a masterpiece streak capped at ×2 | An uncapped streak let one late slip decide a round; tuned in playtests |
 | Gunnery firing | The captain fires loaded cannons in sea battle | On the Gunnery board a loaded cannon fires itself after `fireAfterTicks` and comes back clean, for the gunner's score; the ship keeps a count of loaded cannons from Gunnery output, and in a sea battle the captain fires those | The board stays a whole puzzle of its own; the captain still decides when the ship's guns speak (ADR 0021) |
 | Gunnery broadside | The captain decides when and which guns fire | Every gun fired since the last broadside scores `broadsidePoints` | Playtest: nothing rewarded loading more than the nearest gun; a broadside also sets up what the captain wants from gunners in M4 |
 | Gunnery supply | Pieces come into play around the board | One chute drops a previewed, bag-shuffled stream down the middle; unsteered pieces roll overboard | Playtest found random spawns unreadable; a single stream makes every arrow a clear decision |
@@ -824,5 +844,5 @@ Maintained as they arise.
 | Navigation booch | Turns the ship around | Sweeps the top column, costs `boochPenalty`, breaks the chain | No ship yet; the sweep keeps the chart playable (as Sailing's top-out costs rather than stops) |
 | Navigation runs | Rows of a kind clear | Three or more loose stars of a kind around a ring or down a column clear for `runPoints * (n - 2)`; stars on markers never do | Gives strays an outlet; charted stars must stay safe from it |
 | Navigation constellations | Fixed progression | Size grows with completions; half the kinds are drawn from stars already on the chart | Keeps stray stars useful on a small chart |
-| Navigation scoring | Original's table | `n * n * starPoints`, times chain, plus an efficiency bonus within `2n` landings | Published formula, tuned in playtests |
+| Navigation scoring | Original's table | `n * n * starPoints` times a chain capped at ×2, plus `n * starPoints` per landing saved under `2n` | Charting cleanly is the lever, not going long without a booch; tuned in playtests |
 | Navigation hints | None | After a pause in unrated practice, chevrons on the ring to turn | Teaches newcomers, as in Bilging; rated rounds stay unaided |

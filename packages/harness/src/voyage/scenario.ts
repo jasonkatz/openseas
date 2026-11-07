@@ -149,6 +149,8 @@ export interface TierSetup {
   readonly nameKey: string;
   readonly brigand: BrigandSpec;
   readonly booty: number;
+  /** What a fight against this tier is worth, in percent: battle points and the melee's attack rate scale by it. */
+  readonly scorePercent: number;
   readonly swordsmen: SwordHand;
 }
 
@@ -262,13 +264,13 @@ export function resolveScenario(content: Content, sc: VoyageScenario): Resolved 
   const tiers: Record<string, TierSetup> = {};
   for (const t of Object.values(w.tiers)) {
     const cls = parsed.data.shipClasses.find((c) => c.id === t.shipClassId);
-    tiers[t.id] = { id: t.id, nameKey: t.nameKey, brigand: brigandSpecFor(t, cls?.cannons ?? 0), booty: t.booty, swordsmen: { ...t.swordsmen } };
+    tiers[t.id] = { id: t.id, nameKey: t.nameKey, brigand: brigandSpecFor(t, cls?.cannons ?? 0), booty: t.booty, scorePercent: t.scorePercent, swordsmen: { ...t.swordsmen } };
   }
   if (ship && errors.length === 0) {
     const fresh = createShip(sc.seed, ship, w.route.from);
     for (const b of w.route.brigands) {
       const tier = tiers[b.tierId]!;
-      const cfg = battleConfigAboard(content.puzzles.battle.config, fresh, tier.brigand);
+      const cfg = battleConfigAboard(content.puzzles.battle.config, fresh, tier.brigand, tier.scorePercent);
       const wire = PUZZLE_CONFIG_SCHEMAS.battle.safeParse(cfg);
       if (!wire.success) for (const issue of wire.error.issues) errors.push(`battle against ${tier.id}: ${issue.path.join(".")}: ${issue.message}`);
       try {

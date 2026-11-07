@@ -108,9 +108,10 @@ export function brigandSpecFor(tier: BrigandTierFields, cannons: number): Brigan
 
 /**
  * The battle board's config aboard: content's rules with the ship's guns and hull, the tier's
- * brigand and the ship's turn. No practice supply: the ship's word arrives as `supply` moves.
+ * brigand, the tier's score factor and the ship's turn. No practice supply: the ship's word arrives
+ * as `supply` moves.
  */
-export function battleConfigAboard(base: BattleConfig, ship: ShipState, brigand: BrigandSpec): BattleConfig {
+export function battleConfigAboard(base: BattleConfig, ship: ShipState, brigand: BrigandSpec, scorePercent = 100): BattleConfig {
   const cannons = ship.config.shipClass.cannons;
   return {
     ...base,
@@ -120,6 +121,7 @@ export function battleConfigAboard(base: BattleConfig, ship: ShipState, brigand:
     startDamage: Math.min(999, ship.damage),
     supply: null,
     brigand,
+    scorePercent,
   };
 }
 

@@ -60,7 +60,9 @@ export function validateConfig(cfg: SwordfightConfig): void {
     cfg.foes.length <= 8 &&
     cfg.foes.every((a) => validAi(cfg, a)) &&
     (cfg.player || cfg.allies.length > 0) &&
-    int(cfg.winPoints, 0, 1_000_000) &&
+    int(cfg.winPoints, 1, 1_000_000) &&
+    int(cfg.scorePercent, 1, 1000) &&
+    int(cfg.minRateSeconds, 1, 3600) &&
     int(cfg.tickMs, 20, 5000) &&
     int(cfg.dropTicks, 0, 1000) &&
     int(cfg.fallTicks, 1, 1000) &&
@@ -104,6 +106,7 @@ function newBoard(cfg: SwordfightConfig, mind: "player" | "ai", side: 0 | 1, ai:
       points: 0,
       pool: 0,
       sent: 0,
+      broken: 0,
       bestChain: 0,
       out: false,
       nextActTick: ai ? ai.thinkTicks : -1,
@@ -610,7 +613,17 @@ function dropOn(cfg: SwordfightConfig, sim: Sim, i: number, col: number, rot: Sw
   sim.nextId = r.nextId;
   sim.nextSlabId = r.nextSlabId;
   sim.events.push(...r.events);
-  let board: SwordBoard = { ...before, cells: r.cells, slabs: r.slabs, points: before.points + r.points, drops: before.drops + 1, bestChain: Math.max(before.bestChain, r.chain) };
+  let broke = 0;
+  for (const e of r.events) if (e.type === "broke") for (const g of e.groups) broke += g.cells.length;
+  let board: SwordBoard = {
+    ...before,
+    cells: r.cells,
+    slabs: r.slabs,
+    points: before.points + r.points,
+    broken: before.broken + broke,
+    drops: before.drops + 1,
+    bestChain: Math.max(before.bestChain, r.chain),
+  };
   // Attack: points become wrack, which first cancels wrack waiting here, then goes over.
   let pool = board.pool + r.points;
   let wrack = Math.floor(pool / cfg.attackPoints);
@@ -708,12 +721,24 @@ function simulate(state: SwordfightState, tick: number): Sim {
   return sim;
 }
 
+/**
+ * The player's score (DESIGN.md 3.3): attack per minute over the fight, at least `minRateSeconds`
+ * of it, scaled by the tier; a won fight adds the win band, any other is kept under it.
+ */
+export function swordfightScore(cfg: SwordfightConfig, points: number, ticks: number, outcome: SwordfightOutcome | null): number {
+  const minTicks = Math.ceil((cfg.minRateSeconds * 1000) / cfg.tickMs);
+  const rate = Math.floor((points * 60_000 * cfg.scorePercent) / (100 * cfg.tickMs * Math.max(ticks, minTicks)));
+  return outcome === "won" ? cfg.winPoints + rate : Math.min(rate, cfg.winPoints - 1);
+}
+
 function finish(state: SwordfightState, sim: Sim, move: SwordfightMove, tick: number): SwordfightState {
   const cfg = state.config;
   const player = cfg.player ? sim.boards[0]! : null;
   const earned = player ? player.points - state.boards[0]!.points : 0;
-  let score = state.score + earned;
-  if (sim.finished && !state.finished && sim.outcome === "won") score += cfg.winPoints;
+  // A fight that ended inside this step is timed to its end, not to the move that noticed it.
+  const ended = sim.events.find((e) => e.type === "ended");
+  const ticks = sim.finished && ended ? ended.tick : tick;
+  const score = player ? swordfightScore(cfg, player.points, ticks, sim.finished ? sim.outcome : null) : 0;
   const report: SwordfightMoveReport = { move, events: sim.events, points: earned };
   return {
     config: cfg,
@@ -812,7 +837,7 @@ export function hashSwordfightState(s: SwordfightState): string {
   h.int(s.rng.a).int(s.rng.b).int(s.rng.c).int(s.rng.d);
   h.int(s.boards.length);
   for (const b of s.boards) {
-    h.int(b.side).int(b.blade).int(b.spawnedAt).int(b.pendingSince).int(b.cursor).int(b.drops).int(b.points).int(b.pool).int(b.sent).int(b.bestChain).int(b.out ? 1 : 0).int(b.nextActTick);
+    h.int(b.side).int(b.blade).int(b.spawnedAt).int(b.pendingSince).int(b.cursor).int(b.drops).int(b.points).int(b.pool).int(b.sent).int(b.broken).int(b.bestChain).int(b.out ? 1 : 0).int(b.nextActTick);
     for (const c of b.cells) {
       if (c === null) h.int(-1);
       else h.int(c.id).int(c.color).int(KINDS.indexOf(c.kind)).int(c.ripen).int(c.slab);

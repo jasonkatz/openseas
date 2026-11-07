@@ -357,7 +357,7 @@ export class ShipService {
   /** The battle board's config aboard: content's rules with the ship's guns and hull, the tier's brigand, the ship's turn. */
   battleConfigFor(room: ShipRoom, tier: BrigandTier): BattleConfig {
     const theirClass = this.content.world.shipClasses.find((c) => c.id === tier.shipClassId) ?? room.shipClass;
-    return battleConfigAboard(this.content.puzzles.battle.config, room.state, brigandSpecFor(tier, theirClass.cannons));
+    return battleConfigAboard(this.content.puzzles.battle.config, room.state, brigandSpecFor(tier, theirClass.cannons), tier.scorePercent);
   }
 
   /** Tell the captain's board what the ship brings right now. Called after the deal is sent and after every turn. */
@@ -469,10 +469,14 @@ export class ShipService {
 
   // ---- the boarding melee (M5, ADR 0022)
 
-  /** The melee's config for a pirate's own board: content's rules with nobody else in the fight; the brigand crew is outside it. */
-  private meleeConfigFor(): SwordfightConfig {
+  /**
+   * The melee's config for a pirate's own board: content's rules with nobody else in the fight (the
+   * brigand crew is outside it), and the tier's score factor on the attack rate.
+   */
+  private meleeConfigFor(tierId: string): SwordfightConfig {
     const base = this.content.puzzles.swordfight.config;
-    return { ...base, player: true, allies: [], foes: [] };
+    const tier = this.content.world.brigandTiers.find((t) => t.id === tierId);
+    return { ...base, player: true, allies: [], foes: [], scorePercent: tier?.scorePercent ?? base.scorePercent };
   }
 
   /**
@@ -517,7 +521,7 @@ export class ShipService {
     const run = room.melee;
     if (!run || !room.voyageId) return null;
     const roundMs = Math.max(10_000, run.deadlineAt - this.now());
-    const started = this.puzzles.startMelee(pirateId, { shipId: room.shipId, voyageId: room.voyageId, tierId: run.tierId }, { config: this.meleeConfigFor(), roundMs });
+    const started = this.puzzles.startMelee(pirateId, { shipId: room.shipId, voyageId: room.voyageId, tierId: run.tierId }, { config: this.meleeConfigFor(run.tierId), roundMs });
     run.fights.set(pirateId, started.sessionId);
     room.conns.send(pirateId, started);
     return started;

@@ -21,6 +21,11 @@ const swordfight = content.puzzles.swordfight;
 const waitAt = (tick: number): SwordfightMove => ({ type: "wait", tick });
 
 /** The practice fight: the player's board against brigands from content, every drop on the fight's clock. */
+/** The player's attack per minute, without the win band a won fight carries in its score. */
+function attackRate(s: SwordfightState): number {
+  return s.outcome === "won" ? s.score - s.config.winPoints : s.score;
+}
+
 export function SwordfightPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<SwordfightState, SwordfightMove, SwordfightConfig>({
@@ -119,6 +124,12 @@ export function SwordfightPractice() {
         </span>
       </div>
       <div className="stat">
+        <span className="stat-label">{t("swordfight.broken")}</span>
+        <span className="stat-value" data-testid="hud-broken">
+          {player.broken}
+        </span>
+      </div>
+      <div className="stat">
         <span className="stat-label">{t("swordfight.sent")}</span>
         <span className="stat-value" data-testid="hud-sent">
           {player.sent}
@@ -141,7 +152,8 @@ export function SwordfightPractice() {
       best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
-      score={shown.score}
+      score={attackRate(shown)}
+      scoreLabel={t("swordfight.attack_rate")}
       moves={player.drops}
       movesLabel={t("swordfight.drops")}
       combo={player.bestChain}
@@ -168,11 +180,20 @@ export function SwordfightPractice() {
         </>
       }
       details={details}
+      resultHeadline={
+        <h2 className={`fight-outcome ${state.outcome ?? "undecided"}`} data-testid="result-outcome">
+          {state.outcome ? t(`swordfight.outcome.${state.outcome}`) : t("swordfight.outcome.undecided")}
+        </h2>
+      }
       resultRows={
         <>
           <div>
-            <dt>{t("swordfight.result_outcome")}</dt>
-            <dd data-testid="result-outcome">{state.outcome ? t(`swordfight.outcome.${state.outcome}`) : t("swordfight.outcome.undecided")}</dd>
+            <dt>{t("swordfight.attack_rate")}</dt>
+            <dd data-testid="result-rate">{attackRate(state)}</dd>
+          </div>
+          <div>
+            <dt>{t("swordfight.broken")}</dt>
+            <dd>{state.boards[0]!.broken}</dd>
           </div>
           <div>
             <dt>{t("swordfight.result_sent")}</dt>

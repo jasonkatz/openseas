@@ -73,9 +73,13 @@ export interface ShellProps {
   score: number;
   moves: number;
   /** The move cap for the HUD bar; leave it out for puzzles whose count is not against a cap. */
-  maxMoves?: number;
+  maxMoves?: number | undefined;
   /** Label for the moves stat when "Moves" is not the word (e.g. stars landed). */
   movesLabel?: string;
+  /** Label for the score stat when "Score" is not the word (e.g. a rate). */
+  scoreLabel?: string;
+  /** Leads the result card, above the score: what decided the round, where that matters most (a fight won or lost). */
+  resultHeadline?: ReactNode;
   combo: number;
   canRecord: boolean;
   onStartRecorded(): void;
@@ -182,7 +186,7 @@ export function PracticeShell(p: ShellProps) {
   const coreStats = (
     <>
       <div className="stat stat-score">
-        <span className="stat-label">{t("practice.score")}</span>
+        <span className="stat-label">{p.scoreLabel ?? t("practice.score")}</span>
         <span className="stat-value" data-testid="hud-score">
           <span key={p.score} className={p.score ? "bump" : undefined}>
             {score}
@@ -298,6 +302,7 @@ export function PracticeShell(p: ShellProps) {
           {p.phase === "result" && p.outcome && (
             <div className="veil-card" data-testid="result">
               <p className="eyebrow">{t("practice.round_over")}</p>
+              {p.resultHeadline}
               <ResultBody outcome={p.outcome} rows={p.resultRows} />
               <div className="stack">
                 <button

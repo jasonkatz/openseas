@@ -22,7 +22,11 @@ export const BilgingConfigSchema = z.object({
   waterRisePerMoves: z.int().min(1),
   waterDropPerPoints: z.int().min(1),
   maxMoves: z.int().min(1).max(10_000),
-  /** True for a duty board aboard a ship: the water is the ship's bilge. Practice boards keep their own. */
+  /** True when the water is a ship's bilge (a duty board's, or a harness round's lone ship); false keeps the board's own. */
   shipWater: z.boolean().default(false),
+  cascadeMultipliers: z.array(z.int().min(1).max(100)).min(1).max(16),
+  streakStepPercent: z.int().min(0).max(1000),
+  streakMaxPercent: z.int().min(100).max(1000),
+  streakGrace: z.int().min(0).max(16),
 });
 export type BilgingConfigWire = z.infer<typeof BilgingConfigSchema>;

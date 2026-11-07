@@ -79,13 +79,15 @@ test("home links to Sailing and an unrated round takes keyboard drops", async ({
   await page.getByTestId("start-unrated").click();
   const canvas = page.getByTestId("sailing-canvas");
   await expect(canvas).toBeVisible();
-  await expect(page.getByTestId("hud-moves")).toContainText("0");
+  // The count alone: rounds run their clock, so no cap follows it.
+  await expect(page.getByTestId("hud-moves")).toHaveText("0");
 
-  // Steer, rotate, hard drop.
+  // Steer, rotate, and hold space to hurry the pair down until it lands (there is no hard drop).
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowUp");
-  await page.keyboard.press("Enter");
-  await expect(page.getByTestId("hud-moves")).toContainText("1");
+  await page.keyboard.down(" ");
+  await expect(page.getByTestId("hud-moves")).toHaveText("1");
+  await page.keyboard.up(" ");
   await expectViewMatchesState(page, "sailing");
 
   // Pointer: a tap turns the pair, a sideways drag steers it; then a key drops it.
@@ -98,8 +100,9 @@ test("home links to Sailing and an unrated round takes keyboard drops", async ({
   await page.mouse.down();
   await page.mouse.move(x + box.width * 0.2, y, { steps: 6 });
   await page.mouse.up();
-  await page.keyboard.press("Enter");
-  await expect(page.getByTestId("hud-moves")).toContainText("2");
+  await page.keyboard.down(" ");
+  await expect(page.getByTestId("hud-moves")).toHaveText("2");
+  await page.keyboard.up(" ");
 });
 
 test("home links to Carpentry and planks go down by keyboard and by tap", async ({ page }) => {

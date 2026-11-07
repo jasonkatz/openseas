@@ -19,7 +19,7 @@ export const NavigationConfigSchema = z.object({
   maxStars: z.int().min(1).max(96),
   reuseChancePercent: z.int().min(0).max(100),
   starPoints: z.int().min(0).max(10_000),
-  efficiencyBonus: z.int().min(0).max(10_000),
+  chainPercent: z.array(z.int().min(100).max(1000)).min(1).max(16),
   runPoints: z.int().min(0).max(10_000),
   boochPenalty: z.int().min(0).max(10_000),
   tickMs: z.int().min(20).max(5000),

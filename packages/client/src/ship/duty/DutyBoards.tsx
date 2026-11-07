@@ -8,8 +8,10 @@ import {
   advanceGunnery,
   advanceNavigation,
   previewSwap,
+  type BilgingConfig,
   type BilgingMove,
   type BilgingState,
+  type CarpentryConfig,
   type CarpentryMove,
   type CarpentryState,
   type ClearRound,
@@ -25,6 +27,7 @@ import {
   type NavigationState,
   type Rotation,
   type SailingClearRound,
+  type SailingConfig,
   type SailingMove,
   type SailingState,
 } from "@openseas/engine";
@@ -53,7 +56,7 @@ const bilging = content.puzzles.bilging;
 const dealtWater = (started: PuzzleStarted): BilgingMove[] => (started.duty?.water !== undefined ? [{ type: "water", row: started.duty.water }] : []);
 const shipWater = (m: ServerMessage, sessionId: string): BilgingMove | null => (m.type === "duty.water" && m.sessionId === sessionId ? { type: "water", row: m.row } : null);
 function BilgingDuty({ active, showMarks, children }: DutyProps) {
-  const api = useDuty<BilgingState, BilgingMove, typeof bilging.config>({
+  const api = useDuty<BilgingState, BilgingMove, BilgingConfig>({
     puzzle: "bilging",
     def: BILGING_DEF,
     config: bilging.config,
@@ -115,7 +118,7 @@ function BilgingDuty({ active, showMarks, children }: DutyProps) {
 
 const sailing = content.puzzles.sailing;
 function SailingDuty({ active, showMarks, children }: DutyProps) {
-  const api = useDuty<SailingState, SailingMove, typeof sailing.config>({ puzzle: "sailing", def: SAILING_DEF, config: sailing.config, roundSeconds: sailing.roundSeconds, active });
+  const api = useDuty<SailingState, SailingMove, SailingConfig>({ puzzle: "sailing", def: SAILING_DEF, config: sailing.config, roundSeconds: sailing.roundSeconds, active });
   const { state } = api;
   const onPlace = useCallback((col: number, row: number, rot: Rotation) => void api.apply({ type: "place", col, row, rot }), [api]);
   const onClear = useCallback((r: SailingClearRound) => {
@@ -141,7 +144,7 @@ function SailingDuty({ active, showMarks, children }: DutyProps) {
 
 const carpentry = content.puzzles.carpentry;
 function CarpentryDuty({ active, showMarks, children }: DutyProps) {
-  const api = useDuty<CarpentryState, CarpentryMove, typeof carpentry.config>({ puzzle: "carpentry", def: CARPENTRY_DEF, config: carpentry.config, roundSeconds: carpentry.roundSeconds, active });
+  const api = useDuty<CarpentryState, CarpentryMove, CarpentryConfig>({ puzzle: "carpentry", def: CARPENTRY_DEF, config: carpentry.config, roundSeconds: carpentry.roundSeconds, active });
   const { state } = api;
   const onPlace = useCallback((slot: number, rot: number, flip: boolean, col: number, row: number) => void api.apply({ type: "place", slot, rot, flip, col, row }), [api]);
   const onPatched = useCallback((rating: HoleRating, chain: number) => {

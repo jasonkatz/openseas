@@ -93,6 +93,13 @@ export interface BattleConfig {
   readonly brigand: BrigandSpec;
   /** Points per hit landed. */
   readonly hitPoints: number;
+  /** Points lost per hit taken, so hits score as the margin. The score never drops below zero. */
+  readonly hitTakenPoints: number;
+  /**
+   * Every turn's points are scaled by this, in percent: harder brigands score more. 100 in practice;
+   * aboard, the encounter's tier sets it (DESIGN.md 3.3).
+   */
+  readonly scorePercent: number;
   /** Points for boarding or crippling the brigand, plus `turnBonus` for every turn to spare. */
   readonly winPoints: number;
   readonly turnBonus: number;
@@ -138,6 +145,8 @@ export const DEFAULT_BATTLE_CONFIG: BattleConfig = {
   supply: { left: 1, forward: 2, right: 1, cannons: 2 },
   brigand: { cannons: 4, tokensPerTurn: 3, reloadPerTurn: 1, accuracy: 65, aggression: 60, startDamage: 0 },
   hitPoints: 50,
+  hitTakenPoints: 50,
+  scorePercent: 100,
   winPoints: 500,
   turnBonus: 40,
   maxMoves: 64,

@@ -153,7 +153,7 @@ describe("bilging rules", () => {
     );
   });
 
-  it("a plain non-clearing swap is legal and resets the combo", () => {
+  it("a plain non-clearing swap is legal and scores nothing", () => {
     // Find a seed and a swap that clears nothing.
     let state = createBilgingGame("plain");
     let found: BilgingMove | null = null;
@@ -195,6 +195,66 @@ describe("bilging rules", () => {
     expect(after.lastMove?.rounds[0]?.points).toBe(3);
     expect(after.score).toBeGreaterThanOrEqual(3);
     expect(after.combo).toBe(1);
+  });
+
+  it("a streak adds a step per scoring move in a row, up to its cap, on the move's whole points", () => {
+    const state = handBoard(Array.from({ length: 12 }, (_, r) => (r % 2 ? "120453" : "201534")));
+    const s2 = withCells(state, { 0: 7, 1: 7, 3: 7 });
+    const plain = reduceBilging(s2, { type: "swap", col: 2, row: 0 });
+    const raw = plain.lastMove!.rounds.reduce((n, r) => n + r.points, 0);
+    expect(plain.lastMove!.streakPercent).toBe(100);
+    expect(plain.lastMove!.points).toBe(raw);
+    // Fourth in a row: three before it, three steps.
+    const fourth = reduceBilging({ ...s2, combo: 3 }, { type: "swap", col: 2, row: 0 });
+    expect(fourth.lastMove!.streakPercent).toBe(100 + 3 * cfg.streakStepPercent);
+    expect(fourth.lastMove!.points).toBe(Math.floor((raw * (100 + 3 * cfg.streakStepPercent)) / 100));
+    expect(fourth.combo).toBe(4);
+    // Far into a streak it holds at the cap.
+    const long = reduceBilging({ ...s2, combo: 40 }, { type: "swap", col: 2, row: 0 });
+    expect(long.lastMove!.streakPercent).toBe(cfg.streakMaxPercent);
+  });
+
+  it("one setup swap keeps the streak; one more than the grace breaks it", () => {
+    let state: BilgingState = { ...createBilgingGame("plain"), combo: 4 };
+    const quiet = (s: BilgingState): BilgingMove => {
+      for (let r = 0; r < cfg.height; r++)
+        for (let c = 0; c < cfg.width - 1; c++) {
+          const pv = previewSwap(s, c, r);
+          if (pv.legal && pv.cells.length === 0 && reduceBilging(s, { type: "swap", col: c, row: r }).lastMove!.points === 0) return { type: "swap", col: c, row: r };
+        }
+      throw new Error("no quiet swap");
+    };
+    for (let k = 1; k <= cfg.streakGrace; k++) {
+      state = reduceBilging(state, quiet(state));
+      expect(state.combo).toBe(4);
+      expect(state.misses).toBe(k);
+    }
+    state = reduceBilging(state, quiet(state));
+    expect(state.combo).toBe(0);
+  });
+
+  it("barnacles lifted together score 15 by their count squared, and only clears take the cascade", () => {
+    // Over many rounds with barnacles about, every step is scored by the rule for what it cleared.
+    const rich: BilgingConfig = { ...cfg, specialChancePerMille: { keg: 40, ink: 30, barnacle: 120 } };
+    const step = (n: number): number => cfg.cascadeMultipliers[Math.min(n, cfg.cascadeMultipliers.length) - 1]!;
+    let lifted = 0;
+    fc.assert(
+      fc.property(fc.string({ minLength: 1, maxLength: 8 }), fc.array(fc.tuple(fc.integer({ min: 0, max: 4 }), fc.integer({ min: 0, max: 11 })), { minLength: 1, maxLength: 30 }), (seed, swaps) => {
+        let st = createBilgingGame(seed, rich);
+        for (const [col, row] of swaps) {
+          st = reduceBilging(st, { type: "swap", col, row });
+          for (const r of st.lastMove!.rounds) {
+            const base = r.groups.reduce((n, g) => n + g.points, 0);
+            if (r.groups.every((g) => g.cause === "barnacle")) {
+              lifted++;
+              expect(r.points).toBe(15 * r.groups.length * r.groups.length);
+            } else expect(r.points).toBe(base * r.groups.length * step(r.chain));
+          }
+        }
+      }),
+      { numRuns: 60 },
+    );
+    expect(lifted).toBeGreaterThan(0);
   });
 
   it("two separate threes in one swap are worth more than the sum", () => {

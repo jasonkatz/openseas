@@ -27,10 +27,17 @@ export interface NavigationConfig {
   readonly maxStars: number;
   /** Chance, in percent, that a new marker copies the kind of a star already on the chart. */
   readonly reuseChancePercent: number;
-  /** Points per completion are n * n * starPoints, times the chain. */
+  /**
+   * A constellation of n markers is worth n * n * starPoints, times the chain, plus its efficiency:
+   * every landing it took under 2n since it was dealt adds n * starPoints, so one charted in its
+   * minimum n landings earns as much again as its stars. Charting cleanly is the lever.
+   */
   readonly starPoints: number;
-  /** Added when a constellation of n markers completes within 2n landings of being dealt. */
-  readonly efficiencyBonus: number;
+  /**
+   * What the chain of constellations charted without a booch multiplies the stars by, in percent:
+   * the first takes the first entry, and a chain past the end takes the last, the cap.
+   */
+  readonly chainPercent: readonly number[];
   /** A run of n loose stars of a kind scores runPoints * (n - 2). */
   readonly runPoints: number;
   /** Lost when a star arrives at a blocked octant. Score never goes below zero. */
@@ -56,7 +63,7 @@ export const DEFAULT_NAVIGATION_CONFIG: NavigationConfig = {
   maxStars: 8,
   reuseChancePercent: 50,
   starPoints: 10,
-  efficiencyBonus: 30,
+  chainPercent: [100, 125, 150, 175, 200],
   runPoints: 5,
   boochPenalty: 40,
   tickMs: 100,
@@ -98,7 +105,13 @@ export interface Completion {
   readonly markers: readonly Marker[];
   /** Ids of the stars removed, in marker order. */
   readonly ids: readonly number[];
+  /** Constellations charted in a row without a booch, this one included. */
   readonly chain: number;
+  /** What the chain multiplied the stars by, in percent. */
+  readonly chainPercent: number;
+  /** Landings under 2n it took; each adds n * starPoints. */
+  readonly saved: number;
+  /** True when it saved any landings, for the callout. */
   readonly efficient: boolean;
   readonly points: number;
 }

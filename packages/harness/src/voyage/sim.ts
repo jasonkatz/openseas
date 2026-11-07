@@ -305,7 +305,7 @@ function engage(w: Work): void {
   const hail = w.ship.voyage?.hail;
   if (!hail || !applyShip(w, { type: "engage" })) return;
   const tier = w.setup.tiers[hail.tierId]!;
-  const config = battleConfigAboard(w.setup.battleBase, w.ship, tier.brigand);
+  const config = battleConfigAboard(w.setup.battleBase, w.ship, tier.brigand, tier.scorePercent);
   const seed = `${w.setup.seed}/battle/${w.battles.length + 1}`;
   const state = createBattleGame(seed, config);
   w.battle = state;
