@@ -378,3 +378,505 @@
 .sign-in .field input {
   min-width: 220px;
 }
+
+/* ---- voyage bench (ADR 0027): the scenario beside the voyage on wide screens, stacked on phones */
+:root {
+  /* Chart tokens. The harness is dark only; the outcome steps are validated against --ink-700 (dataviz). */
+  --vchart-surface: #0f1c30;
+  --vchart-line: var(--foam);
+  --vchart-grid: rgba(239, 227, 198, 0.1);
+  --vchart-axis: rgba(239, 227, 198, 0.22);
+  --vchart-battle: rgba(224, 82, 63, 0.2);
+  --vchart-melee: rgba(212, 165, 72, 0.24);
+  --vchart-held: rgba(201, 187, 154, 0.14);
+  --vchart-won: #28a68b;
+  --vchart-lost: #e0523f;
+  --vchart-neither: #9a9384;
+}
+.vpage {
+  max-width: 1320px;
+}
+.vhead .eyebrow a {
+  color: inherit;
+}
+.vtitle {
+  margin: 4px 0 6px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  font-size: clamp(34px, 7vw, 56px);
+  line-height: 1;
+  color: var(--parchment);
+}
+.vhead p.muted {
+  margin: 0;
+  max-width: 70ch;
+}
+.vlayout {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.vaside {
+  /* Not the puzzle pages' bench area: the voyage page lays out its own two columns. */
+  grid-area: auto;
+  align-self: start;
+  max-height: none;
+}
+.vshare {
+  margin-top: 12px;
+}
+.vmain {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-width: 0;
+}
+@media (min-width: 980px) {
+  .vlayout {
+    grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+    align-items: start;
+  }
+  .vaside {
+    grid-area: auto;
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 24px);
+  }
+}
+.vinvalid {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(240, 96, 77, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(240, 96, 77, 0.4);
+}
+.vinvalid p {
+  margin: 0 0 6px;
+  font-weight: 700;
+}
+.vtabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(7, 14, 26, 0.5);
+  width: fit-content;
+}
+.vtabs button {
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--parchment-dim);
+  cursor: pointer;
+}
+.vtabs button.is-on {
+  background: var(--ink-600);
+  color: var(--parchment);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.16);
+}
+.vrun,
+.vbatch {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.vcontrols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.vcontrols select,
+.vnum {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 227, 198, 0.18);
+  background: rgba(7, 14, 26, 0.6);
+  color: var(--parchment);
+  font: 13px/1.3 var(--font-body);
+}
+input.vnum {
+  width: 4.6em;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+.bench-row input.vnum {
+  width: 4.6em;
+}
+.vempty {
+  margin: 8px 0;
+}
+.vpanel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: linear-gradient(160deg, rgba(28, 43, 72, 0.9), rgba(11, 21, 38, 0.95));
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
+  min-width: 0;
+}
+.vpanel h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 19px;
+}
+.vsub {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--parchment-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.vsummary h3 {
+  font-size: 22px;
+}
+.vstatus {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px 14px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(7, 14, 26, 0.45);
+}
+.vstatus div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.vstatus-wide {
+  grid-column: span 2;
+}
+.vstatus dt {
+  color: var(--parchment-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+}
+.vstatus dd {
+  margin: 0;
+  font-size: 15px;
+}
+.vstatus .water-meter {
+  margin-top: 5px;
+}
+.vchip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(239, 227, 198, 0.12);
+  color: var(--parchment);
+  white-space: nowrap;
+}
+.vchip-captain {
+  background: rgba(212, 165, 72, 0.22);
+  color: #f3d491;
+}
+.vchip-battle {
+  background: rgba(224, 82, 63, 0.25);
+}
+.vchip-melee {
+  background: rgba(212, 165, 72, 0.3);
+}
+.vchip-arrived {
+  background: rgba(40, 166, 139, 0.3);
+}
+.vchip-adrift,
+.vchip-abandoned {
+  background: rgba(154, 147, 132, 0.3);
+}
+.bench-details summary .vchip {
+  margin-left: 8px;
+}
+.vplot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(94, 211, 184, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(94, 211, 184, 0.4);
+}
+.vplot p {
+  margin: 0;
+  font-weight: 700;
+}
+.vboard {
+  position: relative;
+  height: clamp(300px, 56vw, 560px);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--ink-900);
+}
+.vscrub input[type="range"] {
+  flex: 1 1 160px;
+}
+.vcrew,
+.vscript {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.vcrew-row {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(7, 14, 26, 0.4);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.06);
+}
+.vcrew-name {
+  flex: 1 1 120px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 227, 198, 0.18);
+  background: rgba(7, 14, 26, 0.6);
+  color: var(--parchment);
+  font: 600 14px/1.3 var(--font-body);
+}
+.vscript li {
+  font-size: 13px;
+}
+.vscript select {
+  max-width: 9.5em;
+}
+.vreadout {
+  margin: 0;
+  min-height: 2.8em;
+  font-variant-numeric: tabular-nums;
+}
+.vlog {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow: auto;
+  display: grid;
+  gap: 3px;
+  font-size: 13px;
+}
+.vlog li[data-kind="hailed"],
+.vlog li[data-kind="engaged"],
+.vlog li[data-kind="battle_ended"],
+.vlog li[data-kind="boarding"],
+.vlog li[data-kind="melee_ended"],
+.vlog li[data-kind="arrived"] {
+  font-weight: 700;
+}
+.vlog li[data-kind="refused"] {
+  color: #ff9a8a;
+}
+.vtable-wrap {
+  max-height: 360px;
+  overflow: auto;
+}
+.vtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.vtable th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--parchment-dim);
+  padding: 4px 8px 6px 0;
+  position: sticky;
+  top: 0;
+  background: var(--ink-700);
+}
+.vtable td {
+  padding: 4px 8px 4px 0;
+  border-top: 1px solid rgba(239, 227, 198, 0.08);
+}
+.vtable-foe td:first-child {
+  color: #ff9a8a;
+}
+.vprogress {
+  display: grid;
+  gap: 4px;
+}
+.vtiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.vtile {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(7, 14, 26, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.08);
+}
+.vtile-label {
+  font-size: 12px;
+  color: var(--parchment-dim);
+}
+.vtile-value {
+  font: 700 28px/1.15 var(--font-body);
+  color: var(--parchment);
+}
+
+/* ---- voyage charts */
+.vchart-stack {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.vchart-figure {
+  margin: 0;
+}
+.vchart-figure figcaption {
+  font-size: 12px;
+  color: var(--parchment-dim);
+  margin: 0 0 2px 40px;
+}
+.vchart {
+  display: block;
+  touch-action: pan-y;
+}
+.vchart-line {
+  fill: none;
+  stroke: var(--vchart-line);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.vchart-grid {
+  stroke: var(--vchart-grid);
+  stroke-width: 1;
+}
+.vchart-axis {
+  stroke: var(--vchart-axis);
+  stroke-width: 1;
+}
+.vchart-tick {
+  fill: var(--parchment-dim);
+  font: 10px var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+.vchart-cursor {
+  stroke: rgba(239, 227, 198, 0.45);
+  stroke-width: 1;
+}
+.vchart-dot {
+  fill: var(--vchart-line);
+  stroke: var(--vchart-surface);
+  stroke-width: 2;
+}
+.vchart-band-battle {
+  fill: var(--vchart-battle);
+  background: var(--vchart-battle);
+}
+.vchart-band-melee {
+  fill: var(--vchart-melee);
+  background: var(--vchart-melee);
+}
+.vchart-band-held {
+  fill: var(--vchart-held);
+  background: var(--vchart-held);
+}
+.vchart-heat {
+  fill: var(--vchart-line);
+}
+.vchart-heat-cursor {
+  fill: none;
+  stroke: rgba(239, 227, 198, 0.6);
+  stroke-width: 1;
+}
+.vchart-bar {
+  fill: var(--vchart-line);
+}
+.vchart-bar.is-hover {
+  fill: #8de6d1;
+}
+.vchart-axis-label {
+  margin: 0 0 0 40px;
+}
+.vchart-readout {
+  margin: 4px 0 0;
+}
+.vchart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--parchment);
+}
+.vchart-legend li {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.vchart-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+.vchart-scale {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0 96px;
+  font-size: 11px;
+  color: var(--parchment-dim);
+}
+.vchart-scale i {
+  flex: 0 1 70px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(94, 211, 184, 0.15), rgba(94, 211, 184, 0.575));
+}
+.vchart-scale i + span + i {
+  background: linear-gradient(90deg, rgba(94, 211, 184, 0.575), rgba(94, 211, 184, 1));
+}
+.vseg {
+  display: grid;
+  gap: 8px;
+}
+.vseg-bar {
+  display: flex;
+  gap: 2px;
+  height: 28px;
+}
+.vseg-part {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  min-width: 2px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.vseg-won {
+  background: var(--vchart-won);
+}
+.vseg-lost {
+  background: var(--vchart-lost);
+}
+.vseg-neither {
+  background: var(--vchart-neither);
+}

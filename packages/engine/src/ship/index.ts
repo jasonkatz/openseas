@@ -14,3 +14,17 @@ export {
   mates,
   progressPermille,
 } from "./reduce.js";
+export {
+  shipConfigFor,
+  legPlan,
+  splitTokens,
+  brigandSpecFor,
+  battleConfigAboard,
+  shipSupply,
+  splitBooty,
+  type ShipClassFields,
+  type DutyParFields,
+  type RouteLegFields,
+  type BrigandTierFields,
+  type ShipSupply,
+} from "./aboard.js";

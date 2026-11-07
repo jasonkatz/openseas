@@ -514,7 +514,8 @@ function turn(state: ShipState): ShipState {
   const events: ShipEvent[] = [...s.events];
   let encounter = v.encounter;
   let hail = v.hail;
-  if (encounter && !encounter.resolved && hail === null && progress >= encounter.atUnits) {
+  // A brigand already in a fight with the ship never hails it again; the fight resolves the encounter.
+  if (encounter && !encounter.resolved && hail === null && !v.battle && progress >= encounter.atUnits) {
     hail = { tierId: encounter.tierId, sinceTurn: turnNo };
     events.push({ type: "hailed", tierId: encounter.tierId });
   } else if (hail && encounter && turnNo - hail.sinceTurn >= r.hailTurns) {
