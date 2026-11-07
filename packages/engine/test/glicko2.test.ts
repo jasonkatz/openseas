@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NEW_RATING, dutyResults, tierFor, updateRating } from "../src/rating/glicko2.js";
+import { NEW_RATING, dutyResults, performanceRating, tierFor, updateRating } from "../src/rating/glicko2.js";
 
 describe("glicko2", () => {
   it("reproduces the worked example from the Glicko-2 paper", () => {
@@ -49,5 +49,38 @@ describe("glicko2", () => {
     expect(tierFor(1000, tiers).key).toBe("a");
     expect(tierFor(1400, tiers).key).toBe("b");
     expect(tierFor(2500, tiers).key).toBe("c");
+  });
+
+  it("performanceRating reads a score off the line through the thresholds", () => {
+    const thresholds = [
+      { score: 100, rating: 1100 },
+      { score: 300, rating: 1300 },
+      { score: 500, rating: 1500 },
+    ];
+    expect(performanceRating(100, thresholds)).toBe(1100);
+    expect(performanceRating(300, thresholds)).toBe(1300);
+    expect(performanceRating(400, thresholds)).toBe(1400);
+    // Below the first threshold the line runs to one step under it at a score of 0.
+    expect(performanceRating(0, thresholds)).toBe(900);
+    expect(performanceRating(50, thresholds)).toBe(1000);
+    expect(performanceRating(-20, thresholds)).toBe(900);
+    // Above the top it carries on at the last step's slope.
+    expect(performanceRating(700, thresholds)).toBe(1700);
+    expect(performanceRating(1500, thresholds)).toBe(2500);
+  });
+
+  it("performanceRating is whole and never falls with a higher score", () => {
+    const thresholds = [
+      { score: 60, rating: 1100 },
+      { score: 150, rating: 1300 },
+      { score: 300, rating: 1500 },
+    ];
+    let last = -1;
+    for (let s = 0; s <= 1000; s += 7) {
+      const r = performanceRating(s, thresholds);
+      expect(Number.isInteger(r)).toBe(true);
+      expect(r).toBeGreaterThanOrEqual(last);
+      last = r;
+    }
   });
 });

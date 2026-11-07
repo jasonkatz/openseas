@@ -135,8 +135,8 @@ export function NavigationPractice() {
       moves={shown.landings}
       movesLabel={t("navigation.stars")}
       combo={shown.combo}
-      canRate={api.canRate}
-      onStartRated={api.startRated}
+      canRecord={api.canRecord}
+      onStartRecorded={api.startRecorded}
       onStartUnrated={api.startUnrated}
       onStartLab={bench.startLab}
       labReady={bench.labReady}

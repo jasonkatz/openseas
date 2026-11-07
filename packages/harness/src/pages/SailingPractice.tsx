@@ -88,8 +88,8 @@ export function SailingPractice() {
       moves={shown.moveCount}
       maxMoves={shown.config.maxMoves}
       combo={shown.combo}
-      canRate={api.canRate}
-      onStartRated={startRound(api.startRated)}
+      canRecord={api.canRecord}
+      onStartRecorded={startRound(api.startRecorded)}
       onStartUnrated={startRound(api.startUnrated)}
       onStartLab={startRound(bench.startLab)}
       labReady={bench.labReady}

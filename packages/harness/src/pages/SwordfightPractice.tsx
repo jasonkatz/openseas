@@ -145,8 +145,8 @@ export function SwordfightPractice() {
       moves={player.drops}
       movesLabel={t("swordfight.drops")}
       combo={player.bestChain}
-      canRate={api.canRate}
-      onStartRated={api.startRated}
+      canRecord={api.canRecord}
+      onStartRecorded={api.startRecorded}
       onStartUnrated={api.startUnrated}
       onStartLab={bench.startLab}
       labReady={bench.labReady}

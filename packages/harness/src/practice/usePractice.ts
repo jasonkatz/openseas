@@ -1,16 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PuzzleDef, PuzzleId } from "@openseas/engine";
+import { performanceRating, tierFor, type PuzzleDef, type PuzzleId } from "@openseas/engine";
 import type { PuzzleResult, ServerMessage } from "@openseas/protocol";
-import { LabClock, PuzzleRound, sfx, usePirate, wallClock, type Clock, type LoggedMove, type TickedHost } from "@openseas/boards";
+import { LabClock, PuzzleRound, content, sfx, usePirate, wallClock, type Clock, type LoggedMove, type TickedHost } from "@openseas/boards";
 
 export type PracticePhase = "idle" | "starting" | "playing" | "waiting" | "result";
-/** Rated and unrated rounds are what the game plays; a lab round is the harness's own, with a chosen seed, config and clock. */
-export type PracticeMode = "rated" | "unrated" | "lab";
+/**
+ * Recorded and unrated rounds play exactly what the game deals; a lab round is the harness's own,
+ * with a chosen seed, config and clock. A recorded round goes through the server, which verifies
+ * and keeps it but moves no standing (ADR 0028); unrated and lab rounds stay in this browser.
+ */
+export type PracticeMode = "recorded" | "unrated" | "lab";
+/** One round's own performance against its puzzle's thresholds: a rating and the tier it falls in (ADR 0028). */
+export interface Performance {
+  rating: number;
+  tier: string;
+}
 export type PracticeOutcome =
-  | { kind: "rated"; result: PuzzleResult; newBest: boolean }
+  | { kind: "recorded"; result: PuzzleResult; newBest: boolean }
   | { kind: "rejected"; reason: string }
-  | { kind: "unrated"; score: number; moves: number; bestCombo: number; newBest: boolean }
-  | { kind: "lab"; score: number; moves: number; bestCombo: number; newBest: false };
+  | { kind: "unrated"; score: number; moves: number; bestCombo: number; newBest: boolean; performance: Performance }
+  | { kind: "lab"; score: number; moves: number; bestCombo: number; newBest: false; performance: Performance };
+
+/** What the server would rate a local round's score at, against the content thresholds. */
+export function localPerformance(puzzle: PuzzleId, score: number): Performance {
+  const rating = performanceRating(score, content.puzzles[puzzle].thresholds);
+  return { rating, tier: tierFor(rating, content.ratingTiers).key };
+}
 
 export interface LabScenario<C> {
   seed: string;
@@ -25,7 +40,7 @@ export interface LabScenario<C> {
 export interface PracticeOptions<S, M, C> {
   puzzle: PuzzleId;
   def: PuzzleDef<S, M, C>;
-  /** What rated and unrated rounds play with: the content config and round length. */
+  /** What recorded and unrated rounds play with: the content config and round length. */
   config: C;
   roundSeconds: number;
   /** Reads the three summary numbers off a state for the local result card. */
@@ -53,17 +68,18 @@ export interface PracticeApi<S, M, C> extends TickedHost<S, M> {
   roundSeconds: number;
   outcome: PracticeOutcome | null;
   best: number;
-  canRate: boolean;
-  rated: boolean;
+  canRecord: boolean;
+  /** True while the round in play goes through the server. */
+  recorded: boolean;
   round: RoundInfo<C> | null;
   /** The lab clock of a lab round in play or last played; null for the game's own modes. */
   clock: LabClock | null;
   /** Every move applied this round, with the engine's hash after it. */
   log: readonly LoggedMove<M>[];
-  startRated(): void;
+  startRecorded(): void;
   startUnrated(): void;
   startLab(scenario: LabScenario<C>): void;
-  /** End the round now, as if the clock ran out. A rated round is scored by the server as it stands. */
+  /** End the round now, as if the clock ran out. A recorded round is scored by the server as it stands. */
   stop(): void;
   /** Drop the round or result and show the start card again, with this board behind it. */
   reset(seed?: string, config?: C): void;
@@ -107,12 +123,13 @@ export function localSeed(): string {
 
 /**
  * The practice-page lifecycle every duty puzzle shares: start a round, run the clock, stream moves,
- * wait for the ship's verdict, show a result. Rated and unrated rounds behave exactly as the game's
- * did on its practice pages; a lab round adds a chosen seed, config and a clock the harness drives.
+ * wait for the ship's verdict, show a result. Recorded and unrated rounds play what the game deals;
+ * a lab round adds a chosen seed, config and a clock the harness drives. Every result carries the
+ * round's performance rating; none moves the pirate's standing (ADR 0028).
  */
 export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeApi<S, M, C> {
   const { puzzle, def, config, roundSeconds, summarize, onMove } = opts;
-  const { pirate, socket, socketStatus, setPirate } = usePirate();
+  const { pirate, socket, socketStatus } = usePirate();
   const [phase, setPhase] = useState<PracticePhase>("idle");
   // A fixed board sits behind the start card so the page never opens empty.
   const [state, setState] = useState<S>(() => def.create("menu", config));
@@ -126,12 +143,12 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
   const sessionId = useRef<string | null>(null);
   const latest = useRef(opts);
   latest.current = opts;
-  const canRate = socketStatus === "open" && pirate !== null;
+  const canRecord = socketStatus === "open" && pirate !== null;
 
   const beginRound = useCallback(
     (info: RoundInfo<C>, startedAt: number, deadlineAt: number, clock: Clock) => {
       round.current?.abandon();
-      const rated = info.mode === "rated" && info.sessionId ? { socket, sessionId: info.sessionId } : null;
+      const rated = info.mode === "recorded" && info.sessionId ? { socket, sessionId: info.sessionId } : null;
       const r = new PuzzleRound<S, M, C>({
         def,
         seed: info.seed,
@@ -152,11 +169,12 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
             const s = round.current?.state;
             if (s) {
               const sum = latest.current.summarize(s);
-              if (info.mode === "lab") setOutcome({ kind: "lab", ...sum, newBest: false });
+              const performance = localPerformance(puzzle, sum.score);
+              if (info.mode === "lab") setOutcome({ kind: "lab", ...sum, newBest: false, performance });
               else {
                 const newBest = recordBest(puzzle, sum.score);
                 if (newBest) setBest(sum.score);
-                setOutcome({ kind: "unrated", ...sum, newBest });
+                setOutcome({ kind: "unrated", ...sum, newBest, performance });
               }
             }
             setPhase("result");
@@ -180,7 +198,7 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
     beginRound({ mode: "unrated", seed: localSeed(), config, roundSeconds, sessionId: null }, now, now + roundSeconds * 1000, wallClock);
   }, [beginRound, config, roundSeconds]);
 
-  const startRated = useCallback(() => {
+  const startRecorded = useCallback(() => {
     setPhase("starting");
     if (!socket.send({ type: "puzzle.start", puzzle })) startUnrated();
   }, [socket, startUnrated, puzzle]);
@@ -210,7 +228,7 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
             const startedAt = m.serverNow - socket.clockOffset;
             const deadlineAt = m.deadlineAt - socket.clockOffset;
             beginRound(
-              { mode: "rated", seed: m.seed, config: m.config as C, roundSeconds: Math.round((deadlineAt - startedAt) / 1000), sessionId: m.sessionId },
+              { mode: "recorded", seed: m.seed, config: m.config as C, roundSeconds: Math.round((deadlineAt - startedAt) / 1000), sessionId: m.sessionId },
               startedAt,
               deadlineAt,
               wallClock,
@@ -221,13 +239,8 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
             if (m.sessionId !== sessionId.current) return;
             const newBest = recordBest(puzzle, m.score);
             if (newBest) setBest(m.score);
-            setOutcome({ kind: "rated", result: m, newBest });
+            setOutcome({ kind: "recorded", result: m, newBest });
             setPhase("result");
-            if (pirate && m.rating) {
-              const rating = m.rating;
-              const others = pirate.ratings.filter((r) => r.puzzle !== rating.puzzle);
-              setPirate({ ...pirate, ratings: [...others, rating] });
-            }
             break;
           }
           case "puzzle.rejected":
@@ -240,7 +253,7 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
             break;
         }
       }),
-    [socket, beginRound, pirate, setPirate, puzzle],
+    [socket, beginRound, puzzle],
   );
 
   // Round clock, with a tick for each of the last ten seconds. Reads the round's own clock.
@@ -307,12 +320,12 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
     roundSeconds: inRound && roundInfo ? roundInfo.roundSeconds : roundSeconds,
     outcome,
     best,
-    canRate,
-    rated: round.current?.rated ?? false,
+    canRecord,
+    recorded: round.current?.rated ?? false,
     round: roundInfo,
     clock: roundInfo?.mode === "lab" ? labClock.current : null,
     log: round.current?.log ?? [],
-    startRated,
+    startRecorded,
     startUnrated,
     startLab,
     stop,

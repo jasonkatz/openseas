@@ -34,6 +34,7 @@ describe("protocol", () => {
       verified: true,
       rating: { puzzle: "bilging", tier: "steady", rounds: 4 },
       tierChange: "up",
+      performance: { rating: 1540, tier: "steady" },
     };
     expect(parseServerMessage(JSON.parse(JSON.stringify(msg)))).toEqual(msg);
   });
@@ -51,7 +52,7 @@ describe("ship protocol", () => {
     expect(parseClientMessage({ type: "chat.send", channel: "fleet", text: "x" })).toBeNull();
   });
 
-  it("a duty result may carry no rating", () => {
+  it("a result may move no standing and still carry its performance", () => {
     const msg = {
       type: "puzzle.result",
       sessionId: "abcdefgh12345678",
@@ -61,6 +62,7 @@ describe("ship protocol", () => {
       verified: true,
       rating: null,
       tierChange: null,
+      performance: { rating: 980, tier: "greenhorn" },
     };
     expect(parseServerMessage(msg)).toEqual(msg);
   });

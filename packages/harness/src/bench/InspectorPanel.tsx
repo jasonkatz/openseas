@@ -21,7 +21,7 @@ export interface InspectorPanelProps<S, M, C> {
   onClear(): void;
 }
 
-const MODE_KEY: Record<RoundInfo<unknown>["mode"], string> = { rated: "harness.round_mode_rated", unrated: "harness.round_mode_unrated", lab: "harness.round_mode_lab" };
+const MODE_KEY: Record<RoundInfo<unknown>["mode"], string> = { recorded: "harness.round_mode_recorded", unrated: "harness.round_mode_unrated", lab: "harness.round_mode_lab" };
 
 /** What the engine holds right now, what differs from content, the move log, and the round's checks. */
 export function InspectorPanel<S, M, C>(p: InspectorPanelProps<S, M, C>) {
@@ -208,7 +208,7 @@ function ReplayCheck<S, M>({ check, phase, logLength }: { check: Replay<S, M> | 
 }
 
 function ServerCheck({ outcome, phase, local, round }: { outcome: PracticeOutcome | null; phase: string; local: number; round: RoundInfo<unknown> | null }) {
-  if (!round || round.mode !== "rated") return null;
+  if (!round || round.mode !== "recorded") return null;
   if (phase === "waiting") return <p className="small muted">{t("harness.check_server_waiting")}</p>;
   if (!outcome) return null;
   if (outcome.kind === "rejected") {
@@ -218,7 +218,7 @@ function ServerCheck({ outcome, phase, local, round }: { outcome: PracticeOutcom
       </p>
     );
   }
-  if (outcome.kind !== "rated") return null;
+  if (outcome.kind !== "recorded") return null;
   const same = outcome.result.score === local && outcome.result.verified;
   return (
     <p className={`small ${same ? "ok" : "error"}`} data-testid="check-server">

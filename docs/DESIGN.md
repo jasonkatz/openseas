@@ -426,6 +426,11 @@ owned ships. No inventory, clothing, or housing in v1.
 - Ratings use Glicko-2 per puzzle. Duty puzzles are rated against performance thresholds
   calibrated from the tester pool. Swordfighting and Sea Battle are rated head to head. Players
   see display tiers only; raw numbers are hidden.
+- Standing is earned in the game only (ADR 0028): the captain's sea battle, a melee board and a
+  duty board that ran its full clock move it; a harness round never does. Every scored round also
+  carries its own performance rating, its score read off the line through the thresholds, with the
+  tier that falls in. It is stored with the round and shown on the harness's result card, never
+  fed into standing.
 
 ### 3.7 Social
 
@@ -579,8 +584,9 @@ a lighter world; without WebGL the cards still carry every action.
 built in M1 and M2 (start card, HUD, legend, result card, settings) around the same board the game
 draws, and a bench beside it:
 
-- **Three kinds of round.** Rated and unrated rounds are the game's own, untouched: rated through
-  the server and counted, unrated local on a random seed. A *lab* round is the harness's: it runs
+- **Three kinds of round.** Recorded and unrated rounds play what the game deals, untouched:
+  recorded through the server, verified and kept but moving no standing (ADR 0028), unrated local on
+  a random seed. Each result shows the round's performance rating and its tier. A *lab* round is the harness's: it runs
   locally on a chosen seed, a config made of the content config plus overrides, a chosen length
   and a clock that can be slowed, paused and stepped a tick at a time. A lab config must pass the
   same two checks the server applies to content (the wire schema and the engine's validator), so a
@@ -614,7 +620,7 @@ draws, and a bench beside it:
   rather than the server's routed boards: the bench measures the ship, not the puzzles.
 
 It is a developer and tester tool, never linked from the game, and talks to the same server. It
-is where testers practice and thresholds are calibrated until the game has in-world practice.
+is where testers practice and thresholds are calibrated; standing is earned only in the game.
 
 ## 4. Architecture
 

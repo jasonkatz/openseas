@@ -10,7 +10,8 @@ import type { Overrides } from "./overrides.js";
  *   speed       clock rate for lab rounds (default 1)
  *   paused      1 to start with the clock stopped
  *   hints       0 to turn idle hints off in a lab round (they are on, as in unrated practice)
- *   start       lab, unrated or rated: start that round as soon as the page opens
+ *   start       lab, unrated or recorded: start that round as soon as the page opens (rated, the
+ *               old name for recorded, still works in links made before ADR 0028)
  *   review      1: review the round file left in sessionStorage by the home page
  */
 export interface Scenario {
@@ -20,7 +21,7 @@ export interface Scenario {
   speed: number;
   paused: boolean;
   hints: boolean;
-  autostart: "lab" | "unrated" | "rated" | null;
+  autostart: "lab" | "unrated" | "recorded" | null;
   review: boolean;
 }
 
@@ -50,7 +51,7 @@ export function parseScenario(search: string): Scenario {
     speed: speed > 0 ? speed : 1,
     paused: q.get("paused") === "1",
     hints: q.get("hints") !== "0",
-    autostart: start === "lab" || start === "unrated" || start === "rated" ? start : null,
+    autostart: start === "lab" || start === "unrated" || start === "recorded" ? start : start === "rated" ? "recorded" : null,
     review: q.get("review") === "1",
   };
 }

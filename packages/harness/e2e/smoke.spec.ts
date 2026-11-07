@@ -31,7 +31,7 @@ async function closeBench(page: Page): Promise<void> {
 
 /**
  * Smoke: the harness builds, loads, and every board plays an unrated round without the server,
- * through the same board code the game uses (ADR 0019). Rated play needs the server and is
+ * through the same board code the game uses (ADR 0019). Recorded play needs the server and is
  * covered by the server integration test. The bench's own paths (lab rounds from a link, the
  * replay check, reviewing a log, the lab clock) are smoked at the end.
  */
@@ -319,6 +319,8 @@ test("a lab round opens from a link with its seed and config, replays clean, and
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("result")).toBeVisible();
   await expect(page.getByTestId("result")).toContainText("Lab round");
+  // Every result reads its own performance off the thresholds (ADR 0028).
+  await expect(page.getByTestId("result-performance")).toHaveAttribute("data-rating", /^\d+$/);
 
   // The bench knows the round and replayed it from the seed with every hash matching.
   await openBench(page);

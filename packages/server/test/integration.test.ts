@@ -166,8 +166,11 @@ describeDb("server integration", () => {
     expect(result.score).toBe(state.score);
     expect(result.moves).toBe(25);
     expect(result.verified).toBe(true);
-    expect(result.rating?.rounds).toBe(1);
-    expect(result.tierChange).toBe("same");
+    // A harness round moves no standing (ADR 0028) but rates its own performance.
+    expect(result.rating).toBeNull();
+    expect(result.tierChange).toBeNull();
+    expect(result.performance.rating).toBeGreaterThanOrEqual(0);
+    expect(typeof result.performance.tier).toBe("string");
 
     // A cheater who sends a different hash is rejected on the spot.
     ws.send(JSON.stringify({ type: "puzzle.start", puzzle: "bilging" }));
@@ -179,10 +182,10 @@ describeDb("server integration", () => {
     expect(rejected).toMatchObject({ type: "puzzle.rejected", reason: "divergence", atSeq: 0 });
 
     const rows = await app.db.select().from(schema.puzzleRound).where(eq(schema.puzzleRound.id, started.sessionId));
-    expect(rows[0]).toMatchObject({ score: state.score, moves: 25, rejectedReason: null });
+    expect(rows[0]).toMatchObject({ score: state.score, moves: 25, rejectedReason: null, rated: false, performance: result.performance.rating });
     expect((rows[0]!.moveLog as unknown[]).length).toBe(25);
 
-    // Every other registered puzzle plays a short honest round over the same wire and is rated separately.
+    // Every other registered puzzle plays a short honest round over the same wire, each with its own performance.
     for (const id of PUZZLE_IDS.filter((p) => p !== "bilging")) {
       // Stay under the connection's message rate limit across five puzzles.
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -195,7 +198,7 @@ describeDb("server integration", () => {
       ws.send(JSON.stringify({ type: "puzzle.move", sessionId: st.sessionId, seq: 0, move: { type: "end", tick: 0 }, hash: def.hash(final) }));
       ws.send(JSON.stringify({ type: "puzzle.finish", sessionId: st.sessionId, hash: def.hash(final) }));
       const res = await next();
-      expect(res).toMatchObject({ type: "puzzle.result", verified: true, rating: { puzzle: id, rounds: 1 } });
+      expect(res).toMatchObject({ type: "puzzle.result", verified: true, rating: null, performance: { tier: expect.any(String) } });
     }
     // A Bilging move sent to a Sailing round is an illegal move, not a crash.
     ws.send(JSON.stringify({ type: "puzzle.start", puzzle: "sailing" }));
@@ -205,7 +208,8 @@ describeDb("server integration", () => {
     expect(await next()).toMatchObject({ type: "puzzle.rejected", reason: "illegal_move" });
 
     const me = (await (await fetch(`${base}/api/me`, { headers: { cookie } })).json()) as MeResponse;
-    expect(me.pirate?.ratings.map((r) => r.puzzle).sort()).toEqual([...PUZZLE_IDS].sort());
+    // None of it moved the pirate's standing: that is earned in the game.
+    expect(me.pirate?.ratings).toEqual([]);
     ws.close();
   });
 

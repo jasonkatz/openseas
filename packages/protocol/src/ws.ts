@@ -147,10 +147,19 @@ export const PuzzleResultSchema = z.object({
   bestCombo: z.int().min(0),
   /** False when the client's hash diverged from the server replay; the server's numbers stand. */
   verified: z.boolean(),
-  /** Null when the round was not rated: a duty board cut short by docking or standing down. */
+  /**
+   * The pirate's standing after the round. Null when the round moved no standing: a harness round
+   * (standing is earned in the game only, ADR 0028) or a duty board cut short by docking or standing down.
+   */
   rating: RatingViewSchema.nullable(),
-  /** "up", "down", or "same" relative to the tier before the round; null when unrated. */
+  /** "up", "down", or "same" relative to the tier before the round; null when no standing moved. */
   tierChange: z.enum(["up", "down", "same"]).nullable(),
+  /**
+   * The round's own performance against the puzzle's thresholds, as a rating and the tier it falls
+   * in (ADR 0028). It describes this one round, never the pirate's standing; the harness's result
+   * card shows it and calibration reads it.
+   */
+  performance: z.object({ rating: z.int().min(0), tier: z.string() }),
 });
 
 export const PuzzleRejectedSchema = z.object({

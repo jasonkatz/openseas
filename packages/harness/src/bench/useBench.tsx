@@ -34,15 +34,15 @@ export interface BenchApi<S> {
   startLab(): void;
   labReady: boolean;
   labSummary: ReactNode;
-  /** Idle hints for the round in play: on for unrated and (unless turned off) lab rounds, never for rated. */
+  /** Idle hints for the round in play: on for unrated and (unless turned off) lab rounds, never for recorded. */
   hints: boolean;
   scenario: Scenario;
 }
 
 /**
  * The harness's own controls around a practice page: the lab scenario (seed, config, clock),
- * the inspector, the replay check, importing and reviewing logs. Everything the game's rated and
- * unrated rounds do is untouched; the bench only reads them.
+ * the inspector, the replay check, importing and reviewing logs. Everything recorded and unrated
+ * rounds do is untouched; the bench only reads them.
  */
 export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeApi<S, M, C>): BenchApi<S> {
   const [scenario, setScenarioState] = useState<Scenario>(() => parseScenario(window.location.search));
@@ -129,10 +129,10 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
     } else if (scenario.autostart === "unrated") {
       started.current = true;
       api.startUnrated();
-    } else if (scenario.autostart === "rated") {
-      if (!api.canRate) return;
+    } else if (scenario.autostart === "recorded") {
+      if (!api.canRecord) return;
       started.current = true;
-      api.startRated();
+      api.startRecorded();
     } else started.current = true;
     if (scenario.autostart) setScenario({ ...scenario, autostart: null });
   }, [api, openReview, puzzle.id, scenario, setScenario, startLab]);
@@ -216,7 +216,7 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
 
   const reviewBar = review ? <ReviewBar replay={review.replay} index={review.index} onIndex={setReviewIndex} onExit={exitReview} /> : undefined;
   const mode = api.round?.mode;
-  const hints = mode === "rated" ? false : mode === "lab" ? scenario.hints : true;
+  const hints = mode === "recorded" ? false : mode === "lab" ? scenario.hints : true;
 
   return {
     bench,

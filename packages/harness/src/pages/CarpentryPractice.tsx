@@ -56,8 +56,8 @@ export function CarpentryPractice() {
       moves={shown.moveCount}
       maxMoves={shown.config.maxMoves}
       combo={shown.combo}
-      canRate={api.canRate}
-      onStartRated={api.startRated}
+      canRecord={api.canRecord}
+      onStartRecorded={api.startRecorded}
       onStartUnrated={api.startUnrated}
       onStartLab={bench.startLab}
       labReady={bench.labReady}

@@ -5,7 +5,7 @@ import { parseMoveFor, type ClientMetrics, type PuzzleIdWire, type PuzzleResult,
 import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
 import type { Logger } from "../log.js";
-import { rateDutyRound } from "../ratings.js";
+import { rateDutyRound, roundPerformance } from "../ratings.js";
 import { PuzzleSessionManager, type BattleBinding, type DutyBinding, type MeleeBinding, type PuzzleRoundOptions, type PuzzleSession, type RejectReason, type RoundOverride } from "./sessions.js";
 
 // The protocol's puzzle ids and the engine's must be the same set. If this stops compiling, they drifted.
@@ -143,11 +143,13 @@ export class PuzzleService {
   }
 
   /**
-   * Score a round. A practice round is always rated; a duty board only when it ran its full clock
-   * or the engine ended it, so a board cut short by docking counts but moves no rating.
+   * Score a round. Standing is earned in the game only (ADR 0028): the captain's sea battle and a
+   * melee board always move it, a duty board only when it ran its full clock or the engine ended it
+   * (a board cut short by docking counts but moves no standing), and a harness round never does.
+   * Every scored round gets its own performance rating against the thresholds.
    */
   async finish(session: PuzzleSession, hash: string | null, metrics: ClientMetrics | null): Promise<ServerMessage> {
-    const rated = session.duty === null || this.sessions.ranFull(session);
+    const rated = session.battle !== null || session.melee !== null || (session.duty !== null && this.sessions.ranFull(session));
     this.endDuty(session);
     const r = this.sessions.finish(session, hash);
     if (!r.ok) {
@@ -157,6 +159,7 @@ export class PuzzleService {
       if (session.melee) this.onMeleeEnd?.(session, "rejected", rejected);
       return rejected;
     }
+    const performance = roundPerformance(this.content, session.puzzle, r.summary.score);
     const result = await this.db.transaction(async (tx) => {
       const rating = rated ? await rateDutyRound(tx, this.content, session.pirateId, session.puzzle, r.summary.score) : null;
       await tx.insert(schema.puzzleRound).values({
@@ -170,6 +173,7 @@ export class PuzzleService {
         rejectedReason: null,
         voyageId: session.duty?.voyageId ?? session.battle?.voyageId ?? session.melee?.voyageId ?? null,
         rated,
+        performance: performance.rating,
         moveLog: r.moves as unknown[],
         metrics: metrics ?? null,
         startedAt: new Date(session.startedAt),
@@ -180,6 +184,7 @@ export class PuzzleService {
         score: r.summary.score,
         moves: r.summary.moves,
         rated,
+        performance: performance.rating,
         ...(session.duty ? { voyageId: session.duty.voyageId, shipId: session.duty.shipId } : {}),
         ...(session.battle ? { voyageId: session.battle.voyageId, shipId: session.battle.shipId, tierId: session.battle.tierId } : {}),
         ...(session.melee ? { voyageId: session.melee.voyageId, shipId: session.melee.shipId, tierId: session.melee.tierId } : {}),
@@ -195,6 +200,7 @@ export class PuzzleService {
         verified: true,
         rating: rating ? rating.view : null,
         tierChange: rating ? rating.tierChange : null,
+        performance,
       };
       return msg;
     });
