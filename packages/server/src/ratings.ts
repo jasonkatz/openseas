@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import type { Content } from "@openseas/content";
-import { NEW_RATING, dutyResults, tierFor, updateRating, type PuzzleId, type Rating } from "@openseas/engine";
+import { NEW_RATING, dutyResults, performanceRating, tierFor, updateRating, type PuzzleId, type Rating } from "@openseas/engine";
 import type { RatingView } from "@openseas/protocol";
 import { schema, type Tx } from "./db/index.js";
 
@@ -35,4 +35,13 @@ export async function rateDutyRound(tx: Tx, content: Content, pirateId: string, 
   const tierAfter = tierFor(after.rating, content.ratingTiers);
   const tierChange = !tierBefore || tierAfter.min === tierBefore.min ? "same" : tierAfter.min > tierBefore.min ? "up" : "down";
   return { before, after, view: { puzzle, tier: tierAfter.key, rounds }, tierChange };
+}
+
+/**
+ * One round's own performance against its puzzle's thresholds, and the tier that rating falls in
+ * (ADR 0028). Describes the round only; the pirate's standing is `rateDutyRound`'s.
+ */
+export function roundPerformance(content: Content, puzzle: PuzzleId, score: number): { rating: number; tier: string } {
+  const rating = performanceRating(score, content.puzzles[puzzle].thresholds);
+  return { rating, tier: tierFor(rating, content.ratingTiers).key };
 }

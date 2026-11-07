@@ -77,8 +77,8 @@ export interface ShellProps {
   /** Label for the moves stat when "Moves" is not the word (e.g. stars landed). */
   movesLabel?: string;
   combo: number;
-  canRate: boolean;
-  onStartRated(): void;
+  canRecord: boolean;
+  onStartRecorded(): void;
   onStartUnrated(): void;
   /** The harness's own round: a chosen seed, config and clock. */
   onStartLab?(): void;
@@ -258,12 +258,12 @@ export function PracticeShell(p: ShellProps) {
               <p className="how how-kbd">{t(`${prefix}.how_to_keyboard`)}</p>
               {p.howTo}
               {p.best > 0 && <p className="best-line">{t("practice.best", { score: p.best })}</p>}
-              {!p.canRate && socketStatus !== "connecting" && (
+              {!p.canRecord && socketStatus !== "connecting" && (
                 <p className="note">{piratePhase === "needs-pirate" ? t("harness.needs_pirate_note") : piratePhase === "loading" ? t("app.loading") : t("app.offline")}</p>
               )}
               <div className="stack">
-                <button className="btn btn-brass" onClick={p.onStartRated} disabled={!p.canRate} data-testid="start-rated">
-                  {t("practice.start")}
+                <button className="btn btn-brass" onClick={p.onStartRecorded} disabled={!p.canRecord} data-testid="start-recorded">
+                  {t("harness.recorded_start")}
                 </button>
                 <button className="btn btn-ghost" onClick={p.onStartUnrated} data-testid="start-unrated">
                   {t("practice.unrated_start")}
@@ -302,7 +302,7 @@ export function PracticeShell(p: ShellProps) {
               <div className="stack">
                 <button
                   className="btn btn-brass"
-                  onClick={p.outcome.kind === "lab" && p.onStartLab ? p.onStartLab : p.canRate ? p.onStartRated : p.onStartUnrated}
+                  onClick={p.outcome.kind === "lab" && p.onStartLab ? p.onStartLab : p.canRecord ? p.onStartRecorded : p.onStartUnrated}
                   data-testid="restart"
                 >
                   {t("practice.restart")}
@@ -408,7 +408,8 @@ function ResultBody({ outcome, rows }: { outcome: PracticeOutcome; rows?: ReactN
       </>
     );
   }
-  const r = outcome.kind === "rated" ? outcome.result : outcome;
+  const r = outcome.kind === "recorded" ? outcome.result : outcome;
+  const performance = outcome.kind === "recorded" ? outcome.result.performance : outcome.performance;
   return (
     <>
       <ResultScore score={r.score} />
@@ -423,26 +424,19 @@ function ResultBody({ outcome, rows }: { outcome: PracticeOutcome; rows?: ReactN
           <dd>{r.bestCombo}</dd>
         </div>
         {rows}
-        {outcome.kind === "rated" && outcome.result.rating && (
-          <div>
-            <dt>{t("practice.standing")}</dt>
-            <dd>{t(`tier.${outcome.result.rating.tier}`)}</dd>
-          </div>
-        )}
+        <div>
+          <dt>{t("harness.performance")}</dt>
+          <dd data-testid="result-performance" data-rating={performance.rating}>
+            {t("harness.performance_value", { rating: performance.rating, tier: t(`tier.${performance.tier}`) })}
+          </dd>
+        </div>
       </dl>
-      {outcome.kind === "rated" ? (
-        <>
-          {outcome.result.rating && outcome.result.tierChange && (
-            <p className={`tier-line tier-${outcome.result.tierChange}`}>
-              {t(`practice.tier_${outcome.result.tierChange}`, { tier: t(`tier.${outcome.result.rating.tier}`) })}
-            </p>
-          )}
-          <p className="muted small">{outcome.result.verified ? t("practice.result_verified") : t("practice.result_unverified")}</p>
-        </>
+      {outcome.kind === "recorded" ? (
+        <p className="muted small">{outcome.result.verified ? t("harness.result_recorded") : t("practice.result_unverified")}</p>
       ) : outcome.kind === "lab" ? (
         <p className="muted small">{t("harness.result_lab")}</p>
       ) : (
-        <p className="muted small">{t("practice.result_unrated")}</p>
+        <p className="muted small">{t("harness.result_unrated")}</p>
       )}
     </>
   );

@@ -147,10 +147,19 @@ export const PuzzleResultSchema = z.object({
   bestCombo: z.int().min(0),
   /** False when the client's hash diverged from the server replay; the server's numbers stand. */
   verified: z.boolean(),
-  /** Null when the round was not rated: a duty board cut short by docking or standing down. */
+  /**
+   * The pirate's standing after the round. Null when the round moved no standing: a harness round
+   * (standing is earned in the game only, ADR 0028) or a duty board cut short by docking or standing down.
+   */
   rating: RatingViewSchema.nullable(),
-  /** "up", "down", or "same" relative to the tier before the round; null when unrated. */
+  /** "up", "down", or "same" relative to the tier before the round; null when no standing moved. */
   tierChange: z.enum(["up", "down", "same"]).nullable(),
+  /**
+   * The round's own performance against the puzzle's thresholds, as a rating and the tier it falls
+   * in (ADR 0028). It describes this one round, never the pirate's standing; the harness's result
+   * card shows it and calibration reads it.
+   */
+  performance: z.object({ rating: z.int().min(0), tier: z.string() }),
 });
 
 export const PuzzleRejectedSchema = z.object({
@@ -171,7 +180,10 @@ export const ServerMessageSchema = z.union([
   /** The pirate is no longer aboard: they went ashore, or their held seat timed out. */
   z.object({ type: z.literal("ship.left"), shipId: z.string(), reason: z.enum(["left", "timed_out"]) }),
   z.object({ type: z.literal("board.ships"), islandId: z.string(), ships: z.array(BoardShipSchema), serverNow: z.number() }),
-  /** The ship's bilge changed at a turn: the Bilging board at this session logs a water move with this row. */
+  /**
+   * The ship's bilge changed at a turn: the Bilging board at this session logs a water move with this
+   * row. Sent to a duty board by its ship, and to a recorded harness round by its lone ship (ADR 0029).
+   */
   z.object({ type: z.literal("duty.water"), sessionId: SessionId, row: z.int().min(0).max(32) }),
   /** A ship turn passed during a battle: the captain's board logs a supply move with exactly these numbers. */
   z.object({

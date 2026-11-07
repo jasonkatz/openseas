@@ -57,6 +57,11 @@ describe("scenario codec", () => {
     expect(parseScenario("?seconds=-4&speed=abc&start=nope&c.=1")).toEqual(EMPTY_SCENARIO);
   });
 
+  it("reads start=rated, the name before ADR 0028, as a recorded round", () => {
+    expect(parseScenario("?start=rated").autostart).toBe("recorded");
+    expect(parseScenario("?start=recorded").autostart).toBe("recorded");
+  });
+
   it("keeps string overrides as strings when they are not JSON", () => {
     expect(parseScenario("?c.name=plain").overrides).toEqual({ name: "plain" });
     expect(parseScenario("?c.n=7").overrides).toEqual({ n: 7 });

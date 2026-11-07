@@ -162,8 +162,13 @@ export const puzzleRound = pgTable(
     rejectedReason: text(),
     /** Set for a duty board played aboard a ship; null for practice. */
     voyageId: text(),
-    /** False for a board that counted but was not rated: a duty board cut short by docking. */
+    /**
+     * Whether the round moved the pirate's standing. False for a harness round (standing is earned
+     * in the game only, ADR 0028), a duty board cut short by docking and every rejected round.
+     */
     rated: boolean().notNull().default(true),
+    /** The round's own performance rating against its puzzle's thresholds (ADR 0028); null when rejected. */
+    performance: integer(),
     moveLog: jsonb().notNull().$type<unknown[]>(),
     metrics: jsonb().$type<Record<string, unknown>>(),
     startedAt: timestamp({ withTimezone: true }).notNull(),

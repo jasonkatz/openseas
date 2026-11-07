@@ -60,6 +60,8 @@ export function createWsServer(deps: WsDeps) {
     const summary = await summarizePirate(db, content, pirateId, conn.guest);
     if (summary) conn.member.send({ type: "pirate.updated", pirate: summary });
   };
+  // A harness Bilging round's lone ship moved its bilge: the board logs it as a water move (ADR 0029).
+  puzzles.onSoloWater = (session, row) => conns.get(session.pirateId)?.member.send({ type: "duty.water", sessionId: session.id, row });
   ships.onSummaryChanged = (ids) => {
     for (const id of ids) void resend(id).catch((e) => log.warn({ err: e, pirateId: id }, "summary resend failed"));
   };

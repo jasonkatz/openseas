@@ -31,7 +31,7 @@ async function closeBench(page: Page): Promise<void> {
 
 /**
  * Smoke: the harness builds, loads, and every board plays an unrated round without the server,
- * through the same board code the game uses (ADR 0019). Rated play needs the server and is
+ * through the same board code the game uses (ADR 0019). Recorded play needs the server and is
  * covered by the server integration test. The bench's own paths (lab rounds from a link, the
  * replay check, reviewing a log, the lab clock) are smoked at the end.
  */
@@ -319,6 +319,8 @@ test("a lab round opens from a link with its seed and config, replays clean, and
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("result")).toBeVisible();
   await expect(page.getByTestId("result")).toContainText("Lab round");
+  // Every result reads its own performance off the thresholds (ADR 0028).
+  await expect(page.getByTestId("result-performance")).toHaveAttribute("data-rating", /^\d+$/);
 
   // The bench knows the round and replayed it from the seed with every hash matching.
   await openBench(page);
@@ -338,6 +340,17 @@ test("a lab round opens from a link with its seed and config, replays clean, and
   await expectViewMatchesState(page, "bilging");
   await page.getByTestId("review-exit").click();
   await expect(page.getByTestId("start-lab")).toBeVisible();
+});
+
+test("a Bilging round plays a lone ship's bilge: the deal brings the board to the bilge's floor", async ({ page }) => {
+  // Dealt eight rows deep on a dry, sound ship (ADR 0029): the round's first move is the ship's
+  // water, three rows, logged as a duty board logs its ship's word. The clock stays paused.
+  await page.goto("/bilging?seed=smoke-water&c.initialWaterRow=8&start=lab&paused=1");
+  await expect(page.getByTestId("bilging-canvas")).toBeVisible();
+  await openBench(page);
+  const log = page.getByTestId("inspector-log").locator("li");
+  await expect(log).toHaveCount(1);
+  await expect(log.first()).toContainText("water row=3");
 });
 
 test("the scenario form refuses a config the server could not issue, and the link follows the form", async ({ page }) => {

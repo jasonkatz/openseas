@@ -297,11 +297,13 @@ describeDb("ships over the wire", () => {
     expect(await a.until("error")).toMatchObject({ code: "is_deckhand" });
 
     // The mate's bilging board is dealt bound to the ship, with the ship's bilge as its water
-    // (DESIGN.md 3.3): the board's first move is the water event the deal carries.
+    // (DESIGN.md 3.3): the board's first move is the water event the deal carries. A dry ship's
+    // bilge reads as the board's floor: a bilge never runs dry.
     b.send({ type: "duty.start" });
     const started = await b.until("puzzle.started");
     if (started.puzzle !== "bilging") throw new Error("expected a bilging board");
-    expect(started.duty).toEqual({ shipId, station: "bilging", water: 0 });
+    const floor = content.puzzles.bilging.config.minWaterRow;
+    expect(started.duty).toEqual({ shipId, station: "bilging", water: floor });
     expect(started.config.shipWater).toBe(true);
     let state = createBilgingGame(started.seed, started.config);
     let seq = 0;
@@ -309,11 +311,11 @@ describeDb("ships over the wire", () => {
       state = reduceBilging(state, move);
       b.send({ type: "puzzle.move", sessionId: started.sessionId, seq: seq++, move, hash: hashBilgingState(state) });
     };
-    log({ type: "water", row: 0 });
-    expect(state.waterRow).toBe(0);
+    log({ type: "water", row: floor });
+    expect(state.waterRow).toBe(floor);
     for (let i = 0; i < 12; i++) log(scoringMove(state));
     expect(state.score).toBeGreaterThan(0);
-    expect(state.waterRow).toBe(0);
+    expect(state.waterRow).toBe(floor);
     await new Promise((r) => setTimeout(r, 100));
 
     // The turn takes the board's points, and water comes in: the pump hears the new depth.
@@ -329,10 +331,10 @@ describeDb("ships over the wire", () => {
     }
     expect(t1.ship.location.kind === "at-sea" && t1.ship.location.progress).toBeGreaterThan(0);
     expect(t1.ship.nextTurnAt).toBeGreaterThan(clock.t);
-    // Nobody is at the sails, so the bilge fills faster than one pirate pumps it over a few turns.
-    for (let i = 0; i < 6; i++) await turn();
+    // Nobody pumps after the first turn, so the bilge fills until it rises over the board's floor.
+    for (let i = 0; i < 13; i++) await turn();
     const water = await b.until("duty.water", (m) => m.sessionId === started.sessionId);
-    expect(water.row).toBeGreaterThan(0);
+    expect(water.row).toBeGreaterThan(floor);
     // The ship may have spoken again since; what counts is its latest word. A water event that
     // says anything else is refused as an illegal move.
     const current = app.ships.bilgeRows(app.ships.room(shipId)!);

@@ -1,0 +1,1 @@
+ALTER TABLE "puzzle_round" ADD COLUMN "performance" integer;

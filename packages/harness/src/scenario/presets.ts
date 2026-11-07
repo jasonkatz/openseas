@@ -19,8 +19,10 @@ export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
   bilging: [
     { id: "specials_galore", overrides: { "specialChancePerMille.keg": 60, "specialChancePerMille.ink": 40, "specialChancePerMille.barnacle": 50 } },
     { id: "no_specials", overrides: { "specialChancePerMille.keg": 0, "specialChancePerMille.ink": 0, "specialChancePerMille.barnacle": 0 } },
-    { id: "high_water", overrides: { initialWaterRow: 9 } },
-    { id: "fast_water", overrides: { waterRisePerMoves: 2 } },
+    // The board plays on a lone ship's bilge (ADR 0029): high water raises the bilge's floor.
+    { id: "high_water", overrides: { minWaterRow: 9, initialWaterRow: 9 } },
+    // The board's own practice water instead: it rises with every swap and drains with points.
+    { id: "fast_water", overrides: { shipWater: false, waterRisePerMoves: 2 } },
     { id: "three_kinds", overrides: { pieceKinds: 3 } },
     { id: "ten_moves", overrides: { maxMoves: 10 }, roundSeconds: 60 },
   ],

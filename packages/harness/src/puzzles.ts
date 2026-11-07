@@ -48,7 +48,7 @@ export interface SeedProbe<S> {
 export interface HarnessPuzzle<S, M, C> {
   readonly id: PuzzleId;
   readonly def: PuzzleDef<S, M, C>;
-  /** The content config and round length: what the server issues for rated rounds. */
+  /** The content config and round length: what the server issues for recorded rounds. */
   readonly config: C;
   readonly roundSeconds: number;
   /** The wire schema the server would hold a config to; lab configs are checked against it too. */

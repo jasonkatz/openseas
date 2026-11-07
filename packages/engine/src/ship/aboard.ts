@@ -9,6 +9,7 @@
  */
 
 import type { BattleConfig, BrigandSpec } from "../battle/types.js";
+import { bilgeAfterTurn } from "./reduce.js";
 import { STATIONS, UNITS_PER_SECOND, type LegPlan, type ShipConfig, type ShipRules, type ShipState, type Station } from "./types.js";
 
 /** What a ship class in content carries that the engine reads. */
@@ -49,13 +50,15 @@ export interface BrigandTierFields {
   readonly aggression: number;
 }
 
+/** A duty puzzle's par for one ship's turn: its par for a round, scaled to the turn's length. */
+export function parPerTurn(rules: Pick<ShipRules, "turnSeconds">, puzzle: DutyParFields): number {
+  return Math.max(1, Math.round((puzzle.parScore * rules.turnSeconds) / puzzle.roundSeconds));
+}
+
 /** The engine's config for a class: par per station is the puzzle's par scaled to one turn. */
 export function shipConfigFor(shipClass: ShipClassFields, rules: ShipRules, puzzles: Readonly<Record<Station, DutyParFields>>): ShipConfig {
   const par = {} as Record<Station, number>;
-  for (const st of STATIONS) {
-    const p = puzzles[st];
-    par[st] = Math.max(1, Math.round((p.parScore * rules.turnSeconds) / p.roundSeconds));
-  }
+  for (const st of STATIONS) par[st] = parPerTurn(rules, puzzles[st]);
   return {
     shipClass: {
       id: shipClass.id,
@@ -154,4 +157,54 @@ export function splitBooty(total: number, crew: ReadonlyArray<{ pirateId: string
   const captain = crew.find((c) => c.captain) ?? crew[0]!;
   out.set(captain.pirateId, (out.get(captain.pirateId) ?? 0) + (total - paid));
   return out;
+}
+
+/** What a Bilging board's config carries that the ship's bilge is read against. */
+export interface BilgeBoardFields {
+  readonly height: number;
+  readonly minWaterRow: number;
+}
+
+/**
+ * The ship's bilge as rows of a Bilging board (DESIGN.md 3.3): permille of a full bilge read as
+ * rows of the board, never below the board's `minWaterRow`. A bilge never runs dry, so even a sound,
+ * pumped ship keeps the board's bottom rows underwater, and any barnacles under the line stay put
+ * until they are lifted.
+ */
+export function bilgeRowsFor(water: number, board: BilgeBoardFields): number {
+  return Math.max(board.minWaterRow, Math.min(board.height, Math.round((water * board.height) / 1000)));
+}
+
+/**
+ * A ship for a Bilging board played on its own, in the harness (ADR 0029). The hull is sound and
+ * nobody else is aboard. Each turn the bilge takes the class's intake and drains by this board's own
+ * output, exactly as the ship reducer's turn would. The server runs it for a recorded round and
+ * pushes the depth as a ship pushes its bilge to a duty board; the harness runs it on the round's
+ * own clock for unrated and lab rounds.
+ */
+export interface SoloBilge {
+  /** Permille of a full bilge, as the ship carries it. */
+  readonly water: number;
+  /** The board's score at the last turn, so the next turn takes only what was earned since. */
+  readonly lastScore: number;
+  /** The depth the board shows, in rows. */
+  readonly row: number;
+}
+
+/** A dry, sound ship at the deal. */
+export function soloBilgeStart(board: BilgeBoardFields): SoloBilge {
+  return { water: 0, lastScore: 0, row: bilgeRowsFor(0, board) };
+}
+
+/** One ship's turn for a lone Bilging board whose score is now `score`. A turn that earned nothing (or less) pumps nothing. */
+export function soloBilgeTurn(rules: ShipRules, par: number, bilge: SoloBilge, score: number, board: BilgeBoardFields): SoloBilge {
+  const points = Math.max(0, score - bilge.lastScore);
+  const output = Math.min(rules.maxOutputPercent, Math.floor((points * 100) / Math.max(1, par)));
+  const water = bilgeAfterTurn(rules, bilge.water, 0, output);
+  return { water, lastScore: score, row: bilgeRowsFor(water, board) };
+}
+
+/** How many of the lone ship's turns are due `elapsedMs` into the round. */
+export function soloBilgeTurnsDue(rules: Pick<ShipRules, "turnSeconds">, elapsedMs: number): number {
+  return Math.max(0, Math.floor(elapsedMs / (rules.turnSeconds * 1000)));
 }

@@ -76,7 +76,10 @@ export async function createApp(env: Env, log: Logger, opts: { now?: () => numbe
       new Promise((resolve) => {
         server.listen(port, () => {
           sweeper = setInterval(() => void puzzles.sweep(), 5_000);
-          ticker = setInterval(() => void ships.tick(), 1_000);
+          ticker = setInterval(() => {
+            void ships.tick();
+            puzzles.tick();
+          }, 1_000);
           resolve((server.address() as AddressInfo).port);
         });
       }),

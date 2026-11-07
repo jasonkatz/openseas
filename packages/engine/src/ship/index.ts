@@ -7,6 +7,7 @@ export {
   validateShipConfig,
   legUnits,
   outputPercent,
+  bilgeAfterTurn,
   crewMember,
   crewAtStation,
   longestAboard,
@@ -15,6 +16,7 @@ export {
   progressPermille,
 } from "./reduce.js";
 export {
+  parPerTurn,
   shipConfigFor,
   legPlan,
   splitTokens,
@@ -22,6 +24,12 @@ export {
   battleConfigAboard,
   shipSupply,
   splitBooty,
+  bilgeRowsFor,
+  soloBilgeStart,
+  soloBilgeTurn,
+  soloBilgeTurnsDue,
+  type BilgeBoardFields,
+  type SoloBilge,
   type ShipClassFields,
   type DutyParFields,
   type RouteLegFields,

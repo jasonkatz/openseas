@@ -209,7 +209,7 @@ class FakeShip {
           // One drop wins the rail here: the brigand crew is beaten and the purse shared.
           const tierId = this.melee.tierId;
           this.send({ type: "melee.over", sessionId: m.sessionId, won: true, tick: 0 });
-          this.send({ type: "puzzle.result", sessionId: m.sessionId, score: 400, moves: 1, bestCombo: 0, verified: true, rating: null, tierChange: null });
+          this.send({ type: "puzzle.result", sessionId: m.sessionId, score: 400, moves: 1, bestCombo: 0, verified: true, rating: null, tierChange: null, performance: { rating: 1500, tier: "steady" } });
           this.melee = null;
           if (this.location.kind === "at-sea") this.location = { ...this.location, battle: null };
           this.state([{ type: "battle_ended", tierId, outcome: "boarded", booty: 600, turns: 1 }]);
@@ -219,7 +219,7 @@ class FakeShip {
         // One plot is a whole fight here: the brigand strikes her colours and the purse is shared.
         this.commits += 1;
         const tierId = this.location.battle.tierId;
-        this.send({ type: "puzzle.result", sessionId: m.sessionId, score: 740, moves: 1, bestCombo: 1, verified: true, rating: null, tierChange: null });
+        this.send({ type: "puzzle.result", sessionId: m.sessionId, score: 740, moves: 1, bestCombo: 1, verified: true, rating: null, tierChange: null, performance: { rating: 1500, tier: "steady" } });
         if (this.boarding) {
           this.board();
           return;
@@ -230,7 +230,7 @@ class FakeShip {
       }
       case "puzzle.finish":
       case "puzzle.abandon":
-        this.send({ type: "puzzle.result", sessionId: m.sessionId, score: 12, moves: 1, bestCombo: 1, verified: true, rating: null, tierChange: null });
+        this.send({ type: "puzzle.result", sessionId: m.sessionId, score: 12, moves: 1, bestCombo: 1, verified: true, rating: null, tierChange: null, performance: { rating: 1500, tier: "steady" } });
         return;
       case "ship.leave":
         this.send({ type: "ship.left", shipId: "ship-1", reason: "left" });

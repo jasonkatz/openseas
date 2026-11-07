@@ -5,6 +5,8 @@ import {
   DEFAULT_SHIP_RULES,
   battleConfigAboard,
   battlePlanIllegalReason,
+  bilgeAfterTurn,
+  bilgeRowsFor,
   brigandSpecFor,
   chooseCaptainPlan,
   createBattleGame,
@@ -16,6 +18,9 @@ import {
   seedFromString,
   shipConfigFor,
   shipSupply,
+  soloBilgeStart,
+  soloBilgeTurn,
+  soloBilgeTurnsDue,
   splitTokens,
   validateBattleConfig,
   type BattleConfig,
@@ -123,5 +128,51 @@ describe("the AI captain", () => {
     let hits = 0;
     for (let i = 0; i < 12; i++) hits += sail(`s${i}`, { accuracy: 100, aggression: 80 }).states.at(-1)!.hits;
     expect(hits).toBeGreaterThan(12);
+  });
+});
+
+describe("the bilge as a Bilging board reads it", () => {
+  const board = { height: 12, minWaterRow: 3 };
+
+  it("never reads a bilge shallower than the board's floor, nor deeper than the board", () => {
+    expect(bilgeRowsFor(0, board)).toBe(3);
+    expect(bilgeRowsFor(200, board)).toBe(3);
+    expect(bilgeRowsFor(500, board)).toBe(6);
+    expect(bilgeRowsFor(1000, board)).toBe(12);
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: 1000 }), fc.integer({ min: 0, max: 1000 }), (a, b) => {
+        const [lo, hi] = a <= b ? [a, b] : [b, a];
+        const rlo = bilgeRowsFor(lo, board);
+        const rhi = bilgeRowsFor(hi, board);
+        return rlo >= 3 && rhi <= 12 && rlo <= rhi;
+      }),
+    );
+  });
+
+  it("a lone Bilging ship takes water as the ship's turn does", () => {
+    const rules = DEFAULT_SHIP_RULES;
+    const par = 20;
+    let bilge = soloBilgeStart(board);
+    expect(bilge).toEqual({ water: 0, lastScore: 0, row: 3 });
+    // Nothing earned: the bilge takes the class's intake every turn, as an unstaffed pump would.
+    for (let t = 1; t <= 4; t++) {
+      bilge = soloBilgeTurn(rules, par, bilge, 0, board);
+      expect(bilge.water).toBe(bilgeAfterTurn(rules, (t - 1) * rules.waterIntakePerTurn, 0, 0));
+    }
+    // A turn at par pumps more than the intake, and the bilge drains back to the floor.
+    const wet = bilge.water;
+    bilge = soloBilgeTurn(rules, par, bilge, par, board);
+    expect(bilge.water).toBe(bilgeAfterTurn(rules, wet, 0, 100));
+    expect(bilge.lastScore).toBe(par);
+    for (let i = 0; i < 6; i++) bilge = soloBilgeTurn(rules, par, bilge, bilge.lastScore + par, board);
+    expect(bilge.water).toBe(0);
+    expect(bilge.row).toBe(3);
+  });
+
+  it("counts a lone ship's turns from the round's start", () => {
+    expect(soloBilgeTurnsDue({ turnSeconds: 10 }, 0)).toBe(0);
+    expect(soloBilgeTurnsDue({ turnSeconds: 10 }, 9_999)).toBe(0);
+    expect(soloBilgeTurnsDue({ turnSeconds: 10 }, 10_000)).toBe(1);
+    expect(soloBilgeTurnsDue({ turnSeconds: 10 }, 150_000)).toBe(15);
   });
 });

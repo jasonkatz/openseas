@@ -117,6 +117,25 @@ export function dutyResults(score: number, thresholds: readonly ScoreThreshold[]
   }));
 }
 
+/**
+ * One round's own performance as a rating (DESIGN.md 3.11): where its score falls between the
+ * thresholds, read as a straight line between each pair. Below the first threshold the line runs
+ * down to a score of 0 at one step under it; above the last it carries on at the last step's
+ * slope, so a score far over the top shows how far over, a sign the thresholds want raising.
+ * This is never a pirate's standing, which only moves through `updateRating` on the game's rounds.
+ */
+export function performanceRating(score: number, thresholds: readonly ScoreThreshold[]): number {
+  const first = thresholds[0];
+  if (!first) throw new Error("no thresholds");
+  const step = thresholds.length > 1 ? thresholds[1]!.rating - first.rating : 200;
+  const line: ScoreThreshold[] = first.score > 0 ? [{ score: 0, rating: first.rating - step }, ...thresholds] : [...thresholds];
+  const s = Math.max(0, score);
+  const between = (a: ScoreThreshold, b: ScoreThreshold): number => Math.max(0, Math.round(a.rating + ((s - a.score) * (b.rating - a.rating)) / (b.score - a.score)));
+  if (line.length === 1) return first.rating;
+  for (let i = 1; i < line.length; i++) if (s <= line[i]!.score) return between(line[i - 1]!, line[i]!);
+  return between(line[line.length - 2]!, line[line.length - 1]!);
+}
+
 export interface RatingTier {
   readonly key: string;
   /** Minimum display rating for this tier. */
