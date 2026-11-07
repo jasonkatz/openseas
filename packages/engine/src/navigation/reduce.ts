@@ -39,7 +39,10 @@ export function validateConfig(cfg: NavigationConfig): void {
     int(cfg.maxStars, cfg.startStars, cfg.rings * cfg.octants) &&
     int(cfg.reuseChancePercent, 0, 100) &&
     cfg.starPoints >= 0 &&
-    cfg.efficiencyBonus >= 0 &&
+    Array.isArray(cfg.chainPercent) &&
+    cfg.chainPercent.length >= 1 &&
+    cfg.chainPercent.length <= 16 &&
+    cfg.chainPercent.every((p) => Number.isInteger(p) && p >= 100 && p <= 1000) &&
     cfg.runPoints >= 0 &&
     cfg.boochPenalty >= 0 &&
     int(cfg.tickMs, 20, 5000) &&
@@ -504,9 +507,10 @@ function resolve(w: Work): Work {
       const ids = w.markers.map((m) => w.slots[slotOf(cfg, m.ring, m.octant)]!.id);
       for (const m of w.markers) w.slots[slotOf(cfg, m.ring, m.octant)] = null;
       const chain = w.combo + 1;
-      const efficient = w.landingsSinceDeal <= 2 * n;
-      const points = n * n * cfg.starPoints * chain + (efficient ? cfg.efficiencyBonus : 0);
-      const completion: Completion = { markers: w.markers, ids, chain, efficient, points };
+      const chainPercent = cfg.chainPercent[Math.min(chain, cfg.chainPercent.length) - 1]!;
+      const saved = Math.max(0, 2 * n - w.landingsSinceDeal);
+      const points = Math.floor((n * n * cfg.starPoints * chainPercent) / 100) + saved * n * cfg.starPoints;
+      const completion: Completion = { markers: w.markers, ids, chain, chainPercent, saved, efficient: saved > 0, points };
       w.events.push({ seq: ++w.eventSeq, tick: w.tick, type: "charted", completion });
       w.score += points;
       w.combo = chain;

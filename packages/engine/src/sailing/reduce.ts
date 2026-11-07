@@ -50,7 +50,11 @@ export function validateConfig(cfg: SailingConfig): void {
     Number.isInteger(cfg.topOutPenalty) &&
     cfg.topOutPenalty >= 0 &&
     Number.isInteger(cfg.maxMoves) &&
-    cfg.maxMoves > 0;
+    cfg.maxMoves > 0 &&
+    Array.isArray(cfg.chainMultipliers) &&
+    cfg.chainMultipliers.length >= 1 &&
+    cfg.chainMultipliers.length <= 16 &&
+    cfg.chainMultipliers.every((m) => Number.isInteger(m) && m >= 1 && m <= 1000);
   if (!ok) throw new Error("invalid sailing config");
 }
 
@@ -286,7 +290,7 @@ function applyPlace(state: SailingState, move: Extract<SailingMove, { type: "pla
     const groups = findClears(cfg, cells, platforms);
     if (groups.length === 0) break;
     const base = groups.reduce((sum, g) => sum + g.points, 0);
-    const points = base * groups.length * chain;
+    const points = base * groups.length * cfg.chainMultipliers[Math.min(chain, cfg.chainMultipliers.length) - 1]!;
     const clearedPlatforms = new Set(groups.filter((g) => g.platformId !== undefined).map((g) => g.platformId!));
     for (const g of groups) for (const c of g.cells) cells[c] = null;
     platforms = platforms.filter((p) => !clearedPlatforms.has(p.id));

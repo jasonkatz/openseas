@@ -42,6 +42,11 @@ export const BrigandTierSchema = z.object({
   aggression: z.number().min(0).max(1),
   /** Booty paid out on a win, in coins, before the duty-weighted split. */
   booty: z.int().min(0),
+  /**
+   * How much a fight against this tier is worth, in percent: the sea battle's turn points and the
+   * melee's attack rate are scaled by it, so a harder brigand rates higher (DESIGN.md 3.3).
+   */
+  scorePercent: z.int().min(1).max(1000),
   /** The brigand crew at the rail when a boarding happens (M5): one board per pirate aboard, each with this hand. */
   swordsmen: z.object({
     thinkTicks: z.int().min(1).max(10_000),
@@ -163,9 +168,17 @@ export const BilgingContentSchema = DutyPuzzleBaseSchema.extend({
     minWaterRow: z.int().min(0),
     waterRisePerMoves: z.int().min(1),
     waterDropPerPoints: z.int().min(1),
-    /** Practice boards keep their own water; the server sets this true for a board dealt aboard a ship. */
+    /** True: the board plays a ship's bilge, aboard or a lone ship's in the harness (ADR 0029). False keeps the board's own water. */
     shipWater: z.boolean().default(false),
+    /** A bound that keeps the move log a sane size; the clock ends a round. */
     maxMoves: z.int().min(1),
+    /** What each cascade step multiplies by; steps past the end take the last entry (the cap). */
+    cascadeMultipliers: z.array(z.int().min(1)).min(1),
+    /** Percent each scoring move in a row adds to a move's points, up to `streakMaxPercent`. */
+    streakStepPercent: z.int().min(0),
+    streakMaxPercent: z.int().min(100),
+    /** Non-scoring swaps in a row the streak survives. */
+    streakGrace: z.int().min(0),
   }),
   /**
    * How long a swap below the water line takes to settle, in ms. The board takes no other swap
@@ -198,8 +211,11 @@ export const SailingContentSchema = DutyPuzzleBaseSchema.extend({
     platformSpanMax: z.int().min(1),
     platformPoints: z.int().min(0),
     runPoints: z.int().min(0),
+    /** A bound that keeps the move log a sane size; the clock ends a round. */
     maxMoves: z.int().min(1),
     topOutPenalty: z.int().min(0),
+    /** What each chain step multiplies by; steps past the end take the last entry (the cap). */
+    chainMultipliers: z.array(z.int().min(1)).min(1),
   }),
   /** Ms per row a pair falls on its own. Client timing only; the move log carries landings. */
   fallMs: z.int().min(50).max(5000),
@@ -226,7 +242,10 @@ export const CarpentryContentSchema = DutyPuzzleBaseSchema.extend({
     }),
     grainBonusPercent: z.number().min(0),
     growAfterMoves: z.int().min(1),
+    /** A bound that keeps the move log a sane size; the clock ends a round. */
     maxMoves: z.int().min(1),
+    /** A masterpiece's multiplier in percent by its place in the streak; past the end, the last entry (the cap). */
+    streakPercent: z.array(z.int().min(100)).min(1),
   }),
   /** Wood kinds planks come in. Cosmetic: shape tells planks apart; wood adds variety. */
   pieces: z.array(PieceStyleSchema).min(1),
@@ -303,7 +322,8 @@ export const NavigationContentSchema = DutyPuzzleBaseSchema.extend({
     maxStars: z.int().min(1),
     reuseChancePercent: z.int().min(0).max(100),
     starPoints: z.int().min(0),
-    efficiencyBonus: z.int().min(0),
+    /** What the chain multiplies a constellation's stars by, in percent; past the end, the last entry (the cap). */
+    chainPercent: z.array(z.int().min(100)).min(1),
     /** A run of n loose stars of a kind scores runPoints * (n - 2). */
     runPoints: z.int().min(0),
     boochPenalty: z.int().min(0),
@@ -364,6 +384,10 @@ export const BattleContentSchema = z.object({
       startDamage: z.int().min(0).max(999),
     }),
     hitPoints: z.int().min(0),
+    /** Points lost per hit taken, so hits score as the margin. */
+    hitTakenPoints: z.int().min(0),
+    /** Turn points scaled by this, in percent; aboard, the brigand tier's `scorePercent` replaces it. */
+    scorePercent: z.int().min(1).max(1000),
     winPoints: z.int().min(0),
     turnBonus: z.int().min(0),
     maxMoves: z.int().min(1),
@@ -403,7 +427,12 @@ export const SwordfightContentSchema = z.object({
     allies: z.array(z.object({ thinkTicks: z.int().min(1).max(10_000), skill: z.int().min(0).max(100), blade: z.int().min(0).max(15) })).max(8),
     /** The practice foes. Aboard, the server empties this and the brigand crew fights from outside the board. */
     foes: z.array(z.object({ thinkTicks: z.int().min(1).max(10_000), skill: z.int().min(0).max(100), blade: z.int().min(0).max(15) })).max(8),
-    winPoints: z.int().min(0),
+    /** The win band: a win scores this plus its attack rate; anything else stays under it. */
+    winPoints: z.int().min(1),
+    /** The attack rate scaled by this, in percent; aboard, the brigand tier's `scorePercent` replaces it. */
+    scorePercent: z.int().min(1).max(1000),
+    /** The attack rate counts at least this many seconds of fight. */
+    minRateSeconds: z.int().min(1).max(3600),
     tickMs: z.int().min(20).max(5000),
     dropTicks: z.int().min(0).max(1000),
     fallTicks: z.int().min(1).max(1000),

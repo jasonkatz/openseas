@@ -6,6 +6,7 @@ export {
   advanceSwordfight,
   hashSwordfightState,
   summarizeSwordfight,
+  swordfightScore,
   validateConfig as validateSwordfightConfig,
   placeIllegalReason as swordfightPlaceIllegalReason,
   dropIllegalReason as swordfightDropIllegalReason,

@@ -16,7 +16,8 @@
     },
     "grainBonusPercent": 25,
     "growAfterMoves": 6,
-    "maxMoves": 60
+    "maxMoves": 10000,
+    "streakPercent": [100, 125, 150, 175, 200]
   },
   "roundSeconds": 150,
   "parScore": 400,

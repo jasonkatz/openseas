@@ -17,5 +17,6 @@ export const SailingConfigSchema = z.object({
   runPoints: z.int().min(0).max(1000),
   maxMoves: z.int().min(1).max(10_000),
   topOutPenalty: z.int().min(0).max(10_000),
+  chainMultipliers: z.array(z.int().min(1).max(1000)).min(1).max(16),
 });
 export type SailingConfigWire = z.infer<typeof SailingConfigSchema>;

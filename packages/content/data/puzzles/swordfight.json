@@ -20,7 +20,9 @@
     "blade": 0,
     "allies": [],
     "foes": [{ "thinkTicks": 14, "skill": 60, "blade": 1 }],
-    "winPoints": 400,
+    "winPoints": 5000,
+    "scorePercent": 100,
+    "minRateSeconds": 60,
     "tickMs": 200,
     "dropTicks": 2,
     "fallTicks": 4,
@@ -30,12 +32,12 @@
   "roundSeconds": 240,
   "softDropMs": 50,
   "thresholds": [
-    { "score": 80, "rating": 1100 },
-    { "score": 200, "rating": 1300 },
-    { "score": 450, "rating": 1500 },
-    { "score": 700, "rating": 1700 },
-    { "score": 1000, "rating": 1900 },
-    { "score": 1400, "rating": 2100 }
+    { "score": 300, "rating": 1100 },
+    { "score": 700, "rating": 1300 },
+    { "score": 5300, "rating": 1500 },
+    { "score": 5800, "rating": 1700 },
+    { "score": 6200, "rating": 1900 },
+    { "score": 6600, "rating": 2100 }
   ],
   "pieces": [
     { "nameKey": "swordfight.piece.crimson", "mark": "circle", "texture": "facet", "color": "#e5355a" },

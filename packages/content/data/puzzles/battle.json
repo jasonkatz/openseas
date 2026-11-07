@@ -77,35 +77,19 @@
       "startDamage": 0
     },
     "hitPoints": 50,
+    "hitTakenPoints": 50,
+    "scorePercent": 100,
     "winPoints": 500,
     "turnBonus": 40,
     "maxMoves": 64
   },
   "roundSeconds": 250,
   "thresholds": [
-    {
-      "score": 100,
-      "rating": 1100
-    },
-    {
-      "score": 250,
-      "rating": 1300
-    },
-    {
-      "score": 500,
-      "rating": 1500
-    },
-    {
-      "score": 800,
-      "rating": 1700
-    },
-    {
-      "score": 1100,
-      "rating": 1900
-    },
-    {
-      "score": 1400,
-      "rating": 2100
-    }
+    { "score": 90, "rating": 1100 },
+    { "score": 230, "rating": 1300 },
+    { "score": 450, "rating": 1500 },
+    { "score": 720, "rating": 1700 },
+    { "score": 990, "rating": 1900 },
+    { "score": 1260, "rating": 2100 }
   ]
 }

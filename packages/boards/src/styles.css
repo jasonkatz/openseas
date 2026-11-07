@@ -689,6 +689,19 @@ a {
 .veil-card .error {
   color: #9b2d1f;
 }
+/* A fight's result leads with who won (DESIGN.md 3.3); the word carries it, the color only backs it up. */
+.fight-outcome {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: #2b2113;
+}
+.fight-outcome.won {
+  color: #2f6b2a;
+}
+.fight-outcome.lost {
+  color: #9b2d1f;
+}
 .result-score {
   margin: 0;
   font-family: var(--font-display);

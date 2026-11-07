@@ -26,10 +26,15 @@ export interface SailingConfig {
   readonly platformPoints: number;
   /** Points per segment beyond three in a cleared run: a run of n scores runPoints * (n - 3). */
   readonly runPoints: number;
-  /** The round ends after this many pairs. */
+  /** A bound on pairs that only keeps the move log a sane size: the clock ends a round. A lab can set it low. */
   readonly maxMoves: number;
   /** Points lost when the rigging fills to the top and is cleared. Score never drops below zero. */
   readonly topOutPenalty: number;
+  /**
+   * What each step of a chain multiplies by: the landing's own clear is step 1, and steps past the
+   * end take the last entry, the cap. Steep, because a chain through the rigging is Sailing's skill.
+   */
+  readonly chainMultipliers: readonly number[];
 }
 
 export const DEFAULT_SAILING_CONFIG: SailingConfig = {
@@ -41,8 +46,9 @@ export const DEFAULT_SAILING_CONFIG: SailingConfig = {
   platformSpanMax: 4,
   platformPoints: 6,
   runPoints: 4,
-  maxMoves: 120,
+  maxMoves: 10_000,
   topOutPenalty: 40,
+  chainMultipliers: [1, 3, 6, 10],
 };
 
 export interface Segment {

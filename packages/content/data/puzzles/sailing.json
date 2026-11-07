@@ -8,8 +8,9 @@
     "platformSpanMax": 4,
     "platformPoints": 6,
     "runPoints": 4,
-    "maxMoves": 120,
-    "topOutPenalty": 40
+    "maxMoves": 10000,
+    "topOutPenalty": 40,
+    "chainMultipliers": [1, 3, 6, 10]
   },
   "roundSeconds": 150,
   "parScore": 200,

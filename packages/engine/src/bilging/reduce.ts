@@ -31,6 +31,7 @@ export function createBilgingGame(seed: string, config: BilgingConfig = DEFAULT_
     water: config.initialWaterRow * waterUnitsPerRow(config),
     waterRow: config.initialWaterRow,
     combo: 0,
+    misses: 0,
     bestCombo: 0,
     lastMove: null,
     finished: false,
@@ -55,7 +56,18 @@ export function validateConfig(cfg: BilgingConfig): void {
     cfg.minWaterRow <= cfg.initialWaterRow &&
     cfg.initialWaterRow <= cfg.height &&
     cfg.maxMoves > 0 &&
-    typeof cfg.shipWater === "boolean";
+    typeof cfg.shipWater === "boolean" &&
+    Array.isArray(cfg.cascadeMultipliers) &&
+    cfg.cascadeMultipliers.length >= 1 &&
+    cfg.cascadeMultipliers.length <= 16 &&
+    cfg.cascadeMultipliers.every((m) => Number.isInteger(m) && m >= 1 && m <= 100) &&
+    Number.isInteger(cfg.streakStepPercent) &&
+    cfg.streakStepPercent >= 0 &&
+    Number.isInteger(cfg.streakMaxPercent) &&
+    cfg.streakMaxPercent >= 100 &&
+    cfg.streakMaxPercent <= 1000 &&
+    Number.isInteger(cfg.streakGrace) &&
+    cfg.streakGrace >= 0;
   if (!ok) throw new Error("invalid bilging config");
 }
 
@@ -85,7 +97,7 @@ export function reduceBilging(state: BilgingState, move: BilgingMove): BilgingSt
     case "water":
       return applyWater(state, move);
     case "end":
-      return { ...state, finished: true, lastMove: { move, rounds: [], points: 0 } };
+      return { ...state, finished: true, lastMove: { move, rounds: [], points: 0, streakPercent: 100 } };
     case "swap":
       return applySwap(state, move);
     default: {
@@ -111,7 +123,7 @@ export function hashBilgingState(state: BilgingState): string {
   const h = new Hasher();
   h.int(state.config.width).int(state.config.height).int(state.config.pieceKinds);
   for (const p of state.cells) h.int(p.id).int(p.kind);
-  h.int(state.nextId).int(state.moveCount).int(state.score).int(state.water).int(state.waterRow).int(state.combo);
+  h.int(state.nextId).int(state.moveCount).int(state.score).int(state.water).int(state.waterRow).int(state.combo).int(state.misses);
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.finished ? 1 : 0);
   return h.digest();
@@ -156,7 +168,7 @@ function applyWater(state: BilgingState, move: Extract<BilgingMove, { type: "wat
   if (state.finished) throw new InvalidMoveError("game is finished", move);
   if (!Number.isInteger(move.row) || move.row < 0 || move.row > cfg.height) throw new InvalidMoveError("water row out of range", move);
   const water = move.row * waterUnitsPerRow(cfg);
-  return { ...state, water, waterRow: move.row, lastMove: { move, rounds: [], points: 0 } };
+  return { ...state, water, waterRow: move.row, lastMove: { move, rounds: [], points: 0, streakPercent: 100 } };
 }
 
 /** Water events the ship may inject over a board's life, on top of the swaps the cap allows. */
@@ -178,11 +190,17 @@ function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap
   let chain = 1;
 
   const moveCount = state.moveCount + 1;
+  // The streak multiplier this move scores at, should it score at all.
+  const streak = Math.min(cfg.streakMaxPercent, 100 + cfg.streakStepPercent * state.combo);
+  const withStreak = (raw: number): number => (raw > 0 ? Math.floor((raw * streak) / 100) : 0);
+  const cascade = (step: number): number => cfg.cascadeMultipliers[Math.min(step, cfg.cascadeMultipliers.length) - 1]!;
   let groups = immediateClears(cfg, cells, i, j);
   const settle = (): void => {
     while (groups.length > 0) {
       const base = groups.reduce((sum, g) => sum + g.points, 0);
-      const points = base * groups.length * chain;
+      // Barnacles coming off are worth what lifting several together set up, not the cascade's luck.
+      const lifted = groups.every((g) => g.cause === "barnacle");
+      const points = base * groups.length * (lifted ? 1 : cascade(chain));
       for (const g of groups) for (const c of g.cells) cells[c] = null;
       const r = riseAndRefill(cfg, cells, rng, nextId);
       rng = r.rng;
@@ -198,17 +216,20 @@ function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap
   // again. That settling can lift further barnacles (or the bonus can drain the water past one), so
   // repeat until none is left above the line: a move never ends with a barnacle that should be off.
   for (;;) {
-    const pointsSoFar = rounds.reduce((sum, r) => sum + r.points, 0);
+    const pointsSoFar = withStreak(rounds.reduce((sum, r) => sum + r.points, 0));
     groups = surfacedBarnacles(cfg, cells, waterRowOf(cfg, waterAfterMove(cfg, state.water, pointsSoFar)));
     if (groups.length === 0) break;
     settle();
   }
 
-  const points = rounds.reduce((sum, r) => sum + r.points, 0);
+  const raw = rounds.reduce((sum, r) => sum + r.points, 0);
+  const points = withStreak(raw);
   const score = state.score + points;
-  const combo = points > 0 ? state.combo + 1 : 0;
+  // A setup swap or two (up to the grace) keeps the streak; one more breaks it.
+  const misses = raw > 0 ? 0 : state.misses + 1;
+  const combo = raw > 0 ? state.combo + 1 : misses > cfg.streakGrace ? 0 : state.combo;
   const water = waterAfterMove(cfg, state.water, points);
-  const report: MoveReport = { move, rounds, points };
+  const report: MoveReport = { move, rounds, points, streakPercent: raw > 0 ? streak : 100 };
   return {
     config: cfg,
     cells: cells as Piece[],
@@ -219,6 +240,7 @@ function applySwap(state: BilgingState, move: Extract<BilgingMove, { type: "swap
     water,
     waterRow: waterRowOf(cfg, water),
     combo,
+    misses,
     bestCombo: Math.max(state.bestCombo, combo),
     lastMove: report,
     finished: moveCount >= cfg.maxMoves,

@@ -69,9 +69,19 @@ export interface SwordfightConfig {
   /** AI pirates on the player's side (side 0), then on the other side (side 1). */
   readonly allies: readonly SwordAiSpec[];
   readonly foes: readonly SwordAiSpec[];
-  /** Points for a side's win. */
+  /**
+   * The win band: a won fight scores this plus its attack rate, and any other fight scores its rate
+   * kept under it, so every win outranks every loss (DESIGN.md 3.3).
+   */
   readonly winPoints: number;
-  /** Wall-clock ms per tick on the client; the server bounds claimed ticks with it. The reducer never reads it. */
+  /** The attack rate is scaled by this, in percent: harder brigands score more. 100 in practice; aboard, the tier's. */
+  readonly scorePercent: number;
+  /** The attack rate counts at least this many seconds of fight, so an early end after one big break posts no freak rate. */
+  readonly minRateSeconds: number;
+  /**
+   * Wall-clock ms per tick on the client; the server bounds claimed ticks with it. The reducer reads
+   * it only to turn ticks into minutes for the attack rate.
+   */
   readonly tickMs: number;
   /** A pair cannot come to rest sooner than this many ticks after it appeared. */
   readonly dropTicks: number;
@@ -104,7 +114,9 @@ export const DEFAULT_SWORDFIGHT_CONFIG: SwordfightConfig = {
   blade: 0,
   allies: [],
   foes: [{ thinkTicks: 14, skill: 60, blade: 1 }],
-  winPoints: 400,
+  winPoints: 5000,
+  scorePercent: 100,
+  minRateSeconds: 60,
   tickMs: 200,
   dropTicks: 2,
   fallTicks: 4,
@@ -182,6 +194,8 @@ export interface SwordBoard {
   readonly pool: number;
   /** Wrack sent over the fight. */
   readonly sent: number;
+  /** Blocks this board has shattered, slabs counted block by block. */
+  readonly broken: number;
   readonly bestChain: number;
   readonly out: boolean;
   /** AI only: the tick of its next drop. */
@@ -244,7 +258,11 @@ export interface SwordfightState {
   readonly rng: PrngState;
   readonly nextId: number;
   readonly nextSlabId: number;
-  /** The player's points, plus the win. */
+  /**
+   * The player's attack per minute: every point their board broke, over the fight so far (at least
+   * `minRateSeconds` of it), scaled by `scorePercent`. Once the fight is won it carries the win band,
+   * `winPoints` on top; any other end keeps it under the band. Rises and falls during a fight.
+   */
   readonly score: number;
   readonly moveCount: number;
   readonly lastMove: SwordfightMoveReport | null;

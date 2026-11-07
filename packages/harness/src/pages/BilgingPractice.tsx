@@ -114,7 +114,8 @@ export function BilgingPractice() {
       timeLeft={api.timeLeft}
       score={shown.score}
       moves={shown.moveCount}
-      maxMoves={shown.config.maxMoves}
+      // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
+      maxMoves={shown.config.maxMoves < BILGING.config.maxMoves ? shown.config.maxMoves : undefined}
       combo={shown.combo}
       canRecord={api.canRecord}
       onStartRecorded={api.startRecorded}

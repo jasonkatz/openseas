@@ -23,6 +23,7 @@ import {
   type SwordfightEvent,
   type SwordfightMove,
   type SwordfightState,
+  swordfightScore,
 } from "../src/index.js";
 
 const cfg = DEFAULT_SWORDFIGHT_CONFIG;
@@ -638,3 +639,31 @@ describe("swordfight determinism (ADR 0003)", () => {
     expect(swordfightSpawnCol(alone)).toBe(2);
   });
 });
+
+describe("swordfight scoring", () => {
+  it("scores attack per minute over at least the floor, scaled by the tier, and a win's band above every loss", () => {
+    const c: SwordfightConfig = { ...cfg, tickMs: 200, winPoints: 5000, minRateSeconds: 60, scorePercent: 100 };
+    // 1200 points over two minutes (600 ticks of 200 ms) is 600 a minute.
+    expect(swordfightScore(c, 1200, 600, null)).toBe(600);
+    expect(swordfightScore(c, 1200, 600, "won")).toBe(5600);
+    expect(swordfightScore(c, 1200, 600, "lost")).toBe(600);
+    // A short fight still counts the full minute.
+    expect(swordfightScore(c, 300, 50, "lost")).toBe(300);
+    // The tier scales the rate, never the band.
+    expect(swordfightScore({ ...c, scorePercent: 200 }, 1200, 600, "won")).toBe(6200);
+    // No loss reaches the band, however hot.
+    expect(swordfightScore(c, 1_000_000, 300, "lost")).toBe(4999);
+  });
+
+  it("a fight's score is in the win band exactly when it was won", () => {
+    fc.assert(
+      fc.property(fc.string({ minLength: 1, maxLength: 8 }), fc.array(fc.nat({ max: 10_000 }), { minLength: 1, maxLength: 60 }), (seed, picks) => {
+        const { state } = playRandom(seed, picks);
+        expect(state.score >= state.config.winPoints).toBe(state.outcome === "won");
+        expect(state.score).toBeGreaterThanOrEqual(0);
+      }),
+      { numRuns: 30 },
+    );
+  });
+});
+

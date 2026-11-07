@@ -471,3 +471,40 @@ describe("the brigand", () => {
     expect(easy.taken).toBeGreaterThan(0);
   });
 });
+
+describe("sea battle scoring", () => {
+  it("hits score as the margin, the tier scales every turn, and the score never drops below zero", () => {
+    fc.assert(
+      fc.property(fc.string({ minLength: 1, maxLength: 8 }), picksArb, (seed, picks) => {
+        let state = createBattleGame(seed, cfg);
+        let sum = 0;
+        for (const pick of picks) {
+          if (state.finished) break;
+          const before = state.score;
+          state = reduceBattle(state, { type: "commit", ...planFor(state, pick) });
+          const r = state.lastTurn!;
+          expect(r.points).toBe(state.score - before);
+          expect(state.score).toBeGreaterThanOrEqual(0);
+          sum += r.points;
+        }
+        expect(state.score).toBe(sum);
+      }),
+      { numRuns: 40 },
+    );
+  });
+
+  it("a harder brigand's factor scales the same fight's points", () => {
+    const free: BattleConfig = { ...cfg, hitTakenPoints: 0 };
+    const double: BattleConfig = { ...free, scorePercent: 200 };
+    fc.assert(
+      fc.property(fc.string({ minLength: 1, maxLength: 8 }), picksArb, (seed, picks) => {
+        const a = playRandom(seed, picks, free);
+        let b = createBattleGame(seed, double);
+        for (const m of a.moves) b = reduceBattle(b, m);
+        expect(b.score).toBe(2 * a.state.score);
+      }),
+      { numRuns: 30 },
+    );
+  });
+});
+

@@ -144,6 +144,8 @@ export function validateConfig(cfg: BattleConfig): void {
     int(b.aggression, 0, 100) &&
     int(b.startDamage, 0, PERMILLE - 1) &&
     int(cfg.hitPoints, 0, 1_000_000) &&
+    int(cfg.hitTakenPoints, 0, 1_000_000) &&
+    int(cfg.scorePercent, 1, 1000) &&
     int(cfg.winPoints, 0, 1_000_000) &&
     int(cfg.turnBonus, 0, 1_000_000) &&
     int(cfg.maxMoves, 1, 1_000_000);
@@ -295,8 +297,11 @@ function commit(state: BattleState, plan: BattlePlan, move: BattleMove): BattleS
   let outcome = r.outcome;
   if (outcome === null && turn >= state.config.maxTurns) outcome = "broke_off";
   const combo = hits > 0 ? state.combo + 1 : 0;
-  let points = hits * state.config.hitPoints;
-  if (outcome !== null && WIN_OUTCOMES.includes(outcome)) points += state.config.winPoints + state.config.turnBonus * Math.max(0, state.config.maxTurns - turn);
+  // Hits score as the margin: each one taken costs as a hit landed pays. The tier scales the turn.
+  let raw = hits * state.config.hitPoints - hitsTaken * state.config.hitTakenPoints;
+  if (outcome !== null && WIN_OUTCOMES.includes(outcome)) raw += state.config.winPoints + state.config.turnBonus * Math.max(0, state.config.maxTurns - turn);
+  const score = Math.max(0, state.score + Math.trunc((raw * state.config.scorePercent) / 100));
+  const points = score - state.score;
   let ships: readonly [BattleShip, BattleShip] = r.ships;
   if (outcome === null) {
     const player = state.config.supply ? dealSupply(state.config, ships[0], state.config.supply) : ships[0];
@@ -318,7 +323,7 @@ function commit(state: BattleState, plan: BattlePlan, move: BattleMove): BattleS
     ships,
     turn,
     rng: chosen.rng,
-    score: state.score + points,
+    score,
     hits: state.hits + hits,
     hitsTaken: state.hitsTaken + hitsTaken,
     combo,

@@ -233,7 +233,9 @@ describe("carpentry rules", () => {
     expect(patched.rating).toBe("masterpiece");
     expect(patched.grainBonus).toBe(true);
     expect(patched.chain).toBe(3);
-    expect(patched.points).toBe(Math.round(5 * cfg.basePerCell * 3 * 1.25 * 3));
+    // The third masterpiece in a row takes the streak table's third entry, not three times the points.
+    expect(patched.streakPercent).toBe(cfg.streakPercent[2]);
+    expect(patched.points).toBe(Math.round((5 * cfg.basePerCell * 3 * 1.25 * cfg.streakPercent[2]!) / 100));
     expect(next.combo).toBe(3);
     expect(next.planks.length).toBe(0);
     expect(next.covered.every((c) => c === 0)).toBe(true);

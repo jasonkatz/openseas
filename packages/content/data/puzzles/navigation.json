@@ -8,7 +8,7 @@
     "maxStars": 8,
     "reuseChancePercent": 50,
     "starPoints": 10,
-    "efficiencyBonus": 30,
+    "chainPercent": [100, 125, 150, 175, 200],
     "runPoints": 5,
     "boochPenalty": 40,
     "tickMs": 100,
@@ -18,14 +18,14 @@
     "fallTicksMin": 18
   },
   "roundSeconds": 150,
-  "parScore": 300,
+  "parScore": 240,
   "thresholds": [
-    { "score": 60, "rating": 1100 },
-    { "score": 150, "rating": 1300 },
-    { "score": 300, "rating": 1500 },
-    { "score": 500, "rating": 1700 },
-    { "score": 800, "rating": 1900 },
-    { "score": 1200, "rating": 2100 }
+    { "score": 50, "rating": 1100 },
+    { "score": 120, "rating": 1300 },
+    { "score": 240, "rating": 1500 },
+    { "score": 400, "rating": 1700 },
+    { "score": 630, "rating": 1900 },
+    { "score": 950, "rating": 2100 }
   ],
   "colors": [
     { "nameKey": "navigation.color.gold", "mark": "circle", "color": "#f5d021" },

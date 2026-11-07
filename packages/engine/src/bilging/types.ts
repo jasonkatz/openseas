@@ -57,8 +57,23 @@ export interface BilgingConfig {
   readonly waterRisePerMoves: number;
   /** Water drops one row every this many points. */
   readonly waterDropPerPoints: number;
-  /** The game ends after this many swaps. Aboard a ship the ship's clock ends the board first. */
+  /**
+   * A bound on swaps that only keeps the move log a sane size: the clock ends a round, and the
+   * score is points per round on it (DESIGN.md 3.3). A lab can set it low to end a round early.
+   */
   readonly maxMoves: number;
+  /**
+   * What each step of a cascade multiplies by: the swap's own clear is step 1, and steps past the
+   * end of the list take its last entry, so the list's end is the cap. Clearing several groups in
+   * one step multiplies by their count on top, uncapped: that is the skill (a planned double).
+   */
+  readonly cascadeMultipliers: readonly number[];
+  /** Each scoring move in a row adds this many percent to the move's points, from the second on. */
+  readonly streakStepPercent: number;
+  /** The streak multiplier never passes this, in percent. */
+  readonly streakMaxPercent: number;
+  /** Non-scoring swaps in a row the streak survives (setups); one more breaks it. */
+  readonly streakGrace: number;
   /**
    * Aboard a ship the water is the ship's bilge, not the board's own: swaps neither raise nor
    * drain it, and `water` moves, injected into the log from the ship's turns, set it (DESIGN.md
@@ -76,8 +91,12 @@ export const DEFAULT_BILGING_CONFIG: BilgingConfig = {
   minWaterRow: 3,
   waterRisePerMoves: 6,
   waterDropPerPoints: 40,
-  maxMoves: 120,
+  maxMoves: 10_000,
   shipWater: false,
+  cascadeMultipliers: [1, 2, 3],
+  streakStepPercent: 10,
+  streakMaxPercent: 150,
+  streakGrace: 1,
 };
 
 export type BilgingMove =
@@ -102,7 +121,10 @@ export interface ClearRound {
   /** 1 for the clear caused directly by the swap, 2+ for cascades. */
   readonly chain: number;
   readonly groups: readonly ClearedGroup[];
-  /** Points for this round after group and chain multipliers. */
+  /**
+   * Points for this round after the group and cascade multipliers. Barnacles coming off take the
+   * group multiplier only: what they are worth is what was set up by lifting several together.
+   */
   readonly points: number;
   /** The board once this round's gaps have risen and refilled. Renderers replay cascades from it. */
   readonly settled: ReadonlyArray<Piece>;
@@ -111,7 +133,10 @@ export interface ClearRound {
 export interface MoveReport {
   readonly move: BilgingMove;
   readonly rounds: readonly ClearRound[];
+  /** The move's points: its rounds' points times the streak multiplier, rounded down. */
   readonly points: number;
+  /** The streak multiplier this move scored at, in percent; 100 for a move that scored nothing. */
+  readonly streakPercent: number;
 }
 
 export interface BilgingState {
@@ -130,8 +155,13 @@ export interface BilgingState {
   readonly water: number;
   /** Number of rows under water, minWaterRow..height. Derived from `water`. */
   readonly waterRow: number;
-  /** Consecutive moves that cleared at least one piece. Drives the combo meter. */
+  /**
+   * Scoring moves in the current streak. Drives the combo meter and the streak multiplier. One
+   * non-scoring swap (a setup) leaves it alone; more than `streakGrace` in a row break it.
+   */
   readonly combo: number;
+  /** Non-scoring swaps since the last scoring one. */
+  readonly misses: number;
   readonly bestCombo: number;
   readonly lastMove: MoveReport | null;
   readonly finished: boolean;

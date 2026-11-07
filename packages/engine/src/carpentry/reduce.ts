@@ -48,7 +48,11 @@ export function validateConfig(cfg: CarpentryConfig): void {
     Number.isInteger(cfg.growAfterMoves) &&
     cfg.growAfterMoves >= 1 &&
     Number.isInteger(cfg.maxMoves) &&
-    cfg.maxMoves > 0;
+    cfg.maxMoves > 0 &&
+    Array.isArray(cfg.streakPercent) &&
+    cfg.streakPercent.length >= 1 &&
+    cfg.streakPercent.length <= 16 &&
+    cfg.streakPercent.every((p) => Number.isInteger(p) && p >= 100 && p <= 1000);
   if (!ok) throw new Error("invalid carpentry config");
 }
 
@@ -274,11 +278,12 @@ function applyPlace(state: CarpentryState, move: Extract<CarpentryMove, { type: 
     const chain = rating === "masterpiece" ? combo + 1 : 1;
     combo = rating === "masterpiece" ? combo + 1 : 0;
     const grainBonus = worked.allHorizontal;
+    const streakPercent = rating === "masterpiece" ? cfg.streakPercent[Math.min(chain, cfg.streakPercent.length) - 1]! : 100;
     let pts = (area * cfg.basePerCell * cfg.multiplierPercent[rating]) / 100;
     if (grainBonus) pts *= 1 + cfg.grainBonusPercent / 100;
-    pts = Math.round(pts * chain);
+    pts = Math.round((pts * streakPercent) / 100);
     points = pts;
-    patched = { holeId: worked.id, cells: worked.cells, rating, extra, waste: worked.waste, grainBonus, chain, points: pts };
+    patched = { holeId: worked.id, cells: worked.cells, rating, extra, waste: worked.waste, grainBonus, chain, streakPercent, points: pts };
     // The hole is sound again: its planks come off the board and the hull is free for new holes.
     for (const p of planks) if (p.holeId === worked.id) for (const c of p.cells) covered[c] = Math.max(0, covered[c]! - 1);
     planks = planks.filter((p) => p.holeId !== worked.id);

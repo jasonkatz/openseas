@@ -357,3 +357,22 @@ describe("sailing rules", () => {
     );
   });
 });
+
+describe("sailing chains", () => {
+  it("every step of a chain multiplies by its entry in the chain table, the last entry past its end", () => {
+    const mult = (n: number): number => cfg.chainMultipliers[Math.min(n, cfg.chainMultipliers.length) - 1]!;
+    fc.assert(
+      fc.property(fc.string({ minLength: 1, maxLength: 8 }), fc.array(fc.nat({ max: 10_000 }), { minLength: 1, maxLength: 40 }), (seed, picks) => {
+        let state = createSailingGame(seed, cfg);
+        for (const pick of picks) {
+          const legal = legalMoves(state);
+          if (state.finished || legal.length === 0) break;
+          state = reduceSailing(state, legal[pick % legal.length]!);
+          for (const r of state.lastMove!.rounds) expect(r.points).toBe(r.groups.reduce((n, g) => n + g.points, 0) * r.groups.length * mult(r.chain));
+        }
+      }),
+      { numRuns: 40 },
+    );
+  });
+});
+
