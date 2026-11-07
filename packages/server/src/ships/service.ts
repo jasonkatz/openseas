@@ -475,10 +475,10 @@ export class ShipService {
    * The melee's config for a pirate's own board: content's rules with nobody else in the fight (the
    * brigand crew is outside it), and the tier's score factor on the attack rate.
    */
-  private meleeConfigFor(tierId: string): SwordfightConfig {
+  private meleeConfigFor(tierId: string, dealSeed: string): SwordfightConfig {
     const base = this.content.puzzles.swordfight.config;
     const tier = this.content.world.brigandTiers.find((t) => t.id === tierId);
-    return { ...base, player: true, allies: [], foes: [], scorePercent: tier?.scorePercent ?? base.scorePercent };
+    return { ...base, player: true, allies: [], foes: [], dealSeed, scorePercent: tier?.scorePercent ?? base.scorePercent };
   }
 
   /**
@@ -523,7 +523,7 @@ export class ShipService {
     const run = room.melee;
     if (!run || !room.voyageId) return null;
     const roundMs = Math.max(10_000, run.deadlineAt - this.now());
-    const started = this.puzzles.startMelee(pirateId, { shipId: room.shipId, voyageId: room.voyageId, tierId: run.tierId }, { config: this.meleeConfigFor(run.tierId), roundMs });
+    const started = this.puzzles.startMelee(pirateId, { shipId: room.shipId, voyageId: room.voyageId, tierId: run.tierId }, { config: this.meleeConfigFor(run.tierId, run.seed), roundMs });
     run.fights.set(pirateId, started.sessionId);
     room.conns.send(pirateId, started);
     return started;

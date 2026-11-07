@@ -4,6 +4,7 @@
     "height": 17,
     "colors": 4,
     "breakerPermille": 170,
+    "dealSeed": "",
     "ripenMoves": 2,
     "wrackMatchPermille": 750,
     "cellPoints": 10,

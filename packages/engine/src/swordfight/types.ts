@@ -46,6 +46,12 @@ export interface SwordfightConfig {
   readonly colors: number;
   /** Chance per block of a falling pair of being a breaker, per mille. */
   readonly breakerPermille: number;
+  /**
+   * Names the shared pair stream. Empty: the fight's own seed does, so every board in this fight is
+   * dealt the same pairs. Fights that should share a deal (the pirates of one crew boarding
+   * together, each on their own board) are given the same name.
+   */
+  readonly dealSeed: string;
   /** Drops on a board before wrack that landed there ripens into colored blocks. */
   readonly ripenMoves: number;
   /**
@@ -107,6 +113,7 @@ export const DEFAULT_SWORDFIGHT_CONFIG: SwordfightConfig = {
   height: SWORDFIGHT_HEIGHT,
   colors: 4,
   breakerPermille: 170,
+  dealSeed: "",
   ripenMoves: 2,
   wrackMatchPermille: 750,
   cellPoints: 10,

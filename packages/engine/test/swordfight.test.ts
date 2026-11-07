@@ -325,6 +325,16 @@ describe("shared pairs and edge-weighted blades", () => {
     expect(s.boards.some((b) => b.dealt > 2)).toBe(true);
   });
 
+  it("fights given the same deal name are dealt the same pairs whatever their seeds", () => {
+    const a = createSwordfightGame("pirate-one", { ...cfg, dealSeed: "crew-7" });
+    const b = createSwordfightGame("pirate-two", { ...cfg, dealSeed: "crew-7" });
+    const c = createSwordfightGame("pirate-two", cfg);
+    expect(a.boards[0]!.current).toEqual(b.boards[0]!.current);
+    expect(a.boards[0]!.next).toEqual(b.boards[0]!.next);
+    for (let n = 0; n < 20; n++) expect(pairAt(cfg, a.deal, n)).toEqual(pairAt(cfg, b.deal, n));
+    expect(a.deal).not.toBe(c.deal);
+  });
+
   it("the stock blades favor the edges over the middle", () => {
     for (const blade of DEFAULT_BLADES) {
       const count = (cols: number[]): number => blade.columns.filter((c) => cols.includes(c)).length;

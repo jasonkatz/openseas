@@ -40,6 +40,8 @@ export function validateConfig(cfg: SwordfightConfig): void {
     int(cfg.height, 6, 20) &&
     int(cfg.colors, 3, 6) &&
     int(cfg.breakerPermille, 0, 1000) &&
+    typeof cfg.dealSeed === "string" &&
+    cfg.dealSeed.length <= 200 &&
     int(cfg.ripenMoves, 1, 20) &&
     int(cfg.wrackMatchPermille, 0, 1000) &&
     int(cfg.cellPoints, 0, 1000) &&
@@ -127,7 +129,7 @@ function newBoard(cfg: SwordfightConfig, deal: string, mind: "player" | "ai", si
 export function createSwordfightGame(seed: string, config: SwordfightConfig = DEFAULT_SWORDFIGHT_CONFIG): SwordfightState {
   validateConfig(config);
   let rng = seedFromString(`swordfight:${seed}`);
-  const deal = `swordfight:${seed}:deal`;
+  const deal = config.dealSeed === "" ? `swordfight:${seed}:deal` : `swordfight:deal:${config.dealSeed}`;
   const boards: SwordBoard[] = [];
   if (config.player) {
     const b = newBoard(config, deal, "player", 0, null, config.blade, rng);
