@@ -71,7 +71,7 @@ jellyfish, renamed) ship in v1 because they define the skill ceiling. QoL: match
 or touch-hold, a combo meter, tap-then-tap or drag-swap on touch; on desktop a click swaps the
 hovered pair outright.
 
-As built (M1): seven ordinary piece kinds, colored squares, each with its own surface texture
+As built (M1, sprite art pass ADR 0031): seven ordinary piece kinds, illustrated nautical objects, each with its own silhouette and surface texture
 (knurled brass, ribbed shell, waves, wood grain, nacre rings, kelp fronds, coral pores) and its own
 optional mark. Specials are the Powder
 Keg (swap to clear a 3 by 3), the Ink Cloud (swap with a piece to clear every piece of that kind),
@@ -120,7 +120,7 @@ breaking a streak of 3+ sounds a fall; pumping the water down throws spray and a
 crossing into the danger half sounds an alarm; submerged pieces sway, kegs spark and specials
 breathe. Unrated practice only: after six seconds without input the board wiggles the swap that
 clears the most pieces. Rated rounds never hint. The result card adds rows pumped, counted on the
-client for display. Tile art is painted once per layout with Canvas 2D and shared with the legend.
+client for display. Tile sprites are baked once per layout from the shared atlas, with Canvas 2D overlays for labels and optional marks; the legend uses the same art.
 On phones the top bar is the whole HUD (score, time, moves, a combo chip) and the board takes the
 rest of the screen; combo, water, connection and the piece legend open in a panel over the board.
 
@@ -524,7 +524,7 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
 
 - Browser only, no install. Phones are first-class.
 - Portrait for all duty puzzles. Landscape for Sea Battle and the island.
-- Puzzle tiles are plain colored squares for legibility. Every piece type is also
+- Puzzle pieces use original illustrated sprites with clear silhouettes. Every piece type is also
   distinguishable without color: a player setting draws a distinct mark on each kind, and special
   tiles carry an icon and a label. Keyboard play for all puzzles on desktop. Screen-reader support for puzzle boards is out of scope.
 - English only. All player-facing strings go through one message table.
@@ -532,8 +532,15 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
 
 ### 3.10 Art
 
-Deliberately stylish placeholder geometry until the puzzles are proven fun and the full set of
-screens is known. The current intent is generated art under a strict style guide after that.
+The seven puzzle boards use original generated 2D sprite atlases (ADR 0031): nautical materials,
+dark outlines, restrained shading and distinct silhouettes, read at phone scale. Assets live in
+`boards`, so the game and harness render the same pieces. Bilging uses objects, Sailing keeps
+round discs, Carpentry uses modular wood with engine-defined footprints and grain, Navigation
+keeps its three star silhouettes, Swordfighting keeps square blocks, and Sea Battle uses overhead
+ships, reefs and eddies. Optional marks stay code-drawn; geometry, hit areas and scores stay in
+code. Arbitrarily sized Swordfight slabs, extra lab colors, board backgrounds, targets and effects
+retain procedural drawing. The procedural pieces also remain a fallback when an atlas cannot
+load. World art and audio are outside this puzzle art pass.
 
 ### 3.11 One experience: the shell, navigation and embedded puzzles
 
@@ -821,7 +828,7 @@ Maintained as they arise.
 | Sea battle rating | Head to head | By the hit margin and the win, scaled by the brigand tier, against content thresholds, against AI brigands | No human opponent until player-versus-player at sea (ADR 0021) |
 | Sea battle tokens | Typed tokens from the sails | The ship's turn output as tokens: half forward, the rest split between the turns; Navigation adds `navTokens` | One number from the ship, split the same way every time |
 | Bilging specials | Crab, pufferfish, jellyfish | Barnacle, Powder Keg, Ink Cloud | Original names (ADR 0001); same roles |
-| Tile art | Illustrated pieces | Colored squares with a distinct surface texture per kind, specials with icon and label, optional marks | Owner wants clarity first; textures and marks keep kinds apart without color |
+| Tile art | Illustrated pieces | Original illustrated sprite atlases, specials with labels, optional code-drawn marks; procedural fallback | Shared art between game and harness; silhouettes and marks keep kinds apart without color (ADR 0031) |
 | Bilging hints | None | Idle hint in unrated practice only | Teaches newcomers; rated rounds stay unaided |
 | Bilging scoring | Original's table | n(n-2) per group, times groups, times a capped cascade table; barnacles lifted together 15 × k²; a capped streak multiplier that survives one setup swap | Rewards planned multi-group swaps over refill luck (the owner's reward review); tuned in playtests |
 | Bilging water | Driven by the ship | The ship's bilge, never read below 3 rows, injected into the move log as water events the server vouches for; the harness plays a lone ship's bilge the same way (ADR 0029) | Replays stay self-contained: the log is the whole story (ADR 0003). A bilge that never reads dry keeps underwater swaps and barnacle setups on a sound ship's board |

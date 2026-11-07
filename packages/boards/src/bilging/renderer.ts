@@ -1,3 +1,4 @@
+import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
 import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import { Special, type BilgingState, type ClearRound, type MoveReport, type Piece } from "@openseas/engine";
 import type { BilgingContent } from "@openseas/content";
@@ -280,6 +281,8 @@ export class BilgingRenderer {
   }
 
   async init(): Promise<void> {
+    await loadPuzzleSprites("bilging");
+    if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
@@ -294,6 +297,7 @@ export class BilgingRenderer {
       this.app.destroy(true);
       return;
     }
+    this.app.canvas.dataset.spriteAtlas = spritesReady("bilging") ? "bilging" : "fallback";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "bilging-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());

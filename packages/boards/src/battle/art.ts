@@ -1,3 +1,4 @@
+import { drawSprite } from "../sprites/atlas.js";
 import type { ParsedBoard } from "@openseas/engine";
 import { battleCellAt } from "@openseas/engine";
 
@@ -201,6 +202,7 @@ function paintSurf(ctx: CanvasRenderingContext2D, board: ParsedBoard, x: number,
 }
 
 function paintRock(ctx: CanvasRenderingContext2D, cx: number, cy: number, cell: number, rnd: () => number): void {
+  if (drawSprite(ctx, "battle", "reef", cx - cell / 2, cy - cell / 2, cell, cell)) return;
   const n = 9;
   const pts: Array<[number, number]> = [];
   for (let i = 0; i < n; i++) {
@@ -337,6 +339,9 @@ function paintGust(ctx: CanvasRenderingContext2D, run: ReadonlyArray<readonly [n
 
 export function paintEddy(size: number, resolution: number): HTMLCanvasElement {
   const { canvas, ctx } = canvasFor(size, size, resolution);
+  if (drawSprite(ctx, "battle", "eddy", 0, 0, size, size)) {
+    return canvas;
+  }
   const c = size / 2;
   const R = size * 0.46;
   const bowl = ctx.createRadialGradient(c, c, 0, c, c, R);
@@ -385,6 +390,18 @@ export function paintEddy(size: number, resolution: number): HTMLCanvasElement {
 /** A sloop seen from above, bow up, in a square of `size`. The hull is about 0.9 of it long. */
 export function paintShip(size: number, who: ShipSide, showMarks: boolean, resolution: number): HTMLCanvasElement {
   const { canvas, ctx } = canvasFor(size, size, resolution);
+  if (drawSprite(ctx, "battle", `ship${who}`, 0, 0, size, size)) {
+    if (showMarks) {
+      ctx.font = `bold ${size * 0.18}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.lineWidth = Math.max(2, size * 0.04);
+      ctx.strokeStyle = "#0b1526";
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeText(who === 0 ? "○" : "△", size / 2, size * 0.65);
+      ctx.fillText(who === 0 ? "○" : "△", size / 2, size * 0.65);
+    }
+    return canvas;
+  }
   const cx = size / 2;
   const L = size * 0.9;
   const top = (size - L) / 2;
@@ -581,6 +598,9 @@ export function paintShip(size: number, who: ShipSide, showMarks: boolean, resol
 
 export function paintBall(size: number, resolution: number): HTMLCanvasElement {
   const { canvas, ctx } = canvasFor(size, size, resolution);
+  if (drawSprite(ctx, "battle", "ball", 0, 0, size, size)) {
+    return canvas;
+  }
   const c = size / 2;
   const r = size * 0.42;
   const g = ctx.createRadialGradient(c - r * 0.4, c - r * 0.45, r * 0.1, c, c, r);

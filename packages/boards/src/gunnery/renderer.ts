@@ -1,3 +1,4 @@
+import { loadPuzzleSprites, spritesReady, paintSprite, spriteTexture } from "../sprites/atlas.js";
 import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   DX,
@@ -141,6 +142,7 @@ export class GunneryRenderer {
   private readonly pathG = new Graphics();
   private readonly arrowG = new Graphics();
   private readonly cannonG = new Graphics();
+  private readonly cannonSprites: Sprite[] = [];
   private readonly needLayer = new Container();
   private readonly cannonFxG = new Graphics();
   private readonly queueLayer = new Container();
@@ -210,6 +212,8 @@ export class GunneryRenderer {
   }
 
   async init(): Promise<void> {
+    await loadPuzzleSprites("gunnery");
+    if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
@@ -222,6 +226,7 @@ export class GunneryRenderer {
       this.app.destroy(true);
       return;
     }
+    this.app.canvas.dataset.spriteAtlas = spritesReady("gunnery") ? "gunnery" : "fallback";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "gunnery-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -546,6 +551,7 @@ export class GunneryRenderer {
             break;
           case "crate":
             g.rect(x, y, s, s).fill(this.plankFill);
+            if (paintSprite(g, "gunnery", "crate", x, y, s, s)) break;
             g.roundRect(x + s * 0.08, y + s * 0.08, s * 0.84, s * 0.84, s * 0.08).fill({ color: COLORS.crate });
             g.roundRect(x + s * 0.08, y + s * 0.08, s * 0.84, s * 0.84, s * 0.08).stroke({ width: 2, color: COLORS.plankLine, alpha: 0.8 });
             g.moveTo(x + s * 0.12, y + s * 0.12).lineTo(x + s * 0.88, y + s * 0.88).moveTo(x + s * 0.88, y + s * 0.12).lineTo(x + s * 0.12, y + s * 0.88).stroke({ width: 2, color: COLORS.plankLine, alpha: 0.6 });
@@ -653,10 +659,25 @@ export class GunneryRenderer {
       const len = s * 0.62;
       const muzzleX = bx0 + outward * len;
       const left = Math.min(bx0, muzzleX);
-      g.roundRect(left, cy - s * 0.17, len, s * 0.34, s * 0.12).fill({ color: ready ? mix(COLORS.iron, COLORS.brass, 0.35) : COLORS.iron });
-      g.roundRect(left, cy - s * 0.17, len, s * 0.34, s * 0.12).stroke({ width: 1.5, color: COLORS.ironLight, alpha: 0.7 });
-      g.circle(muzzleX, cy, s * 0.2).fill({ color: COLORS.iron });
-      g.circle(muzzleX, cy, s * 0.11).fill({ color: 0x000000, alpha: 0.8 });
+      const cannonTexture = spriteTexture("gunnery", rec > 0 ? "cannon-fire" : c.fouled ? "cannon-fouled" : ready ? "cannon-loaded" : "cannon-empty");
+      if (cannonTexture) {
+        let sprite = this.cannonSprites[i];
+        if (!sprite) {
+          sprite = new Sprite(cannonTexture);
+          sprite.anchor.set(0.5);
+          this.cannonSprites[i] = sprite;
+          g.addChild(sprite);
+        }
+        sprite.texture = cannonTexture;
+        sprite.position.set(bx0, cy);
+        sprite.width = sprite.height = s * 1.2;
+        sprite.rotation = outward * Math.PI / 2;
+      } else {
+        g.roundRect(left, cy - s * 0.17, len, s * 0.34, s * 0.12).fill({ color: ready ? mix(COLORS.iron, COLORS.brass, 0.35) : COLORS.iron });
+        g.roundRect(left, cy - s * 0.17, len, s * 0.34, s * 0.12).stroke({ width: 1.5, color: COLORS.ironLight, alpha: 0.7 });
+        g.circle(muzzleX, cy, s * 0.2).fill({ color: COLORS.iron });
+        g.circle(muzzleX, cy, s * 0.11).fill({ color: 0x000000, alpha: 0.8 });
+      }
 
       if (ready) {
         const pulse = 0.5 + 0.5 * Math.sin(this.time / 70);
@@ -817,6 +838,8 @@ export class GunneryRenderer {
     }
     for (const v of this.pieces.values()) v.s.texture = this.textures.get(v.kind) ?? Texture.WHITE;
     this.drawQueue();
+    // Need badges also hold baked piece textures; a resize can render before the next tick.
+    this.drawCannons();
     for (const tex of old) tex.destroy(true);
   }
 

@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { advanceGunnery, summarizeGunnery, type Dir, type GunneryConfig, type GunneryEvent, type GunneryMove, type GunneryState } from "@openseas/engine";
-import { GunneryBoard, content, gunneryPieceUrl, sfx, t, useTicked } from "@openseas/boards";
+import { GunneryBoard, GunneryPieceIcon, content, sfx, t, useTicked } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -150,7 +150,7 @@ export function GunneryPractice() {
           <ul className="kinds">
             {pieces.map((p, kind) => (
               <li key={p.nameKey}>
-                <img src={gunneryPieceUrl(kind, showMarks ? p.mark : null, 26)} width={26} height={26} alt="" aria-hidden="true" className="tile-icon" draggable={false} />
+                <GunneryPieceIcon kind={kind} mark={showMarks ? p.mark : null} />
                 <span>{t(p.nameKey)}</span>
               </li>
             ))}

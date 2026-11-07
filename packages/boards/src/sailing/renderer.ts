@@ -1,3 +1,4 @@
+import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
 import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   SAILING_ROTATION_KICKS,
@@ -165,6 +166,8 @@ export class SailingRenderer {
   }
 
   async init(): Promise<void> {
+    await loadPuzzleSprites("sailing");
+    if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
@@ -177,6 +180,7 @@ export class SailingRenderer {
       this.app.destroy(true);
       return;
     }
+    this.app.canvas.dataset.spriteAtlas = spritesReady("sailing") ? "sailing" : "fallback";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "sailing-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());

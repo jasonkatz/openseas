@@ -1,3 +1,4 @@
+import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
 import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   swordfightBoardString,
@@ -273,6 +274,8 @@ export class SwordfightRenderer {
   }
 
   async init(): Promise<void> {
+    await loadPuzzleSprites("swordfight");
+    if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
@@ -285,6 +288,7 @@ export class SwordfightRenderer {
       this.app.destroy(true);
       return;
     }
+    this.app.canvas.dataset.spriteAtlas = spritesReady("swordfight") ? "swordfight" : "fallback";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "swordfight-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());

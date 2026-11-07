@@ -1,3 +1,4 @@
+import { drawSprite, spriteRevision } from "../sprites/atlas.js";
 import { Graphics } from "pixi.js";
 
 /**
@@ -54,6 +55,19 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 /** Paints one tile into a cell of size `s` whose top-left corner is the context origin. */
 export function paintTile(ctx: CanvasRenderingContext2D, s: number, style: TileStyle): void {
+  const sprite = style.special ?? ({ knurl: "cog", fan: "shell", waves: "anchor", grain: "plank", nacre: "pearl", fronds: "kelp", pores: "coral" } as const)[style.texture ?? "knurl"];
+  if (drawSprite(ctx, "bilging", sprite, 0, 0, s, s)) {
+    if (style.special && s >= 36 && style.label) {
+      ctx.font = `700 ${Math.max(7, s * 0.15)}px "Atkinson Hyperlegible", sans-serif`;
+      ctx.textAlign = "center";
+      ctx.lineWidth = Math.max(2, s * 0.05);
+      ctx.strokeStyle = "#0b1526";
+      ctx.fillStyle = "#f2f0e6";
+      ctx.strokeText(style.label, s / 2, s * 0.94);
+      ctx.fillText(style.label, s / 2, s * 0.94);
+    } else if (style.showMarks && style.mark) paintMark(ctx, s, style.mark);
+    return;
+  }
   const c = s / 2;
   const half = s * 0.44;
   const x0 = c - half;
@@ -142,7 +156,7 @@ const urlCache = new Map<string, string>();
 
 /** A data URL of a tile for the page legend; cached because legends re-render often. */
 export function tileDataUrl(style: TileStyle, px: number): string {
-  const key = JSON.stringify([style, px]);
+  const key = JSON.stringify([style, px, spriteRevision()]);
   let url = urlCache.get(key);
   if (!url) {
     url = tileCanvas(px, style, 3).toDataURL();

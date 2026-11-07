@@ -1,3 +1,4 @@
+import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
 import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, TilingSprite, type FederatedPointerEvent } from "pixi.js";
 import {
   BATTLE_PERMILLE,
@@ -259,6 +260,8 @@ export class BattleRenderer {
   ) {}
 
   async init(): Promise<void> {
+    await loadPuzzleSprites("battle");
+    if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
@@ -271,6 +274,7 @@ export class BattleRenderer {
       this.app.destroy(true);
       return;
     }
+    this.app.canvas.dataset.spriteAtlas = spritesReady("battle") ? "battle" : "fallback";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "battle-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -622,7 +626,9 @@ export class BattleRenderer {
       this.caustic.destroy();
       this.caustic = null;
     }
-    for (const t of this.textures.values()) t.destroy(true);
+    // Plot-strip gun icons and in-flight shots can still reference the old bake between ticks.
+    for (const icon of this.stripIcons.removeChildren()) icon.destroy();
+    const oldTextures = [...this.textures.values()];
     this.textures.clear();
     const shipPx = Math.ceil(this.cell * SHIP_SCALE);
     this.textures.set("ship0", texture(paintShip(shipPx, 0, this.opts.showMarks, r), r));
@@ -634,6 +640,8 @@ export class BattleRenderer {
     this.textures.set("cannon0", texture(paintCannon(iconPx, false, r), r));
     this.textures.set("cannon1", texture(paintCannon(iconPx, true, r), r));
     if (board) this.textures.set("sea", texture(paintSea(board, this.cell, r), r));
+    if (this.step) for (const shot of this.step.shots) shot.ball.texture = this.textures.get("ball")!;
+    for (const t of oldTextures) t.destroy(true);
   }
 
   private drawFrame(): void {

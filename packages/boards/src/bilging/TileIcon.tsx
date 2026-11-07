@@ -1,7 +1,9 @@
+import { useSprites } from "../sprites/useSprites.js";
 import { tileDataUrl, type SpecialName, type TileTexture } from "../bilging/tiles.js";
 
 /** A legend tile: the same painted art the boards use, as an image. */
 export function TileIcon(props: { color: string; texture?: TileTexture; mark?: string | null; special?: SpecialName; label?: string; size?: number }) {
+  useSprites("bilging");
   const size = props.size ?? 22;
   const src = tileDataUrl(
     {

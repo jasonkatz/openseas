@@ -1,4 +1,5 @@
 import { GunneryKind } from "@openseas/engine";
+import { drawSprite, spriteRevision } from "../sprites/atlas.js";
 import { paintMark } from "../bilging/tiles.js";
 
 /**
@@ -259,7 +260,8 @@ export function paintGunneryPiece(ctx: CanvasRenderingContext2D, s: number, kind
   ctx.translate(s / 2, s / 2);
   ctx.scale(PIECE_ZOOM, PIECE_ZOOM);
   ctx.translate(-s / 2, -s / 2);
-  PAINTERS[kind]?.(ctx, s);
+  const name = ["powder", "wad", "shot", "water"][kind];
+  if (!name || !drawSprite(ctx, "gunnery", name, s * 0.06, s * 0.06, s * 0.88, s * 0.88)) PAINTERS[kind]?.(ctx, s);
   ctx.restore();
   if (mark) {
     // The shared mark on a badge in the lower right, so the piece itself stays recognisable.
@@ -289,7 +291,7 @@ const urlCache = new Map<string, string>();
 
 /** A data URL of a piece for the page legend; cached because legends re-render often. */
 export function gunneryPieceUrl(kind: number, mark: string | null, px: number): string {
-  const key = `${kind}|${mark ?? ""}|${px}`;
+  const key = `${kind}|${mark ?? ""}|${px}|${spriteRevision()}`;
   let url = urlCache.get(key);
   if (!url) {
     url = gunneryPieceCanvas(px, kind, mark, 3).toDataURL();
