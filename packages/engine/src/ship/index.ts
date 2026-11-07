@@ -24,6 +24,8 @@ export {
   battleConfigAboard,
   shipSupply,
   splitBooty,
+  turnBootyOutputs,
+  meleeBootyOutput,
   bilgeRowsFor,
   soloBilgeStart,
   soloBilgeTurn,

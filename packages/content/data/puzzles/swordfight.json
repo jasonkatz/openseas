@@ -30,6 +30,7 @@
     "maxMoves": 2000
   },
   "roundSeconds": 240,
+  "parRatePerMinute": 1000,
   "softDropMs": 50,
   "thresholds": [
     { "score": 300, "rating": 1100 },

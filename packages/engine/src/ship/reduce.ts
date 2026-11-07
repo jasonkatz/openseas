@@ -51,13 +51,13 @@ export function validateShipConfig(cfg: ShipConfig): void {
     int(r.damageSlow, 0, PERMILLE) &&
     int(r.loadPerTurn, 0, 100_000) &&
     int(r.navTokens, 0, 100) &&
-    int(r.maxOutputPercent, 100, 10_000) &&
+    STATIONS.every((st) => int(r.outputCapPercent[st], 100, 10_000)) &&
     int(r.graceTurns, 0, 100_000) &&
     int(r.hailTurns, 1, 100_000) &&
     int(r.encounterWindow.from, 0, PERMILLE) &&
     int(r.encounterWindow.to, r.encounterWindow.from, PERMILLE) &&
-    int(r.mateOutput.min, 0, r.maxOutputPercent) &&
-    int(r.mateOutput.max, r.mateOutput.min, r.maxOutputPercent) &&
+    int(r.mateOutput.min, 0, Math.min(...STATIONS.map((st) => r.outputCapPercent[st]))) &&
+    int(r.mateOutput.max, r.mateOutput.min, Math.min(...STATIONS.map((st) => r.outputCapPercent[st]))) &&
     int(r.mateRestTurns, 0, 100_000) &&
     STATIONS.every((s) => int(cfg.par[s], 1, 1_000_000));
   if (!ok) throw new Error("invalid ship config");
@@ -83,7 +83,7 @@ export function bilgeAfterTurn(rules: ShipRules, water: number, damage: number, 
 
 /** A station's output for a turn: `points` as a percentage of par, clamped. */
 export function outputPercent(config: ShipConfig, station: Station, points: number): number {
-  return Math.min(config.rules.maxOutputPercent, Math.floor((points * 100) / config.par[station]));
+  return Math.min(config.rules.outputCapPercent[station], Math.floor((points * 100) / config.par[station]));
 }
 
 const zeroOutputs = (): Record<Station, number> => ({ bilging: 0, sailing: 0, carpentry: 0, gunnery: 0, navigation: 0 });

@@ -20,6 +20,8 @@ import {
   type ShipMove,
   type ShipState,
   type Station,
+  turnBootyOutputs,
+  meleeBootyOutput,
 } from "../src/index.js";
 
 const MATE_STATIONS: Station[] = ["sailing", "bilging", "carpentry", "gunnery"];
@@ -292,7 +294,9 @@ describe("ship voyage", () => {
   it("output is a percentage of par, capped, and only counts for staffed stations", () => {
     expect(outputPercent(cfg, "sailing", 0)).toBe(0);
     expect(outputPercent(cfg, "sailing", par.sailing)).toBe(100);
-    expect(outputPercent(cfg, "sailing", par.sailing * 7)).toBe(DEFAULT_SHIP_RULES.maxOutputPercent);
+    expect(outputPercent(cfg, "sailing", par.sailing * 7)).toBe(DEFAULT_SHIP_RULES.outputCapPercent.sailing);
+    // Each station has its own cap: a lumpy puzzle's patch reaches the ship whole where a steady one's would be cut.
+    expect(outputPercent(cfg, "carpentry", par.carpentry * 7)).toBe(700);
     let s = underway("out", { sailing: "p1" });
     expect(() => reduceShip(s, { type: "duty", station: "bilging", points: 5 })).toThrow(InvalidMoveError);
     expect(() => reduceShip(s, { type: "duty", station: "sailing", points: -1 })).toThrow(InvalidMoveError);
@@ -719,3 +723,29 @@ describe("ship config", () => {
     expect(() => createShip("x", cfg, "")).toThrow();
   });
 });
+
+describe("booty weighs what the ship received (ADR 0030)", () => {
+  it("a pirate at par counts the same at any station, and the cap bounds a turn", () => {
+    let s = underway("booty", { sailing: "p1", gunnery: "p2", carpentry: "p3" });
+    s = reduceShip(s, { type: "duty", station: "sailing", points: par.sailing });
+    s = reduceShip(s, { type: "duty", station: "gunnery", points: par.gunnery });
+    s = reduceShip(s, { type: "duty", station: "carpentry", points: par.carpentry * 50 });
+    s = reduceShip(s, { type: "turn" });
+    const out = new Map(turnBootyOutputs(s).map((o) => [o.pirateId, o.output]));
+    // Raw points differ many times over; what the ship received does not.
+    expect(out.get("p1")).toBe(100);
+    expect(out.get("p2")).toBe(100);
+    expect(out.get("p3")).toBe(DEFAULT_SHIP_RULES.outputCapPercent.carpentry);
+  });
+
+  it("deckhands and an idle pirate earn nothing, and a melee counts as duty turns", () => {
+    let s = underway("hands", { sailing: "p1" });
+    s = reduceShip(s, { type: "turn" });
+    expect(turnBootyOutputs(s)).toEqual([]);
+    // Par for a minute and a half of melee (nine ten-second turns) is nine turns at 100%.
+    expect(meleeBootyOutput(1000, 1000, 90_000, 10)).toBe(900);
+    expect(meleeBootyOutput(1500, 1000, 30_000, 10)).toBe(450);
+    expect(meleeBootyOutput(0, 1000, 5_000, 10)).toBe(0);
+  });
+});
+

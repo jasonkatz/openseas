@@ -168,6 +168,8 @@ export interface VoyageSetup {
   readonly battleBase: BattleConfig;
   /** Content's swordfight rules; the melee is these with the crew and the tier's hands. */
   readonly swordBase: SwordfightConfig;
+  /** Swordfight's par attack a minute: the melee counts in the booty as duty turns against it (ADR 0030). */
+  readonly meleeParRate: number;
   readonly tiers: Readonly<Record<string, TierSetup>>;
   readonly crew: readonly CrewSetup[];
   readonly script: readonly ScriptStep[];
@@ -182,10 +184,13 @@ export type Resolved = { readonly ok: true; readonly setup: VoyageSetup; readonl
 
 const isInt = (n: unknown, lo: number, hi: number): n is number => typeof n === "number" && Number.isInteger(n) && n >= lo && n <= hi;
 
-/** The crew's melee config: every pirate's hand against as many of the tier's swordsmen, at most eight a side. */
-export function meleeConfig(base: SwordfightConfig, hands: readonly SwordHand[], tier: SwordHand): SwordfightConfig {
+/**
+ * The crew's melee config: every pirate's hand against as many of the tier's swordsmen, at most
+ * eight a side, with the tier's score factor on the attack rate as the server sets it aboard.
+ */
+export function meleeConfig(base: SwordfightConfig, hands: readonly SwordHand[], tier: SwordHand, scorePercent = base.scorePercent): SwordfightConfig {
   const n = Math.min(8, hands.length);
-  return { ...base, player: false, blade: 0, allies: hands.slice(0, n).map((h) => ({ ...h })), foes: Array.from({ length: n }, () => ({ ...tier })) };
+  return { ...base, player: false, blade: 0, scorePercent, allies: hands.slice(0, n).map((h) => ({ ...h })), foes: Array.from({ length: n }, () => ({ ...tier })) };
 }
 
 /**
@@ -279,7 +284,7 @@ export function resolveScenario(content: Content, sc: VoyageScenario): Resolved 
         errors.push(`battle against ${tier.id}: ${e instanceof Error ? e.message : String(e)}`);
       }
       try {
-        validateSwordfightConfig(meleeConfig(content.puzzles.swordfight.config, sc.crew.map((c) => c.sword), tier.swordsmen));
+        validateSwordfightConfig(meleeConfig(content.puzzles.swordfight.config, sc.crew.map((c) => c.sword), tier.swordsmen, tier.scorePercent));
       } catch (e) {
         errors.push(`melee against ${tier.id}: ${e instanceof Error ? e.message : String(e)}`);
       }
@@ -297,6 +302,7 @@ export function resolveScenario(content: Content, sc: VoyageScenario): Resolved 
       ship,
       battleBase: content.puzzles.battle.config,
       swordBase: content.puzzles.swordfight.config,
+      meleeParRate: content.puzzles.swordfight.parRatePerMinute,
       tiers,
       crew: sc.crew.map((c, i) => ({ ...c, pirateId: `p${i + 1}` })),
       script: [...sc.script].sort((a, b) => a.turn - b.turn),

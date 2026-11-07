@@ -425,9 +425,12 @@ live in `content/data/puzzles/swordfight.json`.
   in place for the fight; the stations keep producing, and what they make reaches the battle
   board every turn (M4).
 - **Booty and loss.** Winning a sea battle and boarding yields currency split among everyone
-  aboard, weighted by duty performance during the fight, with an extra share for the captain:
-  two base shares for the captain, one for everyone else, each scaled between half and full by
-  the pirate's duty points during the fight against the best aboard (ADR 0021).
+  aboard, weighted by what each gave the ship during the fight, with an extra share for the
+  captain: two base shares for the captain, one for everyone else, each scaled between half and
+  full by the pirate's weight against the best aboard (ADR 0021, ADR 0030). The weight is the output
+  the ship received from the pirate's station, turn by turn, in percent of par after that station's
+  cap, so a pirate at par counts the same at any station; a melee counts as duty turns at the
+  pirate's attack a minute against Swordfight's `parRatePerMinute`.
   Losing yields nothing. Damage is repaired free at the next dock. No permanent loss, cargo, or
   sinking in v1.
 
@@ -794,7 +797,7 @@ Maintained as they arise.
 | Loss consequences | Cargo and damage costs | None in v1 | No economy yet |
 | Accounts | Username and password | Guest-first with OAuth upgrade | Zero first-session friction |
 | Island | Large walkable towns | Dock, tavern, notice board, as spots on a diorama | Scope; the M5 walkable island grows out of this view |
-| Ship at sea | Continuous movement | A turn every `turnSeconds`; each station's board points since the last turn become its output as a percentage of par | Pure engine on the server; the client eases the ship between snapshots (ADR 0020) |
+| Ship at sea | Continuous movement | A turn every `turnSeconds`; each station's board points since the last turn become its output as a percentage of par, clamped to that station's own `outputCapPercent` | Pure engine on the server; the client eases the ship between snapshots (ADR 0020); a cap per station lets lumpy puzzles' patches and constellations reach the ship whole (ADR 0030) |
 | Duty boards aboard | Continuous play at a station | Boards of the practice length dealt back to back; a board cut short by docking or standing down counts but moves no standing | Rated rounds stay whole rounds; the ship still gets every point |
 | Brigand encounters | A fight | Hailed in a window along the leg; the captain engages or evades, or the brigand loses interest after `hailTurns` | One hail per leg keeps a leg readable |
 | Sea battle turn | Moves placed as tokens arrive, resolved on a timer | The whole plot is one `commit` move; the ship's turn clock (the practice clock in the harness) sails it as it stands | A pure engine with no clock; the log is the fight (ADR 0021) |
