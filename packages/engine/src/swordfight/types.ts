@@ -97,9 +97,9 @@ export interface SwordfightConfig {
 }
 
 export const DEFAULT_BLADES: readonly Blade[] = [
-  { id: "cutlass", columns: [0, 1, 2, 3, 4, 5] },
-  { id: "sabre", columns: [2, 3, 1, 4, 2, 3, 0, 5] },
-  { id: "dirk", columns: [0, 5, 1, 4, 0, 5, 2, 3] },
+  { id: "cutlass", columns: [0, 5, 1, 4, 0, 5, 1, 4, 2, 3] },
+  { id: "sabre", columns: [0, 5, 2, 3, 1, 4, 0, 5] },
+  { id: "dirk", columns: [0, 5, 0, 5, 1, 4, 0, 5, 2, 3] },
 ];
 
 export const DEFAULT_SWORDFIGHT_CONFIG: SwordfightConfig = {
@@ -189,6 +189,8 @@ export interface SwordBoard {
   readonly next: SwordPair;
   /** The tick the current pair appeared. */
   readonly spawnedAt: number;
+  /** Pairs of the fight's shared stream this board has been dealt. */
+  readonly dealt: number;
   readonly pending: readonly PendingAttack[];
   /** The tick the oldest waiting attack arrived, or -1. */
   readonly pendingSince: number;
@@ -258,6 +260,8 @@ export interface SwordfightMoveReport {
 
 export interface SwordfightState {
   readonly config: SwordfightConfig;
+  /** Names the fight's shared pair stream: every board is dealt the same pairs in the same order. */
+  readonly deal: string;
   /** Board 0 is the player's when `config.player`; allies follow, then foes. */
   readonly boards: readonly SwordBoard[];
   readonly tick: number;

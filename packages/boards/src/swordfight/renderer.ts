@@ -7,6 +7,7 @@ import {
   type Slab,
   type SwordBoard,
   type SwordCell,
+  type SwordPair,
   type SwordRotation,
   type SwordfightConfig,
   type SwordfightEvent,
@@ -246,7 +247,7 @@ export class SwordfightRenderer {
   /** Events already shown, per tick and board: how many of that pair's events have been played. */
   private seen = new Map<string, number>();
   /** `placed` is set once the engine took the pair: it then waits for the state that replaces it, so a rest is never logged twice. */
-  private falling: { pc: number; rot: SwordRotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number; refused: number; placed: boolean } | null = null;
+  private falling: { pair: SwordPair; pc: number; rot: SwordRotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number; refused: number; placed: boolean } | null = null;
   private softDrop = false;
   private drag: { x: number; y: number; pc: number; moved: boolean; hurried: boolean } | null = null;
 
@@ -708,11 +709,7 @@ export class SwordfightRenderer {
     this.textures.clear();
     for (const v of this.pieces.values()) v.s.texture = this.texture(v.color, v.kind, 1, 1, v.ripen);
     for (const v of this.slabs.values()) v.s.texture = this.texture(v.color, "block", v.w, v.h);
-    if (this.falling && this.state?.config.player) {
-      const cur = this.state.boards[0]!.current;
-      this.falling.a.texture = this.texture(cur.a.color, cur.a.breaker ? "breaker" : "block", 1, 1);
-      this.falling.b.texture = this.texture(cur.b.color, cur.b.breaker ? "breaker" : "block", 1, 1);
-    }
+    this.paintFalling();
     this.updateStrip();
     for (const t of old) t.destroy(true);
   }
@@ -733,11 +730,22 @@ export class SwordfightRenderer {
     a.anchor.set(0.5);
     bb.anchor.set(0.5);
     this.fallingLayer.addChild(a, bb);
-    this.falling = { pc, rot: 1, row, a, b: bb, lock: 0, resets: 0, low: row, refused: 0, placed: false };
+    this.falling = { pair: b.current, pc, rot: 1, row, a, b: bb, lock: 0, resets: 0, low: row, refused: 0, placed: false };
     this.softDrop = false;
     this.idleMs = 0;
     this.placedMs = 0;
     this.positionFalling();
+  }
+
+  /** Dress the falling sprites in the pair they were dealt, with textures that are alive. */
+  private paintFalling(): void {
+    const f = this.falling;
+    if (!f) return;
+    const a = this.texture(f.pair.a.color, f.pair.a.breaker ? "breaker" : "block", 1, 1);
+    const b = this.texture(f.pair.b.color, f.pair.b.breaker ? "breaker" : "block", 1, 1);
+    if (f.a.texture !== a) f.a.texture = a;
+    if (f.b.texture !== b) f.b.texture = b;
+    f.a.visible = f.b.visible = true;
   }
 
   private dropFalling(): void {
@@ -936,6 +944,7 @@ export class SwordfightRenderer {
     g.clear();
     this.app.canvas.setAttribute("data-falling", f ? `${f.pc},${f.rot},${Math.ceil(f.row)}` : "");
     if (!f || !this.state) return;
+    this.paintFalling();
     const R = Math.ceil(f.row);
     const h = halves(f.pc, f.rot, R);
     const dy = (R - f.row) * this.cell;
@@ -943,7 +952,7 @@ export class SwordfightRenderer {
     f.b.position.set(this.cx(h.b[0]), this.cy(h.b[1]) + dy);
     const land = swordfightLandingCells(this.state.config, this.cells, anchorOf(f.pc, f.rot), f.rot);
     if (!land) return;
-    const cur = this.state.boards[0]!.current;
+    const cur = f.pair;
     for (const [i, piece] of [
       [land[0], cur.a],
       [land[1], cur.b],
@@ -1457,7 +1466,16 @@ export class SwordfightRenderer {
   /** Gravity on the falling pair; a short lock once it rests, then the engine is asked. */
   private fall(dt: number): void {
     const f = this.falling;
-    if (!f || !this.interactive || this.steps.length || !this.state || f.placed) return;
+    if (!f || !this.interactive || !this.state || f.placed) return;
+    if (this.steps.length) {
+      // Animations are running (an attack landing, say). The pair may still slide in from above the
+      // well, so it is never left hidden there under its shadow, but it does not fall further.
+      if (f.row > this.height - 1) {
+        f.row = Math.max(this.height - 1, f.row - dt / (this.state.config.fallTicks * this.state.config.tickMs / 5));
+        this.positionFalling();
+      }
+      return;
+    }
     if (f.refused > 0) {
       // The engine said too soon: hold the pair where it rests and ask again shortly.
       f.refused -= dt;

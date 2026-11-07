@@ -350,8 +350,8 @@ carries over); wrack first cancels wrack waiting to land on the sender's own boa
 which the lab can turn off), and the rest goes to the opposing board with the least on it. It
 waits there, shown above the board as a count, and lands at that board's next drop or after
 `landAfterTicks`, whichever comes first, at most `incomingCapRows` rows at a time, in the columns
-of the sender's blade (content: the cutlass spreads it, the sabre piles it in the middle, the dirk
-at the edges, each a list of columns taken in turn). Wrack is grey stone and unbreakable; each
+of the sender's blade (content: each a list of columns taken in turn, every one weighted toward the
+edges and away from the middle: the cutlass the least, the dirk the most). Wrack is grey stone and unbreakable; each
 block is dealt the color it will turn as it lands, and after `ripenMoves` of the board's drops it
 turns into a block of that color (usually one seen around where it lands: the block under it counts
 three times and each neighbour in its row once, `wrackMatchPermille` of the time in content, any
@@ -810,6 +810,7 @@ Maintained as they arise.
 | Sea battle ramming | Damage by size | Both ships take `ramDamage` and neither moves | Equal ships |
 | Sea battle sinking | Ships do not sink against brigands | A wrecked hull ends the fight, won or lost; no ship is lost | No permanent loss (3.4) |
 | Sea battle boarding | A swordfight | A grapple from alongside against a hull at `grappleDamage` or worse ends the sea battle at once; the sounder hull boards when both could, and the melee decides the booty (M5) | Either boarding opens the melee; whoever boards, the crew that holds the rail takes the purse |
+| Swordfight deal | Each pirate is dealt their own pieces | Every board in a fight takes pairs from one shared stream, the nth pair the same for all, derived from the fight's seed | An even fight: nobody gets better pieces by luck |
 | Swordfight pairs | Fall in real time | The move is the column and rotation the pair rested in, at its tick; the engine drops the halves; a rest sooner than `dropTicks` after the pair appeared is refused | One move per pair keeps the log small; the tick bounds how fast a hand can be (ADR 0015) |
 | Swordfight slabs | Rectangles of a color fuse into a big block | Same: a two-by-two fuses, a slab grows by a full strip along a side, and can hang over a hole | Faithful; the strip rule keeps fusing deterministic |
 | Swordfight attacks | Sprinkles land on the opponent at once, in the sword's pattern | Wrack waits on the target board and lands at its next drop or after `landAfterTicks`; it first cancels wrack waiting on the sender's board | A beat to see an attack coming and answer it; the timer means stalling never dodges one |

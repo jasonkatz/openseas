@@ -22,6 +22,7 @@ export {
   boardString as swordfightBoardString,
   boardLoad as swordfightBoardLoad,
   applyDrop as swordfightApplyDrop,
+  pairAt as swordfightPairAt,
   idx as swordfightIdx,
   type SwordfightSummary,
   type DropResult as SwordfightDropResult,

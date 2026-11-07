@@ -86,9 +86,16 @@ function dealPair(cfg: SwordfightConfig, rng: PrngState): { pair: SwordPair; rng
   return { pair: { a: a.piece, b: b.piece }, rng: b.rng };
 }
 
-function newBoard(cfg: SwordfightConfig, mind: "player" | "ai", side: 0 | 1, ai: SwordAiSpec | null, blade: number, rng: PrngState): { board: SwordBoard; rng: PrngState } {
-  const p1 = dealPair(cfg, rng);
-  const p2 = dealPair(cfg, p1.rng);
+/**
+ * The nth pair of the fight's shared stream. Every board takes pairs from the same stream in the
+ * same order, so no pirate is dealt better pieces than another; it is a pure function of the
+ * fight's seed, independent of the fight's other randomness.
+ */
+export function pairAt(cfg: SwordfightConfig, deal: string, n: number): SwordPair {
+  return dealPair(cfg, seedFromString(`${deal}:${n}`)).pair;
+}
+
+function newBoard(cfg: SwordfightConfig, deal: string, mind: "player" | "ai", side: 0 | 1, ai: SwordAiSpec | null, blade: number, rng: PrngState): { board: SwordBoard; rng: PrngState } {
   return {
     board: {
       mind,
@@ -97,8 +104,9 @@ function newBoard(cfg: SwordfightConfig, mind: "player" | "ai", side: 0 | 1, ai:
       blade,
       cells: new Array<SwordCell | null>(cfg.width * cfg.height).fill(null),
       slabs: [],
-      current: p1.pair,
-      next: p2.pair,
+      current: pairAt(cfg, deal, 0),
+      next: pairAt(cfg, deal, 1),
+      dealt: 2,
       spawnedAt: 0,
       pending: [],
       pendingSince: -1,
@@ -112,30 +120,31 @@ function newBoard(cfg: SwordfightConfig, mind: "player" | "ai", side: 0 | 1, ai:
       out: false,
       nextActTick: ai ? ai.thinkTicks : -1,
     },
-    rng: p2.rng,
+    rng,
   };
 }
 
 export function createSwordfightGame(seed: string, config: SwordfightConfig = DEFAULT_SWORDFIGHT_CONFIG): SwordfightState {
   validateConfig(config);
   let rng = seedFromString(`swordfight:${seed}`);
+  const deal = `swordfight:${seed}:deal`;
   const boards: SwordBoard[] = [];
   if (config.player) {
-    const b = newBoard(config, "player", 0, null, config.blade, rng);
+    const b = newBoard(config, deal, "player", 0, null, config.blade, rng);
     boards.push(b.board);
     rng = b.rng;
   }
   for (const ai of config.allies) {
-    const b = newBoard(config, "ai", 0, ai, ai.blade, rng);
+    const b = newBoard(config, deal, "ai", 0, ai, ai.blade, rng);
     boards.push(b.board);
     rng = b.rng;
   }
   for (const ai of config.foes) {
-    const b = newBoard(config, "ai", 1, ai, ai.blade, rng);
+    const b = newBoard(config, deal, "ai", 1, ai, ai.blade, rng);
     boards.push(b.board);
     rng = b.rng;
   }
-  return { config, boards, tick: 0, rng, nextId: 1, nextSlabId: 1, score: 0, moveCount: 0, lastMove: null, finished: false, outcome: null };
+  return { config, deal, boards, tick: 0, rng, nextId: 1, nextSlabId: 1, score: 0, moveCount: 0, lastMove: null, finished: false, outcome: null };
 }
 
 export function replaySwordfight(seed: string, moves: readonly SwordfightMove[], config: SwordfightConfig = DEFAULT_SWORDFIGHT_CONFIG): SwordfightState {
@@ -577,6 +586,7 @@ function landWrack(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number,
 // ---- the fight
 
 interface Sim {
+  deal: string;
   boards: SwordBoard[];
   rng: PrngState;
   nextId: number;
@@ -681,9 +691,7 @@ function dropOn(cfg: SwordfightConfig, sim: Sim, i: number, col: number, rot: Sw
   sim.nextId = landed.nextId;
   sim.rng = landed.rng;
   // The next pair.
-  const dealt = dealPair(cfg, sim.rng);
-  sim.rng = dealt.rng;
-  board = { ...board, current: board.next, next: dealt.pair, spawnedAt: tick };
+  board = { ...board, current: board.next, next: pairAt(cfg, sim.deal, board.dealt), dealt: board.dealt + 1, spawnedAt: tick };
   sim.boards[i] = board;
   if (boardOut(cfg, board)) markOut(sim, i, tick);
   checkEnd(cfg, sim, tick);
@@ -715,7 +723,7 @@ function aiActs(cfg: SwordfightConfig, sim: Sim, i: number, tick: number): void 
 /** Everything due up to `tick`, in order: landings before drops at the same tick, lower boards first. */
 function simulate(state: SwordfightState, tick: number): Sim {
   const cfg = state.config;
-  const sim: Sim = { boards: state.boards.slice(), rng: state.rng, nextId: state.nextId, nextSlabId: state.nextSlabId, events: [], finished: state.finished, outcome: state.outcome };
+  const sim: Sim = { deal: state.deal, boards: state.boards.slice(), rng: state.rng, nextId: state.nextId, nextSlabId: state.nextSlabId, events: [], finished: state.finished, outcome: state.outcome };
   for (;;) {
     if (sim.finished) break;
     let at = Infinity;
@@ -766,6 +774,7 @@ function finish(state: SwordfightState, sim: Sim, move: SwordfightMove, tick: nu
   const report: SwordfightMoveReport = { move, events: sim.events, points: earned };
   return {
     config: cfg,
+    deal: state.deal,
     boards: sim.boards,
     tick,
     rng: sim.rng,
@@ -861,7 +870,7 @@ export function hashSwordfightState(s: SwordfightState): string {
   h.int(s.rng.a).int(s.rng.b).int(s.rng.c).int(s.rng.d);
   h.int(s.boards.length);
   for (const b of s.boards) {
-    h.int(b.side).int(b.blade).int(b.spawnedAt).int(b.pendingSince).int(b.cursor).int(b.drops).int(b.points).int(b.pool).int(b.sent).int(b.broken).int(b.bestChain).int(b.out ? 1 : 0).int(b.nextActTick);
+    h.int(b.side).int(b.blade).int(b.spawnedAt).int(b.pendingSince).int(b.cursor).int(b.drops).int(b.dealt).int(b.points).int(b.pool).int(b.sent).int(b.broken).int(b.bestChain).int(b.out ? 1 : 0).int(b.nextActTick);
     for (const c of b.cells) {
       if (c === null) h.int(-1);
       else h.int(c.id).int(c.color).int(KINDS.indexOf(c.kind)).int(c.ripen).int(c.slab);
