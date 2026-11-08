@@ -83,7 +83,7 @@ export type Station = "bilging" | "sailing" | "carpentry" | "gunnery" | "navigat
 export const STATION_ORDER: readonly Station[] = ["bilging", "sailing", "carpentry", "gunnery", "navigation"];
 
 /** A sloop's size in the world: big enough that a crew of pirates can walk its deck. */
-export const SHIP_SCALE = 1.15;
+export const SHIP_SCALE = 1.4;
 /** How far the hull sits down in the water. */
 export const SHIP_SINK = 0.055;
 
@@ -142,8 +142,11 @@ const QUARTER_X = -0.17;
 const STEPS_FOOT_X = -0.1;
 const STEPS_HALF = 0.05;
 const GANGWAY_X = 0.04;
+/** The rails stand this far either side of the keel, and the deck between them is walked to `WALK_Z`. */
+const RAIL_Z = 0.225;
+const WALK_Z = 0.165;
 /** The masthead: short enough that a docked sloop does not tower over the town. */
-const MAST_TOP = 1.05;
+const MAST_TOP = 0.95;
 
 /**
  * A sloop with its stations laid out on a deck a crew can walk: a raised quarterdeck aft with the
@@ -160,29 +163,29 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   const b = new Batch();
 
   // ---- the hull
-  b.add(new THREE.BoxGeometry(0.9, 0.24, 0.36), PALETTE.hull, { p: [0, 0.12, 0] });
-  for (let i = 0; i < 3; i++) b.add(new THREE.BoxGeometry(0.91, 0.006, 0.365), 0x3f2814, { p: [0, 0.05 + i * 0.06, 0] });
-  b.add(new THREE.ConeGeometry(0.18, 0.4, 4), PALETTE.hull, { p: [0.64, 0.12, 0], r: [Math.PI / 4, 0, -Math.PI / 2], s: [1, 1, 0.66] });
+  b.add(new THREE.BoxGeometry(0.9, 0.24, 0.42), PALETTE.hull, { p: [0, 0.12, 0] });
+  for (let i = 0; i < 3; i++) b.add(new THREE.BoxGeometry(0.91, 0.006, 0.425), 0x3f2814, { p: [0, 0.05 + i * 0.06, 0] });
+  b.add(new THREE.ConeGeometry(0.18, 0.4, 4), PALETTE.hull, { p: [0.64, 0.12, 0], r: [Math.PI / 4, 0, -Math.PI / 2], s: [1, 1, 0.77] });
   b.add(new THREE.CylinderGeometry(0.012, 0.018, 0.4, 5), PALETTE.trunk, { p: [0.9, 0.32, 0], r: [0, 0, -Math.PI / 2 + 0.25] });
   b.add(new THREE.SphereGeometry(0.035, 6, 5), PALETTE.brass, { p: [0.84, 0.25, 0] });
   b.add(new THREE.BoxGeometry(0.03, 0.18, 0.08), PALETTE.trunk, { p: [-0.47, 0.06, 0] });
-  b.add(new THREE.BoxGeometry(0.92, 0.04, 0.37), PALETTE.brass, { p: [0, 0.2, 0] });
-  b.add(new THREE.BoxGeometry(0.92, 0.05, 0.4), PALETTE.gunwale, { p: [0, 0.26, 0] });
-  b.add(new THREE.BoxGeometry(0.84, 0.03, 0.3), PALETTE.deck, { p: [0, 0.285, 0] });
-  for (let i = 0; i < 5; i++) b.add(new THREE.BoxGeometry(0.84, 0.004, 0.004), 0x9a7a4c, { p: [0, 0.302, -0.12 + i * 0.06] });
+  b.add(new THREE.BoxGeometry(0.92, 0.04, 0.43), PALETTE.brass, { p: [0, 0.2, 0] });
+  b.add(new THREE.BoxGeometry(0.92, 0.05, 0.46), PALETTE.gunwale, { p: [0, 0.26, 0] });
+  b.add(new THREE.BoxGeometry(0.84, 0.03, 0.36), PALETTE.deck, { p: [0, 0.285, 0] });
+  for (let i = 0; i < 6; i++) b.add(new THREE.BoxGeometry(0.84, 0.004, 0.004), 0x9a7a4c, { p: [0, 0.302, -0.15 + i * 0.06] });
   // Gun ports on the hull sides.
-  for (const side of [-1, 1]) for (const x of [-0.05, 0.17]) b.add(new THREE.BoxGeometry(0.06, 0.05, 0.01), 0x1b1208, { p: [x, 0.16, side * 0.183] });
+  for (const side of [-1, 1]) for (const x of [-0.05, 0.17]) b.add(new THREE.BoxGeometry(0.06, 0.05, 0.01), 0x1b1208, { p: [x, 0.16, side * 0.213] });
 
   // ---- the quarterdeck: raised aft, a door either side of the steps, windows in the transom
   const qLen = QUARTER_X + 0.42;
-  b.add(new THREE.BoxGeometry(qLen, QUARTER_Y - DECK_Y, 0.3), PALETTE.wood, { p: [QUARTER_X - qLen / 2, (DECK_Y + QUARTER_Y) / 2, 0] });
-  b.add(new THREE.BoxGeometry(qLen, 0.006, 0.3), PALETTE.deck, { p: [QUARTER_X - qLen / 2, QUARTER_Y, 0] });
-  for (let i = 0; i < 4; i++) b.add(new THREE.BoxGeometry(qLen, 0.003, 0.003), 0x9a7a4c, { p: [QUARTER_X - qLen / 2, QUARTER_Y + 0.004, -0.09 + i * 0.06] });
-  for (const z of [-0.1, 0.1]) {
+  b.add(new THREE.BoxGeometry(qLen, QUARTER_Y - DECK_Y, 0.36), PALETTE.wood, { p: [QUARTER_X - qLen / 2, (DECK_Y + QUARTER_Y) / 2, 0] });
+  b.add(new THREE.BoxGeometry(qLen, 0.006, 0.36), PALETTE.deck, { p: [QUARTER_X - qLen / 2, QUARTER_Y, 0] });
+  for (let i = 0; i < 5; i++) b.add(new THREE.BoxGeometry(qLen, 0.003, 0.003), 0x9a7a4c, { p: [QUARTER_X - qLen / 2, QUARTER_Y + 0.004, -0.12 + i * 0.06] });
+  for (const z of [-0.12, 0.12]) {
     b.add(new THREE.BoxGeometry(0.006, 0.05, 0.036), 0x3a2414, { p: [QUARTER_X + 0.003, DECK_Y + 0.026, z] });
     b.add(new THREE.BoxGeometry(0.004, 0.004, 0.004), PALETTE.brass, { p: [QUARTER_X + 0.007, DECK_Y + 0.026, z + 0.01] });
   }
-  for (const z of [-0.08, 0.0, 0.08]) b.addGlow(new THREE.BoxGeometry(0.008, 0.035, 0.04), 0xffe9a8, { p: [-0.452, 0.2, z] });
+  for (const z of [-0.1, 0.0, 0.1]) b.addGlow(new THREE.BoxGeometry(0.008, 0.035, 0.04), 0xffe9a8, { p: [-0.452, 0.2, z] });
   // Three steps up, with a banister each side.
   const rise = (QUARTER_Y - DECK_Y) / 3;
   const run = (STEPS_FOOT_X - QUARTER_X) / 2;
@@ -197,19 +200,19 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   }
   // The quarterdeck's rail: across its front either side of the steps, and along its sides.
   for (const side of [-1, 1]) {
-    b.add(new THREE.BoxGeometry(0.008, 0.012, 0.1), PALETTE.trunk, { p: [QUARTER_X, QUARTER_Y + 0.055, side * 0.1] });
-    for (const z of [0.055, 0.145]) b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.055, 4), PALETTE.trunk, { p: [QUARTER_X, QUARTER_Y + 0.027, side * z] });
-    for (const x of [-0.41, -0.33, -0.25, QUARTER_X]) b.add(new THREE.CylinderGeometry(0.007, 0.007, 0.06, 4), PALETTE.trunk, { p: [x, QUARTER_Y + 0.03, side * 0.19] });
-    b.add(new THREE.BoxGeometry(qLen, 0.012, 0.012), PALETTE.trunk, { p: [QUARTER_X - qLen / 2, QUARTER_Y + 0.06, side * 0.19] });
+    b.add(new THREE.BoxGeometry(0.008, 0.012, RAIL_Z - 0.055), PALETTE.trunk, { p: [QUARTER_X, QUARTER_Y + 0.055, side * (RAIL_Z + 0.055) / 2] });
+    for (const z of [0.055, 0.14, RAIL_Z - 0.01]) b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.055, 4), PALETTE.trunk, { p: [QUARTER_X, QUARTER_Y + 0.027, side * z] });
+    for (const x of [-0.41, -0.33, -0.25, QUARTER_X]) b.add(new THREE.CylinderGeometry(0.007, 0.007, 0.06, 4), PALETTE.trunk, { p: [x, QUARTER_Y + 0.03, side * RAIL_Z] });
+    b.add(new THREE.BoxGeometry(qLen, 0.012, 0.012), PALETTE.trunk, { p: [QUARTER_X - qLen / 2, QUARTER_Y + 0.06, side * RAIL_Z] });
     // The main deck's rail, with the gangway port left open amidships.
-    for (const x of [QUARTER_X + 0.02, -0.08, GANGWAY_X - 0.035, GANGWAY_X + 0.035, 0.16, 0.27, 0.38]) b.add(new THREE.CylinderGeometry(0.008, 0.008, 0.07, 4), PALETTE.trunk, { p: [x, 0.32, side * 0.19] });
+    for (const x of [QUARTER_X + 0.02, -0.08, GANGWAY_X - 0.035, GANGWAY_X + 0.035, 0.16, 0.27, 0.38]) b.add(new THREE.CylinderGeometry(0.008, 0.008, 0.07, 4), PALETTE.trunk, { p: [x, 0.32, side * RAIL_Z] });
     const aftLen = GANGWAY_X - 0.035 - (QUARTER_X + 0.02);
-    b.add(new THREE.BoxGeometry(aftLen, 0.012, 0.012), PALETTE.trunk, { p: [QUARTER_X + 0.02 + aftLen / 2, 0.355, side * 0.19] });
+    b.add(new THREE.BoxGeometry(aftLen, 0.012, 0.012), PALETTE.trunk, { p: [QUARTER_X + 0.02 + aftLen / 2, 0.355, side * RAIL_Z] });
     const foreLen = 0.4 - (GANGWAY_X + 0.035);
-    b.add(new THREE.BoxGeometry(foreLen, 0.012, 0.012), PALETTE.trunk, { p: [GANGWAY_X + 0.035 + foreLen / 2, 0.355, side * 0.19] });
+    b.add(new THREE.BoxGeometry(foreLen, 0.012, 0.012), PALETTE.trunk, { p: [GANGWAY_X + 0.035 + foreLen / 2, 0.355, side * RAIL_Z] });
     // Stern lanterns.
-    b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 4), PALETTE.iron, { p: [-0.41, QUARTER_Y + 0.04, side * 0.13] });
-    b.addGlow(new THREE.SphereGeometry(0.016, 6, 5), PALETTE.lamp, { p: [-0.41, QUARTER_Y + 0.09, side * 0.13] });
+    b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 4), PALETTE.iron, { p: [-0.41, QUARTER_Y + 0.04, side * 0.16] });
+    b.addGlow(new THREE.SphereGeometry(0.016, 6, 5), PALETTE.lamp, { p: [-0.41, QUARTER_Y + 0.09, side * 0.16] });
   }
 
   // ---- the wheel and the chart table on the quarterdeck
@@ -218,7 +221,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   b.add(new THREE.TorusGeometry(0.042, 0.007, 5, 12), PALETTE.trunk, { p: [wheelAt.x, wheelAt.y, 0], r: [0, Math.PI / 2, 0] });
   for (let i = 0; i < 4; i++) b.add(new THREE.BoxGeometry(0.004, 0.1, 0.004), PALETTE.trunk, { p: [wheelAt.x, wheelAt.y, 0], r: [(i * Math.PI) / 4, 0, 0] });
   b.add(new THREE.SphereGeometry(0.008, 6, 5), PALETTE.brass, { p: [wheelAt.x, wheelAt.y, 0] });
-  const tableAt = { x: -0.37, z: 0.095 };
+  const tableAt = { x: -0.37, z: 0.125 };
   b.add(new THREE.BoxGeometry(0.075, 0.05, 0.055), PALETTE.wood, { p: [tableAt.x, QUARTER_Y + 0.025, tableAt.z] });
   b.add(new THREE.BoxGeometry(0.07, 0.004, 0.05), PALETTE.parchment, { p: [tableAt.x, QUARTER_Y + 0.052, tableAt.z], r: [0, 0.1, 0] });
   b.add(new THREE.CylinderGeometry(0.01, 0.01, 0.006, 8), PALETTE.brass, { p: [tableAt.x + 0.02, QUARTER_Y + 0.056, tableAt.z + 0.012] });
@@ -227,45 +230,44 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   // ---- the main deck: the mast's pin rail, the pump, the guns, the bench, a hatch, stores
   const mastX = 0.1;
   // The fife rail aft of the mast: two posts, a rail of belaying pins, coils of line hung on it.
-  for (const z of [-0.045, 0.045]) b.add(new THREE.BoxGeometry(0.012, 0.05, 0.012), PALETTE.trunk, { p: [mastX - 0.04, DECK_Y + 0.025, z] });
-  b.add(new THREE.BoxGeometry(0.016, 0.01, 0.11), PALETTE.wood, { p: [mastX - 0.04, DECK_Y + 0.05, 0] });
-  for (let i = 0; i < 5; i++) b.add(new THREE.CylinderGeometry(0.003, 0.003, 0.026, 4), PALETTE.brass, { p: [mastX - 0.04, DECK_Y + 0.055, -0.04 + i * 0.02] });
-  for (const z of [-0.03, 0.01]) b.add(new THREE.TorusGeometry(0.011, 0.003, 4, 8), PALETTE.rope, { p: [mastX - 0.048, DECK_Y + 0.035, z], r: [0, Math.PI / 2, 0] });
-  for (const side of [-1, 1]) b.add(new THREE.CylinderGeometry(0.02, 0.022, 0.035, 8), PALETTE.rope, { p: [mastX + 0.035, 0.318, side * 0.06] });
-  const pumpAt = { x: 0.25, z: -0.085 };
+  for (const z of [-0.035, 0.035]) b.add(new THREE.BoxGeometry(0.012, 0.05, 0.012), PALETTE.trunk, { p: [mastX - 0.04, DECK_Y + 0.025, z] });
+  b.add(new THREE.BoxGeometry(0.016, 0.01, 0.09), PALETTE.wood, { p: [mastX - 0.04, DECK_Y + 0.05, 0] });
+  for (let i = 0; i < 4; i++) b.add(new THREE.CylinderGeometry(0.003, 0.003, 0.026, 4), PALETTE.brass, { p: [mastX - 0.04, DECK_Y + 0.055, -0.03 + i * 0.02] });
+  for (const z of [-0.02, 0.015]) b.add(new THREE.TorusGeometry(0.011, 0.003, 4, 8), PALETTE.rope, { p: [mastX - 0.048, DECK_Y + 0.035, z], r: [0, Math.PI / 2, 0] });
+  const pumpAt = { x: 0.25, z: -0.125 };
   b.add(new THREE.BoxGeometry(0.06, 0.06, 0.06), PALETTE.iron, { p: [pumpAt.x, DECK_Y + 0.03, pumpAt.z] });
   b.add(new THREE.CylinderGeometry(0.014, 0.014, 0.05, 7), PALETTE.iron, { p: [pumpAt.x, DECK_Y + 0.085, pumpAt.z] });
   b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.13, 5), PALETTE.trunk, { p: [pumpAt.x - 0.03, DECK_Y + 0.105, pumpAt.z], r: [0, 0, Math.PI / 2 - 0.25] });
   b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.05, 5), PALETTE.iron, { p: [pumpAt.x + 0.03, DECK_Y + 0.03, pumpAt.z + 0.035], r: [Math.PI / 2, 0, 0] });
-  b.add(new THREE.CylinderGeometry(0.02, 0.016, 0.034, 7), PALETTE.wood, { p: [pumpAt.x + 0.055, DECK_Y + 0.017, pumpAt.z + 0.03] });
+  b.add(new THREE.CylinderGeometry(0.02, 0.016, 0.034, 7), PALETTE.wood, { p: [pumpAt.x + 0.05, DECK_Y + 0.017, pumpAt.z - 0.035] });
   const guns = [-0.05, 0.17];
   for (const side of [-1, 1]) {
     for (const x of guns) {
-      b.add(new THREE.BoxGeometry(0.055, 0.025, 0.05), PALETTE.wood, { p: [x, DECK_Y + 0.0125, side * 0.118] });
-      for (const dx of [-0.02, 0.02]) b.add(new THREE.CylinderGeometry(0.01, 0.01, 0.006, 7), PALETTE.woodDark, { p: [x + dx, DECK_Y + 0.008, side * 0.096], r: [Math.PI / 2, 0, 0] });
-      b.add(new THREE.CylinderGeometry(0.015, 0.02, 0.11, 8), PALETTE.iron, { p: [x, DECK_Y + 0.04, side * 0.14], r: [Math.PI / 2, 0, 0] });
+      // Run out against the rail, so the deck between the guns stays clear.
+      b.add(new THREE.BoxGeometry(0.055, 0.025, 0.045), PALETTE.wood, { p: [x, DECK_Y + 0.0125, side * 0.168] });
+      for (const dx of [-0.02, 0.02]) b.add(new THREE.CylinderGeometry(0.01, 0.01, 0.006, 7), PALETTE.woodDark, { p: [x + dx, DECK_Y + 0.008, side * 0.148], r: [Math.PI / 2, 0, 0] });
+      b.add(new THREE.CylinderGeometry(0.015, 0.02, 0.11, 8), PALETTE.iron, { p: [x, DECK_Y + 0.04, side * 0.2], r: [Math.PI / 2, 0, 0] });
     }
   }
-  // A shot rack and rammer by the starboard aft gun, where the gunner stands.
-  for (let i = 0; i < 3; i++) b.add(new THREE.SphereGeometry(0.009, 6, 4), PALETTE.iron, { p: [-0.1 + i * 0.019, DECK_Y + 0.009, 0.085] });
-  const benchAt = { x: 0.37, z: 0.075 };
+  // Shot in a rack by the starboard aft gun.
+  for (let i = 0; i < 3; i++) b.add(new THREE.SphereGeometry(0.009, 6, 4), PALETTE.iron, { p: [-0.11 + i * 0.019, DECK_Y + 0.009, 0.185] });
+  const benchAt = { x: 0.37, z: 0.12 };
   b.add(new THREE.BoxGeometry(0.1, 0.045, 0.05), PALETTE.wood, { p: [benchAt.x, DECK_Y + 0.0225, benchAt.z] });
   b.add(new THREE.BoxGeometry(0.12, 0.01, 0.028), PALETTE.deck, { p: [benchAt.x, DECK_Y + 0.05, benchAt.z], r: [0, 0.25, 0] });
   b.add(new THREE.BoxGeometry(0.026, 0.016, 0.016), PALETTE.iron, { p: [benchAt.x + 0.03, DECK_Y + 0.055, benchAt.z - 0.012] });
   b.add(new THREE.BoxGeometry(0.004, 0.004, 0.03), PALETTE.trunk, { p: [benchAt.x + 0.03, DECK_Y + 0.055, benchAt.z + 0.008] });
-  for (let i = 0; i < 3; i++) b.add(new THREE.BoxGeometry(0.1, 0.008, 0.02), i % 2 ? PALETTE.deck : PALETTE.wood, { p: [benchAt.x - 0.005, DECK_Y + 0.004 + i * 0.008, benchAt.z + 0.045] });
+  for (let i = 0; i < 3; i++) b.add(new THREE.BoxGeometry(0.1, 0.008, 0.016), i % 2 ? PALETTE.deck : PALETTE.wood, { p: [benchAt.x - 0.005, DECK_Y + 0.004 + i * 0.008, benchAt.z + 0.04] });
   // The hatch.
   b.add(new THREE.BoxGeometry(0.08, 0.006, 0.07), PALETTE.trunk, { p: [0.24, DECK_Y + 0.003, 0.045] });
   for (let i = 0; i < 4; i++) b.add(new THREE.BoxGeometry(0.004, 0.003, 0.066), 0x3a2414, { p: [0.21 + i * 0.02, DECK_Y + 0.0065, 0.045] });
   // Stores.
   for (const [x, z] of [
-    [0.31, -0.122],
-    [0.335, -0.1],
+    [0.335, -0.16],
+    [0.36, -0.135],
   ] as const) {
     b.add(new THREE.CylinderGeometry(0.019, 0.019, 0.045, 8), PALETTE.wood, { p: [x, DECK_Y + 0.0225, z] });
     b.add(new THREE.CylinderGeometry(0.0195, 0.0195, 0.004, 8), PALETTE.iron, { p: [x, DECK_Y + 0.035, z] });
   }
-  b.add(new THREE.BoxGeometry(0.045, 0.04, 0.045), PALETTE.deck, { p: [-0.12, DECK_Y + 0.02, -0.11], r: [0, 0.3, 0] });
 
   // ---- mast, boom, gaff and rigging
   b.add(new THREE.CylinderGeometry(0.018, 0.027, MAST_TOP - 0.28, 6), PALETTE.trunk, { p: [mastX, (MAST_TOP + 0.28) / 2, 0] });
@@ -277,7 +279,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
 
   const ropeMat = new THREE.LineBasicMaterial({ color: 0x3a2a18 });
   const rigging: THREE.Vector3[] = [];
-  for (const side of [-1, 1]) for (const x of [-0.06, 0.06]) rigging.push(new THREE.Vector3(mastX, MAST_TOP - 0.06, 0), new THREE.Vector3(mastX + x, 0.32, side * 0.19));
+  for (const side of [-1, 1]) for (const x of [-0.06, 0.06]) rigging.push(new THREE.Vector3(mastX, MAST_TOP - 0.06, 0), new THREE.Vector3(mastX + x, 0.32, side * RAIL_Z));
   rigging.push(new THREE.Vector3(mastX, MAST_TOP - 0.02, 0), new THREE.Vector3(1.05, 0.38, 0));
   rigging.push(new THREE.Vector3(mastX, MAST_TOP - 0.1, 0), new THREE.Vector3(-0.42, QUARTER_Y + 0.06, 0));
   body.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(rigging), ropeMat));
@@ -333,13 +335,13 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   body.add(marker);
 
   const invisible = (): THREE.MeshBasicMaterial => new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
-  const hit = new THREE.Mesh(new THREE.BoxGeometry(1.45, 1.4, 0.55), invisible());
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(1.45, 1.3, 0.6), invisible());
   hit.position.y = 0.7;
   body.add(hit);
-  const hullHit = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.42, 0.4), invisible());
+  const hullHit = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.42, 0.46), invisible());
   hullHit.position.set(0.02, 0.21, 0);
   body.add(hullHit);
-  const deckHit = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.02, 0.32), invisible());
+  const deckHit = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.02, 0.38), invisible());
   deckHit.position.y = DECK_Y;
   body.add(deckHit);
   const stationHits: THREE.Mesh[] = [];
@@ -353,7 +355,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   stationHit("bilging", pumpAt.x, DECK_Y + 0.06, pumpAt.z, 0.09, 0.12, 0.08);
   stationHit("sailing", mastX, DECK_Y + 0.1, 0, 0.12, 0.2, 0.12);
   stationHit("carpentry", benchAt.x, DECK_Y + 0.04, benchAt.z, 0.12, 0.08, 0.08);
-  stationHit("gunnery", guns[0]!, DECK_Y + 0.04, 0.12, 0.08, 0.08, 0.08);
+  stationHit("gunnery", guns[0]!, DECK_Y + 0.04, 0.17, 0.08, 0.08, 0.08);
   stationHit("navigation", tableAt.x, QUARTER_Y + 0.04, tableAt.z, 0.09, 0.08, 0.07);
   stationHit("wheel", wheelAt.x, wheelAt.y, 0, 0.04, 0.12, 0.12);
 
@@ -364,34 +366,31 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
     if (x < STEPS_FOOT_X && Math.abs(z) < STEPS_HALF) return DECK_Y + ((QUARTER_Y - DECK_Y) * (STEPS_FOOT_X - x)) / (STEPS_FOOT_X - QUARTER_X);
     return DECK_Y;
   };
-  const grid = new WalkGrid(-0.44, -0.16, 0.44, 0.16, 0.011).fill((x, z) => (x >= QUARTER_X && x <= 0.41 && Math.abs(z) <= 0.135) || (x >= -0.41 && x < QUARTER_X && Math.abs(z) <= 0.13));
+  const grid = new WalkGrid(-0.44, -0.2, 0.44, 0.2, 0.011).fill((x, z) => (x >= QUARTER_X && x <= 0.41 && Math.abs(z) <= WALK_Z) || (x >= -0.41 && x < QUARTER_X && Math.abs(z) <= WALK_Z - 0.005));
   const obstacles: Obstacle[] = [
     // The quarterdeck's front, but for the steps, and the banisters beside them.
-    { kind: "box", x: QUARTER_X, z: 0.1, hw: 0.006, hd: 0.05, angle: 0 },
-    { kind: "box", x: QUARTER_X, z: -0.1, hw: 0.006, hd: 0.05, angle: 0 },
+    { kind: "box", x: QUARTER_X, z: (RAIL_Z + STEPS_HALF) / 2, hw: 0.006, hd: (RAIL_Z - STEPS_HALF) / 2, angle: 0 },
+    { kind: "box", x: QUARTER_X, z: -(RAIL_Z + STEPS_HALF) / 2, hw: 0.006, hd: (RAIL_Z - STEPS_HALF) / 2, angle: 0 },
     { kind: "box", x: (QUARTER_X + STEPS_FOOT_X) / 2, z: STEPS_HALF, hw: (STEPS_FOOT_X - QUARTER_X) / 2, hd: 0.004, angle: 0 },
     { kind: "box", x: (QUARTER_X + STEPS_FOOT_X) / 2, z: -STEPS_HALF, hw: (STEPS_FOOT_X - QUARTER_X) / 2, hd: 0.004, angle: 0 },
     { kind: "circle", x: mastX, z: 0, r: 0.03 },
-    { kind: "box", x: mastX - 0.04, z: 0, hw: 0.01, hd: 0.055, angle: 0 },
-    { kind: "circle", x: mastX + 0.035, z: 0.06, r: 0.022 },
-    { kind: "circle", x: mastX + 0.035, z: -0.06, r: 0.022 },
-    { kind: "box", x: pumpAt.x + 0.01, z: pumpAt.z + 0.005, hw: 0.045, hd: 0.035, angle: 0 },
+    { kind: "box", x: mastX - 0.04, z: 0, hw: 0.01, hd: 0.045, angle: 0 },
+    { kind: "box", x: pumpAt.x + 0.01, z: pumpAt.z - 0.005, hw: 0.045, hd: 0.035, angle: 0 },
     { kind: "box", x: benchAt.x, z: benchAt.z + 0.01, hw: 0.05, hd: 0.04, angle: 0 },
-    { kind: "circle", x: 0.32, z: -0.11, r: 0.03 },
-    { kind: "box", x: -0.12, z: -0.11, hw: 0.025, hd: 0.025, angle: 0.3 },
+    { kind: "circle", x: 0.35, z: -0.15, r: 0.03 },
     { kind: "box", x: wheelAt.x + 0.006, z: 0, hw: 0.01, hd: 0.045, angle: 0 },
     { kind: "box", x: tableAt.x, z: tableAt.z, hw: 0.04, hd: 0.03, angle: 0 },
-    { kind: "circle", x: -0.41, z: 0.13, r: 0.008 },
-    { kind: "circle", x: -0.41, z: -0.13, r: 0.008 },
+    { kind: "circle", x: -0.41, z: 0.16, r: 0.008 },
+    { kind: "circle", x: -0.41, z: -0.16, r: 0.008 },
   ];
-  for (const side of [-1, 1]) for (const x of guns) obstacles.push({ kind: "box", x, z: side * 0.125, hw: 0.03, hd: 0.03, angle: 0 });
+  for (const side of [-1, 1]) for (const x of guns) obstacles.push({ kind: "box", x, z: side * 0.175, hw: 0.03, hd: 0.03, angle: 0 });
   for (const o of obstacles) grid.block(o, PAD);
 
   const anchors: Record<Station, THREE.Vector3> = {
     bilging: new THREE.Vector3(pumpAt.x, DECK_Y + 0.12, pumpAt.z),
     sailing: new THREE.Vector3(mastX, 0.55, 0),
     carpentry: new THREE.Vector3(benchAt.x, DECK_Y + 0.07, benchAt.z),
-    gunnery: new THREE.Vector3(guns[0]!, DECK_Y + 0.07, 0.13),
+    gunnery: new THREE.Vector3(guns[0]!, DECK_Y + 0.07, 0.18),
     navigation: new THREE.Vector3(tableAt.x, QUARTER_Y + 0.08, tableAt.z),
   };
   const deck: ShipDeck = {
@@ -399,21 +398,21 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
     heightAt,
     stations: {
       bilging: { at: { x: pumpAt.x - 0.064, z: pumpAt.z }, face: 0 },
-      sailing: { at: { x: mastX, z: -0.081 }, face: Math.PI / 2 },
+      sailing: { at: { x: mastX, z: -0.07 }, face: Math.PI / 2 },
       carpentry: { at: { x: benchAt.x, z: benchAt.z - 0.062 }, face: Math.PI / 2 },
-      gunnery: { at: { x: guns[0]!, z: 0.07 }, face: Math.PI / 2 },
+      gunnery: { at: { x: guns[0]!, z: 0.12 }, face: Math.PI / 2 },
       navigation: { at: { x: tableAt.x, z: tableAt.z - 0.058 }, face: Math.PI / 2 },
     },
     helm: { at: { x: wheelAt.x - 0.06, z: 0 }, face: 0 },
     idle: [
-      { x: 0.0, z: 0.0 },
-      { x: 0.2, z: 0.05 },
-      { x: -0.12, z: 0.05 },
-      { x: 0.3, z: -0.02 },
-      { x: -0.05, z: -0.07 },
-      { x: 0.03, z: 0.06 },
+      { x: 0.0, z: 0.02 },
+      { x: 0.22, z: 0.07 },
+      { x: -0.12, z: 0.06 },
+      { x: 0.3, z: -0.03 },
+      { x: -0.05, z: -0.09 },
+      { x: 0.16, z: -0.06 },
     ],
-    gangway: (side) => ({ x: GANGWAY_X, z: side * 0.118 }),
+    gangway: (side) => ({ x: GANGWAY_X, z: side * (WALK_Z - 0.01) }),
   };
   const plainFlag = kind === "other" ? PALETTE.parchment : PALETTE.brass;
   return { group, body, hit, hullHit, deckHit, stationHits, sail, canvas, flag, plainFlag, dressed: "", wake, marker, anchors, wheel: wheelAt, deck };

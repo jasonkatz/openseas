@@ -200,6 +200,25 @@ body {
   font-size: 13px;
 }
 
+/* On a phone the deck's labels are compact, so the deck between them stays visible and tappable. */
+@media (max-width: 600px) {
+  .ow-spot-station,
+  .ow-spot-wheel,
+  .ow-spot-gangway {
+    padding: 3px 8px;
+    border-radius: 9px;
+    margin-top: -11px;
+  }
+  .ow-spot-station .ow-spot-name,
+  .ow-spot-wheel .ow-spot-name,
+  .ow-spot-gangway .ow-spot-name {
+    font-size: 13px;
+  }
+  .ow-spot-station .ow-spot-who {
+    font-size: 10px;
+  }
+}
+
 /* A pirate's name over their head where the player walks: small, and a way to their card. */
 .ow-tag {
   position: absolute;

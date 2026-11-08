@@ -140,11 +140,14 @@ const DASH_STEP = 0.55;
 /** The island's footprint on the water, beach and all; the view is fitted to it. */
 const ISLAND_R = 1.9;
 /** The deck view: the hull itself fills the frame, its own little place; the mast and the sea around it fall outside. */
-const DECK_MIN_HALF_H = 0.5;
+const DECK_MIN_HALF_H = 0.55;
 /** Ashore, the camera walks with the pirate this close: a pirate stands a thumb tall on a phone. */
 const WALK_HALF_H = 1.0;
-const ZOOM_MIN = 0.6;
+const ZOOM_MIN = 0.45;
 const ZOOM_MAX = 2.4;
+/** On deck the view starts on the whole hull; it zooms in this far, following the pirate, and out a little. */
+const DECK_ZOOM_MIN = 0.4;
+const DECK_ZOOM_MAX = 1.3;
 /** A walk on the island: an easy pace, and never more than this long however far. */
 const ISLAND_PACE = 0.55;
 const ISLAND_WALK_MAX_S = 2.2;
@@ -1051,8 +1054,7 @@ export class WorldScene {
     if (!sv.berth || sv.ship.location.kind !== "docked") return null;
     const iv = this.islands.get(sv.berth.islandId);
     if (!iv || !iv.model.berth(sv.berth.n).foot) return null;
-    // The dock lies on the ship's port side at either of the first two berths (see island.ts).
-    return -1;
+    return iv.model.berth(sv.berth.n).dockSide;
   }
 
   private showGoal(wv: WalkerView, at: WalkSpot): void {
@@ -1282,7 +1284,7 @@ varying float vWave;`,
       if (!sv) return { center: this.center.clone(), halfH: DECK_MIN_HALF_H, anchorY, anchorX };
       // The deck is looked at broadside from its open side, so neither the dock nor a neighbour stands in the way.
       // A little above the deck, so the rig and the deck share the frame.
-      const center = sv.model.group.position.clone().setY(0.4);
+      const center = sv.model.group.position.clone().setY(0.42);
       const az = this.deckAzimuth(sv);
       this.rig.setAzimuth(az);
       const probe = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
@@ -1292,8 +1294,8 @@ varying float vWave;`,
       const inv = probe.matrixWorldInverse;
       let spanX = 0;
       let spanY = 0;
-      const hx = 0.66;
-      const hz = 0.32;
+      const hx = 0.78;
+      const hz = 0.38;
       for (const [dx, dz] of [
         [-hx, -hz],
         [hx, -hz],
@@ -1306,7 +1308,14 @@ varying float vWave;`,
           spanY = Math.max(spanY, Math.abs(this.tmp.y));
         }
       }
-      const halfH = Math.max(DECK_MIN_HALF_H, (spanY * 1.12) / vh, (spanX * 1.08) / (aspect * vw)) * Math.min(1.25, Math.max(0.75, this.zoom));
+      const zoom = Math.min(DECK_ZOOM_MAX, Math.max(DECK_ZOOM_MIN, this.zoom));
+      const halfH = Math.max(DECK_MIN_HALF_H, (spanY * 1.12) / vh, (spanX * 1.08) / (aspect * vw)) * zoom;
+      // Zoomed in, the view walks with the pirate across the deck rather than staring at its middle.
+      const me = this.me("ship");
+      if (me && zoom < 1) {
+        const at = me.figure.group.getWorldPosition(new THREE.Vector3()).setY(center.y - 0.06);
+        center.lerp(at, Math.min(1, (1 - zoom) / 0.35));
+      }
       return { center, halfH, anchorY, anchorX };
     }
     return this.fitAll(input, this.azimuth, aspect, vh, vw, anchorY, anchorX);
@@ -1537,9 +1546,10 @@ varying float vWave;`,
       body.rotation.z = Math.sin(t * 1.1 + sv.phase) * 0.05 * calm;
       body.rotation.x = Math.sin(t * 0.8 + sv.phase * 1.3) * 0.025 * calm;
       sv.model.flag.rotation.y = Math.sin(t * 5 + sv.phase) * 0.3;
-      sv.model.marker.position.y = 1.43 + Math.sin(t * 3 + sv.phase) * 0.07;
+      sv.model.marker.position.y = 1.33 + Math.sin(t * 3 + sv.phase) * 0.07;
       sv.model.marker.rotation.y = t * 1.5;
-      sv.model.marker.visible = sv.ship.kind !== "other" && this.input.focus.kind !== "ship";
+      // The "your ship" marker is for finding her on the chart; up close it would only hang in the air.
+      sv.model.marker.visible = sv.ship.kind !== "other" && this.input.focus.kind === "all";
     }
     this.layGangplanks(planks);
     // On deck, a neighbour tied up alongside would stand between the camera and the deck; it steps out of the view.
@@ -1568,7 +1578,7 @@ varying float vWave;`,
         const side = Math.sign(berth.w);
         const deckY = 0.3 * SHIP_SCALE - SHIP_SINK;
         const from = new THREE.Vector3(berth.foot.x, DOCK.top + 0.006, side * (DOCK.half - 0.01));
-        const to = new THREE.Vector3(berth.foot.x, deckY + 0.008, side * (Math.abs(berth.w) - 0.17 * SHIP_SCALE));
+        const to = new THREE.Vector3(berth.foot.x, deckY + 0.008, side * (Math.abs(berth.w) - 0.2 * SHIP_SCALE));
         group.add(buildGangplank(from, to));
       }
       iv.model.frame.add(group);
@@ -1598,7 +1608,8 @@ varying float vWave;`,
     for (const sv of this.ships.values()) {
       sv.label.style.display = sv.model.group.visible ? "" : "none";
       if (!sv.model.group.visible || sv.label.classList.contains("ow-hidden") || sv.label.classList.contains("ow-label-quiet")) continue;
-      this.tmp.set(sv.model.group.position.x, 0.2, sv.model.group.position.z).project(cam);
+      // Named at her stern, the end nearest the shore when she lies at a dock bow out.
+      sv.model.group.localToWorld(this.tmp.set(-0.32, 0.25, 0)).project(cam);
       shipLabels.push({ el: sv.label, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h });
     }
     shipLabels.sort((a, b) => a.y - b.y);
@@ -1631,7 +1642,10 @@ varying float vWave;`,
         const g = aboard.model.deck.gangway(side);
         callout(this.gangwaySpot, new THREE.Vector3(g.x, 0.34, side * 0.19));
       }
-      this.placeCallouts(deckSpots);
+      // Zoomed in, the hull runs off the screen and a column of labels would string leaders across
+      // the deck: each label stands beside its own pin instead.
+      if (this.walkFocus()?.scope === "ship" && this.zoom < 0.85) this.placeSpots(deckSpots);
+      else this.placeCallouts(deckSpots);
     }
   }
 
@@ -1733,6 +1747,7 @@ varying float vWave;`,
     let minX = Infinity;
     let maxX = -Infinity;
     let maxWidth = 0;
+    let maxHeight = 0;
     for (const { spot, world, still } of spots) {
       this.tmp.copy(world).project(cam);
       const x = (this.tmp.x * 0.5 + 0.5) * w;
@@ -1744,6 +1759,7 @@ varying float vWave;`,
       minX = Math.min(minX, sx);
       maxX = Math.max(maxX, sx);
       maxWidth = Math.max(maxWidth, spot.el.offsetWidth);
+      maxHeight = Math.max(maxHeight, spot.el.offsetHeight);
     }
     const leftEdge = w * insets.left + 8;
     const rightEdge = w * (1 - insets.right) - 8;
@@ -1761,7 +1777,8 @@ varying float vWave;`,
           { right: true, pins: byX.slice(half) },
         ]
       : [{ right: roomRight >= roomLeft, pins }];
-    const gap = 44;
+    // Labels stack a little apart, however tall a phone draws them.
+    const gap = Math.max(30, maxHeight + 6);
     const top = h * insets.top + 24;
     const bottom = h * (1 - insets.bottom) - 24;
     for (const side of sides) {
@@ -2006,7 +2023,8 @@ varying float vWave;`,
   }
 
   private setZoom(z: number): void {
-    this.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+    const deck = this.walkFocus()?.scope === "ship";
+    this.zoom = deck ? Math.max(DECK_ZOOM_MIN, Math.min(DECK_ZOOM_MAX, z)) : Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
   }
 }
 

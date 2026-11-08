@@ -62,13 +62,13 @@ export const ISLAND_PALETTE = {
 const C = ISLAND_PALETTE;
 
 /** The dock's deck: from the beach out over the water, and how wide. */
-export const DOCK = { from: 1.16, to: 2.62, half: 0.13, top: 0.22 } as const;
+export const DOCK = { from: 1.16, to: 2.95, half: 0.13, top: 0.22 } as const;
 /** Where a ship lies along the dock, and how far off its centerline the first two berths are. */
-const BERTH_U = 1.98;
-const BERTH_W = 0.47;
-const BERTH_ROW = 0.5;
+const BERTH_U = 2.22;
+const BERTH_W = 0.53;
+const BERTH_ROW = 0.7;
 /** Ship-local x of the gangway amidships, scaled to the world (see models.ts). */
-export const GANGWAY_OFFSET = 0.046;
+export const GANGWAY_OFFSET = 0.056;
 /** Feet clear an obstacle by this much. */
 const BODY = 0.026;
 
@@ -80,6 +80,8 @@ export interface Berth {
   heading: number;
   /** The gangplank's foot on the dock, for a ship lying against it; null for one rafted further out. */
   foot: Spot | null;
+  /** Which of her sides (in her own frame: +1 starboard, -1 port) faces the dock. */
+  dockSide: number;
 }
 
 export interface Door {
@@ -242,7 +244,7 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
     for (const side of [-1, 1]) {
       solidAt(cyl(0.022, 0.026, 0.62, 6), C.woodDark, { p: [u, dockTop - 0.3, side * (DOCK.half + 0.005)] });
       // Bollards at the edge where ships make fast.
-      if (Math.abs(u - BERTH_U) < 0.5) {
+      if (Math.abs(u - BERTH_U) < 0.6) {
         solidAt(cyl(0.014, 0.016, 0.03, 7), C.iron, { p: [u, dockTop + 0.015, side * (DOCK.half - 0.02)] });
         solidAt(cyl(0.019, 0.019, 0.006, 7), C.iron, { p: [u, dockTop + 0.032, side * (DOCK.half - 0.02)] });
         circle(u, side * (DOCK.half - 0.02), 0.015);
@@ -927,10 +929,12 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
   const berth = (n: number): Berth => {
     const side = n % 2 === 0 ? 1 : -1;
     const row = Math.floor(n / 2);
-    const heading = n % 2 === 0 ? 0 : Math.PI;
+    // Every ship lies bow out to sea, ready to sail; her stern clears the beach.
+    const heading = 0;
     const w = side * (BERTH_W + row * BERTH_ROW);
-    const gangU = BERTH_U + Math.cos(heading) * GANGWAY_OFFSET;
-    return { u: BERTH_U, w, heading, foot: row === 0 ? { x: gangU, z: side * (DOCK.half - 0.035) } : null };
+    const gangU = BERTH_U + GANGWAY_OFFSET;
+    // Bow out, her starboard side (+z) faces +w: so the dock is to port for a ship at +w, to starboard at -w.
+    return { u: BERTH_U, w, heading, foot: row === 0 ? { x: gangU, z: side * (DOCK.half - 0.035) } : null, dockSide: -side };
   };
 
   const chimney = smokeTop;

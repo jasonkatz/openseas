@@ -642,11 +642,16 @@ pump, a line hauled at the mast, a hammer at the bench, a gun rammed, a chart tr
 held. Each kind reads apart by shape before color, as rule 6 asks: the player's own pirate stands in a
 brass ring drawn over everything (so they can be found behind a sail), a captain wears a plumed
 tricorn, other pirates a hat, cap or bandana and a coat of their own picked from their id, and a
-deckhand the smock, kerchief and coil of rope. The sloop is larger in the world and laid out to be
-walked: a raised quarterdeck aft with the wheel and the chart table, steps down to the main deck, a
-fife rail at the mast, the pump to port, a gun pair either side, the carpenter's bench forward and a
-gangway port in each rail. Docked, a gangplank runs up to her from the dock and the deck carries a
-Go ashore spot at the gangway. Boarding brings the pirate over the gangplank, and the captain walks
+deckhand the smock, kerchief and coil of rope. The sloop is larger and beamier in the world than the
+chart alone would need, so her deck is roomy for a crew: about eleven pirates long and five across.
+She is laid out to be walked, with her gear against the rails and the middle of the deck clear: a raised
+quarterdeck aft with the wheel and the chart table, steps down to the main deck, a fife rail at the
+mast, the pump to port, a gun pair run out at each rail, the carpenter's bench forward and a gangway
+port in each rail. Ships lie at a dock bow out to sea, named at the stern nearest the shore. Docked, a
+gangplank runs up to her from the dock and the deck carries a Go ashore spot at the gangway. On deck
+a wheel or a pinch zooms from the whole hull to well in, the view walking with the pirate as it closes,
+and up close each station's label stands beside its pin rather than in the columns. The brass "your
+ship" marker shows on the chart only. Boarding brings the pirate over the gangplank, and the captain walks
 straight to the wheel. A tap on a station walks the pirate to it and opens its board, and a tap on
 the deck walks there. Every station, the wheel and the gangway keep their spot and the card keeps its
 buttons, which act at once. Shipmates are seen walking the deck, and a change of station walks a
