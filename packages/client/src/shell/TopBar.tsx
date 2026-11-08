@@ -1,6 +1,9 @@
 import { t, usePirate } from "@openseas/boards";
 import { Flag } from "../crew/Flag.jsx";
+import { lookFor } from "../pirate/look.js";
+import { Portrait } from "../pirate/Portrait.jsx";
 import { useCrew } from "../state/CrewProvider.jsx";
+import { useSheet } from "../state/SheetProvider.jsx";
 import { useSocial } from "../state/SocialProvider.jsx";
 
 export interface TopBarProps {
@@ -10,18 +13,23 @@ export interface TopBarProps {
   onChart: boolean;
 }
 
-/** The one bar over the scene, kept thin: who you are, your crew, the chart, the menu. */
+/** The one bar over the scene, kept thin: who you are (a tap opens your sheet), your crew, the chart, the menu. */
 export function TopBar({ onMenu, onMap, onChart }: TopBarProps) {
   const { pirate, socketStatus } = usePirate();
   const { crew, invites, openPanel } = useCrew();
   const { unread } = useSocial();
+  const { openSheet } = useSheet();
   const waiting = invites.length + (crew ? unread.crew : 0);
   const statusClass = socketStatus === "open" ? "pip-live" : socketStatus === "connecting" ? "pip-wait" : "pip-off";
   const statusShort = socketStatus === "open" ? t("app.status_live") : socketStatus === "connecting" ? t("app.status_connecting") : t("app.status_offline");
   return (
     <header className="topbar" data-testid="topbar">
-      <div className="who" title={statusShort}>
-        <i className={`dot ${statusClass}`} aria-label={statusShort} />
+      <button type="button" className="who who-btn" title={statusShort} onClick={() => openSheet()} aria-label={t("sheet.open", { name: pirate?.name ?? "", coins: t("world.coins", { coins: pirate?.balance ?? 0 }), status: statusShort })} data-testid="sheet-open">
+        {/* The connection's pip sits on the likeness's shoulder, so the bar stays thin. */}
+        <span className="who-face">
+          {pirate && <Portrait look={lookFor(pirate.id, pirate.look)} size={28} />}
+          <i className={`dot ${statusClass}`} aria-label={statusShort} />
+        </span>
         <span className="who-name" data-testid="pirate-name">
           {pirate?.name}
         </span>
@@ -32,7 +40,7 @@ export function TopBar({ onMenu, onMap, onChart }: TopBarProps) {
           </svg>
           {pirate?.balance ?? 0}
         </span>
-      </div>
+      </button>
       <button className={`pill-btn ${onChart ? "is-on" : ""}`} onClick={onMap} aria-label={onChart ? t("world.back_home") : t("world.open_chart")} aria-pressed={onChart} data-testid="map-toggle">
         {onChart ? (
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">

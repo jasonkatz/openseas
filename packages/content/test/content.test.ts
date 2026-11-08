@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ContentError, loadContent, msg, WorldSchema } from "../src/index.js";
+import { ContentError, contentProblems, defaultLook, loadContent, msg, pirateLookProblem, WorldSchema } from "../src/index.js";
 
 describe("content", () => {
   it("loads and cross-validates every file", () => {
@@ -57,5 +57,34 @@ describe("content", () => {
 
   it("ContentError is what loud startup failures throw", () => {
     expect(new ContentError("x")).toBeInstanceOf(Error);
+  });
+
+  it("pirate looks: every coat and hat is a choice, a default look is drawn from the id and always allowed", () => {
+    const rules = loadContent().world.pirates;
+    expect(pirateLookProblem(rules, { coat: rules.coats[0]!.id, hat: rules.hats[0]!.id })).toBeNull();
+    expect(pirateLookProblem(rules, { coat: "gold-lame", hat: rules.hats[0]!.id })).toMatch(/coat/);
+    expect(pirateLookProblem(rules, { coat: rules.coats[0]!.id, hat: "crown" })).toMatch(/hat/);
+    const looks = new Set<string>();
+    for (let i = 0; i < 200; i++) {
+      const look = defaultLook(rules, `pirate-${i}`);
+      expect(pirateLookProblem(rules, look)).toBeNull();
+      expect(defaultLook(rules, `pirate-${i}`)).toEqual(look);
+      looks.add(`${look.coat}/${look.hat}`);
+    }
+    // A deck of new pirates is a mixed crew, not one uniform.
+    expect(looks.size).toBeGreaterThan(20);
+  });
+
+  it("pirate titles name real puzzles and tiers, and no two ask the same thing", () => {
+    const c = loadContent();
+    expect(c.world.pirates.titles.some((t) => t.requires.kind === "start")).toBe(true);
+    const bad = structuredClone(c) as typeof c & { world: { pirates: { titles: unknown[] } } };
+    bad.world.pirates.titles.push(
+      { id: "kraken-tamer", nameKey: "title.sea_dog", requires: { kind: "standing", puzzle: "rigging", tier: "sharp" } },
+      { id: "twice", nameKey: "title.sea_dog", requires: { kind: "voyages", count: 10 } },
+    );
+    const problems = contentProblems(bad);
+    expect(problems.some((p) => p.includes("unknown puzzle rigging"))).toBe(true);
+    expect(problems.some((p) => p.includes("twice: asks the same"))).toBe(true);
   });
 });

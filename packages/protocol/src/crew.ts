@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CrewRankSchema, CrewTagSchema, RatingViewSchema } from "./common.js";
+import { ContentIdSchema, CrewRankSchema, CrewTagSchema, PirateLookWireSchema, RatingViewSchema } from "./common.js";
 
 /**
  * Crews (M6, ADR 0025): the social unit and the invite list (DESIGN.md 3.4, 3.7). Not the crew of a
@@ -87,6 +87,11 @@ export const PirateProfileSchema = z.object({
   ratings: z.array(RatingViewSchema),
   /** Voyages that reached port with them aboard. */
   voyages: z.int().min(0),
+  /** Brigands beaten with them aboard. */
+  victories: z.int().min(0).default(0),
+  /** What they wear on deck, and the title they show; null from a server that does not say. */
+  look: PirateLookWireSchema.nullable().default(null),
+  title: ContentIdSchema.nullable().default(null),
   online: z.boolean(),
   /** Whether the viewer has invited them to the viewer's crew and is waiting. */
   invited: z.boolean(),

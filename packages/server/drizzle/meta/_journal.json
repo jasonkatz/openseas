@@ -29,6 +29,13 @@
       "when": 1794024383805,
       "tag": "0003_old_baron_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794139578891,
+      "tag": "0004_right_kylun",
+      "breakpoints": true
     }
   ]
 }

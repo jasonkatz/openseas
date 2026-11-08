@@ -18,6 +18,9 @@ export type RatingView = z.infer<typeof RatingViewSchema>;
 
 const PartId = z.string().regex(/^[a-z][a-z0-9-]*$/).max(32);
 
+/** A content id on the wire: a flag part, a coat, a hat, a title. The server checks it against content. */
+export const ContentIdSchema = PartId;
+
 /** Crew ranks, highest first (M6, ADR 0025). The commodore leads; officers recruit; sailors sail. */
 export const CrewRankSchema = z.enum(["commodore", "officer", "sailor"]);
 export type CrewRank = z.infer<typeof CrewRankSchema>;
@@ -29,6 +32,10 @@ export type CrewFlagWire = z.infer<typeof CrewFlagWireSchema>;
 /** A crew as it is shown on a ship, a profile or the notice board: enough to fly its flag. */
 export const CrewTagSchema = z.object({ id: z.string().min(1).max(64), name: z.string(), flag: CrewFlagWireSchema });
 export type CrewTag = z.infer<typeof CrewTagSchema>;
+
+/** A pirate's look on deck: a coat and a hat, content ids (`content/data/world/pirates.json`, DESIGN.md 3.6). */
+export const PirateLookWireSchema = z.object({ coat: PartId, hat: PartId });
+export type PirateLookWire = z.infer<typeof PirateLookWireSchema>;
 
 export const PirateSummarySchema = z.object({
   id: z.string(),
@@ -42,6 +49,10 @@ export const PirateSummarySchema = z.object({
   islandId: z.string(),
   /** The pirate's crew and their rank in it, or null for a pirate in no crew. */
   crew: CrewTagSchema.extend({ rank: CrewRankSchema }).nullable().default(null),
+  /** What the pirate wears on deck. The server always sends one, a default drawn from the id until they pick. */
+  look: PirateLookWireSchema.nullable().default(null),
+  /** The title the pirate shows after their name, a content id, or null for none. */
+  title: PartId.nullable().default(null),
 });
 export type PirateSummary = z.infer<typeof PirateSummarySchema>;
 
@@ -92,5 +103,7 @@ export const ErrorCodeSchema = z.enum([
   "no_invite",
   "already_invited",
   "already_crewmate",
+  "look_bad",
+  "title_locked",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;

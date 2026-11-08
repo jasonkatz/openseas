@@ -18,6 +18,7 @@ import { schema, type Db } from "./db/index.js";
 import { recordEvent } from "./events.js";
 import { appendLedger, InsufficientFundsError } from "./ledger.js";
 import type { Logger } from "./log.js";
+import { lookOf, pirateRecord } from "./pirates.js";
 import type { RoomMember } from "./rooms.js";
 import type { ShipRoom, ShipService } from "./ships/service.js";
 import type { SocialService } from "./social.js";
@@ -191,16 +192,9 @@ export class CrewService {
   async profile(viewerId: string, by: { pirateId?: string | undefined; name?: string | undefined }): Promise<ServerMessage> {
     const where = by.pirateId ? eq(schema.pirate.id, by.pirateId) : by.name ? sql`lower(${schema.pirate.name}) = lower(${by.name.trim()})` : null;
     if (!where) throw new CrewError("no_such_pirate");
-    const [p] = await this.db.select({ id: schema.pirate.id, name: schema.pirate.name }).from(schema.pirate).where(where);
+    const [p] = await this.db.select({ id: schema.pirate.id, name: schema.pirate.name, look: schema.pirate.look, title: schema.pirate.title }).from(schema.pirate).where(where);
     if (!p) throw new CrewError("no_such_pirate");
-    const [ratings, [voyages]] = await Promise.all([
-      this.db.select().from(schema.rating).where(eq(schema.rating.pirateId, p.id)),
-      this.db
-        .select({ n: sql<number>`count(*)::int` })
-        .from(schema.voyageCrew)
-        .innerJoin(schema.voyage, eq(schema.voyage.id, schema.voyageCrew.voyageId))
-        .where(and(eq(schema.voyageCrew.pirateId, p.id), eq(schema.voyage.outcome, "arrived"))),
-    ]);
+    const [ratings, record] = await Promise.all([this.db.select().from(schema.rating).where(eq(schema.rating.pirateId, p.id)), pirateRecord(this.db, p.id)]);
     const crew = this.crewOf(p.id);
     const rank = crew?.members.get(p.id)?.rank;
     const mine = this.crewOf(viewerId);
@@ -209,7 +203,10 @@ export class CrewService {
       name: p.name,
       crew: crew && rank ? { ...tag(crew), rank } : null,
       ratings: ratings.flatMap((r) => (isPuzzleId(r.puzzle) ? [{ puzzle: r.puzzle, tier: tierFor(r.rating ?? NEW_RATING.rating, this.content.ratingTiers).key, rounds: r.rounds }] : [])),
-      voyages: voyages?.n ?? 0,
+      voyages: record?.voyages ?? 0,
+      victories: record?.victories ?? 0,
+      look: lookOf(this.content, p.id, p.look),
+      title: p.title && this.content.world.pirates.titles.some((t) => t.id === p.title) ? p.title : null,
       online: this.conns.has(p.id),
       invited: Boolean(mine?.invites.has(p.id)),
     };

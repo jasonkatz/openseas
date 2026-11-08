@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { ErrorCodeSchema, PirateSummarySchema, PuzzleIdSchema, RatingViewSchema } from "./common.js";
+import { ContentIdSchema, ErrorCodeSchema, PirateLookWireSchema, PirateSummarySchema, PuzzleIdSchema, RatingViewSchema } from "./common.js";
+import { PirateSheetSchema } from "./pirate.js";
 import { BattleConfigSchema } from "./battle.js";
 import { BilgingConfigSchema } from "./bilging.js";
 import { CarpentryConfigSchema } from "./carpentry.js";
@@ -98,6 +99,13 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("crew.remove"), pirateId: z.string().min(1).max(64) }),
   /** Another pirate as a tap on their name shows them, by id or by name. */
   z.object({ type: z.literal("pirate.profile"), pirateId: z.string().min(1).max(64).optional(), name: z.string().trim().min(1).max(64).optional() }),
+  // ---- the pirate's own sheet (DESIGN.md 3.6, ADR 0032)
+  /** The pirate's record and every title's progress, answered with `pirate.sheet`. */
+  z.object({ type: z.literal("pirate.sheet") }),
+  /** Wear this coat and hat on deck. Answered with `pirate.updated`. */
+  z.object({ type: z.literal("pirate.look"), look: PirateLookWireSchema }),
+  /** Show this earned title after the name, or none. Answered with `pirate.updated`. */
+  z.object({ type: z.literal("pirate.title"), title: ContentIdSchema.nullable() }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
@@ -223,6 +231,9 @@ export const ServerMessageSchema = z.union([
   /** Something happened to the pirate's crew, or to them as a member of one. */
   z.object({ type: z.literal("crew.notice"), notice: CrewNoticeSchema, at: z.number() }),
   z.object({ type: z.literal("pirate.profile"), profile: PirateProfileSchema }),
+  z.object({ type: z.literal("pirate.sheet"), sheet: PirateSheetSchema }),
+  /** The pirate's record just earned these titles, in content order. */
+  z.object({ type: z.literal("pirate.titles"), earned: z.array(ContentIdSchema).min(1) }),
   z.object({ type: z.literal("error"), code: ErrorCodeSchema, detail: z.string().optional() }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;

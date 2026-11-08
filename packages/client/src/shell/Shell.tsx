@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { ShipLocation, StationWire } from "@openseas/protocol";
+import type { PirateLookWire, ShipLocation, StationWire } from "@openseas/protocol";
 import { LINK_FROM_KEY, content, sfx, t, usePirate } from "@openseas/boards";
 import { CrewDialog } from "../crew/CrewDialog.jsx";
 import { ProfileCard } from "../crew/ProfileCard.jsx";
+import { PirateSheet } from "../pirate/PirateSheet.jsx";
+import { coatHex, lookFor } from "../pirate/look.js";
 import { ChartCard } from "../chart/ChartCard.jsx";
 import { IslandCard } from "../island/IslandCard.jsx";
 import { islandName, stationName, tierName } from "../names.js";
@@ -14,11 +16,12 @@ import { DeckCard, HelmCard, describeEvent } from "../ship/DeckCard.jsx";
 import { ShipHud } from "../ship/ShipHud.jsx";
 import { StationView } from "../ship/StationView.jsx";
 import { useCrew } from "../state/CrewProvider.jsx";
+import { useSheet } from "../state/SheetProvider.jsx";
 import { useShip } from "../state/ShipProvider.jsx";
 import { usePlace, type Place } from "../state/place.jsx";
 import { useMediaQuery, useShowMarks } from "../state/settings.js";
 import { useToasts } from "../state/toasts.jsx";
-import { World, type Deck, type Focus, type Insets, type WorldInput, type WorldShip, type WorldShipLocation } from "../world/World.jsx";
+import { World, type Deck, type DeckCrew, type Focus, type Insets, type WorldInput, type WorldShip, type WorldShipLocation } from "../world/World.jsx";
 import { HailBanner } from "./HailBanner.jsx";
 import { Menu } from "./Menu.jsx";
 import { Toasts } from "./Toasts.jsx";
@@ -36,6 +39,11 @@ function once(key: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** A look as the world's pegs take it: the coat as a color, the hat by id. */
+function pegLook(look: PirateLookWire): DeckCrew["look"] {
+  return { coat: parseInt(coatHex(look.coat).slice(1), 16), hat: look.hat };
 }
 
 function worldLocation(l: ShipLocation): WorldShipLocation {
@@ -67,6 +75,7 @@ export function Shell() {
   const { pirate, socketStatus, providers } = usePirate();
   const { ship, notices, listBoard, board, boardShip, takeStation, error } = useShip();
   const crewApi = useCrew();
+  const { tab: sheetTab } = useSheet();
   const { place: rawPlace, go } = usePlace();
   const battle = useBattleApi();
   const melee = useMeleeApi();
@@ -314,7 +323,14 @@ export function Shell() {
           mate: Boolean(holder?.mate),
         };
       }),
-      crew: ship.crew.map((c) => ({ pirateId: c.pirateId, station: c.station, mine: c.pirateId === me, captain: c.captain, mate: c.mate })),
+      crew: ship.crew.map((c) => ({
+        pirateId: c.pirateId,
+        station: c.station,
+        mine: c.pirateId === me,
+        captain: c.captain,
+        mate: c.mate,
+        look: c.mate ? null : pegLook(lookFor(c.pirateId, c.look)),
+      })),
       wheel: { label: captain ? (docked ? t("ship.wheel_sail") : t("ship.wheel_at_sea")) : t("ship.wheel_spot"), who: captain ? null : captainName, primary: captain && docked },
     };
   }, [ship, me, captain, captainName]);
@@ -347,10 +363,10 @@ export function Shell() {
       smoothMs: content.world.ship.turnSeconds * 1000,
       deck,
       insets,
-      dimmed: place.kind === "station" || place.kind === "battle" || place.kind === "melee" || menuOpen || crewApi.panel !== null,
+      dimmed: place.kind === "station" || place.kind === "battle" || place.kind === "melee" || menuOpen || crewApi.panel !== null || sheetTab !== null,
       boardLabel: t("ship.board_spot"),
     }),
-    [ships, aboard, ashoreAt, focus, place, helmPick, reachable, shipPick, deck, insets, menuOpen, crewApi.panel],
+    [ships, aboard, ashoreAt, focus, place, helmPick, reachable, shipPick, deck, insets, menuOpen, crewApi.panel, sheetTab],
   );
 
   // ---- taps in the world
@@ -561,6 +577,7 @@ export function Shell() {
       {battleOpen && ship && <BattleView ship={ship} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
       {meleeOpen && ship && <MeleeView ship={ship} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
       <CrewDialog />
+      <PirateSheet />
       {menuOpen && <Menu showMarks={showMarks} onShowMarks={setShowMarks} onClose={() => setMenuOpen(false)} />}
       <ProfileCard />
       <Toasts />

@@ -37,3 +37,4 @@ that supersedes it.
 | [0029](./0029-harness-bilging-plays-a-lone-ships-bilge.md) | The harness plays Bilging against a lone ship's bilge, and a bilge never reads dry |
 | [0030](./0030-booty-weighs-what-the-ship-received.md) | Booty weighs what the ship received, and each station has its own turn cap |
 | [0031](./0031-shared-puzzle-sprite-atlases.md) | Shared sprite atlases with code-drawn geometry, marks and procedural fallback |
+| [0032](./0032-pirate-look-and-earned-titles.md) | A pirate's look and titles: content ids on the pirate, titles earned once and kept |

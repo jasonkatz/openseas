@@ -9,7 +9,7 @@ import { CrewError, type CrewService } from "./crews.js";
 import type { Db } from "./db/index.js";
 import { InsufficientFundsError } from "./ledger.js";
 import type { Logger } from "./log.js";
-import { findPirateByUser, summarizePirate } from "./pirates.js";
+import { PirateError, awardTitles, findPirateByUser, pirateSheet, setLook, setTitle, summarizePirate, type PirateLooks } from "./pirates.js";
 import type { PuzzleService } from "./puzzles/service.js";
 import type { RoomMember } from "./rooms.js";
 import { ShipError, type ShipService } from "./ships/service.js";
@@ -25,6 +25,7 @@ export interface WsDeps {
   ships: ShipService;
   social: SocialService;
   crews: CrewService;
+  looks: PirateLooks;
 }
 
 interface Conn {
@@ -44,7 +45,7 @@ const BUCKET_SIZE = 40;
 const REFILL_PER_SECOND = 20;
 
 export function createWsServer(deps: WsDeps) {
-  const { db, auth, content, log, puzzles, ships, social, crews } = deps;
+  const { db, auth, content, log, puzzles, ships, social, crews, looks } = deps;
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES });
   /** The newest connection per pirate, for messages addressed to a pirate rather than a room. */
   const conns = new Map<string, Conn>();
@@ -60,10 +61,24 @@ export function createWsServer(deps: WsDeps) {
     const summary = await summarizePirate(db, content, pirateId, conn.guest);
     if (summary) conn.member.send({ type: "pirate.updated", pirate: summary });
   };
+  /** Tell a pirate about titles their record just earned (ADR 0032). */
+  const announce = (pirateId: string, fresh: readonly string[]): void => {
+    if (fresh.length) conns.get(pirateId)?.member.send({ type: "pirate.titles", earned: [...fresh] });
+  };
+  /** Their record may have grown: write down any title it now earns and say so. */
+  const checkTitles = async (pirateId: string): Promise<void> => {
+    const awarded = await awardTitles(db, content, pirateId);
+    if (awarded) announce(pirateId, awarded.fresh);
+  };
+  /** Something about the pirate changed on the server's side: their summary, and any title it earned. */
+  const changed = (pirateId: string): void => {
+    void resend(pirateId).catch((e) => log.warn({ err: e, pirateId }, "summary resend failed"));
+    void checkTitles(pirateId).catch((e) => log.warn({ err: e, pirateId }, "title check failed"));
+  };
   // A harness Bilging round's lone ship moved its bilge: the board logs it as a water move (ADR 0029).
   puzzles.onSoloWater = (session, row) => conns.get(session.pirateId)?.member.send({ type: "duty.water", sessionId: session.id, row });
   ships.onSummaryChanged = (ids) => {
-    for (const id of ids) void resend(id).catch((e) => log.warn({ err: e, pirateId: id }, "summary resend failed"));
+    for (const id of ids) changed(id);
   };
   crews.onSummaryChanged = (ids) => {
     social.refreshPresence(ids);
@@ -110,7 +125,7 @@ export function createWsServer(deps: WsDeps) {
     // Listeners go on before anything asynchronous, so no early message is lost.
     ws.on("message", (data) => {
       void handleMessage(ws, conn, data.toString()).catch((e) => {
-        if (e instanceof ShipError || e instanceof SocialError || e instanceof CrewError) {
+        if (e instanceof ShipError || e instanceof SocialError || e instanceof CrewError || e instanceof PirateError) {
           send(ws, { type: "error", code: e.code });
           return;
         }
@@ -132,10 +147,13 @@ export function createWsServer(deps: WsDeps) {
       void ships.disconnect(pirateId, member).catch((e) => log.error({ err: e, pirateId }, "ship disconnect failed"));
     });
 
+    looks.remember(pirateId, summary.look);
     send(ws, { type: "welcome", pirate: summary, serverNow: Date.now() });
     ships.reconnect(pirateId, member);
     await social.connected(pirateId, summary.name, member);
     crews.connected(pirateId, summary.name, member);
+    // A record that grew while titles did not exist yet, or while away, is caught up on arrival.
+    void checkTitles(pirateId).catch((e) => log.warn({ err: e, pirateId }, "title check failed"));
   };
 
   const allow = (conn: Conn): boolean => {
@@ -220,7 +238,10 @@ export function createWsServer(deps: WsDeps) {
         // The old board's claim after a hand-back: the rebuilt board finishes for itself.
         if (puzzles.sessions.staleFinish(s, msg.hash)) return;
         conn.activeSessionId = null;
-        send(ws, await puzzles.finish(s, msg.hash, msg.metrics ?? null));
+        const result = await puzzles.finish(s, msg.hash, msg.metrics ?? null);
+        send(ws, result);
+        // A board that moved standing may have earned a standing title.
+        if (result.type === "puzzle.result" && result.rating) await checkTitles(conn.pirateId);
         return;
       }
       case "puzzle.abandon": {
@@ -334,6 +355,25 @@ export function createWsServer(deps: WsDeps) {
       case "pirate.profile":
         send(ws, await crews.profile(conn.pirateId, { pirateId: msg.pirateId, name: msg.name }));
         return;
+      case "pirate.sheet": {
+        const r = await pirateSheet(db, content, conn.pirateId);
+        if (!r) throw new PirateError("no_pirate");
+        send(ws, { type: "pirate.sheet", sheet: r.sheet });
+        announce(conn.pirateId, r.fresh);
+        return;
+      }
+      case "pirate.look": {
+        looks.remember(conn.pirateId, await setLook(db, content, conn.pirateId, msg.look));
+        ships.refreshLooks([conn.pirateId]);
+        await resend(conn.pirateId);
+        return;
+      }
+      case "pirate.title": {
+        const fresh = await setTitle(db, content, conn.pirateId, msg.title);
+        await resend(conn.pirateId);
+        announce(conn.pirateId, fresh);
+        return;
+      }
       default: {
         const never: never = msg;
         void never;

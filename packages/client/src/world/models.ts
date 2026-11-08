@@ -866,26 +866,82 @@ export function dressShip(model: ShipModel, colors: CrewFlagWire | null): void {
 
 export interface CrewPeg {
   group: THREE.Group;
-  hat: THREE.Mesh;
+  hat: THREE.Object3D;
+}
+
+/** What a pirate peg wears: the coat's color and the hat's id, from `pirates.json` (DESIGN.md 3.6). */
+export interface PegLook {
+  coat: number;
+  hat: string;
+}
+
+const HAT_FELT = 0x2a2420;
+
+/** A hat for a peg, by content id. Each is its own silhouette so a look reads without color (rule 6). */
+function buildHat(id: string): THREE.Object3D {
+  const felt = mat(HAT_FELT);
+  const g = new THREE.Group();
+  switch (id) {
+    case "tricorne": {
+      // Three corners: a squat three-sided cone, one point to the front.
+      const cone = shaded(new THREE.ConeGeometry(0.048, 0.03, 3), felt);
+      cone.rotation.y = Math.PI / 6;
+      g.add(cone);
+      break;
+    }
+    case "bicorne": {
+      // A fan worn side to side: a half disc standing on the head.
+      const fan = shaded(new THREE.CylinderGeometry(0.05, 0.05, 0.012, 12, 1, false, 0, Math.PI), felt);
+      fan.rotation.x = Math.PI / 2;
+      fan.rotation.z = Math.PI / 2;
+      fan.position.y = -0.006;
+      g.add(fan);
+      break;
+    }
+    case "wide-brim": {
+      g.add(shaded(new THREE.CylinderGeometry(0.056, 0.056, 0.005, 14), felt));
+      const crown = shaded(new THREE.CylinderGeometry(0.022, 0.027, 0.024, 10), felt);
+      crown.position.y = 0.013;
+      g.add(crown);
+      break;
+    }
+    case "stocking-cap": {
+      // A tall soft cap that flops over, with a bobble at its tip.
+      const cap = shaded(new THREE.ConeGeometry(0.03, 0.07, 9), felt);
+      cap.position.set(0.006, 0.022, 0);
+      cap.rotation.z = -0.55;
+      g.add(cap);
+      const bob = shaded(new THREE.SphereGeometry(0.011, 6, 5), mat(PALETTE.lightBand));
+      bob.position.set(0.026, 0.05, 0);
+      g.add(bob);
+      break;
+    }
+    default: {
+      // A round cap: a short drum.
+      g.add(shaded(new THREE.CylinderGeometry(0.032, 0.035, 0.02, 10), felt));
+    }
+  }
+  return g;
 }
 
 /**
- * A pirate as a peg: coat, head, hat. The player's own peg wears brass. A deckhand is a different
+ * A pirate as a peg: coat, head, hat, in the look they picked. A deckhand is a different
  * silhouette, not just a different color (rule 6): a smock of sailcloth, a kerchief where a pirate
- * wears a hat, and a coil of rope slung over the shoulder.
+ * wears a hat, and a coil of rope slung over the shoulder; no pirate's look is either. The captain
+ * wears a plume in whatever hat they chose, and a brass pointer hangs over the player's own peg.
  */
-export function buildCrewPeg(mine: boolean, captain: boolean, mate = false): CrewPeg {
+export function buildCrewPeg(mine: boolean, captain: boolean, mate = false, look: PegLook | null = null): CrewPeg {
   const group = new THREE.Group();
   const coat = shaded(
     mate ? new THREE.CylinderGeometry(0.034, 0.03, 0.085, 7) : new THREE.CylinderGeometry(0.03, 0.038, 0.09, 7),
-    mat(mine ? PALETTE.brass : mate ? PALETTE.mateSmock : PALETTE.pirateCoat),
+    mat(mate ? PALETTE.mateSmock : (look?.coat ?? PALETTE.pirateCoat)),
   );
   coat.position.y = mate ? 0.0425 : 0.045;
   group.add(coat);
   const head = shaded(new THREE.SphereGeometry(0.028, 7, 6), mat(PALETTE.pirate));
   head.position.y = 0.11;
   group.add(head);
-  let hat: THREE.Mesh;
+  let hat: THREE.Object3D;
   if (mate) {
     // A kerchief: a cap hugging the head, knotted at the back.
     hat = shaded(new THREE.SphereGeometry(0.03, 7, 5, 0, Math.PI * 2, 0, Math.PI * 0.5), mat(PALETTE.mateKerchief));
@@ -899,9 +955,23 @@ export function buildCrewPeg(mine: boolean, captain: boolean, mate = false): Cre
     coil.rotation.y = Math.PI / 2;
     group.add(coil);
   } else {
-    hat = shaded(captain ? new THREE.BoxGeometry(0.09, 0.02, 0.05) : new THREE.CylinderGeometry(0.032, 0.036, 0.015, 7), mat(captain ? PALETTE.iron : PALETTE.roof));
+    hat = buildHat(look?.hat ?? "round-cap");
     hat.position.y = 0.135;
     group.add(hat);
+    if (captain) {
+      // A tall plume swept back from the hat, clear of any brim: the captain at a glance, whatever they wear.
+      const plume = shaded(new THREE.ConeGeometry(0.013, 0.1, 6), mat(PALETTE.cloud));
+      plume.position.set(-0.03, 0.195, 0);
+      plume.rotation.z = 0.45;
+      group.add(plume);
+    }
+  }
+  if (mine) {
+    // A brass pointer over the player's own head: a shape, so it reads without the color (rule 6).
+    const pointer = shaded(new THREE.ConeGeometry(0.022, 0.045, 4), mat(PALETTE.brass));
+    pointer.rotation.x = Math.PI;
+    pointer.position.y = 0.27;
+    group.add(pointer);
   }
   return { group, hat };
 }

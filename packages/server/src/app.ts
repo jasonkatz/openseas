@@ -8,6 +8,7 @@ import { runMigrations } from "./db/migrate.js";
 import type { Env } from "./env.js";
 import { createHttpHandler } from "./http.js";
 import type { Logger } from "./log.js";
+import { PirateLooks } from "./pirates.js";
 import { PuzzleService } from "./puzzles/service.js";
 import { ShipService } from "./ships/service.js";
 import { CrewService } from "./crews.js";
@@ -45,11 +46,13 @@ export async function createApp(env: Env, log: Logger, opts: { now?: () => numbe
   await crews.load();
   ships.crews = crews;
   social.crews = crews;
+  const looks = new PirateLooks(content);
+  ships.looks = looks;
   ships.onSailed = (room, to, ids) => crews.sailed(room, to, ids);
   ships.onArrived = (ids) => void crews.tallyVoyage(ids).catch((e) => log.error({ err: e }, "crew voyage tally failed"));
   ships.onVictory = (room, tierId, shares) => void crews.tallyVictory(room, tierId, shares).catch((e) => log.error({ err: e }, "crew victory tally failed"));
   const http = createHttpHandler({ env, db, auth, content, log });
-  const ws = createWsServer({ db, auth, content, log, puzzles, ships, social, crews });
+  const ws = createWsServer({ db, auth, content, log, puzzles, ships, social, crews, looks });
 
   const server = createServer((req, res) => void http(req, res));
   server.on("upgrade", (req, socket, head) => {

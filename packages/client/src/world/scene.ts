@@ -25,6 +25,7 @@ import {
   type CrewPeg,
   type GullModel,
   type IslandModel,
+  type PegLook,
   type ShipModel,
   type Station,
 } from "./models.js";
@@ -70,6 +71,8 @@ export interface DeckCrew {
   captain: boolean;
   /** A deckhand: drawn apart from the pirates so nobody mistakes it for a player. */
   mate: boolean;
+  /** What a pirate wears on deck; null for a deckhand, or a pirate the server did not describe. */
+  look: PegLook | null;
 }
 export interface Deck {
   shipId: string;
@@ -534,18 +537,19 @@ export class WorldScene {
     for (const c of deck.crew) {
       seen.add(c.pirateId);
       let peg = this.pegs.get(c.pirateId);
-      const key = `${c.mine}:${c.captain}:${c.mate}`;
+      const key = `${c.mine}:${c.captain}:${c.mate}:${c.look ? `${c.look.coat}/${c.look.hat}` : ""}`;
       if (peg && peg.group.userData.key !== key) {
         peg.group.removeFromParent();
         peg = undefined;
       }
       if (!peg) {
-        peg = buildCrewPeg(c.mine, c.captain, c.mate);
+        peg = buildCrewPeg(c.mine, c.captain, c.mate, c.look);
         peg.group.userData.key = key;
         this.pegs.set(c.pirateId, peg);
       }
       if (peg.group.parent !== sv.model.body) sv.model.body.add(peg.group);
-      const spot = c.station ? sv.model.standing[c.station] : c.captain ? sv.model.wheel.clone().add(new THREE.Vector3(-0.08, -0.1, 0)) : sv.model.idleSpots[idle++ % sv.model.idleSpots.length]!;
+      // The captain off station stands at the wheel on its deck side: aft of it is the stern cabin.
+      const spot = c.station ? sv.model.standing[c.station] : c.captain ? sv.model.wheel.clone().add(new THREE.Vector3(0.06, -0.1, 0)) : sv.model.idleSpots[idle++ % sv.model.idleSpots.length]!;
       peg.group.position.copy(spot);
       peg.group.userData.phase = hashPhase(c.pirateId);
     }
