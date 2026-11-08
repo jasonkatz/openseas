@@ -1,15 +1,17 @@
 /**
- * The pieces of the world: islands, ships, crew, clouds and gulls as chunky low-poly groups built
- * from primitives. No art files; everything is geometry and flat color, so it stays placeholder-art
- * honest (DESIGN.md 3.10) while reading as a toy diorama. Islands are decorated from a seeded PRNG
- * so the same island always looks the same on every device, and each carries the landmark its
- * content file names so the three read apart at a glance.
+ * The pieces of the world besides the islands (island.ts): ships, clouds, gulls and buoys as chunky
+ * low-poly groups built from primitives. No art files; everything is geometry and flat color, so it
+ * stays placeholder-art honest (DESIGN.md 3.10) while reading as a toy diorama. A ship's static
+ * timbers are merged into one mesh (batch.ts); the parts that move or change stay their own.
  */
 import * as THREE from "three";
-import type { IslandLandmark } from "@openseas/content";
 import type { CrewFlagWire } from "@openseas/protocol";
 import { drawEmblem, drawFlag, flagColor, flagKey } from "../crew/flag.js";
 import { nextInt, seedFromString, type PrngState } from "@openseas/engine";
+import { Batch } from "./batch.js";
+import { WalkGrid, type Obstacle, type Spot } from "./walk.js";
+
+export type { Building } from "./island.js";
 
 export const PALETTE = {
   seaDeep: 0x0e4a63,
@@ -25,6 +27,7 @@ export const PALETTE = {
   trunk: 0x8a5a2b,
   frond: 0x3c9a4e,
   wood: 0x9a6a3a,
+  woodDark: 0x6b4423,
   wall: 0xf2e6c8,
   roof: 0xb84a3c,
   roofBlue: 0x3e6f9a,
@@ -76,470 +79,42 @@ class Dice {
   }
 }
 
-export type Building = "dock" | "tavern" | "notice-board";
-
-export interface IslandModel {
-  group: THREE.Group;
-  /** Flat disc under the island that widens the tap target. */
-  hit: THREE.Mesh;
-  ring: THREE.Mesh;
-  reachRing: THREE.Mesh;
-  flag: THREE.Group;
-  /** Where each building's label hangs, in the island's local frame. */
-  anchors: Record<Building, THREE.Vector3>;
-  /** Direction from the island center to its dock, in the xz plane. */
-  dockDir: THREE.Vector2;
-  /** Per-frame life: the lamp blinks, the mill turns, the volcano smokes. */
-  animate(t: number, dt: number): void;
-}
-
-/** An organic outline: a ring of points whose radius wobbles, so no two islands share a coast. */
-function coast(dice: Dice, radius: number, points: number): THREE.Shape {
-  const shape = new THREE.Shape();
-  const radii: number[] = [];
-  for (let i = 0; i < points; i++) radii.push(radius * (0.86 + dice.range(0, 0.28)));
-  for (let i = 0; i < points; i++) {
-    // Smooth the wobble so the coast curves rather than jags.
-    const r = (radii[(i + points - 1) % points]! + radii[i]! * 2 + radii[(i + 1) % points]!) / 4;
-    const a = (i / points) * Math.PI * 2;
-    const x = Math.cos(a) * r;
-    const y = Math.sin(a) * r;
-    if (i === 0) shape.moveTo(x, y);
-    else shape.lineTo(x, y);
-  }
-  shape.closePath();
-  return shape;
-}
-
-function slab(shape: THREE.Shape, depth: number, bevel: number, color: number): THREE.Mesh {
-  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, curveSegments: 4 });
-  geo.rotateX(-Math.PI / 2);
-  const m = shaded(geo, mat(color));
-  return m;
-}
-
-function tree(dice: Dice, kind: "palm" | "round" | "pine"): THREE.Group {
-  const g = new THREE.Group();
-  if (kind === "palm") {
-    const height = 0.55 + dice.range(0, 0.35);
-    const trunk = shaded(new THREE.CylinderGeometry(0.035, 0.06, height, 5), mat(PALETTE.trunk));
-    trunk.position.y = height / 2;
-    g.add(trunk);
-    const crown = new THREE.Group();
-    crown.position.y = height;
-    const fronds = 5 + dice.int(2);
-    for (let f = 0; f < fronds; f++) {
-      const frond = shaded(new THREE.BoxGeometry(0.44, 0.025, 0.12), mat(PALETTE.frond));
-      frond.position.x = 0.2;
-      const holder = new THREE.Group();
-      holder.rotation.y = (f / fronds) * Math.PI * 2 + dice.range(0, 0.4);
-      holder.rotation.z = -0.35 - dice.range(0, 0.25);
-      holder.add(frond);
-      crown.add(holder);
-    }
-    const nuts = shaded(new THREE.SphereGeometry(0.035, 5, 4), mat(PALETTE.trunk));
-    nuts.position.y = height - 0.03;
-    g.add(nuts);
-    g.add(crown);
-    g.rotation.z = dice.range(-0.18, 0.18);
-  } else if (kind === "round") {
-    const height = 0.2 + dice.range(0, 0.12);
-    const trunk = shaded(new THREE.CylinderGeometry(0.03, 0.04, height, 5), mat(PALETTE.trunk));
-    trunk.position.y = height / 2;
-    g.add(trunk);
-    const r = 0.16 + dice.range(0, 0.1);
-    const canopy = shaded(new THREE.IcosahedronGeometry(r, 0), mat(dice.int(2) ? PALETTE.frond : PALETTE.grassDark));
-    canopy.position.y = height + r * 0.7;
-    canopy.rotation.set(dice.range(0, 3), dice.range(0, 3), 0);
-    g.add(canopy);
-  } else {
-    const height = 0.3 + dice.range(0, 0.2);
-    const trunk = shaded(new THREE.CylinderGeometry(0.02, 0.03, height, 5), mat(PALETTE.trunk));
-    trunk.position.y = height / 2;
-    g.add(trunk);
-    for (let i = 0; i < 3; i++) {
-      const tier = shaded(new THREE.ConeGeometry(0.16 - i * 0.04, 0.2, 6), mat(PALETTE.grassDark));
-      tier.position.y = height * 0.5 + i * 0.12;
-      g.add(tier);
-    }
-  }
-  return g;
-}
-
-function cottage(dice: Dice, roofColor: number, size = 1): THREE.Group {
-  const c = new THREE.Group();
-  const w = 0.36 * size;
-  const d = 0.3 * size;
-  const h = 0.26 * size;
-  const walls = shaded(new THREE.BoxGeometry(w, h, d), mat(PALETTE.wall));
-  walls.position.y = h / 2;
-  c.add(walls);
-  const roof = shaded(new THREE.CylinderGeometry(0, w * 0.78, h * 0.9, 4, 1), mat(roofColor));
-  roof.scale.z = d / w;
-  roof.position.y = h + h * 0.45;
-  roof.rotation.y = Math.PI / 4;
-  c.add(roof);
-  const door = new THREE.Mesh(new THREE.BoxGeometry(0.07 * size, 0.12 * size, 0.02), new THREE.MeshBasicMaterial({ color: PALETTE.trunk }));
-  door.position.set(0, 0.06 * size, d / 2 + 0.005);
-  c.add(door);
-  for (const x of [-0.11, 0.11]) {
-    const win = new THREE.Mesh(new THREE.BoxGeometry(0.06 * size, 0.06 * size, 0.02), new THREE.MeshBasicMaterial({ color: 0xffe9a8 }));
-    win.position.set(x * size, h * 0.55, d / 2 + 0.005);
-    c.add(win);
-  }
-  if (dice.int(2)) {
-    const chimney = shaded(new THREE.BoxGeometry(0.05 * size, 0.14 * size, 0.05 * size), mat(PALETTE.rock));
-    chimney.position.set(w * 0.3, h + 0.08 * size, 0);
-    c.add(chimney);
-  }
-  return c;
-}
-
-function barrel(): THREE.Mesh {
-  return shaded(new THREE.CylinderGeometry(0.035, 0.035, 0.07, 7), mat(PALETTE.wood));
-}
-function crate(): THREE.Mesh {
-  return shaded(new THREE.BoxGeometry(0.07, 0.06, 0.07), mat(PALETTE.deck));
-}
-
-export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: IslandLandmark): IslandModel {
-  const dice = new Dice(`island:${id}`);
-  const group = new THREE.Group();
-  const volcanic = landmark === "volcano";
-  const golden = landmark === "windmill";
-
-  // A shelf of sand under a cap of turf, each with its own coast.
-  const beach = slab(coast(dice, 1.55, 14), 0.22, 0.12, volcanic ? PALETTE.sandDark : PALETTE.sand);
-  beach.position.y = 0.0;
-  group.add(beach);
-  const turf = slab(coast(dice, 1.12, 12), 0.2, 0.1, volcanic ? PALETTE.grassDark : golden ? PALETTE.grassGold : PALETTE.grass);
-  turf.position.y = 0.3;
-  group.add(turf);
-  const meadow = slab(coast(dice, 0.6, 9), 0.08, 0.06, golden ? PALETTE.grass : volcanic ? PALETTE.basalt : PALETTE.grassDark);
-  meadow.position.set(dice.range(-0.3, 0.3), 0.5, dice.range(-0.3, 0.3));
-  group.add(meadow);
-
-  const dockDir = dockToward.clone().normalize();
-  const dockAngle = Math.atan2(dockDir.y, dockDir.x);
-  const hillAngle = dockAngle + Math.PI + dice.range(-0.5, 0.5);
-
-  // Pebbles on the beach and rocks in the shallows.
-  for (let i = 0; i < 4 + dice.int(4); i++) {
-    const rock = shaded(new THREE.DodecahedronGeometry(0.05 + dice.range(0, 0.1)), mat(volcanic ? PALETTE.basalt : PALETTE.rock));
-    const a = dice.range(0, Math.PI * 2);
-    const r = 1.25 + dice.range(0, 0.6);
-    rock.position.set(Math.cos(a) * r, 0.1, Math.sin(a) * r);
-    rock.rotation.set(dice.range(0, 3), dice.range(0, 3), 0);
-    group.add(rock);
-  }
-
-  // Trees: palms by the shore, round trees inland, pines on the cold side.
-  const trees = (volcanic ? 4 : 7) + dice.int(4);
-  for (let i = 0; i < trees; i++) {
-    const a = dice.range(0, Math.PI * 2);
-    if (Math.abs(((a - dockAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.5) continue; // keep the dock approach clear
-    const r = 0.5 + dice.range(0, 0.55);
-    const kind = r > 0.85 ? "palm" : dice.int(3) === 0 ? "pine" : "round";
-    const t = tree(dice, kind);
-    t.position.set(Math.cos(a) * r, 0.5, Math.sin(a) * r);
-    t.rotation.y = dice.range(0, Math.PI * 2);
-    group.add(t);
-  }
-  // Bushes and flowers.
-  for (let i = 0; i < 6 + dice.int(5); i++) {
-    const a = dice.range(0, Math.PI * 2);
-    const r = 0.3 + dice.range(0, 0.7);
-    const bush = shaded(new THREE.SphereGeometry(0.04 + dice.range(0, 0.04), 6, 5), mat(dice.int(3) === 0 ? PALETTE.roof : dice.int(2) ? PALETTE.frond : 0xf2c4d8));
-    bush.position.set(Math.cos(a) * r, 0.52, Math.sin(a) * r);
-    group.add(bush);
-  }
-
-  // A path from the dock to the tavern.
-  const tavernAngle = dockAngle + Math.PI * (0.55 + dice.range(0, 0.25)) * (dice.int(2) ? 1 : -1);
-  const tavernPos = new THREE.Vector3(Math.cos(tavernAngle) * 0.55, 0.5, Math.sin(tavernAngle) * 0.55);
-  const dockFoot = new THREE.Vector3(Math.cos(dockAngle) * 1.0, 0.5, Math.sin(dockAngle) * 1.0);
-  const pathPoints = [dockFoot, dockFoot.clone().lerp(tavernPos, 0.5).add(new THREE.Vector3(dice.range(-0.15, 0.15), 0, dice.range(-0.15, 0.15))), tavernPos];
-  const pathCurve = new THREE.CatmullRomCurve3(pathPoints);
-  for (let i = 0; i <= 8; i++) {
-    const p = pathCurve.getPoint(i / 8);
-    const stone = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.01, 6), mat(volcanic ? PALETTE.rock : PALETTE.sand));
-    stone.position.set(p.x, 0.505, p.z);
-    stone.receiveShadow = true;
-    group.add(stone);
-  }
-
-  // The tavern, a cottage or two beside it, and a lamp post.
-  const tavern = cottage(dice, golden ? PALETTE.roofBlue : PALETTE.roof, 1.25);
-  tavern.position.copy(tavernPos);
-  tavern.rotation.y = -Math.atan2(dockFoot.z - tavernPos.z, dockFoot.x - tavernPos.x) + Math.PI / 2;
-  const sign = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.015), new THREE.MeshBasicMaterial({ color: PALETTE.brass }));
-  sign.position.set(-0.17, 0.3, 0.2);
-  tavern.add(sign);
-  group.add(tavern);
-  for (let i = 0; i < 1 + dice.int(2); i++) {
-    const a = tavernAngle + (i ? -0.9 : 0.9) + dice.range(-0.2, 0.2);
-    const h = cottage(dice, dice.int(2) ? PALETTE.roof : PALETTE.roofBlue, 0.8);
-    h.position.set(Math.cos(a) * 0.72, 0.5, Math.sin(a) * 0.72);
-    h.rotation.y = -a + Math.PI / 2;
-    group.add(h);
-  }
-  const lampPost = shaded(new THREE.CylinderGeometry(0.012, 0.015, 0.32, 5), mat(PALETTE.iron));
-  const lampAt = pathCurve.getPoint(0.5);
-  lampPost.position.set(lampAt.x + 0.08, 0.66, lampAt.z + 0.08);
-  group.add(lampPost);
-  const lampGlow = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 5), new THREE.MeshBasicMaterial({ color: PALETTE.lamp }));
-  lampGlow.position.set(lampAt.x + 0.08, 0.84, lampAt.z + 0.08);
-  group.add(lampGlow);
-
-  // The dock reaches out toward the sea lanes: planks, posts, a stall with crates and barrels, the notice board at its foot.
-  const dock = new THREE.Group();
-  for (let i = 0; i < 5; i++) {
-    const plank = shaded(new THREE.BoxGeometry(0.3, 0.05, 0.3), mat(PALETTE.wood));
-    plank.position.set(1.15 + i * 0.31, 0.3, 0);
-    dock.add(plank);
-    if (i % 2 === 1) {
-      for (const side of [-1, 1]) {
-        const post = shaded(new THREE.CylinderGeometry(0.025, 0.025, 0.4, 5), mat(PALETTE.trunk));
-        post.position.set(1.15 + i * 0.31, 0.16, side * 0.17);
-        dock.add(post);
-      }
-    }
-  }
-  const b1 = barrel();
-  b1.position.set(1.5, 0.36, 0.1);
-  dock.add(b1);
-  const b2 = barrel();
-  b2.position.set(1.56, 0.36, 0.03);
-  dock.add(b2);
-  const c1 = crate();
-  c1.position.set(1.85, 0.355, -0.1);
-  dock.add(c1);
-  const c2 = crate();
-  c2.position.set(1.85, 0.415, -0.1);
-  c2.rotation.y = 0.4;
-  dock.add(c2);
-  const lanternPost = shaded(new THREE.CylinderGeometry(0.02, 0.02, 0.34, 5), mat(PALETTE.trunk));
-  lanternPost.position.set(2.4, 0.5, 0.12);
-  dock.add(lanternPost);
-  const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), new THREE.MeshBasicMaterial({ color: PALETTE.lamp }));
-  lantern.position.set(2.4, 0.68, 0.12);
-  dock.add(lantern);
-  const boardPost = shaded(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 5), mat(PALETTE.trunk));
-  boardPost.position.set(0.98, 0.62, -0.3);
-  dock.add(boardPost);
-  const board = shaded(new THREE.BoxGeometry(0.03, 0.16, 0.22), mat(PALETTE.parchment));
-  board.position.set(0.98, 0.72, -0.3);
-  dock.add(board);
-  for (const [y, z] of [
-    [0.75, -0.34],
-    [0.69, -0.26],
-  ]) {
-    const pin = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.05, 0.06), new THREE.MeshBasicMaterial({ color: dice.int(2) ? PALETTE.roof : PALETTE.roofBlue }));
-    pin.position.set(0.985, y!, z!);
-    dock.add(pin);
-  }
-  // A rowing boat tied up beside the dock.
-  const boat = shaded(new THREE.CylinderGeometry(0.06, 0.03, 0.2, 6), mat(PALETTE.hull));
-  boat.rotation.z = Math.PI / 2;
-  boat.scale.set(1, 1, 0.6);
-  boat.position.set(1.0, 0.02, 0.34);
-  dock.add(boat);
-  dock.rotation.y = -dockAngle;
-  group.add(dock);
-
-  // The landmark sits across from the tavern.
-  const landmarkAngle = tavernAngle + Math.PI * 0.6 * (dice.int(2) ? 1 : -1);
-  const landmarkPos = new THREE.Vector3(Math.cos(landmarkAngle) * 0.75, 0.5, Math.sin(landmarkAngle) * 0.75);
-  let animateLandmark: (t: number, dt: number) => void = () => {};
-  if (landmark === "lighthouse") {
-    const tower = new THREE.Group();
-    const body = shaded(new THREE.CylinderGeometry(0.09, 0.14, 0.8, 8), mat(PALETTE.lightTower));
-    body.position.y = 0.4;
-    tower.add(body);
-    for (const y of [0.22, 0.56]) {
-      const band = shaded(new THREE.CylinderGeometry(0.12 - y * 0.05, 0.125 - y * 0.05, 0.08, 8), mat(PALETTE.lightBand));
-      band.position.y = y;
-      tower.add(band);
-    }
-    const gallery = shaded(new THREE.CylinderGeometry(0.13, 0.11, 0.04, 8), mat(PALETTE.iron));
-    gallery.position.y = 0.8;
-    tower.add(gallery);
-    const cap = shaded(new THREE.ConeGeometry(0.12, 0.14, 8), mat(PALETTE.lightBand));
-    cap.position.y = 0.95;
-    tower.add(cap);
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 6), new THREE.MeshBasicMaterial({ color: PALETTE.lamp }));
-    lamp.position.y = 0.86;
-    tower.add(lamp);
-    const beam = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.8, 12, 1, true), new THREE.MeshBasicMaterial({ color: PALETTE.lamp, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }));
-    beam.rotation.z = Math.PI / 2;
-    beam.position.set(0.9, 0.86, 0);
-    const beamHolder = new THREE.Group();
-    beamHolder.add(beam);
-    tower.add(beamHolder);
-    tower.position.copy(landmarkPos);
-    group.add(tower);
-    animateLandmark = (t) => {
-      const on = Math.sin(t * 2.2) > 0.2;
-      (lamp.material as THREE.MeshBasicMaterial).color.setHex(on ? PALETTE.lamp : PALETTE.lampOff);
-      beamHolder.rotation.y = t * 0.7;
-      (beam.material as THREE.MeshBasicMaterial).opacity = on ? 0.14 : 0.03;
-    };
-  } else if (landmark === "windmill") {
-    const mill = new THREE.Group();
-    const body = shaded(new THREE.CylinderGeometry(0.12, 0.19, 0.66, 7), mat(PALETTE.wall));
-    body.position.y = 0.33;
-    mill.add(body);
-    const cap = shaded(new THREE.ConeGeometry(0.17, 0.17, 7), mat(PALETTE.roofBlue));
-    cap.position.y = 0.74;
-    mill.add(cap);
-    const hub = new THREE.Group();
-    hub.position.set(0, 0.64, 0.19);
-    for (let i = 0; i < 4; i++) {
-      const blade = shaded(new THREE.BoxGeometry(0.07, 0.46, 0.015), mat(PALETTE.sail));
-      blade.position.y = 0.24;
-      const arm = new THREE.Group();
-      arm.rotation.z = (i * Math.PI) / 2;
-      arm.add(blade);
-      hub.add(arm);
-    }
-    mill.add(hub);
-    // Fields of grain around it.
-    for (let i = 0; i < 5; i++) {
-      const row = shaded(new THREE.BoxGeometry(0.3, 0.03, 0.05), mat(0xdcc46a));
-      row.position.set(0.3 + (i % 2) * 0.05, 0.02, -0.2 + i * 0.1);
-      mill.add(row);
-    }
-    mill.position.copy(landmarkPos);
-    mill.rotation.y = -landmarkAngle + Math.PI / 2;
-    group.add(mill);
-    animateLandmark = (_t, dt) => {
-      hub.rotation.z += dt * 0.9;
-    };
-  } else if (landmark === "volcano") {
-    const cone = shaded(new THREE.CylinderGeometry(0.24, 0.8, 1.0, 8), mat(PALETTE.basalt));
-    cone.position.set(Math.cos(hillAngle) * 0.3, 0.9, Math.sin(hillAngle) * 0.3);
-    group.add(cone);
-    const streak = shaded(new THREE.BoxGeometry(0.06, 0.6, 0.03), mat(PALETTE.lava));
-    streak.position.set(cone.position.x + 0.25, 1.05, cone.position.z + 0.2);
-    streak.rotation.z = 0.5;
-    streak.rotation.y = 0.5;
-    group.add(streak);
-    const crater = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.04, 8), new THREE.MeshBasicMaterial({ color: PALETTE.lava }));
-    crater.position.set(cone.position.x, 1.4, cone.position.z);
-    group.add(crater);
-    const puffs: THREE.Mesh[] = [];
-    for (let i = 0; i < 6; i++) {
-      const puff = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), mat(PALETTE.smoke, { transparent: true, opacity: 0.6 }));
-      puff.position.copy(crater.position);
-      puff.userData.phase = i / 6;
-      group.add(puff);
-      puffs.push(puff);
-    }
-    animateLandmark = (t) => {
-      (crater.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 3) > 0 ? PALETTE.lava : 0xc9502a);
-      for (const p of puffs) {
-        const k = (t * 0.25 + (p.userData.phase as number)) % 1;
-        p.position.set(crater.position.x + Math.sin(k * 6 + (p.userData.phase as number) * 9) * 0.12 * k, crater.position.y + 0.1 + k * 1.0, crater.position.z + 0.15 * k);
-        const sc = 0.6 + k * 1.8;
-        p.scale.setScalar(sc);
-        (p.material as THREE.MeshLambertMaterial).opacity = 0.55 * (1 - k);
-      }
-    };
-  } else if (landmark === "fort") {
-    const fort = new THREE.Group();
-    const keep = shaded(new THREE.BoxGeometry(0.4, 0.3, 0.4), mat(PALETTE.rock));
-    keep.position.y = 0.15;
-    fort.add(keep);
-    for (const [x, z] of [
-      [-0.2, -0.2],
-      [0.2, -0.2],
-      [-0.2, 0.2],
-      [0.2, 0.2],
-    ]) {
-      const tower = shaded(new THREE.CylinderGeometry(0.07, 0.08, 0.42, 6), mat(PALETTE.rock));
-      tower.position.set(x!, 0.21, z!);
-      fort.add(tower);
-    }
-    fort.position.copy(landmarkPos);
-    group.add(fort);
-  }
-
-  // Chimney smoke from the tavern.
-  const smokes: THREE.Mesh[] = [];
-  for (let i = 0; i < 3; i++) {
-    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.03, 5, 4), mat(0xdde3ea, { transparent: true, opacity: 0.5 }));
-    puff.userData.phase = i / 3;
-    group.add(puff);
-    smokes.push(puff);
-  }
-  const chimneyTop = tavernPos.clone().add(new THREE.Vector3(0.13, 0.46, 0));
-
-  // Selection and reach rings sit on the water; the flag marks where the player stands.
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.05, 6, 48), new THREE.MeshBasicMaterial({ color: PALETTE.brass, transparent: true, opacity: 0.95 }));
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.3;
-  ring.visible = false;
-  group.add(ring);
-  const reachRing = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.03, 6, 48), new THREE.MeshBasicMaterial({ color: PALETTE.parchment, transparent: true, opacity: 0.6 }));
-  reachRing.rotation.x = -Math.PI / 2;
-  reachRing.position.y = 0.3;
-  reachRing.visible = false;
-  group.add(reachRing);
-
-  const flag = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.5, 5), mat(PALETTE.parchment));
-  pole.position.y = 0.25;
-  flag.add(pole);
-  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.13), new THREE.MeshBasicMaterial({ color: PALETTE.brass, side: THREE.DoubleSide }));
-  cloth.position.set(0.11, 0.42, 0);
-  flag.add(cloth);
-  flag.position.set(Math.cos(dockAngle) * 0.95 - Math.sin(dockAngle) * 0.3, 0.5, Math.sin(dockAngle) * 0.95 + Math.cos(dockAngle) * 0.3);
-  flag.visible = false;
-  group.add(flag);
-
-  const hit = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
-  hit.rotation.x = -Math.PI / 2;
-  hit.position.y = 0.05;
-  group.add(hit);
-
-  const dockEnd = new THREE.Vector3(Math.cos(dockAngle) * 1.85, 0.36, Math.sin(dockAngle) * 1.85);
-  const boardSpot = new THREE.Vector3(Math.cos(dockAngle) * 0.98 + Math.sin(dockAngle) * 0.3, 0.8, Math.sin(dockAngle) * 0.98 - Math.cos(dockAngle) * 0.3);
-  const anchors: Record<Building, THREE.Vector3> = {
-    dock: dockEnd,
-    tavern: tavernPos.clone().add(new THREE.Vector3(0, 0.5, 0)),
-    "notice-board": boardSpot,
-  };
-
-  return {
-    group,
-    hit,
-    ring,
-    reachRing,
-    flag,
-    anchors,
-    dockDir,
-    animate: (t, dt) => {
-      animateLandmark(t, dt);
-      if (flag.visible) cloth.rotation.y = Math.sin(t * 4) * 0.25;
-      (lantern.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 7) > -0.6 ? PALETTE.lamp : 0xd9b25a);
-      for (const p of smokes) {
-        const k = (t * 0.3 + (p.userData.phase as number)) % 1;
-        p.position.set(chimneyTop.x + Math.sin(k * 5) * 0.04, chimneyTop.y + k * 0.35, chimneyTop.z + k * 0.08);
-        p.scale.setScalar(0.6 + k * 1.4);
-        (p.material as THREE.MeshLambertMaterial).opacity = 0.45 * (1 - k);
-      }
-    },
-  };
-}
-
 export type Station = "bilging" | "sailing" | "carpentry" | "gunnery" | "navigation";
 export const STATION_ORDER: readonly Station[] = ["bilging", "sailing", "carpentry", "gunnery", "navigation"];
+
+/** A sloop's size in the world: big enough that a crew of pirates can walk its deck. */
+export const SHIP_SCALE = 1.15;
+/** How far the hull sits down in the water. */
+export const SHIP_SINK = 0.055;
+
+/** Where a pirate stands to do something aboard, in the ship's own frame, and which way they face. */
+export interface DeckPost {
+  at: Spot;
+  face: number;
+}
+
+export interface ShipDeck {
+  /** Where a pirate may stand on deck, in the ship's own frame (x toward the bow, z to starboard). */
+  grid: WalkGrid;
+  heightAt(x: number, z: number): number;
+  stations: Record<Station, DeckPost>;
+  /** Behind the wheel, the captain's place. */
+  helm: DeckPost;
+  /** Where hands with nothing to do stand about, by index. */
+  idle: Spot[];
+  /** The gap in the rail amidships on the given side (+1 starboard, -1 port), where the gangplank comes aboard. */
+  gangway(side: number): Spot;
+}
 
 export interface ShipModel {
   group: THREE.Group;
   /** The hull and everything on it; the bob is applied here so the group's frame stays steady for labels. */
   body: THREE.Group;
   hit: THREE.Mesh;
+  /** The deck's top, for taps to walk. */
+  deckHit: THREE.Mesh;
+  /** Invisible boxes over each station's gear and the wheel, for taps on the thing itself. */
+  stationHits: THREE.Mesh[];
   sail: THREE.Mesh;
   /** The canvas: main, jib and seams. On deck it goes to glass so it never hides a station. */
   canvas: THREE.Mesh[];
@@ -550,221 +125,187 @@ export interface ShipModel {
   dressed: string;
   wake: THREE.Mesh;
   marker: THREE.Mesh;
-  /** Where each station's spot is on the deck, in the ship's local frame. */
+  /** Where each station's label hangs, in the body's frame. */
   anchors: Record<Station, THREE.Vector3>;
-  /** Where a crew peg stands when working each station. */
-  standing: Record<Station, THREE.Vector3>;
-  /** Where a crew member with no station stands, by index. */
-  idleSpots: THREE.Vector3[];
-  /** The wheel at the stern, the captain's spot. */
+  /** The wheel, in the body's frame. */
   wheel: THREE.Vector3;
-  cannons: THREE.Mesh[];
+  deck: ShipDeck;
 }
 
-/** A sloop with its stations laid out on deck, built to be looked at up close. The flag's color says whose it is. */
-export function buildShip(kind: "yours" | "aboard" | "other"): ShipModel {
+const DECK_Y = 0.3;
+const QUARTER_Y = 0.37;
+/** The quarterdeck's forward edge and the foot of its steps. */
+const QUARTER_X = -0.17;
+const STEPS_FOOT_X = -0.1;
+const STEPS_HALF = 0.05;
+const GANGWAY_X = 0.04;
+/** The masthead: short enough that a docked sloop does not tower over the town. */
+const MAST_TOP = 1.05;
+
+/**
+ * A sloop with its stations laid out on a deck a crew can walk: a raised quarterdeck aft with the
+ * wheel and the chart table, steps down to the main deck, the mast and its pin rail amidships, the
+ * pump to port, a gun pair each side, the carpenter's bench forward, and a gangway port in each rail.
+ * The flag's color says whose it is.
+ */
+export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): ShipModel {
   const group = new THREE.Group();
   const body = new THREE.Group();
-  body.scale.setScalar(0.85);
+  body.scale.setScalar(SHIP_SCALE);
+  body.position.y = -SHIP_SINK;
   group.add(body);
+  const b = new Batch();
 
-  // Hull: a tapered box with plank stripes, a bow, a stern transom and a rudder.
-  const hull = shaded(new THREE.BoxGeometry(0.9, 0.24, 0.36), mat(PALETTE.hull));
-  hull.position.y = 0.12;
-  body.add(hull);
-  for (let i = 0; i < 3; i++) {
-    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.91, 0.006, 0.365), new THREE.MeshBasicMaterial({ color: 0x3f2814 }));
-    seam.position.y = 0.05 + i * 0.06;
-    body.add(seam);
-  }
-  const bow = shaded(new THREE.ConeGeometry(0.18, 0.4, 4), mat(PALETTE.hull));
-  bow.rotation.z = -Math.PI / 2;
-  bow.rotation.x = Math.PI / 4;
-  bow.scale.z = 0.66;
-  bow.position.set(0.64, 0.12, 0);
-  body.add(bow);
-  const bowsprit = shaded(new THREE.CylinderGeometry(0.012, 0.018, 0.4, 5), mat(PALETTE.trunk));
-  bowsprit.rotation.z = -Math.PI / 2 + 0.25;
-  bowsprit.position.set(0.9, 0.32, 0);
-  body.add(bowsprit);
-  const figurehead = shaded(new THREE.SphereGeometry(0.035, 6, 5), mat(PALETTE.brass));
-  figurehead.position.set(0.84, 0.25, 0);
-  body.add(figurehead);
-  const rudder = shaded(new THREE.BoxGeometry(0.03, 0.18, 0.08), mat(PALETTE.trunk));
-  rudder.position.set(-0.47, 0.06, 0);
-  body.add(rudder);
-  const stripe = shaded(new THREE.BoxGeometry(0.92, 0.04, 0.37), mat(PALETTE.brass));
-  stripe.position.y = 0.2;
-  body.add(stripe);
-  const gunwale = shaded(new THREE.BoxGeometry(0.92, 0.05, 0.4), mat(PALETTE.gunwale));
-  gunwale.position.y = 0.26;
-  body.add(gunwale);
-  const deck = shaded(new THREE.BoxGeometry(0.84, 0.03, 0.3), mat(PALETTE.deck));
-  deck.position.y = 0.285;
-  body.add(deck);
-  for (let i = 0; i < 5; i++) {
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.004, 0.004), new THREE.MeshBasicMaterial({ color: 0x9a7a4c }));
-    plank.position.set(0, 0.302, -0.12 + i * 0.06);
-    body.add(plank);
-  }
-  // Railing posts along the gunwale.
-  for (let i = 0; i < 7; i++) {
-    for (const side of [-1, 1]) {
-      const post = shaded(new THREE.CylinderGeometry(0.008, 0.008, 0.07, 4), mat(PALETTE.trunk));
-      post.position.set(-0.4 + i * 0.13, 0.32, side * 0.19);
-      body.add(post);
-    }
-  }
-  for (const side of [-1, 1]) {
-    const rail = shaded(new THREE.BoxGeometry(0.8, 0.012, 0.012), mat(PALETTE.trunk));
-    rail.position.set(0, 0.355, side * 0.19);
-    body.add(rail);
-  }
+  // ---- the hull
+  b.add(new THREE.BoxGeometry(0.9, 0.24, 0.36), PALETTE.hull, { p: [0, 0.12, 0] });
+  for (let i = 0; i < 3; i++) b.add(new THREE.BoxGeometry(0.91, 0.006, 0.365), 0x3f2814, { p: [0, 0.05 + i * 0.06, 0] });
+  b.add(new THREE.ConeGeometry(0.18, 0.4, 4), PALETTE.hull, { p: [0.64, 0.12, 0], r: [Math.PI / 4, 0, -Math.PI / 2], s: [1, 1, 0.66] });
+  b.add(new THREE.CylinderGeometry(0.012, 0.018, 0.4, 5), PALETTE.trunk, { p: [0.9, 0.32, 0], r: [0, 0, -Math.PI / 2 + 0.25] });
+  b.add(new THREE.SphereGeometry(0.035, 6, 5), PALETTE.brass, { p: [0.84, 0.25, 0] });
+  b.add(new THREE.BoxGeometry(0.03, 0.18, 0.08), PALETTE.trunk, { p: [-0.47, 0.06, 0] });
+  b.add(new THREE.BoxGeometry(0.92, 0.04, 0.37), PALETTE.brass, { p: [0, 0.2, 0] });
+  b.add(new THREE.BoxGeometry(0.92, 0.05, 0.4), PALETTE.gunwale, { p: [0, 0.26, 0] });
+  b.add(new THREE.BoxGeometry(0.84, 0.03, 0.3), PALETTE.deck, { p: [0, 0.285, 0] });
+  for (let i = 0; i < 5; i++) b.add(new THREE.BoxGeometry(0.84, 0.004, 0.004), 0x9a7a4c, { p: [0, 0.302, -0.12 + i * 0.06] });
   // Gun ports on the hull sides.
-  for (const side of [-1, 1]) {
-    for (const x of [0.05, -0.1]) {
-      const port = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.01), new THREE.MeshBasicMaterial({ color: 0x1b1208 }));
-      port.position.set(x, 0.14, side * 0.183);
-      body.add(port);
-    }
-  }
-  // Stern cabin with the wheel on its roof, lanterns and a chart table.
-  const cabin = shaded(new THREE.BoxGeometry(0.22, 0.12, 0.24), mat(PALETTE.wood));
-  cabin.position.set(-0.3, 0.36, 0);
-  body.add(cabin);
-  for (const z of [-0.07, 0.07]) {
-    const win = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.05, 0.05), new THREE.MeshBasicMaterial({ color: 0xffe9a8 }));
-    win.position.set(-0.415, 0.37, z);
-    body.add(win);
-  }
-  const wheel = shaded(new THREE.TorusGeometry(0.05, 0.009, 5, 10), mat(PALETTE.trunk));
-  wheel.position.set(-0.17, 0.42, 0);
-  wheel.rotation.y = Math.PI / 2;
-  body.add(wheel);
-  for (let i = 0; i < 4; i++) {
-    const spoke = shaded(new THREE.BoxGeometry(0.005, 0.1, 0.005), mat(PALETTE.trunk));
-    spoke.position.set(-0.17, 0.42, 0);
-    spoke.rotation.x = (i * Math.PI) / 4;
-    body.add(spoke);
-  }
-  const wheelPost = shaded(new THREE.CylinderGeometry(0.01, 0.012, 0.1, 5), mat(PALETTE.trunk));
-  wheelPost.position.set(-0.17, 0.35, 0);
-  body.add(wheelPost);
+  for (const side of [-1, 1]) for (const x of [-0.05, 0.17]) b.add(new THREE.BoxGeometry(0.06, 0.05, 0.01), 0x1b1208, { p: [x, 0.16, side * 0.183] });
+
+  // ---- the quarterdeck: raised aft, a door either side of the steps, windows in the transom
+  const qLen = QUARTER_X + 0.42;
+  b.add(new THREE.BoxGeometry(qLen, QUARTER_Y - DECK_Y, 0.3), PALETTE.wood, { p: [QUARTER_X - qLen / 2, (DECK_Y + QUARTER_Y) / 2, 0] });
+  b.add(new THREE.BoxGeometry(qLen, 0.006, 0.3), PALETTE.deck, { p: [QUARTER_X - qLen / 2, QUARTER_Y, 0] });
+  for (let i = 0; i < 4; i++) b.add(new THREE.BoxGeometry(qLen, 0.003, 0.003), 0x9a7a4c, { p: [QUARTER_X - qLen / 2, QUARTER_Y + 0.004, -0.09 + i * 0.06] });
   for (const z of [-0.1, 0.1]) {
-    const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 5), new THREE.MeshBasicMaterial({ color: PALETTE.lamp }));
-    lantern.position.set(-0.42, 0.46, z);
-    body.add(lantern);
+    b.add(new THREE.BoxGeometry(0.006, 0.05, 0.036), 0x3a2414, { p: [QUARTER_X + 0.003, DECK_Y + 0.026, z] });
+    b.add(new THREE.BoxGeometry(0.004, 0.004, 0.004), PALETTE.brass, { p: [QUARTER_X + 0.007, DECK_Y + 0.026, z + 0.01] });
   }
-  const table = shaded(new THREE.BoxGeometry(0.09, 0.05, 0.09), mat(PALETTE.deck));
-  table.position.set(-0.3, 0.445, 0.07);
-  body.add(table);
-  const chart = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.005, 0.07), new THREE.MeshBasicMaterial({ color: PALETTE.parchment }));
-  chart.position.set(-0.3, 0.473, 0.07);
-  body.add(chart);
-  const compass = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.006, 8), new THREE.MeshBasicMaterial({ color: PALETTE.brass }));
-  compass.position.set(-0.27, 0.478, 0.09);
-  body.add(compass);
-  // The pump amidships, a box with a handle and a bucket.
-  const pump = shaded(new THREE.BoxGeometry(0.08, 0.07, 0.08), mat(PALETTE.iron));
-  pump.position.set(0.22, 0.33, -0.07);
-  body.add(pump);
-  const handle = shaded(new THREE.CylinderGeometry(0.008, 0.008, 0.16, 5), mat(PALETTE.trunk));
-  handle.rotation.z = Math.PI / 2;
-  handle.position.set(0.22, 0.4, -0.07);
-  body.add(handle);
-  const bucket = shaded(new THREE.CylinderGeometry(0.025, 0.02, 0.04, 7), mat(PALETTE.wood));
-  bucket.position.set(0.3, 0.32, -0.11);
-  body.add(bucket);
-  // The carpenter's bench forward, with planks and a mallet.
-  const bench = shaded(new THREE.BoxGeometry(0.11, 0.05, 0.06), mat(PALETTE.wood));
-  bench.position.set(0.42, 0.32, 0.08);
-  body.add(bench);
-  const plank = shaded(new THREE.BoxGeometry(0.13, 0.012, 0.03), mat(PALETTE.deck));
-  plank.position.set(0.42, 0.355, 0.08);
-  plank.rotation.y = 0.3;
-  body.add(plank);
-  const mallet = shaded(new THREE.BoxGeometry(0.03, 0.02, 0.02), mat(PALETTE.iron));
-  mallet.position.set(0.46, 0.36, 0.1);
-  body.add(mallet);
-  // Barrels and a crate on deck.
+  for (const z of [-0.08, 0.0, 0.08]) b.addGlow(new THREE.BoxGeometry(0.008, 0.035, 0.04), 0xffe9a8, { p: [-0.452, 0.2, z] });
+  // Three steps up, with a banister each side.
+  const rise = (QUARTER_Y - DECK_Y) / 3;
+  const run = (STEPS_FOOT_X - QUARTER_X) / 2;
+  for (let i = 0; i < 2; i++) {
+    const top = DECK_Y + rise * (i + 1);
+    const x0 = STEPS_FOOT_X - run * (i + 1);
+    b.add(new THREE.BoxGeometry(run, top - DECK_Y, STEPS_HALF * 2), i ? PALETTE.wood : PALETTE.deck, { p: [x0 + run / 2, (top + DECK_Y) / 2, 0] });
+  }
+  for (const side of [-1, 1]) {
+    b.add(new THREE.BoxGeometry(0.008, 0.06, 0.008), PALETTE.trunk, { p: [STEPS_FOOT_X - 0.004, DECK_Y + 0.03, side * STEPS_HALF] });
+    b.add(new THREE.BoxGeometry(0.085, 0.007, 0.007), PALETTE.trunk, { p: [(STEPS_FOOT_X + QUARTER_X) / 2, DECK_Y + 0.085, side * STEPS_HALF], r: [0, 0, -0.75] });
+  }
+  // The quarterdeck's rail: across its front either side of the steps, and along its sides.
+  for (const side of [-1, 1]) {
+    b.add(new THREE.BoxGeometry(0.008, 0.012, 0.1), PALETTE.trunk, { p: [QUARTER_X, QUARTER_Y + 0.055, side * 0.1] });
+    for (const z of [0.055, 0.145]) b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.055, 4), PALETTE.trunk, { p: [QUARTER_X, QUARTER_Y + 0.027, side * z] });
+    for (const x of [-0.41, -0.33, -0.25, QUARTER_X]) b.add(new THREE.CylinderGeometry(0.007, 0.007, 0.06, 4), PALETTE.trunk, { p: [x, QUARTER_Y + 0.03, side * 0.19] });
+    b.add(new THREE.BoxGeometry(qLen, 0.012, 0.012), PALETTE.trunk, { p: [QUARTER_X - qLen / 2, QUARTER_Y + 0.06, side * 0.19] });
+    // The main deck's rail, with the gangway port left open amidships.
+    for (const x of [QUARTER_X + 0.02, -0.08, GANGWAY_X - 0.035, GANGWAY_X + 0.035, 0.16, 0.27, 0.38]) b.add(new THREE.CylinderGeometry(0.008, 0.008, 0.07, 4), PALETTE.trunk, { p: [x, 0.32, side * 0.19] });
+    const aftLen = GANGWAY_X - 0.035 - (QUARTER_X + 0.02);
+    b.add(new THREE.BoxGeometry(aftLen, 0.012, 0.012), PALETTE.trunk, { p: [QUARTER_X + 0.02 + aftLen / 2, 0.355, side * 0.19] });
+    const foreLen = 0.4 - (GANGWAY_X + 0.035);
+    b.add(new THREE.BoxGeometry(foreLen, 0.012, 0.012), PALETTE.trunk, { p: [GANGWAY_X + 0.035 + foreLen / 2, 0.355, side * 0.19] });
+    // Stern lanterns.
+    b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 4), PALETTE.iron, { p: [-0.41, QUARTER_Y + 0.04, side * 0.13] });
+    b.addGlow(new THREE.SphereGeometry(0.016, 6, 5), PALETTE.lamp, { p: [-0.41, QUARTER_Y + 0.09, side * 0.13] });
+  }
+
+  // ---- the wheel and the chart table on the quarterdeck
+  const wheelAt = new THREE.Vector3(-0.24, QUARTER_Y + 0.085, 0);
+  b.add(new THREE.CylinderGeometry(0.009, 0.012, 0.08, 6), PALETTE.trunk, { p: [wheelAt.x + 0.012, QUARTER_Y + 0.04, 0] });
+  b.add(new THREE.TorusGeometry(0.042, 0.007, 5, 12), PALETTE.trunk, { p: [wheelAt.x, wheelAt.y, 0], r: [0, Math.PI / 2, 0] });
+  for (let i = 0; i < 4; i++) b.add(new THREE.BoxGeometry(0.004, 0.1, 0.004), PALETTE.trunk, { p: [wheelAt.x, wheelAt.y, 0], r: [(i * Math.PI) / 4, 0, 0] });
+  b.add(new THREE.SphereGeometry(0.008, 6, 5), PALETTE.brass, { p: [wheelAt.x, wheelAt.y, 0] });
+  const tableAt = { x: -0.37, z: 0.095 };
+  b.add(new THREE.BoxGeometry(0.075, 0.05, 0.055), PALETTE.wood, { p: [tableAt.x, QUARTER_Y + 0.025, tableAt.z] });
+  b.add(new THREE.BoxGeometry(0.07, 0.004, 0.05), PALETTE.parchment, { p: [tableAt.x, QUARTER_Y + 0.052, tableAt.z], r: [0, 0.1, 0] });
+  b.add(new THREE.CylinderGeometry(0.01, 0.01, 0.006, 8), PALETTE.brass, { p: [tableAt.x + 0.02, QUARTER_Y + 0.056, tableAt.z + 0.012] });
+  b.add(new THREE.BoxGeometry(0.03, 0.003, 0.004), 0x3a2414, { p: [tableAt.x - 0.01, QUARTER_Y + 0.056, tableAt.z - 0.01], r: [0, 0.6, 0] });
+
+  // ---- the main deck: the mast's pin rail, the pump, the guns, the bench, a hatch, stores
+  const mastX = 0.1;
+  // The fife rail aft of the mast: two posts, a rail of belaying pins, coils of line hung on it.
+  for (const z of [-0.045, 0.045]) b.add(new THREE.BoxGeometry(0.012, 0.05, 0.012), PALETTE.trunk, { p: [mastX - 0.04, DECK_Y + 0.025, z] });
+  b.add(new THREE.BoxGeometry(0.016, 0.01, 0.11), PALETTE.wood, { p: [mastX - 0.04, DECK_Y + 0.05, 0] });
+  for (let i = 0; i < 5; i++) b.add(new THREE.CylinderGeometry(0.003, 0.003, 0.026, 4), PALETTE.brass, { p: [mastX - 0.04, DECK_Y + 0.055, -0.04 + i * 0.02] });
+  for (const z of [-0.03, 0.01]) b.add(new THREE.TorusGeometry(0.011, 0.003, 4, 8), PALETTE.rope, { p: [mastX - 0.048, DECK_Y + 0.035, z], r: [0, Math.PI / 2, 0] });
+  for (const side of [-1, 1]) b.add(new THREE.CylinderGeometry(0.02, 0.022, 0.035, 8), PALETTE.rope, { p: [mastX + 0.035, 0.318, side * 0.06] });
+  const pumpAt = { x: 0.25, z: -0.085 };
+  b.add(new THREE.BoxGeometry(0.06, 0.06, 0.06), PALETTE.iron, { p: [pumpAt.x, DECK_Y + 0.03, pumpAt.z] });
+  b.add(new THREE.CylinderGeometry(0.014, 0.014, 0.05, 7), PALETTE.iron, { p: [pumpAt.x, DECK_Y + 0.085, pumpAt.z] });
+  b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.13, 5), PALETTE.trunk, { p: [pumpAt.x - 0.03, DECK_Y + 0.105, pumpAt.z], r: [0, 0, Math.PI / 2 - 0.25] });
+  b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.05, 5), PALETTE.iron, { p: [pumpAt.x + 0.03, DECK_Y + 0.03, pumpAt.z + 0.035], r: [Math.PI / 2, 0, 0] });
+  b.add(new THREE.CylinderGeometry(0.02, 0.016, 0.034, 7), PALETTE.wood, { p: [pumpAt.x + 0.055, DECK_Y + 0.017, pumpAt.z + 0.03] });
+  const guns = [-0.05, 0.17];
+  for (const side of [-1, 1]) {
+    for (const x of guns) {
+      b.add(new THREE.BoxGeometry(0.055, 0.025, 0.05), PALETTE.wood, { p: [x, DECK_Y + 0.0125, side * 0.118] });
+      for (const dx of [-0.02, 0.02]) b.add(new THREE.CylinderGeometry(0.01, 0.01, 0.006, 7), PALETTE.woodDark, { p: [x + dx, DECK_Y + 0.008, side * 0.096], r: [Math.PI / 2, 0, 0] });
+      b.add(new THREE.CylinderGeometry(0.015, 0.02, 0.11, 8), PALETTE.iron, { p: [x, DECK_Y + 0.04, side * 0.14], r: [Math.PI / 2, 0, 0] });
+    }
+  }
+  // A shot rack and rammer by the starboard aft gun, where the gunner stands.
+  for (let i = 0; i < 3; i++) b.add(new THREE.SphereGeometry(0.009, 6, 4), PALETTE.iron, { p: [-0.1 + i * 0.019, DECK_Y + 0.009, 0.085] });
+  const benchAt = { x: 0.37, z: 0.075 };
+  b.add(new THREE.BoxGeometry(0.1, 0.045, 0.05), PALETTE.wood, { p: [benchAt.x, DECK_Y + 0.0225, benchAt.z] });
+  b.add(new THREE.BoxGeometry(0.12, 0.01, 0.028), PALETTE.deck, { p: [benchAt.x, DECK_Y + 0.05, benchAt.z], r: [0, 0.25, 0] });
+  b.add(new THREE.BoxGeometry(0.026, 0.016, 0.016), PALETTE.iron, { p: [benchAt.x + 0.03, DECK_Y + 0.055, benchAt.z - 0.012] });
+  b.add(new THREE.BoxGeometry(0.004, 0.004, 0.03), PALETTE.trunk, { p: [benchAt.x + 0.03, DECK_Y + 0.055, benchAt.z + 0.008] });
+  for (let i = 0; i < 3; i++) b.add(new THREE.BoxGeometry(0.1, 0.008, 0.02), i % 2 ? PALETTE.deck : PALETTE.wood, { p: [benchAt.x - 0.005, DECK_Y + 0.004 + i * 0.008, benchAt.z + 0.045] });
+  // The hatch.
+  b.add(new THREE.BoxGeometry(0.08, 0.006, 0.07), PALETTE.trunk, { p: [0.24, DECK_Y + 0.003, 0.045] });
+  for (let i = 0; i < 4; i++) b.add(new THREE.BoxGeometry(0.004, 0.003, 0.066), 0x3a2414, { p: [0.21 + i * 0.02, DECK_Y + 0.0065, 0.045] });
+  // Stores.
   for (const [x, z] of [
-    [0.05, -0.12],
-    [-0.02, -0.13],
-  ]) {
-    const b = barrel();
-    b.scale.setScalar(0.8);
-    b.position.set(x!, 0.33, z!);
-    body.add(b);
+    [0.31, -0.122],
+    [0.335, -0.1],
+  ] as const) {
+    b.add(new THREE.CylinderGeometry(0.019, 0.019, 0.045, 8), PALETTE.wood, { p: [x, DECK_Y + 0.0225, z] });
+    b.add(new THREE.CylinderGeometry(0.0195, 0.0195, 0.004, 8), PALETTE.iron, { p: [x, DECK_Y + 0.035, z] });
   }
-  const box = crate();
-  box.scale.setScalar(0.8);
-  box.position.set(0.12, 0.33, 0.12);
-  body.add(box);
-  // Two cannons a side at the gunwale, on carriages.
-  const cannons: THREE.Mesh[] = [];
-  for (const side of [-1, 1]) {
-    for (const x of [0.05, -0.1]) {
-      const carriage = shaded(new THREE.BoxGeometry(0.06, 0.03, 0.06), mat(PALETTE.wood));
-      carriage.position.set(x, 0.315, side * 0.15);
-      body.add(carriage);
-      const cannon = shaded(new THREE.CylinderGeometry(0.018, 0.024, 0.15, 7), mat(PALETTE.iron));
-      cannon.rotation.x = Math.PI / 2;
-      cannon.position.set(x, 0.345, side * 0.18);
-      body.add(cannon);
-      cannons.push(cannon);
-    }
-  }
+  b.add(new THREE.BoxGeometry(0.045, 0.04, 0.045), PALETTE.deck, { p: [-0.12, DECK_Y + 0.02, -0.11], r: [0, 0.3, 0] });
 
-  // Mast, boom, gaff, shrouds and two sails.
-  const mast = shaded(new THREE.CylinderGeometry(0.02, 0.03, 1.05, 6), mat(PALETTE.trunk));
-  mast.position.set(0.08, 0.8, 0);
-  body.add(mast);
-  const top = shaded(new THREE.CylinderGeometry(0.035, 0.035, 0.02, 6), mat(PALETTE.wood));
-  top.position.set(0.08, 1.1, 0);
-  body.add(top);
-  const boom = shaded(new THREE.CylinderGeometry(0.014, 0.014, 0.64, 5), mat(PALETTE.trunk));
-  boom.rotation.z = Math.PI / 2;
-  boom.position.set(-0.2, 0.44, 0.03);
-  body.add(boom);
-  const gaff = shaded(new THREE.CylinderGeometry(0.01, 0.01, 0.5, 5), mat(PALETTE.trunk));
-  gaff.rotation.z = Math.PI / 2 + 0.35;
-  gaff.position.set(-0.18, 1.12, 0.03);
-  body.add(gaff);
+  // ---- mast, boom, gaff and rigging
+  b.add(new THREE.CylinderGeometry(0.018, 0.027, MAST_TOP - 0.28, 6), PALETTE.trunk, { p: [mastX, (MAST_TOP + 0.28) / 2, 0] });
+  b.add(new THREE.CylinderGeometry(0.032, 0.032, 0.018, 6), PALETTE.wood, { p: [mastX, MAST_TOP - 0.06, 0] });
+  b.add(new THREE.CylinderGeometry(0.011, 0.011, 0.5, 5), PALETTE.trunk, { p: [-0.15, 0.5, 0.02], r: [0, 0, Math.PI / 2] });
+  b.add(new THREE.CylinderGeometry(0.009, 0.009, 0.44, 5), PALETTE.trunk, { p: [-0.11, MAST_TOP - 0.06, 0.02], r: [0, 0, Math.PI / 2 + 0.3] });
+  const solid = b.build(shadows);
+  body.add(solid);
+
   const ropeMat = new THREE.LineBasicMaterial({ color: 0x3a2a18 });
-  for (const side of [-1, 1]) {
-    for (const x of [-0.05, 0.05]) {
-      const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0.08, 1.05, 0), new THREE.Vector3(0.08 + x, 0.3, side * 0.19)]);
-      body.add(new THREE.Line(geo, ropeMat));
-    }
-  }
-  const stay = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0.08, 1.1, 0), new THREE.Vector3(1.05, 0.38, 0)]);
-  body.add(new THREE.Line(stay, ropeMat));
+  const rigging: THREE.Vector3[] = [];
+  for (const side of [-1, 1]) for (const x of [-0.06, 0.06]) rigging.push(new THREE.Vector3(mastX, MAST_TOP - 0.06, 0), new THREE.Vector3(mastX + x, 0.32, side * 0.19));
+  rigging.push(new THREE.Vector3(mastX, MAST_TOP - 0.02, 0), new THREE.Vector3(1.05, 0.38, 0));
+  rigging.push(new THREE.Vector3(mastX, MAST_TOP - 0.1, 0), new THREE.Vector3(-0.42, QUARTER_Y + 0.06, 0));
+  body.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(rigging), ropeMat));
 
-  const sailGeo = new THREE.PlaneGeometry(0.56, 0.62, 6, 6);
+  // ---- the sails: main and jib, and the seams across the main
+  const sailH = MAST_TOP - 0.06 - 0.52;
+  const sailGeo = new THREE.PlaneGeometry(0.46, sailH, 6, 6);
   const pos = sailGeo.attributes.position as THREE.BufferAttribute;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
-    pos.setZ(i, -0.1 * Math.cos((x / 0.56) * Math.PI) * Math.cos((y / 0.62) * Math.PI));
+    pos.setZ(i, -0.09 * Math.cos((x / 0.46) * Math.PI) * Math.cos((y / sailH) * Math.PI));
   }
   sailGeo.computeVertexNormals();
   const sail = shaded(sailGeo, mat(PALETTE.sail, { side: THREE.DoubleSide, transparent: true }));
-  sail.position.set(-0.2, 0.76, 0.03);
+  sail.position.set(-0.14, 0.52 + sailH / 2, 0.02);
   body.add(sail);
   const canvas: THREE.Mesh[] = [sail];
   for (let i = 1; i < 4; i++) {
-    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.004, 0.002), new THREE.MeshBasicMaterial({ color: 0xcfc6ad, transparent: true }));
-    seam.position.set(-0.2, 0.47 + i * 0.15, 0.09);
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.004, 0.002), new THREE.MeshBasicMaterial({ color: 0xcfc6ad, transparent: true }));
+    seam.position.set(-0.14, 0.52 + (i * sailH) / 4, 0.07);
     body.add(seam);
     canvas.push(seam);
   }
   const jibShape = new THREE.Shape();
   jibShape.moveTo(0, 0);
   jibShape.lineTo(0.5, 0);
-  jibShape.lineTo(0, 0.6);
+  jibShape.lineTo(0, MAST_TOP - 0.52);
   jibShape.closePath();
   const jib = shaded(new THREE.ShapeGeometry(jibShape), mat(PALETTE.sail, { side: THREE.DoubleSide, transparent: true }));
-  jib.position.set(0.14, 0.42, -0.02);
+  jib.position.set(mastX + 0.06, 0.46, -0.02);
   jib.rotation.y = -0.15;
   body.add(jib);
   canvas.push(jib);
@@ -773,44 +314,124 @@ export function buildShip(kind: "yours" | "aboard" | "other"): ShipModel {
     new THREE.PlaneGeometry(0.18, 0.09, 3, 1),
     new THREE.MeshBasicMaterial({ color: kind === "other" ? PALETTE.parchment : PALETTE.brass, side: THREE.DoubleSide }),
   );
-  flag.position.set(0.0, 1.3, 0);
+  flag.position.set(mastX - 0.09, MAST_TOP + 0.08, 0);
   body.add(flag);
 
   const wake = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.55), new THREE.MeshBasicMaterial({ map: wakeTexture(), transparent: true, opacity: 0.55, depthWrite: false }));
   wake.rotation.x = -Math.PI / 2;
-  wake.position.set(-0.95, 0.06, 0);
+  wake.position.set(-0.95, 0.09, 0);
   wake.visible = false;
   body.add(wake);
 
   const marker = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.22, 4), new THREE.MeshBasicMaterial({ color: PALETTE.brass }));
   marker.rotation.x = Math.PI;
-  marker.position.set(0.08, 1.75, 0);
+  marker.position.set(mastX, MAST_TOP + 0.38, 0);
   marker.visible = kind !== "other";
   body.add(marker);
 
-  const hit = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.5, 0.9), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  const invisible = (): THREE.MeshBasicMaterial => new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(1.45, 1.4, 0.55), invisible());
   hit.position.y = 0.7;
   body.add(hit);
+  const deckHit = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.02, 0.32), invisible());
+  deckHit.position.y = DECK_Y;
+  body.add(deckHit);
+  const stationHits: THREE.Mesh[] = [];
+  const stationHit = (key: Station | "wheel", x: number, y: number, z: number, w: number, h: number, d: number): void => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), invisible());
+    m.position.set(x, y, z);
+    m.userData.station = key;
+    body.add(m);
+    stationHits.push(m);
+  };
+  stationHit("bilging", pumpAt.x, DECK_Y + 0.06, pumpAt.z, 0.09, 0.12, 0.08);
+  stationHit("sailing", mastX, DECK_Y + 0.1, 0, 0.12, 0.2, 0.12);
+  stationHit("carpentry", benchAt.x, DECK_Y + 0.04, benchAt.z, 0.12, 0.08, 0.08);
+  stationHit("gunnery", guns[0]!, DECK_Y + 0.04, 0.12, 0.08, 0.08, 0.08);
+  stationHit("navigation", tableAt.x, QUARTER_Y + 0.04, tableAt.z, 0.09, 0.08, 0.07);
+  stationHit("wheel", wheelAt.x, wheelAt.y, 0, 0.04, 0.12, 0.12);
 
-  const s = 0.85;
-  const local = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(x * s, y * s, z * s);
+  // ---- where a pirate may walk on deck
+  const PAD = 0.016;
+  const heightAt = (x: number, z: number): number => {
+    if (x < QUARTER_X) return QUARTER_Y;
+    if (x < STEPS_FOOT_X && Math.abs(z) < STEPS_HALF) return DECK_Y + ((QUARTER_Y - DECK_Y) * (STEPS_FOOT_X - x)) / (STEPS_FOOT_X - QUARTER_X);
+    return DECK_Y;
+  };
+  const grid = new WalkGrid(-0.44, -0.16, 0.44, 0.16, 0.011).fill((x, z) => (x >= QUARTER_X && x <= 0.41 && Math.abs(z) <= 0.135) || (x >= -0.41 && x < QUARTER_X && Math.abs(z) <= 0.13));
+  const obstacles: Obstacle[] = [
+    // The quarterdeck's front, but for the steps, and the banisters beside them.
+    { kind: "box", x: QUARTER_X, z: 0.1, hw: 0.006, hd: 0.05, angle: 0 },
+    { kind: "box", x: QUARTER_X, z: -0.1, hw: 0.006, hd: 0.05, angle: 0 },
+    { kind: "box", x: (QUARTER_X + STEPS_FOOT_X) / 2, z: STEPS_HALF, hw: (STEPS_FOOT_X - QUARTER_X) / 2, hd: 0.004, angle: 0 },
+    { kind: "box", x: (QUARTER_X + STEPS_FOOT_X) / 2, z: -STEPS_HALF, hw: (STEPS_FOOT_X - QUARTER_X) / 2, hd: 0.004, angle: 0 },
+    { kind: "circle", x: mastX, z: 0, r: 0.03 },
+    { kind: "box", x: mastX - 0.04, z: 0, hw: 0.01, hd: 0.055, angle: 0 },
+    { kind: "circle", x: mastX + 0.035, z: 0.06, r: 0.022 },
+    { kind: "circle", x: mastX + 0.035, z: -0.06, r: 0.022 },
+    { kind: "box", x: pumpAt.x + 0.01, z: pumpAt.z + 0.005, hw: 0.045, hd: 0.035, angle: 0 },
+    { kind: "box", x: benchAt.x, z: benchAt.z + 0.01, hw: 0.05, hd: 0.04, angle: 0 },
+    { kind: "circle", x: 0.32, z: -0.11, r: 0.03 },
+    { kind: "box", x: -0.12, z: -0.11, hw: 0.025, hd: 0.025, angle: 0.3 },
+    { kind: "box", x: wheelAt.x + 0.006, z: 0, hw: 0.01, hd: 0.045, angle: 0 },
+    { kind: "box", x: tableAt.x, z: tableAt.z, hw: 0.04, hd: 0.03, angle: 0 },
+    { kind: "circle", x: -0.41, z: 0.13, r: 0.008 },
+    { kind: "circle", x: -0.41, z: -0.13, r: 0.008 },
+  ];
+  for (const side of [-1, 1]) for (const x of guns) obstacles.push({ kind: "box", x, z: side * 0.125, hw: 0.03, hd: 0.03, angle: 0 });
+  for (const o of obstacles) grid.block(o, PAD);
+
   const anchors: Record<Station, THREE.Vector3> = {
-    bilging: local(0.22, 0.4, -0.07),
-    sailing: local(-0.2, 0.76, 0.03),
-    carpentry: local(0.42, 0.36, 0.08),
-    gunnery: local(0.05, 0.35, 0.18),
-    navigation: local(-0.3, 0.48, 0.07),
+    bilging: new THREE.Vector3(pumpAt.x, DECK_Y + 0.12, pumpAt.z),
+    sailing: new THREE.Vector3(mastX, 0.55, 0),
+    carpentry: new THREE.Vector3(benchAt.x, DECK_Y + 0.07, benchAt.z),
+    gunnery: new THREE.Vector3(guns[0]!, DECK_Y + 0.07, 0.13),
+    navigation: new THREE.Vector3(tableAt.x, QUARTER_Y + 0.08, tableAt.z),
   };
-  const standing: Record<Station, THREE.Vector3> = {
-    bilging: local(0.22, 0.3, 0.05),
-    sailing: local(0.0, 0.3, -0.08),
-    carpentry: local(0.3, 0.3, 0.08),
-    gunnery: local(-0.03, 0.3, 0.1),
-    navigation: local(-0.3, 0.42, -0.07),
+  const deck: ShipDeck = {
+    grid,
+    heightAt,
+    stations: {
+      bilging: { at: { x: pumpAt.x - 0.064, z: pumpAt.z }, face: 0 },
+      sailing: { at: { x: mastX, z: -0.081 }, face: Math.PI / 2 },
+      carpentry: { at: { x: benchAt.x, z: benchAt.z - 0.062 }, face: Math.PI / 2 },
+      gunnery: { at: { x: guns[0]!, z: 0.07 }, face: Math.PI / 2 },
+      navigation: { at: { x: tableAt.x, z: tableAt.z - 0.058 }, face: Math.PI / 2 },
+    },
+    helm: { at: { x: wheelAt.x - 0.06, z: 0 }, face: 0 },
+    idle: [
+      { x: 0.0, z: 0.0 },
+      { x: 0.2, z: 0.05 },
+      { x: -0.12, z: 0.05 },
+      { x: 0.3, z: -0.02 },
+      { x: -0.05, z: -0.07 },
+      { x: 0.03, z: 0.06 },
+    ],
+    gangway: (side) => ({ x: GANGWAY_X, z: side * 0.118 }),
   };
-  const idleSpots = [local(0.0, 0.3, 0.06), local(-0.12, 0.3, 0.08), local(0.32, 0.3, -0.05), local(0.12, 0.3, -0.02), local(-0.14, 0.3, -0.1), local(0.44, 0.3, -0.04)];
   const plainFlag = kind === "other" ? PALETTE.parchment : PALETTE.brass;
-  return { group, body, hit, sail, canvas, flag, plainFlag, dressed: "", wake, marker, anchors, standing, idleSpots, wheel: local(-0.17, 0.42, 0), cannons };
+  return { group, body, hit, deckHit, stationHits, sail, canvas, flag, plainFlag, dressed: "", wake, marker, anchors, wheel: wheelAt, deck };
+}
+
+/** A gangplank from the dock's edge up to a ship's gangway, built in the island's dock frame. */
+export function buildGangplank(from: THREE.Vector3, to: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  const span = to.clone().sub(from);
+  const length = span.length();
+  const plank = shaded(new THREE.BoxGeometry(length, 0.012, 0.06), mat(PALETTE.wood));
+  plank.position.copy(from).addScaledVector(span, 0.5);
+  plank.rotation.order = "YZX";
+  plank.rotation.y = -Math.atan2(span.z, span.x);
+  plank.rotation.z = Math.atan2(span.y, Math.hypot(span.x, span.z));
+  g.add(plank);
+  for (let i = 1; i < 4; i++) {
+    const cleat = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.006, 0.058), mat(PALETTE.trunk));
+    cleat.position.copy(from).addScaledVector(span, i / 4);
+    cleat.position.y += 0.008;
+    cleat.rotation.y = plank.rotation.y;
+    g.add(cleat);
+  }
+  return g;
 }
 
 function canvasTexture(w: number, h: number, paint: (ctx: CanvasRenderingContext2D) => void): THREE.CanvasTexture | null {
@@ -862,48 +483,6 @@ export function dressShip(model: ShipModel, colors: CrewFlagWire | null): void {
     }),
     PALETTE.sail,
   );
-}
-
-export interface CrewPeg {
-  group: THREE.Group;
-  hat: THREE.Mesh;
-}
-
-/**
- * A pirate as a peg: coat, head, hat. The player's own peg wears brass. A deckhand is a different
- * silhouette, not just a different color (rule 6): a smock of sailcloth, a kerchief where a pirate
- * wears a hat, and a coil of rope slung over the shoulder.
- */
-export function buildCrewPeg(mine: boolean, captain: boolean, mate = false): CrewPeg {
-  const group = new THREE.Group();
-  const coat = shaded(
-    mate ? new THREE.CylinderGeometry(0.034, 0.03, 0.085, 7) : new THREE.CylinderGeometry(0.03, 0.038, 0.09, 7),
-    mat(mine ? PALETTE.brass : mate ? PALETTE.mateSmock : PALETTE.pirateCoat),
-  );
-  coat.position.y = mate ? 0.0425 : 0.045;
-  group.add(coat);
-  const head = shaded(new THREE.SphereGeometry(0.028, 7, 6), mat(PALETTE.pirate));
-  head.position.y = 0.11;
-  group.add(head);
-  let hat: THREE.Mesh;
-  if (mate) {
-    // A kerchief: a cap hugging the head, knotted at the back.
-    hat = shaded(new THREE.SphereGeometry(0.03, 7, 5, 0, Math.PI * 2, 0, Math.PI * 0.5), mat(PALETTE.mateKerchief));
-    hat.position.y = 0.112;
-    group.add(hat);
-    const knot = shaded(new THREE.BoxGeometry(0.014, 0.01, 0.02), mat(PALETTE.mateKerchief));
-    knot.position.set(0, 0.112, -0.03);
-    group.add(knot);
-    const coil = shaded(new THREE.TorusGeometry(0.02, 0.006, 5, 10), mat(PALETTE.rope));
-    coil.position.set(0.028, 0.075, 0);
-    coil.rotation.y = Math.PI / 2;
-    group.add(coil);
-  } else {
-    hat = shaded(captain ? new THREE.BoxGeometry(0.09, 0.02, 0.05) : new THREE.CylinderGeometry(0.032, 0.036, 0.015, 7), mat(captain ? PALETTE.iron : PALETTE.roof));
-    hat.position.y = 0.135;
-    group.add(hat);
-  }
-  return { group, hat };
 }
 
 let wakeTex: THREE.Texture | null = null;

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { t } from "@openseas/boards";
 import type { WorldEvents, WorldInput, WorldScene } from "./scene.js";
 
-export type { Deck, DeckCrew, DeckStation, Focus, Insets, WorldInput, WorldShip, WorldShipLocation } from "./scene.js";
+export type { Deck, DeckCrew, DeckStation, Focus, Insets, IslandWalk, WorldInput, WorldShip, WorldShipLocation, WorldWalker } from "./scene.js";
 
 export interface WorldProps {
   input: WorldInput;
@@ -33,6 +33,9 @@ export function World({ input, events }: WorldProps) {
           onBuilding: (islandId, b) => latest.current.events.onBuilding(islandId, b),
           onStation: (st) => latest.current.events.onStation(st),
           onWheel: () => latest.current.events.onWheel(),
+          onWalk: (x, z) => latest.current.events.onWalk(x, z),
+          onPirate: (id) => latest.current.events.onPirate(id),
+          onGangway: () => latest.current.events.onGangway(),
         });
         s.onReady = () => setReady(true);
         s.setInput(latest.current.input);

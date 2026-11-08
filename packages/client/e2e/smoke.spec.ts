@@ -46,7 +46,17 @@ class FakeShip {
   meleeMoves = 0;
   /** When set, a won sea battle boards the brigand instead of paying out at once. */
   boarding = false;
-  constructor(readonly ws: WebSocketRoute) {}
+  /** Every message the page sent, oldest first. */
+  readonly got: (Record<string, unknown> & { type: string })[] = [];
+  constructor(
+    readonly ws: WebSocketRoute,
+    /** Who else is ashore at Saltwick, and where they last walked. */
+    readonly ashore: { pirateId: string; name: string; at?: { x: number; z: number } | null }[] = [],
+  ) {}
+
+  presence(): unknown {
+    return { type: "island.presence", islandId: "saltwick", pirates: [{ pirateId: ME.id, name: ME.name }, ...this.ashore] };
+  }
 
   /** Grappling hooks over: the melee opens with a board for the pirate and one brigand at the rail. */
   board(): void {
@@ -125,14 +135,20 @@ class FakeShip {
 
   handle(raw: string): void {
     const m = JSON.parse(raw) as Record<string, unknown> & { type: string };
+    this.got.push(m);
     const now = Date.now();
     switch (m.type) {
       case "board.list":
         this.send({ type: "board.ships", islandId: "saltwick", ships: [], serverNow: now });
         return;
       case "island.who":
-        this.send({ type: "island.presence", islandId: "saltwick", pirates: [{ pirateId: ME.id, name: ME.name }] });
+        this.send(this.presence());
         return;
+      case "pirate.profile": {
+        const p = this.ashore.find((a) => a.pirateId === m.pirateId);
+        if (p) this.send({ type: "pirate.profile", profile: { pirateId: p.pirateId, name: p.name, crew: null, ratings: [], voyages: 3, online: true, invited: false } });
+        return;
+      }
       case "chat.send":
         this.send({ type: "chat.message", channel: m.channel, pirateId: ME.id, name: ME.name, text: m.text, at: now });
         return;
@@ -258,14 +274,14 @@ async function tapSpot(page: Page, selector: string): Promise<void> {
 }
 
 /** Stand a fake server behind the page: HTTP for sign-in and the pirate, a routed socket for the rest. */
-async function fakeServer(page: Page): Promise<{ ship: () => FakeShip | null }> {
+async function fakeServer(page: Page, ashore: FakeShip["ashore"] = []): Promise<{ ship: () => FakeShip | null }> {
   let ship: FakeShip | null = null;
   await page.route("**/api/me", (route) => route.fulfill({ json: { pirate: ME, inviteRequired: false } }));
   await page.route("**/api/auth/**", (route) => route.fulfill({ json: { data: { session: { id: "s" }, user: { id: "u", isAnonymous: true } } } }));
   await page.routeWebSocket(/\/ws$/, (ws) => {
-    ship = new FakeShip(ws);
+    ship = new FakeShip(ws, ashore);
     ws.send(JSON.stringify({ type: "welcome", pirate: ME, serverNow: Date.now() }));
-    ws.send(JSON.stringify({ type: "island.presence", islandId: "saltwick", pirates: [{ pirateId: ME.id, name: ME.name }] }));
+    ws.send(JSON.stringify(ship.presence()));
     ws.onMessage((raw) => ship?.handle(String(raw)));
   });
   return { ship: () => ship };
@@ -510,6 +526,78 @@ test("setting sail from a station's board goes straight back to it, and a hail t
   expect(Math.round(after!.height)).toBe(Math.round(before!.height));
   await page.getByTestId("engage").click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "battle");
+});
+
+// ---- walking (M5, ADR 0032)
+
+/** Where the world says the pirate stands, as numbers. */
+async function standing(page: Page): Promise<[number, number]> {
+  const at = (await page.getByTestId("world").getAttribute("data-me")) ?? "";
+  const [x, z] = at.split(",").map(Number);
+  return [x ?? NaN, z ?? NaN];
+}
+
+test("ashore the pirate walks among others: a tap walks, a walk is heard, a name opens a card, and the gangway leads off the ship", async ({ page }) => {
+  test.setTimeout(180_000);
+  const server = await fakeServer(page, [{ pirateId: "p-kraken", name: "Moody Kraken", at: { x: 0.3, z: -0.32 } }]);
+  await page.goto("/");
+  const world = page.getByTestId("world");
+  await expect(world).toHaveAttribute("data-walk", "island:saltwick", { timeout: 30_000 });
+  await expect(world).toHaveAttribute("data-ready", "1");
+  // Stepping ashore tells the island where the pirate stands.
+  await expect.poll(() => server.ship()?.got.filter((m) => m.type === "walk.to").length ?? 0).toBeGreaterThan(0);
+
+  // A tap on the ground beside the pirate walks them there, and the island hears where to.
+  const before = await standing(page);
+  const sent = server.ship()!.got.filter((m) => m.type === "walk.to").length;
+  const box = (await page.getByTestId("world-canvas").boundingBox())!;
+  // Once the camera has settled on the pirate, tap the open ground a step to their left.
+  await page.waitForTimeout(1200);
+  const [fx, fy] = ((await world.getAttribute("data-me-screen")) ?? "0,0").split(",").map(Number) as [number, number];
+  await page.mouse.click(box.x + fx - 45, box.y + fy - 6);
+  await expect.poll(() => server.ship()!.got.filter((m) => m.type === "walk.to").length, { timeout: 10_000 }).toBeGreaterThan(sent);
+  await expect(world).toHaveAttribute("data-walking", "0", { timeout: 10_000 });
+  const after = await standing(page);
+  expect(Math.hypot(after[0] - before[0], after[1] - before[1])).toBeGreaterThan(0.05);
+
+  // Another pirate ashore stands where they last walked, named; when they walk on, the name walks with them.
+  const kraken = page.locator('[data-walker="p-kraken"]');
+  await expect(kraken).toHaveText("Moody Kraken");
+  const was = await kraken.boundingBox();
+  server.ship()!.send({ type: "walk.moved", scope: "island", pirateId: "p-kraken", x: 0.2, z: -0.35 });
+  await expect.poll(async () => {
+    const now = await kraken.boundingBox();
+    return now && was ? Math.hypot(now.x - was.x, now.y - was.y) : 0;
+  }, { timeout: 10_000 }).toBeGreaterThan(15);
+  // Their name is a way to their card.
+  await kraken.click({ force: true });
+  await expect(page.getByTestId("profile-card")).toContainText("Moody Kraken");
+  await page.getByTestId("profile-close").click();
+  await expect(page.getByTestId("profile-card")).toHaveCount(0);
+
+  // On a keyboard the arrow keys walk.
+  if ((page.viewportSize()?.width ?? 0) > 800) {
+    const start = await standing(page);
+    await page.keyboard.down("ArrowUp");
+    await page.waitForTimeout(700);
+    await page.keyboard.up("ArrowUp");
+    await expect(world).toHaveAttribute("data-walking", "0", { timeout: 10_000 });
+    const end = await standing(page);
+    expect(Math.hypot(end[0] - start[0], end[1] - start[1])).toBeGreaterThan(0.05);
+  }
+
+  // Tapping the sloop walks down the dock and aboard; on deck the pirate walks too.
+  await page.locator('[data-ship="ship-1"]').click({ force: true });
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck", { timeout: 15_000 });
+  await expect(world).toHaveAttribute("data-walk", "ship:ship-1");
+  // Docked, the gangway leads off: the pirate walks to it and is ashore again, at the foot of the gangplank.
+  await tapSpot(page, '[data-gangway="1"]');
+  await expect.poll(() => server.ship()!.got.some((m) => m.type === "ship.leave"), { timeout: 10_000 }).toBe(true);
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "island");
+  await expect(world).toHaveAttribute("data-walk", "island:saltwick");
+  const ashore = await standing(page);
+  // The gangplank's foot is out on the dock, well beyond the beach.
+  expect(ashore[0]).toBeGreaterThan(1.5);
 });
 
 // ---- crews and accounts (M6)

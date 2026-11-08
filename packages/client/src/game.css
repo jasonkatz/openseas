@@ -188,6 +188,35 @@ body {
 .ow-pin-wheel {
   background: var(--brass);
 }
+.ow-pin-gangway {
+  background: var(--parchment);
+}
+.ow-spot-gangway .ow-spot-name {
+  font-size: 13px;
+}
+
+/* A pirate's name over their head where the player walks: small, and a way to their card. */
+.ow-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -100%;
+  pointer-events: auto;
+  cursor: pointer;
+  border: 0;
+  margin: 0;
+  padding: 1px 7px 2px;
+  border-radius: 999px;
+  background: rgba(9, 18, 32, 0.62);
+  color: var(--parchment);
+  font: 600 11px/1.3 var(--font-body);
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.16);
+  touch-action: manipulation;
+}
+.ow-tag:hover {
+  background: rgba(9, 18, 32, 0.85);
+}
 @keyframes pin-in {
   from {
     opacity: 0;
