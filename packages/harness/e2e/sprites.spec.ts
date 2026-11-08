@@ -1,15 +1,12 @@
 import { expect, test } from "@playwright/test";
 
 // Exercise the production build: a working dev URL is not enough for shared-package assets.
-test("all seven puzzle atlases load, draw, and survive a resize", async ({ page }, testInfo) => {
-  test.setTimeout(90_000);
-  const errors: string[] = [];
-  let active = "initial";
-  page.on("pageerror", (error) => errors.push(`${active}: ${error.stack}`));
-  for (const puzzle of ["bilging", "sailing", "carpentry", "gunnery", "navigation", "swordfight", "battle"]) {
-    active = puzzle;
+for (const puzzle of ["bilging", "sailing", "carpentry", "gunnery", "navigation", "swordfight", "battle"]) {
+  test(`${puzzle} atlas loads, draws, and survives a resize`, async ({ page }, testInfo) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
     const image = page.waitForResponse((r) => r.url().includes(`/${puzzle}-`) && r.url().endsWith(".webp"));
-    await page.goto(`/${puzzle}?seed=sprite-smoke&start=lab`);
+    await page.goto(`/${puzzle}?seed=sprite-smoke&start=lab&paused=1`);
     expect((await image).ok()).toBe(true);
     const canvas = page.getByTestId(`${puzzle}-canvas`);
     await expect(canvas).toHaveAttribute("data-sprite-atlas", puzzle);
@@ -19,11 +16,13 @@ test("all seven puzzle atlases load, draw, and survive a resize", async ({ page 
     const viewport = page.viewportSize()!;
     await page.setViewportSize({ width: viewport.width - 12, height: viewport.height - 12 });
     await expect(canvas).toBeVisible();
-    await testInfo.attach(`${puzzle}-sprites`, { body: await canvas.screenshot(), contentType: "image/png" });
+    // A diagnostic capture must not wait for an animated canvas to become a stable element.
+    // The lab clock is paused; viewport capture also avoids element-screenshot scroll/stability waits.
+    await testInfo.attach(`${puzzle}-sprites`, { body: await page.screenshot(), contentType: "image/png" });
     await page.setViewportSize(viewport);
-  }
-  expect(errors).toEqual([]);
-});
+    expect(errors).toEqual([]);
+  });
+}
 
 test("an unavailable atlas falls back to playable procedural art", async ({ page }) => {
   const errors: string[] = [];
