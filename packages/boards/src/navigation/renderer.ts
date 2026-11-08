@@ -1,3 +1,4 @@
+import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
 import { Application, Container, Graphics, Text, type FederatedPointerEvent } from "pixi.js";
 import {
   NAVIGATION_ENTRY_OCTANT,
@@ -196,6 +197,8 @@ export class NavigationRenderer {
   }
 
   async init(): Promise<void> {
+    await loadPuzzleSprites("navigation");
+    if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
@@ -208,6 +211,7 @@ export class NavigationRenderer {
       this.app.destroy(true);
       return;
     }
+    this.app.canvas.dataset.spriteAtlas = spritesReady("navigation") ? "navigation" : "fallback";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "navigation-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());

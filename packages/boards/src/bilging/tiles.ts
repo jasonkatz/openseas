@@ -1,16 +1,18 @@
+import { drawSprite, spriteRevision, type SpritePuzzle } from "../sprites/atlas.js";
 import { Graphics } from "pixi.js";
 
 /**
  * Tile sprites, painted with Canvas 2D so the board and the page legend share one piece of art.
- * Every ordinary kind is a colored square with its own surface texture (knurled brass, a ribbed
- * shell, rolling waves, wood grain, nacre rings, kelp fronds, coral pores), so kinds read apart by
- * pattern as well as color. With marks on, each kind also carries a symbol on a light badge
- * (CLAUDE.md rule 6). Specials are dark tiles with their own surface, an icon and a label.
+ * Ordinary kinds use distinct illustrated objects and surfaces. With marks on, each kind also
+ * carries a symbol on a light badge (CLAUDE.md rule 6). Specials have a dark chamfered plate,
+ * bright double rim, corner studs, their own icon and a label.
  */
 export type TileTexture = "knurl" | "fan" | "waves" | "grain" | "nacre" | "fronds" | "pores";
 export type SpecialName = "keg" | "ink" | "barnacle";
 
 export interface TileStyle {
+  /** Other boards may reuse the legend tile with an explicit material sprite. */
+  sprite?: { puzzle: SpritePuzzle; name: string };
   color: number;
   texture: TileTexture | null;
   mark: string | null;
@@ -54,6 +56,21 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 /** Paints one tile into a cell of size `s` whose top-left corner is the context origin. */
 export function paintTile(ctx: CanvasRenderingContext2D, s: number, style: TileStyle): void {
+  if (style.special) paintSpecialFrame(ctx, s);
+  const sprite = style.sprite?.name ?? style.special ?? ({ knurl: "cog", fan: "shell", waves: "anchor", grain: "plank", nacre: "pearl", fronds: "kelp", pores: "coral" } as const)[style.texture ?? "knurl"];
+  const inset = style.special ? s * 0.08 : 0;
+  if (drawSprite(ctx, style.sprite?.puzzle ?? "bilging", sprite, inset, inset, s - inset * 2, s - inset * 2)) {
+    if (style.special && s >= 36 && style.label) {
+      ctx.font = `700 ${Math.max(7, s * 0.15)}px "Atkinson Hyperlegible", sans-serif`;
+      ctx.textAlign = "center";
+      ctx.lineWidth = Math.max(2, s * 0.05);
+      ctx.strokeStyle = "#0b1526";
+      ctx.fillStyle = "#f2f0e6";
+      ctx.strokeText(style.label, s / 2, s * 0.94);
+      ctx.fillText(style.label, s / 2, s * 0.94);
+    } else if (style.showMarks && style.mark) paintMark(ctx, s, style.mark);
+    return;
+  }
   const c = s / 2;
   const half = s * 0.44;
   const x0 = c - half;
@@ -125,6 +142,47 @@ export function paintTile(ctx: CanvasRenderingContext2D, s: number, style: TileS
   if (style.showMarks && style.mark) paintMark(ctx, s, style.mark);
 }
 
+/** Specials wear a shared silhouette and a high-contrast rim, not just another piece color. */
+function paintSpecialFrame(ctx: CanvasRenderingContext2D, s: number): void {
+  const plate = (inset: number): void => {
+    const lo = s * inset;
+    const hi = s - lo;
+    const cut = s * 0.13;
+    ctx.beginPath();
+    ctx.moveTo(lo + cut, lo);
+    ctx.lineTo(hi - cut, lo);
+    ctx.lineTo(hi, lo + cut);
+    ctx.lineTo(hi, hi - cut);
+    ctx.lineTo(hi - cut, hi);
+    ctx.lineTo(lo + cut, hi);
+    ctx.lineTo(lo, hi - cut);
+    ctx.lineTo(lo, lo + cut);
+    ctx.closePath();
+  };
+  ctx.save();
+  const body = ctx.createLinearGradient(0, 0, 0, s);
+  body.addColorStop(0, "#273c58");
+  body.addColorStop(1, "#070f1c");
+  plate(0.035);
+  ctx.fillStyle = body;
+  ctx.fill();
+  ctx.lineWidth = Math.max(1.5, s * 0.055);
+  ctx.strokeStyle = "#f6d577";
+  ctx.stroke();
+  plate(0.10);
+  ctx.lineWidth = Math.max(0.8, s * 0.022);
+  ctx.strokeStyle = "#fff5d0";
+  ctx.stroke();
+  // Pale corner studs keep the special treatment recognizable without relying on hue.
+  ctx.fillStyle = "#fff5d0";
+  for (const [x, y] of [[0.22, 0.09], [0.78, 0.09], [0.22, 0.91], [0.78, 0.91]]) {
+    ctx.beginPath();
+    ctx.arc(s * x!, s * y!, Math.max(0.7, s * 0.022), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 /** A tile as its own canvas, `s` CSS pixels square at `resolution` device pixels per pixel. */
 export function tileCanvas(s: number, style: TileStyle, resolution: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
@@ -142,7 +200,7 @@ const urlCache = new Map<string, string>();
 
 /** A data URL of a tile for the page legend; cached because legends re-render often. */
 export function tileDataUrl(style: TileStyle, px: number): string {
-  const key = JSON.stringify([style, px]);
+  const key = JSON.stringify([style, px, spriteRevision()]);
   let url = urlCache.get(key);
   if (!url) {
     url = tileCanvas(px, style, 3).toDataURL();

@@ -1,3 +1,4 @@
+import { drawSprite, spriteRevision } from "../sprites/atlas.js";
 import { mix, paintMark } from "../bilging/tiles.js";
 
 /**
@@ -18,6 +19,10 @@ const css = (c: number, alpha = 1): string => `rgba(${(c >> 16) & 0xff},${(c >> 
 
 /** Paints one disc into a cell of size `s` whose top-left corner is the context origin. */
 export function paintDisc(ctx: CanvasRenderingContext2D, s: number, style: DiscStyle): void {
+  if (drawSprite(ctx, "sailing", style.texture, 0, 0, s, s)) {
+    if (style.showMarks && style.mark) paintMark(ctx, s, style.mark);
+    return;
+  }
   const c = s / 2;
   const r = s * 0.42;
   const base = style.color;
@@ -180,7 +185,7 @@ const urlCache = new Map<string, string>();
 
 /** A data URL of a disc for the page legend; cached because legends re-render often. */
 export function discDataUrl(style: DiscStyle, px: number): string {
-  const key = JSON.stringify([style, px]);
+  const key = JSON.stringify([style, px, spriteRevision()]);
   let url = urlCache.get(key);
   if (!url) {
     url = discCanvas(px, style, 3).toDataURL();

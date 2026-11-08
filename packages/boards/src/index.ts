@@ -22,6 +22,7 @@ export { SailingBoard, type SailingBoardProps } from "./sailing/SailingBoard.jsx
 export { DiscIcon } from "./sailing/DiscIcon.jsx";
 export { CarpentryBoard, type CarpentryBoardProps } from "./carpentry/CarpentryBoard.jsx";
 export { GunneryBoard, type GunneryBoardProps } from "./gunnery/GunneryBoard.jsx";
+export { GunneryPieceIcon } from "./gunnery/PieceIcon.jsx";
 export { gunneryPieceUrl } from "./gunnery/pieces.js";
 export { gunneryViewString } from "./gunnery/renderer.js";
 export { NavigationBoard, type NavigationBoardProps } from "./navigation/NavigationBoard.jsx";

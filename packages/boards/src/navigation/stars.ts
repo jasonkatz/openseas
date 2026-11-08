@@ -1,3 +1,4 @@
+import { drawSprite, paintSprite, spriteRevision } from "../sprites/atlas.js";
 import type { Graphics } from "pixi.js";
 
 export type StarShapeName = "spark" | "star" | "comet";
@@ -47,8 +48,34 @@ export interface StarPaint {
   alpha?: number;
 }
 
+export function navigationSpriteName(shape: StarShapeName, color: number, hollow: boolean): string {
+  const colorName = ({ [0xf5d021]: "gold", [0x7fd7ff]: "ice", [0xff6b5e]: "ember" } as Record<number, string>)[color];
+  return hollow ? `marker-${shape}` : `${colorName}-${shape}`;
+}
+
+const iconCache = new Map<string, string>();
+export function starSpriteUrl(shape: StarShapeName, color: number, px: number): string | undefined {
+  const name = navigationSpriteName(shape, color, false);
+  const key = `${name}/${px}/${spriteRevision()}`;
+  let url = iconCache.get(key);
+  if (!url) {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = Math.ceil(px * 3);
+    const ctx = canvas.getContext("2d");
+    if (!ctx || !drawSprite(ctx, "navigation", name, 0, 0, canvas.width, canvas.height)) return undefined;
+    url = canvas.toDataURL();
+    iconCache.set(key, url);
+  }
+  return url;
+}
+
 export function paintStar(g: Graphics, x: number, y: number, r: number, p: StarPaint): void {
   const alpha = p.alpha ?? 1;
+  const name = navigationSpriteName(p.shape, p.color, p.hollow);
+  if (paintSprite(g, "navigation", name, x - r * 1.12, y - r * 1.12, r * 2.24, r * 2.24, alpha, p.hollow ? p.color : 0xffffff)) {
+    if (p.mark) paintMark(g, x, y, r * 0.3, p.mark, p.hollow ? p.color : 0x0b1526, alpha);
+    return;
+  }
   const poly = starPolygon(p.shape, x, y, r);
   if (p.hollow) {
     g.poly(poly).fill({ color: p.color, alpha: 0.1 * alpha });

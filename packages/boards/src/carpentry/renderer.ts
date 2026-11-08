@@ -1,3 +1,4 @@
+import { loadPuzzleSprites, spritesReady, paintSprite } from "../sprites/atlas.js";
 import { Application, Container, FillGradient, Graphics, Text, type FederatedPointerEvent, type FederatedWheelEvent } from "pixi.js";
 import {
   carpentryCheckPlacement,
@@ -242,6 +243,8 @@ export class CarpentryRenderer {
   }
 
   async init(): Promise<void> {
+    await loadPuzzleSprites("carpentry");
+    if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
@@ -254,6 +257,7 @@ export class CarpentryRenderer {
       this.app.destroy(true);
       return;
     }
+    this.app.canvas.dataset.spriteAtlas = spritesReady("carpentry") ? "carpentry" : "fallback";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "carpentry-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -543,6 +547,9 @@ export class CarpentryRenderer {
   }
 
   private paintPlankCell(g: Graphics, x: number, y: number, s: number, color: number, grain: Grain, alpha: number): void {
+    const kind = [...this.colorByKind].find(([, c]) => c === color)?.[0];
+    const wood = kind === undefined ? undefined : ["oak", "teak", "pine", "mahogany"][kind];
+    if (wood && paintSprite(g, "carpentry", `${wood}-${grain}`, x, y, s, s, alpha)) return;
     g.rect(x, y, s, s).fill({ color, alpha });
     g.setStrokeStyle({ width: 1, color: mix(color, 0x000000, 0.35), alpha: 0.7 * alpha });
     const n = 3;

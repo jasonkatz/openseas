@@ -1,3 +1,4 @@
+import { drawSprite, spriteRevision } from "../sprites/atlas.js";
 import { mix, paintMark } from "../bilging/tiles.js";
 
 /**
@@ -48,6 +49,18 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 /** Paints a block `w` by `h` cells of size `s`, its top-left at the context origin. One cell is the ordinary block. */
 export function paintBlock(ctx: CanvasRenderingContext2D, s: number, w: number, h: number, style: BlockStyle): void {
+  // Slabs keep their single outer bevel and arbitrary dimensions. Extra lab colors retain
+  // procedural skins; the live four-color set uses the atlas.
+  const name = style.kind === "wrack" ? (wrackStage(style.ripen ?? Infinity) === "stone" ? "stone" : `${style.texture}-hint`) : `${style.texture}-${style.kind}`;
+  if (w === 1 && h === 1 && drawSprite(ctx, "swordfight", name, 0, 0, s, s)) {
+    if (style.showMarks && style.mark && (style.kind !== "wrack" || wrackStage(style.ripen ?? Infinity) === "hint")) {
+      ctx.save();
+      ctx.translate(s * 0.44, s * 0.44);
+      paintMark(ctx, s * 0.56, style.mark);
+      ctx.restore();
+    }
+    return;
+  }
   const inset = s * 0.05;
   const x0 = inset;
   const y0 = inset;
@@ -383,7 +396,7 @@ const urlCache = new Map<string, string>();
 
 /** A data URL of a block for the page legend; cached because legends re-render often. */
 export function blockDataUrl(style: BlockStyle, px: number): string {
-  const key = JSON.stringify([style, px]);
+  const key = JSON.stringify([style, px, spriteRevision()]);
   let url = urlCache.get(key);
   if (!url) {
     url = blockCanvas(px, 1, 1, style, 3).toDataURL();
