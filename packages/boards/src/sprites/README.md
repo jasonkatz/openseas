@@ -15,7 +15,7 @@ accessibility badges and labels in code.
 | bilging | Seven ordinary objects, keg, ink cloud, barnacles |
 | sailing | Canvas, rope and sea discs; the extra salt lab kind stays procedural |
 | carpentry | Four woods in horizontal and vertical grain, composed into exact polyominoes |
-| gunnery | Powder, wad, shot, water; clean, loaded, fouled and firing cannons; crates |
+| gunnery | Powder, wad, shot, bucket of water; clean, loaded, fouled and firing cannons; crates |
 | navigation | Gold, ice and ember spark/star/comet; hollow target silhouettes |
 | swordfight | Four single-cell block and breaker skins, stone and ripening wrack |
 | battle | Friendly and brigand sloops, reefs, eddies and cannonballs |
@@ -23,6 +23,10 @@ accessibility badges and labels in code.
 Additional frames from the generated sheets are reserved for future effects. Dynamic effects,
 board backgrounds, Sailing targets, and arbitrary-sized Swordfight slabs remain procedural.
 The atlas is presentation only; never derive hit areas or gameplay from its pixels.
+
+Bilging's three specials also have a code-drawn dark chamfered plate, bright double rim and corner
+studs, so they stand apart from ordinary objects without relying on color. Gunnery's water frame
+uses an individually generated bucket sprite, retained in `overrides/gunnery-water.webp`.
 
 ## Packing and replacing
 
@@ -46,3 +50,8 @@ If new sheets use different layouts, update their measured source boundaries fir
 atlas and its manifest together. Check every board on desktop and phone with `pnpm test:smoke`.
 The atlas loader caches decoded images and Pixi subtextures for the page lifetime. Renderers
 own only their baked canvas textures; do not destroy shared atlas sources during resize/unmount.
+
+Optional `overrides/<puzzle>-<frame>.webp` files are complete 192×192 normalized frames. The packer
+applies them after processing a source-sheet cell, so repacking cannot restore an obsolete piece.
+Atlases with overrides are saved losslessly. The bucket update preserves all visible pixels in
+the other Gunnery sprites from the existing atlas.

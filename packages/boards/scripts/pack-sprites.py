@@ -27,6 +27,7 @@ for puzzle,(cols,rows,names) in specs.items():
  size=192; stride=196
  atlas=Image.new('RGBA',(cols*stride,((len(names)+cols-1)//cols)*stride))
  frames={}
+ has_overrides=False
  for i,name in enumerate(names):
   col=i%cols; row=i//cols
   tile=im.crop((round(col*im.width/cols),rows[row],round((col+1)*im.width/cols),rows[row+1]))
@@ -40,9 +41,16 @@ for puzzle,(cols,rows,names) in specs.items():
   else:
    tile.thumbnail((176,176),Image.Resampling.LANCZOS)
   x=col*stride+2; y=row*stride+2
-  atlas.alpha_composite(tile,(x+(size-tile.width)//2,y+(size-tile.height)//2))
+  override=out/'overrides'/f'{puzzle}-{name}.webp'
+  if override.is_file():
+   replacement=Image.open(override).convert('RGBA')
+   if replacement.size!=(size,size): raise ValueError(f'{override} must be {size}x{size}')
+   atlas.paste(replacement,(x,y))
+   has_overrides=True
+  else:
+   atlas.alpha_composite(tile,(x+(size-tile.width)//2,y+(size-tile.height)//2))
   frames[name]=[x,y,size,size]
- atlas.save(out/f'{puzzle}.webp',quality=90,method=6)
+ atlas.save(out/f'{puzzle}.webp',quality=90,lossless=has_overrides,method=6)
  manifest[puzzle]=frames
  print(puzzle, (out/f'{puzzle}.webp').stat().st_size)
 (out/'frames.json').write_text(json.dumps(manifest,indent=2)+'\n')
