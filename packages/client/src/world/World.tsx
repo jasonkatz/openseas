@@ -36,6 +36,7 @@ export function World({ input, events }: WorldProps) {
           onWalk: (x, z) => latest.current.events.onWalk(x, z),
           onPirate: (id) => latest.current.events.onPirate(id),
           onGangway: () => latest.current.events.onGangway(),
+          onOutside: () => latest.current.events.onOutside(),
         });
         s.onReady = () => setReady(true);
         s.setInput(latest.current.input);

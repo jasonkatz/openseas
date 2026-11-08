@@ -44,6 +44,12 @@ something no rule reads.
    ashore at the foot of its gangplank and says so with a walk. Aboard, everyone stands at their post:
    the station they hold, the wheel for a captain with none, else a spot about the deck. A change of
    station walks them to the new post on every screen.
+6. **Inside a building is a spot too.** Every building with a door has a spot just inside it. A walk
+   to that spot means the pirate went in: on every screen they walk to the door, it swings open, they
+   step through and are out of sight. A walk anywhere else from inside walks them out through the
+   door first. The player's own pirate is inside whichever building's room they have open, so a room
+   opened from the card walks them in, and closing it walks them out to stand at the door. No new
+   message: going in is a walk.
 
 ## Consequences
 

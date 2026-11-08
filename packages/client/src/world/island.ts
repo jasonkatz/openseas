@@ -1,8 +1,8 @@
 /**
  * An island you can walk on (M5, ADR 0032). The ground is a low-poly heightfield: a grassy rise,
  * a ring of beach, a wet edge sloping under the sea. On it, laid out from the dock inland: the dock
- * on its pilings with berths for ships either side, the shipwright's stall and the notice board at
- * its foot, a path up to a cobbled plaza with a well, the tavern on the plaza, cottages with their
+ * on its pilings with berths for ships either side, the shipwright's and the notice board at its
+ * foot, a path up to a cobbled plaza with a well, the tavern on the plaza, cottages with their
  * gardens, the landmark the content names at the back, and the small things that make a place: palms,
  * nets, a beached boat, lanterns, crabs on the sand. Everything is placed from a PRNG seeded by the
  * island's id, so every device builds the same island, the same walk grid, the same doors.
@@ -83,10 +83,21 @@ export interface Berth {
 }
 
 export interface Door {
-  /** Where a pirate stands to use the building, in the dock frame. */
+  /** Where a pirate stands to use the building, in the dock frame: outside its door. */
   at: Spot;
   /** The way they face there. */
   face: number;
+  /** Just inside the door, where a pirate who goes in ends up out of sight; null for a building nobody enters (a notice board). */
+  inside: Spot | null;
+}
+
+/** A door that swings open on its hinge as a pirate passes through. */
+export interface Doorway {
+  pivot: THREE.Group;
+  /** The hinge's turn when shut. */
+  yaw: number;
+  /** How far open it is now, 0 to 1. */
+  open: number;
 }
 
 export interface IslandModel {
@@ -111,6 +122,8 @@ export interface IslandModel {
   /** The height of the ground (or the dock) under a spot in the dock frame. */
   heightAt(u: number, w: number): number;
   doors: Record<Building, Door>;
+  /** The doors that open, by building. */
+  doorways: Partial<Record<Building, Doorway>>;
   /** Where a pirate who came ashore without walking off a ship first stands. */
   arrival: Spot;
   berth(n: number): Berth;
@@ -149,6 +162,12 @@ const cone = (r: number, h: number, seg = 6): THREE.BufferGeometry => new THREE.
 
 /** The rotation that turns a building's front (+z) to face `heading` in the dock frame. */
 const yawFacing = (heading: number): number => Math.PI / 2 - heading;
+
+/** A point in a building's own frame (x along its front, z out of it), in the dock frame. */
+const onBuilding = (center: Spot, yaw: number, lx: number, lz: number): Spot => ({
+  x: center.x + lx * Math.cos(yaw) + lz * Math.sin(yaw),
+  z: center.z - lx * Math.sin(yaw) + lz * Math.cos(yaw),
+});
 
 export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: IslandLandmark, opts: { lowQuality: boolean }): IslandModel {
   const dice = new Dice(`island:${id}`);
@@ -270,6 +289,7 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
   const towardPlaza = (p: Spot): number => Math.atan2(plaza.z - p.z, plaza.x - p.x);
   const tavernFace = towardPlaza(tavernAt);
   const tavernDoor: Spot = { x: tavernAt.x + Math.cos(tavernFace) * 0.25, z: tavernAt.z + Math.sin(tavernFace) * 0.25 };
+  const tavernInside: Spot = { x: tavernAt.x + Math.cos(tavernFace) * 0.07, z: tavernAt.z + Math.sin(tavernFace) * 0.07 };
 
   const paths: Spot[][] = [
     [{ x: DOCK.from + 0.02, z: 0 }, { x: 0.86, z: 0.01 }, { x: plaza.x + plazaR, z: 0 }],
@@ -355,32 +375,72 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
     b.add(ball(0.014, 8, 6), C.brass, { p: [0, NOTICE_H + 0.1, 0] });
   });
   circle(noticeAt.x, noticeAt.z, 0.075);
-  const noticeDoor: Door = { at: { x: noticeAt.x, z: noticeAt.z - 0.14 * mirror }, face: (Math.PI / 2) * mirror };
+  const noticeDoor: Door = { at: { x: noticeAt.x, z: noticeAt.z - 0.14 * mirror }, face: (Math.PI / 2) * mirror, inside: null };
   keepClear.push({ x: noticeAt.x, z: noticeAt.z, r: 0.2 });
 
-  // ---- the shipwright's stall: the dock's office, where ships are bought
+  // ---- the shipwright's: the dock's office, where ships are bought, with a hull on trestles outside
   const stallY = heightAt(stallAt.x, stallAt.z);
   const stallYaw = yawFacing((Math.PI / 2) * mirror);
+  const SW = 0.3;
+  const SD = 0.22;
+  const SH = 0.16;
+  const stallDoorX = -0.06;
   b.frame({ p: [stallAt.x, stallY, stallAt.z], r: [0, stallYaw, 0] }, () => {
-    b.add(box(0.3, 0.03, 0.22), C.rock, { p: [0, -0.005, 0] });
-    b.add(box(0.28, 0.16, 0.02), C.wood, { p: [0, 0.09, -0.1] });
-    for (const side of [-1, 1]) b.add(box(0.02, 0.16, 0.2), C.wood, { p: [side * 0.13, 0.09, 0] });
-    for (const side of [-1, 1]) b.add(box(0.016, 0.2, 0.016), C.woodDark, { p: [side * 0.13, 0.1, 0.1] });
-    // The roof slopes down to the front.
-    b.add(box(0.33, 0.014, 0.27), C.roofBlue, { p: [0, 0.205, 0.0], r: [0.22, 0, 0] });
-    b.add(box(0.33, 0.016, 0.02), C.woodDark, { p: [0, 0.18, 0.13] });
-    // The counter with a ledger, and a model ship hung above it as the sign.
-    b.add(box(0.24, 0.06, 0.045), C.plank, { p: [0, 0.03, 0.07] });
-    b.add(box(0.05, 0.004, 0.035), C.parchment, { p: [0.05, 0.062, 0.07], r: [0, 0.2, 0] });
-    b.add(box(0.07, 0.022, 0.024), 0x5c3c1f, { p: [0, 0.155, 0.13] });
-    b.add(cyl(0.003, 0.003, 0.05, 4), C.woodDark, { p: [0, 0.18, 0.13] });
-    b.add(box(0.004, 0.04, 0.03), C.canvas, { p: [0.004, 0.19, 0.13] });
-    // Timber stacked against its side.
-    for (let i = 0; i < 4; i++) b.add(box(0.03, 0.025, 0.22), C.plank, { p: [0.19 + (i % 2) * 0.03, 0.012 + Math.floor(i / 2) * 0.025, 0], r: [0, 0.05 * i, 0] });
+    b.add(box(SW + 0.03, 0.05, SD + 0.03), C.rock, { p: [0, -0.012, 0] });
+    b.add(box(SW, SH, SD), 0xa87c4c, { p: [0, SH / 2, 0] });
+    // Clapboards on the front and sides.
+    for (let i = 1; i < 6; i++) {
+      b.add(box(SW + 0.002, 0.004, 0.004), 0x7d5a35, { p: [0, i * (SH / 6), SD / 2 + 0.001] });
+      for (const side of [-1, 1]) b.add(box(0.004, 0.004, SD + 0.002), 0x7d5a35, { p: [side * (SW / 2 + 0.001), i * (SH / 6), 0] });
+    }
+    for (const x of [-SW / 2, SW / 2]) b.add(box(0.016, SH, 0.016), C.woodDark, { p: [x, SH / 2, SD / 2] });
+    for (const side of [-1, 1]) b.add(box(SW + 0.05, 0.014, SD * 0.66), C.roofBlue, { p: [0, SH + 0.055, side * SD * 0.26], r: [side * 0.55, 0, 0] });
+    b.add(box(SW + 0.06, 0.018, 0.018), 0x2c5277, { p: [0, SH + 0.1, 0] });
+    for (const side of [-1, 1]) {
+      const gable = new THREE.Shape();
+      gable.moveTo(-SD / 2, 0);
+      gable.lineTo(SD / 2, 0);
+      gable.lineTo(0, 0.095);
+      gable.closePath();
+      b.add(new THREE.ShapeGeometry(gable), 0xa87c4c, { p: [side * (SW / 2 + 0.001), SH, 0], r: [0, (side * Math.PI) / 2, 0] });
+    }
+    // The doorway (its door swings, below), and a wide window onto the yard.
+    b.add(box(0.068, 0.112, 0.004), 0x1d140c, { p: [stallDoorX, 0.056, SD / 2 + 0.002] });
+    b.add(box(0.08, 0.012, 0.012), C.woodDark, { p: [stallDoorX, 0.117, SD / 2 + 0.004] });
+    b.addGlow(box(0.08, 0.05, 0.006), C.window, { p: [0.07, 0.085, SD / 2 + 0.002] });
+    b.add(box(0.09, 0.008, 0.016), C.woodDark, { p: [0.07, 0.057, SD / 2 + 0.008] });
+    b.add(box(0.004, 0.05, 0.008), C.woodDark, { p: [0.07, 0.085, SD / 2 + 0.005] });
+    // A model ship hung over the door for a sign.
+    b.add(box(0.05, 0.004, 0.004), C.iron, { p: [stallDoorX + 0.01, 0.145, SD / 2 + 0.025] });
+    b.add(box(0.05, 0.016, 0.018), 0x5c3c1f, { p: [stallDoorX + 0.01, 0.13, SD / 2 + 0.04] });
+    b.add(box(0.003, 0.04, 0.003), C.woodDark, { p: [stallDoorX + 0.01, 0.155, SD / 2 + 0.04] });
+    b.add(box(0.026, 0.03, 0.002), C.canvas, { p: [stallDoorX + 0.004, 0.16, SD / 2 + 0.04] });
+    // Timber stacked against one side.
+    for (let i = 0; i < 4; i++) b.add(box(0.03, 0.025, 0.2), C.plank, { p: [SW / 2 + 0.03 + (i % 2) * 0.03, 0.012 + Math.floor(i / 2) * 0.025, 0], r: [0, 0.05 * i, 0] });
+    // A boat in frame on trestles by the other: a keel, its ribs, and the first strakes.
+    b.frame({ p: [-SW / 2 - 0.1, 0, 0.02] }, () => {
+      for (const z of [-0.06, 0.06]) {
+        for (const lean of [-0.3, 0.3]) b.add(box(0.008, 0.06, 0.008), C.woodDark, { p: [lean * 0.06, 0.028, z], r: [0, 0, lean] });
+        b.add(box(0.05, 0.006, 0.01), C.woodDark, { p: [0, 0.056, z] });
+      }
+      b.add(box(0.012, 0.012, 0.2), C.timber, { p: [0, 0.064, 0] });
+      for (let i = 0; i < 5; i++) b.add(new THREE.TorusGeometry(0.035, 0.0035, 4, 10, Math.PI), C.plank, { p: [0, 0.1, -0.08 + i * 0.04], r: [Math.PI, 0, 0] });
+      for (const side of [-1, 1]) b.add(box(0.006, 0.012, 0.16), C.plank, { p: [side * 0.03, 0.09, 0] });
+    });
   });
-  block(stallAt.x, stallAt.z, 0.21, 0.13, stallYaw);
-  const stallDoor: Door = { at: { x: stallAt.x, z: stallAt.z + 0.22 * mirror }, face: (-Math.PI / 2) * mirror };
-  keepClear.push({ x: stallAt.x, z: stallAt.z, r: 0.28 });
+  block(stallAt.x, stallAt.z, SW / 2 + 0.01, SD / 2 + 0.01, stallYaw);
+  {
+    const timber = onBuilding(stallAt, stallYaw, SW / 2 + 0.045, 0);
+    block(timber.x, timber.z, 0.035, 0.11, stallYaw);
+    const boat = onBuilding(stallAt, stallYaw, -SW / 2 - 0.1, 0.02);
+    block(boat.x, boat.z, 0.045, 0.11, stallYaw);
+  }
+  const stallDoor: Door = {
+    at: onBuilding(stallAt, stallYaw, stallDoorX, SD / 2 + 0.1),
+    face: (-Math.PI / 2) * mirror,
+    inside: onBuilding(stallAt, stallYaw, stallDoorX, SD / 2 - 0.07),
+  };
+  keepClear.push({ x: stallAt.x, z: stallAt.z, r: 0.32 });
 
   // ---- the tavern
   const tavernY = heightAt(tavernAt.x, tavernAt.z);
@@ -409,9 +469,9 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
       b.add(new THREE.ShapeGeometry(gable), C.wall, { p: [side * (W / 2 + 0.001), H, 0], r: [0, (side * Math.PI) / 2, 0] });
     }
     b.add(box(0.05, 0.12, 0.05), C.rock, { p: [W * 0.3, H + 0.1, -0.06] });
-    // The door, lit windows and lanterns either side of it.
-    b.add(box(0.075, 0.12, 0.012), C.woodDark, { p: [0, 0.06, D / 2 + 0.006] });
-    b.add(box(0.008, 0.008, 0.006), C.brass, { p: [0.025, 0.06, D / 2 + 0.014] });
+    // The doorway (its door swings, below), lit windows and lanterns either side of it.
+    b.add(box(0.075, 0.122, 0.004), 0x1d140c, { p: [0, 0.061, D / 2 + 0.002] });
+    b.add(box(0.088, 0.012, 0.014), C.timber, { p: [0, 0.128, D / 2 + 0.006] });
     for (const x of [-0.14, 0.14]) {
       b.addGlow(box(0.06, 0.05, 0.008), C.window, { p: [x, 0.08, D / 2 + 0.004] });
       b.add(box(0.07, 0.008, 0.014), C.timber, { p: [x, 0.052, D / 2 + 0.008] });
@@ -458,6 +518,31 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
     frame.add(puff);
     smokes.push(puff);
   }
+
+  // ---- doors that swing: hung on their hinge at the left of the doorway, opening inward
+  const doorLeaf = (center: Spot, baseY: number, yaw: number, lx: number, front: number, w: number, h: number, color: number): Doorway => {
+    const hinge = onBuilding(center, yaw, lx - w / 2, front + 0.006);
+    const pivot = new THREE.Group();
+    pivot.position.set(hinge.x, baseY, hinge.z);
+    pivot.rotation.y = yaw;
+    const leaf = new THREE.Mesh(box(w, h, 0.008), new THREE.MeshLambertMaterial({ color }));
+    leaf.position.set(w / 2, h / 2, 0);
+    leaf.castShadow = !opts.lowQuality;
+    const knob = new THREE.Mesh(ball(0.0045, 6, 4), new THREE.MeshBasicMaterial({ color: C.brass }));
+    knob.position.set(w - 0.012, h * 0.48, 0.006);
+    for (let i = 1; i < 3; i++) {
+      const plank = new THREE.Mesh(box(0.002, h, 0.009), new THREE.MeshLambertMaterial({ color: 0x3a2414 }));
+      plank.position.set((i * w) / 3, h / 2, 0);
+      pivot.add(plank);
+    }
+    pivot.add(leaf, knob);
+    frame.add(pivot);
+    return { pivot, yaw, open: 0 };
+  };
+  const doorways: Partial<Record<Building, Doorway>> = {
+    tavern: doorLeaf(tavernAt, tavernY, tavernYaw, 0, 0.15, 0.072, 0.118, C.woodDark),
+    dock: doorLeaf(stallAt, stallY, stallYaw, stallDoorX, SD / 2, 0.066, 0.11, 0x5a3a1e),
+  };
 
   // ---- cottages, with a garden fence and a vegetable patch
   for (const [i, home] of [cottageA, cottageB].entries()) {
@@ -824,18 +909,18 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
     buildingHits.push(m);
   };
   hitBox("tavern", tavernAt, 0.46, 0.36, 0.34, tavernYaw);
-  hitBox("dock", stallAt, 0.34, 0.24, 0.26, stallYaw);
+  hitBox("dock", stallAt, SW + 0.04, SH + 0.12, SD + 0.04, stallYaw);
   hitBox("notice-board", noticeAt, 0.16, NOTICE_H + 0.12, 0.16, noticeYaw);
 
   const toGroup = (u: number, y: number, w: number): THREE.Vector3 => new THREE.Vector3(u * Math.cos(dockAngle) - w * Math.sin(dockAngle), y, u * Math.sin(dockAngle) + w * Math.cos(dockAngle));
   const anchors: Record<Building, THREE.Vector3> = {
-    dock: toGroup(stallAt.x, stallY + 0.27, stallAt.z),
+    dock: toGroup(stallAt.x, stallY + SH + 0.16, stallAt.z),
     tavern: toGroup(tavernAt.x, tavernY + 0.38, tavernAt.z),
     "notice-board": toGroup(noticeAt.x, noticeY + NOTICE_H + 0.13, noticeAt.z),
   };
   const doors: Record<Building, Door> = {
     dock: stallDoor,
-    tavern: { at: tavernDoor, face: tavernFace + Math.PI },
+    tavern: { at: tavernDoor, face: tavernFace + Math.PI, inside: tavernInside },
     "notice-board": noticeDoor,
   };
 
@@ -864,6 +949,7 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
     grid,
     heightAt,
     doors,
+    doorways,
     arrival: { x: plaza.x + plazaR + 0.08, z: 0.04 * mirror },
     berth,
     animate(t, dt) {

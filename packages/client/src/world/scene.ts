@@ -11,7 +11,7 @@ import * as THREE from "three";
 import type { IslandLandmark } from "@openseas/content";
 import type { CrewFlagWire } from "@openseas/protocol";
 import { CameraRig, isoDirection, type View } from "./camera.js";
-import { DOCK, buildIsland, type Building, type IslandModel } from "./island.js";
+import { DOCK, buildIsland, type Building, type Door, type IslandModel } from "./island.js";
 import { PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildCloud, buildGangplank, buildGull, buildShip, dressShip, type DeckPost, type GullModel, type ShipModel, type Station } from "./models.js";
 import { PIRATE_HEIGHT, buildPirate, workFor, type PirateFigure, type PirateKind } from "./pirate.js";
 import { Walker, type Spot as WalkSpot, type WalkGrid } from "./walk.js";
@@ -84,6 +84,8 @@ export interface IslandWalk {
   others: WorldWalker[];
   /** The ship the pirate just walked off, so they step ashore at its gangplank. */
   arriveFrom: string | null;
+  /** The building whose room the pirate has open: they are inside it (or standing at it, for one nobody enters). */
+  inside: Building | null;
 }
 /** Fractions of the viewport covered by the shell's panels, so the focus lands in the clear. */
 export interface Insets {
@@ -128,6 +130,8 @@ export interface WorldEvents {
   onPirate(pirateId: string): void;
   /** The pirate walked down the gangway: off the ship. */
   onGangway(): void;
+  /** Inside a building, the pirate asked to be somewhere outside it: their room should close. */
+  onOutside(): void;
 }
 
 const SEA_SIZE = 110;
@@ -210,6 +214,10 @@ interface WalkerView {
   captain: boolean;
   /** A pirate (not a deckhand): tappable, and named when idle. */
   real: boolean;
+  /** The building they are in, out of sight. */
+  inside: Building | null;
+  /** The doorway they are stepping through, in or out. */
+  doorway: { building: Building; out: boolean } | null;
 }
 interface Cloud {
   group: THREE.Group;
@@ -254,6 +262,10 @@ export class WorldScene {
   private readonly pointers = new Map<number, { x: number; y: number }>();
   private pinch: { d: number; zoom: number } | null = null;
   private dataKey = "";
+  /** The building the player was last asked to be in (their open room), to act only when it changes. */
+  private lastInside: Building | null | undefined = undefined;
+  /** What to do once the player is out of the building they are in: walk where they tapped, board a ship. */
+  private afterLeave: (() => void) | null = null;
   /** Walking keys held down (arrows or WASD), as screen directions. */
   private readonly keys = new Set<string>();
   private readonly leaders: SVGSVGElement;
@@ -374,7 +386,8 @@ export class WorldScene {
     for (const [id, iv] of this.islands) {
       iv.model.ring.visible = id === input.selected;
       iv.model.reachRing.visible = id !== input.selected && input.reachable.includes(id);
-      iv.model.flag.visible = id === input.here;
+      // Ashore the pirate themself says where they are; the flag marks it on the chart.
+      iv.model.flag.visible = id === input.here && input.focus.kind === "all";
       iv.label.classList.toggle("selected", id === input.selected);
       iv.label.classList.toggle("here", id === input.here);
       iv.label.classList.toggle("reachable", input.reachable.includes(id));
@@ -679,14 +692,26 @@ export class WorldScene {
           wv = undefined;
         }
         if (!wv) {
-          const start = p.mine ? this.arrivalFor(iv, walk) : (p.at ?? this.standAbout(iv, p.id));
-          wv = this.addWalker(key, p.id, "island", walk.islandId, p.mine ? "me" : "pirate", iv.model.frame, start, p.mine ? 0 : hashPhase(p.id), p.name, !p.mine);
+          // The player opening the game in a building's room is in it; anyone else last seen walking into one is too.
+          const into = p.mine ? walk.inside : p.at ? this.insideOf(iv, p.at) : null;
+          const door = into ? iv.model.doors[into] : null;
+          const start = door ? (door.inside ?? door.at) : p.mine ? this.arrivalFor(iv, walk) : (p.at ?? this.standAbout(iv, p.id));
+          wv = this.addWalker(key, p.id, "island", walk.islandId, p.mine ? "me" : "pirate", iv.model.frame, start, door ? door.face : p.mine ? 0 : hashPhase(p.id), p.name, !p.mine);
           wv.atKey = spotKey(p.at);
-          // Others hear where the player stepped ashore.
-          if (p.mine) this.events.onWalk(start.x, start.z);
-        } else if (!p.mine) {
+          if (into && door?.inside) {
+            wv.inside = into;
+            wv.figure.group.visible = false;
+          }
+          if (p.mine) {
+            this.lastInside = walk.inside;
+            // Others hear where the player stepped ashore.
+            this.events.onWalk(start.x, start.z);
+          }
+        } else if (p.mine) {
+          this.reconcileInside(wv, iv, walk.inside);
+        } else {
           const k = spotKey(p.at);
-          if (p.at && k !== wv.atKey) this.walkOn(wv, p.at);
+          if (p.at && k !== wv.atKey) this.walkThere(wv, iv, p.at);
           wv.atKey = k;
           if (wv.tag) wv.tag.textContent = p.name;
         }
@@ -757,13 +782,17 @@ export class WorldScene {
       });
       this.labels.appendChild(tag);
     }
-    const wv: WalkerView = { id, scope, placeId, kind, figure, walker, hit, tag, atKey: "", post: null, postKey: "", station: null, captain: false, real: kind !== "mate" };
+    const wv: WalkerView = { id, scope, placeId, kind, figure, walker, hit, tag, atKey: "", post: null, postKey: "", station: null, captain: false, real: kind !== "mate", inside: null, doorway: null };
     this.walkers.set(key, wv);
     this.placeWalker(wv);
     return wv;
   }
 
   private removeWalker(wv: WalkerView): void {
+    if (wv.kind === "me" && wv.scope === "island") {
+      this.lastInside = undefined;
+      this.afterLeave = null;
+    }
     wv.figure.group.removeFromParent();
     wv.figure.group.traverse((o) => {
       if (o instanceof THREE.Mesh) {
@@ -834,16 +863,139 @@ export class WorldScene {
   private goBuilding(islandId: string, building: Building): void {
     const me = this.walkFocus();
     const iv = this.islands.get(islandId);
-    if (!me || me.scope !== "island" || me.placeId !== islandId || !iv) {
+    // Already in a building, the room just changes; the player walks out and over as it does.
+    if (!me || me.scope !== "island" || me.placeId !== islandId || !iv || this.inOrEntering(me)) {
       this.events.onBuilding(islandId, building);
       return;
     }
-    const door = iv.model.doors[building];
-    this.walkMe(me, door.at, door.face, () => this.events.onBuilding(islandId, building), false);
+    this.enter(me, iv, building, () => this.events.onBuilding(islandId, building), true);
+  }
+
+  // ---- in and out of buildings
+
+  /** The building a spot is just inside the door of, if any: a walk there is a walk into it. */
+  private insideOf(iv: IslandView, at: WalkSpot): Building | null {
+    for (const [b, door] of Object.entries(iv.model.doors) as [Building, Door][]) if (door.inside && Math.hypot(door.inside.x - at.x, door.inside.z - at.z) < 0.02) return b;
+    return null;
+  }
+
+  /** The building a walker is in or stepping into. */
+  private inOrEntering(wv: WalkerView): Building | null {
+    return wv.inside ?? (wv.doorway && !wv.doorway.out ? wv.doorway.building : null);
+  }
+
+  /**
+   * Walk to a building's door and, if it is one people go into, through it and out of sight. `atDoor`
+   * runs on reaching the door. `announce` tells the place each leg, for the player's own pirate.
+   */
+  private enter(wv: WalkerView, iv: IslandView, b: Building, atDoor?: () => void, announce = false): void {
+    const now = this.inOrEntering(wv);
+    if (now === b) {
+      atDoor?.();
+      return;
+    }
+    if (now) {
+      this.leave(wv, iv, () => this.enter(wv, iv, b, atDoor, announce), announce);
+      return;
+    }
+    const door = iv.model.doors[b];
+    const stepIn = (): void => {
+      const inside = door.inside;
+      if (inside) {
+        if (announce) this.events.onWalk(inside.x, inside.z);
+        wv.doorway = { building: b, out: false };
+        const done = (): void => {
+          wv.doorway = null;
+          wv.inside = b;
+          wv.figure.group.visible = false;
+        };
+        if (this.reducedMotion) {
+          wv.walker.place(inside, door.face);
+          this.placeWalker(wv);
+          done();
+        } else wv.walker.stepThrough([inside], { arrive: done });
+      }
+      atDoor?.();
+    };
+    const goal = this.walkOn(wv, door.at, door.face, stepIn);
+    if (announce && wv.walker.moving) this.events.onWalk(goal.x, goal.z);
+  }
+
+  /** Out through the door of the building a walker is in, to stand just outside it; then `then`. */
+  private leave(wv: WalkerView, iv: IslandView, then?: () => void, announce = false): void {
+    const b = this.inOrEntering(wv);
+    const door = b ? iv.model.doors[b] : null;
+    if (!b || !door?.inside) {
+      then?.();
+      return;
+    }
+    // From out of sight inside, or wherever they had got to on the way in.
+    if (wv.inside) wv.walker.place(door.inside, door.face + Math.PI);
+    wv.inside = null;
+    wv.figure.group.visible = true;
+    wv.doorway = { building: b, out: true };
+    if (announce) this.events.onWalk(door.at.x, door.at.z);
+    const done = (): void => {
+      wv.doorway = null;
+      then?.();
+    };
+    if (this.reducedMotion) {
+      wv.walker.place(door.at, door.face + Math.PI);
+      this.placeWalker(wv);
+      done();
+    } else wv.walker.stepThrough([door.at], { face: door.face + Math.PI, arrive: done });
+  }
+
+  /** The player's open room changed: walk them into its building, or out of the one they are in. */
+  private reconcileInside(wv: WalkerView, iv: IslandView, want: Building | null): void {
+    if (this.lastInside === want) return;
+    this.lastInside = want;
+    if (want) {
+      this.afterLeave = null;
+      this.enter(wv, iv, want, undefined, true);
+      return;
+    }
+    const after = this.afterLeave;
+    this.afterLeave = null;
+    if (this.inOrEntering(wv)) this.leave(wv, iv, after ?? undefined, true);
+    else after?.();
+  }
+
+  /** Someone else walked: into a building if the spot is inside one, out of the one they are in first if not. */
+  private walkThere(wv: WalkerView, iv: IslandView, at: WalkSpot): void {
+    const into = this.insideOf(iv, at);
+    if (into) this.enter(wv, iv, into);
+    else if (this.inOrEntering(wv)) this.leave(wv, iv, () => void this.walkOn(wv, at));
+    else this.walkOn(wv, at);
+  }
+
+  /** Ease each door toward open while someone passes through it or stands on its step. */
+  private swingDoors(dt: number): void {
+    for (const [islandId, iv] of this.islands) {
+      for (const [b, way] of Object.entries(iv.model.doorways) as [Building, NonNullable<IslandModel["doorways"][Building]>][]) {
+        const door = iv.model.doors[b];
+        let want = 0;
+        for (const wv of this.walkers.values()) {
+          if (wv.scope !== "island" || wv.placeId !== islandId) continue;
+          // Open for someone stepping through, and just ahead of someone walking up to it; shut behind them.
+          const goal = wv.walker.goal;
+          const approaching = wv.walker.moving && goal !== null && Math.hypot(goal.x - door.at.x, goal.z - door.at.z) < 0.02 && Math.hypot(wv.walker.x - door.at.x, wv.walker.z - door.at.z) < 0.14;
+          if (wv.doorway?.building === b || approaching) want = 1;
+        }
+        way.open += (want - way.open) * Math.min(1, dt * (want ? 9 : 4));
+        way.pivot.rotation.y = way.yaw + way.open * 1.45;
+      }
+    }
   }
 
   private goShip(shipId: string): void {
     const me = this.walkFocus();
+    if (me?.scope === "island" && this.inOrEntering(me)) {
+      // Out of the building first; the room closes, and the walk to her goes on from the door.
+      this.afterLeave = () => this.goShip(shipId);
+      this.events.onOutside();
+      return;
+    }
     const sv = this.ships.get(shipId);
     const iv = sv?.berth ? this.islands.get(sv.berth.islandId) : undefined;
     if (!me || me.scope !== "island" || !sv?.berth || !iv || me.placeId !== sv.berth.islandId) {
@@ -1278,6 +1430,7 @@ varying float vWave;`,
     this.placeShips(dt);
     this.keyWalk();
     this.updateWalkers(walkDt, t);
+    this.swingDoors(walkDt);
     // A followed ship moves between snapshots, a walking pirate between taps; keep the target on them.
     if (input.focus.kind === "ship" || this.walkFocus()) this.rig.setView(this.viewFor(input));
     this.aimSun(input);
@@ -1519,7 +1672,7 @@ varying float vWave;`,
       me.figure.group.getWorldPosition(this.tmp).project(this.rig.camera);
       screen = `${Math.round((this.tmp.x * 0.5 + 0.5) * this.host.clientWidth)},${Math.round((-this.tmp.y * 0.5 + 0.5) * this.host.clientHeight)}`;
     }
-    const key = me ? `${me.scope}:${me.placeId}|${me.walker.x.toFixed(2)},${me.walker.z.toFixed(2)}|${me.walker.moving ? 1 : 0}|${screen}` : "";
+    const key = me ? `${me.scope}:${me.placeId}|${me.walker.x.toFixed(2)},${me.walker.z.toFixed(2)}|${me.walker.moving ? 1 : 0}|${screen}|${me.inside ?? ""}` : "";
     if (key === this.dataKey) return;
     this.dataKey = key;
     const d = this.host.dataset;
@@ -1528,6 +1681,7 @@ varying float vWave;`,
     // Where the pirate's feet are on screen, in the world's own pixels.
     d.meScreen = screen;
     d.walking = me?.walker.moving ? "1" : "0";
+    d.inside = me?.inside ?? "";
   }
 
   /** Keep the sun's shadows sharp where the eye is: tight on a pirate or a deck, wide over the chart. */
@@ -1749,7 +1903,13 @@ varying float vWave;`,
       case "ground": {
         const grid = this.gridOf(me);
         const to = grid?.nearestOpen(p.x, p.z, me.scope === "ship" ? 0.08 : 0.3);
-        if (to) this.walkMe(me, to, undefined, null, true);
+        if (!to) return;
+        if (me.scope === "island" && this.inOrEntering(me)) {
+          this.afterLeave = () => this.walkMe(me, to, undefined, null, true);
+          this.events.onOutside();
+          return;
+        }
+        this.walkMe(me, to, undefined, null, true);
         return;
       }
     }
@@ -1817,6 +1977,11 @@ varying float vWave;`,
     const parent = me?.figure.group.parent;
     if (!me || !grid || !parent || this.input?.dimmed) {
       this.keys.clear();
+      return;
+    }
+    // Inside a building a key means "out": the room closes and the pirate steps outside, then walks on.
+    if (me.scope === "island" && (me.inside || me.doorway)) {
+      if (me.inside && !me.doorway) this.events.onOutside();
       return;
     }
     const sx = (this.keys.has("right") ? 1 : 0) - (this.keys.has("left") ? 1 : 0);

@@ -326,8 +326,11 @@ export function Shell() {
   const walk = useMemo<IslandWalk | null>(() => {
     if (aboard || !pirate) return null;
     const others = presence?.islandId === ashoreAt ? presence.pirates.filter((p) => p.pirateId !== me).map((p) => ({ id: p.pirateId, name: p.name, at: walks.island[p.pirateId] ?? null })) : [];
-    return { islandId: ashoreAt, me, others, arriveFrom: left?.shipId ?? null };
-  }, [aboard, pirate, presence, ashoreAt, me, walks.island, left]);
+    // An open room is its building: the pirate is inside it.
+    const room = place.kind === "island" && place.id === ashoreAt ? place.room : "none";
+    const inside = room === "dock" ? "dock" : room === "tavern" ? "tavern" : room === "notice" ? "notice-board" : null;
+    return { islandId: ashoreAt, me, others, arriveFrom: left?.shipId ?? null, inside };
+  }, [aboard, pirate, presence, ashoreAt, me, walks.island, left, place]);
 
   const reachable = useMemo(() => (place.kind === "helm" && ship?.location.kind === "docked" ? content.world.routes.filter((r) => r.from === (ship.location as { islandId: string }).islandId).map((r) => r.to) : []), [place.kind, ship]);
 
@@ -449,7 +452,14 @@ export function Shell() {
     sfx.tick(false);
     leave();
   }, [leave]);
-  const events = useMemo(() => ({ onIsland, onShip, onBuilding, onStation, onWheel, onWalk, onPirate, onGangway }), [onIsland, onShip, onBuilding, onStation, onWheel, onWalk, onPirate, onGangway]);
+  // Tapping outside while in a building leaves it: the room closes and the pirate walks out.
+  const onOutside = useCallback(() => {
+    if (place.kind === "island" && place.room !== "none") go({ kind: "island", id: place.id, room: "none" });
+  }, [place, go]);
+  const events = useMemo(
+    () => ({ onIsland, onShip, onBuilding, onStation, onWheel, onWalk, onPirate, onGangway, onOutside }),
+    [onIsland, onShip, onBuilding, onStation, onWheel, onWalk, onPirate, onGangway, onOutside],
+  );
 
   const onMap = useCallback(() => {
     sfx.tick(false);

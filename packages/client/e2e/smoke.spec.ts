@@ -575,6 +575,32 @@ test("ashore the pirate walks among others: a tap walks, a walk is heard, a name
   await page.getByTestId("profile-close").click();
   await expect(page.getByTestId("profile-card")).toHaveCount(0);
 
+  // Choosing the tavern walks the pirate to its door and in, out of sight, as its room opens.
+  const walksSent = (): number => server.ship()!.got.filter((m) => m.type === "walk.to").length;
+  const sentBefore = walksSent();
+  await tapSpot(page, '[data-island="saltwick"][data-building="tavern"]');
+  await expect(page.getByTestId("tavern-panel")).toBeVisible();
+  await expect(world).toHaveAttribute("data-inside", "tavern", { timeout: 10_000 });
+  // Leaving the room from the card walks them back out to stand at the door.
+  await page.getByTestId("island-back").click();
+  await expect(world).toHaveAttribute("data-inside", "", { timeout: 10_000 });
+  await expect(world).toHaveAttribute("data-walking", "0", { timeout: 10_000 });
+  // The island heard them go in and come out.
+  expect(walksSent()).toBeGreaterThanOrEqual(sentBefore + 2);
+  const atDoor = await standing(page);
+  // In again; this time a tap on the ground outside closes the room, and they walk out and on to it.
+  await page.getByTestId("building-tavern").click();
+  await expect(world).toHaveAttribute("data-inside", "tavern", { timeout: 10_000 });
+  await page.waitForTimeout(600);
+  const [dx, dy] = ((await world.getAttribute("data-me-screen")) ?? "0,0").split(",").map(Number) as [number, number];
+  await page.mouse.click(box.x + dx - 40, box.y + dy + 70);
+  await expect(page.getByTestId("tavern-panel")).toHaveCount(0);
+  await expect(world).toHaveAttribute("data-inside", "", { timeout: 10_000 });
+  await expect(world).toHaveAttribute("data-walking", "0", { timeout: 10_000 });
+  const walkedOn = await standing(page);
+  expect(Math.hypot(walkedOn[0] - atDoor[0], walkedOn[1] - atDoor[1])).toBeGreaterThan(0.05);
+  if ((await page.getByTestId("sheet").getAttribute("data-open")) === "1") await page.getByTestId("sheet-toggle").click();
+
   // On a keyboard the arrow keys walk.
   if ((page.viewportSize()?.width ?? 0) > 800) {
     const start = await standing(page);

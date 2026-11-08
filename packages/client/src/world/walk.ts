@@ -313,6 +313,19 @@ export class Walker {
     return true;
   }
 
+  /**
+   * Walk straight through `spots`, off the grid: through a doorway, where the grid is shut. Slower
+   * than a walk, as a pirate slows to step over a threshold.
+   */
+  stepThrough(spots: Spot[], opts: { face?: number; arrive?: () => void } = {}): void {
+    this.path = spots.map((p) => ({ x: p.x, z: p.z }));
+    this.speed = this.pace * 0.6;
+    this.goal = spots[spots.length - 1] ?? null;
+    this.faceOnArrival = opts.face ?? null;
+    this.arrive = opts.arrive ?? null;
+    if (!this.path.length) this.finish();
+  }
+
   /** Step along the path. Returns how fast the walker is going now, 0 when standing. */
   update(dt: number): number {
     if (!this.path.length) {
