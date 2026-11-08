@@ -336,23 +336,26 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
     circle(u, w, 0.012);
   }
 
-  // ---- the notice board at the dock's foot
+  // ---- the notice board at the dock's foot: a pillar papered all round, so it reads from any side
   const noticeY = heightAt(noticeAt.x, noticeAt.z);
   const noticeYaw = yawFacing(-Math.PI / 2 * mirror);
-  b.frame({ p: [noticeAt.x, noticeY, noticeAt.z], r: [0, noticeYaw, 0] }, () => {
-    for (const side of [-1, 1]) b.add(box(0.012, 0.16, 0.012), C.woodDark, { p: [side * 0.065, 0.08, 0] });
-    b.add(box(0.15, 0.1, 0.012), C.wood, { p: [0, 0.115, 0] });
-    b.add(box(0.17, 0.012, 0.03), C.roofDark, { p: [0, 0.172, 0] });
-    for (const [x, y, c] of [
-      [-0.04, 0.125, C.parchment],
-      [0.012, 0.11, C.roof],
-      [0.05, 0.13, C.parchment],
-      [-0.02, 0.09, C.roofBlue],
-    ] as const)
-      b.add(box(0.034, 0.04, 0.004), c, { p: [x, y, 0.008], r: [0, 0, dice.range(-0.15, 0.15)] });
+  const NOTICE_H = 0.24;
+  b.frame({ p: [noticeAt.x, noticeY, noticeAt.z] }, () => {
+    b.add(cyl(0.07, 0.078, 0.03, 10), C.rock, { p: [0, 0.008, 0] });
+    b.add(cyl(0.05, 0.052, NOTICE_H, 12), 0x6b4a2e, { p: [0, NOTICE_H / 2 + 0.02, 0] });
+    for (const y of [0.04, NOTICE_H + 0.012]) b.add(cyl(0.056, 0.056, 0.014, 12), C.woodDark, { p: [0, y, 0] });
+    // Bills and notices pasted round it, some half over others.
+    for (let i = 0; i < 11; i++) {
+      const a = (i / 11) * Math.PI * 2 + dice.range(-0.15, 0.15);
+      const y = 0.08 + (i % 3) * 0.05 + dice.range(0, 0.02);
+      const c = dice.pick([C.parchment, C.parchment, C.parchment, 0xf2e2b8, C.roof, C.roofBlue]);
+      b.add(box(0.004, 0.05, 0.034), c, { p: [Math.cos(a) * 0.052, y, Math.sin(a) * 0.052], r: [0, -a, dice.range(-0.12, 0.12)] });
+    }
+    b.add(cone(0.085, 0.07, 12), C.roofDark, { p: [0, NOTICE_H + 0.055, 0] });
+    b.add(ball(0.014, 8, 6), C.brass, { p: [0, NOTICE_H + 0.1, 0] });
   });
-  block(noticeAt.x, noticeAt.z, 0.085, 0.015, noticeYaw);
-  const noticeDoor: Door = { at: { x: noticeAt.x, z: noticeAt.z - 0.13 * mirror }, face: (Math.PI / 2) * mirror };
+  circle(noticeAt.x, noticeAt.z, 0.075);
+  const noticeDoor: Door = { at: { x: noticeAt.x, z: noticeAt.z - 0.14 * mirror }, face: (Math.PI / 2) * mirror };
   keepClear.push({ x: noticeAt.x, z: noticeAt.z, r: 0.2 });
 
   // ---- the shipwright's stall: the dock's office, where ships are bought
@@ -638,16 +641,20 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
     keepClear.push({ x: p.x, z: p.z, r: 0.18 });
   }
   {
+    // A heap of net drying on the sand, its floats on top, a pair of oars and a lobster pot beside it.
     const p = beachSpot(1.05 * mirror, 0.82);
     const yaw = yawFacing(1.05 * mirror);
     b.frame({ p: at(p.x, p.z), r: [0, yaw, 0] }, () => {
-      for (const x of [-0.07, 0.07]) b.add(box(0.01, 0.12, 0.01), C.woodDark, { p: [x, 0.06, 0] });
-      b.add(box(0.15, 0.008, 0.008), C.woodDark, { p: [0, 0.12, 0] });
-      b.add(box(0.13, 0.09, 0.003), 0x8c7a5a, { p: [0, 0.075, 0], r: [0.12, 0, 0] });
-      for (let k = 0; k < 3; k++) b.add(ball(0.008, 5, 4), 0xc9a24a, { p: [-0.04 + k * 0.04, 0.05 + (k % 2) * 0.02, 0.005] });
+      b.add(new THREE.IcosahedronGeometry(0.06, 0), 0x8c7a5a, { p: [0, 0.012, 0], s: [1.3, 0.35, 1] });
+      b.add(new THREE.IcosahedronGeometry(0.04, 0), 0x7a6a4c, { p: [0.045, 0.016, 0.02], s: [1, 0.4, 1] });
+      for (let k = 0; k < 4; k++) b.add(ball(0.009, 6, 4), k % 2 ? 0xc9a24a : 0xd9573a, { p: [-0.05 + k * 0.032, 0.03, (k % 2) * 0.02 - 0.01] });
+      for (const z of [-0.075, -0.09]) b.add(box(0.17, 0.006, 0.012), C.wood, { p: [0.0, 0.004, z], r: [0, z * 3, 0] });
+      b.add(box(0.05, 0.04, 0.04), C.woodDark, { p: [-0.11, 0.02, 0.04], r: [0, 0.4, 0] });
+      b.add(cyl(0.02, 0.02, 0.05, 8), C.woodDark, { p: [-0.11, 0.04, 0.04], r: [Math.PI / 2, 0.4, 0], s: [1, 1, 0.6] });
     });
-    block(p.x, p.z, 0.085, 0.02, yaw);
-    keepClear.push({ x: p.x, z: p.z, r: 0.14 });
+    circle(p.x, p.z, 0.08);
+    circle(p.x - 0.1, p.z + 0.04, 0.03);
+    keepClear.push({ x: p.x, z: p.z, r: 0.16 });
   }
   const fireAt = beachSpot(Math.PI * 0.72 * mirror, 0.78);
   const ember = new THREE.Mesh(cone(0.022, 0.05, 5), new THREE.MeshBasicMaterial({ color: 0xff9a3d }));
@@ -818,13 +825,13 @@ export function buildIsland(id: string, dockToward: THREE.Vector2, landmark: Isl
   };
   hitBox("tavern", tavernAt, 0.46, 0.36, 0.34, tavernYaw);
   hitBox("dock", stallAt, 0.34, 0.24, 0.26, stallYaw);
-  hitBox("notice-board", noticeAt, 0.18, 0.2, 0.06, noticeYaw);
+  hitBox("notice-board", noticeAt, 0.16, NOTICE_H + 0.12, 0.16, noticeYaw);
 
   const toGroup = (u: number, y: number, w: number): THREE.Vector3 => new THREE.Vector3(u * Math.cos(dockAngle) - w * Math.sin(dockAngle), y, u * Math.sin(dockAngle) + w * Math.cos(dockAngle));
   const anchors: Record<Building, THREE.Vector3> = {
     dock: toGroup(stallAt.x, stallY + 0.27, stallAt.z),
     tavern: toGroup(tavernAt.x, tavernY + 0.38, tavernAt.z),
-    "notice-board": toGroup(noticeAt.x, noticeY + 0.22, noticeAt.z),
+    "notice-board": toGroup(noticeAt.x, noticeY + NOTICE_H + 0.13, noticeAt.z),
   };
   const doors: Record<Building, Door> = {
     dock: stallDoor,

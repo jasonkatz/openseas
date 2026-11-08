@@ -1668,7 +1668,8 @@ varying float vWave;`,
       const iv = this.islands.get(me.placeId);
       if (!iv) return null;
       targets.push(...iv.model.buildingHits);
-      for (const sv of this.ships.values()) if (sv.model.group.visible && sv.berth?.islandId === me.placeId) targets.push(sv.model.hit);
+      // Up close a ship is only her hull: the tall chart box would swallow taps on the dock and the shore behind her.
+      for (const sv of this.ships.values()) if (sv.model.group.visible && sv.berth?.islandId === me.placeId) targets.push(sv.model.hullHit);
       ground = iv.model.walkable;
       frame = iv.model.frame;
     } else {
@@ -1688,7 +1689,7 @@ varying float vWave;`,
     }
     if (typeof o.userData.building === "string") return { kind: "building", building: o.userData.building as Building };
     if (typeof o.userData.station === "string") return o.userData.station === "wheel" ? { kind: "wheel" } : { kind: "station", station: o.userData.station as Station };
-    for (const sv of this.ships.values()) if (o === sv.model.hit) return { kind: "ship", id: sv.ship.id };
+    for (const sv of this.ships.values()) if (o === sv.model.hullHit || o === sv.model.hit) return { kind: "ship", id: sv.ship.id };
     const local = frame.worldToLocal(hit.point.clone());
     return { kind: "ground", x: local.x, z: local.z };
   }
@@ -1724,7 +1725,8 @@ varying float vWave;`,
     const p = this.pick(e.clientX, e.clientY);
     if (!p) return;
     if (p.kind === "island") this.events.onIsland(p.id);
-    else this.goShip(p.id);
+    // Walking, a ship is boarded only by a tap on her hull (pickWalk); a tap on the water near her is nothing.
+    else if (!me) this.goShip(p.id);
   };
 
   private tapWalk(me: WalkerView, p: WalkPick): void {

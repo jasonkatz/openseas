@@ -110,7 +110,10 @@ export interface ShipModel {
   group: THREE.Group;
   /** The hull and everything on it; the bob is applied here so the group's frame stays steady for labels. */
   body: THREE.Group;
+  /** A generous box round the whole ship, for picking her out on the chart. */
   hit: THREE.Mesh;
+  /** Just the hull and deck, for taps up close where the ground around her must stay walkable. */
+  hullHit: THREE.Mesh;
   /** The deck's top, for taps to walk. */
   deckHit: THREE.Mesh;
   /** Invisible boxes over each station's gear and the wheel, for taps on the thing itself. */
@@ -333,6 +336,9 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   const hit = new THREE.Mesh(new THREE.BoxGeometry(1.45, 1.4, 0.55), invisible());
   hit.position.y = 0.7;
   body.add(hit);
+  const hullHit = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.42, 0.4), invisible());
+  hullHit.position.set(0.02, 0.21, 0);
+  body.add(hullHit);
   const deckHit = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.02, 0.32), invisible());
   deckHit.position.y = DECK_Y;
   body.add(deckHit);
@@ -410,7 +416,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
     gangway: (side) => ({ x: GANGWAY_X, z: side * 0.118 }),
   };
   const plainFlag = kind === "other" ? PALETTE.parchment : PALETTE.brass;
-  return { group, body, hit, deckHit, stationHits, sail, canvas, flag, plainFlag, dressed: "", wake, marker, anchors, wheel: wheelAt, deck };
+  return { group, body, hit, hullHit, deckHit, stationHits, sail, canvas, flag, plainFlag, dressed: "", wake, marker, anchors, wheel: wheelAt, deck };
 }
 
 /** A gangplank from the dock's edge up to a ship's gangway, built in the island's dock frame. */

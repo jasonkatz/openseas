@@ -64,6 +64,11 @@ body {
   pointer-events: none;
   overflow: hidden;
 }
+/* Over the world nothing pans or zooms the page: a pinch there is the world's own zoom. */
+.world,
+.world .ow-labels > * {
+  touch-action: none;
+}
 .ow-label {
   position: absolute;
   left: 0;
@@ -695,6 +700,8 @@ body {
 .sheet input[type="text"],
 .chat-form input {
   font: inherit;
+  /* Below 16px, iOS zooms the whole page in when the field is focused, and leaves it zoomed. */
+  font-size: max(16px, 1em);
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid rgba(239, 227, 198, 0.25);

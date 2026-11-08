@@ -586,6 +586,16 @@ test("ashore the pirate walks among others: a tap walks, a walk is heard, a name
     expect(Math.hypot(end[0] - start[0], end[1] - start[1])).toBeGreaterThan(0.05);
   }
 
+  // A tap on the shore and water just above the sloop is not a tap on her: the pirate walks, and stays ashore.
+  const label = (await page.locator('[data-ship="ship-1"]').boundingBox())!;
+  await page.mouse.click(label.x + label.width / 2, Math.max(box.y + 80, label.y - 150));
+  await expect(world).toHaveAttribute("data-walking", "0", { timeout: 10_000 });
+  await page.waitForTimeout(500);
+  expect(server.ship()!.got.some((m) => m.type === "ship.board")).toBe(false);
+  await expect(page.getByTestId("shell")).not.toHaveAttribute("data-place", "deck");
+  if (await page.getByTestId("island-back").isVisible()) await page.getByTestId("island-back").click();
+  if ((await page.getByTestId("sheet").getAttribute("data-open")) === "1") await page.getByTestId("sheet-toggle").click();
+
   // Tapping the sloop walks down the dock and aboard; on deck the pirate walks too.
   await page.locator('[data-ship="ship-1"]').click({ force: true });
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck", { timeout: 15_000 });

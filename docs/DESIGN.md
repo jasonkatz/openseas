@@ -450,16 +450,18 @@ live in `content/data/puzzles/swordfight.json`.
 
 As built (M5, ADR 0032): each island is one small town on a low-poly heightfield, a grassy rise
 inside a ring of beach that slopes under the sea. Laid out from the dock inland: the dock on its
-pilings with a berth either side, the shipwright's stall (the dock's room) and the notice board at
-its foot, a path up to a cobbled plaza with a well, lamp posts and a fruit stall, the tavern facing
+pilings with a berth either side, the shipwright's stall (the dock's room) and the notice board (a
+pillar papered all round, so it reads from any side) at its foot, a path up to a cobbled plaza with a well, lamp posts and a fruit stall, the tavern facing
 the plaza with its sign swinging and its chimney smoking, cottages with fenced vegetable patches, and
 the landmark at the back on its own rise. On the beach: palms, a boat drawn up, a net on its rack,
-driftwood, a fire ring with logs, shells and crabs scuttling along the waterline. Every island is
+driftwood, a fire ring with logs, a heap of net drying, shells and crabs scuttling along the waterline. Every island is
 built from a PRNG seeded by its id and laid out the same way, mirrored or not, so they are siblings
 that read apart by landmark and ground (golden grass, black sand). The pirate walks it: a tap on the
 ground walks there along a path round whatever is in the way, a tap on a building or its spot walks
 to its door and opens its room, a tap on a ship walks down the dock to her gangplank and aboard, and
-on a keyboard the arrows or WASD walk. The camera walks with the pirate, close enough that
+on a keyboard the arrows or WASD walk. Up close a ship answers only to taps on her hull, so the shore and
+the dock around her stay walkable. The page under the game never zooms (a pinch is the world's own
+zoom), and text fields are at least 16px so iOS does not zoom in on them. The camera walks with the pirate, close enough that
 a pirate stands a thumb tall on a phone, and a wheel or a pinch zooms between a close view and the whole town. Everyone else
 ashore walks there too, named over their heads, and a name is a way to their card.
 
