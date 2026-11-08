@@ -650,7 +650,9 @@ mast, the pump to port, a gun pair run out at each rail, the carpenter's bench f
 port in each rail. Ships lie at a dock bow out to sea, named at the stern nearest the shore. Docked, a
 gangplank runs up to her from the dock and the deck carries a Go ashore spot at the gangway. On deck
 a wheel or a pinch zooms from the whole hull to well in, the view walking with the pirate as it closes,
-and up close each station's label stands beside its pin rather than in the columns. The brass "your
+and up close, or on a phone held upright where the hull fills the width and no column fits, each
+station's label stands beside its pin rather than in the columns: just the station's name (a deckhand's
+with a dashed dot), placed where it covers no other label or pin. The brass "your
 ship" marker shows on the chart only. Boarding brings the pirate over the gangplank, and the captain walks
 straight to the wheel. A tap on a station walks the pirate to it and opens its board, and a tap on
 the deck walks there. Every station, the wheel and the gangway keep their spot and the card keeps its

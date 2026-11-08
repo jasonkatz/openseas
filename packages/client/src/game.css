@@ -219,6 +219,25 @@ body {
   }
 }
 
+/* Labels hung beside their pins on deck (a phone held upright, or zoomed in) show just the station:
+   who has it is in the card, and its state is in the label's ring. A deckhand's keeps its dashed dot. */
+.ow-compact .ow-spot-station .ow-spot-who {
+  display: none;
+}
+.ow-compact .ow-spot-station.is-mate .ow-spot-name::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--parchment-dim);
+  vertical-align: 1px;
+}
+.ow-compact .ow-spot-station.is-taken .ow-spot-name {
+  opacity: 0.75;
+}
+
 /* A pirate's name over their head where the player walks: small, and a way to their card. */
 .ow-tag {
   position: absolute;

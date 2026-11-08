@@ -158,6 +158,8 @@ const DECK_WALK_MAX_S = 1.3;
 const COAST_R = 2.1;
 const AZIMUTHS = [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4];
 const SPOT_H = 36;
+/** A deck label's width in full (name and who), for deciding whether columns fit beside the hull. */
+const CALLOUT_W = 165;
 const SPOT_W = 170;
 const SPOT_DX = 18;
 const SPOT_DY = -12;
@@ -167,6 +169,8 @@ interface Spot {
   el: HTMLButtonElement;
   pin: HTMLElement;
   line: SVGLineElement;
+  /** How far the label's box sits above its anchor (its CSS top margin), read once it is drawn. */
+  lift?: number;
 }
 
 interface Lane {
@@ -1152,28 +1156,50 @@ export class WorldScene {
     const w = this.host.clientWidth;
     const h = this.host.clientHeight;
     const cam = this.rig.camera;
-    const placed: { spot: Spot; x: number; y: number; lx: number; ly: number; flip: boolean }[] = [];
-    for (const { spot, world } of spots) {
+    const items = spots.map(({ spot, world }) => {
       this.tmp.copy(world).project(cam);
-      const x = (this.tmp.x * 0.5 + 0.5) * w;
-      const y = (-this.tmp.y * 0.5 + 0.5) * h;
-      const flip = x + SPOT_DX + spot.el.offsetWidth > w - 8;
-      placed.push({ spot, x, y, lx: flip ? x - SPOT_DX : x + SPOT_DX, ly: y + SPOT_DY, flip });
-    }
-    placed.sort((a, b) => a.ly - b.ly);
-    for (let i = 0; i < placed.length; i++) {
-      const p = placed[i]!;
-      for (let j = 0; j < i; j++) {
-        const q = placed[j]!;
-        if (Math.abs(q.lx - p.lx) < SPOT_W && p.ly - q.ly < SPOT_H) p.ly = q.ly + SPOT_H;
+      if (spot.lift === undefined && spot.el.offsetHeight) spot.lift = -parseFloat(getComputedStyle(spot.el).marginTop || "0") || 0;
+      return { spot, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h, bw: spot.el.offsetWidth || SPOT_W, bh: spot.el.offsetHeight || SPOT_H, lift: spot.lift ?? 14 };
+    });
+    type Box = { x0: number; y0: number; x1: number; y1: number };
+    const hits = (a: Box, b: Box): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+    // Every pin is something a label must not cover.
+    const pins: (Box & { owner: Spot })[] = items.map((p) => ({ owner: p.spot, x0: p.x - 10, y0: p.y - 10, x1: p.x + 10, y1: p.y + 10 }));
+    const taken: Box[] = [];
+    const boxOf = (p: (typeof items)[number], flip: boolean, ly: number): Box => {
+      const x0 = flip ? p.x - SPOT_DX - p.bw : p.x + SPOT_DX;
+      return { x0: x0 - 2, y0: ly - p.lift - 2, x1: x0 + p.bw + 2, y1: ly - p.lift + p.bh + 2 };
+    };
+    const clear = (p: (typeof items)[number], box: Box): boolean =>
+      box.x0 >= 4 && box.x1 <= w - 4 && box.y0 >= 4 && box.y1 <= h - 4 && !taken.some((t) => hits(t, box)) && !pins.some((q) => q.owner !== p.spot && hits(q, box));
+    items.sort((a, b) => a.y - b.y);
+    for (const p of items) {
+      // Beside the pin to the right, then the left, then above, then below; the first spot that covers
+      // no other label and no other pin wins. Failing all, step down past whatever is in the way.
+      const options: { flip: boolean; ly: number }[] = [
+        { flip: false, ly: p.y + SPOT_DY },
+        { flip: true, ly: p.y + SPOT_DY },
+        { flip: false, ly: p.y - 12 - p.bh + p.lift },
+        { flip: true, ly: p.y - 12 - p.bh + p.lift },
+        { flip: false, ly: p.y + 12 + p.lift },
+        { flip: true, ly: p.y + 12 + p.lift },
+      ];
+      let pick = options.find((o) => clear(p, boxOf(p, o.flip, o.ly)));
+      if (!pick) {
+        const flip = p.x + SPOT_DX + p.bw > w - 8;
+        let ly = p.y + SPOT_DY;
+        for (let guard = 0; guard < 12 && taken.some((t) => hits(t, boxOf(p, flip, ly))); guard++) ly += p.bh * 0.5 + 2;
+        pick = { flip, ly };
       }
+      taken.push(boxOf(p, pick.flip, pick.ly));
+      const lx = pick.flip ? p.x - SPOT_DX : p.x + SPOT_DX;
       p.spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
-      p.spot.el.style.transform = `translate(${p.lx.toFixed(1)}px, ${p.ly.toFixed(1)}px)${p.flip ? " translate(-100%, 0)" : ""}`;
-      p.spot.el.classList.toggle("is-flipped", p.flip);
+      p.spot.el.style.transform = `translate(${lx.toFixed(1)}px, ${pick.ly.toFixed(1)}px)${pick.flip ? " translate(-100%, 0)" : ""}`;
+      p.spot.el.classList.toggle("is-flipped", pick.flip);
       p.spot.line.setAttribute("x1", p.x.toFixed(1));
       p.spot.line.setAttribute("y1", p.y.toFixed(1));
-      p.spot.line.setAttribute("x2", p.lx.toFixed(1));
-      p.spot.line.setAttribute("y2", p.ly.toFixed(1));
+      p.spot.line.setAttribute("x2", lx.toFixed(1));
+      p.spot.line.setAttribute("y2", (pick.ly - p.lift + p.bh / 2).toFixed(1));
     }
   }
 
@@ -1644,8 +1670,14 @@ varying float vWave;`,
       }
       // Zoomed in, the hull runs off the screen and a column of labels would string leaders across
       // the deck: each label stands beside its own pin instead.
-      if (this.walkFocus()?.scope === "ship" && this.zoom < 0.85) this.placeSpots(deckSpots);
-      else this.placeCallouts(deckSpots);
+      // So does a hull that fills the screen's width (a phone held upright), where no column fits.
+      const zoomedIn = this.walkFocus()?.scope === "ship" && this.zoom < 0.85;
+      const beside = zoomedIn || !this.placeCallouts(deckSpots);
+      // Beside their pins the labels go compact: the station's name, its state in the label's ring.
+      this.labels.classList.toggle("ow-compact", beside);
+      if (beside) this.placeSpots(deckSpots);
+    } else {
+      this.labels.classList.remove("ow-compact");
     }
   }
 
@@ -1737,8 +1769,8 @@ varying float vWave;`,
    * and stay short: a callout diagram rather than a pile of pills. When one side has no room
    * (the card unfolded beside the ship) every label stands on the other.
    */
-  private placeCallouts(spots: { spot: Spot; world: THREE.Vector3; still: THREE.Vector3 }[]): void {
-    if (spots.length === 0) return;
+  private placeCallouts(spots: { spot: Spot; world: THREE.Vector3; still: THREE.Vector3 }[]): boolean {
+    if (spots.length === 0) return true;
     const w = this.host.clientWidth;
     const h = this.host.clientHeight;
     const cam = this.rig.camera;
@@ -1765,10 +1797,15 @@ varying float vWave;`,
     const rightEdge = w * (1 - insets.right) - 8;
     const roomRight = rightEdge - (maxX + 40);
     const roomLeft = minX - 40 - leftEdge;
-    // Two columns of equal weight, the portmost half of the pins on the left, unless one side has
-    // no room at all (the card unfolded beside the ship) or there are too few spots to split;
-    // otherwise everything on the roomier side.
-    const both = roomRight > 0 && roomLeft > 0 && pins.length > 2;
+    // Two columns of equal weight, the portmost half of the pins on the left, when a column fits
+    // beside the hull on each side; one column on the side that has room when only one does (the
+    // card unfolded beside the ship); and none when neither does, so the caller hangs each label
+    // beside its pin rather than string leaders over the deck.
+    // Judged by a label's full width, not as drawn now: compact labels must not tip it back.
+    const fitsRight = roomRight >= CALLOUT_W * 0.75;
+    const fitsLeft = roomLeft >= CALLOUT_W * 0.75;
+    if (!fitsRight && !fitsLeft) return false;
+    const both = fitsRight && fitsLeft && pins.length > 2;
     const byX = [...pins].sort((a, b) => a.sx - b.sx);
     const half = Math.ceil(byX.length / 2);
     const sides: { right: boolean; pins: typeof pins }[] = both
@@ -1776,7 +1813,7 @@ varying float vWave;`,
           { right: false, pins: byX.slice(0, half) },
           { right: true, pins: byX.slice(half) },
         ]
-      : [{ right: roomRight >= roomLeft, pins }];
+      : [{ right: fitsRight, pins }];
     // Labels stack a little apart, however tall a phone draws them.
     const gap = Math.max(30, maxHeight + 6);
     const top = h * insets.top + 24;
@@ -1801,6 +1838,7 @@ varying float vWave;`,
         p.spot.line.setAttribute("y2", (ly + 14).toFixed(1));
       });
     }
+    return true;
   }
 
   // ---- picking
