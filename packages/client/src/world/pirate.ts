@@ -1,9 +1,10 @@
 /**
  * A pirate in the world: a small jointed figure that walks, idles and works, the same on an island
  * and on a deck. Every kind reads apart by shape before color (rule 6): the player's own pirate
- * stands in a brass ring, a captain wears a plumed tricorn, other pirates a hat, cap or bandana of
- * their own, and a deckhand a sailcloth smock, a kerchief and a coil of rope. Built from primitives,
- * like the rest of the world; nothing here is art.
+ * stands in a brass ring, a captain's hat carries a plume, and a deckhand wears a sailcloth smock,
+ * a kerchief and a coil of rope. A pirate wears the coat and hat of the look they picked on their
+ * sheet (DESIGN.md 3.6, ADR 0033); a figure given no look draws one from its seed. Built from
+ * primitives, like the rest of the world; nothing here is art.
  */
 import * as THREE from "three";
 import { seedFromString, nextInt, type PrngState } from "@openseas/engine";
@@ -19,6 +20,12 @@ export interface PirateFigure {
   ring: THREE.Mesh | null;
   /** Set each frame: how fast they walk (0 standing) and whether they are working a station. */
   animate(t: number, dt: number, speed: number, work: WorkKind | null): void;
+}
+
+/** What a pirate wears, as the figure takes it: the coat's color and the hat's content id (`pirates.json`). */
+export interface FigureLook {
+  coat: number;
+  hat: string;
 }
 
 /** How a pirate works their station: each one moves differently, so a busy deck reads at a glance. */
@@ -60,16 +67,18 @@ function part(geo: THREE.BufferGeometry, color: number, x = 0, y = 0, z = 0): TH
 }
 
 /**
- * A pirate figure facing +x with its feet at the origin. `seed` (their id) picks the look of
- * anyone who is not the player, so a pirate looks the same on every screen.
+ * A pirate figure facing +x with its feet at the origin. `look` dresses anyone who is not a
+ * deckhand in the coat and hat they picked. Without one, `seed` (their id) picks a look, so a
+ * pirate looks the same on every screen. The seed always picks skin and trousers.
  */
-export function buildPirate(kind: PirateKind, seed: string, shadows: boolean): PirateFigure {
+export function buildPirate(kind: PirateKind, seed: string, shadows: boolean, look: FigureLook | null = null): PirateFigure {
   const dice = new Dice(`pirate:${seed}`);
   const group = new THREE.Group();
   const body = new THREE.Group();
   group.add(body);
   const skin = dice.pick(SKIN);
-  const coat = kind === "me" ? BRASS : kind === "mate" ? MATE_SMOCK : kind === "captain" ? 0x23324f : dice.pick(COATS);
+  const dressed = kind !== "mate" ? look : null;
+  const coat = dressed ? dressed.coat : kind === "me" ? BRASS : kind === "mate" ? MATE_SMOCK : kind === "captain" ? 0x23324f : dice.pick(COATS);
   const trousers = dice.pick(TROUSERS);
   const cast = (o: THREE.Object3D): void => o.traverse((c) => ((c as THREE.Mesh).castShadow = shadows));
 
@@ -126,6 +135,8 @@ export function buildPirate(kind: PirateKind, seed: string, shadows: boolean): P
     coil.rotation.y = Math.PI / 2;
     coil.rotation.x = 0.5;
     body.add(coil);
+  } else if (dressed) {
+    head.add(lookHat(dressed.hat, kind === "captain"));
   } else if (kind === "captain" || (kind === "me" ? false : dice.int(2) === 0)) {
     head.add(tricorn(kind === "captain" ? 0x1d1c22 : dice.pick(HATS), kind === "captain"));
   } else if (kind === "me") {
@@ -236,6 +247,67 @@ export function buildPirate(kind: PirateKind, seed: string, shadows: boolean): P
       }
     },
   };
+}
+
+/** Hats from a look are dark felt, as on the likeness, so the coat is the look's color. */
+const FELT = 0x2a2420;
+
+/** A captain's plume: a brass band and a white feather swept back, set on any hat at `y`. */
+function plumeOn(g: THREE.Group, y: number): void {
+  g.add(part(new THREE.CylinderGeometry(0.0125, 0.0125, 0.0025, 8), BRASS, 0, y - 0.003, 0));
+  const feather = part(new THREE.BoxGeometry(0.026, 0.004, 0.007), 0xf2ede0, -0.008, y + 0.009, 0.006);
+  feather.rotation.z = 0.6;
+  g.add(feather);
+}
+
+/**
+ * A hat from a look, by content id, at the head's scale. Each is its own silhouette, as on the
+ * likeness (rule 6), and none is a deckhand's kerchief. A captain's carries the plume.
+ */
+function lookHat(id: string, plume: boolean): THREE.Group {
+  switch (id) {
+    case "tricorne":
+      return tricorn(FELT, plume);
+    case "bicorne": {
+      // A fan worn side to side: a half disc standing across the head.
+      const g = new THREE.Group();
+      g.position.y = 0.012;
+      const fan = part(new THREE.CylinderGeometry(0.028, 0.028, 0.006, 12, 1, false, 0, Math.PI), FELT, 0, -0.004, 0);
+      fan.rotation.z = Math.PI / 2;
+      fan.rotation.y = Math.PI / 2;
+      g.add(fan);
+      g.add(part(new THREE.SphereGeometry(0.003, 6, 4), BRASS, 0.004, 0.012, 0));
+      if (plume) plumeOn(g, 0.018);
+      return g;
+    }
+    case "wide-brim": {
+      const g = new THREE.Group();
+      g.position.y = 0.011;
+      g.add(part(new THREE.CylinderGeometry(0.031, 0.031, 0.003, 14), FELT));
+      g.add(part(new THREE.CylinderGeometry(0.011, 0.0135, 0.014, 10), FELT, 0, 0.008, 0));
+      if (plume) plumeOn(g, 0.012);
+      return g;
+    }
+    case "stocking-cap": {
+      // A tall soft cap that flops over backwards, with a bobble at its tip.
+      const g = new THREE.Group();
+      g.position.y = 0.009;
+      const cap = part(new THREE.ConeGeometry(0.0165, 0.036, 9), FELT, -0.004, 0.012, 0);
+      cap.rotation.z = 0.6;
+      g.add(cap);
+      g.add(part(new THREE.SphereGeometry(0.0055, 6, 5), 0xc94a3d, -0.016, 0.026, 0));
+      if (plume) plumeOn(g, 0.012);
+      return g;
+    }
+    default: {
+      // A round cap: a short drum.
+      const g = new THREE.Group();
+      g.position.y = 0.012;
+      g.add(part(new THREE.CylinderGeometry(0.0155, 0.017, 0.011, 10), FELT, 0, 0.002, 0));
+      if (plume) plumeOn(g, 0.01);
+      return g;
+    }
+  }
 }
 
 /** A three-cornered hat; a captain's carries a plume. */

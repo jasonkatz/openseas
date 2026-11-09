@@ -486,6 +486,40 @@ export const CrewRulesSchema = z.object({
   defaultFlag: CrewFlagSchema,
 });
 
+/** A pirate's look: a coat color and a hat, both ids from `pirates.json` (DESIGN.md 3.6). */
+export const PirateLookSchema = z.object({ coat: Id, hat: Id });
+
+/**
+ * What a title asks of a pirate's record. Counts only ever grow; standing can fall, which is why an
+ * earned title is kept once it is earned (ADR 0033). `start` titles are every pirate's from the first day.
+ */
+export const TitleRequirementSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("start") }),
+  /** Voyages that reached port with the pirate aboard. */
+  z.object({ kind: z.literal("voyages"), count: z.int().min(1).max(1_000_000) }),
+  /** Voyages that reached port with the pirate as the captain who set sail. */
+  z.object({ kind: z.literal("captained"), count: z.int().min(1).max(1_000_000) }),
+  /** Brigands beaten with the pirate aboard: each win's share of the purse is one. */
+  z.object({ kind: z.literal("victories"), count: z.int().min(1).max(1_000_000) }),
+  /** Coins of booty the pirate has been paid, in all. */
+  z.object({ kind: z.literal("booty"), count: z.int().min(1).max(100_000_000) }),
+  /** Standing at a puzzle at this rating tier or above. */
+  z.object({ kind: z.literal("standing"), puzzle: Id, tier: Id }),
+]);
+
+export const TitleSchema = z.object({ id: Id, nameKey: MessageKey, requires: TitleRequirementSchema });
+
+/**
+ * A pirate's identity beyond the name (DESIGN.md 3.6): the coats and hats a pirate may wear on deck
+ * and the titles a record earns. Every hat is its own silhouette, so a look reads without color
+ * (rule 6), and none of them is a deckhand's kerchief.
+ */
+export const PirateRulesSchema = z.object({
+  coats: z.array(FlagPart.extend({ hex: z.string().regex(/^#[0-9a-f]{6}$/) })).min(2),
+  hats: z.array(FlagPart).min(2),
+  titles: z.array(TitleSchema).min(1),
+});
+
 export const WorldSchema = OceanSchema.extend({
   islands: z.array(IslandSchema).min(1),
   routes: z.array(RouteLegSchema),
@@ -493,6 +527,7 @@ export const WorldSchema = OceanSchema.extend({
   shipClasses: z.array(ShipClassSchema).min(1),
   shipGrants: z.array(ShipGrantSchema),
   crews: CrewRulesSchema,
+  pirates: PirateRulesSchema,
 });
 
 export type Island = z.infer<typeof IslandSchema>;
@@ -516,6 +551,10 @@ export type StarShape = z.infer<typeof StarShapeSchema>;
 export type World = z.infer<typeof WorldSchema>;
 export type CrewRules = z.infer<typeof CrewRulesSchema>;
 export type CrewFlag = z.infer<typeof CrewFlagSchema>;
+export type PirateRules = z.infer<typeof PirateRulesSchema>;
+export type PirateLook = z.infer<typeof PirateLookSchema>;
+export type Title = z.infer<typeof TitleSchema>;
+export type TitleRequirement = z.infer<typeof TitleRequirementSchema>;
 export type ShipRules = z.infer<typeof ShipRulesSchema>;
 export type Ocean = z.infer<typeof OceanSchema>;
 export type IslandLandmark = Island["landmark"];

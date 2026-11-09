@@ -90,9 +90,30 @@ export const pirate = pgTable(
     name: text().notNull(),
     /** Where the pirate stands when not aboard a ship. Null means the ocean's start island. */
     islandId: text(),
+    /** The coat and hat they picked, content ids (DESIGN.md 3.6). Null until they pick: a default is drawn from the id. */
+    look: jsonb().$type<{ coat: string; hat: string }>(),
+    /** The earned title they show after their name, a content id, or null for none (ADR 0033). */
+    title: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("pirate_user_id_uidx").on(t.userId), uniqueIndex("pirate_name_uidx").on(t.name)],
+);
+
+/**
+ * Titles a pirate has earned (ADR 0033). Written the first time the record meets a title's ask and
+ * never deleted, so a title earned on standing stays earned when the standing falls. A `start`
+ * title is every pirate's and has no row.
+ */
+export const pirateTitle = pgTable(
+  "pirate_title",
+  {
+    pirateId: text()
+      .notNull()
+      .references(() => pirate.id, { onDelete: "cascade" }),
+    titleId: text().notNull(),
+    earnedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.pirateId, t.titleId] })],
 );
 
 export const ship = pgTable(

@@ -469,8 +469,9 @@ ashore walks there too, named over their heads, and a name is a way to their car
 
 ### 3.6 Persistence
 
-Per pirate: name, per-puzzle rating, crew membership and rank, currency balance, voyage history,
-owned ships. No inventory, clothing, or housing in v1.
+Per pirate: name, look, earned titles and the one worn, per-puzzle rating, crew membership and
+rank, currency balance, voyage history, owned ships. No inventory, clothing items, or housing in
+v1: a look is a free choice, not something owned.
 
 - Currency is an append-only ledger from day one so a later economy has an auditable base.
 - Ratings use Glicko-2 per puzzle. Duty puzzles are rated against performance thresholds
@@ -481,6 +482,29 @@ owned ships. No inventory, clothing, or housing in v1.
   carries its own performance rating, its score read off the line through the thresholds, with the
   tier that falls in. It is stored with the round and shown on the harness's result card, never
   fed into standing.
+
+**The pirate's sheet** (ADR 0033). The player's own page about themselves. It opens over the
+scene from their name and likeness in the top bar, the same everywhere, and has three tabs.
+
+- **Pirate: the look and the title.** A look is a coat color and a hat, chosen from
+  `pirates.json` at no cost and changed any time. A "surprise me" die rolls one. Until a pirate
+  picks, they wear a look drawn from their id, so new crews still look mixed. The look shows as
+  the pirate's likeness (head and shoulders) on their sheet, their card and the top bar, and
+  their walking figure wears it on the island and the deck (3.11), so others see it. Every hat
+  has its own silhouette and every coat is named in the picker, so a look reads without color
+  (rule 6). No look is a smock or a kerchief, so deckhands stay distinct (3.4). A captain's hat
+  carries a plume whatever its shape, and the player's own pirate still stands in the brass ring.
+  The title is chosen from the ones the pirate has earned, or none, and shows under their name on
+  their card.
+- **Record: what they have done.** Pirate since, voyages to port, voyages as captain, brigands
+  beaten, booty earned, rated boards and ships. These come from the voyage tables and the
+  ledger, never from a separate counter. Below that is their standing at each puzzle, as tiers
+  with boards played.
+- **Titles: what there is to earn.** Every title in content, with what it asks for and how far
+  along the pirate is: a bar for counts, or their tier for standing titles. Titles ask for
+  voyages to port, voyages as captain, brigands beaten, booty, or Sharp standing at a puzzle.
+  The first day brings "Landlubber". A title is written down the first time the record meets
+  it and is kept even if standing later falls. It arrives as a toast with a button to look.
 
 ### 3.7 Social
 
@@ -518,8 +542,10 @@ in at most one crew.
   aboard, brigands beaten, and the coins paid to its members from those wins. The tavern's board
   of crews ranks every crew by plunder, then victories.
 - **Pirates' cards.** A name in the tavern, the deck's crew list, the crew card or a chat line
-  opens that pirate's card: on watch or not, their crew and rank, voyages to port, their standing
-  tiers, and an invitation to the viewer's crew when the viewer may send one.
+  opens that pirate's card: their likeness and the title they wear, on watch or not, their crew
+  and rank, voyages to port and brigands beaten, their standing tiers, and an invitation to the
+  viewer's crew when the viewer may send one. A pirate's own card offers to open their sheet
+  (3.6).
 
 ### 3.8 Accounts and access
 
@@ -586,7 +612,8 @@ the desired approach; the parts marked open are decided as they are built.
   leaving a ship live in a single menu that opens over the scene and looks the same everywhere.
   No page has a different frame, header or back button. The crew card (M6) opens the same way
   from a flag button in the top bar, which counts invitations and unread crew chat, and from the
-  tavern's crew table; a pirate's card opens over either.
+  tavern's crew table; a pirate's card opens over either. The pirate's own sheet (3.6) opens the
+  same way from their name and likeness at the left of the top bar.
 - **Transitions are moves, not loads.** Moving in on an island, boarding, taking a station and
   opening a board animate within the scene; the pirate always knows where they are. A URL may
   deep-link to a place for sharing; opening it lands in the scene at that place.
@@ -642,7 +669,9 @@ pump, a line hauled at the mast, a hammer at the bench, a gun rammed, a chart tr
 held. Each kind reads apart by shape before color, as rule 6 asks: the player's own pirate stands in a
 brass ring drawn over everything (so they can be found behind a sail), a captain wears a plumed
 tricorn, other pirates a hat, cap or bandana and a coat of their own picked from their id, and a
-deckhand the smock, kerchief and coil of rope. The sloop is larger and beamier in the world than the
+deckhand the smock, kerchief and coil of rope. With the pirate's sheet (3.6) every pirate wears the
+coat and hat of their look instead, the player too; a captain's hat, whatever its shape, carries the
+plume. The sloop is larger and beamier in the world than the
 chart alone would need, so her deck is roomy for a crew: about eleven pirates long and five across.
 She is laid out to be walked, with her gear against the rails and the middle of the deck clear: a raised
 quarterdeck aft with the wheel and the chart table, steps down to the main deck, a fife rail at the
@@ -858,6 +887,7 @@ Maintained as they arise.
 | Evading brigands | Can fail | Always succeeds in v1 | Nothing to lose yet |
 | Loss consequences | Cargo and damage costs | None in v1 | No economy yet |
 | Accounts | Username and password | Guest-first with OAuth upgrade | Zero first-session friction |
+| Appearance | Clothing items bought from shoppes, owned and worn | A free look: a coat color and a hat from content, changed any time; nothing to own | No economy yet; identity without inventory, and room to price some looks later (ADR 0033) |
 | Island | Large walkable towns | One small walkable town per island: dock, shipwright's stall, notice board, plaza and tavern, the same layout on every island and each its own by landmark and ground | Scope: a town a phone can show; the rooms are cards over the world, not interiors |
 | Walking | Server-tracked positions, avatars bump into each other | A tap sets a walk target the server relays to the place; every client paths the same grid, and pirates pass through each other | Nothing reads a position in v1; one small message per tap (ADR 0032) |
 | Ship at sea | Continuous movement | A turn every `turnSeconds`; each station's board points since the last turn become its output as a percentage of par, clamped to that station's own `outputCapPercent` | Pure engine on the server; the client eases the ship between snapshots (ADR 0020); a cap per station lets lumpy puzzles' patches and constellations reach the ship whole (ADR 0030) |

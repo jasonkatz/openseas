@@ -152,3 +152,37 @@ describe("crew protocol (M6)", () => {
     expect(parseServerMessage({ type: "crew.notice", notice: { type: "sailed", names: [], shipId: "s1", shipName: "The Gull", to: "gullhaven", joinable: true }, at: 1 })).toBeNull();
   });
 });
+
+describe("the pirate's sheet", () => {
+  it("picks a look and a title by content id, and refuses anything else", () => {
+    expect(parseClientMessage({ type: "pirate.sheet" })).not.toBeNull();
+    expect(parseClientMessage({ type: "pirate.look", look: { coat: "navy", hat: "tricorne" } })).not.toBeNull();
+    expect(parseClientMessage({ type: "pirate.look", look: { coat: "Navy Blue", hat: "tricorne" } })).toBeNull();
+    expect(parseClientMessage({ type: "pirate.look", look: { coat: "navy" } })).toBeNull();
+    expect(parseClientMessage({ type: "pirate.title", title: "old-salt" })).not.toBeNull();
+    expect(parseClientMessage({ type: "pirate.title", title: null })).not.toBeNull();
+    expect(parseClientMessage({ type: "pirate.title", title: "<b>King</b>" })).toBeNull();
+  });
+
+  it("sends the record with every title's progress, and earned titles as they land", () => {
+    const sheet = {
+      record: { since: 1, voyages: 3, captained: 1, victories: 1, booty: 240, boards: 12 },
+      titles: [
+        { id: "wave-rider", earned: true, have: 3, need: 1 },
+        { id: "pumpmaster", earned: false, have: -1, need: 3 },
+      ],
+    };
+    expect(parseServerMessage({ type: "pirate.sheet", sheet })).not.toBeNull();
+    expect(parseServerMessage({ type: "pirate.titles", earned: ["wave-rider"] })).not.toBeNull();
+    expect(parseServerMessage({ type: "pirate.titles", earned: [] })).toBeNull();
+  });
+
+  it("reads a summary, a profile and a crew view from a server that sends no look or title", () => {
+    const welcome = parseServerMessage({ type: "welcome", pirate: { id: "p1", name: "Salty Gull", guest: true, balance: 0, ratings: [], ships: [], islandId: "saltwick" }, serverNow: 1 });
+    expect(welcome?.type === "welcome" && welcome.pirate.look).toBeNull();
+    expect(welcome?.type === "welcome" && welcome.pirate.title).toBeNull();
+    const profile = parseServerMessage({ type: "pirate.profile", profile: { pirateId: "p1", name: "Salty Gull", crew: null, ratings: [], voyages: 2, online: true, invited: false } });
+    expect(profile?.type === "pirate.profile" && profile.profile).toMatchObject({ look: null, title: null, victories: 0 });
+  });
+});
+

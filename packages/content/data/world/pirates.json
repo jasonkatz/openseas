@@ -1,0 +1,39 @@
+{
+  "coats": [
+    { "id": "navy", "hex": "#2f4b8f", "nameKey": "pirate.coat.navy" },
+    { "id": "crimson", "hex": "#9b2a2f", "nameKey": "pirate.coat.crimson" },
+    { "id": "forest", "hex": "#2f6a3c", "nameKey": "pirate.coat.forest" },
+    { "id": "plum", "hex": "#5d3470", "nameKey": "pirate.coat.plum" },
+    { "id": "ochre", "hex": "#b07a26", "nameKey": "pirate.coat.ochre" },
+    { "id": "slate", "hex": "#58636e", "nameKey": "pirate.coat.slate" },
+    { "id": "teal", "hex": "#1f7473", "nameKey": "pirate.coat.teal" },
+    { "id": "pitch", "hex": "#26252b", "nameKey": "pirate.coat.pitch" }
+  ],
+  "hats": [
+    { "id": "tricorne", "nameKey": "pirate.hat.tricorne" },
+    { "id": "bicorne", "nameKey": "pirate.hat.bicorne" },
+    { "id": "wide-brim", "nameKey": "pirate.hat.wide_brim" },
+    { "id": "round-cap", "nameKey": "pirate.hat.round_cap" },
+    { "id": "stocking-cap", "nameKey": "pirate.hat.stocking_cap" }
+  ],
+  "titles": [
+    { "id": "landlubber", "nameKey": "title.landlubber", "requires": { "kind": "start" } },
+    { "id": "wave-rider", "nameKey": "title.wave_rider", "requires": { "kind": "voyages", "count": 1 } },
+    { "id": "sea-dog", "nameKey": "title.sea_dog", "requires": { "kind": "voyages", "count": 10 } },
+    { "id": "old-salt", "nameKey": "title.old_salt", "requires": { "kind": "voyages", "count": 50 } },
+    { "id": "skipper", "nameKey": "title.skipper", "requires": { "kind": "captained", "count": 1 } },
+    { "id": "wheelmaster", "nameKey": "title.wheelmaster", "requires": { "kind": "captained", "count": 10 } },
+    { "id": "rail-fighter", "nameKey": "title.rail_fighter", "requires": { "kind": "victories", "count": 1 } },
+    { "id": "brigands-bane", "nameKey": "title.brigands_bane", "requires": { "kind": "victories", "count": 10 } },
+    { "id": "terror-of-the-lanes", "nameKey": "title.terror_of_the_lanes", "requires": { "kind": "victories", "count": 50 } },
+    { "id": "plunderer", "nameKey": "title.plunderer", "requires": { "kind": "booty", "count": 1000 } },
+    { "id": "hoard-keeper", "nameKey": "title.hoard_keeper", "requires": { "kind": "booty", "count": 10000 } },
+    { "id": "pumpmaster", "nameKey": "title.pumpmaster", "requires": { "kind": "standing", "puzzle": "bilging", "tier": "sharp" } },
+    { "id": "sailmaster", "nameKey": "title.sailmaster", "requires": { "kind": "standing", "puzzle": "sailing", "tier": "sharp" } },
+    { "id": "shipwright", "nameKey": "title.shipwright", "requires": { "kind": "standing", "puzzle": "carpentry", "tier": "sharp" } },
+    { "id": "master-gunner", "nameKey": "title.master_gunner", "requires": { "kind": "standing", "puzzle": "gunnery", "tier": "sharp" } },
+    { "id": "stargazer", "nameKey": "title.stargazer", "requires": { "kind": "standing", "puzzle": "navigation", "tier": "sharp" } },
+    { "id": "sea-wolf", "nameKey": "title.sea_wolf", "requires": { "kind": "standing", "puzzle": "battle", "tier": "sharp" } },
+    { "id": "blademaster", "nameKey": "title.blademaster", "requires": { "kind": "standing", "puzzle": "swordfight", "tier": "sharp" } }
+  ]
+}

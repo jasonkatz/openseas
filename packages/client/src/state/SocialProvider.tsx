@@ -1,10 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { ChatChannel, ChatMessage, CrewTag, ServerMessage, WalkSpot } from "@openseas/protocol";
+import type { ChatChannel, ChatMessage, CrewTag, PirateLookWire, ServerMessage, WalkSpot } from "@openseas/protocol";
 import { usePirate } from "@openseas/boards";
 
 export interface SocialContextValue {
   /** Everyone ashore at the pirate's island, as last pushed by the server. */
-  presence: { islandId: string; pirates: { pirateId: string; name: string; crew?: CrewTag | null | undefined }[] } | null;
+  presence: { islandId: string; pirates: { pirateId: string; name: string; crew?: CrewTag | null | undefined; look?: PirateLookWire | null | undefined }[] } | null;
   /** The last few lines of each channel, oldest first. Ephemeral: chat is not stored (DESIGN.md 3.7). */
   chat: Record<ChatChannel, ChatMessage[]>;
   /** Lines that arrived since the channel was last looked at. */

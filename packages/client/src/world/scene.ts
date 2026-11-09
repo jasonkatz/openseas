@@ -13,7 +13,7 @@ import type { CrewFlagWire } from "@openseas/protocol";
 import { CameraRig, isoDirection, type View } from "./camera.js";
 import { DOCK, buildIsland, type Building, type Door, type IslandModel } from "./island.js";
 import { PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildCloud, buildGangplank, buildGull, buildShip, dressShip, type DeckPost, type GullModel, type ShipModel, type Station } from "./models.js";
-import { PIRATE_HEIGHT, buildPirate, workFor, type PirateFigure, type PirateKind } from "./pirate.js";
+import { PIRATE_HEIGHT, buildPirate, workFor, type FigureLook, type PirateFigure, type PirateKind } from "./pirate.js";
 import { Walker, type Spot as WalkSpot, type WalkGrid } from "./walk.js";
 
 export interface WorldIsland {
@@ -60,6 +60,8 @@ export interface DeckCrew {
   captain: boolean;
   /** A deckhand: drawn apart from the pirates so nobody mistakes it for a player. */
   mate: boolean;
+  /** What a pirate wears (DESIGN.md 3.6); null for a deckhand, who always wears the smock. */
+  look: FigureLook | null;
 }
 export interface Deck {
   shipId: string;
@@ -70,17 +72,36 @@ export interface Deck {
   /** The gangway's spot while docked, to walk off the ship: its label, or null at sea. */
   gangway: string | null;
 }
+/** A look as a key, so a figure is re-dressed only when it changed. */
+function lookKey(look: FigureLook | null): string {
+  return look ? `${look.coat}/${look.hat}` : "";
+}
+
+/** Free what a figure took on the GPU. */
+function disposeTree(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    if (o instanceof THREE.Mesh) {
+      o.geometry.dispose();
+      (o.material as THREE.Material).dispose();
+    }
+  });
+}
+
 /** Someone else walking where the pirate is. */
 export interface WorldWalker {
   id: string;
   name: string;
   /** Where they last walked to, in the place's frame; null if they have not walked since arriving. */
   at: WalkSpot | null;
+  /** What they wear (DESIGN.md 3.6); null to draw one from their id. */
+  look: FigureLook | null;
 }
 /** Ashore: the island the pirate stands on, and everyone else on it (ADR 0032). */
 export interface IslandWalk {
   islandId: string;
   me: string;
+  /** What the player wears (DESIGN.md 3.6); null to draw one from their id. */
+  meLook: FigureLook | null;
   others: WorldWalker[];
   /** The ship the pirate just walked off, so they step ashore at its gangplank. */
   arriveFrom: string | null;
@@ -211,6 +232,8 @@ interface WalkerView {
   placeId: string;
   kind: PirateKind;
   figure: PirateFigure;
+  /** The look the figure is dressed in, so a new pick re-dresses it where it stands. */
+  lookKey: string;
   walker: Walker;
   hit: THREE.Mesh;
   tag: HTMLButtonElement | null;
@@ -692,7 +715,7 @@ export class WorldScene {
     const walk = input.walk;
     const iv = walk ? this.islands.get(walk.islandId) : undefined;
     if (walk && iv) {
-      const people: { id: string; name: string; at: WalkSpot | null; mine: boolean }[] = [{ id: walk.me, name: "", at: null, mine: true }, ...walk.others.map((o) => ({ ...o, mine: false }))];
+      const people: { id: string; name: string; at: WalkSpot | null; mine: boolean; look: FigureLook | null }[] = [{ id: walk.me, name: "", at: null, mine: true, look: walk.meLook }, ...walk.others.map((o) => ({ ...o, mine: false }))];
       for (const p of people) {
         const key = `island:${p.id}`;
         seen.add(key);
@@ -706,7 +729,7 @@ export class WorldScene {
           const into = p.mine ? walk.inside : p.at ? this.insideOf(iv, p.at) : null;
           const door = into ? iv.model.doors[into] : null;
           const start = door ? (door.inside ?? door.at) : p.mine ? this.arrivalFor(iv, walk) : (p.at ?? this.standAbout(iv, p.id));
-          wv = this.addWalker(key, p.id, "island", walk.islandId, p.mine ? "me" : "pirate", iv.model.frame, start, door ? door.face : p.mine ? 0 : hashPhase(p.id), p.name, !p.mine);
+          wv = this.addWalker(key, p.id, "island", walk.islandId, p.mine ? "me" : "pirate", iv.model.frame, start, door ? door.face : p.mine ? 0 : hashPhase(p.id), p.name, !p.mine, p.look);
           wv.atKey = spotKey(p.at);
           if (into && door?.inside) {
             wv.inside = into;
@@ -718,8 +741,10 @@ export class WorldScene {
             this.events.onWalk(start.x, start.z);
           }
         } else if (p.mine) {
+          this.dress(wv, p.look);
           this.reconcileInside(wv, iv, walk.inside);
         } else {
+          this.dress(wv, p.look);
           const k = spotKey(p.at);
           if (p.at && k !== wv.atKey) this.walkThere(wv, iv, p.at);
           wv.atKey = k;
@@ -746,7 +771,7 @@ export class WorldScene {
         if (!wv) {
           // Coming aboard over the gangplank; at sea, straight to their post.
           const start = c.mine && side !== null && sv.ship.location.kind === "docked" ? sv.model.deck.gangway(side) : (c.at ?? post.at);
-          wv = this.addWalker(key, c.pirateId, "ship", deck.shipId, kind, sv.model.body, start, post.face, c.name, !c.mate && !c.mine);
+          wv = this.addWalker(key, c.pirateId, "ship", deck.shipId, kind, sv.model.body, start, post.face, c.name, !c.mate && !c.mine, c.look);
           wv.atKey = spotKey(c.at);
           wv.postKey = postKey;
           if (c.mine && !c.at) {
@@ -754,6 +779,7 @@ export class WorldScene {
             this.events.onWalk(post.at.x, post.at.z);
           }
         } else {
+          this.dress(wv, c.look);
           const k = spotKey(c.at);
           if (!c.mine && c.at && k !== wv.atKey) this.walkOn(wv, c.at);
           else if (postKey !== wv.postKey) this.walkOn(wv, post.at, post.face);
@@ -769,8 +795,8 @@ export class WorldScene {
     for (const [key, wv] of this.walkers) if (!seen.has(key)) this.removeWalker(wv);
   }
 
-  private addWalker(key: string, id: string, scope: "island" | "ship", placeId: string, kind: PirateKind, parent: THREE.Object3D, at: WalkSpot, heading: number, name: string, tagged: boolean): WalkerView {
-    const figure = buildPirate(kind, id, !this.lowQuality);
+  private addWalker(key: string, id: string, scope: "island" | "ship", placeId: string, kind: PirateKind, parent: THREE.Object3D, at: WalkSpot, heading: number, name: string, tagged: boolean, look: FigureLook | null): WalkerView {
+    const figure = buildPirate(kind, id, !this.lowQuality, look);
     const onDeck = scope === "ship";
     if (onDeck) figure.group.scale.setScalar(1 / SHIP_SCALE);
     const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, PIRATE_HEIGHT * 1.2, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
@@ -792,10 +818,29 @@ export class WorldScene {
       });
       this.labels.appendChild(tag);
     }
-    const wv: WalkerView = { id, scope, placeId, kind, figure, walker, hit, tag, atKey: "", post: null, postKey: "", station: null, captain: false, real: kind !== "mate", inside: null, doorway: null };
+    const wv: WalkerView = { id, scope, placeId, kind, figure, lookKey: lookKey(look), walker, hit, tag, atKey: "", post: null, postKey: "", station: null, captain: false, real: kind !== "mate", inside: null, doorway: null };
     this.walkers.set(key, wv);
     this.placeWalker(wv);
     return wv;
+  }
+
+  /** A pirate picked a new look: a new figure in it takes the old one's place, mid-stride, and the walk goes on. */
+  private dress(wv: WalkerView, look: FigureLook | null): void {
+    const key = lookKey(look);
+    if (key === wv.lookKey) return;
+    const old = wv.figure.group;
+    const next = buildPirate(wv.kind, wv.id, !this.lowQuality, look);
+    next.group.scale.copy(old.scale);
+    next.group.position.copy(old.position);
+    next.group.rotation.copy(old.rotation);
+    next.group.visible = old.visible;
+    old.remove(wv.hit);
+    next.group.add(wv.hit);
+    old.parent?.add(next.group);
+    old.removeFromParent();
+    disposeTree(old);
+    wv.figure = next;
+    wv.lookKey = key;
   }
 
   private removeWalker(wv: WalkerView): void {
@@ -804,12 +849,7 @@ export class WorldScene {
       this.afterLeave = null;
     }
     wv.figure.group.removeFromParent();
-    wv.figure.group.traverse((o) => {
-      if (o instanceof THREE.Mesh) {
-        o.geometry.dispose();
-        (o.material as THREE.Material).dispose();
-      }
-    });
+    disposeTree(wv.figure.group);
     wv.tag?.remove();
     this.walkers.delete(`${wv.scope}:${wv.id}`);
   }

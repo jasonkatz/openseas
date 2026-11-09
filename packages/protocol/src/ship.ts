@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { BattleOutcomeSchema } from "./battle.js";
-import { CrewTagSchema, DutyPuzzleIdSchema } from "./common.js";
+import { CrewTagSchema, DutyPuzzleIdSchema, PirateLookWireSchema } from "./common.js";
 
 /** Stations are the duty puzzles. */
 export const StationSchema = DutyPuzzleIdSchema;
@@ -20,6 +20,8 @@ export const CrewViewSchema = z.object({
   mate: z.boolean(),
   /** The crew (M6) this pirate belongs to, so shipmates who share one can be told apart. Null for deckhands. */
   crewId: Id.nullable().default(null),
+  /** The coat and hat they wear on deck. Null for deckhands, who always wear a smock and kerchief. */
+  look: PirateLookWireSchema.nullable().default(null),
 });
 export type CrewView = z.infer<typeof CrewViewSchema>;
 

@@ -28,6 +28,13 @@ const HANDS = [
   { pirateId: "mate:3", name: "Drowsy Limpet", station: "carpentry" },
 ];
 
+const pirates = JSON.parse(readFileSync(new URL("../../content/data/world/pirates.json", import.meta.url), "utf8")) as { titles: { id: string }[] };
+/** What the server says of the pirate's record: one voyage to port, and the titles that earned. */
+const SHEET = {
+  record: { since: Date.UTC(2026, 9, 1), voyages: 1, captained: 1, victories: 0, booty: 0, boards: 4 },
+  titles: pirates.titles.map((x) => ({ id: x.id, earned: ["landlubber", "wave-rider", "skipper"].includes(x.id), have: x.id === "sea-dog" ? 1 : 0, need: x.id === "sea-dog" ? 10 : 1 })),
+};
+
 type Hail = { tierId: string; sinceTurn: number } | null;
 type Loc = { kind: "docked"; islandId: string } | { kind: "at-sea"; routeId: string; from: string; to: string; progress: number; hail: Hail; battle: Hail };
 
@@ -46,6 +53,10 @@ class FakeShip {
   meleeMoves = 0;
   /** When set, a won sea battle boards the brigand instead of paying out at once. */
   boarding = false;
+  /** The pirate's own sheet: what they wear and the title they show, and the looks and titles they sent. */
+  look: { coat: string; hat: string } | null = null;
+  title: string | null = null;
+  readonly looks: { coat: string; hat: string }[] = [];
   /** Every message the page sent, oldest first. */
   readonly got: (Record<string, unknown> & { type: string })[] = [];
   constructor(
@@ -56,6 +67,11 @@ class FakeShip {
 
   presence(): unknown {
     return { type: "island.presence", islandId: "saltwick", pirates: [{ pirateId: ME.id, name: ME.name }, ...this.ashore] };
+  }
+
+  /** The pirate as the server would describe them now. */
+  me() {
+    return { ...ME, look: this.look, title: this.title };
   }
 
   /** Grappling hooks over: the melee opens with a board for the pirate and one brigand at the rail. */
@@ -250,7 +266,23 @@ class FakeShip {
         return;
       case "ship.leave":
         this.send({ type: "ship.left", shipId: "ship-1", reason: "left" });
-        this.send({ type: "pirate.updated", pirate: ME });
+        this.send({ type: "pirate.updated", pirate: this.me() });
+        return;
+      case "pirate.sheet":
+        this.send({ type: "pirate.sheet", sheet: SHEET });
+        return;
+      case "pirate.look":
+        this.look = m.look as { coat: string; hat: string };
+        this.looks.push(this.look);
+        this.send({ type: "pirate.updated", pirate: this.me() });
+        return;
+      case "pirate.title":
+        if (m.title !== null && !SHEET.titles.some((x) => x.id === m.title && x.earned)) {
+          this.send({ type: "error", code: "title_locked" });
+          return;
+        }
+        this.title = m.title as string | null;
+        this.send({ type: "pirate.updated", pirate: this.me() });
         return;
       default:
         return;
@@ -408,6 +440,66 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
   await page.getByTestId("toggle-marks").check();
   await page.getByTestId("menu-close").click();
   await expect(page.getByTestId("menu")).toHaveCount(0);
+});
+
+test("a pirate opens their own sheet from the top bar, dresses for the deck, wears an earned title and reads the record", async ({ page }) => {
+  // The world keeps drawing under the sheet; a runner drawing it in software needs room.
+  test.setTimeout(120_000);
+  const server = await fakeServer(page);
+  await page.goto("/");
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "island");
+
+  // The name in the top bar carries the pirate's likeness and opens their sheet over the scene.
+  const portrait = page.getByTestId("sheet-open").locator(".portrait");
+  await expect(portrait).toBeVisible();
+  await page.getByTestId("sheet-open").click();
+  await expect(page.getByTestId("pirate-sheet")).toBeVisible();
+  await expect(page.getByTestId("sheet-name")).toHaveText(ME.name);
+  // Before they pick, they wear the look drawn from their id: exactly one coat and one hat are on.
+  await expect(page.locator('[data-testid^="look-coat-"][aria-checked="true"]')).toHaveCount(1);
+  await expect(page.locator('[data-testid^="look-hat-"][aria-checked="true"]')).toHaveCount(1);
+
+  // A coat and a hat are picked by name and worn at once, in the sheet and in the top bar.
+  await page.getByTestId("look-coat-crimson").click();
+  await expect(page.getByTestId("look-coat-crimson")).toHaveAttribute("aria-checked", "true");
+  await page.getByTestId("look-hat-bicorne").click();
+  await expect(page.getByTestId("look-hat-bicorne")).toHaveAttribute("aria-checked", "true");
+  await expect(portrait).toHaveAttribute("data-coat", "crimson");
+  await expect(portrait).toHaveAttribute("data-hat-id", "bicorne");
+  expect(server.ship()!.looks.at(-1)).toEqual({ coat: "crimson", hat: "bicorne" });
+  // The die always changes something.
+  await page.getByTestId("look-dice").click();
+  await expect.poll(() => server.ship()!.looks.length).toBe(3);
+  expect(server.ship()!.looks[2]).not.toEqual({ coat: "crimson", hat: "bicorne" });
+
+  // Earned titles are offered to wear; the one worn shows under the name.
+  await expect(page.getByTestId("sheet-title-wave-rider")).toBeVisible();
+  await expect(page.getByTestId("sheet-title-old-salt")).toHaveCount(0);
+  await page.getByTestId("sheet-title-wave-rider").click();
+  await expect(page.getByTestId("sheet-shown-title")).toHaveText("Wave Rider");
+
+  // The titles tab lists every title with what it asks; earned ones can be worn from there too.
+  await page.getByTestId("sheet-tab-titles").click();
+  await expect(page.getByTestId("sheet-titles-count")).toHaveText(`3 of ${SHEET.titles.length} earned`);
+  await expect(page.getByTestId("title-sea-dog")).toHaveAttribute("data-earned", "0");
+  await expect(page.getByTestId("title-sea-dog")).toContainText("1 of 10");
+  await page.getByTestId("title-wear-skipper").click();
+  await expect(page.getByTestId("sheet-shown-title")).toHaveText("Skipper");
+  await expect(page.getByTestId("title-skipper")).toContainText("Wearing");
+
+  // The record tab reads the voyage tables and the ledger.
+  await page.getByTestId("sheet-tab-record").click();
+  await expect(page.getByTestId("sheet-stat-voyages")).toContainText("1");
+  await expect(page.getByTestId("sheet-stat-ships")).toContainText("1");
+  await page.getByTestId("sheet-close").click();
+  await expect(page.getByTestId("pirate-sheet")).toHaveCount(0);
+
+  // A title earned out in the world floats up with a way to see it.
+  server.ship()!.send({ type: "pirate.titles", earned: ["sea-dog"] });
+  await expect(page.getByTestId("toasts")).toContainText("Sea Dog");
+  await page.getByTestId("toast-title").click();
+  await expect(page.getByTestId("pirate-sheet")).toBeVisible();
+  await expect(page.getByTestId("sheet-tab-titles")).toHaveAttribute("aria-selected", "true");
 });
 
 test("a brigand's hail is engaged at the wheel and the captain's battle board opens over the deck", async ({ page }) => {

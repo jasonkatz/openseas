@@ -38,3 +38,4 @@ that supersedes it.
 | [0030](./0030-booty-weighs-what-the-ship-received.md) | Booty weighs what the ship received, and each station has its own turn cap |
 | [0031](./0031-shared-puzzle-sprite-atlases.md) | Shared sprite atlases with code-drawn geometry, marks and procedural fallback |
 | [0032](./0032-walking-is-cosmetic-and-relayed.md) | Walking is cosmetic: each client paths the same grid, and the server only relays where a pirate walks to |
+| [0033](./0033-pirate-look-and-earned-titles.md) | A pirate's look and titles: content ids on the pirate, titles earned once and kept |

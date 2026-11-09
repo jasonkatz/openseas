@@ -6,6 +6,7 @@ import brigandTiers from "../data/world/brigand-tiers.json" with { type: "json" 
 import shipClasses from "../data/world/ship-classes.json" with { type: "json" };
 import shipGrants from "../data/world/ship-grants.json" with { type: "json" };
 import crews from "../data/world/crews.json" with { type: "json" };
+import pirates from "../data/world/pirates.json" with { type: "json" };
 import bilging from "../data/puzzles/bilging.json" with { type: "json" };
 import sailing from "../data/puzzles/sailing.json" with { type: "json" };
 import carpentry from "../data/puzzles/carpentry.json" with { type: "json" };
@@ -31,6 +32,8 @@ import {
   type BattleContent,
   type CrewFlag,
   type CrewRules,
+  type PirateLook,
+  type PirateRules,
   type BilgingContent,
   type CarpentryContent,
   type GunneryContent,
@@ -90,6 +93,7 @@ export function loadContent(): Content {
     shipClasses,
     shipGrants,
     crews,
+    pirates,
   });
   const puzzles: PuzzleContent = {
     bilging: parse("puzzles/bilging", BilgingContentSchema, bilging),
@@ -182,6 +186,30 @@ export function contentProblems(content: Content): string[] {
     if (hexes.size !== c.colors.length) problems.push("crews: two flag colors share a hex");
     const problem = crewFlagProblem(c, c.defaultFlag);
     if (problem) problems.push(`crews: defaultFlag ${problem}`);
+  }
+  {
+    const p = world.pirates;
+    for (const [kind, parts] of [["coat", p.coats], ["hat", p.hats], ["title", p.titles]] as const) {
+      const ids = new Set<string>();
+      for (const x of parts) {
+        need(x.nameKey, `pirate ${kind} ${x.id}`);
+        if (ids.has(x.id)) problems.push(`pirates: ${kind} "${x.id}" twice`);
+        ids.add(x.id);
+      }
+    }
+    if (new Set(p.coats.map((x) => x.hex)).size !== p.coats.length) problems.push("pirates: two coats share a hex");
+    const puzzleIds = new Set<string>(Object.keys(puzzles));
+    const seen = new Set<string>();
+    for (const t of p.titles) {
+      const r = t.requires;
+      if (r.kind === "standing") {
+        if (!puzzleIds.has(r.puzzle)) problems.push(`pirate title ${t.id}: unknown puzzle ${r.puzzle}`);
+        if (!ratingTierKeys.has(r.tier)) problems.push(`pirate title ${t.id}: unknown rating tier ${r.tier}`);
+      }
+      const key = r.kind === "standing" ? `standing:${r.puzzle}:${r.tier}` : r.kind === "start" ? `start:${t.id}` : `${r.kind}:${r.count}`;
+      if (seen.has(key)) problems.push(`pirate title ${t.id}: asks the same as another title`);
+      seen.add(key);
+    }
   }
   for (const t of tiers) need(t.nameKey, `rating tier ${t.key}`);
   if (tiers[0]!.min !== 0) problems.push("rating-tiers: the first tier must start at 0");
@@ -292,6 +320,27 @@ export function crewFlagProblem(rules: CrewRules, flag: CrewFlag): string | null
   if (!rules.patterns.some((x) => x.id === flag.pattern)) return `unknown pattern "${flag.pattern}"`;
   if (!rules.emblems.some((x) => x.id === flag.emblem)) return `unknown emblem "${flag.emblem}"`;
   return null;
+}
+
+/** Why a look is not one the pirate rules allow, or null when it is. The server checks every look a pirate picks with this. */
+export function pirateLookProblem(rules: PirateRules, look: PirateLook): string | null {
+  if (!rules.coats.some((x) => x.id === look.coat)) return `unknown coat "${look.coat}"`;
+  if (!rules.hats.some((x) => x.id === look.hat)) return `unknown hat "${look.hat}"`;
+  return null;
+}
+
+/**
+ * The look a pirate wears before they pick one: a coat and a hat drawn from their id, so a deck of
+ * pirates who never opened their sheet is still a mixed crew. Deterministic, so every viewer agrees.
+ */
+export function defaultLook(rules: PirateRules, pirateId: string): PirateLook {
+  // FNV-1a, 32-bit: small, stable and plenty for spreading ids over a handful of choices.
+  let h = 0x811c9dc5;
+  for (let i = 0; i < pirateId.length; i++) {
+    h ^= pirateId.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return { coat: rules.coats[h % rules.coats.length]!.id, hat: rules.hats[Math.floor(h / rules.coats.length) % rules.hats.length]!.id };
 }
 
 /** Look up a player-facing string. Unknown keys return the key itself so a miss is visible, never silent. */

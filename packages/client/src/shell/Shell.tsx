@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { ShipLocation, StationWire } from "@openseas/protocol";
+import type { PirateLookWire, ShipLocation, StationWire } from "@openseas/protocol";
 import { LINK_FROM_KEY, content, sfx, t, usePirate } from "@openseas/boards";
 import { CrewDialog } from "../crew/CrewDialog.jsx";
 import { ProfileCard } from "../crew/ProfileCard.jsx";
+import { PirateSheet } from "../pirate/PirateSheet.jsx";
+import { coatHex, lookFor } from "../pirate/look.js";
 import { ChartCard } from "../chart/ChartCard.jsx";
 import { IslandCard } from "../island/IslandCard.jsx";
 import { islandName, stationName, tierName } from "../names.js";
@@ -14,12 +16,13 @@ import { DeckCard, HelmCard, describeEvent } from "../ship/DeckCard.jsx";
 import { ShipHud } from "../ship/ShipHud.jsx";
 import { StationView } from "../ship/StationView.jsx";
 import { useCrew } from "../state/CrewProvider.jsx";
+import { useSheet } from "../state/SheetProvider.jsx";
 import { useShip } from "../state/ShipProvider.jsx";
 import { useSocial } from "../state/SocialProvider.jsx";
 import { usePlace, type Place } from "../state/place.jsx";
 import { useMediaQuery, useShowMarks } from "../state/settings.js";
 import { useToasts } from "../state/toasts.jsx";
-import { World, type Deck, type Focus, type Insets, type IslandWalk, type WorldInput, type WorldShip, type WorldShipLocation } from "../world/World.jsx";
+import { World, type Deck, type DeckCrew, type Focus, type Insets, type IslandWalk, type WorldInput, type WorldShip, type WorldShipLocation } from "../world/World.jsx";
 import { HailBanner } from "./HailBanner.jsx";
 import { Menu } from "./Menu.jsx";
 import { Toasts } from "./Toasts.jsx";
@@ -37,6 +40,11 @@ function once(key: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** A look as the world's figures take it: the coat as a color, the hat by id. */
+function figureLook(look: PirateLookWire): DeckCrew["look"] {
+  return { coat: parseInt(coatHex(look.coat).slice(1), 16), hat: look.hat };
 }
 
 function worldLocation(l: ShipLocation): WorldShipLocation {
@@ -69,6 +77,7 @@ export function Shell() {
   const { ship, notices, listBoard, board, boardShip, takeStation, leave, left, error } = useShip();
   const { presence, walks, walkTo } = useSocial();
   const crewApi = useCrew();
+  const { tab: sheetTab } = useSheet();
   const { place: rawPlace, go } = usePlace();
   const battle = useBattleApi();
   const melee = useMeleeApi();
@@ -316,7 +325,16 @@ export function Shell() {
           mate: Boolean(holder?.mate),
         };
       }),
-      crew: ship.crew.map((c) => ({ pirateId: c.pirateId, name: c.name, station: c.station, mine: c.pirateId === me, captain: c.captain, mate: c.mate, at: c.pirateId === me ? null : (walks.ship[c.pirateId] ?? null) })),
+      crew: ship.crew.map((c) => ({
+        pirateId: c.pirateId,
+        name: c.name,
+        station: c.station,
+        mine: c.pirateId === me,
+        captain: c.captain,
+        mate: c.mate,
+        at: c.pirateId === me ? null : (walks.ship[c.pirateId] ?? null),
+        look: c.mate ? null : figureLook(lookFor(c.pirateId, c.look)),
+      })),
       wheel: { label: captain ? (docked ? t("ship.wheel_sail") : t("ship.wheel_at_sea")) : t("ship.wheel_spot"), who: captain ? null : captainName, primary: captain && docked },
       gangway: docked ? t("ship.go_ashore") : null,
     };
@@ -325,11 +343,11 @@ export function Shell() {
   // Ashore, the pirate walks their island among everyone else on it (ADR 0032).
   const walk = useMemo<IslandWalk | null>(() => {
     if (aboard || !pirate) return null;
-    const others = presence?.islandId === ashoreAt ? presence.pirates.filter((p) => p.pirateId !== me).map((p) => ({ id: p.pirateId, name: p.name, at: walks.island[p.pirateId] ?? null })) : [];
+    const others = presence?.islandId === ashoreAt ? presence.pirates.filter((p) => p.pirateId !== me).map((p) => ({ id: p.pirateId, name: p.name, at: walks.island[p.pirateId] ?? null, look: figureLook(lookFor(p.pirateId, p.look)) })) : [];
     // An open room is its building: the pirate is inside it.
     const room = place.kind === "island" && place.id === ashoreAt ? place.room : "none";
     const inside = room === "dock" ? "dock" : room === "tavern" ? "tavern" : room === "notice" ? "notice-board" : null;
-    return { islandId: ashoreAt, me, others, arriveFrom: left?.shipId ?? null, inside };
+    return { islandId: ashoreAt, me, meLook: figureLook(lookFor(me, pirate.look)), others, arriveFrom: left?.shipId ?? null, inside };
   }, [aboard, pirate, presence, ashoreAt, me, walks.island, left, place]);
 
   const reachable = useMemo(() => (place.kind === "helm" && ship?.location.kind === "docked" ? content.world.routes.filter((r) => r.from === (ship.location as { islandId: string }).islandId).map((r) => r.to) : []), [place.kind, ship]);
@@ -360,11 +378,11 @@ export function Shell() {
       smoothMs: content.world.ship.turnSeconds * 1000,
       deck,
       insets,
-      dimmed: place.kind === "station" || place.kind === "battle" || place.kind === "melee" || menuOpen || crewApi.panel !== null,
+      dimmed: place.kind === "station" || place.kind === "battle" || place.kind === "melee" || menuOpen || crewApi.panel !== null || sheetTab !== null,
       boardLabel: t("ship.board_spot"),
       walk,
     }),
-    [ships, aboard, ashoreAt, focus, place, helmPick, reachable, shipPick, deck, insets, menuOpen, crewApi.panel, walk],
+    [ships, aboard, ashoreAt, focus, place, helmPick, reachable, shipPick, deck, insets, menuOpen, crewApi.panel, sheetTab, walk],
   );
 
   // ---- taps in the world
@@ -592,6 +610,7 @@ export function Shell() {
       {battleOpen && ship && <BattleView ship={ship} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
       {meleeOpen && ship && <MeleeView ship={ship} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
       <CrewDialog />
+      <PirateSheet />
       {menuOpen && <Menu showMarks={showMarks} onShowMarks={setShowMarks} onClose={() => setMenuOpen(false)} />}
       <ProfileCard />
       <Toasts />

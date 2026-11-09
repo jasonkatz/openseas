@@ -1,6 +1,6 @@
 import type { ChatChannel, ServerMessage, WalkSpot } from "@openseas/protocol";
 import { Room, RoomRegistry, type RoomMember } from "./rooms.js";
-import type { CrewLookup, ShipService } from "./ships/service.js";
+import type { CrewLookup, LookLookup, ShipService } from "./ships/service.js";
 
 /** The least time between two walks a pirate's place hears about. */
 export const WALK_MIN_MS = 80;
@@ -31,6 +31,8 @@ export interface CrewChat extends CrewLookup {
 export class SocialService {
   /** Crews, once the crew service exists. */
   crews: CrewChat | null = null;
+  /** What each pirate wears (DESIGN.md 3.6), once the connection layer has looks; without it presence carries none. */
+  looks: LookLookup | null = null;
   private readonly islands = new RoomRegistry<ServerMessage>();
   private readonly names = new Map<string, string>();
   private readonly where = new Map<string, string>();
@@ -76,7 +78,7 @@ export class SocialService {
     const room = this.islands.peek(islandId);
     const pirates = (room?.memberIds() ?? []).map((pirateId) => {
       const walk = this.walks.get(pirateId);
-      return { pirateId, name: this.names.get(pirateId) ?? pirateId, crew: this.crews?.tagOf(pirateId) ?? null, at: walk?.scope === "island" ? walk.at : null };
+      return { pirateId, name: this.names.get(pirateId) ?? pirateId, crew: this.crews?.tagOf(pirateId) ?? null, at: walk?.scope === "island" ? walk.at : null, look: this.looks?.lookOf(pirateId) ?? null };
     });
     return { type: "island.presence", islandId, pirates };
   }
@@ -118,7 +120,7 @@ export class SocialService {
     else this.islands.peek(islandId!)?.broadcast(msg, pirateId);
   }
 
-  /** Crews changed for these pirates: islands where any of them stands hear the new presence, flags and all. */
+  /** Crews or looks changed for these pirates: islands where any of them stands hear the new presence, flags, looks and all. */
   refreshPresence(pirateIds: readonly string[]): void {
     const islands = new Set<string>();
     for (const id of pirateIds) {

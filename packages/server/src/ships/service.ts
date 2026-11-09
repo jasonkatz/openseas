@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import type { BrigandTier, Content, ShipClass } from "@openseas/content";
+import { defaultLook, type BrigandTier, type Content, type PirateLook, type ShipClass } from "@openseas/content";
 import {
   InvalidMoveError,
   battleConfigAboard,
@@ -122,6 +122,11 @@ export interface CrewLookup {
   sameCrew(a: string, b: string): boolean;
 }
 
+/** What the ship service asks of pirates: what each wears on deck (DESIGN.md 3.6). */
+export interface LookLookup {
+  lookOf(pirateId: string): PirateLook;
+}
+
 export interface ShipServiceOptions {
   now?: () => number;
   randomSeed: () => string;
@@ -148,6 +153,8 @@ export class ShipService {
   onVictory: ((room: ShipRoom, tierId: string, shares: ReadonlyMap<string, number>) => void) | null = null;
   /** Crews, once the crew service exists; without it nobody shares a crew and no ship flies colors. */
   crews: CrewLookup | null = null;
+  /** Looks, once the connection layer has them; without it every pirate wears the default for their id. */
+  looks: LookLookup | null = null;
   private readonly rooms = new Map<string, ShipRoom>();
   private readonly byPirate = new Map<string, string>();
   private readonly configs = new Map<string, ShipConfig>();
@@ -256,6 +263,12 @@ export class ShipService {
     for (const room of this.rooms.values()) {
       if (ids.has(room.ownerId) || room.state.crew.some((c) => ids.has(c.pirateId))) this.broadcast(room, []);
     }
+  }
+
+  /** These pirates changed what they wear: every ship they are aboard shows it. */
+  refreshLooks(pirateIds: readonly string[]): void {
+    const ids = new Set(pirateIds);
+    for (const room of this.rooms.values()) if (room.state.crew.some((c) => ids.has(c.pirateId))) this.broadcast(room, []);
   }
 
   /** The ships at sea right now, for the chart of a pirate who is ashore. */
@@ -1074,6 +1087,7 @@ export class ShipService {
       away: c.awaySinceTurn !== null,
       mate: c.mate,
       crewId: c.mate ? null : (this.crews?.crewIdOf(c.pirateId) ?? null),
+      look: c.mate ? null : (this.looks?.lookOf(c.pirateId) ?? defaultLook(this.content.world.pirates, c.pirateId)),
     }));
     return {
       shipId: room.shipId,
