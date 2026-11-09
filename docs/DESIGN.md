@@ -948,7 +948,8 @@ never shown with space words over a sea world; with them M7 is built.
   taken before and after confirmed: the walking grids, doors, berths, label anchors, tap boxes and
   ground heights of all three outposts are identical, at both render qualities.
 - **The skiff and her deck** (3.11). The code that lays out the deck (its grid, obstacles, posts,
-  station spots and tap boxes) is untouched; everything drawn on and around it is new. The canopy
+  station spots and tap boxes) changed in five names and no number; everything drawn on and around
+  it is new. The canopy
   is hidden on deck rather than faded, and the tail fin takes the glass the sails had.
 - **Pirates and bots** (3.4, 3.6, 3.11). The five headgear and the jacket are redrawn on the
   walking figure and on the likeness, the plume became the crest, and bots are robots. The five
