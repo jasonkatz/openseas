@@ -92,7 +92,7 @@ export const pirate = pgTable(
     islandId: text(),
     /** The coat and hat they picked, content ids (DESIGN.md 3.6). Null until they pick: a default is drawn from the id. */
     look: jsonb().$type<{ coat: string; hat: string }>(),
-    /** The earned title they show after their name, a content id, or null for none (ADR 0032). */
+    /** The earned title they show after their name, a content id, or null for none (ADR 0033). */
     title: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
@@ -100,7 +100,7 @@ export const pirate = pgTable(
 );
 
 /**
- * Titles a pirate has earned (ADR 0032). Written the first time the record meets a title's ask and
+ * Titles a pirate has earned (ADR 0033). Written the first time the record meets a title's ask and
  * never deleted, so a title earned on standing stays earned when the standing falls. A `start`
  * title is every pirate's and has no row.
  */

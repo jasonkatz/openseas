@@ -26,7 +26,7 @@ export type PirateRecord = z.infer<typeof PirateRecordSchema>;
 /**
  * One title and where the pirate stands against it. `have` and `need` are a count for the counting
  * titles, and for a standing title the index of the pirate's tier and of the tier it asks (`have`
- * is -1 while unrated). An earned title stays earned, whatever `have` says now (ADR 0032).
+ * is -1 while unrated). An earned title stays earned, whatever `have` says now (ADR 0033).
  */
 export const TitleProgressSchema = z.object({
   id: ContentIdSchema,

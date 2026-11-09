@@ -10,7 +10,7 @@ export function HailBanner({ ship, me, inline = false }: { ship: ShipSnapshot; m
   if (!hail) return null;
   const captain = ship.captainId === me;
   return (
-    <div className={`hail-banner ${inline ? "hail-inline" : ""}`} role="alert" data-testid="ship-hail">
+    <div className={`hail-banner ${inline ? "hail-inline" : ""}`} role="alert" data-testid="ship-hail" data-world-avoid="">
       <p className="hail-title">{t("ship.hailed", { brigand: tierName(hail.tierId) })}</p>
       {captain ? (
         <span className="row">

@@ -1,5 +1,5 @@
 /**
- * The pirate's own sheet (DESIGN.md 3.6, ADR 0032) over the wire: the record read off the voyage
+ * The pirate's own sheet (DESIGN.md 3.6, ADR 0033) over the wire: the record read off the voyage
  * tables and the ledger, titles earned from it and kept once earned, the look worn on deck and the
  * title shown on the card. Runs against a real Postgres when TEST_DATABASE_URL is set.
  */
@@ -176,6 +176,20 @@ describeDb("the pirate's sheet over the wire", () => {
     c.send({ type: "pirate.title", title: "pumpmaster" });
     expect((await c.until("pirate.updated")).pirate.title).toBe("pumpmaster");
     c.ws.close();
+  });
+
+  it("pirates ashore together see each other's looks as they walk the island, and see them change", async () => {
+    const a = await pirate();
+    const b = await pirate();
+    const ca = await connect(a.cookie);
+    const cb = await connect(b.cookie);
+    cb.send({ type: "island.who" });
+    const seen = await cb.until("island.presence", (m) => m.pirates.some((p) => p.pirateId === a.me.id));
+    expect(seen.pirates.find((p) => p.pirateId === a.me.id)!.look).toEqual(a.me.look);
+    ca.send({ type: "pirate.look", look: { coat: "plum", hat: "bicorne" } });
+    const changed = await cb.until("island.presence", (m) => m.pirates.find((p) => p.pirateId === a.me.id)?.look?.coat === "plum");
+    expect(changed.pirates.find((p) => p.pirateId === a.me.id)!.look).toEqual({ coat: "plum", hat: "bicorne" });
+    for (const x of [ca, cb]) x.ws.close();
   });
 
   it("the crew aboard sees a pirate's look on deck, and sees it change", async () => {

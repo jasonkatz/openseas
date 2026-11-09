@@ -13,6 +13,15 @@ import { CrewFlagWireSchema, CrewRankSchema, CrewTagSchema } from "./common.js";
 import { CrewInfoSchema, CrewInviteSchema, CrewNameSchema, CrewNoticeSchema, CrewRowSchema, PirateProfileSchema } from "./crew.js";
 
 const SessionId = z.string().min(8).max(64);
+
+/**
+ * Where a pirate is walking, in the place's own frame (ADR 0032): an island's local ground plane,
+ * or the deck of the ship they are aboard. Cosmetic: no rule reads it; the server only relays it.
+ */
+export const WalkSpotSchema = z.object({ x: z.number().min(-4).max(4), z: z.number().min(-4).max(4) });
+export type WalkSpot = z.infer<typeof WalkSpotSchema>;
+export const WalkScopeSchema = z.enum(["island", "ship"]);
+export type WalkScope = z.infer<typeof WalkScopeSchema>;
 const Hash = z.string().regex(/^[0-9a-f]{8}$/);
 
 export const ClientMetricsSchema = z.object({
@@ -74,6 +83,8 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("chat.send"), channel: ChatChannelSchema, text: z.string().trim().min(1).max(280) }),
   /** Who is ashore at the pirate's island right now. */
   z.object({ type: z.literal("island.who") }),
+  /** The pirate walks to a spot where they are: on their island ashore, or on deck aboard (ADR 0032). */
+  z.object({ type: z.literal("walk.to"), x: WalkSpotSchema.shape.x, z: WalkSpotSchema.shape.z }),
   /** Aboard, in a boarding melee without a board (joined late, or back from a drop): deal one. */
   z.object({ type: z.literal("melee.join") }),
   // ---- crews (M6, ADR 0025)
@@ -99,7 +110,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("crew.remove"), pirateId: z.string().min(1).max(64) }),
   /** Another pirate as a tap on their name shows them, by id or by name. */
   z.object({ type: z.literal("pirate.profile"), pirateId: z.string().min(1).max(64).optional(), name: z.string().trim().min(1).max(64).optional() }),
-  // ---- the pirate's own sheet (DESIGN.md 3.6, ADR 0032)
+  // ---- the pirate's own sheet (DESIGN.md 3.6, ADR 0033)
   /** The pirate's record and every title's progress, answered with `pirate.sheet`. */
   z.object({ type: z.literal("pirate.sheet") }),
   /** Wear this coat and hat on deck. Answered with `pirate.updated`. */
@@ -223,8 +234,22 @@ export const ServerMessageSchema = z.union([
   z.object({
     type: z.literal("island.presence"),
     islandId: z.string(),
-    pirates: z.array(z.object({ pirateId: z.string(), name: z.string(), crew: CrewTagSchema.nullable().optional() })),
+    pirates: z.array(
+      z.object({
+        pirateId: z.string(),
+        name: z.string(),
+        crew: CrewTagSchema.nullable().optional(),
+        /** Where they last walked to on the island, if they have walked since coming ashore (ADR 0032). */
+        at: WalkSpotSchema.nullable().optional(),
+        /** What they wear (DESIGN.md 3.6, ADR 0033); left out by a server that does not say. */
+        look: PirateLookWireSchema.nullable().optional(),
+      }),
+    ),
   }),
+  /** Someone in the pirate's place walked: another pirate ashore on the same island, or a shipmate on deck. */
+  z.object({ type: z.literal("walk.moved"), scope: WalkScopeSchema, pirateId: z.string(), x: WalkSpotSchema.shape.x, z: WalkSpotSchema.shape.z }),
+  /** Where everyone in a place last walked to, sent to a pirate as they come aboard. */
+  z.object({ type: z.literal("walk.where"), scope: WalkScopeSchema, walkers: z.array(z.object({ pirateId: z.string(), x: WalkSpotSchema.shape.x, z: WalkSpotSchema.shape.z })) }),
   /** The pirate's crew as they may see it, and the invitations waiting on them. Sent on connect, on request and whenever either changes. */
   z.object({ type: z.literal("crew.state"), crew: CrewInfoSchema.nullable(), invites: z.array(CrewInviteSchema), serverNow: z.number() }),
   z.object({ type: z.literal("crew.list"), crews: z.array(CrewRowSchema) }),

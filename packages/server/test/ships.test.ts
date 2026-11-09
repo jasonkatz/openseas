@@ -560,6 +560,13 @@ describeDb("ships over the wire", () => {
     expect(await b.until("chat.message")).toMatchObject({ channel: "island", pirateId: p1.me.id, name: p1.me.name, text: "ahoy the tavern" });
     expect(await a.until("chat.message")).toMatchObject({ text: "ahoy the tavern" });
 
+    // Walking ashore is heard by the others on the island, and a newcomer's presence says where people stand (ADR 0032).
+    a.send({ type: "walk.to", x: 0.75, z: -0.2 });
+    expect(await b.until("walk.moved")).toMatchObject({ scope: "island", pirateId: p1.me.id, x: 0.75, z: -0.2 });
+    b.send({ type: "island.who" });
+    const placed = await b.until("island.presence", (m) => m.pirates.some((p) => p.pirateId === p1.me.id && p.at !== null && p.at !== undefined));
+    expect(placed.pirates.find((p) => p.pirateId === p1.me.id)?.at).toEqual({ x: 0.75, z: -0.2 });
+
     // Ship chat needs a ship; aboard, the speaker leaves the island.
     a.send({ type: "chat.send", channel: "ship", text: "nobody hears this" });
     expect(await a.until("error")).toMatchObject({ code: "not_aboard" });
@@ -571,6 +578,8 @@ describeDb("ships over the wire", () => {
     expect(await a.until("error")).toMatchObject({ code: "aboard_a_ship" });
     a.send({ type: "chat.send", channel: "ship", text: "all hands" });
     expect(await a.until("chat.message")).toMatchObject({ channel: "ship", text: "all hands" });
+    // Aboard, a pirate hears where the crew stands on deck; walking the deck is nothing to the island.
+    expect(await a.until("walk.where")).toMatchObject({ scope: "ship", walkers: [] });
 
     // Going ashore puts the pirate back among those at the island and re-sends their summary.
     a.send({ type: "ship.leave" });

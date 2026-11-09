@@ -30,7 +30,7 @@ export function useSheet(): SheetContextValue {
 const SHEET_ERRORS = new Set<ErrorCode>(["look_bad", "title_locked"]);
 
 /**
- * The pirate's own sheet (DESIGN.md 3.6, ADR 0032): who they are on deck and what their record has
+ * The pirate's own sheet (DESIGN.md 3.6, ADR 0033): who they are on deck and what their record has
  * earned. The look and the title come back on the pirate's summary; the record and the titles'
  * progress are asked for when the sheet opens. A title earned anywhere floats up as a toast.
  */

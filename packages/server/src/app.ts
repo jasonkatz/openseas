@@ -48,6 +48,7 @@ export async function createApp(env: Env, log: Logger, opts: { now?: () => numbe
   social.crews = crews;
   const looks = new PirateLooks(content);
   ships.looks = looks;
+  social.looks = looks;
   ships.onSailed = (room, to, ids) => crews.sailed(room, to, ids);
   ships.onArrived = (ids) => void crews.tallyVoyage(ids).catch((e) => log.error({ err: e }, "crew voyage tally failed"));
   ships.onVictory = (room, tierId, shares) => void crews.tallyVictory(room, tierId, shares).catch((e) => log.error({ err: e }, "crew victory tally failed"));

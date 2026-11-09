@@ -491,7 +491,7 @@ export const PirateLookSchema = z.object({ coat: Id, hat: Id });
 
 /**
  * What a title asks of a pirate's record. Counts only ever grow; standing can fall, which is why an
- * earned title is kept once it is earned (ADR 0032). `start` titles are every pirate's from the first day.
+ * earned title is kept once it is earned (ADR 0033). `start` titles are every pirate's from the first day.
  */
 export const TitleRequirementSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("start") }),

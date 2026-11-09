@@ -88,7 +88,7 @@ export async function summarizePirate(db: Db, content: Content, pirateId: string
   };
 }
 
-// ---- identity: the look and the titles (DESIGN.md 3.6, ADR 0032)
+// ---- identity: the look and the titles (DESIGN.md 3.6, ADR 0033)
 
 /** The look a pirate wears: the one they picked while content still offers it, else the default drawn from their id. */
 export function lookOf(content: Content, pirateId: string, picked: PirateLook | null): PirateLook {

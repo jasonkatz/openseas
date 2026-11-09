@@ -61,7 +61,7 @@ export function createWsServer(deps: WsDeps) {
     const summary = await summarizePirate(db, content, pirateId, conn.guest);
     if (summary) conn.member.send({ type: "pirate.updated", pirate: summary });
   };
-  /** Tell a pirate about titles their record just earned (ADR 0032). */
+  /** Tell a pirate about titles their record just earned (ADR 0033). */
   const announce = (pirateId: string, fresh: readonly string[]): void => {
     if (fresh.length) conns.get(pirateId)?.member.send({ type: "pirate.titles", earned: [...fresh] });
   };
@@ -313,6 +313,9 @@ export function createWsServer(deps: WsDeps) {
       case "chat.send":
         social.chat(conn.pirateId, msg.channel, msg.text);
         return;
+      case "walk.to":
+        social.walk(conn.pirateId, { x: msg.x, z: msg.z });
+        return;
       case "island.who": {
         const islandId = social.islandOf(conn.pirateId) ?? (await ships.pirateIsland(conn.pirateId));
         send(ws, social.presence(islandId));
@@ -365,6 +368,7 @@ export function createWsServer(deps: WsDeps) {
       case "pirate.look": {
         looks.remember(conn.pirateId, await setLook(db, content, conn.pirateId, msg.look));
         ships.refreshLooks([conn.pirateId]);
+        social.refreshPresence([conn.pirateId]);
         await resend(conn.pirateId);
         return;
       }

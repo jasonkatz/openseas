@@ -1,7 +1,7 @@
-# 0032. A pirate's look and titles: content ids on the pirate, titles earned once and kept
+# 0033. A pirate's look and titles: content ids on the pirate, titles earned once and kept
 
-Status: Accepted. Builds on [0009](./0009-world-content-as-files.md) and
-[0028](./0028-standing-is-earned-in-the-game.md).
+Status: Accepted. Builds on [0009](./0009-world-content-as-files.md),
+[0028](./0028-standing-is-earned-in-the-game.md) and [0032](./0032-walking-is-cosmetic-and-relayed.md).
 
 ## Context
 
@@ -29,10 +29,13 @@ they have done and gives them a reason to keep going. Both have to fit the exist
   still read apart without color (DESIGN.md 3.4). The look is not an item: it is not bought,
   owned or traded, and the economy (phase 3) can later put a price on some ids without moving
   this data.
-- **The ship snapshot carries each pirate's look.** The ship service asks a `LookLookup` (the
-  connection layer's in-memory `PirateLooks`, filled as pirates connect and pick), the same way
-  it asks the crew service for crews. A new pick rebroadcasts the snapshot of every ship the
-  pirate is aboard. Deckhands carry no look.
+- **Every place that draws a pirate is told their look.** The ship snapshot and the island's
+  presence list (where pirates walk ashore, ADR 0032) both carry each pirate's look. The ship
+  and social services ask a `LookLookup`, the connection layer's in-memory `PirateLooks`, which
+  is filled as pirates connect and pick. This is the same way they ask the crew service for
+  crews. A new pick rebroadcasts the snapshot of every ship the pirate is aboard and the presence
+  of their island. The walking figure takes the coat and hat from the look in place of the ones
+  it used to draw from the pirate's id. Deckhands carry no look.
 - **Titles are content with a requirement.** Each title in `pirates.json` names what it asks for.
   It is one of:
   - `start`: every pirate has it from the first day;
