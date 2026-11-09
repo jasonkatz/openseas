@@ -19,7 +19,7 @@ one GitHub Actions pipeline does the deploying, in order (ADR 0014).
    build runs in CI, not on Vercel), deploys the prebuilt output with `vercel deploy --prebuilt
    --prod`, and polls `/version.json` until it reports the commit (following the apex domain's
    redirect to `www`). The harness job then checks
-   that a deep link such as `/bilging` answers 200 (the SPA rewrite from
+   that a deep link such as `/cooling` answers 200 (the SPA rewrite from
    `packages/harness/vercel.json` is in effect) and that the server allows the harness origin.
 5. Deploys queue behind each other and never cancel one in flight. All jobs show up under the
    repo's **production** environment, so GitHub's Deployments view is the deploy history.
@@ -252,7 +252,7 @@ Actions → Deploy → Run workflow with both boxes ticked. When it is green:
 curl https://<railway domain>/health          # {"ok":true,"contentVersion":...,"commit":"<sha>"}
 curl https://<vercel domain>/version.json     # {"commit":"<sha>"}
 curl https://test.openseas.online/version.json
-curl -o /dev/null -w '%{http_code}\n' https://test.openseas.online/bilging   # 200: deep links work
+curl -o /dev/null -w '%{http_code}\n' https://test.openseas.online/cooling   # 200: deep links work
 ```
 
 Open the harness, start a rated Bilging round, and confirm a result lands and the bench's checks

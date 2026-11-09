@@ -94,26 +94,26 @@ lifting them together. A move's points are then multiplied by the streak: each s
 row adds `streakStepPercent` (10%) from the second on, up to `streakMaxPercent` (×1.5); one swap
 that scores nothing (`streakGrace`, a setup) keeps the streak and a second in a row breaks it. The
 round runs its clock: `maxMoves` only bounds the log, so a score is points in a round's 150
-seconds, the same thing the ship pays per turn. Every board the server deals plays on a ship's bilge (ADR 0029): content sets `shipWater`, so
+seconds, the same thing the ship pays per turn. Every board the server deals plays on a ship's bilge (ADR 0029): content sets `shipHeat`, so
 swaps neither raise nor drain the water, and the ship injects water events into the log instead, one
 with the deal and one whenever a turn changes the depth. The board reads the bilge as rows and never
-below `minWaterRow`, three rows: a bilge never runs dry, so even a sound, pumped ship keeps the
+below `minHeatRow`, three rows: a bilge never runs dry, so even a sound, pumped ship keeps the
 bottom three rows underwater and the barnacles under them waiting to be lifted. Aboard a ship (M3)
 the bilge is the ship's. In the harness it is a lone ship's: a sound sloop with nobody else aboard,
 whose bilge each turn takes the class's intake and drains by this board's own output, as the ship's
 turn would. The server turns it for a recorded round and pushes the depth as a ship does; the
 harness turns it on the round's own clock for unrated and lab rounds. The client logs each depth as
-a `water` move; the server accepts a water move only when it repeats the depth it last gave that
+a `heat` move; the server accepts a water move only when it repeats the depth it last gave that
 board, so the log stays the whole story and the client never sets its own water. The board's own
-water stays in the engine for lab rounds that turn `shipWater` off: every move raises it a sixth of
+water stays in the engine for lab rounds that turn `shipHeat` off: every move raises it a sixth of
 a row, every 40 points drain a row, and it never drops below the same floor. Pumping while already
 at the floor is wasted, so points cannot be banked to hold the water down later. Either way the
 water is a pure function of the move log, so a replay needs nothing else. A water
 event is no move: it counts toward nothing and breaks no combo. Below the
-water line pieces swap slowly: the swap takes `underwaterSwapMs` and the board takes no other swap
+water line pieces swap slowly: the swap takes `overheatSwapMs` and the board takes no other swap
 until it lands, so working underwater costs time against the clock. That cost is client timing
 only, like the original's; scores never depend on it. All numbers live in
-`content/data/puzzles/bilging.json` and are tuned in playtests.
+`content/data/puzzles/cooling.json` and are tuned in playtests.
 
 Feedback as built: each move plays back step by step, swap then every cascade step clearing and
 rising in turn, from the per-step boards the engine's move report carries. A new move
@@ -153,8 +153,8 @@ four or more of a kind, across or down, clear as well; crossing runs count as on
 halves fall together until one is cleared. Each step of a chain multiplies by `chainMultipliers`
 (×1, ×3, ×6, ×10, and ×10 past that), steeply, because a chain through the rigging is Sailing's
 skill; several groups in one step multiply by their count, as in Bilging. A run of n scores
-`runPoints * (n - 3)`; a platform scores `platformPoints` per target. If the rigging fills until
-no pair can enter the top row, it is cleared: every disc is swept away, `topOutPenalty` points are
+`runPoints * (n - 3)`; a platform scores `injectorPoints` per target. If the rigging fills until
+no pair can enter the top row, it is cleared: every disc is swept away, `flameoutPenalty` points are
 lost (never below zero), the combo breaks, fresh platforms are dealt and play goes on. The round
 ends on the clock; `maxMoves` only bounds the log. Every pair enters at the middle of
 the top row; the move the engine logs is the position it came to rest in (column, row, rotation),
@@ -173,7 +173,7 @@ pair after it is previewed in a strip above the rigging on every layout. The lan
 thin ring so the target under it stays readable, and glows when the disc would fill a target of
 its own kind. Sliding into a spot that rests (a shelf or a stack beneath) mid-fall sits the pair up
 on it rather than letting it sink past.
-Numbers live in `content/data/puzzles/sailing.json`.
+Numbers live in `content/data/puzzles/engines.json`.
 
 **Carpentry.** Polyomino pieces offered from a queue, placed to fill holes in planking. Tighter
 fills with fewer gaps score higher and feed repair output. QoL: drag-and-drop with snap and a
@@ -208,7 +208,7 @@ there. Turning pivots about the
 centre so the ghost stays put. The keyboard picks a slot, moves, turns either way, flips, and jumps
 through the placements with the least waste. Planks drop in and knock; a patched hole's planks lift
 away; new holes crack open through the planking; a hole two idle planks from widening pulses amber,
-then red. Numbers live in `content/data/puzzles/carpentry.json`.
+then red. Numbers live in `content/data/puzzles/plating.json`.
 
 **Gunnery.** Route powder, wadding, and cannonballs through a column board into cannons in the
 right order to load them. Correct loads feed cannon readiness. QoL: per-cannon load-order
@@ -285,7 +285,7 @@ minimum n landings earns as much again as its stars; then a new constellation is
 from stars already on the chart so strays stay useful. Three or more loose stars of one kind in a
 row, around a ring or down a column, clear for `runPoints` per star beyond two; a star on its marker
 is charted, not loose, and never clears this way. A star arriving while the top outer slot is taken
-is a booch: the top column is swept, `boochPenalty` is lost and the chain breaks. Every move
+is a booch: the top column is swept, `lostHeadingPenalty` is lost and the chain breaks. Every move
 carries its tick; the client advances its copy once per tick and logs a wait now and then so
 landings count, and the server refuses a tick ahead of the wall clock. The round ends on the clock,
 `maxTick` or `maxMoves`. Touch drags or taps a ring to turn it and taps the sky, the falling star or
@@ -317,9 +317,9 @@ plotted path as numbered ghosts and shades the cells each plotted broadside reac
 the brigand's reach. A turn carries the ship one cell forward and then swings her, so nothing turns
 in place. The brigand plots at the same time (its mind is in the reducer, so it replays), and both
 plots sail segment by segment: moves first, with a rock or an edge stopping a ship (rocks cost
-`rockDamage`) and two ships bound for one cell, or one sailing into a ship that holds, stopping
+`asteroidDamage`) and two ships bound for one cell, or one sailing into a ship that holds, stopping
 both for `ramDamage`; then winds, which carry a ship one cell every segment it sits on one, and
-eddies, which spin her a quarter turn clockwise; then the guns, a shot reaching `cannonRange`
+eddies, which spin her a quarter turn clockwise; then the guns, a shot reaching `turretRange`
 cells to its side and stopping at a rock, each costing a load and dealing `shotDamage`; then the
 hulls. A ship at `grappleDamage` or worse can be boarded from the cell alongside by a ship that
 wants to, which ends the fight (the boarding stub); when both could, the sounder hull boards. A
@@ -330,7 +330,7 @@ every turn's points are scaled by `scorePercent`, 100 in practice and aboard the
 ×0.5, marauder ×1, reaver ×2), so a harder brigand rates higher. The combo is turns in a row with a hit. Tokens are dealt every turn in practice
 (`supply`) and aboard by the ship: half the turn's tokens forward, the rest split between the
 turns, plus the loaded cannons and the hull. Brigand tiers differ by tokens, reloads, accuracy and
-aggression (`brigand-tiers.json`): the cutpurse is slow and sloppy, the reaver closes fast, fires
+aggression (`raider-tiers.json`): the cutpurse is slow and sloppy, the reaver closes fast, fires
 true and grapples the moment it can. The harness practice page fights the content brigand with
 presets per tier, per board and for faster or slower turns.
 
@@ -363,7 +363,7 @@ of the sender's blade (content: each a list of columns taken in turn, every one 
 edges and away from the middle: the cutlass the least, the dirk the most). Wrack is grey stone and unbreakable; each
 block is dealt the color it will turn as it lands, and after `ripenMoves` of the board's drops it
 turns into a block of that color (usually one seen around where it lands: the block under it counts
-three times and each neighbour in its row once, `wrackMatchPermille` of the time in content, any
+three times and each neighbour in its row once, `scrapMatchPermille` of the time in content, any
 color otherwise, so an attack mostly turns into something the defender can clear), which fuses and shatters like any other. It carries no number:
 it lands as solid stone, and with one drop left (the second of two, in content) the stone takes
 on its color, so a player reads what is coming from the block itself. An upright pair whose column has one
@@ -412,9 +412,9 @@ live in `content/data/puzzles/swordfight.json`.
 - **Deckhands.** A ship that sets sail with fewer aboard than its class's `minCrew` (four on a
   sloop) signs on deckhands to make up the number: AI crew who take the open stations the class
   lists for them, in order (sails, pump, carpentry, guns; never the chart table). A deckhand plays
-  no board: each turn its station's output is a passable roll between `mateOutput.min` and `.max`
+  no board: each turn its station's output is a passable roll between `botOutput.min` and `.max`
   percent of par from the ship's PRNG, so a replay reproduces it (ADR 0023). A pirate may take
-  any deckhand's station at any time; the hand steps aside and, after `mateRestTurns` turns so
+  any deckhand's station at any time; the hand steps aside and, after `botRestTurns` turns so
   the pirate settles in, works the next open station it will, or waits on deck for one. The
   captain can also order a deckhand to any of those four stations, never the chart table, or
   stand it down; another deckhand there steps aside, a pirate there never does. A pirate
@@ -644,7 +644,7 @@ between three kinds of focus: the island the pirate stands on (home, filling the
 of the ship they are aboard (the hull itself filling the frame as its own little place, mast and
 sea cropped away, clouds kept off it, followed along its lane; the chart is where the ship's
 position in the ocean is seen), and the whole ocean (the chart, behind a map button, where islands are tapped to
-look closer). Places are `/` (home), `/chart`, `/island/:id` (with `/dock`, `/tavern`,
+look closer). Places are `/` (home), `/chart`, `/outpost/:id` (with `/dock`, `/cantina`,
 `/notice`), `/ship`, `/ship/:station` and `/ship/helm`. The card for the place is folded to a
 thin strip at the bottom of a phone (the right of a wide screen) that is the card's one header: the
 place's name, where the pirate is, one line saying the obvious next thing to do (board the ship at
@@ -893,6 +893,14 @@ The world PRs carry before-and-after screenshots for review. The shell smoke and
 stay green throughout. If a mechanic reads wrong in space, it is noted for its own PR after M7, not
 changed inside one of these.
 
+M7 PR 2 as built: the code speaks space, and the game still reads nautical. Every identifier moved
+to `GLOSSARY.md`'s, and every message key and placeholder moved with it while no message's text did.
+Migration `0005_space_rename_and_wipe` empties every table, sign-ins included, and renames the four
+columns that carried a nautical word. Three engines keep their old PRNG salt strings, so a seed
+deals the same board as before. Scenery with no glossary identifier keeps its code names until the
+world PR that redraws it, and comments in art files still describe what is drawn. `GLOSSARY.md`
+records the identifiers this PR had to choose (a ship flies, a bot boots up and powers down).
+
 ### 5.3 Testing and quality
 
 - 3 to 5 named testers from the owner's Puzzle Pirates-playing friends, on a private Discord
@@ -962,8 +970,8 @@ Maintained as they arise.
 | Divergent puzzle round | n/a (client-reported) | Rejected outright, unrated, logged | Engines are deterministic; any mismatch is a bug or a cheat |
 | Sailing piece control | Free fall in real time | The move is the resting position; the engine checks it is reachable from the entry by sliding, turning and falling | One move per pair keeps the log small while steering under platforms stays possible (ADR 0015) |
 | Sailing platforms | Targets on fixed structures | Platforms are shapes (bars, stacks, L's, squares) with outlined targets and blanks; shelves sit under their bottom cells; a cleared one is dealt again elsewhere | Same role, original layouts; shapes make tucking and stacking matter |
-| Sailing scoring | Original's table | Run of n scores `runPoints * (n - 3)`, platform scores `platformPoints` per target, times groups, times a steep capped chain table | Chains through the rigging are the skill; tuned in playtests |
-| Sailing top-out | Board full ends the board | The rigging is cleared for `topOutPenalty` points and play continues to the clock | A filled board should cost, not stop, a two-minute practice round |
+| Sailing scoring | Original's table | Run of n scores `runPoints * (n - 3)`, platform scores `injectorPoints` per target, times groups, times a steep capped chain table | Chains through the rigging are the skill; tuned in playtests |
+| Sailing top-out | Board full ends the board | The rigging is cleared for `flameoutPenalty` points and play continues to the clock | A filled board should cost, not stop, a two-minute practice round |
 | Duty round length | Real-time play at a station | Every round runs its clock; move limits only bound the move log, and no pace is checked | Scored per second, as the ship pays; quick players should feel quick |
 | Timed puzzle rounds | Real-time simulation | Integer ticks carried in every move; the server rejects ticks ahead of the wall clock | Keeps engines pure and replayable (ADR 0015) |
 | Carpentry holes | Grow in real time when unattended | Dealt as unions of pentominoes; widen by one cell after `growAfterMoves` planks placed elsewhere | Move-driven growth keeps the engine pure; pentomino unions guarantee a masterpiece is possible |
@@ -983,7 +991,7 @@ Maintained as they arise.
 | Navigation time | Stars fall in real time | One star in the sky at a time, falling `fallTicks` to `fallTicksMin` on the engine clock, carried in the move log | Pure engine; the server can tell a stalled star from a quick one (ADR 0015) |
 | Navigation entry | Stars fall into the top of the chart | Same: the top octant; a tap or enter brings the star down early | A fixed entry keeps the mental model stable: bring the right spot to the top |
 | Navigation landing | A star stops against the first star it meets; stars slide inward when the ring under them opens | Same; the outer slot taken means no room | Columns stay packed, so turning an inner ring moves the rings outside it too |
-| Navigation booch | Turns the ship around | Sweeps the top column, costs `boochPenalty`, breaks the chain | No ship yet; the sweep keeps the chart playable (as Sailing's top-out costs rather than stops) |
+| Navigation booch | Turns the ship around | Sweeps the top column, costs `lostHeadingPenalty`, breaks the chain | No ship yet; the sweep keeps the chart playable (as Sailing's top-out costs rather than stops) |
 | Navigation runs | Rows of a kind clear | Three or more loose stars of a kind around a ring or down a column clear for `runPoints * (n - 2)`; stars on markers never do | Gives strays an outlet; charted stars must stay safe from it |
 | Navigation constellations | Fixed progression | Size grows with completions; half the kinds are drawn from stars already on the chart | Keeps stray stars useful on a small chart |
 | Navigation scoring | Original's table | `n * n * starPoints` times a chain capped at ×2, plus `n * starPoints` per landing saved under `2n` | Charting cleanly is the lever, not going long without a booch; tuned in playtests |

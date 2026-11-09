@@ -2,8 +2,8 @@
 
 Browser-native, touch-first space pirate puzzle MMO. Spiritual successor to Puzzle Pirates: faithful
 mechanics, original everything else. `openseas` is a codename. The game is being moved from the sea
-to space in milestone M7 (ADR 0034); until it lands, the code and much of the doc still use the
-nautical words.
+to space in milestone M7 (ADR 0034). The code already speaks space; until M7 lands, the game's text
+and much of the doc still use the nautical words.
 
 ## Read first
 
@@ -23,7 +23,7 @@ nautical words.
    server replays with the same engine and derives every score. Never trust a client-reported score.
 3. **Nothing is copied from Puzzle Pirates.** No names the original coined, no art, no text, no
    audio. Generic puzzle names are fine (ADR 0001, ADR 0034).
-4. **World content is files, not rows.** Islands, routes, brigand tiers, ship classes live in
+4. **World content is files, not rows.** Outposts, lanes, raider tiers, ship classes live in
    `content` as JSON validated at startup (ADR 0009). Player state lives in Postgres.
 5. **Every player-facing string goes through the message table.** English only, but never
    hardcode UI text.

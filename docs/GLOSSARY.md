@@ -102,9 +102,10 @@ Station blurbs:
 
 | Former | Now | Identifier |
 |---|---|---|
-| hole, holes patched, "A hole widened" | breach, breaches sealed, "A breach widened" | `hole` → `breach` |
+| hole, holes patched, "A hole widened" | breach, breaches sealed, "A breach widened" | `hole` → `breach`; `patched` → `sealed` |
 | plank | plate | `plank` → `plate` |
-| nail, hammer | weld, welder | `nail` → `weld` |
+| nail, hammer | weld, welder | `nail` → `weld`; `hammer` → `welder` |
+| wood (what a plank is made of) | metal | `wood` → `metal` (`plating.metal.<id>`) |
 | grain, "With the grain!" | brushing, "Brushed true!" | `grain` → `brush` |
 | oak, teak, pine, mahogany | tin, copper, steel, brass | `oak`, `teak`, `pine`, `mahogany` → `tin`, `copper`, `steel`, `brass` |
 | Masterpiece, masterpiece streak | Flawless, flawless streak | `masterpiece` → `flawless` |
@@ -142,6 +143,8 @@ The sparks, stars, comets, rings, markers, constellations and the gold, ice and 
 | wind, "Blown off course" | solar current, "Caught a current" | `wind` → `current` |
 | eddy | gravity well | `eddy` → `well` |
 | "Splash" (a miss) | "Wide!" | |
+| cannonball (a shot in flight) | slug | `cannonball` → `slug` |
+| "Sail the plot" | "Fly the plot" | `battle.sail_now` → `battle.fly_now` |
 | "They're over the rail!" | "They're through the airlock!" | |
 | open water with a reef, the narrows, the maelstrom | an open rock field, the Narrows, the Whirl | |
 
@@ -152,7 +155,7 @@ The sparks, stars, comets, rings, markers, constellations and the gold, ice and 
 | wrack | scrap | `wrack` → `scrap`; `wrackMatchPermille` → `scrapMatchPermille` |
 | cutlass, sabre, dirk | plasma cutlass, arc sabre, vibro-dirk | ids stay `cutlass`, `sabre`, `dirk` |
 | Sea, Kelp (block colors) | Cobalt, Lime | `sea` → `cobalt`; `kelp` → `lime` |
-| at the rail, "To the rail" | at the airlock, "To the airlock" | |
+| at the rail, "To the rail" | at the airlock, "To the airlock" | `wasAtRail` → `wasAtAirlock` |
 
 ## The ship
 
@@ -160,12 +163,13 @@ The sparks, stars, comets, rings, markers, constellations and the gold, ice and 
 |---|---|---|
 | sloop | skiff | `sloop` → `skiff` |
 | bilge (the meter) | heat | `waterIntakePerTurn` → `heatIntakePerTurn`; `waterIntakeAtFullDamage` → `heatIntakeAtFullDamage`; `pumpPerTurn` → `ventPerTurn`; `waterSlow` → `heatSlow` |
-| sails (speed) | drive | `sailSpeed` → `driveSpeed` |
+| sails (speed) | drive | `sailSpeed` → `driveSpeed`; `atSails` → `atDrive` |
 | cannons (the meter, the class) | turrets | `cannons` → `turrets` |
 | wheel, "At the wheel", "Hand over the wheel" | helm, "At the helm", "Hand over the helm" | `wheel` → `helm` |
-| set sail | launch | `setSail` → `launch` |
+| set sail | launch | `setSail` → `launch`; the `sail` move and `ship.sail` message → `launch`; the `sailed` event → `launched` |
+| sail, sailing (a ship travelling) | fly, flying | `sailVoyage` → `flyVoyage`; `phase_sailing` → `phase_flying`; `ship.sail_minutes` → `ship.flight_minutes` |
 | at sea | out in the black (under way stays) | `atSea` → `inFlight` |
-| ashore, go ashore | on the outpost, disembark | `ashore` → `onOutpost` |
+| ashore, go ashore | on the outpost, disembark | `ashore` → `onOutpost` (`on-outpost` as a kind); go ashore → `disembark` |
 | "lost overboard" | "drifted off" | |
 | "Land ho!", made port | "Touchdown!", docked | |
 | quarterdeck | bridge | |
@@ -173,8 +177,8 @@ The sparks, stars, comets, rings, markers, constellations and the gold, ice and 
 | the pump (port side) | heat sinks | |
 | carpenter's bench | patch bay | |
 | guns run out at the rails | turrets | |
-| gangway port | airlock | |
-| gangplank | boarding tube | |
+| gangway port | airlock | `gangway` → `airlock` |
+| gangplank | boarding tube | `gangplank` → `boardingTube` |
 | mast; flag at the masthead | antenna mast; flag on the antenna | |
 | mainsail, with the crew emblem | tail fin, with the crew emblem | |
 | wake | engine glow | |
@@ -184,9 +188,9 @@ The sparks, stars, comets, rings, markers, constellations and the gold, ice and 
 
 | Former | Now | Identifier |
 |---|---|---|
-| deckhand, mate, ship's hand | bot | `mate` → `bot`; `mateOutput` → `botOutput`; `mateStations` → `botStations`; `mateRestTurns` → `botRestTurns` |
-| signed on | booted up | |
-| paid off | powered down | |
+| deckhand, mate, ship's hand | bot | `mate` → `bot`; `mateOutput` → `botOutput`; `mateStations` → `botStations`; `mateRestTurns` → `botRestTurns`; ids `mate:<n>` → `bot:<n>` |
+| signed on | booted up | the `hired` event → `booted_up` |
+| paid off | powered down | the `paid_off` event → `powered_down` |
 | smock, kerchief and a coil of rope | a small round robot with one lamp eye and a tool arm | |
 | names from the pirate lists | a bot name and a unit number: Gasket-7 | |
 
@@ -313,11 +317,27 @@ The tables above give the identifier for each word. Beyond them:
   - `pirate.coat.`, `pirate.hat.` → `pirate.jacket.`, `pirate.headgear.`
   - `ship.mate` → `ship.bot`
   - title, tier and emblem keys follow their ids
+  - placeholders in a message follow the variable they name (`{island}` → `{outpost}`,
+    `{brigand}` → `{raider}`, `{coins}` → `{credits}`, ...); the text around them waits for the
+    words PR
 - **Ship rules**: the keys of `outputCapPercent` follow the puzzle ids. Every key not listed above
   stays (`turnSeconds`, `wearPerTurn`, `repairPerTurn`, `loadPerTurn`, `navTokens`, ...).
 - **Database**: every table is emptied, sign-ins included (ADR 0034). With nothing to keep,
   columns and stored values take their new names directly (`voyage.route_id` → `lane_id`, the
   ledger's `booty` kind → `plunder`, the look's `coat` and `hat` → `jacket` and `headgear`), and no
   data is mapped.
+- **Sprites**: each atlas is named by its puzzle id (`cooling.webp`, ...) and each frame by the
+  piece's identifier (`bolt`, `turret-jammed`, `tin-h`, ...). The art inside waits for the sprite
+  pass, so a frame may be named for a piece it does not look like yet.
+- **Tests**: where a test's `mate` was a second pirate rather than a deckhand, it is `crewmate`.
+- **Kept on purpose**:
+  - Three puzzle engines' PRNG salts keep their old strings (`bilging:`, `sailing:` and
+    `carpentry:` in each `reduce.ts`). A new salt would deal a different board from the same
+    seed, and the rename changes no behaviour.
+  - Scenery that has no identifier in the tables above (the sea shader, clouds, gulls, the beach,
+    palms, cottages, the mast, mainsail, rigging and wake, the bots' smock and kerchief) keeps its
+    code names until the world PR that redraws it. Comments in art files keep describing what is
+    drawn.
+  - Visible text, including what the smoke tests assert, changes in the words PR.
 - **Kept for now**: `openseas`, the package scope `@openseas/*`, the domains and the hosting
   projects keep their names until the game's real name is chosen.
