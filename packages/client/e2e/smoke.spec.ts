@@ -366,7 +366,8 @@ test("from the chart to an island, aboard, to sea, to a board and back ashore, i
 
   // Taking a deckhand's station spot opens its board over the deck; the hand steps aside, a board is dealt at once and takes a swap.
   await tapSpot(page, '[data-station="bilging"]');
-  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "station");
+  // The pirate walks over first; a software-rendered runner can be slow about it.
+  await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "station", { timeout: 15_000 });
   await expect.poll(() => server.ship()?.hands.find((h) => h.pirateId === "mate:2")?.station === null).toBe(true);
   await expect(page.getByTestId("station-view-bilging")).toBeVisible();
   await expect(page.getByTestId("duty-board-wrap")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
@@ -530,6 +531,25 @@ test("setting sail from a station's board goes straight back to it, and a hail t
 
 // ---- walking (M5, ADR 0032)
 
+/** Every label hung on the world (spots and their pins, name tags, ship names) that sits over the player's own pirate. */
+async function labelsOverPlayer(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const world = document.querySelector('[data-testid="world"]') as HTMLElement | null;
+    const box = world?.dataset.meBox?.split(",").map(Number);
+    if (!world || !box || box.length !== 4) return [];
+    const host = world.getBoundingClientRect();
+    const [x0, y0, x1, y1] = [box[0]! + host.left, box[1]! + host.top, box[2]! + host.left, box[3]! + host.top];
+    const over: string[] = [];
+    for (const el of Array.from(world.querySelectorAll<HTMLElement>(".ow-spot, .ow-pin, .ow-tag, .ow-label"))) {
+      if (el.offsetParent === null) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0) continue;
+      if (r.left < x1 && x0 < r.right && r.top < y1 && y0 < r.bottom) over.push(el.textContent ?? "");
+    }
+    return over;
+  });
+}
+
 /** Where the world says the pirate stands, as numbers. */
 async function standing(page: Page): Promise<[number, number]> {
   const at = (await page.getByTestId("world").getAttribute("data-me")) ?? "";
@@ -622,10 +642,18 @@ test("ashore the pirate walks among others: a tap walks, a walk is heard, a name
   if (await page.getByTestId("island-back").isVisible()) await page.getByTestId("island-back").click();
   if ((await page.getByTestId("sheet").getAttribute("data-open")) === "1") await page.getByTestId("sheet-toggle").click();
 
+  // No label ever covers the player's own pirate.
+  await expect.poll(() => labelsOverPlayer(page)).toEqual([]);
+
   // Tapping the sloop walks down the dock and aboard; on deck the pirate walks too.
   await page.locator('[data-ship="ship-1"]').click({ force: true });
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck", { timeout: 15_000 });
   await expect(world).toHaveAttribute("data-walk", "ship:ship-1");
+  // Aboard, the view starts in close on the pirate; the stations off screen wait at its edges, pointing
+  // the way, and still no label covers the pirate.
+  await expect(world).toHaveAttribute("data-walking", "0", { timeout: 10_000 });
+  await expect.poll(() => page.locator(".ow-spot[data-edge]").count(), { timeout: 10_000 }).toBeGreaterThan(0);
+  await expect.poll(() => labelsOverPlayer(page)).toEqual([]);
   // Docked, the gangway leads off: the pirate walks to it and is ashore again, at the foot of the gangplank.
   await tapSpot(page, '[data-gangway="1"]');
   await expect.poll(() => server.ship()!.got.some((m) => m.type === "ship.leave"), { timeout: 10_000 }).toBe(true);

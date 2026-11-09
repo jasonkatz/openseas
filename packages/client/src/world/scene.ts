@@ -171,6 +171,8 @@ interface Spot {
   line: SVGLineElement;
   /** How far the label's box sits above its anchor (its CSS top margin), read once it is drawn. */
   lift?: number;
+  /** Which place beside its pin the label took last, kept while it stays free so labels do not hop. */
+  option?: number;
 }
 
 interface Lane {
@@ -430,7 +432,8 @@ export class WorldScene {
     }
     this.host.classList.toggle("is-dimmed", input.dimmed);
     this.host.classList.toggle("is-walking", this.walkFocus() !== null);
-    if (focusChanged) this.zoom = 1;
+    // Aboard, the view starts in close on the pirate; anywhere else it starts on the whole place.
+    if (focusChanged) this.zoom = input.focus.kind === "ship" && input.deck?.shipId === input.focus.id ? DECK_ZOOM_MIN : 1;
     this.updateView(first || focusChanged ? first : false);
     if (!this.running || this.reducedMotion) this.render(0);
   }
@@ -1152,30 +1155,71 @@ export class WorldScene {
   }
 
   /** Project spots to the screen, keep their labels apart, and draw a leader from each pin to its label. */
-  private placeSpots(spots: { spot: Spot; world: THREE.Vector3 }[]): void {
+  private placeSpots(spots: { spot: Spot; world: THREE.Vector3; still?: THREE.Vector3 }[]): void {
     const w = this.host.clientWidth;
     const h = this.host.clientHeight;
     const cam = this.rig.camera;
-    const items = spots.map(({ spot, world }) => {
+    const insets = this.input?.insets ?? { top: 0, bottom: 0, left: 0, right: 0 };
+    // Where labels may stand: clear of the top bar and the card.
+    const area: ScreenBox = { x0: w * insets.left + 4, y0: h * insets.top + 4, x1: w * (1 - insets.right) - 4, y1: h * (1 - insets.bottom) - 4 };
+    const items = spots.map(({ spot, world, still }) => {
       this.tmp.copy(world).project(cam);
+      const x = (this.tmp.x * 0.5 + 0.5) * w;
+      const y = (-this.tmp.y * 0.5 + 0.5) * h;
+      // Where the thing is on the ship's steady frame, without the bob: what decides on screen or off,
+      // and where an edge label waits, so neither hops with the swell.
+      this.tmp.copy(still ?? world).project(cam);
+      const sx = (this.tmp.x * 0.5 + 0.5) * w;
+      const sy = (-this.tmp.y * 0.5 + 0.5) * h;
       if (spot.lift === undefined && spot.el.offsetHeight) spot.lift = -parseFloat(getComputedStyle(spot.el).marginTop || "0") || 0;
-      return { spot, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h, bw: spot.el.offsetWidth || SPOT_W, bh: spot.el.offsetHeight || SPOT_H, lift: spot.lift ?? 14 };
+      return { spot, x, y, sx, sy, bw: spot.el.offsetWidth || SPOT_W, bh: spot.el.offsetHeight || SPOT_H, lift: spot.lift ?? 14 };
     });
-    type Box = { x0: number; y0: number; x1: number; y1: number };
-    const hits = (a: Box, b: Box): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
-    // Every pin is something a label must not cover.
-    const pins: (Box & { owner: Spot })[] = items.map((p) => ({ owner: p.spot, x0: p.x - 10, y0: p.y - 10, x1: p.x + 10, y1: p.y + 10 }));
-    const taken: Box[] = [];
-    const boxOf = (p: (typeof items)[number], flip: boolean, ly: number): Box => {
-      const x0 = flip ? p.x - SPOT_DX - p.bw : p.x + SPOT_DX;
-      return { x0: x0 - 2, y0: ly - p.lift - 2, x1: x0 + p.bw + 2, y1: ly - p.lift + p.bh + 2 };
-    };
-    const clear = (p: (typeof items)[number], box: Box): boolean =>
-      box.x0 >= 4 && box.x1 <= w - 4 && box.y0 >= 4 && box.y1 <= h - 4 && !taken.some((t) => hits(t, box)) && !pins.some((q) => q.owner !== p.spot && hits(q, box));
-    items.sort((a, b) => a.y - b.y);
+    type Item = (typeof items)[number];
+    const inside = (p: Item): boolean => p.sx >= area.x0 && p.sx <= area.x1 && p.sy >= area.y0 && p.sy <= area.y1;
+    const playerAt = this.playerBox();
+    for (const p of items) p.y = pinClearOf(playerAt, p.x, p.y);
+    // Pins on screen, and the player, are things a label must not cover.
+    const pins: (ScreenBox & { owner: Spot })[] = items.filter(inside).map((p) => ({ owner: p.spot, x0: p.x - 10, y0: p.y - 10, x1: p.x + 10, y1: p.y + 10 }));
+    const player = this.playerBox();
+    // Whatever floats over the world (the card folded or open) marks itself; no label goes under it.
+    const host = this.host.getBoundingClientRect();
+    const covers: ScreenBox[] = Array.from(document.querySelectorAll<HTMLElement>("[data-world-avoid]"), (el) => {
+      const r = el.getBoundingClientRect();
+      return { x0: r.left - host.left, y0: r.top - host.top, x1: r.right - host.left, y1: r.bottom - host.top };
+    }).filter((r) => r.x1 > r.x0 && r.y1 > r.y0);
+    const taken: ScreenBox[] = [...covers];
+    const boxAt = (p: Item, x0: number, ly: number): ScreenBox => ({ x0: x0 - 2, y0: ly - p.lift - 2, x1: x0 + p.bw + 2, y1: ly - p.lift + p.bh + 2 });
+    const beside = (p: Item, flip: boolean, ly: number): ScreenBox => boxAt(p, flip ? p.x - SPOT_DX - p.bw : p.x + SPOT_DX, ly);
+    const free = (p: Item, box: ScreenBox): boolean =>
+      box.x0 >= area.x0 && box.x1 <= area.x1 && box.y0 >= area.y0 && box.y1 <= area.y1 && !taken.some((t) => overlaps(t, box)) && !pins.some((q) => q.owner !== p.spot && overlaps(q, box)) && !(player && overlaps(player, box));
+    const blocked = (box: ScreenBox): boolean => taken.some((t) => overlaps(t, box)) || Boolean(player && overlaps(player, box));
+    // Labels whose pins are on screen first, nearest the top first; the ones waiting at the edges after.
+    items.sort((a, b) => Number(!inside(a)) - Number(!inside(b)) || a.sy - b.sy || a.sx - b.sx);
     for (const p of items) {
+      const { spot } = p;
+      if (!inside(p)) {
+        // Its thing is off screen (zoomed in): the label waits at the edge nearest it, pointing the way.
+        const edge = p.sx < area.x0 ? "left" : p.sx > area.x1 ? "right" : p.sy < area.y0 ? "up" : "down";
+        let x0 = Math.max(area.x0 + 4, Math.min(area.x1 - 4 - p.bw, p.sx - p.bw / 2));
+        let ly = Math.max(area.y0 + 4 + p.lift, Math.min(area.y1 - 4 - p.bh + p.lift, p.sy));
+        // Slide along the edge past any label (or the player) already there.
+        for (let guard = 0; guard < 16 && blocked(boxAt(p, x0, ly)); guard++) {
+          if (edge === "left" || edge === "right") ly = ly + p.bh + 4 > area.y1 - p.bh + p.lift ? area.y0 + 4 + p.lift + guard * 8 : ly + p.bh + 4;
+          else x0 = x0 + p.bw + 6 > area.x1 - p.bw ? area.x0 + 4 + guard * 12 : x0 + p.bw + 6;
+        }
+        taken.push(boxAt(p, x0, ly));
+        spot.el.dataset.edge = edge;
+        spot.pin.classList.add("ow-offscreen");
+        spot.line.classList.add("ow-offscreen");
+        spot.el.classList.remove("is-flipped");
+        spot.el.style.transform = `translate(${x0.toFixed(1)}px, ${ly.toFixed(1)}px)`;
+        continue;
+      }
+      delete spot.el.dataset.edge;
+      spot.pin.classList.remove("ow-offscreen");
+      spot.line.classList.remove("ow-offscreen");
       // Beside the pin to the right, then the left, then above, then below; the first spot that covers
-      // no other label and no other pin wins. Failing all, step down past whatever is in the way.
+      // no other label, no other pin and not the player wins. Failing all, step down past what is in the way.
       const options: { flip: boolean; ly: number }[] = [
         { flip: false, ly: p.y + SPOT_DY },
         { flip: true, ly: p.y + SPOT_DY },
@@ -1184,22 +1228,25 @@ export class WorldScene {
         { flip: false, ly: p.y + 12 + p.lift },
         { flip: true, ly: p.y + 12 + p.lift },
       ];
-      let pick = options.find((o) => clear(p, boxOf(p, o.flip, o.ly)));
+      const kept = spot.option !== undefined ? options[spot.option] : undefined;
+      let pick = kept && free(p, beside(p, kept.flip, kept.ly)) ? kept : options.find((o) => free(p, beside(p, o.flip, o.ly)));
+      if (pick) spot.option = options.indexOf(pick);
+      else delete spot.option;
       if (!pick) {
-        const flip = p.x + SPOT_DX + p.bw > w - 8;
+        const flip = p.x + SPOT_DX + p.bw > area.x1 - 4;
         let ly = p.y + SPOT_DY;
-        for (let guard = 0; guard < 12 && taken.some((t) => hits(t, boxOf(p, flip, ly))); guard++) ly += p.bh * 0.5 + 2;
+        for (let guard = 0; guard < 16 && blocked(beside(p, flip, ly)); guard++) ly += p.bh * 0.5 + 2;
         pick = { flip, ly };
       }
-      taken.push(boxOf(p, pick.flip, pick.ly));
+      taken.push(beside(p, pick.flip, pick.ly));
       const lx = pick.flip ? p.x - SPOT_DX : p.x + SPOT_DX;
-      p.spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
-      p.spot.el.style.transform = `translate(${lx.toFixed(1)}px, ${pick.ly.toFixed(1)}px)${pick.flip ? " translate(-100%, 0)" : ""}`;
-      p.spot.el.classList.toggle("is-flipped", pick.flip);
-      p.spot.line.setAttribute("x1", p.x.toFixed(1));
-      p.spot.line.setAttribute("y1", p.y.toFixed(1));
-      p.spot.line.setAttribute("x2", lx.toFixed(1));
-      p.spot.line.setAttribute("y2", (pick.ly - p.lift + p.bh / 2).toFixed(1));
+      spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+      spot.el.style.transform = `translate(${lx.toFixed(1)}px, ${pick.ly.toFixed(1)}px)${pick.flip ? " translate(-100%, 0)" : ""}`;
+      spot.el.classList.toggle("is-flipped", pick.flip);
+      spot.line.setAttribute("x1", p.x.toFixed(1));
+      spot.line.setAttribute("y1", p.y.toFixed(1));
+      spot.line.setAttribute("x2", lx.toFixed(1));
+      spot.line.setAttribute("y2", (pick.ly - p.lift + p.bh / 2).toFixed(1));
     }
   }
 
@@ -1451,7 +1498,7 @@ varying float vWave;`,
     const raw = (now - this.lastFrameAt) / 1000;
     this.lastFrameAt = now;
     // Walks keep to the clock even when frames come slowly, so a walk always ends on time.
-    this.render(this.reducedMotion ? 0 : Math.min(0.1, raw), Math.min(0.35, raw));
+    this.render(this.reducedMotion ? 0 : Math.min(0.1, raw), Math.min(0.5, raw));
     this.frame = requestAnimationFrame(this.loop);
   };
 
@@ -1639,12 +1686,27 @@ varying float vWave;`,
       shipLabels.push({ el: sv.label, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h });
     }
     shipLabels.sort((a, b) => a.y - b.y);
+    const playerBox = this.playerBox();
+    const insets = this.input?.insets ?? { top: 0, bottom: 0, left: 0, right: 0 };
     for (let i = 0; i < shipLabels.length; i++) {
       const p = shipLabels[i]!;
       for (let j = 0; j < i; j++) {
         const q = shipLabels[j]!;
         if (Math.abs(q.x - p.x) < (q.el.offsetWidth + p.el.offsetWidth) / 2 + 6 && p.y - q.y < 26) p.y = q.y + 26;
       }
+      // A ship's name hangs from its point; one over the player drops below them.
+      const half = p.el.offsetWidth / 2;
+      if (playerBox && overlaps(playerBox, { x0: p.x - half, y0: p.y, x1: p.x + half, y1: p.y + p.el.offsetHeight })) p.y = playerBox.y1 + 2;
+      // The player's own ship to board waits at the screen's edge when she is off it, pointing the way.
+      const area = { x0: w * insets.left + 8, y0: h * insets.top + 8, x1: w * (1 - insets.right) - 8, y1: h * (1 - insets.bottom) - 8 };
+      if (p.el.classList.contains("ow-label-board")) {
+        const off = p.x < area.x0 + half ? "left" : p.x > area.x1 - half ? "right" : p.y < area.y0 ? "up" : p.y > area.y1 - p.el.offsetHeight ? "down" : null;
+        if (off) {
+          p.x = Math.max(area.x0 + half, Math.min(area.x1 - half, p.x));
+          p.y = Math.max(area.y0, Math.min(area.y1 - p.el.offsetHeight, p.y));
+          p.el.dataset.edge = off;
+        } else delete p.el.dataset.edge;
+      } else delete p.el.dataset.edge;
       p.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
     }
     const focus = this.input?.focus;
@@ -1675,6 +1737,7 @@ varying float vWave;`,
       const beside = zoomedIn || !this.placeCallouts(deckSpots);
       // Beside their pins the labels go compact: the station's name, its state in the label's ring.
       this.labels.classList.toggle("ow-compact", beside);
+      // Deck spots carry their steady points too, so labels at the edge hold still while the hull bobs.
       if (beside) this.placeSpots(deckSpots);
     } else {
       this.labels.classList.remove("ow-compact");
@@ -1700,14 +1763,36 @@ varying float vWave;`,
       shown.push({ el: wv.tag, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h });
     }
     shown.sort((a, b) => a.y - b.y);
+    const player = this.playerBox();
     for (let i = 0; i < shown.length; i++) {
       const p = shown[i]!;
       for (let j = 0; j < i; j++) {
         const q = shown[j]!;
         if (Math.abs(q.x - p.x) < (q.el.offsetWidth + p.el.offsetWidth) / 2 + 4 && p.y - q.y < 20) p.y = q.y + 20;
       }
+      // A tag stands centered over its point and above it; one that would cover the player rises clear.
+      const half = p.el.offsetWidth / 2;
+      if (player && overlaps(player, { x0: p.x - half, y0: p.y - p.el.offsetHeight, x1: p.x + half, y1: p.y })) p.y = player.y0 - 2;
       p.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
     }
+  }
+
+  /** Where the player's own pirate is on screen, ring to hat, with a little room: no label may cover it. */
+  private playerBox(): ScreenBox | null {
+    const me = this.walkFocus();
+    if (!me || !me.figure.group.visible) return null;
+    const w = this.host.clientWidth;
+    const h = this.host.clientHeight;
+    const cam = this.rig.camera;
+    const feet = me.figure.group.getWorldPosition(new THREE.Vector3());
+    const head = feet.clone().add(new THREE.Vector3(0, PIRATE_HEIGHT * 1.15, 0));
+    feet.project(cam);
+    head.project(cam);
+    const fy = (-feet.y * 0.5 + 0.5) * h;
+    const hy = (-head.y * 0.5 + 0.5) * h;
+    const x = (feet.x * 0.5 + 0.5) * w;
+    const half = Math.max(16, (fy - hy) * 0.5);
+    return { x0: x - half, y0: hy - 6, x1: x + half, y1: fy + 8 };
   }
 
   /** What the world says about walking on its host, for the shell and its smoke test. */
@@ -1718,7 +1803,9 @@ varying float vWave;`,
       me.figure.group.getWorldPosition(this.tmp).project(this.rig.camera);
       screen = `${Math.round((this.tmp.x * 0.5 + 0.5) * this.host.clientWidth)},${Math.round((-this.tmp.y * 0.5 + 0.5) * this.host.clientHeight)}`;
     }
-    const key = me ? `${me.scope}:${me.placeId}|${me.walker.x.toFixed(2)},${me.walker.z.toFixed(2)}|${me.walker.moving ? 1 : 0}|${screen}|${me.inside ?? ""}` : "";
+    const box = this.playerBox();
+    const boxKey = box ? [box.x0, box.y0, box.x1, box.y1].map((v) => Math.round(v)).join(",") : "";
+    const key = me ? `${me.scope}:${me.placeId}|${me.walker.x.toFixed(2)},${me.walker.z.toFixed(2)}|${me.walker.moving ? 1 : 0}|${screen}|${me.inside ?? ""}|${boxKey}` : "";
     if (key === this.dataKey) return;
     this.dataKey = key;
     const d = this.host.dataset;
@@ -1728,6 +1815,8 @@ varying float vWave;`,
     d.meScreen = screen;
     d.walking = me?.walker.moving ? "1" : "0";
     d.inside = me?.inside ?? "";
+    // The box no label may cover: the pirate, ring to hat.
+    d.meBox = boxKey;
   }
 
   /** Keep the sun's shadows sharp where the eye is: tight on a pirate or a deck, wide over the chart. */
@@ -1776,6 +1865,7 @@ varying float vWave;`,
     const cam = this.rig.camera;
     const insets = this.input?.insets ?? { top: 0, bottom: 0, left: 0, right: 0 };
     const pins: { spot: Spot; x: number; y: number; sx: number; sy: number }[] = [];
+    const playerAt = this.playerBox();
     let minX = Infinity;
     let maxX = -Infinity;
     let maxWidth = 0;
@@ -1787,7 +1877,7 @@ varying float vWave;`,
       this.tmp.copy(still).project(cam);
       const sx = (this.tmp.x * 0.5 + 0.5) * w;
       const sy = (-this.tmp.y * 0.5 + 0.5) * h;
-      pins.push({ spot, x, y, sx, sy });
+      pins.push({ spot, x, y: pinClearOf(playerAt, x, y), sx, sy });
       minX = Math.min(minX, sx);
       maxX = Math.max(maxX, sx);
       maxWidth = Math.max(maxWidth, spot.el.offsetWidth);
@@ -1818,6 +1908,7 @@ varying float vWave;`,
     const gap = Math.max(30, maxHeight + 6);
     const top = h * insets.top + 24;
     const bottom = h * (1 - insets.bottom) - 24;
+    const laid: { p: (typeof pins)[number]; col: number; ly: number; right: boolean }[] = [];
     for (const side of sides) {
       if (side.pins.length === 0) continue;
       const colPins = side.pins.sort((a, b) => a.sy - b.sy);
@@ -1827,16 +1918,28 @@ varying float vWave;`,
       const meanY = colPins.reduce((n, p) => n + p.sy, 0) / colPins.length;
       let y0 = meanY - ((colPins.length - 1) * gap) / 2;
       y0 = Math.max(top, Math.min(bottom - (colPins.length - 1) * gap, y0));
-      colPins.forEach((p, i) => {
-        const ly = y0 + i * gap;
-        p.spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
-        p.spot.el.style.transform = `translate(${col.toFixed(1)}px, ${ly.toFixed(1)}px)${side.right ? "" : " translate(-100%, 0)"}`;
-        p.spot.el.classList.toggle("is-flipped", !side.right);
-        p.spot.line.setAttribute("x1", p.x.toFixed(1));
-        p.spot.line.setAttribute("y1", p.y.toFixed(1));
-        p.spot.line.setAttribute("x2", col.toFixed(1));
-        p.spot.line.setAttribute("y2", (ly + 14).toFixed(1));
-      });
+      colPins.forEach((p, i) => laid.push({ p, col, ly: y0 + i * gap, right: side.right }));
+    }
+    // A column may never cover the player; if one would, the labels hang beside their pins instead.
+    const player = this.playerBox();
+    if (player) {
+      for (const { p, col, ly, right } of laid) {
+        const bw = p.spot.el.offsetWidth;
+        const x0 = right ? col : col - bw;
+        if (overlaps(player, { x0, y0: ly - 14, x1: x0 + bw, y1: ly - 14 + p.spot.el.offsetHeight })) return false;
+      }
+    }
+    for (const { p, col, ly, right } of laid) {
+      p.spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+      p.spot.el.style.transform = `translate(${col.toFixed(1)}px, ${ly.toFixed(1)}px)${right ? "" : " translate(-100%, 0)"}`;
+      p.spot.el.classList.toggle("is-flipped", !right);
+      delete p.spot.el.dataset.edge;
+      p.spot.pin.classList.remove("ow-offscreen");
+      p.spot.line.classList.remove("ow-offscreen");
+      p.spot.line.setAttribute("x1", p.x.toFixed(1));
+      p.spot.line.setAttribute("y1", p.y.toFixed(1));
+      p.spot.line.setAttribute("x2", col.toFixed(1));
+      p.spot.line.setAttribute("y2", (ly + 14).toFixed(1));
     }
     return true;
   }
@@ -2065,6 +2168,15 @@ varying float vWave;`,
     this.zoom = deck ? Math.max(DECK_ZOOM_MIN, Math.min(DECK_ZOOM_MAX, z)) : Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
   }
 }
+
+/** A box on screen, in the world's own pixels. */
+type ScreenBox = { x0: number; y0: number; x1: number; y1: number };
+
+const overlaps = (a: ScreenBox, b: ScreenBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+/** A pin that would sit on the player (standing at its station) hops up over their hat instead. */
+const pinClearOf = (player: ScreenBox | null, x: number, y: number): number =>
+  player && x > player.x0 - 9 && x < player.x1 + 9 && y > player.y0 - 9 && y < player.y1 + 9 ? player.y0 - 12 : y;
 
 type WalkPick =
   | { kind: "pirate"; id: string }

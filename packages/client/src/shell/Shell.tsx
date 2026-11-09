@@ -561,7 +561,7 @@ export function Shell() {
       <World input={input} events={events} />
       <TopBar onMenu={() => setMenuOpen(true)} onMap={onMap} onChart={place.kind === "chart"} />
       {ship && !stationOpen && !battleOpen && !meleeOpen && <HailBanner ship={ship} me={me} />}
-      <aside className={`sheet ${sheetOpen ? "is-open" : ""}`} data-testid="sheet" data-open={sheetOpen ? "1" : "0"}>
+      <aside className={`sheet ${sheetOpen ? "is-open" : ""}`} data-testid="sheet" data-open={sheetOpen ? "1" : "0"} data-world-avoid="">
         <div className="sheet-head">
           {head.back && (
             <button className="icon-btn sheet-back" onClick={head.back.onClick} aria-label={t("app.back")} data-testid={head.back.testId}>

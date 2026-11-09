@@ -119,6 +119,23 @@ body {
   color: var(--brass);
   font-weight: 700;
 }
+/* Off screen, the player's ship to board waits at the edge with an arrow toward her. */
+.ow-label-board[data-edge]::before {
+  color: var(--brass);
+  font-weight: 700;
+}
+.ow-label-board[data-edge="left"]::before {
+  content: "← ";
+}
+.ow-label-board[data-edge="right"]::before {
+  content: "→ ";
+}
+.ow-label-board[data-edge="up"]::before {
+  content: "↑ ";
+}
+.ow-label-board[data-edge="down"]::before {
+  content: "↓ ";
+}
 .ow-label-board {
   color: var(--parchment);
   background: var(--ink-glass);
@@ -236,6 +253,36 @@ body {
 }
 .ow-compact .ow-spot-station.is-taken .ow-spot-name {
   opacity: 0.75;
+}
+
+/* A spot whose thing is off screen (zoomed in) waits at the edge nearest it, with an arrow the way. */
+.ow-pin.ow-offscreen,
+.ow-leader.ow-offscreen {
+  display: none;
+}
+.ow-spot[data-edge] .ow-spot-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ow-spot[data-edge] .ow-spot-name::after {
+  font-family: var(--font-body);
+  font-weight: 700;
+  color: var(--brass);
+}
+.ow-spot[data-edge="left"] .ow-spot-name::after {
+  content: "←";
+  order: -1;
+}
+.ow-spot[data-edge="up"] .ow-spot-name::after {
+  content: "↑";
+  order: -1;
+}
+.ow-spot[data-edge="right"] .ow-spot-name::after {
+  content: "→";
+}
+.ow-spot[data-edge="down"] .ow-spot-name::after {
+  content: "↓";
 }
 
 /* A pirate's name over their head where the player walks: small, and a way to their card. */
