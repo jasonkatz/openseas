@@ -68,7 +68,7 @@ export async function applyAutomaticGrants(
       if (already) continue;
     }
     const [adjective, noun] = pirateName.split(" ");
-    const shipName = msg(content, "ship.default_name", { adjective: adjective ?? "Salty", noun: noun ?? "Gull" });
+    const shipName = msg(content, "ship.default_name", { adjective: adjective ?? "Static", noun: noun ?? "Comet" });
     await purchaseShip(tx, content, pirateId, grant.shipClassId, grant.price, grant.id, shipName, outpostId);
     granted.push(grant.id);
   }
@@ -89,8 +89,8 @@ export async function buyShip(
 ): Promise<{ shipId: string; name: string; balance: number }> {
   const shipClass = content.world.shipClasses.find((c) => c.id === classId);
   if (!shipClass) throw new NoSuchClassError(classId);
-  const adjective = content.names.adjectives[pick(content.names.adjectives.length)] ?? "Salty";
-  const noun = content.names.nouns[pick(content.names.nouns.length)] ?? "Gull";
+  const adjective = content.names.adjectives[pick(content.names.adjectives.length)] ?? "Static";
+  const noun = content.names.nouns[pick(content.names.nouns.length)] ?? "Comet";
   const name = msg(content, "ship.default_name", { adjective, noun });
   return db.transaction(async (tx) => {
     const r = await purchaseShip(tx, content, pirateId, classId, shipClass.price, null, name, outpostId);

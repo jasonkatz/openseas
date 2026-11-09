@@ -446,21 +446,21 @@ test("with a server that wants an invite code, the home signs the pirate in and 
 /** A lane where the given raider always hails, as the voyage page's query string carries it. */
 const alwaysHailed = (tier: string): string => `w.lane.encounterChance=1&w.lane.raiders=${encodeURIComponent(JSON.stringify([{ tierId: tier, weight: 1 }]))}`;
 
-test("the voyage bench flies a crew to port, charts the ship and proves the replay", async ({ page }) => {
+test("the voyage bench flies a crew to its dock, charts the ship and proves the replay", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("tile-voyage").click();
   await expect(page).toHaveURL(/\/voyage/);
   await expect(page.getByTestId("voyage-crew")).toBeVisible();
   // Three pirates aboard a skiff that wants four: one bot boots up.
-  await expect(page.getByTestId("voyage-bots")).toContainText("1 deckhands sign on");
+  await expect(page.getByTestId("voyage-bots")).toContainText("1 bots boot up");
   await page.getByTestId("voyage-step").click();
   await expect(page.getByTestId("voyage-turn")).toHaveText("1");
-  await page.getByTestId("voyage-to-port").click();
+  await page.getByTestId("voyage-to-end").click();
   await expect(page.getByTestId("voyage-summary")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("voyage-phase")).toHaveAttribute("data-phase", "arrived");
   await expect(page.getByTestId("vchart-progress")).toBeVisible();
   await expect(page.getByTestId("vchart-outputs")).toBeVisible();
-  await expect(page.getByTestId("voyage-log")).toContainText("Made port");
+  await expect(page.getByTestId("voyage-log")).toContainText("Docked");
   await expect(page.getByTestId("voyage-proof-result")).toHaveAttribute("data-ok", "1");
 });
 
@@ -468,7 +468,7 @@ test("the voyage bench stops for the tester's plot when they have the helm", asy
   // Desktop only, as the practice battle: the phone profile drives the same board.
   test.skip(testInfo.project.name === "phone", "the desktop run covers the board");
   await page.goto(`/voyage?helm=you&${alwaysHailed("junker")}`);
-  await page.getByTestId("voyage-to-port").click();
+  await page.getByTestId("voyage-to-end").click();
   await expect(page.getByTestId("voyage-your-plot")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("battle-canvas")).toBeVisible();
   // Keyboard, as on the practice page: forward, forward with the port guns, fly.
@@ -480,7 +480,7 @@ test("the voyage bench stops for the tester's plot when they have the helm", asy
   await expect(page.getByTestId("voyage-log")).toContainText("plotted by you");
   // The AI takes the rest of the fight, and the voyage flies on to its end.
   for (let i = 0; i < 40 && (await page.getByTestId("voyage-ai-plot").count()) > 0; i++) await page.getByTestId("voyage-ai-plot").click();
-  if (await page.getByTestId("voyage-to-port").isEnabled()) await page.getByTestId("voyage-to-port").click();
+  if (await page.getByTestId("voyage-to-end").isEnabled()) await page.getByTestId("voyage-to-end").click();
   await expect(page.getByTestId("voyage-proof-result")).toHaveAttribute("data-ok", "1", { timeout: 30_000 });
   await expect(page.getByTestId("voyage-battle")).toContainText("you 1");
 });

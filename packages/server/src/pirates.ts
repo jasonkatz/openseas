@@ -14,6 +14,12 @@ export function randomPirateName(content: Content, pick: (n: number) => number =
   return `${a} ${n}`;
 }
 
+/** A bot's name: one from the bot list and a unit number, "Gasket-7". No pirate's name looks like it. */
+export function randomBotName(content: Content, pick: (n: number) => number = randomInt): string {
+  const name = content.names.bots[pick(content.names.bots.length)]!;
+  return `${name}-${1 + pick(99)}`;
+}
+
 /** A request about the pirate's own sheet refused. The code is sent to the client as is. */
 export class PirateError extends Error {
   constructor(readonly code: ErrorCode) {

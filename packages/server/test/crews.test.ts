@@ -35,8 +35,8 @@ describe("social providers", () => {
 
 describe("crew names", () => {
   it("fold to one key whatever the case and spacing", () => {
-    expect(crewNameKey("  The  Salt Dogs ")).toBe("the salt dogs");
-    expect(crewNameKey("THE SALT DOGS")).toBe(crewNameKey("the salt dogs"));
+    expect(crewNameKey("  The  Rust Comets ")).toBe("the rust comets");
+    expect(crewNameKey("THE RUST COMETS")).toBe(crewNameKey("the rust comets"));
   });
 });
 
@@ -99,7 +99,7 @@ describeDb("crews over the wire", () => {
 
     const rich = await pirate(fee + 100);
     const a = await connect(rich.cookie);
-    const name = unique("The Salt Dogs");
+    const name = unique("The Rust Comets");
     a.send({ type: "crew.found", name: "x", flag });
     expect(await a.until("error")).toMatchObject({ code: "crew_name_bad" });
     a.send({ type: "crew.found", name, flag: { ...flag, accent: "deep" } });
@@ -314,7 +314,7 @@ describeDb("crews over the wire", () => {
     const cap = await pirate(fee);
     const guest = await pirate();
     const a = await connect(cap.cookie);
-    const name = unique("Old Salts");
+    const name = unique("Old Stardusts");
     a.send({ type: "crew.found", name, flag });
     const crewId = (await a.until("crew.state", (m) => m.crew !== null)).crew!.id;
     a.send({ type: "crew.invite", name: guest.me.name });

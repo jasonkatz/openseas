@@ -14,11 +14,22 @@ import { schema } from "../src/db/index.js";
 import { loadEnv } from "../src/env.js";
 import { appendLedger } from "../src/ledger.js";
 import { createLogger } from "../src/log.js";
-import { titleProgress } from "../src/pirates.js";
+import { randomBotName, randomPirateName, titleProgress } from "../src/pirates.js";
 import { Client } from "./client.js";
 
 const url = process.env.TEST_DATABASE_URL;
 const describeDb = url ? describe : describe.skip;
+
+describe("names", () => {
+  it("a pirate is an adjective and a noun; a bot is a bot's name and a unit number", () => {
+    const content = loadContent();
+    const first = (): number => 0;
+    expect(randomPirateName(content, first)).toBe(`${content.names.adjectives[0]} ${content.names.nouns[0]}`);
+    expect(randomBotName(content, first)).toBe(`${content.names.bots[0]}-1`);
+    const last = (n: number): number => n - 1;
+    expect(randomBotName(content, last)).toBe(`${content.names.bots.at(-1)}-99`);
+  });
+});
 
 describe("title progress", () => {
   const content = loadContent();

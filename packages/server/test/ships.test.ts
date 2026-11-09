@@ -275,13 +275,13 @@ describeDb("ships over the wire", () => {
     expect(launched.ship.location).toMatchObject({ kind: "in-flight", laneId: "tinwick-echo-rock", from: start, to: "echo-rock", progress: 0 });
     await b.until("ship.state", (m) => m.ship.location.kind === "in-flight");
     // Two pirates short of the skiff's four, so two bots booted up at the open stations the
-    // class lists first (DESIGN.md 3.4), named like pirates but flagged, and never in the database.
+    // class lists first (DESIGN.md 3.4), named as bots are and flagged, and never in the database.
     const skiff = content.world.shipClasses.find((c) => c.id === "skiff")!;
     const hands = launched.ship.crew.filter((c) => c.bot);
     expect(hands).toHaveLength(skiff.minCrew - 2);
     expect(hands.map((h) => h.station)).toEqual(skiff.botStations.filter((st) => st !== "cooling" && st !== "engines").slice(0, hands.length));
     for (const h of hands) {
-      expect(h.name).toMatch(/^\S+ \S+$/);
+      expect(h.name).toMatch(/^[A-Z][a-z]+-\d+$/);
       expect(h.captain).toBe(false);
       expect([owner.me.name, crewmate.me.name]).not.toContain(h.name);
     }

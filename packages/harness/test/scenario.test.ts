@@ -107,5 +107,9 @@ describe("presets", () => {
       }
       expect(new Set(presets.map((p) => p.id)).size).toBe(presets.length);
     });
+    it(`${id}: every preset has its name in the message table`, () => {
+      // The bench shows `harness.preset.<id>`; a preset renamed without its message would show the key.
+      for (const p of PRESETS[id]) expect(content.messages, p.id).toHaveProperty([`harness.preset.${p.id}`]);
+    });
   }
 });

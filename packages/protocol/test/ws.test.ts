@@ -70,13 +70,13 @@ describe("ship protocol", () => {
   it("a snapshot names every station's output and where the ship is", () => {
     const ship = {
       shipId: "ship-1",
-      name: "The Salty Gull",
+      name: "The Static Comet",
       classId: "skiff",
       ownerId: "p1",
       captainId: "p1",
       crew: [
-        { pirateId: "p1", name: "Salty Gull", station: "engines", captain: true, away: false, bot: false, crewId: "c1" },
-        { pirateId: "bot:1", name: "Brackish Eel", station: "cooling", captain: false, away: false, bot: true, crewId: null },
+        { pirateId: "p1", name: "Static Comet", station: "engines", captain: true, away: false, bot: false, crewId: "c1" },
+        { pirateId: "bot:1", name: "Gasket-7", station: "cooling", captain: false, away: false, bot: true, crewId: null },
       ],
       maxCrew: 6,
       inviteOnly: false,
@@ -91,14 +91,14 @@ describe("ship protocol", () => {
       turnMs: 10000,
       voyagesCompleted: 0,
       melee: null,
-      colors: { id: "c1", name: "The Gulls", flag: { field: "pitch", accent: "bone", pattern: "plain", emblem: "skull" } },
+      colors: { id: "c1", name: "The Comets", flag: { field: "pitch", accent: "bone", pattern: "plain", emblem: "skull" } },
     };
     expect(parseServerMessage({ type: "ship.state", ship, events: [{ type: "launched", laneId: "a-b" }], serverNow: 1 })).not.toBeNull();
     // Bots boot up and are powered down as events with names, like any crew change.
     const hands = [
-      { type: "booted_up", pirateId: "bot:1", name: "Brackish Eel", station: "cooling" },
-      { type: "booted_up", pirateId: "bot:2", name: "Windward Tern", station: null },
-      { type: "powered_down", names: ["Brackish Eel", "Windward Tern"] },
+      { type: "booted_up", pirateId: "bot:1", name: "Gasket-7", station: "cooling" },
+      { type: "booted_up", pirateId: "bot:2", name: "Sprocket-12", station: null },
+      { type: "powered_down", names: ["Gasket-7", "Sprocket-12"] },
     ];
     expect(parseServerMessage({ type: "ship.state", ship, events: hands, serverNow: 1 })).not.toBeNull();
     expect(parseServerMessage({ type: "ship.state", ship: { ...ship, crew: [{ ...ship.crew[0], bot: undefined }] }, events: [], serverNow: 1 })).toBeNull();
@@ -118,7 +118,7 @@ describe("cooling heat events", () => {
 describe("crew protocol (M6)", () => {
   const flag = { field: "pitch", accent: "bone", pattern: "cross", emblem: "rocket" };
   it("founds a crew under a tidied name and refuses names that are not words", () => {
-    expect(parseClientMessage({ type: "crew.found", name: "  The   Salt  Dogs ", flag })).toEqual({ type: "crew.found", name: "The Salt Dogs", flag });
+    expect(parseClientMessage({ type: "crew.found", name: "  The   Rust  Comets ", flag })).toEqual({ type: "crew.found", name: "The Rust Comets", flag });
     expect(parseClientMessage({ type: "crew.found", name: "Brine's Own-Crew", flag })).not.toBeNull();
     expect(parseClientMessage({ type: "crew.found", name: "<script>", flag })).toBeNull();
     expect(parseClientMessage({ type: "crew.found", name: "   ", flag })).toBeNull();
@@ -129,27 +129,27 @@ describe("crew protocol (M6)", () => {
     expect(parseClientMessage({ type: "crew.rank", pirateId: "p2", rank: "officer" })).not.toBeNull();
     expect(parseClientMessage({ type: "crew.rank", pirateId: "p2", rank: "admiral" })).toBeNull();
     expect(parseClientMessage({ type: "crew.answer", crewId: "c1", accept: true })).not.toBeNull();
-    expect(parseClientMessage({ type: "pirate.profile", name: "Salty Gull" })).not.toBeNull();
+    expect(parseClientMessage({ type: "pirate.profile", name: "Static Comet" })).not.toBeNull();
   });
 
   it("sends the crew with where everyone is, and notices with names", () => {
     const crew = {
       id: "c1",
-      name: "The Salt Dogs",
+      name: "The Rust Comets",
       flag,
       foundedAt: 1,
       stats: { voyages: 3, victories: 1, plunder: 600 },
       members: [
-        { pirateId: "p1", name: "Salty Gull", rank: "commodore", joinedAt: 1, where: { kind: "aboard", shipId: "s1", shipName: "The Gull", outpostId: null, to: "echo-rock", progress: 400, joinable: true } },
+        { pirateId: "p1", name: "Static Comet", rank: "commodore", joinedAt: 1, where: { kind: "aboard", shipId: "s1", shipName: "The Comet", outpostId: null, to: "echo-rock", progress: 400, joinable: true } },
         { pirateId: "p2", name: "Brine Hound", rank: "spacer", joinedAt: 2, where: { kind: "on-outpost", outpostId: "tinwick" } },
         { pirateId: "p3", name: "Kelp Witch", rank: "officer", joinedAt: 3, where: { kind: "offline" } },
       ],
       invited: [{ pirateId: "p4", name: "Tide Rat" }],
     };
     expect(parseServerMessage({ type: "crew.state", crew, invites: [], serverNow: 1 })).not.toBeNull();
-    expect(parseServerMessage({ type: "crew.state", crew: null, invites: [{ crew: { id: "c1", name: "The Salt Dogs", flag }, members: 3, by: "Salty Gull", at: 1 }], serverNow: 1 })).not.toBeNull();
-    expect(parseServerMessage({ type: "crew.notice", notice: { type: "launched", names: ["Salty Gull"], shipId: "s1", shipName: "The Gull", to: "echo-rock", joinable: true }, at: 1 })).not.toBeNull();
-    expect(parseServerMessage({ type: "crew.notice", notice: { type: "launched", names: [], shipId: "s1", shipName: "The Gull", to: "echo-rock", joinable: true }, at: 1 })).toBeNull();
+    expect(parseServerMessage({ type: "crew.state", crew: null, invites: [{ crew: { id: "c1", name: "The Rust Comets", flag }, members: 3, by: "Static Comet", at: 1 }], serverNow: 1 })).not.toBeNull();
+    expect(parseServerMessage({ type: "crew.notice", notice: { type: "launched", names: ["Static Comet"], shipId: "s1", shipName: "The Comet", to: "echo-rock", joinable: true }, at: 1 })).not.toBeNull();
+    expect(parseServerMessage({ type: "crew.notice", notice: { type: "launched", names: [], shipId: "s1", shipName: "The Comet", to: "echo-rock", joinable: true }, at: 1 })).toBeNull();
   });
 });
 
@@ -178,10 +178,10 @@ describe("the pirate's sheet", () => {
   });
 
   it("reads a summary, a profile and a crew view from a server that sends no look or title", () => {
-    const welcome = parseServerMessage({ type: "welcome", pirate: { id: "p1", name: "Salty Gull", guest: true, balance: 0, ratings: [], ships: [], outpostId: "tinwick" }, serverNow: 1 });
+    const welcome = parseServerMessage({ type: "welcome", pirate: { id: "p1", name: "Static Comet", guest: true, balance: 0, ratings: [], ships: [], outpostId: "tinwick" }, serverNow: 1 });
     expect(welcome?.type === "welcome" && welcome.pirate.look).toBeNull();
     expect(welcome?.type === "welcome" && welcome.pirate.title).toBeNull();
-    const profile = parseServerMessage({ type: "pirate.profile", profile: { pirateId: "p1", name: "Salty Gull", crew: null, ratings: [], voyages: 2, online: true, invited: false } });
+    const profile = parseServerMessage({ type: "pirate.profile", profile: { pirateId: "p1", name: "Static Comet", crew: null, ratings: [], voyages: 2, online: true, invited: false } });
     expect(profile?.type === "pirate.profile" && profile.profile).toMatchObject({ look: null, title: null, victories: 0 });
   });
 });

@@ -296,7 +296,7 @@ function CaptainSection({ scenario, set }: { scenario: VoyageScenario; set: Sett
       <h3>{t("harness.voyage.captain_title")}</h3>
       <div className="bench-fields">
         <label className="bench-row">
-          <span>{t("harness.voyage.helm")}</span>
+          <span>{t("harness.voyage.battle_plots")}</span>
           <select value={scenario.helm} onChange={(e) => set({ helm: e.target.value === "you" ? "you" : "ai" })} data-testid="voyage-helm">
             <option value="ai">{t("harness.voyage.helm_ai")}</option>
             <option value="you">{t("harness.voyage.helm_you")}</option>

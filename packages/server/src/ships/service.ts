@@ -39,7 +39,7 @@ import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
 import { appendLedger } from "../ledger.js";
 import type { Logger } from "../log.js";
-import { randomPirateName } from "../pirates.js";
+import { randomBotName } from "../pirates.js";
 import type { PuzzleService } from "../puzzles/service.js";
 import type { PuzzleSession, ShipSupply } from "../puzzles/sessions.js";
 import { Room, type RoomMember } from "../rooms.js";
@@ -1061,16 +1061,16 @@ export class ShipService {
   }
 
   /**
-   * A bot looks like any pirate: a name from the same lists, unlike anyone's aboard. The
-   * snapshot's `bot` flag, not the name, is what tells players it is not one of them.
+   * A bot has a bot's name and a unit number ("Gasket-7"), unlike anyone's aboard. No pirate's name
+   * looks like it; the snapshot's `bot` flag is still what the client goes by.
    */
   private botName(room: ShipRoom): string {
     const taken = new Set(room.names.values());
     for (let attempt = 0; attempt < 20; attempt++) {
-      const name = randomPirateName(this.content);
+      const name = randomBotName(this.content);
       if (!taken.has(name)) return name;
     }
-    return `${randomPirateName(this.content)} ${room.names.size + 1}`;
+    return `${randomBotName(this.content)}${room.names.size + 1}`;
   }
 
   stateMessage(room: ShipRoom, events: readonly ShipEvent[]): ServerMessage {

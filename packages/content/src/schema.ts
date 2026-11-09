@@ -458,6 +458,8 @@ export const SwordfightContentSchema = z.object({
 export const NamesSchema = z.object({
   adjectives: z.array(z.string().min(2)).min(20),
   nouns: z.array(z.string().min(2)).min(20),
+  /** What a ship's bots are called, each with a unit number after it: "Gasket-7" (DESIGN.md 3.4). */
+  bots: z.array(z.string().min(2)).min(6),
 });
 
 export const MessagesSchema = z.record(MessageKey, z.string());
