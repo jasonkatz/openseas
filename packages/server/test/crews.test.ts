@@ -45,7 +45,7 @@ describeDb("crews over the wire", () => {
   let base: string;
   const content = loadContent();
   const fee = content.world.crews.foundingFee;
-  const flag = { field: "deep", accent: "gold", pattern: "cross", emblem: "anchor" };
+  const flag = { field: "deep", accent: "gold", pattern: "cross", emblem: "rocket" };
   /** Crew names are unique for good, and the test database outlives a run. */
   const unique = (name: string): string => `${name} ${randomUUID().slice(0, 6)}`;
 
@@ -67,7 +67,7 @@ describeDb("crews over the wire", () => {
     await app?.close();
   });
 
-  async function pirate(coins = 0): Promise<{ cookie: string; me: PirateSummary }> {
+  async function pirate(credits = 0): Promise<{ cookie: string; me: PirateSummary }> {
     const res = await fetch(`${base}/api/auth/sign-in/anonymous`, {
       method: "POST",
       headers: { "content-type": "application/json", origin: "http://localhost:5173" },
@@ -77,7 +77,7 @@ describeDb("crews over the wire", () => {
     const created = await fetch(`${base}/api/pirate`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body: "{}" });
     expect(created.status).toBe(201);
     const { pirate: me } = (await created.json()) as { pirate: PirateSummary };
-    if (coins > 0) await app.db.transaction((tx) => appendLedger(tx, me.id, coins, "test", null));
+    if (credits > 0) await app.db.transaction((tx) => appendLedger(tx, me.id, credits, "test", null));
     return { cookie, me };
   }
 
@@ -95,7 +95,7 @@ describeDb("crews over the wire", () => {
     const poor = await pirate();
     const p = await connect(poor.cookie);
     p.send({ type: "crew.found", name: unique("Paupers"), flag });
-    expect(await p.until("error")).toMatchObject({ code: "short_of_coins" });
+    expect(await p.until("error")).toMatchObject({ code: "short_of_credits" });
 
     const rich = await pirate(fee + 100);
     const a = await connect(rich.cookie);
@@ -111,8 +111,8 @@ describeDb("crews over the wire", () => {
     const notice = await a.until("crew.notice");
     expect(notice.notice).toMatchObject({ type: "founded", crew: { name, flag } });
     const state = await a.until("crew.state", (m) => m.crew !== null);
-    expect(state.crew).toMatchObject({ name, flag, stats: { voyages: 0, victories: 0, booty: 0 } });
-    expect(state.crew!.members).toEqual([expect.objectContaining({ pirateId: rich.me.id, rank: "commodore", where: { kind: "ashore", islandId: content.world.startIslandId } })]);
+    expect(state.crew).toMatchObject({ name, flag, stats: { voyages: 0, victories: 0, plunder: 0 } });
+    expect(state.crew!.members).toEqual([expect.objectContaining({ pirateId: rich.me.id, rank: "commodore", where: { kind: "on-outpost", outpostId: content.world.startOutpostId } })]);
     const updated = await a.until("pirate.updated", (m) => m.pirate.crew !== null);
     expect(updated.pirate.crew).toMatchObject({ name, rank: "commodore", flag });
     expect(updated.pirate.balance).toBe(100);
@@ -164,16 +164,16 @@ describeDb("crews over the wire", () => {
     a.send({ type: "crew.invite", name: hand.me.name });
     expect(await a.until("error")).toMatchObject({ code: "already_invited" });
 
-    // Accepting joins as a sailor; the commodore hears it; the joiner's summary flies the crew.
+    // Accepting joins as a spacer; the commodore hears it; the joiner's summary flies the crew.
     b.send({ type: "crew.answer", crewId, accept: true });
     expect((await a.until("crew.notice", (m) => m.notice.type === "joined")).notice).toEqual({ type: "joined", name: hand.me.name });
     const joined = await b.until("crew.state", (m) => m.crew !== null);
     expect(joined.crew!.members.map((m) => [m.name, m.rank])).toEqual([
       [cap.me.name, "commodore"],
-      [hand.me.name, "sailor"],
+      [hand.me.name, "spacer"],
     ]);
-    expect(joined.crew!.invited).toEqual([]); // a sailor does not see the invitation list
-    expect((await b.until("pirate.updated", (m) => m.pirate.crew !== null)).pirate.crew).toMatchObject({ id: crewId, rank: "sailor" });
+    expect(joined.crew!.invited).toEqual([]); // a spacer does not see the invitation list
+    expect((await b.until("pirate.updated", (m) => m.pirate.crew !== null)).pirate.crew).toMatchObject({ id: crewId, rank: "spacer" });
     b.send({ type: "crew.answer", crewId, accept: true });
     expect(await b.until("error")).toMatchObject({ code: "no_invite" });
 
@@ -184,10 +184,10 @@ describeDb("crews over the wire", () => {
     c.send({ type: "chat.send", channel: "crew", text: "let me in" });
     expect(await c.until("error")).toMatchObject({ code: "not_in_crew" });
 
-    // A sailor may not invite or rank; the commodore makes them an officer, and then they can invite.
+    // A spacer may not invite or rank; the commodore makes them an officer, and then they can invite.
     b.send({ type: "crew.invite", name: third.me.name });
     expect(await b.until("error")).toMatchObject({ code: "crew_rank_low" });
-    b.send({ type: "crew.rank", pirateId: cap.me.id, rank: "sailor" });
+    b.send({ type: "crew.rank", pirateId: cap.me.id, rank: "spacer" });
     expect(await b.until("error")).toMatchObject({ code: "crew_rank_low" });
     a.send({ type: "crew.rank", pirateId: hand.me.id, rank: "officer" });
     expect((await b.until("crew.notice", (m) => m.notice.type === "rank")).notice).toEqual({ type: "rank", name: hand.me.name, rank: "officer" });
@@ -243,15 +243,15 @@ describeDb("crews over the wire", () => {
 
   it("a crew-only ship takes the owner's crew and nobody else, flies the crew's colors, and voyages and victories count for the crew", async () => {
     const owner = await pirate(fee);
-    const mate = await pirate();
+    const crewmate = await pirate();
     const stranger = await pirate();
     const a = await connect(owner.cookie);
-    const b = await connect(mate.cookie);
+    const b = await connect(crewmate.cookie);
     const c = await connect(stranger.cookie);
-    const name = unique("Gull Wing");
+    const name = unique("Moon Wing");
     a.send({ type: "crew.found", name, flag });
     const crewId = (await a.until("crew.state", (m) => m.crew !== null)).crew!.id;
-    a.send({ type: "crew.invite", name: mate.me.name });
+    a.send({ type: "crew.invite", name: crewmate.me.name });
     await b.until("crew.notice", (m) => m.notice.type === "invited");
     b.send({ type: "crew.answer", crewId, accept: true });
     await b.until("crew.state", (m) => m.crew !== null);
@@ -270,10 +270,10 @@ describeDb("crews over the wire", () => {
     c.send({ type: "board.list" });
     expect((await c.until("board.ships")).ships.find((s) => s.shipId === shipId)).toMatchObject({ inviteOnly: true, crewmate: false });
 
-    // Aboard and ashore, the crew view says where everyone is and whether their ship can be joined.
+    // Aboard and on the outpost, the crew view says where everyone is and whether their ship can be joined.
     b.send({ type: "crew.info" });
     const view = await b.until("crew.state", (m) => m.crew?.members.some((x) => x.where.kind === "aboard") ?? false);
-    expect(view.crew!.members.find((x) => x.pirateId === owner.me.id)!.where).toMatchObject({ kind: "aboard", shipId, islandId: content.world.startIslandId, joinable: true });
+    expect(view.crew!.members.find((x) => x.pirateId === owner.me.id)!.where).toMatchObject({ kind: "aboard", shipId, outpostId: content.world.startOutpostId, joinable: true });
 
     c.send({ type: "ship.board", shipId });
     expect(await c.until("error")).toMatchObject({ code: "ship_locked" });
@@ -283,28 +283,28 @@ describeDb("crews over the wire", () => {
     b.send({ type: "ship.leave" });
     await b.until("ship.left");
 
-    // Setting sail tells crewmates ashore who went and that they can still catch her.
-    a.send({ type: "ship.sail", routeId: "saltwick-gullhaven" });
-    const sailed = await b.until("crew.notice", (m) => m.notice.type === "sailed");
-    expect(sailed.notice).toMatchObject({ type: "sailed", names: [owner.me.name], shipId, to: "gullhaven", joinable: true });
+    // Launching tells crewmates on the outpost who went and that they can still catch her.
+    a.send({ type: "ship.launch", laneId: "tinwick-echo-rock" });
+    const launched = await b.until("crew.notice", (m) => m.notice.type === "launched");
+    expect(launched.notice).toMatchObject({ type: "launched", names: [owner.me.name], shipId, to: "echo-rock", joinable: true });
 
     // The ship's tallies land on the crew: a voyage, then a victory with what the members were paid.
     const room = app.ships.room(shipId)!;
     await app.crews.tallyVoyage([owner.me.id, stranger.me.id]);
-    await app.crews.tallyVictory(room, "cutpurse", new Map([[owner.me.id, 250], [stranger.me.id, 50]]));
+    await app.crews.tallyVictory(room, "junker", new Map([[owner.me.id, 250], [stranger.me.id, 50]]));
     const won = await b.until("crew.notice", (m) => m.notice.type === "victory");
-    expect(won.notice).toMatchObject({ type: "victory", names: [owner.me.name], tierId: "cutpurse", booty: 250 });
+    expect(won.notice).toMatchObject({ type: "victory", names: [owner.me.name], tierId: "junker", plunder: 250 });
     b.send({ type: "crew.list" });
-    expect((await b.until("crew.list")).crews.find((x) => x.id === crewId)!.stats).toEqual({ voyages: 1, victories: 1, booty: 250 });
+    expect((await b.until("crew.list")).crews.find((x) => x.id === crewId)!.stats).toEqual({ voyages: 1, victories: 1, plunder: 250 });
     const [row] = await app.db.select().from(schema.crew).where(eq(schema.crew.id, crewId));
-    expect(row).toMatchObject({ voyages: 1, victories: 1, booty: 250 });
+    expect(row).toMatchObject({ voyages: 1, victories: 1, plunder: 250 });
 
     // Changing the flag is the commodore's, and the ship flies the new one at once.
-    const flag2 = { field: "crimson", accent: "bone", pattern: "saltire", emblem: "kraken" };
+    const flag2 = { field: "crimson", accent: "bone", pattern: "saltire", emblem: "satellite" };
     b.send({ type: "crew.flag", flag: flag2 });
     expect(await b.until("error")).toMatchObject({ code: "crew_rank_low" });
     a.send({ type: "crew.flag", flag: flag2 });
-    expect((await a.until("ship.state", (m) => m.ship.colors?.flag.emblem === "kraken")).ship.colors!.flag).toEqual(flag2);
+    expect((await a.until("ship.state", (m) => m.ship.colors?.flag.emblem === "satellite")).ship.colors!.flag).toEqual(flag2);
     expect((await b.until("crew.notice", (m) => m.notice.type === "flag")).notice).toEqual({ type: "flag", by: owner.me.name });
     a.send({ type: "ship.leave" });
     for (const x of [a, b, c]) x.ws.close();
@@ -346,7 +346,7 @@ describeDb("guest to account", () => {
   }
   async function pirateFor(userId: string): Promise<string> {
     const id = randomUUID();
-    await app.db.insert(schema.pirate).values({ id, userId, name: `Test ${id.slice(0, 8)}`, islandId: null });
+    await app.db.insert(schema.pirate).values({ id, userId, name: `Test ${id.slice(0, 8)}`, outpostId: null });
     return id;
   }
 

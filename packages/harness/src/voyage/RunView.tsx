@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BATTLE_PERMILLE, battlePlanIllegalReason, type BattlePlan, type Station } from "@openseas/engine";
 import { BattleBoard, t } from "@openseas/boards";
 import type { CrewSpec, VoyageSetup } from "./scenario.js";
-import { needsPlot, sailOn, startVoyage, step, type SimEntry, type TurnSample, type VoyageSim } from "./sim.js";
+import { needsPlot, flyOn, startVoyage, step, type SimEntry, type TurnSample, type VoyageSim } from "./sim.js";
 import { proveVoyage, voyageFile } from "./batch.js";
 import { OutputHeatmap, PhaseLegend, TimelineCharts, type Measure } from "./Charts.jsx";
-import { namer, stationName } from "./names.js";
+import { namer, outpostName, stationName } from "./names.js";
 
 const RATES = [1, 2, 4, 8] as const;
 const pct = (permille: number): number => Math.round(permille / 10);
@@ -15,13 +15,13 @@ export interface RunViewProps {
   setup: VoyageSetup;
   crew: readonly CrewSpec[];
   stations: readonly Station[];
-  /** Sail to port as soon as the view opens (a link with `start=sail`, or a run opened from a batch). */
+  /** Fly to port as soon as the view opens (a link with `start=launch`, or a run opened from a batch). */
   autostart: boolean;
 }
 
 /** One voyage, turn by turn: the controls, the ship's state, the fight, the charts, the log and the replay proof. */
 export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
-  const [sim, setSim] = useState<VoyageSim | null>(() => (autostart ? sailOn(startVoyage(setup), { stopForPlot: true }) : null));
+  const [sim, setSim] = useState<VoyageSim | null>(() => (autostart ? flyOn(startVoyage(setup), { stopForPlot: true }) : null));
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState<(typeof RATES)[number]>(4);
   const [hover, setHover] = useState<number | null>(null);
@@ -52,7 +52,7 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
   const next = (): void => setSim((s) => step(s ?? startVoyage(setup)));
   const toPort = (): void => {
     setPlaying(false);
-    setSim((s) => sailOn(s ?? startVoyage(setup), { stopForPlot: setup.wheel === "you" }));
+    setSim((s) => flyOn(s ?? startVoyage(setup), { stopForPlot: setup.helm === "you" }));
   };
   const onCommit = useCallback((plan: BattlePlan) => {
     setSim((s) => (s && needsPlot(s) && battlePlanIllegalReason(s.battle!, plan) === null ? step(s, { plan }) : s));
@@ -70,9 +70,9 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
     return [
       { id: "progress", label: t("harness.voyage.m_progress"), max: 100, value: (s) => s.progress / 10, format: percent },
       { id: "speed", label: t("harness.voyage.m_speed"), max: Math.ceil(cfg.rules.maxSpeed / 100) * 10, value: (s) => s.speed / 10, format: percent },
-      { id: "water", label: t("harness.voyage.m_water"), max: 100, value: (s) => s.water / 10, format: percent },
+      { id: "heat", label: t("harness.voyage.m_heat"), max: 100, value: (s) => s.heat / 10, format: percent },
       { id: "hull", label: t("harness.voyage.m_hull"), max: 100, value: (s) => (BATTLE_PERMILLE - s.damage) / 10, format: percent },
-      { id: "loaded", label: t("harness.voyage.m_loaded"), max: Math.max(1, cfg.shipClass.cannons), value: (s) => s.loaded, format: (v) => String(v), step: true },
+      { id: "loaded", label: t("harness.voyage.m_loaded"), max: Math.max(1, cfg.shipClass.turrets), value: (s) => s.loaded, format: (v) => String(v), step: true },
       { id: "tokens", label: t("harness.voyage.m_tokens"), max: maxTokens, value: (s) => s.tokens, format: (v) => String(v), step: true },
     ];
   }, [cfg]);
@@ -100,8 +100,8 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
   return (
     <div className="vrun" data-testid="voyage-run">
       <div className="vcontrols">
-        <button type="button" className="btn btn-brass btn-mini" onClick={begin} data-testid="voyage-sail">
-          {sim ? t("harness.voyage.sail_again") : t("harness.voyage.sail")}
+        <button type="button" className="btn btn-brass btn-mini" onClick={begin} data-testid="voyage-launch">
+          {sim ? t("harness.voyage.launch_again") : t("harness.voyage.launch")}
         </button>
         <button type="button" className="btn btn-ghost btn-mini" onClick={next} disabled={done || waiting} data-testid="voyage-step">
           {t("harness.voyage.step")}
@@ -144,9 +144,9 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
               </dd>
             </div>
             <div className="vstatus-wide">
-              <dt>{t("harness.voyage.route_option_short", { from: t(`island.${setup.leg.from}`), to: t(`island.${setup.leg.to}`) })}</dt>
+              <dt>{t("harness.voyage.lane_option_short", { from: outpostName(setup.leg.from), to: outpostName(setup.leg.to) })}</dt>
               <dd>
-                <span className="water-meter progress-meter" aria-label={`${pct(shown?.progress ?? 0)}%`}>
+                <span className="heat-meter progress-meter" aria-label={`${pct(shown?.progress ?? 0)}%`}>
                   <i style={{ width: `${pct(shown?.progress ?? 0)}%` }} />
                 </span>
               </dd>
@@ -156,18 +156,18 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
               <dd className="mono">{pct(BATTLE_PERMILLE - ship.damage)}%</dd>
             </div>
             <div>
-              <dt>{t("harness.voyage.s_bilge")}</dt>
-              <dd className="mono">{pct(ship.water)}%</dd>
+              <dt>{t("harness.voyage.s_heat")}</dt>
+              <dd className="mono">{pct(ship.heat)}%</dd>
             </div>
             <div>
-              <dt>{t("harness.voyage.s_cannons")}</dt>
+              <dt>{t("harness.voyage.s_turrets")}</dt>
               <dd className="mono">
-                {ship.loaded}/{cfg.shipClass.cannons}
+                {ship.loaded}/{cfg.shipClass.turrets}
               </dd>
             </div>
             <div>
               <dt>{t("harness.voyage.s_crew")}</dt>
-              <dd className="small">{t("harness.voyage.s_crew_value", { pirates: ship.crew.filter((c) => !c.mate).length, hands: ship.crew.filter((c) => c.mate).length })}</dd>
+              <dd className="small">{t("harness.voyage.s_crew_value", { pirates: ship.crew.filter((c) => !c.bot).length, hands: ship.crew.filter((c) => c.bot).length })}</dd>
             </div>
           </dl>
 
@@ -176,7 +176,7 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
           {battle && battleState && (
             <section className="vpanel" data-testid="voyage-battle">
               <div className="bench-inline bench-inline-between">
-                <h3>{t("harness.voyage.battle_title", { tier: t(`brigand.${battle.tierId}`) })}</h3>
+                <h3>{t("harness.voyage.battle_title", { tier: t(`raider.${battle.tierId}`) })}</h3>
                 {battle.outcome && <span className="vchip">{t(`battle.outcome.${battle.outcome}`)}</span>}
               </div>
               {waiting && battleAt === null && (
@@ -197,7 +197,7 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
                   turnLeftMs={null}
                   turnMs={cfg.rules.turnSeconds * 1000}
                   commitSignal={0}
-                  brigandName={t(`brigand.${battle.tierId}`)}
+                  raiderName={t(`raider.${battle.tierId}`)}
                   onCommit={onCommit}
                   onFrame={noop}
                   onEvents={noop}
@@ -253,7 +253,7 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
               <h3>{t("harness.voyage.charts_title")}</h3>
               <PhaseLegend />
             </div>
-            {shown && <Readout sample={shown} stations={stations} cannons={cfg.shipClass.cannons} />}
+            {shown && <Readout sample={shown} stations={stations} turrets={cfg.shipClass.turrets} />}
             <TimelineCharts samples={samples} measures={measures} hover={hover} onHover={setHover} />
             <h4 className="vsub">{t("harness.voyage.chart_outputs")}</h4>
             <OutputHeatmap samples={samples} stations={stations} hover={hover} onHover={setHover} />
@@ -290,17 +290,17 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
   );
 }
 
-function Readout({ sample, stations, cannons }: { sample: TurnSample; stations: readonly Station[]; cannons: number }) {
+function Readout({ sample, stations, turrets }: { sample: TurnSample; stations: readonly Station[]; turrets: number }) {
   return (
     <p className="vreadout small" aria-live="polite" data-testid="voyage-readout">
       <b>{t("harness.voyage.log_turn", { n: sample.turn })}</b> · {sample.held ? t("harness.voyage.band_held") : t(`harness.voyage.phase_${sample.phase}`)} ·{" "}
       {t("harness.voyage.readout", {
         progress: pct(sample.progress),
         speed: pct(sample.speed),
-        water: pct(sample.water),
+        heat: pct(sample.heat),
         hull: pct(BATTLE_PERMILLE - sample.damage),
         loaded: sample.loaded,
-        cannons,
+        turrets,
         tokens: sample.tokens,
       })}
       <br />
@@ -312,14 +312,14 @@ function Readout({ sample, stations, cannons }: { sample: TurnSample; stations: 
 function VoyageSummary({ sim, name }: { sim: VoyageSim; name(id: string): string }) {
   const turns = sim.samples.length;
   const seconds = turns * sim.setup.ship.rules.turnSeconds;
-  const paid = Object.entries(sim.booty).filter(([, c]) => c > 0);
+  const paid = Object.entries(sim.plunder).filter(([, c]) => c > 0);
   return (
     <section className="vpanel vsummary" data-testid="voyage-summary">
-      <h3>{t(`harness.voyage.end_${sim.phase}`, { turns, minutes: Math.floor(seconds / 60), seconds: seconds % 60, island: t(`island.${sim.setup.leg.to}`) })}</h3>
+      <h3>{t(`harness.voyage.end_${sim.phase}`, { turns, minutes: Math.floor(seconds / 60), seconds: seconds % 60, outpost: outpostName(sim.setup.leg.to) })}</h3>
       {paid.length > 0 ? (
-        <p className="small">{t("harness.voyage.booty_paid", { shares: paid.map(([id, c]) => `${name(id)} ${c}`).join(", ") })}</p>
+        <p className="small">{t("harness.voyage.plunder_paid", { shares: paid.map(([id, c]) => `${name(id)} ${c}`).join(", ") })}</p>
       ) : (
-        <p className="small muted">{t("harness.voyage.booty_none")}</p>
+        <p className="small muted">{t("harness.voyage.plunder_none")}</p>
       )}
     </section>
   );
@@ -332,7 +332,7 @@ function MeleePanel({ melee, name }: { melee: NonNullable<VoyageSim["melees"][nu
   return (
     <section className="vpanel" data-testid="voyage-melee">
       <div className="bench-inline bench-inline-between">
-        <h3>{t(melee.boarding === "boarded" ? "harness.voyage.melee_title_ours" : "harness.voyage.melee_title_theirs", { tier: t(`brigand.${melee.tierId}`) })}</h3>
+        <h3>{t(melee.boarding === "boarded" ? "harness.voyage.melee_title_ours" : "harness.voyage.melee_title_theirs", { tier: t(`raider.${melee.tierId}`) })}</h3>
         {melee.outcome && <span className="vchip">{t(`harness.voyage.melee_${melee.outcome}`)}</span>}
       </div>
       <p className="muted small">{t("harness.voyage.melee_blurb", { tick: s.tick, max: s.config.maxTick })}</p>
@@ -356,7 +356,7 @@ function MeleePanel({ melee, name }: { melee: NonNullable<VoyageSim["melees"][nu
           ))}
           {theirs.map((b, i) => (
             <tr key={`b${i}`} className="vtable-foe">
-              <td>{t("harness.voyage.melee_brigand_n", { n: i + 1 })}</td>
+              <td>{t("harness.voyage.melee_raider_n", { n: i + 1 })}</td>
               <td className="mono">{b.points}</td>
               <td className="mono">{b.sent}</td>
               <td>{b.out ? t("harness.voyage.melee_out") : t("harness.voyage.melee_up")}</td>
@@ -373,14 +373,14 @@ function logLine(e: SimEntry, name: (id: string) => string): string {
   const v: Record<string, string | number> = { ...e.vars };
   if (typeof v.who === "string") v.who = name(v.who);
   if ("station" in v) v.station = stationName(String(v.station));
-  if (typeof v.tier === "string") v.tier = t(`brigand.${v.tier}`);
-  if (typeof v.island === "string") v.island = t(`island.${v.island}`);
+  if (typeof v.tier === "string") v.tier = t(`raider.${v.tier}`);
+  if (typeof v.outpost === "string") v.outpost = outpostName(v.outpost);
   if (typeof v.action === "string") v.action = t(`harness.voyage.script_${v.action}`);
   if (typeof v.plotter === "string") v.plotter = t(`harness.voyage.plotter_${v.plotter}`);
   if (typeof v.outcome === "string") v.outcome = e.kind === "melee_ended" ? t(`harness.voyage.melee_${v.outcome}`) : t(`battle.outcome.${v.outcome}`);
   if (typeof v.hull === "number") v.hull = pct(BATTLE_PERMILLE - v.hull);
   if (typeof v.theirs === "number") v.theirs = pct(BATTLE_PERMILLE - v.theirs);
-  // A station event without a station is standing down; a hand hired without one waits on deck.
-  const kind = e.vars.station === "" ? (e.kind === "station" ? "station_none" : e.kind === "hired" ? "hired_deck" : e.kind) : e.kind;
+  // A station event without a station is standing down; a hand booted up without one waits on deck.
+  const kind = e.vars.station === "" ? (e.kind === "station" ? "station_none" : e.kind === "booted_up" ? "booted_up_deck" : e.kind) : e.kind;
   return t(`harness.voyage.log.${kind}`, v);
 }

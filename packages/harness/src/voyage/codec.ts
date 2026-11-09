@@ -7,20 +7,20 @@ import { HAIL_ORDERS, SCRIPT_ACTIONS, defaultScenario, type CrewSpec, type HailO
  * as a lab round is (ADR 0019):
  *
  *   seed     the voyage's seed
- *   ship     ship class id; route  route id
+ *   ship     ship class id; lane  lane id
  *   hail     engage, evade or ignore
- *   wheel    ai or you
+ *   helm    ai or you
  *   cap      the AI captain's accuracy,aggression in percent
  *   p        a pirate, repeated in boarding order: station~duty~spread~skill~thinkTicks~blade~name
  *            (station `-` for none)
  *   do       a script step, repeated: turn~pirate~action~station (pirate counts from 1)
  *   w.<path> a world override; the value is JSON when it parses, a string otherwise
  *   runs     batch size
- *   start    sail or batch: do that as soon as the page opens
+ *   start    launch or batch: do that as soon as the page opens
  *
  * Anything absent is the default scenario's.
  */
-export type VoyageAutostart = "sail" | "batch" | null;
+export type VoyageAutostart = "launch" | "batch" | null;
 
 const SEP = "~";
 
@@ -76,16 +76,16 @@ export function parseVoyage(content: Content, search: string): { scenario: Voyag
     scenario: {
       seed: q.get("seed") || d.seed,
       shipClassId: q.get("ship") || d.shipClassId,
-      routeId: q.get("route") || d.routeId,
+      laneId: q.get("lane") || d.laneId,
       hail: HAIL_ORDERS.includes(hail as HailOrder) ? (hail as HailOrder) : d.hail,
-      wheel: q.get("wheel") === "you" ? "you" : "ai",
+      helm: q.get("helm") === "you" ? "you" : "ai",
       captain: { accuracy: num(acc, d.captain.accuracy), aggression: num(agg, d.captain.aggression) },
       crew: crew.length ? crew : d.crew,
       script,
       world,
       runs: num(q.get("runs") ?? undefined, d.runs),
     },
-    autostart: start === "sail" || start === "batch" ? start : null,
+    autostart: start === "launch" || start === "batch" ? start : null,
   };
 }
 
@@ -95,9 +95,9 @@ export function formatVoyage(content: Content, sc: VoyageScenario, autostart: Vo
   const q = new URLSearchParams();
   if (sc.seed !== d.seed) q.set("seed", sc.seed);
   if (sc.shipClassId !== d.shipClassId) q.set("ship", sc.shipClassId);
-  if (sc.routeId !== d.routeId) q.set("route", sc.routeId);
+  if (sc.laneId !== d.laneId) q.set("lane", sc.laneId);
   if (sc.hail !== d.hail) q.set("hail", sc.hail);
-  if (sc.wheel !== d.wheel) q.set("wheel", sc.wheel);
+  if (sc.helm !== d.helm) q.set("helm", sc.helm);
   if (sc.captain.accuracy !== d.captain.accuracy || sc.captain.aggression !== d.captain.aggression) q.set("cap", `${sc.captain.accuracy},${sc.captain.aggression}`);
   const crew = sc.crew.map(formatPirate);
   if (JSON.stringify(crew) !== JSON.stringify(d.crew.map(formatPirate))) for (const p of crew) q.append("p", p);

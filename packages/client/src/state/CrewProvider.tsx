@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ClientMessage, CrewFlagWire, CrewInfo, CrewInvite, CrewNotice, CrewRank, CrewRow, ErrorCode, PirateProfile, ServerMessage } from "@openseas/protocol";
 import { sfx, t, usePirate } from "@openseas/boards";
-import { islandName, tierName } from "../names.js";
+import { outpostName, tierName } from "../names.js";
 import { useShip } from "./ShipProvider.jsx";
 import { useToasts } from "./toasts.jsx";
 
@@ -90,10 +90,10 @@ export function describeCrewNotice(n: CrewNotice): string {
       return t("crew.notice_rank", { name: n.name, rank: t(`crew.rank.${n.rank}`) });
     case "flag":
       return t("crew.notice_flag", { by: n.by });
-    case "sailed":
-      return t(n.names.length > 1 ? "crew.notice_sailed_many" : "crew.notice_sailed", { names: n.names.join(", "), ship: n.shipName, island: islandName(n.to) });
+    case "launched":
+      return t(n.names.length > 1 ? "crew.notice_launched_many" : "crew.notice_launched", { names: n.names.join(", "), ship: n.shipName, outpost: outpostName(n.to) });
     case "victory":
-      return t("crew.notice_victory", { names: n.names.join(", "), ship: n.shipName, brigand: tierName(n.tierId), coins: n.booty });
+      return t("crew.notice_victory", { names: n.names.join(", "), ship: n.shipName, raider: tierName(n.tierId), credits: n.plunder });
     default: {
       const never: never = n;
       return never;
@@ -103,7 +103,7 @@ export function describeCrewNotice(n: CrewNotice): string {
 
 /**
  * The pirate's crew (M6, ADR 0025), as the server pushes it. Notices float up as toasts with
- * something to do where there is one: answer an invitation, catch crewmates at sea.
+ * something to do where there is one: answer an invitation, catch crewmates in flight.
  */
 export function CrewProvider({ children }: { children: ReactNode }) {
   const { socket, pirate } = usePirate();
@@ -165,7 +165,7 @@ export function CrewProvider({ children }: { children: ReactNode }) {
             if (n.type === "invited") {
               sfx.streak(3);
               toast(text, "good", 10000, { label: t("crew.toast_view"), run: () => actions.current.openPanel("crew"), testId: "toast-crew-view" });
-            } else if (n.type === "sailed") {
+            } else if (n.type === "launched") {
               toast(text, "plain", 9000, n.joinable ? { label: t("crew.toast_join"), run: () => actions.current.board(n.shipId), testId: "toast-crew-join" } : undefined);
             } else if (n.type === "victory" || n.type === "founded") {
               sfx.streak(5);
@@ -179,7 +179,7 @@ export function CrewProvider({ children }: { children: ReactNode }) {
             if (wantProfile.current) setProfile(m.profile);
             break;
           case "error":
-            if (CREW_ERRORS.has(m.code) || (m.code === "short_of_coins" && panel !== null)) setError(m.code);
+            if (CREW_ERRORS.has(m.code) || (m.code === "short_of_credits" && panel !== null)) setError(m.code);
             break;
           default:
             break;

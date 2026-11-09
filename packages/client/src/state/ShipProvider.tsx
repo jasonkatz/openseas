@@ -17,19 +17,19 @@ export interface ShipContextValue {
   receivedAt: number;
   /** The last ship error the server sent, cleared on the next successful state or action. */
   error: ErrorCode | null;
-  /** The notice board as last listed: ships with crews at the pirate's island and at sea. */
-  board: { islandId: string; ships: BoardShip[]; at: number } | null;
+  /** The notice board as last listed: ships with crews at the pirate's outpost and in flight. */
+  board: { outpostId: string; ships: BoardShip[]; at: number } | null;
   /** The ship the pirate just left, for the camera to pull back from. */
   left: { shipId: string; reason: "left" | "timed_out"; at: number } | null;
   boardShip(shipId: string): void;
   leave(): void;
   takeStation(station: StationWire | null): void;
-  sail(routeId: string): void;
+  launch(laneId: string): void;
   evade(): void;
-  /** Captain only: fight the brigand that hailed. The battle board is dealt as a puzzle session. */
+  /** Captain only: fight the raider that hailed. The battle board is dealt as a puzzle session. */
   engage(): void;
-  handWheel(pirateId: string): void;
-  /** Captain only: send a deckhand to a station, or stand it down with null. */
+  handHelm(pirateId: string): void;
+  /** Captain only: send a bot to a station, or stand it down with null. */
   assign(pirateId: string, station: StationWire | null): void;
   lock(inviteOnly: boolean): void;
   listBoard(): void;
@@ -55,19 +55,19 @@ const SHIP_ERRORS = new Set<ErrorCode>([
   "not_captain",
   "not_owner",
   "not_docked",
-  "not_at_sea",
-  "bad_route",
+  "not_in_flight",
+  "bad_lane",
   "station_taken",
   "no_station",
   "not_hailed",
   "no_such_class",
-  "short_of_coins",
+  "short_of_credits",
   "aboard_a_ship",
   "in_battle",
   "not_in_battle",
-  "is_deckhand",
-  "not_deckhand",
-  "not_mate_station",
+  "is_bot",
+  "not_bot",
+  "not_bot_station",
 ]);
 
 /** Everything the client knows about the ship it is aboard comes from `ship.state`; nothing is simulated here. */
@@ -101,7 +101,7 @@ export function ShipProvider({ children }: { children: ReactNode }) {
             setLeft({ shipId: m.shipId, reason: m.reason, at: Date.now() });
             break;
           case "board.ships":
-            setBoard({ islandId: m.islandId, ships: m.ships, at: Date.now() });
+            setBoard({ outpostId: m.outpostId, ships: m.ships, at: Date.now() });
             break;
           case "error":
             if (SHIP_ERRORS.has(m.code)) setError(m.code);
@@ -144,10 +144,10 @@ export function ShipProvider({ children }: { children: ReactNode }) {
       boardShip: (shipId) => send({ type: "ship.board", shipId }),
       leave: () => send({ type: "ship.leave" }),
       takeStation: (station) => send({ type: "ship.station", station }),
-      sail: (routeId) => send({ type: "ship.sail", routeId }),
+      launch: (laneId) => send({ type: "ship.launch", laneId }),
       evade: () => send({ type: "ship.evade" }),
       engage: () => send({ type: "ship.engage" }),
-      handWheel: (pirateId) => send({ type: "ship.wheel", pirateId }),
+      handHelm: (pirateId) => send({ type: "ship.helm", pirateId }),
       assign: (pirateId, station) => send({ type: "ship.assign", pirateId, station }),
       lock: (inviteOnly) => send({ type: "ship.lock", inviteOnly }),
       listBoard: () => void socket.send({ type: "board.list" }),

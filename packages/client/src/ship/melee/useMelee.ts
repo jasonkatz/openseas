@@ -28,8 +28,8 @@ const waitAt = (tick: number): SwordfightMove => ({ type: "wait", tick });
 const JOIN_RETRY_MS = 3000;
 
 /**
- * The pirate's board at the rail (DESIGN.md 3.3, ADR 0022). The server deals it when a boarding
- * opens the melee; wrack from the brigand crew arrives as incoming moves the board logs as the
+ * The pirate's board at the airlock (DESIGN.md 3.3, ADR 0022). The server deals it when a boarding
+ * opens the melee; scrap from the raider crew arrives as incoming moves the board logs as the
  * server's word; the end of the melee is the server's word too. A pirate aboard without a board
  * while the melee is on asks for one.
  */
@@ -95,7 +95,7 @@ function useMelee(ship: ShipSnapshot | null): MeleeApi {
           case "melee.incoming": {
             const r = round.current;
             if (!r || m.sessionId !== sessionId.current || r.isFinished) return;
-            r.apply({ type: "incoming", board: 0, wrack: m.wrack, blade: m.blade, tick: tickNow() }, false);
+            r.apply({ type: "incoming", board: 0, scrap: m.scrap, blade: m.blade, tick: tickNow() }, false);
             break;
           }
           case "melee.boards": {
@@ -104,7 +104,7 @@ function useMelee(ship: ShipSnapshot | null): MeleeApi {
               m.boards
                 .filter((b: MeleeBoardWire) => b.pirateId !== me)
                 .map((b: MeleeBoardWire, i: number): MeleeRemoteBoard => ({
-                  key: b.pirateId ?? `brigand:${i}`,
+                  key: b.pirateId ?? `raider:${i}`,
                   name: b.pirateId === null ? t("swordfight.foe", { n: ++foe }) : b.name,
                   side: b.side,
                   cells: b.cells,

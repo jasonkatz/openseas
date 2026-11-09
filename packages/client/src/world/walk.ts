@@ -1,6 +1,6 @@
 /**
  * Walking (ADR 0032): a grid over a place's ground saying where a pirate may stand, a shortest
- * path across it, and a walker that follows one. The island and the deck each build a grid from
+ * path across it, and a walker that follows one. The outpost and the deck each build a grid from
  * what they put down; every client builds the same one, so a walk target sent by one pirate is
  * walked the same way on everyone's screen. Cosmetic only: nothing here decides anything.
  */
@@ -289,7 +289,7 @@ export class Walker {
 
   /**
    * Walk to `to` across `grid`. Returns false when there is no way there; the walker then stays
-   * put. `face` turns them on arrival (toward a counter, a pump); `arrive` runs once they are there.
+   * put. `face` turns them on arrival (toward a counter, a vent); `arrive` runs once they are there.
    */
   walkTo(grid: WalkGrid, to: Spot, opts: { face?: number; arrive?: () => void } = {}): boolean {
     const path = grid.path({ x: this.x, z: this.z }, to);

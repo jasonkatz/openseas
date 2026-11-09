@@ -75,8 +75,8 @@ export function createWsServer(deps: WsDeps) {
     void resend(pirateId).catch((e) => log.warn({ err: e, pirateId }, "summary resend failed"));
     void checkTitles(pirateId).catch((e) => log.warn({ err: e, pirateId }, "title check failed"));
   };
-  // A harness Bilging round's lone ship moved its bilge: the board logs it as a water move (ADR 0029).
-  puzzles.onSoloWater = (session, row) => conns.get(session.pirateId)?.member.send({ type: "duty.water", sessionId: session.id, row });
+  // A harness Cooling round's lone ship moved its heat: the board logs it as a heat move (ADR 0029).
+  puzzles.onSoloHeat = (session, row) => conns.get(session.pirateId)?.member.send({ type: "duty.heat", sessionId: session.id, row });
   ships.onSummaryChanged = (ids) => {
     for (const id of ids) changed(id);
   };
@@ -84,9 +84,9 @@ export function createWsServer(deps: WsDeps) {
     social.refreshPresence(ids);
     for (const id of ids) void resend(id).catch((e) => log.warn({ err: e, pirateId: id }, "summary resend failed"));
   };
-  const ashoreHook = ships.onAshore;
-  ships.onAshore = (pirateId, islandId) => {
-    ashoreHook?.(pirateId, islandId);
+  const onOutpostHook = ships.onDisembark;
+  ships.onDisembark = (pirateId, outpostId) => {
+    onOutpostHook?.(pirateId, outpostId);
     void resend(pirateId).catch((e) => log.warn({ err: e, pirateId }, "summary resend failed"));
   };
 
@@ -264,8 +264,8 @@ export function createWsServer(deps: WsDeps) {
       case "ship.station":
         await ships.station(conn.pirateId, msg.station);
         return;
-      case "ship.sail":
-        await ships.sail(conn.pirateId, msg.routeId);
+      case "ship.launch":
+        await ships.launch(conn.pirateId, msg.laneId);
         return;
       case "ship.evade":
         await ships.evade(conn.pirateId);
@@ -278,8 +278,8 @@ export function createWsServer(deps: WsDeps) {
         ships.supplyNow(conn.pirateId);
         return;
       }
-      case "ship.wheel":
-        await ships.wheel(conn.pirateId, msg.pirateId);
+      case "ship.helm":
+        await ships.helm(conn.pirateId, msg.pirateId);
         return;
       case "ship.assign":
         await ships.assign(conn.pirateId, msg.pirateId, msg.station);
@@ -292,13 +292,13 @@ export function createWsServer(deps: WsDeps) {
         return;
       case "shipyard.buy": {
         if (ships.roomOf(conn.pirateId)) throw new SocialError("aboard_a_ship");
-        const islandId = await ships.pirateIsland(conn.pirateId);
+        const outpostId = await ships.pirateOutpost(conn.pirateId);
         try {
-          const bought = await buyShip(db, content, conn.pirateId, msg.classId, islandId, randomInt);
+          const bought = await buyShip(db, content, conn.pirateId, msg.classId, outpostId, randomInt);
           log.info({ pirateId: conn.pirateId, shipId: bought.shipId, classId: msg.classId }, "ship bought");
         } catch (e) {
           if (e instanceof InsufficientFundsError) {
-            send(ws, { type: "error", code: "short_of_coins" });
+            send(ws, { type: "error", code: "short_of_credits" });
             return;
           }
           if (e instanceof NoSuchClassError) {
@@ -316,9 +316,9 @@ export function createWsServer(deps: WsDeps) {
       case "walk.to":
         social.walk(conn.pirateId, { x: msg.x, z: msg.z });
         return;
-      case "island.who": {
-        const islandId = social.islandOf(conn.pirateId) ?? (await ships.pirateIsland(conn.pirateId));
-        send(ws, social.presence(islandId));
+      case "outpost.who": {
+        const outpostId = social.outpostOf(conn.pirateId) ?? (await ships.pirateOutpost(conn.pirateId));
+        send(ws, social.presence(outpostId));
         return;
       }
       case "melee.join":

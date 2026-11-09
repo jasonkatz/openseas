@@ -44,19 +44,19 @@ export function GunneryPractice() {
           sfx.clear(Math.min(6, 2 + Math.floor((e.points ?? 0) / 50)), 5);
           break;
         case "fire":
-          sfx.keg();
+          sfx.charge();
           break;
         case "broadside":
           sfx.streak(12);
           break;
-        case "foul":
+        case "jam":
           sfx.streakLost();
           break;
         case "clean":
-          sfx.pump(2);
+          sfx.vent(2);
           break;
         case "splash":
-          sfx.pump(1);
+          sfx.vent(1);
           break;
         case "exit":
           sfx.swapQuiet();
@@ -117,7 +117,7 @@ export function GunneryPractice() {
       labReady={bench.labReady}
       labSummary={bench.labSummary}
       splash={t("gunnery.go")}
-      warn={shown.cannons.some((c) => c.fouled)}
+      warn={shown.turrets.some((c) => c.jammed)}
       details={
         <>
           {broadsideStat}
@@ -136,8 +136,8 @@ export function GunneryPractice() {
             <dd>{state.broadsides}</dd>
           </div>
           <div>
-            <dt>{t("gunnery.result_fouls")}</dt>
-            <dd>{state.fouls}</dd>
+            <dt>{t("gunnery.result_jams")}</dt>
+            <dd>{state.jams}</dd>
           </div>
           <div>
             <dt>{t("gunnery.result_arrows")}</dt>

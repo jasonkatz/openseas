@@ -91,15 +91,15 @@ body {
     background 0.2s ease;
   touch-action: manipulation;
 }
-.ow-label-island {
+.ow-label-outpost {
   font-size: 17px;
 }
-.ow-label-island.here::before {
+.ow-label-outpost.here::before {
   content: "⚑ ";
   color: var(--brass);
 }
-.ow-label-island.selected,
-.ow-label-island.reachable {
+.ow-label-outpost.selected,
+.ow-label-outpost.reachable {
   background: rgba(212, 165, 72, 0.9);
   color: #1b150c;
 }
@@ -191,7 +191,7 @@ body {
   border: 2px solid rgba(239, 227, 198, 0.5);
   animation: pin-pulse 2.2s ease-out infinite;
 }
-.ow-pin-tavern {
+.ow-pin-cantina {
   background: #e06a4f;
 }
 .ow-pin-notice-board {
@@ -200,35 +200,35 @@ body {
 .ow-pin-station {
   background: var(--foam);
 }
-.ow-pin-station.ow-pin-bilging,
-.ow-pin-station.ow-pin-sailing,
-.ow-pin-station.ow-pin-carpentry,
+.ow-pin-station.ow-pin-cooling,
+.ow-pin-station.ow-pin-engines,
+.ow-pin-station.ow-pin-plating,
 .ow-pin-station.ow-pin-gunnery,
 .ow-pin-station.ow-pin-navigation {
   background: var(--foam);
 }
-.ow-pin-wheel {
+.ow-pin-helm {
   background: var(--brass);
 }
-.ow-pin-gangway {
+.ow-pin-airlock {
   background: var(--parchment);
 }
-.ow-spot-gangway .ow-spot-name {
+.ow-spot-airlock .ow-spot-name {
   font-size: 13px;
 }
 
 /* On a phone the deck's labels are compact, so the deck between them stays visible and tappable. */
 @media (max-width: 600px) {
   .ow-spot-station,
-  .ow-spot-wheel,
-  .ow-spot-gangway {
+  .ow-spot-helm,
+  .ow-spot-airlock {
     padding: 3px 8px;
     border-radius: 9px;
     margin-top: -11px;
   }
   .ow-spot-station .ow-spot-name,
-  .ow-spot-wheel .ow-spot-name,
-  .ow-spot-gangway .ow-spot-name {
+  .ow-spot-helm .ow-spot-name,
+  .ow-spot-airlock .ow-spot-name {
     font-size: 13px;
   }
   .ow-spot-station .ow-spot-who {
@@ -237,11 +237,11 @@ body {
 }
 
 /* Labels hung beside their pins on deck (a phone held upright, or zoomed in) show just the station:
-   who has it is in the card, and its state is in the label's ring. A deckhand's keeps its dashed dot. */
+   who has it is in the card, and its state is in the label's ring. A bot's keeps its dashed dot. */
 .ow-compact .ow-spot-station .ow-spot-who {
   display: none;
 }
-.ow-compact .ow-spot-station.is-mate .ow-spot-name::before {
+.ow-compact .ow-spot-station.is-bot .ow-spot-name::before {
   content: "";
   display: inline-block;
   width: 7px;
@@ -367,17 +367,17 @@ body {
 .ow-spot-station.is-taken {
   opacity: 0.8;
 }
-/* A deckhand's station: open to the viewer, so it reads as takeable, with the hand's dashed ring. */
-.ow-spot-station.is-mate {
+/* A bot's station: open to the viewer, so it reads as takeable, with the hand's dashed ring. */
+.ow-spot-station.is-bot {
   box-shadow:
     inset 0 0 0 1px rgba(239, 227, 198, 0.22),
     0 10px 24px -12px rgba(0, 0, 0, 0.9);
 }
-.ow-spot-station.is-mate .ow-spot-who {
+.ow-spot-station.is-bot .ow-spot-who {
   color: var(--parchment);
   opacity: 0.85;
 }
-.ow-spot-station.is-mate .ow-spot-who::before {
+.ow-spot-station.is-bot .ow-spot-who::before {
   content: "";
   display: inline-block;
   width: 7px;
@@ -387,22 +387,22 @@ body {
   border: 1.5px dashed var(--parchment-dim);
   vertical-align: 0;
 }
-.ow-spot-wheel {
+.ow-spot-helm {
   box-shadow:
     inset 0 0 0 1px rgba(212, 165, 72, 0.7),
     0 10px 24px -12px rgba(0, 0, 0, 0.9);
 }
-.ow-spot-wheel .ow-spot-name {
+.ow-spot-helm .ow-spot-name {
   color: var(--brass);
 }
-.ow-spot-wheel.is-primary {
+.ow-spot-helm.is-primary {
   background: linear-gradient(180deg, #e9bd63, var(--brass) 55%, var(--brass-deep));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     0 10px 24px -10px rgba(212, 165, 72, 0.9);
   animation: spot-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both, primary-glow 1.6s ease-in-out infinite;
 }
-.ow-spot-wheel.is-primary .ow-spot-name {
+.ow-spot-helm.is-primary .ow-spot-name {
   color: #1b150c;
 }
 @keyframes primary-glow {
@@ -484,11 +484,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.who-coins {
+.who-credits {
   font-size: 12px;
   color: var(--brass);
 }
-.topbar .who-coins {
+.topbar .who-credits {
   padding-left: 6px;
   border-left: 1px solid rgba(239, 227, 198, 0.2);
 }
@@ -824,7 +824,7 @@ body {
   padding: 8px 14px;
 }
 
-/* island */
+/* outpost */
 .buildings {
   list-style: none;
   margin: 0;
@@ -867,7 +867,7 @@ body {
   background: var(--brass);
   box-shadow: inset 0 0 0 4px rgba(0, 0, 0, 0.25);
 }
-.building-tavern .building-glyph {
+.building-cantina .building-glyph {
   background: #e06a4f;
 }
 .building-notice-board .building-glyph {
@@ -910,11 +910,11 @@ body {
 .crew li.away {
   opacity: 0.6;
 }
-.crew li.is-mate {
+.crew li.is-bot {
   background: rgba(255, 255, 255, 0.03);
   box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
 }
-.crew li.is-mate .crew-name {
+.crew li.is-bot .crew-name {
   color: var(--parchment-dim);
 }
 .crew .assign {
@@ -922,7 +922,7 @@ body {
   font-size: 13px;
   padding: 4px 6px;
 }
-.mate-chip {
+.bot-chip {
   display: inline-flex;
   gap: 5px;
   align-items: center;
@@ -1139,11 +1139,11 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
 }
-.station-btn.is-mate {
+.station-btn.is-bot {
   box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.12);
   background-image: repeating-linear-gradient(135deg, transparent 0 7px, rgba(239, 227, 198, 0.035) 7px 9px);
 }
-.station-btn.is-mate .station-who::before {
+.station-btn.is-bot .station-who::before {
   content: "";
   display: inline-block;
   width: 7px;
@@ -2040,7 +2040,7 @@ body {
 .crew-board .board-name {
   min-width: 0;
 }
-.crew-board .board-booty {
+.crew-board .board-plunder {
   color: var(--brass);
   font-size: 14px;
   white-space: nowrap;
@@ -2158,7 +2158,7 @@ body {
     animation: none;
   }
 }
-.topbar .who-coins {
+.topbar .who-credits {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -2355,10 +2355,10 @@ body {
   gap: 6px;
   align-items: center;
 }
-.look-coats {
+.look-jackets {
   gap: 6px;
 }
-.coat-swatch {
+.jacket-swatch {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -2375,7 +2375,7 @@ body {
   cursor: pointer;
   touch-action: manipulation;
 }
-.coat-swatch i {
+.jacket-swatch i {
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -2383,16 +2383,16 @@ body {
     inset 0 0 0 1px rgba(0, 0, 0, 0.4),
     0 0 0 1px rgba(239, 227, 198, 0.15);
 }
-.coat-swatch.is-on {
+.jacket-swatch.is-on {
   background: rgba(212, 165, 72, 0.16);
   box-shadow: inset 0 0 0 2px var(--brass);
   color: var(--brass);
 }
-.look-hats {
+.look-headgear {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
-.hat-choice {
+.headgear-choice {
   gap: 3px;
   min-width: 0;
   padding: 6px 2px 5px;
@@ -2403,7 +2403,7 @@ body {
   font-size: 11px;
   font-weight: 600;
 }
-.hat-choice.is-on {
+.headgear-choice.is-on {
   color: var(--brass);
 }
 .title-picks {

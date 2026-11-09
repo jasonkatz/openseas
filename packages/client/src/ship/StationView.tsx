@@ -13,32 +13,32 @@ export interface StationViewProps {
   station: StationWire;
   showMarks: boolean;
   onBack(): void;
-  /** The captain's way to the wheel from a station that is waiting for the ship to sail. */
+  /** The captain's way to the helm from a station that is waiting for the ship to fly. */
   onHelm(): void;
 }
 
 /**
  * A station with its board open, over the deck (DESIGN.md 3.11). The board gets the screen: one
  * thin bar above it carries the way back, the station's name, the board's score and clock, and the
- * ship as two labeled bars (bilge, hull) with the turn clock. A tap on them unfolds the full ship
+ * ship as two labeled bars (heat, hull) with the turn clock. A tap on them unfolds the full ship
  * status and last turn's output; a wide screen keeps it unfolded in a rail beside the board. Boards
- * are dealt as long as the ship is at sea; docked, the station says what it is waiting for.
+ * are dealt as long as the ship is in flight; docked, the station says what it is waiting for.
  */
 export function StationView({ ship, me, station, showMarks, onBack, onHelm }: StationViewProps) {
   const wide = useMediaQuery("(min-width: 900px)");
   const [open, setOpen] = useState(false);
   const details = open || wide;
-  const atSea = ship.location.kind === "at-sea";
+  const inFlight = ship.location.kind === "in-flight";
   const captain = ship.captainId === me;
   const captainName = ship.crew.find((c) => c.captain)?.name ?? "";
   const lastOutput = ship.lastTurn ? (ship.lastTurn.outputs[station] ?? 0) : null;
   const { engage, evade } = useShip();
-  // A brigand's hail takes over the bar itself, so nothing above the board moves: the title turns
+  // A raider's hail takes over the bar itself, so nothing above the board moves: the title turns
   // to the hail and pulses, and the captain's two answers stand in for the ship's bars until it passes.
-  const hail = ship.location.kind === "at-sea" ? ship.location.hail : null;
+  const hail = ship.location.kind === "in-flight" ? ship.location.hail : null;
   return (
     <section className="station-layer" data-testid={`station-view-${station}`}>
-      <DutyBoard station={station} active={atSea} showMarks={showMarks}>
+      <DutyBoard station={station} active={inFlight} showMarks={showMarks}>
         {({ api, score, combo, board }) => {
           const playing = api.phase === "playing";
           const lowTime = playing && api.timeLeft <= 10;
@@ -52,12 +52,12 @@ export function StationView({ ship, me, station, showMarks, onBack, onHelm }: St
                 </button>
                 <div className="station-head">
                   {hail ? (
-                    <h1 className="station-title station-hail" role="alert" title={captain ? t("ship.hailed", { brigand: tierName(hail.tierId) }) : t("ship.hail_wait")} data-testid="station-hail">
+                    <h1 className="station-title station-hail" role="alert" title={captain ? t("ship.hailed", { raider: tierName(hail.tierId) }) : t("ship.hail_wait")} data-testid="station-hail">
                       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round">
                         <path d="M12 3l10 18H2z" />
                         <path d="M12 10v5M12 18v.5" />
                       </svg>
-                      <span>{t("ship.hailed_bar", { brigand: tierName(hail.tierId) })}</span>
+                      <span>{t("ship.hailed_bar", { raider: tierName(hail.tierId) })}</span>
                     </h1>
                   ) : (
                     <h1 className="station-title">{stationName(station)}</h1>
@@ -98,14 +98,14 @@ export function StationView({ ship, me, station, showMarks, onBack, onHelm }: St
                 {board(playing)}
                 {!playing && (
                   <div className="board-veil">
-                    {!atSea && (
+                    {!inFlight && (
                       <div className="veil-card veil-card-slim" data-testid="duty-docked">
                         <p className="eyebrow">{stationName(station)}</p>
                         <p className="how">{captain ? t("ship.duty_waits_for_sea") : t("ship.waiting_for_captain", { captain: captainName })}</p>
                         <div className="row">
                           {captain && (
-                            <button className="btn btn-brass" onClick={onHelm} data-testid="duty-set-sail">
-                              {t("ship.set_sail")}
+                            <button className="btn btn-brass" onClick={onHelm} data-testid="duty-launch">
+                              {t("ship.launch")}
                             </button>
                           )}
                           <button className="btn btn-ghost" onClick={onBack}>
@@ -114,7 +114,7 @@ export function StationView({ ship, me, station, showMarks, onBack, onHelm }: St
                         </div>
                       </div>
                     )}
-                    {atSea && (api.phase === "idle" || api.phase === "dealing") && (
+                    {inFlight && (api.phase === "idle" || api.phase === "dealing") && (
                       <p className="status">
                         <span className="spinner" aria-hidden="true" />
                         {t("ship.duty_dealing")}

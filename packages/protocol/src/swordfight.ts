@@ -6,8 +6,8 @@ const Rot = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]);
 export const SwordfightMoveSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("place"), col: z.int().min(0).max(15), rot: Rot, tick: Tick }),
   z.object({ type: z.literal("wait"), tick: Tick }),
-  /** Aboard only: wrack from a board outside this fight, as the server announced it. */
-  z.object({ type: z.literal("incoming"), board: z.int().min(0).max(16), wrack: z.int().min(1).max(999), blade: z.int().min(0).max(15), tick: Tick }),
+  /** Aboard only: scrap from a board outside this fight, as the server announced it. */
+  z.object({ type: z.literal("incoming"), board: z.int().min(0).max(16), scrap: z.int().min(1).max(999), blade: z.int().min(0).max(15), tick: Tick }),
   /** The fight is over for this board: the player yields, or the server says the other side is beaten. */
   z.object({ type: z.literal("end"), won: z.boolean().optional(), tick: Tick }),
 ]);
@@ -31,7 +31,7 @@ export const SwordfightConfigSchema = z.object({
   breakerPermille: z.int().min(0).max(1000),
   dealSeed: z.string().max(200),
   ripenMoves: z.int().min(1).max(20),
-  wrackMatchPermille: z.int().min(0).max(1000),
+  scrapMatchPermille: z.int().min(0).max(1000),
   cellPoints: z.int().min(0).max(1000),
   slabBonus: z.int().min(0).max(1000),
   attackPoints: z.int().min(1).max(100_000),
@@ -54,14 +54,14 @@ export const SwordfightConfigSchema = z.object({
 });
 export type SwordfightConfigWire = z.infer<typeof SwordfightConfigSchema>;
 
-/** One board of a melee as everyone in it sees it: a row-major string, top row first, `.` empty, 0-5 a color, A-F a breaker, `#` wrack. */
+/** One board of a melee as everyone in it sees it: a row-major string, top row first, `.` empty, 0-5 a color, A-F a breaker, `#` scrap. */
 export const MeleeBoardSchema = z.object({
-  /** The pirate at the board, or a brigand's number. */
+  /** The pirate at the board, or a raider's number. */
   pirateId: z.string().nullable(),
   name: z.string(),
   side: z.union([z.literal(0), z.literal(1)]),
   cells: z.string().max(400),
-  /** Wrack waiting to land. */
+  /** Scrap waiting to land. */
   pending: z.int().min(0),
   out: z.boolean(),
   points: z.int().min(0),

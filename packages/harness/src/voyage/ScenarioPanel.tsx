@@ -16,7 +16,7 @@ import {
   type VoyageScenario,
   type VoyageWorld,
 } from "./scenario.js";
-import { pirateName, stationName } from "./names.js";
+import { outpostName, pirateName, stationName } from "./names.js";
 
 export interface ScenarioPanelProps {
   content: Content;
@@ -26,10 +26,10 @@ export interface ScenarioPanelProps {
   world: VoyageWorld;
 }
 
-/** The scenario, as the bench's sections: ship and route, crew, captain, script and the world's numbers. */
+/** The scenario, as the bench's sections: ship and lane, crew, captain, script and the world's numbers. */
 export function ScenarioPanel({ content, scenario, onChange, world }: ScenarioPanelProps) {
   const set = (patch: Partial<VoyageScenario>): void => onChange({ ...scenario, ...patch });
-  const base = baseWorld(content, scenario.shipClassId, scenario.routeId);
+  const base = baseWorld(content, scenario.shipClassId, scenario.laneId);
   return (
     <div className="bench-body" data-testid="voyage-scenario">
       <ShipSection content={content} scenario={scenario} set={set} base={base} />
@@ -43,15 +43,15 @@ export function ScenarioPanel({ content, scenario, onChange, world }: ScenarioPa
 
 type Setter = (patch: Partial<VoyageScenario>) => void;
 
-const ENCOUNTER_KEYS = ["route.encounterChance", "route.brigands"] as const;
+const ENCOUNTER_KEYS = ["lane.encounterChance", "lane.raiders"] as const;
 
 /** Which encounter choice the overrides amount to. */
 function encounterChoice(world: Overrides): string {
-  const chance = world["route.encounterChance"];
-  const brigands = world["route.brigands"] as Array<{ tierId: string; weight: number }> | undefined;
-  if (chance === undefined && brigands === undefined) return "content";
-  if (chance === 0 && brigands === undefined) return "none";
-  if (chance === 1 && Array.isArray(brigands) && brigands.length === 1) return `tier:${brigands[0]!.tierId}`;
+  const chance = world["lane.encounterChance"];
+  const raiders = world["lane.raiders"] as Array<{ tierId: string; weight: number }> | undefined;
+  if (chance === undefined && raiders === undefined) return "content";
+  if (chance === 0 && raiders === undefined) return "none";
+  if (chance === 1 && Array.isArray(raiders) && raiders.length === 1) return `tier:${raiders[0]!.tierId}`;
   return "custom";
 }
 
@@ -60,14 +60,14 @@ function ShipSection({ content, scenario, set, base }: { content: Content; scena
   const setEncounter = (v: string): void => {
     const w: Record<string, unknown> = { ...scenario.world };
     for (const k of ENCOUNTER_KEYS) delete w[k];
-    if (v === "none") w["route.encounterChance"] = 0;
+    if (v === "none") w["lane.encounterChance"] = 0;
     else if (v.startsWith("tier:")) {
-      w["route.encounterChance"] = 1;
-      w["route.brigands"] = [{ tierId: v.slice(5), weight: 1 }];
+      w["lane.encounterChance"] = 1;
+      w["lane.raiders"] = [{ tierId: v.slice(5), weight: 1 }];
     }
     set({ world: base ? pruneOverrides(base, w) : w });
   };
-  const route = base?.route;
+  const lane = base?.lane;
   const newSeed = (): string => `voyage-${Math.floor(Math.random() * 1e6).toString(36)}`;
   return (
     <section className="bench-section">
@@ -84,33 +84,33 @@ function ShipSection({ content, scenario, set, base }: { content: Content; scena
           </select>
         </label>
         <label className="bench-row">
-          <span>{t("harness.voyage.route")}</span>
-          <select value={scenario.routeId} onChange={(e) => set({ routeId: e.target.value })} data-testid="voyage-route">
-            {content.world.routes.map((r) => (
+          <span>{t("harness.voyage.lane")}</span>
+          <select value={scenario.laneId} onChange={(e) => set({ laneId: e.target.value })} data-testid="voyage-lane">
+            {content.world.lanes.map((r) => (
               <option key={r.id} value={r.id}>
-                {t("harness.voyage.route_option", { from: t(`island.${r.from}`), to: t(`island.${r.to}`), seconds: r.durationSeconds })}
+                {t("harness.voyage.lane_option", { from: outpostName(r.from), to: outpostName(r.to), seconds: r.durationSeconds })}
               </option>
             ))}
           </select>
         </label>
         <label className="bench-row">
-          <span>{t("harness.voyage.brigands")}</span>
+          <span>{t("harness.voyage.raiders")}</span>
           <select value={choice} onChange={(e) => setEncounter(e.target.value)} data-testid="voyage-encounter">
             <option value="content">
-              {route
-                ? t("harness.voyage.brigands_content", {
-                    chance: Math.round(route.encounterChance * 100),
-                    tiers: route.brigands.map((b) => `${t(`brigand.${b.tierId}`)} ${b.weight}`).join(", "),
+              {lane
+                ? t("harness.voyage.raiders_content", {
+                    chance: Math.round(lane.encounterChance * 100),
+                    tiers: lane.raiders.map((b) => `${t(`raider.${b.tierId}`)} ${b.weight}`).join(", "),
                   })
-                : t("harness.voyage.brigands_content_short")}
+                : t("harness.voyage.raiders_content_short")}
             </option>
-            {content.world.brigandTiers.map((tier) => (
+            {content.world.raiderTiers.map((tier) => (
               <option key={tier.id} value={`tier:${tier.id}`}>
-                {t("harness.voyage.brigands_always", { tier: t(tier.nameKey) })}
+                {t("harness.voyage.raiders_always", { tier: t(tier.nameKey) })}
               </option>
             ))}
-            <option value="none">{t("harness.voyage.brigands_none")}</option>
-            {choice === "custom" && <option value="custom">{t("harness.voyage.brigands_custom")}</option>}
+            <option value="none">{t("harness.voyage.raiders_none")}</option>
+            {choice === "custom" && <option value="custom">{t("harness.voyage.raiders_custom")}</option>}
           </select>
         </label>
         <label className="bench-row">
@@ -163,9 +163,9 @@ function CrewSection({ content, scenario, set, world }: { content: Content; scen
     const free = stations.find((s) => !crew.some((c) => c.station === s)) ?? null;
     set({ crew: [...crew, { name: "", station: free, duty: 100, spread: 15, sword: SWORD_HANDS.able }] });
   };
-  // Who signs on to make up the number, and where they go, as the reducer will seat them.
+  // Who boots up to make up the number, and where they go, as the reducer will seat them.
   const hands = Math.max(0, Math.min(world.ship.maxCrew, world.ship.minCrew) - crew.length);
-  const open = world.ship.mateStations.filter((s) => !crew.some((c) => c.station === s));
+  const open = world.ship.botStations.filter((s) => !crew.some((c) => c.station === s));
   const seated = open.slice(0, hands);
 
   return (
@@ -274,15 +274,15 @@ function CrewSection({ content, scenario, set, world }: { content: Content; scen
           {t("harness.voyage.crew_add")}
         </button>
       </div>
-      <p className="muted small" data-testid="voyage-deckhands">
+      <p className="muted small" data-testid="voyage-bots">
         {hands === 0
-          ? t("harness.voyage.deckhands_none", { min: world.ship.minCrew })
-          : t("harness.voyage.deckhands", {
+          ? t("harness.voyage.bots_none", { min: world.ship.minCrew })
+          : t("harness.voyage.bots", {
               count: hands,
               min: world.ship.minCrew,
-              stations: seated.length ? seated.map(stationName).join(", ") : t("harness.voyage.deckhands_on_deck"),
-              lo: world.rules.mateOutput.min,
-              hi: world.rules.mateOutput.max,
+              stations: seated.length ? seated.map(stationName).join(", ") : t("harness.voyage.bots_on_deck"),
+              lo: world.rules.botOutput.min,
+              hi: world.rules.botOutput.max,
             })}
       </p>
     </section>
@@ -296,10 +296,10 @@ function CaptainSection({ scenario, set }: { scenario: VoyageScenario; set: Sett
       <h3>{t("harness.voyage.captain_title")}</h3>
       <div className="bench-fields">
         <label className="bench-row">
-          <span>{t("harness.voyage.wheel")}</span>
-          <select value={scenario.wheel} onChange={(e) => set({ wheel: e.target.value === "you" ? "you" : "ai" })} data-testid="voyage-wheel">
-            <option value="ai">{t("harness.voyage.wheel_ai")}</option>
-            <option value="you">{t("harness.voyage.wheel_you")}</option>
+          <span>{t("harness.voyage.helm")}</span>
+          <select value={scenario.helm} onChange={(e) => set({ helm: e.target.value === "you" ? "you" : "ai" })} data-testid="voyage-helm">
+            <option value="ai">{t("harness.voyage.helm_ai")}</option>
+            <option value="you">{t("harness.voyage.helm_you")}</option>
           </select>
         </label>
         <label className="bench-row">
@@ -378,14 +378,14 @@ function ScriptSection({ scenario, set, world }: { scenario: VoyageScenario; set
 }
 
 /** Fields that name things rather than tune them; shown in content, never edited. */
-const FIXED = new Set(["ship.id", "ship.nameKey", "ship.price", "ship.hull", "route.id", "route.from", "route.to"]);
+const FIXED = new Set(["ship.id", "ship.nameKey", "ship.price", "ship.hull", "lane.id", "lane.from", "lane.to"]);
 const fixed = (path: string): boolean => FIXED.has(path) || /^tiers\.[^.]+\.(id|nameKey|shipClassId)$/.test(path);
 
 function WorldSection({ base, overrides, onChange }: { base: VoyageWorld; overrides: Overrides; onChange(next: Overrides): void }) {
   const groups: Array<{ id: string; title: string; prefix: string }> = [
     { id: "rules", title: t("harness.voyage.world_rules"), prefix: "rules" },
     { id: "ship", title: t("harness.voyage.world_ship"), prefix: "ship" },
-    { id: "route", title: t("harness.voyage.world_route"), prefix: "route" },
+    { id: "lane", title: t("harness.voyage.world_lane"), prefix: "lane" },
     ...Object.values(base.tiers).map((tier) => ({ id: `tier-${tier.id}`, title: t("harness.voyage.world_tier", { tier: t(tier.nameKey) }), prefix: `tiers.${tier.id}` })),
   ];
   const all = leaves(base).filter((f) => !fixed(f.path));

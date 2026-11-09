@@ -34,14 +34,14 @@ export interface NavigationConfig {
    */
   readonly starPoints: number;
   /**
-   * What the chain of constellations charted without a booch multiplies the stars by, in percent:
+   * What the chain of constellations charted without a lost heading multiplies the stars by, in percent:
    * the first takes the first entry, and a chain past the end takes the last, the cap.
    */
   readonly chainPercent: readonly number[];
   /** A run of n loose stars of a kind scores runPoints * (n - 2). */
   readonly runPoints: number;
   /** Lost when a star arrives at a blocked octant. Score never goes below zero. */
-  readonly boochPenalty: number;
+  readonly lostHeadingPenalty: number;
   /** Wall-clock ms per tick on the client; the server uses it to bound claimed ticks. */
   readonly tickMs: number;
   /** No move may claim a tick beyond this; the round is over by then. */
@@ -65,7 +65,7 @@ export const DEFAULT_NAVIGATION_CONFIG: NavigationConfig = {
   starPoints: 10,
   chainPercent: [100, 125, 150, 175, 200],
   runPoints: 5,
-  boochPenalty: 40,
+  lostHeadingPenalty: 40,
   tickMs: 100,
   maxTick: 1500,
   maxMoves: 2000,
@@ -105,7 +105,7 @@ export interface Completion {
   readonly markers: readonly Marker[];
   /** Ids of the stars removed, in marker order. */
   readonly ids: readonly number[];
-  /** Constellations charted in a row without a booch, this one included. */
+  /** Constellations charted in a row without a lost heading, this one included. */
   readonly chain: number;
   /** What the chain multiplied the stars by, in percent. */
   readonly chainPercent: number;
@@ -128,7 +128,7 @@ export type NavigationEvent =
   /** A star came to rest. */
   | { readonly seq: number; readonly tick: number; readonly type: "land"; readonly slot: number; readonly id: number; readonly kind: number; readonly onMarker: boolean }
   /** A star arrived at a blocked octant: the octant is swept clear. */
-  | { readonly seq: number; readonly tick: number; readonly type: "booch"; readonly octant: number; readonly ids: readonly number[]; readonly penalty: number }
+  | { readonly seq: number; readonly tick: number; readonly type: "lost_heading"; readonly octant: number; readonly ids: readonly number[]; readonly penalty: number }
   /** Stars slid inward to pack their columns after a turn or a clearing: each star's old and new slot. */
   | { readonly seq: number; readonly tick: number; readonly type: "fall"; readonly moves: ReadonlyArray<{ readonly id: number; readonly from: number; readonly to: number }> }
   | { readonly seq: number; readonly tick: number; readonly type: "charted"; readonly completion: Completion }
@@ -157,15 +157,15 @@ export interface NavigationState {
   readonly moveCount: number;
   /** Every move in the log, waits included. */
   readonly logLength: number;
-  /** Stars that have come down, booches included. */
+  /** Stars that have come down, lost headings included. */
   readonly landings: number;
   /** Landings since the current constellation was dealt, for the efficiency bonus. */
   readonly landingsSinceDeal: number;
   readonly completed: number;
-  readonly booches: number;
+  readonly lostHeadings: number;
   readonly runsCleared: number;
   readonly score: number;
-  /** Consecutive completions without a booch. */
+  /** Consecutive completions without a lost heading. */
   readonly combo: number;
   readonly bestCombo: number;
   readonly lastMove: NavigationMoveReport | null;

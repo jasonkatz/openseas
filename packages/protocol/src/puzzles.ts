@@ -1,21 +1,21 @@
 import { z } from "zod";
 import { BattleConfigSchema, BattleMoveSchema } from "./battle.js";
-import { BilgingConfigSchema, BilgingMoveSchema } from "./bilging.js";
-import { CarpentryConfigSchema, CarpentryMoveSchema } from "./carpentry.js";
+import { CoolingConfigSchema, CoolingMoveSchema } from "./cooling.js";
+import { PlatingConfigSchema, PlatingMoveSchema } from "./plating.js";
 import type { PuzzleIdWire } from "./common.js";
 import { GunneryConfigSchema, GunneryMoveSchema } from "./gunnery.js";
 import { NavigationConfigSchema, NavigationMoveSchema } from "./navigation.js";
-import { SailingConfigSchema, SailingMoveSchema } from "./sailing.js";
+import { EnginesConfigSchema, EnginesMoveSchema } from "./engines.js";
 import { SwordfightConfigSchema, SwordfightMoveSchema } from "./swordfight.js";
 
 /**
  * Per-puzzle wire schemas. The server validates a move against the schema of the session's puzzle,
- * so a Bilging swap sent to a Sailing round is rejected as an illegal move, not accepted as junk.
+ * so a Cooling swap sent to an Engines round is rejected as an illegal move, not accepted as junk.
  */
 export const PUZZLE_MOVE_SCHEMAS = {
-  bilging: BilgingMoveSchema,
-  sailing: SailingMoveSchema,
-  carpentry: CarpentryMoveSchema,
+  cooling: CoolingMoveSchema,
+  engines: EnginesMoveSchema,
+  plating: PlatingMoveSchema,
   gunnery: GunneryMoveSchema,
   navigation: NavigationMoveSchema,
   battle: BattleMoveSchema,
@@ -23,9 +23,9 @@ export const PUZZLE_MOVE_SCHEMAS = {
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
 export const PUZZLE_CONFIG_SCHEMAS = {
-  bilging: BilgingConfigSchema,
-  sailing: SailingConfigSchema,
-  carpentry: CarpentryConfigSchema,
+  cooling: CoolingConfigSchema,
+  engines: EnginesConfigSchema,
+  plating: PlatingConfigSchema,
   gunnery: GunneryConfigSchema,
   navigation: NavigationConfigSchema,
   battle: BattleConfigSchema,
@@ -33,7 +33,7 @@ export const PUZZLE_CONFIG_SCHEMAS = {
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
 /** Every puzzle's move shapes, for consumers that want the union type. Not used on the wire (see ws.ts). */
-export const AnyMoveSchema = z.union([BilgingMoveSchema, SailingMoveSchema, CarpentryMoveSchema, GunneryMoveSchema, NavigationMoveSchema, BattleMoveSchema, SwordfightMoveSchema]);
+export const AnyMoveSchema = z.union([CoolingMoveSchema, EnginesMoveSchema, PlatingMoveSchema, GunneryMoveSchema, NavigationMoveSchema, BattleMoveSchema, SwordfightMoveSchema]);
 export type AnyMoveWire = z.infer<typeof AnyMoveSchema>;
 
 export type MoveWireFor<P extends PuzzleIdWire> = z.infer<(typeof PUZZLE_MOVE_SCHEMAS)[P]>;

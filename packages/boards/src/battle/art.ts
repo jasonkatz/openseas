@@ -3,10 +3,10 @@ import type { ParsedBoard } from "@openseas/engine";
 import { battleCellAt } from "@openseas/engine";
 
 /**
- * Sea Battle's art, painted with Canvas 2D and baked to textures (as Gunnery's pieces and
- * Bilging's tiles are): a chart-blue sea with light on the water, shaded rocks ringed with surf,
- * winds as streamlines, eddies as foam spirals, and two sloops seen from above with hull, deck,
- * sail and pennant. The captain's sloop is pale with brass and a swallowtail pennant; the brigand
+ * Space Battle's art, painted with Canvas 2D and baked to textures (as Gunnery's pieces and
+ * Cooling's tiles are): a chart-blue sea with light on the water, shaded rocks ringed with surf,
+ * winds as streamlines, eddies as foam spirals, and two skiffs seen from above with hull, deck,
+ * sail and pennant. The captain's skiff is pale with brass and a swallowtail pennant; the raider
  * is tarred black with a blood-red sail and a cut-throat's triangular pennant, so the two read
  * apart by silhouette as well as color (CLAUDE.md rule 6).
  */
@@ -37,7 +37,7 @@ function canvasFor(w: number, h: number, resolution: number): { canvas: HTMLCanv
   return { canvas, ctx };
 }
 
-export const SEA = {
+export const SPACE = {
   deep: 0x0a2238,
   mid: 0x0f3453,
   shallow: 0x17466a,
@@ -49,7 +49,7 @@ export const SEA = {
 // ---- the sea
 
 /** The whole board: water, light, the grid, and every rock and wind, at `cell` pixels a cell. */
-export function paintSea(board: ParsedBoard, cell: number, resolution: number): HTMLCanvasElement {
+export function paintSpace(board: ParsedBoard, cell: number, resolution: number): HTMLCanvasElement {
   const W = board.width * cell;
   const H = board.height * cell;
   const { canvas, ctx } = canvasFor(W, H, resolution);
@@ -57,9 +57,9 @@ export function paintSea(board: ParsedBoard, cell: number, resolution: number): 
 
   // Deep water, lighter where the sun strikes it.
   const base = ctx.createLinearGradient(0, 0, 0, H);
-  base.addColorStop(0, css(SEA.mid));
-  base.addColorStop(0.5, css(SEA.shallow));
-  base.addColorStop(1, css(SEA.deep));
+  base.addColorStop(0, css(SPACE.mid));
+  base.addColorStop(0.5, css(SPACE.shallow));
+  base.addColorStop(1, css(SPACE.deep));
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, W, H);
   const sun = ctx.createRadialGradient(W * 0.38, H * 0.3, 0, W * 0.38, H * 0.3, Math.max(W, H) * 0.7);
@@ -97,7 +97,7 @@ export function paintSea(board: ParsedBoard, cell: number, resolution: number): 
   }
 
   // The chart's grid: thin lines and a pin at every crossing.
-  ctx.strokeStyle = css(SEA.grid, 0.11);
+  ctx.strokeStyle = css(SPACE.grid, 0.11);
   ctx.lineWidth = 1;
   for (let x = 0; x <= board.width; x++) {
     ctx.beginPath();
@@ -111,7 +111,7 @@ export function paintSea(board: ParsedBoard, cell: number, resolution: number): 
     ctx.lineTo(W, y * cell);
     ctx.stroke();
   }
-  ctx.fillStyle = css(SEA.grid, 0.22);
+  ctx.fillStyle = css(SPACE.grid, 0.22);
   for (let x = 1; x < board.width; x++) {
     for (let y = 1; y < board.height; y++) {
       ctx.beginPath();
@@ -123,7 +123,7 @@ export function paintSea(board: ParsedBoard, cell: number, resolution: number): 
   // Surf around the rocks first, so the rocks sit on it.
   for (let y = 0; y < board.height; y++) {
     for (let x = 0; x < board.width; x++) {
-      if (battleCellAt(board, x, y)?.kind !== "rock") continue;
+      if (battleCellAt(board, x, y)?.kind !== "asteroid") continue;
       paintSurf(ctx, board, x, y, cell, rnd);
     }
   }
@@ -132,13 +132,13 @@ export function paintSea(board: ParsedBoard, cell: number, resolution: number): 
   for (let y = 0; y < board.height; y++) {
     for (let x = 0; x < board.width; x++) {
       const c = battleCellAt(board, x, y);
-      if (!c || c.kind !== "wind" || seen.has(y * board.width + x)) continue;
+      if (!c || c.kind !== "current" || seen.has(y * board.width + x)) continue;
       const along = c.heading === 1 || c.heading === 3;
       const run: Array<[number, number]> = [];
       let [rx, ry] = [x, y];
       while (true) {
         const cell = battleCellAt(board, rx, ry);
-        if (!cell || cell.kind !== "wind" || cell.heading !== c.heading || seen.has(ry * board.width + rx)) break;
+        if (!cell || cell.kind !== "current" || cell.heading !== c.heading || seen.has(ry * board.width + rx)) break;
         seen.add(ry * board.width + rx);
         run.push([rx, ry]);
         if (along) rx += 1;
@@ -149,7 +149,7 @@ export function paintSea(board: ParsedBoard, cell: number, resolution: number): 
   }
   for (let y = 0; y < board.height; y++) {
     for (let x = 0; x < board.width; x++) {
-      if (battleCellAt(board, x, y)?.kind === "rock") paintRock(ctx, (x + 0.5) * cell, (y + 0.5) * cell, cell, seeded(x * 977 + y * 31 + 7));
+      if (battleCellAt(board, x, y)?.kind === "asteroid") paintAsteroid(ctx, (x + 0.5) * cell, (y + 0.5) * cell, cell, seeded(x * 977 + y * 31 + 7));
     }
   }
 
@@ -175,7 +175,7 @@ function paintSurf(ctx: CanvasRenderingContext2D, board: ParsedBoard, x: number,
   // Foam only on sides that face open water.
   const open = (dx: number, dy: number): boolean => {
     const c = battleCellAt(board, x + dx, y + dy);
-    return c !== null && c.kind !== "rock";
+    return c !== null && c.kind !== "asteroid";
   };
   ctx.save();
   ctx.lineCap = "round";
@@ -201,8 +201,8 @@ function paintSurf(ctx: CanvasRenderingContext2D, board: ParsedBoard, x: number,
   ctx.restore();
 }
 
-function paintRock(ctx: CanvasRenderingContext2D, cx: number, cy: number, cell: number, rnd: () => number): void {
-  if (drawSprite(ctx, "battle", "reef", cx - cell / 2, cy - cell / 2, cell, cell)) return;
+function paintAsteroid(ctx: CanvasRenderingContext2D, cx: number, cy: number, cell: number, rnd: () => number): void {
+  if (drawSprite(ctx, "battle", "asteroid", cx - cell / 2, cy - cell / 2, cell, cell)) return;
   const n = 9;
   const pts: Array<[number, number]> = [];
   for (let i = 0; i < n; i++) {
@@ -337,9 +337,9 @@ function paintGust(ctx: CanvasRenderingContext2D, run: ReadonlyArray<readonly [n
 
 // ---- eddies
 
-export function paintEddy(size: number, resolution: number): HTMLCanvasElement {
+export function paintWell(size: number, resolution: number): HTMLCanvasElement {
   const { canvas, ctx } = canvasFor(size, size, resolution);
-  if (drawSprite(ctx, "battle", "eddy", 0, 0, size, size)) {
+  if (drawSprite(ctx, "battle", "well", 0, 0, size, size)) {
     return canvas;
   }
   const c = size / 2;
@@ -385,9 +385,9 @@ export function paintEddy(size: number, resolution: number): HTMLCanvasElement {
   return canvas;
 }
 
-// ---- the sloops
+// ---- the skiffs
 
-/** A sloop seen from above, bow up, in a square of `size`. The hull is about 0.9 of it long. */
+/** A skiff seen from above, bow up, in a square of `size`. The hull is about 0.9 of it long. */
 export function paintShip(size: number, who: ShipSide, showMarks: boolean, resolution: number): HTMLCanvasElement {
   const { canvas, ctx } = canvasFor(size, size, resolution);
   if (drawSprite(ctx, "battle", `ship${who}`, 0, 0, size, size)) {
@@ -514,7 +514,7 @@ export function paintShip(size: number, who: ShipSide, showMarks: boolean, resol
   ctx.fill(sail);
   ctx.save();
   ctx.clip(sail);
-  // Seams, and the brigand's bar.
+  // Seams, and the raider's bar.
   ctx.strokeStyle = captain ? "rgba(120,100,60,0.3)" : "rgba(0,0,0,0.45)";
   ctx.lineWidth = Math.max(0.6, size * 0.01);
   for (let k = -2; k <= 2; k++) {
@@ -547,7 +547,7 @@ export function paintShip(size: number, who: ShipSide, showMarks: boolean, resol
   ctx.beginPath();
   ctx.arc(cx, mastY, mastR, 0, Math.PI * 2);
   ctx.fill();
-  // The pennant at the masthead: a swallowtail for the captain, a cut-throat's triangle for the brigand.
+  // The pennant at the masthead: a swallowtail for the captain, a cut-throat's triangle for the raider.
   ctx.fillStyle = pennant;
   ctx.beginPath();
   if (captain) {
@@ -576,7 +576,7 @@ export function paintShip(size: number, who: ShipSide, showMarks: boolean, resol
   ctx.arc(lx, ly, size * 0.03, 0, Math.PI * 2);
   ctx.fill();
   if (showMarks) {
-    // A bold badge on the foredeck: a ring for the captain, a cross for the brigand.
+    // A bold badge on the foredeck: a ring for the captain, a cross for the raider.
     const by = top + L * 0.25;
     const r = size * 0.055;
     ctx.strokeStyle = captain ? "#1b150c" : "#f6ecd4";
@@ -614,8 +614,8 @@ export function paintBall(size: number, resolution: number): HTMLCanvasElement {
   return canvas;
 }
 
-/** A cannon seen from above for the plot strip's gun toggles, with a lamp that lights when armed. */
-export function paintCannon(size: number, lit: boolean, resolution: number): HTMLCanvasElement {
+/** A turret seen from above for the plot strip's gun toggles, with a lamp that lights when armed. */
+export function paintTurret(size: number, lit: boolean, resolution: number): HTMLCanvasElement {
   const { canvas, ctx } = canvasFor(size, size, resolution);
   const c = size / 2;
   // Carriage.

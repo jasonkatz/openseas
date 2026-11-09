@@ -63,7 +63,7 @@ export function useShowMarks(): [boolean, (on: boolean) => void] {
 }
 
 export interface ShellProps {
-  /** Message-table prefix for this puzzle's strings, e.g. "sailing". */
+  /** Message-table prefix for this puzzle's strings, e.g. "engines". */
   puzzle: string;
   phase: PracticePhase;
   outcome: PracticeOutcome | null;

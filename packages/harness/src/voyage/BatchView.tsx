@@ -9,7 +9,7 @@ import { stationName } from "./names.js";
 
 type BatchState = { status: "idle" } | { status: "running"; done: number; total: number } | { status: "done"; runs: readonly RunSummary[]; cancelled: boolean } | { status: "error"; message: string };
 
-/** Sails batches in a worker, or on the page where workers are not to be had. */
+/** Flies batches in a worker, or on the page where workers are not to be had. */
 function useBatch() {
   const [state, setState] = useState<BatchState>({ status: "idle" });
   const worker = useRef<Worker | null>(null);
@@ -79,7 +79,7 @@ export interface BatchViewProps {
   /** Open one run of the batch as a single voyage. */
   onOpen(seed: string): void;
   stations: readonly Station[];
-  /** Sail the batch as soon as the view opens (a link with `start=batch`). */
+  /** Fly the batch as soon as the view opens (a link with `start=batch`). */
   autostart: boolean;
 }
 
@@ -96,12 +96,12 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
   }, []);
   const runs = state.status === "done" ? state.runs : null;
   const stats = useMemo(() => (runs ? batchStats(runs) : null), [runs]);
-  const [sort, setSort] = useState<"seed" | "turns" | "booty">("seed");
+  const [sort, setSort] = useState<"seed" | "turns" | "plunder">("seed");
   const sorted = useMemo(() => {
     if (!runs) return [];
     const out = [...runs];
     if (sort === "turns") out.sort((a, b) => b.turns - a.turns);
-    if (sort === "booty") out.sort((a, b) => b.booty - a.booty);
+    if (sort === "plunder") out.sort((a, b) => b.plunder - a.plunder);
     return out;
   }, [runs, sort]);
 
@@ -126,7 +126,7 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
 
       {state.status === "running" && (
         <div className="vprogress" data-testid="voyage-batch-progress">
-          <span className="water-meter progress-meter" aria-label={`${state.done}/${state.total}`}>
+          <span className="heat-meter progress-meter" aria-label={`${state.done}/${state.total}`}>
             <i style={{ width: `${(state.done * 100) / state.total}%` }} />
           </span>
           <small className="muted">{t("harness.voyage.batch_progress", { done: state.done, total: state.total })}</small>
@@ -145,7 +145,7 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
             <Tile label={t("harness.voyage.tile_turns")} value={stats.turns ? String(stats.turns.median) : "–"} note={stats.turns ? t("harness.voyage.tile_turns_note", { p90: stats.turns.p90, min: stats.turns.min, max: stats.turns.max }) : null} />
             <Tile label={t("harness.voyage.tile_hailed")} value={`${Math.round((stats.hailed * 100) / stats.runs)}%`} note={t("harness.voyage.tile_hailed_note", { engaged: stats.engaged })} />
             <Tile label={t("harness.voyage.tile_won")} value={stats.winRate === null ? "–" : `${Math.round(stats.winRate)}%`} note={stats.engaged ? t("harness.voyage.tile_won_note", { boardings: stats.boardings, engaged: stats.engaged }) : null} />
-            <Tile label={t("harness.voyage.tile_booty")} value={String(Math.round(stats.meanBooty))} note={t("harness.voyage.tile_booty_note")} />
+            <Tile label={t("harness.voyage.tile_plunder")} value={String(Math.round(stats.meanPlunder))} note={t("harness.voyage.tile_plunder_note")} />
           </div>
 
           {stats.engaged > 0 && (
@@ -178,7 +178,7 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
                 </div>
                 {Object.entries(stats.tiers).map(([tier, n]) => (
                   <div key={tier}>
-                    <dt>{t("harness.voyage.batch_hailed_by", { tier: t(`brigand.${tier}`) })}</dt>
+                    <dt>{t("harness.voyage.batch_hailed_by", { tier: t(`raider.${tier}`) })}</dt>
                     <dd className="mono">{n}</dd>
                   </div>
                 ))}
@@ -203,8 +203,8 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
                 <dd className="mono">{Math.round(stats.meanSpeed / 10)}%</dd>
               </div>
               <div>
-                <dt>{t("harness.voyage.batch_peak_water")}</dt>
-                <dd className="mono">{Math.round(stats.meanPeakWater / 10)}%</dd>
+                <dt>{t("harness.voyage.batch_peak_heat")}</dt>
+                <dd className="mono">{Math.round(stats.meanPeakHeat / 10)}%</dd>
               </div>
               <div>
                 <dt>{t("harness.voyage.batch_peak_damage")}</dt>
@@ -227,7 +227,7 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
                 <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
                   <option value="seed">{t("harness.voyage.batch_sort_seed")}</option>
                   <option value="turns">{t("harness.voyage.batch_sort_turns")}</option>
-                  <option value="booty">{t("harness.voyage.batch_sort_booty")}</option>
+                  <option value="plunder">{t("harness.voyage.batch_sort_plunder")}</option>
                 </select>
               </label>
             </div>
@@ -238,8 +238,8 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
                     <th>{t("harness.seed")}</th>
                     <th>{t("harness.voyage.col_end")}</th>
                     <th>{t("harness.voyage.col_turns")}</th>
-                    <th>{t("harness.voyage.col_brigand")}</th>
-                    <th>{t("harness.voyage.col_booty")}</th>
+                    <th>{t("harness.voyage.col_raider")}</th>
+                    <th>{t("harness.voyage.col_plunder")}</th>
                     <th />
                   </tr>
                 </thead>
@@ -249,8 +249,8 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
                       <td className="mono small">{r.seed}</td>
                       <td>{t(`harness.voyage.phase_${r.phase}`)}</td>
                       <td className="mono">{r.turns}</td>
-                      <td className="small">{r.hailedBy ? `${t(`brigand.${r.hailedBy}`)}${r.outcome ? ` · ${t(`harness.voyage.short_${r.outcome}`)}` : ""}` : "–"}</td>
-                      <td className="mono">{r.booty}</td>
+                      <td className="small">{r.hailedBy ? `${t(`raider.${r.hailedBy}`)}${r.outcome ? ` · ${t(`harness.voyage.short_${r.outcome}`)}` : ""}` : "–"}</td>
+                      <td className="mono">{r.plunder}</td>
                       <td>
                         <button type="button" className="btn btn-ghost btn-mini" onClick={() => onOpen(r.seed)} title={t("harness.voyage.batch_open_hint")} data-testid="voyage-batch-open">
                           {t("harness.voyage.batch_open")}

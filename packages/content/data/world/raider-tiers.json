@@ -1,0 +1,5 @@
+[
+  {"id": "junker", "nameKey": "raider.junker", "shipClassId": "skiff", "movesPerTurn": 2, "reloadPerTurn": 1, "accuracy": 0.5, "aggression": 0.4, "plunder": 300, "scorePercent": 50, "swordsmen": {"thinkTicks": 18, "skill": 35, "blade": 0}},
+  {"id": "marauder", "nameKey": "raider.marauder", "shipClassId": "skiff", "movesPerTurn": 3, "reloadPerTurn": 1, "accuracy": 0.65, "aggression": 0.6, "plunder": 600, "scorePercent": 100, "swordsmen": {"thinkTicks": 14, "skill": 60, "blade": 1}},
+  {"id": "corsair", "nameKey": "raider.corsair", "shipClassId": "skiff", "movesPerTurn": 4, "reloadPerTurn": 2, "accuracy": 0.8, "aggression": 0.8, "plunder": 1200, "scorePercent": 200, "swordsmen": {"thinkTicks": 10, "skill": 85, "blade": 2}}
+]

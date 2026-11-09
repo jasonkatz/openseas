@@ -2,7 +2,7 @@ import { defaultLook, type Title } from "@openseas/content";
 import type { PirateLookWire } from "@openseas/protocol";
 import { content, t } from "@openseas/boards";
 
-/** The coats, hats and titles content offers (DESIGN.md 3.6). */
+/** The jackets, headgear and titles content offers (DESIGN.md 3.6). */
 export const pirateRules = content.world.pirates;
 
 /** The look a pirate wears: the one the server sent, or the default drawn from their id when it sent none. */
@@ -10,17 +10,17 @@ export function lookFor(pirateId: string, look: PirateLookWire | null | undefine
   return look ?? defaultLook(pirateRules, pirateId);
 }
 
-export function coatHex(id: string): string {
-  return pirateRules.coats.find((c) => c.id === id)?.hex ?? pirateRules.coats[0]!.hex;
+export function jacketHex(id: string): string {
+  return pirateRules.jackets.find((c) => c.id === id)?.hex ?? pirateRules.jackets[0]!.hex;
 }
 
-export function coatName(id: string): string {
-  const c = pirateRules.coats.find((x) => x.id === id);
+export function jacketName(id: string): string {
+  const c = pirateRules.jackets.find((x) => x.id === id);
   return c ? t(c.nameKey) : id;
 }
 
-export function hatName(id: string): string {
-  const h = pirateRules.hats.find((x) => x.id === id);
+export function headgearName(id: string): string {
+  const h = pirateRules.headgear.find((x) => x.id === id);
   return h ? t(h.nameKey) : id;
 }
 
@@ -44,8 +44,8 @@ export function titleAsks(title: Title): string {
     case "captained":
     case "victories":
       return t(r.count === 1 ? `title.req_${r.kind}_one` : `title.req_${r.kind}`, { count: r.count });
-    case "booty":
-      return t("title.req_booty", { count: r.count });
+    case "plunder":
+      return t("title.req_plunder", { count: r.count });
     case "standing": {
       const tier = content.ratingTiers.find((x) => x.key === r.tier);
       return t("title.req_standing", { tier: tier ? t(tier.nameKey) : r.tier, puzzle: t(`home.practice_${r.puzzle}`) });
@@ -59,9 +59,9 @@ export function titleAsks(title: Title): string {
 
 /** A random look, for the die. Never the one being worn, so a roll always changes something. */
 export function randomLook(current: PirateLookWire, roll: () => number = Math.random): PirateLookWire {
-  const { coats, hats } = pirateRules;
+  const { jackets, headgear } = pirateRules;
   for (;;) {
-    const next = { coat: coats[Math.floor(roll() * coats.length)]!.id, hat: hats[Math.floor(roll() * hats.length)]!.id };
-    if (next.coat !== current.coat || next.hat !== current.hat) return next;
+    const next = { jacket: jackets[Math.floor(roll() * jackets.length)]!.id, headgear: headgear[Math.floor(roll() * headgear.length)]!.id };
+    if (next.jacket !== current.jacket || next.headgear !== current.headgear) return next;
   }
 }

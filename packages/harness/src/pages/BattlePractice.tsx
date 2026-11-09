@@ -17,7 +17,7 @@ function readArcsFlag(): boolean {
   }
 }
 
-/** The captain's practice fight: a brigand from content, and a turn clock that sails the plot. */
+/** The captain's practice fight: a raider from content, and a turn clock that flies the plot. */
 export function BattlePractice() {
   const [showMarks, setShowMarks] = useShowMarks();
   const [showArcs, setShowArcsState] = useState(readArcsFlag);
@@ -43,7 +43,7 @@ export function BattlePractice() {
   const shown = bench.reviewState ?? state;
   const playing = api.phase === "playing";
 
-  // The turn clock: the plot sails when it runs out, as it does aboard. It reads the round's own
+  // The turn clock: the plot flies when it runs out, as it does aboard. It reads the round's own
   // clock, so a lab round's slowed or paused clock holds the turn too.
   const turnMs = cfg.turnSeconds * 1000;
   const turnEndsAt = useRef<number | null>(null);
@@ -67,7 +67,7 @@ export function BattlePractice() {
       const left = ends - now();
       setTurnLeftMs(Math.max(0, left));
       if (left <= 0) {
-        // Give the engine a beat to take the plot; if it is refused the renderer sails holds instead.
+        // Give the engine a beat to take the plot; if it is refused the renderer flies holds instead.
         turnEndsAt.current = now() + turnMs;
         setCommitSignal((n) => n + 1);
       }
@@ -90,13 +90,13 @@ export function BattlePractice() {
           else sfx.swapQuiet();
           break;
         case "push":
-          sfx.pump(1);
+          sfx.vent(1);
           break;
         case "spin":
           sfx.tick(false);
           break;
         case "shot":
-          sfx.keg();
+          sfx.charge();
           if (e.hit) sfx.clear(e.ship === 0 ? 3 : 1, 4);
           break;
         case "grapple":
@@ -118,13 +118,13 @@ export function BattlePractice() {
   const me = shown.ships[0];
   const them = shown.ships[1];
   const hull = (d: number): number => Math.round(((BATTLE_PERMILLE - d) * 100) / BATTLE_PERMILLE);
-  const b = shown.config.brigand;
+  const b = shown.config.raider;
   const details = (
     <>
       <div className="stat stat-wide">
         <span className="stat-label">{t("battle.your_hull")}</span>
-        <span className="water-row">
-          <span className="water-meter progress-meter" aria-label={`${hull(me.damage)}%`}>
+        <span className="heat-row">
+          <span className="heat-meter progress-meter" aria-label={`${hull(me.damage)}%`}>
             <i style={{ width: `${hull(me.damage)}%` }} />
           </span>
           <small className="muted" data-testid="hud-hull">
@@ -134,8 +134,8 @@ export function BattlePractice() {
       </div>
       <div className="stat stat-wide">
         <span className="stat-label">{t("battle.their_hull")}</span>
-        <span className="water-row">
-          <span className="water-meter progress-meter" aria-label={`${hull(them.damage)}%`}>
+        <span className="heat-row">
+          <span className="heat-meter progress-meter" aria-label={`${hull(them.damage)}%`}>
             <i style={{ width: `${hull(them.damage)}%` }} />
           </span>
           <small className="muted" data-testid="hud-their-hull">
@@ -144,9 +144,9 @@ export function BattlePractice() {
         </span>
       </div>
       <div className="stat">
-        <span className="stat-label">{t("battle.cannons")}</span>
+        <span className="stat-label">{t("battle.turrets")}</span>
         <span className="stat-value" data-testid="hud-loaded">
-          {t("battle.cannons_value", { loaded: me.loaded, total: me.cannons })}
+          {t("battle.turrets_value", { loaded: me.loaded, total: me.turrets })}
         </span>
       </div>
       <div className="stat">
@@ -182,7 +182,7 @@ export function BattlePractice() {
       howTo={
         <>
           <p className="how">
-            <b>{t("battle.practice_brigand")}:</b> {t("battle.tier_line", { tokens: b.tokensPerTurn, reload: b.reloadPerTurn, accuracy: b.accuracy, aggression: b.aggression })}
+            <b>{t("battle.practice_raider")}:</b> {t("battle.tier_line", { tokens: b.tokensPerTurn, reload: b.reloadPerTurn, accuracy: b.accuracy, aggression: b.aggression })}
           </p>
           <p className="how how-kbd">{t("battle.how_to_keyboard")}</p>
         </>
@@ -211,9 +211,9 @@ export function BattlePractice() {
       legend={
         <>
           <p className="muted small legend-note">{t("battle.legend_ships")}</p>
-          <p className="muted small legend-note">{t("battle.legend_wind")}</p>
-          <p className="muted small legend-note">{t("battle.legend_eddy")}</p>
-          <p className="muted small legend-note">{t("battle.legend_rock")}</p>
+          <p className="muted small legend-note">{t("battle.legend_current")}</p>
+          <p className="muted small legend-note">{t("battle.legend_well")}</p>
+          <p className="muted small legend-note">{t("battle.legend_asteroid")}</p>
           <p className="muted small legend-note">{t("battle.legend_arc")}</p>
           <p className="muted small legend-note">{t("battle.legend_grapple")}</p>
           <label className="toggle">
@@ -237,7 +237,7 @@ export function BattlePractice() {
           turnLeftMs={playing ? turnLeftMs : null}
           turnMs={turnMs}
           commitSignal={commitSignal}
-          brigandName={t("battle.brigand")}
+          raiderName={t("battle.raider")}
           onCommit={onCommit}
           onFrame={api.markRendered}
           onEvents={onEvents}

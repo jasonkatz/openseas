@@ -1,6 +1,6 @@
 /**
  * Rooms are the seam for sharding later (ADR 0005). In v1 a room is an in-process set of
- * connections that can be broadcast to. Ships, islands, and swordfights will be rooms from M3.
+ * connections that can be broadcast to. Ships, outposts, and swordfights will be rooms from M3.
  * The practice page does not need rooms, but the abstraction is designed now so M3 fits it.
  */
 export interface RoomMember<M> {

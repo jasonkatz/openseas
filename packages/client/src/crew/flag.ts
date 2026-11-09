@@ -55,20 +55,20 @@ const EMBLEMS: Record<string, () => Shape[]> = {
     cut("M50 56 L45 65 L55 65 Z"),
     cut("M41 71 h4 v9 h-4 Z M48 71 h4 v9 h-4 Z M55 71 h4 v9 h-4 Z"),
   ],
-  anchor: () => [
+  rocket: () => [
     line(circle(50, 15, 7), 6),
     line("M50 22 L50 86 M33 33 L67 33", 7),
     line("M18 60 C22 80 36 88 50 88 C64 88 78 80 82 60", 7),
     fill("M10 66 L18 52 L27 64 Z"),
     fill("M90 66 L82 52 L73 64 Z"),
   ],
-  compass: () => [
+  planet: () => [
     line(circle(50, 50, 30), 4),
     fill(star(50, 50, 4, 28, 7, Math.PI / 4)),
     fill(star(50, 50, 4, 46, 8, -Math.PI / 2)),
     cut(circle(50, 50, 4)),
   ],
-  kraken: () => [
+  satellite: () => [
     line("M37 56 C28 70 10 64 13 80 M45 58 C41 74 32 84 39 93 M55 58 C59 74 68 84 61 93 M63 56 C72 70 90 64 87 80", 7),
     fill("M50 10 C33 10 25 23 25 37 C25 48 31 55 36 59 L64 59 C69 55 75 48 75 37 C75 23 67 10 50 10 Z"),
     cut(circle(41, 37, 5.5)),
@@ -81,8 +81,8 @@ const EMBLEMS: Record<string, () => Shape[]> = {
     fill(circle(14, 88, 5.5)),
     fill(circle(86, 88, 5.5)),
   ],
-  gull: () => [fill("M6 44 C22 30 37 32 50 52 C63 32 78 30 94 44 C79 40 64 46 50 66 C36 46 21 40 6 44 Z")],
-  wheel: () => {
+  moon: () => [fill("M6 44 C22 30 37 32 50 52 C63 32 78 30 94 44 C79 40 64 46 50 66 C36 46 21 40 6 44 Z")],
+  gear: () => {
     const spokes = new Path2D();
     const knobs: Shape[] = [];
     for (let i = 0; i < 8; i++) {

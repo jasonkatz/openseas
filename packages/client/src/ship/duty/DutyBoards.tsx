@@ -1,38 +1,38 @@
 import { useCallback, type ReactNode } from "react";
 import {
-  BILGING_DEF,
-  CARPENTRY_DEF,
+  COOLING_DEF,
+  PLATING_DEF,
   GUNNERY_DEF,
   NAVIGATION_DEF,
-  SAILING_DEF,
+  ENGINES_DEF,
   advanceGunnery,
   advanceNavigation,
   previewSwap,
-  type BilgingConfig,
-  type BilgingMove,
-  type BilgingState,
-  type CarpentryConfig,
-  type CarpentryMove,
-  type CarpentryState,
+  type CoolingConfig,
+  type CoolingMove,
+  type CoolingState,
+  type PlatingConfig,
+  type PlatingMove,
+  type PlatingState,
   type ClearRound,
   type Dir,
   type GunneryConfig,
   type GunneryEvent,
   type GunneryMove,
   type GunneryState,
-  type HoleRating,
+  type BreachRating,
   type NavigationConfig,
   type NavigationEvent,
   type NavigationMove,
   type NavigationState,
   type Rotation,
-  type SailingClearRound,
-  type SailingConfig,
-  type SailingMove,
-  type SailingState,
+  type EnginesClearRound,
+  type EnginesConfig,
+  type EnginesMove,
+  type EnginesState,
 } from "@openseas/engine";
 import type { PuzzleStarted, ServerMessage, StationWire } from "@openseas/protocol";
-import { BilgingBoard, CarpentryBoard, GunneryBoard, NavigationBoard, SailingBoard, content, sfx, useTicked, type BilgingMoveShown } from "@openseas/boards";
+import { CoolingBoard, PlatingBoard, GunneryBoard, NavigationBoard, EnginesBoard, content, sfx, useTicked, type CoolingMoveShown } from "@openseas/boards";
 import { useDuty, type DutyApi } from "./useDuty.js";
 
 /** What a station adapter hands the frame around it. */
@@ -51,19 +51,19 @@ export interface DutyProps {
 
 // ---- one adapter per station: the board and its sounds, as in the harness
 
-const bilging = content.puzzles.bilging;
-/** The ship's bilge arrives as water events: one with the deal, then one whenever a turn changes it. */
-const dealtWater = (started: PuzzleStarted): BilgingMove[] => (started.duty?.water !== undefined ? [{ type: "water", row: started.duty.water }] : []);
-const shipWater = (m: ServerMessage, sessionId: string): BilgingMove | null => (m.type === "duty.water" && m.sessionId === sessionId ? { type: "water", row: m.row } : null);
-function BilgingDuty({ active, showMarks, children }: DutyProps) {
-  const api = useDuty<BilgingState, BilgingMove, BilgingConfig>({
-    puzzle: "bilging",
-    def: BILGING_DEF,
-    config: bilging.config,
-    roundSeconds: bilging.roundSeconds,
+const cooling = content.puzzles.cooling;
+/** The ship's heat arrives as heat events: one with the deal, then one whenever a turn changes it. */
+const dealtHeat = (started: PuzzleStarted): CoolingMove[] => (started.duty?.heat !== undefined ? [{ type: "heat", row: started.duty.heat }] : []);
+const shipHeat = (m: ServerMessage, sessionId: string): CoolingMove | null => (m.type === "duty.heat" && m.sessionId === sessionId ? { type: "heat", row: m.row } : null);
+function CoolingDuty({ active, showMarks, children }: DutyProps) {
+  const api = useDuty<CoolingState, CoolingMove, CoolingConfig>({
+    puzzle: "cooling",
+    def: COOLING_DEF,
+    config: cooling.config,
+    roundSeconds: cooling.roundSeconds,
     active,
-    dealt: dealtWater,
-    shipMove: shipWater,
+    dealt: dealtHeat,
+    shipMove: shipHeat,
   });
   const { state } = api;
   const onSwap = useCallback(
@@ -82,15 +82,15 @@ function BilgingDuty({ active, showMarks, children }: DutyProps) {
   );
   const onClear = useCallback((r: ClearRound) => {
     const causes = new Set(r.groups.map((g) => g.cause));
-    if (causes.has("keg")) sfx.keg();
-    if (causes.has("ink")) sfx.ink();
-    if (causes.has("barnacle")) sfx.barnacle();
+    if (causes.has("charge")) sfx.charge();
+    if (causes.has("magnet")) sfx.magnet();
+    if (causes.has("slag")) sfx.slag();
     if (causes.has("match")) sfx.clear(r.chain, r.groups.reduce((n, g) => n + g.ids.length, 0));
   }, []);
-  const onMoveShown = useCallback((m: BilgingMoveShown) => {
+  const onMoveShown = useCallback((m: CoolingMoveShown) => {
     if (m.milestone) sfx.streak(m.milestone);
     else if (m.lostCombo >= 3) sfx.streakLost();
-    if (m.waterRows < 0) sfx.pump(-m.waterRows);
+    if (m.heatRows < 0) sfx.vent(-m.heatRows);
   }, []);
   const noHint = useCallback(() => null, []);
   return children({
@@ -98,7 +98,7 @@ function BilgingDuty({ active, showMarks, children }: DutyProps) {
     score: state.score,
     combo: state.combo,
     board: (interactive) => (
-      <BilgingBoard
+      <CoolingBoard
         state={state}
         report={state.lastMove}
         version={api.version}
@@ -116,14 +116,14 @@ function BilgingDuty({ active, showMarks, children }: DutyProps) {
   });
 }
 
-const sailing = content.puzzles.sailing;
-function SailingDuty({ active, showMarks, children }: DutyProps) {
-  const api = useDuty<SailingState, SailingMove, SailingConfig>({ puzzle: "sailing", def: SAILING_DEF, config: sailing.config, roundSeconds: sailing.roundSeconds, active });
+const engines = content.puzzles.engines;
+function EnginesDuty({ active, showMarks, children }: DutyProps) {
+  const api = useDuty<EnginesState, EnginesMove, EnginesConfig>({ puzzle: "engines", def: ENGINES_DEF, config: engines.config, roundSeconds: engines.roundSeconds, active });
   const { state } = api;
   const onPlace = useCallback((col: number, row: number, rot: Rotation) => void api.apply({ type: "place", col, row, rot }), [api]);
-  const onClear = useCallback((r: SailingClearRound) => {
+  const onClear = useCallback((r: EnginesClearRound) => {
     sfx.clear(r.chain, r.groups.reduce((n, g) => n + g.ids.length, 0));
-    if (r.groups.some((g) => g.cause === "platform")) sfx.barnacle();
+    if (r.groups.some((g) => g.cause === "injector")) sfx.slag();
     if (r.groups.length >= 2) sfx.multi(r.groups.length);
   }, []);
   const onLanded = useCallback(() => sfx.swapQuiet(), []);
@@ -137,23 +137,23 @@ function SailingDuty({ active, showMarks, children }: DutyProps) {
     score: state.score,
     combo: state.combo,
     board: (interactive) => (
-      <SailingBoard state={state} version={api.version} interactive={interactive} showMarks={showMarks} onPlace={onPlace} onFrame={api.markRendered} onClear={onClear} onLanded={onLanded} onNudge={onNudge} onWipe={onWipe} />
+      <EnginesBoard state={state} version={api.version} interactive={interactive} showMarks={showMarks} onPlace={onPlace} onFrame={api.markRendered} onClear={onClear} onLanded={onLanded} onNudge={onNudge} onWipe={onWipe} />
     ),
   });
 }
 
-const carpentry = content.puzzles.carpentry;
-function CarpentryDuty({ active, showMarks, children }: DutyProps) {
-  const api = useDuty<CarpentryState, CarpentryMove, CarpentryConfig>({ puzzle: "carpentry", def: CARPENTRY_DEF, config: carpentry.config, roundSeconds: carpentry.roundSeconds, active });
+const plating = content.puzzles.plating;
+function PlatingDuty({ active, showMarks, children }: DutyProps) {
+  const api = useDuty<PlatingState, PlatingMove, PlatingConfig>({ puzzle: "plating", def: PLATING_DEF, config: plating.config, roundSeconds: plating.roundSeconds, active });
   const { state } = api;
   const onPlace = useCallback((slot: number, rot: number, flip: boolean, col: number, row: number) => void api.apply({ type: "place", slot, rot, flip, col, row }), [api]);
-  const onPatched = useCallback((rating: HoleRating, chain: number) => {
-    sfx.plankLift();
-    if (rating === "masterpiece") sfx.clear(Math.min(6, chain), 6);
-    else if (rating === "pig") sfx.streakLost();
+  const onSealed = useCallback((rating: BreachRating, chain: number) => {
+    sfx.plateLift();
+    if (rating === "flawless") sfx.clear(Math.min(6, chain), 6);
+    else if (rating === "gum") sfx.streakLost();
     else sfx.clear(1, 3);
   }, []);
-  const onNailed = useCallback((waste: boolean) => sfx.hammer(waste), []);
+  const onNailed = useCallback((waste: boolean) => sfx.welder(waste), []);
   const onGrew = useCallback(() => sfx.crack(true), []);
   const onCracked = useCallback((opening: boolean) => sfx.crack(!opening), []);
   const onNudge = useCallback(() => sfx.tick(false), []);
@@ -163,14 +163,14 @@ function CarpentryDuty({ active, showMarks, children }: DutyProps) {
     score: state.score,
     combo: state.combo,
     board: (interactive) => (
-      <CarpentryBoard
+      <PlatingBoard
         state={state}
         version={api.version}
         interactive={interactive}
         showMarks={showMarks}
         onPlace={onPlace}
         onFrame={api.markRendered}
-        onPatched={onPatched}
+        onSealed={onSealed}
         onNailed={onNailed}
         onGrew={onGrew}
         onCracked={onCracked}
@@ -197,9 +197,9 @@ function GunneryDuty({ active, showMarks, children }: DutyProps) {
     for (const e of events) {
       if (e.type === "load") sfx.swap();
       else if (e.type === "loaded") sfx.clear(2, 5);
-      else if (e.type === "fire") sfx.keg();
+      else if (e.type === "fire") sfx.charge();
       else if (e.type === "broadside") sfx.streak(12);
-      else if (e.type === "foul") sfx.streakLost();
+      else if (e.type === "jam") sfx.streakLost();
     }
   }, []);
   return children({
@@ -221,7 +221,7 @@ function NavigationDuty({ active, showMarks, children }: DutyProps) {
   const onEvents = useCallback((events: readonly NavigationEvent[]) => {
     for (const e of events) {
       if (e.type === "land") e.onMarker ? sfx.swap() : sfx.swapQuiet();
-      else if (e.type === "booch") sfx.streakLost();
+      else if (e.type === "lost_heading") sfx.streakLost();
       else if (e.type === "charted") sfx.clear(e.completion.chain, e.completion.markers.length);
       else if (e.type === "run") sfx.multi(e.run.slots.length - 1);
     }
@@ -239,12 +239,12 @@ function NavigationDuty({ active, showMarks, children }: DutyProps) {
 /** The duty board for a station, as a render prop so the frame around it is the station view's. */
 export function DutyBoard({ station, ...rest }: DutyProps & { station: StationWire }) {
   switch (station) {
-    case "bilging":
-      return <BilgingDuty {...rest} />;
-    case "sailing":
-      return <SailingDuty {...rest} />;
-    case "carpentry":
-      return <CarpentryDuty {...rest} />;
+    case "cooling":
+      return <CoolingDuty {...rest} />;
+    case "engines":
+      return <EnginesDuty {...rest} />;
+    case "plating":
+      return <PlatingDuty {...rest} />;
     case "gunnery":
       return <GunneryDuty {...rest} />;
     case "navigation":

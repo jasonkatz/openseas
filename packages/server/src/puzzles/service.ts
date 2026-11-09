@@ -31,7 +31,7 @@ export class PuzzleService {
    * result sent to the captain if there was one. Set by the ship service.
    */
   onBattleEnd: ((session: PuzzleSession, how: "finished" | "rejected" | "abandoned", result: ServerMessage | null) => void) | null = null;
-  /** A melee board took a move: the ship routes what it sent. Set by the ship service. */
+  /** A melee board took a move: the ship lanes what it sent. Set by the ship service. */
   onMeleeMove: ((session: PuzzleSession) => void) | null = null;
   /** A melee board's session is over, however it ended. Called after it is closed. Set by the ship service. */
   onMeleeEnd: ((session: PuzzleSession, how: "finished" | "rejected" | "abandoned", result: ServerMessage | null) => void) | null = null;
@@ -40,8 +40,8 @@ export class PuzzleService {
    * whatever the ship announced that the board has not logged yet. Set by the ship service.
    */
   onResync: ((session: PuzzleSession) => void) | null = null;
-  /** A harness Bilging round's lone ship turned and its bilge moved (ADR 0029): tell its pirate. Set by the socket server. */
-  onSoloWater: ((session: PuzzleSession, row: number) => void) | null = null;
+  /** A harness Cooling round's lone ship turned and its heat moved (ADR 0029): tell its pirate. Set by the socket server. */
+  onSoloHeat: ((session: PuzzleSession, row: number) => void) | null = null;
 
   constructor(
     private readonly db: Db,
@@ -60,13 +60,13 @@ export class PuzzleService {
       now,
       randomSeed: () => randomBytes(16).toString("hex"),
       randomId: () => randomUUID(),
-      soloBilge: { rules: content.world.ship, par: parPerTurn(content.world.ship, content.puzzles.bilging) },
+      soloHeat: { rules: content.world.ship, par: parPerTurn(content.world.ship, content.puzzles.cooling) },
     });
   }
 
-  /** Once a second: turn the lone ships of harness Bilging rounds that are due, and pass on what moved. */
+  /** Once a second: turn the lone ships of harness Cooling rounds that are due, and pass on what moved. */
   tick(): void {
-    for (const { session, row } of this.sessions.turnSoloBilges()) this.onSoloWater?.(session, row);
+    for (const { session, row } of this.sessions.turnSoloHeat()) this.onSoloHeat?.(session, row);
   }
 
   start(pirateId: string, puzzle: PuzzleId, duty: DutyBinding | null = null): PuzzleStarted {
@@ -77,7 +77,7 @@ export class PuzzleService {
     return this.startedMessage(s);
   }
 
-  /** Deal the captain's sea battle aboard a ship, on the ship's own config (the tier, the guns, the ship's turn). */
+  /** Deal the captain's space battle aboard a ship, on the ship's own config (the tier, the guns, the ship's turn). */
   startBattle(pirateId: string, battle: BattleBinding, override: RoundOverride): PuzzleStarted {
     const s = this.sessions.start(pirateId, "battle", null, battle, override);
     void recordEvent(this.db, pirateId, "puzzle.started", { puzzle: "battle", sessionId: s.id, voyageId: battle.voyageId, tierId: battle.tierId }).catch((e) =>
@@ -86,7 +86,7 @@ export class PuzzleService {
     return this.startedMessage(s);
   }
 
-  /** Deal a pirate's board in a boarding melee, on the melee's config (no foes in it; the brigand crew is outside). */
+  /** Deal a pirate's board in a boarding melee, on the melee's config (no foes in it; the raider crew is outside). */
   startMelee(pirateId: string, melee: MeleeBinding, override: RoundOverride): PuzzleStarted {
     const s = this.sessions.start(pirateId, "swordfight", null, null, override, melee);
     void recordEvent(this.db, pirateId, "puzzle.started", { puzzle: "swordfight", sessionId: s.id, voyageId: melee.voyageId, tierId: melee.tierId }).catch((e) =>
@@ -117,7 +117,7 @@ export class PuzzleService {
       config: s.config,
       deadlineAt: s.deadlineAt,
       serverNow: s.startedAt,
-      ...(duty ? { duty: { shipId: duty.shipId, station: duty.station, ...(duty.water !== undefined ? { water: duty.water } : {}) } } : {}),
+      ...(duty ? { duty: { shipId: duty.shipId, station: duty.station, ...(duty.heat !== undefined ? { heat: duty.heat } : {}) } } : {}),
       ...(s.battle ? { battle: { shipId: s.battle.shipId, tierId: s.battle.tierId } } : {}),
       ...(s.melee ? { melee: { shipId: s.melee.shipId, tierId: s.melee.tierId } } : {}),
       ...(resume ? { resume: { moves: s.moves } } : {}),
@@ -151,7 +151,7 @@ export class PuzzleService {
   }
 
   /**
-   * Score a round. Standing is earned in the game only (ADR 0028): the captain's sea battle and a
+   * Score a round. Standing is earned in the game only (ADR 0028): the captain's space battle and a
    * melee board always move it, a duty board only when it ran its full clock or the engine ended it
    * (a board cut short by docking counts but moves no standing), and a harness round never does.
    * Every scored round gets its own performance rating against the thresholds.

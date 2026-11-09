@@ -18,14 +18,14 @@ export async function purchaseShip(
   price: number,
   grantId: string | null,
   name: string,
-  /** The island the ship is delivered to: where the pirate stands. */
-  islandId: string,
+  /** The outpost the ship is delivered to: where the pirate stands. */
+  outpostId: string,
 ): Promise<{ shipId: string; balance: number }> {
   const shipClass = content.world.shipClasses.find((c) => c.id === classId);
   if (!shipClass) throw new Error(`unknown ship class ${classId}`);
   const balance = await appendLedger(tx, pirateId, -price, "ship.purchase", grantId ?? classId);
   const shipId = randomUUID();
-  await tx.insert(schema.ship).values({ id: shipId, ownerId: pirateId, classId, name, grantId, islandId });
+  await tx.insert(schema.ship).values({ id: shipId, ownerId: pirateId, classId, name, grantId, outpostId });
   return { shipId, balance };
 }
 
@@ -54,7 +54,7 @@ export async function applyAutomaticGrants(
   pirateId: string,
   pirateName: string,
   ctx: GrantContext,
-  islandId: string,
+  outpostId: string,
 ): Promise<string[]> {
   const granted: string[] = [];
   for (const grant of content.world.shipGrants) {
@@ -69,14 +69,14 @@ export async function applyAutomaticGrants(
     }
     const [adjective, noun] = pirateName.split(" ");
     const shipName = msg(content, "ship.default_name", { adjective: adjective ?? "Salty", noun: noun ?? "Gull" });
-    await purchaseShip(tx, content, pirateId, grant.shipClassId, grant.price, grant.id, shipName, islandId);
+    await purchaseShip(tx, content, pirateId, grant.shipClassId, grant.price, grant.id, shipName, outpostId);
     granted.push(grant.id);
   }
   return granted;
 }
 
 /**
- * A pirate buys a ship at the yard of the island they stand on. The same path as the starter grant
+ * A pirate buys a ship at the yard of the outpost they stand on. The same path as the starter grant
  * (ADR 0010), at the class's price. Names the ship from the content name lists.
  */
 export async function buyShip(
@@ -84,7 +84,7 @@ export async function buyShip(
   content: Content,
   pirateId: string,
   classId: string,
-  islandId: string,
+  outpostId: string,
   pick: (n: number) => number,
 ): Promise<{ shipId: string; name: string; balance: number }> {
   const shipClass = content.world.shipClasses.find((c) => c.id === classId);
@@ -93,7 +93,7 @@ export async function buyShip(
   const noun = content.names.nouns[pick(content.names.nouns.length)] ?? "Gull";
   const name = msg(content, "ship.default_name", { adjective, noun });
   return db.transaction(async (tx) => {
-    const r = await purchaseShip(tx, content, pirateId, classId, shipClass.price, null, name, islandId);
+    const r = await purchaseShip(tx, content, pirateId, classId, shipClass.price, null, name, outpostId);
     return { ...r, name };
   });
 }

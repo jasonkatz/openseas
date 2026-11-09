@@ -1,7 +1,7 @@
 /**
- * The voyage bench's simulator (ADR 0027): a ship sailing one leg with a simulated crew, through
+ * The voyage bench's simulator (ADR 0027): a ship flying one leg with a simulated crew, through
  * the engine's own reducers, wired the way the server wires them. Pure and deterministic: the same
- * setup sails the same voyage, turn for turn, hash for hash.
+ * setup flies the same voyage, turn for turn, hash for hash.
  *
  * One `step` is one ship turn, in the server's order:
  *
@@ -14,12 +14,12 @@
  *   6. the battle board is supplied with the ship's word (`pushSupply`);
  *   7. the captain answers a hail this turn raised (engage, evade, or let it lapse); engaging deals
  *      the battle board on the ship's config and supplies it at once, as the server's `engage` and
- *      `supplyNow` do, so the fight's first plot sails at the next turn.
+ *      `supplyNow` do, so the fight's first plot flies at the next turn.
  *
  * What is modelled rather than played: a pirate's board is a number of points per turn, rolled
  * from that pirate's own PRNG around the scenario's percent of par; the captain plays no station
  * while at the helm of a fight; and the boarding melee is one swordfight with every pirate's hand
- * against the tier's crew, where aboard the server routes one fight per pirate (ADR 0022). Every
+ * against the tier's crew, where aboard the server lanes one fight per pirate (ADR 0022). Every
  * roll is seeded, so a scenario and its seed are the whole story.
  */
 
@@ -42,7 +42,7 @@ import {
   reduceSwordfight,
   seedFromString,
   shipSupply,
-  splitBooty,
+  splitPlunder,
   STATIONS,
   type BattleConfig,
   type BattleMove,
@@ -58,33 +58,33 @@ import {
   type SwordfightConfig,
   type SwordfightMove,
   type SwordfightState,
-  turnBootyOutputs,
-  meleeBootyOutput,
+  turnPlunderOutputs,
+  meleePlunderOutput,
   swordfightScore,
 } from "@openseas/engine";
 import { meleeConfig, type VoyageSetup } from "./scenario.js";
 
-export type SimPhase = "sailing" | "battle" | "melee" | "arrived" | "abandoned" | "adrift";
+export type SimPhase = "flying" | "battle" | "melee" | "arrived" | "abandoned" | "adrift";
 
 /** The ship after one turn, for the charts. */
 export interface TurnSample {
   readonly turn: number;
-  readonly phase: "sailing" | "battle" | "melee";
+  readonly phase: "flying" | "battle" | "melee";
   readonly outputs: Readonly<Record<Station, number>>;
   readonly held: boolean;
   /** Permille, as the ship reducer keeps them. */
-  readonly water: number;
+  readonly heat: number;
   readonly damage: number;
   readonly speed: number;
   /** Permille of the leg. */
   readonly progress: number;
   readonly loaded: number;
   readonly tokens: number;
-  /** The brigand's hull while a fight is on, permille; null otherwise. */
-  readonly brigandDamage: number | null;
+  /** The raider's hull while a fight is on, permille; null otherwise. */
+  readonly raiderDamage: number | null;
 }
 
-/** One sea battle: everything needed to replay it, and every state it passed through for the board. */
+/** One space battle: everything needed to replay it, and every state it passed through for the board. */
 export interface BattleRecord {
   readonly tierId: string;
   readonly seed: string;
@@ -115,7 +115,7 @@ export interface MeleeRecord {
   /** The pirate behind each of side 0's boards, in board order. */
   readonly fighters: readonly string[];
   readonly startTurn: number;
-  /** What the sea battle ended in: who boarded whom. */
+  /** What the space battle ended in: who boarded whom. */
   readonly boarding: "boarded" | "boarded_by";
   readonly outcome: ShipBattleOutcome | null;
   /** The fight as it stands, for the bench's tally of the boards. */
@@ -145,8 +145,8 @@ export interface VoyageSim {
   readonly melee: SwordfightState | null;
   readonly samples: readonly TurnSample[];
   readonly log: readonly SimEntry[];
-  /** Coins paid per pirate over the voyage. */
-  readonly booty: Readonly<Record<string, number>>;
+  /** Credits paid per pirate over the voyage. */
+  readonly plunder: Readonly<Record<string, number>>;
   readonly phase: SimPhase;
   readonly done: boolean;
 }
@@ -165,12 +165,12 @@ interface Work {
   melee: SwordfightState | null;
   samples: TurnSample[];
   log: SimEntry[];
-  booty: Record<string, number>;
+  plunder: Record<string, number>;
   phase: SimPhase;
   done: boolean;
 }
 
-const zeroOutputs = (): Record<Station, number> => ({ bilging: 0, sailing: 0, carpentry: 0, gunnery: 0, navigation: 0 });
+const zeroOutputs = (): Record<Station, number> => ({ cooling: 0, engines: 0, plating: 0, gunnery: 0, navigation: 0 });
 
 function work(sim: VoyageSim): Work {
   return {
@@ -182,7 +182,7 @@ function work(sim: VoyageSim): Work {
     melees: [...sim.melees],
     samples: [...sim.samples],
     log: [...sim.log],
-    booty: { ...sim.booty },
+    plunder: { ...sim.plunder },
   };
 }
 
@@ -210,24 +210,24 @@ function applyShip(w: Work, move: ShipMove, refusedAs?: { kind: string; who: str
 function shipEvent(w: Work, e: ShipEvent): void {
   switch (e.type) {
     case "boarded":
-      return; // the crew list says who sailed
+      return; // the crew list says who flew
     case "left":
       note(w, e.reason === "timed_out" ? "timed_out" : "left", { who: e.pirateId });
       return;
-    case "hired":
-      note(w, "hired", { who: e.pirateId, station: e.station ?? "" });
+    case "booted_up":
+      note(w, "booted_up", { who: e.pirateId, station: e.station ?? "" });
       return;
-    case "paid_off":
-      note(w, "paid_off", { count: e.pirateIds.length });
+    case "powered_down":
+      note(w, "powered_down", { count: e.pirateIds.length });
       return;
     case "station":
       note(w, "station", { who: e.pirateId, station: e.station ?? "" });
       return;
-    case "wheel":
-      note(w, "wheel", { who: e.pirateId });
+    case "helm":
+      note(w, "helm", { who: e.pirateId });
       return;
-    case "sailed":
-      note(w, "sailed", { route: e.routeId });
+    case "launched":
+      note(w, "launched", { lane: e.laneId });
       return;
     case "hailed":
       note(w, "hailed", { tier: e.tierId });
@@ -239,28 +239,28 @@ function shipEvent(w: Work, e: ShipEvent): void {
       note(w, "engaged", { tier: e.tierId });
       return;
     case "battle_ended":
-      note(w, "battle_ended", { tier: e.tierId, outcome: e.outcome, booty: e.booty, turns: e.turns });
+      note(w, "battle_ended", { tier: e.tierId, outcome: e.outcome, plunder: e.plunder, turns: e.turns });
       return;
     case "boarding":
       return;
     case "arrived":
-      note(w, "arrived", { island: e.islandId, turns: e.turns });
+      note(w, "arrived", { outpost: e.outpostId, turns: e.turns });
       w.phase = "arrived";
       w.done = true;
       return;
     case "abandoned":
-      note(w, "abandoned", { island: e.islandId });
+      note(w, "abandoned", { outpost: e.outpostId });
       w.phase = "abandoned";
       w.done = true;
       return;
   }
 }
 
-/** Set sail: everyone boards in order (the first has the wheel), takes their station, and the ship sails the leg. */
+/** Launch: everyone boards in order (the first has the helm), takes their station, and the ship flies the leg. */
 export function startVoyage(setup: VoyageSetup): VoyageSim {
   const w: Work = {
     setup,
-    ship: createShip(setup.seed, setup.ship, setup.islandId),
+    ship: createShip(setup.seed, setup.ship, setup.outpostId),
     shipMoves: [],
     shipHashes: [],
     crewRng: setup.crew.map((c) => seedFromString(`crew:${setup.seed}:${c.pirateId}`)),
@@ -271,13 +271,13 @@ export function startVoyage(setup: VoyageSetup): VoyageSim {
     melee: null,
     samples: [],
     log: [],
-    booty: {},
-    phase: "sailing",
+    plunder: {},
+    phase: "flying",
     done: false,
   };
   for (const c of setup.crew) applyShip(w, { type: "board", pirateId: c.pirateId }, { kind: "board", who: c.pirateId });
   for (const c of setup.crew) if (c.station) applyShip(w, { type: "station", pirateId: c.pirateId, station: c.station }, { kind: "station", who: c.pirateId });
-  applyShip(w, { type: "sail", leg: setup.leg });
+  applyShip(w, { type: "launch", leg: setup.leg });
   return freeze(w);
 }
 
@@ -308,7 +308,7 @@ function engage(w: Work): void {
   const hail = w.ship.voyage?.hail;
   if (!hail || !applyShip(w, { type: "engage" })) return;
   const tier = w.setup.tiers[hail.tierId]!;
-  const config = battleConfigAboard(w.setup.battleBase, w.ship, tier.brigand, tier.scorePercent);
+  const config = battleConfigAboard(w.setup.battleBase, w.ship, tier.raider, tier.scorePercent);
   const seed = `${w.setup.seed}/battle/${w.battles.length + 1}`;
   const state = createBattleGame(seed, config);
   w.battle = state;
@@ -337,7 +337,7 @@ function answerHail(w: Work): void {
   else if (w.setup.hail === "evade") applyShip(w, { type: "evade" });
 }
 
-/** The fight is decided on the board: a boarding opens the melee at the rail, anything else pays out now. */
+/** The fight is decided on the board: a boarding opens the melee at the airlock, anything else pays out now. */
 function settleBattle(w: Work): void {
   const state = w.battle!;
   const rec = lastBattle(w);
@@ -345,8 +345,8 @@ function settleBattle(w: Work): void {
   w.battles[w.battles.length - 1] = { ...rec, outcome };
   w.battle = null;
   if (outcome === "boarded" || outcome === "boarded_by") {
-    // Deckhands hold no board; a pirate whose seat is held while away is not at the rail.
-    const fighters = w.ship.crew.filter((c) => !c.mate && c.awaySinceTurn === null);
+    // Bots hold no board; a pirate whose seat is held while away is not at the airlock.
+    const fighters = w.ship.crew.filter((c) => !c.bot && c.awaySinceTurn === null);
     if (fighters.length > 0) {
       openMelee(w, rec.tierId, outcome, fighters.map((c) => c.pirateId));
       return;
@@ -366,7 +366,7 @@ function openMelee(w: Work, tierId: string, boarding: "boarded" | "boarded_by", 
   note(w, "boarding", { tier: tierId, fighters: hands.length, boarded: boarding === "boarded" ? 1 : 0 });
 }
 
-/** The melee fights on for one ship turn's worth of ticks, and may decide the rail. */
+/** The melee fights on for one ship turn's worth of ticks, and may decide the airlock. */
 function fightMelee(w: Work): void {
   const state = w.melee!;
   const cfg = state.config;
@@ -387,7 +387,7 @@ function settleMelee(w: Work, outcome: ShipBattleOutcome): void {
   w.melees[w.melees.length - 1] = { ...rec, outcome };
   w.melee = null;
   note(w, "melee_ended", { tier: rec.tierId, outcome });
-  // The purse weighs what each pirate gave the ship in the sea battle, and their melee as duty
+  // The purse weighs what each pirate gave the ship in the space battle, and their melee as duty
   // turns at their attack a minute against Swordfight's par (ADR 0030).
   const battle = w.battles[w.battles.length - 1]!;
   const points: Record<string, number> = { ...battle.dutyOutput };
@@ -396,23 +396,23 @@ function settleMelee(w: Work, outcome: ShipBattleOutcome): void {
     const board = state.boards[i];
     if (!board) return;
     const rate = swordfightScore(state.config, board.points, state.tick, null);
-    points[id] = (points[id] ?? 0) + meleeBootyOutput(rate, w.setup.meleeParRate, meleeMs, w.setup.ship.rules.turnSeconds);
+    points[id] = (points[id] ?? 0) + meleePlunderOutput(rate, w.setup.meleeParRate, meleeMs, w.setup.ship.rules.turnSeconds);
   });
   payBattle(w, rec.tierId, outcome, points, battle.states[battle.states.length - 1]!.turn);
 }
 
-/** The fight is over: the purse is split among the pirates aboard, and the ship sails on. */
+/** The fight is over: the purse is split among the pirates aboard, and the ship flies on. */
 function payBattle(w: Work, tierId: string, outcome: ShipBattleOutcome, points: Readonly<Record<string, number>>, turns: number): void {
   const won = outcome === "boarded" || outcome === "crippled";
-  const booty = won ? w.setup.tiers[tierId]!.booty : 0;
+  const plunder = won ? w.setup.tiers[tierId]!.plunder : 0;
   const crew = pirates(w.ship.crew).map((c) => ({ pirateId: c.pirateId, captain: c.pirateId === w.ship.captainId, points: points[c.pirateId] ?? 0 }));
-  const shares = booty > 0 ? splitBooty(booty, crew) : new Map<string, number>();
-  for (const [id, coins] of shares) w.booty[id] = (w.booty[id] ?? 0) + coins;
-  if (w.ship.voyage?.battle) applyShip(w, { type: "battle_end", outcome, booty, turns });
-  if (!w.done) w.phase = "sailing";
+  const shares = plunder > 0 ? splitPlunder(plunder, crew) : new Map<string, number>();
+  for (const [id, credits] of shares) w.plunder[id] = (w.plunder[id] ?? 0) + credits;
+  if (w.ship.voyage?.battle) applyShip(w, { type: "battle_end", outcome, plunder, turns });
+  if (!w.done) w.phase = "flying";
 }
 
-/** The battle board's plot this turn: the tester's if given, else the AI captain's when the AI has the wheel. */
+/** The battle board's plot this turn: the tester's if given, else the AI captain's when the AI has the helm. */
 function commit(w: Work, plan: BattlePlan | null): void {
   let plotter: "ai" | "you" = "you";
   if (!plan) {
@@ -438,7 +438,7 @@ function captainAtHelm(w: Work): boolean {
   return me !== null && me.awaySinceTurn === null && w.ship.captainId === rec.captainId;
 }
 
-/** The engaging captain left or lost the wheel: the ship breaks off, as the server cuts the fight short. */
+/** The engaging captain left or lost the helm: the ship breaks off, as the server cuts the fight short. */
 function cutBattleIfCaptainGone(w: Work): void {
   if (!w.battle) return;
   const rec = lastBattle(w);
@@ -447,9 +447,9 @@ function cutBattleIfCaptainGone(w: Work): void {
   settleBattle(w);
 }
 
-/** True when the next step needs the tester's plot: a fight is on, the tester has the wheel and the captain is at the helm. */
-export function needsPlot(sim: VoyageSim, wheel = sim.setup.wheel): boolean {
-  if (sim.done || !sim.battle || sim.battle.finished || wheel !== "you") return false;
+/** True when the next step needs the tester's plot: a fight is on, the tester has the helm and the captain is at the helm. */
+export function needsPlot(sim: VoyageSim, helm = sim.setup.helm): boolean {
+  if (sim.done || !sim.battle || sim.battle.finished || helm !== "you") return false;
   const rec = sim.battles[sim.battles.length - 1]!;
   const me = crewMember(sim.ship, rec.captainId);
   return me !== null && me.awaySinceTurn === null && sim.ship.captainId === rec.captainId;
@@ -480,10 +480,10 @@ export function step(sim: VoyageSim, input: StepInput = {}): VoyageSim {
   // 2. The melee fights on.
   if (w.melee) fightMelee(w);
 
-  // 3. The plot sails. A captain away leaves the fight waiting: nothing resolves, supplies pile up.
+  // 3. The plot flies. A captain away leaves the fight waiting: nothing resolves, supplies pile up.
   if (w.battle && !w.battle.finished && captainAtHelm(w)) commit(w, input.plan ?? null);
 
-  // 4. Duty points: everyone at a station, connected, not at the helm of a fight nor at the rail.
+  // 4. Duty points: everyone at a station, connected, not at the helm of a fight nor at the airlock.
   if (w.ship.voyage) {
     const helm = w.battle ? lastBattle(w).captainId : null;
     w.setup.crew.forEach((c, i) => {
@@ -499,32 +499,32 @@ export function step(sim: VoyageSim, input: StepInput = {}): VoyageSim {
   }
 
   // 5. The ship turns.
-  const phase: TurnSample["phase"] = w.melee ? "melee" : w.battle ? "battle" : "sailing";
-  const brigandDamage = w.battle ? w.battle.ships[1].damage : null;
-  const atSea = { water: w.ship.water, damage: w.ship.damage };
+  const phase: TurnSample["phase"] = w.melee ? "melee" : w.battle ? "battle" : "flying";
+  const raiderDamage = w.battle ? w.battle.ships[1].damage : null;
+  const inFlight = { heat: w.ship.heat, damage: w.ship.damage };
   applyShip(w, { type: "turn" });
   // In a fight, the purse weighs what each pirate's station gave the ship this turn, as the server does (ADR 0030).
   if (w.battle) {
     const rec = lastBattle(w);
     const dutyOutput = { ...rec.dutyOutput };
-    for (const { pirateId, output } of turnBootyOutputs(w.ship)) dutyOutput[pirateId] = (dutyOutput[pirateId] ?? 0) + output;
+    for (const { pirateId, output } of turnPlunderOutputs(w.ship)) dutyOutput[pirateId] = (dutyOutput[pirateId] ?? 0) + output;
     w.battles[w.battles.length - 1] = { ...rec, dutyOutput };
   }
   const r = w.ship.lastTurn;
-  // Making port repairs the ship for the dock; the chart keeps the last readings at sea.
-  const reading = w.phase === "arrived" ? atSea : { water: w.ship.water, damage: w.ship.damage };
+  // Making port repairs the ship for the dock; the chart keeps the last readings in flight.
+  const reading = w.phase === "arrived" ? inFlight : { heat: w.ship.heat, damage: w.ship.damage };
   w.samples.push({
     turn: w.ship.turn,
     phase,
     outputs: r ? { ...r.outputs } : zeroOutputs(),
     held: r?.held ?? false,
-    water: reading.water,
+    heat: reading.heat,
     damage: reading.damage,
     speed: r?.speed ?? 0,
     progress: w.phase === "arrived" ? 1000 : progressPermille(w.ship),
     loaded: w.ship.loaded,
     tokens: w.ship.tokens,
-    brigandDamage,
+    raiderDamage,
   });
   cutBattleIfCaptainGone(w);
   if (w.done) return freeze(w);
@@ -532,7 +532,7 @@ export function step(sim: VoyageSim, input: StepInput = {}): VoyageSim {
   // 6. The board hears the ship's word.
   supply(w);
 
-  // 7. A hail raised by this turn is answered before the next, if the captain is at the wheel and connected.
+  // 7. A hail raised by this turn is answered before the next, if the captain is at the helm and connected.
   answerHail(w);
 
   if (w.ship.voyage && w.ship.turn - w.ship.voyage.startedTurn >= w.setup.maxTurns) {
@@ -543,8 +543,8 @@ export function step(sim: VoyageSim, input: StepInput = {}): VoyageSim {
   return freeze(w);
 }
 
-/** Sail on until the voyage ends, the tester's plot is needed, or `limit` turns pass. */
-export function sailOn(sim: VoyageSim, opts: { readonly limit?: number; readonly stopForPlot?: boolean } = {}): VoyageSim {
+/** Fly on until the voyage ends, the tester's plot is needed, or `limit` turns pass. */
+export function flyOn(sim: VoyageSim, opts: { readonly limit?: number; readonly stopForPlot?: boolean } = {}): VoyageSim {
   let s = sim;
   const limit = opts.limit ?? Infinity;
   for (let i = 0; i < limit && !s.done; i++) {
@@ -554,16 +554,16 @@ export function sailOn(sim: VoyageSim, opts: { readonly limit?: number; readonly
   return s;
 }
 
-/** Sail the whole voyage with the AI at the wheel. */
-export function sailVoyage(setup: VoyageSetup): VoyageSim {
-  return sailOn(startVoyage({ ...setup, wheel: "ai" }));
+/** Fly the whole voyage with the AI at the helm. */
+export function flyVoyage(setup: VoyageSetup): VoyageSim {
+  return flyOn(startVoyage({ ...setup, helm: "ai" }));
 }
 
 /** Every station's average output over the turns the ship was not held, percent of par. */
 export function averageOutputs(samples: readonly TurnSample[]): Record<Station, number> {
   const out = zeroOutputs();
-  const sailing = samples.filter((s) => !s.held);
-  if (sailing.length === 0) return out;
-  for (const st of STATIONS) out[st] = Math.round(sailing.reduce((n, s) => n + s.outputs[st], 0) / sailing.length);
+  const flying = samples.filter((s) => !s.held);
+  if (flying.length === 0) return out;
+  for (const st of STATIONS) out[st] = Math.round(flying.reduce((n, s) => n + s.outputs[st], 0) / flying.length);
   return out;
 }

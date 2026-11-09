@@ -1,6 +1,6 @@
 export * from "./battle.js";
-export * from "./bilging.js";
-export * from "./carpentry.js";
+export * from "./cooling.js";
+export * from "./plating.js";
 export * from "./common.js";
 export * from "./crew.js";
 export * from "./gunnery.js";
@@ -8,7 +8,7 @@ export * from "./http.js";
 export * from "./navigation.js";
 export * from "./pirate.js";
 export * from "./puzzles.js";
-export * from "./sailing.js";
+export * from "./engines.js";
 export * from "./ship.js";
 export * from "./swordfight.js";
 export * from "./ws.js";

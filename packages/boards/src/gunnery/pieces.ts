@@ -1,6 +1,6 @@
 import { GunneryKind } from "@openseas/engine";
 import { drawSprite, spriteRevision } from "../sprites/atlas.js";
-import { paintMark } from "../bilging/tiles.js";
+import { paintMark } from "../cooling/tiles.js";
 
 /**
  * Gunnery's own pieces, painted with Canvas 2D: a powder keg, a tied wad of cloth, an iron
@@ -26,7 +26,7 @@ function shadow(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: numbe
 }
 
 /** Powder: a squat keg of charred staves bound with brass hoops, a bung on top. */
-function keg(ctx: CanvasRenderingContext2D, s: number): void {
+function charge(ctx: CanvasRenderingContext2D, s: number): void {
   const cx = s / 2;
   shadow(ctx, cx, s * 0.86, s * 0.36);
   const top = s * 0.14;
@@ -84,7 +84,7 @@ function keg(ctx: CanvasRenderingContext2D, s: number): void {
 }
 
 /** Wad: a square bundle of cream sailcloth, puffed at the corners, tied across with twine. */
-function wad(ctx: CanvasRenderingContext2D, s: number): void {
+function sabot(ctx: CanvasRenderingContext2D, s: number): void {
   const cx = s / 2;
   const cy = s * 0.5;
   shadow(ctx, cx, s * 0.86, s * 0.36);
@@ -231,10 +231,10 @@ function bucket(ctx: CanvasRenderingContext2D, s: number): void {
   ctx.strokeStyle = "#2a1c10";
   ctx.stroke(body);
   // The water at the mouth: the strongest blue on the deck, so a bucket reads at a glance.
-  const water = ctx.createLinearGradient(0, top - s * 0.07, 0, top + s * 0.07);
-  water.addColorStop(0, "#9fe0ff");
-  water.addColorStop(1, "#2a8fe0");
-  ctx.fillStyle = water;
+  const coolant = ctx.createLinearGradient(0, top - s * 0.07, 0, top + s * 0.07);
+  coolant.addColorStop(0, "#9fe0ff");
+  coolant.addColorStop(1, "#2a8fe0");
+  ctx.fillStyle = coolant;
   ctx.beginPath();
   ctx.ellipse(cx, top, wt / 2 - s * 0.02, s * 0.075, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -247,10 +247,10 @@ function bucket(ctx: CanvasRenderingContext2D, s: number): void {
 }
 
 const PAINTERS: Record<number, (ctx: CanvasRenderingContext2D, s: number) => void> = {
-  [GunneryKind.Powder]: keg,
-  [GunneryKind.Wad]: wad,
-  [GunneryKind.Shot]: ball,
-  [GunneryKind.Water]: bucket,
+  [GunneryKind.Cell]: charge,
+  [GunneryKind.Sabot]: sabot,
+  [GunneryKind.Slug]: ball,
+  [GunneryKind.Coolant]: bucket,
 };
 
 /** Paints one piece into an `s`-pixel square whose top-left corner is the context origin. */
@@ -260,7 +260,7 @@ export function paintGunneryPiece(ctx: CanvasRenderingContext2D, s: number, kind
   ctx.translate(s / 2, s / 2);
   ctx.scale(PIECE_ZOOM, PIECE_ZOOM);
   ctx.translate(-s / 2, -s / 2);
-  const name = ["powder", "wad", "shot", "water"][kind];
+  const name = ["cell", "sabot", "slug", "coolant"][kind];
   if (!name || !drawSprite(ctx, "gunnery", name, s * 0.06, s * 0.06, s * 0.88, s * 0.88)) PAINTERS[kind]?.(ctx, s);
   ctx.restore();
   if (mark) {

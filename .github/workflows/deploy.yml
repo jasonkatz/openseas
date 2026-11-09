@@ -246,8 +246,8 @@ jobs:
         # a shared scenario link would 404, which is the harness's whole point.
         run: |
           if [ -z "$HARNESS_URL" ]; then exit 0; fi
-          status="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$HARNESS_URL/bilging?seed=deploy-check")"
-          if [ "$status" = 200 ]; then echo "deep links open ($status)"; else echo "::error::$HARNESS_URL/bilging returned HTTP $status; the SPA rewrite is not in effect. Check that the project's Root Directory is packages/harness so its vercel.json is read. See docs/DEPLOY.md, step 2b."; exit 1; fi
+          status="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$HARNESS_URL/cooling?seed=deploy-check")"
+          if [ "$status" = 200 ]; then echo "deep links open ($status)"; else echo "::error::$HARNESS_URL/cooling returned HTTP $status; the SPA rewrite is not in effect. Check that the project's Root Directory is packages/harness so its vercel.json is read. See docs/DEPLOY.md, step 2b."; exit 1; fi
       - name: Server accepts requests from the harness origin
         run: |
           if [ -z "$SERVER_URL" ] || [ -z "$HARNESS_URL" ]; then exit 0; fi

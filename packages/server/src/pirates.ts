@@ -40,8 +40,8 @@ export async function createPirate(db: Db, content: Content, userId: string): Pr
     if (taken) continue;
     const id = randomUUID();
     await db.transaction(async (tx) => {
-      await tx.insert(schema.pirate).values({ id, userId, name, islandId: content.world.startIslandId });
-      await applyAutomaticGrants(tx, content, id, name, { voyagesCompleted: 0, bestRating: null }, content.world.startIslandId);
+      await tx.insert(schema.pirate).values({ id, userId, name, outpostId: content.world.startOutpostId });
+      await applyAutomaticGrants(tx, content, id, name, { voyagesCompleted: 0, bestRating: null }, content.world.startOutpostId);
       await recordEvent(tx, id, "pirate.created", {});
     });
     return { id, name };
@@ -60,7 +60,7 @@ export async function findPirateByUser(db: Db, userId: string): Promise<{ id: st
 export async function summarizePirate(db: Db, content: Content, pirateId: string, guest: boolean): Promise<PirateSummary | null> {
   const [p] = await db.select().from(schema.pirate).where(eq(schema.pirate.id, pirateId));
   if (!p) return null;
-  const [coins, ships, ratings, [crew]] = await Promise.all([
+  const [credits, ships, ratings, [crew]] = await Promise.all([
     balance(db, pirateId),
     db.select().from(schema.ship).where(eq(schema.ship.ownerId, pirateId)),
     db.select().from(schema.rating).where(eq(schema.rating.pirateId, pirateId)),
@@ -76,15 +76,15 @@ export async function summarizePirate(db: Db, content: Content, pirateId: string
     look: lookOf(content, p.id, p.look),
     title: shownTitle(content, p.title),
     guest,
-    balance: coins,
-    islandId: p.islandId ?? content.world.startIslandId,
-    ships: ships.map((s) => ({ id: s.id, classId: s.classId, name: s.name, islandId: s.islandId ?? content.world.startIslandId })),
+    balance: credits,
+    outpostId: p.outpostId ?? content.world.startOutpostId,
+    ships: ships.map((s) => ({ id: s.id, classId: s.classId, name: s.name, outpostId: s.outpostId ?? content.world.startOutpostId })),
     ratings: ratings.flatMap((r) =>
       isPuzzleId(r.puzzle)
         ? [{ puzzle: r.puzzle, tier: tierFor(r.rating ?? NEW_RATING.rating, content.ratingTiers).key, rounds: r.rounds }]
         : [],
     ),
-    crew: crew ? { id: crew.id, name: crew.name, flag: crew.flag, rank: crew.rank === "commodore" || crew.rank === "officer" ? crew.rank : "sailor" } : null,
+    crew: crew ? { id: crew.id, name: crew.name, flag: crew.flag, rank: crew.rank === "commodore" || crew.rank === "officer" ? crew.rank : "spacer" } : null,
   };
 }
 
@@ -129,11 +129,11 @@ export async function pirateRecord(db: Db, pirateId: string): Promise<PirateReco
       .select({ n: sql<number>`count(*)::int` })
       .from(schema.voyage)
       .where(and(eq(schema.voyage.captainId, pirateId), eq(schema.voyage.outcome, "arrived"))),
-    // A win pays every pirate aboard a share of the purse (ADR 0030), so a share is a brigand beaten.
+    // A win pays every pirate aboard a share of the purse (ADR 0030), so a share is a raider beaten.
     db
-      .select({ n: sql<number>`count(*)::int`, coins: sql<number>`coalesce(sum(${schema.ledgerEntry.delta}), 0)::int` })
+      .select({ n: sql<number>`count(*)::int`, credits: sql<number>`coalesce(sum(${schema.ledgerEntry.delta}), 0)::int` })
       .from(schema.ledgerEntry)
-      .where(and(eq(schema.ledgerEntry.pirateId, pirateId), eq(schema.ledgerEntry.reason, "booty"), gt(schema.ledgerEntry.delta, 0))),
+      .where(and(eq(schema.ledgerEntry.pirateId, pirateId), eq(schema.ledgerEntry.reason, "plunder"), gt(schema.ledgerEntry.delta, 0))),
     db.select({ n: sql<number>`coalesce(sum(${schema.rating.rounds}), 0)::int` }).from(schema.rating).where(eq(schema.rating.pirateId, pirateId)),
   ]);
   return {
@@ -141,7 +141,7 @@ export async function pirateRecord(db: Db, pirateId: string): Promise<PirateReco
     voyages: voyages?.n ?? 0,
     captained: captained?.n ?? 0,
     victories: purse?.n ?? 0,
-    booty: purse?.coins ?? 0,
+    plunder: purse?.credits ?? 0,
     boards: boards?.n ?? 0,
   };
 }
@@ -216,7 +216,7 @@ export async function pirateSheet(db: Db, content: Content, pirateId: string): P
 /** Wear this look on deck. Refused with `look_bad` for anything content does not offer. */
 export async function setLook(db: Db, content: Content, pirateId: string, look: PirateLook): Promise<PirateLook> {
   if (pirateLookProblem(content.world.pirates, look)) throw new PirateError("look_bad");
-  const picked = { coat: look.coat, hat: look.hat };
+  const picked = { jacket: look.jacket, headgear: look.headgear };
   await db.update(schema.pirate).set({ look: picked }).where(eq(schema.pirate.id, pirateId));
   await recordEvent(db, pirateId, "pirate.look", picked);
   return picked;

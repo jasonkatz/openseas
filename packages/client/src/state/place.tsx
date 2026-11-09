@@ -2,33 +2,33 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { StationWire } from "@openseas/protocol";
 import { content } from "@openseas/boards";
 
-export type IslandRoom = "none" | "dock" | "tavern" | "notice";
+export type OutpostRoom = "none" | "dock" | "cantina" | "notice";
 
 /**
  * Where the pirate is in the one scene (DESIGN.md 3.11). Every place is a camera move, not a page;
  * the URL mirrors it so a place can be shared, and opening the URL lands in the scene there.
  */
 export type Place =
-  /** Where the pirate is: their island when ashore, the deck when aboard. */
+  /** Where the pirate is: their outpost when on the outpost, the deck when aboard. */
   | { kind: "home" }
-  /** The whole ocean, with an island picked or not. */
+  /** The whole star system, with an outpost picked or not. */
   | { kind: "chart"; pick: string | null }
-  /** Moved in on an island, inside one of its buildings or standing outside. */
-  | { kind: "island"; id: string; room: IslandRoom }
+  /** Moved in on an outpost, inside one of its buildings or standing outside. */
+  | { kind: "outpost"; id: string; room: OutpostRoom }
   /** Aboard: the deck of the ship the pirate is on. */
   | { kind: "deck" }
   /** Aboard, at a station with its board open. */
   | { kind: "station"; station: StationWire }
   /** Aboard, the captain picking a destination on the chart. */
   | { kind: "helm" }
-  /** Aboard, the captain at the sea battle board (M4). */
+  /** Aboard, the captain at the space battle board (M4). */
   | { kind: "battle" }
-  /** Aboard, at the rail in a boarding melee (M5). */
+  /** Aboard, at the airlock in a boarding melee (M5). */
   | { kind: "melee" };
 
-const ISLAND_IDS = new Set(content.world.islands.map((i) => i.id));
-const STATIONS = new Set<string>(["bilging", "sailing", "carpentry", "gunnery", "navigation"]);
-const ROOMS = new Set<string>(["dock", "tavern", "notice"]);
+const OUTPOST_IDS = new Set(content.world.outposts.map((i) => i.id));
+const STATIONS = new Set<string>(["cooling", "engines", "plating", "gunnery", "navigation"]);
+const ROOMS = new Set<string>(["dock", "cantina", "notice"]);
 
 export function placeToPath(p: Place): string {
   switch (p.kind) {
@@ -36,8 +36,8 @@ export function placeToPath(p: Place): string {
       return "/";
     case "chart":
       return p.pick ? `/chart?pick=${encodeURIComponent(p.pick)}` : "/chart";
-    case "island":
-      return p.room === "none" ? `/island/${p.id}` : `/island/${p.id}/${p.room}`;
+    case "outpost":
+      return p.room === "none" ? `/outpost/${p.id}` : `/outpost/${p.id}/${p.room}`;
     case "deck":
       return "/ship";
     case "station":
@@ -53,9 +53,9 @@ export function placeToPath(p: Place): string {
 
 export function pathToPlace(pathname: string, search: string): Place {
   const parts = pathname.split("/").filter(Boolean);
-  if (parts[0] === "island" && parts[1] && ISLAND_IDS.has(parts[1])) {
-    const room = parts[2] && ROOMS.has(parts[2]) ? (parts[2] as IslandRoom) : "none";
-    return { kind: "island", id: parts[1], room };
+  if (parts[0] === "outpost" && parts[1] && OUTPOST_IDS.has(parts[1])) {
+    const room = parts[2] && ROOMS.has(parts[2]) ? (parts[2] as OutpostRoom) : "none";
+    return { kind: "outpost", id: parts[1], room };
   }
   if (parts[0] === "ship") {
     if (parts[1] === "helm") return { kind: "helm" };
@@ -66,7 +66,7 @@ export function pathToPlace(pathname: string, search: string): Place {
   }
   if (parts[0] === "chart") {
     const pick = new URLSearchParams(search).get("pick");
-    return { kind: "chart", pick: pick && ISLAND_IDS.has(pick) ? pick : null };
+    return { kind: "chart", pick: pick && OUTPOST_IDS.has(pick) ? pick : null };
   }
   return { kind: "home" };
 }

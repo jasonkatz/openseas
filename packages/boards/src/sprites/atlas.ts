@@ -6,9 +6,9 @@ export type SpritePuzzle = keyof typeof frames;
 // Literal URLs let Vite fingerprint and serve these assets in either application, including
 // previews and non-root base paths. Never reach across to another app's public directory.
 const urls: Record<SpritePuzzle, string> = {
-  bilging: new URL("./bilging.webp", import.meta.url).href,
-  sailing: new URL("./sailing.webp", import.meta.url).href,
-  carpentry: new URL("./carpentry.webp", import.meta.url).href,
+  cooling: new URL("./cooling.webp", import.meta.url).href,
+  engines: new URL("./engines.webp", import.meta.url).href,
+  plating: new URL("./plating.webp", import.meta.url).href,
   gunnery: new URL("./gunnery.webp", import.meta.url).href,
   navigation: new URL("./navigation.webp", import.meta.url).href,
   swordfight: new URL("./swordfight.webp", import.meta.url).href,

@@ -10,7 +10,7 @@ import {
   battleCellAt,
   battleIsWin,
   battlePlanIllegalReason,
-  chooseBrigandPlan,
+  chooseRaiderPlan,
   createBattleGame,
   enumerateBattlePlans,
   hashBattleState,
@@ -25,13 +25,13 @@ import {
   type BattleSegment,
   type BattleShip,
   type BattleState,
-  type BrigandSpec,
+  type RaiderSpec,
   type MoveToken,
 } from "../src/index.js";
 
 const cfg = DEFAULT_BATTLE_CONFIG;
 
-/** A small open board for rule tests: the captain at the bottom facing north, the brigand at the top facing south. */
+/** A small open board for rule tests: the captain at the bottom facing north, the raider at the top facing south. */
 const OPEN = ["#########", "#.......#", "#...B...#", "#.......#", "#.......#", "#.......#", "#...A...#", "#.......#", "#########"];
 const openCfg: BattleConfig = { ...cfg, boards: [OPEN] };
 
@@ -89,11 +89,11 @@ function expectInvariants(state: BattleState): void {
   for (const s of state.ships) {
     const cell = battleCellAt(state.board, s.x, s.y);
     expect(cell, "a ship is always on the board").not.toBeNull();
-    expect(cell?.kind, "a ship is never in a rock").not.toBe("rock");
+    expect(cell?.kind, "a ship is never in an asteroid").not.toBe("asteroid");
     expect(s.damage).toBeGreaterThanOrEqual(0);
     expect(s.damage).toBeLessThanOrEqual(BATTLE_PERMILLE);
     expect(s.loaded).toBeGreaterThanOrEqual(0);
-    expect(s.loaded).toBeLessThanOrEqual(s.cannons);
+    expect(s.loaded).toBeLessThanOrEqual(s.turrets);
     for (const t of ["left", "forward", "right"] as const) {
       expect(s.tokens[t]).toBeGreaterThanOrEqual(0);
       expect(s.tokens[t]).toBeLessThanOrEqual(state.config.tokenCap);
@@ -107,24 +107,24 @@ function expectInvariants(state: BattleState): void {
 }
 
 describe("battle board", () => {
-  it("parses water, rocks, winds, eddies and the two starts", () => {
+  it("parses space, asteroids, currents, wells and the two starts", () => {
     const b = parseBattleBoard(cfg.boards[0]!);
     expect(b.width).toBe(16);
     expect(b.height).toBe(16);
     expect(b.start[0]).toEqual({ x: 8, y: 12, heading: 0 });
     expect(b.start[1]).toEqual({ x: 7, y: 3, heading: 2 });
-    expect(battleCellAt(b, 7, 1)).toEqual({ kind: "wind", heading: 1 });
-    expect(battleCellAt(b, 11, 5)).toEqual({ kind: "eddy" });
-    expect(battleCellAt(b, 0, 0)).toEqual({ kind: "rock" });
+    expect(battleCellAt(b, 7, 1)).toEqual({ kind: "current", heading: 1 });
+    expect(battleCellAt(b, 11, 5)).toEqual({ kind: "well" });
+    expect(battleCellAt(b, 0, 0)).toEqual({ kind: "asteroid" });
     expect(battleCellAt(b, 99, 0)).toBeNull();
   });
 
   it("refuses boards without exactly one start each, ragged rows or unknown cells", () => {
     expect(battleBoardProblems(["#####", "#B..#", "#...#", "#..A#", "#####"])).toEqual([]);
-    expect(battleBoardProblems(["#####", "#A.A#", "#...#", "#...#", "#####"]).join(" ")).toMatch(/one captain|one brigand/);
+    expect(battleBoardProblems(["#####", "#A.A#", "#...#", "#...#", "#####"]).join(" ")).toMatch(/one captain|one raider/);
     expect(battleBoardProblems(["#####", "#B..#", "#...#", "#.A#", "#####"]).join(" ")).toMatch(/same width/);
     expect(battleBoardProblems(["#####", "#B?.#", "#...#", "#..A#", "#####"]).join(" ")).toMatch(/unknown/);
-    expect(battleBoardProblems(["#####", "#B..#", "#..##", "#..A#", "#####"]).join(" ")).toMatch(/open water ahead/);
+    expect(battleBoardProblems(["#####", "#B..#", "#..##", "#..A#", "#####"]).join(" ")).toMatch(/open space ahead/);
   });
 
   it("every default board validates and the seed picks among them", () => {
@@ -146,10 +146,10 @@ describe("battle determinism (ADR 0003)", () => {
     );
   });
 
-  it("the brigand's choices are part of the replay: the same seed sails the same plan", () => {
+  it("the raider's choices are part of the replay: the same seed flies the same plan", () => {
     const a = playRandom("brig-1", [3, 17, 99, 1234]);
     const b = playRandom("brig-1", [3, 17, 99, 1234]);
-    expect(a.state.lastTurn?.brigandPlan).toEqual(b.state.lastTurn?.brigandPlan);
+    expect(a.state.lastTurn?.raiderPlan).toEqual(b.state.lastTurn?.raiderPlan);
     const c = playRandom("brig-2", [3, 17, 99, 1234]);
     expect(c.state.turn).toBeGreaterThan(0);
   });
@@ -206,7 +206,7 @@ describe("battle moves", () => {
     expect(s.ships[0].tokens).toEqual({ left: 1, forward: 2, right: 1 });
     expect(battlePlanIllegalReason(s, { segments: [seg("left"), seg("left")], grapple: false })).toMatch(/left/);
     expect(s.ships[0].loaded).toBe(4);
-    expect(battlePlanIllegalReason(s, { segments: [seg("forward", true, true), seg("forward", true, true), seg(null, true)], grapple: false })).toMatch(/cannons/);
+    expect(battlePlanIllegalReason(s, { segments: [seg("forward", true, true), seg("forward", true, true), seg(null, true)], grapple: false })).toMatch(/turrets/);
     expect(battlePlanIllegalReason(s, { segments: [seg(null), seg(null), seg(null), seg(null), seg(null)], grapple: false })).toMatch(/segments/);
     expect(() => reduceBattle(s, commit([seg("left"), seg("left")]))).toThrow(InvalidMoveError);
     const after = reduceBattle(s, commit([seg("forward"), seg("left", true)]));
@@ -224,19 +224,19 @@ describe("battle moves", () => {
     expect(s.turn).toBe(6);
   });
 
-  it("a rock blocks the move, costs hull and still swings the ship", () => {
+  it("an asteroid blocks the move, costs hull and still swings the ship", () => {
     const s = createBattleGame("open", openCfg);
     const t = withShips(s, { x: 1, y: 1, heading: 3, tokens: full }, {});
     const r = reduceBattle(t, commit([seg("left")]));
     expect([r.ships[0].x, r.ships[0].y, r.ships[0].heading]).toEqual([1, 1, 2]);
-    expect(r.ships[0].damage).toBe(openCfg.rockDamage);
+    expect(r.ships[0].damage).toBe(openCfg.asteroidDamage);
     const ev = r.lastTurn!.events.find((e) => e.type === "move" && e.ship === 0);
-    expect(ev && ev.type === "move" ? ev.blocked : null).toBe("rock");
+    expect(ev && ev.type === "move" ? ev.blocked : null).toBe("asteroid");
   });
 
   it("two ships bound for the same cell both stop and both take the ram", () => {
     const s = createBattleGame("open", openCfg);
-    // Captain at (4,4) facing north, brigand at (4,2) facing south: both drive for (4,3).
+    // Captain at (4,4) facing north, raider at (4,2) facing south: both drive for (4,3).
     const t = withShips(s, { x: 4, y: 4, heading: 0, tokens: full }, { x: 4, y: 2, heading: 2, tokens: full });
     const r = resolveBattleTurn(t.board, t.config, t.ships, [{ segments: [seg("forward")], grapple: false }, { segments: [seg("forward")], grapple: false }]);
     expect([r.ships[0].x, r.ships[0].y]).toEqual([4, 4]);
@@ -245,7 +245,7 @@ describe("battle moves", () => {
     expect(r.ships[1].damage).toBe(openCfg.ramDamage);
   });
 
-  it("sailing into a ship that holds still rams it; a ship may follow one that sails away", () => {
+  it("flying into a ship that holds still rams it; a ship may follow one that flies away", () => {
     const s = createBattleGame("open", openCfg);
     const t = withShips(s, { x: 4, y: 4, heading: 0, tokens: full }, { x: 4, y: 3, heading: 0, tokens: full });
     const still = resolveBattleTurn(t.board, t.config, t.ships, [{ segments: [seg("forward")], grapple: false }, EMPTY_PLAN]);
@@ -258,20 +258,20 @@ describe("battle moves", () => {
     expect(away.ships[0].damage).toBe(0);
   });
 
-  it("a wind carries a ship one cell each segment it sits on it; an eddy spins it clockwise", () => {
+  it("a current carries a ship one cell each segment it sits on it; a well spins it clockwise", () => {
     const windy = ["#########", "#.......#", "#...B...#", "#.......#", "#...>...#", "#..@....#", "#...A...#", "#.......#", "#########"];
     const s = createBattleGame("w", { ...cfg, boards: [windy], segments: 2 });
     const blown = reduceBattle(s, commit([seg("forward"), seg("forward")]));
-    // Forward to (4,5), forward onto the wind at (4,4), then blown east to (5,4).
+    // Forward to (4,5), forward onto the current at (4,4), then blown east to (5,4).
     expect([blown.ships[0].x, blown.ships[0].y, blown.ships[0].heading]).toEqual([5, 4, 0]);
     const t = withShips(s, { x: 3, y: 6, heading: 0, tokens: full }, {});
     const spun = reduceBattle(t, commit([seg("forward")]));
-    // Onto the eddy at (3,5): spun once on arrival and once more sitting there through the second segment.
+    // Onto the well at (3,5): spun once on arrival and once more sitting there through the second segment.
     expect([spun.ships[0].x, spun.ships[0].y, spun.ships[0].heading]).toEqual([3, 5, 2]);
     expect(spun.lastTurn!.events.filter((e) => e.type === "spin" && e.ship === 0)).toHaveLength(2);
   });
 
-  it("a shot reaches `cannonRange` cells to the side and stops at a rock", () => {
+  it("a shot reaches `turretRange` cells to the side and stops at an asteroid", () => {
     const b = parseBattleBoard(["#########", "#.......#", "#...B...#", "#.......#", "#.#.....#", "#.......#", "#...A...#", "#.......#", "#########"]);
     expect(battleArcCells(b, { x: 4, y: 6, heading: 0 }, "port", 3)).toEqual([
       { x: 3, y: 6 },
@@ -287,11 +287,11 @@ describe("battle moves", () => {
 
   it("a broadside that lines up hits, spends a load, scores and builds the combo", () => {
     const s = createBattleGame("open", openCfg);
-    // Brigand two cells to starboard of the captain, out of its own tokens so it holds still.
+    // Raider two cells to starboard of the captain, out of its own tokens so it holds still.
     const t = withShips(s, { x: 3, y: 5, heading: 0, loaded: 2 }, { x: 5, y: 5, heading: 2, tokens: { left: 0, forward: 0, right: 0 }, loaded: 0 });
     const r = reduceBattle(t, commit([seg(null, false, true)]));
     expect(r.ships[1].damage).toBe(openCfg.shotDamage);
-    expect(r.ships[0].loaded).toBe(2 - 1 + openCfg.supply!.cannons);
+    expect(r.ships[0].loaded).toBe(2 - 1 + openCfg.supply!.turrets);
     expect(r.hits).toBe(1);
     expect(r.score).toBe(openCfg.hitPoints);
     expect(r.combo).toBe(1);
@@ -300,7 +300,7 @@ describe("battle moves", () => {
     expect(miss.combo).toBe(0);
   });
 
-  it("a crippled brigand ends the fight as a win with the turn bonus; a crippled captain loses", () => {
+  it("a crippled raider ends the fight as a win with the turn bonus; a crippled captain loses", () => {
     const s = createBattleGame("open", openCfg);
     const t = withShips(s, { x: 3, y: 5, heading: 0, loaded: 2 }, { x: 5, y: 5, heading: 2, damage: BATTLE_PERMILLE - 1, tokens: { left: 0, forward: 0, right: 0 }, loaded: 0 });
     const r = reduceBattle(t, commit([seg(null, false, true)]));
@@ -310,12 +310,12 @@ describe("battle moves", () => {
     expect(r.score).toBe(openCfg.hitPoints + openCfg.winPoints + openCfg.turnBonus * (openCfg.maxTurns - 1));
     expect(() => reduceBattle(r, commit([]))).toThrow(InvalidMoveError);
     const u = withShips(s, { x: 3, y: 5, heading: 0, damage: BATTLE_PERMILLE - 1 }, { x: 5, y: 5, heading: 2, loaded: 4, tokens: { left: 0, forward: 0, right: 0 } });
-    // The brigand's plan is its own; give it a sure shot by resolving directly.
+    // The raider's plan is its own; give it a sure shot by resolving directly.
     const lost = resolveBattleTurn(u.board, u.config, u.ships, [EMPTY_PLAN, { segments: [seg(null, false, true)], grapple: false }]);
     expect(lost.outcome).toBe("crippled_by");
   });
 
-  it("grappling boards an adjacent brigand only once it is damaged enough, and only when asked", () => {
+  it("grappling boards an adjacent raider only once it is damaged enough, and only when asked", () => {
     const s = createBattleGame("open", openCfg);
     const base = withShips(s, { x: 4, y: 5, heading: 0 }, { x: 4, y: 4, heading: 2, damage: openCfg.grappleDamage, tokens: { left: 0, forward: 0, right: 0 } });
     expect(resolveBattleTurn(base.board, base.config, base.ships, [{ segments: [], grapple: true }, EMPTY_PLAN]).outcome).toBe("boarded");
@@ -341,7 +341,7 @@ describe("battle moves", () => {
     expect(d.finished).toBe(true);
   });
 
-  it("previews the plan's path against a brigand that holds still", () => {
+  it("previews the plan's path against a raider that holds still", () => {
     const s = createBattleGame("open", openCfg);
     const path = previewBattlePlan(s, [seg("forward"), seg("right")]);
     expect(path.map((p) => [p.x, p.y, p.heading])).toEqual([
@@ -359,7 +359,7 @@ describe("battle supply aboard", () => {
   it("takes the ship's word for tokens, loads and hull, and refuses supply in practice", () => {
     const s = createBattleGame("aboard", aboard);
     expect(s.ships[0].tokens).toEqual({ left: 0, forward: 0, right: 0 });
-    const fed = reduceBattle(s, { type: "supply", left: 1, forward: 3, right: 1, cannons: 3, hull: 120 });
+    const fed = reduceBattle(s, { type: "supply", left: 1, forward: 3, right: 1, turrets: 3, hull: 120 });
     expect(fed.ships[0].tokens).toEqual({ left: 1, forward: 3, right: 1 });
     expect(fed.ships[0].loaded).toBe(3);
     expect(fed.ships[0].damage).toBe(120);
@@ -367,18 +367,18 @@ describe("battle supply aboard", () => {
     // No practice deal aboard: what is left is what the ship brought.
     expect(after.ships[0].tokens.forward).toBe(2);
     expect(after.ships[0].loaded).toBe(2);
-    expect(() => reduceBattle(createBattleGame("p", openCfg), { type: "supply", left: 1, forward: 1, right: 1, cannons: 1, hull: 0 })).toThrow(InvalidMoveError);
-    expect(() => reduceBattle(s, { type: "supply", left: -1, forward: 1, right: 1, cannons: 1, hull: 0 })).toThrow(InvalidMoveError);
+    expect(() => reduceBattle(createBattleGame("p", openCfg), { type: "supply", left: 1, forward: 1, right: 1, turrets: 1, hull: 0 })).toThrow(InvalidMoveError);
+    expect(() => reduceBattle(s, { type: "supply", left: -1, forward: 1, right: 1, turrets: 1, hull: 0 })).toThrow(InvalidMoveError);
   });
 
   it("a hull the ship reports as wrecked ends the fight", () => {
     const s = createBattleGame("aboard", aboard);
-    const sunk = reduceBattle(s, { type: "supply", left: 0, forward: 0, right: 0, cannons: 0, hull: BATTLE_PERMILLE });
+    const sunk = reduceBattle(s, { type: "supply", left: 0, forward: 0, right: 0, turrets: 0, hull: BATTLE_PERMILLE });
     expect(sunk.outcome).toBe("crippled_by");
   });
 });
 
-describe("the brigand", () => {
+describe("the raider", () => {
   it("enumerates every plan its pool allows, each once", () => {
     const plans = enumerateBattlePlans({ left: 1, forward: 1, right: 0 }, 2);
     const keys = plans.map((p) => p.map((m) => m ?? "-").join(","));
@@ -398,7 +398,7 @@ describe("the brigand", () => {
         let state = createBattleGame(seed);
         for (const pick of picks) {
           if (state.finished) break;
-          const { plan } = chooseBrigandPlan(state, state.rng);
+          const { plan } = chooseRaiderPlan(state, state.rng);
           const need = { left: 0, forward: 0, right: 0 };
           let shots = 0;
           for (const s of plan.segments) {
@@ -418,15 +418,15 @@ describe("the brigand", () => {
 
   it("lines up a broadside when one is there to take", () => {
     const s = createBattleGame("open", openCfg);
-    // Captain parked broadside-on two cells east of where the brigand lands after one move forward.
+    // Captain parked broadside-on two cells east of where the raider lands after one move forward.
     const t = withShips(s, { x: 6, y: 3, heading: 0, tokens: { left: 0, forward: 0, right: 0 }, loaded: 0 }, { x: 4, y: 2, heading: 2, loaded: 2, tokens: { left: 1, forward: 2, right: 1 } });
-    const sharp: BattleState = { ...t, config: { ...t.config, brigand: { ...t.config.brigand, accuracy: 100, aggression: 100 } } };
-    const { plan } = chooseBrigandPlan(sharp, sharp.rng);
+    const sharp: BattleState = { ...t, config: { ...t.config, raider: { ...t.config.raider, accuracy: 100, aggression: 100 } } };
+    const { plan } = chooseRaiderPlan(sharp, sharp.rng);
     const r = resolveBattleTurn(sharp.board, sharp.config, sharp.ships, [EMPTY_PLAN, plan]);
     expect(r.events.some((e) => e.type === "shot" && e.ship === 1 && e.hit)).toBe(true);
   });
 
-  /** A plain captain: sails straight and fires both sides whenever a gun is loaded, every turn. */
+  /** A plain captain: flies straight and fires both sides whenever a gun is loaded, every turn. */
   function plainCaptain(state: BattleState): BattlePlan {
     const me = state.ships[0];
     const segments: BattleSegment[] = [];
@@ -446,12 +446,12 @@ describe("the brigand", () => {
     return { segments, grapple: true };
   }
 
-  function fightsAgainst(brigand: BrigandSpec, seeds: number): { taken: number; turns: number; losses: number } {
+  function fightsAgainst(raider: RaiderSpec, seeds: number): { taken: number; turns: number; losses: number } {
     let taken = 0;
     let turns = 0;
     let losses = 0;
     for (let i = 0; i < seeds; i++) {
-      let s = createBattleGame(`tier-${i}`, { ...cfg, brigand });
+      let s = createBattleGame(`tier-${i}`, { ...cfg, raider });
       while (!s.finished) s = reduceBattle(s, { type: "commit", ...plainCaptain(s) });
       taken += s.hitsTaken;
       turns += s.turn;
@@ -461,10 +461,10 @@ describe("the brigand", () => {
   }
 
   it("a harder tier beats a plain captain sooner, and no tier is a pushover", () => {
-    const cutpurse: BrigandSpec = { cannons: 4, tokensPerTurn: 2, reloadPerTurn: 1, accuracy: 50, aggression: 40, startDamage: 0 };
-    const reaver: BrigandSpec = { cannons: 4, tokensPerTurn: 4, reloadPerTurn: 2, accuracy: 80, aggression: 80, startDamage: 0 };
-    const easy = fightsAgainst(cutpurse, 12);
-    const hard = fightsAgainst(reaver, 12);
+    const junker: RaiderSpec = { turrets: 4, tokensPerTurn: 2, reloadPerTurn: 1, accuracy: 50, aggression: 40, startDamage: 0 };
+    const corsair: RaiderSpec = { turrets: 4, tokensPerTurn: 4, reloadPerTurn: 2, accuracy: 80, aggression: 80, startDamage: 0 };
+    const easy = fightsAgainst(junker, 12);
+    const hard = fightsAgainst(corsair, 12);
     expect(hard.turns).toBeLessThan(easy.turns);
     expect(hard.losses).toBeGreaterThanOrEqual(easy.losses);
     expect(hard.losses).toBeGreaterThan(0);
@@ -472,7 +472,7 @@ describe("the brigand", () => {
   });
 });
 
-describe("sea battle scoring", () => {
+describe("space battle scoring", () => {
   it("hits score as the margin, the tier scales every turn, and the score never drops below zero", () => {
     fc.assert(
       fc.property(fc.string({ minLength: 1, maxLength: 8 }), picksArb, (seed, picks) => {
@@ -493,7 +493,7 @@ describe("sea battle scoring", () => {
     );
   });
 
-  it("a harder brigand's factor scales the same fight's points", () => {
+  it("a harder raider's factor scales the same fight's points", () => {
     const free: BattleConfig = { ...cfg, hitTakenPoints: 0 };
     const double: BattleConfig = { ...free, scorePercent: 200 };
     fc.assert(

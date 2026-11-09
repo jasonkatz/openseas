@@ -64,7 +64,7 @@ function PhaseBands({ samples, width, height }: { samples: readonly TurnSample[]
   return (
     <g aria-hidden="true">
       {samples.map((s, i) => {
-        const kind = s.phase !== "sailing" ? s.phase : s.held ? "held" : null;
+        const kind = s.phase !== "flying" ? s.phase : s.held ? "held" : null;
         return kind ? <rect key={i} x={c.left(i)} y={0} width={Math.max(1, c.cell)} height={height} className={`vchart-band vchart-band-${kind}`} /> : null;
       })}
     </g>

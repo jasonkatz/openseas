@@ -1,16 +1,16 @@
 import {
   InvalidMoveError,
   PUZZLES,
-  soloBilgeStart,
-  soloBilgeTurn,
-  soloBilgeTurnsDue,
+  soloHeatStart,
+  soloHeatTurn,
+  soloHeatTurnsDue,
   type AnyPuzzleDef,
-  type BilgeBoardFields,
+  type HeatBoardFields,
   type DutyPuzzleId,
   type PuzzleId,
   type PuzzleSummary,
   type ShipRules,
-  type SoloBilge,
+  type SoloHeat,
 } from "@openseas/engine";
 
 export type RejectReason = "divergence" | "illegal_move" | "bad_sequence" | "deadline" | "too_many_moves";
@@ -20,27 +20,27 @@ export interface DutyBinding {
   readonly shipId: string;
   readonly station: DutyPuzzleId;
   readonly voyageId: string;
-  /** Bilging only: the ship's bilge in rows when the board is dealt. */
-  readonly water?: number;
+  /** Cooling only: the ship's heat in rows when the board is dealt. */
+  readonly heat?: number;
 }
 
-/** The captain's sea battle aboard a ship (M4). Its tokens, loads and hull come from the ship. */
+/** The captain's space battle aboard a ship (M4). Its tokens, loads and hull come from the ship. */
 export interface BattleBinding {
   readonly shipId: string;
   readonly voyageId: string;
   readonly tierId: string;
 }
 
-/** A pirate's board in a boarding melee aboard a ship (M5). Its foes are outside it; the server routes the attacks. */
+/** A pirate's board in a boarding melee aboard a ship (M5). Its foes are outside it; the server lanes the attacks. */
 export interface MeleeBinding {
   readonly shipId: string;
   readonly voyageId: string;
   readonly tierId: string;
 }
 
-/** Wrack the server announced to a melee board, not yet logged. The board's next incoming move must say exactly this. */
+/** Scrap the server announced to a melee board, not yet logged. The board's next incoming move must say exactly this. */
 export interface MeleeIncoming {
-  readonly wrack: number;
+  readonly scrap: number;
   readonly blade: number;
 }
 
@@ -49,7 +49,7 @@ export interface ShipSupply {
   readonly left: number;
   readonly forward: number;
   readonly right: number;
-  readonly cannons: number;
+  readonly turrets: number;
   readonly hull: number;
 }
 
@@ -59,15 +59,15 @@ export interface RoundOverride {
   readonly roundMs: number;
 }
 
-function isWaterMove(move: unknown): move is { type: "water"; row: number } {
-  return typeof move === "object" && move !== null && (move as { type?: unknown }).type === "water";
+function isHeatMove(move: unknown): move is { type: "heat"; row: number } {
+  return typeof move === "object" && move !== null && (move as { type?: unknown }).type === "heat";
 }
 
 function isSupplyMove(move: unknown): move is { type: "supply" } & ShipSupply {
   return typeof move === "object" && move !== null && (move as { type?: unknown }).type === "supply";
 }
 
-function isIncomingMove(move: unknown): move is { type: "incoming"; board: number; wrack: number; blade: number; tick: number } {
+function isIncomingMove(move: unknown): move is { type: "incoming"; board: number; scrap: number; blade: number; tick: number } {
   return typeof move === "object" && move !== null && (move as { type?: unknown }).type === "incoming";
 }
 
@@ -75,7 +75,7 @@ function isEndMove(move: unknown): move is { type: "end"; won?: unknown } {
   return typeof move === "object" && move !== null && (move as { type?: unknown }).type === "end";
 }
 
-const sameSupply = (a: ShipSupply, b: ShipSupply): boolean => a.left === b.left && a.forward === b.forward && a.right === b.right && a.cannons === b.cannons && a.hull === b.hull;
+const sameSupply = (a: ShipSupply, b: ShipSupply): boolean => a.left === b.left && a.forward === b.forward && a.right === b.right && a.turrets === b.turrets && a.hull === b.hull;
 
 export interface PuzzleSession {
   readonly id: string;
@@ -88,19 +88,19 @@ export interface PuzzleSession {
   readonly deadlineAt: number;
   /** Set when the board belongs to a ship; its points feed the ship each turn. */
   readonly duty: DutyBinding | null;
-  /** Set when the round is the captain's sea battle aboard a ship. */
+  /** Set when the round is the captain's space battle aboard a ship. */
   readonly battle: BattleBinding | null;
   /** Set when the round is the pirate's board in a boarding melee. */
   readonly melee: MeleeBinding | null;
-  /** Melee only: wrack announced to this board, oldest first, each to be logged as an incoming move in turn. */
+  /** Melee only: scrap announced to this board, oldest first, each to be logged as an incoming move in turn. */
   meleeIncoming: MeleeIncoming[];
   /**
-   * Bilging only: the bilge in rows as last told to the client, from the ship aboard or, for a
-   * harness round, the lone ship below. A water move must say this.
+   * Cooling only: the heat in rows as last told to the client, from the ship aboard or, for a
+   * harness round, the lone ship below. A heat move must say this.
    */
-  shipWaterRow: number | null;
-  /** A harness Bilging round's lone ship (ADR 0029): its bilge, and how many of its turns have passed. */
-  soloBilge: { bilge: SoloBilge; turns: number } | null;
+  shipHeatRow: number | null;
+  /** A harness Cooling round's lone ship (ADR 0029): its heat, and how many of its turns have passed. */
+  soloHeat: { heat: SoloHeat; turns: number } | null;
   /** Battle aboard only: the ship's latest deal, not yet logged by the board. A supply move must say this. */
   shipSupply: ShipSupply | null;
   state: unknown;
@@ -117,7 +117,7 @@ export const MAX_RESYNCS = 3;
 
 /**
  * `resync`: the move's number was not the next one, and the board is one its client can rebuild
- * from the server's log (a melee or a sea battle). `handBack` is true when the caller must send it
+ * from the server's log (a melee or a space battle). `handBack` is true when the caller must send it
  * back now; false while an earlier hand-back is still on its way and the move is just dropped.
  */
 export type MoveOutcome =
@@ -143,10 +143,10 @@ export interface SessionManagerOptions {
   randomSeed: () => string;
   randomId: () => string;
   /**
-   * The ship a harness Bilging round plays against (ADR 0029): the class's rules and Bilging's par
-   * for one turn. Without it a harness Bilging board's water never moves from the deal.
+   * The ship a harness Cooling round plays against (ADR 0029): the class's rules and Cooling's par
+   * for one turn. Without it a harness Cooling board's heat never moves from the deal.
    */
-  soloBilge?: { rules: ShipRules; par: number };
+  soloHeat?: { rules: ShipRules; par: number };
 }
 
 /**
@@ -168,9 +168,9 @@ export class PuzzleSessionManager {
     const content = override?.config ?? this.opts.puzzles[puzzle].config;
     const roundMs = override?.roundMs ?? this.opts.puzzles[puzzle].roundMs;
     if (override) def.validateConfig(override.config);
-    // A Bilging board's water is a ship's bilge (DESIGN.md 3.3): the ship's aboard, a lone ship's in the harness.
-    const config = puzzle === "bilging" ? { ...(content as object), shipWater: true } : content;
-    const solo = puzzle === "bilging" && !duty && !battle && !melee ? soloBilgeStart(config as BilgeBoardFields) : null;
+    // A Cooling board's heat is a ship's heat (DESIGN.md 3.3): the ship's aboard, a lone ship's in the harness.
+    const config = puzzle === "cooling" ? { ...(content as object), shipHeat: true } : content;
+    const solo = puzzle === "cooling" && !duty && !battle && !melee ? soloHeatStart(config as HeatBoardFields) : null;
     const session: PuzzleSession = {
       id: this.opts.randomId(),
       pirateId,
@@ -184,8 +184,8 @@ export class PuzzleSessionManager {
       battle,
       melee,
       meleeIncoming: [],
-      shipWaterRow: duty?.water ?? solo?.row ?? null,
-      soloBilge: solo ? { bilge: solo, turns: 0 } : null,
+      shipHeatRow: duty?.heat ?? solo?.row ?? null,
+      soloHeat: solo ? { heat: solo, turns: 0 } : null,
       shipSupply: null,
       state: def.create(seed, config),
       moves: [],
@@ -203,27 +203,27 @@ export class PuzzleSessionManager {
 
   /** `move` must already be validated against the session's puzzle schema. */
   /**
-   * Turn every harness Bilging round's lone ship that is due (ADR 0029), each from the points its
-   * board earned since the last turn. Returns the boards whose bilge now shows a different depth;
-   * the caller tells their clients, which log the depth as a water move, as a duty board does.
+   * Turn every harness Cooling round's lone ship that is due (ADR 0029), each from the points its
+   * board earned since the last turn. Returns the boards whose heat now shows a different depth;
+   * the caller tells their clients, which log the depth as a heat move, as a duty board does.
    */
-  turnSoloBilges(): Array<{ session: PuzzleSession; row: number }> {
-    const ship = this.opts.soloBilge;
+  turnSoloHeat(): Array<{ session: PuzzleSession; row: number }> {
+    const ship = this.opts.soloHeat;
     if (!ship) return [];
     const now = this.opts.now();
     const changed: Array<{ session: PuzzleSession; row: number }> = [];
     for (const s of this.sessions.values()) {
-      if (s.closed || !s.soloBilge) continue;
+      if (s.closed || !s.soloHeat) continue;
       // The round's own clock ends at its deadline; no turn falls on or after it.
-      const due = soloBilgeTurnsDue(ship.rules, Math.min(now, s.deadlineAt - 1) - s.startedAt);
-      if (s.soloBilge.turns >= due) continue;
-      let bilge = s.soloBilge.bilge;
+      const due = soloHeatTurnsDue(ship.rules, Math.min(now, s.deadlineAt - 1) - s.startedAt);
+      if (s.soloHeat.turns >= due) continue;
+      let heat = s.soloHeat.heat;
       const score = s.def.summarize(s.state).score;
-      for (let t = s.soloBilge.turns; t < due; t++) bilge = soloBilgeTurn(ship.rules, ship.par, bilge, score, s.config as BilgeBoardFields);
-      s.soloBilge = { bilge, turns: due };
-      if (bilge.row !== s.shipWaterRow) {
-        s.shipWaterRow = bilge.row;
-        changed.push({ session: s, row: bilge.row });
+      for (let t = s.soloHeat.turns; t < due; t++) heat = soloHeatTurn(ship.rules, ship.par, heat, score, s.config as HeatBoardFields);
+      s.soloHeat = { heat, turns: due };
+      if (heat.row !== s.shipHeatRow) {
+        s.shipHeatRow = heat.row;
+        changed.push({ session: s, row: heat.row });
       }
     }
     return changed;
@@ -246,14 +246,14 @@ export class PuzzleSessionManager {
     const now = this.opts.now();
     if (now > session.deadlineAt + this.opts.graceMs) return this.reject(session, "deadline", seq);
     if (session.moves.length >= session.def.maxMoves(session.config)) return this.reject(session, "too_many_moves", seq);
-    // A water event is the ship's word, not the client's: it must repeat what the ship said.
-    if (isWaterMove(move) && move.row !== session.shipWaterRow) return this.reject(session, "illegal_move", seq);
+    // A heat event is the ship's word, not the client's: it must repeat what the ship said.
+    if (isHeatMove(move) && move.row !== session.shipHeatRow) return this.reject(session, "illegal_move", seq);
     // So is a battle's supply: the deal the ship announced, logged once.
     if (isSupplyMove(move) && (session.shipSupply === null || !sameSupply(move, session.shipSupply))) return this.reject(session, "illegal_move", seq);
-    // And a melee board's incoming wrack: what the server announced, in the order it did.
+    // And a melee board's incoming scrap: what the server announced, in the order it did.
     if (isIncomingMove(move)) {
       const head = session.meleeIncoming[0];
-      if (!session.melee || !head || move.board !== 0 || move.wrack !== head.wrack || move.blade !== head.blade) return this.reject(session, "illegal_move", seq);
+      if (!session.melee || !head || move.board !== 0 || move.scrap !== head.scrap || move.blade !== head.blade) return this.reject(session, "illegal_move", seq);
     }
     // A win over foes outside the board is the server's word alone (ADR 0022); the server writes that end itself.
     if (isEndMove(move) && move.won === true) return this.reject(session, "illegal_move", seq);
@@ -275,7 +275,7 @@ export class PuzzleSessionManager {
     return { ok: true, seq };
   }
 
-  /** Boards whose client rebuilds from a resumed deal: a melee board and the captain's sea battle. */
+  /** Boards whose client rebuilds from a resumed deal: a melee board and the captain's space battle. */
   private canResync(session: PuzzleSession): boolean {
     return (session.melee !== null || session.battle !== null) && session.resyncs < MAX_RESYNCS;
   }

@@ -1,5 +1,5 @@
 /**
- * Static scenery merged into a few meshes. An island is hundreds of primitives (planks, stones,
+ * Static scenery merged into a few meshes. An outpost is hundreds of primitives (planks, stones,
  * tufts, fence posts); drawn one by one they cost a draw call each, which a phone or a software
  * renderer feels. A batch takes each primitive with a transform and a flat color, bakes the color
  * into the vertices and merges everything into one lit mesh and one unlit (glowing) mesh.

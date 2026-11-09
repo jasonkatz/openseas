@@ -39,7 +39,7 @@ export function ImportPanel({ puzzle, disabled, onLoad }: ImportPanelProps) {
     <section className="bench-section" data-testid="import">
       <h3>{t("harness.import")}</h3>
       <p className="muted small">{t("harness.import_blurb")}</p>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} spellCheck={false} disabled={disabled} data-testid="import-text" placeholder='{"puzzle":"bilging","seed":"…","moves":[…]}' />
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} spellCheck={false} disabled={disabled} data-testid="import-text" placeholder='{"puzzle":"cooling","seed":"…","moves":[…]}' />
       <div className="bench-actions">
         <button type="button" className="btn btn-mini" onClick={load} disabled={disabled || text.trim().length === 0} data-testid="import-load">
           {t("harness.import_load")}

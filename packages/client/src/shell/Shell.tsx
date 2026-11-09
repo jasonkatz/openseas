@@ -4,10 +4,10 @@ import { LINK_FROM_KEY, content, sfx, t, usePirate } from "@openseas/boards";
 import { CrewDialog } from "../crew/CrewDialog.jsx";
 import { ProfileCard } from "../crew/ProfileCard.jsx";
 import { PirateSheet } from "../pirate/PirateSheet.jsx";
-import { coatHex, lookFor } from "../pirate/look.js";
+import { jacketHex, lookFor } from "../pirate/look.js";
 import { ChartCard } from "../chart/ChartCard.jsx";
-import { IslandCard } from "../island/IslandCard.jsx";
-import { islandName, stationName, tierName } from "../names.js";
+import { OutpostCard } from "../outpost/OutpostCard.jsx";
+import { outpostName, stationName, tierName } from "../names.js";
 import { BattleView } from "../ship/battle/BattleView.jsx";
 import { useBattleApi } from "../ship/battle/useBattle.js";
 import { MeleeView } from "../ship/melee/MeleeView.jsx";
@@ -22,7 +22,7 @@ import { useSocial } from "../state/SocialProvider.jsx";
 import { usePlace, type Place } from "../state/place.jsx";
 import { useMediaQuery, useShowMarks } from "../state/settings.js";
 import { useToasts } from "../state/toasts.jsx";
-import { World, type Deck, type DeckCrew, type Focus, type Insets, type IslandWalk, type WorldInput, type WorldShip, type WorldShipLocation } from "../world/World.jsx";
+import { World, type Deck, type DeckCrew, type Focus, type Insets, type OutpostWalk, type WorldInput, type WorldShip, type WorldShipLocation } from "../world/World.jsx";
 import { HailBanner } from "./HailBanner.jsx";
 import { Menu } from "./Menu.jsx";
 import { Toasts } from "./Toasts.jsx";
@@ -42,13 +42,13 @@ function once(key: string): boolean {
   }
 }
 
-/** A look as the world's figures take it: the coat as a color, the hat by id. */
+/** A look as the world's figures take it: the jacket as a color, the headgear by id. */
 function figureLook(look: PirateLookWire): DeckCrew["look"] {
-  return { coat: parseInt(coatHex(look.coat).slice(1), 16), hat: look.hat };
+  return { jacket: parseInt(jacketHex(look.jacket).slice(1), 16), headgear: look.headgear };
 }
 
 function worldLocation(l: ShipLocation): WorldShipLocation {
-  return l.kind === "docked" ? { kind: "docked", islandId: l.islandId } : { kind: "at-sea", from: l.from, to: l.to, progress: l.progress };
+  return l.kind === "docked" ? { kind: "docked", outpostId: l.outpostId } : { kind: "in-flight", from: l.from, to: l.to, progress: l.progress };
 }
 
 /** A place with "home" resolved to where the pirate actually is. */
@@ -90,19 +90,19 @@ export function Shell() {
   const [helmPick, setHelmPick] = useState<string | null>(null);
   const online = socketStatus === "open";
   const me = pirate?.id ?? "";
-  const ashoreAt = pirate?.islandId ?? content.world.startIslandId;
-  const here = ship ? (ship.location.kind === "docked" ? ship.location.islandId : null) : ashoreAt;
+  const onOutpostAt = pirate?.outpostId ?? content.world.startOutpostId;
+  const here = ship ? (ship.location.kind === "docked" ? ship.location.outpostId : null) : onOutpostAt;
   const aboard = ship !== null;
   const myStation = ship?.crew.find((c) => c.pirateId === me)?.station ?? null;
   const captain = ship?.captainId === me;
   const captainName = ship?.crew.find((c) => c.captain)?.name ?? null;
-  const fight = ship?.location.kind === "at-sea" ? ship.location.battle : null;
-  const rail = ship?.melee ?? null;
+  const fight = ship?.location.kind === "in-flight" ? ship.location.battle : null;
+  const atAirlock = ship?.melee ?? null;
 
   const place = useMemo<Resolved>(() => {
     if (rawPlace.kind !== "home") return rawPlace;
-    return ship ? { kind: "deck" } : { kind: "island", id: ashoreAt, room: "none" };
-  }, [rawPlace, ship, ashoreAt]);
+    return ship ? { kind: "deck" } : { kind: "outpost", id: onOutpostAt, room: "none" };
+  }, [rawPlace, ship, onOutpostAt]);
 
   // ---- back from a provider: say what happened to the pirate, then tidy the address.
   const authChecked = useRef(false);
@@ -133,7 +133,7 @@ export function Shell() {
     window.history.replaceState(null, "", window.location.pathname);
   }, [pirate, toast]);
 
-  // ---- keep the place honest against the ship: boarding moves in on the deck, going ashore moves out.
+  // ---- keep the place honest against the ship: boarding moves in on the deck, disembarking moves out.
   const wasAboard = useRef(false);
   useEffect(() => {
     if (aboard && !wasAboard.current) {
@@ -145,24 +145,24 @@ export function Shell() {
     if (!aboard && (place.kind === "deck" || place.kind === "station" || place.kind === "helm")) {
       go({ kind: "home" });
       setSheetOpen(false);
-      if (wasAboard.current) toast(t("toast.ashore", { island: islandName(ashoreAt) }));
+      if (wasAboard.current) toast(t("toast.on_outpost", { outpost: outpostName(onOutpostAt) }));
     }
     wasAboard.current = aboard;
-  }, [aboard, place.kind, go, toast, ship, ashoreAt]);
+  }, [aboard, place.kind, go, toast, ship, onOutpostAt]);
 
   // A deep link to a station takes it; a station that is not ours anymore closes.
   useEffect(() => {
     if (place.kind !== "station" || !ship || !online) return;
     const holder = ship.crew.find((c) => c.station === place.station);
-    if (holder && holder.pirateId !== me && !holder.mate) {
+    if (holder && holder.pirateId !== me && !holder.bot) {
       go({ kind: "home" });
       return;
     }
-    if ((!holder || holder.mate) && myStation !== place.station) takeStation(place.station);
+    if ((!holder || holder.bot) && myStation !== place.station) takeStation(place.station);
   }, [place, ship, online, me, myStation, takeStation, go]);
 
-  // A helm place needs a docked ship and the wheel. Once she sails, the captain goes back where they
-  // came to the wheel from: a station's board picks up at once, the deck otherwise.
+  // A helm place needs a docked ship and the helm. Once she flies, the captain goes back where they
+  // came to the helm from: a station's board picks up at once, the deck otherwise.
   const helmFrom = useRef<StationWire | null>(null);
   const leaveHelm = useCallback(() => {
     const from = helmFrom.current;
@@ -178,15 +178,15 @@ export function Shell() {
   // Anyone else on the battle place is sent back to the deck.
   const wasFighting = useRef(false);
   useEffect(() => {
-    if (fight && captain && !rail && !wasFighting.current) go({ kind: "battle" });
-    wasFighting.current = fight !== null && captain && !rail;
-  }, [fight, captain, rail, go]);
-  // A boarding takes everyone to the rail; the outcome stays up until it is dismissed.
-  const wasAtRail = useRef(false);
+    if (fight && captain && !atAirlock && !wasFighting.current) go({ kind: "battle" });
+    wasFighting.current = fight !== null && captain && !atAirlock;
+  }, [fight, captain, atAirlock, go]);
+  // A boarding takes everyone to the airlock; the outcome stays up until it is dismissed.
+  const wasAtAirlock = useRef(false);
   useEffect(() => {
-    if (rail && !wasAtRail.current) go({ kind: "melee" });
-    wasAtRail.current = rail !== null;
-  }, [rail, go]);
+    if (atAirlock && !wasAtAirlock.current) go({ kind: "melee" });
+    wasAtAirlock.current = atAirlock !== null;
+  }, [atAirlock, go]);
   const meleePhase = melee.phase;
   useEffect(() => {
     if (place.kind !== "melee") return;
@@ -194,10 +194,10 @@ export function Shell() {
       go({ kind: "home" });
       return;
     }
-    if (rail || meleePhase === "result" || meleePhase === "playing") return;
+    if (atAirlock || meleePhase === "result" || meleePhase === "playing") return;
     const id = window.setTimeout(() => go({ kind: "home" }), 3000);
     return () => window.clearTimeout(id);
-  }, [place.kind, ship, rail, meleePhase, go]);
+  }, [place.kind, ship, atAirlock, meleePhase, go]);
   const battlePhase = battle.phase;
   useEffect(() => {
     if (place.kind !== "battle") return;
@@ -205,17 +205,17 @@ export function Shell() {
       go({ kind: "home" });
       return;
     }
-    if ((fight && !rail) || battlePhase === "result") return;
+    if ((fight && !atAirlock) || battlePhase === "result") return;
     const id = window.setTimeout(() => go({ kind: "home" }), 3000);
     return () => window.clearTimeout(id);
-  }, [place.kind, ship, captain, fight, rail, battlePhase, go]);
+  }, [place.kind, ship, captain, fight, atAirlock, battlePhase, go]);
 
   // Rooms and the helm want their card open; arriving anywhere else folds it so the view is clear,
   // except when the pirate stepped back a level in the card, which stays open where they came from.
-  const placeKey = place.kind === "island" ? `${place.kind}:${place.id}:${place.room}` : place.kind === "station" ? `station:${place.station}` : place.kind;
+  const placeKey = place.kind === "outpost" ? `${place.kind}:${place.id}:${place.room}` : place.kind === "station" ? `station:${place.station}` : place.kind;
   const openOnArrive = useRef(false);
   useEffect(() => {
-    setSheetOpen(openOnArrive.current || (place.kind === "island" && place.room !== "none") || place.kind === "helm");
+    setSheetOpen(openOnArrive.current || (place.kind === "outpost" && place.room !== "none") || place.kind === "helm");
     openOnArrive.current = false;
   }, [placeKey]); // eslint-disable-line react-hooks/exhaustive-deps
   /** Go somewhere as a step back in the card: the card stays open there. */
@@ -248,14 +248,14 @@ export function Shell() {
         if (place.kind !== "station") toast(describeEvent(e) as string, "warn", 6000);
       } else if (e.type === "arrived") {
         sfx.streak(5);
-        toast(t("ship.arrived_blurb", { island: islandName(e.islandId) }), "good", 6000);
+        toast(t("ship.arrived_blurb", { outpost: outpostName(e.outpostId) }), "good", 6000);
         if (place.kind === "station") go({ kind: "home" });
         // A guest's first voyage is worth keeping: offer to link an account, once (ADR 0007).
         if (pirate?.guest && providers.length > 0 && once(NUDGED_KEY)) {
           window.setTimeout(() => toast(t("auth.nudge"), "plain", 12000, { label: t("auth.nudge_action"), run: () => setMenuOpen(true), testId: "toast-link" }), 1500);
         }
-      } else if (e.type === "wheel") {
-        toast(e.pirateId === me ? t("toast.wheel_yours") : (describeEvent(e) as string));
+      } else if (e.type === "helm") {
+        toast(e.pirateId === me ? t("toast.helm_yours") : (describeEvent(e) as string));
       } else if (e.type === "engaged") {
         sfx.alarm();
         toast(describeEvent(e) as string, "warn", 5000);
@@ -267,11 +267,11 @@ export function Shell() {
         const lost = e.outcome === "boarded_by" || e.outcome === "crippled_by";
         if (won) sfx.streak(8);
         toast(
-          won ? t("toast.battle_won", { brigand: tierName(e.tierId), coins: e.booty }) : lost ? t("toast.battle_lost", { brigand: tierName(e.tierId) }) : t("toast.battle_broke_off", { brigand: tierName(e.tierId) }),
+          won ? t("toast.battle_won", { raider: tierName(e.tierId), credits: e.plunder }) : lost ? t("toast.battle_lost", { raider: tierName(e.tierId) }) : t("toast.battle_broke_off", { raider: tierName(e.tierId) }),
           won ? "good" : lost ? "warn" : "plain",
           7000,
         );
-      } else if (e.type === "evaded" || e.type === "sailed" || e.type === "left" || (e.type === "boarded" && e.pirateId !== me)) {
+      } else if (e.type === "evaded" || e.type === "launched" || e.type === "left" || (e.type === "boarded" && e.pirateId !== me)) {
         toast(describeEvent(e) as string);
       }
     }
@@ -298,14 +298,14 @@ export function Shell() {
     for (const s of pirate?.ships ?? []) {
       if (seen.has(s.id)) continue;
       seen.add(s.id);
-      out.push({ id: s.id, name: s.name, kind: "yours", location: { kind: "docked", islandId: s.islandId }, colors: pirate?.crew?.flag ?? null });
+      out.push({ id: s.id, name: s.name, kind: "yours", location: { kind: "docked", outpostId: s.outpostId }, colors: pirate?.crew?.flag ?? null });
     }
     return out;
   }, [ship, board, pirate]);
 
   const focus = useMemo<Focus>(() => {
     if ((place.kind === "deck" || place.kind === "station") && ship) return { kind: "ship", id: ship.shipId };
-    if (place.kind === "island") return { kind: "island", id: place.id };
+    if (place.kind === "outpost") return { kind: "outpost", id: place.id };
     return { kind: "all" };
   }, [place, ship]);
 
@@ -320,9 +320,9 @@ export function Shell() {
         return {
           station: st,
           label: stationName(st),
-          holder: holder ? (holder.pirateId === me ? t("ship.you") : holder.mate ? t("ship.mate_who", { name: holder.name }) : holder.name) : null,
+          holder: holder ? (holder.pirateId === me ? t("ship.you") : holder.bot ? t("ship.bot_who", { name: holder.name }) : holder.name) : null,
           mine: holder?.pirateId === me,
-          mate: Boolean(holder?.mate),
+          bot: Boolean(holder?.bot),
         };
       }),
       crew: ship.crew.map((c) => ({
@@ -331,26 +331,26 @@ export function Shell() {
         station: c.station,
         mine: c.pirateId === me,
         captain: c.captain,
-        mate: c.mate,
+        bot: c.bot,
         at: c.pirateId === me ? null : (walks.ship[c.pirateId] ?? null),
-        look: c.mate ? null : figureLook(lookFor(c.pirateId, c.look)),
+        look: c.bot ? null : figureLook(lookFor(c.pirateId, c.look)),
       })),
-      wheel: { label: captain ? (docked ? t("ship.wheel_sail") : t("ship.wheel_at_sea")) : t("ship.wheel_spot"), who: captain ? null : captainName, primary: captain && docked },
-      gangway: docked ? t("ship.go_ashore") : null,
+      helm: { label: captain ? (docked ? t("ship.helm_launch") : t("ship.helm_in_flight")) : t("ship.helm_spot"), who: captain ? null : captainName, primary: captain && docked },
+      airlock: docked ? t("ship.disembark") : null,
     };
   }, [ship, me, captain, captainName, walks.ship]);
 
-  // Ashore, the pirate walks their island among everyone else on it (ADR 0032).
-  const walk = useMemo<IslandWalk | null>(() => {
+  // On the outpost, the pirate walks their outpost among everyone else on it (ADR 0032).
+  const walk = useMemo<OutpostWalk | null>(() => {
     if (aboard || !pirate) return null;
-    const others = presence?.islandId === ashoreAt ? presence.pirates.filter((p) => p.pirateId !== me).map((p) => ({ id: p.pirateId, name: p.name, at: walks.island[p.pirateId] ?? null, look: figureLook(lookFor(p.pirateId, p.look)) })) : [];
+    const others = presence?.outpostId === onOutpostAt ? presence.pirates.filter((p) => p.pirateId !== me).map((p) => ({ id: p.pirateId, name: p.name, at: walks.outpost[p.pirateId] ?? null, look: figureLook(lookFor(p.pirateId, p.look)) })) : [];
     // An open room is its building: the pirate is inside it.
-    const room = place.kind === "island" && place.id === ashoreAt ? place.room : "none";
-    const inside = room === "dock" ? "dock" : room === "tavern" ? "tavern" : room === "notice" ? "notice-board" : null;
-    return { islandId: ashoreAt, me, meLook: figureLook(lookFor(me, pirate.look)), others, arriveFrom: left?.shipId ?? null, inside };
-  }, [aboard, pirate, presence, ashoreAt, me, walks.island, left, place]);
+    const room = place.kind === "outpost" && place.id === onOutpostAt ? place.room : "none";
+    const inside = room === "dock" ? "dock" : room === "cantina" ? "cantina" : room === "notice" ? "notice-board" : null;
+    return { outpostId: onOutpostAt, me, meLook: figureLook(lookFor(me, pirate.look)), others, arriveFrom: left?.shipId ?? null, inside };
+  }, [aboard, pirate, presence, onOutpostAt, me, walks.outpost, left, place]);
 
-  const reachable = useMemo(() => (place.kind === "helm" && ship?.location.kind === "docked" ? content.world.routes.filter((r) => r.from === (ship.location as { islandId: string }).islandId).map((r) => r.to) : []), [place.kind, ship]);
+  const reachable = useMemo(() => (place.kind === "helm" && ship?.location.kind === "docked" ? content.world.lanes.filter((r) => r.from === (ship.location as { outpostId: string }).outpostId).map((r) => r.to) : []), [place.kind, ship]);
 
   const insets = useMemo<Insets>(() => {
     if (wide) return { top: 0.08, bottom: 0.03, left: 0.02, right: sheetOpen ? 0.38 : 0.06 };
@@ -360,17 +360,17 @@ export function Shell() {
 
   const input = useMemo<WorldInput>(
     () => ({
-      islands: content.world.islands.map((i) => ({
+      outposts: content.world.outposts.map((i) => ({
         id: i.id,
         name: t(i.nameKey),
         x: i.x,
         y: i.y,
         landmark: i.landmark,
-        buildings: i.buildings.map((b) => ({ kind: b, label: t(b === "dock" ? "island.dock" : b === "tavern" ? "island.tavern" : "island.notice_board") })),
+        buildings: i.buildings.map((b) => ({ kind: b, label: t(b === "dock" ? "outpost.dock" : b === "cantina" ? "outpost.cantina" : "outpost.notice_board") })),
       })),
-      routes: content.world.routes.map((r) => ({ id: r.id, from: r.from, to: r.to })),
+      lanes: content.world.lanes.map((r) => ({ id: r.id, from: r.from, to: r.to })),
       ships,
-      here: aboard ? null : ashoreAt,
+      here: aboard ? null : onOutpostAt,
       focus,
       selected: place.kind === "chart" ? place.pick : place.kind === "helm" ? helmPick : null,
       reachable,
@@ -382,11 +382,11 @@ export function Shell() {
       boardLabel: t("ship.board_spot"),
       walk,
     }),
-    [ships, aboard, ashoreAt, focus, place, helmPick, reachable, shipPick, deck, insets, menuOpen, crewApi.panel, sheetTab, walk],
+    [ships, aboard, onOutpostAt, focus, place, helmPick, reachable, shipPick, deck, insets, menuOpen, crewApi.panel, sheetTab, walk],
   );
 
   // ---- taps in the world
-  const onIsland = useCallback(
+  const onOutpost = useCallback(
     (id: string) => {
       sfx.tick(false);
       if (place.kind === "helm") {
@@ -401,9 +401,9 @@ export function Shell() {
       }
       setShipPick(null);
       setSheetOpen(false);
-      go(id === ashoreAt && !aboard ? { kind: "home" } : { kind: "island", id, room: "none" });
+      go(id === onOutpostAt && !aboard ? { kind: "home" } : { kind: "outpost", id, room: "none" });
     },
-    [place, reachable, go, ashoreAt, aboard],
+    [place, reachable, go, onOutpostAt, aboard],
   );
   const onShip = useCallback(
     (id: string) => {
@@ -416,33 +416,33 @@ export function Shell() {
         setShipPick(id);
         go({ kind: "chart", pick: null });
         setSheetOpen(true);
-      } else if (place.kind === "island" && !aboard) boardShip(id);
+      } else if (place.kind === "outpost" && !aboard) boardShip(id);
     },
     [ship, place.kind, aboard, go, boardShip],
   );
   const onBuilding = useCallback(
-    (islandId: string, b: "dock" | "tavern" | "notice-board") => {
+    (outpostId: string, b: "dock" | "cantina" | "notice-board") => {
       sfx.tick(false);
-      if (islandId !== here) {
-        toast(t("world.far_away", { island: islandName(ashoreAt) }));
+      if (outpostId !== here) {
+        toast(t("world.far_away", { outpost: outpostName(onOutpostAt) }));
         return;
       }
-      go({ kind: "island", id: islandId, room: b === "dock" ? "dock" : b === "tavern" ? "tavern" : "notice" });
+      go({ kind: "outpost", id: outpostId, room: b === "dock" ? "dock" : b === "cantina" ? "cantina" : "notice" });
       setSheetOpen(true);
     },
-    [here, ashoreAt, go, toast],
+    [here, onOutpostAt, go, toast],
   );
   const onStation = useCallback(
     (st: StationWire) => {
       if (!ship) return;
       const holder = ship.crew.find((c) => c.station === st);
-      if (holder && holder.pirateId !== me && !holder.mate) {
+      if (holder && holder.pirateId !== me && !holder.bot) {
         toast(t("error.station_taken"), "warn");
         return;
       }
       sfx.swap();
-      // An open station, or a deckhand's: the hand steps aside for a pirate.
-      if (!holder || holder.mate) takeStation(st);
+      // An open station, or a bot's: the hand steps aside for a pirate.
+      if (!holder || holder.bot) takeStation(st);
       go({ kind: "station", station: st });
     },
     [ship, me, takeStation, go, toast],
@@ -454,7 +454,7 @@ export function Shell() {
   }, [go, place]);
   const onBattle = useCallback(() => go({ kind: "battle" }), [go]);
   const onMelee = useCallback(() => go({ kind: "melee" }), [go]);
-  const onWheel = useCallback(() => {
+  const onHelmSpot = useCallback(() => {
     if (!ship) return;
     sfx.tick(false);
     if (captain && ship.location.kind === "docked") onHelm();
@@ -466,17 +466,17 @@ export function Shell() {
     sfx.tick(false);
     showProfile({ pirateId });
   }, [showProfile]);
-  const onGangway = useCallback(() => {
+  const onAirlock = useCallback(() => {
     sfx.tick(false);
     leave();
   }, [leave]);
   // Tapping outside while in a building leaves it: the room closes and the pirate walks out.
   const onOutside = useCallback(() => {
-    if (place.kind === "island" && place.room !== "none") go({ kind: "island", id: place.id, room: "none" });
+    if (place.kind === "outpost" && place.room !== "none") go({ kind: "outpost", id: place.id, room: "none" });
   }, [place, go]);
   const events = useMemo(
-    () => ({ onIsland, onShip, onBuilding, onStation, onWheel, onWalk, onPirate, onGangway, onOutside }),
-    [onIsland, onShip, onBuilding, onStation, onWheel, onWalk, onPirate, onGangway, onOutside],
+    () => ({ onOutpost, onShip, onBuilding, onStation, onHelmSpot, onWalk, onPirate, onAirlock, onOutside }),
+    [onOutpost, onShip, onBuilding, onStation, onHelmSpot, onWalk, onPirate, onAirlock, onOutside],
   );
 
   const onMap = useCallback(() => {
@@ -486,15 +486,15 @@ export function Shell() {
     go(place.kind === "chart" ? { kind: "home" } : { kind: "chart", pick: null });
   }, [place.kind, go]);
 
-  // ---- what to do next, ashore: the strip says it so the first minute needs no guessing.
-  const ashoreNext = useMemo(() => {
+  // ---- what to do next, on the outpost: the strip says it so the first minute needs no guessing.
+  const onOutpostNext = useMemo(() => {
     const mine = pirate?.ships ?? [];
-    const hereShip = mine.find((s) => s.islandId === ashoreAt);
-    if (hereShip) return t("next.ashore_board", { ship: hereShip.name });
+    const hereShip = mine.find((s) => s.outpostId === onOutpostAt);
+    if (hereShip) return t("next.on_outpost_board", { ship: hereShip.name });
     const away = mine[0];
-    if (away) return t("next.ashore_ship_away", { ship: away.name, island: islandName(away.islandId) });
-    return t("next.ashore_no_ship");
-  }, [pirate, ashoreAt]);
+    if (away) return t("next.on_outpost_ship_away", { ship: away.name, outpost: outpostName(away.outpostId) });
+    return t("next.on_outpost_no_ship");
+  }, [pirate, onOutpostAt]);
 
   // ---- the card for the place, and the one header it folds to
   let card: ReactNode = null;
@@ -505,58 +505,58 @@ export function Shell() {
     head = {
       title: ship.name,
       subtitle: docked
-        ? t("ship.docked_at", { island: islandName((ship.location as { islandId: string }).islandId) })
-        : rail
-          ? t("ship.in_melee", { brigand: tierName(rail.tierId) })
+        ? t("ship.docked_at", { outpost: outpostName((ship.location as { outpostId: string }).outpostId) })
+        : atAirlock
+          ? t("ship.in_melee", { raider: tierName(atAirlock.tierId) })
           : fight
-          ? t("ship.in_battle", { brigand: tierName(fight.tierId) })
-          : t("ship.bound_for", { island: islandName((ship.location as { to: string }).to), percent: Math.round((ship.location as { progress: number }).progress / 10) }),
+          ? t("ship.in_battle", { raider: tierName(fight.tierId) })
+          : t("ship.bound_for", { outpost: outpostName((ship.location as { to: string }).to), percent: Math.round((ship.location as { progress: number }).progress / 10) }),
       next: docked
         ? captain
           ? t("next.docked_captain")
           : t("next.docked_crew", { captain: captainName ?? "" })
-        : rail
+        : atAirlock
           ? t("next.melee")
           : fight
           ? captain
             ? t("next.battle_captain")
             : t("next.battle_crew")
           : myStation
-            ? t("next.at_sea_at_station", { station: stationName(myStation) })
-            : t("next.at_sea_no_station"),
+            ? t("next.in_flight_at_station", { station: stationName(myStation) })
+            : t("next.in_flight_no_station"),
       back: null,
       extra: <ShipHud ship={ship} mini />,
     };
   } else if (ship && place.kind === "helm") {
     card = <HelmCard ship={ship} pick={helmPick} onPick={setHelmPick} onCancel={leaveHelm} />;
-    head = { title: t("ship.set_sail"), subtitle: ship.name, next: t("next.helm"), back: { onClick: () => (helmFrom.current ? leaveHelm() : goBack({ kind: "home" })), testId: "helm-back" } };
-  } else if (place.kind === "island") {
-    const isHere = place.id === (here ?? ashoreAt);
-    const roomKey = place.room === "dock" ? "island.dock" : place.room === "tavern" ? "island.tavern" : place.room === "notice" ? "island.notice_board" : null;
-    card = <IslandCard id={place.id} room={place.room} here={here ?? ashoreAt} onRoom={(room) => go({ kind: "island", id: place.id, room })} />;
+    head = { title: t("ship.launch"), subtitle: ship.name, next: t("next.helm"), back: { onClick: () => (helmFrom.current ? leaveHelm() : goBack({ kind: "home" })), testId: "helm-back" } };
+  } else if (place.kind === "outpost") {
+    const isHere = place.id === (here ?? onOutpostAt);
+    const roomKey = place.room === "dock" ? "outpost.dock" : place.room === "cantina" ? "outpost.cantina" : place.room === "notice" ? "outpost.notice_board" : null;
+    card = <OutpostCard id={place.id} room={place.room} here={here ?? onOutpostAt} onRoom={(room) => go({ kind: "outpost", id: place.id, room })} />;
     head = roomKey
       ? {
           title: t(roomKey),
-          subtitle: islandName(place.id),
+          subtitle: outpostName(place.id),
           next: t(`${roomKey}_blurb`),
-          back: { onClick: () => goBack({ kind: "island", id: place.id, room: "none" }), testId: "island-back" },
+          back: { onClick: () => goBack({ kind: "outpost", id: place.id, room: "none" }), testId: "outpost-back" },
         }
       : {
-          title: islandName(place.id),
-          subtitle: isHere ? t("world.you_are_here") : t("world.ashore_at", { island: islandName(ashoreAt) }),
-          next: isHere ? ashoreNext : t("next.far_island", { island: islandName(ashoreAt) }),
+          title: outpostName(place.id),
+          subtitle: isHere ? t("world.you_are_here") : t("world.on_outpost_at", { outpost: outpostName(onOutpostAt) }),
+          next: isHere ? onOutpostNext : t("next.far_outpost", { outpost: outpostName(onOutpostAt) }),
           back: null,
         };
   } else {
     card = (
       <ChartCard
-        here={here ?? ashoreAt}
+        here={here ?? onOutpostAt}
         pick={place.kind === "chart" ? place.pick : null}
         shipPick={shipPick}
         aboard={aboard}
-        onIsland={(id) => {
+        onOutpost={(id) => {
           setSheetOpen(false);
-          go({ kind: "island", id, room: "none" });
+          go({ kind: "outpost", id, room: "none" });
         }}
         onBackAboard={() => go({ kind: "home" })}
         onClearPick={() => (setShipPick(null), go({ kind: "chart", pick: null }))}
@@ -564,7 +564,7 @@ export function Shell() {
     );
     head = {
       title: t("world.chart_title"),
-      subtitle: aboard ? t("world.aboard", { ship: ship?.name ?? "" }) : t("world.ashore_at", { island: islandName(ashoreAt) }),
+      subtitle: aboard ? t("world.aboard", { ship: ship?.name ?? "" }) : t("world.on_outpost_at", { outpost: outpostName(onOutpostAt) }),
       next: aboard ? t("next.chart_aboard") : t("next.chart"),
       back: null,
     };

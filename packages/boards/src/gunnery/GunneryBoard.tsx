@@ -35,7 +35,7 @@ export function GunneryBoard(props: GunneryBoardProps) {
       {
         showMarks: props.showMarks,
         tickMs: gunnery.config.tickMs,
-        labels: { fouled: t("gunnery.fouled_callout"), clean: t("gunnery.clean_callout"), next: t("gunnery.next"), broadside: t("gunnery.broadside_callout") },
+        labels: { jammed: t("gunnery.jammed_callout"), clean: t("gunnery.clean_callout"), next: t("gunnery.next"), broadside: t("gunnery.broadside_callout") },
       },
     );
     renderer.current = r;

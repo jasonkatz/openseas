@@ -43,7 +43,7 @@ export function validateConfig(cfg: SwordfightConfig): void {
     typeof cfg.dealSeed === "string" &&
     cfg.dealSeed.length <= 200 &&
     int(cfg.ripenMoves, 1, 20) &&
-    int(cfg.wrackMatchPermille, 0, 1000) &&
+    int(cfg.scrapMatchPermille, 0, 1000) &&
     int(cfg.cellPoints, 0, 1000) &&
     int(cfg.slabBonus, 0, 1000) &&
     int(cfg.attackPoints, 1, 100_000) &&
@@ -381,7 +381,7 @@ const NEIGHBORS = (cfg: SwordfightConfig, i: number): number[] => {
   return out;
 };
 
-const breakable = (c: SwordCell | null, color: number): c is SwordCell => c !== null && c.kind !== "wrack" && c.color === color;
+const breakable = (c: SwordCell | null, color: number): c is SwordCell => c !== null && c.kind !== "scrap" && c.color === color;
 
 interface BreakGroup {
   color: number;
@@ -452,13 +452,13 @@ function resolve(cfg: SwordfightConfig, w: Work, board: number, tick: number, ch
   }
 }
 
-/** Wrack that has been on the board long enough turns into a block of the color it landed with. */
+/** Scrap that has been on the board long enough turns into a block of the color it landed with. */
 function ripen(w: Work, board: number, tick: number, events: SwordfightEvent[]): void {
   const ids: number[] = [];
   const colors: number[] = [];
   for (let i = 0; i < w.cells.length; i++) {
     const c = w.cells[i];
-    if (!c || c.kind !== "wrack") continue;
+    if (!c || c.kind !== "scrap") continue;
     const left = c.ripen - 1;
     if (left > 0) {
       w.cells[i] = { ...c, ripen: left };
@@ -513,11 +513,11 @@ export function applyDrop(cfg: SwordfightConfig, board: SwordBoard, boardIndex: 
 }
 
 /**
- * The color a block of wrack landing at (col, row) is dealt. Usually one seen around it, so wrack
+ * The color a block of scrap landing at (col, row) is dealt. Usually one seen around it, so scrap
  * ripens into the stuff it sits in and a clean-up is within reach: the block under it counts
  * three times, each neighbour in its row once. Otherwise, or with nothing around, any color.
  */
-function wrackColor(cfg: SwordfightConfig, cells: Cells, col: number, row: number, rng: PrngState): { color: number; rng: PrngState } {
+function scrapColor(cfg: SwordfightConfig, cells: Cells, col: number, row: number, rng: PrngState): { color: number; rng: PrngState } {
   const seen: number[] = [];
   const see = (c: SwordCell | null | undefined, weight: number): void => {
     if (c) for (let k = 0; k < weight; k++) seen.push(c.color);
@@ -525,7 +525,7 @@ function wrackColor(cfg: SwordfightConfig, cells: Cells, col: number, row: numbe
   if (row > 0) see(cells[idx(cfg, col, row - 1)], 3);
   if (col > 0) see(cells[idx(cfg, col - 1, row)], 1);
   if (col < cfg.width - 1) see(cells[idx(cfg, col + 1, row)], 1);
-  const match = nextChance(rng, cfg.wrackMatchPermille, 1000);
+  const match = nextChance(rng, cfg.scrapMatchPermille, 1000);
   rng = match.state;
   if (match.value && seen.length > 0) {
     const pick = nextInt(rng, seen.length);
@@ -536,10 +536,10 @@ function wrackColor(cfg: SwordfightConfig, cells: Cells, col: number, row: numbe
 }
 
 /**
- * Land waiting wrack on a board, up to the cap, in the blades' columns. Each block is dealt the
+ * Land waiting scrap on a board, up to the cap, in the blades' columns. Each block is dealt the
  * color it will ripen into as it lands, so the board can show the color coming.
  */
-function landWrack(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number, tick: number, nextId: number, rng: PrngState, events: SwordfightEvent[]): { board: SwordBoard; nextId: number; rng: PrngState } {
+function landScrap(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number, tick: number, nextId: number, rng: PrngState, events: SwordfightEvent[]): { board: SwordBoard; nextId: number; rng: PrngState } {
   if (board.pending.length === 0) return { board, nextId, rng };
   const cells: Cells = board.cells.slice();
   let cursor = board.cursor;
@@ -551,7 +551,7 @@ function landWrack(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number,
   let full = false;
   let bladeShown = board.pending[0]!.blade;
   for (const p of board.pending) {
-    let left = p.wrack;
+    let left = p.scrap;
     const blade = cfg.blades[p.blade] ?? cfg.blades[0]!;
     while (left > 0 && budget > 0 && !full) {
       let placed = false;
@@ -561,9 +561,9 @@ function landWrack(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number,
         const h = colHeight(cfg, cells, col);
         if (h >= cfg.height) continue;
         const i = idx(cfg, col, h);
-        const dealt = wrackColor(cfg, cells, col, h, rng);
+        const dealt = scrapColor(cfg, cells, col, h, rng);
         rng = dealt.rng;
-        const cell: SwordCell = { id: nextId++, color: dealt.color, kind: "wrack", ripen: cfg.ripenMoves, slab: 0 };
+        const cell: SwordCell = { id: nextId++, color: dealt.color, kind: "scrap", ripen: cfg.ripenMoves, slab: 0 };
         cells[i] = cell;
         landedCells.push(i);
         ids.push(cell.id);
@@ -578,7 +578,7 @@ function landWrack(cfg: SwordfightConfig, board: SwordBoard, boardIndex: number,
       left--;
       budget--;
     }
-    if (left > 0) pending.push({ wrack: left, blade: p.blade });
+    if (left > 0) pending.push({ scrap: left, blade: p.blade });
     bladeShown = p.blade;
   }
   if (landedCells.length) events.push({ tick, board: boardIndex, type: "landed", cells: landedCells, ids, colors, blade: bladeShown });
@@ -598,7 +598,7 @@ interface Sim {
   outcome: SwordfightOutcome | null;
 }
 
-const load = (b: SwordBoard): number => b.cells.reduce((n, c) => n + (c ? 1 : 0), 0) + b.pending.reduce((n, p) => n + p.wrack, 0);
+const load = (b: SwordBoard): number => b.cells.reduce((n, c) => n + (c ? 1 : 0), 0) + b.pending.reduce((n, p) => n + p.scrap, 0);
 
 /** Whether the side facing `side` is outside this fight: attacks leave it and arrive as incoming moves. */
 export function opposingSideExternal(cfg: SwordfightConfig, side: 0 | 1): boolean {
@@ -660,35 +660,35 @@ function dropOn(cfg: SwordfightConfig, sim: Sim, i: number, col: number, rot: Sw
     drops: before.drops + 1,
     bestChain: Math.max(before.bestChain, r.chain),
   };
-  // Attack: points become wrack, which first cancels wrack waiting here, then goes over.
+  // Attack: points become scrap, which first cancels scrap waiting here, then goes over.
   let pool = board.pool + r.points;
-  let wrack = Math.floor(pool / cfg.attackPoints);
-  pool -= wrack * cfg.attackPoints;
+  let scrap = Math.floor(pool / cfg.attackPoints);
+  pool -= scrap * cfg.attackPoints;
   let offset = 0;
   let pending = board.pending.slice();
-  if (wrack > 0 && cfg.offset) {
-    while (wrack > 0 && pending.length) {
+  if (scrap > 0 && cfg.offset) {
+    while (scrap > 0 && pending.length) {
       const p = pending[0]!;
-      const take = Math.min(wrack, p.wrack);
-      wrack -= take;
+      const take = Math.min(scrap, p.scrap);
+      scrap -= take;
       offset += take;
-      if (take === p.wrack) pending.shift();
-      else pending[0] = { ...p, wrack: p.wrack - take };
+      if (take === p.scrap) pending.shift();
+      else pending[0] = { ...p, scrap: p.scrap - take };
     }
   }
   board = { ...board, pool, pending, pendingSince: pending.length ? board.pendingSince : -1 };
-  if (wrack > 0 || offset > 0) {
-    const to = wrack > 0 ? chooseTarget(sim.boards, i) : -2;
+  if (scrap > 0 || offset > 0) {
+    const to = scrap > 0 ? chooseTarget(sim.boards, i) : -2;
     if (to >= 0) {
       const t = sim.boards[to]!;
-      sim.boards[to] = { ...t, pending: [...t.pending, { wrack, blade: board.blade }], pendingSince: t.pending.length ? t.pendingSince : tick };
-      sim.events.push({ tick, board: i, type: "attack", to, wrack, offset, blade: board.blade });
-    } else if (wrack > 0 && opposingSideExternal(cfg, board.side)) sim.events.push({ tick, board: i, type: "attack", to: -1, wrack, offset, blade: board.blade });
-    else sim.events.push({ tick, board: i, type: "attack", to: -2, wrack: 0, offset, blade: board.blade });
-    board = { ...board, sent: board.sent + wrack };
+      sim.boards[to] = { ...t, pending: [...t.pending, { scrap, blade: board.blade }], pendingSince: t.pending.length ? t.pendingSince : tick };
+      sim.events.push({ tick, board: i, type: "attack", to, scrap, offset, blade: board.blade });
+    } else if (scrap > 0 && opposingSideExternal(cfg, board.side)) sim.events.push({ tick, board: i, type: "attack", to: -1, scrap, offset, blade: board.blade });
+    else sim.events.push({ tick, board: i, type: "attack", to: -2, scrap: 0, offset, blade: board.blade });
+    board = { ...board, sent: board.sent + scrap };
   }
   // What was still waiting lands now.
-  const landed = landWrack(cfg, board, i, tick, sim.nextId, sim.rng, sim.events);
+  const landed = landScrap(cfg, board, i, tick, sim.nextId, sim.rng, sim.events);
   board = landed.board;
   sim.nextId = landed.nextId;
   sim.rng = landed.rng;
@@ -700,7 +700,7 @@ function dropOn(cfg: SwordfightConfig, sim: Sim, i: number, col: number, rot: Sw
 }
 
 function landOn(cfg: SwordfightConfig, sim: Sim, i: number, tick: number): void {
-  const landed = landWrack(cfg, sim.boards[i]!, i, tick, sim.nextId, sim.rng, sim.events);
+  const landed = landScrap(cfg, sim.boards[i]!, i, tick, sim.nextId, sim.rng, sim.events);
   sim.boards[i] = landed.board;
   sim.nextId = landed.nextId;
   sim.rng = landed.rng;
@@ -822,14 +822,14 @@ export function reduceSwordfight(state: SwordfightState, move: SwordfightMove): 
       return finish(state, sim, move, move.tick);
     }
     case "incoming": {
-      if (!int(move.board, 0, state.boards.length - 1) || !int(move.wrack, 1, 999) || !int(move.blade, 0, cfg.blades.length - 1)) throw new InvalidMoveError("bad incoming", move);
+      if (!int(move.board, 0, state.boards.length - 1) || !int(move.scrap, 1, 999) || !int(move.blade, 0, cfg.blades.length - 1)) throw new InvalidMoveError("bad incoming", move);
       const target = state.boards[move.board]!;
       if (!opposingSideExternal(cfg, target.side)) throw new InvalidMoveError("this fight has its own foes", move);
       const sim = simulate(state, move.tick);
       const t = sim.boards[move.board]!;
       if (!sim.finished && !t.out) {
-        sim.boards[move.board] = { ...t, pending: [...t.pending, { wrack: move.wrack, blade: move.blade }], pendingSince: t.pending.length ? t.pendingSince : move.tick };
-        sim.events.push({ tick: move.tick, board: move.board, type: "incoming", wrack: move.wrack, blade: move.blade });
+        sim.boards[move.board] = { ...t, pending: [...t.pending, { scrap: move.scrap, blade: move.blade }], pendingSince: t.pending.length ? t.pendingSince : move.tick };
+        sim.events.push({ tick: move.tick, board: move.board, type: "incoming", scrap: move.scrap, blade: move.blade });
       }
       return finish(state, sim, move, move.tick);
     }
@@ -863,7 +863,7 @@ export function advanceSwordfight(state: SwordfightState, tick: number): Swordfi
 
 // ---- hashing and summary
 
-const KINDS = ["block", "breaker", "wrack"] as const;
+const KINDS = ["block", "breaker", "scrap"] as const;
 const OUTCOMES: readonly SwordfightOutcome[] = ["won", "lost"];
 
 export function hashSwordfightState(s: SwordfightState): string {
@@ -881,7 +881,7 @@ export function hashSwordfightState(s: SwordfightState): string {
     for (const sl of b.slabs) h.int(sl.id).int(sl.color).int(sl.col).int(sl.row).int(sl.w).int(sl.h);
     for (const p of [b.current.a, b.current.b, b.next.a, b.next.b]) h.int(p.color).int(p.breaker ? 1 : 0);
     h.int(b.pending.length);
-    for (const p of b.pending) h.int(p.wrack).int(p.blade);
+    for (const p of b.pending) h.int(p.scrap).int(p.blade);
   }
   return h.digest();
 }
@@ -897,19 +897,19 @@ export function summarizeSwordfight(s: SwordfightState): SwordfightSummary {
   return { score: s.score, moves: player ? player.drops : s.moveCount, bestCombo: player ? player.bestChain : 0 };
 }
 
-/** A board as a string, top row first: `.` empty, 0-5 a color, A-F a breaker, `#` wrack. Melee snapshots and the smoke test read it. */
+/** A board as a string, top row first: `.` empty, 0-5 a color, A-F a breaker, `#` scrap. Melee snapshots and the smoke test read it. */
 export function boardString(cfg: SwordfightConfig, cells: ReadonlyArray<SwordCell | null>): string {
   let out = "";
   for (let r = cfg.height - 1; r >= 0; r--) {
     for (let c = 0; c < cfg.width; c++) {
       const cell = cells[idx(cfg, c, r)];
-      out += !cell ? "." : cell.kind === "wrack" ? "#" : cell.kind === "breaker" ? String.fromCharCode(65 + cell.color) : String(cell.color);
+      out += !cell ? "." : cell.kind === "scrap" ? "#" : cell.kind === "breaker" ? String.fromCharCode(65 + cell.color) : String(cell.color);
     }
   }
   return out;
 }
 
-/** What is on a board: filled cells plus wrack waiting to land. The server sends attacks to the opposing board with the least. */
+/** What is on a board: filled cells plus scrap waiting to land. The server sends attacks to the opposing board with the least. */
 export function boardLoad(b: SwordBoard): number {
   return load(b);
 }

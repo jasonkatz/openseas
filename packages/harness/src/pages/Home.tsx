@@ -6,7 +6,7 @@ import { importErrorText } from "../bench/ImportPanel.jsx";
 import { Link, useRoute } from "../router.jsx";
 
 const GLYPHS: Record<PuzzleId, ReactNode> = {
-  bilging: (
+  cooling: (
     <svg viewBox="0 0 64 64" width="56" height="56">
       <path d="M6 40 Q 16 30 26 40 T 46 40 T 66 40 V 64 H 0 Z" fill="#1a7f8a" opacity=".8" />
       <rect x="14" y="8" width="14" height="14" rx="3" fill="#f5d021" />
@@ -15,7 +15,7 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
       <rect x="32" y="26" width="14" height="14" rx="3" fill="#e5355a" />
     </svg>
   ),
-  sailing: (
+  engines: (
     <svg viewBox="0 0 64 64" width="56" height="56">
       <rect x="8" y="40" width="48" height="6" rx="2" fill="#8a6136" />
       <rect x="14" y="26" width="12" height="12" rx="3" fill="#f2f0e6" />
@@ -24,7 +24,7 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
       <rect x="42" y="26" width="12" height="12" rx="3" fill="none" stroke="#3fa7f5" strokeWidth="2" strokeDasharray="3 2" />
     </svg>
   ),
-  carpentry: (
+  plating: (
     <svg viewBox="0 0 64 64" width="56" height="56">
       <rect x="6" y="10" width="52" height="44" rx="4" fill="#6b4423" />
       <rect x="6" y="24" width="52" height="1.5" fill="#3a2412" opacity=".8" />
@@ -251,7 +251,7 @@ export function Home() {
             rows={4}
             spellCheck={false}
             data-testid="home-review-text"
-            placeholder='{"puzzle":"bilging","seed":"…","moves":[…]}'
+            placeholder='{"puzzle":"cooling","seed":"…","moves":[…]}'
           />
           {pasteError && (
             <p className="error" role="alert" data-testid="home-review-error">

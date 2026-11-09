@@ -44,7 +44,7 @@ export function validateConfig(cfg: NavigationConfig): void {
     cfg.chainPercent.length <= 16 &&
     cfg.chainPercent.every((p) => Number.isInteger(p) && p >= 100 && p <= 1000) &&
     cfg.runPoints >= 0 &&
-    cfg.boochPenalty >= 0 &&
+    cfg.lostHeadingPenalty >= 0 &&
     int(cfg.tickMs, 20, 5000) &&
     int(cfg.maxTick, 1, 100_000) &&
     int(cfg.maxMoves, 1, 1_000_000) &&
@@ -77,7 +77,7 @@ export function createNavigationGame(seed: string, config: NavigationConfig = DE
     landings: 0,
     landingsSinceDeal: 0,
     completed: 0,
-    booches: 0,
+    lostHeadings: 0,
     runsCleared: 0,
     score: 0,
     combo: 0,
@@ -128,7 +128,7 @@ function dealConstellation(cfg: NavigationConfig, slots: ReadonlyArray<Star | nu
  * Where a star falling into the entry octant comes to rest on these slots: it falls inward until
  * it meets a star, and rests in the ring outside it (or at the center). Columns are always packed
  * toward the center, so this is the innermost empty slot. Null when the outermost slot is taken,
- * so there is no room: a booch.
+ * so there is no room: a lost heading.
  */
 export function landingSlotOn(cfg: NavigationConfig, slots: ReadonlyArray<Star | null>): number | null {
   for (let r = cfg.rings - 1; r >= 0; r--) {
@@ -225,7 +225,7 @@ export function hashNavigationState(state: NavigationState): string {
   for (const m of state.markers) h.int(m.ring).int(m.octant).int(m.kind);
   h.int(state.falling.kind).int(state.falling.startTick).int(state.falling.landTick).int(state.next);
   h.int(state.nextId).int(state.eventSeq).int(state.moveCount).int(state.logLength).int(state.landings).int(state.landingsSinceDeal);
-  h.int(state.completed).int(state.booches).int(state.runsCleared).int(state.score).int(state.combo).int(state.bestCombo);
+  h.int(state.completed).int(state.lostHeadings).int(state.runsCleared).int(state.score).int(state.combo).int(state.bestCombo);
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.finished ? 1 : 0);
   return h.digest();
@@ -371,7 +371,7 @@ interface Work {
   landings: number;
   landingsSinceDeal: number;
   completed: number;
-  booches: number;
+  lostHeadings: number;
   runsCleared: number;
   score: number;
   combo: number;
@@ -394,7 +394,7 @@ function startWork(state: NavigationState): Work {
     landings: state.landings,
     landingsSinceDeal: state.landingsSinceDeal,
     completed: state.completed,
-    booches: state.booches,
+    lostHeadings: state.lostHeadings,
     runsCleared: state.runsCleared,
     score: state.score,
     combo: state.combo,
@@ -418,7 +418,7 @@ function finishWork(state: NavigationState, w: Work): NavigationState {
     landings: w.landings,
     landingsSinceDeal: w.landingsSinceDeal,
     completed: w.completed,
-    booches: w.booches,
+    lostHeadings: w.lostHeadings,
     runsCleared: w.runsCleared,
     score: w.score,
     combo: w.combo,
@@ -462,10 +462,10 @@ function land(w: Work, tick: number): Work {
       if (star) ids.push(star.id);
       w.slots[s] = null;
     }
-    w.booches++;
+    w.lostHeadings++;
     w.combo = 0;
-    w.score = Math.max(0, w.score - cfg.boochPenalty);
-    w.events.push({ seq: ++w.eventSeq, tick, type: "booch", octant: ENTRY_OCTANT, ids, penalty: cfg.boochPenalty });
+    w.score = Math.max(0, w.score - cfg.lostHeadingPenalty);
+    w.events.push({ seq: ++w.eventSeq, tick, type: "lost_heading", octant: ENTRY_OCTANT, ids, penalty: cfg.lostHeadingPenalty });
   }
   w = resolve(w);
   const k = nextInt(w.rng, cfg.shapes * cfg.colors);

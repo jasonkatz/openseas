@@ -1,34 +1,34 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_BATTLE_CONFIG,
-  DEFAULT_BILGING_CONFIG,
-  DEFAULT_CARPENTRY_CONFIG,
+  DEFAULT_COOLING_CONFIG,
+  DEFAULT_PLATING_CONFIG,
   DEFAULT_GUNNERY_CONFIG,
   DEFAULT_NAVIGATION_CONFIG,
-  DEFAULT_SAILING_CONFIG,
+  DEFAULT_ENGINES_CONFIG,
   DEFAULT_SHIP_RULES,
   DEFAULT_SWORDFIGHT_CONFIG,
   PUZZLE_IDS,
   PUZZLES,
-  createBilgingGame,
-  hashBilgingState,
-  reduceBilging,
+  createCoolingGame,
+  hashCoolingState,
+  reduceCooling,
   swapIllegalReason,
-  type BilgingConfig,
-  type BilgingMove,
-  type BilgingState,
+  type CoolingConfig,
+  type CoolingMove,
+  type CoolingState,
 } from "@openseas/engine";
 import { MAX_RESYNCS, PuzzleSessionManager, type SessionManagerOptions } from "../src/puzzles/sessions.js";
 
-function manager(now: { t: number }, overrides: Partial<SessionManagerOptions> & { bilging?: Partial<BilgingConfig> } = {}) {
+function manager(now: { t: number }, overrides: Partial<SessionManagerOptions> & { cooling?: Partial<CoolingConfig> } = {}) {
   let n = 0;
-  const { bilging, ...rest } = overrides;
+  const { cooling, ...rest } = overrides;
   return new PuzzleSessionManager({
     graceMs: 1000,
     puzzles: {
-      bilging: { roundMs: 60_000, config: { ...DEFAULT_BILGING_CONFIG, ...bilging } },
-      sailing: { roundMs: 60_000, config: DEFAULT_SAILING_CONFIG },
-      carpentry: { roundMs: 60_000, config: DEFAULT_CARPENTRY_CONFIG },
+      cooling: { roundMs: 60_000, config: { ...DEFAULT_COOLING_CONFIG, ...cooling } },
+      engines: { roundMs: 60_000, config: DEFAULT_ENGINES_CONFIG },
+      plating: { roundMs: 60_000, config: DEFAULT_PLATING_CONFIG },
       gunnery: { roundMs: 60_000, config: DEFAULT_GUNNERY_CONFIG },
       navigation: { roundMs: 60_000, config: DEFAULT_NAVIGATION_CONFIG },
       battle: { roundMs: 60_000, config: DEFAULT_BATTLE_CONFIG },
@@ -41,7 +41,7 @@ function manager(now: { t: number }, overrides: Partial<SessionManagerOptions> &
   });
 }
 
-function firstLegal(state: BilgingState): BilgingMove {
+function firstLegal(state: CoolingState): CoolingMove {
   for (let r = 0; r < state.config.height; r++) {
     for (let c = 0; c < state.config.width - 1; c++) {
       if (swapIllegalReason(state, c, r) === null) return { type: "swap", col: c, row: r };
@@ -54,15 +54,15 @@ describe("PuzzleSessionManager", () => {
   it("accepts an honest client's moves and scores the round", () => {
     const now = { t: 1000 };
     const m = manager(now);
-    const s = m.start("p1", "bilging");
+    const s = m.start("p1", "cooling");
     // The client mirrors the engine from the seed the server issued.
-    let client = createBilgingGame(s.seed, s.config as BilgingConfig);
+    let client = createCoolingGame(s.seed, s.config as CoolingConfig);
     for (let i = 0; i < 10; i++) {
       const move = firstLegal(client);
-      client = reduceBilging(client, move);
-      expect(m.move(s, i, move, hashBilgingState(client))).toEqual({ ok: true, seq: i });
+      client = reduceCooling(client, move);
+      expect(m.move(s, i, move, hashCoolingState(client))).toEqual({ ok: true, seq: i });
     }
-    const r = m.finish(s, hashBilgingState(client));
+    const r = m.finish(s, hashCoolingState(client));
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.summary.moves).toBe(10);
@@ -75,8 +75,8 @@ describe("PuzzleSessionManager", () => {
   it("rejects a divergent hash on the move it happens", () => {
     const now = { t: 0 };
     const m = manager(now);
-    const s = m.start("p1", "bilging");
-    const client = createBilgingGame(s.seed, s.config as BilgingConfig);
+    const s = m.start("p1", "cooling");
+    const client = createCoolingGame(s.seed, s.config as CoolingConfig);
     const move = firstLegal(client);
     const r = m.move(s, 0, move, "00000000");
     expect(r).toEqual({ ok: false, reason: "divergence", atSeq: 0 });
@@ -86,7 +86,7 @@ describe("PuzzleSessionManager", () => {
   it("rejects a client that claims a different final state", () => {
     const now = { t: 0 };
     const m = manager(now);
-    const s = m.start("p1", "bilging");
+    const s = m.start("p1", "cooling");
     const r = m.finish(s, "ffffffff");
     expect(r).toEqual({ ok: false, reason: "divergence" });
   });
@@ -94,30 +94,30 @@ describe("PuzzleSessionManager", () => {
   it("rejects out-of-order sequence numbers", () => {
     const now = { t: 0 };
     const m = manager(now);
-    const s = m.start("p1", "bilging");
-    const client = createBilgingGame(s.seed, s.config as BilgingConfig);
+    const s = m.start("p1", "cooling");
+    const client = createCoolingGame(s.seed, s.config as CoolingConfig);
     const move = firstLegal(client);
-    expect(m.move(s, 1, move, hashBilgingState(reduceBilging(client, move)))).toMatchObject({ ok: false, reason: "bad_sequence" });
+    expect(m.move(s, 1, move, hashCoolingState(reduceCooling(client, move)))).toMatchObject({ ok: false, reason: "bad_sequence" });
   });
 
   it("rejects illegal moves", () => {
     const now = { t: 0 };
     const m = manager(now);
-    const s = m.start("p1", "bilging");
+    const s = m.start("p1", "cooling");
     expect(m.move(s, 0, { type: "swap", col: 5, row: 0 }, "00000000")).toMatchObject({ ok: false, reason: "illegal_move" });
   });
 
   it("rejects moves after the deadline plus grace, and lists the session as expired", () => {
     const now = { t: 0 };
     const m = manager(now);
-    const s = m.start("p1", "bilging");
-    const client = createBilgingGame(s.seed, s.config as BilgingConfig);
+    const s = m.start("p1", "cooling");
+    const client = createCoolingGame(s.seed, s.config as CoolingConfig);
     const move = firstLegal(client);
     now.t = 60_000 + 500; // inside grace
-    expect(m.move(s, 0, move, hashBilgingState(reduceBilging(client, move)))).toEqual({ ok: true, seq: 0 });
+    expect(m.move(s, 0, move, hashCoolingState(reduceCooling(client, move)))).toEqual({ ok: true, seq: 0 });
     now.t = 60_000 + 1001;
     expect(m.expired().map((x) => x.id)).toEqual([s.id]);
-    const next = firstLegal(reduceBilging(client, move));
+    const next = firstLegal(reduceCooling(client, move));
     expect(m.move(s, 1, next, "00000000")).toMatchObject({ ok: false, reason: "deadline" });
   });
 
@@ -154,7 +154,7 @@ describe("PuzzleSessionManager", () => {
     const m = manager(now);
     const def = PUZZLES.swordfight;
     const config = { ...DEFAULT_SWORDFIGHT_CONFIG, foes: [] };
-    const s = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "cutpurse" });
+    const s = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "junker" });
     let server = def.create(s.seed, config);
     now.t = 30_000;
     let tick = 0;
@@ -188,12 +188,12 @@ describe("PuzzleSessionManager", () => {
     expect(m.get(s.id)).toBeUndefined();
   });
 
-  it("a melee board logs only the wrack the server announced, in order, and never its own win", () => {
+  it("a melee board logs only the scrap the server announced, in order, and never its own win", () => {
     const now = { t: 0 };
     const m = manager(now);
     const def = PUZZLES.swordfight;
     const config = { ...DEFAULT_SWORDFIGHT_CONFIG, foes: [] };
-    const s = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "cutpurse" });
+    const s = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "junker" });
     let client = def.create(s.seed, config);
     const log = (seq: number, move: unknown) => {
       const next = def.reduce(client, move);
@@ -203,26 +203,26 @@ describe("PuzzleSessionManager", () => {
     };
     now.t = 1000;
     // Nothing announced: incoming is refused and the round is closed.
-    expect(log(0, { type: "incoming", board: 0, wrack: 3, blade: 0, tick: 2 })).toMatchObject({ ok: false, reason: "illegal_move" });
-    const s2 = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "cutpurse" });
+    expect(log(0, { type: "incoming", board: 0, scrap: 3, blade: 0, tick: 2 })).toMatchObject({ ok: false, reason: "illegal_move" });
+    const s2 = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "junker" });
     client = def.create(s2.seed, config);
-    s2.meleeIncoming.push({ wrack: 3, blade: 1 }, { wrack: 5, blade: 0 });
+    s2.meleeIncoming.push({ scrap: 3, blade: 1 }, { scrap: 5, blade: 0 });
     const log2 = (seq: number, move: unknown) => {
       const next = def.reduce(client, move);
       const r = m.move(s2, seq, move, def.hash(next));
       if (r.ok) client = next;
       return r;
     };
-    // The announced wrack, in order; a different amount, blade or board is a lie.
+    // The announced scrap, in order; a different amount, blade or board is a lie.
     expect(log2(0, { type: "wait", tick: 1 })).toEqual({ ok: true, seq: 0 });
-    expect(log2(1, { type: "incoming", board: 0, wrack: 3, blade: 1, tick: 2 })).toEqual({ ok: true, seq: 1 });
-    expect(s2.meleeIncoming).toEqual([{ wrack: 5, blade: 0 }]);
-    expect(log2(2, { type: "incoming", board: 0, wrack: 5, blade: 0, tick: 3 })).toEqual({ ok: true, seq: 2 });
+    expect(log2(1, { type: "incoming", board: 0, scrap: 3, blade: 1, tick: 2 })).toEqual({ ok: true, seq: 1 });
+    expect(s2.meleeIncoming).toEqual([{ scrap: 5, blade: 0 }]);
+    expect(log2(2, { type: "incoming", board: 0, scrap: 5, blade: 0, tick: 3 })).toEqual({ ok: true, seq: 2 });
     expect(s2.meleeIncoming).toEqual([]);
     // A win over foes outside the board is the server's word, never the client's.
     expect(log2(3, { type: "end", won: true, tick: 4 })).toMatchObject({ ok: false, reason: "illegal_move" });
     // The server writes that end itself and the log still replays.
-    const s3 = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "cutpurse" });
+    const s3 = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "junker" });
     expect(m.inject(s3, { type: "end", won: true, tick: 2 })).toBe(true);
     expect(s3.moves).toEqual([{ type: "end", won: true, tick: 2 }]);
     const r = m.finish(s3, null);
@@ -231,55 +231,55 @@ describe("PuzzleSessionManager", () => {
 
   it("caps the move count at the configured maximum", () => {
     const now = { t: 0 };
-    const m = manager(now, { bilging: { maxMoves: 2 } });
-    const s = m.start("p1", "bilging");
-    let client = createBilgingGame(s.seed, s.config as BilgingConfig);
+    const m = manager(now, { cooling: { maxMoves: 2 } });
+    const s = m.start("p1", "cooling");
+    let client = createCoolingGame(s.seed, s.config as CoolingConfig);
     for (let i = 0; i < 2; i++) {
       const move = firstLegal(client);
-      client = reduceBilging(client, move);
-      expect(m.move(s, i, move, hashBilgingState(client))).toEqual({ ok: true, seq: i });
+      client = reduceCooling(client, move);
+      expect(m.move(s, i, move, hashCoolingState(client))).toEqual({ ok: true, seq: i });
     }
     // The engine itself marks the game finished, so a third move is illegal; either way it is rejected.
     const r = m.move(s, 2, { type: "end" }, "00000000");
     expect(r.ok).toBe(false);
   });
 
-  it("a harness Bilging round plays a lone ship's bilge: it turns on the round's clock and only its depth is a legal water move", () => {
+  it("a harness Cooling round plays a lone ship's heat: it turns on the round's clock and only its depth is a legal heat move", () => {
     const now = { t: 1000 };
-    // A leaky hull so the bilge climbs past the board's floor inside a one-minute round.
-    const m = manager(now, { soloBilge: { rules: { ...DEFAULT_SHIP_RULES, waterIntakePerTurn: 200 }, par: 20 } });
-    const s = m.start("p1", "bilging");
-    expect((s.config as BilgingConfig).shipWater).toBe(true);
-    // A dry ship reads as the bilge's floor, which is where the board starts.
-    expect(s.shipWaterRow).toBe(3);
+    // A leaky hull so the heat climbs past the board's floor inside a one-minute round.
+    const m = manager(now, { soloHeat: { rules: { ...DEFAULT_SHIP_RULES, heatIntakePerTurn: 200 }, par: 20 } });
+    const s = m.start("p1", "cooling");
+    expect((s.config as CoolingConfig).shipHeat).toBe(true);
+    // A dry ship reads as the heat's floor, which is where the board starts.
+    expect(s.shipHeatRow).toBe(3);
     now.t += 9_999;
-    expect(m.turnSoloBilges()).toEqual([]);
+    expect(m.turnSoloHeat()).toEqual([]);
     // One turn: 200 permille still reads as the floor, so there is nothing to tell the client.
     now.t += 1;
-    expect(m.turnSoloBilges()).toEqual([]);
+    expect(m.turnSoloHeat()).toEqual([]);
     // Two: 400 permille is five rows.
     now.t += 10_000;
-    expect(m.turnSoloBilges().map((c) => ({ id: c.session.id, row: c.row }))).toEqual([{ id: s.id, row: 5 }]);
-    expect(s.shipWaterRow).toBe(5);
-    expect(m.turnSoloBilges()).toEqual([]);
+    expect(m.turnSoloHeat().map((c) => ({ id: c.session.id, row: c.row }))).toEqual([{ id: s.id, row: 5 }]);
+    expect(s.shipHeatRow).toBe(5);
+    expect(m.turnSoloHeat()).toEqual([]);
 
-    let client = createBilgingGame(s.seed, s.config as BilgingConfig);
-    client = reduceBilging(client, { type: "water", row: 5 });
-    expect(m.move(s, 0, { type: "water", row: 5 }, hashBilgingState(client))).toEqual({ ok: true, seq: 0 });
-    const lie = reduceBilging(client, { type: "water", row: 3 });
-    expect(m.move(s, 1, { type: "water", row: 3 }, hashBilgingState(lie))).toMatchObject({ ok: false, reason: "illegal_move" });
+    let client = createCoolingGame(s.seed, s.config as CoolingConfig);
+    client = reduceCooling(client, { type: "heat", row: 5 });
+    expect(m.move(s, 0, { type: "heat", row: 5 }, hashCoolingState(client))).toEqual({ ok: true, seq: 0 });
+    const lie = reduceCooling(client, { type: "heat", row: 3 });
+    expect(m.move(s, 1, { type: "heat", row: 3 }, hashCoolingState(lie))).toMatchObject({ ok: false, reason: "illegal_move" });
   });
 
   it("no lone ship turns after the round's deadline, and a duty board has none", () => {
     const now = { t: 0 };
-    const m = manager(now, { soloBilge: { rules: { ...DEFAULT_SHIP_RULES, waterIntakePerTurn: 400 }, par: 20 } });
-    const s = m.start("p1", "bilging");
+    const m = manager(now, { soloHeat: { rules: { ...DEFAULT_SHIP_RULES, heatIntakePerTurn: 400 }, par: 20 } });
+    const s = m.start("p1", "cooling");
     now.t = 120_000;
-    m.turnSoloBilges();
+    m.turnSoloHeat();
     // A one-minute round has five turns before its deadline, never a sixth.
-    expect(s.soloBilge?.turns).toBe(5);
-    const duty = m.start("p2", "bilging", { shipId: "ship", station: "bilging", voyageId: "v", water: 7 });
-    expect(duty.soloBilge).toBeNull();
-    expect(duty.shipWaterRow).toBe(7);
+    expect(s.soloHeat?.turns).toBe(5);
+    const duty = m.start("p2", "cooling", { shipId: "ship", station: "cooling", voyageId: "v", heat: 7 });
+    expect(duty.soloHeat).toBeNull();
+    expect(duty.shipHeatRow).toBe(7);
   });
 });

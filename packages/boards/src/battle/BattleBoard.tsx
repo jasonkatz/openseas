@@ -11,10 +11,10 @@ export interface BattleBoardProps {
   /** Ms left on the turn clock, or null when the clock is not running; and a turn's length. */
   turnLeftMs: number | null;
   turnMs: number;
-  /** Bump to sail the plot as it stands: the host's turn clock ran out. */
+  /** Bump to fly the plot as it stands: the host's turn clock ran out. */
   commitSignal: number;
   /** What to call the other ship. */
-  brigandName: string;
+  raiderName: string;
   onCommit(plan: BattlePlan): void;
   onPlanChange?(plan: BattlePlan): void;
   onFrame(): void;
@@ -50,9 +50,9 @@ export function BattleBoard(props: BattleBoardProps) {
         showArcs: props.showArcs,
         labels: {
           you: t("battle.you"),
-          brigand: props.brigandName,
+          raider: props.raiderName,
           hull: t("battle.hull"),
-          loaded: t("battle.cannons"),
+          loaded: t("battle.turrets"),
           turn: (turn, max) => t("battle.turn", { turn, max }),
           slot: (n) => t("battle.slot", { n }),
           hold: t("battle.hold"),
@@ -60,12 +60,12 @@ export function BattleBoard(props: BattleBoardProps) {
           port: t("battle.port"),
           starboard: t("battle.starboard"),
           grapple: t("battle.grapple"),
-          sail: t("battle.sail_now"),
+          fly: t("battle.fly_now"),
           clear: t("battle.clear"),
           hit: t("battle.hit"),
           hitTaken: t("battle.hit_taken"),
           miss: t("battle.miss"),
-          rocks: t("battle.rocks"),
+          asteroids: t("battle.asteroids"),
           rammed: t("battle.rammed"),
           blown: t("battle.blown"),
           spun: t("battle.spun"),

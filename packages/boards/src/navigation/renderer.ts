@@ -37,7 +37,7 @@ export interface NavigationRendererOptions {
   tickMs: number;
   labels: {
     charted: string;
-    booch: string;
+    lostHeading: string;
     run: string;
     chain(chain: number): string;
     efficient: string;
@@ -321,7 +321,7 @@ export class NavigationRenderer {
             delay = Math.max(delay, this.reduced ? 60 : LAND_MS);
             break;
           }
-          case "booch": {
+          case "lost_heading": {
             for (const id of e.ids) {
               const v = this.stars.get(id);
               if (v) {
@@ -331,7 +331,7 @@ export class NavigationRenderer {
             }
             this.shake = 1;
             this.fallY = null;
-            this.callout(this.opts.labels.booch, COLORS.danger);
+            this.callout(this.opts.labels.lostHeading, COLORS.danger);
             this.popup(0, -this.ringRadius(this.rings - 1), `-${e.penalty}`, COLORS.danger);
             this.burst(0, -this.ringRadius(1), COLORS.danger, 14, 1.1);
             break;

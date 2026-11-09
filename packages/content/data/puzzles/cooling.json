@@ -1,0 +1,91 @@
+{
+  "config": {
+    "width": 6,
+    "height": 12,
+    "pieceKinds": 7,
+    "specialChancePerMille": {
+      "charge": 12,
+      "magnet": 8,
+      "slag": 10
+    },
+    "initialHeatRow": 3,
+    "minHeatRow": 3,
+    "heatRisePerMoves": 6,
+    "heatDropPerPoints": 40,
+    "maxMoves": 10000,
+    "shipHeat": true,
+    "cascadeMultipliers": [1, 2, 3],
+    "streakStepPercent": 10,
+    "streakMaxPercent": 150,
+    "streakGrace": 1
+  },
+  "roundSeconds": 150,
+  "parScore": 440,
+  "overheatSwapMs": 520,
+  "thresholds": [
+    { "score": 90, "rating": 1100 },
+    { "score": 220, "rating": 1300 },
+    { "score": 440, "rating": 1500 },
+    { "score": 730, "rating": 1700 },
+    { "score": 1170, "rating": 1900 },
+    { "score": 1750, "rating": 2100 }
+  ],
+  "pieces": [
+    {
+      "nameKey": "cooling.piece.cog",
+      "mark": "gear",
+      "texture": "knurl",
+      "color": "#f5d021"
+    },
+    {
+      "nameKey": "cooling.piece.valve",
+      "mark": "circle",
+      "texture": "fan",
+      "color": "#f2f0e6"
+    },
+    {
+      "nameKey": "cooling.piece.bolt",
+      "mark": "triangle",
+      "texture": "waves",
+      "color": "#3fa7f5"
+    },
+    {
+      "nameKey": "cooling.piece.fuse",
+      "mark": "square",
+      "texture": "grain",
+      "color": "#f3772a"
+    },
+    {
+      "nameKey": "cooling.piece.crystal",
+      "mark": "diamond",
+      "texture": "nacre",
+      "color": "#a66cf5"
+    },
+    {
+      "nameKey": "cooling.piece.coil",
+      "mark": "hexagon",
+      "texture": "fronds",
+      "color": "#2fbf71"
+    },
+    {
+      "nameKey": "cooling.piece.chip",
+      "mark": "star",
+      "texture": "pores",
+      "color": "#e5355a"
+    }
+  ],
+  "specials": {
+    "charge": {
+      "nameKey": "cooling.special.charge",
+      "color": "#2b2b33"
+    },
+    "magnet": {
+      "nameKey": "cooling.special.magnet",
+      "color": "#2a1d5e"
+    },
+    "slag": {
+      "nameKey": "cooling.special.slag",
+      "color": "#5b6470"
+    }
+  }
+}

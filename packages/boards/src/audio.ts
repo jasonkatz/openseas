@@ -120,42 +120,42 @@ export const sfx = {
   },
   /** A streak of three or more just ended. */
   streakLost: () => tone({ freq: 330, to: 180, duration: 0.3, type: "sine", gain: 0.04 }),
-  /** The water dropped a row: a pump stroke and a glug. */
-  pump: (rows: number) => {
+  /** The heat dropped a row: a pump stroke and a glug. */
+  vent: (rows: number) => {
     noise(0.22, 0.07, 400, 1600, "bandpass");
     for (let i = 0; i < Math.min(3, rows); i++) tone({ freq: 180 + i * 40, to: 420 + i * 60, duration: 0.12, type: "sine", gain: 0.06, delay: 0.05 + i * 0.1 });
   },
-  /** The water rose a row. */
+  /** The heat rose a row. */
   rise: () => tone({ freq: 260, to: 150, duration: 0.25, type: "sine", gain: 0.035 }),
-  /** The water crossed into the danger half. */
+  /** The heat crossed into the danger half. */
   alarm: () => {
     tone({ freq: 620, duration: 0.14, type: "square", gain: 0.03 });
     tone({ freq: 460, duration: 0.18, type: "square", gain: 0.03, delay: 0.16 });
   },
-  keg: () => {
+  charge: () => {
     noise(0.5, 0.22, 900, 60);
     tone({ freq: 90, to: 38, duration: 0.45, type: "sine", gain: 0.22 });
   },
-  ink: () => {
+  magnet: () => {
     noise(0.45, 0.08, 300, 3200, "bandpass");
     tone({ freq: 220, to: 660, duration: 0.35, type: "sine", gain: 0.04 });
   },
-  barnacle: () => {
+  slag: () => {
     tone({ freq: 700, to: 1400, duration: 0.09, type: "square", gain: 0.025 });
     tone({ freq: 1050, duration: 0.18, type: "sine", gain: 0.05, delay: 0.06 });
   },
-  /** Carpentry: a plank nailed down. A mallet knock, duller when the plank hangs over sound hull. */
-  hammer: (waste: boolean) => {
+  /** Plating: a plate welded down. A mallet knock, duller when the plate hangs over sound hull. */
+  welder: (waste: boolean) => {
     noise(0.07, waste ? 0.05 : 0.08, waste ? 900 : 1800, 200);
     tone({ freq: waste ? 150 : 210, to: waste ? 70 : 95, duration: 0.11, type: "sine", gain: waste ? 0.08 : 0.12 });
     if (!waste) tone({ freq: 1400, duration: 0.03, type: "triangle", gain: 0.02 });
   },
-  /** Carpentry: a patched hole's planks lift away. A woody rising sweep. */
-  plankLift: () => {
+  /** Plating: a sealed breach's plates lift away. A woody rising sweep. */
+  plateLift: () => {
     noise(0.3, 0.05, 500, 2600, "bandpass");
     tone({ freq: 240, to: 480, duration: 0.28, type: "triangle", gain: 0.03 });
   },
-  /** Carpentry: hull splinters open. A crack and a low groan. */
+  /** Plating: hull splinters open. A crack and a low groan. */
   crack: (loud: boolean) => {
     noise(0.12, loud ? 0.1 : 0.06, 3200, 300, "highpass");
     tone({ freq: 120, to: 60, duration: loud ? 0.35 : 0.2, type: "sawtooth", gain: loud ? 0.05 : 0.03, delay: 0.03 });

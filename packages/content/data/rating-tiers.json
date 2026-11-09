@@ -1,6 +1,6 @@
 [
   { "key": "greenhorn", "nameKey": "tier.greenhorn", "min": 0 },
-  { "key": "seaworthy", "nameKey": "tier.seaworthy", "min": 1250 },
+  { "key": "spaceworthy", "nameKey": "tier.spaceworthy", "min": 1250 },
   { "key": "steady", "nameKey": "tier.steady", "min": 1450 },
   { "key": "sharp", "nameKey": "tier.sharp", "min": 1650 },
   { "key": "expert", "nameKey": "tier.expert", "min": 1850 },
