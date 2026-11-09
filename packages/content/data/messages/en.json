@@ -601,7 +601,7 @@
   "sheet.less": "Less",
   "ship.board_spot": "Board",
   "world.chart_blurb": "Tap an island to look closer. Your flag is where you stand.",
-  "next.ashore_board": "Tap the dock to board {ship}.",
+  "next.ashore_board": "Walk down to the dock and board {ship}: tap her there, or tap anywhere to stroll.",
   "next.ashore_ship_away": "{ship} is at {island}. The notice board lists ships to join here.",
   "next.ashore_no_ship": "Buy a sloop at the dock, or join a ship from the notice board.",
   "next.far_island": "You're ashore at {island}. Sail here to visit.",

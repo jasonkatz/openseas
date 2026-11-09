@@ -15,10 +15,11 @@ import { ShipHud } from "../ship/ShipHud.jsx";
 import { StationView } from "../ship/StationView.jsx";
 import { useCrew } from "../state/CrewProvider.jsx";
 import { useShip } from "../state/ShipProvider.jsx";
+import { useSocial } from "../state/SocialProvider.jsx";
 import { usePlace, type Place } from "../state/place.jsx";
 import { useMediaQuery, useShowMarks } from "../state/settings.js";
 import { useToasts } from "../state/toasts.jsx";
-import { World, type Deck, type Focus, type Insets, type WorldInput, type WorldShip, type WorldShipLocation } from "../world/World.jsx";
+import { World, type Deck, type Focus, type Insets, type IslandWalk, type WorldInput, type WorldShip, type WorldShipLocation } from "../world/World.jsx";
 import { HailBanner } from "./HailBanner.jsx";
 import { Menu } from "./Menu.jsx";
 import { Toasts } from "./Toasts.jsx";
@@ -65,7 +66,8 @@ interface Head {
  */
 export function Shell() {
   const { pirate, socketStatus, providers } = usePirate();
-  const { ship, notices, listBoard, board, boardShip, takeStation, error } = useShip();
+  const { ship, notices, listBoard, board, boardShip, takeStation, leave, left, error } = useShip();
+  const { presence, walks, walkTo } = useSocial();
   const crewApi = useCrew();
   const { place: rawPlace, go } = usePlace();
   const battle = useBattleApi();
@@ -314,10 +316,21 @@ export function Shell() {
           mate: Boolean(holder?.mate),
         };
       }),
-      crew: ship.crew.map((c) => ({ pirateId: c.pirateId, station: c.station, mine: c.pirateId === me, captain: c.captain, mate: c.mate })),
+      crew: ship.crew.map((c) => ({ pirateId: c.pirateId, name: c.name, station: c.station, mine: c.pirateId === me, captain: c.captain, mate: c.mate, at: c.pirateId === me ? null : (walks.ship[c.pirateId] ?? null) })),
       wheel: { label: captain ? (docked ? t("ship.wheel_sail") : t("ship.wheel_at_sea")) : t("ship.wheel_spot"), who: captain ? null : captainName, primary: captain && docked },
+      gangway: docked ? t("ship.go_ashore") : null,
     };
-  }, [ship, me, captain, captainName]);
+  }, [ship, me, captain, captainName, walks.ship]);
+
+  // Ashore, the pirate walks their island among everyone else on it (ADR 0032).
+  const walk = useMemo<IslandWalk | null>(() => {
+    if (aboard || !pirate) return null;
+    const others = presence?.islandId === ashoreAt ? presence.pirates.filter((p) => p.pirateId !== me).map((p) => ({ id: p.pirateId, name: p.name, at: walks.island[p.pirateId] ?? null })) : [];
+    // An open room is its building: the pirate is inside it.
+    const room = place.kind === "island" && place.id === ashoreAt ? place.room : "none";
+    const inside = room === "dock" ? "dock" : room === "tavern" ? "tavern" : room === "notice" ? "notice-board" : null;
+    return { islandId: ashoreAt, me, others, arriveFrom: left?.shipId ?? null, inside };
+  }, [aboard, pirate, presence, ashoreAt, me, walks.island, left, place]);
 
   const reachable = useMemo(() => (place.kind === "helm" && ship?.location.kind === "docked" ? content.world.routes.filter((r) => r.from === (ship.location as { islandId: string }).islandId).map((r) => r.to) : []), [place.kind, ship]);
 
@@ -349,8 +362,9 @@ export function Shell() {
       insets,
       dimmed: place.kind === "station" || place.kind === "battle" || place.kind === "melee" || menuOpen || crewApi.panel !== null,
       boardLabel: t("ship.board_spot"),
+      walk,
     }),
-    [ships, aboard, ashoreAt, focus, place, helmPick, reachable, shipPick, deck, insets, menuOpen, crewApi.panel],
+    [ships, aboard, ashoreAt, focus, place, helmPick, reachable, shipPick, deck, insets, menuOpen, crewApi.panel, walk],
   );
 
   // ---- taps in the world
@@ -428,7 +442,24 @@ export function Shell() {
     if (captain && ship.location.kind === "docked") onHelm();
     else setSheetOpen(true);
   }, [ship, captain, onHelm]);
-  const events = useMemo(() => ({ onIsland, onShip, onBuilding, onStation, onWheel }), [onIsland, onShip, onBuilding, onStation, onWheel]);
+  const onWalk = useCallback((x: number, z: number) => walkTo({ x, z }), [walkTo]);
+  const showProfile = crewApi.showProfile;
+  const onPirate = useCallback((pirateId: string) => {
+    sfx.tick(false);
+    showProfile({ pirateId });
+  }, [showProfile]);
+  const onGangway = useCallback(() => {
+    sfx.tick(false);
+    leave();
+  }, [leave]);
+  // Tapping outside while in a building leaves it: the room closes and the pirate walks out.
+  const onOutside = useCallback(() => {
+    if (place.kind === "island" && place.room !== "none") go({ kind: "island", id: place.id, room: "none" });
+  }, [place, go]);
+  const events = useMemo(
+    () => ({ onIsland, onShip, onBuilding, onStation, onWheel, onWalk, onPirate, onGangway, onOutside }),
+    [onIsland, onShip, onBuilding, onStation, onWheel, onWalk, onPirate, onGangway, onOutside],
+  );
 
   const onMap = useCallback(() => {
     sfx.tick(false);
@@ -530,7 +561,7 @@ export function Shell() {
       <World input={input} events={events} />
       <TopBar onMenu={() => setMenuOpen(true)} onMap={onMap} onChart={place.kind === "chart"} />
       {ship && !stationOpen && !battleOpen && !meleeOpen && <HailBanner ship={ship} me={me} />}
-      <aside className={`sheet ${sheetOpen ? "is-open" : ""}`} data-testid="sheet" data-open={sheetOpen ? "1" : "0"}>
+      <aside className={`sheet ${sheetOpen ? "is-open" : ""}`} data-testid="sheet" data-open={sheetOpen ? "1" : "0"} data-world-avoid="">
         <div className="sheet-head">
           {head.back && (
             <button className="icon-btn sheet-back" onClick={head.back.onClick} aria-label={t("app.back")} data-testid={head.back.testId}>

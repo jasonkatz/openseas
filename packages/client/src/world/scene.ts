@@ -11,23 +11,10 @@ import * as THREE from "three";
 import type { IslandLandmark } from "@openseas/content";
 import type { CrewFlagWire } from "@openseas/protocol";
 import { CameraRig, isoDirection, type View } from "./camera.js";
-import {
-  PALETTE,
-  STATION_ORDER,
-  buildBuoy,
-  buildCloud,
-  buildCrewPeg,
-  buildGull,
-  buildIsland,
-  buildShip,
-  dressShip,
-  type Building,
-  type CrewPeg,
-  type GullModel,
-  type IslandModel,
-  type ShipModel,
-  type Station,
-} from "./models.js";
+import { DOCK, buildIsland, type Building, type Door, type IslandModel } from "./island.js";
+import { PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildCloud, buildGangplank, buildGull, buildShip, dressShip, type DeckPost, type GullModel, type ShipModel, type Station } from "./models.js";
+import { PIRATE_HEIGHT, buildPirate, workFor, type PirateFigure, type PirateKind } from "./pirate.js";
+import { Walker, type Spot as WalkSpot, type WalkGrid } from "./walk.js";
 
 export interface WorldIsland {
   id: string;
@@ -65,7 +52,10 @@ export interface DeckStation {
 }
 export interface DeckCrew {
   pirateId: string;
+  name: string;
   station: Station | null;
+  /** Where they last walked to on deck, in the ship's frame; null to stand at their post. */
+  at: WalkSpot | null;
   mine: boolean;
   captain: boolean;
   /** A deckhand: drawn apart from the pirates so nobody mistakes it for a player. */
@@ -77,6 +67,25 @@ export interface Deck {
   crew: DeckCrew[];
   /** The wheel's spot: what it offers the viewer, or null to show none (not the captain). `primary` marks it as the next thing to do. */
   wheel: { label: string; who: string | null; primary: boolean } | null;
+  /** The gangway's spot while docked, to walk off the ship: its label, or null at sea. */
+  gangway: string | null;
+}
+/** Someone else walking where the pirate is. */
+export interface WorldWalker {
+  id: string;
+  name: string;
+  /** Where they last walked to, in the place's frame; null if they have not walked since arriving. */
+  at: WalkSpot | null;
+}
+/** Ashore: the island the pirate stands on, and everyone else on it (ADR 0032). */
+export interface IslandWalk {
+  islandId: string;
+  me: string;
+  others: WorldWalker[];
+  /** The ship the pirate just walked off, so they step ashore at its gangplank. */
+  arriveFrom: string | null;
+  /** The building whose room the pirate has open: they are inside it (or standing at it, for one nobody enters). */
+  inside: Building | null;
 }
 /** Fractions of the viewport covered by the shell's panels, so the focus lands in the clear. */
 export interface Insets {
@@ -106,6 +115,8 @@ export interface WorldInput {
   dimmed: boolean;
   /** The word on the viewer's own docked ships at the island in focus. */
   boardLabel: string;
+  /** Ashore, the island the pirate walks on; null aboard. */
+  walk: IslandWalk | null;
 }
 export interface WorldEvents {
   onIsland(id: string): void;
@@ -113,6 +124,14 @@ export interface WorldEvents {
   onBuilding(islandId: string, building: Building): void;
   onStation(station: Station): void;
   onWheel(): void;
+  /** The pirate set off walking to a spot in their place's frame (the island's, or the deck's). */
+  onWalk(x: number, z: number): void;
+  /** Another pirate was tapped. */
+  onPirate(pirateId: string): void;
+  /** The pirate walked down the gangway: off the ship. */
+  onGangway(): void;
+  /** Inside a building, the pirate asked to be somewhere outside it: their room should close. */
+  onOutside(): void;
 }
 
 const SEA_SIZE = 110;
@@ -121,11 +140,26 @@ const DASH_STEP = 0.55;
 /** The island's footprint on the water, beach and all; the view is fitted to it. */
 const ISLAND_R = 1.9;
 /** The deck view: the hull itself fills the frame, its own little place; the mast and the sea around it fall outside. */
-const DECK_MIN_HALF_H = 0.42;
+const DECK_MIN_HALF_H = 0.55;
+/** Ashore, the camera walks with the pirate this close: a pirate stands a thumb tall on a phone. */
+const WALK_HALF_H = 1.0;
+const ZOOM_MIN = 0.45;
+const ZOOM_MAX = 2.4;
+/** On deck the view starts on the whole hull; it zooms in this far, following the pirate, and out a little. */
+const DECK_ZOOM_MIN = 0.4;
+const DECK_ZOOM_MAX = 1.3;
+/** A walk on the island: an easy pace, and never more than this long however far. */
+const ISLAND_PACE = 0.55;
+const ISLAND_WALK_MAX_S = 2.2;
+/** A walk on deck, in the ship's own units. */
+const DECK_PACE = 0.42;
+const DECK_WALK_MAX_S = 1.3;
 /** Lanes run coast to coast, so a ship's progress along a leg is its progress across the water. */
 const COAST_R = 2.1;
 const AZIMUTHS = [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4];
 const SPOT_H = 36;
+/** A deck label's width in full (name and who), for deciding whether columns fit beside the hull. */
+const CALLOUT_W = 165;
 const SPOT_W = 170;
 const SPOT_DX = 18;
 const SPOT_DY = -12;
@@ -135,6 +169,10 @@ interface Spot {
   el: HTMLButtonElement;
   pin: HTMLElement;
   line: SVGLineElement;
+  /** How far the label's box sits above its anchor (its CSS top margin), read once it is drawn. */
+  lift?: number;
+  /** Which place beside its pin the label took last, kept while it stays free so labels do not hop. */
+  option?: number;
 }
 
 interface Lane {
@@ -149,6 +187,8 @@ interface Lane {
 interface ShipView {
   ship: WorldShip;
   model: ShipModel;
+  /** Where it lies when docked: the island and the berth's number along its dock. */
+  berth: { islandId: string; n: number } | null;
   phase: number;
   /** Progress along its lane as shown, 0..1, eased toward the snapshot's. */
   shownProgress: number;
@@ -162,6 +202,31 @@ interface IslandView {
   model: IslandModel;
   label: HTMLDivElement;
   spots: Map<Building, Spot>;
+}
+/** A pirate figure walking in a place: on an island's frame or a ship's deck. */
+interface WalkerView {
+  id: string;
+  scope: "island" | "ship";
+  /** The island's or the ship's id. */
+  placeId: string;
+  kind: PirateKind;
+  figure: PirateFigure;
+  walker: Walker;
+  hit: THREE.Mesh;
+  tag: HTMLButtonElement | null;
+  /** The last walk target applied, so a repeated snapshot does not restart a walk. */
+  atKey: string;
+  /** Aboard: the post they stand at when not walking, and the station it is for. */
+  post: DeckPost | null;
+  postKey: string;
+  station: Station | null;
+  captain: boolean;
+  /** A pirate (not a deckhand): tappable, and named when idle. */
+  real: boolean;
+  /** The building they are in, out of sight. */
+  inside: Building | null;
+  /** The doorway they are stepping through, in or out. */
+  doorway: { building: Building; out: boolean } | null;
 }
 interface Cloud {
   group: THREE.Group;
@@ -192,14 +257,33 @@ export class WorldScene {
   private readonly islands = new Map<string, IslandView>();
   private readonly lanes = new Map<string, Lane>();
   private readonly ships = new Map<string, ShipView>();
-  private readonly pegs = new Map<string, CrewPeg>();
+  private readonly walkers = new Map<string, WalkerView>();
   private readonly stationSpots = new Map<Station, Spot>();
   private wheelSpot: Spot | null = null;
+  private gangwaySpot: Spot | null = null;
+  /** Gangplanks down to the docks, by island, rebuilt when who lies at a berth changes. */
+  private readonly gangplanks = new Map<string, { key: string; group: THREE.Group }>();
+  /** Where a tap sent the pirate: a ring on the ground that fades. */
+  private readonly goalRing: THREE.Mesh;
+  private goalAge = Infinity;
+  /** The walking camera's zoom, a wheel or a pinch away from 1. */
+  private zoom = 1;
+  private readonly pointers = new Map<number, { x: number; y: number }>();
+  private pinch: { d: number; zoom: number } | null = null;
+  private dataKey = "";
+  /** The building the player was last asked to be in (their open room), to act only when it changes. */
+  private lastInside: Building | null | undefined = undefined;
+  /** What to do once the player is out of the building they are in: walk where they tapped, board a ship. */
+  private afterLeave: (() => void) | null = null;
+  /** Walking keys held down (arrows or WASD), as screen directions. */
+  private readonly keys = new Set<string>();
   private readonly leaders: SVGSVGElement;
   private readonly clouds: Cloud[] = [];
   private readonly gulls: Gull[] = [];
   private readonly raycaster = new THREE.Raycaster();
   private readonly center = new THREE.Vector3();
+  /** Where the sun stands from whatever it lights. */
+  private readonly sunOffset = new THREE.Vector3(-8, 14, 6);
   private spread = 10;
   private azimuth = Math.PI / 4;
   private input: WorldInput | null = null;
@@ -258,6 +342,13 @@ export class WorldScene {
 
     this.sea = this.buildSea();
     this.scene.add(this.sea);
+    this.goalRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.03, 0.042, 24),
+      new THREE.MeshBasicMaterial({ color: PALETTE.parchment, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }),
+    );
+    this.goalRing.rotation.x = -Math.PI / 2;
+    this.goalRing.renderOrder = 3;
+    this.goalRing.visible = false;
 
     for (let i = 0; i < 6; i++) {
       const group = buildCloud(String(i));
@@ -270,6 +361,11 @@ export class WorldScene {
     el.addEventListener("pointerup", this.onPointerUp);
     el.addEventListener("pointermove", this.onPointerMove);
     el.addEventListener("pointerleave", this.onPointerLeave);
+    el.addEventListener("pointercancel", this.onPointerCancel);
+    el.addEventListener("wheel", this.onWheel, { passive: false });
+    window.addEventListener("keydown", this.onKeyDown);
+    window.addEventListener("keyup", this.onKeyUp);
+    window.addEventListener("blur", this.onBlur);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(host);
     this.intersectionObserver =
@@ -291,13 +387,16 @@ export class WorldScene {
     this.input = input;
     if (first || this.islands.size !== input.islands.length) this.layoutIslands(input);
     this.syncShips(input);
+    this.placeShips(0);
     this.syncDeck(input);
+    this.syncWalkers(input);
     const focusIsland = input.focus.kind === "island" ? input.focus.id : null;
     const focusShip = input.focus.kind === "ship" ? input.focus.id : null;
     for (const [id, iv] of this.islands) {
       iv.model.ring.visible = id === input.selected;
       iv.model.reachRing.visible = id !== input.selected && input.reachable.includes(id);
-      iv.model.flag.visible = id === input.here;
+      // Ashore the pirate themself says where they are; the flag marks it on the chart.
+      iv.model.flag.visible = id === input.here && input.focus.kind === "all";
       iv.label.classList.toggle("selected", id === input.selected);
       iv.label.classList.toggle("here", id === input.here);
       iv.label.classList.toggle("reachable", input.reachable.includes(id));
@@ -319,8 +418,8 @@ export class WorldScene {
       sv.label.classList.toggle("ow-label-board", boardable);
       sv.label.dataset.board = boardable ? input.boardLabel : "";
     }
-    // Clouds drift over the chart and the islands; over a deck they would hide the thing being looked at.
-    for (const c of this.clouds) c.group.visible = focusShip === null;
+    // Clouds drift over the chart; up close they would hide the thing being looked at.
+    for (const c of this.clouds) c.group.visible = input.focus.kind === "all";
     // On deck the sails go to glass, so no angle of the canvas ever hides a station.
     for (const [id, sv] of this.ships) {
       const glass = id === focusShip;
@@ -332,6 +431,9 @@ export class WorldScene {
       }
     }
     this.host.classList.toggle("is-dimmed", input.dimmed);
+    this.host.classList.toggle("is-walking", this.walkFocus() !== null);
+    // Aboard, the view starts in close on the pirate; anywhere else it starts on the whole place.
+    if (focusChanged) this.zoom = input.focus.kind === "ship" && input.deck?.shipId === input.focus.id ? DECK_ZOOM_MIN : 1;
     this.updateView(first || focusChanged ? first : false);
     if (!this.running || this.reducedMotion) this.render(0);
   }
@@ -359,6 +461,12 @@ export class WorldScene {
     el.removeEventListener("pointerup", this.onPointerUp);
     el.removeEventListener("pointermove", this.onPointerMove);
     el.removeEventListener("pointerleave", this.onPointerLeave);
+    el.removeEventListener("pointercancel", this.onPointerCancel);
+    el.removeEventListener("wheel", this.onWheel);
+    window.removeEventListener("keydown", this.onKeyDown);
+    window.removeEventListener("keyup", this.onKeyUp);
+    window.removeEventListener("blur", this.onBlur);
+    for (const wv of this.walkers.values()) wv.tag?.remove();
     this.scene.traverse((o) => {
       if (o instanceof THREE.Mesh) {
         o.geometry.dispose();
@@ -381,6 +489,8 @@ export class WorldScene {
       for (const s of iv.spots.values()) removeSpot(s);
     }
     this.islands.clear();
+    for (const wv of [...this.walkers.values()]) if (wv.scope === "island") this.removeWalker(wv);
+    this.gangplanks.clear();
     for (const lane of this.lanes.values()) {
       for (const d of lane.dashes) this.scene.remove(d);
       this.scene.remove(lane.buoy);
@@ -398,21 +508,21 @@ export class WorldScene {
     for (const island of input.islands) {
       const toward = new THREE.Vector2(centroid.x - island.x, centroid.y - island.y);
       if (toward.lengthSq() < 1e-6) toward.set(1, 0);
-      const model = buildIsland(island.id, toward, island.landmark);
+      const model = buildIsland(island.id, toward, island.landmark, { lowQuality: this.lowQuality });
       model.group.position.set(island.x, 0, island.y);
       this.scene.add(model.group);
       const label = this.makeLabel("ow-label ow-label-island", island.name, () => this.events.onIsland(island.id));
       label.dataset.island = island.id;
       const spots = new Map<Building, Spot>();
       for (const b of island.buildings) {
-        const spot = this.makeSpot(`ow-spot ow-spot-${b.kind}`, b.label, () => this.events.onBuilding(island.id, b.kind));
+        const spot = this.makeSpot(`ow-spot ow-spot-${b.kind}`, b.label, () => this.goBuilding(island.id, b.kind));
         spot.el.dataset.building = b.kind;
         spot.el.dataset.island = island.id;
         hideSpot(spot, true);
         spots.set(b.kind, spot);
       }
       this.islands.set(island.id, { island, model, label, spots });
-      seaIslands.push(new THREE.Vector3(island.x, island.y, 1.6));
+      seaIslands.push(new THREE.Vector3(island.x, island.y, 1.42));
     }
     while (seaIslands.length < 8) seaIslands.push(new THREE.Vector3(0, 0, -100));
     this.seaUniforms.uIslands.value = seaIslands;
@@ -488,11 +598,11 @@ export class WorldScene {
         sv = undefined;
       }
       if (!sv) {
-        const model = buildShip(ship.kind);
+        const model = buildShip(ship.kind, !this.lowQuality);
         this.scene.add(model.group);
-        const label = this.makeLabel(`ow-label ow-label-ship ow-label-${ship.kind}`, ship.name, () => this.events.onShip(ship.id));
+        const label = this.makeLabel(`ow-label ow-label-ship ow-label-${ship.kind}`, ship.name, () => this.goShip(ship.id));
         label.dataset.ship = ship.id;
-        sv = { ship, model, phase: hashPhase(ship.id), shownProgress: -1, targetProgress: 0, laneKey: null, reversed: false, label };
+        sv = { ship, model, berth: null, phase: hashPhase(ship.id), shownProgress: -1, targetProgress: 0, laneKey: null, reversed: false, label };
         this.ships.set(ship.id, sv);
       }
       sv.ship = ship;
@@ -518,42 +628,15 @@ export class WorldScene {
     this.placeShips(0);
   }
 
-  /** Crew pegs and station spots on the ship the player is aboard. */
+  /** Station spots, the wheel and the gangway on the ship the player is aboard. */
   private syncDeck(input: WorldInput): void {
     const deck = input.focus.kind === "ship" && input.deck && input.deck.shipId === input.focus.id ? input.deck : null;
     const sv = deck ? this.ships.get(deck.shipId) : undefined;
     if (!deck || !sv) {
-      for (const peg of this.pegs.values()) peg.group.removeFromParent();
-      this.pegs.clear();
       for (const spot of this.stationSpots.values()) hideSpot(spot, true);
       if (this.wheelSpot) hideSpot(this.wheelSpot, true);
+      if (this.gangwaySpot) hideSpot(this.gangwaySpot, true);
       return;
-    }
-    const seen = new Set<string>();
-    let idle = 0;
-    for (const c of deck.crew) {
-      seen.add(c.pirateId);
-      let peg = this.pegs.get(c.pirateId);
-      const key = `${c.mine}:${c.captain}:${c.mate}`;
-      if (peg && peg.group.userData.key !== key) {
-        peg.group.removeFromParent();
-        peg = undefined;
-      }
-      if (!peg) {
-        peg = buildCrewPeg(c.mine, c.captain, c.mate);
-        peg.group.userData.key = key;
-        this.pegs.set(c.pirateId, peg);
-      }
-      if (peg.group.parent !== sv.model.body) sv.model.body.add(peg.group);
-      const spot = c.station ? sv.model.standing[c.station] : c.captain ? sv.model.wheel.clone().add(new THREE.Vector3(-0.08, -0.1, 0)) : sv.model.idleSpots[idle++ % sv.model.idleSpots.length]!;
-      peg.group.position.copy(spot);
-      peg.group.userData.phase = hashPhase(c.pirateId);
-    }
-    for (const [id, peg] of this.pegs) {
-      if (!seen.has(id)) {
-        peg.group.removeFromParent();
-        this.pegs.delete(id);
-      }
     }
     for (const st of STATION_ORDER) {
       const ds = deck.stations.find((s) => s.station === st);
@@ -563,7 +646,7 @@ export class WorldScene {
         continue;
       }
       if (!spot) {
-        spot = this.makeSpot(`ow-spot ow-spot-station ow-spot-${st}`, ds.label, () => this.events.onStation(st));
+        spot = this.makeSpot(`ow-spot ow-spot-station ow-spot-${st}`, ds.label, () => this.goStation(st));
         spot.el.dataset.station = st;
         this.stationSpots.set(st, spot);
       }
@@ -578,7 +661,7 @@ export class WorldScene {
     }
     if (deck.wheel) {
       if (!this.wheelSpot) {
-        this.wheelSpot = this.makeSpot("ow-spot ow-spot-wheel", deck.wheel.label, () => this.events.onWheel());
+        this.wheelSpot = this.makeSpot("ow-spot ow-spot-wheel", deck.wheel.label, () => this.goWheel());
         this.wheelSpot.el.dataset.wheel = "1";
       }
       const name = this.wheelSpot.el.querySelector(".ow-spot-name");
@@ -588,9 +671,440 @@ export class WorldScene {
       this.wheelSpot.el.classList.toggle("is-primary", deck.wheel.primary);
       hideSpot(this.wheelSpot, false);
     } else if (this.wheelSpot) hideSpot(this.wheelSpot, true);
+    // The gangway is only there while she lies against a dock.
+    const gangway = deck.gangway !== null && this.gangwaySide(sv) !== null ? deck.gangway : null;
+    if (gangway) {
+      if (!this.gangwaySpot) {
+        this.gangwaySpot = this.makeSpot("ow-spot ow-spot-gangway", gangway, () => this.goGangway());
+        this.gangwaySpot.el.dataset.gangway = "1";
+      }
+      const name = this.gangwaySpot.el.querySelector(".ow-spot-name");
+      if (name) name.textContent = gangway;
+      hideSpot(this.gangwaySpot, false);
+    } else if (this.gangwaySpot) hideSpot(this.gangwaySpot, true);
+  }
+
+  // ---- walkers
+
+  /** Everyone walking where the player is: ashore on their island, or on the deck of their ship. */
+  private syncWalkers(input: WorldInput): void {
+    const seen = new Set<string>();
+    const walk = input.walk;
+    const iv = walk ? this.islands.get(walk.islandId) : undefined;
+    if (walk && iv) {
+      const people: { id: string; name: string; at: WalkSpot | null; mine: boolean }[] = [{ id: walk.me, name: "", at: null, mine: true }, ...walk.others.map((o) => ({ ...o, mine: false }))];
+      for (const p of people) {
+        const key = `island:${p.id}`;
+        seen.add(key);
+        let wv = this.walkers.get(key);
+        if (wv && wv.placeId !== walk.islandId) {
+          this.removeWalker(wv);
+          wv = undefined;
+        }
+        if (!wv) {
+          // The player opening the game in a building's room is in it; anyone else last seen walking into one is too.
+          const into = p.mine ? walk.inside : p.at ? this.insideOf(iv, p.at) : null;
+          const door = into ? iv.model.doors[into] : null;
+          const start = door ? (door.inside ?? door.at) : p.mine ? this.arrivalFor(iv, walk) : (p.at ?? this.standAbout(iv, p.id));
+          wv = this.addWalker(key, p.id, "island", walk.islandId, p.mine ? "me" : "pirate", iv.model.frame, start, door ? door.face : p.mine ? 0 : hashPhase(p.id), p.name, !p.mine);
+          wv.atKey = spotKey(p.at);
+          if (into && door?.inside) {
+            wv.inside = into;
+            wv.figure.group.visible = false;
+          }
+          if (p.mine) {
+            this.lastInside = walk.inside;
+            // Others hear where the player stepped ashore.
+            this.events.onWalk(start.x, start.z);
+          }
+        } else if (p.mine) {
+          this.reconcileInside(wv, iv, walk.inside);
+        } else {
+          const k = spotKey(p.at);
+          if (p.at && k !== wv.atKey) this.walkThere(wv, iv, p.at);
+          wv.atKey = k;
+          if (wv.tag) wv.tag.textContent = p.name;
+        }
+      }
+    }
+    const deck = input.deck;
+    const sv = deck ? this.ships.get(deck.shipId) : undefined;
+    if (deck && sv) {
+      let idle = 0;
+      const side = this.gangwaySide(sv);
+      for (const c of deck.crew) {
+        const key = `ship:${c.pirateId}`;
+        seen.add(key);
+        const kind: PirateKind = c.mine ? "me" : c.mate ? "mate" : c.captain ? "captain" : "pirate";
+        const post: DeckPost = c.station ? sv.model.deck.stations[c.station] : c.captain ? sv.model.deck.helm : { at: sv.model.deck.idle[idle++ % sv.model.deck.idle.length]!, face: hashPhase(c.pirateId) };
+        const postKey = `${c.station ?? ""}:${c.captain}:${post.at.x.toFixed(3)},${post.at.z.toFixed(3)}`;
+        let wv = this.walkers.get(key);
+        if (wv && (wv.placeId !== deck.shipId || wv.kind !== kind)) {
+          this.removeWalker(wv);
+          wv = undefined;
+        }
+        if (!wv) {
+          // Coming aboard over the gangplank; at sea, straight to their post.
+          const start = c.mine && side !== null && sv.ship.location.kind === "docked" ? sv.model.deck.gangway(side) : (c.at ?? post.at);
+          wv = this.addWalker(key, c.pirateId, "ship", deck.shipId, kind, sv.model.body, start, post.face, c.name, !c.mate && !c.mine);
+          wv.atKey = spotKey(c.at);
+          wv.postKey = postKey;
+          if (c.mine && !c.at) {
+            this.walkOn(wv, post.at, post.face);
+            this.events.onWalk(post.at.x, post.at.z);
+          }
+        } else {
+          const k = spotKey(c.at);
+          if (!c.mine && c.at && k !== wv.atKey) this.walkOn(wv, c.at);
+          else if (postKey !== wv.postKey) this.walkOn(wv, post.at, post.face);
+          wv.atKey = k;
+          wv.postKey = postKey;
+        }
+        wv.post = post;
+        wv.station = c.station;
+        wv.captain = c.captain;
+        if (wv.tag) wv.tag.textContent = c.name;
+      }
+    }
+    for (const [key, wv] of this.walkers) if (!seen.has(key)) this.removeWalker(wv);
+  }
+
+  private addWalker(key: string, id: string, scope: "island" | "ship", placeId: string, kind: PirateKind, parent: THREE.Object3D, at: WalkSpot, heading: number, name: string, tagged: boolean): WalkerView {
+    const figure = buildPirate(kind, id, !this.lowQuality);
+    const onDeck = scope === "ship";
+    if (onDeck) figure.group.scale.setScalar(1 / SHIP_SCALE);
+    const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, PIRATE_HEIGHT * 1.2, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    hit.position.y = PIRATE_HEIGHT * 0.6;
+    hit.userData.walker = key;
+    figure.group.add(hit);
+    parent.add(figure.group);
+    const walker = onDeck ? new Walker(at, heading, DECK_PACE, DECK_WALK_MAX_S) : new Walker(at, heading, ISLAND_PACE, ISLAND_WALK_MAX_S);
+    let tag: HTMLButtonElement | null = null;
+    if (tagged) {
+      tag = document.createElement("button");
+      tag.type = "button";
+      tag.className = "ow-tag";
+      tag.textContent = name;
+      tag.dataset.walker = id;
+      tag.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.events.onPirate(id);
+      });
+      this.labels.appendChild(tag);
+    }
+    const wv: WalkerView = { id, scope, placeId, kind, figure, walker, hit, tag, atKey: "", post: null, postKey: "", station: null, captain: false, real: kind !== "mate", inside: null, doorway: null };
+    this.walkers.set(key, wv);
+    this.placeWalker(wv);
+    return wv;
+  }
+
+  private removeWalker(wv: WalkerView): void {
+    if (wv.kind === "me" && wv.scope === "island") {
+      this.lastInside = undefined;
+      this.afterLeave = null;
+    }
+    wv.figure.group.removeFromParent();
+    wv.figure.group.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        o.geometry.dispose();
+        (o.material as THREE.Material).dispose();
+      }
+    });
+    wv.tag?.remove();
+    this.walkers.delete(`${wv.scope}:${wv.id}`);
+  }
+
+  /** Where the player first stands ashore: at the foot of the gangplank they came down, else the plaza. */
+  private arrivalFor(iv: IslandView, walk: IslandWalk): WalkSpot {
+    const sv = walk.arriveFrom ? this.ships.get(walk.arriveFrom) : undefined;
+    if (sv?.berth && sv.berth.islandId === walk.islandId) {
+      const foot = iv.model.berth(sv.berth.n).foot;
+      if (foot) return foot;
+    }
+    return this.standAbout(iv, walk.me);
+  }
+
+  /** Somewhere near the plaza for a pirate nobody has seen walk yet, the same spot on every screen. */
+  private standAbout(iv: IslandView, id: string): WalkSpot {
+    const a = hashPhase(id);
+    const r = 0.04 + (hashPhase(`${id}:r`) / (Math.PI * 2)) * 0.1;
+    const p = { x: iv.model.arrival.x + Math.cos(a) * r, z: iv.model.arrival.z + Math.sin(a) * r };
+    return iv.model.grid.nearestOpen(p.x, p.z, 0.3) ?? iv.model.arrival;
+  }
+
+  private gridOf(wv: WalkerView): WalkGrid | null {
+    if (wv.scope === "island") return this.islands.get(wv.placeId)?.model.grid ?? null;
+    return this.ships.get(wv.placeId)?.model.deck.grid ?? null;
+  }
+
+  /** Walk a figure somewhere; a pirate with nowhere to path to (or with motion reduced) just stands there. */
+  private walkOn(wv: WalkerView, to: WalkSpot, face?: number, arrive?: () => void): WalkSpot {
+    const grid = this.gridOf(wv);
+    if (this.reducedMotion || !grid || !wv.walker.walkTo(grid, to, { ...(face === undefined ? {} : { face }), ...(arrive ? { arrive } : {}) })) {
+      wv.walker.place(to, face);
+      this.placeWalker(wv);
+      arrive?.();
+      return to;
+    }
+    return wv.walker.goal ?? to;
+  }
+
+  private me(scope: "island" | "ship"): WalkerView | null {
+    for (const wv of this.walkers.values()) if (wv.kind === "me" && wv.scope === scope) return wv;
+    return null;
+  }
+
+  /** The place the camera walks with the player in, if any: their island ashore, or their deck. */
+  private walkFocus(): WalkerView | null {
+    const input = this.input;
+    if (!input) return null;
+    if (input.focus.kind === "island" && input.walk?.islandId === input.focus.id) return this.me("island");
+    if (input.focus.kind === "ship" && input.deck?.shipId === input.focus.id) return this.me("ship");
+    return null;
+  }
+
+  /** Walk the player to a spot in their place and tell the room; `then` runs once they are there. */
+  private walkMe(wv: WalkerView, to: WalkSpot, face: number | undefined, then: (() => void) | null, ring: boolean): void {
+    const goal = this.walkOn(wv, to, face, then ?? undefined);
+    this.events.onWalk(goal.x, goal.z);
+    if (ring) this.showGoal(wv, goal);
+  }
+
+  private goBuilding(islandId: string, building: Building): void {
+    const me = this.walkFocus();
+    const iv = this.islands.get(islandId);
+    // Already in a building, the room just changes; the player walks out and over as it does.
+    if (!me || me.scope !== "island" || me.placeId !== islandId || !iv || this.inOrEntering(me)) {
+      this.events.onBuilding(islandId, building);
+      return;
+    }
+    this.enter(me, iv, building, () => this.events.onBuilding(islandId, building), true);
+  }
+
+  // ---- in and out of buildings
+
+  /** The building a spot is just inside the door of, if any: a walk there is a walk into it. */
+  private insideOf(iv: IslandView, at: WalkSpot): Building | null {
+    for (const [b, door] of Object.entries(iv.model.doors) as [Building, Door][]) if (door.inside && Math.hypot(door.inside.x - at.x, door.inside.z - at.z) < 0.02) return b;
+    return null;
+  }
+
+  /** The building a walker is in or stepping into. */
+  private inOrEntering(wv: WalkerView): Building | null {
+    return wv.inside ?? (wv.doorway && !wv.doorway.out ? wv.doorway.building : null);
+  }
+
+  /**
+   * Walk to a building's door and, if it is one people go into, through it and out of sight. `atDoor`
+   * runs on reaching the door. `announce` tells the place each leg, for the player's own pirate.
+   */
+  private enter(wv: WalkerView, iv: IslandView, b: Building, atDoor?: () => void, announce = false): void {
+    const now = this.inOrEntering(wv);
+    if (now === b) {
+      atDoor?.();
+      return;
+    }
+    if (now) {
+      this.leave(wv, iv, () => this.enter(wv, iv, b, atDoor, announce), announce);
+      return;
+    }
+    const door = iv.model.doors[b];
+    const stepIn = (): void => {
+      const inside = door.inside;
+      if (inside) {
+        if (announce) this.events.onWalk(inside.x, inside.z);
+        wv.doorway = { building: b, out: false };
+        const done = (): void => {
+          wv.doorway = null;
+          wv.inside = b;
+          wv.figure.group.visible = false;
+        };
+        if (this.reducedMotion) {
+          wv.walker.place(inside, door.face);
+          this.placeWalker(wv);
+          done();
+        } else wv.walker.stepThrough([inside], { arrive: done });
+      }
+      atDoor?.();
+    };
+    const goal = this.walkOn(wv, door.at, door.face, stepIn);
+    if (announce && wv.walker.moving) this.events.onWalk(goal.x, goal.z);
+  }
+
+  /** Out through the door of the building a walker is in, to stand just outside it; then `then`. */
+  private leave(wv: WalkerView, iv: IslandView, then?: () => void, announce = false): void {
+    const b = this.inOrEntering(wv);
+    const door = b ? iv.model.doors[b] : null;
+    if (!b || !door?.inside) {
+      then?.();
+      return;
+    }
+    // From out of sight inside, or wherever they had got to on the way in.
+    if (wv.inside) wv.walker.place(door.inside, door.face + Math.PI);
+    wv.inside = null;
+    wv.figure.group.visible = true;
+    wv.doorway = { building: b, out: true };
+    if (announce) this.events.onWalk(door.at.x, door.at.z);
+    const done = (): void => {
+      wv.doorway = null;
+      then?.();
+    };
+    if (this.reducedMotion) {
+      wv.walker.place(door.at, door.face + Math.PI);
+      this.placeWalker(wv);
+      done();
+    } else wv.walker.stepThrough([door.at], { face: door.face + Math.PI, arrive: done });
+  }
+
+  /** The player's open room changed: walk them into its building, or out of the one they are in. */
+  private reconcileInside(wv: WalkerView, iv: IslandView, want: Building | null): void {
+    if (this.lastInside === want) return;
+    this.lastInside = want;
+    if (want) {
+      this.afterLeave = null;
+      this.enter(wv, iv, want, undefined, true);
+      return;
+    }
+    const after = this.afterLeave;
+    this.afterLeave = null;
+    if (this.inOrEntering(wv)) this.leave(wv, iv, after ?? undefined, true);
+    else after?.();
+  }
+
+  /** Someone else walked: into a building if the spot is inside one, out of the one they are in first if not. */
+  private walkThere(wv: WalkerView, iv: IslandView, at: WalkSpot): void {
+    const into = this.insideOf(iv, at);
+    if (into) this.enter(wv, iv, into);
+    else if (this.inOrEntering(wv)) this.leave(wv, iv, () => void this.walkOn(wv, at));
+    else this.walkOn(wv, at);
+  }
+
+  /** Ease each door toward open while someone passes through it or stands on its step. */
+  private swingDoors(dt: number): void {
+    for (const [islandId, iv] of this.islands) {
+      for (const [b, way] of Object.entries(iv.model.doorways) as [Building, NonNullable<IslandModel["doorways"][Building]>][]) {
+        const door = iv.model.doors[b];
+        let want = 0;
+        for (const wv of this.walkers.values()) {
+          if (wv.scope !== "island" || wv.placeId !== islandId) continue;
+          // Open for someone stepping through, and just ahead of someone walking up to it; shut behind them.
+          const goal = wv.walker.goal;
+          const approaching = wv.walker.moving && goal !== null && Math.hypot(goal.x - door.at.x, goal.z - door.at.z) < 0.02 && Math.hypot(wv.walker.x - door.at.x, wv.walker.z - door.at.z) < 0.14;
+          if (wv.doorway?.building === b || approaching) want = 1;
+        }
+        way.open += (want - way.open) * Math.min(1, dt * (want ? 9 : 4));
+        way.pivot.rotation.y = way.yaw + way.open * 1.45;
+      }
+    }
+  }
+
+  private goShip(shipId: string): void {
+    const me = this.walkFocus();
+    if (me?.scope === "island" && this.inOrEntering(me)) {
+      // Out of the building first; the room closes, and the walk to her goes on from the door.
+      this.afterLeave = () => this.goShip(shipId);
+      this.events.onOutside();
+      return;
+    }
+    const sv = this.ships.get(shipId);
+    const iv = sv?.berth ? this.islands.get(sv.berth.islandId) : undefined;
+    if (!me || me.scope !== "island" || !sv?.berth || !iv || me.placeId !== sv.berth.islandId) {
+      this.events.onShip(shipId);
+      return;
+    }
+    const berth = iv.model.berth(sv.berth.n);
+    // A ship rafted further out is boarded from the dock's edge nearest her.
+    const foot = berth.foot ?? { x: berth.u, z: Math.sign(berth.w) * (DOCK.half - 0.035) };
+    this.walkMe(me, foot, Math.sign(berth.w) * (Math.PI / 2), () => this.events.onShip(shipId), false);
+  }
+
+  private goStation(st: Station): void {
+    const me = this.walkFocus();
+    const deck = this.input?.deck;
+    const ds = deck?.stations.find((s) => s.station === st);
+    const sv = deck ? this.ships.get(deck.shipId) : undefined;
+    // Someone else's station: say so at once rather than walk over to be told.
+    if (!me || me.scope !== "ship" || !sv || !ds || (ds.holder !== null && !ds.mine && !ds.mate)) {
+      this.events.onStation(st);
+      return;
+    }
+    const post = sv.model.deck.stations[st];
+    this.walkMe(me, post.at, post.face, () => this.events.onStation(st), false);
+  }
+
+  private goWheel(): void {
+    const me = this.walkFocus();
+    const deck = this.input?.deck;
+    const sv = deck ? this.ships.get(deck.shipId) : undefined;
+    const captain = deck?.crew.find((c) => c.mine)?.captain ?? false;
+    if (!me || me.scope !== "ship" || !sv || !captain) {
+      this.events.onWheel();
+      return;
+    }
+    this.walkMe(me, sv.model.deck.helm.at, sv.model.deck.helm.face, () => this.events.onWheel(), false);
+  }
+
+  private goGangway(): void {
+    const me = this.walkFocus();
+    const deck = this.input?.deck;
+    const sv = deck ? this.ships.get(deck.shipId) : undefined;
+    const side = sv ? this.gangwaySide(sv) : null;
+    if (!me || me.scope !== "ship" || !sv || side === null) {
+      this.events.onGangway();
+      return;
+    }
+    this.walkMe(me, sv.model.deck.gangway(side), (side * Math.PI) / 2, () => this.events.onGangway(), false);
+  }
+
+  /** Which rail of a docked ship (in its own frame: +1 starboard, -1 port) the gangplank comes aboard at, if it lies against the dock. */
+  private gangwaySide(sv: ShipView): number | null {
+    if (!sv.berth || sv.ship.location.kind !== "docked") return null;
+    const iv = this.islands.get(sv.berth.islandId);
+    if (!iv || !iv.model.berth(sv.berth.n).foot) return null;
+    return iv.model.berth(sv.berth.n).dockSide;
+  }
+
+  private showGoal(wv: WalkerView, at: WalkSpot): void {
+    const parent = wv.figure.group.parent;
+    if (!parent) return;
+    parent.add(this.goalRing);
+    const y = this.heightOf(wv, at.x, at.z);
+    this.goalRing.position.set(at.x, y + 0.006, at.z);
+    this.goalRing.scale.setScalar(wv.scope === "ship" ? 1 / SHIP_SCALE : 1);
+    this.goalRing.visible = true;
+    this.goalAge = 0;
+  }
+
+  private heightOf(wv: WalkerView, x: number, z: number): number {
+    if (wv.scope === "island") return this.islands.get(wv.placeId)?.model.heightAt(x, z) ?? 0;
+    return this.ships.get(wv.placeId)?.model.deck.heightAt(x, z) ?? 0;
+  }
+
+  private placeWalker(wv: WalkerView): void {
+    const { walker, figure } = wv;
+    figure.group.position.set(walker.x, this.heightOf(wv, walker.x, walker.z), walker.z);
+    figure.group.rotation.y = -walker.heading;
+  }
+
+  private updateWalkers(dt: number, t: number): void {
+    for (const wv of this.walkers.values()) {
+      const speed = wv.walker.update(dt);
+      this.placeWalker(wv);
+      let work = null;
+      if (speed === 0 && wv.post && (wv.station || wv.captain) && Math.hypot(wv.walker.x - wv.post.at.x, wv.walker.z - wv.post.at.z) < 0.02) work = workFor(wv.station, wv.captain);
+      wv.figure.animate(t, dt, wv.scope === "ship" ? speed * SHIP_SCALE : speed, work);
+    }
+    if (this.goalRing.visible) {
+      this.goalAge += dt;
+      const k = Math.min(1, this.goalAge / 0.9);
+      (this.goalRing.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - k);
+      this.goalRing.scale.setScalar((this.goalRing.parent && this.goalRing.parent !== this.scene && this.input?.focus.kind === "ship" ? 1 / SHIP_SCALE : 1) * (0.7 + k * 0.6));
+      if (k >= 1) this.goalRing.visible = false;
+    }
   }
 
   private removeShip(sv: ShipView): void {
+    for (const wv of [...this.walkers.values()]) if (wv.scope === "ship" && wv.placeId === sv.ship.id) this.removeWalker(wv);
     this.scene.remove(sv.model.group);
     sv.label.remove();
     this.ships.delete(sv.ship.id);
@@ -641,32 +1155,98 @@ export class WorldScene {
   }
 
   /** Project spots to the screen, keep their labels apart, and draw a leader from each pin to its label. */
-  private placeSpots(spots: { spot: Spot; world: THREE.Vector3 }[]): void {
+  private placeSpots(spots: { spot: Spot; world: THREE.Vector3; still?: THREE.Vector3 }[]): void {
     const w = this.host.clientWidth;
     const h = this.host.clientHeight;
     const cam = this.rig.camera;
-    const placed: { spot: Spot; x: number; y: number; lx: number; ly: number; flip: boolean }[] = [];
-    for (const { spot, world } of spots) {
+    const insets = this.input?.insets ?? { top: 0, bottom: 0, left: 0, right: 0 };
+    // Where labels may stand: clear of the top bar and the card.
+    const area: ScreenBox = { x0: w * insets.left + 4, y0: h * insets.top + 4, x1: w * (1 - insets.right) - 4, y1: h * (1 - insets.bottom) - 4 };
+    const items = spots.map(({ spot, world, still }) => {
       this.tmp.copy(world).project(cam);
       const x = (this.tmp.x * 0.5 + 0.5) * w;
       const y = (-this.tmp.y * 0.5 + 0.5) * h;
-      const flip = x + SPOT_DX + spot.el.offsetWidth > w - 8;
-      placed.push({ spot, x, y, lx: flip ? x - SPOT_DX : x + SPOT_DX, ly: y + SPOT_DY, flip });
-    }
-    placed.sort((a, b) => a.ly - b.ly);
-    for (let i = 0; i < placed.length; i++) {
-      const p = placed[i]!;
-      for (let j = 0; j < i; j++) {
-        const q = placed[j]!;
-        if (Math.abs(q.lx - p.lx) < SPOT_W && p.ly - q.ly < SPOT_H) p.ly = q.ly + SPOT_H;
+      // Where the thing is on the ship's steady frame, without the bob: what decides on screen or off,
+      // and where an edge label waits, so neither hops with the swell.
+      this.tmp.copy(still ?? world).project(cam);
+      const sx = (this.tmp.x * 0.5 + 0.5) * w;
+      const sy = (-this.tmp.y * 0.5 + 0.5) * h;
+      if (spot.lift === undefined && spot.el.offsetHeight) spot.lift = -parseFloat(getComputedStyle(spot.el).marginTop || "0") || 0;
+      return { spot, x, y, sx, sy, bw: spot.el.offsetWidth || SPOT_W, bh: spot.el.offsetHeight || SPOT_H, lift: spot.lift ?? 14 };
+    });
+    type Item = (typeof items)[number];
+    const inside = (p: Item): boolean => p.sx >= area.x0 && p.sx <= area.x1 && p.sy >= area.y0 && p.sy <= area.y1;
+    const playerAt = this.playerBox();
+    for (const p of items) p.y = pinClearOf(playerAt, p.x, p.y);
+    // Pins on screen, and the player, are things a label must not cover.
+    const pins: (ScreenBox & { owner: Spot })[] = items.filter(inside).map((p) => ({ owner: p.spot, x0: p.x - 10, y0: p.y - 10, x1: p.x + 10, y1: p.y + 10 }));
+    const player = this.playerBox();
+    // Whatever floats over the world (the card folded or open) marks itself; no label goes under it.
+    const host = this.host.getBoundingClientRect();
+    const covers: ScreenBox[] = Array.from(document.querySelectorAll<HTMLElement>("[data-world-avoid]"), (el) => {
+      const r = el.getBoundingClientRect();
+      return { x0: r.left - host.left, y0: r.top - host.top, x1: r.right - host.left, y1: r.bottom - host.top };
+    }).filter((r) => r.x1 > r.x0 && r.y1 > r.y0);
+    const taken: ScreenBox[] = [...covers];
+    const boxAt = (p: Item, x0: number, ly: number): ScreenBox => ({ x0: x0 - 2, y0: ly - p.lift - 2, x1: x0 + p.bw + 2, y1: ly - p.lift + p.bh + 2 });
+    const beside = (p: Item, flip: boolean, ly: number): ScreenBox => boxAt(p, flip ? p.x - SPOT_DX - p.bw : p.x + SPOT_DX, ly);
+    const free = (p: Item, box: ScreenBox): boolean =>
+      box.x0 >= area.x0 && box.x1 <= area.x1 && box.y0 >= area.y0 && box.y1 <= area.y1 && !taken.some((t) => overlaps(t, box)) && !pins.some((q) => q.owner !== p.spot && overlaps(q, box)) && !(player && overlaps(player, box));
+    const blocked = (box: ScreenBox): boolean => taken.some((t) => overlaps(t, box)) || Boolean(player && overlaps(player, box));
+    // Labels whose pins are on screen first, nearest the top first; the ones waiting at the edges after.
+    items.sort((a, b) => Number(!inside(a)) - Number(!inside(b)) || a.sy - b.sy || a.sx - b.sx);
+    for (const p of items) {
+      const { spot } = p;
+      if (!inside(p)) {
+        // Its thing is off screen (zoomed in): the label waits at the edge nearest it, pointing the way.
+        const edge = p.sx < area.x0 ? "left" : p.sx > area.x1 ? "right" : p.sy < area.y0 ? "up" : "down";
+        let x0 = Math.max(area.x0 + 4, Math.min(area.x1 - 4 - p.bw, p.sx - p.bw / 2));
+        let ly = Math.max(area.y0 + 4 + p.lift, Math.min(area.y1 - 4 - p.bh + p.lift, p.sy));
+        // Slide along the edge past any label (or the player) already there.
+        for (let guard = 0; guard < 16 && blocked(boxAt(p, x0, ly)); guard++) {
+          if (edge === "left" || edge === "right") ly = ly + p.bh + 4 > area.y1 - p.bh + p.lift ? area.y0 + 4 + p.lift + guard * 8 : ly + p.bh + 4;
+          else x0 = x0 + p.bw + 6 > area.x1 - p.bw ? area.x0 + 4 + guard * 12 : x0 + p.bw + 6;
+        }
+        taken.push(boxAt(p, x0, ly));
+        spot.el.dataset.edge = edge;
+        spot.pin.classList.add("ow-offscreen");
+        spot.line.classList.add("ow-offscreen");
+        spot.el.classList.remove("is-flipped");
+        spot.el.style.transform = `translate(${x0.toFixed(1)}px, ${ly.toFixed(1)}px)`;
+        continue;
       }
-      p.spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
-      p.spot.el.style.transform = `translate(${p.lx.toFixed(1)}px, ${p.ly.toFixed(1)}px)${p.flip ? " translate(-100%, 0)" : ""}`;
-      p.spot.el.classList.toggle("is-flipped", p.flip);
-      p.spot.line.setAttribute("x1", p.x.toFixed(1));
-      p.spot.line.setAttribute("y1", p.y.toFixed(1));
-      p.spot.line.setAttribute("x2", p.lx.toFixed(1));
-      p.spot.line.setAttribute("y2", p.ly.toFixed(1));
+      delete spot.el.dataset.edge;
+      spot.pin.classList.remove("ow-offscreen");
+      spot.line.classList.remove("ow-offscreen");
+      // Beside the pin to the right, then the left, then above, then below; the first spot that covers
+      // no other label, no other pin and not the player wins. Failing all, step down past what is in the way.
+      const options: { flip: boolean; ly: number }[] = [
+        { flip: false, ly: p.y + SPOT_DY },
+        { flip: true, ly: p.y + SPOT_DY },
+        { flip: false, ly: p.y - 12 - p.bh + p.lift },
+        { flip: true, ly: p.y - 12 - p.bh + p.lift },
+        { flip: false, ly: p.y + 12 + p.lift },
+        { flip: true, ly: p.y + 12 + p.lift },
+      ];
+      const kept = spot.option !== undefined ? options[spot.option] : undefined;
+      let pick = kept && free(p, beside(p, kept.flip, kept.ly)) ? kept : options.find((o) => free(p, beside(p, o.flip, o.ly)));
+      if (pick) spot.option = options.indexOf(pick);
+      else delete spot.option;
+      if (!pick) {
+        const flip = p.x + SPOT_DX + p.bw > area.x1 - 4;
+        let ly = p.y + SPOT_DY;
+        for (let guard = 0; guard < 16 && blocked(beside(p, flip, ly)); guard++) ly += p.bh * 0.5 + 2;
+        pick = { flip, ly };
+      }
+      taken.push(beside(p, pick.flip, pick.ly));
+      const lx = pick.flip ? p.x - SPOT_DX : p.x + SPOT_DX;
+      spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+      spot.el.style.transform = `translate(${lx.toFixed(1)}px, ${pick.ly.toFixed(1)}px)${pick.flip ? " translate(-100%, 0)" : ""}`;
+      spot.el.classList.toggle("is-flipped", pick.flip);
+      spot.line.setAttribute("x1", p.x.toFixed(1));
+      spot.line.setAttribute("y1", p.y.toFixed(1));
+      spot.line.setAttribute("x2", lx.toFixed(1));
+      spot.line.setAttribute("y2", (pick.ly - p.lift + p.bh / 2).toFixed(1));
     }
   }
 
@@ -727,9 +1307,9 @@ varying float vWave;`,
     vec3 isl = uIslands[i];
     float d = distance(vSeaWorld.xz, isl.xy) - isl.z;
     shallow = max(shallow, 1.0 - smoothstep(0.0, 2.8, d));
-    float lap = 0.18 * sin(uTime * 1.6 - d * 3.5);
-    foam = max(foam, smoothstep(0.32, 0.0, abs(d - 0.3 + lap)) * 0.9);
-    foam = max(foam, smoothstep(0.14, 0.0, d) * 0.5);
+    float lap = 0.1 * sin(uTime * 1.6 - d * 3.5);
+    foam = max(foam, smoothstep(0.13, 0.0, abs(d - 0.24 + lap)) * 0.75);
+    foam = max(foam, smoothstep(0.12, 0.0, d) * 0.55);
   }
   diffuseColor.rgb = mix(diffuseColor.rgb, uShallow, shallow * 0.85);
   diffuseColor.rgb += vec3(0.10, 0.12, 0.12) * smoothstep(0.06, 0.16, vWave);
@@ -757,6 +1337,14 @@ varying float vWave;`,
     const aspect = w / h;
     const anchorY = insets.top + vh / 2;
     const anchorX = insets.left + vw / 2;
+    const walking = this.walkFocus();
+    if (walking?.scope === "island") {
+      // Ashore the camera walks with the pirate, a little ahead of their feet.
+      const center = walking.figure.group.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.06, 0));
+      const h = this.host.clientHeight || 1;
+      const halfH = (WALK_HALF_H * Math.max(1, h / 900) * this.zoom) / Math.max(0.6, vh);
+      return { center, halfH, anchorY, anchorX };
+    }
     if (input.focus.kind === "island") {
       const iv = this.islands.get(input.focus.id);
       const center = iv ? new THREE.Vector3(iv.island.x, 0.35, iv.island.y) : this.center.clone();
@@ -768,7 +1356,8 @@ varying float vWave;`,
       const sv = this.ships.get(input.focus.id);
       if (!sv) return { center: this.center.clone(), halfH: DECK_MIN_HALF_H, anchorY, anchorX };
       // The deck is looked at broadside from its open side, so neither the dock nor a neighbour stands in the way.
-      const center = sv.model.group.position.clone().setY(0.3);
+      // A little above the deck, so the rig and the deck share the frame.
+      const center = sv.model.group.position.clone().setY(0.42);
       const az = this.deckAzimuth(sv);
       this.rig.setAzimuth(az);
       const probe = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
@@ -778,21 +1367,28 @@ varying float vWave;`,
       const inv = probe.matrixWorldInverse;
       let spanX = 0;
       let spanY = 0;
-      const hx = 0.72;
-      const hz = 0.36;
+      const hx = 0.78;
+      const hz = 0.38;
       for (const [dx, dz] of [
         [-hx, -hz],
         [hx, -hz],
         [-hx, hz],
         [hx, hz],
       ]) {
-        for (const y of [0.05, 0.5]) {
+        for (const y of [0.1, 0.5]) {
           this.tmp.set(dx!, y, dz!).applyMatrix4(sv.model.group.matrixWorld).sub(center).add(center).applyMatrix4(inv);
           spanX = Math.max(spanX, Math.abs(this.tmp.x));
           spanY = Math.max(spanY, Math.abs(this.tmp.y));
         }
       }
-      const halfH = Math.max(DECK_MIN_HALF_H, (spanY * 1.12) / vh, (spanX * 1.08) / (aspect * vw));
+      const zoom = Math.min(DECK_ZOOM_MAX, Math.max(DECK_ZOOM_MIN, this.zoom));
+      const halfH = Math.max(DECK_MIN_HALF_H, (spanY * 1.12) / vh, (spanX * 1.08) / (aspect * vw)) * zoom;
+      // Zoomed in, the view walks with the pirate across the deck rather than staring at its middle.
+      const me = this.me("ship");
+      if (me && zoom < 1) {
+        const at = me.figure.group.getWorldPosition(new THREE.Vector3()).setY(center.y - 0.06);
+        center.lerp(at, Math.min(1, (1 - zoom) / 0.35));
+      }
       return { center, halfH, anchorY, anchorX };
     }
     return this.fitAll(input, this.azimuth, aspect, vh, vw, anchorY, anchorX);
@@ -857,7 +1453,7 @@ varying float vWave;`,
     if (best !== this.azimuth) {
       this.azimuth = best;
       if (this.input?.focus.kind !== "ship") this.rig.setAzimuth(best, true);
-      this.sun.position.copy(this.center).add(isoDirection(best + Math.PI * 0.6).multiplyScalar(14).setY(14));
+      this.sunOffset.copy(isoDirection(best + Math.PI * 0.6).multiplyScalar(14).setY(14));
     }
   }
 
@@ -899,13 +1495,14 @@ varying float vWave;`,
     cancelAnimationFrame(this.frame);
     if (!this.running || !this.visible || document.visibilityState === "hidden") return;
     const now = performance.now();
-    const dt = Math.min(0.1, (now - this.lastFrameAt) / 1000);
+    const raw = (now - this.lastFrameAt) / 1000;
     this.lastFrameAt = now;
-    this.render(this.reducedMotion ? 0 : dt);
+    // Walks keep to the clock even when frames come slowly, so a walk always ends on time.
+    this.render(this.reducedMotion ? 0 : Math.min(0.1, raw), Math.min(0.5, raw));
     this.frame = requestAnimationFrame(this.loop);
   };
 
-  private render(dt: number): void {
+  private render(dt: number, walkDt = dt): void {
     const input = this.input;
     if (!input) return;
     this.time += dt;
@@ -913,8 +1510,12 @@ varying float vWave;`,
     this.seaUniforms.uTime.value = t;
     this.placeDashes(t);
     this.placeShips(dt);
-    // A followed ship moves between snapshots; keep the target on it.
-    if (input.focus.kind === "ship") this.rig.setView(this.viewFor(input));
+    this.keyWalk();
+    this.updateWalkers(walkDt, t);
+    this.swingDoors(walkDt);
+    // A followed ship moves between snapshots, a walking pirate between taps; keep the target on them.
+    if (input.focus.kind === "ship" || this.walkFocus()) this.rig.setView(this.viewFor(input));
+    this.aimSun(input);
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
     this.rig.update(dt, w / h);
@@ -944,13 +1545,9 @@ varying float vWave;`,
       const lamp = lane.buoy.children[2] as THREE.Mesh | undefined;
       if (lamp) (lamp.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 2.5 + lane.length) > 0.5 ? PALETTE.lamp : PALETTE.lampOff);
     }
-    for (const peg of this.pegs.values()) {
-      const ph = (peg.group.userData.phase as number | undefined) ?? 0;
-      peg.group.rotation.y = Math.sin(t * 1.4 + ph) * 0.3;
-      peg.group.scale.y = 1 + Math.sin(t * 5 + ph) * 0.03;
-    }
     this.renderer.render(this.scene, this.rig.camera);
     this.placeLabels();
+    this.markHost();
     if (!this.ready) {
       this.ready = true;
       this.onReady?.();
@@ -975,6 +1572,8 @@ varying float vWave;`,
   private placeShips(dt: number): void {
     if (!this.input) return;
     const docked = new Map<string, number>();
+    /** Which berths with a gangplank are taken, by island. */
+    const planks = new Map<string, string>();
     for (const sv of this.ships.values()) {
       const t = this.time;
       const g = sv.model.group;
@@ -988,14 +1587,14 @@ varying float vWave;`,
         // Tied up alongside the dock: the first ship on its near side, the next on the far side, and so on out.
         const n = docked.get(iv.island.id) ?? 0;
         docked.set(iv.island.id, n + 1);
-        const base = Math.atan2(iv.model.dockDir.y, iv.model.dockDir.x);
-        const along = 1.95;
-        const beside = (n % 2 === 0 ? 1 : -1) * (0.5 + Math.floor(n / 2) * 0.55);
-        const px = Math.cos(base) * along - Math.sin(base) * beside;
-        const pz = Math.sin(base) * along + Math.cos(base) * beside;
-        g.position.set(iv.island.x + px, 0, iv.island.y + pz);
-        g.rotation.y = -base + (n % 2 === 0 ? 0 : Math.PI);
+        const berth = iv.model.berth(n);
+        const a = iv.model.dockAngle;
+        g.position.set(iv.island.x + berth.u * Math.cos(a) - berth.w * Math.sin(a), 0, iv.island.y + berth.u * Math.sin(a) + berth.w * Math.cos(a));
+        g.rotation.y = -(a + berth.heading);
+        sv.berth = { islandId: iv.island.id, n };
+        if (berth.foot) planks.set(iv.island.id, `${planks.get(iv.island.id) ?? ""}${n},`);
       } else {
+        sv.berth = null;
         const lane = sv.laneKey ? this.lanes.get(sv.laneKey) : null;
         if (!lane) {
           g.visible = false;
@@ -1013,16 +1612,19 @@ varying float vWave;`,
         g.position.set(p.x, 0, p.z);
         g.rotation.y = -Math.atan2(tan.z, tan.x);
       }
-      // The bob lives on the body so the group, which labels and pegs hang off, holds still.
+      // The bob lives on the body so the group, which labels hang off, holds still. Made fast to a dock she barely stirs.
       const body = sv.model.body;
-      body.position.y = Math.sin(t * 1.7 + sv.phase) * 0.035;
-      body.rotation.z = Math.sin(t * 1.1 + sv.phase) * 0.06;
-      body.rotation.x = Math.sin(t * 0.8 + sv.phase * 1.3) * 0.03;
+      const calm = sv.berth ? 0.3 : 1;
+      body.position.y = -SHIP_SINK + Math.sin(t * 1.7 + sv.phase) * 0.03 * calm;
+      body.rotation.z = Math.sin(t * 1.1 + sv.phase) * 0.05 * calm;
+      body.rotation.x = Math.sin(t * 0.8 + sv.phase * 1.3) * 0.025 * calm;
       sv.model.flag.rotation.y = Math.sin(t * 5 + sv.phase) * 0.3;
-      sv.model.marker.position.y = 1.75 + Math.sin(t * 3 + sv.phase) * 0.08;
+      sv.model.marker.position.y = 1.33 + Math.sin(t * 3 + sv.phase) * 0.07;
       sv.model.marker.rotation.y = t * 1.5;
-      sv.model.marker.visible = sv.ship.kind !== "other" && this.input.focus.kind !== "ship";
+      // The "your ship" marker is for finding her on the chart; up close it would only hang in the air.
+      sv.model.marker.visible = sv.ship.kind !== "other" && this.input.focus.kind === "all";
     }
+    this.layGangplanks(planks);
     // On deck, a neighbour tied up alongside would stand between the camera and the deck; it steps out of the view.
     if (this.input.focus.kind === "ship") {
       const mine = this.ships.get(this.input.focus.id);
@@ -1032,6 +1634,28 @@ varying float vWave;`,
           if (sv.model.group.position.distanceTo(mine.model.group.position) < 2.2) sv.model.group.visible = false;
         }
       }
+    }
+  }
+
+  /** A gangplank from the dock up to each ship lying against it; rebuilt only when that changes. */
+  private layGangplanks(planks: Map<string, string>): void {
+    for (const [islandId, iv] of this.islands) {
+      const key = planks.get(islandId) ?? "";
+      const have = this.gangplanks.get(islandId);
+      if (have?.key === key) continue;
+      have?.group.removeFromParent();
+      const group = new THREE.Group();
+      for (const n of key.split(",").filter(Boolean).map(Number)) {
+        const berth = iv.model.berth(n);
+        if (!berth.foot) continue;
+        const side = Math.sign(berth.w);
+        const deckY = 0.3 * SHIP_SCALE - SHIP_SINK;
+        const from = new THREE.Vector3(berth.foot.x, DOCK.top + 0.006, side * (DOCK.half - 0.01));
+        const to = new THREE.Vector3(berth.foot.x, deckY + 0.008, side * (Math.abs(berth.w) - 0.2 * SHIP_SCALE));
+        group.add(buildGangplank(from, to));
+      }
+      iv.model.frame.add(group);
+      this.gangplanks.set(islandId, { key, group });
     }
   }
 
@@ -1057,38 +1681,173 @@ varying float vWave;`,
     for (const sv of this.ships.values()) {
       sv.label.style.display = sv.model.group.visible ? "" : "none";
       if (!sv.model.group.visible || sv.label.classList.contains("ow-hidden") || sv.label.classList.contains("ow-label-quiet")) continue;
-      this.tmp.set(sv.model.group.position.x, 0.2, sv.model.group.position.z).project(cam);
+      // Named at her stern, the end nearest the shore when she lies at a dock bow out.
+      sv.model.group.localToWorld(this.tmp.set(-0.32, 0.25, 0)).project(cam);
       shipLabels.push({ el: sv.label, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h });
     }
     shipLabels.sort((a, b) => a.y - b.y);
+    const playerBox = this.playerBox();
+    const insets = this.input?.insets ?? { top: 0, bottom: 0, left: 0, right: 0 };
     for (let i = 0; i < shipLabels.length; i++) {
       const p = shipLabels[i]!;
       for (let j = 0; j < i; j++) {
         const q = shipLabels[j]!;
         if (Math.abs(q.x - p.x) < (q.el.offsetWidth + p.el.offsetWidth) / 2 + 6 && p.y - q.y < 26) p.y = q.y + 26;
       }
+      // A ship's name hangs from its point; one over the player drops below them.
+      const half = p.el.offsetWidth / 2;
+      if (playerBox && overlaps(playerBox, { x0: p.x - half, y0: p.y, x1: p.x + half, y1: p.y + p.el.offsetHeight })) p.y = playerBox.y1 + 2;
+      // The player's own ship to board waits at the screen's edge when she is off it, pointing the way.
+      const area = { x0: w * insets.left + 8, y0: h * insets.top + 8, x1: w * (1 - insets.right) - 8, y1: h * (1 - insets.bottom) - 8 };
+      if (p.el.classList.contains("ow-label-board")) {
+        const off = p.x < area.x0 + half ? "left" : p.x > area.x1 - half ? "right" : p.y < area.y0 ? "up" : p.y > area.y1 - p.el.offsetHeight ? "down" : null;
+        if (off) {
+          p.x = Math.max(area.x0 + half, Math.min(area.x1 - half, p.x));
+          p.y = Math.max(area.y0, Math.min(area.y1 - p.el.offsetHeight, p.y));
+          p.el.dataset.edge = off;
+        } else delete p.el.dataset.edge;
+      } else delete p.el.dataset.edge;
       p.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
     }
     const focus = this.input?.focus;
     const aboard = focus?.kind === "ship" ? this.ships.get(focus.id) : undefined;
     this.placeSpots(spots);
+    this.placeTags();
     if (aboard) {
       const deckSpots: { spot: Spot; world: THREE.Vector3; still: THREE.Vector3 }[] = [];
       // Pins ride the hull itself, bob and all, so each sits on its thing; the labels stand on the
       // ship's steady frame so the column holds still.
       const body = aboard.model.body;
       const steady = aboard.model.group;
-      const inv = 1 / 0.85;
-      for (const [st, spot] of this.stationSpots) {
-        if (spot.el.classList.contains("ow-hidden")) continue;
-        const local = aboard.model.anchors[st].clone().multiplyScalar(inv);
-        deckSpots.push({ spot, world: body.localToWorld(local.clone()), still: steady.localToWorld(aboard.model.anchors[st].clone()) });
+      const still = (local: THREE.Vector3): THREE.Vector3 => steady.localToWorld(local.clone().multiplyScalar(SHIP_SCALE).add(new THREE.Vector3(0, -SHIP_SINK, 0)));
+      const callout = (spot: Spot | null, local: THREE.Vector3): void => {
+        if (spot && !spot.el.classList.contains("ow-hidden")) deckSpots.push({ spot, world: body.localToWorld(local.clone()), still: still(local) });
+      };
+      for (const [st, spot] of this.stationSpots) callout(spot, aboard.model.anchors[st]);
+      callout(this.wheelSpot, aboard.model.wheel.clone().add(new THREE.Vector3(0, 0.07, 0)));
+      const side = this.gangwaySide(aboard);
+      if (side !== null) {
+        const g = aboard.model.deck.gangway(side);
+        callout(this.gangwaySpot, new THREE.Vector3(g.x, 0.34, side * 0.19));
       }
-      if (this.wheelSpot && !this.wheelSpot.el.classList.contains("ow-hidden")) {
-        const local = aboard.model.wheel.clone().add(new THREE.Vector3(0, 0.1, 0));
-        deckSpots.push({ spot: this.wheelSpot, world: body.localToWorld(local.clone().multiplyScalar(inv)), still: steady.localToWorld(local.clone()) });
+      // Zoomed in, the hull runs off the screen and a column of labels would string leaders across
+      // the deck: each label stands beside its own pin instead.
+      // So does a hull that fills the screen's width (a phone held upright), where no column fits.
+      const zoomedIn = this.walkFocus()?.scope === "ship" && this.zoom < 0.85;
+      const beside = zoomedIn || !this.placeCallouts(deckSpots);
+      // Beside their pins the labels go compact: the station's name, its state in the label's ring.
+      this.labels.classList.toggle("ow-compact", beside);
+      // Deck spots carry their steady points too, so labels at the edge hold still while the hull bobs.
+      if (beside) this.placeSpots(deckSpots);
+    } else {
+      this.labels.classList.remove("ow-compact");
+    }
+  }
+
+  /** Name tags over the other pirates where the player is: everyone ashore, the idle hands aboard. */
+  private placeTags(): void {
+    const w = this.host.clientWidth;
+    const h = this.host.clientHeight;
+    const focus = this.input?.focus;
+    const shown: { el: HTMLElement; x: number; y: number }[] = [];
+    for (const wv of this.walkers.values()) {
+      if (!wv.tag) continue;
+      const here = focus && ((focus.kind === "island" && wv.scope === "island" && focus.id === wv.placeId) || (focus.kind === "ship" && wv.scope === "ship" && focus.id === wv.placeId));
+      const busy = wv.scope === "ship" && wv.station !== null;
+      const show = Boolean(here) && !busy && wv.figure.group.visible;
+      wv.tag.classList.toggle("ow-hidden", !show);
+      if (!show) continue;
+      wv.figure.group.getWorldPosition(this.tmp);
+      this.tmp.y += PIRATE_HEIGHT * 1.35;
+      this.tmp.project(this.rig.camera);
+      shown.push({ el: wv.tag, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h });
+    }
+    shown.sort((a, b) => a.y - b.y);
+    const player = this.playerBox();
+    for (let i = 0; i < shown.length; i++) {
+      const p = shown[i]!;
+      for (let j = 0; j < i; j++) {
+        const q = shown[j]!;
+        if (Math.abs(q.x - p.x) < (q.el.offsetWidth + p.el.offsetWidth) / 2 + 4 && p.y - q.y < 20) p.y = q.y + 20;
       }
-      this.placeCallouts(deckSpots);
+      // A tag stands centered over its point and above it; one that would cover the player rises clear.
+      const half = p.el.offsetWidth / 2;
+      if (player && overlaps(player, { x0: p.x - half, y0: p.y - p.el.offsetHeight, x1: p.x + half, y1: p.y })) p.y = player.y0 - 2;
+      p.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+    }
+  }
+
+  /** Where the player's own pirate is on screen, ring to hat, with a little room: no label may cover it. */
+  private playerBox(): ScreenBox | null {
+    const me = this.walkFocus();
+    if (!me || !me.figure.group.visible) return null;
+    const w = this.host.clientWidth;
+    const h = this.host.clientHeight;
+    const cam = this.rig.camera;
+    const feet = me.figure.group.getWorldPosition(new THREE.Vector3());
+    const head = feet.clone().add(new THREE.Vector3(0, PIRATE_HEIGHT * 1.15, 0));
+    feet.project(cam);
+    head.project(cam);
+    const fy = (-feet.y * 0.5 + 0.5) * h;
+    const hy = (-head.y * 0.5 + 0.5) * h;
+    const x = (feet.x * 0.5 + 0.5) * w;
+    const half = Math.max(16, (fy - hy) * 0.5);
+    return { x0: x - half, y0: hy - 6, x1: x + half, y1: fy + 8 };
+  }
+
+  /** What the world says about walking on its host, for the shell and its smoke test. */
+  private markHost(): void {
+    const me = this.walkFocus();
+    let screen = "";
+    if (me) {
+      me.figure.group.getWorldPosition(this.tmp).project(this.rig.camera);
+      screen = `${Math.round((this.tmp.x * 0.5 + 0.5) * this.host.clientWidth)},${Math.round((-this.tmp.y * 0.5 + 0.5) * this.host.clientHeight)}`;
+    }
+    const box = this.playerBox();
+    const boxKey = box ? [box.x0, box.y0, box.x1, box.y1].map((v) => Math.round(v)).join(",") : "";
+    const key = me ? `${me.scope}:${me.placeId}|${me.walker.x.toFixed(2)},${me.walker.z.toFixed(2)}|${me.walker.moving ? 1 : 0}|${screen}|${me.inside ?? ""}|${boxKey}` : "";
+    if (key === this.dataKey) return;
+    this.dataKey = key;
+    const d = this.host.dataset;
+    d.walk = me ? `${me.scope}:${me.placeId}` : "";
+    d.me = me ? `${me.walker.x.toFixed(2)},${me.walker.z.toFixed(2)}` : "";
+    // Where the pirate's feet are on screen, in the world's own pixels.
+    d.meScreen = screen;
+    d.walking = me?.walker.moving ? "1" : "0";
+    d.inside = me?.inside ?? "";
+    // The box no label may cover: the pirate, ring to hat.
+    d.meBox = boxKey;
+  }
+
+  /** Keep the sun's shadows sharp where the eye is: tight on a pirate or a deck, wide over the chart. */
+  private aimSun(input: WorldInput): void {
+    const me = this.walkFocus();
+    let reach: number;
+    const at = this.tmp2;
+    if (me) {
+      me.figure.group.getWorldPosition(at);
+      reach = me.scope === "ship" ? 1.4 : 2.6;
+    } else if (input.focus.kind === "island") {
+      const iv = this.islands.get(input.focus.id);
+      at.set(iv?.island.x ?? this.center.x, 0, iv?.island.y ?? this.center.z);
+      reach = 2.8;
+    } else if (input.focus.kind === "ship") {
+      this.ships.get(input.focus.id)?.model.group.getWorldPosition(at);
+      reach = 1.4;
+    } else {
+      at.copy(this.center);
+      reach = this.spread;
+    }
+    at.y = 0;
+    this.sun.position.copy(at).add(this.sunOffset);
+    this.sun.target.position.copy(at);
+    const cam = this.sun.shadow.camera;
+    if (cam.right !== reach) {
+      cam.left = -reach;
+      cam.right = reach;
+      cam.top = reach;
+      cam.bottom = -reach;
+      cam.updateProjectionMatrix();
     }
   }
 
@@ -1099,16 +1858,18 @@ varying float vWave;`,
    * and stay short: a callout diagram rather than a pile of pills. When one side has no room
    * (the card unfolded beside the ship) every label stands on the other.
    */
-  private placeCallouts(spots: { spot: Spot; world: THREE.Vector3; still: THREE.Vector3 }[]): void {
-    if (spots.length === 0) return;
+  private placeCallouts(spots: { spot: Spot; world: THREE.Vector3; still: THREE.Vector3 }[]): boolean {
+    if (spots.length === 0) return true;
     const w = this.host.clientWidth;
     const h = this.host.clientHeight;
     const cam = this.rig.camera;
     const insets = this.input?.insets ?? { top: 0, bottom: 0, left: 0, right: 0 };
     const pins: { spot: Spot; x: number; y: number; sx: number; sy: number }[] = [];
+    const playerAt = this.playerBox();
     let minX = Infinity;
     let maxX = -Infinity;
     let maxWidth = 0;
+    let maxHeight = 0;
     for (const { spot, world, still } of spots) {
       this.tmp.copy(world).project(cam);
       const x = (this.tmp.x * 0.5 + 0.5) * w;
@@ -1116,19 +1877,25 @@ varying float vWave;`,
       this.tmp.copy(still).project(cam);
       const sx = (this.tmp.x * 0.5 + 0.5) * w;
       const sy = (-this.tmp.y * 0.5 + 0.5) * h;
-      pins.push({ spot, x, y, sx, sy });
+      pins.push({ spot, x, y: pinClearOf(playerAt, x, y), sx, sy });
       minX = Math.min(minX, sx);
       maxX = Math.max(maxX, sx);
       maxWidth = Math.max(maxWidth, spot.el.offsetWidth);
+      maxHeight = Math.max(maxHeight, spot.el.offsetHeight);
     }
     const leftEdge = w * insets.left + 8;
     const rightEdge = w * (1 - insets.right) - 8;
     const roomRight = rightEdge - (maxX + 40);
     const roomLeft = minX - 40 - leftEdge;
-    // Two columns of equal weight, the portmost half of the pins on the left, unless one side has
-    // no room at all (the card unfolded beside the ship) or there are too few spots to split;
-    // otherwise everything on the roomier side.
-    const both = roomRight > 0 && roomLeft > 0 && pins.length > 2;
+    // Two columns of equal weight, the portmost half of the pins on the left, when a column fits
+    // beside the hull on each side; one column on the side that has room when only one does (the
+    // card unfolded beside the ship); and none when neither does, so the caller hangs each label
+    // beside its pin rather than string leaders over the deck.
+    // Judged by a label's full width, not as drawn now: compact labels must not tip it back.
+    const fitsRight = roomRight >= CALLOUT_W * 0.75;
+    const fitsLeft = roomLeft >= CALLOUT_W * 0.75;
+    if (!fitsRight && !fitsLeft) return false;
+    const both = fitsRight && fitsLeft && pins.length > 2;
     const byX = [...pins].sort((a, b) => a.sx - b.sx);
     const half = Math.ceil(byX.length / 2);
     const sides: { right: boolean; pins: typeof pins }[] = both
@@ -1136,10 +1903,12 @@ varying float vWave;`,
           { right: false, pins: byX.slice(0, half) },
           { right: true, pins: byX.slice(half) },
         ]
-      : [{ right: roomRight >= roomLeft, pins }];
-    const gap = 44;
+      : [{ right: fitsRight, pins }];
+    // Labels stack a little apart, however tall a phone draws them.
+    const gap = Math.max(30, maxHeight + 6);
     const top = h * insets.top + 24;
     const bottom = h * (1 - insets.bottom) - 24;
+    const laid: { p: (typeof pins)[number]; col: number; ly: number; right: boolean }[] = [];
     for (const side of sides) {
       if (side.pins.length === 0) continue;
       const colPins = side.pins.sort((a, b) => a.sy - b.sy);
@@ -1149,17 +1918,30 @@ varying float vWave;`,
       const meanY = colPins.reduce((n, p) => n + p.sy, 0) / colPins.length;
       let y0 = meanY - ((colPins.length - 1) * gap) / 2;
       y0 = Math.max(top, Math.min(bottom - (colPins.length - 1) * gap, y0));
-      colPins.forEach((p, i) => {
-        const ly = y0 + i * gap;
-        p.spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
-        p.spot.el.style.transform = `translate(${col.toFixed(1)}px, ${ly.toFixed(1)}px)${side.right ? "" : " translate(-100%, 0)"}`;
-        p.spot.el.classList.toggle("is-flipped", !side.right);
-        p.spot.line.setAttribute("x1", p.x.toFixed(1));
-        p.spot.line.setAttribute("y1", p.y.toFixed(1));
-        p.spot.line.setAttribute("x2", col.toFixed(1));
-        p.spot.line.setAttribute("y2", (ly + 14).toFixed(1));
-      });
+      colPins.forEach((p, i) => laid.push({ p, col, ly: y0 + i * gap, right: side.right }));
     }
+    // A column may never cover the player; if one would, the labels hang beside their pins instead.
+    const player = this.playerBox();
+    if (player) {
+      for (const { p, col, ly, right } of laid) {
+        const bw = p.spot.el.offsetWidth;
+        const x0 = right ? col : col - bw;
+        if (overlaps(player, { x0, y0: ly - 14, x1: x0 + bw, y1: ly - 14 + p.spot.el.offsetHeight })) return false;
+      }
+    }
+    for (const { p, col, ly, right } of laid) {
+      p.spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+      p.spot.el.style.transform = `translate(${col.toFixed(1)}px, ${ly.toFixed(1)}px)${right ? "" : " translate(-100%, 0)"}`;
+      p.spot.el.classList.toggle("is-flipped", !right);
+      delete p.spot.el.dataset.edge;
+      p.spot.pin.classList.remove("ow-offscreen");
+      p.spot.line.classList.remove("ow-offscreen");
+      p.spot.line.setAttribute("x1", p.x.toFixed(1));
+      p.spot.line.setAttribute("y1", p.y.toFixed(1));
+      p.spot.line.setAttribute("x2", col.toFixed(1));
+      p.spot.line.setAttribute("y2", (ly + 14).toFixed(1));
+    }
+    return true;
   }
 
   // ---- picking
@@ -1185,33 +1967,245 @@ varying float vWave;`,
     return null;
   }
 
+  /** What a tap lands on where the player walks: a pirate, a building, a ship, a station, or the ground to walk to. */
+  private pickWalk(clientX: number, clientY: number, me: WalkerView): WalkPick | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -(((clientY - rect.top) / rect.height) * 2 - 1));
+    this.raycaster.setFromCamera(ndc, this.rig.camera);
+    const targets: THREE.Object3D[] = [];
+    for (const wv of this.walkers.values()) if (wv !== me && wv.real && wv.scope === me.scope && wv.placeId === me.placeId) targets.push(wv.hit);
+    let ground: THREE.Object3D[] = [];
+    let frame: THREE.Object3D | null = null;
+    if (me.scope === "island") {
+      const iv = this.islands.get(me.placeId);
+      if (!iv) return null;
+      targets.push(...iv.model.buildingHits);
+      // Up close a ship is only her hull: the tall chart box would swallow taps on the dock and the shore behind her.
+      for (const sv of this.ships.values()) if (sv.model.group.visible && sv.berth?.islandId === me.placeId) targets.push(sv.model.hullHit);
+      ground = iv.model.walkable;
+      frame = iv.model.frame;
+    } else {
+      const sv = this.ships.get(me.placeId);
+      if (!sv) return null;
+      targets.push(...sv.model.stationHits);
+      ground = [sv.model.deckHit];
+      frame = sv.model.body;
+    }
+    const hits = this.raycaster.intersectObjects([...targets, ...ground], false);
+    const hit = hits[0];
+    if (!hit) return null;
+    const o = hit.object;
+    if (typeof o.userData.walker === "string") {
+      const wv = this.walkers.get(o.userData.walker);
+      return wv ? { kind: "pirate", id: wv.id } : null;
+    }
+    if (typeof o.userData.building === "string") return { kind: "building", building: o.userData.building as Building };
+    if (typeof o.userData.station === "string") return o.userData.station === "wheel" ? { kind: "wheel" } : { kind: "station", station: o.userData.station as Station };
+    for (const sv of this.ships.values()) if (o === sv.model.hullHit || o === sv.model.hit) return { kind: "ship", id: sv.ship.id };
+    const local = frame.worldToLocal(hit.point.clone());
+    return { kind: "ground", x: local.x, z: local.z };
+  }
+
   private readonly onPointerDown = (e: PointerEvent): void => {
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pointers.size === 2) {
+      const [p, q] = [...this.pointers.values()] as [{ x: number; y: number }, { x: number; y: number }];
+      this.pinch = { d: Math.hypot(p.x - q.x, p.y - q.y), zoom: this.zoom };
+      this.pointerDown = null;
+      return;
+    }
     this.pointerDown = { x: e.clientX, y: e.clientY, t: performance.now() };
   };
 
   private readonly onPointerUp = (e: PointerEvent): void => {
+    this.pointers.delete(e.pointerId);
+    if (this.pinch) {
+      if (this.pointers.size === 0) this.pinch = null;
+      return;
+    }
     const d = this.pointerDown;
     this.pointerDown = null;
     if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10 || performance.now() - d.t > 600) return;
+    const me = this.walkFocus();
+    if (me) {
+      const p = this.pickWalk(e.clientX, e.clientY, me);
+      if (p) {
+        this.tapWalk(me, p);
+        return;
+      }
+    }
     const p = this.pick(e.clientX, e.clientY);
     if (!p) return;
     if (p.kind === "island") this.events.onIsland(p.id);
-    else this.events.onShip(p.id);
+    // Walking, a ship is boarded only by a tap on her hull (pickWalk); a tap on the water near her is nothing.
+    else if (!me) this.goShip(p.id);
   };
 
+  private tapWalk(me: WalkerView, p: WalkPick): void {
+    switch (p.kind) {
+      case "pirate":
+        this.events.onPirate(p.id);
+        return;
+      case "building":
+        this.goBuilding(me.placeId, p.building);
+        return;
+      case "ship":
+        this.goShip(p.id);
+        return;
+      case "station":
+        this.goStation(p.station);
+        return;
+      case "wheel":
+        this.goWheel();
+        return;
+      case "ground": {
+        const grid = this.gridOf(me);
+        const to = grid?.nearestOpen(p.x, p.z, me.scope === "ship" ? 0.08 : 0.3);
+        if (!to) return;
+        if (me.scope === "island" && this.inOrEntering(me)) {
+          this.afterLeave = () => this.walkMe(me, to, undefined, null, true);
+          this.events.onOutside();
+          return;
+        }
+        this.walkMe(me, to, undefined, null, true);
+        return;
+      }
+    }
+  }
+
   private readonly onPointerMove = (e: PointerEvent): void => {
+    if (this.pointers.has(e.pointerId)) this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pinch && this.pointers.size === 2) {
+      const [p, q] = [...this.pointers.values()] as [{ x: number; y: number }, { x: number; y: number }];
+      const d = Math.hypot(p.x - q.x, p.y - q.y);
+      if (d > 1) this.setZoom((this.pinch.zoom * this.pinch.d) / d);
+      return;
+    }
     if (e.pointerType !== "mouse") return;
-    const p = this.pick(e.clientX, e.clientY);
-    const key = p ? `${p.kind}:${p.id}` : null;
+    const me = this.walkFocus();
+    let key: string | null;
+    if (me) {
+      const p = this.pickWalk(e.clientX, e.clientY, me);
+      key = p && p.kind !== "ground" ? `walk:${p.kind}` : null;
+    } else {
+      const p = this.pick(e.clientX, e.clientY);
+      key = p ? `${p.kind}:${p.id}` : null;
+    }
     if (key === this.hovered) return;
     this.hovered = key;
-    this.renderer.domElement.style.cursor = p ? "pointer" : "";
+    this.renderer.domElement.style.cursor = key ? "pointer" : "";
   };
 
   private readonly onPointerLeave = (): void => {
     this.hovered = null;
     this.renderer.domElement.style.cursor = "";
   };
+
+  private readonly onPointerCancel = (e: PointerEvent): void => {
+    this.pointers.delete(e.pointerId);
+    if (this.pointers.size < 2) this.pinch = null;
+    this.pointerDown = null;
+  };
+
+  private readonly onWheel = (e: WheelEvent): void => {
+    if (!this.walkFocus()) return;
+    e.preventDefault();
+    this.setZoom(this.zoom * Math.exp(e.deltaY * 0.0015));
+  };
+
+  private readonly onKeyDown = (e: KeyboardEvent): void => {
+    const dir = KEY_DIRS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+    if (!dir || e.ctrlKey || e.metaKey || e.altKey || typing(e.target) || this.input?.dimmed || !this.walkFocus()) return;
+    e.preventDefault();
+    this.keys.add(dir);
+  };
+
+  private readonly onKeyUp = (e: KeyboardEvent): void => {
+    const dir = KEY_DIRS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+    if (dir) this.keys.delete(dir);
+  };
+
+  private readonly onBlur = (): void => this.keys.clear();
+
+  /** Keys held: keep the pirate walking a short step ahead in the direction they point on screen. */
+  private keyWalk(): void {
+    if (this.keys.size === 0) return;
+    const me = this.walkFocus();
+    const grid = me ? this.gridOf(me) : null;
+    const parent = me?.figure.group.parent;
+    if (!me || !grid || !parent || this.input?.dimmed) {
+      this.keys.clear();
+      return;
+    }
+    // Inside a building a key means "out": the room closes and the pirate steps outside, then walks on.
+    if (me.scope === "island" && (me.inside || me.doorway)) {
+      if (me.inside && !me.doorway) this.events.onOutside();
+      return;
+    }
+    const sx = (this.keys.has("right") ? 1 : 0) - (this.keys.has("left") ? 1 : 0);
+    const sy = (this.keys.has("up") ? 1 : 0) - (this.keys.has("down") ? 1 : 0);
+    if (!sx && !sy) return;
+    const cam = this.rig.camera;
+    const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0).setY(0).normalize();
+    const away = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1).setY(0).normalize();
+    const dir = right.multiplyScalar(sx).add(away.multiplyScalar(sy)).normalize();
+    dir.applyQuaternion(parent.getWorldQuaternion(new THREE.Quaternion()).invert());
+    const step = me.scope === "ship" ? 0.07 : 0.16;
+    const base = Math.atan2(dir.z, dir.x);
+    // Straight on if the way is open, else glance off whatever is in the way.
+    for (const turn of [0, 0.5, -0.5, 1, -1]) {
+      const a = base + turn;
+      const to = { x: me.walker.x + Math.cos(a) * step, z: me.walker.z + Math.sin(a) * step };
+      if (!grid.isOpen(to.x, to.z) || !grid.clear({ x: me.walker.x, z: me.walker.z }, to)) continue;
+      me.walker.walkTo(grid, to);
+      this.events.onWalk(to.x, to.z);
+      return;
+    }
+  }
+
+  private setZoom(z: number): void {
+    const deck = this.walkFocus()?.scope === "ship";
+    this.zoom = deck ? Math.max(DECK_ZOOM_MIN, Math.min(DECK_ZOOM_MAX, z)) : Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+  }
+}
+
+/** A box on screen, in the world's own pixels. */
+type ScreenBox = { x0: number; y0: number; x1: number; y1: number };
+
+const overlaps = (a: ScreenBox, b: ScreenBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+/** A pin that would sit on the player (standing at its station) hops up over their hat instead. */
+const pinClearOf = (player: ScreenBox | null, x: number, y: number): number =>
+  player && x > player.x0 - 9 && x < player.x1 + 9 && y > player.y0 - 9 && y < player.y1 + 9 ? player.y0 - 12 : y;
+
+type WalkPick =
+  | { kind: "pirate"; id: string }
+  | { kind: "building"; building: Building }
+  | { kind: "ship"; id: string }
+  | { kind: "station"; station: Station }
+  | { kind: "wheel" }
+  | { kind: "ground"; x: number; z: number };
+
+const KEY_DIRS: Record<string, "up" | "down" | "left" | "right"> = {
+  ArrowUp: "up",
+  ArrowDown: "down",
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  w: "up",
+  s: "down",
+  a: "left",
+  d: "right",
+};
+
+/** Whether a key went to something that takes typing, which walking must leave alone. */
+function typing(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el || !el.tagName) return false;
+  return el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT";
+}
+
+function spotKey(at: WalkSpot | null): string {
+  return at ? `${at.x.toFixed(3)},${at.z.toFixed(3)}` : "";
 }
 
 function isSoftwareRenderer(renderer: THREE.WebGLRenderer): boolean {

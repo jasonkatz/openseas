@@ -17,11 +17,24 @@ practice pages with guest accounts and ratings. Each still needs its tester sess
 numbers are trusted.
 
 Milestone 3 built (ADR 0018, ADR 0020): the game is one graphical experience. A pirate signs in
-and is in the world until they sign out: an isometric three.js ocean with three islands, their
-docks, taverns and notice boards, ships at the docks and under way. Board your sloop, take a
-station on deck and its puzzle opens over the world while the ship sails; the captain picks a
-destination on the chart, brigands hail on the way and are evaded (no combat until M4). Island
-and ship chat, presence, the shipyard and a ship's log are in. Its tester session is next.
+and is in the world until they sign out: an isometric three.js ocean with three islands, ships at
+their docks and under way. Take a station on deck and its puzzle opens over the world while the
+ship sails. The captain picks a destination on the chart. Island and ship chat, presence, the
+shipyard and a ship's log are in.
+
+Milestone 4 built (ADR 0021): a brigand's hail can be engaged, and the captain sails the sea battle
+board while the crew's stations feed it. A win pays the brigand's booty.
+
+Milestone 5 built (ADR 0022, ADR 0032): a grapple that lands opens the boarding melee, every pirate
+aboard on their own Swordfight board. The islands and the deck are walkable. Ashore, a pirate walks
+a small town (the dock with its berths and gangplanks, the shipwright's stall, the notice board, a
+plaza and the tavern) among everyone else there. They walk down the dock and up the gangplank, then
+across the deck to the pump, and its board opens.
+
+Milestone 6 built (ADR 0025, ADR 0026): crews with flags, ranks and crew chat, crew-only ships, the
+board of crews and pirates' cards, and a guest who links Discord or Google keeps everything.
+
+Every milestone from M2 on still needs its tester session and written retro.
 
 The practice pages now live in the **puzzle harness** at [test.openseas.online](https://test.openseas.online)
 (ADR 0019): the same boards, engines and server as the game, one puzzle at a time, with a bench

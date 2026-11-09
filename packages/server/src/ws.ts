@@ -292,6 +292,9 @@ export function createWsServer(deps: WsDeps) {
       case "chat.send":
         social.chat(conn.pirateId, msg.channel, msg.text);
         return;
+      case "walk.to":
+        social.walk(conn.pirateId, { x: msg.x, z: msg.z });
+        return;
       case "island.who": {
         const islandId = social.islandOf(conn.pirateId) ?? (await ships.pirateIsland(conn.pirateId));
         send(ws, social.presence(islandId));

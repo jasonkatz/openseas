@@ -448,6 +448,25 @@ live in `content/data/puzzles/swordfight.json`.
   a file. Only player-generated state lives in the database.
 - AI brigands only at sea. No player-versus-player at sea in v1.
 
+As built (M5, ADR 0032): each island is one small town on a low-poly heightfield, a grassy rise
+inside a ring of beach that slopes under the sea. Laid out from the dock inland: the dock on its
+pilings with a berth either side, the shipwright's (the dock's room, a hull in frame on trestles
+outside) and the notice board (a pillar papered all round, so it reads from any side) at its foot, a path up to a cobbled plaza with a well, lamp posts and a fruit stall, the tavern facing
+the plaza with its sign swinging and its chimney smoking, cottages with fenced vegetable patches, and
+the landmark at the back on its own rise. On the beach: palms, a boat drawn up, a net on its rack,
+driftwood, a fire ring with logs, a heap of net drying, shells and crabs scuttling along the waterline. Every island is
+built from a PRNG seeded by its id and laid out the same way, mirrored or not, so they are siblings
+that read apart by landmark and ground (golden grass, black sand). The pirate walks it: a tap on the
+ground walks there along a path round whatever is in the way, a tap on a building or its spot walks
+to its door and opens its room; at the tavern and the shipwright's the door swings open and the
+pirate steps in out of sight, and leaving the room (the card's back, or a tap outside) walks them
+out to stand at the door. A building is entered if it has a door; the notice board is read standing. A tap on a ship walks down the dock to her gangplank and
+aboard, and on a keyboard the arrows or WASD walk. Up close a ship answers only to taps on her hull, so the shore and
+the dock around her stay walkable. The page under the game never zooms (a pinch is the world's own
+zoom), and text fields are at least 16px so iOS does not zoom in on them. The camera walks with the pirate, close enough that
+a pirate stands a thumb tall on a phone, and a wheel or a pinch zooms between a close view and the whole town. Everyone else
+ashore walks there too, named over their heads, and a name is a way to their card.
+
 ### 3.6 Persistence
 
 Per pirate: name, per-puzzle rating, crew membership and rank, currency balance, voyage history,
@@ -617,6 +636,34 @@ deck. Docked ships tie up alongside the dock, the first on its near side and the
 marks setting, the account and sign-out. Toasts carry what happens aboard. A software renderer gets
 a lighter world; without WebGL the cards still carry every action.
 
+As built (M5): the island and the deck are walked, not only tapped (3.5, ADR 0032). The pegs are
+pirates: small jointed figures that walk, idle and work, a pump handle worked up and down at the
+pump, a line hauled at the mast, a hammer at the bench, a gun rammed, a chart traced, the wheel
+held. Each kind reads apart by shape before color, as rule 6 asks: the player's own pirate stands in a
+brass ring drawn over everything (so they can be found behind a sail), a captain wears a plumed
+tricorn, other pirates a hat, cap or bandana and a coat of their own picked from their id, and a
+deckhand the smock, kerchief and coil of rope. The sloop is larger and beamier in the world than the
+chart alone would need, so her deck is roomy for a crew: about eleven pirates long and five across.
+She is laid out to be walked, with her gear against the rails and the middle of the deck clear: a raised
+quarterdeck aft with the wheel and the chart table, steps down to the main deck, a fife rail at the
+mast, the pump to port, a gun pair run out at each rail, the carpenter's bench forward and a gangway
+port in each rail. Ships lie at a dock bow out to sea, named at the stern nearest the shore. Docked, a
+gangplank runs up to her from the dock and the deck carries a Go ashore spot at the gangway. Boarding
+starts in close on the pirate, the view walking with them about the deck; a wheel or a pinch zooms out
+to the whole hull. Up close, or on a phone held upright where the hull fills the width and no column
+fits, each station's label stands beside its pin rather than in the columns: just the station's name
+(a deckhand's with a dashed dot), placed where it covers no other label or pin. A station off screen
+waits at the edge nearest it with an arrow its way, as does the player's own ship to board when she is
+out of view ashore. No label, pin, name tag or ship's name ever covers the player's own pirate, and
+none goes under the card. The brass "your
+ship" marker shows on the chart only. Boarding brings the pirate over the gangplank, and the captain walks
+straight to the wheel. A tap on a station walks the pirate to it and opens its board, and a tap on
+the deck walks there. Every station, the wheel and the gangway keep their spot and the card keeps its
+buttons, which act at once. Shipmates are seen walking the deck, and a change of station walks a
+pirate to the new one on every screen. Static scenery is merged into a few meshes, so the extra
+detail costs a phone almost no draw calls, and the sun's shadows tighten on whatever is in focus.
+Clouds drift over the chart only.
+
 **The puzzle harness** is a separate application for testing the puzzles themselves, at
 `test.openseas.online` (ADR 0018, ADR 0019). One page per engine carries the practice frame as
 built in M1 and M2 (start card, HUD, legend, result card, settings) around the same board the game
@@ -769,6 +816,11 @@ longer pushes the board down or raises a toast over it: the station's bar turns 
 the hail, and for the captain Engage and Evade lie over the ship's bars until it passes, so nothing
 above the board moves. Its tester session follows M4's.
 
+M5 as built: the boarding melee (ADR 0022) and the walkable island, with the deck walkable too
+(3.5, 3.11, ADR 0032). Walking is cosmetic: the server relays where each pirate walks to within their
+place and no rule reads it. Its tester session follows M6's; with it every milestone has been built,
+and the tester sessions and retros from M2 on are what remain.
+
 ### 5.3 Testing and quality
 
 - 3 to 5 named testers from the owner's Puzzle Pirates-playing friends, on a private Discord
@@ -806,7 +858,8 @@ Maintained as they arise.
 | Evading brigands | Can fail | Always succeeds in v1 | Nothing to lose yet |
 | Loss consequences | Cargo and damage costs | None in v1 | No economy yet |
 | Accounts | Username and password | Guest-first with OAuth upgrade | Zero first-session friction |
-| Island | Large walkable towns | Dock, tavern, notice board, as spots on a diorama | Scope; the M5 walkable island grows out of this view |
+| Island | Large walkable towns | One small walkable town per island: dock, shipwright's stall, notice board, plaza and tavern, the same layout on every island and each its own by landmark and ground | Scope: a town a phone can show; the rooms are cards over the world, not interiors |
+| Walking | Server-tracked positions, avatars bump into each other | A tap sets a walk target the server relays to the place; every client paths the same grid, and pirates pass through each other | Nothing reads a position in v1; one small message per tap (ADR 0032) |
 | Ship at sea | Continuous movement | A turn every `turnSeconds`; each station's board points since the last turn become its output as a percentage of par, clamped to that station's own `outputCapPercent` | Pure engine on the server; the client eases the ship between snapshots (ADR 0020); a cap per station lets lumpy puzzles' patches and constellations reach the ship whole (ADR 0030) |
 | Duty boards aboard | Continuous play at a station | Boards of the practice length dealt back to back; a board cut short by docking or standing down counts but moves no standing | Rated rounds stay whole rounds; the ship still gets every point |
 | Brigand encounters | A fight | Hailed in a window along the leg; the captain engages or evades, or the brigand loses interest after `hailTurns` | One hail per leg keeps a leg readable |
