@@ -888,10 +888,10 @@ test("a pirate founds a crew in the cantina, sews its flag, invites from a profi
   await page.getByTestId("flag-accent-gold").click();
   await page.getByTestId("flag-pattern-cross").click();
   await page.getByTestId("flag-emblem-rocket").click();
-  await expect(page.getByTestId("flag-editor").locator(".flag-preview img")).toHaveAttribute("data-flag", "deep.gold.cross.anchor");
+  await expect(page.getByTestId("flag-editor").locator(".flag-preview img")).toHaveAttribute("data-flag", "deep.gold.cross.rocket");
   // Two colors the same would hide the emblem: picking the field's color for the accent swaps them round.
   await page.getByTestId("flag-accent-deep").click();
-  await expect(page.getByTestId("flag-editor").locator(".flag-preview img")).toHaveAttribute("data-flag", "gold.deep.cross.anchor");
+  await expect(page.getByTestId("flag-editor").locator(".flag-preview img")).toHaveAttribute("data-flag", "gold.deep.cross.rocket");
   await page.getByTestId("flag-field-deep").click();
   await page.getByTestId("crew-found").click();
 
@@ -901,7 +901,7 @@ test("a pirate founds a crew in the cantina, sews its flag, invites from a profi
   await expect(page.getByTestId(`crew-member-${ME.id}`)).toHaveAttribute("data-rank", "commodore");
   await expect(page.getByTestId("toasts")).toContainText("The Salt Dogs is founded");
   await expect(page.getByTestId("pirate-credits")).toHaveText("250");
-  await expect(page.getByTestId("crew-open").locator("img")).toHaveAttribute("data-flag", "deep.gold.cross.anchor");
+  await expect(page.getByTestId("crew-open").locator("img")).toHaveAttribute("data-flag", "deep.gold.cross.rocket");
 
   // Crew chat is a tab of the card.
   await page.getByTestId("crew-tab-chat").click();
