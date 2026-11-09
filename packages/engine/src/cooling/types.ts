@@ -1,7 +1,7 @@
 /**
  * Cooling: a 6 wide by 12 tall board of pieces. Swap two horizontally adjacent pieces; runs of 3
  * or more clear; the pieces below float up and new pieces enter from the bottom. Cascades chain.
- * Heat rises as the heat fills and drops as you clear.
+ * Heat rises with the moves and drops as you clear.
  *
  * Coordinates: `col` runs 0..width-1 left to right, `row` runs 0..height-1 BOTTOM to top.
  * Pieces rise toward row height-1. Renderers flip for display.

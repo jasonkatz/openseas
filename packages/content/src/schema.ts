@@ -22,7 +22,7 @@ export const LaneLegSchema = z.object({
   id: Id,
   from: Id,
   to: Id,
-  /** Engines time for the leg in seconds. DESIGN.md 3.5 wants 3 to 5 minutes. */
+  /** Flight time for the leg in seconds. DESIGN.md 3.5 wants 3 to 5 minutes. */
   durationSeconds: z.int().min(30).max(1800),
   /** Chance per leg of a raider encounter, 0..1. */
   encounterChance: z.number().min(0).max(1),
@@ -71,7 +71,7 @@ export const ShipClassSchema = z.object({
   botStations: z.array(z.enum(["cooling", "engines", "plating", "gunnery"])),
   hull: z.int().min(1),
   turrets: z.int().min(0),
-  /** Movement token pool size per space battle turn at full flying output. */
+  /** Movement token pool size per space battle turn at full engines output. */
   baseTokens: z.int().min(1),
   /** Shipyard price in credits. The only way to acquire a ship (ADR 0010). */
   price: z.int().min(0),
@@ -251,7 +251,7 @@ export const PlatingContentSchema = DutyPuzzleBaseSchema.extend({
     growAfterMoves: z.int().min(1),
     /** A bound that keeps the move log a sane size; the clock ends a round. */
     maxMoves: z.int().min(1),
-    /** A flawless's multiplier in percent by its place in the streak; past the end, the last entry (the cap). */
+    /** A flawless patch's multiplier in percent by its place in the streak; past the end, the last entry (the cap). */
     streakPercent: z.array(z.int().min(100)).min(1),
   }),
   /** Metal kinds plates come in. Cosmetic: shape tells plates apart; metal adds variety. */

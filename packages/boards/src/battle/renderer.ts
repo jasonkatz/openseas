@@ -112,7 +112,7 @@ interface Particle {
   alpha: number;
   life: number;
   max: number;
-  /** Drawn as an ellipse flattened to the space. */
+  /** Drawn as an ellipse flattened to the board. */
   flat?: boolean;
 }
 
@@ -669,7 +669,7 @@ export class BattleRenderer {
     ]) {
       g.circle(px!, py!, Math.max(2, p * 0.22)).fill(COLORS.brass).stroke({ width: 1, color: COLORS.brassDeep });
     }
-    // The space sits in a well with a dark lip.
+    // The board sits in a recess with a dark lip.
     g.rect(x, y, W, H).stroke({ width: 3, color: 0x000000, alpha: 0.55, alignment: 1 });
   }
 

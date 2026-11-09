@@ -234,7 +234,7 @@ export function flagDataUrl(flag: CrewFlagWire, height: number): string {
   return url;
 }
 
-/** Words for a flag, for screen readers and titles: "Rocket in Gold on Deep sea, with a Cross". */
+/** Words for a flag, for screen readers and titles: "Anchor in Gold on Deep sea, with a Cross". */
 export function flagLabel(flag: CrewFlagWire): string {
   const name = (list: readonly { id: string; nameKey: string }[], id: string): string => t(list.find((x) => x.id === id)?.nameKey ?? id);
   return t(flag.pattern === "plain" ? "crew.flag_label_plain" : "crew.flag_label", {

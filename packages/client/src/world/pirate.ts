@@ -249,7 +249,7 @@ export function buildPirate(kind: PirateKind, seed: string, shadows: boolean, lo
   };
 }
 
-/** Headgear from a look are dark felt, as on the likeness, so the jacket is the look's color. */
+/** Headgear from a look is dark felt, as on the likeness, so the jacket is the look's color. */
 const FELT = 0x2a2420;
 
 /** A captain's crest: a brass band and a white feather swept back, set on any headgear at `y`. */

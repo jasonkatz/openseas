@@ -36,10 +36,10 @@ export interface ShipClassSpec {
    * (AI crew, DESIGN.md 3.4) to make up the number; they disembark when the ship docks.
    */
   readonly minCrew: number;
-  /** The stations a bot works, in order of preference, by itself or by order. Never the nav console. */
+  /** The stations a bot works, in order of preference, by itself or by order. Never the nav console: that is a pirate's call. */
   readonly botStations: readonly Station[];
   readonly turrets: number;
-  /** Movement tokens per space battle turn at full flying output (M4). */
+  /** Movement tokens per space battle turn at full engines output (M4). */
   readonly baseTokens: number;
 }
 
@@ -57,9 +57,9 @@ export interface ShipRules {
   readonly wearPerTurn: number;
   /** Hull repaired per turn at 100% plating output, permille. */
   readonly repairPerTurn: number;
-  /** Speed with nobody flying, permille of full. */
+  /** Speed with nobody at the drive, permille of full. */
   readonly idleSpeed: number;
-  /** Speed added at 100% flying output, permille. */
+  /** Speed added at 100% engines output, permille. */
   readonly driveSpeed: number;
   /** Speed added at 100% navigation output, permille. */
   readonly navSpeed: number;
@@ -76,7 +76,7 @@ export interface ShipRules {
   /**
    * Each station's output for a turn is clamped to its own percentage of par, set so ordinary
    * bursts reach the ship whole and only a rare turn is cut short (ADR 0030). Puzzles that score in
-   * lumps (a patched hole, a charted constellation) need more room than ones that score steadily.
+   * lumps (a sealed breach, a charted constellation) need more room than ones that score steadily.
    */
   readonly outputCapPercent: Readonly<Record<Station, number>>;
   /** Turns a dropped pirate's seat is held before they are put on the outpost. */

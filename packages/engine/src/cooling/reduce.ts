@@ -316,7 +316,7 @@ function immediateClears(cfg: CoolingConfig, cells: ReadonlyArray<Piece | null>,
 }
 
 /**
- * The heat fills from below: pieces float up into empty cells column by column and new pieces
+ * The board fills from below: pieces float up into empty cells column by column and new pieces
  * enter from the bottom, out of the heat.
  */
 function riseAndRefill(

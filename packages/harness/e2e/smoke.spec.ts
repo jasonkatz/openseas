@@ -348,7 +348,7 @@ test("a lab round opens from a link with its seed and config, replays clean, and
 test("a Cooling round plays a lone ship's heat: the deal brings the board to the heat's floor", async ({ page }) => {
   // Dealt eight rows deep on a dry, sound ship (ADR 0029): the round's first move is the ship's
   // heat, three rows, logged as a duty board logs its ship's word. The clock stays paused.
-  await page.goto("/cooling?seed=smoke-heat&c.initialHeatRow=8&start=lab&paused=1");
+  await page.goto("/cooling?seed=smoke-water&c.initialHeatRow=8&start=lab&paused=1");
   await expect(page.getByTestId("cooling-canvas")).toBeVisible();
   await openBench(page);
   const log = page.getByTestId("inspector-log").locator("li");

@@ -2,7 +2,7 @@ import type { Overrides } from "./overrides.js";
 
 /**
  * Everything a lab round needs, as the query string of a puzzle page, so a condition worth
- * testing is one link: `/gunnery?seed=charge-3&seconds=60&c.spawnEveryTicks=20&start=lab`.
+ * testing is one link: `/gunnery?seed=keg-3&seconds=60&c.spawnEveryTicks=20&start=lab`.
  *
  *   seed        the engine seed; absent means a fresh random seed each start
  *   seconds     round length; absent means the content round length

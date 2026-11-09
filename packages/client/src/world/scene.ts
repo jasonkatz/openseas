@@ -894,7 +894,7 @@ export class WorldScene {
     return null;
   }
 
-  /** The place the camera walks with the player in, if any: their outpost on the outpost, or their deck. */
+  /** The place the camera walks with the player in, if any: their outpost when on it, or their deck. */
   private walkFocus(): WalkerView | null {
     const input = this.input;
     if (!input) return null;

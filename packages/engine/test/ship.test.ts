@@ -611,7 +611,7 @@ describe("ship bots (DESIGN.md 3.4)", () => {
     s = reduceShip(s, { type: "station", pirateId: "p1", station: "cooling" });
     expect(crewMember(s, other.pirateId)!.station).toBeNull();
     expect(crewAtStation(s, "engines")).toBeNull();
-    // With flying open, the relieved hand goes there once rested.
+    // With engines open, the relieved hand goes there once rested.
     s = turns(s, rules.botRestTurns);
     expect(crewMember(s, other.pirateId)!.station).toBe("engines");
   });

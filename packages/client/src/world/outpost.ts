@@ -183,7 +183,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   frame.rotation.y = -dockAngle;
   group.add(frame);
 
-  // ---- the coast: a wobbling radius, held steady where the dock comes on the outpost
+  // ---- the coast: a wobbling radius, held steady where the dock comes ashore
   const COAST = 1.5;
   const knots: number[] = [];
   for (let i = 0; i < 14; i++) knots.push(0.88 + dice.range(0, 0.24));

@@ -120,14 +120,14 @@ export const sfx = {
   },
   /** A streak of three or more just ended. */
   streakLost: () => tone({ freq: 330, to: 180, duration: 0.3, type: "sine", gain: 0.04 }),
-  /** The water dropped a row: a vent stroke and a glug. */
+  /** The heat dropped a row: a pump stroke and a glug. */
   vent: (rows: number) => {
     noise(0.22, 0.07, 400, 1600, "bandpass");
     for (let i = 0; i < Math.min(3, rows); i++) tone({ freq: 180 + i * 40, to: 420 + i * 60, duration: 0.12, type: "sine", gain: 0.06, delay: 0.05 + i * 0.1 });
   },
-  /** The water rose a row. */
+  /** The heat rose a row. */
   rise: () => tone({ freq: 260, to: 150, duration: 0.25, type: "sine", gain: 0.035 }),
-  /** The water crossed into the danger half. */
+  /** The heat crossed into the danger half. */
   alarm: () => {
     tone({ freq: 620, duration: 0.14, type: "square", gain: 0.03 });
     tone({ freq: 460, duration: 0.18, type: "square", gain: 0.03, delay: 0.16 });

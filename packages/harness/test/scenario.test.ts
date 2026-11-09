@@ -40,7 +40,7 @@ describe("scenario codec", () => {
   it("round-trips through the query string", () => {
     const s = {
       ...EMPTY_SCENARIO,
-      seed: "charge-3",
+      seed: "keg-3",
       roundSeconds: 60,
       overrides: { "specialChancePerMille.charge": 100, bag: [2, 2, 2, 0], decks: [["##B##", "#...C", "#...#", "#...#", "#####"]] },
       speed: 0.5,

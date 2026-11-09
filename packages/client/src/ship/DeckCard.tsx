@@ -206,7 +206,7 @@ interface Orders {
 function CrewRow({ c, me, orders, crewmate, crewFlag }: { c: CrewView; me: string; orders: Orders | null; crewmate: boolean; crewFlag: CrewFlagWire | null }) {
   const { showProfile } = useCrew();
   return (
-    <li className={`${c.away ? "away" : ""} ${c.bot ? "is-bot" : ""} ${crewmate ? "is-crewmate" : ""}`} data-testid={c.bot ? "crew-mate" : "crew-pirate"}>
+    <li className={`${c.away ? "away" : ""} ${c.bot ? "is-bot" : ""} ${crewmate ? "is-crewmate" : ""}`} data-testid={c.bot ? "crew-bot" : "crew-pirate"}>
       <span className="crew-name">
         {c.bot ? (
           c.name

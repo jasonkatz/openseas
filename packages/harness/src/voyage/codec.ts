@@ -16,7 +16,7 @@ import { HAIL_ORDERS, SCRIPT_ACTIONS, defaultScenario, type CrewSpec, type HailO
  *   do       a script step, repeated: turn~pirate~action~station (pirate counts from 1)
  *   w.<path> a world override; the value is JSON when it parses, a string otherwise
  *   runs     batch size
- *   start    fly or batch: do that as soon as the page opens
+ *   start    launch or batch: do that as soon as the page opens
  *
  * Anything absent is the default scenario's.
  */

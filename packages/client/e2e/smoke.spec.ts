@@ -41,7 +41,7 @@ type Loc = { kind: "docked"; outpostId: string } | { kind: "in-flight"; laneId: 
 /** A pretend ship room: one pirate and the bots, boards dealt on request, every turn a little further along. */
 class FakeShip {
   station: string | null = null;
-  /** Bots aboard and where each stands; booted up at fly. */
+  /** Bots aboard and where each stands; booted up at launch. */
   hands: { pirateId: string; name: string; station: string | null }[] = [];
   location: Loc = { kind: "docked", outpostId: "tinwick" };
   turn = 0;
@@ -327,7 +327,7 @@ test("without the server, the landing says the star system is out of reach", asy
   await expect(page.getByTestId("retry")).toBeVisible();
 });
 
-test("from the chart to an outpost, aboard, to sea, to a board and back on the outpost, in one scene", async ({ page }) => {
+test("from the chart to an outpost, aboard, into flight, to a board and back on the outpost, in one scene", async ({ page }) => {
   // A software-rendered world on a CI runner draws slowly; the walk through it needs room.
   test.setTimeout(180_000);
   const server = await fakeServer(page);
@@ -386,12 +386,12 @@ test("from the chart to an outpost, aboard, to sea, to a board and back on the o
   await expect(page.getByTestId("mini-turn")).toBeVisible();
   // In flight without a station, the next thing is a station.
   await expect(page.getByTestId("next-step")).toContainText("station");
-  // Engines alone booted up bots: they stand at stations, marked apart from the pirates, and the log says so.
+  // Launching alone booted up bots: they stand at stations, marked apart from the pirates, and the log says so.
   await expect(page.locator('[data-station="cooling"]')).toHaveAttribute("data-holder", "bot");
   await expect(page.locator('[data-station="cooling"]')).toContainText("Windward Tern");
   await page.getByTestId("sheet-toggle").click();
-  await expect(page.getByTestId("crew-mate")).toHaveCount(3);
-  await expect(page.getByTestId("crew-mate").first()).toContainText("Deckhand");
+  await expect(page.getByTestId("crew-bot")).toHaveCount(3);
+  await expect(page.getByTestId("crew-bot").first()).toContainText("Deckhand");
   await expect(page.getByTestId("ship-log")).toContainText("signed on as a deckhand");
   await expect(page.getByTestId("station-cooling")).toBeEnabled();
   await page.getByTestId("sheet-toggle").click();
@@ -596,7 +596,7 @@ test("launching from a station's board goes straight back to it, and a hail turn
   await page.getByTestId("board-ship-ship-1").click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
 
-  // Docked, the station waits for the sea and hands the captain the helm.
+  // Docked, the station waits for the launch and hands the captain the helm.
   await tapSpot(page, '[data-station="cooling"]');
   await expect(page.getByTestId("duty-docked")).toBeVisible();
   await page.getByTestId("duty-launch").click();

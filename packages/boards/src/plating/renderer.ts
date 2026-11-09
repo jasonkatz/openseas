@@ -436,7 +436,7 @@ export class PlatingRenderer {
     const H = this.height * s;
     g.clear();
     g.roundRect(this.ox - 6, this.oy - 6, W + 12, H + 12, 10).fill({ color: 0x000000, alpha: 0.45 });
-    // Plating: staggered boards two cells long, with weld heads.
+    // Planking: staggered boards two cells long, with nail heads.
     for (let r = 0; r < this.height; r++) {
       const y = this.oy + r * s;
       g.rect(this.ox, y, W, s).fill(this.hullColor(r));
@@ -561,7 +561,7 @@ export class PlatingRenderer {
     g.rect(x, y, s, s * 0.18).fill({ color: 0xffffff, alpha: 0.12 * alpha });
   }
 
-  /** A whole plate: its cells with brush, and an outline around the outside only. */
+  /** A whole plate: its cells with their brushing, and an outline around the outside only. */
   private paintPlate(g: Graphics, cells: Oriented, x0: number, y0: number, m: number, kind: number, brush: Brush, alpha: number): void {
     const color = this.colorByKind.get(kind) ?? 0xc98a4b;
     for (const [dx, dy] of cells) this.paintPlateCell(g, x0 + dx * m, y0 + dy * m, m, color, brush, alpha);

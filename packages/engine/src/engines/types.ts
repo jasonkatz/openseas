@@ -32,7 +32,7 @@ export interface EnginesConfig {
   readonly flameoutPenalty: number;
   /**
    * What each step of a chain multiplies by: the landing's own clear is step 1, and steps past the
-   * end take the last entry, the cap. Steep, because a chain through the core is Engines's skill.
+   * end take the last entry, the cap. Steep, because a chain through the core is the skill in Engines.
    */
   readonly chainMultipliers: readonly number[];
 }
