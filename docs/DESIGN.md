@@ -6,11 +6,18 @@ This document records every product and architecture decision made before the fi
 code. It is the source of truth for scope. When code and this document disagree, fix one of them
 in the same PR. Rationale for the major technical choices lives in [`adr/`](./adr/).
 
+**The setting is moving from the sea to space** in milestone M7 (5.2, ADR 0034). Sections 1, 2 and
+5 already describe the space game, and section 6 has a row for the change of setting. Until M7
+lands, sections 3 and 4 and the rest of section 6 describe the nautical build as it stands, and
+each M7 PR rewrites the parts it makes true. [`GLOSSARY.md`](./GLOSSARY.md)
+maps every former word to its replacement.
+
 ## 1. Vision
 
-A browser-native, touch-first pirate puzzle MMO in the spirit of Puzzle Pirates: crews of pirates
-sail a ship together, each running a duty puzzle whose output drives the shared ship through a
-turn-based sea battle against brigands, then board and fight for booty.
+A browser-native, touch-first space pirate puzzle MMO in the spirit of Puzzle Pirates. Crews of
+pirates fly a ship together through one star system. Each pirate runs a duty puzzle whose output
+drives the shared ship through a turn-based space battle against raiders; then the crew boards and
+fights for plunder. The tone is a whimsical, scrappy frontier: duct-taped ships and cozy outposts.
 
 **What it is**
 
@@ -31,9 +38,11 @@ turn-based sea battle against brigands, then board and fight for booty.
 Puzzle Pirates is a live trademarked product. The distance we keep:
 
 - Original game name, original art, original text, original audio.
-- Puzzle names that are generic nautical terms are kept: Bilging, Sailing, Carpentry, Gunnery,
-  Navigation, Swordfighting, Sea Battle. Anything the original coined gets an original name.
+- Puzzle names are generic terms: Cooling, Engines, Plating, Gunnery, Navigation, Space Battle and
+  Swordfighting (ADR 0034; until M7 the code still calls the first three and Space Battle by their
+  nautical names, see `GLOSSARY.md`). Anything the original coined gets an original name.
 - Special pieces and other coined terms are renamed.
+- The space words also avoid terms coined by other well-known games and shows.
 - Differences from the original are documented deliberately as they arise, in this document.
 
 ## 3. Scope
@@ -818,6 +827,7 @@ still proven there first, with its tester session, and only then embedded in the
 | M4 | Sea Battle versus AI brigands, boarding stubbed |
 | M5 | Swordfighting boarding and the walkable island |
 | M6 | OAuth upgrade (a guest links Discord or Google in place and keeps everything; returning players sign in), crews (found with a name and flag, invite, ranks, crew chat, crew-only ships, crews' colors on ships, tallies and the board of crews, pirates' cards), polish pass |
+| M7 | The space reskin (ADR 0034): every word, the three.js world and the codebase move from the sea to space, with the mechanics unchanged and the database wiped. The puzzle boards' art waits for the owner's sprite pass |
 
 Every milestone ends with a tester session and a written retro before the next starts.
 
@@ -848,7 +858,40 @@ above the board moves. Its tester session follows M4's.
 M5 as built: the boarding melee (ADR 0022) and the walkable island, with the deck walkable too
 (3.5, 3.11, ADR 0032). Walking is cosmetic: the server relays where each pirate walks to within their
 place and no rule reads it. Its tester session follows M6's; with it every milestone has been built,
-and the tester sessions and retros from M2 on are what remain.
+and the tester sessions and retros from M2 on are what remain. They run after M7, on the space
+build.
+
+M7 plan. The reskin lands as six PRs, in this order. Each PR is green, each rewrites the parts of
+this document it makes true, and `GLOSSARY.md` is the spec for every word and identifier.
+
+1. **The plan.** ADR 0034, `GLOSSARY.md` with every word drafted, this plan, sections 1, 2 and 6,
+   and CLAUDE.md.
+2. **Rename and wipe.** Every identifier moves to the glossary's: code, folder and file names,
+   content ids and content file names, message keys, protocol messages, routes, DB tables and
+   columns. One ordinary migration empties every table, sign-ins included, so everyone returns as
+   a new guest. No data is mapped, and old URLs do not redirect. The PR is behavior-neutral: no
+   rule, number or message value changes, every engine, property and smoke test passes with only
+   names changed, and the game still reads nautical. The identifiers in DESIGN.md and CLAUDE.md
+   (file paths, config keys, rule 4's content files) follow the code.
+3. **Words.** Every message value, content display name, the name lists, titles, flags and raider
+   tiers take the glossary's words, in the game and the harness alike. Sections 3, 4 and 6 of this
+   document are rewritten in the new words; section 6's "Original" column keeps the original
+   game's words. The game now reads as space. The puzzle boards keep
+   their nautical sprites, procedural fallbacks, backgrounds, water body, effects and sounds until
+   the owner's sprite pass.
+4. **The void and the outposts.** A starfield and a nebula for the sea, drifting dust for the
+   clouds and drones for the gulls. Each outpost becomes an open-air rock: a crater rim dropping
+   into the void, its props and its landmark (beacon tower, radar dish, ice geyser). The
+   heightfield, the walking grid and the layout stay as built (3.5, 3.11, ADR 0032).
+5. **The skiff and her deck.** The hull with a clear canopy that is drawn only when zoomed out, a
+   tail fin carrying the crew emblem, the flag on an antenna mast, a boarding tube and an engine
+   glow. The deck's layout stays as built, with each piece of gear replaced by its station (3.11).
+6. **Pirates and bots.** Jackets, headgear and the captain's crest (3.6, ADR 0033). Bots take the
+   deckhands' place, never mistaken for a player (3.4, ADR 0023).
+
+The world PRs carry before-and-after screenshots for review. The shell smoke and the harness smoke
+stay green throughout. If a mechanic reads wrong in space, it is noted for its own PR after M7, not
+changed inside one of these.
 
 ### 5.3 Testing and quality
 
@@ -877,6 +920,7 @@ Maintained as they arise.
 
 | Area | Original | openseas | Why |
 |---|---|---|---|
+| Setting | Pirates on the sea | Space pirates in one star system: asteroid outposts joined by lanes, a skiff, raiders, plunder paid in credits. Every mechanic is unchanged | The owner's choice of look and feel; it also puts the game further from the original (ADR 0034) |
 | Ship ownership | Individuals and crews | Individuals only in v1 | Simpler model; owner likes personal ships |
 | Crew ranks | A long ladder of ranks with fine-grained permissions | Three: commodore, officer, sailor | A crew of friends needs a leader, recruiters and everyone else; more can be added to the enum |
 | Flags | A flag is an alliance of crews | A flag is a crew's own banner; no alliances | Alliances need more crews than the design point has; the word reads naturally on a ship |
