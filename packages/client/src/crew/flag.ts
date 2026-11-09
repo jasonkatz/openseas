@@ -26,6 +26,13 @@ function circle(x: number, y: number, r: number): Path2D {
   return p;
 }
 
+/** Part of an ellipse about (cx, cy), turned by `turn`, from angle `from` round to `to`. */
+function arc(cx: number, cy: number, rx: number, ry: number, turn: number, from: number, to: number): Path2D {
+  const p = new Path2D();
+  p.ellipse(cx, cy, rx, ry, turn, from, to);
+  return p;
+}
+
 /** A star polygon of `points` tips about (cx, cy), the first tip at `turn` radians from east. */
 function star(cx: number, cy: number, points: number, outer: number, inner: number, turn: number): Path2D {
   const p = new Path2D();
@@ -56,23 +63,30 @@ const EMBLEMS: Record<string, () => Shape[]> = {
     cut("M41 71 h4 v9 h-4 Z M48 71 h4 v9 h-4 Z M55 71 h4 v9 h-4 Z"),
   ],
   rocket: () => [
-    line(circle(50, 15, 7), 6),
-    line("M50 22 L50 86 M33 33 L67 33", 7),
-    line("M18 60 C22 80 36 88 50 88 C64 88 78 80 82 60", 7),
-    fill("M10 66 L18 52 L27 64 Z"),
-    fill("M90 66 L82 52 L73 64 Z"),
+    // Fins, the body with a porthole, and its flame.
+    fill("M36 48 L16 74 L36 68 Z"),
+    fill("M64 48 L84 74 L64 68 Z"),
+    fill("M50 6 C64 20 66 40 66 64 L34 64 C34 40 36 20 50 6 Z"),
+    cut(circle(50, 36, 7.5)),
+    fill("M42 72 L58 72 L50 95 Z"),
   ],
   planet: () => [
-    line(circle(50, 50, 30), 4),
-    fill(star(50, 50, 4, 28, 7, Math.PI / 4)),
-    fill(star(50, 50, 4, 46, 8, -Math.PI / 2)),
-    cut(circle(50, 50, 4)),
+    // The ring's far side, the planet over it, then the near side of the ring over the planet.
+    line(arc(50, 50, 45, 13, -0.4, Math.PI, Math.PI * 2), 6),
+    fill(circle(50, 50, 25)),
+    line(arc(50, 50, 45, 13, -0.4, 0, Math.PI), 6),
   ],
   satellite: () => [
-    line("M37 56 C28 70 10 64 13 80 M45 58 C41 74 32 84 39 93 M55 58 C59 74 68 84 61 93 M63 56 C72 70 90 64 87 80", 7),
-    fill("M50 10 C33 10 25 23 25 37 C25 48 31 55 36 59 L64 59 C69 55 75 48 75 37 C75 23 67 10 50 10 Z"),
-    cut(circle(41, 37, 5.5)),
-    cut(circle(59, 37, 5.5)),
+    // A body between two panels, an aerial with a ball on it.
+    line("M34 52 L66 52", 5),
+    fill("M6 38 H30 V66 H6 Z"),
+    fill("M70 38 H94 V66 H70 Z"),
+    cut("M17 38 h2.5 v28 h-2.5 Z M81 38 h2.5 v28 h-2.5 Z"),
+    cut("M6 50.5 h24 v2.5 h-24 Z M70 50.5 h24 v2.5 h-24 Z"),
+    fill("M38 36 H62 V68 H38 Z"),
+    line("M50 36 L50 20", 5),
+    fill(circle(50, 14, 7)),
+    cut(circle(50, 52, 6)),
   ],
   star: () => [fill(star(50, 53, 5, 44, 18, -Math.PI / 2))],
   swords: () => [
@@ -81,17 +95,29 @@ const EMBLEMS: Record<string, () => Shape[]> = {
     fill(circle(14, 88, 5.5)),
     fill(circle(86, 88, 5.5)),
   ],
-  moon: () => [fill("M6 44 C22 30 37 32 50 52 C63 32 78 30 94 44 C79 40 64 46 50 66 C36 46 21 40 6 44 Z")],
+  moon: () => [fill(circle(46, 50, 38)), cut(circle(62, 42, 31))],
   gear: () => {
-    const spokes = new Path2D();
-    const knobs: Shape[] = [];
-    for (let i = 0; i < 8; i++) {
-      const a = (i * Math.PI) / 4;
-      spokes.moveTo(50 + Math.cos(a) * 8, 50 + Math.sin(a) * 8);
-      spokes.lineTo(50 + Math.cos(a) * 40, 50 + Math.sin(a) * 40);
-      knobs.push(fill(circle(50 + Math.cos(a) * 42, 50 + Math.sin(a) * 42, 5.5)));
+    // Eight square teeth round a wheel, with a hole through its middle.
+    const p = new Path2D();
+    const teeth = 8;
+    for (let i = 0; i < teeth; i++) {
+      const a = (i / teeth) * Math.PI * 2;
+      const step = Math.PI / teeth;
+      const corners: [number, number][] = [
+        [a - step * 0.82, 31],
+        [a - step * 0.5, 45],
+        [a + step * 0.5, 45],
+        [a + step * 0.82, 31],
+      ];
+      for (const [k, [at, r]] of corners.entries()) {
+        const x = 50 + Math.cos(at) * r;
+        const y = 50 + Math.sin(at) * r;
+        if (i === 0 && k === 0) p.moveTo(x, y);
+        else p.lineTo(x, y);
+      }
     }
-    return [line(spokes, 5), ...knobs, line(circle(50, 50, 26), 7), fill(circle(50, 50, 9))];
+    p.closePath();
+    return [fill(p), cut(circle(50, 50, 13))];
   },
   crown: () => [
     fill("M16 70 L11 30 L32 47 L50 20 L68 47 L89 30 L84 70 Z"),
@@ -234,7 +260,7 @@ export function flagDataUrl(flag: CrewFlagWire, height: number): string {
   return url;
 }
 
-/** Words for a flag, for screen readers and titles: "Anchor in Gold on Deep sea, with a Cross". */
+/** Words for a flag, for screen readers and titles: "Rocket in Gold on Deep space, with a Cross". */
 export function flagLabel(flag: CrewFlagWire): string {
   const name = (list: readonly { id: string; nameKey: string }[], id: string): string => t(list.find((x) => x.id === id)?.nameKey ?? id);
   return t(flag.pattern === "plain" ? "crew.flag_label_plain" : "crew.flag_label", {
