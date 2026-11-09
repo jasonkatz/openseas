@@ -1,19 +1,22 @@
 /**
  * The world: an isometric three.js diorama of the star system that the whole game lives in (ADR 0020).
- * Outposts sit on a slow sea, lanes march between them, ships bob at the docks or fly along a
- * lane, clouds drift and throw shadows, gulls circle. The camera glides between the chart, an
- * outpost and the deck of a ship; buildings and stations are tappable spots hung on the geometry.
- * Everything shown comes from content and server snapshots; nothing here decides anything.
+ * Outposts are rocks hanging in the void (ADR 0034), lanes march between them, ships hover at the
+ * docks or fly along a lane, dust drifts over the chart, drones circle. The camera glides between
+ * the chart, an outpost and the deck of a ship; buildings and stations are tappable spots hung on
+ * the geometry. Everything shown comes from content and server snapshots; nothing here decides
+ * anything.
  *
- * Chart units: an outpost's content x maps to world x, its y to world z.
+ * Chart units: an outpost's content x maps to world x, its y to world z. The lanes and the ships on
+ * them lie in the plane y = 0, the lane plane, which the rocks' rims stand a little above.
  */
 import * as THREE from "three";
 import type { OutpostLandmark } from "@openseas/content";
 import type { CrewFlagWire } from "@openseas/protocol";
 import { CameraRig, isoDirection, type View } from "./camera.js";
 import { DOCK, buildOutpost, type Building, type Door, type OutpostModel } from "./outpost.js";
-import { PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildCloud, buildBoardingTube, buildGull, buildShip, dressShip, type DeckPost, type GullModel, type ShipModel, type Station } from "./models.js";
+import { PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildDust, buildBoardingTube, buildDrone, buildShip, dressShip, type BuoyModel, type DeckPost, type DroneModel, type ShipModel, type Station } from "./models.js";
 import { PIRATE_HEIGHT, buildPirate, workFor, type FigureLook, type PirateFigure, type PirateKind } from "./pirate.js";
+import { buildVoid, type VoidBackdrop } from "./void.js";
 import { Walker, type Spot as WalkSpot, type WalkGrid } from "./walk.js";
 
 export interface WorldOutpost {
@@ -35,7 +38,7 @@ export interface WorldShip {
   name: string;
   kind: "yours" | "aboard" | "other";
   location: WorldShipLocation;
-  /** The owner's crew flag (M6): flown at the masthead and painted on the mainsail. Null flies none. */
+  /** The owner's crew flag (M6): flown from the antenna mast and painted on the tail fin. Null flies none. */
   colors: CrewFlagWire | null;
   /** Someone else's ship flying the viewer's own crew's colors: named on the chart like the viewer's own. */
   crewmate?: boolean;
@@ -60,7 +63,7 @@ export interface DeckCrew {
   captain: boolean;
   /** A bot: drawn apart from the pirates so nobody mistakes it for a player. */
   bot: boolean;
-  /** What a pirate wears (DESIGN.md 3.6); null for a bot, who always wears the smock. */
+  /** What a pirate wears (DESIGN.md 3.6); null for a bot, which is a robot and wears nothing. */
   look: FigureLook | null;
 }
 export interface Deck {
@@ -155,12 +158,11 @@ export interface WorldEvents {
   onOutside(): void;
 }
 
-const SEA_SIZE = 110;
 const LANE_BULGE = 0.16;
 const DASH_STEP = 0.55;
-/** The outpost's footprint on the water, beach and all; the view is fitted to it. */
+/** The outpost's footprint on the lane plane, rim and all; the view is fitted to it. */
 const OUTPOST_R = 1.9;
-/** The deck view: the hull itself fills the frame, its own little place; the mast and the sea around it fall outside. */
+/** The deck view: the hull itself fills the frame, its own little place; the antenna and the void around it fall outside. */
 const DECK_MIN_HALF_H = 0.55;
 /** On the outpost, the camera walks with the pirate this close: a pirate stands a thumb tall on a phone. */
 const WALK_HALF_H = 1.0;
@@ -175,8 +177,8 @@ const OUTPOST_WALK_MAX_S = 2.2;
 /** A walk on deck, in the ship's own units. */
 const DECK_PACE = 0.42;
 const DECK_WALK_MAX_S = 1.3;
-/** Lanes run coast to coast, so a ship's progress along a leg is its progress across the water. */
-const COAST_R = 2.1;
+/** Lanes run rim to rim, so a ship's progress along a leg is its progress across the gap. */
+const RIM_R = 2.1;
 const AZIMUTHS = [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4];
 const SPOT_H = 36;
 /** A deck label's width in full (name and who), for deciding whether columns fit beside the hull. */
@@ -203,7 +205,7 @@ interface Lane {
   curve: THREE.QuadraticBezierCurve3;
   length: number;
   dashes: THREE.Mesh[];
-  buoy: THREE.Group;
+  buoy: BuoyModel;
 }
 interface ShipView {
   ship: WorldShip;
@@ -251,12 +253,12 @@ interface WalkerView {
   /** The doorway they are stepping through, in or out. */
   doorway: { building: Building; out: boolean } | null;
 }
-interface Cloud {
+interface Dust {
   group: THREE.Group;
   speed: number;
 }
-interface Gull {
-  model: GullModel;
+interface Drone {
+  model: DroneModel;
   center: THREE.Vector3;
   radius: number;
   phase: number;
@@ -268,14 +270,9 @@ export class WorldScene {
   private readonly scene = new THREE.Scene();
   private readonly rig = new CameraRig();
   private readonly sun: THREE.DirectionalLight;
-  private readonly sea: THREE.Mesh;
-  private readonly seaUniforms = {
-    uTime: { value: 0 },
-    uOutposts: { value: [] as THREE.Vector3[] },
-    uOutpostCount: { value: 0 },
-    uShallow: { value: new THREE.Color(PALETTE.seaShallow) },
-    uFoam: { value: new THREE.Color(PALETTE.foam) },
-  };
+  /** A cool light from the far side, so a rock's shaded faces read against the void. */
+  private readonly rim: THREE.DirectionalLight;
+  private readonly backdrop: VoidBackdrop;
   private readonly labels: HTMLDivElement;
   private readonly outposts = new Map<string, OutpostView>();
   private readonly lanes = new Map<string, Lane>();
@@ -301,8 +298,8 @@ export class WorldScene {
   /** Walking keys held down (arrows or WASD), as screen directions. */
   private readonly keys = new Set<string>();
   private readonly leaders: SVGSVGElement;
-  private readonly clouds: Cloud[] = [];
-  private readonly gulls: Gull[] = [];
+  private readonly dust: Dust[] = [];
+  private readonly drones: Drone[] = [];
   private readonly raycaster = new THREE.Raycaster();
   private readonly center = new THREE.Vector3();
   /** Where the sun stands from whatever it lights. */
@@ -334,7 +331,7 @@ export class WorldScene {
     this.reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
     // A software renderer (a headless browser, a machine without a GPU) gets a lighter world: no
-    // shadows, one pixel per pixel, a coarser sea. It still reads as the same place.
+    // shadows, one pixel per pixel, fewer small things on the ground. It still reads as the same place.
     this.lowQuality = isSoftwareRenderer(this.renderer);
     this.renderer.setPixelRatio(this.lowQuality ? 1 : Math.min(2, window.devicePixelRatio || 1));
     this.renderer.shadowMap.enabled = !this.lowQuality;
@@ -353,8 +350,10 @@ export class WorldScene {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
 
-    this.scene.fog = new THREE.Fog(0xa9dcea, 46, 100);
-    this.scene.add(new THREE.HemisphereLight(0xdff4ff, 0x35604a, 1.35));
+    // No air, so no haze: starlight from above, the void's violet from below, one hard sun.
+    this.scene.add(new THREE.HemisphereLight(0xe2e8ff, 0x625a80, 1.4));
+    this.rim = new THREE.DirectionalLight(0xa9c6ff, 0.8);
+    this.scene.add(this.rim, this.rim.target);
     this.sun = new THREE.DirectionalLight(0xfff0d0, 2.4);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
@@ -363,8 +362,8 @@ export class WorldScene {
     this.sun.shadow.intensity = 0.55;
     this.scene.add(this.sun, this.sun.target);
 
-    this.sea = this.buildSea();
-    this.scene.add(this.sea);
+    this.backdrop = buildVoid();
+    this.scene.add(this.backdrop.mesh);
     this.goalRing = new THREE.Mesh(
       new THREE.RingGeometry(0.03, 0.042, 24),
       new THREE.MeshBasicMaterial({ color: PALETTE.parchment, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }),
@@ -374,9 +373,9 @@ export class WorldScene {
     this.goalRing.visible = false;
 
     for (let i = 0; i < 6; i++) {
-      const group = buildCloud(String(i));
+      const group = buildDust(String(i));
       this.scene.add(group);
-      this.clouds.push({ group, speed: 0.12 + i * 0.03 });
+      this.dust.push({ group, speed: 0.07 + i * 0.02 });
     }
 
     const el = this.renderer.domElement;
@@ -385,7 +384,7 @@ export class WorldScene {
     el.addEventListener("pointermove", this.onPointerMove);
     el.addEventListener("pointerleave", this.onPointerLeave);
     el.addEventListener("pointercancel", this.onPointerCancel);
-    el.addEventListener("wheel", this.onHelmSpot, { passive: false });
+    el.addEventListener("wheel", this.onWheel, { passive: false });
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
     window.addEventListener("blur", this.onBlur);
@@ -441,17 +440,19 @@ export class WorldScene {
       sv.label.classList.toggle("ow-label-board", boardable);
       sv.label.dataset.board = boardable ? input.boardLabel : "";
     }
-    // Clouds drift over the chart; up close they would hide the thing being looked at.
-    for (const c of this.clouds) c.group.visible = input.focus.kind === "all";
-    // On deck the sails go to glass, so no angle of the canvas ever hides a station.
+    // Dust drifts over the chart; up close it would hide the thing being looked at.
+    for (const d of this.dust) d.group.visible = input.focus.kind === "all";
+    // On deck the tail fin goes to glass, so no angle of it ever hides a station, and the canopy
+    // is not drawn at all: it is only there from outside (ADR 0034).
     for (const [id, sv] of this.ships) {
-      const glass = id === focusShip;
-      for (const m of sv.model.canvas) {
+      const onDeck = id === focusShip;
+      for (const m of sv.model.glass) {
         const material = m.material as THREE.Material & { opacity: number };
-        material.opacity = glass ? 0.22 : 1;
-        material.depthWrite = !glass;
-        m.castShadow = !glass;
+        material.opacity = onDeck ? 0.22 : 1;
+        material.depthWrite = !onDeck;
+        m.castShadow = !onDeck;
       }
+      sv.model.canopy.visible = !onDeck;
     }
     this.host.classList.toggle("is-dimmed", input.dimmed);
     this.host.classList.toggle("is-walking", this.walkFocus() !== null);
@@ -485,7 +486,7 @@ export class WorldScene {
     el.removeEventListener("pointermove", this.onPointerMove);
     el.removeEventListener("pointerleave", this.onPointerLeave);
     el.removeEventListener("pointercancel", this.onPointerCancel);
-    el.removeEventListener("wheel", this.onHelmSpot);
+    el.removeEventListener("wheel", this.onWheel);
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("blur", this.onBlur);
@@ -497,6 +498,7 @@ export class WorldScene {
         for (const mm of Array.isArray(m) ? m : [m]) mm.dispose();
       }
     });
+    this.backdrop.dispose();
     this.renderer.dispose();
     el.remove();
     this.labels.remove();
@@ -516,18 +518,17 @@ export class WorldScene {
     this.boardingTubes.clear();
     for (const lane of this.lanes.values()) {
       for (const d of lane.dashes) this.scene.remove(d);
-      this.scene.remove(lane.buoy);
+      this.scene.remove(lane.buoy.group);
     }
     this.lanes.clear();
-    for (const g of this.gulls) this.scene.remove(g.model.group);
-    this.gulls.length = 0;
+    for (const d of this.drones) this.scene.remove(d.model.group);
+    this.drones.length = 0;
 
     const centroid = new THREE.Vector2();
     for (const i of input.outposts) centroid.add(new THREE.Vector2(i.x, i.y));
     centroid.divideScalar(Math.max(1, input.outposts.length));
     this.center.set(centroid.x, 0, centroid.y);
 
-    const seaOutposts: THREE.Vector3[] = [];
     for (const outpost of input.outposts) {
       const toward = new THREE.Vector2(centroid.x - outpost.x, centroid.y - outpost.y);
       if (toward.lengthSq() < 1e-6) toward.set(1, 0);
@@ -545,12 +546,7 @@ export class WorldScene {
         spots.set(b.kind, spot);
       }
       this.outposts.set(outpost.id, { outpost, model, label, spots });
-      seaOutposts.push(new THREE.Vector3(outpost.x, outpost.y, 1.42));
     }
-    while (seaOutposts.length < 8) seaOutposts.push(new THREE.Vector3(0, 0, -100));
-    this.seaUniforms.uOutposts.value = seaOutposts;
-    this.seaUniforms.uOutpostCount.value = Math.min(8, input.outposts.length);
-    this.sea.position.set(this.center.x, 0, this.center.z);
 
     for (const lane of input.lanes) {
       const [a, b] = lane.from < lane.to ? [lane.from, lane.to] : [lane.to, lane.from];
@@ -562,8 +558,8 @@ export class WorldScene {
       const ca = new THREE.Vector3(ia.outpost.x, 0.12, ia.outpost.y);
       const cb = new THREE.Vector3(ib.outpost.x, 0.12, ib.outpost.y);
       const across = cb.clone().sub(ca).normalize();
-      const pa = ca.clone().addScaledVector(across, COAST_R);
-      const pb = cb.clone().addScaledVector(across, -COAST_R);
+      const pa = ca.clone().addScaledVector(across, RIM_R);
+      const pb = cb.clone().addScaledVector(across, -RIM_R);
       const mid = pa.clone().lerp(pb, 0.5);
       const dir = pb.clone().sub(pa);
       const len = dir.length();
@@ -571,7 +567,7 @@ export class WorldScene {
       const curve = new THREE.QuadraticBezierCurve3(pa, mid.add(perp), pb);
       const length = curve.getLength();
       const dashes: THREE.Mesh[] = [];
-      const dashMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false });
+      const dashMat = new THREE.MeshBasicMaterial({ color: 0xa8ecff, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
       for (let i = 0; i < Math.floor(length / DASH_STEP); i++) {
         const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.09), dashMat);
         dash.rotation.x = -Math.PI / 2;
@@ -580,22 +576,23 @@ export class WorldScene {
       }
       const buoy = buildBuoy();
       const at = curve.getPointAt(0.5);
-      buoy.position.set(at.x, 0, at.z);
-      this.scene.add(buoy);
+      buoy.group.position.set(at.x, 0, at.z);
+      this.scene.add(buoy.group);
       this.lanes.set(key, { key, a, b, curve, length, dashes, buoy });
     }
     this.placeDashes(0);
 
     for (let i = 0; i < Math.min(3, input.outposts.length); i++) {
       const outpost = input.outposts[(i * 2) % input.outposts.length]!;
-      const model = buildGull();
+      const model = buildDrone();
       this.scene.add(model.group);
-      this.gulls.push({ model, center: new THREE.Vector3(outpost.x, 1.7 + i * 0.3, outpost.y), radius: 1.6 + i * 0.5, phase: i * 2.1, speed: 0.5 + i * 0.1 });
+      this.drones.push({ model, center: new THREE.Vector3(outpost.x, 1.7 + i * 0.3, outpost.y), radius: 1.6 + i * 0.5, phase: i * 2.1, speed: 0.5 + i * 0.1 });
     }
 
     this.spread = Math.max(6, ...input.outposts.map((i) => Math.hypot(i.x - centroid.x, i.y - centroid.y))) + 3;
-    for (const [i, c] of this.clouds.entries()) {
-      c.group.position.set(this.center.x + ((i * 7.3) % (this.spread * 2)) - this.spread, 3.6 + (i % 3) * 0.5, this.center.z + ((i * 4.1) % (this.spread * 1.6)) - this.spread * 0.8);
+    for (const [i, d] of this.dust.entries()) {
+      d.group.position.set(this.center.x + ((i * 7.3) % (this.spread * 2)) - this.spread, 3.6 + (i % 3) * 0.5, this.center.z + ((i * 4.1) % (this.spread * 1.6)) - this.spread * 0.8);
+      d.group.rotation.y = i * 1.3;
     }
 
     this.sun.position.copy(this.center).add(new THREE.Vector3(-8, 14, 6));
@@ -640,11 +637,11 @@ export class WorldScene {
         sv.laneKey = key;
         sv.reversed = reversed;
         sv.targetProgress = target;
-        sv.model.wake.visible = true;
+        sv.model.engineGlow.visible = true;
       } else {
         sv.laneKey = null;
         sv.shownProgress = -1;
-        sv.model.wake.visible = false;
+        sv.model.engineGlow.visible = false;
       }
     }
     for (const [id, sv] of this.ships) if (!seen.has(id)) this.removeShip(sv);
@@ -1207,7 +1204,7 @@ export class WorldScene {
       const x = (this.tmp.x * 0.5 + 0.5) * w;
       const y = (-this.tmp.y * 0.5 + 0.5) * h;
       // Where the thing is on the ship's steady frame, without the bob: what decides on screen or off,
-      // and where an edge label waits, so neither hops with the swell.
+      // and where an edge label waits, so neither hops as she drifts.
       this.tmp.copy(still ?? world).project(cam);
       const sx = (this.tmp.x * 0.5 + 0.5) * w;
       const sy = (-this.tmp.y * 0.5 + 0.5) * h;
@@ -1290,81 +1287,6 @@ export class WorldScene {
     }
   }
 
-  // ---- the sea
-
-  private buildSea(): THREE.Mesh {
-    const segments = this.lowQuality ? 48 : 120;
-    const geo = new THREE.PlaneGeometry(SEA_SIZE, SEA_SIZE, segments, segments);
-    const material = new THREE.MeshLambertMaterial({ color: PALETTE.seaDeep });
-    const u = this.seaUniforms;
-    material.onBeforeCompile = (shader) => {
-      shader.uniforms.uTime = u.uTime;
-      shader.uniforms.uOutposts = u.uOutposts;
-      shader.uniforms.uOutpostCount = u.uOutpostCount;
-      shader.uniforms.uShallow = u.uShallow;
-      shader.uniforms.uFoam = u.uFoam;
-      shader.vertexShader = shader.vertexShader
-        .replace(
-          "#include <common>",
-          `#include <common>
-uniform float uTime;
-varying vec3 vSeaWorld;
-varying float vWave;`,
-        )
-        .replace(
-          "#include <begin_vertex>",
-          `#include <begin_vertex>
-{
-  vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz;
-  float w = sin(wp.x * 0.9 + uTime * 1.1) * 0.07
-          + sin(wp.z * 1.25 - uTime * 0.85) * 0.055
-          + sin((wp.x + wp.z) * 0.45 + uTime * 0.55) * 0.05;
-  transformed.z += w;
-  vWave = w;
-  vSeaWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
-}`,
-        );
-      shader.fragmentShader = shader.fragmentShader
-        .replace(
-          "#include <common>",
-          `#include <common>
-uniform float uTime;
-uniform vec3 uOutposts[8];
-uniform int uOutpostCount;
-uniform vec3 uShallow;
-uniform vec3 uFoam;
-varying vec3 vSeaWorld;
-varying float vWave;`,
-        )
-        .replace(
-          "#include <color_fragment>",
-          `#include <color_fragment>
-{
-  float shallow = 0.0;
-  float foam = 0.0;
-  for (int i = 0; i < 8; i++) {
-    if (i >= uOutpostCount) break;
-    vec3 isl = uOutposts[i];
-    float d = distance(vSeaWorld.xz, isl.xy) - isl.z;
-    shallow = max(shallow, 1.0 - smoothstep(0.0, 2.8, d));
-    float lap = 0.1 * sin(uTime * 1.6 - d * 3.5);
-    foam = max(foam, smoothstep(0.13, 0.0, abs(d - 0.24 + lap)) * 0.75);
-    foam = max(foam, smoothstep(0.12, 0.0, d) * 0.55);
-  }
-  diffuseColor.rgb = mix(diffuseColor.rgb, uShallow, shallow * 0.85);
-  diffuseColor.rgb += vec3(0.10, 0.12, 0.12) * smoothstep(0.06, 0.16, vWave);
-  float glint = smoothstep(0.985, 1.0, sin(vSeaWorld.x * 3.1 + uTime * 0.9) * sin(vSeaWorld.z * 2.7 - uTime * 0.7));
-  diffuseColor.rgb += vec3(0.35) * glint * (1.0 - shallow);
-  diffuseColor.rgb = mix(diffuseColor.rgb, uFoam, foam);
-}`,
-        );
-    };
-    const mesh = new THREE.Mesh(geo, material);
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.receiveShadow = true;
-    return mesh;
-  }
-
   // ---- camera
 
   /** The view the focus asks for, with the shell's panels kept clear of it. */
@@ -1396,7 +1318,7 @@ varying float vWave;`,
       const sv = this.ships.get(input.focus.id);
       if (!sv) return { center: this.center.clone(), halfH: DECK_MIN_HALF_H, anchorY, anchorX };
       // The deck is looked at broadside from its open side, so neither the dock nor a neighbour stands in the way.
-      // A little above the deck, so the rig and the deck share the frame.
+      // A little above the deck, so the gear and the deck share the frame.
       const center = sv.model.group.position.clone().setY(0.42);
       const az = this.deckAzimuth(sv);
       this.rig.setAzimuth(az);
@@ -1453,7 +1375,8 @@ varying float vWave;`,
         [-pad, pad],
         [pad, pad],
       ]) {
-        for (const y of [-0.2, 2.4]) {
+        // From the keel of the rock to the top of its landmark.
+        for (const y of [-1.5, 2.4]) {
           this.tmp.set(i.x + dx!, y, i.y + dz!).applyMatrix4(inv);
           minX = Math.min(minX, this.tmp.x);
           maxX = Math.max(maxX, this.tmp.x);
@@ -1503,7 +1426,7 @@ varying float vWave;`,
     this.rig.setView(this.viewFor(this.input), immediate || this.reducedMotion);
   }
 
-  /** The azimuth that looks at a ship's side from the water: away from the outpost it is docked at, else its starboard side. */
+  /** The azimuth that looks at a ship's side from the open: away from the outpost it is docked at, else its starboard side. */
   private deckAzimuth(sv: ShipView): number {
     const g = sv.model.group;
     const forward = new THREE.Vector3(1, 0, 0).applyQuaternion(g.quaternion);
@@ -1547,7 +1470,6 @@ varying float vWave;`,
     if (!input) return;
     this.time += dt;
     const t = this.time;
-    this.seaUniforms.uTime.value = t;
     this.placeDashes(t);
     this.placeShips(dt);
     this.keyWalk();
@@ -1559,17 +1481,20 @@ varying float vWave;`,
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
     this.rig.update(dt, w / h);
-    for (const c of this.clouds) {
-      c.group.position.x += c.speed * dt;
-      if (c.group.position.x > this.center.x + this.spread) c.group.position.x = this.center.x - this.spread;
+    this.backdrop.update(t, this.rig.camera, this.rig.azimuth, w, h);
+    for (const d of this.dust) {
+      d.group.position.x += d.speed * dt;
+      d.group.rotation.x += dt * 0.03;
+      if (d.group.position.x > this.center.x + this.spread) d.group.position.x = this.center.x - this.spread;
     }
-    for (const g of this.gulls) {
-      const a = g.phase + t * g.speed;
-      g.model.group.position.set(g.center.x + Math.cos(a) * g.radius, g.center.y + Math.sin(t * 1.3 + g.phase) * 0.15, g.center.z + Math.sin(a) * g.radius);
-      g.model.group.rotation.y = -a;
-      const flap = Math.sin(t * 9 + g.phase) * 0.6;
-      g.model.left.rotation.z = flap;
-      g.model.right.rotation.z = -flap;
+    for (const d of this.drones) {
+      const a = d.phase + t * d.speed;
+      d.model.group.position.set(d.center.x + Math.cos(a) * d.radius, d.center.y + Math.sin(t * 1.3 + d.phase) * 0.15, d.center.z + Math.sin(a) * d.radius);
+      // Nose along the circle, banked into the turn.
+      d.model.group.rotation.set(0.35, -a - Math.PI / 2, 0, "YXZ");
+      (d.model.lamp.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 4 + d.phase) > 0.3 ? PALETTE.lamp : PALETTE.lampOff);
+      const flicker = 0.85 + 0.15 * Math.sin(t * 23 + d.phase);
+      for (const pod of d.model.pods) pod.scale.set(flicker, 1, flicker);
     }
     for (const iv of this.outposts.values()) {
       iv.model.animate(t, dt);
@@ -1580,10 +1505,11 @@ varying float vWave;`,
       }
     }
     for (const lane of this.lanes.values()) {
-      lane.buoy.position.y = Math.sin(t * 1.5 + lane.length) * 0.03;
-      lane.buoy.rotation.z = Math.sin(t * 1.1 + lane.length) * 0.08;
-      const lamp = lane.buoy.children[2] as THREE.Mesh | undefined;
-      if (lamp) (lamp.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 2.5 + lane.length) > 0.5 ? PALETTE.lamp : PALETTE.lampOff);
+      const g = lane.buoy.group;
+      g.position.y = Math.sin(t * 0.9 + lane.length) * 0.04;
+      g.rotation.y = t * 0.35 + lane.length;
+      g.rotation.z = Math.sin(t * 0.7 + lane.length) * 0.06;
+      (lane.buoy.lamp.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 2.5 + lane.length) > 0.5 ? PALETTE.lamp : PALETTE.lampOff);
     }
     this.renderer.render(this.scene, this.rig.camera);
     this.placeLabels();
@@ -1613,7 +1539,7 @@ varying float vWave;`,
     if (!this.input) return;
     const docked = new Map<string, number>();
     /** Which berths with a boarding tube are taken, by outpost. */
-    const planks = new Map<string, string>();
+    const tubes = new Map<string, string>();
     for (const sv of this.ships.values()) {
       const t = this.time;
       const g = sv.model.group;
@@ -1632,7 +1558,7 @@ varying float vWave;`,
         g.position.set(iv.outpost.x + berth.u * Math.cos(a) - berth.w * Math.sin(a), 0, iv.outpost.y + berth.u * Math.sin(a) + berth.w * Math.cos(a));
         g.rotation.y = -(a + berth.heading);
         sv.berth = { outpostId: iv.outpost.id, n };
-        if (berth.foot) planks.set(iv.outpost.id, `${planks.get(iv.outpost.id) ?? ""}${n},`);
+        if (berth.foot) tubes.set(iv.outpost.id, `${tubes.get(iv.outpost.id) ?? ""}${n},`);
       } else {
         sv.berth = null;
         const lane = sv.laneKey ? this.lanes.get(sv.laneKey) : null;
@@ -1652,19 +1578,21 @@ varying float vWave;`,
         g.position.set(p.x, 0, p.z);
         g.rotation.y = -Math.atan2(tan.z, tan.x);
       }
-      // The bob lives on the body so the group, which labels hang off, holds still. Made fast to a dock she barely stirs.
+      // The drift lives on the body so the group, which labels hang off, holds still. Made fast to a dock she barely stirs.
       const body = sv.model.body;
       const calm = sv.berth ? 0.3 : 1;
-      body.position.y = -SHIP_SINK + Math.sin(t * 1.7 + sv.phase) * 0.03 * calm;
-      body.rotation.z = Math.sin(t * 1.1 + sv.phase) * 0.05 * calm;
-      body.rotation.x = Math.sin(t * 0.8 + sv.phase * 1.3) * 0.025 * calm;
+      body.position.y = -SHIP_SINK + Math.sin(t * 1.1 + sv.phase) * 0.025 * calm;
+      body.rotation.z = Math.sin(t * 0.8 + sv.phase) * 0.035 * calm;
+      body.rotation.x = Math.sin(t * 0.6 + sv.phase * 1.3) * 0.02 * calm;
       sv.model.flag.rotation.y = Math.sin(t * 5 + sv.phase) * 0.3;
+      // The plumes gutter a little, never the same on two ships.
+      if (sv.model.engineGlow.visible) sv.model.engineGlow.scale.set(1 + Math.sin(t * 31 + sv.phase) * 0.06, 1, 1);
       sv.model.marker.position.y = 1.33 + Math.sin(t * 3 + sv.phase) * 0.07;
       sv.model.marker.rotation.y = t * 1.5;
       // The "your ship" marker is for finding her on the chart; up close it would only hang in the air.
       sv.model.marker.visible = sv.ship.kind !== "other" && this.input.focus.kind === "all";
     }
-    this.layBoardingTubes(planks);
+    this.layBoardingTubes(tubes);
     // On deck, a neighbour tied up alongside would stand between the camera and the deck; it steps out of the view.
     if (this.input.focus.kind === "ship") {
       const mine = this.ships.get(this.input.focus.id);
@@ -1678,9 +1606,9 @@ varying float vWave;`,
   }
 
   /** A boarding tube from the dock up to each ship lying against it; rebuilt only when that changes. */
-  private layBoardingTubes(planks: Map<string, string>): void {
+  private layBoardingTubes(tubes: Map<string, string>): void {
     for (const [outpostId, iv] of this.outposts) {
-      const key = planks.get(outpostId) ?? "";
+      const key = tubes.get(outpostId) ?? "";
       const have = this.boardingTubes.get(outpostId);
       if (have?.key === key) continue;
       have?.group.removeFromParent();
@@ -1721,7 +1649,7 @@ varying float vWave;`,
     for (const sv of this.ships.values()) {
       sv.label.style.display = sv.model.group.visible ? "" : "none";
       if (!sv.model.group.visible || sv.label.classList.contains("ow-hidden") || sv.label.classList.contains("ow-label-quiet")) continue;
-      // Named at her stern, the end nearest the shore when she lies at a dock bow out.
+      // Named at her stern, the end nearest the rock when she lies at a dock bow out.
       sv.model.group.localToWorld(this.tmp.set(-0.32, 0.25, 0)).project(cam);
       shipLabels.push({ el: sv.label, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h });
     }
@@ -1881,6 +1809,8 @@ varying float vWave;`,
     at.y = 0;
     this.sun.position.copy(at).add(this.sunOffset);
     this.sun.target.position.copy(at);
+    this.rim.position.set(at.x - this.sunOffset.x, at.y + this.sunOffset.y * 0.35, at.z - this.sunOffset.z);
+    this.rim.target.position.copy(at);
     const cam = this.sun.shadow.camera;
     if (cam.right !== reach) {
       cam.left = -reach;
@@ -2020,7 +1950,7 @@ varying float vWave;`,
       const iv = this.outposts.get(me.placeId);
       if (!iv) return null;
       targets.push(...iv.model.buildingHits);
-      // Up close a ship is only her hull: the tall chart box would swallow taps on the dock and the shore behind her.
+      // Up close a ship is only her hull: the tall chart box would swallow taps on the dock and the rim behind her.
       for (const sv of this.ships.values()) if (sv.model.group.visible && sv.berth?.outpostId === me.placeId) targets.push(sv.model.hullHit);
       ground = iv.model.walkable;
       frame = iv.model.frame;
@@ -2077,7 +2007,7 @@ varying float vWave;`,
     const p = this.pick(e.clientX, e.clientY);
     if (!p) return;
     if (p.kind === "outpost") this.events.onOutpost(p.id);
-    // Walking, a ship is boarded only by a tap on her hull (pickWalk); a tap on the water near her is nothing.
+    // Walking, a ship is boarded only by a tap on her hull (pickWalk); a tap on the void near her is nothing.
     else if (!me) this.goShip(p.id);
   };
 
@@ -2147,7 +2077,7 @@ varying float vWave;`,
     this.pointerDown = null;
   };
 
-  private readonly onHelmSpot = (e: WheelEvent): void => {
+  private readonly onWheel = (e: WheelEvent): void => {
     if (!this.walkFocus()) return;
     e.preventDefault();
     this.setZoom(this.zoom * Math.exp(e.deltaY * 0.0015));

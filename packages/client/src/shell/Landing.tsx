@@ -21,10 +21,10 @@ export function Landing() {
 
   return (
     <main className="landing" data-testid="landing" data-phase={phase}>
-      <div className="landing-sea" aria-hidden="true">
-        <i className="wave w1" />
-        <i className="wave w2" />
-        <i className="wave w3" />
+      <div className="landing-void" aria-hidden="true">
+        <i className="stars s1" />
+        <i className="stars s2" />
+        <i className="stars s3" />
       </div>
       <header className="masthead">
         <p className="eyebrow">{t("world.title_eyebrow")}</p>
