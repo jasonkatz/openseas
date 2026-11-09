@@ -16,35 +16,35 @@ export interface Preset {
  * presets are built from content at runtime (deckPresets) since the deck list is content.
  */
 export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
-  bilging: [
-    { id: "specials_galore", overrides: { "specialChancePerMille.keg": 60, "specialChancePerMille.ink": 40, "specialChancePerMille.barnacle": 50 } },
-    { id: "no_specials", overrides: { "specialChancePerMille.keg": 0, "specialChancePerMille.ink": 0, "specialChancePerMille.barnacle": 0 } },
-    // The board plays on a lone ship's bilge (ADR 0029): high water raises the bilge's floor.
-    { id: "high_water", overrides: { minWaterRow: 9, initialWaterRow: 9 } },
-    // The board's own practice water instead: it rises with every swap and drains with points.
-    { id: "fast_water", overrides: { shipWater: false, waterRisePerMoves: 2 } },
+  cooling: [
+    { id: "specials_galore", overrides: { "specialChancePerMille.charge": 60, "specialChancePerMille.magnet": 40, "specialChancePerMille.slag": 50 } },
+    { id: "no_specials", overrides: { "specialChancePerMille.charge": 0, "specialChancePerMille.magnet": 0, "specialChancePerMille.slag": 0 } },
+    // The board plays on a lone ship's heat (ADR 0029): high heat raises the heat's floor.
+    { id: "high_heat", overrides: { minHeatRow: 9, initialHeatRow: 9 } },
+    // The board's own practice heat instead: it rises with every swap and drains with points.
+    { id: "fast_heat", overrides: { shipHeat: false, heatRisePerMoves: 2 } },
     { id: "three_kinds", overrides: { pieceKinds: 3 } },
     { id: "ten_moves", overrides: { maxMoves: 10 }, roundSeconds: 60 },
   ],
-  sailing: [
-    { id: "one_platform", overrides: { platformsAtOnce: 1 } },
-    { id: "no_platforms", overrides: { platformsAtOnce: 0 } },
+  engines: [
+    { id: "one_injector", overrides: { injectorsAtOnce: 1 } },
+    { id: "no_injectors", overrides: { injectorsAtOnce: 0 } },
     { id: "two_kinds", overrides: { pieceKinds: 2 } },
-    { id: "long_bars", overrides: { platformSpanMin: 4, platformSpanMax: 4 } },
+    { id: "long_bars", overrides: { injectorSpanMin: 4, injectorSpanMax: 4 } },
     { id: "five_pairs", overrides: { maxMoves: 5 }, roundSeconds: 60 },
   ],
-  carpentry: [
-    { id: "single_planks", overrides: { minHolePieces: 1, maxHolePieces: 1 } },
-    { id: "big_holes", overrides: { minHolePieces: 3, maxHolePieces: 3 } },
+  plating: [
+    { id: "single_plates", overrides: { minBreachPieces: 1, maxBreachPieces: 1 } },
+    { id: "big_breaches", overrides: { minBreachPieces: 3, maxBreachPieces: 3 } },
     { id: "grows_fast", overrides: { growAfterMoves: 1 } },
-    { id: "one_hole", overrides: { holesAtOnce: 1 } },
-    { id: "five_planks", overrides: { maxMoves: 5 }, roundSeconds: 60 },
+    { id: "one_breach", overrides: { breachesAtOnce: 1 } },
+    { id: "five_plates", overrides: { maxMoves: 5 }, roundSeconds: 60 },
   ],
   gunnery: [
-    { id: "slow_chute", overrides: { spawnEveryTicks: 20, spawnEveryTicksMin: 16 } },
-    { id: "fast_chute", overrides: { spawnEveryTicks: 3, spawnEveryTicksMin: 2 } },
+    { id: "slow_feeder", overrides: { spawnEveryTicks: 20, spawnEveryTicksMin: 16 } },
+    { id: "fast_feeder", overrides: { spawnEveryTicks: 3, spawnEveryTicksMin: 2 } },
     { id: "quiet_deck", overrides: { spawnEveryTicks: 1000, spawnEveryTicksMin: 1000 } },
-    { id: "no_water", overrides: { bag: [2, 2, 2, 0] } },
+    { id: "no_coolant", overrides: { bag: [2, 2, 2, 0] } },
     { id: "slow_motion", overrides: {}, speed: 0.25 },
   ],
   navigation: [
@@ -56,12 +56,12 @@ export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
     { id: "slow_motion", overrides: {}, speed: 0.25 },
   ],
   battle: [
-    { id: "cutpurse", overrides: { "brigand.tokensPerTurn": 2, "brigand.reloadPerTurn": 1, "brigand.accuracy": 50, "brigand.aggression": 40 } },
-    { id: "reaver", overrides: { "brigand.tokensPerTurn": 4, "brigand.reloadPerTurn": 2, "brigand.accuracy": 80, "brigand.aggression": 80 } },
-    { id: "dead_eye", overrides: { "brigand.tokensPerTurn": 4, "brigand.reloadPerTurn": 4, "brigand.accuracy": 100, "brigand.aggression": 100 } },
+    { id: "junker", overrides: { "raider.tokensPerTurn": 2, "raider.reloadPerTurn": 1, "raider.accuracy": 50, "raider.aggression": 40 } },
+    { id: "corsair", overrides: { "raider.tokensPerTurn": 4, "raider.reloadPerTurn": 2, "raider.accuracy": 80, "raider.aggression": 80 } },
+    { id: "dead_eye", overrides: { "raider.tokensPerTurn": 4, "raider.reloadPerTurn": 4, "raider.accuracy": 100, "raider.aggression": 100 } },
     { id: "quick_turns", overrides: { turnSeconds: 6 } },
     { id: "long_turns", overrides: { turnSeconds: 30 }, roundSeconds: 600 },
-    { id: "full_magazine", overrides: { "supply.cannons": 4 } },
+    { id: "full_magazine", overrides: { "supply.turrets": 4 } },
     { id: "three_turns", overrides: { maxTurns: 3 }, roundSeconds: 60 },
   ],
   swordfight: [
@@ -100,7 +100,7 @@ export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
   ],
 };
 
-/** One preset per Sea Battle board, so a fight can be pinned to a board the seed would not have picked. */
+/** One preset per Space Battle board, so a fight can be pinned to a board the seed would not have picked. */
 export function boardPresets(boards: ReadonlyArray<readonly string[]>): Preset[] {
   return boards.map((board, i) => ({ id: `board_${i + 1}`, overrides: { boards: [board] } }));
 }

@@ -20,7 +20,7 @@ import { SWORDFIGHT } from "../puzzles.js";
 const swordfight = content.puzzles.swordfight;
 const waitAt = (tick: number): SwordfightMove => ({ type: "wait", tick });
 
-/** The practice fight: the player's board against brigands from content, every drop on the fight's clock. */
+/** The practice fight: the player's board against raiders from content, every drop on the fight's clock. */
 /** The player's attack per minute, without the win band a won fight carries in its score. */
 function attackRate(s: SwordfightState): number {
   return s.outcome === "won" ? s.score - s.config.winPoints : s.score;
@@ -60,7 +60,7 @@ export function SwordfightPractice() {
           if (mine) sfx.swapQuiet();
           break;
         case "fused":
-          if (mine) sfx.barnacle();
+          if (mine) sfx.slag();
           break;
         case "broke":
           if (mine) {
@@ -69,10 +69,10 @@ export function SwordfightPractice() {
           } else sfx.swapQuiet();
           break;
         case "ripened":
-          if (mine) sfx.pump(1);
+          if (mine) sfx.vent(1);
           break;
         case "attack":
-          if (mine && e.wrack > 0) sfx.streak(Math.min(12, e.wrack));
+          if (mine && e.scrap > 0) sfx.streak(Math.min(12, e.scrap));
           else if (e.to === 0) sfx.alarm();
           break;
         case "landed":
@@ -82,7 +82,7 @@ export function SwordfightPractice() {
           if (mine) {
             sfx.alarm();
             sfx.streakLost();
-          } else sfx.keg();
+          } else sfx.charge();
           break;
         case "ended":
           if (e.outcome === "won") sfx.streak(16);
@@ -100,7 +100,7 @@ export function SwordfightPractice() {
     const st = swordfight.pieces[p.color]!;
     return <BlockIcon color={st.color} texture={st.texture} mark={showMarks ? st.mark : null} kind={p.breaker ? "breaker" : "block"} size={size} />;
   };
-  const pending = player.pending.reduce((n, p) => n + p.wrack, 0);
+  const pending = player.pending.reduce((n, p) => n + p.scrap, 0);
   const yoursStanding = swordfightStanding(shown, 0);
   const theirsStanding = swordfightStanding(shown, 1);
   const top = Math.max(...Array.from({ length: shown.config.width }, (_, c) => swordfightColHeight(shown.config, player.cells, c)));
@@ -225,10 +225,10 @@ export function SwordfightPractice() {
             <li>
               <span className="stages">
                 {[2, 1].map((ripen) => (
-                  <BlockIcon key={ripen} color={pieces[0]!.color} texture={pieces[0]!.texture} mark={showMarks ? pieces[0]!.mark : null} kind="wrack" ripen={ripen} />
+                  <BlockIcon key={ripen} color={pieces[0]!.color} texture={pieces[0]!.texture} mark={showMarks ? pieces[0]!.mark : null} kind="scrap" ripen={ripen} />
                 ))}
               </span>
-              <span>{t("swordfight.legend_wrack")}</span>
+              <span>{t("swordfight.legend_scrap")}</span>
             </li>
           </ul>
           <p className="muted small legend-note">{t("swordfight.legend_slab")}</p>

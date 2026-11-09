@@ -1,0 +1,52 @@
+{
+  "config": {
+    "width": 9,
+    "height": 12,
+    "pieceKinds": 4,
+    "breachesAtOnce": 3,
+    "minBreachPieces": 1,
+    "maxBreachPieces": 3,
+    "basePerCell": 4,
+    "multiplierPercent": {
+      "flawless": 300,
+      "solid": 200,
+      "holds": 150,
+      "tape": 100,
+      "gum": 50
+    },
+    "brushBonusPercent": 25,
+    "growAfterMoves": 6,
+    "maxMoves": 10000,
+    "streakPercent": [100, 125, 150, 175, 200]
+  },
+  "roundSeconds": 150,
+  "parScore": 400,
+  "thresholds": [
+    { "score": 80, "rating": 1100 },
+    { "score": 200, "rating": 1300 },
+    { "score": 400, "rating": 1500 },
+    { "score": 700, "rating": 1700 },
+    { "score": 1100, "rating": 1900 },
+    { "score": 1600, "rating": 2100 }
+  ],
+  "pieces": [
+    { "nameKey": "plating.metal.tin", "mark": "square", "texture": "grain", "color": "#c98a4b" },
+    { "nameKey": "plating.metal.copper", "mark": "diamond", "texture": "knurl", "color": "#8c5a2b" },
+    { "nameKey": "plating.metal.steel", "mark": "triangle", "texture": "fan", "color": "#e3c27a" },
+    { "nameKey": "plating.metal.brass", "mark": "hexagon", "texture": "nacre", "color": "#7a3b2e" }
+  ],
+  "shapes": [
+    { "nameKey": "plating.shape.f" },
+    { "nameKey": "plating.shape.i" },
+    { "nameKey": "plating.shape.l" },
+    { "nameKey": "plating.shape.n" },
+    { "nameKey": "plating.shape.p" },
+    { "nameKey": "plating.shape.t" },
+    { "nameKey": "plating.shape.u" },
+    { "nameKey": "plating.shape.v" },
+    { "nameKey": "plating.shape.w" },
+    { "nameKey": "plating.shape.x" },
+    { "nameKey": "plating.shape.y" },
+    { "nameKey": "plating.shape.z" }
+  ]
+}

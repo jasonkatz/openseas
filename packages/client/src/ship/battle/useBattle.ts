@@ -10,10 +10,10 @@ export type BattleOutcomeView = { kind: "scored"; result: PuzzleResult } | { kin
 export interface BattleApi {
   phase: BattlePhase;
   state: BattleState;
-  /** Ms until the ship's next turn, when the plot sails; null between fights. */
+  /** Ms until the ship's next turn, when the plot flies; null between fights. */
   turnLeftMs: number | null;
   turnMs: number;
-  /** Bumps when the turn clock runs out: the board sails its plot. */
+  /** Bumps when the turn clock runs out: the board flies its plot. */
   commitSignal: number;
   outcome: BattleOutcomeView | null;
   /** True when the board was handed back after a reconnect. */
@@ -27,8 +27,8 @@ export interface BattleApi {
 const battle = content.puzzles.battle;
 
 /**
- * The captain's sea battle aboard (DESIGN.md 3.11, ADR 0021). The server deals the board when the
- * captain engages; the ship's turn clock sails whatever is plotted; every ship turn brings a
+ * The captain's space battle aboard (DESIGN.md 3.11, ADR 0021). The server deals the board when the
+ * captain engages; the ship's turn clock flies whatever is plotted; every ship turn brings a
  * supply the board logs as the ship's word. A dropped captain gets the board back with its log.
  * Lives above the battle view, which mounts only once the ship says a fight is on: the deal
  * arrives on the same socket right behind that snapshot, and must not be missed.
@@ -43,7 +43,7 @@ function useBattle(ship: ShipSnapshot | null): BattleApi {
   const [turnLeftMs, setTurnLeftMs] = useState<number | null>(null);
   const round = useRef<PuzzleRound<BattleState, BattleMove, BattleConfig> | null>(null);
   const sessionId = useRef<string | null>(null);
-  const inBattle = ship?.location.kind === "at-sea" && ship.location.battle !== null;
+  const inBattle = ship?.location.kind === "in-flight" && ship.location.battle !== null;
   const turnMs = ship?.turnMs ?? battle.config.turnSeconds * 1000;
 
   useEffect(
@@ -84,7 +84,7 @@ function useBattle(ship: ShipSnapshot | null): BattleApi {
             const sid = sessionId.current;
             const r = round.current;
             if (!sid || !r || m.sessionId !== sid) return;
-            r.apply({ type: "supply", left: m.left, forward: m.forward, right: m.right, cannons: m.cannons, hull: m.hull }, false);
+            r.apply({ type: "supply", left: m.left, forward: m.forward, right: m.right, turrets: m.turrets, hull: m.hull }, false);
             break;
           }
           case "puzzle.result":
@@ -121,7 +121,7 @@ function useBattle(ship: ShipSnapshot | null): BattleApi {
     return () => window.clearTimeout(id);
   }, [inBattle, phase]);
 
-  // The ship's turn clock sails the plot, as in the original: a reading every 100 ms, a commit at zero.
+  // The ship's turn clock flies the plot, as in the original: a reading every 100 ms, a commit at zero.
   const nextTurnAt = ship?.nextTurnAt ?? null;
   const fired = useRef<number | null>(null);
   useEffect(() => {

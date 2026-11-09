@@ -6,7 +6,7 @@
     "breakerPermille": 170,
     "dealSeed": "",
     "ripenMoves": 2,
-    "wrackMatchPermille": 750,
+    "scrapMatchPermille": 750,
     "cellPoints": 10,
     "slabBonus": 4,
     "attackPoints": 24,
@@ -45,8 +45,8 @@
   "pieces": [
     { "nameKey": "swordfight.piece.crimson", "mark": "circle", "texture": "facet", "color": "#e5355a" },
     { "nameKey": "swordfight.piece.gold", "mark": "square", "texture": "rivet", "color": "#f5d021" },
-    { "nameKey": "swordfight.piece.sea", "mark": "triangle", "texture": "scale", "color": "#3fa7f5" },
-    { "nameKey": "swordfight.piece.kelp", "mark": "diamond", "texture": "hatch", "color": "#4ad66d" },
+    { "nameKey": "swordfight.piece.cobalt", "mark": "triangle", "texture": "scale", "color": "#3fa7f5" },
+    { "nameKey": "swordfight.piece.lime", "mark": "diamond", "texture": "hatch", "color": "#4ad66d" },
     { "nameKey": "swordfight.piece.violet", "mark": "hexagon", "texture": "swirl", "color": "#c9a0dc" },
     { "nameKey": "swordfight.piece.pearl", "mark": "star", "texture": "rings", "color": "#f2f0e6" }
   ]

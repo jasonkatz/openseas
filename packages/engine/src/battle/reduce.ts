@@ -1,7 +1,7 @@
 import { InvalidMoveError } from "../errors.js";
 import { Hasher } from "../hash.js";
 import { nextInt, seedFromString } from "../prng.js";
-import { chooseBrigandPlan } from "./ai.js";
+import { chooseRaiderPlan } from "./ai.js";
 import {
   DEFAULT_BATTLE_CONFIG,
   EMPTY_PLAN,
@@ -34,7 +34,7 @@ const int = (n: unknown, lo: number, hi: number): boolean => typeof n === "numbe
 
 // ---- the board
 
-const WIND_CHARS: Record<string, Heading> = { "^": 0, ">": 1, v: 2, "<": 3 };
+const CURRENT_CHARS: Record<string, Heading> = { "^": 0, ">": 1, v: 2, "<": 3 };
 
 export function boardProblems(rows: readonly string[]): string[] {
   const problems: string[] = [];
@@ -48,17 +48,17 @@ export function boardProblems(rows: readonly string[]): string[] {
     for (const ch of row) {
       if (ch === "A") a += 1;
       else if (ch === "B") b += 1;
-      else if (!(ch in WIND_CHARS) && ch !== "." && ch !== "#" && ch !== "@") problems.push(`unknown board cell "${ch}"`);
+      else if (!(ch in CURRENT_CHARS) && ch !== "." && ch !== "#" && ch !== "@") problems.push(`unknown board cell "${ch}"`);
     }
   }
   if (a !== 1) problems.push("a board has exactly one captain's start (A)");
-  if (b !== 1) problems.push("a board has exactly one brigand's start (B)");
-  // Each ship starts with open water ahead: the captain faces north, the brigand south.
+  if (b !== 1) problems.push("a board has exactly one raider's start (B)");
+  // Each ship starts with open space ahead: the captain faces north, the raider south.
   for (let y = 0; y < rows.length; y++) {
     const ax = rows[y]!.indexOf("A");
-    if (ax >= 0 && (rows[y - 1]?.[ax] ?? "#") !== ".") problems.push("the captain's start has no open water ahead (north)");
+    if (ax >= 0 && (rows[y - 1]?.[ax] ?? "#") !== ".") problems.push("the captain's start has no open space ahead (north)");
     const bx = rows[y]!.indexOf("B");
-    if (bx >= 0 && (rows[y + 1]?.[bx] ?? "#") !== ".") problems.push("the brigand's start has no open water ahead (south)");
+    if (bx >= 0 && (rows[y + 1]?.[bx] ?? "#") !== ".") problems.push("the raider's start has no open space ahead (south)");
   }
   return problems;
 }
@@ -74,11 +74,11 @@ export function parseBoard(rows: readonly string[]): ParsedBoard {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const ch = rows[y]![x]!;
-      if (ch === "#") cells.push({ kind: "rock" });
-      else if (ch === "@") cells.push({ kind: "eddy" });
-      else if (ch in WIND_CHARS) cells.push({ kind: "wind", heading: WIND_CHARS[ch]! });
+      if (ch === "#") cells.push({ kind: "asteroid" });
+      else if (ch === "@") cells.push({ kind: "well" });
+      else if (ch in CURRENT_CHARS) cells.push({ kind: "current", heading: CURRENT_CHARS[ch]! });
       else {
-        cells.push({ kind: "water" });
+        cells.push({ kind: "space" });
         if (ch === "A") a = { x, y, heading: 0 };
         if (ch === "B") b = { x, y, heading: 2 };
       }
@@ -89,7 +89,7 @@ export function parseBoard(rows: readonly string[]): ParsedBoard {
 
 export const inBounds = (board: ParsedBoard, x: number, y: number): boolean => x >= 0 && y >= 0 && x < board.width && y < board.height;
 export const cellAt = (board: ParsedBoard, x: number, y: number): BattleCell | null => (inBounds(board, x, y) ? board.cells[y * board.width + x]! : null);
-export const isRock = (board: ParsedBoard, x: number, y: number): boolean => cellAt(board, x, y)?.kind === "rock";
+export const isAsteroid = (board: ParsedBoard, x: number, y: number): boolean => cellAt(board, x, y)?.kind === "asteroid";
 
 export const turnLeft = (h: Heading): Heading => ((h + 3) % 4) as Heading;
 export const turnRight = (h: Heading): Heading => ((h + 1) % 4) as Heading;
@@ -98,7 +98,7 @@ export const sideHeading = (h: Heading, side: Side): Heading => (side === "port"
 export const forwardOf = (p: Pose): { x: number; y: number } => ({ x: p.x + HEADING_DX[p.heading]!, y: p.y + HEADING_DY[p.heading]! });
 export const manhattan = (a: Pose, b: Pose): number => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
-/** The cells a shot from `pose` to `side` crosses: outward up to the range, stopping before a rock or the edge. */
+/** The cells a shot from `pose` to `side` crosses: outward up to the range, stopping before an asteroid or the edge. */
 export function arcCells(board: ParsedBoard, pose: Pose, side: Side, range: number): Array<{ x: number; y: number }> {
   const h = sideHeading(pose.heading, side);
   const out: Array<{ x: number; y: number }> = [];
@@ -107,7 +107,7 @@ export function arcCells(board: ParsedBoard, pose: Pose, side: Side, range: numb
   for (let i = 0; i < range; i++) {
     x += HEADING_DX[h]!;
     y += HEADING_DY[h]!;
-    if (!inBounds(board, x, y) || isRock(board, x, y)) break;
+    if (!inBounds(board, x, y) || isAsteroid(board, x, y)) break;
     out.push({ x, y });
   }
   return out;
@@ -116,7 +116,7 @@ export function arcCells(board: ParsedBoard, pose: Pose, side: Side, range: numb
 // ---- config
 
 export function validateConfig(cfg: BattleConfig): void {
-  const b = cfg.brigand;
+  const b = cfg.raider;
   const ok =
     Array.isArray(cfg.boards) &&
     cfg.boards.length >= 1 &&
@@ -125,19 +125,19 @@ export function validateConfig(cfg: BattleConfig): void {
     int(cfg.segments, 1, 8) &&
     int(cfg.turnSeconds, 3, 600) &&
     int(cfg.tokenCap, 1, 32) &&
-    int(cfg.cannonRange, 1, 16) &&
+    int(cfg.turretRange, 1, 16) &&
     int(cfg.shotDamage, 0, PERMILLE) &&
-    int(cfg.rockDamage, 0, PERMILLE) &&
+    int(cfg.asteroidDamage, 0, PERMILLE) &&
     int(cfg.ramDamage, 0, PERMILLE) &&
     int(cfg.grappleDamage, 0, PERMILLE) &&
     int(cfg.maxTurns, 1, 200) &&
-    int(cfg.cannons, 0, 32) &&
-    int(cfg.startLoaded, 0, cfg.cannons) &&
+    int(cfg.turrets, 0, 32) &&
+    int(cfg.startLoaded, 0, cfg.turrets) &&
     int(cfg.startDamage, 0, PERMILLE - 1) &&
     (cfg.supply === null || validSupply(cfg.supply)) &&
     typeof b === "object" &&
     b !== null &&
-    int(b.cannons, 0, 32) &&
+    int(b.turrets, 0, 32) &&
     int(b.tokensPerTurn, 0, 32) &&
     int(b.reloadPerTurn, 0, 32) &&
     int(b.accuracy, 0, 100) &&
@@ -152,7 +152,7 @@ export function validateConfig(cfg: BattleConfig): void {
   if (!ok) throw new Error("invalid battle config");
 }
 
-const validSupply = (s: SupplySpec): boolean => typeof s === "object" && s !== null && int(s.left, 0, 32) && int(s.forward, 0, 32) && int(s.right, 0, 32) && int(s.cannons, 0, 32);
+const validSupply = (s: SupplySpec): boolean => typeof s === "object" && s !== null && int(s.left, 0, 32) && int(s.forward, 0, 32) && int(s.right, 0, 32) && int(s.turrets, 0, 32);
 
 // ---- lifecycle
 
@@ -167,15 +167,15 @@ function dealSupply(cfg: BattleConfig, ship: BattleShip, s: SupplySpec): BattleS
       forward: Math.min(cfg.tokenCap, ship.tokens.forward + s.forward),
       right: Math.min(cfg.tokenCap, ship.tokens.right + s.right),
     },
-    loaded: Math.min(ship.cannons, ship.loaded + s.cannons),
+    loaded: Math.min(ship.turrets, ship.loaded + s.turrets),
   };
 }
 
-/** What the brigand is dealt each turn: its forward tokens, and half as many turns each way. */
-export function brigandSupply(cfg: BattleConfig): SupplySpec {
-  const b = cfg.brigand;
+/** What the raider is dealt each turn: its forward tokens, and half as many turns each way. */
+export function raiderSupply(cfg: BattleConfig): SupplySpec {
+  const b = cfg.raider;
   const turns = Math.ceil(b.tokensPerTurn / 2);
-  return { left: turns, forward: b.tokensPerTurn, right: turns, cannons: b.reloadPerTurn };
+  return { left: turns, forward: b.tokensPerTurn, right: turns, turrets: b.reloadPerTurn };
 }
 
 export function createBattleGame(seed: string, config: BattleConfig = DEFAULT_BATTLE_CONFIG): BattleState {
@@ -184,21 +184,21 @@ export function createBattleGame(seed: string, config: BattleConfig = DEFAULT_BA
   const pick = nextInt(rng, config.boards.length);
   rng = pick.state;
   const board = parseBoard(config.boards[pick.value]!);
-  let player: BattleShip = { ...board.start[0], damage: config.startDamage, loaded: config.startLoaded, cannons: config.cannons, tokens: zeroTokens() };
-  let brigand: BattleShip = {
+  let player: BattleShip = { ...board.start[0], damage: config.startDamage, loaded: config.startLoaded, turrets: config.turrets, tokens: zeroTokens() };
+  let raider: BattleShip = {
     ...board.start[1],
-    damage: config.brigand.startDamage,
-    loaded: Math.min(config.brigand.cannons, config.startLoaded),
-    cannons: config.brigand.cannons,
+    damage: config.raider.startDamage,
+    loaded: Math.min(config.raider.turrets, config.startLoaded),
+    turrets: config.raider.turrets,
     tokens: zeroTokens(),
   };
   if (config.supply) player = dealSupply(config, player, config.supply);
-  brigand = dealSupply(config, brigand, brigandSupply(config));
+  raider = dealSupply(config, raider, raiderSupply(config));
   return {
     config,
     board,
     boardIndex: pick.value,
-    ships: [player, brigand],
+    ships: [player, raider],
     turn: 0,
     rng,
     score: 0,
@@ -221,7 +221,7 @@ export function replayBattle(seed: string, moves: readonly BattleMove[], config:
 
 // ---- moves
 
-/** Why the captain cannot sail this plan right now, or null when the engine would take it. */
+/** Why the captain cannot fly this plan right now, or null when the engine would take it. */
 export function planIllegalReason(state: BattleState, plan: BattlePlan): string | null {
   if (state.finished) return "finished";
   if (!Array.isArray(plan.segments) || plan.segments.length > state.config.segments) return "too many segments";
@@ -239,7 +239,7 @@ export function planIllegalReason(state: BattleState, plan: BattlePlan): string 
   }
   const me = state.ships[0];
   for (const t of MOVE_TOKENS) if (need[t] > me.tokens[t]) return `not enough ${t} tokens`;
-  if (shots > me.loaded) return "not enough loaded cannons";
+  if (shots > me.loaded) return "not enough loaded turrets";
   return null;
 }
 
@@ -261,11 +261,11 @@ export function reduceBattle(state: BattleState, move: BattleMove): BattleState 
 function supply(state: BattleState, move: Extract<BattleMove, { type: "supply" }>): BattleState {
   if (state.finished) throw new InvalidMoveError("finished", move);
   if (state.config.supply !== null) throw new InvalidMoveError("practice supplies itself", move);
-  if (!int(move.left, 0, 32) || !int(move.forward, 0, 32) || !int(move.right, 0, 32) || !int(move.cannons, 0, 32) || !int(move.hull, 0, PERMILLE)) {
+  if (!int(move.left, 0, 32) || !int(move.forward, 0, 32) || !int(move.right, 0, 32) || !int(move.turrets, 0, 32) || !int(move.hull, 0, PERMILLE)) {
     throw new InvalidMoveError("bad supply", move);
   }
   const me = state.ships[0];
-  const dealt = dealSupply(state.config, { ...me, loaded: 0 }, { left: move.left, forward: move.forward, right: move.right, cannons: move.cannons });
+  const dealt = dealSupply(state.config, { ...me, loaded: 0 }, { left: move.left, forward: move.forward, right: move.right, turrets: move.turrets });
   const player: BattleShip = { ...dealt, damage: Math.min(PERMILLE, move.hull) };
   let s: BattleState = { ...state, ships: [player, state.ships[1]], moveCount: state.moveCount + 1 };
   if (player.damage >= PERMILLE) s = end(s, state.ships[1].damage >= PERMILLE ? "broke_off" : "crippled_by", []);
@@ -280,7 +280,7 @@ function disengage(state: BattleState, move: BattleMove): BattleState {
 function commit(state: BattleState, plan: BattlePlan, move: BattleMove): BattleState {
   const why = planIllegalReason(state, plan);
   if (why) throw new InvalidMoveError(why, move);
-  const chosen = chooseBrigandPlan(state, state.rng);
+  const chosen = chooseRaiderPlan(state, state.rng);
   const r = resolveTurn(state.board, state.config, state.ships, [plan, chosen.plan]);
   const events: BattleEvent[] = [...r.events];
   const turn = state.turn + 1;
@@ -305,12 +305,12 @@ function commit(state: BattleState, plan: BattlePlan, move: BattleMove): BattleS
   let ships: readonly [BattleShip, BattleShip] = r.ships;
   if (outcome === null) {
     const player = state.config.supply ? dealSupply(state.config, ships[0], state.config.supply) : ships[0];
-    ships = [player, dealSupply(state.config, ships[1], brigandSupply(state.config))];
+    ships = [player, dealSupply(state.config, ships[1], raiderSupply(state.config))];
   } else events.push({ seg: state.config.segments, type: "ended", outcome });
   const report: BattleTurnReport = {
     turn,
     plan,
-    brigandPlan: chosen.plan,
+    raiderPlan: chosen.plan,
     events,
     hits,
     hitsTaken,
@@ -339,7 +339,7 @@ function end(state: BattleState, outcome: BattleOutcome, events: readonly Battle
   const report: BattleTurnReport = {
     turn: state.turn,
     plan: EMPTY_PLAN,
-    brigandPlan: EMPTY_PLAN,
+    raiderPlan: EMPTY_PLAN,
     events: [...events, { seg: 0, type: "ended", outcome }],
     hits: 0,
     hitsTaken: 0,
@@ -355,7 +355,7 @@ function end(state: BattleState, outcome: BattleOutcome, events: readonly Battle
 export interface TurnResolution {
   readonly ships: readonly [BattleShip, BattleShip];
   readonly events: readonly BattleEvent[];
-  /** Both ships' poses after each segment's moves and winds, before the guns. */
+  /** Both ships' poses after each segment's moves and currents, before the guns. */
   readonly trace: ReadonlyArray<readonly [Pose, Pose]>;
   readonly outcome: BattleOutcome | null;
 }
@@ -363,7 +363,7 @@ export interface TurnResolution {
 const pose = (s: BattleShip): Pose => ({ x: s.x, y: s.y, heading: s.heading });
 const hurt = (s: BattleShip, damage: number): BattleShip => ({ ...s, damage: Math.min(PERMILLE, s.damage + damage) });
 
-/** Sail both plans through every segment of a turn. Ends early at a grapple or a crippled hull. */
+/** Fly both plans through every segment of a turn. Ends early at a grapple or a crippled hull. */
 export function resolveTurn(board: ParsedBoard, cfg: BattleConfig, start: readonly [BattleShip, BattleShip], plans: readonly [BattlePlan, BattlePlan]): TurnResolution {
   let ships: [BattleShip, BattleShip] = [start[0], start[1]];
   const events: BattleEvent[] = [];
@@ -383,15 +383,15 @@ export function resolveTurn(board: ParsedBoard, cfg: BattleConfig, start: readon
 function moveShips(board: ParsedBoard, cfg: BattleConfig, ships: [BattleShip, BattleShip], tokens: [MoveToken | null, MoveToken | null], seg: number, events: BattleEvent[]): [BattleShip, BattleShip] {
   const from: [Pose, Pose] = [pose(ships[0]), pose(ships[1])];
   const target: [{ x: number; y: number }, { x: number; y: number }] = [from[0], from[1]];
-  const blocked: ["rock" | "edge" | "ship" | null, "rock" | "edge" | "ship" | null] = [null, null];
+  const blocked: ["asteroid" | "edge" | "ship" | null, "asteroid" | "edge" | "ship" | null] = [null, null];
   const damage: [number, number] = [0, 0];
   for (const i of [0, 1] as const) {
     if (tokens[i] === null) continue;
     const t = forwardOf(from[i]);
     if (!inBounds(board, t.x, t.y)) blocked[i] = "edge";
-    else if (isRock(board, t.x, t.y)) {
-      blocked[i] = "rock";
-      damage[i] += cfg.rockDamage;
+    else if (isAsteroid(board, t.x, t.y)) {
+      blocked[i] = "asteroid";
+      damage[i] += cfg.asteroidDamage;
     } else target[i] = t;
   }
   const moving = [tokens[0] !== null && blocked[0] === null, tokens[1] !== null && blocked[1] === null];
@@ -420,7 +420,7 @@ function moveShips(board: ParsedBoard, cfg: BattleConfig, ships: [BattleShip, Ba
     }
     const heading = headingAfter(from[i].heading, token);
     const to: Pose = { x: target[i].x, y: target[i].y, heading };
-    // A token is spent when it is sailed, blocked or not.
+    // A token is spent when it is flown, blocked or not.
     const pool = { ...ships[i].tokens, [token]: Math.max(0, ships[i].tokens[token] - 1) };
     out[i] = hurt({ ...ships[i], x: to.x, y: to.y, heading, tokens: pool }, damage[i]);
     events.push({ seg, type: "move", ship: i, token, from: from[i], to, blocked: blocked[i], damage: damage[i] });
@@ -428,7 +428,7 @@ function moveShips(board: ParsedBoard, cfg: BattleConfig, ships: [BattleShip, Ba
   return out;
 }
 
-/** Winds carry, eddies spin. The captain's ship is blown first; a ship never blows into the other. */
+/** Currents carry, wells spin. The captain's ship is blown first; a ship never blows into the other. */
 function blow(board: ParsedBoard, cfg: BattleConfig, ships: [BattleShip, BattleShip], seg: number, events: BattleEvent[]): [BattleShip, BattleShip] {
   const out: [BattleShip, BattleShip] = [ships[0], ships[1]];
   for (const i of [0, 1] as const) {
@@ -436,19 +436,19 @@ function blow(board: ParsedBoard, cfg: BattleConfig, ships: [BattleShip, BattleS
     const other = out[i === 0 ? 1 : 0];
     const cell = cellAt(board, me.x, me.y);
     if (!cell) continue;
-    if (cell.kind === "eddy") {
+    if (cell.kind === "well") {
       const to: Pose = { x: me.x, y: me.y, heading: turnRight(me.heading) };
       out[i] = { ...me, heading: to.heading };
       events.push({ seg, type: "spin", ship: i, from: pose(me), to });
-    } else if (cell.kind === "wind") {
+    } else if (cell.kind === "current") {
       const x = me.x + HEADING_DX[cell.heading]!;
       const y = me.y + HEADING_DY[cell.heading]!;
-      let blocked: "rock" | "edge" | "ship" | null = null;
+      let blocked: "asteroid" | "edge" | "ship" | null = null;
       let damage = 0;
       if (!inBounds(board, x, y)) blocked = "edge";
-      else if (isRock(board, x, y)) {
-        blocked = "rock";
-        damage = cfg.rockDamage;
+      else if (isAsteroid(board, x, y)) {
+        blocked = "asteroid";
+        damage = cfg.asteroidDamage;
       } else if (other.x === x && other.y === y) blocked = "ship";
       const to: Pose = blocked ? pose(me) : { x, y, heading: me.heading };
       out[i] = hurt({ ...me, x: to.x, y: to.y }, damage);
@@ -468,7 +468,7 @@ function fire(board: ParsedBoard, cfg: BattleConfig, ships: [BattleShip, BattleS
     for (const side of ["port", "starboard"] as const) {
       if (!s[side] || out[i].loaded <= 0) continue;
       out[i] = { ...out[i], loaded: out[i].loaded - 1 };
-      const cells = arcCells(board, pose(ships[i]), side, cfg.cannonRange);
+      const cells = arcCells(board, pose(ships[i]), side, cfg.turretRange);
       const hitAt = cells.findIndex((c) => c.x === other.x && c.y === other.y);
       const hit = hitAt >= 0;
       if (hit) taken[i === 0 ? 1 : 0] += cfg.shotDamage;
@@ -495,7 +495,7 @@ function settle(cfg: BattleConfig, ships: [BattleShip, BattleShip], grapples: [b
 
 // ---- queries for boards and the harness
 
-/** Where the captain's plan takes the ship if the brigand holds still: a pose per segment. */
+/** Where the captain's plan takes the ship if the raider holds still: a pose per segment. */
 export function previewPlan(state: BattleState, segments: readonly BattleSegment[]): Pose[] {
   const r = resolveTurn(state.board, state.config, state.ships, [{ segments: segments.map((s) => ({ ...s, port: false, starboard: false })), grapple: false }, EMPTY_PLAN]);
   return r.trace.map((t) => t[0]);
@@ -525,7 +525,7 @@ export function hashBattleState(s: BattleState): string {
   h.int(s.finished ? 1 : 0).int(s.outcome === null ? -1 : OUTCOMES.indexOf(s.outcome));
   h.int(s.rng.a).int(s.rng.b).int(s.rng.c).int(s.rng.d);
   for (const ship of s.ships) {
-    h.int(ship.x).int(ship.y).int(ship.heading).int(ship.damage).int(ship.loaded).int(ship.cannons);
+    h.int(ship.x).int(ship.y).int(ship.heading).int(ship.damage).int(ship.loaded).int(ship.turrets);
     for (const t of MOVE_TOKENS) h.int(ship.tokens[t]);
   }
   return h.digest();

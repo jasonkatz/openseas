@@ -53,23 +53,23 @@
     "segments": 4,
     "turnSeconds": 12,
     "tokenCap": 6,
-    "cannonRange": 3,
+    "turretRange": 3,
     "shotDamage": 120,
-    "rockDamage": 80,
+    "asteroidDamage": 80,
     "ramDamage": 100,
     "grappleDamage": 500,
     "maxTurns": 20,
-    "cannons": 4,
+    "turrets": 4,
     "startLoaded": 2,
     "startDamage": 0,
     "supply": {
       "left": 1,
       "forward": 2,
       "right": 1,
-      "cannons": 2
+      "turrets": 2
     },
-    "brigand": {
-      "cannons": 4,
+    "raider": {
+      "turrets": 4,
       "tokensPerTurn": 3,
       "reloadPerTurn": 1,
       "accuracy": 65,

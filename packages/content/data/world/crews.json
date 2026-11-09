@@ -9,7 +9,7 @@
     { "id": "crimson", "hex": "#a8262f", "nameKey": "crew.color.crimson" },
     { "id": "gold", "hex": "#dba53a", "nameKey": "crew.color.gold" },
     { "id": "deep", "hex": "#1f5c8a", "nameKey": "crew.color.deep" },
-    { "id": "kelp", "hex": "#3c7a3e", "nameKey": "crew.color.kelp" },
+    { "id": "moss", "hex": "#3c7a3e", "nameKey": "crew.color.moss" },
     { "id": "plum", "hex": "#5f2f6c", "nameKey": "crew.color.plum" },
     { "id": "rust", "hex": "#b75b24", "nameKey": "crew.color.rust" }
   ],
@@ -25,13 +25,13 @@
   ],
   "emblems": [
     { "id": "skull", "nameKey": "crew.emblem.skull" },
-    { "id": "anchor", "nameKey": "crew.emblem.anchor" },
-    { "id": "compass", "nameKey": "crew.emblem.compass" },
-    { "id": "kraken", "nameKey": "crew.emblem.kraken" },
+    { "id": "rocket", "nameKey": "crew.emblem.rocket" },
+    { "id": "planet", "nameKey": "crew.emblem.planet" },
+    { "id": "satellite", "nameKey": "crew.emblem.satellite" },
     { "id": "star", "nameKey": "crew.emblem.star" },
     { "id": "swords", "nameKey": "crew.emblem.swords" },
-    { "id": "gull", "nameKey": "crew.emblem.gull" },
-    { "id": "wheel", "nameKey": "crew.emblem.wheel" },
+    { "id": "moon", "nameKey": "crew.emblem.moon" },
+    { "id": "gear", "nameKey": "crew.emblem.gear" },
     { "id": "crown", "nameKey": "crew.emblem.crown" },
     { "id": "flame", "nameKey": "crew.emblem.flame" }
   ],

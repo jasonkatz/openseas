@@ -3,13 +3,13 @@ import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, T
 import {
   DX,
   DY,
-  cannonNeeds,
+  turretNeeds,
   gunneryCellAt,
   parseGunneryDeck,
   predictGunneryPath,
   gunneryNextHeading,
   type Arrow,
-  type CannonOutcome,
+  type TurretOutcome,
   type Dir,
   type GunneryEvent,
   type GunneryPredictedPath,
@@ -17,7 +17,7 @@ import {
   type ParsedDeck,
 } from "@openseas/engine";
 import type { GunneryContent } from "@openseas/content";
-import { mix } from "../bilging/tiles.js";
+import { mix } from "../cooling/tiles.js";
 import { gunneryPieceCanvas } from "./pieces.js";
 
 export interface GunneryCallbacks {
@@ -32,7 +32,7 @@ export interface GunneryCallbacks {
 export interface GunneryRendererOptions {
   showMarks: boolean;
   tickMs: number;
-  labels: { fouled: string; clean: string; next: string; broadside: string };
+  labels: { jammed: string; clean: string; next: string; broadside: string };
 }
 
 interface PieceView {
@@ -98,20 +98,20 @@ const COLORS = {
   flash: 0xffd27a,
   arrow: 0xf5d58a,
   cursor: 0xf2f0e6,
-  water: 0x7fd0ff,
+  coolant: 0x7fd0ff,
 };
 const DIE_MS = 200;
 /** Height of the queue strip above the deck, in cells. */
 const QUEUE_STRIP = 0.75;
-/** How many cells ahead the route preview looks. */
+/** How many cells ahead the lane preview looks. */
 const LOOK_AHEAD = 12;
 
-/** One string that names what the deck shows: pieces by cell, cannon states, arrows, the tick. Shared with the page. */
+/** One string that names what the deck shows: pieces by cell, turret states, arrows, the tick. Shared with the page. */
 export function gunneryViewString(state: GunneryState): string {
   const pieces = [...state.pieces].sort((a, b) => a.id - b.id).map((p) => `${p.id}:${p.kind}:${p.col}:${p.row}`);
-  const cannons = state.cannons.map((c) => `${c.loaded}${c.fouled ? "f" : ""}`);
+  const turrets = state.turrets.map((c) => `${c.loaded}${c.jammed ? "f" : ""}`);
   const arrows = [...state.arrows].sort((a, b) => a.row - b.row || a.col - b.col).map((a) => `${a.col}.${a.row}.${a.dir}`);
-  return `t${state.tick}|${pieces.join(",")}|${cannons.join(",")}|${arrows.join(",")}`;
+  return `t${state.tick}|${pieces.join(",")}|${turrets.join(",")}|${arrows.join(",")}`;
 }
 
 /** The arrows on deck if `ghost` were laid or lifted. */
@@ -128,7 +128,7 @@ function leanOf(fx: number, fy: number): Dir {
   return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 0 : 2) : dy >= 0 ? 1 : 3;
 }
 
-const isGood = (o: CannonOutcome): boolean => o === "load" || o === "loaded" || o === "clean";
+const isGood = (o: TurretOutcome): boolean => o === "load" || o === "loaded" || o === "clean";
 
 /** Two touch taps on one cell within this long lift its arrow. */
 const DOUBLE_TAP_MS = 350;
@@ -141,10 +141,10 @@ export class GunneryRenderer {
   private readonly hoverG = new Graphics();
   private readonly pathG = new Graphics();
   private readonly arrowG = new Graphics();
-  private readonly cannonG = new Graphics();
-  private readonly cannonSprites: Sprite[] = [];
+  private readonly turretG = new Graphics();
+  private readonly turretSprites: Sprite[] = [];
   private readonly needLayer = new Container();
-  private readonly cannonFxG = new Graphics();
+  private readonly turretFxG = new Graphics();
   private readonly queueLayer = new Container();
   private readonly pieceLayer = new Container();
   private readonly headG = new Graphics();
@@ -184,12 +184,12 @@ export class GunneryRenderer {
   private press: { x: number; y: number; col: number; row: number; touch: boolean; dragged: boolean; dir: Dir } | null = null;
   private ghost: Ghost | null = null;
   private paths: Array<{ id: number; kind: number; path: GunneryPredictedPath }> = [];
-  /** For each cannon, what the soonest piece headed into it will do, and in how many ticks. */
-  private incoming: Array<{ outcome: CannonOutcome; eta: number; kind: number } | null> = [];
+  /** For each turret, what the soonest piece headed into it will do, and in how many ticks. */
+  private incoming: Array<{ outcome: TurretOutcome; eta: number; kind: number } | null> = [];
   private needSprites: Sprite[] = [];
   private queueSprites: Sprite[] = [];
   private nextLabel: Text | null = null;
-  /** Per cannon: ms left on the loaded glow, the fire recoil, and the foul flash. */
+  /** Per turret: ms left on the loaded glow, the fire recoil, and the jam flash. */
   private readonly glow: number[] = [];
   private readonly recoil: number[] = [];
   private readonly hit: number[] = [];
@@ -237,7 +237,7 @@ export class GunneryRenderer {
     this.host.appendChild(this.app.canvas);
     this.staticLayer.addChild(this.deckG);
     this.staticLayer.cacheAsTexture({ resolution: this.app.renderer.resolution, antialias: true });
-    for (let i = 0; i < this.deck.cannons.length; i++) {
+    for (let i = 0; i < this.deck.turrets.length; i++) {
       const s = new Sprite(Texture.WHITE);
       s.anchor.set(0.5);
       this.needLayer.addChild(s);
@@ -248,9 +248,9 @@ export class GunneryRenderer {
       this.hoverG,
       this.pathG,
       this.arrowG,
-      this.cannonG,
+      this.turretG,
       this.needLayer,
-      this.cannonFxG,
+      this.turretFxG,
       this.queueLayer,
       this.pieceLayer,
       this.headG,
@@ -321,12 +321,12 @@ export class GunneryRenderer {
     }
 
     const fresh = (state.lastMove?.events ?? []).filter((e) => e.tick > this.lastEventTick);
-    // Where pieces that left the deck went, so they slide into a cannon or over the side.
+    // Where pieces that left the deck went, so they slide into a turret or over the side.
     const exits = new Map<number, { x: number; y: number }>();
     for (const e of fresh) {
       if (e.pieceId === undefined) continue;
-      if (e.cannon !== undefined) {
-        const c = state.cannons[e.cannon]!;
+      if (e.turret !== undefined) {
+        const c = state.turrets[e.turret]!;
         exits.set(e.pieceId, { x: this.cx(c.col), y: this.cy(c.row) });
       } else if (e.type === "exit" && e.col !== undefined && e.row !== undefined) {
         // Into the hatch it really went through: a wall may have turned it on its last step.
@@ -389,13 +389,13 @@ export class GunneryRenderer {
       // Every gun has fired since the last one: the whole deck shakes and the lamps blaze.
       this.broadsideFlash = 1400;
       this.shake = Math.max(this.shake, 520);
-      state.cannons.forEach((_, i) => (this.glow[i] = 1400));
+      state.turrets.forEach((_, i) => (this.glow[i] = 1400));
       this.popup((this.width * this.cell) / 2, (this.height * this.cell) / 2, `${this.opts.labels.broadside} +${e.points ?? 0}`, COLORS.flash, 0.8);
       return;
     }
-    if (e.cannon === undefined) return;
-    const i = e.cannon;
-    const c = state.cannons[i]!;
+    if (e.turret === undefined) return;
+    const i = e.turret;
+    const c = state.turrets[i]!;
     const x = this.cx(c.col);
     const y = this.cy(c.row);
     const outward = c.col === 0 ? -1 : 1;
@@ -422,20 +422,20 @@ export class GunneryRenderer {
         this.particles.push({ x: mx, y, vx: 0, vy: 0, r: this.cell * 0.55, grow: 0.06, color: COLORS.flash, alpha: 0.95, life: 0, max: 180 });
         break;
       }
-      case "foul":
+      case "jam":
         this.hit[i] = 700;
-        this.popup(x - outward * this.cell * 1.6, y, this.opts.labels.fouled, COLORS.danger, 0.45);
+        this.popup(x - outward * this.cell * 1.6, y, this.opts.labels.jammed, COLORS.danger, 0.45);
         for (let k = 0; k < (this.reduced ? 0 : 8); k++) {
           this.particles.push({ x, y, vx: (Math.random() - 0.5) * 0.04, vy: -0.03 - Math.random() * 0.04, r: this.cell * 0.12, grow: 0.012, color: COLORS.smoke, alpha: 0.7, life: 0, max: 900 });
         }
         break;
       case "clean":
         this.glow[i] = 400;
-        this.popup(x - outward * this.cell * 1.4, y, this.opts.labels.clean, COLORS.water, 0.42);
-        this.burst(x, y, COLORS.water, 12, 0.9);
+        this.popup(x - outward * this.cell * 1.4, y, this.opts.labels.clean, COLORS.coolant, 0.42);
+        this.burst(x, y, COLORS.coolant, 12, 0.9);
         break;
       case "splash":
-        this.burst(x, y, COLORS.water, 6, 0.5);
+        this.burst(x, y, COLORS.coolant, 6, 0.5);
         break;
       default:
         break;
@@ -461,7 +461,7 @@ export class GunneryRenderer {
     this.drawArrows();
   }
 
-  /** Routes for every piece over the arrows as they would be with the ghost laid, and what each cannon has coming. */
+  /** Lanes for every piece over the arrows as they would be with the ghost laid, and what each turret has coming. */
   private refreshPreview(): void {
     const s = this.state;
     this.paths = [];
@@ -473,10 +473,10 @@ export class GunneryRenderer {
       const v = this.pieces.get(p.id);
       if (v) v.next = gunneryNextHeading(s, p, arrows) ?? p.dir;
       this.paths.push({ id: p.id, kind: p.kind, path });
-      if (path.end?.type === "cannon") {
+      if (path.end?.type === "turret") {
         const eta = path.cells.length + 1;
-        const cur = this.incoming[path.end.cannon];
-        if (!cur || eta < cur.eta) this.incoming[path.end.cannon] = { outcome: path.end.outcome, eta, kind: p.kind };
+        const cur = this.incoming[path.end.turret];
+        if (!cur || eta < cur.eta) this.incoming[path.end.turret] = { outcome: path.end.outcome, eta, kind: p.kind };
       }
     }
     this.drawPaths();
@@ -489,7 +489,7 @@ export class GunneryRenderer {
     const w = this.app.screen.width;
     const h = this.app.screen.height;
     const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.12));
-    // Above the deck, a strip for the chute's queue: the rail itself may hold hatches.
+    // Above the deck, a strip for the feeder's queue: the rail itself may hold hatches.
     const rows = this.height + QUEUE_STRIP;
     let cell = Math.floor(Math.min(w / this.width, h / rows));
     cell = Math.floor(Math.min((w - padFor(cell) * 2 - 2) / this.width, (h - padFor(cell) * 3 - 2) / rows));
@@ -523,7 +523,7 @@ export class GunneryRenderer {
     }
   }
 
-  /** Rails, planks, the chute, the scupper and the gun ports. Everything that never changes. */
+  /** Rails, planks, the feeder, the scupper and the gun ports. Everything that never changes. */
   private drawDeck(): void {
     const g = this.deckG;
     const s = this.cell;
@@ -557,7 +557,7 @@ export class GunneryRenderer {
             g.moveTo(x + s * 0.12, y + s * 0.12).lineTo(x + s * 0.88, y + s * 0.88).moveTo(x + s * 0.88, y + s * 0.12).lineTo(x + s * 0.12, y + s * 0.88).stroke({ width: 2, color: COLORS.plankLine, alpha: 0.6 });
             break;
           case "barrel": {
-            // The chute: a brass-rimmed mouth in the rail with a chevron showing which way pieces drop.
+            // The feeder: a brass-rimmed mouth in the rail with a chevron showing which way pieces drop.
             g.rect(x, y, s, s).fill({ color: COLORS.wall });
             g.roundRect(x + s * 0.1, y + s * 0.12, s * 0.8, s * 0.76, s * 0.18).fill({ color: 0x0d0805 });
             g.roundRect(x + s * 0.1, y + s * 0.12, s * 0.8, s * 0.76, s * 0.18).stroke({ width: 2.5, color: COLORS.brass, alpha: 0.9 });
@@ -574,8 +574,8 @@ export class GunneryRenderer {
             }
             g.roundRect(x + s * 0.12, y + s * 0.12, s * 0.76, s * 0.76, s * 0.14).stroke({ width: 1.5, color: COLORS.wallEdge });
             break;
-          case "cannon":
-            // The gun port: the cannon itself is drawn live so it can recoil and glow.
+          case "turret":
+            // The gun port: the turret itself is drawn live so it can recoil and glow.
             g.rect(x, y, s, s).fill({ color: COLORS.wall });
             g.roundRect(x + s * 0.06, y + s * 0.06, s * 0.88, s * 0.88, s * 0.16).fill({ color: 0x120b06 });
             break;
@@ -586,8 +586,8 @@ export class GunneryRenderer {
   }
 
   /**
-   * Routes only for pieces headed into a cannon: green when the cannon wants the piece (or water
-   * for a fouled one), red when it will foul it. Everything else is left plain; the heading
+   * Lanes only for pieces headed into a turret: green when the turret wants the piece (or coolant
+   * for a jammed one), red when it will jam it. Everything else is left plain; the heading
    * chevron on each piece is enough there.
    */
   private drawPaths(): void {
@@ -596,7 +596,7 @@ export class GunneryRenderer {
     if (!this.state) return;
     const s = this.cell;
     for (const { path } of this.paths) {
-      if (path.end?.type !== "cannon" || path.end.outcome === "splash" || path.end.outcome === "blocked") continue;
+      if (path.end?.type !== "turret" || path.end.outcome === "splash" || path.end.outcome === "blocked") continue;
       const color = isGood(path.end.outcome) ? COLORS.good : COLORS.danger;
       const pts = path.cells;
       for (let i = 0; i < pts.length; i++) {
@@ -635,15 +635,15 @@ export class GunneryRenderer {
     }
   }
 
-  /** The cannons, their need badges and load pips, and rings for what is headed their way. Redrawn every frame. */
-  private drawCannons(): void {
-    const g = this.cannonG;
-    const fx = this.cannonFxG;
+  /** The turrets, their need badges and load pips, and rings for what is headed their way. Redrawn every frame. */
+  private drawTurrets(): void {
+    const g = this.turretG;
+    const fx = this.turretFxG;
     g.clear();
     fx.clear();
     if (!this.state) return;
     const s = this.cell;
-    this.state.cannons.forEach((c, i) => {
+    this.state.turrets.forEach((c, i) => {
       const x = c.col * s;
       const y = c.row * s;
       const cx = x + s / 2;
@@ -659,16 +659,16 @@ export class GunneryRenderer {
       const len = s * 0.62;
       const muzzleX = bx0 + outward * len;
       const left = Math.min(bx0, muzzleX);
-      const cannonTexture = spriteTexture("gunnery", rec > 0 ? "cannon-fire" : c.fouled ? "cannon-fouled" : ready ? "cannon-loaded" : "cannon-empty");
-      if (cannonTexture) {
-        let sprite = this.cannonSprites[i];
+      const turretTexture = spriteTexture("gunnery", rec > 0 ? "turret-fire" : c.jammed ? "turret-jammed" : ready ? "turret-loaded" : "turret-empty");
+      if (turretTexture) {
+        let sprite = this.turretSprites[i];
         if (!sprite) {
-          sprite = new Sprite(cannonTexture);
+          sprite = new Sprite(turretTexture);
           sprite.anchor.set(0.5);
-          this.cannonSprites[i] = sprite;
+          this.turretSprites[i] = sprite;
           g.addChild(sprite);
         }
-        sprite.texture = cannonTexture;
+        sprite.texture = turretTexture;
         sprite.position.set(bx0, cy);
         sprite.width = sprite.height = s * 1.2;
         sprite.rotation = outward * Math.PI / 2;
@@ -688,8 +688,8 @@ export class GunneryRenderer {
         fx.roundRect(x + 2, y + 2, s - 4, s - 4, s * 0.16).fill({ color: COLORS.brass, alpha: Math.min(0.45, glow / 1400) });
       }
 
-      // Need badge: the piece this cannon wants next, over the breech.
-      const need = cannonNeeds(c);
+      // Need badge: the piece this turret wants next, over the breech.
+      const need = turretNeeds(c);
       const sprite = this.needSprites[i]!;
       if (need !== null) {
         sprite.visible = true;
@@ -698,14 +698,14 @@ export class GunneryRenderer {
         sprite.position.set(cx - outward * s * 0.04, cy + bob);
         sprite.scale.set(0.6);
         sprite.alpha = 1;
-        // A pale backing so a dark piece (powder) still reads against the gun port.
+        // A pale backing so a dark piece (cell) still reads against the gun port.
         g.roundRect(cx - s * 0.33 - outward * s * 0.04, cy - s * 0.33 + bob, s * 0.66, s * 0.66, s * 0.12).fill({ color: 0xefe3c6, alpha: 0.85 });
-        const ringColor = c.fouled ? COLORS.danger : COLORS.cursor;
+        const ringColor = c.jammed ? COLORS.danger : COLORS.cursor;
         const pulse = 0.45 + 0.35 * Math.sin(this.time / 220 + i);
         fx.roundRect(cx - s * 0.33 - outward * s * 0.04, cy - s * 0.33 + bob, s * 0.66, s * 0.66, s * 0.12).stroke({ width: 2, color: ringColor, alpha: pulse });
       } else sprite.visible = false;
 
-      if (c.fouled) {
+      if (c.jammed) {
         for (let k = 0; k < 3; k++) {
           const wob = this.reduced ? 0 : Math.sin(this.time / 300 + k * 2) * s * 0.05;
           fx.circle(x + s * (0.3 + k * 0.2) + wob, y + s * (0.16 - k * 0.04), s * (0.1 + k * 0.025)).fill({ color: COLORS.smoke, alpha: 0.7 });
@@ -725,7 +725,7 @@ export class GunneryRenderer {
       const hit = this.hit[i] ?? 0;
       if (hit > 0) fx.roundRect(x + 1, y + 1, s - 2, s - 2, s * 0.16).stroke({ width: 3, color: COLORS.danger, alpha: hit / 700 });
 
-      // Load pips in the rail below (above, where a hatch sits below): powder, wad, shot.
+      // Load pips in the rail below (above, where a hatch sits below): cell, sabot, slug.
       const pw = s * 0.24;
       const below = gunneryCellAt(this.deck, c.col, c.row + 1) === "wall";
       const py = below ? y + s * 1.12 : y - s * 0.12 - pw;
@@ -739,7 +739,7 @@ export class GunneryRenderer {
         g.roundRect(px, py, pw, pw, s * 0.05).stroke({ width: filled ? 1.5 : 1, color: filled ? 0xffffff : mix(kc, 0xffffff, 0.3), alpha: filled ? 0.7 : 0.55 });
       }
 
-      // Something is on its way in: green if it is what the cannon wants, red if it will foul it.
+      // Something is on its way in: green if it is what the turret wants, red if it will jam it.
       const inc = this.incoming[i];
       if (inc && inc.outcome !== "splash") {
         const good = isGood(inc.outcome);
@@ -750,7 +750,7 @@ export class GunneryRenderer {
     });
   }
 
-  /** The next pieces in the rail beside the chute, soonest nearest. */
+  /** The next pieces in the rail beside the feeder, soonest nearest. */
   private layoutQueue(): void {
     if (!this.state) return;
     const want = this.state.queue.length;
@@ -782,7 +782,7 @@ export class GunneryRenderer {
     this.state.queue.forEach((kind, i) => {
       const sp = this.queueSprites[i]!;
       sp.texture = this.textures.get(kind) ?? Texture.WHITE;
-      // The next piece sits right above the chute; the ones after it trail off to the right.
+      // The next piece sits right above the feeder; the ones after it trail off to the right.
       const scale = i === 0 ? 0.72 : 0.56;
       sp.scale.set(scale);
       sp.alpha = i === 0 ? 1 : 0.75 - i * 0.12;
@@ -839,7 +839,7 @@ export class GunneryRenderer {
     for (const v of this.pieces.values()) v.s.texture = this.textures.get(v.kind) ?? Texture.WHITE;
     this.drawQueue();
     // Need badges also hold baked piece textures; a resize can render before the next tick.
-    this.drawCannons();
+    this.drawTurrets();
     for (const tex of old) tex.destroy(true);
   }
 
@@ -927,7 +927,7 @@ export class GunneryRenderer {
       const a = Math.min(2, this.shake / 220) * this.cell * 0.08;
       this.board.position.set(this.origin.x + (Math.random() - 0.5) * a, this.origin.y + (Math.random() - 0.5) * a);
     } else this.board.position.set(this.origin.x, this.origin.y);
-    this.drawCannons();
+    this.drawTurrets();
     this.drawHeadings();
     if (this.framePending) {
       this.framePending = false;

@@ -1,0 +1,41 @@
+[
+  {
+    "id": "tinwick",
+    "nameKey": "outpost.tinwick",
+    "blurbKey": "outpost.tinwick_blurb",
+    "x": 0,
+    "y": 0,
+    "landmark": "beacon",
+    "buildings": [
+      "dock",
+      "cantina",
+      "notice-board"
+    ]
+  },
+  {
+    "id": "echo-rock",
+    "nameKey": "outpost.echo_rock",
+    "blurbKey": "outpost.echo_rock_blurb",
+    "x": 8,
+    "y": 3,
+    "landmark": "dish",
+    "buildings": [
+      "dock",
+      "cantina",
+      "notice-board"
+    ]
+  },
+  {
+    "id": "frostvent",
+    "nameKey": "outpost.frostvent",
+    "blurbKey": "outpost.frostvent_blurb",
+    "x": 4,
+    "y": 9,
+    "landmark": "geyser",
+    "buildings": [
+      "dock",
+      "cantina",
+      "notice-board"
+    ]
+  }
+]

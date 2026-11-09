@@ -43,16 +43,16 @@ function evaluate(cfg: SwordfightConfig, before: SwordBoard, after: ReadonlyArra
   // Blocks of a color side by side or stacked are a slab or a break in the making.
   for (let i = 0; i < after.length; i++) {
     const c = after[i];
-    if (!c || c.kind === "wrack") continue;
+    if (!c || c.kind === "scrap") continue;
     const col = colOf(cfg, i);
     const row = rowOf(cfg, i);
     if (col + 1 < cfg.width) {
       const r = after[i + 1];
-      if (r && r.kind !== "wrack" && r.color === c.color) v += c.kind === "block" && r.kind === "block" ? 10 : 4;
+      if (r && r.kind !== "scrap" && r.color === c.color) v += c.kind === "block" && r.kind === "block" ? 10 : 4;
     }
     if (row + 1 < cfg.height) {
       const u = after[i + cfg.width];
-      if (u && u.kind !== "wrack" && u.color === c.color) v += c.kind === "block" && u.kind === "block" ? 10 : 4;
+      if (u && u.kind !== "scrap" && u.color === c.color) v += c.kind === "block" && u.kind === "block" ? 10 : 4;
     }
   }
   return v;

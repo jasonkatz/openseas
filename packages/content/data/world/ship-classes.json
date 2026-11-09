@@ -1,13 +1,13 @@
 [
   {
-    "id": "sloop",
-    "nameKey": "ship.sloop",
-    "stations": ["bilging", "sailing", "carpentry", "gunnery", "navigation"],
+    "id": "skiff",
+    "nameKey": "ship.skiff",
+    "stations": ["cooling", "engines", "plating", "gunnery", "navigation"],
     "maxCrew": 6,
     "minCrew": 4,
-    "mateStations": ["sailing", "bilging", "carpentry", "gunnery"],
+    "botStations": ["engines", "cooling", "plating", "gunnery"],
     "hull": 100,
-    "cannons": 4,
+    "turrets": 4,
     "baseTokens": 4,
     "price": 5000
   }

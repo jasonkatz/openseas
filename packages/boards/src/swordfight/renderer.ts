@@ -15,16 +15,16 @@ import {
   type SwordfightState,
 } from "@openseas/engine";
 import type { SwordfightContent } from "@openseas/content";
-import { mix } from "../bilging/tiles.js";
-import { drawMark } from "../sailing/renderer.js";
-import { WRACK_COLOR, blockCanvas, wrackStage, type BlockStyle, type SwordTexture } from "./art.js";
+import { mix } from "../cooling/tiles.js";
+import { drawMark } from "../engines/renderer.js";
+import { SCRAP_COLOR, blockCanvas, scrapStage, type BlockStyle, type SwordTexture } from "./art.js";
 
-/** A board in the melee that is not in this fight's state: another pirate's, or a brigand's run by the server. */
+/** A board in the melee that is not in this fight's state: another pirate's, or a raider's run by the server. */
 export interface RemoteBoard {
   readonly key: string;
   readonly name: string;
   readonly side: 0 | 1;
-  /** Row-major, top row first: `.` empty, 0-5 a color, A-F a breaker, `#` wrack. */
+  /** Row-major, top row first: `.` empty, 0-5 a color, A-F a breaker, `#` scrap. */
   readonly cells: string;
   readonly pending: number;
   readonly out: boolean;
@@ -58,8 +58,8 @@ export interface SwordfightRendererOptions {
     shatter: string;
     slab: string;
     chain(chain: number): string;
-    wrackOver(wrack: number): string;
-    wrackIn: string;
+    scrapOver(scrap: number): string;
+    scrapIn: string;
     out: string;
     won: string;
     lost: string;
@@ -75,7 +75,7 @@ interface PieceView {
   s: Sprite;
   kind: SwordCell["kind"];
   color: number;
-  /** Wrack: the drops left before it ripens, which picks its look. 0 otherwise. */
+  /** Scrap: the drops left before it ripens, which picks its look. 0 otherwise. */
   ripen: number;
   x: number;
   y: number;
@@ -270,7 +270,7 @@ export class SwordfightRenderer {
   }
 
   private colorOf(color: number): number {
-    return color < 0 ? WRACK_COLOR : (this.styles[color]?.color ?? 0xffffff);
+    return color < 0 ? SCRAP_COLOR : (this.styles[color]?.color ?? 0xffffff);
   }
 
   async init(): Promise<void> {
@@ -525,21 +525,21 @@ export class SwordfightRenderer {
         case "attack": {
           const ev = e;
           if (ev.board !== 0) {
-            // Wrack coming our way from a board in the fight.
+            // Scrap coming our way from a board in the fight.
             this.steps.push(() => {
-              this.callout(this.opts.labels.wrackIn, COLORS.danger);
+              this.callout(this.opts.labels.scrapIn, COLORS.danger);
               const from = this.minis.find((m) => m.key === `board:${ev.board}`);
-              if (from) this.fly(from.x + (from.cell * this.width) / 2 - this.ox, from.y - this.oy, (this.width * this.cell) / 2, -this.strip / 2, WRACK_COLOR, Math.min(12, ev.wrack));
+              if (from) this.fly(from.x + (from.cell * this.width) / 2 - this.ox, from.y - this.oy, (this.width * this.cell) / 2, -this.strip / 2, SCRAP_COLOR, Math.min(12, ev.scrap));
               return 0;
             });
             break;
           }
           this.steps.push(() => {
-            if (ev.wrack > 0) {
-              this.callout(this.opts.labels.wrackOver(ev.wrack), COLORS.good);
+            if (ev.scrap > 0) {
+              this.callout(this.opts.labels.scrapOver(ev.scrap), COLORS.good);
               const to = ev.to >= 0 ? this.minis.find((m) => m.key === `board:${ev.to}`) : null;
               const target = to ? { x: to.x + (to.cell * this.width) / 2 - this.ox, y: to.y + (to.cell * this.height) / 2 - this.oy } : { x: (this.width * this.cell) / 2, y: -this.strip * 3 };
-              this.fly((this.width * this.cell) / 2, (this.height * this.cell) * 0.4, target.x, target.y, COLORS.bone, Math.min(14, ev.wrack));
+              this.fly((this.width * this.cell) / 2, (this.height * this.cell) * 0.4, target.x, target.y, COLORS.bone, Math.min(14, ev.scrap));
             }
             return 0;
           });
@@ -552,7 +552,7 @@ export class SwordfightRenderer {
               const i = ev.cells[k]!;
               const col = i % this.width;
               const row = Math.floor(i / this.width);
-              const cell: SwordCell = { id: ev.ids[k]!, color: ev.colors[k] ?? 0, kind: "wrack", ripen: state.config.ripenMoves, slab: 0 };
+              const cell: SwordCell = { id: ev.ids[k]!, color: ev.colors[k] ?? 0, kind: "scrap", ripen: state.config.ripenMoves, slab: 0 };
               this.cells[i] = cell;
               const v = this.spawn(cell, this.cx(col), this.cy(this.height + 1 + (k % 3)));
               v.tx = this.cx(col);
@@ -629,7 +629,7 @@ export class SwordfightRenderer {
       let v = this.pieces.get(c.id);
       if (!v) v = this.spawn(c, x, snap ? y : y - this.cell * 2);
       else if (v.kind !== c.kind || v.color !== c.color || v.ripen !== c.ripen) {
-        // Wrack a drop closer to ripening changes its look: the texture is keyed on the stage too.
+        // Scrap a drop closer to ripening changes its look: the texture is keyed on the stage too.
         v.kind = c.kind;
         v.color = c.color;
         v.ripen = c.ripen;
@@ -693,9 +693,9 @@ export class SwordfightRenderer {
     v.s.destroy();
   }
 
-  /** The texture for a block; `ripen` is the drops left on wrack, which picks its stage. */
+  /** The texture for a block; `ripen` is the drops left on scrap, which picks its stage. */
   private texture(color: number, kind: SwordCell["kind"], w: number, h: number, ripen = 0): Texture {
-    const stage = kind === "wrack" ? wrackStage(ripen) : "";
+    const stage = kind === "scrap" ? scrapStage(ripen) : "";
     const key = `${color}:${kind}:${stage}:${w}x${h}:${this.showMarks ? 1 : 0}:${this.cell}`;
     let t = this.textures.get(key);
     if (!t) {
@@ -841,7 +841,7 @@ export class SwordfightRenderer {
     return f.row === R || !this.canDrop(pc, rot, row) || this.fits(pc, rot, row - 1);
   }
 
-  /** After wrack landed under it, lift the pair clear; if there is no room at all it waits for the engine's word. */
+  /** After scrap landed under it, lift the pair clear; if there is no room at all it waits for the engine's word. */
   private refitFalling(): void {
     const f = this.falling;
     if (!f) return;
@@ -1030,18 +1030,18 @@ export class SwordfightRenderer {
     const b = s.boards[0]!;
     this.nextA.texture = this.texture(b.next.a.color, b.next.a.breaker ? "breaker" : "block", 1, 1);
     this.nextB.texture = this.texture(b.next.b.color, b.next.b.breaker ? "breaker" : "block", 1, 1);
-    const pending = b.pending.reduce((n, p) => n + p.wrack, 0);
+    const pending = b.pending.reduce((n, p) => n + p.scrap, 0);
     const g = this.stripG;
     g.clear();
     const cs = this.cell;
     const y = -this.strip / 2 - 1;
-    // Pending wrack as a row of small grey blocks, right of centre, capped with a count.
+    // Pending scrap as a row of small grey blocks, right of centre, capped with a count.
     const show = Math.min(pending, 8);
     const bw = cs * 0.3;
     const right = this.width * cs - cs * 0.15 - (this.incomingText ? this.incomingText.width + cs * 0.2 : 0);
     for (let i = 0; i < show; i++) {
       const x = right - (i + 1) * (bw + 2);
-      g.roundRect(x, y - bw / 2, bw, bw, bw * 0.2).fill({ color: WRACK_COLOR });
+      g.roundRect(x, y - bw / 2, bw, bw, bw * 0.2).fill({ color: SCRAP_COLOR });
       g.roundRect(x, y - bw / 2, bw, bw, bw * 0.2).stroke({ width: 1, color: 0xffffff, alpha: 0.25 });
     }
     if (this.incomingText) {
@@ -1057,7 +1057,7 @@ export class SwordfightRenderer {
     this.drawWarn();
   }
 
-  /** Wrack on its way: the count, its blocks and the tint flash so they are not missed, quicker the more there is. */
+  /** Scrap on its way: the count, its blocks and the tint flash so they are not missed, quicker the more there is. */
   private drawWarn(): void {
     const pending = this.pendingShown;
     const on = pending > 0;
@@ -1126,7 +1126,7 @@ export class SwordfightRenderer {
       s.boards.forEach((b, i) => {
         if (s.config.player && i === 0) return;
         const name = b.side === 1 ? this.opts.labels.foe(++foe) : this.opts.labels.ally(++ally);
-        out.push({ key: `board:${i}`, name, side: b.side, cells: swordfightBoardString(s.config, b.cells), pending: b.pending.reduce((n, p) => n + p.wrack, 0), out: b.out, points: b.points });
+        out.push({ key: `board:${i}`, name, side: b.side, cells: swordfightBoardString(s.config, b.cells), pending: b.pending.reduce((n, p) => n + p.scrap, 0), out: b.out, points: b.points });
       });
     }
     for (const r of this.remote) out.push({ key: r.key, name: r.name, side: r.side, cells: r.cells, pending: r.pending, out: r.out, points: r.points });
@@ -1223,7 +1223,7 @@ export class SwordfightRenderer {
           const x = c * s;
           const y = r * s;
           if (ch === "#") {
-            g.roundRect(x + 0.5, y + 0.5, s - 1, s - 1, s * 0.15).fill({ color: WRACK_COLOR });
+            g.roundRect(x + 0.5, y + 0.5, s - 1, s - 1, s * 0.15).fill({ color: SCRAP_COLOR });
             continue;
           }
           const breaker = ch >= "A" && ch <= "F";
@@ -1279,7 +1279,7 @@ export class SwordfightRenderer {
     }
   }
 
-  /** Blocks of wrack flying from one place to another, in board coordinates. */
+  /** Blocks of scrap flying from one place to another, in board coordinates. */
   private fly(x0: number, y0: number, x1: number, y1: number, color: number, n: number): void {
     if (this.reduced) return;
     for (let i = 0; i < n; i++) {
@@ -1518,7 +1518,7 @@ export class SwordfightRenderer {
       const col = Math.round(v.tx / this.cell - 0.5);
       const row = this.height - 1 - Math.round(v.ty / this.cell - 0.5);
       if (col < 0 || col >= this.width || row < 0 || row >= this.height) continue;
-      chars[row * this.width + col] = v.kind === "wrack" ? "#" : v.kind === "breaker" ? String.fromCharCode(65 + v.color) : String(v.color);
+      chars[row * this.width + col] = v.kind === "scrap" ? "#" : v.kind === "breaker" ? String.fromCharCode(65 + v.color) : String(v.color);
     }
     for (const v of this.slabs.values()) {
       if (v.dying !== null) continue;

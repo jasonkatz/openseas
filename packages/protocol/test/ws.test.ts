@@ -21,7 +21,7 @@ describe("protocol", () => {
     const m = parseClientMessage({ type: "puzzle.move", sessionId: "abcdefgh12345678", seq: 0, move: { type: "end", tick: 12 }, hash: "deadbeef" });
     expect(m?.type === "puzzle.move" && m.move).toEqual({ type: "end", tick: 12 });
     expect(parseMoveFor("gunnery", { type: "end", tick: 12 })).toEqual({ type: "end", tick: 12 });
-    expect(parseMoveFor("sailing", { type: "swap", col: 0, row: 0 })).toBeNull();
+    expect(parseMoveFor("engines", { type: "swap", col: 0, row: 0 })).toBeNull();
   });
 
   it("round-trips a server result", () => {
@@ -32,7 +32,7 @@ describe("protocol", () => {
       moves: 40,
       bestCombo: 3,
       verified: true,
-      rating: { puzzle: "bilging", tier: "steady", rounds: 4 },
+      rating: { puzzle: "cooling", tier: "steady", rounds: 4 },
       tierChange: "up",
       performance: { rating: 1540, tier: "steady" },
     };
@@ -43,9 +43,9 @@ describe("protocol", () => {
 describe("ship protocol", () => {
   it("parses the crew's ship messages and refuses an unknown station", () => {
     expect(parseClientMessage({ type: "ship.board", shipId: "ship-1" })).not.toBeNull();
-    expect(parseClientMessage({ type: "ship.station", station: "bilging" })).not.toBeNull();
+    expect(parseClientMessage({ type: "ship.station", station: "cooling" })).not.toBeNull();
     expect(parseClientMessage({ type: "ship.station", station: null })).not.toBeNull();
-    expect(parseClientMessage({ type: "ship.station", station: "rigging" })).toBeNull();
+    expect(parseClientMessage({ type: "ship.station", station: "core" })).toBeNull();
     expect(parseClientMessage({ type: "chat.send", channel: "ship", text: "  ahoy " })).toEqual({ type: "chat.send", channel: "ship", text: "ahoy" });
     expect(parseClientMessage({ type: "chat.send", channel: "ship", text: "   " })).toBeNull();
     expect(parseClientMessage({ type: "chat.send", channel: "crew", text: "x" })).not.toBeNull();
@@ -71,52 +71,52 @@ describe("ship protocol", () => {
     const ship = {
       shipId: "ship-1",
       name: "The Salty Gull",
-      classId: "sloop",
+      classId: "skiff",
       ownerId: "p1",
       captainId: "p1",
       crew: [
-        { pirateId: "p1", name: "Salty Gull", station: "sailing", captain: true, away: false, mate: false, crewId: "c1" },
-        { pirateId: "mate:1", name: "Brackish Eel", station: "bilging", captain: false, away: false, mate: true, crewId: null },
+        { pirateId: "p1", name: "Salty Gull", station: "engines", captain: true, away: false, bot: false, crewId: "c1" },
+        { pirateId: "bot:1", name: "Brackish Eel", station: "cooling", captain: false, away: false, bot: true, crewId: null },
       ],
       maxCrew: 6,
       inviteOnly: false,
-      location: { kind: "at-sea", routeId: "a-b", from: "a", to: "b", progress: 250, hail: null, battle: null },
+      location: { kind: "in-flight", laneId: "a-b", from: "a", to: "b", progress: 250, hail: null, battle: null },
       turn: 3,
-      water: 120,
+      heat: 120,
       damage: 24,
       loaded: 1,
-      cannons: 4,
-      lastTurn: { turn: 3, outputs: { bilging: 0, sailing: 110, carpentry: 0, gunnery: 0, navigation: 0 }, held: false, speed: 1000, tokens: 4 },
+      turrets: 4,
+      lastTurn: { turn: 3, outputs: { cooling: 0, engines: 110, plating: 0, gunnery: 0, navigation: 0 }, held: false, speed: 1000, tokens: 4 },
       nextTurnAt: 1000,
       turnMs: 10000,
       voyagesCompleted: 0,
       melee: null,
       colors: { id: "c1", name: "The Gulls", flag: { field: "pitch", accent: "bone", pattern: "plain", emblem: "skull" } },
     };
-    expect(parseServerMessage({ type: "ship.state", ship, events: [{ type: "sailed", routeId: "a-b" }], serverNow: 1 })).not.toBeNull();
-    // Deckhands sign on and are paid off as events with names, like any crew change.
+    expect(parseServerMessage({ type: "ship.state", ship, events: [{ type: "launched", laneId: "a-b" }], serverNow: 1 })).not.toBeNull();
+    // Bots boot up and are powered down as events with names, like any crew change.
     const hands = [
-      { type: "hired", pirateId: "mate:1", name: "Brackish Eel", station: "bilging" },
-      { type: "hired", pirateId: "mate:2", name: "Windward Tern", station: null },
-      { type: "paid_off", names: ["Brackish Eel", "Windward Tern"] },
+      { type: "booted_up", pirateId: "bot:1", name: "Brackish Eel", station: "cooling" },
+      { type: "booted_up", pirateId: "bot:2", name: "Windward Tern", station: null },
+      { type: "powered_down", names: ["Brackish Eel", "Windward Tern"] },
     ];
     expect(parseServerMessage({ type: "ship.state", ship, events: hands, serverNow: 1 })).not.toBeNull();
-    expect(parseServerMessage({ type: "ship.state", ship: { ...ship, crew: [{ ...ship.crew[0], mate: undefined }] }, events: [], serverNow: 1 })).toBeNull();
-    expect(parseServerMessage({ type: "ship.state", ship: { ...ship, water: 1001 }, events: [], serverNow: 1 })).toBeNull();
+    expect(parseServerMessage({ type: "ship.state", ship: { ...ship, crew: [{ ...ship.crew[0], bot: undefined }] }, events: [], serverNow: 1 })).toBeNull();
+    expect(parseServerMessage({ type: "ship.state", ship: { ...ship, heat: 1001 }, events: [], serverNow: 1 })).toBeNull();
   });
 });
 
-describe("bilging water events", () => {
-  it("ride the wire as moves and narrow to Bilging", () => {
-    expect(parseMoveFor("bilging", { type: "water", row: 4 })).toEqual({ type: "water", row: 4 });
-    expect(parseMoveFor("bilging", { type: "water", row: 40 })).toBeNull();
-    expect(parseMoveFor("sailing", { type: "water", row: 4 })).toBeNull();
-    expect(parseServerMessage({ type: "duty.water", sessionId: "abcdefgh12345678", row: 3 })).toEqual({ type: "duty.water", sessionId: "abcdefgh12345678", row: 3 });
+describe("cooling heat events", () => {
+  it("ride the wire as moves and narrow to Cooling", () => {
+    expect(parseMoveFor("cooling", { type: "heat", row: 4 })).toEqual({ type: "heat", row: 4 });
+    expect(parseMoveFor("cooling", { type: "heat", row: 40 })).toBeNull();
+    expect(parseMoveFor("engines", { type: "heat", row: 4 })).toBeNull();
+    expect(parseServerMessage({ type: "duty.heat", sessionId: "abcdefgh12345678", row: 3 })).toEqual({ type: "duty.heat", sessionId: "abcdefgh12345678", row: 3 });
   });
 });
 
 describe("crew protocol (M6)", () => {
-  const flag = { field: "pitch", accent: "bone", pattern: "cross", emblem: "anchor" };
+  const flag = { field: "pitch", accent: "bone", pattern: "cross", emblem: "rocket" };
   it("founds a crew under a tidied name and refuses names that are not words", () => {
     expect(parseClientMessage({ type: "crew.found", name: "  The   Salt  Dogs ", flag })).toEqual({ type: "crew.found", name: "The Salt Dogs", flag });
     expect(parseClientMessage({ type: "crew.found", name: "Brine's Own-Crew", flag })).not.toBeNull();
@@ -138,47 +138,47 @@ describe("crew protocol (M6)", () => {
       name: "The Salt Dogs",
       flag,
       foundedAt: 1,
-      stats: { voyages: 3, victories: 1, booty: 600 },
+      stats: { voyages: 3, victories: 1, plunder: 600 },
       members: [
-        { pirateId: "p1", name: "Salty Gull", rank: "commodore", joinedAt: 1, where: { kind: "aboard", shipId: "s1", shipName: "The Gull", islandId: null, to: "gullhaven", progress: 400, joinable: true } },
-        { pirateId: "p2", name: "Brine Hound", rank: "sailor", joinedAt: 2, where: { kind: "ashore", islandId: "saltwick" } },
+        { pirateId: "p1", name: "Salty Gull", rank: "commodore", joinedAt: 1, where: { kind: "aboard", shipId: "s1", shipName: "The Gull", outpostId: null, to: "echo-rock", progress: 400, joinable: true } },
+        { pirateId: "p2", name: "Brine Hound", rank: "spacer", joinedAt: 2, where: { kind: "on-outpost", outpostId: "tinwick" } },
         { pirateId: "p3", name: "Kelp Witch", rank: "officer", joinedAt: 3, where: { kind: "offline" } },
       ],
       invited: [{ pirateId: "p4", name: "Tide Rat" }],
     };
     expect(parseServerMessage({ type: "crew.state", crew, invites: [], serverNow: 1 })).not.toBeNull();
     expect(parseServerMessage({ type: "crew.state", crew: null, invites: [{ crew: { id: "c1", name: "The Salt Dogs", flag }, members: 3, by: "Salty Gull", at: 1 }], serverNow: 1 })).not.toBeNull();
-    expect(parseServerMessage({ type: "crew.notice", notice: { type: "sailed", names: ["Salty Gull"], shipId: "s1", shipName: "The Gull", to: "gullhaven", joinable: true }, at: 1 })).not.toBeNull();
-    expect(parseServerMessage({ type: "crew.notice", notice: { type: "sailed", names: [], shipId: "s1", shipName: "The Gull", to: "gullhaven", joinable: true }, at: 1 })).toBeNull();
+    expect(parseServerMessage({ type: "crew.notice", notice: { type: "launched", names: ["Salty Gull"], shipId: "s1", shipName: "The Gull", to: "echo-rock", joinable: true }, at: 1 })).not.toBeNull();
+    expect(parseServerMessage({ type: "crew.notice", notice: { type: "launched", names: [], shipId: "s1", shipName: "The Gull", to: "echo-rock", joinable: true }, at: 1 })).toBeNull();
   });
 });
 
 describe("the pirate's sheet", () => {
   it("picks a look and a title by content id, and refuses anything else", () => {
     expect(parseClientMessage({ type: "pirate.sheet" })).not.toBeNull();
-    expect(parseClientMessage({ type: "pirate.look", look: { coat: "navy", hat: "tricorne" } })).not.toBeNull();
-    expect(parseClientMessage({ type: "pirate.look", look: { coat: "Navy Blue", hat: "tricorne" } })).toBeNull();
-    expect(parseClientMessage({ type: "pirate.look", look: { coat: "navy" } })).toBeNull();
-    expect(parseClientMessage({ type: "pirate.title", title: "old-salt" })).not.toBeNull();
+    expect(parseClientMessage({ type: "pirate.look", look: { jacket: "navy", headgear: "bubble-helmet" } })).not.toBeNull();
+    expect(parseClientMessage({ type: "pirate.look", look: { jacket: "Navy Blue", headgear: "bubble-helmet" } })).toBeNull();
+    expect(parseClientMessage({ type: "pirate.look", look: { jacket: "navy" } })).toBeNull();
+    expect(parseClientMessage({ type: "pirate.title", title: "old-stardust" })).not.toBeNull();
     expect(parseClientMessage({ type: "pirate.title", title: null })).not.toBeNull();
     expect(parseClientMessage({ type: "pirate.title", title: "<b>King</b>" })).toBeNull();
   });
 
   it("sends the record with every title's progress, and earned titles as they land", () => {
     const sheet = {
-      record: { since: 1, voyages: 3, captained: 1, victories: 1, booty: 240, boards: 12 },
+      record: { since: 1, voyages: 3, captained: 1, victories: 1, plunder: 240, boards: 12 },
       titles: [
-        { id: "wave-rider", earned: true, have: 3, need: 1 },
-        { id: "pumpmaster", earned: false, have: -1, need: 3 },
+        { id: "lane-rider", earned: true, have: 3, need: 1 },
+        { id: "coolhand", earned: false, have: -1, need: 3 },
       ],
     };
     expect(parseServerMessage({ type: "pirate.sheet", sheet })).not.toBeNull();
-    expect(parseServerMessage({ type: "pirate.titles", earned: ["wave-rider"] })).not.toBeNull();
+    expect(parseServerMessage({ type: "pirate.titles", earned: ["lane-rider"] })).not.toBeNull();
     expect(parseServerMessage({ type: "pirate.titles", earned: [] })).toBeNull();
   });
 
   it("reads a summary, a profile and a crew view from a server that sends no look or title", () => {
-    const welcome = parseServerMessage({ type: "welcome", pirate: { id: "p1", name: "Salty Gull", guest: true, balance: 0, ratings: [], ships: [], islandId: "saltwick" }, serverNow: 1 });
+    const welcome = parseServerMessage({ type: "welcome", pirate: { id: "p1", name: "Salty Gull", guest: true, balance: 0, ratings: [], ships: [], outpostId: "tinwick" }, serverNow: 1 });
     expect(welcome?.type === "welcome" && welcome.pirate.look).toBeNull();
     expect(welcome?.type === "welcome" && welcome.pirate.title).toBeNull();
     const profile = parseServerMessage({ type: "pirate.profile", profile: { pirateId: "p1", name: "Salty Gull", crew: null, ratings: [], voyages: 2, online: true, invited: false } });

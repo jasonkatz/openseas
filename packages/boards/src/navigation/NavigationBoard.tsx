@@ -45,7 +45,7 @@ export function NavigationBoard(props: NavigationBoardProps) {
         tickMs: content.puzzles.navigation.config.tickMs,
         labels: {
           charted: t("navigation.charted"),
-          booch: t("navigation.booch"),
+          lostHeading: t("navigation.lost_heading"),
           run: t("navigation.run"),
           chain: (chain) => t("practice.chain_label", { chain }),
           efficient: t("navigation.efficient"),

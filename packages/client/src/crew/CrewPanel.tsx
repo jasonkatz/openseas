@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { CrewFlagWire, CrewInfo, CrewMember, CrewRank, CrewWhere } from "@openseas/protocol";
 import { content, t, usePirate } from "@openseas/boards";
-import { Chat } from "../island/Chat.jsx";
-import { islandName } from "../names.js";
+import { Chat } from "../outpost/Chat.jsx";
+import { outpostName } from "../names.js";
 import { useCrew, describeCrewNotice, type CrewTab } from "../state/CrewProvider.jsx";
 import { useShip } from "../state/ShipProvider.jsx";
 import { useSocial } from "../state/SocialProvider.jsx";
@@ -60,7 +60,7 @@ function RankMark({ rank }: { rank: CrewRank }) {
     <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" fill="currentColor" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
       {rank === "commodore" && <path d="M8 1.5l1.9 4 4.4.5-3.3 3 .9 4.3L8 11.2 4.1 13.3 5 9 1.7 6l4.4-.5z" />}
       {rank === "officer" && <path d="M3 9l5-4 5 4M3 13l5-4 5 4" fill="none" />}
-      {rank === "sailor" && <path d="M3 8h10" fill="none" strokeWidth="2.4" />}
+      {rank === "spacer" && <path d="M3 8h10" fill="none" strokeWidth="2.4" />}
     </svg>
   );
 }
@@ -69,22 +69,22 @@ export function whereText(w: CrewWhere): string {
   switch (w.kind) {
     case "offline":
       return t("crew.where_offline");
-    case "ashore":
-      return t("crew.where_ashore", { island: islandName(w.islandId) });
+    case "on-outpost":
+      return t("crew.where_on_outpost", { outpost: outpostName(w.outpostId) });
     case "aboard":
-      return w.islandId
-        ? t("crew.where_docked", { ship: w.shipName, island: islandName(w.islandId) })
-        : t("crew.where_at_sea", { ship: w.shipName, island: islandName(w.to ?? ""), percent: Math.round(w.progress / 10) });
+      return w.outpostId
+        ? t("crew.where_docked", { ship: w.shipName, outpost: outpostName(w.outpostId) })
+        : t("crew.where_in_flight", { ship: w.shipName, outpost: outpostName(w.to ?? ""), percent: Math.round(w.progress / 10) });
   }
 }
 
-/** The crew card: the pirate's crew, or the ways into one. Opens over the scene from the top bar or the tavern. */
+/** The crew card: the pirate's crew, or the ways into one. Opens over the scene from the top bar or the cantina. */
 export function CrewPanel({ tab, onTab }: { tab: CrewTab; onTab(tab: CrewTab): void }) {
   const { crew, listCrews, refresh, error, clearError } = useCrew();
   const { socketStatus } = usePirate();
   const online = socketStatus === "open";
 
-  // Where everyone is changes as they sail: look again while the card is open.
+  // Where everyone is changes as they fly: look again while the card is open.
   useEffect(() => {
     if (!online) return;
     refresh();
@@ -163,8 +163,8 @@ function CrewHead({ crew }: { crew: CrewInfo }) {
           <small>{t("crew.stat_victories")}</small>
         </li>
         <li>
-          <b>{crew.stats.booty}</b>
-          <small>{t("crew.stat_booty")}</small>
+          <b>{crew.stats.plunder}</b>
+          <small>{t("crew.stat_plunder")}</small>
         </li>
       </ul>
     </header>
@@ -279,7 +279,7 @@ function MemberRow({ m, me, myRank }: { m: CrewMember; me: string; myRank: CrewR
   const { boardShip } = useShip();
   const [open, setOpen] = useState(false);
   const mine = m.pirateId === me;
-  const canManage = !mine && (myRank === "commodore" || (myRank === "officer" && m.rank === "sailor"));
+  const canManage = !mine && (myRank === "commodore" || (myRank === "officer" && m.rank === "spacer"));
   return (
     <li className={`member ${mine ? "is-me" : ""} ${m.where.kind === "offline" ? "is-offline" : ""}`} data-testid={`crew-member-${m.pirateId}`} data-rank={m.rank}>
       <div className="member-main">
@@ -296,7 +296,7 @@ function MemberRow({ m, me, myRank }: { m: CrewMember; me: string; myRank: CrewR
         </span>
         {m.where.kind === "aboard" && m.where.joinable && (
           <button className="btn btn-brass btn-small" onClick={() => boardShip((m.where as { shipId: string }).shipId)} data-testid={`crew-join-${m.pirateId}`}>
-            {m.where.islandId ? t("crew.join_docked") : t("crew.join_at_sea")}
+            {m.where.outpostId ? t("crew.join_docked") : t("crew.join_in_flight")}
           </button>
         )}
         {canManage && (
@@ -317,8 +317,8 @@ function MemberRow({ m, me, myRank }: { m: CrewMember; me: string; myRank: CrewR
             </button>
           )}
           {myRank === "commodore" && m.rank === "officer" && (
-            <button className="btn btn-ghost btn-small" onClick={() => setRank(m.pirateId, "sailor")} data-testid={`crew-sailor-${m.pirateId}`}>
-              {t("crew.make_sailor")}
+            <button className="btn btn-ghost btn-small" onClick={() => setRank(m.pirateId, "spacer")} data-testid={`crew-spacer-${m.pirateId}`}>
+              {t("crew.make_spacer")}
             </button>
           )}
           {myRank === "commodore" && (
@@ -393,8 +393,8 @@ function JoinOrFound() {
   const [flag, setDraft] = useState<CrewFlagWire>(() => randomFlag());
   const [touched, setTouched] = useState(false);
   const problem = crewNameProblem(name);
-  const coins = pirate?.balance ?? 0;
-  const short = Math.max(0, rules.foundingFee - coins);
+  const credits = pirate?.balance ?? 0;
+  const short = Math.max(0, rules.foundingFee - credits);
   const nameRef = useRef<HTMLInputElement>(null);
 
   const submit = (e: FormEvent): void => {
@@ -418,7 +418,7 @@ function JoinOrFound() {
       )}
       <form className="section found-form" onSubmit={submit} data-testid="crew-found-form">
         <h3 className="section-head">{t("crew.found_head")}</h3>
-        <p className="muted small">{rules.foundingFee > 0 ? t("crew.found_blurb", { coins: rules.foundingFee }) : t("crew.found_blurb_free")}</p>
+        <p className="muted small">{rules.foundingFee > 0 ? t("crew.found_blurb", { credits: rules.foundingFee }) : t("crew.found_blurb_free")}</p>
         <label className="field">
           <span>{t("crew.name_label")}</span>
           <input
@@ -437,9 +437,9 @@ function JoinOrFound() {
         <PreviewLine name={name.trim() || t("crew.name_placeholder")}>
           <Flag flag={flag} size={22} />
         </PreviewLine>
-        {short > 0 && <p className="note">{t("crew.found_short", { coins: short })}</p>}
+        {short > 0 && <p className="note">{t("crew.found_short", { credits: short })}</p>}
         <button className="btn btn-brass btn-wide" type="submit" disabled={short > 0 || problem !== null} data-testid="crew-found">
-          {rules.foundingFee > 0 ? t("crew.found_button", { coins: rules.foundingFee }) : t("crew.found_button_free")}
+          {rules.foundingFee > 0 ? t("crew.found_button", { credits: rules.foundingFee }) : t("crew.found_button_free")}
         </button>
       </form>
     </>
@@ -455,7 +455,7 @@ function PreviewLine({ name, children }: { name: string; children: ReactNode }) 
   );
 }
 
-/** Every crew on the ocean, the most plunder first. */
+/** Every crew on the star system, the most plunder first. */
 function CrewBoard() {
   const { rows, crew } = useCrew();
   if (!rows) return <p className="muted small">{t("app.loading")}</p>;
@@ -471,7 +471,7 @@ function CrewBoard() {
             <br />
             <small className="muted">{t("crew.board_line", { members: r.members, voyages: r.stats.voyages, victories: r.stats.victories })}</small>
           </span>
-          <b className="board-booty">{t("world.coins", { coins: r.stats.booty })}</b>
+          <b className="board-plunder">{t("world.credits", { credits: r.stats.plunder })}</b>
         </li>
       ))}
     </ol>

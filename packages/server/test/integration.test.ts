@@ -1,11 +1,11 @@
 /**
- * Boots the whole server against a real Postgres and plays a Bilging round over the wire. Runs only
+ * Boots the whole server against a real Postgres and plays a Cooling round over the wire. Runs only
  * when TEST_DATABASE_URL is set (CI provides a Postgres service; locally use docker compose).
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
 import { eq } from "drizzle-orm";
-import { PUZZLES, PUZZLE_IDS, createBilgingGame, hashBilgingState, reduceBilging, swapIllegalReason, type BilgingMove, type BilgingState } from "@openseas/engine";
+import { PUZZLES, PUZZLE_IDS, createCoolingGame, hashCoolingState, reduceCooling, swapIllegalReason, type CoolingMove, type CoolingState } from "@openseas/engine";
 import { parseServerMessage, type MeResponse, type ServerMessage } from "@openseas/protocol";
 import { createApp, type App } from "../src/app.js";
 import { mergeGuestIntoAccount } from "../src/auth.js";
@@ -60,7 +60,7 @@ describeDb("server integration", () => {
     expect(await res.json()).toMatchObject({ ok: true });
   });
 
-  it("guest signs in, is gated by the invite code, then gets a pirate and a starter sloop", async () => {
+  it("guest signs in, is gated by the invite code, then gets a pirate and a starter skiff", async () => {
     const cookie = await guestSignIn();
 
     const me0 = (await (await fetch(`${base}/api/me`, { headers: { cookie } })).json()) as MeResponse;
@@ -87,13 +87,13 @@ describeDb("server integration", () => {
     expect(body.pirate?.guest).toBe(true);
     expect(body.pirate?.name).toMatch(/^\w+ \w+$/);
     expect(body.pirate?.ships).toHaveLength(1);
-    expect(body.pirate?.ships[0]?.classId).toBe("sloop");
+    expect(body.pirate?.ships[0]?.classId).toBe("skiff");
     expect(body.pirate?.balance).toBe(0);
 
     // The grant went through the ledger as a zero-cost purchase (ADR 0010).
     const entries = await app.db.select().from(schema.ledgerEntry).where(eq(schema.ledgerEntry.pirateId, body.pirate!.id));
     expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ delta: 0, balanceAfter: 0, reason: "ship.purchase", ref: "starter-sloop" });
+    expect(entries[0]).toMatchObject({ delta: 0, balanceAfter: 0, reason: "ship.purchase", ref: "starter-skiff" });
 
     const again = await fetch(`${base}/api/pirate`, {
       method: "POST",
@@ -126,8 +126,8 @@ describeDb("server integration", () => {
     ws.on("message", (d) => {
       const m = parseServerMessage(JSON.parse(d.toString()));
       expect(m).not.toBeNull();
-      // Who is ashore and the pirate's crew are pushed whenever they change; this test is about the round.
-      if (m!.type === "island.presence" || m!.type === "crew.state") return;
+      // Who is on the outpost and the pirate's crew are pushed whenever they change; this test is about the round.
+      if (m!.type === "outpost.presence" || m!.type === "crew.state") return;
       const w = waiters.shift();
       if (w) w(m!);
       else inbox.push(m!);
@@ -139,24 +139,24 @@ describeDb("server integration", () => {
     const welcome = await next();
     expect(welcome.type).toBe("welcome");
 
-    ws.send(JSON.stringify({ type: "puzzle.start", puzzle: "bilging" }));
+    ws.send(JSON.stringify({ type: "puzzle.start", puzzle: "cooling" }));
     const started = await next();
     expect(started.type).toBe("puzzle.started");
-    if (started.type !== "puzzle.started" || started.puzzle !== "bilging") return;
+    if (started.type !== "puzzle.started" || started.puzzle !== "cooling") return;
 
-    let state: BilgingState = createBilgingGame(started.seed, started.config);
-    const moves: BilgingMove[] = [];
+    let state: CoolingState = createCoolingGame(started.seed, started.config);
+    const moves: CoolingMove[] = [];
     for (let i = 0; i < 25; i++) {
       const move = firstLegal(state);
-      state = reduceBilging(state, move);
+      state = reduceCooling(state, move);
       moves.push(move);
-      ws.send(JSON.stringify({ type: "puzzle.move", sessionId: started.sessionId, seq: i, move, hash: hashBilgingState(state) }));
+      ws.send(JSON.stringify({ type: "puzzle.move", sessionId: started.sessionId, seq: i, move, hash: hashCoolingState(state) }));
     }
     ws.send(
       JSON.stringify({
         type: "puzzle.finish",
         sessionId: started.sessionId,
-        hash: hashBilgingState(state),
+        hash: hashCoolingState(state),
         metrics: { inputToRenderP50: 12, inputToRenderP95: 30, samples: 25 },
       }),
     );
@@ -173,10 +173,10 @@ describeDb("server integration", () => {
     expect(typeof result.performance.tier).toBe("string");
 
     // A cheater who sends a different hash is rejected on the spot.
-    ws.send(JSON.stringify({ type: "puzzle.start", puzzle: "bilging" }));
+    ws.send(JSON.stringify({ type: "puzzle.start", puzzle: "cooling" }));
     const started2 = await next();
-    if (started2.type !== "puzzle.started" || started2.puzzle !== "bilging") throw new Error("expected start");
-    const s2 = createBilgingGame(started2.seed, started2.config);
+    if (started2.type !== "puzzle.started" || started2.puzzle !== "cooling") throw new Error("expected start");
+    const s2 = createCoolingGame(started2.seed, started2.config);
     ws.send(JSON.stringify({ type: "puzzle.move", sessionId: started2.sessionId, seq: 0, move: firstLegal(s2), hash: "00000000" }));
     const rejected = await next();
     expect(rejected).toMatchObject({ type: "puzzle.rejected", reason: "divergence", atSeq: 0 });
@@ -186,7 +186,7 @@ describeDb("server integration", () => {
     expect((rows[0]!.moveLog as unknown[]).length).toBe(25);
 
     // Every other registered puzzle plays a short honest round over the same wire, each with its own performance.
-    for (const id of PUZZLE_IDS.filter((p) => p !== "bilging")) {
+    for (const id of PUZZLE_IDS.filter((p) => p !== "cooling")) {
       // Stay under the connection's message rate limit across five puzzles.
       await new Promise((resolve) => setTimeout(resolve, 250));
       ws.send(JSON.stringify({ type: "puzzle.start", puzzle: id }));
@@ -200,8 +200,8 @@ describeDb("server integration", () => {
       const res = await next();
       expect(res).toMatchObject({ type: "puzzle.result", verified: true, rating: null, performance: { tier: expect.any(String) } });
     }
-    // A Bilging move sent to a Sailing round is an illegal move, not a crash.
-    ws.send(JSON.stringify({ type: "puzzle.start", puzzle: "sailing" }));
+    // A Cooling move sent to an Engines round is an illegal move, not a crash.
+    ws.send(JSON.stringify({ type: "puzzle.start", puzzle: "engines" }));
     const st3 = await next();
     if (st3.type !== "puzzle.started") throw new Error("expected start");
     ws.send(JSON.stringify({ type: "puzzle.move", sessionId: st3.sessionId, seq: 0, move: { type: "swap", col: 0, row: 0 }, hash: "00000000" }));
@@ -245,7 +245,7 @@ describeDb("server integration", () => {
   });
 });
 
-function firstLegal(state: BilgingState): BilgingMove {
+function firstLegal(state: CoolingState): CoolingMove {
   for (let r = 0; r < state.config.height; r++) {
     for (let c = 0; c < state.config.width - 1; c++) {
       if (swapIllegalReason(state, c, r) === null) return { type: "swap", col: c, row: r };

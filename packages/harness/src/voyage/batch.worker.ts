@@ -1,7 +1,7 @@
 /**
- * Sails a batch off the page's thread: a voyage with a boarding melee takes a few hundred
+ * Flies a batch off the page's thread: a voyage with a boarding melee takes a few hundred
  * milliseconds, and a batch is dozens of them. It loads content itself and resolves the scenario
- * with the same checks as the page, so it sails exactly what the page validated.
+ * with the same checks as the page, so it flies exactly what the page validated.
  */
 
 import { loadContent } from "@openseas/content";

@@ -1,35 +1,35 @@
 /**
- * The world: an isometric three.js diorama of the ocean that the whole game lives in (ADR 0020).
- * Islands sit on a slow sea, sea lanes march between them, ships bob at the docks or sail along a
+ * The world: an isometric three.js diorama of the star system that the whole game lives in (ADR 0020).
+ * Outposts sit on a slow sea, lanes march between them, ships bob at the docks or fly along a
  * lane, clouds drift and throw shadows, gulls circle. The camera glides between the chart, an
- * island and the deck of a ship; buildings and stations are tappable spots hung on the geometry.
+ * outpost and the deck of a ship; buildings and stations are tappable spots hung on the geometry.
  * Everything shown comes from content and server snapshots; nothing here decides anything.
  *
- * Chart units: an island's content x maps to world x, its y to world z.
+ * Chart units: an outpost's content x maps to world x, its y to world z.
  */
 import * as THREE from "three";
-import type { IslandLandmark } from "@openseas/content";
+import type { OutpostLandmark } from "@openseas/content";
 import type { CrewFlagWire } from "@openseas/protocol";
 import { CameraRig, isoDirection, type View } from "./camera.js";
-import { DOCK, buildIsland, type Building, type Door, type IslandModel } from "./island.js";
-import { PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildCloud, buildGangplank, buildGull, buildShip, dressShip, type DeckPost, type GullModel, type ShipModel, type Station } from "./models.js";
+import { DOCK, buildOutpost, type Building, type Door, type OutpostModel } from "./outpost.js";
+import { PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildCloud, buildBoardingTube, buildGull, buildShip, dressShip, type DeckPost, type GullModel, type ShipModel, type Station } from "./models.js";
 import { PIRATE_HEIGHT, buildPirate, workFor, type FigureLook, type PirateFigure, type PirateKind } from "./pirate.js";
 import { Walker, type Spot as WalkSpot, type WalkGrid } from "./walk.js";
 
-export interface WorldIsland {
+export interface WorldOutpost {
   id: string;
   name: string;
   x: number;
   y: number;
-  landmark: IslandLandmark;
+  landmark: OutpostLandmark;
   buildings: { kind: Building; label: string }[];
 }
-export interface WorldRoute {
+export interface WorldLane {
   id: string;
   from: string;
   to: string;
 }
-export type WorldShipLocation = { kind: "docked"; islandId: string } | { kind: "at-sea"; from: string; to: string; progress: number };
+export type WorldShipLocation = { kind: "docked"; outpostId: string } | { kind: "in-flight"; from: string; to: string; progress: number };
 export interface WorldShip {
   id: string;
   name: string;
@@ -40,15 +40,15 @@ export interface WorldShip {
   /** Someone else's ship flying the viewer's own crew's colors: named on the chart like the viewer's own. */
   crewmate?: boolean;
 }
-export type Focus = { kind: "all" } | { kind: "island"; id: string } | { kind: "ship"; id: string };
+export type Focus = { kind: "all" } | { kind: "outpost"; id: string } | { kind: "ship"; id: string };
 export interface DeckStation {
   station: Station;
   label: string;
   /** Who is at it, or null when open. */
   holder: string | null;
   mine: boolean;
-  /** Held by a deckhand, so the viewer may take it. */
-  mate: boolean;
+  /** Held by a bot, so the viewer may take it. */
+  bot: boolean;
 }
 export interface DeckCrew {
   pirateId: string;
@@ -58,23 +58,23 @@ export interface DeckCrew {
   at: WalkSpot | null;
   mine: boolean;
   captain: boolean;
-  /** A deckhand: drawn apart from the pirates so nobody mistakes it for a player. */
-  mate: boolean;
-  /** What a pirate wears (DESIGN.md 3.6); null for a deckhand, who always wears the smock. */
+  /** A bot: drawn apart from the pirates so nobody mistakes it for a player. */
+  bot: boolean;
+  /** What a pirate wears (DESIGN.md 3.6); null for a bot, who always wears the smock. */
   look: FigureLook | null;
 }
 export interface Deck {
   shipId: string;
   stations: DeckStation[];
   crew: DeckCrew[];
-  /** The wheel's spot: what it offers the viewer, or null to show none (not the captain). `primary` marks it as the next thing to do. */
-  wheel: { label: string; who: string | null; primary: boolean } | null;
-  /** The gangway's spot while docked, to walk off the ship: its label, or null at sea. */
-  gangway: string | null;
+  /** The helm's spot: what it offers the viewer, or null to show none (not the captain). `primary` marks it as the next thing to do. */
+  helm: { label: string; who: string | null; primary: boolean } | null;
+  /** The airlock's spot while docked, to walk off the ship: its label, or null in flight. */
+  airlock: string | null;
 }
 /** A look as a key, so a figure is re-dressed only when it changed. */
 function lookKey(look: FigureLook | null): string {
-  return look ? `${look.coat}/${look.hat}` : "";
+  return look ? `${look.jacket}/${look.headgear}` : "";
 }
 
 /** Free what a figure took on the GPU. */
@@ -96,14 +96,14 @@ export interface WorldWalker {
   /** What they wear (DESIGN.md 3.6); null to draw one from their id. */
   look: FigureLook | null;
 }
-/** Ashore: the island the pirate stands on, and everyone else on it (ADR 0032). */
-export interface IslandWalk {
-  islandId: string;
+/** On the outpost: the outpost the pirate stands on, and everyone else on it (ADR 0032). */
+export interface OutpostWalk {
+  outpostId: string;
   me: string;
   /** What the player wears (DESIGN.md 3.6); null to draw one from their id. */
   meLook: FigureLook | null;
   others: WorldWalker[];
-  /** The ship the pirate just walked off, so they step ashore at its gangplank. */
+  /** The ship the pirate just walked off, so they step at its boarding tube. */
   arriveFrom: string | null;
   /** The building whose room the pirate has open: they are inside it (or standing at it, for one nobody enters). */
   inside: Building | null;
@@ -116,15 +116,15 @@ export interface Insets {
   right: number;
 }
 export interface WorldInput {
-  islands: WorldIsland[];
-  routes: WorldRoute[];
+  outposts: WorldOutpost[];
+  lanes: WorldLane[];
   ships: WorldShip[];
-  /** The island the player stands on, flagged. */
+  /** The outpost the player stands on, flagged. */
   here: string | null;
   focus: Focus;
-  /** The selected island, ringed in brass. */
+  /** The selected outpost, ringed in brass. */
   selected: string | null;
-  /** Islands the player may pick, ringed faintly. */
+  /** Outposts the player may pick, ringed faintly. */
   reachable: string[];
   selectedShip: string | null;
   /** How long a ship takes to ease to a new progress, so turn-by-turn snapshots read as motion. */
@@ -134,23 +134,23 @@ export interface WorldInput {
   insets: Insets;
   /** Dim the world: a board is open over it. */
   dimmed: boolean;
-  /** The word on the viewer's own docked ships at the island in focus. */
+  /** The word on the viewer's own docked ships at the outpost in focus. */
   boardLabel: string;
-  /** Ashore, the island the pirate walks on; null aboard. */
-  walk: IslandWalk | null;
+  /** On the outpost, the outpost the pirate walks on; null aboard. */
+  walk: OutpostWalk | null;
 }
 export interface WorldEvents {
-  onIsland(id: string): void;
+  onOutpost(id: string): void;
   onShip(id: string): void;
-  onBuilding(islandId: string, building: Building): void;
+  onBuilding(outpostId: string, building: Building): void;
   onStation(station: Station): void;
-  onWheel(): void;
-  /** The pirate set off walking to a spot in their place's frame (the island's, or the deck's). */
+  onHelmSpot(): void;
+  /** The pirate set off walking to a spot in their place's frame (the outpost's, or the deck's). */
   onWalk(x: number, z: number): void;
   /** Another pirate was tapped. */
   onPirate(pirateId: string): void;
-  /** The pirate walked down the gangway: off the ship. */
-  onGangway(): void;
+  /** The pirate walked down the airlock: off the ship. */
+  onAirlock(): void;
   /** Inside a building, the pirate asked to be somewhere outside it: their room should close. */
   onOutside(): void;
 }
@@ -158,20 +158,20 @@ export interface WorldEvents {
 const SEA_SIZE = 110;
 const LANE_BULGE = 0.16;
 const DASH_STEP = 0.55;
-/** The island's footprint on the water, beach and all; the view is fitted to it. */
-const ISLAND_R = 1.9;
+/** The outpost's footprint on the water, beach and all; the view is fitted to it. */
+const OUTPOST_R = 1.9;
 /** The deck view: the hull itself fills the frame, its own little place; the mast and the sea around it fall outside. */
 const DECK_MIN_HALF_H = 0.55;
-/** Ashore, the camera walks with the pirate this close: a pirate stands a thumb tall on a phone. */
+/** On the outpost, the camera walks with the pirate this close: a pirate stands a thumb tall on a phone. */
 const WALK_HALF_H = 1.0;
 const ZOOM_MIN = 0.45;
 const ZOOM_MAX = 2.4;
 /** On deck the view starts on the whole hull; it zooms in this far, following the pirate, and out a little. */
 const DECK_ZOOM_MIN = 0.4;
 const DECK_ZOOM_MAX = 1.3;
-/** A walk on the island: an easy pace, and never more than this long however far. */
-const ISLAND_PACE = 0.55;
-const ISLAND_WALK_MAX_S = 2.2;
+/** A walk on the outpost: an easy pace, and never more than this long however far. */
+const OUTPOST_PACE = 0.55;
+const OUTPOST_WALK_MAX_S = 2.2;
 /** A walk on deck, in the ship's own units. */
 const DECK_PACE = 0.42;
 const DECK_WALK_MAX_S = 1.3;
@@ -208,8 +208,8 @@ interface Lane {
 interface ShipView {
   ship: WorldShip;
   model: ShipModel;
-  /** Where it lies when docked: the island and the berth's number along its dock. */
-  berth: { islandId: string; n: number } | null;
+  /** Where it lies when docked: the outpost and the berth's number along its dock. */
+  berth: { outpostId: string; n: number } | null;
   phase: number;
   /** Progress along its lane as shown, 0..1, eased toward the snapshot's. */
   shownProgress: number;
@@ -218,17 +218,17 @@ interface ShipView {
   reversed: boolean;
   label: HTMLDivElement;
 }
-interface IslandView {
-  island: WorldIsland;
-  model: IslandModel;
+interface OutpostView {
+  outpost: WorldOutpost;
+  model: OutpostModel;
   label: HTMLDivElement;
   spots: Map<Building, Spot>;
 }
-/** A pirate figure walking in a place: on an island's frame or a ship's deck. */
+/** A pirate figure walking in a place: on an outpost's frame or a ship's deck. */
 interface WalkerView {
   id: string;
-  scope: "island" | "ship";
-  /** The island's or the ship's id. */
+  scope: "outpost" | "ship";
+  /** The outpost's or the ship's id. */
   placeId: string;
   kind: PirateKind;
   figure: PirateFigure;
@@ -244,7 +244,7 @@ interface WalkerView {
   postKey: string;
   station: Station | null;
   captain: boolean;
-  /** A pirate (not a deckhand): tappable, and named when idle. */
+  /** A pirate (not a bot): tappable, and named when idle. */
   real: boolean;
   /** The building they are in, out of sight. */
   inside: Building | null;
@@ -271,21 +271,21 @@ export class WorldScene {
   private readonly sea: THREE.Mesh;
   private readonly seaUniforms = {
     uTime: { value: 0 },
-    uIslands: { value: [] as THREE.Vector3[] },
-    uIslandCount: { value: 0 },
+    uOutposts: { value: [] as THREE.Vector3[] },
+    uOutpostCount: { value: 0 },
     uShallow: { value: new THREE.Color(PALETTE.seaShallow) },
     uFoam: { value: new THREE.Color(PALETTE.foam) },
   };
   private readonly labels: HTMLDivElement;
-  private readonly islands = new Map<string, IslandView>();
+  private readonly outposts = new Map<string, OutpostView>();
   private readonly lanes = new Map<string, Lane>();
   private readonly ships = new Map<string, ShipView>();
   private readonly walkers = new Map<string, WalkerView>();
   private readonly stationSpots = new Map<Station, Spot>();
-  private wheelSpot: Spot | null = null;
-  private gangwaySpot: Spot | null = null;
-  /** Gangplanks down to the docks, by island, rebuilt when who lies at a berth changes. */
-  private readonly gangplanks = new Map<string, { key: string; group: THREE.Group }>();
+  private helmSpot: Spot | null = null;
+  private airlockSpot: Spot | null = null;
+  /** Boarding tubes down to the docks, by outpost, rebuilt when who lies at a berth changes. */
+  private readonly boardingTubes = new Map<string, { key: string; group: THREE.Group }>();
   /** Where a tap sent the pirate: a ring on the ground that fades. */
   private readonly goalRing: THREE.Mesh;
   private goalAge = Infinity;
@@ -385,7 +385,7 @@ export class WorldScene {
     el.addEventListener("pointermove", this.onPointerMove);
     el.addEventListener("pointerleave", this.onPointerLeave);
     el.addEventListener("pointercancel", this.onPointerCancel);
-    el.addEventListener("wheel", this.onWheel, { passive: false });
+    el.addEventListener("wheel", this.onHelmSpot, { passive: false });
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
     window.addEventListener("blur", this.onBlur);
@@ -408,36 +408,36 @@ export class WorldScene {
     const first = this.input === null;
     const focusChanged = !this.input || focusKey(this.input.focus) !== focusKey(input.focus);
     this.input = input;
-    if (first || this.islands.size !== input.islands.length) this.layoutIslands(input);
+    if (first || this.outposts.size !== input.outposts.length) this.layoutOutposts(input);
     this.syncShips(input);
     this.placeShips(0);
     this.syncDeck(input);
     this.syncWalkers(input);
-    const focusIsland = input.focus.kind === "island" ? input.focus.id : null;
+    const focusOutpost = input.focus.kind === "outpost" ? input.focus.id : null;
     const focusShip = input.focus.kind === "ship" ? input.focus.id : null;
-    for (const [id, iv] of this.islands) {
+    for (const [id, iv] of this.outposts) {
       iv.model.ring.visible = id === input.selected;
       iv.model.reachRing.visible = id !== input.selected && input.reachable.includes(id);
-      // Ashore the pirate themself says where they are; the flag marks it on the chart.
+      // On the outpost the pirate themself says where they are; the flag marks it on the chart.
       iv.model.flag.visible = id === input.here && input.focus.kind === "all";
       iv.label.classList.toggle("selected", id === input.selected);
       iv.label.classList.toggle("here", id === input.here);
       iv.label.classList.toggle("reachable", input.reachable.includes(id));
-      // The focused island's name is on the card; its buildings take over.
-      iv.label.classList.toggle("ow-hidden", id === focusIsland || focusShip !== null);
-      for (const spot of iv.spots.values()) hideSpot(spot, id !== focusIsland);
-      iv.model.ring.visible = iv.model.ring.visible && focusIsland === null;
+      // The focused outpost's name is on the card; its buildings take over.
+      iv.label.classList.toggle("ow-hidden", id === focusOutpost || focusShip !== null);
+      for (const spot of iv.spots.values()) hideSpot(spot, id !== focusOutpost);
+      iv.model.ring.visible = iv.model.ring.visible && focusOutpost === null;
     }
     for (const [id, sv] of this.ships) {
       sv.label.classList.toggle("selected", id === input.selectedShip);
-      // Other people's ships are named only when picked, or when their island is, so a busy dock stays legible.
-      const docked = sv.ship.location.kind === "docked" ? sv.ship.location.islandId : null;
-      const quiet = sv.ship.kind === "other" && !sv.ship.crewmate && id !== input.selectedShip && !(docked && docked === input.selected) && !(docked && docked === focusIsland);
+      // Other people's ships are named only when picked, or when their outpost is, so a busy dock stays legible.
+      const docked = sv.ship.location.kind === "docked" ? sv.ship.location.outpostId : null;
+      const quiet = sv.ship.kind === "other" && !sv.ship.crewmate && id !== input.selectedShip && !(docked && docked === input.selected) && !(docked && docked === focusOutpost);
       sv.label.classList.toggle("ow-label-quiet", quiet);
       sv.label.classList.toggle("ow-label-crew", Boolean(sv.ship.crewmate));
       sv.label.classList.toggle("ow-hidden", focusShip !== null);
-      // The viewer's own ship at the island in focus is a tap away from boarding.
-      const boardable = sv.ship.kind === "yours" && docked !== null && docked === focusIsland;
+      // The viewer's own ship at the outpost in focus is a tap away from boarding.
+      const boardable = sv.ship.kind === "yours" && docked !== null && docked === focusOutpost;
       sv.label.classList.toggle("ow-label-board", boardable);
       sv.label.dataset.board = boardable ? input.boardLabel : "";
     }
@@ -485,7 +485,7 @@ export class WorldScene {
     el.removeEventListener("pointermove", this.onPointerMove);
     el.removeEventListener("pointerleave", this.onPointerLeave);
     el.removeEventListener("pointercancel", this.onPointerCancel);
-    el.removeEventListener("wheel", this.onWheel);
+    el.removeEventListener("wheel", this.onHelmSpot);
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("blur", this.onBlur);
@@ -505,15 +505,15 @@ export class WorldScene {
 
   // ---- layout
 
-  private layoutIslands(input: WorldInput): void {
-    for (const iv of this.islands.values()) {
+  private layoutOutposts(input: WorldInput): void {
+    for (const iv of this.outposts.values()) {
       this.scene.remove(iv.model.group);
       iv.label.remove();
       for (const s of iv.spots.values()) removeSpot(s);
     }
-    this.islands.clear();
-    for (const wv of [...this.walkers.values()]) if (wv.scope === "island") this.removeWalker(wv);
-    this.gangplanks.clear();
+    this.outposts.clear();
+    for (const wv of [...this.walkers.values()]) if (wv.scope === "outpost") this.removeWalker(wv);
+    this.boardingTubes.clear();
     for (const lane of this.lanes.values()) {
       for (const d of lane.dashes) this.scene.remove(d);
       this.scene.remove(lane.buoy);
@@ -523,44 +523,44 @@ export class WorldScene {
     this.gulls.length = 0;
 
     const centroid = new THREE.Vector2();
-    for (const i of input.islands) centroid.add(new THREE.Vector2(i.x, i.y));
-    centroid.divideScalar(Math.max(1, input.islands.length));
+    for (const i of input.outposts) centroid.add(new THREE.Vector2(i.x, i.y));
+    centroid.divideScalar(Math.max(1, input.outposts.length));
     this.center.set(centroid.x, 0, centroid.y);
 
-    const seaIslands: THREE.Vector3[] = [];
-    for (const island of input.islands) {
-      const toward = new THREE.Vector2(centroid.x - island.x, centroid.y - island.y);
+    const seaOutposts: THREE.Vector3[] = [];
+    for (const outpost of input.outposts) {
+      const toward = new THREE.Vector2(centroid.x - outpost.x, centroid.y - outpost.y);
       if (toward.lengthSq() < 1e-6) toward.set(1, 0);
-      const model = buildIsland(island.id, toward, island.landmark, { lowQuality: this.lowQuality });
-      model.group.position.set(island.x, 0, island.y);
+      const model = buildOutpost(outpost.id, toward, outpost.landmark, { lowQuality: this.lowQuality });
+      model.group.position.set(outpost.x, 0, outpost.y);
       this.scene.add(model.group);
-      const label = this.makeLabel("ow-label ow-label-island", island.name, () => this.events.onIsland(island.id));
-      label.dataset.island = island.id;
+      const label = this.makeLabel("ow-label ow-label-outpost", outpost.name, () => this.events.onOutpost(outpost.id));
+      label.dataset.outpost = outpost.id;
       const spots = new Map<Building, Spot>();
-      for (const b of island.buildings) {
-        const spot = this.makeSpot(`ow-spot ow-spot-${b.kind}`, b.label, () => this.goBuilding(island.id, b.kind));
+      for (const b of outpost.buildings) {
+        const spot = this.makeSpot(`ow-spot ow-spot-${b.kind}`, b.label, () => this.goBuilding(outpost.id, b.kind));
         spot.el.dataset.building = b.kind;
-        spot.el.dataset.island = island.id;
+        spot.el.dataset.outpost = outpost.id;
         hideSpot(spot, true);
         spots.set(b.kind, spot);
       }
-      this.islands.set(island.id, { island, model, label, spots });
-      seaIslands.push(new THREE.Vector3(island.x, island.y, 1.42));
+      this.outposts.set(outpost.id, { outpost, model, label, spots });
+      seaOutposts.push(new THREE.Vector3(outpost.x, outpost.y, 1.42));
     }
-    while (seaIslands.length < 8) seaIslands.push(new THREE.Vector3(0, 0, -100));
-    this.seaUniforms.uIslands.value = seaIslands;
-    this.seaUniforms.uIslandCount.value = Math.min(8, input.islands.length);
+    while (seaOutposts.length < 8) seaOutposts.push(new THREE.Vector3(0, 0, -100));
+    this.seaUniforms.uOutposts.value = seaOutposts;
+    this.seaUniforms.uOutpostCount.value = Math.min(8, input.outposts.length);
     this.sea.position.set(this.center.x, 0, this.center.z);
 
-    for (const route of input.routes) {
-      const [a, b] = route.from < route.to ? [route.from, route.to] : [route.to, route.from];
+    for (const lane of input.lanes) {
+      const [a, b] = lane.from < lane.to ? [lane.from, lane.to] : [lane.to, lane.from];
       const key = `${a}|${b}`;
       if (this.lanes.has(key)) continue;
-      const ia = this.islands.get(a);
-      const ib = this.islands.get(b);
+      const ia = this.outposts.get(a);
+      const ib = this.outposts.get(b);
       if (!ia || !ib) continue;
-      const ca = new THREE.Vector3(ia.island.x, 0.12, ia.island.y);
-      const cb = new THREE.Vector3(ib.island.x, 0.12, ib.island.y);
+      const ca = new THREE.Vector3(ia.outpost.x, 0.12, ia.outpost.y);
+      const cb = new THREE.Vector3(ib.outpost.x, 0.12, ib.outpost.y);
       const across = cb.clone().sub(ca).normalize();
       const pa = ca.clone().addScaledVector(across, COAST_R);
       const pb = cb.clone().addScaledVector(across, -COAST_R);
@@ -586,14 +586,14 @@ export class WorldScene {
     }
     this.placeDashes(0);
 
-    for (let i = 0; i < Math.min(3, input.islands.length); i++) {
-      const island = input.islands[(i * 2) % input.islands.length]!;
+    for (let i = 0; i < Math.min(3, input.outposts.length); i++) {
+      const outpost = input.outposts[(i * 2) % input.outposts.length]!;
       const model = buildGull();
       this.scene.add(model.group);
-      this.gulls.push({ model, center: new THREE.Vector3(island.x, 1.7 + i * 0.3, island.y), radius: 1.6 + i * 0.5, phase: i * 2.1, speed: 0.5 + i * 0.1 });
+      this.gulls.push({ model, center: new THREE.Vector3(outpost.x, 1.7 + i * 0.3, outpost.y), radius: 1.6 + i * 0.5, phase: i * 2.1, speed: 0.5 + i * 0.1 });
     }
 
-    this.spread = Math.max(6, ...input.islands.map((i) => Math.hypot(i.x - centroid.x, i.y - centroid.y))) + 3;
+    this.spread = Math.max(6, ...input.outposts.map((i) => Math.hypot(i.x - centroid.x, i.y - centroid.y))) + 3;
     for (const [i, c] of this.clouds.entries()) {
       c.group.position.set(this.center.x + ((i * 7.3) % (this.spread * 2)) - this.spread, 3.6 + (i % 3) * 0.5, this.center.z + ((i * 4.1) % (this.spread * 1.6)) - this.spread * 0.8);
     }
@@ -631,7 +631,7 @@ export class WorldScene {
       sv.ship = ship;
       sv.label.textContent = ship.name;
       dressShip(sv.model, ship.colors);
-      if (ship.location.kind === "at-sea") {
+      if (ship.location.kind === "in-flight") {
         const [a, b] = ship.location.from < ship.location.to ? [ship.location.from, ship.location.to] : [ship.location.to, ship.location.from];
         const key = `${a}|${b}`;
         const reversed = ship.location.from !== a;
@@ -651,14 +651,14 @@ export class WorldScene {
     this.placeShips(0);
   }
 
-  /** Station spots, the wheel and the gangway on the ship the player is aboard. */
+  /** Station spots, the helm and the airlock on the ship the player is aboard. */
   private syncDeck(input: WorldInput): void {
     const deck = input.focus.kind === "ship" && input.deck && input.deck.shipId === input.focus.id ? input.deck : null;
     const sv = deck ? this.ships.get(deck.shipId) : undefined;
     if (!deck || !sv) {
       for (const spot of this.stationSpots.values()) hideSpot(spot, true);
-      if (this.wheelSpot) hideSpot(this.wheelSpot, true);
-      if (this.gangwaySpot) hideSpot(this.gangwaySpot, true);
+      if (this.helmSpot) hideSpot(this.helmSpot, true);
+      if (this.airlockSpot) hideSpot(this.airlockSpot, true);
       return;
     }
     for (const st of STATION_ORDER) {
@@ -675,52 +675,52 @@ export class WorldScene {
       }
       hideSpot(spot, false);
       spot.el.classList.toggle("is-mine", ds.mine);
-      spot.el.classList.toggle("is-taken", ds.holder !== null && !ds.mine && !ds.mate);
-      spot.el.classList.toggle("is-mate", ds.mate);
-      spot.el.dataset.holder = ds.holder === null ? "open" : ds.mine ? "me" : ds.mate ? "mate" : "pirate";
+      spot.el.classList.toggle("is-taken", ds.holder !== null && !ds.mine && !ds.bot);
+      spot.el.classList.toggle("is-bot", ds.bot);
+      spot.el.dataset.holder = ds.holder === null ? "open" : ds.mine ? "me" : ds.bot ? "bot" : "pirate";
       const who = spot.el.querySelector(".ow-spot-who");
       if (who) who.textContent = ds.holder ?? "";
       spot.el.setAttribute("aria-label", ds.holder ? `${ds.label}: ${ds.holder}` : ds.label);
     }
-    if (deck.wheel) {
-      if (!this.wheelSpot) {
-        this.wheelSpot = this.makeSpot("ow-spot ow-spot-wheel", deck.wheel.label, () => this.goWheel());
-        this.wheelSpot.el.dataset.wheel = "1";
+    if (deck.helm) {
+      if (!this.helmSpot) {
+        this.helmSpot = this.makeSpot("ow-spot ow-spot-helm", deck.helm.label, () => this.goHelm());
+        this.helmSpot.el.dataset.helm = "1";
       }
-      const name = this.wheelSpot.el.querySelector(".ow-spot-name");
-      if (name) name.textContent = deck.wheel.label;
-      const who = this.wheelSpot.el.querySelector(".ow-spot-who");
-      if (who) who.textContent = deck.wheel.who ?? "";
-      this.wheelSpot.el.classList.toggle("is-primary", deck.wheel.primary);
-      hideSpot(this.wheelSpot, false);
-    } else if (this.wheelSpot) hideSpot(this.wheelSpot, true);
-    // The gangway is only there while she lies against a dock.
-    const gangway = deck.gangway !== null && this.gangwaySide(sv) !== null ? deck.gangway : null;
-    if (gangway) {
-      if (!this.gangwaySpot) {
-        this.gangwaySpot = this.makeSpot("ow-spot ow-spot-gangway", gangway, () => this.goGangway());
-        this.gangwaySpot.el.dataset.gangway = "1";
+      const name = this.helmSpot.el.querySelector(".ow-spot-name");
+      if (name) name.textContent = deck.helm.label;
+      const who = this.helmSpot.el.querySelector(".ow-spot-who");
+      if (who) who.textContent = deck.helm.who ?? "";
+      this.helmSpot.el.classList.toggle("is-primary", deck.helm.primary);
+      hideSpot(this.helmSpot, false);
+    } else if (this.helmSpot) hideSpot(this.helmSpot, true);
+    // The airlock is only there while she lies against a dock.
+    const airlock = deck.airlock !== null && this.airlockSide(sv) !== null ? deck.airlock : null;
+    if (airlock) {
+      if (!this.airlockSpot) {
+        this.airlockSpot = this.makeSpot("ow-spot ow-spot-airlock", airlock, () => this.goAirlock());
+        this.airlockSpot.el.dataset.airlock = "1";
       }
-      const name = this.gangwaySpot.el.querySelector(".ow-spot-name");
-      if (name) name.textContent = gangway;
-      hideSpot(this.gangwaySpot, false);
-    } else if (this.gangwaySpot) hideSpot(this.gangwaySpot, true);
+      const name = this.airlockSpot.el.querySelector(".ow-spot-name");
+      if (name) name.textContent = airlock;
+      hideSpot(this.airlockSpot, false);
+    } else if (this.airlockSpot) hideSpot(this.airlockSpot, true);
   }
 
   // ---- walkers
 
-  /** Everyone walking where the player is: ashore on their island, or on the deck of their ship. */
+  /** Everyone walking where the player is: on their outpost, or on the deck of their ship. */
   private syncWalkers(input: WorldInput): void {
     const seen = new Set<string>();
     const walk = input.walk;
-    const iv = walk ? this.islands.get(walk.islandId) : undefined;
+    const iv = walk ? this.outposts.get(walk.outpostId) : undefined;
     if (walk && iv) {
       const people: { id: string; name: string; at: WalkSpot | null; mine: boolean; look: FigureLook | null }[] = [{ id: walk.me, name: "", at: null, mine: true, look: walk.meLook }, ...walk.others.map((o) => ({ ...o, mine: false }))];
       for (const p of people) {
-        const key = `island:${p.id}`;
+        const key = `outpost:${p.id}`;
         seen.add(key);
         let wv = this.walkers.get(key);
-        if (wv && wv.placeId !== walk.islandId) {
+        if (wv && wv.placeId !== walk.outpostId) {
           this.removeWalker(wv);
           wv = undefined;
         }
@@ -729,7 +729,7 @@ export class WorldScene {
           const into = p.mine ? walk.inside : p.at ? this.insideOf(iv, p.at) : null;
           const door = into ? iv.model.doors[into] : null;
           const start = door ? (door.inside ?? door.at) : p.mine ? this.arrivalFor(iv, walk) : (p.at ?? this.standAbout(iv, p.id));
-          wv = this.addWalker(key, p.id, "island", walk.islandId, p.mine ? "me" : "pirate", iv.model.frame, start, door ? door.face : p.mine ? 0 : hashPhase(p.id), p.name, !p.mine, p.look);
+          wv = this.addWalker(key, p.id, "outpost", walk.outpostId, p.mine ? "me" : "pirate", iv.model.frame, start, door ? door.face : p.mine ? 0 : hashPhase(p.id), p.name, !p.mine, p.look);
           wv.atKey = spotKey(p.at);
           if (into && door?.inside) {
             wv.inside = into;
@@ -737,7 +737,7 @@ export class WorldScene {
           }
           if (p.mine) {
             this.lastInside = walk.inside;
-            // Others hear where the player stepped ashore.
+            // Others hear where the player stepped on the outpost.
             this.events.onWalk(start.x, start.z);
           }
         } else if (p.mine) {
@@ -756,11 +756,11 @@ export class WorldScene {
     const sv = deck ? this.ships.get(deck.shipId) : undefined;
     if (deck && sv) {
       let idle = 0;
-      const side = this.gangwaySide(sv);
+      const side = this.airlockSide(sv);
       for (const c of deck.crew) {
         const key = `ship:${c.pirateId}`;
         seen.add(key);
-        const kind: PirateKind = c.mine ? "me" : c.mate ? "mate" : c.captain ? "captain" : "pirate";
+        const kind: PirateKind = c.mine ? "me" : c.bot ? "bot" : c.captain ? "captain" : "pirate";
         const post: DeckPost = c.station ? sv.model.deck.stations[c.station] : c.captain ? sv.model.deck.helm : { at: sv.model.deck.idle[idle++ % sv.model.deck.idle.length]!, face: hashPhase(c.pirateId) };
         const postKey = `${c.station ?? ""}:${c.captain}:${post.at.x.toFixed(3)},${post.at.z.toFixed(3)}`;
         let wv = this.walkers.get(key);
@@ -769,9 +769,9 @@ export class WorldScene {
           wv = undefined;
         }
         if (!wv) {
-          // Coming aboard over the gangplank; at sea, straight to their post.
-          const start = c.mine && side !== null && sv.ship.location.kind === "docked" ? sv.model.deck.gangway(side) : (c.at ?? post.at);
-          wv = this.addWalker(key, c.pirateId, "ship", deck.shipId, kind, sv.model.body, start, post.face, c.name, !c.mate && !c.mine, c.look);
+          // Coming aboard over the boarding tube; in flight, straight to their post.
+          const start = c.mine && side !== null && sv.ship.location.kind === "docked" ? sv.model.deck.airlock(side) : (c.at ?? post.at);
+          wv = this.addWalker(key, c.pirateId, "ship", deck.shipId, kind, sv.model.body, start, post.face, c.name, !c.bot && !c.mine, c.look);
           wv.atKey = spotKey(c.at);
           wv.postKey = postKey;
           if (c.mine && !c.at) {
@@ -795,7 +795,7 @@ export class WorldScene {
     for (const [key, wv] of this.walkers) if (!seen.has(key)) this.removeWalker(wv);
   }
 
-  private addWalker(key: string, id: string, scope: "island" | "ship", placeId: string, kind: PirateKind, parent: THREE.Object3D, at: WalkSpot, heading: number, name: string, tagged: boolean, look: FigureLook | null): WalkerView {
+  private addWalker(key: string, id: string, scope: "outpost" | "ship", placeId: string, kind: PirateKind, parent: THREE.Object3D, at: WalkSpot, heading: number, name: string, tagged: boolean, look: FigureLook | null): WalkerView {
     const figure = buildPirate(kind, id, !this.lowQuality, look);
     const onDeck = scope === "ship";
     if (onDeck) figure.group.scale.setScalar(1 / SHIP_SCALE);
@@ -804,7 +804,7 @@ export class WorldScene {
     hit.userData.walker = key;
     figure.group.add(hit);
     parent.add(figure.group);
-    const walker = onDeck ? new Walker(at, heading, DECK_PACE, DECK_WALK_MAX_S) : new Walker(at, heading, ISLAND_PACE, ISLAND_WALK_MAX_S);
+    const walker = onDeck ? new Walker(at, heading, DECK_PACE, DECK_WALK_MAX_S) : new Walker(at, heading, OUTPOST_PACE, OUTPOST_WALK_MAX_S);
     let tag: HTMLButtonElement | null = null;
     if (tagged) {
       tag = document.createElement("button");
@@ -818,7 +818,7 @@ export class WorldScene {
       });
       this.labels.appendChild(tag);
     }
-    const wv: WalkerView = { id, scope, placeId, kind, figure, lookKey: lookKey(look), walker, hit, tag, atKey: "", post: null, postKey: "", station: null, captain: false, real: kind !== "mate", inside: null, doorway: null };
+    const wv: WalkerView = { id, scope, placeId, kind, figure, lookKey: lookKey(look), walker, hit, tag, atKey: "", post: null, postKey: "", station: null, captain: false, real: kind !== "bot", inside: null, doorway: null };
     this.walkers.set(key, wv);
     this.placeWalker(wv);
     return wv;
@@ -844,7 +844,7 @@ export class WorldScene {
   }
 
   private removeWalker(wv: WalkerView): void {
-    if (wv.kind === "me" && wv.scope === "island") {
+    if (wv.kind === "me" && wv.scope === "outpost") {
       this.lastInside = undefined;
       this.afterLeave = null;
     }
@@ -854,10 +854,10 @@ export class WorldScene {
     this.walkers.delete(`${wv.scope}:${wv.id}`);
   }
 
-  /** Where the player first stands ashore: at the foot of the gangplank they came down, else the plaza. */
-  private arrivalFor(iv: IslandView, walk: IslandWalk): WalkSpot {
+  /** Where the player first stands on the outpost: at the foot of the boarding tube they came down, else the plaza. */
+  private arrivalFor(iv: OutpostView, walk: OutpostWalk): WalkSpot {
     const sv = walk.arriveFrom ? this.ships.get(walk.arriveFrom) : undefined;
-    if (sv?.berth && sv.berth.islandId === walk.islandId) {
+    if (sv?.berth && sv.berth.outpostId === walk.outpostId) {
       const foot = iv.model.berth(sv.berth.n).foot;
       if (foot) return foot;
     }
@@ -865,7 +865,7 @@ export class WorldScene {
   }
 
   /** Somewhere near the plaza for a pirate nobody has seen walk yet, the same spot on every screen. */
-  private standAbout(iv: IslandView, id: string): WalkSpot {
+  private standAbout(iv: OutpostView, id: string): WalkSpot {
     const a = hashPhase(id);
     const r = 0.04 + (hashPhase(`${id}:r`) / (Math.PI * 2)) * 0.1;
     const p = { x: iv.model.arrival.x + Math.cos(a) * r, z: iv.model.arrival.z + Math.sin(a) * r };
@@ -873,7 +873,7 @@ export class WorldScene {
   }
 
   private gridOf(wv: WalkerView): WalkGrid | null {
-    if (wv.scope === "island") return this.islands.get(wv.placeId)?.model.grid ?? null;
+    if (wv.scope === "outpost") return this.outposts.get(wv.placeId)?.model.grid ?? null;
     return this.ships.get(wv.placeId)?.model.deck.grid ?? null;
   }
 
@@ -889,16 +889,16 @@ export class WorldScene {
     return wv.walker.goal ?? to;
   }
 
-  private me(scope: "island" | "ship"): WalkerView | null {
+  private me(scope: "outpost" | "ship"): WalkerView | null {
     for (const wv of this.walkers.values()) if (wv.kind === "me" && wv.scope === scope) return wv;
     return null;
   }
 
-  /** The place the camera walks with the player in, if any: their island ashore, or their deck. */
+  /** The place the camera walks with the player in, if any: their outpost on the outpost, or their deck. */
   private walkFocus(): WalkerView | null {
     const input = this.input;
     if (!input) return null;
-    if (input.focus.kind === "island" && input.walk?.islandId === input.focus.id) return this.me("island");
+    if (input.focus.kind === "outpost" && input.walk?.outpostId === input.focus.id) return this.me("outpost");
     if (input.focus.kind === "ship" && input.deck?.shipId === input.focus.id) return this.me("ship");
     return null;
   }
@@ -910,21 +910,21 @@ export class WorldScene {
     if (ring) this.showGoal(wv, goal);
   }
 
-  private goBuilding(islandId: string, building: Building): void {
+  private goBuilding(outpostId: string, building: Building): void {
     const me = this.walkFocus();
-    const iv = this.islands.get(islandId);
+    const iv = this.outposts.get(outpostId);
     // Already in a building, the room just changes; the player walks out and over as it does.
-    if (!me || me.scope !== "island" || me.placeId !== islandId || !iv || this.inOrEntering(me)) {
-      this.events.onBuilding(islandId, building);
+    if (!me || me.scope !== "outpost" || me.placeId !== outpostId || !iv || this.inOrEntering(me)) {
+      this.events.onBuilding(outpostId, building);
       return;
     }
-    this.enter(me, iv, building, () => this.events.onBuilding(islandId, building), true);
+    this.enter(me, iv, building, () => this.events.onBuilding(outpostId, building), true);
   }
 
   // ---- in and out of buildings
 
   /** The building a spot is just inside the door of, if any: a walk there is a walk into it. */
-  private insideOf(iv: IslandView, at: WalkSpot): Building | null {
+  private insideOf(iv: OutpostView, at: WalkSpot): Building | null {
     for (const [b, door] of Object.entries(iv.model.doors) as [Building, Door][]) if (door.inside && Math.hypot(door.inside.x - at.x, door.inside.z - at.z) < 0.02) return b;
     return null;
   }
@@ -938,7 +938,7 @@ export class WorldScene {
    * Walk to a building's door and, if it is one people go into, through it and out of sight. `atDoor`
    * runs on reaching the door. `announce` tells the place each leg, for the player's own pirate.
    */
-  private enter(wv: WalkerView, iv: IslandView, b: Building, atDoor?: () => void, announce = false): void {
+  private enter(wv: WalkerView, iv: OutpostView, b: Building, atDoor?: () => void, announce = false): void {
     const now = this.inOrEntering(wv);
     if (now === b) {
       atDoor?.();
@@ -972,7 +972,7 @@ export class WorldScene {
   }
 
   /** Out through the door of the building a walker is in, to stand just outside it; then `then`. */
-  private leave(wv: WalkerView, iv: IslandView, then?: () => void, announce = false): void {
+  private leave(wv: WalkerView, iv: OutpostView, then?: () => void, announce = false): void {
     const b = this.inOrEntering(wv);
     const door = b ? iv.model.doors[b] : null;
     if (!b || !door?.inside) {
@@ -997,7 +997,7 @@ export class WorldScene {
   }
 
   /** The player's open room changed: walk them into its building, or out of the one they are in. */
-  private reconcileInside(wv: WalkerView, iv: IslandView, want: Building | null): void {
+  private reconcileInside(wv: WalkerView, iv: OutpostView, want: Building | null): void {
     if (this.lastInside === want) return;
     this.lastInside = want;
     if (want) {
@@ -1012,7 +1012,7 @@ export class WorldScene {
   }
 
   /** Someone else walked: into a building if the spot is inside one, out of the one they are in first if not. */
-  private walkThere(wv: WalkerView, iv: IslandView, at: WalkSpot): void {
+  private walkThere(wv: WalkerView, iv: OutpostView, at: WalkSpot): void {
     const into = this.insideOf(iv, at);
     if (into) this.enter(wv, iv, into);
     else if (this.inOrEntering(wv)) this.leave(wv, iv, () => void this.walkOn(wv, at));
@@ -1021,12 +1021,12 @@ export class WorldScene {
 
   /** Ease each door toward open while someone passes through it or stands on its step. */
   private swingDoors(dt: number): void {
-    for (const [islandId, iv] of this.islands) {
-      for (const [b, way] of Object.entries(iv.model.doorways) as [Building, NonNullable<IslandModel["doorways"][Building]>][]) {
+    for (const [outpostId, iv] of this.outposts) {
+      for (const [b, way] of Object.entries(iv.model.doorways) as [Building, NonNullable<OutpostModel["doorways"][Building]>][]) {
         const door = iv.model.doors[b];
         let want = 0;
         for (const wv of this.walkers.values()) {
-          if (wv.scope !== "island" || wv.placeId !== islandId) continue;
+          if (wv.scope !== "outpost" || wv.placeId !== outpostId) continue;
           // Open for someone stepping through, and just ahead of someone walking up to it; shut behind them.
           const goal = wv.walker.goal;
           const approaching = wv.walker.moving && goal !== null && Math.hypot(goal.x - door.at.x, goal.z - door.at.z) < 0.02 && Math.hypot(wv.walker.x - door.at.x, wv.walker.z - door.at.z) < 0.14;
@@ -1040,15 +1040,15 @@ export class WorldScene {
 
   private goShip(shipId: string): void {
     const me = this.walkFocus();
-    if (me?.scope === "island" && this.inOrEntering(me)) {
+    if (me?.scope === "outpost" && this.inOrEntering(me)) {
       // Out of the building first; the room closes, and the walk to her goes on from the door.
       this.afterLeave = () => this.goShip(shipId);
       this.events.onOutside();
       return;
     }
     const sv = this.ships.get(shipId);
-    const iv = sv?.berth ? this.islands.get(sv.berth.islandId) : undefined;
-    if (!me || me.scope !== "island" || !sv?.berth || !iv || me.placeId !== sv.berth.islandId) {
+    const iv = sv?.berth ? this.outposts.get(sv.berth.outpostId) : undefined;
+    if (!me || me.scope !== "outpost" || !sv?.berth || !iv || me.placeId !== sv.berth.outpostId) {
       this.events.onShip(shipId);
       return;
     }
@@ -1064,7 +1064,7 @@ export class WorldScene {
     const ds = deck?.stations.find((s) => s.station === st);
     const sv = deck ? this.ships.get(deck.shipId) : undefined;
     // Someone else's station: say so at once rather than walk over to be told.
-    if (!me || me.scope !== "ship" || !sv || !ds || (ds.holder !== null && !ds.mine && !ds.mate)) {
+    if (!me || me.scope !== "ship" || !sv || !ds || (ds.holder !== null && !ds.mine && !ds.bot)) {
       this.events.onStation(st);
       return;
     }
@@ -1072,34 +1072,34 @@ export class WorldScene {
     this.walkMe(me, post.at, post.face, () => this.events.onStation(st), false);
   }
 
-  private goWheel(): void {
+  private goHelm(): void {
     const me = this.walkFocus();
     const deck = this.input?.deck;
     const sv = deck ? this.ships.get(deck.shipId) : undefined;
     const captain = deck?.crew.find((c) => c.mine)?.captain ?? false;
     if (!me || me.scope !== "ship" || !sv || !captain) {
-      this.events.onWheel();
+      this.events.onHelmSpot();
       return;
     }
-    this.walkMe(me, sv.model.deck.helm.at, sv.model.deck.helm.face, () => this.events.onWheel(), false);
+    this.walkMe(me, sv.model.deck.helm.at, sv.model.deck.helm.face, () => this.events.onHelmSpot(), false);
   }
 
-  private goGangway(): void {
+  private goAirlock(): void {
     const me = this.walkFocus();
     const deck = this.input?.deck;
     const sv = deck ? this.ships.get(deck.shipId) : undefined;
-    const side = sv ? this.gangwaySide(sv) : null;
+    const side = sv ? this.airlockSide(sv) : null;
     if (!me || me.scope !== "ship" || !sv || side === null) {
-      this.events.onGangway();
+      this.events.onAirlock();
       return;
     }
-    this.walkMe(me, sv.model.deck.gangway(side), (side * Math.PI) / 2, () => this.events.onGangway(), false);
+    this.walkMe(me, sv.model.deck.airlock(side), (side * Math.PI) / 2, () => this.events.onAirlock(), false);
   }
 
-  /** Which rail of a docked ship (in its own frame: +1 starboard, -1 port) the gangplank comes aboard at, if it lies against the dock. */
-  private gangwaySide(sv: ShipView): number | null {
+  /** Which rail of a docked ship (in its own frame: +1 starboard, -1 port) the boarding tube comes aboard at, if it lies against the dock. */
+  private airlockSide(sv: ShipView): number | null {
     if (!sv.berth || sv.ship.location.kind !== "docked") return null;
-    const iv = this.islands.get(sv.berth.islandId);
+    const iv = this.outposts.get(sv.berth.outpostId);
     if (!iv || !iv.model.berth(sv.berth.n).foot) return null;
     return iv.model.berth(sv.berth.n).dockSide;
   }
@@ -1116,7 +1116,7 @@ export class WorldScene {
   }
 
   private heightOf(wv: WalkerView, x: number, z: number): number {
-    if (wv.scope === "island") return this.islands.get(wv.placeId)?.model.heightAt(x, z) ?? 0;
+    if (wv.scope === "outpost") return this.outposts.get(wv.placeId)?.model.heightAt(x, z) ?? 0;
     return this.ships.get(wv.placeId)?.model.deck.heightAt(x, z) ?? 0;
   }
 
@@ -1299,8 +1299,8 @@ export class WorldScene {
     const u = this.seaUniforms;
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = u.uTime;
-      shader.uniforms.uIslands = u.uIslands;
-      shader.uniforms.uIslandCount = u.uIslandCount;
+      shader.uniforms.uOutposts = u.uOutposts;
+      shader.uniforms.uOutpostCount = u.uOutpostCount;
       shader.uniforms.uShallow = u.uShallow;
       shader.uniforms.uFoam = u.uFoam;
       shader.vertexShader = shader.vertexShader
@@ -1329,8 +1329,8 @@ varying float vWave;`,
           "#include <common>",
           `#include <common>
 uniform float uTime;
-uniform vec3 uIslands[8];
-uniform int uIslandCount;
+uniform vec3 uOutposts[8];
+uniform int uOutpostCount;
 uniform vec3 uShallow;
 uniform vec3 uFoam;
 varying vec3 vSeaWorld;
@@ -1343,8 +1343,8 @@ varying float vWave;`,
   float shallow = 0.0;
   float foam = 0.0;
   for (int i = 0; i < 8; i++) {
-    if (i >= uIslandCount) break;
-    vec3 isl = uIslands[i];
+    if (i >= uOutpostCount) break;
+    vec3 isl = uOutposts[i];
     float d = distance(vSeaWorld.xz, isl.xy) - isl.z;
     shallow = max(shallow, 1.0 - smoothstep(0.0, 2.8, d));
     float lap = 0.1 * sin(uTime * 1.6 - d * 3.5);
@@ -1378,18 +1378,18 @@ varying float vWave;`,
     const anchorY = insets.top + vh / 2;
     const anchorX = insets.left + vw / 2;
     const walking = this.walkFocus();
-    if (walking?.scope === "island") {
-      // Ashore the camera walks with the pirate, a little ahead of their feet.
+    if (walking?.scope === "outpost") {
+      // On the outpost the camera walks with the pirate, a little ahead of their feet.
       const center = walking.figure.group.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.06, 0));
       const h = this.host.clientHeight || 1;
       const halfH = (WALK_HALF_H * Math.max(1, h / 900) * this.zoom) / Math.max(0.6, vh);
       return { center, halfH, anchorY, anchorX };
     }
-    if (input.focus.kind === "island") {
-      const iv = this.islands.get(input.focus.id);
-      const center = iv ? new THREE.Vector3(iv.island.x, 0.35, iv.island.y) : this.center.clone();
-      // On a tall phone the island's width is the limit; on a wide screen its height.
-      const halfH = Math.max((ISLAND_R * 1.15) / vh, ISLAND_R / (aspect * vw));
+    if (input.focus.kind === "outpost") {
+      const iv = this.outposts.get(input.focus.id);
+      const center = iv ? new THREE.Vector3(iv.outpost.x, 0.35, iv.outpost.y) : this.center.clone();
+      // On a tall phone the outpost's width is the limit; on a wide screen its height.
+      const halfH = Math.max((OUTPOST_R * 1.15) / vh, OUTPOST_R / (aspect * vw));
       return { center, halfH, anchorY, anchorX };
     }
     if (input.focus.kind === "ship") {
@@ -1434,7 +1434,7 @@ varying float vWave;`,
     return this.fitAll(input, this.azimuth, aspect, vh, vw, anchorY, anchorX);
   }
 
-  /** The view that fits every island looking down `azimuth`: their footprints projected into the camera's frame. */
+  /** The view that fits every outpost looking down `azimuth`: their footprints projected into the camera's frame. */
   private fitAll(input: WorldInput, azimuth: number, aspect: number, vh: number, vw: number, anchorY: number, anchorX: number): View {
     const probe = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
     probe.position.copy(this.center).add(isoDirection(azimuth).multiplyScalar(60));
@@ -1446,7 +1446,7 @@ varying float vWave;`,
     let minY = Infinity;
     let maxY = -Infinity;
     const pad = 2.5;
-    for (const i of input.islands) {
+    for (const i of input.outposts) {
       for (const [dx, dz] of [
         [-pad, -pad],
         [pad, -pad],
@@ -1475,7 +1475,7 @@ varying float vWave;`,
   /** Look down whichever diagonal shows the whole chart largest on this screen; a cut, so only on resize. */
   private pickAzimuth(): void {
     const input = this.input;
-    if (!input || input.islands.length === 0) return;
+    if (!input || input.outposts.length === 0) return;
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
     const { insets } = input;
@@ -1503,12 +1503,12 @@ varying float vWave;`,
     this.rig.setView(this.viewFor(this.input), immediate || this.reducedMotion);
   }
 
-  /** The azimuth that looks at a ship's side from the water: away from the island it is docked at, else its starboard side. */
+  /** The azimuth that looks at a ship's side from the water: away from the outpost it is docked at, else its starboard side. */
   private deckAzimuth(sv: ShipView): number {
     const g = sv.model.group;
     const forward = new THREE.Vector3(1, 0, 0).applyQuaternion(g.quaternion);
     const side = new THREE.Vector3(-forward.z, 0, forward.x);
-    const docked = sv.ship.location.kind === "docked" ? this.islands.get(sv.ship.location.islandId) : undefined;
+    const docked = sv.ship.location.kind === "docked" ? this.outposts.get(sv.ship.location.outpostId) : undefined;
     if (docked) {
       const away = g.position.clone().sub(docked.model.group.position);
       if (away.dot(side) < 0) side.negate();
@@ -1571,7 +1571,7 @@ varying float vWave;`,
       g.model.left.rotation.z = flap;
       g.model.right.rotation.z = -flap;
     }
-    for (const iv of this.islands.values()) {
+    for (const iv of this.outposts.values()) {
       iv.model.animate(t, dt);
       if (iv.model.ring.visible) {
         const s = 1 + 0.03 * Math.sin(t * 3);
@@ -1612,27 +1612,27 @@ varying float vWave;`,
   private placeShips(dt: number): void {
     if (!this.input) return;
     const docked = new Map<string, number>();
-    /** Which berths with a gangplank are taken, by island. */
+    /** Which berths with a boarding tube are taken, by outpost. */
     const planks = new Map<string, string>();
     for (const sv of this.ships.values()) {
       const t = this.time;
       const g = sv.model.group;
       if (sv.ship.location.kind === "docked") {
-        const iv = this.islands.get(sv.ship.location.islandId);
+        const iv = this.outposts.get(sv.ship.location.outpostId);
         if (!iv) {
           g.visible = false;
           continue;
         }
         g.visible = true;
         // Tied up alongside the dock: the first ship on its near side, the next on the far side, and so on out.
-        const n = docked.get(iv.island.id) ?? 0;
-        docked.set(iv.island.id, n + 1);
+        const n = docked.get(iv.outpost.id) ?? 0;
+        docked.set(iv.outpost.id, n + 1);
         const berth = iv.model.berth(n);
         const a = iv.model.dockAngle;
-        g.position.set(iv.island.x + berth.u * Math.cos(a) - berth.w * Math.sin(a), 0, iv.island.y + berth.u * Math.sin(a) + berth.w * Math.cos(a));
+        g.position.set(iv.outpost.x + berth.u * Math.cos(a) - berth.w * Math.sin(a), 0, iv.outpost.y + berth.u * Math.sin(a) + berth.w * Math.cos(a));
         g.rotation.y = -(a + berth.heading);
-        sv.berth = { islandId: iv.island.id, n };
-        if (berth.foot) planks.set(iv.island.id, `${planks.get(iv.island.id) ?? ""}${n},`);
+        sv.berth = { outpostId: iv.outpost.id, n };
+        if (berth.foot) planks.set(iv.outpost.id, `${planks.get(iv.outpost.id) ?? ""}${n},`);
       } else {
         sv.berth = null;
         const lane = sv.laneKey ? this.lanes.get(sv.laneKey) : null;
@@ -1664,7 +1664,7 @@ varying float vWave;`,
       // The "your ship" marker is for finding her on the chart; up close it would only hang in the air.
       sv.model.marker.visible = sv.ship.kind !== "other" && this.input.focus.kind === "all";
     }
-    this.layGangplanks(planks);
+    this.layBoardingTubes(planks);
     // On deck, a neighbour tied up alongside would stand between the camera and the deck; it steps out of the view.
     if (this.input.focus.kind === "ship") {
       const mine = this.ships.get(this.input.focus.id);
@@ -1677,11 +1677,11 @@ varying float vWave;`,
     }
   }
 
-  /** A gangplank from the dock up to each ship lying against it; rebuilt only when that changes. */
-  private layGangplanks(planks: Map<string, string>): void {
-    for (const [islandId, iv] of this.islands) {
-      const key = planks.get(islandId) ?? "";
-      const have = this.gangplanks.get(islandId);
+  /** A boarding tube from the dock up to each ship lying against it; rebuilt only when that changes. */
+  private layBoardingTubes(planks: Map<string, string>): void {
+    for (const [outpostId, iv] of this.outposts) {
+      const key = planks.get(outpostId) ?? "";
+      const have = this.boardingTubes.get(outpostId);
       if (have?.key === key) continue;
       have?.group.removeFromParent();
       const group = new THREE.Group();
@@ -1692,10 +1692,10 @@ varying float vWave;`,
         const deckY = 0.3 * SHIP_SCALE - SHIP_SINK;
         const from = new THREE.Vector3(berth.foot.x, DOCK.top + 0.006, side * (DOCK.half - 0.01));
         const to = new THREE.Vector3(berth.foot.x, deckY + 0.008, side * (Math.abs(berth.w) - 0.2 * SHIP_SCALE));
-        group.add(buildGangplank(from, to));
+        group.add(buildBoardingTube(from, to));
       }
       iv.model.frame.add(group);
-      this.gangplanks.set(islandId, { key, group });
+      this.boardingTubes.set(outpostId, { key, group });
     }
   }
 
@@ -1710,8 +1710,8 @@ varying float vWave;`,
       el.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
     };
     const spots: { spot: Spot; world: THREE.Vector3 }[] = [];
-    for (const iv of this.islands.values()) {
-      place(iv.label, this.tmp2.set(iv.island.x, 2.4, iv.island.y));
+    for (const iv of this.outposts.values()) {
+      place(iv.label, this.tmp2.set(iv.outpost.x, 2.4, iv.outpost.y));
       for (const [b, spot] of iv.spots) {
         if (spot.el.classList.contains("ow-hidden")) continue;
         spots.push({ spot, world: iv.model.group.localToWorld(iv.model.anchors[b].clone()) });
@@ -1764,11 +1764,11 @@ varying float vWave;`,
         if (spot && !spot.el.classList.contains("ow-hidden")) deckSpots.push({ spot, world: body.localToWorld(local.clone()), still: still(local) });
       };
       for (const [st, spot] of this.stationSpots) callout(spot, aboard.model.anchors[st]);
-      callout(this.wheelSpot, aboard.model.wheel.clone().add(new THREE.Vector3(0, 0.07, 0)));
-      const side = this.gangwaySide(aboard);
+      callout(this.helmSpot, aboard.model.helm.clone().add(new THREE.Vector3(0, 0.07, 0)));
+      const side = this.airlockSide(aboard);
       if (side !== null) {
-        const g = aboard.model.deck.gangway(side);
-        callout(this.gangwaySpot, new THREE.Vector3(g.x, 0.34, side * 0.19));
+        const g = aboard.model.deck.airlock(side);
+        callout(this.airlockSpot, new THREE.Vector3(g.x, 0.34, side * 0.19));
       }
       // Zoomed in, the hull runs off the screen and a column of labels would string leaders across
       // the deck: each label stands beside its own pin instead.
@@ -1784,7 +1784,7 @@ varying float vWave;`,
     }
   }
 
-  /** Name tags over the other pirates where the player is: everyone ashore, the idle hands aboard. */
+  /** Name tags over the other pirates where the player is: everyone on the outpost, the idle hands aboard. */
   private placeTags(): void {
     const w = this.host.clientWidth;
     const h = this.host.clientHeight;
@@ -1792,7 +1792,7 @@ varying float vWave;`,
     const shown: { el: HTMLElement; x: number; y: number }[] = [];
     for (const wv of this.walkers.values()) {
       if (!wv.tag) continue;
-      const here = focus && ((focus.kind === "island" && wv.scope === "island" && focus.id === wv.placeId) || (focus.kind === "ship" && wv.scope === "ship" && focus.id === wv.placeId));
+      const here = focus && ((focus.kind === "outpost" && wv.scope === "outpost" && focus.id === wv.placeId) || (focus.kind === "ship" && wv.scope === "ship" && focus.id === wv.placeId));
       const busy = wv.scope === "ship" && wv.station !== null;
       const show = Boolean(here) && !busy && wv.figure.group.visible;
       wv.tag.classList.toggle("ow-hidden", !show);
@@ -1817,7 +1817,7 @@ varying float vWave;`,
     }
   }
 
-  /** Where the player's own pirate is on screen, ring to hat, with a little room: no label may cover it. */
+  /** Where the player's own pirate is on screen, ring to headgear, with a little room: no label may cover it. */
   private playerBox(): ScreenBox | null {
     const me = this.walkFocus();
     if (!me || !me.figure.group.visible) return null;
@@ -1855,7 +1855,7 @@ varying float vWave;`,
     d.meScreen = screen;
     d.walking = me?.walker.moving ? "1" : "0";
     d.inside = me?.inside ?? "";
-    // The box no label may cover: the pirate, ring to hat.
+    // The box no label may cover: the pirate, ring to headgear.
     d.meBox = boxKey;
   }
 
@@ -1867,9 +1867,9 @@ varying float vWave;`,
     if (me) {
       me.figure.group.getWorldPosition(at);
       reach = me.scope === "ship" ? 1.4 : 2.6;
-    } else if (input.focus.kind === "island") {
-      const iv = this.islands.get(input.focus.id);
-      at.set(iv?.island.x ?? this.center.x, 0, iv?.island.y ?? this.center.z);
+    } else if (input.focus.kind === "outpost") {
+      const iv = this.outposts.get(input.focus.id);
+      at.set(iv?.outpost.x ?? this.center.x, 0, iv?.outpost.y ?? this.center.z);
       reach = 2.8;
     } else if (input.focus.kind === "ship") {
       this.ships.get(input.focus.id)?.model.group.getWorldPosition(at);
@@ -1986,20 +1986,20 @@ varying float vWave;`,
 
   // ---- picking
 
-  private pick(clientX: number, clientY: number): { kind: "island" | "ship"; id: string } | null {
+  private pick(clientX: number, clientY: number): { kind: "outpost" | "ship"; id: string } | null {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -(((clientY - rect.top) / rect.height) * 2 - 1));
     this.raycaster.setFromCamera(ndc, this.rig.camera);
     const targets: THREE.Object3D[] = [];
     for (const sv of this.ships.values()) if (sv.model.group.visible) targets.push(sv.model.hit);
-    for (const iv of this.islands.values()) targets.push(iv.model.hit, iv.model.group);
+    for (const iv of this.outposts.values()) targets.push(iv.model.hit, iv.model.group);
     const hits = this.raycaster.intersectObjects(targets, true);
     for (const hit of hits) {
       for (const sv of this.ships.values()) if (hit.object === sv.model.hit) return { kind: "ship", id: sv.ship.id };
-      for (const [id, iv] of this.islands) {
+      for (const [id, iv] of this.outposts) {
         let o: THREE.Object3D | null = hit.object;
         while (o) {
-          if (o === iv.model.group) return { kind: "island", id };
+          if (o === iv.model.group) return { kind: "outpost", id };
           o = o.parent;
         }
       }
@@ -2016,12 +2016,12 @@ varying float vWave;`,
     for (const wv of this.walkers.values()) if (wv !== me && wv.real && wv.scope === me.scope && wv.placeId === me.placeId) targets.push(wv.hit);
     let ground: THREE.Object3D[] = [];
     let frame: THREE.Object3D | null = null;
-    if (me.scope === "island") {
-      const iv = this.islands.get(me.placeId);
+    if (me.scope === "outpost") {
+      const iv = this.outposts.get(me.placeId);
       if (!iv) return null;
       targets.push(...iv.model.buildingHits);
       // Up close a ship is only her hull: the tall chart box would swallow taps on the dock and the shore behind her.
-      for (const sv of this.ships.values()) if (sv.model.group.visible && sv.berth?.islandId === me.placeId) targets.push(sv.model.hullHit);
+      for (const sv of this.ships.values()) if (sv.model.group.visible && sv.berth?.outpostId === me.placeId) targets.push(sv.model.hullHit);
       ground = iv.model.walkable;
       frame = iv.model.frame;
     } else {
@@ -2040,7 +2040,7 @@ varying float vWave;`,
       return wv ? { kind: "pirate", id: wv.id } : null;
     }
     if (typeof o.userData.building === "string") return { kind: "building", building: o.userData.building as Building };
-    if (typeof o.userData.station === "string") return o.userData.station === "wheel" ? { kind: "wheel" } : { kind: "station", station: o.userData.station as Station };
+    if (typeof o.userData.station === "string") return o.userData.station === "helm" ? { kind: "helm" } : { kind: "station", station: o.userData.station as Station };
     for (const sv of this.ships.values()) if (o === sv.model.hullHit || o === sv.model.hit) return { kind: "ship", id: sv.ship.id };
     const local = frame.worldToLocal(hit.point.clone());
     return { kind: "ground", x: local.x, z: local.z };
@@ -2076,7 +2076,7 @@ varying float vWave;`,
     }
     const p = this.pick(e.clientX, e.clientY);
     if (!p) return;
-    if (p.kind === "island") this.events.onIsland(p.id);
+    if (p.kind === "outpost") this.events.onOutpost(p.id);
     // Walking, a ship is boarded only by a tap on her hull (pickWalk); a tap on the water near her is nothing.
     else if (!me) this.goShip(p.id);
   };
@@ -2095,14 +2095,14 @@ varying float vWave;`,
       case "station":
         this.goStation(p.station);
         return;
-      case "wheel":
-        this.goWheel();
+      case "helm":
+        this.goHelm();
         return;
       case "ground": {
         const grid = this.gridOf(me);
         const to = grid?.nearestOpen(p.x, p.z, me.scope === "ship" ? 0.08 : 0.3);
         if (!to) return;
-        if (me.scope === "island" && this.inOrEntering(me)) {
+        if (me.scope === "outpost" && this.inOrEntering(me)) {
           this.afterLeave = () => this.walkMe(me, to, undefined, null, true);
           this.events.onOutside();
           return;
@@ -2147,7 +2147,7 @@ varying float vWave;`,
     this.pointerDown = null;
   };
 
-  private readonly onWheel = (e: WheelEvent): void => {
+  private readonly onHelmSpot = (e: WheelEvent): void => {
     if (!this.walkFocus()) return;
     e.preventDefault();
     this.setZoom(this.zoom * Math.exp(e.deltaY * 0.0015));
@@ -2178,7 +2178,7 @@ varying float vWave;`,
       return;
     }
     // Inside a building a key means "out": the room closes and the pirate steps outside, then walks on.
-    if (me.scope === "island" && (me.inside || me.doorway)) {
+    if (me.scope === "outpost" && (me.inside || me.doorway)) {
       if (me.inside && !me.doorway) this.events.onOutside();
       return;
     }
@@ -2214,7 +2214,7 @@ type ScreenBox = { x0: number; y0: number; x1: number; y1: number };
 
 const overlaps = (a: ScreenBox, b: ScreenBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 
-/** A pin that would sit on the player (standing at its station) hops up over their hat instead. */
+/** A pin that would sit on the player (standing at its station) hops up over their headgear instead. */
 const pinClearOf = (player: ScreenBox | null, x: number, y: number): number =>
   player && x > player.x0 - 9 && x < player.x1 + 9 && y > player.y0 - 9 && y < player.y1 + 9 ? player.y0 - 12 : y;
 
@@ -2223,7 +2223,7 @@ type WalkPick =
   | { kind: "building"; building: Building }
   | { kind: "ship"; id: string }
   | { kind: "station"; station: Station }
-  | { kind: "wheel" }
+  | { kind: "helm" }
   | { kind: "ground"; x: number; z: number };
 
 const KEY_DIRS: Record<string, "up" | "down" | "left" | "right"> = {

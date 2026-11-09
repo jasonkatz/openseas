@@ -28,7 +28,7 @@ export function useToasts(): ToastContextValue {
   return v;
 }
 
-/** Short lines that float over the scene and fade: who came aboard, land ho, a brigand's hail, a crewmate's call. */
+/** Short lines that float over the scene and fade: who came aboard, touchdown, a raider's hail, a crewmate's call. */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const next = useRef(0);

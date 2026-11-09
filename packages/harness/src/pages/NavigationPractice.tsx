@@ -65,14 +65,14 @@ export function NavigationPractice() {
           if (e.onMarker) sfx.swap();
           else sfx.swapQuiet();
           break;
-        case "booch":
+        case "lost_heading":
           sfx.streakLost();
-          sfx.keg();
+          sfx.charge();
           break;
         case "charted":
           sfx.clear(e.completion.chain, e.completion.markers.length);
           if (e.completion.chain >= 3) sfx.streak(e.completion.chain);
-          if (e.completion.efficient) sfx.barnacle();
+          if (e.completion.efficient) sfx.slag();
           break;
         case "run":
           sfx.multi(e.run.slots.length - 1);
@@ -111,8 +111,8 @@ export function NavigationPractice() {
       </div>
       <div className="stat stat-wide">
         <span className="stat-label">{t("navigation.progress")}</span>
-        <span className="water-row">
-          <span className="water-meter progress-meter" aria-label={t("navigation.progress_label", { filled, total })}>
+        <span className="heat-row">
+          <span className="heat-meter progress-meter" aria-label={t("navigation.progress_label", { filled, total })}>
             <i style={{ width: `${total ? Math.round((filled / total) * 100) : 0}%` }} />
           </span>
           <small className="muted" data-testid="hud-progress">
@@ -145,7 +145,7 @@ export function NavigationPractice() {
       warn={blocked}
       howTo={
         <>
-          <p className="how how-kbd">{t("navigation.booch_note")}</p>
+          <p className="how how-kbd">{t("navigation.lost_heading_note")}</p>
           <p className="how how-kbd">{t("navigation.hint_note")}</p>
         </>
       }
@@ -161,8 +161,8 @@ export function NavigationPractice() {
             <dd>{state.runsCleared}</dd>
           </div>
           <div>
-            <dt>{t("navigation.result_booched")}</dt>
-            <dd>{state.booches}</dd>
+            <dt>{t("navigation.result_headings_lost")}</dt>
+            <dd>{state.lostHeadings}</dd>
           </div>
         </>
       }

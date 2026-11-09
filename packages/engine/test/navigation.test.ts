@@ -255,7 +255,7 @@ describe("navigation rules", () => {
     const s = createNavigationGame("many");
     const tick = cfg.fallTicks * 3;
     const after = reduceNavigation(s, { type: "wait", tick });
-    const lands = after.lastMove!.events.filter((e) => e.type === "land" || e.type === "booch");
+    const lands = after.lastMove!.events.filter((e) => e.type === "land" || e.type === "lost_heading");
     expect(lands.length).toBe(after.landings);
     expect(after.landings).toBeGreaterThanOrEqual(3);
     for (let i = 1; i < lands.length; i++) expect(lands[i]!.tick).toBeGreaterThanOrEqual(lands[i - 1]!.tick);
@@ -289,36 +289,36 @@ describe("navigation rules", () => {
     expect(dropped.falling.kind).toBe(s.next);
   });
 
-  it("a star arriving at a blocked octant is a booch: the octant is swept, points are lost, the chain breaks", () => {
-    const s = createNavigationGame("booch");
+  it("a star arriving at a blocked octant is a lost heading: the octant is swept, points are lost, the chain breaks", () => {
+    const s = createNavigationGame("lost_heading");
     const top = (r: number): number => navigationSlotOf(cfg, r, NAVIGATION_ENTRY_OCTANT);
     const far: Marker[] = [{ ring: 0, octant: 4, kind: 0 }];
     const kinds = [1, 2, 4];
     const blocked = { ...withStars(s, { [top(0)]: kinds[0]!, [top(1)]: kinds[1]!, [top(2)]: kinds[2]! }, far), score: 100, combo: 3 };
     const after = reduceNavigation(blocked, { type: "drop", tick: 3 });
-    const booch = after.lastMove!.events.find((e) => e.type === "booch");
-    expect(booch).toBeDefined();
-    if (booch?.type === "booch") {
-      expect(booch.octant).toBe(NAVIGATION_ENTRY_OCTANT);
-      expect(booch.ids.length).toBe(cfg.rings);
+    const lostHeading = after.lastMove!.events.find((e) => e.type === "lost_heading");
+    expect(lostHeading).toBeDefined();
+    if (lostHeading?.type === "lost_heading") {
+      expect(lostHeading.octant).toBe(NAVIGATION_ENTRY_OCTANT);
+      expect(lostHeading.ids.length).toBe(cfg.rings);
     }
-    // Only the outer slot need be taken for a booch; the sweep takes what is there.
+    // Only the outer slot need be taken for a lost heading; the sweep takes what is there.
     const thin = withStars(s, { [top(2)]: 2 }, far);
     const swept = reduceNavigation(thin, { type: "drop", tick: 3 });
-    const ev = swept.lastMove!.events.find((e) => e.type === "booch");
-    if (ev?.type === "booch") {
+    const ev = swept.lastMove!.events.find((e) => e.type === "lost_heading");
+    if (ev?.type === "lost_heading") {
       expect(ev.ids.length).toBe(1);
       expect(swept.slots[top(2)]).toBeNull();
-      expect(ev.penalty).toBe(cfg.boochPenalty);
+      expect(ev.penalty).toBe(cfg.lostHeadingPenalty);
     }
     for (let r = 0; r < cfg.rings; r++) expect(after.slots[top(r)]).toBeNull();
-    expect(after.score).toBe(100 - cfg.boochPenalty);
+    expect(after.score).toBe(100 - cfg.lostHeadingPenalty);
     expect(after.combo).toBe(0);
-    expect(after.booches).toBe(1);
+    expect(after.lostHeadings).toBe(1);
     expect(after.landings).toBe(1);
   });
 
-  it("the score never goes below zero on a booch", () => {
+  it("the score never goes below zero on a lost heading", () => {
     const s = createNavigationGame("floor");
     const top = (r: number): number => navigationSlotOf(cfg, r, NAVIGATION_ENTRY_OCTANT);
     const blocked = withStars(s, { [top(0)]: 1, [top(1)]: 2, [top(2)]: 4 }, [{ ring: 0, octant: 4, kind: 0 }]);

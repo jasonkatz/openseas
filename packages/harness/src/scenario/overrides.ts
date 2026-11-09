@@ -1,5 +1,5 @@
 /**
- * Config overrides as dotted paths, e.g. `{ "specialChancePerMille.keg": 60, "maxMoves": 10 }`.
+ * Config overrides as dotted paths, e.g. `{ "specialChancePerMille.charge": 60, "maxMoves": 10 }`.
  * A lab scenario is the content config plus a handful of these, which is what a share link and a
  * preset carry. Arrays (Gunnery's `decks` and `bag`) are leaves: replaced whole, never indexed.
  */

@@ -40,9 +40,9 @@ describe("scenario codec", () => {
   it("round-trips through the query string", () => {
     const s = {
       ...EMPTY_SCENARIO,
-      seed: "keg-3",
+      seed: "charge-3",
       roundSeconds: 60,
-      overrides: { "specialChancePerMille.keg": 100, bag: [2, 2, 2, 0], decks: [["##B##", "#...C", "#...#", "#...#", "#####"]] },
+      overrides: { "specialChancePerMille.charge": 100, bag: [2, 2, 2, 0], decks: [["##B##", "#...C", "#...#", "#...#", "#####"]] },
       speed: 0.5,
       paused: true,
       hints: false,
@@ -68,8 +68,8 @@ describe("scenario codec", () => {
   });
 
   it("shares a link that starts the lab round and never carries review", () => {
-    const link = shareLink("https://test.openseas.online", "/bilging", { ...EMPTY_SCENARIO, seed: "a b", review: true });
-    expect(link).toBe("https://test.openseas.online/bilging?seed=a+b&start=lab");
+    const link = shareLink("https://test.openseas.online", "/cooling", { ...EMPTY_SCENARIO, seed: "a b", review: true });
+    expect(link).toBe("https://test.openseas.online/cooling?seed=a+b&start=lab");
     expect(formatScenario(EMPTY_SCENARIO)).toBe("");
   });
 });

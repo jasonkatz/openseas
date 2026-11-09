@@ -88,10 +88,10 @@ export const pirate = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
     name: text().notNull(),
-    /** Where the pirate stands when not aboard a ship. Null means the ocean's start island. */
-    islandId: text(),
-    /** The coat and hat they picked, content ids (DESIGN.md 3.6). Null until they pick: a default is drawn from the id. */
-    look: jsonb().$type<{ coat: string; hat: string }>(),
+    /** Where the pirate stands when not aboard a ship. Null means the star system's start outpost. */
+    outpostId: text(),
+    /** The jacket and headgear they picked, content ids (DESIGN.md 3.6). Null until they pick: a default is drawn from the id. */
+    look: jsonb().$type<{ jacket: string; headgear: string }>(),
     /** The earned title they show after their name, a content id, or null for none (ADR 0033). */
     title: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -127,8 +127,8 @@ export const ship = pgTable(
     name: text().notNull(),
     /** The grant that produced this ship, or null for a paid purchase (ADR 0010). */
     grantId: text(),
-    /** The island the ship is docked at, or was last docked at while at sea. Null means the start island. */
-    islandId: text(),
+    /** The outpost the ship is docked at, or was last docked at while in flight. Null means the start outpost. */
+    outpostId: text(),
     acquiredAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("ship_owner_id_idx").on(t.ownerId)],
@@ -198,7 +198,7 @@ export const puzzleRound = pgTable(
   (t) => [index("puzzle_round_pirate_id_idx").on(t.pirateId, t.puzzle)],
 );
 
-/** One leg sailed by one ship (DESIGN.md 3.4, 3.6). Written when the ship sets sail, closed on arrival or abandonment. */
+/** One leg flown by one ship (DESIGN.md 3.4, 3.6). Written when the ship launches, closed on arrival or abandonment. */
 export const voyage = pgTable(
   "voyage",
   {
@@ -206,7 +206,7 @@ export const voyage = pgTable(
     shipId: text()
       .notNull()
       .references(() => ship.id, { onDelete: "cascade" }),
-    routeId: text().notNull(),
+    laneId: text().notNull(),
     captainId: text()
       .notNull()
       .references(() => pirate.id, { onDelete: "cascade" }),
@@ -215,8 +215,8 @@ export const voyage = pgTable(
     /** "arrived" or "abandoned"; null while under way. A server restart leaves it null. */
     outcome: text(),
     turns: integer().notNull().default(0),
-    /** The brigand tier rolled for the leg and whether it was evaded, or null for a clear leg. A fight adds its outcome and purse. */
-    encounter: jsonb().$type<{ tierId: string; evaded: boolean; outcome?: string; booty?: number }>(),
+    /** The raider tier rolled for the leg and whether it was evaded, or null for a clear leg. A fight adds its outcome and purse. */
+    encounter: jsonb().$type<{ tierId: string; evaded: boolean; outcome?: string; plunder?: number }>(),
   },
   (t) => [index("voyage_ship_id_idx").on(t.shipId)],
 );
@@ -254,10 +254,10 @@ export const crew = pgTable(
     foundedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     /** Voyages that reached port with a member aboard. */
     voyages: integer().notNull().default(0),
-    /** Brigands beaten with a member aboard. */
+    /** Raiders beaten with a member aboard. */
     victories: integer().notNull().default(0),
-    /** Coins paid to members from those victories. */
-    booty: integer().notNull().default(0),
+    /** Credits paid to members from those victories. */
+    plunder: integer().notNull().default(0),
   },
   (t) => [uniqueIndex("crew_name_key_uidx").on(t.nameKey)],
 );
@@ -272,7 +272,7 @@ export const crewMember = pgTable(
     crewId: text()
       .notNull()
       .references(() => crew.id, { onDelete: "cascade" }),
-    /** "commodore", "officer" or "sailor". */
+    /** "commodore", "officer" or "spacer". */
     rank: text().notNull(),
     joinedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },

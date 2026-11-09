@@ -24,7 +24,7 @@ export function TopBar({ onMenu, onMap, onChart }: TopBarProps) {
   const statusShort = socketStatus === "open" ? t("app.status_live") : socketStatus === "connecting" ? t("app.status_connecting") : t("app.status_offline");
   return (
     <header className="topbar" data-testid="topbar">
-      <button type="button" className="who who-btn" title={statusShort} onClick={() => openSheet()} aria-label={t("sheet.open", { name: pirate?.name ?? "", coins: t("world.coins", { coins: pirate?.balance ?? 0 }), status: statusShort })} data-testid="sheet-open">
+      <button type="button" className="who who-btn" title={statusShort} onClick={() => openSheet()} aria-label={t("sheet.open", { name: pirate?.name ?? "", credits: t("world.credits", { credits: pirate?.balance ?? 0 }), status: statusShort })} data-testid="sheet-open">
         {/* The connection's pip sits on the likeness's shoulder, so the bar stays thin. */}
         <span className="who-face">
           {pirate && <Portrait look={lookFor(pirate.id, pirate.look)} size={28} />}
@@ -33,7 +33,7 @@ export function TopBar({ onMenu, onMap, onChart }: TopBarProps) {
         <span className="who-name" data-testid="pirate-name">
           {pirate?.name}
         </span>
-        <span className="who-coins" title={t("world.coins", { coins: pirate?.balance ?? 0 })} aria-label={t("world.coins", { coins: pirate?.balance ?? 0 })} data-testid="pirate-coins">
+        <span className="who-credits" title={t("world.credits", { credits: pirate?.balance ?? 0 })} aria-label={t("world.credits", { credits: pirate?.balance ?? 0 })} data-testid="pirate-credits">
           <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
             <circle cx="8" cy="8" r="6.4" fill="currentColor" />
             <circle cx="8" cy="8" r="4" fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="1.3" />

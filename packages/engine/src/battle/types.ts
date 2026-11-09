@@ -1,17 +1,17 @@
 /**
- * Sea Battle: the captain's game, one ship against a brigand on a square grid of water, rocks,
- * winds and eddies (DESIGN.md 3.3). Each turn the captain spends movement tokens on up to
- * `segments` moves (left, forward, right), marks which segments fire a cannon to port or
- * starboard, and commits. The brigand plans its own turn from the same rules; both plans resolve
- * segment by segment at once: a move, then the wind, then the guns. A turn ends with a grapple
+ * Space Battle: the captain's game, one ship against a raider on a square grid of space, asteroids,
+ * currents and wells (DESIGN.md 3.3). Each turn the captain spends movement tokens on up to
+ * `segments` moves (left, forward, right), marks which segments fire a turret to port or
+ * starboard, and commits. The raider plans its own turn from the same rules; both plans resolve
+ * segment by segment at once: a move, then the current, then the guns. A turn ends with a grapple
  * when the weaker ship is close enough, with a crippled hull, or at the turn limit.
  *
  * Headings are 0 north (up, -y), 1 east, 2 south, 3 west. A left or right turn carries the ship
  * one cell forward and then swings it 90 degrees, so a ship can never spin in place.
  *
- * Everything is integers (ADR 0003). The brigand's choices are made inside the reducer from the
+ * Everything is integers (ADR 0003). The raider's choices are made inside the reducer from the
  * seeded PRNG, so a replay of the move log reproduces the whole fight, AI and all. Aboard a ship
- * the tokens, loaded cannons and hull arrive as `supply` moves the server vouches for; in practice
+ * the tokens, loaded turrets and hull arrive as `supply` moves the server vouches for; in practice
  * the config supplies them itself each turn.
  */
 
@@ -26,8 +26,8 @@ export const MOVE_TOKENS: readonly MoveToken[] = ["left", "forward", "right"];
 
 export type Side = "port" | "starboard";
 
-/** What a cell of the board is. Winds carry a heading; an eddy spins a ship clockwise. */
-export type BattleCell = { readonly kind: "water" } | { readonly kind: "rock" } | { readonly kind: "wind"; readonly heading: Heading } | { readonly kind: "eddy" };
+/** What a cell of the board is. Currents carry a heading; a well spins a ship clockwise. */
+export type BattleCell = { readonly kind: "space" } | { readonly kind: "asteroid" } | { readonly kind: "current"; readonly heading: Heading } | { readonly kind: "well" };
 
 export interface ParsedBoard {
   readonly width: number;
@@ -37,18 +37,18 @@ export interface ParsedBoard {
   readonly start: readonly [{ readonly x: number; readonly y: number; readonly heading: Heading }, { readonly x: number; readonly y: number; readonly heading: Heading }];
 }
 
-/** The brigand's knobs. Content's tiers feed these; the harness tunes them directly. */
-export interface BrigandSpec {
-  readonly cannons: number;
+/** The raider's knobs. Content's tiers feed these; the harness tunes them directly. */
+export interface RaiderSpec {
+  readonly turrets: number;
   /** Tokens dealt per turn: this many forward, and half as many (rounded up) each of left and right. */
   readonly tokensPerTurn: number;
-  /** Cannons reloaded per turn. */
+  /** Turrets reloaded per turn. */
   readonly reloadPerTurn: number;
   /** Percent of planned shots that are actually fired; the rest are misjudged and held. */
   readonly accuracy: number;
   /** Percent weight on closing and grappling over keeping out of the captain's guns. */
   readonly aggression: number;
-  /** Damage the brigand starts with, permille. */
+  /** Damage the raider starts with, permille. */
   readonly startDamage: number;
 }
 
@@ -56,14 +56,14 @@ export interface SupplySpec {
   readonly left: number;
   readonly forward: number;
   readonly right: number;
-  /** Cannons loaded per turn. */
-  readonly cannons: number;
+  /** Turrets loaded per turn. */
+  readonly turrets: number;
 }
 
 export interface BattleConfig {
   /**
-   * Boards the seed picks from: one string per row. `.` water, `#` rock, `^ > v <` a wind blowing
-   * that way, `@` an eddy, `A` where the captain starts (facing north), `B` the brigand (south).
+   * Boards the seed picks from: one string per row. `.` space, `#` asteroid, `^ > v <` a current blowing
+   * that way, `@` a well, `A` where the captain starts (facing north), `B` the raider (south).
    */
   readonly boards: ReadonlyArray<readonly string[]>;
   /** Moves a turn may carry. */
@@ -73,34 +73,34 @@ export interface BattleConfig {
   /** A ship holds at most this many tokens of a kind. */
   readonly tokenCap: number;
   /** Cells a shot travels. */
-  readonly cannonRange: number;
+  readonly turretRange: number;
   /** Hull damage per hit, permille. */
   readonly shotDamage: number;
-  /** Hull damage for sailing (or being blown) into a rock, permille. */
-  readonly rockDamage: number;
+  /** Hull damage for flying (or being blown) into an asteroid, permille. */
+  readonly asteroidDamage: number;
   /** Hull damage to both ships when they collide, permille. */
   readonly ramDamage: number;
   /** A ship this damaged can be grappled and boarded from an adjacent cell. */
   readonly grappleDamage: number;
-  /** The fight is over after this many turns: the brigand breaks off. */
+  /** The fight is over after this many turns: the raider breaks off. */
   readonly maxTurns: number;
   /** The captain's ship. */
-  readonly cannons: number;
+  readonly turrets: number;
   readonly startLoaded: number;
   readonly startDamage: number;
   /** Tokens and loads dealt every turn in practice; null aboard, where `supply` moves bring the ship's. */
   readonly supply: SupplySpec | null;
-  readonly brigand: BrigandSpec;
+  readonly raider: RaiderSpec;
   /** Points per hit landed. */
   readonly hitPoints: number;
   /** Points lost per hit taken, so hits score as the margin. The score never drops below zero. */
   readonly hitTakenPoints: number;
   /**
-   * Every turn's points are scaled by this, in percent: harder brigands score more. 100 in practice;
+   * Every turn's points are scaled by this, in percent: harder raiders score more. 100 in practice;
    * aboard, the encounter's tier sets it (DESIGN.md 3.3).
    */
   readonly scorePercent: number;
-  /** Points for boarding or crippling the brigand, plus `turnBonus` for every turn to spare. */
+  /** Points for boarding or crippling the raider, plus `turnBonus` for every turn to spare. */
   readonly winPoints: number;
   readonly turnBonus: number;
   /** Longest move log the server accepts. */
@@ -133,17 +133,17 @@ export const DEFAULT_BATTLE_CONFIG: BattleConfig = {
   segments: 4,
   turnSeconds: 12,
   tokenCap: 6,
-  cannonRange: 3,
+  turretRange: 3,
   shotDamage: 120,
-  rockDamage: 80,
+  asteroidDamage: 80,
   ramDamage: 100,
   grappleDamage: 500,
   maxTurns: 20,
-  cannons: 4,
+  turrets: 4,
   startLoaded: 2,
   startDamage: 0,
-  supply: { left: 1, forward: 2, right: 1, cannons: 2 },
-  brigand: { cannons: 4, tokensPerTurn: 3, reloadPerTurn: 1, accuracy: 65, aggression: 60, startDamage: 0 },
+  supply: { left: 1, forward: 2, right: 1, turrets: 2 },
+  raider: { turrets: 4, tokensPerTurn: 3, reloadPerTurn: 1, accuracy: 65, aggression: 60, startDamage: 0 },
   hitPoints: 50,
   hitTakenPoints: 50,
   scorePercent: 100,
@@ -159,7 +159,7 @@ export interface BattleShip {
   /** Permille of a wrecked hull. */
   readonly damage: number;
   readonly loaded: number;
-  readonly cannons: number;
+  readonly turrets: number;
   readonly tokens: Readonly<Record<MoveToken, number>>;
 }
 
@@ -181,7 +181,7 @@ export const EMPTY_PLAN: BattlePlan = { segments: [], grapple: false };
 export type BattleMove =
   | ({ readonly type: "commit" } & BattlePlan)
   /** Aboard only: what the ship brings this turn. Tokens add up to the cap; loads and the hull are the ship's own numbers. */
-  | { readonly type: "supply"; readonly left: number; readonly forward: number; readonly right: number; readonly cannons: number; readonly hull: number }
+  | { readonly type: "supply"; readonly left: number; readonly forward: number; readonly right: number; readonly turrets: number; readonly hull: number }
   /** The captain breaks off the fight: the round ends as a disengagement. */
   | { readonly type: "end" };
 
@@ -196,15 +196,15 @@ export interface Pose {
   readonly heading: Heading;
 }
 
-/** Ship 0 is the captain's, 1 the brigand. */
+/** Ship 0 is the captain's, 1 the raider. */
 export type ShipIndex = 0 | 1;
 
 export type BattleEvent =
   /** A ship tried to move: where it ended up and what, if anything, stopped it. */
-  | { readonly seg: number; readonly type: "move"; readonly ship: ShipIndex; readonly token: MoveToken; readonly from: Pose; readonly to: Pose; readonly blocked: "rock" | "edge" | "ship" | null; readonly damage: number }
-  /** A wind carried a ship one cell. */
-  | { readonly seg: number; readonly type: "push"; readonly ship: ShipIndex; readonly from: Pose; readonly to: Pose; readonly blocked: "rock" | "edge" | "ship" | null; readonly damage: number }
-  /** An eddy spun a ship. */
+  | { readonly seg: number; readonly type: "move"; readonly ship: ShipIndex; readonly token: MoveToken; readonly from: Pose; readonly to: Pose; readonly blocked: "asteroid" | "edge" | "ship" | null; readonly damage: number }
+  /** A current carried a ship one cell. */
+  | { readonly seg: number; readonly type: "push"; readonly ship: ShipIndex; readonly from: Pose; readonly to: Pose; readonly blocked: "asteroid" | "edge" | "ship" | null; readonly damage: number }
+  /** A well spun a ship. */
   | { readonly seg: number; readonly type: "spin"; readonly ship: ShipIndex; readonly from: Pose; readonly to: Pose }
   /** A shot: the cells it crossed, and whether it struck the other ship. */
   | { readonly seg: number; readonly type: "shot"; readonly ship: ShipIndex; readonly side: Side; readonly cells: ReadonlyArray<{ readonly x: number; readonly y: number }>; readonly hit: boolean; readonly damage: number }
@@ -215,7 +215,7 @@ export type BattleEvent =
 export interface BattleTurnReport {
   readonly turn: number;
   readonly plan: BattlePlan;
-  readonly brigandPlan: BattlePlan;
+  readonly raiderPlan: BattlePlan;
   readonly events: readonly BattleEvent[];
   /** Hits the captain landed and took this turn. */
   readonly hits: number;

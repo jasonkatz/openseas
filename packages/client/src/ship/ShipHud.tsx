@@ -17,27 +17,27 @@ function Meter({ label, value, danger, testId, invert }: { label: string; value:
 }
 
 /**
- * The ship's vitals: bilge, hull, speed, cannons and the turn clock. Shown on deck and above every
- * board. `mini` is the strip's version: the same bilge and hull, labeled and numbered so they can be
- * read at a glance, and the turn clock at sea.
+ * The ship's vitals: heat, hull, speed, turrets and the turn clock. Shown on deck and above every
+ * board. `mini` is the strip's version: the same heat and hull, labeled and numbered so they can be
+ * read at a glance, and the turn clock in flight.
  */
 export function ShipHud({ ship, slim = false, mini = false }: { ship: ShipSnapshot; slim?: boolean; mini?: boolean }) {
   const { socket } = usePirate();
-  const atSea = ship.location.kind === "at-sea";
-  const now = useNow(atSea);
+  const inFlight = ship.location.kind === "in-flight";
+  const now = useNow(inFlight);
   const untilTurn = ship.nextTurnAt === null ? null : Math.max(0, ship.nextTurnAt - socket.clockOffset - now);
-  const speed = atSea && ship.lastTurn && !ship.lastTurn.held ? Math.round(ship.lastTurn.speed / 10) : null;
-  const water = Math.round(ship.water / 10);
+  const speed = inFlight && ship.lastTurn && !ship.lastTurn.held ? Math.round(ship.lastTurn.speed / 10) : null;
+  const heat = Math.round(ship.heat / 10);
   const hull = 100 - Math.round(ship.damage / 10);
   if (mini) {
     return (
       <span className="ship-mini" aria-label={t("ship.vitals")}>
-        <span className={`mini-row ${ship.water >= 500 ? "danger" : ""}`}>
-          <small>{t("ship.bilge")}</small>
+        <span className={`mini-row ${ship.heat >= 500 ? "danger" : ""}`}>
+          <small>{t("ship.heat")}</small>
           <span className="mini-meter">
-            <i style={{ width: `${water}%` }} />
+            <i style={{ width: `${heat}%` }} />
           </span>
-          <b>{water}%</b>
+          <b>{heat}%</b>
         </span>
         <span className={`mini-row ${ship.damage >= 500 ? "danger" : ""}`}>
           <small>{t("ship.hull")}</small>
@@ -46,7 +46,7 @@ export function ShipHud({ ship, slim = false, mini = false }: { ship: ShipSnapsh
           </span>
           <b>{hull}%</b>
         </span>
-        {atSea && untilTurn !== null && (
+        {inFlight && untilTurn !== null && (
           <span className="mini-row mini-turn-row" data-testid="mini-turn">
             <small>{t("ship.turn_bar")}</small>
             <span className="mini-turn">
@@ -60,7 +60,7 @@ export function ShipHud({ ship, slim = false, mini = false }: { ship: ShipSnapsh
   }
   return (
     <div className={`ship-hud ${slim ? "ship-hud-slim" : ""}`} data-testid="ship-hud">
-      <Meter label={t("ship.bilge")} value={ship.water} danger={ship.water >= 500} testId="ship-water" />
+      <Meter label={t("ship.heat")} value={ship.heat} danger={ship.heat >= 500} testId="ship-heat" />
       <Meter label={t("ship.hull")} value={ship.damage} danger={ship.damage >= 500} testId="ship-damage" invert />
       <div className="meter">
         <span className="meter-label">{t("ship.speed")}</span>
@@ -69,14 +69,14 @@ export function ShipHud({ ship, slim = false, mini = false }: { ship: ShipSnapsh
         </span>
       </div>
       <div className="meter">
-        <span className="meter-label">{t("ship.cannons")}</span>
-        <span className="meter-value lamps" aria-label={t("ship.cannons_value", { loaded: ship.loaded, total: ship.cannons })}>
-          {Array.from({ length: ship.cannons }, (_, i) => (
+        <span className="meter-label">{t("ship.turrets")}</span>
+        <span className="meter-value lamps" aria-label={t("ship.turrets_value", { loaded: ship.loaded, total: ship.turrets })}>
+          {Array.from({ length: ship.turrets }, (_, i) => (
             <i key={i} className={i < ship.loaded ? "lit" : ""} />
           ))}
         </span>
       </div>
-      {atSea && untilTurn !== null && (
+      {inFlight && untilTurn !== null && (
         <div className="turn-line" data-testid="turn-line">
           <span className="turn-text">{ship.lastTurn?.held ? t("ship.held") : t("ship.next_turn", { seconds: Math.ceil(untilTurn / 1000) })}</span>
           <span className="bar" aria-hidden="true">

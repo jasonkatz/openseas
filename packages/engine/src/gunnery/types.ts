@@ -1,8 +1,8 @@
 /**
- * Gunnery: a chute in the deck's rail drops powder, wad, shot and water onto the deck one at a
+ * Gunnery: a feeder in the deck's rail drops cell, sabot, slug and coolant onto the deck one at a
  * time, in a rhythm that quickens through the round. Pieces roll a cell per tick until something
- * turns them. The gunner lays arrows that steer them into cannons, which load in the order
- * powder, wad, shot and fire themselves when full. A wrong piece fouls a cannon; water cleans it.
+ * turns them. The gunner lays arrows that steer them into turrets, which load in the order
+ * cell, sabot, slug and fire themselves when full. A wrong piece jams a turret; coolant cleans it.
  * Anything not steered rolls out through the scupper and is gone.
  *
  * Coordinates: `col` runs 0..width-1 left to right, `row` runs 0..height-1 TOP to bottom, the same
@@ -19,17 +19,17 @@ export const DIRS: readonly Dir[] = [0, 1, 2, 3];
 export const DX: readonly number[] = [1, 0, -1, 0];
 export const DY: readonly number[] = [0, 1, 0, -1];
 
-export const GunneryKind = { Powder: 0, Wad: 1, Shot: 2, Water: 3 } as const;
+export const GunneryKind = { Cell: 0, Sabot: 1, Slug: 2, Coolant: 3 } as const;
 export const GUNNERY_KINDS = 4;
 
-/** `barrel` is the chute pieces drop from; `hatch` is a scupper that takes a piece overboard. */
-export type DeckCell = "wall" | "deck" | "crate" | "barrel" | "cannon" | "hatch";
+/** `barrel` is the feeder pieces drop from; `hatch` is a scupper that takes a piece overboard. */
+export type DeckCell = "wall" | "deck" | "crate" | "barrel" | "turret" | "hatch";
 
 export interface GunneryConfig {
   /**
    * The decks a round may be played on; the seed picks one. Each is one string per row: # wall,
-   * . plank, X crate, B chute, C cannon, H hatch. The chute must touch exactly one plank: pieces
-   * drop onto it heading away from the chute. All decks are the same size, and each must pass
+   * . plank, X crate, B feeder, C turret, H hatch. The feeder must touch exactly one plank: pieces
+   * drop onto it heading away from the feeder. All decks are the same size, and each must pass
    * `deckProblems` (no loop built in, a stream that leaves, every gun within reach).
    */
   readonly decks: ReadonlyArray<readonly string[]>;
@@ -39,19 +39,19 @@ export interface GunneryConfig {
   readonly maxTick: number;
   /** The round ends after this many logged moves (arrows and waits). */
   readonly maxMoves: number;
-  /** The chute holds back while this many pieces are on deck. */
+  /** The feeder holds back while this many pieces are on deck. */
   readonly maxOnDeck: number;
   /** Ticks between drops at the start of the round. */
   readonly spawnEveryTicks: number;
   /** Ticks between drops by the end of the round; the rhythm quickens evenly towards it. */
   readonly spawnEveryTicksMin: number;
-  /** How many upcoming pieces the chute shows. */
+  /** How many upcoming pieces the feeder shows. */
   readonly queueLength: number;
-  /** Pieces per refill of the shuffled bag the chute draws from, by kind: powder, wad, shot, water. */
+  /** Pieces per refill of the shuffled bag the feeder draws from, by kind: cell, sabot, slug, coolant. */
   readonly bag: readonly number[];
-  /** A full cannon fires itself this many ticks after loading (practice stand-in for the captain). */
+  /** A full turret fires itself this many ticks after loading (practice stand-in for the captain). */
   readonly fireAfterTicks: number;
-  /** Points for powder or wad going into a cannon that wants it. */
+  /** Points for cell or sabot going into a turret that wants it. */
   readonly stepPoints: number;
   /** Points for a full load. */
   readonly loadPoints: number;
@@ -234,13 +234,13 @@ export interface Arrow {
   readonly dir: Dir;
 }
 
-export interface Cannon {
+export interface Turret {
   readonly col: number;
   readonly row: number;
-  /** Pieces loaded so far in order: 0 empty, 1 powder, 2 powder+wad, 3 full. */
+  /** Pieces loaded so far in order: 0 empty, 1 cell, 2 cell+sabot, 3 full. */
   readonly loaded: number;
-  readonly fouled: boolean;
-  /** Tick the cannon fires itself, while full. */
+  readonly jammed: boolean;
+  /** Tick the turret fires itself, while full. */
   readonly firesAt: number | null;
 }
 
@@ -250,18 +250,18 @@ export type GunneryMove =
   | { readonly type: "wait"; readonly tick: number }
   | { readonly type: "end"; readonly tick: number };
 
-/** What a piece does to a cannon it rolls into. `blocked` means the cannon turns it away like a wall. */
-export type CannonOutcome = "load" | "loaded" | "foul" | "clean" | "splash" | "blocked";
+/** What a piece does to a turret it rolls into. `blocked` means the turret turns it away like a wall. */
+export type TurretOutcome = "load" | "loaded" | "jam" | "clean" | "splash" | "blocked";
 
 export interface GunneryEvent {
   readonly tick: number;
   /**
-   * `load` a step, `loaded` a full cannon, `splash` water into a clean cannon, `exit` out a hatch,
+   * `load` a step, `loaded` a full turret, `splash` coolant into a clean turret, `exit` out a hatch,
    * `broadside` every gun fired since the last one.
    */
-  readonly type: "load" | "loaded" | "foul" | "clean" | "splash" | "fire" | "broadside" | "spawn" | "exit";
-  /** Index into `cannons` for cannon events. */
-  readonly cannon?: number;
+  readonly type: "load" | "loaded" | "jam" | "clean" | "splash" | "fire" | "broadside" | "spawn" | "exit";
+  /** Index into `turrets` for turret events. */
+  readonly turret?: number;
   readonly pieceId?: number;
   readonly kind?: number;
   /** For `exit`, the hatch the piece went out through (it may have turned on its last step). */
@@ -283,11 +283,11 @@ export interface ParsedDeck {
   readonly height: number;
   /** Row-major, index = row * width + col. */
   readonly cells: readonly DeckCell[];
-  /** The chute. */
+  /** The feeder. */
   readonly barrel: { readonly col: number; readonly row: number };
   /** The deck cell pieces drop onto, and the way they roll from it. */
   readonly drop: { readonly col: number; readonly row: number; readonly dir: Dir };
-  readonly cannons: ReadonlyArray<{ readonly col: number; readonly row: number }>;
+  readonly turrets: ReadonlyArray<{ readonly col: number; readonly row: number }>;
 }
 
 export interface GunneryState {
@@ -298,8 +298,8 @@ export interface GunneryState {
   readonly tick: number;
   readonly pieces: readonly GunneryPiece[];
   readonly arrows: readonly Arrow[];
-  readonly cannons: readonly Cannon[];
-  /** Kinds the chute drops next, soonest first; always `queueLength` long. */
+  readonly turrets: readonly Turret[];
+  /** Kinds the feeder drops next, soonest first; always `queueLength` long. */
   readonly queue: readonly number[];
   /** What is left of the shuffled bag the queue refills from, next first. */
   readonly bag: readonly number[];
@@ -309,12 +309,12 @@ export interface GunneryState {
   readonly rng: PrngState;
   readonly moveCount: number;
   readonly score: number;
-  /** Full loads in a row without a foul. */
+  /** Full loads in a row without a jam. */
   readonly combo: number;
   readonly bestCombo: number;
   readonly loads: number;
-  readonly fouls: number;
-  /** Per cannon: has it fired since the last broadside? When all have, a broadside scores and this clears. */
+  readonly jams: number;
+  /** Per turret: has it fired since the last broadside? When all have, a broadside scores and this clears. */
   readonly firedSince: readonly boolean[];
   readonly broadsides: number;
   readonly arrowsPlaced: number;

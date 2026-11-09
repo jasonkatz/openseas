@@ -3,8 +3,8 @@ import type { ChatChannel, ChatMessage, CrewTag, PirateLookWire, ServerMessage, 
 import { usePirate } from "@openseas/boards";
 
 export interface SocialContextValue {
-  /** Everyone ashore at the pirate's island, as last pushed by the server. */
-  presence: { islandId: string; pirates: { pirateId: string; name: string; crew?: CrewTag | null | undefined; look?: PirateLookWire | null | undefined }[] } | null;
+  /** Everyone at the pirate's outpost, as last pushed by the server. */
+  presence: { outpostId: string; pirates: { pirateId: string; name: string; crew?: CrewTag | null | undefined; look?: PirateLookWire | null | undefined }[] } | null;
   /** The last few lines of each channel, oldest first. Ephemeral: chat is not stored (DESIGN.md 3.7). */
   chat: Record<ChatChannel, ChatMessage[]>;
   /** Lines that arrived since the channel was last looked at. */
@@ -12,8 +12,8 @@ export interface SocialContextValue {
   say(channel: ChatChannel, text: string): void;
   markRead(channel: ChatChannel): void;
   askWho(): void;
-  /** Where others last walked to (ADR 0032): ashore on the pirate's island, and on the deck of their ship. */
-  walks: { island: Record<string, WalkSpot>; ship: Record<string, WalkSpot> };
+  /** Where others last walked to (ADR 0032): on the pirate's outpost, and on the deck of their ship. */
+  walks: { outpost: Record<string, WalkSpot>; ship: Record<string, WalkSpot> };
   /** Tell the place where the pirate is walking, paced to a few a second. */
   walkTo(at: WalkSpot): void;
 }
@@ -33,22 +33,22 @@ const WALK_PACE_MS = 180;
 export function SocialProvider({ children }: { children: ReactNode }) {
   const { socket } = usePirate();
   const [presence, setPresence] = useState<SocialContextValue["presence"]>(null);
-  const [chat, setChat] = useState<Record<ChatChannel, ChatMessage[]>>({ ship: [], island: [], crew: [] });
-  const [unread, setUnread] = useState<Record<ChatChannel, number>>({ ship: 0, island: 0, crew: 0 });
-  const [walks, setWalks] = useState<SocialContextValue["walks"]>({ island: {}, ship: {} });
+  const [chat, setChat] = useState<Record<ChatChannel, ChatMessage[]>>({ ship: [], outpost: [], crew: [] });
+  const [unread, setUnread] = useState<Record<ChatChannel, number>>({ ship: 0, outpost: 0, crew: 0 });
+  const [walks, setWalks] = useState<SocialContextValue["walks"]>({ outpost: {}, ship: {} });
 
   useEffect(
     () =>
       socket.onMessage((m: ServerMessage) => {
         switch (m.type) {
-          case "island.presence": {
-            setPresence({ islandId: m.islandId, pirates: m.pirates });
-            const island: Record<string, WalkSpot> = {};
-            for (const p of m.pirates) if (p.at) island[p.pirateId] = p.at;
+          case "outpost.presence": {
+            setPresence({ outpostId: m.outpostId, pirates: m.pirates });
+            const outpost: Record<string, WalkSpot> = {};
+            for (const p of m.pirates) if (p.at) outpost[p.pirateId] = p.at;
             setWalks((w) => {
               // Keep a walk heard since for anyone still here: presence carries the last one the server had.
-              for (const p of m.pirates) if (!p.at && w.island[p.pirateId]) island[p.pirateId] = w.island[p.pirateId]!;
-              return { ...w, island };
+              for (const p of m.pirates) if (!p.at && w.outpost[p.pirateId]) outpost[p.pirateId] = w.outpost[p.pirateId]!;
+              return { ...w, outpost };
             });
             break;
           }
@@ -83,7 +83,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       socket.onStatus((s) => {
         if (s === "closed") {
           setPresence(null);
-          setWalks({ island: {}, ship: {} });
+          setWalks({ outpost: {}, ship: {} });
         }
       }),
     [socket],
@@ -97,7 +97,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     [socket],
   );
   const markRead = useCallback((channel: ChatChannel) => setUnread((u) => (u[channel] === 0 ? u : { ...u, [channel]: 0 })), []);
-  const askWho = useCallback(() => void socket.send({ type: "island.who" }), [socket]);
+  const askWho = useCallback(() => void socket.send({ type: "outpost.who" }), [socket]);
 
   // Walks are paced: the latest spot goes at most every WALK_PACE_MS, and a burst ends on where the pirate stopped.
   const walkPace = useRef<{ lastAt: number; pending: WalkSpot | null; timer: number | null }>({ lastAt: 0, pending: null, timer: null });

@@ -10,22 +10,22 @@ import { BatchView } from "../voyage/BatchView.jsx";
 
 /**
  * The voyage bench (ADR 0027): a ship, a crew at their stations playing as well as the scenario
- * says, a route and its brigands, sailed through the engine's reducers as the server sails them.
- * One voyage turn by turn, with the sea battle on the real board (watched, or plotted by hand),
+ * says, a lane and its raiders, flown through the engine's reducers as the server flies them.
+ * One voyage turn by turn, with the space battle on the real board (watched, or plotted by hand),
  * or a batch of voyages for the averages. The scenario is the page's query string.
  */
 export function VoyageBench() {
   const initial = useMemo(() => parseVoyage(content, window.location.search), []);
   const [scenario, setScenario] = useState<VoyageScenario>(initial.scenario);
   const [tab, setTab] = useState<"voyage" | "batch">(initial.autostart === "batch" ? "batch" : "voyage");
-  // The scenario (as its query string) to sail at once when its voyage view opens: a link with
-  // start=sail, or a run opened from a batch. Editing the scenario after that does not re-sail it.
-  const [sailFor, setSailFor] = useState<string | null>(initial.autostart === "sail" ? formatVoyage(content, initial.scenario) : null);
+  // The scenario (as its query string) to fly at once when its voyage view opens: a link with
+  // start=launch, or a run opened from a batch. Editing the scenario after that does not re-launch it.
+  const [launchFor, setLaunchFor] = useState<string | null>(initial.autostart === "launch" ? formatVoyage(content, initial.scenario) : null);
   const [nonce, setNonce] = useState(0);
   const [copied, setCopied] = useState(false);
 
   const resolved = useMemo(() => resolveScenario(content, scenario), [scenario]);
-  const world = resolved.ok ? resolved.world : baseWorld(content, scenario.shipClassId, scenario.routeId) ?? baseWorld(content, content.world.shipClasses[0]!.id, content.world.routes[0]!.id)!;
+  const world = resolved.ok ? resolved.world : baseWorld(content, scenario.shipClassId, scenario.laneId) ?? baseWorld(content, content.world.shipClasses[0]!.id, content.world.lanes[0]!.id)!;
   const stations = STATIONS.filter((s) => world.ship.stations.includes(s));
   const qs = formatVoyage(content, scenario);
 
@@ -36,12 +36,12 @@ export function VoyageBench() {
   const openRun = (seed: string): void => {
     const next = { ...scenario, seed };
     setScenario(next);
-    setSailFor(formatVoyage(content, next));
+    setLaunchFor(formatVoyage(content, next));
     setNonce((n) => n + 1);
     setTab("voyage");
   };
   const share = (): void => {
-    const link = `${window.location.origin}/voyage?${formatVoyage(content, scenario, tab === "batch" ? "batch" : "sail")}`;
+    const link = `${window.location.origin}/voyage?${formatVoyage(content, scenario, tab === "batch" ? "batch" : "launch")}`;
     void navigator.clipboard?.writeText(link).then(
       () => setCopied(true),
       () => setCopied(false),
@@ -92,7 +92,7 @@ export function VoyageBench() {
           </div>
           {tab === "voyage" &&
             (resolved.ok ? (
-              <RunView key={`${qs}|${nonce}`} setup={resolved.setup} crew={scenario.crew} stations={stations} autostart={sailFor === qs} />
+              <RunView key={`${qs}|${nonce}`} setup={resolved.setup} crew={scenario.crew} stations={stations} autostart={launchFor === qs} />
             ) : (
               <p className="muted vempty">{t("harness.voyage.fix_first")}</p>
             ))}

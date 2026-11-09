@@ -98,19 +98,19 @@ function IdentityTab({ pirate, look, sheet }: { pirate: PirateSummary; look: Pir
         </div>
         <p className="muted small">{t("sheet.look_hint")}</p>
         <fieldset className="flag-row">
-          <legend>{t("sheet.coat")}</legend>
-          <div className="swatches look-coats" role="radiogroup" aria-label={t("sheet.coat")}>
-            {pirateRules.coats.map((c) => {
-              const on = look.coat === c.id;
+          <legend>{t("sheet.jacket")}</legend>
+          <div className="swatches look-jackets" role="radiogroup" aria-label={t("sheet.jacket")}>
+            {pirateRules.jackets.map((c) => {
+              const on = look.jacket === c.id;
               return (
                 <button
                   type="button"
                   key={c.id}
                   role="radio"
                   aria-checked={on}
-                  className={`coat-swatch ${on ? "is-on" : ""}`}
-                  onClick={() => !on && setLook({ ...look, coat: c.id })}
-                  data-testid={`look-coat-${c.id}`}
+                  className={`jacket-swatch ${on ? "is-on" : ""}`}
+                  onClick={() => !on && setLook({ ...look, jacket: c.id })}
+                  data-testid={`look-jacket-${c.id}`}
                 >
                   <i style={{ background: c.hex }} aria-hidden="true" />
                   <span>{t(c.nameKey)}</span>
@@ -120,21 +120,21 @@ function IdentityTab({ pirate, look, sheet }: { pirate: PirateSummary; look: Pir
           </div>
         </fieldset>
         <fieldset className="flag-row">
-          <legend>{t("sheet.hat")}</legend>
-          <div className="flag-choices look-hats" role="radiogroup" aria-label={t("sheet.hat")}>
-            {pirateRules.hats.map((h) => {
-              const on = look.hat === h.id;
+          <legend>{t("sheet.headgear")}</legend>
+          <div className="flag-choices look-headgear" role="radiogroup" aria-label={t("sheet.headgear")}>
+            {pirateRules.headgear.map((h) => {
+              const on = look.headgear === h.id;
               return (
                 <button
                   type="button"
                   key={h.id}
                   role="radio"
                   aria-checked={on}
-                  className={`flag-choice hat-choice ${on ? "is-on" : ""}`}
-                  onClick={() => !on && setLook({ ...look, hat: h.id })}
-                  data-testid={`look-hat-${h.id}`}
+                  className={`flag-choice headgear-choice ${on ? "is-on" : ""}`}
+                  onClick={() => !on && setLook({ ...look, headgear: h.id })}
+                  data-testid={`look-headgear-${h.id}`}
                 >
-                  <Portrait look={{ ...look, hat: h.id }} size={42} />
+                  <Portrait look={{ ...look, headgear: h.id }} size={42} />
                   <span>{t(h.nameKey)}</span>
                 </button>
               );
@@ -173,7 +173,7 @@ function RecordTab({ pirate, sheet }: { pirate: PirateSummary; sheet: SheetData 
     { key: "voyages", value: r.voyages, label: t("sheet.stat_voyages") },
     { key: "captained", value: r.captained, label: t("sheet.stat_captained") },
     { key: "victories", value: r.victories, label: t("sheet.stat_victories") },
-    { key: "booty", value: r.booty, label: t("sheet.stat_booty") },
+    { key: "plunder", value: r.plunder, label: t("sheet.stat_plunder") },
     { key: "boards", value: r.boards, label: t("sheet.stat_boards") },
     { key: "ships", value: pirate.ships.length, label: t("sheet.stat_ships") },
   ];

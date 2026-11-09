@@ -8,7 +8,7 @@ const log = createLogger(env.LOG_LEVEL, env.NODE_ENV === "development");
 if (env.SENTRY_DSN) Sentry.init({ dsn: env.SENTRY_DSN, environment: env.NODE_ENV });
 
 const app = await createApp(env, log);
-log.info({ islands: app.content.world.islands.length, contentVersion: app.content.world.version }, "content loaded, migrations applied");
+log.info({ outposts: app.content.world.outposts.length, contentVersion: app.content.world.version }, "content loaded, migrations applied");
 
 const port = await app.listen(env.PORT);
 log.info({ port, origins: env.CLIENT_ORIGINS, inviteGate: env.ALPHA_INVITE_CODE !== null }, "openseas server listening");

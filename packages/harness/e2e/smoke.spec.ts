@@ -35,31 +35,31 @@ async function closeBench(page: Page): Promise<void> {
  * covered by the server integration test. The bench's own paths (lab rounds from a link, the
  * replay check, reviewing a log, the lab clock) are smoked at the end.
  */
-test("home page renders, says what it is testing against, and links to Bilging", async ({ page }) => {
+test("home page renders, says what it is testing against, and links to Cooling", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "openseas harness" })).toBeVisible();
   await expect(page.getByTestId("status-build")).toContainText("harness");
-  await page.getByTestId("tile-bilging").click();
-  await expect(page).toHaveURL(/\/bilging$/);
+  await page.getByTestId("tile-cooling").click();
+  await expect(page).toHaveURL(/\/cooling$/);
   await expect(page.getByTestId("start-unrated")).toBeVisible();
   await expect(page.getByTestId("start-lab")).toBeVisible();
 });
 
-test("an unrated Bilging round accepts a keyboard swap and shows the result", async ({ page }) => {
-  await page.goto("/bilging");
+test("an unrated Cooling round accepts a keyboard swap and shows the result", async ({ page }) => {
+  await page.goto("/cooling");
   await page.getByTestId("start-unrated").click();
-  const canvas = page.getByTestId("bilging-canvas");
+  const canvas = page.getByTestId("cooling-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toContainText("0");
   // The round's board replaces the preview board behind the start card.
-  await expectViewMatchesState(page, "bilging");
+  await expectViewMatchesState(page, "cooling");
 
   // Keyboard: put the cursor somewhere and swap with the piece to the right.
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
-  await expectViewMatchesState(page, "bilging");
+  await expectViewMatchesState(page, "cooling");
 
   // Pointer: tap two horizontally adjacent cells.
   const box = await canvas.boundingBox();
@@ -72,12 +72,12 @@ test("an unrated Bilging round accepts a keyboard swap and shows the result", as
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });
 
-test("home links to Sailing and an unrated round takes keyboard drops", async ({ page }) => {
+test("home links to Engines and an unrated round takes keyboard drops", async ({ page }) => {
   await page.goto("/");
-  await page.getByTestId("tile-sailing").click();
-  await expect(page).toHaveURL(/\/sailing$/);
+  await page.getByTestId("tile-engines").click();
+  await expect(page).toHaveURL(/\/engines$/);
   await page.getByTestId("start-unrated").click();
-  const canvas = page.getByTestId("sailing-canvas");
+  const canvas = page.getByTestId("engines-canvas");
   await expect(canvas).toBeVisible();
   // The count alone: rounds run their clock, so no cap follows it.
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
@@ -88,7 +88,7 @@ test("home links to Sailing and an unrated round takes keyboard drops", async ({
   await page.keyboard.down(" ");
   await expect(page.getByTestId("hud-moves")).toHaveText("1");
   await page.keyboard.up(" ");
-  await expectViewMatchesState(page, "sailing");
+  await expectViewMatchesState(page, "engines");
 
   // Pointer: a tap turns the pair, a sideways drag steers it; then a key drops it.
   const box = await canvas.boundingBox();
@@ -105,20 +105,20 @@ test("home links to Sailing and an unrated round takes keyboard drops", async ({
   await page.keyboard.up(" ");
 });
 
-test("home links to Carpentry and planks go down by keyboard and by tap", async ({ page }) => {
-  // The plank tray and board redraw are the heaviest canvas in the suite on the phone profile.
+test("home links to Plating and plates go down by keyboard and by tap", async ({ page }) => {
+  // The plate tray and board redraw are the heaviest canvas in the suite on the phone profile.
   test.slow();
   await page.goto("/");
-  await page.getByTestId("tile-carpentry").click();
-  await expect(page).toHaveURL(/\/carpentry$/);
+  await page.getByTestId("tile-plating").click();
+  await expect(page).toHaveURL(/\/plating$/);
   await page.getByTestId("start-unrated").click();
-  const canvas = page.getByTestId("carpentry-canvas");
+  const canvas = page.getByTestId("plating-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toContainText("0");
-  const settled = (): Promise<void> => expectViewMatchesState(page, "carpentry");
+  const settled = (): Promise<void> => expectViewMatchesState(page, "plating");
   await settled();
 
-  // A turned and flipped plank does not pass its orientation on: the next one picked comes out of
+  // A turned and flipped plate does not pass its orientation on: the next one picked comes out of
   // the tray the way the tray shows it.
   await page.keyboard.press("1");
   await page.keyboard.press("r");
@@ -129,14 +129,14 @@ test("home links to Carpentry and planks go down by keyboard and by tap", async 
   await page.keyboard.press("Escape");
   await expect(canvas).toHaveAttribute("data-orient", "-1,0,0");
 
-  // Keyboard: pick plank 1, jump to a spot it fits, nail it down.
+  // Keyboard: pick plate 1, jump to a spot it fits, weld it down.
   await page.keyboard.press("1");
   await page.keyboard.press("h");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
   await settled();
 
-  // Pointer: pick plank 2, find a fit by keyboard, then click the middle of the ghost to nail it.
+  // Pointer: pick plate 2, find a fit by keyboard, then click the middle of the ghost to weld it.
   await page.keyboard.press("2");
   await page.keyboard.press("h");
   await expect.poll(() => canvas.getAttribute("data-ghost")).toMatch(/^\d+,\d+,\d+,\d+$/);
@@ -213,7 +213,7 @@ test("home links to Navigation and an unrated round turns a ring by key and brin
   await expectViewMatchesState(page, "navigation");
 });
 
-test("home links to Sea Battle and an unrated fight plots by key and by tap and sails its plot", async ({ page }, testInfo) => {
+test("home links to Space Battle and an unrated fight plots by key and by tap and flies its plot", async ({ page }, testInfo) => {
   // Desktop only: on CI's phone profile this run timed out without a fault in the board, and the
   // desktop run already drives every input it checks.
   test.skip(testInfo.project.name === "phone", "flaky on CI's phone profile; the desktop run covers the board");
@@ -226,7 +226,7 @@ test("home links to Sea Battle and an unrated fight plots by key and by tap and 
   await expect(page.getByTestId("hud-moves")).toContainText("0/20");
   await expectViewMatchesState(page, "battle");
 
-  // Keyboard: plot forward, forward, arm the port guns on the second move, then sail with enter.
+  // Keyboard: plot forward, forward, arm the port guns on the second move, then fly with enter.
   await page.keyboard.press("w");
   await page.keyboard.press("w");
   await page.keyboard.press("q");
@@ -236,7 +236,7 @@ test("home links to Sea Battle and an unrated fight plots by key and by tap and 
   await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", '{"segments":[],"grapple":false}');
   await expectViewMatchesState(page, "battle");
 
-  // Pointer: the renderer says where its buttons sit; tap the left token, then the sail button.
+  // Pointer: the renderer says where its buttons sit; tap the left token, then the fly button.
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
   const rect = async (id: string): Promise<number[]> => {
@@ -259,13 +259,13 @@ test("home links to Sea Battle and an unrated fight plots by key and by tap and 
   await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", '{"segments":[],"grapple":false}');
   await tap("token:left");
   await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /"move":"left"/);
-  await tap("sail");
+  await tap("fly");
   await expect(page.getByTestId("hud-moves")).toContainText("2/20");
   await expectViewMatchesState(page, "battle");
 });
 
 test("home links to Swordfighting and an unrated fight drops pairs by keyboard and by touch", async ({ page }) => {
-  // Two drops hurried down a seventeen-row board, with the brigand's board small beside it, on the phone profile.
+  // Two drops hurried down a seventeen-row board, with the raider's board small beside it, on the phone profile.
   test.slow();
   await page.goto("/");
   await page.getByTestId("tile-swordfight").click();
@@ -304,14 +304,14 @@ test("a lab round opens from a link with its seed and config, replays clean, and
   // Three animated swaps, a review with board remounts and several settle checks: the longest test
   // in the suite, and right at the budget on the CI phone profile.
   test.slow();
-  await page.goto("/bilging?seed=smoke-1&seconds=30&c.maxMoves=3&start=lab");
-  const canvas = page.getByTestId("bilging-canvas");
+  await page.goto("/cooling?seed=smoke-1&seconds=30&c.maxMoves=3&start=lab");
+  const canvas = page.getByTestId("cooling-canvas");
   await expect(canvas).toBeVisible();
   // The address bar keeps the scenario but drops the autostart, so a reload does not start again.
   await expect(page).toHaveURL(/seed=smoke-1/);
   await expect(page).not.toHaveURL(/start=/);
   await expect(page.getByTestId("hud-moves")).toContainText("0/3");
-  await expectViewMatchesState(page, "bilging");
+  await expectViewMatchesState(page, "cooling");
 
   // Three swaps end a three-move round.
   await page.keyboard.press("ArrowDown");
@@ -340,24 +340,24 @@ test("a lab round opens from a link with its seed and config, replays clean, and
   await expect(page.getByTestId("review-index")).toHaveText("3 / 3");
   await page.getByTestId("review-prev").click();
   await expect(page.getByTestId("review-index")).toHaveText("2 / 3");
-  await expectViewMatchesState(page, "bilging");
+  await expectViewMatchesState(page, "cooling");
   await page.getByTestId("review-exit").click();
   await expect(page.getByTestId("start-lab")).toBeVisible();
 });
 
-test("a Bilging round plays a lone ship's bilge: the deal brings the board to the bilge's floor", async ({ page }) => {
+test("a Cooling round plays a lone ship's heat: the deal brings the board to the heat's floor", async ({ page }) => {
   // Dealt eight rows deep on a dry, sound ship (ADR 0029): the round's first move is the ship's
-  // water, three rows, logged as a duty board logs its ship's word. The clock stays paused.
-  await page.goto("/bilging?seed=smoke-water&c.initialWaterRow=8&start=lab&paused=1");
-  await expect(page.getByTestId("bilging-canvas")).toBeVisible();
+  // heat, three rows, logged as a duty board logs its ship's word. The clock stays paused.
+  await page.goto("/cooling?seed=smoke-heat&c.initialHeatRow=8&start=lab&paused=1");
+  await expect(page.getByTestId("cooling-canvas")).toBeVisible();
   await openBench(page);
   const log = page.getByTestId("inspector-log").locator("li");
   await expect(log).toHaveCount(1);
-  await expect(log.first()).toContainText("water row=3");
+  await expect(log.first()).toContainText("heat row=3");
 });
 
 test("the scenario form refuses a config the server could not issue, and the link follows the form", async ({ page }) => {
-  await page.goto("/bilging");
+  await page.goto("/cooling");
   await openBench(page);
   const field = page.getByTestId("config-field-maxMoves");
   await field.fill("0");
@@ -378,16 +378,16 @@ test("the scenario form refuses a config the server could not issue, and the lin
 
 test("a round pasted on the home page opens in review on its board", async ({ page }) => {
   await page.goto("/");
-  const round = { puzzle: "bilging", seed: "smoke-paste", moves: [{ type: "swap", col: 0, row: 0 }, { type: "swap", col: 2, row: 5 }] };
+  const round = { puzzle: "cooling", seed: "smoke-paste", moves: [{ type: "swap", col: 0, row: 0 }, { type: "swap", col: 2, row: 5 }] };
   await page.getByTestId("home-review-text").fill(JSON.stringify(round));
   await page.getByTestId("home-review-open").click();
-  await expect(page).toHaveURL(/\/bilging/);
+  await expect(page).toHaveURL(/\/cooling/);
   await expect(page.getByTestId("review-bar")).toBeVisible();
   await expect(page.getByTestId("review-index")).toHaveText("2 / 2");
-  await expectViewMatchesState(page, "bilging");
+  await expectViewMatchesState(page, "cooling");
   // Junk is refused on the home page with a reason.
   await page.goto("/");
-  await page.getByTestId("home-review-text").fill('{"puzzle":"bilging","seed":"x","moves":[{"type":"arrow"}]}');
+  await page.getByTestId("home-review-text").fill('{"puzzle":"cooling","seed":"x","moves":[{"type":"arrow"}]}');
   await page.getByTestId("home-review-open").click();
   await expect(page.getByTestId("home-review-error")).toContainText("Move 0");
 });
@@ -428,7 +428,7 @@ async function mockInviteGatedServer(page: Page): Promise<void> {
 
 test("with a server that wants an invite code, the home signs the pirate in and the start card says so until then", async ({ page }) => {
   await mockInviteGatedServer(page);
-  await page.goto("/bilging");
+  await page.goto("/cooling");
   // A cold worker on the CI phone profile spends its first seconds bringing up the board's renderer,
   // and the start card only says this once the sign-in round trip lands after that.
   await expect(page.getByText("Sign the articles on the home page")).toBeVisible({ timeout: 20_000 });
@@ -443,16 +443,16 @@ test("with a server that wants an invite code, the home signs the pirate in and 
   await expect(page.getByTestId("status-pirate")).toContainText("Smoke Tester");
 });
 
-/** A route where the given brigand always hails, as the voyage page's query string carries it. */
-const alwaysHailed = (tier: string): string => `w.route.encounterChance=1&w.route.brigands=${encodeURIComponent(JSON.stringify([{ tierId: tier, weight: 1 }]))}`;
+/** A lane where the given raider always hails, as the voyage page's query string carries it. */
+const alwaysHailed = (tier: string): string => `w.lane.encounterChance=1&w.lane.raiders=${encodeURIComponent(JSON.stringify([{ tierId: tier, weight: 1 }]))}`;
 
-test("the voyage bench sails a crew to port, charts the ship and proves the replay", async ({ page }) => {
+test("the voyage bench flies a crew to port, charts the ship and proves the replay", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("tile-voyage").click();
   await expect(page).toHaveURL(/\/voyage/);
   await expect(page.getByTestId("voyage-crew")).toBeVisible();
-  // Three pirates aboard a sloop that wants four: one deckhand signs on.
-  await expect(page.getByTestId("voyage-deckhands")).toContainText("1 deckhands sign on");
+  // Three pirates aboard a skiff that wants four: one bot boots up.
+  await expect(page.getByTestId("voyage-bots")).toContainText("1 deckhands sign on");
   await page.getByTestId("voyage-step").click();
   await expect(page.getByTestId("voyage-turn")).toHaveText("1");
   await page.getByTestId("voyage-to-port").click();
@@ -464,28 +464,28 @@ test("the voyage bench sails a crew to port, charts the ship and proves the repl
   await expect(page.getByTestId("voyage-proof-result")).toHaveAttribute("data-ok", "1");
 });
 
-test("the voyage bench stops for the tester's plot when they have the wheel", async ({ page }, testInfo) => {
+test("the voyage bench stops for the tester's plot when they have the helm", async ({ page }, testInfo) => {
   // Desktop only, as the practice battle: the phone profile drives the same board.
   test.skip(testInfo.project.name === "phone", "the desktop run covers the board");
-  await page.goto(`/voyage?wheel=you&${alwaysHailed("cutpurse")}`);
+  await page.goto(`/voyage?helm=you&${alwaysHailed("junker")}`);
   await page.getByTestId("voyage-to-port").click();
   await expect(page.getByTestId("voyage-your-plot")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("battle-canvas")).toBeVisible();
-  // Keyboard, as on the practice page: forward, forward with the port guns, sail.
+  // Keyboard, as on the practice page: forward, forward with the port guns, fly.
   await page.keyboard.press("w");
   await page.keyboard.press("w");
   await page.keyboard.press("q");
   await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /"move":"forward".*"move":"forward","port":true/);
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("voyage-log")).toContainText("plotted by you");
-  // The AI takes the rest of the fight, and the voyage sails on to its end.
+  // The AI takes the rest of the fight, and the voyage flies on to its end.
   for (let i = 0; i < 40 && (await page.getByTestId("voyage-ai-plot").count()) > 0; i++) await page.getByTestId("voyage-ai-plot").click();
   if (await page.getByTestId("voyage-to-port").isEnabled()) await page.getByTestId("voyage-to-port").click();
   await expect(page.getByTestId("voyage-proof-result")).toHaveAttribute("data-ok", "1", { timeout: 30_000 });
   await expect(page.getByTestId("voyage-battle")).toContainText("you 1");
 });
 
-test("the voyage bench sails a batch and opens one of its voyages", async ({ page }) => {
+test("the voyage bench flies a batch and opens one of its voyages", async ({ page }) => {
   await page.goto(`/voyage?runs=4&hail=evade&${alwaysHailed("marauder")}`);
   await page.getByTestId("voyage-tab-batch").click();
   await page.getByTestId("voyage-batch-run").click();
@@ -500,7 +500,7 @@ test("the voyage bench sails a batch and opens one of its voyages", async ({ pag
 
 test("the voyage bench refuses a world the server would refuse", async ({ page }) => {
   // A leg must be a whole number of turns: content's own startup check.
-  await page.goto("/voyage?w.route.durationSeconds=215");
+  await page.goto("/voyage?w.lane.durationSeconds=215");
   await expect(page.getByTestId("voyage-invalid")).toContainText("whole number of turns");
-  await expect(page.getByTestId("voyage-sail")).toHaveCount(0);
+  await expect(page.getByTestId("voyage-launch")).toHaveCount(0);
 });

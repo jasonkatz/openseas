@@ -1,9 +1,9 @@
 export * from "./prng.js";
 export { Hasher } from "./hash.js";
 export { InvalidMoveError } from "./errors.js";
-export * from "./bilging/index.js";
-export * from "./sailing/index.js";
-export * from "./carpentry/index.js";
+export * from "./cooling/index.js";
+export * from "./engines/index.js";
+export * from "./plating/index.js";
 export * from "./gunnery/index.js";
 export * from "./navigation/index.js";
 export * from "./battle/index.js";

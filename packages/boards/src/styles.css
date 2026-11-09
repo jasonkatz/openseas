@@ -524,14 +524,14 @@ a {
 .combo-meter.hot b {
   color: #ff9a6b;
 }
-.water-meter {
+.heat-meter {
   display: block;
   height: 10px;
   border-radius: 999px;
   background: rgba(239, 227, 198, 0.1);
   overflow: hidden;
 }
-.water-meter i {
+.heat-meter i {
   display: block;
   height: 100%;
   border-radius: inherit;
@@ -540,19 +540,19 @@ a {
     width 0.5s ease,
     background 0.3s ease;
 }
-.water-meter.danger i {
+.heat-meter.danger i {
   background: linear-gradient(90deg, var(--tide), var(--danger));
   animation: pulse 1s ease-in-out infinite;
 }
-.water-row {
+.heat-row {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.water-row .water-meter {
+.heat-row .heat-meter {
   flex: 1;
 }
-.water-warn {
+.heat-warn {
   font-style: normal;
   white-space: nowrap;
   animation: pulse 1s ease-in-out infinite;
@@ -824,7 +824,7 @@ a {
   align-items: center;
   gap: 6px;
 }
-/* Wrack's two looks as it ripens, side by side before their one line of text. */
+/* Scrap's two looks as it ripens, side by side before their one line of text. */
 .legend .stages {
   display: flex;
   flex: none;

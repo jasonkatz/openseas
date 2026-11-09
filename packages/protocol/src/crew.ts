@@ -4,7 +4,7 @@ import { ContentIdSchema, CrewRankSchema, CrewTagSchema, PirateLookWireSchema, R
 /**
  * Crews (M6, ADR 0025): the social unit and the invite list (DESIGN.md 3.4, 3.7). Not the crew of a
  * ship, which is whoever is aboard it (`CrewViewSchema` in ship.ts): a crew is a lasting band of
- * pirates with a name, a flag and ranks, and its members sail on any ship.
+ * pirates with a name, a flag and ranks, and its members fly on any ship.
  */
 
 const Id = z.string().min(1).max(64);
@@ -12,14 +12,14 @@ const Id = z.string().min(1).max(64);
 /** Where a crewmate is right now, as the viewer can act on it. */
 export const CrewWhereSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("offline") }),
-  z.object({ kind: z.literal("ashore"), islandId: Id }),
+  z.object({ kind: z.literal("on-outpost"), outpostId: Id }),
   z.object({
     kind: z.literal("aboard"),
     shipId: Id,
     shipName: z.string(),
-    /** Docked at this island, or null at sea. */
-    islandId: Id.nullable(),
-    /** At sea: where the ship is bound and how far along, per mille. */
+    /** Docked at this outpost, or null in flight. */
+    outpostId: Id.nullable(),
+    /** In flight: where the ship is bound and how far along, per mille. */
     to: Id.nullable(),
     progress: z.int().min(0).max(1000),
     /** The viewer could board this ship right now from where they are. */
@@ -37,8 +37,8 @@ export const CrewMemberSchema = z.object({
 });
 export type CrewMember = z.infer<typeof CrewMemberSchema>;
 
-/** What the crew has done together: voyages arrived with a member aboard, brigands beaten, coins plundered. */
-export const CrewStatsSchema = z.object({ voyages: z.int().min(0), victories: z.int().min(0), booty: z.int().min(0) });
+/** What the crew has done together: voyages arrived with a member aboard, raiders beaten, credits plundered. */
+export const CrewStatsSchema = z.object({ voyages: z.int().min(0), victories: z.int().min(0), plunder: z.int().min(0) });
 export type CrewStats = z.infer<typeof CrewStatsSchema>;
 
 export const CrewInfoSchema = CrewTagSchema.extend({
@@ -55,7 +55,7 @@ export type CrewInfo = z.infer<typeof CrewInfoSchema>;
 export const CrewInviteSchema = z.object({ crew: CrewTagSchema, members: z.int().min(0), by: z.string(), at: z.number() });
 export type CrewInvite = z.infer<typeof CrewInviteSchema>;
 
-/** A crew on the tavern's board of crews. */
+/** A crew on the cantina's board of crews. */
 export const CrewRowSchema = CrewTagSchema.extend({ members: z.int().min(0), stats: CrewStatsSchema });
 export type CrewRow = z.infer<typeof CrewRowSchema>;
 
@@ -72,10 +72,10 @@ export const CrewNoticeSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("dismissed"), crewName: z.string(), by: z.string() }),
   z.object({ type: z.literal("rank"), name: z.string(), rank: CrewRankSchema }),
   z.object({ type: z.literal("flag"), by: z.string() }),
-  /** Crewmates set sail; the viewer may still catch them at sea. */
-  z.object({ type: z.literal("sailed"), names: z.array(z.string()).min(1), shipId: Id, shipName: z.string(), to: Id, joinable: z.boolean() }),
-  /** A ship with crewmates aboard beat a brigand. */
-  z.object({ type: z.literal("victory"), names: z.array(z.string()).min(1), shipName: z.string(), tierId: Id, booty: z.int().min(0) }),
+  /** Crewmates launch; the viewer may still catch them in flight. */
+  z.object({ type: z.literal("launched"), names: z.array(z.string()).min(1), shipId: Id, shipName: z.string(), to: Id, joinable: z.boolean() }),
+  /** A ship with crewmates aboard beat a raider. */
+  z.object({ type: z.literal("victory"), names: z.array(z.string()).min(1), shipName: z.string(), tierId: Id, plunder: z.int().min(0) }),
 ]);
 export type CrewNotice = z.infer<typeof CrewNoticeSchema>;
 
@@ -87,7 +87,7 @@ export const PirateProfileSchema = z.object({
   ratings: z.array(RatingViewSchema),
   /** Voyages that reached port with them aboard. */
   voyages: z.int().min(0),
-  /** Brigands beaten with them aboard. */
+  /** Raiders beaten with them aboard. */
   victories: z.int().min(0).default(0),
   /** What they wear on deck, and the title they show; null from a server that does not say. */
   look: PirateLookWireSchema.nullable().default(null),

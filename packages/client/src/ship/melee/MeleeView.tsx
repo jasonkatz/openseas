@@ -13,7 +13,7 @@ export interface MeleeViewProps {
 }
 
 /**
- * The rail, over the deck (DESIGN.md 3.11): the pirate's own swordfight board with every other
+ * The airlock, over the deck (DESIGN.md 3.11): the pirate's own swordfight board with every other
  * board in the melee beside it, the same frame as a station. The fight runs until a side is
  * beaten; the outcome stays up until the pirate has read it.
  */
@@ -28,14 +28,14 @@ export function MeleeView({ ship, showMarks, onBack }: MeleeViewProps) {
     api.dismiss();
     onBack();
   }, [api, onBack]);
-  const brigand = ship.melee ? tierName(ship.melee.tierId) : t("swordfight.title");
+  const raider = ship.melee ? tierName(ship.melee.tierId) : t("swordfight.title");
   const playing = api.phase === "playing";
   const onEvents = useCallback((events: readonly SwordfightEvent[]) => {
     for (const e of events) {
       const mine = e.board === 0;
       if (e.type === "broke" && mine) sfx.clear(e.chain, e.groups.reduce((n, g) => n + g.cells.length, 0));
-      else if (e.type === "fused" && mine) sfx.barnacle();
-      else if (e.type === "attack" && mine && e.wrack > 0) sfx.streak(Math.min(12, e.wrack));
+      else if (e.type === "fused" && mine) sfx.slag();
+      else if (e.type === "attack" && mine && e.scrap > 0) sfx.streak(Math.min(12, e.scrap));
       else if (e.type === "incoming") sfx.alarm();
       else if (e.type === "landed" && mine) sfx.crack(true);
       else if (e.type === "out" && mine) sfx.streakLost();
@@ -56,7 +56,7 @@ export function MeleeView({ ship, showMarks, onBack }: MeleeViewProps) {
           </svg>
         </button>
         <div className="station-head">
-          <h1 className="station-title">{brigand}</h1>
+          <h1 className="station-title">{raider}</h1>
           <span className="station-numbers" aria-live="off">
             <b data-testid="melee-score" title={t("swordfight.attack_rate")}>
               {attackRate(api.state)}

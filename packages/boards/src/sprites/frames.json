@@ -1,60 +1,60 @@
 {
-  "bilging": {
+  "cooling": {
     "cog": [
       2,
       2,
       192,
       192
     ],
-    "shell": [
+    "valve": [
       198,
       2,
       192,
       192
     ],
-    "anchor": [
+    "bolt": [
       394,
       2,
       192,
       192
     ],
-    "plank": [
+    "fuse": [
       590,
       2,
       192,
       192
     ],
-    "pearl": [
+    "crystal": [
       2,
       198,
       192,
       192
     ],
-    "kelp": [
+    "coil": [
       198,
       198,
       192,
       192
     ],
-    "coral": [
+    "chip": [
       394,
       198,
       192,
       192
     ],
-    "keg": [
+    "charge": [
       590,
       198,
       192,
       192
     ],
-    "ink": [
+    "magnet": [
       2,
       394,
       192,
       192
     ],
-    "barnacle": [
+    "slag": [
       198,
       394,
       192,
@@ -73,7 +73,7 @@
       192
     ]
   },
-  "sailing": {
+  "engines": {
     "weave": [
       2,
       2,
@@ -129,56 +129,56 @@
       192
     ]
   },
-  "carpentry": {
-    "oak-h": [
+  "plating": {
+    "tin-h": [
       2,
       2,
       192,
       192
     ],
-    "teak-h": [
+    "copper-h": [
       198,
       2,
       192,
       192
     ],
-    "pine-h": [
+    "steel-h": [
       394,
       2,
       192,
       192
     ],
-    "mahogany-h": [
+    "brass-h": [
       590,
       2,
       192,
       192
     ],
-    "oak-v": [
+    "tin-v": [
       2,
       198,
       192,
       192
     ],
-    "teak-v": [
+    "copper-v": [
       198,
       198,
       192,
       192
     ],
-    "pine-v": [
+    "steel-v": [
       394,
       198,
       192,
       192
     ],
-    "mahogany-v": [
+    "brass-v": [
       590,
       198,
       192,
       192
     ],
-    "nail": [
+    "weld": [
       2,
       394,
       192,
@@ -204,49 +204,49 @@
     ]
   },
   "gunnery": {
-    "powder": [
+    "cell": [
       2,
       2,
       192,
       192
     ],
-    "wad": [
+    "sabot": [
       198,
       2,
       192,
       192
     ],
-    "shot": [
+    "slug": [
       394,
       2,
       192,
       192
     ],
-    "water": [
+    "coolant": [
       590,
       2,
       192,
       192
     ],
-    "cannon-empty": [
+    "turret-empty": [
       2,
       198,
       192,
       192
     ],
-    "cannon-loaded": [
+    "turret-loaded": [
       198,
       198,
       192,
       192
     ],
-    "cannon-fouled": [
+    "turret-jammed": [
       394,
       198,
       192,
       192
     ],
-    "cannon-fire": [
+    "turret-fire": [
       590,
       198,
       192,
@@ -474,19 +474,19 @@
       192,
       192
     ],
-    "reef": [
+    "asteroid": [
       2,
       198,
       192,
       192
     ],
-    "wind": [
+    "current": [
       198,
       198,
       192,
       192
     ],
-    "eddy": [
+    "well": [
       394,
       198,
       192,

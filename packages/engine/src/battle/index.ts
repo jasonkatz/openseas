@@ -10,11 +10,11 @@ export {
   planIllegalReason as battlePlanIllegalReason,
   parseBoard as parseBattleBoard,
   boardProblems as battleBoardProblems,
-  brigandSupply as battleBrigandSupply,
+  raiderSupply as battleRaiderSupply,
   arcCells as battleArcCells,
   cellAt as battleCellAt,
   inBounds as battleInBounds,
-  isRock as battleIsRock,
+  isAsteroid as battleIsAsteroid,
   forwardOf as battleForwardOf,
   headingAfter as battleHeadingAfter,
   sideHeading as battleSideHeading,
@@ -27,5 +27,5 @@ export {
   type BattleSummary,
   type TurnResolution as BattleTurnResolution,
 } from "./reduce.js";
-export { chooseBrigandPlan, predictCaptain as predictBattleCaptain, enumeratePlans as enumerateBattlePlans } from "./ai.js";
+export { chooseRaiderPlan, predictCaptain as predictBattleCaptain, enumeratePlans as enumerateBattlePlans } from "./ai.js";
 export { chooseCaptainPlan, type CaptainSpec } from "./captain.js";

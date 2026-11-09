@@ -12,10 +12,10 @@ export interface DutyOptions<S, M, C> {
   /** The content config and round length, for the board shown before the first deal. */
   config: C;
   roundSeconds: number;
-  /** True while the pirate is at this station and the ship is at sea: boards are dealt back to back. */
+  /** True while the pirate is at this station and the ship is in flight: boards are dealt back to back. */
   active: boolean;
   onMove?(state: S, prev: S): void;
-  /** Moves the ship injects into a freshly dealt board, from what the deal says (the bilge's depth). */
+  /** Moves the ship injects into a freshly dealt board, from what the deal says (the heat's depth). */
   dealt?(started: PuzzleStarted): M[];
   /** A move the ship injects into the running board from a server message, or null. */
   shipMove?(message: ServerMessage, sessionId: string): M | null;
@@ -39,9 +39,9 @@ const RETRY_MS = 3000;
 
 /**
  * The life of a duty board at a station (DESIGN.md 3.11): the server deals a board the moment the
- * pirate is at a station at sea, the board streams its moves like any rated round, and when it ends
+ * pirate is at a station in flight, the board streams its moves like any rated round, and when it ends
  * another is dealt, so a station is always busy, as in the original. Leaving the station, docking
- * or going ashore cuts the board short; the server scores what was played, unrated.
+ * or disembarking cuts the board short; the server scores what was played, unrated.
  */
 export function useDuty<S, M, C>(opts: DutyOptions<S, M, C>): DutyApi<S, M> {
   const { puzzle, def, config, roundSeconds, active } = opts;
@@ -142,7 +142,7 @@ export function useDuty<S, M, C>(opts: DutyOptions<S, M, C>): DutyApi<S, M> {
             setOutcome({ kind: "rejected", reason: m.reason });
             setPhase("result");
             break;
-          case "duty.water": {
+          case "duty.heat": {
             const sid = sessionId.current;
             const r = round.current;
             if (!sid || !r || m.sessionId !== sid) return;
@@ -151,7 +151,7 @@ export function useDuty<S, M, C>(opts: DutyOptions<S, M, C>): DutyApi<S, M> {
             break;
           }
           case "error":
-            if (m.code === "not_at_sea" || m.code === "no_station" || m.code === "not_aboard") {
+            if (m.code === "not_in_flight" || m.code === "no_station" || m.code === "not_aboard") {
               holdUntil.current = Date.now() + RETRY_MS;
               setPhase((p) => (p === "dealing" ? "idle" : p));
             }

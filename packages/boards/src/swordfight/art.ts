@@ -1,37 +1,37 @@
 import { drawSprite, spriteRevision } from "../sprites/atlas.js";
-import { mix, paintMark } from "../bilging/tiles.js";
+import { mix, paintMark } from "../cooling/tiles.js";
 
 /**
  * Swordfight blocks are beveled squares, each color with its own surface (cut facets, riveted
  * steel, fish scale, cross-hatch, a swirl, rings), so colors read apart by pattern too, and a
  * mark badge when marks are on (CLAUDE.md rule 6). A breaker is a block of its color with a
- * blade across it. Wrack is grey stone with cracks that ripens in two drops, with no number on it:
+ * blade across it. Scrap is grey stone with cracks that ripens in two drops, with no number on it:
  * it lands as solid stone, and with one drop left it shows its color coming, the stone tinted
  * toward the color it will turn with its surface showing through the cracks. The cracks stay, so
- * wrack never reads as a block, with or without color. A slab is one block the size of all its
+ * scrap never reads as a block, with or without color. A slab is one block the size of all its
  * cells: the same surface tiled, one bevel, one gloss, so it reads as a single heavy thing.
  */
 export type SwordTexture = "facet" | "rivet" | "scale" | "hatch" | "swirl" | "rings";
 
 export interface BlockStyle {
-  /** The block's color; for wrack, the color it ripens into. */
+  /** The block's color; for scrap, the color it ripens into. */
   color: number;
   texture: SwordTexture;
   mark: string | null;
-  kind: "block" | "breaker" | "wrack";
+  kind: "block" | "breaker" | "scrap";
   showMarks: boolean;
-  /** Wrack only: the drops left before it ripens. Anything past one is fresh stone. */
+  /** Scrap only: the drops left before it ripens. Anything past one is fresh stone. */
   ripen?: number;
 }
 
-export const WRACK_COLOR = 0x6c6f78;
+export const SCRAP_COLOR = 0x6c6f78;
 
-/** How far along wrack is: stone until one drop is left, then a hint of its color. */
-export type WrackStage = "stone" | "hint";
-export const wrackStage = (ripen: number): WrackStage => (ripen <= 1 ? "hint" : "stone");
+/** How far along scrap is: stone until one drop is left, then a hint of its color. */
+export type ScrapStage = "stone" | "hint";
+export const scrapStage = (ripen: number): ScrapStage => (ripen <= 1 ? "hint" : "stone");
 
-/** The body color of wrack at a stage: grey, then grey tinted well toward its color and lifted a little. */
-export const wrackBody = (color: number, stage: WrackStage): number => (stage === "stone" ? WRACK_COLOR : mix(mix(WRACK_COLOR, color, 0.6), 0xffffff, 0.08));
+/** The body color of scrap at a stage: grey, then grey tinted well toward its color and lifted a little. */
+export const scrapBody = (color: number, stage: ScrapStage): number => (stage === "stone" ? SCRAP_COLOR : mix(mix(SCRAP_COLOR, color, 0.6), 0xffffff, 0.08));
 const BONE = 0xf2f0e6;
 const INK = 0x0b1526;
 
@@ -51,9 +51,9 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 export function paintBlock(ctx: CanvasRenderingContext2D, s: number, w: number, h: number, style: BlockStyle): void {
   // Slabs keep their single outer bevel and arbitrary dimensions. Extra lab colors retain
   // procedural skins; the live four-color set uses the atlas.
-  const name = style.kind === "wrack" ? (wrackStage(style.ripen ?? Infinity) === "stone" ? "stone" : `${style.texture}-hint`) : `${style.texture}-${style.kind}`;
+  const name = style.kind === "scrap" ? (scrapStage(style.ripen ?? Infinity) === "stone" ? "stone" : `${style.texture}-hint`) : `${style.texture}-${style.kind}`;
   if (w === 1 && h === 1 && drawSprite(ctx, "swordfight", name, 0, 0, s, s)) {
-    if (style.showMarks && style.mark && (style.kind !== "wrack" || wrackStage(style.ripen ?? Infinity) === "hint")) {
+    if (style.showMarks && style.mark && (style.kind !== "scrap" || scrapStage(style.ripen ?? Infinity) === "hint")) {
       ctx.save();
       ctx.translate(s * 0.44, s * 0.44);
       paintMark(ctx, s * 0.56, style.mark);
@@ -69,8 +69,8 @@ export function paintBlock(ctx: CanvasRenderingContext2D, s: number, w: number, 
   const r = s * 0.14;
   const lip = s * 0.06;
   const slab = style.kind === "block" && w * h > 1;
-  const stage: WrackStage | null = style.kind === "wrack" ? wrackStage(style.ripen ?? Infinity) : null;
-  const base = stage ? wrackBody(style.color, stage) : style.kind === "breaker" ? mix(style.color, 0x000000, 0.12) : slab ? mix(style.color, 0x000000, 0.14) : style.color;
+  const stage: ScrapStage | null = style.kind === "scrap" ? scrapStage(style.ripen ?? Infinity) : null;
+  const base = stage ? scrapBody(style.color, stage) : style.kind === "breaker" ? mix(style.color, 0x000000, 0.12) : slab ? mix(style.color, 0x000000, 0.14) : style.color;
 
   // Contact shadow, a darker underside, then the body.
   roundRect(ctx, x0, y0 + lip * 1.5, W, H, r);
@@ -89,7 +89,7 @@ export function paintBlock(ctx: CanvasRenderingContext2D, s: number, w: number, 
   ctx.fillStyle = body;
   ctx.fillRect(x0, y0, W, H);
   if (stage) {
-    // Wrack about to ripen: its coming surface shows through, under lighter cracks.
+    // Scrap about to ripen: its coming surface shows through, under lighter cracks.
     if (stage === "hint") {
       ctx.save();
       ctx.globalAlpha = 0.55;
@@ -146,7 +146,7 @@ export function paintBlock(ctx: CanvasRenderingContext2D, s: number, w: number, 
     return;
   }
   if ((style.kind === "block" || stage === "hint") && style.showMarks && style.mark) {
-    // One badge at the centre of the block, whatever its size. Wrack about to ripen wears its
+    // One badge at the centre of the block, whatever its size. Scrap about to ripen wears its
     // coming mark, a little faint, so the color coming reads without color too.
     ctx.save();
     ctx.translate((s * w) / 2 - s / 2, (s * h) / 2 - s / 2);

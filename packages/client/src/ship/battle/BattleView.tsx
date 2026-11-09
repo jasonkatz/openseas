@@ -13,8 +13,8 @@ export interface BattleViewProps {
 }
 
 /**
- * The captain's board, over the deck (DESIGN.md 3.11): the same frame as a station, the sea
- * battle where the puzzle would be, the ship's turn clock sailing the plot. The crew keep their
+ * The captain's board, over the deck (DESIGN.md 3.11): the same frame as a station, the space
+ * battle where the puzzle would be, the ship's turn clock flying the plot. The crew keep their
  * stations; the hull, the loads and the tokens they make arrive on the board every turn.
  */
 export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
@@ -23,13 +23,13 @@ export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
     api.dismiss();
     onBack();
   }, [api, onBack]);
-  const fight = ship.location.kind === "at-sea" ? ship.location.battle : null;
-  const brigand = fight ? tierName(fight.tierId) : t("battle.brigand");
+  const fight = ship.location.kind === "in-flight" ? ship.location.battle : null;
+  const raider = fight ? tierName(fight.tierId) : t("battle.raider");
   const playing = api.phase === "playing";
   const onEvents = useCallback((events: readonly BattleEvent[]) => {
     for (const e of events) {
       if (e.type === "shot") {
-        sfx.keg();
+        sfx.charge();
         if (e.hit) sfx.clear(e.ship === 0 ? 3 : 1, 4);
       } else if ((e.type === "move" || e.type === "push") && e.damage > 0) sfx.crack(true);
       else if (e.type === "grapple") sfx.streak(6);
@@ -49,7 +49,7 @@ export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
           </svg>
         </button>
         <div className="station-head">
-          <h1 className="station-title">{brigand}</h1>
+          <h1 className="station-title">{raider}</h1>
           <span className="station-numbers" aria-live="off">
             <b data-testid="battle-score">{api.state.score}</b>
             <span data-testid="battle-turn">{t("battle.turn", { turn: Math.min(api.state.config.maxTurns, api.state.turn + 1), max: api.state.config.maxTurns })}</span>
@@ -68,7 +68,7 @@ export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
           turnLeftMs={api.turnLeftMs}
           turnMs={api.turnMs}
           commitSignal={api.commitSignal}
-          brigandName={brigand}
+          raiderName={raider}
           onCommit={api.commit}
           onFrame={api.markRendered}
           onEvents={onEvents}

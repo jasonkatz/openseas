@@ -16,10 +16,10 @@ import {
   type ShipIndex,
   type Side,
 } from "@openseas/engine";
-import { paintBall, paintCannon, paintCaustic, paintEddy, paintSea, paintShip } from "./art.js";
+import { paintBall, paintTurret, paintCaustic, paintWell, paintSpace, paintShip } from "./art.js";
 
 export interface BattleCallbacks {
-  /** The captain sailed the plot: by the button, the key, or the host's turn clock. */
+  /** The captain flew the plot: by the button, the key, or the host's turn clock. */
   onCommit(plan: BattlePlan): void;
   /** The plot changed, for a host that mirrors it (the smoke test reads it). */
   onPlanChange(plan: BattlePlan): void;
@@ -35,7 +35,7 @@ export interface BattleRendererOptions {
   showArcs: boolean;
   labels: {
     you: string;
-    brigand: string;
+    raider: string;
     hull: string;
     loaded: string;
     turn(turn: number, max: number): string;
@@ -45,12 +45,12 @@ export interface BattleRendererOptions {
     port: string;
     starboard: string;
     grapple: string;
-    sail: string;
+    fly: string;
     clear: string;
     hit: string;
     hitTaken: string;
     miss: string;
-    rocks: string;
+    asteroids: string;
     rammed: string;
     blown: string;
     spun: string;
@@ -112,7 +112,7 @@ interface Particle {
   alpha: number;
   life: number;
   max: number;
-  /** Drawn as an ellipse flattened to the water. */
+  /** Drawn as an ellipse flattened to the space. */
   flat?: boolean;
 }
 
@@ -156,8 +156,8 @@ const COLORS = {
   splash: 0xd8f0ff,
   foam: 0xe6f6ff,
   splinter: 0x9a6a3a,
-  wind: 0xaae4ff,
-  eddy: 0xd6f4f0,
+  current: 0xaae4ff,
+  well: 0xd6f4f0,
 };
 const MOVE_MS = 460;
 const PUSH_MS = 320;
@@ -188,10 +188,10 @@ export class BattleRenderer {
   readonly app = new Application();
   private readonly world = new Container();
   private readonly frameG = new Graphics();
-  private readonly seaLayer = new Container();
-  private seaSprite: Sprite | null = null;
+  private readonly spaceLayer = new Container();
+  private spaceSprite: Sprite | null = null;
   private caustic: TilingSprite | null = null;
-  private readonly eddyLayer = new Container();
+  private readonly wellLayer = new Container();
   private readonly arcG = new Graphics();
   private readonly ghostLayer = new Container();
   private readonly ghostG = new Graphics();
@@ -280,7 +280,7 @@ export class BattleRenderer {
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.host.appendChild(this.app.canvas);
     this.ghostLayer.addChild(this.ghostG);
-    this.world.addChild(this.frameG, this.seaLayer, this.eddyLayer, this.arcG, this.ghostLayer, this.wakeG, this.shipLayer, this.hullG, this.ballLayer, this.fxG, this.fxLayer);
+    this.world.addChild(this.frameG, this.spaceLayer, this.wellLayer, this.arcG, this.ghostLayer, this.wakeG, this.shipLayer, this.hullG, this.ballLayer, this.fxG, this.fxLayer);
     this.app.stage.addChild(this.world, this.hudG, this.hudTexts, this.stripG, this.stripIcons, this.stripTexts);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -337,7 +337,7 @@ export class BattleRenderer {
     return { segments: segs, grapple: this.grapple };
   }
 
-  /** Sail the plot now, as the turn clock does. Refused while the engine would refuse it (then holds are sailed instead). */
+  /** Fly the plot now, as the turn clock does. Refused while the engine would refuse it (then holds are flown instead). */
   commit(): void {
     const s = this.state;
     if (!s || s.finished) return;
@@ -459,14 +459,14 @@ export class BattleRenderer {
       begin: () => {
         for (const e of events) {
           if (e.type === "spin") {
-            this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 0.9, this.opts.labels.spun, COLORS.eddy, 0.4);
+            this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 0.9, this.opts.labels.spun, COLORS.well, 0.4);
             continue;
           }
           if (e.type !== "move" && e.type !== "push") continue;
-          if (e.type === "push" && !e.blocked) this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 0.9, this.opts.labels.blown, COLORS.wind, 0.4);
+          if (e.type === "push" && !e.blocked) this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 0.9, this.opts.labels.blown, COLORS.current, 0.4);
           if (e.damage > 0) {
             this.hurt(e.ship, e.damage);
-            const t = e.blocked === "ship" ? this.opts.labels.rammed : this.opts.labels.rocks;
+            const t = e.blocked === "ship" ? this.opts.labels.rammed : this.opts.labels.asteroids;
             this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 1.2, t, COLORS.danger, 0.55);
             this.shake = Math.max(this.shake, 260);
             this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.splinter, 10, 0.8);
@@ -598,7 +598,7 @@ export class BattleRenderer {
     this.app.canvas.setAttribute("data-geom", `${this.gx},${this.gy},${this.cell}`);
     this.bake();
     this.drawFrame();
-    this.placeSea();
+    this.placeSpace();
     if (this.state) this.snap(this.state);
     this.drawPreview();
     this.drawHud();
@@ -617,10 +617,10 @@ export class BattleRenderer {
     this.shipSprites = null;
     for (const s of this.ghostSprites) s.destroy();
     this.ghostSprites = [];
-    for (const e of this.eddyLayer.removeChildren()) e.destroy();
-    if (this.seaSprite) {
-      this.seaSprite.destroy();
-      this.seaSprite = null;
+    for (const e of this.wellLayer.removeChildren()) e.destroy();
+    if (this.spaceSprite) {
+      this.spaceSprite.destroy();
+      this.spaceSprite = null;
     }
     if (this.caustic) {
       this.caustic.destroy();
@@ -633,13 +633,13 @@ export class BattleRenderer {
     const shipPx = Math.ceil(this.cell * SHIP_SCALE);
     this.textures.set("ship0", texture(paintShip(shipPx, 0, this.opts.showMarks, r), r));
     this.textures.set("ship1", texture(paintShip(shipPx, 1, this.opts.showMarks, r), r));
-    this.textures.set("eddy", texture(paintEddy(Math.ceil(this.cell * 1.1), r), r));
+    this.textures.set("well", texture(paintWell(Math.ceil(this.cell * 1.1), r), r));
     this.textures.set("ball", texture(paintBall(Math.max(6, Math.ceil(this.cell * 0.3)), r), r));
     this.textures.set("caustic", texture(paintCaustic(128, 1), 1));
     const iconPx = 28;
-    this.textures.set("cannon0", texture(paintCannon(iconPx, false, r), r));
-    this.textures.set("cannon1", texture(paintCannon(iconPx, true, r), r));
-    if (board) this.textures.set("sea", texture(paintSea(board, this.cell, r), r));
+    this.textures.set("turret0", texture(paintTurret(iconPx, false, r), r));
+    this.textures.set("turret1", texture(paintTurret(iconPx, true, r), r));
+    if (board) this.textures.set("space", texture(paintSpace(board, this.cell, r), r));
     if (this.step) for (const shot of this.step.shots) shot.ball.texture = this.textures.get("ball")!;
     for (const t of oldTextures) t.destroy(true);
   }
@@ -669,18 +669,18 @@ export class BattleRenderer {
     ]) {
       g.circle(px!, py!, Math.max(2, p * 0.22)).fill(COLORS.brass).stroke({ width: 1, color: COLORS.brassDeep });
     }
-    // The water sits in a well with a dark lip.
+    // The space sits in a well with a dark lip.
     g.rect(x, y, W, H).stroke({ width: 3, color: 0x000000, alpha: 0.55, alignment: 1 });
   }
 
-  private placeSea(): void {
-    const sea = this.textures.get("sea");
-    if (!sea) return;
-    if (!this.seaSprite) {
-      this.seaSprite = new Sprite(sea);
-      this.seaLayer.addChild(this.seaSprite);
-    } else this.seaSprite.texture = sea;
-    this.seaSprite.position.set(this.gx, this.gy);
+  private placeSpace(): void {
+    const space = this.textures.get("space");
+    if (!space) return;
+    if (!this.spaceSprite) {
+      this.spaceSprite = new Sprite(space);
+      this.spaceLayer.addChild(this.spaceSprite);
+    } else this.spaceSprite.texture = space;
+    this.spaceSprite.position.set(this.gx, this.gy);
     const W = this.cols * this.cell;
     const H = this.rows * this.cell;
     const caustic = this.textures.get("caustic");
@@ -688,26 +688,26 @@ export class BattleRenderer {
       if (!this.caustic) {
         this.caustic = new TilingSprite({ texture: caustic, width: W, height: H });
         this.caustic.alpha = 0.5;
-        this.seaLayer.addChild(this.caustic);
+        this.spaceLayer.addChild(this.caustic);
       }
       this.caustic.width = W;
       this.caustic.height = H;
       this.caustic.position.set(this.gx, this.gy);
       this.caustic.tileScale.set(Math.max(0.6, this.cell / 40));
     }
-    // Eddies spin on their own.
-    for (const e of this.eddyLayer.removeChildren()) e.destroy();
+    // Wells spin on their own.
+    for (const e of this.wellLayer.removeChildren()) e.destroy();
     const board = this.state?.board;
-    const eddyTex = this.textures.get("eddy");
-    if (!board || !eddyTex) return;
+    const wellTex = this.textures.get("well");
+    if (!board || !wellTex) return;
     for (let y = 0; y < board.height; y++) {
       for (let x = 0; x < board.width; x++) {
-        if (battleCellAt(board, x, y)?.kind !== "eddy") continue;
-        const s = new Sprite(eddyTex);
+        if (battleCellAt(board, x, y)?.kind !== "well") continue;
+        const s = new Sprite(wellTex);
         s.anchor.set(0.5);
         s.position.set(this.cx(x), this.cy(y));
         s.rotation = (x * 7 + y * 3) % 6;
-        this.eddyLayer.addChild(s);
+        this.wellLayer.addChild(s);
       }
     }
   }
@@ -773,7 +773,7 @@ export class BattleRenderer {
       if (this.opts.showArcs) {
         for (const side of ["port", "starboard"] as const) {
           if (!seg[side]) continue;
-          const cells = battleArcCells(s.board, p, side, s.config.cannonRange);
+          const cells = battleArcCells(s.board, p, side, s.config.turretRange);
           cells.forEach((cell, k) => {
             const inset = 3;
             a.roundRect(this.gx + cell.x * c + inset, this.gy + cell.y * c + inset, c - inset * 2, c - inset * 2, c * 0.18).fill({ color: COLORS.arc, alpha: 0.3 - k * 0.06 });
@@ -817,11 +817,11 @@ export class BattleRenderer {
       }
       prev = p;
     });
-    // Where the brigand's guns reach from where it stands, so the captain sees the danger.
+    // Where the raider's guns reach from where it stands, so the captain sees the danger.
     if (this.opts.showArcs && s.ships[1].loaded > 0) {
       const them: Pose = { x: s.ships[1].x, y: s.ships[1].y, heading: s.ships[1].heading };
       for (const side of ["port", "starboard"] as const) {
-        for (const cell of battleArcCells(s.board, them, side, s.config.cannonRange)) {
+        for (const cell of battleArcCells(s.board, them, side, s.config.turretRange)) {
           a.roundRect(this.gx + cell.x * c + 5, this.gy + cell.y * c + 5, c - 10, c - 10, c * 0.14).stroke({ width: 1.5, color: COLORS.arcEnemy, alpha: 0.55 });
         }
       }
@@ -842,7 +842,7 @@ export class BattleRenderer {
     const barH = Math.max(6, h * 0.2);
     const panels: Array<{ px: number; who: ShipIndex; label: string }> = [
       { px: x, who: 0, label: this.opts.labels.you },
-      { px: x + half + 8, who: 1, label: this.opts.labels.brigand },
+      { px: x + half + 8, who: 1, label: this.opts.labels.raider },
     ];
     for (const p of panels) {
       const ship = s.ships[p.who];
@@ -859,13 +859,13 @@ export class BattleRenderer {
       this.hudTexts.addChild(hullText);
       const bx = p.px + 10;
       const by = y + h - barH - 7;
-      const lampW = ship.cannons > 0 ? ship.cannons * (barH + 4) + 8 : 0;
+      const lampW = ship.turrets > 0 ? ship.turrets * (barH + 4) + 8 : 0;
       const bw = half - 20 - lampW;
       g.roundRect(bx, by, bw, barH, barH / 2).fill({ color: COLORS.ink, alpha: 0.95 });
       g.roundRect(bx, by, Math.max(barH, bw * hull), barH, barH / 2).fill(hull > 0.5 ? COLORS.good : hull > 0.25 ? COLORS.warn : COLORS.danger);
       g.roundRect(bx + 1, by + 1, Math.max(barH, bw * hull) - 2, barH * 0.4, barH / 3).fill({ color: 0xffffff, alpha: 0.18 });
       if (ship.damage >= s.config.grappleDamage) g.roundRect(bx - 1, by - 1, bw + 2, barH + 2, barH / 2 + 1).stroke({ width: 1.5, color: COLORS.brassLight, alpha: 0.9 });
-      for (let i = 0; i < ship.cannons; i++) {
+      for (let i = 0; i < ship.turrets; i++) {
         const lx = bx + bw + 8 + i * (barH + 4) + barH / 2;
         const ly = by + barH / 2;
         const lit = i < ship.loaded;
@@ -948,7 +948,7 @@ export class BattleRenderer {
       slotX = () => x + 12;
       slotY = (i) => slotTop + i * (slotH + gap);
     }
-    const cannonTex = (lit: boolean): Texture => this.textures.get(lit ? "cannon1" : "cannon0") ?? Texture.WHITE;
+    const turretTex = (lit: boolean): Texture => this.textures.get(lit ? "turret1" : "turret0") ?? Texture.WHITE;
     for (let i = 0; i < n; i++) {
       const seg = this.segments[i] ?? { move: null, port: false, starboard: false };
       const sx = slotX(i);
@@ -966,14 +966,14 @@ export class BattleRenderer {
       // The move glyph, lit brass when plotted.
       this.paintToken(g, seg.move, midX, midY, Math.min(slotH * 0.62, slotW * 0.32), seg.move === null ? COLORS.muted : COLORS.brassLight, seg.move !== null);
       label(String(i + 1), sx + canW + 5, sy + fs * 0.75, COLORS.muted, fs - 2, 0, "400");
-      // Port and starboard guns on the slot's sides: a cannon each, its lamp lit when armed.
+      // Port and starboard guns on the slot's sides: a turret each, its lamp lit when armed.
       for (const side of ["port", "starboard"] as const) {
         const bx = side === "port" ? sx + 3 : sx + slotW - canW - 3;
         const on = seg[side];
         const can = live && (on || me.loaded > this.shotsPlanned());
         g.roundRect(bx, sy + 3, canW, slotH - 6, 7).fill({ color: on ? COLORS.danger : COLORS.inkDeep, alpha: on ? 0.75 : can ? 0.95 : 0.4 });
         if (on) g.roundRect(bx, sy + 3, canW, slotH - 6, 7).stroke({ width: 1, color: COLORS.flash, alpha: 0.6 });
-        const icon = new Sprite(cannonTex(on));
+        const icon = new Sprite(turretTex(on));
         icon.anchor.set(0.5);
         const ip = Math.min(canW, slotH - 6) * 0.95;
         icon.width = ip;
@@ -999,7 +999,7 @@ export class BattleRenderer {
       if (t !== null && count !== null) label(`×${count - this.tokensPlanned(t)}`, bx + trayW * 0.72, trayY + trayH / 2, enabled ? COLORS.text : COLORS.muted, fs);
       else label(this.opts.labels.hold, bx + trayW * 0.7, trayY + trayH / 2, enabled ? COLORS.text : COLORS.muted, fs - 2);
     });
-    // Grapple, clear, sail.
+    // Grapple, clear, fly.
     const rowY = trayY + trayH + 10;
     const rowH = Math.max(32, Math.min(44, this.vertical ? h * 0.2 : 42));
     const ready = s.ships[1].damage >= s.config.grappleDamage;
@@ -1021,8 +1021,8 @@ export class BattleRenderer {
     label(this.opts.labels.clear, cx + cw / 2, rowY + rowH / 2, live && plotted ? COLORS.text : COLORS.muted, fs - 2);
     const sx = cx + cw + gap;
     const sw = x + w - 12 - sx;
-    button("sail", sx, rowY, sw, rowH, "brass", live);
-    label(this.opts.labels.sail, sx + sw / 2, rowY + rowH / 2, 0x1b150c, fs);
+    button("fly", sx, rowY, sw, rowH, "brass", live);
+    label(this.opts.labels.fly, sx + sw / 2, rowY + rowH / 2, 0x1b150c, fs);
     if (ready && live) label(this.opts.labels.grappleReady, x + w / 2, rowY + rowH + fs, COLORS.brassLight, fs - 2);
     // Where the strip's buttons are, for the smoke test's taps.
     this.app.canvas.setAttribute("data-buttons", this.buttons.map((b) => `${b.id}=${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)},${Math.round(b.h)}`).join(";"));
@@ -1135,7 +1135,7 @@ export class BattleRenderer {
     } else if (kind === "clear") {
       this.resetPlan(this.state);
       this.cb.onNudge();
-    } else if (kind === "sail") {
+    } else if (kind === "fly") {
       this.commit();
     }
     this.stripDirty = true;
@@ -1255,12 +1255,12 @@ export class BattleRenderer {
       this.stepT = 0;
       this.step.begin();
     }
-    // The water moves: light drifts over it, eddies turn.
+    // The space moves: light drifts over it, wells turn.
     if (this.caustic && !this.reduced) {
       this.caustic.tilePosition.x += dt * 0.006;
       this.caustic.tilePosition.y += dt * 0.004;
     }
-    if (!this.reduced) for (const e of this.eddyLayer.children) e.rotation += dt * 0.0012;
+    if (!this.reduced) for (const e of this.wellLayer.children) e.rotation += dt * 0.0012;
     for (const v of this.ships) v.moving = false;
     if (this.step) {
       this.stepT += dt;
@@ -1274,7 +1274,7 @@ export class BattleRenderer {
         v.moving = tw.from.x !== tw.to.x || tw.from.y !== tw.to.y;
         if (v.moving && !this.reduced && Math.random() < 0.6) this.wake(v);
       }
-      // Cannonballs in flight, trailing smoke.
+      // Slugs in flight, trailing smoke.
       for (const sh of this.step.shots) {
         const x = sh.from.x + (sh.to.x - sh.from.x) * k;
         const y = sh.from.y + (sh.to.y - sh.from.y) * k - Math.sin(k * Math.PI) * this.cell * 0.55;

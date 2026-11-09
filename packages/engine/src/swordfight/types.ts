@@ -4,14 +4,14 @@
  * of one color that form a rectangle fuse into a slab, and a slab grows by a full row or column at
  * a time. A breaker is a block of a color that shatters: when it comes to rest touching its color,
  * everything of that color connected to it goes, slabs and all, and whatever falls into place may
- * set off the next breaker (a chain). Breaking sends wrack to the other side: grey blocks that
+ * set off the next breaker (a chain). Breaking sends scrap to the other side: grey blocks that
  * land in the pattern of the sender's blade, each dealt the color it ripens into after a few
  * drops. A
  * board whose entry (the top cell of the column pairs come in down) is covered, or whose pair has
  * nowhere left to rest, is out; a side with no board standing has lost.
  *
  * Time is ticks carried in moves (ADR 0015). AI boards act on their own cadence inside the
- * reducer, from the fight's PRNG, so a fight against brigands replays from one log. Aboard a ship
+ * reducer, from the fight's PRNG, so a fight against raiders replays from one log. Aboard a ship
  * every pirate's board is its own fight whose foes are outside it: attacks leave as `outgoing`
  * events and arrive as `incoming` moves the server vouches for (ADR 0022).
  *
@@ -23,7 +23,7 @@ import type { PrngState } from "../prng.js";
 export const SWORDFIGHT_WIDTH = 6;
 export const SWORDFIGHT_HEIGHT = 12;
 
-/** Where a blade's wrack lands: the columns, taken in turn, cursor carried across attacks. */
+/** Where a blade's scrap lands: the columns, taken in turn, cursor carried across attacks. */
 export interface Blade {
   readonly id: string;
   readonly columns: readonly number[];
@@ -52,28 +52,28 @@ export interface SwordfightConfig {
    * together, each on their own board) are given the same name.
    */
   readonly dealSeed: string;
-  /** Drops on a board before wrack that landed there ripens into colored blocks. */
+  /** Drops on a board before scrap that landed there ripens into colored blocks. */
   readonly ripenMoves: number;
   /**
-   * Chance per block of wrack, per mille, that it is dealt a color seen around where it lands (the
+   * Chance per block of scrap, per mille, that it is dealt a color seen around where it lands (the
    * block under it counts most, then its neighbours in the row) instead of any color at random.
    */
-  readonly wrackMatchPermille: number;
+  readonly scrapMatchPermille: number;
   /** Points per block broken. */
   readonly cellPoints: number;
   /** A slab of n blocks scores cellPoints * n plus slabBonus * n * (n - 1) / 2 on top. */
   readonly slabBonus: number;
-  /** Points of attack per block of wrack sent; the remainder carries over. */
+  /** Points of attack per block of scrap sent; the remainder carries over. */
   readonly attackPoints: number;
-  /** Whether wrack sent first cancels wrack waiting to land on the sender's own board. */
+  /** Whether scrap sent first cancels scrap waiting to land on the sender's own board. */
   readonly offset: boolean;
-  /** Wrack waiting on a board lands at the board's next drop, or after this many ticks, whichever first. */
+  /** Scrap waiting on a board lands at the board's next drop, or after this many ticks, whichever first. */
   readonly landAfterTicks: number;
-  /** At most this many rows of wrack land at once; the rest waits. */
+  /** At most this many rows of scrap land at once; the rest waits. */
   readonly incomingCapRows: number;
   /** Blades the fight knows. */
   readonly blades: readonly Blade[];
-  /** Whether board 0 is the player's. False for a fight the server runs for a brigand crew alone. */
+  /** Whether board 0 is the player's. False for a fight the server runs for a raider crew alone. */
   readonly player: boolean;
   /** The player's blade, as an index into `blades`. */
   readonly blade: number;
@@ -85,7 +85,7 @@ export interface SwordfightConfig {
    * kept under it, so every win outranks every loss (DESIGN.md 3.3).
    */
   readonly winPoints: number;
-  /** The attack rate is scaled by this, in percent: harder brigands score more. 100 in practice; aboard, the tier's. */
+  /** The attack rate is scaled by this, in percent: harder raiders score more. 100 in practice; aboard, the tier's. */
   readonly scorePercent: number;
   /** The attack rate counts at least this many seconds of fight, so an early end after one big break posts no freak rate. */
   readonly minRateSeconds: number;
@@ -115,7 +115,7 @@ export const DEFAULT_SWORDFIGHT_CONFIG: SwordfightConfig = {
   breakerPermille: 170,
   dealSeed: "",
   ripenMoves: 2,
-  wrackMatchPermille: 750,
+  scrapMatchPermille: 750,
   cellPoints: 10,
   slabBonus: 4,
   attackPoints: 24,
@@ -147,15 +147,15 @@ export interface SwordPair {
   readonly b: SwordPiece;
 }
 
-export type CellKind = "block" | "breaker" | "wrack";
+export type CellKind = "block" | "breaker" | "scrap";
 
 export interface SwordCell {
   /** Stable identity for animation. Never reused within a fight. */
   readonly id: number;
-  /** For wrack, the color it ripens into: dealt as it lands, and shown through as it ripens. */
+  /** For scrap, the color it ripens into: dealt as it lands, and shown through as it ripens. */
   readonly color: number;
   readonly kind: CellKind;
-  /** Wrack only: drops left before it ripens. */
+  /** Scrap only: drops left before it ripens. */
   readonly ripen: number;
   /** The slab this block belongs to, or 0. */
   readonly slab: number;
@@ -179,9 +179,9 @@ export interface Slab {
  */
 export type SwordRotation = 0 | 1 | 2 | 3;
 
-/** Wrack waiting to land on a board: how much, and whose blade shapes it. */
+/** Scrap waiting to land on a board: how much, and whose blade shapes it. */
 export interface PendingAttack {
-  readonly wrack: number;
+  readonly scrap: number;
   readonly blade: number;
 }
 
@@ -201,13 +201,13 @@ export interface SwordBoard {
   readonly pending: readonly PendingAttack[];
   /** The tick the oldest waiting attack arrived, or -1. */
   readonly pendingSince: number;
-  /** Where the next block of wrack lands in a blade's column list. */
+  /** Where the next block of scrap lands in a blade's column list. */
   readonly cursor: number;
   readonly drops: number;
   readonly points: number;
-  /** Attack points not yet worth a block of wrack. */
+  /** Attack points not yet worth a block of scrap. */
   readonly pool: number;
-  /** Wrack sent over the fight. */
+  /** Scrap sent over the fight. */
   readonly sent: number;
   /** Blocks this board has shattered, slabs counted block by block. */
   readonly broken: number;
@@ -220,10 +220,10 @@ export interface SwordBoard {
 export type SwordfightMove =
   /** The player's pair comes to rest with its anchor in `col` in rotation `rot`. The engine drops it. */
   | { readonly type: "place"; readonly col: number; readonly rot: SwordRotation; readonly tick: number }
-  /** Time passed: AI pirates drop, waiting wrack lands. */
+  /** Time passed: AI pirates drop, waiting scrap lands. */
   | { readonly type: "wait"; readonly tick: number }
-  /** Aboard only: wrack from a board outside this fight, as the server announced it. */
-  | { readonly type: "incoming"; readonly board: number; readonly wrack: number; readonly blade: number; readonly tick: number }
+  /** Aboard only: scrap from a board outside this fight, as the server announced it. */
+  | { readonly type: "incoming"; readonly board: number; readonly scrap: number; readonly blade: number; readonly tick: number }
   /** The fight is over for this board: the player yields (`won` false or absent), or the server says the side outside this fight is beaten. */
   | { readonly type: "end"; readonly won?: boolean; readonly tick: number };
 
@@ -245,13 +245,13 @@ export type SwordfightEvent =
     }
   /** The board settled after a break: where everything is now. */
   | { readonly tick: number; readonly board: number; readonly type: "settled"; readonly cells: ReadonlyArray<SwordCell | null>; readonly slabs: readonly Slab[] }
-  /** Wrack ripened into blocks. */
+  /** Scrap ripened into blocks. */
   | { readonly tick: number; readonly board: number; readonly type: "ripened"; readonly ids: readonly number[]; readonly colors: readonly number[] }
-  /** Wrack sent: `to` is the board it goes to, or -1 when it leaves the fight. `offset` was cancelled against the sender's own waiting wrack. */
-  | { readonly tick: number; readonly board: number; readonly type: "attack"; readonly to: number; readonly wrack: number; readonly offset: number; readonly blade: number }
-  /** Wrack arrived from outside and waits on `board`. */
-  | { readonly tick: number; readonly board: number; readonly type: "incoming"; readonly wrack: number; readonly blade: number }
-  /** Wrack landed: the cells, ids and the colors each will ripen into, in landing order. */
+  /** Scrap sent: `to` is the board it goes to, or -1 when it leaves the fight. `offset` was cancelled against the sender's own waiting scrap. */
+  | { readonly tick: number; readonly board: number; readonly type: "attack"; readonly to: number; readonly scrap: number; readonly offset: number; readonly blade: number }
+  /** Scrap arrived from outside and waits on `board`. */
+  | { readonly tick: number; readonly board: number; readonly type: "incoming"; readonly scrap: number; readonly blade: number }
+  /** Scrap landed: the cells, ids and the colors each will ripen into, in landing order. */
   | { readonly tick: number; readonly board: number; readonly type: "landed"; readonly cells: readonly number[]; readonly ids: readonly number[]; readonly colors: readonly number[]; readonly blade: number }
   /** A board's entry is covered: its pirate is out of the fight. */
   | { readonly tick: number; readonly board: number; readonly type: "out" }

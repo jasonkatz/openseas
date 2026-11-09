@@ -3,17 +3,17 @@ import fc from "fast-check";
 import { loadContent } from "@openseas/content";
 import { battlePlanIllegalReason, chooseCaptainPlan, seedFromString, shipSupply, type BattleMove, type ShipMove } from "@openseas/engine";
 import { defaultScenario, resolveScenario, SWORD_HANDS, type CrewSpec, type VoyageScenario, type VoyageSetup } from "../src/voyage/scenario.js";
-import { needsPlot, sailOn, sailVoyage, startVoyage, step, type VoyageSim } from "../src/voyage/sim.js";
+import { needsPlot, flyOn, flyVoyage, startVoyage, step, type VoyageSim } from "../src/voyage/sim.js";
 import { batchStats, proveVoyage, runBatch, summarize } from "../src/voyage/batch.js";
 import { formatVoyage, parseVoyage } from "../src/voyage/codec.js";
 
 const content = loadContent();
 const base = defaultScenario(content);
-const tier = content.world.brigandTiers[0]!.id;
-/** Clear sailing: no brigand on the leg. */
-const CLEAR = { "route.encounterChance": 0 };
-/** A brigand of the first tier on every leg. */
-const HAILED = { "route.encounterChance": 1, "route.brigands": [{ tierId: tier, weight: 1 }] };
+const tier = content.world.raiderTiers[0]!.id;
+/** Clear flying: no raider on the leg. */
+const CLEAR = { "lane.encounterChance": 0 };
+/** A raider of the first tier on every leg. */
+const HAILED = { "lane.encounterChance": 1, "lane.raiders": [{ tierId: tier, weight: 1 }] };
 
 function setup(over: Partial<VoyageScenario> = {}): VoyageSetup {
   const r = resolveScenario(content, { ...base, ...over });
@@ -34,28 +34,28 @@ describe("a voyage scenario is held to the server's checks", () => {
     const bad = (world: Record<string, unknown>) => resolveScenario(content, { ...base, world });
     expect(bad({ "rules.nope": 1 }).ok).toBe(false);
     // A leg must be a whole number of turns (content's cross-check).
-    expect(bad({ "route.durationSeconds": 215 }).ok).toBe(false);
+    expect(bad({ "lane.durationSeconds": 215 }).ok).toBe(false);
     expect(bad({ "rules.maxSpeed": 100 }).ok).toBe(false);
     expect(bad({ "ship.minCrew": 99 }).ok).toBe(false);
-    expect(bad({ "route.brigands": [{ tierId: "nobody", weight: 1 }] }).ok).toBe(false);
-    expect(bad({ "rules.pumpPerTurn": 120, "route.durationSeconds": 300 }).ok).toBe(true);
+    expect(bad({ "lane.raiders": [{ tierId: "nobody", weight: 1 }] }).ok).toBe(false);
+    expect(bad({ "rules.ventPerTurn": 120, "lane.durationSeconds": 300 }).ok).toBe(true);
   });
 
   it("refuses a crew the ship would refuse", () => {
     expect(resolveScenario(content, { ...base, crew: [] }).ok).toBe(false);
-    expect(resolveScenario(content, { ...base, crew: [pirate("sailing"), pirate("sailing")] }).ok).toBe(false);
+    expect(resolveScenario(content, { ...base, crew: [pirate("engines"), pirate("engines")] }).ok).toBe(false);
     expect(resolveScenario(content, { ...base, crew: Array.from({ length: 7 }, () => pirate(null)) }).ok).toBe(false);
-    expect(resolveScenario(content, { ...base, crew: [{ ...pirate("sailing"), sword: { ...SWORD_HANDS.able, blade: 9 } }] }).ok).toBe(false);
+    expect(resolveScenario(content, { ...base, crew: [{ ...pirate("engines"), sword: { ...SWORD_HANDS.able, blade: 9 } }] }).ok).toBe(false);
   });
 });
 
-describe("a voyage sails as the server would sail it", () => {
+describe("a voyage flies as the server would fly it", () => {
   it("is deterministic and its logs replay hash for hash", () => {
     fc.assert(
       fc.property(fc.string({ minLength: 1, maxLength: 6 }), fc.integer({ min: 0, max: 200 }), fc.constantFrom("engage", "evade", "ignore") as fc.Arbitrary<"engage" | "evade" | "ignore">, (seed, duty, hail) => {
-        const s = setup({ seed, hail, crew: [pirate("navigation", duty, 20), pirate("bilging", 100, 20)], world: { "route.encounterChance": 0.8 } });
-        const a = sailVoyage(s);
-        const b = sailVoyage(s);
+        const s = setup({ seed, hail, crew: [pirate("navigation", duty, 20), pirate("cooling", 100, 20)], world: { "lane.encounterChance": 0.8 } });
+        const a = flyVoyage(s);
+        const b = flyVoyage(s);
         expect(a.shipHashes).toEqual(b.shipHashes);
         expect(a.log).toEqual(b.log);
         expect(a.done).toBe(true);
@@ -65,29 +65,29 @@ describe("a voyage sails as the server would sail it", () => {
     );
   });
 
-  it("signs on deckhands up to the class's minimum crew", () => {
+  it("boots up bots up to the class's minimum crew", () => {
     const sim = startVoyage(setup({ crew: [pirate("navigation")], world: CLEAR }));
-    expect(sim.ship.crew.filter((c) => c.mate).length).toBe(content.world.shipClasses[0]!.minCrew - 1);
-    expect(sim.log.filter((e) => e.kind === "hired").length).toBe(3);
+    expect(sim.ship.crew.filter((c) => c.bot).length).toBe(content.world.shipClasses[0]!.minCrew - 1);
+    expect(sim.log.filter((e) => e.kind === "booted_up").length).toBe(3);
   });
 
   it("a better crew makes port sooner, up to the ship's top speed", () => {
-    const turns = (duty: number) => sailVoyage(setup({ crew: [pirate("sailing", duty), pirate("bilging", duty), pirate("carpentry", duty), pirate("navigation", duty)], world: CLEAR })).samples.length;
+    const turns = (duty: number) => flyVoyage(setup({ crew: [pirate("engines", duty), pirate("cooling", duty), pirate("plating", duty), pirate("navigation", duty)], world: CLEAR })).samples.length;
     expect(turns(100)).toBeLessThan(turns(60));
     expect(turns(60)).toBeLessThan(turns(20));
-    // At par with a navigator the sloop is already at `maxSpeed`: more skill buys no more speed.
+    // At par with a navigator the skiff is already at `maxSpeed`: more skill buys no more speed.
     expect(turns(150)).toBe(turns(100));
   });
 
   it("changing one pirate leaves every other pirate's rolls alone", () => {
-    const duty = (sim: VoyageSim) => shipMoves(sim, "duty").filter((m) => m.type === "duty" && m.station === "sailing");
-    const a = sailOn(startVoyage(setup({ crew: [pirate("sailing", 100, 30), pirate("bilging", 100, 30)], world: CLEAR })), { limit: 10 });
-    const b = sailOn(startVoyage(setup({ crew: [pirate("sailing", 100, 30), pirate("bilging", 20, 5)], world: CLEAR })), { limit: 10 });
+    const duty = (sim: VoyageSim) => shipMoves(sim, "duty").filter((m) => m.type === "duty" && m.station === "engines");
+    const a = flyOn(startVoyage(setup({ crew: [pirate("engines", 100, 30), pirate("cooling", 100, 30)], world: CLEAR })), { limit: 10 });
+    const b = flyOn(startVoyage(setup({ crew: [pirate("engines", 100, 30), pirate("cooling", 20, 5)], world: CLEAR })), { limit: 10 });
     expect(duty(a)).toEqual(duty(b));
   });
 
   it("evades, lets the hail lapse, or engages, as ordered", () => {
-    const first = (hail: "engage" | "evade" | "ignore") => sailVoyage(setup({ hail, world: HAILED })).log.map((e) => e.kind);
+    const first = (hail: "engage" | "evade" | "ignore") => flyVoyage(setup({ hail, world: HAILED })).log.map((e) => e.kind);
     expect(first("evade")).toContain("evaded");
     expect(first("evade")).not.toContain("engaged");
     expect(first("ignore")).toContain("evaded_auto");
@@ -101,7 +101,7 @@ describe("a voyage sails as the server would sail it", () => {
     const rec = sim.battles[0]!;
     // Dealt on the ship as it stood, and supplied at once with the ship's word.
     expect(rec.config.supply).toBeNull();
-    expect(rec.config.startLoaded).toBe(Math.min(rec.config.cannons, sim.ship.loaded));
+    expect(rec.config.startLoaded).toBe(Math.min(rec.config.turrets, sim.ship.loaded));
     expect(rec.moves[0]).toEqual({ type: "supply", ...shipSupply(sim.ship) });
     while (sim.battle && !sim.done) {
       const before = sim.ship;
@@ -124,21 +124,21 @@ describe("a voyage sails as the server would sail it", () => {
   });
 
   it("holds the ship in place while it fights, and pays the purse to the pirates on a win", () => {
-    const runs = Array.from({ length: 6 }, (_, i) => sailVoyage(setup({ seed: `fight-${i}`, hail: "engage", world: HAILED, captain: { accuracy: 100, aggression: 100 } })));
+    const runs = Array.from({ length: 6 }, (_, i) => flyVoyage(setup({ seed: `fight-${i}`, hail: "engage", world: HAILED, captain: { accuracy: 100, aggression: 100 } })));
     for (const sim of runs) {
-      const fighting = sim.samples.filter((s) => s.phase !== "sailing");
+      const fighting = sim.samples.filter((s) => s.phase !== "flying");
       for (let i = 1; i < fighting.length; i++) if (fighting[i]!.turn === fighting[i - 1]!.turn + 1) expect(fighting[i]!.progress).toBe(fighting[i - 1]!.progress);
       const outcome = summarize(sim).outcome;
-      const paid = Object.values(sim.booty).reduce((a, b) => a + b, 0);
+      const paid = Object.values(sim.plunder).reduce((a, b) => a + b, 0);
       const won = outcome === "boarded" || outcome === "crippled";
-      expect(paid).toBe(won ? content.world.brigandTiers.find((t) => t.id === tier)!.booty : 0);
-      expect(Object.keys(sim.booty).every((id) => !id.startsWith("mate:"))).toBe(true);
+      expect(paid).toBe(won ? content.world.raiderTiers.find((t) => t.id === tier)!.plunder : 0);
+      expect(Object.keys(sim.plunder).every((id) => !id.startsWith("bot:"))).toBe(true);
     }
   });
 
-  it("fights the boarding melee with every pirate at the rail", () => {
-    // A bold captain against a brigand that boards: most fights end at the rail.
-    const sims = Array.from({ length: 6 }, (_, i) => sailVoyage(setup({ seed: `rail-${i}`, hail: "engage", world: HAILED, captain: { accuracy: 100, aggression: 100 } })));
+  it("fights the boarding melee with every pirate at the airlock", () => {
+    // A bold captain against a raider that boards: most fights end at the airlock.
+    const sims = Array.from({ length: 6 }, (_, i) => flyVoyage(setup({ seed: `rail-${i}`, hail: "engage", world: HAILED, captain: { accuracy: 100, aggression: 100 } })));
     const melees = sims.flatMap((s) => s.melees);
     expect(melees.length).toBeGreaterThan(0);
     for (const m of melees) {
@@ -151,20 +151,20 @@ describe("a voyage sails as the server would sail it", () => {
 
   it("a scripted drop holds the ship while the captain is away, and the seat is given up after the grace period", () => {
     const grace = content.world.ship.graceTurns;
-    const sim = sailOn(startVoyage(setup({ crew: [pirate("navigation"), pirate("sailing")], script: [{ turn: 3, who: 0, action: "away", station: null }], world: CLEAR })), { limit: grace + 4 });
+    const sim = flyOn(startVoyage(setup({ crew: [pirate("navigation"), pirate("engines")], script: [{ turn: 3, who: 0, action: "away", station: null }], world: CLEAR })), { limit: grace + 4 });
     expect(sim.samples.slice(2, 2 + grace - 1).every((s) => s.held)).toBe(true);
     expect(sim.log.map((e) => e.kind)).toContain("timed_out");
-    expect(sim.log.map((e) => e.kind)).toContain("wheel");
+    expect(sim.log.map((e) => e.kind)).toContain("helm");
     expect(sim.samples[sim.samples.length - 1]!.held).toBe(false);
   });
 
   it("logs a script step the ship refuses instead of failing", () => {
-    const sim = sailOn(startVoyage(setup({ script: [{ turn: 2, who: 1, action: "back", station: null }], world: CLEAR })), { limit: 3 });
+    const sim = flyOn(startVoyage(setup({ script: [{ turn: 2, who: 1, action: "back", station: null }], world: CLEAR })), { limit: 3 });
     expect(sim.log.find((e) => e.kind === "refused")?.vars).toMatchObject({ action: "back", who: "p2" });
   });
 
-  it("waits for the tester's plot when the tester has the wheel, and sails it", () => {
-    let sim = startVoyage(setup({ hail: "engage", wheel: "you", world: HAILED }));
+  it("waits for the tester's plot when the tester has the helm, and flies it", () => {
+    let sim = startVoyage(setup({ hail: "engage", helm: "you", world: HAILED }));
     while (!needsPlot(sim) && !sim.done) sim = step(sim);
     expect(needsPlot(sim)).toBe(true);
     const plan = chooseCaptainPlan(sim.battle!, { accuracy: 50, aggression: 50 }, seedFromString("tester")).plan;
@@ -177,8 +177,8 @@ describe("a voyage sails as the server would sail it", () => {
 });
 
 describe("a batch", () => {
-  it("sails each run on its own seed and adds them up", async () => {
-    const s = setup({ hail: "evade", world: { "route.encounterChance": 0.5 } });
+  it("flies each run on its own seed and adds them up", async () => {
+    const s = setup({ hail: "evade", world: { "lane.encounterChance": 0.5 } });
     let progress = 0;
     const runs = await runBatch(s, 6, (n) => (progress = n));
     expect(progress).toBe(6);
@@ -199,11 +199,11 @@ describe("a voyage is a link", () => {
       ...base,
       seed: "x~y",
       hail: "ignore",
-      wheel: "you",
+      helm: "you",
       captain: { accuracy: 90, aggression: 10 },
-      crew: [{ ...pirate("sailing", 120, 10), name: "Ann ~ Bonny" }, pirate(null, 0, 0)],
-      script: [{ turn: 4, who: 1, action: "station", station: "carpentry" }],
-      world: { "rules.pumpPerTurn": 90, "route.brigands": [{ tierId: tier, weight: 2 }] },
+      crew: [{ ...pirate("engines", 120, 10), name: "Ann ~ Bonny" }, pirate(null, 0, 0)],
+      script: [{ turn: 4, who: 1, action: "station", station: "plating" }],
+      world: { "rules.ventPerTurn": 90, "lane.raiders": [{ tierId: tier, weight: 2 }] },
       runs: 20,
     };
     const qs = formatVoyage(content, sc, "batch");

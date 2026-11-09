@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { t } from "@openseas/boards";
 import type { WorldEvents, WorldInput, WorldScene } from "./scene.js";
 
-export type { Deck, DeckCrew, DeckStation, Focus, Insets, IslandWalk, WorldInput, WorldShip, WorldShipLocation, WorldWalker } from "./scene.js";
+export type { Deck, DeckCrew, DeckStation, Focus, Insets, OutpostWalk, WorldInput, WorldShip, WorldShipLocation, WorldWalker } from "./scene.js";
 
 export interface WorldProps {
   input: WorldInput;
@@ -28,14 +28,14 @@ export function World({ input, events }: WorldProps) {
       .then(({ WorldScene }) => {
         if (!alive || !host.current) return;
         const s = new WorldScene(host.current, {
-          onIsland: (id) => latest.current.events.onIsland(id),
+          onOutpost: (id) => latest.current.events.onOutpost(id),
           onShip: (id) => latest.current.events.onShip(id),
-          onBuilding: (islandId, b) => latest.current.events.onBuilding(islandId, b),
+          onBuilding: (outpostId, b) => latest.current.events.onBuilding(outpostId, b),
           onStation: (st) => latest.current.events.onStation(st),
-          onWheel: () => latest.current.events.onWheel(),
+          onHelmSpot: () => latest.current.events.onHelmSpot(),
           onWalk: (x, z) => latest.current.events.onWalk(x, z),
           onPirate: (id) => latest.current.events.onPirate(id),
-          onGangway: () => latest.current.events.onGangway(),
+          onAirlock: () => latest.current.events.onAirlock(),
           onOutside: () => latest.current.events.onOutside(),
         });
         s.onReady = () => setReady(true);

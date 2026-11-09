@@ -1,8 +1,0 @@
-[
-  { "id": "saltwick-gullhaven", "from": "saltwick", "to": "gullhaven", "durationSeconds": 210, "encounterChance": 0.7, "brigands": [{ "tierId": "cutpurse", "weight": 3 }, { "tierId": "marauder", "weight": 1 }] },
-  { "id": "gullhaven-saltwick", "from": "gullhaven", "to": "saltwick", "durationSeconds": 210, "encounterChance": 0.7, "brigands": [{ "tierId": "cutpurse", "weight": 3 }, { "tierId": "marauder", "weight": 1 }] },
-  { "id": "gullhaven-emberreef", "from": "gullhaven", "to": "emberreef", "durationSeconds": 240, "encounterChance": 0.8, "brigands": [{ "tierId": "marauder", "weight": 2 }, { "tierId": "reaver", "weight": 1 }] },
-  { "id": "emberreef-gullhaven", "from": "emberreef", "to": "gullhaven", "durationSeconds": 240, "encounterChance": 0.8, "brigands": [{ "tierId": "marauder", "weight": 2 }, { "tierId": "reaver", "weight": 1 }] },
-  { "id": "emberreef-saltwick", "from": "emberreef", "to": "saltwick", "durationSeconds": 270, "encounterChance": 0.8, "brigands": [{ "tierId": "cutpurse", "weight": 1 }, { "tierId": "marauder", "weight": 2 }] },
-  { "id": "saltwick-emberreef", "from": "saltwick", "to": "emberreef", "durationSeconds": 270, "encounterChance": 0.8, "brigands": [{ "tierId": "cutpurse", "weight": 1 }, { "tierId": "marauder", "weight": 2 }] }
-]

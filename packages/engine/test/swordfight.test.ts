@@ -38,8 +38,8 @@ const wait = (tick: number): SwordfightMove => ({ type: "wait", tick });
 
 /**
  * Put a drawn board under the player: rows top to bottom, `.` empty, 0-5 a block of that color,
- * A-F a breaker of colors 0-5, `#` unripened wrack (ripens in one drop, into a checkerboard of
- * the colors above 0, so neighbouring wrack never ripens into one rectangle and never into the
+ * A-F a breaker of colors 0-5, `#` unripened scrap (ripens in one drop, into a checkerboard of
+ * the colors above 0, so neighbouring scrap never ripens into one rectangle and never into the
  * color a drawn breaker of 0 is waiting for). No slabs: the first
  * resolution fuses whatever should be fused.
  */
@@ -53,7 +53,7 @@ function drawn(state: SwordfightState, rows: readonly string[], current?: [Sword
       const ch = line[col]!;
       if (ch === ".") continue;
       let cell: SwordCell;
-      if (ch === "#") cell = { id: nextId++, color: 1 + ((col + row) % (c.colors - 1)), kind: "wrack", ripen: 1, slab: 0 };
+      if (ch === "#") cell = { id: nextId++, color: 1 + ((col + row) % (c.colors - 1)), kind: "scrap", ripen: 1, slab: 0 };
       else if (ch >= "A" && ch <= "F") cell = { id: nextId++, color: ch.charCodeAt(0) - 65, kind: "breaker", ripen: 0, slab: 0 };
       else cell = { id: nextId++, color: Number(ch), kind: "block", ripen: 0, slab: 0 };
       cells[swordfightIdx(c, col, row)] = cell;
@@ -132,18 +132,18 @@ function expectBoardInvariants(c: SwordfightConfig, b: SwordBoard): void {
     if (!cell || cell.kind !== "breaker") continue;
     for (const n of neighbors(c, i)) {
       const o = b.cells[n];
-      if (o && o.kind !== "wrack") expect(o.color, `breaker ${cell.id} rests on its color`).not.toBe(cell.color);
+      if (o && o.kind !== "scrap") expect(o.color, `breaker ${cell.id} rests on its color`).not.toBe(cell.color);
     }
   }
   for (const cell of b.cells) {
     if (!cell) continue;
-    // Wrack carries the color it will ripen into, so every cell has a color in range.
+    // Scrap carries the color it will ripen into, so every cell has a color in range.
     expect(cell.color).toBeGreaterThanOrEqual(0);
     expect(cell.color).toBeLessThan(c.colors);
-    if (cell.kind === "wrack") expect(cell.ripen).toBeGreaterThan(0);
+    if (cell.kind === "scrap") expect(cell.ripen).toBeGreaterThan(0);
     else expect(cell.ripen).toBe(0);
   }
-  for (const p of b.pending) expect(p.wrack).toBeGreaterThan(0);
+  for (const p of b.pending) expect(p.scrap).toBeGreaterThan(0);
   if (b.out) expect(b.pending).toEqual([]);
   expect(b.pool).toBeGreaterThanOrEqual(0);
   expect(b.pool).toBeLessThan(c.attackPoints);
@@ -226,14 +226,14 @@ describe("slabs", () => {
     expect(s.boards[0]!.slabs.map((x) => [x.color, x.col, x.row, x.w, x.h])).toEqual([[0, 0, 0, 4, 2]]);
   });
 
-  it("never fuses breakers or wrack", () => {
+  it("never fuses breakers or scrap", () => {
     let s = createSwordfightGame("x", alone);
     s = drawn(s, ["......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "0A.##.", "00.##."], [blk(2), blk(3)]);
     s = reduceSwordfight(s, place(5, 1, 2));
     // The breaker of color 0 fired against the three blocks of color 0.
     expect(s.boards[0]!.slabs).toEqual([]);
     expect(s.boards[0]!.cells.filter((c) => c?.color === 0)).toEqual([]);
-    expect(s.boards[0]!.cells.filter((c) => c?.kind === "wrack").length + s.boards[0]!.cells.filter((c) => c?.ripen === 0 && c.color >= 0 && c.id < 100).length).toBeGreaterThan(0);
+    expect(s.boards[0]!.cells.filter((c) => c?.kind === "scrap").length + s.boards[0]!.cells.filter((c) => c?.ripen === 0 && c.color >= 0 && c.id < 100).length).toBeGreaterThan(0);
   });
 });
 
@@ -343,46 +343,46 @@ describe("shared pairs and edge-weighted blades", () => {
   });
 });
 
-describe("wrack", () => {
+describe("scrap", () => {
   const attackCfg: SwordfightConfig = { ...alone, attackPoints: 10, cellPoints: 10, offset: true };
 
-  it("points become wrack that leaves the fight when the foes are outside it, and the remainder carries over", () => {
+  it("points become scrap that leaves the fight when the foes are outside it, and the remainder carries over", () => {
     let s = createSwordfightGame("x", { ...attackCfg, attackPoints: 25 });
     s = drawn(s, ["......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "000..."], [brk(0), blk(3)]);
     s = reduceSwordfight(s, place(3, 0, 2));
-    // 4 blocks * 10 = 40 points: one block of wrack at 25, 15 carried.
+    // 4 blocks * 10 = 40 points: one block of scrap at 25, 15 carried.
     const attack = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "attack" }> => e.type === "attack")!;
-    expect(attack).toMatchObject({ to: -1, wrack: 1, offset: 0, blade: cfg.blade });
+    expect(attack).toMatchObject({ to: -1, scrap: 1, offset: 0, blade: cfg.blade });
     expect(s.boards[0]!.pool).toBe(15);
     expect(s.boards[0]!.sent).toBe(1);
   });
 
-  it("incoming wrack waits, lands at the next drop in the blade's columns, and ripens into blocks after ripenMoves drops", () => {
+  it("incoming scrap waits, lands at the next drop in the blade's columns, and ripens into blocks after ripenMoves drops", () => {
     let s = createSwordfightGame("x", { ...attackCfg, ripenMoves: 2 });
-    s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 4, blade: 0, tick: 1 });
-    expect(s.boards[0]!.pending).toEqual([{ wrack: 4, blade: 0 }]);
+    s = reduceSwordfight(s, { type: "incoming", board: 0, scrap: 4, blade: 0, tick: 1 });
+    expect(s.boards[0]!.pending).toEqual([{ scrap: 4, blade: 0 }]);
     expect(s.boards[0]!.pendingSince).toBe(1);
     s = reduceSwordfight(s, place(2, 1, 3));
     const landed = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "landed" }> => e.type === "landed")!;
     expect(landed.cells.map((c) => c % cfg.width)).toEqual([0, 5, 1, 4]);
     expect(s.boards[0]!.pending).toEqual([]);
-    const wrack = s.boards[0]!.cells.filter((c) => c?.kind === "wrack");
-    expect(wrack).toHaveLength(4);
-    expect(wrack.every((c) => c!.ripen === 2)).toBe(true);
+    const scrap = s.boards[0]!.cells.filter((c) => c?.kind === "scrap");
+    expect(scrap).toHaveLength(4);
+    expect(scrap.every((c) => c!.ripen === 2)).toBe(true);
     s = reduceSwordfight(s, place(5, 1, 6));
-    expect(s.boards[0]!.cells.filter((c) => c?.kind === "wrack").every((c) => c!.ripen === 1)).toBe(true);
+    expect(s.boards[0]!.cells.filter((c) => c?.kind === "scrap").every((c) => c!.ripen === 1)).toBe(true);
     s = reduceSwordfight(s, place(5, 1, 9));
     const ripened = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "ripened" }> => e.type === "ripened")!;
     expect(ripened.ids).toHaveLength(4);
-    expect(s.boards[0]!.cells.filter((c) => c?.kind === "wrack")).toHaveLength(0);
+    expect(s.boards[0]!.cells.filter((c) => c?.kind === "scrap")).toHaveLength(0);
     for (const c of ripened.colors) expect(c).toBeLessThan(cfg.colors);
   });
 
-  it("wrack is dealt the color of what it lands on and beside, when matching is on", () => {
-    let s = createSwordfightGame("x", { ...attackCfg, wrackMatchPermille: 1000 });
+  it("scrap is dealt the color of what it lands on and beside, when matching is on", () => {
+    let s = createSwordfightGame("x", { ...attackCfg, scrapMatchPermille: 1000 });
     // Color 2 across the bottom row, columns 0..2; the pair in hand is far from the cutlass columns.
     s = drawn(s, ["......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "22...2"], [blk(0), blk(0)]);
-    s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 3, blade: 0, tick: 1 });
+    s = reduceSwordfight(s, { type: "incoming", board: 0, scrap: 3, blade: 0, tick: 1 });
     s = reduceSwordfight(s, place(3, 1, 3));
     const landed = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "landed" }> => e.type === "landed")!;
     // Columns 0, 5 and 1 land on color-2 blocks, so all three take color 2.
@@ -390,12 +390,12 @@ describe("wrack", () => {
     expect(landed.colors).toEqual([2, 2, 2]);
   });
 
-  it("wrack lands in any color when matching is off", () => {
+  it("scrap lands in any color when matching is off", () => {
     const seen = new Set<number>();
     for (let n = 0; n < 12; n++) {
-      let s = createSwordfightGame(`any${n}`, { ...attackCfg, wrackMatchPermille: 0 });
+      let s = createSwordfightGame(`any${n}`, { ...attackCfg, scrapMatchPermille: 0 });
       s = drawn(s, ["......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "222..."], [blk(0), blk(0)]);
-      s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 3, blade: 0, tick: 1 });
+      s = reduceSwordfight(s, { type: "incoming", board: 0, scrap: 3, blade: 0, tick: 1 });
       s = reduceSwordfight(s, place(5, 1, 3));
       const landed = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "landed" }> => e.type === "landed")!;
       for (const c of landed.colors) seen.add(c);
@@ -403,16 +403,16 @@ describe("wrack", () => {
     expect(seen.size).toBeGreaterThan(1);
   });
 
-  it("wrack is dealt the color it ripens into as it lands, told in the landed event, and keeps it", () => {
+  it("scrap is dealt the color it ripens into as it lands, told in the landed event, and keeps it", () => {
     let s = createSwordfightGame("x", { ...attackCfg, ripenMoves: 2 });
-    s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 4, blade: 0, tick: 1 });
+    s = reduceSwordfight(s, { type: "incoming", board: 0, scrap: 4, blade: 0, tick: 1 });
     s = reduceSwordfight(s, place(2, 1, 3));
     const landed = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "landed" }> => e.type === "landed")!;
     expect(landed.colors).toHaveLength(4);
     const dealt = new Map(landed.ids.map((id, k) => [id, landed.colors[k]!]));
-    const wrack = s.boards[0]!.cells.filter((c): c is SwordCell => c?.kind === "wrack");
-    expect(wrack).toHaveLength(4);
-    for (const c of wrack) {
+    const scrap = s.boards[0]!.cells.filter((c): c is SwordCell => c?.kind === "scrap");
+    expect(scrap).toHaveLength(4);
+    for (const c of scrap) {
       expect(c.color).toBeGreaterThanOrEqual(0);
       expect(c.color).toBeLessThan(cfg.colors);
       expect(c.color).toBe(dealt.get(c.id));
@@ -424,55 +424,55 @@ describe("wrack", () => {
     for (let k = 0; k < ripened.ids.length; k++) expect(ripened.colors[k], "it ripens into the color it was dealt").toBe(dealt.get(ripened.ids[k]!));
   });
 
-  it("waiting wrack lands on its own after landAfterTicks, on a wait", () => {
+  it("waiting scrap lands on its own after landAfterTicks, on a wait", () => {
     let s = createSwordfightGame("x", { ...attackCfg, landAfterTicks: 5 });
-    s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 3, blade: 0, tick: 2 });
+    s = reduceSwordfight(s, { type: "incoming", board: 0, scrap: 3, blade: 0, tick: 2 });
     s = reduceSwordfight(s, wait(6));
     expect(s.boards[0]!.pending).toHaveLength(1);
     s = reduceSwordfight(s, wait(7));
     expect(s.boards[0]!.pending).toEqual([]);
-    expect(s.boards[0]!.cells.filter((c) => c?.kind === "wrack")).toHaveLength(3);
+    expect(s.boards[0]!.cells.filter((c) => c?.kind === "scrap")).toHaveLength(3);
     const landed = s.lastMove!.events.find((e) => e.type === "landed")!;
     expect(landed.tick).toBe(7);
   });
 
   it("lands at most incomingCapRows rows at once and keeps the rest waiting", () => {
     let s = createSwordfightGame("x", { ...attackCfg, incomingCapRows: 1 });
-    s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 9, blade: 0, tick: 1 });
+    s = reduceSwordfight(s, { type: "incoming", board: 0, scrap: 9, blade: 0, tick: 1 });
     s = reduceSwordfight(s, place(2, 1, 3));
-    expect(s.boards[0]!.cells.filter((c) => c?.kind === "wrack")).toHaveLength(6);
-    expect(s.boards[0]!.pending).toEqual([{ wrack: 3, blade: 0 }]);
+    expect(s.boards[0]!.cells.filter((c) => c?.kind === "scrap")).toHaveLength(6);
+    expect(s.boards[0]!.pending).toEqual([{ scrap: 3, blade: 0 }]);
   });
 
-  it("wrack sent first cancels wrack waiting on the sender's board", () => {
+  it("scrap sent first cancels scrap waiting on the sender's board", () => {
     let s = createSwordfightGame("x", attackCfg);
-    s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 3, blade: 0, tick: 1 });
+    s = reduceSwordfight(s, { type: "incoming", board: 0, scrap: 3, blade: 0, tick: 1 });
     s = drawn(s, ["......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "000..."], [brk(0), blk(3)]);
     s = reduceSwordfight(s, place(3, 0, 3));
-    // 40 points at 10 a block: four blocks of wrack; three cancel what was waiting, one leaves.
+    // 40 points at 10 a block: four blocks of scrap; three cancel what was waiting, one leaves.
     const attack = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "attack" }> => e.type === "attack")!;
-    expect(attack).toMatchObject({ to: -1, wrack: 1, offset: 3 });
+    expect(attack).toMatchObject({ to: -1, scrap: 1, offset: 3 });
     expect(s.boards[0]!.pending).toEqual([]);
-    expect(s.boards[0]!.cells.filter((c) => c?.kind === "wrack")).toHaveLength(0);
+    expect(s.boards[0]!.cells.filter((c) => c?.kind === "scrap")).toHaveLength(0);
   });
 
-  it("without offsetting, wrack goes over and what was waiting lands", () => {
+  it("without offsetting, scrap goes over and what was waiting lands", () => {
     let s = createSwordfightGame("x", { ...attackCfg, offset: false });
-    s = reduceSwordfight(s, { type: "incoming", board: 0, wrack: 3, blade: 0, tick: 1 });
+    s = reduceSwordfight(s, { type: "incoming", board: 0, scrap: 3, blade: 0, tick: 1 });
     s = drawn(s, ["......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "......", "000..."], [brk(0), blk(3)]);
     s = reduceSwordfight(s, place(3, 0, 3));
     const attack = s.lastMove!.events.find((e): e is Extract<SwordfightEvent, { type: "attack" }> => e.type === "attack")!;
-    expect(attack).toMatchObject({ to: -1, wrack: 4, offset: 0 });
-    expect(s.boards[0]!.cells.filter((c) => c?.kind === "wrack")).toHaveLength(3);
+    expect(attack).toMatchObject({ to: -1, scrap: 4, offset: 0 });
+    expect(s.boards[0]!.cells.filter((c) => c?.kind === "scrap")).toHaveLength(3);
   });
 
-  it("refuses incoming wrack when the foes are in the fight, and bad incoming", () => {
+  it("refuses incoming scrap when the foes are in the fight, and bad incoming", () => {
     const s = createSwordfightGame("x", cfg);
-    expect(() => reduceSwordfight(s, { type: "incoming", board: 0, wrack: 2, blade: 0, tick: 1 })).toThrow(/its own foes/);
+    expect(() => reduceSwordfight(s, { type: "incoming", board: 0, scrap: 2, blade: 0, tick: 1 })).toThrow(/its own foes/);
     const a = createSwordfightGame("x", alone);
-    expect(() => reduceSwordfight(a, { type: "incoming", board: 0, wrack: 0, blade: 0, tick: 1 })).toThrow(InvalidMoveError);
-    expect(() => reduceSwordfight(a, { type: "incoming", board: 0, wrack: 2, blade: 9, tick: 1 })).toThrow(InvalidMoveError);
-    expect(() => reduceSwordfight(a, { type: "incoming", board: 3, wrack: 2, blade: 0, tick: 1 })).toThrow(InvalidMoveError);
+    expect(() => reduceSwordfight(a, { type: "incoming", board: 0, scrap: 0, blade: 0, tick: 1 })).toThrow(InvalidMoveError);
+    expect(() => reduceSwordfight(a, { type: "incoming", board: 0, scrap: 2, blade: 9, tick: 1 })).toThrow(InvalidMoveError);
+    expect(() => reduceSwordfight(a, { type: "incoming", board: 3, scrap: 2, blade: 0, tick: 1 })).toThrow(InvalidMoveError);
   });
 });
 
@@ -514,15 +514,15 @@ describe("the fight", () => {
     s = reduceSwordfight(s, place(0, 0, 2));
     expect(s.boards[0]!.out).toBe(false);
     expect(swordfightLegalDrops(alone, s.boards[0]!).length).toBeGreaterThan(0);
-    // Every cell full but the entry's top cell and one far away: wrack lands in the far one (the
+    // Every cell full but the entry's top cell and one far away: scrap lands in the far one (the
     // dirk tries columns 0, 5, 1, 4 first), and the pair can still drop into the entry's last cell.
     const rows: string[] = [];
     for (let r = 0; r < 12; r++) rows.push(r === 0 ? "01.1.1" : "010101");
     let t = createSwordfightGame("x", { ...alone, landAfterTicks: 2 });
     t = drawn(t, rows, [blk(2), blk(3)]);
-    t = reduceSwordfight(t, { type: "incoming", board: 0, wrack: 1, blade: 2, tick: 1 });
+    t = reduceSwordfight(t, { type: "incoming", board: 0, scrap: 1, blade: 2, tick: 1 });
     t = reduceSwordfight(t, wait(3));
-    expect(t.boards[0]!.cells[swordfightIdx(alone, 4, 11)]?.kind).toBe("wrack");
+    expect(t.boards[0]!.cells[swordfightIdx(alone, 4, 11)]?.kind).toBe("scrap");
     expect(t.boards[0]!.cells[swordfightIdx(alone, 2, 11)]).toBeNull();
     expect(t.boards[0]!.out).toBe(false);
     expect(swordfightLegalDrops(alone, t.boards[0]!)).toEqual([
@@ -567,7 +567,7 @@ describe("the fight", () => {
     expect(s.score).toBe(s.boards[0]!.points + cfg.winPoints);
   });
 
-  it("an AI foe's wrack waits on the player's board and lands at the player's next drop", () => {
+  it("an AI foe's scrap waits on the player's board and lands at the player's next drop", () => {
     fc.assert(
       fc.property(fc.string(), (seed) => {
         let s = createSwordfightGame(seed, { ...cfg, foes: [{ thinkTicks: 3, skill: 100, blade: 2 }], attackPoints: 10 });
@@ -596,7 +596,7 @@ describe("the fight", () => {
       expectInvariants(s);
     }
     const attacks = s.boards.map(() => 0);
-    // Replay to count where the foe's wrack went.
+    // Replay to count where the foe's scrap went.
     let r = createSwordfightGame("team", team);
     tick = 0;
     for (let i = 0; i < 80 && !r.finished; i++) {

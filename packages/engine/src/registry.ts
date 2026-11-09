@@ -14,28 +14,28 @@ import {
   type BattleState,
 } from "./battle/index.js";
 import {
-  DEFAULT_BILGING_CONFIG,
-  SHIP_WATER_EVENTS_MAX,
-  createBilgingGame,
-  hashBilgingState,
-  reduceBilging,
-  summarizeBilging,
-  validateBilgingConfig,
-  type BilgingConfig,
-  type BilgingMove,
-  type BilgingState,
-} from "./bilging/index.js";
+  DEFAULT_COOLING_CONFIG,
+  SHIP_HEAT_EVENTS_MAX,
+  createCoolingGame,
+  hashCoolingState,
+  reduceCooling,
+  summarizeCooling,
+  validateCoolingConfig,
+  type CoolingConfig,
+  type CoolingMove,
+  type CoolingState,
+} from "./cooling/index.js";
 import {
-  DEFAULT_CARPENTRY_CONFIG,
-  createCarpentryGame,
-  hashCarpentryState,
-  reduceCarpentry,
-  summarizeCarpentry,
-  validateCarpentryConfig,
-  type CarpentryConfig,
-  type CarpentryMove,
-  type CarpentryState,
-} from "./carpentry/index.js";
+  DEFAULT_PLATING_CONFIG,
+  createPlatingGame,
+  hashPlatingState,
+  reducePlating,
+  summarizePlating,
+  validatePlatingConfig,
+  type PlatingConfig,
+  type PlatingMove,
+  type PlatingState,
+} from "./plating/index.js";
 import {
   DEFAULT_NAVIGATION_CONFIG,
   createNavigationGame,
@@ -48,16 +48,16 @@ import {
   type NavigationState,
 } from "./navigation/index.js";
 import {
-  DEFAULT_SAILING_CONFIG,
-  createSailingGame,
-  hashSailingState,
-  reduceSailing,
-  summarizeSailing,
-  validateSailingConfig,
-  type SailingConfig,
-  type SailingMove,
-  type SailingState,
-} from "./sailing/index.js";
+  DEFAULT_ENGINES_CONFIG,
+  createEnginesGame,
+  hashEnginesState,
+  reduceEngines,
+  summarizeEngines,
+  validateEnginesConfig,
+  type EnginesConfig,
+  type EnginesMove,
+  type EnginesState,
+} from "./engines/index.js";
 import {
   DEFAULT_SWORDFIGHT_CONFIG,
   createSwordfightGame,
@@ -82,10 +82,10 @@ import {
 } from "./gunnery/index.js";
 
 /** Every puzzle the engine knows about. Extended one at a time per the milestone ladder. */
-export const PUZZLE_IDS = ["bilging", "sailing", "carpentry", "gunnery", "navigation", "battle", "swordfight"] as const;
+export const PUZZLE_IDS = ["cooling", "engines", "plating", "gunnery", "navigation", "battle", "swordfight"] as const;
 export type PuzzleId = (typeof PUZZLE_IDS)[number];
-/** The duty puzzles: the ones a station aboard a ship plays. Sea Battle is the captain's game, not a station. */
-export const DUTY_PUZZLE_IDS = ["bilging", "sailing", "carpentry", "gunnery", "navigation"] as const;
+/** The duty puzzles: the ones a station aboard a ship plays. Space Battle is the captain's game, not a station. */
+export const DUTY_PUZZLE_IDS = ["cooling", "engines", "plating", "gunnery", "navigation"] as const;
 export type DutyPuzzleId = (typeof DUTY_PUZZLE_IDS)[number];
 
 /** What every finished round reports. The database row and the result message share this shape. */
@@ -115,38 +115,38 @@ export interface PuzzleDef<S, M, C> {
   moveTimeMs?(move: M, config: C): number;
 }
 
-export const BILGING_DEF: PuzzleDef<BilgingState, BilgingMove, BilgingConfig> = {
-  id: "bilging",
-  defaultConfig: DEFAULT_BILGING_CONFIG,
-  validateConfig: validateBilgingConfig,
-  create: createBilgingGame,
-  reduce: reduceBilging,
-  hash: hashBilgingState,
-  summarize: summarizeBilging,
+export const COOLING_DEF: PuzzleDef<CoolingState, CoolingMove, CoolingConfig> = {
+  id: "cooling",
+  defaultConfig: DEFAULT_COOLING_CONFIG,
+  validateConfig: validateCoolingConfig,
+  create: createCoolingGame,
+  reduce: reduceCooling,
+  hash: hashCoolingState,
+  summarize: summarizeCooling,
   isFinished: (s) => s.finished,
-  maxMoves: (c) => c.maxMoves + (c.shipWater ? SHIP_WATER_EVENTS_MAX : 0),
+  maxMoves: (c) => c.maxMoves + (c.shipHeat ? SHIP_HEAT_EVENTS_MAX : 0),
 };
 
-export const SAILING_DEF: PuzzleDef<SailingState, SailingMove, SailingConfig> = {
-  id: "sailing",
-  defaultConfig: DEFAULT_SAILING_CONFIG,
-  validateConfig: validateSailingConfig,
-  create: createSailingGame,
-  reduce: reduceSailing,
-  hash: hashSailingState,
-  summarize: summarizeSailing,
+export const ENGINES_DEF: PuzzleDef<EnginesState, EnginesMove, EnginesConfig> = {
+  id: "engines",
+  defaultConfig: DEFAULT_ENGINES_CONFIG,
+  validateConfig: validateEnginesConfig,
+  create: createEnginesGame,
+  reduce: reduceEngines,
+  hash: hashEnginesState,
+  summarize: summarizeEngines,
   isFinished: (s) => s.finished,
   maxMoves: (c) => c.maxMoves,
 };
 
-export const CARPENTRY_DEF: PuzzleDef<CarpentryState, CarpentryMove, CarpentryConfig> = {
-  id: "carpentry",
-  defaultConfig: DEFAULT_CARPENTRY_CONFIG,
-  validateConfig: validateCarpentryConfig,
-  create: createCarpentryGame,
-  reduce: reduceCarpentry,
-  hash: hashCarpentryState,
-  summarize: summarizeCarpentry,
+export const PLATING_DEF: PuzzleDef<PlatingState, PlatingMove, PlatingConfig> = {
+  id: "plating",
+  defaultConfig: DEFAULT_PLATING_CONFIG,
+  validateConfig: validatePlatingConfig,
+  create: createPlatingGame,
+  reduce: reducePlating,
+  hash: hashPlatingState,
+  summarize: summarizePlating,
   isFinished: (s) => s.finished,
   maxMoves: (c) => c.maxMoves,
 };
@@ -205,9 +205,9 @@ export const SWORDFIGHT_DEF: PuzzleDef<SwordfightState, SwordfightMove, Swordfig
 export type AnyPuzzleDef = PuzzleDef<unknown, unknown, unknown>;
 
 export const PUZZLES: Readonly<Record<PuzzleId, AnyPuzzleDef>> = {
-  bilging: BILGING_DEF as unknown as AnyPuzzleDef,
-  sailing: SAILING_DEF as unknown as AnyPuzzleDef,
-  carpentry: CARPENTRY_DEF as unknown as AnyPuzzleDef,
+  cooling: COOLING_DEF as unknown as AnyPuzzleDef,
+  engines: ENGINES_DEF as unknown as AnyPuzzleDef,
+  plating: PLATING_DEF as unknown as AnyPuzzleDef,
   gunnery: GUNNERY_DEF as unknown as AnyPuzzleDef,
   navigation: NAVIGATION_DEF as unknown as AnyPuzzleDef,
   battle: BATTLE_DEF as unknown as AnyPuzzleDef,

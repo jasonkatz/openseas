@@ -1,21 +1,21 @@
 /**
- * A voyage scenario: a ship class, a route leg, a crew at their stations and how well each of them
- * plays, what the captain does about a brigand, and the world's numbers with any overrides. The
- * voyage bench (ADR 0027) sails it through the engine's own ship, battle and swordfight reducers,
+ * A voyage scenario: a ship class, a lane leg, a crew at their stations and how well each of them
+ * plays, what the captain does about a raider, and the world's numbers with any overrides. The
+ * voyage bench (ADR 0027) flies it through the engine's own ship, battle and swordfight reducers,
  * wired as the server wires them (engine `ship/aboard.ts`).
  *
- * A scenario is held to the server's own checks before it sails, as a lab round is (ADR 0019): the
+ * A scenario is held to the server's own checks before it flies, as a lab round is (ADR 0019): the
  * edited world must pass content's schema and cross-checks, and every config the voyage would deal
- * must pass the engine's validators. So a voyage simulated here is one the server could sail.
+ * must pass the engine's validators. So a voyage simulated here is one the server could fly.
  *
  * Pure: content comes in as an argument, so tests use `loadContent()` and the page the shared copy.
  */
 
-import { WorldSchema, contentProblems, type BrigandTier, type Content, type RouteLeg, type ShipClass, type ShipRules } from "@openseas/content";
+import { WorldSchema, contentProblems, type RaiderTier, type Content, type LaneLeg, type ShipClass, type ShipRules } from "@openseas/content";
 import {
   STATIONS,
   battleConfigAboard,
-  brigandSpecFor,
+  raiderSpecFor,
   createShip,
   isStation,
   legPlan,
@@ -24,7 +24,7 @@ import {
   validateShipConfig,
   validateSwordfightConfig,
   type BattleConfig,
-  type BrigandSpec,
+  type RaiderSpec,
   type CaptainSpec,
   type LegPlan,
   type ShipConfig,
@@ -35,12 +35,12 @@ import {
 import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { applyOverrides, getPath, type Overrides } from "../scenario/overrides.js";
 
-/** What the captain does when a brigand hails: fight, run, or let the hail lapse (the ship evades on its own after `hailTurns`). */
+/** What the captain does when a raider hails: fight, run, or let the hail lapse (the ship evades on its own after `hailTurns`). */
 export type HailOrder = "engage" | "evade" | "ignore";
 export const HAIL_ORDERS: readonly HailOrder[] = ["engage", "evade", "ignore"];
 
-/** Who plots the captain's sea battle: the AI captain, or the tester on the real board. */
-export type Wheel = "ai" | "you";
+/** Who plots the captain's space battle: the AI captain, or the tester on the real board. */
+export type Helm = "ai" | "you";
 
 /** A pirate's hand in the boarding melee, as the swordfight engine's AI plays it. */
 export type SwordHand = SwordAiSpec;
@@ -59,7 +59,7 @@ export interface CrewSpec {
 export type ScriptAction = "away" | "back" | "leave" | "station";
 export const SCRIPT_ACTIONS: readonly ScriptAction[] = ["away", "back", "leave", "station"];
 
-/** Something a pirate does before the ship's turn `turn`: drop, come back, go ashore, or change station. */
+/** Something a pirate does before the ship's turn `turn`: drop, come back, disembark, or change station. */
 export interface ScriptStep {
   readonly turn: number;
   /** Index into the crew. */
@@ -72,17 +72,17 @@ export interface ScriptStep {
 export interface VoyageScenario {
   readonly seed: string;
   readonly shipClassId: string;
-  readonly routeId: string;
+  readonly laneId: string;
   readonly hail: HailOrder;
-  readonly wheel: Wheel;
-  /** The AI captain's knobs, as a brigand tier's, in percent. */
+  readonly helm: Helm;
+  /** The AI captain's knobs, as a raider tier's, in percent. */
   readonly captain: CaptainSpec;
-  /** The pirates aboard, in boarding order: the first is the captain. Deckhands sign on by themselves. */
+  /** The pirates aboard, in boarding order: the first is the captain. Bots boot up by themselves. */
   readonly crew: readonly CrewSpec[];
   readonly script: readonly ScriptStep[];
-  /** Dotted-path overrides into the voyage's world (`rules.pumpPerTurn`, `route.encounterChance`, `tiers.reaver.accuracy`). */
+  /** Dotted-path overrides into the voyage's world (`rules.ventPerTurn`, `lane.encounterChance`, `tiers.corsair.accuracy`). */
   readonly world: Overrides;
-  /** How many voyages a batch sails. */
+  /** How many voyages a batch flies. */
   readonly runs: number;
 }
 
@@ -90,8 +90,8 @@ export interface VoyageScenario {
 export interface VoyageWorld {
   readonly rules: ShipRules;
   readonly ship: ShipClass;
-  readonly route: RouteLeg;
-  readonly tiers: Readonly<Record<string, BrigandTier>>;
+  readonly lane: LaneLeg;
+  readonly tiers: Readonly<Record<string, RaiderTier>>;
 }
 
 export const SWORD_HANDS: Readonly<Record<"green" | "able" | "deadly", SwordHand>> = {
@@ -114,19 +114,19 @@ export const MAX_RUNS = 500;
 export function defaultCrew(): CrewSpec[] {
   return [
     { name: "", station: "navigation", duty: 100, spread: 15, sword: SWORD_HANDS.able },
-    { name: "", station: "sailing", duty: 100, spread: 15, sword: SWORD_HANDS.able },
+    { name: "", station: "engines", duty: 100, spread: 15, sword: SWORD_HANDS.able },
     { name: "", station: "gunnery", duty: 100, spread: 15, sword: SWORD_HANDS.able },
   ];
 }
 
 export function defaultScenario(content: Content): VoyageScenario {
-  const route = content.world.routes.find((r) => r.from === content.world.startIslandId) ?? content.world.routes[0]!;
+  const lane = content.world.lanes.find((r) => r.from === content.world.startOutpostId) ?? content.world.lanes[0]!;
   return {
     seed: "voyage-1",
     shipClassId: content.world.shipClasses[0]!.id,
-    routeId: route.id,
+    laneId: lane.id,
     hail: "engage",
-    wheel: "ai",
+    helm: "ai",
     captain: { accuracy: 70, aggression: 60 },
     crew: defaultCrew(),
     script: [],
@@ -135,20 +135,20 @@ export function defaultScenario(content: Content): VoyageScenario {
   };
 }
 
-/** The world as content has it for this ship and route, before overrides. */
-export function baseWorld(content: Content, shipClassId: string, routeId: string): VoyageWorld | null {
+/** The world as content has it for this ship and lane, before overrides. */
+export function baseWorld(content: Content, shipClassId: string, laneId: string): VoyageWorld | null {
   const ship = content.world.shipClasses.find((c) => c.id === shipClassId);
-  const route = content.world.routes.find((r) => r.id === routeId);
-  if (!ship || !route) return null;
-  return { rules: content.world.ship, ship, route, tiers: Object.fromEntries(content.world.brigandTiers.map((t) => [t.id, t])) };
+  const lane = content.world.lanes.find((r) => r.id === laneId);
+  if (!ship || !lane) return null;
+  return { rules: content.world.ship, ship, lane, tiers: Object.fromEntries(content.world.raiderTiers.map((t) => [t.id, t])) };
 }
 
-/** A tier as the voyage deals it: the battle's brigand, the purse, and the hand at the rail. */
+/** A tier as the voyage deals it: the battle's raider, the purse, and the hand at the airlock. */
 export interface TierSetup {
   readonly id: string;
   readonly nameKey: string;
-  readonly brigand: BrigandSpec;
-  readonly booty: number;
+  readonly raider: RaiderSpec;
+  readonly plunder: number;
   /** What a fight against this tier is worth, in percent: battle points and the melee's attack rate scale by it. */
   readonly scorePercent: number;
   readonly swordsmen: SwordHand;
@@ -161,20 +161,20 @@ export interface CrewSetup extends CrewSpec {
 /** A scenario resolved into what the engines take. */
 export interface VoyageSetup {
   readonly seed: string;
-  readonly islandId: string;
+  readonly outpostId: string;
   readonly leg: LegPlan;
   readonly ship: ShipConfig;
   /** Content's battle rules; each fight's config is this aboard the ship as it is at the hail. */
   readonly battleBase: BattleConfig;
   /** Content's swordfight rules; the melee is these with the crew and the tier's hands. */
   readonly swordBase: SwordfightConfig;
-  /** Swordfight's par attack a minute: the melee counts in the booty as duty turns against it (ADR 0030). */
+  /** Swordfight's par attack a minute: the melee counts in the plunder as duty turns against it (ADR 0030). */
   readonly meleeParRate: number;
   readonly tiers: Readonly<Record<string, TierSetup>>;
   readonly crew: readonly CrewSetup[];
   readonly script: readonly ScriptStep[];
   readonly hail: HailOrder;
-  readonly wheel: Wheel;
+  readonly helm: Helm;
   readonly captain: CaptainSpec;
   /** A voyage that has not reached port after this many turns is called adrift. */
   readonly maxTurns: number;
@@ -200,8 +200,8 @@ export function meleeConfig(base: SwordfightConfig, hands: readonly SwordHand[],
  */
 export function resolveScenario(content: Content, sc: VoyageScenario): Resolved {
   const errors: string[] = [];
-  const base = baseWorld(content, sc.shipClassId, sc.routeId);
-  if (!base) return { ok: false, errors: [`unknown ship class or route: ${sc.shipClassId}, ${sc.routeId}`] };
+  const base = baseWorld(content, sc.shipClassId, sc.laneId);
+  if (!base) return { ok: false, errors: [`unknown ship class or lane: ${sc.shipClassId}, ${sc.laneId}`] };
   for (const path of Object.keys(sc.world)) if (getPath(base, path) === undefined) errors.push(`${path}: no such field`);
   const edited = applyOverrides(base, sc.world);
 
@@ -210,8 +210,8 @@ export function resolveScenario(content: Content, sc: VoyageScenario): Resolved 
     ...content.world,
     ship: edited.rules,
     shipClasses: content.world.shipClasses.map((c) => (c.id === sc.shipClassId ? edited.ship : c)),
-    routes: content.world.routes.map((r) => (r.id === sc.routeId ? edited.route : r)),
-    brigandTiers: content.world.brigandTiers.map((t) => edited.tiers[t.id] ?? t),
+    lanes: content.world.lanes.map((r) => (r.id === sc.laneId ? edited.lane : r)),
+    raiderTiers: content.world.raiderTiers.map((t) => edited.tiers[t.id] ?? t),
   };
   const parsed = WorldSchema.safeParse(world);
   if (!parsed.success) {
@@ -222,8 +222,8 @@ export function resolveScenario(content: Content, sc: VoyageScenario): Resolved 
   const w: VoyageWorld = {
     rules: parsed.data.ship,
     ship: parsed.data.shipClasses.find((c) => c.id === sc.shipClassId)!,
-    route: parsed.data.routes.find((r) => r.id === sc.routeId)!,
-    tiers: Object.fromEntries(parsed.data.brigandTiers.map((t) => [t.id, t])),
+    lane: parsed.data.lanes.find((r) => r.id === sc.laneId)!,
+    tiers: Object.fromEntries(parsed.data.raiderTiers.map((t) => [t.id, t])),
   };
 
   let ship: ShipConfig | null = null;
@@ -236,7 +236,7 @@ export function resolveScenario(content: Content, sc: VoyageScenario): Resolved 
 
   // The crew.
   const blades = content.puzzles.swordfight.config.blades.length;
-  if (sc.crew.length < 1) errors.push("crew: at least one pirate must sail");
+  if (sc.crew.length < 1) errors.push("crew: at least one pirate must fly");
   if (sc.crew.length > w.ship.maxCrew) errors.push(`crew: a ${w.ship.id} takes at most ${w.ship.maxCrew}`);
   const taken = new Set<Station>();
   sc.crew.forEach((c, i) => {
@@ -261,7 +261,7 @@ export function resolveScenario(content: Content, sc: VoyageScenario): Resolved 
   });
   if (!isInt(sc.captain.accuracy, 0, 100) || !isInt(sc.captain.aggression, 0, 100)) errors.push("captain: accuracy and aggression are percents");
   if (!HAIL_ORDERS.includes(sc.hail)) errors.push("hail: unknown order");
-  if (sc.wheel !== "ai" && sc.wheel !== "you") errors.push("wheel: ai or you");
+  if (sc.helm !== "ai" && sc.helm !== "you") errors.push("helm: ai or you");
   if (!isInt(sc.runs, 1, MAX_RUNS)) errors.push(`runs: 1 to ${MAX_RUNS}`);
   if (typeof sc.seed !== "string" || sc.seed.length === 0) errors.push("seed: required");
 
@@ -269,13 +269,13 @@ export function resolveScenario(content: Content, sc: VoyageScenario): Resolved 
   const tiers: Record<string, TierSetup> = {};
   for (const t of Object.values(w.tiers)) {
     const cls = parsed.data.shipClasses.find((c) => c.id === t.shipClassId);
-    tiers[t.id] = { id: t.id, nameKey: t.nameKey, brigand: brigandSpecFor(t, cls?.cannons ?? 0), booty: t.booty, scorePercent: t.scorePercent, swordsmen: { ...t.swordsmen } };
+    tiers[t.id] = { id: t.id, nameKey: t.nameKey, raider: raiderSpecFor(t, cls?.turrets ?? 0), plunder: t.plunder, scorePercent: t.scorePercent, swordsmen: { ...t.swordsmen } };
   }
   if (ship && errors.length === 0) {
-    const fresh = createShip(sc.seed, ship, w.route.from);
-    for (const b of w.route.brigands) {
+    const fresh = createShip(sc.seed, ship, w.lane.from);
+    for (const b of w.lane.raiders) {
       const tier = tiers[b.tierId]!;
-      const cfg = battleConfigAboard(content.puzzles.battle.config, fresh, tier.brigand, tier.scorePercent);
+      const cfg = battleConfigAboard(content.puzzles.battle.config, fresh, tier.raider, tier.scorePercent);
       const wire = PUZZLE_CONFIG_SCHEMAS.battle.safeParse(cfg);
       if (!wire.success) for (const issue of wire.error.issues) errors.push(`battle against ${tier.id}: ${issue.path.join(".")}: ${issue.message}`);
       try {
@@ -297,8 +297,8 @@ export function resolveScenario(content: Content, sc: VoyageScenario): Resolved 
     world: w,
     setup: {
       seed: sc.seed,
-      islandId: w.route.from,
-      leg: legPlan(w.route),
+      outpostId: w.lane.from,
+      leg: legPlan(w.lane),
       ship,
       battleBase: content.puzzles.battle.config,
       swordBase: content.puzzles.swordfight.config,
@@ -307,7 +307,7 @@ export function resolveScenario(content: Content, sc: VoyageScenario): Resolved 
       crew: sc.crew.map((c, i) => ({ ...c, pirateId: `p${i + 1}` })),
       script: [...sc.script].sort((a, b) => a.turn - b.turn),
       hail: sc.hail,
-      wheel: sc.wheel,
+      helm: sc.helm,
       captain: { ...sc.captain },
       maxTurns: 1000,
     },

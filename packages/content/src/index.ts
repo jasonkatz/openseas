@@ -1,15 +1,15 @@
 import { z } from "zod";
-import ocean from "../data/world/ocean.json" with { type: "json" };
-import islands from "../data/world/islands.json" with { type: "json" };
-import routes from "../data/world/routes.json" with { type: "json" };
-import brigandTiers from "../data/world/brigand-tiers.json" with { type: "json" };
+import starSystem from "../data/world/star-system.json" with { type: "json" };
+import outposts from "../data/world/outposts.json" with { type: "json" };
+import lanes from "../data/world/lanes.json" with { type: "json" };
+import raiderTiers from "../data/world/raider-tiers.json" with { type: "json" };
 import shipClasses from "../data/world/ship-classes.json" with { type: "json" };
 import shipGrants from "../data/world/ship-grants.json" with { type: "json" };
 import crews from "../data/world/crews.json" with { type: "json" };
 import pirates from "../data/world/pirates.json" with { type: "json" };
-import bilging from "../data/puzzles/bilging.json" with { type: "json" };
-import sailing from "../data/puzzles/sailing.json" with { type: "json" };
-import carpentry from "../data/puzzles/carpentry.json" with { type: "json" };
+import cooling from "../data/puzzles/cooling.json" with { type: "json" };
+import engines from "../data/puzzles/engines.json" with { type: "json" };
+import plating from "../data/puzzles/plating.json" with { type: "json" };
 import gunnery from "../data/puzzles/gunnery.json" with { type: "json" };
 import navigation from "../data/puzzles/navigation.json" with { type: "json" };
 import battle from "../data/puzzles/battle.json" with { type: "json" };
@@ -19,14 +19,14 @@ import names from "../data/names.json" with { type: "json" };
 import en from "../data/messages/en.json" with { type: "json" };
 import {
   BattleContentSchema,
-  BilgingContentSchema,
-  CarpentryContentSchema,
+  CoolingContentSchema,
+  PlatingContentSchema,
   GunneryContentSchema,
   MessagesSchema,
   NamesSchema,
   NavigationContentSchema,
   RatingTierSchema,
-  SailingContentSchema,
+  EnginesContentSchema,
   SwordfightContentSchema,
   WorldSchema,
   type BattleContent,
@@ -34,13 +34,13 @@ import {
   type CrewRules,
   type PirateLook,
   type PirateRules,
-  type BilgingContent,
-  type CarpentryContent,
+  type CoolingContent,
+  type PlatingContent,
   type GunneryContent,
   type NavigationContent,
   type PieceStyle,
   type RatingTier,
-  type SailingContent,
+  type EnginesContent,
   type SwordfightContent,
   type World,
 } from "./schema.js";
@@ -49,21 +49,21 @@ export * from "./schema.js";
 
 /** Content for every duty puzzle, keyed by puzzle id. */
 export interface DutyPuzzleContent {
-  readonly bilging: BilgingContent;
-  readonly sailing: SailingContent;
-  readonly carpentry: CarpentryContent;
+  readonly cooling: CoolingContent;
+  readonly engines: EnginesContent;
+  readonly plating: PlatingContent;
   readonly gunnery: GunneryContent;
   readonly navigation: NavigationContent;
 }
 export type DutyPuzzleContentId = keyof DutyPuzzleContent;
 
-/** Every puzzle's content: the duty puzzles, the captain's sea battle and the boarding fight. */
+/** Every puzzle's content: the duty puzzles, the captain's space battle and the boarding fight. */
 export interface PuzzleContent extends DutyPuzzleContent {
   readonly battle: BattleContent;
   readonly swordfight: SwordfightContent;
 }
 export type PuzzleContentId = keyof PuzzleContent;
-export const DUTY_PUZZLE_CONTENT_IDS: readonly DutyPuzzleContentId[] = ["bilging", "sailing", "carpentry", "gunnery", "navigation"];
+export const DUTY_PUZZLE_CONTENT_IDS: readonly DutyPuzzleContentId[] = ["cooling", "engines", "plating", "gunnery", "navigation"];
 
 export interface Content {
   readonly world: World;
@@ -86,19 +86,19 @@ export class ContentError extends Error {
  */
 export function loadContent(): Content {
   const world = parse("world", WorldSchema, {
-    ...ocean,
-    islands,
-    routes,
-    brigandTiers,
+    ...starSystem,
+    outposts,
+    lanes,
+    raiderTiers,
     shipClasses,
     shipGrants,
     crews,
     pirates,
   });
   const puzzles: PuzzleContent = {
-    bilging: parse("puzzles/bilging", BilgingContentSchema, bilging),
-    sailing: parse("puzzles/sailing", SailingContentSchema, sailing),
-    carpentry: parse("puzzles/carpentry", CarpentryContentSchema, carpentry),
+    cooling: parse("puzzles/cooling", CoolingContentSchema, cooling),
+    engines: parse("puzzles/engines", EnginesContentSchema, engines),
+    plating: parse("puzzles/plating", PlatingContentSchema, plating),
     gunnery: parse("puzzles/gunnery", GunneryContentSchema, gunnery),
     navigation: parse("puzzles/navigation", NavigationContentSchema, navigation),
     battle: parse("puzzles/battle", BattleContentSchema, battle),
@@ -131,40 +131,40 @@ export function contentProblems(content: Content): string[] {
   const need = (key: string, where: string): void => {
     if (!(key in messages)) problems.push(`${where}: missing message key "${key}"`);
   };
-  const islandIds = new Set(world.islands.map((i) => i.id));
+  const outpostIds = new Set(world.outposts.map((i) => i.id));
   const classIds = new Set(world.shipClasses.map((c) => c.id));
-  const tierIds = new Set(world.brigandTiers.map((t) => t.id));
+  const tierIds = new Set(world.raiderTiers.map((t) => t.id));
   const ratingTierKeys = new Set(tiers.map((t) => t.key));
 
-  for (const i of world.islands) {
-    need(i.nameKey, `island ${i.id}`);
-    need(i.blurbKey, `island ${i.id}`);
+  for (const i of world.outposts) {
+    need(i.nameKey, `outpost ${i.id}`);
+    need(i.blurbKey, `outpost ${i.id}`);
   }
-  if (!islandIds.has(world.startIslandId)) problems.push(`ocean: unknown start island ${world.startIslandId}`);
-  if (world.ship.maxSpeed < world.ship.idleSpeed) problems.push("ocean: ship.maxSpeed below ship.idleSpeed");
-  if (world.ship.encounterWindow.to < world.ship.encounterWindow.from) problems.push("ocean: ship.encounterWindow ends before it starts");
-  for (const r of world.routes) {
-    if (r.durationSeconds % world.ship.turnSeconds !== 0) problems.push(`route ${r.id}: durationSeconds must be a whole number of turns of ${world.ship.turnSeconds}s`);
+  if (!outpostIds.has(world.startOutpostId)) problems.push(`star system: unknown start outpost ${world.startOutpostId}`);
+  if (world.ship.maxSpeed < world.ship.idleSpeed) problems.push("star system: ship.maxSpeed below ship.idleSpeed");
+  if (world.ship.encounterWindow.to < world.ship.encounterWindow.from) problems.push("star system: ship.encounterWindow ends before it starts");
+  for (const r of world.lanes) {
+    if (r.durationSeconds % world.ship.turnSeconds !== 0) problems.push(`lane ${r.id}: durationSeconds must be a whole number of turns of ${world.ship.turnSeconds}s`);
   }
-  for (const r of world.routes) {
-    if (!islandIds.has(r.from)) problems.push(`route ${r.id}: unknown island ${r.from}`);
-    if (!islandIds.has(r.to)) problems.push(`route ${r.id}: unknown island ${r.to}`);
-    if (r.from === r.to) problems.push(`route ${r.id}: from and to are the same island`);
-    for (const b of r.brigands) if (!tierIds.has(b.tierId)) problems.push(`route ${r.id}: unknown brigand tier ${b.tierId}`);
+  for (const r of world.lanes) {
+    if (!outpostIds.has(r.from)) problems.push(`lane ${r.id}: unknown outpost ${r.from}`);
+    if (!outpostIds.has(r.to)) problems.push(`lane ${r.id}: unknown outpost ${r.to}`);
+    if (r.from === r.to) problems.push(`lane ${r.id}: from and to are the same outpost`);
+    for (const b of r.raiders) if (!tierIds.has(b.tierId)) problems.push(`lane ${r.id}: unknown raider tier ${b.tierId}`);
   }
-  for (const t of world.brigandTiers) {
-    need(t.nameKey, `brigand tier ${t.id}`);
-    if (!classIds.has(t.shipClassId)) problems.push(`brigand tier ${t.id}: unknown ship class ${t.shipClassId}`);
-    if (t.swordsmen.blade >= puzzles.swordfight.config.blades.length) problems.push(`brigand tier ${t.id}: unknown blade ${t.swordsmen.blade}`);
+  for (const t of world.raiderTiers) {
+    need(t.nameKey, `raider tier ${t.id}`);
+    if (!classIds.has(t.shipClassId)) problems.push(`raider tier ${t.id}: unknown ship class ${t.shipClassId}`);
+    if (t.swordsmen.blade >= puzzles.swordfight.config.blades.length) problems.push(`raider tier ${t.id}: unknown blade ${t.swordsmen.blade}`);
   }
   for (const c of world.shipClasses) {
     need(c.nameKey, `ship class ${c.id}`);
     if (c.minCrew > c.maxCrew) problems.push(`ship class ${c.id}: minCrew above maxCrew`);
-    for (const st of c.mateStations) if (!c.stations.includes(st)) problems.push(`ship class ${c.id}: deckhands would work ${st}, which it does not have`);
-    if (new Set(c.mateStations).size !== c.mateStations.length) problems.push(`ship class ${c.id}: mateStations repeats a station`);
+    for (const st of c.botStations) if (!c.stations.includes(st)) problems.push(`ship class ${c.id}: bots would work ${st}, which it does not have`);
+    if (new Set(c.botStations).size !== c.botStations.length) problems.push(`ship class ${c.id}: botStations repeats a station`);
   }
-  if (world.ship.mateOutput.max < world.ship.mateOutput.min) problems.push("ocean: ship.mateOutput ends below where it starts");
-  if (Object.values(world.ship.outputCapPercent).some((cap) => world.ship.mateOutput.max > cap)) problems.push("ocean: ship.mateOutput exceeds a station's outputCapPercent");
+  if (world.ship.botOutput.max < world.ship.botOutput.min) problems.push("star system: ship.botOutput ends below where it starts");
+  if (Object.values(world.ship.outputCapPercent).some((cap) => world.ship.botOutput.max > cap)) problems.push("star system: ship.botOutput exceeds a station's outputCapPercent");
   for (const g of world.shipGrants) {
     if (!classIds.has(g.shipClassId)) problems.push(`ship grant ${g.id}: unknown ship class ${g.shipClassId}`);
     if (g.requires.minTier !== null && !ratingTierKeys.has(g.requires.minTier)) {
@@ -189,7 +189,7 @@ export function contentProblems(content: Content): string[] {
   }
   {
     const p = world.pirates;
-    for (const [kind, parts] of [["coat", p.coats], ["hat", p.hats], ["title", p.titles]] as const) {
+    for (const [kind, parts] of [["jacket", p.jackets], ["headgear", p.headgear], ["title", p.titles]] as const) {
       const ids = new Set<string>();
       for (const x of parts) {
         need(x.nameKey, `pirate ${kind} ${x.id}`);
@@ -197,7 +197,7 @@ export function contentProblems(content: Content): string[] {
         ids.add(x.id);
       }
     }
-    if (new Set(p.coats.map((x) => x.hex)).size !== p.coats.length) problems.push("pirates: two coats share a hex");
+    if (new Set(p.jackets.map((x) => x.hex)).size !== p.jackets.length) problems.push("pirates: two jackets share a hex");
     const puzzleIds = new Set<string>(Object.keys(puzzles));
     const seen = new Set<string>();
     for (const t of p.titles) {
@@ -237,10 +237,10 @@ export function contentProblems(content: Content): string[] {
   {
     const b = puzzles.battle;
     if (b.config.maxTurns * b.config.turnSeconds > b.roundSeconds) problems.push("puzzles/battle: roundSeconds must cover maxTurns turns of turnSeconds");
-    if (b.config.startLoaded > b.config.cannons) problems.push("puzzles/battle: startLoaded exceeds cannons");
-    for (const t of world.brigandTiers) {
+    if (b.config.startLoaded > b.config.turrets) problems.push("puzzles/battle: startLoaded exceeds turrets");
+    for (const t of world.raiderTiers) {
       const cls = world.shipClasses.find((c) => c.id === t.shipClassId);
-      if (cls && t.reloadPerTurn > cls.cannons) problems.push(`brigand tier ${t.id}: reloads more cannons than its ${cls.id} carries`);
+      if (cls && t.reloadPerTurn > cls.turrets) problems.push(`raider tier ${t.id}: reloads more turrets than its ${cls.id} carries`);
     }
   }
   {
@@ -259,13 +259,13 @@ export function contentProblems(content: Content): string[] {
     }
     if (c.incomingCapRows > c.height) problems.push("puzzles/swordfight: incomingCapRows exceeds the board");
   }
-  for (const s of Object.values(puzzles.bilging.specials)) need(s.nameKey, "bilging special");
-  for (const sh of puzzles.carpentry.shapes) need(sh.nameKey, "carpentry shape");
-  if (puzzles.carpentry.config.maxHolePieces < puzzles.carpentry.config.minHolePieces) problems.push("puzzles/carpentry: maxHolePieces below minHolePieces");
+  for (const s of Object.values(puzzles.cooling.specials)) need(s.nameKey, "cooling special");
+  for (const sh of puzzles.plating.shapes) need(sh.nameKey, "plating shape");
+  if (puzzles.plating.config.maxBreachPieces < puzzles.plating.config.minBreachPieces) problems.push("puzzles/plating: maxBreachPieces below minBreachPieces");
   if (puzzles.gunnery.config.maxTick * puzzles.gunnery.config.tickMs < puzzles.gunnery.roundSeconds * 1000) {
     problems.push("puzzles/gunnery: maxTick * tickMs must cover roundSeconds");
   }
-  if (puzzles.sailing.config.platformSpanMax > puzzles.sailing.config.width) problems.push("puzzles/sailing: platform span exceeds the board width");
+  if (puzzles.engines.config.injectorSpanMax > puzzles.engines.config.width) problems.push("puzzles/engines: injector span exceeds the board width");
   {
     const nav = puzzles.navigation;
     if (nav.colors.length < nav.config.colors) problems.push(`puzzles/navigation: ${nav.config.colors} colors but only ${nav.colors.length} defined`);
@@ -324,13 +324,13 @@ export function crewFlagProblem(rules: CrewRules, flag: CrewFlag): string | null
 
 /** Why a look is not one the pirate rules allow, or null when it is. The server checks every look a pirate picks with this. */
 export function pirateLookProblem(rules: PirateRules, look: PirateLook): string | null {
-  if (!rules.coats.some((x) => x.id === look.coat)) return `unknown coat "${look.coat}"`;
-  if (!rules.hats.some((x) => x.id === look.hat)) return `unknown hat "${look.hat}"`;
+  if (!rules.jackets.some((x) => x.id === look.jacket)) return `unknown jacket "${look.jacket}"`;
+  if (!rules.headgear.some((x) => x.id === look.headgear)) return `unknown headgear "${look.headgear}"`;
   return null;
 }
 
 /**
- * The look a pirate wears before they pick one: a coat and a hat drawn from their id, so a deck of
+ * The look a pirate wears before they pick one: a jacket and a headgear drawn from their id, so a deck of
  * pirates who never opened their sheet is still a mixed crew. Deterministic, so every viewer agrees.
  */
 export function defaultLook(rules: PirateRules, pirateId: string): PirateLook {
@@ -340,7 +340,7 @@ export function defaultLook(rules: PirateRules, pirateId: string): PirateLook {
     h ^= pirateId.charCodeAt(i);
     h = Math.imul(h, 0x01000193) >>> 0;
   }
-  return { coat: rules.coats[h % rules.coats.length]!.id, hat: rules.hats[Math.floor(h / rules.coats.length) % rules.hats.length]!.id };
+  return { jacket: rules.jackets[h % rules.jackets.length]!.id, headgear: rules.headgear[Math.floor(h / rules.jackets.length) % rules.headgear.length]!.id };
 }
 
 /** Look up a player-facing string. Unknown keys return the key itself so a miss is visible, never silent. */

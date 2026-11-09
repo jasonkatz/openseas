@@ -2,10 +2,10 @@ import { z } from "zod";
 import { ContentIdSchema, ErrorCodeSchema, PirateLookWireSchema, PirateSummarySchema, PuzzleIdSchema, RatingViewSchema } from "./common.js";
 import { PirateSheetSchema } from "./pirate.js";
 import { BattleConfigSchema } from "./battle.js";
-import { BilgingConfigSchema } from "./bilging.js";
-import { CarpentryConfigSchema } from "./carpentry.js";
+import { CoolingConfigSchema } from "./cooling.js";
+import { PlatingConfigSchema } from "./plating.js";
 import { NavigationConfigSchema } from "./navigation.js";
-import { SailingConfigSchema } from "./sailing.js";
+import { EnginesConfigSchema } from "./engines.js";
 import { GunneryConfigSchema } from "./gunnery.js";
 import { MeleeBoardSchema, SwordfightConfigSchema } from "./swordfight.js";
 import { BoardShipSchema, ChatChannelSchema, ShipEventWireSchema, ShipSnapshotSchema, StationSchema } from "./ship.js";
@@ -15,12 +15,12 @@ import { CrewInfoSchema, CrewInviteSchema, CrewNameSchema, CrewNoticeSchema, Cre
 const SessionId = z.string().min(8).max(64);
 
 /**
- * Where a pirate is walking, in the place's own frame (ADR 0032): an island's local ground plane,
+ * Where a pirate is walking, in the place's own frame (ADR 0032): an outpost's local ground plane,
  * or the deck of the ship they are aboard. Cosmetic: no rule reads it; the server only relays it.
  */
 export const WalkSpotSchema = z.object({ x: z.number().min(-4).max(4), z: z.number().min(-4).max(4) });
 export type WalkSpot = z.infer<typeof WalkSpotSchema>;
-export const WalkScopeSchema = z.enum(["island", "ship"]);
+export const WalkScopeSchema = z.enum(["outpost", "ship"]);
 export type WalkScope = z.infer<typeof WalkScopeSchema>;
 const Hash = z.string().regex(/^[0-9a-f]{8}$/);
 
@@ -56,41 +56,41 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     metrics: ClientMetricsSchema.optional(),
   }),
   z.object({ type: z.literal("puzzle.abandon"), sessionId: SessionId }),
-  /** Board a ship at the pirate's island, or one at sea from the notice board. */
+  /** Board a ship at the pirate's outpost, or one in flight from the notice board. */
   z.object({ type: z.literal("ship.board"), shipId: z.string().min(1).max(64) }),
   z.object({ type: z.literal("ship.leave") }),
   /** Take a station aboard the pirate's ship, or null to stand down. */
   z.object({ type: z.literal("ship.station"), station: StationSchema.nullable() }),
-  /** Captain only: set sail along a route leg from the island the ship is docked at. */
-  z.object({ type: z.literal("ship.sail"), routeId: z.string().min(1).max(64) }),
-  /** Captain only: evade the brigand that hailed the ship. */
+  /** Captain only: launch along a lane leg from the outpost the ship is docked at. */
+  z.object({ type: z.literal("ship.launch"), laneId: z.string().min(1).max(64) }),
+  /** Captain only: evade the raider that hailed the ship. */
   z.object({ type: z.literal("ship.evade") }),
-  /** Captain only: fight the brigand that hailed the ship. The battle board is dealt as a puzzle session. */
+  /** Captain only: fight the raider that hailed the ship. The battle board is dealt as a puzzle session. */
   z.object({ type: z.literal("ship.engage") }),
-  /** Captain only: hand the wheel to someone aboard. */
-  z.object({ type: z.literal("ship.wheel"), pirateId: z.string().min(1).max(64) }),
-  /** Captain only: send a deckhand to one of the stations it works, or stand it down with null. */
+  /** Captain only: hand the helm to someone aboard. */
+  z.object({ type: z.literal("ship.helm"), pirateId: z.string().min(1).max(64) }),
+  /** Captain only: send a bot to one of the stations it works, or stand it down with null. */
   z.object({ type: z.literal("ship.assign"), pirateId: z.string().min(1).max(64), station: StationSchema.nullable() }),
   /** Owner only: whether others may board. */
   z.object({ type: z.literal("ship.lock"), inviteOnly: z.boolean() }),
-  /** Start a board at the pirate's station; the ship must be at sea. Moves flow as puzzle.move. */
+  /** Start a board at the pirate's station; the ship must be in flight. Moves flow as puzzle.move. */
   z.object({ type: z.literal("duty.start") }),
-  /** Ships at the pirate's island and ships at sea. */
+  /** Ships at the pirate's outpost and ships in flight. */
   z.object({ type: z.literal("board.list") }),
-  /** Buy a ship at the shipyard of the island the pirate stands on (ADR 0010). */
+  /** Buy a ship at the shipyard of the outpost the pirate stands on (ADR 0010). */
   z.object({ type: z.literal("shipyard.buy"), classId: z.string().min(1).max(64) }),
-  /** Say something to the ship's crew or to everyone ashore at the same island. */
+  /** Say something to the ship's crew or to everyone at the same outpost. */
   z.object({ type: z.literal("chat.send"), channel: ChatChannelSchema, text: z.string().trim().min(1).max(280) }),
-  /** Who is ashore at the pirate's island right now. */
-  z.object({ type: z.literal("island.who") }),
-  /** The pirate walks to a spot where they are: on their island ashore, or on deck aboard (ADR 0032). */
+  /** Who is at the pirate's outpost right now. */
+  z.object({ type: z.literal("outpost.who") }),
+  /** The pirate walks to a spot where they are: on their outpost on the outpost, or on deck aboard (ADR 0032). */
   z.object({ type: z.literal("walk.to"), x: WalkSpotSchema.shape.x, z: WalkSpotSchema.shape.z }),
   /** Aboard, in a boarding melee without a board (joined late, or back from a drop): deal one. */
   z.object({ type: z.literal("melee.join") }),
   // ---- crews (M6, ADR 0025)
   /** The pirate's crew and the invitations waiting on them, answered with `crew.state`. */
   z.object({ type: z.literal("crew.info") }),
-  /** The board of crews in the tavern, answered with `crew.list`. */
+  /** The board of crews in the cantina, answered with `crew.list`. */
   z.object({ type: z.literal("crew.list") }),
   /** Found a crew, paying the founding fee. The founder is its commodore. */
   z.object({ type: z.literal("crew.found"), name: CrewNameSchema, flag: CrewFlagWireSchema }),
@@ -106,14 +106,14 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("crew.leave") }),
   /** Commodore only: set a member's rank. Making someone commodore hands over the crew. */
   z.object({ type: z.literal("crew.rank"), pirateId: z.string().min(1).max(64), rank: CrewRankSchema }),
-  /** Put a member out of the crew: the commodore anyone, an officer a sailor. */
+  /** Put a member out of the crew: the commodore anyone, an officer a spacer. */
   z.object({ type: z.literal("crew.remove"), pirateId: z.string().min(1).max(64) }),
   /** Another pirate as a tap on their name shows them, by id or by name. */
   z.object({ type: z.literal("pirate.profile"), pirateId: z.string().min(1).max(64).optional(), name: z.string().trim().min(1).max(64).optional() }),
   // ---- the pirate's own sheet (DESIGN.md 3.6, ADR 0033)
   /** The pirate's record and every title's progress, answered with `pirate.sheet`. */
   z.object({ type: z.literal("pirate.sheet") }),
-  /** Wear this coat and hat on deck. Answered with `pirate.updated`. */
+  /** Wear this jacket and headgear on deck. Answered with `pirate.updated`. */
   z.object({ type: z.literal("pirate.look"), look: PirateLookWireSchema }),
   /** Show this earned title after the name, or none. Answered with `pirate.updated`. */
   z.object({ type: z.literal("pirate.title"), title: ContentIdSchema.nullable() }),
@@ -132,11 +132,11 @@ const PuzzleStartedBase = z.object({
     .object({
       shipId: z.string(),
       station: StationSchema,
-      /** Bilging only: the ship's bilge in rows when the board was dealt; the board's first move sets it. */
-      water: z.int().min(0).max(32).optional(),
+      /** Cooling only: the ship's heat in rows when the board was dealt; the board's first move sets it. */
+      heat: z.int().min(0).max(32).optional(),
     })
     .optional(),
-  /** Present when the round is the captain's sea battle aboard a ship. */
+  /** Present when the round is the captain's space battle aboard a ship. */
   battle: z.object({ shipId: z.string(), tierId: z.string() }).optional(),
   /** Present when the round is the pirate's board in a boarding melee aboard a ship (M5). */
   melee: z.object({ shipId: z.string(), tierId: z.string() }).optional(),
@@ -149,9 +149,9 @@ const PuzzleStartedBase = z.object({
 
 /** One variant per puzzle so a client narrows `config` by `puzzle`. */
 export const PuzzleStartedSchema = z.discriminatedUnion("puzzle", [
-  PuzzleStartedBase.extend({ puzzle: z.literal("bilging"), config: BilgingConfigSchema }),
-  PuzzleStartedBase.extend({ puzzle: z.literal("sailing"), config: SailingConfigSchema }),
-  PuzzleStartedBase.extend({ puzzle: z.literal("carpentry"), config: CarpentryConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("cooling"), config: CoolingConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("engines"), config: EnginesConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("plating"), config: PlatingConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("gunnery"), config: GunneryConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("navigation"), config: NavigationConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("battle"), config: BattleConfigSchema }),
@@ -196,14 +196,14 @@ export const ServerMessageSchema = z.union([
   PuzzleResultSchema,
   PuzzleRejectedSchema,
   z.object({ type: z.literal("ship.state"), ship: ShipSnapshotSchema, events: z.array(ShipEventWireSchema), serverNow: z.number() }),
-  /** The pirate is no longer aboard: they went ashore, or their held seat timed out. */
+  /** The pirate is no longer aboard: they disembarked, or their held seat timed out. */
   z.object({ type: z.literal("ship.left"), shipId: z.string(), reason: z.enum(["left", "timed_out"]) }),
-  z.object({ type: z.literal("board.ships"), islandId: z.string(), ships: z.array(BoardShipSchema), serverNow: z.number() }),
+  z.object({ type: z.literal("board.ships"), outpostId: z.string(), ships: z.array(BoardShipSchema), serverNow: z.number() }),
   /**
-   * The ship's bilge changed at a turn: the Bilging board at this session logs a water move with this
+   * The ship's heat changed at a turn: the Cooling board at this session logs a heat move with this
    * row. Sent to a duty board by its ship, and to a recorded harness round by its lone ship (ADR 0029).
    */
-  z.object({ type: z.literal("duty.water"), sessionId: SessionId, row: z.int().min(0).max(32) }),
+  z.object({ type: z.literal("duty.heat"), sessionId: SessionId, row: z.int().min(0).max(32) }),
   /** A ship turn passed during a battle: the captain's board logs a supply move with exactly these numbers. */
   z.object({
     type: z.literal("battle.supply"),
@@ -211,16 +211,16 @@ export const ServerMessageSchema = z.union([
     left: z.int().min(0).max(32),
     forward: z.int().min(0).max(32),
     right: z.int().min(0).max(32),
-    cannons: z.int().min(0).max(32),
+    turrets: z.int().min(0).max(32),
     hull: z.int().min(0).max(1000),
   }),
-  /** Wrack from another board in the melee: the pirate's board logs an incoming move with exactly these numbers, in this order. */
-  z.object({ type: z.literal("melee.incoming"), sessionId: SessionId, wrack: z.int().min(1).max(999), blade: z.int().min(0).max(15), from: z.string() }),
+  /** Scrap from another board in the melee: the pirate's board logs an incoming move with exactly these numbers, in this order. */
+  z.object({ type: z.literal("melee.incoming"), sessionId: SessionId, scrap: z.int().min(1).max(999), blade: z.int().min(0).max(15), from: z.string() }),
   /** Every board in the melee, for the boards beside the pirate's own. Sent whenever one changes. */
   z.object({ type: z.literal("melee.boards"), shipId: z.string(), boards: z.array(MeleeBoardSchema), serverNow: z.number() }),
   /** The melee is decided for the side outside the pirate's board: their board logs an end move saying this. */
   z.object({ type: z.literal("melee.over"), sessionId: SessionId, won: z.boolean(), tick: z.int().min(0).max(1_000_000) }),
-  /** The pirate's own summary changed: they came ashore somewhere new, or bought a ship. */
+  /** The pirate's own summary changed: they came on the outpost somewhere new, or bought a ship. */
   z.object({ type: z.literal("pirate.updated"), pirate: PirateSummarySchema }),
   z.object({
     type: z.literal("chat.message"),
@@ -230,23 +230,23 @@ export const ServerMessageSchema = z.union([
     text: z.string(),
     at: z.number(),
   }),
-  /** Everyone ashore at an island. Sent to those ashore there whenever it changes, and on request. */
+  /** Everyone at an outpost. Sent to those on the outpost there whenever it changes, and on request. */
   z.object({
-    type: z.literal("island.presence"),
-    islandId: z.string(),
+    type: z.literal("outpost.presence"),
+    outpostId: z.string(),
     pirates: z.array(
       z.object({
         pirateId: z.string(),
         name: z.string(),
         crew: CrewTagSchema.nullable().optional(),
-        /** Where they last walked to on the island, if they have walked since coming ashore (ADR 0032). */
+        /** Where they last walked to on the outpost, if they have walked since coming on the outpost (ADR 0032). */
         at: WalkSpotSchema.nullable().optional(),
         /** What they wear (DESIGN.md 3.6, ADR 0033); left out by a server that does not say. */
         look: PirateLookWireSchema.nullable().optional(),
       }),
     ),
   }),
-  /** Someone in the pirate's place walked: another pirate ashore on the same island, or a shipmate on deck. */
+  /** Someone in the pirate's place walked: another pirate on the same outpost, or a shipmate on deck. */
   z.object({ type: z.literal("walk.moved"), scope: WalkScopeSchema, pirateId: z.string(), x: WalkSpotSchema.shape.x, z: WalkSpotSchema.shape.z }),
   /** Where everyone in a place last walked to, sent to a pirate as they come aboard. */
   z.object({ type: z.literal("walk.where"), scope: WalkScopeSchema, walkers: z.array(z.object({ pirateId: z.string(), x: WalkSpotSchema.shape.x, z: WalkSpotSchema.shape.z })) }),

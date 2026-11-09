@@ -5,19 +5,19 @@ import json
 import argparse
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('sources', type=Path, help='Directory of bilging.png, sailing.png, etc.')
+parser.add_argument('sources', type=Path, help='Directory of cooling.png, engines.png, etc.')
 args = parser.parse_args()
 out = Path(__file__).resolve().parents[1]/'src/sprites'
 out.mkdir(parents=True, exist_ok=True)
 # Explicit source rows: generated sheets are not machine-aligned atlases.
 specs = {
- 'bilging': (4,[0,362,724,1086], ['cog','shell','anchor','plank','pearl','kelp','coral','keg','ink','barnacle','splash','glint']),
- 'sailing': (3,[0,418,836,1254], ['weave','coil','ripple','target-weave','target-coil','target-ripple','ledge','link','gust']),
- 'carpentry': (4,[0,418,836,1254], ['oak-h','teak-h','pine-h','mahogany-h','oak-v','teak-v','pine-v','mahogany-v','nail','chips','edge','sparkle']),
- 'gunnery': (4,[0,385,875,1254], ['powder','wad','shot','water','cannon-empty','cannon-loaded','cannon-fouled','cannon-fire','crate','arrow','deck','smoke']),
+ 'cooling': (4,[0,362,724,1086], ['cog','valve','bolt','fuse','crystal','coil','chip','charge','magnet','slag','splash','glint']),
+ 'engines': (3,[0,418,836,1254], ['weave','coil','ripple','target-weave','target-coil','target-ripple','ledge','link','gust']),
+ 'plating': (4,[0,418,836,1254], ['tin-h','copper-h','steel-h','brass-h','tin-v','copper-v','steel-v','brass-v','weld','chips','edge','sparkle']),
+ 'gunnery': (4,[0,385,875,1254], ['cell','sabot','slug','coolant','turret-empty','turret-loaded','turret-jammed','turret-fire','crate','arrow','deck','smoke']),
  'navigation': (3,[0,314,628,942,1254], ['gold-spark','gold-star','gold-comet','ice-spark','ice-star','ice-comet','ember-spark','ember-star','ember-comet','marker-spark','marker-star','marker-comet']),
  'swordfight': (4,[0,314,628,942,1254], ['facet-block','rivet-block','scale-block','hatch-block','facet-breaker','rivet-breaker','scale-breaker','hatch-breaker','facet-hint','rivet-hint','scale-hint','hatch-hint','stone','blade','shatter','swipe']),
- 'battle': (4,[0,500,875,1254], ['ship0','ship1','ship0-damaged','ship1-damaged','reef','wind','eddy','wake','ball','splash','hook','flash']),
+ 'battle': (4,[0,500,875,1254], ['ship0','ship1','ship0-damaged','ship1-damaged','asteroid','current','well','wake','ball','splash','hook','flash']),
 }
 manifest={}
 for puzzle,(cols,rows,names) in specs.items():
@@ -34,7 +34,7 @@ for puzzle,(cols,rows,names) in specs.items():
   bbox=tile.getchannel('A').point(lambda a: 255 if a>32 else 0).getbbox()
   if not bbox: raise ValueError(name)
   tile=tile.crop(bbox)
-  if puzzle=='carpentry' and i<8:
+  if puzzle=='plating' and i<8:
    w,h=tile.size
    tile=tile.crop((int(w*.08),int(h*.08),int(w*.92),int(h*.92)))
    tile=tile.resize((size,size),Image.Resampling.LANCZOS)

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 // Exercise the production build: a working dev URL is not enough for shared-package assets.
-for (const puzzle of ["bilging", "sailing", "carpentry", "gunnery", "navigation", "swordfight", "battle"]) {
+for (const puzzle of ["cooling", "engines", "plating", "gunnery", "navigation", "swordfight", "battle"]) {
   test(`${puzzle} atlas loads, draws, and survives a resize`, async ({ page }, testInfo) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
@@ -28,9 +28,9 @@ test("an unavailable atlas falls back to playable procedural art", async ({ page
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/*.webp", (route) => route.abort());
-  await page.goto("/bilging");
+  await page.goto("/cooling");
   await page.getByTestId("start-unrated").click();
-  await expect(page.getByTestId("bilging-canvas")).toHaveAttribute("data-sprite-atlas", "fallback");
+  await expect(page.getByTestId("cooling-canvas")).toHaveAttribute("data-sprite-atlas", "fallback");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Enter");

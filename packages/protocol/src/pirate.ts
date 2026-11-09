@@ -12,12 +12,12 @@ export const PirateRecordSchema = z.object({
   since: z.number(),
   /** Voyages that reached port with them aboard. */
   voyages: z.int().min(0),
-  /** Of those, the ones they set sail as captain. */
+  /** Of those, the ones they launched as captain. */
   captained: z.int().min(0),
-  /** Brigands beaten with them aboard: a share of a purse each. */
+  /** Raiders beaten with them aboard: a share of a purse each. */
   victories: z.int().min(0),
-  /** Coins of booty paid to them, in all. */
-  booty: z.int().min(0),
+  /** Credits of plunder paid to them, in all. */
+  plunder: z.int().min(0),
   /** Boards that moved their standing, every puzzle together. */
   boards: z.int().min(0),
 });

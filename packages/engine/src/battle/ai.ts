@@ -1,11 +1,11 @@
 /**
- * The brigand's captain. A scripted policy, not a search over the captain's mind: it guesses the
- * captain will sail last turn's moves again (or hold still), sails every plan its tokens allow
+ * The raider's captain. A scripted policy, not a search over the captain's mind: it guesses the
+ * captain will fly last turn's moves again (or hold still), flies every plan its tokens allow
  * through the same resolution the fight uses, and scores each by the broadsides it lines up, the
- * broadsides it walks into, the rocks it hits, how close it ends and whether it can board. The
+ * broadsides it walks into, the asteroids it hits, how close it ends and whether it can board. The
  * tier's knobs shape it: aggression trades safety for closing and boarding; accuracy is how many
  * of the shots it meant to fire it actually fires, and how often it fires at nothing. Every roll
- * comes from the fight's PRNG, so the brigand replays exactly (ADR 0003).
+ * comes from the fight's PRNG, so the raider replays exactly (ADR 0003).
  */
 
 import { nextInt, type PrngState } from "../prng.js";
@@ -16,13 +16,13 @@ const HIT_VALUE = 100;
 const EXPOSED_VALUE = 80;
 const BOARD_VALUE = 1200;
 const BOARDED_VALUE = 900;
-/** How many of the best plans a less wily brigand picks among. */
+/** How many of the best plans a less wily raider picks among. */
 const TOP_N = 4;
 
 interface Candidate {
   readonly moves: ReadonlyArray<MoveToken | null>;
   score: number;
-  /** Per segment and side, whether the captain's ship sat in the brigand's arc under the main prediction. */
+  /** Per segment and side, whether the captain's ship sat in the raider's arc under the main prediction. */
   readonly arcs: ReadonlyArray<{ port: boolean; starboard: boolean }>;
   readonly ends: Pose;
 }
@@ -81,7 +81,7 @@ export function enumeratePlans(tokens: Readonly<Record<MoveToken, number>>, segm
 
 function evaluate(state: BattleState, moves: ReadonlyArray<MoveToken | null>, predicted: BattlePlan, grapple: boolean): { score: number; arcs: Array<{ port: boolean; starboard: boolean }>; ends: Pose } {
   const cfg = state.config;
-  const b = cfg.brigand;
+  const b = cfg.raider;
   const me = state.ships[1];
   const plan: BattlePlan = { segments: moves.map((m) => ({ move: m, port: false, starboard: false })), grapple };
   const r = resolveTurn(state.board, cfg, state.ships, [predicted, plan]);
@@ -91,8 +91,8 @@ function evaluate(state: BattleState, moves: ReadonlyArray<MoveToken | null>, pr
   let exposed = 0;
   const theirLoaded = state.ships[0].loaded;
   for (const [them, us] of r.trace) {
-    const port = shotsLeft > 0 && arcCells(state.board, us, "port", cfg.cannonRange).some((c) => c.x === them.x && c.y === them.y);
-    const starboard = shotsLeft > 0 && arcCells(state.board, us, "starboard", cfg.cannonRange).some((c) => c.x === them.x && c.y === them.y);
+    const port = shotsLeft > 0 && arcCells(state.board, us, "port", cfg.turretRange).some((c) => c.x === them.x && c.y === them.y);
+    const starboard = shotsLeft > 0 && arcCells(state.board, us, "starboard", cfg.turretRange).some((c) => c.x === them.x && c.y === them.y);
     if (port) shotsLeft -= 1;
     if (starboard) shotsLeft -= 1;
     if (port) score += HIT_VALUE;
@@ -100,7 +100,7 @@ function evaluate(state: BattleState, moves: ReadonlyArray<MoveToken | null>, pr
     arcs.push({ port, starboard });
     if (theirLoaded > 0) {
       for (const side of ["port", "starboard"] as const) {
-        if (arcCells(state.board, them, side, cfg.cannonRange).some((c) => c.x === us.x && c.y === us.y)) exposed += 1;
+        if (arcCells(state.board, them, side, cfg.turretRange).some((c) => c.x === us.x && c.y === us.y)) exposed += 1;
       }
     }
   }
@@ -118,10 +118,10 @@ function evaluate(state: BattleState, moves: ReadonlyArray<MoveToken | null>, pr
   return { score, arcs, ends };
 }
 
-/** Pick the brigand's plan for the turn about to resolve. Spends only the PRNG it returns. */
-export function chooseBrigandPlan(state: BattleState, rng: PrngState): { plan: BattlePlan; rng: PrngState } {
+/** Pick the raider's plan for the turn about to resolve. Spends only the PRNG it returns. */
+export function chooseRaiderPlan(state: BattleState, rng: PrngState): { plan: BattlePlan; rng: PrngState } {
   const cfg = state.config;
-  const b = cfg.brigand;
+  const b = cfg.raider;
   const me = state.ships[1];
   const main = predictCaptain(state);
   const grapple = b.aggression > 0;
@@ -141,7 +141,7 @@ export function chooseBrigandPlan(state: BattleState, rng: PrngState): { plan: B
     pick = candidates[r.value]!;
   }
   // Guns: fire where the captain is expected, as far as the loads go, each shot judged right with
-  // the tier's accuracy. A poor gunner also wastes a load now and then on an empty sea.
+  // the tier's accuracy. A poor gunner also wastes a load now and then on an empty space.
   let loads = me.loaded;
   const segments: BattleSegment[] = [];
   for (let i = 0; i < cfg.segments; i++) {

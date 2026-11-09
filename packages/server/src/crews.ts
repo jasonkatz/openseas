@@ -31,7 +31,7 @@ export class CrewError extends Error {
   }
 }
 
-const RANK_ORDER: Record<CrewRank, number> = { commodore: 0, officer: 1, sailor: 2 };
+const RANK_ORDER: Record<CrewRank, number> = { commodore: 0, officer: 1, spacer: 2 };
 
 interface Member {
   rank: CrewRank;
@@ -48,7 +48,7 @@ interface Crew {
   name: string;
   flag: CrewFlag;
   foundedAt: number;
-  stats: { voyages: number; victories: number; booty: number };
+  stats: { voyages: number; victories: number; plunder: number };
   members: Map<string, Member>;
   /** Invitations waiting, by the invited pirate's id. */
   invites: Map<string, Invite>;
@@ -65,8 +65,8 @@ export const crewNameKey = (name: string): string => name.trim().replace(/\s+/g,
 /**
  * Crews (M6, ADR 0025): the social unit and the invite list (DESIGN.md 3.4, 3.7). Postgres holds
  * them; this keeps every crew, member and invitation in memory as well, loaded at start and written
- * through on every change, so a ship snapshot or a notice board can say who sails with whom without
- * a query. One server process serves the ocean in v1 (DESIGN.md 4.3), so memory is the truth while
+ * through on every change, so a ship snapshot or a notice board can say who flies with whom without
+ * a query. One server process serves the star system in v1 (DESIGN.md 4.3), so memory is the truth while
  * it runs. Mutations run one at a time.
  */
 export class CrewService {
@@ -108,7 +108,7 @@ export class CrewService {
         name: c.name,
         flag: c.flag,
         foundedAt: c.foundedAt.getTime(),
-        stats: { voyages: c.voyages, victories: c.victories, booty: c.booty },
+        stats: { voyages: c.voyages, victories: c.victories, plunder: c.plunder },
         members: new Map(),
         invites: new Map(),
       });
@@ -183,7 +183,7 @@ export class CrewService {
   /** The board of crews: the most plunder first. */
   list(limit = 20): ServerMessage {
     const rows: CrewRow[] = [...this.crews.values()]
-      .sort((a, b) => b.stats.booty - a.stats.booty || b.stats.victories - a.stats.victories || b.stats.voyages - a.stats.voyages || b.members.size - a.members.size || a.foundedAt - b.foundedAt)
+      .sort((a, b) => b.stats.plunder - a.stats.plunder || b.stats.victories - a.stats.victories || b.stats.voyages - a.stats.voyages || b.members.size - a.members.size || a.foundedAt - b.foundedAt)
       .slice(0, limit)
       .map((c) => ({ ...tag(c), members: c.members.size, stats: { ...c.stats } }));
     return { type: "crew.list", crews: rows };
@@ -241,11 +241,11 @@ export class CrewService {
           await recordEvent(tx, pirateId, "crew.founded", { crewId: id, name, flag });
         });
       } catch (e) {
-        if (e instanceof InsufficientFundsError) throw new CrewError("short_of_coins");
+        if (e instanceof InsufficientFundsError) throw new CrewError("short_of_credits");
         if (isUniqueViolation(e)) throw new CrewError("crew_name_taken");
         throw e;
       }
-      const crew: Crew = { id, name, flag, foundedAt: at.getTime(), stats: { voyages: 0, victories: 0, booty: 0 }, members: new Map([[pirateId, { rank: "commodore", joinedAt: at.getTime() }]]), invites: new Map() };
+      const crew: Crew = { id, name, flag, foundedAt: at.getTime(), stats: { voyages: 0, victories: 0, plunder: 0 }, members: new Map([[pirateId, { rank: "commodore", joinedAt: at.getTime() }]]), invites: new Map() };
       this.crews.set(id, crew);
       this.byPirate.set(pirateId, id);
       this.log.info({ crewId: id, name, pirateId }, "crew founded");
@@ -317,11 +317,11 @@ export class CrewService {
       const at = this.now();
       await this.db.transaction(async (tx) => {
         await tx.delete(schema.crewInvite).where(and(eq(schema.crewInvite.crewId, crew.id), eq(schema.crewInvite.pirateId, pirateId)));
-        await tx.insert(schema.crewMember).values({ pirateId, crewId: crew.id, rank: "sailor", joinedAt: new Date(at) });
+        await tx.insert(schema.crewMember).values({ pirateId, crewId: crew.id, rank: "spacer", joinedAt: new Date(at) });
         await recordEvent(tx, pirateId, "crew.joined", { crewId: crew.id });
       });
       crew.invites.delete(pirateId);
-      crew.members.set(pirateId, { rank: "sailor", joinedAt: at });
+      crew.members.set(pirateId, { rank: "spacer", joinedAt: at });
       this.byPirate.set(pirateId, crew.id);
       this.notify(this.others(crew, pirateId), { type: "joined", name });
       this.changed([...crew.members.keys()]);
@@ -367,8 +367,8 @@ export class CrewService {
       const me = crew.members.get(pirateId)!;
       const target = crew.members.get(targetId);
       if (!target || targetId === pirateId) throw new CrewError("not_in_crew");
-      // The commodore may put out anyone; an officer only a sailor.
-      if (me.rank !== "commodore" && target.rank !== "sailor") throw new CrewError("crew_rank_low");
+      // The commodore may put out anyone; an officer only a spacer.
+      if (me.rank !== "commodore" && target.rank !== "spacer") throw new CrewError("crew_rank_low");
       const by = this.nameOf(pirateId);
       await this.drop(crew, targetId, { type: "removed", name: this.nameOf(targetId), by });
       this.notify([targetId], { type: "dismissed", crewName: crew.name, by });
@@ -388,31 +388,31 @@ export class CrewService {
     });
   }
 
-  /** A brigand beaten: every crew with a member aboard counts the win and what its members were paid. */
+  /** A raider beaten: every crew with a member aboard counts the win and what its members were paid. */
   tallyVictory(room: ShipRoom, tierId: string, shares: ReadonlyMap<string, number>): Promise<void> {
     return this.serial(async () => {
       const aboard = new Set(shares.keys());
       for (const [crew, ids] of this.crewsAmong([...shares.keys()])) {
-        const booty = ids.reduce((n, id) => n + (shares.get(id) ?? 0), 0);
+        const plunder = ids.reduce((n, id) => n + (shares.get(id) ?? 0), 0);
         await this.db
           .update(schema.crew)
-          .set({ victories: sql`${schema.crew.victories} + 1`, booty: sql`${schema.crew.booty} + ${booty}` })
+          .set({ victories: sql`${schema.crew.victories} + 1`, plunder: sql`${schema.crew.plunder} + ${plunder}` })
           .where(eq(schema.crew.id, crew.id));
         crew.stats.victories += 1;
-        crew.stats.booty += booty;
-        const ashore = [...crew.members.keys()].filter((id) => !aboard.has(id));
-        this.notify(ashore, { type: "victory", names: ids.map((id) => this.nameOf(id)), shipName: room.name, tierId, booty });
+        crew.stats.plunder += plunder;
+        const onOutpost = [...crew.members.keys()].filter((id) => !aboard.has(id));
+        this.notify(onOutpost, { type: "victory", names: ids.map((id) => this.nameOf(id)), shipName: room.name, tierId, plunder });
       }
     });
   }
 
-  /** A ship set sail: crewmates ashore hear who went, and whether they can still catch her at sea. */
-  sailed(room: ShipRoom, to: string, pirateIds: readonly string[]): void {
+  /** A ship launched: crewmates on the outpost hear who went, and whether they can still catch her in flight. */
+  launched(room: ShipRoom, to: string, pirateIds: readonly string[]): void {
     const aboard = new Set(pirateIds);
     for (const [crew, ids] of this.crewsAmong(pirateIds)) {
       for (const id of crew.members.keys()) {
         if (aboard.has(id) || !this.conns.has(id)) continue;
-        this.notify([id], { type: "sailed", names: ids.map((x) => this.nameOf(x)), shipId: room.shipId, shipName: room.name, to, joinable: this.ships.canJoin(room, id, this.islandOf(id)) });
+        this.notify([id], { type: "launched", names: ids.map((x) => this.nameOf(x)), shipId: room.shipId, shipName: room.name, to, joinable: this.ships.canJoin(room, id, this.outpostOf(id)) });
       }
     }
   }
@@ -442,11 +442,11 @@ export class CrewService {
   }
 
   private officers(crew: Crew): string[] {
-    return [...crew.members].filter(([, m]) => m.rank !== "sailor").map(([id]) => id);
+    return [...crew.members].filter(([, m]) => m.rank !== "spacer").map(([id]) => id);
   }
 
-  private islandOf(pirateId: string): string | null {
-    return this.ships.roomOf(pirateId) ? null : this.social.islandOf(pirateId);
+  private outpostOf(pirateId: string): string | null {
+    return this.ships.roomOf(pirateId) ? null : this.social.outpostOf(pirateId);
   }
 
   /** Every crew with someone among these pirates, with who. */
@@ -503,21 +503,21 @@ export class CrewService {
   }
 
   private info(crew: Crew, viewerId: string): CrewInfo {
-    const viewerIsland = this.islandOf(viewerId);
+    const viewerOutpost = this.outpostOf(viewerId);
     const members: CrewMember[] = [...crew.members]
       .sort(([, a], [, b]) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank] || a.joinedAt - b.joinedAt)
-      .map(([pirateId, m]) => ({ pirateId, name: this.nameOf(pirateId), rank: m.rank, joinedAt: m.joinedAt, where: this.whereOf(pirateId, viewerId, viewerIsland) }));
-    const rank = crew.members.get(viewerId)?.rank ?? "sailor";
+      .map(([pirateId, m]) => ({ pirateId, name: this.nameOf(pirateId), rank: m.rank, joinedAt: m.joinedAt, where: this.whereOf(pirateId, viewerId, viewerOutpost) }));
+    const rank = crew.members.get(viewerId)?.rank ?? "spacer";
     return {
       ...tag(crew),
       foundedAt: crew.foundedAt,
       stats: { ...crew.stats },
       members,
-      invited: rank === "sailor" ? [] : [...crew.invites.keys()].map((id) => ({ pirateId: id, name: this.nameOf(id) })),
+      invited: rank === "spacer" ? [] : [...crew.invites.keys()].map((id) => ({ pirateId: id, name: this.nameOf(id) })),
     };
   }
 
-  private whereOf(pirateId: string, viewerId: string, viewerIsland: string | null): CrewWhere {
+  private whereOf(pirateId: string, viewerId: string, viewerOutpost: string | null): CrewWhere {
     const room = this.ships.roomOf(pirateId);
     if (room) {
       const s = room.state;
@@ -526,14 +526,14 @@ export class CrewService {
         kind: "aboard",
         shipId: room.shipId,
         shipName: room.name,
-        islandId: s.islandId,
-        to: at.kind === "at-sea" ? at.to : null,
-        progress: at.kind === "at-sea" ? at.progress : 0,
-        joinable: pirateId !== viewerId && this.ships.canJoin(room, viewerId, viewerIsland),
+        outpostId: s.outpostId,
+        to: at.kind === "in-flight" ? at.to : null,
+        progress: at.kind === "in-flight" ? at.progress : 0,
+        joinable: pirateId !== viewerId && this.ships.canJoin(room, viewerId, viewerOutpost),
       };
     }
-    const island = this.conns.has(pirateId) ? this.social.islandOf(pirateId) : null;
-    return island ? { kind: "ashore", islandId: island } : { kind: "offline" };
+    const outpost = this.conns.has(pirateId) ? this.social.outpostOf(pirateId) : null;
+    return outpost ? { kind: "on-outpost", outpostId: outpost } : { kind: "offline" };
   }
 
   private notify(pirateIds: readonly string[], notice: CrewNotice): void {
@@ -545,7 +545,7 @@ export class CrewService {
     for (const id of new Set(pirateIds)) this.conns.get(id)?.send(this.stateFor(id));
   }
 
-  /** Membership or the flag changed for these pirates: their views, their summaries and the ships they sail all follow. */
+  /** Membership or the flag changed for these pirates: their views, their summaries and the ships they fly all follow. */
   private changed(pirateIds: readonly string[]): void {
     const ids = [...new Set(pirateIds)];
     this.pushState(ids);
@@ -566,7 +566,7 @@ function tag(crew: Crew): CrewTag {
 }
 
 function asRank(s: string): CrewRank {
-  return s === "commodore" || s === "officer" ? s : "sailor";
+  return s === "commodore" || s === "officer" ? s : "spacer";
 }
 
 function isUniqueViolation(e: unknown): boolean {

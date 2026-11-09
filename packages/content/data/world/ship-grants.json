@@ -1,7 +1,7 @@
 [
   {
-    "id": "starter-sloop",
-    "shipClassId": "sloop",
+    "id": "starter-skiff",
+    "shipClassId": "skiff",
     "price": 0,
     "requires": { "voyagesCompleted": 0, "minTier": null },
     "once": true,

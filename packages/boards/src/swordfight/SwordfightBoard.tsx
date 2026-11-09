@@ -7,7 +7,7 @@ export interface SwordfightBoardProps {
   state: SwordfightState;
   interactive: boolean;
   showMarks: boolean;
-  /** Boards in the melee that are not in this state: the crew's and the brigands', aboard. */
+  /** Boards in the melee that are not in this state: the crew's and the raiders', aboard. */
   remote?: readonly RemoteBoard[];
   /** The player's pair came to rest: taken, "wait" (too soon; the board asks again) or "refused" (the board lifts it clear). */
   onPlace(col: number, rot: SwordRotation): PlaceAnswer;
@@ -48,8 +48,8 @@ export function SwordfightBoard(props: SwordfightBoardProps) {
           shatter: t("swordfight.shatter"),
           slab: t("swordfight.slab"),
           chain: (chain) => t("swordfight.chain_label", { chain }),
-          wrackOver: (wrack) => t("swordfight.wrack_label", { wrack }),
-          wrackIn: t("swordfight.wrack_in"),
+          scrapOver: (scrap) => t("swordfight.scrap_label", { scrap }),
+          scrapIn: t("swordfight.scrap_in"),
           out: t("swordfight.out"),
           won: t("swordfight.won"),
           lost: t("swordfight.lost"),

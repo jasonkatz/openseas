@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type AnchorHTMLAttributes, type MouseEvent, type ReactNode } from "react";
 
-/** A tiny pathname router. A handful of routes do not justify a dependency. */
+/** A tiny pathname router. A handful of lanes do not justify a dependency. */
 const RouteCtx = createContext<{ path: string; navigate(to: string): void }>({ path: "/", navigate: () => {} });
 
 export function Router({ children }: { children: ReactNode }) {

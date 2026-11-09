@@ -1,6 +1,6 @@
 /**
  * Walking is relayed, not ruled (ADR 0032): a pirate's walk target goes to everyone else in their
- * place, ashore or aboard, and is forgotten when they leave it. No database: the ship service is
+ * place, on the outpost or aboard, and is forgotten when they leave it. No database: the ship service is
  * stood in for by the two things the social service asks of it.
  */
 import { describe, expect, it } from "vitest";
@@ -20,15 +20,15 @@ class Inbox implements RoomMember<ServerMessage> {
   }
 }
 
-/** A ship service with one ship room and every pirate standing on Saltwick. */
+/** A ship service with one ship room and every pirate standing on Tinwick. */
 function harbor() {
   const deck = new Room<ServerMessage>("ship-1");
   const aboard = new Set<string>();
   const ships = {
-    onAshore: null as ((pirateId: string, islandId: string) => void) | null,
+    onDisembark: null as ((pirateId: string, outpostId: string) => void) | null,
     onBoarded: null as ((pirateId: string) => void) | null,
     roomOf: (pirateId: string) => (aboard.has(pirateId) ? { conns: deck } : null),
-    pirateIsland: async () => "saltwick",
+    pirateOutpost: async () => "tinwick",
   };
   let now = 1_000;
   const social = new SocialService(ships as unknown as ShipService, () => now);
@@ -40,28 +40,28 @@ function harbor() {
       deck.join(member);
       ships.onBoarded?.(member.id);
     },
-    ashore(member: Inbox) {
+    onOutpost(member: Inbox) {
       aboard.delete(member.id);
       deck.leave(member.id);
-      ships.onAshore?.(member.id, "saltwick");
+      ships.onDisembark?.(member.id, "tinwick");
     },
   };
 }
 
 describe("walking", () => {
-  it("goes to everyone else ashore on the island, and newcomers see where people stand", async () => {
+  it("goes to everyone else on the outpost, and newcomers see where people stand", async () => {
     const h = harbor();
     const anne = new Inbox("p-anne");
     const ben = new Inbox("p-ben");
     await h.social.connected(anne.id, "Anne", anne);
     await h.social.connected(ben.id, "Ben", ben);
     h.social.walk(anne.id, { x: 0.5, z: -1.25 });
-    expect(ben.of("walk.moved")).toEqual([{ type: "walk.moved", scope: "island", pirateId: anne.id, x: 0.5, z: -1.25 }]);
+    expect(ben.of("walk.moved")).toEqual([{ type: "walk.moved", scope: "outpost", pirateId: anne.id, x: 0.5, z: -1.25 }]);
     expect(anne.of("walk.moved")).toEqual([]);
 
     const cid = new Inbox("p-cid");
     await h.social.connected(cid.id, "Cid", cid);
-    const presence = cid.of("island.presence").at(-1)!;
+    const presence = cid.of("outpost.presence").at(-1)!;
     expect(presence.pirates.find((p) => p.pirateId === anne.id)?.at).toEqual({ x: 0.5, z: -1.25 });
     expect(presence.pirates.find((p) => p.pirateId === ben.id)?.at).toBeNull();
   });
@@ -93,7 +93,7 @@ describe("walking", () => {
       await h.social.connected(m.id, name, m);
     h.board(anne);
     h.social.walk(anne.id, { x: 0.2, z: 0.05 });
-    // Ben and Cid are ashore: a deck walk is nothing to them.
+    // Ben and Cid are on the outpost: a deck walk is nothing to them.
     expect(ben.of("walk.moved")).toEqual([]);
     expect(cid.of("walk.moved")).toEqual([]);
 
@@ -105,7 +105,7 @@ describe("walking", () => {
     expect(cid.of("walk.moved")).toEqual([]);
   });
 
-  it("is forgotten on leaving the place: back ashore a pirate has walked nowhere yet", async () => {
+  it("is forgotten on leaving the place: back on the outpost a pirate has walked nowhere yet", async () => {
     const h = harbor();
     const anne = new Inbox("p-anne");
     const ben = new Inbox("p-ben");
@@ -115,8 +115,8 @@ describe("walking", () => {
     h.board(anne);
     h.tick(WALK_MIN_MS);
     h.social.walk(anne.id, { x: 0.1, z: 0.1 });
-    h.ashore(anne);
-    const presence = ben.of("island.presence").at(-1)!;
+    h.onOutpost(anne);
+    const presence = ben.of("outpost.presence").at(-1)!;
     expect(presence.pirates.find((p) => p.pirateId === anne.id)?.at).toBeNull();
   });
 });

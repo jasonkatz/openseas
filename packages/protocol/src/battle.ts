@@ -13,16 +13,16 @@ export type BattleSegmentWire = z.infer<typeof BattleSegmentSchema>;
 export const BattleMoveSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("commit"), segments: z.array(BattleSegmentSchema).max(8), grapple: z.boolean() }),
   /** Aboard only: the ship's deal for the turn, as the server announced it. */
-  z.object({ type: z.literal("supply"), left: Count, forward: Count, right: Count, cannons: Count, hull: Permille }),
+  z.object({ type: z.literal("supply"), left: Count, forward: Count, right: Count, turrets: Count, hull: Permille }),
   /** The captain breaks off the fight. */
   z.object({ type: z.literal("end") }),
 ]);
 export type BattleMoveWire = z.infer<typeof BattleMoveSchema>;
 
-export const BattleSupplySchema = z.object({ left: Count, forward: Count, right: Count, cannons: Count });
+export const BattleSupplySchema = z.object({ left: Count, forward: Count, right: Count, turrets: Count });
 
-export const BattleBrigandSchema = z.object({
-  cannons: Count,
+export const BattleRaiderSchema = z.object({
+  turrets: Count,
   tokensPerTurn: Count,
   reloadPerTurn: Count,
   accuracy: z.int().min(0).max(100),
@@ -35,17 +35,17 @@ export const BattleConfigSchema = z.object({
   segments: z.int().min(1).max(8),
   turnSeconds: z.int().min(3).max(600),
   tokenCap: z.int().min(1).max(32),
-  cannonRange: z.int().min(1).max(16),
+  turretRange: z.int().min(1).max(16),
   shotDamage: Permille,
-  rockDamage: Permille,
+  asteroidDamage: Permille,
   ramDamage: Permille,
   grappleDamage: Permille,
   maxTurns: z.int().min(1).max(200),
-  cannons: Count,
+  turrets: Count,
   startLoaded: Count,
   startDamage: z.int().min(0).max(999),
   supply: BattleSupplySchema.nullable(),
-  brigand: BattleBrigandSchema,
+  raider: BattleRaiderSchema,
   hitPoints: z.int().min(0).max(1_000_000),
   hitTakenPoints: z.int().min(0).max(1_000_000),
   scorePercent: z.int().min(1).max(1000),

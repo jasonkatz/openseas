@@ -1,0 +1,8 @@
+[
+  { "id": "tinwick-echo-rock", "from": "tinwick", "to": "echo-rock", "durationSeconds": 210, "encounterChance": 0.7, "raiders": [{ "tierId": "junker", "weight": 3 }, { "tierId": "marauder", "weight": 1 }] },
+  { "id": "echo-rock-tinwick", "from": "echo-rock", "to": "tinwick", "durationSeconds": 210, "encounterChance": 0.7, "raiders": [{ "tierId": "junker", "weight": 3 }, { "tierId": "marauder", "weight": 1 }] },
+  { "id": "echo-rock-frostvent", "from": "echo-rock", "to": "frostvent", "durationSeconds": 240, "encounterChance": 0.8, "raiders": [{ "tierId": "marauder", "weight": 2 }, { "tierId": "corsair", "weight": 1 }] },
+  { "id": "frostvent-echo-rock", "from": "frostvent", "to": "echo-rock", "durationSeconds": 240, "encounterChance": 0.8, "raiders": [{ "tierId": "marauder", "weight": 2 }, { "tierId": "corsair", "weight": 1 }] },
+  { "id": "frostvent-tinwick", "from": "frostvent", "to": "tinwick", "durationSeconds": 270, "encounterChance": 0.8, "raiders": [{ "tierId": "junker", "weight": 1 }, { "tierId": "marauder", "weight": 2 }] },
+  { "id": "tinwick-frostvent", "from": "tinwick", "to": "frostvent", "durationSeconds": 270, "encounterChance": 0.8, "raiders": [{ "tierId": "junker", "weight": 1 }, { "tierId": "marauder", "weight": 2 }] }
+]

@@ -1,6 +1,6 @@
 /**
- * Many voyages of one scenario, each on its own seed, with the AI at the wheel: how the ship and
- * crew fare on average and how widely. And the replay proof: a voyage's logs, sailed again from
+ * Many voyages of one scenario, each on its own seed, with the AI at the helm: how the ship and
+ * crew fare on average and how widely. And the replay proof: a voyage's logs, flown again from
  * their seeds through the reducers, give the same hash after every move (ADR 0003).
  */
 
@@ -19,23 +19,23 @@ import {
   type Station,
 } from "@openseas/engine";
 import type { VoyageSetup } from "./scenario.js";
-import { averageOutputs, sailVoyage, type SimPhase, type VoyageSim } from "./sim.js";
+import { averageOutputs, flyVoyage, type SimPhase, type VoyageSim } from "./sim.js";
 
 export interface RunSummary {
   readonly seed: string;
   readonly phase: SimPhase;
-  /** Turns from sailing to the end of the voyage. */
+  /** Turns from flying to the end of the voyage. */
   readonly turns: number;
   readonly hailedBy: string | null;
   readonly engaged: boolean;
-  /** How the sea battle ended, or null without one. When a melee followed, how the melee ended. */
+  /** How the space battle ended, or null without one. When a melee followed, how the melee ended. */
   readonly outcome: ShipBattleOutcome | null;
   readonly boarding: boolean;
   readonly battleTurns: number;
   readonly hits: number;
   readonly hitsTaken: number;
-  readonly booty: number;
-  readonly peakWater: number;
+  readonly plunder: number;
+  readonly peakHeat: number;
   readonly peakDamage: number;
   readonly meanSpeed: number;
   readonly outputs: Readonly<Record<Station, number>>;
@@ -46,7 +46,7 @@ export function summarize(sim: VoyageSim): RunSummary {
   const battle = sim.battles[0] ?? null;
   const melee = sim.melees[0] ?? null;
   const last = battle ? battle.states[battle.states.length - 1]! : null;
-  const sailing = sim.samples.filter((s) => !s.held);
+  const flying = sim.samples.filter((s) => !s.held);
   return {
     seed: sim.setup.seed,
     phase: sim.phase,
@@ -58,10 +58,10 @@ export function summarize(sim: VoyageSim): RunSummary {
     battleTurns: last?.turn ?? 0,
     hits: last?.hits ?? 0,
     hitsTaken: last?.hitsTaken ?? 0,
-    booty: Object.values(sim.booty).reduce((a, b) => a + b, 0),
-    peakWater: Math.max(0, ...sim.samples.map((s) => s.water)),
+    plunder: Object.values(sim.plunder).reduce((a, b) => a + b, 0),
+    peakHeat: Math.max(0, ...sim.samples.map((s) => s.heat)),
     peakDamage: Math.max(0, ...sim.samples.map((s) => s.damage)),
-    meanSpeed: sailing.length ? Math.round(sailing.reduce((n, s) => n + s.speed, 0) / sailing.length) : 0,
+    meanSpeed: flying.length ? Math.round(flying.reduce((n, s) => n + s.speed, 0) / flying.length) : 0,
     outputs: averageOutputs(sim.samples),
   };
 }
@@ -70,7 +70,7 @@ export function summarize(sim: VoyageSim): RunSummary {
 export const batchSeed = (seed: string, i: number): string => `${seed}#${i + 1}`;
 
 /**
- * Sail `runs` voyages, yielding to the page between them so it stays responsive and can show
+ * Fly `runs` voyages, yielding to the page between them so it stays responsive and can show
  * progress. Stops early, with what it has, when `signal` aborts.
  */
 export async function runBatch(setup: VoyageSetup, runs: number, onProgress?: (done: number) => void, signal?: AbortSignal): Promise<RunSummary[]> {
@@ -78,7 +78,7 @@ export async function runBatch(setup: VoyageSetup, runs: number, onProgress?: (d
   let lastYield = Date.now();
   for (let i = 0; i < runs; i++) {
     if (signal?.aborted) break;
-    out.push(summarize(sailVoyage({ ...setup, seed: batchSeed(setup.seed, i) })));
+    out.push(summarize(flyVoyage({ ...setup, seed: batchSeed(setup.seed, i) })));
     if (Date.now() - lastYield > 30) {
       onProgress?.(out.length);
       await new Promise((r) => setTimeout(r, 0));
@@ -105,8 +105,8 @@ export interface BatchStats {
   readonly meanBattleTurns: number | null;
   readonly meanHits: number | null;
   readonly meanHitsTaken: number | null;
-  readonly meanBooty: number;
-  readonly meanPeakWater: number;
+  readonly meanPlunder: number;
+  readonly meanPeakHeat: number;
   readonly meanPeakDamage: number;
   readonly meanSpeed: number;
   readonly outputs: Readonly<Record<Station, number>>;
@@ -145,8 +145,8 @@ export function batchStats(runs: readonly RunSummary[]): BatchStats {
     meanBattleTurns: fights.length ? mean(fights.map((r) => r.battleTurns)) : null,
     meanHits: fights.length ? mean(fights.map((r) => r.hits)) : null,
     meanHitsTaken: fights.length ? mean(fights.map((r) => r.hitsTaken)) : null,
-    meanBooty: mean(runs.map((r) => r.booty)),
-    meanPeakWater: mean(runs.map((r) => r.peakWater)),
+    meanPlunder: mean(runs.map((r) => r.plunder)),
+    meanPeakHeat: mean(runs.map((r) => r.peakHeat)),
     meanPeakDamage: mean(runs.map((r) => r.peakDamage)),
     meanSpeed: mean(runs.map((r) => r.meanSpeed)),
     outputs,
@@ -163,12 +163,12 @@ export interface Proof {
 }
 
 /**
- * Sail the voyage's logs again from their seeds and compare every hash: the ship's log through the
+ * Fly the voyage's logs again from their seeds and compare every hash: the ship's log through the
  * ship reducer, each battle's through the battle reducer, each melee's through the swordfight's.
  */
 export function proveVoyage(sim: VoyageSim): Proof {
   let moves = 0;
-  let ship = createShip(sim.setup.seed, sim.setup.ship, sim.setup.islandId);
+  let ship = createShip(sim.setup.seed, sim.setup.ship, sim.setup.outpostId);
   for (let i = 0; i < sim.shipMoves.length; i++) {
     ship = reduceShip(ship, sim.shipMoves[i]!);
     moves += 1;
@@ -193,13 +193,13 @@ export function proveVoyage(sim: VoyageSim): Proof {
   return { ok: true, moves, mismatch: null };
 }
 
-/** The voyage as a file: the setup it sailed and every log with its hashes, for a bug report or another machine. */
+/** The voyage as a file: the setup it flew and every log with its hashes, for a bug report or another machine. */
 export function voyageFile(sim: VoyageSim): string {
   return JSON.stringify(
     {
       kind: "voyage",
       seed: sim.setup.seed,
-      islandId: sim.setup.islandId,
+      outpostId: sim.setup.outpostId,
       shipConfig: sim.setup.ship,
       ship: { moves: sim.shipMoves, hashes: sim.shipHashes },
       battles: sim.battles.map((b) => ({ tierId: b.tierId, seed: b.seed, config: b.config, moves: b.moves, hashes: b.hashes, outcome: b.outcome })),
