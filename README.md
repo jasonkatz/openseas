@@ -1,38 +1,45 @@
 # openseas
 
-A browser-native, touch-first pirate puzzle MMO in the spirit of Puzzle Pirates. Crews sail a ship
-together, each running a duty puzzle that drives the shared ship through turn-based sea battles,
-then board and fight for booty.
+A browser-native, touch-first space pirate puzzle MMO in the spirit of Puzzle Pirates. Crews fly a
+ship together through one star system, each running a duty puzzle that drives the shared ship
+through turn-based space battles, then board and fight for plunder.
 
 `openseas` is a working codename.
 
 - [Design document](docs/DESIGN.md): scope, puzzle designs, world model, milestones.
+- [Glossary](docs/GLOSSARY.md): the game's words, and the nautical words they replaced.
 - [Architecture decision records](docs/adr/README.md): why the stack is what it is.
 - [`CLAUDE.md`](CLAUDE.md): rules for every coding session.
 
 ## Status
 
-Milestone 2 done: all five duty puzzles (Bilging, Sailing, Carpentry, Gunnery, Navigation) on
+Milestone 2 done: all five duty puzzles (Cooling, Engines, Plating, Gunnery, Navigation) on
 practice pages with guest accounts and ratings. Each still needs its tester session before its
 numbers are trusted.
 
 Milestone 3 built (ADR 0018, ADR 0020): the game is one graphical experience. A pirate signs in
-and is in the world until they sign out: an isometric three.js ocean with three islands, ships at
-their docks and under way. Take a station on deck and its puzzle opens over the world while the
-ship sails. The captain picks a destination on the chart. Island and ship chat, presence, the
-shipyard and a ship's log are in.
+and is in the world until they sign out: an isometric three.js star system with three outposts,
+ships at their docks and under way. Take a station on deck and its puzzle opens over the world
+while the ship flies. The captain picks a destination on the chart. Outpost and ship chat,
+presence, the shipyard and a ship's log are in.
 
-Milestone 4 built (ADR 0021): a brigand's hail can be engaged, and the captain sails the sea battle
-board while the crew's stations feed it. A win pays the brigand's booty.
+Milestone 4 built (ADR 0021): a raider's hail can be engaged, and the captain flies the space
+battle board while the crew's stations feed it. A win pays the raider's plunder.
 
 Milestone 5 built (ADR 0022, ADR 0032): a grapple that lands opens the boarding melee, every pirate
-aboard on their own Swordfight board. The islands and the deck are walkable. Ashore, a pirate walks
-a small town (the dock with its berths and gangplanks, the shipwright's stall, the notice board, a
-plaza and the tavern) among everyone else there. They walk down the dock and up the gangplank, then
-across the deck to the pump, and its board opens.
+aboard on their own Swordfight board. The outposts and the deck are walkable. On an outpost a
+pirate walks a small town (the dock with its berths and boarding tubes, the shipyard, the notice
+board, a plaza and the cantina) among everyone else there. They walk down the dock and through
+the boarding tube, then across the deck to the heat sinks, and its board opens.
 
 Milestone 6 built (ADR 0025, ADR 0026): crews with flags, ranks and crew chat, crew-only ships, the
 board of crews and pirates' cards, and a guest who links Discord or Google keeps everything.
+
+Milestone 7 built (ADR 0034): the game moved from the sea to space with its mechanics unchanged.
+Every word, every identifier and the whole three.js world are space: asteroid outposts in the
+void, a skiff under a canopy with a tail fin, pirates in jackets and headgear, and maintenance
+bots making up a short crew. The puzzle boards still show their sea art under the new names until
+the sprite pass.
 
 Every milestone from M2 on still needs its tester session and written retro.
 

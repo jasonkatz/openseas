@@ -4,12 +4,12 @@ The game's words, and the words they replaced. ADR 0034 moved the game from the 
 (DESIGN.md 5.2). Every table pairs a former word with the word that replaces it and, where code
 carries it, the identifier.
 
-- **During M7** this is the spec the rename and words PRs work from. ADR 0034 records the
-  vocabulary settled when the plan was made. Everything else here was drafted for the owner's
-  review in the PR that added this file, and is accepted when that PR merges.
-- **After M7** the "Former" columns stay, so ADRs 0001 to 0033, the git history and old PRs, which
-  are written in nautical words, stay readable. History is never rewritten into the new words.
-- **Changing a word** later is a PR to this file first, and then to the code and strings.
+- **M7 is built.** This was the spec its rename, words and world PRs worked from, and each of them
+  added here whatever it had to choose (naming rule 6). The game, the code and the three.js world
+  now use the "Now" columns throughout; only the puzzle boards' art still shows the sea.
+- **The "Former" columns stay**, so ADRs 0001 to 0033, the git history and old PRs, which are
+  written in nautical words, stay readable. History is never rewritten into the new words.
+- **Changing a word** is a PR to this file first, and then to the code and strings.
 
 ## Naming rules
 
@@ -86,6 +86,9 @@ Station blurbs:
 | "Full broadside!" (four groups at once) | "Supernova!" | |
 | Cog, Shell, Anchor, Plank, Pearl, Kelp, Coral | Cog, Valve, Bolt, Fuse, Crystal, Coil, Chip | `cog`, `valve`, `bolt`, `fuse`, `crystal`, `coil`, `chip` |
 
+| "Pump!" (the round's start) | "Vent!" | |
+| floats up (pieces rising to fill a gap) | rises | |
+
 "Double!", "Triple!" and the streak callouts stay.
 
 ### Engines (formerly Sailing)
@@ -97,6 +100,9 @@ Station blurbs:
 | platform, "Platform!", platforms cleared | injector, "Injector!", injectors fired | `platform` → `injector`; `platformPoints` → `injectorPoints` |
 | top-out, "Rigging fouled" | flameout, "Flameout!" | `topOut` → `flameout`; `topOutPenalty` → `flameoutPenalty` |
 | Sailcloth, Rope, Sea, Salt | Plasma, Ion, Fusion, Nova | `canvas`, `rope`, `sea`, `salt` → `plasma`, `ion`, `fusion`, `nova` |
+| "Haul away!" (the round's start) | "Ignition!" | |
+| platforms cleared, a platform clears | injectors fired, an injector fires | |
+| the planks a disc rests on | an injector's shelves | |
 
 ### Plating (formerly Carpentry)
 
@@ -113,6 +119,8 @@ Station blurbs:
 | A fair job | It'll hold | `fair` → `holds` |
 | Sloppy work | Duct tape | `sloppy` → `tape` |
 | A pig's breakfast | Chewing gum and hope | `pig` → `gum` |
+| "Planks up!" (the round's start) | "Plates up!" | |
+| patch, patched (a hole) | seal, sealed (a breach) | |
 
 ### Gunnery
 
@@ -122,6 +130,10 @@ Station blurbs:
 | powder, wad, shot, water | cell, sabot, slug, coolant | `powder`, `wad`, `shot`, `water` → `cell`, `sabot`, `slug`, `coolant` |
 | fouled, "Fouled!" | jammed, "Jammed!" | `foul` → `jam` |
 | chute | feeder | `chute` → `feeder` |
+| gun, guns (on the Gunnery board) | turret, turrets | |
+| plank (a cell of the deck an arrow is laid on) | deck tile | |
+| washes clean, "Clean" | flushes clear, "Clear" | |
+| "Run out the guns!" (the round's start) | "Turrets hot!" | |
 
 The crates, hatches, arrows, lamps, broadside and the deck all keep their names.
 
@@ -145,6 +157,9 @@ The sparks, stars, comets, rings, markers, constellations and the gold, ice and 
 | "Splash" (a miss) | "Wide!" | |
 | cannonball (a shot in flight) | slug | `cannonball` → `slug` |
 | "Sail the plot" | "Fly the plot" | `battle.sail_now` → `battle.fly_now` |
+| "Sails in {seconds}s" | "Flies in {seconds}s" | |
+| guns (a ship's, on the battle board) | turrets | |
+| the message key for "Caught a current" | | `battle.blown` → `battle.carried` |
 | "They're over the rail!" | "They're through the airlock!" | |
 | open water with a reef, the narrows, the maelstrom | an open rock field, the Narrows, the Whirl | |
 
@@ -156,6 +171,9 @@ The sparks, stars, comets, rings, markers, constellations and the gold, ice and 
 | cutlass, sabre, dirk | plasma cutlass, arc sabre, vibro-dirk | ids stay `cutlass`, `sabre`, `dirk` |
 | Sea, Kelp (block colors) | Cobalt, Lime | `sea` → `cobalt`; `kelp` → `lime` |
 | at the rail, "To the rail" | at the airlock, "To the airlock" | `wasAtRail` → `wasAtAirlock` |
+| grey stone (what wrack is) | dead metal | |
+| "Mate {n}" (an ally's board) | "Crewmate {n}" | |
+| "Drawing steel...", "Steel out" | "Drawing blades...", "Blades out" | |
 
 ## The ship
 
@@ -168,10 +186,18 @@ The sparks, stars, comets, rings, markers, constellations and the gold, ice and 
 | wheel, "At the wheel", "Hand over the wheel" | helm, "At the helm", "Hand over the helm" | `wheel` → `helm` |
 | set sail | launch | `setSail` → `launch`; the `sail` move and `ship.sail` message → `launch`; the `sailed` event → `launched` |
 | sail, sailing (a ship travelling) | fly, flying | `sailVoyage` → `flyVoyage`; `phase_sailing` → `phase_flying`; `ship.sail_minutes` → `ship.flight_minutes` |
-| at sea | out in the black (under way stays) | `atSea` → `inFlight` |
+| at sea | out in the black; "in flight" where a label needs it short ("Join in flight", "In flight") | `atSea` → `inFlight` |
 | ashore, go ashore | on the outpost, disembark | `ashore` → `onOutpost` (`on-outpost` as a kind); go ashore → `disembark` |
 | "lost overboard" | "drifted off" | |
 | "Land ho!", made port | "Touchdown!", docked | |
+| voyages to port, reach port | voyages flown, complete a voyage | |
+| "Step ashore", "Rowing you ashore..." (the landing) | "Touch down", "Shuttling you down..." | |
+| "Rowing out to the ship..." (connecting) | "Shuttling up to the ship..." | |
+| "Hoisting the sails..." (loading) | "Warming up the drive..." | |
+| "The ocean is out of reach" | "The Lantern Reach is out of range" | |
+| harbormaster | dockmaster | |
+| "Slow down, sailor." | "Slow down, spacer." | |
+| the message key for a station waiting on the launch | | `ship.duty_waits_for_sea` → `ship.duty_waits_for_launch` |
 | quarterdeck | bridge | |
 | fife rail at the mast | drive console | |
 | the pump (port side) | heat sinks | |
@@ -181,8 +207,15 @@ The sparks, stars, comets, rings, markers, constellations and the gold, ice and 
 | gangplank | boarding tube | `gangplank` → `boardingTube` |
 | mast; flag at the masthead | antenna mast; flag on the antenna | |
 | mainsail, with the crew emblem | tail fin, with the crew emblem | |
-| wake | engine glow | |
-| — | canopy (clear, drawn only zoomed out) | |
+| wake | engine glow | `wake` → `engineGlow` |
+| — | canopy (clear, drawn only from outside: hidden on deck) | `canopy` |
+| sails going to glass on deck | the tail fin going to glass on deck | `sail` → `fin`; `canvas` → `glass` |
+| bowsprit and figurehead | nose cone and probe | |
+| rudder | an engine nozzle each side of the stern | |
+| stern lanterns | running lights: red to port, green to starboard | |
+| shot rack, barrels | slug rack, canisters | |
+| rigging | stays from the antenna mast | |
+| the hull bobbing on the swell | the hull drifting | |
 
 ### Bots (formerly deckhands)
 
@@ -192,7 +225,8 @@ The sparks, stars, comets, rings, markers, constellations and the gold, ice and 
 | signed on | booted up | the `hired` event → `booted_up` |
 | paid off | powered down | the `paid_off` event → `powered_down` |
 | smock, kerchief and a coil of rope | a small round robot with one lamp eye and a tool arm | |
-| names from the pirate lists | a bot name and a unit number: Gasket-7 | |
+| names from the pirate lists | a bot name and a unit number: Gasket-7 | `names.json` `bots`; `randomBotName`; the number is 1 to 99 |
+| the deckhand's figure | a ball of a body on one wheel, a band of paint, one lamp eye, an aerial, a tool arm | `buildBot` |
 
 Bot names: Sprocket, Widget, Gizmo, Gasket, Dynamo, Flange, Piston, Tinker, Doohickey, Whirligig,
 Spindle, Grommet.
@@ -218,6 +252,22 @@ Spindle, Grommet.
 | a fire ring with logs | a heater ring |
 | shells and crabs | rock mites |
 | a buoy at a lane's midpoint | a nav buoy |
+| pilings under the dock | struts back to the rock and a lift pod under its end |
+| a ladder down to the water, a rowing boat under the dock | gone |
+| crates, barrels and a coil of rope on the dock | cargo boxes, a drum and a coil of cable |
+| round trees, pines | potted trees, stands of crystal |
+| tufts, flowers and bushes on the grass | pebbles, glints of crystal and boulders on the rise |
+| dune grass on the sand | mineral needles in the dust |
+| fields of grain by the windmill | solar panels by the dish |
+| a model ship over the shipwright's door, timber stacked beside it | a little rocket over the shipyard's door, hull plates stacked beside it |
+| the tavern's timber frame, gabled roof and chimney smoke | the cantina's ribbed panels, barrel roof of tin and vent stack steam |
+| — | the rock's underside, hanging below the rim |
+
+Code names the world PRs chose, for scenery the tables above had no identifier for: the sea →
+`void.ts` and `buildVoid`; clouds → `buildDust`; gulls → `buildDrone`; coast → rim (`rimR`,
+`RIM_R`); quarterdeck → bridge (`BRIDGE_X`, `BRIDGE_Y`); cottages → pods; the shipwright's stall →
+the yard; crabs → mites; palm → `antennaPalm`; round tree → `pottedTree`; pine → `crystalSpire`;
+the well → the water tank; the fire → the heater; chimney smoke → steam.
 
 ## People
 
@@ -232,7 +282,13 @@ Spindle, Grommet.
 | wide brim | wide brim | `wide-brim` |
 | round cap | flight cap | `round-cap` → `flight-cap` |
 | stocking cap | beanie | `stocking-cap` → `beanie` |
-| captain's plume | captain's crest | `plume` → `crest` |
+| captain's plume | captain's crest: a brass band and a red blade standing fore and aft | `plume` → `crest` |
+| a coat flaring at the hem, with a belt and buckle | a short jacket with a stand collar, a waistband and a zip | |
+
+How each headgear is drawn, on deck and on the likeness: the bubble helmet is a clear globe on a
+collar ring; goggles are pushed up on the forehead over spiked hair; the wide brim is as it was;
+the flight cap is leather with a flap over each ear and fleece across the brow; the beanie is a
+knitted dome with a rolled brim and a bobble.
 
 ### Crews
 
@@ -330,14 +386,18 @@ The tables above give the identifier for each word. Beyond them:
   piece's identifier (`bolt`, `turret-jammed`, `tin-h`, ...). The art inside waits for the sprite
   pass, so a frame may be named for a piece it does not look like yet.
 - **Tests**: where a test's `mate` was a second pirate rather than a deckhand, it is `crewmate`.
+  Fixtures use names the game could deal ("Static Comet", "Gasket-7", "The Rust Comets").
+- **Harness presets**: the message key is the preset's id (`harness.preset.one_injector`,
+  `no_injectors`, `single_plates`, `big_breaches`, `one_breach`, `five_plates`, `no_coolant`), and a
+  test holds every preset to one. `harness.voyage.to_port` → `to_end`; `harness.voyage.helm` (who
+  plots the battle) → `battle_plots`.
 - **Kept on purpose**:
   - Three puzzle engines' PRNG salts keep their old strings (`bilging:`, `sailing:` and
     `carpentry:` in each `reduce.ts`). A new salt would deal a different board from the same
     seed, and the rename changes no behaviour.
-  - Scenery that has no identifier in the tables above (the sea shader, clouds, gulls, the beach,
-    palms, cottages, the mast, mainsail, rigging and wake, the bots' smock and kerchief) keeps its
-    code names until the world PR that redraws it. Comments in art files keep describing what is
-    drawn.
-  - Visible text, including what the smoke tests assert, changes in the words PR.
+  - The puzzle boards' art files keep describing what is drawn, which is still the sea set, until
+    the sprite pass.
+  - `SHIP_SINK` keeps its name: how far the hull hangs below the lane plane, so the deck meets the
+    boarding tube.
 - **Kept for now**: `openseas`, the package scope `@openseas/*`, the domains and the hosting
   projects keep their names until the game's real name is chosen.
