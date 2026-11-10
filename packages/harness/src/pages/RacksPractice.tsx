@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { racksCrateFits, racksCrateWouldShip, racksNextShipment, summarizeRacks, type RacksConfig, type RacksMove, type RacksState } from "@openseas/engine";
-import { KINDS, KindIcon, RacksBoard, content, t } from "@openseas/boards";
+import { content, KindIcon, KINDS, RacksBoard, spriteName, t } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -111,7 +111,7 @@ export function RacksPractice() {
           <ul className="kinds">
             {kinds.map((k, i) => (
               <li key={k.id}>
-                <KindIcon kind={i} marks={showMarks} />
+                <KindIcon kind={i} marks={showMarks} sprite={{ puzzle: "racks", name: spriteName("cell", i) }} />
                 <span>{t(`racks.kind.${k.id}`)}</span>
               </li>
             ))}

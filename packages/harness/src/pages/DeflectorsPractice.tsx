@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { advanceDeflectors, deflectorsOutlook, deflectorsStreakPercentAt, summarizeDeflectors, type DeflectorsConfig, type DeflectorsMove, type DeflectorsState } from "@openseas/engine";
-import { DeflectorsBoard, KindIcon, content, t, useTicked } from "@openseas/boards";
+import { content, DeflectorsBoard, KindIcon, SpriteIcon, t, useTicked } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -102,18 +102,18 @@ export function DeflectorsPractice() {
           <ul className="kinds">
             {signs.map((s, i) => (
               <li key={s.kind}>
-                <KindIcon kind={s.kind} color={s.color} marks={showMarks} />
+                <KindIcon kind={s.kind} color={s.color} marks={showMarks} sprite={{ puzzle: "deflectors", name: `sign-${s.id}` }} />
                 <span>{t(BEAM_KEYS[i]!)}</span>
               </li>
             ))}
           </ul>
           <ul className="specials">
             <li>
-              <KindIcon kind={first.kind} color={first.color} marks={showMarks} />
+              <KindIcon kind={first.kind} color={first.color} marks={showMarks} sprite={{ puzzle: "deflectors", name: `sign-${first.id}` }} />
               <span>{t("deflectors.legend_entry")}</span>
             </li>
             <li>
-              <KindIcon kind={first.kind} color={first.color} hollow />
+              <KindIcon kind={first.kind} color={first.color} hollow sprite={{ puzzle: "deflectors", name: `target-${first.id}` }} />
               <span>{t("deflectors.legend_exit")}</span>
             </li>
             <li>
@@ -159,13 +159,14 @@ export function DeflectorsPractice() {
 }
 
 function MirrorIcon() {
-  return (
+  const vector = (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
       <path d="M5 19L19 5" stroke="#55606e" strokeWidth="6" strokeLinecap="round" />
       <path d="M5 19L19 5" stroke="#dfe9f5" strokeWidth="3.4" strokeLinecap="round" />
       <circle cx="12" cy="12" r="2" fill="#d4a548" stroke="#6a5324" />
     </svg>
   );
+  return <SpriteIcon puzzle="deflectors" name="mirror-slash" fallback={vector} />;
 }
 
 /** The three looks a waiting beam's lines take, as the board draws them. */

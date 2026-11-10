@@ -21,6 +21,22 @@ optional accessibility badges and labels in code.
 | swordfight | Four single-cell block and breaker skins, stone and ripening stone |
 | battle | Friendly and raider starfighters, asteroids, gravity wells and slugs |
 
+The eight prototype boards (ADR 0037) each have an atlas too, painted through the board kit:
+
+| Atlas | Runtime use |
+|---|---|
+| salvage | Six kinds of debris (`debris-<kind>`), the loot crate, the coupler |
+| overload | A capacitor at each charge, 0 to 4 (`charge-<n>`), and a booster at each (`booster-<n>`) |
+| deflectors | The `/` and `\` mirrors; a sign and a hollow target for each of the three beams |
+| reactor | Rod casings for grades 1 to 7 (`grade-<n>`); the hot rod, whatever its grade |
+| scanner | Fog and clear plates; found, spooked and miss marks; the ping diamond; lock and bare brackets |
+| tug | Four pods (`pod-<kind>`), their four clamps (`clamp-<kind>`), the block |
+| racks | Four fuel cells (`cell-<kind>`) and their hollow targets (`target-<kind>`) |
+| cutting | Eight ore tiles (`ore-<kind>`), cut to fill a cell |
+
+`<kind>` is a kit kind's id (`../kit/art.ts`). A kind, charge or grade past its sheet is drawn in
+code, as is every board when its atlas does not load.
+
 Additional frames from the sheets (damaged ships, current, thrusters, shield, grapple, flash,
 weld, chips, edge, shatter, swipe, ...) are reserved for future effects. Dynamic effects, board
 backgrounds and frames (in the same materials, from `../hull.ts`), Engines targets, and
@@ -55,6 +71,13 @@ If new sheets use different layouts, update their measured source boundaries fir
 atlas and its manifest together. Check every board on desktop and phone with `pnpm test:smoke`.
 The atlas loader caches decoded images and Pixi subtextures for the page lifetime. Renderers
 own only their baked canvas textures; do not destroy shared atlas sources during resize/unmount.
+
+The prototype sheets arrive already cut into frames, with a `frames.json` of their own.
+`../../scripts/pack-prototype-sprites.py /path/to/delivery` copies each named frame into its
+atlas, renames it to what the renderer asks for, and merges the names into the manifest. It makes
+two repairs: Cutting's ore tiles are cut inside their baked border and stretched to fill the
+frame, and Overload's frames keep only their largest piece of art, since the fins of the sheet's
+lower row reach into the row above.
 
 Optional `overrides/<puzzle>-<frame>.webp` files are complete 192×192 normalized frames. The packer
 applies them after processing a source-sheet cell, so repacking cannot restore an obsolete piece.

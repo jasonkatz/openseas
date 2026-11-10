@@ -12,8 +12,8 @@ import {
   type CuttingState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, INK, drawPanel, drawPiece, kindStyle, mix } from "../kit/art.js";
-import { Grid, KitBoard } from "../kit/board.js";
+import { FONT, INK, drawMark, drawPanel, drawPiece, kindStyle, mix, spriteName } from "../kit/art.js";
+import { FRAME_FIT, Grid, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
 
 export interface CuttingCallbacks {
@@ -244,6 +244,11 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     return this.bake(`tile:${ore}:${this.showMarks ? 1 : 0}`, cell, (g) => {
       const color = kindStyle(ore).color;
       const half = cell / 2;
+      // An ore frame is cut to fill its cell, with no padding: the cells of a piece join edge to edge.
+      if (this.sprite(g, spriteName("ore", ore), 0, 0, cell / FRAME_FIT)) {
+        if (this.showMarks) drawMark(g, ore, 0, 0, cell * 0.3);
+        return;
+      }
       // A plate of the ore, lit along its top edge, with the ore's own silhouette set into it.
       g.rect(-half, -half, cell, cell).fill({ color: mix(color, INK.black, 0.5) });
       g.rect(-half, -half, cell, Math.max(1, cell * 0.05)).fill({ color: mix(color, INK.white, 0.25), alpha: 0.5 });

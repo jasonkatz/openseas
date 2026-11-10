@@ -178,7 +178,20 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     const cell = this.grid.cell;
     const c = Math.max(0, Math.min(OVERLOAD_FULL, charge));
     // The cell size is in the key: a lab bank of another size is laid out without the cache being dropped.
-    return this.bake(`${cell}:${c}:${booster ? 1 : 0}:${this.showMarks ? 1 : 0}`, cell, (g) => drawCapacitor(g, cell * 0.37, c, booster, this.showMarks));
+    return this.bake(`${cell}:${c}:${booster ? 1 : 0}:${this.showMarks ? 1 : 0}`, cell, (g) => {
+      const r = cell * 0.37;
+      // The sheet's arcs count the charge as the code-drawn ring does; the mark setting adds the digit on a plate.
+      if (!this.sprite(g, `${booster ? "booster" : "charge"}-${c}`, 0, 0, cell * (booster ? 0.915 : 0.84))) {
+        drawCapacitor(g, r, c, booster, this.showMarks);
+        return;
+      }
+      if (!this.showMarks) return;
+      const armed = c >= OVERLOAD_FULL - 1;
+      const core = r * 0.5;
+      g.circle(0, 0, core).fill({ color: armed ? CHARGE_COLOR[c]! : INK.bg });
+      g.circle(0, 0, core).stroke({ width: Math.max(1, r * 0.06), color: INK.white, alpha: 0.6 });
+      drawDigit(g, Math.min(OVERLOAD_FULL - 1, c), core * 0.6, armed ? INK.black : INK.white);
+    });
   }
 
   /** Put exactly these capacitors on the bank, each on its cell, with nothing in motion. */
