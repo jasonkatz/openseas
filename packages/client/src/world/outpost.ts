@@ -1,13 +1,16 @@
 /**
- * An outpost you can walk on (M5, ADR 0032): an open-air rock hanging in the void (ADR 0034). The
- * ground is a low-poly heightfield: a rise of regolith, a ring of dust round it, and a crater rim
- * that drops away into the void, with the rock's underside hanging below. On it, laid out from the
- * dock inland: the dock, a gantry run out over the void with berths for ships either side, the
- * shipyard and the notice board at its foot, a path up to a paved plaza with a water tank, the
- * cantina on the plaza, hab pods with their hydroponic beds, the landmark the content names at the
- * back, and the small things that make a place: antenna palms, a solar sail on its rack, a shuttle
- * up on blocks, lamps, rock mites along the rim. Everything is placed from a PRNG seeded by the
- * outpost's id, so every device builds the same outpost, the same walk grid, the same doors.
+ * An outpost you can walk on (M5, ADR 0032): a rock hanging in the void with a settlement bolted
+ * to it (ADR 0034). Nothing of an island is left in it (ADR 0035): no beach, no trees, no pier.
+ * The ground is a low-poly heightfield: a flat floor of regolith inside a raised crater rim that
+ * drops sheer into the void, cut through where the dock comes in, with the rock's underside
+ * hanging below. On it, laid out from the dock inland: the dock, an arm run out over the void with
+ * berths for ships either side; the shipyard and the notice board at its foot; a walkway up to a
+ * round pad with a holo-globe turning over it; the cantina on the pad; hab pods with their grow
+ * tunnels; the landmark the content names at the back; and the plant that keeps a place like this
+ * alive: tanks, vents and cargo on the floor, light masts, dishes and solar panels round the rim,
+ * warning lamps along its lip. Everything is placed from a PRNG seeded by the outpost's id, so
+ * every device builds the same outpost, the same walk grid, the same doors. What is built never
+ * depends on the renderer; only how it is drawn does.
  *
  * The outpost is built in its *dock frame*: u runs out along the dock toward the lanes, w across
  * it, y up. Walk positions on the wire are in this frame. The frame is turned on the outpost so the
@@ -19,7 +22,7 @@
 import * as THREE from "three";
 import type { OutpostLandmark } from "@openseas/content";
 import { nextInt, seedFromString, type PrngState } from "@openseas/engine";
-import { Batch, unseen, type Put } from "./batch.js";
+import { Batch, unseen, type Put, type Vec3 } from "./batch.js";
 import { WalkGrid, type Obstacle, type Spot } from "./walk.js";
 
 export type Building = "dock" | "cantina" | "notice-board";
@@ -40,7 +43,6 @@ export const OUTPOST_PALETTE = {
   panel: 0x24507a,
   panelLight: 0x2f6a9e,
   rock: 0x8a8399,
-  rockLight: 0xa7a0b8,
   rockDark: 0x4c465c,
   paving: 0xb9b4c4,
   pavingDark: 0x9590a4,
@@ -49,6 +51,7 @@ export const OUTPOST_PALETTE = {
   foilLight: 0xf2dc9a,
   brass: 0xd4a548,
   parchment: 0xefe3c6,
+  walk: 0x7c8494,
   lamp: 0xffd36b,
   lampOff: 0x6b5a2a,
   window: 0xffe9a8,
@@ -63,36 +66,41 @@ export const OUTPOST_PALETTE = {
   leafDark: 0x2f7a55,
   crystal: 0x8fe0e8,
   crystalViolet: 0xb79cf0,
-  mite: 0x5f5478,
-  miteDark: 0x3f3852,
+  beacon: 0xff5a4a,
+  holo: 0x7fe3ff,
 } as const;
 const C = OUTPOST_PALETTE;
 const FROST = new THREE.Color(OUTPOST_PALETTE.iceBlue);
 
-/** What an outpost's ground is made of: the rise, the ring of dust round it, the rim's lip, the rock under it, the paths. */
+/** What an outpost's ground is made of: its floor, the rim round it, the rim's lip, the rock under it, its pebbles. */
 interface Ground {
-  rise: readonly [number, number, number];
-  dust: readonly [number, number, number];
+  floor: readonly [number, number, number];
+  rim: readonly [number, number, number];
   lip: number;
   under: readonly [number, number, number];
-  path: number;
   pebble: readonly [number, number];
 }
 const GROUNDS: Record<"plain" | "ochre" | "frost", Ground> = {
-  // Lilac-grey regolith inside a ring of pale dust.
-  plain: { rise: [0x8e88a6, 0x847e9c, 0x9891b0], dust: [0xd3cdbf, 0xcac4b5, 0xdcd6c8], lip: 0xb3ad9f, under: [0x5a5470, 0x4e4963, 0x66607c], path: 0xbdb6c9, pebble: [0x6f6a85, 0xa9a2bd] },
-  // Ochre regolith inside a ring of rust dust.
-  ochre: { rise: [0xc9a24e, 0xbf9645, 0xd3ad5a], dust: [0xb9764a, 0xae6c42, 0xc48253], lip: 0x9c5f3a, under: [0x6b4a3a, 0x5c3f32, 0x7a5644], path: 0xe0bf74, pebble: [0x9c7a3a, 0x9c7a3a] },
-  // Frozen blue-grey ground inside a ring of black dust.
-  frost: { rise: [0x5d667e, 0x545c73, 0x68728c], dust: [0x2f2d38, 0x353340, 0x292731], lip: 0x23212b, under: [0x2a2833, 0x23212b, 0x33313d], path: 0x6b7388, pebble: [0x6b7388, 0x6b7388] },
+  // Lilac-grey regolith inside a rim of darker slate.
+  plain: { floor: [0x8e88a6, 0x847e9c, 0x9891b0], rim: [0x6d6887, 0x645f7d, 0x767191], lip: 0x9a94b2, under: [0x5a5470, 0x4e4963, 0x66607c], pebble: [0x6f6a85, 0xa9a2bd] },
+  // Burnt-ochre regolith inside a rim of rust.
+  ochre: { floor: [0xc48d52, 0xb8824a, 0xcd985c], rim: [0x9c5f3a, 0x915634, 0xa76942], lip: 0xbf7b4c, under: [0x6b4a3a, 0x5c3f32, 0x7a5644], pebble: [0x8f6238, 0x8f6238] },
+  // Frozen blue-grey ground inside a rim of black rock.
+  frost: { floor: [0x5d667e, 0x545c73, 0x68728c], rim: [0x2f2d38, 0x353340, 0x292731], lip: 0x3d3a4a, under: [0x2a2833, 0x23212b, 0x33313d], pebble: [0x6b7388, 0x6b7388] },
 };
+
+/** The outpost's floor, and how far the crater's rim stands over it. */
+const FLOOR = 0.225;
+const LIP = 0.05;
+/** The rim is walked up to its crest, no further. */
+const WALK_S = 0.95;
 
 /** The dock's deck: from the rim out over the void, and how wide. */
 export const DOCK = { from: 1.16, to: 2.95, half: 0.13, top: 0.22 } as const;
-/** Where a ship lies along the dock, and how far off its centerline the first two berths are. */
-const BERTH_U = 2.22;
-const BERTH_W = 0.53;
-const BERTH_ROW = 0.7;
+/** Where a ship lies along the dock, how far off its centerline the first two berths are, and how far apart the berths rafted outside them. */
+const BERTH_U = 2.3;
+const BERTH_W = 0.56;
+const BERTH_ROW = 0.86;
 /** Ship-local x of the airlock amidships, scaled to the world (see models.ts). */
 export const AIRLOCK_OFFSET = 0.056;
 /** Feet clear an obstacle by this much. */
@@ -155,7 +163,7 @@ export interface OutpostModel {
   /** Where a pirate who came on the outpost without walking off a ship first stands. */
   arrival: Spot;
   berth(n: number): Berth;
-  /** Per-frame life: lamps, the landmark, steam, rock mites. */
+  /** Per-frame life: lamps, the landmark, the holo-globe, steam, rovers. */
   animate(t: number, dt: number): void;
 }
 
@@ -227,19 +235,23 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   const phases = [dice.range(0, 6), dice.range(0, 6), dice.range(0, 6)];
   const landmarkAt: Spot = frozen ? { x: -0.78, z: -0.08 * mirror } : { x: -0.74, z: -0.26 * mirror };
   const mound = landmark === "beacon" || landmark === "dish" || landmark === "fort";
-  const profile = (s: number): number => {
-    if (s < 0.58) return 0.3 + 0.055 * (1 - (s / 0.58) ** 2);
-    if (s < 0.7) return 0.3 - 0.075 * smooth(0.58, 0.7, s);
-    if (s < 0.92) return 0.225 - (0.03 * (s - 0.7)) / 0.22;
-    if (s < 1) return 0.195 - 0.135 * smooth(0.92, 1, s);
-    // Past the rim the ground is gone: the rock's side drops into the void (drawn by buildUnderside).
-    return Math.max(-0.32, 0.06 - (s - 1) * 3.2);
+  // The floor is all but flat, with a little crown to it.
+  const crown = (s: number): number => (s < 0.84 ? 0.012 * (1 - (s / 0.84) ** 2) : 0);
+  // Round most of the rock the floor ends in a crater rim: up to a crest, then sheer down to the lip.
+  const rimmed = (s: number): number => (s < 0.84 ? FLOOR + crown(s) : s < WALK_S ? FLOOR + LIP * smooth(0.84, WALK_S, s) : FLOOR + LIP - (FLOOR + LIP - 0.06) * smooth(WALK_S, 1, s));
+  // Where the dock comes in the rim is cut through: the floor runs down a little to meet the dock's deck.
+  const cut = (s: number): number => (s < 0.92 ? FLOOR + crown(s) - 0.03 * smooth(0.7, 0.92, s) : 0.195 - 0.135 * smooth(0.92, 1, s));
+  const profile = (s: number, a: number): number => {
+    // Past the lip the ground is gone: the rock's side drops into the void (drawn by buildUnderside).
+    if (s >= 1) return Math.max(-0.32, 0.06 - (s - 1) * 3.2);
+    const clearOfDock = smooth(0.14, 0.34, Math.abs(Math.atan2(Math.sin(a), Math.cos(a))));
+    return cut(s) + (rimmed(s) - cut(s)) * clearOfDock;
   };
   const sOf = (u: number, w: number): number => Math.hypot(u, w) / rimR(Math.atan2(w, u));
   const groundAt = (u: number, w: number): number => {
     const s = sOf(u, w);
-    let h = profile(s);
-    if (s < 0.68) h += (0.006 * Math.sin(u * 5.1 + phases[0]!) + 0.005 * Math.sin(w * 6.3 + phases[1]!) + 0.004 * Math.sin((u + w) * 8.7 + phases[2]!)) * (1 - smooth(0.5, 0.68, s));
+    let h = profile(s, Math.atan2(w, u));
+    if (s < 0.68) h += (0.004 * Math.sin(u * 5.1 + phases[0]!) + 0.003 * Math.sin(w * 6.3 + phases[1]!) + 0.003 * Math.sin((u + w) * 8.7 + phases[2]!)) * (1 - smooth(0.5, 0.68, s));
     if (mound) h += 0.07 * Math.exp(-((u - landmarkAt.x) ** 2 + (w - landmarkAt.z) ** 2) / 0.09);
     return h;
   };
@@ -264,30 +276,28 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   /** A box obstacle for a thing turned by three.js yaw `yaw` about its center. */
   const block = (x: number, z: number, hw: number, hd: number, yaw: number): void => void obstacles.push({ kind: "box", x, z, hw, hd, angle: -yaw });
 
-  // ---- the dock: a gantry of deck plates run out over the void, braced back to the rock
+  // ---- the dock: an arm run out over the void, a box girder with a deck on it, braced back to the rock
   const dockTop = DOCK.top;
-  for (let u = DOCK.from + 0.04; u < DOCK.to; u += 0.075) {
-    const shade = dice.int(4) === 0 ? C.steel : dice.int(2) ? C.tin : C.tinDark;
-    solidAt(box(0.07, 0.025, DOCK.half * 2 + dice.range(-0.01, 0.015)), shade, { p: [u, dockTop - 0.0125, dice.range(-0.006, 0.006)], r: [0, dice.range(-0.03, 0.03), 0] });
-  }
-  for (let u = DOCK.from + 0.1; u <= DOCK.to; u += 0.3) {
-    // A cross-beam under the plates, a hanger at each end of it and a marker light on its tip.
-    solidAt(box(0.02, 0.02, DOCK.half * 2 + 0.03), C.steel, { p: [u, dockTop - 0.06, 0] });
-    for (const side of [-1, 1]) {
-      solidAt(cyl(0.012, 0.012, 0.1, 6), C.steel, { p: [u, dockTop - 0.075, side * (DOCK.half + 0.005)] });
-      b.addGlow(box(0.014, 0.01, 0.014), C.lamp, { p: [u, dockTop - 0.022, side * (DOCK.half + 0.016)] });
-      // Clamps at the edge where ships make fast.
-      if (Math.abs(u - BERTH_U) < 0.6) {
-        solidAt(cyl(0.014, 0.016, 0.03, 7), C.iron, { p: [u, dockTop + 0.015, side * (DOCK.half - 0.02)] });
-        solidAt(cyl(0.019, 0.019, 0.006, 7), C.iron, { p: [u, dockTop + 0.032, side * (DOCK.half - 0.02)] });
-        circle(u, side * (DOCK.half - 0.02), 0.015);
-      }
+  const dockLen = DOCK.to - DOCK.from;
+  const dockMid = (DOCK.from + DOCK.to) / 2;
+  solidAt(box(dockLen, 0.035, DOCK.half * 2 - 0.03), C.tinDark, { p: [dockMid, dockTop - 0.03, 0] });
+  solidAt(box(dockLen, 0.012, DOCK.half * 2), C.tin, { p: [dockMid, dockTop - 0.006, 0] });
+  for (let u = DOCK.from + 0.15; u < DOCK.to - 0.05; u += 0.15) solidAt(box(0.005, 0.004, DOCK.half * 2), C.steel, { p: [u, dockTop + 0.0005, 0] });
+  for (const side of [-1, 1]) {
+    // A warning stripe down each edge, and a light every so often along it.
+    solidAt(box(dockLen, 0.003, 0.016), C.foil, { p: [dockMid, dockTop + 0.001, side * (DOCK.half - 0.008)] });
+    for (let u = DOCK.from + 0.12; u < DOCK.to; u += 0.24) b.addGlow(box(0.016, 0.007, 0.008), C.glow, { p: [u, dockTop + 0.004, side * (DOCK.half - 0.008)] });
+    // Clamps reach out from the edge to hold a ship at the berth: an arm, a pad on its end, a lamp on the pad.
+    for (const du of [-0.45, 0.5]) {
+      const u = BERTH_U + du;
+      solidAt(box(0.03, 0.022, 0.08), C.iron, { p: [u, dockTop - 0.025, side * (DOCK.half + 0.03)] });
+      solidAt(box(0.06, 0.06, 0.012), C.rust, { p: [u, dockTop - 0.01, side * (DOCK.half + 0.072)] });
+      b.addGlow(box(0.012, 0.012, 0.014), C.lamp, { p: [u, dockTop + 0.028, side * (DOCK.half + 0.072)] });
     }
   }
-  // Girders along both edges and a keel beam under the middle.
-  for (const side of [-1, 1]) solidAt(box(DOCK.to - DOCK.from, 0.03, 0.02), C.tinDark, { p: [(DOCK.from + DOCK.to) / 2, dockTop - 0.04, side * DOCK.half] });
-  solidAt(box(DOCK.to - DOCK.from - 0.1, 0.035, 0.035), C.steel, { p: [(DOCK.from + DOCK.to) / 2, dockTop - 0.09, 0] });
-  // Struts from the rock's face up to the gantry, and a lift pod under its far end holding it level.
+  for (let u = DOCK.from + 0.1; u <= DOCK.to; u += 0.3) solidAt(box(0.02, 0.02, DOCK.half * 2 + 0.03), C.steel, { p: [u, dockTop - 0.058, 0] });
+  solidAt(box(dockLen - 0.1, 0.035, 0.035), C.steel, { p: [dockMid, dockTop - 0.09, 0] });
+  // Struts from the rock's face up to the arm, and a lift pod under its far end holding it level.
   for (const side of [-1, 1]) {
     for (const reach of [2.0, 2.62]) {
       const from = { u: RIM + 0.03, y: -0.3 };
@@ -298,12 +308,21 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   }
   solidAt(cyl(0.05, 0.06, 0.05, 8), C.tinDark, { p: [DOCK.to - 0.16, dockTop - 0.13, 0] });
   b.addGlow(cyl(0.04, 0.03, 0.012, 8), C.glow, { p: [DOCK.to - 0.16, dockTop - 0.16, 0] });
-  // Cargo boxes, a drum and a coil of cable at the root of the dock; a lamp at its end.
+  // A gate where the arm leaves the rock: two posts and a beam, with a bar of light under the beam.
+  const gateU = DOCK.from + 0.05;
+  for (const side of [-1, 1]) {
+    solidAt(box(0.018, 0.2, 0.018), C.steel, { p: [gateU, dockTop + 0.1, side * (DOCK.half + 0.014)] });
+    solidAt(box(0.032, 0.02, 0.032), C.iron, { p: [gateU, dockTop + 0.01, side * (DOCK.half + 0.014)] });
+    circle(gateU, side * (DOCK.half + 0.014), 0.012);
+  }
+  solidAt(box(0.024, 0.022, DOCK.half * 2 + 0.06), C.rust, { p: [gateU, dockTop + 0.205, 0] });
+  b.addGlow(box(0.008, 0.006, DOCK.half * 2 - 0.02), C.glow, { p: [gateU, dockTop + 0.191, 0] });
+  // Cargo boxes, a drum and a power cell at the root of the dock; a beacon at its end.
   const cargo = [
-    [DOCK.from + 0.12, 0.08, "crate"],
-    [DOCK.from + 0.12, 0.08, "crate2"],
-    [DOCK.from + 0.21, 0.09, "barrel"],
-    [DOCK.to - 0.1, -0.08, "coil"],
+    [DOCK.from + 0.16, 0.08, "crate"],
+    [DOCK.from + 0.16, 0.08, "crate2"],
+    [DOCK.from + 0.25, 0.09, "drum"],
+    [DOCK.to - 0.1, -0.08, "cell"],
   ] as const;
   for (const [u, w0, kind] of cargo) {
     const w = w0 * mirror;
@@ -311,21 +330,21 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       solidAt(box(0.06, 0.05, 0.06), C.teal, { p: [u, dockTop + 0.025, w], r: [0, 0.2, 0] });
       solidAt(box(0.062, 0.008, 0.062), C.tealDark, { p: [u, dockTop + 0.026, w], r: [0, 0.2, 0] });
     } else if (kind === "crate2") solidAt(box(0.045, 0.04, 0.045), C.rust, { p: [u, dockTop + 0.07, w], r: [0, -0.3, 0] });
-    else if (kind === "barrel") drum(b, [u, dockTop, w], C.blue);
+    else if (kind === "drum") drum(b, [u, dockTop, w], C.blue);
     else {
-      solidAt(new THREE.TorusGeometry(0.022, 0.008, 5, 12), C.cable, { p: [u, dockTop + 0.006, w], r: [Math.PI / 2, 0, 0] });
-      solidAt(new THREE.TorusGeometry(0.013, 0.007, 5, 10), C.cable, { p: [u, dockTop + 0.014, w], r: [Math.PI / 2, 0, 0] });
+      solidAt(box(0.044, 0.034, 0.034), C.steel, { p: [u, dockTop + 0.017, w] });
+      b.addGlow(box(0.03, 0.012, 0.036), C.glow, { p: [u, dockTop + 0.02, w] });
     }
-    circle(u, w, kind === "coil" ? 0.03 : 0.04);
+    circle(u, w, kind === "cell" ? 0.03 : 0.04);
   }
   solidAt(cyl(0.012, 0.014, 0.17, 6), C.steel, { p: [DOCK.to - 0.04, dockTop + 0.085, 0.1 * mirror] });
   solidAt(box(0.03, 0.01, 0.03), C.iron, { p: [DOCK.to - 0.04, dockTop + 0.175, 0.1 * mirror] });
-  const lantern = new THREE.Mesh(ball(0.018, 8, 6), new THREE.MeshBasicMaterial({ color: C.lamp }));
-  lantern.position.set(DOCK.to - 0.04, dockTop + 0.155, 0.1 * mirror);
-  frame.add(lantern);
+  const dockBeacon = new THREE.Mesh(ball(0.018, 8, 6), new THREE.MeshBasicMaterial({ color: C.lamp }));
+  dockBeacon.position.set(DOCK.to - 0.04, dockTop + 0.155, 0.1 * mirror);
+  frame.add(dockBeacon);
   circle(DOCK.to - 0.04, 0.1 * mirror, 0.015);
 
-  // ---- the path inland, the plaza and its water tank
+  // ---- the walkways inland, the pad and the holo-globe over it
   const cantinaAt: Spot = { x: 0.02, z: 0.6 * mirror };
   const yardAt: Spot = { x: 0.98, z: -0.38 * mirror };
   const noticeAt: Spot = { x: 0.98, z: 0.3 * mirror };
@@ -348,45 +367,48 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   ];
   if (podB) paths.push([{ x: plaza.x - plazaR, z: 0.05 * mirror }, { x: podB.x + 0.2, z: podB.z - 0.12 * mirror }]);
   for (const line of paths) {
+    // A walkway of plate laid over the regolith, a stud of light either side every few paces.
     const curve = new THREE.CatmullRomCurve3(line.map((p) => new THREE.Vector3(p.x, 0, p.z)));
     const length = curve.getLength();
     const steps = Math.max(2, Math.ceil(length / 0.04));
-    ribbon(b, curve, steps, 0.085, (u, w) => heightAt(u, w) + 0.004, tones.path);
-    for (let i = 0; i <= steps; i += 2) {
+    ribbon(b, curve, steps, 0.085, (u, w) => heightAt(u, w) + 0.004, C.walk);
+    for (let i = 0; i <= steps; i++) {
       const p = curve.getPointAt(i / steps);
-      for (const side of [-1, 1]) {
-        if (dice.int(3) === 0) continue;
+      if (i % 3 === 1) {
         const tan = curve.getTangentAt(i / steps);
-        const ox = -tan.z * side * dice.range(0.01, 0.028);
-        const oz = tan.x * side * dice.range(0.01, 0.028);
-        solidAt(cyl(dice.range(0.012, 0.02), dice.range(0.014, 0.022), 0.006, 6), dice.int(2) ? C.paving : C.pavingDark, { p: at(p.x + ox, p.z + oz, 0.006), r: [0, dice.range(0, 3), 0] });
+        for (const side of [-1, 1]) b.addGlow(box(0.012, 0.005, 0.008), C.glow, { p: at(p.x - tan.z * side * 0.05, p.z + tan.x * side * 0.05, 0.004), r: [0, -Math.atan2(tan.z, tan.x), 0] });
       }
-      keepClear.push({ x: p.x, z: p.z, r: 0.09 });
+      if (i % 2 === 0) keepClear.push({ x: p.x, z: p.z, r: 0.09 });
     }
   }
-  // Paving: a level disc, then slabs on it.
+  // The pad: a round deck of plates with a ring painted on it and a light at each point of its edge.
   const plazaY = plazaTop - 0.011;
-  solidAt(cyl(plazaR, plazaR + 0.012, 0.03, 20), C.pavingDark, { p: [plaza.x, plazaY - 0.008, plaza.z] });
-  for (let i = 0; i < 46; i++) {
-    const a = dice.range(0, Math.PI * 2);
-    const r = Math.sqrt(dice.range(0.02, 1)) * (plazaR - 0.02);
-    solidAt(cyl(0.02, 0.022, 0.008, 6), dice.int(3) ? C.paving : C.rockLight, { p: [plaza.x + Math.cos(a) * r, plazaY + 0.008, plaza.z + Math.sin(a) * r], r: [0, a, 0] });
+  solidAt(cyl(plazaR, plazaR + 0.012, 0.03, 20), C.steel, { p: [plaza.x, plazaY - 0.008, plaza.z] });
+  solidAt(cyl(plazaR - 0.012, plazaR - 0.012, 0.006, 20), C.paving, { p: [plaza.x, plazaY + 0.008, plaza.z] });
+  for (let k = 0; k < 3; k++) solidAt(box((plazaR - 0.012) * 2, 0.003, 0.005), C.pavingDark, { p: [plaza.x, plazaY + 0.0105, plaza.z], r: [0, (k * Math.PI) / 3, 0] });
+  solidAt(new THREE.RingGeometry(plazaR * 0.6, plazaR * 0.66, 24), C.foil, { p: [plaza.x, plazaY + 0.0125, plaza.z], r: [-Math.PI / 2, 0, 0] });
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2 + 0.39;
+    b.addGlow(box(0.014, 0.006, 0.014), C.glow, { p: [plaza.x + Math.cos(a) * (plazaR - 0.004), plazaY + 0.012, plaza.z + Math.sin(a) * (plazaR - 0.004)], r: [0, -a, 0] });
   }
   keepClear.push({ x: plaza.x, z: plaza.z, r: plazaR + 0.12 });
-  // The water tank: a drum on three legs over a stone ring, a filler cap, a pipe down to a tap and a gauge.
-  b.frame({ p: [plaza.x, plazaY, plaza.z] }, () => {
-    b.add(cyl(0.055, 0.06, 0.02, 10), C.rockLight, { p: [0, 0.01, 0] });
-    for (let k = 0; k < 3; k++) b.add(box(0.009, 0.045, 0.009), C.steel, { p: [Math.cos(k * 2.1) * 0.036, 0.04, Math.sin(k * 2.1) * 0.036] });
-    b.add(cyl(0.046, 0.046, 0.075, 12), C.tin, { p: [0, 0.098, 0] });
-    b.add(cyl(0.0475, 0.0475, 0.012, 12), C.blue, { p: [0, 0.098, 0] });
-    b.add(cyl(0.02, 0.046, 0.02, 12), C.tinDark, { p: [0, 0.1455, 0] });
-    b.add(cyl(0.012, 0.012, 0.012, 8), C.rust, { p: [0, 0.16, 0] });
-    b.add(cyl(0.005, 0.005, 0.1, 5), C.steel, { p: [0.051, 0.07, 0] });
-    b.add(box(0.016, 0.006, 0.006), C.brass, { p: [0.058, 0.03, 0] });
-    b.addGlow(box(0.005, 0.05, 0.01), C.glow, { p: [0, 0.098, 0.0465] });
+  // The holo-globe: a projector in the middle of the pad, and a chart of the Reach turning in the light over it.
+  b.frame({ p: [plaza.x, plazaTop, plaza.z] }, () => {
+    b.add(cyl(0.05, 0.058, 0.02, 10), C.steel, { p: [0, 0.01, 0] });
+    b.add(cyl(0.03, 0.04, 0.032, 10), C.iron, { p: [0, 0.036, 0] });
+    b.addGlow(cyl(0.024, 0.024, 0.004, 10), C.holo, { p: [0, 0.054, 0] });
+    for (let k = 0; k < 3; k++) b.add(box(0.014, 0.012, 0.008), C.brass, { p: [Math.cos(k * 2.1 + 0.4) * 0.046, 0.026, Math.sin(k * 2.1 + 0.4) * 0.046], r: [0, -(k * 2.1 + 0.4) + Math.PI / 2, 0] });
   });
+  const globe = new THREE.Group();
+  globe.position.set(plaza.x, plazaTop + 0.125, plaza.z);
+  globe.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.046, 1), new THREE.MeshBasicMaterial({ color: C.holo, wireframe: true, transparent: true, opacity: 0.9 })));
+  globe.add(new THREE.Mesh(ball(0.042, 10, 8), new THREE.MeshBasicMaterial({ color: C.holo, transparent: true, opacity: 0.18, depthWrite: false })));
+  const orbit = new THREE.Mesh(new THREE.TorusGeometry(0.064, 0.003, 4, 24), new THREE.MeshBasicMaterial({ color: C.lamp }));
+  orbit.rotation.x = Math.PI / 2 - 0.4;
+  globe.add(orbit);
+  frame.add(globe);
   circle(plaza.x, plaza.z, 0.065);
-  // Lamp posts at the plaza and along the path.
+  // Lamp posts at the pad and along the walkway.
   const lamps: THREE.Mesh[] = [];
   for (const [u, w] of [
     [plaza.x + 0.18, 0.18 * mirror],
@@ -429,7 +451,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   const noticeDoor: Door = { at: { x: noticeAt.x, z: noticeAt.z - 0.14 * mirror }, face: (Math.PI / 2) * mirror, inside: null };
   keepClear.push({ x: noticeAt.x, z: noticeAt.z, r: 0.2 });
 
-  // ---- the shipyard: the dock's office, where ships are bought, with a hull in frame on stands outside
+  // ---- the shipyard: the dock's office and workshop, where ships are bought, a hull in frame under its crane outside
   const yardY = heightAt(yardAt.x, yardAt.z);
   const yardYaw = yawFacing((Math.PI / 2) * mirror);
   const SW = 0.3;
@@ -437,30 +459,30 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   const SH = 0.16;
   const yardDoorX = -0.06;
   b.frame({ p: [yardAt.x, yardY, yardAt.z], r: [0, yardYaw, 0] }, () => {
-    b.add(box(SW + 0.03, 0.05, SD + 0.03), C.rock, { p: [0, -0.012, 0] });
+    b.add(box(SW + 0.03, 0.05, SD + 0.03), C.pavingDark, { p: [0, -0.012, 0] });
     b.add(box(SW, SH, SD), C.tin, { p: [0, SH / 2, 0] });
-    // Corrugations on the front and sides.
+    // Ribbed panels on the front and sides.
     for (let i = 1; i < 6; i++) {
       b.add(box(SW + 0.002, 0.004, 0.004), C.tinDark, { p: [0, i * (SH / 6), SD / 2 + 0.001] });
       for (const side of [-1, 1]) b.add(box(0.004, 0.004, SD + 0.002), C.tinDark, { p: [side * (SW / 2 + 0.001), i * (SH / 6), 0] });
     }
     for (const x of [-SW / 2, SW / 2]) b.add(box(0.016, SH, 0.016), C.steel, { p: [x, SH / 2, SD / 2] });
-    for (const side of [-1, 1]) b.add(box(SW + 0.05, 0.014, SD * 0.66), C.blue, { p: [0, SH + 0.055, side * SD * 0.26], r: [side * 0.55, 0, 0] });
-    b.add(box(SW + 0.06, 0.018, 0.018), C.blueDark, { p: [0, SH + 0.1, 0] });
-    for (const side of [-1, 1]) {
-      const gable = new THREE.Shape();
-      gable.moveTo(-SD / 2, 0);
-      gable.lineTo(SD / 2, 0);
-      gable.lineTo(0, 0.095);
-      gable.closePath();
-      b.add(new THREE.ShapeGeometry(gable), C.tin, { p: [side * (SW / 2 + 0.001), SH, 0], r: [0, (side * Math.PI) / 2, 0] });
-    }
-    // The doorway (its door swings, below), and a wide window onto the yard.
+    // A flat roof with a painted edge, and what stands on it: a vent unit, a skylight, a dish.
+    b.add(box(SW + 0.03, 0.014, SD + 0.03), C.blueDark, { p: [0, SH + 0.007, 0] });
+    b.add(box(SW - 0.01, 0.006, SD - 0.01), C.tinDark, { p: [0, SH + 0.016, 0] });
+    b.add(box(0.07, 0.035, 0.06), C.steel, { p: [-0.09, SH + 0.036, -0.04] });
+    for (let i = 0; i < 3; i++) b.add(box(0.06, 0.003, 0.004), C.iron, { p: [-0.09, SH + 0.026 + i * 0.008, -0.009] });
+    b.addGlow(box(0.11, 0.004, 0.05), C.window, { p: [0.06, SH + 0.021, 0.03] });
+    b.add(cyl(0.004, 0.005, 0.04, 5), C.iron, { p: [0.11, SH + 0.04, -0.06] });
+    b.add(cyl(0.035, 0.008, 0.016, 10), C.tin, { p: [0.11, SH + 0.066, -0.06], r: [0.5, 0, 0.3] });
+    // The doorway (its door swings, below), and the workshop's shutter beside it, half up.
     b.add(box(0.068, 0.112, 0.004), 0x14181d, { p: [yardDoorX, 0.056, SD / 2 + 0.002] });
     b.add(box(0.08, 0.012, 0.012), C.steel, { p: [yardDoorX, 0.117, SD / 2 + 0.004] });
-    b.addGlow(box(0.08, 0.05, 0.006), C.window, { p: [0.07, 0.085, SD / 2 + 0.002] });
-    b.add(box(0.09, 0.008, 0.016), C.steel, { p: [0.07, 0.057, SD / 2 + 0.008] });
-    b.add(box(0.004, 0.05, 0.008), C.steel, { p: [0.07, 0.085, SD / 2 + 0.005] });
+    b.add(box(0.1, 0.1, 0.004), 0x14181d, { p: [0.075, 0.05, SD / 2 + 0.002] });
+    for (let i = 0; i < 4; i++) b.add(box(0.1, 0.012, 0.006), i % 2 ? C.steel : C.tinDark, { p: [0.075, 0.094 - i * 0.013, SD / 2 + 0.004] });
+    b.add(box(0.1, 0.008, 0.007), C.foil, { p: [0.075, 0.041, SD / 2 + 0.005] });
+    b.addGlow(box(0.07, 0.012, 0.004), C.heat, { p: [0.075, 0.012, SD / 2 + 0.003] });
+    b.add(box(0.112, 0.01, 0.012), C.steel, { p: [0.075, 0.106, SD / 2 + 0.005] });
     // A little rocket hung over the door for a sign.
     b.add(box(0.05, 0.004, 0.004), C.iron, { p: [yardDoorX + 0.01, 0.145, SD / 2 + 0.025] });
     b.add(cyl(0.009, 0.009, 0.034, 7), C.cream, { p: [yardDoorX + 0.008, 0.13, SD / 2 + 0.04], r: [0, 0, Math.PI / 2] });
@@ -468,15 +490,20 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     b.add(box(0.012, 0.03, 0.003), C.rust, { p: [yardDoorX - 0.008, 0.13, SD / 2 + 0.04] });
     // Hull plates stacked against one side.
     for (let i = 0; i < 4; i++) b.add(box(0.03, 0.025, 0.2), i % 2 ? C.tinDark : C.rust, { p: [SW / 2 + 0.03 + (i % 2) * 0.03, 0.012 + Math.floor(i / 2) * 0.025, 0], r: [0, 0.05 * i, 0] });
-    // A hull in frame on stands by the other: a keel, its ribs, and the first plates.
+    // A hull in frame on stands by the other: a spine, its ribs and the first plates, under a crane with its hook down.
     b.frame({ p: [-SW / 2 - 0.1, 0, 0.02] }, () => {
       for (const z of [-0.06, 0.06]) {
         for (const lean of [-0.3, 0.3]) b.add(box(0.008, 0.06, 0.008), C.steel, { p: [lean * 0.06, 0.028, z], r: [0, 0, lean] });
         b.add(box(0.05, 0.006, 0.01), C.steel, { p: [0, 0.056, z] });
       }
       b.add(box(0.012, 0.012, 0.2), C.iron, { p: [0, 0.064, 0] });
-      for (let i = 0; i < 5; i++) b.add(new THREE.TorusGeometry(0.035, 0.0035, 4, 10, Math.PI), C.tinDark, { p: [0, 0.1, -0.08 + i * 0.04], r: [Math.PI, 0, 0] });
-      for (const side of [-1, 1]) b.add(box(0.006, 0.012, 0.16), C.cream, { p: [side * 0.03, 0.09, 0] });
+      for (let i = 0; i < 5; i++) b.add(new THREE.TorusGeometry(0.035, 0.0035, 4, 10), C.tinDark, { p: [0, 0.1, -0.08 + i * 0.04] });
+      for (const side of [-1, 1]) b.add(box(0.006, 0.012, 0.16), C.cream, { p: [side * 0.035, 0.1, 0] });
+      for (const z of [-0.105, 0.105]) b.add(box(0.012, 0.22, 0.012), C.rust, { p: [0.055, 0.11, z] });
+      b.add(box(0.016, 0.016, 0.24), C.rust, { p: [0.055, 0.224, 0] });
+      b.add(box(0.07, 0.012, 0.014), C.steel, { p: [0.025, 0.21, 0.02] });
+      b.add(cyl(0.002, 0.002, 0.05, 4), C.iron, { p: [0.0, 0.18, 0.02] });
+      b.add(new THREE.TorusGeometry(0.008, 0.003, 4, 8, Math.PI), C.iron, { p: [0.0, 0.152, 0.02], r: [0, 0, Math.PI] });
     });
   });
   block(yardAt.x, yardAt.z, SW / 2 + 0.01, SD / 2 + 0.01, yardYaw);
@@ -493,7 +520,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   };
   keepClear.push({ x: yardAt.x, z: yardAt.z, r: 0.32 });
 
-  // ---- the cantina: painted panels under a barrel roof of tin, a vent stack, a lit sign
+  // ---- the cantina: a hall of painted panels under a barrel roof of tin, round ports, a vent stack, a lit sign
   const cantinaY = heightAt(cantinaAt.x, cantinaAt.z);
   const cantinaYaw = yawFacing(cantinaFace);
   const sign = new THREE.Group();
@@ -502,7 +529,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     const W = 0.42;
     const D = 0.3;
     const H = 0.2;
-    b.add(box(W + 0.03, 0.05, D + 0.03), C.rock, { p: [0, -0.01, 0] });
+    b.add(box(W + 0.03, 0.05, D + 0.03), C.pavingDark, { p: [0, -0.01, 0] });
     b.add(box(W, H, D), C.cream, { p: [0, H / 2, 0] });
     // Ribs on the front.
     for (const x of [-W / 2 + 0.005, -0.07, 0.07, W / 2 - 0.005]) b.add(box(0.014, H, 0.01), C.rustDark, { p: [x, H / 2, D / 2 + 0.002] });
@@ -522,9 +549,10 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     b.add(box(0.088, 0.012, 0.014), C.rustDark, { p: [0, 0.128, D / 2 + 0.006] });
     b.addGlow(box(0.1, 0.006, 0.006), C.glow, { p: [0, 0.142, D / 2 + 0.008] });
     for (const x of [-0.14, 0.14]) {
-      b.addGlow(box(0.06, 0.05, 0.008), C.window, { p: [x, 0.08, D / 2 + 0.004] });
-      b.add(box(0.07, 0.008, 0.014), C.rustDark, { p: [x, 0.052, D / 2 + 0.008] });
-      b.addGlow(box(0.055, 0.04, 0.008), C.window, { p: [x * 0.9, 0.15, D / 2 + 0.004] });
+      // Round ports either side of the door, a slit of light above each.
+      b.addGlow(cyl(0.026, 0.026, 0.008, 12), C.window, { p: [x, 0.085, D / 2 + 0.004], r: [Math.PI / 2, 0, 0] });
+      b.add(new THREE.TorusGeometry(0.028, 0.005, 4, 12), C.rustDark, { p: [x, 0.085, D / 2 + 0.006] });
+      b.addGlow(box(0.06, 0.012, 0.008), C.window, { p: [x * 0.9, 0.16, D / 2 + 0.004] });
     }
     for (const side of [-1, 1]) b.addGlow(box(0.014, 0.02, 0.014), C.lamp, { p: [side * 0.055, 0.13, D / 2 + 0.02] });
     // A bench and drums outside.
@@ -595,7 +623,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     dock: doorLeaf(yardAt, yardY, yardYaw, yardDoorX, SD / 2, 0.066, 0.11, C.steel),
   };
 
-  // ---- hab pods, each with a hydroponic bed under a grow light
+  // ---- hab pods, each with a grow tunnel beside it
   for (const [i, home] of [podA, podB].entries()) {
     if (!home) continue;
     const y = heightAt(home.x, home.z);
@@ -604,7 +632,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     // Tinwick's roofs are bare tin; elsewhere they are painted.
     const roof = landmark === "beacon" ? C.tin : paint;
     b.frame({ p: [home.x, y, home.z], r: [0, yaw, 0] }, () => {
-      b.add(box(0.26, 0.05, 0.22), C.rock, { p: [0, -0.012, 0] });
+      b.add(box(0.26, 0.05, 0.22), C.pavingDark, { p: [0, -0.012, 0] });
       // The pod: a drum of painted panels under a dome.
       b.add(cyl(0.105, 0.11, 0.11, 12), C.cream, { p: [0, 0.055, 0] });
       b.add(cyl(0.109, 0.109, 0.014, 12), paint, { p: [0, 0.03, 0] });
@@ -617,13 +645,13 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
         b.add(cyl(0.004, 0.004, 0.1, 5), C.iron, { p: [-0.06, 0.22, -0.04] });
         b.add(box(0.05, 0.004, 0.004), C.iron, { p: [-0.06, 0.25, -0.04] });
       }
-      // Two troughs of greens to one side, a grow light on a frame over them.
+      // A grow tunnel to one side: two troughs of greens under hoops, a grow light along the ridge.
       const fx = 0.2;
       for (const z of [0.045, -0.045]) b.add(box(0.13, 0.022, 0.05), C.tinDark, { p: [fx + 0.06, 0.011, z] });
       for (let k = 0; k < 6; k++) b.add(ball(0.014, 5, 4), k % 2 ? C.leafDark : C.leaf, { p: [fx + 0.025 + (k % 3) * 0.04, 0.028, k < 3 ? 0.045 : -0.045] });
-      for (const x of [fx - 0.005, fx + 0.125]) b.add(box(0.007, 0.085, 0.007), C.steel, { p: [x, 0.042, 0] });
-      b.add(box(0.14, 0.008, 0.02), C.steel, { p: [fx + 0.06, 0.088, 0] });
-      b.addGlow(box(0.12, 0.004, 0.012), C.grow, { p: [fx + 0.06, 0.082, 0] });
+      for (const x of [fx - 0.008, fx + 0.06, fx + 0.128]) b.add(new THREE.TorusGeometry(0.082, 0.004, 4, 12, Math.PI), C.steel, { p: [x, 0.004, 0], r: [0, Math.PI / 2, 0] });
+      b.add(box(0.14, 0.006, 0.012), C.steel, { p: [fx + 0.06, 0.086, 0] });
+      b.addGlow(box(0.12, 0.004, 0.012), C.grow, { p: [fx + 0.06, 0.08, 0] });
     });
     block(home.x, home.z, 0.14, 0.12, yaw);
     {
@@ -664,24 +692,54 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   const landmarkY = heightAt(landmarkAt.x, landmarkAt.z);
   let animateLandmark: (t: number, dt: number) => void = () => {};
   if (landmark === "beacon") {
-    // A beacon tower: banded tin, a gallery round the lamp, an aerial on its cap, and a beam that sweeps.
+    // A beacon tower: a lattice mast on four legs, a gallery round the lamp at its head, dishes up its
+    // side, an aerial on its cap, and a beam that sweeps.
     const tower = new THREE.Group();
     tower.position.set(landmarkAt.x, landmarkY, landmarkAt.z);
     b.frame({ p: [landmarkAt.x, landmarkY, landmarkAt.z] }, () => {
-      b.add(cyl(0.14, 0.17, 0.05, 9), C.rock, { p: [0, 0.0, 0] });
-      b.add(cyl(0.075, 0.11, 0.62, 10), C.tin, { p: [0, 0.31, 0] });
-      for (const y of [0.16, 0.42]) b.add(cyl(0.104 - y * 0.05, 0.106 - y * 0.05, 0.07, 10), C.rust, { p: [0, y, 0] });
-      b.add(cyl(0.11, 0.09, 0.03, 10), C.iron, { p: [0, 0.63, 0] });
-      for (let i = 0; i < 10; i++) {
-        const a = (i / 10) * Math.PI * 2;
-        b.add(box(0.005, 0.04, 0.005), C.iron, { p: [Math.cos(a) * 0.1, 0.665, Math.sin(a) * 0.1] });
+      const H = 0.62;
+      const foot = 0.115;
+      const head = 0.042;
+      const corner = (k: number, y: number): Vec3 => {
+        const a = Math.PI / 4 + (k * Math.PI) / 2;
+        const r = foot + (head - foot) * (y / H);
+        return [Math.cos(a) * r, y, Math.sin(a) * r];
+      };
+      b.add(cyl(0.17, 0.19, 0.04, 8), C.pavingDark, { p: [0, 0.0, 0] });
+      const levels = [0, 0.13, 0.26, 0.39, 0.51, H];
+      for (let k = 0; k < 4; k++) {
+        strut(b, corner(k, 0), corner(k, H), 0.014, C.tin);
+        b.add(box(0.03, 0.02, 0.03), C.iron, { p: [corner(k, 0)[0], 0.03, corner(k, 0)[2]] });
+        for (let i = 1; i < levels.length; i++) {
+          // A ring at each level, and a brace across each face leaning the other way level by level.
+          strut(b, corner(k, levels[i]!), corner(k + 1, levels[i]!), 0.008, i % 2 ? C.rust : C.tinDark);
+          strut(b, corner(k + (i % 2), levels[i - 1]!), corner(k + 1 - (i % 2), levels[i]!), 0.006, C.steel);
+        }
       }
-      b.add(cyl(0.05, 0.095, 0.035, 10), C.tinDark, { p: [0, 0.745, 0] });
-      b.add(cyl(0.005, 0.005, 0.16, 5), C.iron, { p: [0, 0.84, 0] });
-      b.add(box(0.07, 0.005, 0.005), C.iron, { p: [0, 0.86, 0] });
-      b.addGlow(ball(0.012, 6, 5), C.rust, { p: [0, 0.925, 0] });
+      // The gallery and the lamp's housing.
+      b.add(cyl(0.085, 0.07, 0.02, 8), C.iron, { p: [0, H + 0.01, 0] });
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        b.add(box(0.005, 0.035, 0.005), C.iron, { p: [Math.cos(a) * 0.08, H + 0.037, Math.sin(a) * 0.08] });
+      }
+      b.add(new THREE.TorusGeometry(0.08, 0.003, 4, 16), C.iron, { p: [0, H + 0.055, 0], r: [Math.PI / 2, 0, 0] });
+      b.add(cyl(0.045, 0.06, 0.03, 8), C.tinDark, { p: [0, H + 0.135, 0] });
+      b.add(cyl(0.004, 0.005, 0.16, 5), C.iron, { p: [0, H + 0.23, 0] });
+      b.add(box(0.07, 0.005, 0.005), C.iron, { p: [0, H + 0.25, 0] });
+      b.addGlow(ball(0.012, 6, 5), C.beacon, { p: [0, H + 0.315, 0] });
+      // Two dishes on its side, and the hut at its foot with its door toward the pad.
       const face = towardPlaza(landmarkAt);
-      b.add(box(0.05, 0.09, 0.01), C.steel, { p: [Math.cos(face) * 0.105, 0.05, Math.sin(face) * 0.105], r: [0, yawFacing(face), 0] });
+      for (const [y, turn] of [
+        [0.34, 1.9],
+        [0.46, -2.3],
+      ] as const) {
+        const a = face + turn;
+        const r = foot + (head - foot) * (y / H) + 0.03;
+        b.add(cyl(0.04, 0.01, 0.018, 10), C.cream, { p: [Math.cos(a) * r, y, Math.sin(a) * r], r: [0, -a, -Math.PI / 2 + 0.3] });
+      }
+      b.add(box(0.09, 0.07, 0.07), C.tin, { p: [Math.cos(face) * 0.03, 0.055, Math.sin(face) * 0.03], r: [0, yawFacing(face), 0] });
+      b.add(box(0.1, 0.01, 0.08), C.blueDark, { p: [Math.cos(face) * 0.03, 0.095, Math.sin(face) * 0.03], r: [0, yawFacing(face), 0] });
+      b.addGlow(box(0.03, 0.045, 0.006), C.window, { p: [Math.cos(face) * 0.067, 0.045, Math.sin(face) * 0.067], r: [0, yawFacing(face), 0] });
     });
     const lamp = new THREE.Mesh(ball(0.05, 8, 6), new THREE.MeshBasicMaterial({ color: C.lamp }));
     lamp.position.y = 0.69;
@@ -701,14 +759,20 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       (beam.material as THREE.MeshBasicMaterial).opacity = on ? 0.12 : 0.03;
     };
   } else if (landmark === "dish") {
-    // A radar dish on a squat tower, turning, with a field of solar panels beside it.
+    // A radar dish turning on a column over a squat drum of a station, with a field of solar panels beside it.
     const yaw = yawFacing(towardPlaza(landmarkAt));
     b.frame({ p: [landmarkAt.x, landmarkY, landmarkAt.z], r: [0, yaw, 0] }, () => {
-      b.add(cyl(0.11, 0.17, 0.5, 8), C.cream, { p: [0, 0.25, 0] });
-      b.add(cyl(0.135, 0.145, 0.05, 8), C.rust, { p: [0, 0.2, 0] });
-      b.add(cyl(0.13, 0.115, 0.04, 8), C.tinDark, { p: [0, 0.52, 0] });
-      b.add(box(0.06, 0.1, 0.01), C.steel, { p: [0, 0.05, 0.155] });
-      b.addGlow(box(0.04, 0.04, 0.008), C.window, { p: [0, 0.3, 0.13] });
+      b.add(cyl(0.16, 0.17, 0.2, 8), C.cream, { p: [0, 0.1, 0] });
+      b.add(cyl(0.163, 0.166, 0.03, 8), C.rust, { p: [0, 0.14, 0] });
+      b.add(cyl(0.13, 0.165, 0.03, 8), C.tinDark, { p: [0, 0.215, 0] });
+      b.add(cyl(0.05, 0.06, 0.28, 8), C.steel, { p: [0, 0.37, 0] });
+      for (let k = 0; k < 3; k++) {
+        const a = k * 2.094 + 0.5;
+        strut(b, [Math.cos(a) * 0.12, 0.23, Math.sin(a) * 0.12], [Math.cos(a) * 0.045, 0.44, Math.sin(a) * 0.045], 0.012, C.tinDark);
+      }
+      b.add(cyl(0.11, 0.07, 0.04, 8), C.tinDark, { p: [0, 0.52, 0] });
+      b.add(box(0.06, 0.1, 0.01), C.steel, { p: [0, 0.05, 0.168] });
+      b.addGlow(box(0.05, 0.03, 0.008), C.window, { p: [0.08, 0.12, 0.148], r: [0, 0.39, 0] });
     });
     // Rows of panels tilted to the sun.
     const fieldC = Math.cos(yaw);
@@ -800,7 +864,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   }
   keepClear.push({ x: landmarkAt.x, z: landmarkAt.z, r: frozen ? 0.7 : 0.32 });
 
-  // ---- the rim: a shuttle up on blocks, a solar sail on its rack, space junk, a heater ring, pebbles
+  // ---- the rim: a shuttle up on blocks, a solar sail on its rack, a telescope, space junk, pebbles
   const rimSpot = (a: number, s: number): Spot => {
     const r = rimR(a) * s;
     return { x: Math.cos(a) * r, z: Math.sin(a) * r };
@@ -841,26 +905,21 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     circle(p.x - 0.1, p.z + 0.04, 0.03);
     keepClear.push({ x: p.x, z: p.z, r: 0.16 });
   }
-  // The heater ring: a glowing element in a guard of plates, and two crates to sit on.
-  const heaterAt = rimSpot(Math.PI * 0.72 * mirror, 0.78);
-  const element = new THREE.Mesh(cyl(0.012, 0.018, 0.04, 7), new THREE.MeshBasicMaterial({ color: C.heat }));
+  // A telescope on its tripod, looking out over the rim, and a crate to sit on at its eyepiece.
   {
-    const y = heightAt(heaterAt.x, heaterAt.z);
-    for (let k = 0; k < 7; k++) {
-      const a = (k / 7) * Math.PI * 2;
-      b.add(box(0.008, 0.02, 0.022), C.steel, { p: [heaterAt.x + Math.cos(a) * 0.04, y + 0.01, heaterAt.z + Math.sin(a) * 0.04], r: [0, -a, 0] });
-    }
-    b.add(cyl(0.03, 0.034, 0.008, 9), C.iron, { p: [heaterAt.x, y + 0.004, heaterAt.z] });
-    element.position.set(heaterAt.x, y + 0.028, heaterAt.z);
-    frame.add(element);
-    for (const a of [0.4, 2.6]) {
-      const lx = heaterAt.x + Math.cos(a) * 0.1;
-      const lz = heaterAt.z + Math.sin(a) * 0.1;
-      b.add(box(0.045, 0.026, 0.032), a < 1 ? C.rust : C.teal, { p: [lx, heightAt(lx, lz) + 0.013, lz], r: [0, -a, 0] });
-      circle(lx, lz, 0.03);
-    }
-    circle(heaterAt.x, heaterAt.z, 0.05);
-    keepClear.push({ x: heaterAt.x, z: heaterAt.z, r: 0.18 });
+    const a = Math.PI * 0.72 * mirror;
+    const p = rimSpot(a, 0.78);
+    b.frame({ p: at(p.x, p.z), r: [0, -a, 0] }, () => {
+      for (let k = 0; k < 3; k++) strut(b, [0, 0.07, 0], [Math.cos(k * 2.094) * 0.035, 0, Math.sin(k * 2.094) * 0.035], 0.006, C.steel);
+      b.add(ball(0.01, 6, 5), C.iron, { p: [0, 0.072, 0] });
+      b.add(cyl(0.014, 0.017, 0.11, 8), C.cream, { p: [0.012, 0.092, 0], r: [0, 0, -0.95] });
+      b.add(cyl(0.019, 0.019, 0.014, 8), C.brass, { p: [0.052, 0.12, 0], r: [0, 0, -0.95] });
+      b.add(cyl(0.006, 0.006, 0.024, 5), C.iron, { p: [-0.04, 0.056, 0], r: [0, 0, -0.95] });
+      b.add(box(0.045, 0.026, 0.032), C.teal, { p: [-0.09, 0.013, 0.01], r: [0, 0.3, 0] });
+    });
+    circle(p.x, p.z, 0.045);
+    circle(p.x - Math.cos(a) * 0.09, p.z - Math.sin(a) * 0.09, 0.03);
+    keepClear.push({ x: p.x, z: p.z, r: 0.18 });
   }
   // Space junk: a buckled panel or two, lying where it came down.
   for (let i = 0; i < 2; i++) {
@@ -873,7 +932,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   // Pebbles, lost washers and stones round the rim.
   for (let i = 0; i < 16; i++) {
     const a = dice.range(0, Math.PI * 2);
-    const p = rimSpot(a, dice.range(0.74, 0.95));
+    const p = rimSpot(a, dice.range(0.74, 0.93));
     if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < 0.2) continue;
     const kind = dice.int(3);
     if (kind === 0) b.add(cyl(0.008, 0.01, 0.004, 5), dice.pick([0xd9d2e6, 0xc9c2d9, 0xb8b0cc]), { p: at(p.x, p.z, 0.002) });
@@ -888,84 +947,115 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     b.add(new THREE.DodecahedronGeometry(0.04 + dice.range(0, 0.07)), frozen ? C.rockDark : C.rock, { p: [p.x, 0.04 - (i % 3) * 0.16, p.z], r: [dice.range(0, 3), dice.range(0, 3), 0] });
   }
 
-  // ---- what stands on the ground: antenna palms round the rim, potted trees and crystal spires inland, never on a path or a building
+  // ---- warning lamps along the rim's lip, either side of the dock's gap: a post and a red light, beyond where anyone walks
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * Math.PI * 2;
+    if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < 0.4) continue;
+    const p = rimSpot(a, 0.962);
+    const y = groundAt(p.x, p.z);
+    b.add(box(0.008, 0.036, 0.008), C.iron, { p: [p.x, y + 0.016, p.z] });
+    b.addGlow(box(0.013, 0.011, 0.013), C.beacon, { p: [p.x, y + 0.04, p.z] });
+  }
+
+  // ---- what stands on the ground: masts, dishes and panels round the rim, the outpost's plant on the floor, never on a walkway or a building
   const clearOf = (x: number, z: number, r: number): boolean => keepClear.every((k) => Math.hypot(k.x - x, k.z - z) > k.r + r);
   const placed: Spot[] = [];
-  const palms = frozen ? 5 : 8;
-  for (let tries = 0, n = 0; tries < 60 && n < palms; tries++) {
+  const rimThings = frozen ? 6 : 9;
+  for (let tries = 0, n = 0; tries < 70 && n < rimThings; tries++) {
     const a = dice.range(0, Math.PI * 2);
     if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < 0.5) continue;
-    const p = rimSpot(a, dice.range(0.72, 0.86));
+    const p = rimSpot(a, dice.range(0.72, 0.84));
     if (!clearOf(p.x, p.z, 0.06) || placed.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < 0.22)) continue;
-    antennaPalm(b, dice, at(p.x, p.z, -0.01), a);
-    circle(p.x, p.z, 0.035);
+    // Mostly light masts; now and then a dish or a panel.
+    const kind = n % 3;
+    if (kind === 1) dishPost(b, dice, at(p.x, p.z, -0.004));
+    else if (kind === 2) solarStand(b, dice, at(p.x, p.z, -0.004), a);
+    else lightMast(b, dice, at(p.x, p.z, -0.004), a);
+    circle(p.x, p.z, kind === 2 ? 0.045 : 0.03);
     placed.push(p);
     n++;
   }
-  const inland = frozen ? 5 : 11;
+  const inland = frozen ? 5 : 10;
   for (let tries = 0, n = 0; tries < 90 && n < inland; tries++) {
     const a = dice.range(0, Math.PI * 2);
-    const p = rimSpot(a, Math.sqrt(dice.range(0.04, 1)) * 0.6);
-    if (!clearOf(p.x, p.z, 0.08) || placed.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < 0.17)) continue;
-    const spire = frozen || dice.int(3) === 0;
-    if (spire) crystalSpire(b, dice, at(p.x, p.z, -0.005), frozen);
-    else pottedTree(b, dice, at(p.x, p.z, -0.005), frozen);
-    circle(p.x, p.z, 0.04);
+    const p = rimSpot(a, Math.sqrt(dice.range(0.04, 1)) * 0.62);
+    if (!clearOf(p.x, p.z, 0.09) || placed.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < 0.19)) continue;
+    // Tanks, cargo and vents, and here and there the crystal that grows out of the rock. Ice, on frozen ground.
+    const kind = frozen ? (n % 2 ? 3 : n % 3) : n % 4;
+    if (kind === 0) tankCluster(b, dice, at(p.x, p.z, -0.004));
+    else if (kind === 1) cargoStack(b, dice, at(p.x, p.z, -0.002));
+    else if (kind === 2) ventStack(b, dice, at(p.x, p.z, -0.004));
+    else crystalSpire(b, dice, at(p.x, p.z, -0.005), frozen);
+    circle(p.x, p.z, kind < 2 ? 0.055 : 0.04);
     placed.push(p);
     n++;
   }
-  // Pebbles, glints of crystal and boulders on the rise; mineral needles in the dust. Small enough to walk through.
-  for (let i = 0; i < (opts.lowQuality ? 40 : 90); i++) {
+  // Craters in the floor where nothing was built: a dark pit and its raised ring. Shallow enough to walk through.
+  for (let tries = 0, n = 0; tries < 40 && n < (frozen ? 3 : 5); tries++) {
+    const a = dice.range(0, Math.PI * 2);
+    const p = rimSpot(a, Math.sqrt(dice.range(0.05, 1)) * 0.8);
+    const r = dice.range(0.035, 0.075);
+    if (!clearOf(p.x, p.z, r) || onDock(p.x, p.z) || placed.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < r + 0.09)) continue;
+    const y = heightAt(p.x, p.z);
+    b.add(cyl(r, r * 0.8, 0.004, 10), tones.rim[1], { p: [p.x, y + 0.001, p.z] });
+    b.add(new THREE.TorusGeometry(r, r * 0.16, 4, 12), tones.lip, { p: [p.x, y + 0.001, p.z], r: [Math.PI / 2, 0, dice.range(0, 3)], s: [1, 1, 0.55] });
+    placed.push(p);
+    n++;
+  }
+  // Pebbles, glints of crystal and boulders on the floor. Small enough to walk through, but for the boulders:
+  // every renderer lays out the same ones, or two clients would walk different grids.
+  for (let i = 0; i < 80; i++) {
     const a = dice.range(0, Math.PI * 2);
     const s = Math.sqrt(dice.range(0.02, 1)) * 0.9;
     const p = rimSpot(a, s);
     if (!clearOf(p.x, p.z, 0.0) || onDock(p.x, p.z)) continue;
     const y = heightAt(p.x, p.z);
-    if (s < 0.62) {
-      const kind = dice.int(5);
-      if (kind < 3) {
-        const pebble = frozen ? tones.pebble[0] : ochre ? tones.pebble[0] : dice.int(2) ? tones.pebble[0] : tones.pebble[1];
-        for (let k = 0; k < 3; k++) b.add(new THREE.DodecahedronGeometry(0.006 + k * 0.002), pebble, { p: [p.x + (k - 1) * 0.012, y + 0.004, p.z + ((k % 2) - 0.5) * 0.012], r: [dice.range(-0.3, 0.3), 0, dice.range(-0.3, 0.3)] });
-      } else if (kind === 3 && !frozen) {
-        const c = dice.pick([C.crystal, C.crystalViolet, C.lamp, C.heat]);
-        for (let k = 0; k < 3; k++) b.addGlow(new THREE.OctahedronGeometry(0.006), c, { p: [p.x + dice.range(-0.015, 0.015), y + 0.008, p.z + dice.range(-0.015, 0.015)] });
-      } else {
-        b.add(new THREE.DodecahedronGeometry(0.026 + dice.range(0, 0.02)), frozen ? C.rockDark : tones.under[2], { p: [p.x, y + 0.012, p.z], s: [1, 0.75, 1] });
-        circle(p.x, p.z, 0.03);
-      }
-    } else if (s > 0.74 && dice.int(2) === 0) {
-      for (let k = 0; k < 4; k++) b.add(cone(0.005, 0.05, 3), frozen ? C.ice : 0xc9c2d9, { p: [p.x + (k - 1.5) * 0.007, y + 0.02, p.z], r: [0, 0, (k - 1.5) * 0.2] });
+    const kind = dice.int(5);
+    if (kind < 3) {
+      const pebble = dice.int(2) ? tones.pebble[0] : tones.pebble[1];
+      for (let k = 0; k < 3; k++) b.add(new THREE.DodecahedronGeometry(0.006 + k * 0.002), pebble, { p: [p.x + (k - 1) * 0.012, y + 0.004, p.z + ((k % 2) - 0.5) * 0.012], r: [dice.range(-0.3, 0.3), 0, dice.range(-0.3, 0.3)] });
+    } else if (kind === 3 && !frozen) {
+      const c = dice.pick([C.crystal, C.crystalViolet, C.lamp, C.heat]);
+      for (let k = 0; k < 3; k++) b.addGlow(new THREE.OctahedronGeometry(0.006), c, { p: [p.x + dice.range(-0.015, 0.015), y + 0.008, p.z + dice.range(-0.015, 0.015)] });
+    } else if (s < 0.8) {
+      b.add(new THREE.DodecahedronGeometry(0.026 + dice.range(0, 0.02)), frozen ? C.rockDark : tones.under[2], { p: [p.x, y + 0.012, p.z], s: [1, 0.75, 1] });
+      circle(p.x, p.z, 0.03);
     }
   }
 
   const statics = b.build(!opts.lowQuality);
   frame.add(statics);
 
-  // ---- rock mites, scuttling sideways along the rim
-  const mites: { g: THREE.Group; a: number; span: number; phase: number }[] = [];
+  // ---- survey rovers, trundling out along the rim and back
+  const rovers: { g: THREE.Group; a: number; span: number; phase: number }[] = [];
   for (let i = 0; i < 3; i++) {
     const g = new THREE.Group();
-    const shell = new THREE.Mesh(ball(0.014, 7, 5), new THREE.MeshLambertMaterial({ color: C.mite }));
-    shell.scale.set(1, 0.55, 1.25);
-    shell.position.y = 0.008;
-    g.add(shell);
-    for (const side of [-1, 1]) {
-      // A lit eye each side of its front, and three legs.
-      const eye = new THREE.Mesh(ball(0.004, 5, 4), new THREE.MeshBasicMaterial({ color: C.glow }));
-      eye.position.set(0.012, 0.011, side * 0.007);
-      g.add(eye);
-      for (let k = 0; k < 3; k++) {
-        const leg = new THREE.Mesh(box(0.003, 0.003, 0.012), new THREE.MeshLambertMaterial({ color: C.miteDark }));
-        leg.position.set(-0.006 + k * 0.006, 0.004, side * 0.016);
-        g.add(leg);
+    const deck = new THREE.Mesh(box(0.03, 0.008, 0.02), new THREE.MeshLambertMaterial({ color: C.tin }));
+    deck.position.y = 0.012;
+    g.add(deck);
+    const dark = new THREE.MeshLambertMaterial({ color: C.iron });
+    for (const x of [-0.011, 0.011]) {
+      for (const side of [-1, 1]) {
+        const wheel = new THREE.Mesh(cyl(0.006, 0.006, 0.005, 7), dark);
+        wheel.rotation.x = Math.PI / 2;
+        wheel.position.set(x, 0.006, side * 0.012);
+        g.add(wheel);
       }
     }
+    // A mast with a lamp for an eye, and a panel on its back.
+    const mast = new THREE.Mesh(box(0.003, 0.016, 0.003), dark);
+    mast.position.set(0.008, 0.024, 0);
+    const eye = new THREE.Mesh(box(0.008, 0.006, 0.01), new THREE.MeshBasicMaterial({ color: C.glow }));
+    eye.position.set(0.009, 0.034, 0);
+    const panel = new THREE.Mesh(box(0.016, 0.002, 0.018), new THREE.MeshLambertMaterial({ color: C.panel }));
+    panel.position.set(-0.006, 0.018, 0);
+    g.add(mast, eye, panel);
     frame.add(g);
-    mites.push({ g, a: dice.range(0.7, Math.PI * 2 - 0.7), span: dice.range(0.15, 0.35), phase: dice.range(0, 6) });
+    rovers.push({ g, a: dice.range(0.7, Math.PI * 2 - 0.7), span: dice.range(0.15, 0.35), phase: dice.range(0, 6) });
   }
 
   // ---- the walk grid
-  const grid = new WalkGrid(-1.72, -1.72, DOCK.to + 0.06, 1.72, 0.04).fill((u, w) => onDock(u, w) || sOf(u, w) <= 0.965);
+  const grid = new WalkGrid(-1.72, -1.72, DOCK.to + 0.06, 1.72, 0.04).fill((u, w) => onDock(u, w) || sOf(u, w) <= WALK_S);
   for (const o of obstacles) grid.block(o, BODY);
 
   // ---- rings, the "you are here" flag, the chart's hit disc
@@ -982,11 +1072,13 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   const flag = new THREE.Group();
   const flagAt: Spot = { x: plaza.x + 0.2, z: -0.22 * mirror };
   flag.position.set(flagAt.x, heightAt(flagAt.x, flagAt.z), flagAt.z);
-  const pole = new THREE.Mesh(cyl(0.008, 0.01, 0.4, 5), new THREE.MeshLambertMaterial({ color: C.parchment }));
-  pole.position.y = 0.2;
+  // A marker for the chart: a pylon, and a brass diamond turning over it.
+  const pole = new THREE.Mesh(cyl(0.008, 0.01, 0.3, 5), new THREE.MeshLambertMaterial({ color: C.parchment }));
+  pole.position.y = 0.15;
   flag.add(pole);
-  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.1), new THREE.MeshBasicMaterial({ color: C.brass, side: THREE.DoubleSide }));
-  cloth.position.set(0.08, 0.34, 0);
+  const cloth = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0), new THREE.MeshBasicMaterial({ color: C.brass }));
+  cloth.scale.set(0.7, 1, 0.7);
+  cloth.position.set(0, 0.39, 0);
   flag.add(cloth);
   flag.visible = false;
   frame.add(flag);
@@ -1059,28 +1151,28 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     berth,
     animate(t, dt) {
       animateLandmark(t, dt);
-      if (flag.visible) cloth.rotation.y = Math.sin(t * 4) * 0.25;
-      (lantern.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 7) > -0.6 ? C.lamp : 0xd9b25a);
+      if (flag.visible) cloth.rotation.y = t * 1.6;
+      // The dock's beacon blinks: two short flashes and a rest.
+      (dockBeacon.material as THREE.MeshBasicMaterial).color.setHex((t * 1.2) % 1 < 0.12 || ((t * 1.2) % 1 > 0.24 && (t * 1.2) % 1 < 0.36) ? C.lamp : C.lampOff);
       for (const [i, l] of lamps.entries()) (l.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 9 + i * 2.3) > -0.85 ? C.lamp : 0xe8c060);
       sign.rotation.x = Math.sin(t * 1.3) * 0.18;
-      // The heater's element breathes; it does not dance like a flame.
-      element.scale.set(1 + Math.sin(t * 3.1) * 0.06, 0.92 + Math.abs(Math.sin(t * 1.7)) * 0.16, 1 + Math.sin(t * 3.1) * 0.06);
+      globe.rotation.y = t * 0.45;
+      orbit.rotation.z = t * 0.9;
       for (const p of steam) {
         const k = (t * 0.3 + (p.userData.phase as number)) % 1;
         p.position.set(stack.x + Math.sin(k * 5) * 0.03, stack.y + k * 0.3, stack.z + k * 0.06);
         p.scale.setScalar(0.6 + k * 1.4);
         (p.material as THREE.MeshBasicMaterial).opacity = 0.8 * (1 - k);
       }
-      for (const c of mites) {
-        // Out a little and back along the rim, a pause at each end.
+      for (const c of rovers) {
+        // Out a little and back along the rim, a pause at each end, nose the way it goes.
         const k = Math.sin(t * 0.45 + c.phase);
         const a = c.a + Math.max(-1, Math.min(1, k * 1.4)) * c.span * 0.5;
-        const r = rimR(a) * 0.93;
+        const r = rimR(a) * 0.9;
         const u = Math.cos(a) * r;
         const w = Math.sin(a) * r;
         c.g.position.set(u, heightAt(u, w), w);
-        c.g.rotation.y = -a;
-        c.g.position.y += Math.abs(Math.sin(t * 18 + c.phase)) * 0.002 * (Math.abs(k) < 0.7 ? 1 : 0);
+        c.g.rotation.y = -a - (Math.cos(t * 0.45 + c.phase) >= 0 ? 1 : -1) * (Math.PI / 2);
       }
       void dt;
     },
@@ -1089,8 +1181,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
 
 /**
  * The faceted ground: rings of the rim's shape from the middle out to its lip, colored by what each
- * face is. Rolls the dice exactly as it always did for every face inside the lip, so everything
- * placed after it lands where it always has.
+ * face is. It rolls the dice for every face, so what it draws is part of the layout that follows.
  */
 function buildGround(
   rimR: (a: number) => number,
@@ -1101,7 +1192,7 @@ function buildGround(
   /** Where frost spreads from, on frozen ground. */
   frostFrom: Spot | null,
 ): THREE.Mesh {
-  const rings = [0, 0.1, 0.2, 0.3, 0.4, 0.48, 0.56, 0.62, 0.67, 0.72, 0.78, 0.84, 0.9, 0.95, 0.985, 1.0];
+  const rings = [0, 0.1, 0.2, 0.3, 0.4, 0.48, 0.56, 0.62, 0.67, 0.72, 0.78, 0.84, 0.9, 0.95, 0.975, 1.0];
   const segs = 64;
   const verts: THREE.Vector3[][] = rings.map((s) =>
     Array.from({ length: segs }, (_, j) => {
@@ -1121,9 +1212,10 @@ function buildGround(
     const cw = (a.z + b.z + c.z) / 3;
     const s = sOf(cu, cw);
     let hex: number;
-    if (s < 0.64) hex = tones.rise[dice.int(3)]!;
-    else if (s < 0.68) hex = dice.int(2) ? tones.rise[dice.int(3)]! : tones.dust[dice.int(3)]!;
-    else if (s < 0.95) hex = tones.dust[dice.int(3)]!;
+    // The floor, then the rim's slope up to its crest, then the lip catching the light.
+    if (s < 0.8) hex = tones.floor[dice.int(3)]!;
+    else if (s < 0.86) hex = dice.int(2) ? tones.floor[dice.int(3)]! : tones.rim[dice.int(3)]!;
+    else if (s < 0.94) hex = tones.rim[dice.int(3)]!;
     else hex = tones.lip;
     color.setHex(hex);
     if (frostFrom && s < 0.9) {
@@ -1261,40 +1353,103 @@ function drum(b: Batch, p: readonly [number, number, number], color: number): vo
   for (const y of [0.012, 0.038]) b.add(cyl(0.0235, 0.0235, 0.005, 8), C.iron, { p: [p[0], p[1] + y, p[2]] });
 }
 
-/**
- * An antenna palm: a ringed mast leaning like a palm's trunk, and where the fronds were, aerials
- * drooping from its head, each a boom with cross pieces down its length.
- */
-function antennaPalm(b: Batch, dice: Dice, p: [number, number, number], lean: number): void {
-  const height = 0.32 + dice.range(0, 0.18);
-  const tilt = 0.12 + dice.range(0, 0.12);
-  b.frame({ p, r: [0, -lean, tilt] }, () => {
-    const rings = 6;
-    for (let i = 0; i < rings; i++) b.add(cyl(0.015 - i * 0.0012, 0.018 - i * 0.0012, height / rings + 0.004, 6), i % 2 ? C.tin : C.tinDark, { p: [0, (i + 0.5) * (height / rings), 0] });
-    const fronds = 6 + dice.int(2);
-    for (let f = 0; f < fronds; f++) {
-      b.frame({ p: [0, height, 0], r: [0, (f / fronds) * Math.PI * 2 + dice.range(0, 0.4), -0.4 - dice.range(0, 0.3)] }, () => {
-        b.add(box(0.2, 0.006, 0.008), C.steel, { p: [0.1, 0, 0] });
-        for (let k = 0; k < 4; k++) b.add(box(0.006, 0.005, 0.07 - k * 0.012), f % 2 ? C.teal : C.tealDark, { p: [0.05 + k * 0.045, 0.001, 0] });
-        b.add(box(0.07, 0.006, 0.008), C.steel, { p: [0.228, -0.014, 0], r: [0, 0, -0.4] });
-      });
+/** A bar from one point to another: what a lattice is made of. */
+function strut(b: Batch, from: Vec3, to: Vec3, thick: number, color: number): void {
+  const a = new THREE.Vector3(...from);
+  const along = new THREE.Vector3(...to).sub(a);
+  const length = along.length();
+  const turn = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), along.clone().normalize()));
+  b.add(box(thick, length, thick), color, { p: [a.x + along.x / 2, a.y + along.y / 2, a.z + along.z / 2], r: [turn.x, turn.y, turn.z] });
+}
+
+/** A light mast on the rim: a slim pole, two floodlights at its head turned in on the settlement, a red lamp on its tip. */
+function lightMast(b: Batch, dice: Dice, p: [number, number, number], outward: number): void {
+  const height = 0.3 + dice.range(0, 0.16);
+  b.frame({ p, r: [0, -outward, 0] }, () => {
+    b.add(cyl(0.02, 0.026, 0.02, 6), C.steel, { p: [0, 0.01, 0] });
+    b.add(cyl(0.006, 0.009, height, 5), C.tinDark, { p: [0, height / 2, 0] });
+    b.add(box(0.012, 0.01, 0.1), C.iron, { p: [0, height - 0.02, 0] });
+    for (const z of [-0.04, 0.04]) {
+      b.add(box(0.03, 0.022, 0.03), C.iron, { p: [-0.012, height - 0.03, z], r: [0, 0, 0.5] });
+      b.addGlow(box(0.006, 0.018, 0.024), C.lamp, { p: [-0.027, height - 0.039, z], r: [0, 0, 0.5] });
     }
-    b.add(ball(0.02, 7, 5), C.rust, { p: [0, height, 0] });
-    b.addGlow(ball(0.008, 5, 4), C.lamp, { p: [0, height + 0.024, 0] });
+    b.addGlow(ball(0.008, 5, 4), C.beacon, { p: [0, height + 0.008, 0] });
   });
 }
 
-/** A tree in a tub: somebody carried it here and waters it. */
-function pottedTree(b: Batch, dice: Dice, p: [number, number, number], frozen: boolean): void {
-  const height = 0.09 + dice.range(0, 0.06);
+/** A dish on a post, cocked at the sky. */
+function dishPost(b: Batch, dice: Dice, p: [number, number, number]): void {
+  const height = 0.11 + dice.range(0, 0.06);
   b.frame({ p, r: [0, dice.range(0, 6), 0] }, () => {
-    b.add(cyl(0.034, 0.027, 0.034, 8), C.rust, { p: [0, 0.019, 0] });
-    b.add(cyl(0.036, 0.036, 0.006, 8), C.rustDark, { p: [0, 0.035, 0] });
-    b.add(cyl(0.01, 0.014, height, 6), 0x7a5a3a, { p: [0, height / 2 + 0.01, 0] });
-    const r = 0.07 + dice.range(0, 0.04);
-    const leaf = frozen ? 0x3d6f6a : dice.int(2) ? C.leaf : C.leafDark;
-    b.add(new THREE.IcosahedronGeometry(r, 0), leaf, { p: [0, height + r * 0.75, 0], r: [dice.range(0, 3), dice.range(0, 3), 0] });
-    b.add(new THREE.IcosahedronGeometry(r * 0.65, 0), leaf, { p: [r * 0.55, height + r * 0.5, r * 0.2], r: [dice.range(0, 3), dice.range(0, 3), 0] });
+    b.add(cyl(0.02, 0.026, 0.02, 6), C.steel, { p: [0, 0.01, 0] });
+    b.add(cyl(0.007, 0.009, height, 5), C.tinDark, { p: [0, height / 2, 0] });
+    b.frame({ p: [0, height + 0.012, 0], r: [0, 0, -0.75] }, () => {
+      b.add(cyl(0.06, 0.012, 0.022, 10), C.cream, { p: [0, 0.011, 0] });
+      b.add(cyl(0.062, 0.062, 0.004, 10), C.tinDark, { p: [0, 0.023, 0] });
+      b.add(cyl(0.003, 0.003, 0.05, 4), C.iron, { p: [0, 0.047, 0] });
+      b.add(ball(0.008, 6, 4), C.rust, { p: [0, 0.074, 0] });
+    });
+  });
+}
+
+/** A solar panel on a stand, tipped up toward the void outside the rim. */
+function solarStand(b: Batch, dice: Dice, p: [number, number, number], outward: number): void {
+  const tip = 0.45 + dice.range(0, 0.25);
+  b.frame({ p, r: [0, -outward, 0] }, () => {
+    b.add(box(0.03, 0.012, 0.11), C.steel, { p: [0, 0.006, 0] });
+    for (const z of [-0.04, 0.04]) b.add(box(0.008, 0.07, 0.008), C.steel, { p: [0, 0.04, z] });
+    b.frame({ p: [0, 0.078, 0], r: [0, 0, -tip] }, () => {
+      b.add(box(0.1, 0.006, 0.16), C.panel, { p: [0, 0, 0] });
+      for (const z of [-0.04, 0, 0.04]) b.add(box(0.1, 0.007, 0.004), C.panelLight, { p: [0, 0.0005, z] });
+      b.add(box(0.004, 0.008, 0.164), C.tin, { p: [0.05, 0, 0] });
+      b.add(box(0.004, 0.008, 0.164), C.tin, { p: [-0.05, 0, 0] });
+    });
+  });
+}
+
+/** A tank farm: two or three pressure tanks on a skid, piped together, with a gauge. */
+function tankCluster(b: Batch, dice: Dice, p: [number, number, number]): void {
+  const n = 2 + dice.int(2);
+  b.frame({ p, r: [0, dice.range(0, 6), 0] }, () => {
+    b.add(box(0.05 * n + 0.02, 0.012, 0.06), C.steel, { p: [0, 0.006, 0] });
+    for (let i = 0; i < n; i++) {
+      const x = (i - (n - 1) / 2) * 0.05;
+      const tall = 0.08 + dice.range(0, 0.05);
+      const paint = dice.pick([C.tin, C.cream, C.blue, C.teal]);
+      b.add(cyl(0.021, 0.021, tall, 8), paint, { p: [x, 0.012 + tall / 2, 0] });
+      b.add(cyl(0.011, 0.021, 0.014, 8), paint, { p: [x, 0.019 + tall, 0] });
+      b.add(cyl(0.006, 0.006, 0.012, 6), C.rust, { p: [x, 0.032 + tall, 0] });
+      b.add(cyl(0.0225, 0.0225, 0.008, 8), C.iron, { p: [x, 0.012 + tall * 0.4, 0] });
+    }
+    b.add(cyl(0.005, 0.005, 0.05 * n, 5), C.rust, { p: [0, 0.03, -0.026], r: [0, 0, Math.PI / 2] });
+    b.addGlow(box(0.01, 0.01, 0.004), C.glow, { p: [(n - 1) * 0.025 + 0.02, 0.022, 0.028] });
+  });
+}
+
+/** Cargo left where it was unloaded: containers stacked two high, none square to another. */
+function cargoStack(b: Batch, dice: Dice, p: [number, number, number]): void {
+  const paints = [C.rust, C.teal, C.blue, C.foil] as const;
+  const container = (x: number, y: number, z: number, yaw: number): void => {
+    b.add(box(0.09, 0.045, 0.045), dice.pick(paints), { p: [x, y + 0.0225, z], r: [0, yaw, 0] });
+    for (const dx of [-0.03, 0.03]) b.add(box(0.006, 0.047, 0.047), C.iron, { p: [x + dx * Math.cos(yaw), y + 0.0225, z - dx * Math.sin(yaw)], r: [0, yaw, 0] });
+  };
+  b.frame({ p, r: [0, dice.range(0, 6), 0] }, () => {
+    container(0, 0, -0.026, dice.range(-0.15, 0.15));
+    container(0.008, 0, 0.026, dice.range(-0.15, 0.15));
+    if (dice.int(3)) container(-0.004, 0.045, 0, dice.range(-0.5, 0.5));
+  });
+}
+
+/** A vent stack off the workings under the floor: a hooded pipe with heat in its throat, a junction box at its foot. */
+function ventStack(b: Batch, dice: Dice, p: [number, number, number]): void {
+  const tall = 0.09 + dice.range(0, 0.06);
+  b.frame({ p, r: [0, dice.range(0, 6), 0] }, () => {
+    b.add(box(0.06, 0.02, 0.06), C.steel, { p: [0, 0.01, 0] });
+    b.add(cyl(0.016, 0.02, tall, 7), C.tinDark, { p: [0, tall / 2 + 0.02, 0] });
+    b.add(cyl(0.027, 0.02, 0.016, 7), C.iron, { p: [0, tall + 0.028, 0] });
+    b.addGlow(cyl(0.015, 0.015, 0.004, 7), C.heat, { p: [0, tall + 0.037, 0] });
+    b.add(box(0.03, 0.034, 0.022), C.rust, { p: [0.034, 0.037, 0] });
+    b.addGlow(box(0.004, 0.008, 0.008), C.lamp, { p: [0.05, 0.042, 0] });
   });
 }
 

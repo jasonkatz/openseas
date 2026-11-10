@@ -2,15 +2,45 @@
  * The pieces of the world besides the outposts (outpost.ts): ships, drifting dust, drones and nav
  * buoys as chunky low-poly groups built from primitives. No art files; everything is geometry and
  * flat color, so it stays placeholder-art honest (DESIGN.md 3.10) while reading as a toy diorama. A
- * ship's static plates are merged into one mesh (batch.ts); the parts that move or change stay
- * their own.
+ * ship's static plates are merged into a few meshes (batch.ts): her tub, each side wall and her
+ * roof, so she can be cut away aboard. The parts that move or change stay their own. Where a crew
+ * walks inside her is laid out in deck.ts, which draws nothing.
  */
 import * as THREE from "three";
 import type { CrewFlagWire } from "@openseas/protocol";
 import { drawEmblem, drawFlag, flagColor, flagKey } from "../crew/flag.js";
 import { nextInt, seedFromString, type PrngState } from "@openseas/engine";
-import { Batch, unseen } from "./batch.js";
-import { WalkGrid, type Obstacle, type Spot } from "./walk.js";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { Batch, unseen, type Vec3 } from "./batch.js";
+import {
+  AIRLOCK_X,
+  BOW_X,
+  BRIDGE_X,
+  BRIDGE_Y,
+  CORE_X,
+  DECK_Y,
+  DRIVE_X,
+  HELM_X,
+  HULL_Z,
+  LOCKER,
+  NAV,
+  PATCH,
+  ROOF_Y,
+  SILL_Y,
+  STEPS_FOOT_X,
+  STEPS_HALF,
+  STERN_X,
+  STORES,
+  TURRETS_X,
+  VENT,
+  WALL_TOP,
+  WALL_Z,
+  skiffDeck,
+  type ShipDeck,
+  type Station,
+} from "./deck.js";
+
+export { HULL_HALF, STATION_ORDER, type DeckPost, type ShipDeck, type Station } from "./deck.js";
 
 export type { Building } from "./outpost.js";
 
@@ -22,9 +52,11 @@ export const PALETTE = {
   stripe: 0xc8663a,
   patch: 0x6f9aa6,
   patchWarm: 0xd9a24a,
-  deck: 0xb9b4a8,
-  deckSeam: 0x8f8a80,
-  bridge: 0xa7a296,
+  deck: 0x9299a6,
+  deckSeam: 0x6c7380,
+  walkway: 0xaab1bd,
+  bridge: 0x848b99,
+  lining: 0x4d5870,
   fin: 0xe4dccb,
   tin: 0xc3ccd4,
   tinDark: 0x8a94a0,
@@ -73,40 +105,18 @@ class Dice {
   }
 }
 
-export type Station = "cooling" | "engines" | "plating" | "gunnery" | "navigation";
-export const STATION_ORDER: readonly Station[] = ["cooling", "engines", "plating", "gunnery", "navigation"];
-
 /** A skiff's size in the world: big enough that a crew of pirates can walk its deck. */
 export const SHIP_SCALE = 1.4;
 /** How far her deck rides below where the model's own origin would put it, so it meets the dock's boarding tube. */
 export const SHIP_SINK = 0.055;
 
-/** Where a pirate stands to do something aboard, in the ship's own frame, and which way they face. */
-export interface DeckPost {
-  at: Spot;
-  face: number;
-}
-
-export interface ShipDeck {
-  /** Where a pirate may stand on deck, in the ship's own frame (x toward the bow, z to starboard). */
-  grid: WalkGrid;
-  heightAt(x: number, z: number): number;
-  stations: Record<Station, DeckPost>;
-  /** Behind the helm, the captain's place. */
-  helm: DeckPost;
-  /** Where hands with nothing to do stand about, by index. */
-  idle: Spot[];
-  /** The airlock amidships on the given side (+1 starboard, -1 port), where the boarding tube comes aboard. */
-  airlock(side: number): Spot;
-}
-
 export interface ShipModel {
   group: THREE.Group;
-  /** The hull and everything on it; the drift is applied here so the group's frame stays steady for labels. */
+  /** The hull and everything in it; the drift is applied here so the group's frame stays steady for labels. */
   body: THREE.Group;
   /** A generous box round the whole ship, for picking her out on the chart. */
   hit: THREE.Mesh;
-  /** Just the hull and deck, for taps up close where the ground around her must stay walkable. */
+  /** Just the hull, for taps up close where the ground around her must stay walkable. */
   hullHit: THREE.Mesh;
   /** The deck's top, for taps to walk. */
   deckHit: THREE.Mesh;
@@ -114,15 +124,18 @@ export interface ShipModel {
   stationHits: THREE.Mesh[];
   /** The tail fin, which carries the crew's emblem. */
   fin: THREE.Mesh;
-  /** What stands over the deck and could hide a station: the fin. On deck it goes to glass. */
-  glass: THREE.Mesh[];
-  /** The clear canopy over the deck and its ribs. Drawn only from outside: on deck it is not there. */
-  canopy: THREE.Group;
-  flag: THREE.Mesh;
-  /** The flag's own color when the ship flies no crew's colors. */
+  /** The panel painted on each slope of the roof, which carries the crew's flag. The two share one material. */
+  flags: THREE.Mesh[];
+  /** The panels' own color when the ship flies no crew's colors. */
   plainFlag: number;
   /** The colors the ship is dressed in now, by flag key, or "" for none. */
   dressed: string;
+  /**
+   * Open her up for a crew aboard, or shut her. Given the side the camera looks from (+1 starboard,
+   * -1 port), the roof, the canopy and that side's wall are not drawn and the far wall stands as
+   * the room's back. Null draws her whole, as she is seen from outside.
+   */
+  cutaway(side: number | null): void;
   /** The engines' plumes, lit in flight. */
   engineGlow: THREE.Group;
   marker: THREE.Mesh;
@@ -133,31 +146,68 @@ export interface ShipModel {
   deck: ShipDeck;
 }
 
-const DECK_Y = 0.3;
-const BRIDGE_Y = 0.37;
-/** The bridge's forward edge and the foot of its steps. */
-const BRIDGE_X = -0.17;
-const STEPS_FOOT_X = -0.1;
-const STEPS_HALF = 0.05;
-const AIRLOCK_X = 0.04;
-/** The rails stand this far either side of the keel, and the deck between them is walked to `WALK_Z`. */
-const RAIL_Z = 0.225;
-const WALK_Z = 0.165;
-/** The antenna's tip: short enough that a docked skiff does not tower over the town. */
-const MAST_TOP = 0.95;
-/** The tail fin, a swept blade standing over the bridge on a spine: its corners in the ship's side view. */
+/** How high the "your ship" marker hangs over her on the chart. */
+export const MARKER_Y = 1.0;
+
+/** The tail fin standing on the roof aft: its corners in the ship's side view. */
 const FIN = [
-  [-0.15, 0.5],
-  [-0.48, 0.5],
-  [-0.54, 0.92],
-  [-0.38, 0.92],
+  [-0.2, ROOF_Y],
+  [-0.44, ROOF_Y],
+  [-0.5, 0.74],
+  [-0.38, 0.74],
 ] as const;
 
+/** A cross-section of the hull: points (z, y) going round it. */
+type Outline = readonly (readonly [number, number])[];
+
+/** An outline drawn in toward a point on the centerline. */
+const shrink = (outline: Outline, k: number, aboutY: number): Outline => outline.map(([z, y]) => [z * k, aboutY + (y - aboutY) * k] as const);
+
 /**
- * A skiff with its stations laid out on a deck a crew can walk: a raised bridge aft with the helm and the nav console, steps down to the
- * main deck, the antenna mast and the drive console amidships, the heat sinks to port, a turret
- * pair each side, the patch bay forward, and an airlock in each rail. A clear canopy closes it all
- * in, a tail fin stands over the bridge, and the flag's color says whose she is.
+ * A faceted solid run through cross-sections along the ship's length, each with the same number
+ * of points, and capped at both ends. This is how the hull gets a shape of its own instead of
+ * being a box.
+ */
+function loft(sections: readonly { x: number; pts: Outline }[]): THREE.BufferGeometry {
+  const tris: number[][] = [];
+  const at = (s: { x: number; pts: Outline }, i: number): number[] => {
+    const p = s.pts[i % s.pts.length]!;
+    return [s.x, p[1], p[0]];
+  };
+  for (let k = 0; k < sections.length - 1; k++) {
+    const s0 = sections[k]!;
+    const s1 = sections[k + 1]!;
+    for (let i = 0; i < s0.pts.length; i++) {
+      tris.push([...at(s0, i), ...at(s0, i + 1), ...at(s1, i + 1)], [...at(s0, i), ...at(s1, i + 1), ...at(s1, i)]);
+    }
+  }
+  const first = sections[0]!;
+  const last = sections[sections.length - 1]!;
+  for (let i = 1; i < first.pts.length - 1; i++) {
+    tris.push([...at(first, 0), ...at(first, i + 1), ...at(first, i)], [...at(last, 0), ...at(last, i), ...at(last, i + 1)]);
+  }
+  // Faces out: whichever way round the outline was given, the solid's volume comes out positive.
+  let volume = 0;
+  for (const t of tris) volume += t[0]! * (t[4]! * t[8]! - t[5]! * t[7]!) - t[1]! * (t[3]! * t[8]! - t[5]! * t[6]!) + t[2]! * (t[3]! * t[7]! - t[4]! * t[6]!);
+  const pos: number[] = [];
+  for (const t of tris) pos.push(...(volume >= 0 ? t : [t[0]!, t[1]!, t[2]!, t[6]!, t[7]!, t[8]!, t[3]!, t[4]!, t[5]!]));
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * A skiff: a closed hull with the bridge forward under a canopy, the drive aft, a turret pair in
+ * each side and an airlock amidships. Nothing of a boat is left in her (ADR 0035): no mast, no
+ * rails, no open deck.
+ *
+ * From outside she is shut. Aboard she is cut away like a model with its lid off: the roof, the
+ * canopy and the side wall nearest the camera are not drawn, the far wall stands as the room's
+ * back, and the deck is the floor of her one long room. The stations stand where a crew walks to
+ * them: the helm and the nav console on the bridge, two steps up; the turrets against the walls
+ * either side of the airlocks; the heat sinks to port and the patch bay to starboard; the drive
+ * console at the core, aft.
  */
 export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): ShipModel {
   const group = new THREE.Group();
@@ -165,191 +215,298 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   body.scale.setScalar(SHIP_SCALE);
   body.position.y = -SHIP_SINK;
   group.add(body);
+  // The tub: everything that is there whether or not she is cut away.
   const b = new Batch();
   const P = PALETTE;
+  const box = (w: number, h: number, d: number): THREE.BufferGeometry => new THREE.BoxGeometry(w, h, d);
+  const cyl = (rt: number, rb: number, h: number, seg = 8): THREE.BufferGeometry => new THREE.CylinderGeometry(rt, rb, h, seg);
+  const ball = (r: number, w = 6, h = 5): THREE.BufferGeometry => new THREE.SphereGeometry(r, w, h);
+  const length = BOW_X - STERN_X;
+  const midX = (BOW_X + STERN_X) / 2;
 
-  // ---- the hull: a slab of painted plates over a darker belly and a keel, patched where she has been holed
-  b.add(new THREE.BoxGeometry(0.9, 0.2, 0.42), P.hull, { p: [0, 0.14, 0] });
-  b.add(new THREE.BoxGeometry(0.76, 0.09, 0.32), P.hullDark, { p: [-0.02, 0.0, 0] });
-  b.add(new THREE.BoxGeometry(0.52, 0.05, 0.14), P.keel, { p: [-0.05, -0.065, 0] });
-  for (let i = 0; i < 2; i++) b.add(new THREE.BoxGeometry(0.905, 0.005, 0.424), P.seam, { p: [0, 0.085 + i * 0.07, 0] });
-  for (const x of [-0.3, -0.1, 0.1, 0.3]) b.add(new THREE.BoxGeometry(0.005, 0.2, 0.424), P.seam, { p: [x, 0.14, 0] });
-  b.add(new THREE.BoxGeometry(0.92, 0.035, 0.43), P.stripe, { p: [0, 0.205, 0] });
+  // ---- the lower hull: a chamfered belly of painted plate under the deck, patched where she has been holed
+  // Its top is closed under the deck's plates, not over them.
+  const belly: Outline = [
+    [-HULL_Z, DECK_Y - 0.012],
+    [-HULL_Z, 0.17],
+    [-0.15, 0.03],
+    [0.15, 0.03],
+    [HULL_Z, 0.17],
+    [HULL_Z, DECK_Y - 0.012],
+  ];
+  b.add(loft([{ x: STERN_X - 0.03, pts: shrink(belly, 0.88, 0.2) }, { x: STERN_X + 0.05, pts: belly }, { x: BOW_X, pts: belly }]), P.hull);
+  b.add(box(0.78, 0.012, 0.3), P.hullDark, { p: [midX - 0.02, 0.027, 0] });
+  // Skids to stand on, on struts under the belly.
+  for (const z of [-0.11, 0.11]) {
+    b.add(box(0.5, 0.016, 0.026), P.keel, { p: [midX, -0.012, z] });
+    for (const x of [-0.18, 0.18]) b.add(box(0.014, 0.04, 0.014), P.keel, { p: [midX + x, 0.008, z] });
+  }
+  // A painted band round her at the deck line, and seams down her sides.
+  for (const side of [-1, 1]) b.add(box(length + 0.004, 0.03, 0.006), P.stripe, { p: [midX, 0.283, side * HULL_Z] });
+  b.add(box(0.006, 0.03, HULL_Z * 2), P.stripe, { p: [STERN_X, 0.283, 0] });
+  for (const x of [-0.3, -0.1, 0.1, 0.3]) b.add(box(0.005, 0.1, HULL_Z * 2 + 0.004), P.seam, { p: [x, 0.22, 0] });
   for (const [x, y, side, w, h, c, tilt] of [
-    [0.31, 0.12, 1, 0.11, 0.07, P.patch, 0.08],
-    [-0.21, 0.1, 1, 0.08, 0.06, P.patchWarm, -0.12],
-    [0.2, 0.11, -1, 0.09, 0.07, P.patchWarm, 0.1],
-    [-0.33, 0.13, -1, 0.1, 0.06, P.patch, -0.06],
+    [0.31, 0.215, 1, 0.11, 0.07, P.patch, 0.08],
+    [-0.21, 0.21, 1, 0.08, 0.06, P.patchWarm, -0.12],
+    [0.2, 0.215, -1, 0.09, 0.07, P.patchWarm, 0.1],
+    [-0.33, 0.22, -1, 0.1, 0.06, P.patch, -0.06],
   ] as const) {
-    b.add(new THREE.BoxGeometry(w, h, 0.006), c, { p: [x, y, side * 0.212], r: [0, 0, tilt] });
+    b.add(box(w, h, 0.006), c, { p: [x, y, side * (HULL_Z + 0.002)], r: [0, 0, tilt] });
     // A rivet at each corner of the patch.
-    for (const dx of [-1, 1]) for (const dy of [-1, 1]) b.add(new THREE.BoxGeometry(0.007, 0.007, 0.008), P.iron, { p: [x + dx * (w / 2 - 0.008), y + dy * (h / 2 - 0.008), side * 0.213], r: [0, 0, tilt] });
+    for (const dx of [-1, 1]) for (const dy of [-1, 1]) b.add(box(0.007, 0.007, 0.008), P.iron, { p: [x + dx * (w / 2 - 0.008), y + dy * (h / 2 - 0.008), side * (HULL_Z + 0.003)], r: [0, 0, tilt] });
   }
-  // The nose: a wedge to a painted tip, with a probe out ahead of it.
-  b.add(new THREE.ConeGeometry(0.18, 0.4, 4), P.hull, { p: [0.64, 0.12, 0], r: [Math.PI / 4, 0, -Math.PI / 2], s: [1, 1, 0.77] });
-  b.add(new THREE.ConeGeometry(0.075, 0.165, 4), P.stripe, { p: [0.76, 0.12, 0], r: [Math.PI / 4, 0, -Math.PI / 2], s: [1, 1, 0.77] });
-  b.add(new THREE.CylinderGeometry(0.005, 0.007, 0.2, 5), P.iron, { p: [0.93, 0.12, 0], r: [0, 0, -Math.PI / 2] });
-  b.addGlow(new THREE.SphereGeometry(0.012, 6, 5), P.glow, { p: [1.03, 0.12, 0] });
-  // The engines: a nozzle each side of the stern, dark until she is under way.
-  const nozzles = [-0.11, 0.11];
-  for (const z of nozzles) {
-    b.add(new THREE.CylinderGeometry(0.06, 0.07, 0.07, 8), P.steel, { p: [-0.47, 0.1, z], r: [0, 0, Math.PI / 2] });
-    b.add(new THREE.CylinderGeometry(0.07, 0.05, 0.07, 8), P.iron, { p: [-0.53, 0.1, z], r: [0, 0, Math.PI / 2] });
-    b.addGlow(new THREE.CylinderGeometry(0.04, 0.04, 0.004, 8), 0x6a3a22, { p: [-0.566, 0.1, z], r: [0, 0, Math.PI / 2] });
-  }
-  b.add(new THREE.BoxGeometry(0.92, 0.05, 0.46), P.tinDark, { p: [0, 0.26, 0] });
-  b.add(new THREE.BoxGeometry(0.84, 0.03, 0.36), P.deck, { p: [0, 0.285, 0] });
-  // Deck plates: a seam across every so often and one down the middle.
-  for (let i = 0; i < 6; i++) b.add(new THREE.BoxGeometry(0.004, 0.004, 0.36), P.deckSeam, { p: [-0.05 + i * 0.09, 0.302, 0] });
-  b.add(new THREE.BoxGeometry(0.84, 0.004, 0.004), P.deckSeam, { p: [0, 0.302, 0] });
-  // Turret mounts on the hull sides.
-  for (const side of [-1, 1]) for (const x of [-0.05, 0.17]) b.add(new THREE.BoxGeometry(0.06, 0.05, 0.01), 0x1a1d22, { p: [x, 0.15, side * 0.213] });
 
-  // ---- the bridge: raised aft, a hatch either side of the steps, windows in the stern
-  const bridgeLen = BRIDGE_X + 0.42;
-  b.add(new THREE.BoxGeometry(bridgeLen, BRIDGE_Y - DECK_Y, 0.36), P.hullDark, { p: [BRIDGE_X - bridgeLen / 2, (DECK_Y + BRIDGE_Y) / 2, 0] });
-  b.add(new THREE.BoxGeometry(bridgeLen, 0.006, 0.36), P.bridge, { p: [BRIDGE_X - bridgeLen / 2, BRIDGE_Y, 0] });
-  for (let i = 0; i < 3; i++) b.add(new THREE.BoxGeometry(0.003, 0.003, 0.36), P.deckSeam, { p: [BRIDGE_X - 0.04 - i * 0.08, BRIDGE_Y + 0.004, 0] });
-  for (const z of [-0.12, 0.12]) {
-    b.add(new THREE.BoxGeometry(0.006, 0.05, 0.036), 0x1a1d22, { p: [BRIDGE_X + 0.003, DECK_Y + 0.026, z] });
-    b.addGlow(new THREE.BoxGeometry(0.004, 0.006, 0.012), P.glow, { p: [BRIDGE_X + 0.007, DECK_Y + 0.042, z] });
+  // ---- the nose: the hull's whole section drawn in to a painted tip, a probe out ahead of it
+  const section: Outline = [
+    [-HULL_Z, 0.17],
+    [-0.15, 0.03],
+    [0.15, 0.03],
+    [HULL_Z, 0.17],
+    [HULL_Z, WALL_TOP],
+    [0.2, WALL_TOP + 0.015],
+    [-0.2, WALL_TOP + 0.015],
+    [-HULL_Z, WALL_TOP],
+  ];
+  b.add(loft([{ x: BOW_X, pts: section }, { x: 0.62, pts: shrink(section, 0.68, 0.21) }, { x: 0.77, pts: shrink(section, 0.28, 0.2) }]), P.hull);
+  b.add(loft([{ x: 0.77, pts: shrink(section, 0.28, 0.2) }, { x: 0.84, pts: shrink(section, 0.1, 0.2) }]), P.stripe);
+  b.add(cyl(0.005, 0.007, 0.16, 5), P.iron, { p: [0.92, 0.2, 0], r: [0, 0, -Math.PI / 2] });
+  b.addGlow(ball(0.012), P.glow, { p: [1.0, 0.2, 0] });
+
+  // ---- the engines: two bells in the stern, dark until she is under way
+  const nozzles = [-0.12, 0.12];
+  const NOZZLE_Y = 0.17;
+  for (const z of nozzles) {
+    b.add(cyl(0.078, 0.086, 0.05, 10), P.steel, { p: [STERN_X - 0.05, NOZZLE_Y, z], r: [0, 0, Math.PI / 2] });
+    b.add(cyl(0.092, 0.06, 0.08, 10), P.iron, { p: [STERN_X - 0.105, NOZZLE_Y, z], r: [0, 0, Math.PI / 2] });
+    b.addGlow(cyl(0.056, 0.056, 0.004, 10), 0x6a3a22, { p: [STERN_X - 0.146, NOZZLE_Y, z], r: [0, 0, Math.PI / 2] });
   }
-  for (const z of [-0.1, 0.0, 0.1]) b.addGlow(new THREE.BoxGeometry(0.008, 0.035, 0.04), P.window, { p: [-0.452, 0.2, z] });
-  // Three steps up, with a handrail each side.
+
+  // ---- the deck: plates with a seam every so often, a strip of light along the foot of each wall
+  b.add(box(length, 0.02, WALL_Z * 2), P.deck, { p: [midX, DECK_Y - 0.01, 0] });
+  for (const side of [-1, 1]) b.add(box(length, 0.02, HULL_Z - WALL_Z), P.tinDark, { p: [midX, SILL_Y - 0.01, (side * (HULL_Z + WALL_Z)) / 2] });
+  for (let i = 0; i < 7; i++) b.add(box(0.004, 0.004, WALL_Z * 2), P.deckSeam, { p: [STERN_X + 0.06 + i * 0.09, DECK_Y + 0.002, 0] });
+  // A lighter walkway down the middle, from the core to the steps.
+  b.add(box(STEPS_FOOT_X - DRIVE_X - 0.04, 0.003, 0.1), P.walkway, { p: [(STEPS_FOOT_X + DRIVE_X + 0.04) / 2, DECK_Y + 0.0015, 0] });
+  for (const side of [-1, 1]) b.addGlow(box(BRIDGE_X - STERN_X - 0.06, 0.003, 0.006), P.glow, { p: [(BRIDGE_X + STERN_X) / 2, DECK_Y + 0.002, side * (WALL_Z - 0.012)] });
+  // A grating amidships, and a mat of warning stripes inside each airlock.
+  b.add(box(0.08, 0.006, 0.07), P.steel, { p: [-0.02, DECK_Y + 0.003, 0] });
+  for (let i = 0; i < 4; i++) b.add(box(0.004, 0.003, 0.066), 0x1a1d22, { p: [-0.05 + i * 0.02, DECK_Y + 0.0065, 0] });
+  for (const side of [-1, 1]) {
+    b.add(box(0.07, 0.004, 0.04), P.iron, { p: [AIRLOCK_X, DECK_Y + 0.002, side * (WALL_Z - 0.03)] });
+    for (let i = 0; i < 3; i++) b.add(box(0.012, 0.005, 0.04), P.patchWarm, { p: [AIRLOCK_X - 0.024 + i * 0.024, DECK_Y + 0.0025, side * (WALL_Z - 0.03)] });
+  }
+  // The stern bulkhead: the engine room's hatch in it, a lamp over the hatch.
+  b.add(box(0.025, WALL_TOP - SILL_Y, HULL_Z * 2), P.hullDark, { p: [STERN_X + 0.0125, (WALL_TOP + SILL_Y) / 2, 0] });
+  b.add(box(0.004, 0.085, 0.07), 0x1a1d22, { p: [STERN_X + 0.027, DECK_Y + 0.0425, 0.09] });
+  b.addGlow(box(0.004, 0.008, 0.03), P.heat, { p: [STERN_X + 0.028, DECK_Y + 0.096, 0.09] });
+
+  // ---- the bridge: two steps up, forward, a low screen across its aft edge either side of the steps
+  const bridgeLen = BOW_X - BRIDGE_X;
+  b.add(box(bridgeLen, BRIDGE_Y - DECK_Y, WALL_Z * 2), P.hullDark, { p: [BRIDGE_X + bridgeLen / 2, (DECK_Y + BRIDGE_Y) / 2, 0] });
+  b.add(box(bridgeLen, 0.006, WALL_Z * 2), P.bridge, { p: [BRIDGE_X + bridgeLen / 2, BRIDGE_Y, 0] });
+  for (let i = 0; i < 3; i++) b.add(box(0.003, 0.003, WALL_Z * 2), P.deckSeam, { p: [BRIDGE_X + 0.05 + i * 0.08, BRIDGE_Y + 0.004, 0] });
   const rise = (BRIDGE_Y - DECK_Y) / 3;
-  const run = (STEPS_FOOT_X - BRIDGE_X) / 2;
+  const run = (BRIDGE_X - STEPS_FOOT_X) / 2;
   for (let i = 0; i < 2; i++) {
     const top = DECK_Y + rise * (i + 1);
-    const x0 = STEPS_FOOT_X - run * (i + 1);
-    b.add(new THREE.BoxGeometry(run, top - DECK_Y, STEPS_HALF * 2), i ? P.tinDark : P.tin, { p: [x0 + run / 2, (top + DECK_Y) / 2, 0] });
+    b.add(box(run, top - DECK_Y, STEPS_HALF * 2), i ? P.tinDark : P.tin, { p: [STEPS_FOOT_X + run * (i + 0.5), (top + DECK_Y) / 2, 0] });
   }
   for (const side of [-1, 1]) {
-    b.add(new THREE.BoxGeometry(0.008, 0.06, 0.008), P.rail, { p: [STEPS_FOOT_X - 0.004, DECK_Y + 0.03, side * STEPS_HALF] });
-    b.add(new THREE.BoxGeometry(0.085, 0.007, 0.007), P.rail, { p: [(STEPS_FOOT_X + BRIDGE_X) / 2, DECK_Y + 0.085, side * STEPS_HALF], r: [0, 0, -0.75] });
+    // A handrail up the steps, and the screen across the bridge's edge with a strip of light on it.
+    b.add(box(0.008, 0.06, 0.008), P.rail, { p: [STEPS_FOOT_X + 0.004, DECK_Y + 0.03, side * STEPS_HALF] });
+    b.add(box(0.085, 0.007, 0.007), P.rail, { p: [(STEPS_FOOT_X + BRIDGE_X) / 2, DECK_Y + 0.085, side * STEPS_HALF], r: [0, 0, 0.75] });
+    b.add(box(0.012, 0.045, WALL_Z - STEPS_HALF), P.tinDark, { p: [BRIDGE_X, BRIDGE_Y + 0.0225, (side * (WALL_Z + STEPS_HALF)) / 2] });
+    b.addGlow(box(0.006, 0.004, WALL_Z - STEPS_HALF - 0.02), P.glow, { p: [BRIDGE_X, BRIDGE_Y + 0.047, (side * (WALL_Z + STEPS_HALF)) / 2] });
+    b.addGlow(box(0.004, 0.006, 0.012), P.lamp, { p: [BRIDGE_X - 0.003, DECK_Y + 0.042, side * 0.12] });
   }
-  // The bridge's rail: across its front either side of the steps, and along its sides.
-  for (const side of [-1, 1]) {
-    b.add(new THREE.BoxGeometry(0.008, 0.012, RAIL_Z - 0.055), P.rail, { p: [BRIDGE_X, BRIDGE_Y + 0.055, side * (RAIL_Z + 0.055) / 2] });
-    for (const z of [0.055, 0.14, RAIL_Z - 0.01]) b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.055, 4), P.rail, { p: [BRIDGE_X, BRIDGE_Y + 0.027, side * z] });
-    for (const x of [-0.41, -0.33, -0.25, BRIDGE_X]) b.add(new THREE.CylinderGeometry(0.007, 0.007, 0.06, 4), P.rail, { p: [x, BRIDGE_Y + 0.03, side * RAIL_Z] });
-    b.add(new THREE.BoxGeometry(bridgeLen, 0.012, 0.012), P.rail, { p: [BRIDGE_X - bridgeLen / 2, BRIDGE_Y + 0.06, side * RAIL_Z] });
-    // The main deck's rail, with the airlock standing in it amidships: a frame to step through, a lamp on its lintel.
-    for (const x of [BRIDGE_X + 0.02, -0.08, 0.16, 0.27, 0.38]) b.add(new THREE.CylinderGeometry(0.008, 0.008, 0.07, 4), P.rail, { p: [x, 0.32, side * RAIL_Z] });
-    for (const x of [AIRLOCK_X - 0.035, AIRLOCK_X + 0.035]) b.add(new THREE.BoxGeometry(0.01, 0.1, 0.014), P.rail, { p: [x, 0.335, side * RAIL_Z] });
-    b.add(new THREE.BoxGeometry(0.08, 0.012, 0.016), P.stripe, { p: [AIRLOCK_X, 0.39, side * RAIL_Z] });
-    b.addGlow(new THREE.BoxGeometry(0.026, 0.007, 0.01), P.lamp, { p: [AIRLOCK_X, 0.4, side * RAIL_Z] });
-    const aftLen = AIRLOCK_X - 0.035 - (BRIDGE_X + 0.02);
-    b.add(new THREE.BoxGeometry(aftLen, 0.012, 0.012), P.rail, { p: [BRIDGE_X + 0.02 + aftLen / 2, 0.355, side * RAIL_Z] });
-    const foreLen = 0.4 - (AIRLOCK_X + 0.035);
-    b.add(new THREE.BoxGeometry(foreLen, 0.012, 0.012), P.rail, { p: [AIRLOCK_X + 0.035 + foreLen / 2, 0.355, side * RAIL_Z] });
-    // Running lights at the stern: red to port, green to starboard.
-    b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 4), P.iron, { p: [-0.41, BRIDGE_Y + 0.04, side * 0.16] });
-    b.addGlow(new THREE.SphereGeometry(0.011, 9, 7), side < 0 ? P.portLamp : P.starboardLamp, { p: [-0.41, BRIDGE_Y + 0.088, side * 0.16] });
-  }
+  // The dash under the windscreen: a bank of lit screens right across the nose.
+  b.add(box(0.05, 0.05, WALL_Z * 2 - 0.04), P.steel, { p: [BOW_X - 0.025, BRIDGE_Y + 0.025, 0] });
+  b.add(box(0.03, 0.012, WALL_Z * 2 - 0.05), P.iron, { p: [BOW_X - 0.04, BRIDGE_Y + 0.054, 0], r: [0, 0, 0.5] });
+  for (const [z, c] of [
+    [-0.13, P.glow],
+    [-0.065, 0x2f86a8],
+    [0.065, P.lamp],
+    [0.13, P.glow],
+  ] as const)
+    b.addGlow(box(0.004, 0.02, 0.05), c, { p: [BOW_X - 0.052, BRIDGE_Y + 0.057, z], r: [0, 0, 0.5] });
 
   // ---- the helm and the nav console on the bridge
-  const helmAt = new THREE.Vector3(-0.24, BRIDGE_Y + 0.085, 0);
+  const helmAt = new THREE.Vector3(HELM_X, BRIDGE_Y + 0.085, 0);
   // A pedestal with a lit panel facing the captain, and a yoke to steer by.
-  b.add(new THREE.BoxGeometry(0.02, 0.07, 0.07), P.steel, { p: [helmAt.x + 0.014, BRIDGE_Y + 0.035, 0] });
-  b.add(new THREE.BoxGeometry(0.026, 0.02, 0.086), P.iron, { p: [helmAt.x + 0.012, BRIDGE_Y + 0.078, 0], r: [0, 0, 0.5] });
-  b.addGlow(new THREE.BoxGeometry(0.004, 0.02, 0.07), P.glow, { p: [helmAt.x + 0.0, BRIDGE_Y + 0.081, 0], r: [0, 0, 0.5] });
+  b.add(box(0.02, 0.07, 0.07), P.steel, { p: [helmAt.x + 0.014, BRIDGE_Y + 0.035, 0] });
+  b.add(box(0.026, 0.02, 0.086), P.iron, { p: [helmAt.x + 0.012, BRIDGE_Y + 0.078, 0], r: [0, 0, 0.5] });
+  b.addGlow(box(0.004, 0.02, 0.07), P.glow, { p: [helmAt.x + 0.0, BRIDGE_Y + 0.081, 0], r: [0, 0, 0.5] });
   b.add(new THREE.TorusGeometry(0.036, 0.006, 5, 10, Math.PI), P.iron, { p: [helmAt.x - 0.012, helmAt.y - 0.012, 0], r: [0, Math.PI / 2, 0] });
-  for (const z of [-0.036, 0.036]) b.add(new THREE.SphereGeometry(0.009, 6, 5), P.stripe, { p: [helmAt.x - 0.012, helmAt.y - 0.012, z] });
-  const navAt = { x: -0.37, z: 0.125 };
+  for (const z of [-0.036, 0.036]) b.add(ball(0.009), P.stripe, { p: [helmAt.x - 0.012, helmAt.y - 0.012, z] });
   // A console with a star chart glowing on its top, and a little globe of the system standing over it.
-  b.add(new THREE.BoxGeometry(0.075, 0.05, 0.055), P.steel, { p: [navAt.x, BRIDGE_Y + 0.025, navAt.z] });
-  b.addGlow(new THREE.BoxGeometry(0.066, 0.004, 0.046), 0x2f86a8, { p: [navAt.x, BRIDGE_Y + 0.052, navAt.z] });
+  b.add(box(0.075, 0.05, 0.055), P.steel, { p: [NAV.x, BRIDGE_Y + 0.025, NAV.z] });
+  b.addGlow(box(0.066, 0.004, 0.046), 0x2f86a8, { p: [NAV.x, BRIDGE_Y + 0.052, NAV.z] });
   for (const [dx, dz] of [
     [-0.02, -0.012],
     [0.012, 0.01],
     [0.024, -0.014],
     [-0.006, 0.016],
   ] as const)
-    b.addGlow(new THREE.BoxGeometry(0.005, 0.002, 0.005), P.window, { p: [navAt.x + dx, BRIDGE_Y + 0.055, navAt.z + dz] });
-  b.add(new THREE.CylinderGeometry(0.002, 0.002, 0.03, 4), P.iron, { p: [navAt.x + 0.026, BRIDGE_Y + 0.068, navAt.z + 0.016] });
-  b.addGlow(new THREE.SphereGeometry(0.01, 7, 5), P.glow, { p: [navAt.x + 0.026, BRIDGE_Y + 0.09, navAt.z + 0.016] });
+    b.addGlow(box(0.005, 0.002, 0.005), P.window, { p: [NAV.x + dx, BRIDGE_Y + 0.055, NAV.z + dz] });
+  b.add(cyl(0.002, 0.002, 0.03, 4), P.iron, { p: [NAV.x + 0.026, BRIDGE_Y + 0.068, NAV.z + 0.016] });
+  b.addGlow(ball(0.01, 7, 5), P.glow, { p: [NAV.x + 0.026, BRIDGE_Y + 0.09, NAV.z + 0.016] });
 
-  // ---- the main deck: the drive console, the heat sinks, the turrets, the patch bay, a hatch, stores
-  const mastX = 0.1;
-  // The drive console aft of the mast: a bank with a sloped face of lit keys and two throttle levers.
-  b.add(new THREE.BoxGeometry(0.016, 0.05, 0.09), P.steel, { p: [mastX - 0.04, DECK_Y + 0.025, 0] });
-  b.add(new THREE.BoxGeometry(0.024, 0.012, 0.09), P.iron, { p: [mastX - 0.043, DECK_Y + 0.054, 0], r: [0, 0, 0.45] });
-  for (let i = 0; i < 4; i++) b.addGlow(new THREE.BoxGeometry(0.006, 0.004, 0.01), i % 2 ? P.glow : P.lamp, { p: [mastX - 0.047, DECK_Y + 0.061, -0.03 + i * 0.02], r: [0, 0, 0.45] });
-  for (const z of [-0.02, 0.015]) {
-    b.add(new THREE.CylinderGeometry(0.003, 0.003, 0.034, 4), P.tin, { p: [mastX - 0.036, DECK_Y + 0.072, z], r: [0, 0, -0.3] });
-    b.add(new THREE.SphereGeometry(0.006, 6, 4), P.stripe, { p: [mastX - 0.031, DECK_Y + 0.089, z] });
+  // ---- the drive: the core in its cage aft, a conduit back to the engines, and the console that feeds it
+  b.add(cyl(0.04, 0.045, 0.02, 10), P.steel, { p: [CORE_X, DECK_Y + 0.01, 0] });
+  b.addGlow(cyl(0.022, 0.022, 0.1, 8), P.glow, { p: [CORE_X, DECK_Y + 0.07, 0] });
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i * Math.PI) / 2;
+    b.add(box(0.006, 0.11, 0.006), P.steel, { p: [CORE_X + Math.cos(a) * 0.034, DECK_Y + 0.075, Math.sin(a) * 0.034] });
   }
-  const ventAt = { x: 0.25, z: -0.125 };
-  // The heat sinks: a block with a row of fins standing out of it, a hot core between them, the vent lever and a coolant line.
-  b.add(new THREE.BoxGeometry(0.06, 0.05, 0.06), P.iron, { p: [ventAt.x, DECK_Y + 0.025, ventAt.z] });
-  for (let i = 0; i < 5; i++) b.add(new THREE.BoxGeometry(0.05, 0.05, 0.005), P.tinDark, { p: [ventAt.x, DECK_Y + 0.075, ventAt.z - 0.024 + i * 0.012] });
-  b.addGlow(new THREE.BoxGeometry(0.04, 0.006, 0.05), P.heat, { p: [ventAt.x, DECK_Y + 0.053, ventAt.z] });
-  b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.13, 5), P.tin, { p: [ventAt.x - 0.03, DECK_Y + 0.105, ventAt.z], r: [0, 0, Math.PI / 2 - 0.25] });
-  b.add(new THREE.SphereGeometry(0.009, 6, 4), P.stripe, { p: [ventAt.x - 0.092, DECK_Y + 0.089, ventAt.z] });
-  b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.05, 5), P.steel, { p: [ventAt.x + 0.03, DECK_Y + 0.03, ventAt.z + 0.035], r: [Math.PI / 2, 0, 0] });
-  b.add(new THREE.CylinderGeometry(0.018, 0.018, 0.04, 7), P.blue, { p: [ventAt.x + 0.05, DECK_Y + 0.02, ventAt.z - 0.035] });
-  const turretsAt = [-0.05, 0.17];
+  for (const y of [0.05, 0.095]) b.add(new THREE.TorusGeometry(0.034, 0.004, 4, 10), P.tinDark, { p: [CORE_X, DECK_Y + y, 0], r: [Math.PI / 2, 0, 0] });
+  b.add(cyl(0.042, 0.036, 0.016, 10), P.iron, { p: [CORE_X, DECK_Y + 0.135, 0] });
+  b.add(box(STERN_X + 0.025 - CORE_X + 0.12, 0.022, 0.034), P.iron, { p: [(CORE_X + STERN_X + 0.025) / 2, DECK_Y + 0.011, 0] });
+  // The console: a bank with a sloped face of lit keys toward whoever works it, and two throttle levers.
+  b.add(box(0.016, 0.05, 0.09), P.steel, { p: [DRIVE_X, DECK_Y + 0.025, 0] });
+  b.add(box(0.024, 0.012, 0.09), P.iron, { p: [DRIVE_X + 0.003, DECK_Y + 0.054, 0], r: [0, 0, -0.45] });
+  for (let i = 0; i < 4; i++) b.addGlow(box(0.006, 0.004, 0.01), i % 2 ? P.glow : P.lamp, { p: [DRIVE_X + 0.007, DECK_Y + 0.061, -0.03 + i * 0.02], r: [0, 0, -0.45] });
+  for (const z of [-0.02, 0.015]) {
+    b.add(cyl(0.003, 0.003, 0.034, 4), P.tin, { p: [DRIVE_X - 0.004, DECK_Y + 0.072, z], r: [0, 0, 0.3] });
+    b.add(ball(0.006, 6, 4), P.stripe, { p: [DRIVE_X - 0.009, DECK_Y + 0.089, z] });
+  }
+
+  // ---- the heat sinks: a block with a row of fins standing out of it, a hot core between them, the vent lever and a coolant line
+  b.add(box(0.06, 0.05, 0.06), P.iron, { p: [VENT.x, DECK_Y + 0.025, VENT.z] });
+  for (let i = 0; i < 5; i++) b.add(box(0.05, 0.05, 0.005), P.tinDark, { p: [VENT.x, DECK_Y + 0.075, VENT.z - 0.024 + i * 0.012] });
+  b.addGlow(box(0.04, 0.006, 0.05), P.heat, { p: [VENT.x, DECK_Y + 0.053, VENT.z] });
+  b.add(cyl(0.006, 0.006, 0.13, 5), P.tin, { p: [VENT.x - 0.03, DECK_Y + 0.105, VENT.z], r: [0, 0, Math.PI / 2 - 0.25] });
+  b.add(ball(0.009, 6, 4), P.stripe, { p: [VENT.x - 0.092, DECK_Y + 0.089, VENT.z] });
+  b.add(cyl(0.006, 0.006, 0.05, 5), P.steel, { p: [VENT.x + 0.03, DECK_Y + 0.03, VENT.z + 0.035], r: [Math.PI / 2, 0, 0] });
+  b.add(cyl(0.018, 0.018, 0.04, 7), P.blue, { p: [VENT.x + 0.05, DECK_Y + 0.02, VENT.z - 0.035] });
+
+  // ---- the turrets: a ball in each wall, the gunner's side of it inside, twin barrels and a blister outside
   for (const side of [-1, 1]) {
-    for (const x of turretsAt) {
-      // A turret against the rail, so the deck between them stays clear: a ring, a dome on it, twin barrels out over the side.
-      b.add(new THREE.CylinderGeometry(0.027, 0.03, 0.02, 8), P.steel, { p: [x, DECK_Y + 0.01, side * 0.168] });
+    for (const x of TURRETS_X) {
+      b.add(cyl(0.027, 0.03, 0.02, 8), P.steel, { p: [x, DECK_Y + 0.01, side * 0.168] });
       b.add(new THREE.SphereGeometry(0.025, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), P.tinDark, { p: [x, DECK_Y + 0.02, side * 0.168] });
-      for (const dx of [-0.009, 0.009]) b.add(new THREE.CylinderGeometry(0.006, 0.007, 0.1, 6), P.iron, { p: [x + dx, DECK_Y + 0.035, side * 0.215], r: [Math.PI / 2, 0, 0] });
-      b.addGlow(new THREE.BoxGeometry(0.008, 0.005, 0.005), P.glow, { p: [x, DECK_Y + 0.046, side * 0.165] });
+      for (const dx of [-0.009, 0.009]) b.add(cyl(0.006, 0.007, 0.11, 6), P.iron, { p: [x + dx, DECK_Y + 0.035, side * 0.225], r: [Math.PI / 2, 0, 0] });
+      b.addGlow(box(0.008, 0.005, 0.005), P.glow, { p: [x, DECK_Y + 0.046, side * 0.165] });
+      b.add(new THREE.SphereGeometry(0.034, 8, 5), 0x1a1d22, { p: [x, DECK_Y + 0.035, side * (HULL_Z - 0.004)], s: [1, 0.8, 0.5] });
     }
   }
   // Slugs in a rack by the starboard aft turret.
-  for (let i = 0; i < 3; i++) b.add(new THREE.CylinderGeometry(0.007, 0.007, 0.018, 6), P.brass, { p: [-0.11 + i * 0.019, DECK_Y + 0.009, 0.185] });
-  const patchAt = { x: 0.37, z: 0.12 };
-  // The patch bay: a bench with a hull plate on it and a welder beside the plate, spare plates stacked at its foot.
-  b.add(new THREE.BoxGeometry(0.1, 0.045, 0.05), P.steel, { p: [patchAt.x, DECK_Y + 0.0225, patchAt.z] });
-  b.add(new THREE.BoxGeometry(0.12, 0.008, 0.03), P.tin, { p: [patchAt.x, DECK_Y + 0.05, patchAt.z], r: [0, 0.25, 0] });
-  b.add(new THREE.BoxGeometry(0.026, 0.016, 0.016), P.stripe, { p: [patchAt.x + 0.03, DECK_Y + 0.056, patchAt.z - 0.012] });
-  b.add(new THREE.CylinderGeometry(0.003, 0.003, 0.02, 4), P.iron, { p: [patchAt.x + 0.012, DECK_Y + 0.056, patchAt.z - 0.012], r: [0, 0, Math.PI / 2] });
-  b.addGlow(new THREE.SphereGeometry(0.004, 5, 4), P.glow, { p: [patchAt.x + 0.001, DECK_Y + 0.056, patchAt.z - 0.012] });
-  for (let i = 0; i < 3; i++) b.add(new THREE.BoxGeometry(0.1, 0.008, 0.016), i % 2 ? P.patch : P.tinDark, { p: [patchAt.x - 0.005, DECK_Y + 0.004 + i * 0.008, patchAt.z + 0.04] });
-  // The hatch.
-  b.add(new THREE.BoxGeometry(0.08, 0.006, 0.07), P.steel, { p: [0.24, DECK_Y + 0.003, 0.045] });
-  for (let i = 0; i < 4; i++) b.add(new THREE.BoxGeometry(0.004, 0.003, 0.066), 0x1a1d22, { p: [0.21 + i * 0.02, DECK_Y + 0.0065, 0.045] });
-  // Stores.
-  for (const [x, z, c] of [
-    [0.335, -0.16, P.stripe],
-    [0.36, -0.135, P.patch],
+  for (let i = 0; i < 3; i++) b.add(cyl(0.007, 0.007, 0.018, 6), P.brass, { p: [TURRETS_X[0] - 0.06 + i * 0.019, DECK_Y + 0.009, 0.185] });
+
+  // ---- the patch bay: a bench with a hull plate on it and a welder beside the plate, spare plates stacked at its foot
+  b.add(box(0.1, 0.045, 0.05), P.steel, { p: [PATCH.x, DECK_Y + 0.0225, PATCH.z] });
+  b.add(box(0.12, 0.008, 0.03), P.tin, { p: [PATCH.x, DECK_Y + 0.05, PATCH.z], r: [0, 0.25, 0] });
+  b.add(box(0.026, 0.016, 0.016), P.stripe, { p: [PATCH.x + 0.03, DECK_Y + 0.056, PATCH.z - 0.012] });
+  b.add(cyl(0.003, 0.003, 0.02, 4), P.iron, { p: [PATCH.x + 0.012, DECK_Y + 0.056, PATCH.z - 0.012], r: [0, 0, Math.PI / 2] });
+  b.addGlow(ball(0.004, 5, 4), P.glow, { p: [PATCH.x + 0.001, DECK_Y + 0.056, PATCH.z - 0.012] });
+  for (let i = 0; i < 3; i++) b.add(box(0.1, 0.008, 0.016), i % 2 ? P.patch : P.tinDark, { p: [PATCH.x - 0.005, DECK_Y + 0.004 + i * 0.008, PATCH.z + 0.04] });
+
+  // ---- stores in one corner aft, a locker in the other
+  for (const [dx, dz, c] of [
+    [-0.0125, -0.0125, P.stripe],
+    [0.0125, 0.0125, P.patch],
   ] as const) {
-    b.add(new THREE.CylinderGeometry(0.019, 0.019, 0.045, 8), c, { p: [x, DECK_Y + 0.0225, z] });
-    b.add(new THREE.CylinderGeometry(0.0195, 0.0195, 0.004, 8), P.iron, { p: [x, DECK_Y + 0.035, z] });
+    b.add(cyl(0.019, 0.019, 0.045, 8), c, { p: [STORES.x + dx, DECK_Y + 0.0225, STORES.z + dz] });
+    b.add(cyl(0.0195, 0.0195, 0.004, 8), P.iron, { p: [STORES.x + dx, DECK_Y + 0.035, STORES.z + dz] });
   }
+  b.add(box(0.05, 0.085, 0.038), P.blue, { p: [LOCKER.x, DECK_Y + 0.0425, LOCKER.z] });
+  b.add(box(0.003, 0.07, 0.03), P.tinDark, { p: [LOCKER.x + 0.026, DECK_Y + 0.045, LOCKER.z] });
+  b.addGlow(box(0.003, 0.006, 0.006), P.lamp, { p: [LOCKER.x + 0.027, DECK_Y + 0.07, LOCKER.z - 0.008] });
+  body.add(b.build(shadows));
 
-  // ---- the antenna mast: a pole with two yards of aerial, a dish and a light at its tip
-  b.add(new THREE.CylinderGeometry(0.01, 0.02, MAST_TOP - 0.28, 6), P.tinDark, { p: [mastX, (MAST_TOP + 0.28) / 2, 0] });
-  b.add(new THREE.CylinderGeometry(0.024, 0.028, 0.03, 6), P.steel, { p: [mastX, DECK_Y + 0.015, 0] });
-  for (const [y, half] of [
-    [MAST_TOP - 0.1, 0.11],
-    [MAST_TOP - 0.2, 0.075],
-  ] as const) {
-    b.add(new THREE.BoxGeometry(0.006, 0.006, half * 2), P.steel, { p: [mastX, y, 0] });
-    for (const side of [-1, 1]) b.add(new THREE.BoxGeometry(0.004, 0.03, 0.004), P.steel, { p: [mastX, y, side * half] });
+  // ---- the side walls: plate outside with lit ports and the airlock's frame; inside, what the crew looks at
+  const wall = (side: number): THREE.Group => {
+    const w = new Batch();
+    const thick = HULL_Z - WALL_Z;
+    const z = (side * (HULL_Z + WALL_Z)) / 2;
+    const tall = WALL_TOP - SILL_Y;
+    const y = (WALL_TOP + SILL_Y) / 2;
+    const out = side * (HULL_Z + 0.001);
+    const inn = side * (WALL_Z - 0.004);
+    // Two runs of wall, either side of the airlock's doorway, and the lintel over it.
+    const door = [AIRLOCK_X - 0.035, AIRLOCK_X + 0.035] as const;
+    w.add(box(door[0] - STERN_X, tall, thick), P.hull, { p: [(door[0] + STERN_X) / 2, y, z] });
+    w.add(box(BOW_X - door[1], tall, thick), P.hull, { p: [(door[1] + BOW_X) / 2, y, z] });
+    w.add(box(0.07, 0.022, thick + 0.004), P.stripe, { p: [AIRLOCK_X, WALL_TOP - 0.011, z] });
+    for (const x of door) w.add(box(0.012, tall, thick + 0.008), P.rail, { p: [x, y, z] });
+    w.addGlow(box(0.026, 0.007, thick + 0.012), P.lamp, { p: [AIRLOCK_X, WALL_TOP - 0.028, z] });
+    w.add(box(length, 0.008, thick + 0.004), P.seam, { p: [midX, WALL_TOP - 0.004, z] });
+    // Lined inside in a darker plate, so the far wall reads as the back of a room.
+    w.add(box(door[0] - STERN_X - 0.025, tall - 0.01, 0.003), P.lining, { p: [(door[0] + STERN_X + 0.025) / 2, y - 0.005, side * (WALL_Z - 0.001)] });
+    w.add(box(BOW_X - door[1], tall - 0.01, 0.003), P.lining, { p: [(door[1] + BOW_X) / 2, y - 0.005, side * (WALL_Z - 0.001)] });
+    // Ports: lit from within outside, black with the void inside.
+    for (const x of [-0.39, -0.29, -0.13, 0.22, 0.31, 0.4]) {
+      w.addGlow(cyl(0.017, 0.017, 0.004, 10), P.window, { p: [x, y + 0.006, out], r: [Math.PI / 2, 0, 0] });
+      w.add(new THREE.TorusGeometry(0.019, 0.004, 4, 10), P.steel, { p: [x, y + 0.006, out] });
+      w.addGlow(cyl(0.017, 0.017, 0.004, 10), 0x141c38, { p: [x, y + 0.006, inn], r: [Math.PI / 2, 0, 0] });
+      w.add(new THREE.TorusGeometry(0.019, 0.004, 4, 10), P.rail, { p: [x, y + 0.006, inn] });
+    }
+    // Inside: a strip of light under the roof, a pipe along the foot of the wall, panels and a couple of screens.
+    w.addGlow(box(BRIDGE_X - STERN_X - 0.05, 0.005, 0.004), P.glow, { p: [(BRIDGE_X + STERN_X) / 2, WALL_TOP - 0.012, inn] });
+    w.add(cyl(0.006, 0.006, door[0] - STERN_X - 0.04, 5), P.rust, { p: [(door[0] + STERN_X) / 2, SILL_Y + 0.012, side * (WALL_Z - 0.007)], r: [0, 0, Math.PI / 2] });
+    for (const x of [-0.34, -0.21, -0.06]) w.add(box(0.05, 0.05, 0.004), P.tinDark, { p: [x, y - 0.008, inn] });
+    for (const [x, c] of [
+      [-0.21, 0x2f86a8],
+      [-0.06, P.lamp],
+    ] as const)
+      w.addGlow(box(0.03, 0.02, 0.005), c, { p: [x, y, side * (WALL_Z - 0.006)] });
+    const g = w.build(shadows);
+    body.add(g);
+    return g;
+  };
+  const walls = { port: wall(-1), starboard: wall(1) };
+
+  // ---- the roof and the canopy: everything over the walls, drawn only from outside
+  const shell = new THREE.Group();
+  const r = new Batch();
+  const roofLine: Outline = [
+    [-HULL_Z, WALL_TOP],
+    [-0.17, ROOF_Y],
+    [0.17, ROOF_Y],
+    [HULL_Z, WALL_TOP],
+  ];
+  const windscreen: Outline = [
+    [-HULL_Z, WALL_TOP],
+    [-0.2, WALL_TOP + 0.015],
+    [0.2, WALL_TOP + 0.015],
+    [HULL_Z, WALL_TOP],
+  ];
+  r.add(loft([{ x: STERN_X, pts: roofLine }, { x: BRIDGE_X, pts: roofLine }]), P.hull);
+  const roofLen = BRIDGE_X - STERN_X;
+  r.add(box(roofLen - 0.04, 0.006, 0.3), P.tin, { p: [(BRIDGE_X + STERN_X) / 2, ROOF_Y + 0.002, 0] });
+  for (const x of [-0.36, -0.2, -0.04, 0.12]) r.add(box(0.008, 0.008, 0.34), P.seam, { p: [x, ROOF_Y + 0.003, 0] });
+  // The slope of the roof either side, at the angle its ribs and the flags lie at.
+  const slope = Math.atan2(ROOF_Y - WALL_TOP, HULL_Z - 0.17);
+  const slopeLen = Math.hypot(ROOF_Y - WALL_TOP, HULL_Z - 0.17);
+  const onSlope = (side: number): Vec3 => [0, (ROOF_Y + WALL_TOP) / 2, (side * (HULL_Z + 0.17)) / 2];
+  // The canopy's frame: a hoop where it meets the roof, one over the captain, and the windscreen's sill.
+  for (const x of [BRIDGE_X, 0.32]) {
+    r.add(box(0.014, 0.01, 0.35), P.steel, { p: [x, ROOF_Y, 0] });
+    for (const side of [-1, 1]) r.add(box(0.014, 0.01, slopeLen), P.steel, { p: [x, onSlope(side)[1], onSlope(side)[2]], r: [side * slope, 0, 0] });
   }
-  b.add(new THREE.SphereGeometry(0.05, 9, 4, 0, Math.PI * 2, 0, 0.9), P.tin, { p: [mastX + 0.035, MAST_TOP - 0.31, 0], r: [0, 0, -Math.PI / 2 - 0.5] });
-  b.addGlow(new THREE.SphereGeometry(0.012, 6, 5), P.portLamp, { p: [mastX, MAST_TOP + 0.01, 0] });
-  // ---- the fin's spine over the bridge, on a post at the stern and a frame over the head of the steps
-  const spineY = FIN[0][1];
-  b.add(new THREE.BoxGeometry(FIN[0][0] - FIN[1][0] + 0.02, 0.024, 0.026), P.steel, { p: [(FIN[0][0] + FIN[1][0]) / 2, spineY - 0.012, 0] });
-  b.add(new THREE.BoxGeometry(0.026, spineY - 0.3, 0.026), P.steel, { p: [-0.462, (spineY + 0.3) / 2, 0] });
-  for (const side of [-1, 1]) {
-    const lean = Math.atan2(0.055, spineY - BRIDGE_Y);
-    b.add(new THREE.BoxGeometry(0.012, Math.hypot(0.055, spineY - BRIDGE_Y), 0.012), P.steel, { p: [BRIDGE_X, (spineY + BRIDGE_Y) / 2, side * 0.0275], r: [side * lean, 0, 0] });
+  r.add(box(0.014, 0.012, 0.41), P.steel, { p: [BOW_X - 0.004, WALL_TOP + 0.018, 0] });
+  // A hatch, two vents, a dish and a whip aerial; running lights at the stern, red to port and green to starboard.
+  r.add(cyl(0.035, 0.038, 0.012, 10), P.steel, { p: [0.03, ROOF_Y + 0.008, 0] });
+  r.add(box(0.03, 0.006, 0.008), P.iron, { p: [0.03, ROOF_Y + 0.017, 0] });
+  for (const z of [-0.09, 0.09]) {
+    r.add(box(0.06, 0.022, 0.034), P.tinDark, { p: [-0.24, ROOF_Y + 0.013, z] });
+    r.addGlow(box(0.05, 0.004, 0.02), P.heat, { p: [-0.24, ROOF_Y + 0.025, z] });
   }
-  const solid = b.build(shadows);
-  body.add(solid);
+  r.add(cyl(0.004, 0.006, 0.05, 5), P.iron, { p: [-0.07, ROOF_Y + 0.027, 0.09] });
+  r.add(new THREE.SphereGeometry(0.04, 9, 4, 0, Math.PI * 2, 0, 0.9), P.tin, { p: [-0.07, ROOF_Y + 0.085, 0.09], r: [Math.PI + 0.5, 0, 0.3] });
+  r.add(cyl(0.002, 0.003, 0.2, 4), P.iron, { p: [0.1, ROOF_Y + 0.1, -0.1] });
+  r.addGlow(ball(0.008), P.portLamp, { p: [0.1, ROOF_Y + 0.205, -0.1] });
+  for (const side of [-1, 1]) r.addGlow(ball(0.012, 8, 6), side < 0 ? P.portLamp : P.starboardLamp, { p: [STERN_X + 0.03, WALL_TOP + 0.02, side * (HULL_Z - 0.015)] });
+  // The fin's root.
+  r.add(box(FIN[0][0] - FIN[1][0] + 0.03, 0.03, 0.03), P.steel, { p: [(FIN[0][0] + FIN[1][0]) / 2, ROOF_Y + 0.012, 0] });
+  shell.add(r.build(shadows));
+  const glassPane = new THREE.Mesh(
+    loft([{ x: BRIDGE_X, pts: roofLine }, { x: 0.36, pts: roofLine }, { x: BOW_X, pts: windscreen }]),
+    new THREE.MeshBasicMaterial({ color: P.canopy, transparent: true, opacity: 0.3, depthWrite: false }),
+  );
+  glassPane.renderOrder = 2;
+  shell.add(glassPane);
 
-  // Stays from the mast down to the rails.
-  const stayMat = new THREE.LineBasicMaterial({ color: 0x4a515c });
-  const stays: THREE.Vector3[] = [];
-  for (const side of [-1, 1]) for (const x of [-0.06, 0.06]) stays.push(new THREE.Vector3(mastX, MAST_TOP - 0.1, 0), new THREE.Vector3(mastX + x, 0.32, side * RAIL_Z));
-  body.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(stays), stayMat));
-
-  // ---- the tail fin: a swept blade on the spine, painted with the crew's emblem when she flies their colors
+  // ---- the tail fin: a swept blade on the roof, painted with the crew's emblem when she flies their colors
   const finShape = new THREE.Shape();
   FIN.forEach(([x, y], i) => (i ? finShape.lineTo(x, y) : finShape.moveTo(x, y)));
   finShape.closePath();
@@ -364,64 +521,42 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
     const at = finGeo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, (at.getX(i) - x0) / (Math.max(...xs) - x0), (at.getY(i) - y0) / (Math.max(...ys) - y0));
   }
-  const fin = shaded(finGeo, mat(P.fin, { side: THREE.DoubleSide, transparent: true }));
-  body.add(fin);
-  const glass: THREE.Mesh[] = [fin];
+  const fin = shaded(finGeo, mat(P.fin, { side: THREE.DoubleSide }));
+  shell.add(fin);
   // A stripe along its leading edge, the hull's own.
-  const edge = new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(FIN[3][0] - FIN[0][0], FIN[3][1] - FIN[0][1]), 0.022, 0.008), new THREE.MeshLambertMaterial({ color: P.stripe, transparent: true }));
+  const edge = shaded(new THREE.BoxGeometry(Math.hypot(FIN[3][0] - FIN[0][0], FIN[3][1] - FIN[0][1]), 0.022, 0.008), mat(P.stripe));
   edge.position.set((FIN[0][0] + FIN[3][0]) / 2, (FIN[0][1] + FIN[3][1]) / 2, 0);
   edge.rotation.z = Math.atan2(FIN[3][1] - FIN[0][1], FIN[3][0] - FIN[0][0]);
-  body.add(edge);
-  glass.push(edge);
+  shell.add(edge);
 
-  // ---- the canopy: a clear shell over the whole deck, and the ribs that hold it
-  const canopy = new THREE.Group();
-  const SHELL = { x: 0.47, y: 0.36, z: 0.252, at: -0.01, base: 0.335 };
-  const shell = new THREE.Mesh(
-    new THREE.SphereGeometry(1, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: P.canopy, transparent: true, opacity: 0.2, depthWrite: false }),
-  );
-  shell.scale.set(SHELL.x, SHELL.y, SHELL.z);
-  shell.position.set(SHELL.at, SHELL.base, 0);
-  shell.renderOrder = 2;
-  canopy.add(shell);
-  const ribMat = new THREE.MeshLambertMaterial({ color: P.tin });
-  for (const x of [-0.3, -0.1, 0.1, 0.3]) {
-    // Each rib is the shell's own cross-section where it stands.
-    const k = Math.sqrt(1 - ((x - SHELL.at) / SHELL.x) ** 2);
-    const rib = new THREE.Mesh(new THREE.TorusGeometry(1, 0.012 / k, 4, 14, Math.PI), ribMat);
-    rib.rotation.y = Math.PI / 2;
-    rib.scale.set(SHELL.z * k, SHELL.y * k, 0.3);
-    rib.position.set(x, SHELL.base, 0);
-    canopy.add(rib);
-  }
-  const sill = new THREE.Mesh(new THREE.TorusGeometry(1, 0.012, 4, 28), ribMat);
-  sill.rotation.x = Math.PI / 2;
-  sill.scale.set(SHELL.x, SHELL.z, 0.4);
-  sill.position.set(SHELL.at, SHELL.base, 0);
-  canopy.add(sill);
-  body.add(canopy);
-
-  const flag = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.18, 0.09, 3, 1),
-    new THREE.MeshBasicMaterial({ color: kind === "other" ? PALETTE.parchment : PALETTE.brass, side: THREE.DoubleSide }),
-  );
-  flag.position.set(mastX - 0.09, MAST_TOP + 0.08, 0);
-  body.add(flag);
+  // ---- her colors: a panel painted on each slope of the roof, the crew's flag when she flies one
+  const plainFlag = kind === "other" ? PALETTE.parchment : PALETTE.brass;
+  const flagMat = new THREE.MeshBasicMaterial({ color: plainFlag });
+  const flags = [-1, 1].map((side) => {
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.07), flagMat);
+    const at = onSlope(side);
+    const lift = 0.004;
+    flag.position.set(-0.12, at[1] + Math.cos(slope) * lift, at[2] + side * Math.sin(slope) * lift);
+    // Face out along the slope, reading the right way round from that side.
+    flag.rotation.set(side > 0 ? slope - Math.PI / 2 : Math.PI / 2 - slope, side > 0 ? 0 : Math.PI, 0);
+    shell.add(flag);
+    return flag;
+  });
+  body.add(shell);
 
   // ---- the engines' glow: a lit throat and a plume from each nozzle, shown under way
   // The group sits at the nozzles' mouths, so stretching it along x lengthens the plumes from there.
   const engineGlow = new THREE.Group();
-  engineGlow.position.set(-0.568, 0.1, 0);
+  engineGlow.position.set(STERN_X - 0.148, NOZZLE_Y, 0);
   for (const z of nozzles) {
-    const throat = new THREE.Mesh(new THREE.CircleGeometry(0.046, 10), new THREE.MeshBasicMaterial({ color: 0xd8f6ff }));
+    const throat = new THREE.Mesh(new THREE.CircleGeometry(0.056, 10), new THREE.MeshBasicMaterial({ color: 0xd8f6ff }));
     throat.rotation.y = -Math.PI / 2;
     throat.position.set(-0.001, 0, z);
     engineGlow.add(throat);
     // Two blades of light crossed, so the plume shows from above and from the side.
     for (const turn of [0, Math.PI / 2]) {
       const plume = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.62, 0.13),
+        new THREE.PlaneGeometry(0.62, 0.15),
         new THREE.MeshBasicMaterial({ map: plumeTexture(), transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }),
       );
       plume.rotation.x = turn;
@@ -434,18 +569,23 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
 
   const marker = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.22, 4), new THREE.MeshBasicMaterial({ color: PALETTE.brass }));
   marker.rotation.x = Math.PI;
-  marker.position.set(mastX, MAST_TOP + 0.38, 0);
+  marker.position.set(0, MARKER_Y, 0);
   marker.visible = kind !== "other";
   body.add(marker);
 
-  const hit = new THREE.Mesh(new THREE.BoxGeometry(1.45, 1.3, 0.6), unseen());
-  hit.position.y = 0.7;
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(1.66, 0.95, 0.62), unseen());
+  hit.position.set(0.19, 0.45, 0);
   body.add(hit);
-  const hullHit = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.42, 0.46), unseen());
-  hullHit.position.set(0.02, 0.21, 0);
+  // Her hull's own shape, roof and nose and all, so a tap is on her only where she is drawn: a box
+  // round her would take taps on the dock and the rock that show past her shoulders.
+  const whole: Outline = [...belly.slice(1, 5), [HULL_Z, WALL_TOP], [0.17, ROOF_Y], [-0.17, ROOF_Y], [-HULL_Z, WALL_TOP]];
+  const hullHit = new THREE.Mesh(
+    mergeGeometries([loft([{ x: STERN_X - 0.14, pts: shrink(whole, 0.8, 0.22) }, { x: STERN_X, pts: whole }, { x: BOW_X, pts: whole }]), loft([{ x: BOW_X, pts: section }, { x: 0.84, pts: shrink(section, 0.1, 0.2) }])]),
+    unseen(),
+  );
   body.add(hullHit);
-  const deckHit = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.02, 0.38), unseen());
-  deckHit.position.y = DECK_Y;
+  const deckHit = new THREE.Mesh(new THREE.BoxGeometry(length, 0.02, WALL_Z * 2), unseen());
+  deckHit.position.set(midX, DECK_Y, 0);
   body.add(deckHit);
   const stationHits: THREE.Mesh[] = [];
   const stationHit = (key: Station | "helm", x: number, y: number, z: number, w: number, h: number, d: number): void => {
@@ -455,70 +595,26 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
     body.add(m);
     stationHits.push(m);
   };
-  stationHit("cooling", ventAt.x, DECK_Y + 0.06, ventAt.z, 0.09, 0.12, 0.08);
-  stationHit("engines", mastX, DECK_Y + 0.1, 0, 0.12, 0.2, 0.12);
-  stationHit("plating", patchAt.x, DECK_Y + 0.04, patchAt.z, 0.12, 0.08, 0.08);
-  stationHit("gunnery", turretsAt[0]!, DECK_Y + 0.04, 0.17, 0.08, 0.08, 0.08);
-  stationHit("navigation", navAt.x, BRIDGE_Y + 0.04, navAt.z, 0.09, 0.08, 0.07);
+  stationHit("cooling", VENT.x, DECK_Y + 0.06, VENT.z, 0.09, 0.12, 0.08);
+  stationHit("engines", (CORE_X + DRIVE_X) / 2, DECK_Y + 0.075, 0, 0.14, 0.15, 0.1);
+  stationHit("plating", PATCH.x, DECK_Y + 0.04, PATCH.z, 0.12, 0.08, 0.08);
+  stationHit("gunnery", TURRETS_X[0], DECK_Y + 0.04, 0.17, 0.08, 0.08, 0.08);
+  stationHit("navigation", NAV.x, BRIDGE_Y + 0.04, NAV.z, 0.09, 0.08, 0.07);
   stationHit("helm", helmAt.x, helmAt.y, 0, 0.04, 0.12, 0.12);
 
-  // ---- where a pirate may walk on deck
-  const PAD = 0.016;
-  const heightAt = (x: number, z: number): number => {
-    if (x < BRIDGE_X) return BRIDGE_Y;
-    if (x < STEPS_FOOT_X && Math.abs(z) < STEPS_HALF) return DECK_Y + ((BRIDGE_Y - DECK_Y) * (STEPS_FOOT_X - x)) / (STEPS_FOOT_X - BRIDGE_X);
-    return DECK_Y;
-  };
-  const grid = new WalkGrid(-0.44, -0.2, 0.44, 0.2, 0.011).fill((x, z) => (x >= BRIDGE_X && x <= 0.41 && Math.abs(z) <= WALK_Z) || (x >= -0.41 && x < BRIDGE_X && Math.abs(z) <= WALK_Z - 0.005));
-  const obstacles: Obstacle[] = [
-    // The bridge's front, but for the steps, and the handrails beside them.
-    { kind: "box", x: BRIDGE_X, z: (RAIL_Z + STEPS_HALF) / 2, hw: 0.006, hd: (RAIL_Z - STEPS_HALF) / 2, angle: 0 },
-    { kind: "box", x: BRIDGE_X, z: -(RAIL_Z + STEPS_HALF) / 2, hw: 0.006, hd: (RAIL_Z - STEPS_HALF) / 2, angle: 0 },
-    { kind: "box", x: (BRIDGE_X + STEPS_FOOT_X) / 2, z: STEPS_HALF, hw: (STEPS_FOOT_X - BRIDGE_X) / 2, hd: 0.004, angle: 0 },
-    { kind: "box", x: (BRIDGE_X + STEPS_FOOT_X) / 2, z: -STEPS_HALF, hw: (STEPS_FOOT_X - BRIDGE_X) / 2, hd: 0.004, angle: 0 },
-    { kind: "circle", x: mastX, z: 0, r: 0.03 },
-    { kind: "box", x: mastX - 0.04, z: 0, hw: 0.01, hd: 0.045, angle: 0 },
-    { kind: "box", x: ventAt.x + 0.01, z: ventAt.z - 0.005, hw: 0.045, hd: 0.035, angle: 0 },
-    { kind: "box", x: patchAt.x, z: patchAt.z + 0.01, hw: 0.05, hd: 0.04, angle: 0 },
-    { kind: "circle", x: 0.35, z: -0.15, r: 0.03 },
-    { kind: "box", x: helmAt.x + 0.006, z: 0, hw: 0.01, hd: 0.045, angle: 0 },
-    { kind: "box", x: navAt.x, z: navAt.z, hw: 0.04, hd: 0.03, angle: 0 },
-    { kind: "circle", x: -0.41, z: 0.16, r: 0.008 },
-    { kind: "circle", x: -0.41, z: -0.16, r: 0.008 },
-  ];
-  for (const side of [-1, 1]) for (const x of turretsAt) obstacles.push({ kind: "box", x, z: side * 0.175, hw: 0.03, hd: 0.03, angle: 0 });
-  for (const o of obstacles) grid.block(o, PAD);
-
   const anchors: Record<Station, THREE.Vector3> = {
-    cooling: new THREE.Vector3(ventAt.x, DECK_Y + 0.12, ventAt.z),
-    engines: new THREE.Vector3(mastX, 0.55, 0),
-    plating: new THREE.Vector3(patchAt.x, DECK_Y + 0.07, patchAt.z),
-    gunnery: new THREE.Vector3(turretsAt[0]!, DECK_Y + 0.07, 0.18),
-    navigation: new THREE.Vector3(navAt.x, BRIDGE_Y + 0.08, navAt.z),
+    cooling: new THREE.Vector3(VENT.x, DECK_Y + 0.12, VENT.z),
+    engines: new THREE.Vector3(CORE_X, DECK_Y + 0.16, 0),
+    plating: new THREE.Vector3(PATCH.x, DECK_Y + 0.07, PATCH.z),
+    gunnery: new THREE.Vector3(TURRETS_X[0], DECK_Y + 0.07, 0.18),
+    navigation: new THREE.Vector3(NAV.x, BRIDGE_Y + 0.08, NAV.z),
   };
-  const deck: ShipDeck = {
-    grid,
-    heightAt,
-    stations: {
-      cooling: { at: { x: ventAt.x - 0.064, z: ventAt.z }, face: 0 },
-      engines: { at: { x: mastX, z: -0.07 }, face: Math.PI / 2 },
-      plating: { at: { x: patchAt.x, z: patchAt.z - 0.062 }, face: Math.PI / 2 },
-      gunnery: { at: { x: turretsAt[0]!, z: 0.12 }, face: Math.PI / 2 },
-      navigation: { at: { x: navAt.x, z: navAt.z - 0.058 }, face: Math.PI / 2 },
-    },
-    helm: { at: { x: helmAt.x - 0.06, z: 0 }, face: 0 },
-    idle: [
-      { x: 0.0, z: 0.02 },
-      { x: 0.22, z: 0.07 },
-      { x: -0.12, z: 0.06 },
-      { x: 0.3, z: -0.03 },
-      { x: -0.05, z: -0.09 },
-      { x: 0.16, z: -0.06 },
-    ],
-    airlock: (side) => ({ x: AIRLOCK_X, z: side * (WALK_Z - 0.01) }),
+  const cutaway = (side: number | null): void => {
+    shell.visible = side === null;
+    walls.port.visible = side === null || side > 0;
+    walls.starboard.visible = side === null || side < 0;
   };
-  const plainFlag = kind === "other" ? PALETTE.parchment : PALETTE.brass;
-  return { group, body, hit, hullHit, deckHit, stationHits, fin, glass, canopy, flag, plainFlag, dressed: "", engineGlow, marker, anchors, helm: helmAt, deck };
+  return { group, body, hit, hullHit, deckHit, stationHits, fin, flags, plainFlag, dressed: "", cutaway, engineGlow, marker, anchors, helm: helmAt, deck: skiffDeck() };
 }
 
 /**
@@ -575,31 +671,34 @@ function setMap(mesh: THREE.Mesh, map: THREE.Texture | null, color: number): voi
 }
 
 /**
- * Dress a ship in its owner's crew colors (M6): the crew's flag on the antenna and its emblem on
- * the tail fin, in the flag's field color, so a crew's ships read as one fleet on the chart. Null
- * strikes the colors. Painted with the same Canvas 2D code as the flags in the cards.
+ * Dress a ship in its owner's crew colors (M6): the crew's flag painted on each slope of her roof
+ * and its emblem on the tail fin, in the flag's field color, so a crew's ships read as one fleet on
+ * the chart. Null strikes the colors. Painted with the same Canvas 2D code as the flags in the cards.
  */
 export function dressShip(model: ShipModel, colors: CrewFlagWire | null): void {
   const key = colors ? flagKey(colors) : "";
   if (model.dressed === key) return;
   model.dressed = key;
+  // The two panels share a material, so one map dresses both.
+  const panel = model.flags[0]!;
   if (!colors) {
-    setMap(model.flag, null, model.plainFlag);
-    model.flag.scale.set(1, 1, 1);
+    setMap(panel, null, model.plainFlag);
+    for (const f of model.flags) f.scale.set(1, 1, 1);
     setMap(model.fin, null, PALETTE.fin);
     return;
   }
-  setMap(model.flag, canvasTexture(96, 64, (ctx) => drawFlag(ctx, colors, 96, 64)), model.plainFlag);
-  // The flag's plane is two by one; a crew flag is three by two.
-  model.flag.scale.set(1, 4 / 3, 1);
+  setMap(panel, canvasTexture(96, 64, (ctx) => drawFlag(ctx, colors, 96, 64)), model.plainFlag);
+  // A panel is two by one; a crew flag is three by two.
+  for (const f of model.flags) f.scale.set(1, 4 / 3, 1);
   const finHex = `#${PALETTE.fin.toString(16).padStart(6, "0")}`;
   setMap(
     model.fin,
-    canvasTexture(112, 120, (ctx) => {
+    // The canvas is the shape of the fin's own box, so the emblem is not stretched.
+    canvasTexture(164, 120, (ctx) => {
       ctx.fillStyle = finHex;
-      ctx.fillRect(0, 0, 112, 120);
+      ctx.fillRect(0, 0, 164, 120);
       // The middle of the blade, clear of its swept edges.
-      drawEmblem(ctx, colors.emblem, 50, 62, 62, flagColor(colors.field), finHex);
+      drawEmblem(ctx, colors.emblem, 66, 60, 62, flagColor(colors.field), finHex);
     }),
     PALETTE.fin,
   );

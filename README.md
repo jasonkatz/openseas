@@ -36,10 +36,10 @@ Milestone 6 built (ADR 0025, ADR 0026): crews with flags, ranks and crew chat, c
 board of crews and pirates' cards, and a guest who links Discord or Google keeps everything.
 
 Milestone 7 built (ADR 0034): the game moved from the sea to space with its mechanics unchanged.
-Every word, every identifier and the whole three.js world are space: asteroid outposts in the
-void, a skiff under a canopy with a tail fin, pirates in jackets and headgear, and maintenance
-bots making up a short crew. The puzzle boards still show their sea art under the new names until
-the sprite pass.
+Every word, every identifier and the whole three.js world are space: cratered rocks in the void
+with a settlement bolted to each, a skiff that is a closed hull from outside and cut away to her
+one room aboard (ADR 0035), pirates in jackets and headgear, and maintenance bots making up a
+short crew. The puzzle boards still show their sea art under the new names until the sprite pass.
 
 Every milestone from M2 on still needs its tester session and written retro.
 
@@ -73,7 +73,7 @@ pnpm dev:harness                # or just the server and the harness
 ```
 
 Open http://localhost:5174 for the harness (http://localhost:5173 is the game). You get a guest
-pirate and a starter sloop at once; set `ALPHA_INVITE_CODE` in `.env` to require an invite. A
+pirate and a starter skiff at once; set `ALPHA_INVITE_CODE` in `.env` to require an invite. A
 harness page's query string is its scenario, for example
 `http://localhost:5174/gunnery?seed=keg-3&seconds=60&c.spawnEveryTicks=20&start=lab`.
 
@@ -81,7 +81,7 @@ harness page's query string is its scenario, for example
 
 ```sh
 pnpm typecheck                  # every package
-pnpm test                       # engine property tests, protocol, content, server unit tests
+pnpm test                       # engine property tests, protocol, content, server unit tests, the world's layout
 TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/openseas pnpm test   # plus server integration
 pnpm --filter @openseas/engine lint                                                # engine purity guard
 pnpm --filter @openseas/harness exec playwright install chromium && pnpm test:smoke # game and harness smoke

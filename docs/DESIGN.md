@@ -460,23 +460,31 @@ live in `content/data/puzzles/swordfight.json`.
   a file. Only player-generated state lives in the database.
 - AI raiders only in flight. No player-versus-player in flight in v1.
 
-As built (M5, ADR 0032; redrawn for space in M7, ADR 0034): each outpost is one small town on an
-open-air rock with no dome. The ground is a low-poly heightfield: a rise of regolith inside a ring
-of dust, ending in a crater rim that drops into the void, with the rock's underside hanging below
-to a ragged keel. Laid out from the dock inland: the dock, a gantry of deck plates run out over the
-void on struts with a berth either side; the shipyard (the dock's room, a hull in frame on stands
-outside) and the notice board (a pillar of bills and lit screens all round, so it reads from any
-side) at its foot; a path up to a paved plaza with a water tank, lamp posts and a noodle stall; the
-cantina facing the plaza under a barrel roof of tin, its sign swinging and its vent stack steaming;
-hab pods, each with a hydroponic bed under a grow light; and the landmark at the back on its own
-rise. Round the rim: antenna palms, a shuttle up on blocks, a solar sail folded over its rack with
-coils of cable, space junk, a heater ring with crates to sit on, and rock mites scuttling along the
-edge; inland, potted trees and stands of crystal. Every outpost is built from a PRNG seeded by its
-id and laid out the same way, mirrored or not, so they are siblings that read apart by landmark and
-ground: lilac regolith in pale dust under Tinwick's beacon tower, ochre regolith in rust dust under
-Echo Rock's dish, frozen ground in black dust round Frostvent's geyser. The order the dice are
-rolled in is part of the layout: the M7 redraw changed what is drawn and no roll, so the walking
-grid, the doors and the berths are exactly where the sea build had them. The pirate walks it: a tap
+As built (M5, ADR 0032; redrawn for space in M7, ADR 0034, and again after it, ADR 0035): each
+outpost is one small settlement bolted to an open-air rock with no dome. Nothing of an island is
+left in it: no beach, no trees, no pier. The ground is a low-poly heightfield: a flat floor of
+regolith pocked with craters, inside a raised crater rim that is darker than the floor and drops
+sheer into the void, with the rock's underside hanging below to a ragged point. The rim is cut
+through where the dock comes in. Laid out from the dock inland: the dock, an arm run out over the
+void (a box girder with a deck on it, braced back to the rock, a gate at its root, lights down its
+edges and clamps that reach out to hold a ship at the berth either side); the shipyard (the dock's
+room: a flat-roofed workshop with a shutter, a hull in frame under its crane outside) and the
+notice board (a pillar of bills and lit screens all round, so it reads from any side) at its foot;
+a walkway of plate up to a round pad with a holo-globe turning over it, lamp posts and a noodle
+stall; the cantina facing the pad under a barrel roof of tin, with round ports, its sign swinging
+and its vent stack steaming; hab pods, each with a grow tunnel beside it, the only green on the
+rock; and the landmark at the back on its own rise. Round the rim: light masts, dishes and solar
+panels, a shuttle up on blocks, a solar sail folded over its rack with coils of cable, a telescope
+on its tripod, space junk, survey rovers trundling along the edge, and warning lamps on the lip.
+On the floor: the outpost's plant (tanks, cargo and vent stacks) and stands of crystal. Every
+outpost is built from a PRNG seeded by its id and laid out the same way, mirrored or not, so they
+are siblings that read apart by landmark and ground: lilac regolith in a slate rim under Tinwick's
+beacon tower (a lattice mast), burnt-ochre regolith in a rust rim under Echo Rock's dish, frozen
+ground in black rock round Frostvent's geyser. The order the dice are rolled in is part of the
+layout. ADR 0035's redraw rolled them afresh, so props stand in new places; the dock, the
+buildings, their doors, the landmark and the berths' order are where they were. What is built
+never depends on the renderer, so every client walks the same grid, and a unit test walks each
+outpost: every door and both boarding tubes can be reached from where a pirate arrives. The pirate walks it: a tap
 on the ground walks there along a path round whatever is in the way, a tap on a building or its
 spot walks to its door and opens its room; at the cantina and the shipyard the door swings open and
 the pirate steps in out of sight, and leaving the room (the card's back, or a tap outside) walks
@@ -560,8 +568,8 @@ in at most one crew.
   bound, or off watch), with a button to board or join in flight when the viewer could. When
   crewmates launch the ones on an outpost are told, with a button to catch them in flight; when a ship
   with crewmates aboard beats a raider, the rest hear it. A crew-only ship takes the owner's crew.
-  Ships fly their owner's crew flag from the antenna mast and carry its emblem on the tail fin, on
-  the chart and at the dock; the notice board, the deck and the cantina show the flag beside the name.
+  Ships carry their owner's crew flag painted on each slope of the roof and its emblem on the tail
+  fin, on the chart and at the dock; the notice board, the deck and the cantina show the flag beside the name.
 - **Tallies and the board of crews.** A crew counts voyages that docked with a member
   aboard, raiders beaten, and the credits paid to its members from those wins. The cantina's board
   of crews ranks every crew by plunder, then victories.
@@ -665,7 +673,7 @@ model hovering at a dock or easing along its lane between turns, her engines lit
 is no air, so no haze: one hard sun, a cool light from the far side, and starlight. The view is
 the game: it takes the screen, and the camera glides between three kinds of focus: the outpost the
 pirate stands on (home, filling the frame), the deck of the ship they are aboard (the hull itself
-filling the frame as its own little place, antenna and void cropped away, dust kept off it,
+filling the frame as its own little place, cut away so her one room shows, dust kept off it,
 followed along its lane; the chart is where the ship's position in the system is seen), and the
 whole star system (the chart, behind a map button, where outposts are tapped to look closer). Places are `/` (home), `/chart`, `/outpost/:id` (with `/dock`, `/cantina`,
 `/notice`), `/ship`, `/ship/:station` and `/ship/helm`. The card for the place is folded to a
@@ -694,7 +702,7 @@ station standing down or the ship docking cuts the board short, and the board re
 deck. Docked ships tie up alongside the dock, the first on its near side and the next on its far. One menu holds sound, the
 marks setting, the account and sign-out. Toasts carry what happens aboard. A software renderer draws
 the same world more cheaply (no shadows, no antialiasing, a fixed budget of pixels whatever the
-window's size); without WebGL the cards still carry every action.
+window's size) and a board one pixel per pixel; without WebGL the cards still carry every action.
 
 As built (M5; redrawn for space in M7, ADR 0034): the outpost and the deck are walked, not only
 tapped (3.5, ADR 0032). The pegs are figures: small jointed pirates that walk, idle and work, the
@@ -707,18 +715,22 @@ crest, and a bot is not a person at all: a ball of a body on one wheel with a ba
 lamp for an eye, an aerial and a tool arm, half a pirate's height. It rolls where a pirate walks,
 works its station with the arm (the grip sparks when it welds) and blinks when it has nothing to
 do. The skiff is larger and beamier in the world than the chart alone would need, so her deck is
-roomy for a crew: about eleven pirates long and five across. She keeps the deck the sea build
-had, under new gear, with the gear against the rails and the middle of the deck clear: a raised
-bridge aft with the helm (a console and a yoke) and the nav console (a star chart glowing on its
-top), steps down to the main deck, the antenna mast with the drive console at its foot, the heat
-sinks to port, a turret pair at each rail, the patch bay forward and an airlock in each rail. Her
-hull is painted plate, patched where she has been holed, over a darker belly and a keel, with a
-nose cone and a probe ahead and an engine nozzle each side of the stern. A clear canopy on ribs
-closes the whole deck in and is drawn only from outside: on deck it is not there, so it never
-stands between the camera and a station. A tail fin stands over the bridge on a spine and carries
-the crew's emblem; on deck it goes to glass. The flag flies from the antenna mast, and running
-lights burn red to port and green to starboard. Ships lie at a dock bow out to the lanes, named at
-the stern nearest the rock. Docked, a boarding tube (a walkway in a clear, hooped sleeve) runs up
+roomy for a crew: about eleven pirates long and five across. Nothing of a boat is left in her (ADR
+0035). From outside she is a closed hull of painted plate, patched where she has been holed, on
+skids: the bridge forward under a canopy, a nose cone and a probe ahead of it, two engine bells in
+the stern, a ball turret pair in each side, an airlock amidships and a tail fin on the roof that
+carries the crew's emblem. Her crew's flag is painted on each slope of the roof, and running lights
+burn red to port and green to starboard. Aboard she is cut away like a model with its lid off: the
+roof, the canopy and the side wall nearest the camera are not drawn, the far wall stands as the
+back of the room with its ports and panels, and the deck is the floor of one long room, so nothing
+of her hull ever stands between the camera and a station. The gear stands against the walls and the
+middle of the deck is clear: the bridge is two steps up, forward, with the helm (a console and a
+yoke) behind a dash of screens and the nav console (a star chart glowing on its top); aft of the
+steps is the main deck, with a turret at each wall either side of the airlocks, the heat sinks to
+port, the patch bay to starboard, and the drive console at the core in its cage by the stern
+bulkhead. The deck's layout is its own module with no drawing in it, and a unit test walks it:
+every station, the helm and every place to stand can be reached from either airlock. Ships lie at a dock bow out to the lanes, named at
+the stern nearest the rock, at the top of her side. Docked, a boarding tube (a walkway in a clear, hooped sleeve) runs up
 to her airlock from the dock and the deck carries a Disembark spot there. Boarding starts in close
 on the pirate, the view walking with them about the deck; a scroll wheel or a pinch zooms out to
 the whole hull. Up close, or on a phone held upright where the hull fills the width and no column
@@ -958,6 +970,21 @@ never shown with space words over a sea world; with them M7 is built.
   redrawn as what they are called; until then a flag called a rocket still showed an anchor.
 - **Around the world.** The landing page's waves became stars, and the page behind the world is
   the void's colors, so nothing flashes sea-blue before the scene draws.
+
+After M7, as built (ADR 0035): the owner played the space build and found it still an island with
+a boat tied up at it, because M7 had changed each thing's surface and kept its outline. The
+outposts and the skiff are redrawn so no outline of the sea is left (3.5, 3.11).
+
+- **The outposts.** A flat floor inside a raised crater rim takes the place of the rise and its
+  pale ring, masts, dishes and panels the place of the antenna palms, tanks, cargo and vents the
+  place of the potted trees, an arm with a gate and clamps the place of the gantry of planks, and a
+  lattice mast the place of the banded tower. The dice are rolled afresh.
+- **The skiff.** A closed hull that is cut away aboard takes the place of the open deck under a
+  canopy. The bridge moved forward, and the mast, the stays and the flying flag are gone.
+- **The same world on every renderer.** A software renderer used to lay out fewer boulders, which
+  gave software and GPU clients different walking grids on the same outpost. Now it only draws the
+  same world more cheaply, and so do the boards. A unit test in the client walks every outpost and
+  the deck.
 
 What M7 leaves for later: the puzzle boards' sprites, backgrounds, effects and sounds, which wait
 for the owner's sprite pass (3.10); the tester sessions and retros; and the codename. No mechanic
