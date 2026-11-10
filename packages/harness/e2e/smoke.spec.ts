@@ -44,6 +44,31 @@ test("an unrated Cooling round accepts a keyboard swap and shows the result", as
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });
 
+test("a touch the browser takes over lets go of its Cooling drag", async ({ page }) => {
+  await page.goto("/cooling");
+  await page.getByTestId("start-unrated").click();
+  const canvas = page.getByTestId("cooling-canvas");
+  await expectViewMatchesState(page, "cooling");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  const cell = Math.min(box.width / 6, box.height / 12);
+  const x = box.x + (box.width - cell * 6) / 2 + cell * 0.5;
+  const y = box.y + (box.height - cell * 12) / 2 + cell * 11.5;
+  // A finger goes down on a piece, then the browser takes the gesture for a scroll: it cancels the
+  // pointer and the pointer leaves, with no release.
+  await canvas.evaluate((el, at) => {
+    const touch = { pointerId: 7, pointerType: "touch", isPrimary: true, clientX: at.x, clientY: at.y };
+    el.dispatchEvent(new PointerEvent("pointerdown", { ...touch, bubbles: true, buttons: 1 }));
+    el.dispatchEvent(new PointerEvent("pointercancel", { ...touch, bubbles: true }));
+    el.dispatchEvent(new PointerEvent("pointerleave", touch));
+  }, { x, y });
+  // A pointer crossing the row afterwards hovers. Were the drag still held, it would swap.
+  await page.mouse.move(x, y);
+  await page.mouse.move(x + cell, y, { steps: 4 });
+  await page.waitForTimeout(400);
+  await expect(page.getByTestId("hud-moves")).toHaveText(/^0(\/\d+)?$/);
+});
+
 test("home links to Engines and an unrated round takes keyboard drops", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("tile-engines").click();

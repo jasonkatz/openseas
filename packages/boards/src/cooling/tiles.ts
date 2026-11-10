@@ -1,5 +1,5 @@
 import { drawSprite, spriteRevision, type SpritePuzzle } from "../sprites/atlas.js";
-import { Graphics } from "pixi.js";
+import type { Graphics } from "pixi.js";
 import { paintPart } from "../parts.js";
 
 /**
@@ -169,10 +169,10 @@ export function tileDataUrl(style: TileStyle, px: number): string {
   return url;
 }
 
-/** The white shape flashed over a tile as it clears. */
-export function buildFlash(s: number): Graphics {
+/** The white shape flashed over a tile as it clears, centred on (0, 0) in `g`. */
+export function drawFlash(g: Graphics, s: number): void {
   const half = s * 0.44;
-  return new Graphics().roundRect(-half, -half, half * 2, half * 2, s * 0.16).fill(0xffffff);
+  g.roundRect(-half, -half, half * 2, half * 2, s * 0.16).fill(0xffffff);
 }
 
 // ---- marks and icons

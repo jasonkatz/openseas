@@ -85,6 +85,10 @@ These are the project's rules (CLAUDE.md), said for a prototype.
   `layout` (geometry, redraw from `this.state`), `onState` (show a state; play the last move when it
   follows from what is drawn, snap otherwise) and `view` (what is drawn, as the string
   `data-board` also holds). `bake` makes a texture once per layout. `Grid` lays out square cells.
+  The core boards move onto it one at a time (ADR 0040), and the hooks they need are there for any
+  board: `busy` stays true while a board animates outside the kit's tweens, so `onFrame` and
+  `data-view` wait for it; `beforeCanvas` waits for something besides the atlas before the canvas
+  is made (Cooling's webfont); `pointerLeave` takes a hover preview down.
 - `tween.ts`: `Tweens`. `to`, `run`, `after`; `flush` finishes everything in order. `setState`
   flushes before every new state, and a layout does too, so an animation must leave the board
   exactly as a snap would: end every played move with a snap to the engine's state.

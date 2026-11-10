@@ -1,11 +1,9 @@
-import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
-import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
+import { CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import { Special, type CoolingState, type ClearRound, type Piece } from "@openseas/engine";
 import type { CoolingContent } from "@openseas/content";
-import { buildFlash, mix, tileCanvas, type TileStyle, type TileTexture } from "./tiles.js";
-import { boardSurface } from "../surface.js";
+import { drawFlash, mix, tileCanvas, type TileStyle, type TileTexture } from "./tiles.js";
 import { HULL, hullFrame, hullGradient } from "../hull.js";
-import type { BoardRenderer } from "../kit/useBoardHost.js";
+import { KitBoard } from "../kit/board.js";
 
 export interface RendererCallbacks {
   /** The player asked to swap (col,row) with (col+1,row). */
@@ -13,7 +11,7 @@ export interface RendererCallbacks {
   /** The player is considering a swap; the page can show a preview. */
   onHover(col: number, row: number): void;
   onHoverEnd(): void;
-  /** Called on the first frame drawn after a new state arrives. */
+  /** Called on the first frame drawn once a new state has finished playing out. */
   onFrame(): void;
   /** A cascade step is clearing on screen now. Drives sound so it lines up with what is seen. */
   onClear(round: ClearRound): void;
@@ -134,6 +132,8 @@ const COLORS = {
 const SWAP_MS = 120;
 const CLEAR_MS = 190;
 const DIE_MS = 230;
+/** A kick's rattle fades out over this long: the kit's straight fade, fitted to the board's old decay. */
+const SHAKE_MS = 150;
 /** No input for this long in a hinted round and the board points at a scoring swap. */
 const HINT_IDLE_MS = 6000;
 
@@ -160,17 +160,18 @@ const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
 const rand = (a: number, b: number): number => a + Math.random() * (b - a);
 
 /**
- * PixiJS view of a Cooling state. Pure presentation: it never touches the engine. A move plays out
- * as a timeline (swap, then each cascade step: clear, rise, settle) built from the move report, so
- * the player sees every chain. A new move fast-forwards whatever is still playing, so input never
- * waits on animation.
+ * PixiJS view of a Cooling state, on the kit's lifecycle (ADR 0040). Pure presentation: it never
+ * touches the engine. A move plays out as a timeline (swap, then each cascade step: clear, rise,
+ * settle) built from the move report, so the player sees every chain; the board is busy until the
+ * timeline has run and every piece has landed. A new move fast-forwards whatever is still playing,
+ * so input never waits on animation.
  */
-export class CoolingRenderer implements BoardRenderer<CoolingState> {
-  readonly app = new Application();
+export class CoolingRenderer extends KitBoard<CoolingState> {
+  /** The well and everything in it, scaled about its centre by a punch. */
   private readonly board = new Container();
   /** Frame and well never change between layouts, so they render once into a cached texture. */
   private readonly staticLayer = new Container();
-  private readonly frame = new Graphics();
+  private readonly border = new Graphics();
   private readonly glow = new Graphics();
   private readonly well = new Graphics();
   private readonly pieceLayer = new Container();
@@ -195,8 +196,6 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
   private readonly dangerFill = linear(true, [mix(COLORS.heat, 0xff2d2d, 0.6), mix(COLORS.heatDeep, 0xff2d2d, 0.12)]);
   private flashTex: Texture = Texture.WHITE;
   private sparkTex: Texture = Texture.WHITE;
-  private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  private showMarks: boolean;
   private cell = 48;
   private pad = 10;
   private ox = 0;
@@ -205,8 +204,6 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
   private height = 12;
   private heatTarget = 0;
   private heatShown = 0;
-  private time = 0;
-  private shake = 0;
   private combo = 0;
   private comboShown = 0;
   private selected: { col: number; row: number } | null = null;
@@ -225,11 +222,6 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
   private waitMs = 0;
   private waitSettle = 0;
   private moving = false;
-  private framePending = false;
-  private viewStale = true;
-  private destroyed = false;
-  private state: CoolingState | null = null;
-  private interactive = true;
   /** Board punch: a brief scale-up on big clears, decaying to 0. */
   private punch = 0;
   private hints = false;
@@ -239,12 +231,12 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
   private sparkClock = 0;
 
   constructor(
-    private readonly host: HTMLElement,
+    host: HTMLElement,
     content: CoolingContent,
     private readonly cb: RendererCallbacks,
     private readonly opts: RendererOptions,
   ) {
-    this.showMarks = opts.showMarks;
+    super(host, "cooling", cb.onFrame, opts.showMarks);
     content.pieces.forEach((p, i) => {
       this.colorByKind.set(i, parseInt(p.color.slice(1), 16));
       this.markByKind.set(i, p.mark);
@@ -276,76 +268,44 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
     return this.colorByKind.get(kind) ?? 0xffffff;
   }
 
-  setShowMarks(on: boolean): void {
+  /** Marks change only the tiles' art, so a toggle bakes the tiles again and leaves a move playing out. */
+  override setShowMarks(on: boolean): void {
     if (this.showMarks === on) return;
     this.showMarks = on;
-    if (this.app.renderer) this.bake();
+    if (this.isReady) this.bakeTiles();
   }
 
-  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
-  get isReady(): boolean {
-    return Boolean(this.app.renderer);
-  }
-
-  async init(): Promise<void> {
-    await loadPuzzleSprites("cooling");
-    // Special labels are baked into textures, so wait (briefly) for the webfont. The wait comes
-    // before the canvas is made, so the board is ready only once it can bake them.
+  /** Special labels are baked into textures, so the board waits (briefly) for the webfont before its canvas. */
+  protected override async beforeCanvas(): Promise<void> {
     await Promise.race([document.fonts?.ready, new Promise((r) => window.setTimeout(r, 800))]).catch(() => undefined);
-    if (this.destroyed) return;
-    await this.app.init({
-      resizeTo: this.host,
-      backgroundAlpha: 0,
-      ...boardSurface(),
-      autoDensity: true,
-      preference: "webgl",
-    });
-    if (this.destroyed) {
-      this.app.destroy(true);
-      return;
-    }
-    this.app.canvas.dataset.spriteAtlas = spritesReady("cooling") ? "cooling" : "fallback";
-    this.app.canvas.style.touchAction = "none";
-    this.app.canvas.setAttribute("data-testid", "cooling-canvas");
-    this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-    this.host.appendChild(this.app.canvas);
+  }
+
+  protected build(): void {
     this.pieceLayer.sortableChildren = true;
-    this.staticLayer.addChild(this.frame, this.well);
+    this.staticLayer.addChild(this.border, this.well);
     this.staticLayer.cacheAsTexture({ resolution: this.app.renderer.resolution, antialias: true });
     this.board.addChild(this.staticLayer, this.glow, this.heatBack, this.pieceLayer, this.heatLayer, this.gauge, this.overlay, this.fxLayer, this.calloutLayer);
-    this.app.stage.addChild(this.board);
-    this.app.stage.eventMode = "static";
-    this.app.stage.hitArea = this.app.screen;
-    this.app.stage.on("pointerdown", (e) => this.pointerDown(e));
-    this.app.stage.on("pointermove", (e) => this.pointerMove(e));
-    this.app.stage.on("pointerup", (e) => this.pointerUp(e));
-    this.app.stage.on("pointerupoutside", () => this.pointerCancel());
-    this.app.stage.on("pointerleave", () => this.hoverEnd());
-    this.app.renderer.on("resize", () => this.layout());
-    this.app.ticker.add((ticker) => this.tick(Math.min(50, ticker.deltaMS)));
-    this.layout();
+    this.world.addChild(this.board);
   }
 
-  destroy(): void {
-    this.destroyed = true;
-    if (this.holdTimer !== null) window.clearTimeout(this.holdTimer);
-    if (this.app.renderer) {
-      this.app.destroy(true, { children: true });
-      for (const tex of this.textures.values()) tex.destroy(true);
-      this.flashTex.destroy(true);
-      this.sparkTex.destroy(true);
-      for (const f of [this.hullFill, this.wellFill, this.heatFill, this.dangerFill]) f.destroy();
-    }
+  protected override dispose(): void {
+    this.cancelHold();
+    for (const tex of this.textures.values()) tex.destroy(true);
+    for (const f of [this.hullFill, this.wellFill, this.heatFill, this.dangerFill]) f.destroy();
   }
 
-  setInteractive(on: boolean): void {
-    this.interactive = on;
+  protected override onInteractive(on: boolean): void {
     if (!on) {
       this.selected = null;
       this.dragStart = null;
       this.hoverPair = null;
       this.previewCells = [];
     }
+  }
+
+  /** A move is still playing out: steps left on its timeline, a wait between them, or pieces sliding and rising. */
+  protected override get busy(): boolean {
+    return super.busy || this.steps.length > 0 || this.waitMs > 0 || this.moving;
   }
 
   /** Idle hints, for unrated practice only: a rated round is the player's own work. */
@@ -374,20 +334,16 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
 
   // ---- state and the move timeline
 
-  /** Apply a new engine state. The report of the move that led to it plays as a timeline; anything else snaps. */
-  setState(state: CoolingState): void {
+  /** Show a new engine state. The report of the move that led to it plays as a timeline; anything else snaps. */
+  protected onState(state: CoolingState, prev: CoolingState | null): void {
     const report = state.lastMove;
-    const prev = this.state;
-    this.state = state;
     this.combo = state.combo;
     if (state.config.width !== this.width || state.config.height !== this.height) {
       this.width = state.config.width;
       this.height = state.config.height;
-      this.layout();
+      this.layout(this.app.screen.width, this.app.screen.height);
     }
     this.heatTarget = state.heatRow;
-    this.framePending = true;
-    this.viewStale = true;
     this.selected = null;
     this.previewCells = [];
     this.hoverPair = null;
@@ -692,9 +648,9 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
     this.popups.push({ t, life: 0, max: 900, y0: t.y, rise: this.cell * 0.4, scale: 1.15 });
   }
 
+  /** Rattle the board by `amount` of half a cell: the kit's shake, which sits still for reduced motion. */
   private kick(amount: number): void {
-    if (this.reduced) return;
-    this.shake = Math.min(0.35, Math.max(this.shake, amount));
+    this.fx.shake(amount * this.cell * 0.5, SHAKE_MS);
   }
 
   private bump(amount: number): void {
@@ -704,10 +660,7 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
 
   // ---- layout and baking
 
-  private layout(): void {
-    if (!this.app.renderer) return;
-    const w = this.app.screen.width;
-    const h = this.app.screen.height;
+  protected layout(w: number, h: number): void {
     // The frame is kept thin so the tiles get as much of the screen as possible.
     const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.15));
     let cell = Math.floor(Math.min(w / this.width, h / this.height));
@@ -719,14 +672,14 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
     this.board.pivot.set((this.cell * this.width) / 2, (this.cell * this.height) / 2);
     this.board.position.set(this.ox + this.board.pivot.x, this.oy + this.board.pivot.y);
     this.drawFrame();
-    this.bake();
+    this.bakeTiles();
     if (this.state) this.place(this.state.cells, true);
     this.steps = [];
     this.bubbles.length = 0;
   }
 
   private drawFrame(): void {
-    const g = this.frame;
+    const g = this.border;
     const W = this.width * this.cell;
     const H = this.height * this.cell;
     const p = this.pad;
@@ -748,30 +701,25 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
   }
 
   /** Bake each kind's tile, the clear flash, and the debris spark to textures at the current size. */
-  private bake(): void {
-    const r = this.app.renderer;
-    if (!r) return;
-    const old = [...this.textures.values(), this.flashTex, this.sparkTex];
+  private bakeTiles(): void {
+    const resolution = this.app.renderer.resolution;
+    const old = [...this.textures.values()];
     const s = this.cell;
-    const frame = new Rectangle(-s / 2, -s / 2, s, s);
-    const kinds = [...this.colorByKind.keys()];
-    for (const kind of kinds) {
-      const canvas = tileCanvas(s, this.styleFor(kind), r.resolution);
-      this.textures.set(kind, new Texture({ source: new CanvasSource({ resource: canvas, resolution: r.resolution }) }));
+    for (const kind of this.colorByKind.keys()) {
+      const canvas = tileCanvas(s, this.styleFor(kind), resolution);
+      this.textures.set(kind, new Texture({ source: new CanvasSource({ resource: canvas, resolution }) }));
     }
-    const flash = buildFlash(s);
-    this.flashTex = r.generateTexture({ target: flash, frame, resolution: r.resolution, antialias: true });
-    flash.destroy();
+    // The kit keeps these until its next layout. Their keys carry the size, since a lab config of
+    // another size lays the board out again from `onState`, before the kit drops what it baked.
+    this.flashTex = this.bake(`flash@${s}`, s, (g) => drawFlash(g, s));
     const k = Math.max(3, s * 0.1);
-    const spark = new Graphics().roundRect(-k, -k, k * 2, k * 2, k * 0.5).fill(0xffffff);
-    this.sparkTex = r.generateTexture({ target: spark, frame: new Rectangle(-k, -k, k * 2, k * 2), resolution: r.resolution, antialias: true });
-    spark.destroy();
+    this.sparkTex = this.bake(`spark@${k}`, k * 2, (g) => g.roundRect(-k, -k, k * 2, k * 2, k * 0.5).fill(0xffffff));
     for (const v of this.pieces.values()) {
       v.tile.texture = this.textures.get(v.kind) ?? Texture.WHITE;
       v.flash.texture = this.flashTex;
     }
     for (const p of this.particles) p.s.texture = this.sparkTex;
-    for (const tex of old) if (tex !== Texture.WHITE) tex.destroy(true);
+    for (const tex of old) tex.destroy(true);
   }
 
   private cx(col: number): number {
@@ -790,22 +738,10 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
 
   // ---- per frame
 
-  private tick(dt: number): void {
-    this.time += dt;
+  protected override update(dt: number): void {
     this.runSteps(dt);
     this.movePieces(dt);
-    if (this.viewStale && !this.steps.length && !this.moving && this.waitMs <= 0) this.publishView();
     this.moveFx(dt);
-    const bx = this.ox + this.board.pivot.x;
-    const by = this.oy + this.board.pivot.y;
-    if (this.shake > 0.002) {
-      const a = this.shake * this.cell * 0.5;
-      this.board.position.set(bx + rand(-a, a), by + rand(-a, a));
-      this.shake *= Math.pow(0.82, dt / 16.67);
-    } else if (this.shake !== 0) {
-      this.shake = 0;
-      this.board.position.set(bx, by);
-    }
     if (this.punch > 0.001) {
       this.board.scale.set(1 + this.punch);
       this.punch *= Math.pow(0.8, dt / 16.67);
@@ -822,15 +758,11 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
     this.drawHeat(dt);
     this.drawGlow();
     this.drawOverlay();
-    if (this.framePending) {
-      this.framePending = false;
-      this.cb.onFrame();
-    }
   }
 
   /** After a quiet spell in a hinted round, pick a scoring swap to point at. */
   private updateHint(): void {
-    if (!this.hints || !this.interactive || this.steps.length || this.moving || this.time < this.lockedUntil) {
+    if (!this.hints || !this.interactive || this.busy || this.time < this.lockedUntil) {
       this.hint = null;
       this.hintCheckedAt = -1;
       return;
@@ -864,11 +796,10 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
   }
 
   /**
-   * Writes the kinds actually on screen, bottom row first, to the canvas once the board settles.
-   * The smoke test compares it with the engine's board so the view can never silently diverge.
+   * The kinds actually on screen, bottom row first, which the kit writes to the canvas once the board
+   * settles. The smoke test compares it with the engine's board so the view can never silently diverge.
    */
-  private publishView(): void {
-    this.viewStale = false;
+  protected view(): string {
     const kinds = new Array<string>(this.width * this.height).fill("?");
     for (const v of this.pieces.values()) {
       if (v.dying !== null) continue;
@@ -876,7 +807,7 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
       const row = this.height - 1 - Math.round(v.ty / this.cell - 0.5);
       if (col >= 0 && col < this.width && row >= 0 && row < this.height) kinds[row * this.width + col] = String(v.kind);
     }
-    this.app.canvas.dataset.view = kinds.join(",");
+    return kinds.join(",");
   }
 
   private movePieces(dt: number): void {
@@ -1141,12 +1072,11 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
     this.cb.onSwap(col, row);
   }
 
-  private pointerDown(e: FederatedPointerEvent): void {
-    if (!this.interactive) return;
+  protected override pointerDown(x: number, y: number, e: FederatedPointerEvent): void {
     this.noteInput();
-    const cell = this.cellAt(e.global.x, e.global.y);
+    const cell = this.cellAt(x, y);
     if (!cell) return;
-    this.dragStart = { ...cell, x: e.global.x, y: e.global.y };
+    this.dragStart = { ...cell, x, y };
     this.dragDx = 0;
     if (this.holdTimer !== null) window.clearTimeout(this.holdTimer);
     if (e.pointerType === "touch") {
@@ -1154,13 +1084,13 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
     }
   }
 
-  private pointerMove(e: FederatedPointerEvent): void {
+  protected override pointerMove(x: number, y: number, e: FederatedPointerEvent): void {
     if (!this.interactive) return;
-    const cell = this.cellAt(e.global.x, e.global.y);
+    const cell = this.cellAt(x, y);
     if (this.dragStart) {
-      const dx = e.global.x - this.dragStart.x;
-      this.dragDx = Math.abs(e.global.y - this.dragStart.y) < this.cell * 0.8 ? dx : 0;
-      if (Math.abs(dx) > this.cell * 0.45 && Math.abs(e.global.y - this.dragStart.y) < this.cell * 0.8) {
+      const dx = x - this.dragStart.x;
+      this.dragDx = Math.abs(y - this.dragStart.y) < this.cell * 0.8 ? dx : 0;
+      if (Math.abs(dx) > this.cell * 0.45 && Math.abs(y - this.dragStart.y) < this.cell * 0.8) {
         const dir = dx > 0 ? 1 : -1;
         const col = dir > 0 ? this.dragStart.col : this.dragStart.col - 1;
         if (col >= 0 && col < this.width - 1) {
@@ -1181,13 +1111,13 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
     }
   }
 
-  private pointerUp(e: FederatedPointerEvent): void {
+  protected override pointerUp(x: number, y: number, e: FederatedPointerEvent): void {
     if (!this.interactive) return;
     this.cancelHold();
     const start = this.dragStart;
     this.dragStart = null;
     this.dragDx = 0;
-    const cell = this.cellAt(e.global.x, e.global.y);
+    const cell = this.cellAt(x, y);
     if (!start || !cell || cell.col !== start.col || cell.row !== start.row) {
       this.hoverEnd();
       return;
@@ -1214,10 +1144,15 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
     else this.cb.onHoverEnd();
   }
 
-  private pointerCancel(): void {
+  /** A release off the canvas, or a touch the browser took over: the drag ends where it is. */
+  protected override pointerCancel(): void {
     this.cancelHold();
     this.dragStart = null;
     this.dragDx = 0;
+    this.hoverEnd();
+  }
+
+  protected override pointerLeave(): void {
     this.hoverEnd();
   }
 
@@ -1245,7 +1180,7 @@ export class CoolingRenderer implements BoardRenderer<CoolingState> {
   }
 
   /** Keyboard: move the cursor; swap with the piece to the right. */
-  keyboard(key: string): boolean {
+  override keyboard(key: string): boolean {
     if (!this.interactive) return false;
     this.noteInput();
     const c = this.cursor ?? { col: 0, row: this.height - 1 };

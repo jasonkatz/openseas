@@ -62,6 +62,8 @@ export abstract class KitBoard<S> implements BoardRenderer<S> {
   async init(): Promise<void> {
     // One decode a page (ADR 0037). An atlas that fails or times out leaves the code-drawn pieces.
     if (isSpritePuzzle(this.id)) await loadPuzzleSprites(this.id);
+    await this.beforeCanvas();
+    if (this.destroyed) return;
     await this.app.init({ resizeTo: this.host, backgroundAlpha: 0, ...boardSurface(), autoDensity: true, preference: "webgl" });
     if (this.destroyed) {
       this.app.destroy(true);
@@ -85,7 +87,11 @@ export abstract class KitBoard<S> implements BoardRenderer<S> {
     stage.on("pointermove", (e: FederatedPointerEvent) => this.pointerMove(e.global.x, e.global.y, e));
     stage.on("pointerup", (e: FederatedPointerEvent) => this.pointerUp(e.global.x, e.global.y, e));
     stage.on("pointerupoutside", () => this.pointerCancel());
+    // Pixi passes a cancel on only where it reads touch events; where it reads pointer events, a
+    // touch the browser takes over (a scroll, a system gesture) reaches the canvas alone.
     stage.on("pointercancel", () => this.pointerCancel());
+    canvas.addEventListener("pointercancel", () => this.pointerCancel());
+    stage.on("pointerleave", () => this.pointerLeave());
     this.app.renderer.on("resize", () => this.relayout());
     this.app.ticker.add((ticker) => this.frame(Math.min(50, ticker.deltaMS)));
     this.ready = true;
@@ -97,8 +103,8 @@ export abstract class KitBoard<S> implements BoardRenderer<S> {
     this.tweens.clear();
     if (this.ready) {
       this.ready = false;
-      this.dispose();
       this.app.destroy(true, { children: true });
+      this.dispose();
       this.dropBaked();
       for (const t of this.frames.values()) t.destroy(true);
       this.frames.clear();
@@ -166,15 +172,28 @@ export abstract class KitBoard<S> implements BoardRenderer<S> {
   protected update(_dt: number): void {}
   /** The board was switched on or off for input. */
   protected onInteractive(_on: boolean): void {}
-  /** Free anything `build` made that the stage does not own (textures, gradients). */
+  /** Free anything `build` made that the stage does not own (textures, gradients, timers). Called once the stage is gone. */
   protected dispose(): void {}
+  /**
+   * Wait for what the board needs besides its atlas before the canvas is made: a webfont it bakes
+   * into textures, say. The board is not ready until this resolves, and a `destroy` meanwhile makes
+   * no canvas at all.
+   */
+  protected beforeCanvas(): Promise<void> {
+    return Promise.resolve();
+  }
 
   protected pointerDown(_x: number, _y: number, _e: FederatedPointerEvent): void {}
   protected pointerMove(_x: number, _y: number, _e: FederatedPointerEvent): void {}
   protected pointerUp(_x: number, _y: number, _e: FederatedPointerEvent): void {}
   protected pointerCancel(): void {}
+  /** The pointer went off the canvas: a board that previews what a hover would do takes the preview down. */
+  protected pointerLeave(): void {}
 
-  /** True while the board is still playing a move out. The view is published when this turns false. */
+  /**
+   * True while the board is still playing a move out. The view is published, and `onFrame` called,
+   * when this turns false. A board that animates outside the kit's tweens adds its own clock here.
+   */
   protected get busy(): boolean {
     return this.tweens.busy;
   }
