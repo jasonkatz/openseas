@@ -15,6 +15,7 @@ import type { PlatingContent } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
 import { drawMark } from "../engines/renderer.js";
 import { boardSurface } from "../surface.js";
+import { HULL, hullRivet, starField } from "../hull.js";
 
 export interface PlatingCallbacks {
   /** The player welded down the plate in `slot` at this orientation and origin. */
@@ -136,11 +137,14 @@ interface Drag {
 type HudAction = "ccw" | "cw" | "flip" | "weld";
 
 const COLORS = {
-  hullA: 0x6b4423,
-  hullB: 0x5e3b1e,
-  hullEdge: 0x3a2412,
-  breachTop: 0x120c08,
-  breachBottom: 0x05030a,
+  // The hull is riveted gunmetal panels; a breach opens onto space through torn metal.
+  hullA: 0x3a4250,
+  hullB: 0x2a303b,
+  hullEdge: 0x0e1218,
+  breachTop: 0x0c1428,
+  breachBottom: 0x03050a,
+  tornMetal: 0xb4bcc8,
+  breachEdge: 0x050709,
   brass: 0xd4a548,
   brassLight: 0xf5d58a,
   amber: 0xf0b445,
@@ -436,7 +440,7 @@ export class PlatingRenderer {
     const H = this.height * s;
     g.clear();
     g.roundRect(this.ox - 6, this.oy - 6, W + 12, H + 12, 10).fill({ color: 0x000000, alpha: 0.45 });
-    // Planking: staggered boards two cells long, with nail heads.
+    // Plating: staggered panels two cells long, riveted at each end.
     for (let r = 0; r < this.height; r++) {
       const y = this.oy + r * s;
       g.rect(this.ox, y, W, s).fill(this.hullColor(r));
@@ -445,7 +449,8 @@ export class PlatingRenderer {
         const x0 = Math.max(this.ox, x);
         const x1 = Math.min(this.ox + W, x + s * 2);
         g.rect(x0, y + 1, x1 - x0, s - 2).stroke({ width: 1, color: COLORS.hullEdge, alpha: 0.55 });
-        if (x + s * 0.3 > this.ox && x + s * 0.3 < this.ox + W) g.circle(x + s * 0.3, y + s * 0.5, Math.max(1, s * 0.05)).fill({ color: 0x000000, alpha: 0.4 });
+        g.rect(x0 + 1, y + 2, x1 - x0 - 2, 1).fill({ color: HULL.sheen, alpha: 0.12 });
+        for (const rx of [x + s * 0.18, x + s * 1.82]) if (rx > this.ox && rx < this.ox + W) hullRivet(g, rx, y + s * 0.5, Math.max(1, s * 0.055));
       }
     }
     g.rect(this.ox, this.oy, W, H).stroke({ width: 2, color: COLORS.hullEdge, alpha: 0.9 });
@@ -472,17 +477,18 @@ export class PlatingRenderer {
         const x = this.ox + col * s;
         const y = this.oy + row * s;
         g.rect(x, y, s, s).fill(this.breachFill);
-        // Splintered rim: light chips where broken boards face in, a shadow under the far edges.
+        starField(g, x, y, s, s, 2.2, c + 1);
+        // Torn rim: bright metal where the plating was ripped inward, a shadow under the far edges.
         const edge = (cc: number, rr: number): boolean => cc < 0 || cc >= this.width || rr < 0 || rr >= this.height || !set.has(rr * this.width + cc);
         if (edge(col, row - 1)) {
-          g.rect(x, y, s, 3).fill({ color: 0xc98a4b, alpha: 0.4 });
-          for (let k = 0.15; k < 1; k += 0.35) g.rect(x + s * k, y + 3, s * 0.08, s * 0.14).fill({ color: 0xc98a4b, alpha: 0.3 });
+          g.rect(x, y, s, 3).fill({ color: COLORS.tornMetal, alpha: 0.45 });
+          for (let k = 0.15; k < 1; k += 0.35) g.poly([x + s * k, y + 3, x + s * (k + 0.1), y + 3, x + s * (k + 0.04), y + 3 + s * 0.16]).fill({ color: COLORS.tornMetal, alpha: 0.35 });
         }
-        if (edge(col - 1, row)) g.rect(x, y, 3, s).fill({ color: 0xc98a4b, alpha: 0.28 });
+        if (edge(col - 1, row)) g.rect(x, y, 3, s).fill({ color: COLORS.tornMetal, alpha: 0.3 });
         if (edge(col, row + 1)) g.rect(x, y + s - 3, s, 3).fill({ color: 0x000000, alpha: 0.5 });
         if (edge(col + 1, row)) g.rect(x + s - 3, y, 3, s).fill({ color: 0x000000, alpha: 0.35 });
       }
-      this.strokeRegion(g, set, 0, { width: 2, color: 0x2a170a, alpha: 0.9 });
+      this.strokeRegion(g, set, 0, { width: 2, color: COLORS.breachEdge, alpha: 0.9 });
     }
   }
 
@@ -563,7 +569,7 @@ export class PlatingRenderer {
 
   /** A whole plate: its cells with their brushing, and an outline around the outside only. */
   private paintPlate(g: Graphics, cells: Oriented, x0: number, y0: number, m: number, kind: number, brush: Brush, alpha: number): void {
-    const color = this.colorByKind.get(kind) ?? 0xc98a4b;
+    const color = this.colorByKind.get(kind) ?? COLORS.tornMetal;
     for (const [dx, dy] of cells) this.paintPlateCell(g, x0 + dx * m, y0 + dy * m, m, color, brush, alpha);
     const set = new Set(cells.map(([x, y]) => `${x},${y}`));
     g.setStrokeStyle({ width: Math.max(1.5, m * 0.06), color: mix(color, 0x000000, 0.55), alpha: 0.9 * alpha });
@@ -669,7 +675,7 @@ export class PlatingRenderer {
     const cells = platingOrient(piece.shape, this.rot, this.flip);
     const legal = check?.legal ?? false;
     const color = legal ? COLORS.legal : COLORS.illegal;
-    const kindColor = this.colorByKind.get(piece.kind) ?? 0xc98a4b;
+    const kindColor = this.colorByKind.get(piece.kind) ?? COLORS.tornMetal;
     // The breach this plate would join, so the player sees which patch they are working.
     if (legal && check?.breachId !== null && check?.breachId !== undefined && this.state) {
       const breach = this.state.breaches.find((h) => h.id === check.breachId);
@@ -845,14 +851,14 @@ export class PlatingRenderer {
         this.covers.splice(i, 1);
         continue;
       }
-      // Each board splinters inward: the cover shrinks toward its centre and fades.
+      // Each panel tears inward: the cover shrinks toward its centre and fades.
       const e = easeIn(k);
       for (const cell of c.cells) {
         const x = this.ox + (cell % this.width) * s;
         const y = this.oy + Math.floor(cell / this.width) * s;
         const inset = (s / 2) * e;
         g.rect(x + inset, y + inset, s - inset * 2, s - inset * 2).fill({ color: this.hullColor(Math.floor(cell / this.width)), alpha: 1 - e * 0.5 });
-        g.rect(x + inset, y + inset, s - inset * 2, s - inset * 2).stroke({ width: 2, color: 0xc98a4b, alpha: 0.6 * (1 - k) });
+        g.rect(x + inset, y + inset, s - inset * 2, s - inset * 2).stroke({ width: 2, color: COLORS.tornMetal, alpha: 0.6 * (1 - k) });
       }
     }
 

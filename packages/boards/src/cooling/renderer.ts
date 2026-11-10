@@ -4,6 +4,7 @@ import { Special, type CoolingState, type ClearRound, type MoveReport, type Piec
 import type { CoolingContent } from "@openseas/content";
 import { buildFlash, mix, tileCanvas, type TileStyle, type TileTexture } from "./tiles.js";
 import { boardSurface } from "../surface.js";
+import { HULL, hullFrame, hullGradient } from "../hull.js";
 
 export interface RendererCallbacks {
   /** The player asked to swap (col,row) with (col+1,row). */
@@ -114,14 +115,13 @@ interface Bubble {
 type Step = () => number | "settle";
 
 const COLORS = {
-  woodTop: 0x4a3322,
-  woodBottom: 0x2a1b10,
-  woodEdge: 0x1a0f07,
   wellTop: 0x15253f,
   wellBottom: 0x070f1c,
-  heat: 0x1fa0a8,
-  heatDeep: 0x0b4d5e,
-  foam: 0xc9fbef,
+  // The ship's heat: a glowing body under the line, a hot rim, embers and vented steam.
+  heat: 0xd9541f,
+  heatDeep: 0x3a0f0b,
+  glow: 0xffc27a,
+  steam: 0xd8f4ff,
   danger: 0xf0604d,
   brass: 0xd4a548,
   brassLight: 0xf5d58a,
@@ -188,10 +188,10 @@ export class CoolingRenderer {
   private readonly markByKind = new Map<number, string>();
   private readonly textureByKind = new Map<number, TileTexture>();
   private readonly textures = new Map<number, Texture>();
-  private readonly woodFill = linear(false, [COLORS.woodBottom, COLORS.woodTop, COLORS.woodBottom]);
+  private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
   private readonly wellFill = linear(true, [COLORS.wellTop, COLORS.wellBottom]);
   private readonly heatFill = linear(true, [COLORS.heat, COLORS.heatDeep]);
-  private readonly dangerFill = linear(true, [mix(COLORS.heat, COLORS.danger, 0.35), COLORS.heatDeep]);
+  private readonly dangerFill = linear(true, [mix(COLORS.heat, 0xff2d2d, 0.6), mix(COLORS.heatDeep, 0xff2d2d, 0.12)]);
   private flashTex: Texture = Texture.WHITE;
   private sparkTex: Texture = Texture.WHITE;
   private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -327,7 +327,7 @@ export class CoolingRenderer {
       for (const tex of this.textures.values()) tex.destroy(true);
       this.flashTex.destroy(true);
       this.sparkTex.destroy(true);
-      for (const f of [this.woodFill, this.wellFill, this.heatFill, this.dangerFill]) f.destroy();
+      for (const f of [this.hullFill, this.wellFill, this.heatFill, this.dangerFill]) f.destroy();
     }
   }
 
@@ -415,7 +415,7 @@ export class CoolingRenderer {
     if (slow) {
       this.lockedUntil = this.time + swapMs;
       this.slowPair = { col, row };
-      this.burst(this.cx(col) + this.cell / 2, this.cy(row), COLORS.foam, 5);
+      this.burst(this.cx(col) + this.cell / 2, this.cy(row), COLORS.glow, 5);
     }
     this.steps.push(() => {
       this.slideMs = swapMs;
@@ -459,9 +459,9 @@ export class CoolingRenderer {
       this.ring((this.width * this.cell) / 2, (this.height * this.cell) / 2, this.cell, this.cell * 6, COLORS.brassLight, 700, 0.08);
     }
     if (shown.heatRows < 0) {
-      // Vented: the surface throws spray where the new line settles.
+      // Vented: the line puffs steam where it settles.
       const top = (this.height - state.heatRow) * this.cell;
-      for (let k = 0; k < this.width; k++) this.burst(this.cx(k), top, COLORS.foam, this.reduced ? 1 : 3, 0.6);
+      for (let k = 0; k < this.width; k++) this.burst(this.cx(k), top, COLORS.steam, this.reduced ? 1 : 3, 0.6);
     }
     this.cb.onMoveShown(shown);
   }
@@ -723,25 +723,8 @@ export class CoolingRenderer {
     const H = this.height * this.cell;
     const p = this.pad;
     g.clear();
-    // Hull planking around the well, with brass rivets.
-    g.roundRect(-p - 2, -p + 4, W + p * 2 + 4, H + p * 2, p + 6).fill({ color: 0x000000, alpha: 0.45 });
-    g.roundRect(-p, -p, W + p * 2, H + p * 2, p + 4).fill(this.woodFill);
-    for (let r = 1; r < this.height; r += 2) {
-      const y = r * this.cell;
-      g.moveTo(-p, y).lineTo(0, y).moveTo(W, y).lineTo(W + p, y);
-    }
-    g.stroke({ width: 1, color: COLORS.woodEdge, alpha: 0.7 });
-    g.roundRect(-p, -p, W + p * 2, H + p * 2, p + 4).stroke({ width: 1.5, color: 0x6b4a2e, alpha: 0.9 });
-    const rivet = (x: number, y: number): void => {
-      const r = Math.max(1.5, p * 0.2);
-      g.circle(x, y + 0.8, r).fill({ color: 0x000000, alpha: 0.5 });
-      g.circle(x, y, r).fill(COLORS.brass);
-      g.circle(x - r * 0.3, y - r * 0.3, r * 0.45).fill({ color: 0xffffff, alpha: 0.55 });
-    };
-    for (let r = 0; r <= this.height; r += 2) {
-      rivet(-p / 2, r * this.cell + (r === 0 ? p * 0.1 : r === this.height ? -p * 0.1 : 0));
-      rivet(W + p / 2, r * this.cell + (r === 0 ? p * 0.1 : r === this.height ? -p * 0.1 : 0));
-    }
+    // A riveted gunmetal frame around the well.
+    hullFrame(g, this.hullFill, { x: -p, y: -p, w: W + p * 2, h: H + p * 2, r: p + 4 }, { x: 0, y: 0, w: W, h: H }, { rivetStep: this.cell * 2 });
 
     const w = this.well;
     w.clear();
@@ -1044,14 +1027,15 @@ export class CoolingRenderer {
     pts.push(W, H);
     // The body sits behind the tiles and only a light film in front, so kinds stay readable overheated.
     back.poly(pts).fill({ fill: danger ? this.dangerFill : this.heatFill, alpha: 0.75 });
-    g.poly(pts).fill({ color: danger ? mix(COLORS.heat, COLORS.danger, 0.4) : COLORS.heat, alpha: 0.13 });
+    g.poly(pts).fill({ color: danger ? mix(COLORS.heat, 0xff2d2d, 0.6) : COLORS.heat, alpha: 0.13 });
     // A lagging second crest gives the surface depth, then a bright foam line on top.
     const crest: number[] = [];
     for (let i = 0; i <= steps; i++) crest.push((W * i) / steps, Math.max(2, wave(i, 1.9) - amp * 0.6));
-    g.poly(crest, false).stroke({ width: Math.max(1, this.cell * 0.035), color: COLORS.foam, alpha: 0.22 });
-    g.poly(line, false).stroke({ width: Math.max(1.5, this.cell * 0.05), color: COLORS.foam, alpha: 0.75 });
+    g.poly(crest, false).stroke({ width: Math.max(1, this.cell * 0.035), color: COLORS.glow, alpha: 0.22 });
+    g.poly(line, false).stroke({ width: Math.max(3, this.cell * 0.12), color: COLORS.heat, alpha: 0.35 });
+    g.poly(line, false).stroke({ width: Math.max(1.5, this.cell * 0.05), color: COLORS.glow, alpha: 0.85 });
 
-    // Bubbles drift up from the heat and pop at the surface.
+    // Embers drift up through the heat and wink out at the line.
     const want = this.reduced ? 0 : Math.round(4 + this.heatShown * 1.2);
     while (this.bubbles.length < want) {
       this.bubbles.push({ x: rand(0, W), y: rand(top, H), r: this.cell * rand(0.03, 0.08), speed: this.cell * rand(0.0008, 0.002), wobble: rand(0, 6) });
@@ -1064,8 +1048,9 @@ export class CoolingRenderer {
         b.x = rand(0, W);
       }
       const x = b.x + Math.sin(this.time * 0.003 + b.wobble) * this.cell * 0.06;
-      g.circle(x, b.y, b.r).stroke({ width: 1, color: COLORS.foam, alpha: 0.45 });
-      g.circle(x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.3).fill({ color: 0xffffff, alpha: 0.5 });
+      const fade = Math.min(1, (b.y - top) / (this.cell * 0.8));
+      g.circle(x, b.y, b.r * 1.8).fill({ color: COLORS.heat, alpha: 0.18 * fade });
+      g.circle(x, b.y, b.r * 0.7).fill({ color: COLORS.glow, alpha: 0.7 * fade });
     }
 
     // Heat-line markers on the planking, red once the heat is half full.
@@ -1120,7 +1105,7 @@ export class CoolingRenderer {
       g.poly([mx + a * 1.6, my, mx + a * 0.4, my - a, mx + a * 0.4, my + a]).fill({ color, alpha });
     };
     if (this.hint) pair(this.hint.col, this.hint.row, COLORS.preview, 0.35 + 0.35 * pulse);
-    if (this.slowPair && this.time < this.lockedUntil) pair(this.slowPair.col, this.slowPair.row, COLORS.foam, 0.45 + 0.4 * pulse);
+    if (this.slowPair && this.time < this.lockedUntil) pair(this.slowPair.col, this.slowPair.row, COLORS.glow, 0.45 + 0.4 * pulse);
     if (this.denied && this.time - this.denied.at < 260) pair(this.denied.col, this.denied.row, COLORS.danger, 1 - (this.time - this.denied.at) / 260);
     if (this.hoverPair && !this.selected) pair(this.hoverPair.col, this.hoverPair.row, COLORS.brass, 0.55);
     if (this.cursor && this.interactive) pair(this.cursor.col, this.cursor.row, COLORS.brass, 0.95);

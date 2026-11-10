@@ -7,8 +7,8 @@ code. It is the source of truth for scope. When code and this document disagree,
 in the same PR. Rationale for the major technical choices lives in [`adr/`](./adr/).
 
 **The setting moved from the sea to space** in milestone M7 (5.2, ADR 0034), and this document
-describes the space game throughout. Two things still show the sea: the puzzle boards' backgrounds,
-effects and sounds, which wait for their own pass (3.10), and history, which keeps its own words (ADRs 0001 to
+describes the space game throughout. Two things still show the sea: the puzzle boards' sounds and the
+procedural fallback pieces drawn when an atlas cannot load, which wait for their own pass (3.10), and history, which keeps its own words (ADRs 0001 to
 0033, and the "Original" column of section 6). [`GLOSSARY.md`](./GLOSSARY.md) maps every former
 word to its replacement.
 
@@ -120,13 +120,13 @@ rising in turn, from the per-step boards the engine's move report carries. A new
 fast-forwards whatever is still animating, so input never waits, except behind an overheated
 swap. Clears burst with debris, score
 popups and a callout for chains; charges and magnets shake the board; the frame glows with the
-combo; overheated pieces stay readable because the body of heat (drawn as water until the sprite
-pass) sits behind them. Sound and the
+combo; overheated pieces stay readable because the body of heat (a glowing orange
+body with a hot rim and drifting embers, redder once it is half full) sits behind them. Sound and the
 personal best are per device; the personal best is display only and never reaches the server.
 Juice on top of that, all presentation only: clearing two or more runs in one step calls out
 Double, Triple or Supernova; bigger steps hold a beat longer and punch the board; streak
 milestones (3, 5, 8, 12, then every 5 scoring moves in a row) earn a callout and a fanfare, and
-breaking a streak of 3+ sounds a fall; venting the heat throws spray and a pump sound (both wait for the effects pass),
+breaking a streak of 3+ sounds a fall; venting the heat puffs steam along the line with a pump sound (the sound waits for its pass),
 crossing into the danger half sounds an alarm; overheated pieces sway, charges spark and specials
 breathe. Unrated practice only: after six seconds without input the board wiggles the swap that
 clears the most pieces. Rated rounds never hint. The result card adds rows vented, counted on the
@@ -615,8 +615,12 @@ game and harness render the same pieces. The atlases and their frames carry the 
 the owner's sprite pass the art inside is space too: Cooling uses machine parts, Engines keeps
 round riveted discs, Plating uses four brushed metals with engine-defined footprints and grain,
 Navigation keeps its three star silhouettes, Swordfighting keeps square armour blocks, and Space
-Battle uses overhead starfighters, asteroids and gravity wells. Board backgrounds, the water body,
-effects and sounds wait for a later pass. Optional marks stay code-drawn; geometry, hit areas and scores stay in
+Battle uses overhead starfighters, asteroids and gravity wells. The boards around them match: every frame
+is riveted gunmetal with cream trim and orange hazard paint from one shared module
+(`boards/src/hull.ts`), Cooling's heat glows, Engines' shelves are lit metal ledges, Plating's hull
+is riveted panels whose breaches open onto stars, Gunnery's deck is steel plate with vents to
+space, and Space Battle's chart is deep space with nebulae and solar currents. Sounds wait for a
+later pass. Optional marks stay code-drawn; geometry, hit areas and scores stay in
 code. Arbitrarily sized Swordfight slabs, extra lab colors, board backgrounds, targets and effects
 retain procedural drawing. The procedural pieces also remain a fallback when an atlas cannot
 load. The world is not sprites at all: it is drawn in code from primitives (3.11), and it was
@@ -986,8 +990,8 @@ outposts and the skiff are redrawn so no outline of the sea is left (3.5, 3.11).
   same world more cheaply, and so do the boards. A unit test in the client walks every outpost and
   the deck.
 
-What M7 leaves for later: the puzzle boards' backgrounds, effects and sounds (3.10; the owner's
-sprites have since landed); the tester sessions and retros; and the codename. No mechanic
+What M7 leaves for later: the puzzle boards' sounds and procedural fallback pieces (3.10; the
+owner's sprites and the boards around them have since landed); the tester sessions and retros; and the codename. No mechanic
 was changed, and none was found that needs to be: a flag still flies and is sewn in a vacuum, and
 pirates walk an open rock bareheaded, which is the tone, not a fault.
 

@@ -413,7 +413,7 @@ The tables above give the identifier for each word. Beyond them:
     `carpentry:` in each `reduce.ts`). A new salt would deal a different board from the same
     seed, and the rename changes no behaviour.
   - The procedural fallback painters still describe the sea set they draw; they wait for the
-    effects pass with the backgrounds.
+    sound pass. The boards around the sprites are space (`boards/src/hull.ts`).
   - `SHIP_SINK` keeps its name: how far the hull hangs below the lane plane, so the deck meets the
     boarding tube.
 - **Kept for now**: `openseas`, the package scope `@openseas/*`, the domains and the hosting

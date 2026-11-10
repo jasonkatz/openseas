@@ -23,7 +23,8 @@ optional accessibility badges and labels in code.
 
 Additional frames from the sheets (damaged ships, current, thrusters, shield, grapple, flash,
 weld, chips, edge, shatter, swipe, ...) are reserved for future effects. Dynamic effects, board
-backgrounds, Engines targets, and arbitrary-sized Swordfight slabs remain procedural. The atlas is
+backgrounds and frames (in the same materials, from `../hull.ts`), Engines targets, and
+arbitrary-sized Swordfight slabs remain procedural. The atlas is
 presentation only; never derive hit areas or gameplay from its pixels. Battle's slug sprite points
 up; the renderer turns each shot along its line of flight.
 

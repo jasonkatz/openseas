@@ -30,10 +30,10 @@
     { "score": 1600, "rating": 2100 }
   ],
   "pieces": [
-    { "nameKey": "plating.metal.tin", "mark": "square", "texture": "grain", "color": "#c98a4b" },
-    { "nameKey": "plating.metal.copper", "mark": "diamond", "texture": "knurl", "color": "#8c5a2b" },
-    { "nameKey": "plating.metal.steel", "mark": "triangle", "texture": "fan", "color": "#e3c27a" },
-    { "nameKey": "plating.metal.brass", "mark": "hexagon", "texture": "nacre", "color": "#7a3b2e" }
+    { "nameKey": "plating.metal.tin", "mark": "square", "texture": "grain", "color": "#b9c0c8" },
+    { "nameKey": "plating.metal.copper", "mark": "diamond", "texture": "knurl", "color": "#c0703c" },
+    { "nameKey": "plating.metal.steel", "mark": "triangle", "texture": "fan", "color": "#5b6c82" },
+    { "nameKey": "plating.metal.brass", "mark": "hexagon", "texture": "nacre", "color": "#c9a043" }
   ],
   "shapes": [
     { "nameKey": "plating.shape.f" },

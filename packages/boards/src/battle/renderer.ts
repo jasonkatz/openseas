@@ -18,6 +18,7 @@ import {
 } from "@openseas/engine";
 import { paintBall, paintTurret, paintCaustic, paintWell, paintSpace, paintShip } from "./art.js";
 import { boardSurface } from "../surface.js";
+import { HULL, hullFrame, hullGradient } from "../hull.js";
 
 export interface BattleCallbacks {
   /** The captain flew the plot: by the button, the key, or the host's turn clock. */
@@ -135,10 +136,6 @@ interface Button {
 }
 
 const COLORS = {
-  woodTop: 0x4a3322,
-  woodBottom: 0x2a1b10,
-  woodEdge: 0x6b4a2e,
-  rope: 0xd8b574,
   arc: 0xf5d58a,
   arcEnemy: 0xf0604d,
   good: 0x6fdc8c,
@@ -154,9 +151,10 @@ const COLORS = {
   muted: 0x9aa7bd,
   flash: 0xfff3c4,
   smoke: 0x8a93a3,
+  // A miss puffs pale dust, a hit throws hot metal, a ship's wake is its thrusters' cyan.
   splash: 0xd8f0ff,
-  foam: 0xe6f6ff,
-  splinter: 0x9a6a3a,
+  foam: 0x8fe9ff,
+  splinter: 0xffb066,
   current: 0xaae4ff,
   well: 0xd6f4f0,
 };
@@ -209,7 +207,7 @@ export class BattleRenderer {
   private readonly stripTexts = new Container();
   private readonly brassFill = linear(true, [0xe9bd63, COLORS.brass, COLORS.brassDeep]);
   private readonly inkFill = linear(true, [0x1a2438, COLORS.inkDeep]);
-  private readonly woodFill = linear(true, [COLORS.woodBottom, COLORS.woodTop, COLORS.woodBottom]);
+  private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
   private readonly textures = new Map<string, Texture>();
   private shipSprites: [Sprite, Sprite] | null = null;
   private ghostSprites: Sprite[] = [];
@@ -297,7 +295,7 @@ export class BattleRenderer {
       for (const t of this.textures.values()) t.destroy(true);
       this.brassFill.destroy();
       this.inkFill.destroy();
-      this.woodFill.destroy();
+      this.hullFill.destroy();
     }
   }
 
@@ -654,23 +652,7 @@ export class BattleRenderer {
     const p = this.pad;
     const x = this.gx;
     const y = this.gy;
-    g.roundRect(x - p - 2, y - p + 4, W + p * 2 + 4, H + p * 2, p + 6).fill({ color: 0x000000, alpha: 0.45 });
-    g.roundRect(x - p, y - p, W + p * 2, H + p * 2, p + 4).fill(this.woodFill);
-    g.roundRect(x - p, y - p, W + p * 2, H + p * 2, p + 4).stroke({ width: 1.5, color: COLORS.woodEdge, alpha: 0.9 });
-    // Rope lashings along the long rails, and brass pins at the corners.
-    for (let c = 1; c < this.cols; c += 2) {
-      const lx = x + c * this.cell;
-      g.moveTo(lx - 2, y - p).lineTo(lx + 2, y).moveTo(lx + 2, y + H).lineTo(lx - 2, y + H + p);
-    }
-    g.stroke({ width: Math.max(1.5, p * 0.25), color: COLORS.rope, alpha: 0.5 });
-    for (const [px, py] of [
-      [x - p / 2, y - p / 2],
-      [x + W + p / 2, y - p / 2],
-      [x - p / 2, y + H + p / 2],
-      [x + W + p / 2, y + H + p / 2],
-    ]) {
-      g.circle(px!, py!, Math.max(2, p * 0.22)).fill(COLORS.brass).stroke({ width: 1, color: COLORS.brassDeep });
-    }
+    hullFrame(g, this.hullFill, { x: x - p, y: y - p, w: W + p * 2, h: H + p * 2, r: p + 4 }, { x, y, w: W, h: H }, { rivetStep: this.cell * 2 });
     // The board sits in a recess with a dark lip.
     g.rect(x, y, W, H).stroke({ width: 3, color: 0x000000, alpha: 0.55, alignment: 1 });
   }

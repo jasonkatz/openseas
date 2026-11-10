@@ -4,9 +4,10 @@ import { battleCellAt } from "@openseas/engine";
 
 /**
  * Space Battle's art, painted with Canvas 2D and baked to textures (as Gunnery's pieces and
- * Cooling's tiles are): a chart-blue sea with light on the water, shaded rocks ringed with surf,
- * winds as streamlines, eddies as foam spirals, and two skiffs seen from above with hull, deck,
- * sail and pennant. The captain's skiff is pale with brass and a swallowtail pennant; the raider
+ * Cooling's tiles are): deep space with faint nebulae and stars under the chart's grid, asteroids
+ * with a little drifting debris, solar currents as streamlines, gravity wells as spirals, and two
+ * skiffs seen from above. The sprites draw the asteroids, wells and skiffs; the procedural pieces
+ * below are their fallback. The captain's skiff is pale with brass and a swallowtail pennant; the raider
  * is tarred black with a blood-red sail and a cut-throat's triangular pennant, so the two read
  * apart by silhouette as well as color (CLAUDE.md rule 6).
  */
@@ -38,61 +39,61 @@ function canvasFor(w: number, h: number, resolution: number): { canvas: HTMLCanv
 }
 
 export const SPACE = {
-  deep: 0x0a2238,
-  mid: 0x0f3453,
-  shallow: 0x17466a,
+  deep: 0x05080f,
+  mid: 0x0b1428,
+  shallow: 0x121e3c,
   light: 0x8fd0ee,
   foam: 0xe6f6ff,
-  grid: 0x7fb6dc,
+  grid: 0x7f9fdc,
 };
 
-// ---- the sea
+// ---- the void
 
-/** The whole board: water, light, the grid, and every rock and wind, at `cell` pixels a cell. */
+/** The whole board: space, nebulae, stars, the grid, and every asteroid and current, at `cell` pixels a cell. */
 export function paintSpace(board: ParsedBoard, cell: number, resolution: number): HTMLCanvasElement {
   const W = board.width * cell;
   const H = board.height * cell;
   const { canvas, ctx } = canvasFor(W, H, resolution);
   const rnd = seeded(board.width * 131 + board.height * 17);
 
-  // Deep water, lighter where the sun strikes it.
+  // Deep space, a little lighter through the middle.
   const base = ctx.createLinearGradient(0, 0, 0, H);
   base.addColorStop(0, css(SPACE.mid));
   base.addColorStop(0.5, css(SPACE.shallow));
   base.addColorStop(1, css(SPACE.deep));
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, W, H);
-  const sun = ctx.createRadialGradient(W * 0.38, H * 0.3, 0, W * 0.38, H * 0.3, Math.max(W, H) * 0.7);
-  sun.addColorStop(0, "rgba(120,200,235,0.12)");
-  sun.addColorStop(0.5, "rgba(120,200,235,0.05)");
-  sun.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = sun;
-  ctx.fillRect(0, 0, W, H);
-
-  // Light on the water: long low swells drawn as faint sine strokes, and a few brighter glints.
-  ctx.lineCap = "round";
-  for (let i = 0; i < Math.ceil(H / (cell * 0.9)); i++) {
-    const y0 = rnd() * H;
-    const amp = cell * (0.08 + rnd() * 0.14);
-    const len = cell * (2 + rnd() * 5);
-    const x0 = rnd() * W;
-    const phase = rnd() * Math.PI * 2;
-    ctx.beginPath();
-    for (let x = 0; x <= len; x += cell * 0.25) ctx.lineTo(x0 + x, y0 + Math.sin(phase + x / (cell * 0.9)) * amp);
-    ctx.strokeStyle = `rgba(150,215,245,${0.05 + rnd() * 0.07})`;
-    ctx.lineWidth = Math.max(1, cell * 0.05);
-    ctx.stroke();
-  }
-  for (let i = 0; i < Math.ceil((W * H) / (cell * cell * 9)); i++) {
+  // Two or three soft nebulae in the sprites' violet and cyan.
+  for (const [r, g, b] of [
+    [120, 80, 230],
+    [60, 200, 230],
+    [150, 70, 200],
+  ] as const) {
     const x = rnd() * W;
     const y = rnd() * H;
-    const r = cell * (0.08 + rnd() * 0.16);
-    const glint = ctx.createRadialGradient(x, y, 0, x, y, r);
-    glint.addColorStop(0, "rgba(200,235,255,0.16)");
-    glint.addColorStop(1, "rgba(200,235,255,0)");
-    ctx.fillStyle = glint;
+    const rad = Math.max(W, H) * (0.3 + rnd() * 0.25);
+    const neb = ctx.createRadialGradient(x, y, 0, x, y, rad);
+    neb.addColorStop(0, `rgba(${r},${g},${b},0.16)`);
+    neb.addColorStop(0.6, `rgba(${r},${g},${b},0.05)`);
+    neb.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = neb;
+    ctx.fillRect(0, 0, W, H);
+  }
+  // Stars: many faint pinpricks and a few bright ones with a soft halo.
+  for (let i = 0; i < Math.ceil((W * H) / (cell * cell)) * 3; i++) {
+    const x = rnd() * W;
+    const y = rnd() * H;
+    const bright = rnd() < 0.07;
+    if (bright) {
+      const halo = ctx.createRadialGradient(x, y, 0, x, y, cell * 0.14);
+      halo.addColorStop(0, "rgba(220,235,255,0.35)");
+      halo.addColorStop(1, "rgba(220,235,255,0)");
+      ctx.fillStyle = halo;
+      ctx.fillRect(x - cell * 0.14, y - cell * 0.14, cell * 0.28, cell * 0.28);
+    }
+    ctx.fillStyle = `rgba(225,235,255,${bright ? 0.9 : 0.15 + rnd() * 0.35})`;
     ctx.beginPath();
-    ctx.ellipse(x, y, r * 1.8, r * 0.7, 0, 0, Math.PI * 2);
+    ctx.arc(x, y, bright ? Math.max(0.9, cell * 0.03) : Math.max(0.5, cell * 0.014), 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -120,14 +121,14 @@ export function paintSpace(board: ParsedBoard, cell: number, resolution: number)
     }
   }
 
-  // Surf around the rocks first, so the rocks sit on it.
+  // Debris around the asteroids first, so the asteroids sit on it.
   for (let y = 0; y < board.height; y++) {
     for (let x = 0; x < board.width; x++) {
       if (battleCellAt(board, x, y)?.kind !== "asteroid") continue;
       paintSurf(ctx, board, x, y, cell, rnd);
     }
   }
-  // Winds blow as one current along each run of cells that share a heading, not a stamp a cell.
+  // A current flows as one stream along each run of cells that share a heading, not a stamp a cell.
   const seen = new Set<number>();
   for (let y = 0; y < board.height; y++) {
     for (let x = 0; x < board.width; x++) {
@@ -153,7 +154,7 @@ export function paintSpace(board: ParsedBoard, cell: number, resolution: number)
     }
   }
 
-  // The water darkens toward the edges of the chart.
+  // Space darkens toward the edges of the chart.
   for (const [x0, y0, x1, y1] of [
     [0, 0, 0, cell * 1.5],
     [0, H, 0, H - cell * 1.5],
@@ -172,13 +173,11 @@ export function paintSpace(board: ParsedBoard, cell: number, resolution: number)
 function paintSurf(ctx: CanvasRenderingContext2D, board: ParsedBoard, x: number, y: number, cell: number, rnd: () => number): void {
   const cx = (x + 0.5) * cell;
   const cy = (y + 0.5) * cell;
-  // Foam only on sides that face open water.
+  // A few specks of drifting debris, only on sides that face open space.
   const open = (dx: number, dy: number): boolean => {
     const c = battleCellAt(board, x + dx, y + dy);
     return c !== null && c.kind !== "asteroid";
   };
-  ctx.save();
-  ctx.lineCap = "round";
   for (const [dx, dy] of [
     [0, -1],
     [1, 0],
@@ -187,18 +186,15 @@ function paintSurf(ctx: CanvasRenderingContext2D, board: ParsedBoard, x: number,
   ] as const) {
     if (!open(dx, dy)) continue;
     const ang = Math.atan2(dy, dx);
-    for (let k = 0; k < 2; k++) {
-      const r = cell * (0.5 + k * 0.1 + rnd() * 0.05);
+    for (let k = 0; k < 3; k++) {
+      const a = ang - 0.7 + rnd() * 1.4;
+      const r = cell * (0.5 + rnd() * 0.18);
+      ctx.fillStyle = `rgba(170,175,185,${0.25 + rnd() * 0.3})`;
       ctx.beginPath();
-      ctx.arc(cx, cy, r, ang - 0.75 + rnd() * 0.2, ang + 0.75 - rnd() * 0.2);
-      ctx.strokeStyle = `rgba(230,246,255,${0.22 - k * 0.1})`;
-      ctx.lineWidth = Math.max(1, cell * (0.07 - k * 0.02));
-      ctx.setLineDash([cell * 0.18, cell * 0.12]);
-      ctx.lineDashOffset = rnd() * cell;
-      ctx.stroke();
+      ctx.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, Math.max(0.6, cell * (0.015 + rnd() * 0.025)), 0, Math.PI * 2);
+      ctx.fill();
     }
   }
-  ctx.restore();
 }
 
 function paintAsteroid(ctx: CanvasRenderingContext2D, cx: number, cy: number, cell: number, rnd: () => number): void {
@@ -282,8 +278,8 @@ function paintGust(ctx: CanvasRenderingContext2D, run: ReadonlyArray<readonly [n
   const py = dx;
   // A faint wash over the run, brighter downwind.
   const wash = ctx.createLinearGradient(tx, ty, hx, hy);
-  wash.addColorStop(0, "rgba(150,220,255,0.02)");
-  wash.addColorStop(1, "rgba(150,220,255,0.12)");
+  wash.addColorStop(0, "rgba(120,220,255,0.02)");
+  wash.addColorStop(1, "rgba(255,214,120,0.10)");
   ctx.fillStyle = wash;
   for (const [cx, cy] of run) ctx.fillRect(cx * cell + 1, cy * cell + 1, cell - 2, cell - 2);
   const strands = [-0.24, 0, 0.24];
@@ -314,14 +310,14 @@ function paintGust(ctx: CanvasRenderingContext2D, run: ReadonlyArray<readonly [n
     for (let i = right.length - 1; i >= 0; i--) path.lineTo(right[i]![0], right[i]![1]);
     path.closePath();
     const ink = ctx.createLinearGradient(tx, ty, hx, hy);
-    ink.addColorStop(0, "rgba(180,230,255,0)");
-    ink.addColorStop(0.5, `rgba(180,230,255,${main ? 0.6 : 0.4})`);
-    ink.addColorStop(1, `rgba(215,242,255,${main ? 0.95 : 0.7})`);
+    ink.addColorStop(0, "rgba(120,220,255,0)");
+    ink.addColorStop(0.5, `rgba(150,226,255,${main ? 0.6 : 0.4})`);
+    ink.addColorStop(1, `rgba(255,232,160,${main ? 0.95 : 0.7})`);
     ctx.fillStyle = ink;
     ctx.fill(path);
   }
   // One chevron at the head of the current.
-  ctx.strokeStyle = "rgba(220,245,255,0.85)";
+  ctx.strokeStyle = "rgba(255,236,180,0.9)";
   ctx.lineWidth = Math.max(1.2, cell * 0.065 * bold);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -654,7 +650,7 @@ export function paintTurret(size: number, lit: boolean, resolution: number): HTM
   return canvas;
 }
 
-/** A soft tile of light for the water, drifted slowly over the sea. */
+/** A soft tile of nebula haze, drifted slowly over the chart. */
 export function paintCaustic(size: number, resolution: number): HTMLCanvasElement {
   const { canvas, ctx } = canvasFor(size, size, resolution);
   const rnd = seeded(9);
@@ -663,8 +659,8 @@ export function paintCaustic(size: number, resolution: number): HTMLCanvasElemen
     const y = rnd() * size;
     const r = size * (0.08 + rnd() * 0.16);
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, "rgba(190,235,255,0.10)");
-    g.addColorStop(1, "rgba(190,235,255,0)");
+    g.addColorStop(0, "rgba(160,150,255,0.07)");
+    g.addColorStop(1, "rgba(160,150,255,0)");
     ctx.fillStyle = g;
     // Drawn four times so the tile wraps seamlessly.
     for (const [ox, oy] of [
