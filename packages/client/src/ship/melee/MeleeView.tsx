@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { swordfightStanding, type SwordfightEvent, type SwordfightState } from "@openseas/engine";
+import { meleeAttackRate, swordfightStanding, type SwordfightEvent } from "@openseas/engine";
 import type { ShipSnapshot } from "@openseas/protocol";
 import { SwordfightBoard, sfx, t } from "@openseas/boards";
 import { tierName } from "../../names.js";
@@ -17,11 +17,6 @@ export interface MeleeViewProps {
  * board in the melee beside it, the same frame as a station. The fight runs until a side is
  * beaten; the outcome stays up until the pirate has read it.
  */
-/** The pirate's attack per minute, without the win band a won fight carries in its score. */
-function attackRate(s: SwordfightState): number {
-  return s.outcome === "won" ? s.score - s.config.winPoints : s.score;
-}
-
 export function MeleeView({ ship, showMarks, onBack }: MeleeViewProps) {
   const api = useMeleeApi();
   const back = useCallback(() => {
@@ -59,7 +54,7 @@ export function MeleeView({ ship, showMarks, onBack }: MeleeViewProps) {
           <h1 className="station-title">{raider}</h1>
           <span className="station-numbers" aria-live="off">
             <b data-testid="melee-score" title={t("swordfight.attack_rate")}>
-              {attackRate(api.state)}
+              {meleeAttackRate(api.state.config, api.state.score)}
             </b>
             <span data-testid="melee-standing">{t("swordfight.standing_value", { yours: crewStanding, theirs: foesTotal ? foesStanding : "?" })}</span>
             {mine.bestChain > 1 && <i className="combo-chip">×{mine.bestChain}</i>}
@@ -95,7 +90,7 @@ export function MeleeView({ ship, showMarks, onBack }: MeleeViewProps) {
                 ) : (
                   <>
                     <h2 className={`fight-outcome ${api.state.outcome ?? ""}`}>{api.state.outcome ? t(`swordfight.outcome.${api.state.outcome}`) : t("swordfight.outcome.undecided")}</h2>
-                    <p className="result-score">{attackRate(api.state)}</p>
+                    <p className="result-score">{meleeAttackRate(api.state.config, api.state.score)}</p>
                     <p className="muted small">{t("swordfight.result_rate", { broken: api.state.boards[0]?.broken ?? 0 })}</p>
                     {ship.melee && <p className="muted small">{t("ship.melee_crew_fighting")}</p>}
                   </>

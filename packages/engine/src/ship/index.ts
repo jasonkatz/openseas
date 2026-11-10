@@ -26,6 +26,10 @@ export {
   splitPlunder,
   turnPlunderOutputs,
   meleePlunderOutput,
+  MELEE_SIDE_MAX,
+  fightGoesToMelee,
+  meleeAttackRate,
+  battlePurse,
   heatRowsFor,
   soloHeatStart,
   soloHeatTurn,
@@ -37,4 +41,5 @@ export {
   type LaneLegFields,
   type RaiderTierFields,
   type ShipSupply,
+  type BattlePurse,
 } from "./aboard.js";

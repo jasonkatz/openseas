@@ -3,13 +3,16 @@ import { defaultLook, type RaiderTier, type Content, type PirateLook, type ShipC
 import {
   InvalidMoveError,
   battleConfigAboard,
-  battleIsWin,
+  battlePurse,
+  fightGoesToMelee,
   raiderSpecFor,
   createShip,
   createSwordfightGame,
   crewAtStation,
   crewMember,
   legPlan,
+  MELEE_SIDE_MAX,
+  meleeAttackRate,
   pirates,
   progressPermille,
   reduceShip,
@@ -17,7 +20,6 @@ import {
   heatRowsFor,
   shipConfigFor as engineShipConfigFor,
   shipSupply,
-  splitPlunder,
   turnPlunderOutputs,
   meleePlunderOutput,
   summarizeSwordfight,
@@ -451,21 +453,17 @@ export class ShipService {
     room.battle = null;
     const tier = this.content.world.raiderTiers.find((t) => t.id === run.tierId);
     // Either boarding opens the melee at the airlock; the melee decides the plunder (M5, ADR 0022).
-    if ((outcome === "boarded" || outcome === "boarded_by") && tier && room.state.voyage?.battle && this.openMelee(room, tier, run.dutyOutput, turns)) return;
+    if (fightGoesToMelee(outcome) && tier && room.state.voyage?.battle && this.openMelee(room, tier, run.dutyOutput, turns)) return;
     await this.payBattle(room, run.tierId, run.dutyOutput, outcome, turns);
   }
 
   /** The fight is decided: pay out, tell the ship, log it. `points` weights the split per pirate. */
   private async payBattle(room: ShipRoom, tierId: string, points: ReadonlyMap<string, number>, outcome: ShipBattleOutcome, turns: number): Promise<void> {
     const tier = this.content.world.raiderTiers.find((t) => t.id === tierId);
-    const won = battleIsWin(outcome);
-    const plunder = won && tier ? tier.plunder : 0;
-    // Bots work for their keep; the purse is the pirates'.
-    const crew = pirates(room.state.crew).map((c) => ({ pirateId: c.pirateId, captain: c.pirateId === room.state.captainId, points: points.get(c.pirateId) ?? 0 }));
-    const shares = plunder > 0 ? splitPlunder(plunder, crew) : new Map<string, number>();
-    if (room.state.voyage?.battle) {
+    const { won, plunder, shares, end } = battlePurse(room.state, outcome, tier?.plunder ?? 0, points, turns);
+    if (end) {
       try {
-        room.state = reduceShip(room.state, { type: "battle_end", outcome, plunder, turns });
+        room.state = reduceShip(room.state, end);
       } catch (e) {
         if (!(e instanceof InvalidMoveError)) throw e;
       }
@@ -506,7 +504,7 @@ export class ShipService {
     const base = this.content.puzzles.swordfight.config;
     const now = this.now();
     const seed = this.opts.randomSeed();
-    const crewConfig: SwordfightConfig = { ...base, player: false, blade: 0, allies: connected.slice(0, 8).map(() => ({ ...tier.swordsmen })), foes: [] };
+    const crewConfig: SwordfightConfig = { ...base, player: false, blade: 0, allies: connected.slice(0, MELEE_SIDE_MAX).map(() => ({ ...tier.swordsmen })), foes: [] };
     room.melee = {
       tierId: tier.id,
       seed,
@@ -706,8 +704,7 @@ export class ShipService {
     const points = new Map<string, number>();
     for (const c of room.state.crew) {
       const score = run.scores.get(c.pirateId) ?? 0;
-      const rate = score >= sword.config.winPoints ? score - sword.config.winPoints : score;
-      const melee = run.scores.has(c.pirateId) ? meleePlunderOutput(rate, sword.parRatePerMinute, meleeMs, this.content.world.ship.turnSeconds) : 0;
+      const melee = run.scores.has(c.pirateId) ? meleePlunderOutput(meleeAttackRate(sword.config, score), sword.parRatePerMinute, meleeMs, this.content.world.ship.turnSeconds) : 0;
       points.set(c.pirateId, (run.dutyOutput.get(c.pirateId) ?? 0) + melee);
     }
     this.log.info({ shipId: room.shipId, tierId: run.tierId, outcome }, "melee ended");

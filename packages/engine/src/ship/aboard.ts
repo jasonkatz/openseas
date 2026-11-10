@@ -1,16 +1,18 @@
 /**
  * How a ship and the boards played aboard it are wired together: the derivations the server makes
  * when it builds a ship's config from content, deals the captain a space battle, feeds that battle
- * the ship's word each turn and splits the purse. They live here, pure, so the server and the
- * harness's voyage bench compute them the same way (ADR 0027): a voyage simulated in the harness
- * is wired exactly as one flew on the server.
+ * the ship's word each turn, opens the melee at a boarding and settles the fight. They live here,
+ * pure, so the server and the harness's voyage bench compute them the same way (ADR 0027): a voyage
+ * simulated in the harness is wired exactly as one flew on the server.
  *
  * Inputs are structural (the fields content carries), so the engine needs no content types.
  */
 
+import { isWin } from "../battle/reduce.js";
 import type { BattleConfig, RaiderSpec } from "../battle/types.js";
-import { heatAfterTurn } from "./reduce.js";
-import { STATIONS, UNITS_PER_SECOND, type LegPlan, type ShipConfig, type ShipRules, type ShipState, type Station } from "./types.js";
+import type { SwordfightConfig } from "../swordfight/types.js";
+import { heatAfterTurn, pirates } from "./reduce.js";
+import { STATIONS, UNITS_PER_SECOND, type LegPlan, type ShipBattleOutcome, type ShipConfig, type ShipMove, type ShipRules, type ShipState, type Station } from "./types.js";
 
 /** What a ship class in content carries that the engine reads. */
 export interface ShipClassFields {
@@ -156,6 +158,30 @@ export function turnPlunderOutputs(ship: ShipState): Array<{ pirateId: string; o
 }
 
 /**
+ * The most boards a side of the melee holds: a swordfight takes at most eight AI hands a side. The
+ * raider crew fields one board for each pirate at the airlock, up to this many.
+ */
+export const MELEE_SIDE_MAX = 8;
+
+/**
+ * Whether a space battle's end opens the boarding melee (ADR 0022): a grapple that lands, either
+ * way, takes the fight to the airlock, and the melee decides the plunder. Any other end settles the
+ * fight at once. The melee opens only if a pirate is there to fight it.
+ */
+export function fightGoesToMelee(outcome: ShipBattleOutcome): outcome is "boarded" | "boarded_by" {
+  return outcome === "boarded" || outcome === "boarded_by";
+}
+
+/**
+ * A pirate's attack a minute in the melee, from their swordfight score: the score without the win
+ * band a won fight carries (`swordfightScore`). Any other fight is scored under the band, so its
+ * score is its rate. This is the rate the plunder weighs (ADR 0030) and the rate a board shows.
+ */
+export function meleeAttackRate(cfg: Pick<SwordfightConfig, "winPoints">, score: number): number {
+  return score >= cfg.winPoints ? score - cfg.winPoints : score;
+}
+
+/**
  * A pirate's melee as duty turns for the plunder (ADR 0030): their attack a minute against
  * Swordfight's par rate, in percent, counted once for every ship's turn the melee lasted.
  */
@@ -187,6 +213,33 @@ export function splitPlunder(total: number, crew: ReadonlyArray<{ pirateId: stri
   const captain = crew.find((c) => c.captain) ?? crew[0]!;
   out.set(captain.pirateId, (out.get(captain.pirateId) ?? 0) + (total - paid));
   return out;
+}
+
+/** A decided fight, settled: what it won, each pirate's share, and the move that ends it on the ship. */
+export interface BattlePurse {
+  /** The ship boarded or crippled the raider. */
+  readonly won: boolean;
+  /** The tier's plunder on a win, in credits; nothing otherwise. */
+  readonly plunder: number;
+  /** Credits per pirate aboard; empty when there is no plunder. Bots work for their keep. */
+  readonly shares: ReadonlyMap<string, number>;
+  /** The ship's `battle_end` move, or null when the ship has no fight on to end. */
+  readonly end: Extract<ShipMove, { type: "battle_end" }> | null;
+}
+
+/**
+ * Settle a decided fight (ADR 0021, ADR 0030): on a win the tier's plunder goes to the pirates
+ * aboard by `splitPlunder`, each weighted by `points` (the output their station gave the ship
+ * during the fight, plus any melee as duty turns), with the captain's extra share; and the ship
+ * hears the fight is over, with the plunder and the battle's `turns`. A boarding settles here once
+ * the melee is decided. The server and the voyage bench pay every fight out through this.
+ */
+export function battlePurse(ship: ShipState, outcome: ShipBattleOutcome, tierPlunder: number, points: ReadonlyMap<string, number>, turns: number): BattlePurse {
+  const won = isWin(outcome);
+  const plunder = won ? tierPlunder : 0;
+  const crew = pirates(ship.crew).map((c) => ({ pirateId: c.pirateId, captain: c.pirateId === ship.captainId, points: points.get(c.pirateId) ?? 0 }));
+  const shares = plunder > 0 ? splitPlunder(plunder, crew) : new Map<string, number>();
+  return { won, plunder, shares, end: ship.voyage?.battle ? { type: "battle_end", outcome, plunder, turns } : null };
 }
 
 /** What a Cooling board's config carries that the ship's heat is read against. */

@@ -20,6 +20,7 @@ import {
   createShip,
   isStation,
   legPlan,
+  MELEE_SIDE_MAX,
   shipConfigFor,
   validateShipConfig,
   type BattleConfig,
@@ -197,7 +198,7 @@ const isInt = (n: unknown, lo: number, hi: number): n is number => typeof n === 
  * eight a side, with the tier's score factor on the attack rate as the server sets it aboard.
  */
 export function meleeConfig(base: SwordfightConfig, hands: readonly SwordHand[], tier: SwordHand, scorePercent = base.scorePercent): SwordfightConfig {
-  const n = Math.min(8, hands.length);
+  const n = Math.min(MELEE_SIDE_MAX, hands.length);
   return { ...base, player: false, blade: 0, scorePercent, allies: hands.slice(0, n).map((h) => ({ ...h })), foes: Array.from({ length: n }, () => ({ ...tier })) };
 }
 

@@ -25,24 +25,26 @@
 
 import {
   battleConfigAboard,
+  battlePurse,
   chooseCaptainPlan,
   createBattleGame,
   createShip,
   createSwordfightGame,
   crewMember,
+  fightGoesToMelee,
   hashBattleState,
   hashShipState,
   hashSwordfightState,
   InvalidMoveError,
+  MELEE_SIDE_MAX,
+  meleeAttackRate,
   nextInt,
-  pirates,
   progressPermille,
   reduceBattle,
   reduceShip,
   reduceSwordfight,
   seedFromString,
   shipSupply,
-  splitPlunder,
   STATIONS,
   type BattleConfig,
   type BattleMove,
@@ -344,7 +346,7 @@ function settleBattle(w: Work): void {
   const outcome = state.outcome ?? "broke_off";
   w.battles[w.battles.length - 1] = { ...rec, outcome };
   w.battle = null;
-  if (outcome === "boarded" || outcome === "boarded_by") {
+  if (fightGoesToMelee(outcome)) {
     // Bots hold no board; a pirate whose seat is held while away is not at the airlock.
     const fighters = w.ship.crew.filter((c) => !c.bot && c.awaySinceTurn === null);
     if (fighters.length > 0) {
@@ -357,12 +359,12 @@ function settleBattle(w: Work): void {
 
 function openMelee(w: Work, tierId: string, boarding: "boarded" | "boarded_by", fighters: string[]): void {
   const tier = w.setup.tiers[tierId]!;
-  const hands = fighters.slice(0, 8).map((id) => w.setup.crew.find((c) => c.pirateId === id)!.sword);
+  const hands = fighters.slice(0, MELEE_SIDE_MAX).map((id) => w.setup.crew.find((c) => c.pirateId === id)!.sword);
   const config = meleeConfig(w.setup.swordBase, hands, tier.swordsmen, tier.scorePercent);
   const seed = `${w.setup.seed}/melee/${w.melees.length + 1}`;
   w.melee = createSwordfightGame(seed, config);
   w.phase = "melee";
-  w.melees.push({ tierId, seed, config, moves: [], hashes: [], fighters: fighters.slice(0, 8), startTurn: w.ship.turn + 1, boarding, outcome: null, last: w.melee });
+  w.melees.push({ tierId, seed, config, moves: [], hashes: [], fighters: fighters.slice(0, MELEE_SIDE_MAX), startTurn: w.ship.turn + 1, boarding, outcome: null, last: w.melee });
   note(w, "boarding", { tier: tierId, fighters: hands.length, boarded: boarding === "boarded" ? 1 : 0 });
 }
 
@@ -388,27 +390,25 @@ function settleMelee(w: Work, outcome: ShipBattleOutcome): void {
   w.melee = null;
   note(w, "melee_ended", { tier: rec.tierId, outcome });
   // The purse weighs what each pirate gave the ship in the space battle, and their melee as duty
-  // turns at their attack a minute against Swordfight's par (ADR 0030).
+  // turns at their attack a minute against Swordfight's par (ADR 0030). Each board is scored as the
+  // pirate's own fight is aboard: won if it stood to the end of a won melee, else under the win band.
   const battle = w.battles[w.battles.length - 1]!;
   const points: Record<string, number> = { ...battle.dutyOutput };
   const meleeMs = state.tick * state.config.tickMs;
   rec.fighters.forEach((id, i) => {
     const board = state.boards[i];
     if (!board) return;
-    const rate = swordfightScore(state.config, board.points, state.tick, null);
-    points[id] = (points[id] ?? 0) + meleePlunderOutput(rate, w.setup.meleeParRate, meleeMs, w.setup.ship.rules.turnSeconds);
+    const score = swordfightScore(state.config, board.points, state.tick, state.outcome === "won" && !board.out ? "won" : null);
+    points[id] = (points[id] ?? 0) + meleePlunderOutput(meleeAttackRate(state.config, score), w.setup.meleeParRate, meleeMs, w.setup.ship.rules.turnSeconds);
   });
   payBattle(w, rec.tierId, outcome, points, battle.states[battle.states.length - 1]!.turn);
 }
 
 /** The fight is over: the purse is split among the pirates aboard, and the ship flies on. */
 function payBattle(w: Work, tierId: string, outcome: ShipBattleOutcome, points: Readonly<Record<string, number>>, turns: number): void {
-  const won = outcome === "boarded" || outcome === "crippled";
-  const plunder = won ? w.setup.tiers[tierId]!.plunder : 0;
-  const crew = pirates(w.ship.crew).map((c) => ({ pirateId: c.pirateId, captain: c.pirateId === w.ship.captainId, points: points[c.pirateId] ?? 0 }));
-  const shares = plunder > 0 ? splitPlunder(plunder, crew) : new Map<string, number>();
+  const { shares, end } = battlePurse(w.ship, outcome, w.setup.tiers[tierId]!.plunder, new Map(Object.entries(points)), turns);
   for (const [id, credits] of shares) w.plunder[id] = (w.plunder[id] ?? 0) + credits;
-  if (w.ship.voyage?.battle) applyShip(w, { type: "battle_end", outcome, plunder, turns });
+  if (end) applyShip(w, end);
   if (!w.done) w.phase = "flying";
 }
 

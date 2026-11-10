@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import {
   advanceSwordfight,
+  meleeAttackRate,
   summarizeSwordfight,
   swordfightColHeight,
   swordfightPlaceIllegalReason,
@@ -21,11 +22,6 @@ const swordfight = content.puzzles.swordfight;
 const waitAt = (tick: number): SwordfightMove => ({ type: "wait", tick });
 
 /** The practice fight: the player's board against raiders from content, every drop on the fight's clock. */
-/** The player's attack per minute, without the win band a won fight carries in its score. */
-function attackRate(s: SwordfightState): number {
-  return s.outcome === "won" ? s.score - s.config.winPoints : s.score;
-}
-
 export function SwordfightPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<SwordfightState, SwordfightMove, SwordfightConfig>({
@@ -152,7 +148,7 @@ export function SwordfightPractice() {
       best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
-      score={attackRate(shown)}
+      score={meleeAttackRate(shown.config, shown.score)}
       scoreLabel={t("swordfight.attack_rate")}
       moves={player.drops}
       movesLabel={t("swordfight.drops")}
@@ -189,7 +185,7 @@ export function SwordfightPractice() {
         <>
           <div>
             <dt>{t("swordfight.attack_rate")}</dt>
-            <dd data-testid="result-rate">{attackRate(state)}</dd>
+            <dd data-testid="result-rate">{meleeAttackRate(state.config, state.score)}</dd>
           </div>
           <div>
             <dt>{t("swordfight.broken")}</dt>
