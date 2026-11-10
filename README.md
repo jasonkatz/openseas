@@ -39,7 +39,7 @@ Milestone 7 built (ADR 0034): the game moved from the sea to space with its mech
 Every word, every identifier and the whole three.js world are space: cratered rocks in the void
 with a settlement bolted to each, a skiff that is a closed hull from outside and cut away to her
 one room aboard (ADR 0035), pirates in jackets and headgear, and maintenance bots making up a
-short crew. The puzzle boards are space too: space parts in riveted gunmetal frames; only their sounds wait for their own pass.
+short crew. The puzzle boards are space too: space parts in riveted gunmetal frames, with space sounds.
 
 Every milestone from M2 on still needs its tester session and written retro.
 

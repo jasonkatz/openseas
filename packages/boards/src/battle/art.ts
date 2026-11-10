@@ -1,15 +1,16 @@
 import { drawSprite } from "../sprites/atlas.js";
 import type { ParsedBoard } from "@openseas/engine";
 import { battleCellAt } from "@openseas/engine";
+import { paintPart } from "../parts.js";
 
 /**
  * Space Battle's art, painted with Canvas 2D and baked to textures (as Gunnery's pieces and
  * Cooling's tiles are): deep space with faint nebulae and stars under the chart's grid, asteroids
  * with a little drifting debris, solar currents as streamlines, gravity wells as spirals, and two
  * skiffs seen from above. The sprites draw the asteroids, wells and skiffs; the procedural pieces
- * below are their fallback. The captain's skiff is pale with brass and a swallowtail pennant; the raider
- * is tarred black with a blood-red sail and a cut-throat's triangular pennant, so the two read
- * apart by silhouette as well as color (CLAUDE.md rule 6).
+ * below are their fallback. The captain's skiff is a cream starfighter with a rounded nose and two
+ * side pods; the raider is rust red with a forked prow and one tank slung to the side, so the two
+ * read apart by silhouette as well as color (CLAUDE.md rule 6).
  */
 
 export type ShipSide = 0 | 1;
@@ -199,57 +200,12 @@ function paintSurf(ctx: CanvasRenderingContext2D, board: ParsedBoard, x: number,
 
 function paintAsteroid(ctx: CanvasRenderingContext2D, cx: number, cy: number, cell: number, rnd: () => number): void {
   if (drawSprite(ctx, "battle", "asteroid", cx - cell / 2, cy - cell / 2, cell, cell)) return;
-  const n = 9;
-  const pts: Array<[number, number]> = [];
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + rnd() * 0.3;
-    const r = cell * (0.3 + rnd() * 0.18);
-    pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.92]);
-  }
-  const path = new Path2D();
-  pts.forEach(([x, y], i) => (i === 0 ? path.moveTo(x, y) : path.lineTo(x, y)));
-  path.closePath();
-  // Shadow on the water, then the stone lit from the upper left.
+  // Without the atlas: the vector asteroid, turned at random so a field of them never repeats.
   ctx.save();
-  ctx.translate(cell * 0.05, cell * 0.07);
-  ctx.fillStyle = "rgba(0,0,0,0.38)";
-  ctx.fill(path);
+  ctx.translate(cx, cy);
+  ctx.rotate(rnd() * Math.PI * 2);
+  paintPart(ctx, "asteroid", 0, 0, cell * 0.95);
   ctx.restore();
-  const stone = ctx.createLinearGradient(cx - cell * 0.4, cy - cell * 0.4, cx + cell * 0.4, cy + cell * 0.4);
-  stone.addColorStop(0, "#6b6572");
-  stone.addColorStop(0.45, "#4a4550");
-  stone.addColorStop(1, "#221f27");
-  ctx.fillStyle = stone;
-  ctx.fill(path);
-  // A lit facet and a crack.
-  ctx.save();
-  ctx.clip(path);
-  const facet = new Path2D();
-  const [p0, p1, p2] = [pts[0]!, pts[1]!, pts[2]!];
-  facet.moveTo(cx, cy);
-  facet.lineTo(p0[0], p0[1]);
-  facet.lineTo(p1[0], p1[1]);
-  facet.lineTo(p2[0], p2[1]);
-  facet.closePath();
-  ctx.fillStyle = "rgba(255,255,255,0.09)";
-  ctx.fill(facet);
-  ctx.strokeStyle = "rgba(0,0,0,0.35)";
-  ctx.lineWidth = Math.max(1, cell * 0.03);
-  ctx.beginPath();
-  ctx.moveTo(cx - cell * 0.1, cy - cell * 0.25);
-  ctx.lineTo(cx + cell * 0.05, cy + cell * 0.02);
-  ctx.lineTo(cx - cell * 0.04, cy + cell * 0.22);
-  ctx.stroke();
-  // Wet sheen along the waterline.
-  const wet = ctx.createLinearGradient(0, cy, 0, cy + cell * 0.45);
-  wet.addColorStop(0, "rgba(0,0,0,0)");
-  wet.addColorStop(1, "rgba(5,15,30,0.5)");
-  ctx.fillStyle = wet;
-  ctx.fillRect(cx - cell, cy, cell * 2, cell);
-  ctx.restore();
-  ctx.strokeStyle = "rgba(4,7,12,0.85)";
-  ctx.lineWidth = Math.max(1, cell * 0.04);
-  ctx.stroke(path);
 }
 
 /**
@@ -331,261 +287,28 @@ function paintGust(ctx: CanvasRenderingContext2D, run: ReadonlyArray<readonly [n
   ctx.stroke();
 }
 
-// ---- eddies
+// ---- gravity wells
 
 export function paintWell(size: number, resolution: number): HTMLCanvasElement {
   const { canvas, ctx } = canvasFor(size, size, resolution);
-  if (drawSprite(ctx, "battle", "well", 0, 0, size, size)) {
-    return canvas;
-  }
-  const c = size / 2;
-  const R = size * 0.46;
-  const bowl = ctx.createRadialGradient(c, c, 0, c, c, R);
-  bowl.addColorStop(0, "rgba(2,10,22,0.75)");
-  bowl.addColorStop(0.55, "rgba(10,40,70,0.35)");
-  bowl.addColorStop(1, "rgba(10,40,70,0)");
-  ctx.fillStyle = bowl;
-  ctx.beginPath();
-  ctx.arc(c, c, R, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.lineCap = "round";
-  for (const [turns, width, alpha] of [
-    [2.6, 0.075, 0.85],
-    [2.2, 0.035, 0.5],
-  ] as const) {
-    ctx.beginPath();
-    const steps = 80;
-    for (let i = 0; i <= steps; i++) {
-      const k = i / steps;
-      const a = k * Math.PI * 2 * turns;
-      const r = R * (1 - k) * 0.95;
-      const x = c + Math.cos(a) * r;
-      const y = c + Math.sin(a) * r;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = `rgba(214,244,240,${alpha})`;
-    ctx.lineWidth = Math.max(1, size * width);
-    ctx.stroke();
-  }
-  // Flecks of foam.
-  const rnd = seeded(42);
-  ctx.fillStyle = "rgba(230,250,255,0.7)";
-  for (let i = 0; i < 9; i++) {
-    const a = rnd() * Math.PI * 2;
-    const r = R * (0.35 + rnd() * 0.6);
-    ctx.beginPath();
-    ctx.arc(c + Math.cos(a) * r, c + Math.sin(a) * r, Math.max(0.6, size * (0.012 + rnd() * 0.02)), 0, Math.PI * 2);
-    ctx.fill();
-  }
+  if (!drawSprite(ctx, "battle", "well", 0, 0, size, size)) paintPart(ctx, "well", size / 2, size / 2, size);
   return canvas;
 }
 
-// ---- the skiffs
+// ---- the skiffs: the sprites, or vector starfighters without the atlas
 
 /** A skiff seen from above, bow up, in a square of `size`. The hull is about 0.9 of it long. */
 export function paintShip(size: number, who: ShipSide, showMarks: boolean, resolution: number): HTMLCanvasElement {
   const { canvas, ctx } = canvasFor(size, size, resolution);
-  if (drawSprite(ctx, "battle", `ship${who}`, 0, 0, size, size)) {
-    if (showMarks) {
-      ctx.font = `bold ${size * 0.18}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.lineWidth = Math.max(2, size * 0.04);
-      ctx.strokeStyle = "#0b1526";
-      ctx.fillStyle = "#ffffff";
-      ctx.strokeText(who === 0 ? "○" : "△", size / 2, size * 0.65);
-      ctx.fillText(who === 0 ? "○" : "△", size / 2, size * 0.65);
-    }
-    return canvas;
-  }
-  const cx = size / 2;
-  const L = size * 0.9;
-  const top = (size - L) / 2;
-  const bot = top + L;
-  const half = size * 0.19;
-  const captain = who === 0;
-
-  const hullLight = captain ? "#f6ecd4" : "#5a5866";
-  const hullMid = captain ? "#d9c89b" : "#2d2c36";
-  const hullDark = captain ? "#8f7a4e" : "#0f0f15";
-  const trim = captain ? "#d4a548" : "#d24a3c";
-  const sailLight = captain ? "#fffaf0" : "#8a2f3a";
-  const sailDark = captain ? "#cdbfa0" : "#2e1018";
-  const pennant = captain ? "#f5d58a" : "#f0604d";
-
-  // The hull, stern rounded, bow sharp.
-  const hull = new Path2D();
-  hull.moveTo(cx, top);
-  hull.bezierCurveTo(cx + half * 1.15, top + L * 0.3, cx + half, bot - L * 0.22, cx + half * 0.78, bot - size * 0.02);
-  hull.quadraticCurveTo(cx, bot + size * 0.02, cx - half * 0.78, bot - size * 0.02);
-  hull.bezierCurveTo(cx - half, bot - L * 0.22, cx - half * 1.15, top + L * 0.3, cx, top);
-  hull.closePath();
-
-  // Shadow on the water.
-  ctx.save();
-  ctx.translate(size * 0.035, size * 0.05);
-  ctx.filter = "blur(1px)";
-  ctx.fillStyle = "rgba(0,0,0,0.42)";
-  ctx.fill(hull);
-  ctx.restore();
-
-  // Planking across the beam, lit from port.
-  const planks = ctx.createLinearGradient(cx - half, 0, cx + half, 0);
-  planks.addColorStop(0, hullDark);
-  planks.addColorStop(0.3, hullLight);
-  planks.addColorStop(0.6, hullMid);
-  planks.addColorStop(1, hullDark);
-  ctx.fillStyle = planks;
-  ctx.fill(hull);
-  ctx.save();
-  ctx.clip(hull);
-  // Deck: a lighter inset with plank seams running fore and aft.
-  const deck = new Path2D();
-  deck.moveTo(cx, top + L * 0.1);
-  deck.bezierCurveTo(cx + half * 0.78, top + L * 0.34, cx + half * 0.7, bot - L * 0.26, cx + half * 0.5, bot - size * 0.08);
-  deck.quadraticCurveTo(cx, bot - size * 0.05, cx - half * 0.5, bot - size * 0.08);
-  deck.bezierCurveTo(cx - half * 0.7, bot - L * 0.26, cx - half * 0.78, top + L * 0.34, cx, top + L * 0.1);
-  deck.closePath();
-  const deckFill = ctx.createLinearGradient(0, top, 0, bot);
-  deckFill.addColorStop(0, captain ? "#e8d8ae" : "#44434f");
-  deckFill.addColorStop(1, captain ? "#c4ad7a" : "#23222b");
-  ctx.fillStyle = deckFill;
-  ctx.fill(deck);
-  ctx.save();
-  ctx.clip(deck);
-  ctx.strokeStyle = captain ? "rgba(90,70,40,0.35)" : "rgba(0,0,0,0.5)";
-  ctx.lineWidth = Math.max(0.6, size * 0.012);
-  for (let k = -2; k <= 2; k++) {
-    const x = cx + k * half * 0.3;
-    ctx.beginPath();
-    ctx.moveTo(x, top);
-    ctx.lineTo(x, bot);
-    ctx.stroke();
-  }
-  ctx.restore();
-  // Gun ports, two a side.
-  ctx.fillStyle = "rgba(5,5,8,0.85)";
-  for (const k of [0.42, 0.6]) {
-    const y = top + L * k;
-    const w = size * 0.05;
-    ctx.fillRect(cx - half * 0.98 - w * 0.2, y - w / 2, w, w * 0.8);
-    ctx.fillRect(cx + half * 0.98 - w * 0.8, y - w / 2, w, w * 0.8);
-  }
-  ctx.restore();
-  // Gunwale and a stripe along the rail.
-  ctx.lineWidth = Math.max(1, size * 0.028);
-  ctx.strokeStyle = trim;
-  ctx.stroke(hull);
-  ctx.lineWidth = Math.max(0.8, size * 0.012);
-  ctx.strokeStyle = "rgba(0,0,0,0.55)";
-  ctx.stroke(hull);
-
-  // Bowsprit and jib.
-  ctx.strokeStyle = captain ? "#6b4a2e" : "#0e0d12";
-  ctx.lineWidth = Math.max(1, size * 0.02);
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(cx, top + size * 0.02);
-  ctx.lineTo(cx, top - size * 0.01);
-  ctx.stroke();
-
-  // The mainsail: a billowed square sail across the yard, forward of the mast.
-  const mastY = top + L * 0.5;
-  const yardHalf = half * 1.55;
-  const sail = new Path2D();
-  sail.moveTo(cx - yardHalf, mastY);
-  sail.quadraticCurveTo(cx, mastY - L * 0.34, cx + yardHalf, mastY);
-  sail.quadraticCurveTo(cx, mastY - L * 0.1, cx - yardHalf, mastY);
-  sail.closePath();
-  ctx.save();
-  ctx.translate(size * 0.015, size * 0.02);
-  ctx.fillStyle = "rgba(0,0,0,0.3)";
-  ctx.fill(sail);
-  ctx.restore();
-  const cloth = ctx.createLinearGradient(cx - yardHalf, 0, cx + yardHalf, 0);
-  cloth.addColorStop(0, sailDark);
-  cloth.addColorStop(0.45, sailLight);
-  cloth.addColorStop(1, sailDark);
-  ctx.fillStyle = cloth;
-  ctx.fill(sail);
-  ctx.save();
-  ctx.clip(sail);
-  // Seams, and the raider's bar.
-  ctx.strokeStyle = captain ? "rgba(120,100,60,0.3)" : "rgba(0,0,0,0.45)";
-  ctx.lineWidth = Math.max(0.6, size * 0.01);
-  for (let k = -2; k <= 2; k++) {
-    const x = cx + k * yardHalf * 0.4;
-    ctx.beginPath();
-    ctx.moveTo(x, mastY - L * 0.4);
-    ctx.lineTo(x, mastY + L * 0.05);
-    ctx.stroke();
-  }
-  if (!captain) {
-    ctx.fillStyle = "rgba(240,96,77,0.55)";
-    ctx.fillRect(cx - yardHalf, mastY - L * 0.2, yardHalf * 2, size * 0.045);
-  }
-  ctx.restore();
-  ctx.strokeStyle = "rgba(0,0,0,0.5)";
-  ctx.lineWidth = Math.max(0.8, size * 0.012);
-  ctx.stroke(sail);
-  // The yard and the mast.
-  ctx.strokeStyle = captain ? "#5b3f26" : "#0e0d12";
-  ctx.lineWidth = Math.max(1, size * 0.022);
-  ctx.beginPath();
-  ctx.moveTo(cx - yardHalf, mastY);
-  ctx.lineTo(cx + yardHalf, mastY);
-  ctx.stroke();
-  const mastR = size * 0.035;
-  const mast = ctx.createRadialGradient(cx - mastR * 0.3, mastY - mastR * 0.3, 0, cx, mastY, mastR);
-  mast.addColorStop(0, captain ? "#b58a5c" : "#4a4650");
-  mast.addColorStop(1, captain ? "#3f2a17" : "#050508");
-  ctx.fillStyle = mast;
-  ctx.beginPath();
-  ctx.arc(cx, mastY, mastR, 0, Math.PI * 2);
-  ctx.fill();
-  // The pennant at the masthead: a swallowtail for the captain, a cut-throat's triangle for the raider.
-  ctx.fillStyle = pennant;
-  ctx.beginPath();
-  if (captain) {
-    ctx.moveTo(cx, mastY - mastR * 0.3);
-    ctx.lineTo(cx + size * 0.14, mastY - size * 0.06);
-    ctx.lineTo(cx + size * 0.1, mastY - size * 0.03);
-    ctx.lineTo(cx + size * 0.14, mastY);
-  } else {
-    ctx.moveTo(cx, mastY - mastR * 0.3);
-    ctx.lineTo(cx + size * 0.15, mastY - size * 0.045);
-    ctx.lineTo(cx, mastY + mastR * 0.3);
-  }
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.5)";
-  ctx.lineWidth = Math.max(0.6, size * 0.008);
-  ctx.stroke();
-  // A stern lantern.
-  const lx = cx;
-  const ly = bot - size * 0.06;
-  const lamp = ctx.createRadialGradient(lx, ly, 0, lx, ly, size * 0.03);
-  lamp.addColorStop(0, "#fff0b0");
-  lamp.addColorStop(1, "rgba(212,165,72,0)");
-  ctx.fillStyle = lamp;
-  ctx.beginPath();
-  ctx.arc(lx, ly, size * 0.03, 0, Math.PI * 2);
-  ctx.fill();
+  if (!drawSprite(ctx, "battle", `ship${who}`, 0, 0, size, size)) paintPart(ctx, who === 0 ? "fighter" : "raider", size / 2, size / 2, size);
   if (showMarks) {
-    // A bold badge on the foredeck: a ring for the captain, a cross for the raider.
-    const by = top + L * 0.25;
-    const r = size * 0.055;
-    ctx.strokeStyle = captain ? "#1b150c" : "#f6ecd4";
-    ctx.lineWidth = Math.max(1.2, size * 0.022);
-    ctx.beginPath();
-    if (captain) ctx.arc(cx, by, r, 0, Math.PI * 2);
-    else {
-      ctx.moveTo(cx - r, by - r);
-      ctx.lineTo(cx + r, by + r);
-      ctx.moveTo(cx + r, by - r);
-      ctx.lineTo(cx - r, by + r);
-    }
-    ctx.stroke();
+    ctx.font = `bold ${size * 0.18}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.lineWidth = Math.max(2, size * 0.04);
+    ctx.strokeStyle = "#0b1526";
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeText(who === 0 ? "○" : "△", size / 2, size * 0.65);
+    ctx.fillText(who === 0 ? "○" : "△", size / 2, size * 0.65);
   }
   return canvas;
 }
@@ -594,19 +317,7 @@ export function paintShip(size: number, who: ShipSide, showMarks: boolean, resol
 
 export function paintBall(size: number, resolution: number): HTMLCanvasElement {
   const { canvas, ctx } = canvasFor(size, size, resolution);
-  if (drawSprite(ctx, "battle", "ball", 0, 0, size, size)) {
-    return canvas;
-  }
-  const c = size / 2;
-  const r = size * 0.42;
-  const g = ctx.createRadialGradient(c - r * 0.4, c - r * 0.45, r * 0.1, c, c, r);
-  g.addColorStop(0, "#8d93a0");
-  g.addColorStop(0.5, "#30343c");
-  g.addColorStop(1, "#07080b");
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.arc(c, c, r, 0, Math.PI * 2);
-  ctx.fill();
+  if (!drawSprite(ctx, "battle", "ball", 0, 0, size, size)) paintPart(ctx, "round", size / 2, size / 2, size, 0x8a8f99);
   return canvas;
 }
 
@@ -614,39 +325,45 @@ export function paintBall(size: number, resolution: number): HTMLCanvasElement {
 export function paintTurret(size: number, lit: boolean, resolution: number): HTMLCanvasElement {
   const { canvas, ctx } = canvasFor(size, size, resolution);
   const c = size / 2;
-  // Carriage.
-  ctx.fillStyle = "#4e3419";
-  ctx.fillRect(c - size * 0.22, c - size * 0.12, size * 0.44, size * 0.3);
-  ctx.strokeStyle = "rgba(0,0,0,0.6)";
-  ctx.lineWidth = Math.max(0.8, size * 0.03);
-  ctx.strokeRect(c - size * 0.22, c - size * 0.12, size * 0.44, size * 0.3);
-  // Barrel, muzzle up.
-  const barrel = ctx.createLinearGradient(c - size * 0.1, 0, c + size * 0.1, 0);
-  barrel.addColorStop(0, "#1a1c22");
-  barrel.addColorStop(0.4, "#6a6f7a");
-  barrel.addColorStop(1, "#111216");
-  ctx.fillStyle = barrel;
+  const line = Math.max(0.8, size * 0.035);
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#0b1526";
+  ctx.lineWidth = line;
+  // A cream turret housing on a gunmetal base, barrel up, like the gun deck's turrets.
+  ctx.fillStyle = "#3c4555";
   ctx.beginPath();
-  ctx.moveTo(c - size * 0.11, c + size * 0.14);
-  ctx.lineTo(c - size * 0.08, c - size * 0.34);
-  ctx.lineTo(c + size * 0.08, c - size * 0.34);
-  ctx.lineTo(c + size * 0.11, c + size * 0.14);
-  ctx.closePath();
+  ctx.roundRect(c - size * 0.26, c + size * 0.12, size * 0.52, size * 0.14, size * 0.04);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = "#05060a";
+  const barrel = ctx.createLinearGradient(c - size * 0.07, 0, c + size * 0.07, 0);
+  barrel.addColorStop(0, "#2a2e36");
+  barrel.addColorStop(0.45, "#8a93a0");
+  barrel.addColorStop(1, "#22252c");
+  ctx.fillStyle = barrel;
   ctx.beginPath();
-  ctx.ellipse(c, c - size * 0.34, size * 0.075, size * 0.03, 0, 0, Math.PI * 2);
+  ctx.roundRect(c - size * 0.065, c - size * 0.4, size * 0.13, size * 0.36, size * 0.03);
   ctx.fill();
-  // The lamp.
-  const lamp = ctx.createRadialGradient(c, c + size * 0.3, 0, c, c + size * 0.3, size * 0.14);
-  lamp.addColorStop(0, lit ? "#fff3c4" : "#2a2f3a");
-  lamp.addColorStop(0.5, lit ? "#f0604d" : "#171a22");
-  lamp.addColorStop(1, lit ? "rgba(240,96,77,0)" : "rgba(0,0,0,0)");
-  ctx.fillStyle = lamp;
+  ctx.stroke();
+  const housing = ctx.createLinearGradient(0, c - size * 0.12, 0, c + size * 0.14);
+  housing.addColorStop(0, "#efe5c8");
+  housing.addColorStop(1, "#b9ad8e");
+  ctx.fillStyle = housing;
   ctx.beginPath();
-  ctx.arc(c, c + size * 0.3, size * 0.14, 0, Math.PI * 2);
+  ctx.roundRect(c - size * 0.2, c - size * 0.12, size * 0.4, size * 0.26, size * 0.06);
   ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#e8892c";
+  ctx.fillRect(c - size * 0.2 + line, c - size * 0.02, size * 0.4 - line * 2, size * 0.045);
+  // The status light: lit once the gun is armed.
+  ctx.fillStyle = lit ? "#7dff8a" : "#2a2f3a";
+  if (lit) {
+    ctx.shadowColor = "#7dff8a";
+    ctx.shadowBlur = size * 0.12;
+  }
+  ctx.beginPath();
+  ctx.roundRect(c - size * 0.09, c + size * 0.05, size * 0.18, size * 0.045, size * 0.02);
+  ctx.fill();
+  ctx.shadowBlur = 0;
   return canvas;
 }
 

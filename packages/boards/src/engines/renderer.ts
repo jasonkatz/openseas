@@ -587,7 +587,7 @@ export class EnginesRenderer {
   }
 
   /**
-   * Injectors: one continuous outlined shape per injector, a plank under every cell that has a
+   * Injectors: one continuous outlined shape per injector, a metal ledge under every cell that has a
    * shelf, round target outlines in their color and a faint ring for blank cells. Circles sit at
    * the exact cell centre so the ghost and the landed pellet line up with them.
    */

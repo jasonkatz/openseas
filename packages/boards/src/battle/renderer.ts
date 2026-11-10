@@ -154,7 +154,7 @@ const COLORS = {
   // A miss puffs pale dust, a hit throws hot metal, a ship's wake is its thrusters' cyan.
   splash: 0xd8f0ff,
   foam: 0x8fe9ff,
-  splinter: 0xffb066,
+  sparks: 0xffb066,
   current: 0xaae4ff,
   well: 0xd6f4f0,
 };
@@ -467,7 +467,7 @@ export class BattleRenderer {
             const t = e.blocked === "ship" ? this.opts.labels.rammed : this.opts.labels.asteroids;
             this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 1.2, t, COLORS.danger, 0.55);
             this.shake = Math.max(this.shake, 260);
-            this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.splinter, 10, 0.8);
+            this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.sparks, 10, 0.8);
             this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.foam, 8, 0.7, true);
           }
         }
@@ -1280,7 +1280,7 @@ export class BattleRenderer {
             this.hurt(sh.ship === 0 ? 1 : 0, this.state?.config.shotDamage ?? 0);
             this.popup(sh.to.x, sh.to.y - this.cell * 0.9, sh.ship === 0 ? this.opts.labels.hit : this.opts.labels.hitTaken, sh.ship === 0 ? COLORS.brassLight : COLORS.danger, 0.6);
             this.particles.push({ x: sh.to.x, y: sh.to.y, vx: 0, vy: 0, r: this.cell * 0.3, grow: 0.06, color: COLORS.flash, alpha: 0.95, life: 0, max: 200 });
-            this.burst(sh.to.x, sh.to.y, COLORS.splinter, 12, 1);
+            this.burst(sh.to.x, sh.to.y, COLORS.sparks, 12, 1);
             this.burst(sh.to.x, sh.to.y, COLORS.smoke, 8, 0.8);
             this.shake = Math.max(this.shake, 300);
           } else {

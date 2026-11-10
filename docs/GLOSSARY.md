@@ -412,8 +412,8 @@ The tables above give the identifier for each word. Beyond them:
   - Three puzzle engines' PRNG salts keep their old strings (`bilging:`, `sailing:` and
     `carpentry:` in each `reduce.ts`). A new salt would deal a different board from the same
     seed, and the rename changes no behaviour.
-  - The procedural fallback painters still describe the sea set they draw; they wait for the
-    sound pass. The boards around the sprites are space (`boards/src/hull.ts`).
+  - Content `texture` keys (`knurl`, `weave`, `facet`, ...) keep their names: they are data keys,
+    never shown, and each now picks a space part (`knurl` → the cog) in `boards/src/parts.ts`.
   - `SHIP_SINK` keeps its name: how far the hull hangs below the lane plane, so the deck meets the
     boarding tube.
 - **Kept for now**: `openseas`, the package scope `@openseas/*`, the domains and the hosting

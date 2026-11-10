@@ -309,7 +309,7 @@ export class GunneryRenderer {
     if (!this.app.renderer) return;
     const reset = !this.state || state.tick < this.state.tick || state.deck !== this.state.deck;
     if (state.deckIndex !== this.state?.deckIndex || !this.state) {
-      // A round on a different deck: repaint the planks, crates, hatches and guns.
+      // A round on a different deck: repaint the floor plates, crates, vents and guns.
       this.deck = state.deck;
       this.drawDeck();
     }

@@ -143,7 +143,6 @@ type Step = () => number | "settle";
 const COLORS = {
   deckTop: 0x1a2438,
   deckBottom: 0x0b1526,
-  rope: 0xd8b574,
   brass: 0xd4a548,
   bone: 0xf2f0e6,
   danger: 0xf0604d,

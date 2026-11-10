@@ -25,7 +25,9 @@ Additional frames from the sheets (damaged ships, current, thrusters, shield, gr
 weld, chips, edge, shatter, swipe, ...) are reserved for future effects. Dynamic effects, board
 backgrounds and frames (in the same materials, from `../hull.ts`), Engines targets, and
 arbitrary-sized Swordfight slabs remain procedural. The atlas is
-presentation only; never derive hit areas or gameplay from its pixels. Battle's slug sprite points
+presentation only; never derive hit areas or gameplay from its pixels. If an atlas fails or times
+out, each piece is drawn instead by its vector stand-in in `../parts.ts`, in the same contours and
+silhouettes; keep the two in step when a sprite changes shape. Battle's slug sprite points
 up; the renderer turns each shot along its line of flight.
 
 Cooling's three specials also have a code-drawn dark chamfered plate, bright double rim and corner
