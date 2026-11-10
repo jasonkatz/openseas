@@ -9,7 +9,8 @@ import {
   createSwordfightGame,
   hashSwordfightState,
   reduceSwordfight,
-  replaySwordfight,
+  SWORDFIGHT_DEF,
+  replayLog,
   swordfightColHeight,
   swordfightIdx,
   swordfightLandingCells,
@@ -634,7 +635,7 @@ describe("swordfight determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const a = playRandom(seed, picks);
-        const b = replaySwordfight(seed, a.moves);
+        const b = replayLog(SWORDFIGHT_DEF, seed, cfg, a.moves).final;
         expect(hashSwordfightState(b)).toBe(hashSwordfightState(a.state));
         expect(b).toEqual(a.state);
       }),

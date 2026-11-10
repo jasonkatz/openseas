@@ -6,7 +6,8 @@ import {
   createEnginesGame,
   hashEnginesState,
   reduceEngines,
-  replayEngines,
+  ENGINES_DEF,
+  replayLog,
   enginesIdx,
   enginesLandingRow,
   enginesPairCells,
@@ -111,7 +112,7 @@ describe("flying determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const a = playRandom(seed, picks);
-        const b = replayEngines(seed, a.moves);
+        const b = replayLog(ENGINES_DEF, seed, cfg, a.moves).final;
         expect(hashEnginesState(b)).toBe(hashEnginesState(a.state));
         expect(b).toEqual(a.state);
       }),

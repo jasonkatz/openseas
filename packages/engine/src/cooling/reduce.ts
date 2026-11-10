@@ -107,17 +107,6 @@ export function reduceCooling(state: CoolingState, move: CoolingMove): CoolingSt
   }
 }
 
-/** Replay a whole move log from a seed. Throws InvalidMoveError on the first illegal move. */
-export function replayCooling(
-  seed: string,
-  moves: readonly CoolingMove[],
-  config: CoolingConfig = DEFAULT_COOLING_CONFIG,
-): CoolingState {
-  let s = createCoolingGame(seed, config);
-  for (const m of moves) s = reduceCooling(s, m);
-  return s;
-}
-
 /** Fingerprint of everything that matters for divergence detection. */
 export function hashCoolingState(state: CoolingState): string {
   const h = new Hasher();

@@ -7,7 +7,6 @@ export {
   createOverloadGame,
   reduceOverload,
   advanceOverload,
-  replayOverload,
   hashOverloadState,
   summarizeOverload,
   validateConfig as validateOverloadConfig,

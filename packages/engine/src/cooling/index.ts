@@ -4,7 +4,6 @@ export {
   SHIP_HEAT_EVENTS_MAX,
   createCoolingGame,
   reduceCooling,
-  replayCooling,
   hashCoolingState,
   previewSwap,
   swapIllegalReason,

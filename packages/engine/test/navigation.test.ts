@@ -15,7 +15,8 @@ import {
   navigationSettled,
   navigationSlotOf,
   reduceNavigation,
-  replayNavigation,
+  NAVIGATION_DEF,
+  replayLog,
   type Marker,
   type NavigationConfig,
   type NavigationMove,
@@ -135,7 +136,7 @@ describe("navigation determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const a = playRandom(seed, picks);
-        const b = replayNavigation(seed, a.moves);
+        const b = replayLog(NAVIGATION_DEF, seed, cfg, a.moves).final;
         expect(hashNavigationState(b)).toBe(hashNavigationState(a.state));
         expect(b).toEqual(a.state);
       }),

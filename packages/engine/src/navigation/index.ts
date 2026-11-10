@@ -3,7 +3,6 @@ export {
   createNavigationGame,
   reduceNavigation,
   advanceNavigation,
-  replayNavigation,
   hashNavigationState,
   summarizeNavigation,
   ENTRY_OCTANT as NAVIGATION_ENTRY_OCTANT,

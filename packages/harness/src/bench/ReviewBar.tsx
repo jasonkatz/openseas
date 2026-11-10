@@ -1,6 +1,6 @@
 import { t } from "@openseas/boards";
-import type { Replay } from "../review/replay.js";
-import { describeMove } from "./format.js";
+import type { Replay } from "@openseas/engine";
+import { describeMove, refusal } from "./format.js";
 
 export interface ReviewBarProps<S, M> {
   replay: Replay<S, M>;
@@ -14,7 +14,7 @@ export function ReviewBar<S, M>({ replay, index, onIndex, onExit }: ReviewBarPro
   const total = replay.steps.length;
   const step = index > 0 ? (replay.steps[index - 1] ?? null) : null;
   const diverged = step !== null && replay.divergedAt !== null && step.seq >= replay.divergedAt;
-  const refusedNext = replay.error !== null && index === total;
+  const refusedNext = replay.rejection !== null && index === total;
   return (
     <>
       <div className="review-controls">
@@ -42,7 +42,7 @@ export function ReviewBar<S, M>({ replay, index, onIndex, onExit }: ReviewBarPro
       <p className={`review-line mono ${diverged ? "is-bad" : ""}`} data-testid="review-line">
         {step ? t("harness.review_move", { seq: step.seq, move: describeMove(step.move) }) : t("harness.review_opening")} · {step ? step.hash : replay.initialHash}
         {diverged && ` · ${t("harness.review_diverged_here")}`}
-        {refusedNext && ` · ${t("harness.review_refused_here", { seq: replay.error!.atSeq })}`}
+        {refusedNext && ` · ${t("harness.review_refused_here", { seq: replay.rejection!.atSeq, reason: refusal(replay.rejection!) })}`}
       </p>
     </>
   );

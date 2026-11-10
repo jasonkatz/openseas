@@ -18,7 +18,8 @@ import {
   parseGunneryDeck,
   predictGunneryPath,
   reduceGunnery,
-  replayGunnery,
+  GUNNERY_DEF,
+  replayLog,
   type Dir,
   type GunneryConfig,
   type GunneryMove,
@@ -183,7 +184,7 @@ describe("gunnery determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const a = playRandom(seed, picks);
-        const b = replayGunnery(seed, a.moves);
+        const b = replayLog(GUNNERY_DEF, seed, cfg, a.moves).final;
         expect(hashGunneryState(b)).toBe(hashGunneryState(a.state));
         expect(b).toEqual(a.state);
       }),

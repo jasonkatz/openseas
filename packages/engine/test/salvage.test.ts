@@ -8,7 +8,8 @@ import {
   createSalvageGame,
   hashSalvageState,
   reduceSalvage,
-  replaySalvage,
+  SALVAGE_DEF,
+  replayLog,
   salvageCanClose,
   salvageCanExtend,
   salvageEnclosedCells,
@@ -104,7 +105,7 @@ describe("salvage determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const { moves, state } = playRandom(seed, picks);
-        const replayed = replaySalvage(seed, cfg, moves);
+        const replayed = replayLog(SALVAGE_DEF, seed, cfg, moves).final;
         expect(hashSalvageState(replayed)).toBe(hashSalvageState(state));
         expect(replayed).toEqual(state);
       }),

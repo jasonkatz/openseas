@@ -423,12 +423,6 @@ function act(state: ScannerState, move: ScannerMove, cell: number, ping: boolean
   };
 }
 
-export function replayScanner(seed: string, config: ScannerConfig, moves: readonly ScannerMove[]): ScannerState {
-  let s = createScannerGame(seed, config);
-  for (const m of moves) s = reduceScanner(s, m);
-  return s;
-}
-
 export function hashScannerState(state: ScannerState): string {
   const h = new Hasher();
   h.int(state.sector).int(state.par).int(state.spent);

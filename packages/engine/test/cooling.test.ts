@@ -13,7 +13,8 @@ import {
   isSpecial,
   previewSwap,
   reduceCooling,
-  replayCooling,
+  COOLING_DEF,
+  replayLog,
   swapIllegalReason,
   type CoolingConfig,
   type CoolingMove,
@@ -81,7 +82,7 @@ describe("cooling determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const a = playRandom(seed, picks);
-        const b = replayCooling(seed, a.moves);
+        const b = replayLog(COOLING_DEF, seed, cfg, a.moves).final;
         expect(hashCoolingState(b)).toBe(hashCoolingState(a.state));
         expect(b).toEqual(a.state);
       }),
@@ -529,7 +530,7 @@ describe("cooling aboard a ship (DESIGN.md 3.3)", () => {
           state = reduceCooling(state, m);
           moves.push(m);
         }
-        const again = replayCooling(seed, moves, aboard);
+        const again = replayLog(COOLING_DEF, seed, aboard, moves).final;
         expect(hashCoolingState(again)).toBe(hashCoolingState(state));
         expect(again).toEqual(state);
       }),

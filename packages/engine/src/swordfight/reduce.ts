@@ -149,12 +149,6 @@ export function createSwordfightGame(seed: string, config: SwordfightConfig = DE
   return { config, deal, boards, tick: 0, rng, nextId: 1, nextSlabId: 1, score: 0, moveCount: 0, lastMove: null, finished: false, outcome: null };
 }
 
-export function replaySwordfight(seed: string, moves: readonly SwordfightMove[], config: SwordfightConfig = DEFAULT_SWORDFIGHT_CONFIG): SwordfightState {
-  let s = createSwordfightGame(seed, config);
-  for (const m of moves) s = reduceSwordfight(s, m);
-  return s;
-}
-
 // ---- board geometry
 
 /** Pairs appear in this column, in the top two rows. */

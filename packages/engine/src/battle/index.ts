@@ -2,7 +2,6 @@ export * from "./types.js";
 export {
   createBattleGame,
   reduceBattle,
-  replayBattle,
   hashBattleState,
   summarizeBattle,
   resolveTurn as resolveBattleTurn,

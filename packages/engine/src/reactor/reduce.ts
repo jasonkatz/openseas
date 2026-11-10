@@ -416,12 +416,6 @@ function swipe(state: ReactorState, move: Extract<ReactorMove, { type: "swipe" }
   };
 }
 
-export function replayReactor(seed: string, config: ReactorConfig, moves: readonly ReactorMove[]): ReactorState {
-  let s = createReactorGame(seed, config);
-  for (const m of moves) s = reduceReactor(s, m);
-  return s;
-}
-
 export function hashReactorState(state: ReactorState): string {
   const h = new Hasher();
   h.int(state.cells.length);

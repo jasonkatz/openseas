@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { t } from "@openseas/boards";
+import { replayLog, type Replay } from "@openseas/engine";
 import { localSeed, type PracticeApi } from "../practice/usePractice.js";
 import type { HarnessPuzzle } from "../puzzles.js";
-import { replayRound, type Replay } from "../review/replay.js";
 import { takeStashedRoundFile, type RoundFile } from "../review/roundFile.js";
 import { formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
 import { applyOverrides } from "../scenario/overrides.js";
@@ -79,12 +79,16 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
       if (!check.ok) return check.errors.join("; ");
       let replay: Replay<S, M>;
       try {
-        replay = replayRound(puzzle.def, round.seed, config, round.moves as readonly M[], round.hashes);
+        replay = replayLog(puzzle.def, round.seed, config, round.moves as readonly M[], {
+          ...(round.hashes ? { hashes: round.hashes } : {}),
+          ...(round.roundSeconds !== undefined ? { roundMs: round.roundSeconds * 1000 } : {}),
+          keepStates: true,
+        });
       } catch (e) {
         return e instanceof Error ? e.message : String(e);
       }
       api.reset(round.seed, config);
-      const index = at ?? replay.divergedAt ?? replay.error?.atSeq ?? replay.steps.length;
+      const index = at ?? replay.divergedAt ?? replay.rejection?.atSeq ?? replay.steps.length;
       setReview({ round, replay, index: Math.max(0, Math.min(replay.steps.length, index)), remount: 1 });
       return null;
     },
@@ -137,17 +141,17 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
     if (scenario.autostart) setScenario({ ...scenario, autostart: null });
   }, [api, openReview, puzzle.id, scenario, setScenario, startLab]);
 
-  // Replay the finished round from its seed and compare every hash: the determinism check.
+  // Replay the finished round from its seed under the server's rules and compare every hash: the determinism check.
   const check = useMemo((): Replay<S, M> | null => {
     if (api.phase !== "result" && api.phase !== "waiting") return null;
     const round = api.round;
     if (!round || api.log.length === 0) return null;
-    return replayRound(
+    return replayLog(
       puzzle.def,
       round.seed,
       round.config,
       api.log.map((m) => m.move),
-      api.log.map((m) => m.hash),
+      { hashes: api.log.map((m) => m.hash), roundMs: round.roundSeconds * 1000 },
     );
     // api.log is a live array; api.version changes whenever it grows.
     // eslint-disable-next-line react-hooks/exhaustive-deps

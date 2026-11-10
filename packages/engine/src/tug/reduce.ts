@@ -416,12 +416,6 @@ function skip(state: TugState, move: Extract<TugMove, { type: "skip" }>): TugSta
   };
 }
 
-export function replayTug(seed: string, config: TugConfig, moves: readonly TugMove[]): TugState {
-  let s = createTugGame(seed, config);
-  for (const m of moves) s = reduceTug(s, m);
-  return s;
-}
-
 export function hashTugState(state: TugState): string {
   const h = new Hasher();
   h.int(state.blocks.length);

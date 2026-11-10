@@ -17,7 +17,8 @@ import {
   cuttingViewString,
   hashCuttingState,
   reduceCutting,
-  replayCutting,
+  CUTTING_DEF,
+  replayLog,
   type CuttingConfig,
   type CuttingMove,
   type CuttingState,
@@ -138,7 +139,7 @@ describe("cutting determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const { moves, state } = playRandom(seed, picks);
-        const replayed = replayCutting(seed, cfg, moves);
+        const replayed = replayLog(CUTTING_DEF, seed, cfg, moves).final;
         expect(hashCuttingState(replayed)).toBe(hashCuttingState(state));
         expect(replayed).toEqual(state);
       }),

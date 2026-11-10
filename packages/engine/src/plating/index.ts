@@ -3,7 +3,6 @@ export { PENTOMINOES, PENTOMINO_LETTERS, orient as platingOrient, extent as plat
 export {
   createPlatingGame,
   reducePlating,
-  replayPlating,
   hashPlatingState,
   summarizePlating,
   checkPlacement as platingCheckPlacement,

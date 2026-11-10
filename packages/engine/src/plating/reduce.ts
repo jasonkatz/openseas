@@ -220,12 +220,6 @@ export function reducePlating(state: PlatingState, move: PlatingMove): PlatingSt
   }
 }
 
-export function replayPlating(seed: string, moves: readonly PlatingMove[], config: PlatingConfig = DEFAULT_PLATING_CONFIG): PlatingState {
-  let s = createPlatingGame(seed, config);
-  for (const m of moves) s = reducePlating(s, m);
-  return s;
-}
-
 export function hashPlatingState(state: PlatingState): string {
   const h = new Hasher();
   h.int(state.config.width).int(state.config.height);

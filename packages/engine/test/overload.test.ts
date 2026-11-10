@@ -18,7 +18,7 @@ import {
   overloadTapIllegalReason,
   overloadViewString,
   reduceOverload,
-  replayOverload,
+  replayLog,
   summarizeOverload,
   type OverloadCell,
   type OverloadConfig,
@@ -110,7 +110,7 @@ describe("overload determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const { moves, state } = playRandom(seed, picks);
-        const replayed = replayOverload(seed, cfg, moves);
+        const replayed = replayLog(OVERLOAD_DEF, seed, cfg, moves).final;
         expect(hashOverloadState(replayed)).toBe(hashOverloadState(state));
         expect(replayed).toEqual(state);
       }),

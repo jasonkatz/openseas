@@ -503,12 +503,6 @@ function finishSlab(state: CuttingState, move: CuttingMove, cutReport: CuttingMo
   };
 }
 
-export function replayCutting(seed: string, config: CuttingConfig, moves: readonly CuttingMove[]): CuttingState {
-  let s = createCuttingGame(seed, config);
-  for (const m of moves) s = reduceCutting(s, m);
-  return s;
-}
-
 export function hashCuttingState(state: CuttingState): string {
   const h = new Hasher();
   h.int(state.ores.length);

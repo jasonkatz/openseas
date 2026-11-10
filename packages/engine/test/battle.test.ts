@@ -18,7 +18,8 @@ import {
   previewBattlePlan,
   previewBattleCourse,
   reduceBattle,
-  replayBattle,
+  BATTLE_DEF,
+  replayLog,
   resolveBattleTurn,
   type BattleConfig,
   type BattleMove,
@@ -139,7 +140,7 @@ describe("battle determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const a = playRandom(seed, picks);
-        const b = replayBattle(seed, a.moves);
+        const b = replayLog(BATTLE_DEF, seed, cfg, a.moves).final;
         expect(hashBattleState(b)).toBe(hashBattleState(a.state));
         expect(b).toEqual(a.state);
       }),

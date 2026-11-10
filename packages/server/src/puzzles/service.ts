@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { Content } from "@openseas/content";
 import { PUZZLE_IDS, parPerTurn, type PuzzleId } from "@openseas/engine";
-import { parseMoveFor, type ClientMetrics, type PuzzleIdWire, type PuzzleResult, type PuzzleStarted, type ServerMessage } from "@openseas/protocol";
+import { parseMoveFor, type ClientMetrics, type PuzzleIdWire, type PuzzleResult, type PuzzleStarted, type RejectReasonWire, type ServerMessage } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
 import type { Logger } from "../log.js";
@@ -13,6 +13,11 @@ const _idCheck: (p: PuzzleIdWire) => PuzzleId = (p) => p;
 const _idCheckBack: (p: PuzzleId) => PuzzleIdWire = (p) => p;
 void _idCheck;
 void _idCheckBack;
+// So must the reasons a round is refused for.
+const _reasonCheck: (r: RejectReasonWire) => RejectReason = (r) => r;
+const _reasonCheckBack: (r: RejectReason) => RejectReasonWire = (r) => r;
+void _reasonCheck;
+void _reasonCheckBack;
 
 const GRACE_MS = 5_000;
 

@@ -2,7 +2,6 @@ export * from "./types.js";
 export {
   createEnginesGame,
   reduceEngines,
-  replayEngines,
   hashEnginesState,
   summarizeEngines,
   pairCells as enginesPairCells,

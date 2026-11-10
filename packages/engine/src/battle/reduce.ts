@@ -213,12 +213,6 @@ export function createBattleGame(seed: string, config: BattleConfig = DEFAULT_BA
   };
 }
 
-export function replayBattle(seed: string, moves: readonly BattleMove[], config: BattleConfig = DEFAULT_BATTLE_CONFIG): BattleState {
-  let s = createBattleGame(seed, config);
-  for (const m of moves) s = reduceBattle(s, m);
-  return s;
-}
-
 // ---- moves
 
 /** Why the captain cannot fly this plan right now, or null when the engine would take it. */

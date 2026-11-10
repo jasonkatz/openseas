@@ -6,7 +6,6 @@ export * from "./types.js";
 export {
   createScannerGame,
   reduceScanner,
-  replayScanner,
   hashScannerState,
   summarizeScanner,
   validateConfig as validateScannerConfig,

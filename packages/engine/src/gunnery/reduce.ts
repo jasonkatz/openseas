@@ -199,12 +199,6 @@ export function advanceGunnery(state: GunneryState, tick: number): GunneryState 
   return { ...sim.state, lastMove: { move: { type: "wait", tick: sim.state.tick }, events: sim.events, points: sim.state.score - state.score } };
 }
 
-export function replayGunnery(seed: string, moves: readonly GunneryMove[], config: GunneryConfig = DEFAULT_GUNNERY_CONFIG): GunneryState {
-  let s = createGunneryGame(seed, config);
-  for (const m of moves) s = reduceGunnery(s, m);
-  return s;
-}
-
 export function hashGunneryState(state: GunneryState): string {
   const h = new Hasher();
   h.int(state.deckIndex).int(state.deck.width).int(state.deck.height).int(state.tick);

@@ -7,7 +7,6 @@ export {
   createDeflectorsGame,
   reduceDeflectors,
   advanceDeflectors,
-  replayDeflectors,
   hashDeflectorsState,
   summarizeDeflectors,
   validateConfig as validateDeflectorsConfig,

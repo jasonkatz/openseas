@@ -231,12 +231,6 @@ export function reduceEngines(state: EnginesState, move: EnginesMove): EnginesSt
   }
 }
 
-export function replayEngines(seed: string, moves: readonly EnginesMove[], config: EnginesConfig = DEFAULT_ENGINES_CONFIG): EnginesState {
-  let s = createEnginesGame(seed, config);
-  for (const m of moves) s = reduceEngines(s, m);
-  return s;
-}
-
 export function hashEnginesState(state: EnginesState): string {
   const h = new Hasher();
   h.int(state.config.width).int(state.config.height).int(state.config.pieceKinds);

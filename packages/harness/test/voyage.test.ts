@@ -141,6 +141,29 @@ describe("a voyage flies as the server would fly it", () => {
     }
   });
 
+  it("proves a voyage as the server would judge it, and reports a refused move instead of throwing", () => {
+    const sim = flyVoyage(setup({ seed: "proof-1", hail: "engage", world: HAILED, captain: { accuracy: 100, aggression: 100 } }));
+    expect(sim.battles.length).toBeGreaterThan(0);
+    const ok = proveVoyage(sim);
+    expect(ok.ok).toBe(true);
+    expect(ok.moves).toBe(sim.shipMoves.length + [...sim.battles, ...sim.melees].reduce((n, f) => n + f.moves.length, 0));
+    const battle = sim.battles[0]!;
+    const withBattle = (b: (typeof sim.battles)[number]): VoyageSim => ({ ...sim, battles: [b, ...sim.battles.slice(1)] });
+    // A move after the fight is over: the engine refuses it.
+    const late = proveVoyage(withBattle({ ...battle, moves: [...battle.moves, { type: "end" }], hashes: [...battle.hashes, "00000000"] }));
+    expect(late.mismatch).toMatchObject({ log: "battle 1", move: battle.moves.length + 1, reason: "illegal_move" });
+    // A log longer than the battle's cap: the server refuses the first move past it.
+    const capped = proveVoyage(withBattle({ ...battle, config: { ...battle.config, maxMoves: 2 } }));
+    expect(capped.mismatch).toEqual({ log: "battle 1", move: 3, reason: "too_many_moves" });
+    // A recorded hash that differs.
+    const hashes = [...battle.hashes];
+    hashes[1] = "00000000";
+    expect(proveVoyage(withBattle({ ...battle, hashes })).mismatch).toEqual({ log: "battle 1", move: 2, reason: "divergence" });
+    // The ship's own log: an illegal move is reported too.
+    const ship = proveVoyage({ ...sim, shipMoves: [...sim.shipMoves, { type: "board", pirateId: "" }], shipHashes: [...sim.shipHashes, "00000000"] });
+    expect(ship.mismatch).toMatchObject({ log: "ship", move: sim.shipMoves.length + 1, reason: "illegal_move" });
+  });
+
   it("fights the boarding melee with every pirate at the airlock", () => {
     // A bold captain against a raider that boards: most fights end at the airlock.
     const sims = Array.from({ length: 6 }, (_, i) => flyVoyage(setup({ seed: `rail-${i}`, hail: "engage", world: HAILED, captain: { accuracy: 100, aggression: 100 } })));

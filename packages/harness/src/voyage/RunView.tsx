@@ -3,7 +3,7 @@ import { BATTLE_PERMILLE, battlePlanIllegalReason, type BattlePlan, type Station
 import { BattleBoard, t } from "@openseas/boards";
 import type { CrewSpec, VoyageSetup } from "./scenario.js";
 import { needsPlot, flyOn, startVoyage, step, type SimEntry, type TurnSample, type VoyageSim } from "./sim.js";
-import { proveVoyage, voyageFile } from "./batch.js";
+import { proveVoyage, voyageFile, type Proof } from "./batch.js";
 import { OutputHeatmap, PhaseLegend, TimelineCharts, type Measure } from "./Charts.jsx";
 import { namer, outpostName, stationName } from "./names.js";
 
@@ -274,7 +274,7 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
             <section className="vpanel" data-testid="voyage-proof">
               <h3>{t("harness.voyage.proof_title")}</h3>
               <p className={proof.ok ? "ok" : "error"} data-testid="voyage-proof-result" data-ok={proof.ok ? "1" : "0"}>
-                {proof.ok ? t("harness.voyage.proof_ok", { moves: proof.moves }) : t("harness.voyage.proof_bad", { log: proof.mismatch!.log, move: proof.mismatch!.move })}
+                {proofLine(proof)}
               </p>
               <div className="bench-actions">
                 <button type="button" className="btn btn-ghost btn-mini" onClick={() => copy(voyageFile(sim), "file")}>
@@ -366,6 +366,13 @@ function MeleePanel({ melee, name }: { melee: NonNullable<VoyageSim["melees"][nu
       </table>
     </section>
   );
+}
+
+/** The proof's verdict: every hash matched, a log diverged, or the server would refuse a move. */
+function proofLine({ ok, moves, mismatch }: Proof): string {
+  if (ok || !mismatch) return t("harness.voyage.proof_ok", { moves });
+  if (mismatch.reason === "divergence") return t("harness.voyage.proof_bad", { log: mismatch.log, move: mismatch.move });
+  return t("harness.voyage.proof_refused", { log: mismatch.log, move: mismatch.move, reason: mismatch.message ?? t(`practice.reject.${mismatch.reason}`) });
 }
 
 /** A log line in words: ids become names, ids of things become their names in the message table. */

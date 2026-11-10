@@ -1,6 +1,7 @@
 import {
   InvalidMoveError,
   PUZZLES,
+  pureMoveRejection,
   soloHeatStart,
   soloHeatTurn,
   soloHeatTurnsDue,
@@ -9,11 +10,12 @@ import {
   type DutyPuzzleId,
   type PuzzleId,
   type PuzzleSummary,
+  type RejectReason,
   type ShipRules,
   type SoloHeat,
 } from "@openseas/engine";
 
-export type RejectReason = "divergence" | "illegal_move" | "bad_sequence" | "deadline" | "too_many_moves";
+export type { RejectReason };
 
 /** A round played at a ship's station rather than on a practice page. */
 export interface DutyBinding {
@@ -244,8 +246,9 @@ export class PuzzleSessionManager {
     }
     session.resyncing = false;
     const now = this.opts.now();
-    if (now > session.deadlineAt + this.opts.graceMs) return this.reject(session, "deadline", seq);
-    if (session.moves.length >= session.def.maxMoves(session.config)) return this.reject(session, "too_many_moves", seq);
+    // Late, or one too many: the rules a replay of the log holds it to as well.
+    const ruled = pureMoveRejection(session.def, session.config, session.moves.length, move, { roundMs: session.deadlineAt - session.startedAt, graceMs: this.opts.graceMs, atMs: now - session.startedAt });
+    if (ruled) return this.reject(session, ruled, seq);
     // A heat event is the ship's word, not the client's: it must repeat what the ship said.
     if (isHeatMove(move) && move.row !== session.shipHeatRow) return this.reject(session, "illegal_move", seq);
     // So is a battle's supply: the deal the ship announced, logged once.

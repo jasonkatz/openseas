@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { t } from "@openseas/boards";
 import type { HarnessPuzzle } from "../puzzles.js";
 import { SPEEDS, shareLink, type Scenario } from "../scenario/codec.js";
-import { findSeed } from "../review/replay.js";
+import { findSeed } from "../scenario/findSeed.js";
 import type { Validation } from "../scenario/validate.js";
 import { ConfigEditor } from "./ConfigEditor.jsx";
 import { copyText } from "./format.js";

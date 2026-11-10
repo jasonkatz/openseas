@@ -12,7 +12,8 @@ import {
   createPlatingGame,
   hashPlatingState,
   reducePlating,
-  replayPlating,
+  PLATING_DEF,
+  replayLog,
   type PlatingMove,
   type PlatingState,
 } from "../src/index.js";
@@ -136,7 +137,7 @@ describe("plating determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const a = playRandom(seed, picks);
-        const b = replayPlating(seed, a.moves);
+        const b = replayLog(PLATING_DEF, seed, cfg, a.moves).final;
         expect(hashPlatingState(b)).toBe(hashPlatingState(a.state));
         expect(b).toEqual(a.state);
       }),

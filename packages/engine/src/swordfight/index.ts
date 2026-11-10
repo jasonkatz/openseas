@@ -2,7 +2,6 @@ export * from "./types.js";
 export {
   createSwordfightGame,
   reduceSwordfight,
-  replaySwordfight,
   advanceSwordfight,
   hashSwordfightState,
   summarizeSwordfight,

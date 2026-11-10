@@ -24,7 +24,8 @@ import {
   deflectorsVolleyRoute,
   hashDeflectorsState,
   reduceDeflectors,
-  replayDeflectors,
+  DEFLECTORS_DEF,
+  replayLog,
   summarizeDeflectors,
   type DeflectorsBeam,
   type DeflectorsConfig,
@@ -111,7 +112,7 @@ describe("deflectors determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const { moves, state } = playRandom(seed, picks);
-        const replayed = replayDeflectors(seed, cfg, moves);
+        const replayed = replayLog(DEFLECTORS_DEF, seed, cfg, moves).final;
         expect(hashDeflectorsState(replayed)).toBe(hashDeflectorsState(state));
         expect(replayed).toEqual(state);
       }),

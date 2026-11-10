@@ -1,20 +1,21 @@
 /**
  * Many voyages of one scenario, each on its own seed, with the AI at the helm: how the ship and
  * crew fare on average and how widely. And the replay proof: a voyage's logs, flown again from
- * their seeds through the reducers, give the same hash after every move (ADR 0003).
+ * their seeds through the reducers under the server's rules, give the same hash after every move
+ * (ADR 0003).
  */
 
 import {
+  BATTLE_DEF,
+  InvalidMoveError,
   STATIONS,
-  hashBattleState,
+  SWORDFIGHT_DEF,
   hashShipState,
-  hashSwordfightState,
   reduceShip,
+  replayLog,
   createShip,
-  createBattleGame,
-  reduceBattle,
-  createSwordfightGame,
-  reduceSwordfight,
+  type RejectReason,
+  type Replay,
   type ShipBattleOutcome,
   type Station,
 } from "@openseas/engine";
@@ -154,41 +155,61 @@ export function batchStats(runs: readonly RunSummary[]): BatchStats {
   };
 }
 
+/** The first move of a voyage's logs the server would refuse: which log, the move counted from 1, and why. */
+export interface Mismatch {
+  readonly log: string;
+  readonly move: number;
+  readonly reason: RejectReason;
+  /** The engine's own words, for an illegal move. */
+  readonly message?: string;
+}
+
 export interface Proof {
   readonly ok: boolean;
   /** Moves replayed across the ship's log, every battle's and every melee's. */
   readonly moves: number;
-  /** Where the first difference was, or null. */
-  readonly mismatch: { readonly log: string; readonly move: number } | null;
+  /** Where the first refusal was, or null. */
+  readonly mismatch: Mismatch | null;
+}
+
+/** A fight's replay as the server would judge it: refused at its first divergence, or else at its first refused move. */
+function fightMismatch<S, M>(log: string, r: Replay<S, M>): Mismatch | null {
+  if (r.divergedAt !== null) return { log, move: r.divergedAt + 1, reason: "divergence" };
+  if (!r.rejection) return null;
+  return { log, move: r.rejection.atSeq + 1, reason: r.rejection.reason, ...(r.rejection.message !== undefined ? { message: r.rejection.message } : {}) };
 }
 
 /**
- * Fly the voyage's logs again from their seeds and compare every hash: the ship's log through the
- * ship reducer, each battle's through the battle reducer, each melee's through the swordfight's.
+ * Fly the voyage's logs again from their seeds and judge them as the server would: the ship's log
+ * through the ship reducer, and each battle's and each melee's through the engine's replay of its
+ * puzzle, every hash compared. A move the server would refuse is reported, never thrown.
  */
 export function proveVoyage(sim: VoyageSim): Proof {
   let moves = 0;
+  // The ship is no puzzle: nothing caps its log, so only its reducer and its hashes judge it.
   let ship = createShip(sim.setup.seed, sim.setup.ship, sim.setup.outpostId);
   for (let i = 0; i < sim.shipMoves.length; i++) {
-    ship = reduceShip(ship, sim.shipMoves[i]!);
-    moves += 1;
-    if (hashShipState(ship) !== sim.shipHashes[i]) return { ok: false, moves, mismatch: { log: "ship", move: i + 1 } };
-  }
-  for (const [n, b] of sim.battles.entries()) {
-    let s = createBattleGame(b.seed, b.config);
-    for (let i = 0; i < b.moves.length; i++) {
-      s = reduceBattle(s, b.moves[i]!);
-      moves += 1;
-      if (hashBattleState(s) !== b.hashes[i]) return { ok: false, moves, mismatch: { log: `battle ${n + 1}`, move: i + 1 } };
+    try {
+      ship = reduceShip(ship, sim.shipMoves[i]!);
+    } catch (e) {
+      if (e instanceof InvalidMoveError) return { ok: false, moves, mismatch: { log: "ship", move: i + 1, reason: "illegal_move", message: e.message } };
+      throw e;
     }
+    moves += 1;
+    if (hashShipState(ship) !== sim.shipHashes[i]) return { ok: false, moves, mismatch: { log: "ship", move: i + 1, reason: "divergence" } };
+  }
+  // A fight keeps time by the ship's turns, not a round's length, so none of its moves is judged late.
+  for (const [n, b] of sim.battles.entries()) {
+    const r = replayLog(BATTLE_DEF, b.seed, b.config, b.moves, { hashes: b.hashes });
+    moves += r.applied;
+    const bad = fightMismatch(`battle ${n + 1}`, r);
+    if (bad) return { ok: false, moves, mismatch: bad };
   }
   for (const [n, m] of sim.melees.entries()) {
-    let s = createSwordfightGame(m.seed, m.config);
-    for (let i = 0; i < m.moves.length; i++) {
-      s = reduceSwordfight(s, m.moves[i]!);
-      moves += 1;
-      if (hashSwordfightState(s) !== m.hashes[i]) return { ok: false, moves, mismatch: { log: `melee ${n + 1}`, move: i + 1 } };
-    }
+    const r = replayLog(SWORDFIGHT_DEF, m.seed, m.config, m.moves, { hashes: m.hashes });
+    moves += r.applied;
+    const bad = fightMismatch(`melee ${n + 1}`, r);
+    if (bad) return { ok: false, moves, mismatch: bad };
   }
   return { ok: true, moves, mismatch: null };
 }

@@ -6,7 +6,6 @@ export * from "./types.js";
 export {
   createCuttingGame,
   reduceCutting,
-  replayCutting,
   hashCuttingState,
   summarizeCutting,
   validateConfig as validateCuttingConfig,

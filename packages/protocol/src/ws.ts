@@ -197,10 +197,14 @@ export const PuzzleResultSchema = z.object({
   performance: z.object({ rating: z.int().min(0), tier: z.string() }),
 });
 
+/** Why the server refuses a round. Must list exactly the engine's RejectReason; the server checks the two agree at compile time. */
+export const RejectReasonSchema = z.enum(["divergence", "illegal_move", "bad_sequence", "deadline", "too_many_moves"]);
+export type RejectReasonWire = z.infer<typeof RejectReasonSchema>;
+
 export const PuzzleRejectedSchema = z.object({
   type: z.literal("puzzle.rejected"),
   sessionId: SessionId,
-  reason: z.enum(["divergence", "illegal_move", "bad_sequence", "deadline", "too_many_moves"]),
+  reason: RejectReasonSchema,
   atSeq: z.int().optional(),
 });
 

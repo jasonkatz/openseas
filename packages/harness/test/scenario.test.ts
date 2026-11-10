@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { PUZZLE_IDS, PUZZLES } from "@openseas/engine";
+import { COOLING_DEF, PUZZLE_IDS, PUZZLES, createCoolingGame } from "@openseas/engine";
 import { loadContent } from "@openseas/content";
 import { EMPTY_SCENARIO, formatScenario, parseScenario, shareLink } from "../src/scenario/codec.js";
+import { findSeed } from "../src/scenario/findSeed.js";
 import { applyOverrides, diffConfig, getPath, leaves, pruneOverrides } from "../src/scenario/overrides.js";
 import { PRESETS, deckPresets } from "../src/scenario/presets.js";
 import { serverAcceptsConfig } from "../src/scenario/validate.js";
@@ -118,4 +119,13 @@ describe("presets", () => {
       for (const p of PRESETS[id]) expect(content.messages, p.id).toHaveProperty([`harness.preset.${p.id}`]);
     });
   }
+});
+
+describe("findSeed", () => {
+  it("finds a seed whose opening board satisfies the probe, or none within the tries", () => {
+    const seed = findSeed(COOLING_DEF, content.puzzles.cooling.config, (s) => s.cells.some((p) => p.kind >= 100), "probe", 500);
+    expect(seed).not.toBeNull();
+    expect(createCoolingGame(seed!, content.puzzles.cooling.config).cells.some((p) => p.kind >= 100)).toBe(true);
+    expect(findSeed(COOLING_DEF, content.puzzles.cooling.config, () => false, "never", 3)).toBeNull();
+  });
 });

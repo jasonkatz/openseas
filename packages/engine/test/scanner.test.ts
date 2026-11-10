@@ -6,7 +6,8 @@ import {
   createScannerGame,
   hashScannerState,
   reduceScanner,
-  replayScanner,
+  SCANNER_DEF,
+  replayLog,
   scannerClearCells,
   scannerContactsFor,
   scannerContactsLeft,
@@ -117,7 +118,7 @@ describe("scanner determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const { moves, state } = playRandom(seed, picks);
-        const replayed = replayScanner(seed, cfg, moves);
+        const replayed = replayLog(SCANNER_DEF, seed, cfg, moves).final;
         expect(hashScannerState(replayed)).toBe(hashScannerState(state));
         expect(replayed).toEqual(state);
       }),

@@ -247,6 +247,20 @@ describe("PuzzleSessionManager", () => {
     expect(r.ok).toBe(false);
   });
 
+  it("rejects the first move past the cap as too_many_moves, before the engine's own refusal", () => {
+    const now = { t: 1000 };
+    const m = manager(now);
+    const def = PUZZLES.gunnery;
+    const s = m.start("p1", "gunnery", null, null, { config: { ...DEFAULT_GUNNERY_CONFIG, maxMoves: 2 }, roundMs: 60_000 });
+    let client = s.state;
+    for (let i = 0; i < 2; i++) {
+      const move = { type: "wait", tick: i + 1 };
+      client = def.reduce(client, move);
+      expect(m.move(s, i, move, def.hash(client))).toEqual({ ok: true, seq: i });
+    }
+    expect(m.move(s, 2, { type: "wait", tick: 3 }, "00000000")).toEqual({ ok: false, reason: "too_many_moves", atSeq: 2 });
+  });
+
   it("a harness Cooling round plays a lone ship's heat: it turns on the round's clock and only its depth is a legal heat move", () => {
     const now = { t: 1000 };
     // A leaky hull so the heat climbs past the board's floor inside a one-minute round.

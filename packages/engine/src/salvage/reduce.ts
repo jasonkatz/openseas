@@ -473,12 +473,6 @@ function haul(state: SalvageState, move: Extract<SalvageMove, { type: "tether" }
   };
 }
 
-export function replaySalvage(seed: string, config: SalvageConfig, moves: readonly SalvageMove[]): SalvageState {
-  let s = createSalvageGame(seed, config);
-  for (const m of moves) s = reduceSalvage(s, m);
-  return s;
-}
-
 export function hashSalvageState(state: SalvageState): string {
   const h = new Hasher();
   h.int(state.cells.length);

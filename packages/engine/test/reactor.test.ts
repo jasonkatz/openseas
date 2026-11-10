@@ -19,7 +19,8 @@ import {
   reactorSwipeOutcome,
   reactorViewString,
   reduceReactor,
-  replayReactor,
+  REACTOR_DEF,
+  replayLog,
   type ReactorConfig,
   type ReactorDir,
   type ReactorMove,
@@ -103,7 +104,7 @@ describe("reactor determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const { moves, state } = playRandom(seed, picks);
-        const replayed = replayReactor(seed, cfg, moves);
+        const replayed = replayLog(REACTOR_DEF, seed, cfg, moves).final;
         expect(hashReactorState(replayed)).toBe(hashReactorState(state));
         expect(replayed).toEqual(state);
       }),

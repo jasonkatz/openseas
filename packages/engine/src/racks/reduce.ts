@@ -283,12 +283,6 @@ function act(state: RacksState, move: Extract<RacksMove, { type: "move" | "call"
   };
 }
 
-export function replayRacks(seed: string, config: RacksConfig, moves: readonly RacksMove[]): RacksState {
-  let s = createRacksGame(seed, config);
-  for (const m of moves) s = reduceRacks(s, m);
-  return s;
-}
-
 const pure = (rack: readonly RacksCell[]): boolean => rack.every((c) => c.kind === rack[0]!.kind);
 
 /** How good a move looks to a tidy sorter who watches the mark. Null means never. */

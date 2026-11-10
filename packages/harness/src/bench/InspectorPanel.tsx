@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { t, type LoggedMove } from "@openseas/boards";
+import type { Replay } from "@openseas/engine";
 import type { PracticeApi, PracticeOutcome, RoundInfo } from "../practice/usePractice.js";
 import type { HarnessPuzzle } from "../puzzles.js";
-import type { Replay } from "../review/replay.js";
 import { diffConfig } from "../scenario/overrides.js";
-import { copyText, describeMove, valueToText } from "./format.js";
+import { copyText, describeMove, refusal, valueToText } from "./format.js";
 
 export interface InspectorPanelProps<S, M, C> {
   puzzle: HarnessPuzzle<S, M, C>;
@@ -12,7 +12,7 @@ export interface InspectorPanelProps<S, M, C> {
   /** The state being shown: the live one, or the reviewed one. */
   shown: S;
   shownHash: string;
-  /** Replay-from-seed of the finished round, when it has run. */
+  /** Replay-from-seed of the finished round under the server's rules, when it has run. */
   check: Replay<S, M> | null;
   onExport(): void;
   onReview(): void;
@@ -186,10 +186,10 @@ function ReplayCheck<S, M>({ check, phase, logLength }: { check: Replay<S, M> | 
       </p>
     );
   }
-  if (check.error) {
+  if (check.rejection) {
     return (
-      <p className="small error" data-testid="check-replay" data-outcome="illegal">
-        {t("harness.check_replay_illegal", { seq: check.error.atSeq, message: check.error.message })}
+      <p className="small error" data-testid="check-replay" data-outcome="refused" data-reason={check.rejection.reason}>
+        {t("harness.check_replay_refused", { seq: check.rejection.atSeq, reason: refusal(check.rejection) })}
       </p>
     );
   }
@@ -202,7 +202,7 @@ function ReplayCheck<S, M>({ check, phase, logLength }: { check: Replay<S, M> | 
   }
   return (
     <p className="small ok" data-testid="check-replay" data-outcome="ok">
-      {t("harness.check_replay_ok", { count: check.steps.length })}
+      {t("harness.check_replay_ok", { count: check.applied })}
     </p>
   );
 }

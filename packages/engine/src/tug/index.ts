@@ -6,7 +6,6 @@ export * from "./types.js";
 export {
   createTugGame,
   reduceTug,
-  replayTug,
   hashTugState,
   summarizeTug,
   validateConfig as validateTugConfig,

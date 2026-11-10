@@ -6,7 +6,6 @@ export * from "./types.js";
 export {
   createRacksGame,
   reduceRacks,
-  replayRacks,
   hashRacksState,
   summarizeRacks,
   validateConfig as validateRacksConfig,

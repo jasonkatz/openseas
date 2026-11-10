@@ -3,7 +3,6 @@ export {
   createGunneryGame,
   reduceGunnery,
   advanceGunnery,
-  replayGunnery,
   hashGunneryState,
   summarizeGunnery,
   parseDeck as parseGunneryDeck,

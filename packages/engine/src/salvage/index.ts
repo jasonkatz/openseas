@@ -6,7 +6,6 @@ export * from "./types.js";
 export {
   createSalvageGame,
   reduceSalvage,
-  replaySalvage,
   hashSalvageState,
   summarizeSalvage,
   validateConfig as validateSalvageConfig,

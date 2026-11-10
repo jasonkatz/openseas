@@ -6,7 +6,6 @@ export * from "./types.js";
 export {
   createReactorGame,
   reduceReactor,
-  replayReactor,
   hashReactorState,
   summarizeReactor,
   validateConfig as validateReactorConfig,

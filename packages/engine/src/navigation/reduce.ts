@@ -207,12 +207,6 @@ export function advanceNavigation(state: NavigationState, tick: number): Navigat
   return { ...finishWork(state, sim.work), lastMove: { move: { type: "wait", tick: sim.work.tick }, events: sim.work.events, points: sim.work.score - state.score } };
 }
 
-export function replayNavigation(seed: string, moves: readonly NavigationMove[], config: NavigationConfig = DEFAULT_NAVIGATION_CONFIG): NavigationState {
-  let s = createNavigationGame(seed, config);
-  for (const m of moves) s = reduceNavigation(s, m);
-  return s;
-}
-
 export function hashNavigationState(state: NavigationState): string {
   const h = new Hasher();
   h.int(state.config.rings).int(state.config.octants).int(state.config.shapes).int(state.config.colors);

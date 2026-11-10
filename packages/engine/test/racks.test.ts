@@ -18,7 +18,8 @@ import {
   racksViewString,
   racksWouldShip,
   reduceRacks,
-  replayRacks,
+  RACKS_DEF,
+  replayLog,
   type RacksCell,
   type RacksConfig,
   type RacksMove,
@@ -104,7 +105,7 @@ describe("racks determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const { moves, state } = playRandom(seed, picks);
-        const replayed = replayRacks(seed, cfg, moves);
+        const replayed = replayLog(RACKS_DEF, seed, cfg, moves).final;
         expect(hashRacksState(replayed)).toBe(hashRacksState(state));
         expect(replayed).toEqual(state);
       }),

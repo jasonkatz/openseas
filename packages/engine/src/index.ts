@@ -18,4 +18,5 @@ export * from "./racks/index.js";
 export * from "./cutting/index.js";
 export * from "./rating/index.js";
 export * from "./registry.js";
+export * from "./replay.js";
 export * from "./ship/index.js";

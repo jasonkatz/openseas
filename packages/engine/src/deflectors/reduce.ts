@@ -589,12 +589,6 @@ export function advanceDeflectors(state: DeflectorsState, tick: number): Deflect
   return { ...finishWork(state, w), lastMove: { move: { type: "wait", tick: w.tick }, events: w.events, points: w.score - state.score } };
 }
 
-export function replayDeflectors(seed: string, config: DeflectorsConfig, moves: readonly DeflectorsMove[]): DeflectorsState {
-  let s = createDeflectorsGame(seed, config);
-  for (const m of moves) s = reduceDeflectors(s, m);
-  return s;
-}
-
 export function hashDeflectorsState(state: DeflectorsState): string {
   const h = new Hasher();
   h.int(state.config.size).int(state.tick);

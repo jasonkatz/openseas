@@ -1,3 +1,6 @@
+import { t } from "@openseas/boards";
+import type { ReplayRejection } from "@openseas/engine";
+
 /** A move as one short line for the log: its fields after `type`, e.g. `swap col=2 row=5`. */
 export function describeMove(move: unknown): string {
   if (typeof move !== "object" || move === null) return String(move);
@@ -8,6 +11,11 @@ export function describeMove(move: unknown): string {
     .map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
     .join(" ");
   return rest ? `${type} ${rest}` : type;
+}
+
+/** Why a replay refused a move: the engine's own words for an illegal one, else the server's reason. */
+export function refusal(r: ReplayRejection): string {
+  return r.message ?? t(`practice.reject.${r.reason}`);
 }
 
 /** A config value for an input: arrays and objects as JSON, everything else as text. */

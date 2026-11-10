@@ -6,7 +6,8 @@ import {
   createTugGame,
   hashTugState,
   reduceTug,
-  replayTug,
+  TUG_DEF,
+  replayLog,
   tugDeliveryPoints,
   tugFlickIllegalReason,
   tugGradeAt,
@@ -132,7 +133,7 @@ describe("tug determinism (ADR 0003)", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         const { moves, state } = playRandom(seed, picks);
-        const replayed = replayTug(seed, cfg, moves);
+        const replayed = replayLog(TUG_DEF, seed, cfg, moves).final;
         expect(hashTugState(replayed)).toBe(hashTugState(state));
         expect(replayed).toEqual(state);
       }),

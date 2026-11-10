@@ -344,12 +344,6 @@ function tap(state: OverloadState, cell: number): { state: OverloadState; events
   };
 }
 
-export function replayOverload(seed: string, config: OverloadConfig, moves: readonly OverloadMove[]): OverloadState {
-  let s = createOverloadGame(seed, config);
-  for (const m of moves) s = reduceOverload(s, m);
-  return s;
-}
-
 export function hashOverloadState(state: OverloadState): string {
   const h = new Hasher();
   h.int(state.config.width).int(state.config.height).int(state.tick);
