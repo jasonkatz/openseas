@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { SALVAGE_CRATE, salvageStreakPercentAt, summarizeSalvage, type SalvageConfig, type SalvageMove, type SalvageState } from "@openseas/engine";
-import { KINDS, KindIcon, SalvageBoard, content, t } from "@openseas/boards";
+import { content, KindIcon, KINDS, SalvageBoard, SpriteIcon, spriteName, t } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -97,7 +97,7 @@ export function SalvagePractice() {
           <ul className="kinds">
             {kinds.map((k, i) => (
               <li key={k.id}>
-                <KindIcon kind={i} marks={showMarks} />
+                <KindIcon kind={i} marks={showMarks} sprite={{ puzzle: "salvage", name: spriteName("debris", i) }} />
                 <span>{t(`salvage.kind.${k.id}`)}</span>
               </li>
             ))}
@@ -127,17 +127,18 @@ export function SalvagePractice() {
 }
 
 function CrateIcon() {
-  return (
+  const vector = (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
       <rect x="3" y="3" width="18" height="18" rx="2" fill="#b9793c" stroke="#53361b" strokeWidth="1.4" />
       <path d="M7 3v18M17 3v18" stroke="#5d3e1e" strokeWidth="2.2" />
       <circle cx="12" cy="12" r="3" fill="#d4a548" stroke="#6a5324" />
     </svg>
   );
+  return <SpriteIcon puzzle="salvage" name="crate" fallback={vector} />;
 }
 
 function CouplerIcon() {
-  return (
+  const vector = (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
       {[
         [6, 6],
@@ -151,5 +152,6 @@ function CouplerIcon() {
       <circle cx="12" cy="12" r="3.6" fill="#142642" stroke="#747a85" />
     </svg>
   );
+  return <SpriteIcon puzzle="salvage" name="coupler" fallback={vector} />;
 }
 

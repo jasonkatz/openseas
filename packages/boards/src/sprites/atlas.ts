@@ -13,6 +13,14 @@ const urls: Record<SpritePuzzle, string> = {
   navigation: new URL("./navigation.webp", import.meta.url).href,
   swordfight: new URL("./swordfight.webp", import.meta.url).href,
   battle: new URL("./battle.webp", import.meta.url).href,
+  salvage: new URL("./salvage.webp", import.meta.url).href,
+  overload: new URL("./overload.webp", import.meta.url).href,
+  deflectors: new URL("./deflectors.webp", import.meta.url).href,
+  reactor: new URL("./reactor.webp", import.meta.url).href,
+  scanner: new URL("./scanner.webp", import.meta.url).href,
+  tug: new URL("./tug.webp", import.meta.url).href,
+  racks: new URL("./racks.webp", import.meta.url).href,
+  cutting: new URL("./cutting.webp", import.meta.url).href,
 };
 const images = new Map<SpritePuzzle, HTMLImageElement>();
 const pending = new Map<SpritePuzzle, Promise<void>>();
@@ -55,6 +63,17 @@ export const subscribeSprites = (listener: () => void): (() => void) => {
   return () => listeners.delete(listener);
 };
 export const spritesReady = (puzzle: SpritePuzzle): boolean => images.has(puzzle);
+export const isSpritePuzzle = (id: string): id is SpritePuzzle => Object.hasOwn(urls, id);
+/** True when the atlas is decoded and holds this frame: what a caller asks before it draws its fallback. */
+export const hasSprite = (puzzle: SpritePuzzle, name: string): boolean => images.has(puzzle) && frame(puzzle, name) !== undefined;
+
+/** Where a frame sits in its atlas image, for a legend that crops it in CSS. Undefined until the atlas is decoded. */
+export function spriteCrop(puzzle: SpritePuzzle, name: string): { url: string; x: number; y: number; size: number; width: number; height: number } | undefined {
+  const image = images.get(puzzle);
+  const f = frame(puzzle, name);
+  if (!image || !f) return undefined;
+  return { url: urls[puzzle], x: f[0]!, y: f[1]!, size: f[2]!, width: image.naturalWidth, height: image.naturalHeight };
+}
 
 function frame(puzzle: SpritePuzzle, name: string): readonly number[] | undefined {
   return (frames[puzzle] as Record<string, number[]>)[name];

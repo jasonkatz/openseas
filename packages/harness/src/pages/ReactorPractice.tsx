@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { reactorHotCount, reactorPipelineLeft, summarizeReactor, type ReactorConfig, type ReactorDir, type ReactorMove, type ReactorState } from "@openseas/engine";
-import { ReactorBoard, content, t } from "@openseas/boards";
+import { content, ReactorBoard, SpriteIcon, t } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -147,7 +147,7 @@ function RodIcon({ grade, hot, marks, size = 22 }: { grade: number; hot: boolean
   const color = GRADE_COLORS[(grade - 1) % GRADE_COLORS.length]!;
   const bars = Math.min(4, grade);
   const span = bars * 2.6 + (bars - 1) * 1.8;
-  return (
+  const vector = (
     <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" className="kind-icon">
       {hot ? (
         <>
@@ -179,6 +179,15 @@ function RodIcon({ grade, hot, marks, size = 22 }: { grade: number; hot: boolean
         </text>
       )}
     </svg>
+  );
+  return (
+    <SpriteIcon puzzle="reactor" name={hot ? "hot" : `grade-${grade}`} size={size} fallback={vector}>
+      {marks && (
+        <text x="18.5" y="8.5" fontSize="8" fontWeight="700" textAnchor="middle" fill="#0a1424" stroke="#ffffff" strokeWidth="2.4" paintOrder="stroke">
+          {grade}
+        </text>
+      )}
+    </SpriteIcon>
   );
 }
 

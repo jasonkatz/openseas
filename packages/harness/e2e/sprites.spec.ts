@@ -1,7 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { expectViewMatchesState } from "./helpers.js";
 
 // Exercise the production build: a working dev URL is not enough for shared-package assets.
-for (const puzzle of ["cooling", "engines", "plating", "gunnery", "navigation", "swordfight", "battle"]) {
+// The seven core boards, then the eight prototypes, which load theirs through the board kit (ADR 0037).
+const CORE = ["cooling", "engines", "plating", "gunnery", "navigation", "swordfight", "battle"];
+const PROTOTYPES = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting"];
+
+for (const puzzle of [...CORE, ...PROTOTYPES]) {
   test(`${puzzle} atlas loads, draws, and survives a resize`, async ({ page }, testInfo) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
@@ -35,5 +40,19 @@ test("an unavailable atlas falls back to playable procedural art", async ({ page
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
+  expect(errors).toEqual([]);
+});
+
+test("a kit board with no atlas draws its pieces in code and still plays", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.route("**/*.webp", (route) => route.abort());
+  await page.goto("/overload?seed=sprite-smoke&start=lab");
+  const canvas = page.getByTestId("overload-canvas");
+  await expect(canvas).toHaveAttribute("data-sprite-atlas", "fallback");
+  await expectViewMatchesState(page, "overload");
+  await page.keyboard.press(" ");
+  await expect(page.getByTestId("hud-moves")).toHaveText("1");
+  await expectViewMatchesState(page, "overload");
   expect(errors).toEqual([]);
 });

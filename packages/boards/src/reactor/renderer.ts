@@ -162,8 +162,9 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
   private texture(grade: number, hot: boolean): Texture {
     const cell = this.grid.cell;
     return this.bake(`rod:${grade}:${hot ? 1 : 0}:${this.showMarks ? 1 : 0}`, cell, (g) => {
-      if (hot) drawHotRod(g, cell);
-      else drawRod(g, cell, grade, this.colorOf(grade));
+      // A hot rod is one toothed disc whatever its grade; a casing past the sheet's seven is drawn in code.
+      if (hot) this.sprite(g, "hot", 0, 0, cell * 0.9) || drawHotRod(g, cell);
+      else this.sprite(g, `grade-${grade}`, 0, 0, cell * 0.9) || drawRod(g, cell, grade, this.colorOf(grade));
       // The mark setting adds the grade as a numeral, so no rod is told by color or count alone.
       if (this.showMarks) drawDigit(g, grade % 10, cell * 0.27, -cell * 0.27, cell * 0.2, hot ? 0x3a0d05 : 0x0a1424);
     });

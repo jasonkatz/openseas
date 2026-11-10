@@ -14,7 +14,7 @@ import {
   type SalvageState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, INK, drawPanel, drawPiece, drawWell, kindStyle, mix } from "../kit/art.js";
+import { FONT, INK, drawMark, drawPanel, drawPiece, drawWell, kindStyle, mix, spriteName } from "../kit/art.js";
 import { Grid, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
 
@@ -150,9 +150,13 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     const cell = this.grid.cell;
     return this.bake(`${kind}:${this.showMarks ? 1 : 0}`, cell, (g) => {
       const r = cell * 0.36;
-      if (kind === SALVAGE_CRATE) drawCrate(g, cell * 0.34);
-      else if (kind === SALVAGE_COUPLER) drawCoupler(g, r);
-      else drawPiece(g, kind, 0, 0, r, { marks: this.showMarks });
+      // The painted piece where the sheet has one, the code-drawn one where it does not.
+      const art = cell * 0.84;
+      if (kind === SALVAGE_CRATE) this.sprite(g, "crate", 0, 0, art) || drawCrate(g, cell * 0.34);
+      else if (kind === SALVAGE_COUPLER) this.sprite(g, "coupler", 0, 0, art) || drawCoupler(g, r);
+      else if (this.sprite(g, spriteName("debris", kind), 0, 0, art)) {
+        if (this.showMarks) drawMark(g, kind, 0, 0, r);
+      } else drawPiece(g, kind, 0, 0, r, { marks: this.showMarks });
     });
   }
 

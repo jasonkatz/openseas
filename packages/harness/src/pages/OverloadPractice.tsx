@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { advanceOverload, overloadStreakPercentAt, summarizeOverload, type OverloadConfig, type OverloadMove, type OverloadState } from "@openseas/engine";
-import { OverloadBoard, content, t, useTicked } from "@openseas/boards";
+import { content, OverloadBoard, SpriteIcon, t, useTicked } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -145,7 +145,7 @@ function CapacitorIcon({ charge, booster = false, marks }: { charge: number; boo
     const p = (a: number): string => `${(12 + Math.cos(a) * rr).toFixed(2)} ${(12 + Math.sin(a) * rr).toFixed(2)}`;
     return <path key={i} d={`M${p(a0)} A${rr} ${rr} 0 0 1 ${p(a1)}`} fill="none" stroke={i < charge ? color : "#2a3d60"} strokeWidth={r * 0.2} strokeLinecap="round" />;
   });
-  return (
+  const vector = (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
       {booster && (
         <>
@@ -165,5 +165,17 @@ function CapacitorIcon({ charge, booster = false, marks }: { charge: number; boo
         armed && <path d="M12.6 8.9l-2.4 3.6h1.7l-0.5 2.6 2.4-3.6h-1.7z" fill="#33150f" />
       )}
     </svg>
+  );
+  return (
+    <SpriteIcon puzzle="overload" name={`${booster ? "booster" : "charge"}-${charge}`} fallback={vector}>
+      {marks && (
+        <>
+          <circle cx="12" cy="12" r="4.6" fill={armed ? color : "#0a1424"} stroke="#fff" strokeOpacity="0.6" strokeWidth="0.5" />
+          <text x="12" y="14.6" textAnchor="middle" fontSize="7" fontWeight="700" fill={armed ? "#000" : "#fff"}>
+            {charge}
+          </text>
+        </>
+      )}
+    </SpriteIcon>
   );
 }

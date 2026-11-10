@@ -15,7 +15,7 @@ import {
   type RacksState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, FONT_DISPLAY, INK, drawPanel, drawPiece, kindStyle, mix } from "../kit/art.js";
+import { FONT, FONT_DISPLAY, INK, drawMark, drawPanel, drawPiece, kindStyle, mix, spriteName } from "../kit/art.js";
 import { KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
 
@@ -225,7 +225,11 @@ export class RacksRenderer extends KitBoard<RacksState> {
 
   private texture(kind: number): Texture {
     const g = this.geo;
-    return this.bake(`${kind}:${this.showMarks ? 1 : 0}`, g.cell, (gr) => drawPiece(gr, kind, 0, 0, g.r, { marks: this.showMarks }));
+    return this.bake(`${kind}:${this.showMarks ? 1 : 0}`, g.cell, (gr) => {
+      if (this.sprite(gr, spriteName("cell", kind), 0, 0, g.r * 2.2)) {
+        if (this.showMarks) drawMark(gr, kind, 0, 0, g.r);
+      } else drawPiece(gr, kind, 0, 0, g.r, { marks: this.showMarks });
+    });
   }
 
   // ---- drawing a state
@@ -614,7 +618,10 @@ export class RacksRenderer extends KitBoard<RacksState> {
       const lift = this.lifted;
       if (fits && (!lift || lift.rack !== rack)) {
         const base = state.racks[rack]!.length;
-        state.crate.cells.forEach((c, j) => drawPiece(u, c.kind, x, this.slotY(base + j), g.r * 0.9, { hollow: true, alpha: 0.5 }));
+        state.crate.cells.forEach((c, j) => {
+          const y = this.slotY(base + j);
+          if (!this.sprite(u, spriteName("target", c.kind), x, y, g.r * 2, 0.7)) drawPiece(u, c.kind, x, y, g.r * 0.9, { hollow: true, alpha: 0.5 });
+        });
       }
     }
 

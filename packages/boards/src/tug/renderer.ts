@@ -1,7 +1,7 @@
 import { Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
 import { tugFlickIllegalReason, tugSlide, tugSolve, tugViewString, type TugClamp, type TugDir, type TugMoveReport, type TugState } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, INK, drawPanel, drawPiece, drawWell, kindStyle, mix } from "../kit/art.js";
+import { FONT, INK, drawMark, drawPanel, drawPiece, drawWell, kindStyle, mix, spriteName } from "../kit/art.js";
 import { Grid, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
 
@@ -130,6 +130,10 @@ export class TugRenderer extends KitBoard<TugState> {
     const cell = this.grid.cell;
     return this.bake(`pod:${pod}:${this.showMarks ? 1 : 0}`, cell, (g) => {
       // A pod is a round tray with its own shape riding on it: the tray says "cargo", the shape says which.
+      if (this.sprite(g, spriteName("pod", pod), 0, 0, cell * 0.9)) {
+        if (this.showMarks) drawMark(g, pod, 0, -cell * 0.04, cell * 0.3);
+        return;
+      }
       const tray = cell * 0.43;
       const color = kindStyle(pod).color;
       g.circle(0, tray * 0.1, tray).fill({ color: INK.black, alpha: 0.4 });
@@ -148,6 +152,7 @@ export class TugRenderer extends KitBoard<TugState> {
     const b = this.blockLayer;
     b.clear();
     for (const cell of this.drawnBlocks) {
+      if (this.sprite(b, "block", g.x(cell), g.y(cell), g.cell * 0.9)) continue;
       const x = g.x(cell) - g.cell / 2;
       const y = g.y(cell) - g.cell / 2;
       const inset = g.cell * 0.07;
@@ -178,7 +183,13 @@ export class TugRenderer extends KitBoard<TugState> {
     s.roundRect(box.x, box.y, box.w, box.h, box.h * 0.4).fill({ color: mix(INK.well, INK.danger, 0.12 + pulse * 0.35) });
     s.roundRect(box.x, box.y, box.w, box.h, box.h * 0.4).stroke({ width: 1.5, color: mix(INK.edge, INK.danger, 0.3 + pulse * 0.6) });
     const clamp = this.drawnClamp;
-    if (clamp) drawPiece(s, clamp.pod, g.ox + g.cell * 0.42, this.label?.y ?? g.oy - g.cell * 0.5, g.cell * 0.24, { marks: this.showMarks });
+    if (clamp) {
+      const x = g.ox + g.cell * 0.42;
+      const y = this.label?.y ?? g.oy - g.cell * 0.5;
+      if (this.sprite(s, spriteName("pod", clamp.pod), x, y, g.cell * 0.62)) {
+        if (this.showMarks) drawMark(s, clamp.pod, x, y - g.cell * 0.03, g.cell * 0.2);
+      } else drawPiece(s, clamp.pod, x, y, g.cell * 0.24, { marks: this.showMarks });
+    }
     if (this.label) this.label.text = clamp ? this.opts.labels.status(clamp.par, this.shownFlicks) : "";
   }
 
@@ -382,6 +393,9 @@ export class TugRenderer extends KitBoard<TugState> {
     const born = Math.min(1, (this.time - this.clampLit) / 260);
     const half = g.cell * (0.46 + (1 - born) * 0.3);
     c.roundRect(x - g.cell * 0.46, y - g.cell * 0.46, g.cell * 0.92, g.cell * 0.92, g.cell * 0.16).fill({ color, alpha: 0.1 + pulse * 0.1 });
+    // The sheet's clamp is a frame round the outline of the pod it wants: it closes in as it lights, then breathes.
+    const art = g.cell * 0.94;
+    if (this.sprite(c, spriteName("clamp", clamp.pod), x, y, art * (1 + (1 - born) * 0.5), 0.7 + pulse * 0.3, art)) return;
     const jaw = g.cell * 0.26;
     for (const [sx, sy] of [
       [-1, -1],

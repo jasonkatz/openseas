@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { summarizeCutting, type CuttingConfig, type CuttingMove, type CuttingState } from "@openseas/engine";
-import { CuttingBoard, KINDS, KindIcon, content, t } from "@openseas/boards";
+import { content, CuttingBoard, KindIcon, KINDS, spriteName, t } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -111,7 +111,7 @@ export function CuttingPractice() {
           <ul className="kinds">
             {ores.map((k, i) => (
               <li key={k.id}>
-                <KindIcon kind={i} marks={showMarks} />
+                <KindIcon kind={i} marks={showMarks} sprite={{ puzzle: "cutting", name: spriteName("ore", i), fill: true }} />
                 <span>{t(`cutting.ore.${k.id}`)}</span>
               </li>
             ))}

@@ -249,10 +249,16 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       const y0 = y - size / 2 + inset;
       const w = size - inset * 2;
       // The recess a proven cell shows, then the fog over it, thinner as the shading comes in.
-      l.roundRect(x0, y0, w, w, round).fill({ color: CLEAR });
-      l.roundRect(x0, y0, w, w, round).stroke({ width: 1, color: INK.line, alpha: 0.9 });
       const fog = 1 - c.shade;
-      if (fog > 0.01) {
+      const plate = this.sprite(l, "clear", x, y, w);
+      if (plate) {
+        // The sheet's fog is clouded, which reads apart from a shaded plate as the stipple does.
+        if (fog > 0.01) this.sprite(l, "fog", x, y, w, fog);
+      } else {
+        l.roundRect(x0, y0, w, w, round).fill({ color: CLEAR });
+        l.roundRect(x0, y0, w, w, round).stroke({ width: 1, color: INK.line, alpha: 0.9 });
+      }
+      if (!plate && fog > 0.01) {
         l.roundRect(x0, y0, w, w, round).fill({ color: FOG, alpha: fog });
         l.roundRect(x0 + 1, y0 + 1, w - 2, w * 0.45, round).fill({ color: FOG_LIT, alpha: 0.45 * fog });
         // Fog is stippled, so it reads apart from a shaded cell by more than its brightness.
@@ -276,14 +282,21 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
         }
       }
       const r = size * 0.3 * c.pop;
+      // What a frame is drawn down for: a mark pops in, and must not be drawn down afresh at every size on the way.
+      const full = size * 0.3;
       if (ping) {
         // A ping's own cell: a diamond behind its number.
         const d = size * 0.4 * Math.min(1.15, c.pop);
+        if (this.sprite(l, "ping", x, y, d * 2.1, 0.5, size * 0.84)) return;
         l.poly([x, y - d, x + d, y, x, y + d, x - d, y]).fill({ color: PING, alpha: 0.14 });
         l.poly([x, y - d, x + d, y, x, y + d, x - d, y]).stroke({ width: Math.max(1.5, size * 0.035), color: PING, alpha: 0.75, join: "round" });
-      } else if (c.ch === "X") drawFound(l, x, y, r, this.showMarks);
-      else if (c.ch === "S") drawSpooked(l, x, y, r, this.showMarks);
-      else if (c.ch === "!") drawMiss(l, x, y, r);
+      } else if (c.ch === "X") {
+        if (!this.sprite(l, "found", x, y, r * 2.7, 1, full * 2.7)) drawFound(l, x, y, r, this.showMarks);
+        else if (this.showMarks) drawPips(l, 1, x, y, r * 0.8);
+      } else if (c.ch === "S") {
+        if (!this.sprite(l, "spooked", x, y, r * 2.4, 1, full * 2.4)) drawSpooked(l, x, y, r, this.showMarks);
+        else if (this.showMarks) drawPips(l, 2, x, y, r * 0.9, INK.text, 0.9);
+      } else if (c.ch === "!") this.sprite(l, "miss", x, y, r * 2, 1, full * 2) || drawMiss(l, x, y, r);
       else if (c.ch === "-" && this.showMarks && c.shade > 0.5) l.rect(x - size * 0.09, y - 1, size * 0.18, 2).fill({ color: INK.dim, alpha: 0.7 });
     });
   }
@@ -679,7 +692,8 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     if (this.press && held > 110) {
       const k = Math.min(1, (held - 110) / (LONG_PRESS_MS - 110));
       const cell = this.press.cell;
-      drawBrackets(l, g.x(cell), g.y(cell), g.cell * (0.74 - 0.3 * k), g.cell * 0.18, 3, LOCK, 0.5 + 0.5 * k);
+      const half = g.cell * (0.74 - 0.3 * k);
+      if (!this.sprite(l, "brackets", g.x(cell), g.y(cell), half * 2.1, 0.5 + 0.5 * k, g.cell * 0.92)) drawBrackets(l, g.x(cell), g.y(cell), half, g.cell * 0.18, 3, LOCK, 0.5 + 0.5 * k);
     }
   }
 
@@ -710,8 +724,10 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     const x = g.x(this.hint.cell);
     const y = g.y(this.hint.cell);
     const beat = 0.5 + 0.5 * Math.sin(this.time / 260);
-    if (this.hint.type === "lock") drawBrackets(this.hintLayer, x, y, g.cell * (0.4 + 0.05 * beat), g.cell * 0.16, 3, LOCK, 0.45 + 0.5 * beat);
-    else {
+    if (this.hint.type === "lock") {
+      const half = g.cell * (0.4 + 0.05 * beat);
+      if (!this.sprite(this.hintLayer, "lock", x, y, half * 2.1, 0.45 + 0.5 * beat, g.cell * 0.92)) drawBrackets(this.hintLayer, x, y, half, g.cell * 0.16, 3, LOCK, 0.45 + 0.5 * beat);
+    } else {
       const r = g.cell * (0.3 + 0.06 * beat);
       this.hintLayer.poly([x, y - r, x + r, y, x, y + r, x - r, y]).stroke({ width: 3, color: PING, alpha: 0.45 + 0.5 * beat, join: "round" });
     }

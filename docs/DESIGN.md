@@ -825,11 +825,12 @@ What holds for all eight:
   home page lists them apart from the game's puzzles.
 - **A round is 120 seconds** on the clock, scored against thresholds set from bots playing the
   engine. They are guesses until testers have played.
-- **Placeholder art.** Boards are built from a shared kit that draws vector pieces in code: one
-  silhouette and one color a kind, with pips for the mark setting (rule 6). The owner's sprite pass
-  comes to a puzzle only when it is kept.
+- **Sprites over a code-drawn fallback** (ADR 0037). Boards are built from a shared kit. Each
+  draws the owner's sprites from its own atlas, and falls back to vector pieces drawn in code (one
+  silhouette and one color a kind) when the atlas is missing or a lab config goes past the sheet.
+  The mark setting's pips and numerals are always drawn in code (rule 6).
 - **Each owns its files**, so a puzzle is promoted or dropped without touching the others.
-- **Promotion is its own decision:** a role in the game, an ADR, a milestone, then sprites.
+- **Promotion is its own decision:** a role in the game, an ADR, a milestone.
 
 ## 4. Architecture
 
@@ -918,7 +919,7 @@ still proven there first, with its tester session, and only then embedded in the
 | M5 | Swordfighting boarding and the walkable outpost |
 | M6 | OAuth upgrade (a guest links Discord or Google in place and keeps everything; returning players sign in), crews (found with a name and flag, invite, ranks, crew chat, crew-only ships, crews' colors on ships, tallies and the board of crews, pirates' cards), polish pass |
 | M7 | The space reskin (ADR 0034): every word, the three.js world and the codebase move from the sea to space, with the mechanics unchanged and the database wiped. The puzzle boards' art waits for the owner's sprite pass, which has since landed for the sprites |
-| M8 | Prototype puzzles (3.12, ADR 0036): eight new puzzles of the game's own, each a whole engine playable on the harness with placeholder art. Done when the owner has played all eight and chosen which, if any, go on |
+| M8 | Prototype puzzles (3.12, ADR 0036): eight new puzzles of the game's own, each a whole engine playable on the harness, in the owner's sprites (ADR 0037). Done when the owner has played all eight and chosen which, if any, go on |
 
 Every milestone ends with a tester session and a written retro before the next starts.
 

@@ -16,7 +16,7 @@ import {
   type DeflectorsVolley,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, INK, drawPanel, drawPiece, drawPips, drawWell, kindStyle, mix, shapePath } from "../kit/art.js";
+import { FONT, INK, drawMark, drawPanel, drawPiece, drawPips, drawWell, kindStyle, mix, shapePath } from "../kit/art.js";
 import { Grid, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
 
@@ -26,10 +26,10 @@ import { ease } from "../kit/tween.js";
  * third is the kit's triangle in another color, because the triangle's own red is what a beam gone
  * astray is marked in.
  */
-export const DEFLECTORS_SIGNS: ReadonlyArray<{ readonly kind: number; readonly color: number }> = [
-  { kind: 0, color: 0xf5d021 },
-  { kind: 1, color: 0x58c4f6 },
-  { kind: 2, color: 0xb48cff },
+export const DEFLECTORS_SIGNS: ReadonlyArray<{ readonly kind: number; readonly color: number; readonly id: string }> = [
+  { kind: 0, color: 0xf5d021, id: "gold" },
+  { kind: 1, color: 0x58c4f6, id: "ice" },
+  { kind: 2, color: 0xb48cff, id: "violet" },
 ];
 
 export interface DeflectorsCallbacks {
@@ -252,9 +252,17 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     return pts;
   }
 
-  private mirrorTexture(): Texture {
+  /**
+   * A mirror's texture. A `\\` is a sprite a quarter turn on from a `/`, so the code-drawn bar is one
+   * texture for both. The sheet paints each on its own mount, lit from the upper left: the `\\` frame
+   * is baked a quarter turn back, and the sprite's own turn stands it upright again.
+   */
+  private mirrorTexture(way: number = DEFLECTORS_SLASH): Texture {
     const cell = this.grid.cell;
-    return this.bake("mirror", cell, (g) => {
+    const back = way !== DEFLECTORS_SLASH && this.hasSprite("mirror-backslash");
+    return this.bake(back ? "mirror-back" : "mirror", cell, (g) => {
+      if (back && this.sprite(g, "mirror-backslash", 0, 0, cell * 0.84, 1, cell * 0.84, -1)) return;
+      if (this.sprite(g, "mirror-slash", 0, 0, cell * 0.84)) return;
       // A `/` bar: a dark mount, a pale glass face, a bright edge, a pivot in the middle.
       const r = cell * 0.31;
       const glass = 0xdfe9f5;
@@ -274,10 +282,9 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   private snapMirrors(state: DeflectorsState): void {
     for (const s of this.mirrors.values()) s.destroy();
     this.mirrors.clear();
-    const texture = this.mirrorTexture();
     state.mirrors.forEach((m, cell) => {
       if (m === DEFLECTORS_EMPTY) return;
-      const s = new Sprite(texture);
+      const s = new Sprite(this.mirrorTexture(m));
       s.anchor.set(0.5);
       s.position.set(this.grid.x(cell), this.grid.y(cell));
       s.rotation = m === DEFLECTORS_SLASH ? SLASH_ROTATION : BACKSLASH_ROTATION;
@@ -296,7 +303,13 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     this.flipsSeen++;
     if (!s) return;
     sfx.swap();
-    this.tweens.to(s, { rotation: way === DEFLECTORS_SLASH ? SLASH_ROTATION : BACKSLASH_ROTATION }, 150, { ease: ease.outBack });
+    // It turns as it is, then takes the art of the way it now stands.
+    this.tweens.to(s, { rotation: way === DEFLECTORS_SLASH ? SLASH_ROTATION : BACKSLASH_ROTATION }, 150, {
+      ease: ease.outBack,
+      done: () => {
+        if (!s.destroyed) s.texture = this.mirrorTexture(way);
+      },
+    });
     this.tweens.run(150, (k) => s.scale.set(1 + 0.18 * Math.sin(k * Math.PI)), { ease: ease.linear, done: () => s.scale.set(1) });
     this.fx.ring(s.x, s.y, INK.white, this.grid.cell * 0.2, this.grid.cell * 0.52, 240, 2);
   }
@@ -566,14 +579,23 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       }
       // Ready to fire: the entry breathes.
       const ready = out.clean ? 1 + 0.07 * Math.sin(this.time / 170) : 1;
-      drawPiece(marks, sign.kind, entry.x, entry.y, r * ready, { color: sign.color, marks: this.showMarks });
+      // A sign on its post is taller than the bare shape; `r` stays the size its ring is drawn round.
+      const art = c * 0.6;
+      if (this.sprite(marks, `sign-${sign.id}`, entry.x, entry.y, art * pop * ready, 1, art)) {
+        if (this.showMarks) drawMark(marks, sign.kind, entry.x, entry.y - art * 0.06, r);
+      } else drawPiece(marks, sign.kind, entry.x, entry.y, r * ready, { color: sign.color, marks: this.showMarks });
       // The exit: the same sign as an outline, filled once the beam is home.
       if (shot.hit) {
         marks.circle(exit.x, exit.y, c * (0.4 + 0.03 * Math.sin(this.time / 170))).stroke({ width: Math.max(2, c * 0.05), color: sign.color, alpha: 0.9 });
-        drawPiece(marks, sign.kind, exit.x, exit.y, r, { color: sign.color, alpha: 0.55 });
       }
-      drawPiece(marks, sign.kind, exit.x, exit.y, r, { color: sign.color, hollow: true });
-      if (this.showMarks) drawPips(marks, sign.kind + 1, exit.x, exit.y, r * 0.9, shot.hit ? INK.black : sign.color, 0.9);
+      // Home, the outline is the sign itself; astray, it is the hollow target.
+      if (this.sprite(marks, `${shot.hit ? "sign" : "target"}-${sign.id}`, exit.x, exit.y, art * pop, 1, art)) {
+        if (this.showMarks) drawMark(marks, sign.kind, exit.x, exit.y - art * 0.06, r);
+      } else {
+        if (shot.hit) drawPiece(marks, sign.kind, exit.x, exit.y, r, { color: sign.color, alpha: 0.55 });
+        drawPiece(marks, sign.kind, exit.x, exit.y, r, { color: sign.color, hollow: true });
+        if (this.showMarks) drawPips(marks, sign.kind + 1, exit.x, exit.y, r * 0.9, shot.hit ? INK.black : sign.color, 0.9);
+      }
     });
   }
 
@@ -723,7 +745,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   }
 }
 
-function signOf(sign: number): { readonly kind: number; readonly color: number } {
+function signOf(sign: number): { readonly kind: number; readonly color: number; readonly id: string } {
   return DEFLECTORS_SIGNS[sign % DEFLECTORS_SIGNS.length]!;
 }
 

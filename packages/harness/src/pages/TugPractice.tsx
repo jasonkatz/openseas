@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { summarizeTug, type TugConfig, type TugDir, type TugMove, type TugState } from "@openseas/engine";
-import { KINDS, KindIcon, TugBoard, content, t } from "@openseas/boards";
+import { content, KindIcon, KINDS, SpriteIcon, spriteName, t, TugBoard } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -97,7 +97,7 @@ export function TugPractice() {
           <ul className="kinds">
             {kinds.map((k, i) => (
               <li key={k.id}>
-                <KindIcon kind={i} marks={showMarks} />
+                <KindIcon kind={i} marks={showMarks} sprite={{ puzzle: "tug", name: spriteName("pod", i) }} />
                 <span>{t(`tug.kind.${k.id}`)}</span>
               </li>
             ))}
@@ -129,19 +129,21 @@ export function TugPractice() {
 }
 
 function ClampIcon() {
-  return (
+  const vector = (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
       <path d="M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5" fill="none" stroke="#f5d021" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
       <circle cx="12" cy="12" r="4.5" fill="#f5d021" fillOpacity="0.12" stroke="#f5d021" strokeWidth="1.6" />
     </svg>
   );
+  return <SpriteIcon puzzle="tug" name="clamp-gold" fallback={vector} />;
 }
 
 function BlockIcon() {
-  return (
+  const vector = (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
       <rect x="3" y="3" width="18" height="18" rx="3" fill="#33435f" stroke="#6c7a94" strokeWidth="1.4" />
       <path d="M7.5 7.5l9 9M16.5 7.5l-9 9" stroke="#1c2534" strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   );
+  return <SpriteIcon puzzle="tug" name="block" fallback={vector} />;
 }

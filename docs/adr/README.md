@@ -42,3 +42,4 @@ that supersedes it.
 | [0034](./0034-space-setting.md) | The game moves to space: a reskin with the mechanics frozen |
 | [0035](./0035-no-island-no-boat.md) | No island and no boat: a cratered rock, and a hull that is cut away aboard |
 | [0036](./0036-prototype-puzzles.md) | Prototype puzzles: whole engines the server verifies, dealt only on the harness |
+| [0037](./0037-prototype-sprite-atlases.md) | Prototype boards draw from sprite atlases through the kit, with the code-drawn art as fallback |

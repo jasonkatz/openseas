@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { scannerContactsLeft, scannerPingsLeft, scannerStreakPercentAt, summarizeScanner, type ScannerConfig, type ScannerMove, type ScannerState } from "@openseas/engine";
-import { ScannerBoard, content, t } from "@openseas/boards";
+import { content, ScannerBoard, SpriteIcon, t } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -153,7 +153,7 @@ export function ScannerPractice() {
 /** One of the six things a cell can show, drawn as the board draws it. */
 function CellIcon({ kind, marks = false }: { kind: "fog" | "clear" | "ping" | "found" | "spooked" | "miss"; marks?: boolean }) {
   const fog = kind === "fog";
-  return (
+  const vector = (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
       <rect x="2" y="2" width="20" height="20" rx="4" fill={fog ? "#2b4369" : "#0b1627"} stroke="#24395c" />
       {fog &&
@@ -194,5 +194,22 @@ function CellIcon({ kind, marks = false }: { kind: "fog" | "clear" | "ping" | "f
       )}
       {kind === "miss" && <path d="M7.500 7.500l9 9M16.500 7.500l-9 9" stroke="#f0604d" strokeWidth="2.400" strokeLinecap="round" />}
     </svg>
+  );
+  return (
+    <SpriteIcon puzzle="scanner" name={kind} fallback={vector}>
+      {kind === "ping" && (
+        <text x="12" y="16.2" textAnchor="middle" fontSize="11.5" fontWeight="900" fill="#fff" stroke="#0a1424" strokeWidth="2.2" paintOrder="stroke">
+          3
+        </text>
+      )}
+      {kind === "clear" && marks && <rect x="9.5" y="11.4" width="5" height="1.2" fill="#8ea0bd" />}
+      {kind === "found" && marks && <circle cx="12" cy="12" r="1.15" fill="#000" fillOpacity="0.78" />}
+      {kind === "spooked" && marks && (
+        <>
+          <circle cx="10.4" cy="10.4" r="1.05" fill="#e8e2cf" />
+          <circle cx="13.6" cy="13.6" r="1.05" fill="#e8e2cf" />
+        </>
+      )}
+    </SpriteIcon>
   );
 }

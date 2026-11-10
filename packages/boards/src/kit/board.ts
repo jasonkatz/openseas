@@ -8,7 +8,8 @@
  * A renderer draws and reports input. It never scores and never decides what a move does: it asks
  * the engine (CLAUDE.md, "boards is presentation and transport only").
  */
-import { Application, Container, Graphics, Rectangle, type FederatedPointerEvent, type Texture } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Texture, type FederatedPointerEvent } from "pixi.js";
+import { drawSprite, hasSprite, isSpritePuzzle, loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
 import { boardSurface } from "../surface.js";
 import { Fx } from "./fx.js";
 import { Tweens } from "./tween.js";
@@ -30,10 +31,16 @@ export abstract class KitBoard<S> {
   private framePending = false;
   private viewStale = false;
   private readonly baked = new Map<string, Texture>();
+  /**
+   * Atlas frames drawn down to the size they are shown at. Kept for the board's life, not dropped at
+   * a layout: a layer the layout does not redraw still holds its fills, and a freed texture under a
+   * fill is a crash at the next frame. Sizes are rounded up to a step, so a resize makes few of them.
+   */
+  private readonly frames = new Map<string, Texture>();
 
   /**
    * @param host the element the canvas fills.
-   * @param id the puzzle id: the canvas is `data-testid="<id>-canvas"`.
+   * @param id the puzzle id: the canvas is `data-testid="<id>-canvas"`, and the board's sprites are the atlas of that name.
    * @param onFrame called on the first settled frame after each new state, for the latency meter.
    */
   constructor(
@@ -52,6 +59,8 @@ export abstract class KitBoard<S> {
   }
 
   async init(): Promise<void> {
+    // One decode a page (ADR 0037). An atlas that fails or times out leaves the code-drawn pieces.
+    if (isSpritePuzzle(this.id)) await loadPuzzleSprites(this.id);
     await this.app.init({ resizeTo: this.host, backgroundAlpha: 0, ...boardSurface(), autoDensity: true, preference: "webgl" });
     if (this.destroyed) {
       this.app.destroy(true);
@@ -60,6 +69,7 @@ export abstract class KitBoard<S> {
     const canvas = this.app.canvas;
     canvas.style.touchAction = "none";
     canvas.setAttribute("data-testid", `${this.id}-canvas`);
+    canvas.setAttribute("data-sprite-atlas", isSpritePuzzle(this.id) && spritesReady(this.id) ? this.id : "fallback");
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.host.appendChild(canvas);
     this.app.stage.addChild(this.world);
@@ -89,6 +99,8 @@ export abstract class KitBoard<S> {
       this.dispose();
       this.app.destroy(true, { children: true });
       this.dropBaked();
+      for (const t of this.frames.values()) t.destroy(true);
+      this.frames.clear();
     }
   }
 
@@ -188,6 +200,42 @@ export abstract class KitBoard<S> {
     this.baked.clear();
   }
 
+  /** True when the board's atlas is loaded and holds `name`. A kind or a lab setting past the sheet has no frame. */
+  protected hasSprite(name: string): boolean {
+    return isSpritePuzzle(this.id) && hasSprite(this.id, name);
+  }
+
+  /**
+   * Paint the atlas frame `name` into `g`, its art fitted in a square of `size` centred on (x, y).
+   * Returns false, having drawn nothing, when there is no such frame: the caller then draws the
+   * piece in code, so `this.sprite(...) || drawPiece(...)` is the whole of a fallback.
+   *
+   * The frame is drawn down once to about the pixels it is shown at, since a 192px frame sampled
+   * straight into a 40px cell shimmers. `natural` is the size to draw it down for when `size` is animated.
+   * `turns` draws the art that many quarter turns clockwise, for a sprite that is itself turned back.
+   */
+  protected sprite(g: Graphics, name: string, x: number, y: number, size: number, alpha = 1, natural = size, turns = 0): boolean {
+    if (!isSpritePuzzle(this.id) || !hasSprite(this.id, name) || size <= 0.5) return false;
+    const full = size * FRAME_FIT;
+    const px = Math.max(FRAME_STEP, Math.ceil((natural * FRAME_FIT * this.app.renderer.resolution) / FRAME_STEP) * FRAME_STEP);
+    const key = `${name}@${px}@${turns}`;
+    let texture = this.frames.get(key);
+    if (!texture) {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = px;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return false;
+      ctx.imageSmoothingQuality = "high";
+      ctx.translate(px / 2, px / 2);
+      ctx.rotate((turns * Math.PI) / 2);
+      drawSprite(ctx, this.id, name, -px / 2, -px / 2, px, px);
+      texture = Texture.from(canvas);
+      this.frames.set(key, texture);
+    }
+    g.rect(x - full / 2, y - full / 2, full, full).fill({ texture, textureSpace: "local", alpha });
+    return true;
+  }
+
   /** Tell the smoke test where the grid sits on the canvas, in CSS pixels: `data-geom="ox,oy,cell"`. */
   protected publishGeom(ox: number, oy: number, cell: number): void {
     this.app.canvas.setAttribute("data-geom", `${Math.round(ox)},${Math.round(oy)},${Math.round(cell * 100) / 100}`);
@@ -225,6 +273,11 @@ export abstract class KitBoard<S> {
     }
   }
 }
+
+/** A frame is 192 pixels and its art is fitted in the middle 176 (`sprites/README.md`). */
+export const FRAME_FIT = 192 / 176;
+/** Drawn-down frames come in sizes this many pixels apart. */
+const FRAME_STEP = 8;
 
 /** A rectangular grid of square cells laid out in the canvas: where each cell is, and which cell a point is in. Row 0 is the top row. */
 export class Grid {

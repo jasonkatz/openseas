@@ -1,7 +1,8 @@
 /**
- * Placeholder art for prototype boards (ADR 0036): vector pieces drawn in code, one silhouette and
- * one color per kind, so kinds read apart without color (CLAUDE.md rule 6), and an optional mark of
- * pips for the player setting. The owner's sprite pass replaces all of it for a puzzle that is kept.
+ * Code-drawn art for prototype boards (ADR 0036): vector pieces, one silhouette and one color per
+ * kind, so kinds read apart without color (CLAUDE.md rule 6), and an optional mark of pips for the
+ * player setting. A board draws its atlas's sprites over these (ADR 0037); these are what it draws
+ * when the atlas is missing or has no frame for a kind.
  */
 import type { Graphics } from "pixi.js";
 
@@ -144,6 +145,20 @@ export function drawPips(g: Graphics, count: number, x: number, y: number, r: nu
   for (const [dx, dy] of layout) g.circle(x + dx * gap, y + dy * gap, dot);
   g.fill({ color, alpha });
 }
+
+/**
+ * A kind's pips on a dark plate, for a sprite: painted art has no flat face for dark pips to read
+ * on, so the mark brings its own. The same count and layout as `drawPips`.
+ */
+export function drawMark(g: Graphics, kind: number, x: number, y: number, r: number): void {
+  const half = r * 0.52;
+  g.roundRect(x - half, y - half, half * 2, half * 2, half * 0.34).fill({ color: INK.bg, alpha: 0.86 });
+  g.roundRect(x - half, y - half, half * 2, half * 2, half * 0.34).stroke({ width: Math.max(1, r * 0.05), color: INK.white, alpha: 0.7 });
+  drawPips(g, (kind % KINDS.length) + 1, x, y, r * 0.86, INK.white, 1);
+}
+
+/** The atlas frame of a kind: `spriteName("debris", 2)` is `debris-ember`. */
+export const spriteName = (prefix: string, kind: number): string => `${prefix}-${kindStyle(kind).id}`;
 
 /**
  * One placeholder piece of `kind` centred on (x, y) with radius `r`: its silhouette in its color,

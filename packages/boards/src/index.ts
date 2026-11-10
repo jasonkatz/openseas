@@ -38,7 +38,8 @@ export { swordfightViewString, type RemoteBoard as MeleeRemoteBoard, type PlaceA
 export { KitBoard, Grid } from "./kit/board.js";
 export { useKitBoard, type KitBoardProps } from "./kit/useKitBoard.js";
 export { KindIcon, type KindIconProps } from "./kit/KindIcon.jsx";
-export { INK, KINDS, kindStyle, type PlaceholderKind, type Shape } from "./kit/art.js";
+export { SpriteIcon, type SpriteIconProps } from "./kit/SpriteIcon.jsx";
+export { INK, KINDS, kindStyle, spriteName, type PlaceholderKind, type Shape } from "./kit/art.js";
 // Prototype boards (ADR 0036).
 export { SalvageBoard, type SalvageBoardProps } from "./salvage/SalvageBoard.jsx";
 export { OverloadBoard, type OverloadBoardProps } from "./overload/OverloadBoard.jsx";

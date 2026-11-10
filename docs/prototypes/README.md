@@ -2,7 +2,8 @@
 
 Eight new puzzles, built to be played and judged on the harness (ADR 0036). None is in the game.
 Each is the game's own design: inspired by the feel of the original's puzzles, ported from none of
-them. Art is placeholder, drawn in code by the board kit.
+them. Each board draws the owner's sprites from its own atlas (ADR 0037), over code-drawn pieces
+that stand in when the atlas is missing or a lab config goes past the sheet.
 
 | Puzzle | The verb | Page | Design |
 |---|---|---|---|
@@ -35,6 +36,7 @@ example for every one of them.
 | `packages/content/data/puzzles/<id>.json` | The config the server deals, the round length, the thresholds. |
 | `packages/content/data/messages/prototypes/<id>.json` | Every string the puzzle shows. |
 | `packages/boards/src/<id>/renderer.ts` | A `KitBoard` subclass: draws the state, plays the last move, reports input. |
+| `packages/boards/src/sprites/<id>.webp` | The puzzle's atlas, with its frames in `frames.json` and its line in `atlas.ts`. |
 | `packages/boards/src/<id>/<Id>Board.tsx` | The React host: `useKitBoard`, the labels from the message table, `data-board`. |
 | `packages/harness/src/pages/<Id>Practice.tsx` | The page: `usePractice`, `useBench`, `PracticeShell`, HUD details, legend, result rows. |
 | `packages/harness/src/prototypes/<id>.ts` | The bench entry: content config, presets, seed probes, whether it ticks, whether it hints. |
@@ -67,7 +69,8 @@ These are the project's rules (CLAUDE.md), said for a prototype.
 5. **The board computes no score.** Every number it shows is an engine function's: what a line is
    worth, what a streak multiplies by. The engine exports those; the renderer calls them.
 6. **Kinds read apart without color.** Use the kit's kinds (a silhouette each) and its pips for the
-   mark setting. A special piece gets its own silhouette.
+   mark setting. A special piece gets its own silhouette. A sprite keeps its kind's silhouette, and
+   the pips go over it on a plate (`drawMark`).
 7. **Every string is in the message table**, in the puzzle's own file. The renderer takes its
    labels as options; it never holds English.
 8. **A lab round cannot run on a config the server would refuse.** The wire schema and the engine's
@@ -87,14 +90,22 @@ These are the project's rules (CLAUDE.md), said for a prototype.
   exactly as a snap would: end every played move with a snap to the engine's state.
 - `fx.ts`: `Fx`. `popup` (points), `say` (a callout), `burst`, `ring`, `beam`, `flash`, `shake`.
   Effects never hold the board back.
-- `art.ts`: `KINDS`, `drawPiece`, `drawPips`, `drawPanel`, `drawWell`, the `INK` palette.
-- `KindIcon.tsx`: a kind as an SVG, for legends.
+- `art.ts`: `KINDS`, `drawPiece`, `drawPips`, `drawMark`, `drawPanel`, `drawWell`, the `INK`
+  palette. The pieces here are what a board draws without its atlas.
+- `KindIcon.tsx`: a kind as an SVG, for legends. `SpriteIcon.tsx`: a frame of the atlas, for the
+  same; `KindIcon` takes one as `sprite`.
 - `useKitBoard.ts`: the React hook that hosts a renderer.
 
 A ticked board is handed a new display state every tick. It overrides `keepsPlaying` to say so,
 which stops the kit flushing its tweens ten times a second, and its `onState` plays only the events
 it has not played yet: the engine numbers its events with a rising `seq`, as Navigation's does, and
 the renderer remembers the last one it showed.
+
+Sprites (ADR 0037): the kit loads the atlas named by the puzzle id. A renderer paints a frame with
+`this.sprite(g, name, x, y, size)`, which returns false when the atlas or the frame is not there, so
+every piece is written `this.sprite(...) || drawPiece(...)`. Frames are named for what the renderer
+asks for (`spriteName("debris", kind)` is `debris-gold`). Keep everything exact in code: marks,
+numerals, counts, outlines, hit areas. `sprites/README.md` says how the sheets are packed.
 
 Sounds are `sfx` in `boards/src/audio.ts`; the renderer plays them at the moment the animation
 shows the thing.
@@ -105,5 +116,6 @@ shows the thing.
   the design file, and add a tile glyph in `Home.tsx`.
 - **Promoting:** its own ADR and milestone. The puzzle gets a role (a station needs a `parScore`
   and station strings), moves from `PROTOTYPE_PUZZLE_IDS` to `CORE_PUZZLE_IDS`, its strings move to
-  `en.json`, and the owner's sprite pass replaces the placeholder art.
-- **Removing:** delete the files in the table and the lines that register the id.
+  `en.json`.
+- **Removing:** delete the files in the table and the lines that register the id, with its entry in
+  `sprites/frames.json` and its line in `sprites/atlas.ts`.
