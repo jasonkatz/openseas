@@ -41,32 +41,43 @@ function vouchedMessage(session: PuzzleSession, vouched: unknown): ServerMessage
   }
 }
 
+/** How a board ended: scored, thrown out, or abandoned. */
+export type BoardEnd = "finished" | "rejected" | "abandoned";
+
+/**
+ * Who a board reports to, given when it is dealt: the ship it is played aboard, bound to its room and
+ * the board's role there (a duty station, the captain's battle, a fighter in the melee), or, for a
+ * practice round, its pirate's connection alone. The puzzle service calls it; nothing in the service
+ * asks what the board is played for to decide who hears.
+ */
+export interface BoardHost {
+  /** Says something to the board's pirate: the board handed back after a missing move, a lone ship's heat. */
+  send(message: ServerMessage): void;
+  /** The board took a move the server accepted. */
+  moved?(session: PuzzleSession): void;
+  /**
+   * The board is being scored, thrown out, abandoned or cut short. Called before its session closes,
+   * so nothing else can find it closed yet and its last points are still the board's. A move the
+   * server refused has closed it already; this follows at once, before anything is stored.
+   */
+  closing?(session: PuzzleSession): void;
+  /**
+   * The board was scored, thrown out or abandoned. Called after its session closed and its round was
+   * stored, with the result its pirate is owed, if any. A board dropped untouched has no end to tell.
+   */
+  ended?(session: PuzzleSession, how: BoardEnd, result: ServerMessage | null): void;
+}
+
+/** How a board is dealt: what it is played for, the ship's own config where a board aboard needs one, and the host it reports to. */
+export interface BoardStart extends SessionStart {
+  readonly host: BoardHost;
+}
+
 /** Coordinates the in-memory session manager with persistence. One instance per process. */
 export class PuzzleService {
   readonly sessions: PuzzleSessionManager;
-  /**
-   * Called once for every duty session as it ends, before it is closed, so the ship can take the
-   * board's last points. Set by the ship service.
-   */
-  onDutyEnd: ((session: PuzzleSession) => void) | null = null;
-  /** A battle session took a move: the ship reads what the turn did. Set by the ship service. */
-  onBattleMove: ((session: PuzzleSession) => void) | null = null;
-  /**
-   * A battle session is over: scored, rejected or abandoned. Called after it is closed, with the
-   * result sent to the captain if there was one. Set by the ship service.
-   */
-  onBattleEnd: ((session: PuzzleSession, how: "finished" | "rejected" | "abandoned", result: ServerMessage | null) => void) | null = null;
-  /** A melee board took a move: the ship lanes what it sent. Set by the ship service. */
-  onMeleeMove: ((session: PuzzleSession) => void) | null = null;
-  /** A melee board's session is over, however it ended. Called after it is closed. Set by the ship service. */
-  onMeleeEnd: ((session: PuzzleSession, how: "finished" | "rejected" | "abandoned", result: ServerMessage | null) => void) | null = null;
-  /**
-   * A ship's board missed a move (ADR 0024): send its pirate the board as the server holds it, with
-   * whatever the ship announced that the board has not logged yet. Set by the ship service.
-   */
-  onResync: ((session: PuzzleSession) => void) | null = null;
-  /** A harness Cooling round's lone ship turned and its heat moved (ADR 0029): send its pirate the message. Set by the socket server. */
-  onSoloHeat: ((session: PuzzleSession, message: ServerMessage) => void) | null = null;
+  /** Each board's host, from its deal. A detached board keeps only its pirate's line (`send`). */
+  private readonly hosts = new WeakMap<PuzzleSession, BoardHost>();
 
   constructor(
     private readonly db: Db,
@@ -89,21 +100,33 @@ export class PuzzleService {
     });
   }
 
-  /** Once a second: turn the lone ships of harness Cooling rounds that are due, and pass on what moved. */
+  /** Once a second: turn the lone ships of harness Cooling rounds that are due, and tell their pirates what moved. */
   tick(): void {
-    for (const { session, row } of this.sessions.turnSoloHeat()) this.onSoloHeat?.(session, vouchedMessage(session, { type: "heat", row }));
+    for (const { session, row } of this.sessions.turnSoloHeat()) this.hosts.get(session)?.send(vouchedMessage(session, { type: "heat", row }));
   }
 
   /**
-   * Deal a round. Without `opts` it is a practice round; aboard, `opts` binds it to the ship and, for
-   * the battle and a melee board, gives the ship's own config (the tier, the guns, the ship's turn).
+   * Deal a round to the host it reports to. Its binding says what it is played for; aboard, for the
+   * battle and a melee board, `override` gives the ship's own config (the tier, the guns, the ship's turn).
    */
-  start(pirateId: string, puzzle: PuzzleId, opts?: SessionStart): PuzzleStarted {
+  start(pirateId: string, puzzle: PuzzleId, opts: BoardStart): PuzzleStarted {
     const s = this.sessions.start(pirateId, puzzle, opts);
+    this.hosts.set(s, opts.host);
     void recordEvent(this.db, pirateId, "puzzle.started", { puzzle, sessionId: s.id, ...bindingPolicy(s.binding).startedEvent }).catch((e) =>
       this.log.warn({ err: e }, "event write failed"),
     );
     return this.startedMessage(s);
+  }
+
+  /**
+   * The host stops hearing the board: no more of its moves, its closing or its end reach it, whatever
+   * becomes of the board now. Its pirate still hears what the server tells the board, through the
+   * host's `send`. The ship detaches a board before it cuts it short on its own terms (a station it
+   * ends, a fight it settles), so the board's own end decides nothing aboard.
+   */
+  detach(session: PuzzleSession): void {
+    const host = this.hosts.get(session);
+    if (host) this.hosts.set(session, { send: (m) => host.send(m) });
   }
 
   /**
@@ -159,16 +182,18 @@ export class PuzzleService {
     if (r.ok === "resync") {
       if (r.handBack) {
         this.log.warn({ pirateId: session.pirateId, sessionId: session.id, puzzle: session.puzzle, seq, expected, resyncs: session.resyncs }, "board handed back after a missing move");
-        this.onResync?.(session);
+        const host = this.hosts.get(session);
+        if (host) for (const m of this.handBack(session)) host.send(m);
       }
       return null;
     }
     if (r.ok) {
-      this.moved(session);
+      this.hosts.get(session)?.moved?.(session);
       return null;
     }
-    // A rejected duty board still fed the ship what it had earned before the bad move.
-    if (session.binding.kind === "duty") this.onDutyEnd?.(session);
+    // The bad move closed the board; its host hears it closing before anything is stored, so a
+    // duty board still feeds the ship what it had earned before the bad move.
+    this.hosts.get(session)?.closing?.(session);
     await this.persistRejected(session, r.reason, null, { seq, expected });
     const rejected: ServerMessage = { type: "puzzle.rejected", sessionId: session.id, reason: r.reason, atSeq: r.atSeq };
     this.ended(session, "rejected", rejected);
@@ -184,7 +209,7 @@ export class PuzzleService {
   async finish(session: PuzzleSession, hash: string | null, metrics: ClientMetrics | null): Promise<ServerMessage> {
     const policy = bindingPolicy(session.binding);
     const rated = policy.rated === "always" || (policy.rated === "ran_full" && this.sessions.ranFull(session));
-    this.endDuty(session);
+    this.closing(session);
     const r = this.sessions.finish(session, hash);
     if (!r.ok) {
       await this.persistRejected(session, r.reason, metrics);
@@ -251,7 +276,7 @@ export class PuzzleService {
   }
 
   async abandon(session: PuzzleSession): Promise<void> {
-    this.endDuty(session);
+    this.closing(session);
     this.sessions.close(session);
     await this.persistRejected(session, "deadline", null);
     this.ended(session, "abandoned", null);
@@ -264,43 +289,21 @@ export class PuzzleService {
   async cutShort(session: PuzzleSession): Promise<ServerMessage | null> {
     if (session.closed) return null;
     if (session.moves.length === 0) {
-      this.endDuty(session);
+      this.closing(session);
       this.sessions.close(session);
       return null;
     }
     return this.finish(session, null, null);
   }
 
-  private endDuty(session: PuzzleSession): void {
-    if (session.binding.kind === "duty" && !session.closed) this.onDutyEnd?.(session);
+  /** The board is about to close: its host hears it while the board is still open. */
+  private closing(session: PuzzleSession): void {
+    if (!session.closed) this.hosts.get(session)?.closing?.(session);
   }
 
-  /** A ship's board took a move: its ship reads what the move did. */
-  private moved(session: PuzzleSession): void {
-    switch (session.binding.kind) {
-      case "battle":
-        this.onBattleMove?.(session);
-        return;
-      case "melee":
-        this.onMeleeMove?.(session);
-        return;
-      default:
-        return;
-    }
-  }
-
-  /** The battle or a melee board is over, however it ended: its ship hears how, after the session closed. */
-  private ended(session: PuzzleSession, how: "finished" | "rejected" | "abandoned", result: ServerMessage | null): void {
-    switch (session.binding.kind) {
-      case "battle":
-        this.onBattleEnd?.(session, how, result);
-        return;
-      case "melee":
-        this.onMeleeEnd?.(session, how, result);
-        return;
-      default:
-        return;
-    }
+  /** The board is over and closed: its host hears how, and the result its pirate is owed. */
+  private ended(session: PuzzleSession, how: BoardEnd, result: ServerMessage | null): void {
+    this.hosts.get(session)?.ended?.(session, how, result);
   }
 
   /**

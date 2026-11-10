@@ -10,7 +10,8 @@ import type { Db } from "./db/index.js";
 import { InsufficientFundsError } from "./ledger.js";
 import type { Logger } from "./log.js";
 import { PirateError, awardTitles, findPirateByUser, pirateSheet, setLook, setTitle, summarizePirate, type PirateLooks } from "./pirates.js";
-import type { PuzzleService } from "./puzzles/service.js";
+import { PRACTICE } from "./puzzles/binding.js";
+import type { BoardHost, PuzzleService } from "./puzzles/service.js";
 import type { RoomMember } from "./rooms.js";
 import { ShipError, type ShipService } from "./ships/service.js";
 import { NoSuchClassError, buyShip } from "./shipyard.js";
@@ -75,8 +76,11 @@ export function createWsServer(deps: WsDeps) {
     void resend(pirateId).catch((e) => log.warn({ err: e, pirateId }, "summary resend failed"));
     void checkTitles(pirateId).catch((e) => log.warn({ err: e, pirateId }, "title check failed"));
   };
-  // A harness Cooling round's lone ship moved its heat: the board logs it as a heat move (ADR 0029).
-  puzzles.onSoloHeat = (session, message) => conns.get(session.pirateId)?.member.send(message);
+  /**
+   * A practice round's host is its pirate's newest connection, and nothing else: a harness Cooling
+   * round hears its lone ship's heat through it (ADR 0029), which the board logs as a heat move.
+   */
+  const practiceHost = (pirateId: string): BoardHost => ({ send: (m) => conns.get(pirateId)?.member.send(m) });
   ships.onSummaryChanged = (ids) => {
     for (const id of ids) changed(id);
   };
@@ -202,7 +206,7 @@ export function createWsServer(deps: WsDeps) {
         return;
       case "puzzle.start": {
         await dropActive(conn);
-        const started = puzzles.start(conn.pirateId, msg.puzzle);
+        const started = puzzles.start(conn.pirateId, msg.puzzle, { binding: PRACTICE, host: practiceHost(conn.pirateId) });
         conn.activeSessionId = started.sessionId;
         send(ws, started);
         return;

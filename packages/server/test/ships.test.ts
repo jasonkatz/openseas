@@ -771,6 +771,75 @@ describeDb("ships over the wire", () => {
     b.ws.close();
   });
 
+  it("a captain who leaves mid-fight breaks it off: the ship settles it once, as disengaged, and the board is cut short", async () => {
+    const owner = await pirate();
+    const crewmate = await pirate();
+    const shipId = owner.me.ships[0]!.id;
+    const a = await connect(owner.cookie);
+    const b = await connect(crewmate.cookie);
+    a.send({ type: "ship.board", shipId });
+    await a.until("ship.state");
+    b.send({ type: "ship.board", shipId });
+    await b.until("ship.state", (m) => m.ship.crew.length === 2);
+    const room = (): ReturnType<typeof app.ships.room> & object => app.ships.room(shipId)!;
+    const waitRoom = async (pred: (r: ReturnType<typeof room>) => boolean): Promise<void> => {
+      for (let i = 0; i < 300; i++) {
+        if (pred(room())) return;
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      throw new Error("the ship never got there");
+    };
+    const huntHail = async (): Promise<string> => {
+      for (let leg = 0; leg < 12; leg++) {
+        if (!room().state.voyage) {
+          const lane = content.world.lanes.find((r) => r.from === room().state.outpostId)!;
+          a.send({ type: "ship.launch", laneId: lane.id });
+          await waitRoom((r) => r.state.voyage !== null);
+        }
+        for (let i = 0; i < 600; i++) {
+          const v = room().state.voyage;
+          if (!v) break;
+          if (v.hail) return v.hail.tierId;
+          await turn();
+        }
+      }
+      throw new Error("no raider hailed the ship in a dozen legs");
+    };
+    const tierId = await huntHail();
+    const turnAtHail = room().state.turn;
+    a.send({ type: "ship.engage" });
+    const fight = await a.until("puzzle.started");
+    if (fight.puzzle !== "battle") throw new Error("expected a battle board");
+    await b.until("ship.state", (m) => m.ship.turn >= turnAtHail && m.events.some((e) => e.type === "engaged"));
+    const deal = await a.until("battle.supply", (m) => m.sessionId === fight.sessionId);
+    const supply = { type: "supply", left: deal.left, forward: deal.forward, right: deal.right, turrets: deal.turrets, hull: deal.hull } as const;
+    const state = reduceBattle(createBattleGame(fight.seed, fight.config), supply);
+    a.send({ type: "puzzle.move", sessionId: fight.sessionId, seq: 0, move: supply, hash: hashBattleState(state) });
+    await waitRoom(() => app.puzzles.sessions.get(fight.sessionId)?.moves.length === 1);
+    const voyageId = room().voyageId!;
+
+    // The captain leaves the ship. The ship breaks the fight off as disengaged; the board, with a move
+    // logged, is cut short after and counts, and its own end settles nothing a second time.
+    a.send({ type: "ship.leave" });
+    const ended = await b.until("ship.state", (m) => m.events.some((e) => e.type === "battle_ended"));
+    expect(ended.events).toContainEqual({ type: "battle_ended", tierId, outcome: "disengaged", plunder: 0, turns: state.turn });
+    expect((ended.ship.location as { battle: unknown }).battle).toBeNull();
+    const result = await a.until("puzzle.result", (m) => m.sessionId === fight.sessionId);
+    expect(result).toMatchObject({ score: state.score, verified: true });
+    const [round] = await app.db.select().from(schema.puzzleRound).where(eq(schema.puzzleRound.id, fight.sessionId));
+    expect(round).toMatchObject({ rejectedReason: null, voyageId });
+    expect(round?.moveLog).toEqual([supply]);
+    await a.until("ship.left");
+    await b.until("ship.state", (m) => m.ship.captainId === crewmate.me.id);
+    expect(room().battle).toBeNull();
+    const [voyage] = await app.db.select().from(schema.voyage).where(eq(schema.voyage.id, voyageId));
+    expect(voyage?.encounter).toMatchObject({ tierId, evaded: false, outcome: "disengaged", plunder: 0 });
+    const settled = await app.db.select().from(schema.event).where(eq(schema.event.type, "ship.battle_ended"));
+    expect(settled.filter((e) => (e.data as { voyageId?: string }).voyageId === voyageId).map((e) => (e.data as { outcome: string }).outcome)).toEqual(["disengaged"]);
+    a.ws.close();
+    b.ws.close();
+  });
+
   it("a boarding opens the melee for everyone aboard, the server lanes the scrap, and the airlock decides the plunder", async () => {
     const owner = await pirate();
     const crewmate = await pirate();

@@ -43,7 +43,7 @@ import { recordEvent } from "../events.js";
 import { appendLedger } from "../ledger.js";
 import type { Logger } from "../log.js";
 import { randomBotName } from "../pirates.js";
-import type { PuzzleService } from "../puzzles/service.js";
+import type { BoardEnd, BoardHost, PuzzleService } from "../puzzles/service.js";
 import type { PuzzleSession } from "../puzzles/sessions.js";
 import { Room, type RoomMember } from "../rooms.js";
 
@@ -173,16 +173,6 @@ export class ShipService {
   ) {
     this.now = opts.now ?? Date.now;
     for (const c of content.world.shipClasses) this.configs.set(c.id, shipConfigFor(content, c));
-    puzzles.onDutyEnd = (session) => this.takeFinalPoints(session);
-    puzzles.onBattleMove = (session) => this.takeBattleTurn(session);
-    puzzles.onBattleEnd = (session, how, result) => void this.battleEnded(session, how, result).catch((e) => log.error({ err: e, sessionId: session.id }, "battle end failed"));
-    puzzles.onMeleeMove = (session) => void this.takeMeleeMove(session).catch((e) => log.error({ err: e, sessionId: session.id }, "melee move failed"));
-    puzzles.onMeleeEnd = (session) => void this.meleeEnded(session).catch((e) => log.error({ err: e, sessionId: session.id }, "melee end failed"));
-    puzzles.onResync = (session) => {
-      const binding = session.binding;
-      const room = binding.kind === "melee" || binding.kind === "battle" ? this.rooms.get(binding.shipId) : undefined;
-      if (room) for (const m of puzzles.handBack(session)) room.conns.send(session.pirateId, m);
-    };
   }
 
   get turnMs(): number {
@@ -365,7 +355,11 @@ export class ShipService {
     const rules = this.content.world.ship;
     // Room for every turn, the captain's grace period if they drop, and a minute to spare.
     const roundMs = (config.maxTurns + rules.graceTurns) * this.turnMs + 60_000;
-    const started = this.puzzles.start(pirateId, "battle", { binding: { kind: "battle", shipId: room.shipId, voyageId: room.voyageId, tierId: tier.id }, override: { config, roundMs } });
+    const started = this.puzzles.start(pirateId, "battle", {
+      binding: { kind: "battle", shipId: room.shipId, voyageId: room.voyageId, tierId: tier.id },
+      override: { config, roundMs },
+      host: this.battleHost(room, pirateId),
+    });
     room.battle = { sessionId: started.sessionId, tierId: tier.id, dutyOutput: new Map(), turnsSeen: 0, hullSent: room.state.damage };
     this.log.info({ shipId: room.shipId, tierId: tier.id, sessionId: started.sessionId }, "battle engaged");
     await this.afterChange(room);
@@ -395,16 +389,26 @@ export class ShipService {
     if (told) room.conns.send(session.pirateId, told);
   }
 
+  /**
+   * The captain's board reports to the ship's fight: each turn's hits and shots, and its end, which
+   * settles the fight. The ship detaches the board before it settles a fight on its own terms, so
+   * while the board is attached, the fight in `room.battle` is this board's.
+   */
+  private battleHost(room: ShipRoom, pirateId: string): BoardHost {
+    return {
+      send: (m) => room.conns.send(pirateId, m),
+      moved: (session) => this.takeBattleTurn(room, session),
+      ended: (session, how) => void this.battleEnded(room, session, how).catch((e) => this.log.error({ err: e, sessionId: session.id }, "battle end failed")),
+    };
+  }
+
   /** A battle turn resolved on the captain's board: the ship takes the hits and spends the shots. */
-  private takeBattleTurn(session: PuzzleSession): void {
-    const binding = session.binding;
-    if (binding.kind !== "battle") return;
-    const room = this.rooms.get(binding.shipId);
-    if (!room || !room.battle || room.battle.sessionId !== session.id) return;
+  private takeBattleTurn(room: ShipRoom, session: PuzzleSession): void {
+    const run = room.battle;
     const state = session.state as BattleState;
     const report = state.lastTurn;
-    if (report && report.turn > room.battle.turnsSeen) {
-      room.battle.turnsSeen = report.turn;
+    if (run && report && report.turn > run.turnsSeen) {
+      run.turnsSeen = report.turn;
       if (room.state.voyage?.battle) {
         if (report.shots > 0) room.state = reduceShip(room.state, { type: "fired", shots: report.shots });
         if (report.damageTaken > 0) room.state = reduceShip(room.state, { type: "hit", damage: report.damageTaken });
@@ -422,12 +426,8 @@ export class ShipService {
     }
   }
 
-  /** The battle session closed, however it closed: pay out, tell the ship, log it. */
-  private async battleEnded(session: PuzzleSession, how: "finished" | "rejected" | "abandoned", _result: ServerMessage | null): Promise<void> {
-    const binding = session.binding;
-    if (binding.kind !== "battle") return;
-    const room = this.rooms.get(binding.shipId);
-    if (!room || !room.battle || room.battle.sessionId !== session.id) return;
+  /** The captain's board closed, however it closed: the fight settles on the board's outcome. Pay out, tell the ship, log it. */
+  private async battleEnded(room: ShipRoom, session: PuzzleSession, how: BoardEnd): Promise<void> {
     const state = session.state as BattleState;
     const outcome: ShipBattleOutcome = state.outcome ?? (how === "abandoned" ? "disengaged" : "broke_off");
     await this.settleBattle(room, outcome, state.turn);
@@ -439,7 +439,9 @@ export class ShipService {
     if (!run) return;
     const session = this.puzzles.sessions.get(run.sessionId);
     const turns = session ? (session.state as BattleState).turn : 0;
-    // Settle first so the session's own end hook finds nothing left to do.
+    // The ship settles this fight itself, as `outcome`. It lets go of the board first, so the board's
+    // own end, when it is cut short below, settles nothing.
+    if (session) this.puzzles.detach(session);
     await this.settleBattle(room, outcome, turns);
     if (session && !session.closed) {
       const result = await this.puzzles.cutShort(session);
@@ -537,6 +539,7 @@ export class ShipService {
     const started = this.puzzles.start(pirateId, "swordfight", {
       binding: { kind: "melee", shipId: room.shipId, voyageId: room.voyageId, tierId: run.tierId },
       override: { config: this.meleeConfigFor(run.tierId, run.seed), roundMs },
+      host: this.meleeHost(room, run, pirateId),
     });
     run.fights.set(pirateId, started.sessionId);
     room.conns.send(pirateId, started);
@@ -632,13 +635,21 @@ export class ShipService {
     }
   }
 
+  /**
+   * A pirate's board in the melee reports to its fight: what it sends the raider crew, and its end,
+   * which keeps its score for the split. The ship does not detach these: settling the melee ends each
+   * board through its own end, so its score is kept, before the fight is dropped.
+   */
+  private meleeHost(room: ShipRoom, run: MeleeRun, pirateId: string): BoardHost {
+    return {
+      send: (m) => room.conns.send(pirateId, m),
+      moved: (session) => void this.takeMeleeMove(room, session).catch((e) => this.log.error({ err: e, sessionId: session.id }, "melee move failed")),
+      ended: (session) => void this.meleeEnded(room, run, session).catch((e) => this.log.error({ err: e, sessionId: session.id }, "melee end failed")),
+    };
+  }
+
   /** A pirate's board took a move: lane what it sent, score it if it is over, and see whether the airlock is decided. */
-  private async takeMeleeMove(session: PuzzleSession): Promise<void> {
-    const binding = session.binding;
-    if (binding.kind !== "melee") return;
-    const room = this.rooms.get(binding.shipId);
-    const run = room?.melee;
-    if (!room || !run || run.fights.get(session.pirateId) !== session.id) return;
+  private async takeMeleeMove(room: ShipRoom, session: PuzzleSession): Promise<void> {
     const state = session.state as SwordfightState;
     const events = state.lastMove?.events ?? [];
     for (const e of events) if (e.type === "attack" && e.board === 0 && e.to === -1 && e.scrap > 0) this.sendToCrew(room, e.scrap, e.blade);
@@ -651,13 +662,8 @@ export class ShipService {
     await this.checkMelee(room);
   }
 
-  /** A pirate's melee session closed, however it closed: keep its score for the split. */
-  private async meleeEnded(session: PuzzleSession): Promise<void> {
-    const binding = session.binding;
-    if (binding.kind !== "melee") return;
-    const room = this.rooms.get(binding.shipId);
-    const run = room?.melee;
-    if (!room || !run || run.fights.get(session.pirateId) !== session.id) return;
+  /** A pirate's melee board closed, however it closed: keep its score for the split. */
+  private async meleeEnded(room: ShipRoom, run: MeleeRun, session: PuzzleSession): Promise<void> {
     run.scores.set(session.pirateId, summarizeSwordfight(session.state as SwordfightState).score);
     run.fights.delete(session.pirateId);
     this.pushBoards(room);
@@ -759,9 +765,24 @@ export class ShipService {
     if (!room.state.voyage || !room.voyageId) throw new ShipError("not_in_flight");
     await this.endStation(room, me.station);
     const heat = me.station === "cooling" ? this.heatRows(room) : undefined;
-    const started = this.puzzles.start(pirateId, me.station, { binding: { kind: "duty", shipId: room.shipId, station: me.station, voyageId: room.voyageId, ...(heat !== undefined ? { heat } : {}) } });
+    const started = this.puzzles.start(pirateId, me.station, {
+      binding: { kind: "duty", shipId: room.shipId, station: me.station, voyageId: room.voyageId, ...(heat !== undefined ? { heat } : {}) },
+      host: this.dutyHost(room, me.station, pirateId),
+    });
     room.stations.set(me.station, { sessionId: started.sessionId, lastScore: 0 });
     return started;
+  }
+
+  /**
+   * A duty board reports to its station: as it closes, the ship takes what it earned since the last
+   * turn. The ship detaches the board before it ends the station itself, so while the board is
+   * attached, the station's board is this one.
+   */
+  private dutyHost(room: ShipRoom, station: Station, pirateId: string): BoardHost {
+    return {
+      send: (m) => room.conns.send(pirateId, m),
+      closing: (session) => this.takeFinalPoints(room, station, session),
+    };
   }
 
   /** The ship's heat as rows of the Cooling board, never below its floor: the board's heat is the ship's (DESIGN.md 3.3). */
@@ -908,16 +929,13 @@ export class ShipService {
     }
   }
 
-  /** The puzzle service is closing a duty board: take what it earned since the last turn. */
-  private takeFinalPoints(session: PuzzleSession): void {
-    const binding = session.binding;
-    if (binding.kind !== "duty") return;
-    const room = this.rooms.get(binding.shipId);
-    if (!room) return;
-    const station = binding.station;
-    const ss = room.stations.get(station);
-    if (!ss || ss.sessionId !== session.id) return;
-    this.report(room, station, this.puzzles.sessions.score(session) - ss.lastScore);
+  /**
+   * The station's board is closing: take what it earned since the last turn, and free the station.
+   * It must come before the board closes, or the next turn would find it closed and drop it unpaid.
+   */
+  private takeFinalPoints(room: ShipRoom, station: Station, session: PuzzleSession): void {
+    const lastScore = room.stations.get(station)?.lastScore ?? 0;
+    this.report(room, station, this.puzzles.sessions.score(session) - lastScore);
     room.stations.delete(station);
   }
 
@@ -926,13 +944,17 @@ export class ShipService {
     room.state = reduceShip(room.state, { type: "duty", station, points });
   }
 
-  /** Cut short whatever board is running at a station. */
+  /**
+   * Cut short whatever board is running at a station. The ship ends the station itself and lets go of
+   * the board first, so the board takes nothing more to the ship as it closes.
+   */
   private async endStation(room: ShipRoom, station: Station): Promise<void> {
     const ss = room.stations.get(station);
     if (!ss) return;
     const session = this.puzzles.sessions.get(ss.sessionId);
     room.stations.delete(station);
     if (!session) return;
+    this.puzzles.detach(session);
     const result = await this.puzzles.cutShort(session);
     if (result) room.conns.send(session.pirateId, result);
   }
