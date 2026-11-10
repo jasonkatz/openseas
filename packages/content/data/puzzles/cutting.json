@@ -1,32 +1,31 @@
 {
   "config": {
-    "maxMoves": 1000
+    "width": 6,
+    "height": 6,
+    "ores": 4,
+    "partsStart": 5,
+    "partsMax": 7,
+    "flawsStart": 1,
+    "flawsMax": 2,
+    "growEvery": 2,
+    "maxBlockPercent": 45,
+    "budgetPercent": 85,
+    "minCuts": 3,
+    "maxCuts": 6,
+    "cellPoints": 1,
+    "cleanPercent": 80,
+    "cleanBonus": 40,
+    "flawlessBonus": 100,
+    "streakPercent": [100, 125, 150, 175, 200],
+    "maxMoves": 600
   },
   "roundSeconds": 120,
   "thresholds": [
-    {
-      "score": 100,
-      "rating": 1100
-    },
-    {
-      "score": 250,
-      "rating": 1300
-    },
-    {
-      "score": 500,
-      "rating": 1500
-    },
-    {
-      "score": 900,
-      "rating": 1700
-    },
-    {
-      "score": 1500,
-      "rating": 1900
-    },
-    {
-      "score": 2400,
-      "rating": 2100
-    }
+    { "score": 350, "rating": 1100 },
+    { "score": 800, "rating": 1300 },
+    { "score": 1300, "rating": 1500 },
+    { "score": 1900, "rating": 1700 },
+    { "score": 2500, "rating": 1900 },
+    { "score": 3300, "rating": 2100 }
   ]
 }
