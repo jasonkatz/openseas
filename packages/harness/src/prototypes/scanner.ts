@@ -1,4 +1,4 @@
-import { SCANNER_DEF, type ScannerConfig, type ScannerMove, type ScannerState } from "@openseas/engine";
+import { SCANNER_DEF, scannerDistance, scannerProvenCells, type ScannerConfig, type ScannerMove, type ScannerState } from "@openseas/engine";
 import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
 import type { HarnessPuzzle } from "../puzzles.js";
@@ -12,8 +12,12 @@ export const SCANNER: HarnessPuzzle<ScannerState, ScannerMove, ScannerConfig> = 
   roundSeconds: content.puzzles.scanner.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.scanner,
   presets: SCANNER_PRESETS,
-  probes: [],
+  probes: [
+    { id: "wide_open", test: (s) => (s.pings[0]?.distance ?? 0) >= 5 },
+    { id: "one_ring", test: (s) => scannerProvenCells(s).length > 0 },
+    { id: "huddle", test: (s) => s.contacts.some((a) => s.contacts.some((b) => scannerDistance(s.config, a, b) === 1)) },
+  ],
   locked: [],
   ticked: null,
-  hints: false,
+  hints: true,
 };
