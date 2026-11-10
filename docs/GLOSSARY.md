@@ -418,3 +418,27 @@ The tables above give the identifier for each word. Beyond them:
     boarding tube.
 - **Kept for now**: `openseas`, the package scope `@openseas/*`, the domains and the hosting
   projects keep their names until the game's real name is chosen.
+
+## Prototype puzzles
+
+Eight puzzles with no former word: they are new (DESIGN.md 3.12, ADR 0036), on the harness only.
+Their words follow the naming rules above. Each puzzle's own words (its pieces, its callouts) are in
+its design file under `docs/prototypes/` and its message file under
+`content/data/messages/prototypes/`; the sprite pass may rename them if the puzzle is kept.
+
+| Puzzle | Puzzle id | What the player does |
+|---|---|---|
+| Salvage | `salvage` | Tethers a line of debris and hauls it; a closed line is a net that brings in every crate |
+| Overload | `overload` | Charges capacitors with taps; a full one bursts into its neighbours |
+| Deflectors | `deflectors` | Flips mirrors so each beam leaves by its own exit port |
+| Reactor | `reactor` | Swipes fuel rods together to fuse them and pushes hot rods out through ports |
+| Scanner | `scanner` | Pings a fogged sector and locks the contacts the pings give away |
+| Tug | `tug` | Flicks cargo pods, which slide until stopped, onto the lit clamp |
+| Racks | `racks` | Sorts fuel cells between racks and ships a rack of one kind |
+| Cutting | `cutting` | Cuts a slab of salvage into pieces and banks the ones that hold one ore |
+
+Words shared by all of them: a **prototype** is one of these puzzles; the **kit** is the shared
+board code they are drawn with (`boards/src/kit`); a **kind** is one of the kit's eight placeholder
+pieces (`gold`, `ice`, `ember`, `moss`, `violet`, `amber`, `bone`, `rose`), each a silhouette and a
+color.
+

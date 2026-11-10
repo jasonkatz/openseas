@@ -1,5 +1,13 @@
 import type { PuzzleId } from "@openseas/engine";
 import type { Overrides } from "./overrides.js";
+import { SALVAGE_PRESETS } from "./prototypes/salvage.js";
+import { OVERLOAD_PRESETS } from "./prototypes/overload.js";
+import { DEFLECTORS_PRESETS } from "./prototypes/deflectors.js";
+import { REACTOR_PRESETS } from "./prototypes/reactor.js";
+import { SCANNER_PRESETS } from "./prototypes/scanner.js";
+import { TUG_PRESETS } from "./prototypes/tug.js";
+import { RACKS_PRESETS } from "./prototypes/racks.js";
+import { CUTTING_PRESETS } from "./prototypes/cutting.js";
 
 /** A named set of conditions worth testing. Names live in the message table under `harness.preset.<id>`. */
 export interface Preset {
@@ -98,6 +106,15 @@ export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
     { id: "one_minute", overrides: {}, roundSeconds: 60 },
     { id: "slow_motion", overrides: {}, speed: 0.25 },
   ],
+  // Prototype puzzles (ADR 0036) keep their presets in scenario/prototypes/.
+  salvage: SALVAGE_PRESETS,
+  overload: OVERLOAD_PRESETS,
+  deflectors: DEFLECTORS_PRESETS,
+  reactor: REACTOR_PRESETS,
+  scanner: SCANNER_PRESETS,
+  tug: TUG_PRESETS,
+  racks: RACKS_PRESETS,
+  cutting: CUTTING_PRESETS,
 };
 
 /** One preset per Space Battle board, so a fight can be pinned to a board the seed would not have picked. */

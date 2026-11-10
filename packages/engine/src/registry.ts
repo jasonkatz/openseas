@@ -81,39 +81,33 @@ import {
   type GunneryState,
 } from "./gunnery/index.js";
 
-/** Every puzzle the engine knows about. Extended one at a time per the milestone ladder. */
-export const PUZZLE_IDS = ["cooling", "engines", "plating", "gunnery", "navigation", "battle", "swordfight"] as const;
+import type { PuzzleDef } from "./def.js";
+import { SALVAGE_DEF } from "./salvage/index.js";
+import { OVERLOAD_DEF } from "./overload/index.js";
+import { DEFLECTORS_DEF } from "./deflectors/index.js";
+import { REACTOR_DEF } from "./reactor/index.js";
+import { SCANNER_DEF } from "./scanner/index.js";
+import { TUG_DEF } from "./tug/index.js";
+import { RACKS_DEF } from "./racks/index.js";
+import { CUTTING_DEF } from "./cutting/index.js";
+
+export type { PuzzleDef, PuzzleSummary } from "./def.js";
+
+/** The game's own puzzles: the ones a ship or a fight deals. Extended one at a time per the milestone ladder. */
+export const CORE_PUZZLE_IDS = ["cooling", "engines", "plating", "gunnery", "navigation", "battle", "swordfight"] as const;
+export type CorePuzzleId = (typeof CORE_PUZZLE_IDS)[number];
+/**
+ * Prototype puzzles (ADR 0036): whole engines the server verifies like any other, dealt only on the
+ * harness. Nothing in the game deals one until it is promoted, which is a decision of its own.
+ */
+export const PROTOTYPE_PUZZLE_IDS = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting"] as const;
+export type PrototypePuzzleId = (typeof PROTOTYPE_PUZZLE_IDS)[number];
+/** Every puzzle the engine knows about. */
+export const PUZZLE_IDS = [...CORE_PUZZLE_IDS, ...PROTOTYPE_PUZZLE_IDS] as const;
 export type PuzzleId = (typeof PUZZLE_IDS)[number];
 /** The duty puzzles: the ones a station aboard a ship plays. Space Battle is the captain's game, not a station. */
 export const DUTY_PUZZLE_IDS = ["cooling", "engines", "plating", "gunnery", "navigation"] as const;
 export type DutyPuzzleId = (typeof DUTY_PUZZLE_IDS)[number];
-
-/** What every finished round reports. The database row and the result message share this shape. */
-export interface PuzzleSummary {
-  readonly score: number;
-  readonly moves: number;
-  readonly bestCombo: number;
-}
-
-export interface PuzzleDef<S, M, C> {
-  readonly id: PuzzleId;
-  readonly defaultConfig: C;
-  validateConfig(config: C): void;
-  create(seed: string, config: C): S;
-  /** Throws InvalidMoveError on an illegal move. Never mutates `state`. */
-  reduce(state: S, move: M): S;
-  hash(state: S): string;
-  summarize(state: S): PuzzleSummary;
-  isFinished(state: S): boolean;
-  /** The longest move log the server accepts for this config. */
-  maxMoves(config: C): number;
-  /**
-   * For engines whose moves carry their own clock (ticks): the ms since round start this move
-   * claims to happen at. The server rejects claims ahead of the wall clock. Undefined when moves
-   * are untimed.
-   */
-  moveTimeMs?(move: M, config: C): number;
-}
 
 export const COOLING_DEF: PuzzleDef<CoolingState, CoolingMove, CoolingConfig> = {
   id: "cooling",
@@ -212,10 +206,22 @@ export const PUZZLES: Readonly<Record<PuzzleId, AnyPuzzleDef>> = {
   navigation: NAVIGATION_DEF as unknown as AnyPuzzleDef,
   battle: BATTLE_DEF as unknown as AnyPuzzleDef,
   swordfight: SWORDFIGHT_DEF as unknown as AnyPuzzleDef,
+  salvage: SALVAGE_DEF as unknown as AnyPuzzleDef,
+  overload: OVERLOAD_DEF as unknown as AnyPuzzleDef,
+  deflectors: DEFLECTORS_DEF as unknown as AnyPuzzleDef,
+  reactor: REACTOR_DEF as unknown as AnyPuzzleDef,
+  scanner: SCANNER_DEF as unknown as AnyPuzzleDef,
+  tug: TUG_DEF as unknown as AnyPuzzleDef,
+  racks: RACKS_DEF as unknown as AnyPuzzleDef,
+  cutting: CUTTING_DEF as unknown as AnyPuzzleDef,
 };
 
 export function isPuzzleId(x: unknown): x is PuzzleId {
   return typeof x === "string" && (PUZZLE_IDS as readonly string[]).includes(x);
+}
+
+export function isPrototypePuzzleId(x: unknown): x is PrototypePuzzleId {
+  return typeof x === "string" && (PROTOTYPE_PUZZLE_IDS as readonly string[]).includes(x);
 }
 
 export function isDutyPuzzleId(x: unknown): x is DutyPuzzleId {

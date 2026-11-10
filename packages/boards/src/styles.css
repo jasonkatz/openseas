@@ -1179,3 +1179,12 @@ a {
 .progress-meter i {
   background: linear-gradient(90deg, var(--brass-deep), var(--brass));
 }
+
+/* ---- prototype boards (ADR 0036) */
+.kind-icon {
+  flex: none;
+  display: block;
+}
+.legend .proto-note {
+  margin: 8px 14px 0;
+}

@@ -1,0 +1,32 @@
+{
+  "config": {
+    "maxMoves": 1000
+  },
+  "roundSeconds": 120,
+  "thresholds": [
+    {
+      "score": 100,
+      "rating": 1100
+    },
+    {
+      "score": 250,
+      "rating": 1300
+    },
+    {
+      "score": 500,
+      "rating": 1500
+    },
+    {
+      "score": 900,
+      "rating": 1700
+    },
+    {
+      "score": 1500,
+      "rating": 1900
+    },
+    {
+      "score": 2400,
+      "rating": 2100
+    }
+  ]
+}

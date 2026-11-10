@@ -1,0 +1,31 @@
+{
+  "config": {
+    "width": 7,
+    "height": 8,
+    "kinds": 5,
+    "minLine": 3,
+    "linePoints": 1,
+    "loopMin": 4,
+    "loopPercent": 200,
+    "enclosedPoints": 10,
+    "startCrates": 2,
+    "cratePermille": 35,
+    "maxCrates": 3,
+    "crateFloorPoints": 30,
+    "crateLoopPoints": 50,
+    "couplerPermille": 30,
+    "maxCouplers": 2,
+    "streakMin": 5,
+    "streakPercent": [100, 115, 130, 145, 160, 180, 200],
+    "maxMoves": 600
+  },
+  "roundSeconds": 120,
+  "thresholds": [
+    { "score": 300, "rating": 1100 },
+    { "score": 700, "rating": 1300 },
+    { "score": 1500, "rating": 1500 },
+    { "score": 2600, "rating": 1700 },
+    { "score": 4000, "rating": 1900 },
+    { "score": 6000, "rating": 2100 }
+  ]
+}
