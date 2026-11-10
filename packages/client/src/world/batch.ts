@@ -18,6 +18,14 @@ export interface Put {
 
 const tmpColor = new THREE.Color();
 
+/**
+ * The material of a tap target: a box or a disc that rays are cast at and that is never drawn. A
+ * ray hits a mesh whatever its material, and the renderer skips a material that is not visible, so
+ * a target costs a frame nothing. (Drawn at zero opacity it would still be rasterized, pixel by
+ * pixel, over everything behind it.)
+ */
+export const unseen = (): THREE.MeshBasicMaterial => new THREE.MeshBasicMaterial({ visible: false });
+
 export function matrixOf(put: Put = {}): THREE.Matrix4 {
   const m = new THREE.Matrix4();
   const s = put.s === undefined ? [1, 1, 1] : typeof put.s === "number" ? [put.s, put.s, put.s] : put.s;

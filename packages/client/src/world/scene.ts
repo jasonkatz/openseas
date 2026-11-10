@@ -12,6 +12,7 @@
 import * as THREE from "three";
 import type { OutpostLandmark } from "@openseas/content";
 import type { CrewFlagWire } from "@openseas/protocol";
+import { unseen } from "./batch.js";
 import { CameraRig, isoDirection, type View } from "./camera.js";
 import { DOCK, buildOutpost, type Building, type Door, type OutpostModel } from "./outpost.js";
 import { PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildDust, buildBoardingTube, buildDrone, buildShip, dressShip, type BuoyModel, type DeckPost, type DroneModel, type ShipModel, type Station } from "./models.js";
@@ -186,6 +187,9 @@ const CALLOUT_W = 165;
 const SPOT_W = 170;
 const SPOT_DX = 18;
 const SPOT_DY = -12;
+/** A software renderer draws about this many pixels a frame, and never fewer than this share of the window's own each way. */
+const SOFT_PIXELS = 320_000;
+const SOFT_MIN_RATIO = 0.5;
 
 /** A tappable thing hung on the geometry: a pin at the anchor, a label beside it, a leader between. */
 interface Spot {
@@ -329,11 +333,11 @@ export class WorldScene {
     private readonly events: WorldEvents,
   ) {
     this.reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
-    // A software renderer (a headless browser, a machine without a GPU) gets a lighter world: no
-    // shadows, one pixel per pixel, fewer small things on the ground. It still reads as the same place.
-    this.lowQuality = isSoftwareRenderer(this.renderer);
-    this.renderer.setPixelRatio(this.lowQuality ? 1 : Math.min(2, window.devicePixelRatio || 1));
+    // A software renderer (a headless browser, a machine without a GPU) pays for every pixel on the
+    // CPU, so it draws the same world more cheaply: no shadows, no antialiasing, and a fixed budget
+    // of pixels however big the window (see `pixelRatio`). What is in the world never depends on it.
+    this.lowQuality = softwareRendered();
+    this.renderer = new THREE.WebGLRenderer({ antialias: !this.lowQuality, alpha: true, powerPreference: "low-power" });
     this.renderer.shadowMap.enabled = !this.lowQuality;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -796,7 +800,7 @@ export class WorldScene {
     const figure = buildPirate(kind, id, !this.lowQuality, look);
     const onDeck = scope === "ship";
     if (onDeck) figure.group.scale.setScalar(1 / SHIP_SCALE);
-    const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, PIRATE_HEIGHT * 1.2, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, PIRATE_HEIGHT * 1.2, 8), unseen());
     hit.position.y = PIRATE_HEIGHT * 0.6;
     hit.userData.walker = key;
     figure.group.add(hit);
@@ -1439,9 +1443,16 @@ export class WorldScene {
     return Math.atan2(side.z, side.x);
   }
 
+  /** Drawing-buffer pixels per CSS pixel: the screen's own, up to two, on a GPU; whatever keeps a software renderer inside its budget. */
+  private pixelRatio(w: number, h: number): number {
+    if (!this.lowQuality) return Math.min(2, window.devicePixelRatio || 1);
+    return Math.max(SOFT_MIN_RATIO, Math.min(1, Math.sqrt(SOFT_PIXELS / (w * h))));
+  }
+
   private resize(): void {
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
+    this.renderer.setPixelRatio(this.pixelRatio(w, h));
     this.renderer.setSize(w, h, false);
     this.pickAzimuth();
     this.updateView(true);
@@ -1481,7 +1492,7 @@ export class WorldScene {
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
     this.rig.update(dt, w / h);
-    this.backdrop.update(t, this.rig.camera, this.rig.azimuth, w, h);
+    this.backdrop.update(t, this.rig.camera, this.rig.azimuth, w, h, this.renderer.getPixelRatio());
     for (const d of this.dust) {
       d.group.position.x += d.speed * dt;
       d.group.rotation.x += dt * 0.03;
@@ -2178,11 +2189,18 @@ function spotKey(at: WalkSpot | null): string {
   return at ? `${at.x.toFixed(3)},${at.z.toFixed(3)}` : "";
 }
 
-function isSoftwareRenderer(renderer: THREE.WebGLRenderer): boolean {
+/**
+ * Whether WebGL here is drawn on the CPU. Asked of a throwaway context before the renderer is made,
+ * because antialiasing is fixed when a context is created.
+ */
+function softwareRendered(): boolean {
   try {
-    const gl = renderer.getContext();
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+    if (!gl) return false;
     const info = gl.getExtension("WEBGL_debug_renderer_info");
-    const name = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER));
+    const name = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
     return /swiftshader|llvmpipe|softpipe|software/i.test(name);
   } catch {
     return false;

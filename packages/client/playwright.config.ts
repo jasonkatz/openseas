@@ -11,7 +11,12 @@ export default defineConfig({
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: `http://localhost:${port}`,
-    trace: "retain-on-failure",
+    // A failure keeps its trace: the film strip, the action log, the console and the network. It
+    // leaves out the DOM snapshot Playwright would take around every action. The world moves its
+    // labels every frame, and snapshotting that page made the long desktop test half as slow again
+    // on a two-core runner, which is what pushed it over its timeout on main. The page's state at
+    // the failure is still written beside the trace (error-context.md).
+    trace: { mode: "retain-on-failure", screenshots: true, snapshots: false, sources: true },
     ...(process.env.PW_CHROMIUM_PATH ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH } } : {}),
   },
   projects: [

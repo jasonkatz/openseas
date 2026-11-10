@@ -692,8 +692,9 @@ the board on a wide screen; a station taken while docked says it is waiting for 
 and hands the captain the helm; boards are dealt back to back while the ship is in flight, a
 station standing down or the ship docking cuts the board short, and the board returns to the
 deck. Docked ships tie up alongside the dock, the first on its near side and the next on its far. One menu holds sound, the
-marks setting, the account and sign-out. Toasts carry what happens aboard. A software renderer gets
-a lighter world; without WebGL the cards still carry every action.
+marks setting, the account and sign-out. Toasts carry what happens aboard. A software renderer draws
+the same world more cheaply (no shadows, no antialiasing, a fixed budget of pixels whatever the
+window's size); without WebGL the cards still carry every action.
 
 As built (M5; redrawn for space in M7, ADR 0034): the outpost and the deck are walked, not only
 tapped (3.5, ADR 0032). The pegs are figures: small jointed pirates that walk, idle and work, the

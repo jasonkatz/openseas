@@ -19,7 +19,7 @@
 import * as THREE from "three";
 import type { OutpostLandmark } from "@openseas/content";
 import { nextInt, seedFromString, type PrngState } from "@openseas/engine";
-import { Batch, type Put } from "./batch.js";
+import { Batch, unseen, type Put } from "./batch.js";
 import { WalkGrid, type Obstacle, type Spot } from "./walk.js";
 
 export type Building = "dock" | "cantina" | "notice-board";
@@ -993,18 +993,18 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   circle(flagAt.x, flagAt.z, 0.012);
   grid.block({ kind: "circle", x: flagAt.x, z: flagAt.z, r: 0.012 }, BODY);
 
-  const hit = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  const hit = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24), unseen());
   hit.rotation.x = -Math.PI / 2;
   hit.position.y = 0.05;
   group.add(hit);
-  const dockHit = new THREE.Mesh(box(DOCK.to - DOCK.from, 0.02, DOCK.half * 2 + 0.02), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  const dockHit = new THREE.Mesh(box(DOCK.to - DOCK.from, 0.02, DOCK.half * 2 + 0.02), unseen());
   dockHit.position.set((DOCK.from + DOCK.to) / 2, DOCK.top - 0.01, 0);
   frame.add(dockHit);
 
   // Invisible boxes over the buildings, so tapping the building itself walks to it.
   const buildingHits: THREE.Mesh[] = [];
   const hitBox = (building: Building, p: Spot, w: number, h: number, d: number, yaw: number): void => {
-    const m = new THREE.Mesh(box(w, h, d), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    const m = new THREE.Mesh(box(w, h, d), unseen());
     m.position.set(p.x, heightAt(p.x, p.z) + h / 2, p.z);
     m.rotation.y = yaw;
     m.userData.building = building;

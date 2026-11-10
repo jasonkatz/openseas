@@ -9,7 +9,7 @@ import * as THREE from "three";
 import type { CrewFlagWire } from "@openseas/protocol";
 import { drawEmblem, drawFlag, flagColor, flagKey } from "../crew/flag.js";
 import { nextInt, seedFromString, type PrngState } from "@openseas/engine";
-import { Batch } from "./batch.js";
+import { Batch, unseen } from "./batch.js";
 import { WalkGrid, type Obstacle, type Spot } from "./walk.js";
 
 export type { Building } from "./outpost.js";
@@ -438,19 +438,18 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   marker.visible = kind !== "other";
   body.add(marker);
 
-  const invisible = (): THREE.MeshBasicMaterial => new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
-  const hit = new THREE.Mesh(new THREE.BoxGeometry(1.45, 1.3, 0.6), invisible());
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(1.45, 1.3, 0.6), unseen());
   hit.position.y = 0.7;
   body.add(hit);
-  const hullHit = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.42, 0.46), invisible());
+  const hullHit = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.42, 0.46), unseen());
   hullHit.position.set(0.02, 0.21, 0);
   body.add(hullHit);
-  const deckHit = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.02, 0.38), invisible());
+  const deckHit = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.02, 0.38), unseen());
   deckHit.position.y = DECK_Y;
   body.add(deckHit);
   const stationHits: THREE.Mesh[] = [];
   const stationHit = (key: Station | "helm", x: number, y: number, z: number, w: number, h: number, d: number): void => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), invisible());
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), unseen());
     m.position.set(x, y, z);
     m.userData.station = key;
     body.add(m);
