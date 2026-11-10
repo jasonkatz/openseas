@@ -7,8 +7,7 @@ code. It is the source of truth for scope. When code and this document disagree,
 in the same PR. Rationale for the major technical choices lives in [`adr/`](./adr/).
 
 **The setting moved from the sea to space** in milestone M7 (5.2, ADR 0034), and this document
-describes the space game throughout. Two things still show the sea: the puzzle boards' art, which
-waits for the owner's sprite pass (3.10), and history, which keeps its own words (ADRs 0001 to
+describes the space game throughout. Only history still shows the sea: it keeps its own words (ADRs 0001 to
 0033, and the "Original" column of section 6). [`GLOSSARY.md`](./GLOSSARY.md) maps every former
 word to its replacement.
 
@@ -84,8 +83,9 @@ hovered pair outright.
 
 As built (M1, sprite art pass ADR 0031): seven ordinary piece kinds (cog, valve, bolt, fuse,
 crystal, coil, chip), each with its own silhouette and surface texture and its own optional mark.
-Until the owner's sprite pass (ADR 0034) they are still drawn as the sea set they replaced (knurled
-brass, ribbed shell, waves, wood grain, nacre rings, kelp fronds, coral pores). Specials are the Spark Charge (swap to clear a 3 by 3), the Magnet (swap with a piece to clear every piece of that kind),
+Since the owner's sprite pass they are drawn as what they are named: a yellow cog, a cream valve
+wheel, a blue hex bolt, an orange glowing fuse, a violet crystal, a green coil spring and a red
+chip with pins. Specials are the Spark Charge (swap to clear a 3 by 3), the Magnet (swap with a piece to clear every piece of that kind),
 and the Slag (unmatchable; it rides up with the board and comes off by itself, for a bonus,
 once it is at or above the heat line). A connected cleared group of n pieces scores n(n-2); clearing k groups in
 one step multiplies by k, with no cap, because a planned double is the skill; cascade step c
@@ -122,13 +122,13 @@ rising in turn, from the per-step boards the engine's move report carries. A new
 fast-forwards whatever is still animating, so input never waits, except behind an overheated
 swap. Clears burst with debris, score
 popups and a callout for chains; charges and magnets shake the board; the frame glows with the
-combo; overheated pieces stay readable because the body of heat (drawn as water until the sprite
-pass) sits behind them. Sound and the
+combo; overheated pieces stay readable because the body of heat (a glowing orange
+body with a hot rim and drifting embers, redder once it is half full) sits behind them. Sound and the
 personal best are per device; the personal best is display only and never reaches the server.
 Juice on top of that, all presentation only: clearing two or more runs in one step calls out
 Double, Triple or Supernova; bigger steps hold a beat longer and punch the board; streak
 milestones (3, 5, 8, 12, then every 5 scoring moves in a row) earn a callout and a fanfare, and
-breaking a streak of 3+ sounds a fall; venting the heat throws spray and a pump sound (both wait for the sprite pass),
+breaking a streak of 3+ sounds a fall; venting the heat puffs steam along the line with a hiss through a valve,
 crossing into the danger half sounds an alarm; overheated pieces sway, charges spark and specials
 breathe. Unrated practice only: after six seconds without input the board wiggles the swap that
 clears the most pieces. Rated rounds never hint. The result card adds rows vented, counted on the
@@ -142,8 +142,8 @@ piece showing landing position, next-piece preview, swipe-to-move and tap-to-rot
 
 As built (M2): a 12 wide by 20 tall drive core; the cells are small because nothing is tapped
 individually, so the whole board fits a phone screen with room to work in. Pieces are fuel pellets, round discs rather than tiles, so Engines
-never reads as Cooling: conjoined pairs of two pellets in three kinds (plasma, ion and fusion; until the sprite pass
-still drawn as sailcloth with a canvas weave, rope coiled in rings and sea with rolling ripples),
+never reads as Cooling: conjoined pairs of two pellets in three kinds (plasma, ion and fusion; drawn as riveted
+discs: a red trefoil, a yellow three-spoke and cyan rings, each target ring in its piece's color),
 each with an optional mark, and the two halves of
 a pair stay visibly joined while both are on the board. Six injectors sit in the board at a time,
 never touching. An injector is a connected shape of cells: a bar of two to four, a stack of two or
@@ -258,11 +258,10 @@ mouse hovering a deck tile shows a ghost arrow pointing toward the nearest edge,
 redraws as if it were laid; a click commits it, the same
 click again lifts it, and right-click lifts. Touch taps the same way or swipes across a deck tile to
 point an arrow. Keyboard moves a cursor, lays with W, A, S, D and lifts with Space or Backspace.
-Gunnery has its own piece art rather than the coloured tiles of the other puzzles. Until the
-sprite pass the cell is still drawn as a charred keg with brass hoops, the sabot as a cream bundle
-of sailcloth tied with twine, the slug as an iron ball and the coolant as a wooden bucket brimming
-blue. Each has its own silhouette (barrel, square
-bundle, ball, tapered bucket), so they read apart without colour, and the marks setting adds a
+Gunnery has its own piece art rather than the coloured tiles of the other puzzles. The cell is an
+upright canister with a glowing orange gauge, the sabot a cream split shell, the slug a pointed
+round with a copper band and the coolant a square jug of blue coolant with a hose. Each has its own
+silhouette (canister, open shell, pointed round, handled jug), so they read apart without colour, and the marks setting adds a
 symbol badge to each. Loads pop their points, a full turret glows and sparks, firing recoils with a muzzle flash, smoke
 and a shake, a jam puffs smoke. Numbers and the deck live in `content/data/puzzles/gunnery.json`.
 
@@ -608,21 +607,27 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
   distinguishable without color: a player setting draws a distinct mark on each kind, and special
   tiles carry an icon and a label. Keyboard play for all puzzles on desktop. Screen-reader support for puzzle boards is out of scope.
 - English only. All player-facing strings go through one message table.
-- No music in v1. Minimal synthesized sound effects via WebAudio, replaced during the art pass.
+- No music in v1. Minimal synthesized sound effects via WebAudio, voiced for space: a metal click
+  for a quiet swap, steam for venting, an arc and a clank for a weld, a servo for lifting plates and
+  tearing metal for a breach.
 
 ### 3.10 Art
 
 The seven puzzle boards use original generated 2D sprite atlases (ADR 0031): dark outlines,
 restrained shading and distinct silhouettes, read at phone scale. Assets live in `boards`, so the
-game and harness render the same pieces. The atlases and their frames carry the space names, and
-until the owner's sprite pass (ADR 0034) the art inside is still the sea set: Cooling uses
-objects, Engines keeps round discs, Plating uses modular wood with engine-defined footprints and
-grain, Navigation keeps its three star silhouettes, Swordfighting keeps square blocks, and Space
-Battle uses overhead sailing ships, reefs and eddies. Board backgrounds, the water body, effects
-and sounds wait for the same pass. Optional marks stay code-drawn; geometry, hit areas and scores stay in
+game and harness render the same pieces. The atlases and their frames carry the space names, and since
+the owner's sprite pass the art inside is space too: Cooling uses machine parts, Engines keeps
+round riveted discs, Plating uses four brushed metals with engine-defined footprints and grain,
+Navigation keeps its three star silhouettes, Swordfighting keeps square armour blocks, and Space
+Battle uses overhead starfighters, asteroids and gravity wells. The boards around them match: every frame
+is riveted gunmetal with cream trim and orange hazard paint from one shared module
+(`boards/src/hull.ts`), Cooling's heat glows, Engines' shelves are lit metal ledges, Plating's hull
+is riveted panels whose breaches open onto stars, Gunnery's deck is steel plate with vents to
+space, and Space Battle's chart is deep space with nebulae and solar currents. Optional marks stay code-drawn; geometry, hit areas and scores stay in
 code. Arbitrarily sized Swordfight slabs, extra lab colors, board backgrounds, targets and effects
-retain procedural drawing. The procedural pieces also remain a fallback when an atlas cannot
-load. The world is not sprites at all: it is drawn in code from primitives (3.11), and it was
+retain procedural drawing. When an atlas cannot load, every piece falls back to a vector version of
+its sprite from one shared module (`boards/src/parts.ts`), in the same contours and silhouettes, so
+play never waits on an image; Engines' extra lab kind always uses it. The world is not sprites at all: it is drawn in code from primitives (3.11), and it was
 redrawn for space in M7.
 
 ### 3.11 One experience: the shell, navigation and embedded puzzles
@@ -912,7 +917,7 @@ still proven there first, with its tester session, and only then embedded in the
 | M4 | Space Battle versus AI raiders, boarding stubbed |
 | M5 | Swordfighting boarding and the walkable outpost |
 | M6 | OAuth upgrade (a guest links Discord or Google in place and keeps everything; returning players sign in), crews (found with a name and flag, invite, ranks, crew chat, crew-only ships, crews' colors on ships, tallies and the board of crews, pirates' cards), polish pass |
-| M7 | The space reskin (ADR 0034): every word, the three.js world and the codebase move from the sea to space, with the mechanics unchanged and the database wiped. The puzzle boards' art waits for the owner's sprite pass |
+| M7 | The space reskin (ADR 0034): every word, the three.js world and the codebase move from the sea to space, with the mechanics unchanged and the database wiped. The puzzle boards' art waits for the owner's sprite pass, which has since landed for the sprites |
 | M8 | Prototype puzzles (3.12, ADR 0036): eight new puzzles of the game's own, each a whole engine playable on the harness with placeholder art. Done when the owner has played all eight and chosen which, if any, go on |
 
 Every milestone ends with a tester session and a written retro before the next starts.
@@ -1027,8 +1032,7 @@ outposts and the skiff are redrawn so no outline of the sea is left (3.5, 3.11).
   same world more cheaply, and so do the boards. A unit test in the client walks every outpost and
   the deck.
 
-What M7 leaves for later: the puzzle boards' sprites, backgrounds, effects and sounds, which wait
-for the owner's sprite pass (3.10); the tester sessions and retros; and the codename. No mechanic
+What M7 leaves for later: the tester sessions and retros; and the codename. No mechanic
 was changed, and none was found that needs to be: a flag still flies and is sewn in a vacuum, and
 pirates walk an open rock bareheaded, which is the tone, not a fault.
 

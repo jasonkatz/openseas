@@ -19,6 +19,7 @@ import { mix } from "../cooling/tiles.js";
 import { drawMark } from "../engines/renderer.js";
 import { SCRAP_COLOR, blockCanvas, scrapStage, type BlockStyle, type SwordTexture } from "./art.js";
 import { boardSurface } from "../surface.js";
+import { HULL, hullFrame, hullGradient } from "../hull.js";
 
 /** A board in the melee that is not in this fight's state: another pirate's, or a raider's run by the server. */
 export interface RemoteBoard {
@@ -140,11 +141,8 @@ interface Particle {
 type Step = () => number | "settle";
 
 const COLORS = {
-  woodTop: 0x4a3322,
-  woodBottom: 0x2a1b10,
   deckTop: 0x1a2438,
   deckBottom: 0x0b1526,
-  rope: 0xd8b574,
   brass: 0xd4a548,
   bone: 0xf2f0e6,
   danger: 0xf0604d,
@@ -211,7 +209,7 @@ export class SwordfightRenderer {
   private incomingText: Text | null = null;
   private readonly miniLayer = new Container();
   private readonly veil = new Graphics();
-  private readonly woodFill = linear(false, [COLORS.woodBottom, COLORS.woodTop, COLORS.woodBottom]);
+  private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
   private readonly deckFill = linear(true, [COLORS.deckTop, COLORS.deckBottom]);
   private readonly textures = new Map<string, Texture>();
   private readonly pieces = new Map<number, PieceView>();
@@ -322,7 +320,7 @@ export class SwordfightRenderer {
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const tex of this.textures.values()) tex.destroy(true);
-      this.woodFill.destroy();
+      this.hullFill.destroy();
       this.deckFill.destroy();
     }
   }
@@ -1074,16 +1072,8 @@ export class SwordfightRenderer {
     const p = this.pad;
     g.clear();
     const top = -p - this.strip;
-    g.roundRect(-p - 2, top + 4, W + p * 2 + 4, H + p * 2 + this.strip, p + 6).fill({ color: 0x000000, alpha: 0.45 });
-    g.roundRect(-p, top, W + p * 2, H + p * 2 + this.strip, p + 4).fill(this.woodFill);
-    g.roundRect(-p, top, W + p * 2, H + p * 2 + this.strip, p + 4).stroke({ width: 1.5, color: 0x6b4a2e, alpha: 0.9 });
-    g.roundRect(0, -this.strip + 2, W, this.strip - 4, 4).fill({ color: 0x000000, alpha: 0.3 });
-    // Brass studs down the rails.
-    for (let r = 1; r < this.height; r += 2) {
-      const y = r * this.cell;
-      g.circle(-p / 2, y, Math.max(1.5, p * 0.22)).fill({ color: COLORS.brass, alpha: 0.6 });
-      g.circle(W + p / 2, y, Math.max(1.5, p * 0.22)).fill({ color: COLORS.brass, alpha: 0.6 });
-    }
+    hullFrame(g, this.hullFill, { x: -p, y: top, w: W + p * 2, h: H + p * 2 + this.strip, r: p + 4 }, { x: 0, y: 0, w: W, h: H }, { rivetStep: this.cell * 2, hazardTop: p });
+    g.roundRect(0, -this.strip + 2, W, this.strip - 4, 4).fill({ color: 0x000000, alpha: 0.32 });
     const w = this.well;
     w.clear();
     w.rect(0, 0, W, H).fill(this.deckFill);

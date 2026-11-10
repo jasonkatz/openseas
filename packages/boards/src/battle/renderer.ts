@@ -18,6 +18,7 @@ import {
 } from "@openseas/engine";
 import { paintBall, paintTurret, paintCaustic, paintWell, paintSpace, paintShip } from "./art.js";
 import { boardSurface } from "../surface.js";
+import { HULL, hullFrame, hullGradient } from "../hull.js";
 
 export interface BattleCallbacks {
   /** The captain flew the plot: by the button, the key, or the host's turn clock. */
@@ -135,10 +136,6 @@ interface Button {
 }
 
 const COLORS = {
-  woodTop: 0x4a3322,
-  woodBottom: 0x2a1b10,
-  woodEdge: 0x6b4a2e,
-  rope: 0xd8b574,
   arc: 0xf5d58a,
   arcEnemy: 0xf0604d,
   good: 0x6fdc8c,
@@ -154,9 +151,10 @@ const COLORS = {
   muted: 0x9aa7bd,
   flash: 0xfff3c4,
   smoke: 0x8a93a3,
+  // A miss puffs pale dust, a hit throws hot metal, a ship's wake is its thrusters' cyan.
   splash: 0xd8f0ff,
-  foam: 0xe6f6ff,
-  splinter: 0x9a6a3a,
+  foam: 0x8fe9ff,
+  sparks: 0xffb066,
   current: 0xaae4ff,
   well: 0xd6f4f0,
 };
@@ -209,7 +207,7 @@ export class BattleRenderer {
   private readonly stripTexts = new Container();
   private readonly brassFill = linear(true, [0xe9bd63, COLORS.brass, COLORS.brassDeep]);
   private readonly inkFill = linear(true, [0x1a2438, COLORS.inkDeep]);
-  private readonly woodFill = linear(true, [COLORS.woodBottom, COLORS.woodTop, COLORS.woodBottom]);
+  private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
   private readonly textures = new Map<string, Texture>();
   private shipSprites: [Sprite, Sprite] | null = null;
   private ghostSprites: Sprite[] = [];
@@ -297,7 +295,7 @@ export class BattleRenderer {
       for (const t of this.textures.values()) t.destroy(true);
       this.brassFill.destroy();
       this.inkFill.destroy();
-      this.woodFill.destroy();
+      this.hullFill.destroy();
     }
   }
 
@@ -469,7 +467,7 @@ export class BattleRenderer {
             const t = e.blocked === "ship" ? this.opts.labels.rammed : this.opts.labels.asteroids;
             this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 1.2, t, COLORS.danger, 0.55);
             this.shake = Math.max(this.shake, 260);
-            this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.splinter, 10, 0.8);
+            this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.sparks, 10, 0.8);
             this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.foam, 8, 0.7, true);
           }
         }
@@ -494,6 +492,8 @@ export class BattleRenderer {
           const ball = new Sprite(this.textures.get("ball") ?? Texture.WHITE);
           ball.anchor.set(0.5);
           ball.position.set(v.x, v.y);
+          // The slug sprite points up; turn its nose along the line of flight.
+          if (to.x !== v.x || to.y !== v.y) ball.rotation = Math.atan2(to.y - v.y, to.x - v.x) + Math.PI / 2;
           this.ballLayer.addChild(ball);
           step.shots.push({ from: { x: v.x, y: v.y }, to, hit: e.hit, ship: e.ship, ball });
           // Muzzle flash and smoke off the firing side.
@@ -652,23 +652,7 @@ export class BattleRenderer {
     const p = this.pad;
     const x = this.gx;
     const y = this.gy;
-    g.roundRect(x - p - 2, y - p + 4, W + p * 2 + 4, H + p * 2, p + 6).fill({ color: 0x000000, alpha: 0.45 });
-    g.roundRect(x - p, y - p, W + p * 2, H + p * 2, p + 4).fill(this.woodFill);
-    g.roundRect(x - p, y - p, W + p * 2, H + p * 2, p + 4).stroke({ width: 1.5, color: COLORS.woodEdge, alpha: 0.9 });
-    // Rope lashings along the long rails, and brass pins at the corners.
-    for (let c = 1; c < this.cols; c += 2) {
-      const lx = x + c * this.cell;
-      g.moveTo(lx - 2, y - p).lineTo(lx + 2, y).moveTo(lx + 2, y + H).lineTo(lx - 2, y + H + p);
-    }
-    g.stroke({ width: Math.max(1.5, p * 0.25), color: COLORS.rope, alpha: 0.5 });
-    for (const [px, py] of [
-      [x - p / 2, y - p / 2],
-      [x + W + p / 2, y - p / 2],
-      [x - p / 2, y + H + p / 2],
-      [x + W + p / 2, y + H + p / 2],
-    ]) {
-      g.circle(px!, py!, Math.max(2, p * 0.22)).fill(COLORS.brass).stroke({ width: 1, color: COLORS.brassDeep });
-    }
+    hullFrame(g, this.hullFill, { x: x - p, y: y - p, w: W + p * 2, h: H + p * 2, r: p + 4 }, { x, y, w: W, h: H }, { rivetStep: this.cell * 2 });
     // The board sits in a recess with a dark lip.
     g.rect(x, y, W, H).stroke({ width: 3, color: 0x000000, alpha: 0.55, alignment: 1 });
   }
@@ -1296,7 +1280,7 @@ export class BattleRenderer {
             this.hurt(sh.ship === 0 ? 1 : 0, this.state?.config.shotDamage ?? 0);
             this.popup(sh.to.x, sh.to.y - this.cell * 0.9, sh.ship === 0 ? this.opts.labels.hit : this.opts.labels.hitTaken, sh.ship === 0 ? COLORS.brassLight : COLORS.danger, 0.6);
             this.particles.push({ x: sh.to.x, y: sh.to.y, vx: 0, vy: 0, r: this.cell * 0.3, grow: 0.06, color: COLORS.flash, alpha: 0.95, life: 0, max: 200 });
-            this.burst(sh.to.x, sh.to.y, COLORS.splinter, 12, 1);
+            this.burst(sh.to.x, sh.to.y, COLORS.sparks, 12, 1);
             this.burst(sh.to.x, sh.to.y, COLORS.smoke, 8, 0.8);
             this.shake = Math.max(this.shake, 300);
           } else {

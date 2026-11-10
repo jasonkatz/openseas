@@ -19,6 +19,7 @@ import type { EnginesContent } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
 import { pelletCanvas, type PelletStyle, type EnginesTexture } from "./pellets.js";
 import { boardSurface } from "../surface.js";
+import { HULL, hazardBand, hullFrame, hullGradient } from "../hull.js";
 
 export interface EnginesCallbacks {
   /** The player's pair came to rest with its anchor at (col, row) in rotation `rot`. */
@@ -69,15 +70,14 @@ interface Popup {
 type Step = () => number | "settle";
 
 const COLORS = {
-  woodTop: 0x4a3322,
-  woodBottom: 0x2a1b10,
-  woodEdge: 0x1a0f07,
   skyTop: 0x16294a,
   skyBottom: 0x0a1424,
   brass: 0xd4a548,
-  rope: 0xd8b574,
-  plank: 0x8a6136,
-  plankDark: 0x4e3419,
+  // Injectors: cream trim like the sprites' hull panels, and lit metal ledges under the shelves.
+  trim: HULL.trim,
+  ledge: 0xcfc3a3,
+  ledgeDark: 0x5c5648,
+  ledgeLight: HULL.glow,
   danger: 0xf0604d,
 };
 const CLEAR_MS = 200;
@@ -112,7 +112,7 @@ export class EnginesRenderer {
   private readonly colorByKind = new Map<number, number>();
   private readonly markByKind = new Map<number, string>();
   private readonly textureByKind = new Map<number, EnginesTexture>();
-  private readonly woodFill = linear(false, [COLORS.woodBottom, COLORS.woodTop, COLORS.woodBottom]);
+  private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
   private readonly skyFill = linear(true, [COLORS.skyTop, COLORS.skyBottom]);
   private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   private showMarks: boolean;
@@ -210,7 +210,7 @@ export class EnginesRenderer {
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const tex of this.textures.values()) tex.destroy(true);
-      this.woodFill.destroy();
+      this.hullFill.destroy();
       this.skyFill.destroy();
     }
   }
@@ -566,17 +566,10 @@ export class EnginesRenderer {
     const p = this.pad;
     g.clear();
     const top = -p - this.strip;
-    g.roundRect(-p - 2, top + 4, W + p * 2 + 4, H + p * 2 + this.strip, p + 6).fill({ color: 0x000000, alpha: 0.45 });
-    g.roundRect(-p, top, W + p * 2, H + p * 2 + this.strip, p + 4).fill(this.woodFill);
-    g.roundRect(-p, top, W + p * 2, H + p * 2 + this.strip, p + 4).stroke({ width: 1.5, color: 0x6b4a2e, alpha: 0.9 });
-    // A darker ledge for the next-pair strip.
-    g.roundRect(0, -this.strip + 2, W, this.strip - 4, 4).fill({ color: 0x000000, alpha: 0.28 });
-    // Rope lashings down both sides.
-    for (let r = 1; r < this.height; r += 2) {
-      const y = r * this.cell;
-      g.moveTo(-p, y - 2).lineTo(0, y + 2).moveTo(W, y + 2).lineTo(W + p, y - 2);
-    }
-    g.stroke({ width: Math.max(1.5, p * 0.25), color: COLORS.rope, alpha: 0.55 });
+    hullFrame(g, this.hullFill, { x: -p, y: top, w: W + p * 2, h: H + p * 2 + this.strip, r: p + 4 }, { x: 0, y: 0, w: W, h: H }, { rivetStep: this.cell * 2, hazardTop: p });
+    // A darker recess for the next-pair strip, with a hazard stripe under its left end.
+    g.roundRect(0, -this.strip + 2, W, this.strip - 4, 4).fill({ color: 0x000000, alpha: 0.32 });
+    hazardBand(g, 6, -this.strip + 6, Math.min(W * 0.35, W - 12), Math.max(4, (this.strip - 12) * 0.35), 0.45);
 
     const w = this.well;
     w.clear();
@@ -594,7 +587,7 @@ export class EnginesRenderer {
   }
 
   /**
-   * Injectors: one continuous outlined shape per injector, a plank under every cell that has a
+   * Injectors: one continuous outlined shape per injector, a metal ledge under every cell that has a
    * shelf, round target outlines in their color and a faint ring for blank cells. Circles sit at
    * the exact cell centre so the ghost and the landed pellet line up with them.
    */
@@ -610,7 +603,7 @@ export class EnginesRenderer {
       for (const c of p.cells) {
         const x = c.col * s;
         const y = (this.height - c.row - 1) * s;
-        g.rect(x, y, s, s).fill({ color: COLORS.plank, alpha: 0.1 });
+        g.rect(x, y, s, s).fill({ color: COLORS.trim, alpha: 0.07 });
       }
       // Outline: every cell edge that faces outside the shape.
       for (const c of p.cells) {
@@ -621,21 +614,22 @@ export class EnginesRenderer {
         if (!has(c.col - 1, c.row)) g.moveTo(x, y).lineTo(x, y + s);
         if (!has(c.col + 1, c.row)) g.moveTo(x + s, y).lineTo(x + s, y + s);
       }
-      g.stroke({ width: Math.max(1.5, s * 0.05), color: COLORS.rope, alpha: 0.5 });
-      // Planks under the shelf cells.
+      g.stroke({ width: Math.max(1.5, s * 0.05), color: COLORS.trim, alpha: 0.55 });
+      // Metal ledges under the shelf cells, each with a small running light.
       for (const c of p.cells) {
         if (!shelf[enginesIdx(this.state.config, c.col, c.row)]) continue;
         const x = c.col * s;
         const y = (this.height - c.row - 1) * s;
-        g.roundRect(x + 1, y + s - s * 0.14, s - 2, s * 0.16, 3).fill({ color: COLORS.plankDark });
-        g.roundRect(x + 1, y + s - s * 0.17, s - 2, s * 0.12, 3).fill({ color: COLORS.plank });
+        g.roundRect(x + 1, y + s - s * 0.14, s - 2, s * 0.16, 3).fill({ color: COLORS.ledgeDark });
+        g.roundRect(x + 1, y + s - s * 0.17, s - 2, s * 0.12, 3).fill({ color: COLORS.ledge });
+        g.roundRect(x + s * 0.38, y + s - s * 0.13, s * 0.24, Math.max(1, s * 0.04), 1).fill({ color: COLORS.ledgeLight, alpha: 0.85 });
       }
       // Targets.
       for (const c of p.cells) {
         const cx = this.cx(c.col);
         const cy = this.cy(c.row);
         if (c.want === null) {
-          g.circle(cx, cy, s * 0.3).stroke({ width: 1, color: COLORS.rope, alpha: 0.3 });
+          g.circle(cx, cy, s * 0.3).stroke({ width: 1, color: COLORS.trim, alpha: 0.3 });
           continue;
         }
         const color = this.colorByKind.get(c.want) ?? 0xffffff;
