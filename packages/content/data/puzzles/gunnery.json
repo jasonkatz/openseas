@@ -164,7 +164,7 @@
     { "score": 7800, "rating": 2100 }
   ],
   "pieces": [
-    { "nameKey": "gunnery.piece.cell", "mark": "square", "texture": "grain", "color": "#3b3b47" },
+    { "nameKey": "gunnery.piece.cell", "mark": "square", "texture": "grain", "color": "#e8892c" },
     { "nameKey": "gunnery.piece.sabot", "mark": "circle", "texture": "fan", "color": "#f2f0e6" },
     { "nameKey": "gunnery.piece.slug", "mark": "diamond", "texture": "knurl", "color": "#5b6470" },
     { "nameKey": "gunnery.piece.coolant", "mark": "triangle", "texture": "waves", "color": "#3fa7f5" }

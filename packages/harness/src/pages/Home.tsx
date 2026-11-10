@@ -8,42 +8,58 @@ import { Link, useRoute } from "../router.jsx";
 const GLYPHS: Record<PuzzleId, ReactNode> = {
   cooling: (
     <svg viewBox="0 0 64 64" width="56" height="56">
-      <path d="M6 40 Q 16 30 26 40 T 46 40 T 66 40 V 64 H 0 Z" fill="#1a7f8a" opacity=".8" />
-      <rect x="14" y="8" width="14" height="14" rx="3" fill="#f5d021" />
-      <rect x="32" y="8" width="14" height="14" rx="3" fill="#f2f0e6" />
-      <rect x="14" y="26" width="14" height="14" rx="3" fill="#3fa7f5" />
-      <rect x="32" y="26" width="14" height="14" rx="3" fill="#e5355a" />
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#121c30" stroke="#3c4555" strokeWidth="2" />
+      <path d="M6 42 Q 16 37 26 42 T 46 42 T 58 41 V 57 H 6 Z" fill="#d9541f" opacity=".75" />
+      <path d="M6 42 Q 16 37 26 42 T 46 42 T 58 41" fill="none" stroke="#ffc27a" strokeWidth="1.5" />
+      <path d="M21 9l2 3.2 3.6-.9.6 3.7 3.6.9-1.3 3.5 2.7 2.5-2.7 2.5 1.3 3.5-3.6.9-.6 3.7-3.6-.9-2 3.2-2-3.2-3.6.9-.6-3.7-3.6-.9 1.3-3.5L9.6 21.6l2.7-2.5L11 15.6l3.6-.9.6-3.7 3.6.9z" fill="#f5d021" stroke="#0b1526" strokeWidth="1.3" />
+      <circle cx="21" cy="21.6" r="3.4" fill="#9aa3b0" stroke="#0b1526" strokeWidth="1" />
+      <path d="M44 9l6 6-1 12-5 5-5-6 1-12z" fill="#a66cf5" stroke="#0b1526" strokeWidth="1.3" />
+      <rect x="12" y="38" width="16" height="13" rx="2" fill="#e5355a" stroke="#0b1526" strokeWidth="1.3" />
+      <rect x="17" y="41.5" width="6" height="6" fill="#1b1d24" />
+      <rect x="36" y="40" width="18" height="8" rx="2" fill="#f3772a" stroke="#0b1526" strokeWidth="1.3" />
+      <rect x="40" y="43" width="10" height="2" rx="1" fill="#ffe08a" />
     </svg>
   ),
   engines: (
     <svg viewBox="0 0 64 64" width="56" height="56">
-      <rect x="8" y="40" width="48" height="6" rx="2" fill="#8a6136" />
-      <rect x="14" y="26" width="12" height="12" rx="3" fill="#f2f0e6" />
-      <rect x="28" y="26" width="12" height="12" rx="3" fill="#f5d021" />
-      <rect x="28" y="12" width="12" height="12" rx="3" fill="#3fa7f5" />
-      <rect x="42" y="26" width="12" height="12" rx="3" fill="none" stroke="#3fa7f5" strokeWidth="2" strokeDasharray="3 2" />
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#121c30" stroke="#3c4555" strokeWidth="2" />
+      <rect x="8" y="43" width="48" height="5" rx="2" fill="#cfc3a3" stroke="#0b1526" strokeWidth="1" />
+      <rect x="28" y="44.5" width="8" height="1.5" rx=".75" fill="#5fe3ff" />
+      <circle cx="20" cy="35" r="7" fill="#d8ccae" stroke="#0b1526" strokeWidth="1.3" />
+      <circle cx="20" cy="35" r="5" fill="#e5603c" />
+      <circle cx="34" cy="35" r="7" fill="#d8ccae" stroke="#0b1526" strokeWidth="1.3" />
+      <circle cx="34" cy="35" r="5" fill="#f5d021" />
+      <circle cx="34" cy="21" r="7" fill="#d8ccae" stroke="#0b1526" strokeWidth="1.3" />
+      <circle cx="34" cy="21" r="5" fill="#3fa7f5" />
+      <circle cx="48" cy="35" r="6.5" fill="none" stroke="#3fa7f5" strokeWidth="2" strokeDasharray="3 2" />
     </svg>
   ),
   plating: (
     <svg viewBox="0 0 64 64" width="56" height="56">
-      <rect x="6" y="10" width="52" height="44" rx="4" fill="#6b4423" />
-      <rect x="6" y="24" width="52" height="1.5" fill="#3a2412" opacity=".8" />
-      <rect x="6" y="39" width="52" height="1.5" fill="#3a2412" opacity=".8" />
-      <path d="M22 18h16v10h10v10H32v10H22z" fill="#0a0608" />
-      <rect x="22" y="18" width="16" height="10" rx="1.5" fill="#c98a4b" stroke="#3a2412" />
-      <rect x="22" y="28" width="10" height="10" rx="1.5" fill="#c98a4b" stroke="#3a2412" />
+      <rect x="6" y="10" width="52" height="44" rx="4" fill="#3a4250" stroke="#0e1218" strokeWidth="2" />
+      <rect x="6" y="24" width="52" height="1.5" fill="#0e1218" opacity=".8" />
+      <rect x="6" y="39" width="52" height="1.5" fill="#0e1218" opacity=".8" />
+      <circle cx="12" cy="17" r="1.3" fill="#a7b0bd" />
+      <circle cx="52" cy="47" r="1.3" fill="#a7b0bd" />
+      <path d="M22 18h16v10h10v10H32v10H22z" fill="#05080f" />
+      <circle cx="42" cy="32" r=".9" fill="#dfe9ff" />
+      <circle cx="27" cy="44" r=".7" fill="#dfe9ff" />
+      <rect x="22" y="18" width="16" height="10" rx="1.5" fill="#b9c0c8" stroke="#0b1526" />
+      <rect x="22" y="28" width="10" height="10" rx="1.5" fill="#c0703c" stroke="#0b1526" />
     </svg>
   ),
   gunnery: (
     <svg viewBox="0 0 64 64" width="56" height="56">
-      <rect x="6" y="6" width="52" height="52" rx="6" fill="#4e3419" />
-      <rect x="10" y="10" width="44" height="44" rx="4" fill="#7a5533" />
-      <rect x="6" y="20" width="12" height="10" rx="3" fill="#3a3f47" />
-      <rect x="46" y="34" width="12" height="10" rx="3" fill="#3a3f47" />
-      <circle cx="32" cy="32" r="7" fill="#5c3d21" stroke="#d4a548" strokeWidth="2" />
-      <circle cx="22" cy="42" r="4" fill="#2b2b33" />
-      <circle cx="40" cy="20" r="4" fill="#f2f0e6" />
-      <path d="M24 24h10m0 0l-3-3m3 3l-3 3" fill="none" stroke="#f5d58a" strokeWidth="2.5" strokeLinecap="round" />
+      <rect x="6" y="6" width="52" height="52" rx="6" fill="#1f242d" stroke="#3c4555" strokeWidth="2" />
+      <rect x="12" y="10" width="40" height="44" rx="2" fill="#535c6a" />
+      <path d="M12 21h40M12 32h40M12 43h40M25 10v44M39 10v44" stroke="#14181f" strokeWidth="1" />
+      <rect x="4" y="22" width="12" height="11" rx="3" fill="#d8ccae" stroke="#0b1526" strokeWidth="1.2" />
+      <rect x="6" y="27" width="8" height="1.6" fill="#e8892c" />
+      <rect x="16" y="26" width="6" height="3" fill="#8a93a0" stroke="#0b1526" strokeWidth=".8" />
+      <rect x="42" y="13" width="7" height="12" rx="1.5" fill="#e8892c" stroke="#0b1526" strokeWidth="1.2" />
+      <rect x="41" y="12" width="9" height="3" rx="1" fill="#9aa3b0" stroke="#0b1526" strokeWidth=".8" />
+      <path d="M33 47 a 5 5 0 1 1 0 -0.1" fill="none" stroke="#d8ccae" strokeWidth="3.5" />
+      <path d="M24 38h12m0 0l-3-3m3 3l-3 3" fill="none" stroke="#f5d58a" strokeWidth="2.5" strokeLinecap="round" />
     </svg>
   ),
   navigation: (
@@ -58,13 +74,18 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
   ),
   battle: (
     <svg viewBox="0 0 64 64" width="56" height="56">
-      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0d2b45" />
-      <path d="M4 20h56M4 36h56M20 4v56M36 4v56" stroke="#1f4f78" strokeWidth="1.5" />
-      <path d="M14 46l6-12 6 12z" fill="#efe3c6" stroke="#d4a548" strokeWidth="1.5" />
-      <path d="M50 18l-6 12-6-12z" fill="#1b1a22" stroke="#f0604d" strokeWidth="1.5" />
-      <path d="M28 40h10" stroke="#f5d58a" strokeWidth="2.5" strokeLinecap="round" />
-      <circle cx="40" cy="40" r="3" fill="#fff3c4" />
-      <path d="M46 48l4-6 4 6" fill="none" stroke="#7fd7ff" strokeWidth="2" strokeLinecap="round" />
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1428" stroke="#3c4555" strokeWidth="2" />
+      <circle cx="46" cy="46" r="12" fill="#7850e6" opacity=".12" />
+      <path d="M4 20h56M4 36h56M20 4v56M36 4v56" stroke="#7f9fdc" strokeOpacity=".18" strokeWidth="1" />
+      <circle cx="12" cy="10" r=".9" fill="#dfe9ff" />
+      <circle cx="53" cy="27" r=".9" fill="#dfe9ff" />
+      <circle cx="28" cy="52" r=".7" fill="#dfe9ff" />
+      <path d="M20 32l4-3 5 1 2 4-3 4-5 0-3-3z" fill="#8f8a84" stroke="#0b1526" strokeWidth="1" />
+      <path d="M16 54v-8l4-10 4 10v8z" fill="#d8ccae" stroke="#0b1526" strokeWidth="1.2" />
+      <ellipse cx="20" cy="45" rx="1.6" ry="2.6" fill="#3f78b0" />
+      <path d="M48 10v8l-4 10-2-5-2 5-4-10v-8z" fill="#a9493a" stroke="#0b1526" strokeWidth="1.2" transform="rotate(180 42 18)" />
+      <path d="M30 42h10" stroke="#ffe8a0" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="42" cy="42" r="2.5" fill="#fff3c4" />
     </svg>
   ),
   swordfight: (
@@ -221,14 +242,16 @@ export function Home() {
             <Link to="/voyage" className="practice-tile live" data-testid="tile-voyage">
               <span className="tile-glyph" aria-hidden="true">
                 <svg viewBox="0 0 64 64" width="56" height="56">
-                  <rect x="4" y="4" width="56" height="56" rx="6" fill="#0d2b45" />
-                  <path d="M8 44 Q 20 38 32 44 T 56 44" fill="none" stroke="#1f4f78" strokeWidth="2" />
+                  <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1428" stroke="#3c4555" strokeWidth="2" />
+                  <circle cx="18" cy="48" r=".9" fill="#dfe9ff" />
+                  <circle cx="48" cy="44" r=".9" fill="#dfe9ff" />
+                  <circle cx="40" cy="9" r=".7" fill="#dfe9ff" />
                   <path d="M10 22 C 22 14, 40 30, 54 18" fill="none" stroke="#d4a548" strokeWidth="2" strokeDasharray="3 3" />
-                  <circle cx="10" cy="22" r="3.5" fill="#efe3c6" />
-                  <circle cx="54" cy="18" r="3.5" fill="#efe3c6" />
-                  <path d="M24 40h16l-3 6H27z" fill="#8a6136" />
-                  <path d="M32 26v14M32 27l8 10h-8" fill="#efe3c6" stroke="#efe3c6" strokeWidth="1.5" strokeLinejoin="round" />
-                  <path d="M12 54h8M24 54h4M32 54h12" stroke="#5ed3b8" strokeWidth="2.5" strokeLinecap="round" />
+                  <path d="M6 22l2-3 4-.5 2 3-1.5 3.5-4 .5z" fill="#8f8a84" stroke="#0b1526" strokeWidth="1" />
+                  <path d="M51 15l3-1.5 3 2 0 3.5-3 1.5-3-1.5z" fill="#8f8a84" stroke="#0b1526" strokeWidth="1" />
+                  <path d="M32 46v-4l-4 2 0-9 4-9 4 9 0 9-4-2" fill="#d8ccae" stroke="#0b1526" strokeWidth="1.2" strokeLinejoin="round" />
+                  <ellipse cx="32" cy="34" rx="1.5" ry="2.6" fill="#3f78b0" />
+                  <path d="M30 46l2 6 2-6" fill="#7fe9ff" />
                 </svg>
               </span>
               <span className="tile-title">{t("harness.home.voyage")}</span>

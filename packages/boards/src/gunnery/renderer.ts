@@ -20,6 +20,7 @@ import type { GunneryContent } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
 import { gunneryPieceCanvas } from "./pieces.js";
 import { boardSurface } from "../surface.js";
+import { HULL, hullFrame, hullGradient, hullRivet, starField } from "../hull.js";
 
 export interface GunneryCallbacks {
   /** The player laid an arrow (`dir` set) or lifted one (`dir` null) on a deck cell. */
@@ -83,16 +84,17 @@ interface Ghost {
 }
 
 const COLORS = {
-  plank: 0x7a5533,
-  plankDark: 0x5a3b1f,
-  plankLine: 0x2d1c0c,
-  wall: 0x2a1b10,
-  wallEdge: 0x6b4a2e,
-  crate: 0xa87b45,
+  // The gun deck: steel floor plates inside gunmetal bulkheads.
+  plank: 0x535c6a,
+  plankDark: 0x3c434f,
+  plankLine: 0x14181f,
+  wall: 0x1f242d,
+  wallEdge: 0x4b5361,
+  crate: 0x8a919c,
   brass: 0xd4a548,
   iron: 0x30353d,
   ironLight: 0x7c8591,
-  sea: 0x1a7f8a,
+  vent: HULL.hazard,
   good: 0x6fdc8c,
   danger: 0xf0604d,
   smoke: 0x2a2a30,
@@ -160,6 +162,7 @@ export class GunneryRenderer {
   private readonly colorByKind = new Map<number, number>();
   private readonly markByKind = new Map<number, string>();
   private readonly plankFill = linear(true, [COLORS.plank, COLORS.plankDark]);
+  private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
   private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   private showMarks: boolean;
   private cell = 40;
@@ -280,6 +283,7 @@ export class GunneryRenderer {
       this.app.destroy(true, { children: true });
       for (const tex of this.textures.values()) tex.destroy(true);
       this.plankFill.destroy();
+      this.hullFill.destroy();
     }
   }
 
@@ -305,7 +309,7 @@ export class GunneryRenderer {
     if (!this.app.renderer) return;
     const reset = !this.state || state.tick < this.state.tick || state.deck !== this.state.deck;
     if (state.deckIndex !== this.state?.deckIndex || !this.state) {
-      // A round on a different deck: repaint the planks, crates, hatches and guns.
+      // A round on a different deck: repaint the floor plates, crates, vents and guns.
       this.deck = state.deck;
       this.drawDeck();
     }
@@ -435,7 +439,8 @@ export class GunneryRenderer {
         this.burst(x, y, COLORS.coolant, 12, 0.9);
         break;
       case "splash":
-        this.burst(x, y, COLORS.coolant, 6, 0.5);
+        // Lost out of a vent: a pale puff as it tumbles into space.
+        this.burst(x, y, 0xdfe9ff, 6, 0.5);
         break;
       default:
         break;
@@ -523,7 +528,7 @@ export class GunneryRenderer {
     }
   }
 
-  /** Rails, planks, the feeder, the scupper and the gun ports. Everything that never changes. */
+  /** Bulkheads, floor plates, the feeder, the vents and the gun ports. Everything that never changes. */
   private drawDeck(): void {
     const g = this.deckG;
     const s = this.cell;
@@ -531,9 +536,7 @@ export class GunneryRenderer {
     const W = this.width * s;
     const H = this.height * s;
     g.clear();
-    g.roundRect(-p - 2, -p + 4, W + p * 2 + 4, H + p * 2, p + 6).fill({ color: 0x000000, alpha: 0.45 });
-    g.roundRect(-p, -p, W + p * 2, H + p * 2, p + 4).fill({ color: COLORS.wall });
-    g.roundRect(-p, -p, W + p * 2, H + p * 2, p + 4).stroke({ width: 1.5, color: COLORS.wallEdge, alpha: 0.9 });
+    hullFrame(g, this.hullFill, { x: -p, y: -p, w: W + p * 2, h: H + p * 2, r: p + 4 }, { x: 0, y: 0, w: W, h: H }, { rivetStep: s * 2 });
     const deck = this.deck;
     for (let row = 0; row < this.height; row++) {
       for (let col = 0; col < this.width; col++) {
@@ -542,12 +545,14 @@ export class GunneryRenderer {
         switch (gunneryCellAt(deck, col, row)) {
           case "deck":
             g.rect(x, y, s, s).fill(this.plankFill);
-            g.moveTo(x, y + s * 0.5).lineTo(x + s, y + s * 0.5).stroke({ width: 1, color: COLORS.plankLine, alpha: 0.25 });
-            g.rect(x, y, s, s).stroke({ width: 1, color: COLORS.plankLine, alpha: 0.45 });
+            g.rect(x + 1, y + 1, s - 2, 1).fill({ color: 0xffffff, alpha: 0.08 });
+            g.rect(x, y, s, s).stroke({ width: 1, color: COLORS.plankLine, alpha: 0.55 });
+            for (const [rx, ry] of [[0.14, 0.14], [0.86, 0.14], [0.14, 0.86], [0.86, 0.86]] as const) g.circle(x + s * rx, y + s * ry, Math.max(0.8, s * 0.035)).fill({ color: HULL.rivet, alpha: 0.45 });
             break;
           case "wall":
             g.rect(x, y, s, s).fill({ color: COLORS.wall });
-            g.rect(x + 1, y + 1, s - 2, s - 2).stroke({ width: 1, color: COLORS.wallEdge, alpha: 0.25 });
+            g.rect(x + 1, y + 1, s - 2, s - 2).stroke({ width: 1, color: COLORS.wallEdge, alpha: 0.35 });
+            hullRivet(g, x + s / 2, y + s / 2, Math.max(1, s * 0.05));
             break;
           case "crate":
             g.rect(x, y, s, s).fill(this.plankFill);
@@ -557,27 +562,25 @@ export class GunneryRenderer {
             g.moveTo(x + s * 0.12, y + s * 0.12).lineTo(x + s * 0.88, y + s * 0.88).moveTo(x + s * 0.88, y + s * 0.12).lineTo(x + s * 0.12, y + s * 0.88).stroke({ width: 2, color: COLORS.plankLine, alpha: 0.6 });
             break;
           case "barrel": {
-            // The feeder: a brass-rimmed mouth in the rail with a chevron showing which way pieces drop.
+            // The feeder: a brass-rimmed chute in the bulkhead with a chevron showing which way pieces drop.
             g.rect(x, y, s, s).fill({ color: COLORS.wall });
-            g.roundRect(x + s * 0.1, y + s * 0.12, s * 0.8, s * 0.76, s * 0.18).fill({ color: 0x0d0805 });
+            g.roundRect(x + s * 0.1, y + s * 0.12, s * 0.8, s * 0.76, s * 0.18).fill({ color: 0x05070b });
             g.roundRect(x + s * 0.1, y + s * 0.12, s * 0.8, s * 0.76, s * 0.18).stroke({ width: 2.5, color: COLORS.brass, alpha: 0.9 });
             drawArrowGlyph(g, x + s / 2, y + s / 2, s * 0.22, deck.drop.dir, COLORS.brass, 0.55);
             break;
           }
           case "hatch":
-            // The scupper: an opening in the rail to the sea.
+            // The vent: an opening in the bulkhead to space, behind a hazard-orange rim and grille.
             g.rect(x, y, s, s).fill({ color: COLORS.wall });
-            g.roundRect(x + s * 0.12, y + s * 0.12, s * 0.76, s * 0.76, s * 0.14).fill({ color: COLORS.sea, alpha: 0.65 });
-            for (let k = 0; k < 3; k++) {
-              const wy = y + s * (0.32 + k * 0.18);
-              g.moveTo(x + s * 0.22, wy).quadraticCurveTo(x + s * 0.36, wy - s * 0.06, x + s * 0.5, wy).quadraticCurveTo(x + s * 0.64, wy + s * 0.06, x + s * 0.78, wy).stroke({ width: 1.5, color: 0xbfe9ef, alpha: 0.5 });
-            }
-            g.roundRect(x + s * 0.12, y + s * 0.12, s * 0.76, s * 0.76, s * 0.14).stroke({ width: 1.5, color: COLORS.wallEdge });
+            g.roundRect(x + s * 0.12, y + s * 0.12, s * 0.76, s * 0.76, s * 0.14).fill({ color: HULL.voidBottom });
+            starField(g, x + s * 0.14, y + s * 0.14, s * 0.72, s * 0.72, 6, col * 31 + row + 7);
+            for (let k = 1; k < 4; k++) g.rect(x + s * 0.14, y + s * (0.12 + k * 0.19), s * 0.72, Math.max(1, s * 0.035)).fill({ color: COLORS.wallEdge, alpha: 0.8 });
+            g.roundRect(x + s * 0.12, y + s * 0.12, s * 0.76, s * 0.76, s * 0.14).stroke({ width: Math.max(1.5, s * 0.05), color: COLORS.vent, alpha: 0.85 });
             break;
           case "turret":
             // The gun port: the turret itself is drawn live so it can recoil and glow.
             g.rect(x, y, s, s).fill({ color: COLORS.wall });
-            g.roundRect(x + s * 0.06, y + s * 0.06, s * 0.88, s * 0.88, s * 0.16).fill({ color: 0x120b06 });
+            g.roundRect(x + s * 0.06, y + s * 0.06, s * 0.88, s * 0.88, s * 0.16).fill({ color: 0x07090d });
             break;
         }
       }

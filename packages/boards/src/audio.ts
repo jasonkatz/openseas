@@ -68,7 +68,7 @@ function tone({ freq, to, duration, type, gain, delay = 0, attack = 0.005 }: Ton
   osc.stop(t0 + duration + 0.02);
 }
 
-/** Filtered noise: splashes, booms and whooshes. */
+/** Filtered noise: hisses, booms and whooshes. */
 function noise(duration: number, gain: number, from: number, to: number, type: BiquadFilterType = "lowpass"): void {
   const c = context();
   if (!c) return;
@@ -96,8 +96,11 @@ const note = (step: number): number => 392 * Math.pow(2, LADDER[Math.min(LADDER.
 
 export const sfx = {
   swap: () => tone({ freq: 520, to: 380, duration: 0.07, type: "triangle", gain: 0.05 }),
-  /** A swap that clears nothing: a softer, woodier knock so scoring swaps stand out. */
-  swapQuiet: () => tone({ freq: 300, to: 220, duration: 0.06, type: "triangle", gain: 0.035 }),
+  /** A swap that clears nothing: a soft metal click so scoring swaps stand out. */
+  swapQuiet: () => {
+    tone({ freq: 880, to: 620, duration: 0.04, type: "triangle", gain: 0.022 });
+    noise(0.025, 0.02, 5200, 2600, "highpass");
+  },
   /** One cascade step. `chain` 1 is the swap's own clear; each later step climbs the ladder. */
   clear: (chain: number, pieces: number) => {
     const f = note(chain - 1);
@@ -120,10 +123,10 @@ export const sfx = {
   },
   /** A streak of three or more just ended. */
   streakLost: () => tone({ freq: 330, to: 180, duration: 0.3, type: "sine", gain: 0.04 }),
-  /** The heat dropped a row: a pump stroke and a glug. */
+  /** The heat dropped a row: a burst of steam through a valve, a falling whistle a row. */
   vent: (rows: number) => {
-    noise(0.22, 0.07, 400, 1600, "bandpass");
-    for (let i = 0; i < Math.min(3, rows); i++) tone({ freq: 180 + i * 40, to: 420 + i * 60, duration: 0.12, type: "sine", gain: 0.06, delay: 0.05 + i * 0.1 });
+    noise(0.32, 0.07, 6000, 1800, "highpass");
+    for (let i = 0; i < Math.min(3, rows); i++) tone({ freq: 1400 - i * 120, to: 700 - i * 60, duration: 0.18, type: "sine", gain: 0.018, delay: 0.04 + i * 0.09 });
   },
   /** The heat rose a row. */
   rise: () => tone({ freq: 260, to: 150, duration: 0.25, type: "sine", gain: 0.035 }),
@@ -144,26 +147,30 @@ export const sfx = {
     tone({ freq: 700, to: 1400, duration: 0.09, type: "square", gain: 0.025 });
     tone({ freq: 1050, duration: 0.18, type: "sine", gain: 0.05, delay: 0.06 });
   },
-  /** Plating: a plate welded down. A mallet knock, duller when the plate hangs over sound hull. */
+  /** Plating: a plate welded down. A crackle of arc and a ringing clank, duller when the plate hangs over sound hull. */
   welder: (waste: boolean) => {
-    noise(0.07, waste ? 0.05 : 0.08, waste ? 900 : 1800, 200);
-    tone({ freq: waste ? 150 : 210, to: waste ? 70 : 95, duration: 0.11, type: "sine", gain: waste ? 0.08 : 0.12 });
-    if (!waste) tone({ freq: 1400, duration: 0.03, type: "triangle", gain: 0.02 });
+    noise(0.09, waste ? 0.035 : 0.06, 7000, 3000, "highpass");
+    tone({ freq: 95, duration: 0.08, type: "sawtooth", gain: waste ? 0.02 : 0.03 });
+    tone({ freq: waste ? 330 : 520, to: waste ? 260 : 470, duration: waste ? 0.12 : 0.22, type: "triangle", gain: waste ? 0.05 : 0.07, delay: 0.06 });
+    // Inharmonic partials make it ring like a plate rather than a bell.
+    if (!waste) tone({ freq: 1370, to: 1290, duration: 0.16, type: "sine", gain: 0.018, delay: 0.06 });
   },
-  /** Plating: a sealed breach's plates lift away. A woody rising sweep. */
+  /** Plating: a sealed breach's plates lift away. A pneumatic hiss under a rising servo whine. */
   plateLift: () => {
-    noise(0.3, 0.05, 500, 2600, "bandpass");
-    tone({ freq: 240, to: 480, duration: 0.28, type: "triangle", gain: 0.03 });
+    noise(0.3, 0.045, 2600, 900, "bandpass");
+    tone({ freq: 300, to: 720, duration: 0.3, type: "square", gain: 0.012 });
+    tone({ freq: 600, to: 1440, duration: 0.3, type: "sine", gain: 0.02 });
   },
-  /** Plating: hull splinters open. A crack and a low groan. */
+  /** Plating: hull plating tears open. A shriek of metal and a low structural groan. */
   crack: (loud: boolean) => {
-    noise(0.12, loud ? 0.1 : 0.06, 3200, 300, "highpass");
-    tone({ freq: 120, to: 60, duration: loud ? 0.35 : 0.2, type: "sawtooth", gain: loud ? 0.05 : 0.03, delay: 0.03 });
+    noise(0.14, loud ? 0.09 : 0.055, 4200, 900, "highpass");
+    tone({ freq: loud ? 1900 : 1500, to: loud ? 700 : 600, duration: loud ? 0.18 : 0.1, type: "sawtooth", gain: loud ? 0.015 : 0.01 });
+    tone({ freq: 95, to: 48, duration: loud ? 0.4 : 0.22, type: "sawtooth", gain: loud ? 0.05 : 0.03, delay: 0.04 });
   },
-  /** A plank will not go there. A short dead thud. */
+  /** A plate will not go there. A short dead thunk on metal. */
   bump: () => {
-    noise(0.05, 0.03, 500, 150);
-    tone({ freq: 110, to: 80, duration: 0.09, type: "triangle", gain: 0.05 });
+    noise(0.04, 0.03, 900, 250);
+    tone({ freq: 140, to: 95, duration: 0.08, type: "triangle", gain: 0.05 });
   },
   tick: (urgent: boolean) => tone({ freq: urgent ? 1180 : 880, duration: 0.05, type: "square", gain: 0.018 }),
   start: () => {

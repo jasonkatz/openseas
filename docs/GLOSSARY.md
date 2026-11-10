@@ -26,8 +26,8 @@ carries it, the identifier.
 3. **Nothing from Puzzle Pirates** (CLAUDE.md rule 3). New words also avoid terms other well-known
    games and shows coined (no "Reavers", no "Star Wolf").
 4. **Rule 6 still holds.** Every kind, look, emblem and figure reads apart without color.
-5. **Piece names are placeholders** until the owner's sprite pass, named for what they are on the
-   board. The sprite pass may rename them here.
+5. **Piece names follow the art.** The owner's sprite pass drew each piece as what it is named, so
+   the names stand. New art that draws a piece as something else renames it here.
 6. **Anything not listed** follows these rules. The PR that renames it adds it here.
 
 ## The setting
@@ -400,8 +400,8 @@ The tables above give the identifier for each word. Beyond them:
   ledger's `booty` kind → `plunder`, the look's `coat` and `hat` → `jacket` and `headgear`), and no
   data is mapped.
 - **Sprites**: each atlas is named by its puzzle id (`cooling.webp`, ...) and each frame by the
-  piece's identifier (`bolt`, `turret-jammed`, `tin-h`, ...). The art inside waits for the sprite
-  pass, so a frame may be named for a piece it does not look like yet.
+  piece's identifier (`bolt`, `turret-jammed`, `tin-h`, ...), and since the owner's sprite pass
+  each frame looks like the piece it names.
 - **Tests**: where a test's `mate` was a second pirate rather than a deckhand, it is `crewmate`.
   Fixtures use names the game could deal ("Static Comet", "Gasket-7", "The Rust Comets").
 - **Harness presets**: the message key is the preset's id (`harness.preset.one_injector`,
@@ -412,8 +412,8 @@ The tables above give the identifier for each word. Beyond them:
   - Three puzzle engines' PRNG salts keep their old strings (`bilging:`, `sailing:` and
     `carpentry:` in each `reduce.ts`). A new salt would deal a different board from the same
     seed, and the rename changes no behaviour.
-  - The puzzle boards' art files keep describing what is drawn, which is still the sea set, until
-    the sprite pass.
+  - Content `texture` keys (`knurl`, `weave`, `facet`, ...) keep their names: they are data keys,
+    never shown, and each now picks a space part (`knurl` → the cog) in `boards/src/parts.ts`.
   - `SHIP_SINK` keeps its name: how far the hull hangs below the lane plane, so the deck meets the
     boarding tube.
 - **Kept for now**: `openseas`, the package scope `@openseas/*`, the domains and the hosting
