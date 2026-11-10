@@ -1,8 +1,14 @@
-import { TUG_DEF, type TugConfig, type TugMove, type TugState } from "@openseas/engine";
+import { TUG_DEF, tugSolve, type TugConfig, type TugMove, type TugState } from "@openseas/engine";
 import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
 import type { HarnessPuzzle } from "../puzzles.js";
 import { TUG_PRESETS } from "../scenario/prototypes/tug.js";
+
+const onWall = (s: TugState, cell: number): boolean => {
+  const col = cell % s.config.width;
+  const row = Math.floor(cell / s.config.width);
+  return col === 0 || row === 0 || col === s.config.width - 1 || row === s.config.height - 1;
+};
 
 /** What the bench needs to know about Tug: its content config, presets and seed probes. */
 export const TUG: HarnessPuzzle<TugState, TugMove, TugConfig> = {
@@ -12,8 +18,12 @@ export const TUG: HarnessPuzzle<TugState, TugMove, TugConfig> = {
   roundSeconds: content.puzzles.tug.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.tug,
   presets: TUG_PRESETS,
-  probes: [],
+  probes: [
+    { id: "two_pod_start", test: (s) => new Set(tugSolve(s)?.map((m) => m.pod)).size >= 2 },
+    { id: "clamp_mid_bay", test: (s) => !onWall(s, s.clamp.cell) },
+    { id: "clamp_for_first_pod", test: (s) => s.clamp.pod === 0 },
+  ],
   locked: [],
   ticked: null,
-  hints: false,
+  hints: true,
 };

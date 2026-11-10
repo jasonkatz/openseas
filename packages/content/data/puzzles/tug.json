@@ -1,32 +1,27 @@
 {
   "config": {
-    "maxMoves": 1000
+    "width": 7,
+    "height": 7,
+    "pods": 4,
+    "blocks": 5,
+    "startPar": 2,
+    "maxPar": 4,
+    "cleanPerStep": 2,
+    "parPoints": [10, 25, 50, 90],
+    "cleanPercent": 200,
+    "slack": 2,
+    "slowPercent": 50,
+    "streakPercent": [100, 115, 130, 145, 160, 180, 200],
+    "skipPenalty": 15,
+    "maxMoves": 600
   },
   "roundSeconds": 120,
   "thresholds": [
-    {
-      "score": 100,
-      "rating": 1100
-    },
-    {
-      "score": 250,
-      "rating": 1300
-    },
-    {
-      "score": 500,
-      "rating": 1500
-    },
-    {
-      "score": 900,
-      "rating": 1700
-    },
-    {
-      "score": 1500,
-      "rating": 1900
-    },
-    {
-      "score": 2400,
-      "rating": 2100
-    }
+    { "score": 200, "rating": 1100 },
+    { "score": 400, "rating": 1300 },
+    { "score": 700, "rating": 1500 },
+    { "score": 1100, "rating": 1700 },
+    { "score": 1800, "rating": 1900 },
+    { "score": 2800, "rating": 2100 }
   ]
 }
