@@ -119,8 +119,8 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
             ))}
           </select>
         </label>
-        <button type="button" className="btn btn-ghost btn-mini" onClick={toPort} disabled={done || waiting} data-testid="voyage-to-port">
-          {t("harness.voyage.to_port")}
+        <button type="button" className="btn btn-ghost btn-mini" onClick={toPort} disabled={done || waiting} data-testid="voyage-to-end">
+          {t("harness.voyage.to_end")}
         </button>
       </div>
 

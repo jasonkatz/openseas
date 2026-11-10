@@ -1,14 +1,18 @@
 {
   "adjectives": [
-    "Salty", "Brackish", "Windward", "Leeward", "Barnacled", "Weathered", "Sunburnt", "Rusty",
+    "Static", "Fizzy", "Orbital", "Lunar", "Dented", "Weathered", "Starburnt", "Rusty",
     "Tattered", "Grinning", "Squinting", "Limping", "Humming", "Whistling", "Sly", "Bold",
-    "Lucky", "Unlucky", "Quiet", "Loud", "Soggy", "Crooked", "Dapper", "Grizzled", "Freckled",
+    "Lucky", "Unlucky", "Quiet", "Loud", "Frosty", "Crooked", "Dapper", "Grizzled", "Freckled",
     "Hoarse", "Wiry", "Burly", "Nimble", "Drowsy", "Fearless", "Sneezing"
   ],
   "nouns": [
-    "Gull", "Herring", "Mackerel", "Cuttlefish", "Sandpiper", "Kelp", "Driftwood", "Lantern",
-    "Compass", "Bilgepump", "Capstan", "Keel", "Rudder", "Mainsail", "Bowsprit", "Marlinspike",
-    "Grog", "Hardtack", "Squall", "Tide", "Fathom", "Reef", "Gale", "Plank", "Anchor", "Tern",
-    "Pelican", "Oyster", "Limpet", "Cormorant", "Puffin", "Eel"
+    "Comet", "Spanner", "Nebula", "Quasar", "Tadpole", "Rivet", "Asteroid", "Lantern",
+    "Compass", "Thruster", "Pickle", "Biscuit", "Antenna", "Booster", "Nozzle", "Wrench",
+    "Ration", "Noodle", "Flare", "Orbit", "Parsec", "Crater", "Pulsar", "Bolt", "Magnet", "Meteor",
+    "Satellite", "Rocket", "Moth", "Moonbeam", "Starling", "Gecko"
+  ],
+  "bots": [
+    "Sprocket", "Widget", "Gizmo", "Gasket", "Dynamo", "Flange", "Piston", "Tinker",
+    "Doohickey", "Whirligig", "Spindle", "Grommet"
   ]
 }

@@ -4,49 +4,64 @@ import { t } from "@openseas/boards";
 import { jacketHex, jacketName, headgearName } from "./look.js";
 
 const FELT = "#2a2420";
-const FELT_EDGE = "#14100d";
+const EDGE = "#14100d";
 const SKIN = "#e0a27a";
 const SHIRT = "#efe3c6";
+const BRASS = "#d4a548";
+const TIN = "#c3ccd4";
+const LEATHER = "#6b4a2e";
+const FLEECE = "#d9c9a8";
 
 /** Each headgear is its own outline, as on deck, so a look reads without its colors (rule 6). */
 function Headgear({ id }: { id: string }) {
   switch (id) {
     case "bubble-helmet":
-      // Seen from the front: one corner pointing at you, one out to each side, the back brim turned up behind.
+      // A clear globe right round the head, on a collar ring, with a glint on its brow.
       return (
         <g data-headgear="bubble-helmet">
-          <path d="M6 17.5 L19 10.5 Q32 6.5 45 10.5 L58 17.5 L32 27.5 Z" fill={FELT} stroke={FELT_EDGE} strokeWidth="1.2" strokeLinejoin="round" />
-          <path d="M9.5 18 L32 25.6 L54.5 18" fill="none" stroke="#d4a548" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="32" cy="30" r="15.6" fill="rgba(191,239,255,0.16)" stroke="rgba(207,239,255,0.85)" strokeWidth="1.5" />
+          <path d="M22.6 22.4 Q26 16.4 32.4 15.6" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.7" strokeLinecap="round" />
+          <path d="M20.4 42 Q32 47.2 43.6 42 L44.4 45.6 Q32 51 19.6 45.6 Z" fill={TIN} stroke={EDGE} strokeWidth="1.1" strokeLinejoin="round" />
         </g>
       );
     case "goggles":
+      // Spiked hair, a strap round the brow and two lenses pushed up on the forehead.
       return (
         <g data-headgear="goggles">
-          <path d="M5 23 Q32 -3 59 23 Q32 15 5 23 Z" fill={FELT} stroke={FELT_EDGE} strokeWidth="1.2" strokeLinejoin="round" />
-          <circle cx="32" cy="14.5" r="2.6" fill="#d4a548" stroke={FELT_EDGE} strokeWidth="0.8" />
+          <path d="M22.4 24.4 L25.4 14.6 L28.8 21.6 L32 12.8 L35.2 21.6 L38.6 14.6 L41.6 24.4 Q32 20.6 22.4 24.4 Z" fill={FELT} stroke={EDGE} strokeWidth="1.1" strokeLinejoin="round" />
+          <path d="M21.4 26.6 Q32 22.4 42.6 26.6 L42.9 29.4 Q32 25.4 21.1 29.4 Z" fill="#3a2a20" stroke={EDGE} strokeWidth="0.9" strokeLinejoin="round" />
+          <circle cx="27.3" cy="25.4" r="4.2" fill="#8fe6ff" stroke={BRASS} strokeWidth="1.6" />
+          <circle cx="36.7" cy="25.4" r="4.2" fill="#8fe6ff" stroke={BRASS} strokeWidth="1.6" />
+          <path d="M25.4 24 L27 22.6 M34.8 24 L36.4 22.6" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.1" strokeLinecap="round" />
         </g>
       );
     case "wide-brim":
       return (
         <g data-headgear="wide-brim">
-          <path d="M22 22 L23.5 10.5 Q32 7.5 40.5 10.5 L42 22 Z" fill={FELT} stroke={FELT_EDGE} strokeWidth="1.2" strokeLinejoin="round" />
-          <path d="M22.6 17.5 Q32 16 41.4 17.5 L41.8 20.6 Q32 19.2 22.2 20.6 Z" fill="#8a5a33" />
-          <path d="M5 23 Q32 15 59 23 Q32 29 5 23 Z" fill={FELT} stroke={FELT_EDGE} strokeWidth="1.2" strokeLinejoin="round" />
+          <path d="M22 22 L23.5 10.5 Q32 7.5 40.5 10.5 L42 22 Z" fill={FELT} stroke={EDGE} strokeWidth="1.2" strokeLinejoin="round" />
+          <path d="M22.6 17.5 Q32 16 41.4 17.5 L41.8 20.6 Q32 19.2 22.2 20.6 Z" fill={BRASS} />
+          <path d="M5 23 Q32 15 59 23 Q32 29 5 23 Z" fill={FELT} stroke={EDGE} strokeWidth="1.2" strokeLinejoin="round" />
         </g>
       );
     case "beanie":
+      // A knitted dome pulled down to a rolled brim, with a bobble on top.
       return (
         <g data-headgear="beanie">
-          <path d="M20.5 22 Q19 8.5 33 8 Q46 8 52 21 L47.5 23 Q45 16.5 40 15.5 Q43 18.5 43.5 22 Z" fill={FELT} stroke={FELT_EDGE} strokeWidth="1.2" strokeLinejoin="round" />
-          <path d="M20 25 Q32 28 44 25 L44 20.5 Q32 23.5 20 20.5 Z" fill="#5a4d43" stroke={FELT_EDGE} strokeWidth="1" strokeLinejoin="round" />
-          <circle cx="50.5" cy="23.5" r="3.6" fill="#c94a3d" stroke={FELT_EDGE} strokeWidth="0.9" />
+          <circle cx="32" cy="13.6" r="3.9" fill={FLEECE} stroke={EDGE} strokeWidth="0.9" />
+          <path d="M20.8 27 Q20.2 16.2 32 16.2 Q43.8 16.2 43.2 27 Z" fill="#4a5a6a" stroke={EDGE} strokeWidth="1.2" strokeLinejoin="round" />
+          <path d="M20 25.4 Q32 21.8 44 25.4 L44 29.6 Q32 26 20 29.6 Z" fill="#6a7a8a" stroke={EDGE} strokeWidth="1" strokeLinejoin="round" />
+          <path d="M25 26.6 L25 23.2 M29.6 25.6 L29.6 22.2 M34.4 25.6 L34.4 22.2 M39 26.6 L39 23.2" fill="none" stroke="rgba(20,16,13,0.45)" strokeWidth="0.9" strokeLinecap="round" />
         </g>
       );
     default:
+      // A flight cap: leather close over the skull, a flap down over each ear, fleece across the brow, a strap under the chin.
       return (
         <g data-headgear="flight-cap">
-          <path d="M21 23 L21.5 14.5 Q32 10.5 42.5 14.5 L43 23 Q32 25.5 21 23 Z" fill={FELT} stroke={FELT_EDGE} strokeWidth="1.2" strokeLinejoin="round" />
-          <path d="M22 15.2 Q32 11.8 42 15.2" fill="none" stroke="rgba(239,227,198,0.25)" strokeWidth="1.2" strokeLinecap="round" />
+          <path d="M21.6 38.4 Q32 44.2 42.4 38.4" fill="none" stroke="#3a2a20" strokeWidth="1.1" strokeLinecap="round" />
+          <path d="M20.8 29.5 Q20.2 18.2 32 18.2 Q43.8 18.2 43.2 29.5 Q32 25 20.8 29.5 Z" fill={LEATHER} stroke={EDGE} strokeWidth="1.2" strokeLinejoin="round" />
+          <path d="M20.9 27.6 L19.4 38.2 Q21.6 40.8 24 38.8 L24.6 28.6 Z" fill={LEATHER} stroke={EDGE} strokeWidth="1" strokeLinejoin="round" />
+          <path d="M43.1 27.6 L44.6 38.2 Q42.4 40.8 40 38.8 L39.4 28.6 Z" fill={LEATHER} stroke={EDGE} strokeWidth="1" strokeLinejoin="round" />
+          <path d="M22 28.4 Q32 24 42 28.4" fill="none" stroke={FLEECE} strokeWidth="2.6" strokeLinecap="round" />
         </g>
       );
   }
@@ -85,10 +100,11 @@ export function Portrait({ look, size = 64, name, className }: PortraitProps) {
       <g clipPath={`url(#${clip})`}>
         <rect x="28" y="36" width="8" height="9" fill={SKIN} />
         <path d="M7 66 Q8 47 24 43 L32 50 L40 43 Q56 47 57 66 Z" fill={jacket} stroke="rgba(0,0,0,0.45)" strokeWidth="1.2" strokeLinejoin="round" />
-        <path d="M24 43 L32 50 L40 43 Q32 46 24 43 Z" fill={SHIRT} />
-        <path d="M24 43 L32 57 L28.5 44.2 Z M40 43 L32 57 L35.5 44.2 Z" fill="rgba(0,0,0,0.28)" />
-        <circle cx="32" cy="59.5" r="1.5" fill="#d4a548" />
-        <circle cx="32" cy="64" r="1.5" fill="#d4a548" />
+        <path d="M26 43.4 L32 49.4 L38 43.4 Q32 45.6 26 43.4 Z" fill={SHIRT} />
+        {/* A jacket: a stand collar open at the throat and a zip down the front. */}
+        <path d="M23.4 42.6 L27.8 43.6 L31.4 50.6 L24.6 47.6 Z M40.6 42.6 L36.2 43.6 L32.6 50.6 L39.4 47.6 Z" fill="rgba(255,255,255,0.3)" stroke="rgba(0,0,0,0.4)" strokeWidth="0.9" strokeLinejoin="round" />
+        <path d="M32 50.4 L32 66" fill="none" stroke={BRASS} strokeWidth="1.5" />
+        <rect x="30.6" y="51.2" width="2.8" height="3.6" rx="0.8" fill={BRASS} stroke="rgba(0,0,0,0.4)" strokeWidth="0.6" />
       </g>
       <circle cx="32" cy="31" r="10.5" fill={SKIN} stroke="rgba(0,0,0,0.25)" strokeWidth="1" />
       <circle cx="28.3" cy="31.5" r="1.25" fill="#2a1d14" />

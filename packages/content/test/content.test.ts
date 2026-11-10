@@ -51,8 +51,18 @@ describe("content", () => {
 
   it("message lookup substitutes variables and surfaces misses", () => {
     const c = loadContent();
-    expect(msg(c, "home.welcome", { name: "Salty Gull" })).toBe("Welcome aboard, Salty Gull.");
+    expect(msg(c, "home.welcome", { name: "Static Comet" })).toBe("Welcome aboard, Static Comet.");
     expect(msg(c, "does.not.exist")).toBe("does.not.exist");
+  });
+
+  it("name lists: no repeats, and no bot is named like a pirate", () => {
+    const { adjectives, nouns, bots } = loadContent().names;
+    for (const list of [adjectives, nouns, bots]) expect(new Set(list).size).toBe(list.length);
+    // A pirate is "Adjective Noun" and a bot is "Name-7", so a bot's name is one word no pirate carries.
+    for (const b of bots) {
+      expect(b).toMatch(/^[A-Z][a-z]+$/);
+      expect([...adjectives, ...nouns]).not.toContain(b);
+    }
   });
 
   it("ContentError is what loud startup failures throw", () => {
@@ -80,7 +90,7 @@ describe("content", () => {
     expect(c.world.pirates.titles.some((t) => t.requires.kind === "start")).toBe(true);
     const bad = structuredClone(c) as typeof c & { world: { pirates: { titles: unknown[] } } };
     bad.world.pirates.titles.push(
-      { id: "kraken-tamer", nameKey: "title.void_hound", requires: { kind: "standing", puzzle: "core", tier: "sharp" } },
+      { id: "quasar-tamer", nameKey: "title.void_hound", requires: { kind: "standing", puzzle: "core", tier: "sharp" } },
       { id: "twice", nameKey: "title.void_hound", requires: { kind: "voyages", count: 10 } },
     );
     const problems = contentProblems(bad);

@@ -101,7 +101,7 @@ export function StationView({ ship, me, station, showMarks, onBack, onHelm }: St
                     {!inFlight && (
                       <div className="veil-card veil-card-slim" data-testid="duty-docked">
                         <p className="eyebrow">{stationName(station)}</p>
-                        <p className="how">{captain ? t("ship.duty_waits_for_sea") : t("ship.waiting_for_captain", { captain: captainName })}</p>
+                        <p className="how">{captain ? t("ship.duty_waits_for_launch") : t("ship.waiting_for_captain", { captain: captainName })}</p>
                         <div className="row">
                           {captain && (
                             <button className="btn btn-brass" onClick={onHelm} data-testid="duty-launch">

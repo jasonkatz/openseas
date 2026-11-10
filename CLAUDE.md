@@ -1,9 +1,10 @@
 # openseas
 
 Browser-native, touch-first space pirate puzzle MMO. Spiritual successor to Puzzle Pirates: faithful
-mechanics, original everything else. `openseas` is a codename. The game is being moved from the sea
-to space in milestone M7 (ADR 0034). The code already speaks space; until M7 lands, the game's text
-and much of the doc still use the nautical words.
+mechanics, original everything else. `openseas` is a codename. The game moved from the sea to space
+in milestone M7 (ADR 0034): its words, its code and its three.js world are space. The puzzle boards
+still show their sea art under the new names until the owner's sprite pass, and ADRs 0001 to 0033
+keep the nautical words they were written in.
 
 ## Read first
 

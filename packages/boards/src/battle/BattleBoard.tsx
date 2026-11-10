@@ -67,7 +67,7 @@ export function BattleBoard(props: BattleBoardProps) {
           miss: t("battle.miss"),
           asteroids: t("battle.asteroids"),
           rammed: t("battle.rammed"),
-          blown: t("battle.blown"),
+          blown: t("battle.carried"),
           spun: t("battle.spun"),
           outcome: (o) => t(`battle.${o}`),
           grappleReady: t("battle.grapple_ready"),

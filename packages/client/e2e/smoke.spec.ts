@@ -20,16 +20,16 @@ const swordfight = JSON.parse(readFileSync(new URL("../../content/data/puzzles/s
   config: Record<string, unknown> & { width: number; height: number };
 };
 
-const ME = { id: "p-me", name: "Salty Gull", guest: true, balance: 0, outpostId: "tinwick", ratings: [], ships: [{ id: "ship-1", classId: "skiff", name: "The Salty Gull", outpostId: "tinwick" }] };
+const ME = { id: "p-me", name: "Static Comet", guest: true, balance: 0, outpostId: "tinwick", ratings: [], ships: [{ id: "ship-1", classId: "skiff", name: "The Static Comet", outpostId: "tinwick" }] };
 /** The bots a short-handed skiff boots up as it flies (DESIGN.md 3.4), at the stations they work first. */
 const HANDS = [
-  { pirateId: "bot:1", name: "Brackish Eel", station: "engines" },
-  { pirateId: "bot:2", name: "Windward Tern", station: "cooling" },
-  { pirateId: "bot:3", name: "Drowsy Limpet", station: "plating" },
+  { pirateId: "bot:1", name: "Gasket-7", station: "engines" },
+  { pirateId: "bot:2", name: "Sprocket-12", station: "cooling" },
+  { pirateId: "bot:3", name: "Widget-3", station: "plating" },
 ];
 
 const pirates = JSON.parse(readFileSync(new URL("../../content/data/world/pirates.json", import.meta.url), "utf8")) as { titles: { id: string }[] };
-/** What the server says of the pirate's record: one voyage to port, and the titles that earned. */
+/** What the server says of the pirate's record: one voyage flown, and the titles that earned. */
 const SHEET = {
   record: { since: Date.UTC(2026, 9, 1), voyages: 1, captained: 1, victories: 0, plunder: 0, boards: 4 },
   titles: pirates.titles.map((x) => ({ id: x.id, earned: ["dirtsider", "lane-rider", "skipper"].includes(x.id), have: x.id === "void-hound" ? 1 : 0, need: x.id === "void-hound" ? 10 : 1 })),
@@ -116,7 +116,7 @@ class FakeShip {
   snapshot(now: number) {
     return {
       shipId: "ship-1",
-      name: "The Salty Gull",
+      name: "The Static Comet",
       classId: "skiff",
       ownerId: ME.id,
       captainId: ME.id,
@@ -339,7 +339,7 @@ test("from the chart to an outpost, aboard, into flight, to a board and back on 
   await expect(page.getByTestId("sheet")).toHaveAttribute("data-open", "0");
   await expect(page.getByTestId("world")).toHaveAttribute("data-focus", "outpost:tinwick");
   // The strip says the obvious next thing to do: board the skiff at the dock.
-  await expect(page.getByTestId("next-step")).toContainText("The Salty Gull");
+  await expect(page.getByTestId("next-step")).toContainText("The Static Comet");
 
   // The map button zooms out to the chart and back; the frame stays.
   await page.getByTestId("map-toggle").click();
@@ -368,11 +368,11 @@ test("from the chart to an outpost, aboard, into flight, to a board and back on 
   await expect(page.getByTestId("dock-panel")).toBeVisible();
   await page.getByTestId("board-ship-ship-1").click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "deck");
-  await expect(page.getByTestId("deck-card")).toContainText("The Salty Gull");
+  await expect(page.getByTestId("deck-card")).toContainText("The Static Comet");
   await expect(page.getByTestId("world")).toHaveAttribute("data-focus", "ship:ship-1");
   await expect(page.getByTestId("ship-heat")).toHaveText("12%");
   // Docked, the next thing is the helm; the helm spot is lit as such.
-  await expect(page.getByTestId("next-step")).toContainText("set sail");
+  await expect(page.getByTestId("next-step")).toContainText("launch");
   await expect(page.locator('[data-helm="1"]')).toHaveClass(/is-primary/);
 
   // The helm spot on deck takes the captain to the chart to pick a destination; then they launched.
@@ -382,17 +382,17 @@ test("from the chart to an outpost, aboard, into flight, to a board and back on 
   await page.getByTestId("launch-now").click();
   // Under way, the card folds back to its strip: the ship's name, where it is bound, and the turn clock.
   await expect(page.getByTestId("sheet")).toHaveAttribute("data-open", "0");
-  await expect(page.getByTestId("sheet")).toContainText("Gullhaven");
+  await expect(page.getByTestId("sheet")).toContainText("Echo Rock");
   await expect(page.getByTestId("mini-turn")).toBeVisible();
   // In flight without a station, the next thing is a station.
   await expect(page.getByTestId("next-step")).toContainText("station");
   // Launching alone booted up bots: they stand at stations, marked apart from the pirates, and the log says so.
   await expect(page.locator('[data-station="cooling"]')).toHaveAttribute("data-holder", "bot");
-  await expect(page.locator('[data-station="cooling"]')).toContainText("Windward Tern");
+  await expect(page.locator('[data-station="cooling"]')).toContainText("Sprocket-12");
   await page.getByTestId("sheet-toggle").click();
   await expect(page.getByTestId("crew-bot")).toHaveCount(3);
-  await expect(page.getByTestId("crew-bot").first()).toContainText("Deckhand");
-  await expect(page.getByTestId("ship-log")).toContainText("signed on as a deckhand");
+  await expect(page.getByTestId("crew-bot").first()).toContainText("Bot");
+  await expect(page.getByTestId("ship-log")).toContainText("booted up");
   await expect(page.getByTestId("station-cooling")).toBeEnabled();
   await page.getByTestId("sheet-toggle").click();
 
@@ -427,12 +427,12 @@ test("from the chart to an outpost, aboard, into flight, to a board and back on 
   await page.getByTestId("assign-bot:2").selectOption("gunnery");
   await expect.poll(() => server.ship()?.hands.find((h) => h.pirateId === "bot:2")?.station ?? null).toBe("gunnery");
   await expect(page.locator('[data-station="gunnery"]')).toHaveAttribute("data-holder", "bot");
-  await expect(page.getByTestId("ship-log")).toContainText("Windward Tern took the Guns");
+  await expect(page.getByTestId("ship-log")).toContainText("Sprocket-12 took the Turrets");
   // Then on the outpost from the unfolded card: the scene pulls out to the outpost.
   await page.getByTestId("disembark").click();
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "outpost");
   await expect(page.getByTestId("world")).toHaveAttribute("data-focus", "outpost:tinwick");
-  await expect(page.getByTestId("sheet")).toContainText("Saltwick");
+  await expect(page.getByTestId("sheet")).toContainText("Tinwick");
 
   // The menu is the same everywhere and carries the settings.
   await page.getByTestId("menu-open").click();
@@ -476,7 +476,7 @@ test("a pirate opens their own sheet from the top bar, dresses for the deck, wea
   await expect(page.getByTestId("sheet-title-lane-rider")).toBeVisible();
   await expect(page.getByTestId("sheet-title-old-stardust")).toHaveCount(0);
   await page.getByTestId("sheet-title-lane-rider").click();
-  await expect(page.getByTestId("sheet-shown-title")).toHaveText("Wave Rider");
+  await expect(page.getByTestId("sheet-shown-title")).toHaveText("Lane Rider");
 
   // The titles tab lists every title with what it asks; earned ones can be worn from there too.
   await page.getByTestId("sheet-tab-titles").click();
@@ -496,7 +496,7 @@ test("a pirate opens their own sheet from the top bar, dresses for the deck, wea
 
   // A title earned out in the world floats up with a way to see it.
   server.ship()!.send({ type: "pirate.titles", earned: ["void-hound"] });
-  await expect(page.getByTestId("toasts")).toContainText("Sea Dog");
+  await expect(page.getByTestId("toasts")).toContainText("Void Hound");
   await page.getByTestId("toast-title").click();
   await expect(page.getByTestId("pirate-sheet")).toBeVisible();
   await expect(page.getByTestId("sheet-tab-titles")).toHaveAttribute("aria-selected", "true");
@@ -513,7 +513,7 @@ test("a raider's hail is engaged at the helm and the captain's battle board open
   await tapSpot(page, '[data-helm="1"]');
   await page.getByTestId("dest-echo-rock").click();
   await page.getByTestId("launch-now").click();
-  await expect(page.getByTestId("sheet")).toContainText("Gullhaven");
+  await expect(page.getByTestId("sheet")).toContainText("Echo Rock");
 
   // The hail floats over the view with the captain's two answers; engaging deals the battle board.
   await expect.poll(() => server.ship() !== null).toBe(true);
@@ -651,7 +651,7 @@ async function standing(page: Page): Promise<[number, number]> {
 
 test("on the outpost the pirate walks among others: a tap walks, a walk is heard, a name opens a card, and the airlock leads off the ship", async ({ page }) => {
   test.setTimeout(180_000);
-  const server = await fakeServer(page, [{ pirateId: "p-kraken", name: "Moody Kraken", at: { x: 0.3, z: -0.32 } }]);
+  const server = await fakeServer(page, [{ pirateId: "p-quasar", name: "Moody Quasar", at: { x: 0.3, z: -0.32 } }]);
   await page.goto("/");
   const world = page.getByTestId("world");
   await expect(world).toHaveAttribute("data-walk", "outpost:tinwick", { timeout: 30_000 });
@@ -673,17 +673,17 @@ test("on the outpost the pirate walks among others: a tap walks, a walk is heard
   expect(Math.hypot(after[0] - before[0], after[1] - before[1])).toBeGreaterThan(0.05);
 
   // Another pirate on the outpost stands where they last walked, named; when they walk on, the name walks with them.
-  const kraken = page.locator('[data-walker="p-kraken"]');
-  await expect(kraken).toHaveText("Moody Kraken");
-  const was = await kraken.boundingBox();
-  server.ship()!.send({ type: "walk.moved", scope: "outpost", pirateId: "p-kraken", x: 0.2, z: -0.35 });
+  const quasar = page.locator('[data-walker="p-quasar"]');
+  await expect(quasar).toHaveText("Moody Quasar");
+  const was = await quasar.boundingBox();
+  server.ship()!.send({ type: "walk.moved", scope: "outpost", pirateId: "p-quasar", x: 0.2, z: -0.35 });
   await expect.poll(async () => {
-    const now = await kraken.boundingBox();
+    const now = await quasar.boundingBox();
     return now && was ? Math.hypot(now.x - was.x, now.y - was.y) : 0;
   }, { timeout: 10_000 }).toBeGreaterThan(15);
   // Their name is a way to their card.
-  await kraken.click({ force: true });
-  await expect(page.getByTestId("profile-card")).toContainText("Moody Kraken");
+  await quasar.click({ force: true });
+  await expect(page.getByTestId("profile-card")).toContainText("Moody Quasar");
   await page.getByTestId("profile-close").click();
   await expect(page.getByTestId("profile-card")).toHaveCount(0);
 
@@ -758,15 +758,15 @@ test("on the outpost the pirate walks among others: a tap walks, a walk is heard
 
 // ---- crews and accounts (M6)
 
-const FLAG_REEF = { field: "crimson", accent: "bone", pattern: "saltire", emblem: "satellite" };
-const REEF = { id: "c-reef", name: "Reef Runners", flag: FLAG_REEF };
-const KRAKEN = { pirateId: "p-kraken", name: "Moody Kraken" };
+const FLAG_RIFT = { field: "crimson", accent: "bone", pattern: "saltire", emblem: "satellite" };
+const RIFT = { id: "c-rift", name: "Rift Runners", flag: FLAG_RIFT };
+const QUASAR = { pirateId: "p-quasar", name: "Moody Quasar" };
 
 /** A pretend harbor for crews: the pirate's crew, invitations, the board of crews and pirates' cards, answered over the same wire. */
 class FakeHarbor {
   me: Record<string, unknown> & { id: string; name: string; balance: number; crew: unknown };
   crew: { id: string; name: string; flag: Record<string, string>; rank: string } | null = null;
-  invites: { crew: typeof REEF; members: number; by: string; at: number }[] = [];
+  invites: { crew: typeof RIFT; members: number; by: string; at: number }[] = [];
   invitedNames: string[] = [];
   constructor(
     readonly ws: WebSocketRoute,
@@ -798,8 +798,8 @@ class FakeHarbor {
   }
   /** Another crew's officer invites the pirate. */
   invite(): void {
-    this.invites = [{ crew: REEF, members: 7, by: KRAKEN.name, at: Date.now() }];
-    this.send({ type: "crew.notice", notice: { type: "invited", crew: REEF, by: KRAKEN.name }, at: Date.now() });
+    this.invites = [{ crew: RIFT, members: 7, by: QUASAR.name, at: Date.now() }];
+    this.send({ type: "crew.notice", notice: { type: "invited", crew: RIFT, by: QUASAR.name }, at: Date.now() });
     this.state();
   }
   handle(raw: string): void {
@@ -810,13 +810,13 @@ class FakeHarbor {
         this.send({ type: "board.ships", outpostId: "tinwick", ships: [], serverNow: now });
         return;
       case "outpost.who":
-        this.send({ type: "outpost.presence", outpostId: "tinwick", pirates: [{ pirateId: this.me.id, name: this.me.name, crew: null }, { ...KRAKEN, crew: REEF }] });
+        this.send({ type: "outpost.presence", outpostId: "tinwick", pirates: [{ pirateId: this.me.id, name: this.me.name, crew: null }, { ...QUASAR, crew: RIFT }] });
         return;
       case "crew.info":
         this.state();
         return;
       case "crew.list":
-        this.send({ type: "crew.list", crews: [{ ...REEF, members: 7, stats: { voyages: 30, victories: 14, plunder: 8800 } }] });
+        this.send({ type: "crew.list", crews: [{ ...RIFT, members: 7, stats: { voyages: 30, victories: 14, plunder: 8800 } }] });
         return;
       case "crew.found": {
         this.crew = { id: "c-new", name: m.name as string, flag: m.flag as Record<string, string>, rank: "commodore" };
@@ -831,7 +831,7 @@ class FakeHarbor {
         this.state();
         return;
       case "crew.answer":
-        if (m.accept) this.crew = { ...REEF, rank: "spacer" };
+        if (m.accept) this.crew = { ...RIFT, rank: "spacer" };
         this.invites = [];
         this.state();
         this.summary();
@@ -840,7 +840,7 @@ class FakeHarbor {
         this.send({ type: "chat.message", channel: m.channel, pirateId: this.me.id, name: this.me.name, text: m.text, at: now });
         return;
       case "pirate.profile":
-        this.send({ type: "pirate.profile", profile: { ...KRAKEN, crew: { ...REEF, rank: "officer" }, ratings: [{ puzzle: "engines", tier: "sharp", rounds: 9 }], voyages: 17, online: true, invited: this.invitedNames.includes(KRAKEN.name) } });
+        this.send({ type: "pirate.profile", profile: { ...QUASAR, crew: { ...RIFT, rank: "officer" }, ratings: [{ puzzle: "engines", tier: "sharp", rounds: 9 }], voyages: 17, online: true, invited: this.invitedNames.includes(QUASAR.name) } });
         return;
       default:
         return;
@@ -883,7 +883,7 @@ test("a pirate founds a crew in the cantina, sews its flag, invites from a profi
   // A name too short is refused before it is sent; the flag is sewn from its parts.
   await page.getByTestId("crew-found-name").fill("ab");
   await expect(page.getByTestId("crew-found")).toBeDisabled();
-  await page.getByTestId("crew-found-name").fill("The Salt Dogs");
+  await page.getByTestId("crew-found-name").fill("The Rust Comets");
   await page.getByTestId("flag-field-deep").click();
   await page.getByTestId("flag-accent-gold").click();
   await page.getByTestId("flag-pattern-cross").click();
@@ -897,9 +897,9 @@ test("a pirate founds a crew in the cantina, sews its flag, invites from a profi
 
   // Founded: the card is the crew's, the founder is commodore, the purse paid the fee and the top bar flies the flag.
   await expect(page.getByTestId("crew-panel")).toHaveAttribute("data-in-crew", "1");
-  await expect(page.getByTestId("crew-name")).toHaveText("The Salt Dogs");
+  await expect(page.getByTestId("crew-name")).toHaveText("The Rust Comets");
   await expect(page.getByTestId(`crew-member-${ME.id}`)).toHaveAttribute("data-rank", "commodore");
-  await expect(page.getByTestId("toasts")).toContainText("The Salt Dogs is founded");
+  await expect(page.getByTestId("toasts")).toContainText("The Rust Comets is founded");
   await expect(page.getByTestId("pirate-credits")).toHaveText("250");
   await expect(page.getByTestId("crew-open").locator("img")).toHaveAttribute("data-flag", "deep.gold.cross.rocket");
 
@@ -910,18 +910,18 @@ test("a pirate founds a crew in the cantina, sews its flag, invites from a profi
   await expect(page.getByTestId("chat-crew")).toContainText("all hands");
   // The board of crews ranks every crew by plunder.
   await page.getByTestId("crew-tab-board").click();
-  await expect(page.getByTestId("crew-board")).toContainText("Reef Runners");
+  await expect(page.getByTestId("crew-board")).toContainText("Rift Runners");
   await page.getByTestId("crew-close").click();
   await expect(page.getByTestId("crew-dialog")).toHaveCount(0);
 
   // A name in the cantina opens that pirate's card, which invites them to the crew.
-  await page.getByTestId(`patron-${KRAKEN.pirateId}`).click();
-  await expect(page.getByTestId("profile-card")).toContainText("Reef Runners");
+  await page.getByTestId(`patron-${QUASAR.pirateId}`).click();
+  await expect(page.getByTestId("profile-card")).toContainText("Rift Runners");
   await page.getByTestId("profile-invite").click();
-  await expect.poll(() => server.harbor()?.invitedNames ?? []).toContain(KRAKEN.name);
+  await expect.poll(() => server.harbor()?.invitedNames ?? []).toContain(QUASAR.name);
   await expect(page.getByTestId("profile-card")).toHaveCount(0);
   await page.getByTestId("crew-open").click();
-  await expect(page.getByTestId("crew-invited")).toContainText(KRAKEN.name);
+  await expect(page.getByTestId("crew-invited")).toContainText(QUASAR.name);
 });
 
 test("an invitation arrives as a toast, is answered in the crew card, and a guest links an account to keep their pirate", async ({ page }) => {
@@ -935,10 +935,10 @@ test("an invitation arrives as a toast, is answered in the crew card, and a gues
   server.harbor()!.invite();
   await expect(page.getByTestId("crew-badge")).toHaveText("1");
   await page.getByTestId("toast-crew-view").click();
-  await expect(page.getByTestId("crew-invites")).toContainText("Reef Runners");
-  await page.getByTestId(`crew-accept-${REEF.id}`).click();
-  await expect(page.getByTestId("crew-name")).toHaveText("Reef Runners");
-  await expect(page.getByTestId("toasts")).toContainText("You've joined Reef Runners");
+  await expect(page.getByTestId("crew-invites")).toContainText("Rift Runners");
+  await page.getByTestId(`crew-accept-${RIFT.id}`).click();
+  await expect(page.getByTestId("crew-name")).toHaveText("Rift Runners");
+  await expect(page.getByTestId("toasts")).toContainText("You've joined Rift Runners");
   await expect(page.getByTestId("crew-badge")).toHaveCount(0);
   await page.getByTestId("crew-close").click();
 
