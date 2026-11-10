@@ -1,14 +1,65 @@
-import type { ReactorState } from "@openseas/engine";
+import { useEffect, useRef } from "react";
+import { reactorLegalDirs, reactorViewString, type ReactorDir, type ReactorState } from "@openseas/engine";
+import { t } from "../content.js";
+import { useKitBoard } from "../kit/useKitBoard.js";
+import { ReactorRenderer } from "./renderer.js";
 
 export interface ReactorBoardProps {
   state: ReactorState;
   version?: number;
   interactive: boolean;
   showMarks: boolean;
+  /** Point at a swipe that would discharge a rod after a pause: on for practice, off for recorded rounds. */
+  hints: boolean;
+  /** Returns false when the round refused the swipe. */
+  onSwipe(dir: ReactorDir): boolean;
   onFrame(): void;
 }
 
-/** Reactor (prototype, ADR 0036). This is the stub the real board replaces. */
-export function ReactorBoard(_props: ReactorBoardProps) {
-  return <div className="board-host" data-testid="reactor-board" />;
+/** Hosts the Reactor canvas (prototype, ADR 0036). All drawing lives in the renderer; every number shown is the engine's. */
+export function ReactorBoard(props: ReactorBoardProps) {
+  const latest = useRef(props);
+  latest.current = props;
+  const { host, renderer } = useKitBoard<ReactorState, ReactorRenderer>(
+    (el) =>
+      new ReactorRenderer(
+        el,
+        {
+          onSwipe: (dir) => latest.current.onSwipe(dir),
+          onFrame: () => latest.current.onFrame(),
+        },
+        {
+          showMarks: props.showMarks,
+          hints: props.hints,
+          labels: {
+            next: t("reactor.next"),
+            hot: t("reactor.hot"),
+            pipeline: (percent) => t("reactor.pipeline_running", { percent }),
+            pipelineIdle: t("reactor.pipeline_idle"),
+            pipelineLost: t("reactor.pipeline_lost"),
+            run: (count) => t("reactor.run", { count }),
+            salvo: (count) => t("reactor.salvo", { count }),
+            hotRod: t("reactor.hot_rod"),
+            critical: (penalty) => t("reactor.scram_critical", { penalty }),
+            jammed: (penalty) => t("reactor.scram_jammed", { penalty }),
+          },
+        },
+      ),
+    props,
+  );
+
+  useEffect(() => {
+    renderer.current?.setHints(props.hints);
+  }, [props.hints, renderer]);
+
+  // The legal swipes ride along for the smoke test: which ways the core will take right now.
+  return (
+    <div
+      ref={host}
+      className="board-host"
+      data-testid="reactor-board"
+      data-board={reactorViewString(props.state.cells, props.state.ports)}
+      data-legal={reactorLegalDirs(props.state).join("")}
+    />
+  );
 }
