@@ -37,7 +37,7 @@ example for every one of them.
 | `packages/content/data/messages/prototypes/<id>.json` | Every string the puzzle shows. |
 | `packages/boards/src/<id>/renderer.ts` | A `KitBoard` subclass: draws the state, plays the last move, reports input. |
 | `packages/boards/src/sprites/<id>.webp` | The puzzle's atlas, with its frames in `frames.json` and its line in `atlas.ts`. |
-| `packages/boards/src/<id>/<Id>Board.tsx` | The React host: `useKitBoard`, the labels from the message table, `data-board`. |
+| `packages/boards/src/<id>/<Id>Board.tsx` | The React wrapper: `useBoardHost`, the labels from the message table, `data-board`. |
 | `packages/harness/src/pages/<Id>Practice.tsx` | The page: `usePracticePage`, `PracticeShell`, the board's handlers, HUD details, legend, result rows. |
 | `packages/harness/src/prototypes/<id>.ts` | The bench entry, `harnessPuzzle(<ID>_DEF, …)`: seed probes, its tick clock if it ticks (`ticks`), whether it hints. Content gives the config and round length, `PRESETS` the presets. |
 | `packages/harness/src/scenario/prototypes/<id>.ts` | Lab presets. Pure: no boards import. |
@@ -94,7 +94,8 @@ These are the project's rules (CLAUDE.md), said for a prototype.
   palette. The pieces here are what a board draws without its atlas.
 - `KindIcon.tsx`: a kind as an SVG, for legends. `SpriteIcon.tsx`: a frame of the atlas, for the
   same; `KindIcon` takes one as `sprite`.
-- `useKitBoard.ts`: the React hook that hosts a renderer.
+- `useBoardHost.ts`: the React hook that hosts every board's renderer, core and prototype (ADR 0040),
+  and `BoardRenderer`, what a renderer offers it. It owns the mount order, readiness, keys and teardown.
 
 A ticked board is handed a new display state every tick. It overrides `keepsPlaying` to say so,
 which stops the kit flushing its tweens ten times a second, and its `onState` plays only the events

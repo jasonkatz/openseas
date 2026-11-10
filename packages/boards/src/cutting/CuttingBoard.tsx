@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
 import { cuttingViewString, type CuttingState } from "@openseas/engine";
 import { t } from "../content.js";
-import { useKitBoard } from "../kit/useKitBoard.js";
+import { useBoardHost } from "../kit/useBoardHost.js";
 import { CuttingRenderer } from "./renderer.js";
 
 export interface CuttingBoardProps {
@@ -19,10 +18,8 @@ export interface CuttingBoardProps {
 
 /** Hosts the Cutting canvas (prototype, ADR 0036). All drawing lives in the renderer; every number shown is the engine's. */
 export function CuttingBoard(props: CuttingBoardProps) {
-  const latest = useRef(props);
-  latest.current = props;
-  const { host, renderer } = useKitBoard<CuttingState, CuttingRenderer>(
-    (el) =>
+  const { host } = useBoardHost(
+    (el, latest) =>
       new CuttingRenderer(
         el,
         {
@@ -46,10 +43,6 @@ export function CuttingBoard(props: CuttingBoardProps) {
       ),
     props,
   );
-
-  useEffect(() => {
-    renderer.current?.setHints(props.hints);
-  }, [props.hints, renderer]);
 
   return (
     <div

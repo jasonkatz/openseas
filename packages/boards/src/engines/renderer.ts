@@ -20,6 +20,7 @@ import { mix } from "../cooling/tiles.js";
 import { pelletCanvas, type PelletStyle, type EnginesTexture } from "./pellets.js";
 import { boardSurface } from "../surface.js";
 import { HULL, hazardBand, hullFrame, hullGradient } from "../hull.js";
+import type { BoardRenderer } from "../kit/useBoardHost.js";
 
 export interface EnginesCallbacks {
   /** The player's pair came to rest with its anchor at (col, row) in rotation `rot`. */
@@ -87,7 +88,7 @@ const LOCK_MS = 350;
 /** Slides and turns that restart the lock timer while resting; after that the timer runs on regardless. Falling to a lower row restores them. */
 const MAX_LOCK_RESETS = 3;
 
-export class EnginesRenderer {
+export class EnginesRenderer implements BoardRenderer<EnginesState> {
   readonly app = new Application();
   private readonly board = new Container();
   private readonly staticLayer = new Container();
@@ -164,6 +165,11 @@ export class EnginesRenderer {
       mark: this.markByKind.get(kind) ?? null,
       showMarks: this.showMarks,
     };
+  }
+
+  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
+  get isReady(): boolean {
+    return Boolean(this.app.renderer);
   }
 
   async init(): Promise<void> {
@@ -875,7 +881,7 @@ export class EnginesRenderer {
   }
 
   /** Keyboard: left and right steer, up turns clockwise, down turns counter-clockwise, space hurries while held. */
-  keyboard(key: string, down: boolean): boolean {
+  keyboard(key: string, down = true): boolean {
     if (key === " " && !down) {
       this.softDrop = false;
       return true;
@@ -906,6 +912,11 @@ export class EnginesRenderer {
       default:
         return false;
     }
+  }
+
+  /** A key came up: letting go of space stops the hurry. */
+  keyUp(key: string): boolean {
+    return this.keyboard(key, false);
   }
 }
 

@@ -77,7 +77,7 @@ function CoolingDuty({ active, showMarks, children }: DutyProps) {
     api,
     score: state.score,
     combo: state.combo,
-    board: (interactive) => <CoolingBoard state={state} report={state.lastMove} version={api.version} interactive={interactive} showMarks={showMarks} hints={false} {...controls} />,
+    board: (interactive) => <CoolingBoard state={state} version={api.version} interactive={interactive} showMarks={showMarks} hints={false} {...controls} />,
   });
 }
 

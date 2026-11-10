@@ -438,7 +438,7 @@ its design file under `docs/prototypes/` and its message file under
 | Cutting | `cutting` | Cuts a slab of salvage into pieces and banks the ones that hold one ore |
 
 Words shared by all of them: a **prototype** is one of these puzzles; the **kit** is the shared
-board code they are drawn with (`boards/src/kit`); a **kind** is one of the kit's eight placeholder
-pieces (`gold`, `ice`, `ember`, `moss`, `violet`, `amber`, `bone`, `rose`), each a silhouette and a
-color.
+board code they are drawn with (`boards/src/kit`), which every board runs through (ADR 0040); a
+**kind** is one of the kit's eight placeholder pieces (`gold`, `ice`, `ember`, `moss`, `violet`,
+`amber`, `bone`, `rose`), each a silhouette and a color.
 

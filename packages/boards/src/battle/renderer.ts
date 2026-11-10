@@ -19,6 +19,7 @@ import {
 import { paintBall, paintTurret, paintCaustic, paintWell, paintSpace, paintShip } from "./art.js";
 import { boardSurface } from "../surface.js";
 import { HULL, hullFrame, hullGradient } from "../hull.js";
+import type { BoardRenderer } from "../kit/useBoardHost.js";
 
 export interface BattleCallbacks {
   /** The captain flew the plot: by the button, the key, or the host's turn clock. */
@@ -192,7 +193,7 @@ function texture(canvas: HTMLCanvasElement, resolution: number): Texture {
   return new Texture({ source: new CanvasSource({ resource: canvas, resolution }) });
 }
 
-export class BattleRenderer {
+export class BattleRenderer implements BoardRenderer<BattleState> {
   readonly app = new Application();
   private readonly world = new Container();
   private readonly frameG = new Graphics();
@@ -270,6 +271,11 @@ export class BattleRenderer {
     private readonly cb: BattleCallbacks,
     private readonly opts: BattleRendererOptions,
   ) {}
+
+  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
+  get isReady(): boolean {
+    return Boolean(this.app.renderer);
+  }
 
   async init(): Promise<void> {
     await loadPuzzleSprites("battle");

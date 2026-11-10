@@ -1,9 +1,9 @@
 /**
  * The base every prototype board's renderer extends (ADR 0036). It owns the PixiJS application, the
  * frame loop, the tween clock, the effects layer and the pointer plumbing, and it speaks the same
- * contract to the page and the smoke test as the game's hand-built boards: `setState`,
- * `setInteractive`, `setShowMarks`, `keyboard`, a `data-testid="<id>-canvas"` canvas, and a
- * `data-view` attribute that says what is drawn once the board has settled.
+ * contract to the page and the smoke test as the game's hand-built boards: the host's
+ * `BoardRenderer` (ADR 0040), a `data-testid="<id>-canvas"` canvas, and a `data-view` attribute that
+ * says what is drawn once the board has settled.
  *
  * A renderer draws and reports input. It never scores and never decides what a move does: it asks
  * the engine (CLAUDE.md, "boards is presentation and transport only").
@@ -13,8 +13,9 @@ import { drawSprite, hasSprite, isSpritePuzzle, loadPuzzleSprites, spritesReady 
 import { boardSurface } from "../surface.js";
 import { Fx } from "./fx.js";
 import { Tweens } from "./tween.js";
+import type { BoardRenderer } from "./useBoardHost.js";
 
-export abstract class KitBoard<S> {
+export abstract class KitBoard<S> implements BoardRenderer<S> {
   readonly app = new Application();
   /** Everything the board draws. A shake moves it as one. */
   protected readonly world = new Container();

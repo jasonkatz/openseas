@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
 import { overloadViewString, type OverloadState } from "@openseas/engine";
 import { t } from "../content.js";
-import { useKitBoard } from "../kit/useKitBoard.js";
+import { useBoardHost } from "../kit/useBoardHost.js";
 import { OverloadRenderer } from "./renderer.js";
 
 export interface OverloadBoardProps {
@@ -19,10 +18,8 @@ export interface OverloadBoardProps {
 
 /** Hosts the Overload canvas (prototype, ADR 0036). All drawing lives in the renderer; every number shown is the engine's. */
 export function OverloadBoard(props: OverloadBoardProps) {
-  const latest = useRef(props);
-  latest.current = props;
-  const { host, renderer } = useKitBoard<OverloadState, OverloadRenderer>(
-    (el) =>
+  const { host } = useBoardHost(
+    (el, latest) =>
       new OverloadRenderer(
         el,
         {
@@ -46,10 +43,6 @@ export function OverloadBoard(props: OverloadBoardProps) {
       ),
     props,
   );
-
-  useEffect(() => {
-    renderer.current?.setHints(props.hints);
-  }, [props.hints, renderer]);
 
   return <div ref={host} className="board-host" data-testid="overload-board" data-board={overloadViewString(props.state.cells)} />;
 }

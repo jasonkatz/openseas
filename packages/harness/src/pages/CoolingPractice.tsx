@@ -80,7 +80,7 @@ export function CoolingPractice() {
           </ul>
         </>
       }
-      board={(b) => <CoolingBoard {...b} report={shown.lastMove} {...controls} />}
+      board={(b) => <CoolingBoard {...b} {...controls} />}
     />
   );
 }

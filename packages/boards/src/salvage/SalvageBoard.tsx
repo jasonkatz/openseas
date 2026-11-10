@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
 import { salvageViewString, type SalvageState } from "@openseas/engine";
 import { t } from "../content.js";
-import { useKitBoard } from "../kit/useKitBoard.js";
+import { useBoardHost } from "../kit/useBoardHost.js";
 import { SalvageRenderer } from "./renderer.js";
 
 export interface SalvageBoardProps {
@@ -17,10 +16,8 @@ export interface SalvageBoardProps {
 
 /** Hosts the Salvage canvas (prototype, ADR 0036). All drawing lives in the renderer; every number shown is the engine's. */
 export function SalvageBoard(props: SalvageBoardProps) {
-  const latest = useRef(props);
-  latest.current = props;
-  const { host, renderer } = useKitBoard<SalvageState, SalvageRenderer>(
-    (el) =>
+  const { host } = useBoardHost(
+    (el, latest) =>
       new SalvageRenderer(
         el,
         {
@@ -45,10 +42,6 @@ export function SalvageBoard(props: SalvageBoardProps) {
       ),
     props,
   );
-
-  useEffect(() => {
-    renderer.current?.setHints(props.hints);
-  }, [props.hints, renderer]);
 
   return <div ref={host} className="board-host" data-testid="salvage-board" data-board={salvageViewString(props.state.cells)} />;
 }

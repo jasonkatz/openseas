@@ -20,6 +20,7 @@ import { drawMark } from "../engines/renderer.js";
 import { SCRAP_COLOR, blockCanvas, scrapStage, type BlockStyle, type SwordTexture } from "./art.js";
 import { boardSurface } from "../surface.js";
 import { HULL, hullFrame, hullGradient } from "../hull.js";
+import type { BoardRenderer } from "../kit/useBoardHost.js";
 
 /** A board in the melee that is not in this fight's state: another pirate's, or a raider's run by the server. */
 export interface RemoteBoard {
@@ -182,7 +183,7 @@ function halves(pc: number, rot: SwordRotation, row: number): { a: [number, numb
 }
 const anchorOf = (pc: number, rot: SwordRotation): number => (rot === 2 ? pc - 1 : pc);
 
-export class SwordfightRenderer {
+export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
   readonly app = new Application();
   private readonly board = new Container();
   private readonly staticLayer = new Container();
@@ -270,6 +271,11 @@ export class SwordfightRenderer {
 
   private colorOf(color: number): number {
     return color < 0 ? SCRAP_COLOR : (this.styles[color]?.color ?? 0xffffff);
+  }
+
+  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
+  get isReady(): boolean {
+    return Boolean(this.app.renderer);
   }
 
   async init(): Promise<void> {
@@ -1570,7 +1576,7 @@ export class SwordfightRenderer {
   }
 
   /** Keyboard: left and right steer, up and X turn clockwise, down and Z the other way, space hurries while held. */
-  keyboard(key: string, down: boolean): boolean {
+  keyboard(key: string, down = true): boolean {
     if (key === " " && !down) {
       this.softDrop = false;
       return true;
@@ -1601,5 +1607,10 @@ export class SwordfightRenderer {
       default:
         return false;
     }
+  }
+
+  /** A key came up: letting go of space stops the hurry. */
+  keyUp(key: string): boolean {
+    return this.keyboard(key, false);
   }
 }

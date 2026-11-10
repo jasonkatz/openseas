@@ -1,10 +1,11 @@
 import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
 import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
-import { Special, type CoolingState, type ClearRound, type MoveReport, type Piece } from "@openseas/engine";
+import { Special, type CoolingState, type ClearRound, type Piece } from "@openseas/engine";
 import type { CoolingContent } from "@openseas/content";
 import { buildFlash, mix, tileCanvas, type TileStyle, type TileTexture } from "./tiles.js";
 import { boardSurface } from "../surface.js";
 import { HULL, hullFrame, hullGradient } from "../hull.js";
+import type { BoardRenderer } from "../kit/useBoardHost.js";
 
 export interface RendererCallbacks {
   /** The player asked to swap (col,row) with (col+1,row). */
@@ -164,7 +165,7 @@ const rand = (a: number, b: number): number => a + Math.random() * (b - a);
  * the player sees every chain. A new move fast-forwards whatever is still playing, so input never
  * waits on animation.
  */
-export class CoolingRenderer {
+export class CoolingRenderer implements BoardRenderer<CoolingState> {
   readonly app = new Application();
   private readonly board = new Container();
   /** Frame and well never change between layouts, so they render once into a cached texture. */
@@ -281,8 +282,16 @@ export class CoolingRenderer {
     if (this.app.renderer) this.bake();
   }
 
+  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
+  get isReady(): boolean {
+    return Boolean(this.app.renderer);
+  }
+
   async init(): Promise<void> {
     await loadPuzzleSprites("cooling");
+    // Special labels are baked into textures, so wait (briefly) for the webfont. The wait comes
+    // before the canvas is made, so the board is ready only once it can bake them.
+    await Promise.race([document.fonts?.ready, new Promise((r) => window.setTimeout(r, 800))]).catch(() => undefined);
     if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
@@ -291,8 +300,6 @@ export class CoolingRenderer {
       autoDensity: true,
       preference: "webgl",
     });
-    // Special labels are baked into textures, so wait (briefly) for the webfont.
-    await Promise.race([document.fonts?.ready, new Promise((r) => window.setTimeout(r, 800))]).catch(() => undefined);
     if (this.destroyed) {
       this.app.destroy(true);
       return;
@@ -367,8 +374,9 @@ export class CoolingRenderer {
 
   // ---- state and the move timeline
 
-  /** Apply a new engine state. A move report plays as a timeline; anything else snaps. */
-  setState(state: CoolingState, report: MoveReport | null): void {
+  /** Apply a new engine state. The report of the move that led to it plays as a timeline; anything else snaps. */
+  setState(state: CoolingState): void {
+    const report = state.lastMove;
     const prev = this.state;
     this.state = state;
     this.combo = state.combo;

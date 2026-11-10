@@ -1,11 +1,11 @@
-import { useEffect, useRef } from "react";
-import type { CoolingState, ClearRound, MoveReport } from "@openseas/engine";
+import type { CoolingState, ClearRound } from "@openseas/engine";
 import { content, t } from "../content.js";
+import { useBoardHost } from "../kit/useBoardHost.js";
 import { CoolingRenderer, type MoveShown } from "./renderer.js";
 
 export interface BoardProps {
-  state: CoolingState | null;
-  report: MoveReport | null;
+  /** The state to show. The move that led to it (`lastMove`) plays out; anything else snaps. */
+  state: CoolingState;
   /** Monotonic counter so the same state object can be re-applied after a reset. */
   version: number;
   interactive: boolean;
@@ -24,14 +24,7 @@ export interface BoardProps {
 
 /** Hosts the Pixi canvas and forwards input. All drawing lives in the renderer. */
 export function CoolingBoard(props: BoardProps) {
-  const host = useRef<HTMLDivElement>(null);
-  const renderer = useRef<CoolingRenderer | null>(null);
-  const latest = useRef(props);
-  latest.current = props;
-
-  useEffect(() => {
-    const el = host.current;
-    if (!el) return;
+  const { host } = useBoardHost((el, latest) => {
     const r: CoolingRenderer = new CoolingRenderer(el, content.puzzles.cooling, {
       onSwap: (c, row) => latest.current.onSwap(c, row),
       onHover: (c, row) => r.setPreview(latest.current.preview(c, row)),
@@ -52,46 +45,8 @@ export function CoolingBoard(props: BoardProps) {
       streakLabel: (count) => t("cooling.streak_label", { count }),
       overheatSwapMs: content.puzzles.cooling.overheatSwapMs,
     });
-    renderer.current = r;
-    let alive = true;
-    void r.init().then(() => {
-      if (!alive) return;
-      const p = latest.current;
-      if (p.state) r.setState(p.state, null);
-      r.setInteractive(p.interactive);
-      r.setHints(p.hints);
-    });
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (r.keyboard(e.key)) e.preventDefault();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      alive = false;
-      window.removeEventListener("keydown", onKey);
-      r.destroy();
-      renderer.current = null;
-    };
-  }, []);
+    return r;
+  }, props);
 
-  useEffect(() => {
-    const r = renderer.current;
-    if (r && props.state && r.app.renderer) r.setState(props.state, props.report);
-  }, [props.state, props.report, props.version]);
-
-  useEffect(() => {
-    const r = renderer.current;
-    if (r && r.app.renderer) r.setInteractive(props.interactive);
-  }, [props.interactive]);
-
-  useEffect(() => {
-    const r = renderer.current;
-    if (r && r.app.renderer) r.setHints(props.hints);
-  }, [props.hints]);
-
-  useEffect(() => {
-    renderer.current?.setShowMarks(props.showMarks);
-  }, [props.showMarks]);
-
-  return <div ref={host} className="board-host" data-testid="cooling-board" data-board={props.state?.cells.map((p) => p.kind).join(",")} />;
+  return <div ref={host} className="board-host" data-testid="cooling-board" data-board={props.state.cells.map((p) => p.kind).join(",")} />;
 }

@@ -44,9 +44,9 @@ export { SwordfightBoard, type SwordfightBoardProps } from "./swordfight/Swordfi
 export { BlockIcon } from "./swordfight/BlockIcon.jsx";
 export { swordfightViewString, type RemoteBoard as MeleeRemoteBoard, type PlaceAnswer as SwordfightPlaceAnswer } from "./swordfight/renderer.js";
 export { useSwordfightControls, type SwordfightControls } from "./swordfight/useSwordfightControls.js";
-// The kit prototype boards are built from (ADR 0036): a PixiJS base, tweens, effects and placeholder art.
+// The kit prototype boards are built from (ADR 0036), and the host every board runs through (ADR 0040).
 export { KitBoard, Grid } from "./kit/board.js";
-export { useKitBoard, type KitBoardProps } from "./kit/useKitBoard.js";
+export { useBoardHost, type BoardHostProps, type BoardRenderer } from "./kit/useBoardHost.js";
 export { KindIcon, type KindIconProps } from "./kit/KindIcon.jsx";
 export { SpriteIcon, type SpriteIconProps } from "./kit/SpriteIcon.jsx";
 export { INK, KINDS, kindStyle, spriteName, type PlaceholderKind, type Shape } from "./kit/art.js";

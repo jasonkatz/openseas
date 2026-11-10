@@ -18,6 +18,7 @@ import {
 import type { NavigationContent } from "@openseas/content";
 import { paintStar, type StarShapeName } from "./stars.js";
 import { boardSurface } from "../surface.js";
+import type { BoardRenderer } from "../kit/useBoardHost.js";
 
 export interface NavigationCallbacks {
   /** The player turned a ring. False when the engine refused it. */
@@ -112,7 +113,7 @@ export function navigationViewString(state: NavigationState): string {
   return state.slots.map((s) => s?.kind ?? -1).join(",");
 }
 
-export class NavigationRenderer {
+export class NavigationRenderer implements BoardRenderer<NavigationState> {
   readonly app = new Application();
   private readonly chart = new Container();
   private readonly sky = new Graphics();
@@ -195,6 +196,11 @@ export class NavigationRenderer {
     }
     for (const s of content.shapes) this.shapeName.push(s.shape);
     this.selectedRing = Math.min(1, this.rings - 1);
+  }
+
+  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
+  get isReady(): boolean {
+    return Boolean(this.app.renderer);
   }
 
   async init(): Promise<void> {

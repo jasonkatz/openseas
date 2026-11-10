@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
 import { reactorLegalDirs, reactorViewString, type ReactorDir, type ReactorState } from "@openseas/engine";
 import { t } from "../content.js";
-import { useKitBoard } from "../kit/useKitBoard.js";
+import { useBoardHost } from "../kit/useBoardHost.js";
 import { ReactorRenderer } from "./renderer.js";
 
 export interface ReactorBoardProps {
@@ -18,10 +17,8 @@ export interface ReactorBoardProps {
 
 /** Hosts the Reactor canvas (prototype, ADR 0036). All drawing lives in the renderer; every number shown is the engine's. */
 export function ReactorBoard(props: ReactorBoardProps) {
-  const latest = useRef(props);
-  latest.current = props;
-  const { host, renderer } = useKitBoard<ReactorState, ReactorRenderer>(
-    (el) =>
+  const { host } = useBoardHost(
+    (el, latest) =>
       new ReactorRenderer(
         el,
         {
@@ -47,10 +44,6 @@ export function ReactorBoard(props: ReactorBoardProps) {
       ),
     props,
   );
-
-  useEffect(() => {
-    renderer.current?.setHints(props.hints);
-  }, [props.hints, renderer]);
 
   // The legal swipes ride along for the smoke test: which ways the core will take right now.
   return (

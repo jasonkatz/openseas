@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
 import { tugStateViewString, type TugDir, type TugState } from "@openseas/engine";
 import { t } from "../content.js";
-import { useKitBoard } from "../kit/useKitBoard.js";
+import { useBoardHost } from "../kit/useBoardHost.js";
 import { TugRenderer } from "./renderer.js";
 
 export interface TugBoardProps {
@@ -18,10 +17,8 @@ export interface TugBoardProps {
 
 /** Hosts the Tug canvas (prototype, ADR 0036). All drawing lives in the renderer; every number shown is the engine's. */
 export function TugBoard(props: TugBoardProps) {
-  const latest = useRef(props);
-  latest.current = props;
-  const { host, renderer } = useKitBoard<TugState, TugRenderer>(
-    (el) =>
+  const { host } = useBoardHost(
+    (el, latest) =>
       new TugRenderer(
         el,
         {
@@ -46,10 +43,6 @@ export function TugBoard(props: TugBoardProps) {
       ),
     props,
   );
-
-  useEffect(() => {
-    renderer.current?.setHints(props.hints);
-  }, [props.hints, renderer]);
 
   return <div ref={host} className="board-host" data-testid="tug-board" data-board={tugStateViewString(props.state)} />;
 }

@@ -21,6 +21,7 @@ import { mix } from "../cooling/tiles.js";
 import { gunneryPieceCanvas } from "./pieces.js";
 import { boardSurface } from "../surface.js";
 import { HULL, hullFrame, hullGradient, hullRivet, starField } from "../hull.js";
+import type { BoardRenderer } from "../kit/useBoardHost.js";
 
 export interface GunneryCallbacks {
   /** The player laid an arrow (`dir` set) or lifted one (`dir` null) on a deck cell. */
@@ -136,7 +137,7 @@ const isGood = (o: TurretOutcome): boolean => o === "load" || o === "loaded" || 
 /** Two touch taps on one cell within this long lift its arrow. */
 const DOUBLE_TAP_MS = 350;
 
-export class GunneryRenderer {
+export class GunneryRenderer implements BoardRenderer<GunneryState> {
   readonly app = new Application();
   private readonly board = new Container();
   private readonly staticLayer = new Container();
@@ -213,6 +214,11 @@ export class GunneryRenderer {
     this.deck = parseGunneryDeck(content.config.decks[0]!);
     this.width = this.deck.width;
     this.height = this.deck.height;
+  }
+
+  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
+  get isReady(): boolean {
+    return Boolean(this.app.renderer);
   }
 
   async init(): Promise<void> {

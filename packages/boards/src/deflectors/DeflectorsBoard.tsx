@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { deflectorsViewString, type DeflectorsState } from "@openseas/engine";
 import { t } from "../content.js";
-import { useKitBoard } from "../kit/useKitBoard.js";
+import { useBoardHost } from "../kit/useBoardHost.js";
 import { DEFLECTORS_SIGNS, DeflectorsRenderer } from "./renderer.js";
 
 export interface DeflectorsBoardProps {
@@ -24,10 +24,8 @@ export interface DeflectorsBoardProps {
 
 /** Hosts the Deflectors canvas (prototype, ADR 0036). All drawing lives in the renderer; every number shown is the engine's. */
 export function DeflectorsBoard(props: DeflectorsBoardProps) {
-  const latest = useRef(props);
-  latest.current = props;
-  const { host, renderer } = useKitBoard<DeflectorsState, DeflectorsRenderer>(
-    (el) =>
+  const { host, renderer } = useBoardHost(
+    (el, latest) =>
       new DeflectorsRenderer(
         el,
         {
@@ -51,10 +49,6 @@ export function DeflectorsBoard(props: DeflectorsBoardProps) {
       ),
     props,
   );
-
-  useEffect(() => {
-    renderer.current?.setHints(props.hints ?? false);
-  }, [props.hints, renderer]);
 
   useEffect(() => {
     const events = props.logged?.lastMove?.events;

@@ -16,6 +16,7 @@ import { mix } from "../cooling/tiles.js";
 import { drawMark } from "../engines/renderer.js";
 import { boardSurface } from "../surface.js";
 import { HULL, hullRivet, starField } from "../hull.js";
+import type { BoardRenderer } from "../kit/useBoardHost.js";
 
 export interface PlatingCallbacks {
   /** The player welded down the plate in `slot` at this orientation and origin. */
@@ -163,7 +164,7 @@ const DISPLAY = "Fraunces, Georgia, serif";
 const easeOut = (k: number): number => 1 - (1 - k) ** 3;
 const easeIn = (k: number): number => k * k;
 
-export class PlatingRenderer {
+export class PlatingRenderer implements BoardRenderer<PlatingState> {
   readonly app = new Application();
   private readonly root = new Container();
   private readonly hull = new Graphics();
@@ -245,6 +246,11 @@ export class PlatingRenderer {
     });
     this.width = content.config.width;
     this.height = content.config.height;
+  }
+
+  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
+  get isReady(): boolean {
+    return Boolean(this.app.renderer);
   }
 
   async init(): Promise<void> {

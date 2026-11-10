@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
 import { racksViewString, type RacksState } from "@openseas/engine";
 import { t } from "../content.js";
-import { useKitBoard } from "../kit/useKitBoard.js";
+import { useBoardHost } from "../kit/useBoardHost.js";
 import { RacksRenderer } from "./renderer.js";
 
 export interface RacksBoardProps {
@@ -18,10 +17,8 @@ export interface RacksBoardProps {
 
 /** Hosts the Racks canvas (prototype, ADR 0036). All drawing lives in the renderer; every number shown is the engine's. */
 export function RacksBoard(props: RacksBoardProps) {
-  const latest = useRef(props);
-  latest.current = props;
-  const { host, renderer } = useKitBoard<RacksState, RacksRenderer>(
-    (el) =>
+  const { host } = useBoardHost(
+    (el, latest) =>
       new RacksRenderer(
         el,
         {
@@ -45,10 +42,6 @@ export function RacksBoard(props: RacksBoardProps) {
       ),
     props,
   );
-
-  useEffect(() => {
-    renderer.current?.setHints(props.hints);
-  }, [props.hints, renderer]);
 
   return <div ref={host} className="board-host" data-testid="racks-board" data-board={racksViewString(props.state.racks, props.state.crate)} />;
 }

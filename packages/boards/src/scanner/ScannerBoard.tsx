@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
 import { scannerViewString, type ScannerState } from "@openseas/engine";
 import { t } from "../content.js";
-import { useKitBoard } from "../kit/useKitBoard.js";
+import { useBoardHost } from "../kit/useBoardHost.js";
 import { ScannerRenderer } from "./renderer.js";
 
 export interface ScannerBoardProps {
@@ -22,10 +21,8 @@ export interface ScannerBoardProps {
  * hidden contact is.
  */
 export function ScannerBoard(props: ScannerBoardProps) {
-  const latest = useRef(props);
-  latest.current = props;
-  const { host, renderer } = useKitBoard<ScannerState, ScannerRenderer>(
-    (el) =>
+  const { host } = useBoardHost(
+    (el, latest) =>
       new ScannerRenderer(
         el,
         {
@@ -57,10 +54,6 @@ export function ScannerBoard(props: ScannerBoardProps) {
       ),
     props,
   );
-
-  useEffect(() => {
-    renderer.current?.setHints(props.hints);
-  }, [props.hints, renderer]);
 
   return <div ref={host} className="board-host" data-testid="scanner-board" data-board={scannerViewString(props.state)} />;
 }
