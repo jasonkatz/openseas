@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ContentError, contentProblems, defaultLook, loadContent, msg, pirateLookProblem, WorldSchema } from "../src/index.js";
+import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
+import { BattleContentSchema, ContentError, contentProblems, CoolingContentSchema, defaultLook, GunneryContentSchema, loadContent, msg, pirateLookProblem, WorldSchema } from "../src/index.js";
 
 describe("content", () => {
   it("loads and cross-validates every file", () => {
@@ -43,6 +44,34 @@ describe("content", () => {
       expect(r.durationSeconds).toBeGreaterThanOrEqual(180);
       expect(r.durationSeconds).toBeLessThanOrEqual(300);
     }
+  });
+
+  it("holds a puzzle's config to the wire's bounds when it loads, not later at the server", () => {
+    const c = loadContent();
+    const wide = { ...c.puzzles.cooling, config: { ...c.puzzles.cooling.config, width: 17 } };
+    expect(PUZZLE_CONFIG_SCHEMAS.cooling.safeParse(wide.config).success).toBe(false);
+    const r = CoolingContentSchema.safeParse(wide);
+    expect(r.success).toBe(false);
+    expect(r.error?.issues.map((i) => i.path.join("."))).toEqual(["config.width"]);
+  });
+
+  it("adds content's own rules to the wire's: a game deck carries four turrets", () => {
+    const c = loadContent();
+    const gunnery = structuredClone(c.puzzles.gunnery);
+    gunnery.config.decks[0] = gunnery.config.decks[0]!.map((row) => row.replace("C", "#"));
+    expect(PUZZLE_CONFIG_SCHEMAS.gunnery.safeParse(gunnery.config).success).toBe(true);
+    const r = GunneryContentSchema.safeParse(gunnery);
+    expect(r.error?.issues.map((i) => i.message)).toEqual(["deck needs exactly four turrets"]);
+  });
+
+  it("refuses a malformed deck or board with issues, never a throw", () => {
+    const c = loadContent();
+    const gunnery = structuredClone(c.puzzles.gunnery);
+    gunnery.config.decks[0] = [];
+    expect(GunneryContentSchema.safeParse(gunnery).success).toBe(false);
+    const battle = structuredClone(c.puzzles.battle);
+    battle.config.boards[0] = [];
+    expect(BattleContentSchema.safeParse(battle).success).toBe(false);
   });
 
   it("rejects a lane to an unknown outpost at the schema level", () => {

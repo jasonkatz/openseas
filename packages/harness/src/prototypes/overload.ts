@@ -1,5 +1,4 @@
 import { OVERLOAD_DEF, overloadChainSize, overloadHint, type OverloadConfig, type OverloadMove, type OverloadState } from "@openseas/engine";
-import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
 import type { HarnessPuzzle } from "../puzzles.js";
 import { OVERLOAD_PRESETS } from "../scenario/prototypes/overload.js";
@@ -12,7 +11,6 @@ export const OVERLOAD: HarnessPuzzle<OverloadState, OverloadMove, OverloadConfig
   def: OVERLOAD_DEF,
   config: content.puzzles.overload.config,
   roundSeconds: content.puzzles.overload.roundSeconds,
-  configSchema: PUZZLE_CONFIG_SCHEMAS.overload,
   presets: OVERLOAD_PRESETS,
   probes: [
     { id: "long_chain", test: (s) => longest(s) >= 6 },

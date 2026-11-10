@@ -11,6 +11,7 @@ export type SalvageMoveWire = z.infer<typeof SalvageMoveSchema>;
 export const SalvageConfigSchema = z.object({
   width: z.int().min(3).max(12),
   height: z.int().min(3).max(12),
+  /** Kinds of debris. The board draws the first `kinds` placeholder pieces. */
   kinds: z.int().min(2).max(8),
   minLine: z.int().min(2).max(5),
   linePoints: z.int().min(0).max(1000),

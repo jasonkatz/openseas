@@ -1,5 +1,4 @@
 import { TUG_DEF, tugSolve, type TugConfig, type TugMove, type TugState } from "@openseas/engine";
-import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
 import type { HarnessPuzzle } from "../puzzles.js";
 import { TUG_PRESETS } from "../scenario/prototypes/tug.js";
@@ -16,7 +15,6 @@ export const TUG: HarnessPuzzle<TugState, TugMove, TugConfig> = {
   def: TUG_DEF,
   config: content.puzzles.tug.config,
   roundSeconds: content.puzzles.tug.roundSeconds,
-  configSchema: PUZZLE_CONFIG_SCHEMAS.tug,
   presets: TUG_PRESETS,
   probes: [
     { id: "two_pod_start", test: (s) => new Set(tugSolve(s)?.map((m) => m.pod)).size >= 2 },

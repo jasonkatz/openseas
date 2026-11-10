@@ -21,6 +21,7 @@ export const SwordAiSchema = z.object({
 
 export const SwordBladeSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]*$/),
+  /** Each blade's scrap lands in these columns, in turn. */
   columns: z.array(z.int().min(0).max(9)).min(1).max(64),
 });
 
@@ -42,6 +43,7 @@ export const SwordfightConfigSchema = z.object({
   player: z.boolean(),
   blade: z.int().min(0).max(15),
   allies: z.array(SwordAiSchema).max(8),
+  /** The practice foes. Aboard, the server empties this and the raider crew fights from outside the board. */
   foes: z.array(SwordAiSchema).max(8),
   winPoints: z.int().min(1).max(1_000_000),
   scorePercent: z.int().min(1).max(1000),

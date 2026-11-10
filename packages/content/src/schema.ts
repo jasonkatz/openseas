@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 
 const Id = z.string().regex(/^[a-z][a-z0-9-]*$/, "ids are lowercase kebab-case");
 const MessageKey = z.string().regex(/^[a-z][a-z0-9_.]*$/, "message keys are dotted snake_case");
@@ -152,7 +153,11 @@ export const StarSystemSchema = z.object({
   ship: ShipRulesSchema,
 });
 
-/** Fields every duty puzzle's content file has. */
+/**
+ * Fields every duty puzzle's content file has. A puzzle's `config` is the protocol's wire schema for
+ * it (ADR 0039): its bounds are declared there and in the engine's validator, never again here.
+ * Content keeps what is its own: the round's length, par, thresholds, styles and message keys.
+ */
 export const DutyPuzzleBaseSchema = z.object({
   /** Wall-clock length of a practice round, enforced by the server. */
   roundSeconds: z.int().min(10).max(1800),
@@ -166,27 +171,7 @@ export const DutyPuzzleBaseSchema = z.object({
 });
 
 export const CoolingContentSchema = DutyPuzzleBaseSchema.extend({
-  config: z.object({
-    width: z.int().min(3),
-    height: z.int().min(3),
-    pieceKinds: z.int().min(3).max(12),
-    specialChancePerMille: z.object({ charge: z.int().min(0), magnet: z.int().min(0), slag: z.int().min(0) }),
-    initialHeatRow: z.int().min(0),
-    minHeatRow: z.int().min(0),
-    heatRisePerMoves: z.int().min(1),
-    heatDropPerPoints: z.int().min(1),
-    /** True: the board plays a ship's heat, aboard or a lone ship's in the harness (ADR 0029). False keeps the board's own heat. */
-    shipHeat: z.boolean().default(false),
-    /** A bound that keeps the move log a sane size; the clock ends a round. */
-    maxMoves: z.int().min(1),
-    /** What each cascade step multiplies by; steps past the end take the last entry (the cap). */
-    cascadeMultipliers: z.array(z.int().min(1)).min(1),
-    /** Percent each scoring move in a row adds to a move's points, up to `streakMaxPercent`. */
-    streakStepPercent: z.int().min(0),
-    streakMaxPercent: z.int().min(100),
-    /** Non-scoring swaps in a row the streak survives. */
-    streakGrace: z.int().min(0),
-  }),
+  config: PUZZLE_CONFIG_SCHEMAS.cooling,
   /**
    * How long a swap below the heat line takes to settle, in ms. The board takes no other swap
    * until it lands, so working overheated costs time. Client timing only; scores are unaffected.
@@ -209,21 +194,7 @@ export const EnginesPieceStyleSchema = z.object({
 });
 
 export const EnginesContentSchema = DutyPuzzleBaseSchema.extend({
-  config: z.object({
-    width: z.int().min(4).max(16),
-    height: z.int().min(8).max(32),
-    pieceKinds: z.int().min(2).max(8),
-    injectorsAtOnce: z.int().min(0).max(8),
-    injectorSpanMin: z.int().min(1),
-    injectorSpanMax: z.int().min(1),
-    injectorPoints: z.int().min(0),
-    runPoints: z.int().min(0),
-    /** A bound that keeps the move log a sane size; the clock ends a round. */
-    maxMoves: z.int().min(1),
-    flameoutPenalty: z.int().min(0),
-    /** What each chain step multiplies by; steps past the end take the last entry (the cap). */
-    chainMultipliers: z.array(z.int().min(1)).min(1),
-  }),
+  config: PUZZLE_CONFIG_SCHEMAS.engines,
   /** Ms per row a pair falls on its own. Client timing only; the move log carries landings. */
   fallMs: z.int().min(50).max(5000),
   /** Ms per row while the player hurries the pair (a held swipe on touch, space on a keyboard); a tenth of fallMs. */
@@ -232,28 +203,7 @@ export const EnginesContentSchema = DutyPuzzleBaseSchema.extend({
 });
 
 export const PlatingContentSchema = DutyPuzzleBaseSchema.extend({
-  config: z.object({
-    width: z.int().min(5).max(20),
-    height: z.int().min(5).max(24),
-    pieceKinds: z.int().min(1).max(8),
-    breachesAtOnce: z.int().min(1).max(6),
-    minBreachPieces: z.int().min(1).max(6),
-    maxBreachPieces: z.int().min(1).max(6),
-    basePerCell: z.number().min(0),
-    multiplierPercent: z.object({
-      flawless: z.number().min(0),
-      solid: z.number().min(0),
-      holds: z.number().min(0),
-      tape: z.number().min(0),
-      gum: z.number().min(0),
-    }),
-    brushBonusPercent: z.number().min(0),
-    growAfterMoves: z.int().min(1),
-    /** A bound that keeps the move log a sane size; the clock ends a round. */
-    maxMoves: z.int().min(1),
-    /** A flawless patch's multiplier in percent by its place in the streak; past the end, the last entry (the cap). */
-    streakPercent: z.array(z.int().min(100)).min(1),
-  }),
+  config: PUZZLE_CONFIG_SCHEMAS.plating,
   /** Metal kinds plates come in. Cosmetic: shape tells plates apart; metal adds variety. */
   pieces: z.array(PieceStyleSchema).min(1),
   /** Display names for the twelve pentominoes, index = engine shape. */
@@ -261,47 +211,14 @@ export const PlatingContentSchema = DutyPuzzleBaseSchema.extend({
 });
 
 export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
-  config: z.object({
-    /**
-     * The decks a round may be played on; the seed picks one. One string per row: # wall,
-     * . plank, X crate, B feeder, C turret, H hatch. The engine checks at startup that each has no
-     * loop built in, a stream that leaves, and every gun within reach.
-     */
-    decks: z
-      .array(
-        z
-          .array(z.string().regex(/^[#.XBCH]+$/, "deck rows use # . X B C H"))
-          .min(5)
-          .superRefine((rows, ctx) => {
-            const width = rows[0]!.length;
-            if (rows.some((r) => r.length !== width)) ctx.addIssue({ code: "custom", message: "deck rows must be the same width" });
-            const all = rows.join("");
-            const count = (ch: string): number => all.split(ch).length - 1;
-            if (count("C") !== 4) ctx.addIssue({ code: "custom", message: "deck needs exactly four turrets" });
-            if (count("B") !== 1) ctx.addIssue({ code: "custom", message: "deck needs exactly one feeder" });
-          }),
-      )
-      .min(1)
-      .superRefine((decks, ctx) => {
-        const [w, h] = [decks[0]![0]!.length, decks[0]!.length];
-        if (decks.some((d) => d.length !== h || d[0]!.length !== w)) ctx.addIssue({ code: "custom", message: "every deck must be the same size" });
-      }),
-    tickMs: z.int().min(20).max(5000),
-    maxTick: z.int().min(1),
-    maxMoves: z.int().min(1),
-    maxOnDeck: z.int().min(1),
-    spawnEveryTicks: z.int().min(1),
-    spawnEveryTicksMin: z.int().min(1),
-    queueLength: z.int().min(0).max(8),
-    /** Pieces per refill of the feeder's shuffled bag: cell, sabot, slug, coolant. */
-    bag: z.array(z.int().min(0)).length(4),
-    fireAfterTicks: z.int().min(1),
-    stepPoints: z.int().min(0),
-    loadPoints: z.int().min(0),
-    comboStep: z.int().min(0),
-    comboCap: z.int().min(0),
-    /** Points when every gun has fired since the last broadside. */
-    broadsidePoints: z.int().min(0),
+  /**
+   * The game's decks carry four turrets, two a side (DESIGN.md 3.3). That is content's rule, not the
+   * wire's: the engine plays a deck with any number, so a lab deck may carry more or fewer.
+   */
+  config: PUZZLE_CONFIG_SCHEMAS.gunnery.superRefine((config, ctx) => {
+    config.decks.forEach((rows, i) => {
+      if (rows.join("").split("C").length !== 5) ctx.addIssue({ code: "custom", message: "deck needs exactly four turrets", path: ["decks", i] });
+    });
   }),
   /** Cell, sabot, slug, coolant, in that order (the engine's kind numbers). */
   pieces: z.array(PieceStyleSchema).length(4),
@@ -320,28 +237,7 @@ export const StarShapeSchema = z.object({
 });
 
 export const NavigationContentSchema = DutyPuzzleBaseSchema.extend({
-  config: z.object({
-    rings: z.int().min(1).max(6),
-    octants: z.int().min(3).max(16),
-    shapes: z.int().min(1).max(6),
-    colors: z.int().min(1).max(8),
-    startStars: z.int().min(1),
-    maxStars: z.int().min(1),
-    reuseChancePercent: z.int().min(0).max(100),
-    starPoints: z.int().min(0),
-    /** What the chain multiplies a constellation's stars by, in percent; past the end, the last entry (the cap). */
-    chainPercent: z.array(z.int().min(100)).min(1),
-    /** A run of n loose stars of a kind scores runPoints * (n - 2). */
-    runPoints: z.int().min(0),
-    lostHeadingPenalty: z.int().min(0),
-    /** Wall-clock ms per tick on the client; the server bounds claimed ticks with it. */
-    tickMs: z.int().min(20).max(5000),
-    maxTick: z.int().min(1),
-    maxMoves: z.int().min(1),
-    /** Ticks a star takes to fall at the start of the round, and by the end. */
-    fallTicks: z.int().min(1),
-    fallTicksMin: z.int().min(1),
-  }),
+  config: PUZZLE_CONFIG_SCHEMAS.navigation,
   colors: z.array(StarColorSchema).min(1),
   shapes: z.array(StarShapeSchema).min(1),
 });
@@ -351,54 +247,7 @@ export const BattleContentSchema = z.object({
   /** Wall-clock length of a practice fight, enforced by the server. Aboard, the fight runs on the ship's turns. */
   roundSeconds: z.int().min(10).max(1800),
   thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
-  config: z.object({
-    /** `.` space, `#` asteroid, `^ > v <` currents, `@` wells, `A` the captain's start (facing north), `B` the raider's (south). */
-    boards: z
-      .array(
-        z
-          .array(z.string().regex(/^[.#^>v<@AB]+$/, "board rows use . # ^ > v < @ A B"))
-          .min(5)
-          .superRefine((rows, ctx) => {
-            const width = rows[0]!.length;
-            if (rows.some((r) => r.length !== width)) ctx.addIssue({ code: "custom", message: "board rows must be the same width" });
-            const all = rows.join("");
-            if (all.split("A").length !== 2) ctx.addIssue({ code: "custom", message: "a board needs exactly one A" });
-            if (all.split("B").length !== 2) ctx.addIssue({ code: "custom", message: "a board needs exactly one B" });
-          }),
-      )
-      .min(1),
-    segments: z.int().min(1).max(8),
-    turnSeconds: z.int().min(3).max(600),
-    tokenCap: z.int().min(1).max(32),
-    turretRange: z.int().min(1).max(16),
-    shotDamage: z.int().min(0).max(1000),
-    asteroidDamage: z.int().min(0).max(1000),
-    ramDamage: z.int().min(0).max(1000),
-    grappleDamage: z.int().min(0).max(1000),
-    maxTurns: z.int().min(1).max(200),
-    turrets: z.int().min(0).max(32),
-    startLoaded: z.int().min(0).max(32),
-    startDamage: z.int().min(0).max(999),
-    /** Practice deals these every turn. Aboard, the server sets this null and the ship supplies the board. */
-    supply: z.object({ left: z.int().min(0).max(32), forward: z.int().min(0).max(32), right: z.int().min(0).max(32), turrets: z.int().min(0).max(32) }).nullable(),
-    /** The practice raider. Aboard, the encounter's tier replaces it. */
-    raider: z.object({
-      turrets: z.int().min(0).max(32),
-      tokensPerTurn: z.int().min(0).max(32),
-      reloadPerTurn: z.int().min(0).max(32),
-      accuracy: z.int().min(0).max(100),
-      aggression: z.int().min(0).max(100),
-      startDamage: z.int().min(0).max(999),
-    }),
-    hitPoints: z.int().min(0),
-    /** Points lost per hit taken, so hits score as the margin. */
-    hitTakenPoints: z.int().min(0),
-    /** Turn points scaled by this, in percent; aboard, the raider tier's `scorePercent` replaces it. */
-    scorePercent: z.int().min(1).max(1000),
-    winPoints: z.int().min(0),
-    turnBonus: z.int().min(0),
-    maxMoves: z.int().min(1),
-  }),
+  config: PUZZLE_CONFIG_SCHEMAS.battle,
 });
 
 /** Swordfight blocks are beveled squares with their own surface per color, so they never read as Cooling tiles. */
@@ -416,40 +265,7 @@ export const SwordfightContentSchema = z.object({
   /** A steady fighter's attack a minute: the melee counts in the plunder as duty turns at a pirate's rate against this (ADR 0030). */
   parRatePerMinute: z.int().min(1),
   thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
-  config: z.object({
-    width: z.int().min(4).max(10),
-    height: z.int().min(6).max(20),
-    colors: z.int().min(3).max(6),
-    breakerPermille: z.int().min(0).max(1000),
-    dealSeed: z.string().max(200),
-    ripenMoves: z.int().min(1).max(20),
-    scrapMatchPermille: z.int().min(0).max(1000),
-    cellPoints: z.int().min(0).max(1000),
-    slabBonus: z.int().min(0).max(1000),
-    attackPoints: z.int().min(1).max(100_000),
-    offset: z.boolean(),
-    landAfterTicks: z.int().min(1).max(10_000),
-    incomingCapRows: z.int().min(1).max(20),
-    /** Each blade's scrap lands in these columns, in turn. */
-    blades: z.array(z.object({ id: Id, columns: z.array(z.int().min(0).max(9)).min(1).max(64) })).min(1).max(16),
-    /** True in content; the server sets it false for the raider crew's fight, which has no player in it. */
-    player: z.boolean(),
-    blade: z.int().min(0).max(15),
-    allies: z.array(z.object({ thinkTicks: z.int().min(1).max(10_000), skill: z.int().min(0).max(100), blade: z.int().min(0).max(15) })).max(8),
-    /** The practice foes. Aboard, the server empties this and the raider crew fights from outside the board. */
-    foes: z.array(z.object({ thinkTicks: z.int().min(1).max(10_000), skill: z.int().min(0).max(100), blade: z.int().min(0).max(15) })).max(8),
-    /** The win band: a win scores this plus its attack rate; anything else stays under it. */
-    winPoints: z.int().min(1),
-    /** The attack rate scaled by this, in percent; aboard, the raider tier's `scorePercent` replaces it. */
-    scorePercent: z.int().min(1).max(1000),
-    /** The attack rate counts at least this many seconds of fight. */
-    minRateSeconds: z.int().min(1).max(3600),
-    tickMs: z.int().min(20).max(5000),
-    dropTicks: z.int().min(0).max(1000),
-    fallTicks: z.int().min(1).max(1000),
-    maxTick: z.int().min(1),
-    maxMoves: z.int().min(1),
-  }),
+  config: PUZZLE_CONFIG_SCHEMAS.swordfight,
   /** Ms per row while the player hurries the pair; free fall is fallTicks * tickMs a row. Client timing only. */
   softDropMs: z.int().min(10).max(5000),
   pieces: z.array(SwordPieceStyleSchema).min(3),

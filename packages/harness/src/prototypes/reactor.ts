@@ -1,5 +1,4 @@
 import { REACTOR_DEF, type ReactorConfig, type ReactorMove, type ReactorState } from "@openseas/engine";
-import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
 import type { HarnessPuzzle } from "../puzzles.js";
 import { REACTOR_PRESETS } from "../scenario/prototypes/reactor.js";
@@ -10,7 +9,6 @@ export const REACTOR: HarnessPuzzle<ReactorState, ReactorMove, ReactorConfig> = 
   def: REACTOR_DEF,
   config: content.puzzles.reactor.config,
   roundSeconds: content.puzzles.reactor.roundSeconds,
-  configSchema: PUZZLE_CONFIG_SCHEMAS.reactor,
   presets: REACTOR_PRESETS,
   probes: [
     { id: "ports_one_wall", test: (s) => s.ports.length >= 2 && s.ports.every((p) => p.side === s.ports[0]!.side) },

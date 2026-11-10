@@ -21,9 +21,9 @@ export const CoolingConfigSchema = z.object({
   minHeatRow: z.int().min(0).max(32),
   heatRisePerMoves: z.int().min(1),
   heatDropPerPoints: z.int().min(1),
-  maxMoves: z.int().min(1).max(10_000),
-  /** True when the heat is a ship's heat (a duty board's, or a harness round's lone ship); false keeps the board's own. */
+  /** True when the heat is a ship's heat (a duty board's, or a harness round's lone ship, ADR 0029); false keeps the board's own. */
   shipHeat: z.boolean().default(false),
+  maxMoves: z.int().min(1).max(10_000),
   cascadeMultipliers: z.array(z.int().min(1).max(100)).min(1).max(16),
   streakStepPercent: z.int().min(0).max(1000),
   streakMaxPercent: z.int().min(100).max(1000),

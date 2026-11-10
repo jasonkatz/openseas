@@ -12,6 +12,7 @@ export type RacksMoveWire = z.infer<typeof RacksMoveSchema>;
 export const RacksConfigSchema = z.object({
   racks: z.int().min(3).max(8),
   height: z.int().min(3).max(8),
+  /** Kinds of cell. The board draws the first `kinds` placeholder pieces. */
   kinds: z.int().min(2).max(8),
   startCells: z.int().min(0).max(56),
   crateMin: z.int().min(1).max(8),

@@ -1,5 +1,4 @@
 import { CUTTING_DEF, cuttingBestCut, cuttingCutPreview, type CuttingConfig, type CuttingMove, type CuttingState } from "@openseas/engine";
-import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
 import type { HarnessPuzzle } from "../puzzles.js";
 import { CUTTING_PRESETS } from "../scenario/prototypes/cutting.js";
@@ -16,7 +15,6 @@ export const CUTTING: HarnessPuzzle<CuttingState, CuttingMove, CuttingConfig> = 
   def: CUTTING_DEF,
   config: content.puzzles.cutting.config,
   roundSeconds: content.puzzles.cutting.roundSeconds,
-  configSchema: PUZZLE_CONFIG_SCHEMAS.cutting,
   presets: CUTTING_PRESETS,
   probes: [
     { id: "three_cuts", test: (s) => s.cutsAllowed === 3 },

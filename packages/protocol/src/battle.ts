@@ -30,8 +30,21 @@ export const BattleRaiderSchema = z.object({
   startDamage: z.int().min(0).max(999),
 });
 
+/** One board, a string per row. Its shape is checked here; the engine's `boardProblems` checks the rest. */
+const BoardSchema = z
+  .array(z.string().regex(/^[.#^>v<@AB]+$/, "board rows use . # ^ > v < @ A B").min(5).max(32))
+  .min(5)
+  .max(32)
+  .superRefine((rows, ctx) => {
+    const width = rows[0]?.length ?? 0;
+    if (rows.some((r) => r.length !== width)) ctx.addIssue({ code: "custom", message: "board rows must be the same width" });
+    const all = rows.join("");
+    if (all.split("A").length !== 2) ctx.addIssue({ code: "custom", message: "a board needs exactly one A" });
+    if (all.split("B").length !== 2) ctx.addIssue({ code: "custom", message: "a board needs exactly one B" });
+  });
+
 export const BattleConfigSchema = z.object({
-  boards: z.array(z.array(z.string().regex(/^[.#^>v<@AB]+$/).min(5).max(32)).min(5).max(32)).min(1).max(32),
+  boards: z.array(BoardSchema).min(1).max(32),
   segments: z.int().min(1).max(8),
   turnSeconds: z.int().min(3).max(600),
   tokenCap: z.int().min(1).max(32),
@@ -45,6 +58,7 @@ export const BattleConfigSchema = z.object({
   startLoaded: Count,
   startDamage: z.int().min(0).max(999),
   supply: BattleSupplySchema.nullable(),
+  /** The practice raider. Aboard, the encounter's tier replaces it. */
   raider: BattleRaiderSchema,
   hitPoints: z.int().min(0).max(1_000_000),
   hitTakenPoints: z.int().min(0).max(1_000_000),

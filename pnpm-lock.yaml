@@ -100,6 +100,9 @@ importers:
 
   packages/content:
     dependencies:
+      '@openseas/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       zod:
         specifier: ^4.1.0
         version: 4.6.5

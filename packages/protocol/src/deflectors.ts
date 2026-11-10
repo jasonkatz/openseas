@@ -11,8 +11,10 @@ export const DeflectorsMoveSchema = z.discriminatedUnion("type", [
 export type DeflectorsMoveWire = z.infer<typeof DeflectorsMoveSchema>;
 
 export const DeflectorsConfigSchema = z.object({
+  /** The grid is size by size, with a port at each end of every row and column. */
   size: z.int().min(3).max(10),
   mirrors: z.int().min(1).max(100),
+  /** The most beams in a volley. The board has a sign for each of three. */
   maxBeams: z.int().min(1).max(3),
   rampTicks: z.int().min(1).max(100_000),
   minBest: z.int().min(0).max(64),

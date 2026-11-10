@@ -31,8 +31,8 @@ example for every one of them.
 | `packages/engine/src/<id>/reduce.ts` | `validateConfig`, `create<Id>Game`, `reduce<Id>`, `hash<Id>State`, `summarize<Id>`, `viewString`, and every query the board needs (is this legal, what is this worth, a hint). |
 | `packages/engine/src/<id>/index.ts` | Re-exports, with queries prefixed by the id (`salvageCanExtend`), and `<ID>_DEF`. |
 | `packages/engine/test/<id>.test.ts` | Property tests for determinism first (ADR 0003), then the rules. |
-| `packages/protocol/src/<id>.ts` | `<Id>MoveSchema`, `<Id>ConfigSchema`. Bounds match the engine's validator. |
-| `packages/content/src/prototypes/<id>.ts` | `<Id>ContentSchema`: the base (round length, thresholds) and the config. |
+| `packages/protocol/src/<id>.ts` | `<Id>MoveSchema`, `<Id>ConfigSchema`. Bounds match the engine's validator; content loads its config through this schema (ADR 0039). |
+| `packages/content/src/prototypes/<id>.ts` | `<Id>ContentSchema`: the base (round length, thresholds) and the protocol's config schema. |
 | `packages/content/data/puzzles/<id>.json` | The config the server deals, the round length, the thresholds. |
 | `packages/content/data/messages/prototypes/<id>.json` | Every string the puzzle shows. |
 | `packages/boards/src/<id>/renderer.ts` | A `KitBoard` subclass: draws the state, plays the last move, reports input. |

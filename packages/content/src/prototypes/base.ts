@@ -2,7 +2,8 @@ import { z } from "zod";
 
 /**
  * Fields every prototype puzzle's content file has (ADR 0036). A prototype is no station, so it
- * has no par: a round is rated against its thresholds, as the captain's space battle is.
+ * has no par: a round is rated against its thresholds, as the captain's space battle is. Its
+ * `config` is the protocol's wire schema for the puzzle (ADR 0039).
  */
 export const PrototypeBaseSchema = z.object({
   /** Wall-clock length of a round on the harness, enforced by the server for a recorded one. */

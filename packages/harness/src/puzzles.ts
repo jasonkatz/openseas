@@ -32,9 +32,7 @@ import {
   type SwordfightMove,
   type SwordfightState,
 } from "@openseas/engine";
-import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
-import type { z } from "zod";
 import { PRESETS, boardPresets, deckPresets, type Preset } from "./scenario/presets.js";
 import { SALVAGE } from "./prototypes/salvage.js";
 import { OVERLOAD } from "./prototypes/overload.js";
@@ -59,8 +57,6 @@ export interface HarnessPuzzle<S, M, C> {
   /** The content config and round length: what the server issues for recorded rounds. */
   readonly config: C;
   readonly roundSeconds: number;
-  /** The wire schema the server would hold a config to; lab configs are checked against it too. */
-  readonly configSchema: z.ZodType;
   readonly presets: readonly Preset[];
   readonly probes: readonly SeedProbe<S>[];
   /** Config fields the form keeps read-only because the boards' animation timing is built on them. */
@@ -78,7 +74,6 @@ export const COOLING: HarnessPuzzle<CoolingState, CoolingMove, CoolingConfig> = 
   def: COOLING_DEF,
   config: c.cooling.config,
   roundSeconds: c.cooling.roundSeconds,
-  configSchema: PUZZLE_CONFIG_SCHEMAS.cooling,
   presets: PRESETS.cooling,
   probes: [
     { id: "charge_on_board", test: (s) => s.cells.some((p) => p.kind === Special.Charge) },
@@ -94,7 +89,6 @@ export const ENGINES: HarnessPuzzle<EnginesState, EnginesMove, EnginesConfig> = 
   def: ENGINES_DEF,
   config: c.engines.config,
   roundSeconds: c.engines.roundSeconds,
-  configSchema: PUZZLE_CONFIG_SCHEMAS.engines,
   presets: PRESETS.engines,
   probes: [
     { id: "double_first", test: (s) => s.current.a === s.current.b },
@@ -113,7 +107,6 @@ export const PLATING: HarnessPuzzle<PlatingState, PlatingMove, PlatingConfig> = 
   def: PLATING_DEF,
   config: c.plating.config,
   roundSeconds: c.plating.roundSeconds,
-  configSchema: PUZZLE_CONFIG_SCHEMAS.plating,
   presets: PRESETS.plating,
   probes: [
     { id: "big_breach", test: (s) => s.breaches.some((h) => h.cells.length >= 15) },
@@ -129,7 +122,6 @@ export const GUNNERY: HarnessPuzzle<GunneryState, GunneryMove, GunneryConfig> = 
   def: GUNNERY_DEF,
   config: c.gunnery.config,
   roundSeconds: c.gunnery.roundSeconds,
-  configSchema: PUZZLE_CONFIG_SCHEMAS.gunnery,
   presets: [...deckPresets(c.gunnery.config.decks), ...PRESETS.gunnery],
   probes: c.gunnery.config.decks.map((_, i) => ({ id: "deck", vars: { n: i + 1 }, test: (s: GunneryState) => s.deckIndex === i })),
   locked: ["tickMs"],
@@ -142,7 +134,6 @@ export const NAVIGATION: HarnessPuzzle<NavigationState, NavigationMove, Navigati
   def: NAVIGATION_DEF,
   config: c.navigation.config,
   roundSeconds: c.navigation.roundSeconds,
-  configSchema: PUZZLE_CONFIG_SCHEMAS.navigation,
   presets: PRESETS.navigation,
   probes: [
     { id: "comet_first", test: (s) => navigationShapeOf(s.config, s.falling.kind) === 2 },
@@ -158,7 +149,6 @@ export const BATTLE: HarnessPuzzle<BattleState, BattleMove, BattleConfig> = {
   def: BATTLE_DEF,
   config: c.battle.config,
   roundSeconds: c.battle.roundSeconds,
-  configSchema: PUZZLE_CONFIG_SCHEMAS.battle,
   presets: [...PRESETS.battle, ...boardPresets(c.battle.config.boards)],
   probes: [
     ...c.battle.config.boards.map((_, i) => ({ id: "board", vars: { n: i + 1 }, test: (s: BattleState) => s.boardIndex === i })),
@@ -174,7 +164,6 @@ export const SWORDFIGHT: HarnessPuzzle<SwordfightState, SwordfightMove, Swordfig
   def: SWORDFIGHT_DEF,
   config: c.swordfight.config,
   roundSeconds: c.swordfight.roundSeconds,
-  configSchema: PUZZLE_CONFIG_SCHEMAS.swordfight,
   presets: PRESETS.swordfight,
   probes: [
     { id: "breaker_first", test: (s) => s.boards[0]!.current.a.breaker || s.boards[0]!.current.b.breaker },

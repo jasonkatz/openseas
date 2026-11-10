@@ -17,6 +17,7 @@
     "lint": "echo no lint"
   },
   "dependencies": {
+    "@openseas/protocol": "workspace:*",
     "zod": "^4.1.0"
   },
   "devDependencies": {

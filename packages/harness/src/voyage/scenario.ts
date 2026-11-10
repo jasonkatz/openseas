@@ -5,8 +5,9 @@
  * wired as the server wires them (engine `ship/aboard.ts`).
  *
  * A scenario is held to the server's own checks before it flies, as a lab round is (ADR 0019): the
- * edited world must pass content's schema and cross-checks, and every config the voyage would deal
- * must pass the engine's validators. So a voyage simulated here is one the server could fly.
+ * edited world must pass content's schema and cross-checks, and every battle and melee config the
+ * voyage would deal must be one the server accepts. So a voyage simulated here is one the server
+ * could fly.
  *
  * Pure: content comes in as an argument, so tests use `loadContent()` and the page the shared copy.
  */
@@ -20,9 +21,7 @@ import {
   isStation,
   legPlan,
   shipConfigFor,
-  validateBattleConfig,
   validateShipConfig,
-  validateSwordfightConfig,
   type BattleConfig,
   type RaiderSpec,
   type CaptainSpec,
@@ -32,8 +31,10 @@ import {
   type SwordAiSpec,
   type SwordfightConfig,
 } from "@openseas/engine";
-import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
+import { SwordAiSchema } from "@openseas/protocol";
+import type { z } from "zod";
 import { applyOverrides, getPath, type Overrides } from "../scenario/overrides.js";
+import { serverAcceptsConfig } from "../scenario/validate.js";
 
 /** What the captain does when a raider hails: fight, run, or let the hail lapse (the ship evades on its own after `hailTurns`). */
 export type HailOrder = "engage" | "evade" | "ignore";
@@ -92,6 +93,13 @@ export interface VoyageWorld {
   readonly ship: ShipClass;
   readonly lane: LaneLeg;
   readonly tiers: Readonly<Record<string, RaiderTier>>;
+}
+
+/** A hand's skill and speed are held to the wire's bounds for an AI swordsman, so the bench and its form never declare their own. */
+export const SWORD_HAND_BOUNDS = { skill: bounds(SwordAiSchema.shape.skill), thinkTicks: bounds(SwordAiSchema.shape.thinkTicks) } as const;
+
+function bounds(n: z.ZodNumber): { readonly min: number; readonly max: number } {
+  return { min: n.minValue ?? Number.MIN_SAFE_INTEGER, max: n.maxValue ?? Number.MAX_SAFE_INTEGER };
 }
 
 export const SWORD_HANDS: Readonly<Record<"green" | "able" | "deadly", SwordHand>> = {
@@ -195,8 +203,8 @@ export function meleeConfig(base: SwordfightConfig, hands: readonly SwordHand[],
 
 /**
  * Resolve and check a scenario. The checks are the server's: content's schema and cross-checks on
- * the edited world, the engine's validators on the ship, every battle the leg could deal and the
- * melee, plus the bench's own on the crew and the script.
+ * the edited world, the engine's validator on the ship, `serverAcceptsConfig` on every battle the
+ * leg could deal and on the melee, plus the bench's own on the crew and the script.
  */
 export function resolveScenario(content: Content, sc: VoyageScenario): Resolved {
   const errors: string[] = [];
@@ -248,8 +256,9 @@ export function resolveScenario(content: Content, sc: VoyageScenario): Resolved 
     }
     if (!isInt(c.duty, 0, 1000)) errors.push(`${where}: duty must be a whole percent from 0 to 1000`);
     if (!isInt(c.spread, 0, 200)) errors.push(`${where}: spread must be a whole percent from 0 to 200`);
-    if (!isInt(c.sword.skill, 0, 100)) errors.push(`${where}: sword skill must be 0 to 100`);
-    if (!isInt(c.sword.thinkTicks, 1, 10_000)) errors.push(`${where}: sword speed must be 1 to 10000 ticks`);
+    const { skill, thinkTicks } = SWORD_HAND_BOUNDS;
+    if (!isInt(c.sword.skill, skill.min, skill.max)) errors.push(`${where}: sword skill must be ${skill.min} to ${skill.max}`);
+    if (!isInt(c.sword.thinkTicks, thinkTicks.min, thinkTicks.max)) errors.push(`${where}: sword speed must be ${thinkTicks.min} to ${thinkTicks.max} ticks`);
     if (!isInt(c.sword.blade, 0, blades - 1)) errors.push(`${where}: no such blade`);
   });
   sc.script.forEach((s, i) => {
@@ -275,19 +284,10 @@ export function resolveScenario(content: Content, sc: VoyageScenario): Resolved 
     const fresh = createShip(sc.seed, ship, w.lane.from);
     for (const b of w.lane.raiders) {
       const tier = tiers[b.tierId]!;
-      const cfg = battleConfigAboard(content.puzzles.battle.config, fresh, tier.raider, tier.scorePercent);
-      const wire = PUZZLE_CONFIG_SCHEMAS.battle.safeParse(cfg);
-      if (!wire.success) for (const issue of wire.error.issues) errors.push(`battle against ${tier.id}: ${issue.path.join(".")}: ${issue.message}`);
-      try {
-        validateBattleConfig(cfg);
-      } catch (e) {
-        errors.push(`battle against ${tier.id}: ${e instanceof Error ? e.message : String(e)}`);
-      }
-      try {
-        validateSwordfightConfig(meleeConfig(content.puzzles.swordfight.config, sc.crew.map((c) => c.sword), tier.swordsmen, tier.scorePercent));
-      } catch (e) {
-        errors.push(`melee against ${tier.id}: ${e instanceof Error ? e.message : String(e)}`);
-      }
+      const battle = serverAcceptsConfig("battle", battleConfigAboard(content.puzzles.battle.config, fresh, tier.raider, tier.scorePercent));
+      for (const e of battle.errors) errors.push(`battle against ${tier.id}: ${e}`);
+      const melee = serverAcceptsConfig("swordfight", meleeConfig(content.puzzles.swordfight.config, sc.crew.map((c) => c.sword), tier.swordsmen, tier.scorePercent));
+      for (const e of melee.errors) errors.push(`melee against ${tier.id}: ${e}`);
     }
   }
   if (errors.length || !ship) return { ok: false, errors };

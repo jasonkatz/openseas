@@ -10,6 +10,7 @@ export type CuttingMoveWire = z.infer<typeof CuttingMoveSchema>;
 export const CuttingConfigSchema = z.object({
   width: z.int().min(2).max(8),
   height: z.int().min(2).max(8),
+  /** Kinds of ore. The board draws the first `ores` placeholder kinds. */
   ores: z.int().min(2).max(8),
   partsStart: z.int().min(2).max(64),
   partsMax: z.int().min(2).max(64),

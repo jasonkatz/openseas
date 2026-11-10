@@ -8,6 +8,7 @@ import {
   HAIL_ORDERS,
   SCRIPT_ACTIONS,
   SWORD_HANDS,
+  SWORD_HAND_BOUNDS,
   baseWorld,
   type CrewSpec,
   type HailOrder,
@@ -258,11 +259,11 @@ function CrewSection({ content, scenario, set, world }: { content: Content; scen
               <div className="bench-fields">
                 <label className="bench-row">
                   <span>{t("harness.voyage.crew_skill")}</span>
-                  <input className="vnum" type="number" min={0} max={100} value={c.sword.skill} onChange={(e) => update(i, { sword: { ...c.sword, skill: num(e.target.value, c.sword.skill) } })} />
+                  <input className="vnum" type="number" min={SWORD_HAND_BOUNDS.skill.min} max={SWORD_HAND_BOUNDS.skill.max} value={c.sword.skill} onChange={(e) => update(i, { sword: { ...c.sword, skill: num(e.target.value, c.sword.skill) } })} />
                 </label>
                 <label className="bench-row">
                   <span>{t("harness.voyage.crew_think")}</span>
-                  <input className="vnum" type="number" min={1} max={10000} value={c.sword.thinkTicks} onChange={(e) => update(i, { sword: { ...c.sword, thinkTicks: num(e.target.value, c.sword.thinkTicks) } })} />
+                  <input className="vnum" type="number" min={SWORD_HAND_BOUNDS.thinkTicks.min} max={SWORD_HAND_BOUNDS.thinkTicks.max} value={c.sword.thinkTicks} onChange={(e) => update(i, { sword: { ...c.sword, thinkTicks: num(e.target.value, c.sword.thinkTicks) } })} />
                 </label>
               </div>
             </details>

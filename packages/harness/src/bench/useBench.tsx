@@ -6,7 +6,7 @@ import { replayRound, type Replay } from "../review/replay.js";
 import { takeStashedRoundFile, type RoundFile } from "../review/roundFile.js";
 import { formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
 import { applyOverrides } from "../scenario/overrides.js";
-import { validateConfig } from "../scenario/validate.js";
+import { serverAcceptsConfig } from "../scenario/validate.js";
 import { ClockPanel } from "./ClockPanel.jsx";
 import { copyText } from "./format.js";
 import { ImportPanel } from "./ImportPanel.jsx";
@@ -49,7 +49,7 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
   const [review, setReview] = useState<Review<S, M> | null>(null);
   const started = useRef(false);
   const labConfig = useMemo(() => applyOverrides(puzzle.config, scenario.overrides), [puzzle, scenario.overrides]);
-  const validation = useMemo(() => validateConfig(puzzle, labConfig), [puzzle, labConfig]);
+  const validation = useMemo(() => serverAcceptsConfig(puzzle.id, labConfig), [puzzle.id, labConfig]);
   const playing = api.phase === "playing" || api.phase === "starting" || api.phase === "waiting";
 
   // The address bar always holds the scenario, so a condition worth testing is one link.
@@ -75,7 +75,7 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
   const openReview = useCallback(
     (round: RoundFile, at?: number): string | null => {
       const config = (round.config ?? puzzle.config) as C;
-      const check = validateConfig(puzzle, config);
+      const check = serverAcceptsConfig(puzzle.id, config);
       if (!check.ok) return check.errors.join("; ");
       let replay: Replay<S, M>;
       try {

@@ -19,9 +19,9 @@ export interface Preset {
 }
 
 /**
- * Presets per puzzle. Every one must pass the engine's validateConfig and the protocol's config
- * schema on top of the content config; test/presets.test.ts checks that. Gunnery's per-deck
- * presets are built from content at runtime (deckPresets) since the deck list is content.
+ * Presets per puzzle. Every one, on top of the content config, must be a config the server accepts
+ * (`serverAcceptsConfig`); test/scenario.test.ts checks that. Gunnery's per-deck presets are built
+ * from content at runtime (deckPresets) since the deck list is content.
  */
 export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
   cooling: [

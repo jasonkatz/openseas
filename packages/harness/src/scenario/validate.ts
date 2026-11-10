@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { HarnessPuzzle } from "../puzzles.js";
+import { PUZZLES, type PuzzleId } from "@openseas/engine";
+import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 
 export interface Validation {
   readonly ok: boolean;
@@ -8,24 +9,26 @@ export interface Validation {
 }
 
 /**
- * A lab config is held to the same two checks the server applies to content at startup: the
- * protocol's wire schema and the engine's own validateConfig. Both, so a lab round can never run
- * on a config the server could not have issued.
+ * Whether the server would accept `config` for puzzle `id`. It is held to what the server holds a
+ * config to: the protocol's wire schema, which content loads every puzzle's config through
+ * (ADR 0039), and the engine's own validateConfig. A lab round, a log opened for review and every
+ * battle and melee a voyage would deal are checked here, so the bench never runs a config the
+ * server could not have issued.
  */
-export function validateConfig<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, config: C): Validation {
+export function serverAcceptsConfig(id: PuzzleId, config: unknown): Validation {
   const errors: string[] = [];
-  const parsed = puzzle.configSchema.safeParse(config);
+  const parsed = PUZZLE_CONFIG_SCHEMAS[id].safeParse(config);
   if (!parsed.success) {
     for (const issue of parsed.error.issues) errors.push(`${issue.path.join(".") || "config"}: ${issue.message}`);
   }
   try {
-    puzzle.def.validateConfig(config);
+    PUZZLES[id].validateConfig(config);
   } catch (e) {
     errors.push(e instanceof Error ? e.message : String(e));
   }
-  // A config the schema would strip or coerce is not the config the engine saw. Key order is not
-  // a difference: the content schema and the wire schema may declare the same fields in a
-  // different order, and the server compares values, not spellings.
+  // A config the schema would strip or fill is not the config the engine saw. Key order is not a
+  // difference: a config built by spreading or edited by path may list its fields in any order, and
+  // the server compares values, not spellings.
   if (parsed.success && canonical(parsed.data) !== canonical(config)) errors.push("config: fields the wire schema does not know");
   return { ok: errors.length === 0, errors };
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { loadContent } from "@openseas/content";
 import { battlePlanIllegalReason, chooseCaptainPlan, seedFromString, shipSupply, type BattleMove, type ShipMove } from "@openseas/engine";
-import { defaultScenario, resolveScenario, SWORD_HANDS, type CrewSpec, type VoyageScenario, type VoyageSetup } from "../src/voyage/scenario.js";
+import { defaultScenario, resolveScenario, SWORD_HAND_BOUNDS, SWORD_HANDS, type CrewSpec, type VoyageScenario, type VoyageSetup } from "../src/voyage/scenario.js";
 import { needsPlot, flyOn, flyVoyage, startVoyage, step, type VoyageSim } from "../src/voyage/sim.js";
 import { batchStats, proveVoyage, runBatch, summarize } from "../src/voyage/batch.js";
 import { formatVoyage, parseVoyage } from "../src/voyage/codec.js";
@@ -46,6 +46,11 @@ describe("a voyage scenario is held to the server's checks", () => {
     expect(resolveScenario(content, { ...base, crew: [pirate("engines"), pirate("engines")] }).ok).toBe(false);
     expect(resolveScenario(content, { ...base, crew: Array.from({ length: 7 }, () => pirate(null)) }).ok).toBe(false);
     expect(resolveScenario(content, { ...base, crew: [{ ...pirate("engines"), sword: { ...SWORD_HANDS.able, blade: 9 } }] }).ok).toBe(false);
+    // A hand is held to the wire's bounds for an AI swordsman, the same the melee's config is held to.
+    const hand = (sword: Partial<CrewSpec["sword"]>) => resolveScenario(content, { ...base, crew: [{ ...pirate("engines"), sword: { ...SWORD_HANDS.able, ...sword } }] }).ok;
+    expect(hand({ skill: SWORD_HAND_BOUNDS.skill.max, thinkTicks: SWORD_HAND_BOUNDS.thinkTicks.max })).toBe(true);
+    expect(hand({ skill: SWORD_HAND_BOUNDS.skill.max + 1 })).toBe(false);
+    expect(hand({ thinkTicks: SWORD_HAND_BOUNDS.thinkTicks.min - 1 })).toBe(false);
   });
 });
 
