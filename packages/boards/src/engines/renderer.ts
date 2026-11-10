@@ -1,5 +1,4 @@
-import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
-import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
+import { CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture } from "pixi.js";
 import {
   ENGINES_ROTATION_KICKS,
   enginesCanDrop,
@@ -18,14 +17,13 @@ import {
 import type { EnginesContent } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
 import { pelletCanvas, type PelletStyle, type EnginesTexture } from "./pellets.js";
-import { boardSurface } from "../surface.js";
 import { HULL, hazardBand, hullFrame, hullGradient } from "../hull.js";
-import type { BoardRenderer } from "../kit/useBoardHost.js";
+import { KitBoard } from "../kit/board.js";
 
 export interface EnginesCallbacks {
   /** The player's pair came to rest with its anchor at (col, row) in rotation `rot`. */
   onPlace(col: number, row: number, rot: Rotation): void;
-  /** First frame drawn after a new state arrived. */
+  /** Called on the first frame drawn once a new state has finished playing out. */
   onFrame(): void;
   /** A cascade step is clearing on screen now. */
   onClear(round: EnginesClearRound): void;
@@ -88,11 +86,19 @@ const LOCK_MS = 350;
 /** Slides and turns that restart the lock timer while resting; after that the timer runs on regardless. Falling to a lower row restores them. */
 const MAX_LOCK_RESETS = 3;
 
-export class EnginesRenderer implements BoardRenderer<EnginesState> {
-  readonly app = new Application();
+/**
+ * PixiJS view of an Engines state, on the kit's lifecycle (ADR 0040). The player steers the falling
+ * pair here, asking the engine where it fits, and the board reports where it came to rest; it never
+ * decides what a landing does. A landing plays out as a timeline built from the move report (the
+ * pair settles, then each cascade step clears and the rest falls), and the board is busy until the
+ * timeline has run and every pellet has landed. The falling pair is not part of that: it falls on
+ * its own clock, so the view is published while it is in the air.
+ */
+export class EnginesRenderer extends KitBoard<EnginesState> {
+  /** The core and everything in it, placed at the core's top-left corner. */
   private readonly board = new Container();
   private readonly staticLayer = new Container();
-  private readonly frame = new Graphics();
+  private readonly border = new Graphics();
   private readonly well = new Graphics();
   private readonly injectorLayer = new Graphics();
   private readonly ghost = new Graphics();
@@ -115,25 +121,17 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
   private readonly textureByKind = new Map<number, EnginesTexture>();
   private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
   private readonly skyFill = linear(true, [COLORS.skyTop, COLORS.skyBottom]);
-  private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  private showMarks: boolean;
   private cell = 40;
   private pad = 8;
   private ox = 0;
   private oy = 0;
   private width = 6;
   private height = 13;
-  private state: EnginesState | null = null;
   private injectors: readonly Injector[] = [];
   private steps: Step[] = [];
   private waitMs = 0;
   private waitSettle = 0;
   private moving = false;
-  private framePending = false;
-  private viewStale = true;
-  private destroyed = false;
-  private interactive = false;
-  private time = 0;
   /**
    * The pair under the player's control, or null between placements. `row` is the anchor's row as
    * a continuous value: the pair occupies row ceil(row) and is part way down to the row below.
@@ -143,12 +141,12 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
   private drag: { x: number; y: number; col: number; moved: boolean; hurried: boolean } | null = null;
 
   constructor(
-    private readonly host: HTMLElement,
+    host: HTMLElement,
     content: EnginesContent,
     private readonly cb: EnginesCallbacks,
     private readonly opts: EnginesRendererOptions,
   ) {
-    this.showMarks = opts.showMarks;
+    super(host, "engines", cb.onFrame, opts.showMarks);
     content.pieces.forEach((p, i) => {
       this.colorByKind.set(i, parseInt(p.color.slice(1), 16));
       this.markByKind.set(i, p.mark);
@@ -167,31 +165,8 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
     };
   }
 
-  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
-  get isReady(): boolean {
-    return Boolean(this.app.renderer);
-  }
-
-  async init(): Promise<void> {
-    await loadPuzzleSprites("engines");
-    if (this.destroyed) return;
-    await this.app.init({
-      resizeTo: this.host,
-      backgroundAlpha: 0,
-      ...boardSurface(),
-      autoDensity: true,
-      preference: "webgl",
-    });
-    if (this.destroyed) {
-      this.app.destroy(true);
-      return;
-    }
-    this.app.canvas.dataset.spriteAtlas = spritesReady("engines") ? "engines" : "fallback";
-    this.app.canvas.style.touchAction = "none";
-    this.app.canvas.setAttribute("data-testid", "engines-canvas");
-    this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-    this.host.appendChild(this.app.canvas);
-    this.staticLayer.addChild(this.frame, this.well);
+  protected build(): void {
+    this.staticLayer.addChild(this.border, this.well);
     this.staticLayer.cacheAsTexture({ resolution: this.app.renderer.resolution, antialias: true });
     this.nextA.anchor.set(0.5);
     this.nextB.anchor.set(0.5);
@@ -199,50 +174,35 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
     this.nextText.anchor.set(1, 0.5);
     this.nextLayer.addChild(this.nextText, this.nextLink, this.nextA, this.nextB);
     this.board.addChild(this.staticLayer, this.injectorLayer, this.ghost, this.linkLayer, this.pieceLayer, this.fallingLayer, this.fxLayer, this.nextLayer);
-    this.app.stage.addChild(this.board);
-    this.app.stage.eventMode = "static";
-    this.app.stage.hitArea = this.app.screen;
-    this.app.stage.on("pointerdown", (e) => this.pointerDown(e));
-    this.app.stage.on("pointermove", (e) => this.pointerMove(e));
-    this.app.stage.on("pointerup", (e) => this.pointerUp(e));
-    this.app.stage.on("pointerupoutside", () => this.pointerCancel());
-    this.app.renderer.on("resize", () => this.layout());
-    this.app.ticker.add((ticker) => this.tick(Math.min(50, ticker.deltaMS)));
-    this.layout();
+    this.world.addChild(this.board);
   }
 
-  destroy(): void {
-    this.destroyed = true;
-    if (this.app.renderer) {
-      this.app.destroy(true, { children: true });
-      for (const tex of this.textures.values()) tex.destroy(true);
-      this.hullFill.destroy();
-      this.skyFill.destroy();
-    }
+  protected override dispose(): void {
+    for (const tex of this.textures.values()) tex.destroy(true);
+    this.hullFill.destroy();
+    this.skyFill.destroy();
   }
 
-  setInteractive(on: boolean): void {
-    this.interactive = on;
-    if (!on) {
-      this.drag = null;
-      this.softDrop = false;
-      this.dropFalling();
-    } else if (this.state && !this.falling && this.steps.length === 0 && !this.state.finished) this.spawnFalling();
+  /** Switched off, the pair is taken away (the kit has already let go of a drag and a hurry); switched on, one enters unless a landing is still playing out. */
+  protected override onInteractive(on: boolean): void {
+    if (!on) this.dropFalling();
+    else if (this.state && !this.falling && this.steps.length === 0 && !this.state.finished) this.spawnFalling();
   }
 
-  setShowMarks(on: boolean): void {
+  /** Marks change only the pellets' art, so a toggle bakes the pellets again and leaves a landing playing out. */
+  override setShowMarks(on: boolean): void {
     if (this.showMarks === on) return;
     this.showMarks = on;
-    if (this.app.renderer) this.bake();
+    if (this.isReady) this.bakePellets();
   }
 
-  /** A new engine state. Plays the last move back step by step; anything still animating fast-forwards. */
-  setState(state: EnginesState): void {
-    if (!this.app.renderer) return;
-    const prev = this.state;
-    this.state = state;
-    this.framePending = true;
-    this.viewStale = true;
+  /** A landing is still playing out: steps left on its timeline, or pellets still sliding into their cells. */
+  protected override get busy(): boolean {
+    return super.busy || this.steps.length > 0 || this.moving;
+  }
+
+  /** Show a new engine state. Plays the last move back step by step; anything still animating fast-forwards. */
+  protected onState(state: EnginesState, prev: EnginesState | null): void {
     this.updateNext();
     const report = state.lastMove;
     if (!prev || !report || report.move.type !== "place" || !report.landed) {
@@ -516,10 +476,7 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
 
   // ---- drawing
 
-  private layout(): void {
-    if (!this.app.renderer) return;
-    const w = this.app.screen.width;
-    const h = this.app.screen.height;
+  protected layout(w: number, h: number): void {
     const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.15));
     // One extra row's worth of height is kept above the board for the next-pair strip.
     const rows = this.height + 1.2;
@@ -532,7 +489,7 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
     this.oy = Math.floor((h - this.cell * this.height - this.strip) / 2) + this.strip;
     this.board.position.set(this.ox, this.oy);
     this.drawFrame();
-    this.bake();
+    this.bakePellets();
     this.drawInjectors();
     this.layoutNext();
     if (this.state) this.place(this.state.cells, true);
@@ -566,7 +523,7 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
   }
 
   private drawFrame(): void {
-    const g = this.frame;
+    const g = this.border;
     const W = this.width * this.cell;
     const H = this.height * this.cell;
     const p = this.pad;
@@ -648,13 +605,13 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
     }
   }
 
-  private bake(): void {
-    const r = this.app.renderer;
-    if (!r) return;
+  /** Paint each kind's pellet to a texture at the current cell size, with or without its mark, and hand it to every sprite showing that kind. */
+  private bakePellets(): void {
+    const resolution = this.app.renderer.resolution;
     const old = [...this.textures.values()];
     for (const kind of this.colorByKind.keys()) {
-      const canvas = pelletCanvas(this.cell, this.styleFor(kind), r.resolution);
-      this.textures.set(kind, new Texture({ source: new CanvasSource({ resource: canvas, resolution: r.resolution }) }));
+      const canvas = pelletCanvas(this.cell, this.styleFor(kind), resolution);
+      this.textures.set(kind, new Texture({ source: new CanvasSource({ resource: canvas, resolution }) }));
     }
     for (const v of this.pieces.values()) v.s.texture = this.textures.get(v.kind) ?? Texture.WHITE;
     this.updateNext();
@@ -696,18 +653,12 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
 
   // ---- per frame
 
-  private tick(dt: number): void {
-    this.time += dt;
+  protected override update(dt: number): void {
     this.runSteps(dt);
     this.movePieces(dt);
     this.moveFx(dt);
     this.fall(dt);
     this.drawLinks();
-    if (this.framePending && this.steps.length === 0 && !this.moving) {
-      this.framePending = false;
-      this.cb.onFrame();
-    }
-    if (this.viewStale && this.steps.length === 0 && !this.moving) this.publishView();
   }
 
   private runSteps(dt: number): void {
@@ -817,9 +768,11 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
     this.positionFalling();
   }
 
-  /** Mirrors what the plasma shows, for the smoke test: the kind at every cell once settled. */
-  private publishView(): void {
-    this.viewStale = false;
+  /**
+   * The kind at every cell as the core shows it, which the kit writes to the canvas once the board
+   * settles. The smoke test compares it with the engine's board so the view can never silently diverge.
+   */
+  protected view(): string {
     const kinds: number[] = new Array<number>(this.width * this.height).fill(-1);
     for (const v of this.pieces.values()) {
       if (v.dying !== null) continue;
@@ -827,23 +780,23 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
       const row = this.height - 1 - Math.round(v.ty / this.cell - 0.5);
       if (col >= 0 && col < this.width && row >= 0 && row < this.height) kinds[row * this.width + col] = v.kind;
     }
-    this.app.canvas.setAttribute("data-view", kinds.join(","));
+    return kinds.join(",");
   }
 
   // ---- input
 
-  private pointerDown(e: FederatedPointerEvent): void {
-    if (!this.interactive || !this.falling) return;
-    this.drag = { x: e.global.x, y: e.global.y, col: this.falling.col, moved: false, hurried: false };
+  protected override pointerDown(x: number, y: number): void {
+    if (!this.falling) return;
+    this.drag = { x, y, col: this.falling.col, moved: false, hurried: false };
   }
 
   /** Drag sideways to steer a column at a time; hold a downward swipe to hurry the fall until the finger lifts, with steering locked meanwhile. */
-  private pointerMove(e: FederatedPointerEvent): void {
+  protected override pointerMove(x: number, y: number): void {
     const d = this.drag;
     const f = this.falling;
     if (!d || !f) return;
-    const dx = e.global.x - d.x;
-    const dy = e.global.y - d.y;
+    const dx = x - d.x;
+    const dy = y - d.y;
     if (dy > this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
       d.hurried = true;
       this.softDrop = true;
@@ -865,34 +818,29 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
     }
   }
 
-  private pointerUp(e: FederatedPointerEvent): void {
+  protected override pointerUp(x: number, y: number): void {
     const d = this.drag;
     this.drag = null;
     this.softDrop = false;
     if (!d || !this.falling || d.hurried) return;
-    const dx = e.global.x - d.x;
-    const dy = e.global.y - d.y;
+    const dx = x - d.x;
+    const dy = y - d.y;
     if (!d.moved && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate();
   }
 
-  private pointerCancel(): void {
+  /** A release off the canvas, a touch the browser took over, or the board switched off: the drag and its hurry end where they are. */
+  protected override pointerCancel(): void {
     this.drag = null;
     this.softDrop = false;
   }
 
   /** Keyboard: left and right steer, up turns clockwise, down turns counter-clockwise, space hurries while held. */
-  keyboard(key: string, down = true): boolean {
-    if (key === " " && !down) {
-      this.softDrop = false;
-      return true;
-    }
+  override keyboard(key: string): boolean {
     if (!this.interactive) return false;
-    if (key === " ") {
-      this.softDrop = true;
-      return true;
-    }
-    if (!down) return false;
     switch (key) {
+      case " ":
+        this.softDrop = true;
+        return true;
       case "ArrowLeft":
         this.tryMove(-1);
         return true;
@@ -914,9 +862,11 @@ export class EnginesRenderer implements BoardRenderer<EnginesState> {
     }
   }
 
-  /** A key came up: letting go of space stops the hurry. */
+  /** A key came up: letting go of space stops the hurry, on a board switched off too. */
   keyUp(key: string): boolean {
-    return this.keyboard(key, false);
+    if (key !== " ") return false;
+    this.softDrop = false;
+    return true;
   }
 }
 

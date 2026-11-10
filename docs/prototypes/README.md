@@ -88,7 +88,8 @@ These are the project's rules (CLAUDE.md), said for a prototype.
   The core boards move onto it one at a time (ADR 0040), and the hooks they need are there for any
   board: `busy` stays true while a board animates outside the kit's tweens, so `onFrame` and
   `data-view` wait for it; `beforeCanvas` waits for something besides the atlas before the canvas
-  is made (Cooling's webfont); `pointerLeave` takes a hover preview down.
+  is made (Cooling's webfont); `pointerLeave` takes a hover preview down. A board that acts while
+  a key is held (Engines' hurry) adds a `keyUp`, and the host hands it every key's release.
 - `tween.ts`: `Tweens`. `to`, `run`, `after`; `flush` finishes everything in order. `setState`
   flushes before every new state, and a layout does too, so an animation must leave the board
   exactly as a snap would: end every played move with a snap to the engine's state.

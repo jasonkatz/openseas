@@ -102,6 +102,33 @@ test("home links to Engines and an unrated round takes keyboard drops", async ({
   await page.keyboard.up(" ");
 });
 
+test("a touch the browser takes over stops hurrying the Engines pair", async ({ page }) => {
+  // A core with no injectors, so nothing stops the pair short of the floor.
+  await page.goto("/engines?seed=touch-cancel&c.injectorsAtOnce=0&start=lab");
+  const canvas = page.getByTestId("engines-canvas");
+  await expectViewMatchesState(page, "engines");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  const cell = Math.min(box.width / 12, box.height / 21.2);
+  const at = { x: box.x + box.width / 2, y: box.y + box.height * 0.3, cell };
+  // A finger swipes down to hurry the pair, then the browser takes the gesture for a scroll: it
+  // cancels the pointer and the pointer leaves, with no release.
+  await canvas.evaluate((el, a) => {
+    const touch = { pointerId: 7, pointerType: "touch", isPrimary: true, clientX: a.x };
+    el.dispatchEvent(new PointerEvent("pointerdown", { ...touch, clientY: a.y, bubbles: true, buttons: 1 }));
+    el.dispatchEvent(new PointerEvent("pointermove", { ...touch, clientY: a.y + a.cell * 2, bubbles: true, buttons: 1 }));
+    el.dispatchEvent(new PointerEvent("pointercancel", { ...touch, clientY: a.y + a.cell * 2, bubbles: true }));
+    el.dispatchEvent(new PointerEvent("pointerleave", { ...touch, clientY: a.y + a.cell * 2 }));
+  }, at);
+  // Still hurried, the pair would be on the floor in about a second; let go, it falls a row every 700 ms.
+  await page.waitForTimeout(2500);
+  await expect(page.getByTestId("hud-moves")).toHaveText("0");
+  // The pair is still in play: space hurries it down.
+  await page.keyboard.down(" ");
+  await expect(page.getByTestId("hud-moves")).toHaveText("1");
+  await page.keyboard.up(" ");
+});
+
 test("home links to Plating and plates go down by keyboard and by tap", async ({ page }) => {
   // The plate tray and board redraw are the heaviest canvas in the suite on the phone profile.
   test.slow();
