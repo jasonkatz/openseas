@@ -18,6 +18,7 @@ import {
 import type { EnginesContent } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
 import { pelletCanvas, type PelletStyle, type EnginesTexture } from "./pellets.js";
+import { boardSurface } from "../surface.js";
 
 export interface EnginesCallbacks {
   /** The player's pair came to rest with its anchor at (col, row) in rotation `rot`. */
@@ -171,8 +172,7 @@ export class EnginesRenderer {
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
-      antialias: true,
-      resolution: Math.min(2, window.devicePixelRatio || 1),
+      ...boardSurface(),
       autoDensity: true,
       preference: "webgl",
     });

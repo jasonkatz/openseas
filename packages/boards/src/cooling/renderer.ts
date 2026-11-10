@@ -3,6 +3,7 @@ import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle
 import { Special, type CoolingState, type ClearRound, type MoveReport, type Piece } from "@openseas/engine";
 import type { CoolingContent } from "@openseas/content";
 import { buildFlash, mix, tileCanvas, type TileStyle, type TileTexture } from "./tiles.js";
+import { boardSurface } from "../surface.js";
 
 export interface RendererCallbacks {
   /** The player asked to swap (col,row) with (col+1,row). */
@@ -286,8 +287,7 @@ export class CoolingRenderer {
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
-      antialias: true,
-      resolution: Math.min(2, window.devicePixelRatio || 1),
+      ...boardSurface(),
       autoDensity: true,
       preference: "webgl",
     });

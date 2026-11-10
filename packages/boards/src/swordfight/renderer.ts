@@ -18,6 +18,7 @@ import type { SwordfightContent } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
 import { drawMark } from "../engines/renderer.js";
 import { SCRAP_COLOR, blockCanvas, scrapStage, type BlockStyle, type SwordTexture } from "./art.js";
+import { boardSurface } from "../surface.js";
 
 /** A board in the melee that is not in this fight's state: another pirate's, or a raider's run by the server. */
 export interface RemoteBoard {
@@ -279,8 +280,7 @@ export class SwordfightRenderer {
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
-      antialias: true,
-      resolution: Math.min(2, window.devicePixelRatio || 1),
+      ...boardSurface(),
       autoDensity: true,
       preference: "webgl",
     });

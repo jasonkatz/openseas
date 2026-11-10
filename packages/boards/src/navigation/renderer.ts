@@ -17,6 +17,7 @@ import {
 } from "@openseas/engine";
 import type { NavigationContent } from "@openseas/content";
 import { paintStar, type StarShapeName } from "./stars.js";
+import { boardSurface } from "../surface.js";
 
 export interface NavigationCallbacks {
   /** The player turned a ring. False when the engine refused it. */
@@ -202,8 +203,7 @@ export class NavigationRenderer {
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
-      antialias: true,
-      resolution: Math.min(2, window.devicePixelRatio || 1),
+      ...boardSurface(),
       autoDensity: true,
       preference: "webgl",
     });
