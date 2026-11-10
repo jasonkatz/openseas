@@ -7,6 +7,7 @@ export {
   summarizeBattle,
   resolveTurn as resolveBattleTurn,
   previewPlan as previewBattlePlan,
+  previewCourse as previewBattleCourse,
   planIllegalReason as battlePlanIllegalReason,
   parseBoard as parseBattleBoard,
   boardProblems as battleBoardProblems,
@@ -25,6 +26,7 @@ export {
   validateConfig as validateBattleConfig,
   PERMILLE as BATTLE_PERMILLE,
   type BattleSummary,
+  type CourseStep as BattleCourseStep,
   type TurnResolution as BattleTurnResolution,
 } from "./reduce.js";
 export { chooseRaiderPlan, predictCaptain as predictBattleCaptain, enumeratePlans as enumerateBattlePlans } from "./ai.js";

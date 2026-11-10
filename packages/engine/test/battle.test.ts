@@ -16,6 +16,7 @@ import {
   hashBattleState,
   parseBattleBoard,
   previewBattlePlan,
+  previewBattleCourse,
   reduceBattle,
   replayBattle,
   resolveBattleTurn,
@@ -350,6 +351,18 @@ describe("battle moves", () => {
       [4, 4, 1],
       [4, 4, 1],
     ]);
+  });
+
+  it("previews what each segment of the course runs into", () => {
+    const s = createBattleGame("open", openCfg);
+    const course = previewBattleCourse(s, [seg("forward"), seg("forward"), seg("forward"), seg("forward", true)]);
+    expect(course.map((c) => [c.pose.x, c.pose.y, c.blocked, c.damage])).toEqual([
+      [4, 5, null, 0],
+      [4, 4, null, 0],
+      [4, 3, null, 0],
+      [4, 3, "ship", openCfg.ramDamage],
+    ]);
+    expect(course.map((c) => c.pose)).toEqual(previewBattlePlan(s, [seg("forward"), seg("forward"), seg("forward"), seg("forward")]));
   });
 });
 
