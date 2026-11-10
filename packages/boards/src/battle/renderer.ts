@@ -494,6 +494,8 @@ export class BattleRenderer {
           const ball = new Sprite(this.textures.get("ball") ?? Texture.WHITE);
           ball.anchor.set(0.5);
           ball.position.set(v.x, v.y);
+          // The slug sprite points up; turn its nose along the line of flight.
+          if (to.x !== v.x || to.y !== v.y) ball.rotation = Math.atan2(to.y - v.y, to.x - v.x) + Math.PI / 2;
           this.ballLayer.addChild(ball);
           step.shots.push({ from: { x: v.x, y: v.y }, to, hit: e.hit, ship: e.ship, ball });
           // Muzzle flash and smoke off the firing side.
