@@ -19,6 +19,7 @@ import {
   type CoolingMove,
   type CoolingState,
 } from "@openseas/engine";
+import { PRACTICE } from "../src/puzzles/binding.js";
 import { MAX_RESYNCS, PuzzleSessionManager, type SessionManagerOptions } from "../src/puzzles/sessions.js";
 
 function manager(now: { t: number }, overrides: Partial<SessionManagerOptions> & { cooling?: Partial<CoolingConfig> } = {}) {
@@ -157,7 +158,8 @@ describe("PuzzleSessionManager", () => {
     const m = manager(now);
     const def = PUZZLES.swordfight;
     const config = { ...DEFAULT_SWORDFIGHT_CONFIG, foes: [] };
-    const s = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "junker" });
+    const melee = { kind: "melee", shipId: "ship-1", voyageId: "v-1", tierId: "junker" } as const;
+    const s = m.start("p1", "swordfight", { binding: melee, override: { config, roundMs: 60_000 } });
     let server = def.create(s.seed, config);
     now.t = 30_000;
     let tick = 0;
@@ -196,7 +198,8 @@ describe("PuzzleSessionManager", () => {
     const m = manager(now);
     const def = PUZZLES.swordfight;
     const config = { ...DEFAULT_SWORDFIGHT_CONFIG, foes: [] };
-    const s = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "junker" });
+    const melee = { kind: "melee", shipId: "ship-1", voyageId: "v-1", tierId: "junker" } as const;
+    const s = m.start("p1", "swordfight", { binding: melee, override: { config, roundMs: 60_000 } });
     let client = def.create(s.seed, config);
     const log = (seq: number, move: unknown) => {
       const next = def.reduce(client, move);
@@ -207,7 +210,7 @@ describe("PuzzleSessionManager", () => {
     now.t = 1000;
     // Nothing announced: incoming is refused and the round is closed.
     expect(log(0, { type: "incoming", board: 0, scrap: 3, blade: 0, tick: 2 })).toMatchObject({ ok: false, reason: "illegal_move" });
-    const s2 = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "junker" });
+    const s2 = m.start("p1", "swordfight", { binding: melee, override: { config, roundMs: 60_000 } });
     client = def.create(s2.seed, config);
     s2.meleeIncoming.push({ scrap: 3, blade: 1 }, { scrap: 5, blade: 0 });
     const log2 = (seq: number, move: unknown) => {
@@ -225,7 +228,7 @@ describe("PuzzleSessionManager", () => {
     // A win over foes outside the board is the server's word, never the client's.
     expect(log2(3, { type: "end", won: true, tick: 4 })).toMatchObject({ ok: false, reason: "illegal_move" });
     // The server writes that end itself and the log still replays.
-    const s3 = m.start("p1", "swordfight", null, null, { config, roundMs: 60_000 }, { shipId: "ship-1", voyageId: "v-1", tierId: "junker" });
+    const s3 = m.start("p1", "swordfight", { binding: melee, override: { config, roundMs: 60_000 } });
     expect(m.inject(s3, { type: "end", won: true, tick: 2 })).toBe(true);
     expect(s3.moves).toEqual([{ type: "end", won: true, tick: 2 }]);
     const r = m.finish(s3, null);
@@ -251,7 +254,7 @@ describe("PuzzleSessionManager", () => {
     const now = { t: 1000 };
     const m = manager(now);
     const def = PUZZLES.gunnery;
-    const s = m.start("p1", "gunnery", null, null, { config: { ...DEFAULT_GUNNERY_CONFIG, maxMoves: 2 }, roundMs: 60_000 });
+    const s = m.start("p1", "gunnery", { binding: PRACTICE, override: { config: { ...DEFAULT_GUNNERY_CONFIG, maxMoves: 2 }, roundMs: 60_000 } });
     let client = s.state;
     for (let i = 0; i < 2; i++) {
       const move = { type: "wait", tick: i + 1 };
@@ -295,7 +298,7 @@ describe("PuzzleSessionManager", () => {
     m.turnSoloHeat();
     // A one-minute round has five turns before its deadline, never a sixth.
     expect(s.soloHeat?.turns).toBe(5);
-    const duty = m.start("p2", "cooling", { shipId: "ship", station: "cooling", voyageId: "v", heat: 7 });
+    const duty = m.start("p2", "cooling", { binding: { kind: "duty", shipId: "ship", station: "cooling", voyageId: "v", heat: 7 } });
     expect(duty.soloHeat).toBeNull();
     expect(duty.shipHeatRow).toBe(7);
   });

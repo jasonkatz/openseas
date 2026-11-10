@@ -7,38 +7,15 @@ import {
   soloHeatTurnsDue,
   type AnyPuzzleDef,
   type HeatBoardFields,
-  type DutyPuzzleId,
   type PuzzleId,
   type PuzzleSummary,
   type RejectReason,
   type ShipRules,
   type SoloHeat,
 } from "@openseas/engine";
+import { PRACTICE, bindingPolicy, type SessionBinding } from "./binding.js";
 
 export type { RejectReason };
-
-/** A round played at a ship's station rather than on a practice page. */
-export interface DutyBinding {
-  readonly shipId: string;
-  readonly station: DutyPuzzleId;
-  readonly voyageId: string;
-  /** Cooling only: the ship's heat in rows when the board is dealt. */
-  readonly heat?: number;
-}
-
-/** The captain's space battle aboard a ship (M4). Its tokens, loads and hull come from the ship. */
-export interface BattleBinding {
-  readonly shipId: string;
-  readonly voyageId: string;
-  readonly tierId: string;
-}
-
-/** A pirate's board in a boarding melee aboard a ship (M5). Its foes are outside it; the server lanes the attacks. */
-export interface MeleeBinding {
-  readonly shipId: string;
-  readonly voyageId: string;
-  readonly tierId: string;
-}
 
 /** Scrap the server announced to a melee board, not yet logged. The board's next incoming move must say exactly this. */
 export interface MeleeIncoming {
@@ -59,6 +36,12 @@ export interface ShipSupply {
 export interface RoundOverride {
   readonly config: unknown;
   readonly roundMs: number;
+}
+
+/** How a round is dealt: what it is played for and, aboard, the ship's own config. */
+export interface SessionStart {
+  readonly binding: SessionBinding;
+  readonly override?: RoundOverride;
 }
 
 function isHeatMove(move: unknown): move is { type: "heat"; row: number } {
@@ -88,12 +71,8 @@ export interface PuzzleSession {
   readonly config: unknown;
   readonly startedAt: number;
   readonly deadlineAt: number;
-  /** Set when the board belongs to a ship; its points feed the ship each turn. */
-  readonly duty: DutyBinding | null;
-  /** Set when the round is the captain's space battle aboard a ship. */
-  readonly battle: BattleBinding | null;
-  /** Set when the round is the pirate's board in a boarding melee. */
-  readonly melee: MeleeBinding | null;
+  /** What the round is played for: practice, a ship's station, the captain's battle or a melee board. */
+  readonly binding: SessionBinding;
   /** Melee only: scrap announced to this board, oldest first, each to be logged as an incoming move in turn. */
   meleeIncoming: MeleeIncoming[];
   /**
@@ -163,7 +142,9 @@ export class PuzzleSessionManager {
     for (const id of Object.keys(opts.puzzles) as PuzzleId[]) PUZZLES[id].validateConfig(opts.puzzles[id].config);
   }
 
-  start(pirateId: string, puzzle: PuzzleId, duty: DutyBinding | null = null, battle: BattleBinding | null = null, override: RoundOverride | null = null, melee: MeleeBinding | null = null): PuzzleSession {
+  /** Deal a round. Without `opts` it is a practice round on content's config. */
+  start(pirateId: string, puzzle: PuzzleId, opts: SessionStart = { binding: PRACTICE }): PuzzleSession {
+    const { binding, override } = opts;
     const now = this.opts.now();
     const seed = this.opts.randomSeed();
     const def = PUZZLES[puzzle];
@@ -172,7 +153,7 @@ export class PuzzleSessionManager {
     if (override) def.validateConfig(override.config);
     // A Cooling board's heat is a ship's heat (DESIGN.md 3.3): the ship's aboard, a lone ship's in the harness.
     const config = puzzle === "cooling" ? { ...(content as object), shipHeat: true } : content;
-    const solo = puzzle === "cooling" && !duty && !battle && !melee ? soloHeatStart(config as HeatBoardFields) : null;
+    const solo = puzzle === "cooling" && bindingPolicy(binding).loneShip ? soloHeatStart(config as HeatBoardFields) : null;
     const session: PuzzleSession = {
       id: this.opts.randomId(),
       pirateId,
@@ -182,11 +163,9 @@ export class PuzzleSessionManager {
       config,
       startedAt: now,
       deadlineAt: now + roundMs,
-      duty,
-      battle,
-      melee,
+      binding,
       meleeIncoming: [],
-      shipHeatRow: duty?.heat ?? solo?.row ?? null,
+      shipHeatRow: (binding.kind === "duty" ? binding.heat : undefined) ?? solo?.row ?? null,
       soloHeat: solo ? { heat: solo, turns: 0 } : null,
       shipSupply: null,
       state: def.create(seed, config),
@@ -256,7 +235,7 @@ export class PuzzleSessionManager {
     // And a melee board's incoming scrap: what the server announced, in the order it did.
     if (isIncomingMove(move)) {
       const head = session.meleeIncoming[0];
-      if (!session.melee || !head || move.board !== 0 || move.scrap !== head.scrap || move.blade !== head.blade) return this.reject(session, "illegal_move", seq);
+      if (session.binding.kind !== "melee" || !head || move.board !== 0 || move.scrap !== head.scrap || move.blade !== head.blade) return this.reject(session, "illegal_move", seq);
     }
     // A win over foes outside the board is the server's word alone (ADR 0022); the server writes that end itself.
     if (isEndMove(move) && move.won === true) return this.reject(session, "illegal_move", seq);
@@ -278,9 +257,9 @@ export class PuzzleSessionManager {
     return { ok: true, seq };
   }
 
-  /** Boards whose client rebuilds from a resumed deal: a melee board and the captain's space battle. */
+  /** Boards whose client rebuilds from a resumed deal, up to a few times each. */
   private canResync(session: PuzzleSession): boolean {
-    return (session.melee !== null || session.battle !== null) && session.resyncs < MAX_RESYNCS;
+    return bindingPolicy(session.binding).handsBack && session.resyncs < MAX_RESYNCS;
   }
 
   /**

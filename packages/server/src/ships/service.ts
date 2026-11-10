@@ -178,8 +178,8 @@ export class ShipService {
     puzzles.onMeleeMove = (session) => void this.takeMeleeMove(session).catch((e) => log.error({ err: e, sessionId: session.id }, "melee move failed"));
     puzzles.onMeleeEnd = (session) => void this.meleeEnded(session).catch((e) => log.error({ err: e, sessionId: session.id }, "melee end failed"));
     puzzles.onResync = (session) => {
-      const binding = session.melee ?? session.battle;
-      const room = binding ? this.rooms.get(binding.shipId) : undefined;
+      const binding = session.binding;
+      const room = binding.kind === "melee" || binding.kind === "battle" ? this.rooms.get(binding.shipId) : undefined;
       if (room) this.handBack(session, (m) => room.conns.send(session.pirateId, m));
     };
   }
@@ -364,7 +364,7 @@ export class ShipService {
     const rules = this.content.world.ship;
     // Room for every turn, the captain's grace period if they drop, and a minute to spare.
     const roundMs = (config.maxTurns + rules.graceTurns) * this.turnMs + 60_000;
-    const started = this.puzzles.startBattle(pirateId, { shipId: room.shipId, voyageId: room.voyageId, tierId: tier.id }, { config, roundMs });
+    const started = this.puzzles.start(pirateId, "battle", { binding: { kind: "battle", shipId: room.shipId, voyageId: room.voyageId, tierId: tier.id }, override: { config, roundMs } });
     room.battle = { sessionId: started.sessionId, tierId: tier.id, dutyOutput: new Map(), turnsSeen: 0, hullSent: room.state.damage };
     this.log.info({ shipId: room.shipId, tierId: tier.id, sessionId: started.sessionId }, "battle engaged");
     await this.afterChange(room);
@@ -397,9 +397,9 @@ export class ShipService {
 
   /** A battle turn resolved on the captain's board: the ship takes the hits and spends the shots. */
   private takeBattleTurn(session: PuzzleSession): void {
-    const run = session.battle;
-    if (!run) return;
-    const room = this.rooms.get(run.shipId);
+    const binding = session.binding;
+    if (binding.kind !== "battle") return;
+    const room = this.rooms.get(binding.shipId);
     if (!room || !room.battle || room.battle.sessionId !== session.id) return;
     const state = session.state as BattleState;
     const report = state.lastTurn;
@@ -424,9 +424,9 @@ export class ShipService {
 
   /** The battle session closed, however it closed: pay out, tell the ship, log it. */
   private async battleEnded(session: PuzzleSession, how: "finished" | "rejected" | "abandoned", _result: ServerMessage | null): Promise<void> {
-    const run = session.battle;
-    if (!run) return;
-    const room = this.rooms.get(run.shipId);
+    const binding = session.binding;
+    if (binding.kind !== "battle") return;
+    const room = this.rooms.get(binding.shipId);
     if (!room || !room.battle || room.battle.sessionId !== session.id) return;
     const state = session.state as BattleState;
     const outcome: ShipBattleOutcome = state.outcome ?? (how === "abandoned" ? "disengaged" : "broke_off");
@@ -534,7 +534,10 @@ export class ShipService {
     const run = room.melee;
     if (!run || !room.voyageId) return null;
     const roundMs = Math.max(10_000, run.deadlineAt - this.now());
-    const started = this.puzzles.startMelee(pirateId, { shipId: room.shipId, voyageId: room.voyageId, tierId: run.tierId }, { config: this.meleeConfigFor(run.tierId, run.seed), roundMs });
+    const started = this.puzzles.start(pirateId, "swordfight", {
+      binding: { kind: "melee", shipId: room.shipId, voyageId: room.voyageId, tierId: run.tierId },
+      override: { config: this.meleeConfigFor(run.tierId, run.seed), roundMs },
+    });
     run.fights.set(pirateId, started.sessionId);
     room.conns.send(pirateId, started);
     return started;
@@ -629,8 +632,8 @@ export class ShipService {
 
   /** A pirate's board took a move: lane what it sent, score it if it is over, and see whether the airlock is decided. */
   private async takeMeleeMove(session: PuzzleSession): Promise<void> {
-    const binding = session.melee;
-    if (!binding) return;
+    const binding = session.binding;
+    if (binding.kind !== "melee") return;
     const room = this.rooms.get(binding.shipId);
     const run = room?.melee;
     if (!room || !run || run.fights.get(session.pirateId) !== session.id) return;
@@ -648,8 +651,8 @@ export class ShipService {
 
   /** A pirate's melee session closed, however it closed: keep its score for the split. */
   private async meleeEnded(session: PuzzleSession): Promise<void> {
-    const binding = session.melee;
-    if (!binding) return;
+    const binding = session.binding;
+    if (binding.kind !== "melee") return;
     const room = this.rooms.get(binding.shipId);
     const run = room?.melee;
     if (!room || !run || run.fights.get(session.pirateId) !== session.id) return;
@@ -754,7 +757,7 @@ export class ShipService {
     if (!room.state.voyage || !room.voyageId) throw new ShipError("not_in_flight");
     await this.endStation(room, me.station);
     const heat = me.station === "cooling" ? this.heatRows(room) : undefined;
-    const started = this.puzzles.start(pirateId, me.station, { shipId: room.shipId, station: me.station, voyageId: room.voyageId, ...(heat !== undefined ? { heat } : {}) });
+    const started = this.puzzles.start(pirateId, me.station, { binding: { kind: "duty", shipId: room.shipId, station: me.station, voyageId: room.voyageId, ...(heat !== undefined ? { heat } : {}) } });
     room.stations.set(me.station, { sessionId: started.sessionId, lastScore: 0 });
     return started;
   }
@@ -809,8 +812,9 @@ export class ShipService {
    */
   private handBack(session: PuzzleSession, send: (m: ServerMessage) => void): void {
     send(this.puzzles.startedMessage(session, true));
-    if (session.battle && session.shipSupply) send({ type: "battle.supply", sessionId: session.id, ...session.shipSupply });
-    if (session.melee) for (const p of session.meleeIncoming) send({ type: "melee.incoming", sessionId: session.id, scrap: p.scrap, blade: p.blade, from: session.melee.tierId });
+    const binding = session.binding;
+    if (binding.kind === "battle" && session.shipSupply) send({ type: "battle.supply", sessionId: session.id, ...session.shipSupply });
+    if (binding.kind === "melee") for (const p of session.meleeIncoming) send({ type: "melee.incoming", sessionId: session.id, scrap: p.scrap, blade: p.blade, from: binding.tierId });
   }
 
   /** A pirate's socket closed. Their seat is held for the grace period; their board is discarded. */
@@ -918,10 +922,11 @@ export class ShipService {
 
   /** The puzzle service is closing a duty board: take what it earned since the last turn. */
   private takeFinalPoints(session: PuzzleSession): void {
-    if (!session.duty) return;
-    const room = this.rooms.get(session.duty.shipId);
+    const binding = session.binding;
+    if (binding.kind !== "duty") return;
+    const room = this.rooms.get(binding.shipId);
     if (!room) return;
-    const station = session.duty.station;
+    const station = binding.station;
     const ss = room.stations.get(station);
     if (!ss || ss.sessionId !== session.id) return;
     this.report(room, station, this.puzzles.sessions.score(session) - ss.lastScore);

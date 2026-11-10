@@ -6,7 +6,8 @@ import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
 import type { Logger } from "../log.js";
 import { rateDutyRound, roundPerformance } from "../ratings.js";
-import { PuzzleSessionManager, type BattleBinding, type DutyBinding, type MeleeBinding, type PuzzleRoundOptions, type PuzzleSession, type RejectReason, type RoundOverride } from "./sessions.js";
+import { bindingPolicy } from "./binding.js";
+import { PuzzleSessionManager, type PuzzleRoundOptions, type PuzzleSession, type RejectReason, type SessionStart } from "./sessions.js";
 
 // The protocol's puzzle ids and the engine's must be the same set. If this stops compiling, they drifted.
 const _idCheck: (p: PuzzleIdWire) => PuzzleId = (p) => p;
@@ -74,27 +75,13 @@ export class PuzzleService {
     for (const { session, row } of this.sessions.turnSoloHeat()) this.onSoloHeat?.(session, row);
   }
 
-  start(pirateId: string, puzzle: PuzzleId, duty: DutyBinding | null = null): PuzzleStarted {
-    const s = this.sessions.start(pirateId, puzzle, duty);
-    void recordEvent(this.db, pirateId, "puzzle.started", { puzzle, sessionId: s.id, ...(duty ? { voyageId: duty.voyageId } : {}) }).catch((e) =>
-      this.log.warn({ err: e }, "event write failed"),
-    );
-    return this.startedMessage(s);
-  }
-
-  /** Deal the captain's space battle aboard a ship, on the ship's own config (the tier, the guns, the ship's turn). */
-  startBattle(pirateId: string, battle: BattleBinding, override: RoundOverride): PuzzleStarted {
-    const s = this.sessions.start(pirateId, "battle", null, battle, override);
-    void recordEvent(this.db, pirateId, "puzzle.started", { puzzle: "battle", sessionId: s.id, voyageId: battle.voyageId, tierId: battle.tierId }).catch((e) =>
-      this.log.warn({ err: e }, "event write failed"),
-    );
-    return this.startedMessage(s);
-  }
-
-  /** Deal a pirate's board in a boarding melee, on the melee's config (no foes in it; the raider crew is outside). */
-  startMelee(pirateId: string, melee: MeleeBinding, override: RoundOverride): PuzzleStarted {
-    const s = this.sessions.start(pirateId, "swordfight", null, null, override, melee);
-    void recordEvent(this.db, pirateId, "puzzle.started", { puzzle: "swordfight", sessionId: s.id, voyageId: melee.voyageId, tierId: melee.tierId }).catch((e) =>
+  /**
+   * Deal a round. Without `opts` it is a practice round; aboard, `opts` binds it to the ship and, for
+   * the battle and a melee board, gives the ship's own config (the tier, the guns, the ship's turn).
+   */
+  start(pirateId: string, puzzle: PuzzleId, opts?: SessionStart): PuzzleStarted {
+    const s = this.sessions.start(pirateId, puzzle, opts);
+    void recordEvent(this.db, pirateId, "puzzle.started", { puzzle, sessionId: s.id, ...bindingPolicy(s.binding).startedEvent }).catch((e) =>
       this.log.warn({ err: e }, "event write failed"),
     );
     return this.startedMessage(s);
@@ -112,7 +99,6 @@ export class PuzzleService {
 
   /** The deal as the client sees it; with `resume`, a battle the captain reconnected to. */
   startedMessage(s: PuzzleSession, resume = false): PuzzleStarted {
-    const duty = s.duty;
     // The config came from content (or the ship's override) for this puzzle, so it matches the wire variant for `puzzle`.
     return {
       type: "puzzle.started",
@@ -122,9 +108,7 @@ export class PuzzleService {
       config: s.config,
       deadlineAt: s.deadlineAt,
       serverNow: s.startedAt,
-      ...(duty ? { duty: { shipId: duty.shipId, station: duty.station, ...(duty.heat !== undefined ? { heat: duty.heat } : {}) } } : {}),
-      ...(s.battle ? { battle: { shipId: s.battle.shipId, tierId: s.battle.tierId } } : {}),
-      ...(s.melee ? { melee: { shipId: s.melee.shipId, tierId: s.melee.tierId } } : {}),
+      ...bindingPolicy(s.binding).wire,
       ...(resume ? { resume: { moves: s.moves } } : {}),
     } as PuzzleStarted;
   }
@@ -142,16 +126,14 @@ export class PuzzleService {
       return null;
     }
     if (r.ok) {
-      if (session.battle) this.onBattleMove?.(session);
-      if (session.melee) this.onMeleeMove?.(session);
+      this.moved(session);
       return null;
     }
     // A rejected duty board still fed the ship what it had earned before the bad move.
-    if (session.duty) this.onDutyEnd?.(session);
+    if (session.binding.kind === "duty") this.onDutyEnd?.(session);
     await this.persistRejected(session, r.reason, null, { seq, expected });
     const rejected: ServerMessage = { type: "puzzle.rejected", sessionId: session.id, reason: r.reason, atSeq: r.atSeq };
-    if (session.battle) this.onBattleEnd?.(session, "rejected", rejected);
-    if (session.melee) this.onMeleeEnd?.(session, "rejected", rejected);
+    this.ended(session, "rejected", rejected);
     return rejected;
   }
 
@@ -162,14 +144,14 @@ export class PuzzleService {
    * Every scored round gets its own performance rating against the thresholds.
    */
   async finish(session: PuzzleSession, hash: string | null, metrics: ClientMetrics | null): Promise<ServerMessage> {
-    const rated = session.battle !== null || session.melee !== null || (session.duty !== null && this.sessions.ranFull(session));
+    const policy = bindingPolicy(session.binding);
+    const rated = policy.rated === "always" || (policy.rated === "ran_full" && this.sessions.ranFull(session));
     this.endDuty(session);
     const r = this.sessions.finish(session, hash);
     if (!r.ok) {
       await this.persistRejected(session, r.reason, metrics);
       const rejected: ServerMessage = { type: "puzzle.rejected", sessionId: session.id, reason: r.reason };
-      if (session.battle) this.onBattleEnd?.(session, "rejected", rejected);
-      if (session.melee) this.onMeleeEnd?.(session, "rejected", rejected);
+      this.ended(session, "rejected", rejected);
       return rejected;
     }
     const performance = roundPerformance(this.content, session.puzzle, r.summary.score);
@@ -184,7 +166,7 @@ export class PuzzleService {
         moves: r.summary.moves,
         bestCombo: r.summary.bestCombo,
         rejectedReason: null,
-        voyageId: session.duty?.voyageId ?? session.battle?.voyageId ?? session.melee?.voyageId ?? null,
+        voyageId: policy.voyageId,
         rated,
         performance: performance.rating,
         moveLog: r.moves as unknown[],
@@ -198,9 +180,7 @@ export class PuzzleService {
         moves: r.summary.moves,
         rated,
         performance: performance.rating,
-        ...(session.duty ? { voyageId: session.duty.voyageId, shipId: session.duty.shipId } : {}),
-        ...(session.battle ? { voyageId: session.battle.voyageId, shipId: session.battle.shipId, tierId: session.battle.tierId } : {}),
-        ...(session.melee ? { voyageId: session.melee.voyageId, shipId: session.melee.shipId, tierId: session.melee.tierId } : {}),
+        ...policy.completedEvent,
         ...(rating ? { ratingBefore: rating.before.rating, ratingAfter: rating.after.rating } : {}),
         ...(metrics ? { metrics } : {}),
       });
@@ -218,17 +198,25 @@ export class PuzzleService {
       return msg;
     });
     this.log.info({ pirateId: session.pirateId, puzzle: session.puzzle, score: result.score, moves: result.moves, rated }, "round scored");
-    if (session.battle) this.onBattleEnd?.(session, "finished", result);
-    if (session.melee) this.onMeleeEnd?.(session, "finished", result);
+    this.ended(session, "finished", result);
     return result;
+  }
+
+  /**
+   * The pirate quit a round: abandoned it, or started another. A duty board is cut short and counts;
+   * any other round is abandoned. Returns the result to send, if any.
+   */
+  async quit(session: PuzzleSession): Promise<ServerMessage | null> {
+    if (bindingPolicy(session.binding).quit === "cut_short") return this.cutShort(session);
+    await this.abandon(session);
+    return null;
   }
 
   async abandon(session: PuzzleSession): Promise<void> {
     this.endDuty(session);
     this.sessions.close(session);
     await this.persistRejected(session, "deadline", null);
-    if (session.battle) this.onBattleEnd?.(session, "abandoned", null);
-    if (session.melee) this.onMeleeEnd?.(session, "abandoned", null);
+    this.ended(session, "abandoned", null);
   }
 
   /**
@@ -246,7 +234,35 @@ export class PuzzleService {
   }
 
   private endDuty(session: PuzzleSession): void {
-    if (session.duty && !session.closed) this.onDutyEnd?.(session);
+    if (session.binding.kind === "duty" && !session.closed) this.onDutyEnd?.(session);
+  }
+
+  /** A ship's board took a move: its ship reads what the move did. */
+  private moved(session: PuzzleSession): void {
+    switch (session.binding.kind) {
+      case "battle":
+        this.onBattleMove?.(session);
+        return;
+      case "melee":
+        this.onMeleeMove?.(session);
+        return;
+      default:
+        return;
+    }
+  }
+
+  /** The battle or a melee board is over, however it ended: its ship hears how, after the session closed. */
+  private ended(session: PuzzleSession, how: "finished" | "rejected" | "abandoned", result: ServerMessage | null): void {
+    switch (session.binding.kind) {
+      case "battle":
+        this.onBattleEnd?.(session, how, result);
+        return;
+      case "melee":
+        this.onMeleeEnd?.(session, how, result);
+        return;
+      default:
+        return;
+    }
   }
 
   /**
@@ -282,7 +298,7 @@ export class PuzzleService {
         moves: session.moves.length,
         bestCombo: summary.bestCombo,
         rejectedReason: reason,
-        voyageId: session.duty?.voyageId ?? session.battle?.voyageId ?? session.melee?.voyageId ?? null,
+        voyageId: bindingPolicy(session.binding).voyageId,
         rated: false,
         moveLog: session.moves as unknown[],
         metrics: metrics ?? null,

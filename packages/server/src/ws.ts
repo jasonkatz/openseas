@@ -171,10 +171,8 @@ export function createWsServer(deps: WsDeps) {
     const old = puzzles.sessions.get(conn.activeSessionId);
     conn.activeSessionId = null;
     if (!old) return;
-    if (old.duty) {
-      const result = await puzzles.cutShort(old);
-      if (result) conn.member.send(result);
-    } else await puzzles.abandon(old);
+    const result = await puzzles.quit(old);
+    if (result) conn.member.send(result);
   };
 
   const handleMessage = async (ws: WebSocket, conn: Conn, raw: string): Promise<void> => {
@@ -247,10 +245,8 @@ export function createWsServer(deps: WsDeps) {
       case "puzzle.abandon": {
         const s = puzzles.sessions.get(msg.sessionId);
         if (s && s.pirateId === conn.pirateId) {
-          if (s.duty) {
-            const result = await puzzles.cutShort(s);
-            if (result) send(ws, result);
-          } else await puzzles.abandon(s);
+          const result = await puzzles.quit(s);
+          if (result) send(ws, result);
         }
         conn.activeSessionId = null;
         return;
