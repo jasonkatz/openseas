@@ -810,12 +810,12 @@ are in [`prototypes/`](./prototypes/README.md), one file a puzzle, kept true as 
 |---|---|---|
 | Salvage | Drag a tether through touching debris of one kind | Close the line into a net and haul every crate adrift at once |
 | Overload | Tap a capacitor to charge it | Prime the bank so one tap bursts across it |
-| Deflectors | Flip mirrors | One layout that sends two beams the long way to their exits |
-| Reactor | Swipe the whole core | Two hot rods out through two ports in one swipe |
-| Scanner | Ping the fog | A sector cleared in fewer pings than par |
+| Deflectors | Flip mirrors | One layout that sends a whole volley of beams home, each the long way round |
+| Reactor | Swipe the whole core | Hot rods stacked at one port and sent out together as a salvo |
+| Scanner | Ping the fog | A sector cleared under par with no contact pinged and no wrong lock |
 | Tug | Flick a pod in zero gravity | A delivery at par, using another pod as the stop |
-| Racks | Move the top of a stack | Racks shipped on consecutive moves |
-| Cutting | Slice a slab along its grid | Every big block freed whole within the cuts allowed |
+| Racks | Move the top of a stack | Racks shipped on back-to-back actions, the crate called down as a link |
+| Cutting | Slice a slab along its grid | The slab's exact best taken with too few cuts for everything |
 
 What holds for all eight:
 
