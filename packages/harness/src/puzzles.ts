@@ -36,6 +36,14 @@ import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
 import type { z } from "zod";
 import { PRESETS, boardPresets, deckPresets, type Preset } from "./scenario/presets.js";
+import { SALVAGE } from "./prototypes/salvage.js";
+import { OVERLOAD } from "./prototypes/overload.js";
+import { DEFLECTORS } from "./prototypes/deflectors.js";
+import { REACTOR } from "./prototypes/reactor.js";
+import { SCANNER } from "./prototypes/scanner.js";
+import { TUG } from "./prototypes/tug.js";
+import { RACKS } from "./prototypes/racks.js";
+import { CUTTING } from "./prototypes/cutting.js";
 
 /** A condition on an opening state the seed finder can search for. Named by `harness.probe.<puzzle>.<id>`. */
 export interface SeedProbe<S> {
@@ -186,4 +194,13 @@ export const HARNESS_PUZZLES: Readonly<Record<PuzzleId, HarnessPuzzle<unknown, u
   navigation: NAVIGATION as unknown as HarnessPuzzle<unknown, unknown, unknown>,
   battle: BATTLE as unknown as HarnessPuzzle<unknown, unknown, unknown>,
   swordfight: SWORDFIGHT as unknown as HarnessPuzzle<unknown, unknown, unknown>,
+  // Prototype puzzles (ADR 0036): each brings its own entry from prototypes/.
+  salvage: SALVAGE as unknown as HarnessPuzzle<unknown, unknown, unknown>,
+  overload: OVERLOAD as unknown as HarnessPuzzle<unknown, unknown, unknown>,
+  deflectors: DEFLECTORS as unknown as HarnessPuzzle<unknown, unknown, unknown>,
+  reactor: REACTOR as unknown as HarnessPuzzle<unknown, unknown, unknown>,
+  scanner: SCANNER as unknown as HarnessPuzzle<unknown, unknown, unknown>,
+  tug: TUG as unknown as HarnessPuzzle<unknown, unknown, unknown>,
+  racks: RACKS as unknown as HarnessPuzzle<unknown, unknown, unknown>,
+  cutting: CUTTING as unknown as HarnessPuzzle<unknown, unknown, unknown>,
 };

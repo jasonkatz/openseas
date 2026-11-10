@@ -1,0 +1,31 @@
+{
+  "config": {
+    "size": 6,
+    "mirrors": 14,
+    "maxBeams": 2,
+    "rampTicks": 350,
+    "minBest": 4,
+    "bouncePoints": 1,
+    "bounceCap": 16,
+    "perfectPercent": 150,
+    "hullPenalty": 40,
+    "streakPercent": [100, 110, 120, 130, 140, 150, 160, 180, 200],
+    "tickMs": 100,
+    "maxTick": 1200,
+    "maxMoves": 4000,
+    "openingTicks": 8,
+    "chargeTicks": 180,
+    "chargeTicksMin": 130,
+    "beamTicks": 50,
+    "respawnTicks": 6
+  },
+  "roundSeconds": 120,
+  "thresholds": [
+    { "score": 150, "rating": 1100 },
+    { "score": 400, "rating": 1300 },
+    { "score": 800, "rating": 1500 },
+    { "score": 1500, "rating": 1700 },
+    { "score": 2600, "rating": 1900 },
+    { "score": 4000, "rating": 2100 }
+  ]
+}

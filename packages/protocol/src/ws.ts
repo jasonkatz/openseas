@@ -5,6 +5,14 @@ import { BattleConfigSchema } from "./battle.js";
 import { CoolingConfigSchema } from "./cooling.js";
 import { PlatingConfigSchema } from "./plating.js";
 import { NavigationConfigSchema } from "./navigation.js";
+import { SalvageConfigSchema } from "./salvage.js";
+import { OverloadConfigSchema } from "./overload.js";
+import { DeflectorsConfigSchema } from "./deflectors.js";
+import { ReactorConfigSchema } from "./reactor.js";
+import { ScannerConfigSchema } from "./scanner.js";
+import { TugConfigSchema } from "./tug.js";
+import { RacksConfigSchema } from "./racks.js";
+import { CuttingConfigSchema } from "./cutting.js";
 import { EnginesConfigSchema } from "./engines.js";
 import { GunneryConfigSchema } from "./gunnery.js";
 import { MeleeBoardSchema, SwordfightConfigSchema } from "./swordfight.js";
@@ -156,6 +164,14 @@ export const PuzzleStartedSchema = z.discriminatedUnion("puzzle", [
   PuzzleStartedBase.extend({ puzzle: z.literal("navigation"), config: NavigationConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("battle"), config: BattleConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("swordfight"), config: SwordfightConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("salvage"), config: SalvageConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("overload"), config: OverloadConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("deflectors"), config: DeflectorsConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("reactor"), config: ReactorConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("scanner"), config: ScannerConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("tug"), config: TugConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("racks"), config: RacksConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("cutting"), config: CuttingConfigSchema }),
 ]);
 
 export const PuzzleResultSchema = z.object({

@@ -59,6 +59,9 @@ Puzzle Pirates is a live trademarked product. The distance we keep:
 
 Explicitly later: Rigging, Treasure Haul, Rumble, all crafting puzzles, parlor games, Treasure Drop.
 
+Eight puzzles of the game's own design are prototypes on the harness (3.12, ADR 0036). None is in
+v1, and none has a role in the game until it is chosen for one.
+
 ### 3.2 Default stance on rules
 
 Rule-faithful scoring and mechanics, with modern feedback, onboarding, and input affordances
@@ -795,6 +798,39 @@ draws, and a bench beside it:
 It is a developer and tester tool, never linked from the game, and talks to the same server. It
 is where testers practice and thresholds are calibrated; standing is earned only in the game.
 
+### 3.12 Prototype puzzles
+
+Eight new puzzles are built to be played and judged before any of them is given a place in the game
+(ADR 0036). They are the game's own: each takes the original's feel (a verb learned in a minute, a
+round that is never the same twice, a score that pays planned compound moves far more than lucky
+ones) and none ports one of the original's puzzles. Each puzzle's rules, scoring and tuning notes
+are in [`prototypes/`](./prototypes/README.md), one file a puzzle, kept true as it is tuned.
+
+| Puzzle | The verb | The compound move it pays for |
+|---|---|---|
+| Salvage | Drag a tether through touching debris of one kind | Close the line into a net and haul every crate adrift at once |
+| Overload | Tap a capacitor to charge it | Prime the bank so one tap bursts across it |
+| Deflectors | Flip mirrors | One layout that sends a whole volley of beams home, each the long way round |
+| Reactor | Swipe the whole core | Hot rods stacked at one port and sent out together as a salvo |
+| Scanner | Ping the fog | A sector cleared under par with no contact pinged and no wrong lock |
+| Tug | Flick a pod in zero gravity | A delivery at par, using another pod as the stop |
+| Racks | Move the top of a stack | Racks shipped on back-to-back actions, the crate called down as a link |
+| Cutting | Slice a slab along its grid | The slab's exact best taken with too few cuts for everything |
+
+What holds for all eight:
+
+- **Whole engines, dealt on the harness only.** Each is a pure engine in the registry with its wire
+  schemas, content file and thresholds, so a recorded round is replayed and scored by the server as
+  any round is. None is a station: no par, no place aboard, no standing (ADR 0028). The harness
+  home page lists them apart from the game's puzzles.
+- **A round is 120 seconds** on the clock, scored against thresholds set from bots playing the
+  engine. They are guesses until testers have played.
+- **Placeholder art.** Boards are built from a shared kit that draws vector pieces in code: one
+  silhouette and one color a kind, with pips for the mark setting (rule 6). The owner's sprite pass
+  comes to a puzzle only when it is kept.
+- **Each owns its files**, so a puzzle is promoted or dropped without touching the others.
+- **Promotion is its own decision:** a role in the game, an ADR, a milestone, then sprites.
+
 ## 4. Architecture
 
 Rationale lives in the ADRs. This section states what is decided.
@@ -812,6 +848,10 @@ pnpm monorepo. Packages:
 | `boards` | What both applications render with: the PixiJS boards and their art and sound, the round runner that streams move logs, the tick clock, the server connection, the shared stylesheet (ADR 0019) | Presentation and transport only; computes nothing the server does not recompute; no pages or routes |
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
 | `harness` | The puzzle test harness (section 3.11): the practice frame per engine around the shared boards, plus the bench: lab rounds, scenarios, inspector, replay review; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
+
+Prototype puzzles (3.12, ADR 0036) live in the same packages, each in files of its own: an engine
+folder, a protocol file, a content file and message file, a board folder built on `boards/src/kit`,
+and a harness page. `docs/prototypes/README.md` lists them.
 
 ### 4.2 Puzzle authority: deterministic replay verification
 
@@ -878,6 +918,7 @@ still proven there first, with its tester session, and only then embedded in the
 | M5 | Swordfighting boarding and the walkable outpost |
 | M6 | OAuth upgrade (a guest links Discord or Google in place and keeps everything; returning players sign in), crews (found with a name and flag, invite, ranks, crew chat, crew-only ships, crews' colors on ships, tallies and the board of crews, pirates' cards), polish pass |
 | M7 | The space reskin (ADR 0034): every word, the three.js world and the codebase move from the sea to space, with the mechanics unchanged and the database wiped. The puzzle boards' art waits for the owner's sprite pass, which has since landed for the sprites |
+| M8 | Prototype puzzles (3.12, ADR 0036): eight new puzzles of the game's own, each a whole engine playable on the harness with placeholder art. Done when the owner has played all eight and chosen which, if any, go on |
 
 Every milestone ends with a tester session and a written retro before the next starts.
 
@@ -1023,6 +1064,7 @@ Maintained as they arise.
 | Area | Original | openseas | Why |
 |---|---|---|---|
 | Setting | Pirates on the sea | Space pirates in one star system: asteroid outposts joined by lanes, a skiff, raiders, plunder paid in credits. Every mechanic is unchanged | The owner's choice of look and feel; it also puts the game further from the original (ADR 0034) |
+| New puzzles | None of these | Eight prototypes on the harness (3.12): Salvage, Overload, Deflectors, Reactor, Scanner, Tug, Racks, Cutting. None is a port of an original puzzle | The owner wants puzzles that are the game's own; they are tried on the harness before any gets a role (ADR 0036) |
 | Ship ownership | Individuals and crews | Individuals only in v1 | Simpler model; owner likes personal ships |
 | Crew ranks | A long ladder of ranks with fine-grained permissions | Three: commodore, officer, spacer | A crew of friends needs a leader, recruiters and everyone else; more can be added to the enum |
 | Flags | A flag is an alliance of crews | A flag is a crew's own banner; no alliances | Alliances need more crews than the design point has; the word reads naturally on a ship |

@@ -1,7 +1,24 @@
 import { z } from "zod";
 
 /** Must list exactly the engine's PUZZLE_IDS; the server checks the two agree at compile time. */
-export const PuzzleIdSchema = z.enum(["cooling", "engines", "plating", "gunnery", "navigation", "battle", "swordfight"]);
+export const PuzzleIdSchema = z.enum([
+  "cooling",
+  "engines",
+  "plating",
+  "gunnery",
+  "navigation",
+  "battle",
+  "swordfight",
+  // Prototype puzzles (ADR 0036): dealt on the harness only.
+  "salvage",
+  "overload",
+  "deflectors",
+  "reactor",
+  "scanner",
+  "tug",
+  "racks",
+  "cutting",
+]);
 export type PuzzleIdWire = z.infer<typeof PuzzleIdSchema>;
 
 /** The duty puzzles, played at a station aboard. Space Battle is the captain's game, not a station. */

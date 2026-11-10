@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
+import { CORE_PUZZLE_IDS, PROTOTYPE_PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
 import { SERVER_URL, content, t, usePirate } from "@openseas/boards";
 import { parseRoundFile, stashRoundFile } from "../review/roundFile.js";
 import { importErrorText } from "../bench/ImportPanel.jsx";
@@ -99,6 +99,98 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
       <rect x="38" y="13" width="13" height="13" rx="3" fill="#4ad66d" stroke="#f2f0e6" strokeWidth="1.5" />
       <path d="M41 23l8-8" stroke="#f2f0e6" strokeWidth="3" strokeLinecap="round" />
       <path d="M12 12h16M20 8v8" stroke="#d4a548" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  ),
+  salvage: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <path d="M14 46 L24 34 L36 38 L46 24 L50 14" fill="none" stroke="#7fd7ff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="14" cy="46" r="5" fill="#f5d021" />
+      <circle cx="24" cy="34" r="5" fill="#f5d021" />
+      <circle cx="36" cy="38" r="5" fill="#f5d021" />
+      <circle cx="46" cy="24" r="5" fill="#f5d021" />
+      <rect x="42" y="42" width="12" height="12" rx="2" fill="#c98a4b" stroke="#efe3c6" strokeWidth="1.5" />
+      <path d="M16 16l6 6-6 6-6-6z" fill="#ff6b5e" />
+    </svg>
+  ),
+  overload: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <circle cx="20" cy="20" r="9" fill="#12233d" stroke="#3fa7f5" strokeWidth="2" />
+      <circle cx="44" cy="20" r="9" fill="#12233d" stroke="#3fa7f5" strokeWidth="2" />
+      <circle cx="20" cy="44" r="9" fill="#12233d" stroke="#3fa7f5" strokeWidth="2" />
+      <circle cx="44" cy="44" r="9" fill="#f5d021" stroke="#fff3c4" strokeWidth="2" />
+      <path d="M46 36l-6 9h5l-3 8 7-10h-5z" fill="#0b1526" />
+      <circle cx="20" cy="20" r="2.5" fill="#7fd7ff" />
+      <circle cx="41" cy="20" r="2.5" fill="#7fd7ff" />
+      <circle cx="47" cy="20" r="2.5" fill="#7fd7ff" />
+    </svg>
+  ),
+  deflectors: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <path d="M4 22h24v24h32" fill="none" stroke="#ff6b5e" strokeWidth="3" strokeLinecap="round" />
+      <path d="M22 28l12-12" stroke="#efe3c6" strokeWidth="4" strokeLinecap="round" />
+      <path d="M22 40l12 12" stroke="#efe3c6" strokeWidth="4" strokeLinecap="round" />
+      <path d="M40 16l12 12" stroke="#5b7bb3" strokeWidth="4" strokeLinecap="round" />
+      <circle cx="58" cy="46" r="4" fill="#7bd88f" />
+    </svg>
+  ),
+  reactor: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <rect x="10" y="10" width="20" height="20" rx="4" fill="#12233d" stroke="#7fd7ff" strokeWidth="2" />
+      <rect x="34" y="10" width="20" height="20" rx="4" fill="#12233d" stroke="#7fd7ff" strokeWidth="2" />
+      <rect x="10" y="34" width="20" height="20" rx="4" fill="#3a2a12" stroke="#f5d021" strokeWidth="2" />
+      <rect x="34" y="34" width="20" height="20" rx="4" fill="#4a1a16" stroke="#ff6b5e" strokeWidth="2" />
+      <rect x="58" y="38" width="6" height="12" rx="2" fill="#7bd88f" />
+      <path d="M40 44h12m0 0l-4-4m4 4l-4 4" fill="none" stroke="#fff3c4" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  ),
+  scanner: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#06130f" />
+      <path d="M32 12l20 20-20 20-20-20z" fill="none" stroke="#3fd08a" strokeWidth="2" opacity=".9" />
+      <path d="M32 22l10 10-10 10-10-10z" fill="none" stroke="#3fd08a" strokeWidth="2" opacity=".5" />
+      <circle cx="32" cy="32" r="3" fill="#b9ffd9" />
+      <circle cx="52" cy="32" r="4" fill="#ff6b5e" />
+      <path d="M14 14h6M14 14v6M50 50h-6M50 50v-6" stroke="#3fd08a" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  tug: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <rect x="40" y="10" width="12" height="12" rx="2" fill="#2a3f63" />
+      <path d="M14 46h28" stroke="#7fd7ff" strokeWidth="2" strokeDasharray="3 3" />
+      <path d="M46 42v-16" stroke="#7fd7ff" strokeWidth="2" strokeDasharray="3 3" />
+      <circle cx="14" cy="46" r="7" fill="#f5d021" />
+      <circle cx="46" cy="46" r="7" fill="none" stroke="#f5d021" strokeWidth="2" opacity=".5" />
+      <rect x="40" y="24" width="12" height="4" rx="2" fill="#7bd88f" />
+      <path d="M22 20l8 8-8 8-8-8z" fill="#ff6b5e" />
+    </svg>
+  ),
+  racks: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <path d="M12 14v38h10V14M27 14v38h10V14M42 14v38h10V14" fill="none" stroke="#5b7bb3" strokeWidth="2" />
+      <rect x="13.5" y="41" width="7" height="9" rx="2" fill="#f5d021" />
+      <rect x="13.5" y="31" width="7" height="9" rx="2" fill="#f5d021" />
+      <rect x="13.5" y="21" width="7" height="9" rx="2" fill="#ff6b5e" />
+      <rect x="28.5" y="41" width="7" height="9" rx="2" fill="#7fd7ff" />
+      <rect x="28.5" y="31" width="7" height="9" rx="2" fill="#7fd7ff" />
+      <rect x="43.5" y="41" width="7" height="9" rx="2" fill="#ff6b5e" />
+      <rect x="43.5" y="31" width="7" height="9" rx="2" fill="#7bd88f" />
+    </svg>
+  ),
+  cutting: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <rect x="10" y="12" width="24" height="18" fill="#f5d021" />
+      <rect x="10" y="34" width="24" height="18" fill="#7fd7ff" />
+      <rect x="38" y="12" width="16" height="40" fill="#ff6b5e" />
+      <rect x="18" y="40" width="8" height="6" fill="#f5d021" />
+      <path d="M36 6v52" stroke="#fff3c4" strokeWidth="2.5" strokeDasharray="5 3" />
+      <path d="M6 32h30" stroke="#fff3c4" strokeWidth="2.5" strokeDasharray="5 3" />
     </svg>
   ),
 };
@@ -221,7 +313,25 @@ export function Home() {
       <section className="practice">
         <h2 className="section-title">{t("harness.home.puzzles")}</h2>
         <ul className="practice-grid">
-          {PUZZLE_IDS.map((id) => (
+          {CORE_PUZZLE_IDS.map((id) => (
+            <li key={id}>
+              <Link to={`/${id}`} className="practice-tile live" data-testid={`tile-${id}`}>
+                <span className="tile-glyph" aria-hidden="true">
+                  {GLYPHS[id]}
+                </span>
+                <span className="tile-title">{t(`home.practice_${id}`)}</span>
+                <span className="tile-blurb">{t(`home.practice_${id}_blurb`)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="practice">
+        <h2 className="section-title">{t("harness.home.prototypes")}</h2>
+        <p className="muted small">{t("harness.home.prototypes_blurb")}</p>
+        <ul className="practice-grid">
+          {PROTOTYPE_PUZZLE_IDS.map((id) => (
             <li key={id}>
               <Link to={`/${id}`} className="practice-tile live" data-testid={`tile-${id}`}>
                 <span className="tile-glyph" aria-hidden="true">

@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const port = 4174;
+// PW_PORT lets two checkouts run their smoke side by side without sharing a preview server.
+const port = Number(process.env.PW_PORT ?? 4174);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -19,7 +20,7 @@ export default defineConfig({
     { name: "phone", use: { ...devices["Pixel 7"], browserName: "chromium" } },
   ],
   webServer: {
-    command: "pnpm vite build && pnpm vite preview --port 4174 --strictPort",
+    command: `pnpm vite build && pnpm vite preview --port ${port} --strictPort`,
     port,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

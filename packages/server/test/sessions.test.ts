@@ -8,6 +8,7 @@ import {
   DEFAULT_ENGINES_CONFIG,
   DEFAULT_SHIP_RULES,
   DEFAULT_SWORDFIGHT_CONFIG,
+  PROTOTYPE_PUZZLE_IDS,
   PUZZLE_IDS,
   PUZZLES,
   createCoolingGame,
@@ -33,6 +34,8 @@ function manager(now: { t: number }, overrides: Partial<SessionManagerOptions> &
       navigation: { roundMs: 60_000, config: DEFAULT_NAVIGATION_CONFIG },
       battle: { roundMs: 60_000, config: DEFAULT_BATTLE_CONFIG },
       swordfight: { roundMs: 60_000, config: DEFAULT_SWORDFIGHT_CONFIG },
+      // Prototype puzzles (ADR 0036) play on their engines' own defaults.
+      ...(Object.fromEntries(PROTOTYPE_PUZZLE_IDS.map((id) => [id, { roundMs: 60_000, config: PUZZLES[id].defaultConfig }])) as Record<(typeof PROTOTYPE_PUZZLE_IDS)[number], { roundMs: number; config: unknown }>),
     },
     now: () => now.t,
     randomSeed: () => `seed-${n++}`,

@@ -172,6 +172,39 @@ export const sfx = {
     noise(0.04, 0.03, 900, 250);
     tone({ freq: 140, to: 95, duration: 0.08, type: "triangle", gain: 0.05 });
   },
+  // ---- placeholder sounds for prototype boards (ADR 0036), generic on purpose
+  /** A piece picked, stepped onto or added to a line: `step` climbs the ladder, so a long line sings upward. */
+  pop: (step: number) => tone({ freq: note(step), duration: 0.1, type: "sine", gain: 0.06 }),
+  /** A discharge: a bright crackle falling away. */
+  zap: () => {
+    noise(0.16, 0.07, 5200, 900, "bandpass");
+    tone({ freq: 980, to: 240, duration: 0.14, type: "sawtooth", gain: 0.035 });
+  },
+  /** Something sliding or flying off. */
+  whoosh: () => noise(0.24, 0.05, 500, 2600, "bandpass"),
+  /** Something heavy stopping. */
+  thud: () => {
+    noise(0.06, 0.05, 700, 180);
+    tone({ freq: 140, to: 62, duration: 0.13, type: "sine", gain: 0.14 });
+  },
+  /** A sonar ping; `near` 0 (close) to 6 (far) lowers the pitch. */
+  ping: (near: number) => {
+    const f = 1320 * Math.pow(2, -Math.min(8, Math.max(0, near)) / 6);
+    tone({ freq: f, duration: 0.5, type: "sine", gain: 0.055, attack: 0.002 });
+    tone({ freq: f * 2, duration: 0.2, type: "sine", gain: 0.015, delay: 0.01 });
+  },
+  /** A small right answer. */
+  good: () => {
+    tone({ freq: 660, duration: 0.1, type: "triangle", gain: 0.05 });
+    tone({ freq: 990, duration: 0.18, type: "triangle", gain: 0.05, delay: 0.08 });
+  },
+  /** A wrong answer or a penalty. */
+  bad: () => {
+    tone({ freq: 220, duration: 0.14, type: "square", gain: 0.035 });
+    tone({ freq: 156, duration: 0.24, type: "square", gain: 0.035, delay: 0.12 });
+  },
+  /** Power building: `level` 0 to 1 raises the sweep. */
+  power: (level: number) => tone({ freq: 180 + level * 220, to: 360 + level * 520, duration: 0.2, type: "sawtooth", gain: 0.03 }),
   tick: (urgent: boolean) => tone({ freq: urgent ? 1180 : 880, duration: 0.05, type: "square", gain: 0.018 }),
   start: () => {
     tone({ freq: 392, duration: 0.14, type: "triangle", gain: 0.06 });

@@ -45,7 +45,10 @@ import {
   type World,
 } from "./schema.js";
 
+import { PROTOTYPE_CONTENT, PROTOTYPE_PUZZLE_CONTENT_IDS, type PrototypePuzzleContent } from "./prototypes/index.js";
+
 export * from "./schema.js";
+export * from "./prototypes/index.js";
 
 /** Content for every duty puzzle, keyed by puzzle id. */
 export interface DutyPuzzleContent {
@@ -57,8 +60,8 @@ export interface DutyPuzzleContent {
 }
 export type DutyPuzzleContentId = keyof DutyPuzzleContent;
 
-/** Every puzzle's content: the duty puzzles, the captain's space battle and the boarding fight. */
-export interface PuzzleContent extends DutyPuzzleContent {
+/** Every puzzle's content: the duty puzzles, the captain's space battle, the boarding fight, and the prototypes (ADR 0036). */
+export interface PuzzleContent extends DutyPuzzleContent, PrototypePuzzleContent {
   readonly battle: BattleContent;
   readonly swordfight: SwordfightContent;
 }
@@ -103,15 +106,41 @@ export function loadContent(): Content {
     navigation: parse("puzzles/navigation", NavigationContentSchema, navigation),
     battle: parse("puzzles/battle", BattleContentSchema, battle),
     swordfight: parse("puzzles/swordfight", SwordfightContentSchema, swordfight),
+    ...prototypePuzzles(),
   };
   const tiers = parse("rating-tiers", z.array(RatingTierSchema).min(1), ratingTiers);
   const nameLists = parse("names", NamesSchema, names);
-  const messages = parse("messages/en", MessagesSchema, en);
+  const messages = mergeMessages(parse("messages/en", MessagesSchema, en));
 
   const content: Content = { world, puzzles, ratingTiers: tiers, names: nameLists, messages };
   const problems = contentProblems(content);
   if (problems.length) throw new ContentError(problems.join("\n"));
   return content;
+}
+
+/** Every prototype's content file, parsed against its own schema (ADR 0036). */
+function prototypePuzzles(): PrototypePuzzleContent {
+  const out: Partial<Record<keyof PrototypePuzzleContent, unknown>> = {};
+  for (const id of PROTOTYPE_PUZZLE_CONTENT_IDS) out[id] = parse(`puzzles/${id}`, PROTOTYPE_CONTENT[id].schema as z.ZodType<unknown>, PROTOTYPE_CONTENT[id].data);
+  return out as PrototypePuzzleContent;
+}
+
+/**
+ * The one message table (CLAUDE.md rule 5): `en.json` and each prototype's own file, which holds
+ * that puzzle's strings so the prototype is removed or promoted by its own files. A key may live in
+ * one file only.
+ */
+function mergeMessages(base: Readonly<Record<string, string>>): Readonly<Record<string, string>> {
+  const out: Record<string, string> = { ...base };
+  for (const id of PROTOTYPE_PUZZLE_CONTENT_IDS) {
+    const file = `messages/prototypes/${id}`;
+    const own = parse(file, MessagesSchema, PROTOTYPE_CONTENT[id].messages);
+    for (const [key, text] of Object.entries(own)) {
+      if (key in out) throw new ContentError(`${file}: "${key}" is already in the message table`);
+      out[key] = text;
+    }
+  }
+  return out;
 }
 
 function parse<T>(file: string, schema: z.ZodType<T>, data: unknown): T {

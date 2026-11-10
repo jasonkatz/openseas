@@ -14,6 +14,9 @@ written in.
   accepted ADR's decision; add a superseding one.
 - `docs/GLOSSARY.md` holds the game's words and the nautical words they replaced, with the
   identifier for each. Name new things by it, and read older ADRs through it.
+- `docs/prototypes/` holds the prototype puzzles (ADR 0036): eight new puzzles on the harness, none in
+  the game yet. Its README says what a prototype is made of and the rules it keeps; each puzzle has
+  a design file there that changes in the same commit as its rules or numbers.
 
 ## Non-negotiable rules
 
@@ -49,6 +52,8 @@ Vitest with property-based determinism tests on engines, Playwright smoke on bot
 - Property-based determinism tests are written before an engine is wired to the server.
 - Record any new architecture decision as an ADR in the same PR.
 - Record any deliberate divergence from the original in `docs/DESIGN.md` section 6.
+- A prototype puzzle is a whole engine the server verifies, dealt only on the harness, in files of its
+  own (ADR 0036). Promoting one into the game is its own ADR and milestone.
 - A board change is proven in the harness: its smoke drives every board and must stay green. The
   harness is never linked from the game. `boards` is presentation and transport only: nothing in it
   may compute a score, and a lab round may never run on a config the server would refuse.

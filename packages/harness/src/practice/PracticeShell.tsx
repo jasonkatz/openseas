@@ -65,6 +65,8 @@ export function useShowMarks(): [boolean, (on: boolean) => void] {
 export interface ShellProps {
   /** Message-table prefix for this puzzle's strings, e.g. "engines". */
   puzzle: string;
+  /** The line over the title on the start card; a prototype says it is one (ADR 0036). Defaults to duty practice. */
+  eyebrow?: string;
   phase: PracticePhase;
   outcome: PracticeOutcome | null;
   best: number;
@@ -255,11 +257,11 @@ export function PracticeShell(p: ShellProps) {
         <div className="board-veil">
           {p.phase === "idle" && (
             <div className="veil-card">
-              <p className="eyebrow">{t("practice.eyebrow")}</p>
+              <p className="eyebrow">{p.eyebrow ?? t("practice.eyebrow")}</p>
               <h2>{t(`${prefix}.title`)}</h2>
               {p.art}
               <p className="how">{t(`${prefix}.how_to`)}</p>
-              <p className="how how-kbd">{t(`${prefix}.how_to_keyboard`)}</p>
+              {t(`${prefix}.how_to_keyboard`) !== "" && <p className="how how-kbd">{t(`${prefix}.how_to_keyboard`)}</p>}
               {p.howTo}
               {p.best > 0 && <p className="best-line">{t("practice.best", { score: p.best })}</p>}
               {!p.canRecord && socketStatus !== "connecting" && (

@@ -34,3 +34,17 @@ export { battleViewString } from "./battle/renderer.js";
 export { SwordfightBoard, type SwordfightBoardProps } from "./swordfight/SwordfightBoard.jsx";
 export { BlockIcon } from "./swordfight/BlockIcon.jsx";
 export { swordfightViewString, type RemoteBoard as MeleeRemoteBoard, type PlaceAnswer as SwordfightPlaceAnswer } from "./swordfight/renderer.js";
+// The kit prototype boards are built from (ADR 0036): a PixiJS base, tweens, effects and placeholder art.
+export { KitBoard, Grid } from "./kit/board.js";
+export { useKitBoard, type KitBoardProps } from "./kit/useKitBoard.js";
+export { KindIcon, type KindIconProps } from "./kit/KindIcon.jsx";
+export { INK, KINDS, kindStyle, type PlaceholderKind, type Shape } from "./kit/art.js";
+// Prototype boards (ADR 0036).
+export { SalvageBoard, type SalvageBoardProps } from "./salvage/SalvageBoard.jsx";
+export { OverloadBoard, type OverloadBoardProps } from "./overload/OverloadBoard.jsx";
+export { DeflectorsBoard, type DeflectorsBoardProps } from "./deflectors/DeflectorsBoard.jsx";
+export { ReactorBoard, type ReactorBoardProps } from "./reactor/ReactorBoard.jsx";
+export { ScannerBoard, type ScannerBoardProps } from "./scanner/ScannerBoard.jsx";
+export { TugBoard, type TugBoardProps } from "./tug/TugBoard.jsx";
+export { RacksBoard, type RacksBoardProps } from "./racks/RacksBoard.jsx";
+export { CuttingBoard, type CuttingBoardProps } from "./cutting/CuttingBoard.jsx";

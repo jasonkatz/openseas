@@ -1,0 +1,29 @@
+{
+  "config": {
+    "width": 6,
+    "height": 6,
+    "startContacts": 3,
+    "growEvery": 2,
+    "maxContacts": 5,
+    "parBase": 0,
+    "parPerContact": 2,
+    "openingMin": 3,
+    "dealTries": 12,
+    "contactPoints": 40,
+    "savePoints": 20,
+    "overPenalty": 10,
+    "wrongPenalty": 60,
+    "spookPenalty": 60,
+    "streakPercent": [100, 120, 140, 160, 180, 200],
+    "maxMoves": 2000
+  },
+  "roundSeconds": 120,
+  "thresholds": [
+    { "score": 250, "rating": 1100 },
+    { "score": 500, "rating": 1300 },
+    { "score": 900, "rating": 1500 },
+    { "score": 1500, "rating": 1700 },
+    { "score": 2200, "rating": 1900 },
+    { "score": 3200, "rating": 2100 }
+  ]
+}

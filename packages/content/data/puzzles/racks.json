@@ -1,0 +1,28 @@
+{
+  "config": {
+    "racks": 5,
+    "height": 5,
+    "kinds": 4,
+    "startCells": 12,
+    "crateMin": 2,
+    "crateMax": 3,
+    "crateMixPercent": 50,
+    "landEvery": 4,
+    "bagCopies": 3,
+    "shipPoints": 100,
+    "chainWindow": 1,
+    "chainPercent": [100, 200, 300, 400, 500],
+    "spillPenalty": 50,
+    "markRoom": false,
+    "maxMoves": 600
+  },
+  "roundSeconds": 120,
+  "thresholds": [
+    { "score": 300, "rating": 1100 },
+    { "score": 600, "rating": 1300 },
+    { "score": 1000, "rating": 1500 },
+    { "score": 1500, "rating": 1700 },
+    { "score": 2100, "rating": 1900 },
+    { "score": 2800, "rating": 2100 }
+  ]
+}
