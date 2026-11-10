@@ -81,7 +81,7 @@ import {
   type GunneryState,
 } from "./gunnery/index.js";
 
-import type { PuzzleDef } from "./def.js";
+import type { PuzzleDef, VouchedKind } from "./def.js";
 import { SALVAGE_DEF } from "./salvage/index.js";
 import { OVERLOAD_DEF } from "./overload/index.js";
 import { DEFLECTORS_DEF } from "./deflectors/index.js";
@@ -91,7 +91,7 @@ import { TUG_DEF } from "./tug/index.js";
 import { RACKS_DEF } from "./racks/index.js";
 import { CUTTING_DEF } from "./cutting/index.js";
 
-export type { PuzzleDef, PuzzleSummary } from "./def.js";
+export type { PuzzleDef, PuzzleSummary, VouchedKind, VouchedRule } from "./def.js";
 
 /** The game's own puzzles: the ones a ship or a fight deals. Extended one at a time per the milestone ladder. */
 export const CORE_PUZZLE_IDS = ["cooling", "engines", "plating", "gunnery", "navigation", "battle", "swordfight"] as const;
@@ -109,6 +109,13 @@ export type PuzzleId = (typeof PUZZLE_IDS)[number];
 export const DUTY_PUZZLE_IDS = ["cooling", "engines", "plating", "gunnery", "navigation"] as const;
 export type DutyPuzzleId = (typeof DUTY_PUZZLE_IDS)[number];
 
+/** The ship's heat, as its turn reported it (ADR 0029): a reading the board may log again until the next. */
+const SHIP_HEAT: VouchedKind<CoolingMove> = {
+  kind: "heat",
+  rule: "standing",
+  same: (said, move) => said.type === "heat" && move.type === "heat" && said.row === move.row,
+};
+
 export const COOLING_DEF: PuzzleDef<CoolingState, CoolingMove, CoolingConfig> = {
   id: "cooling",
   defaultConfig: DEFAULT_COOLING_CONFIG,
@@ -119,6 +126,7 @@ export const COOLING_DEF: PuzzleDef<CoolingState, CoolingMove, CoolingConfig> = 
   summarize: summarizeCooling,
   isFinished: (s) => s.finished,
   maxMoves: (c) => c.maxMoves + (c.shipHeat ? SHIP_HEAT_EVENTS_MAX : 0),
+  vouched: (m) => (m.type === "heat" ? SHIP_HEAT : null),
 };
 
 export const ENGINES_DEF: PuzzleDef<EnginesState, EnginesMove, EnginesConfig> = {
@@ -170,6 +178,15 @@ export const GUNNERY_DEF: PuzzleDef<GunneryState, GunneryMove, GunneryConfig> = 
   maxMoves: (c) => c.maxMoves,
   moveTimeMs: (m, c) => m.tick * c.tickMs,
 };
+
+/** What the ship brings the battle board at a turn (ADR 0021): the latest deal, logged once. */
+const SHIP_SUPPLY: VouchedKind<BattleMove> = {
+  kind: "supply",
+  rule: "latest",
+  same: (said, move) =>
+    said.type === "supply" && move.type === "supply" && said.left === move.left && said.forward === move.forward && said.right === move.right && said.turrets === move.turrets && said.hull === move.hull,
+};
+
 export const BATTLE_DEF: PuzzleDef<BattleState, BattleMove, BattleConfig> = {
   id: "battle",
   defaultConfig: DEFAULT_BATTLE_CONFIG,
@@ -180,7 +197,21 @@ export const BATTLE_DEF: PuzzleDef<BattleState, BattleMove, BattleConfig> = {
   summarize: summarizeBattle,
   isFinished: (s) => s.finished,
   maxMoves: (c) => c.maxMoves,
+  vouched: (m) => (m.type === "supply" ? SHIP_SUPPLY : null),
 };
+
+/**
+ * Scrap from a board outside the fight (ADR 0022): each batch logged once, in the order the server
+ * sent them. The tick is the board's own: the scrap arrives when the board's clock says.
+ */
+const INCOMING_SCRAP: VouchedKind<SwordfightMove> = {
+  kind: "incoming",
+  rule: "queue",
+  same: (said, move) => said.type === "incoming" && move.type === "incoming" && said.board === move.board && said.scrap === move.scrap && said.blade === move.blade,
+};
+
+/** A win over foes outside the fight (ADR 0022): the server's word alone, which it writes into the log itself. */
+const SERVER_WIN: VouchedKind<SwordfightMove> = { kind: "win", rule: "server" };
 
 export const SWORDFIGHT_DEF: PuzzleDef<SwordfightState, SwordfightMove, SwordfightConfig> = {
   id: "swordfight",
@@ -193,6 +224,7 @@ export const SWORDFIGHT_DEF: PuzzleDef<SwordfightState, SwordfightMove, Swordfig
   isFinished: (s) => s.finished,
   maxMoves: (c) => c.maxMoves,
   moveTimeMs: (m, c) => m.tick * c.tickMs,
+  vouched: (m) => (m.type === "incoming" ? INCOMING_SCRAP : m.type === "end" && m.won === true ? SERVER_WIN : null),
 };
 
 /** The engine behind each puzzle id, erased to `unknown` shapes for generic drivers. */

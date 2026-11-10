@@ -35,6 +35,7 @@ import {
   type ShipMove,
   type ShipState,
   type Station,
+  type SwordfightMove,
 } from "@openseas/engine";
 import type { BoardShip, CrewTag, CrewView, ErrorCode, MeleeBoardWire, PuzzleStarted, ServerMessage, ShipEventWire, ShipLocation, ShipSnapshot } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
@@ -43,7 +44,7 @@ import { appendLedger } from "../ledger.js";
 import type { Logger } from "../log.js";
 import { randomBotName } from "../pirates.js";
 import type { PuzzleService } from "../puzzles/service.js";
-import type { PuzzleSession, ShipSupply } from "../puzzles/sessions.js";
+import type { PuzzleSession } from "../puzzles/sessions.js";
 import { Room, type RoomMember } from "../rooms.js";
 
 /** A request the ship refuses. The code is sent to the client as is. */
@@ -180,7 +181,7 @@ export class ShipService {
     puzzles.onResync = (session) => {
       const binding = session.binding;
       const room = binding.kind === "melee" || binding.kind === "battle" ? this.rooms.get(binding.shipId) : undefined;
-      if (room) this.handBack(session, (m) => room.conns.send(session.pirateId, m));
+      if (room) for (const m of puzzles.handBack(session)) room.conns.send(session.pirateId, m);
     };
   }
 
@@ -389,10 +390,9 @@ export class ShipService {
     const session = this.puzzles.sessions.get(run.sessionId);
     if (!session || session.closed) return;
     const s = room.state;
-    const supply: ShipSupply = shipSupply(s);
-    session.shipSupply = supply;
+    const told = this.puzzles.vouch(session, { type: "supply", ...shipSupply(s) });
     run.hullSent = s.damage;
-    room.conns.send(session.pirateId, { type: "battle.supply", sessionId: session.id, ...supply });
+    if (told) room.conns.send(session.pirateId, told);
   }
 
   /** A battle turn resolved on the captain's board: the ship takes the hits and spends the shots. */
@@ -552,7 +552,7 @@ export class ShipService {
     const sessionId = run.fights.get(pirateId);
     const session = sessionId ? this.puzzles.sessions.get(sessionId) : undefined;
     if (session && !session.closed) {
-      this.handBack(session, (m) => room.conns.send(pirateId, m));
+      for (const m of this.puzzles.handBack(session)) room.conns.send(pirateId, m);
     } else if (run.scores.has(pirateId) || !this.dealMelee(room, pirateId)) {
       // A board already fought in this melee is the pirate's one board in it.
       throw new ShipError("not_in_melee");
@@ -577,14 +577,14 @@ export class ShipService {
     if (tick > run.crew.tick && !run.crew.finished) {
       run.crew = reduceSwordfight(run.crew, { type: "wait", tick });
       const events = run.crew.lastMove?.events ?? [];
-      for (const e of events) if (e.type === "attack" && e.to === -1 && e.scrap > 0) this.sendToPirate(room, e.scrap, e.blade);
+      for (const e of events) if (e.type === "attack" && e.to === -1 && e.scrap > 0) this.sendToPirate(room, e.scrap, e.blade, tick);
       if (events.length) this.pushBoards(room);
     }
     await this.checkMelee(room);
   }
 
-  /** Scrap from the raider crew: announced to the connected pirate with the least on their board, to be logged by them. */
-  private sendToPirate(room: ShipRoom, scrap: number, blade: number): void {
+  /** Scrap from the raider crew at `tick`: announced to the connected pirate with the least on their board, to be logged by them. */
+  private sendToPirate(room: ShipRoom, scrap: number, blade: number, tick: number): void {
     const run = room.melee;
     if (!run) return;
     let best: PuzzleSession | null = null;
@@ -596,15 +596,17 @@ export class ShipService {
       const state = session.state as SwordfightState;
       const board = state.boards[0]!;
       if (board.out || state.finished) continue;
-      const load = swordfightBoardLoad(board) + session.meleeIncoming.reduce((n, p) => n + p.scrap, 0);
+      const load = swordfightBoardLoad(board) + announcedScrap(session);
       if (load < bestLoad) {
         best = session;
         bestLoad = load;
       }
     }
     if (!best) return;
-    best.meleeIncoming.push({ scrap, blade });
-    room.conns.send(best.pirateId, { type: "melee.incoming", sessionId: best.id, scrap, blade, from: run.tierId });
+    // Board 0 is the pirate's own in a fight whose foes are outside it. The tick is when the crew sent
+    // it; the board logs the scrap at its own.
+    const told = this.puzzles.vouch(best, { type: "incoming", board: 0, scrap, blade, tick });
+    if (told) room.conns.send(best.pirateId, told);
   }
 
   /** Scrap from a pirate's board: lands on the raider with the least on their board. */
@@ -729,7 +731,7 @@ export class ShipService {
         name: room.names.get(pirateId) ?? pirateId,
         side: 0,
         cells: swordfightBoardString(state.config, b.cells),
-        pending: b.pending.reduce((n, p) => n + p.scrap, 0) + session.meleeIncoming.reduce((n, p) => n + p.scrap, 0),
+        pending: b.pending.reduce((n, p) => n + p.scrap, 0) + announcedScrap(session),
         out: b.out,
         points: b.points,
       });
@@ -773,10 +775,8 @@ export class ShipService {
     if (!ss) return;
     const session = this.puzzles.sessions.get(ss.sessionId);
     if (!session || session.closed) return;
-    const row = this.heatRows(room);
-    if (session.shipHeatRow === row) return;
-    session.shipHeatRow = row;
-    room.conns.send(session.pirateId, { type: "duty.heat", sessionId: session.id, row });
+    const told = this.puzzles.vouch(session, { type: "heat", row: this.heatRows(room) });
+    if (told) room.conns.send(session.pirateId, told);
   }
 
   // ---- connections
@@ -793,28 +793,16 @@ export class ShipService {
     const run = room.battle;
     if (run) {
       const session = this.puzzles.sessions.get(run.sessionId);
-      if (session && !session.closed && session.pirateId === pirateId) this.handBack(session, (m) => conn.send(m));
+      if (session && !session.closed && session.pirateId === pirateId) for (const m of this.puzzles.handBack(session)) conn.send(m);
     }
     // Their board at the airlock waited too: the fight so far, and the scrap announced while they were away.
     const melee = room.melee;
     const fight = melee?.fights.get(pirateId);
     if (melee && fight) {
       const session = this.puzzles.sessions.get(fight);
-      if (session && !session.closed) this.handBack(session, (m) => conn.send(m));
+      if (session && !session.closed) for (const m of this.puzzles.handBack(session)) conn.send(m);
       this.pushBoards(room);
     }
-  }
-
-  /**
-   * Hand a ship's board back to its pirate as the server holds it: the deal with every move logged,
-   * then what the ship announced that the board has not logged yet. Used on reconnect, on a
-   * `melee.join` for a board still held, and after a missing move (ADR 0024).
-   */
-  private handBack(session: PuzzleSession, send: (m: ServerMessage) => void): void {
-    send(this.puzzles.startedMessage(session, true));
-    const binding = session.binding;
-    if (binding.kind === "battle" && session.shipSupply) send({ type: "battle.supply", sessionId: session.id, ...session.shipSupply });
-    if (binding.kind === "melee") for (const p of session.meleeIncoming) send({ type: "melee.incoming", sessionId: session.id, scrap: p.scrap, blade: p.blade, from: binding.tierId });
   }
 
   /** A pirate's socket closed. Their seat is held for the grace period; their board is discarded. */
@@ -1154,4 +1142,11 @@ function wireEvent(room: ShipRoom, e: ShipEvent): ShipEventWire {
     default:
       return e;
   }
+}
+
+/** Scrap the server announced to a melee board that the board has not logged yet. */
+function announcedScrap(session: PuzzleSession): number {
+  let scrap = 0;
+  for (const m of session.vouched.pending() as SwordfightMove[]) if (m.type === "incoming") scrap += m.scrap;
+  return scrap;
 }

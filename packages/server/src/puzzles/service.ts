@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { Content } from "@openseas/content";
-import { PUZZLE_IDS, parPerTurn, type PuzzleId } from "@openseas/engine";
+import { PUZZLE_IDS, parPerTurn, type BattleMove, type CoolingMove, type PuzzleId, type SwordfightMove } from "@openseas/engine";
 import { parseMoveFor, type ClientMetrics, type PuzzleIdWire, type PuzzleResult, type PuzzleStarted, type RejectReasonWire, type ServerMessage } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
@@ -21,6 +21,25 @@ void _reasonCheck;
 void _reasonCheckBack;
 
 const GRACE_MS = 5_000;
+
+/** The message that tells a board's pirate what the server vouched for, which the board then logs as a move. */
+function vouchedMessage(session: PuzzleSession, vouched: unknown): ServerMessage {
+  const move = vouched as CoolingMove | BattleMove | SwordfightMove;
+  const sessionId = session.id;
+  switch (move.type) {
+    case "heat":
+      return { type: "duty.heat", sessionId, row: move.row };
+    case "supply":
+      return { type: "battle.supply", sessionId, left: move.left, forward: move.forward, right: move.right, turrets: move.turrets, hull: move.hull };
+    case "incoming": {
+      const binding = session.binding;
+      if (binding.kind !== "melee") throw new Error("only a melee board is sent scrap");
+      return { type: "melee.incoming", sessionId, scrap: move.scrap, blade: move.blade, from: binding.tierId };
+    }
+    default:
+      throw new Error(`no message vouches for a ${move.type} move`);
+  }
+}
 
 /** Coordinates the in-memory session manager with persistence. One instance per process. */
 export class PuzzleService {
@@ -46,8 +65,8 @@ export class PuzzleService {
    * whatever the ship announced that the board has not logged yet. Set by the ship service.
    */
   onResync: ((session: PuzzleSession) => void) | null = null;
-  /** A harness Cooling round's lone ship turned and its heat moved (ADR 0029): tell its pirate. Set by the socket server. */
-  onSoloHeat: ((session: PuzzleSession, row: number) => void) | null = null;
+  /** A harness Cooling round's lone ship turned and its heat moved (ADR 0029): send its pirate the message. Set by the socket server. */
+  onSoloHeat: ((session: PuzzleSession, message: ServerMessage) => void) | null = null;
 
   constructor(
     private readonly db: Db,
@@ -72,7 +91,7 @@ export class PuzzleService {
 
   /** Once a second: turn the lone ships of harness Cooling rounds that are due, and pass on what moved. */
   tick(): void {
-    for (const { session, row } of this.sessions.turnSoloHeat()) this.onSoloHeat?.(session, row);
+    for (const { session, row } of this.sessions.turnSoloHeat()) this.onSoloHeat?.(session, vouchedMessage(session, { type: "heat", row }));
   }
 
   /**
@@ -97,7 +116,7 @@ export class PuzzleService {
     return this.finish(session, null, null);
   }
 
-  /** The deal as the client sees it; with `resume`, a battle the captain reconnected to. */
+  /** The deal as the client sees it; with `resume`, a ship's board handed back (the battle or a melee board) with every move logged. */
   startedMessage(s: PuzzleSession, resume = false): PuzzleStarted {
     // The config came from content (or the ship's override) for this puzzle, so it matches the wire variant for `puzzle`.
     return {
@@ -111,6 +130,25 @@ export class PuzzleService {
       ...bindingPolicy(s.binding).wire,
       ...(resume ? { resume: { moves: s.moves } } : {}),
     } as PuzzleStarted;
+  }
+
+  /**
+   * Vouch for a move on a board (ADR 0042): the ship's heat, the battle's supply, a melee's incoming
+   * scrap. The board may now log it, and the message returned tells its pirate to. Null when it is no
+   * news to the board: the heat it already has.
+   */
+  vouch(session: PuzzleSession, move: CoolingMove | BattleMove | SwordfightMove): ServerMessage | null {
+    const message = vouchedMessage(session, move);
+    return session.vouched.vouch(move) ? message : null;
+  }
+
+  /**
+   * The board as the server holds it, for its pirate to rebuild (ADR 0024): the deal with every move
+   * logged, then every move the server vouched for that the board has not logged. Sent on reconnect,
+   * on a `melee.join` for a board still held, and after a missing move.
+   */
+  handBack(session: PuzzleSession): ServerMessage[] {
+    return [this.startedMessage(session, true), ...session.vouched.pending().map((m) => vouchedMessage(session, m))];
   }
 
   /** Returns the message to send back, if any. `move` is any puzzle's move; it is narrowed here. */

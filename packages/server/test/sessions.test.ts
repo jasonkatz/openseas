@@ -212,19 +212,20 @@ describe("PuzzleSessionManager", () => {
     expect(log(0, { type: "incoming", board: 0, scrap: 3, blade: 0, tick: 2 })).toMatchObject({ ok: false, reason: "illegal_move" });
     const s2 = m.start("p1", "swordfight", { binding: melee, override: { config, roundMs: 60_000 } });
     client = def.create(s2.seed, config);
-    s2.meleeIncoming.push({ scrap: 3, blade: 1 }, { scrap: 5, blade: 0 });
+    s2.vouched.vouch({ type: "incoming", board: 0, scrap: 3, blade: 1, tick: 0 });
+    s2.vouched.vouch({ type: "incoming", board: 0, scrap: 5, blade: 0, tick: 0 });
     const log2 = (seq: number, move: unknown) => {
       const next = def.reduce(client, move);
       const r = m.move(s2, seq, move, def.hash(next));
       if (r.ok) client = next;
       return r;
     };
-    // The announced scrap, in order; a different amount, blade or board is a lie.
+    // The announced scrap, in order, each at the board's own tick.
     expect(log2(0, { type: "wait", tick: 1 })).toEqual({ ok: true, seq: 0 });
     expect(log2(1, { type: "incoming", board: 0, scrap: 3, blade: 1, tick: 2 })).toEqual({ ok: true, seq: 1 });
-    expect(s2.meleeIncoming).toEqual([{ scrap: 5, blade: 0 }]);
+    expect(s2.vouched.pending()).toEqual([{ type: "incoming", board: 0, scrap: 5, blade: 0, tick: 0 }]);
     expect(log2(2, { type: "incoming", board: 0, scrap: 5, blade: 0, tick: 3 })).toEqual({ ok: true, seq: 2 });
-    expect(s2.meleeIncoming).toEqual([]);
+    expect(s2.vouched.pending()).toEqual([]);
     // A win over foes outside the board is the server's word, never the client's.
     expect(log2(3, { type: "end", won: true, tick: 4 })).toMatchObject({ ok: false, reason: "illegal_move" });
     // The server writes that end itself and the log still replays.
@@ -233,6 +234,32 @@ describe("PuzzleSessionManager", () => {
     expect(s3.moves).toEqual([{ type: "end", won: true, tick: 2 }]);
     const r = m.finish(s3, null);
     expect(r.ok && r.summary.score).toBe(config.winPoints);
+  });
+
+  it("the captain's board logs the ship's latest deal, once", () => {
+    const now = { t: 0 };
+    const m = manager(now);
+    const def = PUZZLES.battle;
+    const config = { ...DEFAULT_BATTLE_CONFIG, supply: null };
+    const battle = { kind: "battle", shipId: "ship-1", voyageId: "v-1", tierId: "junker" } as const;
+    const s = m.start("p1", "battle", { binding: battle, override: { config, roundMs: 60_000 } });
+    let client = def.create(s.seed, config);
+    const log = (seq: number, move: unknown) => {
+      const next = def.reduce(client, move);
+      const r = m.move(s, seq, move, def.hash(next));
+      if (r.ok) client = next;
+      return r;
+    };
+    const deal = (left: number) => ({ type: "supply", left, forward: 2, right: 1, turrets: 2, hull: 0 });
+    // A turn's deal the board has not logged gives way to the next turn's.
+    s.vouched.vouch(deal(1));
+    s.vouched.vouch(deal(2));
+    expect(s.vouched.pending()).toEqual([deal(2)]);
+    expect(log(0, deal(2))).toEqual({ ok: true, seq: 0 });
+    expect(s.vouched.pending()).toEqual([]);
+    // The engine would take the same deal twice; the server would not.
+    expect(log(1, deal(2))).toMatchObject({ ok: false, reason: "illegal_move" });
+    expect(m.get(s.id)).toBeUndefined();
   });
 
   it("caps the move count at the configured maximum", () => {
@@ -271,7 +298,7 @@ describe("PuzzleSessionManager", () => {
     const s = m.start("p1", "cooling");
     expect((s.config as CoolingConfig).shipHeat).toBe(true);
     // A dry ship reads as the heat's floor, which is where the board starts.
-    expect(s.shipHeatRow).toBe(3);
+    expect(s.vouched.pending()).toEqual([{ type: "heat", row: 3 }]);
     now.t += 9_999;
     expect(m.turnSoloHeat()).toEqual([]);
     // One turn: 200 permille still reads as the floor, so there is nothing to tell the client.
@@ -280,14 +307,17 @@ describe("PuzzleSessionManager", () => {
     // Two: 400 permille is five rows.
     now.t += 10_000;
     expect(m.turnSoloHeat().map((c) => ({ id: c.session.id, row: c.row }))).toEqual([{ id: s.id, row: 5 }]);
-    expect(s.shipHeatRow).toBe(5);
+    expect(s.vouched.pending()).toEqual([{ type: "heat", row: 5 }]);
     expect(m.turnSoloHeat()).toEqual([]);
 
     let client = createCoolingGame(s.seed, s.config as CoolingConfig);
     client = reduceCooling(client, { type: "heat", row: 5 });
     expect(m.move(s, 0, { type: "heat", row: 5 }, hashCoolingState(client))).toEqual({ ok: true, seq: 0 });
+    // The depth stands until the next: logging it again is no lie.
+    client = reduceCooling(client, { type: "heat", row: 5 });
+    expect(m.move(s, 1, { type: "heat", row: 5 }, hashCoolingState(client))).toEqual({ ok: true, seq: 1 });
     const lie = reduceCooling(client, { type: "heat", row: 3 });
-    expect(m.move(s, 1, { type: "heat", row: 3 }, hashCoolingState(lie))).toMatchObject({ ok: false, reason: "illegal_move" });
+    expect(m.move(s, 2, { type: "heat", row: 3 }, hashCoolingState(lie))).toMatchObject({ ok: false, reason: "illegal_move" });
   });
 
   it("no lone ship turns after the round's deadline, and a duty board has none", () => {
@@ -300,6 +330,6 @@ describe("PuzzleSessionManager", () => {
     expect(s.soloHeat?.turns).toBe(5);
     const duty = m.start("p2", "cooling", { binding: { kind: "duty", shipId: "ship", station: "cooling", voyageId: "v", heat: 7 } });
     expect(duty.soloHeat).toBeNull();
-    expect(duty.shipHeatRow).toBe(7);
+    expect(duty.vouched.pending()).toEqual([{ type: "heat", row: 7 }]);
   });
 });

@@ -14,25 +14,11 @@ import {
   type SoloHeat,
 } from "@openseas/engine";
 import { PRACTICE, bindingPolicy, type SessionBinding } from "./binding.js";
+import { VouchedMoves } from "./vouched.js";
 
 export type { RejectReason };
 
-/** Scrap the server announced to a melee board, not yet logged. The board's next incoming move must say exactly this. */
-export interface MeleeIncoming {
-  readonly scrap: number;
-  readonly blade: number;
-}
-
-/** What the ship brings the battle board at a turn. The board must log a supply move that says exactly this. */
-export interface ShipSupply {
-  readonly left: number;
-  readonly forward: number;
-  readonly right: number;
-  readonly turrets: number;
-  readonly hull: number;
-}
-
-/** A round dealt with its own config and length rather than content's: the battle aboard a ship. */
+/** A round dealt with its own config and length rather than content's: the battle or a melee board aboard a ship. */
 export interface RoundOverride {
   readonly config: unknown;
   readonly roundMs: number;
@@ -43,24 +29,6 @@ export interface SessionStart {
   readonly binding: SessionBinding;
   readonly override?: RoundOverride;
 }
-
-function isHeatMove(move: unknown): move is { type: "heat"; row: number } {
-  return typeof move === "object" && move !== null && (move as { type?: unknown }).type === "heat";
-}
-
-function isSupplyMove(move: unknown): move is { type: "supply" } & ShipSupply {
-  return typeof move === "object" && move !== null && (move as { type?: unknown }).type === "supply";
-}
-
-function isIncomingMove(move: unknown): move is { type: "incoming"; board: number; scrap: number; blade: number; tick: number } {
-  return typeof move === "object" && move !== null && (move as { type?: unknown }).type === "incoming";
-}
-
-function isEndMove(move: unknown): move is { type: "end"; won?: unknown } {
-  return typeof move === "object" && move !== null && (move as { type?: unknown }).type === "end";
-}
-
-const sameSupply = (a: ShipSupply, b: ShipSupply): boolean => a.left === b.left && a.forward === b.forward && a.right === b.right && a.turrets === b.turrets && a.hull === b.hull;
 
 export interface PuzzleSession {
   readonly id: string;
@@ -73,17 +41,13 @@ export interface PuzzleSession {
   readonly deadlineAt: number;
   /** What the round is played for: practice, a ship's station, the captain's battle or a melee board. */
   readonly binding: SessionBinding;
-  /** Melee only: scrap announced to this board, oldest first, each to be logged as an incoming move in turn. */
-  meleeIncoming: MeleeIncoming[];
   /**
-   * Cooling only: the heat in rows as last told to the client, from the ship aboard or, for a
-   * harness round, the lone ship below. A heat move must say this.
+   * The moves the server vouched for that the board may log (ADR 0042): the ship's heat, from the
+   * ship aboard or the lone ship below, the battle's supply, a melee's incoming scrap.
    */
-  shipHeatRow: number | null;
+  readonly vouched: VouchedMoves;
   /** A harness Cooling round's lone ship (ADR 0029): its heat, and how many of its turns have passed. */
   soloHeat: { heat: SoloHeat; turns: number } | null;
-  /** Battle aboard only: the ship's latest deal, not yet logged by the board. A supply move must say this. */
-  shipSupply: ShipSupply | null;
   state: unknown;
   moves: unknown[];
   closed: boolean;
@@ -154,6 +118,10 @@ export class PuzzleSessionManager {
     // A Cooling board's heat is a ship's heat (DESIGN.md 3.3): the ship's aboard, a lone ship's in the harness.
     const config = puzzle === "cooling" ? { ...(content as object), shipHeat: true } : content;
     const solo = puzzle === "cooling" && bindingPolicy(binding).loneShip ? soloHeatStart(config as HeatBoardFields) : null;
+    const vouched = new VouchedMoves(def);
+    // The board is dealt at the heat it plays from, which it logs as the ship's word.
+    const heat = puzzle === "cooling" ? ((binding.kind === "duty" ? binding.heat : undefined) ?? solo?.row) : undefined;
+    if (heat !== undefined) vouched.vouch({ type: "heat", row: heat });
     const session: PuzzleSession = {
       id: this.opts.randomId(),
       pirateId,
@@ -164,10 +132,8 @@ export class PuzzleSessionManager {
       startedAt: now,
       deadlineAt: now + roundMs,
       binding,
-      meleeIncoming: [],
-      shipHeatRow: (binding.kind === "duty" ? binding.heat : undefined) ?? solo?.row ?? null,
+      vouched,
       soloHeat: solo ? { heat: solo, turns: 0 } : null,
-      shipSupply: null,
       state: def.create(seed, config),
       moves: [],
       closed: false,
@@ -182,7 +148,6 @@ export class PuzzleSessionManager {
     return this.sessions.get(id);
   }
 
-  /** `move` must already be validated against the session's puzzle schema. */
   /**
    * Turn every harness Cooling round's lone ship that is due (ADR 0029), each from the points its
    * board earned since the last turn. Returns the boards whose heat now shows a different depth;
@@ -202,14 +167,12 @@ export class PuzzleSessionManager {
       const score = s.def.summarize(s.state).score;
       for (let t = s.soloHeat.turns; t < due; t++) heat = soloHeatTurn(ship.rules, ship.par, heat, score, s.config as HeatBoardFields);
       s.soloHeat = { heat, turns: due };
-      if (heat.row !== s.shipHeatRow) {
-        s.shipHeatRow = heat.row;
-        changed.push({ session: s, row: heat.row });
-      }
+      if (s.vouched.vouch({ type: "heat", row: heat.row })) changed.push({ session: s, row: heat.row });
     }
     return changed;
   }
 
+  /** `move` must already be validated against the session's puzzle schema. */
   move(session: PuzzleSession, seq: number, move: unknown, hash: string): MoveOutcome {
     if (session.closed) return { ok: false, reason: "deadline", atSeq: seq };
     if (seq !== session.moves.length) {
@@ -228,17 +191,10 @@ export class PuzzleSessionManager {
     // Late, or one too many: the rules a replay of the log holds it to as well.
     const ruled = pureMoveRejection(session.def, session.config, session.moves.length, move, { roundMs: session.deadlineAt - session.startedAt, graceMs: this.opts.graceMs, atMs: now - session.startedAt });
     if (ruled) return this.reject(session, ruled, seq);
-    // A heat event is the ship's word, not the client's: it must repeat what the ship said.
-    if (isHeatMove(move) && move.row !== session.shipHeatRow) return this.reject(session, "illegal_move", seq);
-    // So is a battle's supply: the deal the ship announced, logged once.
-    if (isSupplyMove(move) && (session.shipSupply === null || !sameSupply(move, session.shipSupply))) return this.reject(session, "illegal_move", seq);
-    // And a melee board's incoming scrap: what the server announced, in the order it did.
-    if (isIncomingMove(move)) {
-      const head = session.meleeIncoming[0];
-      if (session.binding.kind !== "melee" || !head || move.board !== 0 || move.scrap !== head.scrap || move.blade !== head.blade) return this.reject(session, "illegal_move", seq);
-    }
-    // A win over foes outside the board is the server's word alone (ADR 0022); the server writes that end itself.
-    if (isEndMove(move) && move.won === true) return this.reject(session, "illegal_move", seq);
+    // A move the player does not make is the server's word, not the client's (ADR 0042): the ship's
+    // heat, the battle's supply and a melee's incoming scrap must repeat what the server said, and a
+    // win over foes outside the board the server writes itself (ADR 0022).
+    if (!session.vouched.admits(move)) return this.reject(session, "illegal_move", seq);
     // Engines with their own clock may not claim a time ahead of the wall clock.
     const claimed = session.def.moveTimeMs?.(move, session.config);
     if (claimed !== undefined && session.startedAt + claimed > now + this.opts.graceMs) return this.reject(session, "illegal_move", seq);
@@ -252,8 +208,7 @@ export class PuzzleSessionManager {
     if (session.def.hash(next) !== hash) return this.reject(session, "divergence", seq);
     session.state = next;
     session.moves.push(move);
-    if (isSupplyMove(move)) session.shipSupply = null;
-    if (isIncomingMove(move)) session.meleeIncoming.shift();
+    session.vouched.logged(move);
     return { ok: true, seq };
   }
 

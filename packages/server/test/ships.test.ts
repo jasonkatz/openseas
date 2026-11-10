@@ -160,6 +160,10 @@ class Client {
       });
     });
   }
+  /** Drop what has piled up, so the next `until` waits for something new. */
+  clear(): void {
+    this.inbox.length = 0;
+  }
 }
 
 describeDb("ships over the wire", () => {
@@ -872,17 +876,24 @@ describeDb("ships over the wire", () => {
 
     // A move lost on the way (ADR 0024): the next one carries the wrong number, and instead of the
     // round being thrown out the board is handed back as the server holds it. The rebuilt board goes on.
+    // Scrap the server announced whose message went astray goes back with the board.
     const held = mine;
+    const announced = app.puzzles.vouch(app.puzzles.sessions.get(mineA.sessionId)!, { type: "incoming", board: 0, scrap: 7, blade: 0, tick: 0 });
+    expect(announced).toEqual({ type: "melee.incoming", sessionId: mineA.sessionId, scrap: 7, blade: 0, from: tierId });
+    a.clear();
     mine = reduceSwordfight(mine, { type: "wait", tick: 2 });
     seq++;
     log({ type: "wait", tick: 3 });
     const back = await a.until("puzzle.started", (m) => m.sessionId === mineA.sessionId && m.resume !== undefined);
     expect(back.resume?.moves).toEqual([{ type: "wait", tick: 1 }]);
+    expect(await a.until("melee.incoming", (m) => m.sessionId === mineA.sessionId)).toEqual(announced);
     expect(app.puzzles.sessions.get(mineA.sessionId)?.closed).toBe(false);
     mine = held;
     seq = 1;
+    log({ type: "incoming", board: 0, scrap: 7, blade: 0, tick: 2 });
     log({ type: "wait", tick: 4 });
-    await waitRoom(() => app.puzzles.sessions.get(mineA.sessionId)?.moves.length === 2);
+    await waitRoom(() => app.puzzles.sessions.get(mineA.sessionId)?.moves.length === 3);
+    expect(app.puzzles.sessions.get(mineA.sessionId)?.vouched.pending()).toEqual([]);
 
     // Bury the raider crew in scrap until every board of theirs is out: the airlock is won.
     const run = room().melee!;

@@ -76,7 +76,7 @@ export function createWsServer(deps: WsDeps) {
     void checkTitles(pirateId).catch((e) => log.warn({ err: e, pirateId }, "title check failed"));
   };
   // A harness Cooling round's lone ship moved its heat: the board logs it as a heat move (ADR 0029).
-  puzzles.onSoloHeat = (session, row) => conns.get(session.pirateId)?.member.send({ type: "duty.heat", sessionId: session.id, row });
+  puzzles.onSoloHeat = (session, message) => conns.get(session.pirateId)?.member.send(message);
   ships.onSummaryChanged = (ids) => {
     for (const id of ids) changed(id);
   };
