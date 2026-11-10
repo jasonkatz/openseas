@@ -6,6 +6,7 @@
 export { content, t } from "./content.js";
 export { sfx, isMuted, setMuted } from "./audio.js";
 export { LatencyMeter } from "./metrics.js";
+export { softwareRendered } from "./surface.js";
 export { SERVER_URL, wsUrl } from "./api/base.js";
 export { ApiError, getMe, createPirate } from "./api/http.js";
 export { GameSocket, type SocketStatus } from "./api/socket.js";

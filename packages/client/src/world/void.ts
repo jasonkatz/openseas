@@ -11,8 +11,8 @@ import { nextInt, seedFromString, type PrngState } from "@openseas/engine";
 
 export interface VoidBackdrop {
   mesh: THREE.Mesh;
-  /** Each frame: the time, the camera, and the azimuth it looks down. */
-  update(t: number, camera: THREE.OrthographicCamera, azimuth: number, width: number, height: number): void;
+  /** Each frame: the time, the camera, the azimuth it looks down, the view's size and how many buffer pixels a CSS pixel gets. */
+  update(t: number, camera: THREE.OrthographicCamera, azimuth: number, width: number, height: number, pixelRatio: number): void;
   /** Free the nebula's texture; the mesh goes with the scene. */
   dispose(): void;
 }
@@ -154,10 +154,12 @@ export function buildVoid(): VoidBackdrop {
   const facing = new THREE.Vector3();
   return {
     mesh,
-    update(t, camera, azimuth, width, height) {
+    update(t, camera, azimuth, width, height, pixelRatio) {
       uniforms.uTime.value = t;
       uniforms.uAspect.value = width / Math.max(1, height);
-      uniforms.uPixel.value = 1 / Math.max(1, height);
+      // A star is sized in CSS pixels, but never smaller than the buffer's own: drawn below one
+      // pixel per pixel it would otherwise fall between them and flicker.
+      uniforms.uPixel.value = 1 / Math.max(1, height * Math.min(1, pixelRatio));
       const halfH = (camera.top - camera.bottom) / 2;
       // Pulling back shows a little more sky, never a different one.
       uniforms.uSpread.value = Math.pow(Math.max(0.2, halfH) / 2, 0.07);

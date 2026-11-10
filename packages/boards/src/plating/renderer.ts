@@ -14,6 +14,7 @@ import {
 import type { PlatingContent } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
 import { drawMark } from "../engines/renderer.js";
+import { boardSurface } from "../surface.js";
 
 export interface PlatingCallbacks {
   /** The player welded down the plate in `slot` at this orientation and origin. */
@@ -248,8 +249,7 @@ export class PlatingRenderer {
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
-      antialias: true,
-      resolution: Math.min(2, window.devicePixelRatio || 1),
+      ...boardSurface(),
       autoDensity: true,
       preference: "webgl",
     });

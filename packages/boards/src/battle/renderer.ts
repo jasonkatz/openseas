@@ -17,6 +17,7 @@ import {
   type Side,
 } from "@openseas/engine";
 import { paintBall, paintTurret, paintCaustic, paintWell, paintSpace, paintShip } from "./art.js";
+import { boardSurface } from "../surface.js";
 
 export interface BattleCallbacks {
   /** The captain flew the plot: by the button, the key, or the host's turn clock. */
@@ -265,8 +266,7 @@ export class BattleRenderer {
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
-      antialias: true,
-      resolution: Math.min(2, window.devicePixelRatio || 1),
+      ...boardSurface(),
       autoDensity: true,
       preference: "webgl",
     });

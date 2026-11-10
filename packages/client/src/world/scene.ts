@@ -10,11 +10,14 @@
  * them lie in the plane y = 0, the lane plane, which the rocks' rims stand a little above.
  */
 import * as THREE from "three";
+import { softwareRendered } from "@openseas/boards";
 import type { OutpostLandmark } from "@openseas/content";
 import type { CrewFlagWire } from "@openseas/protocol";
+import { unseen } from "./batch.js";
+import { WALL_TOP } from "./deck.js";
 import { CameraRig, isoDirection, type View } from "./camera.js";
 import { DOCK, buildOutpost, type Building, type Door, type OutpostModel } from "./outpost.js";
-import { PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildDust, buildBoardingTube, buildDrone, buildShip, dressShip, type BuoyModel, type DeckPost, type DroneModel, type ShipModel, type Station } from "./models.js";
+import { HULL_HALF, MARKER_Y, PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildDust, buildBoardingTube, buildDrone, buildShip, dressShip, type BuoyModel, type DeckPost, type DroneModel, type ShipModel, type Station } from "./models.js";
 import { PIRATE_HEIGHT, buildPirate, workFor, type FigureLook, type PirateFigure, type PirateKind } from "./pirate.js";
 import { buildVoid, type VoidBackdrop } from "./void.js";
 import { Walker, type Spot as WalkSpot, type WalkGrid } from "./walk.js";
@@ -38,7 +41,7 @@ export interface WorldShip {
   name: string;
   kind: "yours" | "aboard" | "other";
   location: WorldShipLocation;
-  /** The owner's crew flag (M6): flown from the antenna mast and painted on the tail fin. Null flies none. */
+  /** The owner's crew flag (M6): painted on the roof, its emblem on the tail fin. Null carries none. */
   colors: CrewFlagWire | null;
   /** Someone else's ship flying the viewer's own crew's colors: named on the chart like the viewer's own. */
   crewmate?: boolean;
@@ -162,7 +165,7 @@ const LANE_BULGE = 0.16;
 const DASH_STEP = 0.55;
 /** The outpost's footprint on the lane plane, rim and all; the view is fitted to it. */
 const OUTPOST_R = 1.9;
-/** The deck view: the hull itself fills the frame, its own little place; the antenna and the void around it fall outside. */
+/** The deck view: the hull itself fills the frame, its own little place; the void around it falls outside. */
 const DECK_MIN_HALF_H = 0.55;
 /** On the outpost, the camera walks with the pirate this close: a pirate stands a thumb tall on a phone. */
 const WALK_HALF_H = 1.0;
@@ -186,6 +189,9 @@ const CALLOUT_W = 165;
 const SPOT_W = 170;
 const SPOT_DX = 18;
 const SPOT_DY = -12;
+/** A software renderer draws about this many pixels a frame, and never fewer than this share of the window's own each way. */
+const SOFT_PIXELS = 320_000;
+const SOFT_MIN_RATIO = 0.5;
 
 /** A tappable thing hung on the geometry: a pin at the anchor, a label beside it, a leader between. */
 interface Spot {
@@ -329,11 +335,12 @@ export class WorldScene {
     private readonly events: WorldEvents,
   ) {
     this.reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
-    // A software renderer (a headless browser, a machine without a GPU) gets a lighter world: no
-    // shadows, one pixel per pixel, fewer small things on the ground. It still reads as the same place.
-    this.lowQuality = isSoftwareRenderer(this.renderer);
-    this.renderer.setPixelRatio(this.lowQuality ? 1 : Math.min(2, window.devicePixelRatio || 1));
+    // A software renderer (a headless browser, a machine without a GPU) pays for every pixel on the
+    // CPU, so it draws the same world more cheaply: no shadows, no antialiasing, and a fixed budget
+    // of pixels however big the window (see `pixelRatio`). What is in the world never depends on it.
+    // It is asked before the renderer is made, because antialiasing is fixed with the context.
+    this.lowQuality = softwareRendered();
+    this.renderer = new THREE.WebGLRenderer({ antialias: !this.lowQuality, alpha: true, powerPreference: "low-power" });
     this.renderer.shadowMap.enabled = !this.lowQuality;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -442,18 +449,9 @@ export class WorldScene {
     }
     // Dust drifts over the chart; up close it would hide the thing being looked at.
     for (const d of this.dust) d.group.visible = input.focus.kind === "all";
-    // On deck the tail fin goes to glass, so no angle of it ever hides a station, and the canopy
-    // is not drawn at all: it is only there from outside (ADR 0034).
-    for (const [id, sv] of this.ships) {
-      const onDeck = id === focusShip;
-      for (const m of sv.model.glass) {
-        const material = m.material as THREE.Material & { opacity: number };
-        material.opacity = onDeck ? 0.22 : 1;
-        material.depthWrite = !onDeck;
-        m.castShadow = !onDeck;
-      }
-      sv.model.canopy.visible = !onDeck;
-    }
+    // A ship is shut from outside. The one the view is aboard is cut away on the side the camera
+    // looks from, so nothing of her hull stands between it and a station (ADR 0035).
+    for (const [id, sv] of this.ships) sv.model.cutaway(id === focusShip ? this.deckSide(sv) : null);
     this.host.classList.toggle("is-dimmed", input.dimmed);
     this.host.classList.toggle("is-walking", this.walkFocus() !== null);
     // Aboard, the view starts in close on the pirate; anywhere else it starts on the whole place.
@@ -796,7 +794,7 @@ export class WorldScene {
     const figure = buildPirate(kind, id, !this.lowQuality, look);
     const onDeck = scope === "ship";
     if (onDeck) figure.group.scale.setScalar(1 / SHIP_SCALE);
-    const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, PIRATE_HEIGHT * 1.2, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, PIRATE_HEIGHT * 1.2, 8), unseen());
     hit.position.y = PIRATE_HEIGHT * 0.6;
     hit.userData.walker = key;
     figure.group.add(hit);
@@ -1093,7 +1091,7 @@ export class WorldScene {
     this.walkMe(me, sv.model.deck.airlock(side), (side * Math.PI) / 2, () => this.events.onAirlock(), false);
   }
 
-  /** Which rail of a docked ship (in its own frame: +1 starboard, -1 port) the boarding tube comes aboard at, if it lies against the dock. */
+  /** Which side of a docked ship (in its own frame: +1 starboard, -1 port) the boarding tube comes aboard at, if it lies against the dock. */
   private airlockSide(sv: ShipView): number | null {
     if (!sv.berth || sv.ship.location.kind !== "docked") return null;
     const iv = this.outposts.get(sv.berth.outpostId);
@@ -1426,22 +1424,31 @@ export class WorldScene {
     this.rig.setView(this.viewFor(this.input), immediate || this.reducedMotion);
   }
 
-  /** The azimuth that looks at a ship's side from the open: away from the outpost it is docked at, else its starboard side. */
-  private deckAzimuth(sv: ShipView): number {
+  /** Which of a ship's sides (+1 starboard, -1 port) the deck's camera looks from: the one away from the outpost she is docked at, else starboard. */
+  private deckSide(sv: ShipView): number {
     const g = sv.model.group;
-    const forward = new THREE.Vector3(1, 0, 0).applyQuaternion(g.quaternion);
-    const side = new THREE.Vector3(-forward.z, 0, forward.x);
     const docked = sv.ship.location.kind === "docked" ? this.outposts.get(sv.ship.location.outpostId) : undefined;
-    if (docked) {
-      const away = g.position.clone().sub(docked.model.group.position);
-      if (away.dot(side) < 0) side.negate();
-    }
+    if (!docked) return 1;
+    const starboard = new THREE.Vector3(0, 0, 1).applyQuaternion(g.quaternion);
+    return g.position.clone().sub(docked.model.group.position).dot(starboard) < 0 ? -1 : 1;
+  }
+
+  /** The azimuth that looks at a ship broadside from the open, straight at the side `deckSide` picks. */
+  private deckAzimuth(sv: ShipView): number {
+    const side = new THREE.Vector3(0, 0, this.deckSide(sv)).applyQuaternion(sv.model.group.quaternion);
     return Math.atan2(side.z, side.x);
+  }
+
+  /** Drawing-buffer pixels per CSS pixel: the screen's own, up to two, on a GPU; whatever keeps a software renderer inside its budget. */
+  private pixelRatio(w: number, h: number): number {
+    if (!this.lowQuality) return Math.min(2, window.devicePixelRatio || 1);
+    return Math.max(SOFT_MIN_RATIO, Math.min(1, Math.sqrt(SOFT_PIXELS / (w * h))));
   }
 
   private resize(): void {
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
+    this.renderer.setPixelRatio(this.pixelRatio(w, h));
     this.renderer.setSize(w, h, false);
     this.pickAzimuth();
     this.updateView(true);
@@ -1481,7 +1488,7 @@ export class WorldScene {
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
     this.rig.update(dt, w / h);
-    this.backdrop.update(t, this.rig.camera, this.rig.azimuth, w, h);
+    this.backdrop.update(t, this.rig.camera, this.rig.azimuth, w, h, this.renderer.getPixelRatio());
     for (const d of this.dust) {
       d.group.position.x += d.speed * dt;
       d.group.rotation.x += dt * 0.03;
@@ -1584,10 +1591,9 @@ export class WorldScene {
       body.position.y = -SHIP_SINK + Math.sin(t * 1.1 + sv.phase) * 0.025 * calm;
       body.rotation.z = Math.sin(t * 0.8 + sv.phase) * 0.035 * calm;
       body.rotation.x = Math.sin(t * 0.6 + sv.phase * 1.3) * 0.02 * calm;
-      sv.model.flag.rotation.y = Math.sin(t * 5 + sv.phase) * 0.3;
       // The plumes gutter a little, never the same on two ships.
       if (sv.model.engineGlow.visible) sv.model.engineGlow.scale.set(1 + Math.sin(t * 31 + sv.phase) * 0.06, 1, 1);
-      sv.model.marker.position.y = 1.33 + Math.sin(t * 3 + sv.phase) * 0.07;
+      sv.model.marker.position.y = MARKER_Y + Math.sin(t * 3 + sv.phase) * 0.07;
       sv.model.marker.rotation.y = t * 1.5;
       // The "your ship" marker is for finding her on the chart; up close it would only hang in the air.
       sv.model.marker.visible = sv.ship.kind !== "other" && this.input.focus.kind === "all";
@@ -1619,7 +1625,8 @@ export class WorldScene {
         const side = Math.sign(berth.w);
         const deckY = 0.3 * SHIP_SCALE - SHIP_SINK;
         const from = new THREE.Vector3(berth.foot.x, DOCK.top + 0.006, side * (DOCK.half - 0.01));
-        const to = new THREE.Vector3(berth.foot.x, deckY + 0.008, side * (Math.abs(berth.w) - 0.2 * SHIP_SCALE));
+        // To her airlock's sill, in the wall of her hull.
+        const to = new THREE.Vector3(berth.foot.x, deckY + 0.008, side * (Math.abs(berth.w) - HULL_HALF * SHIP_SCALE));
         group.add(buildBoardingTube(from, to));
       }
       iv.model.frame.add(group);
@@ -1649,8 +1656,9 @@ export class WorldScene {
     for (const sv of this.ships.values()) {
       sv.label.style.display = sv.model.group.visible ? "" : "none";
       if (!sv.model.group.visible || sv.label.classList.contains("ow-hidden") || sv.label.classList.contains("ow-label-quiet")) continue;
-      // Named at her stern, the end nearest the rock when she lies at a dock bow out.
-      sv.model.group.localToWorld(this.tmp.set(-0.32, 0.25, 0)).project(cam);
+      // Named at her stern, the end nearest the rock when she lies at a dock bow out, at the top of her side:
+      // hung lower the name would sit inside her hull, with her roof over it.
+      sv.model.group.localToWorld(this.tmp.set(-0.32, WALL_TOP * SHIP_SCALE - SHIP_SINK, 0)).project(cam);
       shipLabels.push({ el: sv.label, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h });
     }
     shipLabels.sort((a, b) => a.y - b.y);
@@ -2176,17 +2184,6 @@ function typing(target: EventTarget | null): boolean {
 
 function spotKey(at: WalkSpot | null): string {
   return at ? `${at.x.toFixed(3)},${at.z.toFixed(3)}` : "";
-}
-
-function isSoftwareRenderer(renderer: THREE.WebGLRenderer): boolean {
-  try {
-    const gl = renderer.getContext();
-    const info = gl.getExtension("WEBGL_debug_renderer_info");
-    const name = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER));
-    return /swiftshader|llvmpipe|softpipe|software/i.test(name);
-  } catch {
-    return false;
-  }
 }
 
 function hideSpot(spot: Spot, hidden: boolean): void {

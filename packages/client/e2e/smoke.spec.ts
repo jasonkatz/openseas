@@ -724,7 +724,7 @@ test("on the outpost the pirate walks among others: a tap walks, a walk is heard
     expect(Math.hypot(end[0] - start[0], end[1] - start[1])).toBeGreaterThan(0.05);
   }
 
-  // A tap on the shore and water just above the skiff is not a tap on her: the pirate walks, and stays on the outpost.
+  // A tap on the rim and the void just above the skiff is not a tap on her: the pirate walks, and stays on the outpost.
   const label = (await page.locator('[data-ship="ship-1"]').boundingBox())!;
   await page.mouse.click(label.x + label.width / 2, Math.max(box.y + 80, label.y - 150));
   await expect(world).toHaveAttribute("data-walking", "0", { timeout: 10_000 });
@@ -752,7 +752,7 @@ test("on the outpost the pirate walks among others: a tap walks, a walk is heard
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "outpost");
   await expect(world).toHaveAttribute("data-walk", "outpost:tinwick");
   const onOutpost = await standing(page);
-  // The boarding tube's foot is out on the dock, well beyond the beach.
+  // The boarding tube's foot is out on the dock, well beyond the rim.
   expect(onOutpost[0]).toBeGreaterThan(1.5);
 });
 

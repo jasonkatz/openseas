@@ -7,6 +7,9 @@ carries it, the identifier.
 - **M7 is built.** This was the spec its rename, words and world PRs worked from, and each of them
   added here whatever it had to choose (naming rule 6). The game, the code and the three.js world
   now use the "Now" columns throughout; only the puzzle boards' art still shows the sea.
+- **The world was redrawn once more after M7** (ADR 0035), so that nothing in it keeps the outline
+  of the sea thing it replaced. The ship and the outposts tables below say what stands there now.
+  Where M7 had put something else in between, the row says so.
 - **The "Former" columns stay**, so ADRs 0001 to 0033, the git history and old PRs, which are
   written in nautical words, stay readable. History is never rewritten into the new words.
 - **Changing a word** is a PR to this file first, and then to the code and strings.
@@ -198,23 +201,24 @@ The sparks, stars, comets, rings, markers, constellations and the gold, ice and 
 | harbormaster | dockmaster | |
 | "Slow down, sailor." | "Slow down, spacer." | |
 | the message key for a station waiting on the launch | | `ship.duty_waits_for_sea` → `ship.duty_waits_for_launch` |
-| quarterdeck | bridge | |
-| fife rail at the mast | drive console | |
+| quarterdeck, aft | bridge, forward, two steps up under the canopy | |
+| fife rail at the mast | drive console at the drive core, aft | |
 | the pump (port side) | heat sinks | |
 | carpenter's bench | patch bay | |
-| guns run out at the rails | turrets | |
+| guns run out at the rails | turrets, a ball in each wall with its barrels outside | |
 | gangway port | airlock | `gangway` → `airlock` |
 | gangplank | boarding tube | `gangplank` → `boardingTube` |
-| mast; flag at the masthead | antenna mast; flag on the antenna | |
-| mainsail, with the crew emblem | tail fin, with the crew emblem | |
+| the open deck and its rails | one long room inside a closed hull: the walls stand where the rails did | `deck.ts`, `skiffDeck` |
+| mast; flag at the masthead | gone (M7: an antenna mast with the flag on it). The crew's flag is painted on each slope of the roof | `flags` |
+| mainsail, with the crew emblem | tail fin on the roof aft, with the crew emblem | `fin` |
+| sails going to glass on deck | the roof, the canopy and the side wall nearest the camera not drawn aboard, the far wall left standing as the room's back (M7: a canopy hidden on deck, the tail fin going to glass) | `cutaway` |
 | wake | engine glow | `wake` → `engineGlow` |
-| — | canopy (clear, drawn only from outside: hidden on deck) | `canopy` |
-| sails going to glass on deck | the tail fin going to glass on deck | `sail` → `fin`; `canvas` → `glass` |
 | bowsprit and figurehead | nose cone and probe | |
-| rudder | an engine nozzle each side of the stern | |
+| rudder | two engine bells in the stern | |
 | stern lanterns | running lights: red to port, green to starboard | |
 | shot rack, barrels | slug rack, canisters | |
-| rigging | stays from the antenna mast | |
+| rigging | gone (M7: stays from the antenna mast) | |
+| the keel | skids under the belly | |
 | the hull bobbing on the swell | the hull drifting | |
 
 ### Bots (formerly deckhands)
@@ -233,41 +237,54 @@ Spindle, Grommet.
 
 ## The outposts
 
+ADR 0035 redrew these. Where the "Now" column is not what M7 first drew, M7's version is given in
+brackets.
+
 | Former | Now |
 |---|---|
 | the sea, the sea shader | the void: a starfield and a nebula |
 | clouds | drifting dust |
 | gulls | drones |
-| the beach ring, sloping under the sea | the crater rim, dropping into the void |
-| golden grass, black sand | ochre regolith, black dust |
-| shipwright's (the dock's room) | shipyard |
+| the island's rise | a flat floor of regolith, pocked with craters |
+| the beach ring, sloping under the sea | a raised crater rim, darker than the floor, dropping sheer into the void and cut through where the dock comes in (M7: a ring of pale dust) |
+| golden grass, black sand | burnt-ochre regolith in a rim of rust; frozen ground in a rim of black rock |
+| lighthouse | beacon tower: a lattice mast with a gallery round its lamp (M7: a banded tin tower) |
+| windmill | radar dish, turning on a column over a squat drum of a station |
+| the pier of planks, with bollards | the dock: an arm run out over the void, a box girder with a deck on it, a gate at its root and clamps at the berths (M7: a gantry of deck plates) |
+| pilings under the dock | struts back to the rock and a lift pod under its end |
+| a ladder down to the water, a rowing boat under the dock | gone |
+| crates, barrels and a coil of rope on the dock | cargo boxes, a drum and a power cell |
+| the lantern at the dock's end | a beacon that blinks |
+| shipwright's (the dock's room) | shipyard: a flat-roofed workshop with a shutter, a hull in frame under its crane |
 | tavern (`tavern` → `cantina`) | cantina |
-| well | water tank |
+| the paved plaza | the pad: a round deck of plates with a ring painted on it |
+| well | holo-globe: a chart of the Reach turning over the pad (M7: a water tank) |
+| footpaths with cobbles | walkways of plate, a stud of light either side |
 | fruit stall | noodle stall |
-| cottages, vegetable patches | hab pods, hydroponic beds |
-| palms | antenna palms |
+| cottages, vegetable patches | hab pods, grow tunnels |
+| palms | light masts, dishes and solar panels round the rim (M7: antenna palms) |
+| round trees, pines | the outpost's plant on the floor: tanks, cargo and vent stacks; stands of crystal (M7: potted trees) |
 | a boat drawn up | a shuttle up on blocks |
 | a net on its rack, a heap of net drying | a solar sail on its rack, coils of cable |
 | driftwood | space junk |
-| a fire ring with logs | a heater ring |
-| shells and crabs | rock mites |
+| a fire ring with logs | a telescope on its tripod, a crate to sit on (M7: a heater ring) |
+| shells and crabs | survey rovers, trundling along the rim (M7: rock mites) |
 | a buoy at a lane's midpoint | a nav buoy |
-| pilings under the dock | struts back to the rock and a lift pod under its end |
-| a ladder down to the water, a rowing boat under the dock | gone |
-| crates, barrels and a coil of rope on the dock | cargo boxes, a drum and a coil of cable |
-| round trees, pines | potted trees, stands of crystal |
-| tufts, flowers and bushes on the grass | pebbles, glints of crystal and boulders on the rise |
-| dune grass on the sand | mineral needles in the dust |
+| tufts, flowers and bushes on the grass | pebbles, glints of crystal and boulders on the floor |
+| dune grass on the sand | gone (M7: mineral needles in the dust) |
 | fields of grain by the windmill | solar panels by the dish |
 | a model ship over the shipwright's door, timber stacked beside it | a little rocket over the shipyard's door, hull plates stacked beside it |
-| the tavern's timber frame, gabled roof and chimney smoke | the cantina's ribbed panels, barrel roof of tin and vent stack steam |
+| the tavern's timber frame, gabled roof and chimney smoke | the cantina's ribbed panels, barrel roof of tin, round ports and vent stack steam |
+| the flag on its pole that marks where you are on the chart | a brass diamond turning over a pylon |
+| — | warning lamps along the rim's lip |
 | — | the rock's underside, hanging below the rim |
 
 Code names the world PRs chose, for scenery the tables above had no identifier for: the sea →
 `void.ts` and `buildVoid`; clouds → `buildDust`; gulls → `buildDrone`; coast → rim (`rimR`,
 `RIM_R`); quarterdeck → bridge (`BRIDGE_X`, `BRIDGE_Y`); cottages → pods; the shipwright's stall →
-the yard; crabs → mites; palm → `antennaPalm`; round tree → `pottedTree`; pine → `crystalSpire`;
-the well → the water tank; the fire → the heater; chimney smoke → steam.
+the yard; crabs → rovers; palm → `lightMast`, `dishPost` and `solarStand`; round tree →
+`tankCluster`, `cargoStack` and `ventStack`; pine → `crystalSpire`; the well → the globe; the
+plaza → the pad (still `plaza` in the layout code); chimney smoke → steam.
 
 ## People
 

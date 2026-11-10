@@ -89,6 +89,16 @@ describeDb("the pirate's sheet over the wire", () => {
     return { cookie, me };
   }
 
+  /**
+   * A look the pirate is not wearing, in jacket or in headgear. A new pirate's look is drawn from
+   * their id, so a look named outright is now and then the one they already have, and a wait for
+   * its jacket is then met by the message that came before the change.
+   */
+  function lookOtherThan(now: PirateSummary["look"]): { jacket: string; headgear: string } {
+    const { jackets, headgear } = content.world.pirates;
+    return { jacket: jackets.find((j) => j.id !== now?.jacket)!.id, headgear: headgear.find((h) => h.id !== now?.headgear)!.id };
+  }
+
   async function connect(cookie: string): Promise<Client> {
     const ws = new WebSocket(`${base.replace("http", "ws")}/ws`, { headers: { cookie } });
     const c = new Client(ws);
@@ -197,9 +207,10 @@ describeDb("the pirate's sheet over the wire", () => {
     cb.send({ type: "outpost.who" });
     const seen = await cb.until("outpost.presence", (m) => m.pirates.some((p) => p.pirateId === a.me.id));
     expect(seen.pirates.find((p) => p.pirateId === a.me.id)!.look).toEqual(a.me.look);
-    ca.send({ type: "pirate.look", look: { jacket: "plum", headgear: "goggles" } });
-    const changed = await cb.until("outpost.presence", (m) => m.pirates.find((p) => p.pirateId === a.me.id)?.look?.jacket === "plum");
-    expect(changed.pirates.find((p) => p.pirateId === a.me.id)!.look).toEqual({ jacket: "plum", headgear: "goggles" });
+    const next = lookOtherThan(a.me.look);
+    ca.send({ type: "pirate.look", look: next });
+    const changed = await cb.until("outpost.presence", (m) => m.pirates.find((p) => p.pirateId === a.me.id)?.look?.jacket === next.jacket);
+    expect(changed.pirates.find((p) => p.pirateId === a.me.id)!.look).toEqual(next);
     for (const x of [ca, cb]) x.ws.close();
   });
 
@@ -216,9 +227,10 @@ describeDb("the pirate's sheet over the wire", () => {
     expect(state.ship.crew.find((x) => x.pirateId === owner.me.id)!.look).toEqual(owner.me.look);
     expect(state.ship.crew.find((x) => x.pirateId === crewmate.me.id)!.look).toEqual(crewmate.me.look);
 
-    a.send({ type: "pirate.look", look: { jacket: "crimson", headgear: "goggles" } });
-    const seen = await b.until("ship.state", (m) => m.ship.crew.find((x) => x.pirateId === owner.me.id)?.look?.jacket === "crimson");
-    expect(seen.ship.crew.find((x) => x.pirateId === owner.me.id)!.look).toEqual({ jacket: "crimson", headgear: "goggles" });
+    const next = lookOtherThan(owner.me.look);
+    a.send({ type: "pirate.look", look: next });
+    const seen = await b.until("ship.state", (m) => m.ship.crew.find((x) => x.pirateId === owner.me.id)?.look?.jacket === next.jacket);
+    expect(seen.ship.crew.find((x) => x.pirateId === owner.me.id)!.look).toEqual(next);
     b.send({ type: "ship.leave" });
     a.send({ type: "ship.leave" });
     await a.until("ship.left");
