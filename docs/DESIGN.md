@@ -141,7 +141,7 @@ piece showing landing position, next-piece preview, swipe-to-move and tap-to-rot
 As built (M2): a 12 wide by 20 tall drive core; the cells are small because nothing is tapped
 individually, so the whole board fits a phone screen with room to work in. Pieces are fuel pellets, round discs rather than tiles, so Engines
 never reads as Cooling: conjoined pairs of two pellets in three kinds (plasma, ion and fusion; drawn as riveted
-discs, an orange trefoil, cyan rings and a yellow three-spoke, with matching hollow targets),
+discs: a red trefoil, a yellow three-spoke and cyan rings, each target ring in its piece's color),
 each with an optional mark, and the two halves of
 a pair stay visibly joined while both are on the board. Six injectors sit in the board at a time,
 never touching. An injector is a connected shape of cells: a bar of two to four, a stack of two or

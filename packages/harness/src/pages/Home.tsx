@@ -18,7 +18,7 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
   engines: (
     <svg viewBox="0 0 64 64" width="56" height="56">
       <rect x="8" y="40" width="48" height="6" rx="2" fill="#8a6136" />
-      <rect x="14" y="26" width="12" height="12" rx="3" fill="#f2f0e6" />
+      <rect x="14" y="26" width="12" height="12" rx="3" fill="#e5603c" />
       <rect x="28" y="26" width="12" height="12" rx="3" fill="#f5d021" />
       <rect x="28" y="12" width="12" height="12" rx="3" fill="#3fa7f5" />
       <rect x="42" y="26" width="12" height="12" rx="3" fill="none" stroke="#3fa7f5" strokeWidth="2" strokeDasharray="3 2" />
