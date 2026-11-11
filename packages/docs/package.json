@@ -1,0 +1,33 @@
+{
+  "name": "@openseas/docs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The puzzle guides (ADR 0038): one page per puzzle, from first round to expert play. A static site; its screenshots and clips are captured from the real boards on the harness.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4175 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:smoke": "playwright test",
+    "capture": "playwright test --config playwright.capture.config.ts",
+    "lint": "echo no lint"
+  },
+  "dependencies": {
+    "@openseas/content": "workspace:*",
+    "@openseas/engine": "workspace:*",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.0",
+    "vitest": "^3.2.4"
+  }
+}

@@ -11,3 +11,5 @@ packages/harness/playwright-report/
 packages/client/playwright-report/
 .DS_Store
 .vercel/
+packages/docs/test-results/
+packages/docs/playwright-report/

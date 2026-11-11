@@ -18,10 +18,12 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --no-bail test",
-    "test:smoke": "pnpm --filter @openseas/client test:smoke && pnpm --filter @openseas/harness test:smoke",
+    "test:smoke": "pnpm --filter @openseas/client test:smoke && pnpm --filter @openseas/harness test:smoke && pnpm --filter @openseas/docs test:smoke",
     "lint": "pnpm -r lint",
     "check": "pnpm typecheck && pnpm test",
     "dev:game": "pnpm db:up && pnpm -r --parallel --filter @openseas/server --filter @openseas/client dev",
+    "dev:docs": "pnpm --filter @openseas/docs dev",
+    "capture:docs": "pnpm --filter @openseas/docs capture",
     "dev:harness": "pnpm db:up && pnpm -r --parallel --filter @openseas/server --filter @openseas/harness dev"
   },
   "devDependencies": {

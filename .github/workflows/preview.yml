@@ -9,13 +9,16 @@ name: Preview
 #      (VITE_SERVER_URL) and deployed to its own production Vercel project as a preview (ADR 0016),
 #      under a stable alias per PR so the server can list both origins in CLIENT_ORIGINS before
 #      anything deploys.
+#   3. The puzzle guides (ADR 0038), a static site that talks to no server: built and deployed to
+#      their own Vercel project the same way, without waiting for the server.
 #
 # One PR comment carries the URLs. preview-cleanup.yml tears everything down when the PR closes.
 # Neither host is connected to the repository. Setup and secrets: docs/DEPLOY.md, "Previews".
 #
 # Without the Railway secrets (a fork PR, or before they are set up) the server job skips with a
 # warning and the previews talk to the production server, as they did before ADR 0017. Without
-# VERCEL_HARNESS_PROJECT_ID the harness preview skips with a warning and the game still previews.
+# VERCEL_HARNESS_PROJECT_ID the harness preview skips with a warning and the game still previews;
+# the same goes for the guides and VERCEL_DOCS_PROJECT_ID.
 #
 # It can also be run by hand for a pull request number, for a PR whose last push did not start it
 # (one opened before this workflow existed, say). From the default branch's Actions tab.
@@ -57,6 +60,7 @@ jobs:
       environment: pr-${{ steps.pr.outputs.number }}
       client_host: ${{ vars.PREVIEW_ALIAS_PREFIX || 'openseas-pr' }}-${{ steps.pr.outputs.number }}.vercel.app
       harness_host: ${{ vars.PREVIEW_HARNESS_ALIAS_PREFIX || 'openseas-harness-pr' }}-${{ steps.pr.outputs.number }}.vercel.app
+      docs_host: ${{ vars.PREVIEW_DOCS_ALIAS_PREFIX || 'openseas-docs-pr' }}-${{ steps.pr.outputs.number }}.vercel.app
     steps:
       - id: pr
         # From the event when a pull request started this run; looked up by number when run by hand.
@@ -298,10 +302,68 @@ jobs:
           URL: ${{ steps.deploy.outputs.url }}
         run: .github/scripts/vercel-alias.sh
 
+  docs:
+    name: Guides preview on Vercel
+    # The guides talk to no server, so this does not wait for one.
+    needs: pr
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      url: ${{ steps.alias.outputs.url }}
+    env:
+      APP: docs
+      # A token that can see the guides' project: VERCEL_DOCS_TOKEN if set, else VERCEL_TOKEN
+      # (which must then be scoped to the team).
+      VERCEL_TOKEN: ${{ secrets.VERCEL_DOCS_TOKEN || secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      # The guides' own Vercel project, rooted in packages/docs (docs/DEPLOY.md, step 2c).
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_DOCS_PROJECT_ID }}
+      HOST: ${{ needs.pr.outputs.docs_host }}
+      SHA: ${{ needs.pr.outputs.sha }}
+      BRANCH: ${{ needs.pr.outputs.ref }}
+      PR: ${{ needs.pr.outputs.number }}
+    steps:
+      - name: Check configuration
+        id: config
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ]; then
+            echo "::warning::VERCEL_TOKEN or VERCEL_ORG_ID is not available to this run, so no guides preview is deployed. See docs/DEPLOY.md, \"Previews\"."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::warning::Variable VERCEL_DOCS_PROJECT_ID is not set, so no guides preview is deployed. Set it to the guides project's id to get one. See docs/DEPLOY.md, step 2c."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.ready == 'true'
+        with:
+          ref: ${{ needs.pr.outputs.sha }}
+      - uses: pnpm/action-setup@v4
+        if: steps.config.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: steps.config.outputs.ready == 'true'
+        run: npm install -g vercel
+      - name: Build and deploy the preview
+        if: steps.config.outputs.ready == 'true'
+        id: deploy
+        timeout-minutes: 10
+        run: .github/scripts/vercel-preview.sh
+      - name: Stable address for this PR
+        if: steps.config.outputs.ready == 'true'
+        id: alias
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: .github/scripts/vercel-alias.sh
+
   comment:
     name: Comment the URLs on the pull request
-    needs: [pr, server, client, harness]
-    if: always() && needs.pr.result == 'success' && (needs.client.outputs.url != '' || needs.harness.outputs.url != '')
+    needs: [pr, server, client, harness, docs]
+    if: always() && needs.pr.result == 'success' && (needs.client.outputs.url != '' || needs.harness.outputs.url != '' || needs.docs.outputs.url != '')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v7
@@ -310,6 +372,8 @@ jobs:
           CLIENT_RESULT: ${{ needs.client.result }}
           HARNESS_URL: ${{ needs.harness.outputs.url }}
           HARNESS_RESULT: ${{ needs.harness.result }}
+          DOCS_URL: ${{ needs.docs.outputs.url }}
+          DOCS_RESULT: ${{ needs.docs.result }}
           SERVER_URL: ${{ needs.server.outputs.url }}
           SHA: ${{ needs.pr.outputs.sha }}
           ENVIRONMENT: ${{ needs.pr.outputs.environment }}
@@ -318,7 +382,7 @@ jobs:
         with:
           script: |
             const marker = "<!-- openseas-preview -->";
-            const { CLIENT_URL, CLIENT_RESULT, HARNESS_URL, HARNESS_RESULT, SERVER_URL, SHA, ENVIRONMENT, PR, RUN_URL } = process.env;
+            const { CLIENT_URL, CLIENT_RESULT, HARNESS_URL, HARNESS_RESULT, DOCS_URL, DOCS_RESULT, SERVER_URL, SHA, ENVIRONMENT, PR, RUN_URL } = process.env;
             const server = SERVER_URL
               ? `[${SERVER_URL}](${SERVER_URL}/health) in Railway environment \`${ENVIRONMENT}\`, with its own empty database`
               : "the production server (no `RAILWAY_API_TOKEN` for this run), so anything that needs the server will fail from the previews";
@@ -330,6 +394,7 @@ jobs:
               "",
               `- Game: ${line(CLIENT_URL, CLIENT_RESULT, "not deployed (Vercel secrets missing for this run; see the client preview job)")}`,
               `- Harness: ${line(HARNESS_URL, HARNESS_RESULT, "not deployed (set `VERCEL_HARNESS_PROJECT_ID`; see docs/DEPLOY.md step 2b)")}`,
+              `- Guides: ${line(DOCS_URL, DOCS_RESULT, "not deployed (set `VERCEL_DOCS_PROJECT_ID`; see docs/DEPLOY.md step 2c)")}`,
               `- Server: ${server}`,
               "",
               SERVER_URL ? "Torn down when this pull request closes." : "",

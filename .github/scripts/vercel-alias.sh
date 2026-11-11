@@ -18,6 +18,6 @@ if [ "$status" = 200 ] || [ "$status" = 201 ]; then
   echo "url=https://$HOST" >> "$GITHUB_OUTPUT"
   echo "${APP:-preview} alias: https://$HOST" >> "$GITHUB_STEP_SUMMARY"
 else
-  echo "::error::Could not alias $deployment to $HOST (HTTP $status): ${body%$'\n'*}. If that name is taken on vercel.app, set the repository variable PREVIEW_ALIAS_PREFIX (or PREVIEW_HARNESS_ALIAS_PREFIX) to something unique and re-run. See docs/DEPLOY.md, \"Previews\"."
+  echo "::error::Could not alias $deployment to $HOST (HTTP $status): ${body%$'\n'*}. If that name is taken on vercel.app, set the repository variable PREVIEW_ALIAS_PREFIX (or PREVIEW_HARNESS_ALIAS_PREFIX, or PREVIEW_DOCS_ALIAS_PREFIX) to something unique and re-run. See docs/DEPLOY.md, \"Previews\"."
   exit 1
 fi
