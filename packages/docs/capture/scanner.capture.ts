@@ -109,8 +109,11 @@ async function region(page: Page): Promise<Box> {
   return padded({ x: g.ox, y: g.oy - g.cell * STRIP, width: g.cell * W, height: g.cell * (H + STRIP + SWITCH) }, 12, await canvasBox(page, "scanner"));
 }
 
+/** The grid's place on the page, read once a round: the page is not resized, and asking again costs a clip its pace. */
+let geom: { ox: number; oy: number; cell: number } | null = null;
+
 async function point(page: Page, cell: number): Promise<[number, number]> {
-  const g = await boardGeom(page, "scanner");
+  const g = (geom ??= await boardGeom(page, "scanner"));
   return [g.ox + ((cell % W) + 0.5) * g.cell, g.oy + (Math.floor(cell / W) + 0.5) * g.cell];
 }
 
@@ -178,8 +181,10 @@ async function lead(page: Page, seed: string, line: readonly Move[]): Promise<Sc
 
 async function open(page: Page, seed: string): Promise<void> {
   hand = null;
+  geom = null;
   await openLab(page, "scanner", { seed, seconds: SECONDS });
   await settled(page, "scanner");
+  await point(page, 0);
 }
 
 test("scanner: the board, and a lit ring", async ({ page }) => {
@@ -245,7 +250,7 @@ test("scanner: an aimed ping", async ({ page }) => {
   let s = await lead(page, seed, found.line);
   await clip(page, "scanner", "aim", async () => {
     await light(page, found.at.ring);
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(800);
     s = await ping(page, s, found.at.ping);
     await page.waitForTimeout(800);
     s = await hold(page, s, found.at.lock);
@@ -330,9 +335,9 @@ test("scanner: two rings cross on the last contact", async ({ page }) => {
   let s = await lead(page, seed, found.line);
   await clip(page, "scanner", "cross", async () => {
     await light(page, found.at.a);
-    await page.waitForTimeout(1100);
+    await page.waitForTimeout(900);
     await light(page, found.at.b);
-    await page.waitForTimeout(1100);
+    await page.waitForTimeout(900);
     s = await hold(page, s, found.at.lock);
     // No wait for the next sector: the picture ends on this one's clean sweep.
   }, { leadMs: 600, tailMs: 750, region: await region(page) });
