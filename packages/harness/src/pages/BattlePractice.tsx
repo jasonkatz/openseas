@@ -49,7 +49,7 @@ export function BattlePractice() {
   const turnEndsAt = useRef<number | null>(null);
   const [turnLeftMs, setTurnLeftMs] = useState<number | null>(null);
   const [commitSignal, setCommitSignal] = useState(0);
-  const now = useCallback((): number => api.current()?.opts.clock.now() ?? Date.now(), [api]);
+  const now = useCallback((): number => api.current()?.now() ?? Date.now(), [api]);
   useEffect(() => {
     if (!playing || state.finished) {
       turnEndsAt.current = null;

@@ -47,7 +47,7 @@ export function useTicked<S extends { readonly tick: number }, M>(host: TickedHo
   const currentTick = useCallback((): number => {
     const r = latest.current.host.current();
     if (!r) return 0;
-    return Math.max(0, Math.min(maxTick, Math.floor((r.opts.clock.now() - r.opts.startedAt) / tickMs) - 1));
+    return Math.max(0, Math.min(maxTick, Math.floor(r.elapsedMs() / tickMs) - 1));
   }, [maxTick, tickMs]);
 
   useEffect(() => {
@@ -61,8 +61,7 @@ export function useTicked<S extends { readonly tick: number }, M>(host: TickedHo
       const r = h.current();
       if (!r || r.isFinished) return;
       const tick = currentTick();
-      const msLeft = r.opts.deadlineAt - r.opts.clock.now();
-      if (msLeft < 600 && !finalWaitSent.current) {
+      if (r.msLeft() < 600 && !finalWaitSent.current) {
         finalWaitSent.current = true;
         h.apply(o.wait(tick), false);
         return;

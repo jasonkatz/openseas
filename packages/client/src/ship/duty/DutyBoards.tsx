@@ -31,8 +31,8 @@ import {
   type EnginesMove,
   type EnginesState,
 } from "@openseas/engine";
-import type { PuzzleStarted, ServerMessage, StationWire } from "@openseas/protocol";
-import { CoolingBoard, PlatingBoard, GunneryBoard, NavigationBoard, EnginesBoard, content, sfx, useTicked, type CoolingMoveShown } from "@openseas/boards";
+import type { PuzzleStarted, StationWire } from "@openseas/protocol";
+import { CoolingBoard, PlatingBoard, GunneryBoard, NavigationBoard, EnginesBoard, content, sfx, useTicked, type CoolingMoveShown, type RoundMessage } from "@openseas/boards";
 import { useDuty, type DutyApi } from "./useDuty.js";
 
 /** What a station adapter hands the frame around it. */
@@ -54,7 +54,7 @@ export interface DutyProps {
 const cooling = content.puzzles.cooling;
 /** The ship's heat arrives as heat events: one with the deal, then one whenever a turn changes it. */
 const dealtHeat = (started: PuzzleStarted): CoolingMove[] => (started.duty?.heat !== undefined ? [{ type: "heat", row: started.duty.heat }] : []);
-const shipHeat = (m: ServerMessage, sessionId: string): CoolingMove | null => (m.type === "duty.heat" && m.sessionId === sessionId ? { type: "heat", row: m.row } : null);
+const shipHeat = (m: RoundMessage): CoolingMove | null => (m.type === "duty.heat" ? { type: "heat", row: m.row } : null);
 function CoolingDuty({ active, showMarks, children }: DutyProps) {
   const api = useDuty<CoolingState, CoolingMove, CoolingConfig>({
     puzzle: "cooling",
@@ -63,7 +63,7 @@ function CoolingDuty({ active, showMarks, children }: DutyProps) {
     roundSeconds: cooling.roundSeconds,
     active,
     dealt: dealtHeat,
-    shipMove: shipHeat,
+    inbound: shipHeat,
   });
   const { state } = api;
   const onSwap = useCallback(

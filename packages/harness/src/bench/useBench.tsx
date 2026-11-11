@@ -50,7 +50,7 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
   const started = useRef(false);
   const labConfig = useMemo(() => applyOverrides(puzzle.config, scenario.overrides), [puzzle, scenario.overrides]);
   const validation = useMemo(() => serverAcceptsConfig(puzzle.id, labConfig), [puzzle.id, labConfig]);
-  const playing = api.phase === "playing" || api.phase === "starting" || api.phase === "waiting";
+  const playing = api.phase === "playing" || api.phase === "dealing" || api.phase === "waiting";
 
   // The address bar always holds the scenario, so a condition worth testing is one link.
   const setScenario = useCallback((next: Scenario) => {
@@ -189,7 +189,7 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
   const bench = (
     <div className="bench-body">
       <ScenarioPanel puzzle={puzzle} scenario={scenario} labConfig={labConfig} validation={validation} locked={playing} onChange={setScenario} onStart={startLab} />
-      <ClockPanel clock={api.clock} startedAt={api.current()?.opts.startedAt ?? null} tickMs={puzzle.ticked?.tickMs ?? null} playing={api.phase === "playing"} />
+      <ClockPanel clock={api.clock} startedAt={api.current()?.startedAt ?? null} tickMs={puzzle.ticked?.tickMs ?? null} playing={api.phase === "playing"} />
       <InspectorPanel
         puzzle={puzzle}
         api={api}

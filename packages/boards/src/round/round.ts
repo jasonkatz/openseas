@@ -1,8 +1,8 @@
 import { InvalidMoveError, type PuzzleDef } from "@openseas/engine";
 import type { ClientMetrics } from "@openseas/protocol";
-import type { GameSocket } from "../api/socket.js";
 import { LatencyMeter } from "../metrics.js";
 import type { Clock } from "./clock.js";
+import type { RoundSocket } from "./session.js";
 
 /** One applied move and the engine's state hash after it. Rated rounds send exactly this. */
 export interface LoggedMove<M> {
@@ -20,7 +20,7 @@ export interface RoundOptions<S, M, C> {
   deadlineAt: number;
   clock: Clock;
   /** Present for rated rounds; the move log streams to the server as it happens. */
-  rated: { socket: GameSocket; sessionId: string } | null;
+  rated: { socket: Pick<RoundSocket, "send">; sessionId: string } | null;
   /** Moves the server already holds (a round resumed after a reconnect): replayed from the seed, never sent again. */
   replay?: readonly M[];
   onChange(state: S, prev: S | null): void;
@@ -38,7 +38,7 @@ export class PuzzleRound<S, M, C> {
   readonly log: LoggedMove<M>[] = [];
   private finished = false;
 
-  constructor(readonly opts: RoundOptions<S, M, C>) {
+  constructor(private readonly opts: RoundOptions<S, M, C>) {
     this.state = opts.def.create(opts.seed, opts.config);
     for (const move of opts.replay ?? []) {
       const next = opts.def.reduce(this.state, move);
@@ -51,6 +51,31 @@ export class PuzzleRound<S, M, C> {
 
   get rated(): boolean {
     return this.opts.rated !== null;
+  }
+
+  /** The time on the round's clock. */
+  now(): number {
+    return this.opts.clock.now();
+  }
+
+  /** When the round started, on its clock. */
+  get startedAt(): number {
+    return this.opts.startedAt;
+  }
+
+  /** The round's length, from its start to its deadline. */
+  get lengthMs(): number {
+    return this.opts.deadlineAt - this.opts.startedAt;
+  }
+
+  /** Ms since the round started, on its clock. Timed engines count their ticks from here. */
+  elapsedMs(): number {
+    return this.opts.clock.now() - this.opts.startedAt;
+  }
+
+  /** Ms until the deadline, on the round's clock; zero or less once it has passed. */
+  msLeft(): number {
+    return this.opts.deadlineAt - this.opts.clock.now();
   }
 
   get isFinished(): boolean {

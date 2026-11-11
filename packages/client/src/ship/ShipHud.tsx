@@ -25,7 +25,7 @@ export function ShipHud({ ship, slim = false, mini = false }: { ship: ShipSnapsh
   const { socket } = usePirate();
   const inFlight = ship.location.kind === "in-flight";
   const now = useNow(inFlight);
-  const untilTurn = ship.nextTurnAt === null ? null : Math.max(0, ship.nextTurnAt - socket.clockOffset - now);
+  const untilTurn = ship.nextTurnAt === null ? null : Math.max(0, socket.toLocal(ship.nextTurnAt) - now);
   const speed = inFlight && ship.lastTurn && !ship.lastTurn.held ? Math.round(ship.lastTurn.speed / 10) : null;
   const heat = Math.round(ship.heat / 10);
   const hull = 100 - Math.round(ship.damage / 10);

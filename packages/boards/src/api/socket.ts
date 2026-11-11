@@ -1,4 +1,5 @@
 import { parseServerMessage, type ClientMessage, type ServerMessage } from "@openseas/protocol";
+import type { RoundSocket } from "../round/session.js";
 import { wsUrl } from "./base.js";
 
 export type SocketStatus = "idle" | "connecting" | "open" | "closed";
@@ -8,7 +9,7 @@ type Listener = (msg: ServerMessage) => void;
  * One socket per tab. Reconnects with backoff while the tab is open. Messages are validated against
  * the protocol schemas before anyone sees them.
  */
-export class GameSocket {
+export class GameSocket implements RoundSocket {
   private ws: WebSocket | null = null;
   private listeners = new Set<Listener>();
   private statusListeners = new Set<(s: SocketStatus) => void>();
@@ -17,7 +18,7 @@ export class GameSocket {
   private wantOpen = false;
   status: SocketStatus = "idle";
   /** serverNow - Date.now(), estimated from the last message that carried a server clock. */
-  clockOffset = 0;
+  private clockOffset = 0;
 
   connect(): void {
     this.wantOpen = true;
@@ -36,6 +37,11 @@ export class GameSocket {
     if (this.ws?.readyState !== WebSocket.OPEN) return false;
     this.ws.send(JSON.stringify(msg));
     return true;
+  }
+
+  /** A moment on the server's clock (a deadline, the next turn), as the same moment on this machine's clock. */
+  toLocal(serverMs: number): number {
+    return serverMs - this.clockOffset;
   }
 
   onMessage(fn: Listener): () => void {

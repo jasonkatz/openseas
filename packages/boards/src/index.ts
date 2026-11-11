@@ -15,6 +15,8 @@ export { LINK_FROM_KEY, PirateProvider, usePirate, type PirateContextValue, type
 export * from "./round/clock.js";
 export * from "./round/round.js";
 export * from "./round/useTicked.js";
+export * from "./round/session.js";
+export * from "./round/useRoundSession.js";
 export { CoolingBoard, type BoardProps as CoolingBoardProps } from "./cooling/CoolingBoard.jsx";
 export { type MoveShown as CoolingMoveShown } from "./cooling/renderer.js";
 export { TileIcon } from "./cooling/TileIcon.jsx";

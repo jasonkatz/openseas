@@ -289,7 +289,7 @@ export function PracticeShell(p: ShellProps) {
               </div>
             </div>
           )}
-          {p.phase === "starting" && (
+          {p.phase === "dealing" && (
             <p className="status">
               <span className="spinner" aria-hidden="true" />
               {t("app.connecting")}

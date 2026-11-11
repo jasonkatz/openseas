@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { performanceRating, tierFor, type PuzzleDef, type PuzzleId } from "@openseas/engine";
-import type { PuzzleResult, ServerMessage } from "@openseas/protocol";
-import { LabClock, PuzzleRound, content, sfx, usePirate, wallClock, type Clock, type LoggedMove, type TickedHost } from "@openseas/boards";
+import type { PuzzleResult } from "@openseas/protocol";
+import { LabClock, content, sfx, usePirate, useRoundSession, wallClock, type LoggedMove, type PuzzleRound, type RoundPhase, type TickedHost } from "@openseas/boards";
 
-export type PracticePhase = "idle" | "starting" | "playing" | "waiting" | "result";
+/** "dealing" while a recorded round waits for the server's deal. */
+export type PracticePhase = RoundPhase;
 /**
  * Recorded and unrated rounds play exactly what the game deals; a lab round is the harness's own,
  * with a chosen seed, config and clock. A recorded round goes through the server, which verifies
@@ -123,217 +124,137 @@ export function localSeed(): string {
 
 /**
  * The practice-page lifecycle every duty puzzle shares: start a round, run the clock, stream moves,
- * wait for the ship's verdict, show a result. Recorded and unrated rounds play what the game deals;
- * a lab round adds a chosen seed, config and a clock the harness drives. Every result carries the
- * round's performance rating; none moves the pirate's standing (ADR 0028).
+ * wait for the ship's verdict, show a result. The round itself, dealt or local, is the board's round
+ * session; this adds the modes and the local result. Recorded and unrated rounds play what the game
+ * deals; a lab round adds a chosen seed, config and a clock the harness drives. Every result carries
+ * the round's performance rating; none moves the pirate's standing (ADR 0028).
  */
 export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeApi<S, M, C> {
-  const { puzzle, def, config, roundSeconds, summarize, onMove } = opts;
-  const { pirate, socket, socketStatus } = usePirate();
-  const [phase, setPhase] = useState<PracticePhase>("idle");
-  // A fixed board sits behind the start card so the page never opens empty.
-  const [state, setState] = useState<S>(() => def.create("menu", config));
-  const [version, setVersion] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(roundSeconds);
+  const { puzzle, def, config, roundSeconds } = opts;
+  const { pirate, socketStatus } = usePirate();
   const [outcome, setOutcome] = useState<PracticeOutcome | null>(null);
   const [best, setBest] = useState(() => readBest(puzzle));
   const [roundInfo, setRoundInfo] = useState<RoundInfo<C> | null>(null);
-  const round = useRef<PuzzleRound<S, M, C> | null>(null);
+  const info = useRef<RoundInfo<C> | null>(null);
   const labClock = useRef<LabClock | null>(null);
-  const sessionId = useRef<string | null>(null);
-  const latest = useRef(opts);
-  latest.current = opts;
   const canRecord = socketStatus === "open" && pirate !== null;
 
-  const beginRound = useCallback(
-    (info: RoundInfo<C>, startedAt: number, deadlineAt: number, clock: Clock) => {
-      round.current?.abandon();
-      const rated = info.mode === "recorded" && info.sessionId ? { socket, sessionId: info.sessionId } : null;
-      const r = new PuzzleRound<S, M, C>({
-        def,
-        seed: info.seed,
-        config: info.config,
-        startedAt,
-        deadlineAt,
-        clock,
-        rated,
-        onChange: (s, prev) => {
-          setState(s);
-          setVersion((v) => v + 1);
-          if (prev !== null) latest.current.onMove?.(s, prev);
-        },
-        onFinished: () => {
-          sfx.end();
-          if (rated) setPhase("waiting");
-          else {
-            const s = round.current?.state;
-            if (s) {
-              const sum = latest.current.summarize(s);
-              const performance = localPerformance(puzzle, sum.score);
-              if (info.mode === "lab") setOutcome({ kind: "lab", ...sum, newBest: false, performance });
-              else {
-                const newBest = recordBest(puzzle, sum.score);
-                if (newBest) setBest(sum.score);
-                setOutcome({ kind: "unrated", ...sum, newBest, performance });
-              }
-            }
-            setPhase("result");
-          }
-        },
-      });
-      round.current = r;
-      sessionId.current = info.sessionId;
-      setRoundInfo(info);
-      setOutcome(null);
-      setTimeLeft(Math.max(0, Math.ceil((deadlineAt - clock.now()) / 1000)));
-      setPhase("playing");
-      sfx.start();
+  /** A round is in play, dealt or local. */
+  const began = useCallback((next: RoundInfo<C>): void => {
+    info.current = next;
+    setRoundInfo(next);
+    setOutcome(null);
+    sfx.start();
+  }, []);
+
+  const session = useRoundSession<S, M, C>({
+    def,
+    // A fixed board sits behind the start card so the page never opens empty.
+    initial: () => def.create("menu", config),
+    accepts: (m) => m.puzzle === puzzle,
+    countdown: true,
+    onDeal: (m, r) => {
+      labClock.current = null;
+      began({ mode: "recorded", seed: m.seed, config: m.config as C, roundSeconds: Math.round(r.lengthMs / 1000), sessionId: m.sessionId });
     },
-    [def, puzzle, socket],
-  );
+    onMove: (s, prev) => opts.onMove?.(s, prev),
+    onFinished: (s, rated) => {
+      sfx.end();
+      if (rated) return;
+      const sum = opts.summarize(s);
+      const performance = localPerformance(puzzle, sum.score);
+      if (info.current?.mode === "lab") setOutcome({ kind: "lab", ...sum, newBest: false, performance });
+      else {
+        const newBest = recordBest(puzzle, sum.score);
+        if (newBest) setBest(sum.score);
+        setOutcome({ kind: "unrated", ...sum, newBest, performance });
+      }
+    },
+    onVerdict: (o) => {
+      if (o.kind === "rejected") {
+        setOutcome(o);
+        return;
+      }
+      const newBest = recordBest(puzzle, o.result.score);
+      if (newBest) setBest(o.result.score);
+      setOutcome({ kind: "recorded", result: o.result, newBest });
+    },
+  });
+  const { phase, ask, start, show, drop, current } = session;
 
   const startUnrated = useCallback(() => {
     labClock.current = null;
-    const now = wallClock.now();
-    beginRound({ mode: "unrated", seed: localSeed(), config, roundSeconds, sessionId: null }, now, now + roundSeconds * 1000, wallClock);
-  }, [beginRound, config, roundSeconds]);
+    const seed = localSeed();
+    start({ seed, config, roundMs: roundSeconds * 1000, clock: wallClock });
+    began({ mode: "unrated", seed, config, roundSeconds, sessionId: null });
+  }, [start, began, config, roundSeconds]);
 
   const startRecorded = useCallback(() => {
-    setPhase("starting");
-    if (!socket.send({ type: "puzzle.start", puzzle })) startUnrated();
-  }, [socket, startUnrated, puzzle]);
+    if (!ask({ type: "puzzle.start", puzzle })) startUnrated();
+  }, [ask, startUnrated, puzzle]);
 
   const startLab = useCallback(
     (scenario: LabScenario<C>) => {
       const clock = new LabClock(scenario.speed ?? 1, scenario.paused ?? false);
       labClock.current = clock;
-      const now = clock.now();
-      beginRound(
-        { mode: "lab", seed: scenario.seed, config: scenario.config, roundSeconds: scenario.roundSeconds, sessionId: null },
-        now,
-        now + scenario.roundSeconds * 1000,
-        clock,
-      );
+      start({ seed: scenario.seed, config: scenario.config, roundMs: scenario.roundSeconds * 1000, clock });
+      began({ mode: "lab", seed: scenario.seed, config: scenario.config, roundSeconds: scenario.roundSeconds, sessionId: null });
     },
-    [beginRound],
+    [start, began],
   );
 
-  useEffect(
-    () =>
-      socket.onMessage((m: ServerMessage) => {
-        switch (m.type) {
-          case "puzzle.started": {
-            if (m.puzzle !== puzzle) return;
-            labClock.current = null;
-            const startedAt = m.serverNow - socket.clockOffset;
-            const deadlineAt = m.deadlineAt - socket.clockOffset;
-            beginRound(
-              { mode: "recorded", seed: m.seed, config: m.config as C, roundSeconds: Math.round((deadlineAt - startedAt) / 1000), sessionId: m.sessionId },
-              startedAt,
-              deadlineAt,
-              wallClock,
-            );
-            break;
-          }
-          case "puzzle.result": {
-            if (m.sessionId !== sessionId.current) return;
-            const newBest = recordBest(puzzle, m.score);
-            if (newBest) setBest(m.score);
-            setOutcome({ kind: "recorded", result: m, newBest });
-            setPhase("result");
-            break;
-          }
-          case "puzzle.rejected":
-            if (m.sessionId !== sessionId.current) return;
-            round.current?.abandon();
-            setOutcome({ kind: "rejected", reason: m.reason });
-            setPhase("result");
-            break;
-          default:
-            break;
-        }
-      }),
-    [socket, beginRound, puzzle],
-  );
-
-  // Round clock, with a tick for each of the last ten seconds. Reads the round's own clock.
-  useEffect(() => {
-    if (phase !== "playing") return;
-    let last = -1;
-    const id = window.setInterval(() => {
-      const r = round.current;
-      if (!r) return;
-      const left = Math.max(0, Math.ceil((r.opts.deadlineAt - r.opts.clock.now()) / 1000));
-      setTimeLeft(left);
-      if (left !== last && left > 0 && left <= 10) sfx.tick(left <= 5);
-      last = left;
-      if (left <= 0) r.finish();
-    }, 100);
-    return () => window.clearInterval(id);
-  }, [phase]);
-
-  useEffect(() => () => round.current?.abandon(), []);
-
-  const apply = useCallback((move: M, countsAsInput = true): boolean => round.current?.apply(move, countsAsInput) !== null && round.current !== null, []);
-  const canApply = useCallback((move: M): boolean => round.current?.canApply(move) ?? false, []);
-  const markRendered = useCallback(() => round.current?.metrics.markRendered(), []);
-  const current = useCallback(() => round.current as PuzzleRound<S, M, unknown> | null, []);
-  const stop = useCallback(() => round.current?.finish(), []);
+  const stop = useCallback(() => current()?.finish(), [current]);
 
   const preview = useCallback(
     (seed: string, cfg: C) => {
-      if (round.current && !round.current.isFinished) return;
+      const r = current();
+      if (r && !r.isFinished) return;
       try {
-        setState(def.create(seed, cfg));
-        setVersion((v) => v + 1);
+        show(def.create(seed, cfg));
       } catch {
         /* an invalid config; the caller shows the validation error */
       }
     },
-    [def],
+    [current, show, def],
   );
 
   const reset = useCallback(
     (seed?: string, cfg?: C) => {
-      round.current?.abandon();
-      round.current = null;
-      sessionId.current = null;
+      drop();
       setOutcome(null);
-      setPhase("idle");
-      setTimeLeft(roundSeconds);
       try {
-        setState(def.create(seed ?? "menu", cfg ?? config));
-        setVersion((v) => v + 1);
+        show(def.create(seed ?? "menu", cfg ?? config));
       } catch {
         /* keep the last board */
       }
     },
-    [def, config, roundSeconds],
+    [drop, show, def, config],
   );
 
   const inRound = phase === "playing" || phase === "waiting" || phase === "result";
+  const r = current();
   return {
     phase,
-    state,
-    version,
-    timeLeft: phase === "idle" ? roundSeconds : timeLeft,
+    state: session.state,
+    version: session.version,
+    timeLeft: phase === "idle" ? roundSeconds : (session.secondsLeft ?? roundSeconds),
     roundSeconds: inRound && roundInfo ? roundInfo.roundSeconds : roundSeconds,
     outcome,
     best,
     canRecord,
-    recorded: round.current?.rated ?? false,
+    recorded: r?.rated ?? false,
     round: roundInfo,
     clock: roundInfo?.mode === "lab" ? labClock.current : null,
-    log: round.current?.log ?? [],
+    log: r?.log ?? [],
     startRecorded,
     startUnrated,
     startLab,
     stop,
     reset,
     preview,
-    apply,
-    canApply,
-    markRendered,
+    apply: session.apply,
+    canApply: session.canApply,
+    markRendered: session.markRendered,
     current,
   };
 }

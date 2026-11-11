@@ -39,8 +39,7 @@ export function useSoloHeat(api: PracticeApi<CoolingState, CoolingMove, CoolingC
         if (r.state.heatRow !== solo.row) a.apply({ type: "heat", row: solo.row }, false);
       }
       if (mode === "recorded") return;
-      const { startedAt, deadlineAt, clock } = r.opts;
-      const due = soloHeatTurnsDue(rules, Math.min(clock.now(), deadlineAt - 1) - startedAt);
+      const due = soloHeatTurnsDue(rules, Math.min(r.elapsedMs(), r.lengthMs - 1));
       const s = ship.current;
       if (s.turns >= due) return;
       let solo = s.solo;
