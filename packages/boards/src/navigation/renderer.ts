@@ -1,5 +1,4 @@
-import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
-import { Application, Container, Graphics, Text, type FederatedPointerEvent } from "pixi.js";
+import { Container, Graphics, Text } from "pixi.js";
 import {
   NAVIGATION_ENTRY_OCTANT,
   navigationColorOf,
@@ -17,14 +16,13 @@ import {
 } from "@openseas/engine";
 import type { NavigationContent } from "@openseas/content";
 import { paintStar, type StarShapeName } from "./stars.js";
-import { boardSurface } from "../surface.js";
-import type { BoardRenderer } from "../kit/useBoardHost.js";
+import { KitBoard } from "../kit/board.js";
 
 export interface NavigationCallbacks {
   /** The player turned a ring. False when the engine refused it. */
   onRotate(ring: number, dir: -1 | 1): boolean;
   onDrop(): void;
-  /** First frame drawn after a new state arrived. */
+  /** First frame drawn once a new state has finished playing out: its landing, constellations and runs, and the stars gliding to their slots. */
   onFrame(): void;
   /** Events newer than anything shown before, in order, for sound. */
   onEvents(events: readonly NavigationEvent[]): void;
@@ -105,6 +103,13 @@ const COLORS = {
 const SPIN_MS = 170;
 const LAND_MS = 220;
 const DIE_MS = 300;
+/**
+ * A lost heading rattles the chart by this much of its radius, fading out over its ms; a chain of
+ * three or more by 0.4 of both. The kit's shake, at the peak and over the fade the board's own had.
+ */
+const SHAKE = 0.03;
+const SHAKE_MS = 350;
+const CHAIN_SHAKE = 0.4;
 /** No input for this long in a hinted round and the chart points at a turn. */
 const HINT_IDLE_MS = 1200;
 
@@ -113,8 +118,18 @@ export function navigationViewString(state: NavigationState): string {
   return state.slots.map((s) => s?.kind ?? -1).join(",");
 }
 
-export class NavigationRenderer implements BoardRenderer<NavigationState> {
-  readonly app = new Application();
+/**
+ * PixiJS view of a Navigation state, on the kit's lifecycle (ADR 0040). Pure presentation: it draws
+ * the engine's chart, asks the engine where the falling star will rest and which ring a hint should
+ * turn, and reports the turns and drops the player makes; it never decides what a tick does. Each
+ * state is usually the same round one tick on. A move plays out as steps (a landing, then each
+ * constellation charted and each run in turn) while a turned ring swings back into place and stars
+ * glide to their slots or fade; the board is busy until those have played. The falling star comes
+ * down on the round's clock and stays out of `busy`: in it, the board would never settle while the
+ * clock runs.
+ */
+export class NavigationRenderer extends KitBoard<NavigationState> {
+  /** The chart and everything on it, centred in the kit's world: a shake moves it, and not the badge or the buttons. */
   private readonly chart = new Container();
   private readonly sky = new Graphics();
   private readonly linesLayer = new Graphics();
@@ -144,8 +159,6 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
   private readonly colorHex: number[] = [];
   private readonly colorMark: string[] = [];
   private readonly shapeName: StarShapeName[] = [];
-  private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  private showMarks: boolean;
   private showMarkers: boolean;
   private hints: boolean;
   private rings: number;
@@ -155,21 +168,16 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
   private R = 100;
   /** Room above the chart for the falling star to come out of. */
   private skyGap = 0;
-  private time = 0;
-  private state: NavigationState | null = null;
   private lastSeq = 0;
   /** When the shown tick last changed, for smoothing the fall between ticks. */
   private tickAt = 0;
   private shownMarkers: readonly Marker[] = [];
-  private interactive = false;
-  private framePending = false;
-  private viewStale = true;
-  private destroyed = false;
+  /** A ring still swinging back into place, or a star still gliding, landing or fading, as of the last frame. */
+  private moving = false;
   private selectedRing = 1;
   private keyboardUsed = false;
   /** ms left showing which ring a button turned. */
   private ringFlash = 0;
-  private shake = 0;
   /** ms left on the constellation-line flash, and the markers it lights. */
   private lineFlash = 0;
   private lineFlashMarkers: readonly Marker[] = [];
@@ -180,12 +188,12 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
   private drag: { ring: number | null; zone: "ring" | "center" | "sky" | null; angle: number; acc: number; moved: boolean; x: number } | null = null;
 
   constructor(
-    private readonly host: HTMLElement,
+    host: HTMLElement,
     content: NavigationContent,
     private readonly cb: NavigationCallbacks,
     private readonly opts: NavigationRendererOptions,
   ) {
-    this.showMarks = opts.showMarks;
+    super(host, "navigation", cb.onFrame, opts.showMarks);
     this.showMarkers = opts.showMarkers;
     this.hints = opts.hints;
     this.rings = content.config.rings;
@@ -198,30 +206,7 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
     this.selectedRing = Math.min(1, this.rings - 1);
   }
 
-  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
-  get isReady(): boolean {
-    return Boolean(this.app.renderer);
-  }
-
-  async init(): Promise<void> {
-    await loadPuzzleSprites("navigation");
-    if (this.destroyed) return;
-    await this.app.init({
-      resizeTo: this.host,
-      backgroundAlpha: 0,
-      ...boardSurface(),
-      autoDensity: true,
-      preference: "webgl",
-    });
-    if (this.destroyed) {
-      this.app.destroy(true);
-      return;
-    }
-    this.app.canvas.dataset.spriteAtlas = spritesReady("navigation") ? "navigation" : "fallback";
-    this.app.canvas.style.touchAction = "none";
-    this.app.canvas.setAttribute("data-testid", "navigation-canvas");
-    this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-    this.host.appendChild(this.app.canvas);
+  protected build(): void {
     this.chart.addChild(this.sky, this.linesLayer, this.highlight, this.markerLayer, this.pulseLayer);
     for (let r = 0; r < this.rings; r++) {
       const c = new Container();
@@ -233,43 +218,34 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
     this.nextText.anchor.set(0.5, 1);
     this.nextText.text = this.opts.labels.next.toUpperCase();
     this.controlsLayer.addChild(this.controlsG);
-    this.app.stage.addChild(this.chart, this.nextBadge, this.nextText, this.controlsLayer);
-    this.app.stage.eventMode = "static";
-    this.app.stage.hitArea = this.app.screen;
-    this.app.stage.on("pointerdown", (e) => this.pointerDown(e));
-    this.app.stage.on("pointermove", (e) => this.pointerMove(e));
-    this.app.stage.on("pointerup", (e) => this.pointerUp(e));
-    this.app.stage.on("pointerupoutside", () => this.pointerCancel());
-    this.app.renderer.on("resize", () => this.layout());
-    this.app.ticker.add((ticker) => this.tick(Math.min(50, ticker.deltaMS)));
-    this.layout();
+    this.world.addChild(this.chart);
+    // Above the world, so a shake leaves them where they are.
+    this.app.stage.addChild(this.nextBadge, this.nextText, this.controlsLayer);
   }
 
-  destroy(): void {
-    this.destroyed = true;
-    if (this.app.renderer) this.app.destroy(true, { children: true });
-  }
-
-  setInteractive(on: boolean): void {
-    this.interactive = on;
-    if (!on) this.drag = null;
+  /** Switched on or off: the kit has already dropped a drag; the hint waits a full quiet spell again, and the highlight, badge and buttons show it. */
+  protected override onInteractive(): void {
     this.lastInputAt = this.time;
     this.drawHighlight();
     this.drawNextBadge();
     this.drawControls();
   }
 
-  setShowMarks(on: boolean): void {
+  /** Marks change only the stars' art, so a toggle repaints the stars, markers and badge and leaves a move playing out. */
+  override setShowMarks(on: boolean): void {
     if (this.showMarks === on) return;
     this.showMarks = on;
+    if (!this.isReady) return;
     this.repaintStars();
     this.drawMarkers();
     this.drawNextBadge();
   }
 
+  /** The constellation's markers and the lines between them, on or off. The wrapper's extra: it may come before the canvas, which then draws them at its first layout. */
   setShowMarkers(on: boolean): void {
     if (this.showMarkers === on) return;
     this.showMarkers = on;
+    if (!this.isReady) return;
     this.drawMarkers();
     this.drawLines();
   }
@@ -281,16 +257,26 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
     this.hintLayer.clear();
   }
 
-  /** A new displayed state, usually one tick on. Plays back whatever happened since the last one. */
-  setState(state: NavigationState): void {
-    if (!this.app.renderer) return;
-    const prev = this.state;
+  /** A state that is not the round shown a moment later: the first, a fresh deal, or an earlier one (a rewind). */
+  private isReset(state: NavigationState, prev: NavigationState | null): boolean {
     const fresh = state.tick === 0 && state.eventSeq === 0 && state.logLength === 0;
-    const reset = !prev || fresh || state.eventSeq < prev.eventSeq || state.nextId < prev.nextId;
+    return !prev || fresh || state.eventSeq < prev.eventSeq || state.nextId < prev.nextId;
+  }
+
+  /** The round a tick or a move on: steps still to play are left to play, and only events not yet shown are added. */
+  protected override keepsPlaying(state: NavigationState, prev: NavigationState | null): boolean {
+    return !this.isReset(state, prev);
+  }
+
+  /** A move is still playing out: steps left to play, a ring swinging back into place, or a star gliding, landing or fading. */
+  protected override get busy(): boolean {
+    return super.busy || this.pending.length > 0 || this.moving;
+  }
+
+  /** A new displayed state, usually one tick on. Plays back whatever happened since the last one. */
+  protected onState(state: NavigationState, prev: NavigationState | null): void {
+    const reset = this.isReset(state, prev);
     if (!prev || state.tick !== prev.tick) this.tickAt = this.time;
-    this.state = state;
-    this.framePending = true;
-    this.viewStale = true;
     if (reset) {
       this.flushPending();
       for (const v of this.stars.values()) v.g.destroy();
@@ -335,7 +321,7 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
                 v.flash = false;
               }
             }
-            this.shake = 1;
+            this.fx.shake(this.R * SHAKE, SHAKE_MS);
             this.fallY = null;
             this.callout(this.opts.labels.lostHeading, COLORS.danger);
             this.popup(0, -this.ringRadius(this.rings - 1), `-${e.penalty}`, COLORS.danger);
@@ -413,7 +399,7 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
     this.callout(this.opts.labels.charted + (c.chain >= 2 ? ` ${this.opts.labels.chain(c.chain)}` : ""), COLORS.brassLight);
     this.popup(0, -this.R * 0.08, `+${c.points}`, COLORS.brass);
     if (c.efficient) this.popup(0, this.R * 0.14, this.opts.labels.efficient, COLORS.select, 0.8);
-    if (cfg && c.chain >= 3) this.shake = Math.max(this.shake, 0.4);
+    if (cfg && c.chain >= 3) this.fx.shake(this.R * SHAKE * CHAIN_SHAKE, SHAKE_MS * CHAIN_SHAKE);
   }
 
   private flushPending(): void {
@@ -529,10 +515,7 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
     return -(this.R + Math.max(this.starSize() * 1.2, this.skyGap * 0.6));
   }
 
-  private layout(): void {
-    if (!this.app.renderer) return;
-    const w = this.app.screen.width;
-    const h = this.app.screen.height;
+  protected layout(w: number, h: number): void {
     const maxR = Math.max(40, Math.min(w, h) / 2 - 6);
     // On a tall screen the chart is as wide as the canvas, and the height left over goes to sky
     // above it and, when there is enough, a row of turn buttons per ring and a drop button below.
@@ -549,7 +532,8 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
     this.cx = w / 2;
     this.cy = 6 + this.skyGap + R + Math.max(0, spare - this.skyGap) / 2;
     this.chart.position.set(this.cx, this.cy);
-    // Where the chart sits on the canvas, for tests that tap it.
+    // Where the chart sits on the canvas, for tests that tap it: its centre and radius. Not a grid, so
+    // not the kit's publishGeom.
     this.app.canvas.setAttribute("data-geom", `${Math.round(this.cx)},${Math.round(this.cy)},${Math.round(R)}`);
     this.layoutControls(w, h, rowH);
     this.drawSky();
@@ -903,10 +887,9 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
 
   // ---- per frame
 
-  private tick(dt: number): void {
-    this.time += dt;
+  protected override update(dt: number): void {
     while (this.pending.length && this.pending[0]!.at <= this.time) this.pending.shift()!.run();
-    let busy = this.pending.length > 0;
+    let moving = false;
     const k = this.reduced ? 1 : Math.min(1, dt / SPIN_MS);
     for (let r = 0; r < this.rings; r++) {
       const spin = this.ringSpin[r]!;
@@ -914,7 +897,7 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
       const next = Math.abs(spin) < 0.002 ? 0 : spin * (1 - k) ** 1.6;
       this.ringSpin[r] = next;
       this.ringLayers[r]!.rotation = next;
-      if (next !== 0) busy = true;
+      if (next !== 0) moving = true;
     }
     const speed = this.reduced ? 1 : Math.min(1, dt / LAND_MS) * 1.7;
     for (const v of [...this.stars.values()]) {
@@ -924,7 +907,7 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
         v.g.alpha = 1 - q;
         v.g.scale.set(v.flash ? 1 + q * 1.1 : 1 - q * 0.5);
         if (q >= 1) this.kill(v);
-        else busy = true;
+        else moving = true;
         continue;
       }
       if (v.glow > 0) {
@@ -939,10 +922,11 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
         if (Math.abs(v.tx - v.x) < 0.4 && Math.abs(v.ty - v.y) < 0.4) {
           v.x = v.tx;
           v.y = v.ty;
-        } else busy = true;
+        } else moving = true;
         v.g.position.set(v.x, v.y);
       }
     }
+    this.moving = moving;
     for (let i = this.popups.length - 1; i >= 0; i--) {
       const p = this.popups[i]!;
       p.life += dt;
@@ -996,29 +980,23 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
       this.ringFlash = Math.max(0, this.ringFlash - dt);
       this.drawHighlight();
     }
-    if (this.shake > 0) {
-      this.shake = Math.max(0, this.shake - dt / 350);
-      const s = this.shake * this.R * 0.03;
-      this.chart.position.set(this.cx + Math.sin(this.time * 0.09) * s, this.cy + Math.cos(this.time * 0.07) * s);
-    } else this.chart.position.set(this.cx, this.cy);
     this.drawFalling();
     this.drawHint();
-    if (this.framePending && !busy) {
-      this.framePending = false;
-      this.cb.onFrame();
-    }
-    if (this.viewStale && !busy) this.publishView();
   }
 
-  /** Mirrors what the chart shows, for the smoke test: the kind in every slot once settled. */
-  private publishView(): void {
-    this.viewStale = false;
+  /**
+   * What the chart shows, which the kit writes to the canvas as `data-view` once the board settles:
+   * the kind of the star drawn in every slot, from the ring and octant each star view was placed in.
+   * A star on its way out is no longer shown. The page writes the same string from the engine's
+   * slots as `data-board`, so the smoke test can tell when what is drawn differs from what the engine holds.
+   */
+  protected view(): string {
     const kinds = new Array<number>(this.rings * this.octants).fill(-1);
     for (const v of this.stars.values()) {
       if (v.dying !== null) continue;
       kinds[v.ring * this.octants + v.octant] = v.kind;
     }
-    this.app.canvas.setAttribute("data-view", kinds.join(","));
+    return kinds.join(",");
   }
 
   // ---- input
@@ -1037,9 +1015,8 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
     return { zone: null, ring: null, angle };
   }
 
-  private pointerDown(e: FederatedPointerEvent): void {
-    if (!this.interactive) return;
-    const b = this.buttonAt(e.global.x, e.global.y);
+  protected override pointerDown(x: number, y: number): void {
+    const b = this.buttonAt(x, y);
     if (b) {
       b.pressed = 160;
       this.drawControls();
@@ -1052,14 +1029,14 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
       this.drag = null;
       return;
     }
-    const z = this.zoneAt(e.global.x, e.global.y);
-    this.drag = { ring: z.ring, zone: z.zone, angle: z.angle, acc: 0, moved: false, x: e.global.x };
+    const z = this.zoneAt(x, y);
+    this.drag = { ring: z.ring, zone: z.zone, angle: z.angle, acc: 0, moved: false, x };
   }
 
-  private pointerMove(e: FederatedPointerEvent): void {
+  protected override pointerMove(x: number, y: number): void {
     const d = this.drag;
     if (!d || d.zone !== "ring" || d.ring === null) return;
-    const z = this.zoneAt(e.global.x, e.global.y);
+    const z = this.zoneAt(x, y);
     let delta = z.angle - d.angle;
     while (delta > Math.PI) delta -= Math.PI * 2;
     while (delta < -Math.PI) delta += Math.PI * 2;
@@ -1080,7 +1057,7 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
     return null;
   }
 
-  private pointerUp(e: FederatedPointerEvent): void {
+  protected override pointerUp(x: number): void {
     const d = this.drag;
     this.drag = null;
     if (!d || !this.interactive) return;
@@ -1088,10 +1065,11 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
       this.drop();
       return;
     }
-    if (d.zone === "ring" && d.ring !== null && !d.moved) this.rotate(d.ring, e.global.x >= this.cx ? 1 : -1);
+    if (d.zone === "ring" && d.ring !== null && !d.moved) this.rotate(d.ring, x >= this.cx ? 1 : -1);
   }
 
-  private pointerCancel(): void {
+  /** A release off the canvas, a touch the browser took over, or the board switched off: the drag ends without a turn or a drop. */
+  protected override pointerCancel(): void {
     this.drag = null;
   }
 
@@ -1123,7 +1101,7 @@ export class NavigationRenderer implements BoardRenderer<NavigationState> {
   }
 
   /** Keyboard: up/down pick a ring (up is outward), left/right turn it, enter or space brings the star down. */
-  keyboard(key: string): boolean {
+  override keyboard(key: string): boolean {
     if (!this.interactive) return false;
     switch (key) {
       case "ArrowUp":

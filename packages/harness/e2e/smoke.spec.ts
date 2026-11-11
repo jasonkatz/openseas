@@ -309,6 +309,46 @@ test("home links to Navigation and an unrated round turns a ring by key and brin
   await expectViewMatchesState(page, "navigation");
 });
 
+test("a touch the browser takes over lets go of the Navigation ring it was turning", async ({ page }) => {
+  // The clock stays paused, so nothing comes down or moves on its own.
+  await page.goto("/navigation?seed=touch-cancel&start=lab&paused=1");
+  const canvas = page.getByTestId("navigation-canvas");
+  const board = page.getByTestId("navigation-board");
+  await expectViewMatchesState(page, "navigation");
+  // Bring a star down, so turning the ring it rests on shows on the chart.
+  await page.keyboard.press("Enter");
+  await expect(board).toHaveAttribute("data-board", /(^|,)\d/);
+  await expectViewMatchesState(page, "navigation");
+  const before = (await board.getAttribute("data-board"))!;
+  const ring = Math.floor(before.split(",").findIndex((kind) => kind !== "-1") / 8);
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  const [cx, cy, R] = ((await canvas.getAttribute("data-geom")) ?? "").split(",").map(Number) as [number, number, number];
+  // The middle of that ring's band, as the chart lays its three rings out between the hole and the rim.
+  const radius = R * (0.15 + ((ring + 0.5) * (0.94 - 0.15)) / 3);
+  const at = (angle: number) => ({ x: box.x + cx + Math.cos(angle) * radius, y: box.y + cy + Math.sin(angle) * radius });
+  // A finger goes down on the ring and starts round it, short of a turn, then the browser takes
+  // the gesture for a scroll: it cancels the pointer and the pointer leaves, with no release.
+  await canvas.evaluate(
+    (el, a) => {
+      const touch = { pointerId: 7, pointerType: "touch", isPrimary: true };
+      el.dispatchEvent(new PointerEvent("pointerdown", { ...touch, clientX: a.from.x, clientY: a.from.y, bubbles: true, buttons: 1 }));
+      el.dispatchEvent(new PointerEvent("pointermove", { ...touch, clientX: a.to.x, clientY: a.to.y, bubbles: true, buttons: 1 }));
+      el.dispatchEvent(new PointerEvent("pointercancel", { ...touch, clientX: a.to.x, clientY: a.to.y, bubbles: true }));
+      el.dispatchEvent(new PointerEvent("pointerleave", { ...touch, clientX: a.to.x, clientY: a.to.y }));
+    },
+    { from: at(0), to: at(0.15) },
+  );
+  // A pointer passing round the ring afterwards only hovers. Were the drag still held, it would turn the ring.
+  for (let i = 0; i <= 12; i++) await page.mouse.move(at(0.15 + (i * Math.PI) / 12).x, at(0.15 + (i * Math.PI) / 12).y);
+  await page.waitForTimeout(400);
+  await expect(board).toHaveAttribute("data-board", before);
+  // Nothing is left held: a tap on the ring's right half turns it as usual.
+  await page.mouse.click(at(0).x, at(0).y);
+  await expect(board).not.toHaveAttribute("data-board", before);
+  await expectViewMatchesState(page, "navigation");
+});
+
 test("home links to Space Battle and an unrated fight plots by key and by tap and flies its plot", async ({ page }, testInfo) => {
   // Desktop only: on CI's phone profile this run timed out without a fault in the board, and the
   // desktop run already drives every input it checks.
