@@ -317,8 +317,9 @@ three: an open rock field, the Narrows, the Whirl), 18 by 14 cells of open space
 (`^ > v <`) and gravity wells (`@`), the captain starting at the bottom facing north and the raider at
 the top facing south. A turn is a plot of up to `segments` moves, each a token (left, forward,
 right) or a hold, with port and starboard turrets per move and a grapple flag; the board shows the
-plotted path as numbered ghosts and shades the cells each plotted broadside reaches, and outlines
-the raider's reach. A turn carries the ship one cell forward and then swings her, so nothing turns
+course as numbered ghosts, held segments and currents included, rings a segment that would cost hull, shades the cells each plotted broadside
+reaches, and outlines the raider's reach. A token goes in the picked slot and the pick moves to the next slot without a move, to none when all are
+plotted, so a stray token never overwrites a move; a plot the ship can no longer pay for flies what it can. A turn carries the ship one cell forward and then swings her, so nothing turns
 in place. The raider plots at the same time (its mind is in the reducer, so it replays), and both
 plots fly segment by segment: moves first, with an asteroid or an edge stopping a ship (asteroids cost
 `asteroidDamage`) and two ships bound for one cell, or one flying into a ship that holds, stopping

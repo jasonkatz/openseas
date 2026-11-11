@@ -501,6 +501,34 @@ export function previewPlan(state: BattleState, segments: readonly BattleSegment
   return r.trace.map((t) => t[0]);
 }
 
+/** One segment of the captain's course against a raider that holds still. */
+export interface CourseStep {
+  /** Where the ship is once the segment's move, currents and wells have played, before the guns. */
+  readonly pose: Pose;
+  /** What stopped the plotted move, if anything did. */
+  readonly blocked: "asteroid" | "edge" | "ship" | null;
+  /** Hull the segment would cost: an asteroid flown or carried into, a ram. */
+  readonly damage: number;
+}
+
+/**
+ * The captain's plan flown against a raider that holds still, a step per segment the turn reaches:
+ * `previewPlan` with what each segment runs into, so a board can warn before the plot is flown.
+ */
+export function previewCourse(state: BattleState, segments: readonly BattleSegment[]): CourseStep[] {
+  const r = resolveTurn(state.board, state.config, state.ships, [{ segments: segments.map((s) => ({ ...s, port: false, starboard: false })), grapple: false }, EMPTY_PLAN]);
+  return r.trace.map((t, seg) => {
+    let blocked: CourseStep["blocked"] = null;
+    let damage = 0;
+    for (const e of r.events) {
+      if (e.seg !== seg || (e.type !== "move" && e.type !== "push") || e.ship !== 0) continue;
+      if (e.type === "move") blocked = e.blocked;
+      damage += e.damage;
+    }
+    return { pose: t[0], blocked, damage };
+  });
+}
+
 export function isWin(outcome: BattleOutcome | null): boolean {
   return outcome !== null && WIN_OUTCOMES.includes(outcome);
 }

@@ -5,7 +5,7 @@ import {
   battleArcCells,
   battleCellAt,
   battlePlanIllegalReason,
-  previewBattlePlan,
+  previewBattleCourse,
   type BattleEvent,
   type BattleOutcome,
   type BattlePlan,
@@ -158,11 +158,14 @@ const COLORS = {
   current: 0xaae4ff,
   well: 0xd6f4f0,
 };
-const MOVE_MS = 460;
-const PUSH_MS = 320;
-const SPIN_MS = 280;
-const SHOT_MS = 380;
+// A turn's playback runs on the same clock the next plot is made against, so its beats are brisk.
+const MOVE_MS = 360;
+const PUSH_MS = 260;
+const SPIN_MS = 220;
+const SHOT_MS = 320;
 const END_MS = 900;
+/** After a turn resolves, a tap on fly with nothing plotted is a double tap, not a turn of holds. */
+const FLY_GUARD_MS = 700;
 const FONT = "Atkinson Hyperlegible, sans-serif";
 const DISPLAY = "Fraunces, Georgia, serif";
 const SHIP_SCALE = 2.1;
@@ -171,6 +174,12 @@ const SHIP_SCALE = 2.1;
 export function battleViewString(state: BattleState): string {
   const ships = state.ships.map((s) => `${s.x}.${s.y}.${s.heading}.${s.damage}.${s.loaded}`).join("|");
   return `${state.turn}:${ships}:${state.outcome ?? "-"}`;
+}
+
+function trimTrailingHolds(segments: readonly BattleSegment[]): BattleSegment[] {
+  const segs = segments.slice();
+  while (segs.length && segs[segs.length - 1]!.move === null && !segs[segs.length - 1]!.port && !segs[segs.length - 1]!.starboard) segs.pop();
+  return segs;
 }
 
 function linear(vertical: boolean, stops: number[]): FillGradient {
@@ -227,7 +236,11 @@ export class BattleRenderer {
   private rings: Ring[] = [];
   private segments: BattleSegment[] = [];
   private grapple = false;
+  /** The slot the next token goes in; -1 when every slot holds a move, so nothing is overwritten unasked. */
   private selected = 0;
+  /** The slot the gun keys arm: the one last plotted or picked. */
+  private focus = 0;
+  private flyGuard = 0;
   private buttons: Button[] = [];
   private pressed: { id: string; t: number } | null = null;
   private interactive = false;
@@ -330,18 +343,40 @@ export class BattleRenderer {
 
   /** The plot as it stands, trimmed of trailing holds. */
   plan(): BattlePlan {
-    const segs = this.segments.slice();
-    while (segs.length && segs[segs.length - 1]!.move === null && !segs[segs.length - 1]!.port && !segs[segs.length - 1]!.starboard) segs.pop();
-    return { segments: segs, grapple: this.grapple };
+    return { segments: trimTrailingHolds(this.segments), grapple: this.grapple };
   }
 
-  /** Fly the plot now, as the turn clock does. Refused while the engine would refuse it (then holds are flown instead). */
-  commit(): void {
+  /**
+   * Fly the plot now, as the turn clock does. A plot the ship can no longer pay for flies what it
+   * can: a move without its token becomes a hold, a broadside without a load stays quiet.
+   * `manual` is the captain's own tap or key, which is ignored on an empty plot just after a turn.
+   */
+  commit(manual = false): void {
     const s = this.state;
     if (!s || s.finished) return;
     let plan = this.plan();
+    if (manual && this.flyGuard > 0 && plan.segments.length === 0 && !plan.grapple) return;
+    if (battlePlanIllegalReason(s, plan) !== null) plan = { segments: trimTrailingHolds(this.affordable(s, plan.segments)), grapple: this.grapple };
     if (battlePlanIllegalReason(s, plan) !== null) plan = { segments: [], grapple: this.grapple };
     this.cb.onCommit(plan);
+  }
+
+  /** The segments with every move and shot the ship cannot pay for taken out, earliest kept first. */
+  private affordable(s: BattleState, segments: readonly BattleSegment[]): BattleSegment[] {
+    const tokens = { ...s.ships[0].tokens };
+    let loaded = s.ships[0].loaded;
+    return segments.map((seg) => {
+      let move = seg.move;
+      if (move !== null) {
+        if (tokens[move] > 0) tokens[move] -= 1;
+        else move = null;
+      }
+      const port = seg.port && loaded > 0;
+      if (port) loaded -= 1;
+      const starboard = seg.starboard && loaded > 0;
+      if (starboard) loaded -= 1;
+      return { move, port, starboard };
+    });
   }
 
   setState(state: BattleState): void {
@@ -368,13 +403,22 @@ export class BattleRenderer {
       this.shownTurn = state.turn;
       this.shownOutcome = state.outcome;
       this.resetPlan(state);
+      this.flyGuard = FLY_GUARD_MS;
     } else if (state.finished && this.shownOutcome !== state.outcome && state.lastTurn) {
       // Ended without a turn: a disengage, or the ship's hull gave out.
       this.enqueueTurn(state, state.lastTurn.events);
       this.shownOutcome = state.outcome;
     } else {
-      // Supply arrived, or the same turn re-rendered: keep the plot, refresh what it can afford.
+      // Supply arrived, or the same turn re-rendered: keep the plot, less whatever it can no longer pay for.
       if (this.queue.length === 0 && !this.step) this.snap(state);
+      if (!state.finished && this.segments.length === state.config.segments) {
+        const kept = this.affordable(state, this.segments);
+        if (kept.some((seg, i) => seg.move !== this.segments[i]!.move || seg.port !== this.segments[i]!.port || seg.starboard !== this.segments[i]!.starboard)) {
+          this.segments = kept;
+          this.selected = this.firstOpen();
+          this.cb.onPlanChange(this.plan());
+        }
+      }
       this.stripDirty = true;
     }
     this.drawPreview();
@@ -391,6 +435,7 @@ export class BattleRenderer {
     this.segments = Array.from({ length: state.config.segments }, () => ({ move: null, port: false, starboard: false }));
     this.grapple = false;
     this.selected = 0;
+    this.focus = 0;
     this.stripDirty = true;
     this.drawPreview();
     this.cb.onPlanChange(this.plan());
@@ -403,6 +448,7 @@ export class BattleRenderer {
     if (!seg || (seg.move === null && !seg.port && !seg.starboard)) return;
     this.setSegment(i, { move: null, port: false, starboard: false });
     this.selected = i;
+    this.focus = i;
     this.stripDirty = true;
     this.cb.onNudge();
   }
@@ -577,10 +623,14 @@ export class BattleRenderer {
       this.pad = Math.max(8, Math.floor(this.cell * 0.5));
     };
     if (this.vertical) {
-      const stripH = Math.max(156, Math.min(216, H * 0.3));
+      // The grid takes what it needs under a strip of the smallest size; the strip then grows into
+      // the height the grid left over, so its buttons are as big as a thumb wants.
+      const minStrip = Math.max(156, Math.min(216, H * 0.3));
       const availW = W - gutter * 2;
+      sized(availW, H - hudH - minStrip - gutter * 3);
+      const gridH = this.rows * this.cell + this.pad * 2;
+      const stripH = Math.max(minStrip, Math.min(320, H - hudH - gridH - gutter * 3));
       const availH = H - hudH - stripH - gutter * 3;
-      sized(availW, availH);
       this.gx = Math.floor((W - this.cols * this.cell) / 2);
       this.gy = hudH + gutter + Math.floor((availH - this.rows * this.cell) / 2);
       this.hud = { x: gutter, y: 0, w: W - gutter * 2, h: hudH };
@@ -747,13 +797,14 @@ export class BattleRenderer {
     for (const s of this.ghostSprites) s.visible = false;
     const s = this.state;
     if (!s || s.finished) return;
-    const plan = this.plan();
-    const poses = previewBattlePlan(s, plan.segments);
+    // Every segment is previewed, plotted or not: a current carries a ship that holds, too.
+    const course = previewBattleCourse(s, this.segments);
     const c = this.cell;
     let prev: Pose = { x: s.ships[0].x, y: s.ships[0].y, heading: s.ships[0].heading };
-    plan.segments.forEach((seg, i) => {
-      const p = poses[i];
-      if (!p) return;
+    this.segments.forEach((seg, i) => {
+      const step = course[i];
+      if (!step) return;
+      const p = step.pose;
       if (this.opts.showArcs) {
         for (const side of ["port", "starboard"] as const) {
           if (!seg[side]) continue;
@@ -764,8 +815,10 @@ export class BattleRenderer {
           });
         }
       }
-      if (seg.move !== null) {
-        // A dashed course line, then the ghost of the ship where the move ends, numbered.
+      const moved = p.x !== prev.x || p.y !== prev.y;
+      if (seg.move !== null || moved) {
+        // A dashed course line, then the ghost of the ship where the segment ends, numbered. The
+        // ghosts along the way are small so the course reads; the last stands at nearly full size.
         const x0 = this.cx(prev.x);
         const y0 = this.cy(prev.y);
         const x1 = this.cx(p.x);
@@ -777,22 +830,27 @@ export class BattleRenderer {
           g.moveTo(x0 + (x1 - x0) * t0, y0 + (y1 - y0) * t0).lineTo(x0 + (x1 - x0) * t1, y0 + (y1 - y0) * t1);
         }
         g.stroke({ width: Math.max(1.5, c * 0.07), color: COLORS.text, alpha: 0.55, cap: "round" });
+        const final = !course.slice(i + 1).some((later, k) => later.pose.x !== p.x || later.pose.y !== p.y || this.segments[i + 1 + k]?.move != null);
         let ghost = this.ghostSprites[i];
         if (!ghost) {
           ghost = new Sprite(this.textures.get("ship0") ?? Texture.WHITE);
           ghost.anchor.set(0.5);
-          ghost.alpha = 0.4;
           this.ghostLayer.addChild(ghost);
           this.ghostSprites[i] = ghost;
         }
         ghost.texture = this.textures.get("ship0") ?? Texture.WHITE;
         ghost.visible = true;
+        ghost.alpha = final ? 0.6 : 0.45;
+        ghost.scale.set(final ? 0.72 : 0.48);
         ghost.position.set(x1, y1);
         ghost.rotation = (p.heading * Math.PI) / 2;
-        // The number rides a brass badge off the ship's quarter.
+        // The number rides a badge off the ship's quarter: brass, or red with a ring round the
+        // cell when the segment costs hull (an asteroid, a ram) or the move is stopped.
+        const bad = step.damage > 0 || step.blocked !== null;
+        if (bad) g.circle(x1, y1, c * 0.48).stroke({ width: Math.max(2, c * 0.09), color: COLORS.danger, alpha: 0.9 });
         const bx = x1 + c * 0.42;
         const by = y1 - c * 0.42;
-        g.circle(bx, by, c * 0.24).fill(COLORS.brass).stroke({ width: 1, color: COLORS.ink, alpha: 0.8 });
+        g.circle(bx, by, c * 0.24).fill(bad ? COLORS.danger : COLORS.brass).stroke({ width: 1, color: COLORS.ink, alpha: 0.8 });
         const t = new Text({ text: String(i + 1), style: { fontFamily: FONT, fontSize: Math.max(9, c * 0.34), fontWeight: "700", fill: COLORS.ink } });
         t.anchor.set(0.5);
         t.position.set(bx, by);
@@ -915,23 +973,30 @@ export class BattleRenderer {
       const k = Math.max(0, Math.min(1, this.turnLeftMs / this.turnMs));
       g.roundRect(x + 12, clockY, Math.max(5, clockW * k), 5, 2.5).fill(k < 0.25 ? COLORS.danger : COLORS.brass);
     }
-    // Slots.
+    // Slots. On a tall board each is a card: the move on top, its two guns side by side beneath,
+    // each half the card wide. On a wide board each is a row with a gun at either end.
     const slotTop = clockY + 14;
     const gap = 6;
-    const canW = Math.max(18, Math.min(28, this.vertical ? (w - 24) / n / 4 : w * 0.12));
+    const tall = this.vertical;
+    // What the strip has left for slots, tokens and the bottom row, shared out between them.
+    const spare = Math.max(96, y + h - slotTop - 20 - fs * 1.6);
+    const trayH = tall ? Math.max(30, Math.min(50, spare * 0.25)) : 38;
+    const rowH = tall ? Math.max(32, Math.min(54, spare * 0.28)) : 42;
     let slotW: number;
     let slotH: number;
     let slotX = (i: number): number => x + 12 + i * ((w - 24) / n);
     let slotY = (_i: number): number => slotTop;
-    if (this.vertical) {
+    if (tall) {
       slotW = (w - 24) / n - gap;
-      slotH = Math.max(36, h * 0.26);
+      slotH = Math.max(52, Math.min(112, spare - trayH - rowH));
     } else {
       slotW = w - 24;
-      slotH = Math.max(32, Math.min(46, (h - slotTop + y - 156) / n - gap));
+      slotH = Math.max(32, Math.min(52, (h - slotTop + y - 216) / n - gap));
       slotX = () => x + 12;
       slotY = (i) => slotTop + i * (slotH + gap);
     }
+    const gunW = tall ? (slotW - 9) / 2 : Math.max(28, Math.min(48, slotW * 0.22));
+    const gunH = tall ? Math.max(24, Math.min(46, slotH * 0.42)) : slotH - 6;
     const turretTex = (lit: boolean): Texture => this.textures.get(lit ? "turret1" : "turret0") ?? Texture.WHITE;
     for (let i = 0; i < n; i++) {
       const seg = this.segments[i] ?? { move: null, port: false, starboard: false };
@@ -944,70 +1009,77 @@ export class BattleRenderer {
         g.roundRect(sx - 1, sy - 1, slotW + 2, slotH + 2, 10).stroke({ width: 2, color: COLORS.brassLight, alpha: 0.95 });
         g.roundRect(sx - 3, sy - 3, slotW + 6, slotH + 6, 12).stroke({ width: 3, color: COLORS.brass, alpha: 0.25 });
       } else g.roundRect(sx, sy, slotW, slotH, 9).stroke({ width: 1, color: COLORS.brass, alpha: 0.25 });
-      if (live) this.buttons.push({ id: `slot:${i}`, x: sx + canW, y: sy, w: slotW - canW * 2, h: slotH });
-      const midX = sx + slotW / 2;
-      const midY = sy + slotH / 2;
+      // The move's own area: the card above the guns, or the row between them. Nothing overlaps.
+      const move = tall ? { x: sx, y: sy, w: slotW, h: slotH - gunH - 3 } : { x: sx + gunW + 3, y: sy, w: slotW - gunW * 2 - 6, h: slotH };
+      if (live) this.buttons.push({ id: `slot:${i}`, ...move });
+      const midX = move.x + move.w / 2;
+      const midY = move.y + move.h / 2;
       // The move glyph, lit brass when plotted.
-      this.paintToken(g, seg.move, midX, midY, Math.min(slotH * 0.62, slotW * 0.32), seg.move === null ? COLORS.muted : COLORS.brassLight, seg.move !== null);
-      label(String(i + 1), sx + canW + 5, sy + fs * 0.75, COLORS.muted, fs - 2, 0, "400");
-      // Port and starboard guns on the slot's sides: a turret each, its lamp lit when armed.
+      this.paintToken(g, seg.move, midX, midY, Math.min(move.h * 0.62, move.w * 0.5, 34), seg.move === null ? COLORS.muted : COLORS.brassLight, seg.move !== null);
+      label(String(i + 1), move.x + 7, sy + fs * 0.75, COLORS.muted, fs - 2, 0, "400");
+      // Port and starboard guns: a turret each, its lamp lit when armed.
       for (const side of ["port", "starboard"] as const) {
-        const bx = side === "port" ? sx + 3 : sx + slotW - canW - 3;
+        const bx = side === "port" ? sx + 3 : sx + slotW - gunW - 3;
+        const by = tall ? sy + slotH - gunH - 3 : sy + 3;
         const on = seg[side];
         const can = live && (on || me.loaded > this.shotsPlanned());
-        g.roundRect(bx, sy + 3, canW, slotH - 6, 7).fill({ color: on ? COLORS.danger : COLORS.inkDeep, alpha: on ? 0.75 : can ? 0.95 : 0.4 });
-        if (on) g.roundRect(bx, sy + 3, canW, slotH - 6, 7).stroke({ width: 1, color: COLORS.flash, alpha: 0.6 });
+        g.roundRect(bx, by, gunW, gunH, 7).fill({ color: on ? COLORS.danger : COLORS.inkDeep, alpha: on ? 0.75 : can ? 0.95 : 0.4 });
+        if (on) g.roundRect(bx, by, gunW, gunH, 7).stroke({ width: 1, color: COLORS.flash, alpha: 0.6 });
+        else if (can) g.roundRect(bx, by, gunW, gunH, 7).stroke({ width: 1, color: COLORS.brass, alpha: 0.3 });
         const icon = new Sprite(turretTex(on));
         icon.anchor.set(0.5);
-        const ip = Math.min(canW, slotH - 6) * 0.95;
+        const ip = Math.min(gunW, gunH, 30) * 0.95;
         icon.width = ip;
         icon.height = ip;
-        icon.position.set(bx + canW / 2, midY);
+        icon.position.set(bx + gunW / 2, by + gunH / 2);
         icon.rotation = side === "port" ? -Math.PI / 2 : Math.PI / 2;
         icon.alpha = can || on ? 1 : 0.45;
         this.stripIcons.addChild(icon);
-        if (can) this.buttons.push({ id: `fire:${i}:${side}`, x: bx, y: sy, w: canW + 3, h: slotH });
+        // The whole of the gun's end of the slot takes the tap, out to the slot's edge.
+        if (can) this.buttons.push(tall ? { id: `fire:${i}:${side}`, x: side === "port" ? sx : sx + slotW / 2, y: by - 1, w: slotW / 2, h: gunH + 4 } : { id: `fire:${i}:${side}`, x: side === "port" ? sx : bx - 1, y: sy, w: gunW + 4, h: slotH });
       }
     }
     // Tokens tray.
-    const trayY = this.vertical ? slotTop + slotH + 10 : slotY(n - 1) + slotH + 12;
-    const trayH = Math.max(30, Math.min(42, this.vertical ? h * 0.2 : 38));
+    const trayY = tall ? slotTop + slotH + 10 : slotY(n - 1) + slotH + 12;
     const trayItems: Array<MoveToken | null> = ["left", "forward", "right", null];
     const trayW = (w - 24 - gap * 3) / 4;
+    const placing = this.selected >= 0;
     trayItems.forEach((t, i) => {
       const bx = x + 12 + i * (trayW + gap);
       const count = t === null ? null : me.tokens[t];
-      const enabled = live && (t === null || (count ?? 0) > this.tokensPlanned(t));
+      const enabled = live && placing && (t === null || (count ?? 0) > this.tokensPlanned(t) - (this.segments[this.selected]?.move === t ? 1 : 0));
       button(`token:${t ?? "hold"}`, bx, trayY, trayW, trayH, "ink", enabled);
-      this.paintToken(g, t, bx + trayW * 0.34, trayY + trayH / 2, trayH * 0.52, enabled ? COLORS.brassLight : COLORS.muted, enabled);
+      this.paintToken(g, t, bx + trayW * 0.34, trayY + trayH / 2, Math.min(trayH * 0.52, 26), enabled ? COLORS.brassLight : COLORS.muted, enabled);
       if (t !== null && count !== null) label(`×${count - this.tokensPlanned(t)}`, bx + trayW * 0.72, trayY + trayH / 2, enabled ? COLORS.text : COLORS.muted, fs);
       else label(this.opts.labels.hold, bx + trayW * 0.7, trayY + trayH / 2, enabled ? COLORS.text : COLORS.muted, fs - 2);
     });
     // Grapple, clear, fly.
     const rowY = trayY + trayH + 10;
-    const rowH = Math.max(32, Math.min(44, this.vertical ? h * 0.2 : 42));
     const ready = s.ships[1].damage >= s.config.grappleDamage;
     const plotted = this.segments.some((seg) => seg.move !== null || seg.port || seg.starboard);
-    const inner = w - 24 - gap * 3;
-    const gw = inner * 0.3;
+    // On a wide board the strip is narrow and tall: fly gets a row of its own under the others.
+    const inner = w - 24 - gap * (tall ? 3 : 2);
+    const gw = inner * (tall ? 0.3 : 0.46);
     button("grapple", x + 12, rowY, gw, rowH, this.grapple ? "brass" : "ink", live);
     if (ready && live && !this.grapple) g.roundRect(x + 12, rowY, gw, rowH, 8).stroke({ width: 2, color: COLORS.brassLight, alpha: 0.5 + Math.sin(this.time / 220) * 0.4 });
     this.paintHook(g, x + 12 + fs * 1.3, rowY + rowH / 2, fs * 0.9, this.grapple ? COLORS.ink : COLORS.brassLight);
     label(this.opts.labels.grapple, x + 12 + fs * 2.3, rowY + rowH / 2, this.grapple ? COLORS.ink : COLORS.text, fs - 1, 0);
     // Take back the last move, or the whole plot.
-    const uw = Math.max(rowH, inner * 0.13);
+    const uw = tall ? Math.max(rowH, inner * 0.13) : inner * 0.24;
     const ux = x + 12 + gw + gap;
     button("undo", ux, rowY, uw, rowH, "ghost", live && plotted);
     this.paintBackspace(g, ux + uw / 2, rowY + rowH / 2, fs * 1.1, live && plotted ? COLORS.text : COLORS.muted);
-    const cw = inner * 0.17;
     const cx = ux + uw + gap;
+    const cw = tall ? inner * 0.17 : x + w - 12 - cx;
     button("clear", cx, rowY, cw, rowH, "ghost", live && plotted);
     label(this.opts.labels.clear, cx + cw / 2, rowY + rowH / 2, live && plotted ? COLORS.text : COLORS.muted, fs - 2);
-    const sx = cx + cw + gap;
+    const sx = tall ? cx + cw + gap : x + 12;
+    const sy = tall ? rowY : rowY + rowH + 10;
     const sw = x + w - 12 - sx;
-    button("fly", sx, rowY, sw, rowH, "brass", live);
-    label(this.opts.labels.fly, sx + sw / 2, rowY + rowH / 2, 0x1b150c, fs);
-    if (ready && live) label(this.opts.labels.grappleReady, x + w / 2, rowY + rowH + fs, COLORS.brassLight, fs - 2);
+    const sh = tall ? rowH : Math.max(rowH, Math.min(52, y + h - sy - 12 - fs * 2));
+    button("fly", sx, sy, sw, sh, "brass", live);
+    label(this.opts.labels.fly, sx + sw / 2, sy + sh / 2, 0x1b150c, fs + (tall ? 0 : 1));
+    if (ready && live) label(this.opts.labels.grappleReady, x + w / 2, sy + sh + fs, COLORS.brassLight, fs - 2);
     // Where the strip's buttons are, for the smoke test's taps.
     this.app.canvas.setAttribute("data-buttons", this.buttons.map((b) => `${b.id}=${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)},${Math.round(b.h)}`).join(";"));
   }
@@ -1096,10 +1168,12 @@ export class BattleRenderer {
     this.pressed = { id, t: 0 };
     const [kind, a, b] = id.split(":");
     if (kind === "slot") {
+      // A tap picks the slot; a tap on the slot already picked takes its move back.
       const i = Number(a);
       const seg = this.segments[i]!;
-      if (seg.move !== null) this.setSegment(i, { ...seg, move: null });
+      if (this.selected === i && seg.move !== null) this.setSegment(i, { ...seg, move: null });
       this.selected = i;
+      this.focus = i;
       this.cb.onNudge();
     } else if (kind === "undo") {
       this.undo();
@@ -1108,6 +1182,7 @@ export class BattleRenderer {
       const side = b as Side;
       const seg = this.segments[i]!;
       this.setSegment(i, { ...seg, [side]: !seg[side] });
+      this.focus = i;
       this.cb.onNudge();
     } else if (kind === "token") {
       const t: MoveToken | null = a === "hold" ? null : (a as MoveToken);
@@ -1120,26 +1195,39 @@ export class BattleRenderer {
       this.resetPlan(this.state);
       this.cb.onNudge();
     } else if (kind === "fly") {
-      this.commit();
+      this.commit(true);
     }
     this.stripDirty = true;
   }
 
-  /** Put a token in the selected slot and move the selection on. */
-  private queueToken(t: MoveToken | null): boolean {
+  /**
+   * Put a token in the selected slot and move the selection to the next slot with no move in it.
+   * With every slot plotted nothing is selected, so a stray token never overwrites a move: the
+   * captain picks the slot to change.
+   */
+  private queueToken(t: MoveToken | null): void {
     const s = this.state;
-    if (!s || s.finished || !this.interactive) return false;
+    if (!s || s.finished || !this.interactive) return;
     const i = this.selected;
-    if (i >= this.segments.length) return false;
-    const seg = this.segments[i]!;
-    if (t !== null && s.ships[0].tokens[t] <= this.tokensPlanned(t) - (seg.move === t ? 1 : 0)) {
-      this.cb.onNudge();
-      return false;
-    }
-    this.setSegment(i, { ...seg, move: t });
-    this.selected = Math.min(this.segments.length - 1, i + 1);
+    const seg = this.segments[i];
     this.cb.onNudge();
-    return true;
+    if (!seg) return;
+    if (t !== null && s.ships[0].tokens[t] <= this.tokensPlanned(t) - (seg.move === t ? 1 : 0)) return;
+    this.setSegment(i, { ...seg, move: t });
+    this.focus = i;
+    // A hold steps on to the next slot; a move looks for the next slot still open, later ones first.
+    if (t === null) this.selected = Math.min(this.segments.length - 1, i + 1);
+    else this.selected = this.firstOpen(i);
+  }
+
+  /** The first slot with no move in it, looking after `from` before wrapping round; -1 when all are plotted. */
+  private firstOpen(from = -1): number {
+    const n = this.segments.length;
+    for (let k = 1; k <= n; k++) {
+      const j = (from + k + n) % n;
+      if (j !== from && this.segments[j]!.move === null) return j;
+    }
+    return -1;
   }
 
   private setSegment(i: number, seg: BattleSegment): void {
@@ -1156,27 +1244,32 @@ export class BattleRenderer {
       case "a":
       case "A":
       case "ArrowLeft":
-        return this.queueToken("left");
+        this.queueToken("left");
+        return true;
       case "w":
       case "W":
       case "ArrowUp":
-        return this.queueToken("forward");
+        this.queueToken("forward");
+        return true;
       case "d":
       case "D":
       case "ArrowRight":
-        return this.queueToken("right");
+        this.queueToken("right");
+        return true;
       case "s":
       case "S":
       case "ArrowDown":
-        return this.queueToken(null);
+        this.queueToken(null);
+        return true;
       case "q":
       case "Q":
       case "e":
       case "E": {
-        const i = this.lastPlotted();
-        const seg = this.segments[i]!;
+        const i = this.focus;
+        const seg = this.segments[i];
         const side: Side = key === "q" || key === "Q" ? "port" : "starboard";
-        if (!seg[side] && this.state.ships[0].loaded <= this.shotsPlanned()) return true;
+        this.cb.onNudge();
+        if (!seg || (!seg[side] && this.state.ships[0].loaded <= this.shotsPlanned())) return true;
         this.setSegment(i, { ...seg, [side]: !seg[side] });
         return true;
       }
@@ -1187,6 +1280,7 @@ export class BattleRenderer {
       case "G":
         this.grapple = !this.grapple;
         this.stripDirty = true;
+        this.cb.onNudge();
         this.cb.onPlanChange(this.plan());
         return true;
       case "Escape":
@@ -1194,7 +1288,7 @@ export class BattleRenderer {
         return true;
       case "Enter":
       case " ":
-        this.commit();
+        this.commit(true);
         return true;
       case "1":
       case "2":
@@ -1207,6 +1301,7 @@ export class BattleRenderer {
         const i = Number(key) - 1;
         if (i < this.segments.length) {
           this.selected = i;
+          this.focus = i;
           this.stripDirty = true;
         }
         return true;
@@ -1216,19 +1311,20 @@ export class BattleRenderer {
     }
   }
 
-  /** The slot a side key acts on: the last one with anything in it, else the selected one. */
+  /** The slot undo takes back: the last one with anything in it, else the selected one. */
   private lastPlotted(): number {
     for (let i = this.segments.length - 1; i >= 0; i--) {
       const s = this.segments[i]!;
       if (s.move !== null || s.port || s.starboard) return i;
     }
-    return Math.min(this.selected, this.segments.length - 1);
+    return Math.max(0, Math.min(this.selected, this.segments.length - 1));
   }
 
   // ---- animation
 
   private tick(dt: number): void {
     this.time += dt;
+    if (this.flyGuard > 0) this.flyGuard -= dt;
     if (this.pressed) {
       this.pressed.t += dt;
       if (this.pressed.t > 160) this.pressed = null;

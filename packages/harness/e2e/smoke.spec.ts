@@ -234,6 +234,18 @@ test("home links to Space Battle and an unrated fight plots by key and by tap an
   await tap("fly");
   await expect(page.getByTestId("hud-moves")).toContainText("2/20");
   await expectViewMatchesState(page, "battle");
+
+  // A full plot takes no more: a fifth token overwrites nothing. A tap on a slot picks it without
+  // clearing it; a second tap takes its move back, and the next token goes there.
+  const four = /^\{"segments":\[(\{"move":"forward","port":false,"starboard":false\},?){4}\],"grapple":false\}$/;
+  for (const key of ["w", "w", "w", "w", "a"]) await page.keyboard.press(key);
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", four);
+  await tap("slot:0");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", four);
+  await tap("slot:0");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /^\{"segments":\[\{"move":null,/);
+  await page.keyboard.press("a");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /^\{"segments":\[\{"move":"left",.*("move":"forward".*){3}/);
 });
 
 test("home links to Swordfighting and an unrated fight drops pairs by keyboard and by touch", async ({ page }) => {
