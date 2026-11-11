@@ -25,7 +25,8 @@ export function useBattleControls(host: ControlsHost<BattleState, BattleMove>): 
           else sfx.swapQuiet();
           break;
         case "push":
-          sfx.vent(1);
+          if (e.damage > 0) sfx.crack(true);
+          else sfx.vent(1);
           break;
         case "spin":
           sfx.tick(false);
