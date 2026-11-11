@@ -10,7 +10,7 @@ import {
   type EnginesState,
   type Rotation,
 } from "@openseas/engine";
-import { boardString, canvasBox, clip, findSeed, glide, hidePointer, openLab, padded, settled, still, tapAt, type Box } from "./lib.js";
+import { boardString, canvasBox, clip, findSeed, hidePointer, openLab, padded, settled, still, type Box } from "./lib.js";
 
 const cfg = loadContent().puzzles.engines.config;
 const W = cfg.width;
@@ -191,27 +191,32 @@ async function same(page: Page, s: EnginesState): Promise<void> {
 
 /**
  * Land the falling pair with the pointer, as a thumb would: tap to turn it, drag sideways to steer
- * it, then hold a swipe down until it lands. `count` is the move count once it has.
+ * it, then hold a swipe down until it lands. A tap anywhere on the board turns the pair. `count` is the move count once it has.
  */
-async function drop(page: Page, p: Place, count: number, pace = 1): Promise<void> {
+async function drop(page: Page, p: Place, count: number, turn: "tap" | "keys" = "keys"): Promise<void> {
   const g = await geom(page);
   const x = g.ox + (SPAWN.col + 1) * g.cell;
-  const y = g.oy + 2.5 * g.cell;
-  for (let i = 0; i < p.rot; i++) {
-    await tapAt(page, x, y, 70);
-    await page.waitForTimeout(90 * pace);
+  const y = g.oy + 3 * g.cell;
+  // Few, long mouse steps: on a busy machine every step costs time, and the pair is sinking.
+  await page.mouse.move(x, y, { steps: 5 });
+  // Turning by key is instant, for a clip that is about what happens after the landing.
+  if (turn === "keys") for (let i = 0; i < p.rot; i++) await page.keyboard.press("ArrowUp");
+  else for (let i = 0; i < p.rot; i++) {
+    await page.mouse.down();
+    await page.waitForTimeout(60);
+    await page.mouse.up();
+    await page.waitForTimeout(160);
   }
   const to = x + (p.col - SPAWN.col) * g.cell;
   if (p.col !== SPAWN.col) {
-    await glide(page, x, y, 120);
     await page.mouse.down();
-    await glide(page, to, y, (140 + 50 * Math.abs(p.col - SPAWN.col)) * pace);
+    await page.mouse.move(to, y, { steps: 6 });
+    await page.waitForTimeout(80);
     await page.mouse.up();
-    await page.waitForTimeout(80 * pace);
+    await page.waitForTimeout(200);
   }
-  await glide(page, to, y, 100);
-  await page.mouse.down();
   // A short, quick swipe, then lift the moment the pair lands: a swipe still moving or still held hurries the next pair too.
+  await page.mouse.down();
   await page.mouse.move(to, y + 2 * g.cell, { steps: 3 });
   await page.waitForFunction((n) => document.querySelector('[data-testid="hud-moves"]')?.textContent?.trim() === n, String(count), { polling: "raf", timeout: 15_000 });
   await page.mouse.up();
@@ -273,22 +278,19 @@ test("engines: the board", async ({ page }) => {
 });
 
 test("engines: a first injector", async ({ page }) => {
-  // The opening pair fills both targets of an injector: one turn, a steer and a swipe.
-  const { seed, found } = findSeed("eng-first", (s) => {
-    const g = deal(s);
-    for (const p of drops(g)) {
-      if (p.rot !== 1 || Math.abs(p.col - SPAWN.col) < 2 || rested(g, p)) continue;
-      const r = put(g, p).lastMove!;
+  // After one quiet landing, a pair fills both targets of an injector: one turn, a steer and a swipe.
+  const { seed, found } = findSeed("eng-first", (s) =>
+    plan(s, (r) => {
       const group = r.rounds[0]?.groups[0];
-      if (r.rounds.length === 1 && r.rounds[0]!.groups.length === 1 && group?.cause === "injector" && r.landed!.cells.every((c) => group.cells.includes(c))) return p;
-    }
-    return null;
-  });
-  await openLab(page, "engines", { seed });
+      const p = r.move.type === "place" ? r.move : null;
+      return !!p && p.rot === 1 && Math.abs(p.col - SPAWN.col) >= 2 && r.rounds.length === 1 && r.rounds[0]!.groups.length === 1 && group?.cause === "injector" && r.landed!.cells.every((c) => group.cells.includes(c));
+    }, { moves: 2 }),
+  );
+  await setUp(page, seed, found);
   await clip(page, "engines", "first-injector", async () => {
-    await drop(page, found, 1, 1.3);
-    await same(page, put(deal(seed), found));
-  }, { tailMs: 1200, region: await region(page) });
+    await drop(page, found.last, found.log.length + 1, "tap");
+    await same(page, put(found.before, found.last));
+  }, { leadMs: 200, tailMs: 1200, region: await region(page) });
 });
 
 test("engines: the spare half chains", async ({ page }) => {
@@ -309,12 +311,11 @@ test("engines: the spare half chains", async ({ page }) => {
   );
   await setUp(page, seed, found);
   await hidePointer(page);
-  await page.waitForTimeout(500);
   await still(page, "engines", "chain-before", { region: await region(page) });
   await clip(page, "engines", "chain", async () => {
-    await drop(page, found.last, found.log.length + 1, 1.4);
+    await drop(page, found.last, found.log.length + 1);
     await same(page, put(found.before, found.last));
-  }, { tailMs: 1300, region: await region(page) });
+  }, { leadMs: 150, tailMs: 1300, region: await region(page) });
 });
 
 test("engines: three steps from one landing", async ({ page }) => {
@@ -322,10 +323,9 @@ test("engines: three steps from one landing", async ({ page }) => {
   const { seed, found } = findSeed("eng-three", (s) => plan(s, (r) => r.rounds.length === 3 && fired(r, 0) >= 1 && fired(r, 1) >= 1 && fired(r, 2) >= 1, { feed: 3, beam: 3, moves: 10, atLeast: 3 }), 600);
   await setUp(page, seed, found);
   await hidePointer(page);
-  await page.waitForTimeout(500);
   await still(page, "engines", "three-before", { region: await region(page) });
   await clip(page, "engines", "three", async () => {
-    await drop(page, found.last, found.log.length + 1, 1.4);
+    await drop(page, found.last, found.log.length + 1);
     await same(page, put(found.before, found.last));
-  }, { tailMs: 1500, region: await region(page) });
+  }, { leadMs: 150, tailMs: 1500, region: await region(page) });
 });

@@ -58,6 +58,9 @@ function lines(s: BattleState, grapple: boolean): Line[] {
   const her = chooseRaiderPlan(s, s.rng).plan;
   const out: Line[] = [];
   for (const moves of enumerateBattlePlans(s.ships[0].tokens, cfg.segments)) {
+    // Courses that hold only after their last move. Today's board throws while it previews a hold
+    // plotted ahead of a move (its ghost list is left with a hole), so a capture cannot plot one.
+    if (moves.some((m, i) => m === null && moves.slice(i + 1).some((later) => later !== null))) continue;
     const trace = resolveBattleTurn(s.board, cfg, s.ships, [{ segments: bare(moves), grapple }, her]).trace;
     let loads = s.ships[0].loaded;
     const segments: BattleSegment[] = [];

@@ -203,7 +203,7 @@ test("overload: a streak at pace", async ({ page }) => {
     for (const cell of found) {
       s = await tapCell(page, s, cell);
       await landed(page, s);
-      await page.waitForTimeout(250);
+      await page.waitForTimeout(150);
     }
-  }, { leadMs: 700, tailMs: 1600, region: await region(page) });
+  }, { leadMs: 500, tailMs: 1300, region: await region(page) });
 });

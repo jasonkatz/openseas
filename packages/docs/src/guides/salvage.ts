@@ -134,7 +134,7 @@ export const salvage: Guide = {
           media: {
             kind: "still",
             name: "three-adrift",
-            alt: "A field with three loot crates adrift at once, spread across different columns, none of them on the floor.",
+            alt: "A field with three loot crates adrift at once in the middle rows, none of them on the floor, and a coupler in the top row.",
             caption: `Three adrift: ${net(3)} in one net, before the streak. Netted one at a time they would be ${3 * net(1)}.`,
           },
         },

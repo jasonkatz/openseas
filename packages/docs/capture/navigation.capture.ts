@@ -3,12 +3,14 @@ import { loadContent } from "@openseas/content";
 import { createNavigationGame, navigationMarkerFilled, reduceNavigation, type Marker, type NavigationState } from "@openseas/engine";
 import { boardString, canvasAttr, canvasBox, clip, findSeed, hidePointer, openLab, settled, still, tapAt, type Box } from "./lib.js";
 
-const cfg = loadContent().puzzles.navigation.config;
+/** A long fall, so a busy machine never lets a star land before the capture brings it down. */
+const SLOW = { fallTicks: 150, fallTicksMin: 150 };
+const cfg = { ...loadContent().puzzles.navigation.config, ...SLOW };
 const O = cfg.octants;
 
 /**
- * Stars fall on the engine's clock, so a capture slows the lab clock to a quarter and brings every
- * star down by hand before it lands by itself. The chart is then a pure function of the turns and
+ * Stars fall on the engine's clock, so a capture slows the lab clock to a quarter, lengthens the
+ * fall, and brings every star down by hand before it lands by itself. The chart is then a pure function of the turns and
  * drops (the fall's length is all a tick changes), and Node can play the same line ahead of the page.
  */
 const SPEED = 0.25;
@@ -69,14 +71,14 @@ async function play(page: Page, from: NavigationState, acts: readonly Act[], pau
     s = step(s, a);
     await act(page, a);
     await expect.poll(() => boardString(page, "navigation"), { timeout: 10_000 }).toBe(view(s));
-    await settled(page, "navigation", 1500);
+    await settled(page, "navigation", 700);
     if (pauseMs) await page.waitForTimeout(pauseMs);
   }
   return s;
 }
 
 async function open(page: Page, seed: string): Promise<NavigationState> {
-  await openLab(page, "navigation", { seed, speed: SPEED });
+  await openLab(page, "navigation", { seed, speed: SPEED, config: SLOW });
   const s = deal(seed);
   expect(await boardString(page, "navigation")).toBe(view(s));
   return s;
