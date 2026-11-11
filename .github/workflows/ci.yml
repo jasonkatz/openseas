@@ -49,14 +49,15 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/openseas_test
 
   smoke:
-    # The game and the harness each build and run their Playwright smoke. The harness smoke drives
-    # every board, so a board change is proven there (ADR 0019); the game's smoke covers its shell.
+    # The game, the harness and the guides each build and run their Playwright smoke. The harness
+    # smoke drives every board, so a board change is proven there (ADR 0019); the game's smoke
+    # covers its shell; the guides' smoke opens every guide and checks its pictures load (ADR 0038).
     name: Build and Playwright smoke
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        app: [client, harness]
+        app: [client, harness, docs]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

@@ -17,6 +17,8 @@ written in.
 - `docs/prototypes/` holds the prototype puzzles (ADR 0036): eight new puzzles on the harness, none in
   the game yet. Its README says what a prototype is made of and the rules it keeps; each puzzle has
   a design file there that changes in the same commit as its rules or numbers.
+- `packages/docs/README.md` says how a puzzle guide is written and how its pictures are captured
+  (ADR 0038).
 
 ## Non-negotiable rules
 
@@ -40,9 +42,10 @@ TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `protocol` (Zod schemas)
 `boards` (the PixiJS boards, round runner and server connection both front ends share, ADR 0019),
 `server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `harness` (the puzzle test
 bench at test.openseas.online: the practice pages plus lab rounds, inspector and replay review, and the voyage bench
-for ships and crews, ADR 0027).
-Postgres. Railway for server and database, Vercel for the game and the harness as two projects.
-Vitest with property-based determinism tests on engines, Playwright smoke on both front ends.
+for ships and crews, ADR 0027), `docs` (the puzzle guides: a static site with one guide per puzzle, its
+pictures captured from the real boards on the harness, ADR 0038).
+Postgres. Railway for server and database, Vercel for the game, the harness and the guides as three projects.
+Vitest with property-based determinism tests on engines, Playwright smoke on all three front ends.
 
 ## Workflow
 
@@ -57,3 +60,6 @@ Vitest with property-based determinism tests on engines, Playwright smoke on bot
 - A board change is proven in the harness: its smoke drives every board and must stay green. The
   harness is never linked from the game. `boards` is presentation and transport only: nothing in it
   may compute a score, and a lab round may never run on a config the server would refuse.
+- Every puzzle has a guide in `docs`. A change to a puzzle's rules, scoring or controls re-reads its
+  guide in the same PR; a change to how its board looks re-runs its capture
+  (`pnpm --filter @openseas/docs capture <id>`). A guide types no tuned number: it reads `content`.

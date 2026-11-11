@@ -59,6 +59,7 @@ game is at openseas.online.
 | `packages/server` | Node 22, `ws`, Drizzle, Better Auth. The only authority. |
 | `packages/boards` | What both front ends render with: the PixiJS boards and their art and sound, the round runner, the tick clock, the server connection (ADR 0019). Renders; never authoritative. |
 | `packages/client` | The game, one graphical experience: the three.js world with the boards over it (ADR 0020). Vite, React. Renders; never authoritative. |
+| `packages/docs` | The puzzle guides: a static site with one guide per puzzle, from first round to expert play. Its screenshots and clips are captured from the real boards on the harness (`pnpm capture:docs`). |
 | `packages/harness` | The puzzle test harness: one page per engine around the shared boards, plus the bench (lab rounds, scenarios as links, inspector, replay review). A developer and tester tool, never linked from the game. |
 
 ## Run it
@@ -70,6 +71,7 @@ pnpm install
 cp .env.example .env            # defaults work for local dev
 pnpm dev                        # starts Postgres, the server on :8080, the game on :5173, the harness on :5174
 pnpm dev:harness                # or just the server and the harness
+pnpm dev:docs                   # the puzzle guides on :5175 (no server needed)
 ```
 
 Open http://localhost:5174 for the harness (http://localhost:5173 is the game). You get a guest

@@ -833,6 +833,26 @@ What holds for all eight:
 - **Each owns its files**, so a puzzle is promoted or dropped without touching the others.
 - **Promotion is its own decision:** a role in the game, an ADR, a milestone.
 
+### 3.13 Puzzle guides
+
+A separate site (ADR 0038, `packages/docs`) with one guide per puzzle, the game's seven and the
+eight prototypes alike. It is where a player learns a puzzle properly; the start card in the game
+stays a few lines.
+
+- **One shape for every guide.** What the puzzle is in the world and what it does for the ship,
+  the rules a first round needs, the controls for touch and for mouse and keys, how it scores,
+  then **getting good**: four rungs (beginner, intermediate, advanced, expert), each a goal, two
+  to four tips and one thing to practise, and last the common mistakes. One rung shows at a time.
+  A guide is one sitting; a test holds each to a budget.
+- **True by construction where it can be.** Numbers are read from `content`, never typed.
+  Screenshots and clips are captured from the real boards by a script that plays lab rounds on
+  the harness, on seeds it finds with the engine, so a picture shows a position the game deals and
+  a move it allows. A guide's strategy is prose and is re-read when its puzzle's rules change.
+- **Prototypes are marked as prototypes**, and their guides say what the puzzle is trying out
+  instead of what it does for the ship, since none has a role yet (3.12).
+- **Not linked yet.** The site stands alone. Where the game points a player at a guide (a station's
+  start card, the result card) is decided when it is wanted.
+
 ## 4. Architecture
 
 Rationale lives in the ADRs. This section states what is decided.
@@ -850,6 +870,8 @@ pnpm monorepo. Packages:
 | `boards` | What both applications render with: the PixiJS boards and their art and sound, the round runner that streams move logs, the tick clock, the server connection, the shared stylesheet (ADR 0019) | Presentation and transport only; computes nothing the server does not recompute; no pages or routes |
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
 | `harness` | The puzzle test harness (section 3.11): the practice frame per engine around the shared boards, plus the bench: lab rounds, scenarios, inspector, replay review; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
+
+| `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the harness, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
 Prototype puzzles (3.12, ADR 0036) live in the same packages, each in files of its own: an engine
 folder, a protocol file, a content file and message file, a board folder built on `boards/src/kit`,
@@ -887,7 +909,8 @@ guests and account linking to Discord and Google.
 ### 4.6 Hosting and operations
 
 - Server and Postgres on Railway, deployed from `main`.
-- Client as a static build on Vercel, deployed from `main`.
+- Client as a static build on Vercel, deployed from `main`. The harness and the puzzle guides are
+  static builds on Vercel too, each its own project (ADR 0019, ADR 0038).
 - Merging is releasing. After CI is green on `main`, one Actions pipeline deploys the server to
   Railway, waits for it to be healthy on the new commit, then deploys the client to Vercel
   (ADR 0014, `docs/DEPLOY.md`).
@@ -1054,8 +1077,8 @@ pirates walk an open rock bareheaded, which is the tone, not a fault.
   and client.
 - Claude works on branches and opens PRs. CI on GitHub Actions runs typecheck, Vitest, and
   Playwright smoke tests: the harness's per-puzzle smoke (which drives every board, and the bench's
-  lab, review and clock paths, and the voyage bench), and a smoke of the game's shell, from the chart to a board and back
-  once M3 lands. The owner reviews and merges.
+  lab, review and clock paths, and the voyage bench), a smoke of the game's shell, from the chart to a board and back
+  once M3 lands, and a smoke of the puzzle guides (every guide renders and its pictures load). The owner reviews and merges.
 - Private repository through the placeholder-art phase. Open-sourcing and license are decided
   when art direction lands.
 

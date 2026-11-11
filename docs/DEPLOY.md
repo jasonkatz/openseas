@@ -212,6 +212,29 @@ GitHub; the pipeline deploys it.
    harness CI" --project <harness project id>`). The harness jobs use `VERCEL_HARNESS_TOKEN` when
    it is set and `VERCEL_TOKEN` otherwise, and say so when the token cannot see the project.
 
+### 2c. Vercel: puzzle guides
+
+The guides (ADR 0038) are a third Vercel project on the same team, rooted in `packages/docs`. The
+site is static: it has no environment variables, talks to no server, and needs no entry in
+`CLIENT_ORIGINS`. Until this project exists the Deploy workflow skips the guides with a warning
+and everything else deploys as before.
+
+1. Create the project: dashboard → **Add New → Project → no repository**, name `openseas-docs`,
+   or `vercel project add openseas-docs --scope <team-slug>`.
+2. Project → **Settings → General**: Root Directory **`packages/docs`**, Framework Preset
+   **Vite**, Node.js version **22.x**. `packages/docs/vercel.json` sets the build command, the
+   output directory and the SPA rewrite.
+3. **Settings → Domains**: add the domain the guides should answer on (for example
+   `guides.openseas.online`), with a record at the registrar as for the harness (step 2b.4).
+4. **Settings → Deployment Protection**: Standard Protection, so the production domain opens
+   without a Vercel login.
+5. Note the project id; it is `VERCEL_DOCS_PROJECT_ID` in step 3. Set `PRODUCTION_DOCS_URL` to
+   the domain from step 3 so the pipeline can check the deploy.
+6. The token: as for the harness (step 2b.7). A team-scoped `VERCEL_TOKEN` covers this project;
+   otherwise add `VERCEL_DOCS_TOKEN` scoped to it.
+
+Pull requests get no preview of the guides; CI builds the site and runs its smoke.
+
 ### 3. GitHub: secrets and variables
 
 Repo → **Settings → Secrets and variables → Actions**. Use repository scope for the Vercel and
@@ -236,6 +259,9 @@ required reviewers there later.
 | Variable | `PRODUCTION_SERVER_URL` | `https://<railway domain>` |
 | Variable | `PRODUCTION_CLIENT_URL` | `https://<vercel production domain>` of the game |
 | Variable | `PRODUCTION_HARNESS_URL` | `https://test.openseas.online` |
+| Secret | `VERCEL_DOCS_TOKEN` | optional; a token scoped to the guides project, when `VERCEL_TOKEN` is not team-scoped (step 2c.6) |
+| Variable | `VERCEL_DOCS_PROJECT_ID` | the guides project's id (step 2c.5); unset means the guides are not deployed |
+| Variable | `PRODUCTION_DOCS_URL` | the guides' production URL (step 2c.3) |
 
 The URL variables are what let the pipeline wait for the server before deploying the front ends
 and confirm each side serves the merged commit. Without them it deploys blind and warns.

@@ -3,9 +3,10 @@ name: Deploy
 # Continuous deployment from main (ADR 0014). Runs after CI succeeds on main, or by hand.
 # Order is deliberate: the server goes first and must serve the new commit on /health before the
 # two front ends are built and deployed against it. The game (client) and the puzzle harness
-# (ADR 0019) are separate Vercel projects and deploy in parallel after the server. Each side is
-# skipped when nothing under it changed, unless forced from the manual trigger. Setup and secrets:
-# docs/DEPLOY.md.
+# (ADR 0019) are separate Vercel projects and deploy in parallel after the server. The puzzle
+# guides (ADR 0038) are a third, a static site that needs no server and waits for none. Each side
+# is skipped when nothing under it changed, unless forced from the manual trigger. Setup and
+# secrets: docs/DEPLOY.md.
 
 on:
   workflow_run:
@@ -26,6 +27,10 @@ on:
         description: Deploy the puzzle harness even if nothing under it changed
         type: boolean
         default: false
+      docs:
+        description: Deploy the puzzle guides even if nothing under them changed
+        type: boolean
+        default: false
 
 # Deploys queue behind each other and never cancel one in flight.
 concurrency:
@@ -44,6 +49,7 @@ jobs:
       server: ${{ steps.changed.outputs.server }}
       client: ${{ steps.changed.outputs.client }}
       harness: ${{ steps.changed.outputs.harness }}
+      docs: ${{ steps.changed.outputs.docs }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,8 +60,10 @@ jobs:
           FORCE_SERVER: ${{ inputs.server == true }}
           FORCE_CLIENT: ${{ inputs.client == true }}
           FORCE_HARNESS: ${{ inputs.harness == true }}
+          FORCE_DOCS: ${{ inputs.docs == true }}
+          DOCS_PROJECT: ${{ vars.VERCEL_DOCS_PROJECT_ID }}
         run: |
-          server=false; client=false; harness=false
+          server=false; client=false; harness=false; docs=false
           shared="packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json .github/workflows/deploy.yml .github/scripts"
           if [ "$FORCE_SERVER" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/server $shared railpack.json; then
             server=true
@@ -66,10 +74,20 @@ jobs:
           if [ "$FORCE_HARNESS" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/harness packages/boards $shared; then
             harness=true
           fi
+          # The guides read content and the engine's puzzle list; they share no code with the boards.
+          if [ "$FORCE_DOCS" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/docs packages/engine packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json .github/workflows/deploy.yml .github/scripts; then
+            docs=true
+          fi
+          # Until the guides have a Vercel project (docs/DEPLOY.md, step 2c) there is nowhere to deploy them.
+          if [ "$docs" = true ] && [ -z "$DOCS_PROJECT" ]; then
+            echo "::warning::Variable VERCEL_DOCS_PROJECT_ID is not set: the puzzle guides have no Vercel project yet and are not deployed. See docs/DEPLOY.md, step 2c."
+            docs=false
+          fi
+          echo "docs=$docs" >> "$GITHUB_OUTPUT"
           echo "server=$server" >> "$GITHUB_OUTPUT"
           echo "client=$client" >> "$GITHUB_OUTPUT"
           echo "harness=$harness" >> "$GITHUB_OUTPUT"
-          echo "commit $SHA: server=$server client=$client harness=$harness"
+          echo "commit $SHA: server=$server client=$client harness=$harness docs=$docs"
 
   server:
     name: Server to Railway
@@ -252,3 +270,73 @@ jobs:
         run: |
           if [ -z "$SERVER_URL" ] || [ -z "$HARNESS_URL" ]; then exit 0; fi
           .github/scripts/check-origin.sh "$SERVER_URL" "$HARNESS_URL" "the harness"
+
+  docs:
+    name: Guides to Vercel
+    needs: plan
+    if: needs.plan.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      # A token that can see the guides' project: VERCEL_DOCS_TOKEN if set (scoped to that
+      # project), else VERCEL_TOKEN (which must then be scoped to the team).
+      VERCEL_TOKEN: ${{ secrets.VERCEL_DOCS_TOKEN || secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      # The guides are their own Vercel project, rooted in packages/docs (docs/DEPLOY.md, step 2c).
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_DOCS_PROJECT_ID }}
+      DOCS_URL: ${{ vars.PRODUCTION_DOCS_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: npm install -g vercel
+      - name: Check configuration
+        run: |
+          ok=true
+          [ -n "$VERCEL_TOKEN" ] || { echo "::error::Secret VERCEL_TOKEN is not set. See docs/DEPLOY.md, step 2."; ok=false; }
+          [ -n "$VERCEL_ORG_ID" ] || { echo "::error::Variable VERCEL_ORG_ID is not set. See docs/DEPLOY.md, step 2."; ok=false; }
+          $ok
+      - name: Pull production settings and env
+        run: |
+          set -o pipefail
+          if ! vercel pull --yes --environment=production --token "$VERCEL_TOKEN" 2>&1 | tee pull.log; then
+            grep -q "Project not found" pull.log && echo "::error::The Vercel token cannot see the guides' project (prj id in VERCEL_DOCS_PROJECT_ID). Add a secret VERCEL_DOCS_TOKEN scoped to that project, or make VERCEL_TOKEN a team-scoped token. See docs/DEPLOY.md, step 2c."
+            exit 1
+          fi
+      - name: Build
+        env:
+          COMMIT_SHA: ${{ env.SHA }}
+        # The project's Root Directory is packages/docs, so the build runs there and reads
+        # packages/docs/vercel.json; the output lands in .vercel/output at the repo root.
+        run: |
+          vercel build --prod --token "$VERCEL_TOKEN"
+          test -d .vercel/output || { echo "::error::vercel build produced no .vercel/output; is the guides project's Root Directory packages/docs? See docs/DEPLOY.md, step 2c."; exit 1; }
+      - name: Deploy
+        run: |
+          set -o pipefail
+          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN" \
+            --meta githubCommitSha="$SHA" \
+            --meta githubCommitRef=main \
+            --meta githubCommitOrg="${GITHUB_REPOSITORY_OWNER}" \
+            --meta githubCommitRepo="${GITHUB_REPOSITORY#*/}" \
+            | tee deploy-url.txt
+          echo "Guides deployed: $(tail -n1 deploy-url.txt) (commit $SHA)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Wait until the guides serve this commit
+        run: |
+          if [ -z "$DOCS_URL" ]; then
+            echo "::warning::Variable PRODUCTION_DOCS_URL is not set; skipping the post-deploy checks."
+            exit 0
+          fi
+          .github/scripts/wait-for-commit.sh "$DOCS_URL/version.json" "$SHA" 300
+      - name: Deep links open
+        # Every guide is a deep link; without the SPA rewrite from packages/docs/vercel.json it would 404.
+        run: |
+          if [ -z "$DOCS_URL" ]; then exit 0; fi
+          status="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$DOCS_URL/cooling")"
+          if [ "$status" = 200 ]; then echo "deep links open ($status)"; else echo "::error::$DOCS_URL/cooling returned HTTP $status; the SPA rewrite is not in effect. Check that the project's Root Directory is packages/docs so its vercel.json is read. See docs/DEPLOY.md, step 2c."; exit 1; fi
