@@ -20,7 +20,7 @@ import {
   type Pose,
   type Side,
 } from "@openseas/engine";
-import { canvasAttr, canvasBox, clip, findSeed, hidePointer, openLab, still, tapAt, type Box } from "./lib.js";
+import { canvasAttr, canvasBox, clip, findSeed, hidePointer, openLab, still, type Box } from "./lib.js";
 
 const cfg: BattleConfig = loadContent().puzzles.battle.config;
 const SIDES: readonly Side[] = ["port", "starboard"];
@@ -160,16 +160,6 @@ async function prelude(page: Page, turns: readonly Turn[]): Promise<void> {
   }
 }
 
-/** Tap one of the plot strip's buttons, where the renderer says it sits. */
-async function tap(page: Page, id: string): Promise<void> {
-  const box = await canvasBox(page, "battle");
-  await expect.poll(async () => (await canvasAttr(page, "battle", "data-buttons")).split(";").some((e) => e.startsWith(`${id}=`))).toBe(true);
-  const entry = (await canvasAttr(page, "battle", "data-buttons")).split(";").find((e) => e.startsWith(`${id}=`))!;
-  const [x, y, w, h] = entry.slice(id.length + 1).split(",").map(Number) as [number, number, number, number];
-  await tapAt(page, box.x + x + w / 2, box.y + y + h / 2, 110);
-  await page.waitForTimeout(260);
-}
-
 /** The chart and the hulls above it, without the plot strip. */
 async function chart(page: Page): Promise<Box> {
   const box = await canvasBox(page, "battle");
@@ -205,13 +195,15 @@ test("battle: plotting a turn", async ({ page }) => {
     return t.hitsTaken === 0 && t.damageTaken === 0 && !t.events.some((e) => e.type === "move" && e.blocked) ? after : null;
   });
   await openLab(page, "battle", { seed, ...LAB });
+  // Plotted by key, a beat apart: pointer moves over this canvas stall a busy machine's frames.
+  await hidePointer(page);
   await clip(page, "battle", "plot", async () => {
-    await tap(page, "token:forward");
-    await tap(page, "token:forward");
-    await tap(page, "token:left");
-    await tap(page, "fire:2:starboard");
-    await page.waitForTimeout(500);
-    await tap(page, "fly");
+    for (const key of ["w", "w", "a", "e"]) {
+      await page.keyboard.press(key);
+      await page.waitForTimeout(400);
+    }
+    await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", JSON.stringify(plan));
+    await page.keyboard.press("Enter");
     await flown(page, found);
   }, { tailMs: 600 });
 });
@@ -259,38 +251,6 @@ test("battle: a broadside laid where she will be", async ({ page }) => {
   }, { tailMs: 500, region: await chart(page) });
 });
 
-test("battle: a free move", async ({ page }) => {
-  // No token flown: a current or a well moves the ship while she holds, and her broadside lands.
-  const { seed, found } = findSeed("battle-free", (s) => {
-    let g = deal(s);
-    const before: Turn[] = [];
-    for (let n = 0; n < 3; n++) {
-      for (const l of lines(g, false)) {
-        if (l.plan.segments.some((seg) => seg.move) || l.hits < 1 || l.hits !== l.shots || l.hitsTaken !== 0 || l.damageTaken !== 0 || l.outcome) continue;
-        const carried = l.events.find((e) => (e.type === "push" || e.type === "spin") && e.ship === 0 && (e.type === "spin" || e.blocked === null));
-        const hit = l.events.find((e) => e.type === "shot" && e.ship === 0 && e.hit);
-        // The hit comes from where the drift left her: from where she started, that side would not have borne.
-        if (carried && hit && hit.type === "shot" && hit.seg >= carried.seg && !bears(g, g.ships[0], l.ships[1], hit.side)) return { before, shot: turn(g, l) };
-      }
-      const next = best(g);
-      if (next.outcome || next.damageTaken > cfg.shotDamage) return null;
-      before.push(turn(g, next));
-      g = before[before.length - 1]!.after;
-    }
-    return null;
-  });
-  await openLab(page, "battle", { seed, ...LAB });
-  await hidePointer(page);
-  await prelude(page, found.before);
-  await plot(page, found.shot.plan);
-  await page.waitForTimeout(400);
-  await clip(page, "battle", "free-move", async () => {
-    await page.waitForTimeout(700);
-    await page.keyboard.press("Enter");
-    await flown(page, found.shot.after);
-  }, { tailMs: 500, region: await chart(page) });
-});
-
 test("battle: the hit and the grapple in one move", async ({ page }) => {
   // She is not yet hurt enough to board. One move ends alongside, its broadside takes her past
   // half hull, and the grapple goes over before the next move.
@@ -316,6 +276,9 @@ test("battle: the hit and the grapple in one move", async ({ page }) => {
   await prelude(page, found.before);
   await plot(page, found.kill.plan);
   await page.waitForTimeout(400);
+  // The harness lays its result card over the board the moment the fight ends. Keep it off the
+  // picture, so the clip shows the board playing the last turn out.
+  await page.addStyleTag({ content: ".board-veil,[data-testid=result]{display:none!important}" });
   await clip(page, "battle", "board-her", async () => {
     await page.waitForTimeout(700);
     await page.keyboard.press("Enter");

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { loadContent } from "@openseas/content";
 import { createNavigationGame, navigationMarkerFilled, reduceNavigation, type Marker, type NavigationState } from "@openseas/engine";
-import { boardString, canvasAttr, canvasBox, clip, findSeed, hidePointer, openLab, settled, still, tapAt, type Box } from "./lib.js";
+import { boardString, canvasAttr, canvasBox, clip, findSeed, glide, hidePointer, openLab, settled, still, type Box } from "./lib.js";
 
 /** A long fall, so a busy machine never lets a star land before the capture brings it down. */
 const SLOW = { fallTicks: 150, fallTicksMin: 150 };
@@ -52,24 +52,32 @@ async function region(page: Page): Promise<Box> {
 }
 
 /** Do one thing on the page as a player would: tap a ring's right side to turn it clockwise, its left side to turn it back, the center to bring the star down. */
-async function act(page: Page, a: Act): Promise<void> {
-  const g = await geom(page);
+async function act(page: Page, g: Geom, a: Act): Promise<void> {
   if (a.t === "drop") {
-    await tapAt(page, g.cx, g.cy);
+    await tap(page, g.cx, g.cy);
     return;
   }
   const inner = g.R * 0.15;
   const band = (g.R * 0.94 - inner) / cfg.rings;
   const r = inner + (a.ring + 0.5) * band;
-  await tapAt(page, g.cx + a.dir * r * Math.cos(0.5), g.cy + r * Math.sin(0.5));
+  await tap(page, g.cx + a.dir * r * Math.cos(0.5), g.cy + r * Math.sin(0.5));
+}
+
+/** A quick tap: a short glide, so a line of turns reads as one motion. */
+async function tap(page: Page, x: number, y: number): Promise<void> {
+  await glide(page, x, y, 110);
+  await page.mouse.down();
+  await page.waitForTimeout(70);
+  await page.mouse.up();
 }
 
 /** Play a line on the page, checking after every step that the page's chart is the one Node planned. */
 async function play(page: Page, from: NavigationState, acts: readonly Act[], pauseMs = 0): Promise<NavigationState> {
   let s = from;
+  const g = await geom(page);
   for (const a of acts) {
     s = step(s, a);
-    await act(page, a);
+    await act(page, g, a);
     await expect.poll(() => boardString(page, "navigation"), { timeout: 10_000, intervals: [40] }).toBe(view(s));
     // Inside a clip a short beat is enough; a setup waits for the chart to come to rest.
     if (pauseMs) await page.waitForTimeout(pauseMs);

@@ -5,13 +5,12 @@ import {
   createSwordfightGame,
   reduceSwordfight,
   swordfightApplyDrop,
+  swordfightBoardString,
   swordfightColHeight,
   swordfightLegalDrops,
-  swordfightPairAt,
   swordfightSpawnCol,
   type Slab,
   type SwordBoard,
-  type SwordCell,
   type SwordRotation,
   type SwordfightConfig,
   type SwordfightDropResult,
@@ -132,6 +131,20 @@ function firstAttack(seed: string): { tick: number; scrap: number } | null {
 
 // ---- the page
 
+/**
+ * Every round here is opened with its clock stopped and stepped a tick at a time (the bench's own
+ * step button). A drop is then made at a tick this file chose, so Node plays the same fight ahead of
+ * the page, raider and all, and each drop is checked against it. It also keeps a slow machine honest:
+ * with the clock running, a frame that takes longer than a tick can lose a drop's landing.
+ */
+interface Fight {
+  page: Page;
+  c: SwordfightConfig;
+  /** The fight as Node has played it so far. */
+  st: SwordfightState;
+  g: Geom;
+}
+
 interface Geom {
   cell: number;
   /** The well's top-left corner, in page pixels. */
@@ -161,8 +174,12 @@ async function geom(page: Page): Promise<Geom> {
   return { cell, x: box.x + ox, y: box.y + oy, region: { x: box.x + left, y: box.y, width: right - left, height: box.height } };
 }
 
+async function open(page: Page, seed: string, c: SwordfightConfig): Promise<Fight> {
+  await openLab(page, "swordfight", { seed, paused: true, ...(c === quiet ? { config: { foes: ASLEEP } } : {}) });
+  return { page, c, st: createSwordfightGame(seed, c), g: await geom(page) };
+}
+
 const hudNumber = async (page: Page, id: string): Promise<number> => Number.parseInt((await page.getByTestId(id).textContent()) ?? "0", 10);
-const drops = (page: Page): Promise<number> => hudNumber(page, "hud-moves");
 
 /** The fight's tick, from the bench's clock. */
 async function tickNow(page: Page): Promise<number> {
@@ -170,15 +187,18 @@ async function tickNow(page: Page): Promise<number> {
   return m ? Number(m[1]) : 0;
 }
 
-/** The falling pair as the canvas publishes it: its pivot's column and its rotation. Null between pairs. */
-async function falling(page: Page): Promise<{ pc: number; rot: SwordRotation } | null> {
-  const [pc, rot] = (await canvasAttr(page, "swordfight", "data-falling")).split(",").map(Number);
-  return pc === undefined || rot === undefined || Number.isNaN(rot) ? null : { pc, rot: rot as SwordRotation };
+/** Step the stopped clock up to a tick. The button is clicked in the page, so the pointer stays where the hand left it. */
+async function stepTo(page: Page, tick: number): Promise<void> {
+  for (let n = 0; n < 2000 && (await tickNow(page)) < tick; n++) {
+    await page.getByTestId("clock-step").evaluate((el) => (el as HTMLButtonElement).click());
+    await page.waitForTimeout(20);
+  }
 }
 
-async function pairInHand(page: Page): Promise<{ pc: number; rot: SwordRotation }> {
-  await expect.poll(() => falling(page), { timeout: 15_000 }).not.toBeNull();
-  return (await falling(page))!;
+/** The falling pair as the canvas publishes it: its pivot's column, its rotation and its row. Null between pairs. */
+async function falling(page: Page): Promise<{ pc: number; rot: SwordRotation; row: number } | null> {
+  const [pc, rot, row] = (await canvasAttr(page, "swordfight", "data-falling")).split(",").map(Number);
+  return pc === undefined || rot === undefined || row === undefined || Number.isNaN(rot) ? null : { pc, rot: rot as SwordRotation, row };
 }
 
 /** The renderer steers the pivot half; the engine's anchor is the left column of a pair lying down. */
@@ -188,116 +208,99 @@ const TURNS: readonly SwordRotation[] = [1, 0, 3, 2];
 
 /** Steer and turn the pair with the keyboard until it hangs over the drop. */
 async function steer(page: Page, d: Drop): Promise<void> {
-  // A key does nothing while the last pair is still landing, so this asks again until the pair is there.
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
-    const f = await pairInHand(page);
+    const f = await falling(page);
+    if (!f) {
+      await page.waitForTimeout(50);
+      continue;
+    }
     if (f.rot === d.rot && f.pc === pivotOf(d)) return;
     if (f.rot !== d.rot) await page.keyboard.press((TURNS.indexOf(d.rot) - TURNS.indexOf(f.rot) + 4) % 4 === 3 ? "ArrowDown" : "ArrowUp");
     else await page.keyboard.press(f.pc < pivotOf(d) ? "ArrowRight" : "ArrowLeft");
-    await page.waitForTimeout(50);
+    await page.waitForTimeout(40);
   }
   throw new Error(`could not steer to ${d.col},${d.rot}`);
 }
 
-/** Hold the hurry key until the engine has taken the pair. */
-async function hurry(page: Page): Promise<void> {
-  const before = await drops(page);
-  await page.keyboard.down(" ");
-  await expect.poll(() => drops(page), { timeout: 30_000 }).toBeGreaterThan(before);
-  await page.keyboard.up(" ");
+/** Wait, in the page, for the engine to take the pair: the drop count goes up. */
+async function taken(page: Page, before: number): Promise<void> {
+  await page.waitForFunction((n) => Number.parseInt(document.querySelector('[data-testid="hud-moves"]')?.textContent ?? "0", 10) > n, before, { polling: 50, timeout: 30_000 });
 }
 
-/** One drop by keyboard. */
-async function put(page: Page, d: Drop): Promise<void> {
-  await steer(page, d);
-  await hurry(page);
-}
-
-/** Swipe down on the board and hold until the pair lands: the touch way to hurry. */
-async function hurryByHand(page: Page, g: Geom): Promise<void> {
-  const before = await drops(page);
-  const x = g.x + g.cell * (W / 2);
-  const y = g.y + g.cell * (H - 6);
-  await glide(page, x, y);
-  await page.mouse.down();
-  await glide(page, x, y + g.cell * 1.6, 160);
-  await expect.poll(() => drops(page), { timeout: 30_000 }).toBeGreaterThan(before);
-  await page.mouse.up();
-}
-
-/** One drop as a thumb makes it: tap to turn, drag sideways to steer, swipe down and hold to hurry. */
-async function putByHand(page: Page, d: Drop, g: Geom): Promise<void> {
-  const y = g.y + g.cell * (H - 6);
-  let f = await pairInHand(page);
-  const turns = (TURNS.indexOf(d.rot) - TURNS.indexOf(f.rot) + 4) % 4;
+/** Tap to turn, drag sideways to steer: what a thumb does before it lets the pair go. */
+async function steerByHand(f: Fight, d: Drop): Promise<void> {
+  const { page, g } = f;
+  const y = g.y + g.cell * (H - 7);
+  let now = (await falling(page))!;
+  const turns = (TURNS.indexOf(d.rot) - TURNS.indexOf(now.rot) + 4) % 4;
   for (let n = 0; n < turns; n++) {
     await tapAt(page, g.x + g.cell * (W / 2), y);
-    await page.waitForTimeout(160);
+    await page.waitForTimeout(220);
   }
-  f = await pairInHand(page);
-  const dx = pivotOf(d) - f.pc;
+  now = (await falling(page))!;
+  const dx = pivotOf(d) - now.pc;
   if (dx !== 0) {
     const x = g.x + g.cell * (W / 2 - dx / 2);
-    await glide(page, x, y);
+    await glide(page, x, y, 160);
     await page.mouse.down();
-    await page.waitForTimeout(90);
-    await glide(page, x + dx * g.cell, y, 320);
-    await page.waitForTimeout(90);
+    await page.waitForTimeout(120);
+    await glide(page, x + dx * g.cell, y, 380);
+    await page.waitForTimeout(120);
     await page.mouse.up();
-    await page.waitForTimeout(160);
+    await page.waitForTimeout(200);
   }
   // A turn against a wall kicks the pair sideways: the keys put right whatever the hand left.
   await steer(page, d);
-  await hurryByHand(page, g);
 }
 
-/** Play the builder's drops by keyboard and let the board land. */
-async function playLog(page: Page, log: readonly Drop[]): Promise<void> {
-  for (const d of log) await put(page, d);
-  await settled(page, "swordfight", 4000);
-  await page.waitForTimeout(400);
+/** Swipe down on the board and hold until the pair lands: the touch way to hurry. */
+async function hurryByHand(f: Fight): Promise<void> {
+  const { page, g } = f;
+  const before = await hudNumber(page, "hud-moves");
+  const x = g.x + g.cell * (W / 2);
+  const y = g.y + g.cell * (H - 7);
+  await glide(page, x, y, 160);
+  await page.mouse.down();
+  await glide(page, x, y + g.cell * 1.6, 200);
+  await taken(page, before);
+  await page.mouse.up();
 }
 
 /**
- * Play the builder's drops against the content raider so the last lands a few seconds before the
- * tick the raider's first attack arrives: each waits for its share of the time, then hurries.
- * Nothing breaks, so nothing is sent and the raider's fight is the one Node played alone.
+ * One drop, at a tick: by keyboard, or with the pointer as a thumb makes it. Node makes the same
+ * drop, and the page's board must then be Node's.
  */
-async function playUntil(page: Page, log: readonly Drop[], attackTick: number): Promise<void> {
-  for (let i = 0; i < log.length; i++) {
-    await steer(page, log[i]!);
-    const gate = Math.floor(((attackTick - LEAD_TICKS) * (i + 1)) / log.length) - 3;
-    await expect.poll(() => tickNow(page), { timeout: 90_000, intervals: [100] }).toBeGreaterThanOrEqual(gate);
-    await hurry(page);
+async function drop(f: Fight, d: Drop, opts: { tick?: number; hand?: boolean } = {}): Promise<void> {
+  const { page } = f;
+  const tick = opts.tick ?? Math.max(f.st.tick, f.st.boards[0]!.spawnedAt) + f.c.dropTicks;
+  await stepTo(page, tick);
+  await expect.poll(() => falling(page), { timeout: 15_000 }).not.toBeNull();
+  if (opts.hand) {
+    await steerByHand(f, d);
+    await hurryByHand(f);
+  } else {
+    await steer(page, d);
+    const before = await hudNumber(page, "hud-moves");
+    await page.keyboard.down(" ");
+    await taken(page, before);
+    await page.keyboard.up(" ");
   }
-}
-/** The builder is done this long before the attack, and each of its drops has at least `PACE_TICKS`. */
-const LEAD_TICKS = 16;
-const PACE_TICKS = 12;
-
-/** The board the page publishes, as cells the engine can drop on. Scrap keeps its secret, and slabs are loose blocks. */
-function cellsOf(board: string): Array<SwordCell | null> {
-  const cells = new Array<SwordCell | null>(W * H).fill(null);
-  for (let i = 0; i < board.length; i++) {
-    const ch = board[i]!;
-    if (ch === ".") continue;
-    const at = (H - 1 - Math.floor(i / W)) * W + (i % W);
-    if (ch === "#") cells[at] = { id: i + 1, color: 0, kind: "scrap", ripen: 99, slab: 0 };
-    else if (ch >= "A") cells[at] = { id: i + 1, color: ch.charCodeAt(0) - 65, kind: "breaker", ripen: 0, slab: 0 };
-    else cells[at] = { id: i + 1, color: Number(ch), kind: "block", ripen: 0, slab: 0 };
-  }
-  return cells;
+  f.st = reduceSwordfight(f.st, { type: "place", col: d.col, rot: d.rot, tick });
+  await expect.poll(() => boardString(page, "swordfight"), { timeout: 10_000 }).toBe(swordfightBoardString(f.c, f.st.boards[0]!.cells));
 }
 
-/** A drop that breaks nothing on the board as the page shows it, for the pair the fight's stream deals next. */
-async function quietDrop(page: Page, seed: string): Promise<Drop> {
-  const s = createSwordfightGame(seed, cfg);
-  const n = await drops(page);
-  const board: SwordBoard = { ...s.boards[0]!, cells: cellsOf(await boardString(page, "swordfight")), current: swordfightPairAt(cfg, s.deal, n) };
-  const d = builderDrop(cfg, board);
-  if (!d) throw new Error("every drop breaks");
-  return d;
+/** Let the board finish drawing what the last drop did. */
+async function rest(page: Page, ms = 300): Promise<void> {
+  await settled(page, "swordfight", 6000);
+  await page.waitForTimeout(ms);
+}
+
+/** Play the builder's drops by keyboard, two ticks apart. */
+async function playLog(f: Fight, log: readonly Drop[]): Promise<void> {
+  for (const d of log) await drop(f, d);
+  await rest(f.page, 500);
+  await f.page.mouse.move(f.g.x + f.g.cell * (W / 2), f.g.y + f.g.cell * (H - 7));
 }
 
 // ---- the pictures
@@ -317,13 +320,12 @@ test("swordfight: a first break", async ({ page }) => {
       3,
     ),
   );
-  await openLab(page, "swordfight", { seed, config: { foes: ASLEEP } });
-  const g = await geom(page);
-  await playLog(page, found.log);
+  const f = await open(page, seed, quiet);
+  await playLog(f, found.log);
   await clip(page, "swordfight", "first-break", async () => {
-    await putByHand(page, found.hit, g);
-    await settled(page, "swordfight", 4000);
-  }, { tailMs: 1300, region: g.region });
+    await drop(f, found.hit, { hand: true });
+    await rest(page);
+  }, { tailMs: 1300, region: f.g.region });
 });
 
 test("swordfight: a slab fuses and grows", async ({ page }) => {
@@ -335,16 +337,14 @@ test("swordfight: a slab fuses and grows", async ({ page }) => {
     const grow = tries(quiet, made.boards[0]!).find((t) => t.r.points === 0 && t.r.slabs.length === 1 && t.r.slabs[0]!.w * t.r.slabs[0]!.h === 6);
     return grow ? { ...line, grow } : null;
   });
-  await openLab(page, "swordfight", { seed, config: { foes: ASLEEP } });
-  const g = await geom(page);
-  await playLog(page, found.log);
+  const f = await open(page, seed, quiet);
+  await playLog(f, found.log);
   await clip(page, "swordfight", "slab", async () => {
-    await putByHand(page, found.hit, g);
-    await settled(page, "swordfight", 4000);
-    await page.waitForTimeout(500);
-    await putByHand(page, found.grow, g);
-    await settled(page, "swordfight", 4000);
-  }, { tailMs: 1300, region: g.region });
+    await drop(f, found.hit, { hand: true });
+    await rest(page, 500);
+    await drop(f, found.grow, { hand: true });
+    await rest(page);
+  }, { tailMs: 1300, region: f.g.region });
 });
 
 test("swordfight: a big slab shatters", async ({ page }) => {
@@ -355,13 +355,14 @@ test("swordfight: a big slab shatters", async ({ page }) => {
       return b.length === 1 && b[0]!.groups.length === 1 && slabBlocks(st.boards[0]!, b[0]!.groups[0]!.cells) >= 8;
     }),
   );
-  await openLab(page, "swordfight", { seed, config: { foes: ASLEEP } });
-  const g = await geom(page);
-  await playLog(page, found.log);
+  const f = await open(page, seed, quiet);
+  await playLog(f, found.log);
   await clip(page, "swordfight", "big-break", async () => {
-    await putByHand(page, found.hit, g);
-    await settled(page, "swordfight", 5000);
-  }, { tailMs: 2600, region: g.region });
+    await drop(f, found.hit, { hand: true });
+    await rest(page);
+    // The scrap it made waits over the raider's board. Time lands it.
+    await stepTo(page, f.st.tick + quiet.landAfterTicks + 1);
+  }, { tailMs: 2200, region: f.g.region });
 });
 
 test("swordfight: a chain", async ({ page }) => {
@@ -372,56 +373,55 @@ test("swordfight: a chain", async ({ page }) => {
       return b.length === 2 && b[0]!.groups.length === 1 && b[1]!.groups.length === 1 && b[0]!.groups[0]!.cells.length >= 3 && slabBlocks(st.boards[0]!, b[1]!.groups[0]!.cells) >= 6;
     }),
   );
-  await openLab(page, "swordfight", { seed, config: { foes: ASLEEP } });
-  const g = await geom(page);
-  await playLog(page, found.log);
-  await still(page, "swordfight", "chain-before", { region: g.region });
+  const f = await open(page, seed, quiet);
+  await playLog(f, found.log);
   await clip(page, "swordfight", "chain", async () => {
-    await putByHand(page, found.hit, g);
-    await settled(page, "swordfight", 6000);
-  }, { tailMs: 2600, region: g.region });
+    await drop(f, found.hit, { hand: true });
+    await rest(page);
+  }, { leadMs: 1200, tailMs: 2400, region: f.g.region });
 });
 
 test("swordfight: scrap lands and ripens, and the board", async ({ page }) => {
-  // The content raider. Its first attack is a big one and comes late enough for the builder to have
-  // a slab down. The builder's drops send nothing, so the raider plays the fight Node saw.
+  // The content raider. The builder has a slab down when the raider's first attack comes, and it is
+  // a big one. It lands with the next drop, shows its colors after one more and ripens after two.
+  const after = cfg.ripenMoves + 1;
   const { seed, found } = findSeed("sword-scrap", (s) => {
     const hit = firstAttack(s);
-    if (!hit || hit.scrap < 8 || hit.tick < 150 || hit.tick > 260) return null;
-    const count = Math.min(9, Math.floor((hit.tick - LEAD_TICKS) / PACE_TICKS));
-    let st = createSwordfightGame(s, quiet);
+    if (!hit || hit.scrap < 8 || hit.tick < 40) return null;
+    let st = createSwordfightGame(s, cfg);
     const log: Drop[] = [];
-    for (let n = 0; n < count; n++) {
-      const d = builderDrop(quiet, st.boards[0]!);
+    for (let n = 0; n < 9 + after; n++) {
+      const tick = n < 9 ? (n + 1) * cfg.dropTicks : hit.tick + (n - 8) * cfg.dropTicks;
+      if (n < 9 && tick >= hit.tick) return null;
+      const d = builderDrop(cfg, st.boards[0]!);
       if (!d) return null;
       log.push({ col: d.col, rot: d.rot });
-      st = reduceSwordfight(st, { type: "place", col: d.col, rot: d.rot, tick: st.tick + quiet.dropTicks });
+      st = reduceSwordfight(st, { type: "place", col: d.col, rot: d.rot, tick });
+      const b = st.boards[0]!;
+      if (b.out) return null;
+      // Built before the attack: a slab and a breaker waiting. Landed with the first drop after it: all of it, as scrap.
+      if (n === 8 && !(b.slabs.some((x: Slab) => x.w * x.h >= 6) && breakers(b) >= 1 && b.pending.length === 0)) return null;
+      if (n === 9 && b.cells.filter((c) => c?.kind === "scrap").length !== hit.scrap) return null;
     }
-    const b = st.boards[0]!;
-    return b.slabs.some((x: Slab) => x.w * x.h >= 6) && breakers(b) >= 1 ? { log, tick: hit.tick } : null;
+    // Ripe at the end, and the raider sent nothing more in between.
+    return st.boards[0]!.cells.every((c) => c?.kind !== "scrap") && st.boards[0]!.pending.length === 0 ? { log, tick: hit.tick } : null;
   });
-  await openLab(page, "swordfight", { seed });
-  const g = await geom(page);
-  await playUntil(page, found.log, found.tick);
+  const f = await open(page, seed, cfg);
+  await playLog(f, found.log.slice(0, 9));
   await hidePointer(page);
+  const rest9 = found.log.slice(9);
   await clip(page, "swordfight", "scrap", async () => {
     // The count over the board is the attack waiting. It lands with the next drop.
-    await expect.poll(() => hudNumber(page, "hud-incoming"), { timeout: 30_000, intervals: [100] }).toBeGreaterThan(0);
-    await page.waitForTimeout(900);
-    await put(page, await quietDrop(page, seed));
-    await expect.poll(() => boardString(page, "swordfight"), { timeout: 10_000 }).toContain("#");
-    await settled(page, "swordfight", 3000);
-    await page.waitForTimeout(700);
-    // One drop later the scrap shows its color.
-    await put(page, await quietDrop(page, seed));
-    await settled(page, "swordfight", 3000);
-    await page.waitForTimeout(500);
-    await still(page, "swordfight", "board", { region: g.region });
-    await page.waitForTimeout(400);
-    // And one more turns it into blocks.
-    await put(page, await quietDrop(page, seed));
-    await settled(page, "swordfight", 3000);
-  }, { tailMs: 1200, region: g.region });
+    await stepTo(page, found.tick);
+    await expect.poll(() => hudNumber(page, "hud-incoming"), { timeout: 10_000, intervals: [100] }).toBeGreaterThan(0);
+    await page.waitForTimeout(1000);
+    for (let n = 0; n < rest9.length; n++) {
+      await drop(f, rest9[n]!, { tick: found.tick + (n + 1) * cfg.dropTicks });
+      await rest(page, 700);
+      // One drop before it ripens the scrap shows its color: the board, for the top of the page.
+      if (n === rest9.length - 2) await still(page, "swordfight", "board", { region: f.g.region });
+    }
+  }, { tailMs: 1200, region: f.g.region });
 });
 
 test("swordfight: a break cancels the attack", async ({ page }) => {
@@ -429,29 +429,27 @@ test("swordfight: a break cancels the attack", async ({ page }) => {
   // the board, the pair in hand shatters enough to cancel all of it.
   const { seed, found } = findSeed("sword-parry", (s) => {
     const hit = firstAttack(s);
-    if (!hit || hit.scrap < 5 || hit.tick < 130 || hit.tick > 260) return null;
-    const most = Math.floor((hit.tick - LEAD_TICKS) / PACE_TICKS);
-    const line = build(quiet, s, most, (t) => broke(t).length === 1 && t.r.points >= hit.scrap * cfg.attackPoints, most);
+    if (!hit || hit.scrap < 5 || hit.tick < 30) return null;
+    const most = Math.min(16, Math.floor(hit.tick / cfg.dropTicks) - 2);
+    const line = build(quiet, s, most, (t) => broke(t).length === 1 && t.r.points >= hit.scrap * cfg.attackPoints, 6);
     if (!line) return null;
     // The same line against the raider itself: the break lands with the attack waiting and cancels it whole.
     let st = createSwordfightGame(s, cfg);
     line.log.forEach((d, i) => {
-      st = reduceSwordfight(st, { type: "place", col: d.col, rot: d.rot, tick: Math.floor(((hit.tick - LEAD_TICKS) * (i + 1)) / line.log.length) });
+      st = reduceSwordfight(st, { type: "place", col: d.col, rot: d.rot, tick: (i + 1) * cfg.dropTicks });
     });
-    st = reduceSwordfight(st, { type: "place", col: line.hit.col, rot: line.hit.rot, tick: hit.tick + 4 });
+    st = reduceSwordfight(st, { type: "place", col: line.hit.col, rot: line.hit.rot, tick: hit.tick + cfg.dropTicks });
     const sent = st.lastMove!.events.find((e) => e.type === "attack" && e.board === 0);
     return sent && sent.type === "attack" && sent.offset === hit.scrap && st.boards[0]!.pending.length === 0 ? { ...line, tick: hit.tick } : null;
   });
-  await openLab(page, "swordfight", { seed });
-  const g = await geom(page);
-  await playUntil(page, found.log, found.tick);
-  await steer(page, found.hit);
+  const f = await open(page, seed, cfg);
+  await playLog(f, found.log);
   await clip(page, "swordfight", "parry", async () => {
-    await expect.poll(() => hudNumber(page, "hud-incoming"), { timeout: 30_000, intervals: [100] }).toBeGreaterThan(0);
-    await page.waitForTimeout(1100);
-    await steer(page, found.hit);
-    await hurryByHand(page, g);
+    await stepTo(page, found.tick);
+    await expect.poll(() => hudNumber(page, "hud-incoming"), { timeout: 10_000, intervals: [100] }).toBeGreaterThan(0);
+    await page.waitForTimeout(1200);
+    await drop(f, found.hit, { tick: found.tick + cfg.dropTicks, hand: true });
     await expect.poll(() => hudNumber(page, "hud-incoming"), { timeout: 5000 }).toBe(0);
-    await settled(page, "swordfight", 5000);
-  }, { tailMs: 2200, region: g.region });
+    await rest(page);
+  }, { tailMs: 2000, region: f.g.region });
 });

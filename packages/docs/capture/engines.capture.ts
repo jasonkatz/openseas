@@ -1,10 +1,14 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import { loadContent } from "@openseas/content";
 import {
   createEnginesGame,
   enginesLandingRow,
   enginesPairCells,
-  enginesRestingPlacements,
   enginesSpawnPosition,
   reduceEngines,
   type EnginesMoveReport,
@@ -140,7 +144,8 @@ function plan(seed: string, want: (r: EnginesMoveReport, before: EnginesState) =
           next.push({ s: node.s, p, log: node.log, v: worth(quiet, feed) });
           continue;
         }
-        if (n < (opts.atLeast ?? 1)) continue;
+        // The last landing is played by hand in the picture: the pair needs room under the entry to be steered in.
+        if (n < (opts.atLeast ?? 1) || enginesLandingRow(node.s, SPAWN.col, H - 1, 0) > H - 10) continue;
         const r = put(node.s, p).lastMove!;
         if (!r.wipe && want(r, node.s)) return { log: node.log, last: p, report: r, before: node.s };
       }
@@ -199,7 +204,7 @@ async function drop(page: Page, p: Place, count: number, turn: "tap" | "keys" = 
   const x = g.ox + (SPAWN.col + 1) * g.cell;
   const y = g.oy + 3 * g.cell;
   // Few, long mouse steps: on a busy machine every step costs time, and the pair is sinking.
-  await page.mouse.move(x, y, { steps: 5 });
+  await page.mouse.move(x, y, { steps: 3 });
   // Turning by key is instant, for a clip that is about what happens after the landing.
   if (turn === "keys") for (let i = 0; i < p.rot; i++) await page.keyboard.press("ArrowUp");
   else for (let i = 0; i < p.rot; i++) {
@@ -211,7 +216,7 @@ async function drop(page: Page, p: Place, count: number, turn: "tap" | "keys" = 
   const to = x + (p.col - SPAWN.col) * g.cell;
   if (p.col !== SPAWN.col) {
     await page.mouse.down();
-    await page.mouse.move(to, y, { steps: 6 });
+    await page.mouse.move(to, y, { steps: 4 });
     await page.waitForTimeout(80);
     await page.mouse.up();
     await page.waitForTimeout(200);
@@ -227,21 +232,60 @@ async function drop(page: Page, p: Place, count: number, turn: "tap" | "keys" = 
 async function dropByKeys(page: Page, p: Place, count: number): Promise<void> {
   for (let i = 0; i < p.rot; i++) await page.keyboard.press("ArrowUp");
   for (let i = 0; i < Math.abs(p.col - SPAWN.col); i++) await page.keyboard.press(p.col < SPAWN.col ? "ArrowLeft" : "ArrowRight");
-  await page.keyboard.down(" ");
-  await expect(moves(page)).toHaveText(String(count), { timeout: 15_000 });
+  // Space again every so often: a key that went down before the board had the pair would hurry nothing.
+  await expect(async () => {
+    await page.keyboard.down(" ");
+    await expect(moves(page)).toHaveText(String(count), { timeout: 400 });
+  }).toPass({ timeout: 20_000 });
   await page.keyboard.up(" ");
+  await frames(page);
 }
 
-/** Open the seed and play a line's setup, checking every landing against the plan. */
-async function setUp(page: Page, seed: string, line: Line): Promise<EnginesState> {
+/** Two frames: the board has taken the new state and holds the next pair. */
+async function frames(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+}
+
+/**
+ * A still taken now and written later. The pair starts to sink the moment the one before it lands,
+ * so the picture of the board before a play is grabbed at once and encoded (as `still` does) after the clip.
+ */
+async function snap(page: Page, name: string, box: Box): Promise<() => void> {
+  const png = await page.screenshot({ clip: box });
+  return () => {
+    const tmp = mkdtempSync(join(tmpdir(), "openseas-snap-"));
+    try {
+      writeFileSync(join(tmp, "snap.png"), png);
+      const out = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "media", "engines", `${name}.webp`);
+      execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-i", join(tmp, "snap.png"), "-vf", "scale='min(840,iw)':-2:flags=lanczos", "-c:v", "libwebp", "-quality", "84", out], { stdio: ["ignore", "ignore", "inherit"] });
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  };
+}
+
+/**
+ * The picture of a line: its setup played by key, the board as it stands (`<name>-before`), then
+ * the last landing by hand as the clip `<name>`. Nothing slow sits between the setup's last landing
+ * and the hand, so the pair is still near the top when it is steered.
+ */
+async function film(page: Page, seed: string, line: Line, name: string, opts: { before?: boolean; turn?: "tap" | "keys"; tailMs?: number } = {}): Promise<void> {
   await openLab(page, "engines", { seed });
+  const box = await region(page);
   let s = deal(seed);
   for (const [i, p] of line.log.entries()) {
+    if (i === line.log.length - 1) await hidePointer(page);
+    if (i === line.log.length - 1) await same(page, s);
     await dropByKeys(page, p, i + 1);
     s = put(s, p);
-    await same(page, s);
   }
-  return s;
+  await page.waitForTimeout(160);
+  const write = opts.before ? await snap(page, `${name}-before`, box) : null;
+  await clip(page, "engines", name, async () => {
+    await drop(page, line.last, line.log.length + 1, opts.turn);
+    await same(page, put(s, line.last));
+  }, { leadMs: 120, tailMs: opts.tailMs ?? 1300, region: box });
+  write?.();
 }
 
 test("engines: the board", async ({ page }) => {
@@ -287,11 +331,7 @@ test("engines: a first injector", async ({ page }) => {
       return !!p && p.rot === 1 && Math.abs(p.col - SPAWN.col) >= 2 && r.rounds.length === 1 && r.rounds[0]!.groups.length === 1 && group?.cause === "injector" && r.landed!.cells.every((c) => group.cells.includes(c));
     }, { moves: 2 }),
   );
-  await setUp(page, seed, found);
-  await clip(page, "engines", "first-injector", async () => {
-    await drop(page, found.last, found.log.length + 1, "tap");
-    await same(page, put(found.before, found.last));
-  }, { leadMs: 200, tailMs: 1200, region: await region(page) });
+  await film(page, seed, found, "first-injector", { turn: "tap", tailMs: 1200 });
 });
 
 test("engines: the spare half chains", async ({ page }) => {
@@ -310,29 +350,11 @@ test("engines: the spare half chains", async ({ page }) => {
       return Math.floor(from / W) - Math.floor(to / W) >= 3 && before.moveCount >= 3;
     }, { moves: 9 }),
   );
-  await setUp(page, seed, found);
-  await hidePointer(page);
-  await still(page, "engines", "chain-before", { region: await region(page) });
-  await clip(page, "engines", "chain", async () => {
-    await drop(page, found.last, found.log.length + 1);
-    await settled(page, "engines");
-    const got = await boardString(page, "engines");
-    for (const q of enginesRestingPlacements(found.before)) if (put(found.before, q).cells.map((c) => c?.kind ?? -1).join(",") === got) console.log("DBG landed", JSON.stringify(q), "wanted", JSON.stringify(found.last));
-    await same(page, put(found.before, found.last));
-  }, { leadMs: 150, tailMs: 1300, region: await region(page) });
+  await film(page, seed, found, "chain", { before: true });
 });
 
 test("engines: three steps from one landing", async ({ page }) => {
   // The expert line: each injector that fires drops a pellet into the next. Three steps, all injectors.
   const { seed, found } = findSeed("eng-three", (s) => plan(s, (r) => r.rounds.length === 3 && fired(r, 0) >= 1 && fired(r, 1) >= 1 && fired(r, 2) >= 1, { feed: 3, beam: 3, moves: 10, atLeast: 3 }), 600);
-  await setUp(page, seed, found);
-  await hidePointer(page);
-  await still(page, "engines", "three-before", { region: await region(page) });
-  await clip(page, "engines", "three", async () => {
-    await drop(page, found.last, found.log.length + 1);
-    await settled(page, "engines");
-    const got = await boardString(page, "engines");
-    for (const q of enginesRestingPlacements(found.before)) if (put(found.before, q).cells.map((c) => c?.kind ?? -1).join(",") === got) console.log("DBG landed", JSON.stringify(q), "wanted", JSON.stringify(found.last));
-    await same(page, put(found.before, found.last));
-  }, { leadMs: 150, tailMs: 1500, region: await region(page) });
+  await film(page, seed, found, "three", { before: true, tailMs: 1500 });
 });

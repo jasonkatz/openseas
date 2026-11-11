@@ -10,12 +10,18 @@ import {
   type DeflectorsState,
   type DeflectorsVolley,
 } from "@openseas/engine";
-import { boardGeom, canvasBox, clip, findSeed, hidePointer, openLab, padded, still, tapAt, type Box } from "./lib.js";
+import { boardGeom, canvasBox, clip, findSeed, hidePointer, openLab, padded, still, type Box } from "./lib.js";
 
 const cfg = loadContent().puzzles.deflectors.config;
 const N = cfg.size;
+/**
+ * A long count for every clip. A capture's own work (a still, a busy machine) can outlast the
+ * content count, and a volley that fires by itself is not the picture. The count changes nothing
+ * about what is dealt or what a route scores.
+ */
+const SLOW = { chargeTicks: 600, chargeTicksMin: 600 };
 /** Two beams a volley from the first one: the harness's own preset. */
-const PAIRS = { rampTicks: 1 };
+const PAIRS = { ...SLOW, rampTicks: 1 };
 const pairCfg: DeflectorsConfig = { ...cfg, ...PAIRS };
 /** The strip over the grid, in cells: the renderer's own layout. */
 const STRIP = 0.8;
@@ -72,15 +78,37 @@ async function region(page: Page): Promise<Box> {
 }
 
 /** Open a lab round and wait for the volley Node planned with. */
-async function openOn(page: Page, seed: string, s: DeflectorsState, config?: Record<string, unknown>): Promise<void> {
+async function openOn(page: Page, seed: string, s: DeflectorsState, config: Record<string, unknown> = SLOW): Promise<void> {
   await openLab(page, "deflectors", { seed, config });
   await expect(page.getByTestId("deflectors-board")).toHaveAttribute("data-board", view(s));
+}
+
+/** Where the pointer was left, so the next tap's travel starts there. */
+let hand: [number, number] = [640, 300];
+
+/**
+ * Move the pointer there over `ms` of real time and press. Each step waits for the page, so the
+ * steps are as many as the machine has time for and the travel is never slower than `ms`.
+ */
+async function tap(page: Page, x: number, y: number, ms = 320): Promise<void> {
+  const [fx, fy] = hand;
+  const t0 = Date.now();
+  for (;;) {
+    const k = Math.min(1, (Date.now() - t0) / ms);
+    const e = 1 - (1 - k) ** 2;
+    await page.mouse.move(fx + (x - fx) * e, fy + (y - fy) * e);
+    if (k >= 1) break;
+  }
+  hand = [x, y];
+  await page.mouse.down();
+  await page.waitForTimeout(80);
+  await page.mouse.up();
 }
 
 /** Tap a mirror, and wait for the board to hold the grid Node expects. */
 async function tapMirror(page: Page, s: DeflectorsState, cell: number): Promise<DeflectorsState> {
   const g = await boardGeom(page, "deflectors");
-  await tapAt(page, g.ox + ((cell % N) + 0.5) * g.cell, g.oy + (Math.floor(cell / N) + 0.5) * g.cell);
+  await tap(page, g.ox + ((cell % N) + 0.5) * g.cell, g.oy + (Math.floor(cell / N) + 0.5) * g.cell);
   const next = flip(s, cell);
   await expect(page.getByTestId("deflectors-board")).toHaveAttribute("data-board", view(next));
   return next;
@@ -92,7 +120,7 @@ async function fire(page: Page, s: DeflectorsState): Promise<void> {
   const port = s.volley!.beams[0]!.entry;
   const at = (port % N) + 0.5;
   const [x, y] = [[at, -0.5], [N + 0.5, at], [at, N + 0.5], [-0.5, at]][Math.floor(port / N)] as [number, number];
-  await tapAt(page, g.ox + x * g.cell, g.oy + y * g.cell);
+  await tap(page, g.ox + x * g.cell, g.oy + y * g.cell);
   await expect(page.getByTestId("hud-moves")).toHaveText("1");
 }
 
@@ -105,7 +133,7 @@ test("deflectors: the board", async ({ page }) => {
     const back = deflectorsTrace(cfg, o.s.mirrors, o.v.beams[0]!.exit);
     return now.bounces >= 3 && back.bounces >= 2 ? o : null;
   });
-  await openOn(page, seed, found.s);
+  await openOn(page, seed, found.s, {});
   await hidePointer(page);
   await page.waitForTimeout(500);
   await still(page, "deflectors", "board", { region: await region(page) });
@@ -125,9 +153,8 @@ test("deflectors: joining the lines", async ({ page }) => {
   });
   await openOn(page, seed, found.s);
   await clip(page, "deflectors", "join", async () => {
-    await page.waitForTimeout(500);
     const s = await tapMirror(page, found.s, found.cell);
-    await page.waitForTimeout(1100);
+    await page.waitForTimeout(900);
     await fire(page, s);
   }, { tailMs: 1500, region: await region(page) });
 });
@@ -149,11 +176,10 @@ test("deflectors: two beams on one grid", async ({ page }) => {
   });
   await openOn(page, seed, found.s, PAIRS);
   await clip(page, "deflectors", "two-beams", async () => {
-    await page.waitForTimeout(600);
     let s = await tapMirror(page, found.s, found.a);
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(800);
     s = await tapMirror(page, s, found.b);
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(800);
     await fire(page, s);
   }, { tailMs: 1500, region: await region(page) });
 });
@@ -176,14 +202,15 @@ test("deflectors: the long way round", async ({ page }) => {
   await openOn(page, seed, found.s);
   let s = await tapMirror(page, found.s, found.first);
   await hidePointer(page);
+  hand = [2, 2];
   await page.waitForTimeout(500);
   await still(page, "deflectors", "strip", { region: await region(page) });
   await clip(page, "deflectors", "long-way", async () => {
     for (const cell of found.rest) {
       s = await tapMirror(page, s, cell);
-      await page.waitForTimeout(650);
+      await page.waitForTimeout(450);
     }
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(500);
     await fire(page, s);
   }, { tailMs: 2200, region: await region(page) });
 });
@@ -203,9 +230,9 @@ test("deflectors: a perfect pair", async ({ page }) => {
     let s = found.s;
     for (const cell of found.flips) {
       s = await tapMirror(page, s, cell);
-      await page.waitForTimeout(600);
+      await page.waitForTimeout(450);
     }
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(500);
     await fire(page, s);
   }, { tailMs: 2200, region: await region(page) });
 });
