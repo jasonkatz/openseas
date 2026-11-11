@@ -1,6 +1,5 @@
-import { useCallback } from "react";
-import { PENTOMINO_LETTERS, platingOrient, summarizePlating, type PlatingConfig, type PlatingMove, type PlatingState, type BreachRating } from "@openseas/engine";
-import { PlatingBoard, TileIcon, content, sfx, t } from "@openseas/boards";
+import { PENTOMINO_LETTERS, platingOrient, summarizePlating, type PlatingConfig, type PlatingMove, type PlatingState } from "@openseas/engine";
+import { PlatingBoard, TileIcon, content, t, usePlatingControls } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -19,28 +18,9 @@ export function PlatingPractice() {
     summarize: summarizePlating,
   });
   const bench = useBench(PLATING, api);
+  const controls = usePlatingControls(api);
   const { state } = api;
   const shown = bench.reviewState ?? state;
-
-  const onPlace = useCallback(
-    (slot: number, rot: number, flip: boolean, col: number, row: number) => {
-      api.apply({ type: "place", slot, rot, flip, col, row });
-    },
-    [api],
-  );
-  const onSealed = useCallback((rating: BreachRating, chain: number) => {
-    sfx.plateLift();
-    if (rating === "flawless") {
-      sfx.clear(Math.min(6, chain), 6);
-      if (chain >= 2) sfx.multi(chain);
-    } else if (rating === "gum") sfx.streakLost();
-    else sfx.clear(1, 3);
-  }, []);
-  const onNailed = useCallback((waste: boolean) => sfx.welder(waste), []);
-  const onGrew = useCallback(() => sfx.crack(true), []);
-  const onCracked = useCallback((opening: boolean) => sfx.crack(!opening), []);
-  const onNudge = useCallback(() => sfx.tick(false), []);
-  const onBump = useCallback(() => sfx.bump(), []);
 
   const metals = plating.pieces.slice(0, shown.config.pieceKinds);
 
@@ -110,14 +90,7 @@ export function PlatingPractice() {
           version={api.version}
           interactive={interactive}
           showMarks={showMarks}
-          onPlace={onPlace}
-          onFrame={api.markRendered}
-          onSealed={onSealed}
-          onNailed={onNailed}
-          onGrew={onGrew}
-          onCracked={onCracked}
-          onNudge={onNudge}
-          onBump={onBump}
+          {...controls}
         />
       )}
     />

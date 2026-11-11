@@ -1,7 +1,7 @@
-import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { BATTLE_DEF, type BattleConfig, type BattleMove, type BattlePlan, type BattleState } from "@openseas/engine";
+import { createContext, createElement, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { BATTLE_DEF, type BattleConfig, type BattleMove, type BattleState } from "@openseas/engine";
 import type { ShipSnapshot } from "@openseas/protocol";
-import { content, sfx, usePirate, useRoundSession, wallClock, type RoundOutcome, type RoundPhase } from "@openseas/boards";
+import { content, sfx, useBattleControls, usePirate, useRoundSession, wallClock, type BattleControls, type RoundOutcome, type RoundPhase } from "@openseas/boards";
 import { useShip } from "../../state/ShipProvider.jsx";
 
 /** Never "dealing": the captain does not ask for the board, the server deals it on engaging. */
@@ -19,10 +19,10 @@ export interface BattleApi {
   outcome: BattleOutcomeView | null;
   /** True when the board was handed back after a reconnect. */
   resumed: boolean;
-  commit(plan: BattlePlan): void;
+  /** The board's handlers and sounds, as the harness proves them. */
+  controls: BattleControls;
   /** The captain has read the outcome: clear the board for the next fight. */
   dismiss(): void;
-  markRendered(): void;
 }
 
 const battle = content.puzzles.battle;
@@ -51,7 +51,8 @@ function useBattle(ship: ShipSnapshot | null): BattleApi {
     over: !inBattle,
     onFinished: () => sfx.end(),
   });
-  const { phase, current } = session;
+  const { phase } = session;
+  const controls = useBattleControls(session);
 
   // The ship's turn clock flies the plot, as in the original: a reading every 100 ms, a commit at zero.
   const nextTurnAt = ship?.nextTurnAt ?? null;
@@ -72,15 +73,6 @@ function useBattle(ship: ShipSnapshot | null): BattleApi {
     return () => window.clearInterval(id);
   }, [phase, nextTurnAt, socket]);
 
-  const commit = useCallback(
-    (plan: BattlePlan) => {
-      const r = current();
-      if (!r || r.isFinished) return;
-      if (r.apply({ type: "commit", ...plan }) !== null) sfx.swap();
-    },
-    [current],
-  );
-
   return {
     phase,
     state: session.state,
@@ -89,9 +81,8 @@ function useBattle(ship: ShipSnapshot | null): BattleApi {
     commitSignal,
     outcome: session.outcome,
     resumed: session.resumed,
-    commit,
+    controls,
     dismiss: session.dismiss,
-    markRendered: session.markRendered,
   };
 }
 

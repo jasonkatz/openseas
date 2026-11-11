@@ -867,7 +867,7 @@ pnpm monorepo. Packages:
 | `protocol` | Zod schemas for every client-server message | Shared by client and server |
 | `content` | World content JSON and its schemas | Validated at server start |
 | `server` | Node 22, `ws`, Drizzle, Better Auth | Owns all authority |
-| `boards` | What both applications render with: the PixiJS boards and their art and sound, the round runner that streams move logs, the tick clock, the server connection, the shared stylesheet (ADR 0019) | Presentation and transport only; computes nothing the server does not recompute; no pages or routes |
+| `boards` | What both applications render with: the PixiJS boards with their art, sound and controls (the handlers a board is given), the round runner that streams move logs, the tick clock, the server connection, the shared stylesheet (ADR 0019) | Presentation and transport only; computes nothing the server does not recompute; no pages or routes |
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
 | `harness` | The puzzle test harness (section 3.11): the practice frame per engine around the shared boards, plus the bench: lab rounds, scenarios, inspector, replay review; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 

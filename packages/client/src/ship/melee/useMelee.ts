@@ -1,7 +1,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { SWORDFIGHT_DEF, advanceSwordfight, swordfightPlaceIllegalReason, type SwordRotation, type SwordfightConfig, type SwordfightMove, type SwordfightState } from "@openseas/engine";
+import { SWORDFIGHT_DEF, advanceSwordfight, type SwordfightConfig, type SwordfightMove, type SwordfightState } from "@openseas/engine";
 import type { MeleeBoardWire, ServerMessage, ShipSnapshot } from "@openseas/protocol";
-import { content, sfx, t, usePirate, useRoundSession, useTicked, type MeleeRemoteBoard, type RoundOutcome, type RoundPhase, type SwordfightPlaceAnswer } from "@openseas/boards";
+import { content, sfx, t, usePirate, useRoundSession, useSwordfightControls, useTicked, type MeleeRemoteBoard, type RoundOutcome, type RoundPhase, type SwordfightControls } from "@openseas/boards";
 import { useShip } from "../../state/ShipProvider.jsx";
 
 export type MeleePhase = RoundPhase;
@@ -14,13 +14,12 @@ export interface MeleeApi {
   /** Every other board in the melee, as the server last described them. */
   others: readonly MeleeRemoteBoard[];
   outcome: MeleeOutcomeView | null;
-  /** The player's pair came to rest: taken, not yet, or never there. */
-  place(col: number, rot: SwordRotation): SwordfightPlaceAnswer;
+  /** The board's handlers and sounds, as the harness proves them. */
+  controls: SwordfightControls;
   /** The pirate yields: their board is lost. */
   yieldFight(): void;
   /** The pirate has read the outcome: clear the board. */
   dismiss(): void;
-  markRendered(): void;
 }
 
 const swordfight = content.puzzles.swordfight;
@@ -62,6 +61,7 @@ function useMelee(ship: ShipSnapshot | null): MeleeApi {
   const { phase, state, ask, cancelAsk, current } = session;
   const ticked = useTicked(session, { tickMs: state.config.tickMs, maxTick: state.config.maxTick, advance: advanceSwordfight, wait: waitAt, waitEveryTicks: 5 });
   const { moveTick } = ticked;
+  const controls = useSwordfightControls(session, moveTick);
 
   useEffect(
     () =>
@@ -107,16 +107,6 @@ function useMelee(ship: ShipSnapshot | null): MeleeApi {
     return () => window.clearTimeout(id);
   }, [phase, cancelAsk]);
 
-  const place = useCallback(
-    (col: number, rot: SwordRotation): SwordfightPlaceAnswer => {
-      const r = current();
-      if (!r || r.isFinished) return "refused";
-      const tick = moveTick();
-      if (r.apply({ type: "place", col, rot, tick }) !== null) return "placed";
-      return swordfightPlaceIllegalReason(r.state, col, rot, tick) === "too soon" ? "wait" : "refused";
-    },
-    [current, moveTick],
-  );
   const yieldFight = useCallback(() => {
     const r = current();
     if (!r || r.isFinished) return;
@@ -128,10 +118,9 @@ function useMelee(ship: ShipSnapshot | null): MeleeApi {
     state: phase === "playing" ? ticked.shown : state,
     others,
     outcome: session.outcome,
-    place,
+    controls,
     yieldFight,
     dismiss: session.dismiss,
-    markRendered: session.markRendered,
   };
 }
 

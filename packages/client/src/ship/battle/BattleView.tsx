@@ -1,7 +1,6 @@
 import { useCallback } from "react";
-import type { BattleEvent } from "@openseas/engine";
 import type { ShipSnapshot } from "@openseas/protocol";
-import { BattleBoard, sfx, t } from "@openseas/boards";
+import { BattleBoard, t } from "@openseas/boards";
 import { tierName } from "../../names.js";
 import { ShipHud } from "../ShipHud.jsx";
 import { useBattleApi } from "./useBattle.js";
@@ -26,20 +25,6 @@ export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
   const fight = ship.location.kind === "in-flight" ? ship.location.battle : null;
   const raider = fight ? tierName(fight.tierId) : t("battle.raider");
   const playing = api.phase === "playing";
-  const onEvents = useCallback((events: readonly BattleEvent[]) => {
-    for (const e of events) {
-      if (e.type === "shot") {
-        sfx.charge();
-        if (e.hit) sfx.clear(e.ship === 0 ? 3 : 1, 4);
-      } else if ((e.type === "move" || e.type === "push") && e.damage > 0) sfx.crack(true);
-      else if (e.type === "grapple") sfx.streak(6);
-      else if (e.type === "ended") {
-        if (e.outcome === "boarded" || e.outcome === "crippled") sfx.streak(12);
-        else if (e.outcome === "boarded_by" || e.outcome === "crippled_by") sfx.alarm();
-      }
-    }
-  }, []);
-  const onNudge = useCallback(() => sfx.tick(false), []);
   return (
     <section className="station-layer battle-layer" data-testid="battle-view" data-phase={api.phase}>
       <header className="station-bar">
@@ -69,10 +54,7 @@ export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
           turnMs={api.turnMs}
           commitSignal={api.commitSignal}
           raiderName={raider}
-          onCommit={api.commit}
-          onFrame={api.markRendered}
-          onEvents={onEvents}
-          onNudge={onNudge}
+          {...api.controls}
         />
         {!playing && (
           <div className="board-veil">

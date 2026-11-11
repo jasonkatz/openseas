@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
-import { summarizeEngines, type Rotation, type EnginesClearRound, type EnginesConfig, type EnginesMove, type EnginesState } from "@openseas/engine";
-import { PelletIcon, EnginesBoard, content, sfx, t } from "@openseas/boards";
+import { summarizeEngines, type EnginesConfig, type EnginesMove, type EnginesState } from "@openseas/engine";
+import { PelletIcon, EnginesBoard, content, t, useEnginesControls } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -36,27 +36,9 @@ export function EnginesPractice() {
     onMove,
   });
   const bench = useBench(ENGINES, api);
+  const controls = useEnginesControls(api);
   const { state } = api;
   const shown = bench.reviewState ?? state;
-
-  const onPlace = useCallback(
-    (col: number, row: number, rot: Rotation) => {
-      api.apply({ type: "place", col, row, rot });
-    },
-    [api],
-  );
-  const onClear = useCallback((r: EnginesClearRound) => {
-    const pieces = r.groups.reduce((n, g) => n + g.ids.length, 0);
-    sfx.clear(r.chain, pieces);
-    if (r.groups.some((g) => g.cause === "injector")) sfx.slag();
-    if (r.groups.length >= 2) sfx.multi(r.groups.length);
-  }, []);
-  const onLanded = useCallback(() => sfx.swapQuiet(), []);
-  const onNudge = useCallback(() => sfx.tick(false), []);
-  const onWipe = useCallback(() => {
-    sfx.alarm();
-    sfx.streakLost();
-  }, []);
 
   const startRound = (start: () => void) => () => {
     cleared.current = { injectors: 0, wipes: 0 };
@@ -132,12 +114,7 @@ export function EnginesPractice() {
           version={api.version}
           interactive={interactive}
           showMarks={showMarks}
-          onPlace={onPlace}
-          onFrame={api.markRendered}
-          onClear={onClear}
-          onLanded={onLanded}
-          onNudge={onNudge}
-          onWipe={onWipe}
+          {...controls}
         />
       )}
     />

@@ -1,18 +1,5 @@
-import { useCallback } from "react";
-import {
-  advanceSwordfight,
-  meleeAttackRate,
-  summarizeSwordfight,
-  swordfightColHeight,
-  swordfightPlaceIllegalReason,
-  swordfightStanding,
-  type SwordRotation,
-  type SwordfightConfig,
-  type SwordfightEvent,
-  type SwordfightMove,
-  type SwordfightState,
-} from "@openseas/engine";
-import { BlockIcon, SwordfightBoard, content, sfx, t, useTicked, type SwordfightPlaceAnswer } from "@openseas/boards";
+import { advanceSwordfight, meleeAttackRate, summarizeSwordfight, swordfightColHeight, swordfightStanding, type SwordfightConfig, type SwordfightMove, type SwordfightState } from "@openseas/engine";
+import { BlockIcon, SwordfightBoard, content, t, useSwordfightControls, useTicked } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -37,58 +24,7 @@ export function SwordfightPractice() {
   const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceSwordfight, wait: waitAt, waitEveryTicks: 5 });
   const shown = bench.reviewState ?? ticked.shown;
   const playing = api.phase === "playing";
-
-  const onPlace = useCallback(
-    (col: number, rot: SwordRotation): SwordfightPlaceAnswer => {
-      const tick = ticked.moveTick();
-      if (api.apply({ type: "place", col, rot, tick })) return "placed";
-      const r = api.current();
-      return r && swordfightPlaceIllegalReason(r.state, col, rot, tick) === "too soon" ? "wait" : "refused";
-    },
-    [api, ticked],
-  );
-  const onNudge = useCallback(() => sfx.tick(false), []);
-  const onEvents = useCallback((events: readonly SwordfightEvent[]) => {
-    for (const e of events) {
-      const mine = e.board === 0;
-      switch (e.type) {
-        case "placed":
-          if (mine) sfx.swapQuiet();
-          break;
-        case "fused":
-          if (mine) sfx.slag();
-          break;
-        case "broke":
-          if (mine) {
-            sfx.clear(e.chain, e.groups.reduce((n, g) => n + g.cells.length, 0));
-            if (e.groups.length >= 2) sfx.multi(e.groups.length);
-          } else sfx.swapQuiet();
-          break;
-        case "ripened":
-          if (mine) sfx.vent(1);
-          break;
-        case "attack":
-          if (mine && e.scrap > 0) sfx.streak(Math.min(12, e.scrap));
-          else if (e.to === 0) sfx.alarm();
-          break;
-        case "landed":
-          if (mine) sfx.crack(true);
-          break;
-        case "out":
-          if (mine) {
-            sfx.alarm();
-            sfx.streakLost();
-          } else sfx.charge();
-          break;
-        case "ended":
-          if (e.outcome === "won") sfx.streak(16);
-          else sfx.streakLost();
-          break;
-        default:
-          break;
-      }
-    }
-  }, []);
+  const controls = useSwordfightControls(api, ticked.moveTick);
 
   const player = shown.boards[0]!;
   const pieces = swordfight.pieces.slice(0, shown.config.colors);
@@ -235,7 +171,7 @@ export function SwordfightPractice() {
       bench={bench.bench}
       reviewBar={bench.reviewBar}
       board={(interactive) => (
-        <SwordfightBoard key={bench.reviewKey ?? "live"} state={shown} interactive={interactive} showMarks={showMarks} onPlace={onPlace} onFrame={api.markRendered} onEvents={onEvents} onNudge={onNudge} />
+        <SwordfightBoard key={bench.reviewKey ?? "live"} state={shown} interactive={interactive} showMarks={showMarks} {...controls} />
       )}
     />
   );

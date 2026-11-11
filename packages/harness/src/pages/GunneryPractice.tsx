@@ -1,6 +1,5 @@
-import { useCallback } from "react";
-import { advanceGunnery, summarizeGunnery, type Dir, type GunneryConfig, type GunneryEvent, type GunneryMove, type GunneryState } from "@openseas/engine";
-import { GunneryBoard, GunneryPieceIcon, content, sfx, t, useTicked } from "@openseas/boards";
+import { advanceGunnery, summarizeGunnery, type GunneryConfig, type GunneryMove, type GunneryState } from "@openseas/engine";
+import { GunneryBoard, GunneryPieceIcon, content, t, useGunneryControls, useTicked } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -24,48 +23,7 @@ export function GunneryPractice() {
   const cfg = api.round?.config ?? gunnery.config;
   const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceGunnery, wait: waitAt });
   const shown = bench.reviewState ?? ticked.shown;
-
-  const onArrow = useCallback(
-    (col: number, row: number, dir: Dir | null) => {
-      const tick = ticked.moveTick();
-      const ok = api.apply(dir === null ? { type: "remove", col, row, tick } : { type: "arrow", col, row, dir, tick });
-      if (ok) sfx.tick(false);
-    },
-    [api, ticked],
-  );
-
-  const onEvents = useCallback((events: readonly GunneryEvent[]) => {
-    for (const e of events) {
-      switch (e.type) {
-        case "load":
-          sfx.swap();
-          break;
-        case "loaded":
-          sfx.clear(Math.min(6, 2 + Math.floor((e.points ?? 0) / 50)), 5);
-          break;
-        case "fire":
-          sfx.charge();
-          break;
-        case "broadside":
-          sfx.streak(12);
-          break;
-        case "jam":
-          sfx.streakLost();
-          break;
-        case "clean":
-          sfx.vent(2);
-          break;
-        case "splash":
-          sfx.vent(1);
-          break;
-        case "exit":
-          sfx.swapQuiet();
-          break;
-        default:
-          break;
-      }
-    }
-  }, []);
+  const controls = useGunneryControls(api, ticked.moveTick);
 
   const pieces = gunnery.pieces;
   const loadsStat = (
@@ -165,7 +123,7 @@ export function GunneryPractice() {
       bench={bench.bench}
       reviewBar={bench.reviewBar}
       board={(interactive) => (
-        <GunneryBoard key={bench.reviewKey ?? "live"} state={shown} interactive={interactive} showMarks={showMarks} onArrow={onArrow} onFrame={api.markRendered} onEvents={onEvents} />
+        <GunneryBoard key={bench.reviewKey ?? "live"} state={shown} interactive={interactive} showMarks={showMarks} {...controls} />
       )}
     />
   );

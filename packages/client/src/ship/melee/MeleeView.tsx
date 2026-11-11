@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import { meleeAttackRate, swordfightStanding, type SwordfightEvent } from "@openseas/engine";
+import { meleeAttackRate, swordfightStanding } from "@openseas/engine";
 import type { ShipSnapshot } from "@openseas/protocol";
-import { SwordfightBoard, sfx, t } from "@openseas/boards";
+import { SwordfightBoard, t } from "@openseas/boards";
 import { tierName } from "../../names.js";
 import { ShipHud } from "../ShipHud.jsx";
 import { useMeleeApi } from "./useMelee.js";
@@ -25,19 +25,6 @@ export function MeleeView({ ship, showMarks, onBack }: MeleeViewProps) {
   }, [api, onBack]);
   const raider = ship.melee ? tierName(ship.melee.tierId) : t("swordfight.title");
   const playing = api.phase === "playing";
-  const onEvents = useCallback((events: readonly SwordfightEvent[]) => {
-    for (const e of events) {
-      const mine = e.board === 0;
-      if (e.type === "broke" && mine) sfx.clear(e.chain, e.groups.reduce((n, g) => n + g.cells.length, 0));
-      else if (e.type === "fused" && mine) sfx.slag();
-      else if (e.type === "attack" && mine && e.scrap > 0) sfx.streak(Math.min(12, e.scrap));
-      else if (e.type === "incoming") sfx.alarm();
-      else if (e.type === "landed" && mine) sfx.crack(true);
-      else if (e.type === "out" && mine) sfx.streakLost();
-      else if (e.type === "ended") (e.outcome === "won" ? sfx.streak(16) : sfx.streakLost());
-    }
-  }, []);
-  const onNudge = useCallback(() => sfx.tick(false), []);
   const mine = api.state.boards[0]!;
   const foesStanding = api.others.filter((b) => b.side === 1 && !b.out).length;
   const foesTotal = api.others.filter((b) => b.side === 1).length;
@@ -65,7 +52,7 @@ export function MeleeView({ ship, showMarks, onBack }: MeleeViewProps) {
         </span>
       </header>
       <div className={`board-wrap ${playing ? "is-playing" : ""}`} data-testid="melee-board-wrap">
-        <SwordfightBoard state={api.state} remote={api.others} interactive={playing} showMarks={showMarks} onPlace={api.place} onFrame={api.markRendered} onEvents={onEvents} onNudge={onNudge} />
+        <SwordfightBoard state={api.state} remote={api.others} interactive={playing} showMarks={showMarks} {...api.controls} />
         {!playing && (
           <div className="board-veil">
             {(api.phase === "idle" || api.phase === "dealing") && (

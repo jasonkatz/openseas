@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import {
   advanceNavigation,
   navigationColorOf,
@@ -7,11 +7,10 @@ import {
   navigationShapeOf,
   summarizeNavigation,
   type NavigationConfig,
-  type NavigationEvent,
   type NavigationMove,
   type NavigationState,
 } from "@openseas/engine";
-import { NavigationBoard, StarIcon, content, sfx, t, useTicked } from "@openseas/boards";
+import { NavigationBoard, StarIcon, content, t, useNavigationControls, useTicked } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -54,37 +53,7 @@ export function NavigationPractice() {
   const cfg = api.round?.config ?? navigation.config;
   const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceNavigation, wait: waitAt });
   const shown = bench.reviewState ?? ticked.shown;
-
-  const onRotate = useCallback((ring: number, dir: -1 | 1): boolean => api.apply({ type: "rotate", ring, dir, tick: ticked.moveTick() }), [api, ticked]);
-  const onDrop = useCallback(() => void api.apply({ type: "drop", tick: ticked.moveTick() }), [api, ticked]);
-  const onNudge = useCallback(() => sfx.tick(false), []);
-  const onEvents = useCallback((events: readonly NavigationEvent[]) => {
-    for (const e of events) {
-      switch (e.type) {
-        case "land":
-          if (e.onMarker) sfx.swap();
-          else sfx.swapQuiet();
-          break;
-        case "lost_heading":
-          sfx.streakLost();
-          sfx.charge();
-          break;
-        case "charted":
-          sfx.clear(e.completion.chain, e.completion.markers.length);
-          if (e.completion.chain >= 3) sfx.streak(e.completion.chain);
-          if (e.completion.efficient) sfx.slag();
-          break;
-        case "run":
-          sfx.multi(e.run.slots.length - 1);
-          break;
-        case "fall":
-          sfx.swapQuiet();
-          break;
-        default:
-          break;
-      }
-    }
-  }, []);
+  const controls = useNavigationControls(api, ticked.moveTick);
 
   const colors = navigation.colors.slice(0, shown.config.colors);
   const shapes = navigation.shapes.slice(0, shown.config.shapes);
@@ -211,11 +180,7 @@ export function NavigationPractice() {
           showMarks={showMarks}
           showMarkers={showMarkers}
           hints={bench.hints}
-          onRotate={onRotate}
-          onDrop={onDrop}
-          onFrame={api.markRendered}
-          onEvents={onEvents}
-          onNudge={onNudge}
+          {...controls}
         />
       )}
     />

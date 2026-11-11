@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BATTLE_PERMILLE, summarizeBattle, type BattleConfig, type BattleEvent, type BattleMove, type BattlePlan, type BattleState } from "@openseas/engine";
-import { BattleBoard, content, sfx, t } from "@openseas/boards";
+import { BATTLE_PERMILLE, summarizeBattle, type BattleConfig, type BattleMove, type BattleState } from "@openseas/engine";
+import { BattleBoard, content, t, useBattleControls } from "@openseas/boards";
 import { useBench } from "../bench/useBench.jsx";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -38,6 +38,7 @@ export function BattlePractice() {
     summarize: summarizeBattle,
   });
   const bench = useBench(BATTLE, api);
+  const controls = useBattleControls(api);
   const { state } = api;
   const cfg = api.round?.config ?? battle.config;
   const shown = bench.reviewState ?? state;
@@ -74,46 +75,6 @@ export function BattlePractice() {
     }, 100);
     return () => window.clearInterval(id);
   }, [playing, now, turnMs]);
-
-  const onCommit = useCallback(
-    (plan: BattlePlan) => {
-      if (api.apply({ type: "commit", ...plan })) sfx.swap();
-    },
-    [api],
-  );
-  const onNudge = useCallback(() => sfx.tick(false), []);
-  const onEvents = useCallback((events: readonly BattleEvent[]) => {
-    for (const e of events) {
-      switch (e.type) {
-        case "move":
-          if (e.damage > 0) sfx.crack(true);
-          else sfx.swapQuiet();
-          break;
-        case "push":
-          sfx.vent(1);
-          break;
-        case "spin":
-          sfx.tick(false);
-          break;
-        case "shot":
-          sfx.charge();
-          if (e.hit) sfx.clear(e.ship === 0 ? 3 : 1, 4);
-          break;
-        case "grapple":
-          sfx.streak(6);
-          break;
-        case "ended":
-          if (e.outcome === "boarded" || e.outcome === "crippled") sfx.streak(12);
-          else if (e.outcome === "boarded_by" || e.outcome === "crippled_by") {
-            sfx.alarm();
-            sfx.streakLost();
-          } else sfx.end();
-          break;
-        default:
-          break;
-      }
-    }
-  }, []);
 
   const me = shown.ships[0];
   const them = shown.ships[1];
@@ -238,10 +199,7 @@ export function BattlePractice() {
           turnMs={turnMs}
           commitSignal={commitSignal}
           raiderName={t("battle.raider")}
-          onCommit={onCommit}
-          onFrame={api.markRendered}
-          onEvents={onEvents}
-          onNudge={onNudge}
+          {...controls}
         />
       )}
     />
