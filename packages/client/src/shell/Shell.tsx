@@ -19,6 +19,7 @@ import { useCrew } from "../state/CrewProvider.jsx";
 import { useSheet } from "../state/SheetProvider.jsx";
 import { useShip } from "../state/ShipProvider.jsx";
 import { useSocial } from "../state/SocialProvider.jsx";
+import { nextPlace, placeFacts, type PlaceFacts } from "../state/nextPlace.js";
 import { usePlace, type Place } from "../state/place.jsx";
 import { useMediaQuery, useShowMarks } from "../state/settings.js";
 import { useToasts } from "../state/toasts.jsx";
@@ -133,82 +134,44 @@ export function Shell() {
     window.history.replaceState(null, "", window.location.pathname);
   }, [pirate, toast]);
 
-  // ---- keep the place honest against the ship: boarding moves in on the deck, disembarking moves out.
-  const wasAboard = useRef(false);
-  useEffect(() => {
-    if (aboard && !wasAboard.current) {
-      if (place.kind !== "station" && place.kind !== "helm") go({ kind: "home" });
-      setSheetOpen(false);
-      sfx.start();
-      toast(t("toast.boarded", { ship: ship!.name }), "good");
-    }
-    if (!aboard && (place.kind === "deck" || place.kind === "station" || place.kind === "helm")) {
-      go({ kind: "home" });
-      setSheetOpen(false);
-      if (wasAboard.current) toast(t("toast.on_outpost", { outpost: outpostName(onOutpostAt) }));
-    }
-    wasAboard.current = aboard;
-  }, [aboard, place.kind, go, toast, ship, onOutpostAt]);
-
-  // A deep link to a station takes it; a station that is not ours anymore closes.
-  useEffect(() => {
-    if (place.kind !== "station" || !ship || !online) return;
-    const holder = ship.crew.find((c) => c.station === place.station);
-    if (holder && holder.pirateId !== me && !holder.bot) {
-      go({ kind: "home" });
-      return;
-    }
-    if ((!holder || holder.bot) && myStation !== place.station) takeStation(place.station);
-  }, [place, ship, online, me, myStation, takeStation, go]);
-
-  // A helm place needs a docked ship and the helm. Once she flies, the captain goes back where they
-  // came to the helm from: a station's board picks up at once, the deck otherwise.
+  // ---- keep the place honest against the ship. Every change is one look: `nextPlace` says where the
+  // pirate should be from the facts now and at the last look, and this performs it. A timed go is
+  // dropped by the next look, whatever it says.
+  /** Where the captain came to the helm from: leaving it goes back there, the deck otherwise. */
   const helmFrom = useRef<StationWire | null>(null);
   const leaveHelm = useCallback(() => {
     const from = helmFrom.current;
     helmFrom.current = null;
     go(from ? { kind: "station", station: from } : { kind: "home" });
   }, [go]);
+  const facts = useMemo(() => placeFacts(ship, me, online, battle.phase, melee.phase), [ship, me, online, battle.phase, melee.phase]);
+  const lastLook = useRef<PlaceFacts | null>(null);
+  // `takeStation` is rebuilt with everything the ship's context holds, the notice board's list
+  // included; the look reads the latest without running again for it, so no beat restarts on a refresh.
+  const take = useRef(takeStation);
+  take.current = takeStation;
   useEffect(() => {
-    if (place.kind === "helm" && ship && (ship.location.kind !== "docked" || !captain)) leaveHelm();
-  }, [place.kind, ship, captain, leaveHelm]);
-
-  // The captain's fight opens the battle board over the deck. Once the fight is over the outcome
-  // stays up until the captain dismisses it; a board with nothing to show closes after a beat.
-  // Anyone else on the battle place is sent back to the deck.
-  const wasFighting = useRef(false);
-  useEffect(() => {
-    if (fight && captain && !atAirlock && !wasFighting.current) go({ kind: "battle" });
-    wasFighting.current = fight !== null && captain && !atAirlock;
-  }, [fight, captain, atAirlock, go]);
-  // A boarding takes everyone to the airlock; the outcome stays up until it is dismissed.
-  const wasAtAirlock = useRef(false);
-  useEffect(() => {
-    if (atAirlock && !wasAtAirlock.current) go({ kind: "melee" });
-    wasAtAirlock.current = atAirlock !== null;
-  }, [atAirlock, go]);
-  const meleePhase = melee.phase;
-  useEffect(() => {
-    if (place.kind !== "melee") return;
-    if (!ship) {
-      go({ kind: "home" });
+    const step = nextPlace(place, lastLook.current, facts, helmFrom.current);
+    lastLook.current = facts;
+    if (step.news === "boarded") {
+      setSheetOpen(false);
+      sfx.start();
+      toast(t("toast.boarded", { ship: ship!.name }), "good");
+    } else if (step.news === "on-outpost") {
+      setSheetOpen(false);
+      toast(t("toast.on_outpost", { outpost: outpostName(onOutpostAt) }));
+    }
+    if (step.take) take.current(step.take);
+    const to = step.go;
+    if (!to) return;
+    if (to.why === "helm-left") helmFrom.current = null;
+    if (to.afterMs === 0) {
+      go(to.place);
       return;
     }
-    if (atAirlock || meleePhase === "result" || meleePhase === "playing") return;
-    const id = window.setTimeout(() => go({ kind: "home" }), 3000);
+    const id = window.setTimeout(() => go(to.place), to.afterMs);
     return () => window.clearTimeout(id);
-  }, [place.kind, ship, atAirlock, meleePhase, go]);
-  const battlePhase = battle.phase;
-  useEffect(() => {
-    if (place.kind !== "battle") return;
-    if (!ship || !captain) {
-      go({ kind: "home" });
-      return;
-    }
-    if ((fight && !atAirlock) || battlePhase === "result") return;
-    const id = window.setTimeout(() => go({ kind: "home" }), 3000);
-    return () => window.clearTimeout(id);
-  }, [place.kind, ship, captain, fight, atAirlock, battlePhase, go]);
+  }, [place, facts, ship, onOutpostAt, go, toast]);
 
   // Rooms and the helm want their card open; arriving anywhere else folds it so the view is clear,
   // except when the pirate stepped back a level in the card, which stays open where they came from.
