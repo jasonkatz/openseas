@@ -27,7 +27,6 @@ export function ReactorBoard(props: ReactorBoardProps) {
         },
         {
           showMarks: props.showMarks,
-          hints: props.hints,
           labels: {
             next: t("reactor.next"),
             hot: t("reactor.hot"),

@@ -17,7 +17,7 @@ import {
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
 import { FONT, INK, drawPanel, drawPips, mix } from "../kit/art.js";
-import { Grid, KitBoard } from "../kit/board.js";
+import { Grid, GridCursor, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
 
 export type ScannerVerb = "ping" | "lock";
@@ -54,8 +54,6 @@ export interface ScannerLabels {
 
 export interface ScannerRendererOptions {
   showMarks: boolean;
-  /** Pulse a safe move after a pause. Off for recorded rounds. */
-  hints: boolean;
   labels: ScannerLabels;
 }
 
@@ -122,20 +120,45 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
   private verb: ScannerVerb = "ping";
   /** The pinged cell whose ring is lit, or null. */
   private selected: number | null = null;
-  /** The keyboard's cell. Drawn once a key has been used. */
-  private cursor = 0;
-  private cursorShown = false;
+  private readonly cursor = new GridCursor(this.grid, this.cursorLayer);
   /** A finger down on a cell: a long press locks. */
   private press: { cell: number; at: number; fired: boolean } | null = null;
   /** True while a cleared sector is still on screen: a tap then would land on a sector the player has not seen. */
   private holding = false;
   /** The state the strip shows: the new sector's only once it is on screen. */
   private stripFor: ScannerState | null = null;
-  private idle = 0;
-  private hint: ScannerHint | null = null;
-  private hintFor: ScannerState | null = null;
-  private hintShown = false;
-  private hints: boolean;
+  /** A safe move pulses after a pause, in rounds that allow hints: brackets where a lock is proven, a diamond where a ping is safe. */
+  private readonly hint = this.idleHint<ScannerHint>({
+    after: HINT_AFTER_MS,
+    layer: this.hintLayer,
+    period: 260,
+    // A finger is down, or a cleared sector is still on screen.
+    held: () => this.press !== null || this.holding,
+    compute: (state) => scannerHint(state),
+    draw: (hint, beat) => {
+      // The same for the smoke test: what the hint is, and on which cell.
+      const attr = `${hint.type}:${hint.cell}`;
+      if (attr !== this.hintAttr) {
+        this.hintAttr = attr;
+        this.app.canvas.setAttribute("data-hint", attr);
+      }
+      const g = this.grid;
+      const x = g.x(hint.cell);
+      const y = g.y(hint.cell);
+      if (hint.type === "lock") {
+        const half = g.cell * (0.4 + 0.05 * beat);
+        if (!this.sprite(this.hintLayer, "lock", x, y, half * 2.1, 0.45 + 0.5 * beat, g.cell * 0.92)) drawBrackets(this.hintLayer, x, y, half, g.cell * 0.16, 3, LOCK, 0.45 + 0.5 * beat);
+      } else {
+        const r = g.cell * (0.3 + 0.06 * beat);
+        this.hintLayer.poly([x, y - r, x + r, y, x, y + r, x - r, y]).stroke({ width: 3, color: PING, alpha: 0.45 + 0.5 * beat, join: "round" });
+      }
+    },
+    hidden: () => {
+      this.hintAttr = "";
+      this.app.canvas.removeAttribute("data-hint");
+    },
+  });
+  private hintAttr = "";
   private dirty = true;
   private ringAttr = "";
 
@@ -145,11 +168,6 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     private readonly opts: ScannerRendererOptions,
   ) {
     super(host, "scanner", cb.onFrame, opts.showMarks);
-    this.hints = opts.hints;
-  }
-
-  override setHints(on: boolean): void {
-    this.hints = on;
   }
 
   protected build(): void {
@@ -203,7 +221,6 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     this.stripHidden?.position.set(g.ox + g.width - 2, stripY);
     for (const t of [this.switchPing, this.switchLock]) if (t) t.style.fontSize = Math.max(13, Math.round(g.cell * 0.34));
     if (this.switchBounty) this.switchBounty.style.fontSize = small;
-    this.cursor = Math.min(this.cursor, n - 1);
     this.press = null;
     this.pulses = [];
     this.holding = false;
@@ -213,7 +230,7 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     if (this.state) this.snap(scannerViewString(this.state), this.state);
     else this.cells = Array.from({ length: n }, () => ({ ch: ".", shade: 0, pop: 1 }));
     this.drawSwitch();
-    this.drawCursor();
+    this.cursor.draw(this.app.canvas);
     this.dirty = true;
   }
 
@@ -377,23 +394,21 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     if (this.verb === verb) return;
     this.verb = verb;
     sfx.swapQuiet();
-    this.idle = 0;
+    this.hint.restart();
     this.drawSwitch();
-    this.drawCursor();
+    this.cursor.draw(this.app.canvas);
   }
 
   // ---- states and moves
 
   protected onState(state: ScannerState, prev: ScannerState | null): void {
-    this.idle = 0;
+    this.hint.restart();
     this.press = null;
     const g = this.grid;
     if (g.cols !== state.config.width || g.rows !== state.config.height) {
       // A different sector size (a lab config): lay it out afresh.
-      g.cols = state.config.width;
-      g.rows = state.config.height;
       this.selected = null;
-      this.layout(this.app.screen.width, this.app.screen.height);
+      this.relayout();
       return;
     }
     const report = state.lastMove;
@@ -640,7 +655,6 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       if (pulse.fade <= 0) this.pulses.splice(i, 1);
     }
     this.drawOverlay();
-    this.updateHint(dt);
   }
 
   /** The lit ring, the pulses in flight, and the brackets closing under a held finger. */
@@ -697,42 +711,6 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     }
   }
 
-  /** A safe move pulses after a pause, in rounds that allow hints: brackets where a lock is proven, a diamond where a ping is safe. */
-  private updateHint(dt: number): void {
-    const state = this.state;
-    const can = this.interactive && this.hints && state !== null && !state.finished && !this.busy && !this.press && !this.holding;
-    this.idle = can ? this.idle + dt : 0;
-    if (!can || state === null || this.idle < HINT_AFTER_MS) {
-      if (this.hintShown) {
-        this.hintShown = false;
-        this.hintLayer.clear();
-        this.app.canvas.removeAttribute("data-hint");
-      }
-      return;
-    }
-    if (this.hintFor !== state) {
-      this.hintFor = state;
-      this.hint = scannerHint(state);
-    }
-    this.hintLayer.clear();
-    if (!this.hint) return;
-    if (!this.hintShown) {
-      this.hintShown = true;
-      this.app.canvas.setAttribute("data-hint", `${this.hint.type}:${this.hint.cell}`);
-    }
-    const g = this.grid;
-    const x = g.x(this.hint.cell);
-    const y = g.y(this.hint.cell);
-    const beat = 0.5 + 0.5 * Math.sin(this.time / 260);
-    if (this.hint.type === "lock") {
-      const half = g.cell * (0.4 + 0.05 * beat);
-      if (!this.sprite(this.hintLayer, "lock", x, y, half * 2.1, 0.45 + 0.5 * beat, g.cell * 0.92)) drawBrackets(this.hintLayer, x, y, half, g.cell * 0.16, 3, LOCK, 0.45 + 0.5 * beat);
-    } else {
-      const r = g.cell * (0.3 + 0.06 * beat);
-      this.hintLayer.poly([x, y - r, x + r, y, x, y + r, x - r, y]).stroke({ width: 3, color: PING, alpha: 0.45 + 0.5 * beat, join: "round" });
-    }
-  }
-
   // ---- input
 
   /** Ping or lock `cell`, if the engine would take it; a cell that already holds a ping lights its ring. */
@@ -741,7 +719,7 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     if (!state || state.finished || !this.interactive) return;
     // A cleared sector is still on screen: a tap now is aimed at cells that are about to change.
     if (this.holding) return;
-    this.idle = 0;
+    this.hint.restart();
     if (scannerPingAt(state, cell) !== null) {
       this.selected = this.selected === cell ? null : cell;
       sfx.pop(this.selected === null ? 0 : 3);
@@ -764,9 +742,9 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     if (inside(lock)) return this.setVerb("lock");
     const at = this.grid.at(x, y);
     if (!at) return;
-    this.cursorShown = false;
-    this.cursor = at.index;
-    this.drawCursor();
+    this.cursor.shown = false;
+    this.cursor.index = at.index;
+    this.cursor.draw(this.app.canvas);
     this.press = { cell: at.index, at: performance.now(), fired: false };
   }
 
@@ -790,35 +768,19 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     this.press = null;
   }
 
-  private drawCursor(): void {
-    const g = this.grid;
-    this.cursorLayer.clear();
-    this.app.canvas.setAttribute("data-cursor", `${this.cursor % g.cols},${Math.floor(this.cursor / g.cols)}`);
-    if (!this.cursorShown) return;
-    const half = g.cell / 2 - 2;
-    this.cursorLayer.roundRect(g.x(this.cursor) - half, g.y(this.cursor) - half, half * 2, half * 2, g.cell * 0.16).stroke({ width: 3, color: INK.white, alpha: 0.9 });
-  }
-
   /** Arrows or WASD move the cursor. Space pings, enter or L locks, X flips the switch, escape puts a lit ring out. */
   override keyboard(key: string): boolean {
     if (!this.interactive || !this.state) return false;
-    const g = this.grid;
     const k = key.length === 1 ? key.toLowerCase() : key;
-    const steps: Record<string, readonly [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], a: [-1, 0], d: [1, 0], w: [0, -1], s: [0, 1] };
-    const step = steps[k];
-    if (step) {
-      const col = (this.cursor % g.cols) + step[0];
-      const row = Math.floor(this.cursor / g.cols) + step[1];
-      this.cursorShown = true;
-      if (col >= 0 && col < g.cols && row >= 0 && row < g.rows) this.cursor = row * g.cols + col;
-      this.idle = 0;
-      this.drawCursor();
+    if (this.cursor.move(k)) {
+      this.hint.restart();
+      this.cursor.draw(this.app.canvas);
       return true;
     }
     if (k === " " || k === "Enter" || k === "l") {
-      this.cursorShown = true;
-      this.drawCursor();
-      this.act(this.cursor, k === " " ? "ping" : "lock");
+      this.cursor.shown = true;
+      this.cursor.draw(this.app.canvas);
+      this.act(this.cursor.index, k === " " ? "ping" : "lock");
       return true;
     }
     if (k === "x") {

@@ -28,7 +28,6 @@ export function TugBoard(props: TugBoardProps) {
         },
         {
           showMarks: props.showMarks,
-          hints: props.hints,
           labels: {
             status: (par, flicks) => t("tug.status", { par, flicks }),
             skip: t("tug.skip"),

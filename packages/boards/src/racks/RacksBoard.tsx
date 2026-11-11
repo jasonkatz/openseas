@@ -28,7 +28,6 @@ export function RacksBoard(props: RacksBoardProps) {
         },
         {
           showMarks: props.showMarks,
-          hints: props.hints,
           labels: {
             lands: (moves) => t(moves === 1 ? "racks.strip_lands_one" : "racks.strip_lands", { moves }),
             noRoom: (moves) => t(moves === 1 ? "racks.strip_no_room_one" : "racks.strip_no_room", { moves }),

@@ -35,7 +35,6 @@ export function DeflectorsBoard(props: DeflectorsBoardProps) {
         },
         {
           showMarks: props.showMarks,
-          hints: props.hints ?? false,
           labels: {
             outlook: (points, best) => t("deflectors.outlook", { points, best }),
             outlookPerfect: (points) => t("deflectors.outlook_perfect", { points }),

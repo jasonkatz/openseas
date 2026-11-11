@@ -84,7 +84,22 @@ These are the project's rules (CLAUDE.md), said for a prototype.
   pointer events and the test attributes. A renderer implements `build` (make display objects),
   `layout` (geometry, redraw from `this.state`), `onState` (show a state; play the last move when it
   follows from what is drawn, snap otherwise) and `view` (what is drawn, as the string
-  `data-board` also holds). `bake` makes a texture once per layout. `Grid` lays out square cells.
+  `data-board` also holds). `bake` makes a texture once per layout. A state that needs another
+  geometry (a lab config of another size) calls `relayout`, as a resize does, never `layout`
+  itself, so no texture baked at the old size survives. `Grid` lays out square cells, and
+  `GridCursor` is the keyboard's cell on one: arrows and WASD (and QEZC diagonally, for Salvage),
+  a step off the grid staying put, the outline once a key is used, `data-cursor` always.
+  The steps every prototype takes are the kit's:
+  - `kindPiece(prefix, kind, size, look)`: a kind's piece as a texture, its atlas frame or the
+    code-drawn piece, with its pips when marks are on, keyed on every size it is drawn at. A board
+    says how big the art and the plate are, and may draw its own fallback (Tug's tray, Cutting's
+    plate).
+  - `idleHint({ after, compute, draw })`: the hint that pulses after a pause. The kit holds it back
+    while input or hints are off, the round is over or a move plays out, asks the engine once a
+    state (or once a `key`), and hands `draw` a beat to pulse by; a board adds its own reasons in
+    `held` and calls `restart` on every input and state. `restart(0)` shows the next one at once
+    (Deflectors, for a player following the hints) and `restart(ms)` sooner (Overload's follow-up
+    to a priming tap). `setHints` is the kit's, and the host hands it on.
   Every core board runs on it too (ADR 0040), and the hooks they needed are there for any board:
   `busy` stays true while a board animates outside the kit's tweens, so `onFrame` and `data-view`
   wait for it; `beforeCanvas` waits for something besides the atlas before the canvas
@@ -121,8 +136,8 @@ swinging back into place, Swordfighting's blocks sliding into their cells), stay
 
 Sprites (ADR 0037): the kit loads the atlas named by the puzzle id. A renderer paints a frame with
 `this.sprite(g, name, x, y, size)`, which returns false when the atlas or the frame is not there, so
-every piece is written `this.sprite(...) || drawPiece(...)`. Frames are named for what the renderer
-asks for (`spriteName("debris", kind)` is `debris-gold`). Keep everything exact in code: marks,
+every other piece is written `this.sprite(...) || drawPiece(...)`; a kind's piece is `kindPiece`.
+Frames are named for what the renderer asks for (`spriteName("debris", kind)` is `debris-gold`). Keep everything exact in code: marks,
 numerals, counts, outlines, hit areas. `sprites/README.md` says how the sheets are packed.
 
 Sounds are `sfx` in `boards/src/audio.ts`; the renderer plays them at the moment the animation

@@ -11,7 +11,9 @@
 import { Application, Container, Graphics, Rectangle, Texture, type FederatedPointerEvent } from "pixi.js";
 import { drawSprite, hasSprite, isSpritePuzzle, loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
 import { boardSurface } from "../surface.js";
+import { INK, drawMark, drawPiece, spriteName } from "./art.js";
 import { Fx } from "./fx.js";
+import { IdleHint, type IdleHintSpec } from "./hint.js";
 import { Tweens } from "./tween.js";
 
 export abstract class KitBoard<S> {
@@ -28,6 +30,8 @@ export abstract class KitBoard<S> {
   protected time = 0;
   private ready = false;
   private destroyed = false;
+  private hintsOn = false;
+  private hinter: IdleHint<S, unknown> | null = null;
   private framePending = false;
   private viewStale = false;
   private readonly baked = new Map<string, Texture>();
@@ -145,8 +149,14 @@ export abstract class KitBoard<S> {
     return false;
   }
 
-  /** Idle hints, on a board that has them. The host hands the page's setting on as it changes. */
-  setHints?(on: boolean): void;
+  /**
+   * Idle hints: on in practice, off in a recorded round. The host hands the page's setting on as it
+   * changes; a board shows them through `idleHint`, and a board with hints of its own overrides this.
+   */
+  setHints(on: boolean): void {
+    this.hintsOn = on;
+  }
+
   /** A key came up, on a board that acts while a key is held (a hurry). Return true when the board used it. The host hands such a board every release. */
   keyUp?(key: string): boolean;
 
@@ -200,6 +210,18 @@ export abstract class KitBoard<S> {
   protected pointerCancel(_pointerId?: number): void {}
   /** The pointer went off the canvas: a board that previews what a hover would do takes the preview down. */
   protected pointerLeave(): void {}
+
+  /**
+   * The board's idle hint: after `spec.after` ms with nothing done, the engine's advice pulses
+   * (`kit/hint.ts`). The kit holds it back while input or hints are off, there is no state, the
+   * round is over or a move is still playing out; the board adds its own reasons in `spec.held`, and
+   * calls `restart` on the handle at every input and every new state. One a board.
+   */
+  protected idleHint<H>(spec: IdleHintSpec<S, H>): IdleHint<S, H> {
+    const hint = new IdleHint(spec);
+    this.hinter = hint as IdleHint<S, unknown>;
+    return hint;
+  }
 
   /**
    * True while the board is still playing a move out. The view is published, and `onFrame` called,
@@ -267,6 +289,28 @@ export abstract class KitBoard<S> {
     return true;
   }
 
+  /**
+   * A kind's piece as a texture `size` pixels square, baked once: the atlas frame
+   * `<prefix>-<kind id>` with its art fitted in `look.art`, or where the sheet has none the kit's
+   * code-drawn piece of radius `look.r` (or the board's own `look.fallback`). With marks on, the
+   * kind's pips tell it apart without color (rule 6): on a plate of radius `look.r` over the frame,
+   * `look.markY` below its middle, and on the face of the code-drawn piece. Every number the drawing
+   * depends on is in the bake key, so a texture baked for another size is never handed out;
+   * `fallback` must draw from the kind, the size and the mark setting alone.
+   */
+  protected kindPiece(prefix: string, kind: number, size: number, look: KindLook = {}): Texture {
+    const art = look.art ?? size * 0.84;
+    const r = look.r ?? size * 0.36;
+    const markY = look.markY ?? 0;
+    const marks = this.showMarks;
+    return this.bake(`kind:${prefix}:${kind}:${size}:${art}:${r}:${markY}:${marks ? 1 : 0}`, size, (g) => {
+      if (this.sprite(g, spriteName(prefix, kind), 0, 0, art)) {
+        if (marks) drawMark(g, kind, 0, markY, r);
+      } else if (look.fallback) look.fallback(g, marks);
+      else drawPiece(g, kind, 0, 0, r, { marks });
+    });
+  }
+
   /** Tell the smoke test where the grid sits on the canvas, in CSS pixels: `data-geom="ox,oy,cell"`. */
   protected publishGeom(ox: number, oy: number, cell: number): void {
     this.app.canvas.setAttribute("data-geom", `${Math.round(ox)},${Math.round(oy)},${Math.round(cell * 100) / 100}`);
@@ -277,7 +321,12 @@ export abstract class KitBoard<S> {
     this.viewStale = true;
   }
 
-  private relayout(): void {
+  /**
+   * Lay the board out afresh at the canvas's size, as a resize does: whatever is playing is
+   * finished, effects are cleared and baked textures dropped before `layout`. A board whose state
+   * needs another geometry (a lab config of another size) calls this, never `layout` itself.
+   */
+  protected relayout(): void {
     if (!this.ready) return;
     this.tweens.flush();
     this.fx.clear();
@@ -293,6 +342,7 @@ export abstract class KitBoard<S> {
     this.tweens.update(dt);
     this.fx.update(dt);
     this.update(dt);
+    if (this.hinter) this.hinter.frame(dt, this.hintable(this.hinter), this.time);
     if (this.busy) return;
     if (this.framePending) {
       this.framePending = false;
@@ -303,6 +353,25 @@ export abstract class KitBoard<S> {
       this.app.canvas.setAttribute("data-view", this.view());
     }
   }
+
+  /** The state an idle hint may show on now, or null. Every engine's state says when its round is over. */
+  private hintable(hint: IdleHint<S, unknown>): S | null {
+    const s = this.state;
+    if (!this.interactive || !this.hintsOn || s === null || (s as { finished?: unknown }).finished === true) return null;
+    return hint.whileBusy || !this.busy ? s : null;
+  }
+}
+
+/** How a board sizes a kind's piece in `kindPiece`, in pixels, round the middle of its texture. */
+export interface KindLook {
+  /** The square the atlas frame's art is fitted in. */
+  art?: number;
+  /** The radius of the code-drawn piece and of the plate the pips sit on over a frame. */
+  r?: number;
+  /** How far below the middle the plate sits over a frame (negative is up). */
+  markY?: number;
+  /** The board's own code-drawn piece, for a kind the sheet has no frame of; it draws the pips itself when `marks` is true. */
+  fallback?: (g: Graphics, marks: boolean) => void;
 }
 
 /** A frame is 192 pixels and its art is fitted in the middle 176 (`sprites/README.md`). */
@@ -363,5 +432,59 @@ export class Grid {
     const row = Math.floor((py - this.oy) / this.cell);
     if (col < 0 || col >= this.cols || row < 0 || row >= this.rows) return null;
     return { col, row, index: row * this.cols + col };
+  }
+}
+
+/** Arrows and WASD step a cursor one cell; Q, E, Z and C step it diagonally on a board that allows it. */
+const STEPS: Readonly<Record<string, readonly [number, number]>> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], a: [-1, 0], d: [1, 0], w: [0, -1], s: [0, 1] };
+const DIAGONALS: Readonly<Record<string, readonly [number, number]>> = { q: [-1, -1], e: [1, -1], z: [-1, 1], c: [1, 1] };
+
+/**
+ * The keyboard's cell on a `Grid`, drawn in a layer of its own. A step that would leave the grid
+ * stays put. The cursor shows, as an outline round its cell, once a key has used it, and a pointer
+ * hides it again; shown or not, the canvas says where it is as `data-cursor="col,row"`.
+ */
+export class GridCursor {
+  /** The cell, as an index into the grid. */
+  index = 0;
+  /** True once a key has used it, until the pointer is used. */
+  shown = false;
+
+  /** @param diagonals Q, E, Z and C step diagonally too. */
+  constructor(
+    private readonly grid: Grid,
+    private readonly layer: Graphics,
+    private readonly diagonals = false,
+  ) {}
+
+  /** The cell `key` steps to from the cursor, or null when the key is no step. A step off the grid gives the cursor's own cell. */
+  target(key: string): number | null {
+    const k = key.length === 1 ? key.toLowerCase() : key;
+    const step = STEPS[k] ?? (this.diagonals ? DIAGONALS[k] : undefined);
+    if (!step) return null;
+    const g = this.grid;
+    const col = (this.index % g.cols) + step[0];
+    const row = Math.floor(this.index / g.cols) + step[1];
+    return col >= 0 && col < g.cols && row >= 0 && row < g.rows ? row * g.cols + col : this.index;
+  }
+
+  /** Step by `key` and show the cursor. Returns false, having changed nothing, when the key is no step. */
+  move(key: string): boolean {
+    const next = this.target(key);
+    if (next === null) return false;
+    this.index = next;
+    this.shown = true;
+    return true;
+  }
+
+  /** Draw it as it now is, inside the grid as it is laid out, and say where it is on `canvas`. */
+  draw(canvas: HTMLCanvasElement): void {
+    const g = this.grid;
+    this.index = Math.min(this.index, g.cols * g.rows - 1);
+    this.layer.clear();
+    canvas.setAttribute("data-cursor", `${this.index % g.cols},${Math.floor(this.index / g.cols)}`);
+    if (!this.shown) return;
+    const half = g.cell / 2 - 2;
+    this.layer.roundRect(g.x(this.index) - half, g.y(this.index) - half, half * 2, half * 2, g.cell * 0.16).stroke({ width: 3, color: INK.white, alpha: 0.9 });
   }
 }

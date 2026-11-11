@@ -17,7 +17,7 @@ import {
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
 import { FONT, INK, drawMark, drawPanel, drawPiece, drawPips, drawWell, kindStyle, mix, shapePath } from "../kit/art.js";
-import { Grid, KitBoard } from "../kit/board.js";
+import { Grid, GridCursor, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
 
 /**
@@ -56,8 +56,6 @@ export interface DeflectorsLabels {
 
 export interface DeflectorsRendererOptions {
   showMarks: boolean;
-  /** Pulse the next mirror to flip after a pause. Off for recorded rounds. */
-  hints: boolean;
   labels: DeflectorsLabels;
 }
 
@@ -114,16 +112,28 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   private drawn: readonly DeflectorsBeam[] = [];
   /** The engine's word on the waiting volley, kept for as long as the state it was asked of. */
   private told: { state: DeflectorsState; outlook: DeflectorsOutcome | null; back: DeflectorsTrace[]; best: number } | null = null;
-  /** The keyboard's cell. Drawn once a key has been used. */
-  private cursor = 0;
-  private cursorShown = false;
-  private hints: boolean;
-  private idle = 0;
-  /** True while the player is following the hint flip by flip: the next one shows at once. */
-  private hintHot = false;
-  private hint: { volley: number; flips: number; cell: number | null } | null = null;
+  private readonly cursor = new GridCursor(this.grid, this.cursorLayer);
   /** Flips seen, so a hint is asked for once a setting, not once a frame. */
   private flipsSeen = 0;
+  /**
+   * After a pause, in rounds that allow it, the next mirror to flip pulses: the engine's hint. It
+   * shows while a flip turns or a volley flies, since the next flip is chosen meanwhile, and the
+   * player who follows it is shown the next one at once.
+   */
+  private readonly hint = this.idleHint<number>({
+    after: HINT_AFTER_MS,
+    period: 220,
+    whileBusy: true,
+    held: () => !this.state?.volley,
+    key: (state) => `${state.volley?.id}:${this.flipsSeen}`,
+    compute: (state) => deflectorsHint(state)?.cell ?? null,
+    draw: (cell, beat) => {
+      const g = this.grid;
+      const wave = beat * 2 - 1;
+      // Drawn over the volley's marks, which `update` has just drawn afresh.
+      this.markLayer.circle(g.x(cell), g.y(cell), g.cell * (0.44 + 0.03 * wave)).stroke({ width: Math.max(2.5, g.cell * 0.07), color: INK.gold, alpha: 0.5 + 0.4 * wave });
+    },
+  });
   private warned = 0;
 
   constructor(
@@ -132,11 +142,6 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     private readonly opts: DeflectorsRendererOptions,
   ) {
     super(host, "deflectors", cb.onFrame, opts.showMarks);
-    this.hints = opts.hints;
-  }
-
-  override setHints(on: boolean): void {
-    this.hints = on;
   }
 
   /**
@@ -184,10 +189,9 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       this.label.position.set(g.ox + g.width / 2, g.oy - c - c * STRIP * 0.45);
     }
     this.flights.length = 0;
-    this.cursor = Math.min(this.cursor, n * n - 1);
     this.publishGeom(g.ox, g.oy, c);
     if (this.state) this.snapMirrors(this.state);
-    this.drawCursor();
+    this.cursor.draw(this.app.canvas);
   }
 
   /** The centre of a port's socket. Ports run along the top, the right, the bottom, then the left, as the engine numbers them. */
@@ -333,10 +337,8 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       this.lastSeq = state.eventSeq;
       this.flights.length = 0;
       this.appeared = { id: state.volley?.id ?? 0, at: this.time - 1000 };
-      this.idle = 0;
-      this.hintHot = false;
-      this.hint = null;
-      if (this.grid.cols !== state.config.size) this.layout(this.app.screen.width, this.app.screen.height);
+      this.hint.restart();
+      if (this.grid.cols !== state.config.size) this.relayout();
       else this.snapMirrors(state);
       return;
     }
@@ -357,8 +359,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   private playDeal(volley: DeflectorsVolley): void {
     const c = this.grid.cell;
     this.appeared = { id: volley.id, at: this.time };
-    this.idle = 0;
-    this.hintHot = false;
+    this.hint.restart();
     this.warned = 0;
     sfx.power(0.15 + 0.25 * volley.beams.length);
     for (const beam of volley.beams) {
@@ -489,7 +490,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     return Math.max(0, (volley.fireTick - state.tick) * tickMs - into);
   }
 
-  protected override update(dt: number): void {
+  protected override update(): void {
     const state = this.state;
     this.routeLayer.clear();
     this.markLayer.clear();
@@ -499,7 +500,6 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     if (state && volley) this.drawVolley(state, volley);
     this.drawFlights();
     this.setLabel(state);
-    this.updateHint(state, dt);
   }
 
   /** The waiting volley: each beam's route as the mirrors stand, its signs at both ports, and the count. */
@@ -650,27 +650,6 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     this.label.style.fill = color;
   }
 
-  /** After a pause, in rounds that allow it, the next mirror to flip pulses: the engine's hint. */
-  private updateHint(state: DeflectorsState | null, dt: number): void {
-    const volley = state?.volley ?? null;
-    if (!state || !volley || !this.interactive || !this.hints || state.finished) {
-      this.idle = 0;
-      this.hint = null;
-      return;
-    }
-    this.idle += dt;
-    if (this.idle < HINT_AFTER_MS && !this.hintHot) {
-      this.hint = null;
-      return;
-    }
-    if (!this.hint || this.hint.volley !== volley.id || this.hint.flips !== this.flipsSeen) this.hint = { volley: volley.id, flips: this.flipsSeen, cell: deflectorsHint(state)?.cell ?? null };
-    const cell = this.hint.cell;
-    if (cell === null) return;
-    const g = this.grid;
-    const pulse = 0.5 + 0.4 * Math.sin(this.time / 220);
-    this.markLayer.circle(g.x(cell), g.y(cell), g.cell * (0.44 + 0.03 * Math.sin(this.time / 220))).stroke({ width: Math.max(2.5, g.cell * 0.07), color: INK.gold, alpha: pulse });
-  }
-
   // ---- input
 
   private flip(cell: number): void {
@@ -681,8 +660,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       return;
     }
     // Following the hint keeps it coming; a flip of the player's own sends it away until the next pause.
-    this.hintHot = this.hint?.cell === cell;
-    this.idle = 0;
+    this.hint.restart(this.hint.current === cell ? 0 : HINT_AFTER_MS);
     this.cb.onFlip(cell);
   }
 
@@ -696,9 +674,9 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   protected override pointerDown(x: number, y: number): void {
     const at = this.grid.at(x, y);
     if (at) {
-      this.cursor = at.index;
-      this.cursorShown = false;
-      this.drawCursor();
+      this.cursor.index = at.index;
+      this.cursor.shown = false;
+      this.cursor.draw(this.app.canvas);
       this.flip(at.index);
       return;
     }
@@ -707,34 +685,18 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     if (port !== null && this.state?.volley?.beams.some((b) => b.entry === port)) this.fire();
   }
 
-  private drawCursor(): void {
-    const g = this.grid;
-    this.cursorLayer.clear();
-    this.app.canvas.setAttribute("data-cursor", `${this.cursor % g.cols},${Math.floor(this.cursor / g.cols)}`);
-    if (!this.cursorShown) return;
-    const half = g.cell / 2 - 2;
-    this.cursorLayer.roundRect(g.x(this.cursor) - half, g.y(this.cursor) - half, half * 2, half * 2, g.cell * 0.16).stroke({ width: 3, color: INK.white, alpha: 0.9 });
-  }
-
   /** Arrows or WASD move the cursor, space or enter flips the mirror under it, F fires the volley. */
   override keyboard(key: string): boolean {
     if (!this.interactive || !this.state) return false;
-    const g = this.grid;
     const k = key.length === 1 ? key.toLowerCase() : key;
-    const steps: Record<string, readonly [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], a: [-1, 0], d: [1, 0], w: [0, -1], s: [0, 1] };
-    const step = steps[k];
-    if (step) {
-      const col = Math.max(0, Math.min(g.cols - 1, (this.cursor % g.cols) + step[0]));
-      const row = Math.max(0, Math.min(g.rows - 1, Math.floor(this.cursor / g.cols) + step[1]));
-      this.cursor = row * g.cols + col;
-      this.cursorShown = true;
-      this.drawCursor();
+    if (this.cursor.move(k)) {
+      this.cursor.draw(this.app.canvas);
       return true;
     }
     if (k === " " || k === "Enter") {
-      this.cursorShown = true;
-      this.drawCursor();
-      this.flip(this.cursor);
+      this.cursor.shown = true;
+      this.cursor.draw(this.app.canvas);
+      this.flip(this.cursor.index);
       return true;
     }
     if (k === "f") {

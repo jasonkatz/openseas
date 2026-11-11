@@ -14,8 +14,8 @@ import {
   type SalvageState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, INK, drawMark, drawPanel, drawPiece, drawWell, kindStyle, mix, spriteName } from "../kit/art.js";
-import { Grid, KitBoard } from "../kit/board.js";
+import { FONT, INK, drawPanel, drawWell, kindStyle, mix } from "../kit/art.js";
+import { Grid, GridCursor, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
 
 export interface SalvageCallbacks {
@@ -41,8 +41,6 @@ export interface SalvageLabels {
 
 export interface SalvageRendererOptions {
   showMarks: boolean;
-  /** Pulse a line worth drawing after a pause. Off for recorded rounds. */
-  hints: boolean;
   labels: SalvageLabels;
 }
 
@@ -74,13 +72,25 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
   private closed = false;
   private dragging = false;
   private pointer = { x: 0, y: 0 };
-  /** The keyboard's cell. Drawn once a key has been used. */
-  private cursor = 0;
-  private cursorShown = false;
-  private idle = 0;
-  private hint: { cells: number[]; loop: boolean } | null = null;
-  private hintFor: SalvageState | null = null;
-  private hints: boolean;
+  private readonly cursor = new GridCursor(this.grid, this.cursorLayer, true);
+  /** A line worth drawing pulses after a pause, in rounds that allow hints. */
+  private readonly hint = this.idleHint<{ cells: number[]; loop: boolean }>({
+    after: HINT_AFTER_MS,
+    layer: this.hintLayer,
+    period: 260,
+    held: () => this.path.length > 0,
+    compute: (state) => {
+      // With crates adrift, a line that closes is the better advice.
+      const crates = state.cells.some((p) => p.kind === SALVAGE_CRATE);
+      const loop = crates ? salvageFindLoop(state) : null;
+      const line = loop ?? salvageHint(state);
+      return line ? { cells: line, loop: loop !== null } : null;
+    },
+    draw: (hint, beat) => {
+      const g = this.grid;
+      for (const cell of hint.cells) this.hintLayer.circle(g.x(cell), g.y(cell), g.cell * 0.44).stroke({ width: 2.5, color: hint.loop ? NET : TETHER, alpha: 0.05 + 0.6 * beat });
+    },
+  });
 
   constructor(
     host: HTMLElement,
@@ -88,11 +98,6 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     private readonly opts: SalvageRendererOptions,
   ) {
     super(host, "salvage", cb.onFrame, opts.showMarks);
-    this.hints = opts.hints;
-  }
-
-  override setHints(on: boolean): void {
-    this.hints = on;
   }
 
   protected build(): void {
@@ -123,11 +128,10 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
       this.label.style.fontSize = Math.max(12, Math.round(g.cell * 0.36));
       this.label.position.set(g.ox + g.width / 2, g.oy - strip * 0.34);
     }
-    this.cursor = Math.min(this.cursor, g.cols * g.rows - 1);
     this.publishGeom(g.ox, g.oy, g.cell);
     this.cancelLine();
     if (this.state) this.snap(this.state.cells);
-    this.drawCursor();
+    this.cursor.draw(this.app.canvas);
   }
 
   /** The tractor emitter in the strip over the field: where hauled pieces fly to. */
@@ -148,15 +152,12 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
 
   private texture(kind: number): Texture {
     const cell = this.grid.cell;
-    return this.bake(`${kind}:${this.showMarks ? 1 : 0}`, cell, (g) => {
-      const r = cell * 0.36;
-      // The painted piece where the sheet has one, the code-drawn one where it does not.
+    if (kind !== SALVAGE_CRATE && kind !== SALVAGE_COUPLER) return this.kindPiece("debris", kind, cell);
+    // The painted crate or coupler where the sheet has one, the code-drawn one where it does not.
+    return this.bake(`${kind}:${cell}`, cell, (g) => {
       const art = cell * 0.84;
       if (kind === SALVAGE_CRATE) this.sprite(g, "crate", 0, 0, art) || drawCrate(g, cell * 0.34);
-      else if (kind === SALVAGE_COUPLER) this.sprite(g, "coupler", 0, 0, art) || drawCoupler(g, r);
-      else if (this.sprite(g, spriteName("debris", kind), 0, 0, art)) {
-        if (this.showMarks) drawMark(g, kind, 0, 0, r);
-      } else drawPiece(g, kind, 0, 0, r, { marks: this.showMarks });
+      else this.sprite(g, "coupler", 0, 0, art) || drawCoupler(g, cell * 0.36);
     });
   }
 
@@ -199,14 +200,11 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
 
   protected onState(state: SalvageState, prev: SalvageState | null): void {
     this.cancelLine();
-    this.hint = null;
-    this.idle = 0;
+    this.hint.restart();
     const g = this.grid;
     if (g.cols !== state.config.width || g.rows !== state.config.height) {
       // A different field (a lab config): lay it out afresh.
-      g.cols = state.config.width;
-      g.rows = state.config.height;
-      this.layout(this.app.screen.width, this.app.screen.height);
+      this.relayout();
       return;
     }
     const report = state.lastMove;
@@ -339,32 +337,8 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     return chars.join("");
   }
 
-  protected override update(dt: number): void {
+  protected override update(): void {
     if (this.dragging) this.drawLine();
-    // A line worth drawing pulses after a pause, in rounds that allow hints.
-    if (!this.interactive || !this.hints || !this.state || this.state.finished || this.path.length > 0 || this.busy) {
-      this.idle = 0;
-      if (this.hint) {
-        this.hint = null;
-        this.hintLayer.clear();
-      }
-      return;
-    }
-    this.idle += dt;
-    if (this.idle < HINT_AFTER_MS) return;
-    if (this.hintFor !== this.state || !this.hint) {
-      this.hintFor = this.state;
-      // With crates adrift, a line that closes is the better advice.
-      const crates = this.state.cells.some((p) => p.kind === SALVAGE_CRATE);
-      const loop = crates ? salvageFindLoop(this.state) : null;
-      const line = loop ?? salvageHint(this.state);
-      this.hint = line ? { cells: line, loop: loop !== null } : null;
-    }
-    this.hintLayer.clear();
-    if (!this.hint) return;
-    const pulse = 0.35 + 0.3 * Math.sin(this.time / 260);
-    const g = this.grid;
-    for (const cell of this.hint.cells) this.hintLayer.circle(g.x(cell), g.y(cell), g.cell * 0.44).stroke({ width: 2.5, color: this.hint.loop ? NET : TETHER, alpha: pulse });
   }
 
   // ---- the line
@@ -400,7 +374,7 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     this.path = [cell];
     this.closed = false;
     this.lift(cell, true);
-    this.idle = 0;
+    this.hint.restart();
     sfx.pop(0);
     this.drawEmitter(true);
     this.refreshLine();
@@ -531,8 +505,8 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     const cell = this.cellNear(x, y, 0.62);
     if (cell === null) return;
     this.cancelLine();
-    this.cursorShown = false;
-    this.drawCursor();
+    this.cursor.shown = false;
+    this.cursor.draw(this.app.canvas);
     this.pointer = { x, y };
     if (this.begin(cell)) this.dragging = true;
   }
@@ -562,58 +536,31 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
 
   // ---- keyboard
 
-  private drawCursor(): void {
-    const g = this.grid;
-    this.cursorLayer.clear();
-    this.app.canvas.setAttribute("data-cursor", `${this.cursor % g.cols},${Math.floor(this.cursor / g.cols)}`);
-    if (!this.cursorShown) return;
-    const half = g.cell / 2 - 2;
-    this.cursorLayer.roundRect(g.x(this.cursor) - half, g.y(this.cursor) - half, half * 2, half * 2, g.cell * 0.16).stroke({ width: 3, color: INK.white, alpha: 0.9 });
-  }
-
   /**
    * Arrows or WASD move the cursor, Q E Z C move it diagonally. Space or enter starts a line on the
    * cursor's piece; with a line begun the cursor draws it, enter or space hauls it and escape drops it.
    */
   override keyboard(key: string): boolean {
     if (!this.interactive || !this.state) return false;
-    const g = this.grid;
     const k = key.length === 1 ? key.toLowerCase() : key;
-    const steps: Record<string, readonly [number, number]> = {
-      ArrowLeft: [-1, 0],
-      ArrowRight: [1, 0],
-      ArrowUp: [0, -1],
-      ArrowDown: [0, 1],
-      a: [-1, 0],
-      d: [1, 0],
-      w: [0, -1],
-      s: [0, 1],
-      q: [-1, -1],
-      e: [1, -1],
-      z: [-1, 1],
-      c: [1, 1],
-    };
-    const step = steps[k];
-    if (step) {
-      const col = (this.cursor % g.cols) + step[0];
-      const row = Math.floor(this.cursor / g.cols) + step[1];
-      this.cursorShown = true;
-      if (col >= 0 && col < g.cols && row >= 0 && row < g.rows) {
-        const next = row * g.cols + col;
-        if (this.path.length === 0 || this.dragging) this.cursor = next;
-        else if (this.visit(next)) this.cursor = next;
+    const next = this.cursor.target(k);
+    if (next !== null) {
+      this.cursor.shown = true;
+      // With a line begun from the keys, the cursor draws it, and goes only where the line may.
+      if (next !== this.cursor.index) {
+        if (this.path.length === 0 || this.dragging || this.visit(next)) this.cursor.index = next;
         else sfx.bump();
       }
-      this.idle = 0;
-      this.drawCursor();
+      this.hint.restart();
+      this.cursor.draw(this.app.canvas);
       return true;
     }
     if (k === " " || k === "Enter") {
-      this.cursorShown = true;
+      this.cursor.shown = true;
       if (this.dragging) return true;
-      if (this.path.length === 0) this.begin(this.cursor);
+      if (this.path.length === 0) this.begin(this.cursor.index);
       else this.release();
-      this.drawCursor();
+      this.cursor.draw(this.app.canvas);
       return true;
     }
     if (k === "Escape" && this.path.length > 0) {

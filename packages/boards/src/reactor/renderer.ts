@@ -43,8 +43,6 @@ export interface ReactorLabels {
 
 export interface ReactorRendererOptions {
   showMarks: boolean;
-  /** Point at a swipe that would discharge a rod, after a pause. Off for recorded rounds. */
-  hints: boolean;
   labels: ReactorLabels;
 }
 
@@ -93,8 +91,31 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
   private ports: ReactorPort[] = [];
   private readonly portBorn = new Map<string, number>();
   private drag: { x: number; y: number; fired: boolean } | null = null;
-  private idle = 0;
-  private hints: boolean;
+  /** A swipe that would discharge a rod is pointed at after a pause, in rounds that allow hints. */
+  private readonly hint = this.idleHint<ReactorDir>({
+    after: HINT_AFTER_MS,
+    layer: this.hintLayer,
+    compute: (state) => reactorHint(state),
+    draw: (dir) => {
+      // Three chevrons across the middle of the core, marching the way to swipe.
+      const g = this.grid;
+      const [dx, dy] = STEP[dir]!;
+      const cx = g.ox + g.width / 2;
+      const cy = g.oy + g.height / 2;
+      const a = g.cell * 0.34;
+      for (let i = 0; i < 3; i++) {
+        const phase = (this.time / 520 + i / 3) % 1;
+        const o = (phase - 0.5) * g.cell * 1.5;
+        const x = cx + dx * o;
+        const y = cy + dy * o;
+        this.hintLayer
+          .moveTo(x - dy * a - dx * a * 0.6, y + dx * a - dy * a * 0.6)
+          .lineTo(x + dx * a * 0.6, y + dy * a * 0.6)
+          .lineTo(x + dy * a - dx * a * 0.6, y - dx * a - dy * a * 0.6)
+          .stroke({ width: Math.max(4, g.cell * 0.08), color: INK.white, alpha: 0.55 * Math.sin(phase * Math.PI), cap: "round", join: "round" });
+      }
+    },
+  });
   private rim = 8;
   private strip = 30;
   private bar = 22;
@@ -105,11 +126,6 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
     private readonly opts: ReactorRendererOptions,
   ) {
     super(host, "reactor", cb.onFrame, opts.showMarks);
-    this.hints = opts.hints;
-  }
-
-  override setHints(on: boolean): void {
-    this.hints = on;
   }
 
   protected build(): void {
@@ -231,13 +247,11 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
   }
 
   protected onState(state: ReactorState, prev: ReactorState | null): void {
-    this.idle = 0;
-    this.hintLayer.clear();
+    this.hint.restart();
     const g = this.grid;
     if (g.cols !== state.config.size) {
       // A different core (a lab config): lay it out afresh.
-      g.cols = g.rows = state.config.size;
-      this.layout(this.app.screen.width, this.app.screen.height);
+      this.relayout();
       return;
     }
     const report = state.lastMove;
@@ -523,35 +537,8 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
     }
   }
 
-  protected override update(dt: number): void {
+  protected override update(): void {
     this.drawPorts();
-    if (!this.interactive || !this.hints || !this.state || this.state.finished || this.busy) {
-      this.idle = 0;
-      this.hintLayer.clear();
-      return;
-    }
-    this.idle += dt;
-    this.hintLayer.clear();
-    if (this.idle < HINT_AFTER_MS) return;
-    const dir = reactorHint(this.state);
-    if (dir === null) return;
-    // Three chevrons across the middle of the core, marching the way to swipe.
-    const g = this.grid;
-    const [dx, dy] = STEP[dir]!;
-    const cx = g.ox + g.width / 2;
-    const cy = g.oy + g.height / 2;
-    const a = g.cell * 0.34;
-    for (let i = 0; i < 3; i++) {
-      const phase = (this.time / 520 + i / 3) % 1;
-      const o = (phase - 0.5) * g.cell * 1.5;
-      const x = cx + dx * o;
-      const y = cy + dy * o;
-      this.hintLayer
-        .moveTo(x - dy * a - dx * a * 0.6, y + dx * a - dy * a * 0.6)
-        .lineTo(x + dx * a * 0.6, y + dy * a * 0.6)
-        .lineTo(x + dy * a - dx * a * 0.6, y - dx * a - dy * a * 0.6)
-        .stroke({ width: Math.max(4, g.cell * 0.08), color: INK.white, alpha: 0.55 * Math.sin(phase * Math.PI), cap: "round", join: "round" });
-    }
   }
 
   // ---- input
@@ -559,7 +546,7 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
   private trySwipe(dir: ReactorDir): void {
     const state = this.state;
     if (!state || state.finished) return;
-    this.idle = 0;
+    this.hint.restart();
     // The round decides, not this board's copy of it: two quick swipes can outrun a redraw.
     if (this.cb.onSwipe(dir)) return;
     // Nothing would move: the rods lean that way and settle back.

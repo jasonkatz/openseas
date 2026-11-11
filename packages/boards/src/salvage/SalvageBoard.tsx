@@ -26,7 +26,6 @@ export function SalvageBoard(props: SalvageBoardProps) {
         },
         {
           showMarks: props.showMarks,
-          hints: props.hints,
           labels: {
             preview: (pieces, points) => (points > 0 ? t("salvage.preview", { pieces, points }) : t("salvage.preview_short", { pieces })),
             previewNet: (crates, points) => t(crates > 0 ? "salvage.preview_net" : "salvage.preview_net_empty", { crates, points }),

@@ -28,7 +28,6 @@ export function OverloadBoard(props: OverloadBoardProps) {
         },
         {
           showMarks: props.showMarks,
-          hints: props.hints,
           labels: {
             chain: (count, points) => t("overload.chain", { count, points }),
             streak: (count, percent) => t("overload.streak", { count, percent }),

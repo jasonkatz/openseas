@@ -31,8 +31,6 @@ export interface TugLabels {
 
 export interface TugRendererOptions {
   showMarks: boolean;
-  /** Show the first flick of a par route after a pause. Off for recorded rounds. */
-  hints: boolean;
   labels: TugLabels;
 }
 
@@ -69,10 +67,28 @@ export class TugRenderer extends KitBoard<TugState> {
   private ghostsFor: TugState | null = null;
   private ghostsPod = -1;
   private drag: { x: number; y: number; pod: number; onPod: boolean; fired: boolean } | null = null;
-  private idle = 0;
-  private hint: { pod: number; dir: TugDir; to: number } | "skip" | null = null;
-  private hintFor: TugState | null = null;
-  private hints: boolean;
+  /** The first flick of a par route shows after a pause, in rounds that allow hints; with no route, the skip button pulses. */
+  private readonly hint = this.idleHint<{ pod: number; from: number; to: number } | "skip">({
+    after: HINT_AFTER_MS,
+    layer: this.hintLayer,
+    held: () => this.drag !== null,
+    compute: (state) => {
+      const first = tugSolve(state)?.[0];
+      return first ? { pod: first.pod, from: state.pods[first.pod]!, to: tugSlide(state, first.pod, first.dir).to } : "skip";
+    },
+    draw: (hint, beat) => {
+      if (hint === "skip") {
+        this.drawStrip();
+        return;
+      }
+      const g = this.grid;
+      const from = hint.from;
+      const pulse = 0.05 + 0.8 * beat;
+      this.hintLayer.circle(g.x(from), g.y(from), g.cell * 0.5).stroke({ width: 3, color: INK.white, alpha: pulse });
+      arrow(this.hintLayer, g.x(from), g.y(from), g.x(hint.to), g.y(hint.to), g.cell, kindStyle(hint.pod).color, pulse);
+    },
+    hidden: () => this.drawStrip(),
+  });
 
   constructor(
     host: HTMLElement,
@@ -80,11 +96,6 @@ export class TugRenderer extends KitBoard<TugState> {
     private readonly opts: TugRendererOptions,
   ) {
     super(host, "tug", cb.onFrame, opts.showMarks);
-    this.hints = opts.hints;
-  }
-
-  override setHints(on: boolean): void {
-    this.hints = on;
   }
 
   protected build(): void {
@@ -128,23 +139,7 @@ export class TugRenderer extends KitBoard<TugState> {
 
   private podTexture(pod: number): Texture {
     const cell = this.grid.cell;
-    return this.bake(`pod:${pod}:${this.showMarks ? 1 : 0}`, cell, (g) => {
-      // A pod is a round tray with its own shape riding on it: the tray says "cargo", the shape says which.
-      if (this.sprite(g, spriteName("pod", pod), 0, 0, cell * 0.9)) {
-        if (this.showMarks) drawMark(g, pod, 0, -cell * 0.04, cell * 0.3);
-        return;
-      }
-      const tray = cell * 0.43;
-      const color = kindStyle(pod).color;
-      g.circle(0, tray * 0.1, tray).fill({ color: INK.black, alpha: 0.4 });
-      g.circle(0, 0, tray).fill({ color: mix(INK.wellLit, color, 0.18) });
-      g.circle(0, 0, tray).stroke({ width: Math.max(1.5, cell * 0.05), color: mix(color, INK.black, 0.25) });
-      for (let i = 0; i < 4; i++) {
-        const a = Math.PI / 4 + (i * Math.PI) / 2;
-        g.circle(Math.cos(a) * tray * 0.82, Math.sin(a) * tray * 0.82, Math.max(1, cell * 0.028)).fill({ color: mix(color, INK.white, 0.3), alpha: 0.8 });
-      }
-      drawPiece(g, pod, 0, 0, cell * 0.25, { marks: this.showMarks });
-    });
+    return this.kindPiece("pod", pod, cell, { art: cell * 0.9, r: cell * 0.3, markY: -cell * 0.04, fallback: (g, marks) => drawPod(g, pod, cell, marks) });
   }
 
   private drawBlocks(): void {
@@ -179,7 +174,7 @@ export class TugRenderer extends KitBoard<TugState> {
     const s = this.strip;
     s.clear();
     const box = this.skipBox;
-    const pulse = this.hint === "skip" ? 0.5 + 0.5 * Math.sin(this.time / 200) : 0;
+    const pulse = this.hint.current === "skip" ? 0.5 + 0.5 * Math.sin(this.time / 200) : 0;
     s.roundRect(box.x, box.y, box.w, box.h, box.h * 0.4).fill({ color: mix(INK.well, INK.danger, 0.12 + pulse * 0.35) });
     s.roundRect(box.x, box.y, box.w, box.h, box.h * 0.4).stroke({ width: 1.5, color: mix(INK.edge, INK.danger, 0.3 + pulse * 0.6) });
     const clamp = this.drawnClamp;
@@ -229,15 +224,11 @@ export class TugRenderer extends KitBoard<TugState> {
   }
 
   protected onState(state: TugState, prev: TugState | null): void {
-    this.idle = 0;
-    this.hint = null;
-    this.hintLayer.clear();
+    this.hint.restart();
     const g = this.grid;
     if (g.cols !== state.config.width || g.rows !== state.config.height) {
       // A different bay (a lab config): lay it out afresh.
-      g.cols = state.config.width;
-      g.rows = state.config.height;
-      this.layout(this.app.screen.width, this.app.screen.height);
+      this.relayout();
       return;
     }
     const report = state.lastMove;
@@ -346,37 +337,9 @@ export class TugRenderer extends KitBoard<TugState> {
     return tugViewString(g.cols, g.rows, this.drawnBlocks, pods, this.drawnClamp?.cell ?? -1, this.drawnClamp?.pod ?? -1);
   }
 
-  protected override update(dt: number): void {
+  protected override update(): void {
     this.drawClamp();
     this.drawGhosts();
-    if (this.hint === "skip") this.drawStrip();
-    // The first flick of a par route shows after a pause, in rounds that allow hints.
-    if (!this.interactive || !this.hints || !this.state || this.state.finished || this.busy || this.drag) {
-      this.idle = 0;
-      if (this.hint) {
-        this.hint = null;
-        this.hintLayer.clear();
-        this.drawStrip();
-      }
-      return;
-    }
-    this.idle += dt;
-    if (this.idle < HINT_AFTER_MS) return;
-    if (this.hintFor !== this.state || !this.hint) {
-      this.hintFor = this.state;
-      const route = tugSolve(this.state);
-      const first = route?.[0];
-      this.hint = first ? { pod: first.pod, dir: first.dir, to: tugSlide(this.state, first.pod, first.dir).to } : "skip";
-    }
-    this.hintLayer.clear();
-    if (this.hint === "skip") return;
-    const g = this.grid;
-    const h = this.hint;
-    const from = this.state.pods[h.pod]!;
-    const pulse = 0.45 + 0.4 * Math.sin(this.time / 240);
-    const color = kindStyle(h.pod).color;
-    this.hintLayer.circle(g.x(from), g.y(from), g.cell * 0.5).stroke({ width: 3, color: INK.white, alpha: pulse });
-    arrow(this.hintLayer, g.x(from), g.y(from), g.x(h.to), g.y(h.to), g.cell, color, pulse);
   }
 
   /** The lit clamp: four jaws in the wanted pod's color round the outline of the pod it wants. */
@@ -471,7 +434,7 @@ export class TugRenderer extends KitBoard<TugState> {
   private flick(pod: number, dir: TugDir): void {
     const state = this.state;
     if (!state || state.finished) return;
-    this.idle = 0;
+    this.hint.restart();
     this.select(pod);
     if (tugFlickIllegalReason(state, pod, dir) !== null) {
       // Up against something already: the pod leans and comes back.
@@ -513,7 +476,7 @@ export class TugRenderer extends KitBoard<TugState> {
 
   protected override pointerDown(x: number, y: number): void {
     if (!this.state || this.state.finished) return;
-    this.idle = 0;
+    this.hint.restart();
     if (this.inSkip(x, y)) {
       this.cb.onSkip();
       return;
@@ -577,13 +540,13 @@ export class TugRenderer extends KitBoard<TugState> {
       if (pod >= state.pods.length) return false;
       this.select(pod);
       sfx.pop(pod);
-      this.idle = 0;
+      this.hint.restart();
       return true;
     }
     if (k === " ") {
       this.select((this.selected + 1) % state.pods.length);
       sfx.pop(this.selected);
-      this.idle = 0;
+      this.hint.restart();
       return true;
     }
     if (k === "x" || k === "Backspace" || k === "Delete") {
@@ -596,6 +559,20 @@ export class TugRenderer extends KitBoard<TugState> {
     }
     return false;
   }
+}
+
+/** A pod with no frame in the sheet: a round tray with its kind's shape riding on it. The tray says "cargo", the shape says which. */
+function drawPod(g: Graphics, pod: number, cell: number, marks: boolean): void {
+  const tray = cell * 0.43;
+  const color = kindStyle(pod).color;
+  g.circle(0, tray * 0.1, tray).fill({ color: INK.black, alpha: 0.4 });
+  g.circle(0, 0, tray).fill({ color: mix(INK.wellLit, color, 0.18) });
+  g.circle(0, 0, tray).stroke({ width: Math.max(1.5, cell * 0.05), color: mix(color, INK.black, 0.25) });
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i * Math.PI) / 2;
+    g.circle(Math.cos(a) * tray * 0.82, Math.sin(a) * tray * 0.82, Math.max(1, cell * 0.028)).fill({ color: mix(color, INK.white, 0.3), alpha: 0.8 });
+  }
+  drawPiece(g, pod, 0, 0, cell * 0.25, { marks });
 }
 
 /** A stout arrow from one cell's centre toward another's, for the hint. */

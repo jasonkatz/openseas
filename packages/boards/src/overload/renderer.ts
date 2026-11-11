@@ -14,7 +14,7 @@ import {
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
 import { FONT, INK, drawPanel, drawWell, mix } from "../kit/art.js";
-import { Grid, KitBoard } from "../kit/board.js";
+import { Grid, GridCursor, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
 
 export interface OverloadCallbacks {
@@ -38,8 +38,6 @@ export interface OverloadLabels {
 
 export interface OverloadRendererOptions {
   showMarks: boolean;
-  /** Mark a tap worth making after a pause. Off for recorded rounds. */
-  hints: boolean;
   labels: OverloadLabels;
 }
 
@@ -112,13 +110,35 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
   private refusedAt = -10_000;
   private tickAt = 0;
   private sparks: Spark[] = [];
-  /** The keyboard's cell. Drawn once a key has been used. */
-  private cursor = 0;
-  private cursorShown = false;
-  private idle = 0;
-  private hint: OverloadHint | null = null;
-  private hintFor: readonly OverloadCell[] | null = null;
-  private hints: boolean;
+  private readonly cursor = new GridCursor(this.grid, this.cursorLayer);
+  /** A tap worth making is marked after a pause, in rounds that allow hints, while there is a tap to make it with. */
+  private readonly hint = this.idleHint<OverloadHint>({
+    after: HINT_AFTER_MS,
+    layer: this.hintLayer,
+    held: () => (this.state?.taps ?? 0) < 1,
+    // A state that only moves the clock keeps the advice.
+    key: (state) => state.cells,
+    compute: (state) => overloadHint(state),
+    draw: (hint, beat) => {
+      const g = this.grid;
+      const x = g.x(hint.cell);
+      const y = g.y(hint.cell);
+      const wave = beat * 2 - 1;
+      const pulse = this.reduced ? 0.8 : 0.55 + 0.4 * wave;
+      const r = g.cell * (0.46 + (this.reduced ? 0 : 0.025 * wave));
+      this.hintLayer.circle(x, y, r).stroke({ width: Math.max(2.5, g.cell * 0.06), color: INK.white, alpha: pulse });
+      if (hint.prime) {
+        // A plus: this tap charges, the next one sets the chain off.
+        const a = g.cell * 0.17;
+        const w = Math.max(3, g.cell * 0.075);
+        const px = x + g.cell * 0.3;
+        const py = y - g.cell * 0.3;
+        this.hintLayer.circle(px, py, a * 1.25).fill({ color: INK.bg, alpha: 0.85 });
+        this.hintLayer.roundRect(px - a, py - w / 2, a * 2, w, w / 2).fill({ color: INK.white });
+        this.hintLayer.roundRect(px - w / 2, py - a, w, a * 2, w / 2).fill({ color: INK.white });
+      }
+    },
+  });
 
   constructor(
     host: HTMLElement,
@@ -126,11 +146,6 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     private readonly opts: OverloadRendererOptions,
   ) {
     super(host, "overload", cb.onFrame, opts.showMarks);
-    this.hints = opts.hints;
-  }
-
-  override setHints(on: boolean): void {
-    this.hints = on;
   }
 
   protected build(): void {
@@ -156,12 +171,9 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
       this.label.style.fontSize = Math.max(12, Math.round(g.cell * 0.34));
       this.label.position.set(g.ox + g.width - pad * 0.5, g.oy - strip * 0.56);
     }
-    this.cursor = Math.min(this.cursor, g.cols * g.rows - 1);
     this.publishGeom(g.ox, g.oy, g.cell);
     this.sparks = [];
     this.sparkLayer.clear();
-    this.hint = null;
-    this.hintLayer.clear();
     this.heldBack = 0;
     this.litShown = -1;
     this.labelHold = 0;
@@ -171,7 +183,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
       this.snap(this.state.cells);
     }
     this.drawLamps();
-    this.drawCursor();
+    this.cursor.draw(this.app.canvas);
   }
 
   private texture(charge: number, booster: boolean): Texture {
@@ -229,9 +241,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     const g = this.grid;
     if (g.cols !== state.config.width || g.rows !== state.config.height) {
       // A different bank (a lab config): lay it out afresh.
-      g.cols = state.config.width;
-      g.rows = state.config.height;
-      this.layout(this.app.screen.width, this.app.screen.height);
+      this.relayout();
       return;
     }
     if (!prev || state.tick !== prev.tick) this.tickAt = this.time;
@@ -242,8 +252,6 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     const follows = prev !== null && events.length > 0 && events[0]!.seq === this.shownSeq + 1 && this.views.length === prev.cells.length && prev.cells.every((c, i) => this.views[i]!.id === c.id);
     this.bank = state.cells;
     this.shownSeq = state.eventSeq;
-    this.hint = null;
-    this.hintLayer.clear();
     if (!follows) {
       this.heldBack = 0;
       this.litShown = -1;
@@ -461,39 +469,6 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
       const streak = state.combo > 0 ? this.opts.labels.streak(state.combo, overloadStreakPercentAt(state.config, state.combo)) : "";
       this.setLabel(streak, INK.dim);
     }
-    // A tap worth making is marked after a pause, in rounds that allow hints.
-    if (!this.interactive || !this.hints || !state || state.finished || this.busy || state.taps < 1) {
-      if (!this.interactive || !this.hints) this.idle = 0;
-      if (this.hint) {
-        this.hint = null;
-        this.hintLayer.clear();
-      }
-      return;
-    }
-    this.idle += dt;
-    if (this.idle < HINT_AFTER_MS) return;
-    if (this.hintFor !== state.cells || !this.hint) {
-      this.hintFor = state.cells;
-      this.hint = overloadHint(state);
-    }
-    this.hintLayer.clear();
-    if (!this.hint) return;
-    const g = this.grid;
-    const x = g.x(this.hint.cell);
-    const y = g.y(this.hint.cell);
-    const pulse = this.reduced ? 0.8 : 0.55 + 0.4 * Math.sin(this.time / 240);
-    const r = g.cell * (0.46 + (this.reduced ? 0 : 0.025 * Math.sin(this.time / 240)));
-    this.hintLayer.circle(x, y, r).stroke({ width: Math.max(2.5, g.cell * 0.06), color: INK.white, alpha: pulse });
-    if (this.hint.prime) {
-      // A plus: this tap charges, the next one sets the chain off.
-      const a = g.cell * 0.17;
-      const w = Math.max(3, g.cell * 0.075);
-      const px = x + g.cell * 0.3;
-      const py = y - g.cell * 0.3;
-      this.hintLayer.circle(px, py, a * 1.25).fill({ color: INK.bg, alpha: 0.85 });
-      this.hintLayer.roundRect(px - a, py - w / 2, a * 2, w, w / 2).fill({ color: INK.white });
-      this.hintLayer.roundRect(px - w / 2, py - a, w, a * 2, w / 2).fill({ color: INK.white });
-    }
   }
 
   // ---- the strip
@@ -590,14 +565,15 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
   private tap(cell: number): void {
     const state = this.state;
     if (!state || state.finished) return;
-    const follow = this.hint?.prime === true && this.hint.cell === cell;
-    this.idle = 0;
+    const shown = this.hint.current;
+    const follow = shown?.prime === true && shown.cell === cell;
+    this.hint.restart();
     if (overloadTapIllegalReason(state, cell, state.tick) !== null || !this.cb.onTap(cell)) {
       this.refuse();
       return;
     }
     // A hinted charge is half the advice: the tap it sets up is marked soon after.
-    if (follow) this.idle = HINT_AFTER_MS - HINT_FOLLOW_MS;
+    if (follow) this.hint.restart(HINT_FOLLOW_MS);
   }
 
   private refuse(): void {
@@ -613,50 +589,24 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
   protected override pointerDown(x: number, y: number): void {
     const at = this.grid.at(x, y);
     if (!at) return;
-    this.cursor = at.index;
-    this.cursorShown = false;
-    this.drawCursor();
+    this.cursor.index = at.index;
+    this.cursor.shown = false;
+    this.cursor.draw(this.app.canvas);
     this.tap(at.index);
-  }
-
-  private drawCursor(): void {
-    const g = this.grid;
-    this.cursorLayer.clear();
-    this.app.canvas.setAttribute("data-cursor", `${this.cursor % g.cols},${Math.floor(this.cursor / g.cols)}`);
-    if (!this.cursorShown) return;
-    const half = g.cell / 2 - 2;
-    this.cursorLayer.roundRect(g.x(this.cursor) - half, g.y(this.cursor) - half, half * 2, half * 2, g.cell * 0.16).stroke({ width: 3, color: INK.white, alpha: 0.9 });
   }
 
   /** Arrows or WASD move the cursor; space or enter taps the capacitor under it. */
   override keyboard(key: string): boolean {
     if (!this.interactive || !this.state) return false;
-    const g = this.grid;
-    const k = key.length === 1 ? key.toLowerCase() : key;
-    const steps: Record<string, readonly [number, number]> = {
-      ArrowLeft: [-1, 0],
-      ArrowRight: [1, 0],
-      ArrowUp: [0, -1],
-      ArrowDown: [0, 1],
-      a: [-1, 0],
-      d: [1, 0],
-      w: [0, -1],
-      s: [0, 1],
-    };
-    const step = steps[k];
-    if (step) {
-      const col = Math.max(0, Math.min(g.cols - 1, (this.cursor % g.cols) + step[0]));
-      const row = Math.max(0, Math.min(g.rows - 1, Math.floor(this.cursor / g.cols) + step[1]));
-      this.cursor = row * g.cols + col;
-      this.cursorShown = true;
-      this.idle = 0;
-      this.drawCursor();
+    if (this.cursor.move(key)) {
+      this.hint.restart();
+      this.cursor.draw(this.app.canvas);
       return true;
     }
-    if (k === " " || k === "Enter") {
-      this.cursorShown = true;
-      this.drawCursor();
-      this.tap(this.cursor);
+    if (key === " " || key === "Enter") {
+      this.cursor.shown = true;
+      this.cursor.draw(this.app.canvas);
+      this.tap(this.cursor.index);
       return true;
     }
     return false;

@@ -15,7 +15,7 @@ import {
   type RacksState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, FONT_DISPLAY, INK, drawMark, drawPanel, drawPiece, kindStyle, mix, spriteName } from "../kit/art.js";
+import { FONT, FONT_DISPLAY, INK, drawPanel, drawPiece, kindStyle, mix, spriteName } from "../kit/art.js";
 import { KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
 
@@ -46,8 +46,6 @@ export interface RacksLabels {
 
 export interface RacksRendererOptions {
   showMarks: boolean;
-  /** Pulse an action worth taking after a pause. Off for recorded rounds. */
-  hints: boolean;
   labels: RacksLabels;
 }
 
@@ -87,10 +85,15 @@ export class RacksRenderer extends KitBoard<RacksState> {
   /** The keyboard's rack. Drawn once a key has been used. */
   private cursor = 0;
   private cursorShown = false;
-  private idle = 0;
-  private hint: Extract<RacksMove, { type: "move" | "call" }> | null = null;
-  private hintFor: RacksState | null = null;
-  private hints: boolean;
+  /** An action worth taking pulses after a pause, in rounds that allow hints, while nothing is lifted. */
+  private readonly hint = this.idleHint<Extract<RacksMove, { type: "move" | "call" }>>({
+    after: HINT_AFTER_MS,
+    period: 170,
+    held: () => this.lifted !== null,
+    compute: (state) => racksHint(state),
+    // Drawn over the overlays, which `update` has just drawn afresh.
+    draw: (hint, beat) => this.drawHint(hint, beat),
+  });
   /** A wash over a rack that fades: its color and how much is left, 1 to 0. */
   private readonly glow: Array<{ color: number; k: number }> = [];
 
@@ -100,11 +103,6 @@ export class RacksRenderer extends KitBoard<RacksState> {
     private readonly opts: RacksRendererOptions,
   ) {
     super(host, "racks", cb.onFrame, opts.showMarks);
-    this.hints = opts.hints;
-  }
-
-  override setHints(on: boolean): void {
-    this.hints = on;
   }
 
   protected build(): void {
@@ -225,11 +223,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
 
   private texture(kind: number): Texture {
     const g = this.geo;
-    return this.bake(`${kind}:${this.showMarks ? 1 : 0}`, g.cell, (gr) => {
-      if (this.sprite(gr, spriteName("cell", kind), 0, 0, g.r * 2.2)) {
-        if (this.showMarks) drawMark(gr, kind, 0, 0, g.r);
-      } else drawPiece(gr, kind, 0, 0, g.r, { marks: this.showMarks });
-    });
+    return this.kindPiece("cell", kind, g.cell, { art: g.r * 2.2, r: g.r });
   }
 
   // ---- drawing a state
@@ -358,13 +352,12 @@ export class RacksRenderer extends KitBoard<RacksState> {
 
   protected onState(state: RacksState, prev: RacksState | null): void {
     this.dropLift();
-    this.hint = null;
-    this.idle = 0;
+    this.hint.restart();
     const g = this.geo;
     const c = state.config;
     if (g.cols !== c.racks || g.rows !== c.height || g.crateMax !== c.crateMax) {
       // Different racks (a lab config): lay them out afresh.
-      this.layout(this.app.screen.width, this.app.screen.height);
+      this.relayout();
       return;
     }
     const report = state.lastMove;
@@ -656,30 +649,34 @@ export class RacksRenderer extends KitBoard<RacksState> {
       const y = g.baseY + g.cell * 0.3;
       o.roundRect(x - g.cell * 0.3, y - g.cell * 0.2, g.cell * 0.6, g.cell * 0.4, g.cell * 0.12).stroke({ width: 2, color: INK.white, alpha: 0.9 });
     }
+  }
 
-    const hint = this.hint;
-    if (hint && settled) {
-      const a = 0.35 + 0.35 * pulse;
-      if (hint.type === "call" && this.hung) {
-        const x = this.colX(this.hung.rack);
-        const top = this.hangY(this.hung.size - 1) - g.cell * 0.5;
-        o.roundRect(x - g.cell * 0.56, top, g.cell * 1.12, g.topY - g.cell * 0.4 - top, g.cell * 0.2).stroke({ width: 3, color: INK.gold, alpha: a });
-        o.circle(x, g.railY, g.cell * 0.56).stroke({ width: 3, color: INK.gold, alpha: a });
-      } else if (hint.type === "move") {
-        const group = racksTopGroup(state.racks[hint.from]!);
-        const n = racksMovable(state, hint.from, hint.to);
-        if (group && n > 0) {
-          const len = state.racks[hint.from]!.length;
-          const x0 = this.colX(hint.from);
-          const yTop = this.slotY(len - 1) - g.cell * 0.5;
-          o.roundRect(x0 - g.wellW / 2 + 2, yTop, g.wellW - 4, n * g.cell, g.cell * 0.2).stroke({ width: 3, color: LIFT, alpha: a });
-          const x1 = this.colX(hint.to);
-          const y1 = this.slotY(state.racks[hint.to]!.length);
-          o.circle(x1, y1, g.r).stroke({ width: 3, color: LIFT, alpha: a });
-          // A line over the tops from the group to where it goes.
-          const peak = g.topY - g.cell * 0.12;
-          o.moveTo(x0, yTop - 2).lineTo(x0, peak).lineTo(x1, peak).lineTo(x1, y1 - g.r - 2).stroke({ width: 2.5, color: LIFT, alpha: a * 0.8, cap: "round", join: "round" });
-        }
+  /** The hint: the crate's trolley ringed, or the group to move boxed with a line to where it goes. */
+  private drawHint(hint: Extract<RacksMove, { type: "move" | "call" }>, beat: number): void {
+    const g = this.geo;
+    const state = this.state;
+    const o = this.over;
+    if (!state) return;
+    const a = 0.35 + 0.35 * beat;
+    if (hint.type === "call" && this.hung) {
+      const x = this.colX(this.hung.rack);
+      const top = this.hangY(this.hung.size - 1) - g.cell * 0.5;
+      o.roundRect(x - g.cell * 0.56, top, g.cell * 1.12, g.topY - g.cell * 0.4 - top, g.cell * 0.2).stroke({ width: 3, color: INK.gold, alpha: a });
+      o.circle(x, g.railY, g.cell * 0.56).stroke({ width: 3, color: INK.gold, alpha: a });
+    } else if (hint.type === "move") {
+      const group = racksTopGroup(state.racks[hint.from]!);
+      const n = racksMovable(state, hint.from, hint.to);
+      if (group && n > 0) {
+        const len = state.racks[hint.from]!.length;
+        const x0 = this.colX(hint.from);
+        const yTop = this.slotY(len - 1) - g.cell * 0.5;
+        o.roundRect(x0 - g.wellW / 2 + 2, yTop, g.wellW - 4, n * g.cell, g.cell * 0.2).stroke({ width: 3, color: LIFT, alpha: a });
+        const x1 = this.colX(hint.to);
+        const y1 = this.slotY(state.racks[hint.to]!.length);
+        o.circle(x1, y1, g.r).stroke({ width: 3, color: LIFT, alpha: a });
+        // A line over the tops from the group to where it goes.
+        const peak = g.topY - g.cell * 0.12;
+        o.moveTo(x0, yTop - 2).lineTo(x0, peak).lineTo(x1, peak).lineTo(x1, y1 - g.r - 2).stroke({ width: 2.5, color: LIFT, alpha: a * 0.8, cap: "round", join: "round" });
       }
     }
   }
@@ -707,18 +704,6 @@ export class RacksRenderer extends KitBoard<RacksState> {
     }
     this.drawBadgePulse();
     this.drawOverlays();
-    // An action worth taking pulses after a pause, in rounds that allow hints.
-    if (!this.interactive || !this.hints || !this.state || this.state.finished || this.lifted || this.busy) {
-      this.idle = 0;
-      this.hint = null;
-      return;
-    }
-    this.idle += dt;
-    if (this.idle < HINT_AFTER_MS) return;
-    if (this.hintFor !== this.state || !this.hint) {
-      this.hintFor = this.state;
-      this.hint = racksHint(this.state);
-    }
   }
 
   /** The trolley throbs when the crate has no room, faster on its last move. */
@@ -763,8 +748,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
       v.s.zIndex = 3;
       v.s.scale.set(1.1);
     }
-    this.idle = 0;
-    this.hint = null;
+    this.hint.restart();
     sfx.pop(Math.min(9, group.count - 1));
     return true;
   }
@@ -802,8 +786,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
   /** A tap or a key on a rack: lift its top, put it back, or set the lifted group down there. */
   private pick(rack: number): void {
     if (this.busy) this.tweens.flush();
-    this.idle = 0;
-    this.hint = null;
+    this.hint.restart();
     if (!this.lifted) this.lift(rack);
     else this.setDown(rack);
   }
@@ -897,7 +880,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
       const step = k === "ArrowLeft" || k === "a" ? -1 : 1;
       this.cursor = (this.cursor + step + g.cols) % g.cols;
       this.cursorShown = true;
-      this.idle = 0;
+      this.hint.restart();
       return true;
     }
     if (k === " " || k === "Enter" || k === "ArrowUp" || k === "w") {

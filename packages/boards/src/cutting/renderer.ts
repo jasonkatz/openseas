@@ -12,7 +12,7 @@ import {
   type CuttingState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, INK, drawMark, drawPanel, drawPiece, kindStyle, mix, spriteName } from "../kit/art.js";
+import { FONT, INK, drawPanel, drawPiece, kindStyle, mix } from "../kit/art.js";
 import { FRAME_FIT, Grid, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
 
@@ -40,8 +40,6 @@ export interface CuttingLabels {
 
 export interface CuttingRendererOptions {
   showMarks: boolean;
-  /** Pulse a cut from a best plan after a pause. Off for recorded rounds. */
-  hints: boolean;
   labels: CuttingLabels;
 }
 
@@ -100,10 +98,23 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
   private armed = false;
   private preview: CuttingPreview | null = null;
   private drag: { piece: number; x: number; y: number; moved: boolean; vertical: boolean | null } | null = null;
-  private idle = 0;
-  private hint: Aim | null = null;
-  private hintFor: CuttingState | null = null;
-  private hints: boolean;
+  /** A cut from a best plan pulses after a pause, in rounds that allow hints, while no cut is being lined up. */
+  private readonly hint = this.idleHint<Aim>({
+    after: HINT_AFTER_MS,
+    layer: this.hintLayer,
+    held: () => this.aim !== null || this.drag !== null,
+    compute: (state) => cuttingBestCut(state),
+    draw: (hint, beat) => {
+      const state = this.state;
+      const p = state ? cuttingCutPreview(state, hint.piece, hint.vertical, hint.at) : null;
+      if (!p) return;
+      const g = this.grid;
+      this.hintLayer
+        .moveTo(g.ox + p.line[0] * g.cell, g.oy + p.line[1] * g.cell)
+        .lineTo(g.ox + p.line[2] * g.cell, g.oy + p.line[3] * g.cell)
+        .stroke({ width: Math.max(4, g.cell * 0.1), color: INK.good, alpha: 0.7 * beat, cap: "round" });
+    },
+  });
 
   constructor(
     host: HTMLElement,
@@ -111,11 +122,6 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     private readonly opts: CuttingRendererOptions,
   ) {
     super(host, "cutting", cb.onFrame, opts.showMarks);
-    this.hints = opts.hints;
-  }
-
-  override setHints(on: boolean): void {
-    this.hints = on;
   }
 
   protected build(): void {
@@ -241,21 +247,8 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
 
   private tile(ore: number): Texture {
     const cell = this.grid.cell;
-    return this.bake(`tile:${ore}:${this.showMarks ? 1 : 0}`, cell, (g) => {
-      const color = kindStyle(ore).color;
-      const half = cell / 2;
-      // An ore frame is cut to fill its cell, with no padding: the cells of a piece join edge to edge.
-      if (this.sprite(g, spriteName("ore", ore), 0, 0, cell / FRAME_FIT)) {
-        if (this.showMarks) drawMark(g, ore, 0, 0, cell * 0.3);
-        return;
-      }
-      // A plate of the ore, lit along its top edge, with the ore's own silhouette set into it.
-      g.rect(-half, -half, cell, cell).fill({ color: mix(color, INK.black, 0.5) });
-      g.rect(-half, -half, cell, Math.max(1, cell * 0.05)).fill({ color: mix(color, INK.white, 0.25), alpha: 0.5 });
-      g.rect(-half, half - 1, cell, 1).fill({ color: INK.black, alpha: 0.35 });
-      g.rect(half - 1, -half, 1, cell).fill({ color: INK.black, alpha: 0.35 });
-      drawPiece(g, ore, 0, 0, cell * 0.27, { marks: this.showMarks });
-    });
+    // An ore frame is cut to fill its cell, with no padding: the cells of a piece join edge to edge.
+    return this.kindPiece("ore", ore, cell, { art: cell / FRAME_FIT, r: cell * 0.3, fallback: (g, marks) => drawPlate(g, ore, cell, marks) });
   }
 
   private makeView(piece: CuttingPiece, ores: readonly number[], slabWidth: number): PieceView {
@@ -329,13 +322,11 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
   protected onState(state: CuttingState, prev: CuttingState | null): void {
     this.clearAim();
     this.drag = null;
-    this.hint = null;
-    this.hintLayer.clear();
-    this.idle = 0;
+    this.hint.restart();
     const g = this.grid;
     if (g.cols !== state.config.width || g.rows !== state.config.height) {
       // A different slab size (a lab config): lay it out afresh.
-      this.layout(this.app.screen.width, this.app.screen.height);
+      this.relayout();
       return;
     }
     const r = state.lastMove;
@@ -491,33 +482,8 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     return cuttingViewString(ores, g.cols, rects);
   }
 
-  protected override update(dt: number): void {
+  protected override update(): void {
     if (this.aim) this.drawAim();
-    // A cut from a best plan pulses after a pause, in rounds that allow hints.
-    if (!this.interactive || !this.hints || !this.state || this.state.finished || this.aim || this.drag || this.busy) {
-      this.idle = 0;
-      if (this.hint) {
-        this.hint = null;
-        this.hintLayer.clear();
-      }
-      return;
-    }
-    this.idle += dt;
-    if (this.idle < HINT_AFTER_MS) return;
-    if (this.hintFor !== this.state || !this.hint) {
-      this.hintFor = this.state;
-      this.hint = cuttingBestCut(this.state);
-    }
-    this.hintLayer.clear();
-    if (!this.hint) return;
-    const p = cuttingCutPreview(this.state, this.hint.piece, this.hint.vertical, this.hint.at);
-    if (!p) return;
-    const g = this.grid;
-    const pulse = 0.35 + 0.35 * Math.sin(this.time / 240);
-    this.hintLayer
-      .moveTo(g.ox + p.line[0] * g.cell, g.oy + p.line[1] * g.cell)
-      .lineTo(g.ox + p.line[2] * g.cell, g.oy + p.line[3] * g.cell)
-      .stroke({ width: Math.max(4, g.cell * 0.1), color: INK.good, alpha: pulse, cap: "round" });
   }
 
   // ---- the cut being lined up
@@ -544,7 +510,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     this.aim = aim;
     this.armed = armed;
     this.preview = preview;
-    this.idle = 0;
+    this.hint.restart();
     if (moved) {
       sfx.tick(false);
       const g = this.grid;
@@ -639,7 +605,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
       return;
     }
     if (this.busy) this.tweens.flush();
-    this.idle = 0;
+    this.hint.restart();
     this.drag = { piece: piece.id, x, y, moved: false, vertical: null };
   }
 
@@ -750,4 +716,15 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     }
     return false;
   }
+}
+
+/** An ore with no frame in the sheet: a plate of it, lit along its top edge, with the ore's own silhouette set into it. */
+function drawPlate(g: Graphics, ore: number, cell: number, marks: boolean): void {
+  const color = kindStyle(ore).color;
+  const half = cell / 2;
+  g.rect(-half, -half, cell, cell).fill({ color: mix(color, INK.black, 0.5) });
+  g.rect(-half, -half, cell, Math.max(1, cell * 0.05)).fill({ color: mix(color, INK.white, 0.25), alpha: 0.5 });
+  g.rect(-half, half - 1, cell, 1).fill({ color: INK.black, alpha: 0.35 });
+  g.rect(half - 1, -half, 1, cell).fill({ color: INK.black, alpha: 0.35 });
+  drawPiece(g, ore, 0, 0, cell * 0.27, { marks });
 }

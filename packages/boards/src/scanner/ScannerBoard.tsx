@@ -32,7 +32,6 @@ export function ScannerBoard(props: ScannerBoardProps) {
         },
         {
           showMarks: props.showMarks,
-          hints: props.hints,
           labels: {
             ping: t("scanner.switch_ping"),
             lock: t("scanner.switch_lock"),

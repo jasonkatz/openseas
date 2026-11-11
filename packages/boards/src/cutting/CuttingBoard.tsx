@@ -29,7 +29,6 @@ export function CuttingBoard(props: CuttingBoardProps) {
         },
         {
           showMarks: props.showMarks,
-          hints: props.hints,
           labels: {
             cuts: (left) => t("cutting.cuts_left", { left }),
             banked: (got, best) => t("cutting.banked", { got, best }),

@@ -29,10 +29,15 @@ export async function closeBench(page: Page): Promise<void> {
   if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-expanded")) === "true") await toggle.click();
 }
 
-/** Where a kit board's grid sits on the page, from the `data-geom` its canvas publishes: the origin and the cell size in page pixels. */
+/**
+ * Where a kit board's grid sits on the page, from the `data-geom` its canvas publishes: the origin and the cell size in page pixels.
+ * The canvas is scrolled into view first, as a player would: a click the start card scrolled to, or the scroll the home page
+ * kept, can leave the top of a board above the window, where a tap at a cell's point lands on the page, not the board.
+ */
 export async function boardGeom(page: Page, puzzle: string): Promise<{ ox: number; oy: number; cell: number }> {
   const canvas = page.getByTestId(`${puzzle}-canvas`);
   await expect(canvas).toHaveAttribute("data-geom", /^-?\d+,-?\d+,[\d.]+$/);
+  await canvas.scrollIntoViewIfNeeded();
   const [gx, gy, cell] = ((await canvas.getAttribute("data-geom")) ?? "").split(",").map(Number) as [number, number, number];
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
