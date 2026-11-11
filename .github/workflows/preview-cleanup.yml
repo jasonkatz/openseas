@@ -1,7 +1,7 @@
 name: Preview cleanup
 
 # Tears down what preview.yml built (ADR 0017): deletes the pull request's Railway environment
-# (server, database and its data) and the game's and the harness's aliases when the PR closes, and sweeps daily for
+# (server, database and its data) and the game's, the harness's and the guides' aliases when the PR closes, and sweeps daily for
 # environments whose PR closed while this could not run. Vercel keeps the preview deployments
 # themselves; they cost nothing idle. Setup: docs/DEPLOY.md, "Previews".
 #
@@ -34,10 +34,12 @@ env:
   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
   # The harness's alias is removed with the harness's token when there is one (see preview.yml).
   VERCEL_HARNESS_TOKEN: ${{ secrets.VERCEL_HARNESS_TOKEN || secrets.VERCEL_TOKEN }}
+  VERCEL_DOCS_TOKEN: ${{ secrets.VERCEL_DOCS_TOKEN || secrets.VERCEL_TOKEN }}
   VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
   ALIAS_PREFIX: ${{ vars.PREVIEW_ALIAS_PREFIX || 'openseas-pr' }}
   HARNESS_ALIAS_PREFIX: ${{ vars.PREVIEW_HARNESS_ALIAS_PREFIX || 'openseas-harness-pr' }}
+  DOCS_ALIAS_PREFIX: ${{ vars.PREVIEW_DOCS_ALIAS_PREFIX || 'openseas-docs-pr' }}
 
 jobs:
   teardown:
@@ -77,7 +79,7 @@ jobs:
         if: steps.config.outputs.vercel == 'true'
         # REST rather than `vercel alias rm`, which needs a user behind the token (see preview.yml).
         run: |
-          for entry in "$ALIAS_PREFIX-$PR.vercel.app|$VERCEL_TOKEN" "$HARNESS_ALIAS_PREFIX-$PR.vercel.app|$VERCEL_HARNESS_TOKEN"; do
+          for entry in "$ALIAS_PREFIX-$PR.vercel.app|$VERCEL_TOKEN" "$HARNESS_ALIAS_PREFIX-$PR.vercel.app|$VERCEL_HARNESS_TOKEN" "$DOCS_ALIAS_PREFIX-$PR.vercel.app|$VERCEL_DOCS_TOKEN"; do
             host="${entry%%|*}"
             token="${entry##*|}"
             status="$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X DELETE \

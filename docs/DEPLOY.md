@@ -47,10 +47,14 @@ Every pull request that touches a package or the build configuration gets its ow
    harness (default `openseas-harness-pr-<number>`). The aliases are stable across pushes, which is
    what lets the server list both origins in `CLIENT_ORIGINS` before anything deploys. Without
    `VERCEL_HARNESS_PROJECT_ID` the harness preview skips with a warning and the game still previews.
-3. One comment on the PR carries the URLs and is updated on every push.
+3. **Guides on Vercel.** The puzzle guides (ADR 0038) are built and deployed the same way to
+   their own project and aliased to `<PREVIEW_DOCS_ALIAS_PREFIX>-<number>.vercel.app` (default
+   `openseas-docs-pr-<number>`). They talk to no server, so this job does not wait for Railway.
+   Without `VERCEL_DOCS_PROJECT_ID` it skips with a warning.
+4. One comment on the PR carries the URLs and is updated on every push.
 
 **Preview cleanup** (`.github/workflows/preview-cleanup.yml`) deletes the Railway environment,
-its database and the alias when the PR closes, and sweeps daily for `pr-*` environments whose PR
+its database and the aliases when the PR closes, and sweeps daily for `pr-*` environments whose PR
 is already closed. Vercel keeps the preview deployments; they cost nothing idle.
 
 - The Railway side needs `RAILWAY_API_TOKEN` and `RAILWAY_PROJECT_ID` (step 1.6), **repository**-
@@ -65,7 +69,7 @@ is already closed. Vercel keeps the preview deployments; they cost nothing idle.
 - Each open code PR runs a server and a Postgres on Railway until it closes. Close PRs you are
   done with. To tear one down by hand, run **Preview cleanup** with the PR number; run it with no
   number to sweep.
-- Deployment Protection's Standard Protection keeps both previews behind a Vercel login.
+- Deployment Protection's Standard Protection keeps all three previews behind a Vercel login.
   The server's `/health` and API are public, as production's are.
 - The preview database is empty: you arrive as a new guest. A preview environment copies
   production's `ALPHA_INVITE_CODE`, so the first visit asks for the invite code; both the game's
@@ -232,7 +236,8 @@ and everything else deploys as before.
 6. The token: as for the harness (step 2b.7). A team-scoped `VERCEL_TOKEN` covers this project;
    otherwise add `VERCEL_DOCS_TOKEN` scoped to it.
 
-Pull requests get no preview of the guides; CI builds the site and runs its smoke.
+Pull requests get a preview of the guides at `openseas-docs-pr-<number>.vercel.app` (see
+"Previews"), behind a Vercel login like the others.
 
 ### 3. GitHub: secrets and variables
 
@@ -252,6 +257,7 @@ required reviewers there later.
 | Variable | `RAILWAY_DATABASE_SERVICE` | optional; the Postgres service name if not `Postgres` |
 | Variable | `PREVIEW_ALIAS_PREFIX` | optional; game previews live at `<prefix>-<pr>.vercel.app`, default `openseas-pr` |
 | Variable | `PREVIEW_HARNESS_ALIAS_PREFIX` | optional; harness previews live at `<prefix>-<pr>.vercel.app`, default `openseas-harness-pr` |
+| Variable | `PREVIEW_DOCS_ALIAS_PREFIX` | optional; guides previews live at `<prefix>-<pr>.vercel.app`, default `openseas-docs-pr` |
 | Variable | `VERCEL_ORG_ID` | `orgId` from `.vercel/project.json` |
 | Variable | `VERCEL_PROJECT_ID` | `projectId` from `.vercel/project.json` (the game) |
 | Variable | `VERCEL_HARNESS_PROJECT_ID` | the harness project's id (step 2b.6) |
@@ -259,7 +265,7 @@ required reviewers there later.
 | Variable | `PRODUCTION_CLIENT_URL` | `https://<vercel production domain>` of the game |
 | Variable | `PRODUCTION_HARNESS_URL` | `https://test.openseas.online` |
 | Secret | `VERCEL_DOCS_TOKEN` | optional; a token scoped to the guides project, when `VERCEL_TOKEN` is not team-scoped (step 2c.6) |
-| Variable | `VERCEL_DOCS_PROJECT_ID` | the guides project's id (step 2c.5); unset means the guides are not deployed |
+| Variable | `VERCEL_DOCS_PROJECT_ID` | the guides project's id (step 2c.5); unset means the guides are neither deployed nor previewed |
 | Variable | `PRODUCTION_DOCS_URL` | `https://docs.openseas.online` |
 
 The URL variables are what let the pipeline wait for the server before deploying the front ends
