@@ -21,7 +21,7 @@ import type { Logger } from "./log.js";
 import { lookOf, pirateRecord } from "./pirates.js";
 import type { Presence } from "./presence.js";
 import type { ShipRoom, ShipService } from "./ships/service.js";
-import type { SocialService } from "./social.js";
+import type { WhereaboutsLookup } from "./whereabouts.js";
 
 /** A crew request refused. The code is sent to the client as is. */
 export class CrewError extends Error {
@@ -54,6 +54,9 @@ interface Crew {
   invites: Map<string, Invite>;
 }
 
+/** What crews ask of ships: whether a pirate could join one and where it is, and to fly new colors. */
+export type CrewShips = Pick<ShipService, "canJoin" | "where" | "refreshColors">;
+
 export interface CrewServiceOptions {
   now?: () => number;
   randomId: () => string;
@@ -84,8 +87,8 @@ export class CrewService {
     private readonly db: Db,
     private readonly content: Content,
     private readonly log: Logger,
-    private readonly ships: ShipService,
-    private readonly social: SocialService,
+    private readonly ships: CrewShips,
+    private readonly whereabouts: WhereaboutsLookup,
     private readonly presence: Presence,
     private readonly opts: CrewServiceOptions,
   ) {
@@ -436,8 +439,10 @@ export class CrewService {
     return [...crew.members].filter(([, m]) => m.rank !== "spacer").map(([id]) => id);
   }
 
+  /** The outpost a pirate stands on, connected; null aboard or offline. */
   private outpostOf(pirateId: string): string | null {
-    return this.ships.roomOf(pirateId) ? null : this.social.outpostOf(pirateId);
+    const at = this.whereabouts.of(pirateId);
+    return at.kind === "on-outpost" ? at.outpostId : null;
   }
 
   /** Every crew with someone among these pirates, with who. */
@@ -509,22 +514,22 @@ export class CrewService {
   }
 
   private whereOf(pirateId: string, viewerId: string, viewerOutpost: string | null): CrewWhere {
-    const room = this.ships.roomOf(pirateId);
-    if (room) {
+    const at = this.whereabouts.of(pirateId);
+    if (at.kind === "aboard") {
+      const room = at.room;
       const s = room.state;
-      const at = this.ships.where(room);
+      const ship = this.ships.where(room);
       return {
         kind: "aboard",
         shipId: room.shipId,
         shipName: room.name,
         outpostId: s.outpostId,
-        to: at.kind === "in-flight" ? at.to : null,
-        progress: at.kind === "in-flight" ? at.progress : 0,
+        to: ship.kind === "in-flight" ? ship.to : null,
+        progress: ship.kind === "in-flight" ? ship.progress : 0,
         joinable: pirateId !== viewerId && this.ships.canJoin(room, viewerId, viewerOutpost),
       };
     }
-    const outpost = this.presence.online(pirateId) ? this.social.outpostOf(pirateId) : null;
-    return outpost ? { kind: "on-outpost", outpostId: outpost } : { kind: "offline" };
+    return at.kind === "on-outpost" ? { kind: "on-outpost", outpostId: at.outpostId } : { kind: "offline" };
   }
 
   private notify(pirateIds: readonly string[], notice: CrewNotice): void {

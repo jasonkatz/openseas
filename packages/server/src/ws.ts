@@ -16,6 +16,7 @@ import type { PuzzleService } from "./puzzles/service.js";
 import { ShipError, type ShipService } from "./ships/service.js";
 import { NoSuchClassError, buyShip } from "./shipyard.js";
 import { SocialError, type SocialService } from "./social.js";
+import type { WhereaboutsLookup } from "./whereabouts.js";
 
 export interface WsDeps {
   db: Db;
@@ -23,6 +24,7 @@ export interface WsDeps {
   content: Content;
   log: Logger;
   presence: Presence;
+  whereabouts: WhereaboutsLookup;
   puzzles: PuzzleService;
   ships: ShipService;
   social: SocialService;
@@ -43,7 +45,7 @@ const BUCKET_SIZE = 40;
 const REFILL_PER_SECOND = 20;
 
 export function createWsServer(deps: WsDeps) {
-  const { db, auth, content, log, presence, puzzles, ships, social, crews, looks } = deps;
+  const { db, auth, content, log, presence, whereabouts, puzzles, ships, social, crews, looks } = deps;
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES });
   /** Whether each pirate online signed in as a guest, as their newest socket did. */
   const guests = new Map<string, boolean>();
@@ -251,8 +253,8 @@ export function createWsServer(deps: WsDeps) {
         send(ws, await ships.noticeBoard(conn.pirateId));
         return;
       case "shipyard.buy": {
-        if (ships.roomOf(conn.pirateId)) throw new SocialError("aboard_a_ship");
-        const outpostId = await ships.pirateOutpost(conn.pirateId);
+        if (whereabouts.of(conn.pirateId).kind === "aboard") throw new SocialError("aboard_a_ship");
+        const outpostId = await whereabouts.outpost(conn.pirateId);
         try {
           const bought = await buyShip(db, content, conn.pirateId, msg.classId, outpostId, randomInt);
           log.info({ pirateId: conn.pirateId, shipId: bought.shipId, classId: msg.classId }, "ship bought");
@@ -276,11 +278,9 @@ export function createWsServer(deps: WsDeps) {
       case "walk.to":
         social.walk(conn.pirateId, { x: msg.x, z: msg.z });
         return;
-      case "outpost.who": {
-        const outpostId = social.outpostOf(conn.pirateId) ?? (await ships.pirateOutpost(conn.pirateId));
-        send(ws, social.presence(outpostId));
+      case "outpost.who":
+        send(ws, social.presence(await whereabouts.outpost(conn.pirateId)));
         return;
-      }
       case "melee.join":
         await ships.meleeJoin(conn.pirateId);
         return;

@@ -1,29 +1,33 @@
 /**
  * Walking is relayed, not ruled (ADR 0032): a pirate's walk target goes to everyone else in their
- * place, on the outpost or aboard, and is forgotten when they leave it. No database: the ship service is
- * stood in for by the two things the social service asks of it.
+ * place, on the outpost or aboard, and is forgotten when they leave it. No database: where each
+ * pirate is comes from a stand-in for Whereabouts, and the ship service's word that a pirate went
+ * aboard or ashore is the test's own.
  */
 import { describe, expect, it } from "vitest";
-import type { ServerMessage } from "@openseas/protocol";
+import { loadContent } from "@openseas/content";
+import { createShip } from "@openseas/engine";
 import { Presence } from "../src/presence.js";
-import { Room } from "../src/rooms.js";
+import { ShipRoom, shipConfigFor } from "../src/ships/service.js";
 import { SocialService, WALK_MIN_MS } from "../src/social.js";
-import type { ShipService } from "../src/ships/service.js";
+import type { Whereabout, WhereaboutsLookup } from "../src/whereabouts.js";
 import { Inbox } from "./inbox.js";
 
-/** A ship service with one ship room and every pirate standing on Tinwick. */
+const content = loadContent();
+
+/** One ship lying at Tinwick, and every pirate who is not aboard her standing on Tinwick while connected. */
 function harbor() {
   const presence = new Presence();
-  const deck = new Room<ServerMessage>("ship-1", presence);
+  const skiff = content.world.shipClasses[0]!;
+  const ship = new ShipRoom("ship-1", "Static Comet", skiff, "p-owner", createShip("harbor", shipConfigFor(content, skiff), "tinwick"), 0, presence);
   const aboard = new Set<string>();
-  const ships = {
-    onDisembark: null as ((pirateId: string, outpostId: string) => void) | null,
-    onBoarded: null as ((pirateId: string) => void) | null,
-    roomOf: (pirateId: string) => (aboard.has(pirateId) ? { conns: deck } : null),
-    pirateOutpost: async () => "tinwick",
+  const whereabouts: WhereaboutsLookup = {
+    of: (pirateId): Whereabout =>
+      aboard.has(pirateId) ? { kind: "aboard", room: ship } : presence.online(pirateId) ? { kind: "on-outpost", outpostId: "tinwick" } : { kind: "offline" },
+    outpost: async () => "tinwick",
   };
   let now = 1_000;
-  const social = new SocialService(ships as unknown as ShipService, presence, () => now);
+  const social = new SocialService(whereabouts, presence, () => now);
   return {
     social,
     tick: (ms: number) => (now += ms),
@@ -34,13 +38,13 @@ function harbor() {
     },
     board(member: Inbox) {
       aboard.add(member.id);
-      deck.join(member.id);
-      ships.onBoarded?.(member.id);
+      ship.conns.join(member.id);
+      social.boarded(member.id);
     },
     onOutpost(member: Inbox) {
       aboard.delete(member.id);
-      deck.leave(member.id);
-      ships.onDisembark?.(member.id, "tinwick");
+      ship.conns.leave(member.id);
+      social.disembarked(member.id, "tinwick");
     },
   };
 }

@@ -14,6 +14,7 @@ import { PuzzleService } from "./puzzles/service.js";
 import { ShipService } from "./ships/service.js";
 import { CrewService } from "./crews.js";
 import { SocialService } from "./social.js";
+import { Whereabouts } from "./whereabouts.js";
 import { createWsServer } from "./ws.js";
 
 export interface App {
@@ -38,14 +39,18 @@ export async function createApp(env: Env, log: Logger, opts: { now?: () => numbe
   const auth = createAuth(env, db, log);
   // Who is connected, and the way to each pirate: every service says what it says to a pirate through it.
   const presence = new Presence();
+  // Where each pirate is: the ship service moves them, everyone else asks.
+  const whereabouts = new Whereabouts(db, content, presence);
   const puzzles = new PuzzleService(db, content, log, presence, opts.now);
-  const ships = new ShipService(db, content, log, puzzles, presence, {
+  const ships = new ShipService(db, content, log, puzzles, presence, whereabouts, {
     ...(opts.now ? { now: opts.now } : {}),
     randomSeed: () => randomBytes(16).toString("hex"),
     randomId: () => randomUUID(),
   });
-  const social = new SocialService(ships, presence, opts.now);
-  const crews = new CrewService(db, content, log, ships, social, presence, { ...(opts.now ? { now: opts.now } : {}), randomId: () => randomUUID() });
+  const social = new SocialService(whereabouts, presence, opts.now);
+  ships.onBoarded = (pirateId) => social.boarded(pirateId);
+  ships.onDisembark = (pirateId, outpostId) => social.disembarked(pirateId, outpostId);
+  const crews = new CrewService(db, content, log, ships, whereabouts, presence, { ...(opts.now ? { now: opts.now } : {}), randomId: () => randomUUID() });
   await crews.load();
   ships.crews = crews;
   social.crews = crews;
@@ -56,7 +61,7 @@ export async function createApp(env: Env, log: Logger, opts: { now?: () => numbe
   ships.onArrived = (ids) => void crews.tallyVoyage(ids).catch((e) => log.error({ err: e }, "crew voyage tally failed"));
   ships.onVictory = (room, tierId, shares) => void crews.tallyVictory(room, tierId, shares).catch((e) => log.error({ err: e }, "crew victory tally failed"));
   const http = createHttpHandler({ env, db, auth, content, log });
-  const ws = createWsServer({ db, auth, content, log, presence, puzzles, ships, social, crews, looks });
+  const ws = createWsServer({ db, auth, content, log, presence, whereabouts, puzzles, ships, social, crews, looks });
 
   const server = createServer((req, res) => void http(req, res));
   server.on("upgrade", (req, socket, head) => {

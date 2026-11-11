@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { defaultLook, type RaiderTier, type Content, type PirateLook, type ShipClass } from "@openseas/content";
 import {
   InvalidMoveError,
@@ -40,6 +40,7 @@ import { bindingPolicy } from "../puzzles/binding.js";
 import type { BoardEnd, BoardHost, PuzzleService } from "../puzzles/service.js";
 import type { PuzzleSession } from "../puzzles/sessions.js";
 import { Room, type Lines } from "../rooms.js";
+import type { Whereabouts } from "../whereabouts.js";
 import { Melee, type PirateBoards } from "./melee.js";
 
 /** A request the ship refuses. The code is sent to the client as is. */
@@ -118,13 +119,14 @@ export interface ShipServiceOptions {
 
 /**
  * Ships as rooms (ADR 0005): runs the engine's ship reducer on a turn clock, binds duty boards to
- * stations, and persists what must outlive the process (where ships and pirates are, voyages).
- * Everything else about a ship in flight is in memory; a restart puts every ship back in port.
+ * stations, and persists what must outlive the process (where ships are, voyages). Pirates go aboard
+ * and are put on outposts through Whereabouts, which holds where each one is. Everything else about
+ * a ship in flight is in memory; a restart puts every ship back in port.
  */
 export class ShipService {
-  /** A pirate stepped (or was put) at an outpost. The connection layer rejoins them to the outpost. */
+  /** A pirate stepped (or was put) at an outpost, and has heard they left. The social service stands them on it; the connection layer re-sends their summary. */
   onDisembark: ((pirateId: string, outpostId: string) => void) | null = null;
-  /** A pirate went aboard; they are no longer on the outpost anywhere. */
+  /** A pirate went aboard. The social service takes them off the outpost they stood on. */
   onBoarded: ((pirateId: string) => void) | null = null;
   /** These pirates' summaries changed (a ship or a pirate moved outposts); the connection layer re-sends them. */
   onSummaryChanged: ((pirateIds: readonly string[]) => void) | null = null;
@@ -139,7 +141,6 @@ export class ShipService {
   /** Looks, once the connection layer has them; without it every pirate wears the default for their id. */
   looks: LookLookup | null = null;
   private readonly rooms = new Map<string, ShipRoom>();
-  private readonly byPirate = new Map<string, string>();
   private readonly configs = new Map<string, ShipConfig>();
   /** Melees the ship is settling: it awaits each board's end in turn, and meanwhile nothing advances or decides them. */
   private readonly settling = new WeakSet<Melee>();
@@ -152,6 +153,7 @@ export class ShipService {
     private readonly log: Logger,
     private readonly puzzles: PuzzleService,
     private readonly presence: Presence,
+    private readonly whereabouts: Whereabouts,
     private readonly opts: ShipServiceOptions,
   ) {
     this.now = opts.now ?? Date.now;
@@ -168,11 +170,6 @@ export class ShipService {
     return c;
   }
 
-  roomOf(pirateId: string): ShipRoom | null {
-    const id = this.byPirate.get(pirateId);
-    return id ? (this.rooms.get(id) ?? null) : null;
-  }
-
   room(shipId: string): ShipRoom | null {
     return this.rooms.get(shipId) ?? null;
   }
@@ -184,7 +181,7 @@ export class ShipService {
   // ---- crew actions
 
   async board(pirateId: string, name: string, shipId: string): Promise<void> {
-    if (this.byPirate.has(pirateId)) throw new ShipError("already_aboard");
+    if (this.roomOf(pirateId)) throw new ShipError("already_aboard");
     let room = this.rooms.get(shipId);
     if (!room) {
       const [ship] = await this.db.select().from(schema.ship).where(eq(schema.ship.id, shipId));
@@ -192,18 +189,18 @@ export class ShipService {
       const shipClass = this.content.world.shipClasses.find((c) => c.id === ship.classId);
       if (!shipClass) throw new ShipError("no_ship");
       const outpostId = ship.outpostId ?? this.content.world.startOutpostId;
-      if (outpostId !== (await this.pirateOutpost(pirateId))) throw new ShipError("ship_elsewhere");
+      if (outpostId !== (await this.whereabouts.outpost(pirateId))) throw new ShipError("ship_elsewhere");
       const state = createShip(this.opts.randomSeed(), this.configFor(ship.classId), outpostId);
       room = new ShipRoom(ship.id, ship.name, shipClass, ship.ownerId, state, this.now() + this.turnMs, this.presence);
       this.rooms.set(shipId, room);
-    } else if (room.state.outpostId !== null && room.state.outpostId !== (await this.pirateOutpost(pirateId))) {
+    } else if (room.state.outpostId !== null && room.state.outpostId !== (await this.whereabouts.outpost(pirateId))) {
       throw new ShipError("ship_elsewhere");
     }
     if (room.state.inviteOnly && !this.mayBoardLocked(room, pirateId)) throw new ShipError("ship_locked");
     this.apply(room, { type: "board", pirateId }, (e) => (e.message === "ship is full" ? "ship_full" : "already_aboard"));
     room.names.set(pirateId, name);
     room.conns.join(pirateId);
-    this.byPirate.set(pirateId, shipId);
+    this.whereabouts.board(pirateId, room);
     if (room.voyageId) {
       await this.db.insert(schema.voyageCrew).values({ voyageId: room.voyageId, pirateId }).onConflictDoNothing();
     }
@@ -222,7 +219,7 @@ export class ShipService {
    * now: not aboard another, a berth free, the ship open to them, and either in flight or at their dock.
    */
   canJoin(room: ShipRoom, pirateId: string, outpostId: string | null): boolean {
-    if (this.byPirate.has(pirateId)) return false;
+    if (this.roomOf(pirateId)) return false;
     if (pirates(room.state.crew).length >= room.shipClass.maxCrew) return false;
     if (room.state.inviteOnly && !this.mayBoardLocked(room, pirateId)) return false;
     return room.state.outpostId === null || room.state.outpostId === outpostId;
@@ -773,7 +770,7 @@ export class ShipService {
   // ---- the notice board
 
   async noticeBoard(pirateId: string): Promise<ServerMessage> {
-    const outpostId = await this.pirateOutpost(pirateId);
+    const outpostId = await this.whereabouts.outpost(pirateId);
     const ships: BoardShip[] = [];
     for (const room of this.rooms.values()) {
       const s = room.state;
@@ -796,12 +793,13 @@ export class ShipService {
     return { type: "board.ships", outpostId, ships, serverNow: this.now() };
   }
 
-  async pirateOutpost(pirateId: string): Promise<string> {
-    const [p] = await this.db.select({ outpostId: schema.pirate.outpostId }).from(schema.pirate).where(eq(schema.pirate.id, pirateId));
-    return p?.outpostId ?? this.content.world.startOutpostId;
-  }
-
   // ---- internals
+
+  /** The ship the pirate is aboard. */
+  private roomOf(pirateId: string): ShipRoom | null {
+    const at = this.whereabouts.of(pirateId);
+    return at.kind === "aboard" ? at.room : null;
+  }
 
   private apply(room: ShipRoom, move: ShipMove, code: (e: InvalidMoveError) => ErrorCode): void {
     try {
@@ -898,7 +896,7 @@ export class ShipService {
   }
 
   private async putOnOutpost(room: ShipRoom, pirateId: string, reason: "left" | "timed_out"): Promise<void> {
-    this.byPirate.delete(pirateId);
+    this.whereabouts.leaveShip(pirateId);
     for (const [st, ss] of room.stations) {
       const session = this.puzzles.sessions.get(ss.sessionId);
       if (session?.pirateId === pirateId) await this.endStation(room, st);
@@ -910,13 +908,14 @@ export class ShipService {
     const session = fight ? this.puzzles.sessions.get(fight) : undefined;
     if (session) await this.puzzles.cutShort(session);
     const outpostId = room.state.outpostId ?? room.state.voyage?.leg.from ?? this.content.world.startOutpostId;
-    await this.db.update(schema.pirate).set({ outpostId }).where(eq(schema.pirate.id, pirateId));
     if (room.voyageId) {
       await this.db
         .update(schema.voyageCrew)
         .set({ leftAt: new Date(this.now()) })
         .where(and(eq(schema.voyageCrew.voyageId, room.voyageId), eq(schema.voyageCrew.pirateId, pirateId)));
     }
+    // They reach the outpost last, so nothing waits between that and their hearing they left and standing there.
+    await this.whereabouts.disembark(pirateId, outpostId);
     room.conns.send(pirateId, { type: "ship.left", shipId: room.shipId, reason });
     room.conns.leave(pirateId);
     this.onDisembark?.(pirateId, outpostId);
@@ -929,7 +928,7 @@ export class ShipService {
     room.voyageId = null;
     await this.db.transaction(async (tx) => {
       await tx.update(schema.ship).set({ outpostId }).where(eq(schema.ship.id, room.shipId));
-      if (crewIds.length) await tx.update(schema.pirate).set({ outpostId }).where(inArray(schema.pirate.id, crewIds));
+      await this.whereabouts.arrive(tx, crewIds, outpostId);
       if (voyageId) {
         await tx
           .update(schema.voyage)
