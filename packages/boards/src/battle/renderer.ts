@@ -1,5 +1,4 @@
-import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
-import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, TilingSprite, type FederatedPointerEvent } from "pixi.js";
+import { CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, TilingSprite } from "pixi.js";
 import {
   BATTLE_PERMILLE,
   battleArcCells,
@@ -17,16 +16,15 @@ import {
   type Side,
 } from "@openseas/engine";
 import { paintBall, paintTurret, paintCaustic, paintWell, paintSpace, paintShip } from "./art.js";
-import { boardSurface } from "../surface.js";
 import { HULL, hullFrame, hullGradient } from "../hull.js";
-import type { BoardRenderer } from "../kit/useBoardHost.js";
+import { KitBoard } from "../kit/board.js";
 
 export interface BattleCallbacks {
   /** The captain flew the plot: by the button, the key, or the host's turn clock. */
   onCommit(plan: BattlePlan): void;
   /** The plot changed, for a host that mirrors it (the smoke test reads it). */
   onPlanChange(plan: BattlePlan): void;
-  /** First frame drawn after a new state arrived. */
+  /** First frame drawn once a new state has finished playing out: its turn's moves, shots and end. */
   onFrame(): void;
   /** Events of a resolved turn as they are shown, segment by segment, for sound. */
   onEvents(events: readonly BattleEvent[]): void;
@@ -171,10 +169,26 @@ const FONT = "Atkinson Hyperlegible, sans-serif";
 const DISPLAY = "Fraunces, Georgia, serif";
 const SHIP_SCALE = 2.1;
 
-/** What the board shows, for the smoke test: both ships, the turn and the outcome. */
+/** What a fight holds, as far as its view string says: a state has this shape, and so does what the renderer has drawn. */
+interface FightView {
+  readonly turn: number;
+  readonly ships: readonly { readonly x: number; readonly y: number; readonly heading: number; readonly damage: number; readonly loaded: number }[];
+  readonly outcome: BattleOutcome | null;
+}
+
+/** The turn, each ship as x.y.heading.damage.loaded, and the outcome. */
+function fightString(f: FightView): string {
+  const ships = f.ships.map((s) => `${s.x}.${s.y}.${s.heading}.${s.damage}.${s.loaded}`).join("|");
+  return `${f.turn}:${ships}:${f.outcome ?? "-"}`;
+}
+
+/**
+ * One string that names what the fight holds: both ships, the turn and the outcome. The page writes
+ * it as `data-board`; the renderer writes the same string from what it has drawn as `data-view`, so
+ * the smoke test can tell when the two differ.
+ */
 export function battleViewString(state: BattleState): string {
-  const ships = state.ships.map((s) => `${s.x}.${s.y}.${s.heading}.${s.damage}.${s.loaded}`).join("|");
-  return `${state.turn}:${ships}:${state.outcome ?? "-"}`;
+  return fightString(state);
 }
 
 function trimTrailingHolds(segments: readonly BattleSegment[]): BattleSegment[] {
@@ -193,9 +207,15 @@ function texture(canvas: HTMLCanvasElement, resolution: number): Texture {
   return new Texture({ source: new CanvasSource({ resource: canvas, resolution }) });
 }
 
-export class BattleRenderer implements BoardRenderer<BattleState> {
-  readonly app = new Application();
-  private readonly world = new Container();
+/**
+ * PixiJS view of a Space Battle state, on the kit's lifecycle (ADR 0040). Pure presentation: it draws
+ * the engine's fight, asks the engine where a plot takes the ship and what its guns reach, and reports
+ * the plot the captain flies; it never decides what a turn does. A resolved turn plays out as steps,
+ * segment by segment (moves, pushes, spins, shots, the end), and the board is busy until the last one
+ * has played. The HUD and the plot strip sit above the kit's world, so a shake moves the board alone.
+ * It acts on a press and tracks no drag, so a pointer the browser takes over leaves nothing held.
+ */
+export class BattleRenderer extends KitBoard<BattleState> {
   private readonly frameG = new Graphics();
   private readonly spaceLayer = new Container();
   private spaceSprite: Sprite | null = null;
@@ -222,7 +242,6 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
   private shipSprites: [Sprite, Sprite] | null = null;
   private ghostSprites: Sprite[] = [];
   private ghostTexts: Text[] = [];
-  private state: BattleState | null = null;
   private ships: [ShipView, ShipView] = [
     { x: 0, y: 0, rot: 0, damage: 0, flash: 0, moving: false },
     { x: 0, y: 0, rot: Math.PI, damage: 0, flash: 0, moving: false },
@@ -244,12 +263,7 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
   private flyGuard = 0;
   private buttons: Button[] = [];
   private pressed: { id: string; t: number } | null = null;
-  private interactive = false;
-  private framePending = false;
-  private destroyed = false;
-  private shake = 0;
   private endFlash = 0;
-  private time = 0;
   private turnLeftMs: number | null = null;
   private turnMs = 1;
   /** Geometry. */
@@ -262,83 +276,60 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
   private vertical = false;
   private strip = { x: 0, y: 0, w: 0, h: 0 };
   private hud = { x: 0, y: 0, w: 0, h: 0 };
-  private readonly reduced = typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
   private stripDirty = true;
   private bakedKey = "";
+  /** The turn the strip's label was drawn for, for the view. */
+  private drawnTurn = -1;
+  /** The damage each ship's hull bar was drawn with, for the view. */
+  private readonly drawnDamage: [number, number] = [0, 0];
+  /** The lamps the HUD lit for each ship's loaded guns, for the view. */
+  private readonly drawnLoaded: [number, number] = [0, 0];
+  /** The outcome the board has shown: the one its end called, or the one a fight dealt already over snapped to. For the view. */
+  private drawnOutcome: BattleOutcome | null = null;
 
   constructor(
-    private readonly host: HTMLElement,
+    host: HTMLElement,
     private readonly cb: BattleCallbacks,
     private readonly opts: BattleRendererOptions,
-  ) {}
-
-  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
-  get isReady(): boolean {
-    return Boolean(this.app.renderer);
+  ) {
+    super(host, "battle", cb.onFrame, opts.showMarks);
   }
 
-  async init(): Promise<void> {
-    await loadPuzzleSprites("battle");
-    if (this.destroyed) return;
-    await this.app.init({
-      resizeTo: this.host,
-      backgroundAlpha: 0,
-      ...boardSurface(),
-      autoDensity: true,
-      preference: "webgl",
-    });
-    if (this.destroyed) {
-      this.app.destroy(true);
-      return;
-    }
-    this.app.canvas.dataset.spriteAtlas = spritesReady("battle") ? "battle" : "fallback";
-    this.app.canvas.style.touchAction = "none";
-    this.app.canvas.setAttribute("data-testid", "battle-canvas");
-    this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-    this.host.appendChild(this.app.canvas);
+  protected build(): void {
     this.ghostLayer.addChild(this.ghostG);
     this.world.addChild(this.frameG, this.spaceLayer, this.wellLayer, this.arcG, this.ghostLayer, this.wakeG, this.shipLayer, this.hullG, this.ballLayer, this.fxG, this.fxLayer);
-    this.app.stage.addChild(this.world, this.hudG, this.hudTexts, this.stripG, this.stripIcons, this.stripTexts);
-    this.app.stage.eventMode = "static";
-    this.app.stage.hitArea = this.app.screen;
-    this.app.stage.on("pointerdown", (e) => this.pointerDown(e));
-    this.app.renderer.on("resize", () => this.layout());
-    this.app.ticker.add((ticker) => this.tick(Math.min(50, ticker.deltaMS)));
-    this.layout();
+    // Above the world, so a shake leaves the HUD and the plot strip where they are.
+    this.app.stage.addChild(this.hudG, this.hudTexts, this.stripG, this.stripIcons, this.stripTexts);
   }
 
-  destroy(): void {
-    this.destroyed = true;
-    if (this.app.renderer) {
-      this.app.destroy(true, { children: true });
-      for (const t of this.textures.values()) t.destroy(true);
-      this.brassFill.destroy();
-      this.inkFill.destroy();
-      this.hullFill.destroy();
-    }
+  protected override dispose(): void {
+    for (const t of this.textures.values()) t.destroy(true);
+    this.brassFill.destroy();
+    this.inkFill.destroy();
+    this.hullFill.destroy();
   }
 
-  setInteractive(on: boolean): void {
-    if (this.interactive === on) return;
-    this.interactive = on;
+  /** Switched on or off: the strip's buttons light or dim. */
+  protected override onInteractive(): void {
     this.stripDirty = true;
   }
 
-  setShowMarks(on: boolean): void {
-    if (this.opts.showMarks === on) return;
-    this.opts.showMarks = on;
-    if (this.app.renderer) {
-      this.bakedKey = "";
-      this.bake();
-      this.drawShips();
-      this.drawPreview();
-    }
+  /** Marks change only the ships' art, so a toggle bakes the textures again and redraws the ships and the plot, and leaves a turn playing out be. */
+  override setShowMarks(on: boolean): void {
+    if (this.showMarks === on) return;
+    this.showMarks = on;
+    if (!this.isReady) return;
+    this.bakedKey = "";
+    this.bakeTextures();
+    this.drawShips();
+    this.drawPreview();
   }
 
+  /** The guns' arcs on the plot, on or off. The wrapper's extra: it may come before the canvas, which then draws them at its first layout. */
   setShowArcs(on: boolean): void {
     if (this.opts.showArcs === on) return;
     this.opts.showArcs = on;
-    this.drawPreview();
+    if (this.isReady) this.drawPreview();
   }
 
   /** The host's turn clock: ms left to plot, and the turn's length. Null hides the bar. */
@@ -385,14 +376,15 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
     });
   }
 
-  setState(state: BattleState): void {
-    if (!this.app.renderer) return;
-    const prev = this.state;
+  /** A turn is still playing out: steps left to play, or one playing. */
+  protected override get busy(): boolean {
+    return super.busy || this.step !== null || this.queue.length > 0;
+  }
+
+  protected onState(state: BattleState, prev: BattleState | null): void {
     const reset = !prev || state.turn < this.shownTurn || state.board !== prev.board || (state.turn === this.shownTurn && state.outcome === null && prev.finished);
     const boardChanged = !prev || prev.board.width !== state.board.width || prev.board.height !== state.board.height || prev.boardIndex !== state.boardIndex || prev.board !== state.board;
-    this.state = state;
-    this.framePending = true;
-    if (boardChanged) this.layout();
+    if (boardChanged) this.layout(this.app.screen.width, this.app.screen.height);
     if (reset) {
       this.queue = [];
       this.clearStep();
@@ -403,6 +395,8 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
       this.snap(state);
       this.shownTurn = state.turn;
       this.shownOutcome = state.outcome;
+      // A fight dealt already over shows its end position and no plot, with no call to play.
+      this.drawnOutcome = state.outcome;
       this.resetPlan(state);
     } else if (state.turn > this.shownTurn && state.lastTurn) {
       this.enqueueTurn(state, state.lastTurn.events);
@@ -429,7 +423,6 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
     }
     this.drawPreview();
     this.drawHud();
-    this.app.canvas.setAttribute("data-view", battleViewString(state));
   }
 
   private clearStep(): void {
@@ -518,7 +511,7 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
             this.hurt(e.ship, e.damage);
             const t = e.blocked === "ship" ? this.opts.labels.rammed : this.opts.labels.asteroids;
             this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 1.2, t, COLORS.danger, 0.55);
-            this.shake = Math.max(this.shake, 260);
+            this.jolt(260);
             this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.sparks, 10, 0.8);
             this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.foam, 8, 0.7, true);
           }
@@ -560,7 +553,7 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
             this.particles.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: this.cell * 0.1, grow: 0.012, color: COLORS.smoke, alpha: 0.55, life: 0, max: 700 + Math.random() * 500 });
           }
         }
-        this.shake = Math.max(this.shake, 140);
+        this.jolt(140);
         this.cb.onEvents(events);
       },
     };
@@ -577,8 +570,9 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
         if (e.type === "grapple") {
           const target = this.ships[e.ship === 0 ? 1 : 0];
           this.burst(target.x, target.y, COLORS.brass, 18, 1.1);
-          this.shake = Math.max(this.shake, 400);
+          this.jolt(400);
         } else if (e.type === "ended") {
+          this.drawnOutcome = e.outcome;
           this.endFlash = 1600;
           const mid = { x: this.gx + (this.cols * this.cell) / 2, y: this.gy + (this.rows * this.cell) / 2 };
           const win = e.outcome === "boarded" || e.outcome === "crippled";
@@ -614,9 +608,7 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
     return this.gy + (y + 0.5) * this.cell;
   }
 
-  private layout(): void {
-    const W = this.app.screen.width;
-    const H = this.app.screen.height;
+  protected layout(W: number, H: number): void {
     const board = this.state?.board;
     this.cols = board?.width ?? 18;
     this.rows = board?.height ?? 14;
@@ -651,8 +643,8 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
       this.hud = { x: gutter, y: 0, w: availW, h: hudH };
       this.strip = { x: W - stripW - gutter, y: gutter, w: stripW, h: H - gutter * 2 };
     }
-    this.app.canvas.setAttribute("data-geom", `${this.gx},${this.gy},${this.cell}`);
-    this.bake();
+    this.publishGeom(this.gx, this.gy, this.cell);
+    this.bakeTextures();
     this.drawFrame();
     this.placeSpace();
     if (this.state) this.snap(this.state);
@@ -662,9 +654,9 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
   }
 
   /** Paint every texture for this cell size and board, once. */
-  private bake(): void {
+  private bakeTextures(): void {
     const board = this.state?.board;
-    const key = `${this.cell}:${this.cols}x${this.rows}:${this.state?.boardIndex ?? -1}:${this.opts.showMarks ? 1 : 0}`;
+    const key = `${this.cell}:${this.cols}x${this.rows}:${this.state?.boardIndex ?? -1}:${this.showMarks ? 1 : 0}`;
     if (key === this.bakedKey) return;
     this.bakedKey = key;
     const r = this.app.renderer.resolution;
@@ -687,8 +679,8 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
     const oldTextures = [...this.textures.values()];
     this.textures.clear();
     const shipPx = Math.ceil(this.cell * SHIP_SCALE);
-    this.textures.set("ship0", texture(paintShip(shipPx, 0, this.opts.showMarks, r), r));
-    this.textures.set("ship1", texture(paintShip(shipPx, 1, this.opts.showMarks, r), r));
+    this.textures.set("ship0", texture(paintShip(shipPx, 0, this.showMarks, r), r));
+    this.textures.set("ship1", texture(paintShip(shipPx, 1, this.showMarks, r), r));
     this.textures.set("well", texture(paintWell(Math.ceil(this.cell * 1.1), r), r));
     this.textures.set("ball", texture(paintBall(Math.max(6, Math.ceil(this.cell * 0.3)), r), r));
     this.textures.set("caustic", texture(paintCaustic(128, 1), 1));
@@ -778,6 +770,7 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
       s.position.set(v.x, v.y + Math.sin(this.time / 850 + i * 1.7) * c * 0.025 * bob);
       s.rotation = v.rot + Math.sin(this.time / 1100 + i * 2.3) * 0.03 * bob;
       const hurt = v.damage / BATTLE_PERMILLE;
+      this.drawnDamage[i] = v.damage;
       s.tint = v.flash > 0 ? 0xffb38a : hurt > 0.5 ? 0xd8c8c0 : 0xffffff;
       // Hull bar under the ship: rounded, with a dark well, lit brass when she can be boarded.
       const w = c * 0.95;
@@ -913,11 +906,15 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
       g.roundRect(bx, by, Math.max(barH, bw * hull), barH, barH / 2).fill(hull > 0.5 ? COLORS.good : hull > 0.25 ? COLORS.warn : COLORS.danger);
       g.roundRect(bx + 1, by + 1, Math.max(barH, bw * hull) - 2, barH * 0.4, barH / 3).fill({ color: 0xffffff, alpha: 0.18 });
       if (ship.damage >= s.config.grappleDamage) g.roundRect(bx - 1, by - 1, bw + 2, barH + 2, barH / 2 + 1).stroke({ width: 1.5, color: COLORS.brassLight, alpha: 0.9 });
+      this.drawnLoaded[p.who] = 0;
       for (let i = 0; i < ship.turrets; i++) {
         const lx = bx + bw + 8 + i * (barH + 4) + barH / 2;
         const ly = by + barH / 2;
         const lit = i < ship.loaded;
-        if (lit) g.circle(lx, ly, barH * 0.85).fill({ color: COLORS.brassLight, alpha: 0.2 });
+        if (lit) {
+          this.drawnLoaded[p.who]++;
+          g.circle(lx, ly, barH * 0.85).fill({ color: COLORS.brassLight, alpha: 0.2 });
+        }
         g.circle(lx, ly, barH / 2).fill(lit ? COLORS.brassLight : COLORS.ink).stroke({ width: 1, color: lit ? COLORS.brassDeep : COLORS.brass, alpha: 0.9 });
       }
     }
@@ -972,6 +969,7 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
     // Turn clock.
     const top = y + 10;
     label(this.opts.labels.turn(s.turn + 1, s.config.maxTurns).toUpperCase(), x + 12, top + fs * 0.6, COLORS.muted, fs - 2, 0, "700", 2);
+    this.drawnTurn = s.turn;
     const clockW = w - 24;
     const clockY = top + fs * 1.5;
     g.roundRect(x + 12, clockY, clockW, 5, 2.5).fill({ color: COLORS.ink, alpha: 0.95 });
@@ -1158,9 +1156,8 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
 
   // ---- input
 
-  private pointerDown(e: FederatedPointerEvent): void {
-    const px = e.global.x;
-    const py = e.global.y;
+  /** A press acts at once, on the strip button under it; a release, a cancel or a hover does nothing. */
+  protected override pointerDown(px: number, py: number): void {
     for (const b of this.buttons) {
       if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) {
         this.press(b.id);
@@ -1244,7 +1241,7 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
   }
 
   /** Returns true when the key was taken. */
-  keyboard(key: string): boolean {
+  override keyboard(key: string): boolean {
     if (!this.interactive || !this.state || this.state.finished) return false;
     switch (key) {
       case "a":
@@ -1328,8 +1325,7 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
 
   // ---- animation
 
-  private tick(dt: number): void {
-    this.time += dt;
+  protected override update(dt: number): void {
     if (this.flyGuard > 0) this.flyGuard -= dt;
     if (this.pressed) {
       this.pressed.t += dt;
@@ -1384,7 +1380,7 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
             this.particles.push({ x: sh.to.x, y: sh.to.y, vx: 0, vy: 0, r: this.cell * 0.3, grow: 0.06, color: COLORS.flash, alpha: 0.95, life: 0, max: 200 });
             this.burst(sh.to.x, sh.to.y, COLORS.sparks, 12, 1);
             this.burst(sh.to.x, sh.to.y, COLORS.smoke, 8, 0.8);
-            this.shake = Math.max(this.shake, 300);
+            this.jolt(300);
           } else {
             this.popup(sh.to.x, sh.to.y - this.cell * 0.7, this.opts.labels.miss, COLORS.splash, 0.35);
             this.rings.push({ x: sh.to.x, y: sh.to.y, life: 0, max: 600, r: this.cell * 0.5, color: COLORS.foam });
@@ -1400,12 +1396,6 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
     }
     for (const v of this.ships) if (v.flash > 0) v.flash -= dt;
     this.drawShips();
-    // Camera shake.
-    if (this.shake > 0) {
-      this.shake -= dt;
-      const a = this.reduced ? 0 : (this.shake / 400) * 4;
-      this.world.position.set((Math.random() - 0.5) * a, (Math.random() - 0.5) * a);
-    } else this.world.position.set(0, 0);
     // Wakes, splashes and smoke.
     const fx = this.fxG;
     const wk = this.wakeG;
@@ -1449,10 +1439,34 @@ export class BattleRenderer implements BoardRenderer<BattleState> {
       fx.rect(this.gx, this.gy, this.cols * this.cell, this.rows * this.cell).fill({ color: COLORS.flash, alpha: Math.max(0, this.endFlash / 1600) * 0.18 });
     }
     if (this.stripDirty) this.drawStrip();
-    if (this.framePending) {
-      this.framePending = false;
-      this.cb.onFrame();
-    }
+  }
+
+  /**
+   * What the fight shows, which the kit writes to the canvas as `data-view` once the board settles:
+   * each ship in the cell and heading its sprite was placed at, with the damage its hull bar was drawn
+   * with and the lamps the HUD lit for its loaded guns; the turn the strip's label names; and the
+   * outcome the board has shown. The page writes the same string from the engine's state as
+   * `data-board`, so the smoke test can tell when what is drawn differs from what the engine holds.
+   */
+  protected view(): string {
+    const sprites = this.shipSprites;
+    if (!this.state || !sprites) return "";
+    const ships = sprites.map((s, i) => ({
+      x: Math.round((s.x - this.gx) / this.cell - 0.5),
+      y: Math.round((s.y - this.gy) / this.cell - 0.5),
+      heading: ((Math.round(s.rotation / (Math.PI / 2)) % 4) + 4) % 4,
+      damage: this.drawnDamage[i]!,
+      loaded: this.drawnLoaded[i]!,
+    }));
+    return fightString({ turn: this.drawnTurn, ships, outcome: this.drawnOutcome });
+  }
+
+  /**
+   * Rattle the board for `ms`: by up to a pixel each way for every 200 ms of it, fading out over its
+   * length. The kit's shake, at the peak and over the fade the board's own had.
+   */
+  private jolt(ms: number): void {
+    this.fx.shake(ms / 200, ms);
   }
 
   /** Foam off the stern of a ship under way. */

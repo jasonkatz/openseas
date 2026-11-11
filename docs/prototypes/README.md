@@ -88,7 +88,9 @@ These are the project's rules (CLAUDE.md), said for a prototype.
   The core boards move onto it one at a time (ADR 0040), and the hooks they need are there for any
   board: `busy` stays true while a board animates outside the kit's tweens, so `onFrame` and
   `data-view` wait for it; `beforeCanvas` waits for something besides the atlas before the canvas
-  is made (Cooling's webfont); `pointerLeave` takes a hover preview down. A board that acts while
+  is made (Cooling's webfont); `pointerLeave` takes a hover preview down. A board that acts only on
+  a press (Space Battle) overrides `pointerDown` alone: the kit's move, release, cancel and leave do
+  nothing unless a board overrides them, so it needs no way out of hover. A board that acts while
   a key is held (Engines' hurry) adds a `keyUp`, and the host hands it every key's release.
   `pointerCancel` is told which pointer let go, so a board that follows one finger at a time
   (Plating) ignores another's; with none, the board was switched off.
