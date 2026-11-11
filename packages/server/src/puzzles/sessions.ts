@@ -101,6 +101,8 @@ export interface SessionManagerOptions {
  */
 export class PuzzleSessionManager {
   private readonly sessions = new Map<string, PuzzleSession>();
+  /** The round each pirate was dealt last, while it is open. */
+  private readonly open = new Map<string, PuzzleSession>();
 
   constructor(private readonly opts: SessionManagerOptions) {
     for (const id of Object.keys(opts.puzzles) as PuzzleId[]) PUZZLES[id].validateConfig(opts.puzzles[id].config);
@@ -141,11 +143,17 @@ export class PuzzleSessionManager {
       resyncing: false,
     };
     this.sessions.set(session.id, session);
+    this.open.set(pirateId, session);
     return session;
   }
 
   get(id: string): PuzzleSession | undefined {
     return this.sessions.get(id);
+  }
+
+  /** The pirate's open round: the one dealt to them last, until it closes. */
+  openFor(pirateId: string): PuzzleSession | null {
+    return this.open.get(pirateId) ?? null;
   }
 
   /**
@@ -264,6 +272,7 @@ export class PuzzleSessionManager {
   close(session: PuzzleSession): void {
     session.closed = true;
     this.sessions.delete(session.id);
+    if (this.open.get(session.pirateId) === session) this.open.delete(session.pirateId);
   }
 
   /** Sessions past their deadline and grace. The caller decides whether to score them. */

@@ -1,20 +1,24 @@
 /**
- * Rooms are the seam for sharding later (ADR 0005). In v1 a room is an in-process set of
- * connections that can be broadcast to. Ships, outposts, and swordfights will be rooms from M3.
- * The practice page does not need rooms, but the abstraction is designed now so M3 fits it.
+ * Rooms are the seam for sharding later (ADR 0005). In v1 a room is an in-process set of members
+ * that can be broadcast to: a ship's crew aboard and connected, the pirates standing on an outpost.
+ * Who is in a room is the room's own business (a pirate who dropped is still aboard, out of the
+ * ship's room); how a message reaches a member is not: the room says it through their line, the
+ * pirate's newest socket (Presence).
  */
-export interface RoomMember<M> {
-  readonly id: string;
-  send(message: M): void;
+export interface Lines<M> {
+  send(memberId: string, message: M): void;
 }
 
 export class Room<M> {
-  private readonly members = new Map<string, RoomMember<M>>();
+  private readonly members = new Set<string>();
 
-  constructor(readonly id: string) {}
+  constructor(
+    readonly id: string,
+    private readonly lines: Lines<M>,
+  ) {}
 
-  join(member: RoomMember<M>): void {
-    this.members.set(member.id, member);
+  join(memberId: string): void {
+    this.members.add(memberId);
   }
 
   leave(memberId: string): void {
@@ -25,14 +29,10 @@ export class Room<M> {
     return this.members.has(memberId);
   }
 
-  get(memberId: string): RoomMember<M> | undefined {
-    return this.members.get(memberId);
-  }
-
+  /** Say something to one member; false when they are not in the room. */
   send(memberId: string, message: M): boolean {
-    const m = this.members.get(memberId);
-    if (!m) return false;
-    m.send(message);
+    if (!this.members.has(memberId)) return false;
+    this.lines.send(memberId, message);
     return true;
   }
 
@@ -41,21 +41,23 @@ export class Room<M> {
   }
 
   memberIds(): string[] {
-    return [...this.members.keys()];
+    return [...this.members];
   }
 
   broadcast(message: M, except?: string): void {
-    for (const [id, m] of this.members) if (id !== except) m.send(message);
+    for (const id of this.members) if (id !== except) this.lines.send(id, message);
   }
 }
 
 export class RoomRegistry<M> {
   private readonly rooms = new Map<string, Room<M>>();
 
+  constructor(private readonly lines: Lines<M>) {}
+
   get(id: string): Room<M> {
     let r = this.rooms.get(id);
     if (!r) {
-      r = new Room<M>(id);
+      r = new Room<M>(id, this.lines);
       this.rooms.set(id, r);
     }
     return r;

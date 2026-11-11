@@ -35,9 +35,10 @@ import { recordEvent } from "../events.js";
 import { appendLedger } from "../ledger.js";
 import type { Logger } from "../log.js";
 import { randomBotName } from "../pirates.js";
+import type { Presence } from "../presence.js";
 import type { BoardEnd, BoardHost, PuzzleService } from "../puzzles/service.js";
 import type { PuzzleSession } from "../puzzles/sessions.js";
-import { Room, type RoomMember } from "../rooms.js";
+import { Room, type Lines } from "../rooms.js";
 import { Melee, type PirateBoards } from "./melee.js";
 
 /** A request the ship refuses. The code is sent to the client as is. */
@@ -68,7 +69,10 @@ interface BattleRun {
 
 /** One ship with people aboard. Exists from the first boarding until the last pirate disembarks. */
 export class ShipRoom {
-  /** Connections of the crew, keyed by pirate id. A dropped pirate is not in here but is still aboard. */
+  /**
+   * The crew aboard and connected, by pirate id; what the room says reaches each on their line. A
+   * dropped pirate is not in here but is still aboard.
+   */
   readonly conns: Room<ServerMessage>;
   /** Every name seen aboard, kept after leaving so events can still say who. */
   readonly names = new Map<string, string>();
@@ -86,9 +90,10 @@ export class ShipRoom {
     readonly ownerId: string,
     state: ShipState,
     public nextTurnAt: number,
+    lines: Lines<ServerMessage>,
   ) {
     this.state = state;
-    this.conns = new Room<ServerMessage>(shipId);
+    this.conns = new Room<ServerMessage>(shipId, lines);
   }
 }
 
@@ -145,6 +150,7 @@ export class ShipService {
     private readonly content: Content,
     private readonly log: Logger,
     private readonly puzzles: PuzzleService,
+    private readonly presence: Presence,
     private readonly opts: ShipServiceOptions,
   ) {
     this.now = opts.now ?? Date.now;
@@ -176,7 +182,7 @@ export class ShipService {
 
   // ---- crew actions
 
-  async board(pirateId: string, name: string, shipId: string, conn: RoomMember<ServerMessage>): Promise<void> {
+  async board(pirateId: string, name: string, shipId: string): Promise<void> {
     if (this.byPirate.has(pirateId)) throw new ShipError("already_aboard");
     let room = this.rooms.get(shipId);
     if (!room) {
@@ -187,7 +193,7 @@ export class ShipService {
       const outpostId = ship.outpostId ?? this.content.world.startOutpostId;
       if (outpostId !== (await this.pirateOutpost(pirateId))) throw new ShipError("ship_elsewhere");
       const state = createShip(this.opts.randomSeed(), this.configFor(ship.classId), outpostId);
-      room = new ShipRoom(ship.id, ship.name, shipClass, ship.ownerId, state, this.now() + this.turnMs);
+      room = new ShipRoom(ship.id, ship.name, shipClass, ship.ownerId, state, this.now() + this.turnMs, this.presence);
       this.rooms.set(shipId, room);
     } else if (room.state.outpostId !== null && room.state.outpostId !== (await this.pirateOutpost(pirateId))) {
       throw new ShipError("ship_elsewhere");
@@ -195,7 +201,7 @@ export class ShipService {
     if (room.state.inviteOnly && !this.mayBoardLocked(room, pirateId)) throw new ShipError("ship_locked");
     this.apply(room, { type: "board", pirateId }, (e) => (e.message === "ship is full" ? "ship_full" : "already_aboard"));
     room.names.set(pirateId, name);
-    room.conns.join(conn);
+    room.conns.join(pirateId);
     this.byPirate.set(pirateId, shipId);
     if (room.voyageId) {
       await this.db.insert(schema.voyageCrew).values({ voyageId: room.voyageId, pirateId }).onConflictDoNothing();
@@ -318,6 +324,29 @@ export class ShipService {
    * ship's turn. Returns the deal; the caller sends it, then calls `supplyNow` for the first deal.
    */
   async engage(pirateId: string): Promise<PuzzleStarted> {
+    this.hailed(pirateId);
+    // The captain's own round ends first, so a station board's last points are in the guns and hull
+    // read below; the ship is looked at again after, since it may have moved on meanwhile.
+    await this.puzzles.quitOpenRound(pirateId);
+    const { room, voyageId, tier } = this.hailed(pirateId);
+    this.apply(room, { type: "engage" }, () => "not_hailed");
+    const config = this.battleConfigFor(room, tier);
+    const rules = this.content.world.ship;
+    // Room for every turn, the captain's grace period if they drop, and a minute to spare.
+    const roundMs = (config.maxTurns + rules.graceTurns) * this.turnMs + 60_000;
+    const started = await this.puzzles.start(pirateId, "battle", {
+      binding: { kind: "battle", shipId: room.shipId, voyageId, tierId: tier.id },
+      override: { config, roundMs },
+      host: this.battleHost(room),
+    });
+    room.battle = { sessionId: started.sessionId, tierId: tier.id, dutyOutput: new Map(), turnsSeen: 0, hullSent: room.state.damage };
+    this.log.info({ shipId: room.shipId, tierId: tier.id, sessionId: started.sessionId }, "battle engaged");
+    await this.afterChange(room);
+    return started;
+  }
+
+  /** The captain's ship, in flight and hailed by a raider of this tier, or why the captain may not engage. */
+  private hailed(pirateId: string): { room: ShipRoom; voyageId: string; tier: RaiderTier } {
     const room = this.roomOf(pirateId);
     if (!room) throw new ShipError("not_aboard");
     if (room.state.captainId !== pirateId) throw new ShipError("not_captain");
@@ -326,20 +355,7 @@ export class ShipService {
     if (!hail || !room.voyageId) throw new ShipError("not_hailed");
     const tier = this.content.world.raiderTiers.find((t) => t.id === hail.tierId);
     if (!tier) throw new ShipError("not_hailed");
-    this.apply(room, { type: "engage" }, () => "not_hailed");
-    const config = this.battleConfigFor(room, tier);
-    const rules = this.content.world.ship;
-    // Room for every turn, the captain's grace period if they drop, and a minute to spare.
-    const roundMs = (config.maxTurns + rules.graceTurns) * this.turnMs + 60_000;
-    const started = this.puzzles.start(pirateId, "battle", {
-      binding: { kind: "battle", shipId: room.shipId, voyageId: room.voyageId, tierId: tier.id },
-      override: { config, roundMs },
-      host: this.battleHost(room, pirateId),
-    });
-    room.battle = { sessionId: started.sessionId, tierId: tier.id, dutyOutput: new Map(), turnsSeen: 0, hullSent: room.state.damage };
-    this.log.info({ shipId: room.shipId, tierId: tier.id, sessionId: started.sessionId }, "battle engaged");
-    await this.afterChange(room);
-    return started;
+    return { room, voyageId: room.voyageId, tier };
   }
 
   /** The battle board's config aboard: content's rules with the ship's guns and hull, the tier's raider, the ship's turn. */
@@ -360,9 +376,8 @@ export class ShipService {
     const session = this.puzzles.sessions.get(run.sessionId);
     if (!session || session.closed) return;
     const s = room.state;
-    const told = this.puzzles.vouch(session, { type: "supply", ...shipSupply(s) });
+    this.puzzles.vouch(session, { type: "supply", ...shipSupply(s) });
     run.hullSent = s.damage;
-    if (told) room.conns.send(session.pirateId, told);
   }
 
   /**
@@ -370,9 +385,8 @@ export class ShipService {
    * settles the fight. The ship detaches the board before it settles a fight on its own terms, so
    * while the board is attached, the fight in `room.battle` is this board's.
    */
-  private battleHost(room: ShipRoom, pirateId: string): BoardHost {
+  private battleHost(room: ShipRoom): BoardHost {
     return {
-      send: (m) => room.conns.send(pirateId, m),
       moved: (session) => this.takeBattleTurn(room, session),
       ended: (session, how) => void this.battleEnded(room, session, how).catch((e) => this.log.error({ err: e, sessionId: session.id }, "battle end failed")),
     };
@@ -395,10 +409,7 @@ export class ShipService {
     // engine has the outcome and the captain is owed the result.
     if (state.finished && !session.closed) {
       // Settle now rather than wait for the captain's finish message: the outcome is the engine's.
-      void this.puzzles
-        .finish(session, null, null)
-        .then((result) => room.conns.send(session.pirateId, result))
-        .catch((e) => this.log.error({ err: e, sessionId: session.id }, "battle finish failed"));
+      void this.puzzles.finish(session, null, null).catch((e) => this.log.error({ err: e, sessionId: session.id }, "battle finish failed"));
     }
   }
 
@@ -419,10 +430,7 @@ export class ShipService {
     // own end, when it is cut short below, settles nothing.
     if (session) this.puzzles.detach(session);
     await this.settleBattle(room, outcome, turns);
-    if (session && !session.closed) {
-      const result = await this.puzzles.cutShort(session);
-      if (result) room.conns.send(session.pirateId, result);
-    }
+    if (session) await this.puzzles.cutShort(session);
   }
 
   private async settleBattle(room: ShipRoom, outcome: ShipBattleOutcome, turns: number): Promise<void> {
@@ -476,25 +484,29 @@ export class ShipService {
     void (async () => {
       // Every station comes to the airlock; a board cut short counts, unrated.
       for (const st of [...room.stations.keys()]) await this.endStation(room, st);
-      for (const c of connected) this.dealMelee(room, c.pirateId);
+      for (const c of connected) await this.dealMelee(room, c.pirateId);
       this.broadcast(room, [{ type: "boarding", tierId: tier.id }]);
       this.pushBoards(room);
     })().catch((e) => this.log.error({ err: e, shipId: room.shipId }, "melee open failed"));
     return true;
   }
 
-  /** A pirate's own fight in the melee: dealt and sent. */
-  private dealMelee(room: ShipRoom, pirateId: string): PuzzleStarted | null {
+  /**
+   * A pirate's own fight in the melee: dealt and sent. Whatever round they have open ends first; the
+   * melee is read after that, since it may have been settled meanwhile. False when there is none.
+   */
+  private async dealMelee(room: ShipRoom, pirateId: string): Promise<boolean> {
+    await this.puzzles.quitOpenRound(pirateId);
     const melee = room.melee;
-    if (!melee || !room.voyageId) return null;
-    const started = this.puzzles.start(pirateId, "swordfight", {
+    if (!melee || !room.voyageId) return false;
+    const started = await this.puzzles.start(pirateId, "swordfight", {
       binding: { kind: "melee", shipId: room.shipId, voyageId: room.voyageId, tierId: melee.tierId },
       override: { config: melee.boardConfig, roundMs: melee.roundMs(this.now()) },
-      host: this.meleeHost(room, melee, pirateId),
+      host: this.meleeHost(room, melee),
     });
     melee.dealt(pirateId, started.sessionId);
     room.conns.send(pirateId, started);
-    return started;
+    return true;
   }
 
   /** A pirate aboard without a board in the melee (came aboard, or back, mid-fight) asks for one; one they still hold is handed back. */
@@ -506,7 +518,7 @@ export class ShipService {
     const session = this.meleeSession(melee, pirateId);
     if (session) {
       for (const m of this.puzzles.handBack(session)) room.conns.send(pirateId, m);
-    } else if (!melee.mayDeal(pirateId) || !this.dealMelee(room, pirateId)) {
+    } else if (!melee.mayDeal(pirateId) || !(await this.dealMelee(room, pirateId))) {
       throw new ShipError("not_in_melee");
     }
     this.pushBoards(room);
@@ -517,10 +529,7 @@ export class ShipService {
     const melee = room.melee;
     if (!melee || this.settling.has(melee)) return;
     const step = melee.advance(this.now(), this.pirateBoards(room, melee));
-    for (const { pirateId, move } of step.announce) {
-      const told = this.puzzles.vouch(this.meleeSession(melee, pirateId)!, move);
-      if (told) room.conns.send(pirateId, told);
-    }
+    for (const { pirateId, move } of step.announce) this.puzzles.vouch(this.meleeSession(melee, pirateId)!, move);
     if (step.changed) this.pushBoards(room);
     if (step.decided) await this.settleMelee(room, step.decided);
   }
@@ -530,9 +539,8 @@ export class ShipService {
    * which keeps its score for the split. The ship does not detach these: settling the melee ends each
    * board through its own end, so its score is kept, before the fight is dropped.
    */
-  private meleeHost(room: ShipRoom, melee: Melee, pirateId: string): BoardHost {
+  private meleeHost(room: ShipRoom, melee: Melee): BoardHost {
     return {
-      send: (m) => room.conns.send(pirateId, m),
       moved: (session) => void this.takeMeleeMove(room, session).catch((e) => this.log.error({ err: e, sessionId: session.id }, "melee move failed")),
       ended: (session) => void this.meleeEnded(room, melee, session).catch((e) => this.log.error({ err: e, sessionId: session.id }, "melee end failed")),
     };
@@ -542,11 +550,8 @@ export class ShipService {
   private async takeMeleeMove(room: ShipRoom, session: PuzzleSession): Promise<void> {
     const state = session.state as SwordfightState;
     const changed = room.melee?.pirateMoved(this.now(), state) ?? false;
-    if (state.finished && !session.closed) {
-      // The board filled: the engine has the outcome and the pirate is owed the result.
-      const result = await this.puzzles.finish(session, null, null);
-      room.conns.send(session.pirateId, result);
-    }
+    // The board filled: the engine has the outcome and the pirate is owed the result.
+    if (state.finished && !session.closed) await this.puzzles.finish(session, null, null);
     if (changed) this.pushBoards(room);
     await this.checkMelee(room);
   }
@@ -580,13 +585,11 @@ export class ShipService {
     for (const [pirateId, sessionId] of melee.fights) {
       const session = this.puzzles.sessions.get(sessionId);
       if (!session || session.closed) continue;
-      let result: ServerMessage | null;
       if (won) {
         const at = melee.overTick(now, session.state as SwordfightState);
         room.conns.send(pirateId, { type: "melee.over", sessionId, won: true, tick: at });
-        result = await this.puzzles.endMelee(session, true, at);
-      } else result = await this.puzzles.cutShort(session);
-      if (result) room.conns.send(pirateId, result);
+        await this.puzzles.endMelee(session, true, at);
+      } else await this.puzzles.cutShort(session);
       melee.pirateEnded(pirateId, summarizeSwordfight(session.state as SwordfightState).score);
     }
     room.melee = null;
@@ -630,19 +633,29 @@ export class ShipService {
 
   /** Deal a board for the pirate's station. Any board already running there is cut short first. */
   async dutyStart(pirateId: string): Promise<PuzzleStarted> {
+    this.atStation(pirateId);
+    // The pirate's own round ends first, so a board they had here gives the ship its last points
+    // before the heat is read; the station is looked at again after, since it may have changed meanwhile.
+    await this.puzzles.quitOpenRound(pirateId);
+    const { room, station, voyageId } = this.atStation(pirateId);
+    await this.endStation(room, station);
+    const heat = station === "cooling" ? this.heatRows(room) : undefined;
+    const started = await this.puzzles.start(pirateId, station, {
+      binding: { kind: "duty", shipId: room.shipId, station, voyageId, ...(heat !== undefined ? { heat } : {}) },
+      host: this.dutyHost(room, station),
+    });
+    room.stations.set(station, { sessionId: started.sessionId, lastScore: 0 });
+    return started;
+  }
+
+  /** The pirate's ship and station, in flight, or why no board is dealt there. */
+  private atStation(pirateId: string): { room: ShipRoom; station: Station; voyageId: string } {
     const room = this.roomOf(pirateId);
     if (!room) throw new ShipError("not_aboard");
-    const me = crewMember(room.state, pirateId);
-    if (!me || me.station === null) throw new ShipError("no_station");
+    const station = crewMember(room.state, pirateId)?.station ?? null;
+    if (station === null) throw new ShipError("no_station");
     if (!room.state.voyage || !room.voyageId) throw new ShipError("not_in_flight");
-    await this.endStation(room, me.station);
-    const heat = me.station === "cooling" ? this.heatRows(room) : undefined;
-    const started = this.puzzles.start(pirateId, me.station, {
-      binding: { kind: "duty", shipId: room.shipId, station: me.station, voyageId: room.voyageId, ...(heat !== undefined ? { heat } : {}) },
-      host: this.dutyHost(room, me.station, pirateId),
-    });
-    room.stations.set(me.station, { sessionId: started.sessionId, lastScore: 0 });
-    return started;
+    return { room, station, voyageId: room.voyageId };
   }
 
   /**
@@ -650,9 +663,8 @@ export class ShipService {
    * turn. The ship detaches the board before it ends the station itself, so while the board is
    * attached, the station's board is this one.
    */
-  private dutyHost(room: ShipRoom, station: Station, pirateId: string): BoardHost {
+  private dutyHost(room: ShipRoom, station: Station): BoardHost {
     return {
-      send: (m) => room.conns.send(pirateId, m),
       closing: (session) => this.takeFinalPoints(room, station, session),
     };
   }
@@ -668,40 +680,39 @@ export class ShipService {
     if (!ss) return;
     const session = this.puzzles.sessions.get(ss.sessionId);
     if (!session || session.closed) return;
-    const told = this.puzzles.vouch(session, { type: "heat", row: this.heatRows(room) });
-    if (told) room.conns.send(session.pirateId, told);
+    this.puzzles.vouch(session, { type: "heat", row: this.heatRows(room) });
   }
 
   // ---- connections
 
-  /** A pirate's socket opened: if they are aboard, take the seat back and show them the ship. */
-  reconnect(pirateId: string, conn: RoomMember<ServerMessage>): void {
+  /** A pirate's newest socket opened: if they are aboard, take the seat back and show them the ship. */
+  reconnect(pirateId: string): void {
     const room = this.roomOf(pirateId);
     if (!room) return;
     const me = crewMember(room.state, pirateId);
     if (me?.awaySinceTurn !== null && me) room.state = reduceShip(room.state, { type: "back", pirateId });
-    room.conns.join(conn);
-    conn.send(this.stateMessage(room, []));
+    room.conns.join(pirateId);
+    room.conns.send(pirateId, this.stateMessage(room, []));
     // The captain's fight waited for them: hand the board back with every move so far, and the deal they missed.
     const run = room.battle;
     if (run) {
       const session = this.puzzles.sessions.get(run.sessionId);
-      if (session && !session.closed && session.pirateId === pirateId) for (const m of this.puzzles.handBack(session)) conn.send(m);
+      if (session && !session.closed && session.pirateId === pirateId) for (const m of this.puzzles.handBack(session)) room.conns.send(pirateId, m);
     }
     // Their board at the airlock waited too: the fight so far, and the scrap announced while they were away.
     const melee = room.melee;
     const fight = melee?.fights.get(pirateId);
     if (melee && fight) {
       const session = this.puzzles.sessions.get(fight);
-      if (session && !session.closed) for (const m of this.puzzles.handBack(session)) conn.send(m);
+      if (session && !session.closed) for (const m of this.puzzles.handBack(session)) room.conns.send(pirateId, m);
       this.pushBoards(room);
     }
   }
 
-  /** A pirate's socket closed. Their seat is held for the grace period; their board is discarded. */
-  async disconnect(pirateId: string, conn: RoomMember<ServerMessage>): Promise<void> {
+  /** A pirate went offline (their last socket closed). Their seat is held for the grace period; their board is discarded. */
+  async disconnect(pirateId: string): Promise<void> {
     const room = this.roomOf(pirateId);
-    if (!room || room.conns.get(pirateId) !== conn) return;
+    if (!room?.conns.has(pirateId)) return;
     room.conns.leave(pirateId);
     const me = crewMember(room.state, pirateId);
     if (me && me.awaySinceTurn === null) room.state = reduceShip(room.state, { type: "away", pirateId });
@@ -827,8 +838,7 @@ export class ShipService {
     room.stations.delete(station);
     if (!session) return;
     this.puzzles.detach(session);
-    const result = await this.puzzles.cutShort(session);
-    if (result) room.conns.send(session.pirateId, result);
+    await this.puzzles.cutShort(session);
   }
 
   /** After a crew action: persist its consequences, broadcast, and drop the room if empty. */
@@ -883,13 +893,8 @@ export class ShipService {
     if (room.battle && this.puzzles.sessions.get(room.battle.sessionId)?.pirateId === pirateId) await this.cutBattleShort(room, "disengaged");
     // A pirate who leaves the airlock leaves their board; it counts, unrated, and the melee goes on without them.
     const fight = room.melee?.fights.get(pirateId);
-    if (fight) {
-      const session = this.puzzles.sessions.get(fight);
-      if (session && !session.closed) {
-        const result = await this.puzzles.cutShort(session);
-        if (result) room.conns.send(pirateId, result);
-      }
-    }
+    const session = fight ? this.puzzles.sessions.get(fight) : undefined;
+    if (session) await this.puzzles.cutShort(session);
     const outpostId = room.state.outpostId ?? room.state.voyage?.leg.from ?? this.content.world.startOutpostId;
     await this.db.update(schema.pirate).set({ outpostId }).where(eq(schema.pirate.id, pirateId));
     if (room.voyageId) {

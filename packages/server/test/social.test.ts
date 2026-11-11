@@ -5,24 +5,16 @@
  */
 import { describe, expect, it } from "vitest";
 import type { ServerMessage } from "@openseas/protocol";
-import { Room, type RoomMember } from "../src/rooms.js";
+import { Presence } from "../src/presence.js";
+import { Room } from "../src/rooms.js";
 import { SocialService, WALK_MIN_MS } from "../src/social.js";
 import type { ShipService } from "../src/ships/service.js";
-
-class Inbox implements RoomMember<ServerMessage> {
-  readonly got: ServerMessage[] = [];
-  constructor(readonly id: string) {}
-  send(m: ServerMessage): void {
-    this.got.push(m);
-  }
-  of<T extends ServerMessage["type"]>(type: T): Extract<ServerMessage, { type: T }>[] {
-    return this.got.filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type);
-  }
-}
+import { Inbox } from "./inbox.js";
 
 /** A ship service with one ship room and every pirate standing on Tinwick. */
 function harbor() {
-  const deck = new Room<ServerMessage>("ship-1");
+  const presence = new Presence();
+  const deck = new Room<ServerMessage>("ship-1", presence);
   const aboard = new Set<string>();
   const ships = {
     onDisembark: null as ((pirateId: string, outpostId: string) => void) | null,
@@ -31,13 +23,18 @@ function harbor() {
     pirateOutpost: async () => "tinwick",
   };
   let now = 1_000;
-  const social = new SocialService(ships as unknown as ShipService, () => now);
+  const social = new SocialService(ships as unknown as ShipService, presence, () => now);
   return {
     social,
     tick: (ms: number) => (now += ms),
+    /** The pirate's socket opens, with `member` as its line. */
+    async connect(member: Inbox, name: string) {
+      presence.attach(member.id, member);
+      await social.connected(member.id, name);
+    },
     board(member: Inbox) {
       aboard.add(member.id);
-      deck.join(member);
+      deck.join(member.id);
       ships.onBoarded?.(member.id);
     },
     onOutpost(member: Inbox) {
@@ -53,14 +50,14 @@ describe("walking", () => {
     const h = harbor();
     const anne = new Inbox("p-anne");
     const ben = new Inbox("p-ben");
-    await h.social.connected(anne.id, "Anne", anne);
-    await h.social.connected(ben.id, "Ben", ben);
+    await h.connect(anne, "Anne");
+    await h.connect(ben, "Ben");
     h.social.walk(anne.id, { x: 0.5, z: -1.25 });
     expect(ben.of("walk.moved")).toEqual([{ type: "walk.moved", scope: "outpost", pirateId: anne.id, x: 0.5, z: -1.25 }]);
     expect(anne.of("walk.moved")).toEqual([]);
 
     const cid = new Inbox("p-cid");
-    await h.social.connected(cid.id, "Cid", cid);
+    await h.connect(cid, "Cid");
     const presence = cid.of("outpost.presence").at(-1)!;
     expect(presence.pirates.find((p) => p.pirateId === anne.id)?.at).toEqual({ x: 0.5, z: -1.25 });
     expect(presence.pirates.find((p) => p.pirateId === ben.id)?.at).toBeNull();
@@ -70,8 +67,8 @@ describe("walking", () => {
     const h = harbor();
     const anne = new Inbox("p-anne");
     const ben = new Inbox("p-ben");
-    await h.social.connected(anne.id, "Anne", anne);
-    await h.social.connected(ben.id, "Ben", ben);
+    await h.connect(anne, "Anne");
+    await h.connect(ben, "Ben");
     h.social.walk(anne.id, { x: 0, z: 0 });
     h.tick(WALK_MIN_MS - 1);
     h.social.walk(anne.id, { x: 1, z: 1 });
@@ -90,7 +87,7 @@ describe("walking", () => {
       [ben, "Ben"],
       [cid, "Cid"],
     ] as const)
-      await h.social.connected(m.id, name, m);
+      await h.connect(m, name);
     h.board(anne);
     h.social.walk(anne.id, { x: 0.2, z: 0.05 });
     // Ben and Cid are on the outpost: a deck walk is nothing to them.
@@ -109,8 +106,8 @@ describe("walking", () => {
     const h = harbor();
     const anne = new Inbox("p-anne");
     const ben = new Inbox("p-ben");
-    await h.social.connected(anne.id, "Anne", anne);
-    await h.social.connected(ben.id, "Ben", ben);
+    await h.connect(anne, "Anne");
+    await h.connect(ben, "Ben");
     h.social.walk(anne.id, { x: 1, z: 1 });
     h.board(anne);
     h.tick(WALK_MIN_MS);
@@ -118,5 +115,20 @@ describe("walking", () => {
     h.onOutpost(anne);
     const presence = ben.of("outpost.presence").at(-1)!;
     expect(presence.pirates.find((p) => p.pirateId === anne.id)?.at).toBeNull();
+  });
+});
+
+describe("the outpost", () => {
+  it("speaks to a pirate's newest socket: its room holds the pirate, not a socket", async () => {
+    const h = harbor();
+    const anne = new Inbox("p-anne");
+    const ben = new Inbox("p-ben");
+    await h.connect(anne, "Anne");
+    await h.connect(ben, "Ben");
+    const anneAgain = new Inbox("p-anne");
+    await h.connect(anneAgain, "Anne");
+    h.social.chat(ben.id, "outpost", "ahoy");
+    expect(anneAgain.of("chat.message").map((m) => m.text)).toEqual(["ahoy"]);
+    expect(anne.of("chat.message")).toEqual([]);
   });
 });

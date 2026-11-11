@@ -1,5 +1,6 @@
 import type { ChatChannel, ServerMessage, WalkSpot } from "@openseas/protocol";
-import { Room, RoomRegistry, type RoomMember } from "./rooms.js";
+import type { Presence } from "./presence.js";
+import { RoomRegistry } from "./rooms.js";
 import type { CrewLookup, LookLookup, ShipService } from "./ships/service.js";
 
 /** The least time between two walks a pirate's place hears about. */
@@ -33,7 +34,7 @@ export class SocialService {
   crews: CrewChat | null = null;
   /** What each pirate wears (DESIGN.md 3.6), once the connection layer has looks; without it presence carries none. */
   looks: LookLookup | null = null;
-  private readonly outposts = new RoomRegistry<ServerMessage>();
+  private readonly outposts: RoomRegistry<ServerMessage>;
   private readonly names = new Map<string, string>();
   private readonly where = new Map<string, string>();
   /** Where each pirate last walked to, in the frame of the place they are in now. Forgotten when they leave it. */
@@ -41,8 +42,11 @@ export class SocialService {
 
   constructor(
     private readonly ships: ShipService,
+    /** Who is connected (Presence): the pirates' lines, which the outpost rooms say what they say through. */
+    private readonly lines: Presence,
     private readonly now: () => number = Date.now,
   ) {
+    this.outposts = new RoomRegistry<ServerMessage>(lines);
     ships.onDisembark = (pirateId, outpostId) => this.onOutpost(pirateId, outpostId);
     ships.onBoarded = (pirateId) => {
       this.leaveOutpost(pirateId);
@@ -51,10 +55,9 @@ export class SocialService {
     };
   }
 
-  /** A socket opened. If the pirate is not aboard, they stand on their outpost. */
-  async connected(pirateId: string, name: string, member: RoomMember<ServerMessage>): Promise<void> {
+  /** A pirate's newest socket opened. If they are not aboard, they stand on their outpost. */
+  async connected(pirateId: string, name: string): Promise<void> {
     this.names.set(pirateId, name);
-    this.members.set(pirateId, member);
     if (this.ships.roomOf(pirateId)) {
       this.sendDeckWalkers(pirateId);
       return;
@@ -62,10 +65,8 @@ export class SocialService {
     this.onOutpost(pirateId, await this.ships.pirateOutpost(pirateId));
   }
 
-  /** A socket closed. Only the socket that holds the seat takes the pirate off the outpost. */
-  disconnected(pirateId: string, member: RoomMember<ServerMessage>): void {
-    if (this.members.get(pirateId) !== member) return;
-    this.members.delete(pirateId);
+  /** A pirate went offline (their last socket closed): they are off the outpost. */
+  disconnected(pirateId: string): void {
     this.leaveOutpost(pirateId);
   }
 
@@ -132,8 +133,6 @@ export class SocialService {
 
   // ---- internals
 
-  private readonly members = new Map<string, RoomMember<ServerMessage>>();
-
   /** Where everyone else aboard the pirate's ship last walked to, for a pirate coming aboard (or back). */
   private sendDeckWalkers(pirateId: string): void {
     const room = this.ships.roomOf(pirateId);
@@ -147,15 +146,14 @@ export class SocialService {
   }
 
   private onOutpost(pirateId: string, outpostId: string): void {
-    const member = this.members.get(pirateId);
-    if (!member) return;
+    if (!this.lines.online(pirateId)) return;
     const before = this.where.get(pirateId);
     if (before === outpostId) return;
     if (before) this.leaveOutpost(pirateId);
     // Off a ship or off another outpost: wherever they walked there means nothing here.
     this.walks.delete(pirateId);
-    const room: Room<ServerMessage> = this.outposts.get(outpostId);
-    room.join(member);
+    const room = this.outposts.get(outpostId);
+    room.join(pirateId);
     this.where.set(pirateId, outpostId);
     room.broadcast(this.presence(outpostId));
   }

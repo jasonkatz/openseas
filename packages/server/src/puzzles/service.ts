@@ -5,6 +5,7 @@ import { parseMoveFor, type ClientMetrics, type PuzzleIdWire, type PuzzleResult,
 import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
 import type { Logger } from "../log.js";
+import type { Presence } from "../presence.js";
 import { rateDutyRound, roundPerformance } from "../ratings.js";
 import { bindingPolicy } from "./binding.js";
 import { PuzzleSessionManager, type PuzzleRoundOptions, type PuzzleSession, type RejectReason, type SessionStart } from "./sessions.js";
@@ -46,13 +47,12 @@ export type BoardEnd = "finished" | "rejected" | "abandoned";
 
 /**
  * Who a board reports to, given when it is dealt: the ship it is played aboard, bound to its room and
- * the board's role there (a duty station, the captain's battle, a fighter in the melee), or, for a
- * practice round, its pirate's connection alone. The puzzle service calls it; nothing in the service
- * asks what the board is played for to decide who hears.
+ * the board's role there (a duty station, the captain's battle, a fighter in the melee). A practice
+ * round has none. The puzzle service calls it; nothing in the service asks what the board is played
+ * for to decide who hears. What the server tells the board's pirate is not the host's: it goes to
+ * the pirate's line (Presence), whoever the host is.
  */
 export interface BoardHost {
-  /** Says something to the board's pirate: the board handed back after a missing move, a lone ship's heat. */
-  send(message: ServerMessage): void;
   /** The board took a move the server accepted. */
   moved?(session: PuzzleSession): void;
   /**
@@ -63,26 +63,33 @@ export interface BoardHost {
   closing?(session: PuzzleSession): void;
   /**
    * The board was scored, thrown out or abandoned. Called after its session closed and its round was
-   * stored, with the result its pirate is owed, if any. A board dropped untouched has no end to tell.
+   * stored, with the result its pirate is owed, if any, and before the pirate is told it. A board
+   * dropped untouched has no end to tell.
    */
   ended?(session: PuzzleSession, how: BoardEnd, result: ServerMessage | null): void;
 }
 
 /** How a board is dealt: what it is played for, the ship's own config where a board aboard needs one, and the host it reports to. */
 export interface BoardStart extends SessionStart {
-  readonly host: BoardHost;
+  readonly host?: BoardHost;
 }
 
-/** Coordinates the in-memory session manager with persistence. One instance per process. */
+/**
+ * Coordinates the in-memory session manager with persistence, and tells each board's pirate what
+ * the server says to the board: what it vouched for, the board handed back, how the round ended.
+ * A pirate has one round open at a time, whatever it is played for: dealing them another quits the
+ * one they have open. One instance per process.
+ */
 export class PuzzleService {
   readonly sessions: PuzzleSessionManager;
-  /** Each board's host, from its deal. A detached board keeps only its pirate's line (`send`). */
+  /** Each board's host, from its deal, until the board is detached. */
   private readonly hosts = new WeakMap<PuzzleSession, BoardHost>();
 
   constructor(
     private readonly db: Db,
     private readonly content: Content,
     private readonly log: Logger,
+    private readonly presence: Presence,
     now: () => number = Date.now,
   ) {
     const puzzles = {} as Record<PuzzleId, PuzzleRoundOptions>;
@@ -102,16 +109,19 @@ export class PuzzleService {
 
   /** Once a second: turn the lone ships of harness Cooling rounds that are due, and tell their pirates what moved. */
   tick(): void {
-    for (const { session, row } of this.sessions.turnSoloHeat()) this.hosts.get(session)?.send(vouchedMessage(session, { type: "heat", row }));
+    for (const { session, row } of this.sessions.turnSoloHeat()) this.tell(session, vouchedMessage(session, { type: "heat", row }));
   }
 
   /**
-   * Deal a round to the host it reports to. Its binding says what it is played for; aboard, for the
-   * battle and a melee board, `override` gives the ship's own config (the tier, the guns, the ship's turn).
+   * Deal a round to the host it reports to, and return the deal for the caller to send. Its binding
+   * says what it is played for; aboard, for the battle and a melee board, `override` gives the ship's
+   * own config (the tier, the guns, the ship's turn). The pirate's open round, whatever it is played
+   * for, is quit first (`quit`), so whatever it ends with reaches them before this deal does.
    */
-  start(pirateId: string, puzzle: PuzzleId, opts: BoardStart): PuzzleStarted {
+  async start(pirateId: string, puzzle: PuzzleId, opts: BoardStart): Promise<PuzzleStarted> {
+    await this.quitOpenRound(pirateId);
     const s = this.sessions.start(pirateId, puzzle, opts);
-    this.hosts.set(s, opts.host);
+    if (opts.host) this.hosts.set(s, opts.host);
     void recordEvent(this.db, pirateId, "puzzle.started", { puzzle, sessionId: s.id, ...bindingPolicy(s.binding).startedEvent }).catch((e) =>
       this.log.warn({ err: e }, "event write failed"),
     );
@@ -119,24 +129,31 @@ export class PuzzleService {
   }
 
   /**
-   * The host stops hearing the board: no more of its moves, its closing or its end reach it, whatever
-   * becomes of the board now. Its pirate still hears what the server tells the board, through the
-   * host's `send`. The ship detaches a board before it cuts it short on its own terms (a station it
-   * ends, a fight it settles), so the board's own end decides nothing aboard.
+   * The pirate quits the round they have open, if any: abandons it, or at a station cuts it short
+   * (`quit`). `start` does this itself; a caller that reads the ship before it deals (the captain's
+   * guns, a station's heat) calls it first, so the old board's last points are in what it reads.
    */
-  detach(session: PuzzleSession): void {
-    const host = this.hosts.get(session);
-    if (host) this.hosts.set(session, { send: (m) => host.send(m) });
+  async quitOpenRound(pirateId: string): Promise<void> {
+    // Quitting closes a round before anything it awaits, so this ends; a round dealt to the pirate
+    // meanwhile is quit in its turn.
+    for (let open = this.sessions.openFor(pirateId); open; open = this.sessions.openFor(pirateId)) await this.quit(open);
   }
 
   /**
-   * The server's word on a melee board (ADR 0022): the end move, written into the log here, then
-   * the round scored. Returns the result sent to the pirate, or null when the session was gone.
+   * The host stops hearing the board: no more of its moves, its closing or its end reach it, whatever
+   * becomes of the board now. Its pirate still hears what the server tells the board. The ship
+   * detaches a board before it cuts it short on its own terms (a station it ends, a fight it
+   * settles), so the board's own end decides nothing aboard.
    */
-  async endMelee(session: PuzzleSession, won: boolean, tick: number): Promise<ServerMessage | null> {
-    if (session.closed) return null;
+  detach(session: PuzzleSession): void {
+    this.hosts.delete(session);
+  }
+
+  /** The server's word on a melee board (ADR 0022): the end move, written into the log here, then the round scored and its pirate told. */
+  async endMelee(session: PuzzleSession, won: boolean, tick: number): Promise<void> {
+    if (session.closed) return;
     this.sessions.inject(session, { type: "end", won, tick });
-    return this.finish(session, null, null);
+    await this.finish(session, null, null);
   }
 
   /** The deal as the client sees it; with `resume`, a ship's board handed back (the battle or a melee board) with every move logged. */
@@ -157,12 +174,12 @@ export class PuzzleService {
 
   /**
    * Vouch for a move on a board (ADR 0042): the ship's heat, the battle's supply, a melee's incoming
-   * scrap. The board may now log it, and the message returned tells its pirate to. Null when it is no
-   * news to the board: the heat it already has.
+   * scrap. The board may now log it, and its pirate is told to, unless it is no news to the board
+   * (the heat it already has).
    */
-  vouch(session: PuzzleSession, move: CoolingMove | BattleMove | SwordfightMove): ServerMessage | null {
+  vouch(session: PuzzleSession, move: CoolingMove | BattleMove | SwordfightMove): void {
     const message = vouchedMessage(session, move);
-    return session.vouched.vouch(move) ? message : null;
+    if (session.vouched.vouch(move)) this.tell(session, message);
   }
 
   /**
@@ -174,39 +191,46 @@ export class PuzzleService {
     return [this.startedMessage(session, true), ...session.vouched.pending().map((m) => vouchedMessage(session, m))];
   }
 
-  /** Returns the message to send back, if any. `move` is any puzzle's move; it is narrowed here. */
-  async move(session: PuzzleSession, seq: number, move: unknown, hash: string): Promise<ServerMessage | null> {
+  /**
+   * A move from the board's pirate. `move` is any puzzle's move; it is narrowed here. A missing move
+   * on a ship's board gets the board handed back (ADR 0024); a move the server refuses throws the
+   * round out, and the pirate is told.
+   */
+  async move(session: PuzzleSession, seq: number, move: unknown, hash: string): Promise<void> {
     const parsed = parseMoveFor(session.puzzle, move);
     const expected = session.moves.length;
     const r = parsed === null ? this.sessions.move(session, seq, { type: "__not_a_move__" }, hash) : this.sessions.move(session, seq, parsed, hash);
     if (r.ok === "resync") {
       if (r.handBack) {
         this.log.warn({ pirateId: session.pirateId, sessionId: session.id, puzzle: session.puzzle, seq, expected, resyncs: session.resyncs }, "board handed back after a missing move");
-        const host = this.hosts.get(session);
-        if (host) for (const m of this.handBack(session)) host.send(m);
+        for (const m of this.handBack(session)) this.tell(session, m);
       }
-      return null;
+      return;
     }
     if (r.ok) {
       this.hosts.get(session)?.moved?.(session);
-      return null;
+      return;
     }
     // The bad move closed the board; its host hears it closing before anything is stored, so a
     // duty board still feeds the ship what it had earned before the bad move.
     this.hosts.get(session)?.closing?.(session);
     await this.persistRejected(session, r.reason, null, { seq, expected });
-    const rejected: ServerMessage = { type: "puzzle.rejected", sessionId: session.id, reason: r.reason, atSeq: r.atSeq };
-    this.ended(session, "rejected", rejected);
-    return rejected;
+    this.ended(session, "rejected", { type: "puzzle.rejected", sessionId: session.id, reason: r.reason, atSeq: r.atSeq });
   }
 
   /**
-   * Score a round. Standing is earned in the game only (ADR 0028): the captain's space battle and a
-   * melee board always move it, a duty board only when it ran its full clock or the engine ended it
-   * (a board cut short by docking counts but moves no standing), and a harness round never does.
-   * Every scored round gets its own performance rating against the thresholds.
+   * Score a round and tell its pirate the result, which is returned for the caller to read. Standing
+   * is earned in the game only (ADR 0028): the captain's space battle and a melee board always move
+   * it, a duty board only when it ran its full clock or the engine ended it (a board cut short by
+   * docking counts but moves no standing), and a harness round never does. Every scored round gets
+   * its own performance rating against the thresholds.
    */
-  async finish(session: PuzzleSession, hash: string | null, metrics: ClientMetrics | null): Promise<ServerMessage> {
+  finish(session: PuzzleSession, hash: string | null, metrics: ClientMetrics | null): Promise<ServerMessage> {
+    return this.score(session, hash, metrics, true);
+  }
+
+  /** `finish`, telling the pirate the result only when `tell` says so. */
+  private async score(session: PuzzleSession, hash: string | null, metrics: ClientMetrics | null, tell: boolean): Promise<ServerMessage> {
     const policy = bindingPolicy(session.binding);
     const rated = policy.rated === "always" || (policy.rated === "ran_full" && this.sessions.ranFull(session));
     this.closing(session);
@@ -214,7 +238,7 @@ export class PuzzleService {
     if (!r.ok) {
       await this.persistRejected(session, r.reason, metrics);
       const rejected: ServerMessage = { type: "puzzle.rejected", sessionId: session.id, reason: r.reason };
-      this.ended(session, "rejected", rejected);
+      this.ended(session, "rejected", rejected, tell);
       return rejected;
     }
     const performance = roundPerformance(this.content, session.puzzle, r.summary.score);
@@ -261,18 +285,17 @@ export class PuzzleService {
       return msg;
     });
     this.log.info({ pirateId: session.pirateId, puzzle: session.puzzle, score: result.score, moves: result.moves, rated }, "round scored");
-    this.ended(session, "finished", result);
+    this.ended(session, "finished", result, tell);
     return result;
   }
 
   /**
-   * The pirate quit a round: abandoned it, or started another. A duty board is cut short and counts;
-   * any other round is abandoned. Returns the result to send, if any.
+   * The pirate quit a round: abandoned it, or started another. A duty board is cut short and counts,
+   * and its pirate is told the result; any other round is abandoned.
    */
-  async quit(session: PuzzleSession): Promise<ServerMessage | null> {
-    if (bindingPolicy(session.binding).quit === "cut_short") return this.cutShort(session);
-    await this.abandon(session);
-    return null;
+  async quit(session: PuzzleSession): Promise<void> {
+    if (bindingPolicy(session.binding).quit === "cut_short") await this.cutShort(session);
+    else await this.abandon(session);
   }
 
   async abandon(session: PuzzleSession): Promise<void> {
@@ -284,16 +307,21 @@ export class PuzzleService {
 
   /**
    * End a duty board early (the ship docked, the pirate stood down or dropped). A board with moves
-   * counts, unrated; an untouched one is dropped. Returns the result to send, if any.
+   * counts, unrated, and its pirate is told the result; an untouched one is dropped.
    */
-  async cutShort(session: PuzzleSession): Promise<ServerMessage | null> {
-    if (session.closed) return null;
+  async cutShort(session: PuzzleSession): Promise<void> {
+    if (session.closed) return;
     if (session.moves.length === 0) {
       this.closing(session);
       this.sessions.close(session);
-      return null;
+      return;
     }
-    return this.finish(session, null, null);
+    await this.finish(session, null, null);
+  }
+
+  /** Say something to the board's pirate, on their line, whoever the board's host is. */
+  private tell(session: PuzzleSession, message: ServerMessage): void {
+    this.presence.send(session.pirateId, message);
   }
 
   /** The board is about to close: its host hears it while the board is still open. */
@@ -301,14 +329,19 @@ export class PuzzleService {
     if (!session.closed) this.hosts.get(session)?.closing?.(session);
   }
 
-  /** The board is over and closed: its host hears how, and the result its pirate is owed. */
-  private ended(session: PuzzleSession, how: BoardEnd, result: ServerMessage | null): void {
+  /**
+   * The board is over and closed: its host hears how, then its pirate hears the result they are owed.
+   * In that order: a melee board's end shows the melee's boards (and may settle the airlock) before
+   * its pirate sees the result.
+   */
+  private ended(session: PuzzleSession, how: BoardEnd, result: ServerMessage | null, tell = true): void {
     this.hosts.get(session)?.ended?.(session, how, result);
+    if (result && tell) this.tell(session, result);
   }
 
   /**
    * Score rounds whose clock ran out without a finish message (the player closed the tab). Rounds
-   * with moves count, with what the server received; empty rounds are dropped.
+   * with moves count, with what the server received; empty rounds are dropped. Nobody is told.
    */
   async sweep(): Promise<void> {
     for (const s of this.sessions.expired()) {
@@ -317,7 +350,7 @@ export class PuzzleService {
           this.sessions.close(s);
           continue;
         }
-        await this.finish(s, null, null);
+        await this.score(s, null, null, false);
       } catch (e) {
         this.log.error({ err: e, sessionId: s.id }, "sweep failed");
         this.sessions.close(s);

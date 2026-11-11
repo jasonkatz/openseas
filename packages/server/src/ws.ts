@@ -10,9 +10,9 @@ import type { Db } from "./db/index.js";
 import { InsufficientFundsError } from "./ledger.js";
 import type { Logger } from "./log.js";
 import { PirateError, awardTitles, findPirateByUser, pirateSheet, setLook, setTitle, summarizePirate, type PirateLooks } from "./pirates.js";
+import type { Presence } from "./presence.js";
 import { PRACTICE } from "./puzzles/binding.js";
-import type { BoardHost, PuzzleService } from "./puzzles/service.js";
-import type { RoomMember } from "./rooms.js";
+import type { PuzzleService } from "./puzzles/service.js";
 import { ShipError, type ShipService } from "./ships/service.js";
 import { NoSuchClassError, buyShip } from "./shipyard.js";
 import { SocialError, type SocialService } from "./social.js";
@@ -22,6 +22,7 @@ export interface WsDeps {
   auth: Auth;
   content: Content;
   log: Logger;
+  presence: Presence;
   puzzles: PuzzleService;
   ships: ShipService;
   social: SocialService;
@@ -32,10 +33,6 @@ export interface WsDeps {
 interface Conn {
   pirateId: string;
   name: string;
-  guest: boolean;
-  /** This socket as a room member. One pirate, one seat; the newest socket holds it. */
-  member: RoomMember<ServerMessage>;
-  activeSessionId: string | null;
   /** Token bucket for message rate limiting. */
   tokens: number;
   lastRefill: number;
@@ -46,10 +43,10 @@ const BUCKET_SIZE = 40;
 const REFILL_PER_SECOND = 20;
 
 export function createWsServer(deps: WsDeps) {
-  const { db, auth, content, log, puzzles, ships, social, crews, looks } = deps;
+  const { db, auth, content, log, presence, puzzles, ships, social, crews, looks } = deps;
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES });
-  /** The newest connection per pirate, for messages addressed to a pirate rather than a room. */
-  const conns = new Map<string, Conn>();
+  /** Whether each pirate online signed in as a guest, as their newest socket did. */
+  const guests = new Map<string, boolean>();
 
   const send = (ws: WebSocket, msg: ServerMessage): void => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
@@ -57,14 +54,13 @@ export function createWsServer(deps: WsDeps) {
 
   /** Re-send a pirate's summary after something about them changed on the server's side. */
   const resend = async (pirateId: string): Promise<void> => {
-    const conn = conns.get(pirateId);
-    if (!conn) return;
-    const summary = await summarizePirate(db, content, pirateId, conn.guest);
-    if (summary) conn.member.send({ type: "pirate.updated", pirate: summary });
+    if (!presence.online(pirateId)) return;
+    const summary = await summarizePirate(db, content, pirateId, guests.get(pirateId) ?? false);
+    if (summary) presence.send(pirateId, { type: "pirate.updated", pirate: summary });
   };
   /** Tell a pirate about titles their record just earned (ADR 0033). */
   const announce = (pirateId: string, fresh: readonly string[]): void => {
-    if (fresh.length) conns.get(pirateId)?.member.send({ type: "pirate.titles", earned: [...fresh] });
+    if (fresh.length) presence.send(pirateId, { type: "pirate.titles", earned: [...fresh] });
   };
   /** Their record may have grown: write down any title it now earns and say so. */
   const checkTitles = async (pirateId: string): Promise<void> => {
@@ -76,11 +72,6 @@ export function createWsServer(deps: WsDeps) {
     void resend(pirateId).catch((e) => log.warn({ err: e, pirateId }, "summary resend failed"));
     void checkTitles(pirateId).catch((e) => log.warn({ err: e, pirateId }, "title check failed"));
   };
-  /**
-   * A practice round's host is its pirate's newest connection, and nothing else: a harness Cooling
-   * round hears its lone ship's heat through it (ADR 0029), which the board logs as a heat move.
-   */
-  const practiceHost = (pirateId: string): BoardHost => ({ send: (m) => conns.get(pirateId)?.member.send(m) });
   ships.onSummaryChanged = (ids) => {
     for (const id of ids) changed(id);
   };
@@ -123,9 +114,10 @@ export function createWsServer(deps: WsDeps) {
       ws.close();
       return;
     }
-    const member: RoomMember<ServerMessage> = { id: pirateId, send: (m) => send(ws, m) };
-    const conn: Conn = { pirateId, name: summary.name, guest, member, activeSessionId: null, tokens: BUCKET_SIZE, lastRefill: Date.now() };
-    conns.set(pirateId, conn);
+    const conn: Conn = { pirateId, name: summary.name, tokens: BUCKET_SIZE, lastRefill: Date.now() };
+    // This socket takes the pirate's seat: whatever is addressed to the pirate comes here now.
+    const detach = presence.attach(pirateId, { send: (m) => send(ws, m) });
+    guests.set(pirateId, guest);
     // Listeners go on before anything asynchronous, so no early message is lost.
     ws.on("message", (data) => {
       void handleMessage(ws, conn, data.toString()).catch((e) => {
@@ -138,24 +130,24 @@ export function createWsServer(deps: WsDeps) {
       });
     });
     ws.on("close", () => {
-      if (conns.get(pirateId) === conn) conns.delete(pirateId);
-      if (conn.activeSessionId) {
-        const s = puzzles.sessions.get(conn.activeSessionId);
-        // Leave a practice session for the sweeper: a reconnecting client cannot resume (its board
-        // is discarded, per DESIGN.md 3.4), but moves already received still count at the deadline.
-        // A duty board is discarded at once by the ship service below.
-        if (s) log.debug({ sessionId: s.id }, "connection closed with active session");
-      }
-      social.disconnected(pirateId, member);
-      crews.disconnected(pirateId, member);
-      void ships.disconnect(pirateId, member).catch((e) => log.error({ err: e, pirateId }, "ship disconnect failed"));
+      // A newer socket holds the seat: the pirate is still here, and nothing changes.
+      if (!detach()) return;
+      guests.delete(pirateId);
+      const open = puzzles.sessions.openFor(pirateId);
+      // Leave a practice session for the sweeper: a reconnecting client cannot resume (its board
+      // is discarded, per DESIGN.md 3.4), but moves already received still count at the deadline,
+      // unless the pirate starts another round first, which quits it. A duty board is discarded at
+      // once by the ship service below; the ship holds the battle and a melee board for their return.
+      if (open) log.debug({ sessionId: open.id }, "connection closed with an open round");
+      social.disconnected(pirateId);
+      void ships.disconnect(pirateId).catch((e) => log.error({ err: e, pirateId }, "ship disconnect failed"));
     });
 
     looks.remember(pirateId, summary.look);
     send(ws, { type: "welcome", pirate: summary, serverNow: Date.now() });
-    ships.reconnect(pirateId, member);
-    await social.connected(pirateId, summary.name, member);
-    crews.connected(pirateId, summary.name, member);
+    ships.reconnect(pirateId);
+    await social.connected(pirateId, summary.name);
+    crews.connected(pirateId, summary.name);
     // A record that grew while titles did not exist yet, or while away, is caught up on arrival.
     void checkTitles(pirateId).catch((e) => log.warn({ err: e, pirateId }, "title check failed"));
   };
@@ -167,16 +159,6 @@ export function createWsServer(deps: WsDeps) {
     if (conn.tokens < 1) return false;
     conn.tokens -= 1;
     return true;
-  };
-
-  /** Close whatever round this connection is in the middle of before it starts another. */
-  const dropActive = async (conn: Conn): Promise<void> => {
-    if (!conn.activeSessionId) return;
-    const old = puzzles.sessions.get(conn.activeSessionId);
-    conn.activeSessionId = null;
-    if (!old) return;
-    const result = await puzzles.quit(old);
-    if (result) conn.member.send(result);
   };
 
   const handleMessage = async (ws: WebSocket, conn: Conn, raw: string): Promise<void> => {
@@ -204,31 +186,19 @@ export function createWsServer(deps: WsDeps) {
       case "ping":
         send(ws, { type: "pong", t: msg.t, serverNow: Date.now() });
         return;
-      case "puzzle.start": {
-        await dropActive(conn);
-        const started = puzzles.start(conn.pirateId, msg.puzzle, { binding: PRACTICE, host: practiceHost(conn.pirateId) });
-        conn.activeSessionId = started.sessionId;
-        send(ws, started);
+      case "puzzle.start":
+        send(ws, await puzzles.start(conn.pirateId, msg.puzzle, { binding: PRACTICE }));
         return;
-      }
-      case "duty.start": {
-        await dropActive(conn);
-        const started = await ships.dutyStart(conn.pirateId);
-        conn.activeSessionId = started.sessionId;
-        send(ws, started);
+      case "duty.start":
+        send(ws, await ships.dutyStart(conn.pirateId));
         return;
-      }
       case "puzzle.move": {
         const s = puzzles.sessions.get(msg.sessionId);
         if (!s || s.pirateId !== conn.pirateId) {
           send(ws, { type: "error", code: "unknown_session" });
           return;
         }
-        const reply = await puzzles.move(s, msg.seq, msg.move, msg.hash);
-        if (reply) {
-          conn.activeSessionId = null;
-          send(ws, reply);
-        }
+        await puzzles.move(s, msg.seq, msg.move, msg.hash);
         return;
       }
       case "puzzle.finish": {
@@ -239,24 +209,18 @@ export function createWsServer(deps: WsDeps) {
         }
         // The old board's claim after a hand-back: the rebuilt board finishes for itself.
         if (puzzles.sessions.staleFinish(s, msg.hash)) return;
-        conn.activeSessionId = null;
         const result = await puzzles.finish(s, msg.hash, msg.metrics ?? null);
-        send(ws, result);
         // A board that moved standing may have earned a standing title.
         if (result.type === "puzzle.result" && result.rating) await checkTitles(conn.pirateId);
         return;
       }
       case "puzzle.abandon": {
         const s = puzzles.sessions.get(msg.sessionId);
-        if (s && s.pirateId === conn.pirateId) {
-          const result = await puzzles.quit(s);
-          if (result) send(ws, result);
-        }
-        conn.activeSessionId = null;
+        if (s && s.pirateId === conn.pirateId) await puzzles.quit(s);
         return;
       }
       case "ship.board":
-        await ships.board(conn.pirateId, conn.name, msg.shipId, conn.member);
+        await ships.board(conn.pirateId, conn.name, msg.shipId);
         return;
       case "ship.leave":
         await ships.leave(conn.pirateId);
@@ -270,14 +234,10 @@ export function createWsServer(deps: WsDeps) {
       case "ship.evade":
         await ships.evade(conn.pirateId);
         return;
-      case "ship.engage": {
-        await dropActive(conn);
-        const started = await ships.engage(conn.pirateId);
-        conn.activeSessionId = started.sessionId;
-        send(ws, started);
+      case "ship.engage":
+        send(ws, await ships.engage(conn.pirateId));
         ships.supplyNow(conn.pirateId);
         return;
-      }
       case "ship.helm":
         await ships.helm(conn.pirateId, msg.pirateId);
         return;
@@ -322,7 +282,6 @@ export function createWsServer(deps: WsDeps) {
         return;
       }
       case "melee.join":
-        await dropActive(conn);
         await ships.meleeJoin(conn.pirateId);
         return;
       case "crew.info":

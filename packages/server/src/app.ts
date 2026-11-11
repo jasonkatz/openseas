@@ -9,6 +9,7 @@ import type { Env } from "./env.js";
 import { createHttpHandler } from "./http.js";
 import type { Logger } from "./log.js";
 import { PirateLooks } from "./pirates.js";
+import { Presence } from "./presence.js";
 import { PuzzleService } from "./puzzles/service.js";
 import { ShipService } from "./ships/service.js";
 import { CrewService } from "./crews.js";
@@ -35,14 +36,16 @@ export async function createApp(env: Env, log: Logger, opts: { now?: () => numbe
   await runMigrations(db);
 
   const auth = createAuth(env, db, log);
-  const puzzles = new PuzzleService(db, content, log, opts.now);
-  const ships = new ShipService(db, content, log, puzzles, {
+  // Who is connected, and the way to each pirate: every service says what it says to a pirate through it.
+  const presence = new Presence();
+  const puzzles = new PuzzleService(db, content, log, presence, opts.now);
+  const ships = new ShipService(db, content, log, puzzles, presence, {
     ...(opts.now ? { now: opts.now } : {}),
     randomSeed: () => randomBytes(16).toString("hex"),
     randomId: () => randomUUID(),
   });
-  const social = new SocialService(ships, opts.now);
-  const crews = new CrewService(db, content, log, ships, social, { ...(opts.now ? { now: opts.now } : {}), randomId: () => randomUUID() });
+  const social = new SocialService(ships, presence, opts.now);
+  const crews = new CrewService(db, content, log, ships, social, presence, { ...(opts.now ? { now: opts.now } : {}), randomId: () => randomUUID() });
   await crews.load();
   ships.crews = crews;
   social.crews = crews;
@@ -53,7 +56,7 @@ export async function createApp(env: Env, log: Logger, opts: { now?: () => numbe
   ships.onArrived = (ids) => void crews.tallyVoyage(ids).catch((e) => log.error({ err: e }, "crew voyage tally failed"));
   ships.onVictory = (room, tierId, shares) => void crews.tallyVictory(room, tierId, shares).catch((e) => log.error({ err: e }, "crew victory tally failed"));
   const http = createHttpHandler({ env, db, auth, content, log });
-  const ws = createWsServer({ db, auth, content, log, puzzles, ships, social, crews, looks });
+  const ws = createWsServer({ db, auth, content, log, presence, puzzles, ships, social, crews, looks });
 
   const server = createServer((req, res) => void http(req, res));
   server.on("upgrade", (req, socket, head) => {

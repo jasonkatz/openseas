@@ -17,23 +17,23 @@ import {
   reduceCooling,
   reduceShip,
   reduceSwordfight,
-  swapIllegalReason,
   type BattleMove,
   type BattlePlan,
   type BattleSegment,
   type BattleState,
   type CoolingMove,
-  type CoolingState,
   type MoveToken,
   type SwordfightMove,
 } from "@openseas/engine";
-import { parseServerMessage, type MeResponse, type PirateSummary, type ServerMessage } from "@openseas/protocol";
+import type { MeResponse, PirateSummary, ServerMessage } from "@openseas/protocol";
 import { createApp, type App } from "../src/app.js";
 import { schema } from "../src/db/index.js";
 import { loadEnv } from "../src/env.js";
 import { appendLedger } from "../src/ledger.js";
 import { createLogger } from "../src/log.js";
 import { legPlan, shipConfigFor, splitPlunder, splitTokens, type ShipRoom } from "../src/ships/service.js";
+import { Client } from "./client.js";
+import { scoringMove } from "./moves.js";
 
 const url = process.env.TEST_DATABASE_URL;
 const describeDb = url ? describe : describe.skip;
@@ -111,59 +111,6 @@ function plainPlan(state: BattleState): BattlePlan {
     segments.push({ move, port, starboard });
   }
   return { segments, grapple: true };
-}
-
-/** A swap that scores if one exists, else the first legal swap. */
-function scoringMove(state: CoolingState): CoolingMove {
-  let fallback: CoolingMove | null = null;
-  for (let r = 0; r < state.config.height; r++) {
-    for (let c = 0; c < state.config.width - 1; c++) {
-      if (swapIllegalReason(state, c, r) !== null) continue;
-      const move: CoolingMove = { type: "swap", col: c, row: r };
-      if (reduceCooling(state, move).score > state.score) return move;
-      fallback ??= move;
-    }
-  }
-  if (!fallback) throw new Error("no legal move");
-  return fallback;
-}
-
-/** A socket with an inbox, so a test can wait for the next message of a kind. */
-class Client {
-  readonly inbox: ServerMessage[] = [];
-  private waiters: Array<{ pred: (m: ServerMessage) => boolean; resolve: (m: ServerMessage) => void }> = [];
-  constructor(readonly ws: WebSocket) {
-    ws.on("message", (d) => {
-      const m = parseServerMessage(JSON.parse(d.toString()));
-      if (!m) throw new Error(`unparseable server message: ${d.toString()}`);
-      const i = this.waiters.findIndex((w) => w.pred(m));
-      if (i >= 0) this.waiters.splice(i, 1)[0]!.resolve(m);
-      else this.inbox.push(m);
-    });
-  }
-  send(msg: unknown): void {
-    this.ws.send(JSON.stringify(msg));
-  }
-  /** The next message satisfying `pred`, from the inbox or the wire. */
-  until<T extends ServerMessage["type"]>(type: T, pred: (m: Extract<ServerMessage, { type: T }>) => boolean = () => true): Promise<Extract<ServerMessage, { type: T }>> {
-    const test = (m: ServerMessage): boolean => m.type === type && pred(m as Extract<ServerMessage, { type: T }>);
-    const i = this.inbox.findIndex(test);
-    if (i >= 0) return Promise.resolve(this.inbox.splice(i, 1)[0] as Extract<ServerMessage, { type: T }>);
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`timed out waiting for ${type}; inbox: ${this.inbox.map((m) => m.type).join(",")}`)), 8000);
-      this.waiters.push({
-        pred: test,
-        resolve: (m) => {
-          clearTimeout(timer);
-          resolve(m as Extract<ServerMessage, { type: T }>);
-        },
-      });
-    });
-  }
-  /** Drop what has piled up, so the next `until` waits for something new. */
-  clear(): void {
-    this.inbox.length = 0;
-  }
 }
 
 describeDb("ships over the wire", () => {
@@ -248,6 +195,10 @@ describeDb("ships over the wire", () => {
         const lane = content.world.lanes.find((r) => r.from === shipRoom(shipId).state.outpostId)!;
         captain.send({ type: "ship.launch", laneId: lane.id });
         await waitRoom(shipId, (r) => r.state.voyage !== null);
+        // The ship is in flight before its voyage is written, and a test runs its turns far faster
+        // than a ship does: a fight settled before the row is there would record its outcome nowhere.
+        const voyageId = shipRoom(shipId).voyageId!;
+        await expect.poll(async () => (await app.db.select({ id: schema.voyage.id }).from(schema.voyage).where(eq(schema.voyage.id, voyageId))).length, { timeout: 5000 }).toBe(1);
       }
       for (let i = 0; i < 600; i++) {
         const v = shipRoom(shipId).state.voyage;
@@ -257,6 +208,37 @@ describeDb("ships over the wire", () => {
       }
     }
     throw new Error("no raider hailed the ship in a dozen legs");
+  }
+
+  /**
+   * The captain engages the next raider to hail and grapples her at once: the space battle ends in a
+   * boarding and the melee opens for everyone aboard. Returns the raider's tier.
+   */
+  async function grappleRaider(shipId: string, captain: Client): Promise<string> {
+    const tierId = await huntHail(shipId, captain);
+    const turnAtHail = shipRoom(shipId).state.turn;
+    captain.send({ type: "ship.engage" });
+    const fight = await captain.until("puzzle.started");
+    if (fight.puzzle !== "battle") throw new Error("expected a battle board");
+    await captain.until("ship.state", (m) => m.ship.turn >= turnAtHail && m.events.some((e) => e.type === "engaged"));
+    const deal = await captain.until("battle.supply", (m) => m.sessionId === fight.sessionId);
+    const supply = { type: "supply", left: deal.left, forward: deal.forward, right: deal.right, turrets: deal.turrets, hull: deal.hull } as const;
+    let state = reduceBattle(createBattleGame(fight.seed, fight.config), supply);
+    captain.send({ type: "puzzle.move", sessionId: fight.sessionId, seq: 0, move: supply, hash: hashBattleState(state) });
+    await waitRoom(shipId, () => app.puzzles.sessions.get(fight.sessionId)?.moves.length === 1);
+    // Put the raider alongside and hurt: a grapple ends the space battle with a boarding. Both
+    // copies of the board are set the same way, so the log still agrees.
+    const session = app.puzzles.sessions.get(fight.sessionId)!;
+    // Our hull sound (a long hunt wears it, and a hurt captain can be boarded first); the raider
+    // alongside, hurt, and with nothing to fly or fire, so she can only wait for the hooks.
+    const me = { ...state.ships[0], damage: 0 };
+    state = { ...state, ships: [me, { ...state.ships[1], x: me.x, y: me.y - 1, damage: fight.config.grappleDamage, loaded: 0, tokens: { left: 0, forward: 0, right: 0 } }] };
+    session.state = state;
+    state = reduceBattle(state, { type: "commit", segments: [], grapple: true });
+    expect(state.outcome).toBe("boarded");
+    captain.send({ type: "puzzle.move", sessionId: fight.sessionId, seq: 1, move: { type: "commit", segments: [], grapple: true }, hash: hashBattleState(state) });
+    await captain.until("puzzle.result", (m) => m.sessionId === fight.sessionId);
+    return tierId;
   }
 
   /**
@@ -843,30 +825,8 @@ describeDb("ships over the wire", () => {
     b.send({ type: "ship.board", shipId });
     await b.until("ship.state", (m) => m.ship.crew.length === 2);
     const room = (): ShipRoom => shipRoom(shipId);
-    const tierId = await huntHail(shipId, a);
+    const tierId = await grappleRaider(shipId, a);
     const tier = content.world.raiderTiers.find((t) => t.id === tierId)!;
-    const turnAtHail = room().state.turn;
-    a.send({ type: "ship.engage" });
-    const fight = await a.until("puzzle.started");
-    if (fight.puzzle !== "battle") throw new Error("expected a battle board");
-    await a.until("ship.state", (m) => m.ship.turn >= turnAtHail && m.events.some((e) => e.type === "engaged"));
-    const deal = await a.until("battle.supply", (m) => m.sessionId === fight.sessionId);
-    let state = createBattleGame(fight.seed, fight.config);
-    state = reduceBattle(state, { type: "supply", left: deal.left, forward: deal.forward, right: deal.right, turrets: deal.turrets, hull: deal.hull });
-    a.send({ type: "puzzle.move", sessionId: fight.sessionId, seq: 0, move: { type: "supply", left: deal.left, forward: deal.forward, right: deal.right, turrets: deal.turrets, hull: deal.hull }, hash: hashBattleState(state) });
-    await waitRoom(shipId, () => app.puzzles.sessions.get(fight.sessionId)?.moves.length === 1);
-    // Put the raider alongside and hurt: a grapple ends the space battle with a boarding. Both
-    // copies of the board are set the same way, so the log still agrees.
-    const session = app.puzzles.sessions.get(fight.sessionId)!;
-    // Our hull sound (a long hunt wears it, and a hurt captain can be boarded first); the raider
-    // alongside, hurt, and with nothing to fly or fire, so she can only wait for the hooks.
-    const me = { ...state.ships[0], damage: 0 };
-    state = { ...state, ships: [me, { ...state.ships[1], x: me.x, y: me.y - 1, damage: fight.config.grappleDamage, loaded: 0, tokens: { left: 0, forward: 0, right: 0 } }] };
-    session.state = state;
-    state = reduceBattle(state, { type: "commit", segments: [], grapple: true });
-    expect(state.outcome).toBe("boarded");
-    a.send({ type: "puzzle.move", sessionId: fight.sessionId, seq: 1, move: { type: "commit", segments: [], grapple: true }, hash: hashBattleState(state) });
-    await a.until("puzzle.result", (m) => m.sessionId === fight.sessionId);
 
     // Everyone aboard gets a board at the airlock; the ship says so and holds.
     const boarding = await a.until("ship.state", (m) => m.events.some((e) => e.type === "boarding"));
@@ -912,11 +872,13 @@ describeDb("ships over the wire", () => {
 
     // A move lost on the way (ADR 0024): the next one carries the wrong number, and instead of the
     // round being thrown out the board is handed back as the server holds it. The rebuilt board goes on.
-    // Scrap the server announced whose message went astray goes back with the board. The ship's clock
-    // has not moved since the boarding, so the raider crew has announced nothing of its own yet.
+    // Scrap the server announced that the board never logged, as if its message went astray, goes back
+    // with the board. The ship's clock has not moved since the boarding, so the raider crew has
+    // announced nothing of its own yet.
     expect(room().melee?.crew.tick).toBe(0);
     const held = mine;
-    const announced = app.puzzles.vouch(app.puzzles.sessions.get(mineA.sessionId)!, { type: "incoming", board: 0, scrap: 7, blade: 0, tick: 0 });
+    app.puzzles.vouch(app.puzzles.sessions.get(mineA.sessionId)!, { type: "incoming", board: 0, scrap: 7, blade: 0, tick: 0 });
+    const announced = await a.until("melee.incoming", (m) => m.sessionId === mineA.sessionId);
     expect(announced).toEqual({ type: "melee.incoming", sessionId: mineA.sessionId, scrap: 7, blade: 0, from: tierId });
     a.clear();
     mine = reduceSwordfight(mine, { type: "wait", tick: 2 });
@@ -964,6 +926,44 @@ describeDb("ships over the wire", () => {
     a.ws.close();
     b.ws.close();
     c.ws.close();
+  });
+
+  it("a pirate who starts another round at the airlock quits their board there, and the melee goes on without it", async () => {
+    const owner = await pirate();
+    const crewmate = await pirate();
+    const a = await connect(owner.cookie);
+    const b = await connect(crewmate.cookie);
+    const shipId = owner.me.ships[0]!.id;
+    a.send({ type: "ship.board", shipId });
+    await a.until("ship.state");
+    b.send({ type: "ship.board", shipId });
+    await b.until("ship.state", (m) => m.ship.crew.length === 2);
+    await grappleRaider(shipId, a);
+    const mineA = await a.until("puzzle.started", (m) => m.puzzle === "swordfight");
+    const mineB = await b.until("puzzle.started", (m) => m.puzzle === "swordfight");
+    if (mineA.puzzle !== "swordfight") throw new Error("expected a swordfight board");
+    await a.until("melee.boards", (m) => m.boards.some((x) => x.pirateId === crewmate.me.id));
+
+    // The crewmate starts a practice round mid-melee. A pirate has one round open: the melee board is
+    // quit as a dropped board is (abandoned), everyone aboard sees it go, and it was the crewmate's one
+    // board in this melee.
+    b.send({ type: "puzzle.start", puzzle: "cooling" });
+    const practice = await b.until("puzzle.started", (m) => m.puzzle === "cooling");
+    expect(practice.melee).toBeUndefined();
+    expect(app.puzzles.sessions.get(mineB.sessionId)).toBeUndefined();
+    await a.until("melee.boards", (m) => !m.boards.some((x) => x.pirateId === crewmate.me.id));
+    expect(shipRoom(shipId).melee?.fights.has(crewmate.me.id)).toBe(false);
+    const [round] = await app.db.select().from(schema.puzzleRound).where(eq(schema.puzzleRound.id, mineB.sessionId));
+    expect(round).toMatchObject({ rejectedReason: "deadline", rated: false });
+    b.send({ type: "melee.join" });
+    expect(await b.until("error")).toMatchObject({ code: "not_in_melee" });
+
+    // The owner fights on, and the airlock is won without the crewmate's board.
+    expect(shipRoom(shipId).melee).not.toBeNull();
+    await winMelee(shipId);
+    expect((await a.until("puzzle.result", (m) => m.sessionId === mineA.sessionId)).score).toBe(mineA.config.winPoints);
+    a.ws.close();
+    b.ws.close();
   });
 
   it("the shipyard sells a ship at the class price and refuses a pirate who is short or aboard", async () => {

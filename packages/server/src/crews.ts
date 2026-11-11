@@ -19,7 +19,7 @@ import { recordEvent } from "./events.js";
 import { appendLedger, InsufficientFundsError } from "./ledger.js";
 import type { Logger } from "./log.js";
 import { lookOf, pirateRecord } from "./pirates.js";
-import type { RoomMember } from "./rooms.js";
+import type { Presence } from "./presence.js";
 import type { ShipRoom, ShipService } from "./ships/service.js";
 import type { SocialService } from "./social.js";
 
@@ -77,8 +77,6 @@ export class CrewService {
   private readonly byPirate = new Map<string, string>();
   /** Names of every member and invitee, for views; pirate names never change. */
   private readonly names = new Map<string, string>();
-  /** The newest socket of every connected pirate. */
-  private readonly conns = new Map<string, RoomMember<ServerMessage>>();
   private readonly now: () => number;
   private queue: Promise<unknown> = Promise.resolve();
 
@@ -88,6 +86,7 @@ export class CrewService {
     private readonly log: Logger,
     private readonly ships: ShipService,
     private readonly social: SocialService,
+    private readonly presence: Presence,
     private readonly opts: CrewServiceOptions,
   ) {
     this.now = opts.now ?? Date.now;
@@ -153,18 +152,10 @@ export class CrewService {
 
   // ---- connections
 
-  connected(pirateId: string, name: string, member: RoomMember<ServerMessage>): void {
-    this.conns.set(pirateId, member);
+  /** A pirate's newest socket opened: they hear their crew as it stands. */
+  connected(pirateId: string, name: string): void {
     this.names.set(pirateId, name);
-    member.send(this.stateFor(pirateId));
-  }
-
-  disconnected(pirateId: string, member: RoomMember<ServerMessage>): void {
-    if (this.conns.get(pirateId) === member) this.conns.delete(pirateId);
-  }
-
-  online(pirateId: string): boolean {
-    return this.conns.has(pirateId);
+    this.presence.send(pirateId, this.stateFor(pirateId));
   }
 
   // ---- what a member sees
@@ -207,7 +198,7 @@ export class CrewService {
       victories: record?.victories ?? 0,
       look: lookOf(this.content, p.id, p.look),
       title: p.title && this.content.world.pirates.titles.some((t) => t.id === p.title) ? p.title : null,
-      online: this.conns.has(p.id),
+      online: this.presence.online(p.id),
       invited: Boolean(mine?.invites.has(p.id)),
     };
     return { type: "pirate.profile", profile };
@@ -217,7 +208,7 @@ export class CrewService {
   chat(pirateId: string, message: ServerMessage): void {
     const crew = this.crewOf(pirateId);
     if (!crew) throw new CrewError("not_in_crew");
-    for (const id of crew.members.keys()) this.conns.get(id)?.send(message);
+    for (const id of crew.members.keys()) this.presence.send(id, message);
   }
 
   // ---- actions
@@ -411,7 +402,7 @@ export class CrewService {
     const aboard = new Set(pirateIds);
     for (const [crew, ids] of this.crewsAmong(pirateIds)) {
       for (const id of crew.members.keys()) {
-        if (aboard.has(id) || !this.conns.has(id)) continue;
+        if (aboard.has(id) || !this.presence.online(id)) continue;
         this.notify([id], { type: "launched", names: ids.map((x) => this.nameOf(x)), shipId: room.shipId, shipName: room.name, to, joinable: this.ships.canJoin(room, id, this.outpostOf(id)) });
       }
     }
@@ -532,17 +523,17 @@ export class CrewService {
         joinable: pirateId !== viewerId && this.ships.canJoin(room, viewerId, viewerOutpost),
       };
     }
-    const outpost = this.conns.has(pirateId) ? this.social.outpostOf(pirateId) : null;
+    const outpost = this.presence.online(pirateId) ? this.social.outpostOf(pirateId) : null;
     return outpost ? { kind: "on-outpost", outpostId: outpost } : { kind: "offline" };
   }
 
   private notify(pirateIds: readonly string[], notice: CrewNotice): void {
     const at = this.now();
-    for (const id of pirateIds) this.conns.get(id)?.send({ type: "crew.notice", notice, at });
+    for (const id of pirateIds) this.presence.send(id, { type: "crew.notice", notice, at });
   }
 
   private pushState(pirateIds: readonly string[]): void {
-    for (const id of new Set(pirateIds)) this.conns.get(id)?.send(this.stateFor(id));
+    for (const id of new Set(pirateIds)) this.presence.send(id, this.stateFor(id));
   }
 
   /** Membership or the flag changed for these pirates: their views, their summaries and the ships they fly all follow. */
