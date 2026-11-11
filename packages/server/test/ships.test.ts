@@ -33,7 +33,7 @@ import { schema } from "../src/db/index.js";
 import { loadEnv } from "../src/env.js";
 import { appendLedger } from "../src/ledger.js";
 import { createLogger } from "../src/log.js";
-import { legPlan, shipConfigFor, splitPlunder, splitTokens } from "../src/ships/service.js";
+import { legPlan, shipConfigFor, splitPlunder, splitTokens, type ShipRoom } from "../src/ships/service.js";
 
 const url = process.env.TEST_DATABASE_URL;
 const describeDb = url ? describe : describe.skip;
@@ -223,6 +223,53 @@ describeDb("ships over the wire", () => {
       clock.t += turnMs;
       await app.ships.tick();
     }
+  }
+
+  /** A ship's room, which the test knows is there. */
+  function shipRoom(shipId: string): ShipRoom {
+    const room = app.ships.room(shipId);
+    if (!room) throw new Error(`no room for ship ${shipId}`);
+    return room;
+  }
+
+  /** Wait for the ship to get somewhere no message says: a fight settled, a move taken. */
+  async function waitRoom(shipId: string, pred: (r: ShipRoom) => boolean): Promise<void> {
+    for (let i = 0; i < 300; i++) {
+      if (pred(shipRoom(shipId))) return;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    throw new Error("the ship never got there");
+  }
+
+  /** Legs roll their raiders: the captain flies leg after leg until one hails the ship. Returns the raider's tier. */
+  async function huntHail(shipId: string, captain: Client): Promise<string> {
+    for (let leg = 0; leg < 12; leg++) {
+      if (!shipRoom(shipId).state.voyage) {
+        const lane = content.world.lanes.find((r) => r.from === shipRoom(shipId).state.outpostId)!;
+        captain.send({ type: "ship.launch", laneId: lane.id });
+        await waitRoom(shipId, (r) => r.state.voyage !== null);
+      }
+      for (let i = 0; i < 600; i++) {
+        const v = shipRoom(shipId).state.voyage;
+        if (!v) break;
+        if (v.hail) return v.hail.tierId;
+        await turn();
+      }
+    }
+    throw new Error("no raider hailed the ship in a dozen legs");
+  }
+
+  /**
+   * Win the airlock. No board a test plays breaks enough to bury a raider crew, so the raider crew is
+   * sent scrap as if the pirates' boards had: a full load on each raider board, routed as the melee
+   * routes it. The ship's clock then runs until the scrap has put every raider board out and the
+   * melee settles.
+   */
+  async function winMelee(shipId: string): Promise<void> {
+    const melee = shipRoom(shipId).melee!;
+    for (let i = 0; i < melee.crew.boards.length; i++) melee.pirateSent(clock.t, 999, melee.boardConfig.blade);
+    for (let i = 0; i < 20 && shipRoom(shipId).melee === melee; i++) await turn();
+    expect(melee.crew.finished).toBe(true);
   }
 
   it("a crew boards, flies, works a station, arrives and disembarks", async () => {
@@ -607,33 +654,9 @@ describeDb("ships over the wire", () => {
     a.send({ type: "ship.engage" });
     expect(await a.until("error")).toMatchObject({ code: "not_hailed" });
 
-    const room = (): ReturnType<typeof app.ships.room> & object => app.ships.room(shipId)!;
-    const waitRoom = async (pred: (r: ReturnType<typeof room>) => boolean): Promise<void> => {
-      for (let i = 0; i < 300; i++) {
-        if (pred(room())) return;
-        await new Promise((r) => setTimeout(r, 10));
-      }
-      throw new Error("the ship never got there");
-    };
-    /** Legs roll their raiders; fly leg after leg until one hails the ship. */
-    const huntHail = async (): Promise<string> => {
-      for (let leg = 0; leg < 12; leg++) {
-        if (!room().state.voyage) {
-          const lane = content.world.lanes.find((r) => r.from === room().state.outpostId)!;
-          a.send({ type: "ship.launch", laneId: lane.id });
-          await waitRoom((r) => r.state.voyage !== null);
-        }
-        for (let i = 0; i < 600; i++) {
-          const v = room().state.voyage;
-          if (!v) break;
-          if (v.hail) return v.hail.tierId;
-          await turn();
-        }
-      }
-      throw new Error("no raider hailed the ship in a dozen legs");
-    };
+    const room = (): ShipRoom => shipRoom(shipId);
 
-    const tierId = await huntHail();
+    const tierId = await huntHail(shipId, a);
     const tier = content.world.raiderTiers.find((t) => t.id === tierId)!;
     const turnAtHail = room().state.turn;
 
@@ -665,13 +688,13 @@ describeDb("ships over the wire", () => {
     const stale = await a.until("ship.state", (m) => m.ship.turn >= turnAtHail && m.events.some((e) => e.type === "battle_ended"));
     expect(stale.events).toContainEqual({ type: "battle_ended", tierId, outcome: "broke_off", plunder: 0, turns: 0 });
     expect((stale.ship.location as { battle: unknown }).battle).toBeNull();
-    await waitRoom((r) => r.battle === null);
+    await waitRoom(shipId, (r) => r.battle === null);
     await turn();
     expect(room().state.voyage!.progress).toBeGreaterThan(progressAtEngage);
 
     // No second hail on this leg, so the next fight needs the next raider. Fight it out: every
     // ship turn brings a deal, every deal a plot, until the engine ends it.
-    const tierId2 = await huntHail();
+    const tierId2 = await huntHail(shipId, a);
     const tierTwo = content.world.raiderTiers.find((t) => t.id === tierId2)!;
     const turnAtHail2 = room().state.turn;
     a.send({ type: "ship.engage" });
@@ -691,7 +714,7 @@ describeDb("ships over the wire", () => {
       if (state.finished) break;
       // The ship takes the turn's hits and shots before its next turn deals again. A deal that
       // reports a wrecked hull ends the fight by itself, so the loop checks again before plotting.
-      await waitRoom((r) => r.battle !== null && r.battle.turnsSeen === state.turn);
+      await waitRoom(shipId, (r) => r.battle !== null && r.battle.turnsSeen === state.turn);
       expect(room().state.loaded).toBeLessThanOrEqual(fight.config.turrets);
       await turn();
       const supply = await a.until("battle.supply", (m) => m.sessionId === fight.sessionId);
@@ -702,21 +725,13 @@ describeDb("ships over the wire", () => {
     const result = await a.until("puzzle.result", (m) => m.sessionId === fight.sessionId);
     expect(result.score).toBe(state.score);
     // Either boarding opens the melee instead of paying out (M5): everyone gets a board and the
-    // ship holds. Bury the raider crew in scrap so the airlock is won and the purse comes through.
+    // ship holds. Win the airlock so the purse comes through.
     const boarding = state.outcome === "boarded" || state.outcome === "boarded_by";
     if (boarding) {
       await a.until("ship.state", (m) => m.events.some((e) => e.type === "boarding"));
       await a.until("puzzle.started", (m) => m.puzzle === "swordfight");
       await b.until("puzzle.started", (m) => m.puzzle === "swordfight");
-      const run = room().melee!;
-      let crew = run.crew;
-      crew.boards.forEach((_, i) => {
-        crew = reduceSwordfight(crew, { type: "incoming", board: i, scrap: 200, blade: 0, tick: crew.tick });
-      });
-      for (let i = 0; i < 40 && !crew.finished; i++) crew = reduceSwordfight(crew, { type: "wait", tick: Math.min(crew.config.maxTick, crew.tick + 20) });
-      expect(crew.finished).toBe(true);
-      run.crew = crew;
-      await turn();
+      await winMelee(shipId);
     }
     const expectedOutcome = boarding ? "boarded" : state.outcome;
     const ended = await a.until("ship.state", (m) => m.ship.turn >= turnAtHail2 && m.events.some((e) => e.type === "battle_ended"));
@@ -743,7 +758,7 @@ describeDb("ships over the wire", () => {
 
     // A deal can end the fight by itself: a hull the ship reports as wrecked is a loss the moment
     // the board logs it, with no turn plotted, and the server owes the captain the result.
-    const tierId3 = await huntHail();
+    const tierId3 = await huntHail(shipId, a);
     const turnAtHail3 = room().state.turn;
     // A bot at plating would patch the hull between turns; the crewmate takes it over (and,
     // with no board, patches nothing), so the wreck stays a wreck.
@@ -781,31 +796,8 @@ describeDb("ships over the wire", () => {
     await a.until("ship.state");
     b.send({ type: "ship.board", shipId });
     await b.until("ship.state", (m) => m.ship.crew.length === 2);
-    const room = (): ReturnType<typeof app.ships.room> & object => app.ships.room(shipId)!;
-    const waitRoom = async (pred: (r: ReturnType<typeof room>) => boolean): Promise<void> => {
-      for (let i = 0; i < 300; i++) {
-        if (pred(room())) return;
-        await new Promise((r) => setTimeout(r, 10));
-      }
-      throw new Error("the ship never got there");
-    };
-    const huntHail = async (): Promise<string> => {
-      for (let leg = 0; leg < 12; leg++) {
-        if (!room().state.voyage) {
-          const lane = content.world.lanes.find((r) => r.from === room().state.outpostId)!;
-          a.send({ type: "ship.launch", laneId: lane.id });
-          await waitRoom((r) => r.state.voyage !== null);
-        }
-        for (let i = 0; i < 600; i++) {
-          const v = room().state.voyage;
-          if (!v) break;
-          if (v.hail) return v.hail.tierId;
-          await turn();
-        }
-      }
-      throw new Error("no raider hailed the ship in a dozen legs");
-    };
-    const tierId = await huntHail();
+    const room = (): ShipRoom => shipRoom(shipId);
+    const tierId = await huntHail(shipId, a);
     const turnAtHail = room().state.turn;
     a.send({ type: "ship.engage" });
     const fight = await a.until("puzzle.started");
@@ -815,7 +807,7 @@ describeDb("ships over the wire", () => {
     const supply = { type: "supply", left: deal.left, forward: deal.forward, right: deal.right, turrets: deal.turrets, hull: deal.hull } as const;
     const state = reduceBattle(createBattleGame(fight.seed, fight.config), supply);
     a.send({ type: "puzzle.move", sessionId: fight.sessionId, seq: 0, move: supply, hash: hashBattleState(state) });
-    await waitRoom(() => app.puzzles.sessions.get(fight.sessionId)?.moves.length === 1);
+    await waitRoom(shipId, () => app.puzzles.sessions.get(fight.sessionId)?.moves.length === 1);
     const voyageId = room().voyageId!;
 
     // The captain leaves the ship. The ship breaks the fight off as disengaged; the board, with a move
@@ -850,31 +842,8 @@ describeDb("ships over the wire", () => {
     await a.until("ship.state");
     b.send({ type: "ship.board", shipId });
     await b.until("ship.state", (m) => m.ship.crew.length === 2);
-    const room = (): ReturnType<typeof app.ships.room> & object => app.ships.room(shipId)!;
-    const waitRoom = async (pred: (r: ReturnType<typeof room>) => boolean): Promise<void> => {
-      for (let i = 0; i < 300; i++) {
-        if (pred(room())) return;
-        await new Promise((r) => setTimeout(r, 10));
-      }
-      throw new Error("the ship never got there");
-    };
-    const huntHail = async (): Promise<string> => {
-      for (let leg = 0; leg < 12; leg++) {
-        if (!room().state.voyage) {
-          const lane = content.world.lanes.find((r) => r.from === room().state.outpostId)!;
-          a.send({ type: "ship.launch", laneId: lane.id });
-          await waitRoom((r) => r.state.voyage !== null);
-        }
-        for (let i = 0; i < 600; i++) {
-          const v = room().state.voyage;
-          if (!v) break;
-          if (v.hail) return v.hail.tierId;
-          await turn();
-        }
-      }
-      throw new Error("no raider hailed the ship in a dozen legs");
-    };
-    const tierId = await huntHail();
+    const room = (): ShipRoom => shipRoom(shipId);
+    const tierId = await huntHail(shipId, a);
     const tier = content.world.raiderTiers.find((t) => t.id === tierId)!;
     const turnAtHail = room().state.turn;
     a.send({ type: "ship.engage" });
@@ -885,7 +854,7 @@ describeDb("ships over the wire", () => {
     let state = createBattleGame(fight.seed, fight.config);
     state = reduceBattle(state, { type: "supply", left: deal.left, forward: deal.forward, right: deal.right, turrets: deal.turrets, hull: deal.hull });
     a.send({ type: "puzzle.move", sessionId: fight.sessionId, seq: 0, move: { type: "supply", left: deal.left, forward: deal.forward, right: deal.right, turrets: deal.turrets, hull: deal.hull }, hash: hashBattleState(state) });
-    await waitRoom(() => app.puzzles.sessions.get(fight.sessionId)?.moves.length === 1);
+    await waitRoom(shipId, () => app.puzzles.sessions.get(fight.sessionId)?.moves.length === 1);
     // Put the raider alongside and hurt: a grapple ends the space battle with a boarding. Both
     // copies of the board are set the same way, so the log still agrees.
     const session = app.puzzles.sessions.get(fight.sessionId)!;
@@ -918,7 +887,7 @@ describeDb("ships over the wire", () => {
     // The crewmate drops their board: that was their one board in this melee. A pirate who comes
     // aboard mid-fight gets one of their own.
     b.send({ type: "puzzle.abandon", sessionId: mineB.sessionId });
-    await waitRoom((r) => r.melee !== null && !r.melee.fights.has(crewmate.me.id));
+    await waitRoom(shipId, (r) => r.melee !== null && !r.melee.fights.has(crewmate.me.id));
     b.send({ type: "melee.join" });
     expect(await b.until("error")).toMatchObject({ code: "not_in_melee" });
     const late = await pirate();
@@ -931,7 +900,7 @@ describeDb("ships over the wire", () => {
     expect(lateBoard.melee).toEqual({ shipId, tierId });
     await c.until("melee.boards", (m) => m.boards.some((x) => x.pirateId === late.me.id));
 
-    // The owner's board logs time; the ship holds position while the airlock is fought over.
+    // The owner's board logs time.
     let mine = createSwordfightGame(mineA.seed, mineA.config);
     let seq = 0;
     const log = (move: SwordfightMove): void => {
@@ -939,13 +908,13 @@ describeDb("ships over the wire", () => {
       a.send({ type: "puzzle.move", sessionId: mineA.sessionId, seq: seq++, move, hash: hashSwordfightState(mine) });
     };
     log({ type: "wait", tick: 1 });
-    await turn();
-    expect(room().state.voyage!.progress).toBe(progress);
-    await waitRoom(() => app.puzzles.sessions.get(mineA.sessionId)?.moves.length === 1);
+    await waitRoom(shipId, () => app.puzzles.sessions.get(mineA.sessionId)?.moves.length === 1);
 
     // A move lost on the way (ADR 0024): the next one carries the wrong number, and instead of the
     // round being thrown out the board is handed back as the server holds it. The rebuilt board goes on.
-    // Scrap the server announced whose message went astray goes back with the board.
+    // Scrap the server announced whose message went astray goes back with the board. The ship's clock
+    // has not moved since the boarding, so the raider crew has announced nothing of its own yet.
+    expect(room().melee?.crew.tick).toBe(0);
     const held = mine;
     const announced = app.puzzles.vouch(app.puzzles.sessions.get(mineA.sessionId)!, { type: "incoming", board: 0, scrap: 7, blade: 0, tick: 0 });
     expect(announced).toEqual({ type: "melee.incoming", sessionId: mineA.sessionId, scrap: 7, blade: 0, from: tierId });
@@ -961,19 +930,15 @@ describeDb("ships over the wire", () => {
     seq = 1;
     log({ type: "incoming", board: 0, scrap: 7, blade: 0, tick: 2 });
     log({ type: "wait", tick: 4 });
-    await waitRoom(() => app.puzzles.sessions.get(mineA.sessionId)?.moves.length === 3);
+    await waitRoom(shipId, () => app.puzzles.sessions.get(mineA.sessionId)?.moves.length === 3);
     expect(app.puzzles.sessions.get(mineA.sessionId)?.vouched.pending()).toEqual([]);
 
-    // Bury the raider crew in scrap until every board of theirs is out: the airlock is won.
-    const run = room().melee!;
-    let crew = run.crew;
-    crew.boards.forEach((_, i) => {
-      crew = reduceSwordfight(crew, { type: "incoming", board: i, scrap: 200, blade: 0, tick: crew.tick });
-    });
-    for (let i = 0; i < 40 && !crew.finished; i++) crew = reduceSwordfight(crew, { type: "wait", tick: Math.min(crew.config.maxTick, crew.tick + 20) });
-    expect(crew.finished).toBe(true);
-    run.crew = crew;
+    // The ship holds position while the airlock is fought over.
     await turn();
+    expect(room().state.voyage!.progress).toBe(progress);
+
+    // Every raider board goes out: the airlock is won, and the ship says so on every board still open.
+    await winMelee(shipId);
     const over = await a.until("melee.over", (m) => m.sessionId === mineA.sessionId);
     expect(over.won).toBe(true);
     mine = reduceSwordfight(mine, { type: "end", won: true, tick: Math.max(mine.tick, over.tick) });
@@ -986,7 +951,7 @@ describeDb("ships over the wire", () => {
     expect(event).toMatchObject({ tierId, outcome: "boarded", plunder: tier.plunder });
     expect(ended.ship.melee).toBeNull();
     expect((ended.ship.location as { battle: unknown }).battle).toBeNull();
-    await waitRoom((r) => r.melee === null);
+    await waitRoom(shipId, (r) => r.melee === null);
     await c.until("puzzle.result", (m) => m.sessionId === lateBoard.sessionId);
     let paid = 0;
     for (const id of [owner.me.id, crewmate.me.id, late.me.id]) {

@@ -7,28 +7,20 @@ import {
   fightGoesToMelee,
   raiderSpecFor,
   createShip,
-  createSwordfightGame,
   crewAtStation,
   crewMember,
   legPlan,
-  MELEE_SIDE_MAX,
-  meleeAttackRate,
   pirates,
   progressPermille,
   reduceShip,
-  reduceSwordfight,
   heatRowsFor,
   shipConfigFor as engineShipConfigFor,
   shipSupply,
   turnPlunderOutputs,
-  meleePlunderOutput,
   summarizeSwordfight,
-  swordfightBoardLoad,
-  swordfightBoardString,
   type BattleConfig,
   type BattleState,
   type ShipBattleOutcome,
-  type SwordfightConfig,
   type SwordfightState,
   type ShipConfig,
   type ShipEvent,
@@ -37,7 +29,7 @@ import {
   type Station,
   type SwordfightMove,
 } from "@openseas/engine";
-import type { BoardShip, CrewTag, CrewView, ErrorCode, MeleeBoardWire, PuzzleStarted, ServerMessage, ShipEventWire, ShipLocation, ShipSnapshot } from "@openseas/protocol";
+import type { BoardShip, CrewTag, CrewView, ErrorCode, PuzzleStarted, ServerMessage, ShipEventWire, ShipLocation, ShipSnapshot } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import { recordEvent } from "../events.js";
 import { appendLedger } from "../ledger.js";
@@ -46,6 +38,7 @@ import { randomBotName } from "../pirates.js";
 import type { BoardEnd, BoardHost, PuzzleService } from "../puzzles/service.js";
 import type { PuzzleSession } from "../puzzles/sessions.js";
 import { Room, type RoomMember } from "../rooms.js";
+import { Melee, type PirateBoards } from "./melee.js";
 
 /** A request the ship refuses. The code is sent to the client as is. */
 export class ShipError extends Error {
@@ -73,26 +66,6 @@ interface BattleRun {
   hullSent: number;
 }
 
-/** The boarding melee in progress (M5, ADR 0022): every pirate's own fight, and the raider crew's fight the server runs. */
-export interface MeleeRun {
-  tierId: string;
-  seed: string;
-  startedAt: number;
-  deadlineAt: number;
-  tickMs: number;
-  /** The raider crew's fight: one AI board per pirate at the airlock, no player in it. */
-  crew: SwordfightState;
-  /** Each pirate's own fight, by pirate id: the session it runs in. */
-  fights: Map<string, string>;
-  /** Scores of fights already over, for the plunder split. */
-  scores: Map<string, number>;
-  /** Output each pirate gave the ship in the space battle before the boarding, carried into the split. */
-  dutyOutput: Map<string, number>;
-  /** Space Battle turns fought before the boarding, for the log. */
-  turns: number;
-  settling: boolean;
-}
-
 /** One ship with people aboard. Exists from the first boarding until the last pirate disembarks. */
 export class ShipRoom {
   /** Connections of the crew, keyed by pirate id. A dropped pirate is not in here but is still aboard. */
@@ -102,7 +75,8 @@ export class ShipRoom {
   readonly stations = new Map<Station, StationSession>();
   voyageId: string | null = null;
   battle: BattleRun | null = null;
-  melee: MeleeRun | null = null;
+  /** The boarding melee in progress (M5, ADR 0022). */
+  melee: Melee | null = null;
   state: ShipState;
 
   constructor(
@@ -161,6 +135,8 @@ export class ShipService {
   private readonly rooms = new Map<string, ShipRoom>();
   private readonly byPirate = new Map<string, string>();
   private readonly configs = new Map<string, ShipConfig>();
+  /** Melees the ship is settling: it awaits each board's end in turn, and meanwhile nothing advances or decides them. */
+  private readonly settling = new WeakSet<Melee>();
   private readonly now: () => number;
   private ticking = false;
 
@@ -485,16 +461,6 @@ export class ShipService {
   // ---- the boarding melee (M5, ADR 0022)
 
   /**
-   * The melee's config for a pirate's own board: content's rules with nobody else in the fight (the
-   * raider crew is outside it), and the tier's score factor on the attack rate.
-   */
-  private meleeConfigFor(tierId: string, dealSeed: string): SwordfightConfig {
-    const base = this.content.puzzles.swordfight.config;
-    const tier = this.content.world.raiderTiers.find((t) => t.id === tierId);
-    return { ...base, player: true, allies: [], foes: [], dealSeed, scorePercent: tier?.scorePercent ?? base.scorePercent };
-  }
-
-  /**
    * Grappling hooks are over: everyone aboard and connected gets a board, the raider crew gets one
    * board per pirate with the tier's hand, and the ship holds position until the airlock is decided.
    * Returns false when nobody is there to fight, in which case the space battle settles as it stood.
@@ -503,23 +469,9 @@ export class ShipService {
     // Bots hold no board and never fight; a pirate's seat may be held while they are away.
     const connected = room.state.crew.filter((c) => !c.bot && c.awaySinceTurn === null && room.conns.has(c.pirateId));
     if (connected.length === 0 || room.melee) return false;
-    const base = this.content.puzzles.swordfight.config;
     const now = this.now();
     const seed = this.opts.randomSeed();
-    const crewConfig: SwordfightConfig = { ...base, player: false, blade: 0, allies: connected.slice(0, MELEE_SIDE_MAX).map(() => ({ ...tier.swordsmen })), foes: [] };
-    room.melee = {
-      tierId: tier.id,
-      seed,
-      startedAt: now,
-      deadlineAt: now + base.maxTick * base.tickMs,
-      tickMs: base.tickMs,
-      crew: createSwordfightGame(seed, crewConfig),
-      fights: new Map(),
-      scores: new Map(),
-      dutyOutput,
-      turns,
-      settling: false,
-    };
+    room.melee = Melee.open({ rules: this.content.puzzles.swordfight.config, tier, pirates: connected.length, seed, now, dutyOutput, turns });
     this.log.info({ shipId: room.shipId, tierId: tier.id, pirates: connected.length }, "melee opened");
     void (async () => {
       // Every station comes to the airlock; a board cut short counts, unrated.
@@ -533,15 +485,14 @@ export class ShipService {
 
   /** A pirate's own fight in the melee: dealt and sent. */
   private dealMelee(room: ShipRoom, pirateId: string): PuzzleStarted | null {
-    const run = room.melee;
-    if (!run || !room.voyageId) return null;
-    const roundMs = Math.max(10_000, run.deadlineAt - this.now());
+    const melee = room.melee;
+    if (!melee || !room.voyageId) return null;
     const started = this.puzzles.start(pirateId, "swordfight", {
-      binding: { kind: "melee", shipId: room.shipId, voyageId: room.voyageId, tierId: run.tierId },
-      override: { config: this.meleeConfigFor(run.tierId, run.seed), roundMs },
-      host: this.meleeHost(room, run, pirateId),
+      binding: { kind: "melee", shipId: room.shipId, voyageId: room.voyageId, tierId: melee.tierId },
+      override: { config: melee.boardConfig, roundMs: melee.roundMs(this.now()) },
+      host: this.meleeHost(room, melee, pirateId),
     });
-    run.fights.set(pirateId, started.sessionId);
+    melee.dealt(pirateId, started.sessionId);
     room.conns.send(pirateId, started);
     return started;
   }
@@ -550,89 +501,28 @@ export class ShipService {
   async meleeJoin(pirateId: string): Promise<void> {
     const room = this.roomOf(pirateId);
     if (!room) throw new ShipError("not_aboard");
-    const run = room.melee;
-    if (!run) throw new ShipError("not_in_melee");
-    const sessionId = run.fights.get(pirateId);
-    const session = sessionId ? this.puzzles.sessions.get(sessionId) : undefined;
-    if (session && !session.closed) {
+    const melee = room.melee;
+    if (!melee) throw new ShipError("not_in_melee");
+    const session = this.meleeSession(melee, pirateId);
+    if (session) {
       for (const m of this.puzzles.handBack(session)) room.conns.send(pirateId, m);
-    } else if (run.scores.has(pirateId) || !this.dealMelee(room, pirateId)) {
-      // A board already fought in this melee is the pirate's one board in it.
+    } else if (!melee.mayDeal(pirateId) || !this.dealMelee(room, pirateId)) {
       throw new ShipError("not_in_melee");
     }
     this.pushBoards(room);
   }
 
-  /** The raider crew's clock: ticks since the melee opened, on the fight's tick. */
-  private crewTick(run: MeleeRun): number {
-    return Math.min(run.crew.config.maxTick, Math.floor((this.now() - run.startedAt) / run.tickMs));
-  }
-
-  /** The raider crew's fight catches up with the clock; what it sends goes to the pirate with the least on their board. */
+  /** The raider crew's fight catches up with the clock: the ship vouches for the scrap it sent, shows the boards, and settles a decided airlock. */
   private async advanceMelee(room: ShipRoom): Promise<void> {
-    const run = room.melee;
-    if (!run || run.settling) return;
-    if (this.now() >= run.deadlineAt) {
-      await this.settleMelee(room, "broke_off");
-      return;
+    const melee = room.melee;
+    if (!melee || this.settling.has(melee)) return;
+    const step = melee.advance(this.now(), this.pirateBoards(room, melee));
+    for (const { pirateId, move } of step.announce) {
+      const told = this.puzzles.vouch(this.meleeSession(melee, pirateId)!, move);
+      if (told) room.conns.send(pirateId, told);
     }
-    const tick = this.crewTick(run);
-    if (tick > run.crew.tick && !run.crew.finished) {
-      run.crew = reduceSwordfight(run.crew, { type: "wait", tick });
-      const events = run.crew.lastMove?.events ?? [];
-      for (const e of events) if (e.type === "attack" && e.to === -1 && e.scrap > 0) this.sendToPirate(room, e.scrap, e.blade, tick);
-      if (events.length) this.pushBoards(room);
-    }
-    await this.checkMelee(room);
-  }
-
-  /** Scrap from the raider crew at `tick`: announced to the connected pirate with the least on their board, to be logged by them. */
-  private sendToPirate(room: ShipRoom, scrap: number, blade: number, tick: number): void {
-    const run = room.melee;
-    if (!run) return;
-    let best: PuzzleSession | null = null;
-    let bestLoad = Infinity;
-    for (const [pirateId, sessionId] of run.fights) {
-      if (!room.conns.has(pirateId)) continue;
-      const session = this.puzzles.sessions.get(sessionId);
-      if (!session || session.closed) continue;
-      const state = session.state as SwordfightState;
-      const board = state.boards[0]!;
-      if (board.out || state.finished) continue;
-      const load = swordfightBoardLoad(board) + announcedScrap(session);
-      if (load < bestLoad) {
-        best = session;
-        bestLoad = load;
-      }
-    }
-    if (!best) return;
-    // Board 0 is the pirate's own in a fight whose foes are outside it. The tick is when the crew sent
-    // it; the board logs the scrap at its own.
-    const told = this.puzzles.vouch(best, { type: "incoming", board: 0, scrap, blade, tick });
-    if (told) room.conns.send(best.pirateId, told);
-  }
-
-  /** Scrap from a pirate's board: lands on the raider with the least on their board. */
-  private sendToCrew(room: ShipRoom, scrap: number, blade: number): void {
-    const run = room.melee;
-    if (!run || run.crew.finished) return;
-    let target = -1;
-    let bestLoad = Infinity;
-    run.crew.boards.forEach((b, i) => {
-      if (b.out) return;
-      const load = swordfightBoardLoad(b);
-      if (load < bestLoad) {
-        target = i;
-        bestLoad = load;
-      }
-    });
-    if (target < 0) return;
-    const tick = Math.max(run.crew.tick, this.crewTick(run));
-    try {
-      run.crew = reduceSwordfight(run.crew, { type: "incoming", board: target, scrap: Math.min(999, scrap), blade, tick });
-    } catch (e) {
-      if (!(e instanceof InvalidMoveError)) throw e;
-    }
+    if (step.changed) this.pushBoards(room);
+    if (step.decided) await this.settleMelee(room, step.decided);
   }
 
   /**
@@ -640,50 +530,40 @@ export class ShipService {
    * which keeps its score for the split. The ship does not detach these: settling the melee ends each
    * board through its own end, so its score is kept, before the fight is dropped.
    */
-  private meleeHost(room: ShipRoom, run: MeleeRun, pirateId: string): BoardHost {
+  private meleeHost(room: ShipRoom, melee: Melee, pirateId: string): BoardHost {
     return {
       send: (m) => room.conns.send(pirateId, m),
       moved: (session) => void this.takeMeleeMove(room, session).catch((e) => this.log.error({ err: e, sessionId: session.id }, "melee move failed")),
-      ended: (session) => void this.meleeEnded(room, run, session).catch((e) => this.log.error({ err: e, sessionId: session.id }, "melee end failed")),
+      ended: (session) => void this.meleeEnded(room, melee, session).catch((e) => this.log.error({ err: e, sessionId: session.id }, "melee end failed")),
     };
   }
 
-  /** A pirate's board took a move: lane what it sent, score it if it is over, and see whether the airlock is decided. */
+  /** A pirate's board took a move: the raider crew takes what it sent, the board is scored if it is over, and the airlock may be decided. */
   private async takeMeleeMove(room: ShipRoom, session: PuzzleSession): Promise<void> {
     const state = session.state as SwordfightState;
-    const events = state.lastMove?.events ?? [];
-    for (const e of events) if (e.type === "attack" && e.board === 0 && e.to === -1 && e.scrap > 0) this.sendToCrew(room, e.scrap, e.blade);
+    const changed = room.melee?.pirateMoved(this.now(), state) ?? false;
     if (state.finished && !session.closed) {
       // The board filled: the engine has the outcome and the pirate is owed the result.
       const result = await this.puzzles.finish(session, null, null);
       room.conns.send(session.pirateId, result);
     }
-    if (events.length) this.pushBoards(room);
+    if (changed) this.pushBoards(room);
     await this.checkMelee(room);
   }
 
   /** A pirate's melee board closed, however it closed: keep its score for the split. */
-  private async meleeEnded(room: ShipRoom, run: MeleeRun, session: PuzzleSession): Promise<void> {
-    run.scores.set(session.pirateId, summarizeSwordfight(session.state as SwordfightState).score);
-    run.fights.delete(session.pirateId);
+  private async meleeEnded(room: ShipRoom, melee: Melee, session: PuzzleSession): Promise<void> {
+    melee.pirateEnded(session.pirateId, summarizeSwordfight(session.state as SwordfightState).score);
     this.pushBoards(room);
     await this.checkMelee(room);
   }
 
-  /** The rail is decided when every raider board is out, or every pirate's. */
+  /** Settle the airlock if it is decided. */
   private async checkMelee(room: ShipRoom): Promise<void> {
-    const run = room.melee;
-    if (!run || run.settling) return;
-    if (run.crew.finished) {
-      await this.settleMelee(room, "boarded");
-      return;
-    }
-    let standing = 0;
-    for (const sessionId of run.fights.values()) {
-      const session = this.puzzles.sessions.get(sessionId);
-      if (session && !session.closed && !(session.state as SwordfightState).boards[0]!.out) standing += 1;
-    }
-    if (standing === 0) await this.settleMelee(room, "boarded_by");
+    const melee = room.melee;
+    if (!melee || this.settling.has(melee)) return;
+    const decided = melee.decide(this.pirateBoards(room, melee));
+    if (decided) await this.settleMelee(room, decided);
   }
 
   /**
@@ -691,61 +571,53 @@ export class ShipService {
    * split weighted by duty points and the fight's own scores, the voyage resumes.
    */
   private async settleMelee(room: ShipRoom, outcome: ShipBattleOutcome): Promise<void> {
-    const run = room.melee;
-    if (!run || run.settling) return;
-    run.settling = true;
+    const melee = room.melee;
+    if (!melee || this.settling.has(melee)) return;
+    this.settling.add(melee);
     const won = outcome === "boarded";
-    const tick = Math.max(0, this.crewTick(run));
-    for (const [pirateId, sessionId] of run.fights) {
+    const now = this.now();
+    // A board dealt while this awaits joins the melee's boards and is ended in its turn.
+    for (const [pirateId, sessionId] of melee.fights) {
       const session = this.puzzles.sessions.get(sessionId);
       if (!session || session.closed) continue;
       let result: ServerMessage | null;
       if (won) {
-        const at = Math.max(tick, (session.state as SwordfightState).tick);
+        const at = melee.overTick(now, session.state as SwordfightState);
         room.conns.send(pirateId, { type: "melee.over", sessionId, won: true, tick: at });
         result = await this.puzzles.endMelee(session, true, at);
       } else result = await this.puzzles.cutShort(session);
       if (result) room.conns.send(pirateId, result);
-      run.scores.set(pirateId, summarizeSwordfight(session.state as SwordfightState).score);
+      melee.pirateEnded(pirateId, summarizeSwordfight(session.state as SwordfightState).score);
     }
     room.melee = null;
     // The melee counts as duty turns at each pirate's attack a minute against Swordfight's par (ADR 0030).
-    const sword = this.content.puzzles.swordfight;
-    const meleeMs = this.now() - run.startedAt;
-    const points = new Map<string, number>();
-    for (const c of room.state.crew) {
-      const score = run.scores.get(c.pirateId) ?? 0;
-      const melee = run.scores.has(c.pirateId) ? meleePlunderOutput(meleeAttackRate(sword.config, score), sword.parRatePerMinute, meleeMs, this.content.world.ship.turnSeconds) : 0;
-      points.set(c.pirateId, (run.dutyOutput.get(c.pirateId) ?? 0) + melee);
-    }
-    this.log.info({ shipId: room.shipId, tierId: run.tierId, outcome }, "melee ended");
-    await this.payBattle(room, run.tierId, points, outcome, run.turns);
+    const par = { parRatePerMinute: this.content.puzzles.swordfight.parRatePerMinute, turnSeconds: this.content.world.ship.turnSeconds };
+    const points = melee.points(room.state.crew.map((c) => c.pirateId), this.now(), par);
+    this.log.info({ shipId: room.shipId, tierId: melee.tierId, outcome }, "melee ended");
+    await this.payBattle(room, melee.tierId, points, outcome, melee.turns);
   }
 
   /** Every board in the melee, to everyone aboard. */
   private pushBoards(room: ShipRoom): void {
-    const run = room.melee;
-    if (!run) return;
-    const boards: MeleeBoardWire[] = [];
-    for (const [pirateId, sessionId] of run.fights) {
-      const session = this.puzzles.sessions.get(sessionId);
-      if (!session || session.closed) continue;
-      const state = session.state as SwordfightState;
-      const b = state.boards[0]!;
-      boards.push({
-        pirateId,
-        name: room.names.get(pirateId) ?? pirateId,
-        side: 0,
-        cells: swordfightBoardString(state.config, b.cells),
-        pending: b.pending.reduce((n, p) => n + p.scrap, 0) + announcedScrap(session),
-        out: b.out,
-        points: b.points,
-      });
-    }
-    run.crew.boards.forEach((b) => {
-      boards.push({ pirateId: null, name: "", side: 1, cells: swordfightBoardString(run.crew.config, b.cells), pending: b.pending.reduce((n, p) => n + p.scrap, 0), out: b.out, points: b.points });
-    });
+    const melee = room.melee;
+    if (!melee) return;
+    const boards = melee.wire(this.pirateBoards(room, melee), (pirateId) => room.names.get(pirateId) ?? pirateId);
     room.conns.broadcast({ type: "melee.boards", shipId: room.shipId, boards, serverNow: this.now() });
+  }
+
+  /** The melee's view of the pirates' boards: each open board as the server replayed it, the scrap announced to it, and whether its pirate is connected. */
+  private pirateBoards(room: ShipRoom, melee: Melee): PirateBoards {
+    return (pirateId) => {
+      const session = this.meleeSession(melee, pirateId);
+      return session ? { state: session.state as SwordfightState, announced: announcedScrap(session), connected: room.conns.has(pirateId) } : null;
+    };
+  }
+
+  /** A pirate's board in the melee, while it is open. */
+  private meleeSession(melee: Melee, pirateId: string): PuzzleSession | null {
+    const sessionId = melee.fights.get(pirateId);
+    const session = sessionId ? this.puzzles.sessions.get(sessionId) : undefined;
+    return session && !session.closed ? session : null;
   }
 
   async lock(pirateId: string, inviteOnly: boolean): Promise<void> {
