@@ -107,7 +107,9 @@ These are the project's rules (CLAUDE.md), said for a prototype.
 A ticked board is handed a new display state every tick. It overrides `keepsPlaying` to say so,
 which stops the kit flushing its tweens ten times a second, and its `onState` plays only the events
 it has not played yet: the engine numbers its events with a rising `seq`, as Navigation's does, and
-the renderer remembers the last one it showed.
+the renderer remembers the last one it showed. Motion that runs from one tick into the next
+(Engines' falling pair, Gunnery's pieces gliding cell to cell) stays out of `busy`, or the board
+would never settle while the clock runs; its `view` names the cell each piece is placed in.
 
 Sprites (ADR 0037): the kit loads the atlas named by the puzzle id. A renderer paints a frame with
 `this.sprite(g, name, x, y, size)`, which returns false when the atlas or the frame is not there, so

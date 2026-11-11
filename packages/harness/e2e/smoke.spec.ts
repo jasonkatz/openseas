@@ -249,6 +249,35 @@ test("home links to Gunnery and an unrated round lays arrows by key and by tap, 
   await expectViewMatchesState(page, "gunnery");
 });
 
+test("a touch the browser takes over lays no Gunnery arrow", async ({ page }) => {
+  await page.goto("/gunnery");
+  await page.getByTestId("start-unrated").click();
+  const canvas = page.getByTestId("gunnery-canvas");
+  await expectViewMatchesState(page, "gunnery");
+  const { ox, oy, cell } = await boardGeom(page, "gunnery");
+  const at = { x: ox + cell * 1.5, y: oy + cell * 1.5, cell };
+  // A finger goes down on a deck cell and drags right to aim an arrow, then the browser takes the
+  // gesture for a scroll: it cancels the pointer and the pointer leaves, with no release.
+  await canvas.evaluate((el, a) => {
+    const touch = { pointerId: 7, pointerType: "touch", isPrimary: true, clientY: a.y };
+    el.dispatchEvent(new PointerEvent("pointerdown", { ...touch, clientX: a.x, bubbles: true, buttons: 1 }));
+    el.dispatchEvent(new PointerEvent("pointermove", { ...touch, clientX: a.x + a.cell * 0.6, bubbles: true, buttons: 1 }));
+    el.dispatchEvent(new PointerEvent("pointercancel", { ...touch, clientX: a.x + a.cell * 0.6, bubbles: true }));
+    el.dispatchEvent(new PointerEvent("pointerleave", { ...touch, clientX: a.x + a.cell * 0.6 }));
+  }, at);
+  // A click on the bulkhead in the corner lays nothing. Were the press still held, its release would
+  // lay the arrow it aimed. (The move count is no witness: the round logs a wait every few seconds.)
+  const board = page.getByTestId("gunnery-board");
+  const arrowOnCell = /\|(.*,)?1\.1\.\d(,.*)?$/;
+  await page.mouse.click(ox + cell * 0.5, oy + cell * 0.5);
+  await page.waitForTimeout(400);
+  await expect(board).not.toHaveAttribute("data-board", arrowOnCell);
+  // Nothing is left held: a click on the deck lays an arrow as usual.
+  await page.mouse.click(at.x, at.y);
+  await expect(board).toHaveAttribute("data-board", arrowOnCell);
+  await expectViewMatchesState(page, "gunnery");
+});
+
 test("home links to Navigation and an unrated round turns a ring by key and brings stars down by key and by tap", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("tile-navigation").click();

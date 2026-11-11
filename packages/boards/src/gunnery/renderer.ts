@@ -1,5 +1,5 @@
-import { loadPuzzleSprites, spritesReady, paintSprite, spriteTexture } from "../sprites/atlas.js";
-import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
+import { paintSprite, spriteTexture } from "../sprites/atlas.js";
+import { CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   DX,
   DY,
@@ -19,14 +19,13 @@ import {
 import type { GunneryContent } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
 import { gunneryPieceCanvas } from "./pieces.js";
-import { boardSurface } from "../surface.js";
 import { HULL, hullFrame, hullGradient, hullRivet, starField } from "../hull.js";
-import type { BoardRenderer } from "../kit/useBoardHost.js";
+import { KitBoard } from "../kit/board.js";
 
 export interface GunneryCallbacks {
   /** The player laid an arrow (`dir` set) or lifted one (`dir` null) on a deck cell. */
   onArrow(col: number, row: number, dir: Dir | null): void;
-  /** First frame drawn after a new state arrived. */
+  /** First frame drawn after a new state arrived. The board settles at once: pieces glide into their cells on their own clock. */
   onFrame(): void;
   /** Events newer than anything shown before, in tick order, for sound and callouts. */
   onEvents(events: readonly GunneryEvent[]): void;
@@ -105,17 +104,42 @@ const COLORS = {
   coolant: 0x7fd0ff,
 };
 const DIE_MS = 200;
+/**
+ * A gun firing rattles the deck by this many cells, fading out over its ms; a broadside by twice as
+ * much for longer. The kit's shake, at the peaks the board's own had and fitted to its fade.
+ */
+const FIRE_SHAKE = 0.04;
+const FIRE_SHAKE_MS = 220;
+const BROADSIDE_SHAKE = 0.08;
+const BROADSIDE_SHAKE_MS = 520;
 /** Height of the queue strip above the deck, in cells. */
 const QUEUE_STRIP = 0.75;
 /** How many cells ahead the lane preview looks. */
 const LOOK_AHEAD = 12;
 
-/** One string that names what the deck shows: pieces by cell, turret states, arrows, the tick. Shared with the page. */
+/** What a deck holds, as far as its view string says: a state has this shape, and so does what the renderer has drawn. */
+interface DeckView {
+  readonly tick: number;
+  readonly pieces: readonly { readonly id: number; readonly kind: number; readonly col: number; readonly row: number }[];
+  readonly turrets: readonly { readonly loaded: number; readonly jammed: boolean }[];
+  readonly arrows: readonly Arrow[];
+}
+
+/** The tick, pieces by id as id:kind:col:row, turrets as their load (f when jammed), and arrows by row then column as col.row.dir. */
+function deckString(d: DeckView): string {
+  const pieces = [...d.pieces].sort((a, b) => a.id - b.id).map((p) => `${p.id}:${p.kind}:${p.col}:${p.row}`);
+  const turrets = d.turrets.map((c) => `${c.loaded}${c.jammed ? "f" : ""}`);
+  const arrows = [...d.arrows].sort((a, b) => a.row - b.row || a.col - b.col).map((a) => `${a.col}.${a.row}.${a.dir}`);
+  return `t${d.tick}|${pieces.join(",")}|${turrets.join(",")}|${arrows.join(",")}`;
+}
+
+/**
+ * One string that names what the deck holds: pieces by cell, turret states, arrows, the tick. The
+ * page writes it as `data-board`; the renderer writes the same string from what it has drawn as
+ * `data-view`, so the smoke test can tell when the two differ.
+ */
 export function gunneryViewString(state: GunneryState): string {
-  const pieces = [...state.pieces].sort((a, b) => a.id - b.id).map((p) => `${p.id}:${p.kind}:${p.col}:${p.row}`);
-  const turrets = state.turrets.map((c) => `${c.loaded}${c.jammed ? "f" : ""}`);
-  const arrows = [...state.arrows].sort((a, b) => a.row - b.row || a.col - b.col).map((a) => `${a.col}.${a.row}.${a.dir}`);
-  return `t${state.tick}|${pieces.join(",")}|${turrets.join(",")}|${arrows.join(",")}`;
+  return deckString(state);
 }
 
 /** The arrows on deck if `ghost` were laid or lifted. */
@@ -137,8 +161,17 @@ const isGood = (o: TurretOutcome): boolean => o === "load" || o === "loaded" || 
 /** Two touch taps on one cell within this long lift its arrow. */
 const DOUBLE_TAP_MS = 350;
 
-export class GunneryRenderer implements BoardRenderer<GunneryState> {
-  readonly app = new Application();
+/**
+ * PixiJS view of a Gunnery state, on the kit's lifecycle (ADR 0040). Pure presentation: it draws the
+ * engine's state, asks the engine where each piece is headed, and reports the arrows the player lays
+ * and lifts; it never decides what a tick does. Each state is usually the same round one tick on:
+ * every piece is placed in its new cell at once and glides there over the tick on its own clock, as
+ * the falling pair does on Engines, so the board settles as soon as a state arrives and the glide
+ * stays out of `busy`. Were it in, a running clock would keep the board busy from one tick to the
+ * next. A piece that leaves the deck slides out and fades on its own too.
+ */
+export class GunneryRenderer extends KitBoard<GunneryState> {
+  /** The deck and everything on it, placed at the grid's origin inside the kit's world. */
   private readonly board = new Container();
   private readonly staticLayer = new Container();
   private readonly deckG = new Graphics();
@@ -164,8 +197,6 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
   private readonly markByKind = new Map<number, string>();
   private readonly plankFill = linear(true, [COLORS.plank, COLORS.plankDark]);
   private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
-  private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  private showMarks: boolean;
   private cell = 40;
   private pad = 8;
   private width = 9;
@@ -173,13 +204,7 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
   private origin = { x: 0, y: 0 };
   /** The round's deck; it never changes within a round, so it is painted once per round and per layout. */
   private deck: ParsedDeck;
-  private state: GunneryState | null = null;
   private lastEventTick = -1;
-  private interactive = false;
-  private framePending = false;
-  private destroyed = false;
-  private time = 0;
-  private shake = 0;
   /** ms left on the broadside flash: every gun's lamp blazes. */
   private broadsideFlash = 0;
   private cursor: { col: number; row: number } | null = null;
@@ -198,14 +223,18 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
   private readonly glow: number[] = [];
   private readonly recoil: number[] = [];
   private readonly hit: number[] = [];
+  /** The arrows as `drawArrows` last drew them, for the view. */
+  private drawnArrows: Arrow[] = [];
+  /** Each turret as `drawTurrets` last drew it, for the view: its filled load pips, and whether it smokes jammed. */
+  private drawnTurrets: Array<{ loaded: number; jammed: boolean }> = [];
 
   constructor(
-    private readonly host: HTMLElement,
+    host: HTMLElement,
     content: GunneryContent,
     private readonly cb: GunneryCallbacks,
     private readonly opts: GunneryRendererOptions,
   ) {
-    this.showMarks = opts.showMarks;
+    super(host, "gunnery", cb.onFrame, opts.showMarks);
     content.pieces.forEach((p, i) => {
       this.colorByKind.set(i, parseInt(p.color.slice(1), 16));
       this.markByKind.set(i, p.mark);
@@ -216,34 +245,7 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
     this.height = this.deck.height;
   }
 
-  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
-  get isReady(): boolean {
-    return Boolean(this.app.renderer);
-  }
-
-  async init(): Promise<void> {
-    await loadPuzzleSprites("gunnery");
-    if (this.destroyed) return;
-    await this.app.init({
-      resizeTo: this.host,
-      backgroundAlpha: 0,
-      ...boardSurface(),
-      autoDensity: true,
-      preference: "webgl",
-    });
-    if (this.destroyed) {
-      this.app.destroy(true);
-      return;
-    }
-    this.app.canvas.dataset.spriteAtlas = spritesReady("gunnery") ? "gunnery" : "fallback";
-    this.app.canvas.style.touchAction = "none";
-    this.app.canvas.setAttribute("data-testid", "gunnery-canvas");
-    this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-    this.app.canvas.addEventListener("pointerleave", () => {
-      this.hover = null;
-      if (!this.press) this.setGhost(null);
-    });
-    this.host.appendChild(this.app.canvas);
+  protected build(): void {
     this.staticLayer.addChild(this.deckG);
     this.staticLayer.cacheAsTexture({ resolution: this.app.renderer.resolution, antialias: true });
     for (let i = 0; i < this.deck.turrets.length; i++) {
@@ -268,59 +270,48 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
       this.fxG,
       this.textLayer,
     );
-    this.app.stage.addChild(this.board);
-    this.app.stage.eventMode = "static";
-    this.app.stage.hitArea = this.app.screen;
-    this.app.stage.on("pointerdown", (e) => this.pointerDown(e));
-    this.app.stage.on("pointermove", (e) => this.pointerMove(e));
-    this.app.stage.on("pointerup", (e) => this.pointerUp(e));
-    this.app.stage.on("pointerupoutside", () => {
-      this.press = null;
-      this.setGhost(null);
-    });
-    this.app.renderer.on("resize", () => this.layout());
-    this.app.ticker.add((ticker) => this.tick(Math.min(50, ticker.deltaMS)));
-    this.layout();
+    this.world.addChild(this.board);
   }
 
-  destroy(): void {
-    this.destroyed = true;
-    if (this.app.renderer) {
-      this.app.destroy(true, { children: true });
-      for (const tex of this.textures.values()) tex.destroy(true);
-      this.plankFill.destroy();
-      this.hullFill.destroy();
-    }
+  protected override dispose(): void {
+    for (const tex of this.textures.values()) tex.destroy(true);
+    this.plankFill.destroy();
+    this.hullFill.destroy();
   }
 
-  setInteractive(on: boolean): void {
-    this.interactive = on;
-    if (!on) {
-      this.press = null;
-      this.cursor = null;
-      this.hover = null;
-      this.setGhost(null);
-      this.drawCursor();
-    }
+  /** Switched off: the kit has already dropped a press and its ghost; the cursor and hover go too. */
+  protected override onInteractive(on: boolean): void {
+    if (on) return;
+    this.cursor = null;
+    this.hover = null;
+    this.drawCursor();
   }
 
-  setShowMarks(on: boolean): void {
+  /** Marks change only the pieces' art, so a toggle bakes the pieces again and leaves everything else as it is. */
+  override setShowMarks(on: boolean): void {
     if (this.showMarks === on) return;
     this.showMarks = on;
-    if (this.app.renderer) this.bake();
+    if (this.isReady) this.bakePieces();
+  }
+
+  /** A state that is not the round shown a moment later: the first, an earlier tick (a rewind), or another deck. */
+  private isReset(state: GunneryState, prev: GunneryState | null): boolean {
+    return !prev || state.tick < prev.tick || state.deck !== prev.deck;
+  }
+
+  /** The round a tick or a move on: pieces glide on from where they are, and only events not yet shown play. */
+  protected override keepsPlaying(state: GunneryState, prev: GunneryState | null): boolean {
+    return !this.isReset(state, prev);
   }
 
   /** A new displayed state, usually one tick on. Pieces glide to their new cells over tickMs. */
-  setState(state: GunneryState): void {
-    if (!this.app.renderer) return;
-    const reset = !this.state || state.tick < this.state.tick || state.deck !== this.state.deck;
-    if (state.deckIndex !== this.state?.deckIndex || !this.state) {
+  protected onState(state: GunneryState, prev: GunneryState | null): void {
+    const reset = this.isReset(state, prev);
+    if (!prev || state.deckIndex !== prev.deckIndex) {
       // A round on a different deck: repaint the floor plates, crates, vents and guns.
       this.deck = state.deck;
       this.drawDeck();
     }
-    this.state = state;
-    this.framePending = true;
     if (reset) {
       this.lastEventTick = state.tick;
       for (const v of this.pieces.values()) v.s.destroy();
@@ -391,14 +382,13 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
     this.refreshPreview();
     this.drawArrows();
     this.drawQueue();
-    this.app.canvas.setAttribute("data-view", gunneryViewString(state));
   }
 
   private eventFx(state: GunneryState, e: GunneryEvent): void {
     if (e.type === "broadside") {
       // Every gun has fired since the last one: the whole deck shakes and the lamps blaze.
       this.broadsideFlash = 1400;
-      this.shake = Math.max(this.shake, 520);
+      this.fx.shake(this.cell * BROADSIDE_SHAKE, BROADSIDE_SHAKE_MS);
       state.turrets.forEach((_, i) => (this.glow[i] = 1400));
       this.popup((this.width * this.cell) / 2, (this.height * this.cell) / 2, `${this.opts.labels.broadside} +${e.points ?? 0}`, COLORS.flash, 0.8);
       return;
@@ -422,7 +412,7 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
         break;
       case "fire": {
         this.recoil[i] = 380;
-        this.shake = Math.max(this.shake, 220);
+        this.fx.shake(this.cell * FIRE_SHAKE, FIRE_SHAKE_MS);
         const mx = c.col === 0 ? -this.pad : this.width * this.cell + this.pad;
         for (let k = 0; k < (this.reduced ? 0 : 14); k++) {
           const a = (Math.random() - 0.5) * 1.2;
@@ -495,10 +485,7 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
 
   // ---- drawing
 
-  private layout(): void {
-    if (!this.app.renderer) return;
-    const w = this.app.screen.width;
-    const h = this.app.screen.height;
+  protected layout(w: number, h: number): void {
     const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.12));
     // Above the deck, a strip for the feeder's queue: the rail itself may hold hatches.
     const rows = this.height + QUEUE_STRIP;
@@ -511,9 +498,9 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
     this.origin = { x: Math.floor((w - this.cell * this.width) / 2), y: Math.floor((h - total) / 2 + above + this.pad) };
     this.board.position.set(this.origin.x, this.origin.y);
     // Where the grid sits on the canvas, for tests that tap a cell.
-    this.app.canvas.setAttribute("data-geom", `${this.origin.x},${this.origin.y},${this.cell}`);
+    this.publishGeom(this.origin.x, this.origin.y, this.cell);
     this.drawDeck();
-    this.bake();
+    this.bakePieces();
     this.layoutQueue();
     this.refreshPreview();
     this.drawArrows();
@@ -619,9 +606,11 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
     const g = this.arrowG;
     g.clear();
     this.ghostG.clear();
+    this.drawnArrows = [];
     if (!this.state) return;
     const s = this.cell;
     for (const a of this.state.arrows) {
+      this.drawnArrows.push({ col: a.col, row: a.row, dir: a.dir });
       const x = this.cx(a.col);
       const y = this.cy(a.row);
       const lifting = this.ghost && this.ghost.col === a.col && this.ghost.row === a.row;
@@ -650,9 +639,12 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
     const fx = this.turretFxG;
     g.clear();
     fx.clear();
+    this.drawnTurrets = [];
     if (!this.state) return;
     const s = this.cell;
     this.state.turrets.forEach((c, i) => {
+      const drawn = { loaded: 0, jammed: false };
+      this.drawnTurrets.push(drawn);
       const x = c.col * s;
       const y = c.row * s;
       const cx = x + s / 2;
@@ -715,6 +707,7 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
       } else sprite.visible = false;
 
       if (c.jammed) {
+        drawn.jammed = true;
         for (let k = 0; k < 3; k++) {
           const wob = this.reduced ? 0 : Math.sin(this.time / 300 + k * 2) * s * 0.05;
           fx.circle(x + s * (0.3 + k * 0.2) + wob, y + s * (0.16 - k * 0.04), s * (0.1 + k * 0.025)).fill({ color: COLORS.smoke, alpha: 0.7 });
@@ -744,6 +737,7 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
         const kc = this.colorByKind.get(k) ?? 0xffffff;
         const px = px0 + k * (pw + gap);
         const filled = k < c.loaded;
+        if (filled) drawn.loaded++;
         g.roundRect(px, py, pw, pw, s * 0.05).fill(filled ? { color: mix(kc, 0xffffff, 0.15) } : { color: 0x000000, alpha: 0.45 });
         g.roundRect(px, py, pw, pw, s * 0.05).stroke({ width: filled ? 1.5 : 1, color: filled ? 0xffffff : mix(kc, 0xffffff, 0.3), alpha: filled ? 0.7 : 0.55 });
       }
@@ -837,9 +831,8 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
     }
   }
 
-  private bake(): void {
+  private bakePieces(): void {
     const r = this.app.renderer;
-    if (!r) return;
     const old = [...this.textures.values()];
     for (const kind of this.colorByKind.keys()) {
       const canvas = gunneryPieceCanvas(Math.round(this.cell * 0.96), kind, this.showMarks ? (this.markByKind.get(kind) ?? null) : null, r.resolution);
@@ -880,8 +873,7 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
 
   // ---- per frame
 
-  private tick(dt: number): void {
-    this.time += dt;
+  protected override update(dt: number): void {
     const per = Math.max(60, this.opts.tickMs);
     for (const [id, v] of [...this.pieces]) {
       if (v.dying !== null) {
@@ -931,17 +923,25 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
     }
     for (const arr of [this.glow, this.recoil, this.hit]) for (let i = 0; i < arr.length; i++) if ((arr[i] ?? 0) > 0) arr[i] = Math.max(0, arr[i]! - dt);
     this.broadsideFlash = Math.max(0, this.broadsideFlash - dt);
-    if (this.shake > 0 && !this.reduced) {
-      this.shake = Math.max(0, this.shake - dt);
-      const a = Math.min(2, this.shake / 220) * this.cell * 0.08;
-      this.board.position.set(this.origin.x + (Math.random() - 0.5) * a, this.origin.y + (Math.random() - 0.5) * a);
-    } else this.board.position.set(this.origin.x, this.origin.y);
     this.drawTurrets();
     this.drawHeadings();
-    if (this.framePending) {
-      this.framePending = false;
-      this.cb.onFrame();
+  }
+
+  /**
+   * What the deck shows, which the kit writes to the canvas as `data-view` once the board settles:
+   * each piece in the cell it was placed in (and is gliding to), each turret's load pips and jam
+   * smoke, and the arrows, as drawn; the tick is the state's they were drawn from. It is the string
+   * the page writes as `data-board` from the engine's state, so the smoke test can tell when what is
+   * drawn differs from what the engine holds. A piece on its way off the deck is no longer shown.
+   */
+  protected view(): string {
+    if (!this.state) return "";
+    const pieces: Array<{ id: number; kind: number; col: number; row: number }> = [];
+    for (const [id, v] of this.pieces) {
+      if (v.dying !== null) continue;
+      pieces.push({ id, kind: v.kind, col: Math.round(v.tx / this.cell - 0.5), row: Math.round(v.ty / this.cell - 0.5) });
     }
+    return deckString({ tick: this.state.tick, pieces, turrets: this.drawnTurrets, arrows: this.drawnArrows });
   }
 
   // ---- input
@@ -953,9 +953,8 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
     return { col, row, dir, lift: canLift && existing?.dir === dir };
   }
 
-  private pointerDown(e: FederatedPointerEvent): void {
-    if (!this.interactive) return;
-    const at = this.local(e.global.x, e.global.y);
+  protected override pointerDown(x: number, y: number, e: FederatedPointerEvent): void {
+    const at = this.local(x, y);
     if (!at || !this.isDeck(at.col, at.row)) return;
     if (e.button === 2) {
       // Right click lifts the arrow under the pointer.
@@ -963,19 +962,19 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
       return;
     }
     const dir = leanOf(at.fx, at.fy);
-    this.press = { x: e.global.x, y: e.global.y, col: at.col, row: at.row, touch: e.pointerType !== "mouse", dragged: false, dir };
+    this.press = { x, y, col: at.col, row: at.row, touch: e.pointerType !== "mouse", dragged: false, dir };
     this.cursor = null;
     this.drawCursor();
     this.setGhost(this.ghostFor(at.col, at.row, dir, true));
     this.drawHover();
   }
 
-  private pointerMove(e: FederatedPointerEvent): void {
+  protected override pointerMove(x: number, y: number, e: FederatedPointerEvent): void {
     if (!this.interactive) return;
     const pr = this.press;
     if (pr) {
-      const dx = e.global.x - pr.x;
-      const dy = e.global.y - pr.y;
+      const dx = x - pr.x;
+      const dy = y - pr.y;
       if (Math.hypot(dx, dy) >= this.cell * 0.3) {
         pr.dragged = true;
         pr.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 0 : 2) : dy > 0 ? 1 : 3;
@@ -984,14 +983,14 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
       return;
     }
     if (e.pointerType !== "mouse") return;
-    const at = this.local(e.global.x, e.global.y);
+    const at = this.local(x, y);
     const prev = this.hover;
     this.hover = at;
     if (!prev || !at || prev.col !== at.col || prev.row !== at.row) this.drawHover();
     this.setGhost(at ? this.ghostFor(at.col, at.row, leanOf(at.fx, at.fy), true) : null);
   }
 
-  private pointerUp(e: FederatedPointerEvent): void {
+  protected override pointerUp(x: number, y: number, e: FederatedPointerEvent): void {
     const pr = this.press;
     this.press = null;
     if (!pr || !this.interactive || !this.state) return;
@@ -1018,11 +1017,23 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
     }
     // After a commit the hover ghost reflects the new arrow (a second click lifts it); touch has no hover.
     if (e.pointerType === "mouse") {
-      const at = this.local(e.global.x, e.global.y);
+      const at = this.local(x, y);
       this.ghost = null;
       this.setGhost(at ? this.ghostFor(at.col, at.row, leanOf(at.fx, at.fy), true) : null);
     } else this.setGhost(null);
     this.drawHover();
+  }
+
+  /** A release off the canvas, a touch the browser took over, or the board switched off: the press ends without laying anything. */
+  protected override pointerCancel(): void {
+    this.press = null;
+    this.setGhost(null);
+  }
+
+  /** The pointer went off the canvas: its hover ghost goes, unless a press still holds it. */
+  protected override pointerLeave(): void {
+    this.hover = null;
+    if (!this.press) this.setGhost(null);
   }
 
   private isDeck(col: number, row: number): boolean {
@@ -1030,7 +1041,7 @@ export class GunneryRenderer implements BoardRenderer<GunneryState> {
   }
 
   /** Keyboard: arrows move the cursor over deck cells; W A S D lay an arrow; Backspace, Delete or Space lifts. */
-  keyboard(key: string): boolean {
+  override keyboard(key: string): boolean {
     if (!this.interactive || !this.state) return false;
     const c = this.cursor ?? this.firstDeckCell();
     const moveCursor = (dcol: number, drow: number): void => {
