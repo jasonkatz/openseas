@@ -239,7 +239,7 @@ test("racks: one more move before the shipment", async ({ page }) => {
   // One tidy move first, like onto like or onto an empty rack, and then two racks ship back to back.
   const { seed, found } = findSeed("racks-hold", (seed) =>
     along(seed, 4, 30, (s) => {
-      // The crate is no part of it: it has room, hangs over a rack the line leaves alone, and stays up.
+      // The crate is no part of it: it has room before and after, and stays up.
       if (s.crate.lands !== cfg.landEvery || !racksCrateFits(s) || racksCrateWouldShip(s)) return null;
       const now = acts(s).filter((a) => a.type === "move" && racksWouldShip(s, a.from, a.to));
       if (now.length === 0) return null;
@@ -252,17 +252,17 @@ test("racks: one more move before the shipment", async ({ page }) => {
         }
       }
       for (const x of acts(s)) {
-        if (x.type !== "move" || x.from === s.crate.rack || x.to === s.crate.rack) continue;
+        if (x.type !== "move") continue;
         const onto = racksTopGroup(s.racks[x.to]!);
         const group = racksTopGroup(s.racks[x.from]!)!;
         if (onto && onto.kind !== group.kind) continue;
         const sx = reduceRacks(s, x);
         if (shipsIn(sx) > 0) continue;
         for (const a of acts(sx)) {
-          if (a.type !== "move" || a.to === s.crate.rack) continue;
+          if (a.type !== "move") continue;
           const s1 = reduceRacks(sx, a);
           if (shipsIn(s1) !== 1) continue;
-          for (const b of acts(s1)) if (b.type === "move" && b.to !== s.crate.rack && shipsIn(reduceRacks(s1, b)) === 1) return [x, a, b];
+          for (const b of acts(s1)) if (b.type === "move" && shipsIn(reduceRacks(s1, b)) === 1 && racksCrateFits(reduceRacks(s1, b))) return [x, a, b];
         }
       }
       return null;
