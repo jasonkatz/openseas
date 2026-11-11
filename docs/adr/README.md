@@ -46,3 +46,4 @@ that supersedes it.
 | [0038](./0038-puzzle-guides-site.md) | Puzzle guides: a static site with one guide per puzzle, its pictures captured from the real boards on the harness |
 | [0039](./0039-content-loads-puzzle-configs-through-the-wire-schema.md) | Content loads each puzzle's config through the protocol's wire schema |
 | [0040](./0040-every-board-runs-through-the-kit.md) | Every board runs through the kit: one host now, the core renderers one board at a time |
+| [0041](./0041-marks-are-one-vocabulary-with-one-geometry.md) | Marks are one vocabulary in content, with one geometry and an adapter for each surface |

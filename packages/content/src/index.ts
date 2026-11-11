@@ -48,6 +48,7 @@ import {
 import { PROTOTYPE_CONTENT, PROTOTYPE_PUZZLE_CONTENT_IDS, type PrototypePuzzleContent } from "./prototypes/index.js";
 
 export * from "./schema.js";
+export * from "./marks.js";
 export * from "./prototypes/index.js";
 
 /** Content for every duty puzzle, keyed by puzzle id. */

@@ -1,6 +1,7 @@
 import { GunneryKind } from "@openseas/engine";
+import type { MarkName } from "@openseas/content";
 import { drawSprite, spriteRevision } from "../sprites/atlas.js";
-import { paintMark } from "../cooling/tiles.js";
+import { paintMark } from "../marks/canvas.js";
 import { paintPart, type PartName } from "../parts.js";
 
 /**
@@ -19,7 +20,7 @@ const PARTS: Record<number, { part: PartName; color: number }> = {
 };
 
 /** Paints one piece into an `s`-pixel square whose top-left corner is the context origin. */
-export function paintGunneryPiece(ctx: CanvasRenderingContext2D, s: number, kind: number, mark: string | null): void {
+export function paintGunneryPiece(ctx: CanvasRenderingContext2D, s: number, kind: number, mark: MarkName | null): void {
   // Drawn a little larger than the painters' own proportions, so a piece fills most of its deck plate.
   ctx.save();
   ctx.translate(s / 2, s / 2);
@@ -41,7 +42,7 @@ export function paintGunneryPiece(ctx: CanvasRenderingContext2D, s: number, kind
 const PIECE_ZOOM = 1.14;
 
 /** A piece as its own canvas, `s` CSS pixels square at `resolution` device pixels per pixel. */
-export function gunneryPieceCanvas(s: number, kind: number, mark: string | null, resolution: number): HTMLCanvasElement {
+export function gunneryPieceCanvas(s: number, kind: number, mark: MarkName | null, resolution: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = Math.ceil(s * resolution);
   canvas.height = Math.ceil(s * resolution);
@@ -56,7 +57,7 @@ export function gunneryPieceCanvas(s: number, kind: number, mark: string | null,
 const urlCache = new Map<string, string>();
 
 /** A data URL of a piece for the page legend; cached because legends re-render often. */
-export function gunneryPieceUrl(kind: number, mark: string | null, px: number): string {
+export function gunneryPieceUrl(kind: number, mark: MarkName | null, px: number): string {
   const key = `${kind}|${mark ?? ""}|${px}|${spriteRevision()}`;
   let url = urlCache.get(key);
   if (!url) {

@@ -16,7 +16,7 @@ import {
   type GunneryState,
   type ParsedDeck,
 } from "@openseas/engine";
-import type { GunneryContent } from "@openseas/content";
+import type { GunneryContent, MarkName } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
 import { gunneryPieceCanvas } from "./pieces.js";
 import { HULL, hullFrame, hullGradient, hullRivet, starField } from "../hull.js";
@@ -194,7 +194,7 @@ export class GunneryRenderer extends KitBoard<GunneryState> {
   private readonly particles: Particle[] = [];
   private readonly textures = new Map<number, Texture>();
   private readonly colorByKind = new Map<number, number>();
-  private readonly markByKind = new Map<number, string>();
+  private readonly markByKind = new Map<number, MarkName>();
   private readonly plankFill = linear(true, [COLORS.plank, COLORS.plankDark]);
   private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
   private cell = 40;

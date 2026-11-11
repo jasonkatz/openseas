@@ -14,8 +14,9 @@ import {
   type EnginesState,
   type Segment,
 } from "@openseas/engine";
-import type { EnginesContent } from "@openseas/content";
+import type { EnginesContent, MarkName } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
+import { drawMarkShape } from "../marks/pixi.js";
 import { pelletCanvas, type PelletStyle, type EnginesTexture } from "./pellets.js";
 import { HULL, hazardBand, hullFrame, hullGradient } from "../hull.js";
 import { KitBoard } from "../kit/board.js";
@@ -117,7 +118,7 @@ export class EnginesRenderer extends KitBoard<EnginesState> {
   private readonly popups: Popup[] = [];
   private readonly textures = new Map<number, Texture>();
   private readonly colorByKind = new Map<number, number>();
-  private readonly markByKind = new Map<number, string>();
+  private readonly markByKind = new Map<number, MarkName>();
   private readonly textureByKind = new Map<number, EnginesTexture>();
   private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
   private readonly skyFill = linear(true, [COLORS.skyTop, COLORS.skyBottom]);
@@ -600,7 +601,9 @@ export class EnginesRenderer extends KitBoard<EnginesState> {
         // The ring hugs the cell edge instead, so its color stays readable around any pellet.
         g.circle(cx, cy, s * 0.4).fill({ color, alpha: 0.16 });
         g.circle(cx, cy, s * 0.46).stroke({ width: Math.max(3, s * 0.08), color, alpha: 0.9 });
-        drawMark(g, cx, cy, s * 0.18, this.markByKind.get(c.want) ?? "circle", color);
+        // The kind's mark in outline, always: a target says which kind it wants without color.
+        const mark = this.markByKind.get(c.want);
+        if (mark) drawMarkShape(g, mark, cx, cy, s * 0.2, { stroke: { width: 2, color: mix(color, 0xffffff, 0.4), alpha: 0.9 } });
       }
     }
   }
@@ -874,42 +877,4 @@ function linear(vertical: boolean, stops: number[]): FillGradient {
   const g = new FillGradient({ type: "linear", start: { x: 0, y: 0 }, end: vertical ? { x: 0, y: 1 } : { x: 1, y: 0 }, textureSpace: "local" });
   stops.forEach((c, i) => g.addColorStop(i / Math.max(1, stops.length - 1), c));
   return g;
-}
-
-/** The legend's mark symbols, drawn as vector outlines for injector targets. */
-export function drawMark(g: Graphics, x: number, y: number, r: number, mark: string, color: number): void {
-  const poly = (n: number, rot = -Math.PI / 2): void => {
-    const pts: number[] = [];
-    for (let i = 0; i < n; i++) pts.push(x + r * Math.cos(rot + (i * Math.PI * 2) / n), y + r * Math.sin(rot + (i * Math.PI * 2) / n));
-    g.poly(pts);
-  };
-  switch (mark) {
-    case "circle":
-      g.circle(x, y, r);
-      break;
-    case "square":
-      g.rect(x - r * 0.85, y - r * 0.85, r * 1.7, r * 1.7);
-      break;
-    case "triangle":
-      poly(3);
-      break;
-    case "diamond":
-      poly(4);
-      break;
-    case "hexagon":
-      poly(6, 0);
-      break;
-    case "star": {
-      const pts: number[] = [];
-      for (let i = 0; i < 10; i++) {
-        const rr = i % 2 === 0 ? r : r * 0.45;
-        pts.push(x + rr * Math.cos(-Math.PI / 2 + (i * Math.PI) / 5), y + rr * Math.sin(-Math.PI / 2 + (i * Math.PI) / 5));
-      }
-      g.poly(pts);
-      break;
-    }
-    default:
-      g.circle(x, y, r * 0.6);
-  }
-  g.stroke({ width: 2, color: mix(color, 0xffffff, 0.4), alpha: 0.9 });
 }

@@ -1,5 +1,7 @@
 import { drawSprite, spriteRevision } from "../sprites/atlas.js";
-import { mix, paintMark } from "../cooling/tiles.js";
+import type { MarkName } from "@openseas/content";
+import { mix } from "../cooling/tiles.js";
+import { paintMark } from "../marks/canvas.js";
 
 /**
  * Swordfight blocks are beveled squares, each color with its own surface (cut facets, riveted
@@ -17,7 +19,7 @@ export interface BlockStyle {
   /** The block's color; for scrap, the color it ripens into. */
   color: number;
   texture: SwordTexture;
-  mark: string | null;
+  mark: MarkName | null;
   kind: "block" | "breaker" | "scrap";
   showMarks: boolean;
   /** Scrap only: the drops left before it ripens. Anything past one is fresh stone. */

@@ -606,7 +606,9 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
 - Portrait for all duty puzzles. Landscape for Space Battle and the outpost.
 - Puzzle pieces use original illustrated sprites with clear silhouettes. Every piece type is also
   distinguishable without color: a player setting draws a distinct mark on each kind, and special
-  tiles carry an icon and a label. Keyboard play for all puzzles on desktop. Screen-reader support for puzzle boards is out of scope.
+  tiles carry an icon and a label. The marks are one vocabulary of seven shapes (circle, square,
+  triangle, diamond, hexagon, star, gear), named in content and checked at startup, each drawn
+  from one geometry on every core board (ADR 0041). Keyboard play for all puzzles on desktop. Screen-reader support for puzzle boards is out of scope.
 - English only. All player-facing strings go through one message table.
 - No music in v1. Minimal synthesized sound effects via WebAudio, voiced for space: a metal click
   for a quiet swap, steam for venting, an arc and a clank for a weld, a servo for lifting plates and

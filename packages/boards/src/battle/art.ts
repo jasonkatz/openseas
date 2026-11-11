@@ -1,7 +1,9 @@
 import { drawSprite } from "../sprites/atlas.js";
 import type { ParsedBoard } from "@openseas/engine";
+import type { MarkName } from "@openseas/content";
 import { battleCellAt } from "@openseas/engine";
 import { paintPart } from "../parts.js";
+import { paintMarkShape } from "../marks/canvas.js";
 
 /**
  * Space Battle's art, painted with Canvas 2D and baked to textures (as Gunnery's pieces and
@@ -302,13 +304,10 @@ export function paintShip(size: number, who: ShipSide, showMarks: boolean, resol
   const { canvas, ctx } = canvasFor(size, size, resolution);
   if (!drawSprite(ctx, "battle", `ship${who}`, 0, 0, size, size)) paintPart(ctx, who === 0 ? "fighter" : "raider", size / 2, size / 2, size);
   if (showMarks) {
-    ctx.font = `bold ${size * 0.18}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.lineWidth = Math.max(2, size * 0.04);
-    ctx.strokeStyle = "#0b1526";
-    ctx.fillStyle = "#ffffff";
-    ctx.strokeText(who === 0 ? "○" : "△", size / 2, size * 0.65);
-    ctx.fillText(who === 0 ? "○" : "△", size / 2, size * 0.65);
+    // Yours wears a circle and the raider a triangle, in white over a dark edge, so they read apart without color.
+    const mark: MarkName = who === 0 ? "circle" : "triangle";
+    paintMarkShape(ctx, mark, size / 2, size * 0.6, size * 0.08, { stroke: "#0b1526", lineWidth: Math.max(3, size * 0.06) });
+    paintMarkShape(ctx, mark, size / 2, size * 0.6, size * 0.08, { stroke: "#ffffff", lineWidth: Math.max(1.2, size * 0.025) });
   }
   return canvas;
 }

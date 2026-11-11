@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
+import { MarkNameSchema } from "./marks.js";
 
 const Id = z.string().regex(/^[a-z][a-z0-9-]*$/, "ids are lowercase kebab-case");
 const MessageKey = z.string().regex(/^[a-z][a-z0-9_.]*$/, "message keys are dotted snake_case");
@@ -104,10 +105,10 @@ export const RatingTierSchema = z.object({
 
 /** Shape and color of one ordinary piece kind, index = kind. Tiles are colored squares, each with
  * its own surface `texture`; `mark` names the symbol drawn inside when the player turns marks on,
- * so kinds stay distinguishable without color (rule 6). */
+ * so kinds stay distinguishable without color (rule 6). Marks are one vocabulary (`marks.ts`). */
 export const PieceStyleSchema = z.object({
   nameKey: MessageKey,
-  mark: z.string(),
+  mark: MarkNameSchema,
   texture: z.enum(["knurl", "fan", "waves", "grain", "nacre", "fronds", "pores"]),
   color: z.string().regex(/^#[0-9a-f]{6}$/),
 });
@@ -188,7 +189,7 @@ export const CoolingContentSchema = DutyPuzzleBaseSchema.extend({
 /** Engines pieces are pellets with their own surfaces, so they never read as Cooling tiles. */
 export const EnginesPieceStyleSchema = z.object({
   nameKey: MessageKey,
-  mark: z.string(),
+  mark: MarkNameSchema,
   texture: z.enum(["weave", "coil", "ripple", "speckle"]),
   color: z.string().regex(/^#[0-9a-f]{6}$/),
 });
@@ -228,7 +229,7 @@ export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
 export const StarColorSchema = z.object({
   nameKey: MessageKey,
   /** Symbol drawn on the star when marks are on, so colors stay apart without color (rule 6). */
-  mark: z.string(),
+  mark: MarkNameSchema,
   color: z.string().regex(/^#[0-9a-f]{6}$/),
 });
 export const StarShapeSchema = z.object({
@@ -253,7 +254,7 @@ export const BattleContentSchema = z.object({
 /** Swordfight blocks are beveled squares with their own surface per color, so they never read as Cooling tiles. */
 export const SwordPieceStyleSchema = z.object({
   nameKey: MessageKey,
-  mark: z.string(),
+  mark: MarkNameSchema,
   texture: z.enum(["facet", "rivet", "scale", "hatch", "swirl", "rings"]),
   color: z.string().regex(/^#[0-9a-f]{6}$/),
 });

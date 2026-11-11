@@ -13,9 +13,9 @@ import {
   type SwordfightEvent,
   type SwordfightState,
 } from "@openseas/engine";
-import type { SwordfightContent } from "@openseas/content";
+import type { MarkName, SwordfightContent } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
-import { drawMark } from "../engines/renderer.js";
+import { drawMarkShape } from "../marks/pixi.js";
 import { SCRAP_COLOR, blockCanvas, scrapStage, type BlockStyle, type SwordTexture } from "./art.js";
 import { HULL, hullFrame, hullGradient } from "../hull.js";
 import { KitBoard } from "../kit/board.js";
@@ -236,7 +236,7 @@ export class SwordfightRenderer extends KitBoard<SwordfightState> {
   private remote: readonly RemoteBoard[] = [];
   private popups: Popup[] = [];
   private particles: Particle[] = [];
-  private readonly styles: Array<{ color: number; texture: SwordTexture; mark: string }> = [];
+  private readonly styles: Array<{ color: number; texture: SwordTexture; mark: MarkName }> = [];
   private cell = 40;
   private pad = 8;
   private ox = 0;
@@ -271,7 +271,7 @@ export class SwordfightRenderer extends KitBoard<SwordfightState> {
   }
 
   private styleFor(color: number, kind: SwordCell["kind"], ripen: number): BlockStyle {
-    const st = this.styles[Math.max(0, color)] ?? { color: 0xffffff, texture: "rings" as const, mark: "circle" };
+    const st = this.styles[Math.max(0, color)] ?? { color: 0xffffff, texture: "rings" as const, mark: null };
     return { color: st.color, texture: st.texture, mark: st.mark, kind, showMarks: this.showMarks, ripen };
   }
 
@@ -1213,8 +1213,8 @@ export class SwordfightRenderer extends KitBoard<SwordfightState> {
           g.rect(x + l, y + t, s - l - rgt, s - t - btm).fill({ color: breaker ? mix(fill, 0x000000, 0.15) : fill });
           if (breaker) {
             g.moveTo(x + s * 0.2, y + s * 0.8).lineTo(x + s * 0.8, y + s * 0.2).stroke({ width: Math.max(1, s * 0.18), color: COLORS.bone, alpha: 0.95 });
-          } else if (this.showMarks && s >= 9) {
-            drawMark(g, x + s / 2, y + s / 2, s * 0.25, this.styles[color]?.mark ?? "circle", fill);
+          } else if (this.showMarks && s >= 9 && this.styles[color]) {
+            drawMarkShape(g, this.styles[color].mark, x + s / 2, y + s / 2, s * 0.28, { stroke: { width: 2, color: mix(fill, 0xffffff, 0.4), alpha: 0.9 } });
           }
         }
       }

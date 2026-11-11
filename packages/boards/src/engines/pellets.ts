@@ -1,5 +1,6 @@
+import type { MarkName } from "@openseas/content";
 import { drawSprite, spriteRevision } from "../sprites/atlas.js";
-import { paintMark } from "../cooling/tiles.js";
+import { paintMark } from "../marks/canvas.js";
 import { paintPart } from "../parts.js";
 
 /**
@@ -13,7 +14,7 @@ export type EnginesTexture = "weave" | "coil" | "ripple" | "speckle";
 export interface PelletStyle {
   color: number;
   texture: EnginesTexture;
-  mark: string | null;
+  mark: MarkName | null;
   showMarks: boolean;
 }
 

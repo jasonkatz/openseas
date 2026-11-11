@@ -11,9 +11,9 @@ import {
   type Brush,
   type BreachRating,
 } from "@openseas/engine";
-import type { PlatingContent } from "@openseas/content";
+import type { MarkName, PlatingContent } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
-import { drawMark } from "../engines/renderer.js";
+import { drawMarkShape } from "../marks/pixi.js";
 import { HULL, hullRivet, starField } from "../hull.js";
 import { KitBoard } from "../kit/board.js";
 
@@ -156,7 +156,6 @@ const COLORS = {
 };
 const TRAY_ROWS = 3.1;
 const LIFT_TOUCH = 1.15;
-const MARK_GLYPH: Record<string, string> = { square: "■", diamond: "◆", triangle: "▲", hexagon: "⬢", circle: "●", star: "★" };
 const FONT = "Atkinson Hyperlegible, sans-serif";
 const DISPLAY = "Fraunces, Georgia, serif";
 
@@ -178,7 +177,7 @@ export class PlatingRenderer extends KitBoard<PlatingState> {
   private readonly breachesG = new Graphics();
   private readonly breachFxG = new Graphics();
   private readonly platesG = new Graphics();
-  private readonly markLayer = new Container();
+  private readonly marksG = new Graphics();
   private readonly fxG = new Graphics();
   private readonly ghostG = new Graphics();
   private readonly trayG = new Graphics();
@@ -188,7 +187,7 @@ export class PlatingRenderer extends KitBoard<PlatingState> {
   private readonly dragG = new Graphics();
   private readonly textLayer = new Container();
   private readonly colorByKind = new Map<number, number>();
-  private readonly markByKind = new Map<number, string>();
+  private readonly markByKind = new Map<number, MarkName>();
   private readonly breachFill = linear([COLORS.breachTop, COLORS.breachBottom]);
   private readonly flashes: Flash[] = [];
   private readonly popups: Popup[] = [];
@@ -251,7 +250,7 @@ export class PlatingRenderer extends KitBoard<PlatingState> {
     // The wheel turns the plate in hand, so it must not scroll the page under the board.
     this.app.canvas.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
     this.app.stage.on("wheel", (e: FederatedWheelEvent) => this.wheel(e));
-    this.root.addChild(this.hull, this.breachesG, this.breachFxG, this.platesG, this.markLayer, this.fxG, this.ghostG, this.trayG, this.trayPiecesG, this.trayText, this.hudG, this.dragG, this.textLayer);
+    this.root.addChild(this.hull, this.breachesG, this.breachFxG, this.platesG, this.marksG, this.fxG, this.ghostG, this.trayG, this.trayPiecesG, this.trayText, this.hudG, this.dragG, this.textLayer);
     this.world.addChild(this.root);
   }
 
@@ -483,7 +482,7 @@ export class PlatingRenderer extends KitBoard<PlatingState> {
   private drawPlates(): void {
     const g = this.platesG;
     g.clear();
-    this.markLayer.removeChildren().forEach((c) => c.destroy());
+    this.marksG.clear();
     if (!this.state) return;
     const s = this.cell;
     const breachOf = platingBreachIndex(this.state);
@@ -491,13 +490,10 @@ export class PlatingRenderer extends KitBoard<PlatingState> {
       if (this.landing && this.landing.plateId === p.id) continue;
       const r = relative(p.cells, this.width);
       this.paintPlate(g, r.cells, this.ox + r.col * s, this.oy + r.row * s, s, p.kind, p.brush, 1);
-      if (this.showMarks) {
+      const mark = this.showMarks ? this.markByKind.get(p.kind) : undefined;
+      if (mark) {
         const c0 = p.cells[Math.floor(p.cells.length / 2)]!;
-        const t = new Text({ text: MARK_GLYPH[this.markByKind.get(p.kind) ?? "square"] ?? "■", style: { fontSize: s * 0.4, fill: 0xffffff } });
-        t.alpha = 0.7;
-        t.anchor.set(0.5);
-        t.position.set(this.cx(c0 % this.width), this.cy(Math.floor(c0 / this.width)));
-        this.markLayer.addChild(t);
+        drawMarkShape(this.marksG, mark, this.cx(c0 % this.width), this.cy(Math.floor(c0 / this.width)), s * 0.15, { fill: { color: 0xffffff, alpha: 0.7 } });
       }
     }
     // Waste: hull covered by a plate, or breach cells covered twice. Hatched so it reads without color.
@@ -719,11 +715,14 @@ export class PlatingRenderer extends KitBoard<PlatingState> {
     const cells = platingOrient(shape, rot, flip);
     const { w, h } = platingExtent(cells);
     this.paintPlate(g, cells, cx - (w * m) / 2, cy - (h * m) / 2, m, kind, brush, alpha);
-    if (this.showMarks && alpha > 0.5) {
+    const mark = this.showMarks && alpha > 0.5 ? this.markByKind.get(kind) : undefined;
+    if (mark) {
       // The metal's own mark on the mini, so the tray reads without color like the board plates do.
       const [mx, my] = cells[Math.floor(cells.length / 2)]!;
-      g.circle(cx - (w * m) / 2 + (mx + 0.5) * m, cy - (h * m) / 2 + (my + 0.5) * m, m * 0.34).fill({ color: 0x000000, alpha: 0.45 * alpha });
-      drawMark(g, cx - (w * m) / 2 + (mx + 0.5) * m, cy - (h * m) / 2 + (my + 0.5) * m, m * 0.26, this.markByKind.get(kind) ?? "square", 0xffffff);
+      const x = cx - (w * m) / 2 + (mx + 0.5) * m;
+      const y = cy - (h * m) / 2 + (my + 0.5) * m;
+      g.circle(x, y, m * 0.34).fill({ color: 0x000000, alpha: 0.45 * alpha });
+      drawMarkShape(g, mark, x, y, m * 0.3, { stroke: { width: 2, color: 0xffffff, alpha: 0.9 } });
     }
   }
 

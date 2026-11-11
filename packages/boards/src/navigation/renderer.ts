@@ -14,7 +14,7 @@ import {
   type NavigationHint,
   type NavigationState,
 } from "@openseas/engine";
-import type { NavigationContent } from "@openseas/content";
+import type { MarkName, NavigationContent } from "@openseas/content";
 import { paintStar, type StarShapeName } from "./stars.js";
 import { KitBoard } from "../kit/board.js";
 
@@ -157,7 +157,7 @@ export class NavigationRenderer extends KitBoard<NavigationState> {
   private readonly particles: Particle[] = [];
   private readonly pending: Pending[] = [];
   private readonly colorHex: number[] = [];
-  private readonly colorMark: string[] = [];
+  private readonly colorMark: MarkName[] = [];
   private readonly shapeName: StarShapeName[] = [];
   private showMarkers: boolean;
   private hints: boolean;

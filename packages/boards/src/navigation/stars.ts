@@ -1,5 +1,7 @@
+import type { MarkName } from "@openseas/content";
 import { drawSprite, paintSprite, spriteRevision } from "../sprites/atlas.js";
 import type { Graphics } from "pixi.js";
+import { drawMarkShape } from "../marks/pixi.js";
 
 export type StarShapeName = "spark" | "star" | "comet";
 
@@ -43,8 +45,8 @@ export interface StarPaint {
   color: number;
   /** A hollow marker instead of a solid star. */
   hollow: boolean;
-  /** The color's mark badge, drawn when the player turns marks on. */
-  mark: string | null;
+  /** The color's mark, drawn when the player turns marks on. */
+  mark: MarkName | null;
   alpha?: number;
 }
 
@@ -73,7 +75,7 @@ export function paintStar(g: Graphics, x: number, y: number, r: number, p: StarP
   const alpha = p.alpha ?? 1;
   const name = navigationSpriteName(p.shape, p.color, p.hollow);
   if (paintSprite(g, "navigation", name, x - r * 1.12, y - r * 1.12, r * 2.24, r * 2.24, alpha, p.hollow ? p.color : 0xffffff)) {
-    if (p.mark) paintMark(g, x, y, r * 0.3, p.mark, p.hollow ? p.color : 0x0b1526, alpha);
+    drawStarMark(g, x, y, r, p, alpha);
     return;
   }
   const poly = starPolygon(p.shape, x, y, r);
@@ -87,34 +89,10 @@ export function paintStar(g: Graphics, x: number, y: number, r: number, p: StarP
     // A bright core gives the star some glow without a filter.
     g.circle(x, y, r * 0.22).fill({ color: 0xffffff, alpha: 0.75 * alpha });
   }
-  if (p.mark) paintMark(g, x, y, r * 0.3, p.mark, p.hollow ? p.color : 0x0b1526, alpha);
+  drawStarMark(g, x, y, r, p, alpha);
 }
 
-/** The marks vocabulary shared with the tile art: circle, square, triangle, diamond, hexagon, star. */
-export function paintMark(g: Graphics, x: number, y: number, r: number, mark: string, color: number, alpha = 1): void {
-  const regular = (n: number, rot: number): number[] => {
-    const pts: number[] = [];
-    for (let i = 0; i < n; i++) pts.push(x + r * Math.cos(rot + (i * Math.PI * 2) / n), y + r * Math.sin(rot + (i * Math.PI * 2) / n));
-    return pts;
-  };
-  switch (mark) {
-    case "circle":
-      g.circle(x, y, r * 0.85);
-      break;
-    case "square":
-      g.rect(x - r * 0.75, y - r * 0.75, r * 1.5, r * 1.5);
-      break;
-    case "triangle":
-      g.poly(regular(3, -Math.PI / 2));
-      break;
-    case "diamond":
-      g.poly(regular(4, -Math.PI / 2));
-      break;
-    case "hexagon":
-      g.poly(regular(6, 0));
-      break;
-    default:
-      g.circle(x, y, r * 0.5);
-  }
-  g.fill({ color, alpha: 0.9 * alpha });
+/** The color's mark at the star's heart: dark on a solid star, in the color on a hollow marker. */
+function drawStarMark(g: Graphics, x: number, y: number, r: number, p: StarPaint, alpha: number): void {
+  if (p.mark) drawMarkShape(g, p.mark, x, y, r * 0.3, { fill: { color: p.hollow ? p.color : 0x0b1526, alpha: 0.9 * alpha } });
 }

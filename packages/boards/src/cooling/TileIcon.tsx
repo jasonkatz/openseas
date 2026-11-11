@@ -1,9 +1,10 @@
+import type { MarkName } from "@openseas/content";
 import { useSprites } from "../sprites/useSprites.js";
 import type { SpritePuzzle } from "../sprites/atlas.js";
 import { tileDataUrl, type SpecialName, type TileTexture } from "../cooling/tiles.js";
 
 /** A legend tile: the same painted art the boards use, as an image. */
-export function TileIcon(props: { color: string; texture?: TileTexture; mark?: string | null; special?: SpecialName; label?: string; size?: number; sprite?: { puzzle: SpritePuzzle; name: string } }) {
+export function TileIcon(props: { color: string; texture?: TileTexture; mark?: MarkName | null; special?: SpecialName; label?: string; size?: number; sprite?: { puzzle: SpritePuzzle; name: string } }) {
   useSprites(props.sprite?.puzzle ?? "cooling");
   const size = props.size ?? 22;
   const src = tileDataUrl(

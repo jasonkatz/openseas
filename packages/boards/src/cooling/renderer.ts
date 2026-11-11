@@ -1,6 +1,6 @@
 import { CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import { Special, type CoolingState, type ClearRound, type Piece } from "@openseas/engine";
-import type { CoolingContent } from "@openseas/content";
+import type { CoolingContent, MarkName } from "@openseas/content";
 import { drawFlash, mix, tileCanvas, type TileStyle, type TileTexture } from "./tiles.js";
 import { HULL, hullFrame, hullGradient } from "../hull.js";
 import { KitBoard } from "../kit/board.js";
@@ -187,7 +187,7 @@ export class CoolingRenderer extends KitBoard<CoolingState> {
   private readonly rings: Ring[] = [];
   private readonly bubbles: Bubble[] = [];
   private readonly colorByKind = new Map<number, number>();
-  private readonly markByKind = new Map<number, string>();
+  private readonly markByKind = new Map<number, MarkName>();
   private readonly textureByKind = new Map<number, TileTexture>();
   private readonly textures = new Map<number, Texture>();
   private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
