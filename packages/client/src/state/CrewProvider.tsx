@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ClientMessage, CrewFlagWire, CrewInfo, CrewInvite, CrewNotice, CrewRank, CrewRow, ErrorCode, PirateProfile, ServerMessage } from "@openseas/protocol";
 import { sfx, t, usePirate } from "@openseas/boards";
 import { outpostName, tierName } from "../names.js";
+import { isRefusalFor } from "./refusals.js";
 import { useShip } from "./ShipProvider.jsx";
 import { useToasts } from "./toasts.jsx";
 
@@ -53,21 +54,6 @@ export function useCrew(): CrewContextValue {
   if (!v) throw new Error("useCrew outside CrewProvider");
   return v;
 }
-
-const CREW_ERRORS = new Set<ErrorCode>([
-  "not_in_crew",
-  "already_in_crew",
-  "crew_name_taken",
-  "crew_name_bad",
-  "crew_flag_bad",
-  "crew_rank_low",
-  "crew_full",
-  "crew_invites_full",
-  "no_such_pirate",
-  "no_invite",
-  "already_invited",
-  "already_crewmate",
-]);
 
 /** What a crew notice says, for the toast and the crew's log. */
 export function describeCrewNotice(n: CrewNotice): string {
@@ -179,7 +165,7 @@ export function CrewProvider({ children }: { children: ReactNode }) {
             if (wantProfile.current) setProfile(m.profile);
             break;
           case "error":
-            if (CREW_ERRORS.has(m.code) || (m.code === "short_of_credits" && panel !== null)) setError(m.code);
+            if (isRefusalFor(m, "crew", { crewPanelOpen: panel !== null })) setError(m.code);
             break;
           default:
             break;

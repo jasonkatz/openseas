@@ -148,7 +148,7 @@ describeDb("the pirate's sheet over the wire", () => {
     const { cookie, me } = await pirate();
     const c = await connect(cookie);
     c.send({ type: "pirate.title", title: "lane-rider" });
-    expect(await c.until("error")).toMatchObject({ code: "title_locked" });
+    expect(await c.until("error")).toEqual({ type: "error", code: "title_locked", for: "pirate.title" });
     c.send({ type: "pirate.title", title: "no-such-title" });
     expect(await c.until("error")).toMatchObject({ code: "title_locked" });
     c.send({ type: "pirate.title", title: "dirtsider" });

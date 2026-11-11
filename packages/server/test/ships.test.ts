@@ -285,11 +285,12 @@ describeDb("ships over the wire", () => {
 
     // Only the captain flies or orders the bots about; the crewmate is refused.
     b.send({ type: "ship.launch", laneId: "tinwick-echo-rock" });
-    expect(await b.until("error")).toMatchObject({ code: "not_captain" });
+    // Each refusal names the request it refuses (ADR 0043).
+    expect(await b.until("error")).toEqual({ type: "error", code: "not_captain", for: "ship.launch" });
     b.send({ type: "ship.assign", pirateId: "bot:9", station: "gunnery" });
     expect(await b.until("error")).toMatchObject({ code: "not_captain" });
     b.send({ type: "duty.start" });
-    expect(await b.until("error")).toMatchObject({ code: "no_station" });
+    expect(await b.until("error")).toEqual({ type: "error", code: "no_station", for: "duty.start" });
 
     b.send({ type: "ship.station", station: "cooling" });
     await b.until("ship.state", (m) => m.ship.crew.some((c) => c.pirateId === crewmate.me.id && c.station === "cooling"));
@@ -602,7 +603,7 @@ describeDb("ships over the wire", () => {
 
     // Ship chat needs a ship; aboard, the speaker leaves the outpost.
     a.send({ type: "chat.send", channel: "ship", text: "nobody hears this" });
-    expect(await a.until("error")).toMatchObject({ code: "not_aboard" });
+    expect(await a.until("error")).toEqual({ type: "error", code: "not_aboard", for: "chat.send" });
     a.send({ type: "ship.board", shipId: p1.me.ships[0]!.id });
     await a.until("ship.state");
     const gone = await b.until("outpost.presence", (m) => !m.pirates.some((p) => p.pirateId === p1.me.id));
@@ -790,7 +791,7 @@ describeDb("ships over the wire", () => {
     await b.until("ship.state", (m) => m.ship.turn >= turnAtHail && m.events.some((e) => e.type === "engaged"));
     // Mid-fight the station waits: its board is refused, and the battle board stays open and plays on below.
     a.send({ type: "duty.start" });
-    expect(await a.until("error")).toMatchObject({ code: "in_battle" });
+    expect(await a.until("error")).toEqual({ type: "error", code: "in_battle", for: "duty.start" });
     expect(app.puzzles.sessions.get(fight.sessionId)?.closed).toBe(false);
     const deal = await a.until("battle.supply", (m) => m.sessionId === fight.sessionId);
     const supply = { type: "supply", left: deal.left, forward: deal.forward, right: deal.right, turrets: deal.turrets, hull: deal.hull } as const;
@@ -991,9 +992,9 @@ describeDb("ships over the wire", () => {
     const skiff = content.world.shipClasses[0]!;
 
     a.send({ type: "shipyard.buy", classId: "galleon" });
-    expect(await a.until("error")).toMatchObject({ code: "no_such_class" });
+    expect(await a.until("error")).toEqual({ type: "error", code: "no_such_class", for: "shipyard.buy" });
     a.send({ type: "shipyard.buy", classId: skiff.id });
-    expect(await a.until("error")).toMatchObject({ code: "short_of_credits" });
+    expect(await a.until("error")).toEqual({ type: "error", code: "short_of_credits", for: "shipyard.buy" });
 
     // Pay the pirate and buy: the ledger is charged, the ship is delivered to the dock they stand on.
     await app.db.transaction((tx) => appendLedger(tx, p1.me.id, skiff.price, "test.grant", null));

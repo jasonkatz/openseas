@@ -53,6 +53,8 @@ class FakeShip {
   meleeMoves = 0;
   /** When set, a won space battle boards the raider instead of paying out at once. */
   boarding = false;
+  /** When set, the code a station's board is refused with, as a ship in a fight refuses it. */
+  dutyRefusal: string | null = null;
   /** The pirate's own sheet: what they wear and the title they show, and the looks and titles they sent. */
   look: { jacket: string; headgear: string } | null = null;
   title: string | null = null;
@@ -216,8 +218,10 @@ class FakeShip {
         return;
       }
       case "duty.start": {
-        if (!this.station || this.location.kind !== "in-flight") {
-          this.send({ type: "error", code: this.station ? "not_in_flight" : "no_station" });
+        if (this.dutyRefusal || !this.station || this.location.kind !== "in-flight") {
+          // The refusal names the request it refuses, as the server's does (ADR 0043). The other
+          // refusals here name none, as an older server's do.
+          this.send({ type: "error", code: this.dutyRefusal ?? (this.station ? "not_in_flight" : "no_station"), for: "duty.start" });
           return;
         }
         this.sessions += 1;
@@ -486,6 +490,9 @@ test("a pirate opens their own sheet from the top bar, dresses for the deck, wea
   await page.getByTestId("title-wear-skipper").click();
   await expect(page.getByTestId("sheet-shown-title")).toHaveText("Skipper");
   await expect(page.getByTestId("title-skipper")).toContainText("Wearing");
+  // A refusal from a server older than ADR 0043 names no request: the sheet still knows its own by the code.
+  server.ship()!.send({ type: "error", code: "title_locked" });
+  await expect(page.getByTestId("sheet-error")).toContainText("isn't earned yet");
 
   // The record tab reads the voyage tables and the ledger.
   await page.getByTestId("sheet-tab-record").click();
@@ -602,9 +609,23 @@ test("launching from a station's board goes straight back to it, and a hail turn
   await page.getByTestId("duty-launch").click();
   await expect(page.getByTestId("helm-card")).toBeVisible();
   await page.getByTestId("dest-echo-rock").click();
+  // Under way, the station's first deals are refused as in a fight. It asks again by itself, and the
+  // refusal names its request (ADR 0043), so no toast says so while it waits.
+  const asks = (): number => server.ship()!.got.filter((m) => m.type === "duty.start").length;
+  const asked = asks();
+  server.ship()!.dutyRefusal = "in_battle";
   await page.getByTestId("launch-now").click();
-  // Under way, the captain is back at the heat sinks with a board dealt, not on the deck.
   await expect(page.getByTestId("shell")).toHaveAttribute("data-place", "station");
+  await expect.poll(asks, { timeout: 15_000 }).toBeGreaterThan(asked);
+  const toasted: string[] = [];
+  for (let i = 0; i < 50 && asks() < asked + 2; i++) {
+    toasted.push((await page.getByTestId("toasts").textContent()) ?? "");
+    await page.waitForTimeout(200);
+  }
+  expect(asks()).toBeGreaterThan(asked + 1);
+  expect(toasted.join(" ")).not.toContain("in a fight");
+  // The fight is over: the captain is back at the heat sinks with a board dealt, not on the deck.
+  server.ship()!.dutyRefusal = null;
   await expect(page.getByTestId("station-view-cooling")).toBeVisible();
   await expect(page.getByTestId("duty-board-wrap")).toHaveAttribute("data-phase", "playing", { timeout: 15_000 });
 

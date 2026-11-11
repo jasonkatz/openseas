@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PuzzleDef, PuzzleId } from "@openseas/engine";
 import type { PuzzleStarted, ServerMessage } from "@openseas/protocol";
 import { sfx, usePirate, useRoundSession, type PuzzleRound, type RoundMessage, type RoundOutcome, type RoundPhase, type TickedHost } from "@openseas/boards";
+import { isRefusalFor } from "../../state/refusals.js";
 
 export type DutyPhase = RoundPhase;
 export type DutyOutcome = RoundOutcome;
@@ -94,7 +95,8 @@ export function useDuty<S, M, C>(opts: DutyOptions<S, M, C>): DutyApi<S, M> {
     () =>
       socket.onMessage((m: ServerMessage) => {
         // Refused for now (docked, no station, ashore, or in a fight the station must wait out): try again later.
-        if (m.type === "error" && (m.code === "not_in_flight" || m.code === "no_station" || m.code === "not_aboard" || m.code === "in_battle")) {
+        // The refusal is the station's alone, so nothing else shows it.
+        if (m.type === "error" && isRefusalFor(m, "duty")) {
           holdUntil.current = Date.now() + RETRY_MS;
           cancelAsk();
         }

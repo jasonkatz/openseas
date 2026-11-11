@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseClientMessage, parseMoveFor, parseServerMessage } from "../src/index.js";
+import { z } from "zod";
+import { ClientMessageSchema, ClientMessageTypeSchema, ErrorCodeSchema, parseClientMessage, parseMoveFor, parseServerMessage } from "../src/index.js";
 
 describe("protocol", () => {
   it("accepts a well-formed move and rejects junk", () => {
@@ -186,3 +187,23 @@ describe("the pirate's sheet", () => {
   });
 });
 
+
+describe("refusals (ADR 0043)", () => {
+  it("an error names the client message it refuses, and parses without the name too", () => {
+    const named = { type: "error", code: "in_battle", for: "duty.start" };
+    expect(parseServerMessage(named)).toEqual(named);
+    // A server older than the field, or a message that was no request, names none.
+    expect(parseServerMessage({ type: "error", code: "in_battle" })).toEqual({ type: "error", code: "in_battle" });
+    expect(parseServerMessage({ type: "error", code: "bad_message", detail: "x" })).toEqual({ type: "error", code: "bad_message", detail: "x" });
+    // The name is a client message's type and nothing else.
+    expect(parseServerMessage({ type: "error", code: "in_battle", for: "pong" })).toBeNull();
+    expect(ClientMessageTypeSchema.options).toContain("duty.start");
+    expect(ClientMessageTypeSchema.options).toHaveLength(ClientMessageSchema.options.length);
+  });
+
+  it("a client older than the field reads a newer server's error, dropping the name", () => {
+    // The error message as a client built before ADR 0043 parses it.
+    const before = z.object({ type: z.literal("error"), code: ErrorCodeSchema, detail: z.string().optional() });
+    expect(before.parse({ type: "error", code: "not_hailed", for: "ship.engage" })).toEqual({ type: "error", code: "not_hailed" });
+  });
+});

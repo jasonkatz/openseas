@@ -3,7 +3,7 @@ import { randomInt } from "node:crypto";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { Content } from "@openseas/content";
-import { parseClientMessage, type ServerMessage } from "@openseas/protocol";
+import { parseClientMessage, type ClientMessage, type ErrorCode, type ServerMessage } from "@openseas/protocol";
 import type { Auth } from "./auth.js";
 import { CrewError, type CrewService } from "./crews.js";
 import type { Db } from "./db/index.js";
@@ -123,10 +123,6 @@ export function createWsServer(deps: WsDeps) {
     // Listeners go on before anything asynchronous, so no early message is lost.
     ws.on("message", (data) => {
       void handleMessage(ws, conn, data.toString()).catch((e) => {
-        if (e instanceof ShipError || e instanceof SocialError || e instanceof CrewError || e instanceof PirateError) {
-          send(ws, { type: "error", code: e.code });
-          return;
-        }
         log.error({ err: e, pirateId }, "ws message failed");
         send(ws, { type: "error", code: "internal" });
       });
@@ -184,6 +180,18 @@ export function createWsServer(deps: WsDeps) {
       send(ws, { type: "error", code: "bad_message" });
       return;
     }
+    // Every refusal of a request names it, so the client hands it to what sent it (ADR 0043).
+    try {
+      await dispatch(ws, conn, msg);
+    } catch (e) {
+      const code = refusalCode(e);
+      if (!code) log.error({ err: e, pirateId: conn.pirateId, type: msg.type }, "ws message failed");
+      send(ws, { type: "error", code: code ?? "internal", for: msg.type });
+    }
+  };
+
+  /** Do what a client message asks. A request that is refused throws; `handleMessage` sends the refusal. */
+  const dispatch = async (ws: WebSocket, conn: Conn, msg: ClientMessage): Promise<void> => {
     switch (msg.type) {
       case "ping":
         send(ws, { type: "pong", t: msg.t, serverNow: Date.now() });
@@ -196,19 +204,13 @@ export function createWsServer(deps: WsDeps) {
         return;
       case "puzzle.move": {
         const s = puzzles.sessions.get(msg.sessionId);
-        if (!s || s.pirateId !== conn.pirateId) {
-          send(ws, { type: "error", code: "unknown_session" });
-          return;
-        }
+        if (!s || s.pirateId !== conn.pirateId) throw new Refused("unknown_session");
         await puzzles.move(s, msg.seq, msg.move, msg.hash);
         return;
       }
       case "puzzle.finish": {
         const s = puzzles.sessions.get(msg.sessionId);
-        if (!s || s.pirateId !== conn.pirateId) {
-          send(ws, { type: "error", code: "unknown_session" });
-          return;
-        }
+        if (!s || s.pirateId !== conn.pirateId) throw new Refused("unknown_session");
         // The old board's claim after a hand-back: the rebuilt board finishes for itself.
         if (puzzles.sessions.staleFinish(s, msg.hash)) return;
         const result = await puzzles.finish(s, msg.hash, msg.metrics ?? null);
@@ -259,14 +261,8 @@ export function createWsServer(deps: WsDeps) {
           const bought = await buyShip(db, content, conn.pirateId, msg.classId, outpostId, randomInt);
           log.info({ pirateId: conn.pirateId, shipId: bought.shipId, classId: msg.classId }, "ship bought");
         } catch (e) {
-          if (e instanceof InsufficientFundsError) {
-            send(ws, { type: "error", code: "short_of_credits" });
-            return;
-          }
-          if (e instanceof NoSuchClassError) {
-            send(ws, { type: "error", code: "no_such_class" });
-            return;
-          }
+          if (e instanceof InsufficientFundsError) throw new Refused("short_of_credits");
+          if (e instanceof NoSuchClassError) throw new Refused("no_such_class");
           throw e;
         }
         await resend(conn.pirateId);
@@ -345,6 +341,20 @@ export function createWsServer(deps: WsDeps) {
   };
 
   return { wss, handleUpgrade };
+}
+
+/** A request refused here in the socket's own handling, rather than by a service. */
+class Refused extends Error {
+  constructor(readonly code: ErrorCode) {
+    super(code);
+    this.name = "Refused";
+  }
+}
+
+/** The code a refused request is answered with, or null for a failure that is no refusal. */
+function refusalCode(e: unknown): ErrorCode | null {
+  if (e instanceof Refused || e instanceof ShipError || e instanceof SocialError || e instanceof CrewError || e instanceof PirateError) return e.code;
+  return null;
 }
 
 /** The `type` of a raw client message, for a log line; never trusted for anything else. */

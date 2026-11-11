@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { BoardShip, ClientMessage, ErrorCode, ServerMessage, ShipEventWire, ShipSnapshot, StationWire } from "@openseas/protocol";
 import { usePirate } from "@openseas/boards";
+import { isRefusalFor } from "./refusals.js";
 
 export interface ShipNotice {
   id: number;
@@ -45,31 +46,6 @@ export function useShip(): ShipContextValue {
   return v;
 }
 
-const SHIP_ERRORS = new Set<ErrorCode>([
-  "no_ship",
-  "ship_elsewhere",
-  "ship_full",
-  "ship_locked",
-  "already_aboard",
-  "not_aboard",
-  "not_captain",
-  "not_owner",
-  "not_docked",
-  "not_in_flight",
-  "bad_lane",
-  "station_taken",
-  "no_station",
-  "not_hailed",
-  "no_such_class",
-  "short_of_credits",
-  "aboard_a_ship",
-  "in_battle",
-  "not_in_battle",
-  "is_bot",
-  "not_bot",
-  "not_bot_station",
-]);
-
 /** Everything the client knows about the ship it is aboard comes from `ship.state`; nothing is simulated here. */
 export function ShipProvider({ children }: { children: ReactNode }) {
   const { socket } = usePirate();
@@ -104,7 +80,7 @@ export function ShipProvider({ children }: { children: ReactNode }) {
             setBoard({ outpostId: m.outpostId, ships: m.ships, at: Date.now() });
             break;
           case "error":
-            if (SHIP_ERRORS.has(m.code)) setError(m.code);
+            if (isRefusalFor(m, "ship")) setError(m.code);
             break;
           default:
             break;

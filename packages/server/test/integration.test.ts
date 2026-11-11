@@ -206,6 +206,11 @@ describeDb("server integration", () => {
     if (st3.type !== "puzzle.started") throw new Error("expected start");
     ws.send(JSON.stringify({ type: "puzzle.move", sessionId: st3.sessionId, seq: 0, move: { type: "swap", col: 0, row: 0 }, hash: "00000000" }));
     expect(await next()).toMatchObject({ type: "puzzle.rejected", reason: "illegal_move" });
+    // A refusal names the request it refuses (ADR 0043); a message that is no request names none.
+    ws.send(JSON.stringify({ type: "puzzle.finish", sessionId: "no-such-round", hash: "00000000" }));
+    expect(await next()).toEqual({ type: "error", code: "unknown_session", for: "puzzle.finish" });
+    ws.send(JSON.stringify({ type: "puzzle.wave" }));
+    expect(await next()).toEqual({ type: "error", code: "bad_message" });
 
     const me = (await (await fetch(`${base}/api/me`, { headers: { cookie } })).json()) as MeResponse;
     // None of it moved the pirate's standing: that is earned in the game.

@@ -128,6 +128,10 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
+/** The `type` of every client message: what a server error names as the request it refuses (ADR 0043). */
+export const ClientMessageTypeSchema = z.enum(ClientMessageSchema.options.map((o) => o.shape.type.value));
+export type ClientMessageType = ClientMessage["type"];
+
 const PuzzleStartedBase = z.object({
   type: z.literal("puzzle.started"),
   sessionId: SessionId,
@@ -279,7 +283,12 @@ export const ServerMessageSchema = z.union([
   z.object({ type: z.literal("pirate.sheet"), sheet: PirateSheetSchema }),
   /** The pirate's record just earned these titles, in content order. */
   z.object({ type: z.literal("pirate.titles"), earned: z.array(ContentIdSchema).min(1) }),
-  z.object({ type: z.literal("error"), code: ErrorCodeSchema, detail: z.string().optional() }),
+  /**
+   * A refusal. `for` names the client message it refuses, so the client hands it to whatever sent
+   * that request (ADR 0043). It is absent when no request was understood (rate limited, not the
+   * protocol, no pirate) and from a server older than the field.
+   */
+  z.object({ type: z.literal("error"), code: ErrorCodeSchema, for: ClientMessageTypeSchema.optional(), detail: z.string().optional() }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 export type PuzzleStarted = z.infer<typeof PuzzleStartedSchema>;
@@ -289,6 +298,7 @@ export type ChatMessage = Extract<ServerMessage, { type: "chat.message" }>;
 export type MeleeBoardsMessage = Extract<ServerMessage, { type: "melee.boards" }>;
 export type CrewStateMessage = Extract<ServerMessage, { type: "crew.state" }>;
 export type CrewNoticeMessage = Extract<ServerMessage, { type: "crew.notice" }>;
+export type ErrorMessage = Extract<ServerMessage, { type: "error" }>;
 
 export function parseClientMessage(raw: unknown): ClientMessage | null {
   const r = ClientMessageSchema.safeParse(raw);

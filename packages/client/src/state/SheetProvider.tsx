@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ErrorCode, PirateLookWire, PirateSheet, ServerMessage } from "@openseas/protocol";
 import { sfx, t, usePirate } from "@openseas/boards";
 import { titleName } from "../pirate/look.js";
+import { isRefusalFor } from "./refusals.js";
 import { useToasts } from "./toasts.jsx";
 
 export type SheetTab = "pirate" | "record" | "titles";
@@ -26,8 +27,6 @@ export function useSheet(): SheetContextValue {
   if (!v) throw new Error("useSheet outside SheetProvider");
   return v;
 }
-
-const SHEET_ERRORS = new Set<ErrorCode>(["look_bad", "title_locked"]);
 
 /**
  * The pirate's own sheet (DESIGN.md 3.6, ADR 0033): who they are on deck and what their record has
@@ -75,7 +74,7 @@ export function SheetProvider({ children }: { children: ReactNode }) {
             return;
           }
           case "error":
-            if (SHEET_ERRORS.has(m.code)) setError(m.code);
+            if (isRefusalFor(m, "sheet")) setError(m.code);
             return;
           default:
         }

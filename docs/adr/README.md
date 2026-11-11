@@ -48,3 +48,4 @@ that supersedes it.
 | [0040](./0040-every-board-runs-through-the-kit.md) | Every board runs through the kit: one host now, the core renderers one board at a time |
 | [0041](./0041-marks-are-one-vocabulary-with-one-geometry.md) | Marks are one vocabulary in content, with one geometry and an adapter for each surface |
 | [0042](./0042-vouched-moves-named-by-the-engine.md) | Each engine names the moves the server vouches for, and one queue on a board holds them |
+| [0043](./0043-errors-name-the-request-they-refuse.md) | A server error names the request it refuses, and the client routes it by that |

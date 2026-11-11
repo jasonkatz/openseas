@@ -95,7 +95,8 @@ describeDb("crews over the wire", () => {
     const poor = await pirate();
     const p = await connect(poor.cookie);
     p.send({ type: "crew.found", name: unique("Paupers"), flag });
-    expect(await p.until("error")).toMatchObject({ code: "short_of_credits" });
+    // The fee's refusal names the founding, so the crew card shows it and the ship does not (ADR 0043).
+    expect(await p.until("error")).toEqual({ type: "error", code: "short_of_credits", for: "crew.found" });
 
     const rich = await pirate(fee + 100);
     const a = await connect(rich.cookie);
