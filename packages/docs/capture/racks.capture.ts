@@ -115,7 +115,7 @@ async function park(page: Page, x: number, y: number): Promise<void> {
   at = [x, y];
 }
 
-async function glideTo(page: Page, x: number, y: number, ms = 300): Promise<void> {
+async function glideTo(page: Page, x: number, y: number, ms = 240): Promise<void> {
   const [x0, y0] = at;
   const t0 = Date.now();
   for (;;) {
@@ -135,7 +135,7 @@ async function press(page: Page, x: number, y: number): Promise<void> {
 }
 
 /** One action with the pointer, as a player makes it: tap a rack and tap another, or tap the crate. */
-async function play(page: Page, s: RacksState, a: Act, liftMs = 380): Promise<RacksState> {
+async function play(page: Page, s: RacksState, a: Act, liftMs = 240): Promise<RacksState> {
   if (a.type === "call") await press(page, ...(await cratePoint(page)));
   else {
     await press(page, ...(await rackPoint(page, a.from)));
@@ -187,7 +187,7 @@ test("racks: a shipment", async ({ page }) => {
   let s = await open(page, seed, found.pre);
   await clip(page, "racks", "ship", async () => {
     s = await play(page, s, found.plan, 650);
-  }, { leadMs: 800, tailMs: 1500, region: await region(page) });
+  }, { leadMs: 800, tailMs: 1200, region: await region(page) });
 });
 
 test("racks: no room under the crate", async ({ page }) => {
@@ -195,7 +195,8 @@ test("racks: no room under the crate", async ({ page }) => {
   // kind and makes room; the crate lands with the second and smashes nothing.
   const { seed, found } = findSeed("racks-room", (seed) =>
     along(seed, 3, 30, (s) => {
-      if (racksCrateFits(s) || s.crate.lands !== 2) return null;
+      // No chain is running, so the strip speaks of the crate.
+      if (racksCrateFits(s) || s.crate.lands !== 2 || s.combo > 0) return null;
       const a = racksHint(s);
       if (!a || a.type !== "move" || a.from !== s.crate.rack) return null;
       const onto = racksTopGroup(s.racks[a.to]!);
@@ -204,16 +205,17 @@ test("racks: no room under the crate", async ({ page }) => {
       const b = racksHint(s1);
       if (!racksCrateFits(s1) || shipsIn(s1) > 0 || !b || b.type !== "move" || b.from === s.crate.rack || b.to === s.crate.rack) return null;
       const s2 = reduceRacks(s1, b);
-      return did(s2, "land") && !did(s2, "spill") && shipsIn(s2) === 0 ? [a, b] : null;
+      // The crate hung next has room too, so the picture ends with the red gone.
+      return did(s2, "land") && !did(s2, "spill") && shipsIn(s2) === 0 && racksCrateFits(s2) ? [a, b] : null;
     }),
   );
   let s = await open(page, seed, found.pre);
   await still(page, "racks", "no-room", { region: await region(page) });
   await clip(page, "racks", "make-room", async () => {
     s = await play(page, s, found.plan[0]!);
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(450);
     s = await play(page, s, found.plan[1]!);
-  }, { leadMs: 900, tailMs: 1500, region: await region(page) });
+  }, { leadMs: 700, tailMs: 1200, region: await region(page) });
 });
 
 test("racks: calling the crate", async ({ page }) => {
@@ -225,22 +227,26 @@ test("racks: calling the crate", async ({ page }) => {
       if (!h || h.type !== "call" || s.crate.lands < 3 || racksCrateWouldShip(s)) return null;
       const under = s.racks[s.crate.rack]!;
       const joins = under.length >= 2 && pure(s, s.crate.rack) && s.crate.cells.every((c) => c.kind === under[0]!.kind);
-      return joins && !did(reduceRacks(s, h), "spill") ? h : null;
+      // The crate hung next has room as well.
+      return joins && racksCrateFits(reduceRacks(s, h)) ? h : null;
     }),
   );
   let s = await open(page, seed, found.pre);
   await clip(page, "racks", "call", async () => {
     s = await play(page, s, found.plan);
-  }, { leadMs: 1000, tailMs: 1600, region: await region(page) });
+  }, { leadMs: 700, tailMs: 1200, region: await region(page) });
 });
 
 test("racks: one more move before the shipment", async ({ page }) => {
   // A rack can ship now, and nothing that starts with that shipment ships twice in three actions.
   // One tidy move first, like onto like or onto an empty rack, and then two racks ship back to back.
   const { seed, found } = findSeed("racks-hold", (seed) =>
-    along(seed, 4, 30, (s) => {
-      // The crate is no part of it: it has room before and after, and stays up.
-      if (s.crate.lands !== cfg.landEvery || !racksCrateFits(s) || racksCrateWouldShip(s)) return null;
+    along(seed, 4, 30, (tidy) => {
+      // A crate has just been called down, so the next hangs with a full count and stays up for the
+      // whole line. It is no part of it: it has room before and after.
+      if (!racksCrateFits(tidy)) return null;
+      const s = reduceRacks(tidy, { type: "call" });
+      if (shipsIn(s) > 0 || !racksCrateFits(s) || racksCrateWouldShip(s)) return null;
       const now = acts(s).filter((a) => a.type === "move" && racksWouldShip(s, a.from, a.to));
       if (now.length === 0) return null;
       for (const a of now) {
@@ -268,13 +274,13 @@ test("racks: one more move before the shipment", async ({ page }) => {
       return null;
     }),
   );
-  let s = await open(page, seed, found.pre);
+  let s = await open(page, seed, [...found.pre, { type: "call" }]);
   await clip(page, "racks", "hold", async () => {
     s = await play(page, s, found.plan[0]!);
-    await page.waitForTimeout(500);
-    s = await play(page, s, found.plan[1]!, 300);
-    s = await play(page, s, found.plan[2]!, 300);
-  }, { leadMs: 1000, tailMs: 1700, region: await region(page) });
+    await page.waitForTimeout(300);
+    s = await play(page, s, found.plan[1]!);
+    s = await play(page, s, found.plan[2]!);
+  }, { leadMs: 700, tailMs: 1200, region: await region(page) });
 });
 
 test("racks: a chain of three with the crate as a link", async ({ page }) => {
@@ -305,8 +311,8 @@ test("racks: a chain of three with the crate as a link", async ({ page }) => {
   let s = await open(page, seed, found.pre);
   await clip(page, "racks", "three", async () => {
     for (const a of found.plan) {
-      s = await play(page, s, a, 300);
-      await page.waitForTimeout(250);
+      s = await play(page, s, a);
+      await page.waitForTimeout(150);
     }
-  }, { leadMs: 1000, tailMs: 1800, region: await region(page) });
+  }, { leadMs: 700, tailMs: 1200, region: await region(page) });
 });
