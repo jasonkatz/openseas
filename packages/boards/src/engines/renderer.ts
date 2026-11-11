@@ -863,7 +863,7 @@ export class EnginesRenderer extends KitBoard<EnginesState> {
   }
 
   /** A key came up: letting go of space stops the hurry, on a board switched off too. */
-  keyUp(key: string): boolean {
+  override keyUp(key: string): boolean {
     if (key !== " ") return false;
     this.softDrop = false;
     return true;

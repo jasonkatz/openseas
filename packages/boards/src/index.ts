@@ -46,7 +46,7 @@ export { swordfightViewString, type RemoteBoard as MeleeRemoteBoard, type PlaceA
 export { useSwordfightControls, type SwordfightControls } from "./swordfight/useSwordfightControls.js";
 // The kit prototype boards are built from (ADR 0036), and the host every board runs through (ADR 0040).
 export { KitBoard, Grid } from "./kit/board.js";
-export { useBoardHost, type BoardHostProps, type BoardRenderer } from "./kit/useBoardHost.js";
+export { useBoardHost, type BoardHostProps } from "./kit/useBoardHost.js";
 export { KindIcon, type KindIconProps } from "./kit/KindIcon.jsx";
 export { SpriteIcon, type SpriteIconProps } from "./kit/SpriteIcon.jsx";
 export { INK, KINDS, kindStyle, spriteName, type PlaceholderKind, type Shape } from "./kit/art.js";

@@ -1,8 +1,8 @@
 /**
- * The base every prototype board's renderer extends (ADR 0036). It owns the PixiJS application, the
- * frame loop, the tween clock, the effects layer and the pointer plumbing, and it speaks the same
- * contract to the page and the smoke test as the game's hand-built boards: the host's
- * `BoardRenderer` (ADR 0040), a `data-testid="<id>-canvas"` canvas, and a `data-view` attribute that
+ * The base every board's renderer extends, prototype (ADR 0036) and core (ADR 0040). It owns the
+ * PixiJS application, the frame loop, the tween clock, the effects layer and the pointer plumbing,
+ * and it is the whole contract with the page and the smoke test: its public members are what
+ * `useBoardHost` calls, its canvas is `data-testid="<id>-canvas"`, and its `data-view` attribute
  * says what is drawn once the board has settled.
  *
  * A renderer draws and reports input. It never scores and never decides what a move does: it asks
@@ -13,9 +13,8 @@ import { drawSprite, hasSprite, isSpritePuzzle, loadPuzzleSprites, spritesReady 
 import { boardSurface } from "../surface.js";
 import { Fx } from "./fx.js";
 import { Tweens } from "./tween.js";
-import type { BoardRenderer } from "./useBoardHost.js";
 
-export abstract class KitBoard<S> implements BoardRenderer<S> {
+export abstract class KitBoard<S> {
   readonly app = new Application();
   /** Everything the board draws. A shake moves it as one. */
   protected readonly world = new Container();
@@ -54,11 +53,12 @@ export abstract class KitBoard<S> implements BoardRenderer<S> {
     if (this.reduced) this.tweens.rate = 4;
   }
 
-  /** True once the canvas exists. Before that, state and settings are held until `init` resolves. */
+  /** True once the canvas exists, until `destroy`. The host hands the board nothing before then. */
   get isReady(): boolean {
     return this.ready;
   }
 
+  /** Load what the board needs and make the canvas. Resolves having made nothing when `destroy` came first. */
   async init(): Promise<void> {
     // One decode a page (ADR 0037). An atlas that fails or times out leaves the code-drawn pieces.
     if (isSpritePuzzle(this.id)) await loadPuzzleSprites(this.id);
@@ -98,6 +98,7 @@ export abstract class KitBoard<S> implements BoardRenderer<S> {
     this.relayout();
   }
 
+  /** Free the canvas and everything the board made. Safe at any time, before `init` resolves too. */
   destroy(): void {
     this.destroyed = true;
     this.tweens.clear();
@@ -143,6 +144,11 @@ export abstract class KitBoard<S> implements BoardRenderer<S> {
   keyboard(_key: string): boolean {
     return false;
   }
+
+  /** Idle hints, on a board that has them. The host hands the page's setting on as it changes. */
+  setHints?(on: boolean): void;
+  /** A key came up, on a board that acts while a key is held (a hurry). Return true when the board used it. The host hands such a board every release. */
+  keyUp?(key: string): boolean;
 
   // ---- what a renderer provides
 

@@ -1,5 +1,4 @@
-import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
-import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
+import { CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture } from "pixi.js";
 import {
   swordfightBoardString,
   swordfightIdx,
@@ -18,9 +17,8 @@ import type { SwordfightContent } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
 import { drawMark } from "../engines/renderer.js";
 import { SCRAP_COLOR, blockCanvas, scrapStage, type BlockStyle, type SwordTexture } from "./art.js";
-import { boardSurface } from "../surface.js";
 import { HULL, hullFrame, hullGradient } from "../hull.js";
-import type { BoardRenderer } from "../kit/useBoardHost.js";
+import { KitBoard } from "../kit/board.js";
 
 /** A board in the melee that is not in this fight's state: another pirate's, or a raider's run by the server. */
 export interface RemoteBoard {
@@ -40,7 +38,7 @@ export type PlaceAnswer = "placed" | "wait" | "refused";
 export interface SwordfightCallbacks {
   /** The player's pair came to rest. "wait" means the engine will take it shortly and the board asks again. */
   onPlace(col: number, rot: SwordRotation): PlaceAnswer;
-  /** First frame drawn after a new state arrived. */
+  /** Called on the first frame drawn once a new state has finished playing out. */
   onFrame(): void;
   /** Fresh events as they are shown, for sound. */
   onEvents(events: readonly SwordfightEvent[]): void;
@@ -155,6 +153,13 @@ const CLEAR_MS = 240;
 const DIE_MS = 240;
 const LOCK_MS = 350;
 const MAX_LOCK_RESETS = 3;
+/**
+ * A rattle of strength 1 (a pirate knocked out) moves the board this many cells each way and fades
+ * out over its ms; a weaker one less, for less long. The kit's shake, at the peak and over the fade
+ * the board's own had (a twenty-fifth of its strength a frame).
+ */
+const SHAKE = 0.06;
+const SHAKE_MS = 420;
 /** The strip above the well, in cells: tall enough for the next pair stacked the way it falls. */
 const STRIP_ROWS = 1.6;
 /** A mini board's cell as a share of the player's: the other boards sit small in the margin so the player's board is the thing. */
@@ -182,12 +187,24 @@ function halves(pc: number, rot: SwordRotation, row: number): { a: [number, numb
   }
 }
 const anchorOf = (pc: number, rot: SwordRotation): number => (rot === 2 ? pc - 1 : pc);
+/** The two states' boards are of different sizes. */
+const sizeChanged = (a: SwordfightState, b: SwordfightState): boolean => a.config.width !== b.config.width || a.config.height !== b.config.height;
 
-export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
-  readonly app = new Application();
+/**
+ * PixiJS view of a Swordfighting fight, on the kit's lifecycle (ADR 0040). The player steers the
+ * falling pair here, asking the engine where it fits, and the board reports where it came to rest;
+ * it never decides what a drop does. What happened on the player's board plays out as a timeline
+ * built from the engine's events (the pair settles, slabs fuse, blocks break, the rest falls, scrap
+ * lands), and the board is busy until the timeline has run and every block has slid into its cell.
+ * The falling pair is not part of that: it falls on its own clock, so the view is published while
+ * it is in the air. The other boards in the melee sit small beside the player's, drawn from the
+ * state or, for boards outside it, from `setRemote`.
+ */
+export class SwordfightRenderer extends KitBoard<SwordfightState> {
+  /** The player's board and everything in it, placed at the well's top-left corner. */
   private readonly board = new Container();
   private readonly staticLayer = new Container();
-  private readonly frame = new Graphics();
+  private readonly border = new Graphics();
   private readonly well = new Graphics();
   private readonly ghost = new Graphics();
   private readonly pieceLayer = new Container();
@@ -220,8 +237,6 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
   private popups: Popup[] = [];
   private particles: Particle[] = [];
   private readonly styles: Array<{ color: number; texture: SwordTexture; mark: string }> = [];
-  private readonly reduced = typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
-  private showMarks: boolean;
   private cell = 40;
   private pad = 8;
   private ox = 0;
@@ -229,7 +244,6 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
   private strip = 0;
   private width = 6;
   private height = 12;
-  private state: SwordfightState | null = null;
   /** The player's board as shown: cells and slabs as of the last played step. */
   private cells: Array<SwordCell | null> = [];
   private shownSlabs: Slab[] = [];
@@ -237,14 +251,6 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
   private waitMs = 0;
   private waitSettle = 0;
   private moving = false;
-  private framePending = false;
-  private viewStale = true;
-  private destroyed = false;
-  private interactive = false;
-  private time = 0;
-  private shake = 0;
-  private shownTick = -1;
-  private shownMoves = -1;
   /** Events already shown, per tick and board: how many of that pair's events have been played. */
   private seen = new Map<string, number>();
   /** `placed` is set once the engine took the pair: it then waits for the state that replaces it, so a rest is never logged twice. */
@@ -253,12 +259,12 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
   private drag: { x: number; y: number; pc: number; moved: boolean; hurried: boolean } | null = null;
 
   constructor(
-    private readonly host: HTMLElement,
+    host: HTMLElement,
     content: SwordfightContent,
     private readonly cb: SwordfightCallbacks,
     private readonly opts: SwordfightRendererOptions,
   ) {
-    this.showMarks = opts.showMarks;
+    super(host, "swordfight", cb.onFrame, opts.showMarks);
     for (const p of content.pieces) this.styles.push({ color: parseInt(p.color.slice(1), 16), texture: p.texture, mark: p.mark });
     this.width = content.config.width;
     this.height = content.config.height;
@@ -273,31 +279,8 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
     return color < 0 ? SCRAP_COLOR : (this.styles[color]?.color ?? 0xffffff);
   }
 
-  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
-  get isReady(): boolean {
-    return Boolean(this.app.renderer);
-  }
-
-  async init(): Promise<void> {
-    await loadPuzzleSprites("swordfight");
-    if (this.destroyed) return;
-    await this.app.init({
-      resizeTo: this.host,
-      backgroundAlpha: 0,
-      ...boardSurface(),
-      autoDensity: true,
-      preference: "webgl",
-    });
-    if (this.destroyed) {
-      this.app.destroy(true);
-      return;
-    }
-    this.app.canvas.dataset.spriteAtlas = spritesReady("swordfight") ? "swordfight" : "fallback";
-    this.app.canvas.style.touchAction = "none";
-    this.app.canvas.setAttribute("data-testid", "swordfight-canvas");
-    this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-    this.host.appendChild(this.app.canvas);
-    this.staticLayer.addChild(this.frame, this.well);
+  protected build(): void {
+    this.staticLayer.addChild(this.border, this.well);
     this.staticLayer.cacheAsTexture({ resolution: this.app.renderer.resolution, antialias: true });
     this.nextA.anchor.set(0.5);
     this.nextB.anchor.set(0.5);
@@ -309,71 +292,71 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
     this.fallingLayer.mask = this.wellMask;
     this.fxLayer.addChild(this.fxG);
     this.board.addChild(this.staticLayer, this.ghost, this.pieceLayer, this.slabLayer, this.wellMask, this.fallingLayer, this.fxLayer, this.stripLayer, this.veil);
-    this.app.stage.addChild(this.board, this.miniLayer);
-    this.app.stage.eventMode = "static";
-    this.app.stage.hitArea = this.app.screen;
-    this.app.stage.on("pointerdown", (e) => this.pointerDown(e));
-    this.app.stage.on("pointermove", (e) => this.pointerMove(e));
-    this.app.stage.on("pointerup", (e) => this.pointerUp(e));
-    this.app.stage.on("pointerupoutside", () => this.pointerCancel());
-    this.app.renderer.on("resize", () => this.layout());
-    this.app.ticker.add((ticker) => this.tick(Math.min(50, ticker.deltaMS)));
-    this.layout();
+    this.world.addChild(this.board);
+    // Above the world, so a shake moves the player's board alone.
+    this.app.stage.addChild(this.miniLayer);
   }
 
-  destroy(): void {
-    this.destroyed = true;
-    if (this.app.renderer) {
-      this.app.destroy(true, { children: true });
-      for (const tex of this.textures.values()) tex.destroy(true);
-      this.hullFill.destroy();
-      this.deckFill.destroy();
-    }
+  protected override dispose(): void {
+    for (const tex of this.textures.values()) tex.destroy(true);
+    this.hullFill.destroy();
+    this.deckFill.destroy();
   }
 
-  setInteractive(on: boolean): void {
-    this.interactive = on;
-    if (!on) {
-      this.drag = null;
-      this.softDrop = false;
-      this.dropFalling();
-    } else if (this.state && !this.falling && this.steps.length === 0) this.spawnFalling();
+  /** Switched off, the pair is taken away (the kit has already let go of a drag and a hurry); switched on, one enters unless a drop is still playing out. */
+  protected override onInteractive(on: boolean): void {
+    if (!on) this.dropFalling();
+    else if (this.state && !this.falling && this.steps.length === 0) this.spawnFalling();
   }
 
-  setShowMarks(on: boolean): void {
+  /** Marks change only the blocks' art, so a toggle bakes the blocks again and redraws the other boards, and leaves a drop playing out. */
+  override setShowMarks(on: boolean): void {
     if (this.showMarks === on) return;
     this.showMarks = on;
-    if (this.app.renderer) {
-      this.bake();
-      this.drawMinis();
-    }
+    if (!this.isReady) return;
+    this.bakeBlocks();
+    this.drawMinis();
   }
 
-  /** Boards from outside this fight's state, beside the player's. */
+  /** Boards from outside this fight's state, beside the player's. Before the canvas exists they are only kept: the first state lays them out. */
   setRemote(boards: readonly RemoteBoard[]): void {
     this.remote = boards;
-    if (this.app.renderer) this.syncMinis();
+    if (this.isReady) this.syncMinis();
+  }
+
+  /** A drop is still playing out: steps left on its timeline, or blocks still sliding into their cells. */
+  protected override get busy(): boolean {
+    return super.busy || this.steps.length > 0 || this.moving;
   }
 
   // ---- state
 
-  setState(state: SwordfightState): void {
-    if (!this.app.renderer) return;
-    const first = !this.state;
-    const sizeChanged = this.state !== null && (this.state.config.width !== state.config.width || this.state.config.height !== state.config.height);
-    // A different fight at the same tick and move count (a practice page swaps its placeholder for
-    // the real round at tick 0) still resets: with no move logged, the player's pair in hand only
-    // changes when the fight does, and a pair already falling would keep the old fight's colors.
-    const prevPlayer = this.state?.config.player ? this.state.boards[0] : null;
-    const otherFight = prevPlayer !== null && prevPlayer !== undefined && state.config.player && state.moveCount === 0 && this.shownMoves === 0 && state.boards[0]!.current !== prevPlayer.current;
-    const reset = first || sizeChanged || otherFight || state.tick < this.shownTick || state.moveCount < this.shownMoves;
-    this.state = state;
-    this.framePending = true;
-    this.viewStale = true;
-    if (sizeChanged) {
+  /**
+   * A state that is not the fight shown a moment later: the first, a board of another size, an
+   * earlier tick or move count (a rewind), or another fight. A different fight at the same tick and
+   * move count (a practice page swaps its placeholder for the real round at tick 0) still resets:
+   * with no move logged, the player's pair in hand only changes when the fight does, and a pair
+   * already falling would keep the old fight's colors.
+   */
+  private isReset(state: SwordfightState, prev: SwordfightState | null): boolean {
+    if (!prev) return true;
+    const prevPlayer = prev.config.player ? prev.boards[0]! : null;
+    const otherFight = prevPlayer !== null && state.config.player && state.moveCount === 0 && prev.moveCount === 0 && state.boards[0]!.current !== prevPlayer.current;
+    return sizeChanged(state, prev) || otherFight || state.tick < prev.tick || state.moveCount < prev.moveCount;
+  }
+
+  /** The fight a tick or a drop on: whatever is playing out goes on, and only events not yet shown are added. */
+  protected override keepsPlaying(state: SwordfightState, prev: SwordfightState | null): boolean {
+    return !this.isReset(state, prev);
+  }
+
+  /** A new displayed state, usually one tick on. Plays back whatever happened on the player's board since the last one. */
+  protected onState(state: SwordfightState, prev: SwordfightState | null): void {
+    const reset = this.isReset(state, prev);
+    if (prev && sizeChanged(state, prev)) {
       this.width = state.config.width;
       this.height = state.config.height;
-      this.layout();
+      this.layout(this.app.screen.width, this.app.screen.height);
     }
     const player = state.config.player ? state.boards[0]! : null;
     if (reset) {
@@ -387,8 +370,6 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
       this.shownSlabs = player ? player.slabs.slice() : [];
       this.place(true);
       this.dropFalling();
-      this.shownTick = state.tick;
-      this.shownMoves = state.moveCount;
       this.syncMinis();
       this.updateStrip();
       if (this.interactive && player && !player.out && !state.finished) this.spawnFalling();
@@ -406,8 +387,6 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
     }
     for (const [key, n] of counts) this.seen.set(key, Math.max(n, this.seen.get(key) ?? 0));
     for (const key of [...this.seen.keys()]) if (Number(key.split(":")[0]) < state.tick - 100) this.seen.delete(key);
-    this.shownTick = state.tick;
-    this.shownMoves = state.moveCount;
     if (fresh.length) this.cb.onEvents(fresh);
     this.enqueue(state, fresh);
     this.syncMinis();
@@ -488,7 +467,7 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
             }
             if (ev.chain >= 2) this.callout(this.opts.labels.chain(ev.chain), 0xf5d58a);
             else if (ev.groups.reduce((n, g) => n + g.cells.length, 0) >= 6) this.callout(this.opts.labels.shatter, COLORS.bone);
-            this.shake = Math.min(1, 0.3 + ev.chain * 0.2);
+            this.kick(Math.min(1, 0.3 + ev.chain * 0.2));
             return this.reduced ? 60 : CLEAR_MS;
           });
           break;
@@ -563,7 +542,7 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
               v.ty = this.cy(row);
             }
             this.moving = true;
-            this.shake = Math.max(this.shake, 0.35);
+            this.kick(0.35);
             return "settle";
           });
           break;
@@ -571,7 +550,7 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
         case "out": {
           this.steps.push(() => {
             this.callout(this.opts.labels.out, COLORS.danger);
-            this.shake = 1;
+            this.kick(1);
             this.dropFalling();
             return this.reduced ? 100 : 500;
           });
@@ -712,7 +691,7 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
   }
 
   /** Repaint every sprite with the current cell size and marks setting. */
-  private bake(): void {
+  private bakeBlocks(): void {
     const old = [...this.textures.values()];
     this.textures.clear();
     for (const v of this.pieces.values()) v.s.texture = this.texture(v.color, v.kind, 1, 1, v.ripen);
@@ -977,10 +956,7 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
 
   // ---- layout and drawing
 
-  private layout(): void {
-    if (!this.app.renderer) return;
-    const w = this.app.screen.width;
-    const h = this.app.screen.height;
+  protected layout(w: number, h: number): void {
     const n = this.miniCount();
     const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.15));
     const rows = this.height + STRIP_ROWS;
@@ -1000,7 +976,7 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
     this.board.position.set(this.ox, this.oy);
     this.wellMask.clear().rect(0, 0, this.cell * this.width, this.cell * this.height).fill(0xffffff);
     this.drawFrame();
-    this.bake();
+    this.bakeBlocks();
     this.layoutStrip();
     this.layoutMinis(w, h);
     this.place(true);
@@ -1072,7 +1048,7 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
   }
 
   private drawFrame(): void {
-    const g = this.frame;
+    const g = this.border;
     const W = this.width * this.cell;
     const H = this.height * this.cell;
     const p = this.pad;
@@ -1159,8 +1135,12 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
       gone.pendingLabel.destroy();
     }
     this.minis = next;
-    if (next.length !== before) this.layout();
-    else this.drawMinis();
+    if (next.length === before) this.drawMinis();
+    else {
+      // The player's board makes room for them, so everything moves.
+      this.layout(this.app.screen.width, this.app.screen.height);
+      this.touchView();
+    }
   }
 
   /**
@@ -1287,13 +1267,11 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
 
   // ---- per frame
 
-  private tick(dt: number): void {
-    this.time += dt;
+  protected override update(dt: number): void {
     this.runSteps(dt);
     this.movePieces(dt);
     this.moveFx(dt);
     this.fall(dt);
-    this.drawShake();
     if (this.pendingShown > 0) this.drawWarn();
     this.watch(dt);
     let miniDirty = false;
@@ -1309,11 +1287,6 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
       }
     }
     if (miniDirty) this.drawMinis();
-    if (this.framePending && this.steps.length === 0 && !this.moving) {
-      this.framePending = false;
-      this.cb.onFrame();
-    }
-    if (this.viewStale && this.steps.length === 0 && !this.moving) this.publishView();
   }
 
   /**
@@ -1453,14 +1426,9 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
     }
   }
 
-  private drawShake(): void {
-    if (this.shake <= 0) {
-      this.board.position.set(this.ox, this.oy);
-      return;
-    }
-    this.shake = Math.max(0, this.shake - 0.04);
-    const a = this.reduced ? 0 : this.shake * this.cell * 0.12;
-    this.board.position.set(this.ox + (Math.random() - 0.5) * a, this.oy + (Math.random() - 0.5) * a);
+  /** Rattle the player's board with a strength up to 1: the kit's shake, which sits still for reduced motion. */
+  private kick(strength: number): void {
+    this.fx.shake(strength * this.cell * SHAKE, strength * SHAKE_MS);
   }
 
   /** Gravity on the falling pair; a short lock once it rests, then the engine is asked. */
@@ -1503,43 +1471,47 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
     this.positionFalling();
   }
 
-  /** Mirrors what the canvas shows, for the smoke test: the player's board as drawn. */
-  private publishView(): void {
-    this.viewStale = false;
-    if (!this.state) return;
-    const cfg = this.state.config;
-    const chars: string[] = new Array<string>(this.width * this.height).fill(".");
+  /**
+   * The player's board as the canvas draws it, which the kit writes once the board settles: the
+   * kind and color each block's sprite was dressed in, at the cell it was placed in, and each slab
+   * sprite's color over the cells it covers. The pair in hand is not on the board, as it is not in
+   * the engine's.
+   * The engine's formatter writes it, as it writes the wrapper's `data-board` from the state, so the
+   * two can differ only in what they say.
+   */
+  protected view(): string {
+    const cfg = this.state?.config;
+    if (!cfg?.player) return "";
+    const drawn = new Array<SwordCell | null>(cfg.width * cfg.height).fill(null);
+    const put = (col: number, row: number, kind: SwordCell["kind"], color: number): void => {
+      if (col >= 0 && col < cfg.width && row >= 0 && row < cfg.height) drawn[swordfightIdx(cfg, col, row)] = { id: 0, kind, color, ripen: 0, slab: 0 };
+    };
     for (const v of this.pieces.values()) {
-      if (v.dying !== null) continue;
-      const col = Math.round(v.tx / this.cell - 0.5);
-      const row = this.height - 1 - Math.round(v.ty / this.cell - 0.5);
-      if (col < 0 || col >= this.width || row < 0 || row >= this.height) continue;
-      chars[row * this.width + col] = v.kind === "scrap" ? "#" : v.kind === "breaker" ? String.fromCharCode(65 + v.color) : String(v.color);
+      if (v.dying === null) put(Math.round(v.tx / this.cell - 0.5), this.height - 1 - Math.round(v.ty / this.cell - 0.5), v.kind, v.color);
     }
     for (const v of this.slabs.values()) {
       if (v.dying !== null) continue;
       const col0 = Math.round(v.tx / this.cell);
-      const rowTop = this.height - Math.round(v.ty / this.cell) - v.h;
-      for (let r = 0; r < v.h; r++) for (let c = 0; c < v.w; c++) chars[(rowTop + r) * this.width + col0 + c] = String(v.color);
+      const row0 = this.height - Math.round(v.ty / this.cell) - v.h;
+      for (let r = 0; r < v.h; r++) for (let c = 0; c < v.w; c++) put(col0 + c, row0 + r, "block", v.color);
     }
-    let out = "";
-    for (let r = cfg.height - 1; r >= 0; r--) for (let c = 0; c < cfg.width; c++) out += chars[r * this.width + c];
-    this.app.canvas.setAttribute("data-view", out);
+    return swordfightBoardString(cfg, drawn);
   }
 
   // ---- input
 
-  private pointerDown(e: FederatedPointerEvent): void {
-    if (!this.interactive || !this.falling) return;
-    this.drag = { x: e.global.x, y: e.global.y, pc: this.falling.pc, moved: false, hurried: false };
+  protected override pointerDown(x: number, y: number): void {
+    if (!this.falling) return;
+    this.drag = { x, y, pc: this.falling.pc, moved: false, hurried: false };
   }
 
-  private pointerMove(e: FederatedPointerEvent): void {
+  /** Drag sideways to steer a column at a time; hold a downward swipe to hurry the fall until the finger lifts, with steering locked meanwhile. */
+  protected override pointerMove(x: number, y: number): void {
     const d = this.drag;
     const f = this.falling;
     if (!d || !f) return;
-    const dx = e.global.x - d.x;
-    const dy = e.global.y - d.y;
+    const dx = x - d.x;
+    const dy = y - d.y;
     if (dy > this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
       d.hurried = true;
       this.softDrop = true;
@@ -1560,34 +1532,30 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
     }
   }
 
-  private pointerUp(e: FederatedPointerEvent): void {
+  /** A tap turns the pair clockwise; a drag or a hurry has done its work by the time the finger lifts. */
+  protected override pointerUp(x: number, y: number): void {
     const d = this.drag;
     this.drag = null;
     this.softDrop = false;
     if (!d || !this.falling || d.hurried) return;
-    const dx = e.global.x - d.x;
-    const dy = e.global.y - d.y;
+    const dx = x - d.x;
+    const dy = y - d.y;
     if (!d.moved && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate(1);
   }
 
-  private pointerCancel(): void {
+  /** A release off the canvas, a touch the browser took over, or the board switched off: the drag and its hurry end where they are. The board keeps no pointer id, so any cancel ends it. */
+  protected override pointerCancel(): void {
     this.drag = null;
     this.softDrop = false;
   }
 
   /** Keyboard: left and right steer, up and X turn clockwise, down and Z the other way, space hurries while held. */
-  keyboard(key: string, down = true): boolean {
-    if (key === " " && !down) {
-      this.softDrop = false;
-      return true;
-    }
+  override keyboard(key: string): boolean {
     if (!this.interactive) return false;
-    if (key === " ") {
-      this.softDrop = true;
-      return true;
-    }
-    if (!down) return false;
     switch (key) {
+      case " ":
+        this.softDrop = true;
+        return true;
       case "ArrowLeft":
         this.tryMove(-1);
         return true;
@@ -1609,8 +1577,10 @@ export class SwordfightRenderer implements BoardRenderer<SwordfightState> {
     }
   }
 
-  /** A key came up: letting go of space stops the hurry. */
-  keyUp(key: string): boolean {
-    return this.keyboard(key, false);
+  /** A key came up: letting go of space stops the hurry, on a board switched off too. */
+  override keyUp(key: string): boolean {
+    if (key !== " ") return false;
+    this.softDrop = false;
+    return true;
   }
 }

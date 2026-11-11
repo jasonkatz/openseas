@@ -91,7 +91,7 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     this.hints = opts.hints;
   }
 
-  setHints(on: boolean): void {
+  override setHints(on: boolean): void {
     this.hints = on;
   }
 

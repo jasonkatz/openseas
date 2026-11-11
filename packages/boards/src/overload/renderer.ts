@@ -129,7 +129,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     this.hints = opts.hints;
   }
 
-  setHints(on: boolean): void {
+  override setHints(on: boolean): void {
     this.hints = on;
   }
 

@@ -135,7 +135,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     this.hints = opts.hints;
   }
 
-  setHints(on: boolean): void {
+  override setHints(on: boolean): void {
     this.hints = on;
   }
 

@@ -108,7 +108,7 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
     this.hints = opts.hints;
   }
 
-  setHints(on: boolean): void {
+  override setHints(on: boolean): void {
     this.hints = on;
   }
 

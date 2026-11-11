@@ -114,7 +114,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     this.hints = opts.hints;
   }
 
-  setHints(on: boolean): void {
+  override setHints(on: boolean): void {
     this.hints = on;
   }
 

@@ -1,27 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
-
-/**
- * What a board's renderer offers the React host (ADR 0040). `KitBoard` meets it, and so does each
- * core board's hand-built renderer until it moves onto the kit.
- */
-export interface BoardRenderer<S> {
-  /** True once the canvas exists, until `destroy`. The host hands the renderer nothing before then. */
-  readonly isReady: boolean;
-  /** Load what the board needs and make the canvas. Resolves having made nothing when `destroy` came first. */
-  init(): Promise<void>;
-  /** A new engine state to show. */
-  setState(state: S): void;
-  setInteractive(on: boolean): void;
-  setShowMarks(on: boolean): void;
-  /** Idle hints, on a board that has them. */
-  setHints?(on: boolean): void;
-  /** A key went down. Returns true when the board used it, so the page does not scroll. */
-  keyboard(key: string): boolean;
-  /** A key came up, on a board that acts while a key is held (a soft drop). Returns true when the board used it. */
-  keyUp?(key: string): boolean;
-  /** Free the canvas and everything the renderer made. Safe at any time, before `init` resolves too. */
-  destroy(): void;
-}
+import type { KitBoard } from "./board.js";
 
 /** What the host reads from a board's props. Each board's own props extend these. */
 export interface BoardHostProps<S> {
@@ -35,16 +13,17 @@ export interface BoardHostProps<S> {
 }
 
 /**
- * Hosts a board's renderer in a React component, the same way for every board (ADR 0040). It makes
- * the renderer once, on mount, and tears it down on unmount. Nothing reaches the renderer before it
- * is ready; then it is handed the latest state and settings, and after that each one as it changes.
+ * Hosts a board's renderer in a React component, the same way for every board (ADR 0040): every
+ * renderer is a `KitBoard`, whose public face is what the host calls. It makes the renderer once,
+ * on mount, and tears it down on unmount. Nothing reaches the renderer before it is ready; then it
+ * is handed the latest state and settings, and after that each one as it changes.
  * Key presses reach it unless the player is typing in a field or holding Ctrl, Meta or Alt (the
  * browser's shortcuts); key releases reach a renderer that has `keyUp`.
  *
  * `make` is called once, with the host element and a ref to the latest props: wire callbacks through
  * `latest.current` so they always call the page's current handlers.
  */
-export function useBoardHost<P extends BoardHostProps<unknown>, R extends BoardRenderer<P["state"]>>(
+export function useBoardHost<P extends BoardHostProps<unknown>, R extends KitBoard<P["state"]>>(
   make: (host: HTMLElement, latest: { readonly current: P }) => R,
   props: P,
 ): { host: RefObject<HTMLDivElement | null>; renderer: RefObject<R | null> } {

@@ -250,7 +250,7 @@ export class NavigationRenderer extends KitBoard<NavigationState> {
     this.drawLines();
   }
 
-  setHints(on: boolean): void {
+  override setHints(on: boolean): void {
     this.hints = on;
     this.hint = null;
     this.hintFor = null;

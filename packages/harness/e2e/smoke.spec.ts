@@ -457,6 +457,35 @@ test("home links to Swordfighting and an unrated fight drops pairs by keyboard a
   await expectViewMatchesState(page, "swordfight");
 });
 
+test("a touch the browser takes over stops hurrying the Swordfighting pair", async ({ page }) => {
+  await page.goto("/swordfight?seed=touch-cancel&start=lab");
+  const canvas = page.getByTestId("swordfight-canvas");
+  await expectViewMatchesState(page, "swordfight");
+  // The pair is in hand.
+  await expect(canvas).toHaveAttribute("data-falling", /^\d/);
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("no canvas box");
+  // About a cell of the board, never less: seventeen rows and the strip, six columns and the raider's margins.
+  const cell = Math.min(box.width / 10.3, box.height / 18.6);
+  const at = { x: box.x + box.width / 2, y: box.y + box.height * 0.3, cell };
+  // A finger swipes down to hurry the pair, then the browser takes the gesture for a scroll: it
+  // cancels the pointer and the pointer leaves, with no release.
+  await canvas.evaluate((el, a) => {
+    const touch = { pointerId: 7, pointerType: "touch", isPrimary: true, clientX: a.x };
+    el.dispatchEvent(new PointerEvent("pointerdown", { ...touch, clientY: a.y, bubbles: true, buttons: 1 }));
+    el.dispatchEvent(new PointerEvent("pointermove", { ...touch, clientY: a.y + a.cell * 2, bubbles: true, buttons: 1 }));
+    el.dispatchEvent(new PointerEvent("pointercancel", { ...touch, clientY: a.y + a.cell * 2, bubbles: true }));
+    el.dispatchEvent(new PointerEvent("pointerleave", { ...touch, clientY: a.y + a.cell * 2 }));
+  }, at);
+  // Still hurried, the pair would rest on the floor in about a second; let go, it falls a row every 800 ms.
+  await page.waitForTimeout(2500);
+  await expect(page.getByTestId("hud-moves")).toHaveText(/^0(\/\d+)?$/);
+  // The pair is still in play: space hurries it down.
+  await page.keyboard.down(" ");
+  await expect(page.getByTestId("hud-moves")).toHaveText(/^1(\/\d+)?$/, { timeout: 15_000 });
+  await page.keyboard.up(" ");
+});
+
 test("a lab round opens from a link with its seed and config, replays clean, and its log can be reviewed", async ({ page }) => {
   // Three animated swaps, a review with board remounts and several settle checks: the longest test
   // in the suite, and right at the budget on the CI phone profile.

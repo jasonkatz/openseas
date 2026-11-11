@@ -309,7 +309,7 @@ export class CoolingRenderer extends KitBoard<CoolingState> {
   }
 
   /** Idle hints, for unrated practice only: a rated round is the player's own work. */
-  setHints(on: boolean): void {
+  override setHints(on: boolean): void {
     this.hints = on;
     this.lastInputAt = this.time;
     this.hint = null;

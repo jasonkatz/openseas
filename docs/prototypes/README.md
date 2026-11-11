@@ -85,13 +85,16 @@ These are the project's rules (CLAUDE.md), said for a prototype.
   `layout` (geometry, redraw from `this.state`), `onState` (show a state; play the last move when it
   follows from what is drawn, snap otherwise) and `view` (what is drawn, as the string
   `data-board` also holds). `bake` makes a texture once per layout. `Grid` lays out square cells.
-  The core boards move onto it one at a time (ADR 0040), and the hooks they need are there for any
-  board: `busy` stays true while a board animates outside the kit's tweens, so `onFrame` and
-  `data-view` wait for it; `beforeCanvas` waits for something besides the atlas before the canvas
+  Every core board runs on it too (ADR 0040), and the hooks they needed are there for any board:
+  `busy` stays true while a board animates outside the kit's tweens, so `onFrame` and `data-view`
+  wait for it; `beforeCanvas` waits for something besides the atlas before the canvas
   is made (Cooling's webfont); `pointerLeave` takes a hover preview down. A board that acts only on
   a press (Space Battle) overrides `pointerDown` alone: the kit's move, release, cancel and leave do
   nothing unless a board overrides them, so it needs no way out of hover. A board that acts while
-  a key is held (Engines' hurry) adds a `keyUp`, and the host hands it every key's release.
+  a key is held (Engines' and Swordfighting's hurry) adds a `keyUp`, and the host hands it every
+  key's release. A setter of the board's own that the page calls before the canvas exists
+  (Swordfighting's remote boards, Navigation's markers) only keeps its value, for the first layout
+  or the first state to draw.
   `pointerCancel` is told which pointer let go, so a board that follows one finger at a time
   (Plating) ignores another's; with none, the board was switched off.
 - `tween.ts`: `Tweens`. `to`, `run`, `after`; `flush` finishes everything in order. `setState`
@@ -103,17 +106,18 @@ These are the project's rules (CLAUDE.md), said for a prototype.
   palette. The pieces here are what a board draws without its atlas.
 - `KindIcon.tsx`: a kind as an SVG, for legends. `SpriteIcon.tsx`: a frame of the atlas, for the
   same; `KindIcon` takes one as `sprite`.
-- `useBoardHost.ts`: the React hook that hosts every board's renderer, core and prototype (ADR 0040),
-  and `BoardRenderer`, what a renderer offers it. It owns the mount order, readiness, keys and teardown.
+- `useBoardHost.ts`: the React hook that hosts every board's renderer, core and prototype (ADR 0040).
+  It owns the mount order, readiness, keys and teardown, and it calls a `KitBoard`'s public members:
+  that is the whole contract between a board and its page.
 
 A ticked board is handed a new display state every tick. It overrides `keepsPlaying` to say so,
 which stops the kit flushing its tweens ten times a second, and its `onState` plays only the events
 it has not played yet: the engine numbers its events with a rising `seq`, as Navigation's does, and
 the renderer remembers the last one it showed. Motion that runs from one tick into the next
-(Engines' falling pair, Gunnery's pieces gliding cell to cell, Navigation's falling star) stays out
-of `busy`, or the board would never settle while the clock runs; its `view` names the cell each
-piece is placed in. A move's own animation, which ends (Navigation's ring swinging back into place),
-stays in.
+(Engines' and Swordfighting's falling pairs, Gunnery's pieces gliding cell to cell, Navigation's
+falling star) stays out of `busy`, or the board would never settle while the clock runs; its `view`
+names the cell each piece is placed in. A move's own animation, which ends (Navigation's ring
+swinging back into place, Swordfighting's blocks sliding into their cells), stays in.
 
 Sprites (ADR 0037): the kit loads the atlas named by the puzzle id. A renderer paints a frame with
 `this.sprite(g, name, x, y, size)`, which returns false when the atlas or the frame is not there, so

@@ -103,7 +103,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
     this.hints = opts.hints;
   }
 
-  setHints(on: boolean): void {
+  override setHints(on: boolean): void {
     this.hints = on;
   }
 
