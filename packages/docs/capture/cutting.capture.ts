@@ -231,8 +231,8 @@ test("cutting: the cut that tempts and the cut that sets up", async ({ page }) =
   const before = s;
   await clip(page, "cutting", "setup", async () => {
     for (const c of found.line) {
-      s = await swipe(page, g, s, c, 450);
-      await page.waitForTimeout(650);
+      s = await swipe(page, g, s, c, 400);
+      await page.waitForTimeout(480);
     }
   }, { leadMs: 500, tailMs: 500, region: await region(page) });
   expect(s.slab).toBe(before.slab + 1);
@@ -270,10 +270,10 @@ test("cutting: choosing the scrap", async ({ page }) => {
   const g = await boardGeom(page, "cutting");
   await clip(page, "cutting", "budget", async () => {
     for (const c of found) {
-      s = await swipe(page, g, s, c, 350);
-      await page.waitForTimeout(600);
+      s = await swipe(page, g, s, c, 200);
+      await page.waitForTimeout(380);
     }
-  }, { leadMs: 600, tailMs: 500, region: await region(page) });
+  }, { leadMs: 400, tailMs: 700, region: await region(page) });
   await landed(page, s);
 });
 
