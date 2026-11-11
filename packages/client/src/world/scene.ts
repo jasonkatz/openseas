@@ -16,7 +16,8 @@ import type { CrewFlagWire } from "@openseas/protocol";
 import { unseen } from "./batch.js";
 import { WALL_TOP } from "./deck.js";
 import { CameraRig, isoDirection, type View } from "./camera.js";
-import { DOCK, buildOutpost, type Building, type Door, type OutpostModel } from "./outpost.js";
+import { buildOutpost, type OutpostModel } from "./outpost.js";
+import { DOCK, outpostLayout, type Building, type Door } from "./outpostLayout.js";
 import { HULL_HALF, MARKER_Y, PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildDust, buildBoardingTube, buildDrone, buildShip, dressShip, type BuoyModel, type DeckPost, type DroneModel, type ShipModel, type Station } from "./models.js";
 import { PIRATE_HEIGHT, buildPirate, workFor, type FigureLook, type PirateFigure, type PirateKind } from "./pirate.js";
 import { buildVoid, type VoidBackdrop } from "./void.js";
@@ -530,7 +531,7 @@ export class WorldScene {
     for (const outpost of input.outposts) {
       const toward = new THREE.Vector2(centroid.x - outpost.x, centroid.y - outpost.y);
       if (toward.lengthSq() < 1e-6) toward.set(1, 0);
-      const model = buildOutpost(outpost.id, toward, outpost.landmark, { lowQuality: this.lowQuality });
+      const model = buildOutpost(outpostLayout(outpost.id, outpost.landmark), toward, { lowQuality: this.lowQuality });
       model.group.position.set(outpost.x, 0, outpost.y);
       this.scene.add(model.group);
       const label = this.makeLabel("ow-label ow-label-outpost", outpost.name, () => this.events.onOutpost(outpost.id));
@@ -722,7 +723,7 @@ export class WorldScene {
         if (!wv) {
           // The player opening the game in a building's room is in it; anyone else last seen walking into one is too.
           const into = p.mine ? walk.inside : p.at ? this.insideOf(iv, p.at) : null;
-          const door = into ? iv.model.doors[into] : null;
+          const door = into ? iv.model.layout.doors[into] : null;
           const start = door ? (door.inside ?? door.at) : p.mine ? this.arrivalFor(iv, walk) : (p.at ?? this.standAbout(iv, p.id));
           wv = this.addWalker(key, p.id, "outpost", walk.outpostId, p.mine ? "me" : "pirate", iv.model.frame, start, door ? door.face : p.mine ? 0 : hashPhase(p.id), p.name, !p.mine, p.look);
           wv.atKey = spotKey(p.at);
@@ -853,7 +854,7 @@ export class WorldScene {
   private arrivalFor(iv: OutpostView, walk: OutpostWalk): WalkSpot {
     const sv = walk.arriveFrom ? this.ships.get(walk.arriveFrom) : undefined;
     if (sv?.berth && sv.berth.outpostId === walk.outpostId) {
-      const foot = iv.model.berth(sv.berth.n).foot;
+      const foot = iv.model.layout.berth(sv.berth.n).foot;
       if (foot) return foot;
     }
     return this.standAbout(iv, walk.me);
@@ -863,12 +864,12 @@ export class WorldScene {
   private standAbout(iv: OutpostView, id: string): WalkSpot {
     const a = hashPhase(id);
     const r = 0.04 + (hashPhase(`${id}:r`) / (Math.PI * 2)) * 0.1;
-    const p = { x: iv.model.arrival.x + Math.cos(a) * r, z: iv.model.arrival.z + Math.sin(a) * r };
-    return iv.model.grid.nearestOpen(p.x, p.z, 0.3) ?? iv.model.arrival;
+    const p = { x: iv.model.layout.arrival.x + Math.cos(a) * r, z: iv.model.layout.arrival.z + Math.sin(a) * r };
+    return iv.model.layout.grid.nearestOpen(p.x, p.z, 0.3) ?? iv.model.layout.arrival;
   }
 
   private gridOf(wv: WalkerView): WalkGrid | null {
-    if (wv.scope === "outpost") return this.outposts.get(wv.placeId)?.model.grid ?? null;
+    if (wv.scope === "outpost") return this.outposts.get(wv.placeId)?.model.layout.grid ?? null;
     return this.ships.get(wv.placeId)?.model.deck.grid ?? null;
   }
 
@@ -920,7 +921,7 @@ export class WorldScene {
 
   /** The building a spot is just inside the door of, if any: a walk there is a walk into it. */
   private insideOf(iv: OutpostView, at: WalkSpot): Building | null {
-    for (const [b, door] of Object.entries(iv.model.doors) as [Building, Door][]) if (door.inside && Math.hypot(door.inside.x - at.x, door.inside.z - at.z) < 0.02) return b;
+    for (const [b, door] of Object.entries(iv.model.layout.doors) as [Building, Door][]) if (door.inside && Math.hypot(door.inside.x - at.x, door.inside.z - at.z) < 0.02) return b;
     return null;
   }
 
@@ -943,7 +944,7 @@ export class WorldScene {
       this.leave(wv, iv, () => this.enter(wv, iv, b, atDoor, announce), announce);
       return;
     }
-    const door = iv.model.doors[b];
+    const door = iv.model.layout.doors[b];
     const stepIn = (): void => {
       const inside = door.inside;
       if (inside) {
@@ -969,7 +970,7 @@ export class WorldScene {
   /** Out through the door of the building a walker is in, to stand just outside it; then `then`. */
   private leave(wv: WalkerView, iv: OutpostView, then?: () => void, announce = false): void {
     const b = this.inOrEntering(wv);
-    const door = b ? iv.model.doors[b] : null;
+    const door = b ? iv.model.layout.doors[b] : null;
     if (!b || !door?.inside) {
       then?.();
       return;
@@ -1018,7 +1019,7 @@ export class WorldScene {
   private swingDoors(dt: number): void {
     for (const [outpostId, iv] of this.outposts) {
       for (const [b, way] of Object.entries(iv.model.doorways) as [Building, NonNullable<OutpostModel["doorways"][Building]>][]) {
-        const door = iv.model.doors[b];
+        const door = iv.model.layout.doors[b];
         let want = 0;
         for (const wv of this.walkers.values()) {
           if (wv.scope !== "outpost" || wv.placeId !== outpostId) continue;
@@ -1047,7 +1048,7 @@ export class WorldScene {
       this.events.onShip(shipId);
       return;
     }
-    const berth = iv.model.berth(sv.berth.n);
+    const berth = iv.model.layout.berth(sv.berth.n);
     // A ship rafted further out is boarded from the dock's edge nearest her.
     const foot = berth.foot ?? { x: berth.u, z: Math.sign(berth.w) * (DOCK.half - 0.035) };
     this.walkMe(me, foot, Math.sign(berth.w) * (Math.PI / 2), () => this.events.onShip(shipId), false);
@@ -1095,8 +1096,8 @@ export class WorldScene {
   private airlockSide(sv: ShipView): number | null {
     if (!sv.berth || sv.ship.location.kind !== "docked") return null;
     const iv = this.outposts.get(sv.berth.outpostId);
-    if (!iv || !iv.model.berth(sv.berth.n).foot) return null;
-    return iv.model.berth(sv.berth.n).dockSide;
+    if (!iv || !iv.model.layout.berth(sv.berth.n).foot) return null;
+    return iv.model.layout.berth(sv.berth.n).dockSide;
   }
 
   private showGoal(wv: WalkerView, at: WalkSpot): void {
@@ -1111,7 +1112,7 @@ export class WorldScene {
   }
 
   private heightOf(wv: WalkerView, x: number, z: number): number {
-    if (wv.scope === "outpost") return this.outposts.get(wv.placeId)?.model.heightAt(x, z) ?? 0;
+    if (wv.scope === "outpost") return this.outposts.get(wv.placeId)?.model.layout.heightAt(x, z) ?? 0;
     return this.ships.get(wv.placeId)?.model.deck.heightAt(x, z) ?? 0;
   }
 
@@ -1560,7 +1561,7 @@ export class WorldScene {
         // Tied up alongside the dock: the first ship on its near side, the next on the far side, and so on out.
         const n = docked.get(iv.outpost.id) ?? 0;
         docked.set(iv.outpost.id, n + 1);
-        const berth = iv.model.berth(n);
+        const berth = iv.model.layout.berth(n);
         const a = iv.model.dockAngle;
         g.position.set(iv.outpost.x + berth.u * Math.cos(a) - berth.w * Math.sin(a), 0, iv.outpost.y + berth.u * Math.sin(a) + berth.w * Math.cos(a));
         g.rotation.y = -(a + berth.heading);
@@ -1620,7 +1621,7 @@ export class WorldScene {
       have?.group.removeFromParent();
       const group = new THREE.Group();
       for (const n of key.split(",").filter(Boolean).map(Number)) {
-        const berth = iv.model.berth(n);
+        const berth = iv.model.layout.berth(n);
         if (!berth.foot) continue;
         const side = Math.sign(berth.w);
         const deckY = 0.3 * SHIP_SCALE - SHIP_SINK;

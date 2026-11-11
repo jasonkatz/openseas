@@ -1,38 +1,39 @@
 /**
- * The world's layout, walked without drawing it. Every client builds the same place (ADR 0032): a
- * walk target one pirate sends is walked on everyone else's grid. So a grid that depended on the
- * renderer, or a door, a berth or a station nobody could reach, would only ever show as a pirate
- * standing in a wall on somebody else's screen. The boards and the shell are smoked by Playwright.
+ * The world's layout, walked without drawing it. Every client lays out the same place (ADR 0032): a
+ * walk target one pirate sends is walked on everyone else's grid. So a layout that came out
+ * differently twice, or a door, a berth or a station nobody could reach, would only ever show as a
+ * pirate standing in a wall on somebody else's screen. Nothing here loads three.js: a layout draws
+ * nothing, so no renderer and no render setting can reach it. The boards and the shell are smoked by
+ * Playwright.
  */
-import * as THREE from "three";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { loadContent } from "@openseas/content";
 import { STATION_ORDER, skiffDeck } from "../src/world/deck.js";
-import { buildOutpost, type OutpostModel } from "../src/world/outpost.js";
+import { outpostLayout } from "../src/world/outpostLayout.js";
 import type { Spot } from "../src/world/walk.js";
 
-const content = loadContent();
-const outposts = content.world.outposts;
+// This file does not load if a layout reaches for three.js.
+vi.mock("three", () => {
+  throw new Error("a layout draws nothing, so it never needs three.js");
+});
 
-/** An outpost as the scene builds it: its dock turned toward the middle of the chart. */
-function outpost(id: string, lowQuality: boolean): OutpostModel {
-  const here = outposts.find((o) => o.id === id)!;
-  const cx = outposts.reduce((n, o) => n + o.x, 0) / outposts.length;
-  const cy = outposts.reduce((n, o) => n + o.y, 0) / outposts.length;
-  return buildOutpost(id, new THREE.Vector2(cx - here.x, cy - here.y), here.landmark, { lowQuality });
-}
+const outposts = loadContent().world.outposts;
 
-describe.each(outposts.map((o) => o.id))("the outpost %s", (id) => {
-  const model = outpost(id, false);
-  const reached = (to: Spot): boolean => model.grid.isOpen(to.x, to.z) && model.grid.path(model.arrival, to) !== null;
+describe.each(outposts.map((o) => [o.id, o.landmark] as const))("the outpost %s", (id, landmark) => {
+  const layout = outpostLayout(id, landmark);
+  const reached = (to: Spot): boolean => layout.grid.isOpen(to.x, to.z) && layout.grid.path(layout.arrival, to) !== null;
 
-  it("is the same ground to walk on a software renderer as on a GPU", () => {
-    expect(Array.from(outpost(id, true).grid.open)).toEqual(Array.from(model.grid.open));
+  it("is laid out the same every time, from its id and its landmark alone", () => {
+    const again = outpostLayout(id, landmark);
+    expect(Array.from(again.grid.open)).toEqual(Array.from(layout.grid.open));
+    expect(again.doors).toEqual(layout.doors);
+    expect(again.arrival).toEqual(layout.arrival);
+    expect([0, 1, 2, 3].map((n) => again.berth(n))).toEqual([0, 1, 2, 3].map((n) => layout.berth(n)));
   });
 
   it("lets a pirate who has just arrived walk to every door and into every room", () => {
-    expect(model.grid.isOpen(model.arrival.x, model.arrival.z)).toBe(true);
-    for (const [building, door] of Object.entries(model.doors)) {
+    expect(layout.grid.isOpen(layout.arrival.x, layout.arrival.z)).toBe(true);
+    for (const [building, door] of Object.entries(layout.doors)) {
       expect(reached(door.at), `the ${building}'s door`).toBe(true);
       // Inside is out of sight, stepped to straight through the door; it need not be open ground.
       if (door.inside) expect(Math.hypot(door.inside.x - door.at.x, door.inside.z - door.at.z), `inside the ${building}`).toBeLessThan(0.3);
@@ -41,19 +42,19 @@ describe.each(outposts.map((o) => o.id))("the outpost %s", (id) => {
 
   it("lets them walk out along the dock to the foot of a boarding tube on either side", () => {
     for (const n of [0, 1]) {
-      const berth = model.berth(n);
+      const berth = layout.berth(n);
       expect(berth.foot, `berth ${n}`).not.toBeNull();
       expect(reached(berth.foot!), `berth ${n}'s boarding tube`).toBe(true);
     }
     // Ships rafted further out have no tube of their own.
-    expect(model.berth(2).foot).toBeNull();
+    expect(layout.berth(2).foot).toBeNull();
   });
 
   it("stands every ship clear of the rock and of her neighbours", () => {
-    const berths = [0, 1, 2, 3].map((n) => model.berth(n));
+    const berths = [0, 1, 2, 3].map((n) => layout.berth(n));
     for (const [i, a] of berths.entries()) for (const b of berths.slice(i + 1)) expect(Math.abs(a.w - b.w)).toBeGreaterThan(0.7);
     // Her stern, engines and all, lies outside the rim.
-    for (const b of berths) expect(model.grid.isOpen(b.u - 0.86, b.w)).toBe(false);
+    for (const b of berths) expect(layout.grid.isOpen(b.u - 0.86, b.w)).toBe(false);
   });
 });
 

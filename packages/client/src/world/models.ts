@@ -42,7 +42,7 @@ import {
 
 export { HULL_HALF, STATION_ORDER, type DeckPost, type ShipDeck, type Station } from "./deck.js";
 
-export type { Building } from "./outpost.js";
+export type { Building } from "./outpostLayout.js";
 
 export const PALETTE = {
   hull: 0xd6cfbf,

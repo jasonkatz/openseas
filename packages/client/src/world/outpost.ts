@@ -1,31 +1,25 @@
 /**
- * An outpost you can walk on (M5, ADR 0032): a rock hanging in the void with a settlement bolted
- * to it (ADR 0034). Nothing of an island is left in it (ADR 0035): no beach, no trees, no pier.
- * The ground is a low-poly heightfield: a flat floor of regolith inside a raised crater rim that
- * drops sheer into the void, cut through where the dock comes in, with the rock's underside
- * hanging below. On it, laid out from the dock inland: the dock, an arm run out over the void with
- * berths for ships either side; the shipyard and the notice board at its foot; a walkway up to a
- * round pad with a holo-globe turning over it; the cantina on the pad; hab pods with their grow
- * tunnels; the landmark the content names at the back; and the plant that keeps a place like this
- * alive: tanks, vents and cargo on the floor, light masts, dishes and solar panels round the rim,
- * warning lamps along its lip. Everything is placed from a PRNG seeded by the outpost's id, so
- * every device builds the same outpost, the same walk grid, the same doors. What is built never
- * depends on the renderer; only how it is drawn does.
+ * An outpost drawn (M5, ADR 0032): a rock hanging in the void with a settlement bolted to it
+ * (ADR 0034). Nothing of an island is left in it (ADR 0035): no beach, no trees, no pier. The ground
+ * is a low-poly heightfield: a flat floor of regolith inside a raised crater rim that drops sheer
+ * into the void, cut through where the dock comes in, with the rock's underside hanging below. On
+ * it, laid out from the dock inland: the dock, an arm run out over the void with berths for ships
+ * either side; the shipyard and the notice board at its foot; a walkway up to a round pad with a
+ * holo-globe turning over it; the cantina on the pad; hab pods with their grow tunnels; the landmark
+ * the content names at the back; and the plant that keeps a place like this alive: tanks, vents and
+ * cargo on the floor, light masts, dishes and solar panels round the rim, warning lamps along its lip.
  *
- * The outpost is built in its *dock frame*: u runs out along the dock toward the lanes, w across
- * it, y up. Walk positions on the wire are in this frame. The frame is turned on the outpost so the
- * dock faces the other outposts.
- *
- * What stands where is settled by the dice, and the order they are rolled in is part of the layout:
- * a prop may be redrawn freely, but adding or dropping a roll moves everything placed after it.
+ * Where all of it stands, and where a pirate may walk, is the outpost's layout (outpostLayout.ts),
+ * which draws nothing. This draws round it, in the layout's dock frame, turned on the outpost so the
+ * dock faces the other outposts. What stands in nobody's way (the ground's colors, pebbles, craters,
+ * rovers, how tall a mast is or how a crate sits) is rolled on dice of the drawing's own, seeded by
+ * the outpost's id, so it may change freely without moving anything a pirate walks round. Drawing
+ * never changes the layout, and the renderer changes only how it is drawn.
  */
 import * as THREE from "three";
-import type { OutpostLandmark } from "@openseas/content";
-import { nextInt, seedFromString, type PrngState } from "@openseas/engine";
 import { Batch, unseen, type Put, type Vec3 } from "./batch.js";
-import { WalkGrid, type Obstacle, type Spot } from "./walk.js";
-
-export type Building = "dock" | "cantina" | "notice-board";
+import { BERTH_U, DOCK, Dice, GATE_U, RIM, YARD, onBuilding, yawFacing, type Building, type OutpostLayout, type Walkway } from "./outpostLayout.js";
+import type { Spot } from "./walk.js";
 
 export const OUTPOST_PALETTE = {
   tin: 0xc3ccd4,
@@ -89,44 +83,6 @@ const GROUNDS: Record<"plain" | "ochre" | "frost", Ground> = {
   frost: { floor: [0x5d667e, 0x545c73, 0x68728c], rim: [0x2f2d38, 0x353340, 0x292731], lip: 0x3d3a4a, under: [0x2a2833, 0x23212b, 0x33313d], pebble: [0x6b7388, 0x6b7388] },
 };
 
-/** The outpost's floor, and how far the crater's rim stands over it. */
-const FLOOR = 0.225;
-const LIP = 0.05;
-/** The rim is walked up to its crest, no further. */
-const WALK_S = 0.95;
-
-/** The dock's deck: from the rim out over the void, and how wide. */
-export const DOCK = { from: 1.16, to: 2.95, half: 0.13, top: 0.22 } as const;
-/** Where a ship lies along the dock, how far off its centerline the first two berths are, and how far apart the berths rafted outside them. */
-const BERTH_U = 2.3;
-const BERTH_W = 0.56;
-const BERTH_ROW = 0.86;
-/** Ship-local x of the airlock amidships, scaled to the world (see models.ts). */
-export const AIRLOCK_OFFSET = 0.056;
-/** Feet clear an obstacle by this much. */
-const BODY = 0.026;
-
-export interface Berth {
-  /** The ship's center in the dock frame. */
-  u: number;
-  w: number;
-  /** Which way the bow points, as an angle in the dock frame. */
-  heading: number;
-  /** The boarding tube's foot on the dock, for a ship lying against it; null for one rafted further out. */
-  foot: Spot | null;
-  /** Which of her sides (in her own frame: +1 starboard, -1 port) faces the dock. */
-  dockSide: number;
-}
-
-export interface Door {
-  /** Where a pirate stands to use the building, in the dock frame: outside its door. */
-  at: Spot;
-  /** The way they face there. */
-  face: number;
-  /** Just inside the door, where a pirate who goes in ends up out of sight; null for a building nobody enters (a notice board). */
-  inside: Spot | null;
-}
-
 /** A door that swings open on its hinge as a pirate passes through. */
 export interface Doorway {
   pivot: THREE.Group;
@@ -137,6 +93,8 @@ export interface Doorway {
 }
 
 export interface OutpostModel {
+  /** Where everything stands and where a pirate may walk: what this draws. */
+  layout: OutpostLayout;
   group: THREE.Group;
   /** Turned so its +x runs out along the dock; walkers and everything else of the outpost hang here. */
   frame: THREE.Group;
@@ -154,127 +112,43 @@ export interface OutpostModel {
   /** Direction from the outpost center to its dock, in the world's xz plane. */
   dockDir: THREE.Vector2;
   dockAngle: number;
-  grid: WalkGrid;
-  /** The height of the ground (or the dock) under a spot in the dock frame. */
-  heightAt(u: number, w: number): number;
-  doors: Record<Building, Door>;
   /** The doors that open, by building. */
   doorways: Partial<Record<Building, Doorway>>;
-  /** Where a pirate who came on the outpost without walking off a ship first stands. */
-  arrival: Spot;
-  berth(n: number): Berth;
   /** Per-frame life: lamps, the landmark, the holo-globe, steam, rovers. */
   animate(t: number, dt: number): void;
 }
-
-/** A tiny deterministic random source for decoration. */
-class Dice {
-  private s: PrngState;
-  constructor(seed: string) {
-    this.s = seedFromString(seed);
-  }
-  int(n: number): number {
-    const r = nextInt(this.s, n);
-    this.s = r.state;
-    return r.value;
-  }
-  range(lo: number, hi: number): number {
-    return lo + ((hi - lo) * this.int(1000)) / 1000;
-  }
-  pick<T>(xs: readonly T[]): T {
-    return xs[this.int(xs.length)]!;
-  }
-}
-
-const smooth = (a: number, b: number, x: number): number => {
-  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
 
 const box = (w: number, h: number, d: number): THREE.BufferGeometry => new THREE.BoxGeometry(w, h, d);
 const cyl = (rt: number, rb: number, h: number, seg = 7): THREE.BufferGeometry => new THREE.CylinderGeometry(rt, rb, h, seg);
 const ball = (r: number, w = 7, h = 5): THREE.BufferGeometry => new THREE.SphereGeometry(r, w, h);
 const cone = (r: number, h: number, seg = 6): THREE.BufferGeometry => new THREE.ConeGeometry(r, h, seg);
 
-/** The rotation that turns a building's front (+z) to face `heading` in the dock frame. */
-const yawFacing = (heading: number): number => Math.PI / 2 - heading;
-
-/** A point in a building's own frame (x along its front, z out of it), in the dock frame. */
-const onBuilding = (center: Spot, yaw: number, lx: number, lz: number): Spot => ({
-  x: center.x + lx * Math.cos(yaw) + lz * Math.sin(yaw),
-  z: center.z - lx * Math.sin(yaw) + lz * Math.cos(yaw),
-});
-
-export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: OutpostLandmark, opts: { lowQuality: boolean }): OutpostModel {
-  const dice = new Dice(`outpost:${id}`);
+export function buildOutpost(layout: OutpostLayout, dockToward: THREE.Vector2, opts: { lowQuality: boolean }): OutpostModel {
+  const { id, landmark, heightAt } = layout;
+  // The drawing's own dice: nothing rolled on them stands in anyone's way.
+  const dice = new Dice(`decoration:${id}`);
   // The geyser's outpost is frozen ground in black dust; the dish's is ochre.
   const frozen = landmark === "geyser";
   const ochre = landmark === "dish";
   const tones = GROUNDS[frozen ? "frost" : ochre ? "ochre" : "plain"];
-  const mirror = dice.int(2) ? 1 : -1;
   const group = new THREE.Group();
   const frame = new THREE.Group();
   const dockDir = dockToward.clone().normalize();
   const dockAngle = Math.atan2(dockDir.y, dockDir.x);
   frame.rotation.y = -dockAngle;
   group.add(frame);
-
-  // ---- the rim: a wobbling radius, held steady where the dock comes in
-  const RIM = 1.5;
-  const knots: number[] = [];
-  for (let i = 0; i < 14; i++) knots.push(0.88 + dice.range(0, 0.24));
-  const rimR = (a: number): number => {
-    const f = (((a / (Math.PI * 2)) % 1) + 1) % 1;
-    const x = f * knots.length;
-    const i = Math.floor(x);
-    const k = (1 - Math.cos((x - i) * Math.PI)) / 2;
-    const wob = knots[i % knots.length]! * (1 - k) + knots[(i + 1) % knots.length]! * k;
-    const near = Math.abs(Math.atan2(Math.sin(a), Math.cos(a)));
-    return RIM * (1 + (wob - 1) * smooth(0.25, 0.75, near));
-  };
-  const phases = [dice.range(0, 6), dice.range(0, 6), dice.range(0, 6)];
-  const landmarkAt: Spot = frozen ? { x: -0.78, z: -0.08 * mirror } : { x: -0.74, z: -0.26 * mirror };
-  const mound = landmark === "beacon" || landmark === "dish" || landmark === "fort";
-  // The floor is all but flat, with a little crown to it.
-  const crown = (s: number): number => (s < 0.84 ? 0.012 * (1 - (s / 0.84) ** 2) : 0);
-  // Round most of the rock the floor ends in a crater rim: up to a crest, then sheer down to the lip.
-  const rimmed = (s: number): number => (s < 0.84 ? FLOOR + crown(s) : s < WALK_S ? FLOOR + LIP * smooth(0.84, WALK_S, s) : FLOOR + LIP - (FLOOR + LIP - 0.06) * smooth(WALK_S, 1, s));
-  // Where the dock comes in the rim is cut through: the floor runs down a little to meet the dock's deck.
-  const cut = (s: number): number => (s < 0.92 ? FLOOR + crown(s) - 0.03 * smooth(0.7, 0.92, s) : 0.195 - 0.135 * smooth(0.92, 1, s));
-  const profile = (s: number, a: number): number => {
-    // Past the lip the ground is gone: the rock's side drops into the void (drawn by buildUnderside).
-    if (s >= 1) return Math.max(-0.32, 0.06 - (s - 1) * 3.2);
-    const clearOfDock = smooth(0.14, 0.34, Math.abs(Math.atan2(Math.sin(a), Math.cos(a))));
-    return cut(s) + (rimmed(s) - cut(s)) * clearOfDock;
-  };
-  const sOf = (u: number, w: number): number => Math.hypot(u, w) / rimR(Math.atan2(w, u));
-  const groundAt = (u: number, w: number): number => {
-    const s = sOf(u, w);
-    let h = profile(s, Math.atan2(w, u));
-    if (s < 0.68) h += (0.004 * Math.sin(u * 5.1 + phases[0]!) + 0.003 * Math.sin(w * 6.3 + phases[1]!) + 0.003 * Math.sin((u + w) * 8.7 + phases[2]!)) * (1 - smooth(0.5, 0.68, s));
-    if (mound) h += 0.07 * Math.exp(-((u - landmarkAt.x) ** 2 + (w - landmarkAt.z) ** 2) / 0.09);
-    return h;
-  };
-  const onDock = (u: number, w: number): boolean => u >= DOCK.from && u <= DOCK.to && Math.abs(w) <= DOCK.half;
-  // The plaza is paved level, a little proud of the ground.
-  const plaza: Spot = { x: 0.42, z: 0 };
-  const plazaR = 0.25;
-  const plazaTop = groundAt(plaza.x, plaza.z) + 0.011;
-  const heightAt = (u: number, w: number): number => (onDock(u, w) ? DOCK.top : Math.hypot(u - plaza.x, w - plaza.z) < plazaR ? plazaTop : groundAt(u, w));
+  const plaza = layout.plaza.at;
+  const plazaR = layout.plaza.r;
+  const plazaTop = layout.plaza.top;
 
   // ---- the ground mesh: faceted, colored face by face
-  const ground = buildGround(rimR, groundAt, sOf, dice, tones, frozen ? landmarkAt : null);
+  const ground = buildGround(layout, dice, tones, frozen ? layout.landmarkSite.at : null);
   frame.add(ground);
-  frame.add(buildUnderside(id, rimR, tones));
+  frame.add(buildUnderside(id, layout.rimR, tones));
 
   const b = new Batch();
-  const obstacles: Obstacle[] = [];
-  const keepClear: { x: number; z: number; r: number }[] = [];
   const at = (u: number, w: number, lift = 0): [number, number, number] => [u, heightAt(u, w) + lift, w];
   const solidAt = (geometry: THREE.BufferGeometry, color: number, put: Put): void => b.add(geometry, color, put);
-  const circle = (x: number, z: number, r: number): void => void obstacles.push({ kind: "circle", x, z, r });
-  /** A box obstacle for a thing turned by three.js yaw `yaw` about its center. */
-  const block = (x: number, z: number, hw: number, hd: number, yaw: number): void => void obstacles.push({ kind: "box", x, z, hw, hd, angle: -yaw });
 
   // ---- the dock: an arm run out over the void, a box girder with a deck on it, braced back to the rock
   const dockTop = DOCK.top;
@@ -309,23 +183,16 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   solidAt(cyl(0.05, 0.06, 0.05, 8), C.tinDark, { p: [DOCK.to - 0.16, dockTop - 0.13, 0] });
   b.addGlow(cyl(0.04, 0.03, 0.012, 8), C.glow, { p: [DOCK.to - 0.16, dockTop - 0.16, 0] });
   // A gate where the arm leaves the rock: two posts and a beam, with a bar of light under the beam.
-  const gateU = DOCK.from + 0.05;
   for (const side of [-1, 1]) {
-    solidAt(box(0.018, 0.2, 0.018), C.steel, { p: [gateU, dockTop + 0.1, side * (DOCK.half + 0.014)] });
-    solidAt(box(0.032, 0.02, 0.032), C.iron, { p: [gateU, dockTop + 0.01, side * (DOCK.half + 0.014)] });
-    circle(gateU, side * (DOCK.half + 0.014), 0.012);
+    solidAt(box(0.018, 0.2, 0.018), C.steel, { p: [GATE_U, dockTop + 0.1, side * (DOCK.half + 0.014)] });
+    solidAt(box(0.032, 0.02, 0.032), C.iron, { p: [GATE_U, dockTop + 0.01, side * (DOCK.half + 0.014)] });
   }
-  solidAt(box(0.024, 0.022, DOCK.half * 2 + 0.06), C.rust, { p: [gateU, dockTop + 0.205, 0] });
-  b.addGlow(box(0.008, 0.006, DOCK.half * 2 - 0.02), C.glow, { p: [gateU, dockTop + 0.191, 0] });
+  solidAt(box(0.024, 0.022, DOCK.half * 2 + 0.06), C.rust, { p: [GATE_U, dockTop + 0.205, 0] });
+  b.addGlow(box(0.008, 0.006, DOCK.half * 2 - 0.02), C.glow, { p: [GATE_U, dockTop + 0.191, 0] });
   // Cargo boxes, a drum and a power cell at the root of the dock; a beacon at its end.
-  const cargo = [
-    [DOCK.from + 0.16, 0.08, "crate"],
-    [DOCK.from + 0.16, 0.08, "crate2"],
-    [DOCK.from + 0.25, 0.09, "drum"],
-    [DOCK.to - 0.1, -0.08, "cell"],
-  ] as const;
-  for (const [u, w0, kind] of cargo) {
-    const w = w0 * mirror;
+  for (const { at: c, kind } of layout.dockCargo) {
+    const u = c.x;
+    const w = c.z;
     if (kind === "crate") {
       solidAt(box(0.06, 0.05, 0.06), C.teal, { p: [u, dockTop + 0.025, w], r: [0, 0.2, 0] });
       solidAt(box(0.062, 0.008, 0.062), C.tealDark, { p: [u, dockTop + 0.026, w], r: [0, 0.2, 0] });
@@ -335,50 +202,22 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       solidAt(box(0.044, 0.034, 0.034), C.steel, { p: [u, dockTop + 0.017, w] });
       b.addGlow(box(0.03, 0.012, 0.036), C.glow, { p: [u, dockTop + 0.02, w] });
     }
-    circle(u, w, kind === "cell" ? 0.03 : 0.04);
   }
-  solidAt(cyl(0.012, 0.014, 0.17, 6), C.steel, { p: [DOCK.to - 0.04, dockTop + 0.085, 0.1 * mirror] });
-  solidAt(box(0.03, 0.01, 0.03), C.iron, { p: [DOCK.to - 0.04, dockTop + 0.175, 0.1 * mirror] });
+  const post = layout.dockBeacon;
+  solidAt(cyl(0.012, 0.014, 0.17, 6), C.steel, { p: [post.x, dockTop + 0.085, post.z] });
+  solidAt(box(0.03, 0.01, 0.03), C.iron, { p: [post.x, dockTop + 0.175, post.z] });
   const dockBeacon = new THREE.Mesh(ball(0.018, 8, 6), new THREE.MeshBasicMaterial({ color: C.lamp }));
-  dockBeacon.position.set(DOCK.to - 0.04, dockTop + 0.155, 0.1 * mirror);
+  dockBeacon.position.set(post.x, dockTop + 0.155, post.z);
   frame.add(dockBeacon);
-  circle(DOCK.to - 0.04, 0.1 * mirror, 0.015);
 
   // ---- the walkways inland, the pad and the holo-globe over it
-  const cantinaAt: Spot = { x: 0.02, z: 0.6 * mirror };
-  const yardAt: Spot = { x: 0.98, z: -0.38 * mirror };
-  const noticeAt: Spot = { x: 0.98, z: 0.3 * mirror };
-  const podA: Spot = { x: 0.12, z: -0.64 * mirror };
-  const podB: Spot | null = frozen ? null : { x: -0.34, z: 0.44 * mirror };
-  const towardPlaza = (p: Spot): number => Math.atan2(plaza.z - p.z, plaza.x - p.x);
-  const cantinaFace = towardPlaza(cantinaAt);
-  const cantinaDoor: Spot = { x: cantinaAt.x + Math.cos(cantinaFace) * 0.25, z: cantinaAt.z + Math.sin(cantinaFace) * 0.25 };
-  const cantinaInside: Spot = { x: cantinaAt.x + Math.cos(cantinaFace) * 0.07, z: cantinaAt.z + Math.sin(cantinaFace) * 0.07 };
-
-  const paths: Spot[][] = [
-    [{ x: DOCK.from + 0.02, z: 0 }, { x: 0.86, z: 0.01 }, { x: plaza.x + plazaR, z: 0 }],
-    [{ x: plaza.x - plazaR * Math.cos(cantinaFace), z: plaza.z - plazaR * Math.sin(cantinaFace) }, cantinaDoor],
-    [
-      { x: plaza.x - plazaR * 0.8, z: -0.1 * mirror },
-      { x: (plaza.x + landmarkAt.x) / 2, z: (landmarkAt.z - 0.05 * mirror) * 0.6 },
-      { x: landmarkAt.x + (frozen ? 0.68 : 0.17), z: landmarkAt.z + (frozen ? 0.12 * mirror : 0.03 * mirror) },
-    ],
-    [{ x: plaza.x - 0.1, z: -plazaR * mirror }, { x: podA.x + 0.12, z: podA.z + 0.2 * mirror }],
-  ];
-  if (podB) paths.push([{ x: plaza.x - plazaR, z: 0.05 * mirror }, { x: podB.x + 0.2, z: podB.z - 0.12 * mirror }]);
-  for (const line of paths) {
+  for (const way of layout.walkways) {
     // A walkway of plate laid over the regolith, a stud of light either side every few paces.
-    const curve = new THREE.CatmullRomCurve3(line.map((p) => new THREE.Vector3(p.x, 0, p.z)));
-    const length = curve.getLength();
-    const steps = Math.max(2, Math.ceil(length / 0.04));
-    ribbon(b, curve, steps, 0.085, (u, w) => heightAt(u, w) + 0.004, C.walk);
-    for (let i = 0; i <= steps; i++) {
-      const p = curve.getPointAt(i / steps);
-      if (i % 3 === 1) {
-        const tan = curve.getTangentAt(i / steps);
-        for (const side of [-1, 1]) b.addGlow(box(0.012, 0.005, 0.008), C.glow, { p: at(p.x - tan.z * side * 0.05, p.z + tan.x * side * 0.05, 0.004), r: [0, -Math.atan2(tan.z, tan.x), 0] });
-      }
-      if (i % 2 === 0) keepClear.push({ x: p.x, z: p.z, r: 0.09 });
+    ribbon(b, way, 0.085, (u, w) => heightAt(u, w) + 0.004, C.walk);
+    for (const [i, p] of way.points.entries()) {
+      if (i % 3 !== 1) continue;
+      const tan = way.along[i]!;
+      for (const side of [-1, 1]) b.addGlow(box(0.012, 0.005, 0.008), C.glow, { p: at(p.x - tan.z * side * 0.05, p.z + tan.x * side * 0.05, 0.004), r: [0, -Math.atan2(tan.z, tan.x), 0] });
     }
   }
   // The pad: a round deck of plates with a ring painted on it and a light at each point of its edge.
@@ -391,7 +230,6 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     const a = (k / 8) * Math.PI * 2 + 0.39;
     b.addGlow(box(0.014, 0.006, 0.014), C.glow, { p: [plaza.x + Math.cos(a) * (plazaR - 0.004), plazaY + 0.012, plaza.z + Math.sin(a) * (plazaR - 0.004)], r: [0, -a, 0] });
   }
-  keepClear.push({ x: plaza.x, z: plaza.z, r: plazaR + 0.12 });
   // The holo-globe: a projector in the middle of the pad, and a chart of the Reach turning in the light over it.
   b.frame({ p: [plaza.x, plazaTop, plaza.z] }, () => {
     b.add(cyl(0.05, 0.058, 0.02, 10), C.steel, { p: [0, 0.01, 0] });
@@ -407,14 +245,9 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   orbit.rotation.x = Math.PI / 2 - 0.4;
   globe.add(orbit);
   frame.add(globe);
-  circle(plaza.x, plaza.z, 0.065);
   // Lamp posts at the pad and along the walkway.
   const lamps: THREE.Mesh[] = [];
-  for (const [u, w] of [
-    [plaza.x + 0.18, 0.18 * mirror],
-    [plaza.x - 0.18, -0.18 * mirror],
-    [0.84, -0.1 * mirror],
-  ] as const) {
+  for (const { x: u, z: w } of layout.lamps) {
     const y = heightAt(u, w);
     solidAt(cyl(0.007, 0.01, 0.16, 6), C.iron, { p: [u, y + 0.08, w] });
     solidAt(box(0.026, 0.006, 0.026), C.iron, { p: [u, y + 0.181, w] });
@@ -422,12 +255,11 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     glow.position.set(u, y + 0.166, w);
     frame.add(glow);
     lamps.push(glow);
-    circle(u, w, 0.012);
   }
 
   // ---- the notice board at the dock's foot: a pillar of bills and screens all round, so it reads from any side
+  const noticeAt = layout.notice.at;
   const noticeY = heightAt(noticeAt.x, noticeAt.z);
-  const noticeYaw = yawFacing(-Math.PI / 2 * mirror);
   const NOTICE_H = 0.24;
   b.frame({ p: [noticeAt.x, noticeY, noticeAt.z] }, () => {
     b.add(cyl(0.07, 0.078, 0.03, 10), C.rock, { p: [0, 0.008, 0] });
@@ -447,17 +279,15 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     b.add(cyl(0.004, 0.004, 0.07, 5), C.iron, { p: [0, NOTICE_H + 0.12, 0] });
     b.addGlow(ball(0.011, 8, 6), C.lamp, { p: [0, NOTICE_H + 0.16, 0] });
   });
-  circle(noticeAt.x, noticeAt.z, 0.075);
-  const noticeDoor: Door = { at: { x: noticeAt.x, z: noticeAt.z - 0.14 * mirror }, face: (Math.PI / 2) * mirror, inside: null };
-  keepClear.push({ x: noticeAt.x, z: noticeAt.z, r: 0.2 });
 
   // ---- the shipyard: the dock's office and workshop, where ships are bought, a hull in frame under its crane outside
+  const yardAt = layout.yard.at;
+  const yardYaw = layout.yard.yaw;
   const yardY = heightAt(yardAt.x, yardAt.z);
-  const yardYaw = yawFacing((Math.PI / 2) * mirror);
-  const SW = 0.3;
-  const SD = 0.22;
+  const SW = YARD.w;
+  const SD = YARD.d;
   const SH = 0.16;
-  const yardDoorX = -0.06;
+  const yardDoorX = YARD.doorX;
   b.frame({ p: [yardAt.x, yardY, yardAt.z], r: [0, yardYaw, 0] }, () => {
     b.add(box(SW + 0.03, 0.05, SD + 0.03), C.pavingDark, { p: [0, -0.012, 0] });
     b.add(box(SW, SH, SD), C.tin, { p: [0, SH / 2, 0] });
@@ -506,23 +336,11 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       b.add(new THREE.TorusGeometry(0.008, 0.003, 4, 8, Math.PI), C.iron, { p: [0.0, 0.152, 0.02], r: [0, 0, Math.PI] });
     });
   });
-  block(yardAt.x, yardAt.z, SW / 2 + 0.01, SD / 2 + 0.01, yardYaw);
-  {
-    const plates = onBuilding(yardAt, yardYaw, SW / 2 + 0.045, 0);
-    block(plates.x, plates.z, 0.035, 0.11, yardYaw);
-    const hull = onBuilding(yardAt, yardYaw, -SW / 2 - 0.1, 0.02);
-    block(hull.x, hull.z, 0.045, 0.11, yardYaw);
-  }
-  const yardDoor: Door = {
-    at: onBuilding(yardAt, yardYaw, yardDoorX, SD / 2 + 0.1),
-    face: (-Math.PI / 2) * mirror,
-    inside: onBuilding(yardAt, yardYaw, yardDoorX, SD / 2 - 0.07),
-  };
-  keepClear.push({ x: yardAt.x, z: yardAt.z, r: 0.32 });
 
   // ---- the cantina: a hall of painted panels under a barrel roof of tin, round ports, a vent stack, a lit sign
+  const cantinaAt = layout.cantina.at;
+  const cantinaYaw = layout.cantina.yaw;
   const cantinaY = heightAt(cantinaAt.x, cantinaAt.z);
-  const cantinaYaw = yawFacing(cantinaFace);
   const sign = new THREE.Group();
   const steamTop = new THREE.Vector3();
   b.frame({ p: [cantinaAt.x, cantinaY, cantinaAt.z], r: [0, cantinaYaw, 0] }, () => {
@@ -577,17 +395,6 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     frame.add(sign);
     b.frame({ p: [cantinaAt.x, cantinaY, cantinaAt.z], r: [0, cantinaYaw, 0] }, () => b.add(box(0.07, 0.008, 0.008), C.iron, { p: [0.12, 0.205, 0.15] }));
   }
-  block(cantinaAt.x, cantinaAt.z, 0.24, 0.17, cantinaYaw);
-  // The bench and drums in front stand in the way too.
-  for (const [lx, lz] of [
-    [-0.16, 0.21],
-    [0.185, 0.22],
-  ] as const) {
-    const c = Math.cos(cantinaYaw);
-    const s = Math.sin(cantinaYaw);
-    circle(cantinaAt.x + lx * c + lz * s, cantinaAt.z - lx * s + lz * c, 0.045);
-  }
-  keepClear.push({ x: cantinaAt.x, z: cantinaAt.z, r: 0.38 });
   // Steam off the vent stack.
   const steam: THREE.Mesh[] = [];
   for (let i = 0; i < 4; i++) {
@@ -624,10 +431,8 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   };
 
   // ---- hab pods, each with a grow tunnel beside it
-  for (const [i, home] of [podA, podB].entries()) {
-    if (!home) continue;
+  for (const [i, { at: home, yaw }] of layout.pods.entries()) {
     const y = heightAt(home.x, home.z);
-    const yaw = yawFacing(towardPlaza(home));
     const paint = dice.int(2) ? C.rust : C.blue;
     // Tinwick's roofs are bare tin; elsewhere they are painted.
     const roof = landmark === "beacon" ? C.tin : paint;
@@ -653,21 +458,11 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       b.add(box(0.14, 0.006, 0.012), C.steel, { p: [fx + 0.06, 0.086, 0] });
       b.addGlow(box(0.12, 0.004, 0.012), C.grow, { p: [fx + 0.06, 0.08, 0] });
     });
-    block(home.x, home.z, 0.14, 0.12, yaw);
-    {
-      const c = Math.cos(yaw);
-      const s = Math.sin(yaw);
-      block(home.x + 0.26 * c, home.z - 0.26 * s, 0.075, 0.11, yaw);
-    }
-    keepClear.push({ x: home.x, z: home.z, r: 0.3 });
   }
 
   // ---- a noodle stall at the plaza's edge
   {
-    const a = Math.atan2(0.3 * mirror, 0.1);
-    const u = plaza.x + Math.cos(a) * (plazaR + 0.05);
-    const w = plaza.z + Math.sin(a) * (plazaR + 0.05);
-    const yaw = yawFacing(a + Math.PI);
+    const { at: { x: u, z: w }, yaw } = layout.stall;
     const y = heightAt(u, w);
     b.frame({ p: [u, y, w], r: [0, yaw, 0] }, () => {
       b.add(box(0.14, 0.045, 0.06), C.tinDark, { p: [0, 0.022, 0] });
@@ -684,11 +479,10 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       // A paper lantern off the awning's corner.
       b.addGlow(ball(0.012, 7, 5), C.heat, { p: [0.07, 0.1, 0.04] });
     });
-    block(u, w, 0.08, 0.04, yaw);
-    keepClear.push({ x: u, z: w, r: 0.12 });
   }
 
   // ---- the landmark at the back
+  const landmarkAt = layout.landmarkSite.at;
   const landmarkY = heightAt(landmarkAt.x, landmarkAt.z);
   let animateLandmark: (t: number, dt: number) => void = () => {};
   if (landmark === "beacon") {
@@ -728,7 +522,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       b.add(box(0.07, 0.005, 0.005), C.iron, { p: [0, H + 0.25, 0] });
       b.addGlow(ball(0.012, 6, 5), C.beacon, { p: [0, H + 0.315, 0] });
       // Two dishes on its side, and the hut at its foot with its door toward the pad.
-      const face = towardPlaza(landmarkAt);
+      const face = Math.atan2(plaza.z - landmarkAt.z, plaza.x - landmarkAt.x);
       for (const [y, turn] of [
         [0.34, 1.9],
         [0.46, -2.3],
@@ -751,7 +545,6 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     beamHolder.add(beam);
     tower.add(beamHolder);
     frame.add(tower);
-    circle(landmarkAt.x, landmarkAt.z, 0.17);
     animateLandmark = (t) => {
       const on = Math.sin(t * 2.2) > 0.2;
       (lamp.material as THREE.MeshBasicMaterial).color.setHex(on ? C.lamp : C.lampOff);
@@ -760,7 +553,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     };
   } else if (landmark === "dish") {
     // A radar dish turning on a column over a squat drum of a station, with a field of solar panels beside it.
-    const yaw = yawFacing(towardPlaza(landmarkAt));
+    const yaw = layout.landmarkSite.yaw;
     b.frame({ p: [landmarkAt.x, landmarkY, landmarkAt.z], r: [0, yaw, 0] }, () => {
       b.add(cyl(0.16, 0.17, 0.2, 8), C.cream, { p: [0, 0.1, 0] });
       b.add(cyl(0.163, 0.166, 0.03, 8), C.rust, { p: [0, 0.14, 0] });
@@ -774,19 +567,17 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       b.add(box(0.06, 0.1, 0.01), C.steel, { p: [0, 0.05, 0.168] });
       b.addGlow(box(0.05, 0.03, 0.008), C.window, { p: [0.08, 0.12, 0.148], r: [0, 0.39, 0] });
     });
-    // Rows of panels tilted to the sun.
-    const fieldC = Math.cos(yaw);
-    const fieldS = Math.sin(yaw);
-    const fx = landmarkAt.x + 0.32 * fieldC;
-    const fz = landmarkAt.z - 0.32 * fieldS;
-    b.frame({ p: [fx, heightAt(fx, fz), fz], r: [0, yaw, 0] }, () => {
-      for (let i = 0; i < 6; i++) {
-        const z = -0.13 + i * 0.052;
-        b.add(box(0.24, 0.006, 0.04), i % 2 ? C.panelLight : C.panel, { p: [0, 0.035, z], r: [0.5, 0, 0] });
-        for (const x of [-0.1, 0.1]) b.add(box(0.006, 0.035, 0.006), C.steel, { p: [x, 0.017, z] });
-      }
-    });
-    block(fx, fz, 0.13, 0.17, yaw);
+    // Rows of panels tilted to the sun, where the layout put them.
+    const field = layout.field;
+    if (field) {
+      b.frame({ p: [field.at.x, heightAt(field.at.x, field.at.z), field.at.z], r: [0, field.yaw, 0] }, () => {
+        for (let i = 0; i < 6; i++) {
+          const z = -0.13 + i * 0.052;
+          b.add(box(0.24, 0.006, 0.04), i % 2 ? C.panelLight : C.panel, { p: [0, 0.035, z], r: [0.5, 0, 0] });
+          for (const x of [-0.1, 0.1]) b.add(box(0.006, 0.035, 0.006), C.steel, { p: [x, 0.017, z] });
+        }
+      });
+    }
     // The dish rides a turntable on the tower's cap: a bowl open to the sky, its feed on a strut.
     const turntable = new THREE.Group();
     turntable.position.set(landmarkAt.x, landmarkY + 0.54, landmarkAt.z);
@@ -808,7 +599,6 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     yoke.position.y = 0.055;
     turntable.add(yoke, head);
     frame.add(turntable);
-    circle(landmarkAt.x, landmarkAt.z, 0.18);
     animateLandmark = (_t, dt) => {
       turntable.rotation.y += dt * 0.45;
     };
@@ -837,7 +627,6 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       frame.add(puff);
       puffs.push(puff);
     }
-    circle(landmarkAt.x, landmarkAt.z, 0.6);
     animateLandmark = (t) => {
       (crater.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 3) > 0 ? C.ice : C.iceBlue);
       // It vents in a column: straight up fast, thinning and spreading only near the top.
@@ -860,18 +649,12 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       ] as const)
         b.add(cyl(0.065, 0.075, 0.36, 7), C.rock, { p: [x, 0.18, z] });
     });
-    block(landmarkAt.x, landmarkAt.z, 0.25, 0.25, 0);
   }
-  keepClear.push({ x: landmarkAt.x, z: landmarkAt.z, r: frozen ? 0.7 : 0.32 });
 
   // ---- the rim: a shuttle up on blocks, a solar sail on its rack, a telescope, space junk, pebbles
-  const rimSpot = (a: number, s: number): Spot => {
-    const r = rimR(a) * s;
-    return { x: Math.cos(a) * r, z: Math.sin(a) * r };
-  };
+  const rimSpot = layout.rimSpot;
   {
-    const p = rimSpot(-0.95 * mirror, 0.86);
-    const yaw = yawFacing(-0.95 * mirror) + Math.PI / 2;
+    const { at: p, yaw } = layout.shuttle;
     b.frame({ p: at(p.x, p.z, 0.01), r: [0, yaw, 0] }, () => {
       for (const x of [-0.05, 0.05]) b.add(box(0.03, 0.022, 0.08), C.steel, { p: [x, 0.011, 0] });
       b.add(cyl(0.04, 0.04, 0.19, 8), C.cream, { p: [0, 0.062, 0], r: [0, 0, Math.PI / 2] });
@@ -882,13 +665,10 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       for (const side of [-1, 1]) b.add(box(0.06, 0.006, 0.05), C.tinDark, { p: [-0.06, 0.055, side * 0.058], r: [0, side * -0.35, 0] });
       b.add(box(0.05, 0.05, 0.006), C.rust, { p: [-0.075, 0.115, 0], r: [0, 0, 0.3] });
     });
-    circle(p.x, p.z, 0.11);
-    keepClear.push({ x: p.x, z: p.z, r: 0.18 });
   }
   {
     // A solar sail folded over its rack, coils of cable under it, spare spars and a crate beside it.
-    const p = rimSpot(1.05 * mirror, 0.82);
-    const yaw = yawFacing(1.05 * mirror);
+    const { at: p, yaw } = layout.sail;
     b.frame({ p: at(p.x, p.z), r: [0, yaw, 0] }, () => {
       for (const x of [-0.07, 0.07]) b.add(box(0.008, 0.1, 0.008), C.steel, { p: [x, 0.05, 0] });
       b.add(box(0.16, 0.008, 0.008), C.steel, { p: [0, 0.1, 0] });
@@ -901,15 +681,11 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       b.add(box(0.05, 0.04, 0.04), C.teal, { p: [-0.11, 0.02, 0.04], r: [0, 0.4, 0] });
       b.add(box(0.052, 0.006, 0.042), C.tealDark, { p: [-0.11, 0.022, 0.04], r: [0, 0.4, 0] });
     });
-    circle(p.x, p.z, 0.08);
-    circle(p.x - 0.1, p.z + 0.04, 0.03);
-    keepClear.push({ x: p.x, z: p.z, r: 0.16 });
   }
   // A telescope on its tripod, looking out over the rim, and a crate to sit on at its eyepiece.
   {
-    const a = Math.PI * 0.72 * mirror;
-    const p = rimSpot(a, 0.78);
-    b.frame({ p: at(p.x, p.z), r: [0, -a, 0] }, () => {
+    const { at: p, yaw } = layout.telescope;
+    b.frame({ p: at(p.x, p.z), r: [0, yaw, 0] }, () => {
       for (let k = 0; k < 3; k++) strut(b, [0, 0.07, 0], [Math.cos(k * 2.094) * 0.035, 0, Math.sin(k * 2.094) * 0.035], 0.006, C.steel);
       b.add(ball(0.01, 6, 5), C.iron, { p: [0, 0.072, 0] });
       b.add(cyl(0.014, 0.017, 0.11, 8), C.cream, { p: [0.012, 0.092, 0], r: [0, 0, -0.95] });
@@ -917,18 +693,9 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       b.add(cyl(0.006, 0.006, 0.024, 5), C.iron, { p: [-0.04, 0.056, 0], r: [0, 0, -0.95] });
       b.add(box(0.045, 0.026, 0.032), C.teal, { p: [-0.09, 0.013, 0.01], r: [0, 0.3, 0] });
     });
-    circle(p.x, p.z, 0.045);
-    circle(p.x - Math.cos(a) * 0.09, p.z - Math.sin(a) * 0.09, 0.03);
-    keepClear.push({ x: p.x, z: p.z, r: 0.18 });
   }
   // Space junk: a buckled panel or two, lying where it came down.
-  for (let i = 0; i < 2; i++) {
-    const a = dice.range(-Math.PI, Math.PI);
-    if (Math.abs(a) < 0.5) continue;
-    const p = rimSpot(a, dice.range(0.84, 0.9));
-    b.add(box(0.15, 0.055, 0.006), i ? C.tinDark : C.rustDark, { p: at(p.x, p.z, 0.008), r: [Math.PI / 2, 0, dice.range(0, 3)] });
-    circle(p.x, p.z, 0.04);
-  }
+  for (const [i, p] of layout.junk.entries()) b.add(box(0.15, 0.055, 0.006), i ? C.tinDark : C.rustDark, { p: at(p.x, p.z, 0.008), r: [Math.PI / 2, 0, dice.range(0, 3)] });
   // Pebbles, lost washers and stones round the rim.
   for (let i = 0; i < 16; i++) {
     const a = dice.range(0, Math.PI * 2);
@@ -952,63 +719,42 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     const a = (i / 20) * Math.PI * 2;
     if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < 0.4) continue;
     const p = rimSpot(a, 0.962);
-    const y = groundAt(p.x, p.z);
+    const y = layout.groundAt(p.x, p.z);
     b.add(box(0.008, 0.036, 0.008), C.iron, { p: [p.x, y + 0.016, p.z] });
     b.addGlow(box(0.013, 0.011, 0.013), C.beacon, { p: [p.x, y + 0.04, p.z] });
   }
 
-  // ---- what stands on the ground: masts, dishes and panels round the rim, the outpost's plant on the floor, never on a walkway or a building
-  const clearOf = (x: number, z: number, r: number): boolean => keepClear.every((k) => Math.hypot(k.x - x, k.z - z) > k.r + r);
-  const placed: Spot[] = [];
-  const rimThings = frozen ? 6 : 9;
-  for (let tries = 0, n = 0; tries < 70 && n < rimThings; tries++) {
-    const a = dice.range(0, Math.PI * 2);
-    if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < 0.5) continue;
-    const p = rimSpot(a, dice.range(0.72, 0.84));
-    if (!clearOf(p.x, p.z, 0.06) || placed.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < 0.22)) continue;
-    // Mostly light masts; now and then a dish or a panel.
-    const kind = n % 3;
-    if (kind === 1) dishPost(b, dice, at(p.x, p.z, -0.004));
-    else if (kind === 2) solarStand(b, dice, at(p.x, p.z, -0.004), a);
-    else lightMast(b, dice, at(p.x, p.z, -0.004), a);
-    circle(p.x, p.z, kind === 2 ? 0.045 : 0.03);
-    placed.push(p);
-    n++;
+  // ---- what stands on the ground where the layout put it: masts, dishes and panels round the rim, the outpost's plant on the floor
+  for (const { at: p, kind, outward } of layout.rimProps) {
+    if (kind === "dish") dishPost(b, dice, at(p.x, p.z, -0.004));
+    else if (kind === "panel") solarStand(b, dice, at(p.x, p.z, -0.004), outward);
+    else lightMast(b, dice, at(p.x, p.z, -0.004), outward);
   }
-  const inland = frozen ? 5 : 10;
-  for (let tries = 0, n = 0; tries < 90 && n < inland; tries++) {
-    const a = dice.range(0, Math.PI * 2);
-    const p = rimSpot(a, Math.sqrt(dice.range(0.04, 1)) * 0.62);
-    if (!clearOf(p.x, p.z, 0.09) || placed.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < 0.19)) continue;
-    // Tanks, cargo and vents, and here and there the crystal that grows out of the rock. Ice, on frozen ground.
-    const kind = frozen ? (n % 2 ? 3 : n % 3) : n % 4;
-    if (kind === 0) tankCluster(b, dice, at(p.x, p.z, -0.004));
-    else if (kind === 1) cargoStack(b, dice, at(p.x, p.z, -0.002));
-    else if (kind === 2) ventStack(b, dice, at(p.x, p.z, -0.004));
+  for (const { at: p, kind } of layout.floorProps) {
+    if (kind === "tanks") tankCluster(b, dice, at(p.x, p.z, -0.004));
+    else if (kind === "cargo") cargoStack(b, dice, at(p.x, p.z, -0.002));
+    else if (kind === "vent") ventStack(b, dice, at(p.x, p.z, -0.004));
     else crystalSpire(b, dice, at(p.x, p.z, -0.005), frozen);
-    circle(p.x, p.z, kind < 2 ? 0.055 : 0.04);
-    placed.push(p);
-    n++;
   }
   // Craters in the floor where nothing was built: a dark pit and its raised ring. Shallow enough to walk through.
+  const placed: Spot[] = [...layout.rimProps.map((t) => t.at), ...layout.floorProps.map((t) => t.at)];
   for (let tries = 0, n = 0; tries < 40 && n < (frozen ? 3 : 5); tries++) {
     const a = dice.range(0, Math.PI * 2);
     const p = rimSpot(a, Math.sqrt(dice.range(0.05, 1)) * 0.8);
     const r = dice.range(0.035, 0.075);
-    if (!clearOf(p.x, p.z, r) || onDock(p.x, p.z) || placed.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < r + 0.09)) continue;
+    if (!layout.isClear(p.x, p.z, r) || layout.onDock(p.x, p.z) || placed.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < r + 0.09)) continue;
     const y = heightAt(p.x, p.z);
     b.add(cyl(r, r * 0.8, 0.004, 10), tones.rim[1], { p: [p.x, y + 0.001, p.z] });
     b.add(new THREE.TorusGeometry(r, r * 0.16, 4, 12), tones.lip, { p: [p.x, y + 0.001, p.z], r: [Math.PI / 2, 0, dice.range(0, 3)], s: [1, 1, 0.55] });
     placed.push(p);
     n++;
   }
-  // Pebbles, glints of crystal and boulders on the floor. Small enough to walk through, but for the boulders:
-  // every renderer lays out the same ones, or two clients would walk different grids.
+  // Pebbles and glints of crystal on the floor, small enough to walk through. A try in five lays
+  // nothing (two in five on frozen ground): that share is the boulders', which the layout places.
   for (let i = 0; i < 80; i++) {
     const a = dice.range(0, Math.PI * 2);
-    const s = Math.sqrt(dice.range(0.02, 1)) * 0.9;
-    const p = rimSpot(a, s);
-    if (!clearOf(p.x, p.z, 0.0) || onDock(p.x, p.z)) continue;
+    const p = rimSpot(a, Math.sqrt(dice.range(0.02, 1)) * 0.9);
+    if (!layout.isClear(p.x, p.z, 0.0) || layout.onDock(p.x, p.z)) continue;
     const y = heightAt(p.x, p.z);
     const kind = dice.int(5);
     if (kind < 3) {
@@ -1017,11 +763,9 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     } else if (kind === 3 && !frozen) {
       const c = dice.pick([C.crystal, C.crystalViolet, C.lamp, C.heat]);
       for (let k = 0; k < 3; k++) b.addGlow(new THREE.OctahedronGeometry(0.006), c, { p: [p.x + dice.range(-0.015, 0.015), y + 0.008, p.z + dice.range(-0.015, 0.015)] });
-    } else if (s < 0.8) {
-      b.add(new THREE.DodecahedronGeometry(0.026 + dice.range(0, 0.02)), frozen ? C.rockDark : tones.under[2], { p: [p.x, y + 0.012, p.z], s: [1, 0.75, 1] });
-      circle(p.x, p.z, 0.03);
     }
   }
+  for (const p of layout.boulders) b.add(new THREE.DodecahedronGeometry(0.026 + dice.range(0, 0.02)), frozen ? C.rockDark : tones.under[2], { p: [p.x, heightAt(p.x, p.z) + 0.012, p.z], s: [1, 0.75, 1] });
 
   const statics = b.build(!opts.lowQuality);
   frame.add(statics);
@@ -1054,10 +798,6 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     rovers.push({ g, a: dice.range(0.7, Math.PI * 2 - 0.7), span: dice.range(0.15, 0.35), phase: dice.range(0, 6) });
   }
 
-  // ---- the walk grid
-  const grid = new WalkGrid(-1.72, -1.72, DOCK.to + 0.06, 1.72, 0.04).fill((u, w) => onDock(u, w) || sOf(u, w) <= WALK_S);
-  for (const o of obstacles) grid.block(o, BODY);
-
   // ---- rings, the "you are here" flag, the chart's hit disc
   const ring = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.05, 6, 48), new THREE.MeshBasicMaterial({ color: C.brass, transparent: true, opacity: 0.95 }));
   ring.rotation.x = -Math.PI / 2;
@@ -1070,7 +810,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   reachRing.visible = false;
   group.add(reachRing);
   const flag = new THREE.Group();
-  const flagAt: Spot = { x: plaza.x + 0.2, z: -0.22 * mirror };
+  const flagAt = layout.flag;
   flag.position.set(flagAt.x, heightAt(flagAt.x, flagAt.z), flagAt.z);
   // A marker for the chart: a pylon, and a brass diamond turning over it.
   const pole = new THREE.Mesh(cyl(0.008, 0.01, 0.3, 5), new THREE.MeshLambertMaterial({ color: C.parchment }));
@@ -1082,8 +822,6 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   flag.add(cloth);
   flag.visible = false;
   frame.add(flag);
-  circle(flagAt.x, flagAt.z, 0.012);
-  grid.block({ kind: "circle", x: flagAt.x, z: flagAt.z, r: 0.012 }, BODY);
 
   const hit = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24), unseen());
   hit.rotation.x = -Math.PI / 2;
@@ -1105,7 +843,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   };
   hitBox("cantina", cantinaAt, 0.46, 0.36, 0.34, cantinaYaw);
   hitBox("dock", yardAt, SW + 0.04, SH + 0.12, SD + 0.04, yardYaw);
-  hitBox("notice-board", noticeAt, 0.16, NOTICE_H + 0.12, 0.16, noticeYaw);
+  hitBox("notice-board", noticeAt, 0.16, NOTICE_H + 0.12, 0.16, layout.notice.yaw);
 
   const toGroup = (u: number, y: number, w: number): THREE.Vector3 => new THREE.Vector3(u * Math.cos(dockAngle) - w * Math.sin(dockAngle), y, u * Math.sin(dockAngle) + w * Math.cos(dockAngle));
   const anchors: Record<Building, THREE.Vector3> = {
@@ -1113,25 +851,10 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     cantina: toGroup(cantinaAt.x, cantinaY + 0.38, cantinaAt.z),
     "notice-board": toGroup(noticeAt.x, noticeY + NOTICE_H + 0.13, noticeAt.z),
   };
-  const doors: Record<Building, Door> = {
-    dock: yardDoor,
-    cantina: { at: cantinaDoor, face: cantinaFace + Math.PI, inside: cantinaInside },
-    "notice-board": noticeDoor,
-  };
-
-  const berth = (n: number): Berth => {
-    const side = n % 2 === 0 ? 1 : -1;
-    const row = Math.floor(n / 2);
-    // Every ship lies bow out to the lanes, ready to launch; her stern clears the rim.
-    const heading = 0;
-    const w = side * (BERTH_W + row * BERTH_ROW);
-    const gangU = BERTH_U + AIRLOCK_OFFSET;
-    // Bow out, her starboard side (+z) faces +w: so the dock is to port for a ship at +w, to starboard at -w.
-    return { u: BERTH_U, w, heading, foot: row === 0 ? { x: gangU, z: side * (DOCK.half - 0.035) } : null, dockSide: -side };
-  };
 
   const stack = steamTop;
   return {
+    layout,
     group,
     frame,
     hit,
@@ -1143,12 +866,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     anchors,
     dockDir,
     dockAngle,
-    grid,
-    heightAt,
-    doors,
     doorways,
-    arrival: { x: plaza.x + plazaR + 0.08, z: 0.04 * mirror },
-    berth,
     animate(t, dt) {
       animateLandmark(t, dt);
       if (flag.visible) cloth.rotation.y = t * 1.6;
@@ -1168,7 +886,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
         // Out a little and back along the rim, a pause at each end, nose the way it goes.
         const k = Math.sin(t * 0.45 + c.phase);
         const a = c.a + Math.max(-1, Math.min(1, k * 1.4)) * c.span * 0.5;
-        const r = rimR(a) * 0.9;
+        const r = layout.rimR(a) * 0.9;
         const u = Math.cos(a) * r;
         const w = Math.sin(a) * r;
         c.g.position.set(u, heightAt(u, w), w);
@@ -1181,12 +899,11 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
 
 /**
  * The faceted ground: rings of the rim's shape from the middle out to its lip, colored by what each
- * face is. It rolls the dice for every face, so what it draws is part of the layout that follows.
+ * face is. It rolls the drawing's dice for every face, so a change here reshuffles the decoration
+ * drawn after it, never the layout.
  */
 function buildGround(
-  rimR: (a: number) => number,
-  groundAt: (u: number, w: number) => number,
-  sOf: (u: number, w: number) => number,
+  { rimR, groundAt, sOf }: OutpostLayout,
   dice: Dice,
   tones: Ground,
   /** Where frost spreads from, on frozen ground. */
@@ -1322,15 +1039,15 @@ function buildUnderside(id: string, rimR: (a: number) => number, tones: Ground):
   return new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
 }
 
-/** A strip laid along a curve on the ground. */
-function ribbon(b: Batch, curve: THREE.Curve<THREE.Vector3>, steps: number, width: number, y: (u: number, w: number) => number, color: number): void {
+/** A strip laid along a walkway on the ground. */
+function ribbon(b: Batch, way: Walkway, width: number, y: (u: number, w: number) => number, color: number): void {
   const pos: number[] = [];
   let prevL: THREE.Vector3 | null = null;
   let prevR: THREE.Vector3 | null = null;
+  const steps = way.points.length - 1;
   for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const p = curve.getPointAt(t);
-    const tan = curve.getTangentAt(t);
+    const p = way.points[i]!;
+    const tan = way.along[i]!;
     const nx = -tan.z;
     const nz = tan.x;
     const half = (width / 2) * (i === 0 || i === steps ? 0.7 : 1);
