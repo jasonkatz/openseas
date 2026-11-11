@@ -86,11 +86,11 @@ export abstract class KitBoard<S> implements BoardRenderer<S> {
     });
     stage.on("pointermove", (e: FederatedPointerEvent) => this.pointerMove(e.global.x, e.global.y, e));
     stage.on("pointerup", (e: FederatedPointerEvent) => this.pointerUp(e.global.x, e.global.y, e));
-    stage.on("pointerupoutside", () => this.pointerCancel());
+    stage.on("pointerupoutside", (e: FederatedPointerEvent) => this.pointerCancel(e.pointerId));
     // Pixi passes a cancel on only where it reads touch events; where it reads pointer events, a
     // touch the browser takes over (a scroll, a system gesture) reaches the canvas alone.
-    stage.on("pointercancel", () => this.pointerCancel());
-    canvas.addEventListener("pointercancel", () => this.pointerCancel());
+    stage.on("pointercancel", (e: FederatedPointerEvent) => this.pointerCancel(e.pointerId));
+    canvas.addEventListener("pointercancel", (e) => this.pointerCancel(e.pointerId));
     stage.on("pointerleave", () => this.pointerLeave());
     this.app.renderer.on("resize", () => this.relayout());
     this.app.ticker.add((ticker) => this.frame(Math.min(50, ticker.deltaMS)));
@@ -186,7 +186,12 @@ export abstract class KitBoard<S> implements BoardRenderer<S> {
   protected pointerDown(_x: number, _y: number, _e: FederatedPointerEvent): void {}
   protected pointerMove(_x: number, _y: number, _e: FederatedPointerEvent): void {}
   protected pointerUp(_x: number, _y: number, _e: FederatedPointerEvent): void {}
-  protected pointerCancel(): void {}
+  /**
+   * A press ended without a release on the board: pointer `pointerId` was let go off the canvas or
+   * taken over by the browser, or, with no id, the board was switched off. A board that follows one
+   * finger at a time ignores the cancel of another.
+   */
+  protected pointerCancel(_pointerId?: number): void {}
   /** The pointer went off the canvas: a board that previews what a hover would do takes the preview down. */
   protected pointerLeave(): void {}
 

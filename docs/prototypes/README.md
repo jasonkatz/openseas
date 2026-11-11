@@ -90,6 +90,8 @@ These are the project's rules (CLAUDE.md), said for a prototype.
   `data-view` wait for it; `beforeCanvas` waits for something besides the atlas before the canvas
   is made (Cooling's webfont); `pointerLeave` takes a hover preview down. A board that acts while
   a key is held (Engines' hurry) adds a `keyUp`, and the host hands it every key's release.
+  `pointerCancel` is told which pointer let go, so a board that follows one finger at a time
+  (Plating) ignores another's; with none, the board was switched off.
 - `tween.ts`: `Tweens`. `to`, `run`, `after`; `flush` finishes everything in order. `setState`
   flushes before every new state, and a layout does too, so an animation must leave the board
   exactly as a snap would: end every played move with a snap to the engine's state.

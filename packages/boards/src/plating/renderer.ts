@@ -1,5 +1,5 @@
-import { loadPuzzleSprites, spritesReady, paintSprite } from "../sprites/atlas.js";
-import { Application, Container, FillGradient, Graphics, Text, type FederatedPointerEvent, type FederatedWheelEvent } from "pixi.js";
+import { paintSprite } from "../sprites/atlas.js";
+import { Container, FillGradient, Graphics, Text, type FederatedPointerEvent, type FederatedWheelEvent } from "pixi.js";
 import {
   platingCheckPlacement,
   platingEffectiveBrush,
@@ -14,14 +14,13 @@ import {
 import type { PlatingContent } from "@openseas/content";
 import { mix } from "../cooling/tiles.js";
 import { drawMark } from "../engines/renderer.js";
-import { boardSurface } from "../surface.js";
 import { HULL, hullRivet, starField } from "../hull.js";
-import type { BoardRenderer } from "../kit/useBoardHost.js";
+import { KitBoard } from "../kit/board.js";
 
 export interface PlatingCallbacks {
   /** The player welded down the plate in `slot` at this orientation and origin. */
   onPlace(slot: number, rot: number, flip: boolean, col: number, row: number): void;
-  /** First frame drawn after a new state arrived. */
+  /** Called on the first frame drawn once a new state has finished playing out. */
   onFrame(): void;
   /** A breach was sealed on screen, with its rating. */
   onSealed(rating: BreachRating, chain: number): void;
@@ -164,8 +163,16 @@ const DISPLAY = "Fraunces, Georgia, serif";
 const easeOut = (k: number): number => 1 - (1 - k) ** 3;
 const easeIn = (k: number): number => k * k;
 
-export class PlatingRenderer implements BoardRenderer<PlatingState> {
-  readonly app = new Application();
+/**
+ * PixiJS view of a Plating state, on the kit's lifecycle (ADR 0040). The player picks a plate from the
+ * tray, turns and flips it and sets it on the hull, asking the engine where it fits, and the board
+ * reports the weld; it never decides what a weld does. A weld plays out from the move report: the
+ * plate lands, a sealed breach's plates lift away, and new or widened breaches crack open. The board
+ * is busy until all of that has played; flashes and text fade on their own. A new weld does not cut
+ * short what is still playing: its own landing and cracks join in.
+ */
+export class PlatingRenderer extends KitBoard<PlatingState> {
+  /** Everything the board draws. */
   private readonly root = new Container();
   private readonly hull = new Graphics();
   private readonly breachesG = new Graphics();
@@ -183,7 +190,6 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
   private readonly colorByKind = new Map<number, number>();
   private readonly markByKind = new Map<number, string>();
   private readonly breachFill = linear([COLORS.breachTop, COLORS.breachBottom]);
-  private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   private readonly flashes: Flash[] = [];
   private readonly popups: Popup[] = [];
   private readonly lifts: Lift[] = [];
@@ -195,8 +201,6 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
   /** The ghost turning over on its vertical axis after a flip, so the button always answers. */
   private flipFx: { life: number; max: number; cx: number } | null = null;
   private refill: { slot: number; life: number; max: number } | null = null;
-  private clock = 0;
-  private showMarks: boolean;
   private cell = 36;
   private ox = 0;
   private oy = 0;
@@ -206,11 +210,6 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
   private trayH = 0;
   private slotRects: Array<{ x: number; y: number; w: number; h: number }> = [];
   private slotLabels: Text[] = [];
-  private state: PlatingState | null = null;
-  private interactive = false;
-  private destroyed = false;
-  private framePending = false;
-  private viewStale = true;
   private breachFxDirty = true;
   /**
    * The tray slot in hand, or null until the player picks one. A round starts with none. Only
@@ -234,12 +233,12 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
   private lastOrigin: { col: number; row: number } | null = null;
 
   constructor(
-    private readonly host: HTMLElement,
+    host: HTMLElement,
     content: PlatingContent,
     private readonly cb: PlatingCallbacks,
     private readonly opts: PlatingRendererOptions,
   ) {
-    this.showMarks = opts.showMarks;
+    super(host, "plating", cb.onFrame, opts.showMarks);
     content.pieces.forEach((p, i) => {
       this.colorByKind.set(i, parseInt(p.color.slice(1), 16));
       this.markByKind.set(i, p.mark);
@@ -248,78 +247,40 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
     this.height = content.config.height;
   }
 
-  /** True once the canvas exists, until `destroy` (the host's contract, ADR 0040). */
-  get isReady(): boolean {
-    return Boolean(this.app.renderer);
-  }
-
-  async init(): Promise<void> {
-    await loadPuzzleSprites("plating");
-    if (this.destroyed) return;
-    await this.app.init({
-      resizeTo: this.host,
-      backgroundAlpha: 0,
-      ...boardSurface(),
-      autoDensity: true,
-      preference: "webgl",
-    });
-    if (this.destroyed) {
-      this.app.destroy(true);
-      return;
-    }
-    this.app.canvas.dataset.spriteAtlas = spritesReady("plating") ? "plating" : "fallback";
-    this.app.canvas.style.touchAction = "none";
-    this.app.canvas.setAttribute("data-testid", "plating-canvas");
-    this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+  protected build(): void {
+    // The wheel turns the plate in hand, so it must not scroll the page under the board.
     this.app.canvas.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
-    this.host.appendChild(this.app.canvas);
+    this.app.stage.on("wheel", (e: FederatedWheelEvent) => this.wheel(e));
     this.root.addChild(this.hull, this.breachesG, this.breachFxG, this.platesG, this.markLayer, this.fxG, this.ghostG, this.trayG, this.trayPiecesG, this.trayText, this.hudG, this.dragG, this.textLayer);
-    this.app.stage.addChild(this.root);
-    this.app.stage.eventMode = "static";
-    this.app.stage.hitArea = this.app.screen;
-    this.app.stage.on("pointerdown", (e) => this.pointerDown(e));
-    this.app.stage.on("pointermove", (e) => this.pointerMove(e));
-    this.app.stage.on("pointerup", (e) => this.pointerUp(e));
-    this.app.stage.on("pointerupoutside", (e) => this.pointerCancel(e));
-    this.app.stage.on("pointercancel", (e) => this.pointerCancel(e));
-    this.app.stage.on("wheel", (e) => this.wheel(e));
-    this.app.renderer.on("resize", () => this.layout());
-    this.app.ticker.add((ticker) => this.tick(Math.min(50, ticker.deltaMS)));
-    this.layout();
+    this.world.addChild(this.root);
   }
 
-  destroy(): void {
-    this.destroyed = true;
-    if (this.app.renderer) {
-      this.app.destroy(true, { children: true });
-      this.breachFill.destroy();
-    }
+  protected override dispose(): void {
+    this.breachFill.destroy();
   }
 
-  setInteractive(on: boolean): void {
-    this.interactive = on;
-    if (!on) {
-      this.drag = null;
-      this.dragG.clear();
-      this.drawTrayPieces();
-    }
+  /** Switched off, the plate in hand stays where it is (the kit has already let go of a drag), and its ghost and toolbar go. */
+  protected override onInteractive(on: boolean): void {
+    if (!on) this.drawTrayPieces();
     this.drawGhost();
   }
 
-  setShowMarks(on: boolean): void {
+  /** Marks are drawn over the plates and the tray, so a toggle redraws those and leaves a weld playing out. */
+  override setShowMarks(on: boolean): void {
     if (this.showMarks === on) return;
     this.showMarks = on;
+    if (!this.isReady) return;
     this.drawPlates();
     this.drawTrayPieces();
   }
 
-  /** A new engine state. Plays what the last move did and redraws everything. */
-  setState(state: PlatingState): void {
-    if (!this.app.renderer) return;
-    const prev = this.state;
-    this.state = state;
-    this.framePending = true;
-    this.viewStale = true;
+  /** A weld is still playing out: the plate landing, a sealed breach's plates lifting off, breaches cracking open, or a beat of it still to come. */
+  protected override get busy(): boolean {
+    return super.busy || this.landing !== null || this.lifts.length > 0 || this.covers.length > 0 || this.timers.length > 0;
+  }
+
+  /** Show a new engine state. Plays what the last move did and redraws everything. */
+  protected onState(state: PlatingState, prev: PlatingState | null): void {
     this.breachFxDirty = true;
     const rep = state.lastMove;
     const reset = !prev || prev === state || state.moveCount < prev.moveCount || (state.moveCount === prev.moveCount && state.lastMove === null);
@@ -412,10 +373,7 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
 
   // ---- layout and drawing
 
-  private layout(): void {
-    if (!this.app.renderer) return;
-    const w = this.app.screen.width;
-    const h = this.app.screen.height;
+  protected layout(w: number, h: number): void {
     const pad = 8;
     const cell = Math.floor(Math.min((w - pad * 2) / this.width, (h - pad * 2) / (this.height + TRAY_ROWS)));
     this.cell = Math.max(10, cell);
@@ -429,6 +387,7 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
     const gap = W * 0.02;
     const slotW = (W - gap * 2) / 3;
     this.slotRects = [0, 1, 2].map((i) => ({ x: this.ox + i * (slotW + gap), y: this.trayY, w: slotW, h: this.trayH }));
+    this.publishGeom(this.ox, this.oy, this.cell);
     this.drawHull();
     this.drawBreaches();
     this.drawPlates();
@@ -516,7 +475,7 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
     for (const h of warn) {
       const left = grow - h.idleMoves;
       const urgent = left <= 1;
-      const pulse = this.reduced ? 0.6 : 0.5 + 0.5 * Math.sin(this.clock / (urgent ? 110 : 220));
+      const pulse = this.reduced ? 0.6 : 0.5 + 0.5 * Math.sin(this.time / (urgent ? 110 : 220));
       this.strokeRegion(g, new Set(h.cells), 2, { width: 3, color: urgent ? COLORS.illegal : COLORS.amber, alpha: 0.35 + 0.55 * pulse });
     }
   }
@@ -622,6 +581,21 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
       this.paintGhost(g, check, this.cursor.col, this.cursor.row, this.drag?.moved ? 0.8 : 1);
     }
     this.drawHud();
+    this.publishGhost();
+  }
+
+  /**
+   * Tell the smoke test where the plate in hand is, as it is drawn: its origin cell, its origin and
+   * size in cells, its slot and orientation, and the centre of each toolbar button in canvas pixels.
+   * Written with every redraw of the ghost, while a weld may still be playing out.
+   */
+  private publishGhost(): void {
+    const canvas = this.app.canvas;
+    const fp = this.footprint();
+    canvas.setAttribute("data-cursor", this.cursor ? `${this.cursor.col},${this.cursor.row}` : "");
+    canvas.setAttribute("data-ghost", this.cursor && fp ? `${this.cursor.col},${this.cursor.row},${fp.w},${fp.h}` : "");
+    canvas.setAttribute("data-orient", `${this.slot ?? -1},${this.rot},${this.flip ? 1 : 0}`);
+    canvas.setAttribute("data-hud", this.hudRects.map((r) => `${r.action}:${Math.round(r.x + r.w / 2)},${Math.round(r.y + r.h / 2)}`).join(";"));
   }
 
   /**
@@ -773,7 +747,7 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
   }
 
   private at(ms: number, fn: () => void): void {
-    this.timers.push({ at: this.clock + (this.reduced ? Math.min(ms, 90) : ms), fn });
+    this.timers.push({ at: this.time + (this.reduced ? Math.min(ms, 90) : ms), fn });
   }
 
   private clearEffects(): void {
@@ -819,11 +793,10 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
 
   // ---- per frame
 
-  private tick(dt: number): void {
-    this.clock += dt;
+  protected override update(dt: number): void {
     for (let i = this.timers.length - 1; i >= 0; i--) {
       const tm = this.timers[i]!;
-      if (this.clock >= tm.at) {
+      if (this.time >= tm.at) {
         this.timers.splice(i, 1);
         tm.fn();
       }
@@ -995,12 +968,6 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
     }
 
     this.drawBreachFx();
-
-    if (this.framePending) {
-      this.framePending = false;
-      this.cb.onFrame();
-    }
-    if (this.viewStale) this.publishView();
   }
 
   private landingCellAt(l: Landing, dx: number, dy: number): number {
@@ -1009,23 +976,21 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
     return row * this.width + col;
   }
 
-  /** Mirrors what the canvas shows, for the smoke test: h for an open breach cell, . for hull, else the cover count. */
-  private publishView(): void {
-    this.viewStale = false;
-    if (!this.state) return;
+  /**
+   * The hull as the canvas shows it once a weld has played out, which the kit writes to the canvas:
+   * h for an open breach cell, . for hull, else the cover count. Plates and breaches are drawn from
+   * the state, so once settled the state is what is drawn. The smoke test compares it with the
+   * engine's board so the view can never silently diverge.
+   */
+  protected view(): string {
+    if (!this.state) return "";
     const breachOf = platingBreachIndex(this.state);
     const out: string[] = [];
     for (let c = 0; c < this.state.covered.length; c++) {
       const n = this.state.covered[c]!;
       out.push(n > 0 ? String(n) : breachOf.has(c) ? "h" : ".");
     }
-    this.app.canvas.setAttribute("data-view", out.join(""));
-    const fp = this.footprint();
-    this.app.canvas.setAttribute("data-cursor", this.cursor ? `${this.cursor.col},${this.cursor.row}` : "");
-    this.app.canvas.setAttribute("data-ghost", this.cursor && fp ? `${this.cursor.col},${this.cursor.row},${fp.w},${fp.h}` : "");
-    this.app.canvas.setAttribute("data-geometry", `${this.ox},${this.oy},${this.cell}`);
-    this.app.canvas.setAttribute("data-orient", `${this.slot ?? -1},${this.rot},${this.flip ? 1 : 0}`);
-    this.app.canvas.setAttribute("data-hud", this.hudRects.map((r) => `${r.action}:${Math.round(r.x + r.w / 2)},${Math.round(r.y + r.h / 2)}`).join(";"));
+    return out.join("");
   }
 
   // ---- selection and placement
@@ -1049,14 +1014,12 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
     const fp = this.footprint();
     if (!this.anchor || !fp) {
       this.cursor = null;
-      this.viewStale = true;
       return;
     }
     // A plate may hang off the hull (the overhang is waste), as long as one cell of its box stays on it.
     const col = Math.max(1 - fp.w, Math.min(this.width - 1, Math.round(this.anchor.cx - fp.w / 2)));
     const row = Math.max(1 - fp.h, Math.min(this.height - 1, Math.round(this.anchor.cy - fp.h / 2)));
     this.cursor = { col, row };
-    this.viewStale = true;
   }
 
   /** Point the anchor at an origin cell. */
@@ -1110,7 +1073,6 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
     this.slot = slot;
     this.rot = 0;
     this.flip = false;
-    this.viewStale = true;
   }
 
   private select(slot: number): void {
@@ -1130,7 +1092,6 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
     if (!this.state) return;
     this.rot = ((rot % 4) + 4) % 4;
     this.flip = flip;
-    this.viewStale = true;
     this.cb.onNudge();
     if (this.drag?.moved && this.carries(this.drag)) this.followDrag();
     else this.syncCursor();
@@ -1245,9 +1206,8 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
     return d.from !== "board" || !d.touch;
   }
 
-  private pointerDown(e: FederatedPointerEvent): void {
-    if (!this.interactive || !this.state) return;
-    const { x, y } = e.global;
+  protected override pointerDown(x: number, y: number, e: FederatedPointerEvent): void {
+    if (!this.state) return;
     // One finger at a time; a right click turns the plate.
     if (this.drag && e.pointerId !== this.drag.id) return;
     if (e.button === 2) {
@@ -1286,9 +1246,8 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
     this.drag = { ...base, slot: this.slot, from: "board", offX: 0, offY: 0 };
   }
 
-  private pointerMove(e: FederatedPointerEvent): void {
+  protected override pointerMove(x: number, y: number, e: FederatedPointerEvent): void {
     if (!this.interactive || !this.state) return;
-    const { x, y } = e.global;
     const d = this.drag;
     if (!d) {
       // A mouse hovering over the hull carries the plate with it.
@@ -1342,10 +1301,9 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
     }
   }
 
-  private pointerUp(e: FederatedPointerEvent): void {
+  protected override pointerUp(x: number, y: number, e: FederatedPointerEvent): void {
     const d = this.drag;
     if (!d || e.pointerId !== d.id) return;
-    const { x, y } = e.global;
     if (d.moved && this.state && this.interactive && this.carries(d)) {
       // Judge the plate where the finger lifted, not where the last processed move left it.
       d.x = x;
@@ -1369,7 +1327,6 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
         // Let go over the hull: the plate rests there with its toolbar until it is moved or welded.
         this.drawGhost();
         this.drawTrayPieces();
-        this.viewStale = true;
         this.cb.onNudge();
         return;
       }
@@ -1401,12 +1358,17 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
     this.drawTrayPieces();
   }
 
-  private pointerCancel(e: FederatedPointerEvent): void {
+  /**
+   * The finger in hand was let go off the canvas or taken over by the browser: a plate it was
+   * carrying goes back to its slot. Another finger's cancel changes nothing. With no `pointerId` the
+   * board was switched off: the drag ends and the plate stays where it was (`onInteractive` redraws).
+   */
+  protected override pointerCancel(pointerId?: number): void {
     const d = this.drag;
-    if (!d || e.pointerId !== d.id) return;
+    if (!d || (pointerId !== undefined && pointerId !== d.id)) return;
     this.drag = null;
     this.dragG.clear();
-    if (d.moved) {
+    if (d.moved && pointerId !== undefined) {
       this.anchor = null;
       this.syncCursor();
       this.drawTrayPieces();
@@ -1421,7 +1383,7 @@ export class PlatingRenderer implements BoardRenderer<PlatingState> {
   }
 
   /** Keyboard: 1-3 pick a plate, arrows move it, R or E turn, Q turns back, F flips, H finds a fit, Enter or Space welds it. */
-  keyboard(key: string): boolean {
+  override keyboard(key: string): boolean {
     if (!this.interactive || !this.state) return false;
     // Anything done to a plate needs one in hand; the keyboard starts with the first slot.
     if (this.slot === null && !["1", "2", "3", "Escape"].includes(key)) this.select(0);

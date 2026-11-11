@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { closeBench, expectViewMatchesState, openBench } from "./helpers.js";
+import { boardGeom, closeBench, expectViewMatchesState, openBench } from "./helpers.js";
 
 /**
  * Smoke: the harness builds, loads, and every board plays an unrated round without the server,
@@ -165,11 +165,54 @@ test("home links to Plating and plates go down by keyboard and by tap", async ({
   await page.keyboard.press("h");
   await expect.poll(() => canvas.getAttribute("data-ghost")).toMatch(/^\d+,\d+,\d+,\d+$/);
   const [col, row, w, h] = (await canvas.getAttribute("data-ghost"))!.split(",").map(Number);
-  const [ox, oy, cell] = (await canvas.getAttribute("data-geometry"))!.split(",").map(Number);
+  const [ox, oy, cell] = (await canvas.getAttribute("data-geom"))!.split(",").map(Number);
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
   await page.mouse.click(box.x + ox! + (col! + w! / 2) * cell!, box.y + oy! + (row! + h! / 2) * cell!);
   await expect(page.getByTestId("hud-moves")).toContainText("2");
+});
+
+test("a touch the browser takes over puts the Plating plate back in its slot", async ({ page }) => {
+  await page.goto("/plating");
+  await page.getByTestId("start-unrated").click();
+  const canvas = page.getByTestId("plating-canvas");
+  await expectViewMatchesState(page, "plating");
+  const { ox, oy, cell } = await boardGeom(page, "plating");
+  // The hull is 9 by 12 cells and the tray sits under it: slot 1 is the left third.
+  const slot = { x: ox + (cell * 9 * 0.96) / 6, y: oy + cell * 12.3 + cell * 1.4 };
+  const hull = { x: ox + cell * 4.5, y: oy + cell * 7 };
+  const send = (events: Array<[string, number, { x: number; y: number }]>) =>
+    canvas.evaluate((el, list) => {
+      for (const [type, pointerId, at] of list) {
+        const init = { pointerId, pointerType: "touch", isPrimary: pointerId === 7, clientX: at.x, clientY: at.y };
+        const held = type === "pointerdown" || type === "pointermove";
+        el.dispatchEvent(new PointerEvent(type, { ...init, bubbles: type !== "pointerleave", buttons: held ? 1 : 0 }));
+      }
+    }, events);
+  // A finger carries plate 1 out of the tray and over the hull.
+  await send([
+    ["pointerdown", 7, slot],
+    ["pointermove", 7, { x: slot.x, y: slot.y - cell * 2 }],
+    ["pointermove", 7, hull],
+  ]);
+  await expect(canvas).toHaveAttribute("data-ghost", /^-?\d+,-?\d+,\d+,\d+$/);
+  // A second finger comes and goes: the browser cancels it, and the plate stays in hand.
+  await send([
+    ["pointerdown", 8, { x: hull.x + cell * 2, y: hull.y }],
+    ["pointercancel", 8, { x: hull.x + cell * 2, y: hull.y }],
+  ]);
+  await expect(canvas).toHaveAttribute("data-ghost", /^-?\d+,-?\d+,\d+,\d+$/);
+  // Then the browser takes the first finger's gesture over too: the plate goes back to its slot.
+  await send([
+    ["pointercancel", 7, hull],
+    ["pointerleave", 7, hull],
+  ]);
+  await expect(canvas).toHaveAttribute("data-ghost", "");
+  await expect(canvas).toHaveAttribute("data-orient", "0,0,0");
+  // Nothing is left held: the keyboard finds the plate a fit and welds it.
+  await page.keyboard.press("h");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("hud-moves")).toContainText("1");
 });
 
 test("home links to Gunnery and an unrated round lays arrows by key and by tap, and lifts one by tapping again", async ({ page }) => {
