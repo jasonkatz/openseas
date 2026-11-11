@@ -1,24 +1,12 @@
 import { useState } from "react";
-import {
-  advanceNavigation,
-  navigationColorOf,
-  navigationLandingSlot,
-  navigationMarkerFilled,
-  navigationShapeOf,
-  summarizeNavigation,
-  type NavigationConfig,
-  type NavigationMove,
-  type NavigationState,
-} from "@openseas/engine";
-import { NavigationBoard, StarIcon, content, t, useNavigationControls, useTicked } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
-import { usePractice } from "../practice/usePractice.js";
+import { navigationColorOf, navigationLandingSlot, navigationMarkerFilled, navigationShapeOf } from "@openseas/engine";
+import { NavigationBoard, StarIcon, content, t, useNavigationControls } from "@openseas/boards";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
+import { usePracticePage } from "../practice/usePracticePage.js";
 import { NAVIGATION } from "../puzzles.js";
 
 const navigation = content.puzzles.navigation;
 const MARKERS_KEY = "openseas.navigation.markers";
-const waitAt = (tick: number): NavigationMove => ({ type: "wait", tick });
 
 function readMarkersFlag(): boolean {
   try {
@@ -29,9 +17,7 @@ function readMarkersFlag(): boolean {
 }
 
 export function NavigationPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
   const [showMarkers, setShowMarkersState] = useState(readMarkersFlag);
-
   const setShowMarkers = (on: boolean): void => {
     setShowMarkersState(on);
     try {
@@ -41,19 +27,10 @@ export function NavigationPractice() {
     }
   };
 
-  const api = usePractice<NavigationState, NavigationMove, NavigationConfig>({
-    puzzle: "navigation",
-    def: NAVIGATION.def,
-    config: navigation.config,
-    roundSeconds: navigation.roundSeconds,
-    summarize: summarizeNavigation,
-  });
-  const bench = useBench(NAVIGATION, api);
-  const { state } = api;
-  const cfg = api.round?.config ?? navigation.config;
-  const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceNavigation, wait: waitAt });
-  const shown = bench.reviewState ?? ticked.shown;
-  const controls = useNavigationControls(api, ticked.moveTick);
+  const page = usePracticePage(NAVIGATION);
+  const controls = useNavigationControls(page.api, page.moveTick);
+  const { shown, showMarks } = page;
+  const { state } = page.api;
 
   const colors = navigation.colors.slice(0, shown.config.colors);
   const shapes = navigation.shapes.slice(0, shown.config.shapes);
@@ -64,7 +41,7 @@ export function NavigationPractice() {
   };
   const filled = shown.markers.filter((m) => navigationMarkerFilled(shown, m)).length;
   const total = shown.markers.length;
-  const blocked = api.phase === "playing" && navigationLandingSlot(shown) === null;
+  const blocked = page.playing && navigationLandingSlot(shown) === null;
 
   const details = (
     <>
@@ -94,23 +71,8 @@ export function NavigationPractice() {
 
   return (
     <PracticeShell
-      puzzle="navigation"
-      phase={api.phase}
-      outcome={api.outcome}
-      best={api.best}
-      roundSeconds={api.roundSeconds}
-      timeLeft={api.timeLeft}
-      score={shown.score}
-      moves={shown.landings}
-      movesLabel={t("navigation.stars")}
-      combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
-      splash={t("navigation.go")}
+      page={page}
+      hud={{ moves: shown.landings, movesLabel: t("navigation.stars") }}
       warn={blocked}
       howTo={
         <>
@@ -167,22 +129,9 @@ export function NavigationPractice() {
               {t("navigation.setting_markers")} <small className="muted">{t("navigation.setting_markers_hint")}</small>
             </span>
           </label>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
-      board={(interactive) => (
-        <NavigationBoard
-          key={bench.reviewKey ?? "live"}
-          state={shown}
-          interactive={interactive}
-          showMarks={showMarks}
-          showMarkers={showMarkers}
-          hints={bench.hints}
-          {...controls}
-        />
-      )}
+      board={(b) => <NavigationBoard {...b} showMarkers={showMarkers} {...controls} />}
     />
   );
 }

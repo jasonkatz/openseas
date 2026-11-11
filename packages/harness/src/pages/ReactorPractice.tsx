@@ -1,31 +1,21 @@
 import { useCallback } from "react";
-import { reactorHotCount, reactorPipelineLeft, summarizeReactor, type ReactorConfig, type ReactorDir, type ReactorMove, type ReactorState } from "@openseas/engine";
-import { content, ReactorBoard, SpriteIcon, t } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
-import { usePractice } from "../practice/usePractice.js";
+import { reactorHotCount, reactorPipelineLeft, type ReactorDir } from "@openseas/engine";
+import { ReactorBoard, SpriteIcon, t } from "@openseas/boards";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
+import { usePracticePage } from "../practice/usePracticePage.js";
 import { REACTOR } from "../prototypes/reactor.js";
 
-const reactor = content.puzzles.reactor;
 /** The board's own colors, a grade each, for the legend's icons. */
 const GRADE_COLORS = ["#58c4f6", "#7bd88f", "#f5d021", "#ff9f43", "#b48cff", "#f78fb3", "#f2f0e6", "#9fb4d8"];
 
 /** Reactor (prototype, ADR 0036): the practice frame round the shared board, with the bench beside it. */
 export function ReactorPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
-  const api = usePractice<ReactorState, ReactorMove, ReactorConfig>({
-    puzzle: "reactor",
-    def: REACTOR.def,
-    config: reactor.config,
-    roundSeconds: reactor.roundSeconds,
-    summarize: summarizeReactor,
-  });
-  const bench = useBench(REACTOR, api);
-  const { state } = api;
-  const shown = bench.reviewState ?? state;
+  const page = usePracticePage(REACTOR);
+  const { shown, showMarks } = page;
+  const { state, apply } = page.api;
   const cfg = shown.config;
 
-  const onSwipe = useCallback((dir: ReactorDir): boolean => api.apply({ type: "swipe", dir }), [api]);
+  const onSwipe = useCallback((dir: ReactorDir): boolean => apply({ type: "swipe", dir }), [apply]);
 
   const hot = reactorHotCount(cfg, shown.cells);
   const left = reactorPipelineLeft(shown);
@@ -33,26 +23,8 @@ export function ReactorPractice() {
 
   return (
     <PracticeShell
-      puzzle="reactor"
-      eyebrow={t("harness.prototype_eyebrow")}
-      phase={api.phase}
-      outcome={api.outcome}
-      best={api.best}
-      roundSeconds={api.roundSeconds}
-      timeLeft={api.timeLeft}
-      score={shown.score}
-      moves={shown.moveCount}
-      movesLabel={t("reactor.moves")}
-      // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < REACTOR.config.maxMoves ? cfg.maxMoves : undefined}
-      combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
-      splash={t("reactor.go")}
+      page={page}
+      hud={{ movesLabel: t("reactor.moves") }}
       warn={hot >= cfg.criticalHot - 1}
       howTo={
         <>
@@ -130,14 +102,9 @@ export function ReactorPractice() {
           <p className="muted small proto-note">{t("reactor.legend_heat")}</p>
           <p className="muted small proto-note">{t("reactor.salvo_note")}</p>
           <p className="muted small proto-note">{t("reactor.pipeline_note")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
-      board={(interactive) => (
-        <ReactorBoard key={bench.reviewKey ?? "live"} state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={bench.hints} onSwipe={onSwipe} onFrame={api.markRendered} />
-      )}
+      board={(b) => <ReactorBoard {...b} onSwipe={onSwipe} />}
     />
   );
 }

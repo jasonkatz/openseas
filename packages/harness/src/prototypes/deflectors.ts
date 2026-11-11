@@ -1,7 +1,5 @@
-import { DEFLECTORS_DEF, advanceDeflectors, deflectorsHint, deflectorsOutlook, deflectorsTrace, type DeflectorsConfig, type DeflectorsMove, type DeflectorsState } from "@openseas/engine";
-import { content } from "@openseas/boards";
-import type { HarnessPuzzle } from "../puzzles.js";
-import { DEFLECTORS_PRESETS } from "../scenario/prototypes/deflectors.js";
+import { DEFLECTORS_DEF, advanceDeflectors, deflectorsHint, deflectorsOutlook, deflectorsTrace, type DeflectorsMove, type DeflectorsState } from "@openseas/engine";
+import { harnessPuzzle, ticks } from "../puzzles.js";
 
 /** The opening as the first volley is announced: what a seed probe looks at. */
 const opening = (s: DeflectorsState): DeflectorsState => advanceDeflectors(s, s.config.openingTicks);
@@ -20,20 +18,14 @@ function joins(s: DeflectorsState): number {
   return count;
 }
 
-/** What the bench needs to know about Deflectors: its content config, presets and seed probes. */
-export const DEFLECTORS: HarnessPuzzle<DeflectorsState, DeflectorsMove, DeflectorsConfig> = {
-  id: "deflectors",
-  def: DEFLECTORS_DEF,
-  config: content.puzzles.deflectors.config,
-  roundSeconds: content.puzzles.deflectors.roundSeconds,
-  presets: DEFLECTORS_PRESETS,
+/** What the bench needs to know about Deflectors: its seed probes. */
+export const DEFLECTORS = harnessPuzzle(DEFLECTORS_DEF, {
   probes: [
     { id: "one_flip", test: (s) => joins(s) > 0 },
     { id: "long_best", test: (s) => (opening(s).volley?.best ?? 0) >= 100 },
     { id: "hard_start", test: (s) => joins(s) === 0 && deflectorsHint(opening(s)) !== null && deflectorsOutlook(opening(s))?.hits === 0 },
   ],
   // The board's count and its beams in flight are timed against the tick.
-  locked: ["tickMs"],
-  ticked: { tickMs: content.puzzles.deflectors.config.tickMs },
+  ticked: ticks(advanceDeflectors, (tick): DeflectorsMove => ({ type: "wait", tick })),
   hints: true,
-};
+});

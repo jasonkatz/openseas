@@ -1,33 +1,20 @@
 import { useCallback } from "react";
-import { advanceDeflectors, deflectorsOutlook, deflectorsStreakPercentAt, summarizeDeflectors, type DeflectorsConfig, type DeflectorsMove, type DeflectorsState } from "@openseas/engine";
-import { content, DeflectorsBoard, KindIcon, SpriteIcon, t, useTicked } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
-import { usePractice } from "../practice/usePractice.js";
+import { deflectorsOutlook, deflectorsStreakPercentAt } from "@openseas/engine";
+import { DeflectorsBoard, KindIcon, SpriteIcon, t } from "@openseas/boards";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
+import { usePracticePage } from "../practice/usePracticePage.js";
 import { DEFLECTORS } from "../prototypes/deflectors.js";
 
-const deflectors = content.puzzles.deflectors;
-const waitAt = (tick: number): DeflectorsMove => ({ type: "wait", tick });
 const BEAM_KEYS = ["deflectors.legend_beam_1", "deflectors.legend_beam_2", "deflectors.legend_beam_3"];
 
 /** Deflectors (prototype, ADR 0036): the practice frame round the shared board, with the bench beside it. */
 export function DeflectorsPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
-  const api = usePractice<DeflectorsState, DeflectorsMove, DeflectorsConfig>({
-    puzzle: "deflectors",
-    def: DEFLECTORS.def,
-    config: deflectors.config,
-    roundSeconds: deflectors.roundSeconds,
-    summarize: summarizeDeflectors,
-  });
-  const bench = useBench(DEFLECTORS, api);
-  const { state } = api;
-  const cfg = api.round?.config ?? deflectors.config;
-  const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceDeflectors, wait: waitAt });
-  const shown = bench.reviewState ?? ticked.shown;
+  const page = usePracticePage(DEFLECTORS);
+  const { shown, showMarks, moveTick } = page;
+  const { state, apply } = page.api;
 
-  const onFlip = useCallback((cell: number) => void api.apply({ type: "flip", cell, tick: ticked.moveTick() }), [api, ticked]);
-  const onFire = useCallback((volley: number) => void api.apply({ type: "fire", volley, tick: ticked.moveTick() }), [api, ticked]);
+  const onFlip = useCallback((cell: number) => void apply({ type: "flip", cell, tick: moveTick() }), [apply, moveTick]);
+  const onFire = useCallback((volley: number) => void apply({ type: "fire", volley, tick: moveTick() }), [apply, moveTick]);
 
   // What the waiting volley would do now: the engine's word, as the board's strip shows it.
   const outlook = deflectorsOutlook(shown);
@@ -36,25 +23,9 @@ export function DeflectorsPractice() {
 
   return (
     <PracticeShell
-      puzzle="deflectors"
-      eyebrow={t("harness.prototype_eyebrow")}
-      phase={api.phase}
-      outcome={api.outcome}
-      best={api.best}
-      roundSeconds={api.roundSeconds}
-      timeLeft={api.timeLeft}
-      score={shown.score}
-      moves={shown.volleys}
-      movesLabel={t("deflectors.moves")}
-      combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
-      splash={t("deflectors.go")}
-      warn={api.phase === "playing" && outlook !== null && !outlook.clean && shown.volley !== null && (shown.volley.fireTick - shown.tick) * shown.config.tickMs <= 3000}
+      page={page}
+      hud={{ score: shown.score, moves: shown.volleys, movesLabel: t("deflectors.moves"), combo: shown.combo }}
+      warn={page.playing && outlook !== null && !outlook.clean && shown.volley !== null && (shown.volley.fireTick - shown.tick) * shown.config.tickMs <= 3000}
       howTo={
         <>
           <p className="how how-kbd">{t("deflectors.lines_note")}</p>
@@ -135,25 +106,9 @@ export function DeflectorsPractice() {
           </ul>
           <p className="muted small proto-note">{t("deflectors.lines_note")}</p>
           <p className="muted small proto-note">{t("deflectors.streak_note")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
-      board={(interactive) => (
-        <DeflectorsBoard
-          key={bench.reviewKey ?? "live"}
-          state={shown}
-          logged={bench.reviewState ?? state}
-          version={api.version}
-          interactive={interactive}
-          showMarks={showMarks}
-          hints={bench.hints}
-          onFlip={onFlip}
-          onFire={onFire}
-          onFrame={api.markRendered}
-        />
-      )}
+      board={(b) => <DeflectorsBoard {...b} logged={page.bench.reviewState ?? state} onFlip={onFlip} onFire={onFire} />}
     />
   );
 }

@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { isPrototypePuzzleId } from "@openseas/engine";
 import { isMuted, setMuted, t, usePirate } from "@openseas/boards";
 import { Link } from "../router.jsx";
-import type { PracticeOutcome, PracticePhase } from "./usePractice.js";
+import type { PracticeOutcome } from "./usePractice.js";
+import type { BoardBasics, PracticePage } from "./usePracticePage.js";
 
 const MARKS_KEY = "openseas.markTiles";
 
@@ -62,76 +64,101 @@ export function useShowMarks(): [boolean, (on: boolean) => void] {
   return [showMarks, setShowMarks];
 }
 
-export interface ShellProps {
-  /** Message-table prefix for this puzzle's strings, e.g. "engines". */
-  puzzle: string;
-  /** The line over the title on the start card; a prototype says it is one (ADR 0036). Defaults to duty practice. */
-  eyebrow?: string;
-  phase: PracticePhase;
-  outcome: PracticeOutcome | null;
-  best: number;
-  roundSeconds: number;
-  timeLeft: number;
+/** The HUD's three numbers and their labels. */
+export interface Hud {
   score: number;
   moves: number;
-  /** The move cap for the HUD bar; leave it out for puzzles whose count is not against a cap. */
+  combo: number;
+  /** The cap the moves bar counts down to; leave it out for counts that are not against a cap. */
   maxMoves?: number | undefined;
   /** Label for the moves stat when "Moves" is not the word (e.g. stars landed). */
   movesLabel?: string;
   /** Label for the score stat when "Score" is not the word (e.g. a rate). */
   scoreLabel?: string;
+}
+
+/** A state the HUD reads on its own: a score, a running combo, and a move count under its config's cap. */
+interface Tallied {
+  readonly score: number;
+  readonly moveCount: number;
+  readonly combo: number;
+  readonly config: { readonly maxMoves: number };
+}
+
+interface ShellBase<S, M, C> {
+  /** The page's round, bench and settings (`usePracticePage`). */
+  page: PracticePage<S, M, C>;
   /** Leads the result card, above the score: what decided the round, where that matters most (a fight won or lost). */
   resultHeadline?: ReactNode;
-  combo: number;
-  canRecord: boolean;
-  onStartRecorded(): void;
-  onStartUnrated(): void;
-  /** The harness's own round: a chosen seed, config and clock. */
-  onStartLab?(): void;
-  /** False when the scenario does not validate; the lab button is disabled and `labSummary` says why. */
-  labReady?: boolean;
-  /** A line under the lab button: the seed and what differs from content. */
-  labSummary?: ReactNode;
   /** Art or extra lines on the start card above the how-to. */
   art?: ReactNode;
   /** Extra lines on the start card under the how-to. */
   howTo?: ReactNode;
   /** Stats shown beside the combo meter on wide screens and in the details panel on phones. */
   details?: ReactNode;
-  /** The piece legend and settings, shown below the board (wide) or in the panel (phones). */
+  /** The piece legend and the puzzle's own settings, shown below the board (wide) or in the panel (phones). The marks toggle follows it. */
   legend: ReactNode;
   /** Extra rows on the result card. */
   resultRows?: ReactNode;
   /** True while the board is in a dangerous state; colors the phone details button. */
   warn?: boolean;
-  /** The board. `interactive` is false when a panel covers it or no round is running. */
-  board(interactive: boolean): ReactNode;
-  /** Big text splashed over the board when a round starts. */
-  splash: string;
-  /** The harness bench: a sidebar on wide screens, a sheet over the board on phones. */
-  bench?: ReactNode;
-  /** While set, the start card and result stay hidden and this strip sits over the board: the log is being reviewed. */
-  reviewBar?: ReactNode;
+  /** The board, given what every board takes. `interactive` is false when a panel covers it or no round is running. */
+  board(basics: BoardBasics<S>): ReactNode;
+}
+
+/**
+ * The HUD reads a state's score, move count and combo, and shows a lab round's tighter move cap
+ * against the move count (the cap only keeps the log sane; the clock ends a round). `hud` replaces
+ * any of them; a page that counts something else names its cap, if it has one, and a page whose
+ * state does not carry all three numbers gives them all.
+ */
+export type ShellProps<S, M, C> = ShellBase<S, M, C> & (S extends Tallied ? { hud?: Partial<Hud> } : { hud: Hud });
+
+/** The HUD for this render: the page's own numbers over what the state carries. */
+function hudFor<S, M, C>(page: PracticePage<S, M, C>, own: Partial<Hud> | undefined): Hud {
+  // The props type lets a page leave a number out only when its state is Tallied.
+  const s = page.shown as unknown as Tallied;
+  const base = page.puzzle.config as unknown as Tallied["config"];
+  const counted = own?.moves === undefined;
+  return {
+    score: s.score,
+    moves: s.moveCount,
+    combo: s.combo,
+    maxMoves: counted && s.config.maxMoves < base.maxMoves ? s.config.maxMoves : undefined,
+    ...own,
+  };
 }
 
 const COMBO_PIPS = 8;
 
 /**
- * The practice page frame every duty puzzle shares: top bar, HUD, board well, start card, result
- * card, phone details panel, and room for the harness bench.
+ * The practice page frame every puzzle shares: top bar, HUD, board well, start card, result card,
+ * phone details panel, and the harness bench. It reads the page's round and bench; a page brings
+ * its board, its own stats and lines, and its legend.
  */
-export function PracticeShell(p: ShellProps) {
+export function PracticeShell<S, M, C>(p: ShellProps<S, M, C>) {
+  const { page } = p;
+  const { api, bench } = page;
   const { socketStatus, phase: piratePhase } = usePirate();
   const [muted, setMutedState] = useState(isMuted);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [benchOpen, setBenchOpen] = useState(false);
   const [splash, setSplash] = useState(0);
   const wide = useMediaQuery("(min-width: 900px)");
-  const playing = p.phase === "playing";
-  const reviewing = p.reviewBar !== undefined;
-  const score = useTally(p.score);
-  const lowTime = playing && p.timeLeft <= 10;
-  const prefix = p.puzzle;
+  const playing = page.playing;
+  const reviewing = bench.reviewBar !== undefined;
+  const hud = hudFor(page, (p as { hud?: Partial<Hud> }).hud);
+  const score = useTally(hud.score);
+  const lowTime = playing && api.timeLeft <= 10;
+  const prefix = page.puzzle.id;
+  // A prototype says it is one on its start card (ADR 0036).
+  const eyebrow = isPrototypePuzzleId(prefix) ? t("harness.prototype_eyebrow") : t("practice.eyebrow");
+  const legend = (
+    <>
+      {p.legend}
+      <MarksToggle showMarks={page.showMarks} onChange={page.setShowMarks} />
+    </>
+  );
 
   useEffect(() => {
     if (playing) {
@@ -171,7 +198,7 @@ export function PracticeShell(p: ShellProps) {
       </svg>
     </button>
   );
-  const benchButton = p.bench !== undefined && !wide && (
+  const benchButton = !wide && (
     <button
       className={`icon-btn bench-btn ${benchOpen ? "is-open" : ""}`}
       onClick={() => setBenchOpen((o) => !o)}
@@ -188,14 +215,14 @@ export function PracticeShell(p: ShellProps) {
   const coreStats = (
     <>
       <div className="stat stat-score">
-        <span className="stat-label">{p.scoreLabel ?? t("practice.score")}</span>
+        <span className="stat-label">{hud.scoreLabel ?? t("practice.score")}</span>
         <span className="stat-value" data-testid="hud-score">
-          <span key={p.score} className={p.score ? "bump" : undefined}>
+          <span key={hud.score} className={hud.score ? "bump" : undefined}>
             {score}
           </span>
-          {!wide && p.combo > 1 && (
-            <b className={`combo-chip ${p.combo >= 6 ? "hot" : ""}`} key={p.combo}>
-              ×{p.combo}
+          {!wide && hud.combo > 1 && (
+            <b className={`combo-chip ${hud.combo >= 6 ? "hot" : ""}`} key={hud.combo}>
+              ×{hud.combo}
             </b>
           )}
         </span>
@@ -203,21 +230,21 @@ export function PracticeShell(p: ShellProps) {
       <div className={`stat ${lowTime ? "stat-urgent" : ""}`}>
         <span className="stat-label">{t("practice.time")}</span>
         <span className={`stat-value ${lowTime ? "urgent" : ""}`} data-testid="hud-time">
-          {fmt(p.timeLeft)}
+          {fmt(api.timeLeft)}
         </span>
         <span className="bar" aria-hidden="true">
-          <i style={{ width: `${Math.min(100, (p.timeLeft / Math.max(1, p.roundSeconds)) * 100)}%` }} />
+          <i style={{ width: `${Math.min(100, (api.timeLeft / Math.max(1, api.roundSeconds)) * 100)}%` }} />
         </span>
       </div>
       <div className="stat">
-        <span className="stat-label">{p.movesLabel ?? t("practice.moves")}</span>
+        <span className="stat-label">{hud.movesLabel ?? t("practice.moves")}</span>
         <span className="stat-value" data-testid="hud-moves">
-          {p.moves}
-          {p.maxMoves !== undefined && <small>/{p.maxMoves}</small>}
+          {hud.moves}
+          {hud.maxMoves !== undefined && <small>/{hud.maxMoves}</small>}
         </span>
-        {p.maxMoves !== undefined && (
+        {hud.maxMoves !== undefined && (
           <span className="bar bar-moves" aria-hidden="true">
-            <i style={{ width: `${Math.max(0, 1 - p.moves / p.maxMoves) * 100}%` }} />
+            <i style={{ width: `${Math.max(0, 1 - hud.moves / hud.maxMoves) * 100}%` }} />
           </span>
         )}
       </div>
@@ -226,12 +253,12 @@ export function PracticeShell(p: ShellProps) {
   const comboMeter = (
     <div className="stat stat-wide">
       <span className="stat-label">{t("practice.combo")}</span>
-      <span className={`combo-meter ${p.combo >= 6 ? "hot" : ""}`} aria-label={t("practice.combo_label", { count: p.combo })}>
+      <span className={`combo-meter ${hud.combo >= 6 ? "hot" : ""}`} aria-label={t("practice.combo_label", { count: hud.combo })}>
         {Array.from({ length: COMBO_PIPS }, (_, i) => (
-          <i key={i} className={i < Math.min(COMBO_PIPS, p.combo) ? "lit" : ""} />
+          <i key={i} className={i < Math.min(COMBO_PIPS, hud.combo) ? "lit" : ""} />
         ))}
-        <b data-testid="hud-combo" key={p.combo}>
-          {p.combo ? t("practice.combo_label", { count: p.combo }) : ""}
+        <b data-testid="hud-combo" key={hud.combo}>
+          {hud.combo ? t("practice.combo_label", { count: hud.combo }) : ""}
         </b>
       </span>
     </div>
@@ -240,76 +267,71 @@ export function PracticeShell(p: ShellProps) {
   const covered = detailsOpen || (benchOpen && !wide);
   const board = (
     <section className={`board-wrap ${lowTime ? "low-time" : ""} ${playing ? "is-playing" : ""}`}>
-      {p.board(playing && !covered)}
+      {/* A step back or a jump in review redraws the board from scratch. */}
+      <Fragment key={bench.reviewKey ?? "live"}>{p.board({ ...page.board, interactive: playing && !covered })}</Fragment>
       {playing && splash > 0 && (
         <div className="splash" key={splash} aria-hidden="true">
-          {p.splash}
+          {t(`${prefix}.go`)}
         </div>
       )}
 
       {reviewing && (
         <div className="review-bar" data-testid="review-bar">
-          {p.reviewBar}
+          {bench.reviewBar}
         </div>
       )}
 
       {!playing && !reviewing && (
         <div className="board-veil">
-          {p.phase === "idle" && (
+          {api.phase === "idle" && (
             <div className="veil-card">
-              <p className="eyebrow">{p.eyebrow ?? t("practice.eyebrow")}</p>
+              <p className="eyebrow">{eyebrow}</p>
               <h2>{t(`${prefix}.title`)}</h2>
               {p.art}
               <p className="how">{t(`${prefix}.how_to`)}</p>
               {t(`${prefix}.how_to_keyboard`) !== "" && <p className="how how-kbd">{t(`${prefix}.how_to_keyboard`)}</p>}
               {p.howTo}
-              {p.best > 0 && <p className="best-line">{t("practice.best", { score: p.best })}</p>}
-              {!p.canRecord && socketStatus !== "connecting" && (
+              {api.best > 0 && <p className="best-line">{t("practice.best", { score: api.best })}</p>}
+              {!api.canRecord && socketStatus !== "connecting" && (
                 <p className="note">{piratePhase === "needs-pirate" ? t("harness.needs_pirate_note") : piratePhase === "loading" ? t("app.loading") : t("app.offline")}</p>
               )}
               <div className="stack">
-                <button className="btn btn-brass" onClick={p.onStartRecorded} disabled={!p.canRecord} data-testid="start-recorded">
+                <button className="btn btn-brass" onClick={api.startRecorded} disabled={!api.canRecord} data-testid="start-recorded">
                   {t("harness.recorded_start")}
                 </button>
-                <button className="btn btn-ghost" onClick={p.onStartUnrated} data-testid="start-unrated">
+                <button className="btn btn-ghost" onClick={api.startUnrated} data-testid="start-unrated">
                   {t("practice.unrated_start")}
                 </button>
-                {p.onStartLab && (
-                  <>
-                    <button className="btn btn-lab" onClick={p.onStartLab} disabled={p.labReady === false} data-testid="start-lab">
-                      {t("harness.lab_start")}
-                    </button>
-                    {p.labSummary && (
-                      <p className="lab-summary" data-testid="lab-summary">
-                        {p.labSummary}
-                      </p>
-                    )}
-                  </>
-                )}
+                <button className="btn btn-lab" onClick={bench.startLab} disabled={!bench.labReady} data-testid="start-lab">
+                  {t("harness.lab_start")}
+                </button>
+                <p className="lab-summary" data-testid="lab-summary">
+                  {bench.labSummary}
+                </p>
               </div>
             </div>
           )}
-          {p.phase === "dealing" && (
+          {api.phase === "dealing" && (
             <p className="status">
               <span className="spinner" aria-hidden="true" />
               {t("app.connecting")}
             </p>
           )}
-          {p.phase === "waiting" && (
+          {api.phase === "waiting" && (
             <p className="status">
               <span className="spinner" aria-hidden="true" />
               {t("practice.waiting_result")}
             </p>
           )}
-          {p.phase === "result" && p.outcome && (
+          {api.phase === "result" && api.outcome && (
             <div className="veil-card" data-testid="result">
               <p className="eyebrow">{t("practice.round_over")}</p>
               {p.resultHeadline}
-              <ResultBody outcome={p.outcome} rows={p.resultRows} />
+              <ResultBody outcome={api.outcome} rows={p.resultRows} />
               <div className="stack">
                 <button
                   className="btn btn-brass"
-                  onClick={p.outcome.kind === "lab" && p.onStartLab ? p.onStartLab : p.canRecord ? p.onStartRecorded : p.onStartUnrated}
+                  onClick={api.outcome.kind === "lab" ? bench.startLab : api.canRecord ? api.startRecorded : api.startUnrated}
                   data-testid="restart"
                 >
                   {t("practice.restart")}
@@ -330,12 +352,12 @@ export function PracticeShell(p: ShellProps) {
             {statusPip}
             {comboMeter}
             {p.details}
-            <div className="legend legend-inline">{p.legend}</div>
+            <div className="legend legend-inline">{legend}</div>
           </div>
         </>
       )}
 
-      {!wide && benchOpen && p.bench !== undefined && (
+      {!wide && benchOpen && (
         <div className="bench-sheet" data-testid="bench-sheet">
           <div className="bench-sheet-bar">
             <span className="eyebrow">{t("harness.bench_title")}</span>
@@ -345,7 +367,7 @@ export function PracticeShell(p: ShellProps) {
               </svg>
             </button>
           </div>
-          {p.bench}
+          {bench.bench}
         </div>
       )}
     </section>
@@ -353,7 +375,7 @@ export function PracticeShell(p: ShellProps) {
 
   if (wide) {
     return (
-      <main className={`page puzzle ${p.bench !== undefined ? "puzzle-bench" : ""}`}>
+      <main className="page puzzle puzzle-bench">
         <header className="puzzle-bar">
           {backLink}
           <h1 className="puzzle-title">{t(`${prefix}.title`)}</h1>
@@ -368,20 +390,18 @@ export function PracticeShell(p: ShellProps) {
         {board}
         <details className="legend" open>
           <summary>{t("practice.legend")}</summary>
-          {p.legend}
+          {legend}
         </details>
-        {p.bench !== undefined && (
-          <aside className="bench" data-testid="bench">
-            {p.bench}
-          </aside>
-        )}
+        <aside className="bench" data-testid="bench">
+          {bench.bench}
+        </aside>
       </main>
     );
   }
 
   return (
     <main className="page puzzle puzzle-compact">
-      <header className={`puzzle-bar puzzle-bar-compact ${p.bench !== undefined ? "has-bench" : ""}`}>
+      <header className="puzzle-bar puzzle-bar-compact has-bench">
         {backLink}
         <section className="hud-strip" aria-live="off">
           {coreStats}

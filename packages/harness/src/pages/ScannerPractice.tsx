@@ -1,55 +1,26 @@
 import { useCallback } from "react";
-import { scannerContactsLeft, scannerPingsLeft, scannerStreakPercentAt, summarizeScanner, type ScannerConfig, type ScannerMove, type ScannerState } from "@openseas/engine";
-import { content, ScannerBoard, SpriteIcon, t } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
-import { usePractice } from "../practice/usePractice.js";
+import { scannerContactsLeft, scannerPingsLeft, scannerStreakPercentAt } from "@openseas/engine";
+import { ScannerBoard, SpriteIcon, t } from "@openseas/boards";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
+import { usePracticePage } from "../practice/usePracticePage.js";
 import { SCANNER } from "../prototypes/scanner.js";
-
-const scanner = content.puzzles.scanner;
 
 /** Scanner (prototype, ADR 0036): the practice frame round the shared board, with the bench beside it. */
 export function ScannerPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
-  const api = usePractice<ScannerState, ScannerMove, ScannerConfig>({
-    puzzle: "scanner",
-    def: SCANNER.def,
-    config: scanner.config,
-    roundSeconds: scanner.roundSeconds,
-    summarize: summarizeScanner,
-  });
-  const bench = useBench(SCANNER, api);
-  const { state } = api;
-  const shown = bench.reviewState ?? state;
+  const page = usePracticePage(SCANNER);
+  const { shown, showMarks } = page;
+  const { state, apply } = page.api;
   const cfg = shown.config;
 
-  const onPing = useCallback((cell: number) => void api.apply({ type: "ping", cell }), [api]);
-  const onLock = useCallback((cell: number) => void api.apply({ type: "lock", cell }), [api]);
+  const onPing = useCallback((cell: number) => void apply({ type: "ping", cell }), [apply]);
+  const onLock = useCallback((cell: number) => void apply({ type: "lock", cell }), [apply]);
 
   const pingsLeft = scannerPingsLeft(shown);
 
   return (
     <PracticeShell
-      puzzle="scanner"
-      eyebrow={t("harness.prototype_eyebrow")}
-      phase={api.phase}
-      outcome={api.outcome}
-      best={api.best}
-      roundSeconds={api.roundSeconds}
-      timeLeft={api.timeLeft}
-      score={shown.score}
-      moves={shown.moveCount}
-      movesLabel={t("scanner.moves")}
-      // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < SCANNER.config.maxMoves ? cfg.maxMoves : undefined}
-      combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
-      splash={t("scanner.go")}
+      page={page}
+      hud={{ movesLabel: t("scanner.moves") }}
       howTo={
         <>
           <p className="how how-kbd">{t("scanner.live_note")}</p>
@@ -138,14 +109,9 @@ export function ScannerPractice() {
           <p className="muted small proto-note">{t("scanner.live_note")}</p>
           <p className="muted small proto-note">{t("scanner.par_note")}</p>
           <p className="muted small proto-note">{t("scanner.fair_note")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
-      board={(interactive) => (
-        <ScannerBoard key={bench.reviewKey ?? "live"} state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={bench.hints} onPing={onPing} onLock={onLock} onFrame={api.markRendered} />
-      )}
+      board={(b) => <ScannerBoard {...b} onPing={onPing} onLock={onLock} />}
     />
   );
 }

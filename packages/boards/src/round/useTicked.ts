@@ -33,10 +33,15 @@ export interface TickedApi<S> {
  * every so often, and once more right before the deadline, a wait is logged so the server sees the
  * same passage of time. The tick runs one behind the round's clock so a claim never gets ahead of
  * the server's view of it. Time is read from the round's clock, so a harness can slow or pause it.
+ *
+ * Without options the clock is off: it shows the host's state as it is, logs nothing and claims
+ * tick 0, so a caller that runs untimed and timed boards alike can always call it.
  */
-export function useTicked<S extends { readonly tick: number }, M>(host: TickedHost<S, M>, opts: TickedOptions<S, M>): TickedApi<S> {
-  const { tickMs, maxTick } = opts;
-  const waitEvery = opts.waitEveryTicks ?? 20;
+export function useTicked<S extends { readonly tick: number }, M>(host: TickedHost<S, M>, opts: TickedOptions<S, M> | null): TickedApi<S> {
+  const timed = opts !== null;
+  const tickMs = opts?.tickMs ?? 0;
+  const maxTick = opts?.maxTick ?? 0;
+  const waitEvery = opts?.waitEveryTicks ?? 20;
   const { state, phase } = host;
   const [shown, setShown] = useState<S>(state);
   const finalWaitSent = useRef(false);
@@ -46,11 +51,12 @@ export function useTicked<S extends { readonly tick: number }, M>(host: TickedHo
 
   const currentTick = useCallback((): number => {
     const r = latest.current.host.current();
-    if (!r) return 0;
+    if (!r || tickMs <= 0) return 0;
     return Math.max(0, Math.min(maxTick, Math.floor(r.elapsedMs() / tickMs) - 1));
   }, [maxTick, tickMs]);
 
   useEffect(() => {
+    if (!timed) return;
     if (phase !== "playing") {
       setShown(latest.current.host.state);
       finalWaitSent.current = false;
@@ -59,7 +65,7 @@ export function useTicked<S extends { readonly tick: number }, M>(host: TickedHo
     const step = (): void => {
       const { host: h, opts: o } = latest.current;
       const r = h.current();
-      if (!r || r.isFinished) return;
+      if (!o || !r || r.isFinished) return;
       const tick = currentTick();
       if (r.msLeft() < 600 && !finalWaitSent.current) {
         finalWaitSent.current = true;
@@ -75,15 +81,17 @@ export function useTicked<S extends { readonly tick: number }, M>(host: TickedHo
     step();
     const id = window.setInterval(step, tickMs);
     return () => window.clearInterval(id);
-  }, [phase, currentTick, tickMs, waitEvery]);
+  }, [timed, phase, currentTick, tickMs, waitEvery]);
 
   // A logged move resets the display baseline.
   useEffect(() => {
-    if (phase === "playing") setShown(latest.current.opts.advance(state, Math.max(state.tick, currentTick())));
+    if (!timed) return;
+    const o = latest.current.opts;
+    if (phase === "playing" && o) setShown(o.advance(state, Math.max(state.tick, currentTick())));
     else setShown(state);
-  }, [state, phase, currentTick]);
+  }, [timed, state, phase, currentTick]);
 
-  const moveTick = useCallback((): number => Math.max(currentTick(), latest.current.host.current()?.state.tick ?? 0), [currentTick]);
+  const moveTick = useCallback((): number => (timed ? Math.max(currentTick(), latest.current.host.current()?.state.tick ?? 0) : 0), [timed, currentTick]);
 
-  return { shown, moveTick };
+  return { shown: timed ? shown : state, moveTick };
 }

@@ -1,53 +1,24 @@
 import { useCallback } from "react";
-import { advanceOverload, overloadStreakPercentAt, summarizeOverload, type OverloadConfig, type OverloadMove, type OverloadState } from "@openseas/engine";
-import { content, OverloadBoard, SpriteIcon, t, useTicked } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
-import { usePractice } from "../practice/usePractice.js";
+import { overloadStreakPercentAt } from "@openseas/engine";
+import { OverloadBoard, SpriteIcon, t } from "@openseas/boards";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
+import { usePracticePage } from "../practice/usePracticePage.js";
 import { OVERLOAD } from "../prototypes/overload.js";
-
-const overload = content.puzzles.overload;
-const waitAt = (tick: number): OverloadMove => ({ type: "wait", tick });
 
 /** Overload (prototype, ADR 0036): the practice frame round the shared board, with the bench beside it. Its taps come back on the engine's clock (ADR 0015). */
 export function OverloadPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
-  const api = usePractice<OverloadState, OverloadMove, OverloadConfig>({
-    puzzle: "overload",
-    def: OVERLOAD.def,
-    config: overload.config,
-    roundSeconds: overload.roundSeconds,
-    summarize: summarizeOverload,
-  });
-  const bench = useBench(OVERLOAD, api);
-  const { state } = api;
-  const roundCfg = api.round?.config ?? overload.config;
-  const ticked = useTicked(api, { tickMs: roundCfg.tickMs, maxTick: roundCfg.maxTick, advance: advanceOverload, wait: waitAt });
-  const shown = bench.reviewState ?? ticked.shown;
+  const page = usePracticePage(OVERLOAD);
+  const { shown, showMarks, moveTick } = page;
+  const { state, apply } = page.api;
   const cfg = shown.config;
 
-  const onTap = useCallback((cell: number): boolean => api.apply({ type: "tap", cell, tick: ticked.moveTick() }), [api, ticked]);
+  const onTap = useCallback((cell: number): boolean => apply({ type: "tap", cell, tick: moveTick() }), [apply, moveTick]);
 
   return (
     <PracticeShell
-      puzzle="overload"
-      eyebrow={t("harness.prototype_eyebrow")}
-      phase={api.phase}
-      outcome={api.outcome}
-      best={api.best}
-      roundSeconds={api.roundSeconds}
-      timeLeft={api.timeLeft}
-      score={shown.score}
-      moves={shown.moveCount}
-      movesLabel={t("overload.moves")}
-      combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
-      splash={t("overload.go")}
+      page={page}
+      // Its cap counts the log, waits and all, not taps: no bar follows the taps.
+      hud={{ movesLabel: t("overload.moves"), maxMoves: undefined }}
       howTo={
         <>
           <p className="how how-kbd">{t("overload.streak_note")}</p>
@@ -119,14 +90,9 @@ export function OverloadPractice() {
           <p className="muted small proto-note">{t("overload.legend_ring")}</p>
           <p className="muted small proto-note">{t("overload.streak_note")}</p>
           <p className="muted small proto-note">{t("overload.refund_note")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
-      board={(interactive) => (
-        <OverloadBoard key={bench.reviewKey ?? "live"} state={shown} interactive={interactive} showMarks={showMarks} hints={bench.hints} onTap={onTap} onFrame={api.markRendered} />
-      )}
+      board={(b) => <OverloadBoard {...b} onTap={onTap} />}
     />
   );
 }

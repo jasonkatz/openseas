@@ -1,49 +1,22 @@
-import { PENTOMINO_LETTERS, platingOrient, summarizePlating, type PlatingConfig, type PlatingMove, type PlatingState } from "@openseas/engine";
+import { PENTOMINO_LETTERS, platingOrient } from "@openseas/engine";
 import { PlatingBoard, TileIcon, content, t, usePlatingControls } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
-import { usePractice } from "../practice/usePractice.js";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
+import { usePracticePage } from "../practice/usePracticePage.js";
 import { PLATING } from "../puzzles.js";
 
 const plating = content.puzzles.plating;
 
 export function PlatingPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
-
-  const api = usePractice<PlatingState, PlatingMove, PlatingConfig>({
-    puzzle: "plating",
-    def: PLATING.def,
-    config: plating.config,
-    roundSeconds: plating.roundSeconds,
-    summarize: summarizePlating,
-  });
-  const bench = useBench(PLATING, api);
-  const controls = usePlatingControls(api);
-  const { state } = api;
-  const shown = bench.reviewState ?? state;
+  const page = usePracticePage(PLATING);
+  const controls = usePlatingControls(page.api);
+  const { shown, showMarks } = page;
+  const { state } = page.api;
 
   const metals = plating.pieces.slice(0, shown.config.pieceKinds);
 
   return (
     <PracticeShell
-      puzzle="plating"
-      phase={api.phase}
-      outcome={api.outcome}
-      best={api.best}
-      roundSeconds={api.roundSeconds}
-      timeLeft={api.timeLeft}
-      score={shown.score}
-      moves={shown.moveCount}
-      // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={shown.config.maxMoves < PLATING.config.maxMoves ? shown.config.maxMoves : undefined}
-      combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
-      splash={t("plating.go")}
+      page={page}
       details={
         <div className="stat stat-wide">
           <span className="stat-label">{t("plating.breaches_sealed")}</span>
@@ -78,21 +51,9 @@ export function PlatingPractice() {
               </li>
             ))}
           </ul>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
-      board={(interactive) => (
-        <PlatingBoard
-          key={bench.reviewKey ?? "live"}
-          state={shown}
-          version={api.version}
-          interactive={interactive}
-          showMarks={showMarks}
-          {...controls}
-        />
-      )}
+      board={(b) => <PlatingBoard {...b} {...controls} />}
     />
   );
 }

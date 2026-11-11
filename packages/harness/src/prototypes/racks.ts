@@ -1,21 +1,12 @@
-import { RACKS_DEF, racksCrateFits, racksTopGroup, type RacksConfig, type RacksMove, type RacksState } from "@openseas/engine";
-import { content } from "@openseas/boards";
-import type { HarnessPuzzle } from "../puzzles.js";
-import { RACKS_PRESETS } from "../scenario/prototypes/racks.js";
+import { RACKS_DEF, racksCrateFits, racksTopGroup } from "@openseas/engine";
+import { harnessPuzzle } from "../puzzles.js";
 
-/** What the bench needs to know about Racks: its content config, presets and seed probes. */
-export const RACKS: HarnessPuzzle<RacksState, RacksMove, RacksConfig> = {
-  id: "racks",
-  def: RACKS_DEF,
-  config: content.puzzles.racks.config,
-  roundSeconds: content.puzzles.racks.roundSeconds,
-  presets: RACKS_PRESETS,
+/** What the bench needs to know about Racks: its seed probes. */
+export const RACKS = harnessPuzzle(RACKS_DEF, {
   probes: [
     { id: "no_room", test: (s) => !racksCrateFits(s) },
     { id: "one_kind_crate", test: (s) => s.crate.cells.every((c) => c.kind === s.crate.cells[0]!.kind) },
     { id: "crate_joins", test: (s) => racksTopGroup(s.racks[s.crate.rack]!)?.kind === s.crate.cells[0]!.kind },
   ],
-  locked: [],
-  ticked: null,
   hints: true,
-};
+});

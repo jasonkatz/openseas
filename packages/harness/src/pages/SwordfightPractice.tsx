@@ -1,30 +1,17 @@
-import { advanceSwordfight, meleeAttackRate, summarizeSwordfight, swordfightColHeight, swordfightStanding, type SwordfightConfig, type SwordfightMove, type SwordfightState } from "@openseas/engine";
-import { BlockIcon, SwordfightBoard, content, t, useSwordfightControls, useTicked } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
-import { usePractice } from "../practice/usePractice.js";
+import { meleeAttackRate, swordfightColHeight, swordfightStanding } from "@openseas/engine";
+import { BlockIcon, SwordfightBoard, content, t, useSwordfightControls } from "@openseas/boards";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
+import { usePracticePage } from "../practice/usePracticePage.js";
 import { SWORDFIGHT } from "../puzzles.js";
 
 const swordfight = content.puzzles.swordfight;
-const waitAt = (tick: number): SwordfightMove => ({ type: "wait", tick });
 
 /** The practice fight: the player's board against raiders from content, every drop on the fight's clock. */
 export function SwordfightPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
-  const api = usePractice<SwordfightState, SwordfightMove, SwordfightConfig>({
-    puzzle: "swordfight",
-    def: SWORDFIGHT.def,
-    config: swordfight.config,
-    roundSeconds: swordfight.roundSeconds,
-    summarize: summarizeSwordfight,
-  });
-  const bench = useBench(SWORDFIGHT, api);
-  const { state } = api;
-  const cfg = api.round?.config ?? swordfight.config;
-  const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceSwordfight, wait: waitAt, waitEveryTicks: 5 });
-  const shown = bench.reviewState ?? ticked.shown;
-  const playing = api.phase === "playing";
-  const controls = useSwordfightControls(api, ticked.moveTick);
+  const page = usePracticePage(SWORDFIGHT);
+  const controls = useSwordfightControls(page.api, page.moveTick);
+  const { shown, playing, showMarks } = page;
+  const { state } = page.api;
 
   const player = shown.boards[0]!;
   const pieces = swordfight.pieces.slice(0, shown.config.colors);
@@ -78,24 +65,14 @@ export function SwordfightPractice() {
 
   return (
     <PracticeShell
-      puzzle="swordfight"
-      phase={api.phase}
-      outcome={api.outcome}
-      best={api.best}
-      roundSeconds={api.roundSeconds}
-      timeLeft={api.timeLeft}
-      score={meleeAttackRate(shown.config, shown.score)}
-      scoreLabel={t("swordfight.attack_rate")}
-      moves={player.drops}
-      movesLabel={t("swordfight.drops")}
-      combo={player.bestChain}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
-      splash={t("swordfight.go")}
+      page={page}
+      hud={{
+        score: meleeAttackRate(shown.config, shown.score),
+        scoreLabel: t("swordfight.attack_rate"),
+        moves: player.drops,
+        movesLabel: t("swordfight.drops"),
+        combo: player.bestChain,
+      }}
       warn={playing && (top >= shown.config.height - 3 || pending >= shown.config.width * 2)}
       howTo={
         <>
@@ -165,14 +142,9 @@ export function SwordfightPractice() {
           </ul>
           <p className="muted small legend-note">{t("swordfight.legend_slab")}</p>
           <p className="muted small legend-note">{t("swordfight.legend_blades")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
-      board={(interactive) => (
-        <SwordfightBoard key={bench.reviewKey ?? "live"} state={shown} interactive={interactive} showMarks={showMarks} {...controls} />
-      )}
+      board={(b) => <SwordfightBoard {...b} {...controls} />}
     />
   );
 }

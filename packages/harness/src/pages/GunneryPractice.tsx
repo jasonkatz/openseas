@@ -1,29 +1,15 @@
-import { advanceGunnery, summarizeGunnery, type GunneryConfig, type GunneryMove, type GunneryState } from "@openseas/engine";
-import { GunneryBoard, GunneryPieceIcon, content, t, useGunneryControls, useTicked } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
-import { usePractice } from "../practice/usePractice.js";
+import { GunneryBoard, GunneryPieceIcon, content, t, useGunneryControls } from "@openseas/boards";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
+import { usePracticePage } from "../practice/usePracticePage.js";
 import { GUNNERY } from "../puzzles.js";
 
 const gunnery = content.puzzles.gunnery;
-const waitAt = (tick: number): GunneryMove => ({ type: "wait", tick });
 
 export function GunneryPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
-  const api = usePractice<GunneryState, GunneryMove, GunneryConfig>({
-    puzzle: "gunnery",
-    def: GUNNERY.def,
-    config: gunnery.config,
-    roundSeconds: gunnery.roundSeconds,
-    summarize: summarizeGunnery,
-  });
-  const bench = useBench(GUNNERY, api);
-  const { state } = api;
-  // The clock runs on the round's own config: a lab round may have changed maxTick.
-  const cfg = api.round?.config ?? gunnery.config;
-  const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceGunnery, wait: waitAt });
-  const shown = bench.reviewState ?? ticked.shown;
-  const controls = useGunneryControls(api, ticked.moveTick);
+  const page = usePracticePage(GUNNERY);
+  const controls = useGunneryControls(page.api, page.moveTick);
+  const { shown, showMarks } = page;
+  const { state } = page.api;
 
   const pieces = gunnery.pieces;
   const loadsStat = (
@@ -58,23 +44,8 @@ export function GunneryPractice() {
 
   return (
     <PracticeShell
-      puzzle="gunnery"
-      phase={api.phase}
-      outcome={api.outcome}
-      best={api.best}
-      roundSeconds={api.roundSeconds}
-      timeLeft={api.timeLeft}
-      score={shown.score}
-      moves={shown.moveCount}
-      maxMoves={shown.config.maxMoves}
-      combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
-      splash={t("gunnery.go")}
+      page={page}
+      hud={{ maxMoves: shown.config.maxMoves }}
       warn={shown.turrets.some((c) => c.jammed)}
       details={
         <>
@@ -117,14 +88,9 @@ export function GunneryPractice() {
           <p className="muted small legend-note">{t("gunnery.legend_broadside", { points: shown.config.broadsidePoints })}</p>
           <p className="muted small legend-note">{t("gunnery.legend_badges")}</p>
           <p className="muted small legend-note">{t("gunnery.legend_arrow")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
-      board={(interactive) => (
-        <GunneryBoard key={bench.reviewKey ?? "live"} state={shown} interactive={interactive} showMarks={showMarks} {...controls} />
-      )}
+      board={(b) => <GunneryBoard {...b} {...controls} />}
     />
   );
 }

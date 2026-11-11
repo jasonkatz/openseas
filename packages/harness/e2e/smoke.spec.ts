@@ -248,6 +248,15 @@ test("home links to Space Battle and an unrated fight plots by key and by tap an
   await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /^\{"segments":\[\{"move":"left",.*("move":"forward".*){3}/);
 });
 
+test("a Space Battle turn flies on its own when the turn clock runs out", async ({ page }) => {
+  // Three-second turns and nothing plotted: the clock flies the empty plot and the next turn begins.
+  await page.goto("/battle?seed=smoke-turn&c.turnSeconds=3&start=lab");
+  await expect(page.getByTestId("battle-canvas")).toBeVisible();
+  await expect(page.getByTestId("hud-moves")).toContainText("0/20");
+  await expect(page.getByTestId("hud-moves")).toContainText("1/20", { timeout: 10_000 });
+  await expectViewMatchesState(page, "battle");
+});
+
 test("home links to Swordfighting and an unrated fight drops pairs by keyboard and by touch", async ({ page }) => {
   // Two drops hurried down a seventeen-row board, with the raider's board small beside it, on the phone profile.
   test.slow();

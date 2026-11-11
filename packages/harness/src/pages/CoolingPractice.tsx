@@ -1,40 +1,25 @@
-import { useCallback, useRef, useState } from "react";
-import { summarizeCooling, type CoolingConfig, type CoolingMove, type CoolingState } from "@openseas/engine";
+import { useState } from "react";
 import { CoolingBoard, TileIcon, content, t, useCoolingControls } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
-import { usePractice } from "../practice/usePractice.js";
-import { useSoloHeat } from "../practice/useSoloHeat.js";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
+import { serverHeat, useSoloHeat } from "../practice/useSoloHeat.js";
+import { usePracticePage } from "../practice/usePracticePage.js";
 import { COOLING } from "../puzzles.js";
 
 const cooling = content.puzzles.cooling;
 
 export function CoolingPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
-  const [vented, setVented] = useState(0);
   /** Rows vented down this round, counted on the client for the result card only. */
-  const ventedRef = useRef(0);
-
-  const onMove = useCallback((s: CoolingState, prev: CoolingState) => {
-    if (prev.moveCount === 0) ventedRef.current = 0;
-    ventedRef.current += Math.max(0, prev.heatRow - s.heatRow);
-    setVented(ventedRef.current);
-  }, []);
-
-  const api = usePractice<CoolingState, CoolingMove, CoolingConfig>({
-    puzzle: "cooling",
-    def: COOLING.def,
-    config: cooling.config,
-    roundSeconds: cooling.roundSeconds,
-    summarize: summarizeCooling,
-    onMove,
+  const [vented, setVented] = useState(0);
+  const page = usePracticePage(COOLING, {
+    onRoundStart: () => setVented(0),
+    onMove: (s, prev) => {
+      if (prev.heatRow > s.heatRow) setVented((n) => n + prev.heatRow - s.heatRow);
+    },
+    inbound: serverHeat,
   });
-  useSoloHeat(api);
-  const bench = useBench(COOLING, api);
-  const controls = useCoolingControls(api);
-  const { state } = api;
-  const shown = bench.reviewState ?? state;
-  const playing = api.phase === "playing";
+  useSoloHeat(page.api);
+  const controls = useCoolingControls(page.api);
+  const { shown, playing, showMarks } = page;
 
   const heatFrac = shown.heatRow / shown.config.height;
   const danger = heatFrac >= 0.5;
@@ -54,24 +39,7 @@ export function CoolingPractice() {
 
   return (
     <PracticeShell
-      puzzle="cooling"
-      phase={api.phase}
-      outcome={api.outcome}
-      best={api.best}
-      roundSeconds={api.roundSeconds}
-      timeLeft={api.timeLeft}
-      score={shown.score}
-      moves={shown.moveCount}
-      // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={shown.config.maxMoves < COOLING.config.maxMoves ? shown.config.maxMoves : undefined}
-      combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
-      splash={t("cooling.go")}
+      page={page}
       warn={danger}
       art={
         <div className="tile-row" aria-hidden="true">
@@ -110,23 +78,9 @@ export function CoolingPractice() {
               </li>
             ))}
           </ul>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
-      board={(interactive) => (
-        <CoolingBoard
-          key={bench.reviewKey ?? "live"}
-          state={shown}
-          report={shown.lastMove}
-          version={api.version}
-          interactive={interactive}
-          showMarks={showMarks}
-          hints={playing && bench.hints}
-          {...controls}
-        />
-      )}
+      board={(b) => <CoolingBoard {...b} report={shown.lastMove} {...controls} />}
     />
   );
 }

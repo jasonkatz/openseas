@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BATTLE_PERMILLE, summarizeBattle, type BattleConfig, type BattleMove, type BattleState } from "@openseas/engine";
-import { BattleBoard, content, t, useBattleControls } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
-import { usePractice } from "../practice/usePractice.js";
+import { BATTLE_PERMILLE } from "@openseas/engine";
+import { BattleBoard, t, useBattleControls } from "@openseas/boards";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
+import { usePracticePage } from "../practice/usePracticePage.js";
 import { BATTLE } from "../puzzles.js";
 
-const battle = content.puzzles.battle;
 const ARCS_KEY = "openseas.battle.arcs";
 
 function readArcsFlag(): boolean {
@@ -19,7 +17,6 @@ function readArcsFlag(): boolean {
 
 /** The captain's practice fight: a raider from content, and a turn clock that flies the plot. */
 export function BattlePractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
   const [showArcs, setShowArcsState] = useState(readArcsFlag);
   const setShowArcs = (on: boolean): void => {
     setShowArcsState(on);
@@ -30,19 +27,11 @@ export function BattlePractice() {
     }
   };
 
-  const api = usePractice<BattleState, BattleMove, BattleConfig>({
-    puzzle: "battle",
-    def: BATTLE.def,
-    config: battle.config,
-    roundSeconds: battle.roundSeconds,
-    summarize: summarizeBattle,
-  });
-  const bench = useBench(BATTLE, api);
-  const controls = useBattleControls(api);
-  const { state } = api;
-  const cfg = api.round?.config ?? battle.config;
-  const shown = bench.reviewState ?? state;
-  const playing = api.phase === "playing";
+  const page = usePracticePage(BATTLE);
+  const controls = useBattleControls(page.api);
+  const { shown, playing } = page;
+  const { state, current } = page.api;
+  const cfg = page.api.round?.config ?? BATTLE.config;
 
   // The turn clock: the plot flies when it runs out, as it does aboard. It reads the round's own
   // clock, so a lab round's slowed or paused clock holds the turn too.
@@ -50,7 +39,8 @@ export function BattlePractice() {
   const turnEndsAt = useRef<number | null>(null);
   const [turnLeftMs, setTurnLeftMs] = useState<number | null>(null);
   const [commitSignal, setCommitSignal] = useState(0);
-  const now = useCallback((): number => api.current()?.now() ?? Date.now(), [api]);
+  // `current` is the round session's own and the same on every render, so the turn's end is set once a turn.
+  const now = useCallback((): number => current()?.now() ?? Date.now(), [current]);
   useEffect(() => {
     if (!playing || state.finished) {
       turnEndsAt.current = null;
@@ -79,7 +69,7 @@ export function BattlePractice() {
   const me = shown.ships[0];
   const them = shown.ships[1];
   const hull = (d: number): number => Math.round(((BATTLE_PERMILLE - d) * 100) / BATTLE_PERMILLE);
-  const b = shown.config.raider;
+  const raider = shown.config.raider;
   const details = (
     <>
       <div className="stat stat-wide">
@@ -121,29 +111,13 @@ export function BattlePractice() {
 
   return (
     <PracticeShell
-      puzzle="battle"
-      phase={api.phase}
-      outcome={api.outcome}
-      best={api.best}
-      roundSeconds={api.roundSeconds}
-      timeLeft={api.timeLeft}
-      score={shown.score}
-      moves={shown.turn}
-      maxMoves={shown.config.maxTurns}
-      movesLabel={t("battle.turns")}
-      combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
-      splash={t("battle.go")}
+      page={page}
+      hud={{ moves: shown.turn, maxMoves: shown.config.maxTurns, movesLabel: t("battle.turns") }}
       warn={playing && me.damage >= shown.config.grappleDamage}
       howTo={
         <>
           <p className="how">
-            <b>{t("battle.practice_raider")}:</b> {t("battle.tier_line", { tokens: b.tokensPerTurn, reload: b.reloadPerTurn, accuracy: b.accuracy, aggression: b.aggression })}
+            <b>{t("battle.practice_raider")}:</b> {t("battle.tier_line", { tokens: raider.tokensPerTurn, reload: raider.reloadPerTurn, accuracy: raider.accuracy, aggression: raider.aggression })}
           </p>
           <p className="how how-kbd">{t("battle.how_to_keyboard")}</p>
         </>
@@ -183,17 +157,11 @@ export function BattlePractice() {
               {t("battle.setting_arcs")} <small className="muted">{t("battle.setting_arcs_hint")}</small>
             </span>
           </label>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
-      board={(interactive) => (
+      board={(b) => (
         <BattleBoard
-          key={bench.reviewKey ?? "live"}
-          state={shown}
-          interactive={interactive}
-          showMarks={showMarks}
+          {...b}
           showArcs={showArcs}
           turnLeftMs={playing ? turnLeftMs : null}
           turnMs={turnMs}

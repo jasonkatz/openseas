@@ -189,7 +189,7 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
   const bench = (
     <div className="bench-body">
       <ScenarioPanel puzzle={puzzle} scenario={scenario} labConfig={labConfig} validation={validation} locked={playing} onChange={setScenario} onStart={startLab} />
-      <ClockPanel clock={api.clock} startedAt={api.current()?.startedAt ?? null} tickMs={puzzle.ticked?.tickMs ?? null} playing={api.phase === "playing"} />
+      <ClockPanel clock={api.clock} startedAt={api.current()?.startedAt ?? null} tickMs={puzzle.ticked?.clock(api.round?.config ?? puzzle.config).tickMs ?? null} playing={api.phase === "playing"} />
       <InspectorPanel
         puzzle={puzzle}
         api={api}

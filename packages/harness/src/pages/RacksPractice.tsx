@@ -1,30 +1,19 @@
 import { useCallback } from "react";
-import { racksCrateFits, racksCrateWouldShip, racksNextShipment, summarizeRacks, type RacksConfig, type RacksMove, type RacksState } from "@openseas/engine";
-import { content, KindIcon, KINDS, RacksBoard, spriteName, t } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
-import { usePractice } from "../practice/usePractice.js";
+import { racksCrateFits, racksCrateWouldShip, racksNextShipment } from "@openseas/engine";
+import { KindIcon, KINDS, RacksBoard, spriteName, t } from "@openseas/boards";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
+import { usePracticePage } from "../practice/usePracticePage.js";
 import { RACKS } from "../prototypes/racks.js";
-
-const racks = content.puzzles.racks;
 
 /** Racks (prototype, ADR 0036): the practice frame round the shared board, with the bench beside it. */
 export function RacksPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
-  const api = usePractice<RacksState, RacksMove, RacksConfig>({
-    puzzle: "racks",
-    def: RACKS.def,
-    config: racks.config,
-    roundSeconds: racks.roundSeconds,
-    summarize: summarizeRacks,
-  });
-  const bench = useBench(RACKS, api);
-  const { state } = api;
-  const shown = bench.reviewState ?? state;
+  const page = usePracticePage(RACKS);
+  const { shown, showMarks } = page;
+  const { state, apply } = page.api;
   const cfg = shown.config;
 
-  const onMove = useCallback((from: number, to: number) => void api.apply({ type: "move", from, to }), [api]);
-  const onCall = useCallback(() => void api.apply({ type: "call" }), [api]);
+  const onMove = useCallback((from: number, to: number) => void apply({ type: "move", from, to }), [apply]);
+  const onCall = useCallback(() => void apply({ type: "call" }), [apply]);
 
   const fits = racksCrateFits(shown);
   const next = racksNextShipment(shown);
@@ -33,27 +22,9 @@ export function RacksPractice() {
 
   return (
     <PracticeShell
-      puzzle="racks"
-      eyebrow={t("harness.prototype_eyebrow")}
-      phase={api.phase}
-      outcome={api.outcome}
-      best={api.best}
-      roundSeconds={api.roundSeconds}
-      timeLeft={api.timeLeft}
-      score={shown.score}
-      moves={shown.moveCount}
-      movesLabel={t("racks.moves")}
-      // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < RACKS.config.maxMoves ? cfg.maxMoves : undefined}
-      combo={shown.combo}
-      warn={api.phase === "playing" && !fits}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
-      splash={t("racks.go")}
+      page={page}
+      hud={{ movesLabel: t("racks.moves") }}
+      warn={page.playing && !fits}
       howTo={
         <>
           <p className="how">{t("racks.chain_note")}</p>
@@ -128,14 +99,9 @@ export function RacksPractice() {
           </ul>
           <p className="muted small proto-note">{t("racks.legend_ghost")}</p>
           <p className="muted small proto-note">{t("racks.chain_note")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
-      board={(interactive) => (
-        <RacksBoard key={bench.reviewKey ?? "live"} state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={bench.hints} onMove={onMove} onCall={onCall} onFrame={api.markRendered} />
-      )}
+      board={(b) => <RacksBoard {...b} onMove={onMove} onCall={onCall} />}
     />
   );
 }

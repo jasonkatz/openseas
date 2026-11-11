@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from "react";
-import { performanceRating, tierFor, type PuzzleDef, type PuzzleId } from "@openseas/engine";
+import { performanceRating, tierFor, type PuzzleId } from "@openseas/engine";
 import type { PuzzleResult } from "@openseas/protocol";
-import { LabClock, content, sfx, usePirate, useRoundSession, wallClock, type LoggedMove, type PuzzleRound, type RoundPhase, type TickedHost } from "@openseas/boards";
+import { LabClock, content, sfx, usePirate, useRoundSession, wallClock, type LoggedMove, type PuzzleRound, type RoundMessage, type RoundPhase, type TickedHost } from "@openseas/boards";
+import type { HarnessPuzzle } from "../puzzles.js";
 
 /** "dealing" while a recorded round waits for the server's deal. */
 export type PracticePhase = RoundPhase;
@@ -38,16 +39,13 @@ export interface LabScenario<C> {
   paused?: boolean;
 }
 
-export interface PracticeOptions<S, M, C> {
-  puzzle: PuzzleId;
-  def: PuzzleDef<S, M, C>;
-  /** What recorded and unrated rounds play with: the content config and round length. */
-  config: C;
-  roundSeconds: number;
-  /** Reads the three summary numbers off a state for the local result card. */
-  summarize(state: S): { score: number; moves: number; bestCombo: number };
-  /** Fires after every applied move with the new and previous state, for sound and counters. */
+export interface PracticeOptions<S, M> {
+  /** A round begins: recorded, unrated or lab. Where a page zeroes the counters it keeps for one round. */
+  onRoundStart?(): void;
+  /** Fires after every applied move with the new and previous state, for counters. */
   onMove?(state: S, prev: S): void;
+  /** A message the server sends about the recorded round in play, as the move it vouches for (a lone ship's heat), or null. */
+  inbound?(message: RoundMessage): M | null;
 }
 
 /** The round in play or last played. */
@@ -129,18 +127,23 @@ export function localSeed(): string {
  * deals; a lab round adds a chosen seed, config and a clock the harness drives. Every result carries
  * the round's performance rating; none moves the pirate's standing (ADR 0028).
  */
-export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeApi<S, M, C> {
-  const { puzzle, def, config, roundSeconds } = opts;
+export function usePractice<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, opts: PracticeOptions<S, M> = {}): PracticeApi<S, M, C> {
+  const { id, def, config, roundSeconds } = puzzle;
   const { pirate, socketStatus } = usePirate();
   const [outcome, setOutcome] = useState<PracticeOutcome | null>(null);
-  const [best, setBest] = useState(() => readBest(puzzle));
+  const [best, setBest] = useState(() => readBest(id));
   const [roundInfo, setRoundInfo] = useState<RoundInfo<C> | null>(null);
   const info = useRef<RoundInfo<C> | null>(null);
   const labClock = useRef<LabClock | null>(null);
   const canRecord = socketStatus === "open" && pirate !== null;
 
-  /** A round is in play, dealt or local. */
-  const began = useCallback((next: RoundInfo<C>): void => {
+  // The page's callbacks are read through a ref so the start callbacks below stay stable.
+  const latest = useRef(opts);
+  latest.current = opts;
+
+  /** A round is in play, dealt or local. A board handed back on a reconnect is the same round going on (ADR 0024). */
+  const began = useCallback((next: RoundInfo<C>, handedBack = false): void => {
+    if (!handedBack) latest.current.onRoundStart?.();
     info.current = next;
     setRoundInfo(next);
     setOutcome(null);
@@ -151,21 +154,22 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
     def,
     // A fixed board sits behind the start card so the page never opens empty.
     initial: () => def.create("menu", config),
-    accepts: (m) => m.puzzle === puzzle,
+    accepts: (m) => m.puzzle === id,
+    inbound: (m) => opts.inbound?.(m) ?? null,
     countdown: true,
-    onDeal: (m, r) => {
+    onDeal: (m, r, handedBack) => {
       labClock.current = null;
-      began({ mode: "recorded", seed: m.seed, config: m.config as C, roundSeconds: Math.round(r.lengthMs / 1000), sessionId: m.sessionId });
+      began({ mode: "recorded", seed: m.seed, config: m.config as C, roundSeconds: Math.round(r.lengthMs / 1000), sessionId: m.sessionId }, handedBack);
     },
     onMove: (s, prev) => opts.onMove?.(s, prev),
     onFinished: (s, rated) => {
       sfx.end();
       if (rated) return;
-      const sum = opts.summarize(s);
-      const performance = localPerformance(puzzle, sum.score);
+      const sum = def.summarize(s);
+      const performance = localPerformance(id, sum.score);
       if (info.current?.mode === "lab") setOutcome({ kind: "lab", ...sum, newBest: false, performance });
       else {
-        const newBest = recordBest(puzzle, sum.score);
+        const newBest = recordBest(id, sum.score);
         if (newBest) setBest(sum.score);
         setOutcome({ kind: "unrated", ...sum, newBest, performance });
       }
@@ -175,7 +179,7 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
         setOutcome(o);
         return;
       }
-      const newBest = recordBest(puzzle, o.result.score);
+      const newBest = recordBest(id, o.result.score);
       if (newBest) setBest(o.result.score);
       setOutcome({ kind: "recorded", result: o.result, newBest });
     },
@@ -190,8 +194,8 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
   }, [start, began, config, roundSeconds]);
 
   const startRecorded = useCallback(() => {
-    if (!ask({ type: "puzzle.start", puzzle })) startUnrated();
-  }, [ask, startUnrated, puzzle]);
+    if (!ask({ type: "puzzle.start", puzzle: id })) startUnrated();
+  }, [ask, startUnrated, id]);
 
   const startLab = useCallback(
     (scenario: LabScenario<C>) => {

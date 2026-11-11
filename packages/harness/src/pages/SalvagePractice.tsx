@@ -1,55 +1,26 @@
 import { useCallback } from "react";
-import { SALVAGE_CRATE, salvageStreakPercentAt, summarizeSalvage, type SalvageConfig, type SalvageMove, type SalvageState } from "@openseas/engine";
-import { content, KindIcon, KINDS, SalvageBoard, SpriteIcon, spriteName, t } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
-import { usePractice } from "../practice/usePractice.js";
+import { SALVAGE_CRATE, salvageStreakPercentAt } from "@openseas/engine";
+import { KindIcon, KINDS, SalvageBoard, SpriteIcon, spriteName, t } from "@openseas/boards";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
+import { usePracticePage } from "../practice/usePracticePage.js";
 import { SALVAGE } from "../prototypes/salvage.js";
-
-const salvage = content.puzzles.salvage;
 
 /** Salvage (prototype, ADR 0036): the practice frame round the shared board, with the bench beside it. */
 export function SalvagePractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
-  const api = usePractice<SalvageState, SalvageMove, SalvageConfig>({
-    puzzle: "salvage",
-    def: SALVAGE.def,
-    config: salvage.config,
-    roundSeconds: salvage.roundSeconds,
-    summarize: summarizeSalvage,
-  });
-  const bench = useBench(SALVAGE, api);
-  const { state } = api;
-  const shown = bench.reviewState ?? state;
+  const page = usePracticePage(SALVAGE);
+  const { shown, showMarks } = page;
+  const { state, apply } = page.api;
   const cfg = shown.config;
 
-  const onTether = useCallback((cells: readonly number[], loop: boolean) => void api.apply({ type: "tether", cells: [...cells], loop }), [api]);
+  const onTether = useCallback((cells: readonly number[], loop: boolean) => void apply({ type: "tether", cells: [...cells], loop }), [apply]);
 
   const crates = shown.cells.filter((p) => p.kind === SALVAGE_CRATE).length;
   const kinds = KINDS.slice(0, cfg.kinds);
 
   return (
     <PracticeShell
-      puzzle="salvage"
-      eyebrow={t("harness.prototype_eyebrow")}
-      phase={api.phase}
-      outcome={api.outcome}
-      best={api.best}
-      roundSeconds={api.roundSeconds}
-      timeLeft={api.timeLeft}
-      score={shown.score}
-      moves={shown.moveCount}
-      movesLabel={t("salvage.moves")}
-      // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < SALVAGE.config.maxMoves ? cfg.maxMoves : undefined}
-      combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
-      splash={t("salvage.go")}
+      page={page}
+      hud={{ movesLabel: t("salvage.moves") }}
       howTo={
         <>
           <p className="how how-kbd">{t("salvage.streak_note")}</p>
@@ -114,14 +85,9 @@ export function SalvagePractice() {
           </ul>
           <p className="muted small proto-note">{t("salvage.legend_floor")}</p>
           <p className="muted small proto-note">{t("salvage.streak_note")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
-      board={(interactive) => (
-        <SalvageBoard key={bench.reviewKey ?? "live"} state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={bench.hints} onTether={onTether} onFrame={api.markRendered} />
-      )}
+      board={(b) => <SalvageBoard {...b} onTether={onTether} />}
     />
   );
 }

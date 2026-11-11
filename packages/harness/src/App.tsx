@@ -1,4 +1,5 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ComponentType } from "react";
+import { isPuzzleId, type PuzzleId } from "@openseas/engine";
 import { PirateProvider, t } from "@openseas/boards";
 import { Home } from "./pages/Home.jsx";
 import { BattlePractice } from "./pages/BattlePractice.jsx";
@@ -21,24 +22,33 @@ import { Router, useRoute } from "./router.jsx";
 /** The voyage bench is its own chunk: the puzzle pages never load the ship simulator or its charts. */
 const VoyageBench = lazy(() => import("./pages/VoyageBench.jsx").then((m) => ({ default: m.VoyageBench })));
 
+/** Every puzzle's practice page, at `/<id>`. A puzzle the engine registers without a page here fails to typecheck. */
+const LANES: Readonly<Record<PuzzleId, ComponentType>> = {
+  cooling: CoolingPractice,
+  engines: EnginesPractice,
+  plating: PlatingPractice,
+  gunnery: GunneryPractice,
+  navigation: NavigationPractice,
+  battle: BattlePractice,
+  swordfight: SwordfightPractice,
+  salvage: SalvagePractice,
+  overload: OverloadPractice,
+  deflectors: DeflectorsPractice,
+  reactor: ReactorPractice,
+  scanner: ScannerPractice,
+  tug: TugPractice,
+  racks: RacksPractice,
+  cutting: CuttingPractice,
+};
+
 /** One lane per engine, and the voyage bench. The scenario a page opens on rides in the query string (scenario/codec.ts). */
 function Lanes() {
   const { path } = useRoute();
-  if (path === "/cooling") return <CoolingPractice />;
-  if (path === "/engines") return <EnginesPractice />;
-  if (path === "/plating") return <PlatingPractice />;
-  if (path === "/gunnery") return <GunneryPractice />;
-  if (path === "/navigation") return <NavigationPractice />;
-  if (path === "/battle") return <BattlePractice />;
-  if (path === "/swordfight") return <SwordfightPractice />;
-  if (path === "/salvage") return <SalvagePractice />;
-  if (path === "/overload") return <OverloadPractice />;
-  if (path === "/deflectors") return <DeflectorsPractice />;
-  if (path === "/reactor") return <ReactorPractice />;
-  if (path === "/scanner") return <ScannerPractice />;
-  if (path === "/tug") return <TugPractice />;
-  if (path === "/racks") return <RacksPractice />;
-  if (path === "/cutting") return <CuttingPractice />;
+  const id = path.slice(1);
+  if (isPuzzleId(id)) {
+    const Page = LANES[id];
+    return <Page />;
+  }
   if (path === "/voyage")
     return (
       <Suspense fallback={<p className="page muted">{t("app.loading")}</p>}>
