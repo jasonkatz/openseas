@@ -71,7 +71,9 @@ case. Gunnery is the puzzle most likely to invoke this clause.
 ### 3.3 Puzzle designs
 
 Each puzzle below lists its faithful core and the quality-of-life additions agreed for v1. No duty
-puzzle has undo.
+puzzle has undo. How each was built, how it scores and how it is played is in its design file in
+[`puzzles/`](./puzzles/README.md), one file a puzzle, which changes in the same commit as its rules or
+numbers.
 
 **Cooling.** A 6 wide by 12 tall board of pieces. Swap two horizontally adjacent pieces. Matches of
 3 or more clear; the pieces below rise and new pieces enter from the bottom. Combos and
@@ -81,230 +83,31 @@ jellyfish, renamed) ship in v1 because they define the skill ceiling. QoL: match
 or touch-hold, a combo meter, tap-then-tap or drag-swap on touch; on desktop a click swaps the
 hovered pair outright.
 
-As built (M1, sprite art pass ADR 0031): seven ordinary piece kinds (cog, valve, bolt, fuse,
-crystal, coil, chip), each with its own silhouette and surface texture and its own optional mark.
-Since the owner's sprite pass they are drawn as what they are named: a yellow cog, a cream valve
-wheel, a blue hex bolt, an orange glowing fuse, a violet crystal, a green coil spring and a red
-chip with pins. Specials are the Spark Charge (swap to clear a 3 by 3), the Magnet (swap with a piece to clear every piece of that kind),
-and the Slag (unmatchable; it rides up with the board and comes off by itself, for a bonus,
-once it is at or above the heat line). A connected cleared group of n pieces scores n(n-2); clearing k groups in
-one step multiplies by k, with no cap, because a planned double is the skill; cascade step c
-multiplies by `cascadeMultipliers` (×1, ×2, ×3, and ×3 past that), so a lucky refill cascade cannot
-outweigh a setup. Slag that comes off together takes the group multiplier and no cascade's: k at
-once score 15 × k × k, the biggest lift on the board, earned by holding them under the line and
-lifting them together. A move's points are then multiplied by the streak: each scoring move in a
-row adds `streakStepPercent` (10%) from the second on, up to `streakMaxPercent` (×1.5); one swap
-that scores nothing (`streakGrace`, a setup) keeps the streak and a second in a row breaks it. The
-round runs its clock: `maxMoves` only bounds the log, so a score is points in a round's 150
-seconds, the same thing the ship pays per turn. Every board the server deals plays on a ship's heat (ADR 0029): content sets `shipHeat`, so
-swaps neither raise nor vent the heat, and the ship injects heat events into the log instead, one
-with the deal and one whenever a turn changes the depth. The board reads the heat as rows and never
-below `minHeatRow`, three rows: a ship never runs cold, so even a sound, vented ship keeps the
-bottom three rows overheated and the slag under them waiting to be lifted. Aboard a ship (M3)
-the heat is the ship's. In the harness it is a lone ship's: a sound skiff with nobody else aboard,
-whose heat each turn takes the class's intake and vents by this board's own output, as the ship's
-turn would. The server turns it for a recorded round and pushes the depth as a ship does; the
-harness turns it on the round's own clock for unrated and lab rounds. The client logs each depth as
-a `heat` move; the server accepts a heat move only when it repeats the depth it last gave that
-board, so the log stays the whole story and the client never sets its own heat. The board's own
-heat stays in the engine for lab rounds that turn `shipHeat` off: every move raises it a sixth of
-a row, every 40 points vent a row, and it never drops below the same floor. Venting while already
-at the floor is wasted, so points cannot be banked to hold the heat down later. Either way the
-heat is a pure function of the move log, so a replay needs nothing else. A heat
-event is no move: it counts toward nothing and breaks no combo. Below the
-heat line pieces swap slowly: the swap takes `overheatSwapMs` and the board takes no other swap
-until it lands, so working overheated costs time against the clock. That cost is client timing
-only, like the original's; scores never depend on it. All numbers live in
-`content/data/puzzles/cooling.json` and are tuned in playtests.
-
-Feedback as built: each move plays back step by step, swap then every cascade step clearing and
-rising in turn, from the per-step boards the engine's move report carries. A new move
-fast-forwards whatever is still animating, so input never waits, except behind an overheated
-swap. Clears burst with debris, score
-popups and a callout for chains; charges and magnets shake the board; the frame glows with the
-combo; overheated pieces stay readable because the body of heat (a glowing orange
-body with a hot rim and drifting embers, redder once it is half full) sits behind them. Sound and the
-personal best are per device; the personal best is display only and never reaches the server.
-Juice on top of that, all presentation only: clearing two or more runs in one step calls out
-Double, Triple or Supernova; bigger steps hold a beat longer and punch the board; streak
-milestones (3, 5, 8, 12, then every 5 scoring moves in a row) earn a callout and a fanfare, and
-breaking a streak of 3+ sounds a fall; venting the heat puffs steam along the line with a hiss through a valve,
-crossing into the danger half sounds an alarm; overheated pieces sway, charges spark and specials
-breathe. Unrated practice only: after six seconds without input the board wiggles the swap that
-clears the most pieces. Rated rounds never hint. The result card adds rows vented, counted on the
-client for display. Tile sprites are baked once per layout from the shared atlas, with Canvas 2D overlays for labels and optional marks; the legend uses the same art.
-On phones the top bar is the whole HUD (score, time, moves, a combo chip) and the board takes the
-rest of the screen; combo, heat, connection and the piece legend open in a panel over the board.
+Design as built: [`puzzles/cooling.md`](./puzzles/cooling.md).
 
 **Engines.** Falling pieces you steer and rotate into a board, clearing by forming groups and
 chaining through the board's structure. Performance feeds movement tokens per turn. QoL: ghost
 piece showing landing position, next-piece preview, swipe-to-move and tap-to-rotate on touch.
 
-As built (M2): a 12 wide by 20 tall drive core; the cells are small because nothing is tapped
-individually, so the whole board fits a phone screen with room to work in. Pieces are fuel pellets, round discs rather than tiles, so Engines
-never reads as Cooling: conjoined pairs of two pellets in three kinds (plasma, ion and fusion; drawn as riveted
-discs: a red trefoil, a yellow three-spoke and cyan rings, each target ring in its piece's color),
-each with an optional mark, and the two halves of
-a pair stay visibly joined while both are on the board. Six injectors sit in the board at a time,
-never touching. An injector is a connected shape of cells: a bar of two to four, a stack of two or
-three, an L of three, or a two-by-two square; some cells are outlined round targets that want a
-kind, the rest are blanks that hold anything. An injector cell has a shelf under it when no cell of
-the same injector is directly beneath, so a pellet rests in a bar's cells or a stack's bottom cell
-and the cells above fill by falling in, while any cell can be entered from the side. When every
-target on an injector holds its kind the injector fires, its target pellets go, the shape is gone and
-a new one is dealt elsewhere. Runs of
-four or more of a kind, across or down, clear as well; crossing runs count as one group. Linked
-halves fall together until one is cleared. Each step of a chain multiplies by `chainMultipliers`
-(×1, ×3, ×6, ×10, and ×10 past that), steeply, because a chain through the core is the
-skill of Engines; several groups in one step multiply by their count, as in Cooling. A run of n scores
-`runPoints * (n - 3)`; an injector scores `injectorPoints` per target. If the core fills until
-no pair can enter the top row, it flames out: every pellet is swept away, `flameoutPenalty` points are
-lost (never below zero), the combo breaks, fresh injectors are dealt and play goes on. The round
-ends on the clock; `maxMoves` only bounds the log. Every pair enters at the middle of
-the top row; the move the engine logs is the position it came to rest in (column, row, rotation),
-and the engine accepts it only if that spot is reachable from the entry by sliding, turning with
-the same kicks the client uses (either direction), and falling, and nothing holds the pair there. So a pair can be
-steered under an injector, a vertical pair can never straddle a shelf, and a position that floats is
-refused. The client's fall timer and steering are presentation: free fall takes `fallMs` a row, a
-held downward swipe or holding space hurries it to `softDropMs` a row (sixteen times the pace), with
-steering locked for the length of the swipe. There is no hard drop. A pair that comes to rest
-locks after 350 ms; a slide or turn while resting restarts that timer at most three times, and
-reaching a lower row restores the restarts. On the keyboard up turns the
-pair clockwise and down turns it counter-clockwise; a tap turns it clockwise.
-The next pair is under the player's control the moment the last one lands, while the board below
-plays out its clears, each cascade step waiting for the pieces to land before the next clear; the
-pair after it is previewed in a strip above the core on every layout. The landing ghost is a
-thin ring so the target under it stays readable, and glows when the pellet would fill a target of
-its own kind. Sliding into a spot that rests (a shelf or a stack beneath) mid-fall sits the pair up
-on it rather than letting it sink past.
-Numbers live in `content/data/puzzles/engines.json`.
+Design as built: [`puzzles/engines.md`](./puzzles/engines.md).
 
 **Plating.** Polyomino pieces offered from a queue, placed to seal breaches in the hull plating. Tighter
 fills with fewer gaps score higher and feed repair output. QoL: drag-and-drop with snap and a
 rotate button, valid-placement highlight, swap between offered pieces.
 
-As built (M2): a 9 wide by 12 tall stretch of hull with up to three breaches open at once. A breach is
-dealt as one to three pentominoes laid edge to edge, so its area is a multiple of five and a
-perfect fill exists; breaches never touch. Three plates wait in a tray, each one of the twelve
-pentominoes with a metal (tin, copper, steel or brass; cosmetic) and a brushing that turns with it. A plate goes down anywhere
-it covers at least one open cell; it works the breach it covers most of, and cells it lays over hull
-or over another plate are waste. Parts that hang off the board, or lie over a second breach or over
-plated hull, are not laid at all and are waste too, so any breach can be worked from any plate. When every cell of a breach is covered it is sealed, its plates come off and a new breach
-is dealt elsewhere. The seal is rated by extra plates beyond the minimum (area over five):
-none is flawless (which also demands no waste), one solid work, two it'll hold, three
-duct tape, four or more chewing gum and hope. Points are area times `basePerCell` times the
-rating's multiplier, plus a quarter more when every plate's brushing runs across, times the
-flawless streak's multiplier: `streakPercent` gives ×1 for the first flawless seal in a row, then
-×1.25, ×1.5, ×1.75, and ×2 from the fifth on; a lesser seal resets it. Per plate the rating
-already slopes steeply (on a ten-cell breach a flawless seal is 60 a plate, one that will hold 15), so the
-streak is a bonus on top, never the whole round. A breach left alone while
-`growAfterMoves` plates go elsewhere widens by one cell, and a widened breach can no longer be
-flawless. The round ends on the clock; `maxMoves` only bounds the log. A round starts with no plate in
-hand; the player picks one from the tray. Control is built around the
-plate's centre: it sits under the pointer (lifted above a finger), and a spot that will not take it
-snaps to a neighbouring one that will, so dropping near a breach is enough. A mouse carries the plate
-by hovering and welds it with a click; right-click or the scroll wheel turns it. Touch drags the plate
-and sets it down by letting go over the hull, where an icon toolbar follows it (turn either way,
-flip, and a welder to weld it down; the ghost visibly turns over on a flip, so a symmetric plate that lands
-looking the same still answers the press);
-letting go or dragging off the hull sends it back to its slot, and a tap on bare hull brings it
-there. Turning pivots about the
-centre so the ghost stays put. The keyboard picks a slot, moves, turns either way, flips, and jumps
-through the placements with the least waste. Plates drop in and knock; a sealed breach's plates lift
-away; new breaches crack open through the plating; a breach two idle plates from widening pulses amber,
-then red. Numbers live in `content/data/puzzles/plating.json`.
+Design as built: [`puzzles/plating.md`](./puzzles/plating.md).
 
 **Gunnery.** Route cells, sabots and slugs through a column board into turrets in the
 right order to load them. Correct loads feed turret readiness. QoL: per-turret load-order
 indicator, highlight of which drop completes a load. Flagged for possible redesign after
 playtesting.
 
-As built (M2, redesigned over several playtests under 3.2): a 9 wide by 15 tall deck (tall, to fill
-a phone held upright), drawn at random from a set of content maps at the start of each round (the
-seed picks it, so replays agree). Each map has its own crates, hatches and turret rows, and the engine
-refuses any map that is not fit to play: with no arrows, a piece starting anywhere must leave by a
-hatch (no loop built in), the stream from the feeder must leave without running into a turret, and
-every turret must be reachable from the feeder with at most three arrows on a route of at most 30 ticks.
-The maps were found by searching for layouts that pass, then picked by hand for variety. A feeder in
-the top rail drops one piece at a time onto the deck, heading down the middle until crates turn it;
-whatever is not steered rolls out through a hatch within a few seconds. The feeder draws
-from a shuffled bag (two cells, two sabots, two slugs, one coolant), shows the next three in the rail
-beside it, holds back while `maxOnDeck` pieces are out, and quickens from one drop every
-`spawnEveryTicks` to every `spawnEveryTicksMin` over the round. Four turrets sit in the side rails,
-two a side; each takes a route of one to three arrows from the stream. Pieces roll a
-cell per tick until something turns them: an arrow under a piece turns it to follow it; a wall
-turns it right, else left, else back. Pieces roll together: one behind a stopped piece waits, two
-after the same cell let the older go, and two meeting head on both turn back. The gunner lays as
-many arrows as they like, one per deck tile; a loop has to be built out of them, and a new deck every
-round means building it anew. A turret takes a cell, then a sabot, then a slug; a full one fires itself
-after `fireAfterTicks` (the captain's job from M4) and comes back clear, turning pieces away until
-then. A wrong piece jams a turret and loses its load; a jammed turret turns away everything but
-coolant, which flushes it clear; coolant in a clear turret splashes harmlessly. A cell and a sabot score
-`stepPoints`, a full load `loadPoints` plus `comboStep` for each load already in the combo, up to
-`comboCap`; the combo is full loads in a row without a jam. Every turret carries a lamp that lights
-when it fires; once all four are lit, the ship fires a broadside worth `broadsidePoints` and the
-lamps go out, so feeding one handy turret all round leaves the biggest points on the table. Time is integer ticks of `tickMs`; every
-move carries its tick, the client advances its copy once per tick for display and logs a wait now
-and then so loads in flight count, and the server refuses a tick ahead of the wall clock (ADR 0015).
-The round ends on the clock, `maxMoves` or `maxTick`.
-
-Reading the deck is the point of the QoL: every piece carries a chevron for its heading. A piece
-headed into a turret shows its route as dots, green when the piece is what the turret wants (or
-coolant for a jammed one) and red when it will jam it, and that turret gets a matching ring (the
-"highlight of which drop completes a load" above); pieces headed anywhere else show no route. The
-preview accounts for full turrets firing before the piece arrives. Each turret
-shows the piece it wants next as a badge, with cell, sabot and slug pips below for its load. A
-mouse hovering a deck tile shows a ghost arrow pointing toward the nearest edge, and every trail
-redraws as if it were laid; a click commits it, the same
-click again lifts it, and right-click lifts. Touch taps the same way or swipes across a deck tile to
-point an arrow. Keyboard moves a cursor, lays with W, A, S, D and lifts with Space or Backspace.
-Gunnery has its own piece art rather than the coloured tiles of the other puzzles. The cell is an
-upright canister with a glowing orange gauge, the sabot a cream split shell, the slug a pointed
-round with a copper band and the coolant a square jug of blue coolant with a hose. Each has its own
-silhouette (canister, open shell, pointed round, handled jug), so they read apart without colour, and the marks setting adds a
-symbol badge to each. Loads pop their points, a full turret glows and sparks, firing recoils with a muzzle flash, smoke
-and a shake, a jam puffs smoke. Numbers and the deck live in `content/data/puzzles/gunnery.json`.
+Design as built: [`puzzles/gunnery.md`](./puzzles/gunnery.md).
 
 **Navigation.** Arrange and shift pieces to reproduce a target constellation. Completed patterns
 grant token bonuses and space battle advantages. QoL: target overlay toggle, progress meter.
 
-As built (M2, reworked after a first pass that let a star hover until the navigator dropped it and
-let it pass through stars already on the chart): a round star chart of three rings and eight octants,
-with time carried in the move log as in Gunnery (ADR 0015). Stars come in three shapes (spark, star,
-comet) and three colors, so shape alone tells kinds apart; marks add the color's symbol. The
-constellation is a set of hollow markers fixed to the chart, each wanting a kind in a slot, joined
-by faint lines so it reads as a figure. Stars fall one at a time from the sky into the top octant,
-taking `fallTicks` at the start of the round and quickening to `fallTicksMin` by the end; the
-navigator turns any ring a step either way while it falls (stars ride with their ring, markers stay
-put), or taps to bring it down at once. A star falls inward until it meets another and rests in the
-ring outside it, or at the center of an empty column, and every column stays packed toward the
-center: a turn that opens a slot under an outer star lets the stars above it slide in, which can
-fill a marker, make a run, or unmake one. A star in the outer slot at the top shuts the column. A
-marker is filled while a
-matching star sits on it, and a turn can fill one as well as a landing. When every marker is filled
-the constellation is charted: those stars go, points are `n * n * starPoints` times the chain of
-constellations charted without a lost heading (`chainPercent`: ×1, ×1.25, ×1.5, ×1.75, then ×2), plus
-`n * starPoints` for every landing under `2n` it took since it was dealt, so one charted in its
-minimum n landings earns as much again as its stars; then a new constellation is dealt, larger as the round goes on and drawing half its kinds
-from stars already on the chart so strays stay useful. Three or more loose stars of one kind in a
-row, around a ring or down a column, clear for `runPoints` per star beyond two; a star on its marker
-is charted, not loose, and never clears this way. A star arriving while the top outer slot is taken
-is a lost heading: the top column is swept, `lostHeadingPenalty` is lost and the chain breaks. Every move
-carries its tick; the client advances its copy once per tick and logs a wait now and then so
-landings count, and the server refuses a tick ahead of the wall clock. The round ends on the clock,
-`maxTick` or `maxMoves`. Touch drags or taps a ring to turn it and taps the sky, the falling star or
-the center to bring it down; keyboard picks a ring with up and down, turns with left and right,
-drops with enter or space. Reading aids: a dotted path from the star to the ring where it will rest,
-gold when that spot is its own marker, a red cross and a red outer band when the column is shut;
-markers wanting the falling star's kind beckon; in unrated rounds, after a pause, chevrons point at
-the ring to turn and which way, from a search over the rings' turns. A toggle hides the markers for
-players who want to chart from memory; a meter shows filled markers. The chart is as wide as the
-screen, with a small hub and a thin rim so the rings get the width; the top octant is tinted as
-the lane stars fall down. On a phone held upright the height left over holds a row of turn
-buttons per ring, outermost first, and a button to bring the star down, so a turn is one tap
-rather than a drag on a narrow ring. Landings glow, a charted
-constellation flashes its lines and bursts, a run clears with a popup, a lost heading shakes the chart.
-Numbers live in `content/data/puzzles/navigation.json`.
+Design as built: [`puzzles/navigation.md`](./puzzles/navigation.md).
 
 **Space Battle.** Square grid with asteroids and solar current arrows. Per-turn move token pool from Engines
 (left, forward, right). Up to four moves queued per turn. Simultaneous resolution with collision
@@ -312,92 +115,14 @@ and current rules. Turret fire placed left or right per move segment. Damage fro
 plays it on a landscape board. Raider AI chooses moves from a scripted policy with difficulty
 tiers. The ruleset is a pure reducer shared by server, client preview, and AI.
 
-As built (M4, ADR 0021): a board from `content/data/puzzles/battle.json` (the seed picks one of
-three: an open rock field, the Narrows, the Whirl), 18 by 14 cells of open space, asteroids, solar currents
-(`^ > v <`) and gravity wells (`@`), the captain starting at the bottom facing north and the raider at
-the top facing south. A turn is a plot of up to `segments` moves, each a token (left, forward,
-right) or a hold, with port and starboard turrets per move and a grapple flag; the board shows the
-course as numbered ghosts, held segments and currents included, rings a segment that would cost hull, shades the cells each plotted broadside
-reaches, and outlines the raider's reach. A token goes in the picked slot and the pick moves to the next slot without a move, to none when all are
-plotted, so a stray token never overwrites a move; a plot the ship can no longer pay for flies what it can. A turn carries the ship one cell forward and then swings her, so nothing turns
-in place. The raider plots at the same time (its mind is in the reducer, so it replays), and both
-plots fly segment by segment: moves first, with an asteroid or an edge stopping a ship (asteroids cost
-`asteroidDamage`) and two ships bound for one cell, or one flying into a ship that holds, stopping
-both for `ramDamage`; then solar currents, which carry a ship one cell every segment it sits on one, and
-gravity wells, which spin her a quarter turn clockwise; then the turrets, a shot reaching `turretRange`
-cells to its side and stopping at an asteroid, each costing a load and dealing `shotDamage`; then the
-hulls. A ship at `grappleDamage` or worse can be boarded from the cell alongside by a ship that
-wants to, which ends the fight (the boarding stub); when both could, the sounder hull boards. A
-wrecked hull ends it too; `maxTurns` without either and the raider breaks off; the captain can
-break off at any time. Score is `hitPoints` a hit landed less `hitTakenPoints` a hit taken, so hits
-score as the margin (never below zero), and `winPoints` plus `turnBonus` per turn to spare on a win;
-every turn's points are scaled by `scorePercent`, 100 in practice and aboard the tier's (junker
-×0.5, marauder ×1, corsair ×2), so a harder raider rates higher. The combo is turns in a row with a hit. Tokens are dealt every turn in practice
-(`supply`) and aboard by the ship: half the turn's tokens forward, the rest split between the
-turns, plus the loaded turrets and the hull. Raider tiers differ by tokens, reloads, accuracy and
-aggression (`raider-tiers.json`): the junker is slow and sloppy, the corsair closes fast, fires
-true and grapples the moment it can. The harness practice page fights the content raider with
-presets per tier, per board and for faster or slower turns.
+Design as built: [`puzzles/battle.md`](./puzzles/battle.md).
 
 **Swordfighting.** Puyo-style falling colored pairs on each pirate's board. Groups clear; cleared
 groups send breaker blocks to opponents' boards. Team mode distributes each side's attacks. QoL:
 incoming-attack preview, swipe controls. Ships after the duty puzzles; the first playable pillage
 resolves boarding with a stub.
 
-As built (M5, ADR 0022): every pirate in a fight has a 6 wide by 14 tall board. Pairs of blocks
-in four colors (crimson, gold, cobalt, lime, each with its own surface and optional mark) slide in
-from above the middle column, vertical; the player steers, turns (a turn that does not fit kicks
-sideways, lifts a row, or, boxed into one column, turns twice so the halves swap ends) and hurries
-them, and the move the
-engine logs is the column and rotation the pair came to rest in, with the tick it happened at
-(ADR 0015); the engine drops each half to the top of its column, so a sideways pair whose columns
-differ lands at two heights. Blocks of one color that make a two-by-two fuse into a slab, and a
-slab grows by a full strip along any side, loose blocks or a slab of the same span, so slabs can
-hang over a hole. A breaker is a block of a color with a blade across it, dealt `breakerPermille`
-of the time; when it comes to rest touching its color, everything of that color joined to it
-shatters, slabs and all, and a breaker that touches nothing of its color waits where it lands
-until its color falls against it. Each step of the cascade multiplies by its chain number, and
-several breakers firing in one step multiply by their count, as in Cooling. A block scores
-`cellPoints`; a slab of n blocks scores `cellPoints * n + slabBonus * n(n-1)/2`, so a big slab is
-worth far more than its blocks. Points become scrap at `attackPoints` a block (the remainder
-carries over); scrap first cancels scrap waiting to land on the sender's own board (`offset`,
-which the lab can turn off), and the rest goes to the opposing board with the least on it. It
-waits there, shown above the board as a count, and lands at that board's next drop or after
-`landAfterTicks`, whichever comes first, at most `incomingCapRows` rows at a time, in the columns
-of the sender's blade (content: each a list of columns taken in turn, every one weighted toward the
-edges and away from the middle: the plasma cutlass the least, the vibro-dirk the most). Scrap is grey dead metal and unbreakable; each
-block is dealt the color it will turn as it lands, and after `ripenMoves` of the board's drops it
-turns into a block of that color (usually one seen around where it lands: the block under it counts
-three times and each neighbour in its row once, `scrapMatchPermille` of the time in content, any
-color otherwise, so an attack mostly turns into something the defender can clear), which fuses and shatters like any other. It carries no number:
-it lands as solid scrap, and with one drop left (the second of two, in content) the scrap takes
-on its color, so a player reads what is coming from the block itself. An upright pair whose column has one
-free cell left rests its lower half there and the upper half falls away over the top. A board whose
-entry (the top cell of the column pairs come in down) is covered is out; a side with no board
-standing has lost. The score is the player's attack a minute: every point their board broke,
-whether its scrap cancelled what was coming or went over, over the fight to its end (a board that
-goes out early keeps its clock running), counted as at least `minRateSeconds`, and scaled by
-`scorePercent` (the tier's, aboard). A win adds the band `winPoints` and any other end is kept
-under it, so every win outranks every loss and the rate ranks fights within each. The board
-shows attack a minute and blocks broken; a fight's result leads with won or lost. A pair may not come to rest sooner than `dropTicks` after it appeared; the fall
-itself is client timing (`fallTicks` a row, `softDropMs` while hurried, a short lock on resting)
-and never reaches the score. AI pirates (raiders in practice, allies in the lab's team fights)
-play inside the reducer: each drops every `thinkTicks`, choosing from every drop it could make,
-played out with the same rules, by what it broke, the slabs it left, blocks kept together and how
-high it stands, taking the best `skill` percent of the time and one of the next best otherwise,
-every roll from the fight's PRNG, so a practice fight replays from one log. Aboard a ship the
-fight is a melee: each pirate's board is its own fight with the raider crew outside it, attacks
-leave as events the server routes and arrive as `incoming` moves the server vouches for, the
-raider crew's boards run on the server from the tier's `swordsmen`, and everyone sees every board.
-Feedback: the pair's landing shows as outlines (bold for a breaker), slabs are darker than loose
-blocks with a heavy light border, and fuse with a flash and a callout for big ones, breaks burst
-and tally, chains and big shatters call out, scrap flies to the board it is sent to, waits as a
-flashing count above the board, and rains in from above, ripening flashes, the
-entry is outlined, and the
-other boards sit beside the player's as small live boards with their names, waiting scrap and a
-cross when they are out. Touch drags to steer, taps to turn and holds a downward swipe to hurry;
-the keyboard steers with the arrows, turns with up, down, X and Z and hurries with space. Numbers
-live in `content/data/puzzles/swordfight.json`.
+Design as built: [`puzzles/swordfight.md`](./puzzles/swordfight.md).
 
 ### 3.4 Ship and voyage model
 

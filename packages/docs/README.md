@@ -32,7 +32,7 @@ two to four tips and one thing to practise.
 A guide is read in one sitting by someone who wants to play, not study. The type's limits
 (`test/guides.test.ts` holds them) are a budget, not a target.
 
-- **Find the strategy in the scoring.** Read the puzzle's design (`docs/DESIGN.md` 3.3, or
+- **Find the strategy in the scoring.** Read the puzzle's design (`docs/puzzles/<id>.md`, or
   `docs/prototypes/<id>.md`) and its engine (`packages/engine/src/<id>/`). What multiplies? What
   is luck and what is skill? What does a good player set up that a new player takes at once? Each
   rung teaches the next thing that pays, in the order a player can learn it.
