@@ -16,6 +16,7 @@ import type { CrewFlagWire } from "@openseas/protocol";
 import { unseen } from "./batch.js";
 import { WALL_TOP } from "./deck.js";
 import { CameraRig, isoDirection, type View } from "./camera.js";
+import { figureBox, layoutColumns, layoutNames, layoutPins, layoutTags, screenArea, type Box, type Insets, type Pinned, type PinPlace, type PinSpot, type Point, type Size, type SpotPlace } from "./labels.js";
 import { buildOutpost, type OutpostModel } from "./outpost.js";
 import { DOCK, outpostLayout, type Building, type Door } from "./outpostLayout.js";
 import { HULL_HALF, MARKER_Y, PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildDust, buildBoardingTube, buildDrone, buildShip, dressShip, type BuoyModel, type DeckPost, type DroneModel, type ShipModel, type Station } from "./models.js";
@@ -115,13 +116,7 @@ export interface OutpostWalk {
   /** The building whose room the pirate has open: they are inside it (or standing at it, for one nobody enters). */
   inside: Building | null;
 }
-/** Fractions of the viewport covered by the shell's panels, so the focus lands in the clear. */
-export interface Insets {
-  top: number;
-  bottom: number;
-  left: number;
-  right: number;
-}
+export type { Insets };
 export interface WorldInput {
   outposts: WorldOutpost[];
   lanes: WorldLane[];
@@ -184,12 +179,10 @@ const DECK_WALK_MAX_S = 1.3;
 /** Lanes run rim to rim, so a ship's progress along a leg is its progress across the gap. */
 const RIM_R = 2.1;
 const AZIMUTHS = [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4];
+/** A spot's label not drawn yet is taken to be this big. */
 const SPOT_H = 36;
-/** A deck label's width in full (name and who), for deciding whether columns fit beside the hull. */
-const CALLOUT_W = 165;
 const SPOT_W = 170;
-const SPOT_DX = 18;
-const SPOT_DY = -12;
+const NO_INSETS: Insets = { top: 0, bottom: 0, left: 0, right: 0 };
 /** A software renderer draws about this many pixels a frame, and never fewer than this share of the window's own each way. */
 const SOFT_PIXELS = 320_000;
 const SOFT_MIN_RATIO = 0.5;
@@ -201,8 +194,14 @@ interface Spot {
   line: SVGLineElement;
   /** How far the label's box sits above its anchor (its CSS top margin), read once it is drawn. */
   lift?: number;
-  /** Which place beside its pin the label took last, kept while it stays free so labels do not hop. */
-  option?: number;
+  /** Which place beside its pin the label took last, kept while it stays free so labels do not hop; null for none. */
+  kept: number | null;
+}
+/** A spot on show this frame, at its thing; `still` is where the thing is on the ship's steady frame, without the bob. */
+interface ShownSpot {
+  spot: Spot;
+  world: THREE.Vector3;
+  still?: THREE.Vector3;
 }
 
 interface Lane {
@@ -1187,103 +1186,165 @@ export class WorldScene {
     line.setAttribute("class", "ow-leader");
     this.leaders.appendChild(line);
     this.labels.append(pin, el);
-    return { el, pin, line };
+    return { el, pin, line, kept: null };
   }
 
-  /** Project spots to the screen, keep their labels apart, and draw a leader from each pin to its label. */
-  private placeSpots(spots: { spot: Spot; world: THREE.Vector3; still?: THREE.Vector3 }[]): void {
-    const w = this.host.clientWidth;
-    const h = this.host.clientHeight;
-    const cam = this.rig.camera;
-    const insets = this.input?.insets ?? { top: 0, bottom: 0, left: 0, right: 0 };
-    // Where labels may stand: clear of the top bar and the card.
-    const area: ScreenBox = { x0: w * insets.left + 4, y0: h * insets.top + 4, x1: w * (1 - insets.right) - 4, y1: h * (1 - insets.bottom) - 4 };
-    const items = spots.map(({ spot, world, still }) => {
-      this.tmp.copy(world).project(cam);
-      const x = (this.tmp.x * 0.5 + 0.5) * w;
-      const y = (-this.tmp.y * 0.5 + 0.5) * h;
-      // Where the thing is on the ship's steady frame, without the bob: what decides on screen or off,
-      // and where an edge label waits, so neither hops as she drifts.
-      this.tmp.copy(still ?? world).project(cam);
-      const sx = (this.tmp.x * 0.5 + 0.5) * w;
-      const sy = (-this.tmp.y * 0.5 + 0.5) * h;
-      if (spot.lift === undefined && spot.el.offsetHeight) spot.lift = -parseFloat(getComputedStyle(spot.el).marginTop || "0") || 0;
-      return { spot, x, y, sx, sy, bw: spot.el.offsetWidth || SPOT_W, bh: spot.el.offsetHeight || SPOT_H, lift: spot.lift ?? 14 };
+  // ---- labels
+
+  /** Where a point in the world is on screen, in the world's own pixels. */
+  private screenOf(world: THREE.Vector3, view: Size): Point {
+    this.tmp.copy(world).project(this.rig.camera);
+    return { x: (this.tmp.x * 0.5 + 0.5) * view.w, y: (-this.tmp.y * 0.5 + 0.5) * view.h };
+  }
+
+  /** Where the player's own pirate is on screen, ring to headgear, with a little room: no label may cover it. */
+  private playerBox(view: Size): Box | null {
+    const me = this.walkFocus();
+    if (!me || !me.figure.group.visible) return null;
+    const feet = me.figure.group.getWorldPosition(new THREE.Vector3());
+    return figureBox(this.screenOf(feet, view), this.screenOf(feet.add(new THREE.Vector3(0, PIRATE_HEIGHT * 1.15, 0)), view));
+  }
+
+  /**
+   * Hang this frame's labels in three passes: measure where each thing is on screen and how big each
+   * label is drawn, ask `labels.ts` where each goes, then write every answer. The reads come before
+   * the writes, so the page is laid out once a frame rather than once a label. Two writes have to
+   * come first: which labels show, since a hidden label measures nothing; and the compact style of
+   * the deck's labels hung beside their pins, which changes their size, so they are measured again
+   * after it.
+   */
+  private placeLabels(view: Size, player: Box | null): void {
+    const insets = this.input?.insets ?? NO_INSETS;
+    // What shows.
+    for (const sv of this.ships.values()) sv.label.style.display = sv.model.group.visible ? "" : "none";
+    const tags = this.showTags();
+
+    // Measure.
+    const avoid = this.avoided();
+    const outposts = [...this.outposts.values()].map((iv) => ({ el: iv.label, at: this.screenOf(this.tmp2.set(iv.outpost.x, 2.4, iv.outpost.y), view) }));
+    const spots = this.outpostSpots();
+    const spotsAt = this.measurePins(spots, view);
+    const ships = [...this.ships.values()].filter((sv) => sv.model.group.visible && !sv.label.classList.contains("ow-hidden") && !sv.label.classList.contains("ow-label-quiet"));
+    // Named at her stern, the end nearest the rock when she lies at a dock bow out, at the top of her side:
+    // hung lower the name would sit inside her hull, with her roof over it.
+    const names = ships.map((sv) => ({
+      ...this.screenOf(sv.model.group.localToWorld(this.tmp2.set(-0.32, WALL_TOP * SHIP_SCALE - SHIP_SINK, 0)), view),
+      w: sv.label.offsetWidth,
+      h: sv.label.offsetHeight,
+      board: sv.label.classList.contains("ow-label-board"),
+    }));
+    const tagsAt = tags.map(({ wv, tag }) => {
+      wv.figure.group.getWorldPosition(this.tmp2);
+      this.tmp2.y += PIRATE_HEIGHT * 1.35;
+      return { ...this.screenOf(this.tmp2, view), w: tag.offsetWidth, h: tag.offsetHeight };
     });
-    type Item = (typeof items)[number];
-    const inside = (p: Item): boolean => p.sx >= area.x0 && p.sx <= area.x1 && p.sy >= area.y0 && p.sy <= area.y1;
-    const playerAt = this.playerBox();
-    for (const p of items) p.y = pinClearOf(playerAt, p.x, p.y);
-    // Pins on screen, and the player, are things a label must not cover.
-    const pins: (ScreenBox & { owner: Spot })[] = items.filter(inside).map((p) => ({ owner: p.spot, x0: p.x - 10, y0: p.y - 10, x1: p.x + 10, y1: p.y + 10 }));
-    const player = this.playerBox();
-    // Whatever floats over the world (the card folded or open) marks itself; no label goes under it.
+    const focus = this.input?.focus;
+    const aboard = focus?.kind === "ship" ? this.ships.get(focus.id) : undefined;
+    const deck = aboard ? this.deckSpots(aboard) : [];
+    const deckAt = this.measureSpots(deck, view);
+
+    // Lay out. Each kind keeps its own margin in from the shell's panels.
+    const pinArea = screenArea(view, insets, 4);
+    const spotPlaces = layoutPins(spotsAt, { area: pinArea, avoid, player });
+    const namePlaces = layoutNames(names, { area: screenArea(view, insets, 8), player });
+    const tagPlaces = layoutTags(tagsAt, { player });
+    // Zoomed in, the hull runs off the screen and a column of labels would string leaders across
+    // the deck: each label stands beside its own pin instead.
+    // So does a hull that fills the screen's width (a phone held upright), where no column fits.
+    const zoomedIn = this.walkFocus()?.scope === "ship" && this.zoom < 0.85;
+    const columns = aboard && !zoomedIn ? layoutColumns(deckAt, { area: screenArea(view, insets, 8, 24), player }) : null;
+    const beside = aboard !== undefined && columns === null;
+    // Beside their pins the labels go compact: the station's name, its state in the label's ring.
+    this.labels.classList.toggle("ow-compact", beside);
+    // Deck spots carry their steady points too, so labels at the edge hold still while the hull bobs.
+    const deckPins = beside ? layoutPins(this.measurePins(deck, view), { area: pinArea, avoid, player }) : null;
+
+    // Write.
+    for (const { el, at } of outposts) el.style.transform = translate(at);
+    pinSpots(spots, spotPlaces);
+    ships.forEach((sv, i) => {
+      const at = namePlaces[i]!;
+      if (at.edge) sv.label.dataset.edge = at.edge;
+      else delete sv.label.dataset.edge;
+      sv.label.style.transform = translate(at);
+    });
+    tags.forEach(({ tag }, i) => (tag.style.transform = translate(tagPlaces[i]!)));
+    columns?.forEach((at, i) => writeSpot(deck[i]!.spot, at));
+    if (deckPins) pinSpots(deck, deckPins);
+  }
+
+  /** Show the name tags over the other pirates where the player is: everyone on the outpost, the idle hands aboard. Gives back the ones shown. */
+  private showTags(): { wv: WalkerView; tag: HTMLButtonElement }[] {
+    const focus = this.input?.focus;
+    const shown: { wv: WalkerView; tag: HTMLButtonElement }[] = [];
+    for (const wv of this.walkers.values()) {
+      if (!wv.tag) continue;
+      const here = focus && ((focus.kind === "outpost" && wv.scope === "outpost" && focus.id === wv.placeId) || (focus.kind === "ship" && wv.scope === "ship" && focus.id === wv.placeId));
+      const busy = wv.scope === "ship" && wv.station !== null;
+      const show = Boolean(here) && !busy && wv.figure.group.visible;
+      wv.tag.classList.toggle("ow-hidden", !show);
+      if (show) shown.push({ wv, tag: wv.tag });
+    }
+    return shown;
+  }
+
+  /** Whatever floats over the world (the card folded or open) marks itself; no label goes under it. */
+  private avoided(): Box[] {
     const host = this.host.getBoundingClientRect();
-    const covers: ScreenBox[] = Array.from(document.querySelectorAll<HTMLElement>("[data-world-avoid]"), (el) => {
+    return Array.from(document.querySelectorAll<HTMLElement>("[data-world-avoid]"), (el) => {
       const r = el.getBoundingClientRect();
       return { x0: r.left - host.left, y0: r.top - host.top, x1: r.right - host.left, y1: r.bottom - host.top };
     }).filter((r) => r.x1 > r.x0 && r.y1 > r.y0);
-    const taken: ScreenBox[] = [...covers];
-    const boxAt = (p: Item, x0: number, ly: number): ScreenBox => ({ x0: x0 - 2, y0: ly - p.lift - 2, x1: x0 + p.bw + 2, y1: ly - p.lift + p.bh + 2 });
-    const beside = (p: Item, flip: boolean, ly: number): ScreenBox => boxAt(p, flip ? p.x - SPOT_DX - p.bw : p.x + SPOT_DX, ly);
-    const free = (p: Item, box: ScreenBox): boolean =>
-      box.x0 >= area.x0 && box.x1 <= area.x1 && box.y0 >= area.y0 && box.y1 <= area.y1 && !taken.some((t) => overlaps(t, box)) && !pins.some((q) => q.owner !== p.spot && overlaps(q, box)) && !(player && overlaps(player, box));
-    const blocked = (box: ScreenBox): boolean => taken.some((t) => overlaps(t, box)) || Boolean(player && overlaps(player, box));
-    // Labels whose pins are on screen first, nearest the top first; the ones waiting at the edges after.
-    items.sort((a, b) => Number(!inside(a)) - Number(!inside(b)) || a.sy - b.sy || a.sx - b.sx);
-    for (const p of items) {
-      const { spot } = p;
-      if (!inside(p)) {
-        // Its thing is off screen (zoomed in): the label waits at the edge nearest it, pointing the way.
-        const edge = p.sx < area.x0 ? "left" : p.sx > area.x1 ? "right" : p.sy < area.y0 ? "up" : "down";
-        let x0 = Math.max(area.x0 + 4, Math.min(area.x1 - 4 - p.bw, p.sx - p.bw / 2));
-        let ly = Math.max(area.y0 + 4 + p.lift, Math.min(area.y1 - 4 - p.bh + p.lift, p.sy));
-        // Slide along the edge past any label (or the player) already there.
-        for (let guard = 0; guard < 16 && blocked(boxAt(p, x0, ly)); guard++) {
-          if (edge === "left" || edge === "right") ly = ly + p.bh + 4 > area.y1 - p.bh + p.lift ? area.y0 + 4 + p.lift + guard * 8 : ly + p.bh + 4;
-          else x0 = x0 + p.bw + 6 > area.x1 - p.bw ? area.x0 + 4 + guard * 12 : x0 + p.bw + 6;
-        }
-        taken.push(boxAt(p, x0, ly));
-        spot.el.dataset.edge = edge;
-        spot.pin.classList.add("ow-offscreen");
-        spot.line.classList.add("ow-offscreen");
-        spot.el.classList.remove("is-flipped");
-        spot.el.style.transform = `translate(${x0.toFixed(1)}px, ${ly.toFixed(1)}px)`;
-        continue;
-      }
-      delete spot.el.dataset.edge;
-      spot.pin.classList.remove("ow-offscreen");
-      spot.line.classList.remove("ow-offscreen");
-      // Beside the pin to the right, then the left, then above, then below; the first spot that covers
-      // no other label, no other pin and not the player wins. Failing all, step down past what is in the way.
-      const options: { flip: boolean; ly: number }[] = [
-        { flip: false, ly: p.y + SPOT_DY },
-        { flip: true, ly: p.y + SPOT_DY },
-        { flip: false, ly: p.y - 12 - p.bh + p.lift },
-        { flip: true, ly: p.y - 12 - p.bh + p.lift },
-        { flip: false, ly: p.y + 12 + p.lift },
-        { flip: true, ly: p.y + 12 + p.lift },
-      ];
-      const kept = spot.option !== undefined ? options[spot.option] : undefined;
-      let pick = kept && free(p, beside(p, kept.flip, kept.ly)) ? kept : options.find((o) => free(p, beside(p, o.flip, o.ly)));
-      if (pick) spot.option = options.indexOf(pick);
-      else delete spot.option;
-      if (!pick) {
-        const flip = p.x + SPOT_DX + p.bw > area.x1 - 4;
-        let ly = p.y + SPOT_DY;
-        for (let guard = 0; guard < 16 && blocked(beside(p, flip, ly)); guard++) ly += p.bh * 0.5 + 2;
-        pick = { flip, ly };
-      }
-      taken.push(beside(p, pick.flip, pick.ly));
-      const lx = pick.flip ? p.x - SPOT_DX : p.x + SPOT_DX;
-      spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
-      spot.el.style.transform = `translate(${lx.toFixed(1)}px, ${pick.ly.toFixed(1)}px)${pick.flip ? " translate(-100%, 0)" : ""}`;
-      spot.el.classList.toggle("is-flipped", pick.flip);
-      spot.line.setAttribute("x1", p.x.toFixed(1));
-      spot.line.setAttribute("y1", p.y.toFixed(1));
-      spot.line.setAttribute("x2", lx.toFixed(1));
-      spot.line.setAttribute("y2", (pick.ly - p.lift + p.bh / 2).toFixed(1));
+  }
+
+  /** The buildings' spots on show, at their anchors. */
+  private outpostSpots(): ShownSpot[] {
+    const shown: ShownSpot[] = [];
+    for (const iv of this.outposts.values()) {
+      for (const [b, spot] of iv.spots) if (!spot.el.classList.contains("ow-hidden")) shown.push({ spot, world: iv.model.group.localToWorld(iv.model.anchors[b].clone()) });
     }
+    return shown;
+  }
+
+  /** The deck's spots on show: the stations, the helm and the airlock of the ship the player is aboard. */
+  private deckSpots(aboard: ShipView): ShownSpot[] {
+    const shown: ShownSpot[] = [];
+    // Pins ride the hull itself, bob and all, so each sits on its thing; the labels stand on the
+    // ship's steady frame so the column holds still.
+    const body = aboard.model.body;
+    const steady = aboard.model.group;
+    const still = (local: THREE.Vector3): THREE.Vector3 => steady.localToWorld(local.clone().multiplyScalar(SHIP_SCALE).add(new THREE.Vector3(0, -SHIP_SINK, 0)));
+    const callout = (spot: Spot | null, local: THREE.Vector3): void => {
+      if (spot && !spot.el.classList.contains("ow-hidden")) shown.push({ spot, world: body.localToWorld(local.clone()), still: still(local) });
+    };
+    for (const [st, spot] of this.stationSpots) callout(spot, aboard.model.anchors[st]);
+    callout(this.helmSpot, aboard.model.helm.clone().add(new THREE.Vector3(0, 0.07, 0)));
+    const side = this.airlockSide(aboard);
+    if (side !== null) {
+      const g = aboard.model.deck.airlock(side);
+      callout(this.airlockSpot, new THREE.Vector3(g.x, 0.34, side * 0.19));
+    }
+    return shown;
+  }
+
+  /** Where spots' things are on screen, and their labels' sizes as drawn now. */
+  private measureSpots(spots: readonly ShownSpot[], view: Size): (Pinned & Size)[] {
+    return spots.map(({ spot, world, still }) => {
+      const at = this.screenOf(world, view);
+      // Where the thing is on the ship's steady frame, without the bob: what decides on screen or off,
+      // and where an edge label waits, so neither hops as she drifts.
+      const steady = still ? this.screenOf(still, view) : at;
+      return { x: at.x, y: at.y, sx: steady.x, sy: steady.y, w: spot.el.offsetWidth, h: spot.el.offsetHeight };
+    });
+  }
+
+  /** Spots measured to hang beside their pins: a label not drawn yet is taken at a typical size. */
+  private measurePins(spots: readonly ShownSpot[], view: Size): PinSpot[] {
+    return this.measureSpots(spots, view).map((m, i) => {
+      const { spot } = spots[i]!;
+      if (spot.lift === undefined && spot.el.offsetHeight) spot.lift = -parseFloat(getComputedStyle(spot.el).marginTop || "0") || 0;
+      return { ...m, w: m.w || SPOT_W, h: m.h || SPOT_H, lift: spot.lift ?? 14, kept: spot.kept };
+    });
   }
 
   // ---- camera
@@ -1520,8 +1581,10 @@ export class WorldScene {
       (lane.buoy.lamp.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 2.5 + lane.length) > 0.5 ? PALETTE.lamp : PALETTE.lampOff);
     }
     this.renderer.render(this.scene, this.rig.camera);
-    this.placeLabels();
-    this.markHost();
+    const view = { w: this.host.clientWidth, h: this.host.clientHeight };
+    const player = this.playerBox(view);
+    this.placeLabels(view, player);
+    this.markHost(view, player);
     if (!this.ready) {
       this.ready = true;
       this.onReady?.();
@@ -1635,152 +1698,14 @@ export class WorldScene {
     }
   }
 
-  private placeLabels(): void {
-    const w = this.host.clientWidth;
-    const h = this.host.clientHeight;
-    const cam = this.rig.camera;
-    const place = (el: HTMLElement, p: THREE.Vector3): void => {
-      this.tmp.copy(p).project(cam);
-      const sx = (this.tmp.x * 0.5 + 0.5) * w;
-      const sy = (-this.tmp.y * 0.5 + 0.5) * h;
-      el.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
-    };
-    const spots: { spot: Spot; world: THREE.Vector3 }[] = [];
-    for (const iv of this.outposts.values()) {
-      place(iv.label, this.tmp2.set(iv.outpost.x, 2.4, iv.outpost.y));
-      for (const [b, spot] of iv.spots) {
-        if (spot.el.classList.contains("ow-hidden")) continue;
-        spots.push({ spot, world: iv.model.group.localToWorld(iv.model.anchors[b].clone()) });
-      }
-    }
-    const shipLabels: { el: HTMLDivElement; x: number; y: number }[] = [];
-    for (const sv of this.ships.values()) {
-      sv.label.style.display = sv.model.group.visible ? "" : "none";
-      if (!sv.model.group.visible || sv.label.classList.contains("ow-hidden") || sv.label.classList.contains("ow-label-quiet")) continue;
-      // Named at her stern, the end nearest the rock when she lies at a dock bow out, at the top of her side:
-      // hung lower the name would sit inside her hull, with her roof over it.
-      sv.model.group.localToWorld(this.tmp.set(-0.32, WALL_TOP * SHIP_SCALE - SHIP_SINK, 0)).project(cam);
-      shipLabels.push({ el: sv.label, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h });
-    }
-    shipLabels.sort((a, b) => a.y - b.y);
-    const playerBox = this.playerBox();
-    const insets = this.input?.insets ?? { top: 0, bottom: 0, left: 0, right: 0 };
-    for (let i = 0; i < shipLabels.length; i++) {
-      const p = shipLabels[i]!;
-      for (let j = 0; j < i; j++) {
-        const q = shipLabels[j]!;
-        if (Math.abs(q.x - p.x) < (q.el.offsetWidth + p.el.offsetWidth) / 2 + 6 && p.y - q.y < 26) p.y = q.y + 26;
-      }
-      // A ship's name hangs from its point; one over the player drops below them.
-      const half = p.el.offsetWidth / 2;
-      if (playerBox && overlaps(playerBox, { x0: p.x - half, y0: p.y, x1: p.x + half, y1: p.y + p.el.offsetHeight })) p.y = playerBox.y1 + 2;
-      // The player's own ship to board waits at the screen's edge when she is off it, pointing the way.
-      const area = { x0: w * insets.left + 8, y0: h * insets.top + 8, x1: w * (1 - insets.right) - 8, y1: h * (1 - insets.bottom) - 8 };
-      if (p.el.classList.contains("ow-label-board")) {
-        const off = p.x < area.x0 + half ? "left" : p.x > area.x1 - half ? "right" : p.y < area.y0 ? "up" : p.y > area.y1 - p.el.offsetHeight ? "down" : null;
-        if (off) {
-          p.x = Math.max(area.x0 + half, Math.min(area.x1 - half, p.x));
-          p.y = Math.max(area.y0, Math.min(area.y1 - p.el.offsetHeight, p.y));
-          p.el.dataset.edge = off;
-        } else delete p.el.dataset.edge;
-      } else delete p.el.dataset.edge;
-      p.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
-    }
-    const focus = this.input?.focus;
-    const aboard = focus?.kind === "ship" ? this.ships.get(focus.id) : undefined;
-    this.placeSpots(spots);
-    this.placeTags();
-    if (aboard) {
-      const deckSpots: { spot: Spot; world: THREE.Vector3; still: THREE.Vector3 }[] = [];
-      // Pins ride the hull itself, bob and all, so each sits on its thing; the labels stand on the
-      // ship's steady frame so the column holds still.
-      const body = aboard.model.body;
-      const steady = aboard.model.group;
-      const still = (local: THREE.Vector3): THREE.Vector3 => steady.localToWorld(local.clone().multiplyScalar(SHIP_SCALE).add(new THREE.Vector3(0, -SHIP_SINK, 0)));
-      const callout = (spot: Spot | null, local: THREE.Vector3): void => {
-        if (spot && !spot.el.classList.contains("ow-hidden")) deckSpots.push({ spot, world: body.localToWorld(local.clone()), still: still(local) });
-      };
-      for (const [st, spot] of this.stationSpots) callout(spot, aboard.model.anchors[st]);
-      callout(this.helmSpot, aboard.model.helm.clone().add(new THREE.Vector3(0, 0.07, 0)));
-      const side = this.airlockSide(aboard);
-      if (side !== null) {
-        const g = aboard.model.deck.airlock(side);
-        callout(this.airlockSpot, new THREE.Vector3(g.x, 0.34, side * 0.19));
-      }
-      // Zoomed in, the hull runs off the screen and a column of labels would string leaders across
-      // the deck: each label stands beside its own pin instead.
-      // So does a hull that fills the screen's width (a phone held upright), where no column fits.
-      const zoomedIn = this.walkFocus()?.scope === "ship" && this.zoom < 0.85;
-      const beside = zoomedIn || !this.placeCallouts(deckSpots);
-      // Beside their pins the labels go compact: the station's name, its state in the label's ring.
-      this.labels.classList.toggle("ow-compact", beside);
-      // Deck spots carry their steady points too, so labels at the edge hold still while the hull bobs.
-      if (beside) this.placeSpots(deckSpots);
-    } else {
-      this.labels.classList.remove("ow-compact");
-    }
-  }
-
-  /** Name tags over the other pirates where the player is: everyone on the outpost, the idle hands aboard. */
-  private placeTags(): void {
-    const w = this.host.clientWidth;
-    const h = this.host.clientHeight;
-    const focus = this.input?.focus;
-    const shown: { el: HTMLElement; x: number; y: number }[] = [];
-    for (const wv of this.walkers.values()) {
-      if (!wv.tag) continue;
-      const here = focus && ((focus.kind === "outpost" && wv.scope === "outpost" && focus.id === wv.placeId) || (focus.kind === "ship" && wv.scope === "ship" && focus.id === wv.placeId));
-      const busy = wv.scope === "ship" && wv.station !== null;
-      const show = Boolean(here) && !busy && wv.figure.group.visible;
-      wv.tag.classList.toggle("ow-hidden", !show);
-      if (!show) continue;
-      wv.figure.group.getWorldPosition(this.tmp);
-      this.tmp.y += PIRATE_HEIGHT * 1.35;
-      this.tmp.project(this.rig.camera);
-      shown.push({ el: wv.tag, x: (this.tmp.x * 0.5 + 0.5) * w, y: (-this.tmp.y * 0.5 + 0.5) * h });
-    }
-    shown.sort((a, b) => a.y - b.y);
-    const player = this.playerBox();
-    for (let i = 0; i < shown.length; i++) {
-      const p = shown[i]!;
-      for (let j = 0; j < i; j++) {
-        const q = shown[j]!;
-        if (Math.abs(q.x - p.x) < (q.el.offsetWidth + p.el.offsetWidth) / 2 + 4 && p.y - q.y < 20) p.y = q.y + 20;
-      }
-      // A tag stands centered over its point and above it; one that would cover the player rises clear.
-      const half = p.el.offsetWidth / 2;
-      if (player && overlaps(player, { x0: p.x - half, y0: p.y - p.el.offsetHeight, x1: p.x + half, y1: p.y })) p.y = player.y0 - 2;
-      p.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
-    }
-  }
-
-  /** Where the player's own pirate is on screen, ring to headgear, with a little room: no label may cover it. */
-  private playerBox(): ScreenBox | null {
-    const me = this.walkFocus();
-    if (!me || !me.figure.group.visible) return null;
-    const w = this.host.clientWidth;
-    const h = this.host.clientHeight;
-    const cam = this.rig.camera;
-    const feet = me.figure.group.getWorldPosition(new THREE.Vector3());
-    const head = feet.clone().add(new THREE.Vector3(0, PIRATE_HEIGHT * 1.15, 0));
-    feet.project(cam);
-    head.project(cam);
-    const fy = (-feet.y * 0.5 + 0.5) * h;
-    const hy = (-head.y * 0.5 + 0.5) * h;
-    const x = (feet.x * 0.5 + 0.5) * w;
-    const half = Math.max(16, (fy - hy) * 0.5);
-    return { x0: x - half, y0: hy - 6, x1: x + half, y1: fy + 8 };
-  }
-
   /** What the world says about walking on its host, for the shell and its smoke test. */
-  private markHost(): void {
+  private markHost(view: Size, box: Box | null): void {
     const me = this.walkFocus();
     let screen = "";
     if (me) {
-      me.figure.group.getWorldPosition(this.tmp).project(this.rig.camera);
-      screen = `${Math.round((this.tmp.x * 0.5 + 0.5) * this.host.clientWidth)},${Math.round((-this.tmp.y * 0.5 + 0.5) * this.host.clientHeight)}`;
+      const at = this.screenOf(me.figure.group.getWorldPosition(this.tmp2), view);
+      screen = `${Math.round(at.x)},${Math.round(at.y)}`;
     }
-    const box = this.playerBox();
     const boxKey = box ? [box.x0, box.y0, box.x1, box.y1].map((v) => Math.round(v)).join(",") : "";
     const key = me ? `${me.scope}:${me.placeId}|${me.walker.x.toFixed(2)},${me.walker.z.toFixed(2)}|${me.walker.moving ? 1 : 0}|${screen}|${me.inside ?? ""}|${boxKey}` : "";
     if (key === this.dataKey) return;
@@ -1828,99 +1753,6 @@ export class WorldScene {
       cam.bottom = -reach;
       cam.updateProjectionMatrix();
     }
-  }
-
-  /**
-   * The deck's spots are a hand's width apart, so their labels stand in two columns, one each side
-   * of the hull: a pin on the port half of the deck gets its label on the left, a pin on the
-   * starboard half on the right, each column in deck order from bow to stern. Leaders never cross
-   * and stay short: a callout diagram rather than a pile of pills. When one side has no room
-   * (the card unfolded beside the ship) every label stands on the other.
-   */
-  private placeCallouts(spots: { spot: Spot; world: THREE.Vector3; still: THREE.Vector3 }[]): boolean {
-    if (spots.length === 0) return true;
-    const w = this.host.clientWidth;
-    const h = this.host.clientHeight;
-    const cam = this.rig.camera;
-    const insets = this.input?.insets ?? { top: 0, bottom: 0, left: 0, right: 0 };
-    const pins: { spot: Spot; x: number; y: number; sx: number; sy: number }[] = [];
-    const playerAt = this.playerBox();
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let maxWidth = 0;
-    let maxHeight = 0;
-    for (const { spot, world, still } of spots) {
-      this.tmp.copy(world).project(cam);
-      const x = (this.tmp.x * 0.5 + 0.5) * w;
-      const y = (-this.tmp.y * 0.5 + 0.5) * h;
-      this.tmp.copy(still).project(cam);
-      const sx = (this.tmp.x * 0.5 + 0.5) * w;
-      const sy = (-this.tmp.y * 0.5 + 0.5) * h;
-      pins.push({ spot, x, y: pinClearOf(playerAt, x, y), sx, sy });
-      minX = Math.min(minX, sx);
-      maxX = Math.max(maxX, sx);
-      maxWidth = Math.max(maxWidth, spot.el.offsetWidth);
-      maxHeight = Math.max(maxHeight, spot.el.offsetHeight);
-    }
-    const leftEdge = w * insets.left + 8;
-    const rightEdge = w * (1 - insets.right) - 8;
-    const roomRight = rightEdge - (maxX + 40);
-    const roomLeft = minX - 40 - leftEdge;
-    // Two columns of equal weight, the portmost half of the pins on the left, when a column fits
-    // beside the hull on each side; one column on the side that has room when only one does (the
-    // card unfolded beside the ship); and none when neither does, so the caller hangs each label
-    // beside its pin rather than string leaders over the deck.
-    // Judged by a label's full width, not as drawn now: compact labels must not tip it back.
-    const fitsRight = roomRight >= CALLOUT_W * 0.75;
-    const fitsLeft = roomLeft >= CALLOUT_W * 0.75;
-    if (!fitsRight && !fitsLeft) return false;
-    const both = fitsRight && fitsLeft && pins.length > 2;
-    const byX = [...pins].sort((a, b) => a.sx - b.sx);
-    const half = Math.ceil(byX.length / 2);
-    const sides: { right: boolean; pins: typeof pins }[] = both
-      ? [
-          { right: false, pins: byX.slice(0, half) },
-          { right: true, pins: byX.slice(half) },
-        ]
-      : [{ right: fitsRight, pins }];
-    // Labels stack a little apart, however tall a phone draws them.
-    const gap = Math.max(30, maxHeight + 6);
-    const top = h * insets.top + 24;
-    const bottom = h * (1 - insets.bottom) - 24;
-    const laid: { p: (typeof pins)[number]; col: number; ly: number; right: boolean }[] = [];
-    for (const side of sides) {
-      if (side.pins.length === 0) continue;
-      const colPins = side.pins.sort((a, b) => a.sy - b.sy);
-      const nearest = side.right ? Math.max(...colPins.map((p) => p.sx)) : Math.min(...colPins.map((p) => p.sx));
-      // The column stands a hand's width off the pins it serves, and never past the screen's edge.
-      const col = side.right ? Math.min(nearest + 40, rightEdge - maxWidth) : Math.max(nearest - 40, leftEdge + maxWidth);
-      const meanY = colPins.reduce((n, p) => n + p.sy, 0) / colPins.length;
-      let y0 = meanY - ((colPins.length - 1) * gap) / 2;
-      y0 = Math.max(top, Math.min(bottom - (colPins.length - 1) * gap, y0));
-      colPins.forEach((p, i) => laid.push({ p, col, ly: y0 + i * gap, right: side.right }));
-    }
-    // A column may never cover the player; if one would, the labels hang beside their pins instead.
-    const player = this.playerBox();
-    if (player) {
-      for (const { p, col, ly, right } of laid) {
-        const bw = p.spot.el.offsetWidth;
-        const x0 = right ? col : col - bw;
-        if (overlaps(player, { x0, y0: ly - 14, x1: x0 + bw, y1: ly - 14 + p.spot.el.offsetHeight })) return false;
-      }
-    }
-    for (const { p, col, ly, right } of laid) {
-      p.spot.pin.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
-      p.spot.el.style.transform = `translate(${col.toFixed(1)}px, ${ly.toFixed(1)}px)${right ? "" : " translate(-100%, 0)"}`;
-      p.spot.el.classList.toggle("is-flipped", !right);
-      delete p.spot.el.dataset.edge;
-      p.spot.pin.classList.remove("ow-offscreen");
-      p.spot.line.classList.remove("ow-offscreen");
-      p.spot.line.setAttribute("x1", p.x.toFixed(1));
-      p.spot.line.setAttribute("y1", p.y.toFixed(1));
-      p.spot.line.setAttribute("x2", col.toFixed(1));
-      p.spot.line.setAttribute("y2", (ly + 14).toFixed(1));
-    }
-    return true;
   }
 
   // ---- picking
@@ -2148,14 +1980,38 @@ export class WorldScene {
   }
 }
 
-/** A box on screen, in the world's own pixels. */
-type ScreenBox = { x0: number; y0: number; x1: number; y1: number };
+const translate = (p: Point): string => `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
 
-const overlaps = (a: ScreenBox, b: ScreenBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+/** Write where a spot's label goes: beside its pin with a leader between, or waiting at the screen's edge with neither. */
+function writeSpot(spot: Spot, at: SpotPlace): void {
+  if (at.kind === "edge") {
+    spot.el.dataset.edge = at.edge;
+    spot.pin.classList.add("ow-offscreen");
+    spot.line.classList.add("ow-offscreen");
+    spot.el.classList.remove("is-flipped");
+    spot.el.style.transform = translate(at.label);
+    return;
+  }
+  delete spot.el.dataset.edge;
+  spot.pin.classList.remove("ow-offscreen");
+  spot.line.classList.remove("ow-offscreen");
+  spot.pin.style.transform = translate(at.pin);
+  spot.el.style.transform = `${translate(at.label)}${at.flip ? " translate(-100%, 0)" : ""}`;
+  spot.el.classList.toggle("is-flipped", at.flip);
+  spot.line.setAttribute("x1", at.pin.x.toFixed(1));
+  spot.line.setAttribute("y1", at.pin.y.toFixed(1));
+  spot.line.setAttribute("x2", at.leader.x.toFixed(1));
+  spot.line.setAttribute("y2", at.leader.y.toFixed(1));
+}
 
-/** A pin that would sit on the player (standing at its station) hops up over their headgear instead. */
-const pinClearOf = (player: ScreenBox | null, x: number, y: number): number =>
-  player && x > player.x0 - 9 && x < player.x1 + 9 && y > player.y0 - 9 && y < player.y1 + 9 ? player.y0 - 12 : y;
+/** Write spots hung beside their pins, and keep the place each took for the next frame. */
+function pinSpots(spots: readonly ShownSpot[], places: readonly PinPlace[]): void {
+  spots.forEach(({ spot }, i) => {
+    const at = places[i]!;
+    spot.kept = at.kept;
+    writeSpot(spot, at);
+  });
+}
 
 type WalkPick =
   | { kind: "pirate"; id: string }
