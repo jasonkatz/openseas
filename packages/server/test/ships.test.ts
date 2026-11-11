@@ -778,6 +778,9 @@ describeDb("ships over the wire", () => {
     await a.until("ship.state");
     b.send({ type: "ship.board", shipId });
     await b.until("ship.state", (m) => m.ship.crew.length === 2);
+    // The captain keeps a station of their own (the nav console, which no bot works).
+    a.send({ type: "ship.station", station: "navigation" });
+    await a.until("ship.state", (m) => m.ship.crew.some((c) => c.pirateId === owner.me.id && c.station === "navigation"));
     const room = (): ShipRoom => shipRoom(shipId);
     const tierId = await huntHail(shipId, a);
     const turnAtHail = room().state.turn;
@@ -785,6 +788,10 @@ describeDb("ships over the wire", () => {
     const fight = await a.until("puzzle.started");
     if (fight.puzzle !== "battle") throw new Error("expected a battle board");
     await b.until("ship.state", (m) => m.ship.turn >= turnAtHail && m.events.some((e) => e.type === "engaged"));
+    // Mid-fight the station waits: its board is refused, and the battle board stays open and plays on below.
+    a.send({ type: "duty.start" });
+    expect(await a.until("error")).toMatchObject({ code: "in_battle" });
+    expect(app.puzzles.sessions.get(fight.sessionId)?.closed).toBe(false);
     const deal = await a.until("battle.supply", (m) => m.sessionId === fight.sessionId);
     const supply = { type: "supply", left: deal.left, forward: deal.forward, right: deal.right, turrets: deal.turrets, hull: deal.hull } as const;
     const state = reduceBattle(createBattleGame(fight.seed, fight.config), supply);
@@ -928,7 +935,7 @@ describeDb("ships over the wire", () => {
     c.ws.close();
   });
 
-  it("a pirate who starts another round at the airlock quits their board there, and the melee goes on without it", async () => {
+  it("at the airlock a station's board is refused and the fight board plays on; a practice round quits it, and the melee goes on without it", async () => {
     const owner = await pirate();
     const crewmate = await pirate();
     const a = await connect(owner.cookie);
@@ -938,13 +945,25 @@ describeDb("ships over the wire", () => {
     await a.until("ship.state");
     b.send({ type: "ship.board", shipId });
     await b.until("ship.state", (m) => m.ship.crew.length === 2);
+    // The crewmate keeps a station (the nav console, which no bot works) through the fight.
+    b.send({ type: "ship.station", station: "navigation" });
+    await b.until("ship.state", (m) => m.ship.crew.some((c) => c.pirateId === crewmate.me.id && c.station === "navigation"));
     await grappleRaider(shipId, a);
     const mineA = await a.until("puzzle.started", (m) => m.puzzle === "swordfight");
     const mineB = await b.until("puzzle.started", (m) => m.puzzle === "swordfight");
-    if (mineA.puzzle !== "swordfight") throw new Error("expected a swordfight board");
+    if (mineA.puzzle !== "swordfight" || mineB.puzzle !== "swordfight") throw new Error("expected swordfight boards");
     await a.until("melee.boards", (m) => m.boards.some((x) => x.pirateId === crewmate.me.id));
 
-    // The crewmate starts a practice round mid-melee. A pirate has one round open: the melee board is
+    // The crewmate's station asks for a board mid-melee: refused, and their fight board stays open and plays on.
+    b.send({ type: "duty.start" });
+    expect(await b.until("error")).toMatchObject({ code: "in_battle" });
+    expect(app.puzzles.sessions.get(mineB.sessionId)?.closed).toBe(false);
+    const waited = reduceSwordfight(createSwordfightGame(mineB.seed, mineB.config), { type: "wait", tick: 1 });
+    b.send({ type: "puzzle.move", sessionId: mineB.sessionId, seq: 0, move: { type: "wait", tick: 1 }, hash: hashSwordfightState(waited) });
+    await waitRoom(shipId, () => app.puzzles.sessions.get(mineB.sessionId)?.moves.length === 1);
+    expect(shipRoom(shipId).melee?.fights.get(crewmate.me.id)).toBe(mineB.sessionId);
+
+    // The crewmate starts a practice round mid-melee (a harness page). A pirate has one round open: the melee board is
     // quit as a dropped board is (abandoned), everyone aboard sees it go, and it was the crewmate's one
     // board in this melee.
     b.send({ type: "puzzle.start", puzzle: "cooling" });

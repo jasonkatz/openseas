@@ -36,6 +36,7 @@ import { appendLedger } from "../ledger.js";
 import type { Logger } from "../log.js";
 import { randomBotName } from "../pirates.js";
 import type { Presence } from "../presence.js";
+import { bindingPolicy } from "../puzzles/binding.js";
 import type { BoardEnd, BoardHost, PuzzleService } from "../puzzles/service.js";
 import type { PuzzleSession } from "../puzzles/sessions.js";
 import { Room, type Lines } from "../rooms.js";
@@ -631,21 +632,34 @@ export class ShipService {
     await this.afterChange(room);
   }
 
-  /** Deal a board for the pirate's station. Any board already running there is cut short first. */
+  /**
+   * Deal a board for the pirate's station. Any board already running there is cut short first. A
+   * pirate in a fight (the captain's battle, a melee board) is refused, and their fight board stays
+   * open: the station waits for the fight.
+   */
   async dutyStart(pirateId: string): Promise<PuzzleStarted> {
     this.atStation(pirateId);
+    this.notFighting(pirateId);
     // The pirate's own round ends first, so a board they had here gives the ship its last points
     // before the heat is read; the station is looked at again after, since it may have changed meanwhile.
     await this.puzzles.quitOpenRound(pirateId);
     const { room, station, voyageId } = this.atStation(pirateId);
     await this.endStation(room, station);
     const heat = station === "cooling" ? this.heatRows(room) : undefined;
+    // A fight that opened meanwhile (the airlock) keeps its board: the deal below would quit it.
+    this.notFighting(pirateId);
     const started = await this.puzzles.start(pirateId, station, {
       binding: { kind: "duty", shipId: room.shipId, station, voyageId, ...(heat !== undefined ? { heat } : {}) },
       host: this.dutyHost(room, station),
     });
     room.stations.set(station, { sessionId: started.sessionId, lastScore: 0 });
     return started;
+  }
+
+  /** Refuses a pirate whose open round is a fight board: a station never takes them out of a fight. */
+  private notFighting(pirateId: string): void {
+    const open = this.puzzles.sessions.openFor(pirateId);
+    if (open && bindingPolicy(open.binding).fight) throw new ShipError("in_battle");
   }
 
   /** The pirate's ship and station, in flight, or why no board is dealt there. */

@@ -8,7 +8,7 @@ describe("bindingPolicy", () => {
     [
       "a practice round is never rated, thrown out on a missing move, abandoned when quit, and plays the lone ship",
       PRACTICE,
-      { rated: "never", handsBack: false, loneShip: true, quit: "abandon", voyageId: null, wire: {}, startedEvent: {}, completedEvent: {} },
+      { rated: "never", handsBack: false, loneShip: true, quit: "abandon", fight: false, voyageId: null, wire: {}, startedEvent: {}, completedEvent: {} },
     ],
     [
       "a duty board is rated when it ran full, thrown out on a missing move, cut short when quit, and plays the ship's heat",
@@ -18,6 +18,7 @@ describe("bindingPolicy", () => {
         handsBack: false,
         loneShip: false,
         quit: "cut_short",
+        fight: false,
         voyageId: "v-1",
         wire: { duty: { shipId: "ship-1", station: "cooling", heat: 4 } },
         startedEvent: { voyageId: "v-1" },
@@ -25,13 +26,14 @@ describe("bindingPolicy", () => {
       },
     ],
     [
-      "the captain's battle is always rated, handed back on a missing move and abandoned when quit",
+      "the captain's battle is a fight: always rated, handed back on a missing move and abandoned when quit",
       { kind: "battle", ...fight },
       {
         rated: "always",
         handsBack: true,
         loneShip: false,
         quit: "abandon",
+        fight: true,
         voyageId: "v-1",
         wire: { battle: { shipId: "ship-1", tierId: "junker" } },
         startedEvent: { voyageId: "v-1", tierId: "junker" },
@@ -39,13 +41,14 @@ describe("bindingPolicy", () => {
       },
     ],
     [
-      "a melee board is always rated, handed back on a missing move and abandoned when quit",
+      "a melee board is a fight: always rated, handed back on a missing move and abandoned when quit",
       { kind: "melee", ...fight },
       {
         rated: "always",
         handsBack: true,
         loneShip: false,
         quit: "abandon",
+        fight: true,
         voyageId: "v-1",
         wire: { melee: { shipId: "ship-1", tierId: "junker" } },
         startedEvent: { voyageId: "v-1", tierId: "junker" },

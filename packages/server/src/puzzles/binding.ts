@@ -60,6 +60,11 @@ export interface BindingPolicy {
    * is cut short and counts, as when the ship docks; any other round is abandoned.
    */
   readonly quit: "cut_short" | "abandon";
+  /**
+   * Whether the board is a fight aboard: the captain's battle or a melee board. A station never
+   * takes a pirate out of one: a duty board is refused while their fight board is open.
+   */
+  readonly fight: boolean;
   /** The voyage the round was played on, recorded with it. */
   readonly voyageId: string | null;
   /** The deal's field that says which ship the board belongs to. A practice deal has none. */
@@ -73,13 +78,14 @@ export interface BindingPolicy {
 export function bindingPolicy(b: SessionBinding): BindingPolicy {
   switch (b.kind) {
     case "practice":
-      return { rated: "never", handsBack: false, loneShip: true, quit: "abandon", voyageId: null, wire: {}, startedEvent: {}, completedEvent: {} };
+      return { rated: "never", handsBack: false, loneShip: true, quit: "abandon", fight: false, voyageId: null, wire: {}, startedEvent: {}, completedEvent: {} };
     case "duty":
       return {
         rated: "ran_full",
         handsBack: false,
         loneShip: false,
         quit: "cut_short",
+        fight: false,
         voyageId: b.voyageId,
         wire: { duty: { shipId: b.shipId, station: b.station, ...(b.heat !== undefined ? { heat: b.heat } : {}) } },
         startedEvent: { voyageId: b.voyageId },
@@ -91,6 +97,7 @@ export function bindingPolicy(b: SessionBinding): BindingPolicy {
         handsBack: true,
         loneShip: false,
         quit: "abandon",
+        fight: true,
         voyageId: b.voyageId,
         wire: { battle: { shipId: b.shipId, tierId: b.tierId } },
         startedEvent: { voyageId: b.voyageId, tierId: b.tierId },
@@ -102,6 +109,7 @@ export function bindingPolicy(b: SessionBinding): BindingPolicy {
         handsBack: true,
         loneShip: false,
         quit: "abandon",
+        fight: true,
         voyageId: b.voyageId,
         wire: { melee: { shipId: b.shipId, tierId: b.tierId } },
         startedEvent: { voyageId: b.voyageId, tierId: b.tierId },

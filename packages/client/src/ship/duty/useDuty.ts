@@ -93,7 +93,8 @@ export function useDuty<S, M, C>(opts: DutyOptions<S, M, C>): DutyApi<S, M> {
   useEffect(
     () =>
       socket.onMessage((m: ServerMessage) => {
-        if (m.type === "error" && (m.code === "not_in_flight" || m.code === "no_station" || m.code === "not_aboard")) {
+        // Refused for now (docked, no station, ashore, or in a fight the station must wait out): try again later.
+        if (m.type === "error" && (m.code === "not_in_flight" || m.code === "no_station" || m.code === "not_aboard" || m.code === "in_battle")) {
           holdUntil.current = Date.now() + RETRY_MS;
           cancelAsk();
         }
