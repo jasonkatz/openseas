@@ -4,6 +4,7 @@ import {
   createEnginesGame,
   enginesLandingRow,
   enginesPairCells,
+  enginesRestingPlacements,
   enginesSpawnPosition,
   reduceEngines,
   type EnginesMoveReport,
@@ -314,6 +315,9 @@ test("engines: the spare half chains", async ({ page }) => {
   await still(page, "engines", "chain-before", { region: await region(page) });
   await clip(page, "engines", "chain", async () => {
     await drop(page, found.last, found.log.length + 1);
+    await settled(page, "engines");
+    const got = await boardString(page, "engines");
+    for (const q of enginesRestingPlacements(found.before)) if (put(found.before, q).cells.map((c) => c?.kind ?? -1).join(",") === got) console.log("DBG landed", JSON.stringify(q), "wanted", JSON.stringify(found.last));
     await same(page, put(found.before, found.last));
   }, { leadMs: 150, tailMs: 1300, region: await region(page) });
 });
@@ -326,6 +330,9 @@ test("engines: three steps from one landing", async ({ page }) => {
   await still(page, "engines", "three-before", { region: await region(page) });
   await clip(page, "engines", "three", async () => {
     await drop(page, found.last, found.log.length + 1);
+    await settled(page, "engines");
+    const got = await boardString(page, "engines");
+    for (const q of enginesRestingPlacements(found.before)) if (put(found.before, q).cells.map((c) => c?.kind ?? -1).join(",") === got) console.log("DBG landed", JSON.stringify(q), "wanted", JSON.stringify(found.last));
     await same(page, put(found.before, found.last));
   }, { leadMs: 150, tailMs: 1500, region: await region(page) });
 });

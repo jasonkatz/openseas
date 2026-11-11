@@ -70,9 +70,10 @@ async function play(page: Page, from: NavigationState, acts: readonly Act[], pau
   for (const a of acts) {
     s = step(s, a);
     await act(page, a);
-    await expect.poll(() => boardString(page, "navigation"), { timeout: 10_000 }).toBe(view(s));
-    await settled(page, "navigation", 700);
+    await expect.poll(() => boardString(page, "navigation"), { timeout: 10_000, intervals: [40] }).toBe(view(s));
+    // Inside a clip a short beat is enough; a setup waits for the chart to come to rest.
     if (pauseMs) await page.waitForTimeout(pauseMs);
+    else await settled(page, "navigation", 700);
   }
   return s;
 }
@@ -93,7 +94,7 @@ test("navigation: a first star", async ({ page }) => {
   });
   const s = await open(page, seed);
   await clip(page, "navigation", "first-turn", async () => {
-    await play(page, s, found, 200);
+    await play(page, s, found, 150);
   }, { tailMs: 1200, region: await region(page) });
 });
 
@@ -132,7 +133,7 @@ test("navigation: a star with nothing under it slides in", async ({ page }) => {
   s = await play(page, s, found.setup);
   await page.waitForTimeout(500);
   await clip(page, "navigation", "slide", async () => {
-    await play(page, s, found.line);
+    await play(page, s, found.line, 100);
   }, { leadMs: 900, tailMs: 1400, region: await region(page) });
 });
 
@@ -170,7 +171,7 @@ test("navigation: walking a star on two feet", async ({ page }) => {
   // the second, and is walked round: middle ring a step, inner ring a step, never over a hole.
   const { seed, found } = findSeed("nav-walk", (seed) => {
     const s = deal(seed);
-    const top = s.markers.find((m) => m.ring === 1 && m.octant >= 2 && m.octant <= 4);
+    const top = s.markers.find((m) => m.ring === 1 && m.octant >= 2 && m.octant <= 3);
     if (!top || s.markers.length !== 3) return null;
     const o = top.octant;
     if (marker(s, 0, o)?.kind !== s.falling.kind || marker(s, 0, o - 1)?.kind !== s.next) return null;
@@ -184,7 +185,7 @@ test("navigation: walking a star on two feet", async ({ page }) => {
   s = await play(page, s, found.setup);
   await page.waitForTimeout(500);
   await clip(page, "navigation", "walk", async () => {
-    await play(page, s, found.walk, 180);
+    await play(page, s, found.walk, 150);
   }, { tailMs: 1800, region: await region(page) });
 });
 
@@ -204,10 +205,10 @@ test("navigation: three stars, three landings", async ({ page }) => {
       line.push(...acts);
       s = run(s, acts);
     }
-    return s.completed === 1 && s.landings === 3 && quiet(s) && line.length <= 16 ? line : null;
+    return s.completed === 1 && s.landings === 3 && quiet(s) && line.length <= 9 ? line : null;
   }, 200_000);
   const s = await open(page, seed);
   await clip(page, "navigation", "swift", async () => {
-    await play(page, s, found, 60);
+    await play(page, s, found, 100);
   }, { tailMs: 1800, region: await region(page) });
 });
