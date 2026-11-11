@@ -1,6 +1,6 @@
 # Puzzle guides
 
-The docs site (ADR 0038): one page per puzzle that takes a player from a first round to expert
+The docs site at docs.openseas.online (ADR 0038): one page per puzzle that takes a player from a first round to expert
 play. A static Vite and React app with no server and no boards of its own. Its pictures are
 captured from the real boards on the harness.
 

@@ -224,8 +224,7 @@ and everything else deploys as before.
 2. Project → **Settings → General**: Root Directory **`packages/docs`**, Framework Preset
    **Vite**, Node.js version **22.x**. `packages/docs/vercel.json` sets the build command, the
    output directory and the SPA rewrite.
-3. **Settings → Domains**: add the domain the guides should answer on (for example
-   `guides.openseas.online`), with a record at the registrar as for the harness (step 2b.4).
+3. **Settings → Domains**: add `docs.openseas.online`, with a record at the registrar as for the harness (step 2b.4).
 4. **Settings → Deployment Protection**: Standard Protection, so the production domain opens
    without a Vercel login.
 5. Note the project id; it is `VERCEL_DOCS_PROJECT_ID` in step 3. Set `PRODUCTION_DOCS_URL` to
@@ -261,7 +260,7 @@ required reviewers there later.
 | Variable | `PRODUCTION_HARNESS_URL` | `https://test.openseas.online` |
 | Secret | `VERCEL_DOCS_TOKEN` | optional; a token scoped to the guides project, when `VERCEL_TOKEN` is not team-scoped (step 2c.6) |
 | Variable | `VERCEL_DOCS_PROJECT_ID` | the guides project's id (step 2c.5); unset means the guides are not deployed |
-| Variable | `PRODUCTION_DOCS_URL` | the guides' production URL (step 2c.3) |
+| Variable | `PRODUCTION_DOCS_URL` | `https://docs.openseas.online` |
 
 The URL variables are what let the pipeline wait for the server before deploying the front ends
 and confirm each side serves the merged commit. Without them it deploys blind and warns.

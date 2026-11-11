@@ -42,7 +42,7 @@ TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `protocol` (Zod schemas)
 `boards` (the PixiJS boards, round runner and server connection both front ends share, ADR 0019),
 `server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `harness` (the puzzle test
 bench at test.openseas.online: the practice pages plus lab rounds, inspector and replay review, and the voyage bench
-for ships and crews, ADR 0027), `docs` (the puzzle guides: a static site with one guide per puzzle, its
+for ships and crews, ADR 0027), `docs` (the puzzle guides at docs.openseas.online: a static site with one guide per puzzle, its
 pictures captured from the real boards on the harness, ADR 0038).
 Postgres. Railway for server and database, Vercel for the game, the harness and the guides as three projects.
 Vitest with property-based determinism tests on engines, Playwright smoke on all three front ends.
