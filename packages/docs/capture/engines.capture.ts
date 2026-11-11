@@ -4,7 +4,6 @@ import {
   createEnginesGame,
   enginesLandingRow,
   enginesPairCells,
-  enginesShelfMask,
   enginesSpawnPosition,
   reduceEngines,
   type EnginesMoveReport,
@@ -30,7 +29,7 @@ const put = (s: EnginesState, p: Place): EnginesState => reduceEngines(s, { type
 // ---- planning, in Node, with the engine
 
 /** How far down the pair may sink while the hand turns and steers it, before the swipe that hurries it. */
-const SLACK = 5;
+const SLACK = 7;
 
 /**
  * Straight drops: turn and steer in the top rows, then fall. Only columns whose top rows are empty
@@ -213,8 +212,18 @@ async function drop(page: Page, p: Place, count: number, pace = 1): Promise<void
   await glide(page, to, y, 100);
   await page.mouse.down();
   await glide(page, to, y + 2 * g.cell, 160 * pace);
-  await expect(moves(page)).toHaveText(String(count), { timeout: 15_000 });
+  // Lift the moment it lands: a swipe still held would hurry the next pair too.
+  await page.waitForFunction((n) => document.querySelector('[data-testid="hud-moves"]')?.textContent?.trim() === n, String(count), { polling: "raf", timeout: 15_000 });
   await page.mouse.up();
+}
+
+/** The same landing by keyboard, for the setup a picture does not show: quick, so a busy machine cannot let the pair sink. */
+async function dropByKeys(page: Page, p: Place, count: number): Promise<void> {
+  for (let i = 0; i < p.rot; i++) await page.keyboard.press("ArrowUp");
+  for (let i = 0; i < Math.abs(p.col - SPAWN.col); i++) await page.keyboard.press(p.col < SPAWN.col ? "ArrowLeft" : "ArrowRight");
+  await page.keyboard.down(" ");
+  await expect(moves(page)).toHaveText(String(count), { timeout: 15_000 });
+  await page.keyboard.up(" ");
 }
 
 /** Open the seed and play a line's setup, checking every landing against the plan. */
@@ -222,7 +231,7 @@ async function setUp(page: Page, seed: string, line: Line): Promise<EnginesState
   await openLab(page, "engines", { seed });
   let s = deal(seed);
   for (const [i, p] of line.log.entries()) {
-    await drop(page, p, i + 1, 0.5);
+    await dropByKeys(page, p, i + 1);
     s = put(s, p);
     await same(page, s);
   }
@@ -253,7 +262,7 @@ test("engines: the board", async ({ page }) => {
   await openLab(page, "engines", { seed });
   let s = deal(seed);
   for (const [i, p] of found.log.entries()) {
-    await drop(page, p, i + 1, 0.5);
+    await dropByKeys(page, p, i + 1);
     s = put(s, p);
   }
   await same(page, s);
@@ -277,7 +286,7 @@ test("engines: a first injector", async ({ page }) => {
   });
   await openLab(page, "engines", { seed });
   await clip(page, "engines", "first-injector", async () => {
-    await drop(page, found, 1, 1.6);
+    await drop(page, found, 1, 1.3);
     await settled(page, "engines");
   }, { tailMs: 1200, region: await region(page) });
 });
@@ -320,6 +329,3 @@ test("engines: three steps from one landing", async ({ page }) => {
     await settled(page, "engines");
   }, { tailMs: 1500, region: await region(page) });
 });
-
-// Kept in step with the engine: a shelf under every bottom cell of an injector.
-void enginesShelfMask;

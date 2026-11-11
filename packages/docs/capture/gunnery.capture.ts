@@ -272,11 +272,15 @@ async function live(page: Page, seed: string, acts: readonly Act[], from: number
     await page.mouse.down();
     await page.mouse.up();
     const key = `${a.col},${a.row}`;
+    const leaned = a.dir ?? dirs.get(key) ?? null;
     if (a.dir === null) dirs.delete(key);
     else dirs.set(key, a.dir);
     const next = mine[i + 1];
-    // The same tile again: the hand stays where it is.
-    if (next && next.col === a.col && next.row === a.row) continue;
+    if (next && next.col === a.col && next.row === a.row) {
+      // The same tile again: the hand stays on it, and leans the other way if the arrow is to turn.
+      if ((next.dir ?? dirs.get(key) ?? null) !== leaned) await hover(next);
+      continue;
+    }
     // Off the tile, so the arrow is seen as it lies, then on to the next one.
     const rest = restNear(state, a.col, a.row);
     const [rx, ry] = await spot(page, rest.col, rest.row);
