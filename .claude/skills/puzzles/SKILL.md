@@ -67,7 +67,7 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 14. **No single mechanic is the whole round.** If one thing is more than about half of a good score,
     retune it.
 15. **The tier is the result, never the bare score.** A score means nothing from one puzzle to the
-    next. Every round ends in one of the five tiers (Greenhorn, Steady, Sharp, Expert, Legend; ADR
+    next. Every round ends in one of the five tiers (Green, Steady, Sharp, Masterful, Legendary; ADR
     0039), read from the puzzle's thresholds in content, and the result card leads with it. **The
     tier is what the rest of the game should read**: whatever a round does for a ship, a purse or a
     pirate's standing is a function of its tier, so puzzles with wildly different point scales

@@ -234,8 +234,9 @@ v1: a look is a free choice, not something owned.
 - Currency is an append-only ledger from day one so a later economy has an auditable base.
 - Ratings use Glicko-2 per puzzle. Duty puzzles are rated against performance thresholds
   calibrated from the tester pool. Swordfighting and Space Battle are rated head to head. Players
-  see display tiers only; raw numbers are hidden. There are five (ADR 0039): Greenhorn, Steady,
-  Sharp, Expert and Legend.
+  see display tiers only; raw numbers are hidden. There are five (ADR 0039), each an
+  adjective so it reads in a sentence ("a Sharp round"): Green, Steady, Sharp, Masterful and
+  Legendary.
 - Standing is earned in the game only (ADR 0028): the captain's space battle, a melee board and a
   duty board that ran its full clock move it; a harness round never does. Every scored round also
   carries its own performance rating, its score read off the line through the thresholds, with the

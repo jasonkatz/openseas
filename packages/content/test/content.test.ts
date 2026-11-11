@@ -10,7 +10,7 @@ describe("content", () => {
     expect(c.puzzles.cooling.config.width).toBe(6);
     expect(c.ratingTiers[0]?.min).toBe(0);
     // Five tiers, lowest first, each named in the message table (ADR 0039).
-    expect(c.ratingTiers.map((t) => t.key)).toEqual(["greenhorn", "steady", "sharp", "expert", "legend"]);
+    expect(c.ratingTiers.map((t) => t.key)).toEqual(["green", "steady", "sharp", "masterful", "legendary"]);
     for (const t of c.ratingTiers) expect(msg(c, t.nameKey)).not.toBe(t.nameKey);
     for (let i = 1; i < c.ratingTiers.length; i++) expect(c.ratingTiers[i]!.min).toBeGreaterThan(c.ratingTiers[i - 1]!.min);
     // Every puzzle's live tier indicator reads a stretch shorter than its round.

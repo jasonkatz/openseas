@@ -13,11 +13,13 @@ over: the harness's result card, and a change of standing in the game.
 
 ## Decision
 
-1. **Five tiers.** `rating-tiers.json` holds Greenhorn (0), Steady (1300), Sharp (1600), Expert
-   (1900) and Legend (2200). Spaceworthy and Elite are gone. The same five name a round's own tier
+1. **Five tiers, each an adjective.** `rating-tiers.json` holds Green (0), Steady (1300), Sharp
+   (1600), Masterful (1900) and Legendary (2200). An adjective reads in a sentence ("a Sharp
+   round", "playing at Masterful pace") where a mix of nouns and adjectives did not. Greenhorn,
+   Spaceworthy, Expert, Elite and Legend are gone. The same five name a round's own tier
    and a pirate's standing. Thresholds are untouched: each puzzle still pins six scores to the
    ratings 1100 to 2100, and a tier's line falls on that scale, so Steady starts at a puzzle's
-   second threshold, Expert at its fifth, and Legend past its last.
+   second threshold, Masterful at its fifth, and Legendary past its last.
 2. **A round leads with its tier.** Every result card (the harness's, a station's, the captain's,
    the melee's) names the round's tier above its score, from the `performance` the server already
    sends with every scored round.
@@ -42,11 +44,11 @@ over: the harness's result card, and a change of standing in the game.
 
 ## Consequences
 
-- Ratings in the database are numbers and need no migration. A pirate's displayed standing may
-  change name: Spaceworthy reads Greenhorn below 1300 and Steady from it; the top fifty points of
-  Steady (1600 to 1649) read Sharp, the bottom fifty of Expert (1850 to 1899) read Sharp, and Elite
-  reads Expert below 2200 and Legend from it. The standing titles ask for Sharp, which now starts
-  at 1600 where it started at 1650.
+- Ratings in the database are numbers and need no migration. A pirate's displayed standing
+  changes name: Greenhorn reads Green; Spaceworthy reads Green below 1300 and Steady from it; the
+  top fifty points of Steady (1600 to 1649) read Sharp; Expert reads Sharp below 1900 and Masterful
+  from it; Elite reads Masterful below 2200 and Legendary from it; Legend reads Legendary. The
+  standing titles ask for Sharp, which now starts at 1600 where it started at 1650.
 - A new pirate (1500) still starts at Steady.
 - The live tier is jumpy by nature: a short stretch of a lumpy puzzle is not a round. The stretch
   lengths are first guesses, to be set from play.

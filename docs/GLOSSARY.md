@@ -339,8 +339,9 @@ The skull, star, crossed swords, crown and flame emblems and every pattern (hera
 |---|---|---|
 | Seaworthy | Spaceworthy | `seaworthy` → `spaceworthy` |
 
-Greenhorn, Steady, Sharp, Expert, Elite and Legend stay. Since ADR 0039 there are five tiers:
-Spaceworthy and Elite are gone.
+Greenhorn, Steady, Sharp, Expert, Elite and Legend stay. Since ADR 0039 there are five tiers,
+each an adjective: Green, Steady, Sharp, Masterful and Legendary (`green`, `steady`, `sharp`,
+`masterful`, `legendary`).
 
 ### Titles
 
