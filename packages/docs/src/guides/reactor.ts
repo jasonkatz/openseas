@@ -88,11 +88,11 @@ export const reactor: Guide = {
         },
         {
           title: "First in the lane",
-          body: `A hot rod leaves only when it is the first rod in the port's lane, counting from the port's wall. Rods behind it do not matter. When you fuse two grade ${top} rods right at a port the new hot rod stays put, and the same swipe again sends it out.`,
+          body: `A hot rod leaves only when it is the first rod in the port's lane, counting from the port's wall. Rods behind it do not matter. When you fuse two grade ${top} rods right at a port the new hot rod stays put for that swipe. The next one sends it out.`,
           media: {
             kind: "clip",
             name: "discharge",
-            alt: "Two grade III rods sit in the left column under a gate in the left wall. A swipe up fuses them into a hot rod in the top left corner and the gate shows a chevron. A swipe left sends the hot rod out through the gate for 100 points, and a new gate opens elsewhere.",
+            alt: "Two grade III rods sit one over the other at the top of the left column, beside a gate in the left wall. A swipe up fuses them into a hot rod in the top left corner and the gate shows a chevron. A swipe left sends the hot rod out through the gate for 100 points, and a new gate opens elsewhere.",
             caption: `Fuse two grade ${top} rods, then push the hot rod at the chevron. The port it used closes and another opens.`,
           },
         },
@@ -146,12 +146,12 @@ export const reactor: Guide = {
         },
         {
           title: "Cook the next rod first",
-          body: `The run survives only if the next hot rod is nearly made when this one leaves. Before you deliver, look for the next pair of grade ${top} rods, or the grade II rods that will make one. The best delivery swipes fuse something as well. When the bar has swipes to spare and the next rod is far off, spend one on a fusion and deliver after.`,
+          body: `The run survives only if the next hot rod is nearly made when this one leaves. Before you deliver, look for the next pair of grade ${top} rods, or the grade II rods that will make one. The best delivery swipes fuse something as well, so no swipe of the window goes on delivery alone.`,
           media: {
             kind: "clip",
             name: "pipeline",
-            alt: "A pipeline run is going and the bar under the core is nearly empty. A hot rod is swiped out through the top wall for 125 points and the bar refills. Three swipes later two grade III rods that were already on the board have fused into a hot rod at the top wall, and it goes out for 150.",
-            caption: "One rod out, and the next follows four swipes later because its two grade IIIs were already cooking.",
+            alt: "A pipeline run is going and the bar under the core is nearly empty. A hot rod is swiped out through the top wall for 125 points and the bar refills. A grade III rod and the grade II rods for another are already in the left column. A few swipes fuse them into a hot rod at the top wall, and it goes out for 150.",
+            caption: "One rod out and the bar refills. The next follows a few swipes later because its rods were already cooking.",
           },
         },
       ],
@@ -167,7 +167,7 @@ export const reactor: Guide = {
           media: {
             kind: "clip",
             name: "salvo",
-            alt: "A hot rod is parked in the top left corner under a gate in the top wall, and three grade III rods are in the core. Two swipes fuse a second hot rod and bring it into the left column right under the first. The pipeline lapses on the way. The gate shows two chevrons, a swipe up sends both rods out, and the board calls Salvo x2 for 562 points.",
+            alt: "A hot rod is parked in the top left corner under a gate in the top wall, with two grade III rods below it in the same column. Two swipes fuse those into a second hot rod, stacked against the first with nothing between. The pipeline lapses on the way. The gate shows two chevrons, a swipe up sends both rods out, and the board calls Salvo x2 for 562 points.",
             caption: `The first rod waits at its port while the second is made. The wait loses the pipeline and the pair still pays ${pair(1)}.`,
           },
         },

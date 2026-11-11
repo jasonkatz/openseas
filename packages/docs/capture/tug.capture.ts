@@ -1,7 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { test, type Page } from "@playwright/test";
 import { loadContent } from "@openseas/content";
 import { createTugGame, reduceTug, tugSolve, tugStateViewString, type TugConfig, type TugMove, type TugState } from "@openseas/engine";
-import { boardGeom, boardString, canvasBox, clip, findSeed, hidePointer, openLab, padded, settled, still, type Box } from "./lib.js";
+import { boardGeom, canvasBox, clip, findSeed, hidePointer, openLab, padded, still, type Box } from "./lib.js";
 
 const cfg = loadContent().puzzles.tug.config;
 const W = cfg.width;
@@ -68,12 +68,18 @@ async function moveTo(page: Page, x: number, y: number, ms: number): Promise<voi
 /** Wait until the page holds the bay Node holds, and has drawn it. */
 async function inStep(page: Page, s: TugState): Promise<void> {
   const want = tugStateViewString(s);
-  await expect.poll(() => boardString(page, "tug"), { timeout: 10_000 }).toBe(want);
-  await settled(page, "tug");
+  // One wait in the page, on what it publishes: no polling from here, which a busy machine stretches.
+  await page.waitForFunction(
+    (w) =>
+      document.querySelector('[data-testid="tug-board"]')?.getAttribute("data-board") === w &&
+      document.querySelector('[data-testid="tug-canvas"]')?.getAttribute("data-view") === w,
+    want,
+    { timeout: 10_000, polling: 30 },
+  );
 }
 
 /** Swipe a pod the way a thumb would, and keep the Node bay in step. */
-async function swipe(page: Page, s: TugState, m: Flick, restMs = 380): Promise<TugState> {
+async function swipe(page: Page, s: TugState, m: Flick, restMs = 260): Promise<TugState> {
   const g = await boardGeom(page, "tug");
   const cell = s.pods[m.pod]!;
   const x = g.ox + ((cell % W) + 0.5) * g.cell;
@@ -178,8 +184,8 @@ test("tug: a par four", async ({ page }) => {
   }, 4000);
   let s = await open(page, seed, over);
   await clip(page, "tug", "par-four", async () => {
-    for (const m of found) s = await swipe(page, s, m, 450);
-  }, { tailMs: 1400, region: await region(page) });
+    for (const m of found) s = await swipe(page, s, m, 300);
+  }, { tailMs: 1300, region: await region(page) });
 });
 
 test("tug: a streak", async ({ page }) => {
