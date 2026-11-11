@@ -12,6 +12,7 @@
     "flameoutPenalty": 40,
     "chainMultipliers": [1, 3, 6, 10]
   },
+  "paceSeconds": 15,
   "roundSeconds": 150,
   "parScore": 200,
   "fallMs": 700,

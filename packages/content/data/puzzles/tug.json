@@ -15,6 +15,7 @@
     "skipPenalty": 15,
     "maxMoves": 600
   },
+  "paceSeconds": 20,
   "roundSeconds": 120,
   "thresholds": [
     { "score": 200, "rating": 1100 },

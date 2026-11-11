@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import { swordfightStanding, type SwordfightEvent, type SwordfightState } from "@openseas/engine";
+import { swordfightPaceScore, swordfightStanding, type SwordfightEvent, type SwordfightState } from "@openseas/engine";
 import type { ShipSnapshot } from "@openseas/protocol";
-import { SwordfightBoard, sfx, t } from "@openseas/boards";
+import { SwordfightBoard, TierPace, sfx, t, useTierPace } from "@openseas/boards";
 import { tierName } from "../../names.js";
 import { ShipHud } from "../ShipHud.jsx";
 import { useMeleeApi } from "./useMelee.js";
@@ -44,6 +44,14 @@ export function MeleeView({ ship, showMarks, onBack }: MeleeViewProps) {
   }, []);
   const onNudge = useCallback(() => sfx.tick(false), []);
   const mine = api.state.boards[0]!;
+  const fight = api.state;
+  const pace = useTierPace({
+    puzzle: "swordfight",
+    points: mine.points,
+    playing,
+    elapsed: (fight.tick * fight.config.tickMs) / 1000,
+    project: (points, seconds) => swordfightPaceScore(fight.config, points, seconds),
+  });
   const foesStanding = api.others.filter((b) => b.side === 1 && !b.out).length;
   const foesTotal = api.others.filter((b) => b.side === 1).length;
   const crewStanding = swordfightStanding(api.state, 0) + api.others.filter((b) => b.side === 0 && !b.out).length;
@@ -58,6 +66,7 @@ export function MeleeView({ ship, showMarks, onBack }: MeleeViewProps) {
         <div className="station-head">
           <h1 className="station-title">{raider}</h1>
           <span className="station-numbers" aria-live="off">
+            <TierPace pace={pace} />
             <b data-testid="melee-score" title={t("swordfight.attack_rate")}>
               {attackRate(api.state)}
             </b>
@@ -95,6 +104,9 @@ export function MeleeView({ ship, showMarks, onBack }: MeleeViewProps) {
                 ) : (
                   <>
                     <h2 className={`fight-outcome ${api.state.outcome ?? ""}`}>{api.state.outcome ? t(`swordfight.outcome.${api.state.outcome}`) : t("swordfight.outcome.undecided")}</h2>
+                    <p className="result-tier" data-testid="melee-result-tier">
+                      {t("practice.round_tier", { tier: t(`tier.${api.outcome.result.performance.tier}`) })}
+                    </p>
                     <p className="result-score">{attackRate(api.state)}</p>
                     <p className="muted small">{t("swordfight.result_rate", { broken: api.state.boards[0]?.broken ?? 0 })}</p>
                     {ship.melee && <p className="muted small">{t("ship.melee_crew_fighting")}</p>}

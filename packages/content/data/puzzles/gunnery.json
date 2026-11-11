@@ -153,6 +153,7 @@
     "comboCap": 8,
     "broadsidePoints": 300
   },
+  "paceSeconds": 20,
   "roundSeconds": 150,
   "parScore": 2200,
   "thresholds": [

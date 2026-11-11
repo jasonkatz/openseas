@@ -9,6 +9,12 @@ describe("content", () => {
     expect(c.world.shipGrants[0]?.price).toBe(0);
     expect(c.puzzles.cooling.config.width).toBe(6);
     expect(c.ratingTiers[0]?.min).toBe(0);
+    // Five tiers, lowest first, each named in the message table (ADR 0039).
+    expect(c.ratingTiers.map((t) => t.key)).toEqual(["greenhorn", "steady", "sharp", "expert", "legend"]);
+    for (const t of c.ratingTiers) expect(msg(c, t.nameKey)).not.toBe(t.nameKey);
+    for (let i = 1; i < c.ratingTiers.length; i++) expect(c.ratingTiers[i]!.min).toBeGreaterThan(c.ratingTiers[i - 1]!.min);
+    // Every puzzle's live tier indicator reads a stretch shorter than its round.
+    for (const p of Object.values(c.puzzles)) expect(p.paceSeconds).toBeLessThan(p.roundSeconds);
     expect(c.world.startOutpostId).toBe("tinwick");
     expect(c.world.ship.turnSeconds).toBe(10);
     for (const p of Object.values(c.puzzles)) if ("parScore" in p) expect(p.parScore).toBeGreaterThan(0);

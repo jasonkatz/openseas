@@ -31,6 +31,7 @@
     "maxTick": 1500,
     "maxMoves": 2000
   },
+  "paceSeconds": 20,
   "roundSeconds": 240,
   "parRatePerMinute": 1000,
   "softDropMs": 50,

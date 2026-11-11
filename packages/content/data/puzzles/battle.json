@@ -83,6 +83,7 @@
     "turnBonus": 40,
     "maxMoves": 64
   },
+  "paceSeconds": 40,
   "roundSeconds": 250,
   "thresholds": [
     { "score": 90, "rating": 1100 },

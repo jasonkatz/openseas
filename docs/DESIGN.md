@@ -234,12 +234,18 @@ v1: a look is a free choice, not something owned.
 - Currency is an append-only ledger from day one so a later economy has an auditable base.
 - Ratings use Glicko-2 per puzzle. Duty puzzles are rated against performance thresholds
   calibrated from the tester pool. Swordfighting and Space Battle are rated head to head. Players
-  see display tiers only; raw numbers are hidden.
+  see display tiers only; raw numbers are hidden. There are five (ADR 0039): Greenhorn, Steady,
+  Sharp, Expert and Legend.
 - Standing is earned in the game only (ADR 0028): the captain's space battle, a melee board and a
   duty board that ran its full clock move it; a harness round never does. Every scored round also
   carries its own performance rating, its score read off the line through the thresholds, with the
-  tier that falls in. It is stored with the round and shown on the harness's result card, never
-  fed into standing.
+  tier that falls in. It is stored with the round and leads every result card, above the score,
+  never fed into standing.
+- A score means nothing from one puzzle to the next, so every board's HUD also shows the tier
+  being played at right now (ADR 0039): the points of the last `paceSeconds` of the round (content,
+  per puzzle; longer where a puzzle scores in lumps) read as a whole round at that pace. It is five
+  rising pips and the tier's name, on the harness and at every station, the captain's board and the
+  melee. It is display only.
 
 **The pirate's sheet** (ADR 0033). The player's own page about themselves. It opens over the
 scene from their name and likeness in the top bar, the same everywhere, and has three tabs.
@@ -488,7 +494,7 @@ draws, and a bench beside it:
 
 - **Three kinds of round.** Recorded and unrated rounds play what the game deals, untouched:
   recorded through the server, verified and kept but moving no standing (ADR 0028), unrated local on
-  a random seed. Each result shows the round's performance rating and its tier. A *lab* round is the harness's: it runs
+  a random seed. Each result leads with the round's tier and shows its performance rating; the HUD shows the tier being played at (3.6). A *lab* round is the harness's: it runs
   locally on a chosen seed, a config made of the content config plus overrides, a chosen length
   and a clock that can be slowed, paused and stepped a tick at a time. A lab config must pass the
   same two checks the server applies to content (the wire schema and the engine's validator), so a

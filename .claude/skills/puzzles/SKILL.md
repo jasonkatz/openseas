@@ -66,49 +66,57 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
     a forgiven setup move) are chosen per puzzle and argued in its tuning notes.
 14. **No single mechanic is the whole round.** If one thing is more than about half of a good score,
     retune it.
-15. **Every round ends in a grade.** The score falls into one of five or six grades, read from the
-    puzzle's thresholds in content, and the result card leads with it. **The grade, never the raw
-    score, is what the rest of the game reads**: whatever a round does for a ship, a purse or a
-    pirate's standing is a function of its grade, so puzzles with wildly different point scales
-    weigh the same. Today's code predates this rule: thresholds give seven tiers, and a station
-    pays the ship by percent of `parScore` (ADR 0030). Moving those onto grades is its own ADR; until
-    then build no new reader of a raw score, and raise the gap when your work touches one.
-16. **Thresholds come from a bot ladder, then from people.** Write bots from careless to expert and
-    set the grades between them. A degenerate bot (spam, sweep, gamble) must grade below a plain
+15. **The tier is the result, never the bare score.** A score means nothing from one puzzle to the
+    next. Every round ends in one of the five tiers (Greenhorn, Steady, Sharp, Expert, Legend; ADR
+    0039), read from the puzzle's thresholds in content, and the result card leads with it. **The
+    tier is what the rest of the game should read**: whatever a round does for a ship, a purse or a
+    pirate's standing is a function of its tier, so puzzles with wildly different point scales
+    weigh the same. Standing already works this way. A station still pays the ship by percent of
+    `parScore` (ADR 0030); moving that onto tiers is its own ADR, so until then build no new reader
+    of a raw score, and raise the gap when your work touches one.
+16. **The HUD shows the tier being played at.** Every board carries the live tier indicator
+    (`useTierPace` and `TierPace` in `boards`): the last `paceSeconds` of play read as a whole
+    round. Set `paceSeconds` in the puzzle's content to about two of its scoring events, ten
+    seconds for a puzzle that scores every move and longer for one that scores in lumps, then
+    watch a round: the reading should move with how you are playing, neither stuck nor strobing.
+    A puzzle whose score is not points over a round hands the hook an engine function that reads
+    a stretch as a score (Swordfighting's `swordfightPaceScore`).
+17. **Thresholds come from a bot ladder, then from people.** Write bots from careless to expert and
+    set the tiers between them. A degenerate bot (spam, sweep, gamble) must land a tier below a plain
     thinking one; if it does not, the rules are wrong, not the thresholds. Record the bots and
     their scores in the tuning notes.
-17. **Numbers live in content.** Every tuned number is a named key in
+18. **Numbers live in content.** Every tuned number is a named key in
     `content/data/puzzles/<id>.json`. The board shows only what an engine function computed.
 
 ### Purpose
 
-18. **A puzzle has a role, or is a prototype.** In the game, a round does something for someone:
+19. **A puzzle has a role, or is a prototype.** In the game, a round does something for someone:
     today a station feeding the ship or a fight, later whatever the game needs (a haul, an outpost
-    job, a craft). The design file's Role section says what, and what the grade changes. A
+    job, a craft). The design file's Role section says what, and what the tier changes. A
     prototype names the roles it could take.
-19. **Whole on its own.** It is a complete, fun round alone on the harness, with no ship behind it.
+20. **Whole on its own.** It is a complete, fun round alone on the harness, with no ship behind it.
     What the wider game injects (Cooling's heat) arrives as moves in the log.
 
 ### Clear-cut
 
-20. **Pure engine, server authority.** Deterministic from seed and move log; determinism property
+21. **Pure engine, server authority.** Deterministic from seed and move log; determinism property
     tests are written first; the server replays and scores every round. A puzzle whose game is
     hidden information counts for nothing until the server holds the secret (Scanner, ADR 0036).
-21. **Reads without color.** Each kind has its own silhouette, and the mark setting draws a distinct
+22. **Reads without color.** Each kind has its own silhouette, and the mark setting draws a distinct
     mark on each.
-22. **Its own sprite sheet.** The owner generates each puzzle's sheet in ChatGPT. Your part is the
+23. **Its own sprite sheet.** The owner generates each puzzle's sheet in ChatGPT. Your part is the
     brief: the frame list named as the renderer asks for them, and the style line from
     `packages/boards/src/sprites/README.md`. Every piece keeps a code-drawn fallback, and marks,
     numerals and hit areas stay in code. A puzzle without its sheet is not finished; say so.
-23. **Every string in the message table.**
-24. **Three homes, kept in step.** A harness page with bench entry, lab presets and a smoke that
+24. **Every string in the message table.**
+25. **Three homes, kept in step.** A harness page with bench entry, lab presets and a smoke that
     plays by key and by pointer; a guide in `packages/docs` with captured pictures and no typed
     number; and, once it has a role, its place in the game. Plus the design file.
 
 ## New puzzle
 
 1. Pitch it against the bar before any code: the verb, the compound move, luck and skill with four
-   skills, how it grades, the roles it could take. A pitch that cannot fill one of those in is not
+   skills, how it tiers, the roles it could take. A pitch that cannot fill one of those in is not
    ready. Done when the owner has picked it.
 2. Build it as a prototype (ADR 0036): copy Salvage's files as `docs/prototypes/README.md` lists,
    determinism tests first, feedback with the first playable.
@@ -121,7 +129,7 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 1. Read its design file and its guide. State which bar items the change touches.
 2. Make the change, and in the same commit:
    - **A rule or a number:** the design file; the guide re-read against the engine; the bot ladder
-     re-run and thresholds moved if grades shifted; a `DESIGN.md` section 6 row if it departs
+     re-run and thresholds moved if tiers shifted; a `DESIGN.md` section 6 row if it departs
      further from the original.
    - **A control:** the design file, the guide's controls, the harness smoke.
    - **A look or a sound:** `pnpm --filter @openseas/docs capture <id>`, and every picture looked at.
@@ -133,4 +141,4 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 
 Its own ADR and milestone (ADR 0036, `docs/prototypes/README.md`). Before proposing one: the owner
 has played it, people (not only bots) have set its thresholds, its Role section says what each
-grade does for the game, and its design file moves to `docs/puzzles/`.
+tier does for the game, and its design file moves to `docs/puzzles/`.

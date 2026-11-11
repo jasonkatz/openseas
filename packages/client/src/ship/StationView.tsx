@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ShipSnapshot, StationWire } from "@openseas/protocol";
-import { t } from "@openseas/boards";
+import { TierPace, t, useTierPace, type TierPaceValue } from "@openseas/boards";
 import { fmtClock, stationName, tierName } from "../names.js";
 import { useShip } from "../state/ShipProvider.jsx";
 import { useMediaQuery } from "../state/settings.js";
@@ -63,6 +63,7 @@ export function StationView({ ship, me, station, showMarks, onBack, onHelm }: St
                     <h1 className="station-title">{stationName(station)}</h1>
                   )}
                   <span className="station-numbers" aria-live="off">
+                    <DutyPace station={station} score={score} playing={playing} elapsed={api.roundSeconds - api.timeLeft} />
                     <b data-testid="duty-score">{score}</b>
                     {combo > 1 && <i className={`combo-chip ${combo >= 6 ? "hot" : ""}`}>×{combo}</i>}
                     <span className={lowTime ? "urgent" : ""} data-testid="duty-time">
@@ -133,6 +134,9 @@ export function StationView({ ship, me, station, showMarks, onBack, onHelm }: St
                           <p className="error">{t("practice.result_rejected", { reason: t(`practice.reject.${api.outcome.reason}`) })}</p>
                         ) : (
                           <>
+                            <p className="result-tier" data-testid="duty-result-tier">
+                              {t("practice.round_tier", { tier: t(`tier.${api.outcome.result.performance.tier}`) })}
+                            </p>
                             <p className="result-score">{api.outcome.result.score}</p>
                             {api.outcome.result.rating && api.outcome.result.tierChange ? (
                               <p className={`tier-line tier-${api.outcome.result.tierChange}`}>
@@ -155,4 +159,10 @@ export function StationView({ ship, me, station, showMarks, onBack, onHelm }: St
       </DutyBoard>
     </section>
   );
+}
+
+/** The station's live tier indicator: the hook needs a component of its own inside the board's render prop. */
+function DutyPace({ station, score, playing, elapsed }: { station: StationWire; score: number; playing: boolean; elapsed: number }) {
+  const pace: TierPaceValue | null = useTierPace({ puzzle: station, points: score, playing, elapsed });
+  return <TierPace pace={pace} />;
 }

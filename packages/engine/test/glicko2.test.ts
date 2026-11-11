@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NEW_RATING, dutyResults, performanceRating, tierFor, updateRating } from "../src/rating/glicko2.js";
+import { NEW_RATING, dutyResults, paceScore, performanceRating, tierFor, updateRating } from "../src/rating/glicko2.js";
 
 describe("glicko2", () => {
   it("reproduces the worked example from the Glicko-2 paper", () => {
@@ -67,6 +67,17 @@ describe("glicko2", () => {
     // Above the top it carries on at the last step's slope.
     expect(performanceRating(700, thresholds)).toBe(1700);
     expect(performanceRating(1500, thresholds)).toBe(2500);
+  });
+
+  it("paceScore reads a stretch of play as a whole round at that pace", () => {
+    // 30 points in 10 seconds, kept up for 150, is a round of 450.
+    expect(paceScore(30, 10, 150)).toBe(450);
+    expect(paceScore(0, 10, 150)).toBe(0);
+    // A stretch that lost points reads as nothing, never as less.
+    expect(paceScore(-40, 10, 150)).toBe(0);
+    expect(Number.isInteger(paceScore(7, 30, 120))).toBe(true);
+    // A whole round as the window is the round's own score.
+    expect(paceScore(440, 150, 150)).toBe(440);
   });
 
   it("performanceRating is whole and never falls with a higher score", () => {

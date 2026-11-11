@@ -136,6 +136,15 @@ export function performanceRating(score: number, thresholds: readonly ScoreThres
   return between(line[line.length - 2]!, line[line.length - 1]!);
 }
 
+/**
+ * A stretch of play read as a whole round (ADR 0039): `points` made in `windowSeconds`, kept up for
+ * `roundSeconds`. Rated against the thresholds like any score, it is the tier a player is playing
+ * at right now. Display only: no standing and no round's result reads it.
+ */
+export function paceScore(points: number, windowSeconds: number, roundSeconds: number): number {
+  return Math.floor((Math.max(0, points) * roundSeconds) / Math.max(1, windowSeconds));
+}
+
 export interface RatingTier {
   readonly key: string;
   /** Minimum display rating for this tier. */
