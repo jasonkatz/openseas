@@ -57,7 +57,7 @@ A guide is read in one sitting by someone who wants to play, not study. The type
 ## Pictures
 
 Five to eight per guide: the board (the hero), the basic move (with the rules), and one for each
-idea that is easier to see than to read. A clip is three to eight seconds and about one thing.
+idea that is easier to see than to read. A clip is short (aim for three to eight seconds, never much past ten) and about one thing.
 
 A capture file is a Playwright file run against the harness (`playwright.capture.config.ts`);
 `capture/lib.ts` is everything it is written with:

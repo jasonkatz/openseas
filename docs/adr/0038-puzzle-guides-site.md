@@ -64,7 +64,7 @@ thing with more authority than no guide at all.
 
 - A third front end to build and deploy. It is small, static and shares the pipeline's shape; the
   Deploy workflow skips it, with a warning, until its Vercel project exists (`docs/DEPLOY.md` 2c).
-- About two megabytes of media per puzzle live in git, and change when a board's art does. That is
+- About a megabyte of media per puzzle lives in git, and changes when a board's art does. That is
   the price of a site that builds anywhere and of pictures that are reviewed in the PR that
   changes them.
 - A board change that alters how a puzzle looks or plays now has two follow-ups: the harness
