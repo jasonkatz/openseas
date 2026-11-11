@@ -1,0 +1,325 @@
+import { expect, test, type Page } from "@playwright/test";
+import { loadContent } from "@openseas/content";
+import {
+  createEnginesGame,
+  enginesLandingRow,
+  enginesPairCells,
+  enginesShelfMask,
+  enginesSpawnPosition,
+  reduceEngines,
+  type EnginesMoveReport,
+  type EnginesState,
+  type Rotation,
+} from "@openseas/engine";
+import { boardString, canvasBox, clip, findSeed, glide, hidePointer, openLab, padded, settled, still, tapAt, type Box } from "./lib.js";
+
+const cfg = loadContent().puzzles.engines.config;
+const W = cfg.width;
+const H = cfg.height;
+const SPAWN = enginesSpawnPosition(cfg);
+
+interface Place {
+  col: number;
+  row: number;
+  rot: Rotation;
+}
+
+const deal = (seed: string): EnginesState => createEnginesGame(seed, cfg);
+const put = (s: EnginesState, p: Place): EnginesState => reduceEngines(s, { type: "place", ...p });
+
+// ---- planning, in Node, with the engine
+
+/** How far down the pair may sink while the hand turns and steers it, before the swipe that hurries it. */
+const SLACK = 5;
+
+/**
+ * Straight drops: turn and steer in the top rows, then fall. Only columns whose top rows are empty
+ * all the way from the entry, so the page can play the same landing however slowly the hand moves.
+ */
+function drops(s: EnginesState): Place[] {
+  const held = new Set<number>();
+  for (const p of s.injectors) for (const c of p.cells) held.add(c.row * W + c.col);
+  const open = (col: number): boolean => {
+    for (let r = H - SLACK; r < H; r++) if (s.cells[r * W + col] || held.has(r * W + col)) return false;
+    return true;
+  };
+  const out: Place[] = [];
+  for (const rot of [0, 1, 2, 3] as const) {
+    const span = rot % 2 === 0 ? 2 : 1;
+    for (let col = 0; col + span <= W; col++) {
+      let ok = true;
+      for (let c = Math.min(col, SPAWN.col); c <= Math.max(col + span - 1, SPAWN.col + 1); c++) if (!open(c)) ok = false;
+      if (ok) out.push({ col, rot, row: enginesLandingRow(s, col, H - 1, rot) });
+    }
+  }
+  return out;
+}
+
+/** The board with the pair resting at `p`, or null when that landing clears something (the engine then says what). */
+function rested(s: EnginesState, p: Place): EnginesState | null {
+  const at = enginesPairCells(cfg, p.col, p.row, p.rot)!;
+  const cells = s.cells.slice();
+  cells[at.a] = { id: -1, kind: s.current.a, pair: -1 };
+  cells[at.b] = { id: -2, kind: s.current.b, pair: -1 };
+  const kind = (c: number, r: number): number => (c < 0 || c >= W || r < 0 || r >= H ? -1 : (cells[r * W + c]?.kind ?? -1));
+  for (const i of [at.a, at.b]) {
+    const c = i % W;
+    const r = Math.floor(i / W);
+    const k = kind(c, r);
+    for (const [dc, dr] of [[1, 0], [0, 1]] as const) {
+      let n = 1;
+      for (let d = 1; kind(c + dc * d, r + dr * d) === k; d++) n++;
+      for (let d = 1; kind(c - dc * d, r - dr * d) === k; d++) n++;
+      if (n >= 4) return null;
+    }
+  }
+  for (const inj of s.injectors) {
+    const wants = inj.cells.filter((c) => c.want !== null);
+    if (wants.every((c) => cells[c.row * W + c.col]?.kind === c.want)) return null;
+  }
+  return { ...s, cells };
+}
+
+/**
+ * How good a board is to build on. Pellets on their own targets count, wrong ones cost, and so does
+ * height. `feed` is the weight of the chain idea: an open target with its own kind waiting straight
+ * above it, held up by something that will fire.
+ */
+function worth(s: EnginesState, feed: number): number {
+  let v = 0;
+  const owner = new Map<number, number>();
+  for (const p of s.injectors) for (const c of p.cells) owner.set(c.row * W + c.col, p.id);
+  for (const p of s.injectors) {
+    const wants = p.cells.filter((c) => c.want !== null);
+    const have = wants.filter((c) => s.cells[c.row * W + c.col]?.kind === c.want).length;
+    const wrong = wants.filter((c) => s.cells[c.row * W + c.col] && s.cells[c.row * W + c.col]!.kind !== c.want).length;
+    v += 2 * have - 4 * wrong;
+    if (wrong === 0 && have === wants.length - 1) v += 2;
+    if (!feed || wrong) continue;
+    for (const c of wants) {
+      if (s.cells[c.row * W + c.col]) continue;
+      for (let r = c.row + 1; r < H; r++) {
+        const i = r * W + c.col;
+        const seg = s.cells[i];
+        if (!seg) {
+          // Another injector's empty cell has a shelf that would catch the pellet.
+          if (owner.has(i) && owner.get(i) !== p.id) break;
+          continue;
+        }
+        v += seg.kind === c.want ? feed * (have === wants.length - 1 ? 2 : 1) : -feed;
+        break;
+      }
+    }
+  }
+  for (let i = 0; i < s.cells.length; i++) if (s.cells[i]) v -= 0.05 * Math.floor(i / W);
+  return v;
+}
+
+interface Line {
+  /** The landings that set the board up. None of them clears anything. */
+  log: Place[];
+  /** The landing the picture is about. */
+  last: Place;
+  report: EnginesMoveReport;
+  before: EnginesState;
+}
+
+/**
+ * Play straight drops that clear nothing, keeping the `beam` best boards, until one landing does
+ * what `want` asks. This is how a player sets a chain up: load the injectors, fire none of them.
+ */
+function plan(seed: string, want: (r: EnginesMoveReport, before: EnginesState) => boolean, opts: { feed?: number; beam?: number; moves?: number; atLeast?: number } = {}): Line | null {
+  const feed = opts.feed ?? 0;
+  let nodes: { s: EnginesState; log: Place[] }[] = [{ s: deal(seed), log: [] }];
+  for (let n = 0; n < (opts.moves ?? 10); n++) {
+    const next: { s: EnginesState; p: Place; log: Place[]; v: number }[] = [];
+    for (const node of nodes) {
+      for (const p of drops(node.s)) {
+        const quiet = rested(node.s, p);
+        if (quiet) {
+          next.push({ s: node.s, p, log: node.log, v: worth(quiet, feed) });
+          continue;
+        }
+        if (n < (opts.atLeast ?? 1)) continue;
+        const r = put(node.s, p).lastMove!;
+        if (!r.wipe && want(r, node.s)) return { log: node.log, last: p, report: r, before: node.s };
+      }
+    }
+    next.sort((a, b) => b.v - a.v);
+    nodes = next.slice(0, opts.beam ?? 1).map((x) => ({ s: put(x.s, x.p), log: [...x.log, x.p] }));
+    if (!nodes.length) return null;
+  }
+  return null;
+}
+
+const fired = (r: EnginesMoveReport, step: number): number => r.rounds[step]?.groups.filter((g) => g.cause === "injector").length ?? 0;
+
+// ---- playing, on the page
+
+interface Geom {
+  /** Page position of the board's top left cell corner, and the cell size. */
+  ox: number;
+  oy: number;
+  cell: number;
+  strip: number;
+  box: Box;
+}
+
+/** Where the renderer lays the core out inside its canvas (the same sums as its `layout`). */
+async function geom(page: Page): Promise<Geom> {
+  const box = await canvasBox(page, "engines");
+  const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.15));
+  const rows = H + 1.2;
+  let cell = Math.floor(Math.min(box.width / W, box.height / rows));
+  cell = Math.max(12, Math.floor(Math.min((box.width - padFor(cell) * 2 - 2) / W, (box.height - padFor(cell) * 2 - 2) / rows)));
+  const strip = Math.round(cell * 1.2);
+  return { ox: box.x + Math.floor((box.width - cell * W) / 2), oy: box.y + Math.floor((box.height - cell * H - strip) / 2) + strip, cell, strip, box };
+}
+
+/** The core with its frame and the next-pair strip above it. */
+async function region(page: Page): Promise<Box> {
+  const g = await geom(page);
+  return padded({ x: g.ox, y: g.oy - g.strip, width: g.cell * W, height: g.cell * H + g.strip }, 14, g.box);
+}
+
+const moves = (page: Page) => page.getByTestId("hud-moves");
+
+/** The page's board must be the one Node planned on. */
+async function same(page: Page, s: EnginesState): Promise<void> {
+  await settled(page, "engines");
+  expect(await boardString(page, "engines")).toBe(s.cells.map((c) => c?.kind ?? -1).join(","));
+}
+
+/**
+ * Land the falling pair with the pointer, as a thumb would: tap to turn it, drag sideways to steer
+ * it, then hold a swipe down until it lands. `count` is the move count once it has.
+ */
+async function drop(page: Page, p: Place, count: number, pace = 1): Promise<void> {
+  const g = await geom(page);
+  const x = g.ox + (SPAWN.col + 1) * g.cell;
+  const y = g.oy + 2.5 * g.cell;
+  for (let i = 0; i < p.rot; i++) {
+    await tapAt(page, x, y, 70);
+    await page.waitForTimeout(90 * pace);
+  }
+  const to = x + (p.col - SPAWN.col) * g.cell;
+  if (p.col !== SPAWN.col) {
+    await glide(page, x, y, 120);
+    await page.mouse.down();
+    await glide(page, to, y, (140 + 50 * Math.abs(p.col - SPAWN.col)) * pace);
+    await page.mouse.up();
+    await page.waitForTimeout(80 * pace);
+  }
+  await glide(page, to, y, 100);
+  await page.mouse.down();
+  await glide(page, to, y + 2 * g.cell, 160 * pace);
+  await expect(moves(page)).toHaveText(String(count), { timeout: 15_000 });
+  await page.mouse.up();
+}
+
+/** Open the seed and play a line's setup, checking every landing against the plan. */
+async function setUp(page: Page, seed: string, line: Line): Promise<EnginesState> {
+  await openLab(page, "engines", { seed });
+  let s = deal(seed);
+  for (const [i, p] of line.log.entries()) {
+    await drop(page, p, i + 1, 0.5);
+    s = put(s, p);
+    await same(page, s);
+  }
+  return s;
+}
+
+test("engines: the board", async ({ page }) => {
+  // A core a few pairs in: several injectors part loaded, nothing fired yet.
+  const { seed, found } = findSeed("eng-hero", (s) => {
+    let g = deal(s);
+    const log: Place[] = [];
+    for (let n = 0; n < 7; n++) {
+      let best: { p: Place; v: number } | null = null;
+      for (const p of drops(g)) {
+        const quiet = rested(g, p);
+        if (!quiet) continue;
+        const v = worth(quiet, 0);
+        if (!best || v > best.v) best = { p, v };
+      }
+      if (!best) return null;
+      log.push(best.p);
+      g = put(g, best.p);
+    }
+    const loaded = g.injectors.filter((inj) => inj.cells.some((c) => c.want !== null && g.cells[c.row * W + c.col]?.kind === c.want)).length;
+    const shapes = new Set(g.injectors.map((inj) => `${new Set(inj.cells.map((c) => c.col)).size}x${new Set(inj.cells.map((c) => c.row)).size}`)).size;
+    return loaded >= 4 && shapes >= 3 && g.current.a !== g.current.b ? { log } : null;
+  });
+  await openLab(page, "engines", { seed });
+  let s = deal(seed);
+  for (const [i, p] of found.log.entries()) {
+    await drop(page, p, i + 1, 0.5);
+    s = put(s, p);
+  }
+  await same(page, s);
+  // Let the next pair sink a few rows so the picture shows it over its landing ring.
+  await hidePointer(page);
+  await page.waitForTimeout(2600);
+  await still(page, "engines", "board", { region: await region(page) });
+});
+
+test("engines: a first injector", async ({ page }) => {
+  // The opening pair fills both targets of an injector: one turn, a steer and a swipe.
+  const { seed, found } = findSeed("eng-first", (s) => {
+    const g = deal(s);
+    for (const p of drops(g)) {
+      if (p.rot !== 1 || Math.abs(p.col - SPAWN.col) < 2 || rested(g, p)) continue;
+      const r = put(g, p).lastMove!;
+      const group = r.rounds[0]?.groups[0];
+      if (r.rounds.length === 1 && r.rounds[0]!.groups.length === 1 && group?.cause === "injector" && r.landed!.cells.every((c) => group.cells.includes(c))) return p;
+    }
+    return null;
+  });
+  await openLab(page, "engines", { seed });
+  await clip(page, "engines", "first-injector", async () => {
+    await drop(page, found, 1, 1.6);
+    await settled(page, "engines");
+  }, { tailMs: 1200, region: await region(page) });
+});
+
+test("engines: the spare half chains", async ({ page }) => {
+  // One landing fires an injector, the half it leaves behind falls into a second and fires that too.
+  const { seed, found } = findSeed("eng-chain", (s) =>
+    plan(s, (r, before) => {
+      if (r.rounds.length !== 2 || fired(r, 0) !== 1 || fired(r, 1) !== 1 || r.rounds[0]!.groups.length !== 1 || r.rounds[1]!.groups.length !== 1) return false;
+      // The pellet that finishes the second injector is the landed pair's other half, after a fall worth watching.
+      const [a, b] = r.landed!.ids;
+      const first = r.rounds[0]!.groups[0]!;
+      const second = r.rounds[1]!.groups[0]!;
+      const spare = first.ids.includes(a) ? b : a;
+      if (first.ids.includes(spare) || !second.ids.includes(spare) || second.cells.length < 2) return false;
+      const from = r.landed!.cells[r.landed!.ids.indexOf(spare)]!;
+      const to = second.cells[second.ids.indexOf(spare)]!;
+      return Math.floor(from / W) - Math.floor(to / W) >= 3 && before.moveCount >= 3;
+    }, { moves: 9 }),
+  );
+  await setUp(page, seed, found);
+  await hidePointer(page);
+  await page.waitForTimeout(500);
+  await still(page, "engines", "chain-before", { region: await region(page) });
+  await clip(page, "engines", "chain", async () => {
+    await drop(page, found.last, found.log.length + 1, 1.4);
+    await settled(page, "engines");
+  }, { tailMs: 1300, region: await region(page) });
+});
+
+test("engines: three steps from one landing", async ({ page }) => {
+  // The expert line: each injector that fires drops a pellet into the next. Three steps, all injectors.
+  const { seed, found } = findSeed("eng-three", (s) => plan(s, (r) => r.rounds.length === 3 && fired(r, 0) >= 1 && fired(r, 1) >= 1 && fired(r, 2) >= 1, { feed: 3, beam: 3, moves: 9, atLeast: 3 }), 400);
+  await setUp(page, seed, found);
+  await hidePointer(page);
+  await page.waitForTimeout(500);
+  await still(page, "engines", "three-before", { region: await region(page) });
+  await clip(page, "engines", "three", async () => {
+    await drop(page, found.last, found.log.length + 1, 1.4);
+    await settled(page, "engines");
+  }, { tailMs: 1500, region: await region(page) });
+});
+
+// Kept in step with the engine: a shelf under every bottom cell of an injector.
+void enginesShelfMask;
