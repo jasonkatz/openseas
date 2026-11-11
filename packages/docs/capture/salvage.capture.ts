@@ -244,6 +244,8 @@ function playUntil<T>(seed: string, limit: number, stop: (s: SalvageState) => T 
 }
 
 test("salvage: a coupler joins two kinds", async ({ page }) => {
+  // The hauls before the picture are replayed on the page: on a busy machine that is slow, not wrong.
+  test.setTimeout(480_000);
   // A few hauls in, a coupler has drifted in and the longest line crosses it from one kind to another.
   const { seed, found } = findSeed("salvage-coupler", (s) =>
     playUntil(s, 8, (g) => {
@@ -265,10 +267,11 @@ test("salvage: a coupler joins two kinds", async ({ page }) => {
 });
 
 test("salvage: three crates netted at full streak", async ({ page }) => {
+  test.setTimeout(480_000);
   // Long lines until the streak is at its last step and three crates are adrift, then a loop of five or more: it builds the streak and nets all three.
   const full = cfg.streakPercent.length;
   const { seed, found } = findSeed("salvage-three", (s) =>
-    playUntil(s, 22, (g) => {
+    playUntil(s, 14, (g) => {
       if (cratesOf(g).length < cfg.maxCrates) return null;
       // Three adrift and no good loop yet: this seed is not the picture.
       const { loop } = lines(g);

@@ -535,7 +535,8 @@ test("gunnery: hold a piece until its turret wants it", async ({ page }) => {
     const d = drops(s, 110);
     for (let j = 0; j <= 4; j++) {
       if (d[j]?.kind !== Cell || d[j + 1]?.kind !== Slug || d[j + 2]?.kind !== Sabot || !d[j + 3]) continue;
-      const wants: Want[] = d.slice(0, j + 4).map((_, i) => (i === j || i === j + 2 ? { sw: k, dir: LEFT } : i === j + 1 ? { sw: k, dir: RIGHT } : null));
+      // Nothing is planned for the piece after the sabot: the search keeps a seed where it does no harm.
+      const wants: Want[] = d.slice(0, j + 3).map((_, i) => (i === j || i === j + 2 ? { sw: k, dir: LEFT } : i === j + 1 ? { sw: k, dir: RIGHT } : null));
       const near = { col: sw.col + 1, row: sw.row };
       const far = { col: sw.col + sw.right!.run - 1, row: sw.row };
       const out = d[j + 2]!.tick + sw.dist + 1;
@@ -544,20 +545,31 @@ test("gunnery: hold a piece until its turret wants it", async ({ page }) => {
         { tick: 0, by: 0, ...near, dir: RIGHT },
         { tick: 0, by: 0, ...far, dir: LEFT },
         // The sabot has gone left: let the slug out behind it.
-        { tick: out, by: out + 4, ...near, dir: null },
+        { tick: out, by: out + 8, ...near, dir: null },
         ...schedule([sw], d, wants.map((w) => (w && w !== "any" ? { sw: 0, dir: w.dir } : null))),
       ];
+      // Wherever in its window the release lands, the held slug is what fills the turret, and nothing jams before it fires.
+      const horizon = out + 8 + 2 * sw.right!.run + sw.left!.run + cfg.fireAfterTicks + 6;
+      let until = 0;
+      for (const late of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {
+        const p = run(s, acts, horizon, late);
+        const loaded = p?.events.find((e) => e.type === "loaded");
+        const fired = (loaded?.tick ?? 0) + cfg.fireAfterTicks + 1;
+        if (!p || loaded?.pieceId !== d[j + 1]!.id || p.events.some((e) => e.type === "jam" && e.tick <= fired + 3)) {
+          until = -1;
+          break;
+        }
+        until = Math.max(until, fired);
+      }
+      if (until < 0) continue;
       const from = d[j]!.tick + sw.dist + 1;
-      const until = out + 4 + 2 * sw.right!.run + sw.left!.run + cfg.fireAfterTicks + 6;
-      const p = proven(s, acts, until);
-      if (!p || count(p, "jam") > 0 || count(p, "exit") > j + 1) continue;
-      const loaded = p.events.find((e) => e.type === "loaded");
-      if (loaded?.pieceId !== d[j + 1]!.id || count(p, "fire") !== 1) continue;
       return { acts, from, until };
     }
     return null;
   }, 3000);
   await leadUp(page, seed, found.acts, found.from);
   await clip(page, "gunnery", "hold", () => live(page, seed, found.acts, found.from, found.until), { region: await region(page), tailMs: 900, leadMs: 250 });
-  await expectTurrets(page, seed, found.acts, found.until);
+  // Nothing is jammed. What the turret holds by now depends on when in its window the release landed.
+  const turrets = (await boardString(page, "gunnery")).split("|")[2]!;
+  if (turrets.includes("f")) throw new Error(`gunnery ${seed}: a turret jammed (${turrets})`);
 });

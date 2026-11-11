@@ -29,7 +29,7 @@ const put = (s: EnginesState, p: Place): EnginesState => reduceEngines(s, { type
 // ---- planning, in Node, with the engine
 
 /** How far down the pair may sink while the hand turns and steers it, before the swipe that hurries it. */
-const SLACK = 7;
+const SLACK = 5;
 
 /**
  * Straight drops: turn and steer in the top rows, then fall. Only columns whose top rows are empty
@@ -211,8 +211,8 @@ async function drop(page: Page, p: Place, count: number, pace = 1): Promise<void
   }
   await glide(page, to, y, 100);
   await page.mouse.down();
-  await glide(page, to, y + 2 * g.cell, 160 * pace);
-  // Lift the moment it lands: a swipe still held would hurry the next pair too.
+  // A short, quick swipe, then lift the moment the pair lands: a swipe still moving or still held hurries the next pair too.
+  await page.mouse.move(to, y + 2 * g.cell, { steps: 3 });
   await page.waitForFunction((n) => document.querySelector('[data-testid="hud-moves"]')?.textContent?.trim() === n, String(count), { polling: "raf", timeout: 15_000 });
   await page.mouse.up();
 }
@@ -287,7 +287,7 @@ test("engines: a first injector", async ({ page }) => {
   await openLab(page, "engines", { seed });
   await clip(page, "engines", "first-injector", async () => {
     await drop(page, found, 1, 1.3);
-    await settled(page, "engines");
+    await same(page, put(deal(seed), found));
   }, { tailMs: 1200, region: await region(page) });
 });
 
@@ -313,19 +313,19 @@ test("engines: the spare half chains", async ({ page }) => {
   await still(page, "engines", "chain-before", { region: await region(page) });
   await clip(page, "engines", "chain", async () => {
     await drop(page, found.last, found.log.length + 1, 1.4);
-    await settled(page, "engines");
+    await same(page, put(found.before, found.last));
   }, { tailMs: 1300, region: await region(page) });
 });
 
 test("engines: three steps from one landing", async ({ page }) => {
   // The expert line: each injector that fires drops a pellet into the next. Three steps, all injectors.
-  const { seed, found } = findSeed("eng-three", (s) => plan(s, (r) => r.rounds.length === 3 && fired(r, 0) >= 1 && fired(r, 1) >= 1 && fired(r, 2) >= 1, { feed: 3, beam: 3, moves: 9, atLeast: 3 }), 400);
+  const { seed, found } = findSeed("eng-three", (s) => plan(s, (r) => r.rounds.length === 3 && fired(r, 0) >= 1 && fired(r, 1) >= 1 && fired(r, 2) >= 1, { feed: 3, beam: 3, moves: 10, atLeast: 3 }), 600);
   await setUp(page, seed, found);
   await hidePointer(page);
   await page.waitForTimeout(500);
   await still(page, "engines", "three-before", { region: await region(page) });
   await clip(page, "engines", "three", async () => {
     await drop(page, found.last, found.log.length + 1, 1.4);
-    await settled(page, "engines");
+    await same(page, put(found.before, found.last));
   }, { tailMs: 1500, region: await region(page) });
 });

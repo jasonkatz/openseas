@@ -131,13 +131,10 @@ function playbackMs(s: BattleState): number {
 
 const KEY: Record<MoveToken, string> = { left: "a", forward: "w", right: "d" };
 
-/** Plot a plan by keyboard: pick each slot by its number, then its move and its guns. */
+/** Plot a plan by keyboard, slot after slot: a move or a hold, then its guns (Q and E arm the slot just plotted). */
 async function plot(page: Page, plan: BattlePlan): Promise<void> {
-  for (const [i, seg] of plan.segments.entries()) {
-    if (seg.move === null && !seg.port && !seg.starboard) continue;
-    await page.keyboard.press(String(i + 1));
-    if (seg.move) await page.keyboard.press(KEY[seg.move]);
-    if (seg.move) await page.keyboard.press(String(i + 1));
+  for (const seg of plan.segments) {
+    await page.keyboard.press(seg.move ? KEY[seg.move] : "s");
     if (seg.port) await page.keyboard.press("q");
     if (seg.starboard) await page.keyboard.press("e");
   }
