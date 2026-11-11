@@ -66,7 +66,15 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @openseas/${{ matrix.app }} exec playwright install --with-deps chromium
+      - name: Install Chromium for Playwright
+        # --with-deps also fetches extra fonts through apt. When the runner cannot reach Ubuntu's
+        # package servers that fails before any test runs, so fall back to the browser alone: the
+        # runner image already carries what Chromium needs, and the smokes do not need those fonts.
+        run: |
+          pnpm --filter @openseas/${{ matrix.app }} exec playwright install --with-deps chromium || {
+            echo "::warning::playwright install --with-deps failed (apt unreachable?); installing the browser without system packages."
+            pnpm --filter @openseas/${{ matrix.app }} exec playwright install chromium
+          }
       - run: pnpm --filter @openseas/${{ matrix.app }} test:smoke
         env:
           CI: "true"
