@@ -52,15 +52,7 @@ export function paintBlock(ctx: CanvasRenderingContext2D, s: number, w: number, 
   // Slabs keep their single outer bevel and arbitrary dimensions. Extra lab colors retain
   // procedural skins; the live four-color set uses the atlas.
   const name = style.kind === "scrap" ? (scrapStage(style.ripen ?? Infinity) === "stone" ? "stone" : `${style.texture}-hint`) : `${style.texture}-${style.kind}`;
-  // Lift the artwork a little, and move the lime away from gold. Keep the sprite's
-  // texture and the color-independent marks intact. Fresh stone is neutral.
-  ctx.save();
-  if (name !== "stone") {
-    ctx.filter = style.texture === "hatch" ? "hue-rotate(30deg) saturate(1.1) brightness(1.06)" : "saturate(1.08) brightness(1.06)";
-  }
-  const drawn = w === 1 && h === 1 && drawSprite(ctx, "swordfight", name, 0, 0, s, s);
-  ctx.restore();
-  if (drawn) {
+  if (w === 1 && h === 1 && drawSprite(ctx, "swordfight", name, 0, 0, s, s)) {
     if (style.showMarks && style.mark && (style.kind !== "scrap" || scrapStage(style.ripen ?? Infinity) === "hint")) {
       ctx.save();
       ctx.translate(s * 0.44, s * 0.44);
