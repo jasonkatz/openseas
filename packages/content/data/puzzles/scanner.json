@@ -17,6 +17,7 @@
     "streakPercent": [100, 120, 140, 160, 180, 200],
     "maxMoves": 2000
   },
+  "paceSeconds": 30,
   "roundSeconds": 120,
   "thresholds": [
     { "score": 250, "rating": 1100 },

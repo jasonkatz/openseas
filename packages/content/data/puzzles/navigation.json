@@ -17,6 +17,7 @@
     "fallTicks": 36,
     "fallTicksMin": 18
   },
+  "paceSeconds": 30,
   "roundSeconds": 150,
   "parScore": 240,
   "thresholds": [

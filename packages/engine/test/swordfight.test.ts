@@ -27,6 +27,7 @@ import {
   type SwordfightMove,
   type SwordfightState,
   swordfightScore,
+  swordfightPaceScore,
 } from "../src/index.js";
 
 const cfg = DEFAULT_SWORDFIGHT_CONFIG;
@@ -713,6 +714,9 @@ describe("swordfight scoring", () => {
     expect(swordfightScore(c, 1200, 600, null)).toBe(600);
     expect(swordfightScore(c, 1200, 600, "won")).toBe(5600);
     expect(swordfightScore(c, 1200, 600, "lost")).toBe(600);
+    // A stretch of the same fight read as a pace: the same rate, in a fight that is won.
+    expect(swordfightPaceScore(c, 200, 20)).toBe(5600);
+    expect(swordfightPaceScore(c, -5, 20)).toBe(5000);
     // A short fight still counts the full minute.
     expect(swordfightScore(c, 300, 50, "lost")).toBe(300);
     // The tier scales the rate, never the band.

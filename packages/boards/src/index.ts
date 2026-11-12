@@ -12,6 +12,8 @@ export { ApiError, getMe, createPirate } from "./api/http.js";
 export { GameSocket, type SocketStatus } from "./api/socket.js";
 export { authClient } from "./api/auth.js";
 export { LINK_FROM_KEY, PirateProvider, usePirate, type PirateContextValue, type PiratePhase } from "./state/PirateProvider.jsx";
+export { useTierPace, type TierPaceOptions, type TierPaceValue } from "./pace/useTierPace.js";
+export { TierPace } from "./pace/TierPace.jsx";
 export * from "./round/clock.js";
 export * from "./round/round.js";
 export * from "./round/useTicked.js";

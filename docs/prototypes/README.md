@@ -33,7 +33,7 @@ example for every one of them.
 | `packages/engine/test/<id>.test.ts` | Property tests for determinism first (ADR 0003), then the rules. |
 | `packages/protocol/src/<id>.ts` | `<Id>MoveSchema`, `<Id>ConfigSchema`. Bounds match the engine's validator. |
 | `packages/content/src/prototypes/<id>.ts` | `<Id>ContentSchema`: the base (round length, thresholds) and the config. |
-| `packages/content/data/puzzles/<id>.json` | The config the server deals, the round length, the thresholds. |
+| `packages/content/data/puzzles/<id>.json` | The config the server deals, the round length, the thresholds, and `paceSeconds` for the live tier indicator (ADR 0039). |
 | `packages/content/data/messages/prototypes/<id>.json` | Every string the puzzle shows. |
 | `packages/boards/src/<id>/renderer.ts` | A `KitBoard` subclass: draws the state, plays the last move, reports input. |
 | `packages/boards/src/sprites/<id>.webp` | The puzzle's atlas, with its frames in `frames.json` and its line in `atlas.ts`. |

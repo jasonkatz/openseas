@@ -14,6 +14,8 @@ written in.
   accepted ADR's decision; add a superseding one.
 - `docs/GLOSSARY.md` holds the game's words and the nautical words they replaced, with the
   identifier for each. Name new things by it, and read older ADRs through it.
+- `docs/puzzles/` holds a design file for each puzzle the game deals: its role, its rules and scoring,
+  its luck and its skills. It changes in the same commit as the puzzle's rules or numbers.
 - `docs/prototypes/` holds the prototype puzzles (ADR 0036): eight new puzzles on the harness, none in
   the game yet. Its README says what a prototype is made of and the rules it keeps; each puzzle has
   a design file there that changes in the same commit as its rules or numbers.
@@ -60,6 +62,8 @@ Vitest with property-based determinism tests on engines, Playwright smoke on all
 - A board change is proven in the harness: its smoke drives every board and must stay green. The
   harness is never linked from the game. `boards` is presentation and transport only: nothing in it
   may compute a score, and a lab round may never run on a config the server would refuse.
+- Any puzzle work, a new puzzle or a change to one, starts with the `puzzles` skill
+  (`.claude/skills/puzzles/SKILL.md`): the rules every puzzle is held to.
 - Every puzzle has a guide in `docs`. A change to a puzzle's rules, scoring or controls re-reads its
   guide in the same PR; a change to how its board looks re-runs its capture
   (`pnpm --filter @openseas/docs capture <id>`). A guide types no tuned number: it reads `content`.

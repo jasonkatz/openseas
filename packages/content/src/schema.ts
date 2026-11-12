@@ -161,6 +161,8 @@ export const DutyPuzzleBaseSchema = z.object({
    * output each turn is its points as a percentage of this, scaled to the turn's length.
    */
   parScore: z.int().min(1),
+  /** The stretch of recent play, in seconds, the live tier indicator reads (ADR 0039). Longer for a puzzle that scores in lumps. */
+  paceSeconds: z.int().min(1).max(120).default(10),
   /** Performance thresholds the round is rated against (DESIGN.md 3.6). Calibrated from testers. */
   thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
 });
@@ -350,6 +352,8 @@ export const NavigationContentSchema = DutyPuzzleBaseSchema.extend({
 export const BattleContentSchema = z.object({
   /** Wall-clock length of a practice fight, enforced by the server. Aboard, the fight runs on the ship's turns. */
   roundSeconds: z.int().min(10).max(1800),
+  /** The stretch of recent play, in seconds, the live tier indicator reads (ADR 0039). Longer for a puzzle that scores in lumps. */
+  paceSeconds: z.int().min(1).max(120).default(10),
   thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
   config: z.object({
     /** `.` space, `#` asteroid, `^ > v <` currents, `@` wells, `A` the captain's start (facing north), `B` the raider's (south). */
@@ -415,6 +419,8 @@ export const SwordfightContentSchema = z.object({
   roundSeconds: z.int().min(10).max(1800),
   /** A steady fighter's attack a minute: the melee counts in the plunder as duty turns at a pirate's rate against this (ADR 0030). */
   parRatePerMinute: z.int().min(1),
+  /** The stretch of recent play, in seconds, the live tier indicator reads (ADR 0039). Longer for a puzzle that scores in lumps. */
+  paceSeconds: z.int().min(1).max(120).default(10),
   thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
   config: z.object({
     width: z.int().min(4).max(10),

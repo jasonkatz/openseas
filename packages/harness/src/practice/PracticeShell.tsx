@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { isMuted, setMuted, t, usePirate } from "@openseas/boards";
+import type { PuzzleId } from "@openseas/engine";
+import { TierPace, isMuted, setMuted, t, usePirate, useTierPace } from "@openseas/boards";
 import { Link } from "../router.jsx";
 import type { PracticeOutcome, PracticePhase } from "./usePractice.js";
 
@@ -80,6 +81,10 @@ export interface ShellProps {
   movesLabel?: string;
   /** Label for the score stat when "Score" is not the word (e.g. a rate). */
   scoreLabel?: string;
+  /** What the live tier indicator adds up, when the score shown is not points over the round (a fight's rate shows as the score). */
+  pacePoints?: number;
+  /** Reads a stretch of play as a score for the indicator, where the round's length does not (an engine function). */
+  paceProject?: (points: number, seconds: number) => number;
   /** Leads the result card, above the score: what decided the round, where that matters most (a fight won or lost). */
   resultHeadline?: ReactNode;
   combo: number;
@@ -132,6 +137,7 @@ export function PracticeShell(p: ShellProps) {
   const score = useTally(p.score);
   const lowTime = playing && p.timeLeft <= 10;
   const prefix = p.puzzle;
+  const pace = useTierPace({ puzzle: p.puzzle as PuzzleId, points: p.pacePoints ?? p.score, playing, elapsed: p.roundSeconds - p.timeLeft, project: p.paceProject });
 
   useEffect(() => {
     if (playing) {
@@ -198,7 +204,9 @@ export function PracticeShell(p: ShellProps) {
               ×{p.combo}
             </b>
           )}
+          {!wide && <TierPace pace={pace} label={false} />}
         </span>
+        {wide && <TierPace pace={pace} />}
       </div>
       <div className={`stat ${lowTime ? "stat-urgent" : ""}`}>
         <span className="stat-label">{t("practice.time")}</span>
@@ -419,6 +427,9 @@ function ResultBody({ outcome, rows }: { outcome: PracticeOutcome; rows?: ReactN
   const performance = outcome.kind === "recorded" ? outcome.result.performance : outcome.performance;
   return (
     <>
+      <p className="result-tier" data-testid="result-tier" data-tier={performance.tier}>
+        {t("practice.round_tier", { tier: t(`tier.${performance.tier}`) })}
+      </p>
       <ResultScore score={r.score} />
       {outcome.newBest && <p className="best-badge">{t("practice.new_best")}</p>}
       <dl className="result-stats">

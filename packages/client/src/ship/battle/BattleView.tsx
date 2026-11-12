@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import type { BattleEvent } from "@openseas/engine";
 import type { ShipSnapshot } from "@openseas/protocol";
-import { BattleBoard, sfx, t } from "@openseas/boards";
+import { BattleBoard, TierPace, sfx, t, useTierPace } from "@openseas/boards";
 import { tierName } from "../../names.js";
 import { ShipHud } from "../ShipHud.jsx";
 import { useBattleApi } from "./useBattle.js";
@@ -26,6 +26,7 @@ export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
   const fight = ship.location.kind === "in-flight" ? ship.location.battle : null;
   const raider = fight ? tierName(fight.tierId) : t("battle.raider");
   const playing = api.phase === "playing";
+  const pace = useTierPace({ puzzle: "battle", points: api.state.score, playing });
   const onEvents = useCallback((events: readonly BattleEvent[]) => {
     for (const e of events) {
       if (e.type === "shot") {
@@ -51,6 +52,7 @@ export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
         <div className="station-head">
           <h1 className="station-title">{raider}</h1>
           <span className="station-numbers" aria-live="off">
+            <TierPace pace={pace} />
             <b data-testid="battle-score">{api.state.score}</b>
             <span data-testid="battle-turn">{t("battle.turn", { turn: Math.min(api.state.config.maxTurns, api.state.turn + 1), max: api.state.config.maxTurns })}</span>
           </span>
@@ -98,6 +100,9 @@ export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
                 ) : (
                   <>
                     <p className="how">{api.state.outcome ? t(`battle.outcome.${api.state.outcome}`) : t("battle.outcome.broke_off")}</p>
+                    <p className="result-tier" data-testid="battle-result-tier">
+                      {t("practice.round_tier", { tier: t(`tier.${api.outcome.result.performance.tier}`) })}
+                    </p>
                     <p className="result-score">{api.outcome.result.score}</p>
                   </>
                 )}

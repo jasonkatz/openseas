@@ -62,7 +62,7 @@ describe("ship protocol", () => {
       verified: true,
       rating: null,
       tierChange: null,
-      performance: { rating: 980, tier: "greenhorn" },
+      performance: { rating: 980, tier: "green" },
     };
     expect(parseServerMessage(msg)).toEqual(msg);
   });

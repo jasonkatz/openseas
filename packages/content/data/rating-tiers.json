@@ -1,9 +1,7 @@
 [
-  { "key": "greenhorn", "nameKey": "tier.greenhorn", "min": 0 },
-  { "key": "spaceworthy", "nameKey": "tier.spaceworthy", "min": 1250 },
-  { "key": "steady", "nameKey": "tier.steady", "min": 1450 },
-  { "key": "sharp", "nameKey": "tier.sharp", "min": 1650 },
-  { "key": "expert", "nameKey": "tier.expert", "min": 1850 },
-  { "key": "elite", "nameKey": "tier.elite", "min": 2050 },
-  { "key": "legend", "nameKey": "tier.legend", "min": 2250 }
+  { "key": "green", "nameKey": "tier.green", "min": 0 },
+  { "key": "steady", "nameKey": "tier.steady", "min": 1300 },
+  { "key": "sharp", "nameKey": "tier.sharp", "min": 1600 },
+  { "key": "masterful", "nameKey": "tier.masterful", "min": 1900 },
+  { "key": "legendary", "nameKey": "tier.legendary", "min": 2200 }
 ]

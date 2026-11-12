@@ -19,6 +19,7 @@
     "beamTicks": 50,
     "respawnTicks": 6
   },
+  "paceSeconds": 20,
   "roundSeconds": 120,
   "thresholds": [
     { "score": 150, "rating": 1100 },

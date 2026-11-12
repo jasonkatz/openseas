@@ -3,6 +3,7 @@ import {
   advanceSwordfight,
   summarizeSwordfight,
   swordfightColHeight,
+  swordfightPaceScore,
   swordfightPlaceIllegalReason,
   swordfightStanding,
   type SwordRotation,
@@ -154,6 +155,8 @@ export function SwordfightPractice() {
       timeLeft={api.timeLeft}
       score={attackRate(shown)}
       scoreLabel={t("swordfight.attack_rate")}
+      pacePoints={player.points}
+      paceProject={(points, seconds) => swordfightPaceScore(shown.config, points, seconds)}
       moves={player.drops}
       movesLabel={t("swordfight.drops")}
       combo={player.bestChain}

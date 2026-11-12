@@ -765,6 +765,15 @@ export function swordfightScore(cfg: SwordfightConfig, points: number, ticks: nu
   return outcome === "won" ? cfg.winPoints + rate : Math.min(rate, cfg.winPoints - 1);
 }
 
+/**
+ * A stretch of a fight read as a score (ADR 0039): `points` broken in `seconds`, as an attack a
+ * minute, in a fight that is won. A fight's score is already a rate, so the pace needs no round
+ * length; the win band is added because the thresholds are set for fights that end in a win.
+ */
+export function swordfightPaceScore(cfg: SwordfightConfig, points: number, seconds: number): number {
+  return cfg.winPoints + Math.floor((Math.max(0, points) * 60 * cfg.scorePercent) / (100 * Math.max(1, seconds)));
+}
+
 function finish(state: SwordfightState, sim: Sim, move: SwordfightMove, tick: number): SwordfightState {
   const cfg = state.config;
   const player = cfg.player ? sim.boards[0]! : null;

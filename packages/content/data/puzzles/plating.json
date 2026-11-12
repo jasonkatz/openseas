@@ -19,6 +19,7 @@
     "maxMoves": 10000,
     "streakPercent": [100, 125, 150, 175, 200]
   },
+  "paceSeconds": 30,
   "roundSeconds": 150,
   "parScore": 400,
   "thresholds": [
