@@ -10,6 +10,9 @@ import {
   enginesIdx,
   enginesLandingRow,
   enginesPairCells,
+  enginesPlacementKey,
+  enginesReachablePositions,
+  enginesReachableRests,
   enginesRestingPlacements,
   enginesShelfMask,
   enginesSpawnFree,
@@ -230,6 +233,18 @@ describe("flying rules", () => {
     expect(rests).not.toContainEqual({ type: "place", col: 5, row: 10, rot: 3 });
     // Nothing rests in mid-air.
     for (const r of rests) if (r.type === "place") expect(enginesLandingRow(state, r.col, r.row, r.rot)).toBe(r.row);
+  });
+
+  it("every rest is a reachable position, and the entry is one, with the pair turned upright a row below the top", () => {
+    const state = createEnginesGame("reach");
+    const { width, height } = state.config;
+    const s = Math.floor((width - 2) / 2);
+    const seen = enginesReachablePositions(state);
+    for (const k of enginesReachableRests(state)) expect(seen.has(k)).toBe(true);
+    expect(seen.has(enginesPlacementKey(s, height - 1, 0))).toBe(true);
+    expect(seen.has(enginesPlacementKey(s, height - 1, 1))).toBe(true);
+    expect(seen.has(enginesPlacementKey(s, height, 1))).toBe(false);
+    expect(enginesReachablePositions({ ...state, finished: true }).size).toBe(0);
   });
 
   it("a pair turns either way: a clockwise turn from the entry, with its kick, is accepted", () => {

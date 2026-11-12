@@ -2,6 +2,8 @@ import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
 import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   ENGINES_ROTATION_KICKS,
+  enginesPlacementKey,
+  enginesReachablePositions,
   enginesCanDrop,
   enginesFits,
   enginesIdx,
@@ -138,6 +140,7 @@ export class EnginesRenderer {
    * a continuous value: the pair occupies row ceil(row) and is part way down to the row below.
    */
   private falling: { col: number; rot: Rotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number } | null = null;
+  private reach: { state: EnginesState; set: Set<number> } | null = null;
   private softDrop = false;
   private drag: { x: number; y: number; col: number; moved: boolean; hurried: boolean } | null = null;
 
@@ -441,24 +444,43 @@ export class EnginesRenderer {
     this.positionFalling();
   }
 
+  /** Every position the engine lets this pair pass through, worked out once for the board it is falling into. */
+  private reachable(): Set<number> {
+    const s = this.state!;
+    if (this.reach?.state !== s) this.reach = { state: s, set: enginesReachablePositions(s) };
+    return this.reach.set;
+  }
+
   /**
-   * Turn clockwise (1) or counter-clockwise (-1) as the player sees it, with the engine's kicks, so what
-   * they see is a position the engine accepts. Rows count up from the floor, so clockwise is 0 → 3 → 2 → 1.
+   * Turn clockwise (1) or counter-clockwise (-1) as the player sees it. Half `a`, the left one as
+   * the pair enters, is the pivot: it stays in its cell and half `b` swings around it. Rows count
+   * up from the floor, so clockwise is 0 → 3 → 2 → 1. A turn that does not fit with the pivot still
+   * kicks a column either way, and one that would lift `b` out of reach (above the top row, or
+   * where the engine could not have brought the pair) lowers the pivot a row instead. Only positions
+   * the engine can reach are taken, so what the player sees is a position the engine accepts.
    */
   private tryRotate(dir: 1 | -1 = 1): void {
     const f = this.falling;
     if (!f || !this.interactive) return;
     const R = Math.ceil(f.row);
     const rot = ((f.rot + (dir === 1 ? 3 : 1)) % 4) as Rotation;
-    for (const kick of ENGINES_ROTATION_KICKS) {
-      if (!this.mayOccupy(f.col + kick, R, rot)) continue;
-      f.col += kick;
-      f.rot = rot;
-      this.resetLock();
-      this.settleIfResting();
-      this.cb.onNudge();
-      this.positionFalling();
-      return;
+    // The engine anchors a pair at its left column and top row; the pivot is where half `a` sits.
+    const pc = f.rot === 2 ? f.col + 1 : f.col;
+    const pr = f.rot === 1 ? R - 1 : R;
+    const col = rot === 2 ? pc - 1 : pc;
+    const reach = this.reachable();
+    for (const row of rot === 1 ? [pr + 1, pr] : [pr]) {
+      for (const kick of ENGINES_ROTATION_KICKS) {
+        if (!reach.has(enginesPlacementKey(col + kick, row, rot)) || !this.mayOccupy(col + kick, row, rot)) continue;
+        f.col = col + kick;
+        f.row += row - R;
+        f.rot = rot;
+        this.resetLock();
+        this.settleIfResting();
+        this.cb.onNudge();
+        this.positionFalling();
+        return;
+      }
     }
   }
 

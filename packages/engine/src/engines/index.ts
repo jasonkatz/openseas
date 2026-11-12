@@ -9,6 +9,8 @@ export {
   placeIllegalReason as enginesPlaceIllegalReason,
   restingPlacements as enginesRestingPlacements,
   reachableRests as enginesReachableRests,
+  reachablePositions as enginesReachablePositions,
+  placementKey as enginesPlacementKey,
   spawnPosition as enginesSpawnPosition,
   spawnFree as enginesSpawnFree,
   fits as enginesFits,
