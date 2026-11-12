@@ -21,6 +21,8 @@ const cfg = loadContent().puzzles.engines.config;
 const W = cfg.width;
 const H = cfg.height;
 const SPAWN = enginesSpawnPosition(cfg);
+/** The engine's column for the pair once it has turned to `rot` at the entry: the left half is the pivot, so turned right round the pair sits a column left. */
+const turnedCol = (rot: Rotation): number => (rot === 2 ? SPAWN.col - 1 : SPAWN.col);
 
 interface Place {
   col: number;
@@ -206,15 +208,16 @@ async function drop(page: Page, p: Place, count: number, turn: "tap" | "keys" = 
   // Few, long mouse steps: on a busy machine every step costs time, and the pair is sinking.
   await page.mouse.move(x, y, { steps: 3 });
   // Turning by key is instant, for a clip that is about what happens after the landing.
+  // Up steps the rotation up by one (counter-clockwise); a tap steps it down (clockwise).
   if (turn === "keys") for (let i = 0; i < p.rot; i++) await page.keyboard.press("ArrowUp");
-  else for (let i = 0; i < p.rot; i++) {
+  else for (let i = 0; i < (4 - p.rot) % 4; i++) {
     await page.mouse.down();
     await page.waitForTimeout(60);
     await page.mouse.up();
     await page.waitForTimeout(160);
   }
-  const to = x + (p.col - SPAWN.col) * g.cell;
-  if (p.col !== SPAWN.col) {
+  const to = x + (p.col - turnedCol(p.rot)) * g.cell;
+  if (p.col !== turnedCol(p.rot)) {
     await page.mouse.down();
     await page.mouse.move(to, y, { steps: 4 });
     await page.waitForTimeout(80);
@@ -231,7 +234,7 @@ async function drop(page: Page, p: Place, count: number, turn: "tap" | "keys" = 
 /** The same landing by keyboard, for the setup a picture does not show: quick, so a busy machine cannot let the pair sink. */
 async function dropByKeys(page: Page, p: Place, count: number): Promise<void> {
   for (let i = 0; i < p.rot; i++) await page.keyboard.press("ArrowUp");
-  for (let i = 0; i < Math.abs(p.col - SPAWN.col); i++) await page.keyboard.press(p.col < SPAWN.col ? "ArrowLeft" : "ArrowRight");
+  for (let i = 0; i < Math.abs(p.col - turnedCol(p.rot)); i++) await page.keyboard.press(p.col < turnedCol(p.rot) ? "ArrowLeft" : "ArrowRight");
   // Space again every so often: a key that went down before the board had the pair would hurry nothing.
   await expect(async () => {
     await page.keyboard.down(" ");
@@ -328,7 +331,7 @@ test("engines: a first injector", async ({ page }) => {
     plan(s, (r) => {
       const group = r.rounds[0]?.groups[0];
       const p = r.move.type === "place" ? r.move : null;
-      return !!p && p.rot === 1 && Math.abs(p.col - SPAWN.col) >= 2 && r.rounds.length === 1 && r.rounds[0]!.groups.length === 1 && group?.cause === "injector" && r.landed!.cells.every((c) => group.cells.includes(c));
+      return !!p && p.rot === 3 && Math.abs(p.col - SPAWN.col) >= 2 && r.rounds.length === 1 && r.rounds[0]!.groups.length === 1 && group?.cause === "injector" && r.landed!.cells.every((c) => group.cells.includes(c));
     }, { moves: 2 }),
   );
   await film(page, seed, found, "first-injector", { turn: "tap", tailMs: 1200 });

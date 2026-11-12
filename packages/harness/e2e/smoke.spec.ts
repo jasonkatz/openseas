@@ -1,6 +1,19 @@
 import { expect, test, type Page } from "@playwright/test";
 import { closeBench, expectViewMatchesState, openBench } from "./helpers.js";
 
+/** A finger on the page, through the browser's own touch input, so the boards see `pointerType: "touch"`. */
+async function finger(page: Page): Promise<{ down(x: number, y: number): Promise<void>; move(x: number, y: number): Promise<void>; up(): Promise<void> }> {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true });
+  const send = (type: "touchStart" | "touchMove" | "touchEnd", x?: number, y?: number): Promise<unknown> =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: x === undefined || y === undefined ? [] : [{ x, y }] });
+  return {
+    down: async (x, y) => void (await send("touchStart", x, y)),
+    move: async (x, y) => void (await send("touchMove", x, y)),
+    up: async () => void (await send("touchEnd")),
+  };
+}
+
 /**
  * Smoke: the harness builds, loads, and every board plays an unrated round without the server,
  * through the same board code the game uses (ADR 0019). Recorded play needs the server and is
@@ -62,12 +75,17 @@ test("home links to Engines and an unrated round takes keyboard drops", async ({
   await page.keyboard.up(" ");
   await expectViewMatchesState(page, "engines");
 
-  // Pointer: a tap turns the pair, a sideways drag steers it; then a key drops it.
+  // Pointer: a tap turns the pair, a swipe up turns it back, a sideways drag steers it; then a key drops it.
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
   const x = box.x + box.width / 2;
   const y = box.y + box.height * 0.3;
   await page.mouse.click(x, y);
+  // A swipe up turns it the other way.
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y - box.height * 0.2, { steps: 6 });
+  await page.mouse.up();
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + box.width * 0.2, y, { steps: 6 });
@@ -75,6 +93,16 @@ test("home links to Engines and an unrated round takes keyboard drops", async ({
   await page.keyboard.down(" ");
   await expect(page.getByTestId("hud-moves")).toHaveText("2");
   await page.keyboard.up(" ");
+
+  // Touch: swipes turn the pair, and a finger held still hurries it down.
+  const touch = await finger(page);
+  await touch.down(x, y);
+  await touch.move(x, y + box.height * 0.1);
+  await touch.move(x, y + box.height * 0.2);
+  await touch.up();
+  await touch.down(x, y);
+  await expect(page.getByTestId("hud-moves")).toHaveText("3");
+  await touch.up();
 });
 
 test("home links to Plating and plates go down by keyboard and by tap", async ({ page }) => {
@@ -268,12 +296,21 @@ test("home links to Swordfighting and an unrated fight drops pairs by keyboard a
   await page.keyboard.up(" ");
   await expectViewMatchesState(page, "swordfight");
 
-  // Pointer: a tap turns the pair, a sideways drag steers it; then the key hurries it down.
+  // Pointer: a tap turns the pair, a swipe up turns it back, a sideways drag steers it; then the key hurries it down.
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
   const x = box.x + box.width * 0.3;
   const y = box.y + box.height * 0.3;
+  // A tap turns the upright pair clockwise, flat with its loose half on the right (rotation 0); a swipe up turns it back upright.
+  const rotation = async (): Promise<string | undefined> => (await canvas.getAttribute("data-falling"))?.split(",")[1];
+  await expect.poll(rotation).toBe("1");
   await page.mouse.click(x, y);
+  await expect.poll(rotation).toBe("0");
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y - box.height * 0.2, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(rotation).toBe("1");
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + box.width * 0.15, y, { steps: 6 });
@@ -281,6 +318,25 @@ test("home links to Swordfighting and an unrated fight drops pairs by keyboard a
   await page.keyboard.down(" ");
   await expect(page.getByTestId("hud-moves")).toContainText("2", { timeout: 30_000 });
   await page.keyboard.up(" ");
+  await expectViewMatchesState(page, "swordfight");
+
+  // Touch: a swipe down turns the upright pair clockwise (rotation 0), a swipe up turns it back, and a tap turns nothing.
+  const touch = await finger(page);
+  await expect.poll(rotation).toBe("1");
+  await touch.down(x, y);
+  await touch.move(x, y + box.height * 0.1);
+  await touch.move(x, y + box.height * 0.2);
+  await touch.up();
+  await expect.poll(rotation).toBe("0");
+  await touch.down(x, y);
+  await touch.move(x, y - box.height * 0.1);
+  await touch.move(x, y - box.height * 0.2);
+  await touch.up();
+  await expect.poll(rotation).toBe("1");
+  // A finger held still hurries the pair down until the engine takes it.
+  await touch.down(x, y);
+  await expect(page.getByTestId("hud-moves")).toContainText("3", { timeout: 30_000 });
+  await touch.up();
   await expectViewMatchesState(page, "swordfight");
 });
 

@@ -10,6 +10,9 @@ import {
   enginesIdx,
   enginesLandingRow,
   enginesPairCells,
+  enginesPlacementKey,
+  enginesReachablePositions,
+  enginesReachableRests,
   enginesRestingPlacements,
   enginesShelfMask,
   enginesSpawnFree,
@@ -232,7 +235,19 @@ describe("flying rules", () => {
     for (const r of rests) if (r.type === "place") expect(enginesLandingRow(state, r.col, r.row, r.rot)).toBe(r.row);
   });
 
-  it("a pair turns either way: a counter-clockwise turn from the entry, with its kick, is accepted", () => {
+  it("every rest is a reachable position, and the entry is one, with the pair turned upright a row below the top", () => {
+    const state = createEnginesGame("reach");
+    const { width, height } = state.config;
+    const s = Math.floor((width - 2) / 2);
+    const seen = enginesReachablePositions(state);
+    for (const k of enginesReachableRests(state)) expect(seen.has(k)).toBe(true);
+    expect(seen.has(enginesPlacementKey(s, height - 1, 0))).toBe(true);
+    expect(seen.has(enginesPlacementKey(s, height - 1, 1))).toBe(true);
+    expect(seen.has(enginesPlacementKey(s, height, 1))).toBe(false);
+    expect(enginesReachablePositions({ ...state, finished: true }).size).toBe(0);
+  });
+
+  it("a pair turns either way: a clockwise turn from the entry, with its kick, is accepted", () => {
     const base = createEnginesGame("turns");
     const { width, height } = base.config;
     const s = Math.floor((width - 2) / 2);
@@ -245,7 +260,7 @@ describe("flying rules", () => {
     }
     const state: EnginesState = { ...base, cells, injectors: [] };
     const rests = legalMoves(state);
-    // Counter-clockwise from rotation 0 is rotation 3; the kick of +1 drops it down the shaft.
+    // Clockwise from rotation 0 is rotation 3; the kick of +1 drops it down the shaft.
     expect(rests).toContainEqual({ type: "place", col: s + 1, row: 1, rot: 3 });
     expect(rests).toContainEqual({ type: "place", col: s + 1, row: 1, rot: 1 });
     expect(() => reduceEngines(state, { type: "place", col: s + 1, row: 1, rot: 3 })).not.toThrow();

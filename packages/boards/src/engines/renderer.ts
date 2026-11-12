@@ -2,6 +2,8 @@ import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
 import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   ENGINES_ROTATION_KICKS,
+  enginesPlacementKey,
+  enginesReachablePositions,
   enginesCanDrop,
   enginesFits,
   enginesIdx,
@@ -84,6 +86,8 @@ const CLEAR_MS = 200;
 const DIE_MS = 220;
 /** How long a pair rests on the floor, a shelf or a stack before it locks. */
 const LOCK_MS = 350;
+/** A finger held still this long hurries the pair: long enough that the start of a swipe or a drag does not. */
+const HOLD_MS = 60;
 /** Slides and turns that restart the lock timer while resting; after that the timer runs on regardless. Falling to a lower row restores them. */
 const MAX_LOCK_RESETS = 3;
 
@@ -138,8 +142,9 @@ export class EnginesRenderer {
    * a continuous value: the pair occupies row ceil(row) and is part way down to the row below.
    */
   private falling: { col: number; rot: Rotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number } | null = null;
+  private reach: { state: EnginesState; set: Set<number> } | null = null;
   private softDrop = false;
-  private drag: { x: number; y: number; col: number; moved: boolean; hurried: boolean } | null = null;
+  private drag: { x: number; y: number; col: number; moved: boolean; hurried: boolean; turned: boolean; touch: boolean; held: number; far: boolean } | null = null;
 
   constructor(
     private readonly host: HTMLElement,
@@ -405,9 +410,26 @@ export class EnginesRenderer {
     const f = this.falling;
     if (!f || !this.state) return false;
     const R = Math.ceil(f.row);
-    if (!enginesFits(this.state, col, row, rot)) return false;
+    if (!this.fitsAt(col, row, rot)) return false;
     // Mid-fall, the row being entered must be free too, unless the pair would rest here anyway.
-    return f.row === R || !enginesCanDrop(this.state, col, row, rot) || enginesFits(this.state, col, row - 1, rot);
+    return f.row === R || !this.canDropAt(col, row, rot) || this.fitsAt(col, row - 1, rot);
+  }
+
+  /**
+   * A pair turned upright in the top row stands with half `b` above the board until it has sunk a
+   * row: the pivot does not give way to make room. The engine has no such row, so the board keeps
+   * it to itself, and only where the pair can sink into the board from there.
+   */
+  private above(row: number, rot: Rotation): boolean {
+    return rot === 1 && row === this.height;
+  }
+
+  private fitsAt(col: number, row: number, rot: Rotation): boolean {
+    return enginesFits(this.state!, col, this.above(row, rot) ? row - 1 : row, rot);
+  }
+
+  private canDropAt(col: number, row: number, rot: Rotation): boolean {
+    return this.above(row, rot) || enginesCanDrop(this.state!, col, row, rot);
   }
 
   /** After a slide or turn mid-fall into a spot with a shelf or a stack under it, the pair sits up on it instead of sinking past. */
@@ -415,7 +437,7 @@ export class EnginesRenderer {
     const f = this.falling;
     if (!f || !this.state) return;
     const R = Math.ceil(f.row);
-    if (f.row !== R && !enginesCanDrop(this.state, f.col, R, f.rot)) {
+    if (f.row !== R && !this.canDropAt(f.col, R, f.rot)) {
       f.row = R;
       f.lock = 0;
     }
@@ -441,15 +463,36 @@ export class EnginesRenderer {
     this.positionFalling();
   }
 
-  /** Turn clockwise (1) or counter-clockwise (-1) with the engine's kicks, so what the player sees is a position the engine accepts. */
+  /** Every position the engine lets this pair pass through, worked out once for the board it is falling into. */
+  private reachable(): Set<number> {
+    const s = this.state!;
+    if (this.reach?.state !== s) this.reach = { state: s, set: enginesReachablePositions(s) };
+    return this.reach.set;
+  }
+
+  /**
+   * Turn clockwise (1) or counter-clockwise (-1) as the player sees it. Half `a`, the left one as
+   * the pair enters, is the pivot: it stays in its cell, falling as it was, and half `b` swings
+   * around it. Rows count up from the floor, so clockwise is 0 → 3 → 2 → 1. Only when the swing
+   * does not fit does the pivot give way, a column to either side. Only positions the engine can
+   * reach are taken, so what the player sees is a position the engine accepts.
+   */
   private tryRotate(dir: 1 | -1 = 1): void {
     const f = this.falling;
     if (!f || !this.interactive) return;
     const R = Math.ceil(f.row);
-    const rot = ((f.rot + dir + 4) % 4) as Rotation;
+    const rot = ((f.rot + (dir === 1 ? 3 : 1)) % 4) as Rotation;
+    // The engine anchors a pair at its left column and top row; the pivot is where half `a` sits.
+    const pc = f.rot === 2 ? f.col + 1 : f.col;
+    const pr = f.rot === 1 ? R - 1 : R;
+    const col = rot === 2 ? pc - 1 : pc;
+    const row = rot === 1 ? pr + 1 : pr;
+    const reach = this.reachable();
     for (const kick of ENGINES_ROTATION_KICKS) {
-      if (!this.mayOccupy(f.col + kick, R, rot)) continue;
-      f.col += kick;
+      // Above the board the pair is on its way to the engine's top row: that is the spot to be reachable.
+      if (!reach.has(enginesPlacementKey(col + kick, this.above(row, rot) ? row - 1 : row, rot)) || !this.mayOccupy(col + kick, row, rot)) continue;
+      f.col = col + kick;
+      f.row += row - R;
       f.rot = rot;
       this.resetLock();
       this.settleIfResting();
@@ -474,12 +517,14 @@ export class EnginesRenderer {
     g.clear();
     if (!f || !this.state) return;
     const R = Math.ceil(f.row);
-    const cells = enginesPairCells(this.state.config, f.col, R, f.rot);
-    if (!cells) return;
     const dy = (R - f.row) * this.cell;
-    f.a.position.set(this.cx(cells.a % this.width), this.cy(Math.floor(cells.a / this.width)) + dy);
-    f.b.position.set(this.cx(cells.b % this.width), this.cy(Math.floor(cells.b / this.width)) + dy);
-    const landRow = enginesLandingRow(this.state, f.col, R, f.rot);
+    // By hand, not from the engine's cells: half `b` may stand above the top row.
+    const flat = f.rot === 0 || f.rot === 2;
+    const a = { col: f.rot === 2 ? f.col + 1 : f.col, row: f.rot === 1 ? R - 1 : R };
+    const b = { col: f.rot === 0 ? f.col + 1 : f.col, row: flat || f.rot === 1 ? R : R - 1 };
+    f.a.position.set(this.cx(a.col), this.cy(a.row) + dy);
+    f.b.position.set(this.cx(b.col), this.cy(b.row) + dy);
+    const landRow = enginesLandingRow(this.state, f.col, this.above(R, f.rot) ? R - 1 : R, f.rot);
     const land = enginesPairCells(this.state.config, f.col, landRow, f.rot);
     if (land) {
       const wantAt = new Map<number, number | null>();
@@ -695,6 +740,7 @@ export class EnginesRenderer {
     this.runSteps(dt);
     this.movePieces(dt);
     this.moveFx(dt);
+    this.hold(dt);
     this.fall(dt);
     this.drawLinks();
     if (this.framePending && this.steps.length === 0 && !this.moving) {
@@ -793,7 +839,7 @@ export class EnginesRenderer {
     const f = this.falling;
     if (!f || !this.interactive || this.steps.length || !this.state) return;
     const R = Math.ceil(f.row);
-    if (!enginesCanDrop(this.state, f.col, R, f.rot)) {
+    if (!this.canDropAt(f.col, R, f.rot)) {
       f.row = R;
       f.lock += dt;
       this.positionFalling();
@@ -828,30 +874,61 @@ export class EnginesRenderer {
 
   private pointerDown(e: FederatedPointerEvent): void {
     if (!this.interactive || !this.falling) return;
-    this.drag = { x: e.global.x, y: e.global.y, col: this.falling.col, moved: false, hurried: false };
+    this.drag = { x: e.global.x, y: e.global.y, col: this.falling.col, moved: false, hurried: false, turned: false, touch: e.pointerType !== "mouse", held: 0, far: false };
   }
 
-  /** Drag sideways to steer a column at a time; hold a downward swipe to hurry the fall until the finger lifts, with steering locked meanwhile. */
+  /** Drag sideways to steer a column at a time; swipe up to turn counter-clockwise; hold a downward swipe to hurry the fall until the finger lifts, with steering locked meanwhile. */
   private pointerMove(e: FederatedPointerEvent): void {
     const d = this.drag;
     const f = this.falling;
     if (!d || !f) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
+    if (d.touch) {
+      // A finger that leaves where it came down is swiping or steering, not holding: the hurry ends.
+      if (Math.abs(dx) > this.cell * 0.4 || Math.abs(dy) > this.cell * 0.4) {
+        d.far = true;
+        if (d.hurried) {
+          d.hurried = false;
+          this.softDrop = false;
+        }
+      }
+      // A swipe down turns the pair clockwise, a swipe up counter-clockwise, once: the finger lifts before it can turn again.
+      if (!d.moved && !d.turned && Math.abs(dy) > this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
+        d.turned = true;
+        this.tryRotate(dy > 0 ? 1 : -1);
+      }
+      if (d.turned) return;
+      this.steer(d, dx);
+      return;
+    }
     if (dy > this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
       d.hurried = true;
       this.softDrop = true;
     } else if (dy < this.cell * 0.4) this.softDrop = false;
+    // A swipe up turns the pair counter-clockwise, once: the finger lifts before it can turn again.
+    if (!d.moved && !d.hurried && !d.turned && dy < -this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
+      d.turned = true;
+      this.tryRotate(-1);
+    }
+    if (d.turned) return;
     // A downward swipe commits to the column it started in: no steering until the finger lifts.
     if (d.hurried) return;
-    const wantCol = d.col + Math.round(dx / this.cell);
-    while (f.col < wantCol) {
+    this.steer(d, dx);
+  }
+
+  /** Follow the drag sideways, a column at a time. */
+  private steer(d: { col: number; moved: boolean }, dx: number): void {
+    const f = this.falling;
+    if (!f) return;
+    const want = d.col + Math.round(dx / this.cell);
+    while (f.col < want) {
       const before = f.col;
       this.tryMove(1);
       d.moved = true;
       if (f.col === before) break;
     }
-    while (f.col > wantCol) {
+    while (f.col > want) {
       const before = f.col;
       this.tryMove(-1);
       d.moved = true;
@@ -859,11 +936,21 @@ export class EnginesRenderer {
     }
   }
 
+  /** Touch: a finger held where it came down hurries the pair in hand, from HOLD_MS until it lifts or moves off. */
+  private hold(dt: number): void {
+    const d = this.drag;
+    if (!d || !d.touch || d.far || d.hurried || d.turned || !this.falling) return;
+    d.held += dt;
+    if (d.held < HOLD_MS) return;
+    d.hurried = true;
+    this.softDrop = true;
+  }
+
   private pointerUp(e: FederatedPointerEvent): void {
     const d = this.drag;
     this.drag = null;
     this.softDrop = false;
-    if (!d || !this.falling || d.hurried) return;
+    if (!d || !this.falling || d.hurried || d.turned || d.touch) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
     if (!d.moved && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate();
@@ -874,7 +961,7 @@ export class EnginesRenderer {
     this.softDrop = false;
   }
 
-  /** Keyboard: left and right steer, up turns clockwise, down turns counter-clockwise, space hurries while held. */
+  /** Keyboard: left and right steer, up and X turn counter-clockwise, down and Z clockwise, space hurries while held. */
   keyboard(key: string, down: boolean): boolean {
     if (key === " " && !down) {
       this.softDrop = false;
@@ -896,12 +983,12 @@ export class EnginesRenderer {
       case "ArrowUp":
       case "x":
       case "X":
-        this.tryRotate(1);
+        this.tryRotate(-1);
         return true;
       case "ArrowDown":
       case "z":
       case "Z":
-        this.tryRotate(-1);
+        this.tryRotate(1);
         return true;
       default:
         return false;

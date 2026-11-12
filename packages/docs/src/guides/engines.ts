@@ -45,13 +45,13 @@ export const engines: Guide = {
   rulesMedia: {
     kind: "clip",
     name: "first-injector",
-    alt: "A pair is tapped to turn it upright, dragged sideways over a two cell injector and swiped down. Both pellets land on their targets and the injector fires.",
-    caption: "Tap to turn, drag to steer, swipe down to hurry. Both targets filled: the injector fires.",
+    alt: "A pair is turned upright, dragged sideways over a two cell injector and hurried down. Both pellets land on their targets and the injector fires.",
+    caption: "Turn, steer, then hurry it down. Both targets filled: the injector fires.",
   },
   controls: [
     { action: "Steer the pair", touch: "Drag sideways anywhere on the board", desktop: "Left and right arrows, or drag" },
-    { action: "Turn it", touch: "Tap anywhere on the board", desktop: "Up or X turns one way, Down or Z the other. A click turns it too" },
-    { action: "Hurry it down", touch: "Swipe down and hold. Steering is locked until you lift", desktop: "Hold Space" },
+    { action: "Turn it", touch: "Swipe down: a quarter turn clockwise. Swipe up: counter-clockwise", desktop: "Up or X counter-clockwise, Down or Z clockwise. A click turns it clockwise" },
+    { action: "Hurry it down", touch: "Press and hold, anywhere on the board. Move off and the hurry ends", desktop: "Hold Space, or drag down and hold" },
   ],
   scoring: [
     `**An injector pays ${c.injectorPoints} for each target.** Blanks pay nothing. A run of four pays only ${run(4)}, and ${c.runPoints} more for each extra pellet.`,
@@ -70,7 +70,7 @@ export const engines: Guide = {
         },
         {
           title: "Always hurry",
-          body: `Left alone, a pair takes about ${freeFall} seconds to reach the floor. Hurried, it falls ${hurry} times as fast. There is no instant drop, so the habit is: turn, steer, then swipe down and hold. The hurry locks steering, so line up first.`,
+          body: `Left alone, a pair takes about ${freeFall} seconds to reach the floor. Hurried, it falls ${hurry} times as fast. There is no instant drop, so the habit is: turn, steer, then press and hold. Line up first: the hurry ends when your finger moves off.`,
         },
         {
           title: "Park the spare half",

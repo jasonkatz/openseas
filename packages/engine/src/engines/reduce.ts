@@ -24,7 +24,7 @@ type Cells = Array<Segment | null>;
 
 /** Rotation kicks tried in order when a turn does not fit where the pair is: in place, one left, one right. */
 export const ROTATION_KICKS: readonly number[] = [0, -1, 1];
-/** A pair turns clockwise (+1) or counter-clockwise (+3, i.e. -1 mod 4). */
+/** A pair turns counter-clockwise as drawn (+1) or clockwise (+3, i.e. -1 mod 4). */
 const TURNS: readonly number[] = [1, 3];
 
 export function validateConfig(cfg: EnginesConfig): void {
@@ -151,6 +151,17 @@ export function spawnFree(state: EnginesState): boolean {
 }
 
 const key = (col: number, row: number, rot: number): number => (rot * 64 + row) * 64 + col;
+/** The packed `col,row,rot` key `reachablePositions` and `reachableRests` hold. */
+export const placementKey = key;
+
+/**
+ * Every position, resting or not, the current pair can pass through on its way from the spawn. A
+ * board may show the pair anywhere in this set and nowhere else: whatever rest it then falls to is
+ * one the engine accepts.
+ */
+export function reachablePositions(state: EnginesState): Set<number> {
+  return reach(state).seen;
+}
 
 /**
  * Every resting position the current pair can reach from the spawn by sliding, turning (with
@@ -158,11 +169,15 @@ const key = (col: number, row: number, rot: number): number => (rot * 64 + row) 
  * Returns a set of packed `col,row,rot` keys; see `restingPlacements` for a list.
  */
 export function reachableRests(state: EnginesState): Set<number> {
+  return reach(state).rests;
+}
+
+function reach(state: EnginesState): { seen: Set<number>; rests: Set<number> } {
   const cfg = state.config;
   const shelf = injectorMask(cfg, state.injectors);
   const start = spawnPosition(cfg);
   const rests = new Set<number>();
-  if (state.finished || !fitsWith(state, shelf, start.col, start.row, start.rot)) return rests;
+  if (state.finished || !fitsWith(state, shelf, start.col, start.row, start.rot)) return { seen: new Set(), rests };
   const seen = new Set<number>([key(start.col, start.row, start.rot)]);
   const queue: Array<{ col: number; row: number; rot: Rotation }> = [start];
   const visit = (col: number, row: number, rot: Rotation): void => {
@@ -177,7 +192,7 @@ export function reachableRests(state: EnginesState): Set<number> {
     else rests.add(key(p.col, p.row, p.rot));
     visit(p.col - 1, p.row, p.rot);
     visit(p.col + 1, p.row, p.rot);
-    // Turn either way: clockwise (+1) or counter-clockwise (+3), each with the same kicks.
+    // Turn either way: counter-clockwise (+1) or clockwise (+3), each with the same kicks.
     for (const turn of TURNS) {
       const rot = ((p.rot + turn) % 4) as Rotation;
       for (const kick of ROTATION_KICKS) {
@@ -188,7 +203,7 @@ export function reachableRests(state: EnginesState): Set<number> {
       }
     }
   }
-  return rests;
+  return { seen, rests };
 }
 
 export function restingPlacements(state: EnginesState): Array<{ col: number; row: number; rot: Rotation }> {

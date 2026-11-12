@@ -203,7 +203,7 @@ async function falling(page: Page): Promise<{ pc: number; rot: SwordRotation; ro
 
 /** The renderer steers the pivot half; the engine's anchor is the left column of a pair lying down. */
 const pivotOf = (d: Drop): number => (d.rot === 2 ? d.col + 1 : d.col);
-/** Clockwise turns go 1, 0, 3, 2. */
+/** Clockwise turns go 1, 0, 3, 2. A tap, Down and Z turn this way; Up, X and a swipe up turn the other way. */
 const TURNS: readonly SwordRotation[] = [1, 0, 3, 2];
 
 /** Steer and turn the pair with the keyboard until it hangs over the drop. */
@@ -216,7 +216,7 @@ async function steer(page: Page, d: Drop): Promise<void> {
       continue;
     }
     if (f.rot === d.rot && f.pc === pivotOf(d)) return;
-    if (f.rot !== d.rot) await page.keyboard.press((TURNS.indexOf(d.rot) - TURNS.indexOf(f.rot) + 4) % 4 === 3 ? "ArrowDown" : "ArrowUp");
+    if (f.rot !== d.rot) await page.keyboard.press((TURNS.indexOf(d.rot) - TURNS.indexOf(f.rot) + 4) % 4 === 1 ? "ArrowDown" : "ArrowUp");
     else await page.keyboard.press(f.pc < pivotOf(d) ? "ArrowRight" : "ArrowLeft");
     await page.waitForTimeout(40);
   }

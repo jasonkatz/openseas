@@ -44,19 +44,25 @@ no pair can enter the top row, it flames out: every pellet is swept away, `flame
 lost (never below zero), the combo breaks, fresh injectors are dealt and play goes on. The round
 ends on the clock; `maxMoves` only bounds the log. Every pair enters at the middle of
 the top row; the move the engine logs is the position it came to rest in (column, row, rotation),
-and the engine accepts it only if that spot is reachable from the entry by sliding, turning with
-the same kicks the client uses (either direction), and falling, and nothing holds the pair there. So a pair can be
+and the engine accepts it only if that spot is reachable from the entry by sliding, turning
+(either direction, kicking a column aside when it does not fit), and falling, and nothing holds the pair there.
+The board only ever shows the pair somewhere the engine could have brought it (`reachablePositions`). So a pair can be
 steered under an injector, a vertical pair can never straddle a shelf, and a position that floats is
 refused.
 
 ## Input and feedback
 
 The client's fall timer and steering are presentation: free fall takes `fallMs` a row, a
-held downward swipe or holding space hurries it to `softDropMs` a row (sixteen times the pace), with
-steering locked for the length of the swipe. There is no hard drop. A pair that comes to rest
+held finger (a held downward drag with a mouse) or holding space hurries it to `softDropMs` a row (sixteen times
+the pace); a mouse's steering is locked for the length of the drag. There is no hard drop. A pair that comes to rest
 locks after 350 ms; a slide or turn while resting restarts that timer at most three times, and
-reaching a lower row restores the restarts. On the keyboard up turns the
-pair clockwise and down turns it counter-clockwise; a tap turns it clockwise.
+reaching a lower row restores the restarts. On the keyboard up and X turn the
+pair counter-clockwise and down and Z turn it clockwise; on touch a swipe down turns it clockwise and a swipe up
+counter-clockwise, once a swipe, and a finger held still for 60 ms hurries the pair in hand until it lifts or
+moves off. A mouse clicks to turn clockwise and holds a downward drag to hurry.
+The half on the left as the pair enters is the pivot: a turn never moves it, it goes on falling as it
+was, and the other half swings around it. Turned upright in the top row, the other half stands above
+the board until the pair has sunk a row. Only a turn that does not fit moves the pivot, a column aside.
 The next pair is under the player's control the moment the last one lands, while the board below
 plays out its clears, each cascade step waiting for the pieces to land before the next clear; the
 pair after it is previewed in a strip above the core on every layout. The landing ghost is a
