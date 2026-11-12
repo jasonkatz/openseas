@@ -877,7 +877,7 @@ export class EnginesRenderer {
     this.softDrop = false;
   }
 
-  /** Keyboard: left and right steer, up turns clockwise, down turns counter-clockwise, space hurries while held. */
+  /** Keyboard: left and right steer, up and X turn counter-clockwise, down and Z clockwise, space hurries while held. */
   keyboard(key: string, down: boolean): boolean {
     if (key === " " && !down) {
       this.softDrop = false;
@@ -899,12 +899,12 @@ export class EnginesRenderer {
       case "ArrowUp":
       case "x":
       case "X":
-        this.tryRotate(1);
+        this.tryRotate(-1);
         return true;
       case "ArrowDown":
       case "z":
       case "Z":
-        this.tryRotate(-1);
+        this.tryRotate(1);
         return true;
       default:
         return false;

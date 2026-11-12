@@ -206,8 +206,8 @@ async function drop(page: Page, p: Place, count: number, turn: "tap" | "keys" = 
   // Few, long mouse steps: on a busy machine every step costs time, and the pair is sinking.
   await page.mouse.move(x, y, { steps: 3 });
   // Turning by key is instant, for a clip that is about what happens after the landing.
-  // Down steps the rotation up by one (counter-clockwise); a tap steps it down (clockwise).
-  if (turn === "keys") for (let i = 0; i < p.rot; i++) await page.keyboard.press("ArrowDown");
+  // Up steps the rotation up by one (counter-clockwise); a tap steps it down (clockwise).
+  if (turn === "keys") for (let i = 0; i < p.rot; i++) await page.keyboard.press("ArrowUp");
   else for (let i = 0; i < (4 - p.rot) % 4; i++) {
     await page.mouse.down();
     await page.waitForTimeout(60);
@@ -231,7 +231,7 @@ async function drop(page: Page, p: Place, count: number, turn: "tap" | "keys" = 
 
 /** The same landing by keyboard, for the setup a picture does not show: quick, so a busy machine cannot let the pair sink. */
 async function dropByKeys(page: Page, p: Place, count: number): Promise<void> {
-  for (let i = 0; i < p.rot; i++) await page.keyboard.press("ArrowDown");
+  for (let i = 0; i < p.rot; i++) await page.keyboard.press("ArrowUp");
   for (let i = 0; i < Math.abs(p.col - SPAWN.col); i++) await page.keyboard.press(p.col < SPAWN.col ? "ArrowLeft" : "ArrowRight");
   // Space again every so often: a key that went down before the board had the pair would hurry nothing.
   await expect(async () => {
