@@ -78,7 +78,8 @@ flashing count above the board, and rains in from above, ripening flashes, the
 entry is outlined, and the
 other boards sit beside the player's as small live boards with their names, waiting scrap and a
 cross when they are out. Touch drags to steer, taps to turn and holds a downward swipe to hurry;
-the keyboard steers with the arrows, turns with up, down, X and Z and hurries with space. Numbers
+the keyboard steers with the arrows, turns with up, down, X and Z and hurries with space. A tap, up and X turn the pair
+counter-clockwise; down and Z turn it clockwise. Numbers
 live in `content/data/puzzles/swordfight.json`.
 
 ## Engine

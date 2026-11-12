@@ -232,7 +232,7 @@ describe("flying rules", () => {
     for (const r of rests) if (r.type === "place") expect(enginesLandingRow(state, r.col, r.row, r.rot)).toBe(r.row);
   });
 
-  it("a pair turns either way: a counter-clockwise turn from the entry, with its kick, is accepted", () => {
+  it("a pair turns either way: a clockwise turn from the entry, with its kick, is accepted", () => {
     const base = createEnginesGame("turns");
     const { width, height } = base.config;
     const s = Math.floor((width - 2) / 2);
@@ -245,7 +245,7 @@ describe("flying rules", () => {
     }
     const state: EnginesState = { ...base, cells, injectors: [] };
     const rests = legalMoves(state);
-    // Counter-clockwise from rotation 0 is rotation 3; the kick of +1 drops it down the shaft.
+    // Clockwise from rotation 0 is rotation 3; the kick of +1 drops it down the shaft.
     expect(rests).toContainEqual({ type: "place", col: s + 1, row: 1, rot: 3 });
     expect(rests).toContainEqual({ type: "place", col: s + 1, row: 1, rot: 1 });
     expect(() => reduceEngines(state, { type: "place", col: s + 1, row: 1, rot: 3 })).not.toThrow();

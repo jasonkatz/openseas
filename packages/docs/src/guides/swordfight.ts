@@ -63,7 +63,7 @@ export const swordfight: Guide = {
   },
   controls: [
     { action: "Steer the pair", touch: "Drag left or right, anywhere on the board", desktop: "Left and Right arrows, or drag" },
-    { action: "Turn it", touch: "Tap: a quarter turn clockwise", desktop: "Up or X clockwise, Down or Z the other way, or click" },
+    { action: "Turn it", touch: "Tap: a quarter turn counter-clockwise", desktop: "Up or X counter-clockwise, Down or Z the other way, or click" },
     { action: "Hurry it down", touch: "Swipe down and hold", desktop: "Hold Space" },
   ],
   scoring: [

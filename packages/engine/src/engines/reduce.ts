@@ -24,7 +24,7 @@ type Cells = Array<Segment | null>;
 
 /** Rotation kicks tried in order when a turn does not fit where the pair is: in place, one left, one right. */
 export const ROTATION_KICKS: readonly number[] = [0, -1, 1];
-/** A pair turns clockwise (+1) or counter-clockwise (+3, i.e. -1 mod 4). */
+/** A pair turns counter-clockwise as drawn (+1) or clockwise (+3, i.e. -1 mod 4). */
 const TURNS: readonly number[] = [1, 3];
 
 export function validateConfig(cfg: EnginesConfig): void {
@@ -177,7 +177,7 @@ export function reachableRests(state: EnginesState): Set<number> {
     else rests.add(key(p.col, p.row, p.rot));
     visit(p.col - 1, p.row, p.rot);
     visit(p.col + 1, p.row, p.rot);
-    // Turn either way: clockwise (+1) or counter-clockwise (+3), each with the same kicks.
+    // Turn either way: counter-clockwise (+1) or clockwise (+3), each with the same kicks.
     for (const turn of TURNS) {
       const rot = ((p.rot + turn) % 4) as Rotation;
       for (const kick of ROTATION_KICKS) {

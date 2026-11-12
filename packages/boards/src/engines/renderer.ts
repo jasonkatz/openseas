@@ -441,12 +441,15 @@ export class EnginesRenderer {
     this.positionFalling();
   }
 
-  /** Turn clockwise (1) or counter-clockwise (-1) with the engine's kicks, so what the player sees is a position the engine accepts. */
+  /**
+   * Turn clockwise (1) or counter-clockwise (-1) as the player sees it, with the engine's kicks, so what
+   * they see is a position the engine accepts. Rows count up from the floor, so clockwise is 0 → 3 → 2 → 1.
+   */
   private tryRotate(dir: 1 | -1 = 1): void {
     const f = this.falling;
     if (!f || !this.interactive) return;
     const R = Math.ceil(f.row);
-    const rot = ((f.rot + dir + 4) % 4) as Rotation;
+    const rot = ((f.rot + (dir === 1 ? 3 : 1)) % 4) as Rotation;
     for (const kick of ENGINES_ROTATION_KICKS) {
       if (!this.mayOccupy(f.col + kick, R, rot)) continue;
       f.col += kick;

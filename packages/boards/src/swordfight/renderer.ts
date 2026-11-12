@@ -1561,7 +1561,7 @@ export class SwordfightRenderer {
     if (!d || !this.falling || d.hurried) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
-    if (!d.moved && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate(1);
+    if (!d.moved && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate(-1);
   }
 
   private pointerCancel(): void {
@@ -1569,7 +1569,7 @@ export class SwordfightRenderer {
     this.softDrop = false;
   }
 
-  /** Keyboard: left and right steer, up and X turn clockwise, down and Z the other way, space hurries while held. */
+  /** Keyboard: left and right steer, up and X turn counter-clockwise, down and Z clockwise, space hurries while held. */
   keyboard(key: string, down: boolean): boolean {
     if (key === " " && !down) {
       this.softDrop = false;
@@ -1591,12 +1591,12 @@ export class SwordfightRenderer {
       case "ArrowUp":
       case "x":
       case "X":
-        this.tryRotate(1);
+        this.tryRotate(-1);
         return true;
       case "ArrowDown":
       case "z":
       case "Z":
-        this.tryRotate(-1);
+        this.tryRotate(1);
         return true;
       default:
         return false;
