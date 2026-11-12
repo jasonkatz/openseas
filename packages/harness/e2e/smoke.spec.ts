@@ -62,12 +62,17 @@ test("home links to Engines and an unrated round takes keyboard drops", async ({
   await page.keyboard.up(" ");
   await expectViewMatchesState(page, "engines");
 
-  // Pointer: a tap turns the pair, a sideways drag steers it; then a key drops it.
+  // Pointer: a tap turns the pair, a swipe up turns it back, a sideways drag steers it; then a key drops it.
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
   const x = box.x + box.width / 2;
   const y = box.y + box.height * 0.3;
   await page.mouse.click(x, y);
+  // A swipe up turns it the other way.
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y - box.height * 0.2, { steps: 6 });
+  await page.mouse.up();
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + box.width * 0.2, y, { steps: 6 });
@@ -268,12 +273,21 @@ test("home links to Swordfighting and an unrated fight drops pairs by keyboard a
   await page.keyboard.up(" ");
   await expectViewMatchesState(page, "swordfight");
 
-  // Pointer: a tap turns the pair, a sideways drag steers it; then the key hurries it down.
+  // Pointer: a tap turns the pair, a swipe up turns it back, a sideways drag steers it; then the key hurries it down.
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
   const x = box.x + box.width * 0.3;
   const y = box.y + box.height * 0.3;
+  // A tap turns the upright pair clockwise, flat with its loose half on the right (rotation 0); a swipe up turns it back upright.
+  const rotation = async (): Promise<string | undefined> => (await canvas.getAttribute("data-falling"))?.split(",")[1];
+  await expect.poll(rotation).toBe("1");
   await page.mouse.click(x, y);
+  await expect.poll(rotation).toBe("0");
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y - box.height * 0.2, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(rotation).toBe("1");
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + box.width * 0.15, y, { steps: 6 });

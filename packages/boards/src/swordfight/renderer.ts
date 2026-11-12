@@ -249,7 +249,7 @@ export class SwordfightRenderer {
   /** `placed` is set once the engine took the pair: it then waits for the state that replaces it, so a rest is never logged twice. */
   private falling: { pair: SwordPair; pc: number; rot: SwordRotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number; refused: number; placed: boolean } | null = null;
   private softDrop = false;
-  private drag: { x: number; y: number; pc: number; moved: boolean; hurried: boolean } | null = null;
+  private drag: { x: number; y: number; pc: number; moved: boolean; hurried: boolean; turned: boolean } | null = null;
 
   constructor(
     private readonly host: HTMLElement,
@@ -1525,7 +1525,7 @@ export class SwordfightRenderer {
 
   private pointerDown(e: FederatedPointerEvent): void {
     if (!this.interactive || !this.falling) return;
-    this.drag = { x: e.global.x, y: e.global.y, pc: this.falling.pc, moved: false, hurried: false };
+    this.drag = { x: e.global.x, y: e.global.y, pc: this.falling.pc, moved: false, hurried: false, turned: false };
   }
 
   private pointerMove(e: FederatedPointerEvent): void {
@@ -1538,6 +1538,12 @@ export class SwordfightRenderer {
       d.hurried = true;
       this.softDrop = true;
     } else if (dy < this.cell * 0.4) this.softDrop = false;
+    // A swipe up turns the pair counter-clockwise, once: the finger lifts before it can turn again.
+    if (!d.moved && !d.hurried && !d.turned && dy < -this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
+      d.turned = true;
+      this.tryRotate(-1);
+    }
+    if (d.turned) return;
     if (d.hurried) return;
     const want = d.pc + Math.round(dx / this.cell);
     while (f.pc < want) {
@@ -1558,10 +1564,10 @@ export class SwordfightRenderer {
     const d = this.drag;
     this.drag = null;
     this.softDrop = false;
-    if (!d || !this.falling || d.hurried) return;
+    if (!d || !this.falling || d.hurried || d.turned) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
-    if (!d.moved && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate(-1);
+    if (!d.moved && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate(1);
   }
 
   private pointerCancel(): void {

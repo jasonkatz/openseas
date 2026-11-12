@@ -57,7 +57,8 @@ held downward swipe or holding space hurries it to `softDropMs` a row (sixteen t
 steering locked for the length of the swipe. There is no hard drop. A pair that comes to rest
 locks after 350 ms; a slide or turn while resting restarts that timer at most three times, and
 reaching a lower row restores the restarts. On the keyboard up and X turn the
-pair counter-clockwise and down and Z turn it clockwise; a tap turns it clockwise.
+pair counter-clockwise and down and Z turn it clockwise; a tap turns it clockwise and a swipe up
+counter-clockwise, once a swipe.
 The half on the left as the pair enters is the pivot: a turn never moves it, it goes on falling as it
 was, and the other half swings around it. Turned upright in the top row, the other half stands above
 the board until the pair has sunk a row. Only a turn that does not fit moves the pivot, a column aside.

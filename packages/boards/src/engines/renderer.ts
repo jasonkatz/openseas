@@ -142,7 +142,7 @@ export class EnginesRenderer {
   private falling: { col: number; rot: Rotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number } | null = null;
   private reach: { state: EnginesState; set: Set<number> } | null = null;
   private softDrop = false;
-  private drag: { x: number; y: number; col: number; moved: boolean; hurried: boolean } | null = null;
+  private drag: { x: number; y: number; col: number; moved: boolean; hurried: boolean; turned: boolean } | null = null;
 
   constructor(
     private readonly host: HTMLElement,
@@ -871,10 +871,10 @@ export class EnginesRenderer {
 
   private pointerDown(e: FederatedPointerEvent): void {
     if (!this.interactive || !this.falling) return;
-    this.drag = { x: e.global.x, y: e.global.y, col: this.falling.col, moved: false, hurried: false };
+    this.drag = { x: e.global.x, y: e.global.y, col: this.falling.col, moved: false, hurried: false, turned: false };
   }
 
-  /** Drag sideways to steer a column at a time; hold a downward swipe to hurry the fall until the finger lifts, with steering locked meanwhile. */
+  /** Drag sideways to steer a column at a time; swipe up to turn counter-clockwise; hold a downward swipe to hurry the fall until the finger lifts, with steering locked meanwhile. */
   private pointerMove(e: FederatedPointerEvent): void {
     const d = this.drag;
     const f = this.falling;
@@ -885,6 +885,12 @@ export class EnginesRenderer {
       d.hurried = true;
       this.softDrop = true;
     } else if (dy < this.cell * 0.4) this.softDrop = false;
+    // A swipe up turns the pair counter-clockwise, once: the finger lifts before it can turn again.
+    if (!d.moved && !d.hurried && !d.turned && dy < -this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
+      d.turned = true;
+      this.tryRotate(-1);
+    }
+    if (d.turned) return;
     // A downward swipe commits to the column it started in: no steering until the finger lifts.
     if (d.hurried) return;
     const wantCol = d.col + Math.round(dx / this.cell);
@@ -906,7 +912,7 @@ export class EnginesRenderer {
     const d = this.drag;
     this.drag = null;
     this.softDrop = false;
-    if (!d || !this.falling || d.hurried) return;
+    if (!d || !this.falling || d.hurried || d.turned) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
     if (!d.moved && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate();

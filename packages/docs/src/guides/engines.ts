@@ -50,7 +50,7 @@ export const engines: Guide = {
   },
   controls: [
     { action: "Steer the pair", touch: "Drag sideways anywhere on the board", desktop: "Left and right arrows, or drag" },
-    { action: "Turn it", touch: "Tap anywhere on the board", desktop: "Up or X turns one way, Down or Z the other. A click turns it too" },
+    { action: "Turn it", touch: "Tap: a quarter turn clockwise. Swipe up: counter-clockwise", desktop: "Up or X counter-clockwise, Down or Z clockwise. A click turns it clockwise" },
     { action: "Hurry it down", touch: "Swipe down and hold. Steering is locked until you lift", desktop: "Hold Space" },
   ],
   scoring: [
