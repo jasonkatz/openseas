@@ -188,7 +188,7 @@ describeDb("the pirate's sheet over the wire", () => {
     // Connecting catches a record up: the title earned while nobody looked is announced on arrival.
     const c = await connect(cookie);
     expect((await c.until("pirate.titles")).earned).toEqual(["coolhand"]);
-    await app.db.update(schema.rating).set({ rating: 1300 }).where(eq(schema.rating.pirateId, me.id));
+    await app.db.update(schema.rating).set({ rating: 1200 }).where(eq(schema.rating.pirateId, me.id));
     c.send({ type: "pirate.sheet" });
     const { sheet } = await c.until("pirate.sheet");
     expect(sheet.record.boards).toBe(14);
