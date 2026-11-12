@@ -58,9 +58,9 @@ steering locked for the length of the swipe. There is no hard drop. A pair that 
 locks after 350 ms; a slide or turn while resting restarts that timer at most three times, and
 reaching a lower row restores the restarts. On the keyboard up and X turn the
 pair counter-clockwise and down and Z turn it clockwise; a tap turns it clockwise.
-The half on the left as the pair enters is the pivot: it stays in its cell and the other half swings
-around it. A turn that does not fit kicks a column aside, and one that would lift the other half
-above the top row lowers the pivot a row instead.
+The pivot is whichever half is on the left of a pair lying flat, or at the bottom of one standing
+up: it stays in its cell and the other half swings around it. A turn that does not fit kicks a
+column aside, then tries a row up or down (at the top row, or on the floor or a stack).
 The next pair is under the player's control the moment the last one lands, while the board below
 plays out its clears, each cascade step waiting for the pieces to land before the next clear; the
 pair after it is previewed in a strip above the core on every layout. The landing ghost is a

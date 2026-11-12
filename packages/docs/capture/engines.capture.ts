@@ -21,8 +21,12 @@ const cfg = loadContent().puzzles.engines.config;
 const W = cfg.width;
 const H = cfg.height;
 const SPAWN = enginesSpawnPosition(cfg);
-/** The engine's column for the pair once it has turned to `rot` at the entry: the left half is the pivot, so turned right round the pair sits a column left. */
-const turnedCol = (rot: Rotation): number => (rot === 2 ? SPAWN.col - 1 : SPAWN.col);
+/**
+ * The engine's column for the pair once it has turned to `rot` at the entry. The pivot is the left
+ * or bottom half, so a pair turned counter-clockwise by key walks a column left on its second turn;
+ * one turned clockwise by tap stays where it entered.
+ */
+const turnedCol = (rot: Rotation, turn: "tap" | "keys"): number => (turn === "keys" && rot >= 2 ? SPAWN.col - 1 : SPAWN.col);
 
 interface Place {
   col: number;
@@ -216,8 +220,8 @@ async function drop(page: Page, p: Place, count: number, turn: "tap" | "keys" = 
     await page.mouse.up();
     await page.waitForTimeout(160);
   }
-  const to = x + (p.col - turnedCol(p.rot)) * g.cell;
-  if (p.col !== turnedCol(p.rot)) {
+  const to = x + (p.col - turnedCol(p.rot, turn)) * g.cell;
+  if (p.col !== turnedCol(p.rot, turn)) {
     await page.mouse.down();
     await page.mouse.move(to, y, { steps: 4 });
     await page.waitForTimeout(80);
@@ -234,7 +238,7 @@ async function drop(page: Page, p: Place, count: number, turn: "tap" | "keys" = 
 /** The same landing by keyboard, for the setup a picture does not show: quick, so a busy machine cannot let the pair sink. */
 async function dropByKeys(page: Page, p: Place, count: number): Promise<void> {
   for (let i = 0; i < p.rot; i++) await page.keyboard.press("ArrowUp");
-  for (let i = 0; i < Math.abs(p.col - turnedCol(p.rot)); i++) await page.keyboard.press(p.col < turnedCol(p.rot) ? "ArrowLeft" : "ArrowRight");
+  for (let i = 0; i < Math.abs(p.col - turnedCol(p.rot, "keys")); i++) await page.keyboard.press(p.col < turnedCol(p.rot, "keys") ? "ArrowLeft" : "ArrowRight");
   // Space again every so often: a key that went down before the board had the pair would hurry nothing.
   await expect(async () => {
     await page.keyboard.down(" ");
