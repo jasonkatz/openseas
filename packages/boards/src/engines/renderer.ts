@@ -86,6 +86,8 @@ const CLEAR_MS = 200;
 const DIE_MS = 220;
 /** How long a pair rests on the floor, a shelf or a stack before it locks. */
 const LOCK_MS = 350;
+/** A finger held still this long hurries the pair: long enough that the start of a swipe or a drag does not. */
+const HOLD_MS = 60;
 /** Slides and turns that restart the lock timer while resting; after that the timer runs on regardless. Falling to a lower row restores them. */
 const MAX_LOCK_RESETS = 3;
 
@@ -142,7 +144,7 @@ export class EnginesRenderer {
   private falling: { col: number; rot: Rotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number } | null = null;
   private reach: { state: EnginesState; set: Set<number> } | null = null;
   private softDrop = false;
-  private drag: { x: number; y: number; col: number; moved: boolean; hurried: boolean; turned: boolean } | null = null;
+  private drag: { x: number; y: number; col: number; moved: boolean; hurried: boolean; turned: boolean; touch: boolean; held: number; far: boolean } | null = null;
 
   constructor(
     private readonly host: HTMLElement,
@@ -738,6 +740,7 @@ export class EnginesRenderer {
     this.runSteps(dt);
     this.movePieces(dt);
     this.moveFx(dt);
+    this.hold(dt);
     this.fall(dt);
     this.drawLinks();
     if (this.framePending && this.steps.length === 0 && !this.moving) {
@@ -871,7 +874,7 @@ export class EnginesRenderer {
 
   private pointerDown(e: FederatedPointerEvent): void {
     if (!this.interactive || !this.falling) return;
-    this.drag = { x: e.global.x, y: e.global.y, col: this.falling.col, moved: false, hurried: false, turned: false };
+    this.drag = { x: e.global.x, y: e.global.y, col: this.falling.col, moved: false, hurried: false, turned: false, touch: e.pointerType !== "mouse", held: 0, far: false };
   }
 
   /** Drag sideways to steer a column at a time; swipe up to turn counter-clockwise; hold a downward swipe to hurry the fall until the finger lifts, with steering locked meanwhile. */
@@ -881,6 +884,24 @@ export class EnginesRenderer {
     if (!d || !f) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
+    if (d.touch) {
+      // A finger that leaves where it came down is swiping or steering, not holding: the hurry ends.
+      if (Math.abs(dx) > this.cell * 0.4 || Math.abs(dy) > this.cell * 0.4) {
+        d.far = true;
+        if (d.hurried) {
+          d.hurried = false;
+          this.softDrop = false;
+        }
+      }
+      // A swipe down turns the pair clockwise, a swipe up counter-clockwise, once: the finger lifts before it can turn again.
+      if (!d.moved && !d.turned && Math.abs(dy) > this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
+        d.turned = true;
+        this.tryRotate(dy > 0 ? 1 : -1);
+      }
+      if (d.turned) return;
+      this.steer(d, dx);
+      return;
+    }
     if (dy > this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
       d.hurried = true;
       this.softDrop = true;
@@ -893,14 +914,21 @@ export class EnginesRenderer {
     if (d.turned) return;
     // A downward swipe commits to the column it started in: no steering until the finger lifts.
     if (d.hurried) return;
-    const wantCol = d.col + Math.round(dx / this.cell);
-    while (f.col < wantCol) {
+    this.steer(d, dx);
+  }
+
+  /** Follow the drag sideways, a column at a time. */
+  private steer(d: { col: number; moved: boolean }, dx: number): void {
+    const f = this.falling;
+    if (!f) return;
+    const want = d.col + Math.round(dx / this.cell);
+    while (f.col < want) {
       const before = f.col;
       this.tryMove(1);
       d.moved = true;
       if (f.col === before) break;
     }
-    while (f.col > wantCol) {
+    while (f.col > want) {
       const before = f.col;
       this.tryMove(-1);
       d.moved = true;
@@ -908,11 +936,21 @@ export class EnginesRenderer {
     }
   }
 
+  /** Touch: a finger held where it came down hurries the pair in hand, from HOLD_MS until it lifts or moves off. */
+  private hold(dt: number): void {
+    const d = this.drag;
+    if (!d || !d.touch || d.far || d.hurried || d.turned || !this.falling) return;
+    d.held += dt;
+    if (d.held < HOLD_MS) return;
+    d.hurried = true;
+    this.softDrop = true;
+  }
+
   private pointerUp(e: FederatedPointerEvent): void {
     const d = this.drag;
     this.drag = null;
     this.softDrop = false;
-    if (!d || !this.falling || d.hurried || d.turned) return;
+    if (!d || !this.falling || d.hurried || d.turned || d.touch) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
     if (!d.moved && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate();

@@ -58,13 +58,13 @@ export const swordfight: Guide = {
   rulesMedia: {
     kind: "clip",
     name: "first-break",
-    alt: "A pair with a breaker is turned with a tap, dragged sideways and swiped down. The breaker lands against blocks of its own color and they shatter.",
-    caption: "Tap to turn, drag to steer, swipe down to hurry. The breaker lands on its color and the group shatters.",
+    alt: "A pair with a breaker is turned, dragged sideways and hurried down. The breaker lands against blocks of its own color and they shatter.",
+    caption: "Turn, steer, then hurry it down. The breaker lands on its color and the group shatters.",
   },
   controls: [
     { action: "Steer the pair", touch: "Drag left or right, anywhere on the board", desktop: "Left and Right arrows, or drag" },
-    { action: "Turn it", touch: "Tap: a quarter turn clockwise. Swipe up: counter-clockwise", desktop: "Up or X counter-clockwise, Down or Z clockwise. A click turns it clockwise" },
-    { action: "Hurry it down", touch: "Swipe down and hold", desktop: "Hold Space" },
+    { action: "Turn it", touch: "Swipe down: a quarter turn clockwise. Swipe up: counter-clockwise", desktop: "Up or X counter-clockwise, Down or Z clockwise. A click turns it clockwise" },
+    { action: "Hurry it down", touch: "Press and hold, anywhere on the board", desktop: "Hold Space, or drag down and hold" },
   ],
   scoring: [
     `A loose block is ${c.cellPoints} points. **A slab is worth more per block the bigger it is**: two by two is ${slab(4)}, two by three ${slab(6)}, three by three ${slab(9)}, three by four ${slab(12)}.`,
@@ -79,7 +79,7 @@ export const swordfight: Guide = {
       tips: [
         {
           title: "Hurry every pair",
-          body: `Left alone, a pair takes ${rowSeconds} seconds a row: about ${floorSeconds} seconds to reach an empty floor. The practice raider drops one every ${seconds(raider.thinkTicks)} seconds. Steer, turn, then swipe down and hold. Nothing else you learn pays as much as dropping twice as often as the raider.`,
+          body: `Left alone, a pair takes ${rowSeconds} seconds a row: about ${floorSeconds} seconds to reach an empty floor. The practice raider drops one every ${seconds(raider.thinkTicks)} seconds. Steer, turn, then press and hold. Nothing else you learn pays as much as dropping twice as often as the raider.`,
         },
         {
           title: "Put like with like",

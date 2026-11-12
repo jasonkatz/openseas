@@ -153,6 +153,8 @@ const COLORS = {
 const CLEAR_MS = 240;
 const DIE_MS = 240;
 const LOCK_MS = 350;
+/** A finger held still this long hurries the pair: long enough that the start of a swipe or a drag does not. */
+const HOLD_MS = 60;
 const MAX_LOCK_RESETS = 3;
 /** The strip above the well, in cells: tall enough for the next pair stacked the way it falls. */
 const STRIP_ROWS = 1.6;
@@ -249,7 +251,7 @@ export class SwordfightRenderer {
   /** `placed` is set once the engine took the pair: it then waits for the state that replaces it, so a rest is never logged twice. */
   private falling: { pair: SwordPair; pc: number; rot: SwordRotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number; refused: number; placed: boolean } | null = null;
   private softDrop = false;
-  private drag: { x: number; y: number; pc: number; moved: boolean; hurried: boolean; turned: boolean } | null = null;
+  private drag: { x: number; y: number; pc: number; moved: boolean; hurried: boolean; turned: boolean; touch: boolean; held: number; far: boolean } | null = null;
 
   constructor(
     private readonly host: HTMLElement,
@@ -1286,6 +1288,7 @@ export class SwordfightRenderer {
     this.runSteps(dt);
     this.movePieces(dt);
     this.moveFx(dt);
+    this.hold(dt);
     this.fall(dt);
     this.drawShake();
     if (this.pendingShown > 0) this.drawWarn();
@@ -1525,7 +1528,7 @@ export class SwordfightRenderer {
 
   private pointerDown(e: FederatedPointerEvent): void {
     if (!this.interactive || !this.falling) return;
-    this.drag = { x: e.global.x, y: e.global.y, pc: this.falling.pc, moved: false, hurried: false, turned: false };
+    this.drag = { x: e.global.x, y: e.global.y, pc: this.falling.pc, moved: false, hurried: false, turned: false, touch: e.pointerType !== "mouse", held: 0, far: false };
   }
 
   private pointerMove(e: FederatedPointerEvent): void {
@@ -1534,6 +1537,24 @@ export class SwordfightRenderer {
     if (!d || !f) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
+    if (d.touch) {
+      // A finger that leaves where it came down is swiping or steering, not holding: the hurry ends.
+      if (Math.abs(dx) > this.cell * 0.4 || Math.abs(dy) > this.cell * 0.4) {
+        d.far = true;
+        if (d.hurried) {
+          d.hurried = false;
+          this.softDrop = false;
+        }
+      }
+      // A swipe down turns the pair clockwise, a swipe up counter-clockwise, once: the finger lifts before it can turn again.
+      if (!d.moved && !d.turned && Math.abs(dy) > this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
+        d.turned = true;
+        this.tryRotate(dy > 0 ? 1 : -1);
+      }
+      if (d.turned) return;
+      this.steer(d, dx);
+      return;
+    }
     if (dy > this.cell * 0.9 && Math.abs(dx) < this.cell * 1.5) {
       d.hurried = true;
       this.softDrop = true;
@@ -1544,7 +1565,15 @@ export class SwordfightRenderer {
       this.tryRotate(-1);
     }
     if (d.turned) return;
+    // A downward swipe commits to the column it started in: no steering until the finger lifts.
     if (d.hurried) return;
+    this.steer(d, dx);
+  }
+
+  /** Follow the drag sideways, a column at a time. */
+  private steer(d: { pc: number; moved: boolean }, dx: number): void {
+    const f = this.falling;
+    if (!f) return;
     const want = d.pc + Math.round(dx / this.cell);
     while (f.pc < want) {
       const before = f.pc;
@@ -1560,11 +1589,21 @@ export class SwordfightRenderer {
     }
   }
 
+  /** Touch: a finger held where it came down hurries the pair in hand, from HOLD_MS until it lifts or moves off. */
+  private hold(dt: number): void {
+    const d = this.drag;
+    if (!d || !d.touch || d.far || d.hurried || d.turned || !this.falling) return;
+    d.held += dt;
+    if (d.held < HOLD_MS) return;
+    d.hurried = true;
+    this.softDrop = true;
+  }
+
   private pointerUp(e: FederatedPointerEvent): void {
     const d = this.drag;
     this.drag = null;
     this.softDrop = false;
-    if (!d || !this.falling || d.hurried || d.turned) return;
+    if (!d || !this.falling || d.hurried || d.turned || d.touch) return;
     const dx = e.global.x - d.x;
     const dy = e.global.y - d.y;
     if (!d.moved && Math.abs(dx) < this.cell * 0.4 && Math.abs(dy) < this.cell * 0.4) this.tryRotate(1);

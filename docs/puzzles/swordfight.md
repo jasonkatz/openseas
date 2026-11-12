@@ -77,9 +77,10 @@ and tally, chains and big shatters call out, scrap flies to the board it is sent
 flashing count above the board, and rains in from above, ripening flashes, the
 entry is outlined, and the
 other boards sit beside the player's as small live boards with their names, waiting scrap and a
-cross when they are out. Touch drags to steer, taps or swipes up to turn and holds a downward swipe to hurry;
+cross when they are out. Touch drags to steer, swipes down or up to turn and presses and holds (60 ms) to hurry the pair in hand; a mouse
+clicks to turn and holds a downward drag to hurry;
 the keyboard steers with the arrows, turns with up, down, X and Z and hurries with space. Up, X and a swipe up turn the pair
-counter-clockwise; down, Z and a tap turn it clockwise. The half at the bottom as the pair enters is the pivot: a turn
+counter-clockwise; down, Z, a swipe down and a click turn it clockwise. The half at the bottom as the pair enters is the pivot: a turn
 never moves it, it goes on falling as it was, and the other half swings around it. Only a turn that
 does not fit moves the pivot (the kick, lift or double turn above). Numbers
 live in `content/data/puzzles/swordfight.json`.
