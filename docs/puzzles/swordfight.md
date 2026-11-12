@@ -79,8 +79,9 @@ entry is outlined, and the
 other boards sit beside the player's as small live boards with their names, waiting scrap and a
 cross when they are out. Touch drags to steer, taps to turn and holds a downward swipe to hurry;
 the keyboard steers with the arrows, turns with up, down, X and Z and hurries with space. A tap, up and X turn the pair
-counter-clockwise; down and Z turn it clockwise. The pivot is whichever half is on the left of a pair
-lying flat, or at the bottom of one standing up: it stays in its cell and the other half swings around it. Numbers
+counter-clockwise; down and Z turn it clockwise. The half at the bottom as the pair enters is the pivot: a turn
+never moves it, it goes on falling as it was, and the other half swings around it. Only a turn that
+does not fit moves the pivot (the kick, lift or double turn above). Numbers
 live in `content/data/puzzles/swordfight.json`.
 
 ## Engine

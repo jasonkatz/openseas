@@ -408,9 +408,26 @@ export class EnginesRenderer {
     const f = this.falling;
     if (!f || !this.state) return false;
     const R = Math.ceil(f.row);
-    if (!enginesFits(this.state, col, row, rot)) return false;
+    if (!this.fitsAt(col, row, rot)) return false;
     // Mid-fall, the row being entered must be free too, unless the pair would rest here anyway.
-    return f.row === R || !enginesCanDrop(this.state, col, row, rot) || enginesFits(this.state, col, row - 1, rot);
+    return f.row === R || !this.canDropAt(col, row, rot) || this.fitsAt(col, row - 1, rot);
+  }
+
+  /**
+   * A pair turned upright in the top row stands with half `b` above the board until it has sunk a
+   * row: the pivot does not give way to make room. The engine has no such row, so the board keeps
+   * it to itself, and only where the pair can sink into the board from there.
+   */
+  private above(row: number, rot: Rotation): boolean {
+    return rot === 1 && row === this.height;
+  }
+
+  private fitsAt(col: number, row: number, rot: Rotation): boolean {
+    return enginesFits(this.state!, col, this.above(row, rot) ? row - 1 : row, rot);
+  }
+
+  private canDropAt(col: number, row: number, rot: Rotation): boolean {
+    return this.above(row, rot) || enginesCanDrop(this.state!, col, row, rot);
   }
 
   /** After a slide or turn mid-fall into a spot with a shelf or a stack under it, the pair sits up on it instead of sinking past. */
@@ -418,7 +435,7 @@ export class EnginesRenderer {
     const f = this.falling;
     if (!f || !this.state) return;
     const R = Math.ceil(f.row);
-    if (f.row !== R && !enginesCanDrop(this.state, f.col, R, f.rot)) {
+    if (f.row !== R && !this.canDropAt(f.col, R, f.rot)) {
       f.row = R;
       f.lock = 0;
     }
@@ -452,42 +469,34 @@ export class EnginesRenderer {
   }
 
   /**
-   * Turn clockwise (1) or counter-clockwise (-1) as the player sees it. The pivot is whichever half
-   * is on the left of a pair lying flat, or at the bottom of one standing up: it stays in its cell
-   * and the other half swings around it. Rows count up from the floor, so clockwise is 0 → 3 → 2 → 1.
-   * A turn that does not fit with the pivot still kicks a column either way, then tries a row up or
-   * down (the swinging half would leave the board, or go through the floor or a stack). Only
-   * positions the engine can reach are taken, so what the player sees is a position the engine accepts.
+   * Turn clockwise (1) or counter-clockwise (-1) as the player sees it. Half `a`, the left one as
+   * the pair enters, is the pivot: it stays in its cell, falling as it was, and half `b` swings
+   * around it. Rows count up from the floor, so clockwise is 0 → 3 → 2 → 1. Only when the swing
+   * does not fit does the pivot give way, a column to either side. Only positions the engine can
+   * reach are taken, so what the player sees is a position the engine accepts.
    */
   private tryRotate(dir: 1 | -1 = 1): void {
     const f = this.falling;
     if (!f || !this.interactive) return;
     const R = Math.ceil(f.row);
     const rot = ((f.rot + (dir === 1 ? 3 : 1)) % 4) as Rotation;
-    // The engine anchors a pair at its left column and top row. Flat, the pivot is the anchor cell;
-    // upright, it is the cell under it.
-    const flat = f.rot === 0 || f.rot === 2;
-    let col = f.col;
-    let rows: number[];
-    if (flat) rows = dir === 1 ? [R, R + 1] : [R + 1, R];
-    else {
-      // The top half comes down beside the pivot: to its right clockwise, to its left the other way.
-      if (dir === -1) col -= 1;
-      rows = [R - 1, R];
-    }
+    // The engine anchors a pair at its left column and top row; the pivot is where half `a` sits.
+    const pc = f.rot === 2 ? f.col + 1 : f.col;
+    const pr = f.rot === 1 ? R - 1 : R;
+    const col = rot === 2 ? pc - 1 : pc;
+    const row = rot === 1 ? pr + 1 : pr;
     const reach = this.reachable();
-    for (const row of rows) {
-      for (const kick of ENGINES_ROTATION_KICKS) {
-        if (!reach.has(enginesPlacementKey(col + kick, row, rot)) || !this.mayOccupy(col + kick, row, rot)) continue;
-        f.col = col + kick;
-        f.row += row - R;
-        f.rot = rot;
-        this.resetLock();
-        this.settleIfResting();
-        this.cb.onNudge();
-        this.positionFalling();
-        return;
-      }
+    for (const kick of ENGINES_ROTATION_KICKS) {
+      // Above the board the pair is on its way to the engine's top row: that is the spot to be reachable.
+      if (!reach.has(enginesPlacementKey(col + kick, this.above(row, rot) ? row - 1 : row, rot)) || !this.mayOccupy(col + kick, row, rot)) continue;
+      f.col = col + kick;
+      f.row += row - R;
+      f.rot = rot;
+      this.resetLock();
+      this.settleIfResting();
+      this.cb.onNudge();
+      this.positionFalling();
+      return;
     }
   }
 
@@ -506,12 +515,14 @@ export class EnginesRenderer {
     g.clear();
     if (!f || !this.state) return;
     const R = Math.ceil(f.row);
-    const cells = enginesPairCells(this.state.config, f.col, R, f.rot);
-    if (!cells) return;
     const dy = (R - f.row) * this.cell;
-    f.a.position.set(this.cx(cells.a % this.width), this.cy(Math.floor(cells.a / this.width)) + dy);
-    f.b.position.set(this.cx(cells.b % this.width), this.cy(Math.floor(cells.b / this.width)) + dy);
-    const landRow = enginesLandingRow(this.state, f.col, R, f.rot);
+    // By hand, not from the engine's cells: half `b` may stand above the top row.
+    const flat = f.rot === 0 || f.rot === 2;
+    const a = { col: f.rot === 2 ? f.col + 1 : f.col, row: f.rot === 1 ? R - 1 : R };
+    const b = { col: f.rot === 0 ? f.col + 1 : f.col, row: flat || f.rot === 1 ? R : R - 1 };
+    f.a.position.set(this.cx(a.col), this.cy(a.row) + dy);
+    f.b.position.set(this.cx(b.col), this.cy(b.row) + dy);
+    const landRow = enginesLandingRow(this.state, f.col, this.above(R, f.rot) ? R - 1 : R, f.rot);
     const land = enginesPairCells(this.state.config, f.col, landRow, f.rot);
     if (land) {
       const wantAt = new Map<number, number | null>();
@@ -825,7 +836,7 @@ export class EnginesRenderer {
     const f = this.falling;
     if (!f || !this.interactive || this.steps.length || !this.state) return;
     const R = Math.ceil(f.row);
-    if (!enginesCanDrop(this.state, f.col, R, f.rot)) {
+    if (!this.canDropAt(f.col, R, f.rot)) {
       f.row = R;
       f.lock += dt;
       this.positionFalling();

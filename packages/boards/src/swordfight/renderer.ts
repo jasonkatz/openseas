@@ -886,11 +886,10 @@ export class SwordfightRenderer {
   }
 
   /**
-   * Turn the pair: clockwise is 1 → 0 → 3 → 2. The pivot is whichever half is on the left of a pair
-   * lying flat, or at the bottom of one standing up: it stays in its cell and the other half swings
-   * around it. A turn that does not fit tries a kick either way, then a lift of one row (the other
-   * half would go through the floor or a block), and when the pair is boxed into one column it
-   * turns twice instead, so the halves swap ends.
+   * Turn the loose half around the pivot: clockwise is 1 → 0 → 3 → 2. A turn that does not fit
+   * tries a kick either way, then a lift of one row (the other half would go through the floor
+   * or a block), and when the pair is boxed into one column it turns twice instead, so the halves
+   * swap ends.
    */
   private tryRotate(dir: 1 | -1): void {
     const f = this.falling;
@@ -898,31 +897,14 @@ export class SwordfightRenderer {
     const R = Math.ceil(f.row);
     const once = ((f.rot + (dir === 1 ? 3 : 1)) % 4) as SwordRotation;
     const twice = ((f.rot + 2) % 4) as SwordRotation;
-    // `pc` and `row` follow half a. While a is the pivot (b to its right or above it) they stay put;
-    // while b is, a swings around b and they move with it.
-    let dpc = 0;
-    let drow = 0;
-    if (f.rot === 2) {
-      // b on the left: a comes down under it clockwise, goes up over it the other way.
-      dpc = -1;
-      drow = dir === 1 ? -1 : 1;
-    } else if (f.rot === 3) {
-      // b at the bottom: a comes down to its right clockwise, to its left the other way.
-      dpc = dir === 1 ? 1 : -1;
-      drow = -1;
-    }
     for (const rot of [once, twice]) {
-      const mc = rot === once ? dpc : 0;
-      const mr = rot === once ? drow : 0;
-      // A half swung up over the top of the board comes down a row instead.
-      for (const lift of mr > 0 ? [0, 1, -1] : [0, 1]) {
+      for (const lift of [0, 1]) {
         for (const kick of [0, -1, 1]) {
-          const row = R + mr + lift;
-          if (!this.mayOccupy(f.pc + mc + kick, rot, row)) continue;
-          f.pc += mc + kick;
+          const row = R + lift;
+          if (!this.mayOccupy(f.pc + kick, rot, row)) continue;
+          f.pc += kick;
           f.rot = rot;
-          if (lift > 0) f.row = row;
-          else f.row += mr + lift;
+          if (lift) f.row = row;
           this.resetLock();
           this.settleIfResting();
           this.cb.onNudge();
