@@ -163,10 +163,11 @@ export function PlayShell(p: ShellProps) {
           </div>
         )}
 
-        {sheetOpen && (
+        {/* The sheet stays in the page while shut, so what it holds (a fight's incoming count) can be read by a script: the guides' capture does. */}
+        {
           <>
-            <button className="hud-scrim" aria-label={t("practice.details_hide")} onClick={() => setSheetOpen(false)} />
-            <div className="hud-panel play-sheet" data-testid="hud-panel">
+            {sheetOpen && <button className="hud-scrim" aria-label={t("practice.details_hide")} onClick={() => setSheetOpen(false)} />}
+            <div className="hud-panel play-sheet" data-testid="hud-panel" hidden={!sheetOpen}>
               {!refused && (
                 <section className="play-round">
                   <p className="play-seed" data-testid="play-seed">
@@ -205,7 +206,7 @@ export function PlayShell(p: ShellProps) {
               )}
             </div>
           </>
-        )}
+        }
       </section>
     </main>
   );

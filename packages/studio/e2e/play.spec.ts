@@ -71,7 +71,7 @@ test("a tuned link plays its numbers, lists them beside the shipped ones, and ra
   expect(await page.getByTestId("cooling-board").getAttribute("data-board")).toBe(dealt);
   await page.getByTestId("toggle-details").click();
   await page.getByTestId("play-new-seed").click();
-  await expect(page.getByTestId("hud-panel")).toHaveCount(0);
+  await expect(page.getByTestId("hud-panel")).toBeHidden();
   await expect(page).not.toHaveURL(/seed=/);
   await expect(page).toHaveURL(/c\.maxMoves=2/);
   await page.getByTestId("toggle-details").click();

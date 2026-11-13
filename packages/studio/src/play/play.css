@@ -11,6 +11,9 @@
 .play-sheet {
   justify-items: stretch;
 }
+.play-sheet[hidden] {
+  display: none;
+}
 .play-round {
   display: flex;
   flex-wrap: wrap;
