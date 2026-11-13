@@ -30,6 +30,30 @@ test("home page renders, says which build it is, and links to Cooling's page", a
   await expect(page.getByTestId("play-start")).toBeVisible();
 });
 
+test("the home grid lists every puzzle alike and pictures each board from this build", async ({ page }) => {
+  // Fifteen boards are drawn one after another in a hidden frame.
+  test.slow();
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  const tiles = page.getByTestId("puzzle-grid").locator("li");
+  await expect(tiles).toHaveCount(15);
+  // A tile stands on its glyph until its picture is taken, then shows the board itself.
+  await expect(page.getByTestId("puzzle-grid").locator("img")).toHaveCount(15, { timeout: 60_000 });
+  const picture = page.getByTestId("thumb-salvage");
+  await expect(picture).toHaveAttribute("src", /^data:image\/webp/);
+  expect(await picture.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(100);
+  // The frame is gone once the last picture is in, and the pictures are kept for the tab.
+  await expect(page.locator("iframe")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("puzzle-grid").locator("img")).toHaveCount(15, { timeout: 2000 });
+
+  await page.getByTestId("tile-play-salvage").click();
+  await expect(page).toHaveURL(/\/play\/salvage$/);
+  await expect(page.getByTestId("play")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("Cooling plays alone on /play: a round accepts a keyboard swap and a tap", async ({ page }) => {
   await page.goto("/play/cooling");
   await page.getByTestId("play-start").click();

@@ -5,6 +5,7 @@ import "@openseas/boards/styles.css";
 import "./harness.css";
 import "./play/play.css";
 import "./studio/studio.css";
+import "./home/home.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

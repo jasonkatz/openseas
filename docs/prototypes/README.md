@@ -47,7 +47,7 @@ example for every one of them.
 
 The lines that register a prototype are in `engine/src/registry.ts` and `engine/src/index.ts`,
 `protocol/src/{common,puzzles,ws,index}.ts`, `content/src/prototypes/index.ts`,
-`boards/src/index.ts`, and `studio/src/{App.tsx,puzzles.ts,pages/Home.tsx,scenario/presets.ts,tuning/groups/index.ts}`.
+`boards/src/index.ts`, and `studio/src/{App.tsx,puzzles.ts,home/Home.tsx,scenario/presets.ts,tuning/groups/index.ts}`.
 
 ## Rules every prototype keeps
 

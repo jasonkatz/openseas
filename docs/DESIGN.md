@@ -608,8 +608,15 @@ says why on its own control; a dot puts one number back and a button all of them
 copies the draft's `/play` link, which is how a tuned round is shared until tester links by id
 exist. The draft lives in the address bar. The bench is gone: the inspector, round files and their
 review, the clock's controls, the seed finder, and recorded and unrated rounds. The studio asks
-nothing of the game's server. Still to come in the shell: the home grid, and `studio-server` with
-tester links by id.
+nothing of the game's server.
+
+The home page is the grid of all fifteen, the prototypes marked as such and otherwise treated like
+the rest. A tile's picture is the puzzle's real board as this build draws it: the page opens each
+puzzle's `/play` page in turn in one hidden frame, which draws the board alone and hands back a
+picture, so a thumbnail needs no code a puzzle and cannot fall behind the board. A tile opens the
+studio page, and a second link the puzzle alone. The mark for an open draft or pull request waits
+for the service that holds drafts. Still to come in the shell: `studio-server` with tester links
+by id.
 
 The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
 agent reads:

@@ -8,7 +8,7 @@ import { changes, refusals, shippedNumbers, tunedNumbers, withNumber, withoutNum
  * beside it (DESIGN.md 3.14). `play` is the puzzle alone, full-screen: what a tester opens at
  * `/play/<puzzle>` (ADR 0042 decision 11), and all a phone gets.
  */
-export type FrameMode = "studio" | "play";
+export type FrameMode = "studio" | "play" | "thumb";
 
 /** What the page says back about the round in play or last played, for the shell around it. */
 export interface RoundReport {
