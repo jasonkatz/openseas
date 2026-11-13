@@ -107,9 +107,9 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 23. **Its own sprites and sounds.** Each frame, named as the renderer asks for it, is described in
     the puzzle's sprite brief and made with the `puzzle-sprites` skill; each moment item 1 asks to
     be heard has a cue in its sound brief, made with the `puzzle-sounds` skill. The owner picks
-    every take. Every piece keeps a code-drawn fallback, and marks, numerals and hit areas stay in
-    code. Until the boards play samples, the synthesized cues in `boards/src/audio.ts` stand in
-    (ADR 0040). A puzzle without its sheet is not finished; say so.
+    every take. Every piece keeps a code-drawn fallback and every cue a synthesized one
+    (`boards/src/audio.ts`, ADR 0041), and marks, numerals and hit areas stay in code. A puzzle
+    without its sheet is not finished; say so.
 24. **Every string in the message table.**
 25. **Three homes, kept in step.** A harness page with bench entry, lab presets and a smoke that
     plays by key and by pointer; a guide in `packages/docs` with captured pictures and no typed

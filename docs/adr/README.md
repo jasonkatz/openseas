@@ -46,3 +46,4 @@ that supersedes it.
 | [0038](./0038-puzzle-guides-site.md) | Puzzle guides: a static site with one guide per puzzle, its pictures captured from the real boards on the harness |
 | [0039](./0039-five-tiers-and-a-live-pace.md) | Five tiers, and every board's HUD shows the tier being played at |
 | [0040](./0040-generated-art-and-sound-from-briefs.md) | Puzzle sprites and sounds are generated from briefs in the repository; the owner picks every take |
+| [0041](./0041-sampled-sounds-over-synthesized-cues.md) | A board plays its puzzle's picked samples, with the synthesized cues as the fallback |

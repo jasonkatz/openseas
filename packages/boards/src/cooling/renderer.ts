@@ -1,4 +1,5 @@
 import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
+import { soundsFor } from "../audio.js";
 import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import { Special, type CoolingState, type ClearRound, type MoveReport, type Piece } from "@openseas/engine";
 import type { CoolingContent } from "@openseas/content";
@@ -281,6 +282,9 @@ export class CoolingRenderer {
     if (this.app.renderer) this.bake();
   }
 
+  /** This puzzle's picked samples play while the board is open (ADR 0041). */
+  private readonly releaseSounds = soundsFor("cooling");
+
   async init(): Promise<void> {
     await loadPuzzleSprites("cooling");
     if (this.destroyed) return;
@@ -321,6 +325,7 @@ export class CoolingRenderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.releaseSounds();
     if (this.holdTimer !== null) window.clearTimeout(this.holdTimer);
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });

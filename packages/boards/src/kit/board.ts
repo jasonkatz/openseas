@@ -10,6 +10,7 @@
  */
 import { Application, Container, Graphics, Rectangle, Texture, type FederatedPointerEvent } from "pixi.js";
 import { drawSprite, hasSprite, isSpritePuzzle, loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
+import { soundsFor } from "../audio.js";
 import { boardSurface } from "../surface.js";
 import { Fx } from "./fx.js";
 import { Tweens } from "./tween.js";
@@ -38,6 +39,8 @@ export abstract class KitBoard<S> {
    */
   private readonly frames = new Map<string, Texture>();
 
+  private readonly releaseSounds: () => void;
+
   /**
    * @param host the element the canvas fills.
    * @param id the puzzle id: the canvas is `data-testid="<id>-canvas"`, and the board's sprites are the atlas of that name.
@@ -51,6 +54,8 @@ export abstract class KitBoard<S> {
   ) {
     this.showMarks = showMarks;
     if (this.reduced) this.tweens.rate = 4;
+    // The puzzle's picked samples play while the board is open (ADR 0041).
+    this.releaseSounds = soundsFor(id);
   }
 
   /** True once the canvas exists. Before that, state and settings are held until `init` resolves. */
@@ -93,6 +98,7 @@ export abstract class KitBoard<S> {
 
   destroy(): void {
     this.destroyed = true;
+    this.releaseSounds();
     this.tweens.clear();
     if (this.ready) {
       this.ready = false;

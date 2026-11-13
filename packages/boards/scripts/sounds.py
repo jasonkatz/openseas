@@ -134,9 +134,12 @@ def place(args):
     trim = 'anull' if b['cues'][args.cue].get('loop') else 'silenceremove=start_periods=1:start_threshold=-50dB'
     mono = dest.with_suffix('.wav')
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(src), '-af', trim, '-ac', '1', '-ar', '44100', str(mono)], check=True)
-    # Peak at -1 dB, measured after the downmix, under a limiter since the MP3 encode overshoots.
+    # Peak at -1 dB, less the cue's `level`, measured after the downmix, under a limiter since the MP3
+    # encode overshoots. The board plays every sample at one gain, so `level` is how a cue sits in the mix.
+    target = -1.0 + min(0.0, float(b['cues'][args.cue].get('level', 0)))
     _, peak = probe(mono)
-    chain = f'volume={-1.0 - peak:.2f}dB,alimiter=limit=0.89:level=disabled' if peak is not None and peak > -90 else 'anull'
+    limit = 10 ** ((target + 0.1) / 20)
+    chain = f'volume={target - peak:.2f}dB,alimiter=limit={limit:.3f}:level=disabled' if peak is not None and peak > -90 else 'anull'
     try:
         subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(mono), '-af', chain,
                         '-c:a', 'libmp3lame', '-q:a', '4', str(dest)], check=True)

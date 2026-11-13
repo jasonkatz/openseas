@@ -77,7 +77,9 @@ and tally, chains and big shatters call out, scrap flies to the board it is sent
 flashing count above the board, and rains in from above, ripening flashes, the
 entry is outlined, and the
 other boards sit beside the player's as small live boards with their names, waiting scrap and a
-cross when they are out. Touch drags to steer, swipes down or up to turn and presses and holds (60 ms) to hurry the pair in hand; a mouse
+cross when they are out. It sounds as it shows: a pair landing, a clash for a break and a heavier one
+for a chain or a big shatter (a chain climbs in pitch), a swing as scrap is sent, a thud as it lands,
+and the board going out, winning or losing (ADR 0041). Touch drags to steer, swipes down or up to turn and presses and holds (60 ms) to hurry the pair in hand; a mouse
 clicks to turn and holds a downward drag to hurry;
 the keyboard steers with the arrows, turns with up, down, X and Z and hurries with space. Up, X and a swipe up turn the pair
 counter-clockwise; down, Z, a swipe down and a click turn it clockwise. The half at the bottom as the pair enters is the pivot: a turn

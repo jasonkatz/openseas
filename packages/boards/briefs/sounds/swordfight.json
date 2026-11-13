@@ -5,7 +5,8 @@
       "use": "A pair settles on the stack.",
       "prompt": "A small armored block landing on a metal deck: a short soft clunk with a tiny metallic click.",
       "duration": 0.5,
-      "influence": 0.6
+      "influence": 0.6,
+      "level": -6
     },
     "clash": {
       "use": "A group breaks: two blades meet.",
@@ -31,9 +32,21 @@
       "duration": 0.5,
       "influence": 0.6
     },
-    "blades-out": {
-      "use": "The round starts: \"Blades out\".",
-      "prompt": "An energy blade igniting: a sharp electric snap, then a short rising whine as the plasma edge powers up, ending in a steady crackle that cuts off cleanly.",
+    "out": {
+      "use": "The player's board is out.",
+      "prompt": "A powered blade shutting down: a falling electric whine and a dying crackle, ending in a dull metallic clunk.",
+      "duration": 1.2,
+      "influence": 0.6
+    },
+    "won": {
+      "use": "The fight is won.",
+      "prompt": "Two energy blades sheathed together: a bright rising shimmer of plasma and a clean ringing metallic chime that hangs for a moment.",
+      "duration": 1.5,
+      "influence": 0.5
+    },
+    "lost": {
+      "use": "The fight is lost.",
+      "prompt": "An energy blade sputtering out: a falling buzz that stutters and fades to a faint hiss.",
       "duration": 1.2,
       "influence": 0.6
     }
