@@ -144,6 +144,50 @@ server's CORS list.
    `Postgres` (the default) or set `RAILWAY_DATABASE_SERVICE` in step 3. The server's restart
    policy and healthcheck from step 3 are copied into every preview environment.
 
+### 1b. Railway: the studio's service
+
+`packages/studio-server` (ADR 0043) holds the studio's tester links and signs the owner in. It
+is optional: until `RAILWAY_STUDIO_SERVICE` is set in step 3 the pipeline does not deploy it, and
+the studio works without it, only without links by id.
+
+1. **A database of its own.** On the Postgres service → **Data** (or any `psql` session):
+   `CREATE DATABASE openseas_studio;`
+2. **A GitHub OAuth app** for sign-in. github.com → **Settings → Developer settings → OAuth Apps
+   → New OAuth App**: Homepage URL `https://test.openseas.online`, Authorization callback URL
+   `https://<studio service domain>/auth/callback` (the domain from the next step). Note the
+   client id and generate a client secret. The app asks for no scope.
+3. In the same Railway project: **+ New → Empty Service**, named `studio`. **Settings**:
+   Networking → **Generate Domain**, or better a custom domain under `openseas.online` such as
+   `studio-api.openseas.online` (a CNAME at the registrar, as for `test`): the studio site and
+   the service are then one site, and the session cookie is not a third-party cookie. Deploy →
+   **Healthcheck Path** `/health`, **Restart Policy** On Failure.
+4. Service → **Variables**:
+
+   | Variable | Value |
+   |---|---|
+   | `NODE_ENV` | `production` |
+   | `RAILPACK_CONFIG_FILE` | `railpack.studio.json` (so the build and start commands are this package's, not the game server's) |
+   | `DATABASE_URL` | the Postgres service's URL with the database name replaced by `openseas_studio` |
+   | `STUDIO_SECRET` | output of `openssl rand -base64 48` |
+   | `STUDIO_PUBLIC_URL` | `https://<studio service domain>`, exactly as in the OAuth app's callback |
+   | `STUDIO_ORIGINS` | `https://test.openseas.online` |
+   | `STUDIO_OWNERS` | the GitHub logins that may sign in, comma-separated |
+   | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | from the OAuth app |
+   | `CROSS_SITE_COOKIES` | `true` only if the service is not under `openseas.online` |
+
+   Never set `STUDIO_DEV_LOGIN` here: the service refuses to start with it in production.
+5. On the **studio's Vercel project** (step 2b): `VITE_STUDIO_SERVICE_URL` =
+   `https://<studio service domain>` for **Production** and **Preview**, then redeploy the site
+   (Deploy workflow → Run workflow → harness). A preview of the studio reads tester links from
+   the one production service; it cannot sign in, since its origin is not in `STUDIO_ORIGINS`.
+6. In step 3 below, set `RAILWAY_STUDIO_SERVICE` to `studio` and `PRODUCTION_STUDIO_SERVICE_URL`
+   to its URL. The next merge that touches the service, or a manual run of the Deploy workflow,
+   uploads it.
+
+Pull request previews duplicate the production environment (ADR 0017), so each gets a copy of
+this service with nothing uploaded to it. It never runs: there is one studio service, in
+production (ADR 0042 decision 4).
+
 ### 2. Vercel: client
 
 The Vercel project is not connected to GitHub. Create it from the CLI in a local checkout:
@@ -266,6 +310,8 @@ required reviewers there later.
 | Variable | `VERCEL_ORG_ID` | `orgId` from `.vercel/project.json` |
 | Variable | `VERCEL_PROJECT_ID` | `projectId` from `.vercel/project.json` (the game) |
 | Variable | `VERCEL_HARNESS_PROJECT_ID` | the harness project's id (step 2b.6) |
+| Variable | `RAILWAY_STUDIO_SERVICE` | optional; `studio`, the studio service's name in Railway (step 1b). Unset means it is not deployed |
+| Variable | `PRODUCTION_STUDIO_SERVICE_URL` | optional; the studio service's URL, so the pipeline can wait for it |
 | Variable | `PRODUCTION_SERVER_URL` | `https://<railway domain>` |
 | Variable | `PRODUCTION_CLIENT_URL` | `https://<vercel production domain>` of the game |
 | Variable | `PRODUCTION_HARNESS_URL` | `https://test.openseas.online` |

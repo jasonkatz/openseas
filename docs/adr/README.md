@@ -48,3 +48,4 @@ that supersedes it.
 | [0040](./0040-generated-art-and-sound-from-briefs.md) | Puzzle sprites and sounds are generated from briefs in the repository; the owner picks every take |
 | [0041](./0041-sampled-sounds-over-synthesized-cues.md) | A board plays its puzzle's picked samples, with the synthesized cues as the fallback |
 | [0042](./0042-the-harness-becomes-the-puzzle-studio.md) | The harness becomes the puzzle studio: live tuning, an agent on a worktree, and tester links |
+| [0043](./0043-the-studio-service-starts-with-tester-links.md) | The studio's service starts with tester links: a signed cookie, a schema of its own, and no agent yet |

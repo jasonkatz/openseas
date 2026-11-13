@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import type { TesterLink } from "@openseas/protocol";
 import type { HarnessPuzzle } from "../puzzles.js";
-import { formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
+import { EMPTY_SCENARIO, formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
 import { changes, refusals, shippedNumbers, tunedNumbers, withNumber, withoutNumber, withoutNumbers, type Change, type Numbers, type Refusal } from "./numbers.js";
 
 /**
@@ -46,6 +47,14 @@ export interface Frame {
   setComparing(on: boolean): void;
   readonly report: RoundReport;
   setReport(report: RoundReport): void;
+  /** The tester link this page was opened from, when it was: its numbers are the draft, and the address stays the link's. */
+  readonly link: TesterLink | null;
+}
+
+/** The draft a tester link froze, as the scenario a page opens on. */
+function linkScenario(link: TesterLink): Scenario {
+  const { seed, overrides, roundSeconds, paceSeconds, thresholds } = link.draft;
+  return { ...EMPTY_SCENARIO, seed, overrides, roundSeconds, paceSeconds, thresholds };
 }
 
 const Ctx = createContext<Frame | null>(null);
@@ -62,16 +71,18 @@ export function useFrame(): Frame {
  * writes it, the page inside reads it (studio/useStudio) and reports its round back, and the
  * shell rates the round against the draft's own thresholds.
  */
-export function RoundFrame({ mode, puzzle, children }: { mode: FrameMode; puzzle: HarnessPuzzle<unknown, unknown, unknown>; children: ReactNode }) {
-  const [scenario, setScenarioState] = useState<Scenario>(() => parseScenario(window.location.search));
+export function RoundFrame({ mode, puzzle, link = null, children }: { mode: FrameMode; puzzle: HarnessPuzzle<unknown, unknown, unknown>; link?: TesterLink | null; children: ReactNode }) {
+  const [scenario, setScenarioState] = useState<Scenario>(() => (link ? linkScenario(link) : parseScenario(window.location.search)));
   const [report, setReportState] = useState<RoundReport>(NO_ROUND);
   const [comparing, setComparing] = useState(false);
 
   const setScenario = useCallback((next: Scenario) => {
     setScenarioState(next);
+    // A tester link's address is its id; what changes on the page (a new seed) stays on the page.
+    if (link) return;
     const qs = formatScenario({ ...next, autostart: null });
     window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
-  }, []);
+  }, [link]);
   const setReport = useCallback((next: RoundReport) => {
     setReportState((prev) => (prev.seed === next.seed && prev.replayMismatch === next.replayMismatch ? prev : next));
   }, []);
@@ -90,8 +101,8 @@ export function RoundFrame({ mode, puzzle, children }: { mode: FrameMode; puzzle
   const changed = useMemo(() => (refused.length ? [] : changes(puzzle, tuned)), [puzzle, tuned, refused]);
   const numbers = comparing ? shipped : tuned;
   const value = useMemo<Frame>(
-    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, comparing, setComparing, report, setReport }),
-    [mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, comparing, report, setReport],
+    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, comparing, setComparing, report, setReport, link }),
+    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, comparing, report, setReport],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

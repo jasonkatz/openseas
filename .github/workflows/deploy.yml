@@ -50,6 +50,7 @@ jobs:
       client: ${{ steps.changed.outputs.client }}
       harness: ${{ steps.changed.outputs.harness }}
       docs: ${{ steps.changed.outputs.docs }}
+      studio_server: ${{ steps.changed.outputs.studio_server }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,8 +63,9 @@ jobs:
           FORCE_HARNESS: ${{ inputs.harness == true }}
           FORCE_DOCS: ${{ inputs.docs == true }}
           DOCS_PROJECT: ${{ vars.VERCEL_DOCS_PROJECT_ID }}
+          STUDIO_SERVICE: ${{ vars.RAILWAY_STUDIO_SERVICE }}
         run: |
-          server=false; client=false; harness=false; docs=false
+          server=false; client=false; harness=false; docs=false; studio_server=false
           shared="packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json .github/workflows/deploy.yml .github/scripts"
           if [ "$FORCE_SERVER" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/server $shared railpack.json; then
             server=true
@@ -83,11 +85,53 @@ jobs:
             echo "::warning::Variable VERCEL_DOCS_PROJECT_ID is not set: the puzzle guides have no Vercel project yet and are not deployed. See docs/DEPLOY.md, step 2c."
             docs=false
           fi
+          # The studio's service (ADR 0043) shares only the protocol with the rest. Until it has a
+          # Railway service (docs/DEPLOY.md, step 1b) there is nowhere to deploy it, and that is
+          # no warning: the studio works without it.
+          if [ -n "$STUDIO_SERVICE" ] && ! git diff --quiet HEAD^ HEAD -- packages/studio-server packages/protocol pnpm-lock.yaml pnpm-workspace.yaml package.json railpack.studio.json .github/workflows/deploy.yml .github/scripts; then
+            studio_server=true
+          fi
+          echo "studio_server=$studio_server" >> "$GITHUB_OUTPUT"
           echo "docs=$docs" >> "$GITHUB_OUTPUT"
           echo "server=$server" >> "$GITHUB_OUTPUT"
           echo "client=$client" >> "$GITHUB_OUTPUT"
           echo "harness=$harness" >> "$GITHUB_OUTPUT"
-          echo "commit $SHA: server=$server client=$client harness=$harness docs=$docs"
+          echo "commit $SHA: server=$server client=$client harness=$harness docs=$docs studio_server=$studio_server"
+
+  studio-server:
+    name: Studio service to Railway
+    needs: plan
+    if: needs.plan.outputs.studio_server == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_SERVICE: ${{ vars.RAILWAY_STUDIO_SERVICE }}
+      SERVICE_URL: ${{ vars.PRODUCTION_STUDIO_SERVICE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g @railway/cli
+      - name: Check configuration
+        run: |
+          [ -n "$RAILWAY_TOKEN" ] || { echo "::error::Secret RAILWAY_TOKEN is not set. See docs/DEPLOY.md, step 1."; exit 1; }
+          [ -n "$SERVICE_URL" ] || echo "::warning::Variable PRODUCTION_STUDIO_SERVICE_URL is not set, so this job cannot wait for the studio's service to come up. See docs/DEPLOY.md, step 1b."
+      - name: Record the commit on the service
+        run: railway variables --service "$RAILWAY_SERVICE" --set "GIT_COMMIT_SHA=$SHA" --skip-deploys
+      - name: Upload and build
+        # The service's RAILPACK_CONFIG_FILE variable points the build at railpack.studio.json.
+        run: |
+          railway up --service "$RAILWAY_SERVICE" --ci
+          echo "Studio service uploaded to Railway service $RAILWAY_SERVICE (commit $SHA)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Wait until the service serves this commit
+        run: |
+          if [ -z "$SERVICE_URL" ]; then exit 0; fi
+          .github/scripts/wait-for-commit.sh "$SERVICE_URL/health" "$SHA" 600
 
   server:
     name: Server to Railway

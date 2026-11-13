@@ -19,7 +19,7 @@ import { localSeed } from "../practice/usePractice.js";
  */
 export function PlayShell(p: ShellProps) {
   const frame = useFrame();
-  const { scenario, setScenario, numbers, refusals, changes, report } = frame;
+  const { scenario, setScenario, numbers, refusals, changes, report, link } = frame;
   const alone = frame.mode === "play";
   const Root = alone ? "main" : "div";
   const [muted, setMutedState] = useState(isMuted);
@@ -124,6 +124,11 @@ export function PlayShell(p: ShellProps) {
                 <p className="how">{t(`${p.puzzle}.how_to`)}</p>
                 {t(`${p.puzzle}.how_to_keyboard`) !== "" && <p className="how how-kbd">{t(`${p.puzzle}.how_to_keyboard`)}</p>}
                 {p.howTo}
+                {link && (
+                  <p className="note" data-testid="play-link">
+                    {t("play.link_by", { name: link.name, author: link.author })}
+                  </p>
+                )}
                 {alone && changes.length > 0 && (
                   <p className="note" data-testid="play-tuned">
                     {t("play.tuned", { count: changes.length })}
@@ -196,6 +201,11 @@ export function PlayShell(p: ShellProps) {
                 </section>
               )}
               {alone && <section className="play-changes" data-testid="play-changes">
+                {link && (
+                  <p className="play-link-name" data-testid="play-link-name">
+                    <b>{link.name}</b> <span className="muted">{t("play.link_author", { author: link.author })}</span>
+                  </p>
+                )}
                 <span className="stat-label">{t("play.changes_title")}</span>
                 {changes.length === 0 ? (
                   <p className="muted small">{refused ? t("play.refused") : t("play.changes_none")}</p>

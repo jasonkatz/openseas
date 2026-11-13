@@ -69,3 +69,7 @@
   grid-column: 1;
   min-width: 0;
 }
+.play-link-name {
+  margin: 0 0 4px;
+  font-size: 14px;
+}

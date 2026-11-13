@@ -20,7 +20,10 @@ export default defineConfig({
     { name: "phone", use: { ...devices["Pixel 7"], browserName: "chromium" } },
   ],
   webServer: {
+    // The build is told where the studio's service is; no service runs here, and the tests that
+    // need one answer for it themselves (e2e/links.spec.ts).
     command: `pnpm vite build && pnpm vite preview --port ${port} --strictPort`,
+    env: { VITE_STUDIO_SERVICE_URL: process.env.VITE_STUDIO_SERVICE_URL ?? "http://localhost:8090" },
     port,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
