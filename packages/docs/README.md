@@ -74,7 +74,7 @@ A capture file is a Playwright file run against the harness (`playwright.capture
 - `tapAt`, `dragThrough`, `glide` move a visible pointer so a clip shows the player's hand.
   `page.keyboard` works too; call `hidePointer` first. `settled` waits for the board's animation
   to land. `boardString`, `canvasAttr` and `boardGeom` read what the page publishes; the puzzle's
-  harness smoke (`packages/harness/e2e/`) shows how each board is driven.
+  harness smoke (`packages/studio/e2e/`) shows how each board is driven.
 
 Look at every picture after a capture. A clip that does not show what its caption says is worse
 than none: `ffmpeg -i x.mp4 -vf "fps=3,scale=200:-1,tile=8x2" -frames:v 1 sheet.png` makes a

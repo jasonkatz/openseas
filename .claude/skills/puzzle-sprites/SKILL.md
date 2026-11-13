@@ -60,7 +60,7 @@ This writes the lossless override, patches the atlas and `frames.json`. Then:
 - A new frame name: the renderer asks for it, and the piece has a code-drawn fallback
   (`boards/src/parts.ts`, or the kit's art) in the same silhouette.
 - A new atlas: its URL goes in `packages/boards/src/sprites/atlas.ts`.
-- `pnpm --filter @openseas/harness test:smoke` is green, and
+- `pnpm --filter @openseas/studio test:smoke` is green, and
   `pnpm --filter @openseas/docs capture <puzzle>` is re-run with every picture looked at.
 
 Commit the brief, the override, the atlas and `frames.json` together.

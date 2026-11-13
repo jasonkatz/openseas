@@ -60,7 +60,7 @@ game is at openseas.online.
 | `packages/boards` | What both front ends render with: the PixiJS boards and their art and sound, the round runner, the tick clock, the server connection (ADR 0019). Renders; never authoritative. |
 | `packages/client` | The game, one graphical experience: the three.js world with the boards over it (ADR 0020). Vite, React. Renders; never authoritative. |
 | `packages/docs` | The puzzle guides: a static site with one guide per puzzle, from first round to expert play. Its screenshots and clips are captured from the real boards on the harness (`pnpm capture:docs`). |
-| `packages/harness` | The puzzle test harness: one page per engine around the shared boards, plus the bench (lab rounds, scenarios as links, inspector, replay review). A developer and tester tool, never linked from the game. |
+| `packages/studio` | The puzzle harness, renamed for the studio it is becoming (M9, ADR 0042). For now still the test bench: one page per engine around the shared boards, plus the bench (lab rounds, scenarios as links, inspector, replay review). A developer and tester tool, never linked from the game. |
 
 ## Run it
 
@@ -70,7 +70,7 @@ Needs Node 22, pnpm 10, and Docker (for Postgres).
 pnpm install
 cp .env.example .env            # defaults work for local dev
 pnpm dev                        # starts Postgres, the server on :8080, the game on :5173, the harness on :5174
-pnpm dev:harness                # or just the server and the harness
+pnpm dev:studio                 # or just the server and the studio
 pnpm dev:docs                   # the puzzle guides on :5175 (no server needed)
 ```
 
@@ -86,7 +86,7 @@ pnpm typecheck                  # every package
 pnpm test                       # engine property tests, protocol, content, server unit tests, the world's layout
 TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/openseas pnpm test   # plus server integration
 pnpm --filter @openseas/engine lint                                                # engine purity guard
-pnpm --filter @openseas/harness exec playwright install chromium && pnpm test:smoke # game and harness smoke
+pnpm --filter @openseas/studio exec playwright install chromium && pnpm test:smoke # game and harness smoke
 ```
 
 Schema changes: edit `packages/server/src/db/schema.ts`, then `pnpm db:generate` and commit the

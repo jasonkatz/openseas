@@ -57,7 +57,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [client, harness, docs]
+        app: [client, studio, docs]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

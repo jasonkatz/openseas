@@ -9,7 +9,7 @@
     "node": ">=22 <23"
   },
   "scripts": {
-    "dev": "pnpm db:up && pnpm -r --parallel --filter @openseas/server --filter @openseas/client --filter @openseas/harness dev",
+    "dev": "pnpm db:up && pnpm -r --parallel --filter @openseas/server --filter @openseas/client --filter @openseas/studio dev",
     "start": "pnpm --filter @openseas/server start",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
@@ -18,13 +18,13 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --no-bail test",
-    "test:smoke": "pnpm --filter @openseas/client test:smoke && pnpm --filter @openseas/harness test:smoke && pnpm --filter @openseas/docs test:smoke",
+    "test:smoke": "pnpm --filter @openseas/client test:smoke && pnpm --filter @openseas/studio test:smoke && pnpm --filter @openseas/docs test:smoke",
     "lint": "pnpm -r lint",
     "check": "pnpm typecheck && pnpm test",
     "dev:game": "pnpm db:up && pnpm -r --parallel --filter @openseas/server --filter @openseas/client dev",
     "dev:docs": "pnpm --filter @openseas/docs dev",
     "capture:docs": "pnpm --filter @openseas/docs capture",
-    "dev:harness": "pnpm db:up && pnpm -r --parallel --filter @openseas/server --filter @openseas/harness dev"
+    "dev:studio": "pnpm db:up && pnpm -r --parallel --filter @openseas/server --filter @openseas/studio dev"
   },
   "devDependencies": {
     "typescript": "~5.9.3"
