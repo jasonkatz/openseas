@@ -21,7 +21,7 @@ function joins(s: DeflectorsState): number {
   return count;
 }
 
-/** What the bench needs to know about Deflectors: its content config, presets and seed probes. */
+/** What the studio needs to know about Deflectors: its content config and its starting points. */
 export const DEFLECTORS: HarnessPuzzle<DeflectorsState, DeflectorsMove, DeflectorsConfig> = {
   id: "deflectors",
   def: DEFLECTORS_DEF,
@@ -29,13 +29,7 @@ export const DEFLECTORS: HarnessPuzzle<DeflectorsState, DeflectorsMove, Deflecto
   roundSeconds: content.puzzles.deflectors.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.deflectors,
   presets: DEFLECTORS_PRESETS,
-  probes: [
-    { id: "one_flip", test: (s) => joins(s) > 0 },
-    { id: "long_best", test: (s) => (opening(s).volley?.best ?? 0) >= 100 },
-    { id: "hard_start", test: (s) => joins(s) === 0 && deflectorsHint(opening(s)) !== null && deflectorsOutlook(opening(s))?.hits === 0 },
-  ],
   // The board's count and its beams in flight are timed against the tick.
   locked: ["tickMs"],
   ticked: { tickMs: content.puzzles.deflectors.config.tickMs },
-  hints: true,
 };

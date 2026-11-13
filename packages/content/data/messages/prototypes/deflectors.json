@@ -43,8 +43,5 @@
   "harness.preset.deflectors_dense": "Eighteen mirrors: long routes, hard to join",
   "harness.preset.deflectors_big_grid": "A big grid: eight by eight, 24 mirrors",
   "harness.preset.deflectors_long_count": "A long count: forty seconds a volley",
-  "harness.preset.deflectors_short_round": "A short round: one minute",
-  "harness.probe.deflectors.one_flip": "one flip brings the first beam home",
-  "harness.probe.deflectors.long_best": "the first beam's best route is nine turns or more",
-  "harness.probe.deflectors.hard_start": "the first beam needs more than one flip"
+  "harness.preset.deflectors_short_round": "A short round: one minute"
 }

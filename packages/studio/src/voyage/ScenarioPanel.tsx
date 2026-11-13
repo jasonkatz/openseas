@@ -2,7 +2,8 @@ import type { Content } from "@openseas/content";
 import { STATIONS, type Station } from "@openseas/engine";
 import { t } from "@openseas/boards";
 import { getPath, leaves, pruneOverrides, type Overrides } from "../scenario/overrides.js";
-import { valueToText } from "../bench/format.js";
+/** A config value for an input: arrays and objects as JSON, everything else as text. */
+const valueToText = (v: unknown): string => (typeof v === "string" ? v : JSON.stringify(v));
 import {
   DUTY_PRESETS,
   HAIL_ORDERS,

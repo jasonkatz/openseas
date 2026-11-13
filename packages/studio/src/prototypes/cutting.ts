@@ -10,7 +10,7 @@ function firstBestCut(s: CuttingState) {
   return b ? cuttingCutPreview(s, b.piece, b.vertical, b.at) : null;
 }
 
-/** What the bench needs to know about Cutting: its content config, presets and seed probes. */
+/** What the studio needs to know about Cutting: its content config and its starting points. */
 export const CUTTING: HarnessPuzzle<CuttingState, CuttingMove, CuttingConfig> = {
   id: "cutting",
   def: CUTTING_DEF,
@@ -18,13 +18,6 @@ export const CUTTING: HarnessPuzzle<CuttingState, CuttingMove, CuttingConfig> = 
   roundSeconds: content.puzzles.cutting.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.cutting,
   presets: CUTTING_PRESETS,
-  probes: [
-    { id: "three_cuts", test: (s) => s.cutsAllowed === 3 },
-    { id: "setup_first", test: (s) => firstBestCut(s)?.points === 0 },
-    // A plan that banks 144 or more from one piece has freed twelve cells whole.
-    { id: "big_block", test: (s) => s.slabBest >= 144 + 36 && (firstBestCut(s)?.halves.some((h) => h.ore !== null && h.w * h.h >= 12) ?? false) },
-  ],
   locked: [],
   ticked: null,
-  hints: true,
 };

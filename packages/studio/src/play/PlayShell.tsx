@@ -12,16 +12,23 @@ import { localSeed } from "../practice/usePractice.js";
  * and a result card, and a sheet that says which seed is on the board and which numbers differ
  * from the shipped ones. No way back to the studio, no sign-in, no round sent anywhere. If the
  * current build refuses the link's numbers, the page says so and deals nothing.
+ *
+ * The studio's page puts this same column in its middle (studio/StudioShell), where the tuning
+ * panel beside it holds the seed and the numbers, so the sheet leaves them out, and a refused
+ * draft keeps its board and only cannot be started.
  */
 export function PlayShell(p: ShellProps) {
   const frame = useFrame();
   const { scenario, setScenario, numbers, refusals, changes, report } = frame;
+  const alone = frame.mode === "play";
+  const Root = alone ? "main" : "div";
   const [muted, setMutedState] = useState(isMuted);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [splash, setSplash] = useState(0);
   const playing = p.phase === "playing";
   const idle = p.phase === "idle";
-  const refused = refusals.length > 0;
+  // Alone, a refused link deals nothing. In the studio the board stays and the panel says which control to fix.
+  const refused = alone && refusals.length > 0;
   // Between rounds the page still knows the content length; the tuned one is what the next round runs.
   const shown: ShellProps = idle ? { ...p, roundSeconds: numbers.roundSeconds, timeLeft: numbers.roundSeconds } : p;
   const lowTime = playing && p.timeLeft <= 10;
@@ -38,7 +45,7 @@ export function PlayShell(p: ShellProps) {
   const start = useCallback(
     (seed?: string) => {
       setSheetOpen(false);
-      p.onStartLab?.(seed);
+      p.onStart(seed);
     },
     [p],
   );
@@ -49,10 +56,10 @@ export function PlayShell(p: ShellProps) {
   }, [scenario, setScenario, start]);
 
   const seed = report.seed ?? scenario.seed;
-  const outcome = p.phase === "result" && p.outcome && p.outcome.kind !== "rejected" && p.outcome.kind !== "recorded" ? p.outcome : null;
+  const outcome = p.phase === "result" ? p.outcome : null;
 
   return (
-    <main className="page puzzle puzzle-compact play" data-testid="play">
+    <Root className="page puzzle puzzle-compact play" data-testid="play">
       <header className="puzzle-bar puzzle-bar-compact play-bar">
         <section className="hud-strip" aria-live="off">
           <CoreStats p={shown} wide={false} pace={pace} lowTime={lowTime} />
@@ -67,7 +74,7 @@ export function PlayShell(p: ShellProps) {
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
             <path d={sheetOpen ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
           </svg>
-          {changes.length > 0 && <i className="dot play-dot" aria-hidden="true" />}
+          {alone && changes.length > 0 && <i className="dot play-dot" aria-hidden="true" />}
         </button>
         <button className="icon-btn" onClick={toggleMute} aria-label={muted ? t("app.unmute") : t("app.mute")} aria-pressed={muted} data-testid="toggle-sound">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -79,6 +86,11 @@ export function PlayShell(p: ShellProps) {
 
       <section className={`board-wrap ${lowTime ? "low-time" : ""} ${playing ? "is-playing" : ""}`}>
         {!refused && p.board(playing && !sheetOpen)}
+        {frame.comparing && (
+          <p className="play-comparing" data-testid="comparing">
+            {t("studio.comparing")}
+          </p>
+        )}
         {playing && splash > 0 && (
           <div className="splash" key={splash} aria-hidden="true">
             {p.splash}
@@ -112,13 +124,13 @@ export function PlayShell(p: ShellProps) {
                 <p className="how">{t(`${p.puzzle}.how_to`)}</p>
                 {t(`${p.puzzle}.how_to_keyboard`) !== "" && <p className="how how-kbd">{t(`${p.puzzle}.how_to_keyboard`)}</p>}
                 {p.howTo}
-                {changes.length > 0 && (
+                {alone && changes.length > 0 && (
                   <p className="note" data-testid="play-tuned">
                     {t("play.tuned", { count: changes.length })}
                   </p>
                 )}
                 <div className="stack">
-                  <button className="btn btn-brass" onClick={() => start()} data-testid="play-start">
+                  <button className="btn btn-brass" onClick={() => start()} disabled={!p.ready} data-testid="play-start">
                     {t("play.start")}
                   </button>
                 </div>
@@ -149,10 +161,10 @@ export function PlayShell(p: ShellProps) {
                   </p>
                 )}
                 <div className="stack">
-                  <button className="btn btn-brass" onClick={() => start()} data-testid="restart">
+                  <button className="btn btn-brass" onClick={() => start()} disabled={!p.ready} data-testid="restart">
                     {t("practice.restart")}
                   </button>
-                  {scenario.seed !== null && (
+                  {alone && scenario.seed !== null && (
                     <button className="btn btn-ghost" onClick={newSeed} data-testid="result-new-seed">
                       {t("play.new_seed")}
                     </button>
@@ -168,7 +180,7 @@ export function PlayShell(p: ShellProps) {
           <>
             {sheetOpen && <button className="hud-scrim" aria-label={t("practice.details_hide")} onClick={() => setSheetOpen(false)} />}
             <div className="hud-panel play-sheet" data-testid="hud-panel" hidden={!sheetOpen}>
-              {!refused && (
+              {alone && !refused && (
                 <section className="play-round">
                   <p className="play-seed" data-testid="play-seed">
                     {seed ? t("play.seed", { seed }) : t("play.seed_fresh")}
@@ -183,7 +195,7 @@ export function PlayShell(p: ShellProps) {
                   </div>
                 </section>
               )}
-              <section className="play-changes" data-testid="play-changes">
+              {alone && <section className="play-changes" data-testid="play-changes">
                 <span className="stat-label">{t("play.changes_title")}</span>
                 {changes.length === 0 ? (
                   <p className="muted small">{refused ? t("play.refused") : t("play.changes_none")}</p>
@@ -196,7 +208,7 @@ export function PlayShell(p: ShellProps) {
                     ))}
                   </ul>
                 )}
-              </section>
+              </section>}
               {!refused && (
                 <>
                   <ComboMeter combo={p.combo} />
@@ -208,6 +220,6 @@ export function PlayShell(p: ShellProps) {
           </>
         }
       </section>
-    </main>
+    </Root>
   );
 }

@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import type { PuzzleId } from "@openseas/engine";
-import { isMuted, setMuted, t, usePirate, useTierPace } from "@openseas/boards";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { PlayShell } from "../play/PlayShell.jsx";
-import { Link } from "../router.jsx";
-import { ComboMeter, CoreStats } from "./Hud.jsx";
+import { StudioShell } from "../studio/StudioShell.jsx";
 import type { PracticeOutcome, PracticePhase } from "./usePractice.js";
 
 const MARKS_KEY = "openseas.markTiles";
@@ -73,7 +71,6 @@ export interface ShellProps {
   eyebrow?: string;
   phase: PracticePhase;
   outcome: PracticeOutcome | null;
-  best: number;
   roundSeconds: number;
   timeLeft: number;
   score: number;
@@ -91,339 +88,34 @@ export interface ShellProps {
   /** Leads the result card, above the score: what decided the round, where that matters most (a fight won or lost). */
   resultHeadline?: ReactNode;
   combo: number;
-  canRecord: boolean;
-  onStartRecorded(): void;
-  onStartUnrated(): void;
-  /** The harness's own round: a chosen seed, config and clock. A seed given here is dealt once and pins nothing. */
-  onStartLab?(seed?: string): void;
-  /** False when the scenario does not validate; the lab button is disabled and `labSummary` says why. */
-  labReady?: boolean;
-  /** A line under the lab button: the seed and what differs from content. */
-  labSummary?: ReactNode;
+  /** Start a round on the frame's numbers (studio/useStudio). A seed given here is dealt once and pins nothing. */
+  onStart(seed?: string): void;
+  /** False while the current build refuses the draft's numbers. */
+  ready: boolean;
   /** Art or extra lines on the start card above the how-to. */
   art?: ReactNode;
   /** Extra lines on the start card under the how-to. */
   howTo?: ReactNode;
-  /** Stats shown beside the combo meter on wide screens and in the details panel on phones. */
+  /** Stats shown in the details sheet beside the combo meter. */
   details?: ReactNode;
-  /** The piece legend and settings, shown below the board (wide) or in the panel (phones). */
+  /** The piece legend and settings, shown in the details sheet. */
   legend: ReactNode;
   /** Extra rows on the result card. */
   resultRows?: ReactNode;
-  /** True while the board is in a dangerous state; colors the phone details button. */
+  /** True while the board is in a dangerous state; colors the details button. */
   warn?: boolean;
-  /** The board. `interactive` is false when a panel covers it or no round is running. */
+  /** The board. `interactive` is false when a sheet covers it or no round is running. */
   board(interactive: boolean): ReactNode;
   /** Big text splashed over the board when a round starts. */
   splash: string;
-  /** The harness bench: a sidebar on wide screens, a sheet over the board on phones. */
-  bench?: ReactNode;
-  /** While set, the start card and result stay hidden and this strip sits over the board: the log is being reviewed. */
-  reviewBar?: ReactNode;
 }
 
 /**
  * The frame every puzzle's page draws itself in. Which one depends on how the page was opened
- * (frame/RoundFrame): the bench's practice page, or the puzzle alone on `/play`.
+ * (frame/RoundFrame): the studio, with the tuning panel beside the board, or the puzzle alone.
  */
 export function PracticeShell(p: ShellProps) {
-  return useFrame().mode === "play" ? <PlayShell {...p} /> : <BenchShell {...p} />;
-}
-
-/**
- * The practice page frame every duty puzzle shares: top bar, HUD, board well, start card, result
- * card, phone details panel, and room for the harness bench.
- */
-function BenchShell(p: ShellProps) {
-  const frame = useFrame();
-  const { socketStatus, phase: piratePhase } = usePirate();
-  const [muted, setMutedState] = useState(isMuted);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [benchOpen, setBenchOpen] = useState(false);
-  const [splash, setSplash] = useState(0);
-  const wide = useMediaQuery("(min-width: 900px)");
-  const playing = p.phase === "playing";
-  const reviewing = p.reviewBar !== undefined;
-  const lowTime = playing && p.timeLeft <= 10;
-  const prefix = p.puzzle;
-  const pace = useTierPace({
-    puzzle: p.puzzle as PuzzleId,
-    points: p.pacePoints ?? p.score,
-    playing,
-    elapsed: p.roundSeconds - p.timeLeft,
-    project: p.paceProject,
-    // A lab round is read against the numbers it was dealt on.
-    numbers: frame.report.tuned ? frame.numbers : undefined,
-  });
-
-  useEffect(() => {
-    if (playing) {
-      setSplash((n) => n + 1);
-      // A round started from the phone's bench sheet wants the board, not the sheet.
-      setBenchOpen(false);
-    }
-  }, [playing]);
-
-  const toggleMute = useCallback(() => {
-    setMuted(!isMuted());
-    setMutedState(isMuted());
-  }, []);
-
-  const statusClass = socketStatus === "open" ? "pip-live" : socketStatus === "connecting" ? "pip-wait" : "pip-off";
-  const statusLong = socketStatus === "open" ? t("app.connected") : socketStatus === "connecting" ? t("app.connecting") : t("app.offline");
-  const statusShort = socketStatus === "open" ? t("app.status_live") : socketStatus === "connecting" ? t("app.status_connecting") : t("app.status_offline");
-
-  const backLink = (
-    <Link to="/" className="icon-btn" aria-label={t("app.back")}>
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-        <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </Link>
-  );
-  const statusPip = (
-    <span className={`pip ${statusClass}`} title={statusLong}>
-      <i aria-hidden="true" />
-      {statusShort}
-    </span>
-  );
-  const muteButton = (
-    <button className="icon-btn" onClick={toggleMute} aria-label={muted ? t("app.unmute") : t("app.mute")} aria-pressed={muted} data-testid="toggle-sound">
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="none" />
-        {muted ? <path d="M16 9.5l5 5m0-5l-5 5" /> : <path d="M15.5 9a4 4 0 010 6M18 6.5a7.5 7.5 0 010 11" />}
-      </svg>
-    </button>
-  );
-  const benchButton = p.bench !== undefined && !wide && (
-    <button
-      className={`icon-btn bench-btn ${benchOpen ? "is-open" : ""}`}
-      onClick={() => setBenchOpen((o) => !o)}
-      aria-expanded={benchOpen}
-      aria-label={benchOpen ? t("harness.bench_hide") : t("harness.bench_show")}
-      data-testid="bench-toggle"
-    >
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 7h16M4 12h10M4 17h13" />
-        <circle cx="17.5" cy="12" r="2" fill="currentColor" stroke="none" />
-      </svg>
-    </button>
-  );
-  const coreStats = <CoreStats p={p} wide={wide} pace={pace} lowTime={lowTime} />;
-  const comboMeter = <ComboMeter combo={p.combo} />;
-
-  const covered = detailsOpen || (benchOpen && !wide);
-  const board = (
-    <section className={`board-wrap ${lowTime ? "low-time" : ""} ${playing ? "is-playing" : ""}`}>
-      {p.board(playing && !covered)}
-      {playing && splash > 0 && (
-        <div className="splash" key={splash} aria-hidden="true">
-          {p.splash}
-        </div>
-      )}
-
-      {reviewing && (
-        <div className="review-bar" data-testid="review-bar">
-          {p.reviewBar}
-        </div>
-      )}
-
-      {!playing && !reviewing && (
-        <div className="board-veil">
-          {p.phase === "idle" && (
-            <div className="veil-card">
-              <p className="eyebrow">{p.eyebrow ?? t("practice.eyebrow")}</p>
-              <h2>{t(`${prefix}.title`)}</h2>
-              {p.art}
-              <p className="how">{t(`${prefix}.how_to`)}</p>
-              {t(`${prefix}.how_to_keyboard`) !== "" && <p className="how how-kbd">{t(`${prefix}.how_to_keyboard`)}</p>}
-              {p.howTo}
-              {p.best > 0 && <p className="best-line">{t("practice.best", { score: p.best })}</p>}
-              {!p.canRecord && socketStatus !== "connecting" && (
-                <p className="note">{piratePhase === "needs-pirate" ? t("harness.needs_pirate_note") : piratePhase === "loading" ? t("app.loading") : t("app.offline")}</p>
-              )}
-              <div className="stack">
-                <button className="btn btn-brass" onClick={p.onStartRecorded} disabled={!p.canRecord} data-testid="start-recorded">
-                  {t("harness.recorded_start")}
-                </button>
-                <button className="btn btn-ghost" onClick={p.onStartUnrated} data-testid="start-unrated">
-                  {t("practice.unrated_start")}
-                </button>
-                {p.onStartLab && (
-                  <>
-                    <button className="btn btn-lab" onClick={() => p.onStartLab?.()} disabled={p.labReady === false} data-testid="start-lab">
-                      {t("harness.lab_start")}
-                    </button>
-                    {p.labSummary && (
-                      <p className="lab-summary" data-testid="lab-summary">
-                        {p.labSummary}
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-          {p.phase === "starting" && (
-            <p className="status">
-              <span className="spinner" aria-hidden="true" />
-              {t("app.connecting")}
-            </p>
-          )}
-          {p.phase === "waiting" && (
-            <p className="status">
-              <span className="spinner" aria-hidden="true" />
-              {t("practice.waiting_result")}
-            </p>
-          )}
-          {p.phase === "result" && p.outcome && (
-            <div className="veil-card" data-testid="result">
-              <p className="eyebrow">{t("practice.round_over")}</p>
-              {p.resultHeadline}
-              <ResultBody outcome={p.outcome} rows={p.resultRows} />
-              <div className="stack">
-                <button
-                  className="btn btn-brass"
-                  onClick={p.outcome.kind === "lab" && p.onStartLab ? () => p.onStartLab?.() : p.canRecord ? p.onStartRecorded : p.onStartUnrated}
-                  data-testid="restart"
-                >
-                  {t("practice.restart")}
-                </button>
-                <Link to="/" className="btn btn-ghost">
-                  {t("app.back")}
-                </Link>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {!wide && detailsOpen && (
-        <>
-          <button className="hud-scrim" aria-label={t("practice.details_hide")} onClick={() => setDetailsOpen(false)} />
-          <div className="hud-panel" data-testid="hud-panel">
-            {statusPip}
-            {comboMeter}
-            {p.details}
-            <div className="legend legend-inline">{p.legend}</div>
-          </div>
-        </>
-      )}
-
-      {!wide && benchOpen && p.bench !== undefined && (
-        <div className="bench-sheet" data-testid="bench-sheet">
-          <div className="bench-sheet-bar">
-            <span className="eyebrow">{t("harness.bench_title")}</span>
-            <button className="icon-btn" onClick={() => setBenchOpen(false)} aria-label={t("harness.bench_hide")}>
-              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
-            </button>
-          </div>
-          {p.bench}
-        </div>
-      )}
-    </section>
-  );
-
-  if (wide) {
-    return (
-      <main className={`page puzzle ${p.bench !== undefined ? "puzzle-bench" : ""}`}>
-        <header className="puzzle-bar">
-          {backLink}
-          <h1 className="puzzle-title">{t(`${prefix}.title`)}</h1>
-          {statusPip}
-          {muteButton}
-        </header>
-        <section className="hud" aria-live="off">
-          {coreStats}
-          {comboMeter}
-          {p.details}
-        </section>
-        {board}
-        <details className="legend" open>
-          <summary>{t("practice.legend")}</summary>
-          {p.legend}
-        </details>
-        {p.bench !== undefined && (
-          <aside className="bench" data-testid="bench">
-            {p.bench}
-          </aside>
-        )}
-      </main>
-    );
-  }
-
-  return (
-    <main className="page puzzle puzzle-compact">
-      <header className={`puzzle-bar puzzle-bar-compact ${p.bench !== undefined ? "has-bench" : ""}`}>
-        {backLink}
-        <section className="hud-strip" aria-live="off">
-          {coreStats}
-        </section>
-        {benchButton}
-        <button
-          className={`icon-btn details-btn ${p.warn && playing ? "warn" : ""}`}
-          onClick={() => setDetailsOpen((o) => !o)}
-          aria-expanded={detailsOpen}
-          aria-label={detailsOpen ? t("practice.details_hide") : t("practice.details_show")}
-          data-testid="toggle-details"
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-            <path d={detailsOpen ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
-          </svg>
-          <i className={`dot ${statusClass}`} aria-hidden="true" />
-        </button>
-        {muteButton}
-      </header>
-      {board}
-    </main>
-  );
-}
-
-function ResultBody({ outcome, rows }: { outcome: PracticeOutcome; rows?: ReactNode }) {
-  if (outcome.kind === "rejected") {
-    return (
-      <>
-        <h2>{t("practice.result_rejected_title")}</h2>
-        <p className="error">{t("practice.result_rejected", { reason: t(`practice.reject.${outcome.reason}`) })}</p>
-      </>
-    );
-  }
-  const r = outcome.kind === "recorded" ? outcome.result : outcome;
-  const performance = outcome.kind === "recorded" ? outcome.result.performance : outcome.performance;
-  return (
-    <>
-      <p className="result-tier" data-testid="result-tier" data-tier={performance.tier}>
-        {t("practice.round_tier", { tier: t(`tier.${performance.tier}`) })}
-      </p>
-      <ResultScore score={r.score} />
-      {outcome.newBest && <p className="best-badge">{t("practice.new_best")}</p>}
-      <dl className="result-stats">
-        <div>
-          <dt>{t("practice.moves")}</dt>
-          <dd>{r.moves}</dd>
-        </div>
-        <div>
-          <dt>{t("practice.best_combo")}</dt>
-          <dd>{r.bestCombo}</dd>
-        </div>
-        {rows}
-        <div>
-          <dt>{t("harness.performance")}</dt>
-          <dd data-testid="result-performance" data-rating={performance.rating}>
-            {t("harness.performance_value", { rating: performance.rating, tier: t(`tier.${performance.tier}`) })}
-          </dd>
-        </div>
-      </dl>
-      {outcome.kind === "recorded" ? (
-        <p className="muted small">{outcome.result.verified ? t("harness.result_recorded") : t("practice.result_unverified")}</p>
-      ) : outcome.kind === "lab" ? (
-        <p className="muted small">{t("harness.result_lab")}</p>
-      ) : (
-        <p className="muted small">{t("harness.result_unrated")}</p>
-      )}
-    </>
-  );
+  return useFrame().mode === "studio" ? <StudioShell {...p} /> : <PlayShell {...p} />;
 }
 
 export function ResultScore({ score }: { score: number }) {

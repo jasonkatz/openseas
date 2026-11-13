@@ -4,11 +4,9 @@ import type { HarnessPuzzle } from "../puzzles.js";
 import type { Scenario } from "../scenario/codec.js";
 import { applyOverrides, diffConfig, getPath } from "../scenario/overrides.js";
 import { validateConfig } from "../scenario/validate.js";
+import type { Threshold } from "../practice/usePractice.js";
 
-export interface Threshold {
-  readonly score: number;
-  readonly rating: number;
-}
+export type { Threshold } from "../practice/usePractice.js";
 
 /**
  * The numbers a round is played on: what a puzzle's content file holds that tuning can change
@@ -90,4 +88,46 @@ export function formatNumber(key: string, value: unknown): string {
   if (key === "thresholds" && Array.isArray(value)) return value.map((t: Partial<Threshold> | null) => String(t?.score ?? "?")).join(" / ");
   if (value === undefined) return "";
   return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+const CONFIG = "config.";
+
+/**
+ * A scenario with one number set, by its key in the content file (`config.maxMoves`,
+ * `roundSeconds`, `thresholds`). A value equal to the shipped one leaves no trace, so a control
+ * moved back is a control that was never moved.
+ */
+export function withNumber<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, scenario: Scenario, key: string, value: unknown): Scenario {
+  const shipped = shippedNumbers(puzzle);
+  if (key.startsWith(CONFIG)) {
+    const path = key.slice(CONFIG.length);
+    const overrides: Record<string, unknown> = { ...leafOverrides(puzzle, scenario) };
+    if (same(getPath(shipped.config, path), value)) delete overrides[path];
+    else overrides[path] = value;
+    return { ...scenario, overrides };
+  }
+  if (key === "roundSeconds") return { ...scenario, roundSeconds: value === shipped.roundSeconds ? null : (value as number) };
+  if (key === "paceSeconds") return { ...scenario, paceSeconds: value === shipped.paceSeconds ? null : (value as number) };
+  if (key === "thresholds") return { ...scenario, thresholds: same(value, shipped.thresholds) ? null : value };
+  return scenario;
+}
+
+/** A scenario with one number back at its shipped value. */
+export function withoutNumber<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, scenario: Scenario, key: string): Scenario {
+  const shipped = shippedNumbers(puzzle);
+  if (key.startsWith(CONFIG)) return withNumber(puzzle, scenario, key, getPath(shipped.config, key.slice(CONFIG.length)));
+  return withNumber(puzzle, scenario, key, shipped[key as "roundSeconds" | "paceSeconds" | "thresholds"]);
+}
+
+/** A scenario with every number shipped: the seed and the clock's start are kept. */
+export function withoutNumbers(scenario: Scenario): Scenario {
+  return { ...scenario, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null };
+}
+
+/**
+ * A scenario's config overrides as one entry a changed leaf. A link or a starting point may set a
+ * whole branch (`c.raider={...}`); the panel sets and resets leaves, so it works on this form.
+ */
+export function leafOverrides<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, scenario: Scenario): Scenario["overrides"] {
+  return diffConfig(puzzle.config, applyOverrides(puzzle.config, scenario.overrides));
 }

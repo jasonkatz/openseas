@@ -1,0 +1,252 @@
+/* A puzzle's studio page (DESIGN.md 3.14): the tuning panel, the board in the middle at a phone's
+   proportions, and room kept on the far side for the chat. Desktop only: a phone gets `/play`. */
+.studio {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(320px, 400px) minmax(360px, 520px) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "bar bar bar"
+    "panel stage rest";
+  gap: 10px 20px;
+  padding: 12px 20px 16px;
+}
+.studio-bar {
+  grid-area: bar;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.studio-bar .eyebrow,
+.studio-bar .puzzle-title {
+  margin: 0;
+}
+.studio-panel {
+  grid-area: panel;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+.studio-stage {
+  grid-area: stage;
+  min-height: 0;
+  display: flex;
+}
+.studio-stage .puzzle.play {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  padding: 0;
+}
+.play-comparing {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--brass);
+  color: #1c1405;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* ---- the tuning panel */
+.tune {
+  display: grid;
+  gap: 12px;
+  font-size: 14px;
+}
+.tune-seed,
+.tune-draft,
+.tune-group {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: linear-gradient(160deg, rgba(28, 43, 72, 0.7), rgba(11, 21, 38, 0.7));
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.08);
+}
+.tune p {
+  margin: 0;
+}
+.tune-field {
+  display: grid;
+  gap: 4px;
+}
+.tune input[type="text"],
+.tune input[type="number"],
+.tune select,
+.tune textarea {
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 227, 198, 0.18);
+  background: rgba(7, 14, 26, 0.6);
+  color: var(--parchment);
+  font-size: 13px;
+}
+.tune textarea {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.35;
+}
+.tune-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tune .btn.is-held {
+  background: var(--brass);
+  color: #1c1405;
+}
+.tune-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.tune-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--brass);
+}
+.tune-group > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+.tune-row {
+  display: grid;
+  gap: 4px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(239, 227, 198, 0.08);
+}
+.tune-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.tune-key {
+  font-size: 13px;
+  color: var(--parchment);
+  overflow-wrap: anywhere;
+}
+.tune-branch {
+  opacity: 0.55;
+}
+.tune-unit {
+  font-size: 11px;
+  opacity: 0.6;
+}
+.tune-dot {
+  margin-left: auto;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--brass);
+  box-shadow: 0 0 0 3px rgba(212, 165, 72, 0.25);
+  cursor: pointer;
+  align-self: center;
+}
+.tune-row.is-changed .tune-key {
+  color: var(--brass);
+}
+.tune-desc {
+  font-size: 12px;
+  line-height: 1.35;
+  opacity: 0.7;
+}
+.tune-refusal,
+.tune-refusals {
+  font-size: 12px;
+  color: var(--danger);
+}
+.tune-refusals {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tune-row.is-refused {
+  box-shadow: -3px 0 0 var(--danger);
+  padding-left: 8px;
+}
+.tune-slider {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px;
+  align-items: center;
+  gap: 10px;
+}
+.tune-slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--brass);
+}
+.tune-stepper {
+  display: grid;
+  grid-template-columns: 34px 84px 34px;
+  gap: 6px;
+  justify-content: start;
+}
+.tune-number {
+  width: 100%;
+  text-align: right;
+}
+.tune-value {
+  font-size: 13px;
+  opacity: 0.8;
+}
+.tune-curve {
+  display: grid;
+  gap: 6px;
+}
+.tune-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 36px;
+}
+.tune-bars i {
+  flex: 1 1 0;
+  max-width: 28px;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, var(--brass), rgba(212, 165, 72, 0.35));
+}
+.tune-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tune-cells .tune-number {
+  width: 62px;
+}
+.tune-thresholds {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.tune-thresholds li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: 10px;
+}
+.tune-rating {
+  font-size: 13px;
+}

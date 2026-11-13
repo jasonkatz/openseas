@@ -50,8 +50,5 @@
   "harness.preset.scanner_big_sector": "A big sector: eight by eight, four to eight contacts",
   "harness.preset.scanner_tight_par": "Tight par: one ping a contact, and two",
   "harness.preset.scanner_no_opening": "No opening ping: the first ping is a gamble",
-  "harness.preset.scanner_ten_moves": "Ten moves, one minute",
-  "harness.probe.scanner.wide_open": "the opening ping is five steps or more from every contact",
-  "harness.probe.scanner.one_ring": "the opening ping already proves a contact",
-  "harness.probe.scanner.huddle": "two contacts open side by side"
+  "harness.preset.scanner_ten_moves": "Ten moves, one minute"
 }

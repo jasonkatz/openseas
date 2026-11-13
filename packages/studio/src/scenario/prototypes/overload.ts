@@ -11,5 +11,4 @@ export const OVERLOAD_PRESETS: readonly Preset[] = [
   { id: "overload_big_bank", overrides: { width: 8, height: 9 } },
   // Five held and one more every twelve seconds: ten taps in the minute, none given back.
   { id: "overload_ten_taps", overrides: { tapRegenTicks: 120, refundEvery: 0 }, roundSeconds: 60 },
-  { id: "slow_motion", overrides: {}, speed: 0.25 },
 ];

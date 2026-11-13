@@ -1,14 +1,14 @@
 import { useCallback } from "react";
 import { racksCrateFits, racksCrateWouldShip, racksNextShipment, summarizeRacks, type RacksConfig, type RacksMove, type RacksState } from "@openseas/engine";
 import { content, KindIcon, KINDS, RacksBoard, spriteName, t } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { RACKS } from "../prototypes/racks.js";
 
 const racks = content.puzzles.racks;
 
-/** Racks (prototype, ADR 0036): the practice frame round the shared board, with the bench beside it. */
+/** Racks (prototype, ADR 0036): the shared board in the studio's frame. */
 export function RacksPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<RacksState, RacksMove, RacksConfig>({
@@ -18,9 +18,9 @@ export function RacksPractice() {
     roundSeconds: racks.roundSeconds,
     summarize: summarizeRacks,
   });
-  const bench = useBench(RACKS, api);
+  const studio = useStudio(RACKS, api);
   const { state } = api;
-  const shown = bench.reviewState ?? state;
+  const shown = state;
   const cfg = shown.config;
 
   const onMove = useCallback((from: number, to: number) => void api.apply({ type: "move", from, to }), [api]);
@@ -37,7 +37,6 @@ export function RacksPractice() {
       eyebrow={t("harness.prototype_eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
@@ -47,12 +46,8 @@ export function RacksPractice() {
       maxMoves={cfg.maxMoves < RACKS.config.maxMoves ? cfg.maxMoves : undefined}
       combo={shown.combo}
       warn={api.phase === "playing" && !fits}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={studio.start}
+      ready={studio.ready}
       splash={t("racks.go")}
       howTo={
         <>
@@ -131,10 +126,8 @@ export function RacksPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
-        <RacksBoard key={bench.reviewKey ?? "live"} state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={bench.hints} onMove={onMove} onCall={onCall} onFrame={api.markRendered} />
+        <RacksBoard state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={studio.hints} onMove={onMove} onCall={onCall} onFrame={api.markRendered} />
       )}
     />
   );

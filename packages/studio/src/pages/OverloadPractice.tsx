@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { advanceOverload, overloadStreakPercentAt, summarizeOverload, type OverloadConfig, type OverloadMove, type OverloadState } from "@openseas/engine";
 import { content, OverloadBoard, SpriteIcon, t, useTicked } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { OVERLOAD } from "../prototypes/overload.js";
@@ -9,7 +9,7 @@ import { OVERLOAD } from "../prototypes/overload.js";
 const overload = content.puzzles.overload;
 const waitAt = (tick: number): OverloadMove => ({ type: "wait", tick });
 
-/** Overload (prototype, ADR 0036): the practice frame round the shared board, with the bench beside it. Its taps come back on the engine's clock (ADR 0015). */
+/** Overload (prototype, ADR 0036): the shared board in the studio's frame. Its taps come back on the engine's clock (ADR 0015). */
 export function OverloadPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<OverloadState, OverloadMove, OverloadConfig>({
@@ -19,11 +19,11 @@ export function OverloadPractice() {
     roundSeconds: overload.roundSeconds,
     summarize: summarizeOverload,
   });
-  const bench = useBench(OVERLOAD, api);
+  const studio = useStudio(OVERLOAD, api);
   const { state } = api;
   const roundCfg = api.round?.config ?? overload.config;
   const ticked = useTicked(api, { tickMs: roundCfg.tickMs, maxTick: roundCfg.maxTick, advance: advanceOverload, wait: waitAt });
-  const shown = bench.reviewState ?? ticked.shown;
+  const shown = ticked.shown;
   const cfg = shown.config;
 
   const onTap = useCallback((cell: number): boolean => api.apply({ type: "tap", cell, tick: ticked.moveTick() }), [api, ticked]);
@@ -34,19 +34,14 @@ export function OverloadPractice() {
       eyebrow={t("harness.prototype_eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
       moves={shown.moveCount}
       movesLabel={t("overload.moves")}
       combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={studio.start}
+      ready={studio.ready}
       splash={t("overload.go")}
       howTo={
         <>
@@ -122,10 +117,8 @@ export function OverloadPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
-        <OverloadBoard key={bench.reviewKey ?? "live"} state={shown} interactive={interactive} showMarks={showMarks} hints={bench.hints} onTap={onTap} onFrame={api.markRendered} />
+        <OverloadBoard state={shown} interactive={interactive} showMarks={showMarks} hints={studio.hints} onTap={onTap} onFrame={api.markRendered} />
       )}
     />
   );

@@ -40,7 +40,7 @@ export async function openLab(page: Page, puzzle: string, opts: LabOptions): Pro
   if (opts.speed && opts.speed !== 1) q.set("speed", String(opts.speed));
   if (opts.paused) q.set("paused", "1");
   if (!opts.hints) q.set("hints", "0");
-  q.set("start", "lab");
+  q.set("start", "1");
   // Sound off before the page's first script runs: a capture is silent.
   await page.addInitScript(() => {
     try {

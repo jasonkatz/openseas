@@ -54,8 +54,8 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 10. **No difficulty setting.** Skill shows as score. The round ramps itself where it suits the
     puzzle (a quicker feed, bigger targets), and a board against an opponent scales by the
     opponent's tier (`scorePercent`).
-11. **Hints teach, never play.** An idle hint in unrated and lab rounds only. A round that counts
-    never hints.
+11. **Hints teach, never play.** An idle hint in a studio round only. A round that counts never
+    hints.
 
 ### Scoring
 
@@ -81,12 +81,18 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
     watch a round: the reading should move with how you are playing, neither stuck nor strobing.
     A puzzle whose score is not points over a round hands the hook an engine function that reads
     a stretch as a score (Swordfighting's `swordfightPaceScore`).
-17. **Thresholds come from a bot ladder, then from people.** Write bots from careless to expert and
-    set the tiers between them. A degenerate bot (spam, sweep, gamble) must land a tier below a plain
-    thinking one; if it does not, the rules are wrong, not the thresholds. Record the bots and
-    their scores in the tuning notes.
+17. **Thresholds are tuned by hand, in the studio.** `thresholds` and `paceSeconds` are controls
+    on the puzzle's studio page like any number (ADR 0042): play rounds there with the HUD's tier
+    in view and move them until each tier names the play it is given for. A bot ladder (bots from
+    careless to expert, the tiers set between them) is a tool for a first guess or a doubt, not a
+    step every change repeats. One thing it checks still holds however the numbers were set: a
+    degenerate way to play (spam, sweep, gamble) must land a tier below plain thinking play; if
+    it does not, the rules are wrong, not the thresholds. The tuning notes say why the thresholds
+    sit where they do, and keep any bots and their scores.
 18. **Numbers live in content.** Every tuned number is a named key in
-    `content/data/puzzles/<id>.json`. The board shows only what an engine function computed.
+    `content/data/puzzles/<id>.json`, and so a control on the puzzle's studio page: its wire schema
+    bounds it and says in one line what it does (`.describe()`), and
+    `studio/src/tuning/groups/<id>.ts` gives it a section. The board shows only what an engine function computed.
 
 ### Purpose
 
@@ -94,7 +100,7 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
     today a station feeding the ship or a fight, later whatever the game needs (a haul, an outpost
     job, a craft). The design file's Role section says what, and what the tier changes. A
     prototype names the roles it could take.
-20. **Whole on its own.** It is a complete, fun round alone on the harness, with no ship behind it.
+20. **Whole on its own.** It is a complete, fun round alone in the studio, with no ship behind it.
     What the wider game injects (Cooling's heat) arrives as moves in the log.
 
 ### Clear-cut
@@ -111,7 +117,8 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
     (`boards/src/audio.ts`, ADR 0041), and marks, numerals and hit areas stay in code. A puzzle
     without its sheet is not finished; say so.
 24. **Every string in the message table.**
-25. **Three homes, kept in step.** A harness page with bench entry, lab presets and a smoke that
+25. **Three homes, kept in step.** A studio page with its entry, starting points, a line of
+    description on every config key and a place for it in the tuning panel, and a smoke that
     plays by key and by pointer; a guide in `packages/docs` with captured pictures and no typed
     number; and, once it has a role, its place in the game. Plus the design file.
 
@@ -122,7 +129,9 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
    ready. Done when the owner has picked it.
 2. Build it as a prototype (ADR 0036): copy Salvage's files as `docs/prototypes/README.md` lists,
    determinism tests first, feedback with the first playable.
-3. Write the bot ladder, tune against it, set the thresholds, and write the tuning notes.
+3. Set the thresholds: a bot ladder for the first guess where it helps, then by hand in the
+   studio (rule 17). Describe every config key and give it its section of the tuning panel (rule
+   18). Write the tuning notes.
 4. Write the design file, the guide and its capture, and the sprite and sound briefs; make their
    takes with `puzzle-sprites` and `puzzle-sounds` for the owner to pick.
 5. Report the bar, item by item, with the open questions for play.
@@ -131,14 +140,16 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 
 1. Read its design file and its guide. State which bar items the change touches.
 2. Make the change, and in the same commit:
-   - **A rule or a number:** the design file; the guide re-read against the engine; the bot ladder
-     re-run and thresholds moved if tiers shifted; a `DESIGN.md` section 6 row if it departs
-     further from the original.
-   - **A control:** the design file, the guide's controls, the harness smoke.
+   - **A rule or a number:** the design file; the guide re-read against the engine; the tiers
+     looked at again in the studio and the thresholds moved if they shifted; a `DESIGN.md` section
+     6 row if it departs further from the original.
+   - **A new or renamed config key:** its line of description on the wire schema and its place in
+     `studio/src/tuning/groups/<id>.ts`.
+   - **A control:** the design file, the guide's controls, the studio smoke.
    - **A look or a sound:** `pnpm --filter @openseas/docs capture <id>`, and every picture looked at.
      New pieces need new frames and new feedback new cues: add them to the briefs and make their
      takes with `puzzle-sprites` and `puzzle-sounds`.
-3. Done when the harness smoke and the docs tests are green and the bar items you named are
+3. Done when the studio's tests and smoke and the docs tests are green and the bar items you named are
    reported as still met.
 
 ## Promoting

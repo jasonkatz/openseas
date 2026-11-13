@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { advanceDeflectors, deflectorsOutlook, deflectorsStreakPercentAt, summarizeDeflectors, type DeflectorsConfig, type DeflectorsMove, type DeflectorsState } from "@openseas/engine";
 import { content, DeflectorsBoard, KindIcon, SpriteIcon, t, useTicked } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { DEFLECTORS } from "../prototypes/deflectors.js";
@@ -10,7 +10,7 @@ const deflectors = content.puzzles.deflectors;
 const waitAt = (tick: number): DeflectorsMove => ({ type: "wait", tick });
 const BEAM_KEYS = ["deflectors.legend_beam_1", "deflectors.legend_beam_2", "deflectors.legend_beam_3"];
 
-/** Deflectors (prototype, ADR 0036): the practice frame round the shared board, with the bench beside it. */
+/** Deflectors (prototype, ADR 0036): the shared board in the studio's frame. */
 export function DeflectorsPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<DeflectorsState, DeflectorsMove, DeflectorsConfig>({
@@ -20,11 +20,11 @@ export function DeflectorsPractice() {
     roundSeconds: deflectors.roundSeconds,
     summarize: summarizeDeflectors,
   });
-  const bench = useBench(DEFLECTORS, api);
+  const studio = useStudio(DEFLECTORS, api);
   const { state } = api;
   const cfg = api.round?.config ?? deflectors.config;
   const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceDeflectors, wait: waitAt });
-  const shown = bench.reviewState ?? ticked.shown;
+  const shown = ticked.shown;
 
   const onFlip = useCallback((cell: number) => void api.apply({ type: "flip", cell, tick: ticked.moveTick() }), [api, ticked]);
   const onFire = useCallback((volley: number) => void api.apply({ type: "fire", volley, tick: ticked.moveTick() }), [api, ticked]);
@@ -40,19 +40,14 @@ export function DeflectorsPractice() {
       eyebrow={t("harness.prototype_eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
       moves={shown.volleys}
       movesLabel={t("deflectors.moves")}
       combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={studio.start}
+      ready={studio.ready}
       splash={t("deflectors.go")}
       warn={api.phase === "playing" && outlook !== null && !outlook.clean && shown.volley !== null && (shown.volley.fireTick - shown.tick) * shown.config.tickMs <= 3000}
       howTo={
@@ -138,17 +133,15 @@ export function DeflectorsPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
         <DeflectorsBoard
-          key={bench.reviewKey ?? "live"}
+         
           state={shown}
-          logged={bench.reviewState ?? state}
+          logged={state}
           version={api.version}
           interactive={interactive}
           showMarks={showMarks}
-          hints={bench.hints}
+          hints={studio.hints}
           onFlip={onFlip}
           onFire={onFire}
           onFrame={api.markRendered}

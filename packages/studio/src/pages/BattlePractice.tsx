@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BATTLE_PERMILLE, summarizeBattle, type BattleConfig, type BattleEvent, type BattleMove, type BattlePlan, type BattleState } from "@openseas/engine";
 import { BattleBoard, content, sfx, t } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { BATTLE } from "../puzzles.js";
@@ -37,10 +37,10 @@ export function BattlePractice() {
     roundSeconds: battle.roundSeconds,
     summarize: summarizeBattle,
   });
-  const bench = useBench(BATTLE, api);
+  const studio = useStudio(BATTLE, api);
   const { state } = api;
   const cfg = api.round?.config ?? battle.config;
-  const shown = bench.reviewState ?? state;
+  const shown = state;
   const playing = api.phase === "playing";
 
   // The turn clock: the plot flies when it runs out, as it does aboard. It reads the round's own
@@ -163,7 +163,6 @@ export function BattlePractice() {
       puzzle="battle"
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
@@ -171,12 +170,8 @@ export function BattlePractice() {
       maxMoves={shown.config.maxTurns}
       movesLabel={t("battle.turns")}
       combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={studio.start}
+      ready={studio.ready}
       splash={t("battle.go")}
       warn={playing && me.damage >= shown.config.grappleDamage}
       howTo={
@@ -225,11 +220,9 @@ export function BattlePractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
         <BattleBoard
-          key={bench.reviewKey ?? "live"}
+         
           state={shown}
           interactive={interactive}
           showMarks={showMarks}

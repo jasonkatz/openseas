@@ -13,7 +13,7 @@ import {
   type SwordfightState,
 } from "@openseas/engine";
 import { BlockIcon, SwordfightBoard, content, sfx, t, useTicked, type SwordfightPlaceAnswer } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { SWORDFIGHT } from "../puzzles.js";
@@ -36,11 +36,11 @@ export function SwordfightPractice() {
     roundSeconds: swordfight.roundSeconds,
     summarize: summarizeSwordfight,
   });
-  const bench = useBench(SWORDFIGHT, api);
+  const studio = useStudio(SWORDFIGHT, api);
   const { state } = api;
   const cfg = api.round?.config ?? swordfight.config;
   const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceSwordfight, wait: waitAt, waitEveryTicks: 5 });
-  const shown = bench.reviewState ?? ticked.shown;
+  const shown = ticked.shown;
   const playing = api.phase === "playing";
 
   const onPlace = useCallback(
@@ -150,7 +150,6 @@ export function SwordfightPractice() {
       puzzle="swordfight"
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={attackRate(shown)}
@@ -160,12 +159,8 @@ export function SwordfightPractice() {
       moves={player.drops}
       movesLabel={t("swordfight.drops")}
       combo={player.bestChain}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={studio.start}
+      ready={studio.ready}
       splash={t("swordfight.go")}
       warn={playing && (top >= shown.config.height - 3 || pending >= shown.config.width * 2)}
       howTo={
@@ -239,10 +234,8 @@ export function SwordfightPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
-        <SwordfightBoard key={bench.reviewKey ?? "live"} state={shown} interactive={interactive} showMarks={showMarks} onPlace={onPlace} onFrame={api.markRendered} onEvents={onEvents} onNudge={onNudge} />
+        <SwordfightBoard state={shown} interactive={interactive} showMarks={showMarks} onPlace={onPlace} onFrame={api.markRendered} onEvents={onEvents} onNudge={onNudge} />
       )}
     />
   );

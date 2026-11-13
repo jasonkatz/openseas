@@ -40,8 +40,5 @@
   "harness.preset.tug_big_bay": "A big bay: nine by nine",
   "harness.preset.tug_easy_clamps": "Easy clamps: par never above two",
   "harness.preset.tug_hard_clamps": "Hard clamps: par four from the start",
-  "harness.preset.tug_ten_moves": "Ten flicks, one minute",
-  "harness.probe.tug.two_pod_start": "the first clamp's par route needs a second pod as the stop",
-  "harness.probe.tug.clamp_mid_bay": "the first clamp is off the walls",
-  "harness.probe.tug.clamp_for_first_pod": "the first clamp wants the drum"
+  "harness.preset.tug_ten_moves": "Ten flicks, one minute"
 }

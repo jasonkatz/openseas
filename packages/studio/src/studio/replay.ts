@@ -21,9 +21,8 @@ export interface Replay<S, M> {
 }
 
 /**
- * Replays a move log from its seed the way the server does (ADR 0003), keeping every state so a
- * reviewer can step through them, and compares each hash with what was recorded. Pure: the same
- * inputs give the same replay on any machine, which is the property the harness exists to check.
+ * Replays a move log from its seed the way the server does (ADR 0003), keeping every state, and compares each hash with what was recorded. Pure: the same
+ * inputs give the same replay on any machine, which is the property the studio checks after every round.
  */
 export function replayRound<S, M, C>(def: PuzzleDef<S, M, C>, seed: string, config: C, moves: readonly M[], recordedHashes?: readonly string[]): Replay<S, M> {
   const initial = def.create(seed, config);
@@ -56,13 +55,4 @@ export function replayRound<S, M, C>(def: PuzzleDef<S, M, C>, seed: string, conf
  */
 export function replayAgrees<S, M>(replay: Replay<S, M>): boolean {
   return replay.error === null && replay.divergedAt === null;
-}
-
-/** Finds a seed whose opening state satisfies `probe`, trying `prefix-1`, `prefix-2`, ... up to `tries`. */
-export function findSeed<S, M, C>(def: PuzzleDef<S, M, C>, config: C, probe: (state: S) => boolean, prefix: string, tries = 5000): string | null {
-  for (let i = 1; i <= tries; i++) {
-    const seed = `${prefix}-${i}`;
-    if (probe(def.create(seed, config))) return seed;
-  }
-  return null;
 }

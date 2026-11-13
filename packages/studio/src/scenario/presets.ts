@@ -9,13 +9,11 @@ import { TUG_PRESETS } from "./prototypes/tug.js";
 import { RACKS_PRESETS } from "./prototypes/racks.js";
 import { CUTTING_PRESETS } from "./prototypes/cutting.js";
 
-/** A named set of conditions worth testing. Names live in the message table under `harness.preset.<id>`. */
+/** A named starting point for a draft (DESIGN.md 3.14): numbers worth tuning from. Names live in the message table under `harness.preset.<id>`. */
 export interface Preset {
   readonly id: string;
   readonly overrides: Overrides;
   readonly roundSeconds?: number;
-  /** Clock rate for the lab round. */
-  readonly speed?: number;
 }
 
 /**
@@ -53,7 +51,6 @@ export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
     { id: "fast_feeder", overrides: { spawnEveryTicks: 3, spawnEveryTicksMin: 2 } },
     { id: "quiet_deck", overrides: { spawnEveryTicks: 1000, spawnEveryTicksMin: 1000 } },
     { id: "no_coolant", overrides: { bag: [2, 2, 2, 0] } },
-    { id: "slow_motion", overrides: {}, speed: 0.25 },
   ],
   navigation: [
     { id: "big_constellation", overrides: { startStars: 8 } },
@@ -61,7 +58,6 @@ export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
     { id: "fast_falls", overrides: { fallTicks: 10, fallTicksMin: 6 } },
     { id: "one_shape", overrides: { shapes: 1 } },
     { id: "no_reuse", overrides: { reuseChancePercent: 0 } },
-    { id: "slow_motion", overrides: {}, speed: 0.25 },
   ],
   battle: [
     { id: "junker", overrides: { "raider.tokensPerTurn": 2, "raider.reloadPerTurn": 1, "raider.accuracy": 50, "raider.aggression": 40 } },
@@ -104,7 +100,6 @@ export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
     { id: "five_colors", overrides: { colors: 5 } },
     { id: "sabre", overrides: { blade: 1 } },
     { id: "one_minute", overrides: {}, roundSeconds: 60 },
-    { id: "slow_motion", overrides: {}, speed: 0.25 },
   ],
   // Prototype puzzles (ADR 0036) keep their presets in scenario/prototypes/.
   salvage: SALVAGE_PRESETS,

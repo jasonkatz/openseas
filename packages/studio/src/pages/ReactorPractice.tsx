@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { reactorHotCount, reactorPipelineLeft, summarizeReactor, type ReactorConfig, type ReactorDir, type ReactorMove, type ReactorState } from "@openseas/engine";
 import { content, ReactorBoard, SpriteIcon, t } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { REACTOR } from "../prototypes/reactor.js";
@@ -10,7 +10,7 @@ const reactor = content.puzzles.reactor;
 /** The board's own colors, a grade each, for the legend's icons. */
 const GRADE_COLORS = ["#58c4f6", "#7bd88f", "#f5d021", "#ff9f43", "#b48cff", "#f78fb3", "#f2f0e6", "#9fb4d8"];
 
-/** Reactor (prototype, ADR 0036): the practice frame round the shared board, with the bench beside it. */
+/** Reactor (prototype, ADR 0036): the shared board in the studio's frame. */
 export function ReactorPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<ReactorState, ReactorMove, ReactorConfig>({
@@ -20,9 +20,9 @@ export function ReactorPractice() {
     roundSeconds: reactor.roundSeconds,
     summarize: summarizeReactor,
   });
-  const bench = useBench(REACTOR, api);
+  const studio = useStudio(REACTOR, api);
   const { state } = api;
-  const shown = bench.reviewState ?? state;
+  const shown = state;
   const cfg = shown.config;
 
   const onSwipe = useCallback((dir: ReactorDir): boolean => api.apply({ type: "swipe", dir }), [api]);
@@ -37,7 +37,6 @@ export function ReactorPractice() {
       eyebrow={t("harness.prototype_eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
@@ -46,12 +45,8 @@ export function ReactorPractice() {
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
       maxMoves={cfg.maxMoves < REACTOR.config.maxMoves ? cfg.maxMoves : undefined}
       combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={studio.start}
+      ready={studio.ready}
       splash={t("reactor.go")}
       warn={hot >= cfg.criticalHot - 1}
       howTo={
@@ -133,10 +128,8 @@ export function ReactorPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
-        <ReactorBoard key={bench.reviewKey ?? "live"} state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={bench.hints} onSwipe={onSwipe} onFrame={api.markRendered} />
+        <ReactorBoard state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={studio.hints} onSwipe={onSwipe} onFrame={api.markRendered} />
       )}
     />
   );

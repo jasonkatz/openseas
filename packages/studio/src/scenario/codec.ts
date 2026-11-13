@@ -1,20 +1,18 @@
 import type { Overrides } from "./overrides.js";
 
 /**
- * Everything a lab round needs, as the query string of a puzzle page, so a condition worth
- * testing is one link: `/gunnery?seed=keg-3&seconds=60&c.spawnEveryTicks=20&start=lab`.
+ * A draft as the query string of a puzzle's page, on the studio and on `/play` alike, so a tuned
+ * round is one link: `/play/gunnery?seed=keg-3&seconds=60&c.spawnEveryTicks=20`.
  *
  *   seed        the engine seed; absent means a fresh random seed each start
  *   seconds     round length; absent means the content round length
  *   c.<path>    a config override; the value is JSON when it parses, a string otherwise
  *   pace        the live tier indicator's window in seconds; absent means content's `paceSeconds`
  *   thresholds  the thresholds the round is rated against, as JSON; absent means content's
- *   speed       clock rate for lab rounds (default 1)
- *   paused      1 to start with the clock stopped
- *   hints       0 to turn idle hints off in a lab round (they are on, as in unrated practice)
- *   start       lab, unrated or recorded: start that round as soon as the page opens (rated, the
- *               old name for recorded, still works in links made before ADR 0028)
- *   review      1: review the round file left in sessionStorage by the home page
+ *   speed       clock rate (default 1); for a script, the studio has no control for it
+ *   paused      1 to start with the clock stopped; for a script, as above
+ *   hints       0 to turn idle hints off
+ *   start       any value: start the round as soon as the page opens
  */
 export interface Scenario {
   seed: string | null;
@@ -26,13 +24,10 @@ export interface Scenario {
   speed: number;
   paused: boolean;
   hints: boolean;
-  autostart: "lab" | "unrated" | "recorded" | null;
-  review: boolean;
+  autostart: boolean | null;
 }
 
-export const EMPTY_SCENARIO: Scenario = { seed: null, roundSeconds: null, overrides: {}, paceSeconds: null, thresholds: null, speed: 1, paused: false, hints: true, autostart: null, review: false };
-
-export const SPEEDS = [0.25, 0.5, 1, 2, 4] as const;
+export const EMPTY_SCENARIO: Scenario = { seed: null, roundSeconds: null, overrides: {}, paceSeconds: null, thresholds: null, speed: 1, paused: false, hints: true, autostart: null };
 
 function parseValue(raw: string): unknown {
   try {
@@ -59,8 +54,7 @@ export function parseScenario(search: string): Scenario {
     speed: speed > 0 ? speed : 1,
     paused: q.get("paused") === "1",
     hints: q.get("hints") !== "0",
-    autostart: start === "lab" || start === "unrated" || start === "recorded" ? start : start === "rated" ? "recorded" : null,
-    review: q.get("review") === "1",
+    autostart: start ? true : null,
   };
 }
 
@@ -75,12 +69,12 @@ export function formatScenario(s: Scenario): string {
   if (s.speed !== 1) q.set("speed", String(s.speed));
   if (s.paused) q.set("paused", "1");
   if (!s.hints) q.set("hints", "0");
-  if (s.autostart) q.set("start", s.autostart);
+  if (s.autostart) q.set("start", "1");
   return q.toString();
 }
 
-/** A link that opens the page on this scenario and starts the lab round at once. */
-export function shareLink(origin: string, pathname: string, s: Scenario): string {
-  const qs = formatScenario({ ...s, autostart: "lab", review: false });
-  return `${origin}${pathname}${qs ? `?${qs}` : ""}`;
+/** The link that plays this scenario alone: its puzzle's `/play` page on the same numbers, for a tester. */
+export function playLink(origin: string, puzzle: string, s: Scenario): string {
+  const qs = formatScenario({ ...s, autostart: null, speed: 1, paused: false });
+  return `${origin}/play/${puzzle}${qs ? `?${qs}` : ""}`;
 }

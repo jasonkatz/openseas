@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { PENTOMINO_LETTERS, platingOrient, summarizePlating, type PlatingConfig, type PlatingMove, type PlatingState, type BreachRating } from "@openseas/engine";
 import { PlatingBoard, TileIcon, content, sfx, t } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { PLATING } from "../puzzles.js";
@@ -18,9 +18,9 @@ export function PlatingPractice() {
     roundSeconds: plating.roundSeconds,
     summarize: summarizePlating,
   });
-  const bench = useBench(PLATING, api);
+  const studio = useStudio(PLATING, api);
   const { state } = api;
-  const shown = bench.reviewState ?? state;
+  const shown = state;
 
   const onPlace = useCallback(
     (slot: number, rot: number, flip: boolean, col: number, row: number) => {
@@ -49,7 +49,6 @@ export function PlatingPractice() {
       puzzle="plating"
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
@@ -57,12 +56,8 @@ export function PlatingPractice() {
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
       maxMoves={shown.config.maxMoves < PLATING.config.maxMoves ? shown.config.maxMoves : undefined}
       combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={studio.start}
+      ready={studio.ready}
       splash={t("plating.go")}
       details={
         <div className="stat stat-wide">
@@ -101,11 +96,9 @@ export function PlatingPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
         <PlatingBoard
-          key={bench.reviewKey ?? "live"}
+         
           state={shown}
           version={api.version}
           interactive={interactive}

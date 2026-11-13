@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { summarizeEngines, type Rotation, type EnginesClearRound, type EnginesConfig, type EnginesMove, type EnginesState } from "@openseas/engine";
 import { PelletIcon, EnginesBoard, content, sfx, t } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { ENGINES } from "../puzzles.js";
@@ -35,9 +35,9 @@ export function EnginesPractice() {
     summarize: summarizeEngines,
     onMove,
   });
-  const bench = useBench(ENGINES, api);
+  const studio = useStudio(ENGINES, api);
   const { state } = api;
-  const shown = bench.reviewState ?? state;
+  const shown = state;
 
   const onPlace = useCallback(
     (col: number, row: number, rot: Rotation) => {
@@ -81,7 +81,6 @@ export function EnginesPractice() {
       puzzle="engines"
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
@@ -89,12 +88,8 @@ export function EnginesPractice() {
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
       maxMoves={shown.config.maxMoves < ENGINES.config.maxMoves ? shown.config.maxMoves : undefined}
       combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={startRound(api.startRecorded)}
-      onStartUnrated={startRound(api.startUnrated)}
-      onStartLab={startRound(bench.startLab)}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={startRound(studio.start)}
+      ready={studio.ready}
       splash={t("engines.go")}
       details={nextPreview}
       resultRows={
@@ -123,11 +118,9 @@ export function EnginesPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
         <EnginesBoard
-          key={bench.reviewKey ?? "live"}
+         
           state={shown}
           version={api.version}
           interactive={interactive}
