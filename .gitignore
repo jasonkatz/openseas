@@ -13,3 +13,5 @@ packages/client/playwright-report/
 .vercel/
 packages/docs/test-results/
 packages/docs/playwright-report/
+.art/
+__pycache__/

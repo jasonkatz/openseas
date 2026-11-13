@@ -1,0 +1,41 @@
+{
+  "style": "Sci-fi energy blades. Dry and close, a single sound, with no music, voices or room ambience.",
+  "cues": {
+    "drop": {
+      "use": "A pair settles on the stack.",
+      "prompt": "A small armored block landing on a metal deck: a short soft clunk with a tiny metallic click.",
+      "duration": 0.5,
+      "influence": 0.6
+    },
+    "clash": {
+      "use": "A group breaks: two blades meet.",
+      "prompt": "Two energy blades clash in a short sword hit: a sharp metallic impact with a crackling electric arc and a bright plasma sizzle that rings for a moment, then decays fast into a faint hiss.",
+      "duration": 1.0,
+      "influence": 0.6
+    },
+    "heavy": {
+      "use": "A big chain or a slab breaks, sending a large attack.",
+      "prompt": "A heavy energy blade strike: a deep metallic slam with a burst of crackling electricity and a low resonant ring that fades over a second, like charged metal hitting armor plating.",
+      "duration": 1.5,
+      "influence": 0.6
+    },
+    "swing": {
+      "use": "An attack is sent toward an opponent.",
+      "prompt": "A fast energy blade swing: a quick whoosh with a rising electric buzz and a crackle of plasma along the edge, gone in under a second, with no impact.",
+      "duration": 0.6,
+      "influence": 0.6
+    },
+    "scrap": {
+      "use": "Scrap lands on the player's board.",
+      "prompt": "A dull heavy chunk of dead metal dropping onto a steel deck: a low thud with a short clank and no ring, slightly muffled.",
+      "duration": 0.5,
+      "influence": 0.6
+    },
+    "blades-out": {
+      "use": "The round starts: \"Blades out\".",
+      "prompt": "An energy blade igniting: a sharp electric snap, then a short rising whine as the plasma edge powers up, ending in a steady crackle that cuts off cleanly.",
+      "duration": 1.2,
+      "influence": 0.6
+    }
+  }
+}

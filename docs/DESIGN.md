@@ -361,7 +361,9 @@ code. Arbitrarily sized Swordfight slabs, extra lab colors, board backgrounds, t
 retain procedural drawing. When an atlas cannot load, every piece falls back to a vector version of
 its sprite from one shared module (`boards/src/parts.ts`), in the same contours and silhouettes, so
 play never waits on an image; Engines' extra lab kind always uses it. The world is not sprites at all: it is drawn in code from primitives (3.11), and it was
-redrawn for space in M7.
+redrawn for space in M7. A frame is redrawn or added alone from a brief kept in `boards/briefs`,
+through the OpenAI Images API, and sounds are made the same way through ElevenLabs; the owner picks
+every take that lands (ADR 0040).
 
 ### 3.11 One experience: the shell, navigation and embedded puzzles
 

@@ -73,6 +73,9 @@ for puzzle,frames in specs.items():
    tile=tile.crop(bbox)
    w,h=tile.size
    tile=tile.crop((int(w*.07),int(h*.07),int(w*.93),int(h*.93))).resize((size,size),Image.Resampling.LANCZOS)
+  # A frame placed from a generated take (sprites.py place) wins over the delivered sheet.
+  override=out/'overrides'/f'{puzzle}-{name}.webp'
+  if override.is_file(): tile=Image.open(override).convert('RGBA')
   x=(i%cols)*stride+2; y=(i//cols)*stride+2
   atlas.paste(tile,(x,y))
   named[name]=[x,y,size,size]

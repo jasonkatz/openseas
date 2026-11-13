@@ -45,3 +45,4 @@ that supersedes it.
 | [0037](./0037-prototype-sprite-atlases.md) | Prototype boards draw from sprite atlases through the kit, with the code-drawn art as fallback |
 | [0038](./0038-puzzle-guides-site.md) | Puzzle guides: a static site with one guide per puzzle, its pictures captured from the real boards on the harness |
 | [0039](./0039-five-tiers-and-a-live-pace.md) | Five tiers, and every board's HUD shows the tier being played at |
+| [0040](./0040-generated-art-and-sound-from-briefs.md) | Puzzle sprites and sounds are generated from briefs in the repository; the owner picks every take |
