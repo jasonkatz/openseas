@@ -167,6 +167,36 @@ export const DutyPuzzleBaseSchema = z.object({
   thresholds: z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1),
 });
 
+/**
+ * The numbers every puzzle's content file carries beside its `config`, whatever kind of puzzle it
+ * is: a duty board, a fight or a prototype. The studio holds a tuned round's numbers to this
+ * (ADR 0042), so a draft can never carry a length, a pace or thresholds a content file could not.
+ */
+export const PuzzleNumbersSchema = DutyPuzzleBaseSchema.pick({ roundSeconds: true, paceSeconds: true, thresholds: true });
+export type PuzzleNumbers = z.infer<typeof PuzzleNumbersSchema>;
+
+/**
+ * What is wrong with a puzzle's thresholds beyond their shape: they must ascend in score and in
+ * rating, and a puzzle with a par must keep it within them. Empty when they are sound.
+ */
+export function thresholdProblems(thresholds: PuzzleNumbers["thresholds"], parScore?: number): string[] {
+  const problems: string[] = [];
+  for (let i = 1; i < thresholds.length; i++) {
+    const a = thresholds[i - 1]!;
+    const b = thresholds[i]!;
+    if (b.score <= a.score || b.rating <= a.rating) {
+      problems.push("thresholds must ascend in score and rating");
+      break;
+    }
+  }
+  if (parScore !== undefined && thresholds.length > 0) {
+    const first = thresholds[0]!.score;
+    const last = thresholds[thresholds.length - 1]!.score;
+    if (parScore < first || parScore > last) problems.push(`parScore must sit within the thresholds (${first}..${last})`);
+  }
+  return problems;
+}
+
 export const CoolingContentSchema = DutyPuzzleBaseSchema.extend({
   config: z.object({
     width: z.int().min(3),

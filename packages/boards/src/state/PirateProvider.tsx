@@ -66,10 +66,12 @@ export function usePirate(): PirateContextValue {
  * Guest-first (ADR 0007): on first load we sign in anonymously, and if no invite code is needed we
  * create the pirate at once. The visitor never sees a form unless the alpha gate is on. With
  * `offerSignIn`, a browser that has held a linked account and has no session waits at `signed-out`
- * instead, so the returning pirate signs in rather than becoming someone new.
+ * instead, so the returning pirate signs in rather than becoming someone new. With `connect` off
+ * nothing is asked of the server at all: no session, no pirate, no socket. The studio's `/play`
+ * pages run so (ADR 0042), where a round is local and a tester signs in to nothing.
  */
-export function PirateProvider({ children, offerSignIn = false }: { children: ReactNode; offerSignIn?: boolean }) {
-  const [phase, setPhase] = useState<PiratePhase>("loading");
+export function PirateProvider({ children, offerSignIn = false, connect = true }: { children: ReactNode; offerSignIn?: boolean; connect?: boolean }) {
+  const [phase, setPhase] = useState<PiratePhase>(connect ? "loading" : "offline");
   const [pirate, setPirateState] = useState<PirateSummary | null>(null);
   const [inviteRequired, setInviteRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -153,10 +155,10 @@ export function PirateProvider({ children, offerSignIn = false }: { children: Re
   );
 
   useEffect(() => {
-    if (booting.current) return;
+    if (!connect || booting.current) return;
     booting.current = true;
     void refresh();
-  }, [refresh]);
+  }, [connect, refresh]);
 
   useEffect(() => {
     const off = socket.onStatus(setSocketStatus);

@@ -29,6 +29,7 @@ import {
   EnginesContentSchema,
   SwordfightContentSchema,
   WorldSchema,
+  thresholdProblems,
   type BattleContent,
   type CrewFlag,
   type CrewRules,
@@ -249,19 +250,12 @@ export function contentProblems(content: Content): string[] {
     const p = puzzles[id];
     const where = `puzzles/${id}`;
     if ("pieces" in p) checkPieces(where, p.pieces, "pieceKinds" in p.config ? p.config.pieceKinds : "colors" in p.config ? p.config.colors : p.pieces.length, messages, problems);
-    for (let i = 1; i < p.thresholds.length; i++) {
-      const a = p.thresholds[i - 1]!;
-      const b = p.thresholds[i]!;
-      if (b.score <= a.score || b.rating <= a.rating) problems.push(`${where}: thresholds must ascend in score and rating`);
-    }
+    for (const problem of thresholdProblems(p.thresholds, "parScore" in p ? p.parScore : undefined)) problems.push(`${where}: ${problem}`);
     need(`home.practice_${id}`, where);
     need(`home.practice_${id}_blurb`, where);
     if (!("parScore" in p)) continue;
     need(`station.${id}`, where);
     need(`station.${id}_blurb`, where);
-    const first = p.thresholds[0]!.score;
-    const last = p.thresholds[p.thresholds.length - 1]!.score;
-    if (p.parScore < first || p.parScore > last) problems.push(`${where}: parScore must sit within the thresholds (${first}..${last})`);
   }
   {
     const b = puzzles.battle;

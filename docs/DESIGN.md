@@ -595,6 +595,16 @@ for tuning one puzzle at a time, at `test.openseas.online`, for the owner. Until
 the harness is as sections 3.11 and 4.1 describe it. The voyage bench is not part of the studio and
 stays at `/voyage` as it is.
 
+**Built so far.** The package is renamed. Each puzzle plays alone at `/play/<puzzle>`: the board
+full-screen with one bar of HUD, a start and a result card, and a details sheet with the seed,
+restart, a new seed and each changed value beside the shipped one. The link's query string is the
+overlay (`seed`, `seconds`, `c.<path>`, `pace`, `thresholds`); the tier shown, live and on the
+result, is read against the link's own thresholds. The page signs in to nothing and sends nothing.
+It holds the numbers to the server's checks and deals nothing when they fail, and it replays every
+round from its seed and speaks only when the replay disagrees. The smoke plays every board there,
+and the guides' capture takes its pictures there. Tester links by id, the tuning panel and the
+home grid are next; until they land the bench pages stand beside `/play`.
+
 The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
 agent reads:
 
@@ -681,7 +691,9 @@ withdraw one. A link the current build would refuse says so and deals nothing. A
 changes code is shared from its pull request's preview once that has deployed.
 
 **What is gone.** The inspector, round files and their review, the stepping clock, and rounds
-recorded through the server from this site.
+recorded through the server from this site. The guides' capture still holds a round's clock and
+steps it a tick at a time (3.13), through a handle the page gives a script
+(`window.openseasRoundClock`) and no control on screen.
 
 ## 4. Architecture
 
@@ -699,7 +711,7 @@ pnpm monorepo. Packages:
 | `server` | Node 22, `ws`, Drizzle, Better Auth | Owns all authority |
 | `boards` | What both applications render with: the PixiJS boards and their art and sound, the round runner that streams move logs, the tick clock, the server connection, the shared stylesheet (ADR 0019) | Presentation and transport only; computes nothing the server does not recompute; no pages or routes |
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
-| `studio` | The puzzle harness (section 3.11), renamed in M9's first step and for now unchanged inside: the practice frame per engine around the shared boards, plus the bench: lab rounds, scenarios, inspector, replay review; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
+| `studio` | The puzzle harness (section 3.11), renamed in M9's first step and for now unchanged inside: the practice frame per engine around the shared boards, plus the bench: lab rounds, scenarios, inspector, replay review; each puzzle alone at `/play/<puzzle>`, on the numbers its link carries and with no server asked (3.14); and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
 | `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the harness, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 

@@ -1,4 +1,5 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ComponentType } from "react";
+import type { PuzzleId } from "@openseas/engine";
 import { PirateProvider, t } from "@openseas/boards";
 import { Home } from "./pages/Home.jsx";
 import { BattlePractice } from "./pages/BattlePractice.jsx";
@@ -16,29 +17,62 @@ import { ScannerPractice } from "./pages/ScannerPractice.jsx";
 import { TugPractice } from "./pages/TugPractice.jsx";
 import { RacksPractice } from "./pages/RacksPractice.jsx";
 import { CuttingPractice } from "./pages/CuttingPractice.jsx";
+import { RoundFrame, type FrameMode } from "./frame/RoundFrame.jsx";
+import { HARNESS_PUZZLES } from "./puzzles.js";
 import { Router, useRoute } from "./router.jsx";
 
 /** The voyage bench is its own chunk: the puzzle pages never load the ship simulator or its charts. */
 const VoyageBench = lazy(() => import("./pages/VoyageBench.jsx").then((m) => ({ default: m.VoyageBench })));
 
-/** One lane per engine, and the voyage bench. The scenario a page opens on rides in the query string (scenario/codec.ts). */
+const PAGES: Readonly<Record<PuzzleId, ComponentType>> = {
+  cooling: CoolingPractice,
+  engines: EnginesPractice,
+  plating: PlatingPractice,
+  gunnery: GunneryPractice,
+  navigation: NavigationPractice,
+  battle: BattlePractice,
+  swordfight: SwordfightPractice,
+  salvage: SalvagePractice,
+  overload: OverloadPractice,
+  deflectors: DeflectorsPractice,
+  reactor: ReactorPractice,
+  scanner: ScannerPractice,
+  tug: TugPractice,
+  racks: RacksPractice,
+  cutting: CuttingPractice,
+};
+
+const isPuzzle = (id: string): id is PuzzleId => Object.hasOwn(PAGES, id);
+const PLAY = "/play/";
+
+/** A puzzle's page inside its frame. The key makes a new frame, and so a new reading of the address bar, for every path. */
+function Puzzle({ id, mode }: { id: PuzzleId; mode: FrameMode }) {
+  const Page = PAGES[id];
+  return (
+    <RoundFrame key={`${mode}/${id}`} mode={mode} puzzle={HARNESS_PUZZLES[id]}>
+      <Page />
+    </RoundFrame>
+  );
+}
+
+/**
+ * One lane per engine, the same puzzle alone under `/play/`, and the voyage bench. The scenario a
+ * page opens on rides in the query string (scenario/codec.ts).
+ */
 function Lanes() {
   const { path } = useRoute();
-  if (path === "/cooling") return <CoolingPractice />;
-  if (path === "/engines") return <EnginesPractice />;
-  if (path === "/plating") return <PlatingPractice />;
-  if (path === "/gunnery") return <GunneryPractice />;
-  if (path === "/navigation") return <NavigationPractice />;
-  if (path === "/battle") return <BattlePractice />;
-  if (path === "/swordfight") return <SwordfightPractice />;
-  if (path === "/salvage") return <SalvagePractice />;
-  if (path === "/overload") return <OverloadPractice />;
-  if (path === "/deflectors") return <DeflectorsPractice />;
-  if (path === "/reactor") return <ReactorPractice />;
-  if (path === "/scanner") return <ScannerPractice />;
-  if (path === "/tug") return <TugPractice />;
-  if (path === "/racks") return <RacksPractice />;
-  if (path === "/cutting") return <CuttingPractice />;
+  if (path.startsWith(PLAY)) {
+    const id = path.slice(PLAY.length).replace(/\/$/, "");
+    if (isPuzzle(id)) return <Puzzle id={id} mode="play" />;
+    return (
+      <main className="page" data-testid="play-unknown">
+        <h1>{t("play.unknown_title")}</h1>
+        <p className="muted">{t("play.unknown")}</p>
+      </main>
+    );
+  }
+  const id = path.slice(1);
+  if (isPuzzle(id)) return <Puzzle id={id} mode="bench" />;
   if (path === "/voyage")
     return (
       <Suspense fallback={<p className="page muted">{t("app.loading")}</p>}>
@@ -48,12 +82,23 @@ function Lanes() {
   return <Home />;
 }
 
+/**
+ * A `/play` page asks nothing of the game's server: no session, no pirate, no socket (ADR 0042
+ * decision 11). Every other page signs the tester in as the harness always has.
+ */
+function Shell() {
+  const play = useRoute().path.startsWith(PLAY);
+  return (
+    <PirateProvider key={play ? "play" : "bench"} connect={!play}>
+      <Lanes />
+    </PirateProvider>
+  );
+}
+
 export function App() {
   return (
     <Router>
-      <PirateProvider>
-        <Lanes />
-      </PirateProvider>
+      <Shell />
     </Router>
   );
 }

@@ -1,8 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
 /**
- * The capture run (ADR 0038): not a test suite. Each file in `capture/` plays a puzzle on the
- * harness and writes that guide's screenshots and clips into `public/media/<puzzle>/`. Run one
+ * The capture run (ADR 0038): not a test suite. Each file in `capture/` plays a puzzle on its
+ * `/play` page in the studio and writes that guide's screenshots and clips into `public/media/<puzzle>/`. Run one
  * puzzle with `pnpm --filter @openseas/docs capture cooling`. It needs ffmpeg on the PATH.
  */
 const port = Number(process.env.HARNESS_PORT ?? 4174);

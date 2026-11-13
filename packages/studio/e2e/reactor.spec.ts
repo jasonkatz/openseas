@@ -19,11 +19,9 @@ async function legalDir(page: Page): Promise<number> {
   return Number(((await board.getAttribute("data-legal")) ?? "0")[0]);
 }
 
-test("home links to Reactor and an unrated round swipes by key and by pointer", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTestId("tile-reactor").click();
-  await expect(page).toHaveURL(/\/reactor$/);
-  await page.getByTestId("start-unrated").click();
+test("Reactor plays alone on /play: a round swipes by key and by pointer", async ({ page }) => {
+  await page.goto("/play/reactor");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("reactor-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
@@ -51,7 +49,7 @@ test("home links to Reactor and an unrated round swipes by key and by pointer", 
 
 test("a Reactor hot rod pushed against its port is discharged", async ({ page }) => {
   // A pinned lab seed and the eight swipes that cook its first hot rod and push it out a port.
-  await page.goto("/reactor?seed=port-1&start=lab");
+  await page.goto("/play/reactor?seed=port-1&start=lab");
   const canvas = page.getByTestId("reactor-canvas");
   await expect(canvas).toBeVisible();
   const board = page.getByTestId("reactor-board");

@@ -15,10 +15,11 @@ async function finger(page: Page): Promise<{ down(x: number, y: number): Promise
 }
 
 /**
- * Smoke: the harness builds, loads, and every board plays an unrated round without the server,
- * through the same board code the game uses (ADR 0019). Recorded play needs the server and is
- * covered by the server integration test. The bench's own paths (lab rounds from a link, the
- * replay check, reviewing a log, the lab clock) are smoked at the end.
+ * Smoke: the studio builds, loads, and every board plays a round alone on its `/play` page, with
+ * no server, through the same board code the game uses (ADR 0019, ADR 0042). `/play` itself (a
+ * tuned link, a refused one, the seed, no request to the game) is smoked in play.spec.ts. The
+ * bench's own paths (lab rounds from a link, the replay check, reviewing a log, the lab clock)
+ * are smoked at the end, until the studio page takes the bench's place.
  */
 test("home page renders, says what it is testing against, and links to Cooling", async ({ page }) => {
   await page.goto("/");
@@ -30,9 +31,9 @@ test("home page renders, says what it is testing against, and links to Cooling",
   await expect(page.getByTestId("start-lab")).toBeVisible();
 });
 
-test("an unrated Cooling round accepts a keyboard swap and shows the result", async ({ page }) => {
-  await page.goto("/cooling");
-  await page.getByTestId("start-unrated").click();
+test("Cooling plays alone on /play: a round accepts a keyboard swap and a tap", async ({ page }) => {
+  await page.goto("/play/cooling");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("cooling-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toContainText("0");
@@ -57,11 +58,9 @@ test("an unrated Cooling round accepts a keyboard swap and shows the result", as
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });
 
-test("home links to Engines and an unrated round takes keyboard drops", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTestId("tile-engines").click();
-  await expect(page).toHaveURL(/\/engines$/);
-  await page.getByTestId("start-unrated").click();
+test("Engines plays alone on /play: a round takes keyboard drops", async ({ page }) => {
+  await page.goto("/play/engines");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("engines-canvas");
   await expect(canvas).toBeVisible();
   // The count alone: rounds run their clock, so no cap follows it.
@@ -105,13 +104,11 @@ test("home links to Engines and an unrated round takes keyboard drops", async ({
   await touch.up();
 });
 
-test("home links to Plating and plates go down by keyboard and by tap", async ({ page }) => {
+test("Plating plays alone on /play: plates go down by keyboard and by tap", async ({ page }) => {
   // The plate tray and board redraw are the heaviest canvas in the suite on the phone profile.
   test.slow();
-  await page.goto("/");
-  await page.getByTestId("tile-plating").click();
-  await expect(page).toHaveURL(/\/plating$/);
-  await page.getByTestId("start-unrated").click();
+  await page.goto("/play/plating");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("plating-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toContainText("0");
@@ -148,11 +145,9 @@ test("home links to Plating and plates go down by keyboard and by tap", async ({
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });
 
-test("home links to Gunnery and an unrated round lays arrows by key and by tap, and lifts one by tapping again", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTestId("tile-gunnery").click();
-  await expect(page).toHaveURL(/\/gunnery$/);
-  await page.getByTestId("start-unrated").click();
+test("Gunnery plays alone on /play: a round lays arrows by key and by tap, and lifts one by tapping again", async ({ page }) => {
+  await page.goto("/play/gunnery");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("gunnery-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toContainText("0");
@@ -182,11 +177,9 @@ test("home links to Gunnery and an unrated round lays arrows by key and by tap, 
   await expectViewMatchesState(page, "gunnery");
 });
 
-test("home links to Navigation and an unrated round turns a ring by key and brings stars down by key and by tap", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTestId("tile-navigation").click();
-  await expect(page).toHaveURL(/\/navigation$/);
-  await page.getByTestId("start-unrated").click();
+test("Navigation plays alone on /play: a round turns a ring by key and brings stars down by key and by tap", async ({ page }) => {
+  await page.goto("/play/navigation");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("navigation-canvas");
   await expect(canvas).toBeVisible();
   // Stars come down on their own clock, so the count is only ever compared with a reading taken just before.
@@ -213,14 +206,12 @@ test("home links to Navigation and an unrated round turns a ring by key and brin
   await expectViewMatchesState(page, "navigation");
 });
 
-test("home links to Space Battle and an unrated fight plots by key and by tap and flies its plot", async ({ page }, testInfo) => {
+test("Space Battle plays alone on /play: a fight plots by key and by tap and flies its plot", async ({ page }, testInfo) => {
   // Desktop only: on CI's phone profile this run timed out without a fault in the board, and the
   // desktop run already drives every input it checks.
   test.skip(testInfo.project.name === "phone", "flaky on CI's phone profile; the desktop run covers the board");
-  await page.goto("/");
-  await page.getByTestId("tile-battle").click();
-  await expect(page).toHaveURL(/\/battle$/);
-  await page.getByTestId("start-unrated").click();
+  await page.goto("/play/battle");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("battle-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toContainText("0/20");
@@ -276,13 +267,11 @@ test("home links to Space Battle and an unrated fight plots by key and by tap an
   await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /^\{"segments":\[\{"move":"left",.*("move":"forward".*){3}/);
 });
 
-test("home links to Swordfighting and an unrated fight drops pairs by keyboard and by touch", async ({ page }) => {
+test("Swordfighting plays alone on /play: a fight drops pairs by keyboard and by touch", async ({ page }) => {
   // Two drops hurried down a seventeen-row board, with the raider's board small beside it, on the phone profile.
   test.slow();
-  await page.goto("/");
-  await page.getByTestId("tile-swordfight").click();
-  await expect(page).toHaveURL(/\/swordfight$/);
-  await page.getByTestId("start-unrated").click();
+  await page.goto("/play/swordfight");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("swordfight-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toContainText("0");

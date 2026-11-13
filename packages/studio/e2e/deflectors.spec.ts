@@ -62,11 +62,9 @@ async function tapPort(page: Page, port: number): Promise<void> {
   await page.mouse.click(ox + x * size, oy + y * size);
 }
 
-test("home links to Deflectors and an unrated round flips a mirror by key and by tap", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTestId("tile-deflectors").click();
-  await expect(page).toHaveURL(/\/deflectors$/);
-  await page.getByTestId("start-unrated").click();
+test("Deflectors plays alone on /play: a round flips a mirror by key and by tap", async ({ page }) => {
+  await page.goto("/play/deflectors");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("deflectors-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
@@ -96,7 +94,7 @@ test("home links to Deflectors and an unrated round flips a mirror by key and by
 
 test("a Deflectors beam routed home and fired from its port scores, and the F key fires the next volley as it stands", async ({ page }) => {
   // A pinned lab seed whose first beam is one flip from home.
-  await page.goto("/deflectors?seed=smoke-9&start=lab");
+  await page.goto("/play/deflectors?seed=smoke-9&start=lab");
   await expect(page.getByTestId("deflectors-canvas")).toBeVisible();
   // The first volley is announced within a second: one beam, not home as the mirrors stand.
   await expect.poll(async () => (await board(page)).beams.length).toBe(1);

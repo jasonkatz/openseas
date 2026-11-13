@@ -1,0 +1,71 @@
+/* The puzzle alone (`/play/<puzzle>`, ADR 0042): the phone's one-bar layout at every width. */
+.play {
+  margin: 0 auto;
+}
+.play-bar {
+  grid-template-columns: 1fr 40px 40px;
+}
+.play-dot {
+  background: var(--brass);
+}
+.play-sheet {
+  justify-items: stretch;
+}
+.play-sheet[hidden] {
+  display: none;
+}
+.play-round {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.play-seed {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.play-actions {
+  display: flex;
+  gap: 8px;
+}
+.play-changes {
+  display: grid;
+  gap: 6px;
+}
+.play-changes p {
+  margin: 0;
+}
+.play-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.play-list code {
+  color: var(--brass);
+}
+@media (min-width: 900px) {
+  /* A desktop gets the same column a phone does, in the middle of the window. */
+  .puzzle.play {
+    display: flex;
+    flex-direction: column;
+    max-width: 640px;
+    gap: 8px;
+  }
+  .puzzle.play .board-wrap {
+    min-height: 0;
+  }
+}
+/* The wide layout names grid areas for the legend and the HUD; inside the sheet they are rows like the rest. */
+.play-sheet > * {
+  grid-area: auto;
+  grid-column: 1;
+  min-width: 0;
+}

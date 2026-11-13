@@ -1,6 +1,6 @@
 /**
- * What a capture file is written with (ADR 0038). A capture opens a lab round on the harness, on a
- * pinned seed, plays it with the pointer or the keyboard as a player would, and saves what the
+ * What a capture file is written with (ADR 0038). A capture opens a round on the studio's `/play`
+ * page (the puzzle alone, ADR 0042), on a pinned seed, plays it with the pointer or the keyboard as a player would, and saves what the
  * board's canvas shows: `still` writes one frame, `clip` records while a callback plays.
  *
  * Everything lands in `public/media/<puzzle>/`: a still as `<name>.webp`, a clip as `<name>.mp4`
@@ -22,17 +22,17 @@ export interface LabOptions {
   seed: string;
   /** Round length in seconds; the content length when absent. */
   seconds?: number;
-  /** Config overrides by path, as the harness's `c.<path>` links take them. The server's schema must accept the result. */
+  /** Config overrides by path, as the studio's `c.<path>` links take them. The server's schema must accept the result, or the page deals nothing. */
   config?: Record<string, unknown>;
   /** Clock rate: 0.25, 0.5, 1, 2 or 4. */
   speed?: number;
-  /** Start with the round's clock stopped. */
+  /** Start with the round's clock stopped; `stepClock` and `toggleClock` drive it from there. */
   paused?: boolean;
   /** Idle hints. Off unless a capture is about them. */
   hints?: boolean;
 }
 
-/** Open a puzzle's harness page on a lab round and wait for its board to be drawn. */
+/** Open a puzzle's `/play` page on a round already started and wait for its board to be drawn. */
 export async function openLab(page: Page, puzzle: string, opts: LabOptions): Promise<void> {
   const q = new URLSearchParams({ seed: opts.seed });
   if (opts.seconds) q.set("seconds", String(opts.seconds));
@@ -49,11 +49,53 @@ export async function openLab(page: Page, puzzle: string, opts: LabOptions): Pro
       /* private mode */
     }
   });
-  await page.goto(`/${puzzle}?${q.toString()}`);
+  await page.goto(`/play/${puzzle}?${q.toString()}`);
   await expect(canvasOf(page, puzzle)).toBeVisible();
   await showPointer(page);
   // The start splash and the deal's own animation.
   await page.waitForTimeout(1800);
+}
+
+/**
+ * The round's clock, as the studio hands it to a script (`window.openseasRoundClock`, studio's
+ * bench/useBench): there is no control for it on screen. Called in the page, so the pointer stays
+ * where the hand left it.
+ */
+interface RoundClock {
+  pause(): void;
+  resume(): void;
+  step(ms?: number): void;
+  readonly paused: boolean;
+  readonly tick: number | null;
+}
+type ClockWindow = { openseasRoundClock?: RoundClock };
+const NO_CLOCK = "no round clock: the round is not running";
+
+/** Step a stopped clock: one tick of a ticked puzzle a step, a second for the others. */
+export async function stepClock(page: Page, times = 1): Promise<void> {
+  await page.evaluate(
+    ([n, none]) => {
+      const clock = (window as unknown as ClockWindow).openseasRoundClock;
+      if (!clock) throw new Error(none);
+      for (let i = 0; i < n; i++) clock.step();
+    },
+    [times, NO_CLOCK] as const,
+  );
+}
+
+/** Let a stopped clock run, or stop a running one. */
+export async function toggleClock(page: Page): Promise<void> {
+  await page.evaluate((none) => {
+    const clock = (window as unknown as ClockWindow).openseasRoundClock;
+    if (!clock) throw new Error(none);
+    if (clock.paused) clock.resume();
+    else clock.pause();
+  }, NO_CLOCK);
+}
+
+/** The tick a ticked puzzle's round is on. */
+export async function clockTick(page: Page): Promise<number> {
+  return page.evaluate(() => (window as unknown as ClockWindow).openseasRoundClock?.tick ?? 0);
 }
 
 export const canvasOf = (page: Page, puzzle: string) => page.getByTestId(`${puzzle}-canvas`);

@@ -11,6 +11,15 @@ export interface TierPaceOptions {
   elapsed?: number | undefined;
   /** Reads a stretch of play as a score when the puzzle's score is not points over a round (a fight's rate). An engine function. */
   project?: ((points: number, seconds: number) => number) | undefined;
+  /** The numbers to read the pace against when the round is not on the shipped ones: a round the studio tuned (ADR 0042). Left out, content's. */
+  numbers?: TierPaceNumbers | undefined;
+}
+
+/** What the indicator reads off a puzzle's content file. */
+export interface TierPaceNumbers {
+  roundSeconds: number;
+  paceSeconds: number;
+  thresholds: readonly { score: number; rating: number }[];
 }
 
 export interface TierPaceValue {
@@ -55,7 +64,7 @@ export function useTierPace(o: TierPaceOptions): TierPaceValue | null {
     startedAt.current = performance.now();
     samples.current = [];
   }
-  const puzzle = content.puzzles[o.puzzle];
+  const puzzle: TierPaceNumbers = o.numbers ?? content.puzzles[o.puzzle];
   const window = puzzle.paceSeconds;
   const at = o.elapsed ?? (performance.now() - startedAt.current) / 1000;
   const list = samples.current;
