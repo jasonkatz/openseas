@@ -219,7 +219,8 @@ export class BattleRenderer {
   private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
   private readonly textures = new Map<string, Texture>();
   private shipSprites: [Sprite, Sprite] | null = null;
-  private ghostSprites: Sprite[] = [];
+  /** Ghost ships by plot slot. Only slots that move get one, so a hold leaves no entry. */
+  private ghostSprites = new Map<number, Sprite>();
   private ghostTexts: Text[] = [];
   private state: BattleState | null = null;
   private ships: [ShipView, ShipView] = [
@@ -665,8 +666,8 @@ export class BattleRenderer {
     // Sprites go before their textures, so nothing is destroyed while still bound.
     if (this.shipSprites) for (const s of this.shipSprites) s.destroy();
     this.shipSprites = null;
-    for (const s of this.ghostSprites) s.destroy();
-    this.ghostSprites = [];
+    for (const s of this.ghostSprites.values()) s.destroy();
+    this.ghostSprites.clear();
     for (const e of this.wellLayer.removeChildren()) e.destroy();
     if (this.spaceSprite) {
       this.spaceSprite.destroy();
@@ -794,7 +795,7 @@ export class BattleRenderer {
     a.clear();
     for (const t of this.ghostTexts) t.destroy();
     this.ghostTexts = [];
-    for (const s of this.ghostSprites) s.visible = false;
+    for (const s of this.ghostSprites.values()) s.visible = false;
     const s = this.state;
     if (!s || s.finished) return;
     // Every segment is previewed, plotted or not: a current carries a ship that holds, too.
@@ -831,12 +832,12 @@ export class BattleRenderer {
         }
         g.stroke({ width: Math.max(1.5, c * 0.07), color: COLORS.text, alpha: 0.55, cap: "round" });
         const final = !course.slice(i + 1).some((later, k) => later.pose.x !== p.x || later.pose.y !== p.y || this.segments[i + 1 + k]?.move != null);
-        let ghost = this.ghostSprites[i];
+        let ghost = this.ghostSprites.get(i);
         if (!ghost) {
           ghost = new Sprite(this.textures.get("ship0") ?? Texture.WHITE);
           ghost.anchor.set(0.5);
           this.ghostLayer.addChild(ghost);
-          this.ghostSprites[i] = ghost;
+          this.ghostSprites.set(i, ghost);
         }
         ghost.texture = this.textures.get("ship0") ?? Texture.WHITE;
         ghost.visible = true;

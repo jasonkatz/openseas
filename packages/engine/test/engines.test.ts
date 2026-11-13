@@ -383,7 +383,12 @@ describe("flying chains", () => {
           const legal = legalMoves(state);
           if (state.finished || legal.length === 0) break;
           state = reduceEngines(state, legal[pick % legal.length]!);
-          for (const r of state.lastMove!.rounds) expect(r.points).toBe(r.groups.reduce((n, g) => n + g.points, 0) * r.groups.length * mult(r.chain));
+          for (const r of state.lastMove!.rounds) {
+            expect(r.points).toBe(r.groups.reduce((n, g) => n + g.points, 0) * r.groups.length * mult(r.chain));
+            // Each group carries what it scored, so the board's popup reads the engine and never the chain index.
+            for (const g of r.groups) expect(g.scored).toBe(g.points * r.groups.length * mult(r.chain));
+            expect(r.groups.reduce((n, g) => n + g.scored, 0)).toBe(r.points);
+          }
         }
       }),
       { numRuns: 40 },

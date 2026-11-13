@@ -302,10 +302,11 @@ function applyPlace(state: EnginesState, move: Extract<EnginesMove, { type: "pla
   const rounds: EnginesClearRound[] = [];
   let chain = 1;
   for (;;) {
-    const groups = findClears(cfg, cells, injectors);
-    if (groups.length === 0) break;
-    const base = groups.reduce((sum, g) => sum + g.points, 0);
-    const points = base * groups.length * cfg.chainMultipliers[Math.min(chain, cfg.chainMultipliers.length) - 1]!;
+    const found = findClears(cfg, cells, injectors);
+    if (found.length === 0) break;
+    const multiplier = found.length * cfg.chainMultipliers[Math.min(chain, cfg.chainMultipliers.length) - 1]!;
+    const groups: EnginesClearedGroup[] = found.map((g) => ({ ...g, scored: g.points * multiplier }));
+    const points = groups.reduce((sum, g) => sum + g.scored, 0);
     const clearedInjectors = new Set(groups.filter((g) => g.injectorId !== undefined).map((g) => g.injectorId!));
     for (const g of groups) for (const c of g.cells) cells[c] = null;
     injectors = injectors.filter((p) => !clearedInjectors.has(p.id));
@@ -424,8 +425,8 @@ function settle(cfg: EnginesConfig, cells: Cells, injectors: readonly Injector[]
 }
 
 /** Every run of 4+ and every satisfied injector on the board right now. */
-function findClears(cfg: EnginesConfig, cells: ReadonlyArray<Segment | null>, injectors: readonly Injector[]): EnginesClearedGroup[] {
-  const groups: EnginesClearedGroup[] = [];
+function findClears(cfg: EnginesConfig, cells: ReadonlyArray<Segment | null>, injectors: readonly Injector[]): Omit<EnginesClearedGroup, "scored">[] {
+  const groups: Omit<EnginesClearedGroup, "scored">[] = [];
   const matched = new Uint8Array(cells.length);
   const kindAt = (c: number, r: number): number => cells[idx(cfg, c, r)]?.kind ?? -1;
   for (let r = 0; r < cfg.height; r++) {

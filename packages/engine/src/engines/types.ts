@@ -101,7 +101,10 @@ export type EnginesMove =
 export interface EnginesClearedGroup {
   readonly cells: readonly number[];
   readonly ids: readonly number[];
+  /** The group's base points, before the round's group count and chain multiplier. */
   readonly points: number;
+  /** What the group added to the score: its base points times the round's group count and chain multiplier. */
+  readonly scored: number;
   readonly cause: "run" | "injector";
   /** Set when an injector cleared. */
   readonly injectorId?: number;

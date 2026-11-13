@@ -11,7 +11,7 @@ are not all rectangles.
 The cutting torch makes straight cuts along the grid. A cut runs the whole way across the piece it is
 made in and splits that piece in two, so every piece is always a rectangle. A piece that holds one
 ore only is pure: it banks at once for its area squared (`cellPoints` × area × area) and leaves the
-table. One pure piece of twelve cells is worth 144, four times two pieces of six, so the art is
+table. One pure piece of twelve cells is worth 144, twice two pieces of six, so the art is
 freeing the big blocks whole.
 
 Cuts are limited. Each slab comes with between three and six (`minCuts`, `maxCuts`): the fewest with

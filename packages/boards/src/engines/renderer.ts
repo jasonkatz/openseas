@@ -291,7 +291,7 @@ export class EnginesRenderer {
           }
           const first = g.cells[0]!;
           const color = g.cause === "injector" ? COLORS.brass : (this.colorByKind.get(this.pieces.get(g.ids[0]!)?.kind ?? 0) ?? 0xffffff);
-          this.popup(this.cx(first % this.width), this.cy(Math.floor(first / this.width)) - this.cell * 0.2, `+${g.points * round.groups.length * round.chain}`, color);
+          this.popup(this.cx(first % this.width), this.cy(Math.floor(first / this.width)) - this.cell * 0.2, `+${g.scored}`, color);
           if (g.cause === "injector") this.callout(this.opts.injectorLabel, COLORS.brass);
         }
         if (round.chain >= 2) this.callout(this.opts.chainLabel(round.chain), 0xf5d58a);

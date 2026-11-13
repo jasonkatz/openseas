@@ -2,7 +2,7 @@
   "home.practice_cutting": "Cutting",
   "home.practice_cutting_blurb": "Slice a slab of salvage along its grid and bank the pieces that hold one ore. Big pieces pay far more, and the cuts are few.",
   "cutting.title": "Cutting",
-  "cutting.how_to": "A slab is made of blocks of ore with a few flaws in them. Swipe along a grid line to cut: the cut runs the whole way across the piece it is in and splits it in two. A piece that holds one ore only is banked at once for its size times its size, so one piece of twelve cells pays four times two of six. Each slab comes with a few cuts. When they are spent the rest is scrap, and the slab is graded against the best any plan could have made of it.",
+  "cutting.how_to": "A slab is made of blocks of ore with a few flaws in them. Swipe along a grid line to cut: the cut runs the whole way across the piece it is in and splits it in two. A piece that holds one ore only is banked at once for its size times its size, so one piece of twelve cells pays twice two of six. Each slab comes with a few cuts. When they are spent the rest is scrap, and the slab is graded against the best any plan could have made of it.",
   "cutting.how_to_keyboard": "Left and right move a cut that runs down, up and down move one that runs across, tab takes the next piece. Space or enter cuts, escape drops the cut, D gives the slab up.",
   "cutting.go": "Light the torch!",
   "cutting.tap_note": "You can also tap near a line to see the cut, then tap it again to make it. Sides that would be banked light up with what they pay.",

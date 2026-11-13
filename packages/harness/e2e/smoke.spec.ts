@@ -276,6 +276,54 @@ test("home links to Space Battle and an unrated fight plots by key and by tap an
   await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /^\{"segments":\[\{"move":"left",.*("move":"forward".*){3}/);
 });
 
+test("a Space Battle plot that holds before it moves previews, takes more input and flies", async ({ page }, testInfo) => {
+  // A hold before a move once left a hole in the renderer's ghost ships, and every later input threw.
+  test.skip(testInfo.project.name === "phone", "the desktop run drives the same board");
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/battle");
+  await page.getByTestId("start-unrated").click();
+  await expect(page.getByTestId("battle-canvas")).toBeVisible();
+  await expect(page.getByTestId("hud-moves")).toContainText("0/20");
+  await page.keyboard.press("s");
+  await page.keyboard.press("w");
+  await page.keyboard.press("q");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /^\{"segments":\[\{"move":null,"port":false,"starboard":false\},\{"move":"forward","port":true,/);
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("hud-moves")).toContainText("1/20");
+  await expectViewMatchesState(page, "battle");
+  // The next turn plots on the same board.
+  await page.keyboard.press("w");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /"move":"forward"/);
+  expect(errors).toEqual([]);
+});
+
+test("on a slow device a hurried Swordfighting drop lands once and the next pair waits for the player", async ({ page }, testInfo) => {
+  // A drop logged a tick before the board saw it once lost its landing, and the board then committed
+  // the next pair where the last one lay. A throttled CPU makes that gap common; a fast one hides it.
+  test.skip(testInfo.project.name === "phone", "the desktop run drives the same board");
+  test.slow();
+  await page.goto("/swordfight");
+  await page.getByTestId("start-unrated").click();
+  await expect(page.getByTestId("swordfight-canvas")).toBeVisible();
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 8 });
+  const drops = async (): Promise<number> => Number((await page.getByTestId("hud-moves").innerText()).match(/\d+/)?.[0] ?? 0);
+  for (let i = 0; i < 4; i++) {
+    // Each pair to its own column, so no stack is ever tall enough for a pair left alone to land in the wait.
+    for (let k = 0; k < 3; k++) await page.keyboard.press("ArrowLeft");
+    for (let k = 0; k < i; k++) await page.keyboard.press("ArrowRight");
+    const before = await drops();
+    await page.keyboard.down(" ");
+    await expect.poll(drops, { timeout: 30_000 }).toBe(before + 1);
+    await page.keyboard.up(" ");
+    await page.waitForTimeout(2500);
+    expect(await drops()).toBe(before + 1);
+  }
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+  await expectViewMatchesState(page, "swordfight");
+});
+
 test("home links to Swordfighting and an unrated fight drops pairs by keyboard and by touch", async ({ page }) => {
   // Two drops hurried down a seventeen-row board, with the raider's board small beside it, on the phone profile.
   test.slow();

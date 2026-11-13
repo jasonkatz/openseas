@@ -108,6 +108,10 @@ export const DEFAULT_BLADES: readonly Blade[] = [
   { id: "dirk", columns: [0, 5, 0, 5, 1, 4, 0, 5, 2, 3] },
 ];
 
+/**
+ * The engine's own config, the fixture its tests are written against (a 12-row board). The game and
+ * the harness play `content/data/puzzles/swordfight.json`, which is taller and lands later.
+ */
 export const DEFAULT_SWORDFIGHT_CONFIG: SwordfightConfig = {
   width: SWORDFIGHT_WIDTH,
   height: SWORDFIGHT_HEIGHT,
@@ -259,7 +263,10 @@ export type SwordfightEvent =
 
 export interface SwordfightMoveReport {
   readonly move: SwordfightMove;
-  /** Everything that happened from the previous state's tick up to and including this move's tick. */
+  /**
+   * Everything that happened from the previous state's tick up to and including this move's tick.
+   * On a state from `advanceSwordfight`, the logged move's own events come first.
+   */
   readonly events: readonly SwordfightEvent[];
   /** Points the player's board earned in those events. */
   readonly points: number;

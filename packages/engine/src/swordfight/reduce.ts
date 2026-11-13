@@ -867,7 +867,11 @@ export function advanceSwordfight(state: SwordfightState, tick: number): Swordfi
   const t = Math.min(tick, state.config.maxTick);
   const sim = simulate(state, t);
   const next = finish(state, sim, { type: "wait", tick: t }, t);
-  return { ...next, moveCount: state.moveCount };
+  // The logged move's events lead, so a board that first sees the move a tick or more after it was
+  // logged still sees what it did (a pair landing). A board picks out the new ones by tick.
+  const shown = next.lastMove!;
+  const events = state.lastMove ? [...state.lastMove.events, ...shown.events] : shown.events;
+  return { ...next, moveCount: state.moveCount, lastMove: { ...shown, events } };
 }
 
 // ---- hashing and summary

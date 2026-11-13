@@ -248,8 +248,11 @@ export class SwordfightRenderer {
   private shownMoves = -1;
   /** Events already shown, per tick and board: how many of that pair's events have been played. */
   private seen = new Map<string, number>();
-  /** `placed` is set once the engine took the pair: it then waits for the state that replaces it, so a rest is never logged twice. */
-  private falling: { pair: SwordPair; pc: number; rot: SwordRotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number; refused: number; placed: boolean } | null = null;
+  /**
+   * `placed` is set once the engine took the pair: it then waits for the state that replaces it, so a
+   * rest is never logged twice. `drops` is the board's drop count when it was taken.
+   */
+  private falling: { pair: SwordPair; pc: number; rot: SwordRotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number; refused: number; placed: boolean; drops: number } | null = null;
   private softDrop = false;
   private drag: { x: number; y: number; pc: number; moved: boolean; hurried: boolean; turned: boolean; touch: boolean; held: number; far: boolean } | null = null;
 
@@ -734,7 +737,7 @@ export class SwordfightRenderer {
     a.anchor.set(0.5);
     bb.anchor.set(0.5);
     this.fallingLayer.addChild(a, bb);
-    this.falling = { pair: b.current, pc, rot: 1, row, a, b: bb, lock: 0, resets: 0, low: row, refused: 0, placed: false };
+    this.falling = { pair: b.current, pc, rot: 1, row, a, b: bb, lock: 0, resets: 0, low: row, refused: 0, placed: false, drops: b.drops };
     this.softDrop = false;
     this.idleMs = 0;
     this.placedMs = 0;
@@ -928,6 +931,7 @@ export class SwordfightRenderer {
     const answer = this.cb.onPlace(anchorOf(f.pc, f.rot), f.rot);
     if (answer === "placed") {
       f.placed = true;
+      f.drops = s.config.player ? s.boards[0]!.drops : 0;
       this.placedMs = 0;
     } else if (answer === "wait") f.refused = 120;
     else {
@@ -1315,7 +1319,8 @@ export class SwordfightRenderer {
 
   /**
    * Nothing on screen may ever leave the player without a pair: if one is due and missing for long,
-   * deal it; if a taken pair has waited too long for its state, let it be asked for again.
+   * deal it; if a taken pair has waited too long for its state, show the state if the engine has
+   * the drop, or let the pair be asked for again if it does not.
    */
   private watch(dt: number): void {
     const s = this.state;
@@ -1339,9 +1344,20 @@ export class SwordfightRenderer {
     if (f.placed) {
       this.placedMs += dt;
       if (this.placedMs > 1500) {
-        f.placed = false;
-        f.lock = 0;
         this.placedMs = 0;
+        const board = s.boards[0]!;
+        if (board.drops > f.drops) {
+          // The engine took the pair but its landing was never shown: show the board as the engine
+          // has it and deal the next pair. Committing this one again would drop the next pair unseen.
+          this.dropFalling();
+          this.cells = board.cells.slice();
+          this.shownSlabs = board.slabs.slice();
+          this.place(false);
+          this.spawnFalling();
+        } else {
+          f.placed = false;
+          f.lock = 0;
+        }
       }
     } else this.placedMs = 0;
   }

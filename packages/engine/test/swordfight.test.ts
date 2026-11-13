@@ -684,6 +684,18 @@ describe("swordfight determinism (ADR 0003)", () => {
     );
   });
 
+  it("advancing past a logged drop keeps the drop's events, so a board shown late still sees it land", () => {
+    const s = createSwordfightGame("late", alone);
+    const col = swordfightSpawnCol(alone);
+    const placed = reduceSwordfight(s, place(col, 1, 3));
+    const landed = placed.lastMove!.events.filter((e) => e.type === "placed");
+    expect(landed).toHaveLength(1);
+    const shown = advanceSwordfight(placed, placed.tick + 1);
+    expect(shown.lastMove!.events.slice(0, placed.lastMove!.events.length)).toEqual(placed.lastMove!.events);
+    expect(shown.lastMove!.events.filter((e) => e.type === "placed")).toEqual(landed);
+    expect(shown.lastMove!.events.slice(placed.lastMove!.events.length).every((e) => e.tick > placed.tick)).toBe(true);
+  });
+
   it("a different drop gives a different hash", () => {
     const s = createSwordfightGame("h", alone);
     const a = reduceSwordfight(s, place(1, 1, 3));
