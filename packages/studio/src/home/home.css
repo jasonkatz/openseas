@@ -1,0 +1,103 @@
+/* The studio's home: a grid of every puzzle, each tile a picture of its board (home/thumbs). */
+.studio-home {
+  max-width: 1180px;
+}
+.studio-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+}
+.studio-tile {
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: linear-gradient(160deg, rgba(28, 43, 72, 0.75), rgba(11, 21, 38, 0.75));
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
+  overflow: hidden;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.studio-tile:hover,
+.studio-tile:focus-within {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 1px rgba(212, 165, 72, 0.55),
+    0 14px 28px -18px rgba(0, 0, 0, 0.9);
+}
+.studio-tile-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 8px;
+  color: inherit;
+  text-decoration: none;
+}
+.studio-thumb {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 9 / 13;
+  margin: -10px -12px 6px;
+  background: rgba(5, 10, 20, 0.7);
+  overflow: hidden;
+}
+.studio-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  animation: fade 0.3s ease both;
+}
+/* The shared tile styles place these in a two-column grid; here they are rows. */
+.studio-tile-main > * {
+  grid-area: auto;
+  position: static;
+}
+.studio-tile .tile-title {
+  font-size: 19px;
+}
+.studio-tile .eyebrow {
+  margin: 0;
+  font-size: 10px;
+}
+.studio-tile .tile-blurb {
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+.studio-tile-play {
+  padding: 8px 12px 10px;
+  border-top: 1px solid rgba(239, 227, 198, 0.08);
+  font-size: 12.5px;
+  color: var(--brass);
+  text-decoration: none;
+}
+.studio-tile-play:hover {
+  text-decoration: underline;
+}
+.studio-home .colophon p {
+  margin: 0 0 4px;
+}
+
+/* The hidden frame a thumbnail is drawn in: on the page so it is drawn at all, out of sight and out of reach. */
+.thumb-frame {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+/* What that frame shows: the board alone, edge to edge. */
+.thumb-board {
+  position: fixed;
+  inset: 0;
+  display: flex;
+}
+.thumb-board > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}

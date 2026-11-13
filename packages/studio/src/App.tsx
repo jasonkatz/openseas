@@ -1,7 +1,8 @@
 import { lazy, Suspense, type ComponentType } from "react";
 import type { PuzzleId } from "@openseas/engine";
 import { t } from "@openseas/boards";
-import { Home } from "./pages/Home.jsx";
+import { Home } from "./home/Home.jsx";
+import { THUMB_PARAM } from "./home/thumbs.js";
 import { BattlePractice } from "./pages/BattlePractice.jsx";
 import { CoolingPractice } from "./pages/CoolingPractice.jsx";
 import { PlatingPractice } from "./pages/PlatingPractice.jsx";
@@ -66,7 +67,7 @@ function Lanes() {
   const desktop = useMediaQuery("(min-width: 900px)");
   if (path.startsWith(PLAY)) {
     const id = path.slice(PLAY.length).replace(/\/$/, "");
-    if (isPuzzle(id)) return <Puzzle id={id} mode="play" />;
+    if (isPuzzle(id)) return <Puzzle id={id} mode={new URLSearchParams(window.location.search).has(THUMB_PARAM) ? "thumb" : "play"} />;
     return (
       <main className="page" data-testid="play-unknown">
         <h1>{t("play.unknown_title")}</h1>

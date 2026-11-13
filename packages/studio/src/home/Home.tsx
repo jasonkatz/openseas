@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { CORE_PUZZLE_IDS, PROTOTYPE_PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
 import { content, t } from "@openseas/boards";
 import { Link } from "../router.jsx";
+import { useThumbnails } from "./thumbs.js";
 
 const GLYPHS: Record<PuzzleId, ReactNode> = {
   cooling: (
@@ -193,9 +194,19 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
   ),
 };
 
+const PROTOTYPES = new Set<PuzzleId>(PROTOTYPE_PUZZLE_IDS);
+
+/**
+ * The studio's home (DESIGN.md 3.14): a grid of every puzzle, the game's and the prototypes
+ * alike, each with a picture of its board as this build draws it (home/thumbs) over the glyph it
+ * shows until that picture is taken. A tile opens the puzzle's studio page; its second link opens
+ * the puzzle alone.
+ */
 export function Home() {
+  const ids: readonly PuzzleId[] = [...CORE_PUZZLE_IDS, ...PROTOTYPE_PUZZLE_IDS];
+  const thumbs = useThumbnails(ids);
   return (
-    <main className="page home harness-home">
+    <main className="page home studio-home">
       <header className="masthead">
         <p className="eyebrow">{t("harness.eyebrow")}</p>
         <h1 className="wordmark">{t("harness.title")}</h1>
@@ -203,48 +214,20 @@ export function Home() {
         <p className="muted">{t("harness.tagline")}</p>
       </header>
 
-      <section className="card card-ink status-card" data-testid="status-card">
-        <h2>{t("harness.home.status")}</h2>
-        <dl className="ledger">
-          <div>
-            <dt>{t("harness.home.build")}</dt>
-            <dd className="mono small" data-testid="status-build">
-              {t("harness.home.harness_commit", { commit: __HARNESS_COMMIT__.slice(0, 7) })} · {t("harness.home.content_version", { version: content.world.version })}
-            </dd>
-          </div>
-        </dl>
-        <p className="muted small">{t("harness.home.how")}</p>
-      </section>
-
-      <section className="practice">
-        <h2 className="section-title">{t("harness.home.puzzles")}</h2>
-        <ul className="practice-grid">
-          {CORE_PUZZLE_IDS.map((id) => (
-            <li key={id}>
-              <Link to={`/${id}`} className="practice-tile live" data-testid={`tile-${id}`}>
-                <span className="tile-glyph" aria-hidden="true">
-                  {GLYPHS[id]}
+      <section>
+        <ul className="studio-grid" data-testid="puzzle-grid">
+          {ids.map((id) => (
+            <li key={id} className="studio-tile">
+              <Link to={`/${id}`} className="studio-tile-main" data-testid={`tile-${id}`}>
+                <span className={`studio-thumb ${thumbs[id] ? "is-drawn" : ""}`} aria-hidden="true">
+                  {thumbs[id] ? <img src={thumbs[id]} alt="" data-testid={`thumb-${id}`} /> : GLYPHS[id]}
                 </span>
+                {PROTOTYPES.has(id) && <span className="eyebrow">{t("harness.home.prototype")}</span>}
                 <span className="tile-title">{t(`home.practice_${id}`)}</span>
                 <span className="tile-blurb">{t(`home.practice_${id}_blurb`)}</span>
               </Link>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="practice">
-        <h2 className="section-title">{t("harness.home.prototypes")}</h2>
-        <p className="muted small">{t("harness.home.prototypes_blurb")}</p>
-        <ul className="practice-grid">
-          {PROTOTYPE_PUZZLE_IDS.map((id) => (
-            <li key={id}>
-              <Link to={`/${id}`} className="practice-tile live" data-testid={`tile-${id}`}>
-                <span className="tile-glyph" aria-hidden="true">
-                  {GLYPHS[id]}
-                </span>
-                <span className="tile-title">{t(`home.practice_${id}`)}</span>
-                <span className="tile-blurb">{t(`home.practice_${id}_blurb`)}</span>
+              <Link to={`/play/${id}`} className="studio-tile-play" data-testid={`tile-play-${id}`}>
+                {t("harness.home.play_alone")}
               </Link>
             </li>
           ))}
@@ -277,7 +260,13 @@ export function Home() {
         </ul>
       </section>
 
-      <footer className="colophon">{t("harness.home.footer")}</footer>
+      <footer className="colophon">
+        <p>{t("harness.home.how")}</p>
+        <p className="mono small" data-testid="status-build">
+          {t("harness.home.harness_commit", { commit: __HARNESS_COMMIT__.slice(0, 7) })} · {t("harness.home.content_version", { version: content.world.version })}
+        </p>
+        <p>{t("harness.home.footer")}</p>
+      </footer>
     </main>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
+import { ThumbShell } from "../home/ThumbShell.jsx";
 import { PlayShell } from "../play/PlayShell.jsx";
 import { StudioShell } from "../studio/StudioShell.jsx";
 import type { PracticeOutcome, PracticePhase } from "./usePractice.js";
@@ -115,7 +116,8 @@ export interface ShellProps {
  * (frame/RoundFrame): the studio, with the tuning panel beside the board, or the puzzle alone.
  */
 export function PracticeShell(p: ShellProps) {
-  return useFrame().mode === "studio" ? <StudioShell {...p} /> : <PlayShell {...p} />;
+  const mode = useFrame().mode;
+  return mode === "studio" ? <StudioShell {...p} /> : mode === "thumb" ? <ThumbShell {...p} /> : <PlayShell {...p} />;
 }
 
 export function ResultScore({ score }: { score: number }) {
