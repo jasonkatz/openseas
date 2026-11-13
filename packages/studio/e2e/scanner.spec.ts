@@ -85,11 +85,9 @@ async function moveCursor(page: Page, cell: number): Promise<void> {
   await expect(canvas).toHaveAttribute("data-cursor", `${cell % W},${Math.floor(cell / W)}`);
 }
 
-test("home links to Scanner and an unrated round pings by key and by tap, lights a ring, and locks what the rings prove", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTestId("tile-scanner").click();
-  await expect(page).toHaveURL(/\/scanner$/);
-  await page.getByTestId("start-unrated").click();
+test("Scanner plays alone on /play: a round pings by key and by tap, lights a ring, and locks what the rings prove", async ({ page }) => {
+  await page.goto("/play/scanner");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("scanner-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
@@ -142,7 +140,7 @@ test("home links to Scanner and an unrated round pings by key and by tap, lights
 
 test("a Scanner ping on a contact spooks it, a lock on empty space misses, and a cleared sector gives way to the next", async ({ page }) => {
   // A pinned lab seed: contacts at cells 7, 22 and 35, the opening ping on cell 31, and cell 0 empty fog.
-  await page.goto("/scanner?seed=scan-1&start=lab");
+  await page.goto("/play/scanner?seed=scan-1&start=lab");
   const canvas = page.getByTestId("scanner-canvas");
   await expect(canvas).toBeVisible();
   await expectViewMatchesState(page, "scanner");

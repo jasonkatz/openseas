@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { PuzzleId } from "@openseas/engine";
-import { TierPace, isMuted, setMuted, t, usePirate, useTierPace } from "@openseas/boards";
+import { isMuted, setMuted, t, usePirate, useTierPace } from "@openseas/boards";
+import { useFrame } from "../frame/RoundFrame.jsx";
+import { PlayShell } from "../play/PlayShell.jsx";
 import { Link } from "../router.jsx";
+import { ComboMeter, CoreStats } from "./Hud.jsx";
 import type { PracticeOutcome, PracticePhase } from "./usePractice.js";
 
 const MARKS_KEY = "openseas.markTiles";
@@ -91,8 +94,8 @@ export interface ShellProps {
   canRecord: boolean;
   onStartRecorded(): void;
   onStartUnrated(): void;
-  /** The harness's own round: a chosen seed, config and clock. */
-  onStartLab?(): void;
+  /** The harness's own round: a chosen seed, config and clock. A seed given here is dealt once and pins nothing. */
+  onStartLab?(seed?: string): void;
   /** False when the scenario does not validate; the lab button is disabled and `labSummary` says why. */
   labReady?: boolean;
   /** A line under the lab button: the seed and what differs from content. */
@@ -119,13 +122,20 @@ export interface ShellProps {
   reviewBar?: ReactNode;
 }
 
-const COMBO_PIPS = 8;
+/**
+ * The frame every puzzle's page draws itself in. Which one depends on how the page was opened
+ * (frame/RoundFrame): the bench's practice page, or the puzzle alone on `/play`.
+ */
+export function PracticeShell(p: ShellProps) {
+  return useFrame().mode === "play" ? <PlayShell {...p} /> : <BenchShell {...p} />;
+}
 
 /**
  * The practice page frame every duty puzzle shares: top bar, HUD, board well, start card, result
  * card, phone details panel, and room for the harness bench.
  */
-export function PracticeShell(p: ShellProps) {
+function BenchShell(p: ShellProps) {
+  const frame = useFrame();
   const { socketStatus, phase: piratePhase } = usePirate();
   const [muted, setMutedState] = useState(isMuted);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -134,10 +144,17 @@ export function PracticeShell(p: ShellProps) {
   const wide = useMediaQuery("(min-width: 900px)");
   const playing = p.phase === "playing";
   const reviewing = p.reviewBar !== undefined;
-  const score = useTally(p.score);
   const lowTime = playing && p.timeLeft <= 10;
   const prefix = p.puzzle;
-  const pace = useTierPace({ puzzle: p.puzzle as PuzzleId, points: p.pacePoints ?? p.score, playing, elapsed: p.roundSeconds - p.timeLeft, project: p.paceProject });
+  const pace = useTierPace({
+    puzzle: p.puzzle as PuzzleId,
+    points: p.pacePoints ?? p.score,
+    playing,
+    elapsed: p.roundSeconds - p.timeLeft,
+    project: p.paceProject,
+    // A lab round is read against the numbers it was dealt on.
+    numbers: frame.report.tuned ? frame.numbers : undefined,
+  });
 
   useEffect(() => {
     if (playing) {
@@ -191,59 +208,8 @@ export function PracticeShell(p: ShellProps) {
       </svg>
     </button>
   );
-  const coreStats = (
-    <>
-      <div className="stat stat-score">
-        <span className="stat-label">{p.scoreLabel ?? t("practice.score")}</span>
-        <span className="stat-value" data-testid="hud-score">
-          <span key={p.score} className={p.score ? "bump" : undefined}>
-            {score}
-          </span>
-          {!wide && p.combo > 1 && (
-            <b className={`combo-chip ${p.combo >= 6 ? "hot" : ""}`} key={p.combo}>
-              ×{p.combo}
-            </b>
-          )}
-          {!wide && <TierPace pace={pace} label={false} />}
-        </span>
-        {wide && <TierPace pace={pace} />}
-      </div>
-      <div className={`stat ${lowTime ? "stat-urgent" : ""}`}>
-        <span className="stat-label">{t("practice.time")}</span>
-        <span className={`stat-value ${lowTime ? "urgent" : ""}`} data-testid="hud-time">
-          {fmt(p.timeLeft)}
-        </span>
-        <span className="bar" aria-hidden="true">
-          <i style={{ width: `${Math.min(100, (p.timeLeft / Math.max(1, p.roundSeconds)) * 100)}%` }} />
-        </span>
-      </div>
-      <div className="stat">
-        <span className="stat-label">{p.movesLabel ?? t("practice.moves")}</span>
-        <span className="stat-value" data-testid="hud-moves">
-          {p.moves}
-          {p.maxMoves !== undefined && <small>/{p.maxMoves}</small>}
-        </span>
-        {p.maxMoves !== undefined && (
-          <span className="bar bar-moves" aria-hidden="true">
-            <i style={{ width: `${Math.max(0, 1 - p.moves / p.maxMoves) * 100}%` }} />
-          </span>
-        )}
-      </div>
-    </>
-  );
-  const comboMeter = (
-    <div className="stat stat-wide">
-      <span className="stat-label">{t("practice.combo")}</span>
-      <span className={`combo-meter ${p.combo >= 6 ? "hot" : ""}`} aria-label={t("practice.combo_label", { count: p.combo })}>
-        {Array.from({ length: COMBO_PIPS }, (_, i) => (
-          <i key={i} className={i < Math.min(COMBO_PIPS, p.combo) ? "lit" : ""} />
-        ))}
-        <b data-testid="hud-combo" key={p.combo}>
-          {p.combo ? t("practice.combo_label", { count: p.combo }) : ""}
-        </b>
-      </span>
-    </div>
-  );
+  const coreStats = <CoreStats p={p} wide={wide} pace={pace} lowTime={lowTime} />;
+  const comboMeter = <ComboMeter combo={p.combo} />;
 
   const covered = detailsOpen || (benchOpen && !wide);
   const board = (
@@ -284,7 +250,7 @@ export function PracticeShell(p: ShellProps) {
                 </button>
                 {p.onStartLab && (
                   <>
-                    <button className="btn btn-lab" onClick={p.onStartLab} disabled={p.labReady === false} data-testid="start-lab">
+                    <button className="btn btn-lab" onClick={() => p.onStartLab?.()} disabled={p.labReady === false} data-testid="start-lab">
                       {t("harness.lab_start")}
                     </button>
                     {p.labSummary && (
@@ -317,7 +283,7 @@ export function PracticeShell(p: ShellProps) {
               <div className="stack">
                 <button
                   className="btn btn-brass"
-                  onClick={p.outcome.kind === "lab" && p.onStartLab ? p.onStartLab : p.canRecord ? p.onStartRecorded : p.onStartUnrated}
+                  onClick={p.outcome.kind === "lab" && p.onStartLab ? () => p.onStartLab?.() : p.canRecord ? p.onStartRecorded : p.onStartUnrated}
                   data-testid="restart"
                 >
                   {t("practice.restart")}
@@ -460,7 +426,7 @@ function ResultBody({ outcome, rows }: { outcome: PracticeOutcome; rows?: ReactN
   );
 }
 
-function ResultScore({ score }: { score: number }) {
+export function ResultScore({ score }: { score: number }) {
   const [target, setTarget] = useState(0);
   useEffect(() => setTarget(score), [score]);
   const shown = useTally(target, 900);
@@ -483,8 +449,3 @@ export function MarksToggle({ showMarks, onChange }: { showMarks: boolean; onCha
   );
 }
 
-function fmt(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}

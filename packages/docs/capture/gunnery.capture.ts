@@ -13,7 +13,7 @@ import {
   type GunneryEvent,
   type GunneryState,
 } from "@openseas/engine";
-import { boardGeom, boardString, canvasBox, clip, findSeed, hidePointer, openLab, padded, still, type Box } from "./lib.js";
+import { boardGeom, boardString, canvasBox, clip, findSeed, hidePointer, openLab, padded, stepClock, still, toggleClock, type Box } from "./lib.js";
 
 /**
  * Gunnery is ticked (ADR 0015): the deck moves on the round's clock, so a capture cannot just click
@@ -185,9 +185,7 @@ async function open(page: Page, seed: string): Promise<{ ticks: number }> {
 async function stepTo(page: Page, clock: { ticks: number }, tick: number): Promise<void> {
   const n = tick - clock.ticks;
   if (n <= 0) return;
-  await page.getByTestId("clock-step").evaluate((el, times) => {
-    for (let i = 0; i < times; i++) (el as HTMLButtonElement).click();
-  }, n);
+  await stepClock(page, n);
   clock.ticks = tick;
 }
 
@@ -263,7 +261,7 @@ async function live(page: Page, seed: string, acts: readonly Act[], from: number
     const [x, y] = await spot(page, a.col, a.row, a.dir ?? dirs.get(`${a.col},${a.row}`) ?? null);
     await move(x, y);
   };
-  const toggle = (): Promise<void> => page.getByTestId("clock-pause").evaluate((el) => (el as HTMLButtonElement).click());
+  const toggle = (): Promise<void> => toggleClock(page);
   if (mine[0]) await hover(mine[0]);
   await toggle();
   for (let i = 0; i < mine.length; i++) {

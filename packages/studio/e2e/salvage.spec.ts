@@ -45,11 +45,9 @@ async function drag(page: Page, cells: readonly number[]): Promise<void> {
   await page.mouse.up();
 }
 
-test("home links to Salvage and an unrated round hauls a line by key and by drag", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTestId("tile-salvage").click();
-  await expect(page).toHaveURL(/\/salvage$/);
-  await page.getByTestId("start-unrated").click();
+test("Salvage plays alone on /play: a round hauls a line by key and by drag", async ({ page }) => {
+  await page.goto("/play/salvage");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("salvage-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
@@ -81,7 +79,7 @@ test("home links to Salvage and an unrated round hauls a line by key and by drag
 
 test("a Salvage line closed into a loop nets the crates on the field", async ({ page }) => {
   // A pinned lab seed whose opening holds a loop of four round nothing, with two crates adrift.
-  await page.goto("/salvage?seed=loop-1&start=lab");
+  await page.goto("/play/salvage?seed=loop-1&start=lab");
   const canvas = page.getByTestId("salvage-canvas");
   await expect(canvas).toBeVisible();
   await expectViewMatchesState(page, "salvage");

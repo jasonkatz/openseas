@@ -33,11 +33,9 @@ function freeFlick(board: string, skipPod = -1): { pod: number; cell: number; di
   throw new Error(`no pod can move on ${board}`);
 }
 
-test("home links to Tug and an unrated round flicks a pod by key and by swipe", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTestId("tile-tug").click();
-  await expect(page).toHaveURL(/\/tug$/);
-  await page.getByTestId("start-unrated").click();
+test("Tug plays alone on /play: a round flicks a pod by key and by swipe", async ({ page }) => {
+  await page.goto("/play/tug");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("tug-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
@@ -67,7 +65,7 @@ test("home links to Tug and an unrated round flicks a pod by key and by swipe", 
 
 test("a Tug clamp delivered at par scores clean, and a skip costs its penalty", async ({ page }) => {
   // A pinned lab seed: the first clamp wants pod 1 of 4 on a cell it reaches in two flicks, with pod 2 parked first as its stop.
-  await page.goto("/tug?seed=tug-2&start=lab");
+  await page.goto("/play/tug?seed=tug-2&start=lab");
   const canvas = page.getByTestId("tug-canvas");
   await expect(canvas).toBeVisible();
   await expectViewMatchesState(page, "tug");

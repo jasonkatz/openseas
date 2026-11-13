@@ -19,11 +19,9 @@ async function tapCell(page: Page, cell: number): Promise<void> {
   await page.mouse.click(ox + ((cell % W) + 0.5) * size, oy + (Math.floor(cell / W) + 0.5) * size);
 }
 
-test("home links to Overload and an unrated round charges a capacitor by key and bursts one by pointer", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTestId("tile-overload").click();
-  await expect(page).toHaveURL(/\/overload$/);
-  await page.getByTestId("start-unrated").click();
+test("Overload plays alone on /play: a round charges a capacitor by key and bursts one by pointer", async ({ page }) => {
+  await page.goto("/play/overload");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("overload-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
@@ -61,7 +59,7 @@ test("home links to Overload and an unrated round charges a capacitor by key and
 
 test("an Overload chain plays out and scores its length squared", async ({ page }) => {
   // A pinned lab seed whose opening holds a chain of six from one tap: four waves, no booster in it.
-  await page.goto("/overload?seed=chain-219&start=lab");
+  await page.goto("/play/overload?seed=chain-219&start=lab");
   const canvas = page.getByTestId("overload-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("overload-board")).toHaveAttribute("data-board", "123011210331013320213101021b131011c1002010");

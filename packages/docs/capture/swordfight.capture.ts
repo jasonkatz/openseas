@@ -17,7 +17,7 @@ import {
   type SwordfightEvent,
   type SwordfightState,
 } from "@openseas/engine";
-import { boardString, canvasAttr, canvasBox, clip, findSeed, glide, hidePointer, openLab, settled, still, tapAt, type Box } from "./lib.js";
+import { boardString, canvasAttr, canvasBox, clip, clockTick, findSeed, glide, hidePointer, openLab, settled, stepClock, still, tapAt, type Box } from "./lib.js";
 
 const cfg = loadContent().puzzles.swordfight.config;
 const W = cfg.width;
@@ -181,16 +181,13 @@ async function open(page: Page, seed: string, c: SwordfightConfig): Promise<Figh
 
 const hudNumber = async (page: Page, id: string): Promise<number> => Number.parseInt((await page.getByTestId(id).textContent()) ?? "0", 10);
 
-/** The fight's tick, from the bench's clock. */
-async function tickNow(page: Page): Promise<number> {
-  const m = /tick (\d+)/.exec((await page.getByTestId("clock-readout").textContent()) ?? "");
-  return m ? Number(m[1]) : 0;
-}
+/** The fight's tick, from the round's clock. */
+const tickNow = (page: Page): Promise<number> => clockTick(page);
 
-/** Step the stopped clock up to a tick. The button is clicked in the page, so the pointer stays where the hand left it. */
+/** Step the stopped clock up to a tick. It is stepped in the page, so the pointer stays where the hand left it. */
 async function stepTo(page: Page, tick: number): Promise<void> {
   for (let n = 0; n < 2000 && (await tickNow(page)) < tick; n++) {
-    await page.getByTestId("clock-step").evaluate((el) => (el as HTMLButtonElement).click());
+    await stepClock(page);
     await page.waitForTimeout(20);
   }
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COOLING_DEF, GUNNERY_DEF, createCoolingGame, previewSwap, type CoolingMove, type GunneryMove } from "@openseas/engine";
 import { loadContent } from "@openseas/content";
-import { findSeed, replayRound } from "../src/review/replay.js";
+import { findSeed, replayAgrees, replayRound } from "../src/review/replay.js";
 import { parseRoundFile } from "../src/review/roundFile.js";
 
 const content = loadContent();
@@ -37,6 +37,7 @@ describe("replayRound", () => {
     const r = replayRound(COOLING_DEF, "review-1", cooling, moves, hashes);
     expect(r.error).toBeNull();
     expect(r.divergedAt).toBeNull();
+    expect(replayAgrees(r)).toBe(true);
     expect(r.steps.map((x) => x.hash)).toEqual(hashes);
     expect(r.summary).toEqual(COOLING_DEF.summarize(s));
     expect(r.initialHash).toBe(COOLING_DEF.hash(createCoolingGame("review-1", cooling)));
@@ -49,6 +50,7 @@ describe("replayRound", () => {
     hashes[2] = "00000000";
     const r = replayRound(COOLING_DEF, "review-2", cooling, moves, hashes);
     expect(r.divergedAt).toBe(2);
+    expect(replayAgrees(r)).toBe(false);
     expect(r.steps.length).toBe(moves.length);
   });
 

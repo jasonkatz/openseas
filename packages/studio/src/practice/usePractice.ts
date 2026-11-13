@@ -21,9 +21,9 @@ export type PracticeOutcome =
   | { kind: "unrated"; score: number; moves: number; bestCombo: number; newBest: boolean; performance: Performance }
   | { kind: "lab"; score: number; moves: number; bestCombo: number; newBest: false; performance: Performance };
 
-/** What the server would rate a local round's score at, against the content thresholds. */
-export function localPerformance(puzzle: PuzzleId, score: number): Performance {
-  const rating = performanceRating(score, content.puzzles[puzzle].thresholds);
+/** What the server would rate a local round's score at, against the content thresholds, or a tuned round's own. */
+export function localPerformance(puzzle: PuzzleId, score: number, thresholds?: readonly { score: number; rating: number }[]): Performance {
+  const rating = performanceRating(score, thresholds ?? content.puzzles[puzzle].thresholds);
   return { rating, tier: tierFor(rating, content.ratingTiers).key };
 }
 
@@ -31,6 +31,8 @@ export interface LabScenario<C> {
   seed: string;
   config: C;
   roundSeconds: number;
+  /** What the round is rated against when it is not content's: a round the studio tuned (ADR 0042). */
+  thresholds?: readonly { score: number; rating: number }[];
   /** Clock rate at the start; 1 is real time. */
   speed?: number;
   /** Start with the clock stopped, to step through the opening by hand. */
@@ -56,6 +58,8 @@ export interface RoundInfo<C> {
   config: C;
   roundSeconds: number;
   sessionId: string | null;
+  /** A tuned lab round's own thresholds; absent when the round is rated against content's. */
+  thresholds?: readonly { score: number; rating: number }[] | undefined;
 }
 
 export interface PracticeApi<S, M, C> extends TickedHost<S, M> {
@@ -169,7 +173,7 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
             const s = round.current?.state;
             if (s) {
               const sum = latest.current.summarize(s);
-              const performance = localPerformance(puzzle, sum.score);
+              const performance = localPerformance(puzzle, sum.score, info.thresholds);
               if (info.mode === "lab") setOutcome({ kind: "lab", ...sum, newBest: false, performance });
               else {
                 const newBest = recordBest(puzzle, sum.score);
@@ -209,7 +213,7 @@ export function usePractice<S, M, C>(opts: PracticeOptions<S, M, C>): PracticeAp
       labClock.current = clock;
       const now = clock.now();
       beginRound(
-        { mode: "lab", seed: scenario.seed, config: scenario.config, roundSeconds: scenario.roundSeconds, sessionId: null },
+        { mode: "lab", seed: scenario.seed, config: scenario.config, roundSeconds: scenario.roundSeconds, sessionId: null, thresholds: scenario.thresholds },
         now,
         now + scenario.roundSeconds * 1000,
         clock,

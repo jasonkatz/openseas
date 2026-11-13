@@ -11,7 +11,7 @@ for (const puzzle of [...CORE, ...PROTOTYPES]) {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
     const image = page.waitForResponse((r) => r.url().includes(`/${puzzle}-`) && r.url().endsWith(".webp"));
-    await page.goto(`/${puzzle}?seed=sprite-smoke&start=lab&paused=1`);
+    await page.goto(`/play/${puzzle}?seed=sprite-smoke&start=lab&paused=1`);
     expect((await image).ok()).toBe(true);
     const canvas = page.getByTestId(`${puzzle}-canvas`);
     await expect(canvas).toHaveAttribute("data-sprite-atlas", puzzle);
@@ -33,8 +33,8 @@ test("an unavailable atlas falls back to playable procedural art", async ({ page
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/*.webp", (route) => route.abort());
-  await page.goto("/cooling");
-  await page.getByTestId("start-unrated").click();
+  await page.goto("/play/cooling");
+  await page.getByTestId("play-start").click();
   await expect(page.getByTestId("cooling-canvas")).toHaveAttribute("data-sprite-atlas", "fallback");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowRight");
@@ -47,7 +47,7 @@ test("a kit board with no atlas draws its pieces in code and still plays", async
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/*.webp", (route) => route.abort());
-  await page.goto("/overload?seed=sprite-smoke&start=lab");
+  await page.goto("/play/overload?seed=sprite-smoke&start=lab");
   const canvas = page.getByTestId("overload-canvas");
   await expect(canvas).toHaveAttribute("data-sprite-atlas", "fallback");
   await expectViewMatchesState(page, "overload");

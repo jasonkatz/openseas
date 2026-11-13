@@ -57,11 +57,9 @@ async function dragRack(page: Page, from: number, to: number): Promise<void> {
   await page.mouse.up();
 }
 
-test("home links to Racks and an unrated round moves cells by key, tap and drag, and calls the crate", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTestId("tile-racks").click();
-  await expect(page).toHaveURL(/\/racks$/);
-  await page.getByTestId("start-unrated").click();
+test("Racks plays alone on /play: a round moves cells by key, tap and drag, and calls the crate", async ({ page }) => {
+  await page.goto("/play/racks");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("racks-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
@@ -108,7 +106,7 @@ test("home links to Racks and an unrated round moves cells by key, tap and drag,
 
 test("a Racks rack filled with one kind ships", async ({ page }) => {
   // A pinned lab seed: the first crate is two of kind 3 over a rack that holds one, and two more sit on other racks' tops.
-  await page.goto("/racks?seed=ship-17&start=lab");
+  await page.goto("/play/racks?seed=ship-17&start=lab");
   const canvas = page.getByTestId("racks-canvas");
   await expect(canvas).toBeVisible();
   await expectViewMatchesState(page, "racks");

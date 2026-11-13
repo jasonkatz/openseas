@@ -7,6 +7,8 @@ import type { Overrides } from "./overrides.js";
  *   seed        the engine seed; absent means a fresh random seed each start
  *   seconds     round length; absent means the content round length
  *   c.<path>    a config override; the value is JSON when it parses, a string otherwise
+ *   pace        the live tier indicator's window in seconds; absent means content's `paceSeconds`
+ *   thresholds  the thresholds the round is rated against, as JSON; absent means content's
  *   speed       clock rate for lab rounds (default 1)
  *   paused      1 to start with the clock stopped
  *   hints       0 to turn idle hints off in a lab round (they are on, as in unrated practice)
@@ -18,6 +20,9 @@ export interface Scenario {
   seed: string | null;
   roundSeconds: number | null;
   overrides: Overrides;
+  paceSeconds: number | null;
+  /** Unchecked: whatever JSON the link carried. The frame's checks decide whether it can be played. */
+  thresholds: unknown;
   speed: number;
   paused: boolean;
   hints: boolean;
@@ -25,7 +30,7 @@ export interface Scenario {
   review: boolean;
 }
 
-export const EMPTY_SCENARIO: Scenario = { seed: null, roundSeconds: null, overrides: {}, speed: 1, paused: false, hints: true, autostart: null, review: false };
+export const EMPTY_SCENARIO: Scenario = { seed: null, roundSeconds: null, overrides: {}, paceSeconds: null, thresholds: null, speed: 1, paused: false, hints: true, autostart: null, review: false };
 
 export const SPEEDS = [0.25, 0.5, 1, 2, 4] as const;
 
@@ -42,12 +47,15 @@ export function parseScenario(search: string): Scenario {
   const overrides: Record<string, unknown> = {};
   for (const [key, raw] of q.entries()) if (key.startsWith("c.") && key.length > 2) overrides[key.slice(2)] = parseValue(raw);
   const seconds = Number(q.get("seconds"));
+  const pace = Number(q.get("pace"));
   const speed = Number(q.get("speed"));
   const start = q.get("start");
   return {
     seed: q.get("seed") || null,
     roundSeconds: Number.isInteger(seconds) && seconds > 0 ? seconds : null,
     overrides,
+    paceSeconds: q.has("pace") && Number.isFinite(pace) ? pace : null,
+    thresholds: q.has("thresholds") ? parseValue(q.get("thresholds")!) : null,
     speed: speed > 0 ? speed : 1,
     paused: q.get("paused") === "1",
     hints: q.get("hints") !== "0",
@@ -62,6 +70,8 @@ export function formatScenario(s: Scenario): string {
   if (s.seed) q.set("seed", s.seed);
   if (s.roundSeconds !== null) q.set("seconds", String(s.roundSeconds));
   for (const [path, value] of Object.entries(s.overrides)) q.set(`c.${path}`, typeof value === "string" ? value : JSON.stringify(value));
+  if (s.paceSeconds !== null) q.set("pace", String(s.paceSeconds));
+  if (s.thresholds !== null) q.set("thresholds", JSON.stringify(s.thresholds));
   if (s.speed !== 1) q.set("speed", String(s.speed));
   if (s.paused) q.set("paused", "1");
   if (!s.hints) q.set("hints", "0");

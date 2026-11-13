@@ -60,7 +60,7 @@ game is at openseas.online.
 | `packages/boards` | What both front ends render with: the PixiJS boards and their art and sound, the round runner, the tick clock, the server connection (ADR 0019). Renders; never authoritative. |
 | `packages/client` | The game, one graphical experience: the three.js world with the boards over it (ADR 0020). Vite, React. Renders; never authoritative. |
 | `packages/docs` | The puzzle guides: a static site with one guide per puzzle, from first round to expert play. Its screenshots and clips are captured from the real boards on the harness (`pnpm capture:docs`). |
-| `packages/studio` | The puzzle harness, renamed for the studio it is becoming (M9, ADR 0042). For now still the test bench: one page per engine around the shared boards, plus the bench (lab rounds, scenarios as links, inspector, replay review). A developer and tester tool, never linked from the game. |
+| `packages/studio` | The puzzle harness, renamed for the studio it is becoming (M9, ADR 0042). For now still the test bench: one page per engine around the shared boards, plus the bench (lab rounds, scenarios as links, inspector, replay review). Each puzzle also plays alone at `/play/<puzzle>`, with no bench and no server, on the numbers its link carries. A developer and tester tool, never linked from the game. |
 
 ## Run it
 
@@ -77,7 +77,8 @@ pnpm dev:docs                   # the puzzle guides on :5175 (no server needed)
 Open http://localhost:5174 for the harness (http://localhost:5173 is the game). You get a guest
 pirate and a starter skiff at once; set `ALPHA_INVITE_CODE` in `.env` to require an invite. A
 harness page's query string is its scenario, for example
-`http://localhost:5174/gunnery?seed=keg-3&seconds=60&c.spawnEveryTicks=20&start=lab`.
+`http://localhost:5174/gunnery?seed=keg-3&seconds=60&c.spawnEveryTicks=20&start=lab`. The same
+query string on `/play/gunnery` opens the puzzle alone on those numbers: the link to send a tester.
 
 ## Check it
 

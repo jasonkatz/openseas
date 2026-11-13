@@ -2,7 +2,7 @@
   "name": "@openseas/studio",
   "version": "0.1.0",
   "private": true,
-  "description": "The puzzle studio (ADR 0042), for now still the test harness (ADR 0018, ADR 0019): one page per engine for playing, isolating and inspecting a puzzle. A developer and tester tool; never linked from the game. Renders; never authoritative.",
+  "description": "The puzzle studio (ADR 0042), for now still the test harness (ADR 0018, ADR 0019): one page per engine for playing, isolating and inspecting a puzzle, and each puzzle alone at /play/<puzzle>. A developer and tester tool; never linked from the game. Renders; never authoritative.",
   "type": "module",
   "scripts": {
     "dev": "vite --host",

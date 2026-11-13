@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { t } from "@openseas/boards";
+import { useFrame } from "../frame/RoundFrame.jsx";
 import { localSeed, type PracticeApi } from "../practice/usePractice.js";
 import type { HarnessPuzzle } from "../puzzles.js";
-import { replayRound, type Replay } from "../review/replay.js";
+import { replayAgrees, replayRound, type Replay } from "../review/replay.js";
 import { takeStashedRoundFile, type RoundFile } from "../review/roundFile.js";
-import { formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
-import { applyOverrides } from "../scenario/overrides.js";
-import { validateConfig } from "../scenario/validate.js";
+import type { Scenario } from "../scenario/codec.js";
+import { validateConfig, type Validation } from "../scenario/validate.js";
 import { ClockPanel } from "./ClockPanel.jsx";
 import { copyText } from "./format.js";
 import { ImportPanel } from "./ImportPanel.jsx";
@@ -23,15 +23,16 @@ export interface Review<S, M> {
 }
 
 export interface BenchApi<S> {
-  /** The bench panels, for the shell's sidebar or sheet. */
-  bench: ReactNode;
+  /** The bench panels, for the shell's sidebar or sheet. None on a `/play` page. */
+  bench: ReactNode | undefined;
   /** Set while a log is being reviewed; the shell hides the start card and shows this strip. */
   reviewBar: ReactNode | undefined;
   /** The state to draw instead of the live one while reviewing. */
   reviewState: S | null;
   /** Changes when the board should be remounted during review. */
   reviewKey: string | null;
-  startLab(): void;
+  /** Start a round on the frame's numbers. With no seed given: the scenario's, or a fresh one when it pins none. */
+  startLab(seed?: string): void;
   labReady: boolean;
   labSummary: ReactNode;
   /** Idle hints for the round in play: on for unrated and (unless turned off) lab rounds, never for recorded. */
@@ -40,24 +41,43 @@ export interface BenchApi<S> {
 }
 
 /**
- * The harness's own controls around a practice page: the lab scenario (seed, config, clock),
- * the inspector, the replay check, importing and reviewing logs. Everything recorded and unrated
- * rounds do is untouched; the bench only reads them.
+ * A round's clock, reachable from a script and from nowhere on screen. The guides' capture holds
+ * a round still and steps it a tick at a time so each frame lands where it is planned (ADR 0038);
+ * the studio has no control for that any more (ADR 0042), so the capture drives this.
+ */
+export interface RoundClockHandle {
+  pause(): void;
+  resume(): void;
+  /** Advance a held clock by this many milliseconds; one tick of a ticked puzzle when left out, else a second. */
+  step(ms?: number): void;
+  readonly paused: boolean;
+  /** The tick a ticked puzzle's round is on; null for the others. */
+  readonly tick: number | null;
+}
+declare global {
+  interface Window {
+    openseasRoundClock?: RoundClockHandle;
+  }
+}
+
+/**
+ * What stands between a puzzle's page and the frame around it (frame/RoundFrame): the round on
+ * the frame's numbers (seed, config, length, thresholds), the replay check after every round, and
+ * on a bench page the bench's own tools: the scenario form, the inspector, importing and reviewing
+ * logs. Everything recorded and unrated rounds do is untouched; the bench only reads them.
  */
 export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeApi<S, M, C>): BenchApi<S> {
-  const [scenario, setScenarioState] = useState<Scenario>(() => parseScenario(window.location.search));
+  const frame = useFrame();
+  const { scenario, setScenario, numbers, setReport } = frame;
+  const play = frame.mode === "play";
   const [review, setReview] = useState<Review<S, M> | null>(null);
   const started = useRef(false);
-  const labConfig = useMemo(() => applyOverrides(puzzle.config, scenario.overrides), [puzzle, scenario.overrides]);
-  const validation = useMemo(() => validateConfig(puzzle, labConfig), [puzzle, labConfig]);
+  const labConfig = numbers.config as C;
+  const validation = useMemo<Validation>(
+    () => ({ ok: frame.refusals.length === 0, errors: frame.refusals.map((r) => `${r.key}: ${r.message}`), issues: [] }),
+    [frame.refusals],
+  );
   const playing = api.phase === "playing" || api.phase === "starting" || api.phase === "waiting";
-
-  // The address bar always holds the scenario, so a condition worth testing is one link.
-  const setScenario = useCallback((next: Scenario) => {
-    setScenarioState(next);
-    const qs = formatScenario({ ...next, autostart: null, review: false });
-    window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
-  }, []);
 
   // The board behind the start card shows the scenario: its seed and config. Only the stable parts
   // of the api are dependencies; the api object itself is rebuilt every render and would loop.
@@ -101,17 +121,21 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
     });
   }, []);
 
-  const startLab = useCallback(() => {
-    if (!validation.ok) return;
-    setReview(null);
-    api.startLab({
-      seed: scenario.seed ?? localSeed(),
-      config: labConfig,
-      roundSeconds: scenario.roundSeconds ?? puzzle.roundSeconds,
-      speed: scenario.speed,
-      paused: scenario.paused,
-    });
-  }, [api, labConfig, puzzle.roundSeconds, scenario, validation.ok]);
+  const startLab = useCallback(
+    (seed?: string) => {
+      if (!validation.ok) return;
+      setReview(null);
+      api.startLab({
+        seed: seed ?? scenario.seed ?? localSeed(),
+        config: labConfig,
+        roundSeconds: numbers.roundSeconds,
+        thresholds: numbers.thresholds,
+        speed: scenario.speed,
+        paused: scenario.paused,
+      });
+    },
+    [api, labConfig, numbers, scenario, validation.ok],
+  );
 
   // A page opened with ?start= or ?review= gets going on its own.
   useEffect(() => {
@@ -123,7 +147,8 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
       setScenario({ ...scenario, review: false });
       return;
     }
-    if (scenario.autostart === "lab") {
+    // A `/play` page has one kind of round, so any `start` starts it.
+    if (scenario.autostart === "lab" || (play && scenario.autostart)) {
       started.current = true;
       startLab();
     } else if (scenario.autostart === "unrated") {
@@ -135,7 +160,7 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
       api.startRecorded();
     } else started.current = true;
     if (scenario.autostart) setScenario({ ...scenario, autostart: null });
-  }, [api, openReview, puzzle.id, scenario, setScenario, startLab]);
+  }, [api, openReview, play, puzzle.id, scenario, setScenario, startLab]);
 
   // Replay the finished round from its seed and compare every hash: the determinism check.
   const check = useMemo((): Replay<S, M> | null => {
@@ -152,6 +177,37 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
     // api.log is a live array; api.version changes whenever it grows.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api.phase, api.round, api.version, puzzle.def]);
+
+  // The shell around the page hears which round this is and whether its replay disagreed.
+  const roundSeed = api.phase === "idle" ? null : (api.round?.seed ?? null);
+  const tuned = api.phase !== "idle" && api.round?.mode === "lab";
+  const replayMismatch = check !== null && !replayAgrees(check);
+  useEffect(() => setReport({ seed: roundSeed, tuned, replayMismatch }), [setReport, roundSeed, tuned, replayMismatch]);
+
+  // The round's clock, for a script (see RoundClockHandle). Only a lab round has one to hold.
+  const clock = api.clock;
+  const tickMs = puzzle.ticked?.tickMs ?? null;
+  useEffect(() => {
+    if (!clock) return;
+    const startedAt = api.current()?.opts.startedAt ?? clock.now();
+    const handle: RoundClockHandle = {
+      pause: () => clock.pause(),
+      resume: () => clock.resume(),
+      step: (ms) => clock.step(ms ?? tickMs ?? 1000),
+      get paused() {
+        return clock.isPaused;
+      },
+      get tick() {
+        return tickMs ? Math.max(0, Math.floor(Math.max(0, clock.now() - startedAt) / tickMs) - 1) : null;
+      },
+    };
+    window.openseasRoundClock = handle;
+    return () => {
+      if (window.openseasRoundClock === handle) delete window.openseasRoundClock;
+    };
+    // api.current is stable; the round it reads changes with the clock.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clock, tickMs]);
 
   const roundFile = useCallback((): RoundFile | null => {
     const round = api.round;
@@ -180,11 +236,11 @@ export function useBench<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeA
   const overrideCount = Object.keys(scenario.overrides).length;
   const labSummary: ReactNode = !validation.ok
     ? t("harness.lab_invalid")
-    : `${scenario.seed ? t("harness.lab_seed", { seed: scenario.seed }) : t("harness.lab_random_seed")} · ${overrideCount ? t("harness.lab_overrides", { count: overrideCount }) : t("harness.lab_no_overrides")} · ${scenario.roundSeconds ?? puzzle.roundSeconds}s${scenario.speed !== 1 ? ` · ${t("harness.speed_label", { rate: scenario.speed })}` : ""}`;
+    : `${scenario.seed ? t("harness.lab_seed", { seed: scenario.seed }) : t("harness.lab_random_seed")} · ${overrideCount ? t("harness.lab_overrides", { count: overrideCount }) : t("harness.lab_no_overrides")} · ${numbers.roundSeconds}s${scenario.speed !== 1 ? ` · ${t("harness.speed_label", { rate: scenario.speed })}` : ""}`;
 
-  const bench = (
+  const bench = play ? undefined : (
     <div className="bench-body">
-      <ScenarioPanel puzzle={puzzle} scenario={scenario} labConfig={labConfig} validation={validation} locked={playing} onChange={setScenario} onStart={startLab} />
+      <ScenarioPanel puzzle={puzzle} scenario={scenario} labConfig={labConfig} validation={validation} locked={playing} onChange={setScenario} onStart={() => startLab()} />
       <ClockPanel clock={api.clock} startedAt={api.current()?.opts.startedAt ?? null} tickMs={puzzle.ticked?.tickMs ?? null} playing={api.phase === "playing"} />
       <InspectorPanel
         puzzle={puzzle}

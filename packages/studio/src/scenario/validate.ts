@@ -1,10 +1,18 @@
 import { z } from "zod";
 import type { HarnessPuzzle } from "../puzzles.js";
 
+/** One thing wrong with a config. `path` is the key under `config` it is about, when the check could say. */
+export interface ConfigIssue {
+  readonly path: string | null;
+  readonly message: string;
+}
+
 export interface Validation {
   readonly ok: boolean;
   /** Human-readable problems: the wire schema's, then the engine's. */
   readonly errors: readonly string[];
+  /** The same problems, each with the key it is about, so a control can show its own. */
+  readonly issues: readonly ConfigIssue[];
 }
 
 /**
@@ -13,21 +21,21 @@ export interface Validation {
  * on a config the server could not have issued.
  */
 export function validateConfig<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, config: C): Validation {
-  const errors: string[] = [];
+  const issues: ConfigIssue[] = [];
   const parsed = puzzle.configSchema.safeParse(config);
   if (!parsed.success) {
-    for (const issue of parsed.error.issues) errors.push(`${issue.path.join(".") || "config"}: ${issue.message}`);
+    for (const issue of parsed.error.issues) issues.push({ path: issue.path.join(".") || null, message: issue.message });
   }
   try {
     puzzle.def.validateConfig(config);
   } catch (e) {
-    errors.push(e instanceof Error ? e.message : String(e));
+    issues.push({ path: null, message: e instanceof Error ? e.message : String(e) });
   }
   // A config the schema would strip or coerce is not the config the engine saw. Key order is not
   // a difference: the content schema and the wire schema may declare the same fields in a
   // different order, and the server compares values, not spellings.
-  if (parsed.success && canonical(parsed.data) !== canonical(config)) errors.push("config: fields the wire schema does not know");
-  return { ok: errors.length === 0, errors };
+  if (parsed.success && canonical(parsed.data) !== canonical(config)) issues.push({ path: null, message: "fields the wire schema does not know" });
+  return { ok: issues.length === 0, errors: issues.map((i) => `${i.path ?? "config"}: ${i.message}`), issues };
 }
 
 /** JSON with every object's keys sorted, so two configs compare by value alone. */

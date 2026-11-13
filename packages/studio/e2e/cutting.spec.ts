@@ -24,11 +24,9 @@ async function pieces(page: Page): Promise<Rect[]> {
 
 const cutsMade = async (page: Page): Promise<number> => Number((await page.getByTestId("hud-moves").textContent())?.trim() ?? "0");
 
-test("home links to Cutting and an unrated round cuts by key, by swipe and by two taps", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTestId("tile-cutting").click();
-  await expect(page).toHaveURL(/\/cutting$/);
-  await page.getByTestId("start-unrated").click();
+test("Cutting plays alone on /play: a round cuts by key, by swipe and by two taps", async ({ page }) => {
+  await page.goto("/play/cutting");
+  await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("cutting-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
@@ -80,7 +78,7 @@ test("home links to Cutting and an unrated round cuts by key, by swipe and by tw
 });
 
 test("a Cutting slab given up is graded and the next one is dealt", async ({ page }) => {
-  await page.goto("/cutting?seed=smoke-1&start=lab");
+  await page.goto("/play/cutting?seed=smoke-1&start=lab");
   const canvas = page.getByTestId("cutting-canvas");
   await expect(canvas).toBeVisible();
   await expectViewMatchesState(page, "cutting");

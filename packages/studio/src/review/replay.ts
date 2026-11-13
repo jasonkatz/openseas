@@ -49,6 +49,15 @@ export function replayRound<S, M, C>(def: PuzzleDef<S, M, C>, seed: string, conf
   return { initial, initialHash: def.hash(initial), steps, error, divergedAt, final: state, summary: def.summarize(state) };
 }
 
+/**
+ * Whether a replay agrees with the round it replays: the whole log applied, and every hash the
+ * round made came out again. The studio asks this of every round it plays and speaks only when
+ * the answer is no (ADR 0042 decision 3).
+ */
+export function replayAgrees<S, M>(replay: Replay<S, M>): boolean {
+  return replay.error === null && replay.divergedAt === null;
+}
+
 /** Finds a seed whose opening state satisfies `probe`, trying `prefix-1`, `prefix-2`, ... up to `tries`. */
 export function findSeed<S, M, C>(def: PuzzleDef<S, M, C>, config: C, probe: (state: S) => boolean, prefix: string, tries = 5000): string | null {
   for (let i = 1; i <= tries; i++) {
