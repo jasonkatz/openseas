@@ -1,4 +1,5 @@
 import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
+import { soundsFor } from "../audio.js";
 import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, TilingSprite, type FederatedPointerEvent } from "pixi.js";
 import {
   BATTLE_PERMILLE,
@@ -271,6 +272,9 @@ export class BattleRenderer {
     private readonly opts: BattleRendererOptions,
   ) {}
 
+  /** This puzzle's picked samples play while the board is open (ADR 0041). */
+  private readonly releaseSounds = soundsFor("battle");
+
   async init(): Promise<void> {
     await loadPuzzleSprites("battle");
     if (this.destroyed) return;
@@ -303,6 +307,7 @@ export class BattleRenderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.releaseSounds();
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const t of this.textures.values()) t.destroy(true);

@@ -340,9 +340,10 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
   distinguishable without color: a player setting draws a distinct mark on each kind, and special
   tiles carry an icon and a label. Keyboard play for all puzzles on desktop. Screen-reader support for puzzle boards is out of scope.
 - English only. All player-facing strings go through one message table.
-- No music in v1. Minimal synthesized sound effects via WebAudio, voiced for space: a metal click
-  for a quiet swap, steam for venting, an arc and a clank for a weld, a servo for lifting plates and
-  tearing metal for a breach.
+- No music in v1. Sound effects via WebAudio, voiced for space. A cue plays the puzzle's own
+  generated sample where the owner has picked one (ADR 0041), and otherwise its minimal synthesized
+  voice: a metal click for a quiet swap, steam for venting, an arc and a clank for a weld, a servo
+  for lifting plates and tearing metal for a breach. The synthesized cues stay as the fallback.
 
 ### 3.10 Art
 
@@ -361,7 +362,9 @@ code. Arbitrarily sized Swordfight slabs, extra lab colors, board backgrounds, t
 retain procedural drawing. When an atlas cannot load, every piece falls back to a vector version of
 its sprite from one shared module (`boards/src/parts.ts`), in the same contours and silhouettes, so
 play never waits on an image; Engines' extra lab kind always uses it. The world is not sprites at all: it is drawn in code from primitives (3.11), and it was
-redrawn for space in M7.
+redrawn for space in M7. A frame is redrawn or added alone from a brief kept in `boards/briefs`,
+through the OpenAI Images API, and sounds are made the same way through ElevenLabs; the owner picks
+every take that lands (ADR 0040), and a board plays its picked sounds (ADR 0041).
 
 ### 3.11 One experience: the shell, navigation and embedded puzzles
 

@@ -1,0 +1,21 @@
+{
+  "refs": ["swordfight:facet-block", "swordfight:rivet-breaker", "swordfight:stone"],
+  "frames": {
+    "facet-block": "a square crimson armor block with rounded corners, a raised pyramid of cut crystal facets in its face, a bolt in each corner.",
+    "rivet-block": "a square gold armor block with rounded corners, four large domed rivets in its face, a bolt in each corner.",
+    "scale-block": "a square cobalt armor block with rounded corners, its face covered in overlapping scale plates, a bolt in each corner.",
+    "hatch-block": "a square lime armor block with rounded corners, a crossed X of riveted metal straps over its face, a bolt in each corner.",
+    "facet-breaker": "a crimson diamond of cut crystal facets with an ivory spike at each of its four points and a glowing white slit down its middle.",
+    "rivet-breaker": "a gold diamond with domed rivets, an ivory spike at each of its four points and a glowing white slit down its middle.",
+    "scale-breaker": "a cobalt diamond of overlapping scale plates with an ivory spike at each of its four points and a glowing white slit down its middle.",
+    "hatch-breaker": "a lime diamond crossed by riveted straps with an ivory spike at each of its four points and a glowing white slit down its middle.",
+    "facet-hint": "a square block of cracked grey dead metal with corner bolts, broken open across the middle to show crimson crystal facets inside.",
+    "rivet-hint": "a square block of cracked grey dead metal with corner bolts, broken open across the middle to show gold riveted plate inside.",
+    "scale-hint": "a square block of cracked grey dead metal with corner bolts, broken open across the middle to show cobalt scale plates inside.",
+    "hatch-hint": "a square block of cracked grey dead metal with corner bolts, broken open across the middle to show lime strapped plate inside.",
+    "stone": "a square block of cracked grey dead metal with a bolt in each corner and a jagged crack across it.",
+    "blade": "a plasma cutlass held diagonally: a ribbed metal hilt with a cyan power cell and a curved glowing cyan energy blade.",
+    "shatter": "a burst of broken armor shards flying apart: crimson crystal, gold plate, cobalt scale, lime strap and pale fragments.",
+    "swipe": "a single curved cyan energy slash, bright at its leading edge and fading to a thin tail."
+  }
+}

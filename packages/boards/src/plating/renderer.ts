@@ -1,4 +1,5 @@
 import { loadPuzzleSprites, spritesReady, paintSprite } from "../sprites/atlas.js";
+import { soundsFor } from "../audio.js";
 import { Application, Container, FillGradient, Graphics, Text, type FederatedPointerEvent, type FederatedWheelEvent } from "pixi.js";
 import {
   platingCheckPlacement,
@@ -247,6 +248,9 @@ export class PlatingRenderer {
     this.height = content.config.height;
   }
 
+  /** This puzzle's picked samples play while the board is open (ADR 0041). */
+  private readonly releaseSounds = soundsFor("plating");
+
   async init(): Promise<void> {
     await loadPuzzleSprites("plating");
     if (this.destroyed) return;
@@ -284,6 +288,7 @@ export class PlatingRenderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.releaseSounds();
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       this.breachFill.destroy();

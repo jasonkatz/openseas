@@ -108,7 +108,9 @@ asks for (`spriteName("debris", kind)` is `debris-gold`). Keep everything exact 
 numerals, counts, outlines, hit areas. `sprites/README.md` says how the sheets are packed.
 
 Sounds are `sfx` in `boards/src/audio.ts`; the renderer plays them at the moment the animation
-shows the thing.
+shows the thing. The kit registers the puzzle's picked samples (ADR 0041), so a sample named for an
+`sfx` cue plays in its place on this board, and a cue of the puzzle's own is `sfx.cue(name,
+fallback)`.
 
 ## Adding one, promoting one, removing one
 

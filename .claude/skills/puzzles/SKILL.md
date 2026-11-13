@@ -104,10 +104,12 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
     hidden information counts for nothing until the server holds the secret (Scanner, ADR 0036).
 22. **Reads without color.** Each kind has its own silhouette, and the mark setting draws a distinct
     mark on each.
-23. **Its own sprite sheet.** The owner generates each puzzle's sheet in ChatGPT. Your part is the
-    brief: the frame list named as the renderer asks for them, and the style line from
-    `packages/boards/src/sprites/README.md`. Every piece keeps a code-drawn fallback, and marks,
-    numerals and hit areas stay in code. A puzzle without its sheet is not finished; say so.
+23. **Its own sprites and sounds.** Each frame, named as the renderer asks for it, is described in
+    the puzzle's sprite brief and made with the `puzzle-sprites` skill; each moment item 1 asks to
+    be heard has a cue in its sound brief, made with the `puzzle-sounds` skill. The owner picks
+    every take. Every piece keeps a code-drawn fallback and every cue a synthesized one
+    (`boards/src/audio.ts`, ADR 0041), and marks, numerals and hit areas stay in code. A puzzle
+    without its sheet is not finished; say so.
 24. **Every string in the message table.**
 25. **Three homes, kept in step.** A harness page with bench entry, lab presets and a smoke that
     plays by key and by pointer; a guide in `packages/docs` with captured pictures and no typed
@@ -121,7 +123,8 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 2. Build it as a prototype (ADR 0036): copy Salvage's files as `docs/prototypes/README.md` lists,
    determinism tests first, feedback with the first playable.
 3. Write the bot ladder, tune against it, set the thresholds, and write the tuning notes.
-4. Write the design file, the guide and its capture, and the sprite brief for the owner.
+4. Write the design file, the guide and its capture, and the sprite and sound briefs; make their
+   takes with `puzzle-sprites` and `puzzle-sounds` for the owner to pick.
 5. Report the bar, item by item, with the open questions for play.
 
 ## Changing a puzzle
@@ -133,7 +136,8 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
      further from the original.
    - **A control:** the design file, the guide's controls, the harness smoke.
    - **A look or a sound:** `pnpm --filter @openseas/docs capture <id>`, and every picture looked at.
-     New pieces need new frames: brief the owner.
+     New pieces need new frames and new feedback new cues: add them to the briefs and make their
+     takes with `puzzle-sprites` and `puzzle-sounds`.
 3. Done when the harness smoke and the docs tests are green and the bar items you named are
    reported as still met.
 

@@ -1,4 +1,5 @@
 import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
+import { soundsFor } from "../audio.js";
 import { Application, Container, Graphics, Text, type FederatedPointerEvent } from "pixi.js";
 import {
   NAVIGATION_ENTRY_OCTANT,
@@ -197,6 +198,9 @@ export class NavigationRenderer {
     this.selectedRing = Math.min(1, this.rings - 1);
   }
 
+  /** This puzzle's picked samples play while the board is open (ADR 0041). */
+  private readonly releaseSounds = soundsFor("navigation");
+
   async init(): Promise<void> {
     await loadPuzzleSprites("navigation");
     if (this.destroyed) return;
@@ -241,6 +245,7 @@ export class NavigationRenderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.releaseSounds();
     if (this.app.renderer) this.app.destroy(true, { children: true });
   }
 

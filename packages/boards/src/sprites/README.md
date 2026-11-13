@@ -7,9 +7,8 @@ change. Seven approved transparent source sheets are trimmed and packed into the
 
 ## Style and coverage
 
-Painted machine parts and spacecraft, dark navy contours, gentle upper-left lighting, worn paint
-and rivets, bold silhouettes readable at 24–48 CSS pixels. No text is baked into sprites. Keep
-optional accessibility badges and labels in code.
+Every sheet is painted to the style line in `../../briefs/sprite-style.txt`. No text is baked into
+sprites. Keep optional accessibility badges and labels in code.
 
 | Atlas | Runtime use |
 |---|---|
@@ -79,7 +78,14 @@ two repairs: Cutting's ore tiles are cut inside their baked border and stretched
 frame, and Overload's frames keep only their largest piece of art, since the fins of the sheet's
 lower row reach into the row above.
 
-Optional `overrides/<puzzle>-<frame>.webp` files are complete 192×192 normalized frames. The packer
-applies them after processing a source-sheet cell, so repacking cannot restore an obsolete piece.
-Atlases with overrides are saved losslessly. There are none at present: the sprite pass drew its
-own coolant, so the old bucket override was retired.
+Optional `overrides/<puzzle>-<frame>.webp` files are complete 192×192 normalized frames. Both
+packers apply them after processing a source-sheet cell, so repacking cannot restore an obsolete
+piece. `pack-sprites.py` saves an atlas with overrides losslessly.
+
+## Generating a frame
+
+A frame can be generated alone (ADR 0040). `../../briefs/sprites/<puzzle>.json` describes each
+frame and names reference frames for the set's style; `../../scripts/sprites.py gen` draws takes
+through the OpenAI Images API into `.art/sprites/`, and `sprites.py place` writes the owner's pick
+as an override and patches it into the atlas and this manifest. The `puzzle-sprites` skill walks
+through it.

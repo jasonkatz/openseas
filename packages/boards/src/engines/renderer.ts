@@ -1,4 +1,5 @@
 import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
+import { soundsFor } from "../audio.js";
 import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   ENGINES_ROTATION_KICKS,
@@ -171,6 +172,9 @@ export class EnginesRenderer {
     };
   }
 
+  /** This puzzle's picked samples play while the board is open (ADR 0041). */
+  private readonly releaseSounds = soundsFor("engines");
+
   async init(): Promise<void> {
     await loadPuzzleSprites("engines");
     if (this.destroyed) return;
@@ -212,6 +216,7 @@ export class EnginesRenderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.releaseSounds();
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const tex of this.textures.values()) tex.destroy(true);

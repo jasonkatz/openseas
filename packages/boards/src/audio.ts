@@ -1,4 +1,8 @@
-/** Minimal synthesized sound effects via WebAudio (DESIGN.md 3.9). Replaced during the art pass. */
+/**
+ * Sound effects (DESIGN.md 3.9). A cue plays the open puzzle's own sample where the owner has picked
+ * one (`sounds/<puzzle>/<cue>.mp3`, ADR 0040 and 0041), and its minimal synthesized voice otherwise:
+ * while the samples load, when one fails, and for every cue no sample was made for.
+ */
 const MUTE_KEY = "openseas.muted";
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -94,7 +98,7 @@ function noise(duration: number, gain: number, from: number, to: number, type: B
 const LADDER = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
 const note = (step: number): number => 392 * Math.pow(2, LADDER[Math.min(LADDER.length - 1, step)]! / 12);
 
-export const sfx = {
+const synth = {
   swap: () => tone({ freq: 520, to: 380, duration: 0.07, type: "triangle", gain: 0.05 }),
   /** A swap that clears nothing: a soft metal click so scoring swaps stand out. */
   swapQuiet: () => {
@@ -212,5 +216,94 @@ export const sfx = {
   },
   end: () => {
     [523, 659, 784, 1047].forEach((freq, i) => tone({ freq, duration: 0.4, type: "triangle", gain: 0.05, delay: i * 0.09 }));
+  },
+};
+
+// ---- Samples (ADR 0041)
+
+/** Samples are mastered to peak at -1 dB; this sits them level with the synthesized cues. */
+const SAMPLE_GAIN = 0.25;
+const files = import.meta.glob<string>("./sounds/*/*.mp3", { query: "?url", import: "default", eager: true });
+const banks = new Map<string, Map<string, AudioBuffer>>();
+/** The puzzles whose boards are open, the latest last: its samples are the ones that play. */
+const open: string[] = [];
+
+function loadBank(puzzle: string): void {
+  if (banks.has(puzzle)) return;
+  const bank = new Map<string, AudioBuffer>();
+  banks.set(puzzle, bank);
+  if (typeof OfflineAudioContext === "undefined") return;
+  // An offline context decodes without waiting for the player's first touch.
+  const decoder = new OfflineAudioContext(1, 1, 44100);
+  for (const [path, url] of Object.entries(files)) {
+    const m = /^\.\/sounds\/([^/]+)\/([^/]+)\.mp3$/.exec(path);
+    if (!m || m[1] !== puzzle) continue;
+    const cue = m[2]!;
+    void fetch(url)
+      .then((res) => (res.ok ? res.arrayBuffer() : Promise.reject(new Error(String(res.status)))))
+      .then((data) => decoder.decodeAudioData(data))
+      .then(
+        (buffer) => void bank.set(cue, buffer),
+        () => {
+          /* the synthesized cue stays */
+        },
+      );
+  }
+}
+
+/** A board opening: its puzzle's samples load and play until the returned release is called. */
+export function soundsFor(puzzle: string): () => void {
+  loadBank(puzzle);
+  open.push(puzzle);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const i = open.lastIndexOf(puzzle);
+    if (i >= 0) open.splice(i, 1);
+  };
+}
+
+/** Plays the open puzzle's sample for a cue, pitched by `rate`. False when there is none. */
+function playSample(cue: string, rate: number): boolean {
+  const puzzle = open[open.length - 1];
+  const buffer = puzzle ? banks.get(puzzle)?.get(cue) : undefined;
+  if (!buffer) return false;
+  const c = context();
+  if (!c) return true;
+  const src = c.ac.createBufferSource();
+  src.buffer = buffer;
+  src.playbackRate.value = rate;
+  const g = c.ac.createGain();
+  g.gain.value = SAMPLE_GAIN;
+  src.connect(g).connect(c.out);
+  src.start();
+  return true;
+}
+
+type Synth = typeof synth;
+
+/** How far a cue's sample is pitched by its argument, so a ladder still climbs with a sample. */
+const rates: { [K in keyof Synth]?: (...args: Parameters<Synth[K]>) => number } = {
+  clear: (chain) => note(chain - 1) / note(0),
+  pop: (step) => note(step) / note(0),
+  ping: (near) => Math.pow(2, -Math.min(8, Math.max(0, near)) / 6),
+};
+
+const voiced = Object.fromEntries(
+  Object.entries(synth).map(([cue, play]) => [
+    cue,
+    (...args: unknown[]) => {
+      const rate = (rates[cue as keyof Synth] as ((...a: unknown[]) => number) | undefined)?.(...args) ?? 1;
+      if (!playSample(cue, rate)) (play as (...a: unknown[]) => void)(...args);
+    },
+  ]),
+) as Synth;
+
+export const sfx = {
+  ...voiced,
+  /** A puzzle's own cue: its sample when there is one, else `fallback`, a synthesized cue. */
+  cue(name: string, fallback: () => void, rate = 1): void {
+    if (!playSample(name, rate)) fallback();
   },
 };

@@ -1,4 +1,5 @@
 import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
+import { sfx, soundsFor } from "../audio.js";
 import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   swordfightBoardString,
@@ -274,6 +275,9 @@ export class SwordfightRenderer {
     return color < 0 ? SCRAP_COLOR : (this.styles[color]?.color ?? 0xffffff);
   }
 
+  /** This puzzle's picked samples play while the board is open (ADR 0041). */
+  private readonly releaseSounds = soundsFor("swordfight");
+
   async init(): Promise<void> {
     await loadPuzzleSprites("swordfight");
     if (this.destroyed) return;
@@ -319,6 +323,7 @@ export class SwordfightRenderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.releaseSounds();
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const tex of this.textures.values()) tex.destroy(true);
@@ -436,6 +441,7 @@ export class SwordfightRenderer {
           const ev = e;
           this.steps.push(() => {
             this.landFalling(ev.cells, ev.ids, player);
+            sfx.cue("drop", sfx.bump);
             return "settle";
           });
           break;
@@ -482,8 +488,13 @@ export class SwordfightRenderer {
               const mid = g.cells[Math.floor(g.cells.length / 2)]!;
               this.popup(this.cx(mid % this.width), this.cy(Math.floor(mid / this.width)) - this.cell * 0.2, `+${Math.round((g.points * ev.groups.length * ev.chain) || g.points)}`, this.colorOf(g.color));
             }
+            const big = ev.chain >= 2 || ev.groups.reduce((n, g) => n + g.cells.length, 0) >= 6;
             if (ev.chain >= 2) this.callout(this.opts.labels.chain(ev.chain), 0xf5d58a);
-            else if (ev.groups.reduce((n, g) => n + g.cells.length, 0) >= 6) this.callout(this.opts.labels.shatter, COLORS.bone);
+            else if (big) this.callout(this.opts.labels.shatter, COLORS.bone);
+            // A chain climbs a whole tone a step, so a long one rings higher as it goes.
+            const rate = Math.pow(2, (Math.min(6, ev.chain) - 1) / 6);
+            if (big) sfx.cue("heavy", () => { sfx.zap(); sfx.thud(); }, rate);
+            else sfx.cue("clash", sfx.zap, rate);
             this.shake = Math.min(1, 0.3 + ev.chain * 0.2);
             return this.reduced ? 60 : CLEAR_MS;
           });
@@ -537,6 +548,7 @@ export class SwordfightRenderer {
           this.steps.push(() => {
             if (ev.scrap > 0) {
               this.callout(this.opts.labels.scrapOver(ev.scrap), COLORS.good);
+              sfx.cue("swing", sfx.whoosh);
               const to = ev.to >= 0 ? this.minis.find((m) => m.key === `board:${ev.to}`) : null;
               const target = to ? { x: to.x + (to.cell * this.width) / 2 - this.ox, y: to.y + (to.cell * this.height) / 2 - this.oy } : { x: (this.width * this.cell) / 2, y: -this.strip * 3 };
               this.fly((this.width * this.cell) / 2, (this.height * this.cell) * 0.4, target.x, target.y, COLORS.bone, Math.min(14, ev.scrap));
@@ -560,6 +572,7 @@ export class SwordfightRenderer {
             }
             this.moving = true;
             this.shake = Math.max(this.shake, 0.35);
+            sfx.cue("scrap", sfx.thud);
             return "settle";
           });
           break;
@@ -568,6 +581,7 @@ export class SwordfightRenderer {
           this.steps.push(() => {
             this.callout(this.opts.labels.out, COLORS.danger);
             this.shake = 1;
+            sfx.cue("out", sfx.bad);
             this.dropFalling();
             return this.reduced ? 100 : 500;
           });
@@ -577,6 +591,8 @@ export class SwordfightRenderer {
           const ev = e;
           this.steps.push(() => {
             this.callout(ev.outcome === "won" ? this.opts.labels.won : this.opts.labels.lost, ev.outcome === "won" ? COLORS.good : COLORS.danger);
+            if (ev.outcome === "won") sfx.cue("won", sfx.end);
+            else sfx.cue("lost", sfx.streakLost);
             this.dropFalling();
             return 0;
           });
