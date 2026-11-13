@@ -4,7 +4,7 @@ import { content } from "@openseas/boards";
 import type { HarnessPuzzle } from "../puzzles.js";
 import { SALVAGE_PRESETS } from "../scenario/prototypes/salvage.js";
 
-/** What the bench needs to know about Salvage: its content config, presets and seed probes. */
+/** What the studio needs to know about Salvage: its content config and its starting points. */
 export const SALVAGE: HarnessPuzzle<SalvageState, SalvageMove, SalvageConfig> = {
   id: "salvage",
   def: SALVAGE_DEF,
@@ -12,12 +12,6 @@ export const SALVAGE: HarnessPuzzle<SalvageState, SalvageMove, SalvageConfig> = 
   roundSeconds: content.puzzles.salvage.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.salvage,
   presets: SALVAGE_PRESETS,
-  probes: [
-    { id: "loop_open", test: (s) => salvageFindLoop(s) !== null },
-    { id: "long_line", test: (s) => (salvageHint(s)?.length ?? 0) >= 8 },
-    { id: "crates_high", test: (s) => s.cells.every((p, i) => p.kind !== SALVAGE_CRATE || i < s.config.width * 2) },
-  ],
   locked: [],
   ticked: null,
-  hints: true,
 };

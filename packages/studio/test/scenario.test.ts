@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PUZZLE_IDS, PUZZLES } from "@openseas/engine";
 import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { loadContent } from "@openseas/content";
-import { EMPTY_SCENARIO, formatScenario, parseScenario, shareLink } from "../src/scenario/codec.js";
+import { EMPTY_SCENARIO, formatScenario, parseScenario, playLink } from "../src/scenario/codec.js";
 import { applyOverrides, diffConfig, getPath, leaves, pruneOverrides } from "../src/scenario/overrides.js";
 import { PRESETS, deckPresets } from "../src/scenario/presets.js";
 import { validateConfig } from "../src/scenario/validate.js";
@@ -46,7 +46,7 @@ describe("scenario codec", () => {
       speed: 0.5,
       paused: true,
       hints: false,
-      autostart: "lab" as const,
+      autostart: true,
     };
     const qs = formatScenario(s);
     expect(parseScenario(`?${qs}`)).toEqual(s);
@@ -54,12 +54,7 @@ describe("scenario codec", () => {
 
   it("reads an empty or junk query as the plain scenario", () => {
     expect(parseScenario("")).toEqual(EMPTY_SCENARIO);
-    expect(parseScenario("?seconds=-4&speed=abc&start=nope&c.=1")).toEqual(EMPTY_SCENARIO);
-  });
-
-  it("reads start=rated, the name before ADR 0028, as a recorded round", () => {
-    expect(parseScenario("?start=rated").autostart).toBe("recorded");
-    expect(parseScenario("?start=recorded").autostart).toBe("recorded");
+    expect(parseScenario("?seconds=-4&speed=abc&c.=1")).toEqual(EMPTY_SCENARIO);
   });
 
   it("keeps string overrides as strings when they are not JSON", () => {
@@ -67,9 +62,9 @@ describe("scenario codec", () => {
     expect(parseScenario("?c.n=7").overrides).toEqual({ n: 7 });
   });
 
-  it("shares a link that starts the lab round and never carries review", () => {
-    const link = shareLink("https://test.openseas.online", "/cooling", { ...EMPTY_SCENARIO, seed: "a b", review: true });
-    expect(link).toBe("https://test.openseas.online/cooling?seed=a+b&start=lab");
+  it("makes the link that plays a draft alone, without the clock's script switches", () => {
+    const link = playLink("https://test.openseas.online", "cooling", { ...EMPTY_SCENARIO, seed: "a b", paused: true, speed: 0.5, autostart: true });
+    expect(link).toBe("https://test.openseas.online/play/cooling?seed=a+b");
     expect(formatScenario(EMPTY_SCENARIO)).toBe("");
   });
 });

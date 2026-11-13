@@ -39,8 +39,5 @@
   "harness.preset.overload_flat_streak": "No streak: every chain at 100 percent",
   "harness.preset.overload_free_taps": "Taps come back fast: one every half second",
   "harness.preset.overload_big_bank": "A big bank: eight by nine",
-  "harness.preset.overload_ten_taps": "Ten taps, one minute: none given back",
-  "harness.probe.overload.long_chain": "one tap sets off a chain of six or more at the start",
-  "harness.probe.overload.join": "no tap reaches four at the start, but one charge sets one up",
-  "harness.probe.overload.booster": "a booster is on the opening bank"
+  "harness.preset.overload_ten_taps": "Ten taps, one minute: none given back"
 }

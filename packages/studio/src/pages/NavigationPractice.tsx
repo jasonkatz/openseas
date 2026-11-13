@@ -12,7 +12,7 @@ import {
   type NavigationState,
 } from "@openseas/engine";
 import { NavigationBoard, StarIcon, content, sfx, t, useTicked } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { NAVIGATION } from "../puzzles.js";
@@ -49,11 +49,11 @@ export function NavigationPractice() {
     roundSeconds: navigation.roundSeconds,
     summarize: summarizeNavigation,
   });
-  const bench = useBench(NAVIGATION, api);
+  const studio = useStudio(NAVIGATION, api);
   const { state } = api;
   const cfg = api.round?.config ?? navigation.config;
   const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceNavigation, wait: waitAt });
-  const shown = bench.reviewState ?? ticked.shown;
+  const shown = ticked.shown;
 
   const onRotate = useCallback((ring: number, dir: -1 | 1): boolean => api.apply({ type: "rotate", ring, dir, tick: ticked.moveTick() }), [api, ticked]);
   const onDrop = useCallback(() => void api.apply({ type: "drop", tick: ticked.moveTick() }), [api, ticked]);
@@ -128,19 +128,14 @@ export function NavigationPractice() {
       puzzle="navigation"
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
       moves={shown.landings}
       movesLabel={t("navigation.stars")}
       combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={studio.start}
+      ready={studio.ready}
       splash={t("navigation.go")}
       warn={blocked}
       howTo={
@@ -201,16 +196,14 @@ export function NavigationPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
         <NavigationBoard
-          key={bench.reviewKey ?? "live"}
+         
           state={shown}
           interactive={interactive}
           showMarks={showMarks}
           showMarkers={showMarkers}
-          hints={bench.hints}
+          hints={studio.hints}
           onRotate={onRotate}
           onDrop={onDrop}
           onFrame={api.markRendered}

@@ -10,7 +10,7 @@ const onWall = (s: TugState, cell: number): boolean => {
   return col === 0 || row === 0 || col === s.config.width - 1 || row === s.config.height - 1;
 };
 
-/** What the bench needs to know about Tug: its content config, presets and seed probes. */
+/** What the studio needs to know about Tug: its content config and its starting points. */
 export const TUG: HarnessPuzzle<TugState, TugMove, TugConfig> = {
   id: "tug",
   def: TUG_DEF,
@@ -18,12 +18,6 @@ export const TUG: HarnessPuzzle<TugState, TugMove, TugConfig> = {
   roundSeconds: content.puzzles.tug.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.tug,
   presets: TUG_PRESETS,
-  probes: [
-    { id: "two_pod_start", test: (s) => new Set(tugSolve(s)?.map((m) => m.pod)).size >= 2 },
-    { id: "clamp_mid_bay", test: (s) => !onWall(s, s.clamp.cell) },
-    { id: "clamp_for_first_pod", test: (s) => s.clamp.pod === 0 },
-  ],
   locked: [],
   ticked: null,
-  hints: true,
 };

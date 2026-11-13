@@ -46,8 +46,5 @@
   "harness.preset.cutting_busy": "Busy from the start: seven blocks, two flaws",
   "harness.preset.cutting_three_ores": "Three ores: blocks run together",
   "harness.preset.cutting_big_slab": "A big slab: eight by eight, up to nine cuts",
-  "harness.preset.cutting_ten_moves": "Ten moves, one minute",
-  "harness.probe.cutting.three_cuts": "the first slab has three cuts",
-  "harness.probe.cutting.setup_first": "the best plan's first cut banks nothing",
-  "harness.probe.cutting.big_block": "a block of twelve cells or more can be banked whole"
+  "harness.preset.cutting_ten_moves": "Ten moves, one minute"
 }

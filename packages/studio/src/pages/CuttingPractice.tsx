@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { summarizeCutting, type CuttingConfig, type CuttingMove, type CuttingState } from "@openseas/engine";
 import { content, CuttingBoard, KindIcon, KINDS, spriteName, t } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { CUTTING } from "../prototypes/cutting.js";
@@ -13,7 +13,7 @@ function yieldPercent(state: CuttingState): number | null {
   return state.totalBest > 0 ? Math.round((100 * state.totalGot) / state.totalBest) : null;
 }
 
-/** Cutting (prototype, ADR 0036): the practice frame round the shared board, with the bench beside it. */
+/** Cutting (prototype, ADR 0036): the shared board in the studio's frame. */
 export function CuttingPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<CuttingState, CuttingMove, CuttingConfig>({
@@ -23,9 +23,9 @@ export function CuttingPractice() {
     roundSeconds: cutting.roundSeconds,
     summarize: summarizeCutting,
   });
-  const bench = useBench(CUTTING, api);
+  const studio = useStudio(CUTTING, api);
   const { state } = api;
-  const shown = bench.reviewState ?? state;
+  const shown = state;
   const cfg = shown.config;
 
   const onCut = useCallback((piece: number, vertical: boolean, at: number) => void api.apply({ type: "cut", piece, vertical, at }), [api]);
@@ -41,7 +41,6 @@ export function CuttingPractice() {
       eyebrow={t("harness.prototype_eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
@@ -50,12 +49,8 @@ export function CuttingPractice() {
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
       maxMoves={cfg.maxMoves < CUTTING.config.maxMoves ? cfg.maxMoves : undefined}
       combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={studio.start}
+      ready={studio.ready}
       splash={t("cutting.go")}
       howTo={
         <>
@@ -123,10 +118,8 @@ export function CuttingPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
-        <CuttingBoard key={bench.reviewKey ?? "live"} state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={bench.hints} onCut={onCut} onDone={onDone} onFrame={api.markRendered} />
+        <CuttingBoard state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={studio.hints} onCut={onCut} onDone={onDone} onFrame={api.markRendered} />
       )}
     />
   );

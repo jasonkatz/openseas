@@ -291,8 +291,8 @@ curl https://test.openseas.online/version.json
 curl -o /dev/null -w '%{http_code}\n' https://test.openseas.online/cooling   # 200: deep links work
 ```
 
-Open the harness, start a rated Cooling round, and confirm a result lands and the bench's checks
-read "the same as this board". Open the game and confirm the same pirate is signed in.
+Open the studio at `/play/cooling`, play a round, and confirm a result lands. Open the game and
+confirm a pirate is signed in.
 
 ## Rolling back
 

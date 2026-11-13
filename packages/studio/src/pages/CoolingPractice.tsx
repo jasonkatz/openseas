@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { previewSwap, summarizeCooling, type CoolingConfig, type CoolingMove, type CoolingState, type ClearRound } from "@openseas/engine";
 import { CoolingBoard, TileIcon, content, sfx, t, type CoolingMoveShown } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { useSoloHeat } from "../practice/useSoloHeat.js";
@@ -34,9 +34,9 @@ export function CoolingPractice() {
     onMove,
   });
   useSoloHeat(api);
-  const bench = useBench(COOLING, api);
+  const studio = useStudio(COOLING, api);
   const { state } = api;
-  const shown = bench.reviewState ?? state;
+  const shown = state;
   const playing = api.phase === "playing";
 
   const onSwap = useCallback(
@@ -109,7 +109,6 @@ export function CoolingPractice() {
       puzzle="cooling"
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
@@ -117,12 +116,8 @@ export function CoolingPractice() {
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
       maxMoves={shown.config.maxMoves < COOLING.config.maxMoves ? shown.config.maxMoves : undefined}
       combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={studio.start}
+      ready={studio.ready}
       splash={t("cooling.go")}
       warn={danger}
       art={
@@ -165,11 +160,9 @@ export function CoolingPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
         <CoolingBoard
-          key={bench.reviewKey ?? "live"}
+         
           state={shown}
           report={shown.lastMove}
           version={api.version}
@@ -180,7 +173,7 @@ export function CoolingPractice() {
           onFrame={api.markRendered}
           onClear={onClear}
           onMoveShown={onMoveShown}
-          hints={playing && bench.hints}
+          hints={playing && studio.hints}
           findHint={findHint}
         />
       )}

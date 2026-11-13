@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { advanceGunnery, summarizeGunnery, type Dir, type GunneryConfig, type GunneryEvent, type GunneryMove, type GunneryState } from "@openseas/engine";
 import { GunneryBoard, GunneryPieceIcon, content, sfx, t, useTicked } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { GUNNERY } from "../puzzles.js";
@@ -18,12 +18,12 @@ export function GunneryPractice() {
     roundSeconds: gunnery.roundSeconds,
     summarize: summarizeGunnery,
   });
-  const bench = useBench(GUNNERY, api);
+  const studio = useStudio(GUNNERY, api);
   const { state } = api;
   // The clock runs on the round's own config: a lab round may have changed maxTick.
   const cfg = api.round?.config ?? gunnery.config;
   const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceGunnery, wait: waitAt });
-  const shown = bench.reviewState ?? ticked.shown;
+  const shown = ticked.shown;
 
   const onArrow = useCallback(
     (col: number, row: number, dir: Dir | null) => {
@@ -103,19 +103,14 @@ export function GunneryPractice() {
       puzzle="gunnery"
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
       moves={shown.moveCount}
       maxMoves={shown.config.maxMoves}
       combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={studio.start}
+      ready={studio.ready}
       splash={t("gunnery.go")}
       warn={shown.turrets.some((c) => c.jammed)}
       details={
@@ -162,10 +157,8 @@ export function GunneryPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
-        <GunneryBoard key={bench.reviewKey ?? "live"} state={shown} interactive={interactive} showMarks={showMarks} onArrow={onArrow} onFrame={api.markRendered} onEvents={onEvents} />
+        <GunneryBoard state={shown} interactive={interactive} showMarks={showMarks} onArrow={onArrow} onFrame={api.markRendered} onEvents={onEvents} />
       )}
     />
   );

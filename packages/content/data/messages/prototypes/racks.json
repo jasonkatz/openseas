@@ -49,8 +49,5 @@
   "harness.preset.racks_mixed_crates": "Every crate cell drawn afresh",
   "harness.preset.racks_loose_chain": "A looser chain: ship again within two actions",
   "harness.preset.racks_five_kinds": "Five kinds on six racks",
-  "harness.preset.racks_ten_moves": "Ten actions, one minute",
-  "harness.probe.racks.no_room": "the first crate has no room on its rack",
-  "harness.probe.racks.one_kind_crate": "the first crate is all one kind",
-  "harness.probe.racks.crate_joins": "the first crate's lowest cell matches the top of its rack"
+  "harness.preset.racks_ten_moves": "Ten actions, one minute"
 }

@@ -45,30 +45,20 @@ import { TUG } from "./prototypes/tug.js";
 import { RACKS } from "./prototypes/racks.js";
 import { CUTTING } from "./prototypes/cutting.js";
 
-/** A condition on an opening state the seed finder can search for. Named by `harness.probe.<puzzle>.<id>`. */
-export interface SeedProbe<S> {
-  readonly id: string;
-  readonly vars?: Record<string, string | number>;
-  test(state: S): boolean;
-}
-
-/** What the bench needs to know about a puzzle beyond its engine definition. */
+/** What the studio needs to know about a puzzle beyond its engine definition. */
 export interface HarnessPuzzle<S, M, C> {
   readonly id: PuzzleId;
   readonly def: PuzzleDef<S, M, C>;
-  /** The content config and round length: what the server issues for recorded rounds. */
+  /** The content config and round length: the shipped numbers, which the server deals. */
   readonly config: C;
   readonly roundSeconds: number;
-  /** The wire schema the server would hold a config to; lab configs are checked against it too. */
+  /** The wire schema the server would hold a config to; a draft is checked against it too, and the tuning panel is built from it. */
   readonly configSchema: z.ZodType;
   readonly presets: readonly Preset[];
-  readonly probes: readonly SeedProbe<S>[];
   /** Config fields the form keeps read-only because the boards' animation timing is built on them. */
   readonly locked: readonly string[];
   /** Set for engines whose moves carry ticks (ADR 0015). */
   readonly ticked: { readonly tickMs: number } | null;
-  /** Whether the puzzle has idle hints in unrated practice. */
-  readonly hints: boolean;
 }
 
 const c = content.puzzles;
@@ -80,13 +70,8 @@ export const COOLING: HarnessPuzzle<CoolingState, CoolingMove, CoolingConfig> = 
   roundSeconds: c.cooling.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.cooling,
   presets: PRESETS.cooling,
-  probes: [
-    { id: "charge_on_board", test: (s) => s.cells.some((p) => p.kind === Special.Charge) },
-    { id: "magnet_on_board", test: (s) => s.cells.some((p) => p.kind === Special.Magnet) },
-  ],
   locked: [],
   ticked: null,
-  hints: true,
 };
 
 export const ENGINES: HarnessPuzzle<EnginesState, EnginesMove, EnginesConfig> = {
@@ -96,16 +81,8 @@ export const ENGINES: HarnessPuzzle<EnginesState, EnginesMove, EnginesConfig> = 
   roundSeconds: c.engines.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.engines,
   presets: PRESETS.engines,
-  probes: [
-    { id: "double_first", test: (s) => s.current.a === s.current.b },
-    {
-      id: "square_injector",
-      test: (s) => s.injectors.some((p) => p.cells.length === 4 && new Set(p.cells.map((x) => x.col)).size === 2 && new Set(p.cells.map((x) => x.row)).size === 2),
-    },
-  ],
   locked: [],
   ticked: null,
-  hints: false,
 };
 
 export const PLATING: HarnessPuzzle<PlatingState, PlatingMove, PlatingConfig> = {
@@ -115,13 +92,8 @@ export const PLATING: HarnessPuzzle<PlatingState, PlatingMove, PlatingConfig> = 
   roundSeconds: c.plating.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.plating,
   presets: PRESETS.plating,
-  probes: [
-    { id: "big_breach", test: (s) => s.breaches.some((h) => h.cells.length >= 15) },
-    { id: "small_breach", test: (s) => s.breaches.some((h) => h.cells.length === 5) },
-  ],
   locked: [],
   ticked: null,
-  hints: false,
 };
 
 export const GUNNERY: HarnessPuzzle<GunneryState, GunneryMove, GunneryConfig> = {
@@ -131,10 +103,8 @@ export const GUNNERY: HarnessPuzzle<GunneryState, GunneryMove, GunneryConfig> = 
   roundSeconds: c.gunnery.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.gunnery,
   presets: [...deckPresets(c.gunnery.config.decks), ...PRESETS.gunnery],
-  probes: c.gunnery.config.decks.map((_, i) => ({ id: "deck", vars: { n: i + 1 }, test: (s: GunneryState) => s.deckIndex === i })),
   locked: ["tickMs"],
   ticked: { tickMs: c.gunnery.config.tickMs },
-  hints: false,
 };
 
 export const NAVIGATION: HarnessPuzzle<NavigationState, NavigationMove, NavigationConfig> = {
@@ -144,13 +114,8 @@ export const NAVIGATION: HarnessPuzzle<NavigationState, NavigationMove, Navigati
   roundSeconds: c.navigation.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.navigation,
   presets: PRESETS.navigation,
-  probes: [
-    { id: "comet_first", test: (s) => navigationShapeOf(s.config, s.falling.kind) === 2 },
-    { id: "repeat_kind", test: (s) => new Set(s.markers.map((m) => m.kind)).size < s.markers.length },
-  ],
   locked: ["tickMs"],
   ticked: { tickMs: c.navigation.config.tickMs },
-  hints: true,
 };
 
 export const BATTLE: HarnessPuzzle<BattleState, BattleMove, BattleConfig> = {
@@ -160,13 +125,8 @@ export const BATTLE: HarnessPuzzle<BattleState, BattleMove, BattleConfig> = {
   roundSeconds: c.battle.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.battle,
   presets: [...PRESETS.battle, ...boardPresets(c.battle.config.boards)],
-  probes: [
-    ...c.battle.config.boards.map((_, i) => ({ id: "board", vars: { n: i + 1 }, test: (s: BattleState) => s.boardIndex === i })),
-    { id: "skiff_ahead", test: (s) => s.ships[0].x === s.ships[1].x },
-  ],
   locked: [],
   ticked: null,
-  hints: false,
 };
 
 export const SWORDFIGHT: HarnessPuzzle<SwordfightState, SwordfightMove, SwordfightConfig> = {
@@ -176,16 +136,11 @@ export const SWORDFIGHT: HarnessPuzzle<SwordfightState, SwordfightMove, Swordfig
   roundSeconds: c.swordfight.roundSeconds,
   configSchema: PUZZLE_CONFIG_SCHEMAS.swordfight,
   presets: PRESETS.swordfight,
-  probes: [
-    { id: "breaker_first", test: (s) => s.boards[0]!.current.a.breaker || s.boards[0]!.current.b.breaker },
-    { id: "double_first", test: (s) => s.boards[0]!.current.a.color === s.boards[0]!.current.b.color && !s.boards[0]!.current.a.breaker && !s.boards[0]!.current.b.breaker },
-  ],
   locked: ["tickMs", "player"],
   ticked: { tickMs: c.swordfight.config.tickMs },
-  hints: false,
 };
 
-/** Every puzzle on the bench, erased for generic code (the home page, the review loader). */
+/** Every puzzle in the studio, erased for generic code (the frame, the tuning panel). */
 export const HARNESS_PUZZLES: Readonly<Record<PuzzleId, HarnessPuzzle<unknown, unknown, unknown>>> = {
   cooling: COOLING as unknown as HarnessPuzzle<unknown, unknown, unknown>,
   engines: ENGINES as unknown as HarnessPuzzle<unknown, unknown, unknown>,

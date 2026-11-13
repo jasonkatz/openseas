@@ -491,29 +491,24 @@ the new one on every screen. Static scenery is merged into a few meshes, so the 
 a phone almost no draw calls, and the sun's shadows tighten on whatever is in focus. Dust drifts
 over the chart only.
 
-**The puzzle harness** is a separate application for testing the puzzles themselves, at
-`test.openseas.online` (ADR 0018, ADR 0019). One page per engine carries the practice frame as
-built in M1 and M2 (start card, HUD, legend, result card, settings) around the same board the game
-draws, and a bench beside it:
+**The puzzle studio** is a separate application for testing and tuning the puzzles themselves, at
+`test.openseas.online` (ADR 0018, ADR 0019, ADR 0042). It began as the puzzle harness, a bench of
+lab rounds, an inspector and log review around each practice page; M9 is turning it into the studio
+that section 3.14 describes, and the bench's tools are gone. What stands today:
 
-- **Three kinds of round.** Recorded and unrated rounds play what the game deals, untouched:
-  recorded through the server, verified and kept but moving no standing (ADR 0028), unrated local on
-  a random seed. Each result leads with the round's tier and shows its performance rating; the HUD shows the tier being played at (3.6). A *lab* round is the harness's: it runs
-  locally on a chosen seed, a config made of the content config plus overrides, a chosen length
-  and a clock that can be slowed, paused and stepped a tick at a time. A lab config must pass the
-  same two checks the server applies to content (the wire schema and the engine's validator), so a
-  lab round is always one the server could have issued.
-- **Scenarios are links.** Seed, overrides, length, clock and hints live in the page's query
-  string; a condition worth testing is one URL, and a page opened with `start=lab` begins at once.
-  Presets name the conditions worth reaching for (specials galore, a quiet Gunnery deck, an
-  eight-star constellation, a one-minute round), and a seed finder searches for an opening board
-  that satisfies a probe (a charge on the board, deck 3, a comet first).
-- **The inspector** shows the engine's state, its hash, what differs from content, and the move log
-  with the hash after every move, exactly what a rated round sends.
-- **Replay is proven, not assumed.** When a round ends the bench replays its log from the seed and
-  compares every hash. A round can be copied out as JSON and pasted back on any machine (a
-  `puzzle_round` row from the database works too) and stepped through on the board, forward and
-  back, to the move a rejected round failed on.
+- **One page a puzzle**, the game's seven and the prototypes alike, around the same board the game
+  draws: the board in the middle with its HUD, start card and result card, and the tuning panel
+  beside it (3.14). On a phone the page is the puzzle alone.
+- **Every round is local.** It runs in the browser on a seed and a set of numbers, and nothing is
+  sent to the game's server: no round here is recorded or rated. Each result leads with the round's
+  tier, and the HUD shows the tier being played at (3.6).
+- **A draft is a link.** Seed, config overrides, length, pace and thresholds live in the page's
+  query string. The numbers must pass the checks the server applies to content (the wire schema
+  and the engine's validator), so a round is always one the server could have issued.
+- **Replay is proven, not assumed.** When a round ends the page replays its log from the seed and
+  compares every hash, and says so only when they differ.
+- **`/play/<puzzle>`** is the puzzle with nothing around it, on the numbers its link carries: what
+  a tester is sent.
 
 - **The voyage bench** (`/voyage`, ADR 0027) tests the ship and its crew rather than a puzzle. A
   scenario is a ship class, a lane and its raiders (as content rolls them, always a given tier, or
@@ -556,8 +551,9 @@ are in [`prototypes/`](./prototypes/README.md), one file a puzzle, kept true as 
 What holds for all eight:
 
 - **Whole engines, dealt on the harness only.** Each is a pure engine in the registry with its wire
-  schemas, content file and thresholds, so a recorded round is replayed and scored by the server as
-  any round is. None is a station: no par, no place aboard, no standing (ADR 0028). The harness
+  schemas, content file and thresholds, so the server could replay and score a round as it does
+  any other. Since M9 the studio sends it none (ADR 0042): a prototype is held to replay by its
+  property tests and the studio's replay check. None is a station: no par, no place aboard, no standing (ADR 0028). The harness
   home page lists them apart from the game's puzzles.
 - **A round is 120 seconds** on the clock, scored against thresholds set from bots playing the
   engine. They are guesses until testers have played.
@@ -602,8 +598,18 @@ overlay (`seed`, `seconds`, `c.<path>`, `pace`, `thresholds`); the tier shown, l
 result, is read against the link's own thresholds. The page signs in to nothing and sends nothing.
 It holds the numbers to the server's checks and deals nothing when they fail, and it replays every
 round from its seed and speaks only when the replay disagrees. The smoke plays every board there,
-and the guides' capture takes its pictures there. Tester links by id, the tuning panel and the
-home grid are next; until they land the bench pages stand beside `/play`.
+and the guides' capture takes its pictures there.
+
+Each puzzle's own path is its studio page: that same column in the middle, and the tuning panel
+beside it as **Tuning** below describes, built from the content file and the wire schema with no
+code a puzzle. The seed is pinned, replayed or dealt afresh; a changed number deals the same seed
+again unless that is pinned off; the compare button holds the shipped numbers up; a refused number
+says why on its own control; a dot puts one number back and a button all of them; and a button
+copies the draft's `/play` link, which is how a tuned round is shared until tester links by id
+exist. The draft lives in the address bar. The bench is gone: the inspector, round files and their
+review, the clock's controls, the seed finder, and recorded and unrated rounds. The studio asks
+nothing of the game's server. Still to come in the shell: the home grid, and `studio-server` with
+tester links by id.
 
 The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
 agent reads:
@@ -631,8 +637,11 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
 - A control for every key under `config`, for `roundSeconds`, for each threshold and for
   `paceSeconds`: a slider for a range, a stepper for a small whole number, a curve for a list.
   Each shows its key as the content file spells it, one line of description kept beside the wire
-  schema, and a unit read from the name (permille, percent, points, moves). A small file a puzzle
-  groups them. The old lab presets are named starting points.
+  schema (`.describe()` on the key in `protocol`), and a unit read from the name (permille,
+  percent, points, moves). A small file a puzzle groups them into the same five sections (board,
+  deal, pace, scoring, limits), and the round's length, pace and thresholds make a sixth. A key
+  that is none of a number, a list of numbers, a switch or a choice (a deck's layout, a fight's
+  line-up) is edited as its JSON. The old lab presets are named starting points.
 - A change restarts the round on the same seed once the hand stops, unless that is pinned off.
   Holding the compare button deals the same seed with the shipped values. A seed can be pinned,
   replayed or dealt afresh.
@@ -711,7 +720,7 @@ pnpm monorepo. Packages:
 | `server` | Node 22, `ws`, Drizzle, Better Auth | Owns all authority |
 | `boards` | What both applications render with: the PixiJS boards and their art and sound, the round runner that streams move logs, the tick clock, the server connection, the shared stylesheet (ADR 0019) | Presentation and transport only; computes nothing the server does not recompute; no pages or routes |
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
-| `studio` | The puzzle harness (section 3.11), renamed in M9's first step and for now unchanged inside: the practice frame per engine around the shared boards, plus the bench: lab rounds, scenarios, inspector, replay review; each puzzle alone at `/play/<puzzle>`, on the numbers its link carries and with no server asked (3.14); and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
+| `studio` | The puzzle studio (sections 3.11 and 3.14), once the harness: a page a puzzle with the shared board and the tuning panel built from content and the wire schema; each puzzle alone at `/play/<puzzle>` on the numbers its link carries; every round local and replayed from its seed; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
 | `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the harness, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
@@ -923,8 +932,8 @@ pirates walk an open rock bareheaded, which is the tone, not a fault.
 - Node 22 LTS, pnpm, Docker Compose for local Postgres. One `pnpm dev` starts database, server,
   and client.
 - Claude works on branches and opens PRs. CI on GitHub Actions runs typecheck, Vitest, and
-  Playwright smoke tests: the harness's per-puzzle smoke (which drives every board, and the bench's
-  lab, review and clock paths, and the voyage bench), a smoke of the game's shell, from the chart to a board and back
+  Playwright smoke tests: the studio's per-puzzle smoke (which drives every board on `/play`, each
+  puzzle's studio page and its tuning panel, and the voyage bench), a smoke of the game's shell, from the chart to a board and back
   once M3 lands, and a smoke of the puzzle guides (every guide renders and its pictures load). The owner reviews and merges.
 - Private repository through the placeholder-art phase. Open-sourcing and license are decided
   when art direction lands.

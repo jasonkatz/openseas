@@ -1,6 +1,6 @@
 import { lazy, Suspense, type ComponentType } from "react";
 import type { PuzzleId } from "@openseas/engine";
-import { PirateProvider, t } from "@openseas/boards";
+import { t } from "@openseas/boards";
 import { Home } from "./pages/Home.jsx";
 import { BattlePractice } from "./pages/BattlePractice.jsx";
 import { CoolingPractice } from "./pages/CoolingPractice.jsx";
@@ -18,6 +18,7 @@ import { TugPractice } from "./pages/TugPractice.jsx";
 import { RacksPractice } from "./pages/RacksPractice.jsx";
 import { CuttingPractice } from "./pages/CuttingPractice.jsx";
 import { RoundFrame, type FrameMode } from "./frame/RoundFrame.jsx";
+import { useMediaQuery } from "./practice/PracticeShell.jsx";
 import { HARNESS_PUZZLES } from "./puzzles.js";
 import { Router, useRoute } from "./router.jsx";
 
@@ -56,11 +57,13 @@ function Puzzle({ id, mode }: { id: PuzzleId; mode: FrameMode }) {
 }
 
 /**
- * One lane per engine, the same puzzle alone under `/play/`, and the voyage bench. The scenario a
- * page opens on rides in the query string (scenario/codec.ts).
+ * One lane per puzzle, the same puzzle alone under `/play/`, and the voyage bench. The draft a
+ * page opens on rides in the query string (scenario/codec.ts). The studio is a desktop tool: on a
+ * phone a puzzle's lane only plays (ADR 0042 decision 1).
  */
 function Lanes() {
   const { path } = useRoute();
+  const desktop = useMediaQuery("(min-width: 900px)");
   if (path.startsWith(PLAY)) {
     const id = path.slice(PLAY.length).replace(/\/$/, "");
     if (isPuzzle(id)) return <Puzzle id={id} mode="play" />;
@@ -72,7 +75,7 @@ function Lanes() {
     );
   }
   const id = path.slice(1);
-  if (isPuzzle(id)) return <Puzzle id={id} mode="bench" />;
+  if (isPuzzle(id)) return <Puzzle id={id} mode={desktop ? "studio" : "play"} />;
   if (path === "/voyage")
     return (
       <Suspense fallback={<p className="page muted">{t("app.loading")}</p>}>
@@ -82,23 +85,11 @@ function Lanes() {
   return <Home />;
 }
 
-/**
- * A `/play` page asks nothing of the game's server: no session, no pirate, no socket (ADR 0042
- * decision 11). Every other page signs the tester in as the harness always has.
- */
-function Shell() {
-  const play = useRoute().path.startsWith(PLAY);
-  return (
-    <PirateProvider key={play ? "play" : "bench"} connect={!play}>
-      <Lanes />
-    </PirateProvider>
-  );
-}
-
+/** Nothing here asks anything of the game's server: every round is local (ADR 0042 decision 3). */
 export function App() {
   return (
     <Router>
-      <Shell />
+      <Lanes />
     </Router>
   );
 }

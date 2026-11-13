@@ -46,8 +46,5 @@
   "harness.preset.salvage_crate_rush": "Crate rush: crates drift in often, up to five",
   "harness.preset.salvage_no_crates": "No crates: lines only",
   "harness.preset.salvage_big_field": "A big field: nine by ten",
-  "harness.preset.salvage_ten_hauls": "Ten hauls, one minute",
-  "harness.probe.salvage.loop_open": "a line can close into a loop at the start",
-  "harness.probe.salvage.long_line": "a line of eight or more is on the opening field",
-  "harness.probe.salvage.crates_high": "both crates open in the top two rows"
+  "harness.preset.salvage_ten_hauls": "Ten hauls, one minute"
 }

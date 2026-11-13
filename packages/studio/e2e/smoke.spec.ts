@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { closeBench, expectViewMatchesState, openBench } from "./helpers.js";
+import { expectViewMatchesState } from "./helpers.js";
 
 /** A finger on the page, through the browser's own touch input, so the boards see `pointerType: "touch"`. */
 async function finger(page: Page): Promise<{ down(x: number, y: number): Promise<void>; move(x: number, y: number): Promise<void>; up(): Promise<void> }> {
@@ -17,18 +17,17 @@ async function finger(page: Page): Promise<{ down(x: number, y: number): Promise
 /**
  * Smoke: the studio builds, loads, and every board plays a round alone on its `/play` page, with
  * no server, through the same board code the game uses (ADR 0019, ADR 0042). `/play` itself (a
- * tuned link, a refused one, the seed, no request to the game) is smoked in play.spec.ts. The
- * bench's own paths (lab rounds from a link, the replay check, reviewing a log, the lab clock)
- * are smoked at the end, until the studio page takes the bench's place.
+ * tuned link, a refused one, the seed, no request to the game) is smoked in play.spec.ts, and a
+ * puzzle's studio page (the tuning panel, the seed, compare) in studio.spec.ts. The voyage bench
+ * (ADR 0027) is smoked at the end.
  */
-test("home page renders, says what it is testing against, and links to Cooling", async ({ page }) => {
+test("home page renders, says which build it is, and links to Cooling's page", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "openseas harness" })).toBeVisible();
-  await expect(page.getByTestId("status-build")).toContainText("harness");
+  await expect(page.getByRole("heading", { name: "openseas studio" })).toBeVisible();
+  await expect(page.getByTestId("status-build")).toContainText("studio");
   await page.getByTestId("tile-cooling").click();
   await expect(page).toHaveURL(/\/cooling$/);
-  await expect(page.getByTestId("start-unrated")).toBeVisible();
-  await expect(page.getByTestId("start-lab")).toBeVisible();
+  await expect(page.getByTestId("play-start")).toBeVisible();
 });
 
 test("Cooling plays alone on /play: a round accepts a keyboard swap and a tap", async ({ page }) => {
@@ -329,150 +328,15 @@ test("Swordfighting plays alone on /play: a fight drops pairs by keyboard and by
   await expectViewMatchesState(page, "swordfight");
 });
 
-test("a lab round opens from a link with its seed and config, replays clean, and its log can be reviewed", async ({ page }) => {
-  // Three animated swaps, a review with board remounts and several settle checks: the longest test
-  // in the suite, and right at the budget on the CI phone profile.
-  test.slow();
-  await page.goto("/cooling?seed=smoke-1&seconds=30&c.maxMoves=3&start=lab");
-  const canvas = page.getByTestId("cooling-canvas");
-  await expect(canvas).toBeVisible();
-  // The address bar keeps the scenario but drops the autostart, so a reload does not start again.
-  await expect(page).toHaveURL(/seed=smoke-1/);
-  await expect(page).not.toHaveURL(/start=/);
-  await expect(page.getByTestId("hud-moves")).toContainText("0/3");
-  await expectViewMatchesState(page, "cooling");
-
-  // Three swaps end a three-move round.
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("Enter");
-  await expect(page.getByTestId("hud-moves")).toContainText("1/3");
-  await page.keyboard.press("Enter");
-  await expect(page.getByTestId("hud-moves")).toContainText("2/3");
-  await page.keyboard.press("Enter");
-  await expect(page.getByTestId("result")).toBeVisible();
-  await expect(page.getByTestId("result")).toContainText("Lab round");
-  // Every result reads its own performance off the thresholds (ADR 0028).
-  await expect(page.getByTestId("result-performance")).toHaveAttribute("data-rating", /^\d+$/);
-
-  // The bench knows the round and replayed it from the seed with every hash matching.
-  await openBench(page);
-  await expect(page.getByTestId("round-mode")).toContainText("Lab");
-  await expect(page.getByTestId("round-seed")).toHaveText("smoke-1");
-  await expect(page.getByTestId("check-replay")).toHaveAttribute("data-outcome", "ok");
-  await expect(page.getByTestId("inspector-diff")).toContainText("maxMoves = 3");
-  await expect(page.getByTestId("inspector-log").locator("li")).toHaveCount(3);
-
-  // Review: step back through the log on the board.
-  await page.getByTestId("round-review").click();
-  await closeBench(page);
-  await expect(page.getByTestId("review-bar")).toBeVisible();
-  await expect(page.getByTestId("review-index")).toHaveText("3 / 3");
-  await page.getByTestId("review-prev").click();
-  await expect(page.getByTestId("review-index")).toHaveText("2 / 3");
-  await expectViewMatchesState(page, "cooling");
-  await page.getByTestId("review-exit").click();
-  await expect(page.getByTestId("start-lab")).toBeVisible();
-});
-
 test("a Cooling round plays a lone ship's heat: the deal brings the board to the heat's floor", async ({ page }) => {
   // Dealt eight rows deep on a dry, sound ship (ADR 0029): the round's first move is the ship's
-  // heat, three rows, logged as a duty board logs its ship's word. The clock stays paused.
-  await page.goto("/cooling?seed=smoke-water&c.initialHeatRow=8&start=lab&paused=1");
+  // heat, three rows, applied as a duty board applies its ship's word. The clock stays paused.
+  await page.goto("/play/cooling?seed=smoke-water&c.initialHeatRow=8&start=1&paused=1");
   await expect(page.getByTestId("cooling-canvas")).toBeVisible();
-  await openBench(page);
-  const log = page.getByTestId("inspector-log").locator("li");
-  await expect(log).toHaveCount(1);
-  await expect(log.first()).toContainText("heat row=3");
+  // The heat meter sits in the details sheet: three rows of twelve.
+  await expect(page.locator(".heat-meter i")).toHaveAttribute("style", /width: 25%/);
 });
 
-test("the scenario form refuses a config the server could not issue, and the link follows the form", async ({ page }) => {
-  await page.goto("/cooling");
-  await openBench(page);
-  const field = page.getByTestId("config-field-maxMoves");
-  await field.fill("0");
-  await expect(page.getByTestId("config-errors")).toBeVisible();
-  await expect(page.getByTestId("bench-start-lab")).toBeDisabled();
-  await expect(page).toHaveURL(/c\.maxMoves=0/);
-  await page.getByTestId("config-reset").click();
-  await expect(page.getByTestId("config-errors")).toHaveCount(0);
-  await expect(page.getByTestId("bench-start-lab")).toBeEnabled();
-  await expect(page).not.toHaveURL(/maxMoves/);
-  // A preset is a few overrides at once, and shows up on the start card's summary.
-  await page.getByTestId("scenario-preset").selectOption("ten_moves");
-  await expect(page).toHaveURL(/c\.maxMoves=10/);
-  await expect(page).toHaveURL(/seconds=60/);
-  await closeBench(page);
-  await expect(page.getByTestId("lab-summary")).toContainText("1 config override");
-});
-
-test("a round pasted on the home page opens in review on its board", async ({ page }) => {
-  await page.goto("/");
-  const round = { puzzle: "cooling", seed: "smoke-paste", moves: [{ type: "swap", col: 0, row: 0 }, { type: "swap", col: 2, row: 5 }] };
-  await page.getByTestId("home-review-text").fill(JSON.stringify(round));
-  await page.getByTestId("home-review-open").click();
-  await expect(page).toHaveURL(/\/cooling/);
-  await expect(page.getByTestId("review-bar")).toBeVisible();
-  await expect(page.getByTestId("review-index")).toHaveText("2 / 2");
-  await expectViewMatchesState(page, "cooling");
-  // Junk is refused on the home page with a reason.
-  await page.goto("/");
-  await page.getByTestId("home-review-text").fill('{"puzzle":"cooling","seed":"x","moves":[{"type":"arrow"}]}');
-  await page.getByTestId("home-review-open").click();
-  await expect(page.getByTestId("home-review-error")).toContainText("Move 0");
-});
-
-test("a lab round's clock can start paused, step a tick at a time, and run again", async ({ page }) => {
-  await page.goto("/gunnery?seed=smoke-clock&start=lab&paused=1");
-  await expect(page.getByTestId("gunnery-canvas")).toBeVisible();
-  await openBench(page);
-  const readout = page.getByTestId("clock-readout");
-  await expect(readout).toContainText("paused");
-  const time = page.getByTestId("hud-time");
-  const frozen = await time.textContent();
-  await page.waitForTimeout(1200);
-  expect(await time.textContent()).toBe(frozen);
-  // Three ticks of 200 ms; the shown tick runs one behind the clock.
-  await page.getByTestId("clock-step").click();
-  await page.getByTestId("clock-step").click();
-  await page.getByTestId("clock-step").click();
-  await expect(readout).toContainText("tick 2");
-  await page.getByTestId("clock-pause").click();
-  await expect(readout).not.toContainText("paused");
-  await expect(time).not.toHaveText(frozen!, { timeout: 5_000 });
-});
-
-/** A server that is up but wants an alpha invite code, as a preview copied from production does. */
-async function mockInviteGatedServer(page: Page): Promise<void> {
-  let pirate: unknown = null;
-  await page.route("**/api/me", (route) => route.fulfill({ json: { pirate, inviteRequired: true } }));
-  await page.route("**/api/auth/get-session", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "null" }));
-  await page.route("**/api/auth/sign-in/anonymous", (route) => route.fulfill({ json: { token: "t", user: { id: "u1", isAnonymous: true } } }));
-  await page.route("**/api/pirate", async (route) => {
-    const body = route.request().postDataJSON() as { inviteCode?: string };
-    if (body?.inviteCode !== "secret") return route.fulfill({ status: 403, json: { error: "invite_invalid" } });
-    pirate = { id: "p1", name: "Smoke Tester", guest: true, balance: 0, ratings: [], ships: [] };
-    return route.fulfill({ status: 201, json: { pirate } });
-  });
-}
-
-test("with a server that wants an invite code, the home signs the pirate in and the start card says so until then", async ({ page }) => {
-  await mockInviteGatedServer(page);
-  await page.goto("/cooling");
-  // A cold worker on the CI phone profile spends its first seconds bringing up the board's renderer,
-  // and the start card only says this once the sign-in round trip lands after that.
-  await expect(page.getByText("Sign the articles on the home page")).toBeVisible({ timeout: 20_000 });
-  await page.goto("/");
-  await expect(page.getByTestId("sign-in")).toBeVisible();
-  await expect(page.getByTestId("status-card")).toContainText("Not signed in");
-  await page.getByTestId("sign-in-invite").fill("wrong");
-  await page.getByTestId("sign-in-submit").click();
-  await expect(page.getByTestId("sign-in")).toContainText("isn't right");
-  await page.getByTestId("sign-in-invite").fill("secret");
-  await page.getByTestId("sign-in-submit").click();
-  await expect(page.getByTestId("status-pirate")).toContainText("Smoke Tester");
-});
-
-/** A lane where the given raider always hails, as the voyage page's query string carries it. */
 const alwaysHailed = (tier: string): string => `w.lane.encounterChance=1&w.lane.raiders=${encodeURIComponent(JSON.stringify([{ tierId: tier, weight: 1 }]))}`;
 
 test("the voyage bench flies a crew to its dock, charts the ship and proves the replay", async ({ page }) => {

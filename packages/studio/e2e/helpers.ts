@@ -19,16 +19,6 @@ export async function expectViewMatchesState(page: Page, puzzle: string): Promis
   }).toPass({ timeout: 15_000 });
 }
 
-/** On phones the bench is a sheet behind a button; on wide screens it is always there. */
-export async function openBench(page: Page): Promise<void> {
-  const toggle = page.getByTestId("bench-toggle");
-  if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
-}
-export async function closeBench(page: Page): Promise<void> {
-  const toggle = page.getByTestId("bench-toggle");
-  if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-expanded")) === "true") await toggle.click();
-}
-
 /** Where a kit board's grid sits on the page, from the `data-geom` its canvas publishes: the origin and the cell size in page pixels. */
 export async function boardGeom(page: Page, puzzle: string): Promise<{ ox: number; oy: number; cell: number }> {
   const canvas = page.getByTestId(`${puzzle}-canvas`);

@@ -17,10 +17,9 @@ test("a play page is the puzzle alone and asks nothing of the game's server", as
   page.on("websocket", (ws) => outside.push(ws.url()));
   await page.goto("/play/cooling");
   await expect(page.getByTestId("play")).toBeVisible();
-  // No way back into the studio, no bench, no round that goes through a server.
-  await expect(page.getByTestId("bench")).toHaveCount(0);
-  await expect(page.getByTestId("bench-toggle")).toHaveCount(0);
-  await expect(page.getByTestId("start-recorded")).toHaveCount(0);
+  // No way back into the studio and no tuning panel.
+  await expect(page.getByTestId("studio")).toHaveCount(0);
+  await expect(page.getByTestId("tuning")).toHaveCount(0);
   await expect(page.locator("a[href='/']")).toHaveCount(0);
   await expect(page.getByTestId("play-tuned")).toHaveCount(0);
 
@@ -79,7 +78,7 @@ test("a tuned link plays its numbers, lists them beside the shipped ones, and ra
 });
 
 test("a link the current build would refuse says why and deals nothing", async ({ page }) => {
-  await page.goto("/play/cooling?c.width=1&seconds=5&start=lab");
+  await page.goto("/play/cooling?c.width=1&seconds=5&start=1");
   const refused = page.getByTestId("play-refused");
   await expect(refused).toBeVisible();
   await expect(refused).toContainText("config.width");
@@ -101,7 +100,7 @@ test("a play link that names no puzzle says so", async ({ page }) => {
 });
 
 test("a ticked round's clock can be held and stepped from a script, with no control on screen", async ({ page }) => {
-  await page.goto("/play/gunnery?seed=play-clock&start=lab&paused=1");
+  await page.goto("/play/gunnery?seed=play-clock&start=1&paused=1");
   await expect(page.getByTestId("gunnery-canvas")).toBeVisible();
   await expect(page.getByTestId("clock")).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.openseasRoundClock?.paused)).toBe(true);

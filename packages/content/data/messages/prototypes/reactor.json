@@ -40,8 +40,5 @@
   "harness.preset.reactor_big_core": "A five by five core",
   "harness.preset.reactor_no_holding": "No holding: a second hot rod scrams the core",
   "harness.preset.reactor_short_pipeline": "A five swipe pipeline",
-  "harness.preset.reactor_twenty_swipes": "Twenty swipes, one minute",
-  "harness.probe.reactor.ports_one_wall": "both ports open on one wall",
-  "harness.probe.reactor.two_first": "the first rod to enter is grade II",
-  "harness.probe.reactor.corner_ports": "both ports open on corner lanes"
+  "harness.preset.reactor_twenty_swipes": "Twenty swipes, one minute"
 }

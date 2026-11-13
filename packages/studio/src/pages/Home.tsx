@@ -1,9 +1,7 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { CORE_PUZZLE_IDS, PROTOTYPE_PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
-import { SERVER_URL, content, t, usePirate } from "@openseas/boards";
-import { parseRoundFile, stashRoundFile } from "../review/roundFile.js";
-import { importErrorText } from "../bench/ImportPanel.jsx";
-import { Link, useRoute } from "../router.jsx";
+import { content, t } from "@openseas/boards";
+import { Link } from "../router.jsx";
 
 const GLYPHS: Record<PuzzleId, ReactNode> = {
   cooling: (
@@ -195,59 +193,7 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
   ),
 };
 
-/** The server's commit from /health, so the bench always says what it is testing against. */
-function useServerCommit(): { commit: string | null; failed: boolean } {
-  const [commit, setCommit] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    fetch(`${SERVER_URL}/health`, { credentials: "omit" })
-      .then((r) => r.json() as Promise<{ commit?: string | null }>)
-      .then((h) => {
-        if (alive) setCommit(h.commit ?? "unknown");
-      })
-      .catch(() => {
-        if (alive) setFailed(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return { commit, failed };
-}
-
 export function Home() {
-  const { phase, pirate, socketStatus, error, inviteRequired, createPirate } = usePirate();
-  const { navigate } = useRoute();
-  const server = useServerCommit();
-  const [paste, setPaste] = useState("");
-  const [pasteError, setPasteError] = useState<string | null>(null);
-  const [invite, setInvite] = useState("");
-  const [signing, setSigning] = useState(false);
-  // The socket only opens once there is a pirate; before that the pip would read "offline" for a
-  // server that answered, so the row says what is true instead.
-  const statusClass = phase !== "ready" ? "pip-wait" : socketStatus === "open" ? "pip-live" : socketStatus === "connecting" ? "pip-wait" : "pip-off";
-  const statusText =
-    phase === "needs-pirate" ? t("harness.home.not_signed_in") : phase !== "ready" ? t("app.status_connecting") : socketStatus === "open" ? t("app.status_live") : socketStatus === "connecting" ? t("app.status_connecting") : t("app.status_offline");
-
-  const signIn = async (e: FormEvent): Promise<void> => {
-    e.preventDefault();
-    setSigning(true);
-    await createPirate(invite.trim() || undefined);
-    setSigning(false);
-  };
-
-  const openRound = (e: FormEvent): void => {
-    e.preventDefault();
-    const parsed = parseRoundFile(paste);
-    if (!parsed.ok) {
-      setPasteError(importErrorText(parsed.error));
-      return;
-    }
-    stashRoundFile(parsed.round);
-    navigate(`/${parsed.round.puzzle}?review=1`);
-  };
-
   return (
     <main className="page home harness-home">
       <header className="masthead">
@@ -260,46 +206,6 @@ export function Home() {
       <section className="card card-ink status-card" data-testid="status-card">
         <h2>{t("harness.home.status")}</h2>
         <dl className="ledger">
-          <div>
-            <dt>{t("harness.home.pirate")}</dt>
-            <dd data-testid="status-pirate">
-              {phase === "loading" && t("app.loading")}
-              {phase === "offline" && t("app.offline")}
-              {phase === "needs-pirate" && (
-                <form onSubmit={signIn} className="stack sign-in" data-testid="sign-in">
-                  <span>{t("harness.home.needs_pirate")}</span>
-                  {inviteRequired && (
-                    <label className="field">
-                      <span>{t("home.invite_label")}</span>
-                      <input value={invite} onChange={(e) => setInvite(e.target.value)} placeholder={t("home.invite_placeholder")} autoComplete="off" autoCapitalize="none" data-testid="sign-in-invite" />
-                    </label>
-                  )}
-                  {error && <span className="error small">{t(`error.${error}`)}</span>}
-                  <button className="btn btn-brass btn-mini" disabled={signing} type="submit" data-testid="sign-in-submit">
-                    {signing ? t("home.creating") : t("home.create_button")}
-                  </button>
-                </form>
-              )}
-              {pirate && (
-                <>
-                  {pirate.name}
-                  {pirate.guest && <small className="muted"> · {t("harness.home.guest")}</small>}
-                </>
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>{t("harness.home.server")}</dt>
-            <dd className="mono small">
-              <span className={`pip ${statusClass}`}>
-                <i aria-hidden="true" />
-                {statusText}
-              </span>{" "}
-              {SERVER_URL || t("harness.home.server_same_origin")}
-              {server.commit && ` · ${t("harness.home.server_commit", { commit: server.commit.slice(0, 7) })}`}
-              {server.failed && ` · ${t("harness.home.server_unreachable")}`}
-            </dd>
-          </div>
           <div>
             <dt>{t("harness.home.build")}</dt>
             <dd className="mono small" data-testid="status-build">
@@ -369,32 +275,6 @@ export function Home() {
             </Link>
           </li>
         </ul>
-      </section>
-
-      <section className="card card-parchment">
-        <h2>{t("harness.home.review")}</h2>
-        <p>{t("harness.home.review_blurb")}</p>
-        <form onSubmit={openRound} className="stack">
-          <textarea
-            value={paste}
-            onChange={(e) => {
-              setPaste(e.target.value);
-              setPasteError(null);
-            }}
-            rows={4}
-            spellCheck={false}
-            data-testid="home-review-text"
-            placeholder='{"puzzle":"cooling","seed":"…","moves":[…]}'
-          />
-          {pasteError && (
-            <p className="error" role="alert" data-testid="home-review-error">
-              {pasteError}
-            </p>
-          )}
-          <button className="btn btn-brass" type="submit" disabled={paste.trim().length === 0} data-testid="home-review-open">
-            {t("harness.home.review_open")}
-          </button>
-        </form>
       </section>
 
       <footer className="colophon">{t("harness.home.footer")}</footer>

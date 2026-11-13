@@ -1,14 +1,14 @@
 import { useCallback } from "react";
 import { summarizeTug, type TugConfig, type TugDir, type TugMove, type TugState } from "@openseas/engine";
 import { content, KindIcon, KINDS, SpriteIcon, spriteName, t, TugBoard } from "@openseas/boards";
-import { useBench } from "../bench/useBench.jsx";
+import { useStudio } from "../studio/useStudio.js";
 import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { TUG } from "../prototypes/tug.js";
 
 const tug = content.puzzles.tug;
 
-/** Tug (prototype, ADR 0036): the practice frame round the shared board, with the bench beside it. */
+/** Tug (prototype, ADR 0036): the shared board in the studio's frame. */
 export function TugPractice() {
   const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<TugState, TugMove, TugConfig>({
@@ -18,9 +18,9 @@ export function TugPractice() {
     roundSeconds: tug.roundSeconds,
     summarize: summarizeTug,
   });
-  const bench = useBench(TUG, api);
+  const studio = useStudio(TUG, api);
   const { state } = api;
-  const shown = bench.reviewState ?? state;
+  const shown = state;
   const cfg = shown.config;
 
   const onFlick = useCallback((pod: number, dir: TugDir) => void api.apply({ type: "flick", pod, dir }), [api]);
@@ -34,7 +34,6 @@ export function TugPractice() {
       eyebrow={t("harness.prototype_eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
-      best={api.best}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
@@ -43,12 +42,8 @@ export function TugPractice() {
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
       maxMoves={cfg.maxMoves < TUG.config.maxMoves ? cfg.maxMoves : undefined}
       combo={shown.combo}
-      canRecord={api.canRecord}
-      onStartRecorded={api.startRecorded}
-      onStartUnrated={api.startUnrated}
-      onStartLab={bench.startLab}
-      labReady={bench.labReady}
-      labSummary={bench.labSummary}
+      onStart={studio.start}
+      ready={studio.ready}
       splash={t("tug.go")}
       howTo={
         <>
@@ -119,10 +114,8 @@ export function TugPractice() {
           <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
-      bench={bench.bench}
-      reviewBar={bench.reviewBar}
       board={(interactive) => (
-        <TugBoard key={bench.reviewKey ?? "live"} state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={bench.hints} onFlick={onFlick} onSkip={onSkip} onFrame={api.markRendered} />
+        <TugBoard state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={studio.hints} onFlick={onFlick} onSkip={onSkip} onFrame={api.markRendered} />
       )}
     />
   );
