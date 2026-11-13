@@ -71,7 +71,7 @@ jobs:
           if [ "$FORCE_CLIENT" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/client packages/boards $shared vercel.json; then
             client=true
           fi
-          if [ "$FORCE_HARNESS" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/harness packages/boards $shared; then
+          if [ "$FORCE_HARNESS" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/studio packages/boards $shared; then
             harness=true
           fi
           # The guides read content and the engine's puzzle list; they share no code with the boards.
@@ -194,7 +194,7 @@ jobs:
           .github/scripts/wait-for-commit.sh "$CLIENT_URL/version.json" "$SHA" 300
 
   harness:
-    name: Harness to Vercel
+    name: Studio to Vercel
     needs: [plan, server]
     if: always() && needs.plan.outputs.harness == 'true' && (needs.server.result == 'success' || needs.server.result == 'skipped')
     runs-on: ubuntu-latest
@@ -206,8 +206,10 @@ jobs:
       # game's project; a project-scoped token reports the other project as "not found").
       VERCEL_TOKEN: ${{ secrets.VERCEL_HARNESS_TOKEN || secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-      # The harness is its own Vercel project, rooted in packages/harness (docs/DEPLOY.md, step 2b).
+      # The studio is its own Vercel project (still named openseas-harness), rooted in packages/studio
+      # (docs/DEPLOY.md, step 2b). ROOT says so to the build whatever the project's setting is.
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_HARNESS_PROJECT_ID }}
+      ROOT: packages/studio
       HARNESS_URL: ${{ vars.PRODUCTION_HARNESS_URL }}
       SERVER_URL: ${{ vars.PRODUCTION_SERVER_URL }}
     steps:
@@ -237,11 +239,15 @@ jobs:
       - name: Build
         env:
           COMMIT_SHA: ${{ env.SHA }}
-        # The project's Root Directory is packages/harness, so the build runs there and reads
-        # packages/harness/vercel.json; the output lands in .vercel/output at the repo root.
+        # The project's Root Directory is packages/studio, so the build runs there and reads
+        # packages/studio/vercel.json; the output lands in .vercel/output at the repo root.
+        # `vercel deploy` wants the directory the project names to exist, so it is created when the
+        # project still names the old one (.github/scripts/vercel-root.sh).
         run: |
+          project_root="$(.github/scripts/vercel-root.sh)"
+          if [ -n "$project_root" ]; then mkdir -p "$project_root"; fi
           vercel build --prod --token "$VERCEL_TOKEN"
-          test -d .vercel/output || { echo "::error::vercel build produced no .vercel/output; is the harness project's Root Directory packages/harness? See docs/DEPLOY.md, step 2b."; exit 1; }
+          test -d .vercel/output || { echo "::error::vercel build produced no .vercel/output; does packages/studio hold a vercel.json? See docs/DEPLOY.md, step 2b."; exit 1; }
       - name: Deploy
         run: |
           set -o pipefail
@@ -260,12 +266,12 @@ jobs:
           fi
           .github/scripts/wait-for-commit.sh "$HARNESS_URL/version.json" "$SHA" 300
       - name: Deep links open
-        # Every puzzle page is a deep link; without the SPA rewrite from packages/harness/vercel.json
+        # Every puzzle page is a deep link; without the SPA rewrite from packages/studio/vercel.json
         # a shared scenario link would 404, which is the harness's whole point.
         run: |
           if [ -z "$HARNESS_URL" ]; then exit 0; fi
           status="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$HARNESS_URL/cooling?seed=deploy-check")"
-          if [ "$status" = 200 ]; then echo "deep links open ($status)"; else echo "::error::$HARNESS_URL/cooling returned HTTP $status; the SPA rewrite is not in effect. Check that the project's Root Directory is packages/harness so its vercel.json is read. See docs/DEPLOY.md, step 2b."; exit 1; fi
+          if [ "$status" = 200 ]; then echo "deep links open ($status)"; else echo "::error::$HARNESS_URL/cooling returned HTTP $status; the SPA rewrite is not in effect. Check that packages/studio/vercel.json is read (the build's Root Directory). See docs/DEPLOY.md, step 2b."; exit 1; fi
       - name: Server accepts requests from the harness origin
         run: |
           if [ -z "$SERVER_URL" ] || [ -z "$HARNESS_URL" ]; then exit 0; fi

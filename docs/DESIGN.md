@@ -699,12 +699,12 @@ pnpm monorepo. Packages:
 | `server` | Node 22, `ws`, Drizzle, Better Auth | Owns all authority |
 | `boards` | What both applications render with: the PixiJS boards and their art and sound, the round runner that streams move logs, the tick clock, the server connection, the shared stylesheet (ADR 0019) | Presentation and transport only; computes nothing the server does not recompute; no pages or routes |
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
-| `harness` | The puzzle test harness (section 3.11): the practice frame per engine around the shared boards, plus the bench: lab rounds, scenarios, inspector, replay review; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
+| `studio` | The puzzle harness (section 3.11), renamed in M9's first step and for now unchanged inside: the practice frame per engine around the shared boards, plus the bench: lab rounds, scenarios, inspector, replay review; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
 | `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the harness, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
-In M9 the harness becomes the studio (3.14, ADR 0042): `harness` is renamed `studio`, and a
-`studio-server` package holds the service its chat, Save and tester links run on. The table above
+In M9 the harness becomes the studio (3.14, ADR 0042): `harness` has been renamed `studio`, and a
+`studio-server` package will hold the service its chat, Save and tester links run on. The table above
 says what is built today.
 
 Prototype puzzles (3.12, ADR 0036) live in the same packages, each in files of its own: an engine

@@ -20,7 +20,7 @@ one GitHub Actions pipeline does the deploying, in order (ADR 0014).
    --prod`, and polls `/version.json` until it reports the commit (following the apex domain's
    redirect to `www`). The harness job then checks
    that a deep link such as `/cooling` answers 200 (the SPA rewrite from
-   `packages/harness/vercel.json` is in effect) and that the server allows the harness origin.
+   `packages/studio/vercel.json` is in effect) and that the server allows the harness origin.
 5. Deploys queue behind each other and never cancel one in flight. All jobs show up under the
    repo's **production** environment, so GitHub's Deployments view is the deploy history.
 
@@ -167,10 +167,15 @@ Then in the dashboard, project → **Settings**:
 4. Account → **Settings → Tokens** → create a token scoped to the team. It is `VERCEL_TOKEN` in
    step 3.
 
-### 2b. Vercel: harness
+### 2b. Vercel: harness (the studio)
 
-The harness is a second Vercel project on the same team, rooted in `packages/harness` so it reads
-`packages/harness/vercel.json` (build command, output directory, SPA rewrite) instead of the
+The package was renamed `packages/studio` in M9 (ADR 0042); the Vercel project, the variables and
+the alias prefix keep the name `harness`. The deploy and preview jobs build in `packages/studio`
+whatever the project's Root Directory says (`.github/scripts/vercel-root.sh`), and print a notice
+until the setting agrees.
+
+The harness is a second Vercel project on the same team, rooted in `packages/studio` so it reads
+`packages/studio/vercel.json` (build command, output directory, SPA rewrite) instead of the
 repository's `vercel.json`, which is the game's. Like the game's project it is not connected to
 GitHub; the pipeline deploys it.
 
@@ -181,7 +186,7 @@ GitHub; the pipeline deploys it.
    vercel project add openseas-harness --scope <team-slug>
    ```
 
-2. Project → **Settings → General**: Root Directory **`packages/harness`**, Framework Preset
+2. Project → **Settings → General**: Root Directory **`packages/studio`**, Framework Preset
    **Vite**, Node.js version **22.x**. Leave the build and output settings as detected; the
    `vercel.json` in that directory sets them. The same through the API, with the token from
    step 2.4 and the team id from `.vercel/project.json`:
@@ -189,7 +194,7 @@ GitHub; the pipeline deploys it.
    ```sh
    curl -X PATCH "https://api.vercel.com/v9/projects/openseas-harness?teamId=$VERCEL_ORG_ID" \
      -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
-     -d '{"rootDirectory":"packages/harness","framework":"vite","nodeVersion":"22.x"}'
+     -d '{"rootDirectory":"packages/studio","framework":"vite","nodeVersion":"22.x"}'
    ```
 
 3. **Settings → Environment Variables**: `VITE_SERVER_URL` = `https://<railway domain>` for
@@ -302,7 +307,7 @@ read "the same as this board". Open the game and confirm the same pirate is sign
 - Which paths trigger which side, the order, and the timeouts all live in
   `.github/workflows/deploy.yml`.
 - The server's build and start commands live in `railpack.json`; the game's in the repository's
-  `vercel.json`; the harness's in `packages/harness/vercel.json` (its project's Root Directory).
+  `vercel.json`; the harness's in `packages/studio/vercel.json` (its project's Root Directory).
   All are read from the checkout at deploy time, so a change ships with the commit that makes it.
 - The server's healthcheck and restart policy are Railway service settings (step 1.3).
 - Which paths get a preview, the environment naming and the alias scheme live in

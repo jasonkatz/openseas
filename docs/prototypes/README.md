@@ -38,15 +38,15 @@ example for every one of them.
 | `packages/boards/src/<id>/renderer.ts` | A `KitBoard` subclass: draws the state, plays the last move, reports input. |
 | `packages/boards/src/sprites/<id>.webp` | The puzzle's atlas, with its frames in `frames.json` and its line in `atlas.ts`. |
 | `packages/boards/src/<id>/<Id>Board.tsx` | The React host: `useKitBoard`, the labels from the message table, `data-board`. |
-| `packages/harness/src/pages/<Id>Practice.tsx` | The page: `usePractice`, `useBench`, `PracticeShell`, HUD details, legend, result rows. |
-| `packages/harness/src/prototypes/<id>.ts` | The bench entry: content config, presets, seed probes, whether it ticks, whether it hints. |
-| `packages/harness/src/scenario/prototypes/<id>.ts` | Lab presets. Pure: no boards import. |
-| `packages/harness/e2e/<id>.spec.ts` | The smoke: reach the page from home, play by key and by pointer, the canvas matches the engine. |
+| `packages/studio/src/pages/<Id>Practice.tsx` | The page: `usePractice`, `useBench`, `PracticeShell`, HUD details, legend, result rows. |
+| `packages/studio/src/prototypes/<id>.ts` | The bench entry: content config, presets, seed probes, whether it ticks, whether it hints. |
+| `packages/studio/src/scenario/prototypes/<id>.ts` | Lab presets. Pure: no boards import. |
+| `packages/studio/e2e/<id>.spec.ts` | The smoke: reach the page from home, play by key and by pointer, the canvas matches the engine. |
 | `docs/prototypes/<id>.md` | The design. |
 
 The lines that register a prototype are in `engine/src/registry.ts` and `engine/src/index.ts`,
 `protocol/src/{common,puzzles,ws,index}.ts`, `content/src/prototypes/index.ts`,
-`boards/src/index.ts`, and `harness/src/{App.tsx,puzzles.ts,pages/Home.tsx,scenario/presets.ts}`.
+`boards/src/index.ts`, and `studio/src/{App.tsx,puzzles.ts,pages/Home.tsx,scenario/presets.ts}`.
 
 ## Rules every prototype keeps
 

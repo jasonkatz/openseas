@@ -24,7 +24,7 @@ export default defineConfig({
     ...(process.env.PW_CHROMIUM_PATH ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH } } : {}),
   },
   webServer: {
-    command: `pnpm --filter @openseas/harness exec vite build && pnpm --filter @openseas/harness exec vite preview --port ${port} --strictPort`,
+    command: `pnpm --filter @openseas/studio exec vite build && pnpm --filter @openseas/studio exec vite preview --port ${port} --strictPort`,
     port,
     reuseExistingServer: true,
     timeout: 180_000,
