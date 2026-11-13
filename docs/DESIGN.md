@@ -588,6 +588,101 @@ stays a few lines.
 - **Not linked yet.** The site stands alone. Where the game points a player at a guide (a station's
   start card, the result card) is decided when it is wanted.
 
+### 3.14 The puzzle studio
+
+Planned, and built as milestone M9 (5.2, ADR 0042). The harness becomes a studio: an application
+for tuning one puzzle at a time, at `test.openseas.online`, for the owner. Until its steps land,
+the harness is as sections 3.11 and 4.1 describe it. The voyage bench is not part of the studio and
+stays at `/voyage` as it is.
+
+The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
+agent reads:
+
+| The skill asks | The studio answers with |
+|---|---|
+| Numbers live in content (rule 18) | The tuning panel is built from the puzzle's content file and bounded by its wire schema |
+| Thresholds and a live pace (rules 16, 17) | `thresholds` and `paceSeconds` are controls, tuned by hand with the HUD's tier in view |
+| Reads without color (rule 22) | The sprite panel previews every frame with the marks setting on and off |
+| Its own sprites and sounds, the owner picking every take (rule 23) | The asset panels show each frame's and cue's takes, and a pick is one tap |
+| Every string in the message table (rule 24) | The agent is held to it, and so is the studio itself |
+| Three homes kept in step (rule 25) | Save runs the changed-puzzle checklist before the pull request is ready |
+| Report every bar item as met or broken | The pull request's body is that report |
+
+**Who and where.** The owner signs in with GitHub. Tester links are public. The studio is laid out
+for a desktop: the board in the middle at a phone's proportions, tuning and assets to one side,
+the chat to the other. On a phone there is no studio, only play.
+
+**Home.** A grid of all fifteen puzzles, the game's and the prototypes treated alike, each with a
+live thumbnail and a mark for an open draft or pull request. Each puzzle keeps its path
+(`/cooling`, `/salvage`), and the old query string (`seed`, `c.<path>`) still opens a tuned round.
+
+**Tuning.**
+
+- A control for every key under `config`, for `roundSeconds`, for each threshold and for
+  `paceSeconds`: a slider for a range, a stepper for a small whole number, a curve for a list.
+  Each shows its key as the content file spells it, one line of description kept beside the wire
+  schema, and a unit read from the name (permille, percent, points, moves). A small file a puzzle
+  groups them. The old lab presets are named starting points.
+- A change restarts the round on the same seed once the hand stops, unless that is pinned off.
+  Holding the compare button deals the same seed with the shipped values. A seed can be pinned,
+  replayed or dealt afresh.
+- A config the server would refuse does not run, and the control that caused it says why. Every
+  round is replayed when it ends; a mark appears only if the hashes differ.
+- A changed control carries a dot that puts it back.
+- Sizes and limits fixed in an engine's code are not controls. They are asked for in the chat.
+
+**Sprites and sounds.**
+
+- The sprite panel lists every frame in the puzzle's atlas; the sound panel every cue its board
+  plays. A row shows the current pick and the takes kept for it. Sprites show at board size.
+  Sounds play on a tap, and the synthesized cue is listed as a pick (ADR 0041).
+- A pick changes the running board at once.
+- Each row has two buttons that write the start of a chat message: new takes of this, and change
+  this. New takes are made by the agent through the sprite and sound skills, from the brief, and
+  appear in the row.
+- Takes are kept in object storage across drafts. Only a pick is committed.
+
+**The chat.**
+
+- An agent session on the draft's own copy of the repository, with `CLAUDE.md` and the three
+  puzzle skills loaded. Sonnet 5.5 unless Haiku 5.5 or Opus 5.5 is picked, changeable between
+  messages.
+- It knows the draft's numbers and picks and how the last few rounds went (seed, score, tier,
+  length, moves), so "that felt too easy" has something behind it. It reads a whole move log only
+  when asked about a round.
+- Asked for a number, it moves the control. Asked for more, it edits the puzzle's files, and the
+  board switches to a build of the draft, with a mark saying so.
+- It is held to the open puzzle's files. For anything else it asks, and the owner allows that
+  path with a click.
+- Its replies are shown whole, its work as one line a step that opens to the diff or the output.
+  There is a stop button, and a message sent while it works steers it. The draft's cost so far
+  sits by the model picker, against a cap.
+
+**Drafts and reset.** One draft a puzzle, kept by the studio service so it follows the owner from
+machine to machine: numbers, picks, code changes, chat. Four ways back: one control to its
+shipped value; all numbers and picks cleared; one chat turn's edits reverted; the draft discarded
+after a confirmation.
+
+**Save.**
+
+1. A tester link, at once.
+2. The numbers written into the content file and the picks placed, committed, pushed, and a draft
+   pull request opened in the studio's name with the owner credited.
+3. The agent works the skill's checklist (design file, guide, capture, strings) and marks the
+   pull request ready.
+
+Later Saves add to the same pull request until it is merged or closed, and then the draft clears.
+If `main` has moved, the studio says so and offers to update the draft.
+
+**Tester links.** `/play/<id>` is the puzzle full-screen: no sign-in, restart, a new seed, and a
+details sheet with the draft's name, who made it and each changed value beside the shipped one. A
+link is a frozen copy and does not expire. The puzzle's studio page lists its links and can
+withdraw one. A link the current build would refuse says so and deals nothing. A draft that
+changes code is shared from its pull request's preview once that has deployed.
+
+**What is gone.** The inspector, round files and their review, the stepping clock, and rounds
+recorded through the server from this site.
+
 ## 4. Architecture
 
 Rationale lives in the ADRs. This section states what is decided.
@@ -607,6 +702,10 @@ pnpm monorepo. Packages:
 | `harness` | The puzzle test harness (section 3.11): the practice frame per engine around the shared boards, plus the bench: lab rounds, scenarios, inspector, replay review; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
 | `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the harness, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
+
+In M9 the harness becomes the studio (3.14, ADR 0042): `harness` is renamed `studio`, and a
+`studio-server` package holds the service its chat, Save and tester links run on. The table above
+says what is built today.
 
 Prototype puzzles (3.12, ADR 0036) live in the same packages, each in files of its own: an engine
 folder, a protocol file, a content file and message file, a board folder built on `boards/src/kit`,
@@ -679,6 +778,7 @@ still proven there first, with its tester session, and only then embedded in the
 | M6 | OAuth upgrade (a guest links Discord or Google in place and keeps everything; returning players sign in), crews (found with a name and flag, invite, ranks, crew chat, crew-only ships, crews' colors on ships, tallies and the board of crews, pirates' cards), polish pass |
 | M7 | The space reskin (ADR 0034): every word, the three.js world and the codebase move from the sea to space, with the mechanics unchanged and the database wiped. The puzzle boards' art waits for the owner's sprite pass, which has since landed for the sprites |
 | M8 | Prototype puzzles (3.12, ADR 0036): eight new puzzles of the game's own, each a whole engine playable on the harness, in the owner's sprites (ADR 0037). Done when the owner has played all eight and chosen which, if any, go on |
+| M9 | The puzzle studio (3.14, ADR 0042), in three steps, each usable alone. **The shell:** the harness renamed and redrawn, the tuning panel, seed control, the validity and replay guards, tester links on a first studio service, the smoke driving every board through its studio page and `/play`, the guides' capture repointed, the bench tools removed. **Chat and Save:** the agent on a worktree with a live build of it, the model picker, per-turn revert, reset, Save and the pull request from a GitHub App. **Assets:** takes in object storage, the sprite and sound panels, new takes through the chat |
 
 Every milestone ends with a tester session and a written retro before the next starts.
 
