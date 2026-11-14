@@ -36,6 +36,10 @@ export interface Frame {
   keepDraft(): Promise<boolean>;
   openDraft(): void;
   discardDraft(): Promise<boolean>;
+  /** Save the stored draft as a tester link and a draft pull request (ADR 0046); the link, or null when the service would not start. */
+  saveDraft(name: string): Promise<TesterLink | null>;
+  /** Merge the base branch into the draft's branch, when the owner asks. */
+  updateDraft(): Promise<boolean>;
   /** The content file's numbers. */
   readonly shipped: Numbers<unknown>;
   /** Content with the scenario's numbers laid over it: the draft. */
@@ -94,7 +98,7 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   }, [link]);
   // Only the owner's page, on a desktop, asks the service anything: `/play` reads a tester link and no more.
   const stored = useStoredDraft({ enabled: mode === "studio" && !link && SERVICE_URL !== "", puzzle, scenario, apply });
-  const { store, bare, keep: keepDraft, open: openDraft, discard: discardDraft } = stored;
+  const { store, bare, keep: keepDraft, open: openDraft, discard: discardDraft, save: saveDraft, update: updateDraft } = stored;
   const setScenario = useCallback((next: Scenario) => apply(next, bare()), [apply, bare]);
   const setReport = useCallback((next: RoundReport) => {
     setReportState((prev) => (prev.seed === next.seed && prev.replayMismatch === next.replayMismatch ? prev : next));
@@ -114,8 +118,8 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const changed = useMemo(() => (refused.length ? [] : changes(puzzle, tuned)), [puzzle, tuned, refused]);
   const numbers = comparing ? shipped : tuned;
   const value = useMemo<Frame>(
-    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft }),
-    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, comparing, report, setReport, store, keepDraft, openDraft, discardDraft],
+    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft }),
+    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, comparing, report, setReport, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

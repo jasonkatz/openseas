@@ -5,27 +5,40 @@ import { newLinkId } from "./links.js";
 
 type Row = typeof schema.draft.$inferSelect;
 
-const toDraft = (r: Row): Draft => ({
+export type DraftRow = Row;
+
+/** A row as the site reads it. `behind` is not stored: it is read from the clone when drafts are listed. */
+export const toDraft = (r: Row, behind = false): Draft => ({
   id: r.id,
   puzzle: r.puzzle as Draft["puzzle"],
   owner: r.owner,
   numbers: r.numbers,
   revision: r.revision,
+  save: { state: r.saveState, error: r.saveError, pull: r.pullNumber !== null && r.pullUrl !== null ? { number: r.pullNumber, url: r.pullUrl } : null, savedRevision: r.savedRevision, behind },
   createdAt: r.createdAt.toISOString(),
   updatedAt: r.updatedAt.toISOString(),
 });
 
 const ownerKey = (login: string): string => login.toLowerCase();
 
-/** An owner's open drafts, one puzzle's or all of them, most lately saved first. */
-export async function listDrafts(db: Db, login: string, puzzle?: string): Promise<Draft[]> {
+/** An owner's open drafts, one puzzle's or all of them, most lately changed first. */
+export async function draftRows(db: Db, login: string, puzzle?: string): Promise<Row[]> {
   const mine = eq(schema.draft.owner, ownerKey(login));
-  const rows = await db
+  return db
     .select()
     .from(schema.draft)
     .where(puzzle ? and(mine, eq(schema.draft.puzzle, puzzle)) : mine)
     .orderBy(sql`${schema.draft.updatedAt} desc`);
-  return rows.map(toDraft);
+}
+
+export async function listDrafts(db: Db, login: string, puzzle?: string): Promise<Draft[]> {
+  return (await draftRows(db, login, puzzle)).map((r) => toDraft(r));
+}
+
+/** One of an owner's drafts, or null. */
+export async function draftRow(db: Db, login: string, id: string): Promise<Row | null> {
+  const [row] = await db.select().from(schema.draft).where(and(eq(schema.draft.id, id), eq(schema.draft.owner, ownerKey(login)))).limit(1);
+  return row ?? null;
 }
 
 /** Open a draft. Null when the owner already has one for the puzzle: there is one a puzzle (ADR 0042 decision 2). */

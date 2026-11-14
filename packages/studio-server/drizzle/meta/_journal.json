@@ -15,6 +15,13 @@
       "when": 1794643226637,
       "tag": "0001_ambiguous_tag",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794659791157,
+      "tag": "0002_zippy_glorian",
+      "breakpoints": true
     }
   ]
 }

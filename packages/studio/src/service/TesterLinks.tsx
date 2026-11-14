@@ -3,7 +3,7 @@ import type { TesterLink, TesterLinkDraft } from "@openseas/protocol";
 import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { leafOverrides } from "../frame/numbers.js";
-import { SERVICE_URL, createLink, linkAddress, listLinks, signInUrl, withdrawLink } from "./client.js";
+import { LINKS_CHANGED, SERVICE_URL, createLink, linkAddress, listLinks, signInUrl, withdrawLink } from "./client.js";
 import { signOut, useMe } from "./me.js";
 
 async function copyText(text: string): Promise<boolean> {
@@ -35,9 +35,12 @@ export function TesterLinks() {
     setLinks([]);
     if (!login) return;
     let alive = true;
-    void listLinks(puzzle.id).then((list) => alive && list && setLinks(list));
+    const load = (): void => void listLinks(puzzle.id).then((list) => alive && list && setLinks(list));
+    load();
+    window.addEventListener(LINKS_CHANGED, load);
     return () => {
       alive = false;
+      window.removeEventListener(LINKS_CHANGED, load);
     };
   }, [puzzle.id, login]);
   useEffect(() => {

@@ -178,6 +178,42 @@ migrates its own `studio` schema as it starts.
    | `CROSS_SITE_COOKIES` | `true` only if the service is not under `openseas.online` |
 
    Never set `STUDIO_DEV_LOGIN` here: the service refuses to start with it in production.
+4b. **Save** (ADR 0046) is optional and needs four more things. Until all are in place the
+   service keeps drafts and links, logs that Save is off, and the studio offers no Save button.
+
+   1. **A GitHub App** that pushes the branches and opens the pull requests. github.com →
+      **Settings → Developer settings → GitHub Apps → New GitHub App**:
+      - Name: anything, such as `openseas studio`. Homepage URL `https://studio.openseas.online`.
+      - **Webhook**: untick **Active**. The service asks GitHub; GitHub is never told to call it.
+      - **Repository permissions**: **Contents: Read and write**, **Pull requests: Read and
+        write**. Nothing else (Metadata: Read-only is added for you). No organization or account
+        permissions.
+      - **Where can this GitHub App be installed?** Only on this account.
+      - Create it, note the **App ID**, and under **Private keys** generate one; a `.pem` file
+        downloads. That file is the credential: keep it nowhere but the Railway variable below.
+      - **Install App** → your account → **Only select repositories** → this repository alone.
+   2. **A volume** on the `studio` service: service → **Settings → Volumes → Add Volume**, mount
+      path `/data`, 1 GB. It holds the clone (about 60 MB) and a worktree a saved draft. The
+      chat's part will ask for more.
+   3. **Variables** on the `studio` service:
+
+      | Variable | Value |
+      |---|---|
+      | `STUDIO_REPO_DIR` | `/data` |
+      | `STUDIO_REPO` | `<owner>/<repository>`, the one the App is installed on |
+      | `GITHUB_APP_ID` | the App ID |
+      | `GITHUB_APP_PRIVATE_KEY` | the `.pem` file's contents. If the dashboard will not take the line breaks, the output of `base64 -w0 < key.pem` works as well |
+      | `STUDIO_GIT_NAME`, `STUDIO_GIT_EMAIL` | optional: who Save's commits are by. To have GitHub show the App's avatar on them, use `<app-slug>[bot]` and `<bot user id>+<app-slug>[bot]@users.noreply.github.com` (the id is in `https://api.github.com/users/<app-slug>[bot]`) |
+      | `STUDIO_BASE_BRANCH` | optional, `main` by default |
+
+   4. Nothing to do for `git`: `railpack.studio.json` adds it to the service's image. If the log
+      says there is no git on the machine, the image was built from another config; check
+      `RAILPACK_CONFIG_FILE`.
+
+   The service clones as it starts (a minute, the first time) and logs `save: true`. The App's key
+   and the tokens made from it stay in the service process: nothing is written to the volume that
+   can push. To try it, tune a number on a puzzle's studio page, press **Save**, and look for the
+   draft pull request. Discarding the draft closes it and deletes its branch.
 5. On the **studio's Vercel project** (step 2b): `VITE_STUDIO_SERVICE_URL` =
    `https://<studio service domain>` for **Production** and **Preview**, then redeploy the site
    (Deploy workflow → Run workflow → harness). A preview of the studio reads tester links from
@@ -188,7 +224,8 @@ migrates its own `studio` schema as it starts.
 
 Pull request previews duplicate the production environment (ADR 0017), so each gets a copy of
 this service with nothing uploaded to it. It never runs: there is one studio service, in
-production (ADR 0042 decision 4).
+production (ADR 0042 decision 4). If a preview environment's copy of the service is given a volume by that
+duplication, it stays empty.
 
 ### 2. Vercel: client
 
