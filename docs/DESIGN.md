@@ -615,8 +615,15 @@ the rest. A tile's picture is the puzzle's real board as this build draws it: th
 puzzle's `/play` page in turn in one hidden frame, which draws the board alone and hands back a
 picture, so a thumbnail needs no code a puzzle and cannot fall behind the board. A tile opens the
 studio page, and a second link the puzzle alone. The mark for an open draft or pull request waits
-for the service that holds drafts. Still to come in the shell: `studio-server` with tester links
-by id.
+for the service to hold drafts.
+
+Tester links by id are built (ADR 0043). `packages/studio-server` keeps them: the signed-in
+owner names the draft on the board in the tuning panel and freezes it as a link, sees the
+puzzle's links there, copies one and withdraws one. `/play/<id>` asks the service for the frozen
+numbers and plays the puzzle alone on them, with the draft's name and who made it on the start
+card and in the details sheet; a withdrawn link, an unknown one and an unreachable service each
+say which, and deal nothing. Anyone can read a link; only an allowlisted GitHub login can make
+or withdraw one. Without the service the studio is as it was. That completes the shell.
 
 The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
 agent reads:
@@ -729,11 +736,12 @@ pnpm monorepo. Packages:
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
 | `studio` | The puzzle studio (sections 3.11 and 3.14), once the harness: a page a puzzle with the shared board and the tuning panel built from content and the wire schema; each puzzle alone at `/play/<puzzle>` on the numbers its link carries; every round local and replayed from its seed; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
+| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links and the owner's GitHub sign-in, in a Postgres schema of its own. The drafts, the agent and Save come with M9's next step | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
 | `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the harness, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
-In M9 the harness becomes the studio (3.14, ADR 0042): `harness` has been renamed `studio`, and a
-`studio-server` package will hold the service its chat, Save and tester links run on. The table above
-says what is built today.
+In M9 the harness became the studio (3.14, ADR 0042): `harness` was renamed `studio`, and
+`studio-server` holds the service its tester links run on, and later its chat and Save. The table
+above says what is built today.
 
 Prototype puzzles (3.12, ADR 0036) live in the same packages, each in files of its own: an engine
 folder, a protocol file, a content file and message file, a board folder built on `boards/src/kit`,

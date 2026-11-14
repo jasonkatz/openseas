@@ -62,6 +62,7 @@ game is at openseas.online.
 | `packages/client` | The game, one graphical experience: the three.js world with the boards over it (ADR 0020). Vite, React. Renders; never authoritative. |
 | `packages/docs` | The puzzle guides: a static site with one guide per puzzle, from first round to expert play. Its screenshots and clips are captured from the real boards on the harness (`pnpm capture:docs`). |
 | `packages/studio` | The puzzle studio (M9, ADR 0042), once the harness: a page a puzzle with the shared board and a tuning panel built from the content file and the wire schema, each puzzle alone at `/play/<puzzle>` on the numbers its link carries, and the voyage bench. Every round is local. A developer and tester tool, never linked from the game. |
+| `packages/studio-server` | The studio's own small service (ADR 0043): tester links by id (`/play/<id>`) and the owner's GitHub sign-in against an allowlist. The studio works without it. |
 
 ## Run it
 
@@ -70,14 +71,15 @@ Needs Node 22, pnpm 10, and Docker (for Postgres).
 ```sh
 pnpm install
 cp .env.example .env            # defaults work for local dev
-pnpm dev                        # starts Postgres, the server on :8080, the game on :5173, the harness on :5174
-pnpm dev:studio                 # or just the server and the studio
+pnpm dev                        # starts Postgres, the server on :8080, the studio service on :8090, the game on :5173, the studio on :5174
+pnpm dev:studio                 # or just the studio and its service
 pnpm dev:docs                   # the puzzle guides on :5175 (no server needed)
 ```
 
 Open http://localhost:5174 for the studio (http://localhost:5173 is the game, where you get a
 guest pirate and a starter skiff at once; set `ALPHA_INVITE_CODE` in `.env` to require an invite).
-The studio needs no server. A studio page's query string is its draft, for example
+The studio needs no server to tune and play; `pnpm dev:studio` also starts its own small
+service on :8090, where the dev login in `.env` can make tester links by id. A studio page's query string is its draft, for example
 `http://localhost:5174/gunnery?seed=keg-3&seconds=60&c.spawnEveryTicks=20`. The same query string
 on `/play/gunnery` opens the puzzle alone on those numbers: the link to send a tester.
 

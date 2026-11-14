@@ -250,3 +250,41 @@
 .tune-rating {
   font-size: 13px;
 }
+
+/* ---- tester links */
+.tune-link-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+.tune-links {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.tune-links li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 6px;
+}
+.tune-link-name {
+  color: var(--parchment);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tune-text-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brass);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.tune a.btn {
+  text-decoration: none;
+}

@@ -47,6 +47,12 @@ jobs:
           git diff --exit-code -- packages/server/drizzle || (echo "::error::schema changed without a generated migration; run pnpm db:generate" && exit 1)
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/openseas_test
+      - name: The studio service's migrations are up to date with its schema
+        run: |
+          pnpm --filter @openseas/studio-server db:generate
+          git diff --exit-code -- packages/studio-server/drizzle || (echo "::error::the studio service's schema changed without a generated migration; run pnpm --filter @openseas/studio-server db:generate" && exit 1)
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/openseas_test
 
   smoke:
     # The game, the harness and the guides each build and run their Playwright smoke. The harness
