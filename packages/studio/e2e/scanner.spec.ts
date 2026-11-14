@@ -86,7 +86,8 @@ async function moveCursor(page: Page, cell: number): Promise<void> {
 }
 
 test("Scanner plays alone on /play: a round pings by key and by tap, lights a ring, and locks what the rings prove", async ({ page }) => {
-  await page.goto("/play/scanner");
+  // A pinned seed: the same sector every run. A random one left the walk to a lock to the deal.
+  await page.goto("/play/scanner?seed=smoke-scan-1");
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("scanner-canvas");
   await expect(canvas).toBeVisible();

@@ -63,8 +63,8 @@ describe("scenario codec", () => {
   });
 
   it("makes the link that plays a draft alone, without the clock's script switches", () => {
-    const link = playLink("https://test.openseas.online", "cooling", { ...EMPTY_SCENARIO, seed: "a b", paused: true, speed: 0.5, autostart: true });
-    expect(link).toBe("https://test.openseas.online/play/cooling?seed=a+b");
+    const link = playLink("https://studio.openseas.online", "cooling", { ...EMPTY_SCENARIO, seed: "a b", paused: true, speed: 0.5, autostart: true });
+    expect(link).toBe("https://studio.openseas.online/play/cooling?seed=a+b");
     expect(formatScenario(EMPTY_SCENARIO)).toBe("");
   });
 });

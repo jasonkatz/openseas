@@ -131,7 +131,7 @@ server's CORS list.
 
    Railway supplies `PORT` itself. The pipeline sets `GIT_COMMIT_SHA` on every deploy.
    `CLIENT_ORIGINS` must be the browsers' exact origins: scheme and host, no path, no trailing
-   slash, comma-separated, e.g. `https://www.openseas.online,https://test.openseas.online`. Better
+   slash, comma-separated, e.g. `https://www.openseas.online,https://studio.openseas.online`. Better
    Auth trusts exactly these origins too, so a front end missing from the list cannot sign in. Railway stages variable edits; click **Deploy** on the staged change or the running
    server keeps the old value. The server logs the origins it loaded on boot
    (`openseas server listening`), and the Deploy pipeline fails with a pointer here if the
@@ -153,7 +153,7 @@ the studio works without it, only without links by id.
 1. **A database of its own.** On the Postgres service → **Data** (or any `psql` session):
    `CREATE DATABASE openseas_studio;`
 2. **A GitHub OAuth app** for sign-in. github.com → **Settings → Developer settings → OAuth Apps
-   → New OAuth App**: Homepage URL `https://test.openseas.online`, Authorization callback URL
+   → New OAuth App**: Homepage URL `https://studio.openseas.online`, Authorization callback URL
    `https://<studio service domain>/auth/callback` (the domain from the next step). Note the
    client id and generate a client secret. The app asks for no scope.
 3. In the same Railway project: **+ New → Empty Service**, named `studio`. **Settings**:
@@ -170,7 +170,7 @@ the studio works without it, only without links by id.
    | `DATABASE_URL` | the Postgres service's URL with the database name replaced by `openseas_studio` |
    | `STUDIO_SECRET` | output of `openssl rand -base64 48` |
    | `STUDIO_PUBLIC_URL` | `https://<studio service domain>`, exactly as in the OAuth app's callback |
-   | `STUDIO_ORIGINS` | `https://test.openseas.online` |
+   | `STUDIO_ORIGINS` | `https://studio.openseas.online` |
    | `STUDIO_OWNERS` | the GitHub logins that may sign in, comma-separated |
    | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | from the OAuth app |
    | `CROSS_SITE_COOKIES` | `true` only if the service is not under `openseas.online` |
@@ -244,16 +244,16 @@ GitHub; the pipeline deploys it.
 3. **Settings → Environment Variables**: `VITE_SERVER_URL` = `https://<railway domain>` for
    **Production** and **Preview**, the same value as on the game's project (a PR preview replaces
    it with its own server).
-4. **Settings → Domains**: add `test.openseas.online`. `openseas.online` is already verified on
+4. **Settings → Domains**: add `studio.openseas.online`. `openseas.online` is already verified on
    the team, so no ownership challenge follows, but its DNS is hosted at the registrar (Hover),
-   not Vercel: add a record there for `test`, either a **CNAME** to the target Vercel shows next
+   not Vercel: add a record there for `studio`, either a **CNAME** to the target Vercel shows next
    to the domain (normally `cname.vercel-dns.com`) or an **A** record to Vercel's IP as the apex
    has. The domain turns valid once the record propagates; Vercel's domain page says when it does.
 5. **Settings → Deployment Protection**: Standard Protection, as for the game, so previews and
-   deployment URLs need a Vercel login and `test.openseas.online` opens without one. Testers are
+   deployment URLs need a Vercel login and `studio.openseas.online` opens without one. Testers are
    not team members.
 6. Note the project id (**Settings → General**, or `vercel project inspect openseas-harness`);
-   it is `VERCEL_HARNESS_PROJECT_ID` in step 3. Back in Railway, add `https://test.openseas.online`
+   it is `VERCEL_HARNESS_PROJECT_ID` in step 3. Back in Railway, add `https://studio.openseas.online`
    to `CLIENT_ORIGINS` on the server service (comma after the game's origin) and deploy the staged
    change; until then the harness deploys but cannot sign in, and the Deploy workflow's harness
    job fails on its origin check with a pointer here.
@@ -314,7 +314,7 @@ required reviewers there later.
 | Variable | `PRODUCTION_STUDIO_SERVICE_URL` | optional; the studio service's URL, so the pipeline can wait for it |
 | Variable | `PRODUCTION_SERVER_URL` | `https://<railway domain>` |
 | Variable | `PRODUCTION_CLIENT_URL` | `https://<vercel production domain>` of the game |
-| Variable | `PRODUCTION_HARNESS_URL` | `https://test.openseas.online` |
+| Variable | `PRODUCTION_HARNESS_URL` | `https://studio.openseas.online` |
 | Secret | `VERCEL_DOCS_TOKEN` | optional; a token scoped to the guides project, when `VERCEL_TOKEN` is not team-scoped (step 2c.6) |
 | Variable | `VERCEL_DOCS_PROJECT_ID` | the guides project's id (step 2c.5); unset means the guides are neither deployed nor previewed |
 | Variable | `PRODUCTION_DOCS_URL` | `https://docs.openseas.online` |
@@ -333,8 +333,8 @@ Actions → Deploy → Run workflow with both boxes ticked. When it is green:
 ```sh
 curl https://<railway domain>/health          # {"ok":true,"contentVersion":...,"commit":"<sha>"}
 curl https://<vercel domain>/version.json     # {"commit":"<sha>"}
-curl https://test.openseas.online/version.json
-curl -o /dev/null -w '%{http_code}\n' https://test.openseas.online/cooling   # 200: deep links work
+curl https://studio.openseas.online/version.json
+curl -o /dev/null -w '%{http_code}\n' https://studio.openseas.online/cooling   # 200: deep links work
 ```
 
 Open the studio at `/play/cooling`, play a round, and confirm a result lands. Open the game and

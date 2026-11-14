@@ -43,7 +43,7 @@ short crew. The puzzle boards are space too: space parts in riveted gunmetal fra
 
 Every milestone from M2 on still needs its tester session and written retro.
 
-The practice pages now live in the **puzzle studio** at [test.openseas.online](https://test.openseas.online)
+The practice pages now live in the **puzzle studio** at [studio.openseas.online](https://studio.openseas.online)
 (ADR 0019, ADR 0042), once the harness: the same boards and engines as the game, one puzzle at a
 time, with a tuning panel beside the board for every number in the puzzle's content file, and
 each puzzle alone at `/play/<puzzle>` for testers. Every round there is local and replayed from

@@ -492,7 +492,7 @@ a phone almost no draw calls, and the sun's shadows tighten on whatever is in fo
 over the chart only.
 
 **The puzzle studio** is a separate application for testing and tuning the puzzles themselves, at
-`test.openseas.online` (ADR 0018, ADR 0019, ADR 0042). It began as the puzzle harness, a bench of
+`studio.openseas.online` (ADR 0018, ADR 0019, ADR 0042). It began as the puzzle harness, a bench of
 lab rounds, an inspector and log review around each practice page; M9 is turning it into the studio
 that section 3.14 describes, and the bench's tools are gone. What stands today:
 
@@ -587,7 +587,7 @@ stays a few lines.
 ### 3.14 The puzzle studio
 
 Planned, and built as milestone M9 (5.2, ADR 0042). The harness becomes a studio: an application
-for tuning one puzzle at a time, at `test.openseas.online`, for the owner. Until its steps land,
+for tuning one puzzle at a time, at `studio.openseas.online`, for the owner. Until its steps land,
 the harness is as sections 3.11 and 4.1 describe it. The voyage bench is not part of the studio and
 stays at `/voyage` as it is.
 
