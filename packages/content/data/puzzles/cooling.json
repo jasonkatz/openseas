@@ -6,7 +6,7 @@
     "specialChancePerMille": {
       "charge": 12,
       "magnet": 8,
-      "slag": 10
+      "slag": 6
     },
     "initialHeatRow": 3,
     "minHeatRow": 3,
@@ -19,7 +19,7 @@
     "streakMaxPercent": 150,
     "streakGrace": 1
   },
-  "roundSeconds": 150,
+  "roundSeconds": 180,
   "parScore": 440,
   "overheatSwapMs": 520,
   "thresholds": [
