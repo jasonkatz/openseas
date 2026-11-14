@@ -625,7 +625,7 @@ card and in the details sheet; a withdrawn link, an unknown one and an unreachab
 say which, and deal nothing. Anyone can read a link; only an allowlisted GitHub login can make
 or withdraw one. Without the service the studio is as it was. That completes the shell.
 
-Chat and Save, M9's second step, is built in four parts; the first three are done. **Drafts are kept by
+Chat and Save, M9's second step, is built, in three parts. **Drafts are kept by
 the service** (ADR 0045): one a puzzle for each owner, addressed by an id, holding the numbers and
 the pinned seed. On a bare address the signed-in owner's page opens on the stored draft, saves
 every change to it and leaves the address bare; the first change opens the draft. On an address
@@ -661,10 +661,17 @@ agent runs as a unix user of its own with none of the service's secrets, reaches
 through the service, and is stopped mid-turn when the one spend cap all drafts share is reached.
 Each draft shows what it has spent beside that cap.
 
-Still to come: Save's finish. The live build of a draft's worktree (ADR 0042 decision 7) and the
-asset panels are not part of this step. Until the first exists the board runs the deployed build
-with the draft's numbers and a change to code is seen on its pull request's preview; the agent
-says so when it edits code.
+**Save ends at the draft pull request** (ADR 0048). The fourth part once planned, the agent
+working the changed-puzzle checklist after Save and marking the pull request ready, is not built
+and will not be: the owner decided against it. Save pushes the draft's numbers and every commit
+the chat's turns made, and the pull request stays a draft whose body says what it holds and what
+is left. A draft the agent edited can be saved though no number differs. Bringing the design
+file, the guide, a capture and the strings in step is a developer's to do on the pull request.
+
+That completes the step. The live build of a draft's worktree (ADR 0042 decision 7) and the asset
+panels were never part of it. Until the first exists the board runs the deployed build with the
+draft's numbers and a change to code is seen on its pull request's preview; the agent says so
+when it edits code.
 
 The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
 agent reads:
@@ -676,8 +683,8 @@ agent reads:
 | Reads without color (rule 22) | The sprite panel previews every frame with the marks setting on and off |
 | Its own sprites and sounds, the owner picking every take (rule 23) | The asset panels show each frame's and cue's takes, and a pick is one tap |
 | Every string in the message table (rule 24) | The agent is held to it, and so is the studio itself |
-| Three homes kept in step (rule 25) | Save runs the changed-puzzle checklist before the pull request is ready |
-| Report every bar item as met or broken | The pull request's body is that report |
+| Three homes kept in step (rule 25) | The agent can be asked to, in the chat; Save does not, and its pull request stays a draft for a developer to finish (ADR 0048) |
+| Report every bar item as met or broken | The developer who finishes the pull request reports it |
 
 **Who and where.** The owner signs in with GitHub. Tester links are public. The studio is laid out
 for a desktop: the board in the middle at a phone's proportions, tuning and assets to one side,
@@ -741,10 +748,13 @@ after a confirmation.
 **Save.**
 
 1. A tester link, at once.
-2. The numbers written into the content file and the picks placed, committed, pushed, and a draft
-   pull request opened in the studio's name with the owner credited.
-3. The agent works the skill's checklist (design file, guide, capture, strings) and marks the
-   pull request ready.
+2. The numbers written into the content file and the picks placed, committed, pushed with
+   whatever the chat's agent committed, and a draft pull request opened in the studio's name
+   with the owner credited.
+
+That is all of Save (ADR 0048). The pull request stays a draft: its body says what it holds and
+that the rest of what a changed puzzle needs (design file, guide, capture, strings) is for a
+developer to finish. A draft can be saved for its numbers, for the agent's edits, or both.
 
 Later Saves add to the same pull request until it is merged or closed, and then the draft clears.
 If `main` has moved, the studio says so and offers to update the draft.
@@ -856,7 +866,7 @@ still proven there first, with its tester session, and only then embedded in the
 | M6 | OAuth upgrade (a guest links Discord or Google in place and keeps everything; returning players sign in), crews (found with a name and flag, invite, ranks, crew chat, crew-only ships, crews' colors on ships, tallies and the board of crews, pirates' cards), polish pass |
 | M7 | The space reskin (ADR 0034): every word, the three.js world and the codebase move from the sea to space, with the mechanics unchanged and the database wiped. The puzzle boards' art waits for the owner's sprite pass, which has since landed for the sprites |
 | M8 | Prototype puzzles (3.12, ADR 0036): eight new puzzles of the game's own, each a whole engine playable on the harness, in the owner's sprites (ADR 0037). Done when the owner has played all eight and chosen which, if any, go on |
-| M9 | The puzzle studio (3.14, ADR 0042), in three steps, each usable alone. **The shell:** the harness renamed and redrawn, the tuning panel, seed control, the validity and replay guards, tester links on a first studio service, the smoke driving every board through its studio page and `/play`, the guides' capture repointed, the bench tools removed. **Chat and Save:** the agent on a worktree with a live build of it, the model picker, per-turn revert, reset, Save and the pull request from a GitHub App. **Assets:** takes in object storage, the sprite and sound panels, new takes through the chat |
+| M9 | The puzzle studio (3.14, ADR 0042), in three steps, each usable alone. **The shell:** the harness renamed and redrawn, the tuning panel, seed control, the validity and replay guards, tester links on a first studio service, the smoke driving every board through its studio page and `/play`, the guides' capture repointed, the bench tools removed. **Chat and Save** (built): drafts kept by the service, the agent on a worktree, the model picker, per-turn revert, reset, and Save as a draft pull request from a GitHub App that a developer finishes (ADR 0045 to 0048). The live build of the worktree is not built. **Assets:** takes in object storage, the sprite and sound panels, new takes through the chat |
 
 Every milestone ends with a tester session and a written retro before the next starts.
 

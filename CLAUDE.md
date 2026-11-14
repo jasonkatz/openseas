@@ -44,7 +44,7 @@ TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `protocol` (Zod schemas)
 `boards` (the PixiJS boards, round runner and server connection both front ends share, ADR 0019),
 `server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `studio` (the puzzle studio at studio.openseas.online, once the harness, built step by step, ADR 0042: a page a puzzle with its board and a tuning panel built from
 `content` and the wire schema, each puzzle alone at `/play/<id>`, every round local, and the voyage bench for ships and crews, ADR 0027), `studio-server` (the studio's own small service: tester links by id,
-the owner's GitHub sign-in, the owner's drafts, Save for their numbers as a draft pull request, and the chat's agent on a draft's worktree, ADR 0043 and ADR 0045 to 0047; the studio works without it), `docs` (the puzzle guides at docs.openseas.online: a static site with one guide per puzzle, its
+the owner's GitHub sign-in, the owner's drafts, Save for their numbers as a draft pull request, and the chat's agent on a draft's worktree, ADR 0043 and ADR 0045 to 0048; the studio works without it), `docs` (the puzzle guides at docs.openseas.online: a static site with one guide per puzzle, its
 pictures captured from the real boards on the harness, ADR 0038).
 Postgres. Railway for server, the studio's service and database, Vercel for the game, the harness and the guides as three projects.
 Vitest with property-based determinism tests on engines, Playwright smoke on all three front ends.
@@ -67,6 +67,8 @@ Vitest with property-based determinism tests on engines, Playwright smoke on all
   built from them, and its tests fail without them.
 - Any puzzle work, a new puzzle or a change to one, starts with the `puzzles` skill
   (`.claude/skills/puzzles/SKILL.md`): the rules every puzzle is held to.
+- A pull request saved from the studio is a draft holding numbers and the chat agent's edits (ADR 0048). Whoever
+  takes it on finishes it by the `puzzles` skill's "Changing a puzzle" before marking it ready.
 - Every puzzle has a guide in `docs`. A change to a puzzle's rules, scoring or controls re-reads its
   guide in the same PR; a change to how its board looks re-runs its capture
   (`pnpm --filter @openseas/docs capture <id>`). A guide types no tuned number: it reads `content`.

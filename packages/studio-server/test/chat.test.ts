@@ -90,11 +90,16 @@ describeDb("chat", () => {
     },
   };
 
+  /** What the stand-in GitHub was asked to open or describe. */
+  const pulls = [] as Array<{ title: string; body: string }>;
   const forge: Forge = {
     token: async () => "unused",
-    openPull: async () => ({ number: 7, url: "https://github.test/pull/7" }),
+    openPull: async (o) => {
+      pulls.push({ title: o.title, body: o.body });
+      return { number: 7 + pulls.length, url: `https://github.test/pull/${7 + pulls.length}` };
+    },
     pullState: async () => "open",
-    describePull: async () => undefined,
+    describePull: async (_n, title, body) => void pulls.push({ title, body }),
     closePull: async () => undefined,
   };
 
@@ -102,7 +107,7 @@ describeDb("chat", () => {
     const seed = join(tmp, "seed");
     git(tmp, "init", "--quiet", "--bare", "-b", "main", origin);
     git(tmp, "clone", "--quiet", origin, seed);
-    for (const [path, text] of [[FILE, shipped], ["docs/puzzles/cooling.md", "# Cooling\n"], ["docs/DESIGN.md", "# Design\n"], ["packages/engine/src/cooling/reduce.ts", "export const rule = 1;\n"]] as const) {
+    for (const [path, text] of [[FILE, shipped], ["packages/content/data/puzzles/engines.json", readFileSync(join(fileURLToPath(import.meta.url), "../../../content/data/puzzles/engines.json"), "utf8")], ["docs/puzzles/cooling.md", "# Cooling\n"], ["docs/DESIGN.md", "# Design\n"], ["packages/engine/src/cooling/reduce.ts", "export const rule = 1;\n"]] as const) {
       mkdirSync(dirname(join(seed, path)), { recursive: true });
       writeFileSync(join(seed, path), text);
     }
@@ -345,6 +350,45 @@ describeDb("chat", () => {
     expect(pushed).toEqual(expect.arrayContaining(["Tune cooling from the studio", "Revert chat turn 6 on cooling", "Chat turn 1 on cooling"]));
     expect(git(origin, "show", `${branch}:docs/puzzles/cooling.md`)).toContain("Slag is rarer now.");
     expect(git(origin, "show", `${branch}:${FILE}`)).toContain('"pieceKinds": 6');
+    // The pull request says what it holds: the numbers, and the files the agent edited.
+    const pull = pulls.at(-1)!;
+    expect(pull.title).toBe("Change cooling from the studio");
+    expect(pull.body).toContain("| `config.pieceKinds` | `7` | `6` |");
+    expect(pull.body).toContain("Files edited by the studio's agent");
+    expect(pull.body).toContain("- `docs/puzzles/cooling.md`");
+    expect(pull.body).toContain("- `packages/engine/src/cooling/reduce.ts`");
+    expect(pull.body).not.toContain(`- \`${FILE}\``);
+    expect(pull.body).toContain("for a developer to finish");
+  });
+
+  it("saves a draft the agent edited though no number differs", async () => {
+    const plain = DraftSchema.parse(await (await send("POST", "/drafts", { puzzle: "engines", numbers: numbers() })).json());
+    expect(plain.save.edits).toBe(false);
+    // A turn that only talks leaves nothing to save.
+    const talked = await turn(plain, "What does this puzzle pay most for?", async (a) => a.r.host.emit({ kind: "reply", text: "The compound move." }));
+    expect(talked.draft.save.edits).toBe(false);
+    const refused = await send("POST", `/drafts/${plain.id}/save`, { revision: plain.revision, name: "Nothing yet" });
+    expect(refused.status).toBe(202);
+    await app.saver!.idle();
+    expect((await state(plain)).draft.save).toMatchObject({ state: "failed", error: "nothing", pull: null });
+
+    // A turn that edits a file does, with every number as shipped.
+    const edited = await turn(plain, "Note the rule in the design file.", async (a) => a.write("docs/puzzles/engines.md", "# Engines\n\nA rule, noted.\n"));
+    expect(edited.draft.save.edits).toBe(true);
+    expect(edited.draft.numbers).toEqual(numbers());
+    expect((await send("POST", `/drafts/${plain.id}/save`, { revision: plain.revision, name: "Just the edit" })).status).toBe(202);
+    await app.saver!.idle();
+    const saved = (await state(plain)).draft.save;
+    expect(saved).toMatchObject({ state: "idle", error: null });
+    expect(saved.pull).not.toBeNull();
+    const branch = `studio/engines-${plain.id}`;
+    expect(git(origin, "log", "--format=%s", branch).split("\n")).toEqual(["Chat turn 2 on engines", "content"]);
+    expect(git(origin, "show", `${branch}:docs/puzzles/engines.md`)).toContain("A rule, noted.");
+    const pull = pulls.at(-1)!;
+    expect(pull.title).toBe("Change engines from the studio");
+    expect(pull.body).toContain("No number differs from the base branch.");
+    expect(pull.body).toContain("- `docs/puzzles/engines.md`");
+    await send("DELETE", `/drafts/${plain.id}`);
   });
 
   it("holds every turn to one cap, and stops the turn that reaches it where it stands", async () => {

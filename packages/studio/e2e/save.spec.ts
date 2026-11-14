@@ -106,6 +106,27 @@ test.describe("save", () => {
     expect(s.drafts).toEqual([]);
   });
 
+  test("a draft the chat's agent edited can be saved though no number differs", async ({ page }) => {
+    // Every number as shipped: with no edit there is nothing to save, and the page says so.
+    const s = await service(page, { login: "octo", save: true, drafts: [draft({ numbers: numbers(), save: NO_SAVE })] });
+    await page.goto("/cooling");
+    await expect(page.getByTestId("changed-count")).not.toContainText("1");
+    await expect(page.getByTestId("save")).toBeDisabled();
+    await expect(saveRows(page)).toContainText("nothing to save");
+
+    // A turn of the chat committed an edit: the same draft, the same numbers, and Save is offered.
+    s.drafts[0]!.save = { ...NO_SAVE, edits: true };
+    await page.reload();
+    await expect(page.getByTestId("save")).toBeEnabled();
+    await expect(saveRows(page)).toContainText("whatever the chat edited");
+    await page.getByTestId("save").click();
+    await expect(page.getByTestId("save-writing")).toBeVisible();
+    expect(s.writes).toEqual([{ call: "POST /drafts/draftdraft/save", body: { revision: 3, name: "Draft, save 3" } }]);
+    s.finish("draftdraft", { pull: PULL, savedRevision: 3, edits: true });
+    await expect(saveRows(page)).toHaveAttribute("data-pull", "123");
+    await expect(page.getByTestId("save-pull")).toContainText("stays a draft for a developer to finish");
+  });
+
   test("a draft with no number changed has nothing to save, and a service that cannot Save offers none", async ({ page }) => {
     await service(page, { login: "octo", save: true, drafts: [draft({ numbers: numbers({ seed: "only-a-seed" }), save: NO_SAVE })] });
     await page.goto("/cooling");

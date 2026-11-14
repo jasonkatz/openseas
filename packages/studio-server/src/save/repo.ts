@@ -38,6 +38,8 @@ export interface Repo {
   baseFile(id: string, path: string): Promise<string | null>;
   /** Commit everything changed in the worktree. Null when nothing was. */
   commit(id: string, message: string): Promise<string | null>;
+  /** Every file the draft's branch changes from where it left the base branch, as the repository spells them. */
+  files(id: string): Promise<string[]>;
   /** How many commits the draft's branch has that the base branch does not. */
   ahead(id: string): Promise<number>;
   /** How many commits the base branch has that the draft's branch does not, as of the last fetch. */
@@ -184,6 +186,12 @@ export function createRepo(o: RepoOptions): Repo {
         if ((await git(tree(id), ["diff", "--cached", "--quiet"], { ok: [1] })).code === 0) return null;
         await git(tree(id), ["commit", "--quiet", "--no-verify", "-m", message]);
         return (await git(tree(id), ["rev-parse", "HEAD"])).out.trim();
+      }),
+
+    files: (id) =>
+      serial(async () => {
+        const base = (await git(tree(id), ["merge-base", "HEAD", remoteBase])).out.trim();
+        return (await git(tree(id), ["diff", "--name-only", "-z", base, "HEAD"])).out.split("\0").filter(Boolean);
       }),
 
     ahead: (id) => serial(async () => Number((await git(tree(id), ["rev-list", "--count", `${remoteBase}..HEAD`])).out.trim())),

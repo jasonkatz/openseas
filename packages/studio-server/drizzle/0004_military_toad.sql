@@ -1,0 +1,1 @@
+ALTER TABLE "studio"."draft" ADD COLUMN "chat_commits" integer DEFAULT 0 NOT NULL;

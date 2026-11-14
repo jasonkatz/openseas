@@ -19,11 +19,11 @@ export interface SaverOptions {
 }
 
 /**
- * Save for a draft's numbers (ADR 0042 decision 10, ADR 0046), after the tester link, which the
- * route makes at once: the numbers written into the puzzle's content file in the draft's
- * worktree, a commit, a push, and a draft pull request from the studio's GitHub App with the
- * owner named in its body. A later Save adds commits to the same pull request. The checklist for
- * a changed puzzle is not run here: the pull request stays a draft and says so.
+ * Save (ADR 0042 decision 10, ADR 0046, ADR 0048), after the tester link, which the route makes
+ * at once: the draft's numbers written into the puzzle's content file in its worktree, a commit, a
+ * push of that and of whatever the chat's turns committed, and a draft pull request from the
+ * studio's GitHub App with the owner named in its body. A later Save adds commits to the same pull
+ * request. That is all of Save: the pull request stays a draft for a developer to finish.
  */
 export interface Saver {
   /** At startup: a Save the last process died under is marked as such, and the clone is made if the volume is new. */
@@ -57,16 +57,29 @@ export function commitMessage(puzzle: string, changes: Changes): string {
   return `Tune ${puzzle} from the studio\n\n${changes.map((c) => `${c.key}: ${short(c.from)} -> ${short(c.to)}`).join("\n")}`;
 }
 
-/** The body of a draft's pull request: who saved it, what it changes, where to play it, and what has not been done to it yet. */
-export function pullBody(o: { puzzle: string; login: string; changes: Changes; linkUrl: string }): string {
+/** How many of the agent's files a pull request's body names before it says how many more there are. */
+const FILES_LISTED = 40;
+
+/** What a draft's pull request is called: by its numbers when those are all it changes, more plainly when the chat edited files too. */
+export const pullTitle = (puzzle: string, edited: readonly string[]): string => (edited.length ? `Change ${puzzle} from the studio` : `Tune ${puzzle}: numbers from the studio`);
+
+/**
+ * The body of a draft's pull request: who saved it, the numbers it changes, the files the chat's
+ * agent edited, where to play it, and what is left for a developer (ADR 0048). `edited` is every
+ * file the branch changes but the puzzle's content file, which the numbers account for.
+ */
+export function pullBody(o: { puzzle: string; login: string; changes: Changes; edited: readonly string[]; linkUrl: string }): string {
   const cell = (v: unknown): string => `\`${short(v).replace(/\|/g, "\\|").replace(/`/g, "'")}\``;
-  const table = o.changes.length ? ["| Key | Shipped | Draft |", "|---|---|---|", ...o.changes.map((c) => `| \`${c.key}\` | ${cell(c.from)} | ${cell(c.to)} |`)].join("\n") : "No number differs from the base branch now.";
+  const table = o.changes.length ? ["| Key | Shipped | Draft |", "|---|---|---|", ...o.changes.map((c) => `| \`${c.key}\` | ${cell(c.from)} | ${cell(c.to)} |`)].join("\n") : "No number differs from the base branch.";
+  const files = o.edited.slice(0, FILES_LISTED).map((f) => `- \`${f}\``);
+  if (o.edited.length > FILES_LISTED) files.push(`- and ${o.edited.length - FILES_LISTED} more`);
   return [
     `Saved from the puzzle studio by [${o.login}](https://github.com/${o.login}).`,
     `Numbers changed in \`${contentPath(o.puzzle)}\`:`,
     table,
-    `Play it: ${o.linkUrl}`,
-    "This pull request is a draft. Only the numbers were written: the checklist for a changed puzzle (design file, guide, capture, strings) has not been run on it.",
+    ...(o.edited.length ? ["Files edited by the studio's agent, in the chat, a commit a turn:", files.join("\n")] : []),
+    `Play the numbers: ${o.linkUrl}${o.edited.length ? " (the link plays the deployed build; the edits above are seen on this pull request's preview)" : ""}`,
+    "This pull request is a draft, and the studio leaves it there. It holds what was tuned and what the chat's agent edited, and nothing more: the rest of what a changed puzzle needs (its design file, its guide, a capture where the look changed, its strings) is for a developer to finish before marking it ready.",
   ].join("\n\n");
 }
 
@@ -125,12 +138,15 @@ export function createSaver(o: SaverOptions): Saver {
     await mark(id, { branch, savedNumbers: row.numbers });
     if ((await repo.ahead(id)) === 0) throw new Failed("nothing");
     await repo.push(id, branch);
-    const body = pullBody({ puzzle: row.puzzle, login, changes: describeNumbers(base ?? before, row.numbers), linkUrl: `${o.studioOrigin}/play/${linkId}` });
+    // Whatever the branch changes besides the numbers' own file is the chat's doing: the pull request says so.
+    const edited = (await repo.files(id)).filter((f) => f !== path);
+    const title = pullTitle(row.puzzle, edited);
+    const body = pullBody({ puzzle: row.puzzle, login, changes: describeNumbers(base ?? before, row.numbers), edited, linkUrl: `${o.studioOrigin}/play/${linkId}` });
     if (row.pullNumber === null) {
-      const pull = await forge.openPull({ head: branch, base: o.base, title: `Tune ${row.puzzle}: numbers from the studio`, body });
+      const pull = await forge.openPull({ head: branch, base: o.base, title, body });
       await mark(id, { pullNumber: pull.number, pullUrl: pull.url });
       log.info({ draft: id, pull: pull.number }, "draft pull request opened");
-    } else await forge.describePull(row.pullNumber, body);
+    } else await forge.describePull(row.pullNumber, title, body);
     await mark(id, { savedRevision: row.revision });
   }
 

@@ -14,7 +14,7 @@ export const toDraft = (r: Row, behind = false): Draft => ({
   owner: r.owner,
   numbers: r.numbers,
   revision: r.revision,
-  save: { state: r.saveState, error: r.saveError, pull: r.pullNumber !== null && r.pullUrl !== null ? { number: r.pullNumber, url: r.pullUrl } : null, savedRevision: r.savedRevision, behind },
+  save: { state: r.saveState, error: r.saveError, pull: r.pullNumber !== null && r.pullUrl !== null ? { number: r.pullNumber, url: r.pullUrl } : null, savedRevision: r.savedRevision, behind, edits: r.chatCommits > 0 },
   createdAt: r.createdAt.toISOString(),
   updatedAt: r.updatedAt.toISOString(),
 });

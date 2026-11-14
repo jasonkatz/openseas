@@ -29,6 +29,13 @@
       "when": 1794680683622,
       "tag": "0003_complex_deathbird",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794687789808,
+      "tag": "0004_military_toad",
+      "breakpoints": true
     }
   ]
 }

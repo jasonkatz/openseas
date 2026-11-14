@@ -14,7 +14,8 @@ export interface Forge {
   /** Open a draft pull request, or find the open one the branch already has. */
   openPull(o: { head: string; base: string; title: string; body: string }): Promise<{ number: number; url: string }>;
   pullState(number: number): Promise<PullState>;
-  describePull(number: number, body: string): Promise<void>;
+  /** Give an open pull request the title and body of what its branch now holds. */
+  describePull(number: number, title: string, body: string): Promise<void>;
   closePull(number: number): Promise<void>;
 }
 
@@ -109,8 +110,8 @@ export function createGitHubApp(o: { appId: string; privateKey: string; repo: st
       const pull = (await call("pull request", await forge.token(), "GET", `/repos/${owner}/${name}/pulls/${number}`)).json as { state?: unknown; merged?: unknown };
       return pull?.merged === true ? "merged" : pull?.state === "closed" ? "closed" : "open";
     },
-    async describePull(number, body) {
-      await call("pull request", await forge.token(), "PATCH", `/repos/${owner}/${name}/pulls/${number}`, { body });
+    async describePull(number, title, body) {
+      await call("pull request", await forge.token(), "PATCH", `/repos/${owner}/${name}/pulls/${number}`, { title, body });
     },
     async closePull(number) {
       await call("pull request", await forge.token(), "PATCH", `/repos/${owner}/${name}/pulls/${number}`, { state: "closed" });

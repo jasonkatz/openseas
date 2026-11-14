@@ -53,3 +53,4 @@ that supersedes it.
 | [0045](./0045-drafts-are-kept-by-the-studio-service.md) | Drafts are kept by the studio's service, and an address's numbers are never saved unasked |
 | [0046](./0046-save-writes-a-drafts-numbers-to-a-pull-request.md) | Save writes a draft's numbers to a branch and a draft pull request, with no agent |
 | [0047](./0047-the-chat-runs-an-agent-the-service-holds-to-the-puzzle.md) | The chat runs an agent as its own user, behind the service's proxy, under one spend cap |
+| [0048](./0048-save-ends-at-the-draft-pull-request.md) | Save ends at the draft pull request: the checklist is a developer's to finish |
