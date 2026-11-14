@@ -4,12 +4,12 @@ Status: in the game. Built in M1, sprite art pass ADR 0031. On the harness at `/
 
 ## The puzzle
 
-A 6 wide by 12 tall board of pieces. Swap two horizontally adjacent pieces. Matches of
+A 6 wide by 12 tall board of pieces. Swap two adjacent pieces, side by side or one above the other. Matches of
 3 or more clear; the pieces below rise and new pieces enter from the bottom. Combos and
 multi-clears score higher. The heat line rises as
 the ship runs hot. Special pieces (equivalents of the original's crab, pufferfish, and
 jellyfish, renamed) ship in v1 because they define the skill ceiling. QoL: match preview on hover
-or touch-hold, a combo meter, tap-then-tap or drag-swap on touch; on desktop a click swaps the
+or touch-hold, a combo meter, tap-then-tap or drag-swap on touch (drag up or down for a vertical swap); on desktop a click swaps the
 hovered pair outright.
 
 ## Role
@@ -96,3 +96,12 @@ What was changed from the original and why is in `DESIGN.md` section 6, in the r
 ## Open questions for play
 
 - None recorded yet. The tester sessions (DESIGN.md 5.2) are still to run.
+
+## Vertical swaps
+
+A swap move may carry `vertical: true`: it trades the piece at (col,row) with the one at (col,row+1),
+where `row` counts from the bottom. Same scoring, streak, heat and preview as a sideways swap; the
+move log stays one move per swap, and a move without the flag is the sideways swap it always was.
+Board input: drag up or down, tap a piece and then the one above or below it, or `V` at the keyboard
+cursor. A mouse click still swaps sideways. Not yet tuned: vertical swaps make setups easier (more
+pairs to try) and will want a look at the thresholds in the studio.

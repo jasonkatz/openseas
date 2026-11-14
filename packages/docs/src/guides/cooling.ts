@@ -13,7 +13,7 @@ const lastCascade = c.cascadeMultipliers[c.cascadeMultipliers.length - 1]!;
 
 export const cooling: Guide = {
   id: "cooling",
-  tagline: "Swap pieces side by side, clear runs of three, and plan one swap that clears two.",
+  tagline: "Swap neighbouring pieces, clear runs of three, and plan one swap that clears two.",
   hero: {
     kind: "still",
     name: "board",
@@ -33,7 +33,7 @@ export const cooling: Guide = {
     { label: "A solid round", value: `${p.parScore} points` },
   ],
   rules: [
-    "Swap any two pieces that sit **side by side**. Swaps are always sideways, never up and down.",
+    "Swap any two pieces that sit **next to each other**, side by side or one above the other.",
     "Three or more of a kind in a line, across or down, clear.",
     "The pieces **below** a gap rise to fill it, and new pieces come in at the bottom. A rise can line up new runs: that is a **cascade**.",
     "A swap that clears nothing is allowed. It is how you set up a bigger one.",
@@ -47,10 +47,10 @@ export const cooling: Guide = {
     caption: "Drag a piece sideways. Three in a line clear, and the board rises from below.",
   },
   controls: [
-    { action: "Swap a pair", touch: "Drag a piece onto its neighbour, or tap one and then the other", desktop: "Click the left piece of the pair, or drag" },
+    { action: "Swap a pair", touch: "Drag a piece onto its neighbour, sideways or up and down, or tap one and then the other", desktop: "Click the left piece of the pair, or drag in any direction (a click only swaps sideways)" },
     { action: "See what a swap clears", touch: "Hold a finger on a piece", desktop: "Hover over the pair" },
     { action: "Move the cursor", touch: "", desktop: "Arrow keys" },
-    { action: "Swap at the cursor", touch: "", desktop: "Space or Enter swaps with the piece to the right" },
+    { action: "Swap at the cursor", touch: "", desktop: "Space or Enter swaps with the piece to the right; V swaps with the piece above" },
   ],
   scoring: [
     `**Longer runs pay much more.** A run of 3 is ${run(3)} points, 4 is ${run(4)}, 5 is ${run(5)}, 6 is ${run(6)}.`,

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const CoolingMoveSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("swap"), col: z.int().min(0).max(15), row: z.int().min(0).max(31) }),
+  z.object({ type: z.literal("swap"), col: z.int().min(0).max(15), row: z.int().min(0).max(31), vertical: z.boolean().optional() }),
   /** The ship's heat, injected into a duty board's log by the ship's turns (DESIGN.md 3.3). */
   z.object({ type: z.literal("heat"), row: z.int().min(0).max(32) }),
   z.object({ type: z.literal("end") }),

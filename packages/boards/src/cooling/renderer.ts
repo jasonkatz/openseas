@@ -8,10 +8,10 @@ import { boardSurface } from "../surface.js";
 import { HULL, hullFrame, hullGradient } from "../hull.js";
 
 export interface RendererCallbacks {
-  /** The player asked to swap (col,row) with (col+1,row). */
-  onSwap(col: number, row: number): void;
+  /** The player asked to swap (col,row) with (col+1,row), or with (col,row+1) when `vertical`. */
+  onSwap(col: number, row: number, vertical?: boolean): void;
   /** The player is considering a swap; the page can show a preview. */
-  onHover(col: number, row: number): void;
+  onHover(col: number, row: number, vertical?: boolean): void;
   onHoverEnd(): void;
   /** Called on the first frame drawn after a new state arrives. */
   onFrame(): void;
@@ -20,7 +20,7 @@ export interface RendererCallbacks {
   /** A move finished playing out. Streak and heat changes land here, in step with the screen. */
   onMoveShown(shown: MoveShown): void;
   /** The swap a hint should point at, or null when there is none. Asked only while hints are on. */
-  findHint(): { col: number; row: number } | null;
+  findHint(): { col: number; row: number; vertical?: boolean } | null;
 }
 
 export interface MoveShown {
@@ -211,11 +211,11 @@ export class CoolingRenderer {
   private comboShown = 0;
   private selected: { col: number; row: number } | null = null;
   private cursor: { col: number; row: number } | null = null;
-  private hoverPair: { col: number; row: number } | null = null;
+  private hoverPair: { col: number; row: number; vertical?: boolean } | null = null;
   /** Overheated swaps hold the board until `lockedUntil` (renderer time, ms). */
   private lockedUntil = 0;
-  private slowPair: { col: number; row: number } | null = null;
-  private denied: { col: number; row: number; at: number } | null = null;
+  private slowPair: { col: number; row: number; vertical?: boolean } | null = null;
+  private denied: { col: number; row: number; vertical?: boolean; at: number } | null = null;
   private slideMs = SWAP_MS;
   private previewCells: readonly number[] = [];
   private dragStart: { col: number; row: number; x: number; y: number } | null = null;
@@ -234,7 +234,7 @@ export class CoolingRenderer {
   private punch = 0;
   private hints = false;
   private lastInputAt = 0;
-  private hint: { col: number; row: number } | null = null;
+  private hint: { col: number; row: number; vertical?: boolean } | null = null;
   private hintCheckedAt = -1;
   private sparkClock = 0;
 
@@ -411,15 +411,17 @@ export class CoolingRenderer {
     this.place(prev.cells, false);
 
     const { col, row } = report.move;
+    const vertical = report.move.vertical === true;
     const swapped = prev.cells.slice();
     const i = row * this.width + col;
-    [swapped[i], swapped[i + 1]] = [swapped[i + 1]!, swapped[i]!];
+    const j = vertical ? i + this.width : i + 1;
+    [swapped[i], swapped[j]] = [swapped[j]!, swapped[i]!];
     // Below the heat line pieces swap slowly, and the board holds until they land.
     const slow = row < prev.heatRow && this.opts.overheatSwapMs > 0;
     const swapMs = slow ? this.opts.overheatSwapMs : SWAP_MS;
     if (slow) {
       this.lockedUntil = this.time + swapMs;
-      this.slowPair = { col, row };
+      this.slowPair = { col, row, vertical };
       this.burst(this.cx(col) + this.cell / 2, this.cy(row), COLORS.glow, 5);
     }
     this.steps.push(() => {
@@ -946,7 +948,7 @@ export class CoolingRenderer {
         rot = Math.sin(ph + 0.8) * 0.025;
       }
       // A hinted pair wiggles in short bursts.
-      if (this.hint && this.hint.row === row && (col === this.hint.col || col === this.hint.col + 1)) {
+      if (this.hint && (this.hint.vertical ? this.hint.col === col && (row === this.hint.row || row === this.hint.row + 1) : this.hint.row === row && (col === this.hint.col || col === this.hint.col + 1))) {
         const cycle = (this.time - this.lastInputAt - HINT_IDLE_MS) % 1500;
         if (cycle < 520) rot += Math.sin(cycle * 0.045) * 0.13 * (1 - cycle / 520);
       }
@@ -1097,7 +1099,19 @@ export class CoolingRenderer {
       g.roundRect(x + 3, y + 3, s - 6, s - 6, rr).fill({ color: COLORS.preview, alpha: 0.12 + 0.12 * pulse });
       g.roundRect(x + 2, y + 2, s - 4, s - 4, rr).stroke({ width: 2, color: COLORS.preview, alpha: 0.6 + 0.35 * pulse });
     }
-    const pair = (col: number, row: number, color: number, alpha: number): void => {
+    const pair = (col: number, row: number, color: number, alpha: number, vertical = false): void => {
+      if (vertical) {
+        const r = Math.max(0, Math.min(this.height - 2, row));
+        const vx = Math.max(0, Math.min(this.width - 1, col)) * s;
+        const vy = (this.height - r - 2) * s;
+        g.roundRect(vx + 1, vy + 1, s - 2, s * 2 - 2, rr + 2).stroke({ width: Math.max(2, s * 0.06), color, alpha });
+        const cx = vx + s / 2;
+        const cy = vy + s;
+        const a = s * 0.09;
+        g.poly([cx, cy - a * 1.6, cx - a, cy - a * 0.4, cx + a, cy - a * 0.4]).fill({ color, alpha });
+        g.poly([cx, cy + a * 1.6, cx - a, cy + a * 0.4, cx + a, cy + a * 0.4]).fill({ color, alpha });
+        return;
+      }
       const c = Math.max(0, Math.min(this.width - 2, col));
       const x = c * s;
       const y = (this.height - row - 1) * s;
@@ -1109,10 +1123,10 @@ export class CoolingRenderer {
       g.poly([mx - a * 1.6, my, mx - a * 0.4, my - a, mx - a * 0.4, my + a]).fill({ color, alpha });
       g.poly([mx + a * 1.6, my, mx + a * 0.4, my - a, mx + a * 0.4, my + a]).fill({ color, alpha });
     };
-    if (this.hint) pair(this.hint.col, this.hint.row, COLORS.preview, 0.35 + 0.35 * pulse);
-    if (this.slowPair && this.time < this.lockedUntil) pair(this.slowPair.col, this.slowPair.row, COLORS.glow, 0.45 + 0.4 * pulse);
-    if (this.denied && this.time - this.denied.at < 260) pair(this.denied.col, this.denied.row, COLORS.danger, 1 - (this.time - this.denied.at) / 260);
-    if (this.hoverPair && !this.selected) pair(this.hoverPair.col, this.hoverPair.row, COLORS.brass, 0.55);
+    if (this.hint) pair(this.hint.col, this.hint.row, COLORS.preview, 0.35 + 0.35 * pulse, this.hint.vertical);
+    if (this.slowPair && this.time < this.lockedUntil) pair(this.slowPair.col, this.slowPair.row, COLORS.glow, 0.45 + 0.4 * pulse, this.slowPair.vertical);
+    if (this.denied && this.time - this.denied.at < 260) pair(this.denied.col, this.denied.row, COLORS.danger, 1 - (this.time - this.denied.at) / 260, this.denied.vertical);
+    if (this.hoverPair && !this.selected) pair(this.hoverPair.col, this.hoverPair.row, COLORS.brass, 0.55, this.hoverPair.vertical);
     if (this.cursor && this.interactive) pair(this.cursor.col, this.cursor.row, COLORS.brass, 0.95);
     if (this.selected) {
       const { col, row } = this.selected;
@@ -1124,18 +1138,21 @@ export class CoolingRenderer {
       const my = y + s / 2;
       if (col > 0) g.poly([x - a * 0.2, my - a, x - a * 1.2, my, x - a * 0.2, my + a]).fill({ color: COLORS.select, alpha: 0.5 + 0.5 * pulse });
       if (col < this.width - 1) g.poly([x + s + a * 0.2, my - a, x + s + a * 1.2, my, x + s + a * 0.2, my + a]).fill({ color: COLORS.select, alpha: 0.5 + 0.5 * pulse });
+      const mx = x + s / 2;
+      if (row < this.height - 1) g.poly([mx - a, y - a * 0.2, mx, y - a * 1.2, mx + a, y - a * 0.2]).fill({ color: COLORS.select, alpha: 0.5 + 0.5 * pulse });
+      if (row > 0) g.poly([mx - a, y + s + a * 0.2, mx, y + s + a * 1.2, mx + a, y + s + a * 0.2]).fill({ color: COLORS.select, alpha: 0.5 + 0.5 * pulse });
     }
   }
 
   // ---- input: click-to-swap, tap-then-tap, drag-swap, hold-to-preview, hover-to-preview
 
   /** Every swap the player asks for passes here; an overheated swap still settling refuses it. */
-  private requestSwap(col: number, row: number): void {
+  private requestSwap(col: number, row: number, vertical = false): void {
     if (this.time < this.lockedUntil) {
-      this.denied = { col, row, at: this.time };
+      this.denied = { col, row, vertical, at: this.time };
       return;
     }
-    this.cb.onSwap(col, row);
+    this.cb.onSwap(col, row, vertical);
   }
 
   private pointerDown(e: FederatedPointerEvent): void {
@@ -1155,6 +1172,20 @@ export class CoolingRenderer {
     if (!this.interactive) return;
     const cell = this.cellAt(e.global.x, e.global.y);
     if (this.dragStart) {
+      const dy = e.global.y - this.dragStart.y;
+      if (Math.abs(dy) > this.cell * 0.45 && Math.abs(e.global.x - this.dragStart.x) < this.cell * 0.8) {
+        // Screen y grows downward and rows run bottom to top: dragging up swaps with the row above.
+        const row = dy < 0 ? this.dragStart.row : this.dragStart.row - 1;
+        if (row >= 0 && row < this.height - 1) {
+          const col = this.dragStart.col;
+          this.cancelHold();
+          this.dragStart = null;
+          this.dragDx = 0;
+          this.selected = null;
+          this.requestSwap(col, row, true);
+          return;
+        }
+      }
       const dx = e.global.x - this.dragStart.x;
       this.dragDx = Math.abs(e.global.y - this.dragStart.y) < this.cell * 0.8 ? dx : 0;
       if (Math.abs(dx) > this.cell * 0.45 && Math.abs(e.global.y - this.dragStart.y) < this.cell * 0.8) {
@@ -1205,6 +1236,12 @@ export class CoolingRenderer {
       this.requestSwap(col, cell.row);
       return;
     }
+    if (this.selected && this.selected.col === cell.col && Math.abs(this.selected.row - cell.row) === 1) {
+      const row = Math.min(this.selected.row, cell.row);
+      this.selected = null;
+      this.requestSwap(cell.col, row, true);
+      return;
+    }
     this.selected = this.selected && this.selected.col === cell.col && this.selected.row === cell.row ? null : cell;
     this.cursor = null;
     if (this.selected) this.cb.onHover(this.selected.col, this.selected.row);
@@ -1224,6 +1261,12 @@ export class CoolingRenderer {
   }
 
   private hover(cell: { col: number; row: number }): void {
+    if (this.selected && this.selected.col === cell.col && Math.abs(this.selected.row - cell.row) === 1) {
+      const row = Math.min(this.selected.row, cell.row);
+      this.hoverPair = { col: cell.col, row, vertical: true };
+      this.cb.onHover(cell.col, row, true);
+      return;
+    }
     if (this.selected && this.selected.row === cell.row && Math.abs(this.selected.col - cell.col) === 1) {
       const col = Math.min(this.selected.col, cell.col);
       this.hoverPair = { col, row: cell.row };
@@ -1241,7 +1284,7 @@ export class CoolingRenderer {
     this.cb.onHoverEnd();
   }
 
-  /** Keyboard: move the cursor; swap with the piece to the right. */
+  /** Keyboard: move the cursor; space swaps with the piece to the right, V with the piece above. */
   keyboard(key: string): boolean {
     if (!this.interactive) return false;
     this.noteInput();
@@ -1259,6 +1302,13 @@ export class CoolingRenderer {
       case "ArrowDown":
         this.setCursor({ col: c.col, row: Math.max(0, c.row - 1) });
         break;
+      case "v":
+      case "V": {
+        const row = Math.min(c.row, this.height - 2);
+        this.setCursor({ col: c.col, row: c.row });
+        this.requestSwap(c.col, row, true);
+        return true;
+      }
       case " ":
       case "Enter": {
         const col = Math.min(c.col, this.width - 2);

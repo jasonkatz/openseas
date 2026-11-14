@@ -10,8 +10,8 @@ export interface BoardProps {
   version: number;
   interactive: boolean;
   showMarks: boolean;
-  onSwap(col: number, row: number): void;
-  preview(col: number, row: number): readonly number[];
+  onSwap(col: number, row: number, vertical?: boolean): void;
+  preview(col: number, row: number, vertical?: boolean): readonly number[];
   onFrame(): void;
   /** A cascade step is clearing on screen. */
   onClear(round: ClearRound): void;
@@ -19,7 +19,7 @@ export interface BoardProps {
   onMoveShown(shown: MoveShown): void;
   /** Idle hints are on (unrated practice only). */
   hints: boolean;
-  findHint(): { col: number; row: number } | null;
+  findHint(): { col: number; row: number; vertical?: boolean } | null;
 }
 
 /** Hosts the Pixi canvas and forwards input. All drawing lives in the renderer. */
@@ -33,8 +33,8 @@ export function CoolingBoard(props: BoardProps) {
     const el = host.current;
     if (!el) return;
     const r: CoolingRenderer = new CoolingRenderer(el, content.puzzles.cooling, {
-      onSwap: (c, row) => latest.current.onSwap(c, row),
-      onHover: (c, row) => r.setPreview(latest.current.preview(c, row)),
+      onSwap: (c, row, vertical) => latest.current.onSwap(c, row, vertical),
+      onHover: (c, row, vertical) => r.setPreview(latest.current.preview(c, row, vertical)),
       onHoverEnd: () => r.setPreview([]),
       onFrame: () => latest.current.onFrame(),
       onClear: (round) => latest.current.onClear(round),

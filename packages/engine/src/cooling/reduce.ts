@@ -136,12 +136,12 @@ export interface SwapPreview {
 }
 
 /** What a swap would do, without advancing the game. Drives the match preview on hover or hold. */
-export function previewSwap(state: CoolingState, col: number, row: number): SwapPreview {
-  const reason = swapIllegalReason(state, col, row);
+export function previewSwap(state: CoolingState, col: number, row: number, vertical = false): SwapPreview {
+  const reason = swapIllegalReason(state, col, row, vertical);
   if (reason !== null) return { legal: false, cells: [] };
   const cells = state.cells.slice();
   const i = idx(state.config, col, row);
-  const j = i + 1;
+  const j = vertical ? idx(state.config, col, row + 1) : i + 1;
   [cells[i], cells[j]] = [cells[j]!, cells[i]!];
   const groups = immediateClears(state.config, cells, i, j);
   const set = new Set<number>();
@@ -149,15 +149,15 @@ export function previewSwap(state: CoolingState, col: number, row: number): Swap
   return { legal: true, cells: [...set].sort((a, b) => a - b) };
 }
 
-export function swapIllegalReason(state: CoolingState, col: number, row: number): string | null {
+export function swapIllegalReason(state: CoolingState, col: number, row: number, vertical = false): string | null {
   const { width, height } = state.config;
   if (state.finished) return "game is finished";
   if (!Number.isInteger(col) || !Number.isInteger(row)) return "non-integer coordinates";
+  if (vertical) {
+    if (col < 0 || col >= width || row < 0 || row >= height - 1) return "out of bounds";
+    return null;
+  }
   if (col < 0 || col >= width - 1 || row < 0 || row >= height) return "out of bounds";
-  const a = state.cells[idx(state.config, col, row)]!;
-  const b = state.cells[idx(state.config, col + 1, row)]!;
-  void a;
-  void b;
   return null;
 }
 
@@ -175,11 +175,12 @@ function applyHeat(state: CoolingState, move: Extract<CoolingMove, { type: "heat
 export const SHIP_HEAT_EVENTS_MAX = 64;
 
 function applySwap(state: CoolingState, move: Extract<CoolingMove, { type: "swap" }>): CoolingState {
-  const reason = swapIllegalReason(state, move.col, move.row);
+  const vertical = move.vertical === true;
+  const reason = swapIllegalReason(state, move.col, move.row, vertical);
   if (reason !== null) throw new InvalidMoveError(reason, move);
   const cfg = state.config;
   const i = idx(cfg, move.col, move.row);
-  const j = i + 1;
+  const j = vertical ? idx(cfg, move.col, move.row + 1) : i + 1;
 
   const cells: Array<Piece | null> = state.cells.slice();
   [cells[i], cells[j]] = [cells[j]!, cells[i]!];

@@ -541,3 +541,37 @@ describe("cooling aboard a ship (DESIGN.md 3.3)", () => {
     expect(() => createCoolingGame("x", { ...cfg, shipHeat: 1 as unknown as boolean })).toThrow();
   });
 });
+
+describe("cooling vertical swaps", () => {
+  it("swaps a piece with the one above it, and only inside the board", () => {
+    const s = createCoolingGame("vertical", cfg);
+    const a = s.cells[idx(cfg, 2, 4)]!;
+    const b = s.cells[idx(cfg, 2, 5)]!;
+    const next = reduceCooling(s, { type: "swap", col: 2, row: 4, vertical: true });
+    expect(next.moveCount).toBe(1);
+    expect(swapIllegalReason(s, 2, cfg.height - 1, true)).toBe("out of bounds");
+    expect(swapIllegalReason(s, cfg.width - 1, 0, true)).toBeNull();
+    expect(swapIllegalReason(s, cfg.width - 1, 0)).toBe("out of bounds");
+    expect(() => reduceCooling(s, { type: "swap", col: 0, row: cfg.height - 1, vertical: true })).toThrow(InvalidMoveError);
+    // Without a clear the two pieces trade places.
+    if (next.lastMove!.rounds.length === 0) {
+      expect(next.cells[idx(cfg, 2, 4)]!.id).toBe(b.id);
+      expect(next.cells[idx(cfg, 2, 5)]!.id).toBe(a.id);
+    }
+  });
+
+  it("previews exactly what the swap clears, and replays deterministically", () => {
+    fc.assert(
+      fc.property(fc.string({ minLength: 1, maxLength: 8 }), fc.nat(cfg.width - 1), fc.nat(cfg.height - 2), (seed, col, row) => {
+        const s = createCoolingGame(seed, cfg);
+        const cells = previewSwap(s, col, row, true).cells;
+        const move: CoolingMove = { type: "swap", col, row, vertical: true };
+        const next = reduceCooling(s, move);
+        const first = new Set((next.lastMove!.rounds[0]?.groups ?? []).flatMap((g) => g.cells));
+        expect(new Set(cells)).toEqual(first);
+        expect(hashCoolingState(replayCooling(seed, [move], cfg))).toBe(hashCoolingState(next));
+      }),
+      { numRuns: 60 },
+    );
+  });
+});

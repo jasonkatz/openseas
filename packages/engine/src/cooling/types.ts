@@ -1,5 +1,5 @@
 /**
- * Cooling: a 6 wide by 12 tall board of pieces. Swap two horizontally adjacent pieces; runs of 3
+ * Cooling: a 6 wide by 12 tall board of pieces. Swap two adjacent pieces, side by side or one above the other; runs of 3
  * or more clear; the pieces below float up and new pieces enter from the bottom. Cascades chain.
  * Heat rises with the moves and drops as you clear.
  *
@@ -100,8 +100,8 @@ export const DEFAULT_COOLING_CONFIG: CoolingConfig = {
 };
 
 export type CoolingMove =
-  /** Swap the piece at (col,row) with the piece at (col+1,row). */
-  | { readonly type: "swap"; readonly col: number; readonly row: number }
+  /** Swap the piece at (col,row) with the piece at (col+1,row), or with (col,row+1) when `vertical`. */
+  | { readonly type: "swap"; readonly col: number; readonly row: number; readonly vertical?: boolean }
   /** The ship's heat is this many rows deep: a heat event from the ship's turn (shipHeat only). */
   | { readonly type: "heat"; readonly row: number }
   /** End the round early. */

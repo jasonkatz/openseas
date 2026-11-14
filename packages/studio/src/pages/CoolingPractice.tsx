@@ -40,16 +40,16 @@ export function CoolingPractice() {
   const playing = api.phase === "playing";
 
   const onSwap = useCallback(
-    (col: number, row: number) => {
-      api.apply({ type: "swap", col, row });
+    (col: number, row: number, vertical?: boolean) => {
+      api.apply(vertical ? { type: "swap", col, row, vertical: true } : { type: "swap", col, row });
     },
     [api],
   );
   const preview = useCallback(
-    (col: number, row: number): readonly number[] => {
+    (col: number, row: number, vertical?: boolean): readonly number[] => {
       const r = api.current();
       if (!r || r.isFinished) return [];
-      return previewSwap(r.state, col, row).cells;
+      return previewSwap(r.state, col, row, vertical === true).cells;
     },
     [api],
   );
@@ -70,10 +70,10 @@ export function CoolingPractice() {
     if (m.enteredDanger) sfx.alarm();
   }, []);
   /** The swap that clears the most pieces right now, for the idle hint. */
-  const findHint = useCallback((): { col: number; row: number } | null => {
+  const findHint = useCallback((): { col: number; row: number; vertical?: boolean } | null => {
     const r = api.current();
     if (!r || r.isFinished) return null;
-    let best: { col: number; row: number } | null = null;
+    let best: { col: number; row: number; vertical?: boolean } | null = null;
     let most = 0;
     const { width, height } = r.state.config;
     for (let row = 0; row < height; row++) {
@@ -82,6 +82,15 @@ export function CoolingPractice() {
         if (n > most) {
           most = n;
           best = { col, row };
+        }
+      }
+    }
+    for (let row = 0; row < height - 1; row++) {
+      for (let col = 0; col < width; col++) {
+        const n = previewSwap(r.state, col, row, true).cells.length;
+        if (n > most) {
+          most = n;
+          best = { col, row, vertical: true };
         }
       }
     }
