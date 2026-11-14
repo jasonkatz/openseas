@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --clear-screen=false --env-file-if-exists=../../.env src/index.ts",
-    "start": "tsx src/index.ts",
+    "start": "node --import tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
     "test": "vitest run",
