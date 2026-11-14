@@ -49,7 +49,7 @@ describeDb("save", () => {
   };
 
   /** The stand-in GitHub: what was asked of it, and what it says of each pull request. */
-  const gh = { opened: [] as Array<{ head: string; base: string; title: string; body: string }>, described: [] as Array<{ number: number; body: string }>, closed: [] as number[], state: new Map<number, PullState>(), fail: false };
+  const gh = { opened: [] as Array<{ head: string; base: string; title: string; body: string }>, described: [] as Array<{ number: number; title: string; body: string }>, closed: [] as number[], state: new Map<number, PullState>(), fail: false };
   const forge: Forge = {
     token: async () => "never-used-for-a-local-remote",
     openPull: async (o) => {
@@ -60,7 +60,7 @@ describeDb("save", () => {
       return { number, url: `https://github.test/pull/${number}` };
     },
     pullState: async (n) => gh.state.get(n) ?? "open",
-    describePull: async (number, body) => void gh.described.push({ number, body }),
+    describePull: async (number, title, body) => void gh.described.push({ number, title, body }),
     closePull: async (n) => void gh.closed.push(n),
   };
 
@@ -117,7 +117,7 @@ describeDb("save", () => {
     expect((await fetch(`${base}/links/${started.link.id}`)).status).toBe(200);
 
     const branch = `studio/cooling-${draft.id}`;
-    expect(saved.save).toEqual({ state: "idle", error: null, pull: { number: 101, url: "https://github.test/pull/101" }, savedRevision: 1, behind: false });
+    expect(saved.save).toEqual({ state: "idle", error: null, pull: { number: 101, url: "https://github.test/pull/101" }, savedRevision: 1, behind: false, edits: false });
     // The file on the remote's branch is the shipped one with those four numbers changed and not a byte else.
     const want = shipped.replace('"pieceKinds": 7', '"pieceKinds": 5').replace('"charge": 12', '"charge": 40').replace('  "roundSeconds": 150,', '  "paceSeconds": 12,\n  "roundSeconds": 120,');
     expect(remote(branch)).toBe(want);
@@ -133,7 +133,9 @@ describeDb("save", () => {
     expect(body).toContain("| `config.pieceKinds` | `7` | `5` |");
     expect(body).toContain("| `paceSeconds` | `(none)` | `12` |");
     expect(body).toContain(`${STUDIO}/play/${started.link.id}`);
-    expect(body).toContain("This pull request is a draft");
+    // It is a draft and stays one: the studio says what it holds and what is left for a developer.
+    expect(body).toContain("This pull request is a draft, and the studio leaves it there");
+    expect(body).not.toContain("edited by the studio's agent");
     // Nothing that can push is left on the volume.
     expect(readFileSync(join(volume, "repo/.git/config"), "utf8")).not.toMatch(/token|extraheader|authorization/i);
   });
@@ -281,7 +283,7 @@ describeDb("a service with no clone or no App", () => {
       await app.db.delete(schema.draft);
       const made = await fetch(`${base}/drafts`, { method: "POST", headers: { origin: STUDIO, cookie: session }, body: JSON.stringify({ puzzle: "cooling", numbers: { seed: null, overrides: { pieceKinds: 5 }, roundSeconds: null, paceSeconds: null, thresholds: null } }) });
       const draft = DraftSchema.parse(await made.json());
-      expect(draft.save).toEqual({ state: "idle", error: null, pull: null, savedRevision: null, behind: false });
+      expect(draft.save).toEqual({ state: "idle", error: null, pull: null, savedRevision: null, behind: false, edits: false });
       const save = await fetch(`${base}/drafts/${draft.id}/save`, { method: "POST", headers: { origin: STUDIO, cookie: session }, body: JSON.stringify({ revision: 1, name: "x" }) });
       expect(save.status).toBe(503);
       expect(await save.json()).toEqual({ error: "unavailable" });

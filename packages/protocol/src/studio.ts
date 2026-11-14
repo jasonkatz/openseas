@@ -64,7 +64,7 @@ export const DraftIdSchema = z.string().regex(/^[a-z0-9]{10}$/);
  * counts its saves; a save names the revision it was made from and is refused when that is no
  * longer the stored one, so two pages open on one draft cannot overwrite each other unseen.
  */
-/** Why a Save or an update did not finish. `nothing`: the draft changes no number. `unknown_key`: it sets a key the content file has no place for. `conflict`: the base branch and the draft's changed the same lines. `interrupted`: the service restarted under it. */
+/** Why a Save or an update did not finish. `nothing`: the draft changes no number and the chat has edited no file. `unknown_key`: it sets a key the content file has no place for. `conflict`: the base branch and the draft's changed the same lines. `interrupted`: the service restarted under it. */
 export const DraftSaveErrorSchema = z.enum(["nothing", "unknown_key", "conflict", "git", "github", "interrupted"]);
 export type DraftSaveError = z.infer<typeof DraftSaveErrorSchema>;
 
@@ -79,9 +79,11 @@ export const DraftSaveSchema = z.object({
   pull: z.object({ number: z.int(), url: z.url() }).nullable(),
   savedRevision: z.int().nullable(),
   behind: z.boolean(),
+  /** True once a turn of the chat has committed an edit to the draft's branch: there is something to save even when no number differs (ADR 0049). Defaulted for a service older than the site. */
+  edits: z.boolean().default(false),
 });
 export type DraftSave = z.infer<typeof DraftSaveSchema>;
-export const NO_DRAFT_SAVE: DraftSave = { state: "idle", error: null, pull: null, savedRevision: null, behind: false };
+export const NO_DRAFT_SAVE: DraftSave = { state: "idle", error: null, pull: null, savedRevision: null, behind: false, edits: false };
 
 export const DraftSchema = z.object({
   id: DraftIdSchema,

@@ -84,8 +84,8 @@ describe("the studio's GitHub App", () => {
     expect(await app.pullState(9)).toBe("closed");
     state.merged = true;
     expect(await app.pullState(9)).toBe("merged");
-    await app.describePull(9, "again");
-    expect(gh.calls.at(-1)).toMatchObject({ method: "PATCH", path: "/repos/octo/openseas/pulls/9", body: { body: "again" } });
+    await app.describePull(9, "A title", "again");
+    expect(gh.calls.at(-1)).toMatchObject({ method: "PATCH", path: "/repos/octo/openseas/pulls/9", body: { title: "A title", body: "again" } });
     await app.closePull(9);
     expect(gh.calls.at(-1)).toMatchObject({ method: "PATCH", body: { state: "closed" } });
   });

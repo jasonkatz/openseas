@@ -54,3 +54,4 @@ that supersedes it.
 | [0046](./0046-save-writes-a-drafts-numbers-to-a-pull-request.md) | Save writes a draft's numbers to a branch and a draft pull request, with no agent |
 | [0047](./0047-the-chat-runs-an-agent-the-service-holds-to-the-puzzle.md) | The chat runs an agent as its own user, behind the service's proxy, under one spend cap |
 | [0048](./0048-services-run-under-tini-and-shut-down-within-a-deadline.md) | The services run under tini, and shut down within a deadline |
+| [0049](./0049-save-ends-at-the-draft-pull-request.md) | Save ends at the draft pull request: the checklist is a developer's to finish |

@@ -20,6 +20,8 @@ export interface Save {
   pull: { number: number; url: string } | null;
   savedRevision: number | null;
   behind: boolean;
+  /** Left out, the service is one from before the chat's edits counted toward a Save. */
+  edits?: boolean;
 }
 export interface Draft {
   id: string;

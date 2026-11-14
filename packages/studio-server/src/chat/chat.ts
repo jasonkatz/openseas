@@ -133,6 +133,8 @@ export function createChat(o: ChatOptions): Chat {
         await run.log.catch(() => undefined);
       }
       commit = await repo.commit(row.id, `Chat turn ${run.number} on ${row.puzzle}`);
+      // A draft the agent has edited can be saved though no number differs (ADR 0049).
+      if (commit) await db.update(schema.draft).set({ chatCommits: sql`${schema.draft.chatCommits} + 1` }).where(eq(schema.draft.id, row.id));
     } catch (err) {
       log.error({ err, draft: row.id }, "could not commit a chat turn");
     }

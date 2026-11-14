@@ -215,7 +215,9 @@ migrates its own `studio` schema as it starts.
    The service clones as it starts (a minute, the first time) and logs `save: true`. The App's key
    and the tokens made from it stay in the service process: nothing is written to the volume that
    can push. To try it, tune a number on a puzzle's studio page, press **Save**, and look for the
-   draft pull request. Discarding the draft closes it and deletes its branch.
+   draft pull request. Discarding the draft closes it and deletes its branch. The studio never
+   marks a pull request ready: it holds the numbers and the chat agent's edits, and a developer
+   finishes it (ADR 0049).
 4c. **The chat** (ADR 0047) is optional and needs Save (4b) first. Until it is set up the service
    logs that the chat is off and the studio shows none.
 

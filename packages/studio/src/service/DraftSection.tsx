@@ -111,8 +111,8 @@ function SaveRows({ draft, settled }: { draft: Draft; settled: boolean }) {
   const { save } = draft;
   const writing = save.state === "saving";
   const current = save.pull !== null && save.savedRevision === draft.revision;
-  // With no pull request yet, a draft that changes no number has nothing for one to hold.
-  const nothing = save.pull === null && changes.length === 0;
+  // With no pull request yet, a draft that changes no number and that the chat has not worked on has nothing for one to hold.
+  const nothing = save.pull === null && changes.length === 0 && !save.edits;
   const start = async (): Promise<void> => {
     const made = await saveDraft(name.trim() || t("studio.save_default_name", { revision: draft.revision }));
     if (!made) return setNote(t("studio.links_failed"));
