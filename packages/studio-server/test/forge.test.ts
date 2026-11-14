@@ -43,6 +43,9 @@ describe("the studio's GitHub App", () => {
     expect(readPrivateKey(privateKey)).toBe(privateKey.trim());
     expect(readPrivateKey(privateKey.replace(/\n/g, "\\n"))).toBe(privateKey.trim());
     expect(readPrivateKey(Buffer.from(privateKey).toString("base64"))).toBe(privateKey.trim());
+    expect(readPrivateKey(`"${privateKey.replace(/\n/g, "\\n")}"`)).toBe(privateKey.trim());
+    expect(() => readPrivateKey("not a key")).toThrow(/holds no PEM/);
+    expect(() => readPrivateKey("-----BEGIN RSA PRIVATE KEY-----\nAAAA\n-----END RSA PRIVATE KEY-----")).toThrow(/not a private key/);
   });
 
   it("asks for a token for this repository and these two permissions, and keeps it until it is nearly out", async () => {
