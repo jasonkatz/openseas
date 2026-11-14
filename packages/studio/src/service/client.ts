@@ -1,4 +1,4 @@
-import { StudioMeSchema, TesterLinkIdSchema, TesterLinkListSchema, TesterLinkSchema, type CreateTesterLink, type StudioMe, type TesterLink } from "@openseas/protocol";
+import { DraftListSchema, DraftSchema, StudioMeSchema, TesterLinkIdSchema, TesterLinkListSchema, TesterLinkSchema, type CreateTesterLink, type Draft, type DraftNumbers, type StudioMe, type TesterLink } from "@openseas/protocol";
 
 /**
  * The studio's service (ADR 0042 decision 4, ADR 0043), as this site reaches it. Empty when the
@@ -65,6 +65,53 @@ export async function createLink(input: CreateTesterLink): Promise<TesterLink | 
 export async function withdrawLink(id: string): Promise<boolean> {
   try {
     return (await owned(`/links/${encodeURIComponent(id)}`, { method: "DELETE" })).ok;
+  } catch {
+    return false;
+  }
+}
+
+/** The signed-in owner's open drafts, one puzzle's or all of them; null when the service did not answer. */
+export async function listDrafts(puzzle?: string): Promise<Draft[] | null> {
+  try {
+    const r = await owned(`/drafts${puzzle ? `?puzzle=${encodeURIComponent(puzzle)}` : ""}`);
+    const list = r.ok ? DraftListSchema.safeParse(await r.json()) : null;
+    return list?.success ? list.data.drafts : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What became of a save. `conflict`: the draft was saved from somewhere else since this page read
+ * it (or, opening one, the puzzle already has a draft). `gone`: it was discarded. `failed`: the
+ * service did not answer, or refused.
+ */
+export type DraftSave = { ok: true; draft: Draft } | { ok: false; reason: "conflict" | "gone" | "failed" };
+
+async function draftSave(path: string, method: "POST" | "PUT", body: unknown): Promise<DraftSave> {
+  try {
+    // keepalive: a save sent as the page is left still arrives.
+    const r = await owned(path, { method, body: JSON.stringify(body), keepalive: true });
+    if (r.status === 409) return { ok: false, reason: "conflict" };
+    if (r.status === 404) return { ok: false, reason: "gone" };
+    const draft = r.ok ? DraftSchema.safeParse(await r.json()) : null;
+    return draft?.success ? { ok: true, draft: draft.data } : { ok: false, reason: "failed" };
+  } catch {
+    return { ok: false, reason: "failed" };
+  }
+}
+
+/** Open a puzzle's draft on these numbers. */
+export const createDraft = (puzzle: string, numbers: DraftNumbers): Promise<DraftSave> => draftSave("/drafts", "POST", { puzzle, numbers });
+
+/** Save a draft's numbers over the revision this page last saw. */
+export const saveDraft = (id: string, numbers: DraftNumbers, revision: number): Promise<DraftSave> => draftSave(`/drafts/${encodeURIComponent(id)}`, "PUT", { numbers, revision });
+
+/** Discard a draft. True when it is gone, by this call or before it. */
+export async function discardDraft(id: string): Promise<boolean> {
+  try {
+    const r = await owned(`/drafts/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return r.ok || r.status === 404;
   } catch {
     return false;
   }

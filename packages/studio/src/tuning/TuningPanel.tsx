@@ -7,6 +7,7 @@ import { formatNumber, withoutNumbers, type Refusal, type Threshold } from "../f
 import { localSeed, type PracticePhase } from "../practice/usePractice.js";
 import { playLink } from "../scenario/codec.js";
 import type { Preset } from "../scenario/presets.js";
+import { DraftSection } from "../service/DraftSection.jsx";
 import { TesterLinks } from "../service/TesterLinks.jsx";
 import { readRestart, writeRestart } from "../studio/useStudio.js";
 import { configControls, roundControls, sliderRange, valueAt, type Control } from "./controls.js";
@@ -191,6 +192,7 @@ export function TuningPanel({ phase, onStart }: { phase: PracticePhase; onStart(
         )}
       </section>
 
+      <DraftSection />
       <TesterLinks />
 
       {groups.map((g) => (

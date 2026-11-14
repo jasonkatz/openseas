@@ -1,7 +1,9 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CORE_PUZZLE_IDS, PROTOTYPE_PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
 import { content, t } from "@openseas/boards";
 import { Link } from "../router.jsx";
+import { listDrafts } from "../service/client.js";
+import { useMe } from "../service/me.js";
 import { useThumbnails } from "./thumbs.js";
 
 const GLYPHS: Record<PuzzleId, ReactNode> = {
@@ -196,15 +198,33 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
 
 const PROTOTYPES = new Set<PuzzleId>(PROTOTYPE_PUZZLE_IDS);
 
+/** The puzzles the signed-in owner has a draft open on. Empty signed out, and when the service does not answer. */
+function useOpenDrafts(): ReadonlySet<PuzzleId> {
+  const me = useMe();
+  const login = me !== "loading" && me !== null ? me.login : null;
+  const [open, setOpen] = useState<ReadonlySet<PuzzleId>>(new Set());
+  useEffect(() => {
+    setOpen(new Set());
+    if (!login) return;
+    let alive = true;
+    void listDrafts().then((list) => alive && list && setOpen(new Set(list.map((d) => d.puzzle))));
+    return () => {
+      alive = false;
+    };
+  }, [login]);
+  return open;
+}
+
 /**
  * The studio's home (DESIGN.md 3.14): a grid of every puzzle, the game's and the prototypes
  * alike, each with a picture of its board as this build draws it (home/thumbs) over the glyph it
  * shows until that picture is taken. A tile opens the puzzle's studio page; its second link opens
- * the puzzle alone.
+ * the puzzle alone. A puzzle the signed-in owner has a draft open on carries a mark.
  */
 export function Home() {
   const ids: readonly PuzzleId[] = [...CORE_PUZZLE_IDS, ...PROTOTYPE_PUZZLE_IDS];
   const thumbs = useThumbnails(ids);
+  const drafts = useOpenDrafts();
   return (
     <main className="page home studio-home">
       <header className="masthead">
@@ -222,6 +242,11 @@ export function Home() {
                 <span className={`studio-thumb ${thumbs[id] ? "is-drawn" : ""}`} aria-hidden="true">
                   {thumbs[id] ? <img src={thumbs[id]} alt="" data-testid={`thumb-${id}`} /> : GLYPHS[id]}
                 </span>
+                {drafts.has(id) && (
+                  <span className="studio-mark" data-testid={`draft-mark-${id}`}>
+                    {t("harness.home.draft")}
+                  </span>
+                )}
                 {PROTOTYPES.has(id) && <span className="eyebrow">{t("harness.home.prototype")}</span>}
                 <span className="tile-title">{t(`home.practice_${id}`)}</span>
                 <span className="tile-blurb">{t(`home.practice_${id}_blurb`)}</span>

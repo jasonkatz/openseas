@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { CreateTesterLinkSchema, PuzzleIdSchema, TesterLinkIdSchema, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
+import { CreateDraftSchema, CreateTesterLinkSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, TesterLinkIdSchema, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
 import type { Db } from "./db/index.js";
+import { createDraft, discardDraft, listDrafts, saveDraft } from "./drafts.js";
 import type { Env } from "./env.js";
 import type { GitHub } from "./github.js";
 import { createLink, findLink, listLinks, withdrawLink } from "./links.js";
@@ -59,6 +60,10 @@ async function readJson(req: IncomingMessage, limit = 32 * 1024): Promise<unknow
  *   GET    /links?puzzle=     a puzzle's links (owner)
  *   POST   /links             freeze a draft as a link (owner)
  *   DELETE /links/:id         withdraw one (owner)
+ *   GET    /drafts?puzzle=    the owner's open drafts, one puzzle's or all (owner)
+ *   POST   /drafts            open a puzzle's draft (owner); refused when one is open
+ *   PUT    /drafts/:id        save its numbers over the revision named (owner)
+ *   DELETE /drafts/:id        discard it (owner)
  *
  * An owner is a signed-in GitHub login on the allowlist. Whatever changes something must also
  * come from one of the studio site's own origins: the cookie alone is not enough.
@@ -95,6 +100,7 @@ export function createHttpHandler(deps: HttpDeps) {
     const origin = req.headers.origin;
     const fromStudio = origin !== undefined && env.STUDIO_ORIGINS.includes(origin);
     const linkId = /^\/links\/([^/]+)$/.exec(path)?.[1];
+    const draftId = /^\/drafts\/([^/]+)$/.exec(path)?.[1];
 
     // The studio site may send its cookie. Anyone else may read a link, and nothing more.
     res.setHeader("Vary", "Origin");
@@ -102,7 +108,7 @@ export function createHttpHandler(deps: HttpDeps) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Access-Control-Allow-Credentials", "true");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     } else if (linkId !== undefined || path === "/health") {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -160,9 +166,25 @@ export function createHttpHandler(deps: HttpDeps) {
 
       // Everything below is the owner's, from the studio site.
       const isLinks = path === "/links" || linkId !== undefined;
-      if (!isLinks) return fail(res, 404, "not_found");
+      const isDrafts = path === "/drafts" || draftId !== undefined;
+      if (!isLinks && !isDrafts) return fail(res, 404, "not_found");
       const login = owner(req);
       if (!login) return fail(res, 401, "unauthorized");
+      /** The request's body as JSON, or undefined when it is not JSON or is too large. */
+      const body = async (): Promise<unknown> => {
+        try {
+          return await readJson(req);
+        } catch {
+          return undefined;
+        }
+      };
+
+      if (path === "/drafts" && req.method === "GET") {
+        const raw = url.searchParams.get("puzzle");
+        const puzzle = raw === null ? null : PuzzleIdSchema.safeParse(raw);
+        if (puzzle && !puzzle.success) return fail(res, 400, "bad_request");
+        return json(res, 200, { drafts: await listDrafts(db, login, puzzle?.data) });
+      }
 
       if (path === "/links" && req.method === "GET") {
         const puzzle = PuzzleIdSchema.safeParse(url.searchParams.get("puzzle"));
@@ -171,13 +193,7 @@ export function createHttpHandler(deps: HttpDeps) {
       }
       if (!fromStudio) return fail(res, 403, "forbidden");
       if (path === "/links" && req.method === "POST") {
-        let body: unknown;
-        try {
-          body = await readJson(req);
-        } catch {
-          return fail(res, 400, "bad_request");
-        }
-        const input = CreateTesterLinkSchema.safeParse(body);
+        const input = CreateTesterLinkSchema.safeParse(await body());
         if (!input.success) return fail(res, 400, "bad_request");
         const link = await createLink(db, login, input.data);
         log.info({ id: link.id, puzzle: link.puzzle, login }, "tester link made");
@@ -188,6 +204,28 @@ export function createHttpHandler(deps: HttpDeps) {
         if (!link) return fail(res, 404, "not_found");
         log.info({ id: link.id, login }, "tester link withdrawn");
         return json(res, 200, link);
+      }
+
+      if (path === "/drafts" && req.method === "POST") {
+        const input = CreateDraftSchema.safeParse(await body());
+        if (!input.success) return fail(res, 400, "bad_request");
+        const draft = await createDraft(db, login, input.data);
+        if (!draft) return fail(res, 409, "conflict");
+        log.info({ id: draft.id, puzzle: draft.puzzle, login }, "draft opened");
+        return json(res, 201, draft);
+      }
+      if (draftId !== undefined && !DraftIdSchema.safeParse(draftId).success) return fail(res, 404, "not_found");
+      if (draftId !== undefined && req.method === "PUT") {
+        const input = SaveDraftSchema.safeParse(await body());
+        if (!input.success) return fail(res, 400, "bad_request");
+        const saved = await saveDraft(db, login, draftId, input.data);
+        if (!saved.ok) return fail(res, saved.reason === "conflict" ? 409 : 404, saved.reason);
+        return json(res, 200, saved.draft);
+      }
+      if (draftId !== undefined && req.method === "DELETE") {
+        if (!(await discardDraft(db, login, draftId))) return fail(res, 404, "not_found");
+        log.info({ id: draftId, login }, "draft discarded");
+        return json(res, 200, { ok: true });
       }
       return fail(res, 404, "not_found");
     } catch (e) {
