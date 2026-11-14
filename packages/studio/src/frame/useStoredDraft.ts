@@ -22,7 +22,7 @@ import { carriesDraft, draftNumbers, sameNumbers, withDraft, withoutDraft } from
 export type DraftStore =
   | { readonly state: "off" | "loading" }
   | { readonly state: "address"; readonly stored: Draft | null; readonly why: "link" | "unsaved" | "stale"; readonly busy: boolean; readonly keepable: boolean }
-  | { readonly state: "stored"; readonly draft: Draft | null; readonly status: "saved" | "saving" | "held"; readonly canSave: boolean };
+  | { readonly state: "stored"; readonly draft: Draft | null; readonly status: "saved" | "saving" | "held"; readonly canSave: boolean; readonly canChat: boolean };
 
 type Internal = { state: "off" | "loading" } | { state: "address"; stored: Draft | null; why: "link" | "unsaved" | "stale" } | { state: "stored"; draft: Draft | null };
 
@@ -40,6 +40,10 @@ export interface StoredDraft {
   save(name: string): Promise<TesterLink | null>;
   /** Merge the base branch into the draft's branch. False when the service would not start. */
   update(): Promise<boolean>;
+  /** The stored draft, opened now if the page has none yet: the chat is a draft's, even one with no number changed. Null when the service would not. */
+  ensure(): Promise<Draft | null>;
+  /** The draft as the service now holds it, read with its chat. When the agent's tool has moved its numbers, the page follows. */
+  adopt(draft: Draft): void;
 }
 
 /** How long the hand must rest before a change is saved. */
@@ -243,6 +247,35 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
     return true;
   }, [setStore]);
 
+  const ensure = useCallback(async (): Promise<Draft | null> => {
+    const at = latest.current.store;
+    if (at.state !== "stored") return null;
+    if (at.draft) return at.draft;
+    const numbers = draftNumbers(puzzle, latest.current.scenario);
+    if (!numbers) return null;
+    setBusy(true);
+    const r = await createDraft(puzzle.id, numbers);
+    if (!alive.current) return null;
+    setBusy(false);
+    if (latest.current.store !== at) return null;
+    if (r.ok) {
+      setStore({ state: "stored", draft: r.draft });
+      return r.draft;
+    }
+    await refused(r, null);
+    return null;
+  }, [puzzle, refused, setStore]);
+
+  const adopt = useCallback(
+    (draft: Draft) => {
+      const at = latest.current.store;
+      if (at.state !== "stored" || !at.draft || at.draft.id !== draft.id || draft.revision <= at.draft.revision) return;
+      setStore({ state: "stored", draft: { ...draft, save: { ...draft.save, behind: at.draft.save.behind } } });
+      latest.current.apply(withDraft(latest.current.scenario, draft.numbers), true);
+    },
+    [setStore],
+  );
+
   // While the service writes the branch, ask how it went. A draft that is gone was cleared with its pull request.
   const watching = store.state === "stored" && store.draft?.save.state === "saving";
   useEffect(() => {
@@ -263,8 +296,8 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
   const bare = useCallback(() => latest.current.store.state === "stored", []);
   const view = useMemo<DraftStore>(() => {
     if (store.state === "address") return { ...store, busy, keepable: mine !== null };
-    if (store.state === "stored") return { ...store, status: mine === null ? "held" : busy || dirty ? "saving" : "saved", canSave: me !== "loading" && me !== null && me.save };
+    if (store.state === "stored") return { ...store, status: mine === null ? "held" : busy || dirty ? "saving" : "saved", canSave: me !== "loading" && me !== null && me.save, canChat: me !== "loading" && me !== null && me.chat };
     return store;
   }, [store, busy, dirty, mine, me]);
-  return { store: view, bare, keep, open, discard, save: saveToPull, update };
+  return { store: view, bare, keep, open, discard, save: saveToPull, update, ensure, adopt };
 }

@@ -1,4 +1,4 @@
-import { DraftListSchema, DraftSchema, SaveStartedSchema, StudioMeSchema, TesterLinkIdSchema, TesterLinkListSchema, TesterLinkSchema, type CreateTesterLink, type Draft, type DraftNumbers, type SaveStarted, type StudioMe, type TesterLink } from "@openseas/protocol";
+import { ChatStateSchema, DraftListSchema, DraftSchema, SaveStartedSchema, StudioMeSchema, TesterLinkIdSchema, TesterLinkListSchema, TesterLinkSchema, type CreateTesterLink, type ChatState, type Draft, type DraftNumbers, type SaveStarted, type SendChat, type StudioMe, type TesterLink } from "@openseas/protocol";
 
 /**
  * The studio's service (ADR 0042 decision 4, ADR 0043), as this site reaches it. Empty when the
@@ -133,6 +133,46 @@ export async function startUpdate(id: string): Promise<Draft | null> {
     return null;
   }
 }
+
+/** A draft's chat (ADR 0047): every line of it, whether a turn is running, and what has been spent. Null when the service did not answer. */
+export async function fetchChat(id: string): Promise<ChatState | null> {
+  try {
+    const r = await owned(`/drafts/${encodeURIComponent(id)}/chat`);
+    const state = r.ok ? ChatStateSchema.safeParse(await r.json()) : null;
+    return state?.success ? state.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** What became of a message to the agent. `capped`: the spend cap is reached. `busy`: the draft's branch is being saved. */
+export type ChatSend = "sent" | "capped" | "busy" | "failed";
+
+export async function sendChat(id: string, message: SendChat): Promise<ChatSend> {
+  try {
+    const r = await owned(`/drafts/${encodeURIComponent(id)}/chat`, { method: "POST", body: JSON.stringify(message) });
+    if (r.ok) return "sent";
+    if (r.status !== 409) return "failed";
+    const code = ((await r.json()) as { error?: unknown }).error;
+    return code === "capped" ? "capped" : "busy";
+  } catch {
+    return "failed";
+  }
+}
+
+async function chatAct(id: string, act: "stop" | "revert" | "allow", body?: unknown): Promise<boolean> {
+  try {
+    return (await owned(`/drafts/${encodeURIComponent(id)}/chat/${act}`, { method: "POST", ...(body === undefined ? {} : { body: JSON.stringify(body) }) })).ok;
+  } catch {
+    return false;
+  }
+}
+/** Stop the turn where it stands. */
+export const stopChat = (id: string): Promise<boolean> => chatAct(id, "stop");
+/** Undo one turn's edits. */
+export const revertChat = (id: string, turn: number): Promise<boolean> => chatAct(id, "revert", { turn });
+/** Answer a refused write: allow the path for this draft, or not. */
+export const answerChat = (id: string, item: number, allow: boolean): Promise<boolean> => chatAct(id, "allow", { item, allow });
 
 /** Told when the puzzle's tester links changed somewhere other than the links section: Save makes one. */
 export const LINKS_CHANGED = "openseas:studio-links-changed";

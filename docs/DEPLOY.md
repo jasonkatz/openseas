@@ -214,6 +214,37 @@ migrates its own `studio` schema as it starts.
    and the tokens made from it stay in the service process: nothing is written to the volume that
    can push. To try it, tune a number on a puzzle's studio page, press **Save**, and look for the
    draft pull request. Discarding the draft closes it and deletes its branch.
+4c. **The chat** (ADR 0047) is optional and needs Save (4b) first. Until it is set up the service
+   logs that the chat is off and the studio shows none.
+
+   1. **Variables** on the `studio` service:
+
+      | Variable | Value |
+      |---|---|
+      | `ANTHROPIC_API_KEY` | a key for the chat's turns. It stays in the service process: the agent reaches a model only through the service |
+      | `STUDIO_SPEND_CAP_USD` | all the chat may spend, every draft together, in US dollars, such as `20`. A turn that reaches it is stopped where it stands, and no turn starts past it. To carry on, raise it; the meter is never reset |
+      | `OPENAI_API_KEY`, `ELEVENLABS_API_KEY` | optional: the two keys the sprite and sound scripts read (ADR 0040). These, and only these, are in the agent's shell |
+      | `STUDIO_AGENT_USER` | optional: the unix user the agent runs as, `studio-agent` by default |
+
+   2. **Grow the volume to 5 GB.** The agent installs a worktree's dependencies when it runs a
+      puzzle's tests, and its session transcripts live in its home on the volume.
+   3. **Give the service room.** A turn runs the Claude Code executable and whatever it starts:
+      an install, a test run, a capture. 4 GB of memory and 2 vCPU is a floor for those; the
+      default limits of a small plan are not enough for a test run.
+   4. Nothing to do for the agent's user: the service makes it as it starts, which takes root
+      (Railway's default) and `useradd` (in the image). If the log says the chat is off because
+      the service cannot run the agent as a user of its own, the service is not starting as
+      root, or the volume is mounted somewhere that user cannot walk into.
+
+   The image grows by the Claude Code executable the SDK ships, a few hundred megabytes. The log
+   says `chat: true` when all of it is in place.
+
+   **What bounds the agent, and what does not.** It runs as its own user with an environment
+   built from nothing: it cannot read this service's variables or memory, and nothing that can
+   push to GitHub is in its reach. It may write the open puzzle's own files; anything else is
+   refused until allowed in the chat, and a command's writes elsewhere are put back when the turn
+   ends. It is not kept off the network, it holds the two script keys above if they are set, and
+   a command it starts can do what an unprivileged user on that machine can do.
 5. On the **studio's Vercel project** (step 2b): `VITE_STUDIO_SERVICE_URL` =
    `https://<studio service domain>` for **Production** and **Preview**, then redeploy the site
    (Deploy workflow → Run workflow → harness). A preview of the studio reads tester links from

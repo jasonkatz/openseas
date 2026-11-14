@@ -113,6 +113,75 @@ export type SaveRequest = z.infer<typeof SaveRequestSchema>;
 export const SaveStartedSchema = z.object({ draft: DraftSchema, link: TesterLinkSchema });
 export type SaveStarted = z.infer<typeof SaveStartedSchema>;
 
+/** The models the chat can run on (ADR 0047). The service knows which model each name means; the site only names the choice. */
+export const ChatModelSchema = z.enum(["sonnet", "haiku", "opus"]);
+export type ChatModel = z.infer<typeof ChatModelSchema>;
+
+/** One round played on the page, as a message to the agent carries it (ADR 0042 decision 5). */
+export const RoundSummarySchema = z.object({
+  seed: z.string().max(64),
+  score: z.number(),
+  /** The tier the score fell in, by its key; null when the round was not rated. */
+  tier: z.string().max(32).nullable(),
+  /** How long the round ran, in seconds. */
+  seconds: z.number().min(0),
+  moves: z.int().min(0),
+  /** True when the round was dealt on the draft's numbers, false on the shipped ones. */
+  tuned: z.boolean(),
+});
+export type RoundSummary = z.infer<typeof RoundSummarySchema>;
+
+/** A message to the agent: the owner's words, the model to run, and what the page knows that the service does not. */
+export const SendChatSchema = z.object({
+  text: z.string().trim().min(1).max(8000),
+  model: ChatModelSchema,
+  /** The last few rounds played, oldest first. */
+  rounds: z.array(RoundSummarySchema).max(8),
+  /** What the current build refuses of the draft's numbers, a line each: the service imports no engine and cannot tell. */
+  refusals: z.array(z.string().max(300)).max(16),
+});
+export type SendChat = z.infer<typeof SendChatSchema>;
+
+const item = <K extends string, D extends z.ZodRawShape>(kind: K, data: D) => z.object({ id: z.int(), turn: z.int(), kind: z.literal(kind), at: z.iso.datetime(), ...data });
+
+/**
+ * One line of a draft's chat, in order (ADR 0047). `user`: the owner's message, or one sent while
+ * a turn ran to steer it. `reply`: the agent's words, shown whole and never through the message
+ * table. `step`: one thing it did, a line, with the output or diff behind it. `ask`: a write
+ * outside the puzzle's files that the service refused, for the owner to allow or not. `turn`: how
+ * a turn ended, with its commit, what it cost, and whether it was reverted since.
+ */
+export const ChatItemSchema = z.discriminatedUnion("kind", [
+  item("user", { text: z.string(), model: ChatModelSchema, steer: z.boolean() }),
+  item("reply", { text: z.string() }),
+  item("step", { tool: z.string(), summary: z.string(), detail: z.string().nullable(), failed: z.boolean() }),
+  item("ask", { path: z.string(), state: z.enum(["pending", "allowed", "refused"]) }),
+  item("turn", {
+    status: z.enum(["done", "stopped", "failed", "capped"]),
+    /** The commit the turn's edits made in the draft's worktree; null when it edited nothing. */
+    commit: z.string().nullable(),
+    costUsd: z.number(),
+    reverted: z.boolean(),
+  }),
+]);
+export type ChatItem = z.infer<typeof ChatItemSchema>;
+
+/** A draft's chat as the page reads it: the items after the one it last saw, whether a turn is running, and the money. */
+export const ChatStateSchema = z.object({
+  items: z.array(ChatItemSchema),
+  running: z.boolean(),
+  /** What this draft's chat has cost so far. */
+  spentUsd: z.number(),
+  /** The one cap all drafts share, and what has been spent against it. */
+  cap: z.object({ spentUsd: z.number(), capUsd: z.number() }),
+  /** The draft as the service now holds it: the agent's tool moves its numbers, and the page follows. */
+  draft: DraftSchema,
+});
+export type ChatState = z.infer<typeof ChatStateSchema>;
+
+export const ChatRevertSchema = z.object({ turn: z.int().min(1) });
+export const ChatAllowSchema = z.object({ item: z.int(), allow: z.boolean() });
+
 /** Who the service takes the caller for. `signIn` says whether it has GitHub keys at all; `dev` that it offers a sign-in with no GitHub, off production; `save` that it can Save. */
 export const StudioMeSchema = z.object({
   login: z.string().nullable(),
@@ -120,9 +189,11 @@ export const StudioMeSchema = z.object({
   dev: z.boolean(),
   /** Whether this service can Save: it has a clone and a GitHub App. Defaulted for a service older than the site. */
   save: z.boolean().default(false),
+  /** Whether this service can run the chat: Save, a model key, a cap, and a user of its own for the agent. Defaulted likewise. */
+  chat: z.boolean().default(false),
 });
 export type StudioMe = z.infer<typeof StudioMeSchema>;
 
-export const StudioErrorCodeSchema = z.enum(["not_found", "withdrawn", "unauthorized", "forbidden", "bad_request", "conflict", "unavailable", "internal"]);
+export const StudioErrorCodeSchema = z.enum(["not_found", "withdrawn", "unauthorized", "forbidden", "bad_request", "conflict", "capped", "unavailable", "internal"]);
 export type StudioErrorCode = z.infer<typeof StudioErrorCodeSchema>;
 export const StudioErrorSchema = z.object({ error: StudioErrorCodeSchema });

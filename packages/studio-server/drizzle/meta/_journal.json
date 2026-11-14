@@ -22,6 +22,13 @@
       "when": 1794659791157,
       "tag": "0002_zippy_glorian",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794680683622,
+      "tag": "0003_complex_deathbird",
+      "breakpoints": true
     }
   ]
 }

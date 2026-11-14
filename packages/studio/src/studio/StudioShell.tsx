@@ -2,12 +2,14 @@ import { t } from "@openseas/boards";
 import { PlayShell } from "../play/PlayShell.jsx";
 import type { ShellProps } from "../practice/PracticeShell.jsx";
 import { Link } from "../router.jsx";
+import { ChatPanel } from "../service/ChatPanel.jsx";
 import { TuningPanel } from "../tuning/TuningPanel.jsx";
 
 /**
  * A puzzle's studio page (DESIGN.md 3.14), laid out for a desktop: the board in the middle at a
- * phone's proportions, exactly as `/play` draws it, and the tuning panel to one side. The other
- * side is kept for the chat. A phone never sees this: it gets the puzzle alone (App.tsx).
+ * phone's proportions, exactly as `/play` draws it, the tuning panel to one side and the chat to
+ * the other (ADR 0047), for the signed-in owner. A phone never sees this: it gets the puzzle alone
+ * (App.tsx).
  */
 export function StudioShell(p: ShellProps) {
   return (
@@ -27,6 +29,9 @@ export function StudioShell(p: ShellProps) {
       <div className="studio-stage">
         <PlayShell {...p} />
       </div>
+      <aside className="studio-rest">
+        <ChatPanel />
+      </aside>
     </main>
   );
 }

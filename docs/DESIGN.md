@@ -625,7 +625,7 @@ card and in the details sheet; a withdrawn link, an unknown one and an unreachab
 say which, and deal nothing. Anyone can read a link; only an allowlisted GitHub login can make
 or withdraw one. Without the service the studio is as it was. That completes the shell.
 
-Chat and Save, M9's second step, is built in four parts; the first two are done. **Drafts are kept by
+Chat and Save, M9's second step, is built in four parts; the first three are done. **Drafts are kept by
 the service** (ADR 0045): one a puzzle for each owner, addressed by an id, holding the numbers and
 the pinned seed. On a bare address the signed-in owner's page opens on the stored draft, saves
 every change to it and leaves the address bare; the first change opens the draft. On an address
@@ -648,9 +648,23 @@ asked, never by itself. No agent runs yet, so the checklist for a changed puzzle
 and the pull request stays a draft that says so. The home grid's mark says when a draft has a
 pull request. A service with no volume or no App keeps drafts and offers no Save.
 
-Still to come: the chat, and Save's finish. The live build of a draft's worktree (ADR 0042
-decision 7) and the asset panels are not part of this step; until the first exists, a change to
-code is seen on its pull request's preview.
+**The chat** (ADR 0047). Beside the board, for the signed-in owner: an agent on the draft's
+worktree, with `CLAUDE.md` and the three puzzle skills read from it. A message carries the model
+picked, the draft's numbers, what the build refuses of them, and a line for each of the last five
+rounds played. Asked for a number, the agent uses a tool that moves the draft's numbers, and the
+controls and board follow. Its replies are shown whole as written, its work as a line a step that
+opens to the output. The service holds it to the puzzle's own files: a write elsewhere is refused
+and shown to the owner with a button that allows that path for the draft, and whatever a command
+wrote outside them is put back when the turn ends. Each turn is a commit on the draft's branch
+and can be reverted; a message sent meanwhile steers the turn; Stop ends it where it stands. The
+agent runs as a unix user of its own with none of the service's secrets, reaches a model only
+through the service, and is stopped mid-turn when the one spend cap all drafts share is reached.
+Each draft shows what it has spent beside that cap.
+
+Still to come: Save's finish. The live build of a draft's worktree (ADR 0042 decision 7) and the
+asset panels are not part of this step. Until the first exists the board runs the deployed build
+with the draft's numbers and a change to code is seen on its pull request's preview; the agent
+says so when it edits code.
 
 The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
 agent reads:
@@ -716,7 +730,8 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   path with a click.
 - Its replies are shown whole, its work as one line a step that opens to the diff or the output.
   There is a stop button, and a message sent while it works steers it. The draft's cost so far
-  sits by the model picker, against a cap.
+  sits at the top of the chat, with what all drafts have spent against the one cap they share
+  (ADR 0047); a turn that reaches the cap is stopped where it stands.
 
 **Drafts and reset.** One draft a puzzle, kept by the studio service so it follows the owner from
 machine to machine: numbers, picks, code changes, chat. Four ways back: one control to its
@@ -763,7 +778,7 @@ pnpm monorepo. Packages:
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
 | `studio` | The puzzle studio (sections 3.11 and 3.14), once the harness: a page a puzzle with the shared board and the tuning panel built from content and the wire schema; each puzzle alone at `/play/<puzzle>` on the numbers its link carries; every round local and replayed from its seed; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
-| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers: a clone on a volume, a worktree a draft, and a draft pull request from a GitHub App (ADR 0046). All in a Postgres schema of its own. The agent comes with the rest of M9's second step | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
+| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers: a clone on a volume, a worktree a draft, and a draft pull request from a GitHub App (ADR 0046); and the chat: the Claude Agent SDK on the draft's worktree, as a unix user of its own, behind the service's own proxy to the model (ADR 0047). All in a Postgres schema of its own | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
 | `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the harness, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
 In M9 the harness became the studio (3.14, ADR 0042): `harness` was renamed `studio`, and
