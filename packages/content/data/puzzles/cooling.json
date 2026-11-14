@@ -2,7 +2,7 @@
   "config": {
     "width": 6,
     "height": 12,
-    "pieceKinds": 7,
+    "pieceKinds": 3,
     "specialChancePerMille": {
       "charge": 40,
       "magnet": 30,
