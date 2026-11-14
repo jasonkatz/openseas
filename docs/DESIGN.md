@@ -75,13 +75,16 @@ puzzle has undo. How each was built, how it scores and how it is played is in it
 [`puzzles/`](./puzzles/README.md), one file a puzzle, which changes in the same commit as its rules or
 numbers.
 
-**Cooling.** A 6 wide by 12 tall board of pieces. Swap two horizontally adjacent pieces. Matches of
-3 or more clear; the pieces below rise and new pieces enter from the bottom. Combos and
-multi-clears score higher. The heat line rises as
-the ship runs hot. Special pieces (equivalents of the original's crab, pufferfish, and
-jellyfish, renamed) ship in v1 because they define the skill ceiling. QoL: match preview on hover
-or touch-hold, a combo meter, tap-then-tap or drag-swap on touch; on desktop a click swaps the
-hovered pair outright.
+**Cooling.** Vent the ship's heat on a 6 wide by 12 tall board of pieces.
+
+- **Core:** swap two horizontally adjacent pieces. Matches of 3 or more clear; the pieces below
+  rise and new pieces enter from the bottom.
+- **Scoring:** combos and multi-clears score higher.
+- **Pressure:** the heat line rises as the ship runs hot.
+- **Special pieces:** equivalents of the original's crab, pufferfish, and jellyfish, renamed, ship
+  in v1 because they define the skill ceiling.
+- **QoL:** match preview on hover or touch-hold, a combo meter, tap-then-tap or drag-swap on
+  touch; on desktop a click swaps the hovered pair outright.
 
 Design as built: [`puzzles/cooling.md`](./puzzles/cooling.md).
 
