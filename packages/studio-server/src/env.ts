@@ -47,6 +47,21 @@ const EnvSchema = z.object({
   /** Who a commit made by Save is by. The App's own bot address makes GitHub show its avatar. */
   STUDIO_GIT_NAME: z.string().min(1).default("openseas studio"),
   STUDIO_GIT_EMAIL: z.string().min(3).default("studio@openseas.online"),
+  /**
+   * The chat (ADR 0047). It needs Save's variables, the model key and the cap; with any missing
+   * the service keeps drafts and Save and says it has no chat.
+   */
+  /** The key the chat's turns are paid with. It stays in this process: the agent reaches a model only through the service's own proxy. */
+  ANTHROPIC_API_KEY: Optional,
+  /** Where the model's API is, when that is not Anthropic's own address. */
+  STUDIO_MODEL_UPSTREAM: Optional,
+  /** US dollars: all the chat may spend, every draft together. A turn that reaches it is stopped where it stands. Raise it to carry on. */
+  STUDIO_SPEND_CAP_USD: z.coerce.number().positive().optional(),
+  /** The unix user the agent's processes run as. Made at startup if it is not there, which takes root. */
+  STUDIO_AGENT_USER: z.string().regex(/^[a-z_][a-z0-9_-]*$/).default("studio-agent"),
+  /** The two keys the generation scripts read (ADR 0040): the only credentials in the agent's shell. */
+  OPENAI_API_KEY: Optional,
+  ELEVENLABS_API_KEY: Optional,
   /** Set when the studio site and this service are on different sites, so the cookie must be SameSite=None. */
   CROSS_SITE_COOKIES: Bool,
   /** Off production only: `/auth/dev` signs this login in with no GitHub, for local work and the smoke. */

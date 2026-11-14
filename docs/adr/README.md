@@ -52,3 +52,4 @@ that supersedes it.
 | [0044](./0044-the-studio-lives-at-studio-openseas-online.md) | The studio lives at studio.openseas.online |
 | [0045](./0045-drafts-are-kept-by-the-studio-service.md) | Drafts are kept by the studio's service, and an address's numbers are never saved unasked |
 | [0046](./0046-save-writes-a-drafts-numbers-to-a-pull-request.md) | Save writes a draft's numbers to a branch and a draft pull request, with no agent |
+| [0047](./0047-the-chat-runs-an-agent-the-service-holds-to-the-puzzle.md) | The chat runs an agent as its own user, behind the service's proxy, under one spend cap |

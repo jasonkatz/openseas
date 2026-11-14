@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { CreateDraftSchema, CreateTesterLinkSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, SaveRequestSchema, TesterLinkIdSchema, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
+import { ChatAllowSchema, ChatRevertSchema, CreateDraftSchema, CreateTesterLinkSchema, SendChatSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, SaveRequestSchema, TesterLinkIdSchema, type ChatState, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
+import type { Chat } from "./chat/chat.js";
 import type { Db } from "./db/index.js";
 import { createDraft, discardDraft, draftRow, draftRows, saveDraft, toDraft } from "./drafts.js";
 import type { Env } from "./env.js";
@@ -17,6 +18,8 @@ export interface HttpDeps {
   github: GitHub | null;
   /** Null when the service has no clone or no GitHub App: drafts are kept, and none can be saved. */
   saver: Saver | null;
+  /** Null when the service has no model key, no cap, or no user of its own for the agent: there is no chat. */
+  chat: Chat | null;
   log: Logger;
 }
 
@@ -69,12 +72,17 @@ async function readJson(req: IncomingMessage, limit = 32 * 1024): Promise<unknow
  *   DELETE /drafts/:id        discard it (owner), its pull request and branch with it
  *   POST   /drafts/:id/save   Save (owner): a tester link at once, then its branch and draft pull request
  *   POST   /drafts/:id/update merge the base branch into its branch (owner), when asked
+ *   GET    /drafts/:id/chat?after=   its chat since an item, and whether a turn is running (owner)
+ *   POST   /drafts/:id/chat          a message to the agent (owner): a turn, or a steer of the one running
+ *   POST   /drafts/:id/chat/stop     stop the turn where it stands (owner)
+ *   POST   /drafts/:id/chat/revert   undo one turn's edits with a new commit (owner)
+ *   POST   /drafts/:id/chat/allow    answer a refused write: allow the path for this draft, or not (owner)
  *
  * An owner is a signed-in GitHub login on the allowlist. Whatever changes something must also
  * come from one of the studio site's own origins: the cookie alone is not enough.
  */
 export function createHttpHandler(deps: HttpDeps) {
-  const { env, db, github, saver, log } = deps;
+  const { env, db, github, saver, chat, log } = deps;
   const secure = env.NODE_ENV === "production";
   const cookieFor = (name: string, value: string, maxAgeSeconds: number): string => cookie(name, value, { maxAgeSeconds, secure, crossSite: env.CROSS_SITE_COOKIES });
   const callbackUrl = `${env.STUDIO_PUBLIC_URL.replace(/\/$/, "")}/auth/callback`;
@@ -105,7 +113,7 @@ export function createHttpHandler(deps: HttpDeps) {
     const origin = req.headers.origin;
     const fromStudio = origin !== undefined && env.STUDIO_ORIGINS.includes(origin);
     const linkId = /^\/links\/([^/]+)$/.exec(path)?.[1];
-    const draftPath = /^\/drafts\/([^/]+)(?:\/(save|update))?$/.exec(path);
+    const draftPath = /^\/drafts\/([^/]+)(?:\/(save|update|chat|chat\/stop|chat\/revert|chat\/allow))?$/.exec(path);
     const draftId = draftPath?.[1];
     const draftAct = draftPath?.[2];
 
@@ -130,7 +138,7 @@ export function createHttpHandler(deps: HttpDeps) {
       if (path === "/health" && req.method === "GET") return json(res, 200, { ok: true, commit: env.COMMIT_SHA });
 
       if (path === "/auth/me" && req.method === "GET") {
-        const me: StudioMe = { login: owner(req), signIn: github !== null, dev: env.STUDIO_DEV_LOGIN !== null, save: saver !== null };
+        const me: StudioMe = { login: owner(req), signIn: github !== null, dev: env.STUDIO_DEV_LOGIN !== null, save: saver !== null, chat: chat !== null };
         return json(res, 200, me);
       }
       if (path === "/auth/github" && req.method === "GET") {
@@ -201,6 +209,20 @@ export function createHttpHandler(deps: HttpDeps) {
         if (!puzzle.success) return fail(res, 400, "bad_request");
         return json(res, 200, { links: await listLinks(db, puzzle.data) });
       }
+      if (draftId !== undefined && draftAct === "chat" && req.method === "GET") {
+        if (!chat) return fail(res, 503, "unavailable");
+        const row = DraftIdSchema.safeParse(draftId).success ? await draftRow(db, login, draftId) : null;
+        if (!row) return fail(res, 404, "not_found");
+        const after = Number(url.searchParams.get("after") ?? 0);
+        const state: ChatState = {
+          items: await chat.items(row.id, Number.isInteger(after) && after > 0 ? after : 0),
+          running: chat.running(row.id),
+          spentUsd: row.spentUsd,
+          cap: { spentUsd: await chat.spent(), capUsd: chat.capUsd },
+          draft: toDraft(row),
+        };
+        return json(res, 200, state);
+      }
       if (!fromStudio) return fail(res, 403, "forbidden");
       if (path === "/links" && req.method === "POST") {
         const input = CreateTesterLinkSchema.safeParse(await body());
@@ -225,11 +247,39 @@ export function createHttpHandler(deps: HttpDeps) {
         return json(res, 201, draft);
       }
       if (draftId !== undefined && !DraftIdSchema.safeParse(draftId).success) return fail(res, 404, "not_found");
+      if (draftId !== undefined && draftAct?.startsWith("chat")) {
+        if (req.method !== "POST") return fail(res, 404, "not_found");
+        if (!chat) return fail(res, 503, "unavailable");
+        const row = await draftRow(db, login, draftId);
+        if (!row) return fail(res, 404, "not_found");
+        if (draftAct === "chat/stop") {
+          chat.stop(row.id);
+          return json(res, 202, { ok: true });
+        }
+        if (draftAct === "chat/revert") {
+          const input = ChatRevertSchema.safeParse(await body());
+          if (!input.success) return fail(res, 400, "bad_request");
+          return (await chat.revert(row, input.data.turn)) ? json(res, 200, { ok: true }) : fail(res, 409, "conflict");
+        }
+        if (draftAct === "chat/allow") {
+          const input = ChatAllowSchema.safeParse(await body());
+          if (!input.success) return fail(res, 400, "bad_request");
+          return (await chat.answer(row, input.data.item, input.data.allow)) ? json(res, 200, { ok: true }) : fail(res, 404, "not_found");
+        }
+        const input = SendChatSchema.safeParse(await body());
+        if (!input.success) return fail(res, 400, "bad_request");
+        // The branch is one writer's at a time: a Save being written and a turn do not share it.
+        if (row.saveState === "saving") return fail(res, 409, "conflict");
+        if (!chat.running(row.id) && (await chat.spent()) >= chat.capUsd) return fail(res, 409, "capped");
+        await chat.send(row, input.data);
+        return json(res, 202, { ok: true });
+      }
       if (draftId !== undefined && draftAct !== undefined) {
         if (req.method !== "POST") return fail(res, 404, "not_found");
         if (!saver) return fail(res, 503, "unavailable");
         const row = await draftRow(db, login, draftId);
         if (!row) return fail(res, 404, "not_found");
+        if (chat?.running(row.id)) return fail(res, 409, "conflict");
         // One at a time a draft: a second Save waits for the page to see how the first went.
         if (row.saveState === "saving") return fail(res, 409, "conflict");
         if (draftAct === "update") {
@@ -254,6 +304,8 @@ export function createHttpHandler(deps: HttpDeps) {
       }
       if (draftId !== undefined && req.method === "DELETE") {
         const row = await draftRow(db, login, draftId);
+        // A turn is stopped before its draft is discarded: the page offers no discard while one runs.
+        if (row && chat?.running(row.id)) return fail(res, 409, "conflict");
         if (!row || !(await discardDraft(db, login, draftId))) return fail(res, 404, "not_found");
         if (saver) await saver.discard(row);
         log.info({ id: draftId, login }, "draft discarded");

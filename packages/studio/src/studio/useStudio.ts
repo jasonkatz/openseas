@@ -144,6 +144,18 @@ export function useStudio<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: Practice
   const roundSeed = api.phase === "idle" ? null : (api.round?.seed ?? null);
   useEffect(() => setReport({ seed: roundSeed, replayMismatch }), [setReport, roundSeed, replayMismatch]);
 
+  // Every finished round is remembered in a line: what a message to the agent carries about how play went (ADR 0042 decision 5).
+  const { noteRound } = frame;
+  const noted = useRef<unknown>(null);
+  useEffect(() => {
+    const { round, outcome } = api;
+    if (api.phase !== "result" || !round || !outcome || noted.current === round) return;
+    noted.current = round;
+    noteRound({ seed: round.seed, score: outcome.score, tier: outcome.performance.tier, seconds: Math.max(0, api.roundSeconds - api.timeLeft), moves: outcome.moves, tuned: !comparing });
+    // The round's own fields are read once, as it ends.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api.phase, api.round, api.outcome, noteRound]);
+
   // The round's clock, for a script (see RoundClockHandle).
   const clock = api.clock;
   const tickMs = puzzle.ticked?.tickMs ?? null;

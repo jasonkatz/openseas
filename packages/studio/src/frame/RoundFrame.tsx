@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-import type { TesterLink } from "@openseas/protocol";
+import type { Draft, RoundSummary, TesterLink } from "@openseas/protocol";
 import type { HarnessPuzzle } from "../puzzles.js";
 import { EMPTY_SCENARIO, formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
 import { SERVICE_URL } from "../service/client.js";
@@ -22,6 +22,9 @@ export interface RoundReport {
   readonly replayMismatch: boolean;
 }
 
+/** How many finished rounds a message to the agent carries. */
+const ROUNDS_KEPT = 5;
+
 const NO_ROUND: RoundReport = { seed: null, replayMismatch: false };
 
 export interface Frame {
@@ -40,6 +43,13 @@ export interface Frame {
   saveDraft(name: string): Promise<TesterLink | null>;
   /** Merge the base branch into the draft's branch, when the owner asks. */
   updateDraft(): Promise<boolean>;
+  /** The stored draft, opened now if there is none: what the chat is attached to. */
+  ensureDraft(): Promise<Draft | null>;
+  /** Follow the draft as the service now holds it: the agent's tool moves its numbers. */
+  adoptDraft(draft: Draft): void;
+  /** The last few rounds finished on this page, oldest first: what a message to the agent carries (ADR 0042 decision 5). */
+  readonly rounds: readonly RoundSummary[];
+  noteRound(round: RoundSummary): void;
   /** The content file's numbers. */
   readonly shipped: Numbers<unknown>;
   /** Content with the scenario's numbers laid over it: the draft. */
@@ -98,8 +108,10 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   }, [link]);
   // Only the owner's page, on a desktop, asks the service anything: `/play` reads a tester link and no more.
   const stored = useStoredDraft({ enabled: mode === "studio" && !link && SERVICE_URL !== "", puzzle, scenario, apply });
-  const { store, bare, keep: keepDraft, open: openDraft, discard: discardDraft, save: saveDraft, update: updateDraft } = stored;
+  const { store, bare, keep: keepDraft, open: openDraft, discard: discardDraft, save: saveDraft, update: updateDraft, ensure: ensureDraft, adopt: adoptDraft } = stored;
   const setScenario = useCallback((next: Scenario) => apply(next, bare()), [apply, bare]);
+  const [rounds, setRounds] = useState<readonly RoundSummary[]>([]);
+  const noteRound = useCallback((round: RoundSummary) => setRounds((all) => [...all, round].slice(-ROUNDS_KEPT)), []);
   const setReport = useCallback((next: RoundReport) => {
     setReportState((prev) => (prev.seed === next.seed && prev.replayMismatch === next.replayMismatch ? prev : next));
   }, []);
@@ -118,8 +130,8 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const changed = useMemo(() => (refused.length ? [] : changes(puzzle, tuned)), [puzzle, tuned, refused]);
   const numbers = comparing ? shipped : tuned;
   const value = useMemo<Frame>(
-    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft }),
-    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, comparing, report, setReport, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft],
+    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound }),
+    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, comparing, report, setReport, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

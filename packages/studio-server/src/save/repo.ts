@@ -45,6 +45,14 @@ export interface Repo {
   push(id: string, branch: string): Promise<void>;
   /** Merge the base branch into the draft's. False, and nothing changed, when they conflict. */
   mergeBase(id: string): Promise<boolean>;
+  /** Every path that differs from the last commit in the draft's worktree, new files included, as the repository spells them. */
+  changed(id: string): Promise<string[]>;
+  /** Put these paths back as the last commit has them; a path that commit lacks is deleted. */
+  restore(id: string, paths: string[]): Promise<void>;
+  /** Undo one commit with a new commit. False, and nothing changed, when it no longer comes out cleanly. */
+  revert(id: string, sha: string, message: string): Promise<boolean>;
+  /** Hand every file of the draft's worktree to a unix user: the agent's, before a turn of the chat. */
+  own(id: string, uid: number, gid: number): Promise<void>;
   /** Remove the draft's worktree and branch, and the branch on the remote when asked. */
   remove(id: string, branch: string, remote: boolean): Promise<void>;
 }
@@ -96,7 +104,16 @@ export function createRepo(o: RepoOptions): Repo {
       GIT_COMMITTER_NAME: o.author.name,
       GIT_COMMITTER_EMAIL: o.author.email,
     };
-    return { ...base, ...(network ? tokenEnv(o.url, await o.token()) : {}) };
+    // A worktree's files may be the agent's user's (chat): this clone is the service's own, whoever owns the files in it.
+    const config: Array<[string, string]> = [["safe.directory", "*"]];
+    const auth = network ? tokenEnv(o.url, await o.token()) : {};
+    if (auth.GIT_CONFIG_KEY_0 && auth.GIT_CONFIG_VALUE_0) config.push([auth.GIT_CONFIG_KEY_0, auth.GIT_CONFIG_VALUE_0]);
+    base.GIT_CONFIG_COUNT = String(config.length);
+    config.forEach(([key, value], i) => {
+      base[`GIT_CONFIG_KEY_${i}`] = key;
+      base[`GIT_CONFIG_VALUE_${i}`] = value;
+    });
+    return base;
   }
 
   async function git(cwd: string, args: string[], opts: { network?: boolean; ok?: number[] } = {}): Promise<{ code: number; out: string }> {
@@ -184,6 +201,48 @@ export function createRepo(o: RepoOptions): Repo {
         await git(tree(id), ["merge", "--abort"], { ok: [128] });
         return false;
       }),
+
+    changed: (id) =>
+      serial(async () => {
+        // -z: one path an entry, spelled as it is, whatever is in its name. A rename is two paths, and both changed.
+        const out = (await git(tree(id), ["status", "--porcelain", "-z", "--untracked-files=all"])).out;
+        const paths: string[] = [];
+        const entries = out.split("\0");
+        for (let i = 0; i < entries.length; i++) {
+          const entry = entries[i]!;
+          if (entry.length < 4) continue;
+          paths.push(entry.slice(3));
+          if (entry[0] === "R" || entry[0] === "C") paths.push(entries[++i]!);
+        }
+        return [...new Set(paths)];
+      }),
+
+    restore: (id, paths) =>
+      serial(async () => {
+        if (paths.length === 0) return;
+        await git(tree(id), ["reset", "--quiet", "HEAD", "--", ...paths], { ok: [1] });
+        const tracked = new Set((await git(tree(id), ["ls-tree", "-r", "-z", "--name-only", "HEAD", "--", ...paths])).out.split("\0").filter(Boolean));
+        const known = paths.filter((p) => tracked.has(p));
+        if (known.length) await git(tree(id), ["checkout", "--quiet", "HEAD", "--", ...known]);
+        const unknown = paths.filter((p) => !tracked.has(p));
+        if (unknown.length) await git(tree(id), ["clean", "--quiet", "--force", "--", ...unknown]);
+      }),
+
+    revert: (id, sha, message) =>
+      serial(async () => {
+        const done = await git(tree(id), ["revert", "--no-edit", "--no-commit", sha], { ok: [1] });
+        if (done.code !== 0) {
+          await git(tree(id), ["revert", "--abort"], { ok: [1, 128] });
+          return false;
+        }
+        await git(tree(id), ["commit", "--quiet", "--no-verify", "--allow-empty", "-m", message]);
+        return true;
+      }),
+
+    own: async (id, uid, gid) => {
+      // The files, not the clone: `.git` here is a pointer to the service's clone, which stays the service's.
+      await new Promise<void>((resolve, reject) => execFile("chown", ["-R", `${uid}:${gid}`, tree(id)], (err) => (err ? reject(err) : resolve())));
+    },
 
     remove: (id, branch, remote) =>
       serial(async () => {
