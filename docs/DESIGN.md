@@ -625,7 +625,7 @@ card and in the details sheet; a withdrawn link, an unknown one and an unreachab
 say which, and deal nothing. Anyone can read a link; only an allowlisted GitHub login can make
 or withdraw one. Without the service the studio is as it was. That completes the shell.
 
-Chat and Save, M9's second step, is built in four parts; the first is done. **Drafts are kept by
+Chat and Save, M9's second step, is built in four parts; the first two are done. **Drafts are kept by
 the service** (ADR 0045): one a puzzle for each owner, addressed by an id, holding the numbers and
 the pinned seed. On a bare address the signed-in owner's page opens on the stored draft, saves
 every change to it and leaves the address bare; the first change opens the draft. On an address
@@ -634,8 +634,23 @@ saves nothing until the owner picks one: keep them as the draft, or open the sto
 names the revision it was made from, so a second page cannot overwrite the first unseen, and
 anything the service fails at leaves the numbers in the address. Clearing all numbers keeps the
 draft; discarding it asks first. Signed out or with the service down, the address is the draft as
-before. Still to come: Save for numbers, the chat, and Save's finish. The live build of a draft's
-worktree and the asset panels are not part of this step.
+before.
+
+**Save, for numbers** (ADR 0046). The service keeps a clone of the repository on a volume and,
+for each draft that has been saved, a worktree and a branch. Save makes a tester link at once;
+then the service writes the draft's numbers into the puzzle's content file where they stand,
+commits, pushes, and opens a draft pull request from the studio's GitHub App with the owner named
+in its body. The panel shows the link, then the pull request and whether it holds what is on the
+page. A later Save adds commits to the same pull request, and a number put back in the studio is
+put back in it. When the pull request is merged or closed the draft clears; discarding the draft
+closes it. When `main` has moved under a saved draft the panel says so and merges it in when
+asked, never by itself. No agent runs yet, so the checklist for a changed puzzle is not worked
+and the pull request stays a draft that says so. The home grid's mark says when a draft has a
+pull request. A service with no volume or no App keeps drafts and offers no Save.
+
+Still to come: the chat, and Save's finish. The live build of a draft's worktree (ADR 0042
+decision 7) and the asset panels are not part of this step; until the first exists, a change to
+code is seen on its pull request's preview.
 
 The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
 agent reads:
@@ -748,7 +763,7 @@ pnpm monorepo. Packages:
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
 | `studio` | The puzzle studio (sections 3.11 and 3.14), once the harness: a page a puzzle with the shared board and the tuning panel built from content and the wire schema; each puzzle alone at `/play/<puzzle>` on the numbers its link carries; every round local and replayed from its seed; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
-| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in and the owner's drafts (ADR 0045), in a Postgres schema of its own. The worktrees, the agent and Save come with the rest of M9's second step | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
+| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers: a clone on a volume, a worktree a draft, and a draft pull request from a GitHub App (ADR 0046). All in a Postgres schema of its own. The agent comes with the rest of M9's second step | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
 | `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the harness, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
 In M9 the harness became the studio (3.14, ADR 0042): `harness` was renamed `studio`, and

@@ -198,16 +198,16 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
 
 const PROTOTYPES = new Set<PuzzleId>(PROTOTYPE_PUZZLE_IDS);
 
-/** The puzzles the signed-in owner has a draft open on. Empty signed out, and when the service does not answer. */
-function useOpenDrafts(): ReadonlySet<PuzzleId> {
+/** The puzzles the signed-in owner has a draft open on, and whether each has a pull request. Empty signed out, and when the service does not answer. */
+function useOpenDrafts(): ReadonlyMap<PuzzleId, { pull: boolean }> {
   const me = useMe();
   const login = me !== "loading" && me !== null ? me.login : null;
-  const [open, setOpen] = useState<ReadonlySet<PuzzleId>>(new Set());
+  const [open, setOpen] = useState<ReadonlyMap<PuzzleId, { pull: boolean }>>(new Map());
   useEffect(() => {
-    setOpen(new Set());
+    setOpen(new Map());
     if (!login) return;
     let alive = true;
-    void listDrafts().then((list) => alive && list && setOpen(new Set(list.map((d) => d.puzzle))));
+    void listDrafts().then((list) => alive && list && setOpen(new Map(list.map((d) => [d.puzzle, { pull: d.save.pull !== null }]))));
     return () => {
       alive = false;
     };
@@ -219,7 +219,8 @@ function useOpenDrafts(): ReadonlySet<PuzzleId> {
  * The studio's home (DESIGN.md 3.14): a grid of every puzzle, the game's and the prototypes
  * alike, each with a picture of its board as this build draws it (home/thumbs) over the glyph it
  * shows until that picture is taken. A tile opens the puzzle's studio page; its second link opens
- * the puzzle alone. A puzzle the signed-in owner has a draft open on carries a mark.
+ * the puzzle alone. A puzzle the signed-in owner has a draft open on carries a mark, which says
+ * so when the draft has a pull request.
  */
 export function Home() {
   const ids: readonly PuzzleId[] = [...CORE_PUZZLE_IDS, ...PROTOTYPE_PUZZLE_IDS];
@@ -243,8 +244,8 @@ export function Home() {
                   {thumbs[id] ? <img src={thumbs[id]} alt="" data-testid={`thumb-${id}`} /> : GLYPHS[id]}
                 </span>
                 {drafts.has(id) && (
-                  <span className="studio-mark" data-testid={`draft-mark-${id}`}>
-                    {t("harness.home.draft")}
+                  <span className="studio-mark" data-testid={`draft-mark-${id}`} data-pull={drafts.get(id)?.pull ? "1" : "0"}>
+                    {drafts.get(id)?.pull ? t("harness.home.pull") : t("harness.home.draft")}
                   </span>
                 )}
                 {PROTOTYPES.has(id) && <span className="eyebrow">{t("harness.home.prototype")}</span>}

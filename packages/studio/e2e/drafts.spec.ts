@@ -1,93 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
+import { SERVICE, draft, numbers, service } from "./standin.js";
 
 /**
  * Drafts kept by the service (ADR 0045). No service runs under the smoke: these tests answer for
- * it, as e2e/links.spec.ts does, with what the real one answers (packages/studio-server holds it
- * to the same shapes).
+ * it (e2e/standin.ts), as e2e/links.spec.ts does, with what the real one answers
+ * (packages/studio-server holds it to the same shapes).
  */
-const SERVICE = "http://localhost:8090";
-
-interface Numbers {
-  seed: string | null;
-  overrides: Record<string, unknown>;
-  roundSeconds: number | null;
-  paceSeconds: number | null;
-  thresholds: null;
-}
-interface Draft {
-  id: string;
-  puzzle: string;
-  owner: string;
-  numbers: Numbers;
-  revision: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-const numbers = (over: Partial<Numbers> = {}): Numbers => ({ seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, ...over });
-const draft = (over: Partial<Draft> = {}): Draft => ({ id: "draftdraft", puzzle: "cooling", owner: "octo", numbers: numbers({ overrides: { pieceKinds: 5 } }), revision: 3, createdAt: "2026-11-13T12:00:00.000Z", updatedAt: "2026-11-13T12:00:00.000Z", ...over });
-
-interface Service {
-  drafts: Draft[];
-  /** Every request that would change a draft, as `METHOD path`, with its body. */
-  writes: Array<{ call: string; body: unknown }>;
-  /** Every request at all. */
-  calls: string[];
-  /** Set to answer the next saves as the real service would when it cannot or will not take them. */
-  fail: null | "conflict" | "down";
-}
-
-/** A stand-in service: one owner (or nobody), and the drafts the test gives it, kept as the real one keeps them. */
-async function service(page: Page, o: { login: string | null; drafts?: Draft[] }): Promise<Service> {
-  const s: Service = { drafts: [...(o.drafts ?? [])], writes: [], calls: [], fail: null };
-  await page.route(`${SERVICE}/**`, async (route) => {
-    const req = route.request();
-    const url = new URL(req.url());
-    const cors = { "Access-Control-Allow-Origin": req.headers().origin ?? "*", "Access-Control-Allow-Credentials": "true" };
-    const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", headers: cors, body: JSON.stringify(body) });
-    if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { ...cors, "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS" } });
-    s.calls.push(`${req.method()} ${url.pathname}`);
-    if (url.pathname === "/auth/me") return json(200, { login: o.login, signIn: true, dev: false });
-    if (url.pathname === "/auth/sign-out") {
-      o.login = null;
-      return json(200, { ok: true });
-    }
-    if (!o.login) return json(401, { error: "unauthorized" });
-    if (url.pathname === "/links") return json(200, { links: [] });
-    const id = /^\/drafts\/(.+)$/.exec(url.pathname)?.[1];
-    if (url.pathname === "/drafts" && req.method() === "GET") {
-      const puzzle = url.searchParams.get("puzzle");
-      return json(200, { drafts: s.drafts.filter((d) => !puzzle || d.puzzle === puzzle) });
-    }
-    if (url.pathname !== "/drafts" && !id) return json(404, { error: "not_found" });
-    s.writes.push({ call: `${req.method()} ${url.pathname}`, body: req.postDataJSON() as unknown });
-    if (s.fail === "down") return route.abort();
-    if (s.fail === "conflict") return json(409, { error: "conflict" });
-    if (req.method() === "POST") {
-      const body = req.postDataJSON() as { puzzle: string; numbers: Numbers };
-      if (s.drafts.some((d) => d.puzzle === body.puzzle)) return json(409, { error: "conflict" });
-      const made = draft({ id: "newdraft22", puzzle: body.puzzle, numbers: body.numbers, revision: 1 });
-      s.drafts.push(made);
-      return json(201, made);
-    }
-    const found = s.drafts.find((d) => d.id === id);
-    if (!found) return json(404, { error: "not_found" });
-    if (req.method() === "PUT") {
-      const body = req.postDataJSON() as { numbers: Numbers; revision: number };
-      if (body.revision !== found.revision) return json(409, { error: "conflict" });
-      found.numbers = body.numbers;
-      found.revision += 1;
-      return json(200, found);
-    }
-    if (req.method() === "DELETE") {
-      s.drafts = s.drafts.filter((d) => d.id !== id);
-      return json(200, { ok: true });
-    }
-    return json(404, { error: "not_found" });
-  });
-  return s;
-}
-
 const store = (page: Page) => page.getByTestId("draft-store");
 const kinds = (page: Page) => page.getByTestId("input-config.pieceKinds");
 

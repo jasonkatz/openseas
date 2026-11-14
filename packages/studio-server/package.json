@@ -2,7 +2,7 @@
   "name": "@openseas/studio-server",
   "version": "0.1.0",
   "private": true,
-  "description": "The puzzle studio's service (ADR 0042, ADR 0043): tester links, the owner's sign-in and the owner's drafts (ADR 0045). Deals no round and knows nothing of the game's accounts.",
+  "description": "The puzzle studio's service (ADR 0042, ADR 0043): tester links, the owner's sign-in, the owner's drafts (ADR 0045) and Save for a draft's numbers (ADR 0046). Deals no round and knows nothing of the game's accounts.",
   "type": "module",
   "scripts": {
     "dev": "tsx watch --clear-screen=false --env-file-if-exists=../../.env src/index.ts",
