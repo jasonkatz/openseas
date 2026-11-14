@@ -1,4 +1,4 @@
-import { createSign } from "node:crypto";
+import { createPrivateKey, createSign } from "node:crypto";
 
 export type PullState = "open" | "merged" | "closed";
 
@@ -20,10 +20,21 @@ export interface Forge {
 
 const b64 = (v: string | Buffer): string => Buffer.from(v).toString("base64url");
 
-/** A GitHub App's key as an environment variable holds it: the PEM itself, the PEM with `\n` for its line ends, or all of it in base64. */
+/**
+ * A GitHub App's key as an environment variable holds it: the PEM itself, the PEM with `\n` for its
+ * line ends, or all of it in base64, with or without quotes around it. Throws when what it holds is
+ * not a private key, so a bad paste is said at startup and not as a failed clone.
+ */
 export function readPrivateKey(raw: string): string {
-  const text = raw.includes("-----BEGIN") ? raw : Buffer.from(raw, "base64").toString("utf8");
-  return text.replace(/\\n/g, "\n").trim();
+  const bare = raw.trim().replace(/^(["'])([\s\S]*)\1$/, "$2").trim();
+  const text = (bare.includes("-----BEGIN") ? bare : Buffer.from(bare, "base64").toString("utf8")).replace(/\\n/g, "\n").trim();
+  if (!text.includes("-----BEGIN")) throw new Error("GITHUB_APP_PRIVATE_KEY holds no PEM: not the key itself, nor the key in base64");
+  try {
+    createPrivateKey(text);
+  } catch (err) {
+    throw new Error(`GITHUB_APP_PRIVATE_KEY is not a private key: ${(err as Error).message}`);
+  }
+  return text;
 }
 
 /** The short-lived token an App signs to speak as itself (RS256). */

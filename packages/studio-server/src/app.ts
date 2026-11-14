@@ -26,7 +26,15 @@ export interface App {
  */
 function createSaverFor(env: Env, db: Db, log: Logger, forge: Forge | null | undefined): Saver | null {
   if (!env.STUDIO_REPO_DIR || !env.STUDIO_REPO) return null;
-  const app = forge !== undefined ? forge : env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE_KEY ? createGitHubApp({ appId: env.GITHUB_APP_ID, privateKey: readPrivateKey(env.GITHUB_APP_PRIVATE_KEY), repo: env.STUDIO_REPO }) : null;
+  let app: Forge | null = forge ?? null;
+  if (forge === undefined && env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE_KEY) {
+    try {
+      app = createGitHubApp({ appId: env.GITHUB_APP_ID, privateKey: readPrivateKey(env.GITHUB_APP_PRIVATE_KEY), repo: env.STUDIO_REPO });
+    } catch (err) {
+      log.error({ err }, "Save is off: the GitHub App's private key cannot be read");
+      return null;
+    }
+  }
   if (!app) return null;
   try {
     execFileSync("git", ["--version"], { stdio: "ignore" });
