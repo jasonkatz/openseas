@@ -8,6 +8,6 @@
   },
   "deploy": {
     "aptPackages": ["...", "git", "tini"],
-    "startCommand": "cd packages/studio-server && exec tini -- node --import tsx src/index.ts"
+    "startCommand": "cd packages/studio-server && exec tini -s -- node --import tsx src/index.ts"
   }
 }
