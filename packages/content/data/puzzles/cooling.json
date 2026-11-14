@@ -4,19 +4,19 @@
     "height": 12,
     "pieceKinds": 7,
     "specialChancePerMille": {
-      "charge": 12,
-      "magnet": 8,
-      "slag": 10
+      "charge": 40,
+      "magnet": 30,
+      "slag": 25
     },
     "initialHeatRow": 3,
     "minHeatRow": 3,
-    "heatRisePerMoves": 6,
-    "heatDropPerPoints": 40,
+    "heatRisePerMoves": 3,
+    "heatDropPerPoints": 30,
     "maxMoves": 10000,
     "shipHeat": true,
-    "cascadeMultipliers": [1, 2, 3],
-    "streakStepPercent": 10,
-    "streakMaxPercent": 150,
+    "cascadeMultipliers": [1, 3, 6, 10],
+    "streakStepPercent": 25,
+    "streakMaxPercent": 300,
     "streakGrace": 1
   },
   "roundSeconds": 150,
