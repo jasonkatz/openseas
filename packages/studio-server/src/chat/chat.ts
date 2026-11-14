@@ -35,6 +35,8 @@ export interface Chat {
   send(row: DraftRow, input: SendChat): Promise<void>;
   /** Stop the draft's turn where it stands. What it had edited is still committed, so it can be reverted. */
   stop(draftId: string): void;
+  /** At shutdown: stop every running turn where it stands, as `stop` does one. */
+  stopAll(): void;
   /** Undo one turn's edits with a new commit. False when the turn made none, was reverted already, or no longer comes out cleanly. */
   revert(row: DraftRow, turn: number): Promise<boolean>;
   /** The owner's answer to a refused write: allow that path for this draft, or not. False when there is no such question. */
@@ -269,6 +271,12 @@ export function createChat(o: ChatOptions): Chat {
       if (!run) return;
       run.stopped = true;
       run.turn.stop();
+    },
+    stopAll() {
+      for (const run of live.values()) {
+        run.stopped = true;
+        run.turn.stop();
+      }
     },
     async revert(row, turn) {
       if (live.has(row.id)) return false;

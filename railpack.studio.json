@@ -7,7 +7,7 @@
     }
   },
   "deploy": {
-    "aptPackages": ["...", "git"],
-    "startCommand": "pnpm --filter @openseas/studio-server start"
+    "aptPackages": ["...", "git", "tini"],
+    "startCommand": "cd packages/studio-server && exec tini -- node --import tsx src/index.ts"
   }
 }

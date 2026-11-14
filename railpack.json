@@ -7,6 +7,7 @@
     }
   },
   "deploy": {
-    "startCommand": "pnpm --filter @openseas/server start"
+    "aptPackages": ["...", "tini"],
+    "startCommand": "cd packages/server && exec tini -- node --import tsx src/index.ts"
   }
 }

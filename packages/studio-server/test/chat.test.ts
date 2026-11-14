@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ChatStateSchema, DraftSchema, type ChatItem, type ChatState, type Draft, type DraftNumbers } from "@openseas/protocol";
 import { createApp, type App } from "../src/app.js";
 import type { AgentRunner, AgentTurn, TurnRequest } from "../src/chat/runner.js";
-import { schema } from "../src/db/index.js";
+import { createDb, schema } from "../src/db/index.js";
 import { loadEnv } from "../src/env.js";
 import { createLogger } from "../src/log.js";
 import type { Forge } from "../src/save/forge.js";
@@ -145,8 +145,9 @@ describeDb("chat", () => {
     const dev = await fetch(`${base}/auth/dev`, { redirect: "manual" });
     session = dev.headers.getSetCookie().find((c) => c.startsWith("studio_session="))!.split(";")[0]!;
   });
+  let closed = false;
   afterAll(async () => {
-    await app?.close();
+    if (!closed) await app?.close();
     await new Promise<void>((resolve) => upstream.close(() => resolve()));
     rmSync(tmp, { recursive: true, force: true });
   });
@@ -396,6 +397,29 @@ describeDb("chat", () => {
     // What was spent stays spent.
     const [meter] = await app.db.select().from(schema.meter);
     expect(meter!.spentUsd).toBeGreaterThanOrEqual(1);
+  });
+
+  // Last: it closes the service. A redeploy must not wait out a turn (ADR 0048).
+  it("stops a running turn where it stands when the service shuts down, and records it", async () => {
+    await app.db.delete(schema.meter);
+    const d = await open(numbers());
+    agent.script = async (a) => {
+      a.write("docs/puzzles/cooling.md", "# Cooling\n\nCut off by a redeploy.\n");
+      while (!("stopped" in (await a.next())));
+    };
+    expect((await say(d, "Rewrite the design file.")).status).toBe(202);
+    await expect.poll(async () => (await state(d)).running).toBe(true);
+    closed = true;
+    await app.close();
+    const { db, close } = createDb(url!);
+    try {
+      const rows = await db.select().from(schema.chatItem);
+      const ended = rows.find((r) => r.draftId === d.id && r.kind === "turn");
+      expect(ended?.data).toMatchObject({ status: "stopped" });
+      expect(ended?.data.commit).toBe(git(tree(d), "rev-parse", "HEAD"));
+    } finally {
+      await close();
+    }
   });
 });
 
