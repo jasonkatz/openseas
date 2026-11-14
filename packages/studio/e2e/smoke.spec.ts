@@ -293,7 +293,8 @@ test("Space Battle plays alone on /play: a fight plots by key and by tap and fli
 test("Swordfighting plays alone on /play: a fight drops pairs by keyboard and by touch", async ({ page }) => {
   // Two drops hurried down a seventeen-row board, with the raider's board small beside it, on the phone profile.
   test.slow();
-  await page.goto("/play/swordfight");
+  // A pinned seed: the same pairs and the same raider every run, so only the clock is left to chance.
+  await page.goto("/play/swordfight?seed=smoke-sword-1");
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("swordfight-canvas");
   await expect(canvas).toBeVisible();
