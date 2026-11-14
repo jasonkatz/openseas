@@ -19,7 +19,7 @@ export interface SaverOptions {
 }
 
 /**
- * Save (ADR 0042 decision 10, ADR 0046, ADR 0048), after the tester link, which the route makes
+ * Save (ADR 0042 decision 10, ADR 0046, ADR 0049), after the tester link, which the route makes
  * at once: the draft's numbers written into the puzzle's content file in its worktree, a commit, a
  * push of that and of whatever the chat's turns committed, and a draft pull request from the
  * studio's GitHub App with the owner named in its body. A later Save adds commits to the same pull
@@ -65,7 +65,7 @@ export const pullTitle = (puzzle: string, edited: readonly string[]): string => 
 
 /**
  * The body of a draft's pull request: who saved it, the numbers it changes, the files the chat's
- * agent edited, where to play it, and what is left for a developer (ADR 0048). `edited` is every
+ * agent edited, where to play it, and what is left for a developer (ADR 0049). `edited` is every
  * file the branch changes but the puzzle's content file, which the numbers account for.
  */
 export function pullBody(o: { puzzle: string; login: string; changes: Changes; edited: readonly string[]; linkUrl: string }): string {

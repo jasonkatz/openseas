@@ -1,4 +1,4 @@
-# 0048. Save ends at the draft pull request: the checklist is a developer's to finish
+# 0049. Save ends at the draft pull request: the checklist is a developer's to finish
 
 Status: Accepted. Supersedes the third stage of [0042](./0042-the-harness-becomes-the-puzzle-studio.md)
 decision 10 ("then, in the same agent session, the puzzles skill's checklist for a changed puzzle

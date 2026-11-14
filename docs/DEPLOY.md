@@ -125,6 +125,7 @@ server's CORS list.
    | `CROSS_SITE_COOKIES` | `true` |
    | `ALPHA_INVITE_CODE` | an invite code, or leave unset to let anyone in |
    | `LOG_LEVEL` | `info` |
+   | `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` | `30`: how long a replaced deployment has after SIGTERM before Railway kills it; above the service's own 25-second shutdown deadline (ADR 0048) |
 
    | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | optional: the Discord OAuth app, see "Social sign-in" below |
    | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional: the Google OAuth client, see "Social sign-in" below |
@@ -176,6 +177,7 @@ migrates its own `studio` schema as it starts.
    | `STUDIO_OWNERS` | the GitHub logins that may sign in, comma-separated |
    | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | from the OAuth app |
    | `CROSS_SITE_COOKIES` | `true` only if the service is not under `openseas.online` |
+   | `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` | `30`, as for the server (ADR 0048) |
 
    Never set `STUDIO_DEV_LOGIN` here: the service refuses to start with it in production.
 4b. **Save** (ADR 0046) is optional and needs four more things. Until all are in place the
@@ -215,7 +217,7 @@ migrates its own `studio` schema as it starts.
    can push. To try it, tune a number on a puzzle's studio page, press **Save**, and look for the
    draft pull request. Discarding the draft closes it and deletes its branch. The studio never
    marks a pull request ready: it holds the numbers and the chat agent's edits, and a developer
-   finishes it (ADR 0048).
+   finishes it (ADR 0049).
 4c. **The chat** (ADR 0047) is optional and needs Save (4b) first. Until it is set up the service
    logs that the chat is off and the studio shows none.
 
@@ -424,7 +426,9 @@ confirm a pirate is signed in.
 
 - Which paths trigger which side, the order, and the timeouts all live in
   `.github/workflows/deploy.yml`.
-- The server's build and start commands live in `railpack.json`; the game's in the repository's
+- The server's build and start commands live in `railpack.json`, the studio service's in
+  `railpack.studio.json`. Both start node under `tini`, not through pnpm, so the service itself gets
+  Railway's SIGTERM and can close before the container stops (ADR 0048). The game's are in the repository's
   `vercel.json`; the harness's in `packages/studio/vercel.json` (its project's Root Directory).
   All are read from the checkout at deploy time, so a change ships with the commit that makes it.
 - The server's healthcheck and restart policy are Railway service settings (step 1.3).

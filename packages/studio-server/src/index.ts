@@ -16,9 +16,26 @@ if (!app.saver) log.warn("Save is off: it needs STUDIO_REPO_DIR, STUDIO_REPO, GI
 
 if (app.saver && !app.chat) log.warn("the chat is off: it needs ANTHROPIC_API_KEY and STUDIO_SPEND_CAP_USD, and a service that starts as root (docs/DEPLOY.md, step 1b)");
 
+// Railway sends SIGTERM and kills the container after its draining time (RAILWAY_DEPLOYMENT_DRAINING_SECONDS,
+// set above this deadline). Run under tini (railpack config), not pnpm,
+// this process gets the signal itself; it exits 0 once closed, 1 if closing failed or outran the deadline (ADR 0048).
+const SHUTDOWN_DEADLINE_MS = 25_000;
+let stopping = false;
 const shutdown = async (signal: string): Promise<void> => {
+  if (stopping) return;
+  stopping = true;
   log.info({ signal }, "shutting down");
-  await app.close();
+  setTimeout(() => {
+    log.error({ deadlineMs: SHUTDOWN_DEADLINE_MS }, "shutdown outran its deadline; exiting");
+    process.exit(1);
+  }, SHUTDOWN_DEADLINE_MS).unref();
+  try {
+    await app.close();
+  } catch (err) {
+    log.error({ err }, "shutdown failed");
+    process.exit(1);
+  }
+  log.info("shut down");
   process.exit(0);
 };
 process.on("SIGTERM", () => void shutdown("SIGTERM"));

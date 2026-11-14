@@ -97,11 +97,17 @@ export async function createApp(env: Env, log: Logger, github?: GitHub | null, f
       new Promise((resolve) => {
         server.listen(port, () => resolve((server.address() as AddressInfo).port));
       }),
+    // Stop taking requests, stop each chat turn where it stands (its edits are still committed),
+    // let a Save already pushing finish, then close what is left. The deadline is index.ts's.
     close: async () => {
+      const closed = new Promise<void>((resolve) => server.close(() => resolve()));
+      server.closeIdleConnections();
+      chat?.stopAll();
       await chat?.idle();
       await saver?.idle();
       await chatting?.proxy.close();
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      server.closeAllConnections();
+      await closed;
       await closeDb();
     },
   };

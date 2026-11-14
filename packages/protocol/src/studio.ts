@@ -79,7 +79,7 @@ export const DraftSaveSchema = z.object({
   pull: z.object({ number: z.int(), url: z.url() }).nullable(),
   savedRevision: z.int().nullable(),
   behind: z.boolean(),
-  /** True once a turn of the chat has committed an edit to the draft's branch: there is something to save even when no number differs (ADR 0048). Defaulted for a service older than the site. */
+  /** True once a turn of the chat has committed an edit to the draft's branch: there is something to save even when no number differs (ADR 0049). Defaulted for a service older than the site. */
   edits: z.boolean().default(false),
 });
 export type DraftSave = z.infer<typeof DraftSaveSchema>;

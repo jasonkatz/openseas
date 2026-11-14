@@ -154,7 +154,8 @@ export function createSdkRunner(o: SdkRunnerOptions): AgentRunner {
             skills: SKILLS,
             systemPrompt: { type: "preset", preset: "claude_code", append: STUDIO_PROMPT(r.puzzle) },
             mcpServers: { studio },
-            allowedTools: ["mcp__studio__set_numbers", "mcp__studio__get_numbers"],
+            // No allowedTools: a bare entry would approve a tool before canUseTool is asked (and the SDK
+            // warns on every turn). canUseTool allows the studio's own tools, which write no file.
             disallowedTools: NOT_HERE,
             permissionMode: "default",
             canUseTool,

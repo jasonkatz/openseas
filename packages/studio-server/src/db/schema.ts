@@ -47,7 +47,7 @@ export const draft = studio.table(
     chatSession: text(),
     /** How many turns the chat has run. */
     chatTurns: integer().notNull().default(0),
-    /** How many of those turns committed an edit: a draft with any has something to save though no number differs (ADR 0048). */
+    /** How many of those turns committed an edit: a draft with any has something to save though no number differs (ADR 0049). */
     chatCommits: integer().notNull().default(0),
     /** Paths outside the puzzle's own files that the owner allowed the agent to write, for this draft. */
     allowedPaths: jsonb().$type<string[]>().notNull().default([]),
