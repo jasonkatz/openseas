@@ -8,6 +8,6 @@
   },
   "deploy": {
     "aptPackages": ["...", "tini"],
-    "startCommand": "cd packages/server && exec tini -- node --import tsx src/index.ts"
+    "startCommand": "cd packages/server && exec tini -s -- node --import tsx src/index.ts"
   }
 }

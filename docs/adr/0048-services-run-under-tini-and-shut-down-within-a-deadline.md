@@ -12,8 +12,9 @@ Both services started in Railway as `pnpm --filter <package> start`, which runs 
 src/index.ts"`, which runs the tsx CLI, which forks the node process that is the service: four
 processes deep. Each service's `index.ts` handles SIGTERM by closing the app and exiting 0.
 
-Railway stops a deployment by sending SIGTERM to the container's first process and, after the
-service's draining time, SIGKILL. The draining time is 0 seconds unless it is set. On SIGTERM pnpm
+Railway runs its own init as the container's first process, with the start command's shell as its
+child. It stops a deployment by sending SIGTERM, which that init passes to its child, and, after
+the service's draining time, SIGKILL. The draining time is 0 seconds unless it is set. On SIGTERM pnpm
 passes the signal to `sh`, which dies of it; pnpm logs `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL ...
 Command failed with signal "SIGTERM"` and exits at once, without waiting for the service. Every
 redeploy of either service logged that failure and never logged the service's own `shutting down`:
@@ -23,14 +24,16 @@ or a Save running at a redeploy was killed where it stood: the turn never wrote 
 next start marks it failed), and nothing closed the database's connections.
 
 The studio's service also starts processes of its own (the agent's, `git`), so an orphan left by
-one is reparented to the container's first process, which must reap it.
+one must be reaped by a process of ours: what Railway's init does with orphans is not ours to rely on.
 
 ## Decision
 
-1. **Each service is started by `tini` as the container's first process, running node directly.**
-   The Railpack start command is `cd packages/<package> && exec tini -- node --import tsx
-   src/index.ts`; `tini` is in the deploy image's apt packages. Railway's shell `exec`s into tini,
-   tini passes SIGTERM to node and reaps orphans, and exits with node's exit status. `node --import
+1. **Each service is started by `tini` as a subreaper, running node directly.** The Railpack start
+   command is `cd packages/<package> && exec tini -s -- node --import tsx src/index.ts`; `tini` is
+   in the deploy image's apt packages. Railway's shell `exec`s into tini, the direct child of
+   Railway's init (tini is process 2, node process 3). tini passes SIGTERM to node and exits with
+   node's exit status. `-s` registers it as a child subreaper, so orphans under it are reparented
+   to it and reaped, though it is not process 1; without it tini warns that it cannot reap. `node --import
    tsx` is the tsx runtime without the CLI's extra process. The packages' `start` scripts run the
    same `node --import tsx`, so `pnpm start` locally is the same process tree minus tini.
 2. **A service shuts down within a deadline, and says how it went.** On SIGTERM or SIGINT it logs
@@ -57,7 +60,7 @@ one is reparented to the container's first process, which must reap it.
 
 ## Alternatives considered
 
-- **`exec node` with no init.** Node as the first process gets the signal, and the game's server
+- **`exec node` with no tini.** Node gets the signal as the init's child, and the game's server
   starts no children, but the studio's service does, and node does not reap orphans. One start
   command shape for both services is simpler to keep right.
 - **Keep pnpm and the tsx CLI, and set only the draining time.** pnpm still exits as soon as its
