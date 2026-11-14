@@ -1,12 +1,13 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { CreateDraftSchema, CreateTesterLinkSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, TesterLinkIdSchema, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
+import { CreateDraftSchema, CreateTesterLinkSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, SaveRequestSchema, TesterLinkIdSchema, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
 import type { Db } from "./db/index.js";
-import { createDraft, discardDraft, listDrafts, saveDraft } from "./drafts.js";
+import { createDraft, discardDraft, draftRow, draftRows, saveDraft, toDraft } from "./drafts.js";
 import type { Env } from "./env.js";
 import type { GitHub } from "./github.js";
 import { createLink, findLink, listLinks, withdrawLink } from "./links.js";
 import type { Logger } from "./log.js";
+import type { Saver } from "./save/saver.js";
 import { cookie, readCookie, seal, unseal } from "./session.js";
 
 export interface HttpDeps {
@@ -14,6 +15,8 @@ export interface HttpDeps {
   db: Db;
   /** Null when the service has no GitHub keys: nobody can sign in through GitHub. */
   github: GitHub | null;
+  /** Null when the service has no clone or no GitHub App: drafts are kept, and none can be saved. */
+  saver: Saver | null;
   log: Logger;
 }
 
@@ -63,13 +66,15 @@ async function readJson(req: IncomingMessage, limit = 32 * 1024): Promise<unknow
  *   GET    /drafts?puzzle=    the owner's open drafts, one puzzle's or all (owner)
  *   POST   /drafts            open a puzzle's draft (owner); refused when one is open
  *   PUT    /drafts/:id        save its numbers over the revision named (owner)
- *   DELETE /drafts/:id        discard it (owner)
+ *   DELETE /drafts/:id        discard it (owner), its pull request and branch with it
+ *   POST   /drafts/:id/save   Save (owner): a tester link at once, then its branch and draft pull request
+ *   POST   /drafts/:id/update merge the base branch into its branch (owner), when asked
  *
  * An owner is a signed-in GitHub login on the allowlist. Whatever changes something must also
  * come from one of the studio site's own origins: the cookie alone is not enough.
  */
 export function createHttpHandler(deps: HttpDeps) {
-  const { env, db, github, log } = deps;
+  const { env, db, github, saver, log } = deps;
   const secure = env.NODE_ENV === "production";
   const cookieFor = (name: string, value: string, maxAgeSeconds: number): string => cookie(name, value, { maxAgeSeconds, secure, crossSite: env.CROSS_SITE_COOKIES });
   const callbackUrl = `${env.STUDIO_PUBLIC_URL.replace(/\/$/, "")}/auth/callback`;
@@ -100,7 +105,9 @@ export function createHttpHandler(deps: HttpDeps) {
     const origin = req.headers.origin;
     const fromStudio = origin !== undefined && env.STUDIO_ORIGINS.includes(origin);
     const linkId = /^\/links\/([^/]+)$/.exec(path)?.[1];
-    const draftId = /^\/drafts\/([^/]+)$/.exec(path)?.[1];
+    const draftPath = /^\/drafts\/([^/]+)(?:\/(save|update))?$/.exec(path);
+    const draftId = draftPath?.[1];
+    const draftAct = draftPath?.[2];
 
     // The studio site may send its cookie. Anyone else may read a link, and nothing more.
     res.setHeader("Vary", "Origin");
@@ -123,7 +130,7 @@ export function createHttpHandler(deps: HttpDeps) {
       if (path === "/health" && req.method === "GET") return json(res, 200, { ok: true, commit: env.COMMIT_SHA });
 
       if (path === "/auth/me" && req.method === "GET") {
-        const me: StudioMe = { login: owner(req), signIn: github !== null, dev: env.STUDIO_DEV_LOGIN !== null };
+        const me: StudioMe = { login: owner(req), signIn: github !== null, dev: env.STUDIO_DEV_LOGIN !== null, save: saver !== null };
         return json(res, 200, me);
       }
       if (path === "/auth/github" && req.method === "GET") {
@@ -183,7 +190,10 @@ export function createHttpHandler(deps: HttpDeps) {
         const raw = url.searchParams.get("puzzle");
         const puzzle = raw === null ? null : PuzzleIdSchema.safeParse(raw);
         if (puzzle && !puzzle.success) return fail(res, 400, "bad_request");
-        return json(res, 200, { drafts: await listDrafts(db, login, puzzle?.data) });
+        const rows = await draftRows(db, login, puzzle?.data);
+        // With Save, a listing is also when a merged or closed pull request clears its draft, and when a draft learns the base branch moved.
+        const live = saver ? await saver.refresh(rows) : rows.map((row) => ({ row, behind: false }));
+        return json(res, 200, { drafts: live.map(({ row, behind }) => toDraft(row, behind)) });
       }
 
       if (path === "/links" && req.method === "GET") {
@@ -215,6 +225,26 @@ export function createHttpHandler(deps: HttpDeps) {
         return json(res, 201, draft);
       }
       if (draftId !== undefined && !DraftIdSchema.safeParse(draftId).success) return fail(res, 404, "not_found");
+      if (draftId !== undefined && draftAct !== undefined) {
+        if (req.method !== "POST") return fail(res, 404, "not_found");
+        if (!saver) return fail(res, 503, "unavailable");
+        const row = await draftRow(db, login, draftId);
+        if (!row) return fail(res, 404, "not_found");
+        // One at a time a draft: a second Save waits for the page to see how the first went.
+        if (row.saveState === "saving") return fail(res, 409, "conflict");
+        if (draftAct === "update") {
+          if (!row.branch) return fail(res, 409, "conflict");
+          return json(res, 202, toDraft(await saver.update(row)));
+        }
+        const input = SaveRequestSchema.safeParse(await body());
+        if (!input.success) return fail(res, 400, "bad_request");
+        // What is saved is what is on the page: a page behind its draft is told so.
+        if (input.data.revision !== row.revision) return fail(res, 409, "conflict");
+        // The tester link first, at once (ADR 0042 decision 10); the branch and pull request follow.
+        const link = await createLink(db, login, { puzzle: row.puzzle as never, name: input.data.name, draft: row.numbers });
+        log.info({ id: row.id, link: link.id, login }, "save started");
+        return json(res, 202, { draft: toDraft(await saver.save(row, login, link.id)), link });
+      }
       if (draftId !== undefined && req.method === "PUT") {
         const input = SaveDraftSchema.safeParse(await body());
         if (!input.success) return fail(res, 400, "bad_request");
@@ -223,7 +253,9 @@ export function createHttpHandler(deps: HttpDeps) {
         return json(res, 200, saved.draft);
       }
       if (draftId !== undefined && req.method === "DELETE") {
-        if (!(await discardDraft(db, login, draftId))) return fail(res, 404, "not_found");
+        const row = await draftRow(db, login, draftId);
+        if (!row || !(await discardDraft(db, login, draftId))) return fail(res, 404, "not_found");
+        if (saver) await saver.discard(row);
         log.info({ id: draftId, login }, "draft discarded");
         return json(res, 200, { ok: true });
       }

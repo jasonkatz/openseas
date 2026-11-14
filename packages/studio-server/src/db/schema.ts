@@ -1,5 +1,5 @@
 import { integer, jsonb, pgSchema, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
-import type { DraftNumbers, TesterLinkDraft } from "@openseas/protocol";
+import type { DraftNumbers, DraftSave, DraftSaveError, TesterLinkDraft } from "@openseas/protocol";
 
 /** Everything the studio's service owns lives in one Postgres schema, apart from the game's tables wherever the database is. */
 export const studio = pgSchema("studio");
@@ -34,6 +34,15 @@ export const draft = studio.table(
     numbers: jsonb().$type<DraftNumbers>().notNull(),
     /** Counts saves, from 1. A save must name the revision it was made from. */
     revision: integer().notNull().default(1),
+    /** The draft's branch in the service's clone and on the remote, once it has been saved (ADR 0046). */
+    branch: text(),
+    pullNumber: integer(),
+    pullUrl: text(),
+    saveState: text().$type<DraftSave["state"]>().notNull().default("idle"),
+    saveError: text().$type<DraftSaveError>(),
+    /** The numbers the last Save wrote into the content file: what the next one must put back where the draft no longer changes them. */
+    savedNumbers: jsonb().$type<DraftNumbers>(),
+    savedRevision: integer(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },

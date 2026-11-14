@@ -64,6 +64,25 @@ export const DraftIdSchema = z.string().regex(/^[a-z0-9]{10}$/);
  * counts its saves; a save names the revision it was made from and is refused when that is no
  * longer the stored one, so two pages open on one draft cannot overwrite each other unseen.
  */
+/** Why a Save or an update did not finish. `nothing`: the draft changes no number. `unknown_key`: it sets a key the content file has no place for. `conflict`: the base branch and the draft's changed the same lines. `interrupted`: the service restarted under it. */
+export const DraftSaveErrorSchema = z.enum(["nothing", "unknown_key", "conflict", "git", "github", "interrupted"]);
+export type DraftSaveError = z.infer<typeof DraftSaveErrorSchema>;
+
+/**
+ * Where a draft stands with Save (ADR 0046): whether its branch is being written now, why the
+ * last try failed, its pull request once it has one, which revision of the draft that holds, and
+ * whether the base branch has moved on since the draft's branch left it.
+ */
+export const DraftSaveSchema = z.object({
+  state: z.enum(["idle", "saving", "failed"]),
+  error: DraftSaveErrorSchema.nullable(),
+  pull: z.object({ number: z.int(), url: z.url() }).nullable(),
+  savedRevision: z.int().nullable(),
+  behind: z.boolean(),
+});
+export type DraftSave = z.infer<typeof DraftSaveSchema>;
+export const NO_DRAFT_SAVE: DraftSave = { state: "idle", error: null, pull: null, savedRevision: null, behind: false };
+
 export const DraftSchema = z.object({
   id: DraftIdSchema,
   puzzle: PuzzleIdSchema,
@@ -71,6 +90,8 @@ export const DraftSchema = z.object({
   owner: z.string(),
   numbers: DraftNumbersSchema,
   revision: z.int().min(1),
+  /** Defaulted, so a site newer than the service it reaches still reads its drafts. */
+  save: DraftSaveSchema.default(NO_DRAFT_SAVE),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -84,14 +105,24 @@ export type CreateDraft = z.infer<typeof CreateDraftSchema>;
 export const SaveDraftSchema = z.object({ numbers: DraftNumbersSchema, revision: z.int().min(1) });
 export type SaveDraft = z.infer<typeof SaveDraftSchema>;
 
-/** Who the service takes the caller for. `signIn` says whether it has GitHub keys at all; `dev` that it offers a sign-in with no GitHub, off production. */
+/** Save a draft: the revision on the page, which must be the stored one, and a name for the tester link Save makes first. */
+export const SaveRequestSchema = z.object({ revision: z.int().min(1), name: z.string().trim().min(1).max(80) });
+export type SaveRequest = z.infer<typeof SaveRequestSchema>;
+
+/** What Save answers at once: the tester link, and the draft with its branch now being written. */
+export const SaveStartedSchema = z.object({ draft: DraftSchema, link: TesterLinkSchema });
+export type SaveStarted = z.infer<typeof SaveStartedSchema>;
+
+/** Who the service takes the caller for. `signIn` says whether it has GitHub keys at all; `dev` that it offers a sign-in with no GitHub, off production; `save` that it can Save. */
 export const StudioMeSchema = z.object({
   login: z.string().nullable(),
   signIn: z.boolean(),
   dev: z.boolean(),
+  /** Whether this service can Save: it has a clone and a GitHub App. Defaulted for a service older than the site. */
+  save: z.boolean().default(false),
 });
 export type StudioMe = z.infer<typeof StudioMeSchema>;
 
-export const StudioErrorCodeSchema = z.enum(["not_found", "withdrawn", "unauthorized", "forbidden", "bad_request", "conflict", "internal"]);
+export const StudioErrorCodeSchema = z.enum(["not_found", "withdrawn", "unauthorized", "forbidden", "bad_request", "conflict", "unavailable", "internal"]);
 export type StudioErrorCode = z.infer<typeof StudioErrorCodeSchema>;
 export const StudioErrorSchema = z.object({ error: StudioErrorCodeSchema });

@@ -51,3 +51,4 @@ that supersedes it.
 | [0043](./0043-the-studio-service-starts-with-tester-links.md) | The studio's service starts with tester links: a signed cookie, a schema of its own, and no agent yet |
 | [0044](./0044-the-studio-lives-at-studio-openseas-online.md) | The studio lives at studio.openseas.online |
 | [0045](./0045-drafts-are-kept-by-the-studio-service.md) | Drafts are kept by the studio's service, and an address's numbers are never saved unasked |
+| [0046](./0046-save-writes-a-drafts-numbers-to-a-pull-request.md) | Save writes a draft's numbers to a branch and a draft pull request, with no agent |

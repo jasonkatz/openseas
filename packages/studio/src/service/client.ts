@@ -1,4 +1,4 @@
-import { DraftListSchema, DraftSchema, StudioMeSchema, TesterLinkIdSchema, TesterLinkListSchema, TesterLinkSchema, type CreateTesterLink, type Draft, type DraftNumbers, type StudioMe, type TesterLink } from "@openseas/protocol";
+import { DraftListSchema, DraftSchema, SaveStartedSchema, StudioMeSchema, TesterLinkIdSchema, TesterLinkListSchema, TesterLinkSchema, type CreateTesterLink, type Draft, type DraftNumbers, type SaveStarted, type StudioMe, type TesterLink } from "@openseas/protocol";
 
 /**
  * The studio's service (ADR 0042 decision 4, ADR 0043), as this site reaches it. Empty when the
@@ -106,6 +106,36 @@ export const createDraft = (puzzle: string, numbers: DraftNumbers): Promise<Draf
 
 /** Save a draft's numbers over the revision this page last saw. */
 export const saveDraft = (id: string, numbers: DraftNumbers, revision: number): Promise<DraftSave> => draftSave(`/drafts/${encodeURIComponent(id)}`, "PUT", { numbers, revision });
+
+/** What became of asking for a Save: started, with the tester link it made at once; or why not, as for a save of numbers. */
+export type SaveStart = { ok: true; started: SaveStarted } | { ok: false; reason: "conflict" | "gone" | "failed" };
+
+/** Save a draft (ADR 0046): the service makes a tester link at once and then writes the draft's branch and pull request, which the page watches for. */
+export async function startSave(id: string, revision: number, name: string): Promise<SaveStart> {
+  try {
+    const r = await owned(`/drafts/${encodeURIComponent(id)}/save`, { method: "POST", body: JSON.stringify({ revision, name }) });
+    if (r.status === 409) return { ok: false, reason: "conflict" };
+    if (r.status === 404) return { ok: false, reason: "gone" };
+    const started = r.ok ? SaveStartedSchema.safeParse(await r.json()) : null;
+    return started?.success ? { ok: true, started: started.data } : { ok: false, reason: "failed" };
+  } catch {
+    return { ok: false, reason: "failed" };
+  }
+}
+
+/** Ask the service to merge the base branch into a draft's branch. The draft as it now stands, or null when the service would not. */
+export async function startUpdate(id: string): Promise<Draft | null> {
+  try {
+    const r = await owned(`/drafts/${encodeURIComponent(id)}/update`, { method: "POST" });
+    const draft = r.ok ? DraftSchema.safeParse(await r.json()) : null;
+    return draft?.success ? draft.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Told when the puzzle's tester links changed somewhere other than the links section: Save makes one. */
+export const LINKS_CHANGED = "openseas:studio-links-changed";
 
 /** Discard a draft. True when it is gone, by this call or before it. */
 export async function discardDraft(id: string): Promise<boolean> {

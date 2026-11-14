@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Draft } from "@openseas/protocol";
+import type { Draft, TesterLink } from "@openseas/protocol";
 import type { HarnessPuzzle } from "../puzzles.js";
 import type { Scenario } from "../scenario/codec.js";
-import { createDraft, discardDraft, listDrafts, saveDraft, type DraftSave } from "../service/client.js";
+import { LINKS_CHANGED, createDraft, discardDraft, listDrafts, saveDraft, startSave, startUpdate, type DraftSave } from "../service/client.js";
 import { useMe } from "../service/me.js";
 import { carriesDraft, draftNumbers, sameNumbers, withDraft, withoutDraft } from "./draft.js";
 
@@ -16,12 +16,13 @@ import { carriesDraft, draftNumbers, sameNumbers, withDraft, withoutDraft } from
  *   is saved until the owner says which of the two to keep. `why` says how the page came to be so:
  *   it was opened on a link, a save was not taken, or the stored draft changed somewhere else.
  * - `stored`: the service keeps the draft and every change is saved to it. The address is bare.
- *   `draft` is null until the first change opens one.
+ *   `draft` is null until the first change opens one. `canSave` says the service can turn it
+ *   into a pull request (ADR 0046); where the draft stands with that is on the draft itself.
  */
 export type DraftStore =
   | { readonly state: "off" | "loading" }
   | { readonly state: "address"; readonly stored: Draft | null; readonly why: "link" | "unsaved" | "stale"; readonly busy: boolean; readonly keepable: boolean }
-  | { readonly state: "stored"; readonly draft: Draft | null; readonly status: "saved" | "saving" | "held" };
+  | { readonly state: "stored"; readonly draft: Draft | null; readonly status: "saved" | "saving" | "held"; readonly canSave: boolean };
 
 type Internal = { state: "off" | "loading" } | { state: "address"; stored: Draft | null; why: "link" | "unsaved" | "stale" } | { state: "stored"; draft: Draft | null };
 
@@ -33,12 +34,18 @@ export interface StoredDraft {
   keep(): Promise<boolean>;
   /** On an address's numbers: drop them for the stored draft. */
   open(): void;
-  /** Discard the stored draft: the row goes, and the page is back on the shipped numbers. */
+  /** Discard the stored draft: the row goes, its pull request and branch with it, and the page is back on the shipped numbers. */
   discard(): Promise<boolean>;
+  /** Save the stored draft: the tester link the service made at once, or null when it would not start. */
+  save(name: string): Promise<TesterLink | null>;
+  /** Merge the base branch into the draft's branch. False when the service would not start. */
+  update(): Promise<boolean>;
 }
 
 /** How long the hand must rest before a change is saved. */
 const SAVE_MS = 500;
+/** How often a draft being written to its branch is asked after. */
+const WATCH_MS = 1500;
 
 /**
  * Keeps a studio page's draft in the service for the signed-in owner. `apply` sets the page's
@@ -137,7 +144,8 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
     setBusy(false);
     // Signed out or discarded while the save was on its way: it has nothing to say to this page now.
     if (latest.current.store !== at) return;
-    if (r.ok) setStore({ state: "stored", draft: r.draft });
+    // A save of numbers does not ask the clone whether main moved; what the last listing said stands.
+    if (r.ok) setStore({ state: "stored", draft: { ...r.draft, save: { ...r.draft.save, behind: at.draft?.save.behind ?? false } } });
     else await refused(r, at.draft);
   }, [puzzle, refused, setStore]);
 
@@ -205,11 +213,58 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
     return ok;
   }, [setStore]);
 
+  const saveToPull = useCallback(
+    async (name: string): Promise<TesterLink | null> => {
+      const at = latest.current.store;
+      if (at.state !== "stored" || !at.draft) return null;
+      setBusy(true);
+      const r = await startSave(at.draft.id, at.draft.revision, name);
+      if (!alive.current) return null;
+      setBusy(false);
+      if (latest.current.store !== at) return null;
+      if (!r.ok) {
+        if (r.reason !== "failed") await refused(r, at.draft);
+        return null;
+      }
+      setStore({ state: "stored", draft: r.started.draft });
+      window.dispatchEvent(new Event(LINKS_CHANGED));
+      return r.started.link;
+    },
+    [refused, setStore],
+  );
+
+  const update = useCallback(async (): Promise<boolean> => {
+    const at = latest.current.store;
+    if (at.state !== "stored" || !at.draft) return false;
+    const draft = await startUpdate(at.draft.id);
+    if (!alive.current || latest.current.store !== at || !draft) return false;
+    // The numbers on the page may be ahead of the stored ones by a save in flight; only the Save side is taken.
+    setStore({ state: "stored", draft: { ...at.draft, save: draft.save } });
+    return true;
+  }, [setStore]);
+
+  // While the service writes the branch, ask how it went. A draft that is gone was cleared with its pull request.
+  const watching = store.state === "stored" && store.draft?.save.state === "saving";
+  useEffect(() => {
+    if (!watching) return;
+    const id = window.setInterval(() => {
+      void listDrafts(puzzle.id).then((list) => {
+        const at = latest.current.store;
+        if (!alive.current || !list || at.state !== "stored" || !at.draft) return;
+        const now = list.find((d) => d.id === at.draft!.id);
+        if (now) return setStore({ state: "stored", draft: { ...at.draft, save: now.save } });
+        setStore({ state: "stored", draft: null });
+        latest.current.apply(withoutDraft(latest.current.scenario), true);
+      });
+    }, WATCH_MS);
+    return () => window.clearInterval(id);
+  }, [watching, puzzle.id, setStore]);
+
   const bare = useCallback(() => latest.current.store.state === "stored", []);
   const view = useMemo<DraftStore>(() => {
     if (store.state === "address") return { ...store, busy, keepable: mine !== null };
-    if (store.state === "stored") return { ...store, status: mine === null ? "held" : busy || dirty ? "saving" : "saved" };
+    if (store.state === "stored") return { ...store, status: mine === null ? "held" : busy || dirty ? "saving" : "saved", canSave: me !== "loading" && me !== null && me.save };
     return store;
-  }, [store, busy, dirty, mine]);
-  return { store: view, bare, keep, open, discard };
+  }, [store, busy, dirty, mine, me]);
+  return { store: view, bare, keep, open, discard, save: saveToPull, update };
 }

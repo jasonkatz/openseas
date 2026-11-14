@@ -293,3 +293,7 @@
 .tune-store.is-address {
   box-shadow: inset 0 0 0 1px var(--brass);
 }
+.tune-save {
+  display: grid;
+  gap: 8px;
+}
