@@ -50,3 +50,4 @@ that supersedes it.
 | [0042](./0042-the-harness-becomes-the-puzzle-studio.md) | The harness becomes the puzzle studio: live tuning, an agent on a worktree, and tester links |
 | [0043](./0043-the-studio-service-starts-with-tester-links.md) | The studio's service starts with tester links: a signed cookie, a schema of its own, and no agent yet |
 | [0044](./0044-the-studio-lives-at-studio-openseas-online.md) | The studio lives at studio.openseas.online |
+| [0045](./0045-drafts-are-kept-by-the-studio-service.md) | Drafts are kept by the studio's service, and an address's numbers are never saved unasked |

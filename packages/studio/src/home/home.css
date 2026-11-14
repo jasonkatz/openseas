@@ -101,3 +101,15 @@
   flex: 1 1 auto;
   min-height: 0;
 }
+/* A puzzle the signed-in owner has a draft open on. A word, not a colour alone. */
+.studio-mark {
+  align-self: flex-start;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--brass);
+  color: #1c1405;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

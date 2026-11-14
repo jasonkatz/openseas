@@ -146,9 +146,11 @@ server's CORS list.
 
 ### 1b. Railway: the studio's service
 
-`packages/studio-server` (ADR 0043) holds the studio's tester links and signs the owner in. It
-is optional: until `RAILWAY_STUDIO_SERVICE` is set in step 3 the pipeline does not deploy it, and
-the studio works without it, only without links by id.
+`packages/studio-server` (ADR 0043) holds the studio's tester links, signs the owner in and
+keeps the owner's drafts (ADR 0045). It is optional: until `RAILWAY_STUDIO_SERVICE` is set in
+step 3 the pipeline does not deploy it, and the studio works without it, only without links by
+id and with each draft in its page's address. A new table arrives with a deploy: the service
+migrates its own `studio` schema as it starts.
 
 1. **A database of its own.** On the Postgres service → **Data** (or any `psql` session):
    `CREATE DATABASE openseas_studio;`

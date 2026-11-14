@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import type { StudioMe, TesterLink, TesterLinkDraft } from "@openseas/protocol";
+import type { TesterLink, TesterLinkDraft } from "@openseas/protocol";
 import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { leafOverrides } from "../frame/numbers.js";
-import { SERVICE_URL, createLink, fetchMe, linkAddress, listLinks, signInUrl, signOut, withdrawLink } from "./client.js";
+import { SERVICE_URL, createLink, linkAddress, listLinks, signInUrl, withdrawLink } from "./client.js";
+import { signOut, useMe } from "./me.js";
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -22,7 +23,8 @@ async function copyText(text: string): Promise<boolean> {
  */
 export function TesterLinks() {
   const { puzzle, scenario, refusals, changes } = useFrame();
-  const [me, setMe] = useState<StudioMe | null | "loading">("loading");
+  const me = useMe();
+  const login = me !== "loading" && me !== null ? me.login : null;
   const [links, setLinks] = useState<TesterLink[]>([]);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,20 +32,14 @@ export function TesterLinks() {
   const [note, setNote] = useState<string | null>(() => (new URLSearchParams(window.location.search).get("studio_sign_in") === "refused" ? t("studio.sign_in_refused") : null));
 
   useEffect(() => {
-    if (!SERVICE_URL) return;
+    setLinks([]);
+    if (!login) return;
     let alive = true;
-    void fetchMe().then(async (who) => {
-      if (!alive) return;
-      setMe(who);
-      if (who?.login) {
-        const list = await listLinks(puzzle.id);
-        if (alive && list) setLinks(list);
-      }
-    });
+    void listLinks(puzzle.id).then((list) => alive && list && setLinks(list));
     return () => {
       alive = false;
     };
-  }, [puzzle.id]);
+  }, [puzzle.id, login]);
   useEffect(() => {
     if (!note) return;
     const id = window.setTimeout(() => setNote(null), 6000);
@@ -138,12 +134,7 @@ export function TesterLinks() {
             <button
               type="button"
               className="tune-text-btn"
-              onClick={() =>
-                void signOut().then(() => {
-                  setMe({ ...me, login: null });
-                  setLinks([]);
-                })
-              }
+              onClick={() => void signOut()}
               data-testid="sign-out"
             >
               {t("studio.sign_out")}

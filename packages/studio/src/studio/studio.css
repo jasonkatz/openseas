@@ -288,3 +288,8 @@
 .tune a.btn {
   text-decoration: none;
 }
+
+/* Where the draft is kept. On an address's numbers nothing is saved, and the section says so. */
+.tune-store.is-address {
+  box-shadow: inset 0 0 0 1px var(--brass);
+}

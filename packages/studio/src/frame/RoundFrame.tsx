@@ -2,6 +2,9 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import type { TesterLink } from "@openseas/protocol";
 import type { HarnessPuzzle } from "../puzzles.js";
 import { EMPTY_SCENARIO, formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
+import { SERVICE_URL } from "../service/client.js";
+import { useStoredDraft, type DraftStore } from "./useStoredDraft.js";
+import { withoutDraft } from "./draft.js";
 import { changes, refusals, shippedNumbers, tunedNumbers, withNumber, withoutNumber, withoutNumbers, type Change, type Numbers, type Refusal } from "./numbers.js";
 
 /**
@@ -24,10 +27,15 @@ const NO_ROUND: RoundReport = { seed: null, replayMismatch: false };
 export interface Frame {
   readonly mode: FrameMode;
   readonly puzzle: HarnessPuzzle<unknown, unknown, unknown>;
-  /** What the address bar says: the seed, the numbers laid over content, and how the round's clock starts. */
+  /** What the page plays: the seed, the numbers laid over content, and how the round's clock starts. */
   readonly scenario: Scenario;
-  /** Changes the scenario and keeps the address bar in step, so the page is always one link. */
+  /** Changes the scenario. The address bar is kept in step, so the page is one link, unless the service keeps the draft: then it is saved there and the address stays bare (ADR 0045). */
   setScenario(next: Scenario): void;
+  /** Where the draft is kept, and what the owner can do about it (frame/useStoredDraft). */
+  readonly store: DraftStore;
+  keepDraft(): Promise<boolean>;
+  openDraft(): void;
+  discardDraft(): Promise<boolean>;
   /** The content file's numbers. */
   readonly shipped: Numbers<unknown>;
   /** Content with the scenario's numbers laid over it: the draft. */
@@ -66,8 +74,9 @@ export function useFrame(): Frame {
 }
 
 /**
- * Stands around a puzzle's page and owns its draft: the numbers the address bar lays over
- * content, whether the current build will play them, and what they change. The tuning panel
+ * Stands around a puzzle's page and owns its draft: the numbers laid over content, from the
+ * address bar or, for the signed-in owner on a studio page, from the service (ADR 0045); whether
+ * the current build will play them; and what they change. The tuning panel
  * writes it, the page inside reads it (studio/useStudio) and reports its round back, and the
  * shell rates the round against the draft's own thresholds.
  */
@@ -76,13 +85,17 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const [report, setReportState] = useState<RoundReport>(NO_ROUND);
   const [comparing, setComparing] = useState(false);
 
-  const setScenario = useCallback((next: Scenario) => {
+  const apply = useCallback((next: Scenario, bare: boolean) => {
     setScenarioState(next);
     // A tester link's address is its id; what changes on the page (a new seed) stays on the page.
     if (link) return;
-    const qs = formatScenario({ ...next, autostart: null });
+    const qs = formatScenario({ ...(bare ? withoutDraft(next) : next), autostart: null });
     window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
   }, [link]);
+  // Only the owner's page, on a desktop, asks the service anything: `/play` reads a tester link and no more.
+  const stored = useStoredDraft({ enabled: mode === "studio" && !link && SERVICE_URL !== "", puzzle, scenario, apply });
+  const { store, bare, keep: keepDraft, open: openDraft, discard: discardDraft } = stored;
+  const setScenario = useCallback((next: Scenario) => apply(next, bare()), [apply, bare]);
   const setReport = useCallback((next: RoundReport) => {
     setReportState((prev) => (prev.seed === next.seed && prev.replayMismatch === next.replayMismatch ? prev : next));
   }, []);
@@ -101,8 +114,8 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const changed = useMemo(() => (refused.length ? [] : changes(puzzle, tuned)), [puzzle, tuned, refused]);
   const numbers = comparing ? shipped : tuned;
   const value = useMemo<Frame>(
-    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, comparing, setComparing, report, setReport, link }),
-    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, comparing, report, setReport],
+    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft }),
+    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, comparing, report, setReport, store, keepDraft, openDraft, discardDraft],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
