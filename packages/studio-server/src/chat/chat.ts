@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, sql } from "drizzle-orm";
-import { picksOf, type ChatItem, type ChatModel, type DraftNumbers, type RoundSummary, type SendChat } from "@openseas/protocol";
+import { picksOf, type ChatFailure, type ChatItem, type ChatModel, type DraftNumbers, type RoundSummary, type SendChat } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import type { DraftRow } from "../drafts.js";
 import type { Logger } from "../log.js";
@@ -7,7 +7,7 @@ import type { Repo } from "../save/repo.js";
 import { branchFor } from "../save/saver.js";
 import { MODEL_IDS } from "./prices.js";
 import type { ModelProxy } from "./proxy.js";
-import type { AgentEvent, AgentRunner, AgentTurn } from "./runner.js";
+import type { AgentEvent, AgentRunner, AgentTurn, TurnResult } from "./runner.js";
 import type { AgentIdentity } from "./sdkRunner.js";
 import { mayWrite, repoPath } from "./scope.js";
 import { TAKE_USD, type Takes } from "../takes/takes.js";
@@ -46,13 +46,27 @@ export interface Chat {
   answer(row: DraftRow, itemId: number, allow: boolean): Promise<boolean>;
   items(draftId: string, after: number): Promise<ChatItem[]>;
   running(draftId: string): boolean;
+  /** The words of the reply being written on the draft's turn, so far; empty when none is. */
+  live(draftId: string): string;
+  /** Be told what happens in a draft's chat, as it happens, in order (ADR 0055). The answer ends it. */
+  subscribe(draftId: string, listener: (signal: ChatSignal) => void): () => void;
   spent(): Promise<number>;
   readonly capUsd: number;
   /** Resolves when no turn is running or being finished. For tests and shutdown. */
   idle(): Promise<void>;
 }
 
+/**
+ * What a chat tells whoever watches it. `item`: a line was added, or one changed. `delta`: more
+ * words of the reply being written, after forgetting the words so far when `reset`. `status`:
+ * something else of the chat's changed (a turn started or ended, money was spent, a number moved);
+ * the watcher reads what it needs.
+ */
+export type ChatSignal = { type: "item"; item: ChatItem } | { type: "delta"; text: string; reset: boolean } | { type: "status" };
+
 const OVERRIDE = "config.";
+/** How much of what was said as a turn failed is kept for the owner. */
+const ERROR_MAX = 600;
 type Top = "roundSeconds" | "paceSeconds" | "thresholds";
 const TOPS: readonly Top[] = ["roundSeconds", "paceSeconds", "thresholds"];
 
@@ -109,17 +123,40 @@ interface Running {
   log: Promise<unknown>;
   /** The draft's worktree, once the turn has one. */
   cwd: string | null;
+  /** The reply being written, so far. */
+  live: string;
 }
+
+type ItemRow = typeof schema.chatItem.$inferSelect;
+const toItem = (r: ItemRow): ChatItem => ({ id: r.id, turn: r.turn, kind: r.kind, at: r.createdAt.toISOString(), ...r.data }) as ChatItem;
 
 export function createChat(o: ChatOptions): Chat {
   const { db, repo, log } = o;
   const live = new Map<string, Running>();
   const finishing = new Set<Promise<void>>();
 
+  const watchers = new Map<string, Set<(signal: ChatSignal) => void>>();
+  /** A watcher that throws is that watcher's trouble: the turn and the others carry on. */
+  const tell = (draftId: string, signal: ChatSignal): void => {
+    for (const listener of watchers.get(draftId) ?? []) {
+      try {
+        listener(signal);
+      } catch (err) {
+        log.warn({ err, draft: draftId }, "a chat watcher failed");
+      }
+    }
+  };
   const add = async (draftId: string, turn: number, kind: ChatItem["kind"], data: Record<string, unknown>): Promise<number> => {
-    const [row] = await db.insert(schema.chatItem).values({ draftId, turn, kind, data }).returning({ id: schema.chatItem.id });
+    const [row] = await db.insert(schema.chatItem).values({ draftId, turn, kind, data }).returning();
+    tell(draftId, { type: "item", item: toItem(row!) });
     return row!.id;
   };
+  /** Change some of a line, and tell the watchers the line as it now is. */
+  const patch = async (itemId: number, data: Record<string, unknown>): Promise<void> => {
+    const [row] = await db.update(schema.chatItem).set({ data: sql`${schema.chatItem.data} || ${JSON.stringify(data)}::jsonb` }).where(eq(schema.chatItem.id, itemId)).returning();
+    if (row) tell(row.draftId, { type: "item", item: toItem(row) });
+  };
+  const failed = (reason: ChatFailure, error?: string): Record<string, unknown> => ({ status: "failed", reason, error: error ? error.slice(0, ERROR_MAX) : null, commit: null, costUsd: 0, reverted: false });
   const fresh = async (id: string): Promise<DraftRow | null> => (await db.select().from(schema.draft).where(eq(schema.draft.id, id)).limit(1))[0] ?? null;
   const spent = async (): Promise<number> => (await db.select().from(schema.meter).where(eq(schema.meter.id, 1)).limit(1))[0]?.spentUsd ?? 0;
 
@@ -130,7 +167,7 @@ export function createChat(o: ChatOptions): Chat {
     run.log = run.log.then(() => add(draftId, run.number, "ask", { path, state: "pending" }));
   };
 
-  async function finish(row: DraftRow, run: Running, result: { status: "done" | "failed"; error?: string }): Promise<void> {
+  async function finish(row: DraftRow, run: Running, result: TurnResult): Promise<void> {
     await run.log.catch(() => undefined);
     let commit: string | null = null;
     try {
@@ -165,8 +202,13 @@ export function createChat(o: ChatOptions): Chat {
     }
     const status = run.capped ? "capped" : run.stopped ? "stopped" : result.status;
     if (status === "failed") log.warn({ draft: row.id, turn: run.number, error: result.error }, "chat turn failed");
-    await add(row.id, run.number, "turn", { status, commit, costUsd: run.spentUsd, reverted: false });
-    live.delete(row.id);
+    try {
+      await add(row.id, run.number, "turn", { status, commit, costUsd: run.spentUsd, reverted: false, ...(status === "failed" ? { reason: result.reason ?? "agent", error: result.error?.slice(0, ERROR_MAX) ?? null } : {}) });
+    } finally {
+      // Whatever became of the row, the draft is not left with a turn that never ends.
+      live.delete(row.id);
+      tell(row.id, { type: "status" });
+    }
   }
 
   async function begin(row: DraftRow, input: SendChat): Promise<void> {
@@ -176,14 +218,16 @@ export function createChat(o: ChatOptions): Chat {
     await add(row.id, number, "user", { text: input.text, model: input.model, steer: false });
 
     // Reserved before anything is awaited again, so a second message steers this turn and does not start another.
-    const run: Running = { turn: null as unknown as AgentTurn, number, stopped: false, capped: false, spentUsd: 0, asked: new Set(), steps: new Map(), allowed: [...row.allowedPaths], log: Promise.resolve(), cwd: null };
+    const run: Running = { turn: null as unknown as AgentTurn, number, stopped: false, capped: false, spentUsd: 0, asked: new Set(), steps: new Map(), allowed: [...row.allowedPaths], log: Promise.resolve(), cwd: null, live: "" };
     live.set(row.id, run);
+    tell(row.id, { type: "status" });
     const queued: string[] = [];
     run.turn = { done: new Promise(() => undefined), steer: (text) => void queued.push(text), stop: () => undefined };
 
-    const before = await spent();
+    let before: number;
     let cwd: string;
     try {
+      before = await spent();
       await repo.ready();
       if (!repo.hasWorktree(row.id)) await repo.fetchBase();
       cwd = await repo.worktree(row.id, branch);
@@ -191,8 +235,9 @@ export function createChat(o: ChatOptions): Chat {
       run.cwd = cwd;
     } catch (err) {
       log.error({ err, draft: row.id }, "could not prepare a draft's worktree for the chat");
-      await add(row.id, number, "turn", { status: "failed", commit: null, costUsd: 0, reverted: false });
       live.delete(row.id);
+      await add(row.id, number, "turn", failed("worktree", err instanceof Error ? err.message : String(err))).catch((e: unknown) => log.error({ err: e, draft: row.id }, "could not record a failed turn"));
+      tell(row.id, { type: "status" });
       return;
     }
 
@@ -200,10 +245,14 @@ export function createChat(o: ChatOptions): Chat {
       open: () => !run.capped && before + run.spentUsd < o.capUsd,
       spend: (usd) => {
         run.spentUsd += usd;
-        run.log = run.log.then(async () => {
-          await db.insert(schema.meter).values({ id: 1, spentUsd: usd }).onConflictDoUpdate({ target: schema.meter.id, set: { spentUsd: sql`${schema.meter.spentUsd} + ${usd}` } });
-          await db.update(schema.draft).set({ spentUsd: sql`${schema.draft.spentUsd} + ${usd}` }).where(eq(schema.draft.id, row.id));
-        });
+        run.log = run.log
+          .then(async () => {
+            await db.insert(schema.meter).values({ id: 1, spentUsd: usd }).onConflictDoUpdate({ target: schema.meter.id, set: { spentUsd: sql`${schema.meter.spentUsd} + ${usd}` } });
+            await db.update(schema.draft).set({ spentUsd: sql`${schema.draft.spentUsd} + ${usd}` }).where(eq(schema.draft.id, row.id));
+            tell(row.id, { type: "status" });
+          })
+          // A write that failed must not stop every later one of the turn's: the chain carries on.
+          .catch((err: unknown) => log.error({ err, draft: row.id }, "could not record what a turn spent"));
         // The cap is all drafts together, and a turn that reaches it stops where it stands (ADR 0047).
         if (before + run.spentUsd >= o.capUsd && !run.capped) {
           run.capped = true;
@@ -217,49 +266,66 @@ export function createChat(o: ChatOptions): Chat {
       run.log = run.log
         .then(async () => {
           if (e.kind === "session") await db.update(schema.draft).set({ chatSession: e.id }).where(eq(schema.draft.id, row.id));
-          else if (e.kind === "reply") await add(row.id, number, "reply", { text: e.text });
-          else if (e.kind === "step") run.steps.set(e.id, await add(row.id, number, "step", { tool: e.tool, summary: e.summary, detail: null, failed: false }));
+          else if (e.kind === "delta") {
+            // Never a row: the whole block follows as a reply. Kept here so a page that connects mid-reply is given the words so far.
+            run.live = e.reset ? e.text : run.live + e.text;
+            tell(row.id, { type: "delta", text: e.text, reset: e.reset });
+          } else if (e.kind === "reply") {
+            await add(row.id, number, "reply", { text: e.text });
+            // The line now says it whole.
+            run.live = "";
+            tell(row.id, { type: "delta", text: "", reset: true });
+          } else if (e.kind === "step") run.steps.set(e.id, await add(row.id, number, "step", { tool: e.tool, summary: e.summary, detail: null, failed: false }));
           else {
             const item = run.steps.get(e.id);
-            if (item !== undefined) await db.update(schema.chatItem).set({ data: sql`${schema.chatItem.data} || ${JSON.stringify({ detail: e.detail, failed: e.failed })}::jsonb` }).where(eq(schema.chatItem.id, item));
+            if (item !== undefined) await patch(item, { detail: e.detail, failed: e.failed });
           }
         })
         .catch((err: unknown) => log.error({ err, draft: row.id }, "could not record a chat event"));
     };
 
-    const turn = o.runner.start({
-      cwd,
-      puzzle: row.puzzle,
-      prompt: `${input.text}\n${context(row.numbers, input.refusals, input.rounds, run.allowed)}`,
-      model: MODEL_IDS[input.model],
-      session: row.chatSession,
-      modelUrl: o.proxy.url,
-      modelToken: gate.token,
-      host: {
-        mayWrite: (path) => {
-          const rel = repoPath(cwd, path);
-          // Outside the worktree there is nothing of the repository's to allow: refused, and not put to the owner.
-          if (rel === null) return false;
-          if (mayWrite(row.puzzle, rel, run.allowed)) return true;
-          ask(row.id, run, rel);
-          return false;
+    let turn: AgentTurn;
+    try {
+      turn = o.runner.start({
+        cwd,
+        puzzle: row.puzzle,
+        prompt: `${input.text}\n${context(row.numbers, input.refusals, input.rounds, run.allowed)}`,
+        model: MODEL_IDS[input.model],
+        session: row.chatSession,
+        modelUrl: o.proxy.url,
+        modelToken: gate.token,
+        host: {
+          mayWrite: (path) => {
+            const rel = repoPath(cwd, path);
+            // Outside the worktree there is nothing of the repository's to allow: refused, and not put to the owner.
+            if (rel === null) return false;
+            if (mayWrite(row.puzzle, rel, run.allowed)) return true;
+            ask(row.id, run, rel);
+            return false;
+          },
+          setNumbers: async (set, reset) => {
+            const now = await fresh(row.id);
+            if (!now) return "The draft is gone.";
+            let numbers: DraftNumbers;
+            try {
+              numbers = withNumbers(now.numbers, set, reset);
+            } catch (err) {
+              return `Not set: ${err instanceof Error ? err.message : String(err)}`;
+            }
+            await db.update(schema.draft).set({ numbers, revision: sql`${schema.draft.revision} + 1`, updatedAt: new Date() }).where(eq(schema.draft.id, row.id));
+            // The owner's controls follow at once, not at the turn's end.
+            tell(row.id, { type: "status" });
+            return `Set. The draft now changes: ${JSON.stringify({ config: numbers.overrides, roundSeconds: numbers.roundSeconds, paceSeconds: numbers.paceSeconds, thresholds: numbers.thresholds })}. The owner's controls have moved. Whether the build plays these is checked on the owner's page and reported in their next message.`;
+          },
+          numbers: async () => (await fresh(row.id))?.numbers ?? row.numbers,
+          emit: onEvent,
         },
-        setNumbers: async (set, reset) => {
-          const now = await fresh(row.id);
-          if (!now) return "The draft is gone.";
-          let numbers: DraftNumbers;
-          try {
-            numbers = withNumbers(now.numbers, set, reset);
-          } catch (err) {
-            return `Not set: ${err instanceof Error ? err.message : String(err)}`;
-          }
-          await db.update(schema.draft).set({ numbers, revision: sql`${schema.draft.revision} + 1`, updatedAt: new Date() }).where(eq(schema.draft.id, row.id));
-          return `Set. The draft now changes: ${JSON.stringify({ config: numbers.overrides, roundSeconds: numbers.roundSeconds, paceSeconds: numbers.paceSeconds, thresholds: numbers.thresholds })}. The owner's controls have moved. Whether the build plays these is checked on the owner's page and reported in their next message.`;
-        },
-        numbers: async () => (await fresh(row.id))?.numbers ?? row.numbers,
-        emit: onEvent,
-      },
-    });
+      });
+    } catch (err) {
+      // An agent that could not even be started is a turn that failed, said so, and not a draft held for good.
+      log.error({ err, draft: row.id }, "could not start the agent");
+      turn = { done: Promise.resolve({ status: "failed", error: err instanceof Error ? err.message : String(err) }), steer: () => undefined, stop: () => undefined };
+    }
     run.turn = turn;
     for (const text of queued) turn.steer(text);
     if (run.stopped) turn.stop();
@@ -269,6 +335,7 @@ export function createChat(o: ChatOptions): Chat {
       .catch((err: unknown) => {
         log.error({ err, draft: row.id }, "could not finish a chat turn");
         live.delete(row.id);
+        tell(row.id, { type: "status" });
       })
       .finally(() => {
         gate.close();
@@ -285,7 +352,7 @@ export function createChat(o: ChatOptions): Chat {
         select u.draft_id, u.turn from studio.chat_item u
         where u.kind = 'user' and not exists (select 1 from studio.chat_item t where t.draft_id = u.draft_id and t.turn = u.turn and t.kind = 'turn')
         group by u.draft_id, u.turn`);
-      for (const r of open) await add(r.draft_id, r.turn, "turn", { status: "failed", commit: null, costUsd: 0, reverted: false });
+      for (const r of open) await add(r.draft_id, r.turn, "turn", failed("restart"));
     },
     async send(row, input) {
       const run = live.get(row.id);
@@ -312,14 +379,14 @@ export function createChat(o: ChatOptions): Chat {
       const sha = item?.data.commit;
       if (!item || typeof sha !== "string" || item.data.reverted === true) return false;
       if (!(await repo.revert(row.id, sha, `Revert chat turn ${turn} on ${row.puzzle}`))) return false;
-      await db.update(schema.chatItem).set({ data: { ...item.data, reverted: true } }).where(eq(schema.chatItem.id, item.id));
+      await patch(item.id, { reverted: true });
       return true;
     },
     async answer(row, itemId, allow) {
       const [item] = await db.select().from(schema.chatItem).where(and(eq(schema.chatItem.id, itemId), eq(schema.chatItem.draftId, row.id), eq(schema.chatItem.kind, "ask"))).limit(1);
       const path = item?.data.path;
       if (!item || typeof path !== "string" || item.data.state !== "pending") return false;
-      await db.update(schema.chatItem).set({ data: { ...item.data, state: allow ? "allowed" : "refused" } }).where(eq(schema.chatItem.id, item.id));
+      await patch(item.id, { state: allow ? "allowed" : "refused" });
       if (!allow) return true;
       const paths = [...new Set([...row.allowedPaths, path])];
       await db.update(schema.draft).set({ allowedPaths: paths }).where(eq(schema.draft.id, row.id));
@@ -333,9 +400,19 @@ export function createChat(o: ChatOptions): Chat {
     },
     async items(draftId, after) {
       const rows = await db.select().from(schema.chatItem).where(and(eq(schema.chatItem.draftId, draftId), gt(schema.chatItem.id, after))).orderBy(asc(schema.chatItem.id));
-      return rows.map((r) => ({ id: r.id, turn: r.turn, kind: r.kind, at: r.createdAt.toISOString(), ...r.data }) as ChatItem);
+      return rows.map(toItem);
     },
     running: (draftId) => live.has(draftId),
+    live: (draftId) => live.get(draftId)?.live ?? "",
+    subscribe(draftId, listener) {
+      const set = watchers.get(draftId) ?? new Set();
+      watchers.set(draftId, set);
+      set.add(listener);
+      return () => {
+        set.delete(listener);
+        if (set.size === 0 && watchers.get(draftId) === set) watchers.delete(draftId);
+      };
+    },
     spent,
     async idle() {
       while (finishing.size) await Promise.all([...finishing]);

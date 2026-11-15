@@ -82,6 +82,8 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
   const api = { keys: new Set<string>(), mainTurns: [] as Array<{ tools: string[]; results: string[]; system: string; said: string }> };
   /** The script: the n-th answer of the main conversation. */
   let script: Block[][] = [];
+  /** Set, the stand-in takes the main conversation's request and never answers it. */
+  let silent = false;
 
   beforeAll(async () => {
     mkdirSync(join(cwd, "docs/puzzles"), { recursive: true });
@@ -110,6 +112,7 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
           const results = (body.messages ?? []).flatMap((m) => (Array.isArray(m.content) ? (m.content as Array<{ type: string; content?: unknown }>).filter((b) => b.type === "tool_result").map((b) => JSON.stringify(b.content)) : []));
           api.mainTurns.push({ tools, results, system: JSON.stringify(body.system ?? ""), said: JSON.stringify(body.messages ?? []) });
           blocks = script[api.mainTurns.length - 1] ?? [{ type: "text", text: "Nothing more to do." }];
+          if (silent) return;
         }
         if (body.stream) {
           res.writeHead(200, { "content-type": "text/event-stream" });
@@ -201,6 +204,11 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
     // What the owner is shown: the words, a line a step, and each step's outcome.
     expect(events.find((e) => e.kind === "session")).toBeTruthy();
     expect(events.filter((e) => e.kind === "reply").map((e) => (e.kind === "reply" ? e.text : ""))).toEqual(["I'll make the change.", "Done. This was a file edit: Save and look at the pull request's preview."]);
+    // Its words came as it wrote them, before each whole block: the first reply's are all there when its block arrives, and a new message starts from none.
+    const first = events.findIndex((e) => e.kind === "reply");
+    const sofar = events.slice(0, first).reduce((text, e) => (e.kind === "delta" ? (e.reset ? e.text : text + e.text) : text), "");
+    expect(sofar).toBe("I'll make the change.");
+    expect(events.filter((e) => e.kind === "delta" && e.reset).length).toBeGreaterThanOrEqual(5);
     const steps = events.filter((e) => e.kind === "step").map((e) => (e.kind === "step" ? e.tool : ""));
     expect(steps).toEqual(["Write", "Write", "mcp__studio__set_numbers", "Bash"]);
     const outcomes = events.filter((e) => e.kind === "stepDone");
@@ -291,6 +299,48 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
     expect(again).not.toBeNull();
     for (const p of [join(identity.home, ".claude"), projects, join(projects, "old.jsonl")]) expect(statSync(p).uid, p).toBe(again!.uid);
   });
+
+  it("stops a turn whose agent says nothing for too long, and says that is why", async () => {
+    silent = true;
+    api.mainTurns.length = 0;
+    const gate = proxy.admit({ open: () => true, spend: () => undefined });
+    const at = Date.now();
+    const turn = createSdkRunner({ identity, scriptKeys: {}, log: createLogger("silent", false), idleMs: 3000 }).start({
+      cwd,
+      puzzle: "cooling",
+      prompt: "Hello?",
+      model: "claude-sonnet-5-5",
+      session: null,
+      modelUrl: proxy.url,
+      modelToken: gate.token,
+      host: { mayWrite: () => true, setNumbers: async () => "Set.", numbers: async () => ({ seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null }), emit: () => undefined },
+    });
+    const result = await turn.done;
+    silent = false;
+    gate.close();
+    expect(result).toMatchObject({ status: "failed", reason: "idle" });
+    expect(api.mainTurns.length).toBeGreaterThan(0);
+    expect(Date.now() - at).toBeLessThan(30_000);
+  }, 120_000);
+
+  it("does not take a long command for silence", async () => {
+    script = [[{ type: "tool_use", name: "Bash", input: { command: "python3 -c 'import time; time.sleep(12)'; echo slept" } }], [{ type: "text", text: "Slept." }]];
+    api.mainTurns.length = 0;
+    const gate = proxy.admit({ open: () => true, spend: () => undefined });
+    const turn = createSdkRunner({ identity, scriptKeys: {}, log: createLogger("silent", false), idleMs: 5000 }).start({
+      cwd,
+      puzzle: "cooling",
+      prompt: "Run the slow thing.",
+      model: "claude-sonnet-5-5",
+      session: null,
+      modelUrl: proxy.url,
+      modelToken: gate.token,
+      host: { mayWrite: () => true, setNumbers: async () => "Set.", numbers: async () => ({ seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null }), emit: () => undefined },
+    });
+    expect(await turn.done).toEqual({ status: "done" });
+    gate.close();
+    expect(api.mainTurns[1]!.results.join("\n")).toContain("slept");
+  }, 120_000);
 
   it("stops where it stands when told to", async () => {
     // A command that would run for a minute, were it left to.

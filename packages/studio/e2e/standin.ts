@@ -50,7 +50,7 @@ export type Item = { id: number; turn: number; at: string } & (
   | { kind: "reply"; text: string }
   | { kind: "step"; tool: string; summary: string; detail: string | null; failed: boolean }
   | { kind: "ask"; path: string; state: "pending" | "allowed" | "refused" }
-  | { kind: "turn"; status: "done" | "stopped" | "failed" | "capped"; commit: string | null; costUsd: number; reverted: boolean }
+  | { kind: "turn"; status: "done" | "stopped" | "failed" | "capped"; commit: string | null; costUsd: number; reverted: boolean; reason?: "agent" | "worktree" | "restart" | "idle"; error?: string }
 );
 type Line<K extends Item["kind"]> = Omit<Extract<Item, { kind: K }>, "id" | "turn" | "at" | "kind">;
 
@@ -68,8 +68,10 @@ export interface StandinTake {
 }
 
 export interface Service {
-  /** The chat of the one draft the chat tests use: its lines, whether a turn runs, and the money. */
-  chat: { items: Item[]; running: boolean; turn: number; spentUsd: number; cap: { spentUsd: number; capUsd: number } };
+  /** The chat of the one draft the chat tests use: its lines, whether a turn runs, the words of the reply being written, and the money. */
+  chat: { items: Item[]; running: boolean; turn: number; live: string; spentUsd: number; cap: { spentUsd: number; capUsd: number } };
+  /** Set, the chat's event stream is refused, as when the connection is lost: the page is left to ask for the chat. */
+  streamDown: boolean;
   /** Add a line to the chat, as the agent's turn would. */
   say<K extends Item["kind"]>(kind: K, data: Line<K>): Item;
   drafts: Draft[];
@@ -90,7 +92,8 @@ export interface Service {
 /** A stand-in service: one owner (or nobody), and the drafts the test gives it, kept as the real one keeps them. */
 export async function service(page: Page, o: { login: string | null; drafts?: Draft[]; save?: boolean; chat?: boolean; takes?: StandinTake[]; picks?: boolean }): Promise<Service> {
   const s: Service = {
-    chat: { items: [], running: false, turn: 0, spentUsd: 0, cap: { spentUsd: 0, capUsd: 20 } },
+    chat: { items: [], running: false, turn: 0, live: "", spentUsd: 0, cap: { spentUsd: 0, capUsd: 20 } },
+    streamDown: false,
     say(kind, data) {
       const made = { id: s.chat.items.length + 1, turn: s.chat.turn, at: "2026-11-14T12:00:00.000Z", kind, ...data } as unknown as Item;
       s.chat.items.push(made);
@@ -132,7 +135,7 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
       });
     const link = (l: Service["links"][number]) => ({ ...l, author: o.login, draft: numbers(), createdAt: "2026-11-13T12:00:00.000Z", withdrawn: false });
     if (url.pathname === "/links") return json(200, { links: s.links.filter((l) => l.puzzle === url.searchParams.get("puzzle")).map(link) });
-    const parts = /^\/drafts\/([^/]+)(?:\/(save|update|chat|chat\/stop|chat\/revert|chat\/allow))?$/.exec(url.pathname);
+    const parts = /^\/drafts\/([^/]+)(?:\/(save|update|chat|chat\/events|chat\/stop|chat\/revert|chat\/allow))?$/.exec(url.pathname);
     const id = parts?.[1];
     const act = parts?.[2];
     if (url.pathname === "/drafts" && req.method() === "GET") {
@@ -141,7 +144,15 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
     }
     if (act === "chat" && req.method() === "GET") {
       const d = s.drafts.find((x) => x.id === id);
-      return d ? json(200, { items: s.chat.items, running: s.chat.running, spentUsd: s.chat.spentUsd, cap: s.chat.cap, draft: d }) : json(404, { error: "not_found" });
+      return d ? json(200, { items: s.chat.items, running: s.chat.running, live: s.chat.live, spentUsd: s.chat.spentUsd, cap: s.chat.cap, draft: d }) : json(404, { error: "not_found" });
+    }
+    // The stream (ADR 0055), as a route can answer it: the whole chat, and the connection ends. The page asks
+    // again, as it does after any drop, so each thing a test does to the chat reaches the page on the next connection.
+    if (act === "chat/events" && req.method() === "GET") {
+      const d = s.drafts.find((x) => x.id === id);
+      if (s.streamDown || !d) return route.abort();
+      const state = { items: s.chat.items, running: s.chat.running, live: s.chat.live, spentUsd: s.chat.spentUsd, cap: s.chat.cap, draft: d };
+      return route.fulfill({ status: 200, contentType: "text/event-stream", headers: cors, body: `data: ${JSON.stringify({ type: "state", state })}\n\n` });
     }
     if (url.pathname !== "/drafts" && !id) return json(404, { error: "not_found" });
     s.writes.push({ call: `${req.method()} ${url.pathname}`, body: req.postDataJSON() as unknown });

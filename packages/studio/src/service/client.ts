@@ -1,4 +1,4 @@
-import { ChatStateSchema, DraftListSchema, DraftSchema, SaveStartedSchema, StudioMeSchema, TakeListSchema, TesterLinkIdSchema, TesterLinkListSchema, TesterLinkSchema, type CreateTesterLink, type ChatState, type Draft, type DraftNumbers, type SaveStarted, type SendChat, type StudioMe, type Take, type TesterLink } from "@openseas/protocol";
+import { ChatEventSchema, ChatStateSchema, DraftListSchema, DraftSchema, SaveStartedSchema, StudioMeSchema, TakeListSchema, TesterLinkIdSchema, TesterLinkListSchema, TesterLinkSchema, type CreateTesterLink, type ChatEvent, type ChatState, type Draft, type DraftNumbers, type SaveStarted, type SendChat, type StudioMe, type Take, type TesterLink } from "@openseas/protocol";
 
 /**
  * The studio's service (ADR 0042 decision 4, ADR 0043), as this site reaches it. Empty when the
@@ -143,6 +143,74 @@ export async function fetchChat(id: string): Promise<ChatState | null> {
   } catch {
     return null;
   }
+}
+
+/** How long the stream may say nothing, the service's own beat included, before it is taken for dead. The service beats every 15 seconds. */
+const STREAM_QUIET_MS = 40_000;
+/** The longest wait before asking for the stream again. */
+const STREAM_RETRY_MS = 15_000;
+
+/**
+ * A draft's chat as it happens (ADR 0055): the whole of it first, then each line, each word of the
+ * reply being written and each change of the turn or the money, as the service tells them. `link`
+ * says whether the stream is alive; when it is not, this keeps asking for it, more and more
+ * slowly, and the whole chat comes again when it answers. The answer ends the watch.
+ */
+export function watchChat(id: string, on: { event(event: ChatEvent): void; link(alive: boolean): void }): () => void {
+  let source: EventSource | null = null;
+  let over = false;
+  let tries = 0;
+  let again: number | undefined;
+  let quiet: number | undefined;
+  const retry = (): void => {
+    window.clearTimeout(quiet);
+    source?.close();
+    source = null;
+    on.link(false);
+    if (over) return;
+    window.clearTimeout(again);
+    again = window.setTimeout(open, Math.min(STREAM_RETRY_MS, 500 * 2 ** tries++));
+  };
+  // A connection can die without a word, on a laptop that slept or a network that changed: silence past the service's beat is taken for that.
+  const heard = (): void => {
+    window.clearTimeout(quiet);
+    quiet = window.setTimeout(retry, STREAM_QUIET_MS);
+  };
+  function open(): void {
+    if (over) return;
+    try {
+      source = new EventSource(`${SERVICE_URL}/drafts/${encodeURIComponent(id)}/chat/events`, { withCredentials: true });
+    } catch {
+      return retry();
+    }
+    heard();
+    source.addEventListener("ping", heard);
+    source.onmessage = (message: MessageEvent<string>): void => {
+      heard();
+      let event: ReturnType<typeof ChatEventSchema.safeParse>;
+      try {
+        event = ChatEventSchema.safeParse(JSON.parse(message.data));
+      } catch {
+        return;
+      }
+      if (!event.success) return;
+      // Alive once it has said the whole chat: a connection that opens and says nothing is no use.
+      if (event.data.type === "state") {
+        tries = 0;
+        on.link(true);
+      }
+      on.event(event.data);
+    };
+    // The browser asks again by itself after a drop, and gives up after a refusal. Either way the stream is asked for afresh, so every connection starts with the whole chat.
+    source.onerror = retry;
+  }
+  open();
+  return () => {
+    over = true;
+    window.clearTimeout(again);
+    window.clearTimeout(quiet);
+    source?.close();
+  };
 }
 
 /** What became of a message to the agent. `capped`: the spend cap is reached. `busy`: the draft's branch is being saved. */

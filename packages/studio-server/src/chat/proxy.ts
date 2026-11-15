@@ -81,7 +81,12 @@ export async function createModelProxy(o: { apiKey: string; upstream?: string; l
     const headers: Record<string, string> = { "x-api-key": o.apiKey };
     for (const [name, value] of Object.entries(req.headers)) if (!HOP.has(name) && typeof value === "string") headers[name] = value;
 
-    const answer = await fetcher(`${upstream}${req.url ?? "/"}`, { method: req.method ?? "POST", headers, ...(body.length ? { body } : {}) });
+    // An agent that is stopped drops its request. The model is then told to stop too: nobody is left to read what it would write, and it is paid for by the word.
+    const gone = new AbortController();
+    res.on("close", () => {
+      if (!res.writableFinished) gone.abort();
+    });
+    const answer = await fetcher(`${upstream}${req.url ?? "/"}`, { method: req.method ?? "POST", headers, signal: gone.signal, ...(body.length ? { body } : {}) });
     const out: Record<string, string> = {};
     answer.headers.forEach((value, name) => {
       if (!HOP.has(name)) out[name] = value;
@@ -90,19 +95,25 @@ export async function createModelProxy(o: { apiKey: string; upstream?: string; l
     const sse = (answer.headers.get("content-type") ?? "").includes("text/event-stream");
     const metered = answer.ok && (req.url ?? "").split("?")[0] === "/v1/messages";
     let seen = "";
-    if (answer.body) {
-      const decoder = new TextDecoder();
-      for await (const chunk of answer.body as unknown as AsyncIterable<Uint8Array>) {
-        res.write(chunk);
-        if (metered) seen += decoder.decode(chunk, { stream: true });
+    try {
+      if (answer.body) {
+        const decoder = new TextDecoder();
+        for await (const chunk of answer.body as unknown as AsyncIterable<Uint8Array>) {
+          res.write(chunk);
+          if (metered) seen += decoder.decode(chunk, { stream: true });
+        }
       }
+      res.end();
+    } finally {
+      // Whatever arrived was paid for, whether or not the answer was read to its end.
+      if (metered) turn.spend(costUsd(model, meterBody(seen, sse)));
     }
-    res.end();
-    if (metered) turn.spend(costUsd(model, meterBody(seen, sse)));
   }
 
   const server: Server = createServer((req, res) => {
     void handle(req, res).catch((err: unknown) => {
+      // The agent hung up, and the request upstream was dropped with it: nothing failed.
+      if (res.destroyed) return;
       o.log.warn({ err }, "model proxy: request failed");
       if (!res.headersSent) refuse(res, 502, "api_error", "the studio could not reach the model");
       else res.end();
