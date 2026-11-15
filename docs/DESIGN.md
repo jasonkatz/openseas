@@ -881,8 +881,8 @@ guests and account linking to Discord and Google.
 ### 4.6 Hosting and operations
 
 - Server and Postgres on Railway, deployed from `main`.
-- Client as a static build on Vercel, deployed from `main`. The harness and the puzzle guides are
-  static builds on Vercel too, each its own project (ADR 0019, ADR 0038).
+- Client as a static build on Vercel, deployed from `main`. The studio and the puzzle guides are
+  static builds on Vercel too, each its own project (ADR 0019, ADR 0038, ADR 0042).
 - Merging is releasing. After CI is green on `main`, one Actions pipeline deploys the server to
   Railway, waits for it to be healthy on the new commit, then deploys the client to Vercel
   (ADR 0014, `docs/DEPLOY.md`).

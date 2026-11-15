@@ -90,7 +90,7 @@ pnpm typecheck                  # every package
 pnpm test                       # engine property tests, protocol, content, server unit tests, the world's layout
 TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/openseas pnpm test   # plus server integration
 pnpm --filter @openseas/engine lint                                                # engine purity guard
-pnpm --filter @openseas/studio exec playwright install chromium && pnpm test:smoke # game and harness smoke
+pnpm --filter @openseas/studio exec playwright install chromium && pnpm test:smoke # game and studio smoke
 ```
 
 Schema changes: edit `packages/server/src/db/schema.ts`, then `pnpm db:generate` and commit the
@@ -99,7 +99,8 @@ migration. Migrations run automatically when the server starts.
 ## Deploy
 
 Merging to `main` deploys. Once CI is green, the **Deploy** workflow ships the server to Railway,
-waits for it to be healthy, then ships the game and the harness to their two Vercel projects.
-Every pull request that touches code gets its own server, database, game preview and harness
-preview, linked from a comment on the PR. One-time setup, secrets, and rollback are in
+waits for it to be healthy, then ships the game and the studio to their Vercel projects; the
+puzzle guides and the studio's service go out alongside. Every pull request that touches code gets
+its own server, database, and previews of the game, the studio and the guides, linked from a
+comment on the PR. One-time setup, secrets, and rollback are in
 [docs/DEPLOY.md](docs/DEPLOY.md).

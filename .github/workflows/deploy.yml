@@ -2,11 +2,12 @@ name: Deploy
 
 # Continuous deployment from main (ADR 0014). Runs after CI succeeds on main, or by hand.
 # Order is deliberate: the server goes first and must serve the new commit on /health before the
-# two front ends are built and deployed against it. The game (client) and the puzzle harness
-# (ADR 0019) are separate Vercel projects and deploy in parallel after the server. The puzzle
-# guides (ADR 0038) are a third, a static site that needs no server and waits for none. Each side
-# is skipped when nothing under it changed, unless forced from the manual trigger. Setup and
-# secrets: docs/DEPLOY.md.
+# two front ends that talk to it are built and deployed against it. The game (client) and the
+# puzzle studio (ADR 0019, ADR 0042) are separate Vercel projects and deploy in parallel after the
+# server. The puzzle guides (ADR 0038) are a third, a static site that needs no server and waits
+# for none. The studio's service (ADR 0043) goes to Railway on its own. Each side is skipped when
+# nothing under it changed, unless forced from the manual trigger. The three Vercel jobs share
+# .github/scripts/vercel-deploy.sh. Setup and secrets: docs/DEPLOY.md.
 
 on:
   workflow_run:
@@ -23,8 +24,12 @@ on:
         description: Deploy the game client even if nothing under it changed
         type: boolean
         default: false
-      harness:
-        description: Deploy the puzzle harness even if nothing under it changed
+      studio:
+        description: Deploy the puzzle studio site even if nothing under it changed
+        type: boolean
+        default: false
+      studio_server:
+        description: Deploy the studio's service even if nothing under it changed
         type: boolean
         default: false
       docs:
@@ -48,7 +53,7 @@ jobs:
     outputs:
       server: ${{ steps.changed.outputs.server }}
       client: ${{ steps.changed.outputs.client }}
-      harness: ${{ steps.changed.outputs.harness }}
+      studio: ${{ steps.changed.outputs.studio }}
       docs: ${{ steps.changed.outputs.docs }}
       studio_server: ${{ steps.changed.outputs.studio_server }}
     steps:
@@ -60,43 +65,33 @@ jobs:
         env:
           FORCE_SERVER: ${{ inputs.server == true }}
           FORCE_CLIENT: ${{ inputs.client == true }}
-          FORCE_HARNESS: ${{ inputs.harness == true }}
+          FORCE_STUDIO: ${{ inputs.studio == true }}
+          FORCE_STUDIO_SERVER: ${{ inputs.studio_server == true }}
           FORCE_DOCS: ${{ inputs.docs == true }}
-          DOCS_PROJECT: ${{ vars.VERCEL_DOCS_PROJECT_ID }}
           STUDIO_SERVICE: ${{ vars.RAILWAY_STUDIO_SERVICE }}
         run: |
-          server=false; client=false; harness=false; docs=false; studio_server=false
-          shared="packages/engine packages/protocol packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json .github/workflows/deploy.yml .github/scripts"
-          if [ "$FORCE_SERVER" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/server $shared railpack.json; then
-            server=true
-          fi
-          if [ "$FORCE_CLIENT" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/client packages/boards $shared vercel.json; then
-            client=true
-          fi
-          if [ "$FORCE_HARNESS" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/studio packages/boards $shared; then
-            harness=true
-          fi
+          # side <name> <forced> <paths...>: true when forced or when the commit touched any path.
+          side() {
+            local name="$1" forced="$2"; shift 2
+            if [ "$forced" = true ] || ! git diff --quiet HEAD^ HEAD -- "$@"; then v=true; else v=false; fi
+            echo "$name=$v" | tee -a "$GITHUB_OUTPUT"
+          }
+          # Anything that changes every build: the workspace and the pipeline itself.
+          base=(pnpm-lock.yaml pnpm-workspace.yaml package.json .github/workflows/deploy.yml .github/scripts .github/actions)
+          shared=(packages/engine packages/protocol packages/content "${base[@]}")
+          side server "$FORCE_SERVER" packages/server railpack.json "${shared[@]}"
+          side client "$FORCE_CLIENT" packages/client packages/boards vercel.json "${shared[@]}"
+          side studio "$FORCE_STUDIO" packages/studio packages/boards "${shared[@]}"
           # The guides read content and the engine's puzzle list; they share no code with the boards.
-          if [ "$FORCE_DOCS" = true ] || ! git diff --quiet HEAD^ HEAD -- packages/docs packages/engine packages/content pnpm-lock.yaml pnpm-workspace.yaml package.json .github/workflows/deploy.yml .github/scripts; then
-            docs=true
-          fi
-          # Until the guides have a Vercel project (docs/DEPLOY.md, step 2c) there is nowhere to deploy them.
-          if [ "$docs" = true ] && [ -z "$DOCS_PROJECT" ]; then
-            echo "::warning::Variable VERCEL_DOCS_PROJECT_ID is not set: the puzzle guides have no Vercel project yet and are not deployed. See docs/DEPLOY.md, step 2c."
-            docs=false
-          fi
+          side docs "$FORCE_DOCS" packages/docs packages/engine packages/content "${base[@]}"
           # The studio's service (ADR 0043) shares only the protocol with the rest. Until it has a
           # Railway service (docs/DEPLOY.md, step 1b) there is nowhere to deploy it, and that is
           # no warning: the studio works without it.
-          if [ -n "$STUDIO_SERVICE" ] && ! git diff --quiet HEAD^ HEAD -- packages/studio-server packages/protocol pnpm-lock.yaml pnpm-workspace.yaml package.json railpack.studio.json .github/workflows/deploy.yml .github/scripts; then
-            studio_server=true
+          if [ -n "$STUDIO_SERVICE" ]; then
+            side studio_server "$FORCE_STUDIO_SERVER" packages/studio-server packages/protocol railpack.studio.json "${base[@]}"
+          else
+            echo "studio_server=false" | tee -a "$GITHUB_OUTPUT"
           fi
-          echo "studio_server=$studio_server" >> "$GITHUB_OUTPUT"
-          echo "docs=$docs" >> "$GITHUB_OUTPUT"
-          echo "server=$server" >> "$GITHUB_OUTPUT"
-          echo "client=$client" >> "$GITHUB_OUTPUT"
-          echo "harness=$harness" >> "$GITHUB_OUTPUT"
-          echo "commit $SHA: server=$server client=$client harness=$harness docs=$docs studio_server=$studio_server"
 
   studio-server:
     name: Studio service to Railway
@@ -145,7 +140,6 @@ jobs:
       RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE }}
       SERVER_URL: ${{ vars.PRODUCTION_SERVER_URL }}
       CLIENT_URL: ${{ vars.PRODUCTION_CLIENT_URL }}
-      HARNESS_URL: ${{ vars.PRODUCTION_HARNESS_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -177,11 +171,6 @@ jobs:
         run: |
           if [ -z "$SERVER_URL" ] || [ -z "$CLIENT_URL" ]; then exit 0; fi
           .github/scripts/check-origin.sh "$SERVER_URL" "$CLIENT_URL" "the game client"
-      - name: Server accepts requests from the harness origin
-        # Same check for the harness; a warning only, so a missing origin never blocks the game.
-        run: |
-          if [ -z "$SERVER_URL" ] || [ -z "$HARNESS_URL" ]; then exit 0; fi
-          .github/scripts/check-origin.sh "$SERVER_URL" "$HARNESS_URL" "the harness" || echo "::warning::The server does not allow the harness origin yet; the harness job repeats this check and fails if it is still missing."
 
   client:
     name: Client to Vercel
@@ -192,134 +181,48 @@ jobs:
     timeout-minutes: 20
     environment: production
     env:
+      APP: client
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-      CLIENT_URL: ${{ vars.PRODUCTION_CLIENT_URL }}
+      URL: ${{ vars.PRODUCTION_CLIENT_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.SHA }}
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: npm install -g vercel
-      - name: Check configuration
-        run: |
-          ok=true
-          [ -n "$VERCEL_TOKEN" ] || { echo "::error::Secret VERCEL_TOKEN is not set. See docs/DEPLOY.md, step 2."; ok=false; }
-          [ -n "$VERCEL_ORG_ID" ] || { echo "::error::Variable VERCEL_ORG_ID is not set. See docs/DEPLOY.md, step 2."; ok=false; }
-          [ -n "$VERCEL_PROJECT_ID" ] || { echo "::error::Variable VERCEL_PROJECT_ID is not set. See docs/DEPLOY.md, step 2."; ok=false; }
-          $ok
-      - name: Pull production settings and env
-        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
-      - name: Build
-        env:
-          COMMIT_SHA: ${{ env.SHA }}
-        run: vercel build --prod --token "$VERCEL_TOKEN"
-      - name: Deploy
-        run: |
-          set -o pipefail
-          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN" \
-            --meta githubCommitSha="$SHA" \
-            --meta githubCommitRef=main \
-            --meta githubCommitOrg="${GITHUB_REPOSITORY_OWNER}" \
-            --meta githubCommitRepo="${GITHUB_REPOSITORY#*/}" \
-            | tee deploy-url.txt
-          echo "Client deployed: $(tail -n1 deploy-url.txt) (commit $SHA)" >> "$GITHUB_STEP_SUMMARY"
-      - name: Wait until the client serves this commit
-        run: |
-          if [ -z "$CLIENT_URL" ]; then
-            echo "::warning::Variable PRODUCTION_CLIENT_URL is not set; skipping the post-deploy check."
-            exit 0
-          fi
-          .github/scripts/wait-for-commit.sh "$CLIENT_URL/version.json" "$SHA" 300
+      - uses: ./.github/actions/vercel-setup
+      - name: Build, deploy and check
+        run: .github/scripts/vercel-deploy.sh
 
-  harness:
+  studio:
     name: Studio to Vercel
     needs: [plan, server]
-    if: always() && needs.plan.outputs.harness == 'true' && (needs.server.result == 'success' || needs.server.result == 'skipped')
+    if: always() && needs.plan.outputs.studio == 'true' && (needs.server.result == 'success' || needs.server.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
     env:
-      # A token that can see the harness project: VERCEL_HARNESS_TOKEN if set (a token scoped to
-      # the harness project), else VERCEL_TOKEN (which must then be scoped to the team, not to the
-      # game's project; a project-scoped token reports the other project as "not found").
-      VERCEL_TOKEN: ${{ secrets.VERCEL_HARNESS_TOKEN || secrets.VERCEL_TOKEN }}
+      APP: studio
+      # VERCEL_STUDIO_TOKEN when VERCEL_TOKEN is scoped to the game's project alone (step 3).
+      VERCEL_TOKEN: ${{ secrets.VERCEL_STUDIO_TOKEN || secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-      # The studio is its own Vercel project (still named openseas-harness), rooted in packages/studio
-      # (docs/DEPLOY.md, step 2b). ROOT says so to the build whatever the project's setting is.
-      VERCEL_PROJECT_ID: ${{ vars.VERCEL_HARNESS_PROJECT_ID }}
-      ROOT: packages/studio
-      HARNESS_URL: ${{ vars.PRODUCTION_HARNESS_URL }}
+      # The studio's own Vercel project, rooted in packages/studio (docs/DEPLOY.md, step 2b).
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_STUDIO_PROJECT_ID }}
+      URL: ${{ vars.PRODUCTION_STUDIO_URL }}
+      # Every puzzle page is a deep link, and a shared tester link would 404 without the rewrite.
+      DEEP_LINK: /cooling?seed=deploy-check
       SERVER_URL: ${{ vars.PRODUCTION_SERVER_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.SHA }}
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: npm install -g vercel
-      - name: Check configuration
+      - uses: ./.github/actions/vercel-setup
+      - name: Build, deploy and check
+        run: .github/scripts/vercel-deploy.sh
+      - name: Server accepts requests from the studio origin
         run: |
-          ok=true
-          [ -n "$VERCEL_TOKEN" ] || { echo "::error::Secret VERCEL_TOKEN is not set. See docs/DEPLOY.md, step 2."; ok=false; }
-          [ -n "$VERCEL_ORG_ID" ] || { echo "::error::Variable VERCEL_ORG_ID is not set. See docs/DEPLOY.md, step 2."; ok=false; }
-          [ -n "$VERCEL_PROJECT_ID" ] || { echo "::error::Variable VERCEL_HARNESS_PROJECT_ID is not set: the harness has no Vercel project to deploy to. See docs/DEPLOY.md, step 2b."; ok=false; }
-          $ok
-      - name: Pull production settings and env
-        run: |
-          set -o pipefail
-          if ! vercel pull --yes --environment=production --token "$VERCEL_TOKEN" 2>&1 | tee pull.log; then
-            grep -q "Project not found" pull.log && echo "::error::The Vercel token cannot see the harness project (prj id in VERCEL_HARNESS_PROJECT_ID). A token scoped to the game's project reports every other project as not found: add a secret VERCEL_HARNESS_TOKEN scoped to the harness project, or make VERCEL_TOKEN a team-scoped token. See docs/DEPLOY.md, step 2b.7."
-            exit 1
-          fi
-      - name: Build
-        env:
-          COMMIT_SHA: ${{ env.SHA }}
-        # The project's Root Directory is packages/studio, so the build runs there and reads
-        # packages/studio/vercel.json; the output lands in .vercel/output at the repo root.
-        # `vercel deploy` wants the directory the project names to exist, so it is created when the
-        # project still names the old one (.github/scripts/vercel-root.sh).
-        run: |
-          project_root="$(.github/scripts/vercel-root.sh)"
-          if [ -n "$project_root" ]; then mkdir -p "$project_root"; fi
-          vercel build --prod --token "$VERCEL_TOKEN"
-          test -d .vercel/output || { echo "::error::vercel build produced no .vercel/output; does packages/studio hold a vercel.json? See docs/DEPLOY.md, step 2b."; exit 1; }
-      - name: Deploy
-        run: |
-          set -o pipefail
-          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN" \
-            --meta githubCommitSha="$SHA" \
-            --meta githubCommitRef=main \
-            --meta githubCommitOrg="${GITHUB_REPOSITORY_OWNER}" \
-            --meta githubCommitRepo="${GITHUB_REPOSITORY#*/}" \
-            | tee deploy-url.txt
-          echo "Harness deployed: $(tail -n1 deploy-url.txt) (commit $SHA)" >> "$GITHUB_STEP_SUMMARY"
-      - name: Wait until the harness serves this commit
-        run: |
-          if [ -z "$HARNESS_URL" ]; then
-            echo "::warning::Variable PRODUCTION_HARNESS_URL is not set; skipping the post-deploy checks."
-            exit 0
-          fi
-          .github/scripts/wait-for-commit.sh "$HARNESS_URL/version.json" "$SHA" 300
-      - name: Deep links open
-        # Every puzzle page is a deep link; without the SPA rewrite from packages/studio/vercel.json
-        # a shared scenario link would 404, which is the harness's whole point.
-        run: |
-          if [ -z "$HARNESS_URL" ]; then exit 0; fi
-          status="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$HARNESS_URL/cooling?seed=deploy-check")"
-          if [ "$status" = 200 ]; then echo "deep links open ($status)"; else echo "::error::$HARNESS_URL/cooling returned HTTP $status; the SPA rewrite is not in effect. Check that packages/studio/vercel.json is read (the build's Root Directory). See docs/DEPLOY.md, step 2b."; exit 1; fi
-      - name: Server accepts requests from the harness origin
-        run: |
-          if [ -z "$SERVER_URL" ] || [ -z "$HARNESS_URL" ]; then exit 0; fi
-          .github/scripts/check-origin.sh "$SERVER_URL" "$HARNESS_URL" "the harness"
+          if [ -z "$SERVER_URL" ] || [ -z "$URL" ]; then exit 0; fi
+          .github/scripts/check-origin.sh "$SERVER_URL" "$URL" "the studio"
 
   docs:
     name: Guides to Vercel
@@ -329,64 +232,18 @@ jobs:
     timeout-minutes: 20
     environment: production
     env:
-      # A token that can see the guides' project: VERCEL_DOCS_TOKEN if set (scoped to that
-      # project), else VERCEL_TOKEN (which must then be scoped to the team).
+      APP: docs
+      # VERCEL_DOCS_TOKEN when VERCEL_TOKEN is scoped to the game's project alone (step 3).
       VERCEL_TOKEN: ${{ secrets.VERCEL_DOCS_TOKEN || secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-      # The guides are their own Vercel project, rooted in packages/docs (docs/DEPLOY.md, step 2c).
+      # The guides' own Vercel project, rooted in packages/docs (docs/DEPLOY.md, step 2c).
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_DOCS_PROJECT_ID }}
-      DOCS_URL: ${{ vars.PRODUCTION_DOCS_URL }}
+      URL: ${{ vars.PRODUCTION_DOCS_URL }}
+      DEEP_LINK: /cooling
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.SHA }}
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: npm install -g vercel
-      - name: Check configuration
-        run: |
-          ok=true
-          [ -n "$VERCEL_TOKEN" ] || { echo "::error::Secret VERCEL_TOKEN is not set. See docs/DEPLOY.md, step 2."; ok=false; }
-          [ -n "$VERCEL_ORG_ID" ] || { echo "::error::Variable VERCEL_ORG_ID is not set. See docs/DEPLOY.md, step 2."; ok=false; }
-          $ok
-      - name: Pull production settings and env
-        run: |
-          set -o pipefail
-          if ! vercel pull --yes --environment=production --token "$VERCEL_TOKEN" 2>&1 | tee pull.log; then
-            grep -q "Project not found" pull.log && echo "::error::The Vercel token cannot see the guides' project (prj id in VERCEL_DOCS_PROJECT_ID). Add a secret VERCEL_DOCS_TOKEN scoped to that project, or make VERCEL_TOKEN a team-scoped token. See docs/DEPLOY.md, step 2c."
-            exit 1
-          fi
-      - name: Build
-        env:
-          COMMIT_SHA: ${{ env.SHA }}
-        # The project's Root Directory is packages/docs, so the build runs there and reads
-        # packages/docs/vercel.json; the output lands in .vercel/output at the repo root.
-        run: |
-          vercel build --prod --token "$VERCEL_TOKEN"
-          test -d .vercel/output || { echo "::error::vercel build produced no .vercel/output; is the guides project's Root Directory packages/docs? See docs/DEPLOY.md, step 2c."; exit 1; }
-      - name: Deploy
-        run: |
-          set -o pipefail
-          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN" \
-            --meta githubCommitSha="$SHA" \
-            --meta githubCommitRef=main \
-            --meta githubCommitOrg="${GITHUB_REPOSITORY_OWNER}" \
-            --meta githubCommitRepo="${GITHUB_REPOSITORY#*/}" \
-            | tee deploy-url.txt
-          echo "Guides deployed: $(tail -n1 deploy-url.txt) (commit $SHA)" >> "$GITHUB_STEP_SUMMARY"
-      - name: Wait until the guides serve this commit
-        run: |
-          if [ -z "$DOCS_URL" ]; then
-            echo "::warning::Variable PRODUCTION_DOCS_URL is not set; skipping the post-deploy checks."
-            exit 0
-          fi
-          .github/scripts/wait-for-commit.sh "$DOCS_URL/version.json" "$SHA" 300
-      - name: Deep links open
-        # Every guide is a deep link; without the SPA rewrite from packages/docs/vercel.json it would 404.
-        run: |
-          if [ -z "$DOCS_URL" ]; then exit 0; fi
-          status="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$DOCS_URL/cooling")"
-          if [ "$status" = 200 ]; then echo "deep links open ($status)"; else echo "::error::$DOCS_URL/cooling returned HTTP $status; the SPA rewrite is not in effect. Check that the project's Root Directory is packages/docs so its vercel.json is read. See docs/DEPLOY.md, step 2c."; exit 1; fi
+      - uses: ./.github/actions/vercel-setup
+      - name: Build, deploy and check
+        run: .github/scripts/vercel-deploy.sh
