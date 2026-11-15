@@ -22,7 +22,7 @@ describe("a page's draft and the one the service keeps", () => {
 
   it("gives the service a scenario's numbers one override a changed leaf, and drops what equals content", () => {
     const s = parseScenario(`?seed=keg-3&seconds=60&c.pieceKinds=5&c.width=${(cooling.config as { width: number }).width}`);
-    expect(draftNumbers(cooling, s)).toEqual({ seed: "keg-3", overrides: { pieceKinds: 5 }, roundSeconds: 60, paceSeconds: null, thresholds: null });
+    expect(draftNumbers(cooling, s)).toEqual({ seed: "keg-3", overrides: { pieceKinds: 5 }, roundSeconds: 60, paceSeconds: null, thresholds: null, picks: { sprites: {}, sounds: {} } });
   });
 
   it("has nothing to save while a value has no shape the service keeps", () => {
@@ -34,12 +34,36 @@ describe("a page's draft and the one the service keeps", () => {
 
   it("lays a stored draft over a scenario and keeps how its clock starts", () => {
     const s = parseScenario("?seed=mine&c.pieceKinds=4&hints=0&speed=2");
-    const stored = { seed: null, overrides: { pieceKinds: 6 }, roundSeconds: 45, paceSeconds: 20, thresholds: null };
+    const stored = { seed: null, overrides: { pieceKinds: 6 }, roundSeconds: 45, paceSeconds: 20, thresholds: null, picks: { sprites: {}, sounds: {} } };
     const laid = withDraft(s, stored);
     expect(draftNumbers(cooling, laid)).toEqual(stored);
     expect(laid).toMatchObject({ hints: false, speed: 2 });
     expect(formatScenario(withoutDraft(laid))).toBe("speed=2&hints=0");
     expect(carriesDraft(withDraft(s, null))).toBe(false);
+  });
+
+  it("carries a draft's picks with its numbers (ADR 0052)", () => {
+    const hash = "a".repeat(64);
+    const s = parseScenario(`?sprite.cog=${hash}&sound.clear=synth`);
+    expect(carriesDraft(s)).toBe(true);
+    expect(draftNumbers(cooling, s)!.picks).toEqual({ sprites: { cog: hash }, sounds: { clear: "synth" } });
+    // A draft kept before picks has none, and is the same draft as one with none.
+    const old = { seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null };
+    expect(withDraft(s, old).picks).toEqual({ sprites: {}, sounds: {} });
+    expect(sameNumbers(old, draftNumbers(cooling, withDraft(s, old))!)).toBe(true);
+    expect(sameNumbers(old, draftNumbers(cooling, s)!)).toBe(false);
+    expect(formatScenario(withoutDraft(s))).toBe("");
+  });
+
+  it("leaves picks with the page when the service is older than them", () => {
+    const hash = "a".repeat(64);
+    const s = parseScenario(`?sprite.cog=${hash}`);
+    // Nothing of them is sent or compared, so a save cannot be undone by its own answer for ever.
+    expect(carriesDraft(s, false)).toBe(false);
+    expect(draftNumbers(cooling, s, false)!.picks).toEqual({ sprites: {}, sounds: {} });
+    const stored = { seed: null, overrides: { pieceKinds: 6 }, roundSeconds: null, paceSeconds: null, thresholds: null };
+    expect(withDraft(s, stored, false).picks).toEqual({ sprites: { cog: hash }, sounds: {} });
+    expect(formatScenario(withoutDraft(s, false))).toBe(`sprite.cog=${hash}`);
   });
 
   it("compares numbers whatever order the database hands their keys back in", () => {

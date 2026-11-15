@@ -1,8 +1,9 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-import type { Draft, RoundSummary, TesterLink } from "@openseas/protocol";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { isSpritePuzzle, overrideSample, overrideSprite } from "@openseas/boards";
+import { picksOf, type Draft, type Picks, type RoundSummary, type TesterLink } from "@openseas/protocol";
 import type { HarnessPuzzle } from "../puzzles.js";
 import { EMPTY_SCENARIO, formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
-import { SERVICE_URL } from "../service/client.js";
+import { SERVICE_URL, takeUrl } from "../service/client.js";
 import { useStoredDraft, type DraftStore } from "./useStoredDraft.js";
 import { withoutDraft } from "./draft.js";
 import { changes, refusals, shippedNumbers, tunedNumbers, withNumber, withoutNumber, withoutNumbers, type Change, type Numbers, type Refusal } from "./numbers.js";
@@ -65,6 +66,12 @@ export interface Frame {
   resetNumber(key: string): void;
   resetNumbers(): void;
   /** True while the shipped numbers stand in for the draft, so the same seed can be seen both ways. */
+  /** The takes the draft picks for frames and cues (ADR 0052). The frame puts them on the board. */
+  readonly picks: Picks;
+  /** Pick a take for a frame or a cue by its hash, `synth` for a cue's synthesized voice, or null for what the build ships. */
+  setPick(kind: keyof Picks, name: string, pick: string | null): void;
+  /** The picks whose takes could not be read, as `sprites/<frame>` or `sounds/<cue>`: the board shows those as shipped. */
+  readonly picksMissing: readonly string[];
   readonly comparing: boolean;
   setComparing(on: boolean): void;
   readonly report: RoundReport;
@@ -76,7 +83,7 @@ export interface Frame {
 /** The draft a tester link froze, as the scenario a page opens on. */
 function linkScenario(link: TesterLink): Scenario {
   const { seed, overrides, roundSeconds, paceSeconds, thresholds } = link.draft;
-  return { ...EMPTY_SCENARIO, seed, overrides, roundSeconds, paceSeconds, thresholds };
+  return { ...EMPTY_SCENARIO, seed, overrides, roundSeconds, paceSeconds, thresholds, picks: picksOf(link.draft) };
 }
 
 const Ctx = createContext<Frame | null>(null);
@@ -99,15 +106,17 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const [report, setReportState] = useState<RoundReport>(NO_ROUND);
   const [comparing, setComparing] = useState(false);
 
+  const picksKept = useRef(true);
   const apply = useCallback((next: Scenario, bare: boolean) => {
     setScenarioState(next);
     // A tester link's address is its id; what changes on the page (a new seed) stays on the page.
     if (link) return;
-    const qs = formatScenario({ ...(bare ? withoutDraft(next) : next), autostart: null });
+    const qs = formatScenario({ ...(bare ? withoutDraft(next, picksKept.current) : next), autostart: null });
     window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
   }, [link]);
-  // Only the owner's page, on a desktop, asks the service anything: `/play` reads a tester link and no more.
+  // Only the owner's page, on a desktop, asks the service about drafts: `/play` reads a tester link and the takes it picks (ADR 0052), and no more.
   const stored = useStoredDraft({ enabled: mode === "studio" && !link && SERVICE_URL !== "", puzzle, scenario, apply });
+  picksKept.current = stored.keepsPicks();
   const { store, bare, keep: keepDraft, open: openDraft, discard: discardDraft, save: saveDraft, update: updateDraft, ensure: ensureDraft, adopt: adoptDraft } = stored;
   const setScenario = useCallback((next: Scenario) => apply(next, bare()), [apply, bare]);
   const [rounds, setRounds] = useState<readonly RoundSummary[]>([]);
@@ -118,6 +127,61 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const setNumber = useCallback((key: string, value: unknown) => setScenario(withNumber(puzzle, scenario, key, value)), [puzzle, scenario, setScenario]);
   const resetNumber = useCallback((key: string) => setScenario(withoutNumber(puzzle, scenario, key)), [puzzle, scenario, setScenario]);
   const resetNumbers = useCallback(() => setScenario(withoutNumbers(scenario)), [scenario, setScenario]);
+
+  const picks = scenario.picks;
+  const setPick = useCallback(
+    (kind: keyof Picks, name: string, pick: string | null) => {
+      const { [name]: _was, ...rest } = scenario.picks[kind];
+      setScenario({ ...scenario, picks: { ...scenario.picks, [kind]: pick === null ? rest : { ...rest, [name]: pick } } });
+    },
+    [scenario, setScenario],
+  );
+  // The picks go on the board (ADR 0050's swap): each frame and cue as the draft now has it, and
+  // as the build ships it once the draft lets it go. A take is read from the service by its hash;
+  // one that cannot be read leaves that frame or cue as shipped, and the page says so. A home
+  // thumbnail is the shipped board.
+  const [picksMissing, setPicksMissing] = useState<readonly string[]>([]);
+  const applied = useRef<Record<string, string>>({});
+  const id = puzzle.id;
+  useEffect(() => {
+    if (mode === "thumb") return;
+    const want: Record<string, string> = {};
+    for (const [name, hash] of Object.entries(picks.sprites)) want[`sprites/${name}`] = hash;
+    for (const [name, hash] of Object.entries(picks.sounds)) want[`sounds/${name}`] = hash;
+    const was = applied.current;
+    applied.current = want;
+    const put = (key: string, pick: string | null): Promise<boolean> => {
+      const name = key.slice(key.indexOf("/") + 1);
+      if (key.startsWith("sprites/")) return isSpritePuzzle(id) ? overrideSprite(id, name, pick === null ? null : takeUrl(pick)) : Promise.resolve(pick === null);
+      return overrideSample(id, name, pick === null || pick === "synth" ? pick : takeUrl(pick));
+    };
+    for (const key of Object.keys(was)) if (!(key in want)) void put(key, null);
+    for (const [key, pick] of Object.entries(want)) {
+      if (was[key] === pick) continue;
+      void put(key, pick).then((ok) => {
+        // Only what is still picked is spoken for: the owner may have moved on while it loaded.
+        if (applied.current[key] !== pick) return;
+        setPicksMissing((all) => (ok ? all.filter((k) => k !== key) : all.includes(key) ? all : [...all, key]));
+      });
+    }
+    setPicksMissing((all) => {
+      const still = all.filter((k) => k in want);
+      return still.length === all.length ? all : still;
+    });
+  }, [mode, id, picks]);
+  // Leaving the page puts every frame and cue back: a pick is the draft's, not the next page's.
+  useEffect(
+    () => () => {
+      for (const key of Object.keys(applied.current)) {
+        const name = key.slice(key.indexOf("/") + 1);
+        if (key.startsWith("sprites/")) {
+          if (isSpritePuzzle(id)) void overrideSprite(id, name, null);
+        } else void overrideSample(id, name, null);
+      }
+      applied.current = {};
+    },
+    [id],
+  );
 
   const shipped = useMemo(() => shippedNumbers(puzzle), [puzzle]);
   // Only what makes the numbers: a new seed alone must not hand the page a new config to redraw.
@@ -130,8 +194,8 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const changed = useMemo(() => (refused.length ? [] : changes(puzzle, tuned)), [puzzle, tuned, refused]);
   const numbers = comparing ? shipped : tuned;
   const value = useMemo<Frame>(
-    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound }),
-    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, comparing, report, setReport, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound],
+    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, picks, setPick, picksMissing, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound }),
+    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, picks, setPick, picksMissing, comparing, report, setReport, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

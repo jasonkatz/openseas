@@ -59,6 +59,7 @@ export function TesterLinks() {
       roundSeconds: scenario.roundSeconds,
       paceSeconds: scenario.paceSeconds,
       thresholds: scenario.thresholds as TesterLinkDraft["thresholds"],
+      picks: scenario.picks,
     };
     const link = await createLink({ puzzle: puzzle.id, name: name.trim(), draft });
     setBusy(false);

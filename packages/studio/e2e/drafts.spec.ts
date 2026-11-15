@@ -9,6 +9,9 @@ import { SERVICE, draft, numbers, service } from "./standin.js";
 const store = (page: Page) => page.getByTestId("draft-store");
 const kinds = (page: Page) => page.getByTestId("input-config.pieceKinds");
 
+/** What the page sends for a draft: its numbers, and since picks (ADR 0052) its picks, here none. */
+const sent = (over: Parameters<typeof numbers>[0] = {}) => ({ ...numbers(over), picks: { sprites: {}, sounds: {} } });
+
 test.describe("drafts in the service", () => {
   test.beforeEach(() => test.skip(test.info().project.name !== "desktop", "the studio is a desktop tool"));
 
@@ -27,7 +30,7 @@ test.describe("drafts in the service", () => {
     await kinds(page).fill("4");
     await expect(store(page)).toHaveAttribute("data-revision", "4");
     await expect(store(page)).toHaveAttribute("data-status", "saved");
-    expect(s.writes).toEqual([{ call: "PUT /drafts/draftdraft", body: { numbers: numbers({ seed: "kept-1", overrides: { pieceKinds: 4 }, roundSeconds: 45 }), revision: 3 } }]);
+    expect(s.writes).toEqual([{ call: "PUT /drafts/draftdraft", body: { numbers: sent({ seed: "kept-1", overrides: { pieceKinds: 4 }, roundSeconds: 45 }), revision: 3 } }]);
     await expect(page).toHaveURL(/\/cooling$/);
 
     // The draft follows the owner: a fresh load is on the saved numbers, and they play.
@@ -44,7 +47,7 @@ test.describe("drafts in the service", () => {
     await expect(page.getByTestId("draft-discard")).toHaveCount(0);
     await kinds(page).fill("5");
     await expect(store(page)).toHaveAttribute("data-draft", "newdraft22");
-    expect(s.writes).toEqual([{ call: "POST /drafts", body: { puzzle: "cooling", numbers: numbers({ overrides: { pieceKinds: 5 } }) } }]);
+    expect(s.writes).toEqual([{ call: "POST /drafts", body: { puzzle: "cooling", numbers: sent({ overrides: { pieceKinds: 5 } }) } }]);
 
     await page.goto("/");
     await expect(page.getByTestId("draft-mark-cooling")).toBeVisible();
@@ -94,7 +97,7 @@ test.describe("drafts in the service", () => {
     await page.getByTestId("draft-keep").click();
     await expect(store(page)).toHaveAttribute("data-state", "stored");
     await expect(page).toHaveURL(/\/cooling$/);
-    expect(s.writes).toEqual([{ call: "PUT /drafts/draftdraft", body: { numbers: numbers({ overrides: { pieceKinds: 4 }, roundSeconds: 45 }), revision: 3 } }]);
+    expect(s.writes).toEqual([{ call: "PUT /drafts/draftdraft", body: { numbers: sent({ overrides: { pieceKinds: 4 }, roundSeconds: 45 }), revision: 3 } }]);
     await expect(kinds(page)).toHaveValue("4");
 
     // An address that says what the draft already says is just the draft.
