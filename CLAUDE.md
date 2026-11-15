@@ -41,7 +41,7 @@ written in.
 ## Stack
 
 TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `protocol` (Zod schemas), `content`,
-`boards` (the PixiJS boards, round runner and server connection both front ends share, ADR 0019),
+`boards` (the PixiJS boards, round runner and server connection both front ends share, ADR 0019, and the Vite plugin that packs each puzzle's atlas from its frame files at build time, ADR 0054),
 `server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `studio` (the puzzle studio at studio.openseas.online, once the harness, built step by step, ADR 0042: a page a puzzle with its board and a tuning panel built from
 `content` and the wire schema, each puzzle alone at `/play/<id>`, every round local, and the voyage bench for ships and crews, ADR 0027), `studio-server` (the studio's own small service: tester links by id,
 the owner's GitHub sign-in, the owner's drafts, Save for their numbers and picks as a draft pull request, the chat's agent on a draft's worktree, and the takes it makes, kept in a bucket, ADR 0043, ADR 0045 to 0047, ADR 0049, ADR 0051 and ADR 0053; the studio works without it), `docs` (the puzzle guides at docs.openseas.online: a static site with one guide per puzzle, its

@@ -17,18 +17,18 @@ export class SaveRefused extends Error {
 }
 
 /**
- * Where a puzzle's picked art and sound are committed (ADR 0041, ADR 0053). A frame is its own
- * lossless image beside the atlas, which the boards draw over the atlas's; the atlas is not touched.
+ * Where a puzzle's picked art and sound are committed (ADR 0041, ADR 0054). A frame is its own
+ * lossless image, which the build packs into the puzzle's atlas; no atlas is committed.
  */
 export const framesPath = "packages/boards/src/sprites/frames.json";
-export const overridePath = (puzzle: string, frame: string): string => `packages/boards/src/sprites/overrides/${puzzle}-${frame}.webp`;
+export const framePath = (puzzle: string, frame: string): string => `packages/boards/src/sprites/frames/${puzzle}/${frame}.webp`;
 export const soundPath = (puzzle: string, cue: string): string => `packages/boards/src/sounds/${puzzle}/${cue}.mp3`;
 
 /** Every path placing these picks, or putting back those of the last Save, could write. */
 export function pickPaths(puzzle: string, picks: Picks, saved: Picks): string[] {
   const frames = new Set([...Object.keys(picks.sprites), ...Object.keys(saved.sprites)]);
   const cues = new Set([...Object.keys(picks.sounds), ...Object.keys(saved.sounds)]);
-  return [...[...frames].map((f) => overridePath(puzzle, f)), ...[...cues].map((c) => soundPath(puzzle, c))];
+  return [...[...frames].map((f) => framePath(puzzle, f)), ...[...cues].map((c) => soundPath(puzzle, c))];
 }
 
 /** One pick as Save placed it, for the pull request: the take by its number when the draft made it. */
@@ -87,11 +87,11 @@ export function createPlacer(o: PlacerOptions): Placer {
     return { bytes: read.bytes, take: info.draft === id ? info.take : null };
   }
 
-  /** The frame names the puzzle's manifest has on the draft's branch. */
+  /** The frame names the puzzle's manifest lists on the draft's branch. */
   async function frameNames(worktree: string, puzzle: string): Promise<Set<string>> {
     try {
       const entry = (JSON.parse(await readFile(join(worktree, framesPath), "utf8")) as Record<string, unknown>)[puzzle];
-      return new Set(entry && typeof entry === "object" && !Array.isArray(entry) ? Object.keys(entry) : []);
+      return new Set(Array.isArray(entry) ? entry.filter((n): n is string => typeof n === "string") : []);
     } catch {
       return new Set();
     }
@@ -105,9 +105,9 @@ export function createPlacer(o: PlacerOptions): Placer {
       const named = Object.keys(picks.sprites).length ? await frameNames(worktree, puzzle) : new Set<string>();
       const chosen: Array<{ kind: TakeKind; name: string; pick: string; bytes: Buffer | null; take: number | null; file: string }> = [];
       for (const [name, hash] of Object.entries(picks.sprites)) {
-        // A frame the manifest does not name is a change to code: only a renderer that asks for it would draw it.
+        // A frame the manifest does not name is a change to code: the build packs only listed frames, and only a renderer that asks for one draws it.
         if (!named.has(name)) throw new SaveRefused("pick", name);
-        chosen.push({ kind: "sprite", name, pick: hash, file: overridePath(puzzle, name), ...(await fetchTake(id, puzzle, "sprite", name, hash)) });
+        chosen.push({ kind: "sprite", name, pick: hash, file: framePath(puzzle, name), ...(await fetchTake(id, puzzle, "sprite", name, hash)) });
       }
       for (const [name, pick] of Object.entries(picks.sounds)) {
         if (pick === "synth") chosen.push({ kind: "sound", name, pick, bytes: null, take: null, file: soundPath(puzzle, name) });
@@ -120,7 +120,7 @@ export function createPlacer(o: PlacerOptions): Placer {
         const letGo = [
           ...Object.keys(saved.sprites)
             .filter((f) => picks.sprites[f] === undefined)
-            .map((f) => overridePath(puzzle, f)),
+            .map((f) => framePath(puzzle, f)),
           ...Object.keys(saved.sounds)
             .filter((c) => picks.sounds[c] === undefined)
             .map((c) => soundPath(puzzle, c)),
@@ -129,7 +129,7 @@ export function createPlacer(o: PlacerOptions): Placer {
           await repo.fromBase(id, path);
           files.add(path);
         }
-        // Each take is committed as its bytes: a frame as the lossless image the boards draw over the atlas, a sound as
+        // Each take is committed as its bytes: a frame as the lossless file the build packs into the atlas, a sound as
         // `sounds.py place` would have mastered it (ADR 0051). A `synth` pick deletes the sample.
         for (const c of chosen) {
           if (c.bytes) {

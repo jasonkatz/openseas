@@ -1,8 +1,8 @@
-import { existsSync, readdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { expectViewMatchesState } from "./helpers.js";
 
-// Exercise the production build: a working dev URL is not enough for shared-package assets.
+// Exercise the production build: a working dev URL is not enough for shared-package assets. Each
+// atlas is built from its frame files by the build (ADR 0054) and served under its own name.
 // The seven core boards, then the eight prototypes, which load theirs through the board kit (ADR 0037).
 const CORE = ["cooling", "engines", "plating", "gunnery", "navigation", "swordfight", "battle"];
 const PROTOTYPES = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting"];
@@ -57,23 +57,3 @@ test("a kit board with no atlas draws its pieces in code and still plays", async
   await expectViewMatchesState(page, "overload");
   expect(errors).toEqual([]);
 });
-
-// Frames placed over an atlas ship as images of their own (ADR 0053). Each committed one must be
-// delivered and decoded: the studio's Sprites panel then draws that frame from it, not from the
-// atlas. With none committed there is nothing to check yet.
-const OVERRIDES = new URL("../../boards/src/sprites/overrides/", import.meta.url);
-const placed = existsSync(OVERRIDES) ? readdirSync(OVERRIDES).flatMap((f) => /^([a-z]+)-(.+)\.webp$/.exec(f)?.slice(1, 3) ?? []) : [];
-for (let i = 0; i < placed.length; i += 2) {
-  const [puzzle, frame] = [placed[i]!, placed[i + 1]!];
-  test(`${puzzle}'s placed ${frame} is delivered, decoded and drawn in place of the atlas's`, async ({ page }) => {
-    test.skip(test.info().project.name !== "desktop", "the studio is a desktop tool");
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto(`/${puzzle}?seed=sprite-smoke`);
-    await page.getByTestId("tab-sprites").click();
-    const image = page.getByTestId(`frame-${frame}`).locator("image").first();
-    // Vite serves it under its own name, or inlines a small one; either way not the atlas's address.
-    await expect(image).toHaveAttribute("href", new RegExp(`/${puzzle}-${frame}-[^/]+\\.webp$|^data:image/webp`));
-    expect(errors).toEqual([]);
-  });
-}

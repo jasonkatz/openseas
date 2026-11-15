@@ -1,5 +1,5 @@
 /**
- * Save places picks (ADR 0053), over HTTP against a real Postgres, a real `git` and three
+ * Save places picks (ADR 0053, ADR 0054), over HTTP against a real Postgres, a real `git` and three
  * stand-ins: a bare repository on this disk for the remote, a forge that records what GitHub
  * would have been asked, and a store that keeps takes in memory in the bucket's place. A pick is
  * placed as its take's bytes and nothing is decoded, so a take here is only what the service
@@ -27,12 +27,12 @@ const describeDb = url ? describe : describe.skip;
 const STUDIO = "http://localhost:5174";
 const PACKAGES = join(fileURLToPath(import.meta.url), "../../..");
 const CONTENT = "packages/content/data/puzzles/cooling.json";
-const ATLAS = "packages/boards/src/sprites/cooling.webp";
 const FRAMES = "packages/boards/src/sprites/frames.json";
-const override = (frame: string): string => `packages/boards/src/sprites/overrides/cooling-${frame}.webp`;
+const framePath = (frame: string): string => `packages/boards/src/sprites/frames/cooling/${frame}.webp`;
 const sound = (cue: string): string => `packages/boards/src/sounds/cooling/${cue}.mp3`;
 const sha = (b: Buffer): string => createHash("sha256").update(b).digest("hex");
-const [cog, valve, bolt] = Object.keys((JSON.parse(readFileSync(join(PACKAGES, "boards/src/sprites/frames.json"), "utf8")) as Record<string, Record<string, unknown>>).cooling!) as [string, string, string];
+const COOLING = (JSON.parse(readFileSync(join(PACKAGES, "boards/src/sprites/frames.json"), "utf8")) as Record<string, string[]>).cooling!;
+const [cog, valve, bolt] = COOLING as [string, string, string];
 
 /** A lossless WebP's first bytes, saying it is 192 pixels square, and whatever follows. */
 function frame(salt: number): Buffer {
@@ -92,9 +92,10 @@ describeDb("save places picks", () => {
     git(tmp, "clone", "--quiet", origin, seed);
     for (const [path, from] of [
       [CONTENT, "content/data/puzzles/cooling.json"],
-      [ATLAS, "boards/src/sprites/cooling.webp"],
       [FRAMES, "boards/src/sprites/frames.json"],
-    ] as const) {
+      // The puzzle's frame files, from which the build packs its atlas (ADR 0054).
+      ...COOLING.map((f) => [framePath(f), `boards/src/sprites/frames/cooling/${f}.webp`] as const),
+    ]) {
       mkdirSync(dirname(join(seed, path)), { recursive: true });
       writeFileSync(join(seed, path), readFileSync(join(PACKAGES, from)));
     }
@@ -133,7 +134,7 @@ describeDb("save places picks", () => {
   };
   const worktree = (d: Draft): string => join(volume, "worktrees", d.id);
 
-  it("saves a draft whose only change is a pick: each take committed as its bytes, the atlas and the manifest untouched", async () => {
+  it("saves a draft whose only change is a pick: each take committed as its bytes, one file a pick, the manifest untouched", async () => {
     const red = frame(1);
     const chime = mp3(1);
     const draft = await open(numbers());
@@ -143,15 +144,16 @@ describeDb("save places picks", () => {
     expect(saved.save).toMatchObject({ state: "idle", error: null, detail: null, pull: { number: 201 } });
 
     const branch = `studio/cooling-${draft.id}`;
-    expect(remote(branch, override(cog))!.equals(red)).toBe(true);
+    expect(remote(branch, framePath(cog))!.equals(red)).toBe(true);
     expect(remote(branch, sound("clear"))!.equals(chime)).toBe(true);
-    // The atlas is never encoded again to place a frame: the boards draw the override over it.
-    for (const path of [ATLAS, FRAMES, CONTENT]) expect(remote(branch, path)!.equals(remote("main", path)!)).toBe(true);
+    // A pick is one file written: no atlas is committed to encode again, and no other frame is touched.
+    expect(git(origin, "diff", "--name-only", "main", branch).split("\n").sort()).toEqual([framePath(cog), sound("clear")].sort());
+    expect(remote(branch, framePath(cog))!.equals(remote("main", framePath(cog))!)).toBe(false);
     expect(git(origin, "log", "-1", "--format=%B", branch)).toBe(`Place picks for cooling from the studio\n\nsprite ${cog}: take 3\nsound clear: ${chimeHash.slice(0, 10)}`);
 
     const pull = gh.opened.at(-1)!;
     expect(pull.title).toBe("Tune cooling: numbers and art from the studio");
-    expect(pull.body).toContain(`| sprite \`${cog}\` | [take 3](https://service.test/takes/${redHash}) | \`${override(cog)}\` |`);
+    expect(pull.body).toContain(`| sprite \`${cog}\` | [take 3](https://service.test/takes/${redHash}) | \`${framePath(cog)}\` |`);
     expect(pull.body).toContain(`| sound \`clear\` | [${chimeHash.slice(0, 10)}](https://service.test/takes/${chimeHash}) | \`${sound("clear")}\` |`);
     expect(pull.body).toContain("pnpm --filter @openseas/docs capture cooling");
     expect(pull.body).toContain("that check is still owed");
@@ -164,7 +166,8 @@ describeDb("save places picks", () => {
     const saved = await save(await put(draft!, numbers({ sprites: {}, sounds: { clear: "synth" } })));
     expect(saved.save).toMatchObject({ state: "idle", error: null });
     const branch = `studio/cooling-${draft!.id}`;
-    expect(remote(branch, override(cog))).toBeNull();
+    // A frame let go is the base branch's file again.
+    expect(remote(branch, framePath(cog))!.equals(remote("main", framePath(cog))!)).toBe(true);
     expect(remote(branch, sound("clear"))).toBeNull();
     expect(gh.described.at(-1)!.body).toContain(`| sound \`clear\` | synthesized | \`${sound("clear")}\` removed |`);
   });
@@ -174,8 +177,8 @@ describeDb("save places picks", () => {
     // A hand placement committed on the draft's branch, as a turn of the chat would have.
     const blue = frame(2);
     const tree = worktree(draft!);
-    mkdirSync(dirname(join(tree, override(valve))), { recursive: true });
-    writeFileSync(join(tree, override(valve)), blue);
+    mkdirSync(dirname(join(tree, framePath(valve))), { recursive: true });
+    writeFileSync(join(tree, framePath(valve)), blue);
     git(tree, "add", "--all");
     git(tree, "commit", "--quiet", "-m", "A turn of the chat");
 
@@ -183,13 +186,13 @@ describeDb("save places picks", () => {
     const saved = await save(await put(draft!, numbers({ sprites: { [bolt]: await keep("sprite", bolt, green) }, sounds: {} })));
     expect(saved.save).toMatchObject({ state: "idle", error: null });
     const branch = `studio/cooling-${draft!.id}`;
-    expect(remote(branch, override(valve))!.equals(blue)).toBe(true);
-    expect(remote(branch, override(bolt))!.equals(green)).toBe(true);
+    expect(remote(branch, framePath(valve))!.equals(blue)).toBe(true);
+    expect(remote(branch, framePath(bolt))!.equals(green)).toBe(true);
 
     const amber = frame(4);
     const over = await save(await put(saved, numbers({ sprites: { [bolt]: await keep("sprite", bolt, green), [valve]: await keep("sprite", valve, amber) }, sounds: {} })));
     expect(over.save).toMatchObject({ state: "idle", error: null });
-    expect(remote(branch, override(valve))!.equals(amber)).toBe(true);
+    expect(remote(branch, framePath(valve))!.equals(amber)).toBe(true);
     await discardAll();
   });
 
@@ -208,7 +211,7 @@ describeDb("save places picks", () => {
       [cog, { sprites: { [cog]: await keep("sprite", cog, frame(6), { puzzle: "engines" }) }, sounds: {} }],
       // A sound picked for a frame.
       [cog, { sprites: { [cog]: await keep("sound", cog, mp3(2)) }, sounds: {} }],
-      // A frame the atlas does not have: a new frame is a change to code.
+      // A frame the manifest does not list: a new frame is a change to code.
       ["brandnew", { sprites: { brandnew: await keep("sprite", "brandnew", frame(7)) }, sounds: {} }],
       // A cue whose take is not an MP3.
       ["clear", { sprites: {}, sounds: { clear: await keep("sound", "clear", Buffer.from("not a sound at all, whatever its row says")) } }],
