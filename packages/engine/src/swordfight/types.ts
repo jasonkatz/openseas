@@ -259,7 +259,10 @@ export type SwordfightEvent =
 
 export interface SwordfightMoveReport {
   readonly move: SwordfightMove;
-  /** Everything that happened from the previous state's tick up to and including this move's tick. */
+  /**
+   * Everything that happened from the previous state's tick up to and including this move's tick.
+   * An advanced state's report (`advanceSwordfight`) starts with the logged move's events.
+   */
   readonly events: readonly SwordfightEvent[];
   /** Points the player's board earned in those events. */
   readonly points: number;
