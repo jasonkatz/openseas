@@ -31,7 +31,7 @@ export function SalvagePractice() {
   return (
     <PracticeShell
       puzzle="salvage"
-      eyebrow={t("harness.prototype_eyebrow")}
+      eyebrow={t("studio.prototype_eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}

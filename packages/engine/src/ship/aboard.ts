@@ -2,7 +2,7 @@
  * How a ship and the boards played aboard it are wired together: the derivations the server makes
  * when it builds a ship's config from content, deals the captain a space battle, feeds that battle
  * the ship's word each turn and splits the purse. They live here, pure, so the server and the
- * harness's voyage bench compute them the same way (ADR 0027): a voyage simulated in the harness
+ * studio's voyage bench compute them the same way (ADR 0027): a voyage simulated in the studio
  * is wired exactly as one flew on the server.
  *
  * Inputs are structural (the fields content carries), so the engine needs no content types.
@@ -206,10 +206,10 @@ export function heatRowsFor(heat: number, board: HeatBoardFields): number {
 }
 
 /**
- * A ship for a Cooling board played on its own, in the harness (ADR 0029). The hull is sound and
+ * A ship for a Cooling board played on its own, in the studio (ADR 0029). The hull is sound and
  * nobody else is aboard. Each turn the heat takes the class's intake and drains by this board's own
  * output, exactly as the ship reducer's turn would. The server runs it for a recorded round and
- * pushes the depth as a ship pushes its heat to a duty board; the harness runs it on the round's
+ * pushes the depth as a ship pushes its heat to a duty board; the studio runs it on the round's
  * own clock for unrated and lab rounds.
  */
 export interface SoloHeat {

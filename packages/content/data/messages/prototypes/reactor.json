@@ -34,11 +34,11 @@
   "reactor.legend_port_ready": "Chevrons: a hot rod is at the front of the lane. Swipe that way.",
   "reactor.legend_port_blocked": "A bar: a hot rod is in the lane with another rod in its way.",
   "reactor.legend_heat": "The lamps over the core count hot rods. Light the diamond and the core scrams: it is emptied and you lose 150.",
-  "harness.preset.reactor_three_ports": "Three ports open",
-  "harness.preset.reactor_one_port": "One port open",
-  "harness.preset.reactor_quick_rods": "Grade III is hot: rods cook fast",
-  "harness.preset.reactor_big_core": "A five by five core",
-  "harness.preset.reactor_no_holding": "No holding: a second hot rod scrams the core",
-  "harness.preset.reactor_short_pipeline": "A five swipe pipeline",
-  "harness.preset.reactor_twenty_swipes": "Twenty swipes, one minute"
+  "studio.preset.reactor_three_ports": "Three ports open",
+  "studio.preset.reactor_one_port": "One port open",
+  "studio.preset.reactor_quick_rods": "Grade III is hot: rods cook fast",
+  "studio.preset.reactor_big_core": "A five by five core",
+  "studio.preset.reactor_no_holding": "No holding: a second hot rod scrams the core",
+  "studio.preset.reactor_short_pipeline": "A five swipe pipeline",
+  "studio.preset.reactor_twenty_swipes": "Twenty swipes, one minute"
 }

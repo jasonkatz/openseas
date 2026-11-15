@@ -45,10 +45,10 @@
   "scanner.legend_found": "A contact found by a lock: 40, times the streak.",
   "scanner.legend_spooked": "A contact spooked by a ping: no bounty, and it costs 60.",
   "scanner.legend_miss": "A lock on empty space: it costs 60.",
-  "harness.preset.scanner_first_deal": "First deal stands: a sector may need a guess",
-  "harness.preset.scanner_dense": "Dense: five to seven contacts",
-  "harness.preset.scanner_big_sector": "A big sector: eight by eight, four to eight contacts",
-  "harness.preset.scanner_tight_par": "Tight par: one ping a contact, and two",
-  "harness.preset.scanner_no_opening": "No opening ping: the first ping is a gamble",
-  "harness.preset.scanner_ten_moves": "Ten moves, one minute"
+  "studio.preset.scanner_first_deal": "First deal stands: a sector may need a guess",
+  "studio.preset.scanner_dense": "Dense: five to seven contacts",
+  "studio.preset.scanner_big_sector": "A big sector: eight by eight, four to eight contacts",
+  "studio.preset.scanner_tight_par": "Tight par: one ping a contact, and two",
+  "studio.preset.scanner_no_opening": "No opening ping: the first ping is a gamble",
+  "studio.preset.scanner_ten_moves": "Ten moves, one minute"
 }

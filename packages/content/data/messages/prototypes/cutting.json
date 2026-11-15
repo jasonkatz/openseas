@@ -41,10 +41,10 @@
   "cutting.ore.amber": "Amber",
   "cutting.ore.bone": "Bone",
   "cutting.ore.rose": "Rose",
-  "harness.preset.cutting_clean_blocks": "Clean blocks: no flaws, every cut the slab needs",
-  "harness.preset.cutting_tight": "Tight: cuts for two thirds of the slab",
-  "harness.preset.cutting_busy": "Busy from the start: seven blocks, two flaws",
-  "harness.preset.cutting_three_ores": "Three ores: blocks run together",
-  "harness.preset.cutting_big_slab": "A big slab: eight by eight, up to nine cuts",
-  "harness.preset.cutting_ten_moves": "Ten moves, one minute"
+  "studio.preset.cutting_clean_blocks": "Clean blocks: no flaws, every cut the slab needs",
+  "studio.preset.cutting_tight": "Tight: cuts for two thirds of the slab",
+  "studio.preset.cutting_busy": "Busy from the start: seven blocks, two flaws",
+  "studio.preset.cutting_three_ores": "Three ores: blocks run together",
+  "studio.preset.cutting_big_slab": "A big slab: eight by eight, up to nine cuts",
+  "studio.preset.cutting_ten_moves": "Ten moves, one minute"
 }

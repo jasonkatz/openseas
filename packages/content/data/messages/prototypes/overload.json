@@ -32,12 +32,12 @@
   "overload.legend_full": "3 charges: one tap bursts it",
   "overload.legend_booster": "Booster, with a second ring and four lugs. It passes two charges to each neighbour when it bursts.",
   "overload.legend_ring": "The ring round a capacitor is cut in three: one lit part for each charge. A capacitor at three shows a bolt. A capacitor goes when its charge plus its bursting neighbours reach four, and it bursts once in a chain.",
-  "harness.preset.overload_no_boosters": "No boosters",
-  "harness.preset.overload_many_boosters": "Boosters everywhere: one capacitor in five",
-  "harness.preset.overload_hot_bank": "A hot bank: fresh capacitors come in fuller",
-  "harness.preset.overload_cold_bank": "A cold bank: fresh capacitors come in nearly empty",
-  "harness.preset.overload_flat_streak": "No streak: every chain at 100 percent",
-  "harness.preset.overload_free_taps": "Taps come back fast: one every half second",
-  "harness.preset.overload_big_bank": "A big bank: eight by nine",
-  "harness.preset.overload_ten_taps": "Ten taps, one minute: none given back"
+  "studio.preset.overload_no_boosters": "No boosters",
+  "studio.preset.overload_many_boosters": "Boosters everywhere: one capacitor in five",
+  "studio.preset.overload_hot_bank": "A hot bank: fresh capacitors come in fuller",
+  "studio.preset.overload_cold_bank": "A cold bank: fresh capacitors come in nearly empty",
+  "studio.preset.overload_flat_streak": "No streak: every chain at 100 percent",
+  "studio.preset.overload_free_taps": "Taps come back fast: one every half second",
+  "studio.preset.overload_big_bank": "A big bank: eight by nine",
+  "studio.preset.overload_ten_taps": "Ten taps, one minute: none given back"
 }

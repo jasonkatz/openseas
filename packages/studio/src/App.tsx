@@ -21,7 +21,7 @@ import { RacksPractice } from "./pages/RacksPractice.jsx";
 import { CuttingPractice } from "./pages/CuttingPractice.jsx";
 import { RoundFrame, type FrameMode } from "./frame/RoundFrame.jsx";
 import { useMediaQuery } from "./practice/PracticeShell.jsx";
-import { HARNESS_PUZZLES } from "./puzzles.js";
+import { STUDIO_PUZZLES } from "./puzzles.js";
 import { Router, useRoute } from "./router.jsx";
 import { fetchLink, looksLikeLinkId, type LinkLookup } from "./service/client.js";
 
@@ -53,7 +53,7 @@ const PLAY = "/play/";
 function Puzzle({ id, mode, link }: { id: PuzzleId; mode: FrameMode; link?: TesterLink }) {
   const Page = PAGES[id];
   return (
-    <RoundFrame key={`${mode}/${link?.id ?? id}`} mode={mode} puzzle={HARNESS_PUZZLES[id]} link={link ?? null}>
+    <RoundFrame key={`${mode}/${link?.id ?? id}`} mode={mode} puzzle={STUDIO_PUZZLES[id]} link={link ?? null}>
       <Page />
     </RoundFrame>
   );

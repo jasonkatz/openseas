@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.jsx";
 import "@openseas/boards/styles.css";
-import "./harness.css";
+import "./studio.css";
 import "./play/play.css";
 import "./studio/studio.css";
 import "./home/home.css";

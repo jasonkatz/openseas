@@ -96,10 +96,10 @@ export interface PuzzleSession {
   meleeIncoming: MeleeIncoming[];
   /**
    * Cooling only: the heat in rows as last told to the client, from the ship aboard or, for a
-   * harness round, the lone ship below. A heat move must say this.
+   * studio round, the lone ship below. A heat move must say this.
    */
   shipHeatRow: number | null;
-  /** A harness Cooling round's lone ship (ADR 0029): its heat, and how many of its turns have passed. */
+  /** A studio Cooling round's lone ship (ADR 0029): its heat, and how many of its turns have passed. */
   soloHeat: { heat: SoloHeat; turns: number } | null;
   /** Battle aboard only: the ship's latest deal, not yet logged by the board. A supply move must say this. */
   shipSupply: ShipSupply | null;
@@ -143,8 +143,8 @@ export interface SessionManagerOptions {
   randomSeed: () => string;
   randomId: () => string;
   /**
-   * The ship a harness Cooling round plays against (ADR 0029): the class's rules and Cooling's par
-   * for one turn. Without it a harness Cooling board's heat never moves from the deal.
+   * The ship a studio Cooling round plays against (ADR 0029): the class's rules and Cooling's par
+   * for one turn. Without it a studio Cooling board's heat never moves from the deal.
    */
   soloHeat?: { rules: ShipRules; par: number };
 }
@@ -168,7 +168,7 @@ export class PuzzleSessionManager {
     const content = override?.config ?? this.opts.puzzles[puzzle].config;
     const roundMs = override?.roundMs ?? this.opts.puzzles[puzzle].roundMs;
     if (override) def.validateConfig(override.config);
-    // A Cooling board's heat is a ship's heat (DESIGN.md 3.3): the ship's aboard, a lone ship's in the harness.
+    // A Cooling board's heat is a ship's heat (DESIGN.md 3.3): the ship's aboard, a lone ship's in the studio.
     const config = puzzle === "cooling" ? { ...(content as object), shipHeat: true } : content;
     const solo = puzzle === "cooling" && !duty && !battle && !melee ? soloHeatStart(config as HeatBoardFields) : null;
     const session: PuzzleSession = {
@@ -203,7 +203,7 @@ export class PuzzleSessionManager {
 
   /** `move` must already be validated against the session's puzzle schema. */
   /**
-   * Turn every harness Cooling round's lone ship that is due (ADR 0029), each from the points its
+   * Turn every studio Cooling round's lone ship that is due (ADR 0029), each from the points its
    * board earned since the last turn. Returns the boards whose heat now shows a different depth;
    * the caller tells their clients, which log the depth as a heat move, as a duty board does.
    */

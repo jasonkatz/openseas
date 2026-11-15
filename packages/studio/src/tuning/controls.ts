@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { HarnessPuzzle } from "../puzzles.js";
+import type { StudioPuzzle } from "../puzzles.js";
 import { getPath, leaves } from "../scenario/overrides.js";
 import { GROUP_IDS, type GroupId, type TuningGroups } from "./groups.js";
 
@@ -135,7 +135,7 @@ function control(key: string, shipped: unknown, schema: Schema | null, descripti
  * wire schema (what each may be), so a new key in content is a new control with no code here. A
  * key the groups file forgot lands in `other`; test/tuning.test.ts keeps that empty.
  */
-export function configControls<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, groups: TuningGroups): ControlGroup[] {
+export function configControls<S, M, C>(puzzle: StudioPuzzle<S, M, C>, groups: TuningGroups): ControlGroup[] {
   const root = puzzle.configSchema as Schema;
   const all = leaves(puzzle.config).map(({ path, value }) => {
     const { schema, description } = schemaAt(root, path);

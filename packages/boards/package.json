@@ -2,7 +2,7 @@
   "name": "@openseas/boards",
   "version": "0.1.0",
   "private": true,
-  "description": "What the game and the harness render with: the puzzle boards (PixiJS renderers, art, sound), the round runner that streams move logs, and the connection to the server. Renders; never authoritative (ADR 0019).",
+  "description": "What the game and the studio render with: the puzzle boards (PixiJS renderers, art, sound), the round runner that streams move logs, and the connection to the server. Renders; never authoritative (ADR 0019).",
   "type": "module",
   "exports": {
     ".": {
@@ -22,7 +22,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p build",
     "build": "tsc --noEmit && tsc --noEmit -p build",
-    "test": "echo \"boards has no unit tests; the harness smoke drives every board\"",
+    "test": "echo \"boards has no unit tests; the studio smoke drives every board\"",
     "lint": "echo no lint"
   },
   "dependencies": {

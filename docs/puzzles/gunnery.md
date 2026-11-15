@@ -1,6 +1,6 @@
 # Gunnery
 
-Status: in the game. Built in M2, redesigned over several playtests under 3.2. On the harness at `/gunnery`.
+Status: in the game. Built in M2, redesigned over several playtests under 3.2. In the studio at `/gunnery`.
 
 ## The puzzle
 

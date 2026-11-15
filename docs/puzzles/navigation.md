@@ -1,7 +1,7 @@
 # Navigation
 
 Status: in the game. Built in M2, reworked after a first pass that let a star hover until the navigator dropped it and
-let it pass through stars already on the chart. On the harness at `/navigation`.
+let it pass through stars already on the chart. In the studio at `/navigation`.
 
 ## The puzzle
 

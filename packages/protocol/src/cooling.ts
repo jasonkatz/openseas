@@ -22,7 +22,7 @@ export const CoolingConfigSchema = z.object({
   heatRisePerMoves: z.int().min(1).describe("Heat rises one row every this many moves."),
   heatDropPerPoints: z.int().min(1).describe("Heat drops one row every this many points scored."),
   maxMoves: z.int().min(1).max(10_000).describe("Swaps before the round ends: a bound that only keeps the move log a sane size."),
-  /** True when the heat is a ship's heat (a duty board's, or a harness round's lone ship); false keeps the board's own. */
+  /** True when the heat is a ship's heat (a duty board's, or a studio round's lone ship); false keeps the board's own. */
   shipHeat: z.boolean().default(false).describe("On, the heat is the ship's and swaps neither raise nor drain it; off, the board keeps its own heat."),
   cascadeMultipliers: z.array(z.int().min(1).max(100)).min(1).max(16).describe("What each step of a cascade multiplies its points by; steps past the end take the last entry."),
   streakStepPercent: z.int().min(0).max(1000).describe("Percent added to a move's points for each scoring move in a row before it."),

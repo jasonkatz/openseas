@@ -184,7 +184,7 @@ export const puzzleRound = pgTable(
     /** Set for a duty board played aboard a ship; null for practice. */
     voyageId: text(),
     /**
-     * Whether the round moved the pirate's standing. False for a harness round (standing is earned
+     * Whether the round moved the pirate's standing. False for a studio round (standing is earned
      * in the game only, ADR 0028), a duty board cut short by docking and every rejected round.
      */
     rated: boolean().notNull().default(true),

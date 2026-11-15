@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { localSeed, type PracticeApi } from "../practice/usePractice.js";
-import type { HarnessPuzzle } from "../puzzles.js";
+import type { StudioPuzzle } from "../puzzles.js";
 import { replayAgrees, replayRound } from "./replay.js";
 
 export interface StudioRound {
@@ -59,7 +59,7 @@ export function writeRestart(on: boolean): void {
  * a number changes or the shipped numbers are held up for comparison, and replays every finished
  * round from its seed, reporting only whether that agreed (ADR 0042 decision 3).
  */
-export function useStudio<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, api: PracticeApi<S, M, C>): StudioRound {
+export function useStudio<S, M, C>(puzzle: StudioPuzzle<S, M, C>, api: PracticeApi<S, M, C>): StudioRound {
   const frame = useFrame();
   const { scenario, setScenario, numbers, setReport, comparing } = frame;
   // The shipped numbers always play; only the draft can be refused.

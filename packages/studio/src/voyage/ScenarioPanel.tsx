@@ -72,10 +72,10 @@ function ShipSection({ content, scenario, set, base }: { content: Content; scena
   const newSeed = (): string => `voyage-${Math.floor(Math.random() * 1e6).toString(36)}`;
   return (
     <section className="bench-section">
-      <h3>{t("harness.voyage.ship_title")}</h3>
+      <h3>{t("studio.voyage.ship_title")}</h3>
       <div className="bench-fields">
         <label className="bench-row">
-          <span>{t("harness.voyage.ship_class")}</span>
+          <span>{t("studio.voyage.ship_class")}</span>
           <select value={scenario.shipClassId} onChange={(e) => set({ shipClassId: e.target.value })} data-testid="voyage-ship">
             {content.world.shipClasses.map((c) => (
               <option key={c.id} value={c.id}>
@@ -85,51 +85,51 @@ function ShipSection({ content, scenario, set, base }: { content: Content; scena
           </select>
         </label>
         <label className="bench-row">
-          <span>{t("harness.voyage.lane")}</span>
+          <span>{t("studio.voyage.lane")}</span>
           <select value={scenario.laneId} onChange={(e) => set({ laneId: e.target.value })} data-testid="voyage-lane">
             {content.world.lanes.map((r) => (
               <option key={r.id} value={r.id}>
-                {t("harness.voyage.lane_option", { from: outpostName(r.from), to: outpostName(r.to), seconds: r.durationSeconds })}
+                {t("studio.voyage.lane_option", { from: outpostName(r.from), to: outpostName(r.to), seconds: r.durationSeconds })}
               </option>
             ))}
           </select>
         </label>
         <label className="bench-row">
-          <span>{t("harness.voyage.raiders")}</span>
+          <span>{t("studio.voyage.raiders")}</span>
           <select value={choice} onChange={(e) => setEncounter(e.target.value)} data-testid="voyage-encounter">
             <option value="content">
               {lane
-                ? t("harness.voyage.raiders_content", {
+                ? t("studio.voyage.raiders_content", {
                     chance: Math.round(lane.encounterChance * 100),
                     tiers: lane.raiders.map((b) => `${t(`raider.${b.tierId}`)} ${b.weight}`).join(", "),
                   })
-                : t("harness.voyage.raiders_content_short")}
+                : t("studio.voyage.raiders_content_short")}
             </option>
             {content.world.raiderTiers.map((tier) => (
               <option key={tier.id} value={`tier:${tier.id}`}>
-                {t("harness.voyage.raiders_always", { tier: t(tier.nameKey) })}
+                {t("studio.voyage.raiders_always", { tier: t(tier.nameKey) })}
               </option>
             ))}
-            <option value="none">{t("harness.voyage.raiders_none")}</option>
-            {choice === "custom" && <option value="custom">{t("harness.voyage.raiders_custom")}</option>}
+            <option value="none">{t("studio.voyage.raiders_none")}</option>
+            {choice === "custom" && <option value="custom">{t("studio.voyage.raiders_custom")}</option>}
           </select>
         </label>
         <label className="bench-row">
-          <span>{t("harness.voyage.hail")}</span>
+          <span>{t("studio.voyage.hail")}</span>
           <select value={scenario.hail} onChange={(e) => set({ hail: e.target.value as HailOrder })} data-testid="voyage-hail">
             {HAIL_ORDERS.map((h) => (
               <option key={h} value={h}>
-                {t(`harness.voyage.hail_${h}`)}
+                {t(`studio.voyage.hail_${h}`)}
               </option>
             ))}
           </select>
         </label>
         <div className="bench-row">
-          <span>{t("harness.seed")}</span>
+          <span>{t("studio.seed")}</span>
           <span className="bench-inline">
             <input type="text" value={scenario.seed} onChange={(e) => set({ seed: e.target.value })} spellCheck={false} data-testid="voyage-seed" />
             <button type="button" className="btn btn-ghost btn-mini" onClick={() => set({ seed: newSeed() })}>
-              {t("harness.seed_random")}
+              {t("studio.seed_random")}
             </button>
           </span>
         </div>
@@ -171,33 +171,33 @@ function CrewSection({ content, scenario, set, world }: { content: Content; scen
 
   return (
     <section className="bench-section">
-      <h3>{t("harness.voyage.crew_title")}</h3>
-      <p className="muted small">{t("harness.voyage.crew_blurb")}</p>
+      <h3>{t("studio.voyage.crew_title")}</h3>
+      <p className="muted small">{t("studio.voyage.crew_blurb")}</p>
       <ol className="vcrew" data-testid="voyage-crew">
         {crew.map((c, i) => (
           <li key={i} className="vcrew-row" data-testid={`voyage-pirate-${i + 1}`}>
             <div className="bench-inline bench-inline-between">
               <span className="bench-inline">
-                {i === 0 && <span className="vchip vchip-captain">{t("harness.voyage.captain_chip")}</span>}
+                {i === 0 && <span className="vchip vchip-captain">{t("studio.voyage.captain_chip")}</span>}
                 <input
                   type="text"
                   className="vcrew-name"
                   value={c.name}
                   placeholder={pirateName(crew.map((x) => ({ ...x, name: "" })), i)}
                   onChange={(e) => update(i, { name: e.target.value })}
-                  aria-label={t("harness.voyage.crew_name")}
+                  aria-label={t("studio.voyage.crew_name")}
                 />
               </span>
               {crew.length > 1 && (
-                <button type="button" className="field-reset" onClick={() => remove(i)} aria-label={t("harness.voyage.crew_remove")} title={t("harness.voyage.crew_remove")}>
+                <button type="button" className="field-reset" onClick={() => remove(i)} aria-label={t("studio.voyage.crew_remove")} title={t("studio.voyage.crew_remove")}>
                   ×
                 </button>
               )}
             </div>
             <label className="bench-row">
-              <span>{t("harness.voyage.crew_station")}</span>
+              <span>{t("studio.voyage.crew_station")}</span>
               <select value={c.station ?? ""} onChange={(e) => update(i, { station: (e.target.value || null) as Station | null })} data-testid={`voyage-pirate-${i + 1}-station`}>
-                <option value="">{t("harness.voyage.no_station")}</option>
+                <option value="">{t("studio.voyage.no_station")}</option>
                 {stations.map((s) => (
                   <option key={s} value={s} disabled={crew.some((o, k) => k !== i && o.station === s)}>
                     {stationName(s)}
@@ -206,7 +206,7 @@ function CrewSection({ content, scenario, set, world }: { content: Content; scen
               </select>
             </label>
             <div className="bench-row">
-              <span>{t("harness.voyage.crew_duty")}</span>
+              <span>{t("studio.voyage.crew_duty")}</span>
               <span className="bench-inline">
                 <select
                   value={dutyPreset(c)}
@@ -218,18 +218,18 @@ function CrewSection({ content, scenario, set, world }: { content: Content; scen
                 >
                   {DUTY_PRESETS.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {t(`harness.voyage.duty_${p.id}`, { duty: p.duty })}
+                      {t(`studio.voyage.duty_${p.id}`, { duty: p.duty })}
                     </option>
                   ))}
-                  {dutyPreset(c) === "custom" && <option value="custom">{t("harness.voyage.custom")}</option>}
+                  {dutyPreset(c) === "custom" && <option value="custom">{t("studio.voyage.custom")}</option>}
                 </select>
-                <input className="vnum" type="number" min={0} max={1000} value={c.duty} onChange={(e) => update(i, { duty: num(e.target.value, c.duty) })} aria-label={t("harness.voyage.crew_duty_mean")} data-testid={`voyage-pirate-${i + 1}-duty`} />
+                <input className="vnum" type="number" min={0} max={1000} value={c.duty} onChange={(e) => update(i, { duty: num(e.target.value, c.duty) })} aria-label={t("studio.voyage.crew_duty_mean")} data-testid={`voyage-pirate-${i + 1}-duty`} />
                 <span className="muted small">±</span>
-                <input className="vnum" type="number" min={0} max={200} value={c.spread} onChange={(e) => update(i, { spread: num(e.target.value, c.spread) })} aria-label={t("harness.voyage.crew_duty_spread")} />
+                <input className="vnum" type="number" min={0} max={200} value={c.spread} onChange={(e) => update(i, { spread: num(e.target.value, c.spread) })} aria-label={t("studio.voyage.crew_duty_spread")} />
               </span>
             </div>
             <div className="bench-row">
-              <span>{t("harness.voyage.crew_sword")}</span>
+              <span>{t("studio.voyage.crew_sword")}</span>
               <span className="bench-inline">
                 <select
                   value={swordPreset(c)}
@@ -240,12 +240,12 @@ function CrewSection({ content, scenario, set, world }: { content: Content; scen
                 >
                   {Object.keys(SWORD_HANDS).map((k) => (
                     <option key={k} value={k}>
-                      {t(`harness.voyage.sword_${k}`)}
+                      {t(`studio.voyage.sword_${k}`)}
                     </option>
                   ))}
-                  {swordPreset(c) === "custom" && <option value="custom">{t("harness.voyage.custom")}</option>}
+                  {swordPreset(c) === "custom" && <option value="custom">{t("studio.voyage.custom")}</option>}
                 </select>
-                <select value={c.sword.blade} onChange={(e) => update(i, { sword: { ...c.sword, blade: Number(e.target.value) } })} aria-label={t("harness.voyage.crew_blade")}>
+                <select value={c.sword.blade} onChange={(e) => update(i, { sword: { ...c.sword, blade: Number(e.target.value) } })} aria-label={t("studio.voyage.crew_blade")}>
                   {blades.map((b, k) => (
                     <option key={b.id} value={k}>
                       {t(`swordfight.blade.${b.id}`)}
@@ -255,14 +255,14 @@ function CrewSection({ content, scenario, set, world }: { content: Content; scen
               </span>
             </div>
             <details className="bench-details">
-              <summary className="small muted">{t("harness.voyage.crew_sword_detail", { skill: c.sword.skill, ticks: c.sword.thinkTicks })}</summary>
+              <summary className="small muted">{t("studio.voyage.crew_sword_detail", { skill: c.sword.skill, ticks: c.sword.thinkTicks })}</summary>
               <div className="bench-fields">
                 <label className="bench-row">
-                  <span>{t("harness.voyage.crew_skill")}</span>
+                  <span>{t("studio.voyage.crew_skill")}</span>
                   <input className="vnum" type="number" min={0} max={100} value={c.sword.skill} onChange={(e) => update(i, { sword: { ...c.sword, skill: num(e.target.value, c.sword.skill) } })} />
                 </label>
                 <label className="bench-row">
-                  <span>{t("harness.voyage.crew_think")}</span>
+                  <span>{t("studio.voyage.crew_think")}</span>
                   <input className="vnum" type="number" min={1} max={10000} value={c.sword.thinkTicks} onChange={(e) => update(i, { sword: { ...c.sword, thinkTicks: num(e.target.value, c.sword.thinkTicks) } })} />
                 </label>
               </div>
@@ -272,16 +272,16 @@ function CrewSection({ content, scenario, set, world }: { content: Content; scen
       </ol>
       <div className="bench-actions">
         <button type="button" className="btn btn-ghost btn-mini" onClick={add} disabled={crew.length >= world.ship.maxCrew} data-testid="voyage-add-pirate">
-          {t("harness.voyage.crew_add")}
+          {t("studio.voyage.crew_add")}
         </button>
       </div>
       <p className="muted small" data-testid="voyage-bots">
         {hands === 0
-          ? t("harness.voyage.bots_none", { min: world.ship.minCrew })
-          : t("harness.voyage.bots", {
+          ? t("studio.voyage.bots_none", { min: world.ship.minCrew })
+          : t("studio.voyage.bots", {
               count: hands,
               min: world.ship.minCrew,
-              stations: seated.length ? seated.map(stationName).join(", ") : t("harness.voyage.bots_on_deck"),
+              stations: seated.length ? seated.map(stationName).join(", ") : t("studio.voyage.bots_on_deck"),
               lo: world.rules.botOutput.min,
               hi: world.rules.botOutput.max,
             })}
@@ -294,25 +294,25 @@ function CaptainSection({ scenario, set }: { scenario: VoyageScenario; set: Sett
   const cap = scenario.captain;
   return (
     <section className="bench-section">
-      <h3>{t("harness.voyage.captain_title")}</h3>
+      <h3>{t("studio.voyage.captain_title")}</h3>
       <div className="bench-fields">
         <label className="bench-row">
-          <span>{t("harness.voyage.battle_plots")}</span>
+          <span>{t("studio.voyage.battle_plots")}</span>
           <select value={scenario.helm} onChange={(e) => set({ helm: e.target.value === "you" ? "you" : "ai" })} data-testid="voyage-helm">
-            <option value="ai">{t("harness.voyage.helm_ai")}</option>
-            <option value="you">{t("harness.voyage.helm_you")}</option>
+            <option value="ai">{t("studio.voyage.helm_ai")}</option>
+            <option value="you">{t("studio.voyage.helm_you")}</option>
           </select>
         </label>
         <label className="bench-row">
-          <span>{t("harness.voyage.captain_accuracy")}</span>
+          <span>{t("studio.voyage.captain_accuracy")}</span>
           <input className="vnum" type="number" min={0} max={100} value={cap.accuracy} onChange={(e) => set({ captain: { ...cap, accuracy: num(e.target.value, cap.accuracy) } })} />
         </label>
         <label className="bench-row">
-          <span>{t("harness.voyage.captain_aggression")}</span>
+          <span>{t("studio.voyage.captain_aggression")}</span>
           <input className="vnum" type="number" min={0} max={100} value={cap.aggression} onChange={(e) => set({ captain: { ...cap, aggression: num(e.target.value, cap.aggression) } })} />
         </label>
       </div>
-      <p className="muted small">{t("harness.voyage.captain_blurb")}</p>
+      <p className="muted small">{t("studio.voyage.captain_blurb")}</p>
     </section>
   );
 }
@@ -323,33 +323,33 @@ function ScriptSection({ scenario, set, world }: { scenario: VoyageScenario; set
   const update = (i: number, patch: Partial<ScriptStep>): void => set({ script: script.map((s, k) => (k === i ? { ...s, ...patch } : s)) });
   return (
     <section className="bench-section">
-      <h3>{t("harness.voyage.script_title")}</h3>
-      <p className="muted small">{t("harness.voyage.script_blurb")}</p>
+      <h3>{t("studio.voyage.script_title")}</h3>
+      <p className="muted small">{t("studio.voyage.script_blurb")}</p>
       {script.length > 0 && (
         <ol className="vscript" data-testid="voyage-script">
           {script.map((s, i) => (
             <li key={i} className="bench-inline">
               <label className="bench-inline small">
-                {t("harness.voyage.script_turn")}
+                {t("studio.voyage.script_turn")}
                 <input className="vnum" type="number" min={1} value={s.turn} onChange={(e) => update(i, { turn: num(e.target.value, s.turn) })} />
               </label>
-              <select value={s.who} onChange={(e) => update(i, { who: Number(e.target.value) })} aria-label={t("harness.voyage.script_who")}>
+              <select value={s.who} onChange={(e) => update(i, { who: Number(e.target.value) })} aria-label={t("studio.voyage.script_who")}>
                 {scenario.crew.map((_, k) => (
                   <option key={k} value={k}>
                     {pirateName(scenario.crew, k)}
                   </option>
                 ))}
               </select>
-              <select value={s.action} onChange={(e) => update(i, { action: e.target.value as ScriptAction })} aria-label={t("harness.voyage.script_action")}>
+              <select value={s.action} onChange={(e) => update(i, { action: e.target.value as ScriptAction })} aria-label={t("studio.voyage.script_action")}>
                 {SCRIPT_ACTIONS.map((a) => (
                   <option key={a} value={a}>
-                    {t(`harness.voyage.script_${a}`)}
+                    {t(`studio.voyage.script_${a}`)}
                   </option>
                 ))}
               </select>
               {s.action === "station" && (
-                <select value={s.station ?? ""} onChange={(e) => update(i, { station: (e.target.value || null) as Station | null })} aria-label={t("harness.voyage.crew_station")}>
-                  <option value="">{t("harness.voyage.no_station")}</option>
+                <select value={s.station ?? ""} onChange={(e) => update(i, { station: (e.target.value || null) as Station | null })} aria-label={t("studio.voyage.crew_station")}>
+                  <option value="">{t("studio.voyage.no_station")}</option>
                   {stations.map((st) => (
                     <option key={st} value={st}>
                       {stationName(st)}
@@ -357,7 +357,7 @@ function ScriptSection({ scenario, set, world }: { scenario: VoyageScenario; set
                   ))}
                 </select>
               )}
-              <button type="button" className="field-reset" onClick={() => set({ script: script.filter((_, k) => k !== i) })} aria-label={t("harness.voyage.script_remove")} title={t("harness.voyage.script_remove")}>
+              <button type="button" className="field-reset" onClick={() => set({ script: script.filter((_, k) => k !== i) })} aria-label={t("studio.voyage.script_remove")} title={t("studio.voyage.script_remove")}>
                 ×
               </button>
             </li>
@@ -371,7 +371,7 @@ function ScriptSection({ scenario, set, world }: { scenario: VoyageScenario; set
           onClick={() => set({ script: [...script, { turn: Math.max(1, ...script.map((s) => s.turn + 1), 5), who: 0, action: "away", station: null }] })}
           data-testid="voyage-add-step"
         >
-          {t("harness.voyage.script_add")}
+          {t("studio.voyage.script_add")}
         </button>
       </div>
     </section>
@@ -384,10 +384,10 @@ const fixed = (path: string): boolean => FIXED.has(path) || /^tiers\.[^.]+\.(id|
 
 function WorldSection({ base, overrides, onChange }: { base: VoyageWorld; overrides: Overrides; onChange(next: Overrides): void }) {
   const groups: Array<{ id: string; title: string; prefix: string }> = [
-    { id: "rules", title: t("harness.voyage.world_rules"), prefix: "rules" },
-    { id: "ship", title: t("harness.voyage.world_ship"), prefix: "ship" },
-    { id: "lane", title: t("harness.voyage.world_lane"), prefix: "lane" },
-    ...Object.values(base.tiers).map((tier) => ({ id: `tier-${tier.id}`, title: t("harness.voyage.world_tier", { tier: t(tier.nameKey) }), prefix: `tiers.${tier.id}` })),
+    { id: "rules", title: t("studio.voyage.world_rules"), prefix: "rules" },
+    { id: "ship", title: t("studio.voyage.world_ship"), prefix: "ship" },
+    { id: "lane", title: t("studio.voyage.world_lane"), prefix: "lane" },
+    ...Object.values(base.tiers).map((tier) => ({ id: `tier-${tier.id}`, title: t("studio.voyage.world_tier", { tier: t(tier.nameKey) }), prefix: `tiers.${tier.id}` })),
   ];
   const all = leaves(base).filter((f) => !fixed(f.path));
   const set = (path: string, value: unknown): void => onChange(pruneOverrides(base, { ...overrides, [path]: value }));
@@ -400,14 +400,14 @@ function WorldSection({ base, overrides, onChange }: { base: VoyageWorld; overri
   return (
     <section className="bench-section">
       <div className="bench-inline bench-inline-between">
-        <h3>{t("harness.voyage.world_title")}</h3>
+        <h3>{t("studio.voyage.world_title")}</h3>
         {changed > 0 && (
           <button type="button" className="btn btn-ghost btn-mini" onClick={() => onChange({})} data-testid="voyage-world-reset">
-            {t("harness.config_reset")}
+            {t("studio.config_reset")}
           </button>
         )}
       </div>
-      <p className="muted small">{t("harness.voyage.world_blurb", { count: changed })}</p>
+      <p className="muted small">{t("studio.voyage.world_blurb", { count: changed })}</p>
       {groups.map((g) => {
         const fields = all.filter((f) => f.path.startsWith(`${g.prefix}.`));
         const n = fields.filter((f) => f.path in overrides).length;
@@ -428,7 +428,7 @@ function WorldSection({ base, overrides, onChange }: { base: VoyageWorld; overri
                     </label>
                     <WorldField id={id} base={was} value={value} onChange={(v) => set(path, v)} />
                     {path in overrides && (
-                      <button type="button" className="field-reset" onClick={() => unset(path)} title={t("harness.config_reset_field")} aria-label={t("harness.config_reset_field")}>
+                      <button type="button" className="field-reset" onClick={() => unset(path)} title={t("studio.config_reset_field")} aria-label={t("studio.config_reset_field")}>
                         ↺
                       </button>
                     )}

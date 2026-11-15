@@ -68,12 +68,12 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
     const percent = (v: number): string => `${Math.round(v)}%`;
     const maxTokens = Math.max(1, cfg.shipClass.baseTokens * 2 + cfg.rules.navTokens * 2);
     return [
-      { id: "progress", label: t("harness.voyage.m_progress"), max: 100, value: (s) => s.progress / 10, format: percent },
-      { id: "speed", label: t("harness.voyage.m_speed"), max: Math.ceil(cfg.rules.maxSpeed / 100) * 10, value: (s) => s.speed / 10, format: percent },
-      { id: "heat", label: t("harness.voyage.m_heat"), max: 100, value: (s) => s.heat / 10, format: percent },
-      { id: "hull", label: t("harness.voyage.m_hull"), max: 100, value: (s) => (BATTLE_PERMILLE - s.damage) / 10, format: percent },
-      { id: "loaded", label: t("harness.voyage.m_loaded"), max: Math.max(1, cfg.shipClass.turrets), value: (s) => s.loaded, format: (v) => String(v), step: true },
-      { id: "tokens", label: t("harness.voyage.m_tokens"), max: maxTokens, value: (s) => s.tokens, format: (v) => String(v), step: true },
+      { id: "progress", label: t("studio.voyage.m_progress"), max: 100, value: (s) => s.progress / 10, format: percent },
+      { id: "speed", label: t("studio.voyage.m_speed"), max: Math.ceil(cfg.rules.maxSpeed / 100) * 10, value: (s) => s.speed / 10, format: percent },
+      { id: "heat", label: t("studio.voyage.m_heat"), max: 100, value: (s) => s.heat / 10, format: percent },
+      { id: "hull", label: t("studio.voyage.m_hull"), max: 100, value: (s) => (BATTLE_PERMILLE - s.damage) / 10, format: percent },
+      { id: "loaded", label: t("studio.voyage.m_loaded"), max: Math.max(1, cfg.shipClass.turrets), value: (s) => s.loaded, format: (v) => String(v), step: true },
+      { id: "tokens", label: t("studio.voyage.m_tokens"), max: maxTokens, value: (s) => s.tokens, format: (v) => String(v), step: true },
     ];
   }, [cfg]);
 
@@ -101,50 +101,50 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
     <div className="vrun" data-testid="voyage-run">
       <div className="vcontrols">
         <button type="button" className="btn btn-brass btn-mini" onClick={begin} data-testid="voyage-launch">
-          {sim ? t("harness.voyage.launch_again") : t("harness.voyage.launch")}
+          {sim ? t("studio.voyage.launch_again") : t("studio.voyage.launch")}
         </button>
         <button type="button" className="btn btn-ghost btn-mini" onClick={next} disabled={done || waiting} data-testid="voyage-step">
-          {t("harness.voyage.step")}
+          {t("studio.voyage.step")}
         </button>
         <button type="button" className="btn btn-ghost btn-mini" onClick={playPause} disabled={done || waiting} data-testid="voyage-play">
-          {playing ? t("harness.voyage.pause") : t("harness.voyage.play")}
+          {playing ? t("studio.voyage.pause") : t("studio.voyage.play")}
         </button>
         <label className="bench-inline small">
-          <span className="muted">{t("harness.voyage.rate")}</span>
+          <span className="muted">{t("studio.voyage.rate")}</span>
           <select value={rate} onChange={(e) => setRate(Number(e.target.value) as (typeof RATES)[number])}>
             {RATES.map((r) => (
               <option key={r} value={r}>
-                {t("harness.voyage.rate_option", { n: r })}
+                {t("studio.voyage.rate_option", { n: r })}
               </option>
             ))}
           </select>
         </label>
         <button type="button" className="btn btn-ghost btn-mini" onClick={toPort} disabled={done || waiting} data-testid="voyage-to-end">
-          {t("harness.voyage.to_end")}
+          {t("studio.voyage.to_end")}
         </button>
       </div>
 
-      {!sim && <p className="muted vempty">{t("harness.voyage.empty")}</p>}
+      {!sim && <p className="muted vempty">{t("studio.voyage.empty")}</p>}
 
       {sim && ship && (
         <>
           <dl className="vstatus" data-testid="voyage-status">
             <div>
-              <dt>{t("harness.voyage.s_phase")}</dt>
+              <dt>{t("studio.voyage.s_phase")}</dt>
               <dd>
                 <span className={`vchip vchip-${sim.phase}`} data-testid="voyage-phase" data-phase={sim.phase}>
-                  {t(`harness.voyage.phase_${sim.phase}`)}
+                  {t(`studio.voyage.phase_${sim.phase}`)}
                 </span>
               </dd>
             </div>
             <div>
-              <dt>{t("harness.voyage.s_turn")}</dt>
+              <dt>{t("studio.voyage.s_turn")}</dt>
               <dd className="mono" data-testid="voyage-turn">
                 {samples.length}
               </dd>
             </div>
             <div className="vstatus-wide">
-              <dt>{t("harness.voyage.lane_option_short", { from: outpostName(setup.leg.from), to: outpostName(setup.leg.to) })}</dt>
+              <dt>{t("studio.voyage.lane_option_short", { from: outpostName(setup.leg.from), to: outpostName(setup.leg.to) })}</dt>
               <dd>
                 <span className="heat-meter progress-meter" aria-label={`${pct(shown?.progress ?? 0)}%`}>
                   <i style={{ width: `${pct(shown?.progress ?? 0)}%` }} />
@@ -152,22 +152,22 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
               </dd>
             </div>
             <div>
-              <dt>{t("harness.voyage.s_hull")}</dt>
+              <dt>{t("studio.voyage.s_hull")}</dt>
               <dd className="mono">{pct(BATTLE_PERMILLE - ship.damage)}%</dd>
             </div>
             <div>
-              <dt>{t("harness.voyage.s_heat")}</dt>
+              <dt>{t("studio.voyage.s_heat")}</dt>
               <dd className="mono">{pct(ship.heat)}%</dd>
             </div>
             <div>
-              <dt>{t("harness.voyage.s_turrets")}</dt>
+              <dt>{t("studio.voyage.s_turrets")}</dt>
               <dd className="mono">
                 {ship.loaded}/{cfg.shipClass.turrets}
               </dd>
             </div>
             <div>
-              <dt>{t("harness.voyage.s_crew")}</dt>
-              <dd className="small">{t("harness.voyage.s_crew_value", { pirates: ship.crew.filter((c) => !c.bot).length, hands: ship.crew.filter((c) => c.bot).length })}</dd>
+              <dt>{t("studio.voyage.s_crew")}</dt>
+              <dd className="small">{t("studio.voyage.s_crew_value", { pirates: ship.crew.filter((c) => !c.bot).length, hands: ship.crew.filter((c) => c.bot).length })}</dd>
             </div>
           </dl>
 
@@ -176,14 +176,14 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
           {battle && battleState && (
             <section className="vpanel" data-testid="voyage-battle">
               <div className="bench-inline bench-inline-between">
-                <h3>{t("harness.voyage.battle_title", { tier: t(`raider.${battle.tierId}`) })}</h3>
+                <h3>{t("studio.voyage.battle_title", { tier: t(`raider.${battle.tierId}`) })}</h3>
                 {battle.outcome && <span className="vchip">{t(`battle.outcome.${battle.outcome}`)}</span>}
               </div>
               {waiting && battleAt === null && (
                 <div className="vplot" role="status" data-testid="voyage-your-plot">
-                  <p>{t("harness.voyage.your_plot")}</p>
+                  <p>{t("studio.voyage.your_plot")}</p>
                   <button type="button" className="btn btn-ghost btn-mini" onClick={() => setSim((s) => (s ? step(s) : s))} data-testid="voyage-ai-plot">
-                    {t("harness.voyage.ai_plot")}
+                    {t("studio.voyage.ai_plot")}
                   </button>
                 </div>
               )}
@@ -206,7 +206,7 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
               </div>
               {stops.length > 1 && (
                 <label className="bench-inline small vscrub">
-                  <span className="muted">{t("harness.voyage.battle_scrub", { n: battleState.turn, max: battleState.config.maxTurns })}</span>
+                  <span className="muted">{t("studio.voyage.battle_scrub", { n: battleState.turn, max: battleState.config.maxTurns })}</span>
                   <input
                     type="range"
                     min={0}
@@ -217,7 +217,7 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
                       setBattleAt(v === stops.length - 1 ? null : v);
                     }}
                     data-testid="voyage-battle-scrub"
-                    aria-label={t("harness.voyage.battle_scrub_label")}
+                    aria-label={t("studio.voyage.battle_scrub_label")}
                   />
                 </label>
               )}
@@ -239,8 +239,8 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
                   <dd className="mono">{battleState.hitsTaken}</dd>
                 </div>
                 <div>
-                  <dt>{t("harness.voyage.battle_plotted")}</dt>
-                  <dd className="small">{t("harness.voyage.battle_plotted_value", { ai: battle.plotters.filter((p) => p === "ai").length, you: battle.plotters.filter((p) => p === "you").length })}</dd>
+                  <dt>{t("studio.voyage.battle_plotted")}</dt>
+                  <dd className="small">{t("studio.voyage.battle_plotted_value", { ai: battle.plotters.filter((p) => p === "ai").length, you: battle.plotters.filter((p) => p === "you").length })}</dd>
                 </div>
               </dl>
             </section>
@@ -250,21 +250,21 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
 
           <section className="vpanel">
             <div className="bench-inline bench-inline-between">
-              <h3>{t("harness.voyage.charts_title")}</h3>
+              <h3>{t("studio.voyage.charts_title")}</h3>
               <PhaseLegend />
             </div>
             {shown && <Readout sample={shown} stations={stations} turrets={cfg.shipClass.turrets} />}
             <TimelineCharts samples={samples} measures={measures} hover={hover} onHover={setHover} />
-            <h4 className="vsub">{t("harness.voyage.chart_outputs")}</h4>
+            <h4 className="vsub">{t("studio.voyage.chart_outputs")}</h4>
             <OutputHeatmap samples={samples} stations={stations} hover={hover} onHover={setHover} />
           </section>
 
           <section className="vpanel">
-            <h3>{t("harness.voyage.log_title")}</h3>
+            <h3>{t("studio.voyage.log_title")}</h3>
             <ol className="vlog" data-testid="voyage-log">
               {sim.log.map((e, i) => (
                 <li key={i} data-kind={e.kind}>
-                  <span className="mono muted">{t("harness.voyage.log_turn", { n: e.turn })}</span> {logLine(e, name)}
+                  <span className="mono muted">{t("studio.voyage.log_turn", { n: e.turn })}</span> {logLine(e, name)}
                 </li>
               ))}
             </ol>
@@ -272,15 +272,15 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
 
           {proof && (
             <section className="vpanel" data-testid="voyage-proof">
-              <h3>{t("harness.voyage.proof_title")}</h3>
+              <h3>{t("studio.voyage.proof_title")}</h3>
               <p className={proof.ok ? "ok" : "error"} data-testid="voyage-proof-result" data-ok={proof.ok ? "1" : "0"}>
-                {proof.ok ? t("harness.voyage.proof_ok", { moves: proof.moves }) : t("harness.voyage.proof_bad", { log: proof.mismatch!.log, move: proof.mismatch!.move })}
+                {proof.ok ? t("studio.voyage.proof_ok", { moves: proof.moves }) : t("studio.voyage.proof_bad", { log: proof.mismatch!.log, move: proof.mismatch!.move })}
               </p>
               <div className="bench-actions">
                 <button type="button" className="btn btn-ghost btn-mini" onClick={() => copy(voyageFile(sim), "file")}>
-                  {t("harness.voyage.copy_file")}
+                  {t("studio.voyage.copy_file")}
                 </button>
-                {copied === "file" && <span className="small ok">{t("harness.voyage.copied")}</span>}
+                {copied === "file" && <span className="small ok">{t("studio.voyage.copied")}</span>}
               </div>
             </section>
           )}
@@ -293,8 +293,8 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
 function Readout({ sample, stations, turrets }: { sample: TurnSample; stations: readonly Station[]; turrets: number }) {
   return (
     <p className="vreadout small" aria-live="polite" data-testid="voyage-readout">
-      <b>{t("harness.voyage.log_turn", { n: sample.turn })}</b> · {sample.held ? t("harness.voyage.band_held") : t(`harness.voyage.phase_${sample.phase}`)} ·{" "}
-      {t("harness.voyage.readout", {
+      <b>{t("studio.voyage.log_turn", { n: sample.turn })}</b> · {sample.held ? t("studio.voyage.band_held") : t(`studio.voyage.phase_${sample.phase}`)} ·{" "}
+      {t("studio.voyage.readout", {
         progress: pct(sample.progress),
         speed: pct(sample.speed),
         heat: pct(sample.heat),
@@ -315,11 +315,11 @@ function VoyageSummary({ sim, name }: { sim: VoyageSim; name(id: string): string
   const paid = Object.entries(sim.plunder).filter(([, c]) => c > 0);
   return (
     <section className="vpanel vsummary" data-testid="voyage-summary">
-      <h3>{t(`harness.voyage.end_${sim.phase}`, { turns, minutes: Math.floor(seconds / 60), seconds: seconds % 60, outpost: outpostName(sim.setup.leg.to) })}</h3>
+      <h3>{t(`studio.voyage.end_${sim.phase}`, { turns, minutes: Math.floor(seconds / 60), seconds: seconds % 60, outpost: outpostName(sim.setup.leg.to) })}</h3>
       {paid.length > 0 ? (
-        <p className="small">{t("harness.voyage.plunder_paid", { shares: paid.map(([id, c]) => `${name(id)} ${c}`).join(", ") })}</p>
+        <p className="small">{t("studio.voyage.plunder_paid", { shares: paid.map(([id, c]) => `${name(id)} ${c}`).join(", ") })}</p>
       ) : (
-        <p className="small muted">{t("harness.voyage.plunder_none")}</p>
+        <p className="small muted">{t("studio.voyage.plunder_none")}</p>
       )}
     </section>
   );
@@ -332,17 +332,17 @@ function MeleePanel({ melee, name }: { melee: NonNullable<VoyageSim["melees"][nu
   return (
     <section className="vpanel" data-testid="voyage-melee">
       <div className="bench-inline bench-inline-between">
-        <h3>{t(melee.boarding === "boarded" ? "harness.voyage.melee_title_ours" : "harness.voyage.melee_title_theirs", { tier: t(`raider.${melee.tierId}`) })}</h3>
-        {melee.outcome && <span className="vchip">{t(`harness.voyage.melee_${melee.outcome}`)}</span>}
+        <h3>{t(melee.boarding === "boarded" ? "studio.voyage.melee_title_ours" : "studio.voyage.melee_title_theirs", { tier: t(`raider.${melee.tierId}`) })}</h3>
+        {melee.outcome && <span className="vchip">{t(`studio.voyage.melee_${melee.outcome}`)}</span>}
       </div>
-      <p className="muted small">{t("harness.voyage.melee_blurb", { tick: s.tick, max: s.config.maxTick })}</p>
+      <p className="muted small">{t("studio.voyage.melee_blurb", { tick: s.tick, max: s.config.maxTick })}</p>
       <table className="vtable">
         <thead>
           <tr>
-            <th>{t("harness.voyage.melee_board")}</th>
-            <th>{t("harness.voyage.melee_points")}</th>
-            <th>{t("harness.voyage.melee_sent")}</th>
-            <th>{t("harness.voyage.melee_standing")}</th>
+            <th>{t("studio.voyage.melee_board")}</th>
+            <th>{t("studio.voyage.melee_points")}</th>
+            <th>{t("studio.voyage.melee_sent")}</th>
+            <th>{t("studio.voyage.melee_standing")}</th>
           </tr>
         </thead>
         <tbody>
@@ -351,15 +351,15 @@ function MeleePanel({ melee, name }: { melee: NonNullable<VoyageSim["melees"][nu
               <td>{name(melee.fighters[i] ?? "")}</td>
               <td className="mono">{b.points}</td>
               <td className="mono">{b.sent}</td>
-              <td>{b.out ? t("harness.voyage.melee_out") : t("harness.voyage.melee_up")}</td>
+              <td>{b.out ? t("studio.voyage.melee_out") : t("studio.voyage.melee_up")}</td>
             </tr>
           ))}
           {theirs.map((b, i) => (
             <tr key={`b${i}`} className="vtable-foe">
-              <td>{t("harness.voyage.melee_raider_n", { n: i + 1 })}</td>
+              <td>{t("studio.voyage.melee_raider_n", { n: i + 1 })}</td>
               <td className="mono">{b.points}</td>
               <td className="mono">{b.sent}</td>
-              <td>{b.out ? t("harness.voyage.melee_out") : t("harness.voyage.melee_up")}</td>
+              <td>{b.out ? t("studio.voyage.melee_out") : t("studio.voyage.melee_up")}</td>
             </tr>
           ))}
         </tbody>
@@ -375,12 +375,12 @@ function logLine(e: SimEntry, name: (id: string) => string): string {
   if ("station" in v) v.station = stationName(String(v.station));
   if (typeof v.tier === "string") v.tier = t(`raider.${v.tier}`);
   if (typeof v.outpost === "string") v.outpost = outpostName(v.outpost);
-  if (typeof v.action === "string") v.action = t(`harness.voyage.script_${v.action}`);
-  if (typeof v.plotter === "string") v.plotter = t(`harness.voyage.plotter_${v.plotter}`);
-  if (typeof v.outcome === "string") v.outcome = e.kind === "melee_ended" ? t(`harness.voyage.melee_${v.outcome}`) : t(`battle.outcome.${v.outcome}`);
+  if (typeof v.action === "string") v.action = t(`studio.voyage.script_${v.action}`);
+  if (typeof v.plotter === "string") v.plotter = t(`studio.voyage.plotter_${v.plotter}`);
+  if (typeof v.outcome === "string") v.outcome = e.kind === "melee_ended" ? t(`studio.voyage.melee_${v.outcome}`) : t(`battle.outcome.${v.outcome}`);
   if (typeof v.hull === "number") v.hull = pct(BATTLE_PERMILLE - v.hull);
   if (typeof v.theirs === "number") v.theirs = pct(BATTLE_PERMILLE - v.theirs);
   // A station event without a station is standing down; a hand booted up without one waits on deck.
   const kind = e.vars.station === "" ? (e.kind === "station" ? "station_none" : e.kind === "booted_up" ? "booted_up_deck" : e.kind) : e.kind;
-  return t(`harness.voyage.log.${kind}`, v);
+  return t(`studio.voyage.log.${kind}`, v);
 }

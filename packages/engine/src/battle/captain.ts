@@ -1,6 +1,6 @@
 /**
  * A captain that plots itself: the raider's policy (ai.ts) flew from the other side of the
- * board. The harness's voyage bench uses it to fight a space battle unattended (ADR 0027); the game
+ * board. The studio's voyage bench uses it to fight a space battle unattended (ADR 0027); the game
  * never does, since there the captain is a pirate. It sees the fight as the raider would, from a
  * mirrored state: the ships swapped, last turn's plans swapped, and its own knobs in the raider's
  * place. The plan it returns is always one the reducer accepts for ship 0: it spends only ship 0's

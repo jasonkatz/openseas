@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { HarnessPuzzle } from "../puzzles.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 /** One thing wrong with a config. `path` is the key under `config` it is about, when the check could say. */
 export interface ConfigIssue {
@@ -20,7 +20,7 @@ export interface Validation {
  * protocol's wire schema and the engine's own validateConfig. Both, so a lab round can never run
  * on a config the server could not have issued.
  */
-export function validateConfig<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, config: C): Validation {
+export function validateConfig<S, M, C>(puzzle: StudioPuzzle<S, M, C>, config: C): Validation {
   const issues: ConfigIssue[] = [];
   const parsed = puzzle.configSchema.safeParse(config);
   if (!parsed.success) {

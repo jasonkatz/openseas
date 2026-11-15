@@ -7,7 +7,7 @@ import { stationName } from "./names.js";
 /**
  * The voyage bench's charts, drawn as plain SVG at the size they are shown. Each chart is one
  * measure on one axis (small multiples share the turn axis, never a second scale); colors come from
- * the `--vchart-*` tokens in harness.css; text stays in the text colors; every chart answers a hover.
+ * the `--vchart-*` tokens in studio.css; text stays in the text colors; every chart answers a hover.
  */
 
 function useWidth<T extends HTMLElement>(): [RefObject<T | null>, number] {
@@ -73,11 +73,11 @@ function PhaseBands({ samples, width, height }: { samples: readonly TurnSample[]
 
 export function PhaseLegend() {
   return (
-    <ul className="vchart-legend" aria-label={t("harness.voyage.chart_legend")}>
+    <ul className="vchart-legend" aria-label={t("studio.voyage.chart_legend")}>
       {(["battle", "melee", "held"] as const).map((k) => (
         <li key={k}>
           <i className={`vchart-swatch vchart-band-${k}`} aria-hidden="true" />
-          {t(`harness.voyage.band_${k}`)}
+          {t(`studio.voyage.band_${k}`)}
         </li>
       ))}
     </ul>
@@ -155,7 +155,7 @@ export function TimelineCharts({ samples, measures, hover, onHover }: { samples:
             <Multiple samples={samples} measure={m} width={width} hover={hover} onHover={onHover} axis={k === measures.length - 1} />
           </figure>
         ))}
-      {width > 0 && <p className="vchart-axis-label muted small">{t("harness.voyage.axis_turn")}</p>}
+      {width > 0 && <p className="vchart-axis-label muted small">{t("studio.voyage.axis_turn")}</p>}
     </div>
   );
 }
@@ -180,7 +180,7 @@ export function OutputHeatmap({ samples, stations, hover, onHover }: { samples: 
           height={h}
           className="vchart"
           role="img"
-          aria-label={t("harness.voyage.chart_outputs")}
+          aria-label={t("studio.voyage.chart_outputs")}
           onPointerMove={(e) => onHover(at(e.clientX - e.currentTarget.getBoundingClientRect().left))}
           onPointerLeave={() => onHover(null)}
           data-testid="vchart-outputs"
@@ -212,7 +212,7 @@ export function OutputHeatmap({ samples, stations, hover, onHover }: { samples: 
       <div className="vchart-scale" aria-hidden="true">
         <span>0%</span>
         <i />
-        <span>{t("harness.voyage.scale_par")}</span>
+        <span>{t("studio.voyage.scale_par")}</span>
         <i />
         <span>200%</span>
       </div>

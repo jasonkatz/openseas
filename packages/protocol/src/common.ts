@@ -9,7 +9,7 @@ export const PuzzleIdSchema = z.enum([
   "navigation",
   "battle",
   "swordfight",
-  // Prototype puzzles (ADR 0036): dealt on the harness only.
+  // Prototype puzzles (ADR 0036): dealt on the studio only.
   "salvage",
   "overload",
   "deflectors",

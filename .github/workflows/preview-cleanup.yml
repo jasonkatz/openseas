@@ -1,9 +1,9 @@
 name: Preview cleanup
 
 # Tears down what preview.yml built (ADR 0017): deletes the pull request's Railway environment
-# (server, database and its data) and the game's, the harness's and the guides' aliases when the PR closes, and sweeps daily for
-# environments whose PR closed while this could not run. Vercel keeps the preview deployments
-# themselves; they cost nothing idle. Setup: docs/DEPLOY.md, "Previews".
+# (server, database and its data) and the game's, the studio's and the guides' aliases when the PR
+# closes, and sweeps daily for environments whose PR closed while this could not run. Vercel keeps
+# the preview deployments themselves; they cost nothing idle. Setup: docs/DEPLOY.md, "Previews".
 #
 # Run by hand with a PR number to tear down one preview, or without one to sweep.
 
@@ -32,13 +32,13 @@ env:
   RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
   RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }} # read by the Railway CLI itself; no `railway link`
   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-  # The harness's alias is removed with the harness's token when there is one (see preview.yml).
-  VERCEL_HARNESS_TOKEN: ${{ secrets.VERCEL_HARNESS_TOKEN || secrets.VERCEL_TOKEN }}
+  # Each alias is removed with the token its preview was made with (see preview.yml).
+  VERCEL_STUDIO_TOKEN: ${{ secrets.VERCEL_STUDIO_TOKEN || secrets.VERCEL_TOKEN }}
   VERCEL_DOCS_TOKEN: ${{ secrets.VERCEL_DOCS_TOKEN || secrets.VERCEL_TOKEN }}
   VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
   ALIAS_PREFIX: ${{ vars.PREVIEW_ALIAS_PREFIX || 'openseas-pr' }}
-  HARNESS_ALIAS_PREFIX: ${{ vars.PREVIEW_HARNESS_ALIAS_PREFIX || 'openseas-harness-pr' }}
+  STUDIO_ALIAS_PREFIX: ${{ vars.PREVIEW_STUDIO_ALIAS_PREFIX || 'openseas-studio-pr' }}
   DOCS_ALIAS_PREFIX: ${{ vars.PREVIEW_DOCS_ALIAS_PREFIX || 'openseas-docs-pr' }}
 
 jobs:
@@ -79,7 +79,7 @@ jobs:
         if: steps.config.outputs.vercel == 'true'
         # REST rather than `vercel alias rm`, which needs a user behind the token (see preview.yml).
         run: |
-          for entry in "$ALIAS_PREFIX-$PR.vercel.app|$VERCEL_TOKEN" "$HARNESS_ALIAS_PREFIX-$PR.vercel.app|$VERCEL_HARNESS_TOKEN" "$DOCS_ALIAS_PREFIX-$PR.vercel.app|$VERCEL_DOCS_TOKEN"; do
+          for entry in "$ALIAS_PREFIX-$PR.vercel.app|$VERCEL_TOKEN" "$STUDIO_ALIAS_PREFIX-$PR.vercel.app|$VERCEL_STUDIO_TOKEN" "$DOCS_ALIAS_PREFIX-$PR.vercel.app|$VERCEL_DOCS_TOKEN"; do
             host="${entry%%|*}"
             token="${entry##*|}"
             status="$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X DELETE \

@@ -1,6 +1,6 @@
 # Prototype puzzles
 
-Eight new puzzles, built to be played and judged on the harness (ADR 0036). None is in the game.
+Eight new puzzles, built to be played and judged in the studio (ADR 0036). None is in the game.
 Each is the game's own design: inspired by the feel of the original's puzzles, ported from none of
 them. Each board draws the owner's sprites from its own atlas (ADR 0037), over code-drawn pieces
 that stand in when the atlas is missing or a lab config goes past the sheet.

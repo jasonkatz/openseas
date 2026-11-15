@@ -207,7 +207,7 @@ export const CoolingContentSchema = DutyPuzzleBaseSchema.extend({
     minHeatRow: z.int().min(0),
     heatRisePerMoves: z.int().min(1),
     heatDropPerPoints: z.int().min(1),
-    /** True: the board plays a ship's heat, aboard or a lone ship's in the harness (ADR 0029). False keeps the board's own heat. */
+    /** True: the board plays a ship's heat, aboard or a lone ship's in the studio (ADR 0029). False keeps the board's own heat. */
     shipHeat: z.boolean().default(false),
     /** A bound that keeps the move log a sane size; the clock ends a round. */
     maxMoves: z.int().min(1),

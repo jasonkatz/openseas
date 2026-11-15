@@ -35,10 +35,10 @@
   "tug.kind.ember": "Wedge",
   "tug.kind.moss": "Prism",
   "tug.kind.violet": "Cell",
-  "harness.preset.tug_open_bay": "An open bay: no blocks, only walls and pods to stop against",
-  "harness.preset.tug_crowded_bay": "A crowded bay: five pods and as many blocks as fit",
-  "harness.preset.tug_big_bay": "A big bay: nine by nine",
-  "harness.preset.tug_easy_clamps": "Easy clamps: par never above two",
-  "harness.preset.tug_hard_clamps": "Hard clamps: par four from the start",
-  "harness.preset.tug_ten_moves": "Ten flicks, one minute"
+  "studio.preset.tug_open_bay": "An open bay: no blocks, only walls and pods to stop against",
+  "studio.preset.tug_crowded_bay": "A crowded bay: five pods and as many blocks as fit",
+  "studio.preset.tug_big_bay": "A big bay: nine by nine",
+  "studio.preset.tug_easy_clamps": "Easy clamps: par never above two",
+  "studio.preset.tug_hard_clamps": "Hard clamps: par four from the start",
+  "studio.preset.tug_ten_moves": "Ten flicks, one minute"
 }

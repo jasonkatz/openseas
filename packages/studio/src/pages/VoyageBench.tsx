@@ -52,27 +52,27 @@ export function VoyageBench() {
     <main className="page vpage" data-testid="voyage-page">
       <header className="vhead">
         <p className="eyebrow">
-          <Link to="/">{t("harness.title")}</Link> · {t("harness.voyage.eyebrow")}
+          <Link to="/">{t("studio.title")}</Link> · {t("studio.voyage.eyebrow")}
         </p>
-        <h1 className="vtitle">{t("harness.voyage.title")}</h1>
-        <p className="muted">{t("harness.voyage.tagline")}</p>
+        <h1 className="vtitle">{t("studio.voyage.title")}</h1>
+        <p className="muted">{t("studio.voyage.tagline")}</p>
       </header>
 
       <div className="vlayout">
-        <aside className="bench vaside" aria-label={t("harness.scenario")}>
+        <aside className="bench vaside" aria-label={t("studio.scenario")}>
           <ScenarioPanel content={content} scenario={scenario} onChange={setScenario} world={world} />
           <div className="bench-actions vshare">
             <button type="button" className="btn btn-ghost btn-mini" onClick={share} data-testid="voyage-share">
-              {t("harness.voyage.share")}
+              {t("studio.voyage.share")}
             </button>
-            {copied && <span className="small ok">{t("harness.voyage.copied")}</span>}
+            {copied && <span className="small ok">{t("studio.voyage.copied")}</span>}
           </div>
         </aside>
 
         <section className="vmain">
           {!resolved.ok && (
             <div className="error vinvalid" role="alert" data-testid="voyage-invalid">
-              <p>{t("harness.voyage.invalid")}</p>
+              <p>{t("studio.voyage.invalid")}</p>
               <ul>
                 {resolved.errors.map((e, i) => (
                   <li key={i} className="mono small">
@@ -84,17 +84,17 @@ export function VoyageBench() {
           )}
           <div className="vtabs" role="tablist">
             <button type="button" role="tab" aria-selected={tab === "voyage"} className={tab === "voyage" ? "is-on" : ""} onClick={() => setTab("voyage")} data-testid="voyage-tab-voyage">
-              {t("harness.voyage.tab_voyage")}
+              {t("studio.voyage.tab_voyage")}
             </button>
             <button type="button" role="tab" aria-selected={tab === "batch"} className={tab === "batch" ? "is-on" : ""} onClick={() => setTab("batch")} data-testid="voyage-tab-batch">
-              {t("harness.voyage.tab_batch")}
+              {t("studio.voyage.tab_batch")}
             </button>
           </div>
           {tab === "voyage" &&
             (resolved.ok ? (
               <RunView key={`${qs}|${nonce}`} setup={resolved.setup} crew={scenario.crew} stations={stations} autostart={launchFor === qs} />
             ) : (
-              <p className="muted vempty">{t("harness.voyage.fix_first")}</p>
+              <p className="muted vempty">{t("studio.voyage.fix_first")}</p>
             ))}
           <div hidden={tab !== "batch"}>
             <BatchView scenario={scenario} valid={resolved.ok} onRuns={(runs) => setScenario((s) => ({ ...s, runs }))} onOpen={openRun} stations={stations} autostart={initial.autostart === "batch"} />

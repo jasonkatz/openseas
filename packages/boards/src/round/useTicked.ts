@@ -32,7 +32,7 @@ export interface TickedApi<S> {
  * The clock for engines whose moves carry ticks (ADR 0015). Each tick the displayed state advances;
  * every so often, and once more right before the deadline, a wait is logged so the server sees the
  * same passage of time. The tick runs one behind the round's clock so a claim never gets ahead of
- * the server's view of it. Time is read from the round's clock, so a harness can slow or pause it.
+ * the server's view of it. Time is read from the round's clock, so the studio can slow or pause it.
  */
 export function useTicked<S extends { readonly tick: number }, M>(host: TickedHost<S, M>, opts: TickedOptions<S, M>): TickedApi<S> {
   const { tickMs, maxTick } = opts;

@@ -20,7 +20,7 @@ const N = cfg.size;
  * about what is dealt or what a route scores.
  */
 const SLOW = { chargeTicks: 600, chargeTicksMin: 600 };
-/** Two beams a volley from the first one: the harness's own preset. */
+/** Two beams a volley from the first one: the studio's own preset. */
 const PAIRS = { ...SLOW, rampTicks: 1 };
 const pairCfg: DeflectorsConfig = { ...cfg, ...PAIRS };
 /** The strip over the grid, in cells: the renderer's own layout. */

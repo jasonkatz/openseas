@@ -122,7 +122,7 @@ export interface MeleeRecord {
   readonly last: SwordfightState;
 }
 
-/** A line of the voyage's log. `kind` names a message under `harness.voyage.log.`; `who` values are pirate ids. */
+/** A line of the voyage's log. `kind` names a message under `studio.voyage.log.`; `who` values are pirate ids. */
 export interface SimEntry {
   readonly turn: number;
   readonly kind: string;
