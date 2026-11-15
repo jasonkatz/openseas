@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { tierFor } from "@openseas/engine";
 import { PuzzleNumbersSchema } from "@openseas/content";
+import { pickCount } from "@openseas/protocol";
 import { content, t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { formatNumber, withoutNumbers, type Refusal, type Threshold } from "../frame/numbers.js";
@@ -62,12 +63,14 @@ export function TuningPanel({ phase, onStart }: { phase: PracticePhase; onStart(
   // A refusal no control can claim (the engine's own check names no key) is shown above them all.
   const loose = refusals.filter((r) => !known.some((k) => owns(k, r)));
 
+  const picked = pickCount(scenario);
   const seed = report.seed ?? scenario.seed;
   const pinned = scenario.seed !== null;
   const presets = puzzle.presets.filter((p: Preset) => Object.keys(p.overrides).length > 0 || p.roundSeconds !== undefined);
   const applyPreset = (id: string): void => {
     const p = presets.find((x) => x.id === id);
-    if (p) setScenario({ ...withoutNumbers(scenario), overrides: p.overrides, roundSeconds: p.roundSeconds ?? null });
+    // A starting point is numbers: the draft's picks stay.
+    if (p) setScenario({ ...withoutNumbers(scenario), picks: scenario.picks, overrides: p.overrides, roundSeconds: p.roundSeconds ?? null });
   };
   const hold = (on: boolean) => (): void => frame.setComparing(on);
 
@@ -133,7 +136,7 @@ export function TuningPanel({ phase, onStart }: { phase: PracticePhase; onStart(
           >
             {t("studio.compare")}
           </button>
-          <button type="button" className="btn btn-mini" disabled={changes.length === 0 && refusals.length === 0} onClick={frame.resetNumbers} data-testid="reset-all">
+          <button type="button" className="btn btn-mini" disabled={changes.length === 0 && refusals.length === 0 && picked === 0} onClick={frame.resetNumbers} data-testid="reset-all">
             {t("studio.reset_all")}
           </button>
           <button
@@ -149,6 +152,11 @@ export function TuningPanel({ phase, onStart }: { phase: PracticePhase; onStart(
         <p className="muted small" data-testid="changed-count">
           {refusals.length > 0 ? t("studio.refused_note") : changes.length === 0 ? t("studio.changed_none") : t("studio.changed_count", { count: changes.length })}
         </p>
+        {picked > 0 && (
+          <p className="muted small" data-testid="picked-count">
+            {t("studio.picked_count", { count: picked })}
+          </p>
+        )}
         <label className="tune-check">
           <input
             type="checkbox"

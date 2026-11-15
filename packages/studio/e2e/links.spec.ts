@@ -126,7 +126,7 @@ test("the signed-in owner freezes a draft as a link, sees the puzzle's links, an
   await page.getByTestId("link-name").fill("Four kinds, short");
   await page.getByTestId("link-make").click();
   await expect(page.getByTestId("link-zzzzzzzz99")).toContainText("Four kinds, short");
-  expect(calls.made).toEqual([{ puzzle: "cooling", name: "Four kinds, short", draft: { seed: "studio-9", overrides: { pieceKinds: 4 }, roundSeconds: 45, paceSeconds: null, thresholds: null } }]);
+  expect(calls.made).toEqual([{ puzzle: "cooling", name: "Four kinds, short", draft: { seed: "studio-9", overrides: { pieceKinds: 4 }, roundSeconds: 45, paceSeconds: null, thresholds: null, picks: { sprites: {}, sounds: {} } } }]);
   expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/play\/zzzzzzzz99$/);
 
   await page.getByTestId(`link-withdraw-${LINK}`).click();

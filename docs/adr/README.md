@@ -57,3 +57,4 @@ that supersedes it.
 | [0049](./0049-save-ends-at-the-draft-pull-request.md) | Save ends at the draft pull request: the checklist is a developer's to finish |
 | [0050](./0050-a-frame-or-a-cue-can-be-swapped-on-a-running-board.md) | A frame or a cue can be swapped on a running board, and the studio lists every one |
 | [0051](./0051-takes-are-kept-in-a-railway-bucket-by-their-hash.md) | Takes are kept in a Railway bucket under their hash, in the form they would be committed in |
+| [0052](./0052-a-pick-is-the-drafts-and-a-tester-link-carries-it.md) | A pick is the draft's: kept with its numbers, frozen in a tester link, and loaded by `/play` |

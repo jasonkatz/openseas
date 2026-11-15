@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, sql } from "drizzle-orm";
-import type { ChatItem, ChatModel, DraftNumbers, RoundSummary, SendChat } from "@openseas/protocol";
+import { picksOf, type ChatItem, type ChatModel, type DraftNumbers, type RoundSummary, type SendChat } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import type { DraftRow } from "../drafts.js";
 import type { Logger } from "../log.js";
@@ -80,6 +80,11 @@ export function context(numbers: DraftNumbers, refusals: readonly string[], roun
   const lines = ["", "---", "From the studio, for this message:"];
   lines.push(changed ? `Draft numbers (what differs from shipped): ${JSON.stringify({ config: numbers.overrides, ...Object.fromEntries(TOPS.filter((k) => numbers[k] !== null).map((k) => [k, numbers[k]])) })}` : "Draft numbers: none changed; the board is on the shipped numbers.");
   if (numbers.seed) lines.push(`Pinned seed: ${numbers.seed}`);
+  // The owner picks every take (ADR 0040); the agent is told which, and has no tool that picks.
+  const picks = picksOf(numbers);
+  const short = (o: Record<string, string>): string => Object.entries(o).map(([name, hash]) => `${name}: ${hash === "synth" ? "the synthesized cue" : hash.slice(0, 12)}`).join(", ");
+  if (Object.keys(picks.sprites).length) lines.push(`Draft picks, sprites (frame: the start of the picked take's sha256, which is that of its \`frame-<n>.webp\`): ${short(picks.sprites)}`);
+  if (Object.keys(picks.sounds).length) lines.push(`Draft picks, sounds (cue: the start of the picked take's sha256, which is that of its \`placed-<n>.mp3\`): ${short(picks.sounds)}`);
   if (refusals.length) lines.push("The current build refuses these numbers, so nothing is dealt until they are fixed:", ...refusals.map((r) => `- ${r}`));
   if (rounds.length) {
     lines.push("Last rounds played, oldest first:");

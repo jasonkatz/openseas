@@ -88,6 +88,14 @@ describe("what a message carries under the owner's words", () => {
     const bare = context({ seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null }, [], [], []);
     expect(bare).toContain("none changed");
     expect(bare).toContain("No round has been played");
+    expect(bare).not.toContain("Draft picks");
+  });
+  it("gives the draft's picks, and keeps them when a number is set", () => {
+    const picked = { seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: { cog: `abcdef012345${"0".repeat(52)}` }, sounds: { clear: "synth" } } };
+    const text = context(picked, [], [], []);
+    expect(text).toContain("cog: abcdef012345");
+    expect(text).toContain("clear: the synthesized cue");
+    expect(withNumbers(picked, { paceSeconds: 12 }, []).picks).toEqual(picked.picks);
   });
 });
 
