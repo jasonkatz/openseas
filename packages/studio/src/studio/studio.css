@@ -441,3 +441,57 @@
   color: var(--parchment);
   font-size: 13px;
 }
+
+/* ---- the panel's three faces, and the sprite and sound panels (ADR 0050) */
+.studio-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+  padding: 0 0 10px;
+  background: var(--ink-900);
+}
+.studio-tabs .btn[aria-selected="true"] {
+  background: var(--brass);
+  color: #1c1405;
+}
+.asset-row {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+.asset-row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.asset-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.asset-views {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.asset-view {
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  border-radius: 8px;
+  background: #232a3d;
+}
+.asset-view-board {
+  width: 52px;
+  height: 52px;
+}
+.asset-play {
+  width: 36px;
+  height: 36px;
+}
+/* The page's legend is laid out for the details sheet's grid; here it is one block in a column. */
+.asset-legend .legend {
+  grid-area: auto;
+}

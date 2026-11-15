@@ -65,6 +65,8 @@ Vitest with property-based determinism tests on engines, Playwright smoke on all
 - A key added to a puzzle's `config` gets one line of description on its wire schema (`.describe()` in
   `protocol`) and a place in the puzzle's `studio/src/tuning/groups/<id>.ts`: the studio's tuning panel is
   built from them, and its tests fail without them.
+- A cue a board newly plays gets its place in `studio/src/assets/cues.ts`: the studio's sound panel
+  lists a puzzle's cues from it (ADR 0050), and its test fails without it.
 - Any puzzle work, a new puzzle or a change to one, starts with the `puzzles` skill
   (`.claude/skills/puzzles/SKILL.md`): the rules every puzzle is held to.
 - A pull request saved from the studio is a draft holding numbers and the chat agent's edits (ADR 0049). Whoever

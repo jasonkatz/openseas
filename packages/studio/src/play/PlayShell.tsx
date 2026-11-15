@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { PuzzleId } from "@openseas/engine";
-import { isMuted, setMuted, t, useTierPace } from "@openseas/boards";
+import { isMuted, setMuted, spriteOverrideRevision, subscribeSprites, t, useTierPace } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { formatNumber } from "../frame/numbers.js";
 import { ComboMeter, CoreStats } from "../practice/Hud.jsx";
@@ -22,6 +22,8 @@ export function PlayShell(p: ShellProps) {
   const { scenario, setScenario, numbers, refusals, changes, report, link } = frame;
   const alone = frame.mode === "play";
   const Root = alone ? "main" : "div";
+  // A board bakes its art once, so a frame swapped under it (ADR 0050) makes the board again, on the round as it stands.
+  const art = useSyncExternalStore(subscribeSprites, spriteOverrideRevision, () => 0);
   const [muted, setMutedState] = useState(isMuted);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [splash, setSplash] = useState(0);
@@ -85,7 +87,7 @@ export function PlayShell(p: ShellProps) {
       </header>
 
       <section className={`board-wrap ${lowTime ? "low-time" : ""} ${playing ? "is-playing" : ""}`}>
-        {!refused && p.board(playing && !sheetOpen)}
+        {!refused && <Fragment key={art}>{p.board(playing && !sheetOpen)}</Fragment>}
         {frame.comparing && (
           <p className="play-comparing" data-testid="comparing">
             {t("studio.comparing")}

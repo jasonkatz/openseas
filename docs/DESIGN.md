@@ -673,6 +673,17 @@ panels were never part of it. Until the first exists the board runs the deployed
 draft's numbers and a change to code is seen on its pull request's preview; the agent says so
 when it edits code.
 
+Assets, M9's third step, is being built in four parts. **The panels and the swap** (ADR 0050) are
+built. The side panel has three faces, Tuning, Sprites and Sounds. The sprite panel has a row for
+every frame in the puzzle's atlas, at the size a board draws it and larger, and above them the
+page's own legend with its marks toggle, so each kind is seen with its mark and without. The
+sound panel has a row for every cue the board plays and the three every round plays; a tap plays
+what the board would, and the synthesized cue is a pick. `boards` can draw a frame from an image
+of its own and give a cue another voice; a swapped frame makes the board again on the round as it
+stands. Until takes exist a row takes a file from the owner's machine to try in its place, on
+that page only: it is not kept, shared or saved. Takes in a bucket, picks in drafts and tester
+links, new takes through the chat, and Save placing picks are the three parts to come.
+
 The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
 agent reads:
 
@@ -717,7 +728,8 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
 - The sprite panel lists every frame in the puzzle's atlas; the sound panel every cue its board
   plays. A row shows the current pick and the takes kept for it. Sprites show at board size.
   Sounds play on a tap, and the synthesized cue is listed as a pick (ADR 0041).
-- A pick changes the running board at once.
+- A pick changes the running board at once: a frame makes the board again on the round as it
+  stands, and a cue is heard the next time it plays (ADR 0050).
 - Each row has two buttons that write the start of a chat message: new takes of this, and change
   this. New takes are made by the agent through the sprite and sound skills, from the brief, and
   appear in the row.
@@ -866,7 +878,7 @@ still proven there first, with its tester session, and only then embedded in the
 | M6 | OAuth upgrade (a guest links Discord or Google in place and keeps everything; returning players sign in), crews (found with a name and flag, invite, ranks, crew chat, crew-only ships, crews' colors on ships, tallies and the board of crews, pirates' cards), polish pass |
 | M7 | The space reskin (ADR 0034): every word, the three.js world and the codebase move from the sea to space, with the mechanics unchanged and the database wiped. The puzzle boards' art waits for the owner's sprite pass, which has since landed for the sprites |
 | M8 | Prototype puzzles (3.12, ADR 0036): eight new puzzles of the game's own, each a whole engine playable on the harness, in the owner's sprites (ADR 0037). Done when the owner has played all eight and chosen which, if any, go on |
-| M9 | The puzzle studio (3.14, ADR 0042), in three steps, each usable alone. **The shell:** the harness renamed and redrawn, the tuning panel, seed control, the validity and replay guards, tester links on a first studio service, the smoke driving every board through its studio page and `/play`, the guides' capture repointed, the bench tools removed. **Chat and Save** (built): drafts kept by the service, the agent on a worktree, the model picker, per-turn revert, reset, and Save as a draft pull request from a GitHub App that a developer finishes (ADR 0045 to 0047, ADR 0049). The live build of the worktree is not built. **Assets:** takes in object storage, the sprite and sound panels, new takes through the chat |
+| M9 | The puzzle studio (3.14, ADR 0042), in three steps, each usable alone. **The shell:** the harness renamed and redrawn, the tuning panel, seed control, the validity and replay guards, tester links on a first studio service, the smoke driving every board through its studio page and `/play`, the guides' capture repointed, the bench tools removed. **Chat and Save** (built): drafts kept by the service, the agent on a worktree, the model picker, per-turn revert, reset, and Save as a draft pull request from a GitHub App that a developer finishes (ADR 0045 to 0047, ADR 0049). The live build of the worktree is not built. **Assets**, in four parts: the sprite and sound panels and the swap on a running board (built, ADR 0050); then takes in object storage, picks in drafts and tester links with new takes through the chat, and Save placing picks |
 
 Every milestone ends with a tester session and a written retro before the next starts.
 

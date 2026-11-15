@@ -4,7 +4,8 @@
  * Nothing in here is authoritative; the server replays every round (ADR 0003).
  */
 export { content, t } from "./content.js";
-export { sfx, isMuted, setMuted } from "./audio.js";
+export { sfx, isMuted, setMuted, auditionCue, overrideSample, sampleCues } from "./audio.js";
+export { isSpritePuzzle, overrideSprite, spriteFrames, spriteOverridden, spriteOverrideRevision, subscribeSprites, type SpritePuzzle } from "./sprites/atlas.js";
 export { LatencyMeter } from "./metrics.js";
 export { softwareRendered } from "./surface.js";
 export { SERVER_URL, wsUrl } from "./api/base.js";
