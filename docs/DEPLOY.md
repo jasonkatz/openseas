@@ -262,9 +262,9 @@ migrates its own `studio` schema as it starts.
 
    The service logs `takes: true`. To try it, ask the chat for new takes of a frame, wait for the
    turn to end, and look at that frame's row in the Sprites panel. Tap one to pick it, then Save:
-   the pull request places it in the atlas (ADR 0053), with the sprite script run from the
-   service's own image as the agent's user. Nothing to set up for that; a Save that cannot run
-   the script fails as "couldn't read the picked takes or place them", and the log says why. Each take is counted against
+   the pull request holds it as the frame's own image, which the boards draw over the atlas
+   (ADR 0053). Nothing to set up for that; a Save that cannot read a picked take from the bucket
+   fails as "couldn't read the picked takes or place them", and the log says why. Each take is counted against
    `STUDIO_SPEND_CAP_USD` at an estimate (a quarter of a dollar a sprite, five cents a sound): the
    real bills are OpenAI's and ElevenLabs's, and the cap does not see them.
 

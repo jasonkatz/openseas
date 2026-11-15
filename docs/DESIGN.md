@@ -703,13 +703,11 @@ with the numbers, and `/play` loads each picked take from the service by its has
 cannot be read leaves that piece as shipped, and the details sheet says so. The agent is told the
 draft's picks under each message and has no tool that makes one.
 
-**Save places picks** (ADR 0053). A Save places the draft's picks with its numbers, in one commit.
-A frame is placed from the base branch's atlas in one pass: every override already on the branch
-is pasted back, then each picked frame as its take is, and the atlas is encoded once, so frames
-do not wear from Save to Save and what the chat placed by hand stays. Each picked take is kept as
-its frame's override byte for byte. A sound's take is copied into the sounds folder, and a
-`synth` pick deletes the sample. Pillow runs as the agent's unix user, on the service's own copy
-of the script. A pick let go since the last Save is put back as the base branch has it, as a
+**Save places picks** (ADR 0053). A Save places the draft's picks with its numbers, in one commit,
+each as its take's bytes. A placed frame is its own image beside the atlas, its override, which
+the boards bundle and draw over the atlas's frame; the atlas is never encoded again to place one,
+so no frame wears. A sound's take is copied into the sounds folder, and a `synth` pick deletes the
+sample. Nothing is decoded on the service. A pick let go since the last Save is put back as the base branch has it, as a
 number is. A pick Save cannot place (no such take, a take of another frame or cue, a frame the
 atlas lacks) refuses the Save and names the frame or cue. A draft whose only change is a pick can
 be saved, and its pull request lists each pick and says what it leaves for a developer: the
@@ -837,7 +835,7 @@ pnpm monorepo. Packages:
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
 | `studio` | The puzzle studio (sections 3.11 and 3.14), once the harness: a page a puzzle with the shared board and the tuning panel built from content and the wire schema; each puzzle alone at `/play/<puzzle>` on the numbers its link carries; every round local and replayed from its seed; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
-| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers and picks: a clone on a volume, a worktree a draft, picks placed by the sprite script run as the agent's user, and a draft pull request from a GitHub App (ADR 0046, ADR 0053); and the chat: the Claude Agent SDK on the draft's worktree, as a unix user of its own, behind the service's own proxy to the model (ADR 0047). All in a Postgres schema of its own | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
+| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers and picks: a clone on a volume, a worktree a draft, picks placed as their takes' bytes, and a draft pull request from a GitHub App (ADR 0046, ADR 0053); and the chat: the Claude Agent SDK on the draft's worktree, as a unix user of its own, behind the service's own proxy to the model (ADR 0047). All in a Postgres schema of its own | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
 | `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the harness, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
 In M9 the harness became the studio (3.14, ADR 0042): `harness` was renamed `studio`, and

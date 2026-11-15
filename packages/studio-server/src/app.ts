@@ -12,7 +12,7 @@ import { ensureAgentUser } from "./chat/agentUser.js";
 import { createChat, type Chat } from "./chat/chat.js";
 import { createModelProxy, type ModelProxy } from "./chat/proxy.js";
 import type { AgentRunner } from "./chat/runner.js";
-import { createSdkRunner, type AgentIdentity } from "./chat/sdkRunner.js";
+import { createSdkRunner } from "./chat/sdkRunner.js";
 import { createPlacer } from "./save/picks.js";
 import { createRepo, type Repo } from "./save/repo.js";
 import { createSaver, type Saver } from "./save/saver.js";
@@ -36,7 +36,7 @@ export interface App {
  * opens pull requests (ADR 0046). Short of any of them the service still keeps drafts and links.
  * A test hands in its own forge and a repository on its own disk.
  */
-function createSaverFor(env: Env, db: Db, log: Logger, forge: Forge | null | undefined, takes: Takes | null, identity: AgentIdentity | null): { saver: Saver; repo: Repo } | null {
+function createSaverFor(env: Env, db: Db, log: Logger, forge: Forge | null | undefined, takes: Takes | null): { saver: Saver; repo: Repo } | null {
   if (!env.STUDIO_REPO_DIR || !env.STUDIO_REPO) return null;
   let app: Forge | null = forge ?? null;
   if (forge === undefined && env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE_KEY) {
@@ -56,8 +56,8 @@ function createSaverFor(env: Env, db: Db, log: Logger, forge: Forge | null | und
   }
   const url = env.STUDIO_REPO_URL ?? `https://github.com/${env.STUDIO_REPO}.git`;
   const repo = createRepo({ dir: env.STUDIO_REPO_DIR, url, base: env.STUDIO_BASE_BRANCH, author: { name: env.STUDIO_GIT_NAME, email: env.STUDIO_GIT_EMAIL }, token: () => (url.startsWith("https:") ? app.token() : Promise.resolve(null)), log });
-  // Picks are placed as the agent's user where there is one (ADR 0053): Pillow decodes takes, and the service never does.
-  const placer = createPlacer({ repo, takes, identity, production: env.NODE_ENV === "production", log });
+  // Picks are placed as their takes' bytes (ADR 0053): nothing is decoded.
+  const placer = createPlacer({ repo, takes, log });
   return { repo, saver: createSaver({ db, repo, forge: app, log, base: env.STUDIO_BASE_BRANCH, studioOrigin: env.STUDIO_ORIGINS[0] ?? env.STUDIO_PUBLIC_URL, serviceOrigin: env.STUDIO_PUBLIC_URL, placer }) };
 }
 
@@ -66,9 +66,10 @@ function createSaverFor(env: Env, db: Db, log: Logger, forge: Forge | null | und
  * production, a unix user of its own for the agent (ADR 0047). Short of any of them the service
  * says it has no chat. A test hands in its own runner in place of the Claude Agent SDK.
  */
-async function createChatFor(env: Env, db: Db, log: Logger, repo: Repo, runner: AgentRunner | undefined, takes: Takes | null, identity: AgentIdentity | null): Promise<{ chat: Chat; proxy: ModelProxy } | null> {
+async function createChatFor(env: Env, db: Db, log: Logger, repo: Repo, runner: AgentRunner | undefined, takes: Takes | null): Promise<{ chat: Chat; proxy: ModelProxy } | null> {
   const capUsd = env.STUDIO_SPEND_CAP_USD;
   if (capUsd === undefined || (!runner && !env.ANTHROPIC_API_KEY)) return null;
+  const identity = runner ? null : ensureAgentUser(env.STUDIO_AGENT_USER, env.STUDIO_REPO_DIR!, log);
   if (!runner && !identity) {
     if (env.NODE_ENV === "production") {
       log.error("the chat is off: the service cannot run the agent as a user of its own (it must start as root, with useradd on the machine)");
@@ -100,14 +101,10 @@ export async function createApp(env: Env, log: Logger, github?: GitHub | null, f
   const gh = github !== undefined ? github : env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET ? createGitHub(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET) : null;
   const bucket = store !== undefined ? store : createStoreFor(env);
   const takes = bucket ? createTakes({ db, store: bucket, log }) : null;
-  // The agent's unix user, for the chat and for placing picks (ADR 0047, ADR 0053), made where either can run; a test's own runner has none.
-  // Null where the service is not root.
-  const wanted = env.NODE_ENV === "production" || (env.STUDIO_SPEND_CAP_USD !== undefined && Boolean(env.ANTHROPIC_API_KEY));
-  const identity = runner || !wanted || !env.STUDIO_REPO_DIR || !env.STUDIO_REPO ? null : ensureAgentUser(env.STUDIO_AGENT_USER, env.STUDIO_REPO_DIR, log);
-  const saving = createSaverFor(env, db, log, forge, takes, identity);
+  const saving = createSaverFor(env, db, log, forge, takes);
   const saver = saving?.saver ?? null;
   await saver?.start();
-  const chatting = saving ? await createChatFor(env, db, log, saving.repo, runner, takes, identity) : null;
+  const chatting = saving ? await createChatFor(env, db, log, saving.repo, runner, takes) : null;
   const chat = chatting?.chat ?? null;
   await chat?.start();
   const handler = createHttpHandler({ env, db, github: gh, saver, chat, takes, log });

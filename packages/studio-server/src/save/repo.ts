@@ -36,8 +36,6 @@ export interface Repo {
   write(id: string, path: string, text: string): Promise<void>;
   /** A file as it is where the draft's branch left the base branch; null when it was not there. */
   baseFile(id: string, path: string): Promise<string | null>;
-  /** True when the file is there where the draft's branch left the base branch. */
-  baseHas(id: string, path: string): Promise<boolean>;
   /** Put a file in the worktree back as it is where the draft's branch left the base branch, bytes and all, or delete it when it was not there. False when it was not. */
   fromBase(id: string, path: string): Promise<boolean>;
   /** Commit everything changed in the worktree. Null when nothing was. */
@@ -182,12 +180,6 @@ export function createRepo(o: RepoOptions): Repo {
         const base = (await git(tree(id), ["merge-base", "HEAD", remoteBase])).out.trim();
         const shown = await git(tree(id), ["show", `${base}:${path}`], { ok: [128] });
         return shown.code === 0 ? shown.out : null;
-      }),
-
-    baseHas: (id, path) =>
-      serial(async () => {
-        const base = (await git(tree(id), ["merge-base", "HEAD", remoteBase])).out.trim();
-        return (await git(tree(id), ["ls-tree", "-z", "--name-only", base, "--", path])).out.split("\0").includes(path);
       }),
 
     fromBase: (id, path) =>

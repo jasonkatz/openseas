@@ -82,18 +82,18 @@ Optional `overrides/<puzzle>-<frame>.webp` files are complete 192×192 normalize
 packers apply them after processing a source-sheet cell, so repacking cannot restore an obsolete
 piece. `pack-sprites.py` saves an atlas with overrides losslessly.
 
-`sprites.py put <puzzle> [frame=file ...]` pastes already fitted frames, and every override the
-puzzle has, into its atlas with one quality-90 encode, and keeps each given file as its frame's
-override byte for byte. It places only frames `frames.json` names. The studio's Save runs it on an
-atlas restored from the base branch, so a draft's picks are placed without wearing the frames
-around them (ADR 0053).
+An override also ships as an image of its own (ADR 0053). `atlas.ts` bundles every file in
+`overrides/` and decodes a puzzle's with its atlas, and from then on draws each in place of the
+atlas's frame, under any swap the studio makes. Placing a frame never re-encodes the atlas, so the
+frames around it do not wear. A repack bakes the overrides into the atlas; the boards drawing the
+same image over it changes nothing.
 
 ## Generating a frame
 
 A frame can be generated alone (ADR 0040). `../../briefs/sprites/<puzzle>.json` describes each
 frame and names reference frames for the set's style; `../../scripts/sprites.py gen` draws takes
 through the OpenAI Images API into `.art/sprites/`, and `sprites.py place` writes the owner's pick
-as an override and patches it into the atlas and this manifest. The `puzzle-sprites` skill walks
+as an override, drawn over the atlas's frame. The `puzzle-sprites` skill walks
 through it.
 
 ## Swapping a frame on a running board

@@ -62,12 +62,13 @@ chat, ask them to pick it in the Sprites panel and Save. Everywhere else:
 python3 packages/boards/scripts/sprites.py place <puzzle> <frame> <take>
 ```
 
-This writes the lossless override, patches the atlas and `frames.json`. Then:
+This writes the take as the frame's lossless override, `sprites/overrides/<puzzle>-<frame>.webp`.
+The boards draw it over the atlas's frame (ADR 0053); the atlas and `frames.json` are not touched,
+so no other frame is encoded again. Then:
 
 - A new frame name: the renderer asks for it, and the piece has a code-drawn fallback
   (`boards/src/parts.ts`, or the kit's art) in the same silhouette.
-- A new atlas: its URL goes in `packages/boards/src/sprites/atlas.ts`.
 - `pnpm --filter @openseas/studio test:smoke` is green, and
   `pnpm --filter @openseas/docs capture <puzzle>` is re-run with every picture looked at.
 
-Commit the brief, the override, the atlas and `frames.json` together.
+Commit the brief and the override together.
