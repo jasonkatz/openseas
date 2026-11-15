@@ -89,3 +89,11 @@ frame and names reference frames for the set's style; `../../scripts/sprites.py 
 through the OpenAI Images API into `.art/sprites/`, and `sprites.py place` writes the owner's pick
 as an override and patches it into the atlas and this manifest. The `puzzle-sprites` skill walks
 through it.
+
+## Swapping a frame on a running board
+
+`overrideSprite(puzzle, frame, url)` in `atlas.ts` draws a frame from an image of its own, a whole
+192×192 frame, in place of its place in the atlas; `null` puts it back (ADR 0050). Renderers bake
+their art once, so whoever holds a board makes it again when `spriteOverrideRevision` moves: the
+studio's round frame does. It is how the studio's sprite panel shows another picture on the board.
+Nothing is written to the atlas; that is still `sprites.py place`.
