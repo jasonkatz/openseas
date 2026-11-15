@@ -1,5 +1,5 @@
 import { doublePrecision, index, integer, jsonb, pgSchema, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
-import type { DraftNumbers, DraftSave, DraftSaveError, TesterLinkDraft } from "@openseas/protocol";
+import type { DraftNumbers, DraftSave, DraftSaveError, TakeKind, TesterLinkDraft } from "@openseas/protocol";
 
 /** Everything the studio's service owns lives in one Postgres schema, apart from the game's tables wherever the database is. */
 export const studio = pgSchema("studio");
@@ -87,3 +87,29 @@ export const meter = studio.table("meter", {
   id: integer().primaryKey(),
   spentUsd: doublePrecision().notNull().default(0),
 });
+
+/**
+ * A take (ADR 0051): one generated candidate for a sprite frame or a sound cue, by the SHA-256 of
+ * its bytes. The bytes are in the bucket under that hash; this row is what the panels list. It
+ * names the draft it was made on and is not that draft's: a take is kept when its draft is gone.
+ */
+export const take = studio.table(
+  "take",
+  {
+    hash: text().primaryKey(),
+    kind: text().$type<TakeKind>().notNull(),
+    puzzle: text().notNull(),
+    /** The frame or the cue, as the brief names it. */
+    name: text().notNull(),
+    bytes: integer().notNull(),
+    /** What the generator was asked for, where the script kept it beside the take. */
+    prompt: text(),
+    /** The draft it was made on and its number among that draft's takes of this name. */
+    draftId: text(),
+    take: integer(),
+    /** The owner whose chat made it. */
+    author: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("take_puzzle").on(t.puzzle, t.kind, t.name)],
+);

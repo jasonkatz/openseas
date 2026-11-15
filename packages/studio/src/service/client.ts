@@ -1,4 +1,4 @@
-import { ChatStateSchema, DraftListSchema, DraftSchema, SaveStartedSchema, StudioMeSchema, TesterLinkIdSchema, TesterLinkListSchema, TesterLinkSchema, type CreateTesterLink, type ChatState, type Draft, type DraftNumbers, type SaveStarted, type SendChat, type StudioMe, type TesterLink } from "@openseas/protocol";
+import { ChatStateSchema, DraftListSchema, DraftSchema, SaveStartedSchema, StudioMeSchema, TakeListSchema, TesterLinkIdSchema, TesterLinkListSchema, TesterLinkSchema, type CreateTesterLink, type ChatState, type Draft, type DraftNumbers, type SaveStarted, type SendChat, type StudioMe, type Take, type TesterLink } from "@openseas/protocol";
 
 /**
  * The studio's service (ADR 0042 decision 4, ADR 0043), as this site reaches it. Empty when the
@@ -173,6 +173,27 @@ export const stopChat = (id: string): Promise<boolean> => chatAct(id, "stop");
 export const revertChat = (id: string, turn: number): Promise<boolean> => chatAct(id, "revert", { turn });
 /** Answer a refused write: allow the path for this draft, or not. */
 export const answerChat = (id: string, item: number, allow: boolean): Promise<boolean> => chatAct(id, "allow", { item, allow });
+
+/** A puzzle's takes, oldest first (ADR 0051); null when the service cannot be reached, keeps none, or the caller is not the owner. */
+export async function listTakes(puzzle: string): Promise<Take[] | null> {
+  try {
+    const r = await owned(`/takes?puzzle=${encodeURIComponent(puzzle)}`);
+    const list = r.ok ? TakeListSchema.safeParse(await r.json()) : null;
+    return list?.success ? list.data.takes : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Where a take's bytes are read: public by its hash, with no cookie sent, so a board may bake the picture into a texture. */
+export const takeUrl = (hash: string): string => `${SERVICE_URL}/takes/${hash}`;
+
+/** Told when a turn of the chat has ended: it may have made takes, and the panels ask again. */
+export const TAKES_CHANGED = "openseas:studio-takes-changed";
+
+/** Asks the chat to put these words in its box for the owner to finish: a row's "new takes of this". */
+export const CHAT_PROPOSED = "openseas:studio-chat-proposed";
+export const proposeChat = (text: string): void => void window.dispatchEvent(new CustomEvent<string>(CHAT_PROPOSED, { detail: text }));
 
 /** Told when the puzzle's tester links changed somewhere other than the links section: Save makes one. */
 export const LINKS_CHANGED = "openseas:studio-links-changed";

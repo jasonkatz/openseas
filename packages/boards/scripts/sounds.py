@@ -2,10 +2,11 @@
 
   sounds.py gen <puzzle> [cue ...] [--takes N]   new takes into .art/sounds/<puzzle>/, then a review page
   sounds.py review <puzzle>                      rebuild the review page from the takes on disk
+  sounds.py placed <puzzle>                      write each take as the sound it would be placed as
   sounds.py place <puzzle> <cue> <take>          trim, normalise and keep one take in boards/src/sounds/
 
 The brief is packages/boards/briefs/sounds/<puzzle>.json. The key is ELEVENLABS_API_KEY, from the
-environment or the repository's .env. `gen` uses only the standard library; `place` needs ffmpeg.
+environment or the repository's .env. `gen` uses only the standard library; `place` and `placed` need ffmpeg.
 """
 from pathlib import Path
 import argparse, html, json, os, re, shutil, subprocess, sys, urllib.error, urllib.request
@@ -74,6 +75,7 @@ def generate(args):
             (folder/f'take-{n}.mp3').write_bytes(audio)
             (folder/f'take-{n}.json').write_text(json.dumps(body, indent=2) + '\n')
             print(f'  {cue} take {n}: {len(audio) // 1024} KB')
+    placed(args)
     review(args)
 
 
@@ -119,6 +121,44 @@ section{{border-top:1px solid #333a50;padding:8px 0 16px}}.use{{color:#9fb4d8}}.
     print(f'Review: {(folder/"review.html").relative_to(ROOT)}')
 
 
+def master(spec, src, dest):
+    """A take as the board plays it: trimmed to its first sound, mono, peaking at -1 dB less the cue's `level`."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    # A one-shot starts on its first sound: trim the lead-in. A loop keeps its length, or it would click.
+    trim = 'anull' if spec.get('loop') else 'silenceremove=start_periods=1:start_threshold=-50dB'
+    mono = dest.with_suffix('.wav')
+    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(src), '-af', trim, '-ac', '1', '-ar', '44100', str(mono)], check=True)
+    # Peak at -1 dB, less the cue's `level`, measured after the downmix, under a limiter since the MP3
+    # encode overshoots. The board plays every sample at one gain, so `level` is how a cue sits in the mix.
+    target = -1.0 + min(0.0, float(spec.get('level', 0)))
+    _, peak = probe(mono)
+    limit = 10 ** ((target + 0.1) / 20)
+    chain = f'volume={target - peak:.2f}dB,alimiter=limit={limit:.3f}:level=disabled' if peak is not None and peak > -90 else 'anull'
+    try:
+        # No encoder tag and no timestamps: the same take masters to the same bytes, which is what its hash is taken of.
+        subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(mono), '-af', chain, '-map_metadata', '-1',
+                        '-fflags', '+bitexact', '-flags:a', '+bitexact', '-c:a', 'libmp3lame', '-q:a', '4', str(dest)], check=True)
+    finally:
+        mono.unlink(missing_ok=True)
+
+
+def placed(args):
+    """Each take as the sound `place` would keep: `placed-<n>.mp3` beside `take-<n>.mp3`.
+
+    It is the form a take is kept in by the studio's service (ADR 0051), so a take heard on a board
+    there is what placing it commits. The cue's `level` is mastered in: change it and the takes made
+    before keep the old one. Without ffmpeg nothing is written."""
+    b = brief(args.puzzle)
+    if not shutil.which('ffmpeg'):
+        print('  no ffmpeg on the PATH: takes are not mastered, so the studio will not list them')
+        return
+    for cue, spec in b['cues'].items():
+        for take in takes(args.puzzle, cue):
+            out = take.with_name(f'placed-{take.stem.split("-")[1]}.mp3')
+            if not out.is_file():
+                master(spec, take, out)
+
+
 def place(args):
     b = brief(args.puzzle)
     if args.cue not in b['cues']:
@@ -129,22 +169,7 @@ def place(args):
     if not shutil.which('ffmpeg'):
         sys.exit('place needs ffmpeg on the PATH.')
     dest = BOARDS/'src/sounds'/args.puzzle/f'{args.cue}.mp3'
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    # A one-shot starts on its first sound: trim the lead-in. A loop keeps its length, or it would click.
-    trim = 'anull' if b['cues'][args.cue].get('loop') else 'silenceremove=start_periods=1:start_threshold=-50dB'
-    mono = dest.with_suffix('.wav')
-    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(src), '-af', trim, '-ac', '1', '-ar', '44100', str(mono)], check=True)
-    # Peak at -1 dB, less the cue's `level`, measured after the downmix, under a limiter since the MP3
-    # encode overshoots. The board plays every sample at one gain, so `level` is how a cue sits in the mix.
-    target = -1.0 + min(0.0, float(b['cues'][args.cue].get('level', 0)))
-    _, peak = probe(mono)
-    limit = 10 ** ((target + 0.1) / 20)
-    chain = f'volume={target - peak:.2f}dB,alimiter=limit={limit:.3f}:level=disabled' if peak is not None and peak > -90 else 'anull'
-    try:
-        subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(mono), '-af', chain,
-                        '-c:a', 'libmp3lame', '-q:a', '4', str(dest)], check=True)
-    finally:
-        mono.unlink(missing_ok=True)
+    master(b['cues'][args.cue], src, dest)
     seconds, out_peak = probe(dest)
     print(f'{dest.relative_to(ROOT)}: {seconds:.2f}s, peak {out_peak:.1f} dB, {dest.stat().st_size // 1024} KB')
 
@@ -156,6 +181,7 @@ g.add_argument('puzzle'); g.add_argument('cues', nargs='*', help='cues from the 
 g.add_argument('--takes', type=int, default=3); g.add_argument('--model', default='eleven_text_to_sound_v2')
 g.set_defaults(run=generate)
 r = sub.add_parser('review', help='rebuild the review page'); r.add_argument('puzzle'); r.set_defaults(run=review)
+m = sub.add_parser('placed', help='write each take as the sound it would be placed as'); m.add_argument('puzzle'); m.set_defaults(run=placed)
 p = sub.add_parser('place', help='keep one take'); p.add_argument('puzzle'); p.add_argument('cue'); p.add_argument('take', type=int)
 p.set_defaults(run=place)
 args = parser.parse_args()

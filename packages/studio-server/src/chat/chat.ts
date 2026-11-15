@@ -10,6 +10,7 @@ import type { ModelProxy } from "./proxy.js";
 import type { AgentEvent, AgentRunner, AgentTurn } from "./runner.js";
 import type { AgentIdentity } from "./sdkRunner.js";
 import { mayWrite, repoPath } from "./scope.js";
+import { TAKE_USD, type Takes } from "../takes/takes.js";
 
 export interface ChatOptions {
   db: Db;
@@ -20,6 +21,8 @@ export interface ChatOptions {
   identity: AgentIdentity | null;
   /** US dollars: all the chat may spend, every draft together (ADR 0047). */
   capUsd: number;
+  /** The library a turn's takes are kept in when it ends (ADR 0051); null when the service has no bucket. */
+  takes: Takes | null;
   log: Logger;
 }
 
@@ -99,6 +102,8 @@ interface Running {
   allowed: string[];
   /** Writes to the database, one after another, in the order things happened. */
   log: Promise<unknown>;
+  /** The draft's worktree, once the turn has one. */
+  cwd: string | null;
 }
 
 export function createChat(o: ChatOptions): Chat {
@@ -138,6 +143,21 @@ export function createChat(o: ChatOptions): Chat {
     } catch (err) {
       log.error({ err, draft: row.id }, "could not commit a chat turn");
     }
+    // Whatever takes the turn's commands made are kept now, so the owner's panels list them (ADR 0051).
+    // The scripts paid for them with keys the meter never saw: each new one is counted at an estimate.
+    if (o.takes && run.cwd) {
+      try {
+        const made = await o.takes.ingest(run.cwd, { draft: row.id, puzzle: row.puzzle, owner: row.owner });
+        const usd = made.reduce((sum, kind) => sum + TAKE_USD[kind], 0);
+        if (usd > 0) {
+          run.spentUsd += usd;
+          await db.insert(schema.meter).values({ id: 1, spentUsd: usd }).onConflictDoUpdate({ target: schema.meter.id, set: { spentUsd: sql`${schema.meter.spentUsd} + ${usd}` } });
+          await db.update(schema.draft).set({ spentUsd: sql`${schema.draft.spentUsd} + ${usd}` }).where(eq(schema.draft.id, row.id));
+        }
+      } catch (err) {
+        log.error({ err, draft: row.id }, "could not keep a turn's takes");
+      }
+    }
     const status = run.capped ? "capped" : run.stopped ? "stopped" : result.status;
     if (status === "failed") log.warn({ draft: row.id, turn: run.number, error: result.error }, "chat turn failed");
     await add(row.id, run.number, "turn", { status, commit, costUsd: run.spentUsd, reverted: false });
@@ -151,7 +171,7 @@ export function createChat(o: ChatOptions): Chat {
     await add(row.id, number, "user", { text: input.text, model: input.model, steer: false });
 
     // Reserved before anything is awaited again, so a second message steers this turn and does not start another.
-    const run: Running = { turn: null as unknown as AgentTurn, number, stopped: false, capped: false, spentUsd: 0, asked: new Set(), steps: new Map(), allowed: [...row.allowedPaths], log: Promise.resolve() };
+    const run: Running = { turn: null as unknown as AgentTurn, number, stopped: false, capped: false, spentUsd: 0, asked: new Set(), steps: new Map(), allowed: [...row.allowedPaths], log: Promise.resolve(), cwd: null };
     live.set(row.id, run);
     const queued: string[] = [];
     run.turn = { done: new Promise(() => undefined), steer: (text) => void queued.push(text), stop: () => undefined };
@@ -163,6 +183,7 @@ export function createChat(o: ChatOptions): Chat {
       if (!repo.hasWorktree(row.id)) await repo.fetchBase();
       cwd = await repo.worktree(row.id, branch);
       if (o.identity) await repo.own(row.id, o.identity.uid, o.identity.gid);
+      run.cwd = cwd;
     } catch (err) {
       log.error({ err, draft: row.id }, "could not prepare a draft's worktree for the chat");
       await add(row.id, number, "turn", { status: "failed", commit: null, costUsd: 0, reverted: false });

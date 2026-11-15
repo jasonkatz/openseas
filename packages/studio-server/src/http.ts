@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ChatAllowSchema, ChatRevertSchema, CreateDraftSchema, CreateTesterLinkSchema, SendChatSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, SaveRequestSchema, TesterLinkIdSchema, type ChatState, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
+import { ChatAllowSchema, ChatRevertSchema, CreateDraftSchema, CreateTesterLinkSchema, SendChatSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, SaveRequestSchema, TakeHashSchema, TesterLinkIdSchema, type ChatState, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
 import type { Chat } from "./chat/chat.js";
 import type { Db } from "./db/index.js";
 import { createDraft, discardDraft, draftRow, draftRows, saveDraft, toDraft } from "./drafts.js";
@@ -10,6 +10,7 @@ import { createLink, findLink, listLinks, withdrawLink } from "./links.js";
 import type { Logger } from "./log.js";
 import type { Saver } from "./save/saver.js";
 import { cookie, readCookie, seal, unseal } from "./session.js";
+import type { Takes } from "./takes/takes.js";
 
 export interface HttpDeps {
   env: Env;
@@ -20,6 +21,8 @@ export interface HttpDeps {
   saver: Saver | null;
   /** Null when the service has no model key, no cap, or no user of its own for the agent: there is no chat. */
   chat: Chat | null;
+  /** Null when the service has no bucket: no take is kept, listed or served. */
+  takes: Takes | null;
   log: Logger;
 }
 
@@ -77,12 +80,14 @@ async function readJson(req: IncomingMessage, limit = 32 * 1024): Promise<unknow
  *   POST   /drafts/:id/chat/stop     stop the turn where it stands (owner)
  *   POST   /drafts/:id/chat/revert   undo one turn's edits with a new commit (owner)
  *   POST   /drafts/:id/chat/allow    answer a refused write: allow the path for this draft, or not (owner)
+ *   GET    /takes/:hash       a take's bytes, for anyone who has its hash, from any origin (ADR 0051)
+ *   GET    /takes?puzzle=     a puzzle's takes (owner)
  *
  * An owner is a signed-in GitHub login on the allowlist. Whatever changes something must also
  * come from one of the studio site's own origins: the cookie alone is not enough.
  */
 export function createHttpHandler(deps: HttpDeps) {
-  const { env, db, github, saver, chat, log } = deps;
+  const { env, db, github, saver, chat, takes, log } = deps;
   const secure = env.NODE_ENV === "production";
   const cookieFor = (name: string, value: string, maxAgeSeconds: number): string => cookie(name, value, { maxAgeSeconds, secure, crossSite: env.CROSS_SITE_COOKIES });
   const callbackUrl = `${env.STUDIO_PUBLIC_URL.replace(/\/$/, "")}/auth/callback`;
@@ -116,15 +121,16 @@ export function createHttpHandler(deps: HttpDeps) {
     const draftPath = /^\/drafts\/([^/]+)(?:\/(save|update|chat|chat\/stop|chat\/revert|chat\/allow))?$/.exec(path);
     const draftId = draftPath?.[1];
     const draftAct = draftPath?.[2];
+    const takeHash = /^\/takes\/([^/]+)$/.exec(path)?.[1];
 
-    // The studio site may send its cookie. Anyone else may read a link, and nothing more.
+    // The studio site may send its cookie. Anyone else may read a link or a take, and nothing more.
     res.setHeader("Vary", "Origin");
     if (fromStudio) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Access-Control-Allow-Credentials", "true");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    } else if (linkId !== undefined || path === "/health") {
+    } else if (linkId !== undefined || takeHash !== undefined || path === "/health") {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
     }
@@ -138,7 +144,7 @@ export function createHttpHandler(deps: HttpDeps) {
       if (path === "/health" && req.method === "GET") return json(res, 200, { ok: true, commit: env.COMMIT_SHA });
 
       if (path === "/auth/me" && req.method === "GET") {
-        const me: StudioMe = { login: owner(req), signIn: github !== null, dev: env.STUDIO_DEV_LOGIN !== null, save: saver !== null, chat: chat !== null };
+        const me: StudioMe = { login: owner(req), signIn: github !== null, dev: env.STUDIO_DEV_LOGIN !== null, save: saver !== null, chat: chat !== null, takes: takes !== null };
         return json(res, 200, me);
       }
       if (path === "/auth/github" && req.method === "GET") {
@@ -179,12 +185,34 @@ export function createHttpHandler(deps: HttpDeps) {
         return json(res, 200, link);
       }
 
+      // A take is public by its hash, which nobody can guess and which never names other bytes: a
+      // tester link will load a pick this way, and a browser may keep it for good.
+      if (takeHash !== undefined && req.method === "GET") {
+        const take = takes && TakeHashSchema.safeParse(takeHash).success ? await takes.read(takeHash) : null;
+        if (!take) return fail(res, 404, "not_found");
+        res.statusCode = 200;
+        res.setHeader("Content-Type", take.contentType);
+        res.setHeader("Content-Length", take.bytes.length);
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        res.end(take.bytes);
+        return;
+      }
+
       // Everything below is the owner's, from the studio site.
       const isLinks = path === "/links" || linkId !== undefined;
       const isDrafts = path === "/drafts" || draftId !== undefined;
-      if (!isLinks && !isDrafts) return fail(res, 404, "not_found");
+      if (!isLinks && !isDrafts && path !== "/takes") return fail(res, 404, "not_found");
       const login = owner(req);
       if (!login) return fail(res, 401, "unauthorized");
+      if (path === "/takes") {
+        if (req.method !== "GET") return fail(res, 404, "not_found");
+        if (!takes) return fail(res, 503, "unavailable");
+        const puzzle = PuzzleIdSchema.safeParse(url.searchParams.get("puzzle"));
+        if (!puzzle.success) return fail(res, 400, "bad_request");
+        return json(res, 200, { takes: await takes.list(puzzle.data) });
+      }
       /** The request's body as JSON, or undefined when it is not JSON or is too large. */
       const body = async (): Promise<unknown> => {
         try {

@@ -53,13 +53,16 @@ python3 packages/boards/scripts/sounds.py gen <puzzle> [cue ...]
 
 Three takes a cue by default (`--takes`), all cues when none are named. Each run costs credit and
 adds to the takes already in `.art/sounds/<puzzle>/`, so generate again only the cues the owner
-turned down, with the prompt reworded.
+turned down, with the prompt reworded. Where ffmpeg is installed the script writes, beside each
+`take-<n>.mp3`, `placed-<n>.mp3`: the take trimmed and levelled as it would be placed.
 
 ## 4. Review
 
 You cannot hear the takes: the owner chooses. Locally they open
 `.art/sounds/<puzzle>/review.html`, which plays every take beside its prompt and the sound placed
-now. In a cloud session, send them the takes as files, named by cue and take. Report each take's
+now. In a cloud session, send them the takes as files, named by cue and take. In the studio's chat,
+end the turn: the studio lists every take in the cue's row of the owner's Sounds panel, numbered
+as here, to be heard on the running board (ADR 0051). Report each take's
 length and peak from the review page, and flag any far off the brief's duration. Done when the
 owner has named a take for every cue, or asked for a reworded prompt.
 

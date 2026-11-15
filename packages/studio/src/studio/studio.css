@@ -495,3 +495,25 @@
 .asset-legend .legend {
   grid-area: auto;
 }
+/* A frame's takes (ADR 0051): each a small picture to tap. */
+.asset-takes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.asset-take {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid rgba(239, 227, 198, 0.14);
+  border-radius: 8px;
+  background: #232a3d;
+  color: var(--parchment);
+  font-size: 11px;
+  cursor: pointer;
+}
+.asset-take.is-held {
+  border-color: var(--brass);
+  box-shadow: 0 0 0 1px var(--brass);
+}

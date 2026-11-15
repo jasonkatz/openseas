@@ -38,7 +38,8 @@ python3 packages/boards/scripts/sprites.py gen <puzzle> [frame ...]
 Two takes a frame by default (`--takes`), all frames when none are named. Each run costs credit and
 adds to the takes already in `.art/sprites/<puzzle>/`, so generate again only the frames the owner
 turned down, with the brief reworded. A take reported with no transparency is unusable: reword or
-try another model (`--model`, or `OPENAI_IMAGE_MODEL`).
+try another model (`--model`, or `OPENAI_IMAGE_MODEL`). Beside each `take-<n>.png` the script
+writes `frame-<n>.webp`, the take as the frame it would be placed as.
 
 ## 4. Review
 
@@ -46,7 +47,9 @@ Look at `.art/sprites/<puzzle>/contact.png` yourself: a row a frame, the atlas's
 first where there is one. Shortlist the takes that show the whole object, a clean transparent edge,
 no text, a silhouette apart from its siblings, and the set's style. Then the owner picks: locally
 they open `.art/sprites/<puzzle>/review.html` (each take at frame size and board size, on dark and
-light); in a cloud session, send them `contact.png` and the shortlisted takes. Done when the owner
+light); in a cloud session, send them `contact.png` and the shortlisted takes; in the studio's
+chat, end the turn, and the studio lists every take in the frame's row of the owner's Sprites
+panel, numbered as here, to be seen on the running board (ADR 0051). Done when the owner
 has named a take for every frame, or asked for a reworded brief.
 
 ## 5. Place

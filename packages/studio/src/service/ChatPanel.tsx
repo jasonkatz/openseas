@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatItem, ChatModel, ChatState } from "@openseas/protocol";
 import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
-import { answerChat, fetchChat, revertChat, sendChat, stopChat } from "./client.js";
+import { CHAT_PROPOSED, TAKES_CHANGED, answerChat, fetchChat, revertChat, sendChat, stopChat } from "./client.js";
 
 const MODELS: readonly ChatModel[] = ["sonnet", "haiku", "opus"];
 const MODEL_KEY = "openseas.studio.model";
@@ -37,6 +37,7 @@ export function ChatPanel() {
   const [note, setNote] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const end = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(
     async (id: string): Promise<void> => {
@@ -58,6 +59,21 @@ export function ChatPanel() {
     const id = window.setInterval(() => void load(draftId), WATCH_MS);
     return () => window.clearInterval(id);
   }, [draftId, running, load]);
+  // A turn that has ended may have made takes: the sprite and sound panels ask for them again (ADR 0051).
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (wasRunning.current && !running) window.dispatchEvent(new Event(TAKES_CHANGED));
+    wasRunning.current = running;
+  }, [running]);
+  // A row of the sprite or sound panel writes the start of a message here, for the owner to finish and send.
+  useEffect(() => {
+    const onProposed = (e: Event): void => {
+      setText((e as CustomEvent<string>).detail);
+      box.current?.focus();
+    };
+    window.addEventListener(CHAT_PROPOSED, onProposed);
+    return () => window.removeEventListener(CHAT_PROPOSED, onProposed);
+  }, []);
   const shown = chat?.items.length ?? 0;
   useEffect(() => {
     // Braces on purpose: in a current browser this returns a promise, which an effect must not hand back as its cleanup.
@@ -130,6 +146,7 @@ export function ChatPanel() {
         }}
       >
         <textarea
+          ref={box}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {

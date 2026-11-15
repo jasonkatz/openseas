@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { expectViewMatchesState } from "./helpers.js";
+import { NO_SAVE, SERVICE, draft, service } from "./standin.js";
 
 /**
  * The sprite and sound panels (DESIGN.md 3.14, ADR 0050), and the swap they drive: a frame or a
@@ -39,7 +40,7 @@ for (const puzzle of ["cooling", "salvage"]) {
     page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
     const asked: string[] = [];
     page.on("request", (r) => {
-      if (/\/api\/(takes|drafts|links)/.test(r.url())) asked.push(r.url());
+      if (/\/(takes|drafts|links)/.test(new URL(r.url()).pathname) && r.url().startsWith("http://localhost:8090")) asked.push(r.url());
     });
     await page.goto(`/${puzzle}?seed=assets-1`);
     await page.getByTestId("play-start").click();
@@ -112,4 +113,68 @@ test("every cue has a row that plays, the synthesized cue is the pick, and a fil
   await expect(page.getByTestId("cue-thud").locator(".tune-refusal")).toBeVisible();
   await expect(page.getByTestId("cue-thud")).toHaveAttribute("data-voice", "synth");
   expect(errors).toEqual([]);
+});
+
+test("a turn's takes appear in their rows, a tap puts one on the board, and a row writes the start of a message", async ({ page }) => {
+  desktopOnly();
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
+  const s = await service(page, { login: "octo", save: true, chat: true, takes: [], drafts: [draft({ save: NO_SAVE })] });
+  await page.goto("/cooling");
+  await page.getByTestId("play-start").click();
+  await expectViewMatchesState(page, "cooling");
+  await page.getByTestId("tab-sprites").click();
+  const frame = Object.keys(frames.cooling!)[0]!;
+  await expect(page.getByTestId(`frame-takes-${frame}`)).toHaveCount(0);
+
+  // The row asks the agent, in the chat's own box, for the owner to finish.
+  await page.getByTestId(`ask-new-${frame}`).click();
+  await expect(page.getByTestId("chat-input")).toHaveValue(`Make new takes of the ${frame} frame. `);
+  await expect(page.getByTestId("chat-input")).toBeFocused();
+  await page.getByTestId(`ask-change-${frame}`).click();
+  await expect(page.getByTestId("chat-input")).toHaveValue(`Change the ${frame} frame: `);
+  await page.getByTestId(`ask-new-${frame}`).click();
+  await page.getByTestId("chat-send").click();
+  await expect(page.getByTestId("chat-working")).toBeVisible();
+
+  // The turn makes two takes and ends: one on this draft, numbered as the script numbered it, and one from another draft's library.
+  const picture = await page.getByTestId("tab-sprites").screenshot();
+  const mine = "a".repeat(64);
+  const other = "b".repeat(64);
+  s.takes.push({ hash: mine, kind: "sprite", puzzle: "cooling", name: frame, draft: "draftdraft", take: 1, prompt: "A brass cog.", body: picture, contentType: "image/png" });
+  s.takes.push({ hash: other, kind: "sprite", puzzle: "cooling", name: frame, draft: "gonedraft1", take: 4, body: picture, contentType: "image/png" });
+  s.takes.push({ hash: "c".repeat(64), kind: "sound", puzzle: "cooling", name: "clear", draft: "draftdraft", take: 2, body: wav(), contentType: "audio/wav" });
+  s.chat.running = false;
+  s.say("turn", { status: "done", commit: null, costUsd: 0.5, reverted: false });
+  await expect(page.getByTestId("take-aaaaaaaa")).toHaveText("take 1");
+  await expect(page.getByTestId("take-bbbbbbbb")).toHaveText("take bbbbbb");
+  await expect(page.getByTestId("take-aaaaaaaa")).toHaveAttribute("title", "A brass cog.");
+
+  await page.getByTestId("take-aaaaaaaa").click();
+  await expect(page.getByTestId(`frame-${frame}`)).toHaveAttribute("data-tried", "1");
+  await expect(page.getByTestId(`frame-pick-${frame}`)).toHaveText("On the board: take 1");
+  expect(await href(page, frame)).toBe(`${SERVICE}/takes/${mine}`);
+  await expect(page.getByTestId("cooling-canvas")).toHaveAttribute("data-sprite-atlas", "cooling");
+  await expectViewMatchesState(page, "cooling");
+  await page.getByTestId(`frame-back-${frame}`).click();
+  await expect(page.getByTestId(`frame-${frame}`)).toHaveAttribute("data-tried", "0");
+
+  // A cue's take is a button in its row: a tap gives the cue that voice.
+  await page.getByTestId("tab-sounds").click();
+  await page.getByTestId("take-cccccccc").click();
+  await expect(page.getByTestId("cue-clear")).toHaveAttribute("data-voice", "take");
+  await page.getByTestId("cue-shipped-clear").click();
+  await expect(page.getByTestId("cue-clear")).toHaveAttribute("data-voice", "synth");
+  expect(errors).toEqual([]);
+});
+
+test("signed out, or with a service that keeps no takes, the rows list none and ask for none", async ({ page }) => {
+  desktopOnly();
+  const s = await service(page, { login: "octo", save: true, chat: true, drafts: [draft({ save: NO_SAVE })] });
+  await page.goto("/cooling");
+  await page.getByTestId("tab-sprites").click();
+  const frame = Object.keys(frames.cooling!)[0]!;
+  await expect(page.getByTestId(`frame-${frame}`)).toBeVisible();
+  await expect(page.getByTestId(`ask-new-${frame}`)).toBeVisible();
+  expect(s.calls.filter((c) => c.includes("/takes"))).toEqual([]);
 });
