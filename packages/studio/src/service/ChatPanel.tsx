@@ -1,13 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChatItem, ChatModel, ChatState } from "@openseas/protocol";
+import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import type { ChatEvent, ChatItem, ChatModel, ChatState } from "@openseas/protocol";
 import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
-import { CHAT_PROPOSED, TAKES_CHANGED, answerChat, fetchChat, revertChat, sendChat, stopChat } from "./client.js";
+import { applyChatEvent } from "./chatState.js";
+import { CHAT_PROPOSED, TAKES_CHANGED, answerChat, fetchChat, revertChat, sendChat, stopChat, watchChat } from "./client.js";
+
+const ChatReply = lazy(() => import("./ChatReply.jsx"));
 
 const MODELS: readonly ChatModel[] = ["sonnet", "haiku", "opus"];
 const MODEL_KEY = "openseas.studio.model";
-/** How often a running turn is asked after. */
-const WATCH_MS = 1200;
+/** How long the stream may be down before the page says so and asks for the chat the slow way. A drop that mends itself sooner is not worth a word. */
+const DOWN_MS = 4000;
+/** How often the chat is asked for while the stream is down. */
+const POLL_MS = 3000;
+/** How near the end of the log counts as reading the end of it. */
+const PINNED_PX = 48;
 
 function readModel(): ChatModel {
   try {
@@ -23,20 +30,27 @@ const money = (usd: number): string => t("studio.chat.money", { amount: usd.toFi
  * The chat (DESIGN.md 3.14, ADR 0047): an agent on the draft's own copy of the repository. It is
  * the signed-in owner's, on a draft the service keeps, and is not shown otherwise. Each message
  * carries what the page knows and the service does not: what the build refuses of the draft's
- * numbers, and how the last rounds went. The agent's replies are shown as it wrote them, the one
- * text in the studio that does not come from the message table; its work is a line a step.
+ * numbers, and how the last rounds went. The agent's replies are its own words, the one text in
+ * the studio that does not come from the message table, read as markdown and shown as they are
+ * written; its work is a line a step. The chat arrives as a stream of events (ADR 0055), and by
+ * asking, the slow way, whenever the stream is down.
  */
 export function ChatPanel() {
   const frame = useFrame();
   const { store, ensureDraft, adoptDraft, refusals, rounds } = frame;
   const stored = store.state === "stored" ? store : null;
-  const draftId = stored?.draft?.id ?? null;
+  // No chat, no stream: a service without one, or a caller who is not the owner, is asked for nothing.
+  const draftId = stored?.canChat ? (stored.draft?.id ?? null) : null;
   const [chat, setChat] = useState<ChatState | null>(null);
   const [text, setText] = useState("");
   const [model, setModel] = useState<ChatModel>(readModel);
   const [note, setNote] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const end = useRef<HTMLDivElement>(null);
+  /** The stream has been down long enough to say so. */
+  const [down, setDown] = useState(false);
+  const alive = useRef(false);
+  const logBox = useRef<HTMLDivElement>(null);
+  const pinned = useRef(true);
   const box = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(
@@ -49,16 +63,46 @@ export function ChatPanel() {
     },
     [adoptDraft],
   );
+  const onEvent = useCallback(
+    (event: ChatEvent): void => {
+      setChat((prev) => applyChatEvent(prev, event));
+      // The agent's tool moves the draft's numbers on the service; the controls and the board follow as it does.
+      if (event.type === "state") adoptDraft(event.state.draft);
+      else if (event.type === "status") adoptDraft(event.status.draft);
+    },
+    [adoptDraft],
+  );
   useEffect(() => {
     setChat(null);
-    if (draftId) void load(draftId);
-  }, [draftId, load]);
-  const running = chat?.running ?? false;
+    setDown(false);
+    alive.current = false;
+    if (!draftId) return;
+    pinned.current = true;
+    let late: number | undefined;
+    const stop = watchChat(draftId, {
+      event: onEvent,
+      link: (ok) => {
+        alive.current = ok;
+        if (ok) {
+          window.clearTimeout(late);
+          late = undefined;
+          setDown(false);
+        } else late ??= window.setTimeout(() => setDown(true), DOWN_MS);
+      },
+    });
+    return () => {
+      stop();
+      window.clearTimeout(late);
+    };
+  }, [draftId, onEvent]);
+  // With the stream down the chat is still its rows on the service, and the page asks for them.
   useEffect(() => {
-    if (!draftId || !running) return;
-    const id = window.setInterval(() => void load(draftId), WATCH_MS);
+    if (!draftId || !down) return;
+    void load(draftId);
+    const id = window.setInterval(() => void load(draftId), POLL_MS);
     return () => window.clearInterval(id);
-  }, [draftId, running, load]);
+  }, [draftId, down, load]);
+  const running = chat?.running ?? false;
   // A turn that has ended may have made takes: the sprite and sound panels ask for them again (ADR 0051).
   const wasRunning = useRef(false);
   useEffect(() => {
@@ -75,10 +119,12 @@ export function ChatPanel() {
     return () => window.removeEventListener(CHAT_PROPOSED, onProposed);
   }, []);
   const shown = chat?.items.length ?? 0;
+  const live = chat?.live ?? "";
+  // The log follows what is new while the owner reads its end, and stays put once they scroll back to read.
   useEffect(() => {
-    // Braces on purpose: in a current browser this returns a promise, which an effect must not hand back as its cleanup.
-    end.current?.scrollIntoView({ block: "end" });
-  }, [shown]);
+    const el = logBox.current;
+    if (el && pinned.current) el.scrollTop = el.scrollHeight;
+  }, [shown, live, running]);
   useEffect(() => {
     if (!note) return;
     const id = window.setTimeout(() => setNote(null), 8000);
@@ -89,7 +135,8 @@ export function ChatPanel() {
 
   const send = async (): Promise<void> => {
     const words = text.trim();
-    if (!words) return;
+    // One message a press: Enter held down, or pressed twice, is still one.
+    if (!words || sending) return;
     setSending(true);
     // The chat is a draft's: one is opened for it if the page has none, with whatever numbers are on the page.
     const draft = stored.draft ?? (await ensureDraft());
@@ -97,12 +144,14 @@ export function ChatPanel() {
     setSending(false);
     if (sent !== "sent") return setNote(t(`studio.chat.${sent}`));
     setText("");
-    if (draft) await load(draft.id);
+    pinned.current = true;
+    // The stream says what the message started. Without it, the page asks.
+    if (draft && !alive.current) await load(draft.id);
   };
   const act = (work: Promise<boolean>): void =>
     void work.then(async (ok) => {
       if (!ok) setNote(t("studio.links_failed"));
-      if (draftId) await load(draftId);
+      if (draftId && !alive.current) await load(draftId);
     });
   const capped = chat !== null && chat.cap.spentUsd >= chat.cap.capUsd;
 
@@ -116,18 +165,35 @@ export function ChatPanel() {
           </span>
         )}
       </header>
-      <div className="chat-log" data-testid="chat-log">
+      <div
+        className="chat-log"
+        data-testid="chat-log"
+        ref={logBox}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < PINNED_PX;
+        }}
+      >
         {shown === 0 && <p className="muted small">{t("studio.chat.empty")}</p>}
         {chat?.items.map((item) => (
           <Item key={item.id} item={item} running={running} onRevert={(turn) => draftId && act(revertChat(draftId, turn))} onAnswer={(id, allow) => draftId && act(answerChat(draftId, id, allow))} />
         ))}
+        {live.trim() !== "" && (
+          <div className="chat-reply is-live" data-testid="chat-live">
+            <Reply text={live} writing />
+          </div>
+        )}
         {running && (
           <p className="chat-working small" role="status" data-testid="chat-working">
             {t("studio.chat.working")}
           </p>
         )}
-        <div ref={end} />
       </div>
+      {down && (
+        <p className="small chat-down" role="status" data-testid="chat-down">
+          {t("studio.chat.down")}
+        </p>
+      )}
       {capped && (
         <p className="tune-refusal" role="alert" data-testid="chat-capped">
           {t("studio.chat.capped")}
@@ -207,22 +273,26 @@ function Item({ item, running, onRevert, onAnswer }: { item: ChatItem; running: 
         <p>{item.text}</p>
       </div>
     );
-  // The agent's own words: the one exception to the message table (ADR 0042), shown whole.
+  // The agent's own words: the one exception to the message table (ADR 0042), read as markdown (ADR 0055).
   if (item.kind === "reply")
     return (
       <div className="chat-reply" data-testid="chat-reply">
-        {item.text}
+        <Reply text={item.text} writing={false} />
       </div>
     );
-  if (item.kind === "step")
+  if (item.kind === "step") {
+    // A step whose turn is over and that never said how it went was cut off: it is not still running.
+    const state = item.failed ? "failed" : item.detail !== null ? "done" : running ? "running" : "cut";
     return (
-      <details className={`chat-step ${item.failed ? "is-failed" : ""}`} data-testid="chat-step" data-failed={item.failed ? "1" : "0"}>
+      <details className={`chat-step is-${state}`} data-testid="chat-step" data-failed={item.failed ? "1" : "0"} data-state={state}>
         <summary>
-          <code>{item.tool}</code> <span className="mono">{item.summary}</span>
+          <span className="chat-step-mark" role="img" aria-label={t(`studio.chat.step_${state}`)} />
+          <code>{toolName(item.tool)}</code> <span className="mono">{item.summary}</span>
         </summary>
-        <pre>{item.detail ?? t("studio.chat.step_running")}</pre>
+        <pre>{item.detail ?? t(`studio.chat.step_${state === "running" ? "running" : "cut"}`)}</pre>
       </details>
     );
+  }
   if (item.kind === "ask")
     return (
       <div className="chat-ask" data-testid="chat-ask" data-state={item.state}>
@@ -242,16 +312,47 @@ function Item({ item, running, onRevert, onAnswer }: { item: ChatItem; running: 
       </div>
     );
   return (
-    <div className="chat-turn" data-testid="chat-turn" data-status={item.status} data-turn={item.turn} data-reverted={item.reverted ? "1" : "0"}>
+    <div className="chat-turn" data-testid="chat-turn" data-status={item.status} data-turn={item.turn} data-reverted={item.reverted ? "1" : "0"} data-reason={item.reason ?? ""}>
       <span className="muted small">
-        {t(`studio.chat.turn_${item.status}`)} {money(item.costUsd)}
+        {t(item.status === "failed" && item.reason ? `studio.chat.turn_failed_${item.reason}` : `studio.chat.turn_${item.status}`)} {money(item.costUsd)}
         {item.commit && ` · ${item.reverted ? t("studio.chat.reverted") : t("studio.chat.committed")}`}
       </span>
+      {/* What the agent or the service said as it failed, as it said it: for the owner to read, like a step's output. */}
+      {item.status === "failed" && item.error && (
+        <details className="chat-turn-error" data-testid="chat-turn-error">
+          <summary className="small">{t("studio.chat.turn_error")}</summary>
+          <pre>{item.error}</pre>
+        </details>
+      )}
       {item.commit && !item.reverted && (
         <button type="button" className="tune-text-btn" disabled={running} onClick={() => onRevert(item.turn)} data-testid="chat-revert">
           {t("studio.chat.revert")}
         </button>
       )}
     </div>
+  );
+}
+
+/** A tool by the name the owner knows it by: the studio's own tools without the prefix the SDK gives them. */
+const toolName = (tool: string): string => tool.replace(/^mcp__studio__/, "");
+
+/** If the markdown reader cannot be loaded or cannot read a reply, the reply is still shown, as it was written. */
+class Plain extends Component<{ text: string; children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  override render(): ReactNode {
+    return this.state.failed ? <span className="chat-plain">{this.props.text}</span> : this.props.children;
+  }
+}
+
+function Reply({ text, writing }: { text: string; writing: boolean }) {
+  return (
+    <Plain text={text}>
+      <Suspense fallback={<span className="chat-plain">{text}</span>}>
+        <ChatReply text={text} writing={writing} />
+      </Suspense>
+    </Plain>
   );
 }

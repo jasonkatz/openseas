@@ -19,6 +19,8 @@ export interface SdkRunnerOptions {
   log: Logger;
   /** The Claude Code executable, when it is not the one the SDK ships. */
   executable?: string;
+  /** How long the agent's process may say nothing, with no tool of its running, before the turn is stopped as hung. A running tool is not counted: the process is silent for as long as a command takes, and tools keep their own time. */
+  idleMs?: number;
 }
 
 /** The skills the agent loads from the worktree (ADR 0042 decision 5). */
@@ -28,6 +30,12 @@ const WRITERS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 /** Tools that reach past the turn: scheduling, other sessions, other worktrees. The agent has no use for them here. */
 const NOT_HERE = ["CronCreate", "CronDelete", "CronList", "RemoteTrigger", "ScheduleWakeup", "PushNotification", "EnterWorktree", "ExitWorktree", "SendMessage", "AskUserQuestion"];
 const DETAIL = 6000;
+const IDLE_MS = 15 * 60 * 1000;
+/** What Claude Code says when a session to resume has no transcript on this machine. */
+const LOST = /No conversation found with session ID/i;
+/** What a turn that had to start a new session is told first. */
+const FRESH =
+  "(From the studio: this draft's earlier conversation could not be resumed, so this is a new session. The draft's worktree holds every earlier turn's edits, one commit a turn (`git log`), and any takes made so far. Ask the owner if you need what was said.)";
 
 const clip = (text: string, max = DETAIL): string => (text.length > max ? `${text.slice(0, max)}\n… (${text.length - max} more characters)` : text);
 const pathOf = (input: unknown): string | null => {
@@ -105,9 +113,24 @@ export function createSdkRunner(o: SdkRunnerOptions): AgentRunner {
   return {
     start(r): AgentTurn {
       const abort = new AbortController();
-      const input = inbox();
+      let input = inbox();
       input.push(userMessage(r.prompt));
       const emit = (e: AgentEvent): void => r.host.emit(e);
+      // A process that says nothing for this long, while nothing it started is running, is hung, and would hold the draft's one turn for good.
+      let idled = false;
+      let idle: NodeJS.Timeout | null = null;
+      /** The tools now running. While there is one the process has nothing to say, and the clock does not run. */
+      const tools = new Set<string>();
+      const heard = (): void => {
+        if (idle) clearTimeout(idle);
+        idle = null;
+        if (tools.size > 0) return;
+        idle = setTimeout(() => {
+          idled = true;
+          input.end();
+          abort.abort();
+        }, o.idleMs ?? IDLE_MS);
+      };
 
       const refuse = (path: string): string =>
         `The studio refused this write: ${path} is not one of the ${r.puzzle} puzzle's own files. Do not work around it. Tell the owner which path you need and why; they can allow it for this draft.`;
@@ -141,14 +164,14 @@ export function createSdkRunner(o: SdkRunnerOptions): AgentRunner {
         ],
       });
 
-      const run = async (): Promise<TurnResult> => {
+      const run = async (session: string | null): Promise<TurnResult> => {
         let result: TurnResult = { status: "failed", error: "the agent ended without a result" };
         const stream = query({
           prompt: input.stream,
           options: {
             cwd: r.cwd,
             model: r.model,
-            ...(r.session ? { resume: r.session } : {}),
+            ...(session ? { resume: session } : {}),
             // CLAUDE.md and the skills come from the worktree; nothing from a home directory or a machine.
             settingSources: ["project"],
             skills: SKILLS,
@@ -159,6 +182,8 @@ export function createSdkRunner(o: SdkRunnerOptions): AgentRunner {
             disallowedTools: NOT_HERE,
             permissionMode: "default",
             canUseTool,
+            // The reply's words as the model writes them (ADR 0055); each whole block still follows.
+            includePartialMessages: true,
             hooks: { PreToolUse: [{ hooks: [guard] }] },
             abortController: abort,
             env: environment(r),
@@ -168,17 +193,35 @@ export function createSdkRunner(o: SdkRunnerOptions): AgentRunner {
               spawn(s.command, s.args, { cwd: s.cwd, env: s.env as NodeJS.ProcessEnv, signal: s.signal, stdio: ["pipe", "pipe", "ignore"], ...(o.identity ? { uid: o.identity.uid, gid: o.identity.gid } : {}) }),
           },
         });
+        heard();
         for await (const m of stream) {
+          heard();
           if (m.type === "system" && m.subtype === "init") emit({ kind: "session", id: m.session_id });
-          else if (m.type === "assistant" && m.parent_tool_use_id === null) {
+          else if (m.type === "stream_event") {
+            // The agent's own conversation only: a subagent's words are not the reply.
+            if (m.parent_tool_use_id !== null) continue;
+            if (m.event.type === "message_start") emit({ kind: "delta", text: "", reset: true });
+            else if (m.event.type === "content_block_delta" && m.event.delta.type === "text_delta" && m.event.delta.text) emit({ kind: "delta", text: m.event.delta.text, reset: false });
+          } else if (m.type === "system" && m.subtype === "session_writes_lost") {
+            // The next turn's resume would find no conversation, or part of one. Said here, where its cause is.
+            o.log.error({ session: m.session_id, code: m.error_code, lost: m.lost }, "the agent could not save its session: the volume is full");
+          } else if (m.type === "assistant" && m.parent_tool_use_id === null) {
             for (const block of m.message.content) {
               if (block.type === "text" && block.text.trim()) emit({ kind: "reply", text: block.text });
-              else if (block.type === "tool_use") emit({ kind: "step", id: block.id, tool: block.name, summary: summarize(block.name, block.input, r.cwd) });
+              else if (block.type === "tool_use") {
+                tools.add(block.id);
+                emit({ kind: "step", id: block.id, tool: block.name, summary: summarize(block.name, block.input, r.cwd) });
+              }
             }
+            heard();
           } else if (m.type === "user" && m.parent_tool_use_id === null && Array.isArray(m.message.content)) {
             for (const block of m.message.content) {
-              if (block.type === "tool_result") emit({ kind: "stepDone", id: block.tool_use_id, detail: clip(resultText(block.content)), failed: block.is_error === true });
+              if (block.type === "tool_result") {
+                tools.delete(block.tool_use_id);
+                emit({ kind: "stepDone", id: block.tool_use_id, detail: clip(resultText(block.content)), failed: block.is_error === true });
+              }
             }
+            heard();
           } else if (m.type === "result") {
             result = m.subtype === "success" && !m.is_error ? { status: "done" } : { status: "failed", error: m.subtype === "success" ? String(m.result).slice(0, 500) : m.subtype };
             // One turn a message: the process is not kept between them, and the session is resumed.
@@ -188,14 +231,33 @@ export function createSdkRunner(o: SdkRunnerOptions): AgentRunner {
         return result;
       };
 
-      const done = run().catch((err: unknown): TurnResult => {
-        if (!abort.signal.aborted) o.log.error({ err }, "agent turn failed");
-        return { status: "failed", error: err instanceof Error ? err.message : String(err) };
-      });
+      const attempt = (session: string | null): Promise<TurnResult> => {
+        tools.clear();
+        return run(session).catch((err: unknown): TurnResult => ({ status: "failed", error: err instanceof Error ? err.message : String(err) }));
+      };
+      const done = (async (): Promise<TurnResult> => {
+        let result = await attempt(r.session);
+        // A session whose transcript is gone cannot be resumed, and would fail every turn of the draft from here on.
+        // The turn starts a new one instead, told so; the draft's worktree and its commits still hold the earlier turns' work.
+        if (result.status === "failed" && r.session && !abort.signal.aborted && LOST.test(result.error ?? "")) {
+          o.log.warn({ session: r.session }, "the agent's session could not be resumed: starting a new one");
+          input = inbox();
+          input.push(userMessage(`${FRESH}\n\n${r.prompt}`));
+          result = await attempt(null);
+        }
+        if (idle) clearTimeout(idle);
+        if (idled) {
+          o.log.error({ session: r.session, idleMs: o.idleMs ?? IDLE_MS }, "the agent said nothing for too long: turn stopped");
+          return { status: "failed", reason: "idle", error: `the agent said nothing for ${Math.round((o.idleMs ?? IDLE_MS) / 60000)} minutes` };
+        }
+        if (result.status === "failed" && !abort.signal.aborted) o.log.error({ error: result.error }, "agent turn failed");
+        return result;
+      })();
       return {
         done,
         steer: (text) => input.push(userMessage(text, "next")),
         stop: () => {
+          if (idle) clearTimeout(idle);
           input.end();
           abort.abort();
         },

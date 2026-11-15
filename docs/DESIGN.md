@@ -654,8 +654,11 @@ pull request. A service with no volume or no App keeps drafts and offers no Save
 worktree, with `CLAUDE.md` and the three puzzle skills read from it. A message carries the model
 picked, the draft's numbers, what the build refuses of them, and a line for each of the last five
 rounds played. Asked for a number, the agent uses a tool that moves the draft's numbers, and the
-controls and board follow. Its replies are shown whole as written, its work as a line a step that
-opens to the output. The service holds it to the puzzle's own files: a write elsewhere is refused
+controls and board follow. Its replies are read as markdown and shown as they are written, its
+work as a line a step that opens to the output; the page is told each thing as it happens, over a
+stream it reconnects to, and asks for the chat the slow way while that is down (ADR 0055). A turn
+that fails says why, and never holds the draft: a session that cannot be resumed is replaced by a
+new one, and an agent that goes quiet for fifteen minutes with no tool running is stopped. The service holds it to the puzzle's own files: a write elsewhere is refused
 and shown to the owner with a button that allows that path for the draft, and whatever a command
 wrote outside them is put back when the turn ends. Each turn is a commit on the draft's branch
 and can be reverted; a message sent meanwhile steers the turn; Stop ends it where it stands. The
@@ -785,8 +788,9 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   board switches to a build of the draft, with a mark saying so.
 - It is held to the open puzzle's files. For anything else it asks, and the owner allows that
   path with a click.
-- Its replies are shown whole, its work as one line a step that opens to the diff or the output.
-  There is a stop button, and a message sent while it works steers it. The draft's cost so far
+- Its replies are markdown, shown as they are written; its work is one line a step, marked as
+  running, done or failed, that opens to the diff or the output (ADR 0055). A turn that failed
+  says why. There is a stop button, and a message sent while it works steers it. The draft's cost so far
   sits at the top of the chat, with what all drafts have spent against the one cap they share
   (ADR 0047); a turn that reaches the cap is stopped where it stands.
 

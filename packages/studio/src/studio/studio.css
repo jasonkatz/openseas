@@ -356,29 +356,212 @@
 .chat-user .small {
   display: block;
 }
+/* The agent's words, read as markdown (ADR 0055). Streamdown marks what it makes with `data-streamdown`;
+   its own classes are Tailwind's, which this site does not have, so everything it draws is styled here. */
 .chat-reply {
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
-  line-height: 1.45;
+  line-height: 1.5;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.chat-reply > div {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.chat-plain {
+  white-space: pre-wrap;
+}
+.chat-reply [data-streamdown="strong"] {
+  font-weight: 700;
+}
+.chat-reply h1,
+.chat-reply h2,
+.chat-reply h3,
+.chat-reply h4,
+.chat-reply h5,
+.chat-reply h6 {
+  margin: 4px 0 0;
+  font-size: 14.5px;
+  line-height: 1.3;
+  color: var(--brass);
+}
+.chat-reply h1 {
+  font-size: 16px;
+}
+.chat-reply ul,
+.chat-reply ol {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 3px;
+}
+.chat-reply a {
+  color: var(--foam);
+  text-decoration: underline;
+}
+.chat-reply blockquote {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 2px solid rgba(239, 227, 198, 0.3);
+  opacity: 0.85;
+}
+.chat-reply hr {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid rgba(239, 227, 198, 0.15);
+}
+.chat-reply code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12.5px;
+}
+.chat-reply [data-streamdown="inline-code"] {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(7, 14, 26, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
+}
+.chat-reply [data-streamdown="code-block"] {
+  min-width: 0;
+  border-radius: 8px;
+  background: rgba(7, 14, 26, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
+  overflow: hidden;
+}
+.chat-reply [data-streamdown="code-block-header"] {
+  padding: 4px 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  border-bottom: 1px solid rgba(239, 227, 198, 0.08);
+}
+.chat-reply [data-streamdown="code-block-body"] {
+  overflow: auto;
+}
+.chat-reply [data-streamdown="code-block-body"] pre {
+  margin: 0;
+  padding: 8px;
+  white-space: pre;
+}
+.chat-reply [data-streamdown="code-block-body"] code > span {
+  display: block;
+}
+.chat-reply [data-streamdown="table-wrapper"] > div {
+  overflow: auto;
+}
+.chat-reply table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.chat-reply th,
+.chat-reply td {
+  padding: 3px 8px;
+  border: 1px solid rgba(239, 227, 198, 0.15);
+  text-align: left;
+}
+.chat-reply th {
+  background: rgba(7, 14, 26, 0.45);
+}
+/* The reply being written: a caret after its last word. */
+.chat-reply.is-live > div > :last-child::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--parchment);
+  opacity: 0.7;
+  animation: chat-blink 1s steps(2, start) infinite;
+}
+/* After a table or a block of code the caret would sit on a line of its own. */
+.chat-reply.is-live > div > [data-streamdown="table-wrapper"]:last-child::after,
+.chat-reply.is-live > div > [data-streamdown="code-block"]:last-child::after {
+  display: none;
+}
+@keyframes chat-blink {
+  to {
+    visibility: hidden;
+  }
+}
+@keyframes chat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* A step: a mark for how it went (a different shape each, not a colour alone), the tool, and a line of what with. */
+.chat-step {
+  min-width: 0;
+  border-radius: 8px;
+  background: rgba(7, 14, 26, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.07);
 }
 .chat-step summary {
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--parchment);
-  opacity: 0.8;
   font-size: 12.5px;
+  list-style: none;
 }
-.chat-step.is-failed summary::after {
-  content: " ✕";
+.chat-step summary::-webkit-details-marker {
+  display: none;
 }
-.chat-step pre {
-  margin: 4px 0 0;
+.chat-step summary code {
+  flex: none;
+  opacity: 0.95;
+}
+.chat-step summary .mono {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.65;
+}
+.chat-step-mark {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1;
+}
+.chat-step.is-done .chat-step-mark::before {
+  content: "✓";
+  color: var(--foam);
+}
+.chat-step.is-failed .chat-step-mark::before {
+  content: "✕";
+  color: var(--coral, #e8735a);
+}
+.chat-step.is-cut .chat-step-mark::before {
+  content: "–";
+  opacity: 0.6;
+}
+.chat-step.is-running .chat-step-mark::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid rgba(239, 227, 198, 0.25);
+  border-top-color: var(--brass);
+  animation: chat-spin 0.8s linear infinite;
+}
+.chat-step.is-failed {
+  box-shadow: inset 0 0 0 1px rgba(232, 115, 90, 0.4);
+}
+.chat-step pre,
+.chat-turn-error pre {
+  margin: 0;
   max-height: 260px;
   overflow: auto;
   padding: 8px;
-  border-radius: 8px;
+  border-top: 1px solid rgba(239, 227, 198, 0.07);
   background: rgba(7, 14, 26, 0.6);
   font-size: 12px;
   white-space: pre-wrap;
@@ -402,8 +585,49 @@
   padding-bottom: 8px;
   border-bottom: 1px solid rgba(239, 227, 198, 0.1);
 }
+.chat-turn[data-status="failed"] > span {
+  color: var(--coral, #e8735a);
+  opacity: 1;
+}
+.chat-turn-error {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.chat-turn-error summary {
+  cursor: pointer;
+  opacity: 0.8;
+}
+.chat-turn-error pre {
+  margin-top: 4px;
+  border-top: 0;
+  border-radius: 8px;
+}
 .chat-working {
   opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chat-working::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid rgba(239, 227, 198, 0.25);
+  border-top-color: var(--brass);
+  animation: chat-spin 0.8s linear infinite;
+}
+.chat-down {
+  padding: 6px 8px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--brass);
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-step.is-running .chat-step-mark::before,
+  .chat-working::before,
+  .chat-reply.is-live > div > :last-child::after {
+    animation: none;
+  }
 }
 .chat-compose {
   display: grid;

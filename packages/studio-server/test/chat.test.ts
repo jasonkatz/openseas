@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ChatStateSchema, DraftSchema, type ChatItem, type ChatState, type Draft, type DraftNumbers } from "@openseas/protocol";
+import { ChatEventSchema, ChatStateSchema, DraftSchema, type ChatEvent, type ChatItem, type ChatState, type Draft, type DraftNumbers } from "@openseas/protocol";
 import { createApp, type App } from "../src/app.js";
 import type { AgentRunner, AgentTurn, TurnRequest } from "../src/chat/runner.js";
 import { createDb, schema } from "../src/db/index.js";
@@ -168,6 +168,31 @@ describeDb("chat", () => {
     expect((await say(d, text, over)).status).toBe(202);
     await app.chat!.idle();
     return state(d);
+  }
+  /** A draft's event stream (ADR 0055), as a page reads it: every event so far, and a wait for one that is not here yet. */
+  async function watch(d: Draft): Promise<{ seen: ChatEvent[]; until(enough: (seen: ChatEvent[]) => boolean): Promise<void>; close(): void }> {
+    const stop = new AbortController();
+    const r = await fetch(`${base}/drafts/${d.id}/chat/events`, { headers: { origin: STUDIO, cookie: session }, signal: stop.signal });
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toContain("text/event-stream");
+    const seen: ChatEvent[] = [];
+    void (async () => {
+      let text = "";
+      const decoder = new TextDecoder();
+      try {
+        for await (const chunk of r.body as unknown as AsyncIterable<Uint8Array>) {
+          text += decoder.decode(chunk, { stream: true });
+          for (let at = text.indexOf("\n\n"); at >= 0; at = text.indexOf("\n\n")) {
+            const block = text.slice(0, at);
+            text = text.slice(at + 2);
+            if (block.startsWith("data: ")) seen.push(ChatEventSchema.parse(JSON.parse(block.slice(6))));
+          }
+        }
+      } catch {
+        /* closed by the test */
+      }
+    })();
+    return { seen, until: (enough) => expect.poll(() => enough(seen), { timeout: 10_000 }).toBe(true), close: () => stop.abort() };
   }
   const kinds = (s: ChatState): string[] => s.items.map((i) => i.kind);
   const last = <K extends ChatItem["kind"]>(s: ChatState, kind: K): Extract<ChatItem, { kind: K }> => s.items.filter((i): i is Extract<ChatItem, { kind: K }> => i.kind === kind).at(-1)!;
@@ -390,6 +415,94 @@ describeDb("chat", () => {
     expect(pull.body).toContain("No number differs from the base branch.");
     expect(pull.body).toContain("- `docs/puzzles/engines.md`");
     await send("DELETE", `/drafts/${plain.id}`);
+  });
+
+  it("tells a watching page each thing as it happens, and the whole chat on every connection", async () => {
+    const before = await state(draft);
+    const w = await watch(draft);
+    await w.until((seen) => seen.length > 0);
+    expect(w.seen[0]).toEqual({ type: "state", state: before });
+    expect(before.live).toBe("");
+
+    agent.script = async (a) => {
+      a.r.host.emit({ kind: "delta", text: "", reset: true });
+      a.r.host.emit({ kind: "delta", text: "Slag is ", reset: false });
+      a.r.host.emit({ kind: "delta", text: "rare.", reset: false });
+      // Held mid-reply until the owner says something.
+      await a.next();
+      a.r.host.emit({ kind: "reply", text: "Slag is rare." });
+      a.r.host.emit({ kind: "step", id: "s1", tool: "Bash", summary: "pnpm test" });
+      a.r.host.emit({ kind: "stepDone", id: "s1", detail: "passed", failed: false });
+      a.write("docs/puzzles/cooling.md", "# Cooling\n\nSlag is rare.\n");
+      expect(await a.r.host.setNumbers({ "config.pieceKinds": 6 }, [])).toContain("Set.");
+    };
+    expect((await say(draft, "How rare is slag?")).status).toBe(202);
+    const words = (seen: ChatEvent[]): string => seen.reduce((text, e) => (e.type === "delta" ? (e.reset ? e.text : text + e.text) : text), "");
+    await w.until((seen) => words(seen) === "Slag is rare.");
+    // The words are no row yet, and a page that opens now is given them all the same.
+    expect(kinds(await state(draft)).slice(before.items.length)).toEqual(["user"]);
+    const late = await watch(draft);
+    await late.until((seen) => seen.length > 0);
+    expect(late.seen[0]).toMatchObject({ type: "state", state: { running: true, live: "Slag is rare." } });
+    expect((await state(draft)).live).toBe("Slag is rare.");
+    late.close();
+
+    expect((await say(draft, "Go on.")).status).toBe(202);
+    await app.chat!.idle();
+    await w.until((seen) => seen.some((e) => e.type === "item" && e.item.kind === "turn"));
+    await w.until((seen) => seen.at(-1)?.type === "status");
+    const told = w.seen.slice(1);
+    // Each line once as it is made, the step again with its outcome, and the turn's end.
+    const lines = told.flatMap((e) => (e.type === "item" ? [e.item] : []));
+    expect(lines.map((i) => i.kind)).toEqual(["user", "user", "reply", "step", "step", "turn"]);
+    expect(lines[3]).toMatchObject({ kind: "step", detail: null });
+    expect(lines[4]).toMatchObject({ kind: "step", id: lines[3]!.id, detail: "passed", failed: false });
+    expect(lines).toEqual((await state(draft)).items.slice(before.items.length).flatMap((i): ChatItem[] => (i.kind === "step" ? [{ ...i, detail: null }, i] : [i])));
+    // The whole reply takes the place of the words so far: they are forgotten right after its line.
+    const reply = told.findIndex((e) => e.type === "item" && e.item.kind === "reply");
+    expect(told[reply + 1]).toEqual({ type: "delta", text: "", reset: true });
+    expect(words(w.seen)).toBe("");
+    // The page is told a turn runs, that the number moved while it ran, and that it ended.
+    const statuses = told.flatMap((e) => (e.type === "status" ? [e.status] : []));
+    expect(statuses[0]).toMatchObject({ running: true });
+    expect(statuses.some((x) => x.running && x.draft.numbers.overrides.pieceKinds === 6)).toBe(true);
+    expect(statuses.at(-1)).toMatchObject({ running: false, draft: { numbers: { overrides: { pieceKinds: 6 } } } });
+    expect((await state(draft)).live).toBe("");
+
+    // An answer or a revert changes a line: the watching page is told the line as it now is.
+    const ended = last(await state(draft), "turn");
+    expect(ended.commit).not.toBeNull();
+    w.seen.length = 0;
+    expect((await send("POST", `/drafts/${draft.id}/chat/revert`, { turn: ended.turn })).status).toBe(200);
+    await w.until((seen) => seen.length > 0);
+    expect(w.seen).toEqual([{ type: "item", item: { ...ended, reverted: true } }]);
+    w.close();
+    // Nobody else's to watch.
+    expect((await fetch(`${base}/drafts/${draft.id}/chat/events`)).status).toBe(401);
+    expect((await send("GET", "/drafts/abcdefghij/chat/events")).status).toBe(404);
+  });
+
+  it("says why a turn failed, and leaves the draft free for the next", async () => {
+    const s = await turn(draft, "Break.", async () => {
+      throw new Error("No conversation found with session ID: 1234");
+    });
+    expect(last(s, "turn")).toMatchObject({ status: "failed", reason: "agent", error: "Error: No conversation found with session ID: 1234", commit: null });
+    expect(s.running).toBe(false);
+    // An agent that cannot even be started is a failed turn too, and not a draft that runs for good.
+    const start = runner.start;
+    runner.start = () => {
+      throw new Error("spawn ENOENT");
+    };
+    try {
+      expect((await say(draft, "Again.")).status).toBe(202);
+      await app.chat!.idle();
+    } finally {
+      runner.start = start;
+    }
+    const again = await state(draft);
+    expect(last(again, "turn")).toMatchObject({ status: "failed", reason: "agent", error: "spawn ENOENT" });
+    expect(again.running).toBe(false);
+    expect(last(await turn(draft, "And now?", async (a) => a.r.host.emit({ kind: "reply", text: "Fine." })), "turn")).toMatchObject({ status: "done" });
   });
 
   it("holds every turn to one cap, and stops the turn that reaches it where it stands", async () => {
