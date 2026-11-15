@@ -82,6 +82,12 @@ Optional `overrides/<puzzle>-<frame>.webp` files are complete 192×192 normalize
 packers apply them after processing a source-sheet cell, so repacking cannot restore an obsolete
 piece. `pack-sprites.py` saves an atlas with overrides losslessly.
 
+`sprites.py put <puzzle> [frame=file ...]` pastes already fitted frames, and every override the
+puzzle has, into its atlas with one quality-90 encode, and keeps each given file as its frame's
+override byte for byte. It places only frames `frames.json` names. The studio's Save runs it on an
+atlas restored from the base branch, so a draft's picks are placed without wearing the frames
+around them (ADR 0053).
+
 ## Generating a frame
 
 A frame can be generated alone (ADR 0040). `../../briefs/sprites/<puzzle>.json` describes each

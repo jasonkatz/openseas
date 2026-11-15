@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Draft, TesterLink } from "@openseas/protocol";
+import { pickCount, type Draft, type TesterLink } from "@openseas/protocol";
 import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { linkAddress } from "./client.js";
@@ -111,8 +111,8 @@ function SaveRows({ draft, settled }: { draft: Draft; settled: boolean }) {
   const { save } = draft;
   const writing = save.state === "saving";
   const current = save.pull !== null && save.savedRevision === draft.revision;
-  // With no pull request yet, a draft that changes no number and that the chat has not worked on has nothing for one to hold.
-  const nothing = save.pull === null && changes.length === 0 && !save.edits;
+  // With no pull request yet, a draft that changes no number, picks no take and that the chat has not worked on has nothing for one to hold.
+  const nothing = save.pull === null && changes.length === 0 && pickCount(draft.numbers) === 0 && !save.edits;
   const start = async (): Promise<void> => {
     const made = await saveDraft(name.trim() || t("studio.save_default_name", { revision: draft.revision }));
     if (!made) return setNote(t("studio.links_failed"));
@@ -156,7 +156,7 @@ function SaveRows({ draft, settled }: { draft: Draft; settled: boolean }) {
       )}
       {save.state === "failed" && save.error && (
         <p className="tune-refusal" role="alert" data-testid="save-failed">
-          {t(`studio.save_error.${save.error}`)}
+          {t(`studio.save_error.${save.error}`, { name: save.detail ?? "" })}
         </p>
       )}
       {save.pull && (

@@ -4,13 +4,17 @@
   sprites.py review <puzzle>                        rebuild the review page and contact sheet
   sprites.py frames <puzzle>                        write each take as the frame it would be placed as
   sprites.py place <puzzle> <frame> <take>          fit one take to a 192px frame, into the atlas
+  sprites.py put <puzzle> [frame=file ...]          paste fitted frames, and every placed one, in one encode
+
+`--root <dir>`, before the command, works on another checkout than the one the script is in: the
+studio's service runs its own copy of this script on a draft's worktree (ADR 0053).
 
 The brief is packages/boards/briefs/sprites/<puzzle>.json; the style every sheet is painted to is
 packages/boards/briefs/sprite-style.txt. The key is OPENAI_API_KEY, from the environment or the
 repository's .env. Needs Pillow.
 """
 from pathlib import Path
-import argparse, base64, html, io, json, os, re, sys, urllib.error, urllib.request, uuid
+import argparse, base64, html, io, json, os, re, shutil, sys, urllib.error, urllib.request, uuid
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -204,6 +208,18 @@ figure{{margin:0;padding:8px;background:#1c2234;border-radius:8px}}figcaption{{f
     print(f'Review: {(folder/"review.html").relative_to(ROOT)}')
 
 
+def paste(atlas, rect, tile):
+    """The atlas with one 192px frame in its slot, grown first if the slot lies past its edge."""
+    x, y, _, _ = rect
+    if x + SIZE + 2 > atlas.width or y + SIZE + 2 > atlas.height:
+        grown = Image.new('RGBA', (max(atlas.width, x + SIZE + 2), max(atlas.height, y + SIZE + 2)))
+        grown.paste(atlas, (0, 0))
+        atlas = grown
+    atlas.paste(Image.new('RGBA', (SIZE, SIZE)), (x, y))
+    atlas.paste(tile, (x, y))
+    return atlas
+
+
 def place(args):
     src = ROOT/'.art/sprites'/args.puzzle/args.frame/f'take-{args.take}.png'
     if not src.is_file():
@@ -217,31 +233,74 @@ def place(args):
     named = frames.setdefault(args.puzzle, {})
     path = SPRITES/f'{args.puzzle}.webp'
     atlas = Image.open(path).convert('RGBA') if path.is_file() else Image.new('RGBA', (4 * STRIDE, STRIDE))
-    if args.frame in named:
-        x, y, _, _ = named[args.frame]
-    else:
+    if args.frame not in named:
         cols = atlas.width // STRIDE
         used = {(fx // STRIDE, fy // STRIDE) for fx, fy, _, _ in named.values()}
         slot = next(i for i in range(10_000) if (i % cols, i // cols) not in used)
         x, y = (slot % cols) * STRIDE + 2, (slot // cols) * STRIDE + 2
-        if y + SIZE + 2 > atlas.height:
-            grown = Image.new('RGBA', (atlas.width, y + SIZE + 2))
-            grown.paste(atlas, (0, 0))
-            atlas = grown
         named[args.frame] = [x, y, SIZE, SIZE]
-    atlas.paste(Image.new('RGBA', (SIZE, SIZE)), (x, y))
-    atlas.paste(tile, (x, y))
+    atlas = paste(atlas, named[args.frame], tile)
     before = path.stat().st_size if path.is_file() else 0
     # Quality 90, as the packers save; a lossless atlas is three times the size. The lossless override
     # stays the frame's source of truth, so a repack starts from it, never from this encode.
     atlas.save(path, quality=90, method=6)
     (SPRITES/'frames.json').write_text(json.dumps(frames, indent=2) + '\n')
+    x, y, _, _ = named[args.frame]
     print(f'{args.puzzle}:{args.frame} placed at {x},{y}. {path.relative_to(ROOT)}: {before // 1024} KB -> {path.stat().st_size // 1024} KB')
     if not before:
         print(f'A new atlas: add its URL to packages/boards/src/sprites/atlas.ts.')
 
 
+def put(args):
+    """Paste fitted frames into a puzzle's atlas, with every frame already placed, in one encode.
+
+    Each `frame=file` is a take as `frames` wrote it: a lossless 192px WebP, pasted as it is, never
+    fitted again, and kept byte for byte as the frame's override. Every other override of the
+    puzzle is pasted too, so an atlas restored from the base branch gets back what was placed by
+    hand. Only frames the manifest already names are placed: a new frame is a change to code. The
+    studio's Save runs this (ADR 0053), as the agent's unix user, on bytes from its bucket."""
+    named = manifest().get(args.puzzle)
+    path = SPRITES/f'{args.puzzle}.webp'
+    if not named or not path.is_file():
+        sys.exit(f'{args.puzzle} has no atlas to place frames in.')
+    given = {}
+    for item in args.frames:
+        name, _, file = item.partition('=')
+        if name not in named:
+            sys.exit(f'{args.puzzle} has no frame named {name}: a new frame is a change to code.')
+        if named[name][2:] != [SIZE, SIZE]:
+            sys.exit(f'{args.puzzle}:{name} is not a {SIZE}px frame.')
+        source = Path(file)
+        try:
+            with Image.open(source) as image:
+                if image.format != 'WEBP' or image.size != (SIZE, SIZE):
+                    raise ValueError(image.format)
+                given[name] = (source, image.convert('RGBA'))
+        except (OSError, ValueError):
+            sys.exit(f'{file} is not a {SIZE}px WebP frame.')
+    overrides = SPRITES/'overrides'
+    prefix = f'{args.puzzle}-'
+    placed = {}
+    for file in sorted(overrides.glob(f'{prefix}*.webp')) if overrides.is_dir() else []:
+        name = file.name[len(prefix):-len('.webp')]
+        if name in named and name not in given and named[name][2:] == [SIZE, SIZE]:
+            with Image.open(file) as image:
+                if image.size == (SIZE, SIZE):
+                    placed[name] = image.convert('RGBA')
+    atlas = Image.open(path).convert('RGBA')
+    for name, tile in placed.items():
+        atlas = paste(atlas, named[name], tile)
+    if given:
+        overrides.mkdir(exist_ok=True)
+    for name, (source, tile) in given.items():
+        atlas = paste(atlas, named[name], tile)
+        shutil.copyfile(source, overrides/f'{prefix}{name}.webp')
+    atlas.save(path, quality=90, method=6)
+    print(f'{args.puzzle}: {len(given)} placed, {len(placed)} kept from earlier placements. {path.relative_to(ROOT)}: {path.stat().st_size // 1024} KB')
+
+
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument('--root', help='the checkout to work on; the one this script is in when not given')
 sub = parser.add_subparsers(dest='command', required=True)
 g = sub.add_parser('gen', help='generate new takes')
 g.add_argument('puzzle'); g.add_argument('frames', nargs='*', help='frames from the brief; all when none')
@@ -253,5 +312,12 @@ r = sub.add_parser('review', help='rebuild the review page and contact sheet'); 
 f = sub.add_parser('frames', help='write each take as the frame it would be placed as'); f.add_argument('puzzle'); f.set_defaults(run=frames)
 p = sub.add_parser('place', help='put one take in the atlas'); p.add_argument('puzzle'); p.add_argument('frame'); p.add_argument('take', type=int)
 p.set_defaults(run=place)
+u = sub.add_parser('put', help='paste fitted frames, and every placed one, into the atlas in one encode')
+u.add_argument('puzzle'); u.add_argument('frames', nargs='*', metavar='frame=file')
+u.set_defaults(run=put)
 args = parser.parse_args()
+if args.root:
+    ROOT = Path(args.root).resolve()
+    BOARDS = ROOT/'packages/boards'
+    SPRITES = BOARDS/'src/sprites'
 args.run(args)

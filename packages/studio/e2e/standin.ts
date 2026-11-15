@@ -24,6 +24,8 @@ export interface Save {
   behind: boolean;
   /** Left out, the service is one from before the chat's edits counted toward a Save. */
   edits?: boolean;
+  /** Left out, the service is one from before a failed pick was named (ADR 0053). */
+  detail?: string | null;
 }
 export interface Draft {
   id: string;

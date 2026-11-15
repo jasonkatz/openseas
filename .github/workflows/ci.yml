@@ -37,6 +37,9 @@ jobs:
       - name: Engine purity lint
         run: pnpm --filter @openseas/engine lint
       - run: pnpm typecheck
+      - name: Pillow, for the studio service's Save tests (ADR 0053)
+        # Save places a picked frame with boards/scripts/sprites.py; its tests run the real script on a real atlas.
+        run: python3 -c "import PIL" 2>/dev/null || python3 -m pip install --user --break-system-packages pillow
       - name: Unit and integration tests
         run: pnpm test
         env:

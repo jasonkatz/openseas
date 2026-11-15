@@ -54,6 +54,10 @@ has named a take for every frame, or asked for a reworded brief.
 
 ## 5. Place
 
+In the studio's chat, never place: the owner picks a take with a tap in its row, and Save places
+every pick in one pass, from the base branch's atlas (ADR 0053). If the owner names a take in the
+chat, ask them to pick it in the Sprites panel and Save. Everywhere else:
+
 ```bash
 python3 packages/boards/scripts/sprites.py place <puzzle> <frame> <take>
 ```

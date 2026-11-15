@@ -87,8 +87,9 @@ jobs:
           fi
           # The studio's service (ADR 0043) shares only the protocol with the rest. Until it has a
           # Railway service (docs/DEPLOY.md, step 1b) there is nowhere to deploy it, and that is
-          # no warning: the studio works without it.
-          if [ -n "$STUDIO_SERVICE" ] && ! git diff --quiet HEAD^ HEAD -- packages/studio-server packages/protocol pnpm-lock.yaml pnpm-workspace.yaml package.json railpack.studio.json .github/workflows/deploy.yml .github/scripts; then
+          # no warning: the studio works without it. Save runs the sprite script from the service's
+          # own image (ADR 0053), so a change to boards/scripts deploys it too.
+          if [ -n "$STUDIO_SERVICE" ] && ! git diff --quiet HEAD^ HEAD -- packages/studio-server packages/protocol packages/boards/scripts pnpm-lock.yaml pnpm-workspace.yaml package.json railpack.studio.json .github/workflows/deploy.yml .github/scripts; then
             studio_server=true
           fi
           echo "studio_server=$studio_server" >> "$GITHUB_OUTPUT"
