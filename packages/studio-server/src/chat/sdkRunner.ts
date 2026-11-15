@@ -28,6 +28,11 @@ const WRITERS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 /** Tools that reach past the turn: scheduling, other sessions, other worktrees. The agent has no use for them here. */
 const NOT_HERE = ["CronCreate", "CronDelete", "CronList", "RemoteTrigger", "ScheduleWakeup", "PushNotification", "EnterWorktree", "ExitWorktree", "SendMessage", "AskUserQuestion"];
 const DETAIL = 6000;
+/** What Claude Code says when a session to resume has no transcript on this machine. */
+const LOST = /No conversation found with session ID/i;
+/** What a turn that had to start a new session is told first. */
+const FRESH =
+  "(From the studio: this draft's earlier conversation could not be resumed, so this is a new session. The draft's worktree holds every earlier turn's edits, one commit a turn (`git log`), and any takes made so far. Ask the owner if you need what was said.)";
 
 const clip = (text: string, max = DETAIL): string => (text.length > max ? `${text.slice(0, max)}\n… (${text.length - max} more characters)` : text);
 const pathOf = (input: unknown): string | null => {
@@ -105,7 +110,7 @@ export function createSdkRunner(o: SdkRunnerOptions): AgentRunner {
   return {
     start(r): AgentTurn {
       const abort = new AbortController();
-      const input = inbox();
+      let input = inbox();
       input.push(userMessage(r.prompt));
       const emit = (e: AgentEvent): void => r.host.emit(e);
 
@@ -141,14 +146,14 @@ export function createSdkRunner(o: SdkRunnerOptions): AgentRunner {
         ],
       });
 
-      const run = async (): Promise<TurnResult> => {
+      const run = async (session: string | null): Promise<TurnResult> => {
         let result: TurnResult = { status: "failed", error: "the agent ended without a result" };
         const stream = query({
           prompt: input.stream,
           options: {
             cwd: r.cwd,
             model: r.model,
-            ...(r.session ? { resume: r.session } : {}),
+            ...(session ? { resume: session } : {}),
             // CLAUDE.md and the skills come from the worktree; nothing from a home directory or a machine.
             settingSources: ["project"],
             skills: SKILLS,
@@ -188,10 +193,21 @@ export function createSdkRunner(o: SdkRunnerOptions): AgentRunner {
         return result;
       };
 
-      const done = run().catch((err: unknown): TurnResult => {
-        if (!abort.signal.aborted) o.log.error({ err }, "agent turn failed");
-        return { status: "failed", error: err instanceof Error ? err.message : String(err) };
-      });
+      const attempt = (session: string | null): Promise<TurnResult> =>
+        run(session).catch((err: unknown): TurnResult => ({ status: "failed", error: err instanceof Error ? err.message : String(err) }));
+      const done = (async (): Promise<TurnResult> => {
+        let result = await attempt(r.session);
+        // A session whose transcript is gone cannot be resumed, and would fail every turn of the draft from here on.
+        // The turn starts a new one instead, told so; the draft's worktree and its commits still hold the earlier turns' work.
+        if (result.status === "failed" && r.session && !abort.signal.aborted && LOST.test(result.error ?? "")) {
+          o.log.warn({ session: r.session }, "the agent's session could not be resumed: starting a new one");
+          input = inbox();
+          input.push(userMessage(`${FRESH}\n\n${r.prompt}`));
+          result = await attempt(null);
+        }
+        if (result.status === "failed" && !abort.signal.aborted) o.log.error({ error: result.error }, "agent turn failed");
+        return result;
+      })();
       return {
         done,
         steer: (text) => input.push(userMessage(text, "next")),

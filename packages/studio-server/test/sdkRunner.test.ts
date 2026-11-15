@@ -9,7 +9,7 @@
  * It needs the executable for this platform, which the SDK brings as an optional dependency.
  */
 import { execFileSync } from "node:child_process";
-import { chmodSync, chownSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, chownSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { createRequire } from "node:module";
 import type { AddressInfo } from "node:net";
@@ -254,6 +254,43 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
     expect(api.mainTurns[1]!.said).toContain("worked");
     expect(events.filter((e) => e.kind === "reply").map((e) => (e.kind === "reply" ? e.text : ""))).toEqual(["Shorter it is."]);
   }, 120_000);
+
+  it("starts a new session, and says so, when the one to resume has no transcript", async () => {
+    script = [[{ type: "text", text: "Fresh start." }]];
+    api.mainTurns.length = 0;
+    const events: AgentEvent[] = [];
+    const gate = proxy.admit({ open: () => true, spend: () => undefined });
+    const turn = createSdkRunner({ identity, scriptKeys: {}, log: createLogger("silent", false) }).start({
+      cwd,
+      puzzle: "cooling",
+      prompt: "Make three takes of the clear cue.",
+      model: "claude-sonnet-5-5",
+      session: "ccf606c8-14e7-41db-b159-f3d46f2a1a17",
+      modelUrl: proxy.url,
+      modelToken: gate.token,
+      host: { mayWrite: () => true, setNumbers: async () => "Set.", numbers: async () => ({ seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null }), emit: (e) => void events.push(e) },
+    });
+    expect(await turn.done, JSON.stringify(events)).toEqual({ status: "done" });
+    gate.close();
+    // The new session is the one the next turn resumes, and the agent was told why it starts afresh.
+    const session = events.find((e) => e.kind === "session");
+    expect(session && session.kind === "session" ? session.id : null).not.toBe("ccf606c8-14e7-41db-b159-f3d46f2a1a17");
+    expect(api.mainTurns[0]!.said).toContain("could not be resumed");
+    expect(api.mainTurns[0]!.said).toContain("Make three takes of the clear cue.");
+    expect(events.filter((e) => e.kind === "reply").map((e) => (e.kind === "reply" ? e.text : ""))).toEqual(["Fresh start."]);
+  }, 120_000);
+
+  it("makes all of the agent's home its own again, whatever uid an earlier deploy gave it", () => {
+    if (!identity) return;
+    // What an earlier deploy's user left: its session transcripts, under another uid.
+    const projects = join(identity.home, ".claude/projects");
+    mkdirSync(projects, { recursive: true });
+    writeFileSync(join(projects, "old.jsonl"), "{}\n");
+    execFileSync("chown", ["-R", "12345:12345", join(identity.home, ".claude")]);
+    const again = ensureAgentUser("studio-agent-test", tmp, createLogger("silent", false));
+    expect(again).not.toBeNull();
+    for (const p of [join(identity.home, ".claude"), projects, join(projects, "old.jsonl")]) expect(statSync(p).uid, p).toBe(again!.uid);
+  });
 
   it("stops where it stands when told to", async () => {
     // A command that would run for a minute, were it left to.

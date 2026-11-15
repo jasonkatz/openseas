@@ -28,7 +28,10 @@ export function ensureAgentUser(name: string, dir: string, log: Logger): AgentId
     const gid = id("-g");
     if (uid === 0) throw new Error(`${name} is root`);
     mkdirSync(home, { recursive: true });
-    chownSync(home, uid, gid);
+    // The user is made again on each deploy's fresh system and may get another uid than last time; the home on the
+    // volume keeps the old one's files. All of it is made this uid's, or the agent cannot write its own session
+    // transcripts there and every resumed turn fails with no conversation found.
+    execFileSync("chown", ["-R", `${uid}:${gid}`, home], { stdio: "ignore" });
     // The worktree's files are the agent's and the clone behind them is the service's: git would refuse to read
     // across that line unasked. Reading is all it can do there; the clone is not the agent's to write.
     writeFileSync(join(home, ".gitconfig"), "[safe]\n\tdirectory = *\n");
