@@ -119,9 +119,9 @@ export function withoutNumber<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, scenario:
   return withNumber(puzzle, scenario, key, shipped[key as "roundSeconds" | "paceSeconds" | "thresholds"]);
 }
 
-/** A scenario with every number shipped: the seed and the clock's start are kept. */
+/** A scenario with every number shipped and every pick cleared (DESIGN.md 3.14, "Drafts and reset"): the seed and the clock's start are kept. */
 export function withoutNumbers(scenario: Scenario): Scenario {
-  return { ...scenario, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null };
+  return { ...scenario, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: {}, sounds: {} } };
 }
 
 /**

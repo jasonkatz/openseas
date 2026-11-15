@@ -13,6 +13,8 @@ export interface Numbers {
   roundSeconds: number | null;
   paceSeconds: number | null;
   thresholds: null;
+  /** Left out, the draft is one kept before picks. */
+  picks?: { sprites: Record<string, string>; sounds: Record<string, string> };
 }
 export interface Save {
   state: "idle" | "saving" | "failed";
@@ -22,6 +24,8 @@ export interface Save {
   behind: boolean;
   /** Left out, the service is one from before the chat's edits counted toward a Save. */
   edits?: boolean;
+  /** Left out, the service is one from before a failed pick was named (ADR 0053). */
+  detail?: string | null;
 }
 export interface Draft {
   id: string;
@@ -84,7 +88,7 @@ export interface Service {
 }
 
 /** A stand-in service: one owner (or nobody), and the drafts the test gives it, kept as the real one keeps them. */
-export async function service(page: Page, o: { login: string | null; drafts?: Draft[]; save?: boolean; chat?: boolean; takes?: StandinTake[] }): Promise<Service> {
+export async function service(page: Page, o: { login: string | null; drafts?: Draft[]; save?: boolean; chat?: boolean; takes?: StandinTake[]; picks?: boolean }): Promise<Service> {
   const s: Service = {
     chat: { items: [], running: false, turn: 0, spentUsd: 0, cap: { spentUsd: 0, capUsd: 20 } },
     say(kind, data) {
@@ -110,7 +114,7 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
     const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", headers: cors, body: JSON.stringify(body) });
     if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { ...cors, "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS" } });
     s.calls.push(`${req.method()} ${url.pathname}`);
-    if (url.pathname === "/auth/me") return json(200, { login: o.login, signIn: true, dev: false, ...(o.save === undefined ? {} : { save: o.save }), ...(o.chat === undefined ? {} : { chat: o.chat }), ...(o.takes === undefined ? {} : { takes: true }) });
+    if (url.pathname === "/auth/me") return json(200, { login: o.login, signIn: true, dev: false, ...(o.save === undefined ? {} : { save: o.save }), ...(o.chat === undefined ? {} : { chat: o.chat }), ...(o.takes === undefined ? {} : { takes: true }), ...(o.picks === undefined ? {} : { picks: o.picks }) });
     if (url.pathname === "/auth/sign-out") {
       o.login = null;
       return json(200, { ok: true });
@@ -192,6 +196,8 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
       const body = req.postDataJSON() as { numbers: Numbers; revision: number };
       if (body.revision !== found.revision) return json(409, { error: "conflict" });
       found.numbers = body.numbers;
+      // A service older than picks keeps none of what it is sent.
+      if (!o.picks) delete found.numbers.picks;
       found.revision += 1;
       return json(200, found);
     }

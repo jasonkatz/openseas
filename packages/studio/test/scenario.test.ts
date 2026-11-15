@@ -43,6 +43,7 @@ describe("scenario codec", () => {
       seed: "keg-3",
       roundSeconds: 60,
       overrides: { "specialChancePerMille.charge": 100, bag: [2, 2, 2, 0], decks: [["##B##", "#...C", "#...#", "#...#", "#####"]] },
+      picks: { sprites: { cog: "a".repeat(64), "debris-2": "b".repeat(64) }, sounds: { clear: "synth" as const, clash: "c".repeat(64) } },
       speed: 0.5,
       paused: true,
       hints: false,
@@ -50,6 +51,12 @@ describe("scenario codec", () => {
     };
     const qs = formatScenario(s);
     expect(parseScenario(`?${qs}`)).toEqual(s);
+  });
+
+  it("drops a pick that is not one, and keeps the rest", () => {
+    const hash = "d".repeat(64);
+    const s = parseScenario(`?sprite.cog=${hash}&sprite.valve=cut-short&sprite.bolt=synth&sound.clear=synth&sound.pop=${hash.slice(1)}&sprite.=${hash}`);
+    expect(s.picks).toEqual({ sprites: { cog: hash }, sounds: { clear: "synth" } });
   });
 
   it("reads an empty or junk query as the plain scenario", () => {

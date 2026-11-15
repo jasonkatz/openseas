@@ -101,6 +101,28 @@ describeDb("drafts", () => {
     expect((await fetch(`${base}/drafts`, { method: "OPTIONS", headers: { origin: ELSEWHERE } })).headers.get("access-control-allow-origin")).toBeNull();
   });
 
+  it("keeps a draft's picks with its numbers, and reads a draft kept before picks as having none", async () => {
+    const hash = "a".repeat(64);
+    const picks = { sprites: { cog: hash }, sounds: { clear: "synth", "swap-quiet": hash } };
+    const made = DraftSchema.parse(await (await send("POST", "/drafts", octo, { puzzle: "tug", numbers: { ...numbers, picks } })).json());
+    expect(made.numbers.picks).toEqual(picks);
+    const saved = DraftSchema.parse(await (await send("PUT", `/drafts/${made.id}`, octo, { numbers: { ...numbers, picks: { sprites: {}, sounds: { clear: "synth" } } }, revision: 1 })).json());
+    expect(saved.numbers.picks).toEqual({ sprites: {}, sounds: { clear: "synth" } });
+    // A page older than picks sends none, and the draft then has none.
+    const bare = DraftSchema.parse(await (await send("PUT", `/drafts/${made.id}`, octo, { numbers, revision: 2 })).json());
+    expect(bare.numbers.picks).toEqual({ sprites: {}, sounds: {} });
+    // A row written before picks holds no such key: it is sent whole all the same.
+    await app.db.update(schema.draft).set({ numbers });
+    expect((await list(octo, "?puzzle=tug"))[0]!.numbers.picks).toEqual({ sprites: {}, sounds: {} });
+
+    // A pick is a take's hash, or `synth` for a cue: nothing else.
+    const bad = (p: unknown): Promise<Response> => send("PUT", `/drafts/${made.id}`, octo, { numbers: { ...numbers, picks: p }, revision: 3 });
+    expect((await bad({ sprites: { cog: "not-a-hash" }, sounds: {} })).status).toBe(400);
+    expect((await bad({ sprites: { cog: "synth" }, sounds: {} })).status).toBe(400);
+    expect((await bad({ sprites: { "../cog": hash }, sounds: {} })).status).toBe(400);
+    expect((await send("DELETE", `/drafts/${made.id}`, octo)).status).toBe(200);
+  });
+
   it("refuses what is not a draft", async () => {
     const [mine] = await list(octo, "?puzzle=salvage");
     expect((await send("POST", "/drafts", octo, { puzzle: "chess", numbers })).status).toBe(400);

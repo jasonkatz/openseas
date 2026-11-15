@@ -65,7 +65,7 @@ describeDb("studio service", () => {
     expect(landed).toBe(`${STUDIO}/cooling`);
     expect(session).toMatch(/^studio_session=.+/);
     const me = await fetch(`${base}/auth/me`, { headers: { cookie: session } });
-    expect(await me.json()).toEqual({ login: "Octo", signIn: true, dev: false, save: false, chat: false, takes: false });
+    expect(await me.json()).toEqual({ login: "Octo", signIn: true, dev: false, save: false, chat: false, takes: false, picks: true });
     expect(await (await fetch(`${base}/auth/me`)).json()).toMatchObject({ login: null });
   });
 
@@ -102,6 +102,13 @@ describeDb("studio service", () => {
     expect(read.status).toBe(200);
     expect(read.headers.get("access-control-allow-origin")).toBe("*");
     expect(TesterLinkSchema.parse(await read.json())).toEqual(link);
+
+    // A link freezes the draft's picks with its numbers, and one frozen before picks reads as having none.
+    expect(link.draft.picks).toEqual({ sprites: {}, sounds: {} });
+    const picks = { sprites: { cog: "b".repeat(64) }, sounds: { clear: "synth" } };
+    const picked = TesterLinkSchema.parse(await (await post(session, { ...draft, name: "New cog", draft: { ...draft.draft, picks } })).json());
+    expect(TesterLinkSchema.parse(await (await fetch(`${base}/links/${picked.id}`)).json()).draft.picks).toEqual(picks);
+    expect((await fetch(`${base}/links/${picked.id}`, { method: "DELETE", headers: { cookie: session, origin: STUDIO } })).status).toBe(200);
 
     const listed = await fetch(`${base}/links?puzzle=cooling`, { headers: { cookie: session, origin: STUDIO } });
     expect(((await listed.json()) as { links: TesterLink[] }).links.map((l) => l.id)).toContain(link.id);

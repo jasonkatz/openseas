@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ChatAllowSchema, ChatRevertSchema, CreateDraftSchema, CreateTesterLinkSchema, SendChatSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, SaveRequestSchema, TakeHashSchema, TesterLinkIdSchema, type ChatState, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
+import { ChatAllowSchema, ChatRevertSchema, CreateDraftSchema, CreateTesterLinkSchema, SendChatSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, SaveRequestSchema, TakeHashSchema, TesterLinkIdSchema, picksOf, type ChatState, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
 import type { Chat } from "./chat/chat.js";
 import type { Db } from "./db/index.js";
 import { createDraft, discardDraft, draftRow, draftRows, saveDraft, toDraft } from "./drafts.js";
@@ -144,7 +144,7 @@ export function createHttpHandler(deps: HttpDeps) {
       if (path === "/health" && req.method === "GET") return json(res, 200, { ok: true, commit: env.COMMIT_SHA });
 
       if (path === "/auth/me" && req.method === "GET") {
-        const me: StudioMe = { login: owner(req), signIn: github !== null, dev: env.STUDIO_DEV_LOGIN !== null, save: saver !== null, chat: chat !== null, takes: takes !== null };
+        const me: StudioMe = { login: owner(req), signIn: github !== null, dev: env.STUDIO_DEV_LOGIN !== null, save: saver !== null, chat: chat !== null, takes: takes !== null, picks: true };
         return json(res, 200, me);
       }
       if (path === "/auth/github" && req.method === "GET") {
@@ -319,7 +319,7 @@ export function createHttpHandler(deps: HttpDeps) {
         // What is saved is what is on the page: a page behind its draft is told so.
         if (input.data.revision !== row.revision) return fail(res, 409, "conflict");
         // The tester link first, at once (ADR 0042 decision 10); the branch and pull request follow.
-        const link = await createLink(db, login, { puzzle: row.puzzle as never, name: input.data.name, draft: row.numbers });
+        const link = await createLink(db, login, { puzzle: row.puzzle as never, name: input.data.name, draft: { ...row.numbers, picks: picksOf(row.numbers) } });
         log.info({ id: row.id, link: link.id, login }, "save started");
         return json(res, 202, { draft: toDraft(await saver.save(row, login, link.id)), link });
       }

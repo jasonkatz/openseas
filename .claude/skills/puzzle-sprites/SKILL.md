@@ -1,11 +1,11 @@
 ---
 name: puzzle-sprites
-description: Generate a puzzle's sprites through the OpenAI Images API and place the owner's picks in its atlas. Use when a puzzle needs a new or redrawn frame, a new kind, or a whole sheet, or when writing a sprite brief.
+description: Generate a puzzle's sprites through the OpenAI Images API and place the owner's picks as its frame files. Use when a puzzle needs a new or redrawn frame, a new kind, or a whole sheet, or when writing a sprite brief.
 ---
 
 Sprites are made from a **brief** kept in the repository, one take per image, and the owner picks
-every take that lands (ADR 0040). The script is `packages/boards/scripts/sprites.py`; atlas format
-and fallbacks are in `packages/boards/src/sprites/README.md`.
+every take that lands (ADR 0040). The script is `packages/boards/scripts/sprites.py`; the frame files, how the build packs them into
+atlases, and fallbacks are in `packages/boards/src/sprites/README.md`.
 
 ## 1. Brief
 
@@ -43,7 +43,7 @@ writes `frame-<n>.webp`, the take as the frame it would be placed as.
 
 ## 4. Review
 
-Look at `.art/sprites/<puzzle>/contact.png` yourself: a row a frame, the atlas's current frame
+Look at `.art/sprites/<puzzle>/contact.png` yourself: a row a frame, the frame as it ships
 first where there is one. Shortlist the takes that show the whole object, a clean transparent edge,
 no text, a silhouette apart from its siblings, and the set's style. Then the owner picks: locally
 they open `.art/sprites/<puzzle>/review.html` (each take at frame size and board size, on dark and
@@ -54,16 +54,22 @@ has named a take for every frame, or asked for a reworded brief.
 
 ## 5. Place
 
+In the studio's chat, never place: the owner picks a take with a tap in its row, and Save places
+every pick in one pass, each as its frame's file (ADR 0053, ADR 0054). If the owner names a take in the
+chat, ask them to pick it in the Sprites panel and Save. Everywhere else:
+
 ```bash
 python3 packages/boards/scripts/sprites.py place <puzzle> <frame> <take>
 ```
 
-This writes the lossless override, patches the atlas and `frames.json`. Then:
+This writes the take as the frame's lossless file, `sprites/frames/<puzzle>/<frame>.webp`, and
+nothing else: the build packs it into the puzzle's atlas (ADR 0054), so no other frame is encoded
+again. Then:
 
-- A new frame name: the renderer asks for it, and the piece has a code-drawn fallback
-  (`boards/src/parts.ts`, or the kit's art) in the same silhouette.
-- A new atlas: its URL goes in `packages/boards/src/sprites/atlas.ts`.
+- A new frame name: `place` adds it at the end of the puzzle's list in `frames.json` (move it if
+  the Sprites panel should list it elsewhere); the renderer asks for it, and the piece has a
+  code-drawn fallback (`boards/src/parts.ts`, or the kit's art) in the same silhouette.
 - `pnpm --filter @openseas/studio test:smoke` is green, and
   `pnpm --filter @openseas/docs capture <puzzle>` is re-run with every picture looked at.
 
-Commit the brief, the override, the atlas and `frames.json` together.
+Commit the brief and the frame file together.

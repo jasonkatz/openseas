@@ -30,6 +30,8 @@ export interface StoredDraft {
   readonly store: DraftStore;
   /** True while the service keeps the draft, so the address must not carry it. Read at the moment of a change, not of a render. */
   bare(): boolean;
+  /** False when the service is one older than picks: they then stay in the address though the draft is stored. */
+  keepsPicks(): boolean;
   /** On an address's numbers: make them the stored draft. False when the service would not. */
   keep(): Promise<boolean>;
   /** On an address's numbers: drop them for the stored draft. */
@@ -62,7 +64,10 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
   const login = me !== "loading" && me !== null ? me.login : null;
   const [store, setStoreState] = useState<Internal>({ state: enabled ? "loading" : "off" });
   const [busy, setBusy] = useState(false);
-  const latest = useRef({ scenario, store, apply });
+  // A service older than picks drops them from a draft: they are then left out of what is sent and compared, and stay with the page (ADR 0052).
+  const picks = me !== "loading" && me !== null && me.picks;
+  const latest = useRef({ scenario, store, apply, picks });
+  latest.current.picks = picks;
   latest.current.scenario = scenario;
   latest.current.apply = apply;
   const setStore = useCallback((next: Internal) => {
@@ -81,10 +86,10 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
   const meet = useCallback(
     (stored: Draft | null, why: "link" | "stale") => {
       const s = latest.current.scenario;
-      const mine = draftNumbers(puzzle, s);
-      if (!carriesDraft(s) || (stored && mine && sameNumbers(mine, stored.numbers))) {
+      const mine = draftNumbers(puzzle, s, latest.current.picks);
+      if (!carriesDraft(s, latest.current.picks) || (stored && mine && sameNumbers(mine, stored.numbers))) {
         setStore({ state: "stored", draft: stored });
-        latest.current.apply(withDraft(s, stored?.numbers ?? null), true);
+        latest.current.apply(withDraft(s, stored?.numbers ?? null, latest.current.picks), true);
       } else {
         setStore({ state: "address", stored, why });
         latest.current.apply(s, false);
@@ -121,12 +126,12 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
   }, [enabled, me, login, puzzle.id, meet, fall, setStore]);
 
   const mine = useMemo(
-    () => draftNumbers(puzzle, scenario),
+    () => draftNumbers(puzzle, scenario, latest.current.picks),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [puzzle, scenario.seed, scenario.overrides, scenario.roundSeconds, scenario.paceSeconds, scenario.thresholds],
+    [puzzle, scenario.seed, scenario.overrides, scenario.roundSeconds, scenario.paceSeconds, scenario.thresholds, scenario.picks, picks],
   );
   // No row is made for a page nobody has touched: the first change opens the draft.
-  const dirty = store.state === "stored" && mine !== null && (store.draft ? !sameNumbers(mine, store.draft.numbers) : carriesDraft(scenario));
+  const dirty = store.state === "stored" && mine !== null && (store.draft ? !sameNumbers(mine, store.draft.numbers) : carriesDraft(scenario, latest.current.picks));
 
   /** A save the service refused: it changed somewhere else, or the service is not answering. */
   const refused = useCallback(
@@ -140,7 +145,7 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
 
   const save = useCallback(async () => {
     const at = latest.current.store;
-    const numbers = draftNumbers(puzzle, latest.current.scenario);
+    const numbers = draftNumbers(puzzle, latest.current.scenario, latest.current.picks);
     if (at.state !== "stored" || !numbers) return;
     setBusy(true);
     const r = at.draft ? await saveDraft(at.draft.id, numbers, at.draft.revision) : await createDraft(puzzle.id, numbers);
@@ -181,7 +186,7 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
 
   const keep = useCallback(async (): Promise<boolean> => {
     const at = latest.current.store;
-    const numbers = draftNumbers(puzzle, latest.current.scenario);
+    const numbers = draftNumbers(puzzle, latest.current.scenario, latest.current.picks);
     if (at.state !== "address" || !numbers) return false;
     setBusy(true);
     const r = at.stored ? await saveDraft(at.stored.id, numbers, at.stored.revision) : await createDraft(puzzle.id, numbers);
@@ -200,7 +205,7 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
     const at = latest.current.store;
     if (at.state !== "address") return;
     setStore({ state: "stored", draft: at.stored });
-    latest.current.apply(withDraft(latest.current.scenario, at.stored?.numbers ?? null), true);
+    latest.current.apply(withDraft(latest.current.scenario, at.stored?.numbers ?? null, latest.current.picks), true);
   }, [setStore]);
 
   const discard = useCallback(async (): Promise<boolean> => {
@@ -212,7 +217,7 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
     setBusy(false);
     if (ok && latest.current.store === at) {
       setStore({ state: "stored", draft: null });
-      latest.current.apply(withoutDraft(latest.current.scenario), true);
+      latest.current.apply(withoutDraft(latest.current.scenario, latest.current.picks), true);
     }
     return ok;
   }, [setStore]);
@@ -251,7 +256,7 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
     const at = latest.current.store;
     if (at.state !== "stored") return null;
     if (at.draft) return at.draft;
-    const numbers = draftNumbers(puzzle, latest.current.scenario);
+    const numbers = draftNumbers(puzzle, latest.current.scenario, latest.current.picks);
     if (!numbers) return null;
     setBusy(true);
     const r = await createDraft(puzzle.id, numbers);
@@ -271,7 +276,7 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
       const at = latest.current.store;
       if (at.state !== "stored" || !at.draft || at.draft.id !== draft.id || draft.revision <= at.draft.revision) return;
       setStore({ state: "stored", draft: { ...draft, save: { ...draft.save, behind: at.draft.save.behind } } });
-      latest.current.apply(withDraft(latest.current.scenario, draft.numbers), true);
+      latest.current.apply(withDraft(latest.current.scenario, draft.numbers, latest.current.picks), true);
     },
     [setStore],
   );
@@ -287,7 +292,7 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
         const now = list.find((d) => d.id === at.draft!.id);
         if (now) return setStore({ state: "stored", draft: { ...at.draft, save: now.save } });
         setStore({ state: "stored", draft: null });
-        latest.current.apply(withoutDraft(latest.current.scenario), true);
+        latest.current.apply(withoutDraft(latest.current.scenario, latest.current.picks), true);
       });
     }, WATCH_MS);
     return () => window.clearInterval(id);
@@ -299,5 +304,6 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPu
     if (store.state === "stored") return { ...store, status: mine === null ? "held" : busy || dirty ? "saving" : "saved", canSave: me !== "loading" && me !== null && me.save, canChat: me !== "loading" && me !== null && me.chat };
     return store;
   }, [store, busy, dirty, mine, me]);
-  return { store: view, bare, keep, open, discard, save: saveToPull, update, ensure, adopt };
+  const keepsPicks = useCallback(() => latest.current.picks, []);
+  return { store: view, bare, keepsPicks, keep, open, discard, save: saveToPull, update, ensure, adopt };
 }

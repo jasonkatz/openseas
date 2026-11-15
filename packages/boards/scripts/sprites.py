@@ -3,7 +3,7 @@
   sprites.py gen <puzzle> [frame ...] [--takes N]   new takes into .art/sprites/<puzzle>/, then a review
   sprites.py review <puzzle>                        rebuild the review page and contact sheet
   sprites.py frames <puzzle>                        write each take as the frame it would be placed as
-  sprites.py place <puzzle> <frame> <take>          fit one take to a 192px frame, into the atlas
+  sprites.py place <puzzle> <frame> <take>          fit one take to a 192px frame, as the frame's file
 
 The brief is packages/boards/briefs/sprites/<puzzle>.json; the style every sheet is painted to is
 packages/boards/briefs/sprite-style.txt. The key is OPENAI_API_KEY, from the environment or the
@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[3]
 BOARDS = ROOT/'packages/boards'
 SPRITES = BOARDS/'src/sprites'
 API = 'https://api.openai.com/v1/images'
-SIZE, STRIDE, ART = 192, 196, 176
+SIZE, ART = 192, 176
 
 
 def key(name):
@@ -43,13 +43,17 @@ def manifest():
     return json.loads((SPRITES/'frames.json').read_text())
 
 
+def frame_path(puzzle, name):
+    """Where a frame's own file is: the build packs every one listed into the puzzle's atlas (ADR 0054)."""
+    return SPRITES/'frames'/puzzle/f'{name}.webp'
+
+
 def frame(puzzle, name):
-    """An existing atlas frame, cropped out, or None."""
-    rect = manifest().get(puzzle, {}).get(name)
-    if not rect or not (SPRITES/f'{puzzle}.webp').is_file():
+    """An existing frame, as its file holds it, or None."""
+    path = frame_path(puzzle, name)
+    if name not in manifest().get(puzzle, []) or not path.is_file():
         return None
-    x, y, w, h = rect
-    return Image.open(SPRITES/f'{puzzle}.webp').convert('RGBA').crop((x, y, x + w, y + h))
+    return Image.open(path).convert('RGBA')
 
 
 def prompt(b, name, refs):
@@ -97,7 +101,7 @@ def generate(args):
         puzzle, _, name = ref.partition(':')
         image = frame(puzzle, name)
         if image is None:
-            sys.exit(f'Reference {ref} is not a frame in the atlases.')
+            sys.exit(f'Reference {ref} is not a frame in frames.json.')
         refs.append((ref.replace(':', '-') + '.png', png(image)))
     api_key = key('OPENAI_API_KEY')
     print(f'{len(names)} requests for {len(names) * args.takes} images ({args.model}, {args.quality}), {len(refs)} reference images')
@@ -171,7 +175,7 @@ def review(args):
         if not found:
             continue
         current = frame(args.puzzle, name)
-        tiles = ([('in the atlas now', current)] if current else []) + [(t.stem, fit(Image.open(t).convert('RGBA'))) for t in found]
+        tiles = ([('shipped now', current)] if current else []) + [(t.stem, fit(Image.open(t).convert('RGBA'))) for t in found]
         cells = []
         for label, tile in tiles:
             file = f'{name}/{label.replace(" ", "-")}.fit.png'
@@ -200,46 +204,31 @@ figure{{margin:0;padding:8px;background:#1c2234;border-radius:8px}}figcaption{{f
             for c, (_, tile) in enumerate(tiles):
                 sheet.alpha_composite(tile.resize((128, 128), Image.Resampling.LANCZOS), (c * cell + 6, r * cell + 6))
         sheet.convert('RGB').save(folder/'contact.png')
-        print('Contact sheet, one row a frame, the atlas frame first where there is one: ' + str((folder/'contact.png').relative_to(ROOT)))
+        print('Contact sheet, one row a frame, the shipped frame first where there is one: ' + str((folder/'contact.png').relative_to(ROOT)))
     print(f'Review: {(folder/"review.html").relative_to(ROOT)}')
 
 
 def place(args):
+    """The take as its frame's file: a lossless 192px image the build packs into the atlas (ADR 0054).
+
+    Nothing else is written and no atlas is encoded here, so no other frame changes. A frame the
+    manifest does not list yet is added at the end of its puzzle's list; only a renderer that asks
+    for it draws it."""
     src = ROOT/'.art/sprites'/args.puzzle/args.frame/f'take-{args.take}.png'
     if not src.is_file():
         sys.exit(f'No take at {src.relative_to(ROOT)}')
+    listed = manifest()
+    if args.puzzle not in listed:
+        sys.exit(f'{args.puzzle} has no frames in frames.json: a puzzle\'s first atlas is a change to code.')
     tile = fit(Image.open(src).convert('RGBA'))
-    # The override survives a repack from the source sheets (pack-sprites.py, pack-prototype-sprites.py).
-    overrides = SPRITES/'overrides'
-    overrides.mkdir(exist_ok=True)
-    tile.save(overrides/f'{args.puzzle}-{args.frame}.webp', lossless=True, method=6)
-    frames = manifest()
-    named = frames.setdefault(args.puzzle, {})
-    path = SPRITES/f'{args.puzzle}.webp'
-    atlas = Image.open(path).convert('RGBA') if path.is_file() else Image.new('RGBA', (4 * STRIDE, STRIDE))
-    if args.frame in named:
-        x, y, _, _ = named[args.frame]
-    else:
-        cols = atlas.width // STRIDE
-        used = {(fx // STRIDE, fy // STRIDE) for fx, fy, _, _ in named.values()}
-        slot = next(i for i in range(10_000) if (i % cols, i // cols) not in used)
-        x, y = (slot % cols) * STRIDE + 2, (slot // cols) * STRIDE + 2
-        if y + SIZE + 2 > atlas.height:
-            grown = Image.new('RGBA', (atlas.width, y + SIZE + 2))
-            grown.paste(atlas, (0, 0))
-            atlas = grown
-        named[args.frame] = [x, y, SIZE, SIZE]
-    atlas.paste(Image.new('RGBA', (SIZE, SIZE)), (x, y))
-    atlas.paste(tile, (x, y))
-    before = path.stat().st_size if path.is_file() else 0
-    # Quality 90, as the packers save; a lossless atlas is three times the size. The lossless override
-    # stays the frame's source of truth, so a repack starts from it, never from this encode.
-    atlas.save(path, quality=90, method=6)
-    (SPRITES/'frames.json').write_text(json.dumps(frames, indent=2) + '\n')
-    print(f'{args.puzzle}:{args.frame} placed at {x},{y}. {path.relative_to(ROOT)}: {before // 1024} KB -> {path.stat().st_size // 1024} KB')
-    if not before:
-        print(f'A new atlas: add its URL to packages/boards/src/sprites/atlas.ts.')
-
+    out = frame_path(args.puzzle, args.frame)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tile.save(out, lossless=True, method=6)
+    print(f'{args.puzzle}:{args.frame} placed as {out.relative_to(ROOT)} ({out.stat().st_size // 1024} KB)')
+    if args.frame not in listed[args.puzzle]:
+        listed[args.puzzle].append(args.frame)
+        (SPRITES/'frames.json').write_text(json.dumps(listed, indent=2) + '\n')
+        print(f'{args.frame} is a new frame, added to frames.json: only a renderer that asks for it draws it.')
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 sub = parser.add_subparsers(dest='command', required=True)
@@ -251,7 +240,7 @@ g.add_argument('--quality', default='high', choices=['low', 'medium', 'high'])
 g.set_defaults(run=generate)
 r = sub.add_parser('review', help='rebuild the review page and contact sheet'); r.add_argument('puzzle'); r.set_defaults(run=review)
 f = sub.add_parser('frames', help='write each take as the frame it would be placed as'); f.add_argument('puzzle'); f.set_defaults(run=frames)
-p = sub.add_parser('place', help='put one take in the atlas'); p.add_argument('puzzle'); p.add_argument('frame'); p.add_argument('take', type=int)
+p = sub.add_parser('place', help="write one take as its frame's file"); p.add_argument('puzzle'); p.add_argument('frame'); p.add_argument('take', type=int)
 p.set_defaults(run=place)
 args = parser.parse_args()
 args.run(args)

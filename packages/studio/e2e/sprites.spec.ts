@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { expectViewMatchesState } from "./helpers.js";
 
-// Exercise the production build: a working dev URL is not enough for shared-package assets.
+// Exercise the production build: a working dev URL is not enough for shared-package assets. Each
+// atlas is built from its frame files by the build (ADR 0054) and served under its own name.
 // The seven core boards, then the eight prototypes, which load theirs through the board kit (ADR 0037).
 const CORE = ["cooling", "engines", "plating", "gunnery", "navigation", "swordfight", "battle"];
 const PROTOTYPES = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting"];

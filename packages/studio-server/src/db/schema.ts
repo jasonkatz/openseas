@@ -40,6 +40,8 @@ export const draft = studio.table(
     pullUrl: text(),
     saveState: text().$type<DraftSave["state"]>().notNull().default("idle"),
     saveError: text().$type<DraftSaveError>(),
+    /** What the last failed Save's error is about, where it is about one thing: a pick's frame or cue (ADR 0053). */
+    saveErrorDetail: text(),
     /** The numbers the last Save wrote into the content file: what the next one must put back where the draft no longer changes them. */
     savedNumbers: jsonb().$type<DraftNumbers>(),
     savedRevision: integer(),

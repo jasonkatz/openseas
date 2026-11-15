@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Logger } from "../log.js";
 
@@ -36,6 +36,8 @@ export interface Repo {
   write(id: string, path: string, text: string): Promise<void>;
   /** A file as it is where the draft's branch left the base branch; null when it was not there. */
   baseFile(id: string, path: string): Promise<string | null>;
+  /** Put a file in the worktree back as it is where the draft's branch left the base branch, bytes and all, or delete it when it was not there. False when it was not. */
+  fromBase(id: string, path: string): Promise<boolean>;
   /** Commit everything changed in the worktree. Null when nothing was. */
   commit(id: string, message: string): Promise<string | null>;
   /** Every file the draft's branch changes from where it left the base branch, as the repository spells them. */
@@ -178,6 +180,16 @@ export function createRepo(o: RepoOptions): Repo {
         const base = (await git(tree(id), ["merge-base", "HEAD", remoteBase])).out.trim();
         const shown = await git(tree(id), ["show", `${base}:${path}`], { ok: [128] });
         return shown.code === 0 ? shown.out : null;
+      }),
+
+    fromBase: (id, path) =>
+      serial(async () => {
+        const base = (await git(tree(id), ["merge-base", "HEAD", remoteBase])).out.trim();
+        const there = (await git(tree(id), ["ls-tree", "-z", "--name-only", base, "--", path])).out.split("\0").includes(path);
+        // Checked out from the base's commit, so a picture comes back byte for byte; not there, it goes.
+        if (there) await git(tree(id), ["checkout", "--quiet", base, "--", path]);
+        else await rm(join(tree(id), path), { force: true });
+        return there;
       }),
 
     commit: (id, message) =>

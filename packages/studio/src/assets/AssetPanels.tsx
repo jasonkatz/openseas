@@ -8,12 +8,10 @@ import { useMe } from "../service/me.js";
 import { OWN_CUE_FALLBACKS, cuesOf } from "./cues.js";
 import { fitFrame } from "./fit.js";
 
-/** A file the owner is trying in a frame's or a cue's place: its name, and for a frame the fitted picture's object URL. */
+/** A file the owner is trying in a frame's place: its name, and the fitted picture's object URL. */
 interface Tried {
   readonly name: string;
-  readonly url: string | null;
-  /** Set when it is a take and not a file. */
-  readonly hash?: string;
+  readonly url: string;
 }
 
 /**
@@ -89,10 +87,11 @@ function FileButton({ accept, label, testId, onFile }: { accept: string; label: 
 }
 
 /**
- * The sprite panel (DESIGN.md 3.14, ADR 0050): every frame in the puzzle's atlas, at the size a
- * board draws it and larger, and the page's own legend, which shows each kind with the marks
- * setting on or off (rule 6). A file can be tried in a frame's place: the board is made again
- * with it, at once. Nothing here is kept or sent anywhere; takes and picks follow.
+ * The sprite panel (DESIGN.md 3.14, ADR 0050, ADR 0052): every frame in the puzzle's atlas, at the
+ * size a board draws it and larger, and the page's own legend, which shows each kind with the
+ * marks setting on or off (rule 6). A row lists the takes kept for its frame; a tap picks one,
+ * which is the draft's: the frame puts it on the board, at once. A file from the owner's machine
+ * can be tried in a frame's place, on this page only.
  */
 export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; legend: ReactNode; active: boolean }) {
   const [tried, setTried] = useState<Readonly<Record<string, Tried>>>({});
@@ -102,6 +101,9 @@ export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; lege
   const atlas = isSpritePuzzle(puzzle) ? puzzle : null;
   const takes = useTakes(puzzle, "sprite");
   const takeName = useTakeName();
+  const { picks, setPick, picksMissing } = useFrame();
+  const latest = useRef(picks);
+  latest.current = picks;
 
   // Leaving the page puts every frame back: a tried file belongs to the page it was tried on.
   useEffect(
@@ -109,7 +111,7 @@ export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; lege
       if (!atlas) return;
       for (const [frame, file] of Object.entries(held.current)) {
         void overrideSprite(atlas, frame, null);
-        if (file.url) URL.revokeObjectURL(file.url);
+        URL.revokeObjectURL(file.url);
       }
     },
     [atlas],
@@ -133,26 +135,15 @@ export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; lege
     },
     [atlas],
   );
-  const tryTake = useCallback(
-    async (frame: string, take: Take, name: string) => {
-      // A take is kept as the frame it would be placed as: nothing to fit.
-      if (!atlas || !(await overrideSprite(atlas, frame, takeUrl(take.hash)))) return setBad(frame);
-      setBad(null);
-      setTried((all) => {
-        const was = all[frame]?.url;
-        if (was) URL.revokeObjectURL(was);
-        return { ...all, [frame]: { name, url: null, hash: take.hash } };
-      });
-    },
-    [atlas],
-  );
-  const putBack = useCallback(
+  /** The file goes, and the frame is the draft's again: its pick, or the atlas's. */
+  const dropFile = useCallback(
     (frame: string) => {
       if (!atlas) return;
-      void overrideSprite(atlas, frame, null);
+      const pick = held.current[frame] ? latest.current.sprites[frame] : undefined;
+      void overrideSprite(atlas, frame, pick ? takeUrl(pick) : null);
       setTried((all) => {
         const { [frame]: was, ...rest } = all;
-        if (was?.url) URL.revokeObjectURL(was.url);
+        if (was) URL.revokeObjectURL(was.url);
         return rest;
       });
     },
@@ -183,8 +174,12 @@ export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; lege
       <section className="tune-group">
         {frames.map((frame) => {
           const file = tried[frame];
+          const picked = picks.sprites[frame];
+          const mine = takes.get(frame) ?? [];
+          const pickedTake = mine.find((take) => take.hash === picked);
+          const missing = picksMissing.includes(`sprites/${frame}`);
           return (
-            <div key={frame} className={`tune-row asset-row ${file ? "is-changed" : ""}`} data-testid={`frame-${frame}`} data-tried={file ? "1" : "0"}>
+            <div key={frame} className={`tune-row asset-row ${file || picked ? "is-changed" : ""}`} data-testid={`frame-${frame}`} data-tried={file ? "1" : "0"} data-picked={picked ?? ""}>
               <div className="asset-views" aria-hidden="true">
                 <span className="asset-view asset-view-board">
                   <SpriteIcon puzzle={atlas} name={frame} size={44} fallback={null} />
@@ -196,18 +191,21 @@ export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; lege
               <div className="asset-body">
                 <code className="tune-key mono">{frame}</code>
                 <p className="tune-desc" data-testid={`frame-pick-${frame}`}>
-                  {file ? (file.hash ? t("studio.assets.trying", { name: file.name }) : t("studio.assets.tried", { name: file.name })) : t("studio.sprites.shipped")}
+                  {file ? t("studio.assets.tried", { name: file.name }) : picked ? t("studio.assets.picked", { name: pickedTake ? takeName(pickedTake) : t("studio.assets.take_other", { hash: picked.slice(0, 6) }) }) : t("studio.sprites.shipped")}
                 </p>
-                {(takes.get(frame)?.length ?? 0) > 0 && (
+                {mine.length > 0 && (
                   <div className="asset-takes" data-testid={`frame-takes-${frame}`}>
-                    {takes.get(frame)!.map((take) => (
+                    {mine.map((take) => (
                       <button
                         key={take.hash}
                         type="button"
-                        className={`asset-take ${file?.hash === take.hash ? "is-held" : ""}`}
-                        aria-pressed={file?.hash === take.hash}
+                        className={`asset-take ${picked === take.hash ? "is-held" : ""}`}
+                        aria-pressed={picked === take.hash}
                         title={take.prompt ?? undefined}
-                        onClick={() => void tryTake(frame, take, takeName(take))}
+                        onClick={() => {
+                          if (file) dropFile(frame);
+                          setPick("sprites", frame, picked === take.hash ? null : take.hash);
+                        }}
                         data-testid={`take-${take.hash.slice(0, 8)}`}
                       >
                         <img src={takeUrl(take.hash)} width={44} height={44} alt="" loading="lazy" />
@@ -218,13 +216,14 @@ export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; lege
                 )}
                 <div className="tune-actions">
                   <FileButton accept="image/png,image/webp" label={t("studio.assets.try_file")} testId={`frame-file-${frame}`} onFile={(f) => void tryFile(frame, f)} />
-                  {file && (
-                    <button type="button" className="btn btn-mini" onClick={() => putBack(frame)} data-testid={`frame-back-${frame}`}>
+                  {(file || picked) && (
+                    <button type="button" className="btn btn-mini" onClick={() => (file ? dropFile(frame) : setPick("sprites", frame, null))} data-testid={`frame-back-${frame}`}>
                       {t("studio.assets.put_back")}
                     </button>
                   )}
                   <AskButtons kind="sprite" name={frame} />
                 </div>
+                {missing && !file && <p className="tune-refusal">{t("studio.assets.pick_missing")}</p>}
                 {bad === frame && <p className="tune-refusal">{t("studio.assets.file_bad")}</p>}
               </div>
             </div>
@@ -235,25 +234,24 @@ export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; lege
   );
 }
 
-/** Which voice a cue plays in: the build's own (its sample, or the synthesized cue where it has none), the synthesized cue over a sample, or a file being tried. */
-type Voice = "shipped" | "synth" | "file" | "take";
+/** Which voice a cue plays in: the build's own (its sample, or the synthesized cue where it has none), the synthesized cue over a sample, a picked take, or a file being tried. */
+type Voice = "shipped" | "synth" | "take" | "file";
 
 /**
- * The sound panel (DESIGN.md 3.14, ADR 0050): every cue the puzzle's board plays, each played on
- * a tap in the voice the board would use. The synthesized cue is always a pick (ADR 0041), a
- * bundled sample is one where the puzzle has it, and a file can be tried in a cue's place: the
- * running board plays it from then on. Nothing here is kept or sent anywhere.
+ * The sound panel (DESIGN.md 3.14, ADR 0050, ADR 0052): every cue the puzzle's board plays, each
+ * played on a tap in the voice the board would use. The synthesized cue is always a pick (ADR
+ * 0041), a bundled sample is one where the puzzle has it, and each take kept for the cue is one
+ * more: a pick is the draft's, and the running board plays it from then on. A file from the
+ * owner's machine can be tried in a cue's place, on this page only.
  */
 export function SoundPanel({ puzzle }: { puzzle: PuzzleId }) {
-  const [voices, setVoices] = useState<Readonly<Record<string, Voice>>>({});
   const [files, setFiles] = useState<Readonly<Record<string, string>>>({});
   const [bad, setBad] = useState<string | null>(null);
-  const held = useRef(voices);
-  held.current = voices;
+  const held = useRef(files);
+  held.current = files;
   const takes = useTakes(puzzle, "sound");
   const takeName = useTakeName();
-  /** The take on each cue, by its hash, while one is. */
-  const [taken, setTaken] = useState<Readonly<Record<string, string>>>({});
+  const { picks, setPick, picksMissing } = useFrame();
   const sampled = new Set(sampleCues(puzzle));
   const fallbacks = OWN_CUE_FALLBACKS[puzzle] ?? {};
 
@@ -264,27 +262,31 @@ export function SoundPanel({ puzzle }: { puzzle: PuzzleId }) {
     [puzzle],
   );
 
-  const choose = useCallback(
-    async (cue: string, voice: Voice, file?: File, take?: Take) => {
-      let ok: boolean;
-      if (voice === "take" && take) {
-        ok = await overrideSample(puzzle, cue, takeUrl(take.hash));
-        if (ok) {
-          setTaken((all) => ({ ...all, [cue]: take.hash }));
-          // Picking a take is also hearing it.
-          auditionCue(puzzle, cue);
-        }
-      } else if (voice === "file" && file) {
-        const url = URL.createObjectURL(file);
-        ok = await overrideSample(puzzle, cue, url);
-        URL.revokeObjectURL(url);
-        if (ok) setFiles((all) => ({ ...all, [cue]: file.name }));
-      } else ok = await overrideSample(puzzle, cue, voice === "synth" ? "synth" : null);
-      setBad(ok ? null : cue);
-      if (ok) setVoices((all) => ({ ...all, [cue]: voice }));
-    },
-    [puzzle],
-  );
+  /** The cue's voice as the draft has it: what a tried file gives way to. */
+  const drafted = (cue: string): string | null => {
+    const pick = picks.sounds[cue];
+    return pick === undefined ? null : pick === "synth" ? "synth" : takeUrl(pick);
+  };
+  const dropFile = (cue: string): void =>
+    setFiles((all) => {
+      const { [cue]: _was, ...rest } = all;
+      return rest;
+    });
+  const tryFile = async (cue: string, file: File): Promise<void> => {
+    const url = URL.createObjectURL(file);
+    const ok = await overrideSample(puzzle, cue, url);
+    URL.revokeObjectURL(url);
+    setBad(ok ? null : cue);
+    if (ok) setFiles((all) => ({ ...all, [cue]: file.name }));
+  };
+  /** Pick a voice for the cue in the draft. The frame gives it to the board; here it is also given at once, so a take is heard on the tap that picks it. */
+  const choose = async (cue: string, pick: string | null, hear: boolean): Promise<void> => {
+    dropFile(cue);
+    setBad(null);
+    setPick("sounds", cue, pick);
+    const ok = await overrideSample(puzzle, cue, pick === null || pick === "synth" ? pick : takeUrl(pick));
+    if (ok && hear) auditionCue(puzzle, cue, { fallback: fallbacks[cue] ?? [] });
+  };
 
   return (
     <div className="tune assets" data-testid="sounds">
@@ -295,15 +297,16 @@ export function SoundPanel({ puzzle }: { puzzle: PuzzleId }) {
       <section className="tune-group">
         {cuesOf(puzzle).map((cue) => {
           const has = sampled.has(cue);
-          // With no sample bundled, the build's own voice is the synthesized cue.
-          const voice: Voice = voices[cue] === "synth" && !has ? "shipped" : (voices[cue] ?? "shipped");
-          const pick = (v: Voice, label: string): ReactNode => (
-            <button type="button" className={`btn btn-mini ${voice === v ? "is-held" : ""}`} aria-pressed={voice === v} onClick={() => void choose(cue, v)} data-testid={`cue-${v}-${cue}`}>
+          const pick = picks.sounds[cue];
+          // With no sample bundled, the build's own voice is the synthesized cue, so picking it is picking nothing.
+          const voice: Voice = files[cue] !== undefined ? "file" : pick === undefined ? "shipped" : pick === "synth" ? (has ? "synth" : "shipped") : "take";
+          const button = (on: boolean, label: string, to: string | null, testId: string): ReactNode => (
+            <button type="button" className={`btn btn-mini ${on ? "is-held" : ""}`} aria-pressed={on} onClick={() => void choose(cue, to, false)} data-testid={testId}>
               {label}
             </button>
           );
           return (
-            <div key={cue} className={`tune-row asset-row ${voice === "shipped" ? "" : "is-changed"}`} data-testid={`cue-${cue}`} data-voice={voice === "shipped" ? (has ? "sample" : "synth") : voice}>
+            <div key={cue} className={`tune-row asset-row ${voice === "shipped" ? "" : "is-changed"}`} data-testid={`cue-${cue}`} data-voice={voice === "shipped" ? (has ? "sample" : "synth") : voice} data-picked={pick ?? ""}>
               <button
                 type="button"
                 className="icon-btn asset-play"
@@ -321,21 +324,34 @@ export function SoundPanel({ puzzle }: { puzzle: PuzzleId }) {
                 <div className="tune-actions">
                   {has ? (
                     <>
-                      {pick("shipped", t("studio.sounds.sample"))}
-                      {pick("synth", t("studio.sounds.synth"))}
+                      {button(voice === "shipped", t("studio.sounds.sample"), null, `cue-shipped-${cue}`)}
+                      {button(voice === "synth", t("studio.sounds.synth"), "synth", `cue-synth-${cue}`)}
                     </>
                   ) : (
-                    pick("shipped", t("studio.sounds.synth"))
+                    button(voice === "shipped", t("studio.sounds.synth"), null, `cue-shipped-${cue}`)
                   )}
                   {takes.get(cue)?.map((take) => {
-                    const on = voice === "take" && taken[cue] === take.hash;
+                    const on = voice === "take" && pick === take.hash;
                     return (
-                      <button key={take.hash} type="button" className={`btn btn-mini ${on ? "is-held" : ""}`} aria-pressed={on} title={take.prompt ?? undefined} onClick={() => void choose(cue, "take", undefined, take)} data-testid={`take-${take.hash.slice(0, 8)}`}>
+                      <button key={take.hash} type="button" className={`btn btn-mini ${on ? "is-held" : ""}`} aria-pressed={on} title={take.prompt ?? undefined} onClick={() => void choose(cue, take.hash, true)} data-testid={`take-${take.hash.slice(0, 8)}`}>
                         {takeName(take)}
                       </button>
                     );
                   })}
-                  <FileButton accept="audio/mpeg,audio/wav,.mp3,.wav" label={t("studio.assets.try_file")} testId={`cue-file-${cue}`} onFile={(f) => void choose(cue, "file", f)} />
+                  <FileButton accept="audio/mpeg,audio/wav,.mp3,.wav" label={t("studio.assets.try_file")} testId={`cue-file-${cue}`} onFile={(f) => void tryFile(cue, f)} />
+                  {voice === "file" && (
+                    <button
+                      type="button"
+                      className="btn btn-mini"
+                      onClick={() => {
+                        dropFile(cue);
+                        void overrideSample(puzzle, cue, drafted(cue));
+                      }}
+                      data-testid={`cue-back-${cue}`}
+                    >
+                      {t("studio.assets.put_back")}
+                    </button>
+                  )}
                   <AskButtons kind="sound" name={cue} />
                 </div>
                 {voice === "file" && (
@@ -343,6 +359,7 @@ export function SoundPanel({ puzzle }: { puzzle: PuzzleId }) {
                     {t("studio.assets.tried", { name: files[cue] ?? "" })}
                   </p>
                 )}
+                {voice === "take" && picksMissing.includes(`sounds/${cue}`) && <p className="tune-refusal">{t("studio.assets.pick_missing")}</p>}
                 {bad === cue && <p className="tune-refusal">{t("studio.assets.file_bad")}</p>}
               </div>
             </div>
