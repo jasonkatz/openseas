@@ -37,7 +37,7 @@ export interface ParsedBoard {
   readonly start: readonly [{ readonly x: number; readonly y: number; readonly heading: Heading }, { readonly x: number; readonly y: number; readonly heading: Heading }];
 }
 
-/** The raider's knobs. Content's tiers feed these; the harness tunes them directly. */
+/** The raider's knobs. Content's tiers feed these; the studio tunes them directly. */
 export interface RaiderSpec {
   readonly turrets: number;
   /** Tokens dealt per turn: this many forward, and half as many (rounded up) each of left and right. */

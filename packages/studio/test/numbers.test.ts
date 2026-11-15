@@ -7,13 +7,13 @@ import { loadContent } from "@openseas/content";
 vi.mock("@openseas/boards", async () => ({ content: (await import("@openseas/content")).loadContent() }));
 
 const { changes, refusals, shippedNumbers, tunedNumbers } = await import("../src/frame/numbers.js");
-const { HARNESS_PUZZLES } = await import("../src/puzzles.js");
+const { STUDIO_PUZZLES } = await import("../src/puzzles.js");
 const { EMPTY_SCENARIO, formatScenario, parseScenario } = await import("../src/scenario/codec.js");
 
 const content = loadContent();
 
 describe("the numbers a link carries (ADR 0042)", () => {
-  const puzzle = HARNESS_PUZZLES.cooling;
+  const puzzle = STUDIO_PUZZLES.cooling;
   const file = content.puzzles.cooling;
 
   it("reads pace and thresholds from a link and writes them back", () => {
@@ -57,6 +57,6 @@ describe("the numbers a link carries (ADR 0042)", () => {
   });
 
   it("plays every puzzle's shipped numbers", () => {
-    for (const id of PUZZLE_IDS) expect(refusals(HARNESS_PUZZLES[id], shippedNumbers(HARNESS_PUZZLES[id])), id).toEqual([]);
+    for (const id of PUZZLE_IDS) expect(refusals(STUDIO_PUZZLES[id], shippedNumbers(STUDIO_PUZZLES[id])), id).toEqual([]);
   });
 });

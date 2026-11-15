@@ -40,7 +40,7 @@ export class PuzzleService {
    * whatever the ship announced that the board has not logged yet. Set by the ship service.
    */
   onResync: ((session: PuzzleSession) => void) | null = null;
-  /** A harness Cooling round's lone ship turned and its heat moved (ADR 0029): tell its pirate. Set by the socket server. */
+  /** A studio Cooling round's lone ship turned and its heat moved (ADR 0029): tell its pirate. Set by the socket server. */
   onSoloHeat: ((session: PuzzleSession, row: number) => void) | null = null;
 
   constructor(
@@ -64,7 +64,7 @@ export class PuzzleService {
     });
   }
 
-  /** Once a second: turn the lone ships of harness Cooling rounds that are due, and pass on what moved. */
+  /** Once a second: turn the lone ships of studio Cooling rounds that are due, and pass on what moved. */
   tick(): void {
     for (const { session, row } of this.sessions.turnSoloHeat()) this.onSoloHeat?.(session, row);
   }
@@ -153,7 +153,7 @@ export class PuzzleService {
   /**
    * Score a round. Standing is earned in the game only (ADR 0028): the captain's space battle and a
    * melee board always move it, a duty board only when it ran its full clock or the engine ended it
-   * (a board cut short by docking counts but moves no standing), and a harness round never does.
+   * (a board cut short by docking counts but moves no standing), and a studio round never does.
    * Every scored round gets its own performance rating against the thresholds.
    */
   async finish(session: PuzzleSession, hash: string | null, metrics: ClientMetrics | null): Promise<ServerMessage> {

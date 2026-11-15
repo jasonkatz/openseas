@@ -6,7 +6,7 @@ import { EMPTY_SCENARIO, formatScenario, parseScenario, playLink } from "../src/
 import { applyOverrides, diffConfig, getPath, leaves, pruneOverrides } from "../src/scenario/overrides.js";
 import { PRESETS, deckPresets } from "../src/scenario/presets.js";
 import { validateConfig } from "../src/scenario/validate.js";
-import type { HarnessPuzzle } from "../src/puzzles.js";
+import type { StudioPuzzle } from "../src/puzzles.js";
 
 const content = loadContent();
 
@@ -78,8 +78,8 @@ describe("scenario codec", () => {
 
 describe("lab validation", () => {
   for (const id of PUZZLE_IDS) {
-    // The two checks the validator runs, without the boards the harness's puzzle table drags in.
-    const puzzle = { configSchema: PUZZLE_CONFIG_SCHEMAS[id], def: PUZZLES[id] } as unknown as HarnessPuzzle<unknown, unknown, unknown>;
+    // The two checks the validator runs, without the boards the studio's puzzle table drags in.
+    const puzzle = { configSchema: PUZZLE_CONFIG_SCHEMAS[id], def: PUZZLES[id] } as unknown as StudioPuzzle<unknown, unknown, unknown>;
     it(`${id}: the content config itself passes, whatever order its keys come in`, () => {
       const base = content.puzzles[id].config as Record<string, unknown>;
       expect(validateConfig(puzzle, base).errors).toEqual([]);
@@ -110,8 +110,8 @@ describe("presets", () => {
       expect(new Set(presets.map((p) => p.id)).size).toBe(presets.length);
     });
     it(`${id}: every preset has its name in the message table`, () => {
-      // The bench shows `harness.preset.<id>`; a preset renamed without its message would show the key.
-      for (const p of PRESETS[id]) expect(content.messages, p.id).toHaveProperty([`harness.preset.${p.id}`]);
+      // The bench shows `studio.preset.<id>`; a preset renamed without its message would show the key.
+      for (const p of PRESETS[id]) expect(content.messages, p.id).toHaveProperty([`studio.preset.${p.id}`]);
     });
   }
 });

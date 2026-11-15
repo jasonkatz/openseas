@@ -37,7 +37,7 @@ export function DeflectorsPractice() {
   return (
     <PracticeShell
       puzzle="deflectors"
-      eyebrow={t("harness.prototype_eyebrow")}
+      eyebrow={t("studio.prototype_eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}

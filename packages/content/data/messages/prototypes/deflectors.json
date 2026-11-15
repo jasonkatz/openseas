@@ -36,12 +36,12 @@
   "deflectors.legend_home": "A lit line with beads: the beam is home.",
   "deflectors.legend_astray": "A broken line and a cross: the beam would hit the hull there.",
   "deflectors.legend_back": "Dots: the way back from the exit.",
-  "harness.preset.deflectors_one_beam": "One beam a volley, all round",
-  "harness.preset.deflectors_two_from_start": "Two beams a volley from the start",
-  "harness.preset.deflectors_three_beams": "Three beams a volley by the end",
-  "harness.preset.deflectors_sparse": "Ten mirrors: few routes, short ones",
-  "harness.preset.deflectors_dense": "Eighteen mirrors: long routes, hard to join",
-  "harness.preset.deflectors_big_grid": "A big grid: eight by eight, 24 mirrors",
-  "harness.preset.deflectors_long_count": "A long count: forty seconds a volley",
-  "harness.preset.deflectors_short_round": "A short round: one minute"
+  "studio.preset.deflectors_one_beam": "One beam a volley, all round",
+  "studio.preset.deflectors_two_from_start": "Two beams a volley from the start",
+  "studio.preset.deflectors_three_beams": "Three beams a volley by the end",
+  "studio.preset.deflectors_sparse": "Ten mirrors: few routes, short ones",
+  "studio.preset.deflectors_dense": "Eighteen mirrors: long routes, hard to join",
+  "studio.preset.deflectors_big_grid": "A big grid: eight by eight, 24 mirrors",
+  "studio.preset.deflectors_long_count": "A long count: forty seconds a volley",
+  "studio.preset.deflectors_short_round": "A short round: one minute"
 }

@@ -109,27 +109,27 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
     <div className="vbatch" data-testid="voyage-batch">
       <div className="vcontrols">
         <label className="bench-inline small">
-          <span className="muted">{t("harness.voyage.batch_runs")}</span>
+          <span className="muted">{t("studio.voyage.batch_runs")}</span>
           <input className="vnum" type="number" min={1} max={MAX_RUNS} value={scenario.runs} onChange={(e) => onRuns(Math.max(1, Math.min(MAX_RUNS, Math.round(Number(e.target.value) || 1))))} data-testid="voyage-batch-runs" />
         </label>
         {state.status === "running" ? (
           <button type="button" className="btn btn-ghost btn-mini" onClick={cancel} data-testid="voyage-batch-cancel">
-            {t("harness.voyage.batch_cancel")}
+            {t("studio.voyage.batch_cancel")}
           </button>
         ) : (
           <button type="button" className="btn btn-brass btn-mini" disabled={!valid} onClick={() => start(scenario, scenario.runs)} data-testid="voyage-batch-run">
-            {t("harness.voyage.batch_run", { n: scenario.runs })}
+            {t("studio.voyage.batch_run", { n: scenario.runs })}
           </button>
         )}
       </div>
-      <p className="muted small">{t("harness.voyage.batch_blurb", { seed: scenario.seed })}</p>
+      <p className="muted small">{t("studio.voyage.batch_blurb", { seed: scenario.seed })}</p>
 
       {state.status === "running" && (
         <div className="vprogress" data-testid="voyage-batch-progress">
           <span className="heat-meter progress-meter" aria-label={`${state.done}/${state.total}`}>
             <i style={{ width: `${(state.done * 100) / state.total}%` }} />
           </span>
-          <small className="muted">{t("harness.voyage.batch_progress", { done: state.done, total: state.total })}</small>
+          <small className="muted">{t("studio.voyage.batch_progress", { done: state.done, total: state.total })}</small>
         </div>
       )}
       {state.status === "error" && (
@@ -141,22 +141,22 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
       {stats && runs && (
         <>
           <div className="vtiles" data-testid="voyage-batch-stats">
-            <Tile label={t("harness.voyage.tile_arrived")} value={`${stats.arrived}/${stats.runs}`} note={stats.adrift + stats.abandoned > 0 ? t("harness.voyage.tile_arrived_note", { adrift: stats.adrift, abandoned: stats.abandoned }) : null} />
-            <Tile label={t("harness.voyage.tile_turns")} value={stats.turns ? String(stats.turns.median) : "–"} note={stats.turns ? t("harness.voyage.tile_turns_note", { p90: stats.turns.p90, min: stats.turns.min, max: stats.turns.max }) : null} />
-            <Tile label={t("harness.voyage.tile_hailed")} value={`${Math.round((stats.hailed * 100) / stats.runs)}%`} note={t("harness.voyage.tile_hailed_note", { engaged: stats.engaged })} />
-            <Tile label={t("harness.voyage.tile_won")} value={stats.winRate === null ? "–" : `${Math.round(stats.winRate)}%`} note={stats.engaged ? t("harness.voyage.tile_won_note", { boardings: stats.boardings, engaged: stats.engaged }) : null} />
-            <Tile label={t("harness.voyage.tile_plunder")} value={String(Math.round(stats.meanPlunder))} note={t("harness.voyage.tile_plunder_note")} />
+            <Tile label={t("studio.voyage.tile_arrived")} value={`${stats.arrived}/${stats.runs}`} note={stats.adrift + stats.abandoned > 0 ? t("studio.voyage.tile_arrived_note", { adrift: stats.adrift, abandoned: stats.abandoned }) : null} />
+            <Tile label={t("studio.voyage.tile_turns")} value={stats.turns ? String(stats.turns.median) : "–"} note={stats.turns ? t("studio.voyage.tile_turns_note", { p90: stats.turns.p90, min: stats.turns.min, max: stats.turns.max }) : null} />
+            <Tile label={t("studio.voyage.tile_hailed")} value={`${Math.round((stats.hailed * 100) / stats.runs)}%`} note={t("studio.voyage.tile_hailed_note", { engaged: stats.engaged })} />
+            <Tile label={t("studio.voyage.tile_won")} value={stats.winRate === null ? "–" : `${Math.round(stats.winRate)}%`} note={stats.engaged ? t("studio.voyage.tile_won_note", { boardings: stats.boardings, engaged: stats.engaged }) : null} />
+            <Tile label={t("studio.voyage.tile_plunder")} value={String(Math.round(stats.meanPlunder))} note={t("studio.voyage.tile_plunder_note")} />
           </div>
 
           {stats.engaged > 0 && (
             <section className="vpanel">
-              <h3>{t("harness.voyage.batch_outcomes")}</h3>
+              <h3>{t("studio.voyage.batch_outcomes")}</h3>
               <SegmentedBar
-                label={t("harness.voyage.batch_outcomes")}
+                label={t("studio.voyage.batch_outcomes")}
                 parts={[
-                  { id: "won", label: t("harness.voyage.part_won"), count: (stats.outcomes.boarded ?? 0) + (stats.outcomes.crippled ?? 0), icon: "✓" },
-                  { id: "lost", label: t("harness.voyage.part_lost"), count: (stats.outcomes.boarded_by ?? 0) + (stats.outcomes.crippled_by ?? 0), icon: "✗" },
-                  { id: "neither", label: t("harness.voyage.part_neither"), count: (stats.outcomes.broke_off ?? 0) + (stats.outcomes.disengaged ?? 0), icon: "–" },
+                  { id: "won", label: t("studio.voyage.part_won"), count: (stats.outcomes.boarded ?? 0) + (stats.outcomes.crippled ?? 0), icon: "✓" },
+                  { id: "lost", label: t("studio.voyage.part_lost"), count: (stats.outcomes.boarded_by ?? 0) + (stats.outcomes.crippled_by ?? 0), icon: "✗" },
+                  { id: "neither", label: t("studio.voyage.part_neither"), count: (stats.outcomes.broke_off ?? 0) + (stats.outcomes.disengaged ?? 0), icon: "–" },
                 ]}
               />
               <dl className="bench-dl">
@@ -167,18 +167,18 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
                   </div>
                 ))}
                 <div>
-                  <dt>{t("harness.voyage.batch_battle_turns")}</dt>
+                  <dt>{t("studio.voyage.batch_battle_turns")}</dt>
                   <dd className="mono">{fixed1(stats.meanBattleTurns)}</dd>
                 </div>
                 <div>
-                  <dt>{t("harness.voyage.batch_hits")}</dt>
+                  <dt>{t("studio.voyage.batch_hits")}</dt>
                   <dd className="mono">
                     {fixed1(stats.meanHits)} / {fixed1(stats.meanHitsTaken)}
                   </dd>
                 </div>
                 {Object.entries(stats.tiers).map(([tier, n]) => (
                   <div key={tier}>
-                    <dt>{t("harness.voyage.batch_hailed_by", { tier: t(`raider.${tier}`) })}</dt>
+                    <dt>{t("studio.voyage.batch_hailed_by", { tier: t(`raider.${tier}`) })}</dt>
                     <dd className="mono">{n}</dd>
                   </div>
                 ))}
@@ -187,32 +187,32 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
           )}
 
           <section className="vpanel">
-            <h3>{t("harness.voyage.batch_turns")}</h3>
+            <h3>{t("studio.voyage.batch_turns")}</h3>
             <Histogram
               values={runs.filter((r) => r.phase === "arrived").map((r) => r.turns)}
-              label={t("harness.voyage.batch_turns_hint")}
-              unit={(lo, hi, count) => t("harness.voyage.batch_turns_bin", { lo, hi, count })}
+              label={t("studio.voyage.batch_turns_hint")}
+              unit={(lo, hi, count) => t("studio.voyage.batch_turns_bin", { lo, hi, count })}
             />
           </section>
 
           <section className="vpanel">
-            <h3>{t("harness.voyage.batch_ship")}</h3>
+            <h3>{t("studio.voyage.batch_ship")}</h3>
             <dl className="bench-dl">
               <div>
-                <dt>{t("harness.voyage.batch_speed")}</dt>
+                <dt>{t("studio.voyage.batch_speed")}</dt>
                 <dd className="mono">{Math.round(stats.meanSpeed / 10)}%</dd>
               </div>
               <div>
-                <dt>{t("harness.voyage.batch_peak_heat")}</dt>
+                <dt>{t("studio.voyage.batch_peak_heat")}</dt>
                 <dd className="mono">{Math.round(stats.meanPeakHeat / 10)}%</dd>
               </div>
               <div>
-                <dt>{t("harness.voyage.batch_peak_damage")}</dt>
+                <dt>{t("studio.voyage.batch_peak_damage")}</dt>
                 <dd className="mono">{Math.round(stats.meanPeakDamage / 10)}%</dd>
               </div>
               {STATIONS.filter((s) => stations.includes(s)).map((s) => (
                 <div key={s}>
-                  <dt>{t("harness.voyage.batch_output", { station: stationName(s) })}</dt>
+                  <dt>{t("studio.voyage.batch_output", { station: stationName(s) })}</dt>
                   <dd className="mono">{stats.outputs[s]}%</dd>
                 </div>
               ))}
@@ -221,13 +221,13 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
 
           <section className="vpanel">
             <div className="bench-inline bench-inline-between">
-              <h3>{t("harness.voyage.batch_list")}</h3>
+              <h3>{t("studio.voyage.batch_list")}</h3>
               <label className="bench-inline small">
-                <span className="muted">{t("harness.voyage.batch_sort")}</span>
+                <span className="muted">{t("studio.voyage.batch_sort")}</span>
                 <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
-                  <option value="seed">{t("harness.voyage.batch_sort_seed")}</option>
-                  <option value="turns">{t("harness.voyage.batch_sort_turns")}</option>
-                  <option value="plunder">{t("harness.voyage.batch_sort_plunder")}</option>
+                  <option value="seed">{t("studio.voyage.batch_sort_seed")}</option>
+                  <option value="turns">{t("studio.voyage.batch_sort_turns")}</option>
+                  <option value="plunder">{t("studio.voyage.batch_sort_plunder")}</option>
                 </select>
               </label>
             </div>
@@ -235,11 +235,11 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
               <table className="vtable" data-testid="voyage-batch-list">
                 <thead>
                   <tr>
-                    <th>{t("harness.seed")}</th>
-                    <th>{t("harness.voyage.col_end")}</th>
-                    <th>{t("harness.voyage.col_turns")}</th>
-                    <th>{t("harness.voyage.col_raider")}</th>
-                    <th>{t("harness.voyage.col_plunder")}</th>
+                    <th>{t("studio.seed")}</th>
+                    <th>{t("studio.voyage.col_end")}</th>
+                    <th>{t("studio.voyage.col_turns")}</th>
+                    <th>{t("studio.voyage.col_raider")}</th>
+                    <th>{t("studio.voyage.col_plunder")}</th>
                     <th />
                   </tr>
                 </thead>
@@ -247,13 +247,13 @@ export function BatchView({ scenario, valid, onRuns, onOpen, stations, autostart
                   {sorted.map((r) => (
                     <tr key={r.seed}>
                       <td className="mono small">{r.seed}</td>
-                      <td>{t(`harness.voyage.phase_${r.phase}`)}</td>
+                      <td>{t(`studio.voyage.phase_${r.phase}`)}</td>
                       <td className="mono">{r.turns}</td>
-                      <td className="small">{r.hailedBy ? `${t(`raider.${r.hailedBy}`)}${r.outcome ? ` · ${t(`harness.voyage.short_${r.outcome}`)}` : ""}` : "–"}</td>
+                      <td className="small">{r.hailedBy ? `${t(`raider.${r.hailedBy}`)}${r.outcome ? ` · ${t(`studio.voyage.short_${r.outcome}`)}` : ""}` : "–"}</td>
                       <td className="mono">{r.plunder}</td>
                       <td>
-                        <button type="button" className="btn btn-ghost btn-mini" onClick={() => onOpen(r.seed)} title={t("harness.voyage.batch_open_hint")} data-testid="voyage-batch-open">
-                          {t("harness.voyage.batch_open")}
+                        <button type="button" className="btn btn-ghost btn-mini" onClick={() => onOpen(r.seed)} title={t("studio.voyage.batch_open_hint")} data-testid="voyage-batch-open">
+                          {t("studio.voyage.batch_open")}
                         </button>
                       </td>
                     </tr>

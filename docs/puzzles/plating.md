@@ -1,6 +1,6 @@
 # Plating
 
-Status: in the game. Built in M2. On the harness at `/plating`.
+Status: in the game. Built in M2. In the studio at `/plating`.
 
 ## The puzzle
 

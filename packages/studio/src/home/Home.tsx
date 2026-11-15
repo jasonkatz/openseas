@@ -229,10 +229,10 @@ export function Home() {
   return (
     <main className="page home studio-home">
       <header className="masthead">
-        <p className="eyebrow">{t("harness.eyebrow")}</p>
-        <h1 className="wordmark">{t("harness.title")}</h1>
+        <p className="eyebrow">{t("studio.eyebrow")}</p>
+        <h1 className="wordmark">{t("studio.title")}</h1>
         <div className="rule" aria-hidden="true" />
-        <p className="muted">{t("harness.tagline")}</p>
+        <p className="muted">{t("studio.tagline")}</p>
       </header>
 
       <section>
@@ -245,15 +245,15 @@ export function Home() {
                 </span>
                 {drafts.has(id) && (
                   <span className="studio-mark" data-testid={`draft-mark-${id}`} data-pull={drafts.get(id)?.pull ? "1" : "0"}>
-                    {drafts.get(id)?.pull ? t("harness.home.pull") : t("harness.home.draft")}
+                    {drafts.get(id)?.pull ? t("studio.home.pull") : t("studio.home.draft")}
                   </span>
                 )}
-                {PROTOTYPES.has(id) && <span className="eyebrow">{t("harness.home.prototype")}</span>}
+                {PROTOTYPES.has(id) && <span className="eyebrow">{t("studio.home.prototype")}</span>}
                 <span className="tile-title">{t(`home.practice_${id}`)}</span>
                 <span className="tile-blurb">{t(`home.practice_${id}_blurb`)}</span>
               </Link>
               <Link to={`/play/${id}`} className="studio-tile-play" data-testid={`tile-play-${id}`}>
-                {t("harness.home.play_alone")}
+                {t("studio.home.play_alone")}
               </Link>
             </li>
           ))}
@@ -261,7 +261,7 @@ export function Home() {
       </section>
 
       <section className="practice">
-        <h2 className="section-title">{t("harness.home.ships")}</h2>
+        <h2 className="section-title">{t("studio.home.ships")}</h2>
         <ul className="practice-grid">
           <li>
             <Link to="/voyage" className="practice-tile live" data-testid="tile-voyage">
@@ -279,19 +279,19 @@ export function Home() {
                   <path d="M30 46l2 6 2-6" fill="#7fe9ff" />
                 </svg>
               </span>
-              <span className="tile-title">{t("harness.home.voyage")}</span>
-              <span className="tile-blurb">{t("harness.home.voyage_blurb")}</span>
+              <span className="tile-title">{t("studio.home.voyage")}</span>
+              <span className="tile-blurb">{t("studio.home.voyage_blurb")}</span>
             </Link>
           </li>
         </ul>
       </section>
 
       <footer className="colophon">
-        <p>{t("harness.home.how")}</p>
+        <p>{t("studio.home.how")}</p>
         <p className="mono small" data-testid="status-build">
-          {t("harness.home.harness_commit", { commit: __HARNESS_COMMIT__.slice(0, 7) })} · {t("harness.home.content_version", { version: content.world.version })}
+          {t("studio.home.build_commit", { commit: __STUDIO_COMMIT__.slice(0, 7) })} · {t("studio.home.content_version", { version: content.world.version })}
         </p>
-        <p>{t("harness.home.footer")}</p>
+        <p>{t("studio.home.footer")}</p>
       </footer>
     </main>
   );

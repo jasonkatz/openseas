@@ -9,7 +9,7 @@ import { TUG_PRESETS } from "./prototypes/tug.js";
 import { RACKS_PRESETS } from "./prototypes/racks.js";
 import { CUTTING_PRESETS } from "./prototypes/cutting.js";
 
-/** A named starting point for a draft (DESIGN.md 3.14): numbers worth tuning from. Names live in the message table under `harness.preset.<id>`. */
+/** A named starting point for a draft (DESIGN.md 3.14): numbers worth tuning from. Names live in the message table under `studio.preset.<id>`. */
 export interface Preset {
   readonly id: string;
   readonly overrides: Overrides;

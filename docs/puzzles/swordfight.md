@@ -1,6 +1,6 @@
 # Swordfighting
 
-Status: in the game. Built in M5, ADR 0022. On the harness at `/swordfight`.
+Status: in the game. Built in M5, ADR 0022. In the studio at `/swordfight`.
 
 ## The puzzle
 

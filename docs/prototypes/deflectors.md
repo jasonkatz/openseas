@@ -1,6 +1,6 @@
 # Deflectors
 
-Status: built. Prototype (ADR 0036), on the harness at `/deflectors`. Ticked (ADR 0015): volleys
+Status: built. Prototype (ADR 0036), in the studio at `/deflectors`. Ticked (ADR 0015): volleys
 charge and fire on the engine's clock. A 120 second round.
 
 ## The puzzle

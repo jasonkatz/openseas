@@ -4,14 +4,14 @@ import { PUZZLE_IDS } from "@openseas/engine";
 // `boards` reaches for the browser as it loads. These tests want its content and nothing else.
 vi.mock("@openseas/boards", async () => ({ content: (await import("@openseas/content")).loadContent() }));
 
-const { HARNESS_PUZZLES } = await import("../src/puzzles.js");
+const { STUDIO_PUZZLES } = await import("../src/puzzles.js");
 const { configControls, sliderRange, unitOf } = await import("../src/tuning/controls.js");
 const { TUNING_GROUPS } = await import("../src/tuning/groups/index.js");
 const { leaves } = await import("../src/scenario/overrides.js");
 
 describe("the tuning panel's controls (DESIGN.md 3.14)", () => {
   for (const id of PUZZLE_IDS) {
-    const puzzle = HARNESS_PUZZLES[id];
+    const puzzle = STUDIO_PUZZLES[id];
     const groups = configControls(puzzle, TUNING_GROUPS[id]);
     const controls = groups.flatMap((g) => g.controls);
 
@@ -59,7 +59,7 @@ describe("the tuning panel's controls (DESIGN.md 3.14)", () => {
   });
 
   it("picks a stepper for a small whole number, a slider for a range, a curve for a list", () => {
-    const kinds = Object.fromEntries(configControls(HARNESS_PUZZLES.cooling, TUNING_GROUPS.cooling).flatMap((g) => g.controls.map((c) => [c.key, c.kind])));
+    const kinds = Object.fromEntries(configControls(STUDIO_PUZZLES.cooling, TUNING_GROUPS.cooling).flatMap((g) => g.controls.map((c) => [c.key, c.kind])));
     expect(kinds["config.pieceKinds"]).toBe("stepper");
     expect(kinds["config.heatDropPerPoints"]).toBe("slider");
     expect(kinds["config.cascadeMultipliers"]).toBe("curve");

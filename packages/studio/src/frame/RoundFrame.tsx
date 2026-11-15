@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { isSpritePuzzle, overrideSample, overrideSprite } from "@openseas/boards";
 import { picksOf, type Draft, type Picks, type RoundSummary, type TesterLink } from "@openseas/protocol";
-import type { HarnessPuzzle } from "../puzzles.js";
+import type { StudioPuzzle } from "../puzzles.js";
 import { EMPTY_SCENARIO, formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
 import { SERVICE_URL, takeUrl } from "../service/client.js";
 import { useStoredDraft, type DraftStore } from "./useStoredDraft.js";
@@ -30,7 +30,7 @@ const NO_ROUND: RoundReport = { seed: null, replayMismatch: false };
 
 export interface Frame {
   readonly mode: FrameMode;
-  readonly puzzle: HarnessPuzzle<unknown, unknown, unknown>;
+  readonly puzzle: StudioPuzzle<unknown, unknown, unknown>;
   /** What the page plays: the seed, the numbers laid over content, and how the round's clock starts. */
   readonly scenario: Scenario;
   /** Changes the scenario. The address bar is kept in step, so the page is one link, unless the service keeps the draft: then it is saved there and the address stays bare (ADR 0045). */
@@ -101,7 +101,7 @@ export function useFrame(): Frame {
  * writes it, the page inside reads it (studio/useStudio) and reports its round back, and the
  * shell rates the round against the draft's own thresholds.
  */
-export function RoundFrame({ mode, puzzle, link = null, children }: { mode: FrameMode; puzzle: HarnessPuzzle<unknown, unknown, unknown>; link?: TesterLink | null; children: ReactNode }) {
+export function RoundFrame({ mode, puzzle, link = null, children }: { mode: FrameMode; puzzle: StudioPuzzle<unknown, unknown, unknown>; link?: TesterLink | null; children: ReactNode }) {
   const [scenario, setScenarioState] = useState<Scenario>(() => (link ? linkScenario(link) : parseScenario(window.location.search)));
   const [report, setReportState] = useState<RoundReport>(NO_ROUND);
   const [comparing, setComparing] = useState(false);

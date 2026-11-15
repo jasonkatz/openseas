@@ -60,7 +60,7 @@ game is at openseas.online.
 | `packages/server` | Node 22, `ws`, Drizzle, Better Auth. The only authority. |
 | `packages/boards` | What both front ends render with: the PixiJS boards and their art and sound, the round runner, the tick clock, the server connection (ADR 0019). Renders; never authoritative. |
 | `packages/client` | The game, one graphical experience: the three.js world with the boards over it (ADR 0020). Vite, React. Renders; never authoritative. |
-| `packages/docs` | The puzzle guides: a static site with one guide per puzzle, from first round to expert play. Its screenshots and clips are captured from the real boards on the harness (`pnpm capture:docs`). |
+| `packages/docs` | The puzzle guides: a static site with one guide per puzzle, from first round to expert play. Its screenshots and clips are captured from the real boards in the studio (`pnpm capture:docs`). |
 | `packages/studio` | The puzzle studio (M9, ADR 0042), once the harness: a page a puzzle with the shared board and a tuning panel built from the content file and the wire schema, each puzzle alone at `/play/<puzzle>` on the numbers its link carries, and the voyage bench. Every round is local. A developer and tester tool, never linked from the game. |
 | `packages/studio-server` | The studio's own small service (ADR 0043): tester links by id (`/play/<id>`) and the owner's GitHub sign-in against an allowlist. The studio works without it. |
 

@@ -1,7 +1,7 @@
 import { DEFLECTORS_DEF, advanceDeflectors, deflectorsHint, deflectorsOutlook, deflectorsTrace, type DeflectorsConfig, type DeflectorsMove, type DeflectorsState } from "@openseas/engine";
 import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
-import type { HarnessPuzzle } from "../puzzles.js";
+import type { StudioPuzzle } from "../puzzles.js";
 import { DEFLECTORS_PRESETS } from "../scenario/prototypes/deflectors.js";
 
 /** The opening as the first volley is announced: what a seed probe looks at. */
@@ -22,7 +22,7 @@ function joins(s: DeflectorsState): number {
 }
 
 /** What the studio needs to know about Deflectors: its content config and its starting points. */
-export const DEFLECTORS: HarnessPuzzle<DeflectorsState, DeflectorsMove, DeflectorsConfig> = {
+export const DEFLECTORS: StudioPuzzle<DeflectorsState, DeflectorsMove, DeflectorsConfig> = {
   id: "deflectors",
   def: DEFLECTORS_DEF,
   config: content.puzzles.deflectors.config,

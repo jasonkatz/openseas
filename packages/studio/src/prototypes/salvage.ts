@@ -1,11 +1,11 @@
 import { SALVAGE_CRATE, SALVAGE_DEF, salvageFindLoop, salvageHint, type SalvageConfig, type SalvageMove, type SalvageState } from "@openseas/engine";
 import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
-import type { HarnessPuzzle } from "../puzzles.js";
+import type { StudioPuzzle } from "../puzzles.js";
 import { SALVAGE_PRESETS } from "../scenario/prototypes/salvage.js";
 
 /** What the studio needs to know about Salvage: its content config and its starting points. */
-export const SALVAGE: HarnessPuzzle<SalvageState, SalvageMove, SalvageConfig> = {
+export const SALVAGE: StudioPuzzle<SalvageState, SalvageMove, SalvageConfig> = {
   id: "salvage",
   def: SALVAGE_DEF,
   config: content.puzzles.salvage.config,

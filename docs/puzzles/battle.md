@@ -1,6 +1,6 @@
 # Space Battle
 
-Status: in the game. Built in M4, ADR 0021. On the harness at `/battle`.
+Status: in the game. Built in M4, ADR 0021. In the studio at `/battle`.
 
 ## The puzzle
 
@@ -48,7 +48,7 @@ every turn's points are scaled by `scorePercent`, 100 in practice and aboard the
 (`supply`) and aboard by the ship: half the turn's tokens forward, the rest split between the
 turns, plus the loaded turrets and the hull. Raider tiers differ by tokens, reloads, accuracy and
 aggression (`raider-tiers.json`): the junker is slow and sloppy, the corsair closes fast, fires
-true and grapples the moment it can. The harness practice page fights the content raider with
+true and grapples the moment it can. The studio's page fights the content raider with
 presets per tier, per board and for faster or slower turns.
 
 ## Engine

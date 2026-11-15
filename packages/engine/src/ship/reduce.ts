@@ -71,7 +71,7 @@ export function legUnits(durationSeconds: number): number {
 /**
  * The heat after one turn: the class's intake, more through a damaged hull, less what the vent
  * station's output drains. Every quantity in permille, as the ship carries them. The ship's turn
- * and the harness's lone Cooling ship (`soloHeatTurn`) both take heat this way.
+ * and the studio's lone Cooling ship (`soloHeatTurn`) both take heat this way.
  */
 export function heatAfterTurn(rules: ShipRules, heat: number, damage: number, coolingOutput: number): number {
   return clamp(

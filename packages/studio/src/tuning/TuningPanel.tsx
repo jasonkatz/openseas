@@ -36,7 +36,7 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 const presetName = (id: string): string =>
-  id.startsWith("deck_") ? t("harness.preset.deck", { n: id.slice(5) }) : id.startsWith("board_") ? t("harness.preset.board", { n: id.slice(6) }) : t(`harness.preset.${id}`);
+  id.startsWith("deck_") ? t("studio.preset.deck", { n: id.slice(5) }) : id.startsWith("board_") ? t("studio.preset.board", { n: id.slice(6) }) : t(`studio.preset.${id}`);
 
 /**
  * The tuning panel (DESIGN.md 3.14): the seed, then a control for every key under `config`, for

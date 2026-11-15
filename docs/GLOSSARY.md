@@ -406,10 +406,10 @@ The tables above give the identifier for each word. Beyond them:
   each frame looks like the piece it names.
 - **Tests**: where a test's `mate` was a second pirate rather than a deckhand, it is `crewmate`.
   Fixtures use names the game could deal ("Static Comet", "Gasket-7", "The Rust Comets").
-- **Harness presets**: the message key is the preset's id (`harness.preset.one_injector`,
+- **Studio presets**: the message key is the preset's id (`studio.preset.one_injector`,
   `no_injectors`, `single_plates`, `big_breaches`, `one_breach`, `five_plates`, `no_coolant`), and a
-  test holds every preset to one. `harness.voyage.to_port` → `to_end`; `harness.voyage.helm` (who
-  plots the battle) → `battle_plots`.
+  test holds every preset to one. `voyage.to_port` → `to_end`; `voyage.helm` (who plots the battle)
+  → `battle_plots`, under `studio.` since M9 (the keys were `harness.` then).
 - **Kept on purpose**:
   - Three puzzle engines' PRNG salts keep their old strings (`bilging:`, `sailing:` and
     `carpentry:` in each `reduce.ts`). A new salt would deal a different board from the same
@@ -423,7 +423,7 @@ The tables above give the identifier for each word. Beyond them:
 
 ## Prototype puzzles
 
-Eight puzzles with no former word: they are new (DESIGN.md 3.12, ADR 0036), on the harness only.
+Eight puzzles with no former word: they are new (DESIGN.md 3.12, ADR 0036), in the studio only.
 Their words follow the naming rules above. Each puzzle's own words (its pieces, its callouts) are in
 its design file under `docs/prototypes/` and its message file under
 `content/data/messages/prototypes/`; the sprite pass may rename them if the puzzle is kept.

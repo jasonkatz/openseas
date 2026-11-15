@@ -22,7 +22,7 @@ export interface ThumbMessage {
   url: string | null;
 }
 
-const key = (id: string): string => `openseas.thumb.${__HARNESS_COMMIT__}.${id}`;
+const key = (id: string): string => `openseas.thumb.${__STUDIO_COMMIT__}.${id}`;
 
 function remembered(id: string): string | null {
   try {

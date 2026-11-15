@@ -16,7 +16,7 @@ written in.
   identifier for each. Name new things by it, and read older ADRs through it.
 - `docs/puzzles/` holds a design file for each puzzle the game deals: its role, its rules and scoring,
   its luck and its skills. It changes in the same commit as the puzzle's rules or numbers.
-- `docs/prototypes/` holds the prototype puzzles (ADR 0036): eight new puzzles on the harness, none in
+- `docs/prototypes/` holds the prototype puzzles (ADR 0036): eight new puzzles in the studio, none in
   the game yet. Its README says what a prototype is made of and the rules it keeps; each puzzle has
   a design file there that changes in the same commit as its rules or numbers.
 - `packages/docs/README.md` says how a puzzle guide is written and how its pictures are captured
@@ -45,8 +45,8 @@ TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `protocol` (Zod schemas)
 `server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `studio` (the puzzle studio at studio.openseas.online, once the harness, built step by step, ADR 0042: a page a puzzle with its board and a tuning panel built from
 `content` and the wire schema, each puzzle alone at `/play/<id>`, every round local, and the voyage bench for ships and crews, ADR 0027), `studio-server` (the studio's own small service: tester links by id,
 the owner's GitHub sign-in, the owner's drafts, Save for their numbers and picks as a draft pull request, the chat's agent on a draft's worktree, and the takes it makes, kept in a bucket, ADR 0043, ADR 0045 to 0047, ADR 0049, ADR 0051 and ADR 0053; the studio works without it), `docs` (the puzzle guides at docs.openseas.online: a static site with one guide per puzzle, its
-pictures captured from the real boards on the harness, ADR 0038).
-Postgres. Railway for server, the studio's service and database, Vercel for the game, the harness and the guides as three projects.
+pictures captured from the real boards in the studio, ADR 0038).
+Postgres. Railway for server, the studio's service and database, Vercel for the game, the studio and the guides as three projects.
 Vitest with property-based determinism tests on engines, Playwright smoke on all three front ends.
 
 ## Workflow
@@ -57,10 +57,10 @@ Vitest with property-based determinism tests on engines, Playwright smoke on all
 - Property-based determinism tests are written before an engine is wired to the server.
 - Record any new architecture decision as an ADR in the same PR.
 - Record any deliberate divergence from the original in `docs/DESIGN.md` section 6.
-- A prototype puzzle is a whole engine the server verifies, dealt only on the harness, in files of its
+- A prototype puzzle is a whole engine the server verifies, dealt only in the studio, in files of its
   own (ADR 0036). Promoting one into the game is its own ADR and milestone.
-- A board change is proven in the harness: its smoke drives every board, on its `/play` page, and must stay green. The
-  harness is never linked from the game. `boards` is presentation and transport only: nothing in it
+- A board change is proven in the studio: its smoke drives every board, on its `/play` page, and must stay green. The
+  studio is never linked from the game. `boards` is presentation and transport only: nothing in it
   may compute a score, and a studio round may never run on a config the server would refuse.
 - A key added to a puzzle's `config` gets one line of description on its wire schema (`.describe()` in
   `protocol`) and a place in the puzzle's `studio/src/tuning/groups/<id>.ts`: the studio's tuning panel is
