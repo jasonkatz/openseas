@@ -39,7 +39,8 @@ export function ChatPanel() {
   const frame = useFrame();
   const { store, ensureDraft, adoptDraft, refusals, rounds } = frame;
   const stored = store.state === "stored" ? store : null;
-  const draftId = stored?.draft?.id ?? null;
+  // No chat, no stream: a service without one, or a caller who is not the owner, is asked for nothing.
+  const draftId = stored?.canChat ? (stored.draft?.id ?? null) : null;
   const [chat, setChat] = useState<ChatState | null>(null);
   const [text, setText] = useState("");
   const [model, setModel] = useState<ChatModel>(readModel);
