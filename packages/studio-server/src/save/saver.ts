@@ -24,9 +24,9 @@ export interface SaverOptions {
 }
 
 /**
- * Save (ADR 0042 decision 10, ADR 0046, ADR 0049, ADR 0053), after the tester link, which the
- * route makes at once: the draft's numbers written into the puzzle's content file in its worktree
- * and its picks placed in the atlas and the sounds folder, a commit, a push of that and of whatever
+ * Save (ADR 0042 decision 10, ADR 0046, ADR 0049, ADR 0053, ADR 0054), after the tester link, which
+ * the route makes at once: the draft's numbers written into the puzzle's content file in its worktree
+ * and its picks placed as frame files and in the sounds folder, a commit, a push of that and of whatever
  * the chat's turns committed, and a draft pull request from the studio's GitHub App with the owner
  * named in its body. A later Save adds commits to the same pull
  * request. That is all of Save: the pull request stays a draft for a developer to finish.

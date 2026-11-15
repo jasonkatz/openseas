@@ -36,7 +36,7 @@ example for every one of them.
 | `packages/content/data/puzzles/<id>.json` | The config the server deals, the round length, the thresholds, and `paceSeconds` for the live tier indicator (ADR 0039). |
 | `packages/content/data/messages/prototypes/<id>.json` | Every string the puzzle shows. |
 | `packages/boards/src/<id>/renderer.ts` | A `KitBoard` subclass: draws the state, plays the last move, reports input. |
-| `packages/boards/src/sprites/<id>.webp` | The puzzle's atlas, with its frames in `frames.json` and its line in `atlas.ts`. |
+| `packages/boards/src/sprites/frames/<id>/` | The puzzle's frames, one lossless 192px file each, listed in order in `frames.json`; the build packs them into its atlas (ADR 0054). |
 | `packages/boards/src/<id>/<Id>Board.tsx` | The React host: `useKitBoard`, the labels from the message table, `data-board`. |
 | `packages/studio/src/pages/<Id>Practice.tsx` | The page: `usePractice`, `useStudio`, `PracticeShell`, HUD details, legend, result rows. |
 | `packages/studio/src/prototypes/<id>.ts` | The studio's entry: content config, starting points, whether it ticks. |
@@ -121,4 +121,4 @@ fallback)`.
   and station strings), moves from `PROTOTYPE_PUZZLE_IDS` to `CORE_PUZZLE_IDS`, its strings move to
   `en.json`.
 - **Removing:** delete the files in the table and the lines that register the id, with its entry in
-  `sprites/frames.json` and its line in `sprites/atlas.ts`.
+  `sprites/frames.json`.

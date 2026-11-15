@@ -19,6 +19,7 @@ describe("the puzzle's own files", () => {
       "packages/docs/capture/cooling.capture.ts",
       "packages/docs/public/media/cooling/cascade.mp4",
       "packages/studio/src/pages/CoolingPractice.tsx",
+      "packages/boards/src/sprites/frames/cooling/cog.webp",
       "packages/studio/src/tuning/groups/cooling.ts",
       "docs/puzzles/cooling.md",
       // Two files every puzzle shares: its strings and its frames are in them.

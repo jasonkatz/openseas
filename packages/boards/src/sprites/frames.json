@@ -1,944 +1,184 @@
 {
-  "cooling": {
-    "cog": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "valve": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "bolt": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "fuse": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "crystal": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "coil": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "chip": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "charge": [
-      590,
-      198,
-      192,
-      192
-    ],
-    "magnet": [
-      2,
-      394,
-      192,
-      192
-    ],
-    "slag": [
-      198,
-      394,
-      192,
-      192
-    ],
-    "splash": [
-      394,
-      394,
-      192,
-      192
-    ],
-    "glint": [
-      590,
-      394,
-      192,
-      192
-    ]
-  },
-  "engines": {
-    "weave": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "coil": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "ripple": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "target-weave": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "target-coil": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "target-ripple": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "ledge": [
-      2,
-      394,
-      192,
-      192
-    ],
-    "link": [
-      198,
-      394,
-      192,
-      192
-    ],
-    "gust": [
-      394,
-      394,
-      192,
-      192
-    ]
-  },
-  "plating": {
-    "tin-h": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "copper-h": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "steel-h": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "brass-h": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "tin-v": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "copper-v": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "steel-v": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "brass-v": [
-      590,
-      198,
-      192,
-      192
-    ],
-    "weld": [
-      2,
-      394,
-      192,
-      192
-    ],
-    "chips": [
-      198,
-      394,
-      192,
-      192
-    ],
-    "edge": [
-      394,
-      394,
-      192,
-      192
-    ],
-    "sparkle": [
-      590,
-      394,
-      192,
-      192
-    ]
-  },
-  "gunnery": {
-    "cell": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "sabot": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "slug": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "coolant": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "turret-empty": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "turret-loaded": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "turret-jammed": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "turret-fire": [
-      590,
-      198,
-      192,
-      192
-    ],
-    "crate": [
-      2,
-      394,
-      192,
-      192
-    ],
-    "arrow": [
-      198,
-      394,
-      192,
-      192
-    ],
-    "deck": [
-      394,
-      394,
-      192,
-      192
-    ],
-    "smoke": [
-      590,
-      394,
-      192,
-      192
-    ]
-  },
-  "navigation": {
-    "gold-spark": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "gold-star": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "gold-comet": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "ice-spark": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "ice-star": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "ice-comet": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "ember-spark": [
-      2,
-      394,
-      192,
-      192
-    ],
-    "ember-star": [
-      198,
-      394,
-      192,
-      192
-    ],
-    "ember-comet": [
-      394,
-      394,
-      192,
-      192
-    ],
-    "marker-spark": [
-      2,
-      590,
-      192,
-      192
-    ],
-    "marker-star": [
-      198,
-      590,
-      192,
-      192
-    ],
-    "marker-comet": [
-      394,
-      590,
-      192,
-      192
-    ]
-  },
-  "swordfight": {
-    "facet-block": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "rivet-block": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "scale-block": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "hatch-block": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "facet-breaker": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "rivet-breaker": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "scale-breaker": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "hatch-breaker": [
-      590,
-      198,
-      192,
-      192
-    ],
-    "facet-hint": [
-      2,
-      394,
-      192,
-      192
-    ],
-    "rivet-hint": [
-      198,
-      394,
-      192,
-      192
-    ],
-    "scale-hint": [
-      394,
-      394,
-      192,
-      192
-    ],
-    "hatch-hint": [
-      590,
-      394,
-      192,
-      192
-    ],
-    "stone": [
-      2,
-      590,
-      192,
-      192
-    ],
-    "blade": [
-      198,
-      590,
-      192,
-      192
-    ],
-    "shatter": [
-      394,
-      590,
-      192,
-      192
-    ],
-    "swipe": [
-      590,
-      590,
-      192,
-      192
-    ]
-  },
-  "battle": {
-    "ship0": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "ship1": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "ship0-damaged": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "ship1-damaged": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "asteroid": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "current": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "well": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "wake": [
-      590,
-      198,
-      192,
-      192
-    ],
-    "ball": [
-      2,
-      394,
-      192,
-      192
-    ],
-    "splash": [
-      198,
-      394,
-      192,
-      192
-    ],
-    "hook": [
-      394,
-      394,
-      192,
-      192
-    ],
-    "flash": [
-      590,
-      394,
-      192,
-      192
-    ]
-  },
-  "salvage": {
-    "debris-gold": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "debris-ice": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "debris-ember": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "debris-moss": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "debris-violet": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "debris-amber": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "crate": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "coupler": [
-      590,
-      198,
-      192,
-      192
-    ]
-  },
-  "overload": {
-    "charge-0": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "charge-1": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "charge-2": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "charge-3": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "charge-4": [
-      786,
-      2,
-      192,
-      192
-    ],
-    "booster-0": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "booster-1": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "booster-2": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "booster-3": [
-      590,
-      198,
-      192,
-      192
-    ],
-    "booster-4": [
-      786,
-      198,
-      192,
-      192
-    ]
-  },
-  "deflectors": {
-    "mirror-slash": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "mirror-backslash": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "sign-gold": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "sign-ice": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "sign-violet": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "target-gold": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "target-ice": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "target-violet": [
-      590,
-      198,
-      192,
-      192
-    ]
-  },
-  "reactor": {
-    "grade-1": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "grade-2": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "grade-3": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "grade-4": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "grade-5": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "grade-6": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "grade-7": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "hot": [
-      590,
-      198,
-      192,
-      192
-    ]
-  },
-  "scanner": {
-    "fog": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "clear": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "found": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "spooked": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "miss": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "ping": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "lock": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "brackets": [
-      590,
-      198,
-      192,
-      192
-    ]
-  },
-  "tug": {
-    "pod-gold": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "pod-ice": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "pod-ember": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "pod-moss": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "clamp-gold": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "clamp-ice": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "clamp-ember": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "clamp-moss": [
-      590,
-      198,
-      192,
-      192
-    ],
-    "block": [
-      2,
-      394,
-      192,
-      192
-    ]
-  },
-  "racks": {
-    "cell-gold": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "cell-ice": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "cell-ember": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "cell-moss": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "target-gold": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "target-ice": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "target-ember": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "target-moss": [
-      590,
-      198,
-      192,
-      192
-    ]
-  },
-  "cutting": {
-    "ore-gold": [
-      2,
-      2,
-      192,
-      192
-    ],
-    "ore-ice": [
-      198,
-      2,
-      192,
-      192
-    ],
-    "ore-ember": [
-      394,
-      2,
-      192,
-      192
-    ],
-    "ore-moss": [
-      590,
-      2,
-      192,
-      192
-    ],
-    "ore-violet": [
-      2,
-      198,
-      192,
-      192
-    ],
-    "ore-amber": [
-      198,
-      198,
-      192,
-      192
-    ],
-    "ore-bone": [
-      394,
-      198,
-      192,
-      192
-    ],
-    "ore-rose": [
-      590,
-      198,
-      192,
-      192
-    ]
-  }
+  "cooling": [
+    "cog",
+    "valve",
+    "bolt",
+    "fuse",
+    "crystal",
+    "coil",
+    "chip",
+    "charge",
+    "magnet",
+    "slag",
+    "splash",
+    "glint"
+  ],
+  "engines": [
+    "weave",
+    "coil",
+    "ripple",
+    "target-weave",
+    "target-coil",
+    "target-ripple",
+    "ledge",
+    "link",
+    "gust"
+  ],
+  "plating": [
+    "tin-h",
+    "copper-h",
+    "steel-h",
+    "brass-h",
+    "tin-v",
+    "copper-v",
+    "steel-v",
+    "brass-v",
+    "weld",
+    "chips",
+    "edge",
+    "sparkle"
+  ],
+  "gunnery": [
+    "cell",
+    "sabot",
+    "slug",
+    "coolant",
+    "turret-empty",
+    "turret-loaded",
+    "turret-jammed",
+    "turret-fire",
+    "crate",
+    "arrow",
+    "deck",
+    "smoke"
+  ],
+  "navigation": [
+    "gold-spark",
+    "gold-star",
+    "gold-comet",
+    "ice-spark",
+    "ice-star",
+    "ice-comet",
+    "ember-spark",
+    "ember-star",
+    "ember-comet",
+    "marker-spark",
+    "marker-star",
+    "marker-comet"
+  ],
+  "swordfight": [
+    "facet-block",
+    "rivet-block",
+    "scale-block",
+    "hatch-block",
+    "facet-breaker",
+    "rivet-breaker",
+    "scale-breaker",
+    "hatch-breaker",
+    "facet-hint",
+    "rivet-hint",
+    "scale-hint",
+    "hatch-hint",
+    "stone",
+    "blade",
+    "shatter",
+    "swipe"
+  ],
+  "battle": [
+    "ship0",
+    "ship1",
+    "ship0-damaged",
+    "ship1-damaged",
+    "asteroid",
+    "current",
+    "well",
+    "wake",
+    "ball",
+    "splash",
+    "hook",
+    "flash"
+  ],
+  "salvage": [
+    "debris-gold",
+    "debris-ice",
+    "debris-ember",
+    "debris-moss",
+    "debris-violet",
+    "debris-amber",
+    "crate",
+    "coupler"
+  ],
+  "overload": [
+    "charge-0",
+    "charge-1",
+    "charge-2",
+    "charge-3",
+    "charge-4",
+    "booster-0",
+    "booster-1",
+    "booster-2",
+    "booster-3",
+    "booster-4"
+  ],
+  "deflectors": [
+    "mirror-slash",
+    "mirror-backslash",
+    "sign-gold",
+    "sign-ice",
+    "sign-violet",
+    "target-gold",
+    "target-ice",
+    "target-violet"
+  ],
+  "reactor": [
+    "grade-1",
+    "grade-2",
+    "grade-3",
+    "grade-4",
+    "grade-5",
+    "grade-6",
+    "grade-7",
+    "hot"
+  ],
+  "scanner": [
+    "fog",
+    "clear",
+    "found",
+    "spooked",
+    "miss",
+    "ping",
+    "lock",
+    "brackets"
+  ],
+  "tug": [
+    "pod-gold",
+    "pod-ice",
+    "pod-ember",
+    "pod-moss",
+    "clamp-gold",
+    "clamp-ice",
+    "clamp-ember",
+    "clamp-moss",
+    "block"
+  ],
+  "racks": [
+    "cell-gold",
+    "cell-ice",
+    "cell-ember",
+    "cell-moss",
+    "target-gold",
+    "target-ice",
+    "target-ember",
+    "target-moss"
+  ],
+  "cutting": [
+    "ore-gold",
+    "ore-ice",
+    "ore-ember",
+    "ore-moss",
+    "ore-violet",
+    "ore-amber",
+    "ore-bone",
+    "ore-rose"
+  ]
 }

@@ -8,7 +8,8 @@ import { NO_SAVE, SERVICE, draft, service } from "./standin.js";
  * cue given another picture or sound under a running board. No service answers in these tests:
  * the panels ask it nothing. Desktop only, as the studio is.
  */
-const frames = JSON.parse(readFileSync(new URL("../../boards/src/sprites/frames.json", import.meta.url), "utf8")) as Record<string, Record<string, number[]>>;
+/** Each puzzle's frame names, in order (ADR 0054). */
+const frames = JSON.parse(readFileSync(new URL("../../boards/src/sprites/frames.json", import.meta.url), "utf8")) as Record<string, string[]>;
 const desktopOnly = (): void => test.skip(test.info().project.name !== "desktop", "the studio is a desktop tool");
 
 /** A second of quiet as a WAV file: enough for the browser to decode. */
@@ -51,7 +52,7 @@ for (const puzzle of ["cooling", "salvage"]) {
 
     await page.getByTestId("tab-sprites").click();
     await expect(page.getByTestId("tuning")).toBeHidden();
-    const names = Object.keys(frames[puzzle]!);
+    const names = [...frames[puzzle]!];
     for (const name of names) await expect(page.getByTestId(`frame-${name}`)).toHaveCount(1);
     // The page's own legend, with its marks toggle: each kind seen with marks and without (rule 6).
     const legend = page.getByTestId("sprite-legend");
@@ -124,7 +125,7 @@ test("a turn's takes appear in their rows, a tap picks one into the draft and on
   await page.getByTestId("play-start").click();
   await expectViewMatchesState(page, "cooling");
   await page.getByTestId("tab-sprites").click();
-  const frame = Object.keys(frames.cooling!)[0]!;
+  const frame = frames.cooling![0]!;
   await expect(page.getByTestId(`frame-takes-${frame}`)).toHaveCount(0);
 
   // The row asks the agent, in the chat's own box, for the owner to finish.
@@ -198,7 +199,7 @@ test("a turn's takes appear in their rows, a tap picks one into the draft and on
 
 test("on a service older than picks, a pick stays in the address and the draft is not saved over and over", async ({ page }) => {
   desktopOnly();
-  const frame = Object.keys(frames.cooling!)[0]!;
+  const frame = frames.cooling![0]!;
   const mine = "a".repeat(64);
   const s = await service(page, { login: "octo", save: true, chat: true, takes: [], drafts: [draft({ save: NO_SAVE })] });
   await page.goto("/cooling");
@@ -217,7 +218,7 @@ test("on a service older than picks, a pick stays in the address and the draft i
 test("a link's pick is loaded and drawn on /play, and a take that cannot be read leaves the shipped art and says so", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
-  const frame = Object.keys(frames.cooling!)[0]!;
+  const frame = frames.cooling![0]!;
   const good = "a".repeat(64);
   const gone = "d".repeat(64);
   const asked: string[] = [];
@@ -261,7 +262,7 @@ test("signed out, or with a service that keeps no takes, the rows list none and 
   const s = await service(page, { login: "octo", save: true, chat: true, drafts: [draft({ save: NO_SAVE })] });
   await page.goto("/cooling");
   await page.getByTestId("tab-sprites").click();
-  const frame = Object.keys(frames.cooling!)[0]!;
+  const frame = frames.cooling![0]!;
   await expect(page.getByTestId(`frame-${frame}`)).toBeVisible();
   await expect(page.getByTestId(`ask-new-${frame}`)).toBeVisible();
   expect(s.calls.filter((c) => c.includes("/takes"))).toEqual([]);
