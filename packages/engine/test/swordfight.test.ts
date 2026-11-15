@@ -684,6 +684,19 @@ describe("swordfight determinism (ADR 0003)", () => {
     );
   });
 
+  it("an advanced state's report still carries the logged move's events", () => {
+    // A client may show a placement only through an advanced state: one tick can pass between
+    // taking the move and showing it. The pair it placed must still be in the report.
+    const placed = reduceSwordfight(createSwordfightGame("carry", alone), place(1, 1, 3));
+    const logged = placed.lastMove!.events;
+    expect(logged.some((e) => e.type === "placed")).toBe(true);
+    for (const ahead of [1, 5, 40]) {
+      const shown = advanceSwordfight(placed, placed.tick + ahead);
+      const own = reduceSwordfight(placed, wait(placed.tick + ahead)).lastMove!.events;
+      expect(shown.lastMove!.events).toEqual([...logged, ...own]);
+    }
+  });
+
   it("a different drop gives a different hash", () => {
     const s = createSwordfightGame("h", alone);
     const a = reduceSwordfight(s, place(1, 1, 3));

@@ -9,7 +9,9 @@ export type AgentEvent =
   /** One thing it is doing: a tool, and a line saying what with. */
   | { kind: "step"; id: string; tool: string; summary: string }
   /** How that step went: its output or diff, cut to a readable length. */
-  | { kind: "stepDone"; id: string; detail: string; failed: boolean };
+  | { kind: "stepDone"; id: string; detail: string; failed: boolean }
+  /** More words of the reply being written, as the model writes them. `reset`: the words so far are forgotten first, because the model is writing the message again. Never kept: the whole block follows as a `reply`. */
+  | { kind: "delta"; text: string; reset: boolean };
 
 /** What the service gives a turn: the rules it is held to and the one thing it can change besides files. */
 export interface TurnHost {
@@ -40,8 +42,10 @@ export interface TurnRequest {
 
 export interface TurnResult {
   status: "done" | "failed";
-  /** Why it failed, for the log. */
+  /** What was said as it failed, for the log and the owner. */
   error?: string;
+  /** Why it failed, when it was not the agent's own doing: the runner stopped it for saying nothing. */
+  reason?: "idle";
 }
 
 export interface AgentTurn {

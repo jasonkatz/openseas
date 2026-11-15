@@ -1,9 +1,12 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
 import { context, withNumbers } from "../src/chat/chat.js";
 import { costUsd } from "../src/chat/prices.js";
-import { meterBody } from "../src/chat/proxy.js";
+import { createModelProxy, meterBody } from "../src/chat/proxy.js";
 import { mayWrite, ownFile, repoPath } from "../src/chat/scope.js";
 import { summarize } from "../src/chat/sdkRunner.js";
+import { createLogger } from "../src/log.js";
 
 describe("the puzzle's own files", () => {
   it("are the ones that carry its id, under the packages a puzzle is made of", () => {
@@ -136,5 +139,37 @@ describe("a step's line", () => {
     expect(summarize("Grep", { pattern: "heatRow" })).toBe("heatRow");
     expect(summarize("mcp__studio__set_numbers", { set: { "config.pieceKinds": 5 } })).toBe('{"set":{"config.pieceKinds":5}}');
     expect(summarize("TodoWrite", {})).toBe("");
+  });
+});
+
+describe("the model proxy, when the agent hangs up", () => {
+  it("stops the model too, and still counts what had arrived", async () => {
+    let dropped = false;
+    const upstream = createServer((req, res) => {
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.write(`data: ${JSON.stringify({ type: "message_start", message: { usage: { input_tokens: 1000, output_tokens: 1 } } })}\n\n`);
+      // It would write for a long while yet.
+      req.on("close", () => (dropped = true));
+    });
+    await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+    const proxy = await createModelProxy({ apiKey: "sk-real", upstream: `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`, log: createLogger("silent", false) });
+    try {
+      let spent = 0;
+      const gate = proxy.admit({ open: () => true, spend: (usd) => void (spent += usd) });
+      const stop = new AbortController();
+      const r = await fetch(`${proxy.url}/v1/messages`, { method: "POST", headers: { "x-api-key": gate.token, "content-type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-5-5", stream: true }), signal: stop.signal });
+      expect(r.status).toBe(200);
+      const reader = r.body!.getReader();
+      await reader.read();
+      expect(dropped).toBe(false);
+      stop.abort();
+      await expect.poll(() => dropped, { timeout: 5000 }).toBe(true);
+      await expect.poll(() => spent, { timeout: 5000 }).toBeGreaterThan(0);
+      gate.close();
+    } finally {
+      await proxy.close();
+      upstream.closeAllConnections();
+      await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    }
   });
 });

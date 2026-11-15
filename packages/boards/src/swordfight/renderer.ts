@@ -250,7 +250,7 @@ export class SwordfightRenderer {
   /** Events already shown, per tick and board: how many of that pair's events have been played. */
   private seen = new Map<string, number>();
   /** `placed` is set once the engine took the pair: it then waits for the state that replaces it, so a rest is never logged twice. */
-  private falling: { pair: SwordPair; pc: number; rot: SwordRotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number; refused: number; placed: boolean } | null = null;
+  private falling: { pair: SwordPair; pc: number; rot: SwordRotation; row: number; a: Sprite; b: Sprite; lock: number; resets: number; low: number; refused: number; placed: boolean; drops: number } | null = null;
   private softDrop = false;
   private drag: { x: number; y: number; pc: number; moved: boolean; hurried: boolean; turned: boolean; touch: boolean; held: number; far: boolean } | null = null;
 
@@ -750,7 +750,7 @@ export class SwordfightRenderer {
     a.anchor.set(0.5);
     bb.anchor.set(0.5);
     this.fallingLayer.addChild(a, bb);
-    this.falling = { pair: b.current, pc, rot: 1, row, a, b: bb, lock: 0, resets: 0, low: row, refused: 0, placed: false };
+    this.falling = { pair: b.current, pc, rot: 1, row, a, b: bb, lock: 0, resets: 0, low: row, refused: 0, placed: false, drops: b.drops };
     this.softDrop = false;
     this.idleMs = 0;
     this.placedMs = 0;
@@ -945,6 +945,8 @@ export class SwordfightRenderer {
     if (answer === "placed") {
       f.placed = true;
       this.placedMs = 0;
+      // Taken: the pair is the engine's now, not the player's to steer, until its state lands it.
+      this.positionFalling();
     } else if (answer === "wait") f.refused = 120;
     else {
       // The engine's board is not the one shown: take its word, lift the pair clear and carry on.
@@ -962,7 +964,8 @@ export class SwordfightRenderer {
     const f = this.falling;
     const g = this.ghost;
     g.clear();
-    this.app.canvas.setAttribute("data-falling", f ? `${f.pc},${f.rot},${Math.ceil(f.row)}` : "");
+    // Only a pair in hand is published: a taken one waits for its state and no longer turns.
+    this.app.canvas.setAttribute("data-falling", f && !f.placed ? `${f.pc},${f.rot},${Math.ceil(f.row)}` : "");
     if (!f || !this.state) return;
     this.paintFalling();
     const R = Math.ceil(f.row);
@@ -1355,9 +1358,20 @@ export class SwordfightRenderer {
     if (f.placed) {
       this.placedMs += dt;
       if (this.placedMs > 1500) {
+        this.placedMs = 0;
+        if (s.boards[0]!.drops > f.drops) {
+          // The state has the pair, but its report never reached this board: show the state's board
+          // and deal the next pair, rather than offering the engine the next pair where this one lay.
+          this.dropFalling();
+          this.cells = s.boards[0]!.cells.slice();
+          this.shownSlabs = s.boards[0]!.slabs.slice();
+          this.place(false);
+          this.spawnFalling();
+          return;
+        }
         f.placed = false;
         f.lock = 0;
-        this.placedMs = 0;
+        this.positionFalling();
       }
     } else this.placedMs = 0;
   }

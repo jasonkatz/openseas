@@ -181,6 +181,14 @@ export const SendChatSchema = z.object({
 });
 export type SendChat = z.infer<typeof SendChatSchema>;
 
+/**
+ * Why a turn failed. `agent`: the agent's process ended on an error. `worktree`: the service could
+ * not prepare the draft's worktree. `restart`: the service restarted while the turn ran. `idle`:
+ * the agent said nothing for so long that the service stopped it.
+ */
+export const ChatFailureSchema = z.enum(["agent", "worktree", "restart", "idle"]);
+export type ChatFailure = z.infer<typeof ChatFailureSchema>;
+
 const item = <K extends string, D extends z.ZodRawShape>(kind: K, data: D) => z.object({ id: z.int(), turn: z.int(), kind: z.literal(kind), at: z.iso.datetime(), ...data });
 
 /**
@@ -197,6 +205,10 @@ export const ChatItemSchema = z.discriminatedUnion("kind", [
   item("ask", { path: z.string(), state: z.enum(["pending", "allowed", "refused"]) }),
   item("turn", {
     status: z.enum(["done", "stopped", "failed", "capped"]),
+    /** Why a failed turn failed, as far as the service can say; absent on a turn that did not fail, and on rows from before this was kept. */
+    reason: ChatFailureSchema.nullish(),
+    /** What the agent or the service said as it failed, as it said it, cut short. For the owner to read, not for the message table. */
+    error: z.string().nullish(),
     /** The commit the turn's edits made in the draft's worktree; null when it edited nothing. */
     commit: z.string().nullable(),
     costUsd: z.number(),
@@ -215,8 +227,30 @@ export const ChatStateSchema = z.object({
   cap: z.object({ spentUsd: z.number(), capUsd: z.number() }),
   /** The draft as the service now holds it: the agent's tool moves its numbers, and the page follows. */
   draft: DraftSchema,
+  /** The words of the reply the agent is writing now, so far; empty when it is writing none (ADR 0055). */
+  live: z.string().default(""),
 });
 export type ChatState = z.infer<typeof ChatStateSchema>;
+
+/** A chat without its lines: what changes when a turn starts, spends, moves a number or ends. */
+export const ChatStatusSchema = ChatStateSchema.omit({ items: true, live: true });
+export type ChatStatus = z.infer<typeof ChatStatusSchema>;
+
+/**
+ * One message of a chat's event stream (ADR 0055). `state`: the whole chat, sent first on every
+ * connection, so a page that reconnects needs nothing it had. `item`: a line that is new, or
+ * changed since it was sent (a step's outcome, an answered ask, a reverted turn), told apart by
+ * its id. `delta`: more words of the reply being written; `reset` first forgets the words so far,
+ * when the reply they were part of has arrived whole as an item or is being written again.
+ * `status`: everything of the chat but its lines.
+ */
+export const ChatEventSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("state"), state: ChatStateSchema }),
+  z.object({ type: z.literal("item"), item: ChatItemSchema }),
+  z.object({ type: z.literal("delta"), text: z.string(), reset: z.boolean() }),
+  z.object({ type: z.literal("status"), status: ChatStatusSchema }),
+]);
+export type ChatEvent = z.infer<typeof ChatEventSchema>;
 
 export const ChatRevertSchema = z.object({ turn: z.int().min(1) });
 export const ChatAllowSchema = z.object({ item: z.int(), allow: z.boolean() });

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ChatAllowSchema, ChatRevertSchema, CreateDraftSchema, CreateTesterLinkSchema, SendChatSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, SaveRequestSchema, TakeHashSchema, TesterLinkIdSchema, picksOf, type ChatState, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
-import type { Chat } from "./chat/chat.js";
+import { ChatAllowSchema, ChatRevertSchema, CreateDraftSchema, CreateTesterLinkSchema, SendChatSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, SaveRequestSchema, TakeHashSchema, TesterLinkIdSchema, picksOf, type ChatEvent, type ChatState, type ChatStatus, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
+import type { Chat, ChatSignal } from "./chat/chat.js";
 import type { Db } from "./db/index.js";
 import { createDraft, discardDraft, draftRow, draftRows, saveDraft, toDraft } from "./drafts.js";
 import type { Env } from "./env.js";
@@ -76,6 +76,7 @@ async function readJson(req: IncomingMessage, limit = 32 * 1024): Promise<unknow
  *   POST   /drafts/:id/save   Save (owner): a tester link at once, then its branch and draft pull request
  *   POST   /drafts/:id/update merge the base branch into its branch (owner), when asked
  *   GET    /drafts/:id/chat?after=   its chat since an item, and whether a turn is running (owner)
+ *   GET    /drafts/:id/chat/events   its chat as a stream of events: the whole of it, then what happens (owner, ADR 0055)
  *   POST   /drafts/:id/chat          a message to the agent (owner): a turn, or a steer of the one running
  *   POST   /drafts/:id/chat/stop     stop the turn where it stands (owner)
  *   POST   /drafts/:id/chat/revert   undo one turn's edits with a new commit (owner)
@@ -118,7 +119,7 @@ export function createHttpHandler(deps: HttpDeps) {
     const origin = req.headers.origin;
     const fromStudio = origin !== undefined && env.STUDIO_ORIGINS.includes(origin);
     const linkId = /^\/links\/([^/]+)$/.exec(path)?.[1];
-    const draftPath = /^\/drafts\/([^/]+)(?:\/(save|update|chat|chat\/stop|chat\/revert|chat\/allow))?$/.exec(path);
+    const draftPath = /^\/drafts\/([^/]+)(?:\/(save|update|chat|chat\/events|chat\/stop|chat\/revert|chat\/allow))?$/.exec(path);
     const draftId = draftPath?.[1];
     const draftAct = draftPath?.[2];
     const takeHash = /^\/takes\/([^/]+)$/.exec(path)?.[1];
@@ -237,19 +238,67 @@ export function createHttpHandler(deps: HttpDeps) {
         if (!puzzle.success) return fail(res, 400, "bad_request");
         return json(res, 200, { links: await listLinks(db, puzzle.data) });
       }
-      if (draftId !== undefined && draftAct === "chat" && req.method === "GET") {
+      if (draftId !== undefined && (draftAct === "chat" || draftAct === "chat/events") && req.method === "GET") {
         if (!chat) return fail(res, 503, "unavailable");
         const row = DraftIdSchema.safeParse(draftId).success ? await draftRow(db, login, draftId) : null;
         if (!row) return fail(res, 404, "not_found");
-        const after = Number(url.searchParams.get("after") ?? 0);
-        const state: ChatState = {
-          items: await chat.items(row.id, Number.isInteger(after) && after > 0 ? after : 0),
-          running: chat.running(row.id),
-          spentUsd: row.spentUsd,
-          cap: { spentUsd: await chat.spent(), capUsd: chat.capUsd },
-          draft: toDraft(row),
+        /** Everything of the chat but its lines, as the service holds it now; null when the draft is gone. */
+        const status = async (): Promise<ChatStatus | null> => {
+          const now = await draftRow(db, login, row.id);
+          return now ? { running: chat.running(now.id), spentUsd: now.spentUsd, cap: { spentUsd: await chat.spent(), capUsd: chat.capUsd }, draft: toDraft(now) } : null;
         };
-        return json(res, 200, state);
+        if (draftAct === "chat") {
+          const after = Number(url.searchParams.get("after") ?? 0);
+          const items = await chat.items(row.id, Number.isInteger(after) && after > 0 ? after : 0);
+          const now = await status();
+          if (!now) return fail(res, 404, "not_found");
+          const state: ChatState = { items, ...now, live: chat.live(row.id) };
+          return json(res, 200, state);
+        }
+
+        // The stream (ADR 0055). The rows are still the chat: this says the whole of it first, then each thing as it
+        // happens, so a page that lost the connection asks again and needs nothing it had.
+        res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store, no-transform", "X-Accel-Buffering": "no" });
+        const write = (event: ChatEvent): void => void res.write(`data: ${JSON.stringify(event)}\n\n`);
+        let held: ChatSignal[] | null = [];
+        // One after another, in the order they were told: a status is read from the database, and must not overtake what came before it.
+        let line: Promise<void> = Promise.resolve();
+        const forward = (signal: ChatSignal): void => {
+          line = line
+            .then(async () => {
+              if (signal.type !== "status") return write(signal);
+              const now = await status();
+              if (now) write({ type: "status", status: now });
+            })
+            .catch((err: unknown) => log.warn({ err, draft: row.id }, "chat stream: could not send an event"));
+        };
+        // Listening before the chat is read, so nothing falls between the two.
+        const leave = chat.subscribe(row.id, (signal) => (held ? void held.push(signal) : forward(signal)));
+        // A proxy between here and the page closes a connection that says nothing; a comment is nothing to the page.
+        const beat = setInterval(() => void res.write(": still here\n\n"), 15_000);
+        const end = (): void => {
+          clearInterval(beat);
+          leave();
+        };
+        req.on("close", end);
+        res.on("error", end);
+        try {
+          const items = await chat.items(row.id, 0);
+          const now = await status();
+          if (!now) return void res.end();
+          // Read in the same breath as the held events are let go: the words so far are exactly those of the deltas
+          // told before now, which are dropped, and every delta after is sent.
+          write({ type: "state", state: { items, ...now, live: chat.live(row.id) } });
+          const waiting = held.filter((signal) => signal.type !== "delta");
+          held = null;
+          // A line told while the chat was read may be in what was read: it is the same line, by its id.
+          for (const signal of waiting) forward(signal);
+        } catch (err) {
+          end();
+          res.end();
+          log.warn({ err, draft: row.id }, "chat stream: could not send the chat");
+        }
+        return;
       }
       if (!fromStudio) return fail(res, 403, "forbidden");
       if (path === "/links" && req.method === "POST") {

@@ -15,7 +15,7 @@ const write = async (page: Page, text: string): Promise<void> => {
 test.describe("chat", () => {
   test.beforeEach(() => test.skip(test.info().project.name !== "desktop", "the studio is a desktop tool"));
 
-  test("a message carries the model picked, what the build refuses and the rounds played, and the reply is shown whole", async ({ page }) => {
+  test("a message carries the model picked, what the build refuses and the rounds played, and the reply is read as markdown", async ({ page }) => {
     const s = await service(page, { login: "octo", save: true, chat: true, drafts: [draft({ save: NO_SAVE })] });
     await page.goto("/cooling");
     await expect(chat(page)).toBeVisible();
@@ -47,7 +47,7 @@ test.describe("chat", () => {
     s.say("step", { tool: "mcp__studio__set_numbers", summary: '{"set":{"config.pieceKinds":4}}', detail: "Set.", failed: false });
     s.drafts[0]!.numbers = numbers({ overrides: { pieceKinds: 4 } });
     s.drafts[0]!.revision += 1;
-    s.say("reply", { text: "Four kinds now.\n\n  <b>Not</b> markup: shown as written." });
+    s.say("reply", { text: "Four kinds now.\n\n- **Fewer** kinds\n- `pieceKinds` is 4\n\n<b>Not</b> markup: shown as written.\n\n![a picture](https://example.com/tracker.png)" });
     s.chat.spentUsd = 0.42;
     s.chat.cap.spentUsd = 1.5;
     s.say("turn", { status: "done", commit: null, costUsd: 0.42, reverted: false });
@@ -56,7 +56,15 @@ test.describe("chat", () => {
     // The control moved, with no click on it, and nothing was saved back over the agent's number.
     await expect(page.getByTestId("input-config.pieceKinds")).toHaveValue("4");
     await expect(page.getByTestId("draft-store")).toHaveAttribute("data-revision", "4");
-    await expect(page.getByTestId("chat-reply")).toHaveText("Four kinds now.\n\n  <b>Not</b> markup: shown as written.");
+    // The agent's words are markdown: a list, a code span. HTML in them is shown as written, never run, and a picture is its address, never fetched.
+    const reply = page.getByTestId("chat-reply");
+    await expect(reply).toContainText("Four kinds now.");
+    await expect(reply.locator("li")).toHaveText(["Fewer kinds", "pieceKinds is 4"]);
+    await expect(reply.locator("li code")).toHaveText("pieceKinds");
+    await expect(reply).toContainText("<b>Not</b> markup: shown as written.");
+    await expect(reply.locator("b, img")).toHaveCount(0);
+    await expect(reply.getByRole("link", { name: "a picture" })).toHaveAttribute("href", "https://example.com/tracker.png");
+    await expect(page.getByTestId("chat-step")).toHaveAttribute("data-state", "done");
     await expect(page.getByTestId("chat-step")).toContainText("set_numbers");
     await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done");
     await expect(page.getByTestId("chat-turn")).toContainText("$0.42");
@@ -110,6 +118,62 @@ test.describe("chat", () => {
     await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-reverted", "1");
     await expect(page.getByTestId("chat-revert")).toHaveCount(0);
     expect(s.writes.at(-1)).toEqual({ call: "POST /drafts/draftdraft/chat/revert", body: { turn: 1 } });
+  });
+
+  test("the reply is shown as it is written, and a turn that failed says why", async ({ page }) => {
+    const s = await service(page, { login: "octo", save: true, chat: true, drafts: [draft({ save: NO_SAVE })] });
+    await page.goto("/cooling");
+    await write(page, "What does slag do?");
+    s.say("step", { tool: "Read", summary: "docs/puzzles/cooling.md", detail: null, failed: false });
+    await expect(page.getByTestId("chat-step")).toHaveAttribute("data-state", "running");
+    // Half a reply, mid-emphasis: the words so far, with no stray marks.
+    s.chat.live = "Slag blocks a **col";
+    await expect(page.getByTestId("chat-live")).toHaveText("Slag blocks a col");
+    s.chat.live = "Slag blocks a **column** until";
+    await expect(page.getByTestId("chat-live")).toHaveText("Slag blocks a column until");
+    await expect(page.getByTestId("chat-reply")).toHaveCount(0);
+    // The whole reply takes its place.
+    s.chat.live = "";
+    s.say("reply", { text: "Slag blocks a **column** until it is cleared." });
+    await expect(page.getByTestId("chat-reply")).toHaveText("Slag blocks a column until it is cleared.");
+    await expect(page.getByTestId("chat-live")).toHaveCount(0);
+
+    s.say("turn", { status: "failed", commit: null, costUsd: 0.02, reverted: false, reason: "agent", error: "No conversation found with session ID: 1234" });
+    s.chat.running = false;
+    const ended = page.getByTestId("chat-turn");
+    await expect(ended).toHaveAttribute("data-reason", "agent");
+    await expect(ended).toContainText("the agent stopped on an error");
+    await ended.getByTestId("chat-turn-error").locator("summary").click();
+    await expect(ended.getByTestId("chat-turn-error").locator("pre")).toHaveText("No conversation found with session ID: 1234");
+    // The step never said how it went, and its turn is over: it is not shown as still running.
+    await expect(page.getByTestId("chat-step")).toHaveAttribute("data-state", "cut");
+    await expect(page.getByTestId("chat-working")).toHaveCount(0);
+    await expect(page.getByTestId("chat-send")).toHaveText("Send");
+  });
+
+  test("with the live connection down the page says so, and still shows the chat", async ({ page }) => {
+    const s = await service(page, { login: "octo", save: true, chat: true, drafts: [draft({ save: NO_SAVE })] });
+    await page.goto("/cooling");
+    await write(page, "Tidy up.");
+    await expect(page.getByTestId("chat-working")).toBeVisible();
+    await expect(page.getByTestId("chat-down")).toHaveCount(0);
+
+    s.streamDown = true;
+    await expect(page.getByTestId("chat-down")).toBeVisible({ timeout: 15_000 });
+    // The rows are still the chat: asked for, they arrive.
+    s.say("reply", { text: "Tidied." });
+    s.say("turn", { status: "done", commit: null, costUsd: 0.01, reverted: false });
+    s.chat.running = false;
+    await expect(page.getByTestId("chat-reply")).toHaveText("Tidied.");
+    await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "done");
+    // A message sent meanwhile is shown all the same.
+    await write(page, "And the guide?");
+    await expect(page.getByTestId("chat-user").nth(1)).toContainText("And the guide?");
+
+    s.streamDown = false;
+    await expect(page.getByTestId("chat-down")).toHaveCount(0, { timeout: 30_000 });
+    s.say("reply", { text: "The guide too." });
+    await expect(page.getByTestId("chat-reply").nth(1)).toHaveText("The guide too.");
   });
 
   test("the first message opens a draft for the chat to belong to", async ({ page }) => {
