@@ -720,12 +720,17 @@ are delivered. In the studio the agent no longer places a take; Save does.
 That completes the step. What is left of M9 is the live build of a draft's worktree (ADR 0042
 decision 7).
 
+**The page is laid out as a design tool** (ADR 0055), built. Nothing above changes in what the
+studio does; where each thing sits does, and where this section's account of the steps says "the
+tuning panel" or "the side panel", **Layout and modes** below says where that now is. The one
+thing added is that the Play panel lists the last rounds finished on the page.
+
 The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
 agent reads:
 
 | The skill asks | The studio answers with |
 |---|---|
-| Numbers live in content (rule 18) | The tuning panel is built from the puzzle's content file and bounded by its wire schema |
+| Numbers live in content (rule 18) | The numbers panels are built from the puzzle's content file and bounded by its wire schema |
 | Thresholds and a live pace (rules 16, 17) | `thresholds` and `paceSeconds` are controls, tuned by hand with the HUD's tier in view |
 | Reads without color (rule 22) | The sprite panel previews every frame with the marks setting on and off |
 | Its own sprites and sounds, the owner picking every take (rule 23) | The asset panels show each frame's and cue's takes, and a pick is one tap |
@@ -734,21 +739,50 @@ agent reads:
 | Report every bar item as met or broken | The developer who finishes the pull request reports it |
 
 **Who and where.** The owner signs in with GitHub. Tester links are public. The studio is laid out
-for a desktop: the board in the middle at a phone's proportions, tuning and assets to one side,
-the chat to the other. On a phone there is no studio, only play.
+for a desktop: the board in the middle at a phone's proportions, a rail of modes and the mode's
+panel to its left, the chat to its right. On a phone there is no studio, only play.
 
 **Home.** A grid of all fifteen puzzles, the game's and the prototypes treated alike, each with a
 live thumbnail and a mark for an open draft or pull request. Each puzzle keeps its path
 (`/cooling`, `/salvage`), and the old query string (`seed`, `c.<path>`) still opens a tuned round.
 
+**Layout and modes** (ADR 0055).
+
+- A bar across the top. On its left, where the page is: the way back to the grid, the puzzle's
+  name, which opens a menu of every puzzle, and a count of what the draft changes. The count opens
+  the list: each changed number with its value and the shipped one, each picked take, a way to its
+  control, a button that puts it back, and Reset all. While the server would refuse the draft the
+  count says so instead. On its right, what becomes of the draft: whether the service has it, a
+  Share menu (the play link, tester links, sign-in, discarding the draft) and Save, with a sheet
+  beside it that holds a name for the tester link and how the draft stands with its pull request.
+- A rail of six modes down the left edge, as icons with their names on hover, in three clusters:
+  **Play**; then **Setup**, **Tuning** and **Scoring**, the puzzle's numbers; then **Sprites**
+  and **Sounds**. A mode that holds a change carries a dot.
+- One panel beside the rail, which is the mode's. It is always there, so the board never moves.
+  Play holds the round: a starting point, the seed, the round dealt again, the shipped numbers
+  held against the draft's, and the last five rounds finished on the page (seed, which numbers,
+  length, tier, score). Setup holds the board group, the round's length and the limits group;
+  Tuning the deal and pace groups; Scoring the scoring group, the live tier's window and the
+  thresholds. The three share a search that shows the matching numbers from all of them, a switch
+  that shows each number's line of description, and the switch that deals the round again on a
+  change.
+- The board in the middle, in every mode, exactly as `/play` draws it.
+- The chat on the right, and a line along the bottom that says whether the server would accept
+  the draft's numbers and which seed is on the board.
+- While the page is on an address's numbers and not on the owner's draft, a band under the top
+  bar says so and holds the two ways out (ADR 0045).
+
 **Tuning.**
 
 - A control for every key under `config`, for `roundSeconds`, for each threshold and for
   `paceSeconds`: a slider for a range, a stepper for a small whole number, a curve for a list.
-  Each shows its key as the content file spells it, one line of description kept beside the wire
-  schema (`.describe()` on the key in `protocol`), and a unit read from the name (permille,
-  percent, points, moves). A small file a puzzle groups them into the same five sections (board,
-  deal, pace, scoring, limits), and the round's length, pace and thresholds make a sixth. A key
+  Each is labelled with its key read as words (`heatRisePerMoves` as "Heat rise per moves"), with
+  the key as the content file spells it and one line of description kept beside the wire schema
+  (`.describe()` on the key in `protocol`) in its title, and a unit read from the name where the
+  label does not already say it (permille, percent, milliseconds, seconds). A small file a puzzle
+  groups them into the same five sections (board, deal, pace, scoring, limits); the round's
+  length is a sixth and the pace with the thresholds a seventh, and each section belongs to one
+  of the three numbers modes. A key
   that is none of a number, a list of numbers, a switch or a choice (a deck's layout, a fight's
   line-up) is edited as its JSON. The old lab presets are named starting points.
 - A change restarts the round on the same seed once the hand stops, unless that is pinned off.
@@ -756,13 +790,14 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   replayed or dealt afresh.
 - A config the server would refuse does not run, and the control that caused it says why. Every
   round is replayed when it ends; a mark appears only if the hashes differ.
-- A changed control carries a dot that puts it back.
+- A changed control carries a dot, and a button beside it that puts it back.
 - Sizes and limits fixed in an engine's code are not controls. They are asked for in the chat.
 
 **Sprites and sounds.**
 
-- The sprite panel lists every frame in the puzzle's atlas; the sound panel every cue its board
-  plays. A row shows the current pick and the takes kept for it. Sprites show at board size.
+- The sprite panel is a grid of every frame in the puzzle's atlas, and the sound panel a list of
+  every cue its board plays. The frame or cue picked out shows the current pick and the takes
+  kept for it. Sprites show at board size.
   Sounds play on a tap, and the synthesized cue is listed as a pick (ADR 0041).
 - A pick changes the running board at once: a frame makes the board again on the round as it
   stands, and a cue is heard the next time it plays (ADR 0050).

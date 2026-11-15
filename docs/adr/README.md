@@ -60,3 +60,4 @@ that supersedes it.
 | [0052](./0052-a-pick-is-the-drafts-and-a-tester-link-carries-it.md) | A pick is the draft's: kept with its numbers, frozen in a tester link, and loaded by `/play` |
 | [0053](./0053-a-picked-frame-ships-as-its-own-image-and-save-places-picks.md) | A picked frame ships as its own image over the atlas, and Save places a draft's picks as their takes' bytes |
 | [0054](./0054-each-frame-is-a-file-and-the-build-packs-the-atlas.md) | Each frame is a file of its own, and the build packs every puzzle's atlas |
+| [0055](./0055-the-studio-is-laid-out-as-a-design-tool.md) | The studio's page is laid out as a design tool: a top bar, a rail of modes, one panel |

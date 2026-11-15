@@ -14,9 +14,9 @@ import { localSeed } from "../practice/usePractice.js";
  * from the shipped ones. No way back to the studio, no sign-in, no round sent anywhere. If the
  * current build refuses the link's numbers, the page says so and deals nothing.
  *
- * The studio's page puts this same column in its middle (studio/StudioShell), where the tuning
- * panel beside it holds the seed and the numbers, so the sheet leaves them out, and a refused
- * draft keeps its board and only cannot be started.
+ * The studio's page puts this same column in its middle (studio/StudioShell), where the panels
+ * beside it hold the seed and the numbers, so the sheet leaves them out, and a refused draft
+ * keeps its board and only cannot be started.
  */
 export function PlayShell(p: ShellProps) {
   const frame = useFrame();

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { expectViewMatchesState } from "./helpers.js";
+import { expectViewMatchesState, shown } from "./helpers.js";
 
 /**
  * A puzzle's studio page (DESIGN.md 3.14, ADR 0042): the board with the tuning panel beside it.
@@ -21,12 +21,17 @@ for (const puzzle of PUZZLES) {
     const panel = page.getByTestId("tuning");
     // Every key is in a section, each with its line from beside the wire schema.
     await expect(panel.getByTestId("group-other")).toHaveCount(0);
+    // The numbers are split over three modes (ADR 0055): the board and the round, the deal and the pace, the scoring and the rating.
+    await page.getByTestId("tab-setup").click();
     await expect(control(page, "config.maxMoves")).toBeVisible();
     await expect(control(page, "config.maxMoves").locator(".tune-desc")).not.toBeEmpty();
     await expect(control(page, "roundSeconds")).toBeVisible();
+    await expect(control(page, "paceSeconds")).toBeHidden();
+    await page.getByTestId("tab-scoring").click();
     await expect(control(page, "paceSeconds")).toBeVisible();
     await expect(control(page, "thresholds")).toBeVisible();
-    await expect(page.getByTestId("changed-count")).toHaveText("The shipped numbers.");
+    await expect(control(page, "roundSeconds")).toBeHidden();
+    await expect(page.getByTestId("changed-count")).toHaveText("Shipped numbers");
 
     await page.getByTestId("play-start").click();
     await expect(page.getByTestId(`${puzzle}-canvas`)).toBeVisible();
@@ -46,7 +51,7 @@ test("a changed number deals the same seed again, carries a dot that puts it bac
   await expect(page.getByTestId("hud-moves")).toContainText("1");
 
   // One more kind of piece: the round is dealt again on the same seed, and the address bar holds the draft.
-  await page.getByTestId("more-config.pieceKinds").click();
+  await (await shown(page, "more-config.pieceKinds")).click();
   await expect(page).toHaveURL(/c\.pieceKinds=8/);
   await expect(control(page, "config.pieceKinds")).toHaveAttribute("data-changed", "1");
   await expect(page.getByTestId("changed-count")).toContainText("1");
@@ -56,7 +61,7 @@ test("a changed number deals the same seed again, carries a dot that puts it bac
   expect(tuned).not.toBe(shipped);
 
   // Held, the shipped numbers are dealt on that seed; let go, the draft's are again.
-  const compare = page.getByTestId("compare");
+  const compare = await shown(page, "compare");
   await compare.hover();
   await page.mouse.down();
   await expect(page.getByTestId("comparing")).toBeVisible();
@@ -66,7 +71,7 @@ test("a changed number deals the same seed again, carries a dot that puts it bac
   await expect.poll(() => board(page)).toBe(tuned);
 
   // The dot puts the one number back.
-  await page.getByTestId("reset-config.pieceKinds").click();
+  await (await shown(page, "reset-config.pieceKinds")).click();
   await expect(page).not.toHaveURL(/pieceKinds/);
   await expect(control(page, "config.pieceKinds")).toHaveAttribute("data-changed", "0");
   await expect.poll(() => board(page)).toBe(shipped);
@@ -75,7 +80,7 @@ test("a changed number deals the same seed again, carries a dot that puts it bac
 test("a number the server would refuse says why on its own control, and nothing is dealt on it", async ({ page }) => {
   desktopOnly();
   await page.goto("/cooling?seed=studio-2");
-  await page.getByTestId("input-config.streakMaxPercent").fill("20");
+  await (await shown(page, "input-config.streakMaxPercent")).fill("20");
   await expect(page.getByTestId("refusal-config.streakMaxPercent")).toBeVisible();
   await expect(page.getByTestId("changed-count")).toContainText("refuse");
   await expect(page.getByTestId("play-start")).toBeDisabled();
@@ -83,7 +88,7 @@ test("a number the server would refuse says why on its own control, and nothing 
   // The other controls are not blamed.
   await expect(page.getByTestId("refusal-config.pieceKinds")).toHaveCount(0);
 
-  await page.getByTestId("reset-all").click();
+  await (await shown(page, "reset-all")).click();
   await expect(page.getByTestId("refusal-config.streakMaxPercent")).toHaveCount(0);
   await expect(page.getByTestId("play-start")).toBeEnabled();
   await expect(page).not.toHaveURL(/streakMaxPercent/);
@@ -92,18 +97,18 @@ test("a number the server would refuse says why on its own control, and nothing 
 test("the round is left alone when dealing again is pinned off", async ({ page }) => {
   desktopOnly();
   await page.goto("/cooling?seed=studio-3");
-  await page.getByTestId("restart-on-change").uncheck();
+  await (await shown(page, "restart-on-change")).uncheck();
   await page.getByTestId("play-start").click();
   await expectViewMatchesState(page, "cooling");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
-  await page.getByTestId("more-config.pieceKinds").click();
+  await (await shown(page, "more-config.pieceKinds")).click();
   await expect(page).toHaveURL(/c\.pieceKinds=8/);
   await page.waitForTimeout(900);
   await expect(page.getByTestId("hud-moves")).toContainText("1");
   // The next deal is on the draft.
-  await page.getByTestId("seed-replay").click();
+  await (await shown(page, "seed-replay")).click();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
 });
 
@@ -115,23 +120,23 @@ test("a seed can be pinned, replayed and dealt afresh", async ({ page }) => {
   const first = await board(page);
   await expect(page).not.toHaveURL(/seed=/);
 
-  await page.getByTestId("seed-pin").click();
+  await (await shown(page, "seed-pin")).click();
   await expect(page).toHaveURL(/seed=local-/);
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
-  await page.getByTestId("seed-replay").click();
+  await (await shown(page, "seed-replay")).click();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
   await expectViewMatchesState(page, "cooling");
   expect(await board(page)).toBe(first);
 
   const pinned = page.url();
-  await page.getByTestId("seed-new").click();
+  await (await shown(page, "seed-new")).click();
   await expect(page).not.toHaveURL(pinned);
   await expect.poll(() => board(page)).not.toBe(first);
 
   // A typed seed is a pinned seed.
-  await page.getByTestId("seed-input").fill("studio-typed");
+  await (await shown(page, "seed-input")).fill("studio-typed");
   await expect(page).toHaveURL(/seed=studio-typed/);
 });
 
@@ -139,20 +144,20 @@ test("a starting point, a curve and a threshold all land in the draft, and the p
   desktopOnly();
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/cooling?seed=studio-4");
-  await page.getByTestId("start-from").selectOption("three_kinds");
+  await (await shown(page, "start-from")).selectOption("three_kinds");
   await expect(page).toHaveURL(/c\.pieceKinds=3/);
   await expect(page.getByTestId("input-config.pieceKinds")).toHaveValue("3");
 
-  await page.getByTestId("longer-config.cascadeMultipliers").click();
-  await page.getByTestId("input-config.cascadeMultipliers.3").fill("5");
+  await (await shown(page, "longer-config.cascadeMultipliers")).click();
+  await (await shown(page, "input-config.cascadeMultipliers.3")).fill("5");
   await expect(page).toHaveURL(new RegExp(`c\\.cascadeMultipliers=${encodeURIComponent("[1,2,3,5]")}`));
 
-  await page.getByTestId("input-thresholds.0").fill("95");
+  await (await shown(page, "input-thresholds.0")).fill("95");
   await expect(page).toHaveURL(/thresholds=/);
   await expect(control(page, "thresholds")).toHaveAttribute("data-changed", "1");
   await expect(page.getByTestId("changed-count")).toContainText("3");
 
-  await page.getByTestId("copy-play-link").click();
+  await (await shown(page, "copy-play-link")).click();
   const link = await page.evaluate(() => navigator.clipboard.readText());
   expect(link).toContain("/play/cooling?");
   expect(link).toContain("c.pieceKinds=3");
@@ -172,4 +177,73 @@ test("on a phone a puzzle's page only plays", async ({ page }) => {
   await expect(page.getByTestId("tuning")).toHaveCount(0);
   await page.getByTestId("play-start").click();
   await expect(page.getByTestId("cooling-canvas")).toBeVisible();
+});
+
+test("the rail turns the panel to a mode, a search finds a number in any of them, and the top bar lists what changed and leads back to it", async ({ page }) => {
+  desktopOnly();
+  await page.goto("/cooling?seed=studio-5");
+  // The page opens on Play: the round's panel, and no numbers.
+  await expect(page.getByTestId("tab-play")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("seed-input")).toBeVisible();
+  await expect(page.getByTestId("tuning")).toBeHidden();
+
+  await page.getByTestId("tab-setup").click();
+  await expect(page.getByTestId("seed-input")).toBeHidden();
+  await expect(control(page, "config.width")).toBeVisible();
+  await expect(control(page, "config.heatRisePerMoves")).toBeHidden();
+  await page.getByTestId("tab-tuning").click();
+  await expect(control(page, "config.heatRisePerMoves")).toBeVisible();
+  await expect(control(page, "config.width")).toBeHidden();
+
+  // A search shows the matching numbers whatever mode they are tuned in, and turning the rail ends it.
+  await page.getByTestId("find").fill("streak");
+  await expect(control(page, "config.streakMaxPercent")).toBeVisible();
+  await expect(control(page, "config.heatRisePerMoves")).toBeHidden();
+  await page.getByTestId("find").fill("no such number");
+  await expect(page.getByTestId("find-none")).toBeVisible();
+  await page.getByTestId("tab-setup").click();
+  await expect(page.getByTestId("find")).toHaveValue("");
+  await expect(control(page, "config.width")).toBeVisible();
+
+  // A change marks its mode on the rail and is listed in the top bar, which leads back to its control and puts it back.
+  await page.getByTestId("more-config.pieceKinds").click();
+  await expect(page.getByTestId("changed-count")).toHaveText("1 changed");
+  await expect(page.getByTestId("tab-dot-setup")).toBeVisible();
+  await expect(page.getByTestId("tab-dot-tuning")).toHaveCount(0);
+  await page.getByTestId("tab-play").click();
+  await page.getByTestId("changed-count").click();
+  await page.getByTestId("change-config.pieceKinds").locator(".menu-item").click();
+  await expect(page.getByTestId("tab-setup")).toHaveAttribute("aria-selected", "true");
+  await expect(control(page, "config.pieceKinds")).toBeVisible();
+  await page.getByTestId("changed-count").click();
+  await page.getByTestId("change-config.pieceKinds").locator(".num-reset").click();
+  await expect(page.getByTestId("changed-count")).toHaveText("Shipped numbers");
+  await expect(page.getByTestId("tab-dot-setup")).toHaveCount(0);
+
+  // The menu of puzzles leads to another's page.
+  await page.getByTestId("menu-puzzle").click();
+  await page.getByTestId("goto-engines").click();
+  await expect(page).toHaveURL(/\/engines$/);
+  await expect(page.getByTestId("menu-puzzle")).toContainText("Engines");
+});
+
+test("the Play panel keeps the last rounds finished on the page, and says which numbers each was dealt on", async ({ page }) => {
+  desktopOnly();
+  await page.goto("/cooling?seed=studio-6");
+  await expect(page.getByTestId("last-round")).toHaveCount(0);
+  const finish = async (): Promise<void> => {
+    await expect(page.getByTestId("cooling-canvas")).toBeVisible();
+    await page.evaluate(() => {
+      window.openseasRoundClock!.pause();
+      window.openseasRoundClock!.step(10 * 60 * 1000);
+    });
+    await expect(page.getByTestId("result-tier")).toBeVisible();
+  };
+  await page.getByTestId("play-start").click();
+  await finish();
+  await expect(page.getByTestId("last-round")).toHaveCount(1);
+  await expect(page.getByTestId("last-round").first()).toContainText("studio-6");
+  await page.getByTestId("seed-replay").click();
+  await finish();
+  await expect(page.getByTestId("last-round")).toHaveCount(2);
 });

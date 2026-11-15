@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Once the board settles, what the canvas draws must be the engine's board, piece for piece. Both
@@ -27,4 +27,22 @@ export async function boardGeom(page: Page, puzzle: string): Promise<{ ox: numbe
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");
   return { ox: box.x + gx, oy: box.y + gy, cell };
+}
+
+/**
+ * The studio shows one mode's panel and one menu at a time (ADR 0055), and keeps the rest in the
+ * page out of sight. Bring forward whatever holds this control, the mode on the rail or the menu
+ * off the top bar, and hand the control back to act on.
+ */
+export async function shown(page: Page, testId: string): Promise<Locator> {
+  const control = page.getByTestId(testId).first();
+  await control.waitFor({ state: "attached" });
+  if (await control.isVisible()) return control;
+  const held = await control.evaluate((el) => ({
+    mode: el.closest("[data-mode-panel]")?.getAttribute("data-mode-panel") ?? null,
+    menu: el.closest("[data-menu]")?.getAttribute("data-menu") ?? null,
+  }));
+  if (held.mode) await page.getByTestId(`tab-${held.mode}`).click();
+  if (held.menu) await page.locator(`.menu:has(> [data-menu="${held.menu}"]) [aria-haspopup]`).click();
+  return control;
 }

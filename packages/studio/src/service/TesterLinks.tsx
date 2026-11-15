@@ -16,10 +16,10 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /**
- * The tuning panel's tester links (DESIGN.md 3.14): freeze the draft on the board as a link by
+ * The Share menu's tester links (DESIGN.md 3.14, ADR 0055): freeze the draft on the board as a link by
  * id, see this puzzle's links, withdraw one. Only the signed-in owner can; the service decides
  * who that is. With no service configured there is nothing to show, and with one that cannot be
- * reached the panel says so and everything else in the studio carries on.
+ * reached the menu says so and everything else in the studio carries on.
  */
 export function TesterLinks() {
   const { puzzle, scenario, refusals, changes } = useFrame();
@@ -75,7 +75,7 @@ export function TesterLinks() {
 
   if (!SERVICE_URL || me === "loading") return null;
   return (
-    <section className="tune-draft" data-testid="tester-links">
+    <section className="menu-sec" data-testid="tester-links">
       <span className="stat-label">{t("studio.links")}</span>
       {me === null && (
         <p className="muted small" data-testid="links-unreachable">

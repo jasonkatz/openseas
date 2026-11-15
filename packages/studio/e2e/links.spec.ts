@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { expectViewMatchesState } from "./helpers.js";
+import { expectViewMatchesState, shown } from "./helpers.js";
 
 /**
  * Tester links by id (ADR 0042 decision 11, ADR 0043). No service runs under the smoke: these
@@ -123,19 +123,19 @@ test("the signed-in owner freezes a draft as a link, sees the puzzle's links, an
   await expect(page.getByTestId(`link-${LINK}`)).toContainText("Five kinds");
 
   await expect(page.getByTestId("link-make")).toBeDisabled();
-  await page.getByTestId("link-name").fill("Four kinds, short");
-  await page.getByTestId("link-make").click();
+  await (await shown(page, "link-name")).fill("Four kinds, short");
+  await (await shown(page, "link-make")).click();
   await expect(page.getByTestId("link-zzzzzzzz99")).toContainText("Four kinds, short");
   expect(calls.made).toEqual([{ puzzle: "cooling", name: "Four kinds, short", draft: { seed: "studio-9", overrides: { pieceKinds: 4 }, roundSeconds: 45, paceSeconds: null, thresholds: null, picks: { sprites: {}, sounds: {} } } }]);
   expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/play\/zzzzzzzz99$/);
 
-  await page.getByTestId(`link-withdraw-${LINK}`).click();
+  await (await shown(page, `link-withdraw-${LINK}`)).click();
   await expect(page.getByTestId(`link-${LINK}`)).toHaveCount(0);
   expect(calls.withdrawn).toEqual([LINK]);
 
   // A refused draft cannot be frozen.
-  await page.getByTestId("link-name").fill("Broken");
-  await page.getByTestId("input-config.streakMaxPercent").fill("20");
+  await (await shown(page, "link-name")).fill("Broken");
+  await (await shown(page, "input-config.streakMaxPercent")).fill("20");
   await expect(page.getByTestId("link-make")).toBeDisabled();
 });
 
@@ -149,7 +149,7 @@ test("without a session the panel offers sign-in, and without the service the st
   await page.unroute(`${SERVICE}/**`);
   await page.route(`${SERVICE}/**`, (route) => route.abort());
   await page.goto("/cooling");
-  await expect(page.getByTestId("links-unreachable")).toBeVisible();
+  await expect(await shown(page, "links-unreachable")).toBeVisible();
   await expect(page.getByTestId("copy-play-link")).toBeEnabled();
   await page.getByTestId("play-start").click();
   await expect(page.getByTestId("cooling-canvas")).toBeVisible();
