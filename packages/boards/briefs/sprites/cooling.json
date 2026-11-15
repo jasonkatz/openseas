@@ -1,0 +1,6 @@
+{
+  "refs": ["cooling:valve", "cooling:bolt", "cooling:fuse"],
+  "frames": {
+    "cog": "a red machine cog: a toothed gear wheel of glossy crimson painted steel with a round hub hole, worn paint and a few rivets, evenly spaced square teeth around its rim."
+  }
+}
