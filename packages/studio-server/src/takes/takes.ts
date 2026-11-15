@@ -27,6 +27,8 @@ export interface Takes {
   list(puzzle: string): Promise<Take[]>;
   /** A take's bytes and how to serve them, or null when there is no such take. */
   read(hash: string): Promise<{ bytes: Buffer; contentType: string } | null>;
+  /** What a take is a take of, from its row alone; null when no take has that hash. */
+  info(hash: string): Promise<Pick<Take, "kind" | "puzzle" | "name" | "draft" | "take"> | null>;
 }
 
 export function createTakes(o: { db: Db; store: TakeStore; log: Logger }): Takes {
@@ -72,6 +74,10 @@ export function createTakes(o: { db: Db; store: TakeStore; log: Logger }): Takes
       if (!row) return null;
       const bytes = await store.get(keyOf(hash));
       return bytes ? { bytes, contentType: TAKE_TYPES[row.kind] } : null;
+    },
+    async info(hash) {
+      const [row] = await db.select().from(schema.take).where(eq(schema.take.hash, hash)).limit(1);
+      return row ? { kind: row.kind, puzzle: row.puzzle as Take["puzzle"], name: row.name, draft: row.draftId, take: row.take } : null;
     },
   };
 }

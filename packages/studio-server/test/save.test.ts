@@ -117,7 +117,7 @@ describeDb("save", () => {
     expect((await fetch(`${base}/links/${started.link.id}`)).status).toBe(200);
 
     const branch = `studio/cooling-${draft.id}`;
-    expect(saved.save).toEqual({ state: "idle", error: null, pull: { number: 101, url: "https://github.test/pull/101" }, savedRevision: 1, behind: false, edits: false });
+    expect(saved.save).toEqual({ state: "idle", error: null, pull: { number: 101, url: "https://github.test/pull/101" }, savedRevision: 1, behind: false, edits: false, detail: null });
     // The file on the remote's branch is the shipped one with those four numbers changed and not a byte else.
     const want = shipped.replace('"pieceKinds": 7', '"pieceKinds": 5').replace('"charge": 12', '"charge": 40').replace('  "roundSeconds": 150,', '  "paceSeconds": 12,\n  "roundSeconds": 120,');
     expect(remote(branch)).toBe(want);
@@ -283,7 +283,7 @@ describeDb("a service with no clone or no App", () => {
       await app.db.delete(schema.draft);
       const made = await fetch(`${base}/drafts`, { method: "POST", headers: { origin: STUDIO, cookie: session }, body: JSON.stringify({ puzzle: "cooling", numbers: { seed: null, overrides: { pieceKinds: 5 }, roundSeconds: null, paceSeconds: null, thresholds: null } }) });
       const draft = DraftSchema.parse(await made.json());
-      expect(draft.save).toEqual({ state: "idle", error: null, pull: null, savedRevision: null, behind: false, edits: false });
+      expect(draft.save).toEqual({ state: "idle", error: null, pull: null, savedRevision: null, behind: false, edits: false, detail: null });
       const save = await fetch(`${base}/drafts/${draft.id}/save`, { method: "POST", headers: { origin: STUDIO, cookie: session }, body: JSON.stringify({ revision: 1, name: "x" }) });
       expect(save.status).toBe(503);
       expect(await save.json()).toEqual({ error: "unavailable" });

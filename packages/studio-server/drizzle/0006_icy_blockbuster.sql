@@ -1,0 +1,1 @@
+ALTER TABLE "studio"."draft" ADD COLUMN "save_error_detail" text;

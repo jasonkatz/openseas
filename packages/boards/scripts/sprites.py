@@ -3,7 +3,7 @@
   sprites.py gen <puzzle> [frame ...] [--takes N]   new takes into .art/sprites/<puzzle>/, then a review
   sprites.py review <puzzle>                        rebuild the review page and contact sheet
   sprites.py frames <puzzle>                        write each take as the frame it would be placed as
-  sprites.py place <puzzle> <frame> <take>          fit one take to a 192px frame, into the atlas
+  sprites.py place <puzzle> <frame> <take>          fit one take to a 192px frame, as its override
 
 The brief is packages/boards/briefs/sprites/<puzzle>.json; the style every sheet is painted to is
 packages/boards/briefs/sprite-style.txt. The key is OPENAI_API_KEY, from the environment or the
@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[3]
 BOARDS = ROOT/'packages/boards'
 SPRITES = BOARDS/'src/sprites'
 API = 'https://api.openai.com/v1/images'
-SIZE, STRIDE, ART = 192, 196, 176
+SIZE, ART = 192, 176
 
 
 def key(name):
@@ -205,6 +205,10 @@ figure{{margin:0;padding:8px;background:#1c2234;border-radius:8px}}figcaption{{f
 
 
 def place(args):
+    """The take as its frame's override: a lossless 192px image the boards draw over the atlas's frame (ADR 0053).
+
+    The atlas is not touched, so no other frame is encoded again. A frame the manifest does not name
+    is drawn only by a renderer that asks for it."""
     src = ROOT/'.art/sprites'/args.puzzle/args.frame/f'take-{args.take}.png'
     if not src.is_file():
         sys.exit(f'No take at {src.relative_to(ROOT)}')
@@ -212,34 +216,11 @@ def place(args):
     # The override survives a repack from the source sheets (pack-sprites.py, pack-prototype-sprites.py).
     overrides = SPRITES/'overrides'
     overrides.mkdir(exist_ok=True)
-    tile.save(overrides/f'{args.puzzle}-{args.frame}.webp', lossless=True, method=6)
-    frames = manifest()
-    named = frames.setdefault(args.puzzle, {})
-    path = SPRITES/f'{args.puzzle}.webp'
-    atlas = Image.open(path).convert('RGBA') if path.is_file() else Image.new('RGBA', (4 * STRIDE, STRIDE))
-    if args.frame in named:
-        x, y, _, _ = named[args.frame]
-    else:
-        cols = atlas.width // STRIDE
-        used = {(fx // STRIDE, fy // STRIDE) for fx, fy, _, _ in named.values()}
-        slot = next(i for i in range(10_000) if (i % cols, i // cols) not in used)
-        x, y = (slot % cols) * STRIDE + 2, (slot // cols) * STRIDE + 2
-        if y + SIZE + 2 > atlas.height:
-            grown = Image.new('RGBA', (atlas.width, y + SIZE + 2))
-            grown.paste(atlas, (0, 0))
-            atlas = grown
-        named[args.frame] = [x, y, SIZE, SIZE]
-    atlas.paste(Image.new('RGBA', (SIZE, SIZE)), (x, y))
-    atlas.paste(tile, (x, y))
-    before = path.stat().st_size if path.is_file() else 0
-    # Quality 90, as the packers save; a lossless atlas is three times the size. The lossless override
-    # stays the frame's source of truth, so a repack starts from it, never from this encode.
-    atlas.save(path, quality=90, method=6)
-    (SPRITES/'frames.json').write_text(json.dumps(frames, indent=2) + '\n')
-    print(f'{args.puzzle}:{args.frame} placed at {x},{y}. {path.relative_to(ROOT)}: {before // 1024} KB -> {path.stat().st_size // 1024} KB')
-    if not before:
-        print(f'A new atlas: add its URL to packages/boards/src/sprites/atlas.ts.')
-
+    out = overrides/f'{args.puzzle}-{args.frame}.webp'
+    tile.save(out, lossless=True, method=6)
+    print(f'{args.puzzle}:{args.frame} placed as {out.relative_to(ROOT)} ({out.stat().st_size // 1024} KB)')
+    if args.frame not in manifest().get(args.puzzle, {}):
+        print(f'{args.frame} is a new frame: only a renderer that asks for it draws it.')
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 sub = parser.add_subparsers(dest='command', required=True)
@@ -251,7 +232,7 @@ g.add_argument('--quality', default='high', choices=['low', 'medium', 'high'])
 g.set_defaults(run=generate)
 r = sub.add_parser('review', help='rebuild the review page and contact sheet'); r.add_argument('puzzle'); r.set_defaults(run=review)
 f = sub.add_parser('frames', help='write each take as the frame it would be placed as'); f.add_argument('puzzle'); f.set_defaults(run=frames)
-p = sub.add_parser('place', help='put one take in the atlas'); p.add_argument('puzzle'); p.add_argument('frame'); p.add_argument('take', type=int)
+p = sub.add_parser('place', help='put one take over its frame in the atlas'); p.add_argument('puzzle'); p.add_argument('frame'); p.add_argument('take', type=int)
 p.set_defaults(run=place)
 args = parser.parse_args()
 args.run(args)

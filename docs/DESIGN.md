@@ -674,7 +674,7 @@ panels were never part of it. Until the first exists the board runs the deployed
 draft's numbers and a change to code is seen on its pull request's preview; the agent says so
 when it edits code.
 
-Assets, M9's third step, is being built in four parts. **The panels and the swap** (ADR 0050) are
+Assets, M9's third step, is built, in four parts. **The panels and the swap** (ADR 0050) are
 built. The side panel has three faces, Tuning, Sprites and Sounds. The sprite panel has a row for
 every frame in the puzzle's atlas, at the size a board draws it and larger, and above them the
 page's own legend with its marks toggle, so each kind is seen with its mark and without. The
@@ -701,8 +701,21 @@ second tap, "Put back", or Reset all lets it go. Signed out, a pick is in the ad
 (`sprite.<frame>=<hash>`, `sound.<cue>=<hash>`), as a number is. A tester link freezes the picks
 with the numbers, and `/play` loads each picked take from the service by its hash; a take that
 cannot be read leaves that piece as shipped, and the details sheet says so. The agent is told the
-draft's picks under each message and has no tool that makes one. Save does not place picks yet:
-its tester link carries them and its pull request does not. That is the part to come.
+draft's picks under each message and has no tool that makes one.
+
+**Save places picks** (ADR 0053). A Save places the draft's picks with its numbers, in one commit,
+each as its take's bytes. A placed frame is its own image beside the atlas, its override, which
+the boards bundle and draw over the atlas's frame; the atlas is never encoded again to place one,
+so no frame wears. A sound's take is copied into the sounds folder, and a `synth` pick deletes the
+sample. Nothing is decoded on the service. A pick let go since the last Save is put back as the base branch has it, as a
+number is. A pick Save cannot place (no such take, a take of another frame or cue, a frame the
+atlas lacks) refuses the Save and names the frame or cue. A draft whose only change is a pick can
+be saved, and its pull request lists each pick and says what it leaves for a developer: the
+guide's capture where a frame changed, and for the first sound, the smoke's check that samples
+are delivered. In the studio the agent no longer places a take; Save does.
+
+That completes the step. What is left of M9 is the live build of a draft's worktree (ADR 0042
+decision 7).
 
 The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
 agent reads:
@@ -822,7 +835,7 @@ pnpm monorepo. Packages:
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
 | `studio` | The puzzle studio (sections 3.11 and 3.14), once the harness: a page a puzzle with the shared board and the tuning panel built from content and the wire schema; each puzzle alone at `/play/<puzzle>` on the numbers its link carries; every round local and replayed from its seed; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
-| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers: a clone on a volume, a worktree a draft, and a draft pull request from a GitHub App (ADR 0046); and the chat: the Claude Agent SDK on the draft's worktree, as a unix user of its own, behind the service's own proxy to the model (ADR 0047). All in a Postgres schema of its own | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
+| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers and picks: a clone on a volume, a worktree a draft, picks placed as their takes' bytes, and a draft pull request from a GitHub App (ADR 0046, ADR 0053); and the chat: the Claude Agent SDK on the draft's worktree, as a unix user of its own, behind the service's own proxy to the model (ADR 0047). All in a Postgres schema of its own | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
 | `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the harness, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
 In M9 the harness became the studio (3.14, ADR 0042): `harness` was renamed `studio`, and
@@ -900,7 +913,7 @@ still proven there first, with its tester session, and only then embedded in the
 | M6 | OAuth upgrade (a guest links Discord or Google in place and keeps everything; returning players sign in), crews (found with a name and flag, invite, ranks, crew chat, crew-only ships, crews' colors on ships, tallies and the board of crews, pirates' cards), polish pass |
 | M7 | The space reskin (ADR 0034): every word, the three.js world and the codebase move from the sea to space, with the mechanics unchanged and the database wiped. The puzzle boards' art waits for the owner's sprite pass, which has since landed for the sprites |
 | M8 | Prototype puzzles (3.12, ADR 0036): eight new puzzles of the game's own, each a whole engine playable on the harness, in the owner's sprites (ADR 0037). Done when the owner has played all eight and chosen which, if any, go on |
-| M9 | The puzzle studio (3.14, ADR 0042), in three steps, each usable alone. **The shell:** the harness renamed and redrawn, the tuning panel, seed control, the validity and replay guards, tester links on a first studio service, the smoke driving every board through its studio page and `/play`, the guides' capture repointed, the bench tools removed. **Chat and Save** (built): drafts kept by the service, the agent on a worktree, the model picker, per-turn revert, reset, and Save as a draft pull request from a GitHub App that a developer finishes (ADR 0045 to 0047, ADR 0049). The live build of the worktree is not built. **Assets**, in four parts: the sprite and sound panels and the swap on a running board (built, ADR 0050); takes kept in a Railway bucket and listed in their rows, with new takes through the chat (built, ADR 0051); picks kept in drafts, frozen in tester links and loaded by `/play` (built, ADR 0052); then Save placing picks |
+| M9 | The puzzle studio (3.14, ADR 0042), in three steps, each usable alone. **The shell:** the harness renamed and redrawn, the tuning panel, seed control, the validity and replay guards, tester links on a first studio service, the smoke driving every board through its studio page and `/play`, the guides' capture repointed, the bench tools removed. **Chat and Save** (built): drafts kept by the service, the agent on a worktree, the model picker, per-turn revert, reset, and Save as a draft pull request from a GitHub App that a developer finishes (ADR 0045 to 0047, ADR 0049). The live build of the worktree is not built. **Assets** (built), in four parts: the sprite and sound panels and the swap on a running board (built, ADR 0050); takes kept in a Railway bucket and listed in their rows, with new takes through the chat (built, ADR 0051); picks kept in drafts, frozen in tester links and loaded by `/play` (built, ADR 0052); then Save placing picks (built, ADR 0053) |
 
 Every milestone ends with a tester session and a written retro before the next starts.
 

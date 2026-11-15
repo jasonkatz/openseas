@@ -68,6 +68,10 @@ owner has named a take for every cue, or asked for a reworded prompt.
 
 ## 5. Place
 
+In the studio's chat, never place: the owner picks a take with a tap in its row, and Save copies
+the picked take, already mastered, into the sounds folder (ADR 0053). If the owner names a take in
+the chat, ask them to pick it in the Sounds panel and Save. Everywhere else:
+
 ```bash
 python3 packages/boards/scripts/sounds.py place <puzzle> <cue> <take>
 ```

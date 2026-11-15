@@ -15,7 +15,7 @@ export const toDraft = (r: Row, behind = false): Draft => ({
   // A row kept before picks has none: it is sent with none, whole.
   numbers: { ...r.numbers, picks: picksOf(r.numbers) },
   revision: r.revision,
-  save: { state: r.saveState, error: r.saveError, pull: r.pullNumber !== null && r.pullUrl !== null ? { number: r.pullNumber, url: r.pullUrl } : null, savedRevision: r.savedRevision, behind, edits: r.chatCommits > 0 },
+  save: { state: r.saveState, error: r.saveError, pull: r.pullNumber !== null && r.pullUrl !== null ? { number: r.pullNumber, url: r.pullUrl } : null, savedRevision: r.savedRevision, behind, edits: r.chatCommits > 0, detail: r.saveErrorDetail },
   createdAt: r.createdAt.toISOString(),
   updatedAt: r.updatedAt.toISOString(),
 });

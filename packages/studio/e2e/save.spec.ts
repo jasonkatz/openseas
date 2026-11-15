@@ -127,6 +127,20 @@ test.describe("save", () => {
     await expect(page.getByTestId("save-pull")).toContainText("stays a draft for a developer to finish");
   });
 
+  test("a draft whose only change is a pick can be saved, and a pick Save cannot place is named", async ({ page }) => {
+    // Every number as shipped and one take picked: Save places picks (ADR 0053), so there is something to save.
+    const picks = { sprites: { cog: "a".repeat(64) }, sounds: {} };
+    const s = await service(page, { login: "octo", save: true, picks: true, drafts: [draft({ numbers: numbers({ picks }), save: NO_SAVE })] });
+    await page.goto("/cooling");
+    await expect(page.getByTestId("save")).toBeEnabled();
+    await expect(saveRows(page)).toContainText("the takes you picked");
+    await page.getByTestId("save").click();
+    await expect(page.getByTestId("save-writing")).toBeVisible();
+    s.finish("draftdraft", { state: "failed", error: "pick", detail: "cog" });
+    await expect(page.getByTestId("save-failed")).toContainText("the pick for cog can't be placed");
+    await expect(page.getByTestId("save")).toBeEnabled();
+  });
+
   test("a draft with no number changed has nothing to save, and a service that cannot Save offers none", async ({ page }) => {
     await service(page, { login: "octo", save: true, drafts: [draft({ numbers: numbers({ seed: "only-a-seed" }), save: NO_SAVE })] });
     await page.goto("/cooling");

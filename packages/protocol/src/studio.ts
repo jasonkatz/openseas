@@ -93,8 +93,14 @@ export const DraftIdSchema = z.string().regex(/^[a-z0-9]{10}$/);
  * counts its saves; a save names the revision it was made from and is refused when that is no
  * longer the stored one, so two pages open on one draft cannot overwrite each other unseen.
  */
-/** Why a Save or an update did not finish. `nothing`: the draft changes no number and the chat has edited no file. `unknown_key`: it sets a key the content file has no place for. `conflict`: the base branch and the draft's changed the same lines. `interrupted`: the service restarted under it. */
-export const DraftSaveErrorSchema = z.enum(["nothing", "unknown_key", "conflict", "git", "github", "interrupted"]);
+/**
+ * Why a Save or an update did not finish. `nothing`: the draft changes no number, picks no take and the chat has edited no file.
+ * `unknown_key`: it sets a key the content file has no place for. `pick`: a pick cannot be placed: its take is not kept, is of
+ * another kind, puzzle, frame or cue, or picks a frame the atlas does not have (ADR 0053). `takes`: the service could not read
+ * the picked takes or place them. `conflict`: the base branch and the draft's changed the same lines. `interrupted`: the service
+ * restarted under it.
+ */
+export const DraftSaveErrorSchema = z.enum(["nothing", "unknown_key", "pick", "takes", "conflict", "git", "github", "interrupted"]);
 export type DraftSaveError = z.infer<typeof DraftSaveErrorSchema>;
 
 /**
@@ -110,9 +116,11 @@ export const DraftSaveSchema = z.object({
   behind: z.boolean(),
   /** True once a turn of the chat has committed an edit to the draft's branch: there is something to save even when no number differs (ADR 0049). Defaulted for a service older than the site. */
   edits: z.boolean().default(false),
+  /** What the error is about, where it is about one thing: for `pick`, the frame or cue. Defaulted for a service older than the site. */
+  detail: z.string().max(80).nullable().default(null),
 });
 export type DraftSave = z.infer<typeof DraftSaveSchema>;
-export const NO_DRAFT_SAVE: DraftSave = { state: "idle", error: null, pull: null, savedRevision: null, behind: false, edits: false };
+export const NO_DRAFT_SAVE: DraftSave = { state: "idle", error: null, pull: null, savedRevision: null, behind: false, edits: false, detail: null };
 
 export const DraftSchema = z.object({
   id: DraftIdSchema,

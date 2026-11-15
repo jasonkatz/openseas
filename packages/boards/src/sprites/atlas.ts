@@ -22,6 +22,25 @@ const urls: Record<SpritePuzzle, string> = {
   racks: new URL("./racks.webp", import.meta.url).href,
   cutting: new URL("./cutting.webp", import.meta.url).href,
 };
+/**
+ * Frames placed over the atlas, each a lossless image of its own (ADR 0053): `overrides/<puzzle>-<frame>.webp`,
+ * bundled by Vite and loaded with the puzzle's atlas. The atlas file is never re-encoded to place one.
+ */
+const placedFiles = import.meta.glob<string>("./overrides/*.webp", { query: "?url", import: "default", eager: true });
+/** The bundled overrides by puzzle, then frame name. A puzzle id has no dash, so the first one ends it. */
+const placedUrls = new Map<string, Map<string, string>>();
+for (const [path, url] of Object.entries(placedFiles)) {
+  const file = /^\.\/overrides\/([a-z]+)-(.+)\.webp$/.exec(path);
+  if (!file) continue;
+  const [, puzzle, name] = file as unknown as [string, string, string];
+  if (!placedUrls.has(puzzle)) placedUrls.set(puzzle, new Map());
+  placedUrls.get(puzzle)!.set(name, url);
+}
+/** The frames a build places over a puzzle's atlas, by name, with the URL each is served from. */
+export const placedSprites = (puzzle: string): ReadonlyMap<string, string> => placedUrls.get(puzzle) ?? new Map();
+/** The bundled overrides once decoded, by `<puzzle>/<frame>`. One that fails to load leaves the atlas's frame. */
+const placed = new Map<string, HTMLImageElement>();
+
 const images = new Map<SpritePuzzle, HTMLImageElement>();
 const pending = new Map<SpritePuzzle, Promise<void>>();
 const textures = new Map<string, Texture>();
@@ -31,10 +50,40 @@ let revision = 0;
 const overrides = new Map<string, { image: HTMLImageElement; url: string }>();
 let overrideRevision = 0;
 
-/** One decode per atlas for the lifetime of the page. A failed image keeps the procedural art. */
+/** One image, decoded, or null when it does not load in time. */
+function loadImage(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    let finished = false;
+    const finish = (ok: boolean): void => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      image.onload = image.onerror = null;
+      resolve(ok ? image : null);
+    };
+    const timeout = setTimeout(() => finish(false), 8000);
+    image.onload = () => finish(true);
+    image.onerror = () => finish(false);
+    image.src = url;
+  });
+}
+
+/** The frames a build places over a puzzle's atlas, decoded before the atlas counts as ready, so a board never draws the old frame first. */
+async function loadPlaced(puzzle: SpritePuzzle): Promise<void> {
+  await Promise.all(
+    [...placedSprites(puzzle)].map(async ([name, url]) => {
+      const image = await loadImage(url);
+      if (image) placed.set(`${puzzle}/${name}`, image);
+    }),
+  );
+}
+
+/** One decode per atlas, and per frame placed over it, for the lifetime of the page. A failed atlas keeps the procedural art. */
 export function loadPuzzleSprites(puzzle: SpritePuzzle): Promise<void> {
   let task = pending.get(puzzle);
   if (!task) {
+    const over = loadPlaced(puzzle);
     task = new Promise<void>((resolve) => {
       const image = new Image();
       let finished = false;
@@ -43,12 +92,14 @@ export function loadPuzzleSprites(puzzle: SpritePuzzle): Promise<void> {
         finished = true;
         clearTimeout(timeout);
         image.onload = image.onerror = null;
-        if (ok) {
-          images.set(puzzle, image);
-          revision++;
-          for (const notify of listeners) notify();
-        }
-        resolve();
+        void over.then(() => {
+          if (ok) {
+            images.set(puzzle, image);
+            revision++;
+            for (const notify of listeners) notify();
+          }
+          resolve();
+        });
       };
       const timeout = setTimeout(() => finish(false), 8000);
       image.onload = () => finish(true);
@@ -68,14 +119,15 @@ export const subscribeSprites = (listener: () => void): (() => void) => {
 export const spritesReady = (puzzle: SpritePuzzle): boolean => images.has(puzzle);
 /** Counts the frames swapped since the page opened: a board is made again when it moves, since each bakes its art once. */
 export const spriteOverrideRevision = (): number => overrideRevision;
-/** Every frame name in a puzzle's atlas, in the manifest's order. */
-export const spriteFrames = (puzzle: SpritePuzzle): string[] => Object.keys(frames[puzzle]);
+/** Every frame name in a puzzle's atlas, in the manifest's order, then any frame placed over it that the atlas lacks. */
+export const spriteFrames = (puzzle: SpritePuzzle): string[] => [...new Set([...Object.keys(frames[puzzle]), ...placedSprites(puzzle).keys()])];
 /** True while a frame is drawn from an image of its own. */
 export const spriteOverridden = (puzzle: SpritePuzzle, name: string): boolean => overrides.has(`${puzzle}/${name}`);
 
 /**
  * Draws a frame from an image of its own, a whole square frame as the atlas would hold it, or
- * with `null` from the atlas again (ADR 0050). Presentation only: a board made after this draws
+ * with `null` as the build ships it again: the frame placed over the atlas where there is one,
+ * else the atlas's (ADR 0050, ADR 0053). Presentation only: a board made after this draws
  * the new art, and whoever holds a board makes it again when `spriteOverrideRevision` moves.
  * False when the image does not load, and then nothing changes.
  */
@@ -110,6 +162,8 @@ export const hasSprite = (puzzle: SpritePuzzle, name: string): boolean => source
 export function spriteCrop(puzzle: SpritePuzzle, name: string): { url: string; x: number; y: number; size: number; width: number; height: number } | undefined {
   const own = overrides.get(`${puzzle}/${name}`);
   if (own) return { url: own.url, x: 0, y: 0, size: own.image.naturalWidth, width: own.image.naturalWidth, height: own.image.naturalHeight };
+  const shipped = images.has(puzzle) ? placed.get(`${puzzle}/${name}`) : undefined;
+  if (shipped) return { url: shipped.src, x: 0, y: 0, size: shipped.naturalWidth, width: shipped.naturalWidth, height: shipped.naturalHeight };
   const image = images.get(puzzle);
   const f = frame(puzzle, name);
   if (!image || !f) return undefined;
@@ -120,10 +174,13 @@ function frame(puzzle: SpritePuzzle, name: string): readonly number[] | undefine
   return (frames[puzzle] as Record<string, number[]>)[name];
 }
 
-/** The pixels a frame is drawn from: its own image when it has one, else its place in the decoded atlas. */
+/** The pixels a frame is drawn from: the studio's swap, else the frame the build places over the atlas, else its place in the decoded atlas. */
 function source(puzzle: SpritePuzzle, name: string): { image: HTMLImageElement; x: number; y: number; w: number; h: number } | undefined {
   const own = overrides.get(`${puzzle}/${name}`);
   if (own) return { image: own.image, x: 0, y: 0, w: own.image.naturalWidth, h: own.image.naturalHeight };
+  // Placed frames count once the atlas is ready, so a board that asks before then draws its fallback, as it would without them.
+  const shipped = images.has(puzzle) ? placed.get(`${puzzle}/${name}`) : undefined;
+  if (shipped) return { image: shipped, x: 0, y: 0, w: shipped.naturalWidth, h: shipped.naturalHeight };
   const image = images.get(puzzle);
   const f = frame(puzzle, name);
   if (!image || !f) return undefined;
