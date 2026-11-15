@@ -239,6 +239,31 @@ migrates its own `studio` schema as it starts.
       (Railway's default) and `useradd` (in the image). If the log says the chat is off because
       the service cannot run the agent as a user of its own, the service is not starting as
       root, or the volume is mounted somewhere that user cannot walk into.
+4d. **Takes** (ADR 0051) are optional and need the chat (4c) first: the agent makes them, and
+   the service keeps them in a bucket. Until it is set up the service logs that takes are not
+   kept, the agent's takes stay in the draft's worktree, and the sprite and sound panels list
+   none.
+
+   1. **A bucket.** In the same Railway project: **+ New → Bucket**, named such as
+      `studio-takes`, in the service's region. Railway's buckets are private; the service reads
+      and writes it, and serves a take to a browser itself.
+   2. **Variables** on the `studio` service, as references to the bucket's own (its
+      **Credentials** tab lists them):
+
+      | Variable | Value |
+      |---|---|
+      | `STUDIO_BUCKET_ENDPOINT` | the bucket's endpoint, such as `https://t3.storageapi.dev` |
+      | `STUDIO_BUCKET_NAME` | the bucket's name as its credentials give it (not the name typed above) |
+      | `STUDIO_BUCKET_ACCESS_KEY_ID`, `STUDIO_BUCKET_SECRET_ACCESS_KEY` | its two keys. They stay in the service process: nothing of the bucket is in the agent's shell |
+      | `STUDIO_BUCKET_REGION` | optional, `auto` by default |
+
+   3. Nothing to do for the scripts: `railpack.studio.json` adds `python3`, `python3-pil` and
+      `ffmpeg` to the image. The two script keys of 4c must be set for takes to be made at all.
+
+   The service logs `takes: true`. To try it, ask the chat for new takes of a frame, wait for the
+   turn to end, and look at that frame's row in the Sprites panel. Each take is counted against
+   `STUDIO_SPEND_CAP_USD` at an estimate (a quarter of a dollar a sprite, five cents a sound): the
+   real bills are OpenAI's and ElevenLabs's, and the cap does not see them.
 
    The image grows by the Claude Code executable the SDK ships, a few hundred megabytes. The log
    says `chat: true` when all of it is in place.

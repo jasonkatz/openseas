@@ -7,7 +7,7 @@
     }
   },
   "deploy": {
-    "aptPackages": ["...", "git", "tini"],
+    "aptPackages": ["...", "git", "tini", "python3", "python3-pil", "ffmpeg"],
     "startCommand": "cd packages/studio-server && exec tini -s -- node --import tsx src/index.ts"
   }
 }

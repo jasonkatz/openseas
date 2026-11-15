@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { PuzzleId } from "@openseas/engine";
+import type { Take, TakeKind } from "@openseas/protocol";
 import { SpriteIcon, auditionCue, isSpritePuzzle, overrideSample, overrideSprite, sampleCues, spriteFrames, t } from "@openseas/boards";
+import { useFrame } from "../frame/RoundFrame.jsx";
+import { TAKES_CHANGED, listTakes, proposeChat, takeUrl } from "../service/client.js";
+import { useMe } from "../service/me.js";
 import { OWN_CUE_FALLBACKS, cuesOf } from "./cues.js";
 import { fitFrame } from "./fit.js";
 
@@ -8,6 +12,56 @@ import { fitFrame } from "./fit.js";
 interface Tried {
   readonly name: string;
   readonly url: string | null;
+  /** Set when it is a take and not a file. */
+  readonly hash?: string;
+}
+
+/**
+ * A puzzle's takes of one kind (ADR 0051), by the frame or cue each is of, oldest first. Only the
+ * signed-in owner of a service that keeps takes has any; for anyone else, and with the service
+ * down, the panels are as they are without it. Asked for again when a turn of the chat ends.
+ */
+function useTakes(puzzle: PuzzleId, kind: TakeKind): ReadonlyMap<string, readonly Take[]> {
+  const me = useMe();
+  const on = me !== "loading" && me !== null && me.login !== null && me.takes;
+  const [takes, setTakes] = useState<readonly Take[]>([]);
+  useEffect(() => {
+    if (!on) return setTakes([]);
+    let live = true;
+    const load = (): void => void listTakes(puzzle).then((all) => live && all && setTakes(all));
+    load();
+    window.addEventListener(TAKES_CHANGED, load);
+    return () => {
+      live = false;
+      window.removeEventListener(TAKES_CHANGED, load);
+    };
+  }, [on, puzzle]);
+  const by = new Map<string, Take[]>();
+  for (const take of takes) if (take.kind === kind) by.set(take.name, [...(by.get(take.name) ?? []), take]);
+  return by;
+}
+
+/** What a take is called on its button: its number where it was made on the open draft, as the agent names it too, else the start of its hash. */
+function useTakeName(): (take: Take) => string {
+  const { store } = useFrame();
+  const draft = store.state === "stored" ? (store.draft?.id ?? null) : null;
+  return (take) => (take.take !== null && take.draft === draft ? t("studio.assets.take", { n: take.take }) : t("studio.assets.take_other", { hash: take.hash.slice(0, 6) }));
+}
+
+/** The two buttons a row ends with when there is a chat: each writes the start of a message to the agent (DESIGN.md 3.14). */
+function AskButtons({ kind, name }: { kind: TakeKind; name: string }) {
+  const { store } = useFrame();
+  if (store.state !== "stored" || !store.canChat) return null;
+  return (
+    <>
+      <button type="button" className="btn btn-mini" onClick={() => proposeChat(t(`studio.assets.ask_new_${kind}`, { name }))} data-testid={`ask-new-${name}`}>
+        {t("studio.assets.ask_new")}
+      </button>
+      <button type="button" className="btn btn-mini" onClick={() => proposeChat(t(`studio.assets.ask_change_${kind}`, { name }))} data-testid={`ask-change-${name}`}>
+        {t("studio.assets.ask_change")}
+      </button>
+    </>
+  );
 }
 
 /** A button that opens a file picker and hands back the file chosen. */
@@ -46,6 +100,8 @@ export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; lege
   const held = useRef(tried);
   held.current = tried;
   const atlas = isSpritePuzzle(puzzle) ? puzzle : null;
+  const takes = useTakes(puzzle, "sprite");
+  const takeName = useTakeName();
 
   // Leaving the page puts every frame back: a tried file belongs to the page it was tried on.
   useEffect(
@@ -73,6 +129,19 @@ export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; lege
         const was = all[frame]?.url;
         if (was) URL.revokeObjectURL(was);
         return { ...all, [frame]: { name: file.name, url } };
+      });
+    },
+    [atlas],
+  );
+  const tryTake = useCallback(
+    async (frame: string, take: Take, name: string) => {
+      // A take is kept as the frame it would be placed as: nothing to fit.
+      if (!atlas || !(await overrideSprite(atlas, frame, takeUrl(take.hash)))) return setBad(frame);
+      setBad(null);
+      setTried((all) => {
+        const was = all[frame]?.url;
+        if (was) URL.revokeObjectURL(was);
+        return { ...all, [frame]: { name, url: null, hash: take.hash } };
       });
     },
     [atlas],
@@ -127,8 +196,26 @@ export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; lege
               <div className="asset-body">
                 <code className="tune-key mono">{frame}</code>
                 <p className="tune-desc" data-testid={`frame-pick-${frame}`}>
-                  {file ? t("studio.assets.tried", { name: file.name }) : t("studio.sprites.shipped")}
+                  {file ? (file.hash ? t("studio.assets.trying", { name: file.name }) : t("studio.assets.tried", { name: file.name })) : t("studio.sprites.shipped")}
                 </p>
+                {(takes.get(frame)?.length ?? 0) > 0 && (
+                  <div className="asset-takes" data-testid={`frame-takes-${frame}`}>
+                    {takes.get(frame)!.map((take) => (
+                      <button
+                        key={take.hash}
+                        type="button"
+                        className={`asset-take ${file?.hash === take.hash ? "is-held" : ""}`}
+                        aria-pressed={file?.hash === take.hash}
+                        title={take.prompt ?? undefined}
+                        onClick={() => void tryTake(frame, take, takeName(take))}
+                        data-testid={`take-${take.hash.slice(0, 8)}`}
+                      >
+                        <img src={takeUrl(take.hash)} width={44} height={44} alt="" loading="lazy" />
+                        <span>{takeName(take)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="tune-actions">
                   <FileButton accept="image/png,image/webp" label={t("studio.assets.try_file")} testId={`frame-file-${frame}`} onFile={(f) => void tryFile(frame, f)} />
                   {file && (
@@ -136,6 +223,7 @@ export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; lege
                       {t("studio.assets.put_back")}
                     </button>
                   )}
+                  <AskButtons kind="sprite" name={frame} />
                 </div>
                 {bad === frame && <p className="tune-refusal">{t("studio.assets.file_bad")}</p>}
               </div>
@@ -148,7 +236,7 @@ export function SpritePanel({ puzzle, legend, active }: { puzzle: PuzzleId; lege
 }
 
 /** Which voice a cue plays in: the build's own (its sample, or the synthesized cue where it has none), the synthesized cue over a sample, or a file being tried. */
-type Voice = "shipped" | "synth" | "file";
+type Voice = "shipped" | "synth" | "file" | "take";
 
 /**
  * The sound panel (DESIGN.md 3.14, ADR 0050): every cue the puzzle's board plays, each played on
@@ -162,6 +250,10 @@ export function SoundPanel({ puzzle }: { puzzle: PuzzleId }) {
   const [bad, setBad] = useState<string | null>(null);
   const held = useRef(voices);
   held.current = voices;
+  const takes = useTakes(puzzle, "sound");
+  const takeName = useTakeName();
+  /** The take on each cue, by its hash, while one is. */
+  const [taken, setTaken] = useState<Readonly<Record<string, string>>>({});
   const sampled = new Set(sampleCues(puzzle));
   const fallbacks = OWN_CUE_FALLBACKS[puzzle] ?? {};
 
@@ -173,9 +265,16 @@ export function SoundPanel({ puzzle }: { puzzle: PuzzleId }) {
   );
 
   const choose = useCallback(
-    async (cue: string, voice: Voice, file?: File) => {
+    async (cue: string, voice: Voice, file?: File, take?: Take) => {
       let ok: boolean;
-      if (voice === "file" && file) {
+      if (voice === "take" && take) {
+        ok = await overrideSample(puzzle, cue, takeUrl(take.hash));
+        if (ok) {
+          setTaken((all) => ({ ...all, [cue]: take.hash }));
+          // Picking a take is also hearing it.
+          auditionCue(puzzle, cue);
+        }
+      } else if (voice === "file" && file) {
         const url = URL.createObjectURL(file);
         ok = await overrideSample(puzzle, cue, url);
         URL.revokeObjectURL(url);
@@ -228,7 +327,16 @@ export function SoundPanel({ puzzle }: { puzzle: PuzzleId }) {
                   ) : (
                     pick("shipped", t("studio.sounds.synth"))
                   )}
+                  {takes.get(cue)?.map((take) => {
+                    const on = voice === "take" && taken[cue] === take.hash;
+                    return (
+                      <button key={take.hash} type="button" className={`btn btn-mini ${on ? "is-held" : ""}`} aria-pressed={on} title={take.prompt ?? undefined} onClick={() => void choose(cue, "take", undefined, take)} data-testid={`take-${take.hash.slice(0, 8)}`}>
+                        {takeName(take)}
+                      </button>
+                    );
+                  })}
                   <FileButton accept="audio/mpeg,audio/wav,.mp3,.wav" label={t("studio.assets.try_file")} testId={`cue-file-${cue}`} onFile={(f) => void choose(cue, "file", f)} />
+                  <AskButtons kind="sound" name={cue} />
                 </div>
                 {voice === "file" && (
                   <p className="tune-desc" data-testid={`cue-file-name-${cue}`}>

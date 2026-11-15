@@ -50,6 +50,19 @@ export type Item = { id: number; turn: number; at: string } & (
 );
 type Line<K extends Item["kind"]> = Omit<Extract<Item, { kind: K }>, "id" | "turn" | "at" | "kind">;
 
+/** A take as the stand-in keeps it: what the service lists, and the bytes it serves under the hash. */
+export interface StandinTake {
+  hash: string;
+  kind: "sprite" | "sound";
+  puzzle: string;
+  name: string;
+  draft: string | null;
+  take: number | null;
+  prompt?: string;
+  body: Buffer;
+  contentType: string;
+}
+
 export interface Service {
   /** The chat of the one draft the chat tests use: its lines, whether a turn runs, and the money. */
   chat: { items: Item[]; running: boolean; turn: number; spentUsd: number; cap: { spentUsd: number; capUsd: number } };
@@ -58,6 +71,8 @@ export interface Service {
   drafts: Draft[];
   /** The tester links Save made. */
   links: Array<{ id: string; puzzle: string; name: string }>;
+  /** The takes the service keeps (ADR 0051); a test adds to them as a turn of the chat would. */
+  takes: StandinTake[];
   /** How the Save or update now being written ends, when the test says so: the stand-in holds it at `saving` until then. */
   finish(id: string, save: Partial<Save>): void;
   /** Every request that would change a draft, as `METHOD path`, with its body. */
@@ -69,7 +84,7 @@ export interface Service {
 }
 
 /** A stand-in service: one owner (or nobody), and the drafts the test gives it, kept as the real one keeps them. */
-export async function service(page: Page, o: { login: string | null; drafts?: Draft[]; save?: boolean; chat?: boolean }): Promise<Service> {
+export async function service(page: Page, o: { login: string | null; drafts?: Draft[]; save?: boolean; chat?: boolean; takes?: StandinTake[] }): Promise<Service> {
   const s: Service = {
     chat: { items: [], running: false, turn: 0, spentUsd: 0, cap: { spentUsd: 0, capUsd: 20 } },
     say(kind, data) {
@@ -79,6 +94,7 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
     },
     drafts: [...(o.drafts ?? [])],
     links: [],
+    takes: [...(o.takes ?? [])],
     writes: [],
     calls: [],
     fail: null,
@@ -94,12 +110,22 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
     const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", headers: cors, body: JSON.stringify(body) });
     if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { ...cors, "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS" } });
     s.calls.push(`${req.method()} ${url.pathname}`);
-    if (url.pathname === "/auth/me") return json(200, { login: o.login, signIn: true, dev: false, ...(o.save === undefined ? {} : { save: o.save }), ...(o.chat === undefined ? {} : { chat: o.chat }) });
+    if (url.pathname === "/auth/me") return json(200, { login: o.login, signIn: true, dev: false, ...(o.save === undefined ? {} : { save: o.save }), ...(o.chat === undefined ? {} : { chat: o.chat }), ...(o.takes === undefined ? {} : { takes: true }) });
     if (url.pathname === "/auth/sign-out") {
       o.login = null;
       return json(200, { ok: true });
     }
+    // A take is anyone's who has its hash.
+    const hash = /^\/takes\/([0-9a-f]{64})$/.exec(url.pathname)?.[1];
+    if (hash) {
+      const take = s.takes.find((t) => t.hash === hash);
+      return take ? route.fulfill({ status: 200, contentType: take.contentType, headers: { "Access-Control-Allow-Origin": "*" }, body: take.body }) : json(404, { error: "not_found" });
+    }
     if (!o.login) return json(401, { error: "unauthorized" });
+    if (url.pathname === "/takes")
+      return json(200, {
+        takes: s.takes.filter((t) => t.puzzle === url.searchParams.get("puzzle")).map((t) => ({ hash: t.hash, kind: t.kind, puzzle: t.puzzle, name: t.name, bytes: t.body.length, prompt: t.prompt ?? null, draft: t.draft, take: t.take, createdAt: "2026-11-15T12:00:00.000Z" })),
+      });
     const link = (l: Service["links"][number]) => ({ ...l, author: o.login, draft: numbers(), createdAt: "2026-11-13T12:00:00.000Z", withdrawn: false });
     if (url.pathname === "/links") return json(200, { links: s.links.filter((l) => l.puzzle === url.searchParams.get("puzzle")).map(link) });
     const parts = /^\/drafts\/([^/]+)(?:\/(save|update|chat|chat\/stop|chat\/revert|chat\/allow))?$/.exec(url.pathname);

@@ -184,6 +184,35 @@ export type ChatState = z.infer<typeof ChatStateSchema>;
 export const ChatRevertSchema = z.object({ turn: z.int().min(1) });
 export const ChatAllowSchema = z.object({ item: z.int(), allow: z.boolean() });
 
+/** A take's address: the SHA-256 of its bytes, in hex. Nobody can guess one, and it never names different bytes. */
+export const TakeHashSchema = z.string().regex(/^[0-9a-f]{64}$/);
+
+/** What a take is of: a sprite frame, or a sound cue. */
+export const TakeKindSchema = z.enum(["sprite", "sound"]);
+export type TakeKind = z.infer<typeof TakeKindSchema>;
+
+/**
+ * A take (ADR 0040, ADR 0051): one generated candidate for a frame or a cue, kept by the service
+ * in the form it would be committed in (a fitted square frame, a mastered sound) under the hash of
+ * those bytes. Takes outlast the draft they were made on, so a frame or a cue gathers a library.
+ */
+export const TakeSchema = z.object({
+  hash: TakeHashSchema,
+  kind: TakeKindSchema,
+  puzzle: PuzzleIdSchema,
+  /** The frame or the cue it is a take of, as the brief names it. */
+  name: z.string(),
+  bytes: z.int().min(0),
+  /** What the generator was asked for, where the script kept it. */
+  prompt: z.string().nullable(),
+  /** The draft it was made on, and its number among that draft's takes of this name: how the owner and the agent name it to each other. */
+  draft: z.string().nullable(),
+  take: z.int().nullable(),
+  createdAt: z.iso.datetime(),
+});
+export type Take = z.infer<typeof TakeSchema>;
+export const TakeListSchema = z.object({ takes: z.array(TakeSchema) });
+
 /** Who the service takes the caller for. `signIn` says whether it has GitHub keys at all; `dev` that it offers a sign-in with no GitHub, off production; `save` that it can Save. */
 export const StudioMeSchema = z.object({
   login: z.string().nullable(),
@@ -193,6 +222,8 @@ export const StudioMeSchema = z.object({
   save: z.boolean().default(false),
   /** Whether this service can run the chat: Save, a model key, a cap, and a user of its own for the agent. Defaulted likewise. */
   chat: z.boolean().default(false),
+  /** Whether this service keeps takes: it has a bucket to keep them in. Defaulted likewise. */
+  takes: z.boolean().default(false),
 });
 export type StudioMe = z.infer<typeof StudioMeSchema>;
 

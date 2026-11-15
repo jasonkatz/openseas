@@ -62,6 +62,19 @@ const EnvSchema = z.object({
   /** The two keys the generation scripts read (ADR 0040): the only credentials in the agent's shell. */
   OPENAI_API_KEY: Optional,
   ELEVENLABS_API_KEY: Optional,
+  /**
+   * Takes (ADR 0051): an S3-compatible bucket, on Railway. All four of the endpoint, the bucket's
+   * name and its two keys must be set for the service to keep takes; with any missing the chat
+   * still makes them in the draft's worktree and the panels list none. The keys stay in this
+   * process: nothing of the bucket is in the agent's shell.
+   */
+  STUDIO_BUCKET_ENDPOINT: Optional,
+  STUDIO_BUCKET_NAME: Optional,
+  STUDIO_BUCKET_ACCESS_KEY_ID: Optional,
+  STUDIO_BUCKET_SECRET_ACCESS_KEY: Optional,
+  STUDIO_BUCKET_REGION: z.string().min(1).default("auto"),
+  /** The bucket's name in the path, not the host: for a store that is not Railway's (a local one). */
+  STUDIO_BUCKET_PATH_STYLE: Bool,
   /** Set when the studio site and this service are on different sites, so the cookie must be SameSite=None. */
   CROSS_SITE_COOKIES: Bool,
   /** Off production only: `/auth/dev` signs this login in with no GitHub, for local work and the smoke. */

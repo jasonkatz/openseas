@@ -7,7 +7,7 @@ const log = createLogger(env.LOG_LEVEL, env.NODE_ENV === "development");
 const app = await createApp(env, log);
 const port = await app.listen(env.PORT);
 log.info(
-  { port, origins: env.STUDIO_ORIGINS, owners: env.STUDIO_OWNERS.length, github: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET), devLogin: env.STUDIO_DEV_LOGIN !== null, save: app.saver !== null, chat: app.chat !== null },
+  { port, origins: env.STUDIO_ORIGINS, owners: env.STUDIO_OWNERS.length, github: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET), devLogin: env.STUDIO_DEV_LOGIN !== null, save: app.saver !== null, chat: app.chat !== null, takes: app.takes !== null },
   "openseas studio service listening",
 );
 if (env.STUDIO_OWNERS.length === 0) log.warn("STUDIO_OWNERS is empty: nobody can sign in, so no link can be made or withdrawn");
@@ -15,6 +15,8 @@ if (env.STUDIO_OWNERS.length === 0) log.warn("STUDIO_OWNERS is empty: nobody can
 if (!app.saver) log.warn("Save is off: it needs STUDIO_REPO_DIR, STUDIO_REPO, GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY (docs/DEPLOY.md, step 1b)");
 
 if (app.saver && !app.chat) log.warn("the chat is off: it needs ANTHROPIC_API_KEY and STUDIO_SPEND_CAP_USD, and a service that starts as root (docs/DEPLOY.md, step 1b)");
+
+if (app.chat && !app.takes) log.warn("takes are not kept: that needs STUDIO_BUCKET_ENDPOINT, STUDIO_BUCKET_NAME, STUDIO_BUCKET_ACCESS_KEY_ID and STUDIO_BUCKET_SECRET_ACCESS_KEY (docs/DEPLOY.md, step 1b)");
 
 // Railway sends SIGTERM and kills the container after its draining time (RAILWAY_DEPLOYMENT_DRAINING_SECONDS,
 // set above this deadline). Run under tini (railpack config), not pnpm,

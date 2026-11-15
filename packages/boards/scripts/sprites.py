@@ -2,6 +2,7 @@
 
   sprites.py gen <puzzle> [frame ...] [--takes N]   new takes into .art/sprites/<puzzle>/, then a review
   sprites.py review <puzzle>                        rebuild the review page and contact sheet
+  sprites.py frames <puzzle>                        write each take as the frame it would be placed as
   sprites.py place <puzzle> <frame> <take>          fit one take to a 192px frame, into the atlas
 
 The brief is packages/boards/briefs/sprites/<puzzle>.json; the style every sheet is painted to is
@@ -126,6 +127,7 @@ def generate(args):
             (folder/f'take-{n}.json').write_text(json.dumps({'model': args.model, 'quality': args.quality, 'refs': b.get('refs', []), 'prompt': text}, indent=2) + '\n')
             opaque = image.getchannel('A').getextrema()[0] == 255
             print(f'  {name} take {n}' + ('  (warning: no transparency; the model painted a background)' if opaque else ''))
+    frames(args)
     review(args)
 
 
@@ -140,6 +142,23 @@ def fit(image):
     out = Image.new('RGBA', (SIZE, SIZE))
     out.alpha_composite(art, ((SIZE - art.width) // 2, (SIZE - art.height) // 2))
     return out
+
+
+def frames(args):
+    """Each take as the frame `place` would write: `frame-<n>.webp` beside `take-<n>.png`, lossless.
+
+    It is the form a take is kept in by the studio's service (ADR 0051), so a take seen on a board
+    there is, byte for byte, what placing it commits. A take with nothing in it is left out."""
+    b = brief(args.puzzle)
+    for name in b['frames']:
+        for take in takes(args.puzzle, name):
+            out = take.with_name(f'frame-{take.stem.split("-")[1]}.webp')
+            if out.is_file():
+                continue
+            image = Image.open(take).convert('RGBA')
+            if not image.getchannel('A').point(lambda a: 255 if a > 32 else 0).getbbox():
+                continue
+            fit(image).save(out, lossless=True, method=6)
 
 
 def review(args):
@@ -231,6 +250,7 @@ g.add_argument('--model', default=os.environ.get('OPENAI_IMAGE_MODEL', 'gpt-imag
 g.add_argument('--quality', default='high', choices=['low', 'medium', 'high'])
 g.set_defaults(run=generate)
 r = sub.add_parser('review', help='rebuild the review page and contact sheet'); r.add_argument('puzzle'); r.set_defaults(run=review)
+f = sub.add_parser('frames', help='write each take as the frame it would be placed as'); f.add_argument('puzzle'); f.set_defaults(run=frames)
 p = sub.add_parser('place', help='put one take in the atlas'); p.add_argument('puzzle'); p.add_argument('frame'); p.add_argument('take', type=int)
 p.set_defaults(run=place)
 args = parser.parse_args()
