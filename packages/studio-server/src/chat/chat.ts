@@ -10,7 +10,7 @@ import type { ModelProxy } from "./proxy.js";
 import type { AgentEvent, AgentRunner, AgentTurn, TurnResult } from "./runner.js";
 import type { AgentIdentity } from "./sdkRunner.js";
 import { mayWrite, repoPath } from "./scope.js";
-import { TAKE_USD, type Takes } from "../takes/takes.js";
+import type { Takes } from "../takes/takes.js";
 
 export interface ChatOptions {
   db: Db;
@@ -190,16 +190,10 @@ export function createChat(o: ChatOptions): Chat {
       log.error({ err, draft: row.id }, "could not commit a chat turn");
     }
     // Whatever takes the turn's commands made are kept now, so the owner's panels list them (ADR 0051).
-    // The scripts paid for them with keys the meter never saw: each new one is counted at an estimate.
+    // What they cost was metered as the scripts made them, through the proxy (ADR 0059).
     if (o.takes && run.cwd) {
       try {
-        const made = await o.takes.ingest(run.cwd, { draft: row.id, puzzle: row.puzzle, owner: row.owner });
-        const usd = made.reduce((sum, kind) => sum + TAKE_USD[kind], 0);
-        if (usd > 0) {
-          run.spentUsd += usd;
-          await db.insert(schema.meter).values({ id: 1, spentUsd: usd }).onConflictDoUpdate({ target: schema.meter.id, set: { spentUsd: sql`${schema.meter.spentUsd} + ${usd}` } });
-          await db.update(schema.draft).set({ spentUsd: sql`${schema.draft.spentUsd} + ${usd}` }).where(eq(schema.draft.id, row.id));
-        }
+        await o.takes.ingest(run.cwd, { draft: row.id, puzzle: row.puzzle, owner: row.owner });
       } catch (err) {
         log.error({ err, draft: row.id }, "could not keep a turn's takes");
       }

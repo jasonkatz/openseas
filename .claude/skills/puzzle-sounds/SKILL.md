@@ -43,7 +43,8 @@ Done when every moment the board sounds has a cue.
 
 `ELEVENLABS_API_KEY`, from the environment or the repository's untracked `.env`. In a cloud
 session, ask for it with `request_credential` (host `api.elevenlabs.io`, header `xi-api-key`, no
-prefix) and run the script with `ELEVENLABS_API_KEY=placeholder`: the proxy puts the real key in.
+prefix) and run the script with `ELEVENLABS_API_KEY=placeholder`: the proxy puts the real key in. In the studio's chat the key
+and `ELEVENLABS_BASE_URL` are already set, to the studio's proxy that meters each sound: change neither.
 
 ## 3. Generate
 

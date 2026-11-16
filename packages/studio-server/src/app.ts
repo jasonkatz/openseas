@@ -77,9 +77,16 @@ async function createChatFor(env: Env, db: Db, log: Logger, repo: Repo, runner: 
     }
     log.warn("the agent runs as the service's own user: there is no separation between them off production");
   }
-  const proxy = await createModelProxy({ apiKey: env.ANTHROPIC_API_KEY ?? "none", log, ...(env.STUDIO_MODEL_UPSTREAM ? { upstream: env.STUDIO_MODEL_UPSTREAM } : {}) });
-  const scriptKeys = { ...(env.OPENAI_API_KEY ? { OPENAI_API_KEY: env.OPENAI_API_KEY } : {}), ...(env.ELEVENLABS_API_KEY ? { ELEVENLABS_API_KEY: env.ELEVENLABS_API_KEY } : {}) };
-  const chat = createChat({ db, repo, runner: runner ?? createSdkRunner({ identity, scriptKeys, log }), proxy, identity, capUsd, takes, log });
+  // The generation scripts' keys stay in this process too: the scripts reach their APIs through the proxy, which meters them (ADR 0059).
+  const proxy = await createModelProxy({
+    apiKey: env.ANTHROPIC_API_KEY ?? "none",
+    log,
+    ...(env.STUDIO_MODEL_UPSTREAM ? { upstream: env.STUDIO_MODEL_UPSTREAM } : {}),
+    ...(env.OPENAI_API_KEY ? { openai: { key: env.OPENAI_API_KEY } } : {}),
+    ...(env.ELEVENLABS_API_KEY ? { elevenlabs: { key: env.ELEVENLABS_API_KEY, ...(env.ELEVENLABS_USD_PER_CREDIT ? { usdPerCredit: env.ELEVENLABS_USD_PER_CREDIT } : {}) } } : {}),
+  });
+  const scripts = { openai: Boolean(env.OPENAI_API_KEY), elevenlabs: Boolean(env.ELEVENLABS_API_KEY) };
+  const chat = createChat({ db, repo, runner: runner ?? createSdkRunner({ identity, scripts, log }), proxy, identity, capUsd, takes, log });
   return { chat, proxy };
 }
 

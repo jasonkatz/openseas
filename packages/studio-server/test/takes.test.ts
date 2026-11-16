@@ -22,7 +22,6 @@ import { createLogger } from "../src/log.js";
 import type { Forge } from "../src/save/forge.js";
 import { isFrame, isMp3, scanTakes } from "../src/takes/scan.js";
 import { createBucketStore, createMemoryStore } from "../src/takes/store.js";
-import { TAKE_USD } from "../src/takes/takes.js";
 
 /** A lossless WebP's first bytes, saying it is `size` pixels square: all the scan reads of a picture. */
 function frame(size = 192, salt = 0): Buffer {
@@ -238,12 +237,10 @@ describeDb("takes, kept when a turn ends", () => {
     // The bucket holds each under its hash, typed by the service.
     expect(store.objects.get(`takes/${sha(frame(192, 1))}`)).toEqual({ bytes: frame(192, 1), contentType: "image/webp" });
     expect(store.objects.get(`takes/${sha(mp3(1))}`)!.contentType).toBe("audio/mpeg");
-    // The turn is charged an estimate a take, the draft and the one meter with it; nothing was committed, since `.art/` is ignored.
-    const cost = TAKE_USD.sprite * 2 + TAKE_USD.sound;
+    // Keeping takes charges nothing: what they cost was metered as the scripts made them, through the proxy (ADR 0059). Nothing was committed, since `.art/` is ignored.
     const ended = state.items.at(-1)!;
     expect(ended).toMatchObject({ kind: "turn", status: "done", commit: null });
-    expect(ended.kind === "turn" && ended.costUsd).toBeCloseTo(cost);
-    expect(state.cap.spentUsd).toBeCloseTo(cost);
+    expect(ended.kind === "turn" && ended.costUsd).toBe(0);
   });
 
   it("keeps a take once: a later turn adds only what is new", async () => {
@@ -251,7 +248,7 @@ describeDb("takes, kept when a turn ends", () => {
     const state = await turn((r) => put(r.cwd, ".art/sprites/cooling/cog/frame-3.webp", frame(192, 3)));
     expect((await list()).length).toBe(before + 1);
     const ended = state.items.at(-1)!;
-    expect(ended.kind === "turn" && ended.costUsd).toBeCloseTo(TAKE_USD.sprite);
+    expect(ended.kind === "turn" && ended.costUsd).toBe(0);
   });
 
   it("serves a take to anyone who has its hash, from any origin, for good", async () => {

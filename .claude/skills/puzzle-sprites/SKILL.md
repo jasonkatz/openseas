@@ -27,7 +27,8 @@ Done when every frame the change needs has an entry.
 
 `OPENAI_API_KEY`, from the environment or the repository's untracked `.env`. In a cloud session,
 ask for it with `request_credential` (host `api.openai.com`, bearer) and run the script with
-`OPENAI_API_KEY=placeholder`: the proxy puts the real key in.
+`OPENAI_API_KEY=placeholder`: the proxy puts the real key in. In the studio's chat the key and
+`OPENAI_BASE_URL` are already set, to the studio's proxy that meters each picture: change neither.
 
 ## 3. Generate
 
