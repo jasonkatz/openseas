@@ -37,6 +37,8 @@ export function TopBar({ title, puzzle, sections, texts, onGoto }: { title: stri
             <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </Link>
+        <span className="top-wordmark">{t("studio.title")}</span>
+        <span className="top-rule" aria-hidden="true" />
         <PuzzleMenu title={title} puzzle={puzzle} />
         <ChangedChip sections={sections} texts={texts} onGoto={onGoto} />
       </div>

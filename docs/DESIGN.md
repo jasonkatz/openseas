@@ -777,6 +777,16 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
 - While the page is on an address's numbers and not on the owner's draft, a band under the top
   bar says so and holds the two ways out (ADR 0045).
 
+**Look** (ADR 0058). The bar, the rail, the panel and the chat are panels with rounded corners
+floating on a blue-black ground; the board sits on that ground between them, in the game's own
+colors and typefaces, and the status line is plain text under it all. Teal is for what acts and
+what is picked (Save, Send, the mode on the rail, a switch that is on, a frame or take picked
+out). Amber is only for what the draft changes: the count on the bar, a mode's dot, a changed
+number's dot, name, slider and the button that puts it back, and the band that says nothing is
+saved. Each of those is a shape or a word as well as a color. Titles and the small capital labels
+are set in Space Grotesk, everything else in Inter, and numbers, seeds and the status line in
+JetBrains Mono. The home grid, `/play` and the voyage bench keep the game's look.
+
 **Tuning.**
 
 - A control for every key under `config`, for `roundSeconds`, for each threshold and for

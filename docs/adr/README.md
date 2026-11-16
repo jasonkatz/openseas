@@ -63,3 +63,4 @@ that supersedes it.
 | [0055](./0055-the-chat-is-told-as-it-happens.md) | The chat is told as it happens: a stream over the rows, replies read as markdown, and a turn that fails says why |
 | [0056](./0056-the-studio-is-laid-out-as-a-design-tool.md) | The studio's page is laid out as a design tool: a top bar, a rail of modes, one panel |
 | [0057](./0057-a-draft-rewrites-its-puzzles-strings.md) | The studio's Text mode: a draft rewrites its puzzle's strings, and a puzzle has a category |
+| [0058](./0058-the-studios-chrome-has-a-look-of-its-own.md) | The studio's chrome has a look of its own: floating panels, teal for what acts, amber for what changed |
