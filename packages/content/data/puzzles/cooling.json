@@ -5,9 +5,9 @@
     "height": 12,
     "pieceKinds": 7,
     "specialChancePerMille": {
-      "charge": 12,
-      "magnet": 8,
-      "slag": 10
+      "charge": 60,
+      "magnet": 40,
+      "slag": 50
     },
     "initialHeatRow": 3,
     "minHeatRow": 3,
