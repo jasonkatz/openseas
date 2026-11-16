@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
-import { expectViewMatchesState } from "./helpers.js";
+import { expectViewMatchesState, shown } from "./helpers.js";
 import { NO_SAVE, SERVICE, draft, service } from "./standin.js";
 
 /**
@@ -74,14 +74,14 @@ for (const puzzle of ["cooling", "salvage"]) {
     expect(await page.getByTestId(`${puzzle}-board`).getAttribute("data-board")).toBe(before);
     await testInfo.attach(`${puzzle}-tried`, { body: await page.screenshot(), contentType: "image/png" });
 
-    await page.getByTestId(`frame-back-${frame}`).click();
+    await (await shown(page, `frame-back-${frame}`)).click();
     await expect(page.getByTestId(`frame-${frame}`)).toHaveAttribute("data-tried", "0");
     expect(await href(page, frame)).not.toMatch(/^blob:/);
     await expectViewMatchesState(page, puzzle);
 
     // A file that is no picture is refused where it was tried, and nothing changes.
     await page.getByTestId(`frame-file-${frame}`).setInputFiles({ name: "not.png", mimeType: "image/png", buffer: Buffer.from("no picture") });
-    await expect(page.getByTestId(`frame-${frame}`).locator(".tune-refusal")).toBeVisible();
+    await expect(page.getByTestId(`frame-detail-${frame}`).locator(".tune-refusal")).toBeVisible();
     await expect(page.getByTestId(`frame-${frame}`)).toHaveAttribute("data-tried", "0");
 
     await page.getByTestId("tab-tuning").click();
@@ -99,17 +99,20 @@ test("every cue has a row that plays, the synthesized cue is the pick, and a fil
   await page.getByTestId("tab-sounds").click();
   // The puzzle's own cues, the shared ones its board plays, and the round's.
   for (const cue of ["clash", "heavy", "thud", "start", "end"]) await expect(page.getByTestId(`cue-${cue}`)).toHaveAttribute("data-voice", "synth");
-  await page.getByTestId("cue-play-clash").click();
-  await page.getByTestId("cue-play-thud").click();
+  await (await shown(page, "cue-play-clash")).click();
+  await (await shown(page, "cue-play-thud")).click();
 
+  // A cue's voices and its file are in its row once it is the open one.
+  await page.getByTestId("cue-open-clash").click();
   await page.getByTestId("cue-file-clash").setInputFiles({ name: "clash.wav", mimeType: "audio/wav", buffer: wav() });
   await expect(page.getByTestId("cue-clash")).toHaveAttribute("data-voice", "file");
   await expect(page.getByTestId("cue-file-name-clash")).toContainText("clash.wav");
-  await page.getByTestId("cue-play-clash").click();
+  await (await shown(page, "cue-play-clash")).click();
   // The synthesized cue is picked again with a tap.
-  await page.getByTestId("cue-shipped-clash").click();
+  await (await shown(page, "cue-shipped-clash")).click();
   await expect(page.getByTestId("cue-clash")).toHaveAttribute("data-voice", "synth");
 
+  await page.getByTestId("cue-open-thud").click();
   await page.getByTestId("cue-file-thud").setInputFiles({ name: "not.wav", mimeType: "audio/wav", buffer: Buffer.from("no sound") });
   await expect(page.getByTestId("cue-thud").locator(".tune-refusal")).toBeVisible();
   await expect(page.getByTestId("cue-thud")).toHaveAttribute("data-voice", "synth");
@@ -129,12 +132,12 @@ test("a turn's takes appear in their rows, a tap picks one into the draft and on
   await expect(page.getByTestId(`frame-takes-${frame}`)).toHaveCount(0);
 
   // The row asks the agent, in the chat's own box, for the owner to finish.
-  await page.getByTestId(`ask-new-${frame}`).click();
+  await (await shown(page, `ask-new-${frame}`)).click();
   await expect(page.getByTestId("chat-input")).toHaveValue(`Make new takes of the ${frame} frame. `);
   await expect(page.getByTestId("chat-input")).toBeFocused();
-  await page.getByTestId(`ask-change-${frame}`).click();
+  await (await shown(page, `ask-change-${frame}`)).click();
   await expect(page.getByTestId("chat-input")).toHaveValue(`Change the ${frame} frame: `);
-  await page.getByTestId(`ask-new-${frame}`).click();
+  await (await shown(page, `ask-new-${frame}`)).click();
   await page.getByTestId("chat-send").click();
   await expect(page.getByTestId("chat-working")).toBeVisible();
 
@@ -153,7 +156,7 @@ test("a turn's takes appear in their rows, a tap picks one into the draft and on
   await expect(page.getByTestId("take-aaaaaaaa")).toHaveAttribute("title", "A brass cog.");
 
   // A tap is a pick: the draft holds it, the service is sent it, and the board is made again with it.
-  await page.getByTestId("take-aaaaaaaa").click();
+  await (await shown(page, "take-aaaaaaaa")).click();
   await expect(page.getByTestId(`frame-${frame}`)).toHaveAttribute("data-picked", mine);
   await expect(page.getByTestId(`frame-pick-${frame}`)).toHaveText("Picked: take 1");
   await expect.poll(() => href(page, frame)).toBe(`${SERVICE}/takes/${mine}`);
@@ -166,10 +169,11 @@ test("a turn's takes appear in their rows, a tap picks one into the draft and on
 
   // A cue's take is a button in its row: a tap picks it, and the synthesized cue is picked again with another.
   await page.getByTestId("tab-sounds").click();
-  await page.getByTestId("take-cccccccc").click();
+  await page.getByTestId("cue-open-clear").click();
+  await (await shown(page, "take-cccccccc")).click();
   await expect(page.getByTestId("cue-clear")).toHaveAttribute("data-voice", "take");
   await expect.poll(() => s.drafts[0]!.numbers.picks).toEqual({ sprites: { [frame]: mine }, sounds: { clear: sound } });
-  await page.getByTestId("cue-shipped-clear").click();
+  await (await shown(page, "cue-shipped-clear")).click();
   await expect(page.getByTestId("cue-clear")).toHaveAttribute("data-voice", "synth");
   await expect.poll(() => s.drafts[0]!.numbers.picks).toEqual({ sprites: { [frame]: mine }, sounds: {} });
 
@@ -178,18 +182,20 @@ test("a turn's takes appear in their rows, a tap picks one into the draft and on
   await page.getByTestId("tab-sprites").click();
   await expect(page.getByTestId(`frame-${frame}`)).toHaveAttribute("data-picked", mine);
   await expect.poll(() => href(page, frame)).toBe(`${SERVICE}/takes/${mine}`);
-  await page.getByTestId("tab-tuning").click();
-  await expect(page.getByTestId("picked-count")).toContainText("1");
+  // The top bar counts it with the changed numbers, lists it, and the rail marks its mode.
+  await expect(page.getByTestId("changed-count")).toContainText("2");
+  await expect(page.getByTestId(`change-sprites-${frame}`)).toHaveCount(1);
+  await expect(page.getByTestId("tab-dot-sprites")).toBeVisible();
 
   // A file tried over a pick gives way to the pick again, and Reset all clears numbers and picks alike.
   await page.getByTestId("tab-sprites").click();
   await page.getByTestId(`frame-file-${frame}`).setInputFiles({ name: "take.png", mimeType: "image/png", buffer: picture });
   await expect.poll(() => href(page, frame)).toMatch(/^blob:/);
-  await page.getByTestId(`frame-back-${frame}`).click();
+  await (await shown(page, `frame-back-${frame}`)).click();
   await expect.poll(() => href(page, frame)).toBe(`${SERVICE}/takes/${mine}`);
-  await page.getByTestId("tab-tuning").click();
-  await page.getByTestId("reset-all").click();
-  await expect(page.getByTestId("picked-count")).toHaveCount(0);
+  await (await shown(page, "reset-all")).click();
+  await expect(page.getByTestId(`change-sprites-${frame}`)).toHaveCount(0);
+  await expect(page.getByTestId("tab-dot-sprites")).toHaveCount(0);
   await expect.poll(() => s.drafts[0]!.numbers.picks).toEqual({ sprites: {}, sounds: {} });
   await page.getByTestId("tab-sprites").click();
   await expect(page.getByTestId(`frame-${frame}`)).toHaveAttribute("data-picked", "");
@@ -207,7 +213,7 @@ test("on a service older than picks, a pick stays in the address and the draft i
   s.takes.push({ hash: mine, kind: "sprite", puzzle: "cooling", name: frame, draft: "draftdraft", take: 1, body: await page.getByTestId("tab-sprites").screenshot(), contentType: "image/png" });
   await page.reload();
   await page.getByTestId("tab-sprites").click();
-  await page.getByTestId("take-aaaaaaaa").click();
+  await (await shown(page, "take-aaaaaaaa")).click();
   await expect(page.getByTestId(`frame-${frame}`)).toHaveAttribute("data-picked", mine);
   await expect(page).toHaveURL(new RegExp(`sprite\\.${frame}=${mine}`));
   // Longer than the page waits before it saves a change: nothing is sent, since the service would drop it.

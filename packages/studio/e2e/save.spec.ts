@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { NO_SAVE, draft, numbers, service } from "./standin.js";
+import { shown } from "./helpers.js";
 
 /**
  * Save for a draft's numbers (ADR 0046), on the studio page. The stand-in service (e2e/standin.ts)
@@ -16,8 +17,8 @@ test.describe("save", () => {
     const s = await service(page, { login: "octo", save: true, drafts: [draft({ save: NO_SAVE })] });
     await page.goto("/cooling");
     await expect(saveRows(page)).toHaveAttribute("data-state", "idle");
-    await page.getByTestId("save-name").fill("Five kinds");
-    await page.getByTestId("save").click();
+    await (await shown(page, "save-name")).fill("Five kinds");
+    await (await shown(page, "save")).click();
 
     // At once: the link, in the Save rows and in the puzzle's list of links.
     await expect(page.getByTestId("save-link")).toContainText("savelink21");
@@ -35,9 +36,9 @@ test.describe("save", () => {
     await expect(page.getByTestId("save-writing")).toHaveCount(0);
 
     // A number changed since is not in the pull request until the next Save, and the page says so.
-    await page.getByTestId("input-config.pieceKinds").fill("4");
+    await (await shown(page, "input-config.pieceKinds")).fill("4");
     await expect(saveRows(page)).toHaveAttribute("data-current", "0");
-    await page.getByTestId("save").click();
+    await (await shown(page, "save")).click();
     await expect(page.getByTestId("save-writing")).toBeVisible();
     expect(s.writes.at(-1)).toEqual({ call: "POST /drafts/draftdraft/save", body: { revision: 4, name: "Draft, save 4" } });
     s.finish("draftdraft", { savedRevision: 4 });
@@ -50,7 +51,7 @@ test.describe("save", () => {
   test("a Save that fails says why and leaves the draft and its link", async ({ page }) => {
     const s = await service(page, { login: "octo", save: true, drafts: [draft({ save: NO_SAVE })] });
     await page.goto("/cooling");
-    await page.getByTestId("save").click();
+    await (await shown(page, "save")).click();
     await expect(page.getByTestId("save-link")).toBeVisible();
     s.finish("draftdraft", { state: "failed", error: "github" });
     await expect(page.getByTestId("save-failed")).toContainText("GitHub");
@@ -62,14 +63,16 @@ test.describe("save", () => {
   test("when main has moved the page says so and merges it only when asked", async ({ page }) => {
     const s = await service(page, { login: "octo", save: true, drafts: [draft({ save: { ...NO_SAVE, pull: PULL, savedRevision: 3, behind: true } })] });
     await page.goto("/cooling");
-    await expect(page.getByTestId("save-behind")).toBeVisible();
+    // The sheet beside Save holds it, and a dot on the sheet's button says so.
+    await expect(page.getByTestId("menu-save")).toHaveClass(/has-dot/);
+    await expect(await shown(page, "save-behind")).toBeVisible();
     // Tuning on does not ask for it, and does not lose sight of it.
-    await page.getByTestId("input-config.pieceKinds").fill("4");
+    await (await shown(page, "input-config.pieceKinds")).fill("4");
     await expect(page.getByTestId("draft-store")).toHaveAttribute("data-revision", "4");
-    await expect(page.getByTestId("save-behind")).toBeVisible();
+    await expect(await shown(page, "save-behind")).toBeVisible();
     expect(s.writes.map((w) => w.call)).toEqual(["PUT /drafts/draftdraft"]);
 
-    await page.getByTestId("save-update").click();
+    await (await shown(page, "save-update")).click();
     await expect(page.getByTestId("save-writing")).toBeVisible();
     expect(s.writes.at(-1)!.call).toBe("POST /drafts/draftdraft/update");
     s.finish("draftdraft", { behind: false });
@@ -79,17 +82,17 @@ test.describe("save", () => {
     // And when the two changed the same lines, the page says the branch is as it was.
     s.drafts[0]!.save = { ...NO_SAVE, pull: PULL, savedRevision: 3, behind: true };
     await page.reload();
-    await page.getByTestId("save-update").click();
+    await (await shown(page, "save-update")).click();
     s.finish("draftdraft", { state: "failed", error: "conflict", behind: true });
     await expect(page.getByTestId("save-failed")).toContainText("same lines");
-    await expect(page.getByTestId("save-behind")).toBeVisible();
+    await expect(await shown(page, "save-behind")).toBeVisible();
   });
 
   test("a draft whose pull request was merged while the page watched is cleared", async ({ page }) => {
     const s = await service(page, { login: "octo", save: true, drafts: [draft({ save: { ...NO_SAVE, pull: PULL, savedRevision: 3 } })] });
     await page.goto("/cooling");
     await expect(page.getByTestId("input-config.pieceKinds")).toHaveValue("5");
-    await page.getByTestId("save").click();
+    await (await shown(page, "save")).click();
     await expect(page.getByTestId("save-writing")).toBeVisible();
     s.drafts = [];
     await expect(page.getByTestId("draft-store")).toHaveAttribute("data-draft", "");
@@ -99,9 +102,9 @@ test.describe("save", () => {
   test("discarding a draft with a pull request says it closes it", async ({ page }) => {
     const s = await service(page, { login: "octo", save: true, drafts: [draft({ save: { ...NO_SAVE, pull: PULL, savedRevision: 3 } })] });
     await page.goto("/cooling");
-    await page.getByTestId("draft-discard").click();
-    await expect(page.getByTestId("draft-store")).toContainText("close its pull request");
-    await page.getByTestId("draft-discard-yes").click();
+    await (await shown(page, "draft-discard")).click();
+    await expect(page.getByTestId("draft-discard-confirm")).toContainText("close its pull request");
+    await (await shown(page, "draft-discard-yes")).click();
     await expect(page.getByTestId("draft-store")).toHaveAttribute("data-draft", "");
     expect(s.drafts).toEqual([]);
   });
@@ -119,7 +122,7 @@ test.describe("save", () => {
     await page.reload();
     await expect(page.getByTestId("save")).toBeEnabled();
     await expect(saveRows(page)).toContainText("whatever the chat edited");
-    await page.getByTestId("save").click();
+    await (await shown(page, "save")).click();
     await expect(page.getByTestId("save-writing")).toBeVisible();
     expect(s.writes).toEqual([{ call: "POST /drafts/draftdraft/save", body: { revision: 3, name: "Draft, save 3" } }]);
     s.finish("draftdraft", { pull: PULL, savedRevision: 3, edits: true });
@@ -134,7 +137,7 @@ test.describe("save", () => {
     await page.goto("/cooling");
     await expect(page.getByTestId("save")).toBeEnabled();
     await expect(saveRows(page)).toContainText("the takes you picked");
-    await page.getByTestId("save").click();
+    await (await shown(page, "save")).click();
     await expect(page.getByTestId("save-writing")).toBeVisible();
     s.finish("draftdraft", { state: "failed", error: "pick", detail: "cog" });
     await expect(page.getByTestId("save-failed")).toContainText("the pick for cog can't be placed");
@@ -145,11 +148,11 @@ test.describe("save", () => {
     await service(page, { login: "octo", save: true, drafts: [draft({ numbers: numbers({ seed: "only-a-seed" }), save: NO_SAVE })] });
     await page.goto("/cooling");
     await expect(page.getByTestId("save")).toBeDisabled();
-    await page.getByTestId("input-config.pieceKinds").fill("5");
+    await (await shown(page, "input-config.pieceKinds")).fill("5");
     await expect(page.getByTestId("draft-store")).toHaveAttribute("data-revision", "4");
     await expect(page.getByTestId("save")).toBeEnabled();
     // A number the build refuses is not saved as a pull request.
-    await page.getByTestId("input-config.streakMaxPercent").fill("20");
+    await (await shown(page, "input-config.streakMaxPercent")).fill("20");
     await expect(page.getByTestId("save")).toBeDisabled();
 
     // A service from before Save: drafts as ever, and no Save.

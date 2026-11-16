@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { SERVICE, draft, numbers, service } from "./standin.js";
+import { shown } from "./helpers.js";
 
 /**
  * Drafts kept by the service (ADR 0045). No service runs under the smoke: these tests answer for
@@ -27,7 +28,7 @@ test.describe("drafts in the service", () => {
     await expect(page).toHaveURL(/\/cooling$/);
     expect(s.writes).toEqual([]);
 
-    await kinds(page).fill("4");
+    await (await shown(page, "input-config.pieceKinds")).fill("4");
     await expect(store(page)).toHaveAttribute("data-revision", "4");
     await expect(store(page)).toHaveAttribute("data-status", "saved");
     expect(s.writes).toEqual([{ call: "PUT /drafts/draftdraft", body: { numbers: sent({ seed: "kept-1", overrides: { pieceKinds: 4 }, roundSeconds: 45 }), revision: 3 } }]);
@@ -45,7 +46,7 @@ test.describe("drafts in the service", () => {
     await page.goto("/cooling");
     await expect(store(page)).toHaveAttribute("data-draft", "");
     await expect(page.getByTestId("draft-discard")).toHaveCount(0);
-    await kinds(page).fill("5");
+    await (await shown(page, "input-config.pieceKinds")).fill("5");
     await expect(store(page)).toHaveAttribute("data-draft", "newdraft22");
     expect(s.writes).toEqual([{ call: "POST /drafts", body: { puzzle: "cooling", numbers: sent({ overrides: { pieceKinds: 5 } }) } }]);
 
@@ -56,17 +57,17 @@ test.describe("drafts in the service", () => {
     // Reset all clears the numbers and keeps the draft.
     await page.getByTestId("tile-cooling").click();
     await expect(kinds(page)).toHaveValue("5");
-    await page.getByTestId("reset-all").click();
+    await (await shown(page, "reset-all")).click();
     await expect(store(page)).toHaveAttribute("data-revision", "2");
     expect(s.drafts[0]!.numbers).toEqual(numbers());
 
-    await kinds(page).fill("4");
+    await (await shown(page, "input-config.pieceKinds")).fill("4");
     await expect(store(page)).toHaveAttribute("data-revision", "3");
-    await page.getByTestId("draft-discard").click();
-    await page.getByTestId("draft-discard-no").click();
+    await (await shown(page, "draft-discard")).click();
+    await (await shown(page, "draft-discard-no")).click();
     expect(s.drafts).toHaveLength(1);
-    await page.getByTestId("draft-discard").click();
-    await page.getByTestId("draft-discard-yes").click();
+    await (await shown(page, "draft-discard")).click();
+    await (await shown(page, "draft-discard-yes")).click();
     await expect(store(page)).toHaveAttribute("data-draft", "");
     await expect(page.getByTestId("changed-count")).not.toContainText("1");
     expect(s.drafts).toEqual([]);
@@ -82,19 +83,19 @@ test.describe("drafts in the service", () => {
     await expect(store(page)).toHaveAttribute("data-why", "link");
     // The page plays the link, and changing it saves nothing: the address goes on carrying it.
     await expect(kinds(page)).toHaveValue("4");
-    await page.getByTestId("input-roundSeconds").fill("50");
+    await (await shown(page, "input-roundSeconds")).fill("50");
     await expect(page).toHaveURL(/seconds=50/);
     await page.waitForTimeout(900);
     expect(s.writes).toEqual([]);
 
-    await page.getByTestId("draft-open").click();
+    await (await shown(page, "draft-open")).click();
     await expect(store(page)).toHaveAttribute("data-state", "stored");
     await expect(kinds(page)).toHaveValue("5");
     await expect(page).toHaveURL(/\/cooling$/);
     expect(s.writes).toEqual([]);
 
     await page.goto("/cooling?c.pieceKinds=4&seconds=45");
-    await page.getByTestId("draft-keep").click();
+    await (await shown(page, "draft-keep")).click();
     await expect(store(page)).toHaveAttribute("data-state", "stored");
     await expect(page).toHaveURL(/\/cooling$/);
     expect(s.writes).toEqual([{ call: "PUT /drafts/draftdraft", body: { numbers: sent({ overrides: { pieceKinds: 4 }, roundSeconds: 45 }), revision: 3 } }]);
@@ -113,22 +114,22 @@ test.describe("drafts in the service", () => {
     // Another page saved it meanwhile.
     s.drafts[0]!.revision = 9;
     s.drafts[0]!.numbers = numbers({ overrides: { pieceKinds: 6 } });
-    await kinds(page).fill("4");
+    await (await shown(page, "input-config.pieceKinds")).fill("4");
     await expect(store(page)).toHaveAttribute("data-why", "stale");
     await expect(page).toHaveURL(/c\.pieceKinds=4/);
     expect(s.drafts[0]!.numbers.overrides).toEqual({ pieceKinds: 6 });
-    await page.getByTestId("draft-open").click();
+    await (await shown(page, "draft-open")).click();
     await expect(kinds(page)).toHaveValue("6");
 
     s.fail = "down";
-    await kinds(page).fill("3");
+    await (await shown(page, "input-config.pieceKinds")).fill("3");
     await expect(store(page)).toHaveAttribute("data-why", "unsaved");
     await expect(page).toHaveURL(/c\.pieceKinds=3/);
     // It still plays, and once the service is back the owner's word saves it.
     await page.getByTestId("play-start").click();
     await expect(page.getByTestId("cooling-canvas")).toBeVisible();
     s.fail = null;
-    await page.getByTestId("draft-keep").click();
+    await (await shown(page, "draft-keep")).click();
     await expect(store(page)).toHaveAttribute("data-state", "stored");
     expect(s.drafts[0]!.numbers.overrides).toEqual({ pieceKinds: 3 });
   });
@@ -136,8 +137,8 @@ test.describe("drafts in the service", () => {
   test("signed out, or with the service down, the address is the draft as it always was", async ({ page }) => {
     const s = await service(page, { login: null });
     await page.goto("/cooling");
-    await expect(page.getByTestId("sign-in-github")).toBeVisible();
-    await kinds(page).fill("5");
+    await expect(await shown(page, "sign-in-github")).toBeVisible();
+    await (await shown(page, "input-config.pieceKinds")).fill("5");
     await expect(page).toHaveURL(/c\.pieceKinds=5/);
     await expect(store(page)).toHaveCount(0);
     expect(s.calls.filter((c) => c.includes("/drafts"))).toEqual([]);
@@ -145,9 +146,9 @@ test.describe("drafts in the service", () => {
     await page.unroute(`${SERVICE}/**`);
     await page.route(`${SERVICE}/**`, (route) => route.abort());
     await page.goto("/cooling?c.pieceKinds=5");
-    await expect(page.getByTestId("links-unreachable")).toBeVisible();
+    await expect(await shown(page, "links-unreachable")).toBeVisible();
     await expect(kinds(page)).toHaveValue("5");
-    await kinds(page).fill("4");
+    await (await shown(page, "input-config.pieceKinds")).fill("4");
     await expect(page).toHaveURL(/c\.pieceKinds=4/);
     await expect(store(page)).toHaveCount(0);
     await page.getByTestId("play-start").click();
@@ -160,7 +161,7 @@ test.describe("drafts in the service", () => {
     await service(page, { login: "octo", drafts: [draft()] });
     await page.goto("/cooling");
     await expect(kinds(page)).toHaveValue("5");
-    await page.getByTestId("sign-out").click();
+    await (await shown(page, "sign-out")).click();
     await expect(store(page)).toHaveCount(0);
     await expect(page).toHaveURL(/c\.pieceKinds=5/);
     await expect(kinds(page)).toHaveValue("5");

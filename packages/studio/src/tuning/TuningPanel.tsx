@@ -1,16 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { tierFor } from "@openseas/engine";
 import { PuzzleNumbersSchema } from "@openseas/content";
-import { pickCount } from "@openseas/protocol";
 import { content, t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
-import { formatNumber, withoutNumbers, type Refusal, type Threshold } from "../frame/numbers.js";
-import { localSeed, type PracticePhase } from "../practice/usePractice.js";
-import { playLink } from "../scenario/codec.js";
-import type { Preset } from "../scenario/presets.js";
-import { DraftSection } from "../service/DraftSection.jsx";
-import { TesterLinks } from "../service/TesterLinks.jsx";
-import { readRestart, writeRestart } from "../studio/useStudio.js";
+import { formatNumber, type Refusal, type Threshold } from "../frame/numbers.js";
+import { MODE_SECTIONS, NUMBER_MODES, humanize, isNumberMode, labelOf, type ModeId, type NumberMode, type SectionId } from "../studio/modes.js";
 import { configControls, roundControls, sliderRange, valueAt, type Control } from "./controls.js";
 import { TUNING_GROUPS } from "./groups/index.js";
 
@@ -26,208 +20,119 @@ function bareMax(s: { unwrap?: () => { maxValue: number | null } }): number {
   return s.unwrap?.().maxValue ?? 120;
 }
 
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
+const owns = (key: string, r: Refusal): boolean => r.key === key || r.key.startsWith(`${key}.`);
+
+/** One section of a numbers panel: its controls, and the thresholds where it is the one that rates. */
+export interface NumberSection {
+  readonly id: SectionId;
+  readonly mode: NumberMode;
+  readonly controls: readonly Control[];
+  readonly thresholds: boolean;
 }
 
-const presetName = (id: string): string =>
-  id.startsWith("deck_") ? t("studio.preset.deck", { n: id.slice(5) }) : id.startsWith("board_") ? t("studio.preset.board", { n: id.slice(6) }) : t(`studio.preset.${id}`);
+/**
+ * Every number the studio tunes, in the sections the three numbers modes show them in
+ * (studio/modes): a control for each key under `config`, in its group; the round's length; and
+ * the live tier's window with the thresholds. Built from the puzzle's content file and bounded by
+ * its wire schema (tuning/controls).
+ */
+export function useNumberSections(): readonly NumberSection[] {
+  const { puzzle, shipped } = useFrame();
+  return useMemo(() => {
+    const groups = new Map(configControls(puzzle, TUNING_GROUPS[puzzle.id]).map((g) => [g.id as SectionId, g.controls]));
+    const [roundSeconds, paceSeconds] = roundControls(shipped, ROUND_BOUNDS) as [Control, Control];
+    const out: NumberSection[] = [];
+    for (const mode of NUMBER_MODES) {
+      for (const id of MODE_SECTIONS[mode]) {
+        const controls = id === "round" ? [{ ...roundSeconds, description: t("studio.desc.round_seconds") }] : id === "rating" ? [{ ...paceSeconds, description: t("studio.desc.pace_seconds") }] : (groups.get(id) ?? []);
+        if (controls.length > 0) out.push({ id, mode, controls, thresholds: id === "rating" });
+      }
+    }
+    return out;
+  }, [puzzle, shipped]);
+}
+
+/** The mode a number is tuned in, by its key in the content file. A changed leaf belongs to the control over it. */
+export function modeOfKey(sections: readonly NumberSection[], key: string): NumberMode | null {
+  if (key === "thresholds") return sections.find((s) => s.thresholds)?.mode ?? null;
+  return sections.find((s) => s.controls.some((c) => c.key === key || key.startsWith(`${c.key}.`)))?.mode ?? null;
+}
+
+/** A refusal no control can claim (the engine's own check names no key): shown over the panel, whatever its mode. */
+export function LooseRefusals({ sections }: { sections: readonly NumberSection[] }) {
+  const { refusals } = useFrame();
+  const known = [...sections.flatMap((s) => s.controls.map((c) => c.key)), "thresholds"];
+  const loose = refusals.filter((r) => !known.some((k) => owns(k, r)));
+  if (loose.length === 0) return null;
+  return (
+    <ul className="tune-refusals" role="alert" data-testid="refusals">
+      {loose.map((r, i) => (
+        <li key={i}>
+          <code>{r.key}</code> {r.message}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const words = (c: Control): string => `${c.key} ${humanize(c.name)} ${c.branch ? humanize(c.branch) : ""} ${c.description ?? ""}`.toLowerCase();
 
 /**
- * The tuning panel (DESIGN.md 3.14): the seed, then a control for every key under `config`, for
- * the round's length, the live tier's window and each threshold. It is built from the puzzle's
- * content file and bounded by its wire schema (tuning/controls), and it only ever writes the
- * frame's draft: what the draft means for the round on the board is the page's business
- * (studio/useStudio).
+ * The numbers panels (DESIGN.md 3.14, ADR 0056): Setup, Tuning and Scoring are one list of
+ * sections, of which the mode on the rail shows its own. Every section stays in the page while
+ * another shows, so a value half typed outlasts a look elsewhere. A search shows the matching
+ * numbers from all three, each under the mode it is tuned in. It only ever writes the frame's
+ * draft: what the draft means for the round on the board is the page's business (studio/useStudio).
  */
-export function TuningPanel({ phase, onStart }: { phase: PracticePhase; onStart(seed?: string): void }) {
+export function NumbersPanel({ sections, mode, query, hints }: { sections: readonly NumberSection[]; mode: ModeId; query: string; hints: boolean }) {
   const frame = useFrame();
-  const { puzzle, scenario, setScenario, shipped, tuned, refusals, changes, report } = frame;
-  const [restart, setRestart] = useState(readRestart);
-  const [copied, setCopied] = useState<string | null>(null);
-  useEffect(() => {
-    if (!copied) return;
-    const id = window.setTimeout(() => setCopied(null), 1500);
-    return () => window.clearTimeout(id);
-  }, [copied]);
-
-  const groups = useMemo(() => configControls(puzzle, TUNING_GROUPS[puzzle.id]), [puzzle]);
-  const round = useMemo(() => roundControls(shipped, ROUND_BOUNDS), [shipped]);
-  const known = useMemo(() => [...groups.flatMap((g) => g.controls.map((c) => c.key)), "roundSeconds", "paceSeconds", "thresholds"], [groups]);
-  const owns = (key: string, r: Refusal): boolean => r.key === key || r.key.startsWith(`${key}.`);
-  // A refusal no control can claim (the engine's own check names no key) is shown above them all.
-  const loose = refusals.filter((r) => !known.some((k) => owns(k, r)));
-
-  const picked = pickCount(scenario);
-  const seed = report.seed ?? scenario.seed;
-  const pinned = scenario.seed !== null;
-  const presets = puzzle.presets.filter((p: Preset) => Object.keys(p.overrides).length > 0 || p.roundSeconds !== undefined);
-  const applyPreset = (id: string): void => {
-    const p = presets.find((x) => x.id === id);
-    // A starting point is numbers: the draft's picks stay.
-    if (p) setScenario({ ...withoutNumbers(scenario), picks: scenario.picks, overrides: p.overrides, roundSeconds: p.roundSeconds ?? null });
-  };
-  const hold = (on: boolean) => (): void => frame.setComparing(on);
-
+  const { shipped, tuned, refusals } = frame;
+  const q = query.trim().toLowerCase();
+  const hit = (c: Control): boolean => q === "" || words(c).includes(q);
+  const ratingHit = q === "" || `thresholds ${t("studio.group.rating")}`.toLowerCase().includes(q);
+  const shown = (s: NumberSection): boolean => (q === "" ? s.mode === mode : s.controls.some(hit) || (s.thresholds && ratingHit));
   const row = (c: Control, value: unknown): ReactNode => (
-    <ControlRow key={c.key} control={c} value={value} refusals={refusals.filter((r) => owns(c.key, r))} onSet={(v) => frame.setNumber(c.key, v)} onReset={() => frame.resetNumber(c.key)} />
+    <ControlRow key={c.key} control={c} value={value} hints={hints} hidden={!hit(c)} refusals={refusals.filter((r) => owns(c.key, r))} onSet={(v) => frame.setNumber(c.key, v)} onReset={() => frame.resetNumber(c.key)} />
   );
-
   return (
-    <div className="tune" data-testid="tuning">
-      <section className="tune-seed">
-        <label className="tune-field">
-          <span className="stat-label">{t("studio.seed")}</span>
-          <input
-            type="text"
-            className="mono"
-            value={scenario.seed ?? ""}
-            placeholder={seed && !pinned ? seed : t("studio.seed_fresh")}
-            onChange={(e) => setScenario({ ...scenario, seed: e.target.value.trim() || null })}
-            spellCheck={false}
-            autoCapitalize="none"
-            data-testid="seed-input"
-          />
-        </label>
-        <div className="tune-actions">
-          <button type="button" className="btn btn-mini" aria-pressed={pinned} disabled={!pinned && !seed} onClick={() => setScenario({ ...scenario, seed: pinned ? null : seed })} data-testid="seed-pin">
-            {pinned ? t("studio.seed_unpin") : t("studio.seed_pin")}
-          </button>
-          <button type="button" className="btn btn-mini" disabled={!seed || refusals.length > 0} onClick={() => onStart(seed ?? undefined)} data-testid="seed-replay">
-            {t("studio.seed_replay")}
-          </button>
-          <button
-            type="button"
-            className="btn btn-mini"
-            disabled={refusals.length > 0}
-            onClick={() => {
-              const next = localSeed();
-              if (pinned) setScenario({ ...scenario, seed: next });
-              onStart(next);
-            }}
-            data-testid="seed-new"
-          >
-            {t("studio.seed_new")}
-          </button>
-        </div>
-      </section>
-
-      <section className="tune-draft">
-        <div className="tune-actions">
-          <button
-            type="button"
-            className={`btn btn-mini ${frame.comparing ? "is-held" : ""}`}
-            disabled={changes.length === 0 || phase === "idle"}
-            onPointerDown={hold(true)}
-            onPointerUp={hold(false)}
-            onPointerLeave={hold(false)}
-            onPointerCancel={hold(false)}
-            onKeyDown={(e) => (e.key === " " || e.key === "Enter") && !e.repeat && frame.setComparing(true)}
-            onKeyUp={hold(false)}
-            onBlur={hold(false)}
-            aria-pressed={frame.comparing}
-            title={t("studio.compare_hint")}
-            data-testid="compare"
-          >
-            {t("studio.compare")}
-          </button>
-          <button type="button" className="btn btn-mini" disabled={changes.length === 0 && refusals.length === 0 && picked === 0} onClick={frame.resetNumbers} data-testid="reset-all">
-            {t("studio.reset_all")}
-          </button>
-          <button
-            type="button"
-            className="btn btn-mini"
-            disabled={refusals.length > 0}
-            onClick={() => void copyText(playLink(window.location.origin, puzzle.id, scenario)).then((ok) => setCopied(ok ? t("studio.copied") : t("studio.copy_failed")))}
-            data-testid="copy-play-link"
-          >
-            {copied ?? t("studio.copy_play_link")}
-          </button>
-        </div>
-        <p className="muted small" data-testid="changed-count">
-          {refusals.length > 0 ? t("studio.refused_note") : changes.length === 0 ? t("studio.changed_none") : t("studio.changed_count", { count: changes.length })}
-        </p>
-        {picked > 0 && (
-          <p className="muted small" data-testid="picked-count">
-            {t("studio.picked_count", { count: picked })}
-          </p>
-        )}
-        <label className="tune-check">
-          <input
-            type="checkbox"
-            checked={restart}
-            onChange={(e) => {
-              setRestart(e.target.checked);
-              writeRestart(e.target.checked);
-            }}
-            data-testid="restart-on-change"
-          />
-          <span>{t("studio.restart_on_change")}</span>
-        </label>
-        {presets.length > 0 && (
-          <label className="tune-field">
-            <span className="stat-label">{t("studio.start_from")}</span>
-            <select
-              value=""
-              onChange={(e) => {
-                applyPreset(e.target.value);
-                e.target.value = "";
-              }}
-              data-testid="start-from"
-            >
-              <option value="">{t("studio.start_from_pick")}</option>
-              {presets.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {presetName(p.id)}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {loose.length > 0 && (
-          <ul className="tune-refusals" role="alert" data-testid="refusals">
-            {loose.map((r, i) => (
-              <li key={i}>
-                <code>{r.key}</code> {r.message}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <DraftSection />
-      <TesterLinks />
-
-      {groups.map((g) => (
-        <details key={g.id} className="tune-group" open data-testid={`group-${g.id}`}>
-          <summary>{t(`studio.group.${g.id}`)}</summary>
-          {g.controls.map((c) => row(c, valueAt(tuned.config, c.key)))}
-        </details>
+    <div className="tune" data-testid="tuning" hidden={!isNumberMode(mode)}>
+      {sections.map((s) => (
+        <section key={s.id} className="panel-sec tune-group" hidden={!shown(s)} data-mode-panel={s.mode} data-testid={`group-${s.id}`}>
+          <h3 className="panel-cap">
+            {q !== "" && <span className="panel-cap-mode">{t(`studio.mode.${s.mode}`)}</span>}
+            {t(`studio.group.${s.id}`)}
+          </h3>
+          {s.controls.map((c) => row(c, c.key.startsWith("config.") ? valueAt(tuned.config, c.key) : tuned[c.key as "roundSeconds" | "paceSeconds"]))}
+          {s.thresholds && (
+            <ThresholdsControl
+              shipped={shipped.thresholds}
+              value={tuned.thresholds}
+              hints={hints}
+              hidden={!ratingHit}
+              refusals={refusals.filter((r) => owns("thresholds", r))}
+              onSet={(v) => frame.setNumber("thresholds", v)}
+              onReset={() => frame.resetNumber("thresholds")}
+            />
+          )}
+        </section>
       ))}
-      <details className="tune-group" open data-testid="group-rating">
-        <summary>{t("studio.group.rating")}</summary>
-        {round.map((c) => row({ ...c, description: t(c.key === "roundSeconds" ? "studio.desc.round_seconds" : "studio.desc.pace_seconds") }, tuned[c.key as "roundSeconds" | "paceSeconds"]))}
-        <ThresholdsControl
-          shipped={shipped.thresholds}
-          value={tuned.thresholds}
-          refusals={refusals.filter((r) => owns("thresholds", r))}
-          onSet={(v) => frame.setNumber("thresholds", v)}
-          onReset={() => frame.resetNumber("thresholds")}
-        />
-      </details>
+      {q !== "" && !sections.some(shown) && (
+        <p className="panel-empty" data-testid="find-none">
+          {t("studio.find_none", { query: query.trim() })}
+        </p>
+      )}
     </div>
   );
 }
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
-/** The frame every control sits in: its key as the content file spells it, a dot that puts it back, its line, and why it is refused. */
-function Row({ name, branch, unit, changed, shipped, description, refusals, locked, onReset, children, testKey }: {
+/**
+ * The frame every control sits in: its key as a label, with the key itself and its line in the
+ * title; a dot when it differs from the shipped value and a button that puts it back; and why it
+ * is refused. A control that fits beside its label sits on the label's line; the rest sit under it.
+ */
+function Row({ name, branch, unit, changed, shipped, description, refusals, locked, block, hints, hidden, onReset, children, testKey }: {
   name: string;
   branch: string | null;
   unit: string | null;
@@ -236,25 +141,32 @@ function Row({ name, branch, unit, changed, shipped, description, refusals, lock
   description: string | null;
   refusals: readonly Refusal[];
   locked?: boolean;
+  block?: boolean;
+  hints: boolean;
+  hidden?: boolean;
   onReset(): void;
   children: ReactNode;
   testKey: string;
 }) {
+  const said = labelOf(name, branch, unit);
   return (
-    <div className={`tune-row ${changed ? "is-changed" : ""} ${refusals.length ? "is-refused" : ""}`} data-testid={`control-${testKey}`} data-changed={changed ? "1" : "0"}>
-      <div className="tune-head">
-        <code className="tune-key">
-          {branch && <span className="tune-branch">{branch}.</span>}
-          {name}
-        </code>
-        {unit && <span className="tune-unit">{t(`studio.unit.${unit}`)}</span>}
-        {locked && <span className="tune-unit">{t("studio.locked")}</span>}
-        {changed && (
-          <button type="button" className="tune-dot" onClick={onReset} aria-label={t("studio.reset_one", { key: name, value: shipped })} title={t("studio.reset_one", { key: name, value: shipped })} data-testid={`reset-${testKey}`} />
-        )}
+    <div className={`num-row ${block ? "is-block" : ""} ${changed ? "is-changed" : ""} ${refusals.length ? "is-refused" : ""}`} hidden={hidden} data-testid={`control-${testKey}`} data-changed={changed ? "1" : "0"}>
+      <div className="num-label" title={description ? `${testKey}: ${description}` : testKey}>
+        <i className="num-dot" aria-hidden="true" />
+        <span className="num-name">
+          {said.branch && <small>{said.branch}</small>}
+          {said.label}
+        </span>
+        {said.unit && <span className="num-unit">{t(`studio.unit.${said.unit}`)}</span>}
+        {locked && <span className="num-unit">{t("studio.locked")}</span>}
       </div>
-      {description && <p className="tune-desc">{description}</p>}
-      {children}
+      <div className="num-ctl">{children}</div>
+      {changed && (
+        <button type="button" className="num-reset" onClick={onReset} aria-label={t("studio.reset_one", { key: name, value: shipped })} title={t("studio.reset_one", { key: name, value: shipped })} data-testid={`reset-${testKey}`}>
+          <ResetIcon />
+        </button>
+      )}
+      {description && <p className={`tune-desc ${hints ? "" : "sr-only"}`}>{description}</p>}
       {refusals.map((r, i) => (
         <p key={i} className="tune-refusal" role="alert" data-testid={`refusal-${testKey}`}>
           {r.message}
@@ -264,8 +176,18 @@ function Row({ name, branch, unit, changed, shipped, description, refusals, lock
   );
 }
 
-function ControlRow({ control: c, value, refusals, onSet, onReset }: { control: Control; value: unknown; refusals: readonly Refusal[]; onSet(v: unknown): void; onReset(): void }) {
+export function ResetIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+      <path d="M5 9a8 8 0 1 1-1 6M5 4v5h5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ControlRow({ control: c, value, refusals, hints, hidden, onSet, onReset }: { control: Control; value: unknown; refusals: readonly Refusal[]; hints: boolean; hidden: boolean; onSet(v: unknown): void; onReset(): void }) {
   const changed = !same(value, c.shipped);
+  // What is neither one number, a switch nor a choice needs the panel's whole width.
+  const line = c.locked || ((c.kind === "slider" || c.kind === "stepper") && typeof value === "number") || (c.kind === "toggle" && typeof value === "boolean") || c.kind === "choice";
   const body = ((): ReactNode => {
     if (c.locked) return <output className="tune-value mono">{formatNumber(c.key, value)}</output>;
     // A link can put anything in a number's place; whatever the control cannot show is shown as it is.
@@ -273,10 +195,7 @@ function ControlRow({ control: c, value, refusals, onSet, onReset }: { control: 
     if (c.kind === "curve" && Array.isArray(value) && value.every((v) => typeof v === "number")) return <CurveControl control={c} value={value as number[]} onSet={onSet} />;
     if (c.kind === "toggle" && typeof value === "boolean")
       return (
-        <label className="tune-check">
-          <input type="checkbox" checked={value} onChange={(e) => onSet(e.target.checked)} data-testid={`input-${c.key}`} />
-          <span className="mono">{String(value)}</span>
-        </label>
+<input type="checkbox" role="switch" className="switch" checked={value} onChange={(e) => onSet(e.target.checked)} aria-label={c.name} data-testid={`input-${c.key}`} />
       );
     if (c.kind === "choice")
       return (
@@ -292,7 +211,7 @@ function ControlRow({ control: c, value, refusals, onSet, onReset }: { control: 
     return <JsonControl testKey={c.key} value={value} onSet={onSet} />;
   })();
   return (
-    <Row name={c.name} branch={c.branch} unit={c.unit} changed={changed} shipped={formatNumber(c.key, c.shipped)} description={c.description} refusals={refusals} locked={c.locked} onReset={onReset} testKey={c.key}>
+    <Row name={c.name} branch={c.branch} unit={c.unit} changed={changed} shipped={formatNumber(c.key, c.shipped)} description={c.description} refusals={refusals} locked={c.locked} block={!line} hints={hints} hidden={hidden} onReset={onReset} testKey={c.key}>
       {body}
     </Row>
   );
@@ -333,11 +252,11 @@ function NumberControl({ control: c, value, onSet }: { control: Control; value: 
   if (c.kind === "stepper") {
     return (
       <div className="tune-stepper">
-        <button type="button" className="btn btn-mini" onClick={() => onSet(clamp(value - 1))} disabled={c.min !== null && value <= c.min} aria-label={t("studio.less", { key: c.name })} data-testid={`less-${c.key}`}>
+        <button type="button" className="btn btn-mini btn-sq" onClick={() => onSet(clamp(value - 1))} disabled={c.min !== null && value <= c.min} aria-label={t("studio.less", { key: c.name })} data-testid={`less-${c.key}`}>
           −
         </button>
         <NumberBox value={value} min={c.min} max={c.max} integer={c.integer} onSet={onSet} testId={`input-${c.key}`} label={c.name} />
-        <button type="button" className="btn btn-mini" onClick={() => onSet(clamp(value + 1))} disabled={c.max !== null && value >= c.max} aria-label={t("studio.more", { key: c.name })} data-testid={`more-${c.key}`}>
+        <button type="button" className="btn btn-mini btn-sq" onClick={() => onSet(clamp(value + 1))} disabled={c.max !== null && value >= c.max} aria-label={t("studio.more", { key: c.name })} data-testid={`more-${c.key}`}>
           +
         </button>
       </div>
@@ -366,10 +285,10 @@ function CurveControl({ control: c, value, onSet }: { control: Control; value: r
         {value.map((v, i) => (
           <NumberBox key={i} value={v} min={c.min} max={c.max} integer={c.integer} onSet={(n) => onSet(value.map((x, j) => (j === i ? n : x)))} testId={`input-${c.key}.${i}`} label={`${c.name} ${i + 1}`} />
         ))}
-        <button type="button" className="btn btn-mini" onClick={() => onSet(value.slice(0, -1))} disabled={value.length <= 1} aria-label={t("studio.curve_shorter", { key: c.name })} data-testid={`shorter-${c.key}`}>
+        <button type="button" className="btn btn-mini btn-sq" onClick={() => onSet(value.slice(0, -1))} disabled={value.length <= 1} aria-label={t("studio.curve_shorter", { key: c.name })} data-testid={`shorter-${c.key}`}>
           −
         </button>
-        <button type="button" className="btn btn-mini" onClick={() => onSet([...value, value[value.length - 1] ?? 0])} aria-label={t("studio.curve_longer", { key: c.name })} data-testid={`longer-${c.key}`}>
+        <button type="button" className="btn btn-mini btn-sq" onClick={() => onSet([...value, value[value.length - 1] ?? 0])} aria-label={t("studio.curve_longer", { key: c.name })} data-testid={`longer-${c.key}`}>
           +
         </button>
       </div>
@@ -416,10 +335,10 @@ function JsonControl({ testKey, value, onSet }: { testKey: string; value: unknow
 }
 
 /** The thresholds: the score each rating is reached at, one field a threshold, with the tier that rating falls in beside it. */
-function ThresholdsControl({ shipped, value, refusals, onSet, onReset }: { shipped: readonly Threshold[]; value: readonly Threshold[]; refusals: readonly Refusal[]; onSet(v: unknown): void; onReset(): void }) {
+function ThresholdsControl({ shipped, value, refusals, hints, hidden, onSet, onReset }: { shipped: readonly Threshold[]; value: readonly Threshold[]; refusals: readonly Refusal[]; hints: boolean; hidden: boolean; onSet(v: unknown): void; onReset(): void }) {
   const rows = Array.isArray(value) && value.every((x) => x && typeof x.score === "number" && typeof x.rating === "number");
   return (
-    <Row name="thresholds" branch={null} unit="points" changed={!same(value, shipped)} shipped={formatNumber("thresholds", shipped)} description={t("studio.desc.thresholds")} refusals={refusals} onReset={onReset} testKey="thresholds">
+    <Row name="thresholds" branch={null} unit="points" changed={!same(value, shipped)} shipped={formatNumber("thresholds", shipped)} description={t("studio.desc.thresholds")} refusals={refusals} block hints={hints} hidden={hidden} onReset={onReset} testKey="thresholds">
       {rows ? (
         <ol className="tune-thresholds">
           {value.map((th, i) => (

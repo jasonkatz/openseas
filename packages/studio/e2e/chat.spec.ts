@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { NO_SAVE, draft, numbers, service } from "./standin.js";
+import { shown } from "./helpers.js";
 
 /**
  * The chat (ADR 0047), on the studio page. The stand-in service (e2e/standin.ts) keeps a chat's
@@ -194,7 +195,7 @@ test.describe("chat", () => {
     await page.getByTestId("chat-input").fill("One more?");
     await expect(page.getByTestId("chat-send")).toBeDisabled();
     // The rest of the page is as it was.
-    await page.getByTestId("input-config.pieceKinds").fill("4");
+    await (await shown(page, "input-config.pieceKinds")).fill("4");
     await expect(page.getByTestId("draft-store")).toHaveAttribute("data-revision", "4");
   });
 
@@ -207,13 +208,13 @@ test.describe("chat", () => {
     await page.unroute("http://localhost:8090/**");
     await service(page, { login: null, chat: true });
     await page.goto("/cooling");
-    await expect(page.getByTestId("sign-in-github")).toBeVisible();
+    await expect(await shown(page, "sign-in-github")).toBeVisible();
     await expect(chat(page)).toHaveCount(0);
 
     await page.unroute("http://localhost:8090/**");
     await page.route("http://localhost:8090/**", (route) => route.abort());
     await page.goto("/cooling");
-    await expect(page.getByTestId("links-unreachable")).toBeVisible();
+    await expect(await shown(page, "links-unreachable")).toBeVisible();
     await expect(chat(page)).toHaveCount(0);
     await page.getByTestId("play-start").click();
     await expect(page.getByTestId("cooling-canvas")).toBeVisible();
