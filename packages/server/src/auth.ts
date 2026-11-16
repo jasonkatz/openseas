@@ -46,6 +46,14 @@ export async function retireGuest(db: Db, guestUserId: string): Promise<boolean>
   return gone.length > 0;
 }
 
+/**
+ * Where Better Auth reads a caller's address, which keys its sign-in rate limits. Railway's edge
+ * sets `X-Real-IP` to the client's address on every request. Its `X-Forwarded-For` carries more
+ * than one hop, which Better Auth refuses to trust, and without an address every caller shares a
+ * single rate-limit bucket.
+ */
+export const IP_ADDRESS_OPTIONS = { ipAddressHeaders: ["x-real-ip"] };
+
 const PROVIDERS: readonly AuthProvider[] = ["discord", "google"];
 
 /** The providers this server has keys for, in a fixed order. */
@@ -100,6 +108,7 @@ export function createAuth(env: Env, db: Db, log: Logger) {
       updateAge: 60 * 60 * 24,
     },
     advanced: {
+      ipAddress: IP_ADDRESS_OPTIONS,
       ...(env.CROSS_SITE_COOKIES
         ? { defaultCookieAttributes: { sameSite: "none" as const, secure: true, partitioned: true } }
         : {}),
