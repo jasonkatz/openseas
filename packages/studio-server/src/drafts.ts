@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import { picksOf, type CreateDraft, type Draft, type SaveDraft } from "@openseas/protocol";
+import { picksOf, wordsOf, type CreateDraft, type Draft, type SaveDraft } from "@openseas/protocol";
 import { schema, type Db } from "./db/index.js";
 import { newLinkId } from "./links.js";
 
@@ -12,8 +12,8 @@ export const toDraft = (r: Row, behind = false): Draft => ({
   id: r.id,
   puzzle: r.puzzle as Draft["puzzle"],
   owner: r.owner,
-  // A row kept before picks has none: it is sent with none, whole.
-  numbers: { ...r.numbers, picks: picksOf(r.numbers) },
+  // A row kept before picks or words has none: it is sent with none, whole.
+  numbers: { ...r.numbers, picks: picksOf(r.numbers), words: wordsOf(r.numbers) },
   revision: r.revision,
   save: { state: r.saveState, error: r.saveError, pull: r.pullNumber !== null && r.pullUrl !== null ? { number: r.pullNumber, url: r.pullUrl } : null, savedRevision: r.savedRevision, behind, edits: r.chatCommits > 0, detail: r.saveErrorDetail },
   createdAt: r.createdAt.toISOString(),

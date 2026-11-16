@@ -1,4 +1,4 @@
-import type { DraftNumbers } from "@openseas/protocol";
+import { isPuzzleText, textVars, wordsOf, type DraftNumbers } from "@openseas/protocol";
 import { getJsonValue, removeJsonValue, setJsonValue } from "./jsonEdit.js";
 
 /** Where a puzzle's numbers live in the repository (CLAUDE.md rule 4). */
@@ -21,6 +21,9 @@ function keys(n: DraftNumbers): Map<string, unknown> {
   const out = new Map<string, unknown>();
   for (const [path, value] of Object.entries(n.overrides)) out.set(`config.${path}`, value);
   for (const key of TOP) if (n[key] !== null) out.set(key, n[key]);
+  // The category is a key of the content file like any other (ADR 0057).
+  const { category } = wordsOf(n);
+  if (category !== null) out.set("category", category);
   return out;
 }
 
@@ -58,6 +61,44 @@ export function describeNumbers(before: string, numbers: DraftNumbers): Array<{ 
   for (const [key, to] of keys(numbers)) {
     const from = getJsonValue(before, key.split("."));
     if (JSON.stringify(from) !== JSON.stringify(to)) out.push({ key, from, to });
+  }
+  return out;
+}
+
+/** Where every string lives in the repository (CLAUDE.md rule 5). */
+export const messagesPath = "packages/content/data/messages/en.json";
+
+/**
+ * The message table with a draft's rewritten strings written into it (ADR 0057), each where it
+ * stands, so the commit's diff shows those lines and no others. `saved` is what the Save before
+ * this one wrote: a string the draft has let go since goes back to what the table held where the
+ * draft's branch left the base branch. A string that is not this puzzle's, that the table does
+ * not have, or that drops or adds a name the shipped one fills in (`{count}`) refuses the Save:
+ * the page holds a draft to the same, so only a draft made some other way gets here.
+ */
+export function writeTexts(text: string, puzzle: string, texts: Readonly<Record<string, string>>, saved: Readonly<Record<string, string>>, base: string | null): string {
+  let out = text;
+  for (const key of Object.keys(saved)) {
+    if (key in texts) continue;
+    const was = base === null ? undefined : getJsonValue(base, [key]);
+    if (typeof was === "string" && getJsonValue(out, [key]) !== undefined) out = setJsonValue(out, [key], was);
+  }
+  for (const [key, words] of Object.entries(texts)) {
+    const now = getJsonValue(out, [key]);
+    const shipped = base === null ? now : (getJsonValue(base, [key]) ?? now);
+    if (!isPuzzleText(puzzle, key) || typeof now !== "string" || typeof shipped !== "string") throw new UnknownKeyError(key);
+    if (textVars(words).join() !== textVars(shipped).join()) throw new UnknownKeyError(key);
+    out = setJsonValue(out, [key], words);
+  }
+  return out;
+}
+
+/** What a draft's strings change in the table, a line a key, for a commit message and a pull request's body. */
+export function describeTexts(before: string, texts: Readonly<Record<string, string>>): Array<{ key: string; from: unknown; to: string }> {
+  const out: Array<{ key: string; from: unknown; to: string }> = [];
+  for (const [key, to] of Object.entries(texts)) {
+    const from = getJsonValue(before, [key]);
+    if (from !== to) out.push({ key, from, to });
   }
   return out;
 }

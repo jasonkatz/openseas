@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { PuzzleIdSchema, picksOf, type CreateTesterLink, type TesterLink } from "@openseas/protocol";
+import { PuzzleIdSchema, picksOf, wordsOf, type CreateTesterLink, type TesterLink } from "@openseas/protocol";
 import { schema, type Db } from "./db/index.js";
 
 const ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
@@ -22,8 +22,8 @@ const toLink = (r: Row): TesterLink => ({
   puzzle: r.puzzle as TesterLink["puzzle"],
   name: r.name,
   author: r.author,
-  // A link frozen before picks has none: it is sent with none, whole.
-  draft: { ...r.draft, picks: picksOf(r.draft) },
+  // A link frozen before picks or words has none: it is sent with none, whole.
+  draft: { ...r.draft, picks: picksOf(r.draft), words: wordsOf(r.draft) },
   createdAt: r.createdAt.toISOString(),
   withdrawn: r.withdrawnAt !== null,
 });

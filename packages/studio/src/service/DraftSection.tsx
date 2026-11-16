@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { pickCount, type Draft, type TesterLink } from "@openseas/protocol";
+import { pickCount, wordCount, type Draft, type TesterLink } from "@openseas/protocol";
 import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { Menu, MenuButton, useMenu } from "../studio/Menu.jsx";
@@ -149,7 +149,7 @@ function SaveRows({ draft, settled }: { draft: Draft; settled: boolean }) {
   const writing = save.state === "saving";
   const current = save.pull !== null && save.savedRevision === draft.revision;
   // With no pull request yet, a draft that changes no number, picks no take and that the chat has not worked on has nothing for one to hold.
-  const nothing = save.pull === null && changes.length === 0 && pickCount(draft.numbers) === 0 && !save.edits;
+  const nothing = save.pull === null && changes.length === 0 && pickCount(draft.numbers) === 0 && wordCount(draft.numbers) === 0 && !save.edits;
   const menu = useMenu();
   const start = async (): Promise<void> => {
     menu.setOpen(true);

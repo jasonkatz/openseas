@@ -44,6 +44,7 @@ describe("scenario codec", () => {
       roundSeconds: 60,
       overrides: { "specialChancePerMille.charge": 100, bag: [2, 2, 2, 0], decks: [["##B##", "#...C", "#...#", "#...#", "#####"]] },
       picks: { sprites: { cog: "a".repeat(64), "debris-2": "b".repeat(64) }, sounds: { clear: "synth" as const, clash: "c".repeat(64) } },
+      words: { texts: { "cooling.multi_2": "Twofer!", "cooling.how_to": "Swap two, clear three & more = win?" }, category: "crafting" as const },
       speed: 0.5,
       paused: true,
       hints: false,
@@ -57,6 +58,11 @@ describe("scenario codec", () => {
     const hash = "d".repeat(64);
     const s = parseScenario(`?sprite.cog=${hash}&sprite.valve=cut-short&sprite.bolt=synth&sound.clear=synth&sound.pop=${hash.slice(1)}&sprite.=${hash}`);
     expect(s.picks).toEqual({ sprites: { cog: hash }, sounds: { clear: "synth" } });
+  });
+
+  it("drops a rewritten string or a category that is not one, and keeps the rest (ADR 0057)", () => {
+    const s = parseScenario(`?text.cooling.go=Go!&text.nokey=x&text.cooling.title=&text.Bad.Key=x&category=parlour&text.cooling.heat=${"x".repeat(700)}`);
+    expect(s.words).toEqual({ texts: { "cooling.go": "Go!" }, category: null });
   });
 
   it("reads an empty or junk query as the plain scenario", () => {

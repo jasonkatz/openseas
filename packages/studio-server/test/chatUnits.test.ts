@@ -101,6 +101,14 @@ describe("what a message carries under the owner's words", () => {
     expect(text).toContain("clear: the synthesized cue");
     expect(withNumbers(picked, { paceSeconds: 12 }, []).picks).toEqual(picked.picks);
   });
+  it("gives the draft's words, and keeps them when a number is set (ADR 0057)", () => {
+    const worded = { seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, words: { texts: { "cooling.multi_2": "Twofer!" }, category: "crafting" as const } };
+    const text = context(worded, [], [], []);
+    expect(text).toContain('"cooling.multi_2":"Twofer!"');
+    expect(text).toContain("Draft category: crafting");
+    expect(withNumbers(worded, { paceSeconds: 12 }, []).words).toEqual(worded.words);
+    expect(context({ ...worded, words: { texts: {}, category: null } }, [], [], [])).not.toContain("Draft words");
+  });
 });
 
 describe("the meter", () => {
