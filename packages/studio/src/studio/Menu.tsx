@@ -29,7 +29,7 @@ export function useMenu(): MenuState {
 }
 
 /**
- * A menu off the studio's top bar (ADR 0055): what opens it, and the sheet it opens. The sheet
+ * A menu off the studio's top bar (ADR 0056): what opens it, and the sheet it opens. The sheet
  * stays in the page while shut, so what it holds (a name half typed, a note that a link was made)
  * is there when it opens again.
  */

@@ -1,6 +1,6 @@
 import { PuzzleNumbersSchema, thresholdProblems } from "@openseas/content";
 import { content } from "@openseas/boards";
-import type { HarnessPuzzle } from "../puzzles.js";
+import type { StudioPuzzle } from "../puzzles.js";
 import type { Scenario } from "../scenario/codec.js";
 import { applyOverrides, diffConfig, getPath } from "../scenario/overrides.js";
 import { validateConfig } from "../scenario/validate.js";
@@ -34,7 +34,7 @@ export interface Change {
 }
 
 /** What the content file ships: the numbers the server deals. */
-export function shippedNumbers<S, M, C>(puzzle: HarnessPuzzle<S, M, C>): Numbers<C> {
+export function shippedNumbers<S, M, C>(puzzle: StudioPuzzle<S, M, C>): Numbers<C> {
   const file = content.puzzles[puzzle.id];
   return { config: puzzle.config, roundSeconds: file.roundSeconds, paceSeconds: file.paceSeconds, thresholds: file.thresholds };
 }
@@ -43,7 +43,7 @@ export function shippedNumbers<S, M, C>(puzzle: HarnessPuzzle<S, M, C>): Numbers
  * The shipped numbers with a scenario's laid over them. Nothing is checked here: a link may carry
  * anything, and `refusals` says whether the result can be played.
  */
-export function tunedNumbers<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, scenario: Scenario): Numbers<C> {
+export function tunedNumbers<S, M, C>(puzzle: StudioPuzzle<S, M, C>, scenario: Scenario): Numbers<C> {
   const shipped = shippedNumbers(puzzle);
   return {
     config: applyOverrides(shipped.config, scenario.overrides),
@@ -59,7 +59,7 @@ export function tunedNumbers<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, scenario: 
  * stripping nothing: ADR 0019 decision 4), and the numbers around it to what a content file must
  * satisfy to load. Each refusal names the key it is about, so a control can show its own.
  */
-export function refusals<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, numbers: Numbers<C>): Refusal[] {
+export function refusals<S, M, C>(puzzle: StudioPuzzle<S, M, C>, numbers: Numbers<C>): Refusal[] {
   const out: Refusal[] = validateConfig(puzzle, numbers.config).issues.map((i) => ({ key: i.path ? `config.${i.path}` : "config", message: i.message }));
   const parsed = PuzzleNumbersSchema.safeParse({ roundSeconds: numbers.roundSeconds, paceSeconds: numbers.paceSeconds, thresholds: numbers.thresholds });
   if (!parsed.success) {
@@ -74,7 +74,7 @@ export function refusals<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, numbers: Numbe
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 /** Every number that differs from the content file, config keys first, in the file's own order. */
-export function changes<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, numbers: Numbers<C>): Change[] {
+export function changes<S, M, C>(puzzle: StudioPuzzle<S, M, C>, numbers: Numbers<C>): Change[] {
   const shipped = shippedNumbers(puzzle);
   const out: Change[] = Object.entries(diffConfig(shipped.config, numbers.config)).map(([path, value]) => ({ key: `config.${path}`, shipped: getPath(shipped.config, path), value }));
   for (const key of ["roundSeconds", "paceSeconds", "thresholds"] as const) {
@@ -97,7 +97,7 @@ const CONFIG = "config.";
  * `roundSeconds`, `thresholds`). A value equal to the shipped one leaves no trace, so a control
  * moved back is a control that was never moved.
  */
-export function withNumber<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, scenario: Scenario, key: string, value: unknown): Scenario {
+export function withNumber<S, M, C>(puzzle: StudioPuzzle<S, M, C>, scenario: Scenario, key: string, value: unknown): Scenario {
   const shipped = shippedNumbers(puzzle);
   if (key.startsWith(CONFIG)) {
     const path = key.slice(CONFIG.length);
@@ -113,7 +113,7 @@ export function withNumber<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, scenario: Sc
 }
 
 /** A scenario with one number back at its shipped value. */
-export function withoutNumber<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, scenario: Scenario, key: string): Scenario {
+export function withoutNumber<S, M, C>(puzzle: StudioPuzzle<S, M, C>, scenario: Scenario, key: string): Scenario {
   const shipped = shippedNumbers(puzzle);
   if (key.startsWith(CONFIG)) return withNumber(puzzle, scenario, key, getPath(shipped.config, key.slice(CONFIG.length)));
   return withNumber(puzzle, scenario, key, shipped[key as "roundSeconds" | "paceSeconds" | "thresholds"]);
@@ -128,6 +128,6 @@ export function withoutNumbers(scenario: Scenario): Scenario {
  * A scenario's config overrides as one entry a changed leaf. A link or a starting point may set a
  * whole branch (`c.raider={...}`); the panel sets and resets leaves, so it works on this form.
  */
-export function leafOverrides<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, scenario: Scenario): Scenario["overrides"] {
+export function leafOverrides<S, M, C>(puzzle: StudioPuzzle<S, M, C>, scenario: Scenario): Scenario["overrides"] {
   return diffConfig(puzzle.config, applyOverrides(puzzle.config, scenario.overrides));
 }

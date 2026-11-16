@@ -17,7 +17,7 @@ import { humanize, type ModeId } from "./modes.js";
 export type Target = { readonly kind: "number"; readonly key: string } | { readonly kind: "sprites" | "sounds"; readonly name: string };
 
 /**
- * The studio's top bar (DESIGN.md 3.14, ADR 0055). On its left, where the page is: the way back,
+ * The studio's top bar (DESIGN.md 3.14, ADR 0056). On its left, where the page is: the way back,
  * the puzzle and a menu of the others, and what the draft changes. On its right, what becomes of
  * the draft: whether the service has it, the ways to pass it on, and Save.
  */

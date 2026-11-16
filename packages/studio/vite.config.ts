@@ -7,7 +7,7 @@ const commit = process.env.COMMIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA ?? pr
 
 /**
  * Emits `dist/version.json` with the commit, so the deploy pipeline (.github/workflows/deploy.yml)
- * can confirm the live harness is the merged commit, the same way it checks the game.
+ * can confirm the live studio is the merged commit, the same way it checks the game.
  */
 function versionFile(): Plugin {
   return {
@@ -21,7 +21,7 @@ function versionFile(): Plugin {
 
 export default defineConfig({
   plugins: [react(), atlases(), versionFile()],
-  define: { __HARNESS_COMMIT__: JSON.stringify(commit) },
+  define: { __STUDIO_COMMIT__: JSON.stringify(commit) },
   server: {
     port: 5174,
     strictPort: true,

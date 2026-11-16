@@ -1,4 +1,4 @@
-# 0055. The studio's page is laid out as a design tool: a top bar, a rail of modes, one panel
+# 0056. The studio's page is laid out as a design tool: a top bar, a rail of modes, one panel
 
 Status: Accepted. Builds on [0042](./0042-the-harness-becomes-the-puzzle-studio.md) decision 1,
 on [0045](./0045-drafts-are-kept-by-the-studio-service.md),

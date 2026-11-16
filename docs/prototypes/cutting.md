@@ -1,6 +1,6 @@
 # Cutting
 
-Status: built. Prototype (ADR 0036), on the harness at `/cutting`. Untimed moves; a 120 second round.
+Status: built. Prototype (ADR 0036), in the studio at `/cutting`. Untimed moves; a 120 second round.
 
 ## The puzzle
 

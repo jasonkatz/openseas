@@ -42,12 +42,12 @@
   "racks.kind.amber": "Spark cell",
   "racks.kind.bone": "Dry cell",
   "racks.kind.rose": "Coolant cell",
-  "harness.preset.racks_gentle_marks": "Gentle marks: a crate only hangs where it fits (the brief's rule)",
-  "harness.preset.racks_rush": "Rush: a crate every two moves",
-  "harness.preset.racks_slack": "Slack: a crate every six moves",
-  "harness.preset.racks_one_kind_crates": "Every crate one kind",
-  "harness.preset.racks_mixed_crates": "Every crate cell drawn afresh",
-  "harness.preset.racks_loose_chain": "A looser chain: ship again within two actions",
-  "harness.preset.racks_five_kinds": "Five kinds on six racks",
-  "harness.preset.racks_ten_moves": "Ten actions, one minute"
+  "studio.preset.racks_gentle_marks": "Gentle marks: a crate only hangs where it fits (the brief's rule)",
+  "studio.preset.racks_rush": "Rush: a crate every two moves",
+  "studio.preset.racks_slack": "Slack: a crate every six moves",
+  "studio.preset.racks_one_kind_crates": "Every crate one kind",
+  "studio.preset.racks_mixed_crates": "Every crate cell drawn afresh",
+  "studio.preset.racks_loose_chain": "A looser chain: ship again within two actions",
+  "studio.preset.racks_five_kinds": "Five kinds on six racks",
+  "studio.preset.racks_ten_moves": "Ten actions, one minute"
 }

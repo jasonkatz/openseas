@@ -5,7 +5,7 @@ import { defineConfig } from "@playwright/test";
  * `/play` page in the studio and writes that guide's screenshots and clips into `public/media/<puzzle>/`. Run one
  * puzzle with `pnpm --filter @openseas/docs capture cooling`. It needs ffmpeg on the PATH.
  */
-const port = Number(process.env.HARNESS_PORT ?? 4174);
+const port = Number(process.env.STUDIO_PORT ?? 4174);
 
 export default defineConfig({
   testDir: "./capture",

@@ -4,7 +4,7 @@ import { expect, test, type Page, type WebSocketRoute } from "@playwright/test";
 /**
  * Smoke of the shell (DESIGN.md 5.4): from the chart to a board and back, in one continuous session.
  * The server is stood in for by a fake that answers over the same wire: sign-in, the pirate, the
- * ship room and a dealt board. The boards themselves are smoked in the harness, which drives the
+ * ship room and a dealt board. The boards themselves are smoked in the studio, which drives the
  * same board code (ADR 0019); here one swap on a dealt Cooling board proves the embedding.
  */
 

@@ -1,7 +1,7 @@
 import type { GroupId } from "../tuning/groups.js";
 
 /**
- * The studio's modes (DESIGN.md 3.14, ADR 0055): what the rail down the page's left edge switches
+ * The studio's modes (DESIGN.md 3.14, ADR 0056): what the rail down the page's left edge switches
  * the panel between. Play holds the round; the three after it hold the puzzle's numbers, split by
  * what they decide; the last two hold its art and its sound. Names and one line each are in the
  * message table under `studio.mode.<id>` and `studio.mode_hint.<id>`.

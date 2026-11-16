@@ -78,7 +78,7 @@ export function LooseRefusals({ sections }: { sections: readonly NumberSection[]
 const words = (c: Control): string => `${c.key} ${humanize(c.name)} ${c.branch ? humanize(c.branch) : ""} ${c.description ?? ""}`.toLowerCase();
 
 /**
- * The numbers panels (DESIGN.md 3.14, ADR 0055): Setup, Tuning and Scoring are one list of
+ * The numbers panels (DESIGN.md 3.14, ADR 0056): Setup, Tuning and Scoring are one list of
  * sections, of which the mode on the rail shows its own. Every section stays in the page while
  * another shows, so a value half typed outlasts a look elsewhere. A search shows the matching
  * numbers from all three, each under the mode it is tuned in. It only ever writes the frame's

@@ -30,7 +30,7 @@ export interface RoundOptions<S, M, C> {
 /**
  * One round of any puzzle on the client. Runs the engine locally for instant feel and streams the
  * move log (ADR 0003). Never computes anything the server will not recompute. Keeps the log it
- * sent, with the hash after every move, so a harness can replay and compare it.
+ * sent, with the hash after every move, so the studio can replay and compare it.
  */
 export class PuzzleRound<S, M, C> {
   state: S;

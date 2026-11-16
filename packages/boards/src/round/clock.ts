@@ -1,6 +1,6 @@
 /**
- * Where a round reads the time. The game and unrated harness rounds read the wall clock; a lab
- * round in the harness reads a clock it can slow, pause and step. The engines never read either:
+ * Where a round reads the time. The game and unrated studio rounds read the wall clock; a lab
+ * round in the studio reads a clock it can slow, pause and step. The engines never read either:
  * time reaches them as ticks carried in moves (ADR 0015).
  */
 export interface Clock {
@@ -10,7 +10,7 @@ export interface Clock {
 export const wallClock: Clock = { now: () => Date.now() };
 
 /**
- * A clock the harness drives. It governs the round's deadline and the ticks timed engines are
+ * A clock the studio drives. It governs the round's deadline and the ticks timed engines are
  * advanced to; the renderers' own animations keep running on the wall clock. Starts aligned with
  * the wall clock so deadlines computed from it read naturally.
  */

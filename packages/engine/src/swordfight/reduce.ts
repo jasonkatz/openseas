@@ -861,13 +861,18 @@ export function reduceSwordfight(state: SwordfightState, move: SwordfightMove): 
   }
 }
 
-/** The state at a later tick without logging a move: what the board shows between moves. */
+/**
+ * The state at a later tick without logging a move: what the board shows between moves. Its report
+ * keeps the logged move's events ahead of what time added since: a client that shows only advanced
+ * states (one tick can pass between taking a move and showing it) still sees the pair it placed.
+ */
 export function advanceSwordfight(state: SwordfightState, tick: number): SwordfightState {
   if (tick <= state.tick || state.finished) return state;
   const t = Math.min(tick, state.config.maxTick);
   const sim = simulate(state, t);
   const next = finish(state, sim, { type: "wait", tick: t }, t);
-  return { ...next, moveCount: state.moveCount };
+  const report = next.lastMove!;
+  return { ...next, moveCount: state.moveCount, lastMove: { ...report, events: [...(state.lastMove?.events ?? []), ...report.events] } };
 }
 
 // ---- hashing and summary

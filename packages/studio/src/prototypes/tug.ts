@@ -1,7 +1,7 @@
 import { TUG_DEF, tugSolve, type TugConfig, type TugMove, type TugState } from "@openseas/engine";
 import { PUZZLE_CONFIG_SCHEMAS } from "@openseas/protocol";
 import { content } from "@openseas/boards";
-import type { HarnessPuzzle } from "../puzzles.js";
+import type { StudioPuzzle } from "../puzzles.js";
 import { TUG_PRESETS } from "../scenario/prototypes/tug.js";
 
 const onWall = (s: TugState, cell: number): boolean => {
@@ -11,7 +11,7 @@ const onWall = (s: TugState, cell: number): boolean => {
 };
 
 /** What the studio needs to know about Tug: its content config and its starting points. */
-export const TUG: HarnessPuzzle<TugState, TugMove, TugConfig> = {
+export const TUG: StudioPuzzle<TugState, TugMove, TugConfig> = {
   id: "tug",
   def: TUG_DEF,
   config: content.puzzles.tug.config,

@@ -2,7 +2,7 @@
   "name": "@openseas/docs",
   "version": "0.1.0",
   "private": true,
-  "description": "The puzzle guides (ADR 0038): one page per puzzle, from first round to expert play. A static site; its screenshots and clips are captured from the real boards on the harness.",
+  "description": "The puzzle guides (ADR 0038): one page per puzzle, from first round to expert play. A static site; its screenshots and clips are captured from the real boards on the studio.",
   "type": "module",
   "scripts": {
     "dev": "vite --host",

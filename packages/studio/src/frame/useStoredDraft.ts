@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Draft, TesterLink } from "@openseas/protocol";
-import type { HarnessPuzzle } from "../puzzles.js";
+import type { StudioPuzzle } from "../puzzles.js";
 import type { Scenario } from "../scenario/codec.js";
 import { LINKS_CHANGED, createDraft, discardDraft, listDrafts, saveDraft, startSave, startUpdate, type DraftSave } from "../service/client.js";
 import { useMe } from "../service/me.js";
@@ -58,7 +58,7 @@ const WATCH_MS = 1500;
  * scenario and writes the address: with the draft in it, or bare. Everything the service fails at
  * ends with the draft back in the address, so nothing tuned is lost with it.
  */
-export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: HarnessPuzzle<S, M, C>; scenario: Scenario; apply(next: Scenario, bare: boolean): void }): StoredDraft {
+export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: StudioPuzzle<S, M, C>; scenario: Scenario; apply(next: Scenario, bare: boolean): void }): StoredDraft {
   const { enabled, puzzle, scenario, apply } = o;
   const me = useMe(enabled);
   const login = me !== "loading" && me !== null ? me.login : null;

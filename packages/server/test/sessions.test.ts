@@ -247,7 +247,7 @@ describe("PuzzleSessionManager", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("a harness Cooling round plays a lone ship's heat: it turns on the round's clock and only its depth is a legal heat move", () => {
+  it("a studio Cooling round plays a lone ship's heat: it turns on the round's clock and only its depth is a legal heat move", () => {
     const now = { t: 1000 };
     // A leaky hull so the heat climbs past the board's floor inside a one-minute round.
     const m = manager(now, { soloHeat: { rules: { ...DEFAULT_SHIP_RULES, heatIntakePerTurn: 200 }, par: 20 } });

@@ -153,7 +153,7 @@ function parse<T>(file: string, schema: z.ZodType<T>, data: unknown): T {
 /**
  * Everything wrong with content that each file's schema cannot see on its own: ids that refer to
  * nothing, numbers that must agree across files. `loadContent` refuses content with any; the
- * harness's voyage bench holds an edited world to the same list (ADR 0027).
+ * studio's voyage bench holds an edited world to the same list (ADR 0027).
  */
 export function contentProblems(content: Content): string[] {
   const { world, puzzles, ratingTiers: tiers, messages } = content;

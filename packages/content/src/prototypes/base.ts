@@ -5,7 +5,7 @@ import { z } from "zod";
  * has no par: a round is rated against its thresholds, as the captain's space battle is.
  */
 export const PrototypeBaseSchema = z.object({
-  /** Wall-clock length of a round on the harness, enforced by the server for a recorded one. */
+  /** Wall-clock length of a round on the studio, enforced by the server for a recorded one. */
   roundSeconds: z.int().min(10).max(1800),
   /** The stretch of recent play, in seconds, the live tier indicator reads (ADR 0039). Longer for a puzzle that scores in lumps. */
   paceSeconds: z.int().min(1).max(120).default(10),

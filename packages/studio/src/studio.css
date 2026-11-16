@@ -211,7 +211,7 @@
 
 /* ---- voyage bench (ADR 0027): the scenario beside the voyage on wide screens, stacked on phones */
 :root {
-  /* Chart tokens. The harness is dark only; the outcome steps are validated against --ink-700 (dataviz). */
+  /* Chart tokens. The studio is dark only; the outcome steps are validated against --ink-700 (dataviz). */
   --vchart-surface: #0f1c30;
   --vchart-line: var(--foam);
   --vchart-grid: rgba(239, 227, 198, 0.1);

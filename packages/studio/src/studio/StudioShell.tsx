@@ -33,7 +33,7 @@ function flash(testId: string): void {
 }
 
 /**
- * A puzzle's studio page (DESIGN.md 3.14, ADR 0055), laid out for a desktop as a design tool is.
+ * A puzzle's studio page (DESIGN.md 3.14, ADR 0056), laid out for a desktop as a design tool is.
  * A bar across the top says where the page is and what becomes of the draft. A rail down the left
  * edge picks a mode, and the panel beside it is that mode's: the round, the numbers in three
  * parts, the sprites, the sounds. The board stands in the middle at a phone's proportions,

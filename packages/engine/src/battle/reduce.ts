@@ -493,7 +493,7 @@ function settle(cfg: BattleConfig, ships: [BattleShip, BattleShip], grapples: [b
   return boarder === 0 ? "boarded" : "boarded_by";
 }
 
-// ---- queries for boards and the harness
+// ---- queries for boards and the studio
 
 /** Where the captain's plan takes the ship if the raider holds still: a pose per segment. */
 export function previewPlan(state: BattleState, segments: readonly BattleSegment[]): Pose[] {

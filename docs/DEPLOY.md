@@ -14,18 +14,20 @@ one GitHub Actions pipeline does the deploying, in order (ADR 0014).
    install the workspace, typecheck the server, start it). Railway starts the new container,
    runs migrations on boot, and only swaps traffic once `/health` answers. The job then polls `/health` until it reports the new commit. If the
    server never comes up, the job fails and **the client is not deployed**.
-4. **Game and harness to Vercel**, in parallel, each to its own project (ADR 0019). For each,
-   the runner pulls the project's production settings and env, builds with `vercel build` (so the
-   build runs in CI, not on Vercel), deploys the prebuilt output with `vercel deploy --prebuilt
-   --prod`, and polls `/version.json` until it reports the commit (following the apex domain's
-   redirect to `www`). The harness job then checks
-   that a deep link such as `/cooling` answers 200 (the SPA rewrite from
-   `packages/studio/vercel.json` is in effect) and that the server allows the harness origin.
-5. Deploys queue behind each other and never cancel one in flight. All jobs show up under the
+4. **Game and studio to Vercel**, in parallel, each to its own project (ADR 0019); the guides
+   too, without waiting for the server. All three run `.github/scripts/vercel-deploy.sh`: pull the
+   project's production settings and env, build with `vercel build` (so the build runs in CI, not
+   on Vercel), deploy the prebuilt output with `vercel deploy --prebuilt --prod`, and poll
+   `/version.json` until it reports the commit (following the apex domain's redirect to `www`).
+   The studio and the guides then check that a deep link such as `/cooling` answers 200 (the SPA
+   rewrite from their `vercel.json` is in effect), and the studio that the server allows its origin.
+5. **The studio's service to Railway** (step 1b), on its own, when its package changed.
+6. Deploys queue behind each other and never cancel one in flight. All jobs show up under the
    repo's **production** environment, so GitHub's Deployments view is the deploy history.
 
-Manual runs: Actions → Deploy → **Run workflow**. Tick "server", "client" or "harness" to redeploy
-a side even if nothing under it changed, for example after changing a Railway variable.
+Manual runs: Actions → Deploy → **Run workflow**. Tick a side ("server", "client", "studio",
+"studio_server", "docs") to redeploy it even if nothing under it changed, for example after
+changing a Railway or Vercel variable.
 
 ## Previews
 
@@ -39,18 +41,18 @@ Every pull request that touches a package or the build configuration gets its ow
    generates a Railway domain for the server, sets `CLIENT_ORIGINS` to the client address below
    and `GIT_COMMIT_SHA`, uploads the PR's commit with `railway up`, and polls `/health` until it
    reports the commit. Later pushes reuse the environment and just upload again.
-2. **Game and harness on Vercel.** Each front end is built in CI with `vercel build` against its
+2. **Game and studio on Vercel.** Each front end is built in CI with `vercel build` against its
    project's **Preview** env, with `VITE_SERVER_URL` replaced by the PR server, deployed with
    `vercel deploy --prebuilt` (no `--prod`) to its production project (ADR 0016), and aliased to a
    stable host: `<PREVIEW_ALIAS_PREFIX>-<number>.vercel.app` for the game (default
-   `openseas-pr-<number>`) and `<PREVIEW_HARNESS_ALIAS_PREFIX>-<number>.vercel.app` for the
-   harness (default `openseas-harness-pr-<number>`). The aliases are stable across pushes, which is
-   what lets the server list both origins in `CLIENT_ORIGINS` before anything deploys. Without
-   `VERCEL_HARNESS_PROJECT_ID` the harness preview skips with a warning and the game still previews.
+   `openseas-pr-<number>`) and `<PREVIEW_STUDIO_ALIAS_PREFIX>-<number>.vercel.app` for the
+   studio (default `openseas-studio-pr-<number>`). The aliases are stable across pushes, which is
+   what lets the server list both origins in `CLIENT_ORIGINS` before anything deploys. All three
+   front ends run `.github/scripts/vercel-preview.sh`; one whose Vercel settings are missing skips
+   with a warning and the others still preview.
 3. **Guides on Vercel.** The puzzle guides (ADR 0038) are built and deployed the same way to
    their own project and aliased to `<PREVIEW_DOCS_ALIAS_PREFIX>-<number>.vercel.app` (default
    `openseas-docs-pr-<number>`). They talk to no server, so this job does not wait for Railway.
-   Without `VERCEL_DOCS_PROJECT_ID` it skips with a warning.
 4. One comment on the PR carries the URLs and is updated on every push.
 
 **Preview cleanup** (`.github/workflows/preview-cleanup.yml`) deletes the Railway environment,
@@ -73,7 +75,7 @@ is already closed. Vercel keeps the preview deployments; they cost nothing idle.
   The server's `/health` and API are public, as production's are.
 - The preview database is empty: you arrive as a new guest. A preview environment copies
   production's `ALPHA_INVITE_CODE`, so the first visit asks for the invite code; both the game's
-  and the harness's home pages take it, and the pirate it creates is shared by both front ends on
+  and the studio's home pages take it, and the pirate it creates is shared by both front ends on
   that preview. Social sign-in does not work from a preview (the OAuth apps' redirect URIs are
   production's), so the workflow sets `DISABLE_SOCIAL_SIGN_IN=true` there and the game says
   linking is not set up instead of offering buttons that cannot work; guest accounts do work.
@@ -83,7 +85,7 @@ is already closed. Vercel keeps the preview deployments; they cost nothing idle.
 - A pull request only gets a preview from a push made after its branch carries this workflow, and
   only a push starts it (retargeting or editing the PR does not). For a PR that missed it, run
   **Preview** by hand from the Actions tab with the PR number; it looks the head up and deploys it.
-- The client deploys from a copy of `.vercel` outside the git checkout, tagged with plain meta
+- Previews deploy from a copy of `.vercel` outside the git checkout, tagged with plain meta
   keys (`commitSha`, `commitRef`, `prNumber`). Inside a checkout the Vercel CLI reads the last
   commit and attaches it as `githubCommit*` metadata, which makes Vercel credit the deployment to
   the commit's author; on a Hobby team a commit authored outside the team (Claude's commits are)
@@ -91,7 +93,8 @@ is already closed. Vercel keeps the preview deployments; they cost nothing idle.
   deploy step times out after five minutes so a blocked deployment fails fast. Production deploys
   run inside the checkout: they ship merge commits, which the owner authors.
 - If the alias step fails because the `vercel.app` name is taken, set the repository variable
-  `PREVIEW_ALIAS_PREFIX` (or `PREVIEW_HARNESS_ALIAS_PREFIX`) to something unique and re-run.
+  `PREVIEW_ALIAS_PREFIX` (or `PREVIEW_STUDIO_ALIAS_PREFIX`, `PREVIEW_DOCS_ALIAS_PREFIX`) to
+  something unique and re-run.
 
 ## One-time setup
 
@@ -121,7 +124,7 @@ server's CORS list.
    | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (reference to the Postgres service) |
    | `BETTER_AUTH_SECRET` | output of `openssl rand -base64 48` |
    | `BETTER_AUTH_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
-   | `CLIENT_ORIGINS` | the game's and the harness's production URLs, comma-separated, filled in at steps 2.3 and 2b.5 |
+   | `CLIENT_ORIGINS` | the game's and the studio's production URLs, comma-separated, filled in at steps 2.3 and 2b.6 |
    | `CROSS_SITE_COOKIES` | `true` |
    | `ALPHA_INVITE_CODE` | an invite code, or leave unset to let anyone in |
    | `LOG_LEVEL` | `info` |
@@ -161,7 +164,7 @@ migrates its own `studio` schema as it starts.
    client id and generate a client secret. The app asks for no scope.
 3. In the same Railway project: **+ New → Empty Service**, named `studio`. **Settings**:
    Networking → **Generate Domain**, or better a custom domain under `openseas.online` such as
-   `studio-api.openseas.online` (a CNAME at the registrar, as for `test`): the studio site and
+   `studio-api.openseas.online` (a CNAME at the registrar, as for `studio`): the studio site and
    the service are then one site, and the session cookie is not a third-party cookie. Deploy →
    **Healthcheck Path** `/health`, **Restart Policy** On Failure.
 4. Service → **Variables**:
@@ -279,11 +282,11 @@ migrates its own `studio` schema as it starts.
    a command it starts can do what an unprivileged user on that machine can do.
 5. On the **studio's Vercel project** (step 2b): `VITE_STUDIO_SERVICE_URL` =
    `https://<studio service domain>` for **Production** and **Preview**, then redeploy the site
-   (Deploy workflow → Run workflow → harness). A preview of the studio reads tester links from
+   (Deploy workflow → Run workflow → studio). A preview of the studio reads tester links from
    the one production service; it cannot sign in, since its origin is not in `STUDIO_ORIGINS`.
 6. In step 3 below, set `RAILWAY_STUDIO_SERVICE` to `studio` and `PRODUCTION_STUDIO_SERVICE_URL`
-   to its URL. The next merge that touches the service, or a manual run of the Deploy workflow,
-   uploads it.
+   to its URL. The next merge that touches the service, or a manual run of the Deploy workflow
+   with "studio_server" ticked, uploads it.
 
 Pull request previews duplicate the production environment (ADR 0017), so each gets a copy of
 this service with nothing uploaded to it. It never runs: there is one studio service, in
@@ -313,36 +316,23 @@ Then in the dashboard, project → **Settings**:
 4. Account → **Settings → Tokens** → create a token scoped to the team. It is `VERCEL_TOKEN` in
    step 3.
 
-### 2b. Vercel: harness (the studio)
+### 2b. Vercel: the studio
 
-The package was renamed `packages/studio` in M9 (ADR 0042); the Vercel project, the variables and
-the alias prefix keep the name `harness`. The deploy and preview jobs build in `packages/studio`
-whatever the project's Root Directory says (`.github/scripts/vercel-root.sh`), and print a notice
-until the setting agrees.
-
-The harness is a second Vercel project on the same team, rooted in `packages/studio` so it reads
-`packages/studio/vercel.json` (build command, output directory, SPA rewrite) instead of the
-repository's `vercel.json`, which is the game's. Like the game's project it is not connected to
+The studio (ADR 0042) is a second Vercel project on the same team, rooted in `packages/studio` so
+it reads `packages/studio/vercel.json` (build command, output directory, SPA rewrite) instead of
+the repository's `vercel.json`, which is the game's. Like the game's project it is not connected to
 GitHub; the pipeline deploys it.
 
 1. Create the project. Either dashboard → **Add New → Project → no repository**, name
-   `openseas-harness`, or from a local checkout:
+   `openseas-studio`, or from a local checkout:
 
    ```sh
-   vercel project add openseas-harness --scope <team-slug>
+   vercel project add openseas-studio --scope <team-slug>
    ```
 
 2. Project → **Settings → General**: Root Directory **`packages/studio`**, Framework Preset
    **Vite**, Node.js version **22.x**. Leave the build and output settings as detected; the
-   `vercel.json` in that directory sets them. The same through the API, with the token from
-   step 2.4 and the team id from `.vercel/project.json`:
-
-   ```sh
-   curl -X PATCH "https://api.vercel.com/v9/projects/openseas-harness?teamId=$VERCEL_ORG_ID" \
-     -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
-     -d '{"rootDirectory":"packages/studio","framework":"vite","nodeVersion":"22.x"}'
-   ```
-
+   `vercel.json` in that directory sets them.
 3. **Settings → Environment Variables**: `VITE_SERVER_URL` = `https://<railway domain>` for
    **Production** and **Preview**, the same value as on the game's project (a PR preview replaces
    it with its own server).
@@ -354,38 +344,28 @@ GitHub; the pipeline deploys it.
 5. **Settings → Deployment Protection**: Standard Protection, as for the game, so previews and
    deployment URLs need a Vercel login and `studio.openseas.online` opens without one. Testers are
    not team members.
-6. Note the project id (**Settings → General**, or `vercel project inspect openseas-harness`);
-   it is `VERCEL_HARNESS_PROJECT_ID` in step 3. Back in Railway, add `https://studio.openseas.online`
+6. Note the project id (**Settings → General**, or `vercel project inspect openseas-studio`);
+   it is `VERCEL_STUDIO_PROJECT_ID` in step 3. Back in Railway, add `https://studio.openseas.online`
    to `CLIENT_ORIGINS` on the server service (comma after the game's origin) and deploy the staged
-   change; until then the harness deploys but cannot sign in, and the Deploy workflow's harness
+   change; until then the studio deploys but cannot sign in, and the Deploy workflow's studio
    job fails on its origin check with a pointer here.
-7. **A token that can see the project.** Vercel tokens can be scoped to the whole account, to a
-   team, or to a single project, and a project-scoped token reports every other project as
-   `Project not found`. Either `VERCEL_TOKEN` is scoped to the **team** (it then covers both
-   projects), or add a second secret `VERCEL_HARNESS_TOKEN` scoped to `openseas-harness`
-   (Account → **Settings → Tokens**, scope: that project; or `vercel tokens create "openseas
-   harness CI" --project <harness project id>`). The harness jobs use `VERCEL_HARNESS_TOKEN` when
-   it is set and `VERCEL_TOKEN` otherwise, and say so when the token cannot see the project.
 
 ### 2c. Vercel: puzzle guides
 
 The guides (ADR 0038) are a third Vercel project on the same team, rooted in `packages/docs`. The
 site is static: it has no environment variables, talks to no server, and needs no entry in
-`CLIENT_ORIGINS`. Until this project exists the Deploy workflow skips the guides with a warning
-and everything else deploys as before.
+`CLIENT_ORIGINS`.
 
 1. Create the project: dashboard → **Add New → Project → no repository**, name `openseas-docs`,
    or `vercel project add openseas-docs --scope <team-slug>`.
 2. Project → **Settings → General**: Root Directory **`packages/docs`**, Framework Preset
    **Vite**, Node.js version **22.x**. `packages/docs/vercel.json` sets the build command, the
    output directory and the SPA rewrite.
-3. **Settings → Domains**: add `docs.openseas.online`, with a record at the registrar as for the harness (step 2b.4).
+3. **Settings → Domains**: add `docs.openseas.online`, with a record at the registrar as for the studio (step 2b.4).
 4. **Settings → Deployment Protection**: Standard Protection, so the production domain opens
    without a Vercel login.
 5. Note the project id; it is `VERCEL_DOCS_PROJECT_ID` in step 3. Set `PRODUCTION_DOCS_URL` to
    the domain from step 3 so the pipeline can check the deploy.
-6. The token: as for the harness (step 2b.7). A team-scoped `VERCEL_TOKEN` covers this project;
-   otherwise add `VERCEL_DOCS_TOKEN` scoped to it.
 
 Pull requests get a preview of the guides at `openseas-docs-pr-<number>.vercel.app` (see
 "Previews"), behind a Vercel login like the others.
@@ -401,36 +381,36 @@ required reviewers there later.
 |---|---|---|
 | Secret | `RAILWAY_TOKEN` | the Railway project token (production deploys) |
 | Secret | `RAILWAY_API_TOKEN` | the Railway workspace token (previews) |
-| Secret | `VERCEL_TOKEN` | the Vercel token: team-scoped, or scoped to the game's project |
-| Secret | `VERCEL_HARNESS_TOKEN` | optional; a token scoped to the harness project, when `VERCEL_TOKEN` is not team-scoped (step 2b.7) |
+| Secret | `VERCEL_TOKEN` | the Vercel token (step 2.4). Team-scoped, it covers all three projects |
+| Secret | `VERCEL_STUDIO_TOKEN` | optional; only when `VERCEL_TOKEN` is scoped to the game's project alone: a token scoped to the studio's. A project-scoped token reports every other project as `Project not found` |
+| Secret | `VERCEL_DOCS_TOKEN` | optional; the same for the guides' project |
 | Variable | `RAILWAY_SERVICE` | `server` (the Railway service name; previews assume `server` if unset) |
 | Variable | `RAILWAY_PROJECT_ID` | the Railway project ID (previews) |
 | Variable | `RAILWAY_DATABASE_SERVICE` | optional; the Postgres service name if not `Postgres` |
 | Variable | `PREVIEW_ALIAS_PREFIX` | optional; game previews live at `<prefix>-<pr>.vercel.app`, default `openseas-pr` |
-| Variable | `PREVIEW_HARNESS_ALIAS_PREFIX` | optional; harness previews live at `<prefix>-<pr>.vercel.app`, default `openseas-harness-pr` |
+| Variable | `PREVIEW_STUDIO_ALIAS_PREFIX` | optional; studio previews live at `<prefix>-<pr>.vercel.app`, default `openseas-studio-pr` |
 | Variable | `PREVIEW_DOCS_ALIAS_PREFIX` | optional; guides previews live at `<prefix>-<pr>.vercel.app`, default `openseas-docs-pr` |
 | Variable | `VERCEL_ORG_ID` | `orgId` from `.vercel/project.json` |
 | Variable | `VERCEL_PROJECT_ID` | `projectId` from `.vercel/project.json` (the game) |
-| Variable | `VERCEL_HARNESS_PROJECT_ID` | the harness project's id (step 2b.6) |
+| Variable | `VERCEL_STUDIO_PROJECT_ID` | the studio project's id (step 2b.6) |
 | Variable | `RAILWAY_STUDIO_SERVICE` | optional; `studio`, the studio service's name in Railway (step 1b). Unset means it is not deployed |
 | Variable | `PRODUCTION_STUDIO_SERVICE_URL` | optional; the studio service's URL, so the pipeline can wait for it |
 | Variable | `PRODUCTION_SERVER_URL` | `https://<railway domain>` |
 | Variable | `PRODUCTION_CLIENT_URL` | `https://<vercel production domain>` of the game |
-| Variable | `PRODUCTION_HARNESS_URL` | `https://studio.openseas.online` |
-| Secret | `VERCEL_DOCS_TOKEN` | optional; a token scoped to the guides project, when `VERCEL_TOKEN` is not team-scoped (step 2c.6) |
-| Variable | `VERCEL_DOCS_PROJECT_ID` | the guides project's id (step 2c.5); unset means the guides are neither deployed nor previewed |
+| Variable | `PRODUCTION_STUDIO_URL` | `https://studio.openseas.online` |
+| Variable | `VERCEL_DOCS_PROJECT_ID` | the guides project's id (step 2c.5) |
 | Variable | `PRODUCTION_DOCS_URL` | `https://docs.openseas.online` |
 
 The URL variables are what let the pipeline wait for the server before deploying the front ends
 and confirm each side serves the merged commit. Without them it deploys blind and warns.
 
 Finally, **Settings → Branches** → protect `main` and require the CI checks before merging. The
-checks are `Typecheck, unit, integration`, `Build and Playwright smoke (client)` and
-`Build and Playwright smoke (harness)`.
+checks are `Typecheck, unit, integration` and `Build and Playwright smoke` for `client`, `studio`
+and `docs`.
 
 ### 4. Check it
 
-Actions → Deploy → Run workflow with both boxes ticked. When it is green:
+Actions → Deploy → Run workflow with every box ticked. When it is green:
 
 ```sh
 curl https://<railway domain>/health          # {"ok":true,"contentVersion":...,"commit":"<sha>"}
@@ -447,17 +427,20 @@ confirm a pirate is signed in.
 - A `git revert` PR is the normal path; it goes out through the pipeline like any merge.
 - Server, instant: Railway → service → Deployments → previous deployment → **Redeploy**.
   Migrations are forward-only, so a rollback across a schema change needs the revert PR.
-- Game or harness, instant: Vercel → that project → Deployments → previous production
+- Game, studio or guides, instant: Vercel → that project → Deployments → previous production
   deployment → **Promote to Production**.
 
 ## Changing deploy behaviour
 
 - Which paths trigger which side, the order, and the timeouts all live in
-  `.github/workflows/deploy.yml`.
+  `.github/workflows/deploy.yml`. How a front end is built, deployed and checked lives in
+  `.github/scripts/vercel-deploy.sh` (production) and `vercel-preview.sh` (previews), shared by
+  all three.
 - The server's build and start commands live in `railpack.json`, the studio service's in
   `railpack.studio.json`. Both start node under `tini`, not through pnpm, so the service itself gets
   Railway's SIGTERM and can close before the container stops (ADR 0048). The game's are in the repository's
-  `vercel.json`; the harness's in `packages/studio/vercel.json` (its project's Root Directory).
+  `vercel.json`; the studio's and the guides' in `packages/studio/vercel.json` and
+  `packages/docs/vercel.json` (each project's Root Directory).
   All are read from the checkout at deploy time, so a change ships with the commit that makes it.
 - The server's healthcheck and restart policy are Railway service settings (step 1.3).
 - Which paths get a preview, the environment naming and the alias scheme live in

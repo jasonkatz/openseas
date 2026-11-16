@@ -1,6 +1,6 @@
 # Cooling
 
-Status: in the game. Built in M1, sprite art pass ADR 0031. On the harness at `/cooling`.
+Status: in the game. Built in M1, sprite art pass ADR 0031. In the studio at `/cooling`.
 
 ## The puzzle
 
@@ -46,10 +46,10 @@ swaps neither raise nor vent the heat, and the ship injects heat events into the
 with the deal and one whenever a turn changes the depth. The board reads the heat as rows and never
 below `minHeatRow`, three rows: a ship never runs cold, so even a sound, vented ship keeps the
 bottom three rows overheated and the slag under them waiting to be lifted. Aboard a ship (M3)
-the heat is the ship's. In the harness it is a lone ship's: a sound skiff with nobody else aboard,
+the heat is the ship's. In the studio it is a lone ship's: a sound skiff with nobody else aboard,
 whose heat each turn takes the class's intake and vents by this board's own output, as the ship's
 turn would. The server turns it for a recorded round and pushes the depth as a ship does; the
-harness turns it on the round's own clock for unrated and lab rounds. The client logs each depth as
+studio turns it on the round's own clock for unrated and lab rounds. The client logs each depth as
 a `heat` move; the server accepts a heat move only when it repeats the depth it last gave that
 board, so the log stays the whole story and the client never sets its own heat. The board's own
 heat stays in the engine for lab rounds that turn `shipHeat` off: every move raises it a sixth of

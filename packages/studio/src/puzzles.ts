@@ -46,7 +46,7 @@ import { RACKS } from "./prototypes/racks.js";
 import { CUTTING } from "./prototypes/cutting.js";
 
 /** What the studio needs to know about a puzzle beyond its engine definition. */
-export interface HarnessPuzzle<S, M, C> {
+export interface StudioPuzzle<S, M, C> {
   readonly id: PuzzleId;
   readonly def: PuzzleDef<S, M, C>;
   /** The content config and round length: the shipped numbers, which the server deals. */
@@ -63,7 +63,7 @@ export interface HarnessPuzzle<S, M, C> {
 
 const c = content.puzzles;
 
-export const COOLING: HarnessPuzzle<CoolingState, CoolingMove, CoolingConfig> = {
+export const COOLING: StudioPuzzle<CoolingState, CoolingMove, CoolingConfig> = {
   id: "cooling",
   def: COOLING_DEF,
   config: c.cooling.config,
@@ -74,7 +74,7 @@ export const COOLING: HarnessPuzzle<CoolingState, CoolingMove, CoolingConfig> = 
   ticked: null,
 };
 
-export const ENGINES: HarnessPuzzle<EnginesState, EnginesMove, EnginesConfig> = {
+export const ENGINES: StudioPuzzle<EnginesState, EnginesMove, EnginesConfig> = {
   id: "engines",
   def: ENGINES_DEF,
   config: c.engines.config,
@@ -85,7 +85,7 @@ export const ENGINES: HarnessPuzzle<EnginesState, EnginesMove, EnginesConfig> = 
   ticked: null,
 };
 
-export const PLATING: HarnessPuzzle<PlatingState, PlatingMove, PlatingConfig> = {
+export const PLATING: StudioPuzzle<PlatingState, PlatingMove, PlatingConfig> = {
   id: "plating",
   def: PLATING_DEF,
   config: c.plating.config,
@@ -96,7 +96,7 @@ export const PLATING: HarnessPuzzle<PlatingState, PlatingMove, PlatingConfig> = 
   ticked: null,
 };
 
-export const GUNNERY: HarnessPuzzle<GunneryState, GunneryMove, GunneryConfig> = {
+export const GUNNERY: StudioPuzzle<GunneryState, GunneryMove, GunneryConfig> = {
   id: "gunnery",
   def: GUNNERY_DEF,
   config: c.gunnery.config,
@@ -107,7 +107,7 @@ export const GUNNERY: HarnessPuzzle<GunneryState, GunneryMove, GunneryConfig> = 
   ticked: { tickMs: c.gunnery.config.tickMs },
 };
 
-export const NAVIGATION: HarnessPuzzle<NavigationState, NavigationMove, NavigationConfig> = {
+export const NAVIGATION: StudioPuzzle<NavigationState, NavigationMove, NavigationConfig> = {
   id: "navigation",
   def: NAVIGATION_DEF,
   config: c.navigation.config,
@@ -118,7 +118,7 @@ export const NAVIGATION: HarnessPuzzle<NavigationState, NavigationMove, Navigati
   ticked: { tickMs: c.navigation.config.tickMs },
 };
 
-export const BATTLE: HarnessPuzzle<BattleState, BattleMove, BattleConfig> = {
+export const BATTLE: StudioPuzzle<BattleState, BattleMove, BattleConfig> = {
   id: "battle",
   def: BATTLE_DEF,
   config: c.battle.config,
@@ -129,7 +129,7 @@ export const BATTLE: HarnessPuzzle<BattleState, BattleMove, BattleConfig> = {
   ticked: null,
 };
 
-export const SWORDFIGHT: HarnessPuzzle<SwordfightState, SwordfightMove, SwordfightConfig> = {
+export const SWORDFIGHT: StudioPuzzle<SwordfightState, SwordfightMove, SwordfightConfig> = {
   id: "swordfight",
   def: SWORDFIGHT_DEF,
   config: c.swordfight.config,
@@ -141,21 +141,21 @@ export const SWORDFIGHT: HarnessPuzzle<SwordfightState, SwordfightMove, Swordfig
 };
 
 /** Every puzzle in the studio, erased for generic code (the frame, the tuning panel). */
-export const HARNESS_PUZZLES: Readonly<Record<PuzzleId, HarnessPuzzle<unknown, unknown, unknown>>> = {
-  cooling: COOLING as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  engines: ENGINES as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  plating: PLATING as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  gunnery: GUNNERY as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  navigation: NAVIGATION as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  battle: BATTLE as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  swordfight: SWORDFIGHT as unknown as HarnessPuzzle<unknown, unknown, unknown>,
+export const STUDIO_PUZZLES: Readonly<Record<PuzzleId, StudioPuzzle<unknown, unknown, unknown>>> = {
+  cooling: COOLING as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  engines: ENGINES as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  plating: PLATING as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  gunnery: GUNNERY as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  navigation: NAVIGATION as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  battle: BATTLE as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  swordfight: SWORDFIGHT as unknown as StudioPuzzle<unknown, unknown, unknown>,
   // Prototype puzzles (ADR 0036): each brings its own entry from prototypes/.
-  salvage: SALVAGE as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  overload: OVERLOAD as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  deflectors: DEFLECTORS as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  reactor: REACTOR as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  scanner: SCANNER as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  tug: TUG as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  racks: RACKS as unknown as HarnessPuzzle<unknown, unknown, unknown>,
-  cutting: CUTTING as unknown as HarnessPuzzle<unknown, unknown, unknown>,
+  salvage: SALVAGE as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  overload: OVERLOAD as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  deflectors: DEFLECTORS as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  reactor: REACTOR as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  scanner: SCANNER as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  tug: TUG as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  racks: RACKS as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  cutting: CUTTING as unknown as StudioPuzzle<unknown, unknown, unknown>,
 };

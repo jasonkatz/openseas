@@ -77,9 +77,9 @@ python3 packages/boards/scripts/sounds.py place <puzzle> <cue> <take>
 ```
 
 This trims the lead-in silence (not on a loop), downmixes to mono, peaks at -1 dB less the cue's
-`level`, and writes `packages/boards/src/sounds/<puzzle>/<cue>.mp3`. Then play a round on the
-harness and listen for it; if it sits wrong against the other cues, change `level` and place it
+`level`, and writes `packages/boards/src/sounds/<puzzle>/<cue>.mp3`. Then play a round in the
+studio and listen for it; if it sits wrong against the other cues, change `level` and place it
 again. Commit the brief, the placed files and any wiring together.
 
-The first puzzle to land sounds also gives the harness smoke a check that its samples are
+The first puzzle to land sounds also gives the studio's smoke a check that its samples are
 delivered and decoded, as `e2e/sprites.spec.ts` does for atlases (ADR 0041).

@@ -5,12 +5,12 @@ import { localSeed, type PracticePhase } from "../practice/usePractice.js";
 import type { Preset } from "../scenario/presets.js";
 
 const presetName = (id: string): string =>
-  id.startsWith("deck_") ? t("harness.preset.deck", { n: id.slice(5) }) : id.startsWith("board_") ? t("harness.preset.board", { n: id.slice(6) }) : t(`harness.preset.${id}`);
+  id.startsWith("deck_") ? t("studio.preset.deck", { n: id.slice(5) }) : id.startsWith("board_") ? t("studio.preset.board", { n: id.slice(6) }) : t(`studio.preset.${id}`);
 
 const clock = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(Math.round(seconds) % 60).padStart(2, "0")}`;
 
 /**
- * The Play panel (DESIGN.md 3.14, ADR 0055): everything about the round on the board and nothing
+ * The Play panel (DESIGN.md 3.14, ADR 0056): everything about the round on the board and nothing
  * about the puzzle's numbers. A starting point to play from, the seed, the round dealt again, the
  * shipped numbers held against the draft's on the same seed, and the last few rounds finished on
  * this page, so a change can be judged against the round before it.

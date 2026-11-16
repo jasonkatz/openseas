@@ -1,6 +1,6 @@
 # Engines
 
-Status: in the game. Built in M2. On the harness at `/engines`.
+Status: in the game. Built in M2. In the studio at `/engines`.
 
 ## The puzzle
 

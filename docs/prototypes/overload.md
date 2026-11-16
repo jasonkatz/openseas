@@ -1,6 +1,6 @@
 # Overload
 
-Status: built. Prototype (ADR 0036), on the harness at `/overload`. Ticked (ADR 0015): taps come
+Status: built. Prototype (ADR 0036), in the studio at `/overload`. Ticked (ADR 0015): taps come
 back on the engine's clock. A 120 second round.
 
 ## The puzzle

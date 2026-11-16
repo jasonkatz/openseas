@@ -276,7 +276,7 @@ test("battle: the hit and the grapple in one move", async ({ page }) => {
   await prelude(page, found.before);
   await plot(page, found.kill.plan);
   await page.waitForTimeout(400);
-  // The harness lays its result card over the board the moment the fight ends. Keep it off the
+  // The studio lays its result card over the board the moment the fight ends. Keep it off the
   // picture, so the clip shows the board playing the last turn out.
   await page.addStyleTag({ content: ".board-veil,[data-testid=result]{display:none!important}" });
   await clip(page, "battle", "board-her", async () => {

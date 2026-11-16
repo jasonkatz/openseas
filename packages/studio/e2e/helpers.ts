@@ -30,7 +30,7 @@ export async function boardGeom(page: Page, puzzle: string): Promise<{ ox: numbe
 }
 
 /**
- * The studio shows one mode's panel and one menu at a time (ADR 0055), and keeps the rest in the
+ * The studio shows one mode's panel and one menu at a time (ADR 0056), and keeps the rest in the
  * page out of sight. Bring forward whatever holds this control, the mode on the rail or the menu
  * off the top bar, and hand the control back to act on.
  */

@@ -166,7 +166,7 @@ describeDb("server integration", () => {
     expect(result.score).toBe(state.score);
     expect(result.moves).toBe(25);
     expect(result.verified).toBe(true);
-    // A harness round moves no standing (ADR 0028) but rates its own performance.
+    // A studio round moves no standing (ADR 0028) but rates its own performance.
     expect(result.rating).toBeNull();
     expect(result.tierChange).toBeNull();
     expect(result.performance.rating).toBeGreaterThanOrEqual(0);

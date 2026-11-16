@@ -98,7 +98,7 @@ export const CORE_PUZZLE_IDS = ["cooling", "engines", "plating", "gunnery", "nav
 export type CorePuzzleId = (typeof CORE_PUZZLE_IDS)[number];
 /**
  * Prototype puzzles (ADR 0036): whole engines the server verifies like any other, dealt only on the
- * harness. Nothing in the game deals one until it is promoted, which is a decision of its own.
+ * studio. Nothing in the game deals one until it is promoted, which is a decision of its own.
  */
 export const PROTOTYPE_PUZZLE_IDS = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting"] as const;
 export type PrototypePuzzleId = (typeof PROTOTYPE_PUZZLE_IDS)[number];

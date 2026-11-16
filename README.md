@@ -60,7 +60,7 @@ game is at openseas.online.
 | `packages/server` | Node 22, `ws`, Drizzle, Better Auth. The only authority. |
 | `packages/boards` | What both front ends render with: the PixiJS boards and their art and sound, the round runner, the tick clock, the server connection (ADR 0019). Renders; never authoritative. |
 | `packages/client` | The game, one graphical experience: the three.js world with the boards over it (ADR 0020). Vite, React. Renders; never authoritative. |
-| `packages/docs` | The puzzle guides: a static site with one guide per puzzle, from first round to expert play. Its screenshots and clips are captured from the real boards on the harness (`pnpm capture:docs`). |
+| `packages/docs` | The puzzle guides: a static site with one guide per puzzle, from first round to expert play. Its screenshots and clips are captured from the real boards in the studio (`pnpm capture:docs`). |
 | `packages/studio` | The puzzle studio (M9, ADR 0042), once the harness: a page a puzzle with the shared board and a tuning panel built from the content file and the wire schema, each puzzle alone at `/play/<puzzle>` on the numbers its link carries, and the voyage bench. Every round is local. A developer and tester tool, never linked from the game. |
 | `packages/studio-server` | The studio's own small service (ADR 0043): tester links by id (`/play/<id>`) and the owner's GitHub sign-in against an allowlist. The studio works without it. |
 
@@ -90,7 +90,7 @@ pnpm typecheck                  # every package
 pnpm test                       # engine property tests, protocol, content, server unit tests, the world's layout
 TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/openseas pnpm test   # plus server integration
 pnpm --filter @openseas/engine lint                                                # engine purity guard
-pnpm --filter @openseas/studio exec playwright install chromium && pnpm test:smoke # game and harness smoke
+pnpm --filter @openseas/studio exec playwright install chromium && pnpm test:smoke # game and studio smoke
 ```
 
 Schema changes: edit `packages/server/src/db/schema.ts`, then `pnpm db:generate` and commit the
@@ -99,7 +99,8 @@ migration. Migrations run automatically when the server starts.
 ## Deploy
 
 Merging to `main` deploys. Once CI is green, the **Deploy** workflow ships the server to Railway,
-waits for it to be healthy, then ships the game and the harness to their two Vercel projects.
-Every pull request that touches code gets its own server, database, game preview and harness
-preview, linked from a comment on the PR. One-time setup, secrets, and rollback are in
+waits for it to be healthy, then ships the game and the studio to their Vercel projects; the
+puzzle guides and the studio's service go out alongside. Every pull request that touches code gets
+its own server, database, and previews of the game, the studio and the guides, linked from a
+comment on the PR. One-time setup, secrets, and rollback are in
 [docs/DEPLOY.md](docs/DEPLOY.md).

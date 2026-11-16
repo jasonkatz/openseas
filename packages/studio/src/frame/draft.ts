@@ -1,5 +1,5 @@
 import { DraftNumbersSchema, NO_PICKS, pickCount, picksOf, type DraftNumbers } from "@openseas/protocol";
-import type { HarnessPuzzle } from "../puzzles.js";
+import type { StudioPuzzle } from "../puzzles.js";
 import type { Scenario } from "../scenario/codec.js";
 import { leafOverrides } from "./numbers.js";
 
@@ -20,7 +20,7 @@ export function carriesDraft(s: Scenario, picks = true): boolean {
  * no such shape (thresholds half typed, say): the page plays or refuses it as ever, and nothing is
  * saved until it has one.
  */
-export function draftNumbers<S, M, C>(puzzle: HarnessPuzzle<S, M, C>, s: Scenario, picks = true): DraftNumbers | null {
+export function draftNumbers<S, M, C>(puzzle: StudioPuzzle<S, M, C>, s: Scenario, picks = true): DraftNumbers | null {
   const parsed = DraftNumbersSchema.safeParse({ seed: s.seed, overrides: leafOverrides(puzzle, s), roundSeconds: s.roundSeconds, paceSeconds: s.paceSeconds, thresholds: s.thresholds, picks: picks ? s.picks : NO_PICKS });
   return parsed.success ? parsed.data : null;
 }

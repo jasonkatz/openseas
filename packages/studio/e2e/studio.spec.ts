@@ -21,7 +21,7 @@ for (const puzzle of PUZZLES) {
     const panel = page.getByTestId("tuning");
     // Every key is in a section, each with its line from beside the wire schema.
     await expect(panel.getByTestId("group-other")).toHaveCount(0);
-    // The numbers are split over three modes (ADR 0055): the board and the round, the deal and the pace, the scoring and the rating.
+    // The numbers are split over three modes (ADR 0056): the board and the round, the deal and the pace, the scoring and the rating.
     await page.getByTestId("tab-setup").click();
     await expect(control(page, "config.maxMoves")).toBeVisible();
     await expect(control(page, "config.maxMoves").locator(".tune-desc")).not.toBeEmpty();

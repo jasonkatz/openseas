@@ -59,7 +59,7 @@ Puzzle Pirates is a live trademarked product. The distance we keep:
 
 Explicitly later: Rigging, Treasure Haul, Rumble, all crafting puzzles, parlor games, Treasure Drop.
 
-Eight puzzles of the game's own design are prototypes on the harness (3.12, ADR 0036). None is in
+Eight puzzles of the game's own design are prototypes in the studio (3.12, ADR 0036). None is in
 v1, and none has a role in the game until it is chosen for one.
 
 ### 3.2 Default stance on rules
@@ -238,14 +238,14 @@ v1: a look is a free choice, not something owned.
   adjective so it reads in a sentence ("a Sharp round"): Green, Steady, Sharp, Masterful and
   Legendary.
 - Standing is earned in the game only (ADR 0028): the captain's space battle, a melee board and a
-  duty board that ran its full clock move it; a harness round never does. Every scored round also
+  duty board that ran its full clock move it; a studio round never does. Every scored round also
   carries its own performance rating, its score read off the line through the thresholds, with the
   tier that falls in. It is stored with the round and leads every result card, above the score,
   never fed into standing.
 - A score means nothing from one puzzle to the next, so every board's HUD also shows the tier
   being played at right now (ADR 0039): the points of the last `paceSeconds` of the round (content,
   per puzzle; longer where a puzzle scores in lumps) read as a whole round at that pace. It is five
-  rising pips and the tier's name, on the harness and at every station, the captain's board and the
+  rising pips and the tier's name, in the studio and at every station, the captain's board and the
   melee. It is display only.
 
 **The pirate's sheet** (ADR 0033). The player's own page about themselves. It opens over the
@@ -349,7 +349,7 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
 
 The seven puzzle boards use original generated 2D sprite atlases (ADR 0031): dark outlines,
 restrained shading and distinct silhouettes, read at phone scale. Assets live in `boards`, so the
-game and harness render the same pieces. The atlases and their frames carry the space names, and since
+game and studio render the same pieces. The atlases and their frames carry the space names, and since
 the owner's sprite pass the art inside is space too: Cooling uses machine parts, Engines keeps
 round riveted discs, Plating uses four brushed metals with engine-defined footprints and grain,
 Navigation keeps its three star silhouettes, Swordfighting keeps square armour blocks, and Space
@@ -400,10 +400,10 @@ the desired approach; the parts marked open are decided as they are built.
 - **Touch first, as everywhere.** Everything above is tappable at phone size; the boards keep the
   touch affordances built in M1 and M2.
 - **In-world practice** (open): a cantina table where a pirate plays a duty puzzle alone, rated,
-  may replace the harness as the public way to practice. Until it exists the harness is where
+  may replace the studio as the public way to practice. Until it exists the studio is where
   testers practice and thresholds are calibrated.
 - **Technical decisions**: the world is one three.js scene with the PixiJS boards opening in a
-  layer over it (ADR 0020); the harness and the game share board code through `boards` (ADR 0019).
+  layer over it (ADR 0020); the studio and the game share board code through `boards` (ADR 0019).
 
 As built (M3; redrawn for space in M7, ADR 0034): the world is an isometric diorama of primitives
 hanging in the void, filling the viewport from sign-in to sign-out. The void is a starfield and a
@@ -551,10 +551,10 @@ are in [`prototypes/`](./prototypes/README.md), one file a puzzle, kept true as 
 
 What holds for all eight:
 
-- **Whole engines, dealt on the harness only.** Each is a pure engine in the registry with its wire
+- **Whole engines, dealt in the studio only.** Each is a pure engine in the registry with its wire
   schemas, content file and thresholds, so the server could replay and score a round as it does
   any other. Since M9 the studio sends it none (ADR 0042): a prototype is held to replay by its
-  property tests and the studio's replay check. None is a station: no par, no place aboard, no standing (ADR 0028). The harness
+  property tests and the studio's replay check. None is a station: no par, no place aboard, no standing (ADR 0028). The studio
   home page lists them apart from the game's puzzles.
 - **A round is 120 seconds** on the clock, scored against thresholds set from bots playing the
   engine. They are guesses until testers have played.
@@ -578,7 +578,7 @@ stays a few lines.
   A guide is one sitting; a test holds each to a budget.
 - **True by construction where it can be.** Numbers are read from `content`, never typed.
   Screenshots and clips are captured from the real boards by a script that plays lab rounds on
-  the harness, on seeds it finds with the engine, so a picture shows a position the game deals and
+  the studio, on seeds it finds with the engine, so a picture shows a position the game deals and
   a move it allows. A guide's strategy is prose and is re-read when its puzzle's rules change.
 - **Prototypes are marked as prototypes**, and their guides say what the puzzle is trying out
   instead of what it does for the ship, since none has a role yet (3.12).
@@ -587,9 +587,8 @@ stays a few lines.
 
 ### 3.14 The puzzle studio
 
-Planned, and built as milestone M9 (5.2, ADR 0042). The harness becomes a studio: an application
-for tuning one puzzle at a time, at `studio.openseas.online`, for the owner. Until its steps land,
-the harness is as sections 3.11 and 4.1 describe it. The voyage bench is not part of the studio and
+Built as milestone M9 (5.2, ADR 0042). The harness became the studio: an application for tuning
+one puzzle at a time, at `studio.openseas.online`, for the owner. The voyage bench is not part of the studio and
 stays at `/voyage` as it is.
 
 **Built so far.** The package is renamed. Each puzzle plays alone at `/play/<puzzle>`: the board
@@ -654,8 +653,11 @@ pull request. A service with no volume or no App keeps drafts and offers no Save
 worktree, with `CLAUDE.md` and the three puzzle skills read from it. A message carries the model
 picked, the draft's numbers, what the build refuses of them, and a line for each of the last five
 rounds played. Asked for a number, the agent uses a tool that moves the draft's numbers, and the
-controls and board follow. Its replies are shown whole as written, its work as a line a step that
-opens to the output. The service holds it to the puzzle's own files: a write elsewhere is refused
+controls and board follow. Its replies are read as markdown and shown as they are written, its
+work as a line a step that opens to the output; the page is told each thing as it happens, over a
+stream it reconnects to, and asks for the chat the slow way while that is down (ADR 0055). A turn
+that fails says why, and never holds the draft: a session that cannot be resumed is replaced by a
+new one, and an agent that goes quiet for fifteen minutes with no tool running is stopped. The service holds it to the puzzle's own files: a write elsewhere is refused
 and shown to the owner with a button that allows that path for the draft, and whatever a command
 wrote outside them is put back when the turn ends. Each turn is a commit on the draft's branch
 and can be reverted; a message sent meanwhile steers the turn; Stop ends it where it stands. The
@@ -720,7 +722,7 @@ are delivered. In the studio the agent no longer places a take; Save does.
 That completes the step. What is left of M9 is the live build of a draft's worktree (ADR 0042
 decision 7).
 
-**The page is laid out as a design tool** (ADR 0055), built. Nothing above changes in what the
+**The page is laid out as a design tool** (ADR 0056), built. Nothing above changes in what the
 studio does; where each thing sits does, and where this section's account of the steps says "the
 tuning panel" or "the side panel", **Layout and modes** below says where that now is. The one
 thing added is that the Play panel lists the last rounds finished on the page.
@@ -746,7 +748,7 @@ panel to its left, the chat to its right. On a phone there is no studio, only pl
 live thumbnail and a mark for an open draft or pull request. Each puzzle keeps its path
 (`/cooling`, `/salvage`), and the old query string (`seed`, `c.<path>`) still opens a tuned round.
 
-**Layout and modes** (ADR 0055).
+**Layout and modes** (ADR 0056).
 
 - A bar across the top. On its left, where the page is: the way back to the grid, the puzzle's
   name, which opens a menu of every puzzle, and a count of what the draft changes. The count opens
@@ -820,8 +822,9 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   board switches to a build of the draft, with a mark saying so.
 - It is held to the open puzzle's files. For anything else it asks, and the owner allows that
   path with a click.
-- Its replies are shown whole, its work as one line a step that opens to the diff or the output.
-  There is a stop button, and a message sent while it works steers it. The draft's cost so far
+- Its replies are markdown, shown as they are written; its work is one line a step, marked as
+  running, done or failed, that opens to the diff or the output (ADR 0055). A turn that failed
+  says why. There is a stop button, and a message sent while it works steers it. The draft's cost so far
   sits at the top of the chat, with what all drafts have spent against the one cap they share
   (ADR 0047); a turn that reaches the cap is stopped where it stands.
 
@@ -874,15 +877,15 @@ pnpm monorepo. Packages:
 | `studio` | The puzzle studio (sections 3.11 and 3.14), once the harness: a page a puzzle with the shared board and the tuning panel built from content and the wire schema; each puzzle alone at `/play/<puzzle>` on the numbers its link carries; every round local and replayed from its seed; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
 | `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers and picks: a clone on a volume, a worktree a draft, picks placed as their takes' bytes, and a draft pull request from a GitHub App (ADR 0046, ADR 0053); and the chat: the Claude Agent SDK on the draft's worktree, as a unix user of its own, behind the service's own proxy to the model (ADR 0047). All in a Postgres schema of its own | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
-| `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the harness, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
+| `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the studio, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
-In M9 the harness became the studio (3.14, ADR 0042): `harness` was renamed `studio`, and
-`studio-server` holds the service its tester links run on, and later its chat and Save. The table
+In M9 the harness became the studio (3.14, ADR 0042): `harness` was renamed `studio` (the deploy pipeline, the
+message keys, now `studio.*`, and the code's identifiers followed), and `studio-server` holds the service its tester links run on, and later its chat and Save. The table
 above says what is built today.
 
 Prototype puzzles (3.12, ADR 0036) live in the same packages, each in files of its own: an engine
 folder, a protocol file, a content file and message file, a board folder built on `boards/src/kit`,
-and a harness page. `docs/prototypes/README.md` lists them.
+and a studio page. `docs/prototypes/README.md` lists them.
 
 ### 4.2 Puzzle authority: deterministic replay verification
 
@@ -905,7 +908,7 @@ the ship, menus and the puzzle boards embedded in one frame (section 3.11). Pixi
 puzzle boards and (from M4) the space battle; the world is an isometric three.js scene that fills
 the viewport for the whole session, and the boards open in a layer over it (ADR 0020). React with
 Vite is the UI layer, used for in-scene cards, HUDs, menus and the spots hung on the geometry, not
-for pages. The harness is React pages with the same PixiJS boards, from the shared `boards`
+for pages. The studio is React pages with the same PixiJS boards, from the shared `boards`
 package (ADR 0019), with its bench beside them.
 
 ### 4.5 Data
@@ -916,8 +919,8 @@ guests and account linking to Discord and Google.
 ### 4.6 Hosting and operations
 
 - Server and Postgres on Railway, deployed from `main`.
-- Client as a static build on Vercel, deployed from `main`. The harness and the puzzle guides are
-  static builds on Vercel too, each its own project (ADR 0019, ADR 0038).
+- Client as a static build on Vercel, deployed from `main`. The studio and the puzzle guides are
+  static builds on Vercel too, each its own project (ADR 0019, ADR 0038, ADR 0042).
 - Merging is releasing. After CI is green on `main`, one Actions pipeline deploys the server to
   Railway, waits for it to be healthy on the new commit, then deploys the client to Vercel
   (ADR 0014, `docs/DEPLOY.md`).
@@ -936,7 +939,8 @@ have to be fun or nothing else matters. Order: Cooling, Engines, Plating, Gunner
 Space Battle, Swordfighting. Cooling goes first because it is the simplest and stress-tests the
 deterministic engine and replay pipeline on the easiest case.
 
-The practice pages live on as the puzzle harness, a separate application (ADR 0018). A puzzle is
+The practice pages live on as a separate application (ADR 0018), the puzzle harness and since M9
+the studio. A puzzle is
 still proven there first, with its tester session, and only then embedded in the game.
 
 ### 5.2 Milestones
@@ -966,7 +970,7 @@ tester session is next; the space battle (M4) opens as the captain's board in th
 M4 as built: engaging a hail deals the captain a battle board bound to the ship (ADR 0021); it
 opens over the deck in the station layer, the ship's turn clock flies the plot, the crew's stations
 feed it, and a win pays the tier's plunder through the ledger. Boarding is stubbed: a grapple that
-lands ends the fight. The practice page and its presets are on the harness. Its tester session
+lands ends the fight. The practice page and its presets are in the studio. Its tester session
 follows M3's.
 
 M6 as built: crews and the account upgrade are as described in 3.7 and 3.8 (ADR 0025, ADR 0026).
@@ -1097,7 +1101,7 @@ Maintained as they arise.
 | Area | Original | openseas | Why |
 |---|---|---|---|
 | Setting | Pirates on the sea | Space pirates in one star system: asteroid outposts joined by lanes, a skiff, raiders, plunder paid in credits. Every mechanic is unchanged | The owner's choice of look and feel; it also puts the game further from the original (ADR 0034) |
-| New puzzles | None of these | Eight prototypes on the harness (3.12): Salvage, Overload, Deflectors, Reactor, Scanner, Tug, Racks, Cutting. None is a port of an original puzzle | The owner wants puzzles that are the game's own; they are tried on the harness before any gets a role (ADR 0036) |
+| New puzzles | None of these | Eight prototypes in the studio (3.12): Salvage, Overload, Deflectors, Reactor, Scanner, Tug, Racks, Cutting. None is a port of an original puzzle | The owner wants puzzles that are the game's own; they are tried in the studio before any gets a role (ADR 0036) |
 | Ship ownership | Individuals and crews | Individuals only in v1 | Simpler model; owner likes personal ships |
 | Crew ranks | A long ladder of ranks with fine-grained permissions | Three: commodore, officer, spacer | A crew of friends needs a leader, recruiters and everyone else; more can be added to the enum |
 | Flags | A flag is an alliance of crews | A flag is a crew's own banner; no alliances | Alliances need more crews than the design point has; the word reads naturally on a ship |
@@ -1114,7 +1118,7 @@ Maintained as they arise.
 | Ship in flight | Continuous movement | A turn every `turnSeconds`; each station's board points since the last turn become its output as a percentage of par, clamped to that station's own `outputCapPercent` | Pure engine on the server; the client eases the ship between snapshots (ADR 0020); a cap per station lets lumpy puzzles' seals and constellations reach the ship whole (ADR 0030) |
 | Duty boards aboard | Continuous play at a station | Boards of the practice length dealt back to back; a board cut short by docking or standing down counts but moves no standing | Rated rounds stay whole rounds; the ship still gets every point |
 | Raider encounters | A fight | Hailed in a window along the leg; the captain engages or evades, or the raider loses interest after `hailTurns` | One hail per leg keeps a leg readable |
-| Space battle turn | Moves placed as tokens arrive, resolved on a timer | The whole plot is one `commit` move; the ship's turn clock (the practice clock in the harness) flies it as it stands | A pure engine with no clock; the log is the fight (ADR 0021) |
+| Space battle turn | Moves placed as tokens arrive, resolved on a timer | The whole plot is one `commit` move; the ship's turn clock (the practice clock in the studio) flies it as it stands | A pure engine with no clock; the log is the fight (ADR 0021) |
 | Space battle raider | Server-side AI | A scripted policy inside the reducer, drawing on the fight's PRNG | The replay reproduces the raider, so a fight can be reviewed and verified like any round |
 | Space battle ship size | Sloops, cutters and larger ships | Skiffs only: one cell, one shot a side per move | Skiff only in v1 (3.4) |
 | Space battle solar currents and gravity wells | Winds push once on entry; whirlpools carry and spin | Solar currents carry a ship a cell every segment it sits on one; gravity wells spin her a quarter turn each segment | Simple rules that read on a phone grid; sitting on either is a choice |
@@ -1132,10 +1136,10 @@ Maintained as they arise.
 | Space battle rating | Head to head | By the hit margin and the win, scaled by the raider tier, against content thresholds, against AI raiders | No human opponent until player-versus-player in flight (ADR 0021) |
 | Space battle tokens | Typed tokens from the sails | The ship's turn output as tokens: half forward, the rest split between the turns; Navigation adds `navTokens` | One number from the ship, split the same way every time |
 | Cooling specials | Crab, pufferfish, jellyfish | Slag, Spark Charge, Magnet | Original names (ADR 0001, ADR 0034); same roles |
-| Tile art | Illustrated pieces | Original illustrated sprite atlases, specials with labels, optional code-drawn marks; procedural fallback | Shared art between game and harness; silhouettes and marks keep kinds apart without color (ADR 0031) |
+| Tile art | Illustrated pieces | Original illustrated sprite atlases, specials with labels, optional code-drawn marks; procedural fallback | Shared art between game and studio; silhouettes and marks keep kinds apart without color (ADR 0031) |
 | Cooling hints | None | Idle hint in unrated practice only | Teaches newcomers; rated rounds stay unaided |
 | Cooling scoring | Original's table | n(n-2) per group, times groups, times a capped cascade table; slag lifted together 15 × k²; a capped streak multiplier that survives one setup swap | Rewards planned multi-group swaps over refill luck (the owner's reward review); tuned in playtests |
-| Cooling heat | Driven by the ship | The ship's heat, never read below 3 rows, injected into the move log as heat events the server vouches for; the harness plays a lone ship's heat the same way (ADR 0029) | Replays stay self-contained: the log is the whole story (ADR 0003). Heat that never reads cold keeps overheated swaps and slag setups on a sound ship's board |
+| Cooling heat | Driven by the ship | The ship's heat, never read below 3 rows, injected into the move log as heat events the server vouches for; the studio plays a lone ship's heat the same way (ADR 0029) | Replays stay self-contained: the log is the whole story (ADR 0003). Heat that never reads cold keeps overheated swaps and slag setups on a sound ship's board |
 | Divergent puzzle round | n/a (client-reported) | Rejected outright, unrated, logged | Engines are deterministic; any mismatch is a bug or a cheat |
 | Engines piece control | Free fall in real time | The move is the resting position; the engine checks it is reachable from the entry by sliding, turning and falling | One move per pair keeps the log small while steering under injectors stays possible (ADR 0015) |
 | Engines injectors | Targets on fixed structures | Injectors are shapes (bars, stacks, L's, squares) with outlined targets and blanks; shelves sit under their bottom cells; a cleared one is dealt again elsewhere | Same role, original layouts; shapes make tucking and stacking matter |

@@ -49,7 +49,7 @@ export interface DutyProps {
   children(view: DutyView): ReactNode;
 }
 
-// ---- one adapter per station: the board and its sounds, as in the harness
+// ---- one adapter per station: the board and its sounds, as in the studio
 
 const cooling = content.puzzles.cooling;
 /** The ship's heat arrives as heat events: one with the deal, then one whenever a turn changes it. */

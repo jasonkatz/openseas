@@ -4,10 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@openseas/boards", async () => ({ content: (await import("@openseas/content")).loadContent() }));
 
 const { carriesDraft, draftNumbers, sameNumbers, withDraft, withoutDraft } = await import("../src/frame/draft.js");
-const { HARNESS_PUZZLES } = await import("../src/puzzles.js");
+const { STUDIO_PUZZLES } = await import("../src/puzzles.js");
 const { EMPTY_SCENARIO, formatScenario, parseScenario } = await import("../src/scenario/codec.js");
 
-const cooling = HARNESS_PUZZLES.cooling;
+const cooling = STUDIO_PUZZLES.cooling;
 
 describe("a page's draft and the one the service keeps", () => {
   it("knows an address that carries a draft from one that only says how the clock starts", () => {
