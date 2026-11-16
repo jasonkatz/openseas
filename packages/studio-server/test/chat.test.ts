@@ -13,8 +13,9 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ChatEventSchema, ChatStateSchema, DraftSchema, type ChatEvent, type ChatItem, type ChatState, type Draft, type DraftNumbers } from "@openseas/protocol";
+import { ChatEventSchema, ChatListSchema, ChatSentSchema, ChatStateSchema, ChatSummarySchema, DraftSchema, type ChatEvent, type ChatItem, type ChatState, type Draft, type DraftNumbers } from "@openseas/protocol";
 import { createApp, type App } from "../src/app.js";
 import type { AgentRunner, AgentTurn, TurnRequest } from "../src/chat/runner.js";
 import { createDb, schema } from "../src/db/index.js";
@@ -144,6 +145,7 @@ describeDb("chat", () => {
       LOG_LEVEL: "silent",
     });
     app = await createApp(env, createLogger("silent", false), null, forge, runner);
+    await app.db.delete(schema.chat);
     await app.db.delete(schema.draft);
     await app.db.delete(schema.meter);
     base = `http://localhost:${await app.listen(0)}`;
@@ -160,8 +162,19 @@ describeDb("chat", () => {
   const numbers = (over: Partial<DraftNumbers> = {}): DraftNumbers => ({ seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: {}, sounds: {} }, words: { texts: {}, category: null }, ...over });
   const send = (method: string, path: string, body?: unknown): Promise<Response> => fetch(`${base}${path}`, { method, headers: { origin: STUDIO, cookie: session }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const open = async (n: DraftNumbers): Promise<Draft> => DraftSchema.parse(await (await send("POST", "/drafts", { puzzle: "cooling", numbers: n })).json());
-  const state = async (d: Draft, after = 0): Promise<ChatState> => ChatStateSchema.parse(await (await send("GET", `/drafts/${d.id}/chat?after=${after}`)).json());
-  const say = (d: Draft, text: string, over: object = {}): Promise<Response> => send("POST", `/drafts/${d.id}/chat`, { text, model: "sonnet", rounds: [], refusals: [], ...over });
+  /** The chat each draft's tests talk in (ADR 0060): the first message to a draft starts one, and the ones after go to it. */
+  const chats = new Map<string, string>();
+  const chatOf = (d: Draft): string => {
+    const id = chats.get(d.id);
+    if (!id) throw new Error(`no chat yet on ${d.id}`);
+    return id;
+  };
+  const state = async (d: Draft | string, after = 0): Promise<ChatState> => ChatStateSchema.parse(await (await send("GET", `/chats/${typeof d === "string" ? d : chatOf(d)}?after=${after}`)).json());
+  const say = async (d: Draft, text: string, over: object = {}): Promise<Response> => {
+    const r = await send("POST", `/drafts/${d.id}/chat`, { chat: chats.get(d.id) ?? null, text, model: "sonnet", rounds: [], refusals: [], ...over });
+    if (r.status === 202) chats.set(d.id, ChatSentSchema.parse(await r.clone().json()).chat);
+    return r;
+  };
   /** Send a message and wait for the turn it starts to end. */
   async function turn(d: Draft, text: string, script: Script, over: object = {}): Promise<ChatState> {
     agent.script = script;
@@ -170,9 +183,9 @@ describeDb("chat", () => {
     return state(d);
   }
   /** A draft's event stream (ADR 0055), as a page reads it: every event so far, and a wait for one that is not here yet. */
-  async function watch(d: Draft): Promise<{ seen: ChatEvent[]; until(enough: (seen: ChatEvent[]) => boolean): Promise<void>; close(): void }> {
+  async function watch(d: Draft | string): Promise<{ seen: ChatEvent[]; until(enough: (seen: ChatEvent[]) => boolean): Promise<void>; close(): void }> {
     const stop = new AbortController();
-    const r = await fetch(`${base}/drafts/${d.id}/chat/events`, { headers: { origin: STUDIO, cookie: session }, signal: stop.signal });
+    const r = await fetch(`${base}/chats/${typeof d === "string" ? d : chatOf(d)}/events`, { headers: { origin: STUDIO, cookie: session }, signal: stop.signal });
     expect(r.status).toBe(200);
     expect(r.headers.get("content-type")).toContain("text/event-stream");
     const seen: ChatEvent[] = [];
@@ -223,7 +236,7 @@ describeDb("chat", () => {
     expect(kinds(s)).toEqual(["user", "reply", "step", "reply", "turn"]);
     expect(s.items[0]).toMatchObject({ kind: "user", text: "Make slag rarer and say why in the design file.", model: "haiku", steer: false, turn: 1 });
     expect(s.items[2]).toMatchObject({ kind: "step", tool: "Edit", summary: "docs/puzzles/cooling.md", detail: "+Slag is rarer now.", failed: false });
-    expect(s.running).toBe(false);
+    expect(s.chat.running).toBe(false);
 
     // What the agent was given: the worktree, the model picked, and the page's knowledge under the owner's words.
     const r = agent.requests.at(-1)!;
@@ -247,7 +260,7 @@ describeDb("chat", () => {
     expect(r.modelToken).not.toContain(REAL_KEY);
     expect(api.models).toEqual(["claude-haiku-5-5"]);
     expect(ended.costUsd).toBeCloseTo(0.02, 6);
-    expect(s.spentUsd).toBeCloseTo(0.02, 6);
+    expect(s.chat.spentUsd).toBeCloseTo(0.02, 6);
     expect(s.cap).toEqual({ spentUsd: expect.closeTo(0.02, 6) as number, capUsd: 1 });
   });
 
@@ -269,11 +282,11 @@ describeDb("chat", () => {
       expect(await a.r.host.setNumbers({ seed: "nope" }, [])).toContain("Not set");
       expect(await a.r.host.setNumbers({ "config.heatRisePerMoves": 4 }, ["roundSeconds"])).toContain('"heatRisePerMoves":4');
     });
-    expect(s.draft.numbers).toEqual(numbers({ seed: "keg-3", overrides: { pieceKinds: 6, heatRisePerMoves: 4 } }));
-    expect(s.draft.revision).toBe(draft.revision + 2);
+    expect(s.draft!.numbers).toEqual(numbers({ seed: "keg-3", overrides: { pieceKinds: 6, heatRisePerMoves: 4 } }));
+    expect(s.draft!.revision).toBe(draft.revision + 2);
     expect(readFileSync(join(tree(draft), FILE), "utf8")).toBe(shipped);
     expect(last(s, "turn").commit).toBeNull();
-    draft = s.draft;
+    draft = s.draft!;
   });
 
   it("refuses a write outside the puzzle's files, puts back what a command wrote there, and asks the owner", async () => {
@@ -304,11 +317,11 @@ describeDb("chat", () => {
     const before = await state(draft);
     const ask = before.items.find((i) => i.kind === "ask" && i.path === "docs/DESIGN.md")!;
     const no = before.items.find((i) => i.kind === "ask" && i.path === "packages/engine/src/engines/sneak.ts")!;
-    expect((await send("POST", `/drafts/${draft.id}/chat/allow`, { item: no.id, allow: false })).status).toBe(200);
-    expect((await send("POST", `/drafts/${draft.id}/chat/allow`, { item: ask.id, allow: true })).status).toBe(200);
+    expect((await send("POST", `/chats/${chatOf(draft)}/allow`, { item: no.id, allow: false })).status).toBe(200);
+    expect((await send("POST", `/chats/${chatOf(draft)}/allow`, { item: ask.id, allow: true })).status).toBe(200);
     // Answered once.
-    expect((await send("POST", `/drafts/${draft.id}/chat/allow`, { item: ask.id, allow: true })).status).toBe(404);
-    expect((await send("POST", `/drafts/${draft.id}/chat/allow`, { item: 999999, allow: true })).status).toBe(404);
+    expect((await send("POST", `/chats/${chatOf(draft)}/allow`, { item: ask.id, allow: true })).status).toBe(404);
+    expect((await send("POST", `/chats/${chatOf(draft)}/allow`, { item: 999999, allow: true })).status).toBe(404);
 
     const s = await turn(draft, "Go on then.", async (a) => {
       expect(a.r.prompt).toContain("docs/DESIGN.md");
@@ -329,7 +342,7 @@ describeDb("chat", () => {
       await a.next();
     };
     expect((await say(draft, "Rewrite the design file.")).status).toBe(202);
-    expect((await state(draft)).running).toBe(true);
+    expect((await state(draft)).chat.running).toBe(true);
     // A second message does not start a second turn.
     const turns = agent.requests.length;
     expect((await say(draft, "Shorter than that.", { refusals: ["config.height: too tall"] })).status).toBe(202);
@@ -339,12 +352,12 @@ describeDb("chat", () => {
     // Nothing else may write the branch while it runs, and the draft cannot be discarded under it.
     expect((await send("POST", `/drafts/${draft.id}/save`, { revision: draft.revision, name: "x" })).status).toBe(409);
     expect((await send("DELETE", `/drafts/${draft.id}`)).status).toBe(409);
-    expect((await send("POST", `/drafts/${draft.id}/chat/revert`, { turn: 1 })).status).toBe(409);
+    expect((await send("POST", `/chats/${chatOf(draft)}/revert`, { turn: 1 })).status).toBe(409);
 
-    expect((await send("POST", `/drafts/${draft.id}/chat/stop`)).status).toBe(202);
+    expect((await send("POST", `/chats/${chatOf(draft)}/stop`)).status).toBe(202);
     await app.chat!.idle();
     const s = await state(draft);
-    expect(s.running).toBe(false);
+    expect(s.chat.running).toBe(false);
     expect(s.items.filter((i) => i.kind === "user").at(-1)).toMatchObject({ text: "Shorter than that.", steer: true, turn: 6 });
     // Stopped, and what it had written is a commit all the same, so it can be undone.
     const ended = last(s, "turn");
@@ -355,16 +368,16 @@ describeDb("chat", () => {
   it("reverts one turn's edits with a new commit, once", async () => {
     expect(readFileSync(join(tree(draft), "docs/puzzles/cooling.md"), "utf8")).toContain("Half a thought");
     const head = git(tree(draft), "rev-parse", "HEAD");
-    expect((await send("POST", `/drafts/${draft.id}/chat/revert`, { turn: 6 })).status).toBe(200);
+    expect((await send("POST", `/chats/${chatOf(draft)}/revert`, { turn: 6 })).status).toBe(200);
     expect(readFileSync(join(tree(draft), "docs/puzzles/cooling.md"), "utf8")).toBe("# Cooling\n\nSlag is rarer now.\n");
     // A new commit over the old ones: nothing is rewritten.
     expect(git(tree(draft), "rev-parse", "HEAD~1")).toBe(head);
     expect(log(draft)[0]).toBe("Revert chat turn 6 on cooling");
     expect(last(await state(draft), "turn")).toMatchObject({ turn: 6, reverted: true });
-    expect((await send("POST", `/drafts/${draft.id}/chat/revert`, { turn: 6 })).status).toBe(409);
+    expect((await send("POST", `/chats/${chatOf(draft)}/revert`, { turn: 6 })).status).toBe(409);
     // A turn that edited nothing has nothing to revert.
-    expect((await send("POST", `/drafts/${draft.id}/chat/revert`, { turn: 2 })).status).toBe(409);
-    expect((await send("POST", `/drafts/${draft.id}/chat/revert`, { turn: 0 })).status).toBe(400);
+    expect((await send("POST", `/chats/${chatOf(draft)}/revert`, { turn: 2 })).status).toBe(409);
+    expect((await send("POST", `/chats/${chatOf(draft)}/revert`, { turn: 0 })).status).toBe(400);
   });
 
   it("gives Save the chat's commits to push, on the same branch and pull request", async () => {
@@ -392,19 +405,19 @@ describeDb("chat", () => {
     expect(plain.save.edits).toBe(false);
     // A turn that only talks leaves nothing to save.
     const talked = await turn(plain, "What does this puzzle pay most for?", async (a) => a.r.host.emit({ kind: "reply", text: "The compound move." }));
-    expect(talked.draft.save.edits).toBe(false);
+    expect(talked.draft!.save.edits).toBe(false);
     const refused = await send("POST", `/drafts/${plain.id}/save`, { revision: plain.revision, name: "Nothing yet" });
     expect(refused.status).toBe(202);
     await app.saver!.idle();
-    expect((await state(plain)).draft.save).toMatchObject({ state: "failed", error: "nothing", pull: null });
+    expect((await state(plain)).draft!.save).toMatchObject({ state: "failed", error: "nothing", pull: null });
 
     // A turn that edits a file does, with every number as shipped.
     const edited = await turn(plain, "Note the rule in the design file.", async (a) => a.write("docs/puzzles/engines.md", "# Engines\n\nA rule, noted.\n"));
-    expect(edited.draft.save.edits).toBe(true);
-    expect(edited.draft.numbers).toEqual(numbers());
+    expect(edited.draft!.save.edits).toBe(true);
+    expect(edited.draft!.numbers).toEqual(numbers());
     expect((await send("POST", `/drafts/${plain.id}/save`, { revision: plain.revision, name: "Just the edit" })).status).toBe(202);
     await app.saver!.idle();
-    const saved = (await state(plain)).draft.save;
+    const saved = (await state(plain)).draft!.save;
     expect(saved).toMatchObject({ state: "idle", error: null });
     expect(saved.pull).not.toBeNull();
     const branch = `studio/engines-${plain.id}`;
@@ -443,7 +456,7 @@ describeDb("chat", () => {
     expect(kinds(await state(draft)).slice(before.items.length)).toEqual(["user"]);
     const late = await watch(draft);
     await late.until((seen) => seen.length > 0);
-    expect(late.seen[0]).toMatchObject({ type: "state", state: { running: true, live: "Slag is rare." } });
+    expect(late.seen[0]).toMatchObject({ type: "state", state: { chat: { running: true }, live: "Slag is rare." } });
     expect((await state(draft)).live).toBe("Slag is rare.");
     late.close();
 
@@ -464,22 +477,22 @@ describeDb("chat", () => {
     expect(words(w.seen)).toBe("");
     // The page is told a turn runs, that the number moved while it ran, and that it ended.
     const statuses = told.flatMap((e) => (e.type === "status" ? [e.status] : []));
-    expect(statuses[0]).toMatchObject({ running: true });
-    expect(statuses.some((x) => x.running && x.draft.numbers.overrides.pieceKinds === 6)).toBe(true);
-    expect(statuses.at(-1)).toMatchObject({ running: false, draft: { numbers: { overrides: { pieceKinds: 6 } } } });
+    expect(statuses[0]).toMatchObject({ chat: { running: true } });
+    expect(statuses.some((x) => x.chat.running && x.draft?.numbers.overrides.pieceKinds === 6)).toBe(true);
+    expect(statuses.at(-1)).toMatchObject({ chat: { running: false }, draft: { numbers: { overrides: { pieceKinds: 6 } } } });
     expect((await state(draft)).live).toBe("");
 
     // An answer or a revert changes a line: the watching page is told the line as it now is.
     const ended = last(await state(draft), "turn");
     expect(ended.commit).not.toBeNull();
     w.seen.length = 0;
-    expect((await send("POST", `/drafts/${draft.id}/chat/revert`, { turn: ended.turn })).status).toBe(200);
+    expect((await send("POST", `/chats/${chatOf(draft)}/revert`, { turn: ended.turn })).status).toBe(200);
     await w.until((seen) => seen.length > 0);
     expect(w.seen).toEqual([{ type: "item", item: { ...ended, reverted: true } }]);
     w.close();
     // Nobody else's to watch.
-    expect((await fetch(`${base}/drafts/${draft.id}/chat/events`)).status).toBe(401);
-    expect((await send("GET", "/drafts/abcdefghij/chat/events")).status).toBe(404);
+    expect((await fetch(`${base}/chats/${chatOf(draft)}/events`)).status).toBe(401);
+    expect((await send("GET", "/chats/abcdefghij/events")).status).toBe(404);
   });
 
   it("says why a turn failed, and leaves the draft free for the next", async () => {
@@ -487,7 +500,7 @@ describeDb("chat", () => {
       throw new Error("No conversation found with session ID: 1234");
     });
     expect(last(s, "turn")).toMatchObject({ status: "failed", reason: "agent", error: "Error: No conversation found with session ID: 1234", commit: null });
-    expect(s.running).toBe(false);
+    expect(s.chat.running).toBe(false);
     // An agent that cannot even be started is a failed turn too, and not a draft that runs for good.
     const start = runner.start;
     runner.start = () => {
@@ -501,8 +514,67 @@ describeDb("chat", () => {
     }
     const again = await state(draft);
     expect(last(again, "turn")).toMatchObject({ status: "failed", reason: "agent", error: "spawn ENOENT" });
-    expect(again.running).toBe(false);
+    expect(again.chat.running).toBe(false);
     expect(last(await turn(draft, "And now?", async (a) => a.r.host.emit({ kind: "reply", text: "Fine." })), "turn")).toMatchObject({ status: "done" });
+  });
+
+  it("keeps many chats on a draft, each its own conversation, and runs one turn at a time", async () => {
+    const first = chatOf(draft);
+    const head = git(tree(draft), "rev-parse", "HEAD");
+    // A message to no chat starts a new one, with a session of its own and a name from its first words.
+    agent.script = async (a) => {
+      a.write("docs/puzzles/cooling.md", "# Cooling\n\nFrom the second chat.\n");
+      while (!("stopped" in (await a.next())));
+    };
+    const made = await send("POST", `/drafts/${draft.id}/chat`, { chat: null, text: "  Start over:\nwhat is   the  coolant for?  ", model: "sonnet", rounds: [], refusals: [] });
+    expect(made.status).toBe(202);
+    const second = ChatSentSchema.parse(await made.json()).chat;
+    expect(second).not.toBe(first);
+    expect(agent.requests.at(-1)!.session).toBeNull();
+    const running = await state(second);
+    expect(running.chat).toMatchObject({ id: second, title: "Start over: what is the coolant for?", draft: draft.id, running: true, turns: 1 });
+    expect(running.busy).toBe(false);
+
+    // The draft is busy: the first chat waits, says so, and may not start a turn or be steered into this one.
+    const w = await watch(first);
+    await w.until((seen) => seen.length > 0);
+    expect(w.seen[0]).toMatchObject({ type: "state", state: { busy: true, chat: { running: false } } });
+    const refused = await send("POST", `/drafts/${draft.id}/chat`, { chat: first, text: "Meanwhile?", model: "sonnet", rounds: [], refusals: [] });
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: "busy" });
+    expect((await send("POST", `/drafts/${draft.id}/chat`, { chat: null, text: "A third?", model: "sonnet", rounds: [], refusals: [] })).status).toBe(409);
+    // Stop is the running chat's: the first chat's stop stops nothing.
+    expect((await send("POST", `/chats/${first}/stop`)).status).toBe(202);
+    expect((await state(second)).chat.running).toBe(true);
+    expect((await send("DELETE", `/chats/${second}`)).status).toBe(409);
+
+    expect((await send("POST", `/chats/${second}/stop`)).status).toBe(202);
+    await app.chat!.idle();
+    // The waiting chat is told the draft is free again.
+    await w.until((seen) => seen.some((e) => e.type === "status" && !e.status.busy));
+    w.close();
+
+    // The list has both, the one last spoken in first, and the owner can name one.
+    const listed = ChatListSchema.parse(await (await send("GET", "/chats?puzzle=cooling")).json()).chats;
+    expect(listed.map((c) => c.id).slice(0, 2)).toEqual([second, first]);
+    const renamed = await send("PATCH", `/chats/${first}`, { title: "  Slag  " });
+    expect(renamed.status).toBe(200);
+    expect(ChatSummarySchema.parse(await renamed.json())).toMatchObject({ id: first, title: "Slag" });
+    expect((await send("PATCH", `/chats/${first}`, { title: "   " })).status).toBe(400);
+    expect((await state(first)).items.every((i) => i.kind !== "user" || i.text !== "Meanwhile?")).toBe(true);
+
+    // Deleting a chat takes its lines, and leaves its turn's commit on the draft's branch.
+    const commit = last(await state(second), "turn").commit;
+    expect(commit).toBe(git(tree(draft), "rev-parse", "HEAD"));
+    expect(git(tree(draft), "rev-parse", "HEAD~1")).toBe(head);
+    expect((await send("DELETE", `/chats/${second}`)).status).toBe(200);
+    expect((await send("GET", `/chats/${second}`)).status).toBe(404);
+    expect(await app.db.select().from(schema.chatItem).where(eq(schema.chatItem.chatId, second))).toEqual([]);
+    expect(git(tree(draft), "rev-parse", "HEAD")).toBe(commit);
+    // The first chat carries on where it was, in its own session.
+    await turn(draft, "Back to slag.", async (a) => a.r.host.emit({ kind: "reply", text: "Yes." }));
+    expect(agent.requests.at(-1)!.session).toBe("session-of-cooling");
+    expect(chatOf(draft)).toBe(first);
   });
 
   it("holds every turn to one cap, and stops the turn that reaches it where it stands", async () => {
@@ -537,23 +609,66 @@ describeDb("chat", () => {
     const other = DraftSchema.parse(await (await send("POST", "/drafts", { puzzle: "engines", numbers: numbers() })).json());
     expect((await say(other, "Hello?")).status).toBe(409);
     expect(agent.requests).toHaveLength(asked);
-    // Each draft still shows what it has spent.
-    expect((await state(other)).spentUsd).toBe(0);
-    expect((await state(draft)).spentUsd).toBeCloseTo(before + 1.2, 6);
+    // Each chat still shows what it has spent, and the other draft started none.
+    expect(chats.has(other.id)).toBe(false);
+    expect((await state(draft)).chat.spentUsd).toBeCloseTo(before + 1.2, 6);
     await send("DELETE", `/drafts/${other.id}`);
   });
 
-  it("is the owner's alone, from the studio's pages, and takes a draft's chat with the draft", async () => {
-    expect((await fetch(`${base}/drafts/${draft.id}/chat`)).status).toBe(401);
+  it("is the owner's alone, from the studio's pages", async () => {
+    expect((await fetch(`${base}/chats/${chatOf(draft)}`)).status).toBe(401);
+    expect((await fetch(`${base}/chats?puzzle=cooling`)).status).toBe(401);
     expect((await fetch(`${base}/drafts/${draft.id}/chat`, { method: "POST", headers: { cookie: session }, body: "{}" })).status).toBe(403);
+    expect((await fetch(`${base}/chats/${chatOf(draft)}`, { method: "PATCH", headers: { cookie: session }, body: JSON.stringify({ title: "x" }) })).status).toBe(403);
     expect((await send("POST", `/drafts/${draft.id}/chat`, { text: "", model: "sonnet", rounds: [], refusals: [] })).status).toBe(400);
     expect((await send("POST", `/drafts/${draft.id}/chat`, { text: "x", model: "gpt", rounds: [], refusals: [] })).status).toBe(400);
-    expect((await send("GET", "/drafts/abcdefghij/chat")).status).toBe(404);
+    expect((await send("POST", `/drafts/${draft.id}/chat`, { chat: "abcdefghij", text: "x", model: "sonnet", rounds: [], refusals: [] })).status).toBe(404);
+    expect((await send("GET", "/chats/abcdefghij")).status).toBe(404);
+    expect((await send("GET", "/chats?puzzle=nonsense")).status).toBe(400);
+  });
+
+  it("keeps a draft's chats when the draft goes, to be read and carried onto the next draft", async () => {
+    await app.db.delete(schema.meter);
+    const id = chatOf(draft);
+    const before = await state(id);
+    expect(before.items.some((i) => i.kind === "turn" && i.commit !== null)).toBe(true);
     expect((await send("DELETE", `/drafts/${draft.id}`)).status).toBe(200);
-    expect(await app.db.select().from(schema.chatItem)).toEqual([]);
-    // What was spent stays spent.
-    const [meter] = await app.db.select().from(schema.meter);
-    expect(meter!.spentUsd).toBeGreaterThanOrEqual(1);
+
+    // The chat is still there, on no draft, every line of it; what its turns committed went with the draft's branch.
+    const kept = await state(id);
+    expect(kept.chat.draft).toBeNull();
+    expect(kept.draft).toBeNull();
+    expect(kept.items.map((i) => i.id)).toEqual(before.items.map((i) => i.id));
+    expect(kept.items.every((i) => i.kind !== "turn" || i.commit === null)).toBe(true);
+    expect(kept.items.every((i) => i.kind !== "ask" || i.state !== "pending")).toBe(true);
+    expect((await send("POST", `/chats/${id}/revert`, { turn: 1 })).status).toBe(409);
+    const listed = ChatListSchema.parse(await (await send("GET", "/chats?puzzle=cooling")).json()).chats;
+    expect(listed.find((c) => c.id === id)).toMatchObject({ draft: null, title: "Slag" });
+
+    // A message from the puzzle's next draft carries it on: the agent starts afresh, told what was said.
+    const next = await open(numbers());
+    chats.set(next.id, id);
+    const s = await turn(next, "Where were we?", async (a) => a.r.host.emit({ kind: "reply", text: "Slag." }));
+    const r = agent.requests.at(-1)!;
+    expect(r.session).toBeNull();
+    expect(r.cwd).toBe(tree(next));
+    expect(r.prompt).toContain("This conversation began on an earlier draft");
+    expect(r.prompt).toContain("The owner: Make slag rarer and say why in the design file.");
+    expect(r.prompt).toContain("You: Any time.");
+    expect(r.prompt.indexOf("<earlier-conversation>")).toBeLessThan(r.prompt.indexOf("Where were we?"));
+    expect(s.chat).toMatchObject({ id, draft: next.id, running: false });
+    expect(s.draft?.id).toBe(next.id);
+    expect(last(s, "turn")).toMatchObject({ status: "done", turn: 1 });
+    // Its next turn resumes the new session, and is told nothing again.
+    await turn(next, "Thanks.", async (a) => a.r.host.emit({ kind: "reply", text: "Welcome." }));
+    expect(agent.requests.at(-1)!.session).toBe("session-of-cooling");
+    expect(agent.requests.at(-1)!.prompt).not.toContain("earlier draft");
+
+    // A chat on another draft of the owner's is not this draft's to carry.
+    const elsewhere = DraftSchema.parse(await (await send("POST", "/drafts", { puzzle: "engines", numbers: numbers() })).json());
+    expect((await send("POST", `/drafts/${elsewhere.id}/chat`, { chat: id, text: "Mine now?", model: "sonnet", rounds: [], refusals: [] })).status).toBe(409);
+    await send("DELETE", `/drafts/${elsewhere.id}`);
+    expect((await send("DELETE", `/drafts/${next.id}`)).status).toBe(200);
   });
 
   // Last: it closes the service. A redeploy must not wait out a turn (ADR 0048).
@@ -565,7 +680,7 @@ describeDb("chat", () => {
       while (!("stopped" in (await a.next())));
     };
     expect((await say(d, "Rewrite the design file.")).status).toBe(202);
-    await expect.poll(async () => (await state(d)).running).toBe(true);
+    await expect.poll(async () => (await state(d)).chat.running).toBe(true);
     closed = true;
     await app.close();
     const { db, close } = createDb(url!);
@@ -595,7 +710,7 @@ describeDb("a service with no model key or no cap", () => {
       await app.db.delete(schema.draft);
       const made = await fetch(`${base}/drafts`, { method: "POST", headers: { origin: STUDIO, cookie: session }, body: JSON.stringify({ puzzle: "cooling", numbers: { seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null } }) });
       const draft = DraftSchema.parse(await made.json());
-      expect((await fetch(`${base}/drafts/${draft.id}/chat`, { headers: { cookie: session } })).status).toBe(503);
+      expect((await fetch(`${base}/chats?puzzle=cooling`, { headers: { cookie: session } })).status).toBe(503);
       expect((await fetch(`${base}/drafts/${draft.id}/chat`, { method: "POST", headers: { origin: STUDIO, cookie: session }, body: JSON.stringify({ text: "hi", model: "sonnet", rounds: [], refusals: [] }) })).status).toBe(503);
       await fetch(`${base}/drafts/${draft.id}`, { method: "DELETE", headers: { origin: STUDIO, cookie: session } });
     } finally {

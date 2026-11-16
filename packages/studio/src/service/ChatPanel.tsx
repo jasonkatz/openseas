@@ -1,46 +1,89 @@
-import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import type { ChatEvent, ChatItem, ChatModel, ChatState } from "@openseas/protocol";
+import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { ChatEvent, ChatItem, ChatList, ChatModel, ChatState, ChatSummary } from "@openseas/protocol";
 import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
-import { applyChatEvent } from "./chatState.js";
-import { CHAT_PROPOSED, TAKES_CHANGED, answerChat, fetchChat, revertChat, sendChat, stopChat, watchChat } from "./client.js";
+import { Menu, MenuButton, useMenu } from "../studio/Menu.jsx";
+import { applyChatEvent, chatToOpen } from "./chatState.js";
+import { CHAT_PROPOSED, TAKES_CHANGED, answerChat, deleteChat, fetchChat, listChats, renameChat, revertChat, sendChat, stopChat, watchChat } from "./client.js";
 
 const ChatReply = lazy(() => import("./ChatReply.jsx"));
 
 const MODELS: readonly ChatModel[] = ["sonnet", "haiku", "opus"];
 const MODEL_KEY = "openseas.studio.model";
+/** The chat last open on a puzzle's page, so a reload opens it again (ADR 0060). */
+const OPEN_KEY = (puzzle: string): string => `openseas.studio.chat.${puzzle}`;
 /** How long the stream may be down before the page says so and asks for the chat the slow way. A drop that mends itself sooner is not worth a word. */
 const DOWN_MS = 4000;
 /** How often the chat is asked for while the stream is down. */
 const POLL_MS = 3000;
 /** How near the end of the log counts as reading the end of it. */
 const PINNED_PX = 48;
+/** How many chats the list holds before it offers to find one by its words. */
+const FILTER_FROM = 6;
+/** The tallest the message box grows as it fills, before it scrolls. */
+const COMPOSE_MAX_PX = 220;
 
-function readModel(): ChatModel {
+function readKept(key: string): string | null {
   try {
-    const kept = window.localStorage.getItem(MODEL_KEY);
-    return MODELS.includes(kept as ChatModel) ? (kept as ChatModel) : "sonnet";
+    return window.localStorage.getItem(key);
   } catch {
-    return "sonnet";
+    return null;
   }
 }
+function keep(key: string, value: string | null): void {
+  try {
+    if (value === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, value);
+  } catch {
+    /* private mode */
+  }
+}
+function readModel(): ChatModel {
+  const kept = readKept(MODEL_KEY);
+  return MODELS.includes(kept as ChatModel) ? (kept as ChatModel) : "sonnet";
+}
 const money = (usd: number): string => t("studio.chat.money", { amount: usd.toFixed(2) });
+const turnsOf = (n: number): string => (n === 1 ? t("studio.chat.turns_one") : t("studio.chat.turns", { count: n }));
+/** How long ago, in the message table's words; past a week, the date. */
+function ago(iso: string, now: number): string {
+  const ms = Math.max(0, now - Date.parse(iso));
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return t("studio.chat.ago_now");
+  if (minutes < 60) return t("studio.chat.ago_minutes", { count: minutes });
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return t("studio.chat.ago_hours", { count: hours });
+  const days = Math.floor(hours / 24);
+  if (days < 7) return t("studio.chat.ago_days", { count: days });
+  return new Date(iso).toLocaleDateString();
+}
+const when = (iso: string): string => new Date(iso).toLocaleString();
 
 /**
- * The chat (DESIGN.md 3.14, ADR 0047): an agent on the draft's own copy of the repository. It is
- * the signed-in owner's, on a draft the service keeps, and is not shown otherwise. Each message
- * carries what the page knows and the service does not: what the build refuses of the draft's
- * numbers, and how the last rounds went. The agent's replies are its own words, the one text in
- * the studio that does not come from the message table, read as markdown and shown as they are
- * written; its work is a line a step. The chat arrives as a stream of events (ADR 0055), and by
- * asking, the slow way, whenever the stream is down.
+ * The chat (DESIGN.md 3.14, ADR 0047, ADR 0060): an agent on the draft's own copy of the
+ * repository. It is the signed-in owner's, on a draft the service keeps, and is not shown
+ * otherwise. A puzzle has as many chats as the owner starts, each its own conversation; the list
+ * holds them all, the open draft's and those of drafts that are gone, and any can be opened, read
+ * and carried on. Each message carries what the page knows and the service does not: what the
+ * build refuses of the draft's numbers, and how the last rounds went. The agent's replies are its
+ * own words, the one text in the studio that does not come from the message table, read as
+ * markdown and shown as they are written; its work is a line a step. A chat arrives as a stream
+ * of events (ADR 0055), and by asking, the slow way, whenever the stream is down.
  */
 export function ChatPanel() {
   const frame = useFrame();
-  const { store, ensureDraft, adoptDraft, refusals, rounds } = frame;
+  const { store, ensureDraft, adoptDraft, refusals, rounds, puzzle } = frame;
   const stored = store.state === "stored" ? store : null;
-  // No chat, no stream: a service without one, or a caller who is not the owner, is asked for nothing.
-  const draftId = stored?.canChat ? (stored.draft?.id ?? null) : null;
+  const canChat = stored?.canChat ?? false;
+  const draftId = stored?.draft?.id ?? null;
+  const puzzleId = puzzle.id;
+
+  /** Every chat on the puzzle, and the cap; null until the service has said. */
+  const [list, setList] = useState<ChatList | null>(null);
+  /** The chat open; null is a new one, not yet started. */
+  const [chatId, setChatId] = useState<string | null>(null);
+  /** Set once the page has chosen which chat to open on arriving. */
+  const chosen = useRef(false);
+  const [listOpen, setListOpen] = useState(false);
   const [chat, setChat] = useState<ChatState | null>(null);
   const [text, setText] = useState("");
   const [model, setModel] = useState<ChatModel>(readModel);
@@ -48,38 +91,72 @@ export function ChatPanel() {
   const [sending, setSending] = useState(false);
   /** The stream has been down long enough to say so. */
   const [down, setDown] = useState(false);
+  /** The owner has scrolled back from the end of the log, and something may be under them. */
+  const [away, setAway] = useState(false);
   const alive = useRef(false);
   const logBox = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const box = useRef<HTMLTextAreaElement>(null);
 
+  const refresh = useCallback(async (): Promise<void> => {
+    if (!canChat) return;
+    const got = await listChats(puzzleId);
+    if (got) setList(got);
+  }, [canChat, puzzleId]);
+  useEffect(() => {
+    chosen.current = false;
+    setList(null);
+    setChatId(null);
+    void refresh();
+  }, [refresh]);
+  // On arriving, the chat to open is chosen once the list has come and the page knows its draft.
+  useEffect(() => {
+    if (chosen.current || !list || !stored) return;
+    chosen.current = true;
+    setChatId(chatToOpen(list.chats, draftId, readKept(OPEN_KEY(puzzleId))));
+  }, [list, draftId, puzzleId, stored]);
+  const open = useCallback(
+    (id: string | null): void => {
+      setChatId(id);
+      keep(OPEN_KEY(puzzleId), id);
+      setListOpen(false);
+      setNote(null);
+      pinned.current = true;
+      setAway(false);
+      if (id === null) window.setTimeout(() => box.current?.focus(), 0);
+    },
+    [puzzleId],
+  );
+
+  /** A chat state is the page's draft's only when it is on that draft: one from a draft that is gone moves no control. */
+  const adopt = useCallback((state: Pick<ChatState, "draft">): void => void (state.draft && adoptDraft(state.draft)), [adoptDraft]);
   const load = useCallback(
     async (id: string): Promise<void> => {
       const state = await fetchChat(id);
       if (!state) return;
       setChat(state);
       // The agent's tool moves the draft's numbers on the service; the controls and the board follow.
-      adoptDraft(state.draft);
+      adopt(state);
     },
-    [adoptDraft],
+    [adopt],
   );
   const onEvent = useCallback(
     (event: ChatEvent): void => {
       setChat((prev) => applyChatEvent(prev, event));
       // The agent's tool moves the draft's numbers on the service; the controls and the board follow as it does.
-      if (event.type === "state") adoptDraft(event.state.draft);
-      else if (event.type === "status") adoptDraft(event.status.draft);
+      if (event.type === "state") adopt(event.state);
+      else if (event.type === "status") adopt(event.status);
     },
-    [adoptDraft],
+    [adopt],
   );
   useEffect(() => {
     setChat(null);
     setDown(false);
     alive.current = false;
-    if (!draftId) return;
+    if (!canChat || !chatId) return;
     pinned.current = true;
     let late: number | undefined;
-    const stop = watchChat(draftId, {
+    const stop = watchChat(chatId, {
       event: onEvent,
       link: (ok) => {
         alive.current = ok;
@@ -94,104 +171,179 @@ export function ChatPanel() {
       stop();
       window.clearTimeout(late);
     };
-  }, [draftId, onEvent]);
+  }, [canChat, chatId, onEvent]);
   // With the stream down the chat is still its rows on the service, and the page asks for them.
   useEffect(() => {
-    if (!draftId || !down) return;
-    void load(draftId);
-    const id = window.setInterval(() => void load(draftId), POLL_MS);
+    if (!chatId || !down) return;
+    void load(chatId);
+    const id = window.setInterval(() => void load(chatId), POLL_MS);
     return () => window.clearInterval(id);
-  }, [draftId, down, load]);
-  const running = chat?.running ?? false;
-  // A turn that has ended may have made takes: the sprite and sound panels ask for them again (ADR 0051).
+  }, [chatId, down, load]);
+  // The state that came is the open chat's: one still arriving for the chat left behind is not shown.
+  const shownChat = chat && chat.chat.id === chatId ? chat : null;
+  const running = shownChat?.chat.running ?? false;
+  const busy = shownChat?.busy ?? false;
+  // A turn that has ended may have made takes: the sprite and sound panels ask for them again (ADR 0051). The list's money and order move too.
   const wasRunning = useRef(false);
   useEffect(() => {
-    if (wasRunning.current && !running) window.dispatchEvent(new Event(TAKES_CHANGED));
+    if (wasRunning.current && !running) {
+      window.dispatchEvent(new Event(TAKES_CHANGED));
+      void refresh();
+    }
     wasRunning.current = running;
-  }, [running]);
+  }, [running, refresh]);
+  // A waiting chat learns the draft is free from its stream; the list learns which chat ran.
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    if (wasBusy.current !== busy) void refresh();
+    wasBusy.current = busy;
+  }, [busy, refresh]);
   // A row of the sprite or sound panel writes the start of a message here, for the owner to finish and send.
   useEffect(() => {
     const onProposed = (e: Event): void => {
       setText((e as CustomEvent<string>).detail);
+      setListOpen(false);
       box.current?.focus();
     };
     window.addEventListener(CHAT_PROPOSED, onProposed);
     return () => window.removeEventListener(CHAT_PROPOSED, onProposed);
   }, []);
-  const shown = chat?.items.length ?? 0;
-  const live = chat?.live ?? "";
+  const shown = shownChat?.items.length ?? 0;
+  const live = shownChat?.live ?? "";
   // The log follows what is new while the owner reads its end, and stays put once they scroll back to read.
   useEffect(() => {
     const el = logBox.current;
-    if (el && pinned.current) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    if (pinned.current) el.scrollTop = el.scrollHeight;
+    else setAway(true);
   }, [shown, live, running]);
   useEffect(() => {
     if (!note) return;
     const id = window.setTimeout(() => setNote(null), 8000);
     return () => window.clearTimeout(id);
   }, [note]);
+  // The message box grows with what is in it, up to a point.
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, COMPOSE_MAX_PX)}px`;
+  }, [text]);
 
-  if (!stored?.canChat) return null;
+  if (!stored || !canChat) return null;
+
+  const cap = shownChat?.cap ?? list?.cap ?? null;
+  const capped = cap !== null && cap.spentUsd >= cap.capUsd;
+  const summary = shownChat?.chat ?? list?.chats.find((c) => c.id === chatId) ?? null;
+  const carried = summary !== null && summary.draft !== draftId;
+  const runningElsewhere = list?.chats.find((c) => c.running && c.id !== chatId && c.draft === draftId) ?? null;
 
   const send = async (): Promise<void> => {
     const words = text.trim();
     // One message a press: Enter held down, or pressed twice, is still one.
     if (!words || sending) return;
     setSending(true);
-    // The chat is a draft's: one is opened for it if the page has none, with whatever numbers are on the page.
+    // A chat is a draft's: one is opened for it if the page has none, with whatever numbers are on the page.
     const draft = stored.draft ?? (await ensureDraft());
-    const sent = draft ? await sendChat(draft.id, { text: words, model, rounds: [...rounds], refusals: refusals.map((r) => `${r.key}: ${r.message}`).slice(0, 16) }) : "failed";
+    const sent = draft ? await sendChat(draft.id, { chat: chatId, text: words, model, rounds: [...rounds], refusals: refusals.map((r) => `${r.key}: ${r.message}`).slice(0, 16) }) : ({ ok: false, reason: "failed" } as const);
     setSending(false);
-    if (sent !== "sent") return setNote(t(`studio.chat.${sent}`));
+    if (!sent.ok) return setNote(t(`studio.chat.${sent.reason}`));
     setText("");
     pinned.current = true;
-    // The stream says what the message started. Without it, the page asks.
-    if (draft && !alive.current) await load(draft.id);
+    setAway(false);
+    if (sent.chat !== chatId) {
+      // A new chat, started by this message: the page opens it, and the list holds it.
+      setChatId(sent.chat);
+      keep(OPEN_KEY(puzzleId), sent.chat);
+    } else if (!alive.current) await load(sent.chat);
+    void refresh();
   };
   const act = (work: Promise<boolean>): void =>
     void work.then(async (ok) => {
       if (!ok) setNote(t("studio.links_failed"));
-      if (draftId && !alive.current) await load(draftId);
+      if (chatId && !alive.current) await load(chatId);
     });
-  const capped = chat !== null && chat.cap.spentUsd >= chat.cap.capUsd;
+  const toLatest = (): void => {
+    const el = logBox.current;
+    if (el) el.scrollTop = el.scrollHeight;
+    pinned.current = true;
+    setAway(false);
+  };
 
   return (
-    <section className="chat" data-testid="chat" data-running={running ? "1" : "0"} aria-label={t("studio.chat.title")}>
-      <header className="chat-head">
-        <span className="stat-label">{t("studio.chat.title")}</span>
-        {chat && (
-          <span className="muted small" data-testid="chat-spend">
-            {t("studio.chat.spend", { draft: money(chat.spentUsd), all: money(chat.cap.spentUsd), cap: money(chat.cap.capUsd) })}
-          </span>
-        )}
-      </header>
-      <div
-        className="chat-log"
-        data-testid="chat-log"
-        ref={logBox}
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < PINNED_PX;
+    <section className="chat" data-testid="chat" data-chat={chatId ?? ""} data-running={running ? "1" : "0"} aria-label={t("studio.chat.title")}>
+      <ChatHead
+        summary={summary}
+        listOpen={listOpen}
+        onToggleList={() => {
+          if (!listOpen) void refresh();
+          setListOpen(!listOpen);
         }}
-      >
-        {shown === 0 && <p className="muted small">{t("studio.chat.empty")}</p>}
-        {chat?.items.map((item) => (
-          <Item key={item.id} item={item} running={running} onRevert={(turn) => draftId && act(revertChat(draftId, turn))} onAnswer={(id, allow) => draftId && act(answerChat(draftId, id, allow))} />
-        ))}
-        {live.trim() !== "" && (
-          <div className="chat-reply is-live" data-testid="chat-live">
-            <Reply text={live} writing />
-          </div>
+        onNew={() => open(null)}
+        onRenamed={(c) => {
+          setList((l) => (l ? { ...l, chats: l.chats.map((x) => (x.id === c.id ? c : x)) } : l));
+          setChat((s) => (s && s.chat.id === c.id ? { ...s, chat: { ...s.chat, title: c.title } } : s));
+        }}
+        onDeleted={(id) => {
+          setList((l) => (l ? { ...l, chats: l.chats.filter((x) => x.id !== id) } : l));
+          open(null);
+        }}
+        onFailed={() => setNote(t("studio.links_failed"))}
+      />
+      <p className="chat-spend muted small" data-testid="chat-spend">
+        {cap && t("studio.chat.spend", { chat: money(summary?.spentUsd ?? 0), all: money(cap.spentUsd), cap: money(cap.capUsd) })}
+      </p>
+      <div className="chat-body">
+        <div
+          className="chat-log"
+          data-testid="chat-log"
+          ref={logBox}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < PINNED_PX;
+            if (pinned.current) setAway(false);
+          }}
+        >
+          {chatId === null && <p className="muted small chat-empty">{t("studio.chat.empty")}</p>}
+          {shownChat?.items.map((item) => (
+            <Item key={item.id} item={item} running={running} onRevert={(turn) => chatId && act(revertChat(chatId, turn))} onAnswer={(id, allow) => chatId && act(answerChat(chatId, id, allow))} />
+          ))}
+          {live.trim() !== "" && (
+            <div className="chat-reply is-live" data-testid="chat-live">
+              <Reply text={live} writing />
+            </div>
+          )}
+          {running && (
+            <p className="chat-working small" role="status" data-testid="chat-working">
+              {t("studio.chat.working")}
+            </p>
+          )}
+        </div>
+        {away && (
+          <button type="button" className="btn btn-mini chat-latest" onClick={toLatest} data-testid="chat-latest">
+            {t("studio.chat.latest")}
+          </button>
         )}
-        {running && (
-          <p className="chat-working small" role="status" data-testid="chat-working">
-            {t("studio.chat.working")}
-          </p>
-        )}
+        {listOpen && list && <ChatList list={list.chats} draftId={draftId} current={chatId} running={running} onOpen={open} onClose={() => setListOpen(false)} />}
       </div>
       {down && (
         <p className="small chat-down" role="status" data-testid="chat-down">
           {t("studio.chat.down")}
+        </p>
+      )}
+      {carried && (
+        <p className="small chat-carried" role="status" data-testid="chat-carried">
+          {t("studio.chat.carried")}
+        </p>
+      )}
+      {busy && (
+        <p className="small chat-waiting" role="status" data-testid="chat-waiting">
+          {t("studio.chat.waiting")}{" "}
+          {runningElsewhere && (
+            <button type="button" className="tune-text-btn" onClick={() => open(runningElsewhere.id)} data-testid="chat-go-running">
+              {t("studio.chat.go_running")}
+            </button>
+          )}
         </p>
       )}
       {capped && (
@@ -235,11 +387,7 @@ export function ChatPanel() {
               onChange={(e) => {
                 const next = e.target.value as ChatModel;
                 setModel(next);
-                try {
-                  window.localStorage.setItem(MODEL_KEY, next);
-                } catch {
-                  /* private mode */
-                }
+                keep(MODEL_KEY, next);
               }}
               data-testid="chat-model"
             >
@@ -251,12 +399,12 @@ export function ChatPanel() {
             </select>
           </label>
           {running && (
-            <button type="button" className="btn btn-mini" onClick={() => draftId && act(stopChat(draftId))} data-testid="chat-stop">
+            <button type="button" className="btn btn-mini" onClick={() => chatId && act(stopChat(chatId))} data-testid="chat-stop">
               {t("studio.chat.stop")}
             </button>
           )}
           {/* While a number is still on its way to the service, a message would carry the old ones. */}
-          <button type="submit" className="btn btn-mini" disabled={sending || text.trim() === "" || stored.status !== "saved" || (capped && !running)} data-testid="chat-send">
+          <button type="submit" className="btn btn-mini" disabled={sending || text.trim() === "" || stored.status !== "saved" || busy || (capped && !running)} data-testid="chat-send">
             {running ? t("studio.chat.steer") : t("studio.chat.send")}
           </button>
         </div>
@@ -265,10 +413,190 @@ export function ChatPanel() {
   );
 }
 
+/** The chat's head: the list's button with the open chat's name, a new chat, and the open chat's own menu (rename, delete). */
+function ChatHead({ summary, listOpen, onToggleList, onNew, onRenamed, onDeleted, onFailed }: { summary: ChatSummary | null; listOpen: boolean; onToggleList(): void; onNew(): void; onRenamed(c: ChatSummary): void; onDeleted(id: string): void; onFailed(): void }) {
+  const menu = useMenu();
+  const [naming, setNaming] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => {
+    if (!menu.open) setConfirming(false);
+  }, [menu.open]);
+  // Another chat opened: whatever was being done to the last one's name is let go.
+  const id = summary?.id ?? null;
+  useEffect(() => setNaming(null), [id]);
+  const rename = async (): Promise<void> => {
+    const title = naming?.trim() ?? "";
+    setNaming(null);
+    if (!summary || !title || title === summary.title) return;
+    const renamed = await renameChat(summary.id, title);
+    if (renamed) onRenamed(renamed);
+    else onFailed();
+  };
+  return (
+    <header className="chat-head">
+      {naming !== null && summary ? (
+        <form
+          className="chat-rename"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void rename();
+          }}
+        >
+          <input
+            autoFocus
+            value={naming}
+            maxLength={120}
+            onChange={(e) => setNaming(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setNaming(null);
+            }}
+            onBlur={() => void rename()}
+            aria-label={t("studio.chat.rename_label")}
+            data-testid="chat-title-input"
+          />
+        </form>
+      ) : (
+        <button type="button" className="chat-switch" aria-expanded={listOpen} onClick={onToggleList} title={t("studio.chat.chats")} data-testid="chat-list-toggle">
+          <span className="chat-switch-icon" aria-hidden="true">
+            ☰
+          </span>
+          <span className="chat-switch-title" data-testid="chat-title">
+            {summary?.title ?? t("studio.chat.new")}
+          </span>
+          {summary?.running && <i className="status-dot is-busy" aria-hidden="true" />}
+        </button>
+      )}
+      <div className="chat-head-actions">
+        <button type="button" className="btn btn-mini" onClick={onNew} disabled={summary === null} title={t("studio.chat.new")} data-testid="chat-new">
+          + {t("studio.chat.new")}
+        </button>
+        {summary && (
+          <Menu
+            id="chat-more"
+            menu={menu}
+            align="right"
+            trigger={
+              <MenuButton id="chat-more" menu={menu} className="btn btn-mini btn-sq" aria-label={t("studio.chat.more")} title={t("studio.chat.more")}>
+                ⋯
+              </MenuButton>
+            }
+          >
+            <div className="menu-sec chat-more">
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  menu.setOpen(false);
+                  setNaming(summary.title);
+                }}
+                data-testid="chat-rename"
+              >
+                {t("studio.chat.rename")}
+              </button>
+              {confirming ? (
+                <div className="chat-delete-confirm" data-testid="chat-delete-confirm">
+                  <span className="small">{t("studio.chat.delete_confirm")}</span>
+                  <div className="tune-actions">
+                    <button
+                      type="button"
+                      className="btn btn-mini btn-danger"
+                      onClick={() => {
+                        menu.setOpen(false);
+                        void deleteChat(summary.id).then((ok) => (ok ? onDeleted(summary.id) : onFailed()));
+                      }}
+                      data-testid="chat-delete-yes"
+                    >
+                      {t("studio.chat.delete_yes")}
+                    </button>
+                    <button type="button" className="btn btn-mini" onClick={() => setConfirming(false)} data-testid="chat-delete-no">
+                      {t("studio.chat.delete_no")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" className="menu-item is-danger" disabled={summary.running} onClick={() => setConfirming(true)} data-testid="chat-delete">
+                  {t("studio.chat.delete")}
+                </button>
+              )}
+            </div>
+          </Menu>
+        )}
+      </div>
+    </header>
+  );
+}
+
+/**
+ * Every chat on the puzzle, over the open one's log (ADR 0060): the open draft's first, then those
+ * whose draft is gone, each the one last spoken in first. A row opens its chat.
+ */
+function ChatList({ list, draftId, current, running, onOpen, onClose }: { list: readonly ChatSummary[]; draftId: string | null; current: string | null; running: boolean; onOpen(id: string | null): void; onClose(): void }) {
+  const [find, setFind] = useState("");
+  const now = useMemo(() => Date.now(), [list]);
+  const words = find.trim().toLowerCase();
+  const matched = words ? list.filter((c) => c.title.toLowerCase().includes(words)) : list;
+  const mine = matched.filter((c) => draftId !== null && c.draft === draftId);
+  const earlier = matched.filter((c) => !(draftId !== null && c.draft === draftId));
+  const row = (c: ChatSummary) => (
+    <li key={c.id}>
+      <button type="button" className={`chat-row ${c.id === current ? "is-current" : ""}`} aria-current={c.id === current ? "true" : undefined} onClick={() => onOpen(c.id)} data-testid="chat-row" data-chat={c.id} data-running={c.running || (c.id === current && running) ? "1" : "0"}>
+        <span className="chat-row-title">{c.title}</span>
+        <span className="chat-row-meta muted small">
+          {(c.running || (c.id === current && running)) && (
+            <span className="chat-row-running">
+              <i className="status-dot is-busy" aria-hidden="true" /> {t("studio.chat.list_running")} ·{" "}
+            </span>
+          )}
+          <time dateTime={c.updatedAt} title={when(c.updatedAt)}>
+            {ago(c.updatedAt, now)}
+          </time>{" "}
+          · {turnsOf(c.turns)} · {money(c.spentUsd)}
+        </span>
+      </button>
+    </li>
+  );
+  return (
+    <div
+      className="chat-list"
+      data-testid="chat-list"
+      role="dialog"
+      aria-label={t("studio.chat.list")}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
+    >
+      <div className="chat-list-head">
+        <span className="stat-label">{t("studio.chat.list")}</span>
+        <button type="button" className="tune-text-btn" onClick={onClose} data-testid="chat-list-close">
+          {t("studio.chat.list_close")}
+        </button>
+      </div>
+      {list.length >= FILTER_FROM && <input type="search" className="chat-list-find" value={find} onChange={(e) => setFind(e.target.value)} placeholder={t("studio.chat.list_filter")} aria-label={t("studio.chat.list_filter")} data-testid="chat-list-find" />}
+      <button type="button" className={`chat-row chat-row-new ${current === null ? "is-current" : ""}`} onClick={() => onOpen(null)} data-testid="chat-list-new">
+        <span className="chat-row-title">+ {t("studio.chat.new")}</span>
+      </button>
+      {list.length === 0 && <p className="muted small">{t("studio.chat.list_empty")}</p>}
+      {list.length > 0 && matched.length === 0 && <p className="muted small">{t("studio.chat.list_none")}</p>}
+      {mine.length > 0 && (
+        <section data-testid="chat-list-draft">
+          <span className="stat-label">{t("studio.chat.list_draft")}</span>
+          <ul>{mine.map(row)}</ul>
+        </section>
+      )}
+      {earlier.length > 0 && (
+        <section data-testid="chat-list-earlier">
+          <span className="stat-label">{t("studio.chat.list_earlier")}</span>
+          <ul>{earlier.map(row)}</ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
 function Item({ item, running, onRevert, onAnswer }: { item: ChatItem; running: boolean; onRevert(turn: number): void; onAnswer(id: number, allow: boolean): void }) {
   if (item.kind === "user")
     return (
-      <div className="chat-user" data-testid="chat-user" data-steer={item.steer ? "1" : "0"}>
+      <div className="chat-user" data-testid="chat-user" data-steer={item.steer ? "1" : "0"} title={when(item.at)}>
         <span className="muted small">{item.steer ? t("studio.chat.steered") : t(`studio.chat.model.${item.model}`)}</span>
         <p>{item.text}</p>
       </div>
@@ -276,8 +604,11 @@ function Item({ item, running, onRevert, onAnswer }: { item: ChatItem; running: 
   // The agent's own words: the one exception to the message table (ADR 0042), read as markdown (ADR 0055).
   if (item.kind === "reply")
     return (
-      <div className="chat-reply" data-testid="chat-reply">
-        <Reply text={item.text} writing={false} />
+      <div className="chat-said">
+        <div className="chat-reply" data-testid="chat-reply">
+          <Reply text={item.text} writing={false} />
+        </div>
+        <CopyReply text={item.text} />
       </div>
     );
   if (item.kind === "step") {
@@ -312,7 +643,7 @@ function Item({ item, running, onRevert, onAnswer }: { item: ChatItem; running: 
       </div>
     );
   return (
-    <div className="chat-turn" data-testid="chat-turn" data-status={item.status} data-turn={item.turn} data-reverted={item.reverted ? "1" : "0"} data-reason={item.reason ?? ""}>
+    <div className="chat-turn" data-testid="chat-turn" data-status={item.status} data-turn={item.turn} data-reverted={item.reverted ? "1" : "0"} data-reason={item.reason ?? ""} title={when(item.at)}>
       <span className="muted small">
         {t(item.status === "failed" && item.reason ? `studio.chat.turn_failed_${item.reason}` : `studio.chat.turn_${item.status}`)} {money(item.costUsd)}
         {item.commit && ` · ${item.reverted ? t("studio.chat.reverted") : t("studio.chat.committed")}`}
@@ -330,6 +661,21 @@ function Item({ item, running, onRevert, onAnswer }: { item: ChatItem; running: 
         </button>
       )}
     </div>
+  );
+}
+
+/** A reply's words to the clipboard, as the agent wrote them: markdown and all. */
+function CopyReply({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const id = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(id);
+  }, [copied]);
+  return (
+    <button type="button" className="tune-text-btn chat-copy" onClick={() => void navigator.clipboard.writeText(text).then(() => setCopied(true), () => undefined)} data-testid="chat-copy">
+      {copied ? t("studio.chat.copied") : t("studio.chat.copy")}
+    </button>
   );
 }
 

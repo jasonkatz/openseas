@@ -45,15 +45,13 @@ export const draft = studio.table(
     /** The numbers the last Save wrote into the content file: what the next one must put back where the draft no longer changes them. */
     savedNumbers: jsonb().$type<DraftNumbers>(),
     savedRevision: integer(),
-    /** The agent session the draft's chat resumes (ADR 0047); null until its first turn. */
-    chatSession: text(),
-    /** How many turns the chat has run. */
+    /** How many turns its chats have run, all together: a turn's number is the draft's, so its commit can be named and reverted (ADR 0060). */
     chatTurns: integer().notNull().default(0),
     /** How many of those turns committed an edit: a draft with any has something to save though no number differs (ADR 0049). */
     chatCommits: integer().notNull().default(0),
     /** Paths outside the puzzle's own files that the owner allowed the agent to write, for this draft. */
     allowedPaths: jsonb().$type<string[]>().notNull().default([]),
-    /** What this draft's chat has cost, in US dollars. */
+    /** What this draft's chats have cost, in US dollars. */
     spentUsd: doublePrecision().notNull().default(0),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -62,23 +60,50 @@ export const draft = studio.table(
 );
 
 /**
- * One line of a draft's chat (ADR 0047): the owner's message, the agent's reply, a step it took,
- * a refused write waiting on the owner, or how a turn ended. The chat is the draft's and goes
- * with it.
+ * A chat (ADR 0047, ADR 0060): one conversation with the agent, with a session of its own. A draft
+ * has as many as the owner starts. A chat is the owner's and the puzzle's, and outlasts its draft:
+ * when the draft goes, the chat is kept with no draft, to be read, or carried onto the next one.
+ */
+export const chat = studio.table(
+  "chat",
+  {
+    id: text().primaryKey(),
+    /** The owner's GitHub login, lower-cased. */
+    owner: text().notNull(),
+    puzzle: text().notNull(),
+    /** The draft it is on; null once that draft is gone. */
+    draftId: text().references(() => draft.id, { onDelete: "set null" }),
+    title: text().notNull(),
+    /** The agent session it resumes; null until its first turn, and again once carried onto another draft. */
+    session: text(),
+    /** How many turns it has run. */
+    turns: integer().notNull().default(0),
+    spentUsd: doublePrecision().notNull().default(0),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("chat_owner_puzzle").on(t.owner, t.puzzle, t.updatedAt), index("chat_draft").on(t.draftId)],
+);
+
+/**
+ * One line of a chat (ADR 0047): the owner's message, the agent's reply, a step it took, a refused
+ * write waiting on the owner, or how a turn ended. It is its chat's, and names the draft whose turn
+ * it was; that is null once the draft is gone, and the line stays with its chat.
  */
 export const chatItem = studio.table(
   "chat_item",
   {
     id: serial().primaryKey(),
-    draftId: text()
+    chatId: text()
       .notNull()
-      .references(() => draft.id, { onDelete: "cascade" }),
+      .references(() => chat.id, { onDelete: "cascade" }),
+    draftId: text().references(() => draft.id, { onDelete: "set null" }),
     turn: integer().notNull(),
     kind: text().notNull(),
     data: jsonb().$type<Record<string, unknown>>().notNull(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("chat_item_draft").on(t.draftId, t.id)],
+  (t) => [index("chat_item_chat").on(t.chatId, t.id), index("chat_item_draft").on(t.draftId, t.turn)],
 );
 
 /**

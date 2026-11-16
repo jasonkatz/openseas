@@ -1,4 +1,4 @@
-import type { ChatEvent, ChatState } from "@openseas/protocol";
+import type { ChatEvent, ChatState, ChatSummary } from "@openseas/protocol";
 
 /**
  * A chat after one event of its stream (ADR 0055). `state` is the whole chat and takes the place
@@ -11,7 +11,7 @@ export function applyChatEvent(chat: ChatState | null, event: ChatEvent): ChatSt
   if (!chat) return chat;
   if (event.type === "status") {
     // A turn that has ended is writing nothing.
-    return { ...chat, ...event.status, live: event.status.running ? chat.live : "" };
+    return { ...chat, ...event.status, live: event.status.chat.running ? chat.live : "" };
   }
   if (event.type === "delta") return { ...chat, live: event.reset ? event.text : chat.live + event.text };
   const { item } = event;
@@ -19,4 +19,15 @@ export function applyChatEvent(chat: ChatState | null, event: ChatEvent): ChatSt
   if (at >= 0) return { ...chat, items: chat.items.map((i, n) => (n === at ? item : i)) };
   const after = chat.items.findIndex((i) => i.id > item.id);
   return { ...chat, items: after < 0 ? [...chat.items, item] : [...chat.items.slice(0, after), item, ...chat.items.slice(after)] };
+}
+
+/**
+ * Which chat to open on arriving at a puzzle's page: the one last open here, if it is still there;
+ * else one whose turn is running on the draft; else the one last spoken in on the draft. None of
+ * them, a new chat: one from an earlier draft is in the list for the owner to choose.
+ */
+export function chatToOpen(chats: readonly ChatSummary[], draftId: string | null, kept: string | null): string | null {
+  if (kept && chats.some((c) => c.id === kept)) return kept;
+  const mine = chats.filter((c) => draftId !== null && c.draft === draftId);
+  return (mine.find((c) => c.running) ?? mine[0])?.id ?? null;
 }

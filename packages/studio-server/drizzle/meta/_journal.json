@@ -50,6 +50,13 @@
       "when": 1794742598023,
       "tag": "0006_icy_blockbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794850154319,
+      "tag": "0007_chats",
+      "breakpoints": true
     }
   ]
 }

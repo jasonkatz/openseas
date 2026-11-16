@@ -663,7 +663,11 @@ wrote outside them is put back when the turn ends. Each turn is a commit on the 
 and can be reverted; a message sent meanwhile steers the turn; Stop ends it where it stands. The
 agent runs as a unix user of its own with none of the service's secrets, reaches a model only
 through the service, and is stopped mid-turn when the one spend cap all drafts share is reached.
-Each draft shows what it has spent beside that cap.
+Each chat shows what it has spent beside that cap. A draft has as many chats as the owner starts,
+each its own conversation and session, and runs one turn at a time: another chat of the draft
+waits, and says so. A chat outlasts its draft: the list in the chat's head holds every chat on the
+puzzle, the open draft's and those of drafts that are gone, to open, read, rename, delete or carry
+on, and a message carries an old chat onto the open draft with what was said (ADR 0060).
 
 **Save ends at the draft pull request** (ADR 0049). The fourth part once planned, the agent
 working the changed-puzzle checklist after Save and marking the pull request ready, is not built
@@ -855,12 +859,15 @@ sees.
   path with a click.
 - Its replies are markdown, shown as they are written; its work is one line a step, marked as
   running, done or failed, that opens to the diff or the output (ADR 0055). A turn that failed
-  says why. There is a stop button, and a message sent while it works steers it. The draft's cost so far
-  sits at the top of the chat, with what all drafts have spent against the one cap they share
+  says why. There is a stop button, and a message sent while it works steers it. The chat's cost so far
+  sits at the top of it, with what all drafts have spent against the one cap they share
   (ADR 0047); a turn that reaches the cap is stopped where it stands.
+- Chats are many and kept (ADR 0060). "New chat" starts afresh; the list holds every chat on the
+  puzzle, the one last spoken in first, including those whose draft merged or was discarded, and
+  any of them can be opened and carried on. A reload opens the chat last open.
 
 **Drafts and reset.** One draft a puzzle, kept by the studio service so it follows the owner from
-machine to machine: numbers, picks, words, code changes, chat. Four ways back: one control to its
+machine to machine: numbers, picks, words, code changes, chats. Its chats outlast it (ADR 0060). Four ways back: one control to its
 shipped value; all numbers, picks and words cleared; one chat turn's edits reverted; the draft discarded
 after a confirmation.
 
@@ -907,7 +914,7 @@ pnpm monorepo. Packages:
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
 | `studio` | The puzzle studio (sections 3.11 and 3.14), once the harness: a page a puzzle with the shared board and the tuning panel built from content and the wire schema; each puzzle alone at `/play/<puzzle>` on the numbers its link carries; every round local and replayed from its seed; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
-| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers and picks: a clone on a volume, a worktree a draft, picks placed as their takes' bytes, and a draft pull request from a GitHub App (ADR 0046, ADR 0053); and the chat: the Claude Agent SDK on the draft's worktree, as a unix user of its own, behind the service's own proxy to the model (ADR 0047). All in a Postgres schema of its own | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
+| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers and picks: a clone on a volume, a worktree a draft, picks placed as their takes' bytes, and a draft pull request from a GitHub App (ADR 0046, ADR 0053); and the chat: the Claude Agent SDK on the draft's worktree, as a unix user of its own, behind the service's own proxy to the model (ADR 0047), in as many chats as the owner starts, kept past their draft (ADR 0060). All in a Postgres schema of its own | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
 | `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the studio, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
 In M9 the harness became the studio (3.14, ADR 0042): `harness` was renamed `studio` (the deploy pipeline, the
