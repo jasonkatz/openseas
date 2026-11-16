@@ -1,4 +1,5 @@
 {
+  "category": "prototype",
   "config": {
     "racks": 5,
     "height": 5,

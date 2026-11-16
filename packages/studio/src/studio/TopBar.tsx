@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { CORE_PUZZLE_IDS, PROTOTYPE_PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
-import { pickCount } from "@openseas/protocol";
-import { t } from "@openseas/boards";
+import { PUZZLE_CATEGORIES } from "@openseas/content";
+import { pickCount, wordCount } from "@openseas/protocol";
+import { content, t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { formatNumber } from "../frame/numbers.js";
 import { Link } from "../router.jsx";
@@ -12,16 +13,22 @@ import { ResetIcon, modeOfKey, type NumberSection } from "../tuning/TuningPanel.
 import { Caret, ModeIcon } from "./icons.jsx";
 import { Menu, MenuButton, useMenu } from "./Menu.jsx";
 import { humanize, type ModeId } from "./modes.js";
+import type { TextEntry } from "./TextPanel.jsx";
 
 /** Where a change is made: a number's control by its key, or a frame's or a cue's row. */
-export type Target = { readonly kind: "number"; readonly key: string } | { readonly kind: "sprites" | "sounds"; readonly name: string };
+export type Target =
+  | { readonly kind: "number"; readonly key: string }
+  | { readonly kind: "text"; readonly key: string }
+  | { readonly kind: "sprites"; readonly name: string }
+  | { readonly kind: "sounds"; readonly name: string }
+  | { readonly kind: "category" };
 
 /**
  * The studio's top bar (DESIGN.md 3.14, ADR 0056). On its left, where the page is: the way back,
  * the puzzle and a menu of the others, and what the draft changes. On its right, what becomes of
  * the draft: whether the service has it, the ways to pass it on, and Save.
  */
-export function TopBar({ title, puzzle, sections, onGoto }: { title: string; puzzle: PuzzleId; sections: readonly NumberSection[]; onGoto(mode: ModeId, target?: Target): void }) {
+export function TopBar({ title, puzzle, sections, texts, onGoto }: { title: string; puzzle: PuzzleId; sections: readonly NumberSection[]; texts: readonly TextEntry[]; onGoto(mode: ModeId, target?: Target): void }) {
   return (
     <header className="studio-top st">
       <div className="top-side">
@@ -31,7 +38,7 @@ export function TopBar({ title, puzzle, sections, onGoto }: { title: string; puz
           </svg>
         </Link>
         <PuzzleMenu title={title} puzzle={puzzle} />
-        <ChangedChip sections={sections} onGoto={onGoto} />
+        <ChangedChip sections={sections} texts={texts} onGoto={onGoto} />
       </div>
       <div className="top-side">
         <DraftStatus />
@@ -42,7 +49,7 @@ export function TopBar({ title, puzzle, sections, onGoto }: { title: string; puz
   );
 }
 
-/** The puzzle on the page, and every other puzzle a tap away: the game's, then the prototypes. */
+/** The puzzle on the page, and every other puzzle a tap away, under its category (ADR 0057). */
 function PuzzleMenu({ title, puzzle }: { title: string; puzzle: PuzzleId }) {
   const menu = useMenu();
   const item = (id: PuzzleId) => (
@@ -64,10 +71,15 @@ function PuzzleMenu({ title, puzzle }: { title: string; puzzle: PuzzleId }) {
       }
     >
       <nav className="menu-list" aria-label={t("studio.menu.puzzles")}>
-        <span className="stat-label">{t("studio.menu.puzzles")}</span>
-        {CORE_PUZZLE_IDS.map(item)}
-        <span className="stat-label">{t("studio.menu.prototypes")}</span>
-        {PROTOTYPE_PUZZLE_IDS.map(item)}
+        {PUZZLE_CATEGORIES.map((category) => {
+          const ids = [...CORE_PUZZLE_IDS, ...PROTOTYPE_PUZZLE_IDS].filter((id) => content.puzzles[id].category === category);
+          return ids.length === 0 ? null : (
+            <Fragment key={category}>
+              <span className="stat-label">{t(`studio.category.${category}`)}</span>
+              {ids.map(item)}
+            </Fragment>
+          );
+        })}
       </nav>
     </Menu>
   );
@@ -78,11 +90,11 @@ function PuzzleMenu({ title, puzzle }: { title: string; puzzle: PuzzleId }) {
  * with its value and the shipped one, each picked take, a way to its control, a button that puts
  * it back, and one that puts everything back. While the server would refuse the draft it says so.
  */
-function ChangedChip({ sections, onGoto }: { sections: readonly NumberSection[]; onGoto(mode: ModeId, target?: Target): void }) {
+function ChangedChip({ sections, texts, onGoto }: { sections: readonly NumberSection[]; texts: readonly TextEntry[]; onGoto(mode: ModeId, target?: Target): void }) {
   const menu = useMenu();
-  const { scenario, changes, refusals, picks, resetNumber, resetNumbers, setPick } = useFrame();
+  const { scenario, changes, refusals, picks, words, resetNumber, resetNumbers, setPick, setText, setCategory } = useFrame();
   const picked = pickCount(scenario);
-  const count = changes.length + picked;
+  const count = changes.length + picked + wordCount(scenario);
   const refused = refusals.length > 0;
   const go = (mode: ModeId, target: Target): void => {
     menu.setOpen(false);
@@ -137,6 +149,30 @@ function ChangedChip({ sections, onGoto }: { sections: readonly NumberSection[];
             })}
             {pickRows("sprites")}
             {pickRows("sounds")}
+            {words.category && (
+              <li data-testid="change-category">
+                <button type="button" className="menu-item" onClick={() => go("text", { kind: "category" })}>
+                  <ModeIcon mode="text" size={15} />
+                  <span className="change-name">{t("studio.category")}</span>
+                  <b>{t(`studio.category.${words.category}`)}</b>
+                </button>
+                <button type="button" className="num-reset" onClick={() => setCategory(null)} aria-label={t("studio.assets.put_back")} title={t("studio.assets.put_back")}>
+                  <ResetIcon />
+                </button>
+              </li>
+            )}
+            {Object.entries(words.texts).map(([key, text]) => (
+              <li key={key} data-testid={`change-text-${key}`}>
+                <button type="button" className="menu-item" title={key} onClick={() => go("text", { kind: "text", key })}>
+                  <ModeIcon mode="text" size={15} />
+                  <span className="change-name">{texts.find((e) => e.key === key)?.label ?? key}</span>
+                  <b className="change-words">{text}</b>
+                </button>
+                <button type="button" className="num-reset" onClick={() => setText(key, null)} aria-label={t("studio.assets.put_back")} title={t("studio.assets.put_back")}>
+                  <ResetIcon />
+                </button>
+              </li>
+            ))}
           </ul>
         )}
         <div className="tune-actions">

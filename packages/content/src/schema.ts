@@ -152,8 +152,18 @@ export const StarSystemSchema = z.object({
   ship: ShipRulesSchema,
 });
 
+/**
+ * What kind of puzzle one is, as a label (ADR 0057): the studio's grid and its menu of puzzles
+ * group by it. It decides nothing: whether a puzzle is dealt in the game is the engine's registry
+ * and the server's, and a prototype stays one until its promotion (ADR 0036).
+ */
+export const PUZZLE_CATEGORIES = ["duty", "fight", "crafting", "prototype"] as const;
+export const PuzzleCategorySchema = z.enum(PUZZLE_CATEGORIES);
+export type PuzzleCategory = z.infer<typeof PuzzleCategorySchema>;
+
 /** Fields every duty puzzle's content file has. */
 export const DutyPuzzleBaseSchema = z.object({
+  category: PuzzleCategorySchema,
   /** Wall-clock length of a practice round, enforced by the server. */
   roundSeconds: z.int().min(10).max(1800),
   /**
@@ -380,6 +390,7 @@ export const NavigationContentSchema = DutyPuzzleBaseSchema.extend({
 
 /** The captain's space battle: not a duty board, so no par; rated against thresholds until there is a human opponent. */
 export const BattleContentSchema = z.object({
+  category: PuzzleCategorySchema,
   /** Wall-clock length of a practice fight, enforced by the server. Aboard, the fight runs on the ship's turns. */
   roundSeconds: z.int().min(10).max(1800),
   /** The stretch of recent play, in seconds, the live tier indicator reads (ADR 0039). Longer for a puzzle that scores in lumps. */
@@ -445,6 +456,7 @@ export const SwordPieceStyleSchema = z.object({
 
 /** The boarding fight: not a duty board, so no par; rated against thresholds until there is a human opponent (ADR 0022). */
 export const SwordfightContentSchema = z.object({
+  category: PuzzleCategorySchema,
   /** Wall-clock length of a practice fight, enforced by the server. Aboard, the melee has its own length. */
   roundSeconds: z.int().min(10).max(1800),
   /** A steady fighter's attack a minute: the melee counts in the plunder as duty turns at a pirate's rate against this (ADR 0030). */

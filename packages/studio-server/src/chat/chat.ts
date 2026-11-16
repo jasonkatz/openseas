@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, sql } from "drizzle-orm";
-import { picksOf, type ChatFailure, type ChatItem, type ChatModel, type DraftNumbers, type RoundSummary, type SendChat } from "@openseas/protocol";
+import { picksOf, wordsOf, type ChatFailure, type ChatItem, type ChatModel, type DraftNumbers, type RoundSummary, type SendChat } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import type { DraftRow } from "../drafts.js";
 import type { Logger } from "../log.js";
@@ -99,6 +99,10 @@ export function context(numbers: DraftNumbers, refusals: readonly string[], roun
   const short = (o: Record<string, string>): string => Object.entries(o).map(([name, hash]) => `${name}: ${hash === "synth" ? "the synthesized cue" : hash.slice(0, 12)}`).join(", ");
   if (Object.keys(picks.sprites).length) lines.push(`Draft picks, sprites (frame: the start of the picked take's sha256, which is that of its \`frame-<n>.webp\`): ${short(picks.sprites)}`);
   if (Object.keys(picks.sounds).length) lines.push(`Draft picks, sounds (cue: the start of the picked take's sha256, which is that of its \`placed-<n>.mp3\`): ${short(picks.sounds)}`);
+  // The owner's own rewrites of the puzzle's strings (ADR 0057): Save writes them to the message table, so the agent leaves those keys be.
+  const words = wordsOf(numbers);
+  if (Object.keys(words.texts).length) lines.push(`Draft words (message key: the owner's rewrite, which Save writes to the message table; do not edit these keys yourself): ${JSON.stringify(words.texts)}`);
+  if (words.category) lines.push(`Draft category: ${words.category}`);
   if (refusals.length) lines.push("The current build refuses these numbers, so nothing is dealt until they are fixed:", ...refusals.map((r) => `- ${r}`));
   if (rounds.length) {
     lines.push("Last rounds played, oldest first:");

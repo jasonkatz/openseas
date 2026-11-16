@@ -29,8 +29,36 @@ export const PicksSchema = z.object({
 export type Picks = z.infer<typeof PicksSchema>;
 export const NO_PICKS: Picks = { sprites: {}, sounds: {} };
 
+/** What kind of puzzle one is, as a label: the content files' own list (`content`'s `PUZZLE_CATEGORIES`; a test in `studio` holds the two to each other). */
+export const PuzzleCategorySchema = z.enum(["duty", "fight", "crafting", "prototype"]);
+export type PuzzleCategory = z.infer<typeof PuzzleCategorySchema>;
+
+/** A key of the message table, as the table spells it. */
+const TextKeySchema = z.string().regex(/^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/).max(96);
+/** The longest a string of the message table may be made in the studio. */
+export const TEXT_MAX = 600;
+
 /**
- * A draft's numbers and picks: what it lays over the puzzle's content file and its art, and the
+ * A draft's words (ADR 0057): strings of the message table the draft rewrites, by their keys, and
+ * the puzzle's category where the draft changes it. A key with no entry reads as the build ships
+ * it. Only the shape is checked here: which keys are a puzzle's is `isPuzzleText`, asked where
+ * the puzzle is known.
+ */
+export const WordsSchema = z.object({
+  texts: z.record(TextKeySchema, z.string().min(1).max(TEXT_MAX)).refine(few, "too many texts").default({}),
+  category: PuzzleCategorySchema.nullable().default(null),
+});
+export type Words = z.infer<typeof WordsSchema>;
+export const NO_WORDS: Words = { texts: {}, category: null };
+
+/** Whether a key of the message table is one puzzle's to rewrite: its own strings, and its name and blurb on the grid. */
+export const isPuzzleText = (puzzle: string, key: string): boolean => key.startsWith(`${puzzle}.`) || key === `home.practice_${puzzle}` || key === `home.practice_${puzzle}_blurb`;
+
+/** The names a string fills in (`{count}`), in order. A rewritten string must keep the shipped one's, or the board would print a brace. */
+export const textVars = (text: string): string[] => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!).sort();
+
+/**
+ * A draft's numbers, picks and words: what it lays over the puzzle's content file and its art, and the
  * seed if it pins one. (The name is older than picks.)
  * Only the shape is checked here. Whether a build will play them is that build's own question,
  * asked on the page that deals the round (ADR 0042 decisions 3 and 11).
@@ -49,9 +77,16 @@ export const DraftNumbersSchema = z.object({
     .nullable(),
   /** Defaulted: a draft or a link kept before picks has none, and a service older than the site sends none. */
   picks: PicksSchema.default(NO_PICKS),
+  /** Defaulted likewise: a draft or a link kept before words has none. */
+  words: WordsSchema.default(NO_WORDS),
 });
 /** As it is kept and sent: `picks` may be missing, in a row or a link from before there were any. Read them with `picksOf`. */
 export type DraftNumbers = z.input<typeof DraftNumbersSchema>;
+
+/** A draft's words, whole: none where it was kept before there were any. */
+export const wordsOf = (numbers: Pick<DraftNumbers, "words">): Words => ({ texts: numbers.words?.texts ?? {}, category: numbers.words?.category ?? null });
+/** How many strings a draft rewrites, and one more where it changes the category. */
+export const wordCount = (numbers: Pick<DraftNumbers, "words">): number => Object.keys(numbers.words?.texts ?? {}).length + (numbers.words?.category ? 1 : 0);
 
 /** A draft's picks, whole: none where it was kept before there were any. */
 export const picksOf = (numbers: Pick<DraftNumbers, "picks">): Picks => ({ sprites: numbers.picks?.sprites ?? {}, sounds: numbers.picks?.sounds ?? {} });
@@ -94,8 +129,8 @@ export const DraftIdSchema = z.string().regex(/^[a-z0-9]{10}$/);
  * longer the stored one, so two pages open on one draft cannot overwrite each other unseen.
  */
 /**
- * Why a Save or an update did not finish. `nothing`: the draft changes no number, picks no take and the chat has edited no file.
- * `unknown_key`: it sets a key the content file has no place for. `pick`: a pick cannot be placed: its take is not kept, is of
+ * Why a Save or an update did not finish. `nothing`: the draft changes no number or word, picks no take and the chat has edited no file.
+ * `unknown_key`: it sets a key the content file has no place for, or rewrites a string that is not the puzzle's or not in the message table. `pick`: a pick cannot be placed: its take is not kept, is of
  * another kind, puzzle, frame or cue, or picks a frame the atlas does not have (ADR 0053). `takes`: the service could not read
  * the picked takes or place them. `conflict`: the base branch and the draft's changed the same lines. `interrupted`: the service
  * restarted under it.
@@ -294,6 +329,8 @@ export const StudioMeSchema = z.object({
   takes: z.boolean().default(false),
   /** Whether this service keeps a draft's picks: one older than them drops what it is sent. Defaulted likewise. */
   picks: z.boolean().default(false),
+  /** Whether this service keeps a draft's words (ADR 0057). Defaulted likewise. */
+  words: z.boolean().default(false),
 });
 export type StudioMe = z.infer<typeof StudioMeSchema>;
 

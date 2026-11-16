@@ -4,7 +4,7 @@ import { PuzzleNumbersSchema } from "@openseas/content";
 import { content, t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { formatNumber, type Refusal, type Threshold } from "../frame/numbers.js";
-import { MODE_SECTIONS, NUMBER_MODES, humanize, isNumberMode, labelOf, type ModeId, type NumberMode, type SectionId } from "../studio/modes.js";
+import { MODE_SECTIONS, NUMBER_MODES, humanize, labelOf, type ModeId, type NumberMode, type SectionId } from "../studio/modes.js";
 import { configControls, roundControls, sliderRange, valueAt, type Control } from "./controls.js";
 import { TUNING_GROUPS } from "./groups/index.js";
 
@@ -75,16 +75,24 @@ export function LooseRefusals({ sections }: { sections: readonly NumberSection[]
   );
 }
 
-const words = (c: Control): string => `${c.key} ${humanize(c.name)} ${c.branch ? humanize(c.branch) : ""} ${c.description ?? ""}`.toLowerCase();
+/** Whether a search finds any number at all. */
+export function anyNumberMatch(sections: readonly NumberSection[], query: string): boolean {
+  const q = query.trim().toLowerCase();
+  return sections.some((s) => s.controls.some((c) => words(c).includes(q)) || (s.thresholds && `thresholds ${t("studio.group.rating")}`.toLowerCase().includes(q)));
+}
+
+function words(c: Control): string {
+  return `${c.key} ${humanize(c.name)} ${c.branch ? humanize(c.branch) : ""} ${c.description ?? ""}`.toLowerCase();
+}
 
 /**
  * The numbers panels (DESIGN.md 3.14, ADR 0056): Setup, Tuning and Scoring are one list of
  * sections, of which the mode on the rail shows its own. Every section stays in the page while
  * another shows, so a value half typed outlasts a look elsewhere. A search shows the matching
- * numbers from all three, each under the mode it is tuned in. It only ever writes the frame's
+ * numbers from all three, each under the mode it is tuned in, beside the words it finds (studio/TextPanel). It only ever writes the frame's
  * draft: what the draft means for the round on the board is the page's business (studio/useStudio).
  */
-export function NumbersPanel({ sections, mode, query, hints }: { sections: readonly NumberSection[]; mode: ModeId; query: string; hints: boolean }) {
+export function NumbersPanel({ sections, mode, query, hints, shown: visible }: { sections: readonly NumberSection[]; mode: ModeId; query: string; hints: boolean; shown: boolean }) {
   const frame = useFrame();
   const { shipped, tuned, refusals } = frame;
   const q = query.trim().toLowerCase();
@@ -95,7 +103,7 @@ export function NumbersPanel({ sections, mode, query, hints }: { sections: reado
     <ControlRow key={c.key} control={c} value={value} hints={hints} hidden={!hit(c)} refusals={refusals.filter((r) => owns(c.key, r))} onSet={(v) => frame.setNumber(c.key, v)} onReset={() => frame.resetNumber(c.key)} />
   );
   return (
-    <div className="tune" data-testid="tuning" hidden={!isNumberMode(mode)}>
+    <div className="tune" data-testid="tuning" hidden={!visible}>
       {sections.map((s) => (
         <section key={s.id} className="panel-sec tune-group" hidden={!shown(s)} data-mode-panel={s.mode} data-testid={`group-${s.id}`}>
           <h3 className="panel-cap">
@@ -116,11 +124,6 @@ export function NumbersPanel({ sections, mode, query, hints }: { sections: reado
           )}
         </section>
       ))}
-      {q !== "" && !sections.some(shown) && (
-        <p className="panel-empty" data-testid="find-none">
-          {t("studio.find_none", { query: query.trim() })}
-        </p>
-      )}
     </div>
   );
 }

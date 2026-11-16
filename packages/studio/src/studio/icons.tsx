@@ -29,6 +29,7 @@ const PATHS: Readonly<Record<ModeId, ReactNode>> = {
     </>
   ),
   sounds: <path d="M4 10v4M8 6v12M12 9v6M16 4v16M20 10v4" {...stroke} />,
+  text: <path d="M5 7V5h14v2M12 5v14M9 19h6" {...stroke} strokeWidth={2.4} />,
 };
 
 /** A mode's mark, on the rail and wherever a change says which mode it was made in. */

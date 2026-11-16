@@ -196,7 +196,6 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
   ),
 };
 
-const PROTOTYPES = new Set<PuzzleId>(PROTOTYPE_PUZZLE_IDS);
 
 /** The puzzles the signed-in owner has a draft open on, and whether each has a pull request. Empty signed out, and when the service does not answer. */
 function useOpenDrafts(): ReadonlyMap<PuzzleId, { pull: boolean }> {
@@ -248,7 +247,9 @@ export function Home() {
                     {drafts.get(id)?.pull ? t("studio.home.pull") : t("studio.home.draft")}
                   </span>
                 )}
-                {PROTOTYPES.has(id) && <span className="eyebrow">{t("studio.home.prototype")}</span>}
+                <span className="eyebrow" data-testid={`category-${id}`}>
+                  {t(`studio.category.${content.puzzles[id].category}`)}
+                </span>
                 <span className="tile-title">{t(`home.practice_${id}`)}</span>
                 <span className="tile-blurb">{t(`home.practice_${id}_blurb`)}</span>
               </Link>

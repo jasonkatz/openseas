@@ -15,6 +15,8 @@ export interface Numbers {
   thresholds: null;
   /** Left out, the draft is one kept before picks. */
   picks?: { sprites: Record<string, string>; sounds: Record<string, string> };
+  /** Left out, the draft is one kept before words (ADR 0057). */
+  words?: { texts: Record<string, string>; category: string | null };
 }
 export interface Save {
   state: "idle" | "saving" | "failed";
@@ -90,7 +92,7 @@ export interface Service {
 }
 
 /** A stand-in service: one owner (or nobody), and the drafts the test gives it, kept as the real one keeps them. */
-export async function service(page: Page, o: { login: string | null; drafts?: Draft[]; save?: boolean; chat?: boolean; takes?: StandinTake[]; picks?: boolean }): Promise<Service> {
+export async function service(page: Page, o: { login: string | null; drafts?: Draft[]; save?: boolean; chat?: boolean; takes?: StandinTake[]; picks?: boolean; words?: boolean }): Promise<Service> {
   const s: Service = {
     chat: { items: [], running: false, turn: 0, live: "", spentUsd: 0, cap: { spentUsd: 0, capUsd: 20 } },
     streamDown: false,
@@ -117,7 +119,7 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
     const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", headers: cors, body: JSON.stringify(body) });
     if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { ...cors, "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS" } });
     s.calls.push(`${req.method()} ${url.pathname}`);
-    if (url.pathname === "/auth/me") return json(200, { login: o.login, signIn: true, dev: false, ...(o.save === undefined ? {} : { save: o.save }), ...(o.chat === undefined ? {} : { chat: o.chat }), ...(o.takes === undefined ? {} : { takes: true }), ...(o.picks === undefined ? {} : { picks: o.picks }) });
+    if (url.pathname === "/auth/me") return json(200, { login: o.login, signIn: true, dev: false, ...(o.save === undefined ? {} : { save: o.save }), ...(o.chat === undefined ? {} : { chat: o.chat }), ...(o.takes === undefined ? {} : { takes: true }), ...(o.picks === undefined ? {} : { picks: o.picks }), ...(o.words === undefined ? {} : { words: o.words }) });
     if (url.pathname === "/auth/sign-out") {
       o.login = null;
       return json(200, { ok: true });
@@ -209,6 +211,8 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
       found.numbers = body.numbers;
       // A service older than picks keeps none of what it is sent.
       if (!o.picks) delete found.numbers.picks;
+      // Nor does one older than words.
+      if (!o.words) delete found.numbers.words;
       found.revision += 1;
       return json(200, found);
     }

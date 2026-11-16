@@ -157,7 +157,7 @@ describeDb("chat", () => {
     rmSync(tmp, { recursive: true, force: true });
   });
 
-  const numbers = (over: Partial<DraftNumbers> = {}): DraftNumbers => ({ seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: {}, sounds: {} }, ...over });
+  const numbers = (over: Partial<DraftNumbers> = {}): DraftNumbers => ({ seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: {}, sounds: {} }, words: { texts: {}, category: null }, ...over });
   const send = (method: string, path: string, body?: unknown): Promise<Response> => fetch(`${base}${path}`, { method, headers: { origin: STUDIO, cookie: session }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const open = async (n: DraftNumbers): Promise<Draft> => DraftSchema.parse(await (await send("POST", "/drafts", { puzzle: "cooling", numbers: n })).json());
   const state = async (d: Draft, after = 0): Promise<ChatState> => ChatStateSchema.parse(await (await send("GET", `/drafts/${d.id}/chat?after=${after}`)).json());

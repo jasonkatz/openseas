@@ -1485,3 +1485,14 @@
     transition: none !important;
   }
 }
+
+/* ---- the Text panel (ADR 0057): a string a row, its field under its label */
+.num-row.is-block > .num-ctl > input[type="text"] {
+  width: 100%;
+}
+.change-words {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

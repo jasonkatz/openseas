@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
-import { NO_PICKS, picksOf, type DraftSaveError } from "@openseas/protocol";
+import { NO_PICKS, NO_WORDS, picksOf, wordsOf, type DraftSaveError } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import type { DraftRow } from "../drafts.js";
 import type { Logger } from "../log.js";
-import { UnknownKeyError, contentPath, describeNumbers, writeNumbers } from "./content.js";
+import { UnknownKeyError, contentPath, describeNumbers, describeTexts, messagesPath, writeNumbers, writeTexts } from "./content.js";
 import { ForgeError, type Forge } from "./forge.js";
 import { SaveRefused, pickPaths, type PlacedPick, type Placer } from "./picks.js";
 import type { Repo } from "./repo.js";
@@ -57,22 +57,23 @@ const short = (v: unknown): string => {
 };
 
 type Changes = ReturnType<typeof describeNumbers>;
+type Texts = ReturnType<typeof describeTexts>;
 
 /** A pick as a line or a cell: the take by its number when the draft made it, else by the start of its hash. */
 const takeName = (p: PlacedPick): string => (p.pick === "synth" ? "synthesized" : p.take !== null ? `take ${p.take}` : p.pick.slice(0, 10));
 
-export function commitMessage(puzzle: string, changes: Changes, placed: readonly PlacedPick[] = []): string {
-  const lines = [...changes.map((c) => `${c.key}: ${short(c.from)} -> ${short(c.to)}`), ...placed.map((p) => `${p.kind} ${p.name}: ${takeName(p)}`)];
+export function commitMessage(puzzle: string, changes: Changes, placed: readonly PlacedPick[] = [], texts: Texts = []): string {
+  const lines = [...changes.map((c) => `${c.key}: ${short(c.from)} -> ${short(c.to)}`), ...placed.map((p) => `${p.kind} ${p.name}: ${takeName(p)}`), ...texts.map((x) => `text ${x.key}: ${short(x.from)} -> ${short(x.to)}`)];
   if (lines.length === 0) return `Put ${puzzle}'s numbers and picks back from the studio`;
-  return `${changes.length ? "Tune" : "Place picks for"} ${puzzle} from the studio\n\n${lines.join("\n")}`;
+  return `${changes.length ? "Tune" : placed.length ? "Place picks for" : "Reword"} ${puzzle} from the studio\n\n${lines.join("\n")}`;
 }
 
 /** How many of the agent's files a pull request's body names before it says how many more there are. */
 const FILES_LISTED = 40;
 
 /** What a draft's pull request is called: by its numbers, and its art when it places picks, more plainly when the chat edited files too. */
-export const pullTitle = (puzzle: string, edited: readonly string[], picks = false): string =>
-  edited.length ? `Change ${puzzle} from the studio` : picks ? `Tune ${puzzle}: numbers and art from the studio` : `Tune ${puzzle}: numbers from the studio`;
+export const pullTitle = (puzzle: string, edited: readonly string[], picks = false, words = false): string =>
+  edited.length ? `Change ${puzzle} from the studio` : `Tune ${puzzle}: ${picks && words ? "numbers, art and words" : picks ? "numbers and art" : words ? "numbers and words" : "numbers"} from the studio`;
 
 /**
  * The body of a draft's pull request: who saved it, the numbers it changes, the picks it places,
@@ -80,8 +81,9 @@ export const pullTitle = (puzzle: string, edited: readonly string[], picks = fal
  * ADR 0053). `edited` is every file the branch changes but the puzzle's content file and the files
  * the picks account for.
  */
-export function pullBody(o: { puzzle: string; login: string; changes: Changes; edited: readonly string[]; linkUrl: string; placed?: readonly PlacedPick[]; takeUrl?: (hash: string) => string }): string {
+export function pullBody(o: { puzzle: string; login: string; changes: Changes; edited: readonly string[]; linkUrl: string; placed?: readonly PlacedPick[]; takeUrl?: (hash: string) => string; texts?: Texts }): string {
   const placed = o.placed ?? [];
+  const texts = o.texts ?? [];
   const cell = (v: unknown): string => `\`${short(v).replace(/\|/g, "\\|").replace(/`/g, "'")}\``;
   const table = o.changes.length ? ["| Key | Shipped | Draft |", "|---|---|---|", ...o.changes.map((c) => `| \`${c.key}\` | ${cell(c.from)} | ${cell(c.to)} |`)].join("\n") : "No number differs from the base branch.";
   const files = o.edited.slice(0, FILES_LISTED).map((f) => `- \`${f}\``);
@@ -100,6 +102,7 @@ export function pullBody(o: { puzzle: string; login: string; changes: Changes; e
   const sounds = placed.some((p) => p.kind === "sound" && p.pick !== "synth");
   const left = [
     "This pull request is a draft, and the studio leaves it there. It holds what was tuned, the takes the owner picked and what the chat's agent edited, and nothing more: the rest of what a changed puzzle needs (its design file, its guide, a capture where the look changed, its strings) is for a developer to finish before marking it ready.",
+    ...(texts.length ? [`A string changed: the puzzle's guide and its design file may quote it, so both are re-read (\`packages/docs\`, \`docs/puzzles\` or \`docs/prototypes\`).`] : []),
     ...(sprites ? [`A frame changed, so the guide's pictures are out of date: re-run \`pnpm --filter @openseas/docs capture ${o.puzzle}\`.`] : []),
     ...(sounds ? ["A sound is placed. The studio's smoke does not yet check that samples are delivered and decoded, as `e2e/sprites.spec.ts` does for atlases (ADR 0041): that check is still owed."] : []),
   ];
@@ -108,8 +111,9 @@ export function pullBody(o: { puzzle: string; login: string; changes: Changes; e
     `Numbers changed in \`${contentPath(o.puzzle)}\`:`,
     table,
     ...(picks ? ["Takes picked in the studio, placed by Save:", picks] : []),
+    ...(texts.length ? [`Strings rewritten in \`${messagesPath}\`:`, ["| Key | Shipped | Draft |", "|---|---|---|", ...texts.map((x) => `| \`${x.key}\` | ${cell(x.from)} | ${cell(x.to)} |`)].join("\n")] : []),
     ...(o.edited.length ? ["Files edited by the studio's agent, in the chat, a commit a turn:", files.join("\n")] : []),
-    `Play the numbers${placed.length ? " and picks" : ""}: ${o.linkUrl}${o.edited.length ? " (the link plays the deployed build; the edits above are seen on this pull request's preview)" : ""}`,
+    `Play the numbers${placed.length ? " and picks" : ""}${texts.length ? " and words" : ""}: ${o.linkUrl}${o.edited.length ? " (the link plays the deployed build; the edits above are seen on this pull request's preview)" : ""}`,
     ...left,
   ].join("\n\n");
 }
@@ -161,27 +165,36 @@ export function createSaver(o: SaverOptions): Saver {
     const after = writeNumbers(before, row.numbers, row.savedNumbers, base);
     const picks = picksOf(row.numbers);
     const saved = row.savedNumbers ? picksOf(row.savedNumbers) : NO_PICKS;
+    // The draft's strings go into the message table (ADR 0057), worked out before anything is written so a refusal writes nothing.
+    const texts = wordsOf(row.numbers).texts;
+    const savedTexts = (row.savedNumbers ? wordsOf(row.savedNumbers) : NO_WORDS).texts;
+    const worded = Object.keys(texts).length > 0 || Object.keys(savedTexts).length > 0;
+    const tableBefore = worded ? await repo.read(id, messagesPath) : "";
+    const tableBase = worded ? await repo.baseFile(id, messagesPath) : null;
+    const tableAfter = worded ? writeTexts(tableBefore, row.puzzle, texts, savedTexts, tableBase) : "";
     let placed: PlacedPick[] = [];
     let placedFiles: string[] = [];
     try {
       if (after !== before) await repo.write(id, path, after);
+      if (tableAfter !== tableBefore) await repo.write(id, messagesPath, tableAfter);
       ({ placed, files: placedFiles } = await o.placer.place({ id, puzzle: row.puzzle, worktree, picks, saved }));
     } catch (e) {
       // Whatever this Save wrote before it stopped is put back, so the chat's next turn does not commit half of it.
-      const touched = new Set([path, ...pickPaths(row.puzzle, picks, saved)]);
+      const touched = new Set([path, ...(worded ? [messagesPath] : []), ...pickPaths(row.puzzle, picks, saved)]);
       await repo.restore(id, (await repo.changed(id)).filter((f) => touched.has(f))).catch((err: unknown) => log.warn({ err, draft: id }, "could not put back a stopped Save's files"));
       throw e;
     }
-    await repo.commit(id, commitMessage(row.puzzle, describeNumbers(before, row.numbers), placed));
+    await repo.commit(id, commitMessage(row.puzzle, describeNumbers(before, row.numbers), placed, describeTexts(tableBefore, texts)));
     // Recorded before the push: if that fails, the next Save still knows what this one wrote and placed.
     await mark(id, { branch, savedNumbers: row.numbers });
     if ((await repo.ahead(id)) === 0) throw new SaveRefused("nothing");
     await repo.push(id, branch);
     // Whatever the branch changes besides the numbers' own file and the picks' is the chat's doing: the pull request says so.
-    const ours = new Set([path, ...placedFiles]);
+    const ours = new Set([path, ...(worded ? [messagesPath] : []), ...placedFiles]);
     const edited = (await repo.files(id)).filter((f) => !ours.has(f));
-    const title = pullTitle(row.puzzle, edited, placed.length > 0);
-    const body = pullBody({ puzzle: row.puzzle, login, changes: describeNumbers(base ?? before, row.numbers), edited, linkUrl: `${o.studioOrigin}/play/${linkId}`, placed, takeUrl: (hash) => `${o.serviceOrigin}/takes/${hash}` });
+    const reworded = describeTexts(tableBase ?? tableBefore, texts);
+    const title = pullTitle(row.puzzle, edited, placed.length > 0, reworded.length > 0);
+    const body = pullBody({ puzzle: row.puzzle, login, changes: describeNumbers(base ?? before, row.numbers), edited, linkUrl: `${o.studioOrigin}/play/${linkId}`, placed, takeUrl: (hash) => `${o.serviceOrigin}/takes/${hash}`, texts: reworded });
     if (row.pullNumber === null) {
       const pull = await forge.openPull({ head: branch, base: o.base, title, body });
       await mark(id, { pullNumber: pull.number, pullUrl: pull.url });

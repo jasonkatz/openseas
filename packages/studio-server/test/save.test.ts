@@ -22,6 +22,8 @@ const describeDb = url ? describe : describe.skip;
 const STUDIO = "http://localhost:5174";
 const FILE = "packages/content/data/puzzles/cooling.json";
 const shipped = readFileSync(join(fileURLToPath(import.meta.url), "../../../content/data/puzzles/cooling.json"), "utf8");
+const TABLE = "packages/content/data/messages/en.json";
+const table = readFileSync(join(fileURLToPath(import.meta.url), "../../../content/data/messages/en.json"), "utf8");
 
 describeDb("save", () => {
   let app: App;
@@ -69,6 +71,8 @@ describeDb("save", () => {
     git(tmp, "clone", "--quiet", origin, seed);
     mkdirSync(join(seed, "packages/content/data/puzzles"), { recursive: true });
     writeFileSync(join(seed, FILE), shipped);
+    mkdirSync(join(seed, "packages/content/data/messages"), { recursive: true });
+    writeFileSync(join(seed, TABLE), table);
     writeFileSync(join(seed, "README.md"), "openseas\n");
     git(seed, "checkout", "--quiet", "-b", "main");
     git(seed, "add", "--all");
@@ -252,6 +256,46 @@ describeDb("save", () => {
     expect(up.save.pull).not.toBeNull();
     // One commit for the numbers: the Save that could not open the pull request is not repeated.
     expect(remoteLog(`studio/cooling-${draft.id}`).filter((m) => m === "Tune cooling from the studio")).toHaveLength(1);
+    await discardAll();
+  });
+
+  it("writes a draft's rewritten strings to the message table and its category to the content file, and puts back what it lets go (ADR 0057)", async () => {
+    await discardAll();
+    const words = { texts: { "cooling.multi_2": "Twofer!", "cooling.streak_label": "{count} straight!" }, category: "crafting" as const };
+    const draft = await open(numbers({ words }));
+    const { started, draft: saved } = await save(draft, "New words");
+    expect(started.link.draft.words).toEqual(words);
+    const branch = `studio/cooling-${draft.id}`;
+    expect(saved.save).toMatchObject({ state: "idle", error: null });
+    // The table on the branch is the shipped one with those two lines changed and not a byte else; so is the content file.
+    expect(remote(branch, TABLE)).toBe(table.replace('"cooling.multi_2": "Double!"', '"cooling.multi_2": "Twofer!"').replace('"cooling.streak_label": "{count} in a row!"', '"cooling.streak_label": "{count} straight!"'));
+    // (Earlier tests landed commits on main's content file, so it is main's that the branch is held against.)
+    const main = remote("main");
+    expect(remote(branch)).toBe(main.replace('"category": "duty"', '"category": "crafting"'));
+    expect(remote("main", TABLE)).toBe(table);
+    expect(git(origin, "log", "-1", "--format=%b", branch)).toContain('text cooling.multi_2: "Double!" -> "Twofer!"');
+    const pull = gh.opened.at(-1)!;
+    expect(pull.title).toBe("Tune cooling: numbers and words from the studio");
+    expect(pull.body).toContain("| `cooling.multi_2` | `\"Double!\"` | `\"Twofer!\"` |");
+    expect(pull.body).toContain("| `category` | `\"duty\"` | `\"crafting\"` |");
+    expect(pull.body).toContain("A string changed");
+    // The table is Save's own file here, not the agent's.
+    expect(pull.body).not.toContain("edited by the studio's agent");
+
+    // One string let go, the category put back: both go back to what main holds.
+    const next = await put(saved, numbers({ words: { texts: { "cooling.multi_2": "Twofer!" }, category: null } }));
+    await save(next, "Fewer words");
+    expect(remote(branch, TABLE)).toBe(table.replace('"cooling.multi_2": "Double!"', '"cooling.multi_2": "Twofer!"'));
+    expect(remote(branch)).toBe(main);
+
+    // A string that is another puzzle's, one the table does not have, and one that drops the name it fills in are each refused, and nothing is written.
+    const before = remoteLog(branch).length;
+    for (const texts of [{ "engines.title": "Mine" }, { "cooling.no_such_key": "x" }, { "cooling.streak_label": "Many straight!" }]) {
+      const bad = await put((await list())[0]!, numbers({ words: { texts, category: null } }));
+      const { draft: refused } = await save(bad, "Bad words");
+      expect(refused.save, JSON.stringify(texts)).toMatchObject({ state: "failed", error: "unknown_key" });
+    }
+    expect(remoteLog(branch)).toHaveLength(before);
     await discardAll();
   });
 

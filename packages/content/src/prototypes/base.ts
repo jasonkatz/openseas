@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PuzzleCategorySchema } from "../schema.js";
 
 /**
  * Fields every prototype puzzle's content file has (ADR 0036). A prototype is no station, so it
@@ -6,6 +7,7 @@ import { z } from "zod";
  */
 export const PrototypeBaseSchema = z.object({
   /** Wall-clock length of a round on the studio, enforced by the server for a recorded one. */
+  category: PuzzleCategorySchema,
   roundSeconds: z.int().min(10).max(1800),
   /** The stretch of recent play, in seconds, the live tier indicator reads (ADR 0039). Longer for a puzzle that scores in lumps. */
   paceSeconds: z.int().min(1).max(120).default(10),

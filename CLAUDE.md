@@ -44,7 +44,7 @@ TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `protocol` (Zod schemas)
 `boards` (the PixiJS boards, round runner and server connection both front ends share, ADR 0019, and the Vite plugin that packs each puzzle's atlas from its frame files at build time, ADR 0054),
 `server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `studio` (the puzzle studio at studio.openseas.online, once the harness, built step by step, ADR 0042: a page a puzzle with its board and a tuning panel built from
 `content` and the wire schema, each puzzle alone at `/play/<id>`, every round local, and the voyage bench for ships and crews, ADR 0027), `studio-server` (the studio's own small service: tester links by id,
-the owner's GitHub sign-in, the owner's drafts, Save for their numbers and picks as a draft pull request, the chat's agent on a draft's worktree, and the takes it makes, kept in a bucket, ADR 0043, ADR 0045 to 0047, ADR 0049, ADR 0051, ADR 0053 and ADR 0055; the studio works without it), `docs` (the puzzle guides at docs.openseas.online: a static site with one guide per puzzle, its
+the owner's GitHub sign-in, the owner's drafts, Save for their numbers and picks as a draft pull request, the chat's agent on a draft's worktree, and the takes it makes, kept in a bucket, ADR 0043, ADR 0045 to 0047, ADR 0049, ADR 0051, ADR 0053, ADR 0055 and ADR 0057; the studio works without it), `docs` (the puzzle guides at docs.openseas.online: a static site with one guide per puzzle, its
 pictures captured from the real boards in the studio, ADR 0038).
 Postgres. Railway for server, the studio's service and database, Vercel for the game, the studio and the guides as three projects.
 Vitest with property-based determinism tests on engines, Playwright smoke on all three front ends.
@@ -65,6 +65,9 @@ Vitest with property-based determinism tests on engines, Playwright smoke on all
 - A key added to a puzzle's `config` gets one line of description on its wire schema (`.describe()` in
   `protocol`) and a place in the puzzle's `studio/src/tuning/groups/<id>.ts`: the studio's tuning panel is
   built from them, and its tests fail without them.
+- A string a puzzle says is keyed `<puzzle>.<name>` in the message table: the studio's Text mode offers every
+  such key for rewriting (ADR 0057), and Save writes a draft's rewrites back to the table.
+- Every puzzle's content file has a `category`. It is a label for the studio's grid and decides nothing else.
 - A cue a board newly plays gets its place in `studio/src/assets/cues.ts`: the studio's sound panel
   lists a puzzle's cues from it (ADR 0050), and its test fails without it.
 - Any puzzle work, a new puzzle or a change to one, starts with the `puzzles` skill

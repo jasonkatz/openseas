@@ -3,7 +3,7 @@
  * sound, the round runner that streams move logs to the server, and the connection to the server.
  * Nothing in here is authoritative; the server replays every round (ADR 0003).
  */
-export { content, t } from "./content.js";
+export { content, messageOverrideRevision, overrideMessages, shippedMessage, subscribeMessages, t } from "./content.js";
 export { sfx, isMuted, setMuted, auditionCue, overrideSample, sampleCues } from "./audio.js";
 export { isSpritePuzzle, overrideSprite, spriteFrames, spriteOverridden, spriteOverrideRevision, subscribeSprites, type SpritePuzzle } from "./sprites/atlas.js";
 export { LatencyMeter } from "./metrics.js";

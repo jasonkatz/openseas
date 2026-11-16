@@ -722,6 +722,9 @@ are delivered. In the studio the agent no longer places a take; Save does.
 That completes the step. What is left of M9 is the live build of a draft's worktree (ADR 0042
 decision 7).
 
+**The Text mode** (ADR 0057) is built: a seventh mode for the puzzle's words and its category,
+as **Text** below describes, with Save writing a draft's strings to the message table.
+
 **The page is laid out as a design tool** (ADR 0056), built. Nothing above changes in what the
 studio does; where each thing sits does, and where this section's account of the steps says "the
 tuning panel" or "the side panel", **Layout and modes** below says where that now is. The one
@@ -736,7 +739,7 @@ agent reads:
 | Thresholds and a live pace (rules 16, 17) | `thresholds` and `paceSeconds` are controls, tuned by hand with the HUD's tier in view |
 | Reads without color (rule 22) | The sprite panel previews every frame with the marks setting on and off |
 | Its own sprites and sounds, the owner picking every take (rule 23) | The asset panels show each frame's and cue's takes, and a pick is one tap |
-| Every string in the message table (rule 24) | The agent is held to it, and so is the studio itself |
+| Every string in the message table (rule 24) | The agent is held to it, and so is the studio itself; the Text mode rewrites the table's strings and writes none elsewhere |
 | Three homes kept in step (rule 25) | The agent can be asked to, in the chat; Save does not, and its pull request stays a draft for a developer to finish (ADR 0049) |
 | Report every bar item as met or broken | The developer who finishes the pull request reports it |
 
@@ -757,17 +760,17 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   count says so instead. On its right, what becomes of the draft: whether the service has it, a
   Share menu (the play link, tester links, sign-in, discarding the draft) and Save, with a sheet
   beside it that holds a name for the tester link and how the draft stands with its pull request.
-- A rail of six modes down the left edge, as icons with their names on hover, in three clusters:
-  **Play**; then **Setup**, **Tuning** and **Scoring**, the puzzle's numbers; then **Sprites**
-  and **Sounds**. A mode that holds a change carries a dot.
+- A rail of seven modes down the left edge, as icons with their names on hover, in three
+  clusters: **Play**; then **Setup**, **Tuning** and **Scoring**, the puzzle's numbers; then
+  **Sprites**, **Sounds** and **Text** (ADR 0057). A mode that holds a change carries a dot.
 - One panel beside the rail, which is the mode's. It is always there, so the board never moves.
   Play holds the round: a starting point, the seed, the round dealt again, the shipped numbers
   held against the draft's, and the last five rounds finished on the page (seed, which numbers,
   length, tier, score). Setup holds the board group, the round's length and the limits group;
   Tuning the deal and pace groups; Scoring the scoring group, the live tier's window and the
-  thresholds. The three share a search that shows the matching numbers from all of them, a switch
-  that shows each number's line of description, and the switch that deals the round again on a
-  change.
+  thresholds. The three share a search that shows the matching numbers from all of them and
+  the matching words from Text, a switch that shows each number's line of description, and the
+  switch that deals the round again on a change.
 - The board in the middle, in every mode, exactly as `/play` draws it.
 - The chat on the right, and a line along the bottom that says whether the server would accept
   the draft's numbers and which seed is on the board.
@@ -794,6 +797,21 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   round is replayed when it ends; a mark appears only if the hashes differ.
 - A changed control carries a dot, and a button beside it that puts it back.
 - Sizes and limits fixed in an engine's code are not controls. They are asked for in the chat.
+
+**Text** (ADR 0057).
+
+- A row for every string of the message table that is the puzzle's: its name, its name and
+  blurb on the grid, what its start card says, what the board calls out, the names of its pieces
+  and specials with their help, and what its result card adds. The rows are sorted into those
+  sections by their keys, and each is labelled with its key read as words.
+- A rewritten string is said on the page at once: the board is made again on the round as it
+  stands once the hand has rested. A string that fills in a name (`{count}`) must keep it; an
+  edit that does not, an empty one and one past 600 characters are refused where they are typed.
+- A rewritten string is part of the draft: the service keeps it with the numbers, a tester link
+  and the play link carry it, Reset all clears it, and Save writes it into the message table.
+- The puzzle's category (duty, fight, crafting, prototype) is in each content file and can be
+  changed here. It is a label for the grid and the menu of puzzles and decides nothing else: a
+  prototype is promoted by its own ADR and milestone, never by its label.
 
 **Sprites and sounds.**
 
@@ -829,8 +847,8 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   (ADR 0047); a turn that reaches the cap is stopped where it stands.
 
 **Drafts and reset.** One draft a puzzle, kept by the studio service so it follows the owner from
-machine to machine: numbers, picks, code changes, chat. Four ways back: one control to its
-shipped value; all numbers and picks cleared; one chat turn's edits reverted; the draft discarded
+machine to machine: numbers, picks, words, code changes, chat. Four ways back: one control to its
+shipped value; all numbers, picks and words cleared; one chat turn's edits reverted; the draft discarded
 after a confirmation.
 
 **Save.**

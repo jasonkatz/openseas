@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { isSpritePuzzle, overrideSample, overrideSprite } from "@openseas/boards";
-import { picksOf, type Draft, type Picks, type RoundSummary, type TesterLink } from "@openseas/protocol";
+import { content, isSpritePuzzle, overrideMessages, overrideSample, overrideSprite, shippedMessage } from "@openseas/boards";
+import { isPuzzleText, picksOf, textVars, wordsOf, type Draft, type Picks, type PuzzleCategory, type RoundSummary, type TesterLink, type Words } from "@openseas/protocol";
 import type { StudioPuzzle } from "../puzzles.js";
 import { EMPTY_SCENARIO, formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
 import { SERVICE_URL, takeUrl } from "../service/client.js";
 import { useStoredDraft, type DraftStore } from "./useStoredDraft.js";
-import { withoutDraft } from "./draft.js";
+import { KEEPS_ALL, withoutDraft } from "./draft.js";
 import { changes, refusals, shippedNumbers, tunedNumbers, withNumber, withoutNumber, withoutNumbers, type Change, type Numbers, type Refusal } from "./numbers.js";
 
 /**
@@ -25,6 +25,9 @@ export interface RoundReport {
 
 /** How many finished rounds a message to the agent carries. */
 const ROUNDS_KEPT = 5;
+
+/** How long the hand must rest on a string before the board is made again with it. */
+const WORDS_MS = 300;
 
 const NO_ROUND: RoundReport = { seed: null, replayMismatch: false };
 
@@ -72,6 +75,12 @@ export interface Frame {
   setPick(kind: keyof Picks, name: string, pick: string | null): void;
   /** The picks whose takes could not be read, as `sprites/<frame>` or `sounds/<cue>`: the board shows those as shipped. */
   readonly picksMissing: readonly string[];
+  /** The strings the draft rewrites and the category it changes (ADR 0057). The frame lays the strings over the message table. */
+  readonly words: Words;
+  /** Rewrite one of the puzzle's strings by its key; null, or the shipped words, puts it back. */
+  setText(key: string, text: string | null): void;
+  /** Change the puzzle's category; null, or the shipped one, puts it back. */
+  setCategory(category: PuzzleCategory | null): void;
   readonly comparing: boolean;
   setComparing(on: boolean): void;
   readonly report: RoundReport;
@@ -83,7 +92,7 @@ export interface Frame {
 /** The draft a tester link froze, as the scenario a page opens on. */
 function linkScenario(link: TesterLink): Scenario {
   const { seed, overrides, roundSeconds, paceSeconds, thresholds } = link.draft;
-  return { ...EMPTY_SCENARIO, seed, overrides, roundSeconds, paceSeconds, thresholds, picks: picksOf(link.draft) };
+  return { ...EMPTY_SCENARIO, seed, overrides, roundSeconds, paceSeconds, thresholds, picks: picksOf(link.draft), words: wordsOf(link.draft) };
 }
 
 const Ctx = createContext<Frame | null>(null);
@@ -106,17 +115,17 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const [report, setReportState] = useState<RoundReport>(NO_ROUND);
   const [comparing, setComparing] = useState(false);
 
-  const picksKept = useRef(true);
+  const kept = useRef(KEEPS_ALL);
   const apply = useCallback((next: Scenario, bare: boolean) => {
     setScenarioState(next);
     // A tester link's address is its id; what changes on the page (a new seed) stays on the page.
     if (link) return;
-    const qs = formatScenario({ ...(bare ? withoutDraft(next, picksKept.current) : next), autostart: null });
+    const qs = formatScenario({ ...(bare ? withoutDraft(next, kept.current) : next), autostart: null });
     window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
   }, [link]);
   // Only the owner's page, on a desktop, asks the service about drafts: `/play` reads a tester link and the takes it picks (ADR 0052), and no more.
   const stored = useStoredDraft({ enabled: mode === "studio" && !link && SERVICE_URL !== "", puzzle, scenario, apply });
-  picksKept.current = stored.keepsPicks();
+  kept.current = stored.keeps();
   const { store, bare, keep: keepDraft, open: openDraft, discard: discardDraft, save: saveDraft, update: updateDraft, ensure: ensureDraft, adopt: adoptDraft } = stored;
   const setScenario = useCallback((next: Scenario) => apply(next, bare()), [apply, bare]);
   const [rounds, setRounds] = useState<readonly RoundSummary[]>([]);
@@ -183,6 +192,35 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
     [id],
   );
 
+  const words = scenario.words;
+  const shippedCategory: PuzzleCategory = content.puzzles[puzzle.id].category;
+  const setText = useCallback(
+    (key: string, text: string | null) => {
+      const { [key]: _was, ...rest } = scenario.words.texts;
+      const back = text === null || text === shippedMessage(key);
+      setScenario({ ...scenario, words: { ...scenario.words, texts: back ? rest : { ...rest, [key]: text } } });
+    },
+    [scenario, setScenario],
+  );
+  const setCategory = useCallback((category: PuzzleCategory | null) => setScenario({ ...scenario, words: { ...scenario.words, category: category === shippedCategory ? null : category } }), [scenario, setScenario, shippedCategory]);
+  // The words go on the board: laid over the message table once the hand stops, and only those
+  // that are this puzzle's and keep the names the shipped string fills in, so a link cannot
+  // rewrite another page's words or make a board print a brace. While the shipped numbers are
+  // held up, so are the shipped words. A home thumbnail is the shipped board.
+  useEffect(() => {
+    if (mode === "thumb") return;
+    const lay: Record<string, string> = {};
+    if (!comparing) {
+      for (const [key, text] of Object.entries(words.texts)) {
+        const was = shippedMessage(key);
+        if (was !== undefined && isPuzzleText(id, key) && textVars(text).join() === textVars(was).join()) lay[key] = text;
+      }
+    }
+    const at = window.setTimeout(() => overrideMessages(lay), Object.keys(lay).length ? WORDS_MS : 0);
+    return () => window.clearTimeout(at);
+  }, [mode, id, words.texts, comparing]);
+  useEffect(() => () => overrideMessages({}), [id]);
+
   const shipped = useMemo(() => shippedNumbers(puzzle), [puzzle]);
   // Only what makes the numbers: a new seed alone must not hand the page a new config to redraw.
   const tuned = useMemo(
@@ -194,8 +232,8 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const changed = useMemo(() => (refused.length ? [] : changes(puzzle, tuned)), [puzzle, tuned, refused]);
   const numbers = comparing ? shipped : tuned;
   const value = useMemo<Frame>(
-    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, picks, setPick, picksMissing, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound }),
-    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, picks, setPick, picksMissing, comparing, report, setReport, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound],
+    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, picks, setPick, picksMissing, words, setText, setCategory, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound }),
+    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, picks, setPick, picksMissing, words, setText, setCategory, comparing, report, setReport, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
