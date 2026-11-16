@@ -64,3 +64,4 @@ that supersedes it.
 | [0056](./0056-the-studio-is-laid-out-as-a-design-tool.md) | The studio's page is laid out as a design tool: a top bar, a rail of modes, one panel |
 | [0057](./0057-a-draft-rewrites-its-puzzles-strings.md) | The studio's Text mode: a draft rewrites its puzzle's strings, and a puzzle has a category |
 | [0058](./0058-the-studios-chrome-has-a-look-of-its-own.md) | The studio's chrome has a look of its own: floating panels, teal for what acts, amber for what changed |
+| [0059](./0059-the-meter-counts-what-each-api-billed.md) | The meter counts what each API says it billed, and the generation scripts go through the proxy |

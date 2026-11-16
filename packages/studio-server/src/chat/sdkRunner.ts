@@ -14,8 +14,12 @@ export interface AgentIdentity {
 export interface SdkRunnerOptions {
   /** Null off production, where the service is not root: the agent then runs as the service's own user, with the same scrubbed environment. */
   identity: AgentIdentity | null;
-  /** The keys the generation scripts read (ADR 0040, ADR 0042 decision 9): the only credentials in the agent's shell. */
-  scriptKeys: Readonly<Record<string, string>>;
+  /**
+   * Which generation scripts' APIs the service holds a key for (ADR 0040, ADR 0059). The scripts
+   * reach them through the proxy, with the turn's token where the key would be, so their spend
+   * is metered like the model's and no key is in the agent's shell.
+   */
+  scripts: { openai: boolean; elevenlabs: boolean };
   log: Logger;
   /** The Claude Code executable, when it is not the one the SDK ships. */
   executable?: string;
@@ -96,8 +100,8 @@ const userMessage = (text: string, priority?: "next"): SDKUserMessage => ({ type
  * It loads `CLAUDE.md` and the three puzzle skills from the worktree itself, so a change to a
  * skill needs no change here. Its process is another unix user's, started with an environment
  * built from nothing: where the model is (the service's proxy), a token for this turn, a home,
- * a path, and the two keys the generation scripts read. No other variable of the service's
- * reaches it.
+ * a path, and where the generation scripts' APIs are (the same proxy, the same token). No other
+ * variable of the service's reaches it, and no key at all.
  */
 export function createSdkRunner(o: SdkRunnerOptions): AgentRunner {
   const environment = (r: TurnRequest): Record<string, string> => ({
@@ -107,7 +111,8 @@ export function createSdkRunner(o: SdkRunnerOptions): AgentRunner {
     ANTHROPIC_BASE_URL: r.modelUrl,
     ANTHROPIC_API_KEY: r.modelToken,
     CLAUDE_AGENT_SDK_CLIENT_APP: "openseas-studio",
-    ...o.scriptKeys,
+    ...(o.scripts.openai ? { OPENAI_BASE_URL: `${r.modelUrl}/openai/v1`, OPENAI_API_KEY: r.modelToken } : {}),
+    ...(o.scripts.elevenlabs ? { ELEVENLABS_BASE_URL: `${r.modelUrl}/elevenlabs/v1`, ELEVENLABS_API_KEY: r.modelToken } : {}),
   });
 
   return {

@@ -230,7 +230,8 @@ migrates its own `studio` schema as it starts.
       |---|---|
       | `ANTHROPIC_API_KEY` | a key for the chat's turns. It stays in the service process: the agent reaches a model only through the service |
       | `STUDIO_SPEND_CAP_USD` | all the chat may spend, every draft together, in US dollars, such as `20`. A turn that reaches it is stopped where it stands, and no turn starts past it. To carry on, raise it; the meter is never reset |
-      | `OPENAI_API_KEY`, `ELEVENLABS_API_KEY` | optional: the two keys the sprite and sound scripts read (ADR 0040). These, and only these, are in the agent's shell |
+      | `OPENAI_API_KEY`, `ELEVENLABS_API_KEY` | optional: the keys the sprite and sound scripts' APIs are paid with (ADR 0040). They stay in the service process: the scripts reach the APIs through the service, which meters each picture and sound (ADR 0059) |
+      | `ELEVENLABS_USD_PER_CREDIT` | optional: what one ElevenLabs credit costs on your plan, the plan's monthly price over its credits, such as `0.00022` for 100,000 credits at $22. Unset, a credit is counted at the overage rate, `0.0003` |
       | `STUDIO_AGENT_USER` | optional: the unix user the agent runs as, `studio-agent` by default |
 
    2. **Grow the volume to 5 GB.** The agent installs a worktree's dependencies when it runs a
@@ -267,9 +268,9 @@ migrates its own `studio` schema as it starts.
    turn to end, and look at that frame's row in the Sprites panel. Tap one to pick it, then Save:
    the pull request holds it as the frame's own file, which the build packs into the atlas
    (ADR 0053, ADR 0054). Nothing to set up for that; a Save that cannot read a picked take from the bucket
-   fails as "couldn't read the picked takes or place them", and the log says why. Each take is counted against
-   `STUDIO_SPEND_CAP_USD` at an estimate (a quarter of a dollar a sprite, five cents a sound): the
-   real bills are OpenAI's and ElevenLabs's, and the cap does not see them.
+   fails as "couldn't read the picked takes or place them", and the log says why. Each picture and sound is counted
+   against `STUDIO_SPEND_CAP_USD` from what its response says was billed: OpenAI's image tokens at
+   its published rates, ElevenLabs's credits at `ELEVENLABS_USD_PER_CREDIT` (ADR 0059).
 
    The image grows by the Claude Code executable the SDK ships, a few hundred megabytes. The log
    says `chat: true` when all of it is in place.

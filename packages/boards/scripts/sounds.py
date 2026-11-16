@@ -6,14 +6,15 @@
   sounds.py place <puzzle> <cue> <take>          trim, normalise and keep one take in boards/src/sounds/
 
 The brief is packages/boards/briefs/sounds/<puzzle>.json. The key is ELEVENLABS_API_KEY, from the
-environment or the repository's .env. `gen` uses only the standard library; `place` and `placed` need ffmpeg.
+environment or the repository's .env; ELEVENLABS_BASE_URL, when set, is where the API is (the studio's
+chat sets both, to its metering proxy, ADR 0059). `gen` uses only the standard library; `place` and `placed` need ffmpeg.
 """
 from pathlib import Path
 import argparse, html, json, os, re, shutil, subprocess, sys, urllib.error, urllib.request
 
 ROOT = Path(__file__).resolve().parents[3]
 BOARDS = ROOT/'packages/boards'
-API = 'https://api.elevenlabs.io/v1/sound-generation'
+API = os.environ.get('ELEVENLABS_BASE_URL', 'https://api.elevenlabs.io/v1').rstrip('/') + '/sound-generation'
 PROMPT_LIMIT = 450
 
 

@@ -161,7 +161,7 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
     const refused: string[] = [];
     let spent = 0;
     const gate = proxy.admit({ open: () => true, spend: (usd) => void (spent += usd) });
-    const runner = createSdkRunner({ identity, scriptKeys: { OPENAI_API_KEY: "sk-openai-for-sprites", ELEVENLABS_API_KEY: "el-for-sounds" }, log: createLogger("silent", false) });
+    const runner = createSdkRunner({ identity, scripts: { openai: true, elevenlabs: true }, log: createLogger("silent", false) });
     const turn = runner.start({
       cwd,
       puzzle: "cooling",
@@ -216,11 +216,13 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
     expect(outcomes[0]).toMatchObject({ failed: true });
     expect(outcomes[1]).toMatchObject({ failed: false });
 
-    // The agent's shell: where the model is and this turn's token, the two script keys, and nothing of the service's.
+    // The agent's shell: where the model and the scripts' APIs are, all the proxy, this turn's token for each, and no key or anything else of the service's.
     const env = readFileSync(join(cwd, "env.txt"), "utf8");
     expect(env).toContain(`ANTHROPIC_BASE_URL=${proxy.url}`);
-    expect(env).toContain("OPENAI_API_KEY=sk-openai-for-sprites");
-    expect(env).toContain("ELEVENLABS_API_KEY=el-for-sounds");
+    expect(env).toContain(`OPENAI_BASE_URL=${proxy.url}/openai/v1`);
+    expect(env).toContain(`OPENAI_API_KEY=${gate.token}`);
+    expect(env).toContain(`ELEVENLABS_BASE_URL=${proxy.url}/elevenlabs/v1`);
+    expect(env).toContain(`ELEVENLABS_API_KEY=${gate.token}`);
     for (const secret of [REAL_KEY, SECRET_OF_THE_SERVICE, "the-session-secret", "the-app-key", "DATABASE_URL", "STUDIO_SECRET", "GITHUB_APP"]) expect(env, secret).not.toContain(secret);
     if (identity) {
       expect(readFileSync(join(cwd, "uid.txt"), "utf8").trim()).toBe(String(identity.uid));
@@ -241,7 +243,7 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
     api.mainTurns.length = 0;
     const events: AgentEvent[] = [];
     const gate = proxy.admit({ open: () => true, spend: () => undefined });
-    const turn = createSdkRunner({ identity, scriptKeys: {}, log: createLogger("silent", false) }).start({
+    const turn = createSdkRunner({ identity, scripts: { openai: false, elevenlabs: false }, log: createLogger("silent", false) }).start({
       cwd,
       puzzle: "cooling",
       prompt: "Rewrite the design file.",
@@ -268,7 +270,7 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
     api.mainTurns.length = 0;
     const events: AgentEvent[] = [];
     const gate = proxy.admit({ open: () => true, spend: () => undefined });
-    const turn = createSdkRunner({ identity, scriptKeys: {}, log: createLogger("silent", false) }).start({
+    const turn = createSdkRunner({ identity, scripts: { openai: false, elevenlabs: false }, log: createLogger("silent", false) }).start({
       cwd,
       puzzle: "cooling",
       prompt: "Make three takes of the clear cue.",
@@ -305,7 +307,7 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
     api.mainTurns.length = 0;
     const gate = proxy.admit({ open: () => true, spend: () => undefined });
     const at = Date.now();
-    const turn = createSdkRunner({ identity, scriptKeys: {}, log: createLogger("silent", false), idleMs: 3000 }).start({
+    const turn = createSdkRunner({ identity, scripts: { openai: false, elevenlabs: false }, log: createLogger("silent", false), idleMs: 3000 }).start({
       cwd,
       puzzle: "cooling",
       prompt: "Hello?",
@@ -327,7 +329,7 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
     script = [[{ type: "tool_use", name: "Bash", input: { command: "python3 -c 'import time; time.sleep(12)'; echo slept" } }], [{ type: "text", text: "Slept." }]];
     api.mainTurns.length = 0;
     const gate = proxy.admit({ open: () => true, spend: () => undefined });
-    const turn = createSdkRunner({ identity, scriptKeys: {}, log: createLogger("silent", false), idleMs: 5000 }).start({
+    const turn = createSdkRunner({ identity, scripts: { openai: false, elevenlabs: false }, log: createLogger("silent", false), idleMs: 5000 }).start({
       cwd,
       puzzle: "cooling",
       prompt: "Run the slow thing.",
@@ -348,7 +350,7 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
     api.mainTurns.length = 0;
     const events: AgentEvent[] = [];
     const gate = proxy.admit({ open: () => true, spend: () => undefined });
-    const turn = createSdkRunner({ identity, scriptKeys: {}, log: createLogger("silent", false) }).start({
+    const turn = createSdkRunner({ identity, scripts: { openai: false, elevenlabs: false }, log: createLogger("silent", false) }).start({
       cwd,
       puzzle: "cooling",
       prompt: "Wait a while.",

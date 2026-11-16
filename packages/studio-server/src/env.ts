@@ -59,9 +59,11 @@ const EnvSchema = z.object({
   STUDIO_SPEND_CAP_USD: z.coerce.number().positive().optional(),
   /** The unix user the agent's processes run as. Made at startup if it is not there, which takes root. */
   STUDIO_AGENT_USER: z.string().regex(/^[a-z_][a-z0-9_-]*$/).default("studio-agent"),
-  /** The two keys the generation scripts read (ADR 0040): the only credentials in the agent's shell. */
+  /** The keys the generation scripts' APIs are paid with (ADR 0040). They stay in this process: the scripts reach the APIs through the proxy, which meters them (ADR 0059). */
   OPENAI_API_KEY: Optional,
   ELEVENLABS_API_KEY: Optional,
+  /** US dollars one ElevenLabs credit costs on the owner's plan: the plan's price over its credits. Unset, a credit is counted at the overage rate. */
+  ELEVENLABS_USD_PER_CREDIT: z.coerce.number().positive().optional(),
   /**
    * Takes (ADR 0051): an S3-compatible bucket, on Railway. All four of the endpoint, the bucket's
    * name and its two keys must be set for the service to keep takes; with any missing the chat

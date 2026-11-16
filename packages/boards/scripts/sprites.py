@@ -7,7 +7,8 @@
 
 The brief is packages/boards/briefs/sprites/<puzzle>.json; the style every sheet is painted to is
 packages/boards/briefs/sprite-style.txt. The key is OPENAI_API_KEY, from the environment or the
-repository's .env. Needs Pillow.
+repository's .env; OPENAI_BASE_URL, when set, is where the API is (the studio's chat sets both, to
+its metering proxy, ADR 0059). Needs Pillow.
 """
 from pathlib import Path
 import argparse, base64, html, io, json, os, re, sys, urllib.error, urllib.request, uuid
@@ -16,7 +17,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[3]
 BOARDS = ROOT/'packages/boards'
 SPRITES = BOARDS/'src/sprites'
-API = 'https://api.openai.com/v1/images'
+API = os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1').rstrip('/') + '/images'
 SIZE, ART = 192, 176
 
 

@@ -9,14 +9,6 @@ import type { TakeStore } from "./store.js";
 /** How each kind of take is served. The type is the service's to say, never the file's. */
 export const TAKE_TYPES: Readonly<Record<TakeKind, string>> = { sprite: "image/webp", sound: "audio/mpeg" };
 
-/**
- * US dollars a take, as the meter counts one (ADR 0051). The generation scripts pay for takes
- * with keys in the agent's shell, so the service cannot see the bill: it counts each new take it
- * finds at about what one costs to make, a high-quality image with reference images, a second or
- * so of sound. An estimate for the cap to see, set a little high, and not a bill.
- */
-export const TAKE_USD: Readonly<Record<TakeKind, number>> = { sprite: 0.25, sound: 0.05 };
-
 const keyOf = (hash: string): string => `takes/${hash}`;
 
 /** The library of takes (ADR 0042 decision 12, ADR 0051): rows here, bytes in the bucket, both by the bytes' hash. */
