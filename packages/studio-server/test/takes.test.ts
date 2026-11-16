@@ -209,9 +209,11 @@ describeDb("takes, kept when a turn ends", () => {
   let draft: Draft;
   async function turn(does: (r: TurnRequest) => void) {
     script = does;
-    expect((await send("POST", `/drafts/${draft.id}/chat`, { text: "new takes of the cog", model: "sonnet", rounds: [], refusals: [] })).status).toBe(202);
+    const sent = await send("POST", `/drafts/${draft.id}/chat`, { text: "new takes of the cog", model: "sonnet", rounds: [], refusals: [] });
+    expect(sent.status).toBe(202);
+    const { chat } = (await sent.json()) as { chat: string };
     await app.chat!.idle();
-    return ChatStateSchema.parse(await (await send("GET", `/drafts/${draft.id}/chat`)).json());
+    return ChatStateSchema.parse(await (await send("GET", `/chats/${chat}`)).json());
   }
 
   it("says it keeps takes, and has none yet", async () => {

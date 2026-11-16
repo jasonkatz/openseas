@@ -1,4 +1,4 @@
-import { ChatEventSchema, ChatStateSchema, DraftListSchema, DraftSchema, SaveStartedSchema, StudioMeSchema, TakeListSchema, TesterLinkIdSchema, TesterLinkListSchema, TesterLinkSchema, type CreateTesterLink, type ChatEvent, type ChatState, type Draft, type DraftNumbers, type SaveStarted, type SendChat, type StudioMe, type Take, type TesterLink } from "@openseas/protocol";
+import { ChatEventSchema, ChatListSchema, ChatSentSchema, ChatStateSchema, ChatSummarySchema, DraftListSchema, DraftSchema, SaveStartedSchema, StudioMeSchema, TakeListSchema, TesterLinkIdSchema, TesterLinkListSchema, TesterLinkSchema, type CreateTesterLink, type ChatEvent, type ChatList, type ChatState, type ChatSummary, type Draft, type DraftNumbers, type SaveStarted, type SendChat, type StudioMe, type Take, type TesterLink } from "@openseas/protocol";
 
 /**
  * The studio's service (ADR 0042 decision 4, ADR 0043), as this site reaches it. Empty when the
@@ -134,10 +134,21 @@ export async function startUpdate(id: string): Promise<Draft | null> {
   }
 }
 
-/** A draft's chat (ADR 0047): every line of it, whether a turn is running, and what has been spent. Null when the service did not answer. */
+/** The owner's chats on a puzzle (ADR 0060), its open draft's and those whose draft is gone, the one last spoken in first. Null when the service did not answer. */
+export async function listChats(puzzle: string): Promise<ChatList | null> {
+  try {
+    const r = await owned(`/chats?puzzle=${encodeURIComponent(puzzle)}`);
+    const list = r.ok ? ChatListSchema.safeParse(await r.json()) : null;
+    return list?.success ? list.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** One chat (ADR 0047): every line of it, whether a turn is running, and what has been spent. Null when the service did not answer. */
 export async function fetchChat(id: string): Promise<ChatState | null> {
   try {
-    const r = await owned(`/drafts/${encodeURIComponent(id)}/chat`);
+    const r = await owned(`/chats/${encodeURIComponent(id)}`);
     const state = r.ok ? ChatStateSchema.safeParse(await r.json()) : null;
     return state?.success ? state.data : null;
   } catch {
@@ -151,7 +162,7 @@ const STREAM_QUIET_MS = 40_000;
 const STREAM_RETRY_MS = 15_000;
 
 /**
- * A draft's chat as it happens (ADR 0055): the whole of it first, then each line, each word of the
+ * A chat as it happens (ADR 0055): the whole of it first, then each line, each word of the
  * reply being written and each change of the turn or the money, as the service tells them. `link`
  * says whether the stream is alive; when it is not, this keeps asking for it, more and more
  * slowly, and the whole chat comes again when it answers. The answer ends the watch.
@@ -179,7 +190,7 @@ export function watchChat(id: string, on: { event(event: ChatEvent): void; link(
   function open(): void {
     if (over) return;
     try {
-      source = new EventSource(`${SERVICE_URL}/drafts/${encodeURIComponent(id)}/chat/events`, { withCredentials: true });
+      source = new EventSource(`${SERVICE_URL}/chats/${encodeURIComponent(id)}/events`, { withCredentials: true });
     } catch {
       return retry();
     }
@@ -213,34 +224,62 @@ export function watchChat(id: string, on: { event(event: ChatEvent): void; link(
   };
 }
 
-/** What became of a message to the agent. `capped`: the spend cap is reached. `busy`: the draft's branch is being saved. */
-export type ChatSend = "sent" | "capped" | "busy" | "failed";
+/**
+ * What became of a message to the agent: the chat it went to, or why it did not go. `capped`: the
+ * spend cap is reached. `saving`: the draft's branch is being saved. `busy`: another chat's turn
+ * runs on the draft (ADR 0060).
+ */
+export type ChatSend = { ok: true; chat: string } | { ok: false; reason: "capped" | "saving" | "busy" | "failed" };
 
-export async function sendChat(id: string, message: SendChat): Promise<ChatSend> {
+/** A message to a chat on a draft, or to a new one when `message.chat` is null. */
+export async function sendChat(draftId: string, message: SendChat): Promise<ChatSend> {
   try {
-    const r = await owned(`/drafts/${encodeURIComponent(id)}/chat`, { method: "POST", body: JSON.stringify(message) });
-    if (r.ok) return "sent";
-    if (r.status !== 409) return "failed";
+    const r = await owned(`/drafts/${encodeURIComponent(draftId)}/chat`, { method: "POST", body: JSON.stringify(message) });
+    if (r.ok) {
+      const sent = ChatSentSchema.safeParse(await r.json());
+      return sent.success ? { ok: true, chat: sent.data.chat } : { ok: false, reason: "failed" };
+    }
+    if (r.status !== 409) return { ok: false, reason: "failed" };
     const code = ((await r.json()) as { error?: unknown }).error;
-    return code === "capped" ? "capped" : "busy";
+    return { ok: false, reason: code === "capped" ? "capped" : code === "busy" ? "busy" : "saving" };
   } catch {
-    return "failed";
+    return { ok: false, reason: "failed" };
   }
 }
 
 async function chatAct(id: string, act: "stop" | "revert" | "allow", body?: unknown): Promise<boolean> {
   try {
-    return (await owned(`/drafts/${encodeURIComponent(id)}/chat/${act}`, { method: "POST", ...(body === undefined ? {} : { body: JSON.stringify(body) }) })).ok;
+    return (await owned(`/chats/${encodeURIComponent(id)}/${act}`, { method: "POST", ...(body === undefined ? {} : { body: JSON.stringify(body) }) })).ok;
   } catch {
     return false;
   }
 }
-/** Stop the turn where it stands. */
+/** Stop the chat's turn where it stands. */
 export const stopChat = (id: string): Promise<boolean> => chatAct(id, "stop");
-/** Undo one turn's edits. */
+/** Undo one of the chat's turns' edits. */
 export const revertChat = (id: string, turn: number): Promise<boolean> => chatAct(id, "revert", { turn });
-/** Answer a refused write: allow the path for this draft, or not. */
+/** Answer a refused write: allow the path for the chat's draft, or not. */
 export const answerChat = (id: string, item: number, allow: boolean): Promise<boolean> => chatAct(id, "allow", { item, allow });
+
+/** Give a chat the owner's own name for it. The chat as it now is; null when the service refused or did not answer. */
+export async function renameChat(id: string, title: string): Promise<ChatSummary | null> {
+  try {
+    const r = await owned(`/chats/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ title }) });
+    const chat = r.ok ? ChatSummarySchema.safeParse(await r.json()) : null;
+    return chat?.success ? chat.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Delete a chat and its lines. Its turns' commits stay on the draft. */
+export async function deleteChat(id: string): Promise<boolean> {
+  try {
+    return (await owned(`/chats/${encodeURIComponent(id)}`, { method: "DELETE" })).ok;
+  } catch {
+    return false;
+  }
+}
 
 /** A puzzle's takes, oldest first (ADR 0051); null when the service cannot be reached, keeps none, or the caller is not the owner. */
 export async function listTakes(puzzle: string): Promise<Take[] | null> {

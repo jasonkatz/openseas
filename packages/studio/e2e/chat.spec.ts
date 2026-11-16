@@ -37,7 +37,7 @@ test.describe("chat", () => {
     await expect(page.getByTestId("chat-working")).toBeVisible();
     const sent = s.writes.at(-1)!;
     expect(sent.call).toBe("POST /drafts/draftdraft/chat");
-    expect(sent.body).toMatchObject({ text: "That felt too easy.", model: "opus", refusals: [] });
+    expect(sent.body).toMatchObject({ chat: null, text: "That felt too easy.", model: "opus", refusals: [] });
     const rounds = (sent.body as { rounds: Array<{ seed: string; score: number; tier: string; seconds: number; moves: number; tuned: boolean }> }).rounds;
     expect(rounds).toHaveLength(1);
     expect(rounds[0]).toMatchObject({ score: 0, moves: 0, tuned: true });
@@ -50,7 +50,7 @@ test.describe("chat", () => {
     s.drafts[0]!.revision += 1;
     s.say("reply", { text: "Four kinds now.\n\n- **Fewer** kinds\n- `pieceKinds` is 4\n\n<b>Not</b> markup: shown as written.\n\n![a picture](https://example.com/tracker.png)" });
     s.chat.spentUsd = 0.42;
-    s.chat.cap.spentUsd = 1.5;
+    s.cap.spentUsd = 1.5;
     s.say("turn", { status: "done", commit: null, costUsd: 0.42, reverted: false });
     s.chat.running = false;
 
@@ -94,7 +94,7 @@ test.describe("chat", () => {
     await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-status", "stopped");
     await expect(page.getByTestId("chat-stop")).toHaveCount(0);
     await expect(page.getByTestId("chat-send")).toHaveText("Send");
-    expect(s.writes.map((w) => w.call)).toEqual(["POST /drafts/draftdraft/chat", "POST /drafts/draftdraft/chat", "POST /drafts/draftdraft/chat/stop"]);
+    expect(s.writes.map((w) => w.call)).toEqual(["POST /drafts/draftdraft/chat", "POST /drafts/draftdraft/chat", "POST /chats/chatchat01/stop"]);
   });
 
   test("a refused write is the owner's to allow, and a turn's edits can be reverted", async ({ page }) => {
@@ -113,12 +113,12 @@ test.describe("chat", () => {
     await page.getByTestId("chat-allow").click();
     await expect(page.getByTestId("chat-ask")).toHaveAttribute("data-state", "allowed");
     await expect(page.getByTestId("chat-allow")).toHaveCount(0);
-    expect(s.writes.at(-1)).toEqual({ call: "POST /drafts/draftdraft/chat/allow", body: { item: ask.id, allow: true } });
+    expect(s.writes.at(-1)).toEqual({ call: "POST /chats/chatchat01/allow", body: { item: ask.id, allow: true } });
 
     await page.getByTestId("chat-revert").click();
     await expect(page.getByTestId("chat-turn")).toHaveAttribute("data-reverted", "1");
     await expect(page.getByTestId("chat-revert")).toHaveCount(0);
-    expect(s.writes.at(-1)).toEqual({ call: "POST /drafts/draftdraft/chat/revert", body: { turn: 1 } });
+    expect(s.writes.at(-1)).toEqual({ call: "POST /chats/chatchat01/revert", body: { turn: 1 } });
   });
 
   test("the reply is shown as it is written, and a turn that failed says why", async ({ page }) => {
@@ -187,9 +187,112 @@ test.describe("chat", () => {
     await expect(page.getByTestId("draft-store")).toHaveAttribute("data-draft", "newdraft22");
   });
 
+  test("every chat on the puzzle is in the list, to open, carry on, rename or delete, and a new one starts with a message", async ({ page }) => {
+    const s = await service(page, { login: "octo", save: true, chat: true, drafts: [draft({ save: NO_SAVE })] });
+    s.chat.title = "Slag";
+    s.chat.turn = 1;
+    s.say("user", { text: "Slag?", model: "sonnet", steer: false });
+    s.say("reply", { text: "Rare." });
+    s.say("turn", { status: "done", commit: null, costUsd: 0.1, reverted: false });
+    const old = s.addChat({ id: "oldchat001", title: "The guide", draft: null, turn: 1, spentUsd: 0.3, updatedAt: "2026-11-01T12:00:00.000Z" });
+    s.say("user", { text: "Rewrite the guide.", model: "opus", steer: false }, old);
+    s.say("reply", { text: "Rewritten." }, old);
+    s.say("turn", { status: "done", commit: null, costUsd: 0.3, reverted: false }, old);
+
+    // Arriving, the page opens the draft's chat last spoken in.
+    await page.goto("/cooling");
+    await expect(page.getByTestId("chat-title")).toHaveText("Slag");
+    await expect(page.getByTestId("chat-reply")).toHaveText("Rare.");
+    await expect(page.getByTestId("chat-carried")).toHaveCount(0);
+
+    // A new chat is empty until a message starts it; the message names no chat, and the page opens the one it made.
+    await page.getByTestId("chat-new").click();
+    await expect(page.getByTestId("chat-title")).toHaveText("New chat");
+    await expect(page.getByTestId("chat-user")).toHaveCount(0);
+    await expect(page.getByTestId("chat-input")).toBeFocused();
+    await write(page, "A fresh question.");
+    expect(s.writes.at(-1)).toMatchObject({ call: "POST /drafts/draftdraft/chat", body: { chat: null, text: "A fresh question." } });
+    await expect(page.getByTestId("chat")).toHaveAttribute("data-chat", "newchat002");
+    await expect(page.getByTestId("chat-title")).toHaveText("A fresh question.");
+    await expect(page.getByTestId("chat-user")).toHaveText(/A fresh question\./);
+    s.say("turn", { status: "done", commit: null, costUsd: 0.05, reverted: false }, s.others[1]);
+    s.others[1]!.running = false;
+    await expect(page.getByTestId("chat-working")).toHaveCount(0);
+
+    // The list: this draft's chats, the newest first, then the one from a draft that is gone.
+    await page.getByTestId("chat-list-toggle").click();
+    const list = page.getByTestId("chat-list");
+    await expect(list.getByTestId("chat-list-draft").getByTestId("chat-row")).toHaveCount(2);
+    await expect(list.getByTestId("chat-list-draft").getByTestId("chat-row").first()).toHaveAttribute("data-chat", "newchat002");
+    await expect(list.getByTestId("chat-list-draft").getByTestId("chat-row").first()).toHaveAttribute("aria-current", "true");
+    const earlier = list.getByTestId("chat-list-earlier").getByTestId("chat-row");
+    await expect(earlier).toHaveCount(1);
+    await expect(earlier).toContainText("The guide");
+    await expect(earlier).toContainText("1 turn");
+    await expect(earlier).toContainText("$0.30");
+
+    // An old chat opens as it was, and says a message carries it onto this draft.
+    await earlier.click();
+    await expect(list).toHaveCount(0);
+    await expect(page.getByTestId("chat-title")).toHaveText("The guide");
+    await expect(page.getByTestId("chat-reply")).toHaveText("Rewritten.");
+    await expect(page.getByTestId("chat-carried")).toBeVisible();
+    // It is the one opened again after a reload.
+    await page.reload();
+    await expect(page.getByTestId("chat-title")).toHaveText("The guide");
+    await write(page, "Carry on.");
+    expect(s.writes.at(-1)).toMatchObject({ call: "POST /drafts/draftdraft/chat", body: { chat: "oldchat001", text: "Carry on." } });
+    await expect(page.getByTestId("chat-carried")).toHaveCount(0);
+    s.say("turn", { status: "done", commit: null, costUsd: 0.05, reverted: false }, old);
+    old.running = false;
+    await expect(page.getByTestId("chat-working")).toHaveCount(0);
+
+    // Renamed in place, and deleted after asking: the page then has a new chat open.
+    await page.getByTestId("menu-chat-more").click();
+    await page.getByTestId("chat-rename").click();
+    await page.getByTestId("chat-title-input").fill("The guide, again");
+    await page.getByTestId("chat-title-input").press("Enter");
+    await expect(page.getByTestId("chat-title")).toHaveText("The guide, again");
+    expect(s.writes.at(-1)).toEqual({ call: "PATCH /chats/oldchat001", body: { title: "The guide, again" } });
+    await page.getByTestId("menu-chat-more").click();
+    await page.getByTestId("chat-delete").click();
+    await expect(page.getByTestId("chat-delete-confirm")).toBeVisible();
+    await page.getByTestId("chat-delete-yes").click();
+    await expect(page.getByTestId("chat-title")).toHaveText("New chat");
+    expect(s.writes.at(-1)!.call).toBe("DELETE /chats/oldchat001");
+    await page.getByTestId("chat-list-toggle").click();
+    await expect(page.getByTestId("chat-row")).toHaveCount(2);
+    await expect(page.getByTestId("chat-list-earlier")).toHaveCount(0);
+  });
+
+  test("a draft runs one turn at a time: another chat waits, says so, and leads to the one running", async ({ page }) => {
+    const s = await service(page, { login: "octo", save: true, chat: true, drafts: [draft({ save: NO_SAVE })] });
+    s.chat.title = "Running";
+    s.chat.turn = 1;
+    s.say("user", { text: "Work.", model: "sonnet", steer: false });
+    s.chat.running = true;
+    const idle = s.addChat({ id: "idlechat01", title: "Idle", updatedAt: "2026-11-01T12:00:00.000Z" });
+    s.say("reply", { text: "Earlier words." }, idle);
+
+    await page.goto("/cooling");
+    // The running chat is the one opened.
+    await expect(page.getByTestId("chat-title")).toHaveText("Running");
+    await expect(page.getByTestId("chat-working")).toBeVisible();
+    await page.getByTestId("chat-list-toggle").click();
+    await expect(page.locator('[data-testid="chat-row"][data-chat="chatchat01"]')).toHaveAttribute("data-running", "1");
+    await page.locator('[data-testid="chat-row"][data-chat="idlechat01"]').click();
+    await expect(page.getByTestId("chat-waiting")).toBeVisible();
+    await page.getByTestId("chat-input").fill("Meanwhile?");
+    await expect(page.getByTestId("chat-send")).toBeDisabled();
+    await page.getByTestId("chat-go-running").click();
+    await expect(page.getByTestId("chat-title")).toHaveText("Running");
+    await expect(page.getByTestId("chat-waiting")).toHaveCount(0);
+    await expect(page.getByTestId("chat-stop")).toBeVisible();
+  });
+
   test("at the cap no turn starts, and the page says why", async ({ page }) => {
     const s = await service(page, { login: "octo", save: true, chat: true, drafts: [draft({ save: NO_SAVE })] });
-    s.chat.cap = { spentUsd: 20, capUsd: 20 };
+    s.cap = { spentUsd: 20, capUsd: 20 };
     await page.goto("/cooling");
     await expect(page.getByTestId("chat-capped")).toBeVisible();
     await page.getByTestId("chat-input").fill("One more?");

@@ -65,3 +65,4 @@ that supersedes it.
 | [0057](./0057-a-draft-rewrites-its-puzzles-strings.md) | The studio's Text mode: a draft rewrites its puzzle's strings, and a puzzle has a category |
 | [0058](./0058-the-studios-chrome-has-a-look-of-its-own.md) | The studio's chrome has a look of its own: floating panels, teal for what acts, amber for what changed |
 | [0059](./0059-the-meter-counts-what-each-api-billed.md) | The meter counts what each API says it billed, and the generation scripts go through the proxy |
+| [0060](./0060-a-draft-has-many-chats-and-a-chat-outlasts-its-draft.md) | A draft has many chats, a chat outlasts its draft, and the page lists them |

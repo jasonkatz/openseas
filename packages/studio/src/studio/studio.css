@@ -1132,17 +1132,194 @@
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-auto-rows: auto;
 }
 .chat-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 2px 8px;
+  gap: 8px;
   min-height: 44px;
-  padding: 6px 10px 6px 16px;
+  padding: 6px 10px 6px 8px;
+}
+/* The list's button, with the open chat's name: what the owner presses to see every chat (ADR 0059). */
+.chat-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--st-r);
+  background: transparent;
+  color: var(--st-fg);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-switch:hover,
+.chat-switch[aria-expanded="true"] {
+  background: var(--st-hover);
+}
+.chat-switch-icon {
+  flex: none;
+  color: var(--st-muted);
+}
+.chat-switch-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-head-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chat-rename {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+}
+.chat-rename input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.chat-more {
+  min-width: 220px;
+  gap: 2px;
+  padding: 6px;
+}
+.chat-more .is-danger {
+  color: var(--st-danger, #c0392b);
+}
+.chat-delete-confirm {
+  display: grid;
+  gap: 8px;
+  padding: 6px 8px;
+}
+.chat-spend {
+  margin: 0;
+  min-height: 1.5em;
+  padding: 0 16px 6px;
   border-bottom: 1px solid var(--st-line);
+}
+/* The log, and the list laid over it when open. */
+.chat-body {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+.chat-latest {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: var(--st-float);
+}
+.chat-list {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
+  background: var(--st-surface);
+}
+.chat-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.chat-list-find {
+  width: 100%;
+}
+.chat-list section {
+  display: grid;
+  gap: 4px;
+}
+.chat-list ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chat-row {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--st-r);
+  background: transparent;
+  color: var(--st-fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-row:hover {
+  background: var(--st-hover);
+}
+.chat-row.is-current {
+  background: var(--st-accent-soft);
+  box-shadow: inset 2px 0 0 var(--st-accent-text);
+}
+.chat-row-new {
+  color: var(--st-accent-text);
+  font-weight: 500;
+}
+.chat-row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-row-meta {
+  font-size: 11.5px;
+}
+.chat-row-running {
+  color: var(--st-fg);
+}
+.chat-empty {
+  margin: 0;
+}
+.chat > .chat-carried,
+.chat > .chat-waiting {
+  margin: 0 12px 6px;
+  padding: 7px 10px;
+  border-radius: var(--st-r);
+  background: var(--st-well);
+}
+/* A reply and the button that copies it, which shows when the reply is pointed at or reached by the keyboard. */
+.chat-said {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.chat-copy {
+  justify-self: start;
+  font-size: 11.5px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.chat-said:hover .chat-copy,
+.chat-copy:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .chat-copy {
+    opacity: 0.7;
+  }
 }
 .chat-log {
   min-height: 0;
@@ -1544,4 +1721,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The open chat's own menu fits the chat's column. */
+.chat-head .menu-pop {
+  width: 260px;
 }

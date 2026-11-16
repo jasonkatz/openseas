@@ -205,8 +205,13 @@ export const RoundSummarySchema = z.object({
 });
 export type RoundSummary = z.infer<typeof RoundSummarySchema>;
 
+/** A chat's id (ADR 0060): the same shape as a draft's. The first chat of a draft from before chats were many has its draft's id. */
+export const ChatIdSchema = z.string().regex(/^[a-z0-9]{10}$/);
+
 /** A message to the agent: the owner's words, the model to run, and what the page knows that the service does not. */
 export const SendChatSchema = z.object({
+  /** The chat it goes to; null starts a new one. A chat from an earlier draft of the puzzle is carried onto this one (ADR 0060). */
+  chat: ChatIdSchema.nullable().default(null),
   text: z.string().trim().min(1).max(8000),
   model: ChatModelSchema,
   /** The last few rounds played, oldest first. */
@@ -252,16 +257,43 @@ export const ChatItemSchema = z.discriminatedUnion("kind", [
 ]);
 export type ChatItem = z.infer<typeof ChatItemSchema>;
 
-/** A draft's chat as the page reads it: the items after the one it last saw, whether a turn is running, and the money. */
-export const ChatStateSchema = z.object({
-  items: z.array(ChatItemSchema),
-  running: z.boolean(),
-  /** What this draft's chat has cost so far. */
+/**
+ * One of an owner's chats on a puzzle, as the list of them shows it (ADR 0060). A chat is on the
+ * puzzle's open draft, or on none: the draft it was on was discarded, or cleared when its pull
+ * request merged or closed. Such a chat can be read, and a message carries it onto the open draft.
+ */
+export const ChatSummarySchema = z.object({
+  id: ChatIdSchema,
+  puzzle: PuzzleIdSchema,
+  /** The owner's name for it, or the start of its first message until they give one. */
+  title: z.string(),
+  /** The draft it is on; null when that draft is gone. */
+  draft: z.string().nullable(),
+  /** How many turns it has run. */
+  turns: z.int().min(0),
+  /** What it has cost, in US dollars. */
   spentUsd: z.number(),
+  /** True while a turn of this chat runs. */
+  running: z.boolean(),
+  createdAt: z.iso.datetime(),
+  /** When something was last said in it. */
+  updatedAt: z.iso.datetime(),
+});
+export type ChatSummary = z.infer<typeof ChatSummarySchema>;
+/** An owner's chats on a puzzle, and the one cap all drafts share with what has been spent against it, for a chat not yet started. */
+export const ChatListSchema = z.object({ chats: z.array(ChatSummarySchema), cap: z.object({ spentUsd: z.number(), capUsd: z.number() }) });
+export type ChatList = z.infer<typeof ChatListSchema>;
+
+/** One chat as the page reads it: the items after the one it last saw, whether a turn is running, and the money. */
+export const ChatStateSchema = z.object({
+  chat: ChatSummarySchema,
+  items: z.array(ChatItemSchema),
+  /** True while a turn of another chat runs on the same draft: a draft runs one turn at a time, so this chat waits. */
+  busy: z.boolean().default(false),
   /** The one cap all drafts share, and what has been spent against it. */
   cap: z.object({ spentUsd: z.number(), capUsd: z.number() }),
-  /** The draft as the service now holds it: the agent's tool moves its numbers, and the page follows. */
-  draft: DraftSchema,
+  /** The chat's draft as the service now holds it: the agent's tool moves its numbers, and the page follows. Null for a chat whose draft is gone. */
+  draft: DraftSchema.nullable(),
   /** The words of the reply the agent is writing now, so far; empty when it is writing none (ADR 0055). */
   live: z.string().default(""),
 });
@@ -270,6 +302,12 @@ export type ChatState = z.infer<typeof ChatStateSchema>;
 /** A chat without its lines: what changes when a turn starts, spends, moves a number or ends. */
 export const ChatStatusSchema = ChatStateSchema.omit({ items: true, live: true });
 export type ChatStatus = z.infer<typeof ChatStatusSchema>;
+
+/** What a message answers: the chat it went to, new or not. */
+export const ChatSentSchema = z.object({ chat: ChatIdSchema });
+export type ChatSent = z.infer<typeof ChatSentSchema>;
+/** A chat's new name. */
+export const RenameChatSchema = z.object({ title: z.string().trim().min(1).max(120) });
 
 /**
  * One message of a chat's event stream (ADR 0055). `state`: the whole chat, sent first on every
@@ -334,6 +372,6 @@ export const StudioMeSchema = z.object({
 });
 export type StudioMe = z.infer<typeof StudioMeSchema>;
 
-export const StudioErrorCodeSchema = z.enum(["not_found", "withdrawn", "unauthorized", "forbidden", "bad_request", "conflict", "capped", "unavailable", "internal"]);
+export const StudioErrorCodeSchema = z.enum(["not_found", "withdrawn", "unauthorized", "forbidden", "bad_request", "conflict", "busy", "capped", "unavailable", "internal"]);
 export type StudioErrorCode = z.infer<typeof StudioErrorCodeSchema>;
 export const StudioErrorSchema = z.object({ error: StudioErrorCodeSchema });
