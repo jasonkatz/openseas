@@ -785,7 +785,10 @@ out). Amber is only for what the draft changes: the count on the bar, a mode's d
 number's dot, name, slider and the button that puts it back, and the band that says nothing is
 saved. Each of those is a shape or a word as well as a color. Titles and the small capital labels
 are set in Space Grotesk, everything else in Inter, and numbers, seeds and the status line in
-JetBrains Mono. The home grid, `/play` and the voyage bench keep the game's look.
+JetBrains Mono. The home grid and the voyage bench wear the same look: the same ground, panels,
+type and teal, and on the grid a puzzle with a draft open is marked in amber. `/play` stands on
+the same ground and is otherwise the game's: its board, HUD, cards and sheet are what a player
+sees.
 
 **Tuning.**
 

@@ -4,37 +4,8 @@
    only: a phone gets `/play`. Everything around the board is dense (`.st`) and has a look of its
    own (ADR 0058): panels floating on a blue-black ground, teal for what acts and what is picked,
    amber for what the draft changes. The board itself is drawn as `/play` draws it, in the game's
-   colors and typefaces. */
+   colors and typefaces. The `--st-*` variables are the whole studio's, in `look.css`. */
 .studio {
-  --st-canvas: #070b12;
-  --st-surface: #111823;
-  --st-raised: #18212e;
-  --st-well: #1b2532;
-  --st-hover: #222e3d;
-  --st-line: #222d3b;
-  --st-line-strong: #364558;
-  --st-fg: #e8edf2;
-  --st-muted: #a6b3c1;
-  --st-faint: #92a0b0;
-  --st-accent: #46a5a0;
-  --st-accent-text: #74c4be;
-  --st-accent-bg: #1f6f6c;
-  --st-accent-ink: #f2f8f8;
-  --st-accent-soft: #17383b;
-  --st-mark: #d19a4a;
-  --st-mark-text: #e0b06a;
-  --st-mark-soft: #3d2f1a;
-  --st-ok: #4caf7a;
-  --st-ok-text: #7fd0a0;
-  --st-danger: #f28b7d;
-  --st-float: 0 0 0 1px rgba(232, 237, 242, 0.07), 0 2px 8px rgba(0, 0, 0, 0.45);
-  --st-pop: 0 0 0 1px rgba(232, 237, 242, 0.12), 0 10px 32px rgba(0, 0, 0, 0.6);
-  --st-display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
-  --st-ui: "Inter", "Helvetica Neue", Arial, sans-serif;
-  --st-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --st-r: 6px;
-  --st-r-btn: 8px;
-  --st-r-panel: 13px;
   height: 100%;
   min-height: 0;
   display: grid;

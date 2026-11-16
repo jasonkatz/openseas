@@ -228,7 +228,6 @@ export function Home() {
   return (
     <main className="page home studio-home">
       <header className="masthead">
-        <p className="eyebrow">{t("studio.eyebrow")}</p>
         <h1 className="wordmark">{t("studio.title")}</h1>
         <div className="rule" aria-hidden="true" />
         <p className="muted">{t("studio.tagline")}</p>
