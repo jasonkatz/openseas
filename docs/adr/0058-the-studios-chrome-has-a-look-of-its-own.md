@@ -23,9 +23,9 @@ job of its own.
 
 ## Decision
 
-1. **The studio's chrome has its own palette, type and shape, held in `--st-*` variables on
-   `.studio`.** Nothing in `studio/src/studio/studio.css` reads the game's colors or typefaces
-   except the device the board sits in. The board, and everything `boards` draws, is untouched:
+1. **The studio's chrome has its own palette, type and shape, held in `--st-*` variables in
+   `studio/src/look.css`.** Nothing in `studio/src/studio/studio.css` reads the game's colors or
+   typefaces except the device the board sits in. The board, and everything `boards` draws, is untouched:
    it is still exactly what `/play` draws (ADR 0042 decision 11).
 
 2. **The regions float.** The bar, the rail, the panel and the chat are separate panels with
@@ -52,6 +52,17 @@ job of its own.
 7. **The bar carries the studio's name** before the puzzle's, from the message table's
    `studio.title`.
 
+8. **The home grid and the voyage bench wear the look too, without touching `boards`.** Both are
+   drawn with the shared board styles, which the game also loads. `look.css` points the game's
+   variables at the studio's on those two pages and restyles what a variable cannot reach (the
+   masthead, the tiles, buttons, fields and panels). On the grid a puzzle with a draft open is
+   marked in amber, since a draft is a change. The bench's chart colors are left as they were
+   checked.
+
+9. **`/play` gets the ground and nothing else.** Its board, HUD, start and result cards and
+   details sheet are the game's presentation, and a tester is there to judge the puzzle as a
+   player will see it.
+
 ## Alternatives considered
 
 - **A hairline, square-cornered console.** Mocked up and set aside: the soft panels were
@@ -60,13 +71,14 @@ job of its own.
   brass under another name.
 - **A light theme.** The mock-ups had one. Nothing else in the studio does, and the board is
   drawn for a dark ground.
-- **Restyling the home grid, `/play` and the voyage bench too.** They are drawn with the shared
-  board styles the game also uses. Giving the whole studio this look is a larger change to
-  `boards` and is left for its own decision.
+- **Restyling `/play`'s HUD, cards and sheet.** They are shared with the game, so a tester would
+  judge a puzzle in a look no player sees.
+- **Changing the shared board styles for the grid and the bench.** The game loads them; the
+  studio lays its own over them instead.
 
 ## Consequences
 
-- The studio's page no longer matches its own home grid, which keeps the game's look until it is
-  restyled.
+- The shared board styles now have a second reader with its own values: a rule added to them
+  for the game may need a line in `look.css` to sit right on the grid or the bench.
 - A new piece of chrome picks teal or amber by what it means, not by which looks better.
 - The page loads three more font families.

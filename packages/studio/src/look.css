@@ -1,0 +1,263 @@
+/* The studio's look (ADR 0058): its palette, type and shape as `--st-*` variables, and
+   that look laid over the pages drawn with the shared board styles: the home grid, the voyage
+   bench and the ground under `/play`. Imported last. A board, its HUD and its cards are never
+   restyled here: they are the game's. */
+:root {
+  --st-canvas: #070b12;
+  --st-surface: #111823;
+  --st-raised: #18212e;
+  --st-well: #1b2532;
+  --st-hover: #222e3d;
+  --st-line: #222d3b;
+  --st-line-strong: #364558;
+  --st-fg: #e8edf2;
+  --st-muted: #a6b3c1;
+  --st-faint: #92a0b0;
+  --st-accent: #46a5a0;
+  --st-accent-text: #74c4be;
+  --st-accent-bg: #1f6f6c;
+  --st-accent-ink: #f2f8f8;
+  --st-accent-soft: #17383b;
+  --st-mark: #d19a4a;
+  --st-mark-text: #e0b06a;
+  --st-mark-soft: #3d2f1a;
+  --st-ok: #4caf7a;
+  --st-ok-text: #7fd0a0;
+  --st-danger: #f28b7d;
+  --st-float: 0 0 0 1px rgba(232, 237, 242, 0.07), 0 2px 8px rgba(0, 0, 0, 0.45);
+  --st-pop: 0 0 0 1px rgba(232, 237, 242, 0.12), 0 10px 32px rgba(0, 0, 0, 0.6);
+  --st-display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --st-ui: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --st-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --st-r: 6px;
+  --st-r-btn: 8px;
+  --st-r-panel: 13px;
+}
+
+/* The ground: flat blue-black where the game has its lit grid. The studio's page paints its own. */
+body:has(.studio-home),
+body:has(.vpage),
+body:has(.puzzle.play) {
+  background: var(--st-canvas);
+}
+
+/* The shared styles read the game's variables; on these two pages they read the studio's. */
+.studio-home,
+.vpage {
+  --ink-900: var(--st-canvas);
+  --ink-800: var(--st-surface);
+  --ink-700: var(--st-raised);
+  --ink-600: var(--st-hover);
+  --parchment: var(--st-fg);
+  --parchment-dim: var(--st-muted);
+  --brass: var(--st-accent);
+  --brass-deep: var(--st-accent-bg);
+  --foam: var(--st-accent-text);
+  --danger: var(--st-danger);
+  --font-display: var(--st-display);
+  --font-body: var(--st-ui);
+  --radius: var(--st-r-panel);
+  color: var(--st-fg);
+  font-family: var(--st-ui);
+  font-size: 13px;
+}
+.studio-home .mono,
+.vpage .mono,
+.vpage code,
+.vpage pre {
+  font-family: var(--st-mono);
+}
+.studio-home :focus-visible,
+.vpage :focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 2px;
+}
+.studio-home .eyebrow,
+.vpage .eyebrow {
+  font-family: var(--st-display);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+}
+
+/* ---- the home grid */
+.studio-home .masthead {
+  padding-top: 20px;
+}
+.studio-home .wordmark,
+.vpage .vtitle {
+  margin: 0 0 6px;
+  font-family: var(--st-display);
+  font-size: 28px;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-shadow: none;
+}
+.studio-home .wordmark::first-letter {
+  color: inherit;
+}
+.studio-home .rule {
+  display: none;
+}
+.studio-home .section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--st-fg);
+}
+.studio-home .studio-tile,
+.studio-home .practice-tile.live {
+  border-radius: var(--st-r-panel);
+  background: var(--st-surface);
+  box-shadow: var(--st-float);
+}
+.studio-home .studio-tile:hover,
+.studio-home .studio-tile:focus-within,
+.studio-home .practice-tile.live:hover {
+  transform: none;
+  box-shadow:
+    0 0 0 1px var(--st-accent),
+    0 2px 8px rgba(0, 0, 0, 0.45);
+}
+.studio-home .studio-thumb {
+  background: var(--st-canvas);
+}
+.studio-home .tile-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.studio-home .tile-blurb {
+  font-size: 12.5px;
+}
+.studio-home .studio-tile-play {
+  border-top-color: var(--st-line);
+  color: var(--st-accent-text);
+  font-weight: 500;
+}
+/* A draft is a change, so its mark is amber, and still a word. */
+.studio-home .studio-mark {
+  background: var(--st-mark-soft);
+  color: var(--st-mark-text);
+  font-family: var(--st-display);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+/* ---- the voyage bench */
+.vpage .btn {
+  padding: 7px 12px;
+  border-radius: var(--st-r-btn);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: none;
+}
+.vpage .btn:active {
+  transform: none;
+}
+.vpage .btn-brass {
+  background: var(--st-accent-bg);
+  color: var(--st-accent-ink);
+  box-shadow: none;
+}
+.vpage .btn-brass:hover:not([disabled]) {
+  background: #258380;
+  filter: none;
+}
+.vpage .btn-ghost {
+  color: var(--st-fg);
+  box-shadow: inset 0 0 0 1px var(--st-line-strong);
+}
+.vpage .btn-ghost:hover:not([disabled]) {
+  background: var(--st-hover);
+}
+.vpage .bench,
+.vpage .vpanel {
+  border-radius: var(--st-r-panel);
+  background: var(--st-surface);
+  box-shadow: var(--st-float);
+}
+.vpage .bench-section,
+.vpage .vstatus,
+.vpage .vcrew-row,
+.vpage .vtile,
+.vpage .vtabs {
+  background: var(--st-well);
+  box-shadow: none;
+}
+.vpage .bench-section h3,
+.vpage .vpanel h3 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.vpage .bench-row > span:first-child {
+  font-family: var(--st-display);
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+}
+.vpage input[type="text"],
+.vpage input[type="number"],
+.vpage select,
+.vpage .vcrew-name {
+  border: 1px solid var(--st-line-strong);
+  border-radius: var(--st-r);
+  background: var(--st-surface);
+  color: var(--st-fg);
+  font-family: var(--st-ui);
+}
+.vpage .bench-row input[type="text"] {
+  font-family: var(--st-mono);
+}
+.vpage input:focus,
+.vpage select:focus {
+  border-color: var(--st-accent);
+}
+.vpage .vtabs button.is-on {
+  background: var(--st-surface);
+  color: var(--st-fg);
+  box-shadow: 0 0 0 1px var(--st-line-strong);
+}
+/* The name takes what the row has left, so the button beside it stays on its line. */
+.vpage .vcrew-row .bench-inline > .bench-inline {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.vpage .vcrew-name {
+  width: 0;
+}
+.vpage .vchip-captain {
+  background: var(--st-accent-soft);
+  color: var(--st-accent-text);
+}
+.vpage .vtile-value {
+  font-family: var(--st-mono);
+  font-weight: 500;
+}
+.vpage .vtable td {
+  border-top-color: var(--st-line);
+}
+.vpage .bench-pre {
+  background: var(--st-canvas);
+}
+
+/* The battle and the fight the bench shows are boards: inside them the game's variables are the game's again. */
+.vpage .vboard {
+  --ink-900: #070e1a;
+  --ink-800: #0b1526;
+  --ink-700: #121f36;
+  --ink-600: #1c2b48;
+  --parchment: #efe3c6;
+  --parchment-dim: #c9bb9a;
+  --brass: #d4a548;
+  --brass-deep: #9a7320;
+  --foam: #5ed3b8;
+  --danger: #f0604d;
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-body: "Atkinson Hyperlegible", "Avenir Next", "Segoe UI", sans-serif;
+  --radius: 14px;
+  color: var(--parchment);
+  font-family: var(--font-body);
+  font-size: 16px;
+}
