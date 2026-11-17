@@ -287,7 +287,7 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
           v.grade = f.grade;
           v.s.texture = this.texture(f.grade, f.hot);
           v.s.scale.set(1.26);
-          this.tweens.to(v.s, { scale: 1 }, 190, { ease: ease.outBack });
+          this.tweens.to(v.s, { scale: 1 }, 190, { ease: ease.outCubic });
           const x = g.x(f.cell);
           const y = g.y(f.cell);
           this.fx.burst(x, y, f.hot ? HOT : this.colorOf(f.grade), f.hot ? 14 : 6, f.hot ? 0.26 : 0.16, 3);
@@ -377,7 +377,7 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
         for (const f of scram.fresh) {
           const v = this.spawn(f.id, f.grade, f.cell);
           v.s.scale.set(0.2);
-          this.tweens.to(v.s, { scale: 1 }, 220, { ease: ease.outBack });
+          this.tweens.to(v.s, { scale: 1 }, 220, { ease: ease.outCubic });
         }
         sfx.swap();
       });
@@ -481,7 +481,7 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
       const across = port.side === 0 || port.side === 2;
       const color = status === "blocked" ? BLOCKED : PORT;
       const age = Math.min(1, (this.time - (this.portBorn.get(portKey(port)) ?? -10_000)) / 260);
-      const grow = age < 1 ? 0.3 + 0.7 * ease.outBack(age) : 1;
+      const grow = age < 1 ? 0.3 + 0.7 * ease.outCubic(age) : 1;
 
       // The lane the port serves: a faint band a hot rod must be in.
       const first = reactorPortCell(state.config, port);
@@ -568,7 +568,7 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
     const [dx, dy] = STEP[dir]!;
     const lean = Math.max(4, this.grid.cell * 0.07);
     this.tweens.to(this.rodLayer, { x: dx * lean, y: dy * lean }, 70, { ease: ease.outQuad });
-    this.tweens.to(this.rodLayer, { x: 0, y: 0 }, 130, { delay: 70, ease: ease.outBack });
+    this.tweens.to(this.rodLayer, { x: 0, y: 0 }, 130, { delay: 70, ease: ease.outCubic });
   }
 
   protected override pointerDown(x: number, y: number): void {

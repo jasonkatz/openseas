@@ -382,7 +382,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
       const toward = i === 0 ? 1 : -1;
       if (c.vertical) v.root.x = v.x + toward * apart;
       else v.root.y = v.y + toward * apart;
-      this.tweens.to(v.root, { x: v.x, y: v.y }, 200, { ease: ease.outBack });
+      this.tweens.to(v.root, { x: v.x, y: v.y }, 200, { ease: ease.outCubic });
       if (half.ore === null) {
         this.views.set(half.piece.id, v);
         return;

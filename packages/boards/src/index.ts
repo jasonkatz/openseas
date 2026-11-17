@@ -44,10 +44,15 @@ export { useKitBoard, type KitBoardProps } from "./kit/useKitBoard.js";
 export { KindIcon, type KindIconProps } from "./kit/KindIcon.jsx";
 export { SpriteIcon, type SpriteIconProps } from "./kit/SpriteIcon.jsx";
 export { INK, KINDS, kindStyle, spriteName, type PlaceholderKind, type Shape } from "./kit/art.js";
+export { PictogramIcon, type PictogramIconProps } from "./kit/PictogramIcon.jsx";
+export { pictogramUrl, paintPictogram, type Paint } from "./kit/pictogram.js";
 // Prototype boards (ADR 0036).
 export { SalvageBoard, type SalvageBoardProps } from "./salvage/SalvageBoard.jsx";
 export { OverloadBoard, type OverloadBoardProps } from "./overload/OverloadBoard.jsx";
+export { CapacitorIcon } from "./overload/CapacitorIcon.jsx";
 export { DeflectorsBoard, type DeflectorsBoardProps } from "./deflectors/DeflectorsBoard.jsx";
+export { DeflectorsMirrorIcon, DeflectorsSignIcon } from "./deflectors/SignIcon.jsx";
+export { DEFLECTORS_SIGNS } from "./deflectors/pieces.js";
 export { ReactorBoard, type ReactorBoardProps } from "./reactor/ReactorBoard.jsx";
 export { ScannerBoard, type ScannerBoardProps } from "./scanner/ScannerBoard.jsx";
 export { TugBoard, type TugBoardProps } from "./tug/TugBoard.jsx";

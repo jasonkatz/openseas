@@ -2,28 +2,45 @@
  * The base every prototype board's renderer extends (ADR 0036). It owns the PixiJS application, the
  * frame loop, the tween clock, the effects layer and the pointer plumbing, and it speaks the same
  * contract to the page and the smoke test as the game's hand-built boards: `setState`,
- * `setInteractive`, `setShowMarks`, `keyboard`, a `data-testid="<id>-canvas"` canvas, and a
- * `data-view` attribute that says what is drawn once the board has settled.
+ * `setInteractive`, `keyboard`, a `data-testid="<id>-canvas"` canvas, and a `data-view` attribute
+ * that says what is drawn once the board has settled.
+ *
+ * A board restyled to the brand book (docs/BRAND.md, ADR 0061, ADR 0062) says so with
+ * `protected override readonly drawn = true`. It then never loads an atlas, `sprite` always
+ * answers false, its canvas carries `data-pieces="drawn"` and no `data-sprite-atlas`, and it has
+ * no marks setting. It draws its pieces as pictograms (`piece`, `pictogram.ts`), sits on the bare
+ * ground (`paintGround`) and marks a big moment with `beat`. A board without the line keeps its
+ * atlas and its marks until it is restyled.
  *
  * A renderer draws and reports input. It never scores and never decides what a move does: it asks
  * the engine (CLAUDE.md, "boards is presentation and transport only").
  */
-import { Application, Container, Graphics, Rectangle, Texture, type FederatedPointerEvent } from "pixi.js";
-import { drawSprite, hasSprite, isSpritePuzzle, loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
+import { Application, CanvasSource, Container, Graphics, Rectangle, Texture, type FederatedPointerEvent } from "pixi.js";
+import { drawSprite, hasSprite, isSpritePuzzle, loadPuzzleSprites, spritesReady, type SpritePuzzle } from "../sprites/atlas.js";
 import { soundsFor } from "../audio.js";
 import { boardSurface } from "../surface.js";
+import type { Token } from "../look/tokens.js";
+import { drawGround } from "./art.js";
 import { Fx } from "./fx.js";
+import { pictogramCanvas, type Paint } from "./pictogram.js";
 import { Tweens } from "./tween.js";
 
 export abstract class KitBoard<S> {
   readonly app = new Application();
-  /** Everything the board draws. A shake moves it as one. */
+  /**
+   * True on a board restyled to the brand book: pieces drawn in code, no atlas, no marks. A
+   * subclass sets it as a field (`protected override readonly drawn = true`), which is assigned
+   * after this class's constructor has run, so nothing here reads it before `init`.
+   */
+  protected readonly drawn: boolean = false;
+  /** Everything the board draws. The beat swells it as one. */
   protected readonly world = new Container();
   protected readonly tweens = new Tweens();
   protected readonly reduced = typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
   protected readonly fx = new Fx(this.world, this.reduced);
   protected state: S | null = null;
   protected interactive = false;
+  /** The marks setting of a board not restyled yet. A restyled board never reads it. */
   protected showMarks: boolean;
   /** Ms since the board was made, for idle motion (a pulse, a shimmer). */
   protected time = 0;
@@ -45,12 +62,13 @@ export abstract class KitBoard<S> {
    * @param host the element the canvas fills.
    * @param id the puzzle id: the canvas is `data-testid="<id>-canvas"`, and the board's sprites are the atlas of that name.
    * @param onFrame called on the first settled frame after each new state, for the latency meter.
+   * @param showMarks the marks setting, for a board not restyled yet. A restyled board leaves it out.
    */
   constructor(
     protected readonly host: HTMLElement,
     private readonly id: string,
     private readonly onFrame: () => void,
-    showMarks: boolean,
+    showMarks = false,
   ) {
     this.showMarks = showMarks;
     if (this.reduced) this.tweens.rate = 4;
@@ -65,7 +83,7 @@ export abstract class KitBoard<S> {
 
   async init(): Promise<void> {
     // One decode a page (ADR 0037). An atlas that fails or times out leaves the code-drawn pieces.
-    if (isSpritePuzzle(this.id)) await loadPuzzleSprites(this.id);
+    if (this.atlas) await loadPuzzleSprites(this.atlas);
     await this.app.init({ resizeTo: this.host, backgroundAlpha: 0, ...boardSurface(), autoDensity: true, preference: "webgl" });
     if (this.destroyed) {
       this.app.destroy(true);
@@ -74,7 +92,9 @@ export abstract class KitBoard<S> {
     const canvas = this.app.canvas;
     canvas.style.touchAction = "none";
     canvas.setAttribute("data-testid", `${this.id}-canvas`);
-    canvas.setAttribute("data-sprite-atlas", isSpritePuzzle(this.id) && spritesReady(this.id) ? this.id : "fallback");
+    // A restyled board says its pieces are drawn in code and names no atlas; the rest say which art they drew.
+    if (this.drawn) canvas.dataset.pieces = "drawn";
+    else canvas.setAttribute("data-sprite-atlas", this.atlas && spritesReady(this.atlas) ? this.atlas : "fallback");
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.host.appendChild(canvas);
     this.app.stage.addChild(this.world);
@@ -132,8 +152,9 @@ export abstract class KitBoard<S> {
     if (this.ready) this.onInteractive(on);
   }
 
+  /** The marks setting of a board not restyled yet. A restyled board has none and ignores this. */
   setShowMarks(on: boolean): void {
-    if (this.showMarks === on) return;
+    if (this.drawn || this.showMarks === on) return;
     this.showMarks = on;
     if (this.ready) this.relayout();
   }
@@ -206,9 +227,50 @@ export abstract class KitBoard<S> {
     this.baked.clear();
   }
 
-  /** True when the board's atlas is loaded and holds `name`. A kind or a lab setting past the sheet has no frame. */
+  /** The atlas this board draws from: the one named for its puzzle, and none for a restyled board. */
+  private get atlas(): SpritePuzzle | null {
+    return !this.drawn && isSpritePuzzle(this.id) ? this.id : null;
+  }
+
+  /**
+   * A pictogram as a texture, kept until the next layout like `bake`: `paint` draws on the 24 unit
+   * square in `color`, and the texture is `size` CSS pixels square with the art at `fit` of it
+   * (20/24 by default). Put everything the drawing depends on in `key` (the piece, its state);
+   * the colour and the size are added. This is how a restyled board makes every piece.
+   */
+  protected piece(key: string, size: number, color: Token, paint: Paint, fit?: number): Texture {
+    const id = `piece:${key}:${color}:${size}:${fit ?? ""}`;
+    const hit = this.baked.get(id);
+    if (hit) return hit;
+    const resolution = this.app.renderer.resolution;
+    const texture = new Texture({ source: new CanvasSource({ resource: pictogramCanvas(size, color, paint, resolution, fit), resolution }) });
+    this.baked.set(id, texture);
+    return texture;
+  }
+
+  /**
+   * Paint the playfield into `g`: bare ground with one hairline round it, no frame and no grid
+   * (docs/BRAND.md section 3). The rectangle is also where the beat pulses, so give it the whole
+   * board: the grid and any strip drawn with it. Pass `hairline` false where the edge that matters
+   * is inside it (a grid with ports round it) and draw that one with `drawHairline`.
+   */
+  protected paintGround(g: Graphics, x: number, y: number, w: number, h: number, hairline = true): void {
+    drawGround(g, x, y, w, h, hairline);
+    this.fx.setFrame(x, y, w, h);
+  }
+
+  /**
+   * The beat (docs/BRAND.md section 6): one amber pulse of the whole board, 420ms, a still flash
+   * under reduced motion. `strength` is 0 to 1. Reserve it for the puzzle's named compound move and
+   * at most two other rare things; it is the only big effect a board has.
+   */
+  protected beat(strength = 0.5): void {
+    this.fx.beat(strength);
+  }
+
+  /** True when the board's atlas is loaded and holds `name`. A kind or a lab setting past the sheet has no frame. Never on a restyled board. */
   protected hasSprite(name: string): boolean {
-    return isSpritePuzzle(this.id) && hasSprite(this.id, name);
+    return this.atlas !== null && hasSprite(this.atlas, name);
   }
 
   /**
@@ -219,9 +281,11 @@ export abstract class KitBoard<S> {
    * The frame is drawn down once to about the pixels it is shown at, since a 192px frame sampled
    * straight into a 40px cell shimmers. `natural` is the size to draw it down for when `size` is animated.
    * `turns` draws the art that many quarter turns clockwise, for a sprite that is itself turned back.
+   * A restyled board has no atlas, so this is always false there.
    */
   protected sprite(g: Graphics, name: string, x: number, y: number, size: number, alpha = 1, natural = size, turns = 0): boolean {
-    if (!isSpritePuzzle(this.id) || !hasSprite(this.id, name) || size <= 0.5) return false;
+    const atlas = this.atlas;
+    if (!atlas || !hasSprite(atlas, name) || size <= 0.5) return false;
     const full = size * FRAME_FIT;
     const px = Math.max(FRAME_STEP, Math.ceil((natural * FRAME_FIT * this.app.renderer.resolution) / FRAME_STEP) * FRAME_STEP);
     const key = `${name}@${px}@${turns}`;
@@ -234,7 +298,7 @@ export abstract class KitBoard<S> {
       ctx.imageSmoothingQuality = "high";
       ctx.translate(px / 2, px / 2);
       ctx.rotate((turns * Math.PI) / 2);
-      drawSprite(ctx, this.id, name, -px / 2, -px / 2, px, px);
+      drawSprite(ctx, atlas, name, -px / 2, -px / 2, px, px);
       texture = Texture.from(canvas);
       this.frames.set(key, texture);
     }

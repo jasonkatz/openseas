@@ -2,7 +2,12 @@
  * The kit's animation clock (ADR 0036). A board schedules tweens and timers against it and asks
  * whether any are still running; a new engine state flushes whatever is left, so a board never
  * animates on top of a state it has already left behind.
+ *
+ * Motion is short and eased (docs/BRAND.md section 6): a move is 120ms, ease-out, and nothing
+ * bounces or overshoots; a removed piece shrinks to nothing in 160ms. `move` and `remove` are those
+ * two, so a board types neither number.
  */
+import { MOTION } from "../look/tokens.js";
 
 export type Ease = (t: number) => number;
 
@@ -13,10 +18,6 @@ export const ease = {
   inCubic: (t: number): number => t * t * t,
   outCubic: (t: number): number => 1 - (1 - t) ** 3,
   inOutCubic: (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2),
-  /** Overshoots a little and settles: a piece popping into place. */
-  outBack: (t: number): number => 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2,
-  /** Pulls back before it goes: a piece leaving. */
-  inBack: (t: number): number => 2.70158 * t * t * t - 1.70158 * t * t,
 } as const;
 
 export interface TweenOptions {
@@ -95,6 +96,16 @@ export class Tweens {
       done: opts.done ?? null,
     };
     this.items.push(item);
+  }
+
+  /** A move: `props` reached in 120ms, eased out. */
+  move(target: object, props: Tweenable, opts: TweenOptions = {}): void {
+    this.to(target, props, MOTION.move, opts);
+  }
+
+  /** A clear: the piece shrinks to nothing in 160ms. `done` is where the caller hides or frees it. */
+  remove(target: object, opts: TweenOptions = {}): void {
+    this.to(target, { scale: 0 }, MOTION.clear, opts);
   }
 
   /** Call `fn` once, `ms` from now. */

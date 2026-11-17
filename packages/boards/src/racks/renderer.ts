@@ -15,7 +15,7 @@ import {
   type RacksState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, FONT_DISPLAY, INK, drawMark, drawPanel, drawPiece, kindStyle, mix, spriteName } from "../kit/art.js";
+import { FONT, INK, drawMark, drawPanel, drawPiece, kindStyle, mix, spriteName } from "../kit/art.js";
 import { KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
 
@@ -110,7 +110,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
   protected build(): void {
     this.label = new Text({ text: "", style: { fontFamily: FONT, fontSize: 16, fontWeight: "700", fill: INK.text, letterSpacing: 0.4 } });
     this.label.anchor.set(0.5);
-    this.badgeText = new Text({ text: "", style: { fontFamily: FONT_DISPLAY, fontSize: 18, fontWeight: "900", fill: INK.black } });
+    this.badgeText = new Text({ text: "", style: { fontFamily: FONT, fontSize: 18, fontWeight: "900", fill: INK.black } });
     this.badgeText.anchor.set(0.5);
     this.crateBadge.addChild(this.badgeBox, this.badgeText);
     this.pieceLayer.sortableChildren = true;
@@ -205,7 +205,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
       d.anchor.set(0.5);
       this.digits.push(d);
       this.textLayer.addChild(d);
-      const p = new Text({ text: "", style: { fontFamily: FONT_DISPLAY, fontSize: 14, fontWeight: "900", fill: INK.gold, stroke: { color: 0x000000, width: 3 } } });
+      const p = new Text({ text: "", style: { fontFamily: FONT, fontSize: 14, fontWeight: "900", fill: INK.gold, stroke: { color: 0x000000, width: 3 } } });
       p.anchor.set(0.5);
       p.visible = false;
       this.previews.push(p);
@@ -446,7 +446,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
             v.s.zIndex = 2;
             const start = t + 70 + i * 55;
             this.tweens.after(start, () => sfx.pop(Math.min(9, (e.chain - 1) * 2 + i)));
-            this.tweens.to(v.s, { y: g.panelTop - g.cell, alpha: 0.1 }, 250, { delay: start, ease: ease.inBack, done: () => v.s.destroy() });
+            this.tweens.to(v.s, { y: g.panelTop - g.cell, alpha: 0.1 }, 250, { delay: start, ease: ease.inCubic, done: () => v.s.destroy() });
           });
           const done = t + 70 + (ids.length - 1) * 55 + 130;
           this.tweens.after(done, () => {
@@ -532,9 +532,9 @@ export class RacksRenderer extends KitBoard<RacksState> {
             this.hang(crate, -rise, 0);
             sfx.tick(false);
           });
-          views.forEach((v, j) => this.tweens.to(v.s, { y: this.hangY(j), alpha: 1 }, 210, { delay: t + 1, ease: ease.outBack }));
-          this.tweens.to(this.crateBack, { y: 0, alpha: 1 }, 210, { delay: t + 1, ease: ease.outBack });
-          this.tweens.to(this.crateBadge, { y: g.railY, alpha: 1 }, 210, { delay: t + 1, ease: ease.outBack });
+          views.forEach((v, j) => this.tweens.to(v.s, { y: this.hangY(j), alpha: 1 }, 210, { delay: t + 1, ease: ease.outCubic }));
+          this.tweens.to(this.crateBack, { y: 0, alpha: 1 }, 210, { delay: t + 1, ease: ease.outCubic });
+          this.tweens.to(this.crateBadge, { y: g.railY, alpha: 1 }, 210, { delay: t + 1, ease: ease.outCubic });
           t += 215;
           break;
         }
@@ -546,7 +546,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
       if (this.hung) this.hung = { ...this.hung, lands };
       this.drawBadge();
       this.crateBadge.scale.set(1.35);
-      this.tweens.to(this.crateBadge, { scale: 1 }, 220, { ease: ease.outBack });
+      this.tweens.to(this.crateBadge, { scale: 1 }, 220, { ease: ease.outCubic });
       sfx.tick(lands <= 1);
     }
     if (prev.combo >= 2 && state.combo === 0 && !report.events.some((e) => e.type === "spill")) at(t, () => sfx.streakLost());

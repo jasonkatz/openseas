@@ -3,10 +3,10 @@ import { expectViewMatchesState } from "./helpers.js";
 
 // Exercise the production build: a working dev URL is not enough for shared-package assets. Each
 // atlas is built from its frame files by the build (ADR 0054) and served under its own name.
-// The eight prototypes load theirs through the board kit (ADR 0037). The seven boards in the game are restyled: each
-// draws its pieces in code and loads no atlas (ADR 0062), so none is listed here.
+// The prototypes not restyled yet load theirs through the board kit (ADR 0037). The seven boards in the game and
+// the restyled prototypes (Overload, Deflectors) draw their pieces in code and load no atlas (ADR 0062), so none is listed here.
 const CORE: string[] = [];
-const PROTOTYPES = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting"];
+const PROTOTYPES = ["salvage", "reactor", "scanner", "tug", "racks", "cutting"];
 
 for (const puzzle of [...CORE, ...PROTOTYPES]) {
   test(`${puzzle} atlas loads, draws, and survives a resize`, async ({ page }, testInfo) => {
@@ -171,16 +171,54 @@ test("an unavailable atlas falls back to playable procedural art", async ({ page
   expect(errors).toEqual([]);
 });
 
-test("a kit board with no atlas draws its pieces in code and still plays", async ({ page }) => {
+test("a kit board whose atlas is unavailable draws its pieces in code and still plays", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/*.webp", (route) => route.abort());
+  await page.goto("/play/reactor?seed=sprite-smoke&start=lab");
+  const canvas = page.getByTestId("reactor-canvas");
+  await expect(canvas).toHaveAttribute("data-sprite-atlas", "fallback");
+  await expectViewMatchesState(page, "reactor");
+  // A swipe the board cannot make is refused, so try each way: one of them moves.
+  for (const key of ["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"]) await page.keyboard.press(key);
+  await expect(page.getByTestId("hud-moves")).not.toHaveText("0");
+  await expectViewMatchesState(page, "reactor");
+  expect(errors).toEqual([]);
+});
+
+test("Overload, a restyled kit board, asks for no atlas and plays on capacitors drawn in code", async ({ page }) => {
+  const errors: string[] = [];
+  const images: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (r) => {
+    if (r.url().endsWith(".webp")) images.push(r.url());
+  });
   await page.goto("/play/overload?seed=sprite-smoke&start=lab");
   const canvas = page.getByTestId("overload-canvas");
-  await expect(canvas).toHaveAttribute("data-sprite-atlas", "fallback");
+  await expect(canvas).toHaveAttribute("data-view", /.+/);
+  await expect(canvas).toHaveAttribute("data-pieces", "drawn");
+  await expect(canvas).not.toHaveAttribute("data-sprite-atlas");
   await expectViewMatchesState(page, "overload");
   await page.keyboard.press(" ");
   await expect(page.getByTestId("hud-moves")).toHaveText("1");
   await expectViewMatchesState(page, "overload");
+  expect(images).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("Deflectors, a restyled kit board, asks for no atlas and plays on mirrors drawn in code", async ({ page }) => {
+  const errors: string[] = [];
+  const images: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (r) => {
+    if (r.url().endsWith(".webp")) images.push(r.url());
+  });
+  await page.goto("/play/deflectors?seed=sprite-smoke&start=lab");
+  const canvas = page.getByTestId("deflectors-canvas");
+  await expect(canvas).toHaveAttribute("data-view", /.+/);
+  await expect(canvas).toHaveAttribute("data-pieces", "drawn");
+  await expect(canvas).not.toHaveAttribute("data-sprite-atlas");
+  await expectViewMatchesState(page, "deflectors");
+  expect(images).toEqual([]);
   expect(errors).toEqual([]);
 });
