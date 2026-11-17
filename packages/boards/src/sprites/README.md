@@ -14,7 +14,6 @@ sprites. Keep optional accessibility badges and labels in code.
 | Puzzle | Runtime use |
 |---|---|
 | engines | Trefoil, ring and three-spoke discs and their hollow targets; the extra lab kind stays procedural |
-| navigation | Gold, ice and ember spark/star/comet; hollow target silhouettes |
 | swordfight | Four single-cell block and breaker skins, stone and ripening stone |
 | battle | Friendly and raider starfighters, asteroids, gravity wells and slugs |
 

@@ -210,7 +210,7 @@ function GunneryDuty({ active, children }: DutyProps) {
 
 const navigation = content.puzzles.navigation;
 const navigationWait = (tick: number): NavigationMove => ({ type: "wait", tick });
-function NavigationDuty({ active, showMarks, children }: DutyProps) {
+function NavigationDuty({ active, children }: DutyProps) {
   const api = useDuty<NavigationState, NavigationMove, NavigationConfig>({ puzzle: "navigation", def: NAVIGATION_DEF, config: navigation.config, roundSeconds: navigation.roundSeconds, active });
   const { shown, moveTick } = useTicked(api, { tickMs: navigation.config.tickMs, maxTick: navigation.config.maxTick, advance: advanceNavigation, wait: navigationWait });
   const onRotate = useCallback((ring: number, dir: -1 | 1): boolean => api.apply({ type: "rotate", ring, dir, tick: moveTick() }), [api, moveTick]);
@@ -229,7 +229,7 @@ function NavigationDuty({ active, showMarks, children }: DutyProps) {
     score: shown.score,
     combo: shown.combo,
     board: (interactive) => (
-      <NavigationBoard state={shown} interactive={interactive} showMarks={showMarks} showMarkers hints={false} onRotate={onRotate} onDrop={onDrop} onFrame={api.markRendered} onEvents={onEvents} onNudge={onNudge} />
+      <NavigationBoard state={shown} interactive={interactive} showMarkers hints={false} onRotate={onRotate} onDrop={onDrop} onFrame={api.markRendered} onEvents={onEvents} onNudge={onNudge} />
     ),
   });
 }

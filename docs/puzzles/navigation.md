@@ -24,7 +24,8 @@ A duty station: the nav console, the one station no bot works. Its output grants
 
 A round star chart of three rings and eight octants,
 with time carried in the move log as in Gunnery (ADR 0015). Stars come in three shapes (spark, star,
-comet) and three colors, so shape alone tells kinds apart; marks add the color's symbol. The
+comet) and three colors, and a kind is one of each: the shape is the star's outline and the color
+carries a cut-out of its own, so any two kinds are told apart with the color taken away. The
 constellation is a set of hollow markers fixed to the chart, each wanting a kind in a slot, joined
 by faint lines so it reads as a figure. Stars fall one at a time from the sky into the top octant,
 taking `fallTicks` at the start of the round and quickening to `fallTicksMin` by the end; the
@@ -51,17 +52,48 @@ landings count, and the server refuses a tick ahead of the wall clock. The round
 
 Touch drags or taps a ring to turn it and taps the sky, the falling star or
 the center to bring it down; keyboard picks a ring with up and down, turns with left and right,
-drops with enter or space. Reading aids: a dotted path from the star to the ring where it will rest,
-gold when that spot is its own marker, a red cross and a red outer band when the column is shut;
-markers wanting the falling star's kind beckon; in unrated rounds, after a pause, chevrons point at
-the ring to turn and which way, from a search over the rings' turns. A toggle hides the markers for
-players who want to chart from memory; a meter shows filled markers. The chart is as wide as the
-screen, with a small hub and a thin rim so the rings get the width; the top octant is tinted as
-the lane stars fall down. On a phone held upright the height left over holds a row of turn
+drops with enter or space. On a phone held upright the height left over holds a row of turn
 buttons per ring, outermost first, and a button to bring the star down, so a turn is one tap
-rather than a drag on a narrow ring. Landings glow, a charted
-constellation flashes its lines and bursts, a run clears with a popup, a lost heading shakes the chart.
-Numbers live in `content/data/puzzles/navigation.json`.
+rather than a drag on a narrow ring. In unrated rounds, after a pause, chevrons point at the ring
+to turn and which way, from a search over the rings' turns. A toggle hides the markers for players
+who want to chart from memory; a meter shows filled markers.
+
+The board follows the brand book (`docs/BRAND.md`): flat colours from the one palette, no frame, no
+spokes, no textures.
+
+- **The chart** is as wide as the screen: bare ground with one hairline round it. Each ring is a
+  flat band, every other one a shade nearer the ground, so a ring reads as a thing that turns. The
+  top octant, the lane stars fall down, is a shade lighter. Every empty slot has a small dot. The
+  hub is bare ground.
+- **The stars** are pictograms drawn in code (`boards/src/navigation/stars.ts`). A star is two
+  things at once, a shape and a colour, and both matter to play. The shape is the outline: the
+  spark has four points set on the diagonals, the star five with one up, the comet a round head low
+  on the right with its tail drawn out to the upper left. A colour cannot have an outline of its
+  own, so each carries one cut-out, the same on every shape: sand a round hole, sky a band across
+  that cuts the star in two, rose a cut down the middle. Any two stars that differ in shape or in
+  colour are told apart in one flat colour. Content names each colour's palette colour and its
+  cut-out, and checks no two colours share one. There is no marks setting on this board.
+- **A marker** is the same star hollow: its outline as a line in its colour, with the colour's
+  cut-out drawn solid inside it, a little larger than a star so the outline shows round the star
+  that fills it. The constellation's markers are joined in order round the chart by hairlines,
+  which turn cream where both ends hold their stars.
+- **The falling star** runs a dotted cream path down to where it will rest. **Amber is the
+  player's own:** the ring round that resting place, bold when the slot is the star's own marker,
+  and the two circles round the ring the keyboard or a turn button picked. Markers that want the
+  falling star's kind are ringed in a cream hairline. Red is only the shut column: the path's dots,
+  a cross on the outer slot at the top and the chart's edge.
+- **The next star** waits beside the lane under its label.
+
+A turn is the ring swinging a step, and a landing or a slide is the star gliding to its slot, each
+in the brand's one move, eased and never past its place. A star that is charted, cleared in a run
+or swept by a lost heading shrinks to nothing. A charted constellation is named in a callout with
+its points in the mono face; a run's points rise from where it cleared; a lost heading is named in
+red with what it cost. Nothing shakes, bursts, sparkles or glows (`docs/BRAND.md` section 6).
+**The beat**, one amber pulse of the whole board, is kept for two things: swift charting (the
+compound move: a constellation charted in fewer than 2n landings), stronger the more landings it
+saved, and the charting that takes the chain to its top multiplier. Reduced motion turns the turns
+and glides into cuts and keeps the beat as a still flash. Numbers live in
+`content/data/puzzles/navigation.json`.
 
 ## Engine
 

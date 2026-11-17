@@ -299,14 +299,15 @@ export function contentProblems(content: Content): string[] {
     if (nav.config.maxTick * nav.config.tickMs < nav.roundSeconds * 1000) problems.push("puzzles/navigation: maxTick * tickMs must cover roundSeconds");
     if (nav.config.fallTicksMin > nav.config.fallTicks) problems.push("puzzles/navigation: fallTicksMin above fallTicks");
     if (nav.config.maxStars > nav.config.rings * nav.config.octants) problems.push("puzzles/navigation: maxStars exceeds the chart's slots");
+    // A star's outline is its shape, so the cut-out is all that tells two colours apart with the colour taken away (rule 6).
     const seenColor = new Set<string>();
-    const seenMark = new Set<string>();
+    const seenCut = new Set<string>();
     for (const c of nav.colors) {
       need(c.nameKey, "navigation color");
       if (seenColor.has(c.color)) problems.push(`puzzles/navigation: color "${c.color}" used twice`);
-      if (seenMark.has(c.mark)) problems.push(`puzzles/navigation: mark "${c.mark}" used twice; every color must differ by mark (rule 6)`);
+      if (seenCut.has(c.cut)) problems.push(`puzzles/navigation: cut-out "${c.cut}" used twice; every color must have a cut-out of its own (rule 6)`);
       seenColor.add(c.color);
-      seenMark.add(c.mark);
+      seenCut.add(c.cut);
     }
     const seenShape = new Set<string>();
     for (const sh of nav.shapes) {

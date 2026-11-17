@@ -215,7 +215,7 @@ test("Navigation plays alone on /play: a round turns a ring by key and brings st
   await expect.poll(landed).toBeGreaterThan(beforeKey);
   await expectViewMatchesState(page, "navigation");
 
-  // Pointer: a tap on the compass rose in the center brings the next star down.
+  // Pointer: a tap on the hub in the center brings the next star down.
   const before = await landed();
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no canvas box");

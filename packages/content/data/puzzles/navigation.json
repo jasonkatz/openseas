@@ -30,9 +30,9 @@
     { "score": 950, "rating": 2100 }
   ],
   "colors": [
-    { "nameKey": "navigation.color.gold", "mark": "circle", "color": "#f5d021" },
-    { "nameKey": "navigation.color.ice", "mark": "triangle", "color": "#7fd7ff" },
-    { "nameKey": "navigation.color.ember", "mark": "square", "color": "#ff6b5e" }
+    { "nameKey": "navigation.color.sand", "color": "sand", "cut": "dot" },
+    { "nameKey": "navigation.color.sky", "color": "sky", "cut": "band" },
+    { "nameKey": "navigation.color.rose", "color": "rose", "cut": "split" }
   ],
   "shapes": [
     { "nameKey": "navigation.shape.spark", "shape": "spark" },
