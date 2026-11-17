@@ -10,13 +10,5 @@
   "boards/src/salvage/renderer.ts",
   "boards/src/scanner/renderer.ts",
   "boards/src/sprites/atlas.ts",
-  "boards/src/tug/renderer.ts",
-  "client/src/crew/Flag.tsx",
-  "client/src/crew/flag.ts",
-  "client/src/pirate/Portrait.tsx",
-  "client/src/shell/TopBar.tsx",
-  "client/src/world/models.ts",
-  "client/src/world/outpost.ts",
-  "client/src/world/pirate.ts",
-  "client/src/world/scene.ts"
+  "boards/src/tug/renderer.ts"
 ]

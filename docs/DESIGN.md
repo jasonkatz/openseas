@@ -206,9 +206,12 @@ panels, a shuttle up on blocks, a solar sail folded over its rack with coils of 
 on its tripod, space junk, survey rovers trundling along the edge, and warning lamps on the lip.
 On the floor: the outpost's plant (tanks, cargo and vent stacks) and stands of crystal. Every
 outpost is built from a PRNG seeded by its id and laid out the same way, mirrored or not, so they
-are siblings that read apart by landmark and ground: lilac regolith in a slate rim under Tinwick's
-beacon tower (a lattice mast), burnt-ochre regolith in a rust rim under Echo Rock's dish, frozen
-ground in black rock round Frostvent's geyser. The order the dice are rolled in is part of the
+are siblings that read apart by landmark and, a little, by ground. Every rock is the palette's
+dark ground tones (M10, `BRAND.md` 7): a floor near `raised` inside a rim and over a face near
+`line`. Tinwick's, under its beacon tower (a lattice mast), is plain; Echo Rock's, under its dish,
+is warmed a breath with rust; Frostvent's, round its geyser, is cooled with ice inside a darker
+rim. What is built on a rock is plate from `line` up to `slate`, with a muted colour on a few
+props and amber for a lamp, a lit window and a beacon. The order the dice are rolled in is part of the
 layout. ADR 0035's redraw rolled them afresh, so props stand in new places; the dock, the
 buildings, their doors, the landmark and the berths' order are where they were. What is built
 never depends on the renderer, so every client walks the same grid, and a unit test walks each
@@ -252,15 +255,18 @@ v1: a look is a free choice, not something owned.
 scene from their name and likeness in the top bar, the same everywhere, and has three tabs.
 
 - **Pirate: the look and the title.** A look is a jacket color and headgear, chosen from
-  `pirates.json` at no cost and changed any time. A "surprise me" die rolls one. Until a pirate
+  `pirates.json` at no cost and changed any time. A jacket names one of the palette's twelve player
+  colours and holds no value of its own (ADR 0061): sky, brick, moss, plum, sand, slate, teal and
+  olive, under the ids pirates already wear (`navy`, `crimson`, `forest`, `plum`, `ochre`, `slate`,
+  `teal`, `pitch`). The likeness is flat fills from the same palette, with no outline or shading. A "surprise me" die rolls one. Until a pirate
   picks, they wear a look drawn from their id, so new crews still look mixed. The look shows as
   the pirate's likeness (head and shoulders) on their sheet, their card and the top bar, and
   their walking figure wears it on the outpost and the deck (3.11), so others see it. The
   headgear are a bubble helmet, goggles pushed up into spiked hair, a wide brim, a flight cap with
   ear flaps and a beanie with a bobble: each has its own silhouette and every jacket is named in
   the picker, so a look reads without color (rule 6). A bot is a robot and wears no look, so bots stay distinct (3.4). A captain's headgear
-  carries a crest, a red blade standing fore and aft, whatever its shape, and the player's own
-  pirate still stands in the brass ring.
+  carries a crest, a cream blade standing fore and aft, whatever its shape, and the player's own
+  pirate still stands in the amber ring.
   The title is chosen from the ones the pirate has earned, or none, and shows under their name on
   their card.
 - **Record: what they have done.** Pirate since, voyages flown, voyages as captain, raiders
@@ -288,7 +294,11 @@ in at most one crew.
 - **Flags.** A field color, an accent color, a pattern (plain, band, pale, cross, saltire,
   quarters, border, chevron) and an emblem (skull, rocket, ringed planet, satellite, star, crossed
   swords, crescent moon, gear, crown, flame), all content ids in `crews.json`. Field and accent must
-  differ. Every pattern and emblem is its own shape and the emblem is outlined in the field color,
+  differ. A flag colour names a palette colour and holds no value of its own (ADR 0061): six of
+  the player colours (brick, sand, sky, moss, plum, rust), and `cream` and `ground` for a light
+  and a dark cloth, under the ids crews already fly (`crimson`, `gold`, `deep`, `moss`, `plum`,
+  `rust`, `bone`, `pitch`). A flag is flat fills inside a `line` hairline, so a dark one still has
+  an edge on the dark page. Every pattern and emblem is its own shape and the emblem is outlined in the field color,
   so flags tell apart without color (rule 6). A "surprise me" die rolls one.
 - **Ranks.** Commodore, officer, spacer, each with its own mark. The commodore sets ranks, changes
   the flag, hands over command (staying on as an officer) and may put anyone out; officers invite
@@ -386,7 +396,8 @@ carries one cut-out no other has (`BRAND.md` section 3). Each puzzle's design fi
   every open cell has a dot because cells are counted.
 
 Geometry, hit areas and scores stay in code as they were. The world is drawn in code from primitives
-(3.11) and is restyled in M10's fourth step.
+(3.11) and wears the same palette since M10's fourth step: its colours are tokens and flat tints
+between them (`client/src/world/tones.ts`), and no file in the game's client types a colour.
 
 **The eight prototypes** are not restyled yet (M10's fifth step). They still use generated 2D sprite
 atlases (ADR 0037), one lossless file a frame, packed by the build (ADR 0054), with a code-drawn
@@ -433,16 +444,22 @@ the desired approach; the parts marked open are decided as they are built.
   layer over it (ADR 0020); the studio and the game share board code through `boards` (ADR 0019).
 
 As built (M3; redrawn for space in M7, ADR 0034): the world is an isometric diorama of primitives
-hanging in the void, filling the viewport from sign-in to sign-out. The void is a starfield and a
-nebula drawn behind everything: one quad that covers the screen, so the stars stay round and far at
-every zoom, sliding a little as the view moves and swings; its nebula is a small noise texture made
-once, so it costs a phone almost nothing. Dust drifts over the chart and courier drones circle the
+hanging in the void, filling the viewport from sign-in to sign-out. The void is the `ground`
+colour with a sparse field of small `cream` stars (M10, `BRAND.md` 7), drawn behind everything:
+one quad that covers the screen, so the stars stay round and far at every zoom, sliding a little
+as the view moves and swings. There is no nebula, no gradient and no twinkle. Dust drifts over the chart and courier drones circle the
 outposts. The three outposts each carry the landmark their content names (a beacon tower whose
 beam sweeps, a radar dish that turns, an ice geyser that vents), a cantina, a dock with a lamp and
 the notice board at its foot; lanes are dashed curves from rim to rim with a nav buoy turning at
 the midpoint, so a leg's progress is progress across the gap; every ship with a crew is a skiff
-model hovering at a dock or easing along its lane between turns, her engines lit under way. There
-is no air, so no haze: one hard sun, a cool light from the far side, and starlight. The view is
+model hovering at a dock or easing along its lane between turns, her engines lit under way: a
+flat cream blade from each bell. The world is lit by an even fill and one soft key light, both
+white: a face turned up to the key is its own colour and one turned away is about a fifth under,
+enough to give a box its corners. Nothing casts a shadow but a figure, which stands on a flat
+circle of the ground's colour so it does not float. There is no rim light, no tone mapping and
+nothing drawn after the scene, so a colour reaches the screen as its token. The player's own ship,
+and the one they are aboard, wear amber trim (the band round the hull, the nose, the bare flag
+panel); nobody else's does. The view is
 the game: it takes the screen, and the camera glides between three kinds of focus: the outpost the
 pirate stands on (home, filling the frame), the deck of the ship they are aboard (the hull itself
 filling the frame as its own little place, cut away so her one room shows, dust kept off it,
@@ -473,7 +490,7 @@ and hands the captain the helm; boards are dealt back to back while the ship is 
 station standing down or the ship docking cuts the board short, and the board returns to the
 deck. Docked ships tie up alongside the dock, the first on its near side and the next on its far. One menu holds sound, the
 marks setting, the account and sign-out. Toasts carry what happens aboard. A software renderer draws
-the same world more cheaply (no shadows, no antialiasing, a fixed budget of pixels whatever the
+the same world more cheaply (no antialiasing, a fixed budget of pixels whatever the
 window's size) and a board one pixel per pixel; without WebGL the cards still carry every action.
 
 As built (M5; redrawn for space in M7, ADR 0034): the outpost and the deck are walked, not only
@@ -481,7 +498,7 @@ tapped (3.5, ADR 0032). The pegs are figures: small jointed pirates that walk, i
 vent lever worked up and down at the heat sinks, a throttle in each hand at the drive console, a
 welder run along a plate at the patch bay, a load rammed at a turret, the star chart traced, the
 helm's yoke held. Each kind reads apart by shape before color, as rule 6 asks: the player's own
-pirate stands in a brass ring drawn over everything (so they can be found behind a pod or a tail
+pirate stands in an amber ring drawn over everything (so they can be found behind a pod or a tail
 fin), a pirate wears the jacket and headgear of their look (3.6), a captain's headgear carries the
 crest, and a bot is not a person at all: a ball of a body on one wheel with a band of paint, one
 lamp for an eye, an aerial and a tool arm, half a pirate's height. It rolls where a pirate walks,
@@ -492,7 +509,7 @@ roomy for a crew: about eleven pirates long and five across. Nothing of a boat i
 skids: the bridge forward under a canopy, a nose cone and a probe ahead of it, two engine bells in
 the stern, a ball turret pair in each side, an airlock amidships and a tail fin on the roof that
 carries the crew's emblem. Her crew's flag is painted on each slope of the roof, and running lights
-burn red to port and green to starboard. Aboard she is cut away like a model with its lid off: the
+burn rose to port and moss to starboard. Aboard she is cut away like a model with its lid off: the
 roof, the canopy and the side wall nearest the camera are not drawn, the far wall stands as the
 back of the room with its ports and panels, and the deck is the floor of one long room, so nothing
 of her hull ever stands between the camera and a station. The gear stands against the walls and the
@@ -510,13 +527,13 @@ fits, each station's label stands beside its pin rather than in the columns: jus
 name (a bot's with a dashed dot), placed where it covers no other label or pin. A station off
 screen waits at the edge nearest it with an arrow its way, as does the player's own ship to board
 when she is out of view on the outpost. No label, pin, name tag or ship's name ever covers the
-player's own pirate, and none goes under the card. The brass "your ship" marker shows on the chart
+player's own pirate, and none goes under the card. The amber "your ship" marker shows on the chart
 only. Boarding brings the pirate in through the airlock, and the captain walks straight to the
 helm. A tap on a station walks the pirate to it and opens its board, and a tap on the deck walks
 there. Every station, the helm and the airlock keep their spot and the card keeps its buttons,
 which act at once. Shipmates are seen walking the deck, and a change of station walks a pirate to
 the new one on every screen. Static scenery is merged into a few meshes, so the extra detail costs
-a phone almost no draw calls, and the sun's shadows tighten on whatever is in focus. Dust drifts
+a phone almost no draw calls. Dust drifts
 over the chart only.
 
 **The puzzle studio** is a separate application for testing and tuning the puzzles themselves, at

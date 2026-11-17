@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { PirateLookWire, ShipLocation, StationWire } from "@openseas/protocol";
-import { LINK_FROM_KEY, content, sfx, t, usePirate } from "@openseas/boards";
+import { LINK_FROM_KEY, content, ink, sfx, t, usePirate } from "@openseas/boards";
 import { CrewDialog } from "../crew/CrewDialog.jsx";
 import { ProfileCard } from "../crew/ProfileCard.jsx";
 import { PirateSheet } from "../pirate/PirateSheet.jsx";
-import { jacketHex, lookFor } from "../pirate/look.js";
+import { jacketColor, lookFor } from "../pirate/look.js";
 import { ChartCard } from "../chart/ChartCard.jsx";
 import { OutpostCard } from "../outpost/OutpostCard.jsx";
 import { outpostName, stationName, tierName } from "../names.js";
@@ -44,7 +44,7 @@ function once(key: string): boolean {
 
 /** A look as the world's figures take it: the jacket as a color, the headgear by id. */
 function figureLook(look: PirateLookWire): DeckCrew["look"] {
-  return { jacket: parseInt(jacketHex(look.jacket).slice(1), 16), headgear: look.headgear };
+  return { jacket: ink(jacketColor(look.jacket)), headgear: look.headgear };
 }
 
 function worldLocation(l: ShipLocation): WorldShipLocation {

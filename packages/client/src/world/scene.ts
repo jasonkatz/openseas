@@ -17,8 +17,9 @@ import { unseen } from "./batch.js";
 import { WALL_TOP } from "./deck.js";
 import { CameraRig, isoDirection, type View } from "./camera.js";
 import { DOCK, buildOutpost, type Building, type Door, type OutpostModel } from "./outpost.js";
-import { HULL_HALF, MARKER_Y, PALETTE, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildDust, buildBoardingTube, buildDrone, buildShip, dressShip, type BuoyModel, type DeckPost, type DroneModel, type ShipModel, type Station } from "./models.js";
+import { HULL_HALF, MARKER_Y, SHIP_SCALE, SHIP_SINK, STATION_ORDER, buildBuoy, buildDust, buildBoardingTube, buildDrone, buildShip, dressShip, type BuoyModel, type DeckPost, type DroneModel, type ShipModel, type Station } from "./models.js";
 import { PIRATE_HEIGHT, buildPirate, workFor, type FigureLook, type PirateFigure, type PirateKind } from "./pirate.js";
+import { CREAM, TONES } from "./tones.js";
 import { buildVoid, type VoidBackdrop } from "./void.js";
 import { Walker, type Spot as WalkSpot, type WalkGrid } from "./walk.js";
 
@@ -128,7 +129,7 @@ export interface WorldInput {
   /** The outpost the player stands on, flagged. */
   here: string | null;
   focus: Focus;
-  /** The selected outpost, ringed in brass. */
+  /** The selected outpost, ringed in amber. */
   selected: string | null;
   /** Outposts the player may pick, ringed faintly. */
   reachable: string[];
@@ -192,6 +193,10 @@ const SPOT_DY = -12;
 /** A software renderer draws about this many pixels a frame, and never fewer than this share of the window's own each way. */
 const SOFT_PIXELS = 320_000;
 const SOFT_MIN_RATIO = 0.5;
+/** The even fill, as the share of its own colour a face shows whichever way it is turned. */
+const FILL = 0.78;
+/** What the key light adds to a face turned straight at it. A face turned up gets about two thirds of this. */
+const KEY = 0.3;
 
 /** A tappable thing hung on the geometry: a pin at the anchor, a label beside it, a leader between. */
 interface Spot {
@@ -275,9 +280,8 @@ export class WorldScene {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly rig = new CameraRig();
+  /** The one key light. It only leans: where it stands from the world is `sunOffset`. */
   private readonly sun: THREE.DirectionalLight;
-  /** A cool light from the far side, so a rock's shaded faces read against the void. */
-  private readonly rim: THREE.DirectionalLight;
   private readonly backdrop: VoidBackdrop;
   private readonly labels: HTMLDivElement;
   private readonly outposts = new Map<string, OutpostView>();
@@ -336,13 +340,11 @@ export class WorldScene {
   ) {
     this.reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     // A software renderer (a headless browser, a machine without a GPU) pays for every pixel on the
-    // CPU, so it draws the same world more cheaply: no shadows, no antialiasing, and a fixed budget
+    // CPU, so it draws the same world more cheaply: no antialiasing, and a fixed budget
     // of pixels however big the window (see `pixelRatio`). What is in the world never depends on it.
     // It is asked before the renderer is made, because antialiasing is fixed with the context.
     this.lowQuality = softwareRendered();
     this.renderer = new THREE.WebGLRenderer({ antialias: !this.lowQuality, alpha: true, powerPreference: "low-power" });
-    this.renderer.shadowMap.enabled = !this.lowQuality;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.domElement.style.display = "block";
     this.renderer.domElement.style.touchAction = "none";
@@ -354,26 +356,21 @@ export class WorldScene {
     this.labels = document.createElement("div");
     this.labels.className = "ow-labels";
     host.appendChild(this.labels);
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
-
-    // No air, so no haze: starlight from above, the void's violet from below, one hard sun.
-    this.scene.add(new THREE.HemisphereLight(0xe2e8ff, 0x625a80, 1.4));
-    this.rim = new THREE.DirectionalLight(0xa9c6ff, 0.8);
-    this.scene.add(this.rim, this.rim.target);
-    this.sun = new THREE.DirectionalLight(0xfff0d0, 2.4);
-    this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
-    this.sun.shadow.bias = -0.0015;
-    this.sun.shadow.normalBias = 0.02;
-    this.sun.shadow.intensity = 0.55;
-    this.scene.add(this.sun, this.sun.target);
+    // No tone mapping, no shadow map and nothing drawn after the scene (docs/BRAND.md section 7): a
+    // colour reaches the screen as its token, a shade darker where it faces away from the light.
+    // An even fill does most of the lighting. One soft key adds the rest, so a face turned up to
+    // it is its own colour and a face turned away is a little under: enough to give a box its
+    // corners, no more. Both are white, so neither tints what it lights.
+    this.scene.add(new THREE.AmbientLight(undefined, FILL * Math.PI));
+    this.sun = new THREE.DirectionalLight(undefined, KEY * Math.PI);
+    this.sun.position.copy(this.sunOffset);
+    this.scene.add(this.sun);
 
     this.backdrop = buildVoid();
     this.scene.add(this.backdrop.mesh);
     this.goalRing = new THREE.Mesh(
       new THREE.RingGeometry(0.03, 0.042, 24),
-      new THREE.MeshBasicMaterial({ color: PALETTE.parchment, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }),
+      new THREE.MeshBasicMaterial({ color: CREAM, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }),
     );
     this.goalRing.rotation.x = -Math.PI / 2;
     this.goalRing.renderOrder = 3;
@@ -496,7 +493,6 @@ export class WorldScene {
         for (const mm of Array.isArray(m) ? m : [m]) mm.dispose();
       }
     });
-    this.backdrop.dispose();
     this.renderer.dispose();
     el.remove();
     this.labels.remove();
@@ -565,7 +561,7 @@ export class WorldScene {
       const curve = new THREE.QuadraticBezierCurve3(pa, mid.add(perp), pb);
       const length = curve.getLength();
       const dashes: THREE.Mesh[] = [];
-      const dashMat = new THREE.MeshBasicMaterial({ color: 0xa8ecff, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
+      const dashMat = new THREE.MeshBasicMaterial({ color: CREAM, transparent: true, opacity: 0.4, depthWrite: false, side: THREE.DoubleSide });
       for (let i = 0; i < Math.floor(length / DASH_STEP); i++) {
         const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.09), dashMat);
         dash.rotation.x = -Math.PI / 2;
@@ -593,16 +589,6 @@ export class WorldScene {
       d.group.rotation.y = i * 1.3;
     }
 
-    this.sun.position.copy(this.center).add(new THREE.Vector3(-8, 14, 6));
-    this.sun.target.position.copy(this.center);
-    const cam = this.sun.shadow.camera;
-    cam.left = -this.spread;
-    cam.right = this.spread;
-    cam.top = this.spread;
-    cam.bottom = -this.spread;
-    cam.near = 1;
-    cam.far = 60;
-    cam.updateProjectionMatrix();
     this.pickAzimuth();
   }
 
@@ -616,7 +602,7 @@ export class WorldScene {
         sv = undefined;
       }
       if (!sv) {
-        const model = buildShip(ship.kind, !this.lowQuality);
+        const model = buildShip(ship.kind);
         this.scene.add(model.group);
         const label = this.makeLabel(`ow-label ow-label-ship ow-label-${ship.kind}`, ship.name, () => this.goShip(ship.id));
         label.dataset.ship = ship.id;
@@ -791,7 +777,7 @@ export class WorldScene {
   }
 
   private addWalker(key: string, id: string, scope: "outpost" | "ship", placeId: string, kind: PirateKind, parent: THREE.Object3D, at: WalkSpot, heading: number, name: string, tagged: boolean, look: FigureLook | null): WalkerView {
-    const figure = buildPirate(kind, id, !this.lowQuality, look);
+    const figure = buildPirate(kind, id, look);
     const onDeck = scope === "ship";
     if (onDeck) figure.group.scale.setScalar(1 / SHIP_SCALE);
     const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, PIRATE_HEIGHT * 1.2, 8), unseen());
@@ -824,7 +810,7 @@ export class WorldScene {
     const key = lookKey(look);
     if (key === wv.lookKey) return;
     const old = wv.figure.group;
-    const next = buildPirate(wv.kind, wv.id, !this.lowQuality, look);
+    const next = buildPirate(wv.kind, wv.id, look);
     next.group.scale.copy(old.scale);
     next.group.position.copy(old.position);
     next.group.rotation.copy(old.rotation);
@@ -1415,6 +1401,7 @@ export class WorldScene {
       this.azimuth = best;
       if (this.input?.focus.kind !== "ship") this.rig.setAzimuth(best, true);
       this.sunOffset.copy(isoDirection(best + Math.PI * 0.6).multiplyScalar(14).setY(14));
+      this.sun.position.copy(this.sunOffset);
     }
   }
 
@@ -1484,11 +1471,10 @@ export class WorldScene {
     this.swingDoors(walkDt);
     // A followed ship moves between snapshots, a walking pirate between taps; keep the target on them.
     if (input.focus.kind === "ship" || this.walkFocus()) this.rig.setView(this.viewFor(input));
-    this.aimSun(input);
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
     this.rig.update(dt, w / h);
-    this.backdrop.update(t, this.rig.camera, this.rig.azimuth, w, h, this.renderer.getPixelRatio());
+    this.backdrop.update(this.rig.camera, this.rig.azimuth, w, h, this.renderer.getPixelRatio());
     for (const d of this.dust) {
       d.group.position.x += d.speed * dt;
       d.group.rotation.x += dt * 0.03;
@@ -1499,7 +1485,7 @@ export class WorldScene {
       d.model.group.position.set(d.center.x + Math.cos(a) * d.radius, d.center.y + Math.sin(t * 1.3 + d.phase) * 0.15, d.center.z + Math.sin(a) * d.radius);
       // Nose along the circle, banked into the turn.
       d.model.group.rotation.set(0.35, -a - Math.PI / 2, 0, "YXZ");
-      (d.model.lamp.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 4 + d.phase) > 0.3 ? PALETTE.lamp : PALETTE.lampOff);
+      (d.model.lamp.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 4 + d.phase) > 0.3 ? TONES.lamp : TONES.lampOff);
       const flicker = 0.85 + 0.15 * Math.sin(t * 23 + d.phase);
       for (const pod of d.model.pods) pod.scale.set(flicker, 1, flicker);
     }
@@ -1516,7 +1502,7 @@ export class WorldScene {
       g.position.y = Math.sin(t * 0.9 + lane.length) * 0.04;
       g.rotation.y = t * 0.35 + lane.length;
       g.rotation.z = Math.sin(t * 0.7 + lane.length) * 0.06;
-      (lane.buoy.lamp.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 2.5 + lane.length) > 0.5 ? PALETTE.lamp : PALETTE.lampOff);
+      (lane.buoy.lamp.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 2.5 + lane.length) > 0.5 ? TONES.lamp : TONES.lampOff);
     }
     this.renderer.render(this.scene, this.rig.camera);
     this.placeLabels();
@@ -1793,40 +1779,6 @@ export class WorldScene {
     d.inside = me?.inside ?? "";
     // The box no label may cover: the pirate, ring to headgear.
     d.meBox = boxKey;
-  }
-
-  /** Keep the sun's shadows sharp where the eye is: tight on a pirate or a deck, wide over the chart. */
-  private aimSun(input: WorldInput): void {
-    const me = this.walkFocus();
-    let reach: number;
-    const at = this.tmp2;
-    if (me) {
-      me.figure.group.getWorldPosition(at);
-      reach = me.scope === "ship" ? 1.4 : 2.6;
-    } else if (input.focus.kind === "outpost") {
-      const iv = this.outposts.get(input.focus.id);
-      at.set(iv?.outpost.x ?? this.center.x, 0, iv?.outpost.y ?? this.center.z);
-      reach = 2.8;
-    } else if (input.focus.kind === "ship") {
-      this.ships.get(input.focus.id)?.model.group.getWorldPosition(at);
-      reach = 1.4;
-    } else {
-      at.copy(this.center);
-      reach = this.spread;
-    }
-    at.y = 0;
-    this.sun.position.copy(at).add(this.sunOffset);
-    this.sun.target.position.copy(at);
-    this.rim.position.set(at.x - this.sunOffset.x, at.y + this.sunOffset.y * 0.35, at.z - this.sunOffset.z);
-    this.rim.target.position.copy(at);
-    const cam = this.sun.shadow.camera;
-    if (cam.right !== reach) {
-      cam.left = -reach;
-      cam.right = reach;
-      cam.top = reach;
-      cam.bottom = -reach;
-      cam.updateProjectionMatrix();
-    }
   }
 
   /**

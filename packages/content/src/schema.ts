@@ -108,6 +108,16 @@ export type PieceColor = z.infer<typeof PieceColorSchema>;
 
 /** The colours a jacket or a flag may wear, by the same names. */
 export const PLAYER_COLORS = ["sand", "sky", "moss", "lilac", "rose", "teal", "rust", "slate", "plum", "olive", "ice", "brick"] as const;
+export const PlayerColorSchema = z.enum(PLAYER_COLORS);
+export type PlayerColor = z.infer<typeof PlayerColorSchema>;
+
+/**
+ * The colours a flag is sewn from: the twelve, and a light and a dark cloth for the field or the
+ * emblem, which are the palette's own `cream` and `ground`. Still names, never values.
+ */
+export const FLAG_COLORS = [...PLAYER_COLORS, "cream", "ground"] as const;
+export const FlagColorSchema = z.enum(FLAG_COLORS);
+export type FlagColor = z.infer<typeof FlagColorSchema>;
 
 /**
  * One ordinary Cooling piece kind, index = kind: the pictogram it is drawn as and the palette
@@ -565,7 +575,8 @@ export const CrewRulesSchema = z.object({
   /** Invitations a crew may have waiting at once. */
   maxInvites: z.int().min(1).max(500),
   name: z.object({ min: z.int().min(1).max(64), max: z.int().min(1).max(64) }),
-  colors: z.array(FlagPart.extend({ hex: z.string().regex(/^#[0-9a-f]{6}$/) })).min(2),
+  /** Each names its colour in the palette (ADR 0061); the id is what a crew's flag stores. */
+  colors: z.array(FlagPart.extend({ color: FlagColorSchema })).min(2),
   patterns: z.array(FlagPart).min(1),
   emblems: z.array(FlagPart).min(1),
   /** The flag a new crew is offered before its founder changes anything. */
@@ -601,7 +612,8 @@ export const TitleSchema = z.object({ id: Id, nameKey: MessageKey, requires: Tit
  * (rule 6), and none of them is a bot's kerchief.
  */
 export const PirateRulesSchema = z.object({
-  jackets: z.array(FlagPart.extend({ hex: z.string().regex(/^#[0-9a-f]{6}$/) })).min(2),
+  /** Each names one of the twelve player colours (ADR 0061); the id is what a pirate's look stores. */
+  jackets: z.array(FlagPart.extend({ color: PlayerColorSchema })).min(2),
   headgear: z.array(FlagPart).min(2),
   titles: z.array(TitleSchema).min(1),
 });

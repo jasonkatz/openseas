@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { CrewFlagWire } from "@openseas/protocol";
 import { content, t } from "@openseas/boards";
-import { flagColor, flagDataUrl, flagLabel, FLAG_ASPECT } from "./flag.js";
+import { flagColor, flagDataUrl, flagInk, flagLabel, FLAG_ASPECT } from "./flag.js";
 
 /** A crew's flag as an image, `size` pixels tall, painted at twice that for sharp screens. */
 export function Flag({ flag, size = 18, className = "", decorative = false }: { flag: CrewFlagWire; size?: number; className?: string; decorative?: boolean }) {
@@ -133,9 +133,8 @@ function Swatches({ value, onPick, testId }: { value: string; onPick(id: string)
           data-testid={`${testId}-${c.id}`}
         >
           {value === c.id && (
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12.5l4.5 4.5L19 7" stroke="#000" strokeOpacity="0.55" />
-              <path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" strokeWidth="1.8" />
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12.5l4.5 4.5L19 7" stroke={flagInk(c.id)} />
             </svg>
           )}
         </button>

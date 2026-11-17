@@ -1,6 +1,6 @@
 import { defaultLook, type Title } from "@openseas/content";
 import type { PirateLookWire } from "@openseas/protocol";
-import { content, t } from "@openseas/boards";
+import { content, t, type PlayerColor } from "@openseas/boards";
 
 /** The jackets, headgear and titles content offers (DESIGN.md 3.6). */
 export const pirateRules = content.world.pirates;
@@ -10,8 +10,9 @@ export function lookFor(pirateId: string, look: PirateLookWire | null | undefine
   return look ?? defaultLook(pirateRules, pirateId);
 }
 
-export function jacketHex(id: string): string {
-  return pirateRules.jackets.find((c) => c.id === id)?.hex ?? pirateRules.jackets[0]!.hex;
+/** The palette colour a jacket is (ADR 0061): content names it, the token module holds its value. */
+export function jacketColor(id: string): PlayerColor {
+  return pirateRules.jackets.find((c) => c.id === id)?.color ?? pirateRules.jackets[0]!.color;
 }
 
 export function jacketName(id: string): string {

@@ -1,5 +1,5 @@
 import type { PirateLookWire, PirateSheet as SheetData, PirateSummary, TitleProgress } from "@openseas/protocol";
-import { content, t, usePirate } from "@openseas/boards";
+import { content, css, t, usePirate } from "@openseas/boards";
 import { Flag } from "../crew/Flag.jsx";
 import { RankChip } from "../crew/CrewPanel.jsx";
 import { useSheet, type SheetTab } from "../state/SheetProvider.jsx";
@@ -112,7 +112,7 @@ function IdentityTab({ pirate, look, sheet }: { pirate: PirateSummary; look: Pir
                   onClick={() => !on && setLook({ ...look, jacket: c.id })}
                   data-testid={`look-jacket-${c.id}`}
                 >
-                  <i style={{ background: c.hex }} aria-hidden="true" />
+                  <i style={{ background: css(c.color) }} aria-hidden="true" />
                   <span>{t(c.nameKey)}</span>
                 </button>
               );

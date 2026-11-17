@@ -77,14 +77,9 @@ export class Batch {
   }
 
   /** The merged meshes. The batch is spent afterwards. */
-  build(shadows = true): THREE.Group {
+  build(): THREE.Group {
     const group = new THREE.Group();
-    if (this.solid.length) {
-      const mesh = new THREE.Mesh(mergeGeometries(this.solid, false), new THREE.MeshLambertMaterial({ vertexColors: true }));
-      mesh.castShadow = shadows;
-      mesh.receiveShadow = true;
-      group.add(mesh);
-    }
+    if (this.solid.length) group.add(new THREE.Mesh(mergeGeometries(this.solid, false), new THREE.MeshLambertMaterial({ vertexColors: true })));
     if (this.glow.length) group.add(new THREE.Mesh(mergeGeometries(this.glow, false), new THREE.MeshBasicMaterial({ vertexColors: true })));
     for (const g of [...this.solid, ...this.glow]) g.dispose();
     this.solid.length = 0;

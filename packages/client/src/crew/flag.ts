@@ -1,15 +1,18 @@
 import type { CrewFlagWire } from "@openseas/protocol";
-import { content, t } from "@openseas/boards";
+import { content, css, t, type Token } from "@openseas/boards";
 
 /**
  * A crew's flag, painted once with Canvas 2D and shared by everything that shows it: the chips in
  * the cards, the editor's preview, and the textures on ships in the world (DESIGN.md 3.7). A flag
- * is a field color, a pattern and an emblem in the accent color. Every pattern and emblem is its
- * own shape, outlined in the field color, so two flags tell apart without color (rule 6).
+ * is a field color, a pattern and an emblem in the accent color, each a flat fill from the palette
+ * (ADR 0061). Every pattern and emblem is its own shape, outlined in the field color, so two flags
+ * tell apart without color (rule 6).
  */
 
 const rules = content.world.crews;
-const hexOf = (id: string): string => rules.colors.find((c) => c.id === id)?.hex ?? "#777777";
+/** The palette colour a flag colour is: content names it, the token module holds its value. */
+const tokenOf = (id: string): Token => rules.colors.find((c) => c.id === id)?.color ?? "slate";
+const colorOf = (id: string): string => css(tokenOf(id));
 
 /** A flag is three units wide for every two tall. */
 export const FLAG_ASPECT = 1.5;
@@ -226,17 +229,19 @@ function drawPattern(ctx: CanvasRenderingContext2D, pattern: string, w: number, 
 
 /** Paint a whole flag into a `w` by `h` area at the context's origin. */
 export function drawFlag(ctx: CanvasRenderingContext2D, flag: CrewFlagWire, w: number, h: number): void {
-  const field = hexOf(flag.field);
-  const accent = hexOf(flag.accent);
+  const field = colorOf(flag.field);
+  const accent = colorOf(flag.accent);
   ctx.save();
   ctx.fillStyle = field;
   ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = accent;
   drawPattern(ctx, flag.pattern, w, h);
   drawEmblem(ctx, flag.emblem, w / 2, h / 2, h * 0.8, accent, field);
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
-  ctx.lineWidth = Math.max(1, h / 40);
-  ctx.strokeRect(0, 0, w, h);
+  // A hairline round it, so a flag in the ground's own color still has an edge on the ground.
+  const hair = Math.max(1, h / 40);
+  ctx.strokeStyle = css("line");
+  ctx.lineWidth = hair;
+  ctx.strokeRect(hair / 2, hair / 2, w - hair, h - hair);
   ctx.restore();
 }
 
@@ -260,7 +265,7 @@ export function flagDataUrl(flag: CrewFlagWire, height: number): string {
   return url;
 }
 
-/** Words for a flag, for screen readers and titles: "Rocket in Gold on Deep space, with a Cross". */
+/** Words for a flag, for screen readers and titles: "Rocket in Gold on Sky, with a Cross". */
 export function flagLabel(flag: CrewFlagWire): string {
   const name = (list: readonly { id: string; nameKey: string }[], id: string): string => t(list.find((x) => x.id === id)?.nameKey ?? id);
   return t(flag.pattern === "plain" ? "crew.flag_label_plain" : "crew.flag_label", {
@@ -271,4 +276,7 @@ export function flagLabel(flag: CrewFlagWire): string {
   });
 }
 
-export { hexOf as flagColor };
+export { colorOf as flagColor };
+
+/** The colour that reads on a flag colour: the ground on a light cloth, cream on the dark one. */
+export const flagInk = (id: string): string => css(tokenOf(id) === "ground" ? "cream" : "ground");

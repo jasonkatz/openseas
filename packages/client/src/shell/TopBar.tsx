@@ -1,4 +1,4 @@
-import { t, usePirate } from "@openseas/boards";
+import { css, t, usePirate } from "@openseas/boards";
 import { Flag } from "../crew/Flag.jsx";
 import { lookFor } from "../pirate/look.js";
 import { Portrait } from "../pirate/Portrait.jsx";
@@ -36,7 +36,7 @@ export function TopBar({ onMenu, onMap, onChart }: TopBarProps) {
         <span className="who-credits" title={t("world.credits", { credits: pirate?.balance ?? 0 })} aria-label={t("world.credits", { credits: pirate?.balance ?? 0 })} data-testid="pirate-credits">
           <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
             <circle cx="8" cy="8" r="6.4" fill="currentColor" />
-            <circle cx="8" cy="8" r="4" fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="1.3" />
+            <circle cx="8" cy="8" r="4" fill="none" stroke={css("ground")} strokeWidth="1.3" />
           </svg>
           {pirate?.balance ?? 0}
         </span>

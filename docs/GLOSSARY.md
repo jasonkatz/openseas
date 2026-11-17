@@ -275,7 +275,7 @@ brackets.
 | fields of grain by the windmill | solar panels by the dish |
 | a model ship over the shipwright's door, timber stacked beside it | a little rocket over the shipyard's door, hull plates stacked beside it |
 | the tavern's timber frame, gabled roof and chimney smoke | the cantina's ribbed panels, barrel roof of tin, round ports and vent stack steam |
-| the flag on its pole that marks where you are on the chart | a brass diamond turning over a pylon |
+| the flag on its pole that marks where you are on the chart | an amber diamond turning over a pylon |
 | — | warning lamps along the rim's lip |
 | — | the rock's underside, hanging below the rim |
 
@@ -299,7 +299,7 @@ plaza → the pad (still `plaza` in the layout code); chimney smoke → steam.
 | wide brim | wide brim | `wide-brim` |
 | round cap | flight cap | `round-cap` → `flight-cap` |
 | stocking cap | beanie | `stocking-cap` → `beanie` |
-| captain's plume | captain's crest: a brass band and a red blade standing fore and aft | `plume` → `crest` |
+| captain's plume | captain's crest: a band and a cream blade standing fore and aft | `plume` → `crest` |
 | a coat flaring at the hem, with a belt and buckle | a short jacket with a stand collar, a waistband and a zip | |
 
 How each headgear is drawn, on deck and on the likeness: the bubble helmet is a clear globe on a
@@ -312,7 +312,7 @@ knitted dome with a rolled brim and a bobble.
 | Former | Now | Identifier |
 |---|---|---|
 | sailor (rank) | spacer | `sailor` → `spacer` |
-| Deep sea, Kelp (colors) | Deep space, Moss | `deep` stays; `kelp` → `moss` |
+| Deep sea, Kelp (colors) | Sky (Deep space until M10, when the flag colours took the palette's), Moss | `deep` stays; `kelp` → `moss` |
 | anchor, compass rose, kraken, gull, ship's wheel (emblems) | rocket, ringed planet, satellite, crescent moon, gear | `anchor`, `compass`, `kraken`, `gull`, `wheel` → `rocket`, `planet`, `satellite`, `moon`, `gear` |
 
 The skull, star, crossed swords, crown and flame emblems and every pattern (heraldic) stay.

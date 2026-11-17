@@ -211,8 +211,7 @@ export function contentProblems(content: Content): string[] {
         ids.add(p.id);
       }
     }
-    const hexes = new Set(c.colors.map((x) => x.hex));
-    if (hexes.size !== c.colors.length) problems.push("crews: two flag colors share a hex");
+    if (new Set(c.colors.map((x) => x.color)).size !== c.colors.length) problems.push("crews: two flag colors name the same palette color");
     const problem = crewFlagProblem(c, c.defaultFlag);
     if (problem) problems.push(`crews: defaultFlag ${problem}`);
   }
@@ -226,7 +225,7 @@ export function contentProblems(content: Content): string[] {
         ids.add(x.id);
       }
     }
-    if (new Set(p.jackets.map((x) => x.hex)).size !== p.jackets.length) problems.push("pirates: two jackets share a hex");
+    if (new Set(p.jackets.map((x) => x.color)).size !== p.jackets.length) problems.push("pirates: two jackets name the same palette color");
     const puzzleIds = new Set<string>(Object.keys(puzzles));
     const seen = new Set<string>();
     for (const t of p.titles) {
