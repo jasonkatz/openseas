@@ -16,7 +16,7 @@ function candidates(board: string, cell: number): number[] {
 
 /**
  * A move no one could regret, from nothing but what the page publishes: a lock where a ping's ring
- * has one fog cell left, else a ping on a cell shaded as empty. Every sector the content config
+ * has one fog cell left, else a ping on a cell cleared as empty. Every sector the content config
  * deals can be cleared this way.
  */
 function safeMove(board: string): { type: "ping" | "lock"; cell: number } {
@@ -97,7 +97,7 @@ test("Scanner plays alone on /play: a round pings by key and by tap, lights a ri
   await expect(page.getByTestId("scanner-board")).toHaveAttribute("data-board", /^[.-]*[1-9a-z][.-]*$/);
   await expect(canvas).toHaveAttribute("data-mode", "ping");
 
-  // Keyboard: walk the cursor to a cell shaded as empty and ping it.
+  // Keyboard: walk the cursor to a cell cleared as empty and ping it.
   let move = safeMove(await boardString(page));
   expect(move.type).toBe("ping");
   await moveCursor(page, move.cell);

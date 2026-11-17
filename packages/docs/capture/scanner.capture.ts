@@ -49,7 +49,7 @@ const openRings = (s: ScannerState): Ring[] =>
     .filter((r) => r.cands.length >= 2)
     .sort((a, b) => a.cands.length - b.cands.length);
 
-/** Shaded cells not yet pinged: where a ping is safe. */
+/** Clear cells not yet pinged: where a ping is safe. */
 function safeCells(s: ScannerState): number[] {
   const clear = scannerClearCells(s);
   const pinged = new Set(s.pings.map((p) => p.cell));
@@ -60,7 +60,7 @@ function safeCells(s: ScannerState): number[] {
 const tells = (from: number, cands: readonly number[]): number => new Set(cands.map((c) => steps(from, c))).size;
 
 /**
- * The aimed ping the guide teaches: the shaded cell that tells apart the most candidates over every
+ * The aimed ping the guide teaches: the clear cell that tells apart the most candidates over every
  * open ring, and of those the one nearest the shortest ring.
  */
 function aimed(s: ScannerState): number {
@@ -205,7 +205,7 @@ test("scanner: the board, and a lit ring", async ({ page }) => {
 });
 
 test("scanner: a ping, its ring, a lock", async ({ page }) => {
-  // One ping on a shaded cell answers 2 and has a single fog cell on its ring: the contact is proven.
+  // One ping on a clear cell answers 2 and has a single fog cell on its ring: the contact is proven.
   const { seed, found } = findSeed("scan-first", (s) => {
     const g = deal(s);
     if (scannerProvenCells(g).length > 0) return null;
@@ -259,8 +259,8 @@ test("scanner: an aimed ping", async ({ page }) => {
 });
 
 test("scanner: the numbers are live", async ({ page }) => {
-  // A lock that makes several pings sound again: their numbers grow, the shading grows with them,
-  // and the new shading proves the next contact with no ping spent.
+  // A lock that makes several pings sound again: their numbers grow, more fog lifts with them,
+  // and the new clear ground proves the next contact with no ping spent.
   const { seed, found } = findSeed("scan-live", (seed) =>
     walk(seed, (s, line) => {
       const proven = scannerProvenCells(s);
@@ -268,8 +268,8 @@ test("scanner: the numbers are live", async ({ page }) => {
       const s1 = play(s, { type: "lock", cell: proven[0]! });
       const report = s1.lastMove!;
       if (report.cleared || report.resound.length < 2) return null;
-      const shaded = (g: ScannerState): number => scannerClearCells(g).filter(Boolean).length;
-      return shaded(s1) - shaded(s) >= 6 && scannerProvenCells(s1).length > 0 ? { lock: proven[0]! } : null;
+      const cleared = (g: ScannerState): number => scannerClearCells(g).filter(Boolean).length;
+      return cleared(s1) - cleared(s) >= 6 && scannerProvenCells(s1).length > 0 ? { lock: proven[0]! } : null;
     }),
   );
   await open(page, seed);

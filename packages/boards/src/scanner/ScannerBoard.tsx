@@ -8,7 +8,6 @@ export interface ScannerBoardProps {
   state: ScannerState;
   version?: number;
   interactive: boolean;
-  showMarks: boolean;
   /** Pulse a safe move after a pause: on for practice, off for recorded rounds. */
   hints: boolean;
   onPing(cell: number): void;
@@ -34,7 +33,6 @@ export function ScannerBoard(props: ScannerBoardProps) {
           onFrame: () => latest.current.onFrame(),
         },
         {
-          showMarks: props.showMarks,
           hints: props.hints,
           labels: {
             ping: t("scanner.switch_ping"),

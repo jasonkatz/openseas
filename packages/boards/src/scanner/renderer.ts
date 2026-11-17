@@ -1,4 +1,4 @@
-import { Container, Graphics, Text } from "pixi.js";
+import { Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
 import {
   scannerContactsLeft,
   scannerDistance,
@@ -16,9 +16,11 @@ import {
   type ScannerState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, INK, drawPanel, drawPips, mix } from "../kit/art.js";
+import { MOTION, RADIUS, type Token } from "../look/tokens.js";
+import { FONT, FONT_MONO, INK, drawDot } from "../kit/art.js";
 import { Grid, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
+import { SCANNER_PIECES, type ScannerPieceId } from "./pieces.js";
 
 export type ScannerVerb = "ping" | "lock";
 
@@ -53,62 +55,60 @@ export interface ScannerLabels {
 }
 
 export interface ScannerRendererOptions {
-  showMarks: boolean;
   /** Pulse a safe move after a pause. Off for recorded rounds. */
   hints: boolean;
   labels: ScannerLabels;
 }
 
-/** One cell as it is drawn. `view` is read from these, not from the state. */
-interface CellLook {
-  /** The view string's character for the cell: `.` fog, `-` proven empty, a base 36 digit for a ping, `X`, `S`, `!`. */
-  ch: string;
-  /** 0 fog to 1 shaded, so shading can fade in. */
-  shade: number;
-  /** Scale of the cell's mark, so a number or a contact can land. */
-  pop: number;
-}
-
-/** A diamond travelling out from a cell: a ping going out, or a ring flashing where it stopped. */
+/** A diamond travelling out from a cell: a ping's reach, which is the rule. It goes out once and fades where it stops. */
 interface Pulse {
   cell: number;
   /** Radius in cells. */
   r: number;
   alpha: number;
   color: number;
-  width: number;
   /** Ms left of its fade once it has stopped; null while it is still going out. */
   fade: number | null;
 }
 
 const HINT_AFTER_MS = 6000;
 const LONG_PRESS_MS = 420;
-const RING_FADE_MS = 520;
-const PING = 0x7fd7ff;
-const LOCK = 0xf5d58a;
-const FOG = 0x2b4369;
-const FOG_LIT = 0x3a5687;
-const CLEAR = 0x0b1627;
 /** Room for the strip over the sector and the switch under it, in cells. */
 const STRIP = 0.62;
 const SWITCH = 1.22;
+/** The ring round the keyboard's cell and round a ping whose ring is lit: 2 units wide, 2 units off the plate. */
+const RING_HALF = 0.47;
+const RING_W = 0.07;
 
 const isPing = (ch: string): boolean => /^[0-9a-z]$/.test(ch);
 
-/** Draws the scanner sector and turns taps into pings and locks. Scores nothing and solves nothing: every number and every shaded cell is the engine's. */
+/** The mark a view character stands on its cell, if it is one. */
+const MARKS: Readonly<Record<string, ScannerPieceId>> = { X: "found", S: "spooked", "!": "miss" };
+
+/** Draws the scanner sector and turns taps into pings and locks. Scores nothing and solves nothing: every number and every cleared cell is the engine's. */
 export class ScannerRenderer extends KitBoard<ScannerState> {
+  protected override readonly drawn = true;
   private readonly grid = new Grid(6, 6);
   private readonly bg = new Graphics();
-  private readonly cellLayer = new Graphics();
-  private readonly numberLayer = new Container();
-  /** Rings and pulses, clipped to the sector so a diamond does not spill over the strips. */
+  /** The dot of every cell proven empty. */
+  private readonly dotLayer = new Graphics();
+  private readonly plateLayer = new Container();
+  /** The lit ring and the pings going out, clipped to the sector so a diamond does not spill over the strips. */
   private readonly overlay = new Container();
   private readonly overlayMask = new Graphics();
   private readonly ringLayer = new Graphics();
   private readonly pulseLayer = new Graphics();
-  private readonly hintLayer = new Graphics();
+  private readonly markLayer = new Container();
+  private readonly numberLayer = new Container();
+  /** What a lit ring puts on the cells it crosses, and the ring round its own cell. */
+  private readonly candidateLayer = new Graphics();
+  private readonly hintSprite = new Sprite();
+  private readonly pressSprite = new Sprite();
   private readonly cursorLayer = new Graphics();
   private readonly switchLayer = new Graphics();
+  private readonly switchGlyphs = [new Sprite(), new Sprite()] as const;
+  private readonly plates: Sprite[] = [];
+  private readonly marks: Sprite[] = [];
   private readonly numbers: Text[] = [];
   private stripPings: Text | null = null;
   private stripSector: Text | null = null;
@@ -116,7 +116,8 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
   private switchPing: Text | null = null;
   private switchLock: Text | null = null;
   private switchBounty: Text | null = null;
-  private cells: CellLook[] = [];
+  /** What is drawn, a view character a cell: `.` fog, `-` proven empty, a base 36 digit for a ping, `X`, `S`, `!`. `view` is read from these, not from the state. */
+  private cells: string[] = [];
   private pulses: Pulse[] = [];
   /** What a tap on fog means. */
   private verb: ScannerVerb = "ping";
@@ -136,15 +137,18 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
   private hintFor: ScannerState | null = null;
   private hintShown = false;
   private hints: boolean;
+  /** The dots want drawing again: a cell was proven empty or fogged over. */
   private dirty = true;
   private ringAttr = "";
+  /** When the move being played has finished, in ms from its start. */
+  private until = 0;
 
   constructor(
     host: HTMLElement,
     private readonly cb: ScannerCallbacks,
     private readonly opts: ScannerRendererOptions,
   ) {
-    super(host, "scanner", cb.onFrame, opts.showMarks);
+    super(host, "scanner", cb.onFrame);
     this.hints = opts.hints;
   }
 
@@ -153,22 +157,45 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
   }
 
   protected build(): void {
-    const text = (weight: "700" | "900", fill: number): Text => {
-      const t = new Text({ text: "", style: { fontFamily: FONT, fontSize: 14, fontWeight: weight, fill, letterSpacing: 0.4 } });
+    const text = (family: string, fill: number): Text => {
+      const t = new Text({ text: "", style: { fontFamily: family, fontSize: 14, fontWeight: "700", fill }, resolution: 2 });
       t.anchor.set(0.5);
       return t;
     };
-    this.stripPings = text("700", INK.text);
+    this.stripPings = text(FONT_MONO, INK.cream);
     this.stripPings.anchor.set(0, 0.5);
-    this.stripSector = text("700", INK.dim);
-    this.stripHidden = text("700", INK.text);
+    this.stripSector = text(FONT_MONO, INK.dim);
+    this.stripHidden = text(FONT_MONO, INK.cream);
     this.stripHidden.anchor.set(1, 0.5);
-    this.switchPing = text("900", INK.text);
-    this.switchLock = text("900", INK.text);
-    this.switchBounty = text("700", INK.text);
+    this.switchPing = text(FONT, INK.cream);
+    this.switchLock = text(FONT, INK.cream);
+    this.switchBounty = text(FONT_MONO, INK.dim);
+    for (const s of [this.hintSprite, this.pressSprite, ...this.switchGlyphs]) s.anchor.set(0.5);
+    this.hintSprite.visible = false;
+    this.pressSprite.visible = false;
     this.overlay.addChild(this.ringLayer, this.pulseLayer);
     this.overlay.mask = this.overlayMask;
-    this.world.addChild(this.overlayMask, this.bg, this.cellLayer, this.numberLayer, this.overlay, this.hintLayer, this.cursorLayer, this.switchLayer, this.stripPings, this.stripSector, this.stripHidden, this.switchPing, this.switchLock, this.switchBounty);
+    this.world.addChild(
+      this.overlayMask,
+      this.bg,
+      this.dotLayer,
+      this.plateLayer,
+      this.overlay,
+      this.markLayer,
+      this.numberLayer,
+      this.candidateLayer,
+      this.hintSprite,
+      this.pressSprite,
+      this.cursorLayer,
+      this.switchLayer,
+      ...this.switchGlyphs,
+      this.stripPings,
+      this.stripSector,
+      this.stripHidden,
+      this.switchPing,
+      this.switchLock,
+      this.switchBounty,
+    );
   }
 
   protected layout(width: number, height: number): void {
@@ -180,28 +207,37 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     g.fit(width, height, { top: STRIP, bottom: SWITCH, margin: 8 });
     const n = g.cols * g.rows;
     const pad = Math.max(4, g.cell * 0.12);
+    // Bare ground under the strip, the sector and the switch, with the one hairline round it. No frame
+    // and no grid: the fog plates are the cells, and a cell proven empty keeps a dot.
     this.bg.clear();
-    drawPanel(this.bg, g.ox - pad, g.oy - g.cell * STRIP - pad, g.width + pad * 2, g.height + g.cell * (STRIP + SWITCH) + pad * 2, Math.max(10, g.cell * 0.28));
-    this.overlayMask.clear().rect(g.ox, g.oy, g.width, g.height).fill({ color: 0xffffff });
-    while (this.numbers.length > n) this.numbers.pop()!.destroy();
-    while (this.numbers.length < n) {
-      const t = new Text({ text: "", style: { fontFamily: FONT, fontSize: 20, fontWeight: "900", fill: INK.white } });
-      t.anchor.set(0.5);
-      t.visible = false;
-      this.numberLayer.addChild(t);
-      this.numbers.push(t);
+    this.paintGround(this.bg, g.ox - pad, g.oy - g.cell * STRIP - pad, g.width + pad * 2, g.height + g.cell * (STRIP + SWITCH) + pad * 2);
+    this.overlayMask.clear().rect(g.ox, g.oy, g.width, g.height).fill({ color: INK.cream });
+    const sized = <T extends Sprite | Text>(list: T[], layer: Container, make: () => T): void => {
+      while (list.length > n) list.pop()!.destroy();
+      while (list.length < n) {
+        const item = make();
+        item.anchor.set(0.5);
+        item.visible = false;
+        layer.addChild(item);
+        list.push(item);
+      }
+    };
+    sized(this.plates, this.plateLayer, () => new Sprite());
+    sized(this.marks, this.markLayer, () => new Sprite());
+    sized(this.numbers, this.numberLayer, () => new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 20, fontWeight: "700", fill: INK.cream }, resolution: 2 }));
+    for (let i = 0; i < n; i++) {
+      this.plates[i]!.position.set(g.x(i), g.y(i));
+      this.marks[i]!.position.set(g.x(i), g.y(i));
+      this.numbers[i]!.position.set(g.x(i), g.y(i));
+      this.numbers[i]!.style.fontSize = Math.max(12, Math.round(g.cell * 0.5));
     }
-    this.numbers.forEach((t, i) => {
-      t.style.fontSize = Math.max(12, Math.round(g.cell * 0.46));
-      t.position.set(g.x(i), g.y(i));
-    });
-    const small = Math.max(11, Math.round(g.cell * 0.26));
+    const small = Math.max(11, Math.round(g.cell * 0.25));
     const stripY = g.oy - g.cell * STRIP * 0.5;
     for (const t of [this.stripPings, this.stripSector, this.stripHidden]) if (t) t.style.fontSize = small;
     this.stripPings?.position.set(g.ox + 2, stripY);
     this.stripSector?.position.set(g.ox + g.width / 2, stripY);
     this.stripHidden?.position.set(g.ox + g.width - 2, stripY);
-    for (const t of [this.switchPing, this.switchLock]) if (t) t.style.fontSize = Math.max(13, Math.round(g.cell * 0.34));
+    for (const t of [this.switchPing, this.switchLock]) if (t) t.style.fontSize = Math.max(13, Math.round(g.cell * 0.32));
     if (this.switchBounty) this.switchBounty.style.fontSize = small;
     this.cursor = Math.min(this.cursor, n - 1);
     this.press = null;
@@ -210,8 +246,15 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     this.publishGeom(g.ox, g.oy, g.cell);
     const [ping, lock] = this.switchRects();
     this.app.canvas.setAttribute("data-switch", [ping.x + ping.w / 2, ping.y + ping.h / 2, lock.x + lock.w / 2, lock.y + lock.h / 2].map(Math.round).join(","));
+    // The layout dropped every baked piece, so each sprite takes its texture again here.
     if (this.state) this.snap(scannerViewString(this.state), this.state);
-    else this.cells = Array.from({ length: n }, () => ({ ch: ".", shade: 0, pop: 1 }));
+    else {
+      this.cells = Array.from({ length: n }, () => ".");
+      this.cells.forEach((ch, i) => this.show(i, ch));
+    }
+    this.hintSprite.visible = false;
+    this.pressSprite.visible = false;
+    this.hintShown = false;
     this.drawSwitch();
     this.drawCursor();
     this.dirty = true;
@@ -219,9 +262,32 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
 
   // ---- the picture
 
-  /** Show exactly this view, with nothing in motion, and the strip for `state`. A ring still fading from the move just played may be kept. */
+  private texture(id: ScannerPieceId, color: Token = SCANNER_PIECES[id].color, size = this.grid.cell): Texture {
+    return this.piece(id, size, color, SCANNER_PIECES[id].paint);
+  }
+
+  /** Draw one cell exactly as `ch` says, with nothing in motion. */
+  private show(cell: number, ch: string): void {
+    const plate = this.plates[cell];
+    const mark = this.marks[cell];
+    const number = this.numbers[cell];
+    if (!plate || !mark || !number) return;
+    plate.texture = this.texture("fog");
+    plate.visible = ch === ".";
+    plate.scale.set(1);
+    const id = MARKS[ch];
+    mark.visible = id !== undefined;
+    if (id) mark.texture = this.texture(id);
+    mark.scale.set(1);
+    number.visible = isPing(ch);
+    if (number.visible) number.text = String(parseInt(ch, 36));
+    number.scale.set(1);
+  }
+
+  /** Show exactly this view, with nothing in motion, and the strip for `state`. A ping's ring still fading from the move just played may be kept. */
   private snap(view: string, state: ScannerState, keepRings = false): void {
-    this.cells = [...view].map((ch) => ({ ch, shade: ch === "." ? 0 : 1, pop: 1 }));
+    this.cells = [...view];
+    this.cells.forEach((ch, i) => this.show(i, ch));
     this.pulses = keepRings ? this.pulses.filter((p) => p.fade !== null) : [];
     this.holding = false;
     this.stripFor = state;
@@ -232,72 +298,15 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
   }
 
   protected view(): string {
-    return this.cells.map((c) => c.ch).join("");
+    return this.cells.join("");
   }
 
-  private drawCells(): void {
+  /** A dot in every cell proven empty: where a ping is safe. A plate still shrinking covers its own. */
+  private drawDots(): void {
     const g = this.grid;
-    const l = this.cellLayer;
-    l.clear();
-    const size = g.cell;
-    const inset = Math.max(1, size * 0.04);
-    const round = size * 0.16;
-    this.cells.forEach((c, i) => {
-      const x = g.x(i);
-      const y = g.y(i);
-      const x0 = x - size / 2 + inset;
-      const y0 = y - size / 2 + inset;
-      const w = size - inset * 2;
-      // The recess a proven cell shows, then the fog over it, thinner as the shading comes in.
-      const fog = 1 - c.shade;
-      const plate = this.sprite(l, "clear", x, y, w);
-      if (plate) {
-        // The sheet's fog is clouded, which reads apart from a shaded plate as the stipple does.
-        if (fog > 0.01) this.sprite(l, "fog", x, y, w, fog);
-      } else {
-        l.roundRect(x0, y0, w, w, round).fill({ color: CLEAR });
-        l.roundRect(x0, y0, w, w, round).stroke({ width: 1, color: INK.line, alpha: 0.9 });
-      }
-      if (!plate && fog > 0.01) {
-        l.roundRect(x0, y0, w, w, round).fill({ color: FOG, alpha: fog });
-        l.roundRect(x0 + 1, y0 + 1, w - 2, w * 0.45, round).fill({ color: FOG_LIT, alpha: 0.45 * fog });
-        // Fog is stippled, so it reads apart from a shaded cell by more than its brightness.
-        const s = size * 0.2;
-        for (const [dx, dy] of [
-          [-1, -1],
-          [1, -1],
-          [0, 0],
-          [-1, 1],
-          [1, 1],
-        ] as const)
-          l.circle(x + dx * s, y + dy * s, Math.max(1, size * 0.035)).fill({ color: INK.white, alpha: 0.2 * fog });
-      }
-      const t = this.numbers[i];
-      const ping = isPing(c.ch);
-      if (t) {
-        t.visible = ping;
-        if (ping) {
-          t.text = String(parseInt(c.ch, 36));
-          t.scale.set(c.pop);
-        }
-      }
-      const r = size * 0.3 * c.pop;
-      // What a frame is drawn down for: a mark pops in, and must not be drawn down afresh at every size on the way.
-      const full = size * 0.3;
-      if (ping) {
-        // A ping's own cell: a diamond behind its number.
-        const d = size * 0.4 * Math.min(1.15, c.pop);
-        if (this.sprite(l, "ping", x, y, d * 2.1, 0.5, size * 0.84)) return;
-        l.poly([x, y - d, x + d, y, x, y + d, x - d, y]).fill({ color: PING, alpha: 0.14 });
-        l.poly([x, y - d, x + d, y, x, y + d, x - d, y]).stroke({ width: Math.max(1.5, size * 0.035), color: PING, alpha: 0.75, join: "round" });
-      } else if (c.ch === "X") {
-        if (!this.sprite(l, "found", x, y, r * 2.7, 1, full * 2.7)) drawFound(l, x, y, r, this.showMarks);
-        else if (this.showMarks) drawPips(l, 1, x, y, r * 0.8);
-      } else if (c.ch === "S") {
-        if (!this.sprite(l, "spooked", x, y, r * 2.4, 1, full * 2.4)) drawSpooked(l, x, y, r, this.showMarks);
-        else if (this.showMarks) drawPips(l, 2, x, y, r * 0.9, INK.text, 0.9);
-      } else if (c.ch === "!") this.sprite(l, "miss", x, y, r * 2, 1, full * 2) || drawMiss(l, x, y, r);
-      else if (c.ch === "-" && this.showMarks && c.shade > 0.5) l.rect(x - size * 0.09, y - 1, size * 0.18, 2).fill({ color: INK.dim, alpha: 0.7 });
+    this.dotLayer.clear();
+    this.cells.forEach((ch, i) => {
+      if (ch === "-") drawDot(this.dotLayer, g.x(i), g.y(i), g.cell);
     });
   }
 
@@ -306,7 +315,8 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     if (!s || !this.stripPings || !this.stripSector || !this.stripHidden) return;
     const left = scannerPingsLeft(s);
     this.stripPings.text = left >= 0 ? this.opts.labels.pings(left, s.par) : this.opts.labels.over(-left);
-    this.stripPings.style.fill = left > 0 ? INK.text : left === 0 ? INK.brass : INK.danger;
+    // Past par is bad, and said so; the last ping of par is only a number.
+    this.stripPings.style.fill = left >= 0 ? INK.cream : INK.danger;
     this.stripSector.text = this.opts.labels.sector(s.sector + 1);
     this.stripHidden.text = this.opts.labels.hidden(scannerContactsLeft(s), s.contacts.length);
     // The same numbers for the smoke test: the sector, pings left of par, contacts hidden of all, and what a lock pays.
@@ -325,7 +335,11 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     ];
   }
 
-  /** The switch under the sector: two big halves, the live one filled and marked with a notch, each with its own glyph. */
+  /**
+   * The switch under the sector: two big halves, each with its own glyph. The live one is the
+   * player's choice, so it is amber with ground text and carries a notch that points at the sector;
+   * the other is a raised button.
+   */
   private drawSwitch(): void {
     const g = this.grid;
     const l = this.switchLayer;
@@ -336,27 +350,20 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     (["ping", "lock"] as const).forEach((verb, i) => {
       const r = rects[i]!;
       const on = this.verb === verb;
-      const color = verb === "ping" ? PING : LOCK;
-      const round = r.h * 0.28;
-      l.roundRect(r.x, r.y, r.w, r.h, round).fill({ color: on ? color : INK.well, alpha: on ? 1 : 0.9 });
-      l.roundRect(r.x, r.y, r.w, r.h, round).stroke({ width: on ? 3 : 1.5, color: on ? INK.white : mix(color, INK.panel, 0.45), alpha: on ? 0.95 : 0.9 });
-      // The live half points up at the sector.
-      if (on) l.poly([r.x + r.w / 2 - r.h * 0.2, r.y, r.x + r.w / 2, r.y - r.h * 0.2, r.x + r.w / 2 + r.h * 0.2, r.y]).fill({ color: INK.white });
-      const ink = on ? INK.bg : color;
-      const gx = r.x + r.h * 0.55;
-      const gy = r.y + r.h / 2;
-      const gr = r.h * 0.26;
-      if (verb === "ping") {
-        for (const k of [1, 0.5]) l.poly([gx, gy - gr * k, gx + gr * k, gy, gx, gy + gr * k, gx - gr * k, gy]).stroke({ width: Math.max(1.5, gr * 0.2), color: ink, join: "round" });
-        l.circle(gx, gy, Math.max(1.5, gr * 0.14)).fill({ color: ink });
-      } else {
-        drawBrackets(l, gx, gy, gr, gr * 0.5, Math.max(1.5, gr * 0.22), ink, 1);
-        l.circle(gx, gy, gr * 0.36).fill({ color: ink });
+      l.roundRect(r.x, r.y, r.w, r.h, Math.min(RADIUS, r.h / 2)).fill({ color: on ? INK.amber : INK.raised });
+      if (on) {
+        const n = r.h * 0.2;
+        l.poly([r.x + r.w / 2 - n, r.y + 1, r.x + r.w / 2, r.y - n, r.x + r.w / 2 + n, r.y + 1]).fill({ color: INK.amber });
       }
+      const tone: Token = on ? "ground" : "cream";
+      const gy = r.y + r.h / 2;
+      const glyph = this.switchGlyphs[i]!;
+      glyph.texture = this.texture(verb === "ping" ? "ping" : "found", tone, Math.round(r.h * 0.62));
+      glyph.position.set(r.x + r.h * 0.55, gy);
       const t = texts[i];
       if (t) {
         t.text = labels[i]!;
-        t.style.fill = ink;
+        t.style.fill = on ? INK.ground : INK.cream;
         t.position.set(r.x + r.w * 0.56, gy);
       }
     });
@@ -364,11 +371,11 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       const r = rects[1];
       const s = this.stripFor;
       this.switchBounty.text = s ? this.opts.labels.bounty(scannerLockValue(s)) : "";
-      this.switchBounty.style.fill = this.verb === "lock" ? INK.bg : INK.dim;
+      this.switchBounty.style.fill = this.verb === "lock" ? INK.ground : INK.dim;
       // Under the word when the half is too narrow to hold both side by side.
       const beside = r.w > g.cell * 2.6;
-      this.switchLock.position.set(r.x + r.w * (beside ? 0.46 : 0.58), r.y + r.h * (beside ? 0.5 : 0.36));
-      this.switchBounty.position.set(r.x + r.w * (beside ? 0.78 : 0.58), r.y + r.h * (beside ? 0.52 : 0.72));
+      this.switchLock.position.set(r.x + r.w * (beside ? 0.48 : 0.6), r.y + r.h * (beside ? 0.5 : 0.36));
+      this.switchBounty.position.set(r.x + r.w * (beside ? 0.8 : 0.6), r.y + r.h * (beside ? 0.52 : 0.72));
     }
     this.app.canvas.setAttribute("data-mode", this.verb);
   }
@@ -406,10 +413,14 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     this.play(state, prev, report);
   }
 
-  /** A diamond going out from `cell` to `d` cells from `at`; the ring it reaches stays lit a moment and fades on its own. Returns the ms it takes to get there. */
+  /**
+   * A ping's reach: one plain diamond going out from `cell` to `d` cells, from `at`. It takes the
+   * time its distance asks, since the distance is the rule, and fades where it stops. Returns the ms
+   * it takes to get there.
+   */
   private sound(cell: number, d: number, color: number, at: number): number {
-    const ms = 200 + d * 85;
-    const pulse: Pulse = { cell, r: 0, alpha: 0.95, color, width: 3, fade: null };
+    const ms = MOTION.move + d * 60;
+    const pulse: Pulse = { cell, r: 0, alpha: 1, color, fade: null };
     this.tweens.after(at, () => this.pulses.push(pulse));
     this.tweens.run(
       ms,
@@ -420,54 +431,67 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
         delay: at,
         ease: ease.outQuad,
         done: () => {
-          pulse.fade = RING_FADE_MS;
+          pulse.fade = MOTION.clear;
         },
       },
     );
+    this.until = Math.max(this.until, at + ms);
     return ms;
   }
 
-  /** Put a mark in a cell at `at` and let it land: it starts big and settles. */
-  private land(cell: number, ch: string, at: number, from = 1.7): void {
-    const look = this.cells[cell];
-    if (!look) return;
-    this.tweens.after(at, () => {
-      look.ch = ch;
-      look.shade = 1;
-      look.pop = from;
-      this.touchView();
-    });
-    this.tweens.run(
-      260,
-      (k) => {
-        look.pop = from + (1 - from) * k;
+  /** The fog plate on `cell` shrinks to nothing from `at`. */
+  private lift(cell: number, at: number): void {
+    const plate = this.plates[cell];
+    if (!plate) return;
+    this.tweens.remove(plate, {
+      delay: at,
+      done: () => {
+        plate.visible = false;
       },
-      { delay: at, ease: ease.outCubic },
-    );
+    });
+    this.until = Math.max(this.until, at + MOTION.clear);
   }
 
-  /** Shade the cells that are fog now (or all of them, when the sector will be `blank` by then) and proven empty in `view`, each as the ring from `origin` reaches it. */
+  /** Put a number or a mark on a cell at `at`: its fog lifts and it grows onto the cell from `from` of its size. */
+  private land(cell: number, ch: string, at: number, from = 0): void {
+    const mark = this.marks[cell];
+    const number = this.numbers[cell];
+    if (!mark || !number) return;
+    this.tweens.after(at, () => {
+      this.cells[cell] = ch;
+      const id = MARKS[ch];
+      mark.visible = id !== undefined;
+      if (id) mark.texture = this.texture(id);
+      mark.scale.set(from);
+      number.visible = isPing(ch);
+      if (number.visible) number.text = String(parseInt(ch, 36));
+      number.scale.set(from);
+      this.dirty = true;
+      this.touchView();
+    });
+    // Whatever plate is there goes: the cell is fog now, or will be by then.
+    this.lift(cell, at);
+    this.tweens.move(MARKS[ch] ? mark : number, { scale: 1 }, { delay: at });
+    this.until = Math.max(this.until, at + MOTION.move);
+  }
+
+  /** Lift the fog from the cells that are fog now (or all of them, when the sector will be `blank` by then) and proven empty in `view`, each as the ring from `origin` reaches it. */
   private shade(view: string, origin: number, at: number, perStep: number, blank = false): void {
     const state = this.state;
     if (!state) return;
-    this.cells.forEach((look, cell) => {
-      if ((!blank && look.ch !== ".") || view[cell] !== "-") return;
+    this.cells.forEach((ch, cell) => {
+      if ((!blank && ch !== ".") || view[cell] !== "-") return;
       const delay = at + scannerDistance(state.config, origin, cell) * perStep;
       this.tweens.after(delay, () => {
-        look.ch = "-";
+        this.cells[cell] = "-";
+        this.dirty = true;
         this.touchView();
       });
-      this.tweens.run(
-        220,
-        (k) => {
-          look.shade = k;
-        },
-        { delay },
-      );
+      this.lift(cell, delay);
     });
   }
 
-  /** Play a move out: the ping going out or the lock closing, the numbers that sound again, then a cleared sector giving way to the next. */
+  /** Play a move out: the ping going out or the lock landing, the numbers that sound again, then a cleared sector giving way to the next. */
   private play(state: ScannerState, prev: ScannerState, r: ScannerMoveReport): void {
     const g = this.grid;
     const labels = this.opts.labels;
@@ -477,6 +501,7 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     const lostStreak = prev.combo >= 2 && state.combo === 0 && (r.wrong || r.spooked);
     // The old sector as it stands once this move is on it. A move that clears it leaves the numbers as they were.
     const after = r.cleared === null ? scannerViewString(state) : this.view();
+    this.until = 0;
     let t = 0;
     if (r.cleared === null) {
       this.stripFor = state;
@@ -485,52 +510,45 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     }
 
     if (r.distance !== null && !r.spooked) {
-      // A ping: the diamond goes out to its distance, the number lands, and the cells it proves empty shade as the ring passes.
+      // A ping: the number lands at once, the diamond goes out to its distance, and the fog it proves empty lifts as the ring passes.
+      // The ping is the player's own, so its ring is amber.
       const d = r.distance;
-      this.tweens.after(0, () => sfx.ping(d));
-      const ms = this.sound(r.cell, d, PING, 0);
-      this.land(r.cell, d.toString(36), Math.min(140, ms * 0.4));
-      this.shade(after, r.cell, 40, ms / Math.max(1, d));
+      sfx.ping(d);
+      const ms = this.sound(r.cell, d, INK.amber, 0);
+      this.land(r.cell, d.toString(36), 0);
+      this.shade(after, r.cell, 0, ms / Math.max(1, d));
       if (r.cost < 0) {
-        this.tweens.after(160, () => {
+        this.tweens.after(MOTION.move, () => {
           sfx.bump();
           this.fx.popup(x, y - g.cell * 0.45, String(r.cost), INK.danger, big * 0.9);
           if (scannerPingsLeft(state) === -1) this.fx.say(labels.overPar, INK.danger);
         });
       }
-      t = ms + 120;
+      t = ms + MOTION.move;
     } else if (r.spooked) {
-      // A ping on a contact: it bolts.
-      this.tweens.after(0, () => sfx.ping(0));
-      this.sound(r.cell, 0.6, INK.danger, 0);
-      this.land(r.cell, "S", 120);
-      this.tweens.after(120, () => {
+      // A ping on a contact: it bolts. Bad news is said in danger, and nothing shakes.
+      sfx.ping(0);
+      this.land(r.cell, "S", 0);
+      this.tweens.after(MOTION.move, () => {
         sfx.bad();
         sfx.whoosh();
-        this.fx.burst(x, y, INK.danger, 14, 0.3, 4);
-        this.fx.flash(INK.danger, 0.16, 300);
-        this.fx.shake(7, 280);
         this.fx.say(lostStreak ? labels.streakLost : labels.spooked, INK.danger);
         this.fx.popup(x, y - g.cell * 0.45, String(r.cost), INK.danger, big);
         if (lostStreak) sfx.streakLost();
       });
       t = 380;
     } else if (r.found) {
-      // A lock on a contact: the brackets close and the bounty pops.
-      this.land(r.cell, "X", 60, 0.3);
+      // A lock on a contact: the brackets hold it and the bounty rises, in cream.
+      this.land(r.cell, "X", 0);
       this.tweens.after(60, () => {
         sfx.good();
-        this.fx.ring(x, y, LOCK, g.cell * 0.25, g.cell * 0.95, 420, 4);
-        this.fx.burst(x, y, LOCK, 10, 0.22, 4);
-        this.fx.popup(x, y - g.cell * 0.45, `+${r.findPoints}`, INK.gold, big * (r.streakPercent > 100 ? 1.2 : 1));
+        this.fx.popup(x, y - g.cell * 0.45, `+${r.findPoints}`, INK.cream, big * (r.streakPercent > 100 ? 1.2 : 1));
       });
       t = 300;
     } else if (r.wrong) {
       this.land(r.cell, "!", 0);
       this.tweens.after(0, () => {
         sfx.bad();
-        this.fx.shake(6, 260);
-        this.fx.flash(INK.danger, 0.12, 240);
         this.fx.say(lostStreak ? labels.streakLost : labels.miss, INK.danger);
         this.fx.popup(x, y - g.cell * 0.45, String(r.cost), INK.danger, big);
         if (lostStreak) sfx.streakLost();
@@ -542,17 +560,16 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     r.resound.forEach((e, i) => {
       const at = t + i * 70;
       this.tweens.after(at, () => sfx.pop(Math.min(9, 2 + i)));
-      this.sound(e.cell, 0.75, PING, at);
-      this.land(e.cell, e.to.toString(36), at, 1.5);
+      this.land(e.cell, e.to.toString(36), at, 0.5);
     });
     if (r.resound.length > 0) {
       this.shade(after, r.cell, t + 60, 30);
-      t += r.resound.length * 70 + 220;
+      t += r.resound.length * 70 + MOTION.move;
     }
 
     const c = r.cleared;
     if (c === null) {
-      this.tweens.after(t, () => this.snap(after, state, true));
+      this.tweens.after(Math.max(t, this.until + 20), () => this.snap(after, state, true));
       return;
     }
 
@@ -560,69 +577,69 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     this.holding = true;
     const cx = g.ox + g.width / 2;
     const cy = g.oy + g.height / 2;
+    const top = state.config.streakPercent.length;
     this.tweens.after(t, () => {
-      for (const cell of c.contacts) this.fx.ring(g.x(cell), g.y(cell), c.clean ? LOCK : PING, g.cell * 0.3, g.cell * 0.8, 480, 3);
-      this.fx.flash(c.clean ? LOCK : PING, 0.14, 320);
       if (c.clean) {
+        // The beat is the clean sector, the move the puzzle pays most for, and a longer streak is a stronger one.
+        this.beat(Math.min(1, 0.4 + (0.6 * (c.streak - 1)) / Math.max(1, top - 1)));
         sfx.streak(c.streak * 3);
-        this.fx.say(c.streak >= 2 ? labels.streak(c.streak) : labels.clean, INK.gold);
-        if (c.streak >= 2) this.fx.shake(Math.min(9, 3 + c.streak), 260);
-        if (c.bonus > 0) this.fx.popup(cx, cy + g.cell * 0.4, labels.saved(c.saved, c.bonus), INK.gold, big * 1.15);
+        this.fx.say(c.streak >= 2 ? labels.streak(c.streak) : labels.clean, INK.cream);
+        if (c.bonus > 0) this.fx.popup(cx, cy + g.cell * 0.4, labels.saved(c.saved, c.bonus), INK.cream, big * 1.15);
       } else {
         sfx.good();
-        this.fx.say(labels.sectorClear, INK.text);
+        this.fx.say(labels.sectorClear, INK.dim);
       }
     });
-    t += 620;
-    // The fog closes over everything.
-    this.cells.forEach((look) => {
-      let shade: number | null = null;
-      this.tweens.run(
-        220,
-        (k) => {
-          shade ??= look.shade;
-          look.shade = shade * (1 - k);
-          if (look.ch !== "." && look.ch !== "-") look.pop = 1 - k;
-        },
-        {
-          delay: t,
-          ease: ease.inQuad,
-          done: () => {
-            look.ch = ".";
-            look.shade = 0;
-            look.pop = 1;
-          },
-        },
-      );
+    t = Math.max(t, this.until) + 620;
+    // The fog closes over everything: the marks and the numbers shrink away and a plate grows back on every open cell.
+    this.tweens.after(t, () => {
+      this.cells.forEach((ch, cell) => {
+        const plate = this.plates[cell];
+        if (ch === "." || !plate) return;
+        plate.visible = true;
+        plate.scale.set(0);
+      });
     });
-    t += 260;
+    this.cells.forEach((_, cell) => {
+      const plate = this.plates[cell]!;
+      const mark = this.marks[cell]!;
+      const number = this.numbers[cell]!;
+      this.tweens.remove(mark, { delay: t });
+      this.tweens.remove(number, { delay: t });
+      this.tweens.move(plate, { scale: 1 }, { delay: t });
+    });
+    t += MOTION.clear + 40;
     const next = scannerViewString(state);
     const open = state.pings[0];
     this.tweens.after(t, () => {
-      // The new sector is on screen from here: its strip, and taps again.
+      // The new sector is on screen from here, all fog: its strip, and taps again.
+      this.cells = this.cells.map(() => ".");
+      this.cells.forEach((ch, cell) => this.show(cell, ch));
+      this.dirty = true;
       this.holding = false;
       this.stripFor = state;
       this.drawStrip();
       this.drawSwitch();
       this.touchView();
     });
+    this.until = t;
     if (open) {
+      // The opening ping is dealt, not the player's: its ring is cream.
       this.tweens.after(t, () => sfx.ping(open.distance));
-      const ms = this.sound(open.cell, open.distance, PING, t);
-      this.land(open.cell, open.distance.toString(36), t + Math.min(140, ms * 0.4));
-      this.shade(next, open.cell, t + 40, ms / Math.max(1, open.distance), true);
-      t += ms + 120;
+      const ms = this.sound(open.cell, open.distance, INK.cream, t);
+      this.land(open.cell, open.distance.toString(36), t);
+      this.shade(next, open.cell, t, ms / Math.max(1, open.distance), true);
     }
     // Whatever the tweens did, the sector ends as the engine holds it.
-    this.tweens.after(t, () => this.snap(next, state, true));
+    this.tweens.after(this.until + 20, () => this.snap(next, state, true));
   }
 
   // ---- every frame
 
   protected override update(dt: number): void {
-    if (this.busy || this.dirty) {
+    if (this.dirty) {
       this.dirty = false;
-      this.drawCells();
+      this.drawDots();
     }
     // A long press locks, whatever the switch says.
     if (this.press && !this.press.fired && performance.now() - this.press.at >= LONG_PRESS_MS) {
@@ -634,30 +651,39 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       const pulse = this.pulses[i]!;
       if (pulse.fade === null) continue;
       pulse.fade -= dt;
-      const k = Math.max(0, pulse.fade / RING_FADE_MS);
-      pulse.alpha = 0.95 * k * k;
-      pulse.width = 3 + 2 * k;
+      pulse.alpha = Math.max(0, pulse.fade / MOTION.clear);
       if (pulse.fade <= 0) this.pulses.splice(i, 1);
     }
     this.drawOverlay();
     this.updateHint(dt);
   }
 
-  /** The lit ring, the pulses in flight, and the brackets closing under a held finger. */
+  private diamond(l: Graphics, cell: number, r: number, color: number, alpha = 1): void {
+    const x = this.grid.x(cell);
+    const y = this.grid.y(cell);
+    l.poly([x, y - r, x + r, y, x, y + r, x - r, y]).stroke({ width: 2, color, alpha, join: "round" });
+  }
+
+  /** An amber ring round a cell: the player's own cell, by key or by picking a ping. */
+  private ring(l: Graphics, cell: number): void {
+    const g = this.grid;
+    const half = g.cell * RING_HALF;
+    l.roundRect(g.x(cell) - half, g.y(cell) - half, half * 2, half * 2, g.cell * 0.2).stroke({ width: Math.max(2, g.cell * RING_W), color: INK.amber });
+  }
+
+  /** The pings going out, the lit ring, and the brackets closing under a held finger. */
   private drawOverlay(): void {
     const g = this.grid;
     const p = this.pulseLayer;
     p.clear();
     for (const pulse of this.pulses) {
-      if (pulse.alpha <= 0.01) continue;
-      const x = g.x(pulse.cell);
-      const y = g.y(pulse.cell);
-      const r = Math.max(0.12, pulse.r) * g.cell;
-      p.poly([x, y - r, x + r, y, x, y + r, x - r, y]).stroke({ width: pulse.width * 2.6, color: pulse.color, alpha: pulse.alpha * 0.22, join: "round" });
-      p.poly([x, y - r, x + r, y, x, y + r, x - r, y]).stroke({ width: pulse.width, color: pulse.color, alpha: pulse.alpha, join: "round" });
+      if (pulse.alpha <= 0.01 || pulse.r * g.cell < 2) continue;
+      this.diamond(p, pulse.cell, pulse.r * g.cell, pulse.color, pulse.alpha);
     }
     const l = this.ringLayer;
+    const marksLayer = this.candidateLayer;
     l.clear();
+    marksLayer.clear();
     const state = this.state;
     const ping = state && this.selected !== null && !this.holding ? scannerPingAt(state, this.selected) : null;
     const ringAttr = ping && state ? `${ping.cell}:${scannerPingCandidates(state, ping).join(",")}` : "";
@@ -666,35 +692,34 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       this.app.canvas.setAttribute("data-ring", ringAttr);
     }
     if (ping && state) {
-      const x = g.x(ping.cell);
-      const y = g.y(ping.cell);
-      const r = ping.distance * g.cell;
-      const beat = 0.5 + 0.5 * Math.sin(this.time / 220);
-      // The diamond itself, then each cell on it: bright where the contact it hears can be, faint where it cannot.
-      l.poly([x, y - r, x + r, y, x, y + r, x - r, y]).stroke({ width: 2, color: PING, alpha: 0.55, join: "round" });
-      const half = g.cell / 2 - 3;
-      l.roundRect(x - half, y - half, half * 2, half * 2, g.cell * 0.16).stroke({ width: 2.5, color: PING, alpha: 0.9 });
+      // The picked ping is the player's own: an amber ring round it and its diamond in amber. On the
+      // diamond, a cream pip stands on each fog plate where the contact it hears can be, and the
+      // dot of each cell proven empty is lit.
+      this.diamond(l, ping.cell, ping.distance * g.cell, INK.amber);
+      this.ring(marksLayer, ping.cell);
       const could = new Set(scannerPingCandidates(state, ping));
+      const d = g.cell * 0.13;
       for (const cell of scannerRingCells(state.config, ping.cell, ping.distance)) {
         const cx = g.x(cell);
         const cy = g.y(cell);
         if (could.has(cell)) {
-          l.roundRect(cx - half, cy - half, half * 2, half * 2, g.cell * 0.16).fill({ color: PING, alpha: 0.16 + 0.1 * beat });
-          l.roundRect(cx - half, cy - half, half * 2, half * 2, g.cell * 0.16).stroke({ width: 3, color: INK.white, alpha: 0.75 + 0.25 * beat });
-          const d = g.cell * 0.13;
-          l.poly([cx, cy - d, cx + d, cy, cx, cy + d, cx - d, cy]).fill({ color: INK.white, alpha: 0.9 });
-        } else {
-          l.circle(cx, cy, g.cell * 0.06).fill({ color: PING, alpha: 0.5 });
-        }
+          const pts = [cx, cy - d, cx + d, cy, cx, cy + d, cx - d, cy];
+          marksLayer.poly(pts).fill({ color: INK.cream });
+          marksLayer.poly(pts).stroke({ width: d * 0.6, color: INK.cream, join: "round" });
+        } else if (this.cells[cell] === "-") drawDot(marksLayer, cx, cy, g.cell, INK.dim);
       }
     }
+    // The lock being set is the player's own: amber brackets that close on the cell while it is held.
     const held = this.press && !this.press.fired ? performance.now() - this.press.at : 0;
+    const s = this.pressSprite;
     if (this.press && held > 110) {
       const k = Math.min(1, (held - 110) / (LONG_PRESS_MS - 110));
-      const cell = this.press.cell;
-      const half = g.cell * (0.74 - 0.3 * k);
-      if (!this.sprite(l, "brackets", g.x(cell), g.y(cell), half * 2.1, 0.5 + 0.5 * k, g.cell * 0.92)) drawBrackets(l, g.x(cell), g.y(cell), half, g.cell * 0.18, 3, LOCK, 0.5 + 0.5 * k);
-    }
+      s.texture = this.texture("brackets", "amber");
+      s.position.set(g.x(this.press.cell), g.y(this.press.cell));
+      s.scale.set(this.reduced ? 1 : 1.5 - 0.5 * k);
+      s.alpha = 0.5 + 0.5 * k;
+      s.visible = true;
+    } else s.visible = false;
   }
 
   /** A safe move pulses after a pause, in rounds that allow hints: brackets where a lock is proven, a diamond where a ping is safe. */
@@ -702,10 +727,11 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     const state = this.state;
     const can = this.interactive && this.hints && state !== null && !state.finished && !this.busy && !this.press && !this.holding;
     this.idle = can ? this.idle + dt : 0;
+    const s = this.hintSprite;
     if (!can || state === null || this.idle < HINT_AFTER_MS) {
       if (this.hintShown) {
         this.hintShown = false;
-        this.hintLayer.clear();
+        s.visible = false;
         this.app.canvas.removeAttribute("data-hint");
       }
       return;
@@ -714,23 +740,19 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       this.hintFor = state;
       this.hint = scannerHint(state);
     }
-    this.hintLayer.clear();
-    if (!this.hint) return;
+    if (!this.hint) {
+      s.visible = false;
+      return;
+    }
     if (!this.hintShown) {
       this.hintShown = true;
       this.app.canvas.setAttribute("data-hint", `${this.hint.type}:${this.hint.cell}`);
     }
-    const g = this.grid;
-    const x = g.x(this.hint.cell);
-    const y = g.y(this.hint.cell);
-    const beat = 0.5 + 0.5 * Math.sin(this.time / 260);
-    if (this.hint.type === "lock") {
-      const half = g.cell * (0.4 + 0.05 * beat);
-      if (!this.sprite(this.hintLayer, "lock", x, y, half * 2.1, 0.45 + 0.5 * beat, g.cell * 0.92)) drawBrackets(this.hintLayer, x, y, half, g.cell * 0.16, 3, LOCK, 0.45 + 0.5 * beat);
-    } else {
-      const r = g.cell * (0.3 + 0.06 * beat);
-      this.hintLayer.poly([x, y - r, x + r, y, x, y + r, x - r, y]).stroke({ width: 3, color: PING, alpha: 0.45 + 0.5 * beat, join: "round" });
-    }
+    // A hint is cream, never amber: it is the board's advice, not the player's own mark.
+    s.texture = this.texture(this.hint.type === "lock" ? "brackets" : "ping");
+    s.position.set(this.grid.x(this.hint.cell), this.grid.y(this.hint.cell));
+    s.alpha = this.reduced ? 0.8 : 0.55 + 0.4 * Math.sin(this.time / 240);
+    s.visible = true;
   }
 
   // ---- input
@@ -794,9 +816,7 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     const g = this.grid;
     this.cursorLayer.clear();
     this.app.canvas.setAttribute("data-cursor", `${this.cursor % g.cols},${Math.floor(this.cursor / g.cols)}`);
-    if (!this.cursorShown) return;
-    const half = g.cell / 2 - 2;
-    this.cursorLayer.roundRect(g.x(this.cursor) - half, g.y(this.cursor) - half, half * 2, half * 2, g.cell * 0.16).stroke({ width: 3, color: INK.white, alpha: 0.9 });
+    if (this.cursorShown) this.ring(this.cursorLayer, this.cursor);
   }
 
   /** Arrows or WASD move the cursor. Space pings, enter or L locks, X flips the switch, escape puts a lit ring out. */
@@ -831,59 +851,4 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     }
     return false;
   }
-}
-
-/** Four corner brackets round (x, y): the mark of a lock. `r` is the half-width, `arm` the length of each leg. */
-function drawBrackets(g: Graphics, x: number, y: number, r: number, arm: number, width: number, color: number, alpha: number): void {
-  for (const [sx, sy] of [
-    [-1, -1],
-    [1, -1],
-    [1, 1],
-    [-1, 1],
-  ] as const) {
-    g.moveTo(x + sx * r, y + sy * (r - arm));
-    g.lineTo(x + sx * r, y + sy * r);
-    g.lineTo(x + sx * (r - arm), y + sy * r);
-  }
-  g.stroke({ width, color, alpha, cap: "round", join: "round" });
-}
-
-/** A contact found by a lock: a solid gold disc held in four brackets. */
-function drawFound(g: Graphics, x: number, y: number, r: number, marks: boolean): void {
-  if (r <= 0.5) return;
-  g.circle(x, y + r * 0.1, r * 0.72).fill({ color: INK.black, alpha: 0.35 });
-  g.circle(x, y, r * 0.72).fill({ color: LOCK });
-  g.circle(x, y, r * 0.72).stroke({ width: Math.max(1.2, r * 0.12), color: mix(LOCK, INK.black, 0.5) });
-  g.circle(x - r * 0.18, y - r * 0.2, r * 0.3).fill({ color: INK.white, alpha: 0.45 });
-  drawBrackets(g, x, y, r * 1.22, r * 0.5, Math.max(2, r * 0.2), LOCK, 1);
-  if (marks) drawPips(g, 1, x, y, r * 0.8);
-}
-
-/** A contact a ping spooked: a hollow, broken outline with a stroke through it. Nothing like a found one. */
-function drawSpooked(g: Graphics, x: number, y: number, r: number, marks: boolean): void {
-  if (r <= 0.5) return;
-  const color = mix(INK.danger, INK.text, 0.25);
-  const n = 8;
-  for (let i = 0; i < n; i += 2) {
-    const a0 = (i / n) * Math.PI * 2 + 0.3;
-    const a1 = ((i + 1.2) / n) * Math.PI * 2 + 0.3;
-    g.moveTo(x + Math.cos(a0) * r * 0.85, y + Math.sin(a0) * r * 0.85);
-    g.arc(x, y, r * 0.85, a0, a1);
-  }
-  g.stroke({ width: Math.max(2, r * 0.18), color, alpha: 0.95, cap: "round" });
-  g.moveTo(x - r * 1.05, y + r * 1.05);
-  g.lineTo(x + r * 1.05, y - r * 1.05);
-  g.stroke({ width: Math.max(2, r * 0.2), color, alpha: 0.95, cap: "round" });
-  if (marks) drawPips(g, 2, x, y, r * 0.9, INK.text, 0.9);
-}
-
-/** A lock on empty space: a cross. */
-function drawMiss(g: Graphics, x: number, y: number, r: number): void {
-  if (r <= 0.5) return;
-  const a = r * 0.7;
-  g.moveTo(x - a, y - a);
-  g.lineTo(x + a, y + a);
-  g.moveTo(x + a, y - a);
-  g.lineTo(x - a, y + a);
-  g.stroke({ width: Math.max(2.5, r * 0.26), color: INK.danger, alpha: 0.95, cap: "round" });
 }

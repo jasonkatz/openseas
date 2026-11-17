@@ -24,8 +24,8 @@ export const scanner: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Scanner board: a sector ${c.width} cells wide and ${c.height} tall, most of it fog. One cell holds a ping showing the number 3, with a diamond of shaded cells around it. A strip above counts pings, the sector and hidden contacts, and a switch below reads Ping and Lock.`,
-    caption: "A new sector. One ping is made for you: its number is the steps to the nearest contact, and the shaded cells are proven empty.",
+    alt: `The Scanner board: a sector ${c.width} cells wide and ${c.height} tall, most of it flat fog plates. One cell holds a ping showing the number 3, and the cells around it are bare ground, each with a small dot. A strip above counts pings, the sector and hidden contacts, and a switch below reads Ping and Lock.`,
+    caption: "A new sector. One ping is made for you: its number is the steps to the nearest contact, and the cells where the fog has lifted are proven empty.",
   },
   theme: {
     setting:
@@ -42,7 +42,7 @@ export const scanner: Guide = {
   rules: [
     `A sector of fog hides ${c.startContacts} contacts. It opens with one ping already made for you, at least ${c.openingMin} steps from every contact.`,
     "A **ping** on a cell answers with one number: how many steps up, down, left or right, never diagonal, the nearest hidden contact is.",
-    "Nothing hides nearer than the number, so the board **shades** every cell closer than that. One contact sits exactly that far away, somewhere on the diamond of cells at that distance: the ping's **ring**.",
+    "Nothing hides nearer than the number, so the fog **lifts** from every cell closer than that: a clear cell is bare ground with a dot. One contact sits exactly that far away, somewhere on the diamond of cells at that distance: the ping's **ring**.",
     `A **lock** says a contact is here. A right lock finds it and pays. A lock on empty space is a miss, and a ping that lands on a contact **spooks** it for no pay. Either costs ${c.wrongPenalty} and your streak.`,
     "The numbers are live. When a contact is found, every ping that was hearing it sounds again and shows the nearest one still hidden.",
     `Find them all and the next sector is dealt. Every ${c.growEvery} sectors cleared add a contact, up to ${c.maxContacts}.`,
@@ -51,8 +51,8 @@ export const scanner: Guide = {
   rulesMedia: {
     kind: "clip",
     name: "first-lock",
-    alt: "A shaded cell is pinged and answers 2, and more cells shade around it. The number is tapped and its ring lights with one bright cell in the fog. That cell is held, brackets close on it, and a contact is found there.",
-    caption: "Ping a shaded cell, tap its number to light the ring, and lock the one cell left on it.",
+    alt: "A clear cell is pinged and answers 2, and the fog lifts from more cells around it. The number is tapped and its ring lights with a pip on the one fog plate it crosses. That plate is held, brackets close on it, and a contact is found there.",
+    caption: "Ping a clear cell, tap its number to light the ring, and lock the one cell left on it.",
   },
   controls: [
     { action: "Ping a cell", touch: "Tap it, with the switch on Ping", desktop: "Click it, or Space at the cursor" },
@@ -73,25 +73,25 @@ export const scanner: Guide = {
       goal: "Clear sectors without one spooked contact or missed lock.",
       tips: [
         {
-          title: "Ping the shade, never the fog",
-          body: `A shaded cell is proven empty, so a ping there can spook nothing. A ping on fog can land on a contact, and that costs ${c.spookPenalty} and the streak. There is always a shaded cell to ping: you never need the risk.`,
+          title: "Ping clear ground, never the fog",
+          body: `A clear cell is proven empty, so a ping there can spook nothing. A ping on fog can land on a contact, and that costs ${c.spookPenalty} and the streak. There is always a clear cell to ping: you never need the risk.`,
         },
         {
           title: "Light the ring",
-          body: "Tap any number and its ring lights up. The bright cells are the fog cells on it: the only places the contact it hears can be. When a ring has one bright cell, the contact is there. Lighting a ring is never a move and costs nothing.",
+          body: "Tap any number and its ring lights up. It is a diamond, with a pip on every fog plate it crosses. Those marked cells are the only places the contact it hears can be. When a ring has one marked cell, the contact is there. Lighting a ring is never a move and costs nothing.",
           media: {
             kind: "still",
             name: "ring",
-            alt: "The opening ping showing 3 has been tapped. A diamond is drawn three steps out from it, and the fog cells that lie on the diamond are lit bright.",
-            caption: "The ring of the opening ping. One of the bright cells holds a contact.",
+            alt: "The opening ping showing 3 has been tapped. A diamond is drawn three steps out from it, and each fog plate that lies on the diamond carries a pip.",
+            caption: "The ring of the opening ping. One of the marked cells holds a contact.",
           },
         },
         {
           title: "Lock with a long press",
-          body: `Hold a cell and brackets close on it: that is a lock, whatever the switch says. You never have to flip the switch and then forget it. A shaded cell refuses a lock for free, but a lock on empty fog costs ${c.wrongPenalty}, so lock only the last bright cell of a ring.`,
+          body: `Hold a cell and amber brackets close on it: that is a lock, whatever the switch says. You never have to flip the switch and then forget it. A clear cell refuses a lock for free, but a lock on empty fog costs ${c.wrongPenalty}, so lock only the last marked cell of a ring.`,
         },
       ],
-      drill: `Play rounds where you only ever ping shaded cells and only lock a ring's last bright cell. In practice rounds a pause brings up a safe move: check yours against it. You are there when a whole round shows no Spooked and no Nothing there, and the score passes ${p.thresholds[0]!.score}.`,
+      drill: `Play rounds where you only ever ping clear cells and only lock a ring's last marked cell. In practice rounds a pause brings up a safe move: check yours against it. You are there when a whole round shows no Spooked and no Nothing there, and the score passes ${p.thresholds[0]!.score}.`,
     },
     {
       level: "intermediate",
@@ -99,30 +99,30 @@ export const scanner: Guide = {
       tips: [
         {
           title: "Par is where the points are",
-          body: `A sector of ${c.startContacts} allows ${firstPar} pings, and the strip counts them down. Inside par the sector is clean and the streak grows. Pinging whatever shaded cell is handy clears every sector, but only about half of them within par.`,
+          body: `A sector of ${c.startContacts} allows ${firstPar} pings, and the strip counts them down. Inside par the sector is clean and the streak grows. Pinging whatever clear cell is handy clears every sector, but only about half of them within par.`,
         },
         {
           title: "Aim at the shortest ring",
-          body: "Light the ring with the fewest bright cells. Now find a shaded cell that is a different number of steps from each of them, and ping it: the answer says which one it is. A ping the same distance from both tells you nothing. Close is best, since a small number has a short ring. This one habit takes clean sectors from about half to more than eight in ten.",
+          body: "Light the ring with the fewest marked cells. Now find a clear cell that is a different number of steps from each of them, and ping it: the answer says which one it is. A ping the same distance from both tells you nothing. Close is best, since a small number has a short ring. This one habit takes clean sectors from about half to more than eight in ten.",
           media: {
             kind: "clip",
             name: "aim",
-            alt: "A ping showing 3 is tapped and its ring lights two bright fog cells. A shaded cell right beside one of them is pinged and answers 1. That bright cell is held and a contact is found there.",
+            alt: "A ping showing 3 is tapped and its ring marks two fog plates. A clear cell right beside one of them is pinged and answers 1. That plate is held and a contact is found there.",
             caption: "Two cells left on the ring. A ping one step from one and three from the other settles it.",
           },
         },
         {
           title: "Read again after every lock",
-          body: "A found contact stops answering. Every ping that heard it jumps to a bigger number, and a bigger number shades more cells. That new shade often leaves another ring with one cell, for no ping at all. A number that did not move is still hearing a contact at that distance.",
+          body: "A found contact stops answering. Every ping that heard it jumps to a bigger number, and a bigger number lifts more fog. The new clear ground often leaves another ring with one cell, for no ping at all. A number that did not move is still hearing a contact at that distance.",
           media: {
             kind: "clip",
             name: "live",
-            alt: "A cell in the fog is held and a contact is found. Four pings around it change to bigger numbers and the shaded area spreads across the sector.",
-            caption: "One lock. The pings that heard it sound again, and the shade grows.",
+            alt: "A cell in the fog is held and a contact is found. Four pings around it change to bigger numbers and the fog lifts across the sector.",
+            caption: "One lock. The pings that heard it sound again, and more fog lifts.",
           },
         },
       ],
-      drill: `Before each ping, light a ring and say which bright cells your ping will tell apart. If the answer is none, pick another cell. You are there when the strip rarely reads over par and a round passes ${p.thresholds[2]!.score}.`,
+      drill: `Before each ping, light a ring and say which marked cells your ping will tell apart. If the answer is none, pick another cell. You are there when the strip rarely reads over par and a round passes ${p.thresholds[2]!.score}.`,
     },
     {
       level: "advanced",
@@ -130,11 +130,11 @@ export const scanner: Guide = {
       tips: [
         {
           title: "One ping, every ring",
-          body: `There is usually more than one open ring. Before you ping, check the cell against all of them, and take the one that splits the bright cells of two rings at once. Played this way almost every sector comes in clean, in four to six pings where par allows ${firstPar} to ${lastPar}.`,
+          body: `There is usually more than one open ring. Before you ping, check the cell against all of them, and take the one that splits the marked cells of two rings at once. Played this way almost every sector comes in clean, in four to six pings where par allows ${firstPar} to ${lastPar}.`,
           media: {
             kind: "clip",
             name: "two-rings",
-            alt: "With three pings on the board, one more shaded cell is pinged and answers 1. A fog cell beside it is held and a contact is found. The numbers change, and a second fog cell is held and found with no ping between.",
+            alt: "With three pings on the board, one more clear cell is pinged and answers 1. A fog cell beside it is held and a contact is found. The numbers change, and a second fog cell is held and found with no ping between.",
             caption: "One ping aimed at two rings. Two locks follow it.",
           },
         },
@@ -144,7 +144,7 @@ export const scanner: Guide = {
           media: {
             kind: "clip",
             name: "cross",
-            alt: "Two contacts are found and one is hidden. One ping is tapped and its ring lights two bright cells. Another is tapped and its ring lights three. One cell is on both. It is held, the contact is found, and the board calls a clean sweep.",
+            alt: "Two contacts are found and one is hidden. One ping is tapped and its ring marks two cells. Another is tapped and its ring marks three. One cell is on both. It is held, the contact is found, and the board calls a clean sweep.",
             caption: "One contact left. Two rings share a single cell, so no ping is needed.",
           },
         },
@@ -169,7 +169,7 @@ export const scanner: Guide = {
           media: {
             kind: "clip",
             name: "streak",
-            alt: "The last hidden contact of a sector is held and found. The found contacts ring out, and the board calls Streak x3 and shows the pings saved and what they paid.",
+            alt: "The last hidden contact of a sector is held and found. The board pulses once in amber, calls Streak x3 and shows the pings saved and what they paid.",
             caption: "A third clean sector in a row. The saved pings are paid at the streak's rate.",
           },
         },
@@ -190,7 +190,7 @@ export const scanner: Guide = {
     },
   ],
   mistakes: [
-    `**Pinging fog to check a cell.** A shaded ping asks the same question with no risk. The fog ping can cost ${c.spookPenalty}, the contact's bounty and the streak.`,
+    `**Pinging fog to check a cell.** A ping on clear ground asks the same question with no risk. The fog ping can cost ${c.spookPenalty}, the contact's bounty and the streak.`,
     `**Locking on a hunch.** At even odds a lock is ${c.contactPoints} against ${c.wrongPenalty}, so it loses ${-coinFlip} a try before the streak is counted. No sector needs it.`,
     "**Crossing rings too early.** Two rings that share a cell prove it only when one contact is left. With more hidden, each ring may hear its own.",
     "**Trusting an old read.** After a lock the numbers change. A ring you lit a moment ago may have moved, so look again before the next move.",

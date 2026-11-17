@@ -4,9 +4,9 @@ import { expectViewMatchesState } from "./helpers.js";
 // Exercise the production build: a working dev URL is not enough for shared-package assets. Each
 // atlas is built from its frame files by the build (ADR 0054) and served under its own name.
 // The prototypes not restyled yet load theirs through the board kit (ADR 0037). The seven boards in the game and
-// the restyled prototypes (Overload, Deflectors, Tug) draw their pieces in code and load no atlas (ADR 0062), so none is listed here.
+// the restyled prototypes (Overload, Deflectors, Tug, Scanner) draw their pieces in code and load no atlas (ADR 0062), so none is listed here.
 const CORE: string[] = [];
-const PROTOTYPES = ["salvage", "reactor", "scanner", "racks", "cutting"];
+const PROTOTYPES = ["salvage", "reactor", "racks", "cutting"];
 
 for (const puzzle of [...CORE, ...PROTOTYPES]) {
   test(`${puzzle} atlas loads, draws, and survives a resize`, async ({ page }, testInfo) => {
@@ -241,6 +241,29 @@ test("Tug, a restyled kit board, asks for no atlas and plays on pods drawn in co
   await page.keyboard.press("ArrowDown");
   await expect(page.getByTestId("hud-moves")).toHaveText("1");
   await expectViewMatchesState(page, "tug");
+  expect(images).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("Scanner, a restyled kit board, asks for no atlas and plays on fog plates drawn in code", async ({ page }) => {
+  const errors: string[] = [];
+  const images: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (r) => {
+    if (r.url().endsWith(".webp")) images.push(r.url());
+  });
+  await page.goto("/play/scanner?seed=scan-1&start=lab");
+  const canvas = page.getByTestId("scanner-canvas");
+  await expect(canvas).toHaveAttribute("data-view", /.+/);
+  await expect(canvas).toHaveAttribute("data-pieces", "drawn");
+  await expect(canvas).not.toHaveAttribute("data-sprite-atlas");
+  await expectViewMatchesState(page, "scanner");
+  // The pinned seed's last cell holds a contact (the Scanner smoke locks the same one): enter locks at the cursor.
+  for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowRight");
+  for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("hud-moves")).toHaveText("1");
+  await expectViewMatchesState(page, "scanner");
   expect(images).toEqual([]);
   expect(errors).toEqual([]);
 });

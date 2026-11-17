@@ -19,16 +19,6 @@
     "grade-7",
     "hot"
   ],
-  "scanner": [
-    "fog",
-    "clear",
-    "found",
-    "spooked",
-    "miss",
-    "ping",
-    "lock",
-    "brackets"
-  ],
   "racks": [
     "cell-gold",
     "cell-ice",
