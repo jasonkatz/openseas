@@ -21,7 +21,7 @@ export const navigation: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: "The Navigation star chart: three rings around a compass, five stars resting on the inner ring, three hollow markers, and a gold spark falling toward the top column.",
+    alt: "The Navigation star chart: three flat rings round a bare hub, five stars resting on the inner ring, three hollow markers joined by thin lines, and a sand spark falling toward the top column.",
     caption: "The star chart. Stars fall into the top column. The hollow shapes are the constellation.",
   },
   theme: {
@@ -37,7 +37,7 @@ export const navigation: Guide = {
     { label: "A solid round", value: `${p.parScore} points` },
   ],
   rules: [
-    `The hollow **markers** are the constellation. Each wants one star of its own shape and color. There are ${c.shapes} shapes in ${c.colors} colors.`,
+    `The hollow **markers** are the constellation. Each wants one star of its own shape and color. There are ${c.shapes} shapes in ${c.colors} colors, and every color has a cut-out of its own, so a star reads by its form alone.`,
     "Stars fall one at a time into the **top column**. A star comes to rest on the first star it meets, or at the center when the column is empty.",
     "You can turn any ring a step either way, as often as you like. Stars ride their ring. Markers stay where they are.",
     "Stars always pack toward the center. Turn a star over an empty slot and it slides in.",
@@ -48,7 +48,7 @@ export const navigation: Guide = {
   rulesMedia: {
     kind: "clip",
     name: "first-turn",
-    alt: "A gold comet is brought down into the empty top column, lands at the center, and the inner ring is turned three steps to carry it onto its hollow gold comet marker.",
+    alt: "A sand comet is brought down into the empty top column, lands at the center, and the inner ring is turned three steps to carry it onto its hollow sand comet marker.",
     caption: "Bring the star down, then turn its ring to carry it onto its marker.",
   },
   controls: [
@@ -75,17 +75,17 @@ export const navigation: Guide = {
           media: {
             kind: "clip",
             name: "slot",
-            alt: "One inner marker already holds its star. The inner ring is turned three steps back, a teal comet is brought down at the top, and the ring is turned three steps forward so both markers hold their stars.",
+            alt: "One inner marker already holds its star. The inner ring is turned three steps back, a sky comet is brought down at the top, and the ring is turned three steps forward so both markers hold their stars.",
             caption: "Turn the ring back, drop, turn it home. The first star returns to its marker and the new one arrives on its own.",
           },
         },
         {
           title: "Read the landing ring",
-          body: "A dotted path runs from the falling star to a ring where it will rest. The ring turns **gold** when that spot is the star's own marker. A red cross means the top column is shut. Check it before every drop until you no longer need to.",
+          body: "A dotted path runs from the falling star to an amber ring where it will rest. The ring turns **bold** when that spot is the star's own marker. A red cross means the top column is shut. Check it before every drop until you no longer need to.",
         },
         {
           title: "Keep the top open",
-          body: `A star in the outer slot of the top column shuts it, and the next star to arrive there is a lost heading: ${c.lostHeadingPenalty} points gone, the column swept and the chain broken. One step of the outer ring moves that star aside. Do it the moment you see the red band.`,
+          body: `A star in the outer slot of the top column shuts it, and the next star to arrive there is a lost heading: ${c.lostHeadingPenalty} points gone, the column swept and the chain broken. One step of the outer ring moves that star aside. Do it the moment the chart's edge turns red.`,
         },
       ],
       drill: `Play rounds where you only chase inner markers and park every other star on the inner ring. You are there when a round passes ${p.thresholds[1]!.score} points with no heading lost.`,
@@ -129,7 +129,7 @@ export const navigation: Guide = {
           media: {
             kind: "clip",
             name: "floor",
-            alt: "The inner ring is full of stars. A teal star is brought down onto the middle ring at the top and the middle ring is turned four steps, carrying it over the floor to its marker at the bottom of the chart.",
+            alt: "The inner ring is full of stars. A sky star is brought down onto the middle ring at the top and the middle ring is turned four steps, carrying it over the floor to its marker at the bottom of the chart.",
             caption: "Over a full inner ring, a middle star rides straight to its marker.",
           },
         },

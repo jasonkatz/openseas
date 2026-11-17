@@ -380,9 +380,10 @@ export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
 /** Star styles: a kind is shape x color, so each axis is listed on its own. */
 export const StarColorSchema = z.object({
   nameKey: MessageKey,
-  /** Symbol drawn on the star when marks are on, so colors stay apart without color (rule 6). */
-  mark: z.string(),
-  color: z.string().regex(/^#[0-9a-f]{6}$/),
+  /** A colour of the palette, by name. */
+  color: PieceColorSchema,
+  /** The detail cut out of every star of this colour, so colours stay apart with the colour taken away (rule 6). */
+  cut: z.enum(["dot", "band", "split"]),
 });
 export const StarShapeSchema = z.object({
   nameKey: MessageKey,

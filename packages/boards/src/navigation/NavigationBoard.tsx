@@ -7,7 +7,6 @@ export interface NavigationBoardProps {
   /** The state as shown: the engine advanced to the current tick. */
   state: NavigationState;
   interactive: boolean;
-  showMarks: boolean;
   showMarkers: boolean;
   /** Idle hints, for unrated practice only. */
   hints: boolean;
@@ -39,7 +38,6 @@ export function NavigationBoard(props: NavigationBoardProps) {
         onNudge: () => latest.current.onNudge(),
       },
       {
-        showMarks: props.showMarks,
         showMarkers: props.showMarkers,
         hints: props.hints,
         tickMs: content.puzzles.navigation.config.tickMs,
@@ -84,10 +82,6 @@ export function NavigationBoard(props: NavigationBoardProps) {
     const r = renderer.current;
     if (r && r.app.renderer) r.setInteractive(props.interactive);
   }, [props.interactive]);
-
-  useEffect(() => {
-    renderer.current?.setShowMarks(props.showMarks);
-  }, [props.showMarks]);
 
   useEffect(() => {
     renderer.current?.setShowMarkers(props.showMarkers);
