@@ -14,7 +14,6 @@
   "boards/src/navigation/stars.ts",
   "boards/src/overload/renderer.ts",
   "boards/src/parts.ts",
-  "boards/src/plating/renderer.ts",
   "boards/src/racks/renderer.ts",
   "boards/src/reactor/renderer.ts",
   "boards/src/salvage/renderer.ts",

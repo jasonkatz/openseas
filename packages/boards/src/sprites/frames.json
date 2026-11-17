@@ -10,20 +10,6 @@
     "link",
     "gust"
   ],
-  "plating": [
-    "tin-h",
-    "copper-h",
-    "steel-h",
-    "brass-h",
-    "tin-v",
-    "copper-v",
-    "steel-v",
-    "brass-v",
-    "weld",
-    "chips",
-    "edge",
-    "sparkle"
-  ],
   "navigation": [
     "gold-spark",
     "gold-star",

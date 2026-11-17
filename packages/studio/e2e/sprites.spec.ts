@@ -4,8 +4,8 @@ import { expectViewMatchesState } from "./helpers.js";
 // Exercise the production build: a working dev URL is not enough for shared-package assets. Each
 // atlas is built from its frame files by the build (ADR 0054) and served under its own name.
 // The core boards M10 has not restyled yet, then the eight prototypes, which load theirs through the
-// board kit (ADR 0037). A restyled board draws its pieces in code and loads no atlas (ADR 0062): Cooling, Gunnery.
-const CORE = ["engines", "plating", "navigation", "swordfight", "battle"];
+// board kit (ADR 0037). A restyled board draws its pieces in code and loads no atlas (ADR 0062): Cooling, Gunnery, Plating.
+const CORE = ["engines", "navigation", "swordfight", "battle"];
 const PROTOTYPES = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting"];
 
 for (const puzzle of [...CORE, ...PROTOTYPES]) {

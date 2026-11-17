@@ -1,6 +1,5 @@
-import { loadPuzzleSprites, spritesReady, paintSprite } from "../sprites/atlas.js";
 import { soundsFor } from "../audio.js";
-import { Application, Container, FillGradient, Graphics, Text, type FederatedPointerEvent, type FederatedWheelEvent } from "pixi.js";
+import { Application, CanvasSource, Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent, type FederatedWheelEvent } from "pixi.js";
 import {
   platingCheckPlacement,
   platingEffectiveBrush,
@@ -12,11 +11,10 @@ import {
   type Brush,
   type BreachRating,
 } from "@openseas/engine";
-import type { PlatingContent } from "@openseas/content";
-import { mix } from "../cooling/tiles.js";
-import { drawMark } from "../engines/renderer.js";
+import type { PieceColor, PlatingContent } from "@openseas/content";
 import { boardSurface } from "../surface.js";
-import { HULL, hullRivet, starField } from "../hull.js";
+import { FONT, MOTION, RADIUS, blend, ink } from "../look/tokens.js";
+import { plateBox, plateCanvas, type PlateCells, type PlateCut } from "./pieces.js";
 
 export interface PlatingCallbacks {
   /** The player welded down the plate in `slot` at this orientation and origin. */
@@ -38,7 +36,6 @@ export interface PlatingCallbacks {
 }
 
 export interface PlatingRendererOptions {
-  showMarks: boolean;
   ratingLabel(rating: BreachRating): string;
   streakLabel(count: number): string;
   brushLabel: string;
@@ -47,9 +44,9 @@ export interface PlatingRendererOptions {
 
 type Oriented = Array<[number, number]>;
 
-interface Flash {
+/** The cell a breach just gained, ringed in danger for a moment so the player sees where it widened. */
+interface Widened {
   cells: readonly number[];
-  color: number;
   life: number;
   max: number;
 }
@@ -61,7 +58,7 @@ interface Popup {
   y0: number;
 }
 
-/** A plate dropping onto the board: slides from where it was held to its cells and settles. */
+/** A plate going down: it slides from where it was held to its cells. */
 interface Landing {
   plateId: number;
   cells: Oriented;
@@ -76,7 +73,7 @@ interface Landing {
   max: number;
 }
 
-/** A sealed breach's plate lifting off the hull. Drawn in place while `delay` runs down. */
+/** A sealed breach's plate coming off the hull: it shrinks to nothing. Drawn in place while `delay` runs down. */
 interface Lift {
   cells: Oriented;
   x: number;
@@ -88,7 +85,7 @@ interface Lift {
   max: number;
 }
 
-/** Sound hull over a breach that is about to crack open; shrinks away to reveal it. */
+/** Sound hull over a breach that is about to open; shrinks away to reveal it. */
 interface Cover {
   cells: readonly number[];
   delay: number;
@@ -98,7 +95,7 @@ interface Cover {
   grew: boolean;
 }
 
-/** A plate that would not go where it was dropped, flying back to its tray slot. */
+/** A plate that would not go where it was dropped, on its way back to its tray slot. */
 interface Flyback {
   cells: Oriented;
   kind: number;
@@ -137,32 +134,66 @@ interface Drag {
 
 type HudAction = "ccw" | "cw" | "flip" | "weld";
 
+/**
+ * Every colour the board draws, from the game's one palette (docs/BRAND.md section 2). The hull is
+ * a raised slab and a breach is the ground showing through it. Amber is the player's own plate and
+ * the beat; danger is waste, a refusal and a breach about to widen.
+ */
 const COLORS = {
-  // The hull is riveted gunmetal panels; a breach opens onto space through torn metal.
-  hullA: 0x3a4250,
-  hullB: 0x2a303b,
-  hullEdge: 0x0e1218,
-  breachTop: 0x0c1428,
-  breachBottom: 0x03050a,
-  tornMetal: 0xb4bcc8,
-  breachEdge: 0x050709,
-  brass: 0xd4a548,
-  brassLight: 0xf5d58a,
-  amber: 0xf0b445,
-  legal: 0x5ed3b8,
-  illegal: 0xf0604d,
-  waste: 0xf0604d,
-  trayBg: 0x1c2b48,
-  ink: 0x0b1526,
+  ground: ink("ground"),
+  raised: ink("raised"),
+  line: ink("line"),
+  cream: ink("cream"),
+  dim: ink("dim"),
+  amber: ink("amber"),
+  danger: ink("danger"),
 };
 const TRAY_ROWS = 3.1;
 const LIFT_TOUCH = 1.15;
-const MARK_GLYPH: Record<string, string> = { square: "■", diamond: "◆", triangle: "▲", hexagon: "⬢", circle: "●", star: "★" };
-const FONT = "Atkinson Hyperlegible, sans-serif";
-const DISPLAY = "Fraunces, Georgia, serif";
+const MOVE_MS = MOTION.move;
+const CLEAR_MS = MOTION.clear;
+const BEAT_MS = MOTION.beat;
+/** A refused weld shows on the plate for this long. */
+const DENIED_MS = 260;
+/** A flawless seal of a breach this many plates big is a beat by itself. */
+const BIG_SEAL_PLATES = 3;
+
+/** Baked plates kept before the ones no longer on screen are dropped. */
+const BAKED_MAX = 96;
 
 const easeOut = (k: number): number => 1 - (1 - k) ** 3;
-const easeIn = (k: number): number => k * k;
+
+/**
+ * Plates on one layer of the board, as sprites of baked textures. Whoever draws the layer resets
+ * it and puts back what it shows now, as it would clear and repaint a Graphics.
+ */
+class PlateLayer extends Container {
+  private used = 0;
+
+  reset(): void {
+    for (const c of this.children) {
+      c.visible = false;
+      (c as Sprite).texture = Texture.EMPTY;
+    }
+    this.used = 0;
+  }
+
+  put(texture: Texture, x: number, y: number, w: number, h: number, alpha: number): void {
+    let sprite = this.children[this.used] as Sprite | undefined;
+    if (!sprite) sprite = this.addChild(new Sprite());
+    this.used++;
+    sprite.texture = texture;
+    sprite.visible = true;
+    sprite.alpha = alpha;
+    sprite.position.set(x, y);
+    sprite.setSize(w, h);
+  }
+
+  /** The textures this layer is showing. */
+  collect(into: Set<Texture>): void {
+    for (const c of this.children) if (c.visible) into.add((c as Sprite).texture);
+  }
+}
 
 export class PlatingRenderer {
   readonly app = new Application();
@@ -170,34 +201,48 @@ export class PlatingRenderer {
   private readonly hull = new Graphics();
   private readonly breachesG = new Graphics();
   private readonly breachFxG = new Graphics();
+  private readonly platesL = new PlateLayer();
+  /** Waste marks, over the plates. */
   private readonly platesG = new Graphics();
-  private readonly markLayer = new Container();
   private readonly fxG = new Graphics();
+  private readonly fxL = new PlateLayer();
+  /** The rim of the breach the plate in hand would join. */
+  private readonly joinG = new Graphics();
+  /** The ghost's plate and its ring, together so a flip turns both over. */
+  private readonly ghostWrap = new Container();
+  private readonly ghostL = new PlateLayer();
   private readonly ghostG = new Graphics();
   private readonly trayG = new Graphics();
-  private readonly trayPiecesG = new Graphics();
+  private readonly trayL = new PlateLayer();
   private readonly trayText = new Container();
   private readonly hudG = new Graphics();
+  private readonly dragL = new PlateLayer();
   private readonly dragG = new Graphics();
+  private readonly beatLayer = new Graphics();
   private readonly textLayer = new Container();
-  private readonly colorByKind = new Map<number, number>();
-  private readonly markByKind = new Map<number, string>();
-  private readonly breachFill = linear([COLORS.breachTop, COLORS.breachBottom]);
+  private readonly colorByKind = new Map<number, PieceColor>();
+  private readonly cutByKind = new Map<number, PlateCut>();
+  /** Each plate drawn so far, baked to a texture at the size it is shown (ADR 0062). */
+  private readonly baked = new Map<string, Texture>();
   private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  private readonly flashes: Flash[] = [];
+  private readonly widened: Widened[] = [];
   private readonly popups: Popup[] = [];
   private readonly lifts: Lift[] = [];
   private readonly covers: Cover[] = [];
   private readonly timers: Timer[] = [];
   private landing: Landing | null = null;
   private flyback: Flyback | null = null;
-  private shake: { life: number; max: number } | null = null;
+  /** A weld the board refused: the plate shows in danger while this runs. */
+  private denied: { life: number } | null = null;
+  /** The beat: one amber pulse of the whole board for a big moment (docs/BRAND.md section 6). */
+  private beatNow: { life: number; strength: number } | null = null;
   /** The ghost turning over on its vertical axis after a flip, so the button always answers. */
   private flipFx: { life: number; max: number; cx: number } | null = null;
   private refill: { slot: number; life: number; max: number } | null = null;
   private clock = 0;
-  private showMarks: boolean;
   private cell = 36;
+  /** A cell of a plate waiting in the tray, in pixels. */
+  private mini = 18;
   private ox = 0;
   private oy = 0;
   private width = 9;
@@ -239,10 +284,9 @@ export class PlatingRenderer {
     private readonly cb: PlatingCallbacks,
     private readonly opts: PlatingRendererOptions,
   ) {
-    this.showMarks = opts.showMarks;
     content.pieces.forEach((p, i) => {
-      this.colorByKind.set(i, parseInt(p.color.slice(1), 16));
-      this.markByKind.set(i, p.mark);
+      this.colorByKind.set(i, p.color);
+      this.cutByKind.set(i, p.cut);
     });
     this.width = content.config.width;
     this.height = content.config.height;
@@ -252,7 +296,9 @@ export class PlatingRenderer {
   private readonly releaseSounds = soundsFor("plating");
 
   async init(): Promise<void> {
-    await loadPuzzleSprites("plating");
+    // Points and callouts are drawn as text, so wait (briefly) for the webfont. Before the renderer
+    // is made, not after: the board hands over a state as soon as there is one, and by then the layout must be in.
+    await Promise.race([document.fonts?.ready, new Promise((r) => window.setTimeout(r, 800))]).catch(() => undefined);
     if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
@@ -265,13 +311,15 @@ export class PlatingRenderer {
       this.app.destroy(true);
       return;
     }
-    this.app.canvas.dataset.spriteAtlas = spritesReady("plating") ? "plating" : "fallback";
+    // No atlas to wait for: the plates are drawn in code (ADR 0062). The studio's thumbnails read this.
+    this.app.canvas.dataset.pieces = "drawn";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "plating-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.app.canvas.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
     this.host.appendChild(this.app.canvas);
-    this.root.addChild(this.hull, this.breachesG, this.breachFxG, this.platesG, this.markLayer, this.fxG, this.ghostG, this.trayG, this.trayPiecesG, this.trayText, this.hudG, this.dragG, this.textLayer);
+    this.ghostWrap.addChild(this.ghostL, this.ghostG);
+    this.root.addChild(this.hull, this.breachesG, this.breachFxG, this.platesL, this.platesG, this.fxG, this.fxL, this.joinG, this.ghostWrap, this.trayG, this.trayL, this.trayText, this.hudG, this.dragL, this.dragG, this.beatLayer, this.textLayer);
     this.app.stage.addChild(this.root);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -291,25 +339,23 @@ export class PlatingRenderer {
     this.releaseSounds();
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
-      this.breachFill.destroy();
+      for (const tex of this.baked.values()) tex.destroy(true);
     }
+  }
+
+  private clearDrag(): void {
+    this.dragG.clear();
+    this.dragL.reset();
   }
 
   setInteractive(on: boolean): void {
     this.interactive = on;
     if (!on) {
       this.drag = null;
-      this.dragG.clear();
+      this.clearDrag();
       this.drawTrayPieces();
     }
     this.drawGhost();
-  }
-
-  setShowMarks(on: boolean): void {
-    if (this.showMarks === on) return;
-    this.showMarks = on;
-    this.drawPlates();
-    this.drawTrayPieces();
   }
 
   /** A new engine state. Plays what the last move did and redraws everything. */
@@ -328,9 +374,9 @@ export class PlatingRenderer {
       this.cursor = null;
       this.lastOrigin = null;
       this.pendingLand = null;
-      // The round opens with the hull cracking: each breach breaks in turn.
+      // The round opens with the hull giving way: each breach opens in turn.
       if (prev !== state) {
-        state.breaches.forEach((h, i) => this.covers.push({ cells: h.cells, delay: 120 + i * 140, life: 0, max: this.dur(320), opening: true, grew: false }));
+        state.breaches.forEach((h, i) => this.covers.push({ cells: h.cells, delay: 120 + i * 140, life: 0, max: this.dur(CLEAR_MS), opening: true, grew: false }));
       }
     } else if (prev && rep && rep.move.type === "place" && rep.placed) {
       this.playMove(prev, state);
@@ -344,6 +390,7 @@ export class PlatingRenderer {
     this.drawPlates();
     this.drawTrayPieces();
     this.drawGhost();
+    this.sweep();
   }
 
   private playMove(prev: PlatingState, state: PlatingState): void {
@@ -356,7 +403,7 @@ export class PlatingRenderer {
     const y1 = this.oy + rel.row * this.cell;
     const from = this.pendingLand && this.pendingLand.slot === rep.move.slot ? this.pendingLand : null;
     this.pendingLand = null;
-    const landMs = this.dur(from && Math.hypot(from.x - x1, from.y - y1) > this.cell ? 170 : 110);
+    const landMs = this.dur(MOVE_MS);
     if (this.landing) this.cb.onNailed(this.landing.waste);
     this.landing = {
       plateId: plate.id,
@@ -376,33 +423,34 @@ export class PlatingRenderer {
     if (rep.sealed) {
       const sealed = rep.sealed;
       const gone = [...prev.plates.filter((p) => p.breachId === sealed.breachId), plate];
-      gone.forEach((p, i) => {
+      for (const p of gone) {
         const r = relative(p.cells, this.width);
-        this.lifts.push({ cells: r.cells, x: this.ox + r.col * this.cell, y: this.oy + r.row * this.cell, kind: p.kind, brush: p.brush, delay: t + 60 + i * 50, life: 0, max: this.dur(460) });
-      });
+        this.lifts.push({ cells: r.cells, x: this.ox + r.col * this.cell, y: this.oy + r.row * this.cell, kind: p.kind, brush: p.brush, delay: t + 40, life: 0, max: this.dur(CLEAR_MS) });
+      }
       this.at(t + 40, () => {
-        this.flash(sealed.cells, COLORS.brassLight, 650);
         const first = sealed.cells[Math.floor(sealed.cells.length / 2)]!;
-        this.popup(this.cx(first % this.width), this.cy(Math.floor(first / this.width)), `+${sealed.points}`, COLORS.brassLight, 0.55);
-        const tone = sealed.rating === "flawless" ? COLORS.brassLight : sealed.rating === "gum" ? COLORS.illegal : 0xefe3c6;
-        this.callout(this.opts.ratingLabel(sealed.rating), tone, 0.3);
-        if (sealed.chain >= 2) this.callout(this.opts.streakLabel(sealed.chain), COLORS.brassLight, 0.42);
-        if (sealed.brushBonus) this.callout(this.opts.brushLabel, COLORS.legal, sealed.chain >= 2 ? 0.52 : 0.42);
+        this.popup(this.cx(first % this.width), this.cy(Math.floor(first / this.width)), `+${sealed.points}`, 0.55);
+        this.callout(this.opts.ratingLabel(sealed.rating), sealed.rating === "gum" ? COLORS.danger : COLORS.cream, 0.3);
+        if (sealed.chain >= 2) this.callout(this.opts.streakLabel(sealed.chain), COLORS.cream, 0.42);
+        if (sealed.brushBonus) this.callout(this.opts.brushLabel, COLORS.cream, sealed.chain >= 2 ? 0.52 : 0.42);
+        // The beat is kept for flawless seals back to back, and for a flawless on the biggest breach.
+        const big = gone.length >= BIG_SEAL_PLATES;
+        if (sealed.rating === "flawless" && (sealed.chain >= 2 || big)) this.beat(0.5 + Math.min(0.5, Math.max(0, sealed.chain - 2) * 0.17 + (big ? 0.17 : 0)));
         this.cb.onSealed(sealed.rating, sealed.chain);
       });
-      t += 380;
+      t += 40 + CLEAR_MS + 40;
     }
     for (const h of rep.spawned) {
-      this.covers.push({ cells: h.cells, delay: t + 120, life: 0, max: this.dur(340), opening: false, grew: false });
+      this.covers.push({ cells: h.cells, delay: t + 60, life: 0, max: this.dur(CLEAR_MS), opening: false, grew: false });
       t += 90;
     }
     if (rep.grown) {
       const grown = rep.grown;
-      this.covers.push({ cells: [grown.cell], delay: landMs + 80, life: 0, max: this.dur(420), opening: false, grew: true });
-      this.at(landMs + 80, () => this.callout(this.opts.grewLabel, COLORS.illegal, 0.62));
+      this.covers.push({ cells: [grown.cell], delay: landMs + 80, life: 0, max: this.dur(CLEAR_MS), opening: false, grew: true });
+      this.at(landMs + 80, () => this.callout(this.opts.grewLabel, COLORS.danger, 0.62));
     }
     // The slot refills under the player, and nothing is in hand until they pick again.
-    this.refill = { slot: rep.move.slot, life: 0, max: this.dur(220) };
+    this.refill = { slot: rep.move.slot, life: 0, max: this.dur(MOVE_MS) };
     this.lastOrigin = this.cursor;
     this.anchor = null;
     this.takeSlot(null);
@@ -415,7 +463,8 @@ export class PlatingRenderer {
     if (!this.app.renderer) return;
     const w = this.app.screen.width;
     const h = this.app.screen.height;
-    const pad = 8;
+    // Nothing frames the board, so it gets all of the screen but the hairline.
+    const pad = 2;
     const cell = Math.floor(Math.min((w - pad * 2) / this.width, (h - pad * 2) / (this.height + TRAY_ROWS)));
     this.cell = Math.max(10, cell);
     const totalH = this.cell * (this.height + TRAY_ROWS);
@@ -428,6 +477,15 @@ export class PlatingRenderer {
     const gap = W * 0.02;
     const slotW = (W - gap * 2) / 3;
     this.slotRects = [0, 1, 2].map((i) => ({ x: this.ox + i * (slotW + gap), y: this.trayY, w: slotW, h: this.trayH }));
+    this.mini = Math.min(slotW, this.trayH) / 5.6;
+    // Plates are baked at the size they are shown, so a new size bakes them afresh.
+    const stale = [...this.baked.values()];
+    this.baked.clear();
+    this.fxL.reset();
+    this.dragL.reset();
+    // The beat swells the board about its middle.
+    this.root.pivot.set(this.ox + W / 2, this.oy + totalH / 2);
+    this.root.position.copyFrom(this.root.pivot);
     this.drawHull();
     this.drawBreaches();
     this.drawPlates();
@@ -436,68 +494,48 @@ export class PlatingRenderer {
     this.syncCursor();
     this.drawGhost();
     this.breachFxDirty = true;
+    for (const tex of stale) tex.destroy(true);
   }
 
+  /**
+   * The hull is one flat raised slab with a hairline round it: no frame, no panels, no grid
+   * (docs/BRAND.md section 3). The ground under it and the tray is painted, not left clear, so the
+   * board is whole wherever it is shown (a thumbnail, a capture).
+   */
   private drawHull(): void {
-    const g = this.hull;
-    const s = this.cell;
-    const W = this.width * s;
-    const H = this.height * s;
-    g.clear();
-    g.roundRect(this.ox - 6, this.oy - 6, W + 12, H + 12, 10).fill({ color: 0x000000, alpha: 0.45 });
-    // Plating: staggered panels two cells long, riveted at each end.
-    for (let r = 0; r < this.height; r++) {
-      const y = this.oy + r * s;
-      g.rect(this.ox, y, W, s).fill(this.hullColor(r));
-      const offset = r % 2 === 0 ? 0 : s;
-      for (let x = this.ox - offset; x < this.ox + W; x += s * 2) {
-        const x0 = Math.max(this.ox, x);
-        const x1 = Math.min(this.ox + W, x + s * 2);
-        g.rect(x0, y + 1, x1 - x0, s - 2).stroke({ width: 1, color: COLORS.hullEdge, alpha: 0.55 });
-        g.rect(x0 + 1, y + 2, x1 - x0 - 2, 1).fill({ color: HULL.sheen, alpha: 0.12 });
-        for (const rx of [x + s * 0.18, x + s * 1.82]) if (rx > this.ox && rx < this.ox + W) hullRivet(g, rx, y + s * 0.5, Math.max(1, s * 0.055));
-      }
-    }
-    g.rect(this.ox, this.oy, W, H).stroke({ width: 2, color: COLORS.hullEdge, alpha: 0.9 });
-    // Tray well.
-    g.roundRect(this.ox - 4, this.trayY - 4, W + 8, this.trayH + 8, 8).fill({ color: COLORS.ink, alpha: 0.75 });
+    const W = this.width * this.cell;
+    const H = this.height * this.cell;
+    this.hull
+      .clear()
+      .rect(this.ox, this.oy, W, this.trayY + this.trayH - this.oy)
+      .fill(COLORS.ground)
+      .rect(this.ox, this.oy, W, H)
+      .fill(COLORS.raised)
+      .rect(this.ox - 0.5, this.oy - 0.5, W + 1, H + 1)
+      .stroke({ width: 1, color: COLORS.line });
   }
 
-  /** The hull's colour on a row: darker toward the keel, with alternate rows shaded. */
-  private hullColor(row: number): number {
-    const base = mix(COLORS.hullA, COLORS.hullB, row / Math.max(1, this.height - 1));
-    return row % 2 === 0 ? mix(base, 0x000000, 0.06) : base;
-  }
-
+  /** A breach is the ground showing through the hull. Each cell still open carries a dot. */
   private drawBreaches(): void {
     const g = this.breachesG;
     g.clear();
     if (!this.state) return;
     const s = this.cell;
     for (const h of this.state.breaches) {
-      const set = new Set(h.cells);
+      for (const c of h.cells) g.rect(this.ox + (c % this.width) * s, this.oy + Math.floor(c / this.width) * s, s, s).fill(COLORS.ground);
+    }
+    for (const h of this.state.breaches) {
       for (const c of h.cells) {
-        const col = c % this.width;
-        const row = Math.floor(c / this.width);
-        const x = this.ox + col * s;
-        const y = this.oy + row * s;
-        g.rect(x, y, s, s).fill(this.breachFill);
-        starField(g, x, y, s, s, 2.2, c + 1);
-        // Torn rim: bright metal where the plating was ripped inward, a shadow under the far edges.
-        const edge = (cc: number, rr: number): boolean => cc < 0 || cc >= this.width || rr < 0 || rr >= this.height || !set.has(rr * this.width + cc);
-        if (edge(col, row - 1)) {
-          g.rect(x, y, s, 3).fill({ color: COLORS.tornMetal, alpha: 0.45 });
-          for (let k = 0.15; k < 1; k += 0.35) g.poly([x + s * k, y + 3, x + s * (k + 0.1), y + 3, x + s * (k + 0.04), y + 3 + s * 0.16]).fill({ color: COLORS.tornMetal, alpha: 0.35 });
-        }
-        if (edge(col - 1, row)) g.rect(x, y, 3, s).fill({ color: COLORS.tornMetal, alpha: 0.3 });
-        if (edge(col, row + 1)) g.rect(x, y + s - 3, s, 3).fill({ color: 0x000000, alpha: 0.5 });
-        if (edge(col + 1, row)) g.rect(x + s - 3, y, 3, s).fill({ color: 0x000000, alpha: 0.35 });
+        if (this.state.covered[c]! > 0) continue;
+        g.circle(this.cx(c % this.width), this.cy(Math.floor(c / this.width)), Math.max(1.5, s * 0.07)).fill(COLORS.line);
       }
-      this.strokeRegion(g, set, 0, { width: 2, color: COLORS.breachEdge, alpha: 0.9 });
     }
   }
 
-  /** Per-frame breach overlays: an idle breach about to widen pulses amber, then red. */
+  /**
+   * Per-frame breach overlays: an idle breach about to widen is rimmed in danger. Two plates from
+   * widening the rim is thin and still; one plate from it the rim is thick and beats slowly.
+   */
   private drawBreachFx(): void {
     const g = this.breachFxG;
     if (!this.state) {
@@ -512,121 +550,126 @@ export class PlatingRenderer {
       return;
     }
     g.clear();
+    const s = this.cell;
     for (const h of warn) {
-      const left = grow - h.idleMoves;
-      const urgent = left <= 1;
-      const pulse = this.reduced ? 0.6 : 0.5 + 0.5 * Math.sin(this.clock / (urgent ? 110 : 220));
-      this.strokeRegion(g, new Set(h.cells), 2, { width: 3, color: urgent ? COLORS.illegal : COLORS.amber, alpha: 0.35 + 0.55 * pulse });
+      const urgent = grow - h.idleMoves <= 1;
+      const pulse = !urgent || this.reduced ? 1 : 0.5 + 0.5 * Math.sin(this.clock / 220);
+      const width = urgent ? Math.max(3, s * 0.1) : Math.max(1.5, s * 0.04);
+      // A flat tint that moves between the ground and danger: never a glow.
+      this.strokeRegion(g, new Set(h.cells), width / 2, { width, color: blend("ground", "danger", 0.45 + 0.55 * pulse) });
     }
   }
 
   private drawPlates(): void {
     const g = this.platesG;
     g.clear();
-    this.markLayer.removeChildren().forEach((c) => c.destroy());
+    this.platesL.reset();
     if (!this.state) return;
     const s = this.cell;
     const breachOf = platingBreachIndex(this.state);
     for (const p of this.state.plates) {
       if (this.landing && this.landing.plateId === p.id) continue;
       const r = relative(p.cells, this.width);
-      this.paintPlate(g, r.cells, this.ox + r.col * s, this.oy + r.row * s, s, p.kind, p.brush, 1);
-      if (this.showMarks) {
-        const c0 = p.cells[Math.floor(p.cells.length / 2)]!;
-        const t = new Text({ text: MARK_GLYPH[this.markByKind.get(p.kind) ?? "square"] ?? "■", style: { fontSize: s * 0.4, fill: 0xffffff } });
-        t.alpha = 0.7;
-        t.anchor.set(0.5);
-        t.position.set(this.cx(c0 % this.width), this.cy(Math.floor(c0 / this.width)));
-        this.markLayer.addChild(t);
-      }
+      this.paintPlate(this.platesL, r.cells, this.ox + r.col * s, this.oy + r.row * s, s, p.kind, p.brush, 1);
     }
-    // Waste: hull covered by a plate, or breach cells covered twice. Hatched so it reads without color.
+    // Waste: hull covered by a plate, or breach cells covered twice. Crossed out, so it reads without color.
     for (let c = 0; c < this.state.covered.length; c++) {
       const n = this.state.covered[c]!;
       if (n === 0) continue;
       if (breachOf.has(c) ? n > 1 : n > 0) {
         if (this.landing && this.landing.cells.some(([dx, dy]) => this.landingCellAt(this.landing!, dx, dy) === c)) continue;
-        this.paintWaste(g, this.ox + (c % this.width) * s, this.oy + Math.floor(c / this.width) * s, s, 0.5);
+        this.paintWaste(g, this.ox + (c % this.width) * s, this.oy + Math.floor(c / this.width) * s, s);
       }
     }
   }
 
-  private paintWaste(g: Graphics, x: number, y: number, s: number, alpha: number): void {
-    g.rect(x + 2, y + 2, s - 4, s - 4).fill({ color: COLORS.waste, alpha: alpha * 0.55 });
-    g.setStrokeStyle({ width: 1.5, color: COLORS.waste, alpha });
-    for (let k = -s; k < s; k += s / 3) g.moveTo(x + Math.max(2, k + 2), y + Math.max(2, 2 - k)).lineTo(x + Math.min(s - 2, k + s - 2), y + Math.min(s - 2, s - 2 - k)).stroke();
-  }
-
-  private paintPlateCell(g: Graphics, x: number, y: number, s: number, color: number, brush: Brush, alpha: number): void {
-    const kind = [...this.colorByKind].find(([, c]) => c === color)?.[0];
-    const metal = kind === undefined ? undefined : ["tin", "copper", "steel", "brass"][kind];
-    if (metal && paintSprite(g, "plating", `${metal}-${brush}`, x, y, s, s, alpha)) return;
-    g.rect(x, y, s, s).fill({ color, alpha });
-    g.setStrokeStyle({ width: 1, color: mix(color, 0x000000, 0.35), alpha: 0.7 * alpha });
-    const n = 3;
-    for (let i = 1; i <= n; i++) {
-      const k = (i / (n + 1)) * s;
-      if (brush === "h") g.moveTo(x + 2, y + k).lineTo(x + s - 2, y + k + (i % 2 ? 1 : -1)).stroke();
-      else g.moveTo(x + k, y + 2).lineTo(x + k + (i % 2 ? 1 : -1), y + s - 2).stroke();
+  /** A wasted cell: a danger cross with a ground edge, so it reads on a plate of any colour. */
+  private paintWaste(g: Graphics, x: number, y: number, s: number): void {
+    const a = s * 0.16;
+    const cx = x + s / 2;
+    const cy = y + s / 2;
+    for (const [color, width] of [[COLORS.ground, s * 0.24], [COLORS.danger, s * 0.12]] as const) {
+      g.moveTo(cx - a, cy - a).lineTo(cx + a, cy + a).moveTo(cx - a, cy + a).lineTo(cx + a, cy - a).stroke({ width, color, cap: "round" });
     }
-    g.rect(x, y, s, s * 0.18).fill({ color: 0xffffff, alpha: 0.12 * alpha });
   }
 
-  /** A whole plate: its cells with their brushing, and an outline around the outside only. */
-  private paintPlate(g: Graphics, cells: Oriented, x0: number, y0: number, m: number, kind: number, brush: Brush, alpha: number): void {
-    const color = this.colorByKind.get(kind) ?? COLORS.tornMetal;
-    for (const [dx, dy] of cells) this.paintPlateCell(g, x0 + dx * m, y0 + dy * m, m, color, brush, alpha);
+  /** A whole plate in its metal's colour and cut-out, `m` pixels a cell, put on a layer. */
+  private paintPlate(layer: PlateLayer, cells: PlateCells, x0: number, y0: number, m: number, kind: number, brush: Brush, alpha: number): void {
+    if (cells.length === 0 || m <= 0) return;
+    const box = plateBox(cells);
+    layer.put(this.texture(cells, kind, brush, m), x0 + box.x * m, y0 + box.y * m, box.w * m, box.h * m, alpha);
+  }
+
+  /** A plate's texture, baked the first time it is asked for: at the hull's cell size, or the tray's for anything nearer that. */
+  private texture(cells: PlateCells, kind: number, brush: Brush, m: number): Texture {
+    const px = m > (this.cell + this.mini) / 2 ? this.cell : this.mini;
+    const key = `${kind}:${brush}:${px}:${cells.join(";")}`;
+    let tex = this.baked.get(key);
+    if (!tex) {
+      const resolution = this.app.renderer.resolution;
+      const canvas = plateCanvas(cells, px, this.cutByKind.get(kind) ?? null, brush, this.colorByKind.get(kind) ?? "cream", resolution);
+      tex = new Texture({ source: new CanvasSource({ resource: canvas, resolution }) });
+      this.baked.set(key, tex);
+    }
+    return tex;
+  }
+
+  /** Drop the oldest baked plates no layer is showing, once there are many. */
+  private sweep(): void {
+    if (this.baked.size <= BAKED_MAX) return;
+    const live = new Set<Texture>();
+    for (const layer of [this.platesL, this.fxL, this.ghostL, this.trayL, this.dragL]) layer.collect(live);
+    for (const [key, tex] of this.baked) {
+      if (this.baked.size <= BAKED_MAX / 2) break;
+      if (live.has(tex)) continue;
+      this.baked.delete(key);
+      tex.destroy(true);
+    }
+  }
+
+  /**
+   * Stroke the outside boundary of a shape made of cells, `m` pixels each, from (`x0`, `y0`).
+   * `inset` moves the line into the shape; a negative one moves it off the shape.
+   */
+  private outline(g: Graphics, cells: ReadonlyArray<readonly [number, number]>, x0: number, y0: number, m: number, inset: number, style: { width: number; color: number }): void {
     const set = new Set(cells.map(([x, y]) => `${x},${y}`));
-    g.setStrokeStyle({ width: Math.max(1.5, m * 0.06), color: mix(color, 0x000000, 0.55), alpha: 0.9 * alpha });
-    const inset = Math.max(1, m * 0.03);
-    for (const [dx, dy] of cells) {
-      const x = x0 + dx * m;
-      const y = y0 + dy * m;
-      if (!set.has(`${dx},${dy - 1}`)) g.moveTo(x, y + inset).lineTo(x + m, y + inset).stroke();
-      if (!set.has(`${dx},${dy + 1}`)) g.moveTo(x, y + m - inset).lineTo(x + m, y + m - inset).stroke();
-      if (!set.has(`${dx - 1},${dy}`)) g.moveTo(x + inset, y).lineTo(x + inset, y + m).stroke();
-      if (!set.has(`${dx + 1},${dy}`)) g.moveTo(x + m - inset, y).lineTo(x + m - inset, y + m).stroke();
+    const has = (x: number, y: number): boolean => set.has(`${x},${y}`);
+    // Where an edge stops short of its cell's corner: at an outside corner it turns in, at an inside one it runs on.
+    const end = (side: boolean, diagonal: boolean): number => (!side ? inset : diagonal ? -inset : 0);
+    for (const [cx, cy] of cells) {
+      const x = x0 + cx * m;
+      const y = y0 + cy * m;
+      if (!has(cx, cy - 1)) g.moveTo(x + end(has(cx - 1, cy), has(cx - 1, cy - 1)), y + inset).lineTo(x + m - end(has(cx + 1, cy), has(cx + 1, cy - 1)), y + inset);
+      if (!has(cx, cy + 1)) g.moveTo(x + end(has(cx - 1, cy), has(cx - 1, cy + 1)), y + m - inset).lineTo(x + m - end(has(cx + 1, cy), has(cx + 1, cy + 1)), y + m - inset);
+      if (!has(cx - 1, cy)) g.moveTo(x + inset, y + end(has(cx, cy - 1), has(cx - 1, cy - 1))).lineTo(x + inset, y + m - end(has(cx, cy + 1), has(cx - 1, cy + 1)));
+      if (!has(cx + 1, cy)) g.moveTo(x + m - inset, y + end(has(cx, cy - 1), has(cx + 1, cy - 1))).lineTo(x + m - inset, y + m - end(has(cx, cy + 1), has(cx + 1, cy + 1)));
     }
-  }
-
-  /** A plate with a soft shadow under it, as if held above the hull. */
-  private paintHeldPlate(g: Graphics, cells: Oriented, x0: number, y0: number, m: number, kind: number, brush: Brush, lift: number): void {
-    const sh = m * 0.12 + lift;
-    for (const [dx, dy] of cells) g.rect(x0 + dx * m + sh * 0.6, y0 + dy * m + sh, m, m).fill({ color: 0x000000, alpha: 0.35 });
-    this.paintPlate(g, cells, x0, y0, m, kind, brush, 0.92);
+    g.stroke({ ...style, cap: "round" });
   }
 
   /** Stroke the outside boundary of a set of board cells. */
-  private strokeRegion(g: Graphics, set: ReadonlySet<number>, inset: number, style: { width: number; color: number; alpha: number }): void {
-    const s = this.cell;
-    g.setStrokeStyle(style);
-    for (const c of set) {
-      const col = c % this.width;
-      const row = Math.floor(c / this.width);
-      const x = this.ox + col * s;
-      const y = this.oy + row * s;
-      if (row === 0 || !set.has(c - this.width)) g.moveTo(x + inset, y + inset).lineTo(x + s - inset, y + inset).stroke();
-      if (row === this.height - 1 || !set.has(c + this.width)) g.moveTo(x + inset, y + s - inset).lineTo(x + s - inset, y + s - inset).stroke();
-      if (col === 0 || !set.has(c - 1)) g.moveTo(x + inset, y + inset).lineTo(x + inset, y + s - inset).stroke();
-      if (col === this.width - 1 || !set.has(c + 1)) g.moveTo(x + s - inset, y + inset).lineTo(x + s - inset, y + s - inset).stroke();
-    }
+  private strokeRegion(g: Graphics, set: ReadonlySet<number>, inset: number, style: { width: number; color: number }): void {
+    this.outline(g, [...set].map((c) => [c % this.width, Math.floor(c / this.width)] as const), this.ox, this.oy, this.cell, inset, style);
   }
 
-  /** The ghost: the selected plate where it would go, green when it fits, red when it does not. */
+  /** The ghost: the plate in hand where it would go, ringed amber when it fits and danger when it does not. */
   private drawGhost(): void {
     const g = this.ghostG;
     g.clear();
+    this.joinG.clear();
+    this.ghostL.reset();
     if (this.state && this.interactive && !this.state.finished && this.cursor) {
       const check = this.check(this.cursor.col, this.cursor.row);
-      this.paintGhost(g, check, this.cursor.col, this.cursor.row, this.drag?.moved ? 0.8 : 1);
+      this.paintGhost(g, check, this.cursor.col, this.cursor.row);
     }
     this.drawHud();
+    this.sweep();
   }
 
   /**
    * The toolbar under a plate set down by touch: turn either way, flip, and a welder to weld. It
    * follows the plate, below it or above it near the keel. Hidden while the plate is in hand and for a
-   * mouse, which hovers and clicks.
+   * mouse, which hovers and clicks. The welder is the one button that goes on, so it alone is amber.
    */
   private drawHud(): void {
     const g = this.hudG;
@@ -639,7 +682,7 @@ export class PlatingRenderer {
     const cursor = this.cursor!;
     const legal = this.check(cursor.col, cursor.row)?.legal ?? false;
     const b = Math.max(46, s * 1.25);
-    const gap = Math.max(5, s * 0.14);
+    const gap = Math.max(4, s * 0.14);
     const actions: HudAction[] = ["ccw", "cw", "flip", "weld"];
     const W = b * actions.length + gap * (actions.length + 1);
     const H = b + gap * 2;
@@ -647,58 +690,44 @@ export class PlatingRenderer {
     const x0 = Math.max(this.ox - 4, Math.min(this.ox + this.width * s + 4 - W, wanted));
     let y0 = this.oy + (cursor.row + fp!.h) * s + s * 0.2;
     if (y0 + H > this.oy + this.height * s + 4) y0 = this.oy + cursor.row * s - s * 0.2 - H;
-    g.roundRect(x0, y0 + 3, W, H, 12).fill({ color: 0x000000, alpha: 0.4 });
-    g.roundRect(x0, y0, W, H, 12).fill({ color: COLORS.ink, alpha: 0.94 });
-    g.roundRect(x0, y0, W, H, 12).stroke({ width: 1.5, color: COLORS.brass, alpha: 0.55 });
+    g.roundRect(x0, y0, W, H, RADIUS + gap).fill(COLORS.ground).stroke({ width: 1, color: COLORS.line });
     actions.forEach((action, i) => {
       const x = x0 + gap + i * (b + gap);
       const y = y0 + gap;
       const down = this.hudPressed?.action === action;
       const enabled = action !== "weld" || legal;
-      const dy = down ? 1 : 0;
-      if (action === "weld") {
-        g.roundRect(x, y + dy, b, b, 9).fill({ color: enabled ? COLORS.legal : 0x2b3a4a, alpha: enabled ? (down ? 0.8 : 1) : 0.7 });
-        g.roundRect(x, y + dy, b, b, 9).stroke({ width: 1.5, color: enabled ? 0xffffff : 0x5a6a7a, alpha: 0.7 });
-      } else {
-        g.roundRect(x, y + dy, b, b, 9).fill({ color: down ? 0x4a3018 : 0x2a1b10 });
-        g.roundRect(x, y + dy, b, b, 9).stroke({ width: 1.5, color: down ? COLORS.brassLight : COLORS.brass, alpha: 0.85 });
-      }
+      const on = action === "weld" && enabled;
+      g.roundRect(x, y, b, b, RADIUS).fill(on ? (down ? blend("amber", "ground", 0.2) : COLORS.amber) : down ? COLORS.line : COLORS.raised);
       this.hudRects.push({ x, y, w: b, h: b, action });
       const cx = x + b / 2;
-      const cy = y + b / 2 + dy;
+      const cy = y + b / 2;
       const r = b * 0.27;
-      if (action === "ccw" || action === "cw") drawTurnIcon(g, cx, cy, r, action === "cw", COLORS.brassLight);
-      else if (action === "flip") drawFlipIcon(g, cx, cy, r, COLORS.brassLight);
-      else drawWelderIcon(g, cx, cy, r, enabled ? COLORS.ink : 0x8a96a4);
+      const icon = on ? COLORS.ground : enabled ? COLORS.cream : COLORS.dim;
+      if (action === "ccw" || action === "cw") drawTurnIcon(g, cx, cy, r, action === "cw", icon);
+      else if (action === "flip") drawFlipIcon(g, cx, cy, r, icon);
+      else drawWelderIcon(g, cx, cy, r, icon);
     });
   }
 
-  private paintGhost(g: Graphics, check: PlatingPlacementCheck | null, col: number, row: number, strength: number): void {
+  private paintGhost(g: Graphics, check: PlatingPlacementCheck | null, col: number, row: number): void {
     const s = this.cell;
     const piece = this.slot === null ? null : this.state!.slots[this.slot];
     if (!piece) return;
-    const cells = platingOrient(piece.shape, this.rot, this.flip);
     const legal = check?.legal ?? false;
-    const color = legal ? COLORS.legal : COLORS.illegal;
-    const kindColor = this.colorByKind.get(piece.kind) ?? COLORS.tornMetal;
     // The breach this plate would join, so the player sees which patch they are working.
     if (legal && check?.breachId !== null && check?.breachId !== undefined && this.state) {
       const breach = this.state.breaches.find((h) => h.id === check.breachId);
-      if (breach) this.strokeRegion(g, new Set(breach.cells), 1, { width: 2, color: COLORS.legal, alpha: 0.4 * strength });
+      if (breach) this.strokeRegion(this.joinG, new Set(breach.cells), 1, { width: Math.max(1.5, s * 0.04), color: COLORS.dim });
     }
-    const brush = platingEffectiveBrush(piece.brush, this.rot);
-    for (const [dx, dy] of cells) {
-      const cc = col + dx;
-      const rr = row + dy;
-      if (cc < 0 || cc >= this.width || rr < 0 || rr >= this.height) continue;
-      const x = this.ox + cc * s;
-      const y = this.oy + rr * s;
-      if (legal) this.paintPlateCell(g, x + 1, y + 1, s - 2, kindColor, brush, 0.5 * strength);
-      else g.rect(x + 2, y + 2, s - 4, s - 4).fill({ color: kindColor, alpha: 0.22 * strength });
-    }
-    const set = new Set(cells.filter(([x, y]) => col + x >= 0 && col + x < this.width && row + y >= 0 && row + y < this.height).map(([x, y]) => (row + y) * this.width + (col + x)));
-    this.strokeRegion(g, set, 2, { width: 2.5, color, alpha: 0.95 * strength });
-    if (check) for (const c of check.wasteCells) this.paintWaste(g, this.ox + (c % this.width) * s, this.oy + Math.floor(c / this.width) * s, s, 0.8 * strength);
+    // Only the part on the hull would be laid, so only that is drawn.
+    const on = platingOrient(piece.shape, this.rot, this.flip).filter(([dx, dy]) => col + dx >= 0 && col + dx < this.width && row + dy >= 0 && row + dy < this.height);
+    const x0 = this.ox + col * s;
+    const y0 = this.oy + row * s;
+    this.paintPlate(this.ghostL, on, x0, y0, s, piece.kind, platingEffectiveBrush(piece.brush, this.rot), legal ? 1 : 0.35);
+    // The selection ring: 2 units wide, off the plate (docs/BRAND.md section 3).
+    const refused = this.denied !== null;
+    this.outline(g, on, x0, y0, s, -s / 24, { width: Math.max(2, s / (refused ? 6 : 12)), color: legal ? COLORS.amber : COLORS.danger });
+    if (check) for (const c of check.wasteCells) this.paintWaste(g, this.ox + (c % this.width) * s, this.oy + Math.floor(c / this.width) * s, s);
   }
 
   private drawTrayFrame(): void {
@@ -706,20 +735,20 @@ export class PlatingRenderer {
     g.clear();
     this.trayText.removeChildren().forEach((c) => c.destroy());
     this.slotLabels = [];
+    const ring = Math.max(2, this.cell / 12);
     this.slotRects.forEach((r, i) => {
       const selected = i === this.slot;
-      g.roundRect(r.x, r.y, r.w, r.h, 6).fill({ color: COLORS.trayBg, alpha: selected ? 0.95 : 0.6 });
-      if (selected) g.roundRect(r.x, r.y, r.w, r.h, 6).stroke({ width: 2, color: COLORS.brass, alpha: 0.95 });
-      const label = new Text({ text: String(i + 1), style: { fontFamily: FONT, fontSize: Math.max(9, this.cell * 0.32), fill: selected ? COLORS.brassLight : 0xc9bb9a } });
-      label.position.set(r.x + 5, r.y + 3);
+      g.roundRect(r.x, r.y, r.w, r.h, RADIUS).fill(COLORS.raised);
+      if (selected) g.roundRect(r.x + ring / 2, r.y + ring / 2, r.w - ring, r.h - ring, RADIUS - ring / 2).stroke({ width: ring, color: COLORS.amber });
+      const label = new Text({ text: String(i + 1), style: { fontFamily: FONT.mono, fontWeight: "700", fontSize: Math.max(11, this.cell * 0.32), fill: COLORS.dim }, resolution: 2 });
+      label.position.set(r.x + 8, r.y + 5);
       this.trayText.addChild(label);
       this.slotLabels.push(label);
     });
   }
 
   private drawTrayPieces(): void {
-    const g = this.trayPiecesG;
-    g.clear();
+    this.trayL.reset();
     if (!this.state) return;
     this.state.slots.forEach((piece, i) => {
       const r = this.slotRects[i]!;
@@ -729,27 +758,19 @@ export class PlatingRenderer {
       const rot = selected ? this.rot : 0;
       const flip = selected ? this.flip : false;
       let scale = 1;
-      let alpha = carried ? 0.22 : resting ? 0.45 : 1;
-      if (this.refill && this.refill.slot === i) {
-        const k = easeOut(Math.min(1, this.refill.life / this.refill.max));
-        scale = 0.55 + 0.45 * k;
-        alpha *= 0.3 + 0.7 * k;
-      }
+      const alpha = carried ? 0.22 : resting ? 0.45 : 1;
+      // A new plate grows into its slot.
+      if (this.refill && this.refill.slot === i) scale = easeOut(Math.min(1, this.refill.life / this.refill.max));
+      if (scale <= 0) return;
       const m = (Math.min(r.w, r.h) / 5.6) * scale;
-      this.paintMini(g, piece.shape, piece.kind, platingEffectiveBrush(piece.brush, rot), rot, flip, r.x + r.w / 2, r.y + r.h / 2, m, alpha);
+      this.paintMini(piece.shape, piece.kind, platingEffectiveBrush(piece.brush, rot), rot, flip, r.x + r.w / 2, r.y + r.h / 2, m, alpha);
     });
   }
 
-  private paintMini(g: Graphics, shape: number, kind: number, brush: Brush, rot: number, flip: boolean, cx: number, cy: number, m: number, alpha: number): void {
+  private paintMini(shape: number, kind: number, brush: Brush, rot: number, flip: boolean, cx: number, cy: number, m: number, alpha: number): void {
     const cells = platingOrient(shape, rot, flip);
     const { w, h } = platingExtent(cells);
-    this.paintPlate(g, cells, cx - (w * m) / 2, cy - (h * m) / 2, m, kind, brush, alpha);
-    if (this.showMarks && alpha > 0.5) {
-      // The metal's own mark on the mini, so the tray reads without color like the board plates do.
-      const [mx, my] = cells[Math.floor(cells.length / 2)]!;
-      g.circle(cx - (w * m) / 2 + (mx + 0.5) * m, cy - (h * m) / 2 + (my + 0.5) * m, m * 0.34).fill({ color: 0x000000, alpha: 0.45 * alpha });
-      drawMark(g, cx - (w * m) / 2 + (mx + 0.5) * m, cy - (h * m) / 2 + (my + 0.5) * m, m * 0.26, this.markByKind.get(kind) ?? "square", 0xffffff);
-    }
+    this.paintPlate(this.trayL, cells, Math.round(cx - (w * m) / 2), Math.round(cy - (h * m) / 2), m, kind, brush, alpha);
   }
 
   /** Top-left pixel of a mini plate in its slot, for flybacks. */
@@ -776,28 +797,34 @@ export class PlatingRenderer {
   }
 
   private clearEffects(): void {
-    this.flashes.length = 0;
+    this.widened.length = 0;
     this.lifts.length = 0;
     this.covers.length = 0;
     this.timers.length = 0;
     this.landing = null;
     this.flyback = null;
-    this.shake = null;
+    this.denied = null;
     this.refill = null;
     for (const p of this.popups) p.t.destroy();
     this.popups.length = 0;
     this.fxG.clear();
-    this.dragG.clear();
+    this.fxL.reset();
+    this.clearDrag();
   }
 
-  private flash(cells: readonly number[], color: number, max: number): void {
-    this.flashes.push({ cells, color, life: 0, max: this.reduced ? Math.min(max, 120) : max });
-  }
-
-  private popup(x: number, y: number, text: string, color: number, size: number): void {
+  /** A seal's points, rising from the breach. Counted, so in the mono face. */
+  private popup(x: number, y: number, text: string, size: number): void {
     const t = new Text({
       text,
-      style: { fontFamily: DISPLAY, fontSize: Math.max(12, this.cell * size), fontWeight: "700", fill: color, stroke: { color: 0x000000, width: 3 } },
+      style: {
+        fontFamily: FONT.mono,
+        fontSize: Math.max(15, this.cell * size),
+        fontWeight: "700",
+        fill: COLORS.cream,
+        // A ground edge keeps the number readable over any plate.
+        stroke: { color: COLORS.ground, width: Math.max(3, this.cell * 0.09), join: "round" },
+      },
+      resolution: 2,
     });
     t.anchor.set(0.5);
     t.position.set(x, y);
@@ -808,12 +835,25 @@ export class PlatingRenderer {
   private callout(text: string, color: number, yFrac: number): void {
     const t = new Text({
       text,
-      style: { fontFamily: DISPLAY, fontSize: Math.max(14, this.cell * 0.7), fontWeight: "900", fill: color, stroke: { color: 0x000000, width: 4 }, letterSpacing: 1 },
+      style: {
+        fontFamily: FONT.body,
+        fontSize: Math.max(16, this.cell * 0.7),
+        fontWeight: "700",
+        fill: color,
+        align: "center",
+        stroke: { color: COLORS.ground, width: Math.max(4, this.cell * 0.12), join: "round" },
+      },
+      resolution: 2,
     });
     t.anchor.set(0.5);
     t.position.set(this.ox + (this.width * this.cell) / 2, this.oy + this.height * this.cell * yFrac);
     this.textLayer.addChild(t);
     this.popups.push({ t, life: 0, max: this.reduced ? 400 : 1100, y0: t.y });
+  }
+
+  /** Ask for the beat. A stronger moment while one is playing takes it over; it never stacks. */
+  private beat(strength: number): void {
+    this.beatNow = { life: 0, strength: Math.max(strength, this.beatNow?.strength ?? 0) };
   }
 
   // ---- per frame
@@ -829,61 +869,52 @@ export class PlatingRenderer {
     }
     const g = this.fxG;
     g.clear();
+    this.fxL.reset();
     const s = this.cell;
 
-    // Hull covers: sound plating that cracks away to show a breach.
+    // Hull covers: sound plating that shrinks away to show a breach.
     for (let i = this.covers.length - 1; i >= 0; i--) {
       const c = this.covers[i]!;
+      let k = 0;
       if (c.delay > 0) {
         c.delay -= dt;
-        for (const cell of c.cells) {
-          const row = Math.floor(cell / this.width);
-          const x = this.ox + (cell % this.width) * s;
-          const y = this.oy + row * s;
-          g.rect(x, y, s, s).fill(this.hullColor(row));
-          g.rect(x, y + 1, s, s - 2).stroke({ width: 1, color: COLORS.hullEdge, alpha: 0.55 });
-        }
         if (c.delay <= 0) {
-          this.flash(c.cells, c.grew ? COLORS.illegal : 0xffe0b0, c.grew ? 700 : 380);
-          if (c.grew) this.cb.onGrew();
-          else this.cb.onCracked(c.opening);
+          if (c.grew) {
+            this.widened.push({ cells: c.cells, life: 0, max: this.reduced ? 300 : 700 });
+            this.cb.onGrew();
+          } else this.cb.onCracked(c.opening);
         }
-        continue;
+      } else {
+        c.life += dt;
+        k = Math.min(1, c.life / c.max);
+        if (k >= 1) {
+          this.covers.splice(i, 1);
+          continue;
+        }
       }
-      c.life += dt;
-      const k = Math.min(1, c.life / c.max);
-      if (k >= 1) {
-        this.covers.splice(i, 1);
-        continue;
-      }
-      // Each panel tears inward: the cover shrinks toward its centre and fades.
-      const e = easeIn(k);
-      for (const cell of c.cells) {
-        const x = this.ox + (cell % this.width) * s;
-        const y = this.oy + Math.floor(cell / this.width) * s;
-        const inset = (s / 2) * e;
-        g.rect(x + inset, y + inset, s - inset * 2, s - inset * 2).fill({ color: this.hullColor(Math.floor(cell / this.width)), alpha: 1 - e * 0.5 });
-        g.rect(x + inset, y + inset, s - inset * 2, s - inset * 2).stroke({ width: 2, color: COLORS.tornMetal, alpha: 0.6 * (1 - k) });
-      }
+      const inset = (s / 2) * k * k;
+      for (const cell of c.cells) g.rect(this.ox + (cell % this.width) * s + inset, this.oy + Math.floor(cell / this.width) * s + inset, s - inset * 2, s - inset * 2).fill(COLORS.raised);
     }
 
-    for (let i = this.flashes.length - 1; i >= 0; i--) {
-      const f = this.flashes[i]!;
+    // The cell a breach just gained, ringed in danger while the callout is up. The fewest marks that say it.
+    for (let i = this.widened.length - 1; i >= 0; i--) {
+      const f = this.widened[i]!;
       f.life += dt;
       const k = f.life / f.max;
       if (k >= 1) {
-        this.flashes.splice(i, 1);
+        this.widened.splice(i, 1);
         continue;
       }
-      for (const c of f.cells) g.rect(this.ox + (c % this.width) * s, this.oy + Math.floor(c / this.width) * s, s, s).fill({ color: f.color, alpha: (1 - k) * 0.7 });
+      const width = Math.max(2, s / 12);
+      this.strokeRegion(g, new Set(f.cells), width / 2, { width, color: blend("danger", "ground", k * k) });
     }
 
-    // Lifts: a sealed breach's plates rise and fade.
+    // Lifts: a sealed breach's plates shrink to nothing.
     for (let i = this.lifts.length - 1; i >= 0; i--) {
       const l = this.lifts[i]!;
       if (l.delay > 0) {
         l.delay -= dt;
-        this.paintPlate(g, l.cells, l.x, l.y, s, l.kind, l.brush, 1);
+        this.paintPlate(this.fxL, l.cells, l.x, l.y, s, l.kind, l.brush, 1);
         continue;
       }
       l.life += dt;
@@ -892,80 +923,63 @@ export class PlatingRenderer {
         this.lifts.splice(i, 1);
         continue;
       }
-      const rise = easeOut(k) * s * 0.9;
-      const grow = 1 + 0.08 * easeOut(k);
+      const scale = 1 - k * k;
       const { w, h } = platingExtent(l.cells);
-      const x = l.x - (w * s * (grow - 1)) / 2;
-      const y = l.y - rise - (h * s * (grow - 1)) / 2;
-      for (const [dx, dy] of l.cells) g.rect(x + dx * s * grow + 3, l.y + dy * s + 4, s * grow, s).fill({ color: 0x000000, alpha: 0.25 * (1 - k) });
-      this.paintPlate(g, l.cells, x, y, s * grow, l.kind, l.brush, 1 - easeIn(k));
+      this.paintPlate(this.fxL, l.cells, l.x + (w * s * (1 - scale)) / 2, l.y + (h * s * (1 - scale)) / 2, s * scale, l.kind, l.brush, 1);
     }
 
-    // Landing: the welded plate slides home and settles with a knock.
+    // Landing: the welded plate slides home.
     if (this.landing) {
       const l = this.landing;
       l.life += dt;
       const k = Math.min(1, l.life / l.max);
       if (k >= 1) {
         this.landing = null;
-        this.flash(
-          l.cells.map(([dx, dy]) => this.landingCellAt(l, dx, dy)),
-          mix(this.colorByKind.get(l.kind) ?? 0xffffff, 0xffffff, 0.6),
-          260,
-        );
         this.cb.onNailed(l.waste);
         this.drawPlates();
       } else {
         const e = easeOut(k);
-        const x = l.x0 + (l.x1 - l.x0) * e;
-        const y = l.y0 + (l.y1 - l.y0) * e;
-        const lift = (1 - e) * s * 0.25;
-        const grow = 1 + 0.08 * (1 - e);
-        const { w, h } = platingExtent(l.cells);
-        const gx = x - (w * s * (grow - 1)) / 2;
-        const gy = y - (h * s * (grow - 1)) / 2;
-        this.paintHeldPlate(g, l.cells, gx, gy, s * grow, l.kind, l.brush, lift);
+        this.paintPlate(this.fxL, l.cells, l.x0 + (l.x1 - l.x0) * e, l.y0 + (l.y1 - l.y0) * e, s, l.kind, l.brush, 1);
       }
     }
 
-    // Flyback: a refused plate returns to its slot.
-    const dg = this.dragG;
+    // Flyback: a plate let go off the hull returns to its slot.
     if (this.flyback) {
       const f = this.flyback;
       f.life += dt;
       const k = Math.min(1, f.life / f.max);
-      dg.clear();
+      this.clearDrag();
       if (k >= 1) {
         this.flyback = null;
         this.drawTrayPieces();
       } else {
         const e = easeOut(k);
-        const m = f.m0 + (f.m1 - f.m0) * e;
-        this.paintHeldPlate(dg, f.cells, f.x0 + (f.x1 - f.x0) * e, f.y0 + (f.y1 - f.y0) * e, m, f.kind, f.brush, (1 - e) * s * 0.3);
+        this.paintPlate(this.dragL, f.cells, f.x0 + (f.x1 - f.x0) * e, f.y0 + (f.y1 - f.y0) * e, f.m0 + (f.m1 - f.m0) * e, f.kind, f.brush, 1);
       }
     }
 
-    let ghostX = 0;
-    if (this.shake) {
-      this.shake.life += dt;
-      const k = this.shake.life / this.shake.max;
-      if (k >= 1) this.shake = null;
-      else ghostX += Math.sin(k * Math.PI * 5) * (1 - k) * s * 0.18;
+    if (this.denied) {
+      this.denied.life += dt;
+      if (this.denied.life >= DENIED_MS) {
+        this.denied = null;
+        this.drawGhost();
+      }
     }
+    let ghostX = 0;
     if (this.flipFx) {
       // Squash to a sliver about the plate's centre and back out: a card turning over.
       this.flipFx.life += dt;
       const k = this.flipFx.life / this.flipFx.max;
       if (k >= 1) {
         this.flipFx = null;
-        this.ghostG.scale.x = 1;
+        this.ghostWrap.scale.x = 1;
       } else {
         const sx = Math.max(0.06, Math.abs(Math.cos(k * Math.PI)));
-        this.ghostG.scale.x = sx;
+        this.ghostWrap.scale.x = sx;
         ghostX += this.flipFx.cx * (1 - sx);
       }
     }
-    this.ghostG.x = ghostX;
+    this.ghostWrap.x = ghostX;
 
     if (this.hudPressed) {
       this.hudPressed.life += dt;
@@ -985,7 +999,7 @@ export class PlatingRenderer {
       const p = this.popups[i]!;
       p.life += dt;
       const k = p.life / p.max;
-      p.t.y = p.y0 - k * this.cell * 0.7;
+      p.t.y = p.y0 - easeOut(Math.min(1, k)) * this.cell * 0.7;
       p.t.alpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
       if (k >= 1) {
         p.t.destroy();
@@ -994,12 +1008,35 @@ export class PlatingRenderer {
     }
 
     this.drawBreachFx();
+    this.drawBeat(dt);
 
     if (this.framePending) {
       this.framePending = false;
       this.cb.onFrame();
     }
     if (this.viewStale) this.publishView();
+  }
+
+  /**
+   * The beat: the whole board pulses once in amber and swells a hair, in `BEAT_MS`. Reduced motion
+   * keeps it as a still flash.
+   */
+  private drawBeat(dt: number): void {
+    const g = this.beatLayer;
+    g.clear();
+    const b = this.beatNow;
+    if (!b) return;
+    b.life += dt;
+    const t = b.life / BEAT_MS;
+    if (t >= 1) {
+      this.beatNow = null;
+      this.root.scale.set(1);
+      return;
+    }
+    // Up in the first quarter, down over the rest.
+    const env = this.reduced ? 1 : t < 0.25 ? easeOut(t / 0.25) : 1 - easeOut((t - 0.25) / 0.75);
+    g.rect(this.ox, this.oy, this.width * this.cell, this.trayY + this.trayH - this.oy).fill({ color: COLORS.amber, alpha: (0.14 + 0.16 * b.strength) * env });
+    this.root.scale.set(this.reduced ? 1 : 1 + 0.012 * b.strength * env);
   }
 
   private landingCellAt(l: Landing, dx: number, dy: number): number {
@@ -1148,7 +1185,7 @@ export class PlatingRenderer {
    */
   private doFlip(): void {
     const fp = this.footprint();
-    if (this.cursor && fp) this.flipFx = { life: 0, max: this.dur(280), cx: this.ox + (this.cursor.col + fp.w / 2) * this.cell };
+    if (this.cursor && fp) this.flipFx = { life: 0, max: this.dur(MOTION.panel), cx: this.ox + (this.cursor.col + fp.w / 2) * this.cell };
     this.reorient((4 - this.rot) % 4, !this.flip);
   }
 
@@ -1192,13 +1229,12 @@ export class PlatingRenderer {
     this.drawGhost();
   }
 
-  /** Weld the plate down at the ghost, or refuse with a shake. */
+  /** Weld the plate down at the ghost, or refuse. */
   private placeAt(col: number, row: number, from: { x: number; y: number } | null): boolean {
     if (this.slot === null) return false;
     const check = this.check(col, row);
     if (!check?.legal) {
       this.anchorAt(col, row);
-      this.drawGhost();
       this.refuse();
       return false;
     }
@@ -1207,8 +1243,10 @@ export class PlatingRenderer {
     return true;
   }
 
+  /** A refusal: the plate's danger ring thickens for a moment, and the bump sounds. Nothing shakes. */
   private refuse(): void {
-    this.shake = { life: 0, max: this.dur(260) };
+    this.denied = { life: 0 };
+    this.drawGhost();
     this.cb.onBump();
   }
 
@@ -1320,25 +1358,16 @@ export class PlatingRenderer {
     this.anchorNear(px, py, 0);
     this.drawGhost();
     const g = this.dragG;
-    g.clear();
+    this.clearDrag();
     if (this.slot === null) return;
     const piece = this.state.slots[this.slot]!;
-    const m = this.cell * 1.04;
+    const m = this.cell;
     const x0 = px - (fp.w * m) / 2;
     const y0 = py - (fp.h * m) / 2;
-    this.paintHeldPlate(g, fp.cells, x0, y0, m, piece.kind, platingEffectiveBrush(piece.brush, this.rot), this.cell * 0.3);
-    // The verdict rides on top of the plate, since on touch the plate sits over its own ghost.
+    this.paintPlate(this.dragL, fp.cells, x0, y0, m, piece.kind, platingEffectiveBrush(piece.brush, this.rot), 1);
+    // The verdict rides on the plate itself, since on touch the plate sits over its own ghost.
     const legal = this.cursor ? (this.check(this.cursor.col, this.cursor.row)?.legal ?? false) : false;
-    const set = new Set(fp.cells.map(([x, y]) => `${x},${y}`));
-    g.setStrokeStyle({ width: 2.5, color: legal ? COLORS.legal : COLORS.illegal, alpha: 0.9 });
-    for (const [dx, dy] of fp.cells) {
-      const x = x0 + dx * m;
-      const y = y0 + dy * m;
-      if (!set.has(`${dx},${dy - 1}`)) g.moveTo(x, y + 1).lineTo(x + m, y + 1).stroke();
-      if (!set.has(`${dx},${dy + 1}`)) g.moveTo(x, y + m - 1).lineTo(x + m, y + m - 1).stroke();
-      if (!set.has(`${dx - 1},${dy}`)) g.moveTo(x + 1, y).lineTo(x + 1, y + m).stroke();
-      if (!set.has(`${dx + 1},${dy}`)) g.moveTo(x + m - 1, y).lineTo(x + m - 1, y + m).stroke();
-    }
+    this.outline(g, fp.cells, x0, y0, m, -m / 24, { width: Math.max(2, m / 12), color: legal ? COLORS.amber : COLORS.danger });
   }
 
   private pointerUp(e: FederatedPointerEvent): void {
@@ -1353,12 +1382,12 @@ export class PlatingRenderer {
     }
     this.drag = null;
     if (!this.state || !this.interactive) {
-      this.dragG.clear();
+      this.clearDrag();
       return;
     }
     const fp = this.footprint();
     if (d.moved) {
-      this.dragG.clear();
+      this.clearDrag();
       if (!fp || !this.carries(d)) {
         this.drawTrayPieces();
         this.drawGhost();
@@ -1378,7 +1407,7 @@ export class PlatingRenderer {
       const home = this.miniOrigin(this.slot, fp.cells);
       const px = x + d.offX * this.cell - (fp.w * this.cell) / 2;
       const py = y + d.offY * this.cell - (fp.h * this.cell) / 2;
-      this.flyback = { cells: fp.cells, kind: piece.kind, brush: platingEffectiveBrush(piece.brush, this.rot), x0: px, y0: py, x1: home.x, y1: home.y, m0: this.cell, m1: home.m, slot: this.slot, life: 0, max: this.dur(240) };
+      this.flyback = { cells: fp.cells, kind: piece.kind, brush: platingEffectiveBrush(piece.brush, this.rot), x0: px, y0: py, x1: home.x, y1: home.y, m0: this.cell, m1: home.m, slot: this.slot, life: 0, max: this.dur(MOVE_MS) };
       this.syncCursor();
       this.drawGhost();
       return;
@@ -1404,7 +1433,7 @@ export class PlatingRenderer {
     const d = this.drag;
     if (!d || e.pointerId !== d.id) return;
     this.drag = null;
-    this.dragG.clear();
+    this.clearDrag();
     if (d.moved) {
       this.anchor = null;
       this.syncCursor();
@@ -1500,7 +1529,7 @@ function drawTurnIcon(g: Graphics, cx: number, cy: number, r: number, clockwise:
 /** Two triangles mirrored across a dashed axis. */
 function drawFlipIcon(g: Graphics, cx: number, cy: number, r: number, color: number): void {
   const w = Math.max(1.5, r * 0.2);
-  for (let y = -r; y < r; y += r * 0.5) g.moveTo(cx, cy + y).lineTo(cx, cy + Math.min(r, y + r * 0.25)).stroke({ width: w, color, alpha: 0.8 });
+  for (let y = -r; y < r; y += r * 0.5) g.moveTo(cx, cy + y).lineTo(cx, cy + Math.min(r, y + r * 0.25)).stroke({ width: w, color });
   const gapX = r * 0.3;
   g.poly([cx - gapX, cy - r * 0.8, cx - gapX, cy + r * 0.8, cx - r * 1.1, cy + r * 0.8]).stroke({ width: w, color, join: "round" });
   g.poly([cx + gapX, cy - r * 0.8, cx + gapX, cy + r * 0.8, cx + r * 1.1, cy + r * 0.8]).fill(color);
@@ -1526,10 +1555,3 @@ function relative(cells: readonly number[], width: number): { col: number; row: 
   }
   return { col, row, cells: cells.map((c) => [(c % width) - col, Math.floor(c / width) - row] as [number, number]) };
 }
-
-function linear(stops: number[]): FillGradient {
-  const g = new FillGradient({ type: "linear", start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: "local" });
-  stops.forEach((c, i) => g.addColorStop(i / Math.max(1, stops.length - 1), c));
-  return g;
-}
-

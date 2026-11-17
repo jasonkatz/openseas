@@ -150,7 +150,7 @@
   "plating.rating.gum": "Chewing gum and hope",
   "plating.streak_label": "{count} flawless in a row",
   "plating.legend_breaches": "Dark cells are breaches. Fill every cell of a breach; cells left idle too long widen it, and a widened breach can't be flawless.",
-  "plating.legend_brush": "Lines on a plate show its brushing. Seal a breach with every plate brushed across it for a bonus.",
+  "plating.legend_brush": "The mark cut in a plate lies along its brushing. Seal a breach with every plate brushed across it for a bonus.",
   "plating.legend_shapes": "Plates",
   "plating.metal.tin": "Tin",
   "plating.metal.copper": "Copper",

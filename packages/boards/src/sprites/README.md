@@ -14,7 +14,6 @@ sprites. Keep optional accessibility badges and labels in code.
 | Puzzle | Runtime use |
 |---|---|
 | engines | Trefoil, ring and three-spoke discs and their hollow targets; the extra lab kind stays procedural |
-| plating | Tin, copper, steel and brass, brushed horizontally and vertically, composed into exact polyominoes |
 | navigation | Gold, ice and ember spark/star/comet; hollow target silhouettes |
 | swordfight | Four single-cell block and breaker skins, stone and ripening stone |
 | battle | Friendly and raider starfighters, asteroids, gravity wells and slugs |
@@ -51,8 +50,8 @@ studs, so they stand apart from ordinary objects without relying on color.
 
 Every frame is one lossless 192×192 WebP, `frames/<puzzle>/<frame>.webp`, and that file is the only
 copy of it in the repository (ADR 0054). `frames.json` lists each puzzle's frame names, in the
-order the studio's Sprites panel shows them. Art is contained within 176×176 and centered; Plating's
-material cells and Cutting's ore tiles fill the frame instead, cropped inside their source's baked
+order the studio's Sprites panel shows them. Art is contained within 176×176 and centered;
+Cutting's ore tiles fill the frame instead, cropped inside their source's baked
 border so the cells of one piece join without a seam. Overload's frames hold only their largest
 piece of art. All of that is in the files: the build treats every frame alike.
 

@@ -251,6 +251,7 @@ export function contentProblems(content: Content): string[] {
     const where = `puzzles/${id}`;
     if (id === "cooling") checkCoolingPieces(where, puzzles.cooling.pieces, puzzles.cooling.config.pieceKinds, messages, problems);
     else if (id === "gunnery") checkGunneryPieces(where, puzzles.gunnery.pieces, messages, problems);
+    else if (id === "plating") checkPlatingPieces(where, puzzles.plating.pieces, puzzles.plating.config.pieceKinds, messages, problems);
     else if ("pieces" in p) checkPieces(where, p.pieces as Parameters<typeof checkPieces>[1], "pieceKinds" in p.config ? p.config.pieceKinds : "colors" in p.config ? p.config.colors : p.pieces.length, messages, problems);
     for (const problem of thresholdProblems(p.thresholds, "parScore" in p ? p.parScore : undefined)) problems.push(`${where}: ${problem}`);
     need(`home.practice_${id}`, where);
@@ -341,6 +342,20 @@ function checkGunneryPieces(where: string, pieces: ReadonlyArray<{ nameKey: stri
     if (colors.has(p.color)) problems.push(`${where}: color "${p.color}" used twice`);
     colors.add(p.color);
   });
+}
+
+/** Every Plating metal must have a cut-out and a colour of its own: the cut-out is what tells metals apart (rule 6). */
+function checkPlatingPieces(where: string, pieces: ReadonlyArray<{ nameKey: string; cut: string; color: string }>, kinds: number, messages: Record<string, string>, problems: string[]): void {
+  if (pieces.length < kinds) problems.push(`${where}: ${kinds} kinds but only ${pieces.length} piece definitions`);
+  const cuts = new Set<string>();
+  const colors = new Set<string>();
+  for (const p of pieces) {
+    if (!(p.nameKey in messages)) problems.push(`${where}: missing message key "${p.nameKey}"`);
+    if (cuts.has(p.cut)) problems.push(`${where}: cut "${p.cut}" used twice; every metal must differ by its cut-out (rule 6)`);
+    if (colors.has(p.color)) problems.push(`${where}: color "${p.color}" used twice`);
+    cuts.add(p.cut);
+    colors.add(p.color);
+  }
 }
 
 /** Every kind must differ by mark, color, and texture so pieces stay apart without color (rule 6). */
