@@ -1,21 +1,31 @@
-/* The guides' own sheet. The palette and the two typefaces are the game's (boards/styles.css); a
-   guide is read, not played, so text selects and the page scrolls like any document. */
+/* The guides' own sheet. The palette and the two typefaces are the game's: the token block below is
+   a copy of the one in boards/styles.css, written from boards/src/look/tokens.ts. A guide is read,
+   not played, so text selects and the page scrolls like any document. */
 :root {
-  --ink-900: #070e1a;
-  --ink-800: #0b1526;
-  --ink-700: #121f36;
-  --ink-600: #1c2b48;
-  --parchment: #efe3c6;
-  --parchment-dim: #c9bb9a;
-  --brass: #d4a548;
-  --brass-deep: #9a7320;
-  --foam: #5ed3b8;
-  --tide: #1a7f8a;
-  --danger: #f0604d;
-  --line: rgba(239, 227, 198, 0.12);
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  /* tokens:start (written from boards/src/look/tokens.ts; the look test holds them equal) */
+  --ground: #0b1220;
+  --raised: #141d30;
+  --line: #27344f;
+  --cream: #ece3cf;
+  --dim: #8f99ad;
+  --amber: #e2a94b;
+  --danger: #e5604e;
+  --sand: #d8c690;
+  --sky: #7fb0d8;
+  --moss: #8ebd88;
+  --lilac: #a99ad4;
+  --rose: #d897b2;
+  --teal: #6dbcb1;
+  --rust: #c27f66;
+  --slate: #7f8ba3;
+  --plum: #8e6fa8;
+  --olive: #a3a86a;
+  --ice: #a9d3de;
+  --brick: #a85f5a;
   --font-body: "Atkinson Hyperlegible", "Avenir Next", "Segoe UI", sans-serif;
-  --radius: 14px;
+  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 10px;
+  /* tokens:end */
   color-scheme: dark;
 }
 
@@ -30,51 +40,46 @@ html {
 
 body {
   margin: 0;
-  background:
-    radial-gradient(1200px 600px at 80% -10%, rgba(26, 127, 138, 0.28), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(212, 165, 72, 0.12), transparent 60%),
-    var(--ink-900);
-  background-attachment: fixed;
-  color: var(--parchment);
+  background: var(--ground);
+  color: var(--cream);
   font-family: var(--font-body);
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
 
 a {
-  color: var(--foam);
+  color: var(--cream);
 }
 
 h1,
 h2,
 h3 {
-  font-family: var(--font-display);
-  font-weight: 600;
+  font-family: var(--font-body);
+  font-weight: 700;
   line-height: 1.15;
   margin: 0;
   text-wrap: balance;
 }
 h1 {
-  font-size: clamp(34px, 7vw, 52px);
-  font-style: italic;
+  font-size: 28px;
 }
 h2 {
-  font-size: clamp(24px, 4.4vw, 30px);
+  font-size: 20px;
 }
 h3 {
-  font-size: 19px;
+  font-size: 16px;
 }
 p {
   margin: 0;
   text-wrap: pretty;
 }
 strong {
-  color: #fff3d2;
+  color: var(--cream);
 }
 .muted {
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 
 .page {
@@ -89,18 +94,16 @@ strong {
 .tag,
 .badge,
 .facts dt {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 .eyebrow {
-  color: var(--brass);
+  color: var(--dim);
   margin-bottom: 6px;
 }
 .lede {
-  font-size: 19px;
-  color: var(--parchment-dim);
+  font-size: 16px;
+  color: var(--dim);
   max-width: 60ch;
   margin-top: 10px;
 }
@@ -126,23 +129,20 @@ strong {
   height: 100%;
   padding: 10px;
   border-radius: var(--radius);
-  background: linear-gradient(160deg, rgba(28, 43, 72, 0.85), rgba(11, 21, 38, 0.92));
-  box-shadow: inset 0 0 0 1px var(--line);
+  background: var(--raised);
   color: inherit;
   text-decoration: none;
-  transition: transform 0.12s, box-shadow 0.12s;
+  transition: background-color 120ms ease-out;
 }
-.card:hover,
-.card:focus-visible {
-  transform: translateY(-2px);
-  box-shadow: inset 0 0 0 1px rgba(212, 165, 72, 0.6);
+.card:hover {
+  background: var(--line);
 }
 .card-thumb {
   width: 76px;
   height: 96px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   overflow: hidden;
-  background: var(--ink-900);
+  background: var(--ground);
 }
 .card-thumb img {
   width: 100%;
@@ -156,24 +156,24 @@ strong {
   min-width: 0;
 }
 .card-title {
-  font-family: var(--font-display);
-  font-size: 21px;
-  font-weight: 600;
+  font-family: var(--font-body);
+  font-size: 20px;
+  font-weight: 700;
 }
 .card-tagline {
-  font-size: 14.5px;
+  font-size: 13px;
   line-height: 1.35;
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 
 /* ---- guide */
 .back {
-  color: var(--parchment-dim);
+  color: var(--dim);
   text-decoration: none;
-  font-size: 15px;
+  font-size: 16px;
 }
 .back:hover {
-  color: var(--parchment);
+  color: var(--cream);
 }
 .guide-head {
   display: grid;
@@ -182,17 +182,16 @@ strong {
 }
 .badge {
   display: inline-block;
-  padding: 4px 10px;
+  padding: 3px 9px;
   border-radius: 999px;
   margin-bottom: 10px;
+  border: 1px solid var(--line);
 }
 .badge-core {
-  background: rgba(94, 211, 184, 0.14);
-  color: var(--foam);
+  color: var(--cream);
 }
 .badge-prototype {
-  background: rgba(212, 165, 72, 0.16);
-  color: var(--brass);
+  color: var(--dim);
 }
 .facts {
   display: grid;
@@ -202,17 +201,15 @@ strong {
 }
 .facts div {
   padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(7, 14, 26, 0.5);
-  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
 }
 .facts dt {
-  color: var(--parchment-dim);
-  font-size: 11px;
+  color: var(--dim);
 }
 .facts dd {
   margin: 2px 0 0;
-  font-size: 15.5px;
+  font-size: 16px;
   line-height: 1.3;
 }
 .jump {
@@ -224,13 +221,13 @@ strong {
 .jump a {
   padding: 6px 12px;
   border-radius: 999px;
-  font-size: 14px;
-  color: var(--parchment);
+  font-size: 13px;
+  color: var(--cream);
   text-decoration: none;
-  background: rgba(239, 227, 198, 0.08);
+  background: var(--raised);
 }
 .jump a:hover {
-  background: rgba(239, 227, 198, 0.16);
+  background: var(--line);
 }
 
 .block {
@@ -238,8 +235,7 @@ strong {
   gap: 12px;
   padding: 20px;
   border-radius: var(--radius);
-  background: linear-gradient(160deg, rgba(28, 43, 72, 0.6), rgba(11, 21, 38, 0.8));
-  box-shadow: inset 0 0 0 1px var(--line);
+  background: var(--raised);
   min-width: 0;
 }
 .block > div {
@@ -250,7 +246,7 @@ strong {
 }
 .block h3 {
   margin-top: 6px;
-  color: var(--brass);
+  color: var(--cream);
 }
 .block p,
 .block li {
@@ -264,11 +260,11 @@ strong {
   gap: 8px;
 }
 .rules li::marker {
-  color: var(--brass);
+  color: var(--cream);
   font-weight: 700;
 }
 .plain li::marker {
-  color: var(--tide);
+  color: var(--dim);
 }
 .mistakes li::marker {
   color: var(--danger);
@@ -280,7 +276,7 @@ strong {
 .controls {
   width: 100%;
   border-collapse: collapse;
-  font-size: 15.5px;
+  font-size: 16px;
 }
 .controls th,
 .controls td {
@@ -291,10 +287,8 @@ strong {
 }
 .controls thead th {
   border-top: 0;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  color: var(--dim);
 }
 .controls tbody th {
   font-weight: 700;
@@ -314,12 +308,9 @@ strong {
   display: block;
   padding: 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--radius);
   overflow: hidden;
-  background: var(--ink-900);
-  box-shadow:
-    0 0 0 1px var(--line),
-    0 18px 40px -24px rgba(0, 0, 0, 0.9);
+  background: var(--ground);
   cursor: default;
   max-width: 100%;
 }
@@ -341,15 +332,13 @@ button.figure-frame {
   padding: 2px 8px;
   border-radius: 999px;
   font: 700 11px/1.6 var(--font-body);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--parchment);
-  background: rgba(7, 14, 26, 0.72);
+  color: var(--cream);
+  background: color-mix(in srgb, var(--ground) 70%, transparent);
 }
 .figure figcaption {
-  font-size: 14.5px;
+  font-size: 13px;
   line-height: 1.4;
-  color: var(--parchment-dim);
+  color: var(--dim);
   text-align: center;
   max-width: 44ch;
 }
@@ -363,7 +352,7 @@ button.figure-frame {
   top: 0;
   z-index: 2;
   padding: 8px 0;
-  background: linear-gradient(180deg, rgba(14, 25, 44, 0.97) 80%, transparent);
+  background: var(--ground);
 }
 .rung-tab {
   display: grid;
@@ -371,21 +360,23 @@ button.figure-frame {
   gap: 2px;
   padding: 8px 4px;
   border: 0;
-  border-radius: 12px;
-  font: 700 clamp(10.5px, 2.9vw, 14px) / 1.2 var(--font-body);
-  color: var(--parchment-dim);
-  background: rgba(239, 227, 198, 0.07);
+  border-radius: var(--radius);
+  font: 700 clamp(10.5px, 2.9vw, 13px) / 1.2 var(--font-body);
+  color: var(--dim);
+  background: var(--raised);
   cursor: pointer;
   min-width: 0;
   white-space: nowrap;
 }
 .rung-tab[aria-selected="true"] {
-  color: #1d1505;
-  background: linear-gradient(180deg, #ecc46a, var(--brass));
+  color: var(--ground);
+  background: var(--amber);
 }
 .rung-n {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
+  font-weight: 700;
   font-size: 18px;
+  font-variant-numeric: tabular-nums;
 }
 .rung {
   display: grid;
@@ -398,22 +389,21 @@ button.figure-frame {
 .goal,
 .drill {
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   max-width: none !important;
 }
 .goal {
-  background: rgba(239, 227, 198, 0.07);
-  font-size: 18px;
+  background: var(--ground);
+  font-size: 16px;
 }
 .goal .tag {
-  color: var(--brass);
+  color: var(--dim);
 }
 .drill {
-  background: rgba(94, 211, 184, 0.1);
-  box-shadow: inset 3px 0 0 var(--foam);
+  background: var(--ground);
 }
 .drill .tag {
-  color: var(--foam);
+  color: var(--dim);
 }
 .tip {
   display: grid;
@@ -428,21 +418,22 @@ button.figure-frame {
 }
 .block .tip h3 {
   margin: 0;
-  color: var(--parchment);
-  font-size: 21px;
+  color: var(--cream);
+  font-size: 20px;
 }
 .next-rung {
   justify-self: end;
-  padding: 10px 16px;
-  border: 0;
+  padding: 9px 15px;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  font: 700 15px var(--font-body);
-  color: var(--parchment);
-  background: rgba(239, 227, 198, 0.1);
+  font: 700 16px var(--font-body);
+  color: var(--cream);
+  background: var(--raised);
   cursor: pointer;
+  transition: background-color 120ms ease-out;
 }
 .next-rung:hover {
-  background: rgba(239, 227, 198, 0.18);
+  background: var(--line);
 }
 
 .pager {
@@ -455,11 +446,11 @@ button.figure-frame {
   gap: 2px;
   padding: 14px 16px;
   border-radius: var(--radius);
-  background: rgba(28, 43, 72, 0.6);
-  box-shadow: inset 0 0 0 1px var(--line);
-  color: var(--parchment);
+  background: var(--raised);
+  color: var(--cream);
   text-decoration: none;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: 20px;
 }
 .pager-link .muted {
@@ -470,7 +461,7 @@ button.figure-frame {
 }
 
 :focus-visible {
-  outline: 2px solid var(--foam);
+  outline: 2px solid var(--amber);
   outline-offset: 2px;
 }
 
