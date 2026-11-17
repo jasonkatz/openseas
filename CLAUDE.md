@@ -38,8 +38,8 @@ written in.
    `content` as JSON validated at startup (ADR 0009). Player state lives in Postgres.
 5. **Every player-facing string goes through the message table.** English only, but never
    hardcode UI text.
-6. **Every piece type is distinguishable without color.** Sprites have distinct silhouettes and surfaces; a player
-   setting draws a distinct mark on every kind. Accessibility is not retrofitted.
+6. **Every piece type is distinguishable without color.** Each kind on a board has a silhouette of its own and is
+   told from every other by that alone (`docs/BRAND.md` section 3). Accessibility is not retrofitted.
 
 ## Stack
 

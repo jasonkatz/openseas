@@ -15,14 +15,6 @@
   --mono: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --radius: 10px;
 }
-:root[data-palette="b"] {
-  --ground: #151219; --raised: #1f1b26; --line: #342e3e;
-  --cream: #f0e6d2; --dim: #a097a6; --amber: #e8a95a; --danger: #e6625c;
-}
-:root[data-palette="c"] {
-  --ground: #0a1517; --raised: #122326; --line: #213b3f;
-  --cream: #e9e6d5; --dim: #88a2a0; --amber: #e4ae56; --danger: #e6694f;
-}
 * { box-sizing: border-box; }
 body {
   background: var(--ground); color: var(--cream);
@@ -184,14 +176,11 @@ blockquote { margin: 0; padding-left: 16px; border-left: 2px solid var(--line); 
   <header>
     <p class="small">openseas · brand book · specimen</p>
     <h1>A small ship, a long way from anywhere, with the lights turned down.</h1>
-    <p>Lo-fi minimalist space: flat, dark, warm and quiet. This page shows what <code>docs/BRAND.md</code> says. Pick a ground below and everything on the page follows it.</p>
+    <p>Lo-fi minimalist space: flat, dark, warm and quiet. This page shows what <code>docs/BRAND.md</code> says.</p>
   </header>
 
-  <div class="bar" role="group" aria-label="Palette and colour">
-    <span class="small">Ground</span>
-    <button id="pal-a" data-pal="a" aria-pressed="true">A · Night watch</button>
-    <button id="pal-b" data-pal="b" aria-pressed="false">B · Ember deck</button>
-    <button id="pal-c" data-pal="c" aria-pressed="false">C · Deep tide</button>
+  <div class="bar" role="group" aria-label="Colour">
+    <span class="small">Night watch</span>
     <span class="spacer"></span>
     <button id="nocolor" aria-pressed="false">Without colour</button>
   </div>
@@ -402,18 +391,7 @@ blockquote { margin: 0; padding-left: 16px; border-left: 2px solid var(--line); 
     stars.appendChild(s);
   }
 
-  function setPalette(p) {
-    if (p === "a") root.removeAttribute("data-palette"); else root.setAttribute("data-palette", p);
-    document.querySelectorAll("[data-pal]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.pal === p)); });
-    hexes();
-    try { localStorage.setItem("brand-palette", p); } catch (e) {}
-  }
-  document.querySelectorAll("[data-pal]").forEach(function (b) {
-    b.addEventListener("click", function () { setPalette(b.dataset.pal); });
-  });
-  var saved = "a";
-  try { saved = localStorage.getItem("brand-palette") || "a"; } catch (e) {}
-  setPalette(/^[abc]$/.test(saved) ? saved : "a");
+  hexes();
 
   var nc = document.getElementById("nocolor");
   nc.addEventListener("click", function () {

@@ -25,7 +25,8 @@ in `docs/BRAND.md`, which is the source of truth from here on.
    shadow, glow or blur. Dark and warm, not cold. One theme.
 3. **One palette for the whole game.** A ground, a raised surface, a line, cream, a dim text
    colour, eight muted piece colours and twelve player colours. It evolves from the current navy,
-   parchment and brass. The owner picks the exact values from the specimen's candidates.
+   parchment and brass. The owner picked its ground, Night watch, from three candidates on the
+   specimen.
 4. **Two colours have a fixed meaning.** Amber is yours and active. One danger colour is bad.
    Every other colour is free on each board.
 5. **One token module in `boards` holds every colour,** and makes the CSS variables, the boards'
@@ -36,9 +37,9 @@ in `docs/BRAND.md`, which is the source of truth from here on.
 7. **The board's frame goes.** A playfield sits on the ground with no hull, no rivets and no grid
    lines. `boards/src/hull.ts` is removed as its last board is restyled.
 8. **The marks setting goes.** A kind is told from every other by its silhouette alone, checked
-   with the colour taken away. This changes the second half of the project's rule 6, `DESIGN.md`
-   3.9 and item 22 of the `puzzles` skill; each is rewritten in the PR that removes the setting
-   from the first board, so the rules never describe a setting the code lacks.
+   with the colour taken away. The second half of the project's rule 6, `DESIGN.md` 3.9 and item 22 of
+   the `puzzles` skill are rewritten with this ADR: the owner judged the marks to add nothing. The
+   setting's code goes from each board as M10 restyles it, and from the game's menu with the last.
 9. **Motion is restrained, with one beat.** Short eased moves, no shake, few or no particles. A
    big moment is one amber pulse of the whole board with one sound, the same on every board.
 10. **The chrome is flat.** No glass, one corner radius, line icons. A scrim behind text over the

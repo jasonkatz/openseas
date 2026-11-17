@@ -336,9 +336,11 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
 
 - Browser only, no install. Phones are first-class.
 - Portrait for all duty puzzles. Landscape for Space Battle and the outpost.
-- Puzzle pieces use original illustrated sprites with clear silhouettes. Every piece type is also
-  distinguishable without color: a player setting draws a distinct mark on each kind, and special
-  tiles carry an icon and a label. Keyboard play for all puzzles on desktop. Screen-reader support for puzzle boards is out of scope.
+- Every piece type is distinguishable without color: each kind on a board has a silhouette of its
+  own and is told from every other by that alone (`BRAND.md` section 3, ADR 0061), and special
+  tiles carry an icon and a label. There is no marks setting in the rules any more. The setting that
+  drew a mark on each kind is still in the code of every board M10 has not restyled, and goes from
+  each as it is restyled. Keyboard play for all puzzles on desktop. Screen-reader support for puzzle boards is out of scope.
 - English only. All player-facing strings go through one message table.
 - No music in v1. Sound effects via WebAudio, voiced for space. A cue plays the puzzle's own
   generated sample where the owner has picked one (ADR 0041), and otherwise its minimal synthesized

@@ -108,8 +108,9 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 21. **Pure engine, server authority.** Deterministic from seed and move log; determinism property
     tests are written first; the server replays and scores every round. A puzzle whose game is
     hidden information counts for nothing until the server holds the secret (Scanner, ADR 0036).
-22. **Reads without color.** Each kind has its own silhouette, and the mark setting draws a distinct
-    mark on each.
+22. **Reads without color.** Each kind has a silhouette of its own and is told from every other by
+    that alone: look at the board with every piece in one colour (`docs/BRAND.md` section 3). There
+    is no marks setting to lean on; a board M10 has not restyled still carries the old one until it is.
 23. **Its own sprites and sounds.** Each frame, named as the renderer asks for it, is described in
     the puzzle's sprite brief and made with the `puzzle-sprites` skill; each moment item 1 asks to
     be heard has a cue in its sound brief, made with the `puzzle-sounds` skill. The owner picks

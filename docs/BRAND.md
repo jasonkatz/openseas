@@ -8,10 +8,8 @@ browser. When this file and a board disagree, fix one in the same PR.
 It covers the game, its boards and its guides. The studio's chrome keeps its own look (ADR 0058);
 only the boards inside it follow this book.
 
-**Status.** The direction is decided. The palette's exact values are not: section 2 holds three
-candidate grounds, and the owner picks one from the specimen. The pick replaces the table. Nothing
-in the game is restyled yet; milestone M10 (`DESIGN.md` 5.2) does that in steps, and until a step
-lands `DESIGN.md` describes what is built.
+**Status.** The direction and the palette are decided. The game is not restyled yet: milestone M10
+(`DESIGN.md` 5.2) does that in steps, and until a step lands `DESIGN.md` describes what is built.
 
 ## 1. The idea
 
@@ -30,20 +28,19 @@ with rivets, rust, tape or skulls.
 
 One palette for the whole game. No puzzle, screen or scene has colours of its own.
 
-### Ground and text (candidates, pending the owner's pick)
+### Ground and text
 
-| Role | A. Night watch | B. Ember deck | C. Deep tide | Used for |
-|---|---|---|---|---|
-| `ground` | `#0b1220` | `#151219` | `#0a1517` | The page, a board's playfield, the void |
-| `raised` | `#141d30` | `#1f1b26` | `#122326` | A panel, a button, a field |
-| `line` | `#27344f` | `#342e3e` | `#213b3f` | A hairline, a border, an empty cell's dot |
-| `cream` | `#ece3cf` | `#f0e6d2` | `#e9e6d5` | Text, icons, lines that carry meaning |
-| `dim` | `#8f99ad` | `#a097a6` | `#88a2a0` | Secondary text, a label, a disabled thing |
-| `amber` | `#e2a94b` | `#e8a95a` | `#e4ae56` | **Yours and active**, and the beat |
-| `danger` | `#e5604e` | `#e6625c` | `#e6694f` | **Bad**: heat, damage, a refusal |
+The owner's pick, Night watch: the old navy, parchment and brass, muted and narrowed.
 
-A is the current navy, parchment and brass, muted and narrowed. B is warmer and leans plum. C
-leans teal.
+| Role | Value | Used for |
+|---|---|---|
+| `ground` | `#0b1220` | The page, a board's playfield, the void |
+| `raised` | `#141d30` | A panel, a button, a field |
+| `line` | `#27344f` | A hairline, a border, an empty cell's dot |
+| `cream` | `#ece3cf` | Text, icons, lines that carry meaning |
+| `dim` | `#8f99ad` | Secondary text, a label, a disabled thing |
+| `amber` | `#e2a94b` | **Yours and active**, and the beat |
+| `danger` | `#e5604e` | **Bad**: heat, damage, a refusal |
 
 ### Two colours mean something
 
