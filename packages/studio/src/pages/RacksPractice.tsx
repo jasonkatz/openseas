@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { racksCrateFits, racksCrateWouldShip, racksNextShipment, summarizeRacks, type RacksConfig, type RacksMove, type RacksState } from "@openseas/engine";
-import { content, KindIcon, KINDS, RacksBoard, spriteName, t } from "@openseas/boards";
+import { content, RACKS_KINDS, RacksBoard, RacksCellIcon, RacksCrateIcon, t } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { RACKS } from "../prototypes/racks.js";
 
@@ -10,7 +10,6 @@ const racks = content.puzzles.racks;
 
 /** Racks (prototype, ADR 0036): the shared board in the studio's frame. */
 export function RacksPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<RacksState, RacksMove, RacksConfig>({
     puzzle: "racks",
     def: RACKS.def,
@@ -29,7 +28,7 @@ export function RacksPractice() {
   const fits = racksCrateFits(shown);
   const next = racksNextShipment(shown);
   const moves = shown.crate.lands;
-  const kinds = KINDS.slice(0, cfg.kinds);
+  const kinds = RACKS_KINDS.slice(0, cfg.kinds);
 
   return (
     <PracticeShell
@@ -106,43 +105,28 @@ export function RacksPractice() {
           <ul className="kinds">
             {kinds.map((k, i) => (
               <li key={k.id}>
-                <KindIcon kind={i} marks={showMarks} sprite={{ puzzle: "racks", name: spriteName("cell", i) }} />
+                <RacksCellIcon kind={i} />
                 <span>{t(`racks.kind.${k.id}`)}</span>
               </li>
             ))}
           </ul>
           <ul className="specials">
             <li>
-              <CrateIcon />
+              <RacksCrateIcon />
               <span>{t("racks.legend_crate")}</span>
             </li>
             <li>
-              <CrateIcon tight />
+              <RacksCrateIcon tight />
               <span>{t("racks.legend_no_room")}</span>
             </li>
           </ul>
           <p className="muted small proto-note">{t("racks.legend_ghost")}</p>
           <p className="muted small proto-note">{t("racks.chain_note")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
       board={(interactive) => (
-        <RacksBoard state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={studio.hints} onMove={onMove} onCall={onCall} onFrame={api.markRendered} />
+        <RacksBoard state={shown} version={api.version} interactive={interactive} hints={studio.hints} onMove={onMove} onCall={onCall} onFrame={api.markRendered} />
       )}
     />
-  );
-}
-
-/** The crate on its trolley, as the board draws it: brass, or red when it has no room. */
-function CrateIcon({ tight = false }: { tight?: boolean }) {
-  const trolley = tight ? "#f0604d" : "#d4a548";
-  return (
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
-      <rect x="2" y="3.5" width="20" height="2" rx="1" fill="#8a6b2f" />
-      <rect x="7" y="1.5" width="10" height="6" rx="2" fill={trolley} stroke="#53361b" strokeWidth="1" />
-      <path d="M9 7.5v3M15 7.5v3" stroke="#8a5e33" strokeWidth="1.2" />
-      <rect x="6" y="10.5" width="12" height="12" rx="2" fill="#3a2a1a" stroke="#c98a4b" strokeWidth="1.6" />
-      <path d="M7 16.5h10" stroke="#c98a4b" strokeOpacity="0.5" />
-    </svg>
   );
 }

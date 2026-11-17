@@ -57,4 +57,6 @@ export { ReactorBoard, type ReactorBoardProps } from "./reactor/ReactorBoard.jsx
 export { ScannerBoard, type ScannerBoardProps } from "./scanner/ScannerBoard.jsx";
 export { TugBoard, type TugBoardProps } from "./tug/TugBoard.jsx";
 export { RacksBoard, type RacksBoardProps } from "./racks/RacksBoard.jsx";
+export { RacksCellIcon, RacksCrateIcon } from "./racks/CellIcon.jsx";
+export { RACKS_KINDS } from "./racks/pieces.js";
 export { CuttingBoard, type CuttingBoardProps } from "./cutting/CuttingBoard.jsx";
