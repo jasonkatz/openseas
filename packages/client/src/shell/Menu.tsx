@@ -5,13 +5,11 @@ import { useShip } from "../state/ShipProvider.jsx";
 import { useMuted } from "../state/settings.js";
 
 export interface MenuProps {
-  showMarks: boolean;
-  onShowMarks(on: boolean): void;
   onClose(): void;
 }
 
 /** The one menu, over the scene, the same everywhere (DESIGN.md 3.11). */
-export function Menu({ showMarks, onShowMarks, onClose }: MenuProps) {
+export function Menu({ onClose }: MenuProps) {
   const { pirate } = usePirate();
   const { ship, leave } = useShip();
   const [muted, setMuted] = useMuted();
@@ -40,12 +38,6 @@ export function Menu({ showMarks, onShowMarks, onClose }: MenuProps) {
           <input type="checkbox" checked={!muted} onChange={(e) => setMuted(!e.target.checked)} data-testid="toggle-sound" />
           <span>
             {t("menu.sound")} <small className="muted">{t("menu.sound_hint")}</small>
-          </span>
-        </label>
-        <label className="toggle">
-          <input type="checkbox" checked={showMarks} onChange={(e) => onShowMarks(e.target.checked)} data-testid="toggle-marks" />
-          <span>
-            {t("menu.marks")} <small className="muted">{t("menu.marks_hint")}</small>
           </span>
         </label>
         <div className="section">

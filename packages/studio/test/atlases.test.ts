@@ -61,9 +61,9 @@ describe("the atlases built from frame files (ADR 0054)", () => {
   }
 
   it("a frame in the wrong place fails the comparison", async () => {
-    const names = listed.engines!;
-    const { files } = sources("engines", names);
-    const atlas = await pixels(await pack("engines", names, files));
+    const names = listed.salvage!;
+    const { files } = sources("salvage", names);
+    const atlas = await pixels(await pack("salvage", names, files));
     const [x, y] = layout(names).frames[names[1]!]!;
     const wrong = compare(atlas, await pixels(files[0]!), x, y);
     expect(wrong.alpha > 0 || wrong.psnr <= MIN_PSNR).toBe(true);
@@ -87,29 +87,29 @@ describe("the atlases built from frame files (ADR 0054)", () => {
     };
 
     it("as they do in the repository", () => {
-      expect(Object.keys(listed).length).toBe(9);
-      expect(Object.values(listed).flat().length).toBe(76);
+      expect(Object.keys(listed).length).toBe(8);
+      expect(Object.values(listed).flat().length).toBe(67);
     });
 
     it("refuses a listed frame with no file", () => {
       const at = copy();
-      rmSync(join(at, "frames", "engines", "weave.webp"));
-      expect(() => check(at)).toThrow(/engines\/weave is listed but/);
+      rmSync(join(at, "frames", "salvage", "debris-gold.webp"));
+      expect(() => check(at)).toThrow(/salvage\/debris-gold is listed but/);
     });
 
     it("refuses a file no manifest lists", () => {
       const at = copy();
-      cpSync(join(at, "frames", "engines", "weave.webp"), join(at, "frames", "engines", "weave-2.webp"));
-      expect(() => check(at)).toThrow(/frames\/engines\/weave-2.webp is not listed/);
+      cpSync(join(at, "frames", "salvage", "debris-gold.webp"), join(at, "frames", "salvage", "debris-gold-2.webp"));
+      expect(() => check(at)).toThrow(/frames\/salvage\/debris-gold-2.webp is not listed/);
     });
 
     it("refuses a frame that is not 192px when packing", async () => {
       const at = copy();
-      const names = manifest(at).engines!;
+      const names = manifest(at).salvage!;
       // A transparent image of one pixel.
       const dot = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-      writeFileSync(join(at, "frames", "engines", "weave.webp"), Buffer.from(dot, "base64"));
-      await expect(pack("engines", names, sources("engines", names, at).files)).rejects.toThrow(/engines\/weave is 1x1/);
+      writeFileSync(join(at, "frames", "salvage", "debris-gold.webp"), Buffer.from(dot, "base64"));
+      await expect(pack("salvage", names, sources("salvage", names, at).files)).rejects.toThrow(/salvage\/debris-gold is 1x1/);
     });
   });
 });

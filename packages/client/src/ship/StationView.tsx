@@ -11,7 +11,6 @@ export interface StationViewProps {
   ship: ShipSnapshot;
   me: string;
   station: StationWire;
-  showMarks: boolean;
   onBack(): void;
   /** The captain's way to the helm from a station that is waiting for the ship to fly. */
   onHelm(): void;
@@ -24,7 +23,7 @@ export interface StationViewProps {
  * status and last turn's output; a wide screen keeps it unfolded in a rail beside the board. Boards
  * are dealt as long as the ship is in flight; docked, the station says what it is waiting for.
  */
-export function StationView({ ship, me, station, showMarks, onBack, onHelm }: StationViewProps) {
+export function StationView({ ship, me, station, onBack, onHelm }: StationViewProps) {
   const wide = useMediaQuery("(min-width: 900px)");
   const [open, setOpen] = useState(false);
   const details = open || wide;
@@ -38,7 +37,7 @@ export function StationView({ ship, me, station, showMarks, onBack, onHelm }: St
   const hail = ship.location.kind === "in-flight" ? ship.location.hail : null;
   return (
     <section className="station-layer" data-testid={`station-view-${station}`}>
-      <DutyBoard station={station} active={inFlight} showMarks={showMarks}>
+      <DutyBoard station={station} active={inFlight}>
         {({ api, score, combo, board }) => {
           const playing = api.phase === "playing";
           const lowTime = playing && api.timeLeft <= 10;

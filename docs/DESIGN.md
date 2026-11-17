@@ -361,7 +361,7 @@ tokens from `boards/src/look/tokens.ts`, in one typeface, with flat panels and n
 shadow, and the guides' stylesheet wears the same tokens. `boards/src/styles.css` still carries the
 older variable names for the studio's own sheets, which read them (ADR 0058).
 
-**The boards in the game** are drawn in code on the shared palette, each from a file of its
+**The seven boards in the game** are drawn in code on the shared palette, each from a file of its
 own beside its renderer. None loads an atlas, none has a frame, a grid or a marks setting, and each
 keeps one amber pulse of the whole board, the beat, for its biggest moments. Where a kind can have
 an outline of its own, that is what tells it apart; where the rules fix the outline, each kind
@@ -370,8 +370,9 @@ carries one cut-out no other has (`BRAND.md` section 3). Each puzzle's design fi
 - **Cooling**: machine parts, a toothed cog, a valve wheel, a hexagon bolt, a capsule fuse, a
   crystal, a coil and a chip, with a spark, a horseshoe and a lump for the specials. The heat is a
   flat tint under one red hairline.
-- **Engines**: not restyled yet, the last of the seven. It still draws round discs from its sprite
-  atlas inside the riveted frame (`boards/src/hull.ts`), with its marks setting, until it is.
+- **Engines**: each pellet kind has a shape of its own (a flame, a plus, a ring, and a star for the
+  lab's extra kind), and its target is that shape as an outline. The landing ghost is an amber
+  outline that fills where a half would land in its own target.
 - **Plating**: a plate is one slab cut to its footprint, and each metal has a cut-out that lies
   along its brushing: a slot for tin, a lozenge for copper, a window for steel, a bone for brass.
 - **Gunnery**: a battery cell, a U-shaped sabot, a pointed slug and a frost crystal for coolant, on

@@ -1,15 +1,4 @@
 {
-  "engines": [
-    "weave",
-    "coil",
-    "ripple",
-    "target-weave",
-    "target-coil",
-    "target-ripple",
-    "ledge",
-    "link",
-    "gust"
-  ],
   "salvage": [
     "debris-gold",
     "debris-ice",

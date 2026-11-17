@@ -437,7 +437,7 @@ test("from the chart to an outpost, aboard, into flight, to a board and back on 
   // The menu is the same everywhere and carries the settings.
   await page.getByTestId("menu-open").click();
   await expect(page.getByTestId("menu")).toBeVisible();
-  await page.getByTestId("toggle-marks").check();
+  await expect(page.getByTestId("toggle-sound")).toBeVisible();
   await page.getByTestId("menu-close").click();
   await expect(page.getByTestId("menu")).toHaveCount(0);
 });

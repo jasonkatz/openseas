@@ -74,7 +74,7 @@ again. Then:
 
 - A new frame name: `place` adds it at the end of the puzzle's list in `frames.json` (move it if
   the Sprites panel should list it elsewhere); the renderer asks for it, and the piece has a
-  code-drawn fallback (`boards/src/parts.ts`, or the kit's art) in the same silhouette.
+  code-drawn fallback (the kit's art, `boards/src/kit/art.ts`) in the same silhouette.
 - `pnpm --filter @openseas/studio test:smoke` is green, and
   `pnpm --filter @openseas/docs capture <puzzle>` is re-run with every picture looked at.
 

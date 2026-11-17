@@ -414,8 +414,8 @@ The tables above give the identifier for each word. Beyond them:
   - Three puzzle engines' PRNG salts keep their old strings (`bilging:`, `sailing:` and
     `carpentry:` in each `reduce.ts`). A new salt would deal a different board from the same
     seed, and the rename changes no behaviour.
-  - Content `texture` keys (`knurl`, `weave`, `facet`, ...) keep their names: they are data keys,
-    never shown, and each now picks a space part (`knurl` → the cog) in `boards/src/parts.ts`.
+  - Content `texture` keys (`knurl`, `weave`, `facet`, ...) kept their names through the reskin. M10
+    since replaced them, on every board in the game, with the name of a shape or a cut-out (ADR 0062).
   - `SHIP_SINK` keeps its name: how far the hull hangs below the lane plane, so the deck meets the
     boarding tube.
 - **Kept for now**: `openseas`, the package scope `@openseas/*`, the domains and the hosting

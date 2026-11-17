@@ -7,7 +7,6 @@ export interface EnginesBoardProps {
   state: EnginesState;
   version: number;
   interactive: boolean;
-  showMarks: boolean;
   onPlace(col: number, row: number, rot: Rotation): void;
   onFrame(): void;
   onClear(round: EnginesClearRound): void;
@@ -39,13 +38,12 @@ export function EnginesBoard(props: EnginesBoardProps) {
         onWipe: () => latest.current.onWipe(),
       },
       {
-        showMarks: props.showMarks,
         fallMs: engines.fallMs,
         softDropMs: engines.softDropMs,
         chainLabel: (chain) => t("practice.chain_label", { chain }),
         injectorLabel: t("engines.injector_cleared"),
         wipeLabel: (points) => t("engines.wipe_label", { points }),
-        nextLabel: t("engines.next").toUpperCase(),
+        nextLabel: t("engines.next"),
       },
     );
     renderer.current = r;
@@ -81,10 +79,6 @@ export function EnginesBoard(props: EnginesBoardProps) {
     const r = renderer.current;
     if (r && r.app.renderer) r.setInteractive(props.interactive);
   }, [props.interactive]);
-
-  useEffect(() => {
-    renderer.current?.setShowMarks(props.showMarks);
-  }, [props.showMarks]);
 
   return <div ref={host} className="board-host" data-testid="engines-board" data-board={props.state.cells.map((c) => c?.kind ?? -1).join(",")} />;
 }

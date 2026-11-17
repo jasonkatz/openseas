@@ -3,10 +3,9 @@ import { expectViewMatchesState } from "./helpers.js";
 
 // Exercise the production build: a working dev URL is not enough for shared-package assets. Each
 // atlas is built from its frame files by the build (ADR 0054) and served under its own name.
-// The core boards M10 has not restyled yet, then the eight prototypes, which load theirs through the
-// board kit (ADR 0037). A restyled board draws its pieces in code and loads no atlas (ADR 0062): Cooling, Gunnery,
-// Plating, Navigation, Swordfighting, Space Battle.
-const CORE = ["engines"];
+// The eight prototypes load theirs through the board kit (ADR 0037). The seven boards in the game are restyled: each
+// draws its pieces in code and loads no atlas (ADR 0062), so none is listed here.
+const CORE: string[] = [];
 const PROTOTYPES = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting"];
 
 for (const puzzle of [...CORE, ...PROTOTYPES]) {
@@ -139,14 +138,36 @@ test("Space Battle asks for no atlas and plays on ships drawn in code", async ({
   expect(errors).toEqual([]);
 });
 
+test("Engines asks for no atlas and plays on pellets drawn in code", async ({ page }) => {
+  const errors: string[] = [];
+  const images: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (r) => {
+    if (r.url().endsWith(".webp")) images.push(r.url());
+  });
+  await page.goto("/play/engines");
+  await page.getByTestId("play-start").click();
+  const canvas = page.getByTestId("engines-canvas");
+  await expect(canvas).toHaveAttribute("data-view", /.+/);
+  await expect(canvas).toHaveAttribute("data-pieces", "drawn");
+  await expect(canvas).not.toHaveAttribute("data-sprite-atlas");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.down(" ");
+  await expect(page.getByTestId("hud-moves")).toContainText("1", { timeout: 30_000 });
+  await page.keyboard.up(" ");
+  await expectViewMatchesState(page, "engines");
+  expect(images).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test("an unavailable atlas falls back to playable procedural art", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/*.webp", (route) => route.abort());
-  await page.goto("/play/engines?seed=sprite-smoke&start=lab");
-  const canvas = page.getByTestId("engines-canvas");
+  await page.goto("/play/salvage?seed=sprite-smoke&start=lab");
+  const canvas = page.getByTestId("salvage-canvas");
   await expect(canvas).toHaveAttribute("data-sprite-atlas", "fallback");
-  await expectViewMatchesState(page, "engines");
+  await expectViewMatchesState(page, "salvage");
   expect(errors).toEqual([]);
 });
 
