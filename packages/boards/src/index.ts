@@ -62,3 +62,5 @@ export { RacksBoard, type RacksBoardProps } from "./racks/RacksBoard.jsx";
 export { RacksCellIcon, RacksCrateIcon } from "./racks/CellIcon.jsx";
 export { RACKS_KINDS } from "./racks/pieces.js";
 export { CuttingBoard, type CuttingBoardProps } from "./cutting/CuttingBoard.jsx";
+export { CuttingOreIcon } from "./cutting/OreIcon.jsx";
+export { CUTTING_ORES } from "./cutting/pieces.js";

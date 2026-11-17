@@ -24,7 +24,6 @@ The eight prototype boards (ADR 0037) each have an atlas too, painted through th
 | salvage | Six kinds of debris (`debris-<kind>`), the loot crate, the coupler |
 | reactor | Rod casings for grades 1 to 7 (`grade-<n>`); the hot rod, whatever its grade |
 | scanner | Fog and clear plates; found, spooked and miss marks; the ping diamond; lock and bare brackets |
-| cutting | Eight ore tiles (`ore-<kind>`), cut to fill a cell |
 
 `<kind>` is a kit kind's id (`../kit/art.ts`). A kind, charge or grade past its sheet is drawn in
 code, as is every board when its atlas does not load.
@@ -40,9 +39,7 @@ studs, so they stand apart from ordinary objects without relying on color.
 
 Every frame is one lossless 192×192 WebP, `frames/<puzzle>/<frame>.webp`, and that file is the only
 copy of it in the repository (ADR 0054). `frames.json` lists each puzzle's frame names, in the
-order the studio's Sprites panel shows them. Art is contained within 176×176 and centered;
-Cutting's ore tiles fill the frame instead, cropped inside their source's baked
-border so the cells of one piece join without a seam. Overload's frames hold only their largest
+order the studio's Sprites panel shows them. Art is contained within 176×176 and centered. Overload's frames hold only their largest
 piece of art. All of that is in the files: the build treats every frame alike.
 
 No atlas is committed. The Vite plugin `@openseas/boards/vite` (`../../build/`), which the game and

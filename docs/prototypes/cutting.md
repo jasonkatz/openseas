@@ -48,19 +48,46 @@ slab on (`flawsMax`).
 - **Third skill:** the budget. With one cut too few, which block to leave as scrap, and whether to
   cut a flaw out of a big block or bank the smaller pure piece beside it.
 
-## Input
+## Input and feedback
 
 - Pointer: swipe along a grid line inside a piece. A swipe across lines up a cut across, a swipe
   down a cut down; the line snaps to the nearest grid line and shows where it will run across the
-  whole piece. A side that would be banked lights up with what it pays (the engine's own sum,
+  whole piece. A side that would be banked is ringed and shows what it pays (the engine's own sum,
   `cuttingCutPreview`); a side that would stay is dimmed. The cut is made on release.
 - Or tap near a line to line the cut up, and tap the same line again to make it.
 - Keyboard: left and right move a cut that runs down, up and down move one that runs across (the
   first press of the other pair turns the cut), tab or N takes the next piece, space or enter cuts,
   escape drops the cut, D gives the slab up.
-- The strip over the slab shows a lamp for each cut left, what has been banked against the slab's
-  best with a notch where clean begins, and the chip that takes the next slab.
-- Unrated and lab rounds pulse the first cut of a best plan after seven seconds idle.
+- Unrated and lab rounds pulse the first cut of a best plan after seven seconds idle, as a cream
+  line.
+
+The board is restyled to the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws its pieces
+in code (`boards/src/cutting/pieces.ts`), loads no atlas and has no marks setting.
+
+- **Ores.** A cell of ore is a square in the ore's colour that fills its cell. The rules fix that
+  outline, so each ore carries one cut-out no other ore has, and the cut-out tells the ores apart
+  with the colour taken away. The four in play are nickel (sand, one round hole), cobalt (sky, a
+  slot), quartz (rose, a cross) and olivine (moss, a wedge). A lab's fifth to eighth ores are
+  spinel (lilac, a lozenge), beryl (teal, two holes), iron (slate, a ring) and chalk (cream, two
+  slots). No ore is amber, and none is rust, which would sit beside the danger of a rough slab.
+- **The board.** Bare ground with one hairline round the strip and the slab. No frame and no grid
+  lines: the thin gap between the cells of a piece is the slab's grid. A cut shows as a wider gap
+  between two pieces. Where a piece has been banked the ground is bare.
+- **The strip** over the slab shows a dot for each cut the slab came with, cream while it is still
+  to be made; what has been banked against the slab's best, as numbers and as a cream bar with a
+  notch where clean begins; and the chip that takes the next slab.
+- **A cut being lined up** is the player's own, so it is the one amber thing: a line across the
+  whole piece, steady under a finger and breathing while it waits for the second tap. A side that
+  would be banked has a cream ring round it and what it pays on a scrim of the ground. A side that
+  would stay is dimmed.
+- **A cut** is the line shown once more as it fades, and the two sides easing apart in 120ms.
+- **A banked piece** shows its points rising in cream, bigger for a piece of nine cells or more,
+  and shrinks to nothing in 160ms on a rising note. The bar grows.
+- **Scrap** dims and shrinks away when the slab ends. The grade is called out: flawless and clean
+  in cream with the bonus, rough in dim, and in danger when it breaks a streak. A streak of two or
+  more is shown under it. The next slab eases in from just above where it rests.
+- **The beat**, one amber pulse of the whole board, is kept for one thing: a flawless slab, and
+  each one in a streak a little stronger. There is no shake, no flash and no glow.
 
 ## Engine
 

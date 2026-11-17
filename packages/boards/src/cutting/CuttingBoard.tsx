@@ -8,7 +8,6 @@ export interface CuttingBoardProps {
   state: CuttingState;
   version?: number;
   interactive: boolean;
-  showMarks: boolean;
   /** Pulse a cut from a best plan after a pause: on for practice, off for recorded rounds. */
   hints: boolean;
   onCut(piece: number, vertical: boolean, at: number): void;
@@ -31,7 +30,6 @@ export function CuttingBoard(props: CuttingBoardProps) {
           onFrame: () => latest.current.onFrame(),
         },
         {
-          showMarks: props.showMarks,
           hints: props.hints,
           labels: {
             cuts: (left) => t("cutting.cuts_left", { left }),

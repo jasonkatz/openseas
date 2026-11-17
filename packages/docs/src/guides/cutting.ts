@@ -26,8 +26,8 @@ export const cutting: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Cutting board: a slab ${c.width} cells wide and ${c.height} tall made of blocks of ore, each ore with its own shape stamped on it. A strip above shows a lamp for each cut left, what is banked against the slab's best, and a chip that reads Next slab.`,
-    caption: "A fresh slab. The lamps are your cuts, and the number is what you have banked against the best this slab can pay.",
+    alt: `The Cutting board: a slab ${c.width} cells wide and ${c.height} tall made of blocks of ore, each ore a flat colour with a cut-out of its own in every cell. A strip above shows a dot for each cut left, what is banked against the slab's best, and a chip that reads Next slab.`,
+    caption: "A fresh slab. The dots are your cuts, and the number is what you have banked against the best this slab can pay.",
   },
   theme: {
     setting:
@@ -45,7 +45,7 @@ export const cutting: Guide = {
     "A slab is made of blocks of ore. A **flaw** is a single cell of the wrong ore sitting in a block.",
     "A cut runs along a grid line, the whole way across the piece it is made in, and splits that piece in two. So every piece is a rectangle.",
     "A piece that holds one ore only is **pure**. It is banked at once and leaves the table. A mixed piece stays.",
-    `Each slab comes with ${c.minCuts} to ${c.maxCuts} cuts, shown as lamps. It is always about one cut fewer than the slab wants.`,
+    `Each slab comes with ${c.minCuts} to ${c.maxCuts} cuts, shown as dots. It is always about one cut fewer than the slab wants.`,
     "A slab ends when the table is bare, when the cuts are spent, or when no cut left could bank anything. What is still on the table is **scrap** and pays nothing.",
     `The slab is then graded against the best any plan could have banked from it with its cuts. All of the best is **flawless**, ${cleanShare} of it is **clean**, less is **rough**. The next slab is dealt at once.`,
     `Slabs get busier: ${c.partsStart} blocks and ${c.flawsStart} flaw at first, ${c.partsMax} blocks and ${c.flawsMax} flaws from slab ${busiest} on.`,
@@ -53,8 +53,8 @@ export const cutting: Guide = {
   rulesMedia: {
     kind: "clip",
     name: "first-cut",
-    alt: "A swipe along a grid line of a fresh slab. A line appears across the whole slab, the side that holds one ore lights up with the points it would pay, and on release that side is banked and leaves the table.",
-    caption: "Swipe along a line. The side that is one ore lights up with what it pays, and is banked when you let go.",
+    alt: "A swipe along a grid line of a fresh slab. An amber line appears across the whole slab, the side that holds one ore is ringed and shows the points it would pay, and on release that side is banked and shrinks away.",
+    caption: "Swipe along a line. The side that is one ore is ringed and shows what it pays, and is banked when you let go.",
   },
   controls: [
     { action: "Make a cut", touch: "Swipe along a grid line inside a piece and lift", desktop: "Drag along the line and release" },
@@ -81,12 +81,12 @@ export const cutting: Guide = {
         },
         {
           title: "Line it up first",
-          body: "Tap near a line and the cut is drawn across the whole piece without being made. A side that would be banked lights up with what it pays. A side that would stay is dimmed. Nothing is spent until you tap that line again.",
+          body: "Tap near a line and the cut is drawn across the whole piece without being made. A side that would be banked is ringed and shows what it pays. A side that would stay is dimmed. Nothing is spent until you tap that line again.",
           media: {
             kind: "still",
             name: "preview",
-            alt: "A slab with a cut lined up across it. The side of the line that is all one ore is outlined and lit with the points it would pay. The other side, which mixes ores, is dimmed.",
-            caption: "A cut lined up by one tap. The lit side would be banked for the number on it. The dim side would stay on the table.",
+            alt: "A slab with a cut lined up across it. The side of the line that is all one ore is ringed and shows the points it would pay. The other side, which mixes ores, is dimmed.",
+            caption: "A cut lined up by one tap. The ringed side would be banked for the number on it. The dim side would stay on the table.",
           },
         },
         {
@@ -106,7 +106,7 @@ export const cutting: Guide = {
           media: {
             kind: "still",
             name: "through",
-            alt: "A fresh slab with a cut lined up along its bottom row. The row is one ore and lit with its points, but the line runs through the middle of the biggest block on the slab.",
+            alt: "A fresh slab with a cut lined up along its bottom row. The row is one ore and ringed, with its points on it, but the line runs through the middle of the biggest block on the slab.",
             caption: "Tempting: it banks a row now. It also runs through the biggest block, which was worth far more whole.",
           },
         },
@@ -116,7 +116,7 @@ export const cutting: Guide = {
         },
         {
           title: "The cut that banks nothing",
-          body: "Look for a **seam**: a line that crosses the whole piece along the edges of the blocks you want. Cutting it may light nothing up. But now each half is its own piece, and a cut in one no longer runs through the other. On busy slabs the right first cut banks nothing more often than not.",
+          body: "Look for a **seam**: a line that crosses the whole piece along the edges of the blocks you want. Cutting it may ring nothing. But now each half is its own piece, and a cut in one no longer runs through the other. On busy slabs the right first cut banks nothing more often than not.",
           media: {
             kind: "clip",
             name: "setup",
@@ -126,7 +126,7 @@ export const cutting: Guide = {
         },
         {
           title: "Count what a block costs",
-          body: "A block in the corner of its piece takes two cuts to free. One on an edge takes three, and one in the middle takes four. One that spans the piece from side to side takes one or two. Count the big blocks against the lamps before you start.",
+          body: "A block in the corner of its piece takes two cuts to free. One on an edge takes three, and one in the middle takes four. One that spans the piece from side to side takes one or two. Count the big blocks against the dots before you start.",
         },
       ],
       drill: `Do not touch a new slab until you can name every cut you will make. In practice rounds, wait a few seconds and a cut from a best plan pulses: check your first cut against it. You are there when a round passes ${p.thresholds[3]!.score} points.`,
@@ -178,20 +178,20 @@ export const cutting: Guide = {
           media: {
             kind: "clip",
             name: "streak",
-            alt: "A slab cut in three quick swipes, each banking a piece, the second a large block. The bar fills, the board calls out Flawless with its bonus and shows Streak x2.",
+            alt: "A slab cut in three quick swipes, each banking a piece, the second a large block. The bar fills, the board calls out Flawless with its bonus, shows Streak x2 and pulses once in amber.",
             caption: `Three swipes, no taps. A second flawless slab in a row pays ${bonusAt(c.flawlessBonus, 2)} in place of ${c.flawlessBonus}.`,
           },
         },
         {
           title: "Swipe the plan",
-          body: "Two taps are for checking a cut. Once the plan is whole in your head, swipe each cut in one stroke and do not wait for the pieces to fly: a new swipe finishes the animation. Plan with your eyes, then cut without stopping.",
+          body: "Two taps are for checking a cut. Once the plan is whole in your head, swipe each cut in one stroke and do not wait for the pieces to go: a new swipe finishes the animation. Plan with your eyes, then cut without stopping.",
         },
       ],
       drill: `Play rounds where every slab is planned in full and then cut in one burst. Watch the result for rough slabs: the target is none. You are there when a round passes ${p.thresholds[5]!.score} points.`,
     },
   ],
   mistakes: [
-    "**Taking the cut that banks now.** The first cut of a best plan often banks nothing. Find the biggest block and the seam beside it before you look at what lights up.",
+    "**Taking the cut that banks now.** The first cut of a best plan often banks nothing. Find the biggest block and the seam beside it before you look at what is ringed.",
     "**Cutting through the big block.** A small piece banked today is paid for with the block it split. Halves of a block pay half of what it paid whole.",
     `**Spending a cut on a flaw.** A single cell pays ${v(1)}. Go round it and let the strip it sits in be scrap.`,
     "**Tapping Next slab below the notch.** A slab given up is graded as it stands. Under the notch it is rough, and the streak goes with it.",

@@ -12,9 +12,10 @@ import {
   type CuttingState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, INK, drawMark, drawPanel, drawPiece, kindStyle, mix, spriteName } from "../kit/art.js";
-import { FRAME_FIT, Grid, KitBoard } from "../kit/board.js";
-import { ease } from "../kit/tween.js";
+import { FONT, FONT_MONO, INK } from "../kit/art.js";
+import { Grid, KitBoard } from "../kit/board.js";
+import { MOTION, RADIUS } from "../look/tokens.js";
+import { cuttingOre } from "./pieces.js";
 
 export interface CuttingCallbacks {
   /** The player made a cut the engine would take. */
@@ -39,7 +40,6 @@ export interface CuttingLabels {
 }
 
 export interface CuttingRendererOptions {
-  showMarks: boolean;
   /** Pulse a cut from a best plan after a pause. Off for recorded rounds. */
   hints: boolean;
   labels: CuttingLabels;
@@ -70,11 +70,16 @@ interface Strip {
 }
 
 const HINT_AFTER_MS = 7000;
-const TORCH = 0xffb347;
-const BANK = 0xf5d58a;
+/** A banked piece this big gets a bigger number. */
+const BIG_PIECE = 9;
 
-/** Draws the slab and turns a swipe along a grid line into a cut. Scores nothing: every number it shows is the engine's. */
+/**
+ * Draws the slab and turns a swipe along a grid line into a cut. Scores nothing: every number it
+ * shows is the engine's. Restyled to the brand book (docs/BRAND.md): ores drawn in code
+ * (`pieces.ts`), bare ground with one hairline, amber for the cut being lined up and the beat.
+ */
 export class CuttingRenderer extends KitBoard<CuttingState> {
+  protected override readonly drawn = true;
   private readonly grid = new Grid(6, 6);
   private readonly bg = new Graphics();
   private readonly stripLayer = new Graphics();
@@ -86,7 +91,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
   private nextText: Text | null = null;
   private readonly gainTexts: Text[] = [];
   private readonly views = new Map<number, PieceView>();
-  /** Pieces on their way off the table: banked ones flying to the bank, scrap falling away. */
+  /** Pieces on their way off the table: banked ones and scrap, shrinking away. */
   private readonly leaving = new Set<Container>();
   /**
    * The slab the views were drawn from: the engine keeps one `ores` array for as long as a slab is on
@@ -110,7 +115,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     private readonly cb: CuttingCallbacks,
     private readonly opts: CuttingRendererOptions,
   ) {
-    super(host, "cutting", cb.onFrame, opts.showMarks);
+    super(host, "cutting", cb.onFrame);
     this.hints = opts.hints;
   }
 
@@ -119,18 +124,17 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
   }
 
   protected build(): void {
-    const text = (weight: "700" | "900", fill: number): Text => {
-      const t = new Text({ text: "", style: { fontFamily: FONT, fontSize: 14, fontWeight: weight, fill, letterSpacing: 0.5 } });
+    const text = (fontFamily: string, weight: "400" | "700", fill: number): Text => {
+      const t = new Text({ text: "", style: { fontFamily, fontSize: 14, fontWeight: weight, fill }, resolution: 2 });
       t.anchor.set(0.5);
       return t;
     };
-    this.cutsText = text("700", INK.dim);
-    this.yieldText = text("700", INK.text);
-    this.nextText = text("700", INK.text);
+    this.cutsText = text(FONT, "400", INK.dim);
+    this.yieldText = text(FONT_MONO, "700", INK.cream);
+    this.nextText = text(FONT, "400", INK.cream);
     for (let i = 0; i < 2; i++) {
-      const t = text("900", BANK);
-      t.style.stroke = { color: 0x000000, width: 4 };
-      t.visible = false;
+      const t = text(FONT_MONO, "700", INK.cream);
+            t.visible = false;
       this.gainTexts.push(t);
     }
     this.world.addChild(this.bg, this.stripLayer, this.pieceLayer, this.hintLayer, this.lineLayer, this.cutsText, this.yieldText, this.nextText, ...this.gainTexts);
@@ -138,7 +142,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
 
   /** The gap left round every piece, so a cut shows as a seam. */
   private get seam(): number {
-    return Math.max(2, this.grid.cell * 0.05);
+    return Math.max(2, this.grid.cell * 0.07);
   }
 
   private get stripHeight(): number {
@@ -155,12 +159,9 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     const pad = Math.max(4, g.cell * 0.12);
     const strip = this.stripHeight;
     this.bg.clear();
-    drawPanel(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + pad * 2, Math.max(10, g.cell * 0.24));
-    // The bed the slab lies on: what shows where a piece has been banked.
-    this.bg.roundRect(g.ox, g.oy, g.width, g.height, 4).fill({ color: INK.bg });
-    for (let c = 1; c < g.cols; c++) this.bg.rect(g.ox + c * g.cell - 0.5, g.oy, 1, g.height).fill({ color: INK.line, alpha: 0.5 });
-    for (let r = 1; r < g.rows; r++) this.bg.rect(g.ox, g.oy + r * g.cell - 0.5, g.width, 1).fill({ color: INK.line, alpha: 0.5 });
-    const font = Math.max(11, Math.round(g.cell * 0.28));
+    // Bare ground with one hairline round the strip and the slab. The slab's grid is the gaps between its cells.
+    this.paintGround(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + pad * 2);
+    const font = Math.max(12, Math.round(g.cell * 0.26));
     for (const t of [this.cutsText, this.yieldText, this.nextText]) if (t) t.style.fontSize = font;
     for (const t of this.gainTexts) t.style.fontSize = Math.max(14, Math.round(g.cell * 0.46));
     this.publishGeom(g.ox, g.oy, g.cell);
@@ -185,18 +186,11 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     const top = g.oy - this.stripHeight;
     const rowY = top + this.stripHeight * 0.36;
     l.clear();
-    // Cuts: a lamp for each one the slab came with, lit while it is still to be made.
+    // Cuts: a dot for each one the slab came with, cream while it is still to be made.
     const r = Math.max(3, g.cell * 0.1);
     const gap = r * 2.7;
     const lampsX = g.ox + r + 2;
-    for (let i = 0; i < s.cutsAllowed; i++) {
-      const x = lampsX + i * gap;
-      if (i < s.cutsLeft) {
-        l.circle(x, rowY, r * 1.5).fill({ color: TORCH, alpha: 0.18 });
-        l.circle(x, rowY, r).fill({ color: TORCH });
-        l.circle(x - r * 0.25, rowY - r * 0.25, r * 0.4).fill({ color: INK.white, alpha: 0.7 });
-      } else l.circle(x, rowY, r * 0.9).stroke({ width: 1.5, color: INK.edge });
-    }
+    for (let i = 0; i < s.cutsAllowed; i++) l.circle(lampsX + i * gap, rowY, r).fill({ color: i < s.cutsLeft ? INK.cream : INK.line });
     if (this.cutsText) {
       this.cutsText.text = this.opts.labels.cuts(s.cutsLeft);
       this.cutsText.anchor.set(0, 0.5);
@@ -206,8 +200,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     const chipW = Math.max(54, g.cell * 1.15);
     const chipH = Math.max(22, g.cell * 0.44);
     this.chip = { x: g.ox + g.width - chipW, y: rowY - chipH / 2, w: chipW, h: chipH };
-    l.roundRect(this.chip.x, this.chip.y, chipW, chipH, chipH / 2).fill({ color: INK.well });
-    l.roundRect(this.chip.x, this.chip.y, chipW, chipH, chipH / 2).stroke({ width: 1.5, color: INK.edge });
+    l.roundRect(this.chip.x, this.chip.y, chipW, chipH, Math.min(RADIUS, chipH / 2)).fill({ color: INK.raised });
     if (this.nextText) {
       this.nextText.text = this.opts.labels.next;
       this.nextText.position.set(this.chip.x + chipW / 2, rowY);
@@ -219,10 +212,10 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     const barY = top + this.stripHeight * 0.74;
     const barH = Math.max(5, g.cell * 0.1);
     const share = s.best > 0 ? Math.min(1, s.got / s.best) : 0;
-    l.roundRect(barX, barY - barH / 2, barW, barH, barH / 2).fill({ color: INK.bg });
-    if (share > 0) l.roundRect(barX, barY - barH / 2, Math.max(barH, barW * share), barH, barH / 2).fill({ color: share >= 1 ? BANK : INK.good });
+    l.roundRect(barX, barY - barH / 2, barW, barH, barH / 2).fill({ color: INK.line });
+    if (share > 0) l.roundRect(barX, barY - barH / 2, Math.max(barH, barW * share), barH, barH / 2).fill({ color: INK.cream });
     const clean = (this.state?.config.cleanPercent ?? 80) / 100;
-    l.rect(barX + barW * clean - 1, barY - barH, 2, barH * 2).fill({ color: INK.text, alpha: 0.7 });
+    l.rect(barX + barW * clean - 1, barY - barH, 2, barH * 2).fill({ color: INK.dim });
     if (this.yieldText) {
       this.yieldText.text = this.opts.labels.banked(s.got, s.best);
       this.yieldText.anchor.set(0.5, 0.5);
@@ -231,31 +224,12 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     }
   }
 
-  /** Where a banked piece flies to: the middle of the bar. */
-  private bankAt(): { x: number; y: number } {
-    const g = this.grid;
-    return { x: g.ox + g.width * 0.68, y: g.oy - this.stripHeight * 0.3 };
-  }
-
   // ---- pieces
 
+  /** One cell of an ore: a square in the ore's colour that fills its cell, with the ore's cut-out. */
   private tile(ore: number): Texture {
-    const cell = this.grid.cell;
-    return this.bake(`tile:${ore}:${this.showMarks ? 1 : 0}`, cell, (g) => {
-      const color = kindStyle(ore).color;
-      const half = cell / 2;
-      // An ore frame is cut to fill its cell, with no padding: the cells of a piece join edge to edge.
-      if (this.sprite(g, spriteName("ore", ore), 0, 0, cell / FRAME_FIT)) {
-        if (this.showMarks) drawMark(g, ore, 0, 0, cell * 0.3);
-        return;
-      }
-      // A plate of the ore, lit along its top edge, with the ore's own silhouette set into it.
-      g.rect(-half, -half, cell, cell).fill({ color: mix(color, INK.black, 0.5) });
-      g.rect(-half, -half, cell, Math.max(1, cell * 0.05)).fill({ color: mix(color, INK.white, 0.25), alpha: 0.5 });
-      g.rect(-half, half - 1, cell, 1).fill({ color: INK.black, alpha: 0.35 });
-      g.rect(half - 1, -half, 1, cell).fill({ color: INK.black, alpha: 0.35 });
-      drawPiece(g, ore, 0, 0, cell * 0.27, { marks: this.showMarks });
-    });
+    const o = cuttingOre(ore);
+    return this.piece(`ore:${o.id}`, this.grid.cell, o.color, o.paint, 1);
   }
 
   private makeView(piece: CuttingPiece, ores: readonly number[], slabWidth: number): PieceView {
@@ -279,9 +253,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     // The piece is drawn a seam smaller all round, so its neighbours never touch it.
     inner.position.set(seam, seam);
     inner.scale.set((w - seam * 2) / w, (h - seam * 2) / h);
-    const edge = new Graphics();
-    edge.roundRect(seam, seam, w - seam * 2, h - seam * 2, Math.max(2, g.cell * 0.06)).stroke({ width: Math.max(1.5, g.cell * 0.04), color: INK.white, alpha: 0.4 });
-    root.addChild(inner, edge);
+    root.addChild(inner);
     root.pivot.set(w / 2, h / 2);
     const x = g.ox + piece.x * g.cell + w / 2;
     const y = g.oy + piece.y * g.cell + h / 2;
@@ -358,7 +330,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     this.tweens.after(t, () => this.snap(state));
   }
 
-  /** The cut itself: the torch's line, the two sides easing apart, and each pure side banked. Returns when it is over, in ms. */
+  /** The cut itself: the torch's line, the two sides easing apart, and each pure side banked: its points, then it shrinks away. Returns when it is over, in ms. */
   private playCut(prev: CuttingState, r: CuttingMoveReport): number {
     const c = r.cut!;
     const g = this.grid;
@@ -369,66 +341,47 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     const py = (y: number): number => g.oy + y * g.cell;
     const line = c.vertical ? [px(c.at), py(c.piece.y), px(c.at), py(c.piece.y + c.piece.h)] : [px(c.piece.x), py(c.at), px(c.piece.x + c.piece.w), py(c.at)];
     sfx.zap();
-    this.fx.beam(line, TORCH, Math.max(4, g.cell * 0.1), 360);
-    for (const k of [0.1, 0.5, 0.9]) this.fx.burst(line[0]! + (line[2]! - line[0]!) * k, line[1]! + (line[3]! - line[1]!) * k, TORCH, 5, 0.2, 3);
+    this.fx.beam(line, INK.amber, Math.max(3, g.cell * 0.07), 320);
     this.showStrip({ ...this.strip, cutsLeft: prev.cutsLeft - 1 });
 
-    const apart = this.seam * 2.5;
-    let end = 220;
+    const apart = this.seam;
+    let end: number = MOTION.move;
     let banked = 0;
     c.halves.forEach((half, i) => {
       const v = this.makeView(half.piece, prev.ores, prev.config.width);
-      // Each side starts pushed up against the line and eases back to where it rests.
+      // Each side starts up against the line and eases back to where it rests.
       const toward = i === 0 ? 1 : -1;
       if (c.vertical) v.root.x = v.x + toward * apart;
       else v.root.y = v.y + toward * apart;
-      this.tweens.to(v.root, { x: v.x, y: v.y }, 200, { ease: ease.outCubic });
+      this.tweens.move(v.root, { x: v.x, y: v.y });
       if (half.ore === null) {
         this.views.set(half.piece.id, v);
         return;
       }
-      // A pure side: it glows, pays, and flies to the bank.
+      // A pure side: it pays, and shrinks away.
       this.leaving.add(v.root);
       const area = half.piece.w * half.piece.h;
-      const delay = 150 + banked * 110;
+      const delay = MOTION.move + 60 + banked * 110;
       const nth = prev.banked.length + banked;
       banked++;
-      const glow = new Graphics();
-      const w = half.piece.w * g.cell;
-      const h = half.piece.h * g.cell;
-      glow.roundRect(this.seam, this.seam, w - this.seam * 2, h - this.seam * 2, Math.max(2, g.cell * 0.06)).fill({ color: INK.white });
-      glow.alpha = 0;
-      v.root.addChild(glow);
-      const color = kindStyle(half.ore).color;
       this.tweens.after(delay, () => {
-        glow.alpha = 0.75;
         sfx.clear(Math.min(7, nth + 1), area);
-        this.fx.popup(v.x, v.y, `+${half.points}`, BANK, Math.max(16, g.cell * Math.min(0.75, 0.34 + area * 0.03)));
-        this.fx.burst(v.x, v.y, color, Math.min(18, 4 + area), 0.26, 4);
-        if (area >= 9) {
-          this.fx.ring(v.x, v.y, BANK, g.cell * 0.4, g.cell * (1 + area * 0.08), 480, 4);
-          this.fx.shake(Math.min(10, area * 0.5), 240);
-        }
+        this.fx.popup(v.x, v.y, `+${half.points}`, INK.cream, Math.max(16, g.cell * (area >= BIG_PIECE ? 0.62 : 0.42)));
         this.showStrip({ ...this.strip, got: this.strip.got + half.points });
       });
-      this.tweens.to(glow, { alpha: 0 }, 220, { delay, ease: ease.outQuad });
-      this.tweens.to(v.root, { scale: 1.06 }, 130, { delay, ease: ease.outQuad });
-      const bank = this.bankAt();
-      this.tweens.to(v.root, { x: bank.x, y: bank.y, scale: 0.12, alpha: 0 }, 300, {
-        delay: delay + 170,
-        // No wind-up: a big piece pulled back before it goes would swing out over the panel's edge.
-        ease: ease.inCubic,
+      this.tweens.remove(v.root, {
+        delay,
         done: () => {
           this.leaving.delete(v.root);
           v.root.destroy({ children: true });
         },
       });
-      end = Math.max(end, delay + 480);
+      end = Math.max(end, delay + MOTION.clear);
     });
     return end;
   }
 
-  /** The slab's end: scrap falls away, the grade is called, and the next slab comes down. Returns when it is over, in ms. */
+  /** The slab's end: scrap dims and shrinks away, the grade is called, and the next slab comes in. Returns when it is over, in ms. */
   private playSlabEnd(prev: CuttingState, slab: CuttingSlabReport, state: CuttingState, start: number): number {
     const g = this.grid;
     let t = start;
@@ -439,9 +392,8 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
         if (!v) continue;
         this.views.delete(p.id);
         this.leaving.add(v.root);
-        v.root.alpha = 0.55;
-        this.tweens.to(v.root, { y: v.y + g.cell * 0.5, alpha: 0 }, 320, {
-          ease: ease.inCubic,
+        v.root.alpha = 0.4;
+        this.tweens.remove(v.root, {
           done: () => {
             this.leaving.delete(v.root);
             v.root.destroy({ children: true });
@@ -452,32 +404,33 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     this.tweens.after(t + 140, () => {
       const labels = this.opts.labels;
       if (slab.grade === "flawless") {
-        this.fx.say(labels.flawless(slab.bonus), BANK);
-        this.fx.flash(BANK, 0.14, 280);
-        this.fx.shake(6, 240);
+        // The beat is kept for this: all of a slab's best, a little stronger with each slab of the streak.
+        this.fx.say(labels.flawless(slab.bonus));
+        this.beat(Math.min(1, 0.4 + (slab.streak - 1) * 0.15));
         sfx.streak(slab.streak * 2);
       } else if (slab.grade === "clean") {
-        this.fx.say(labels.clean(slab.bonus), INK.good);
+        this.fx.say(labels.clean(slab.bonus));
         sfx.good();
       } else {
-        this.fx.say(labels.rough, INK.dim);
+        // Rough pays nothing; one that breaks a streak is said in danger.
+        this.fx.say(labels.rough, prev.combo >= 2 ? INK.danger : INK.dim);
         if (prev.combo >= 2) sfx.streakLost();
         else sfx.thud();
       }
-      if (slab.streak >= 2) this.fx.popup(g.ox + g.width / 2, g.oy + g.height * 0.52, labels.streak(slab.streak), INK.text, Math.max(14, g.cell * 0.34));
+      if (slab.streak >= 2) this.fx.popup(g.ox + g.width / 2, g.oy + g.height * 0.52, labels.streak(slab.streak), INK.cream, Math.max(14, g.cell * 0.34));
     });
     t += 760;
     this.tweens.after(t, () => {
-      // The next slab comes down onto the bed.
+      // The next slab comes in from just above where it rests.
       this.snap(state);
       sfx.whoosh();
       for (const v of this.views.values()) {
         v.root.alpha = 0;
-        v.root.y = v.y - g.cell * 0.4;
-        this.tweens.to(v.root, { y: v.y, alpha: 1 }, 260, { ease: ease.outCubic });
+        v.root.y = v.y - g.cell * 0.25;
+        this.tweens.move(v.root, { y: v.y, alpha: 1 });
       }
     });
-    return t + 290;
+    return t + MOTION.move + 10;
   }
 
   protected view(): string {
@@ -517,7 +470,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     this.hintLayer
       .moveTo(g.ox + p.line[0] * g.cell, g.oy + p.line[1] * g.cell)
       .lineTo(g.ox + p.line[2] * g.cell, g.oy + p.line[3] * g.cell)
-      .stroke({ width: Math.max(4, g.cell * 0.1), color: INK.good, alpha: pulse, cap: "round" });
+      .stroke({ width: Math.max(3, g.cell * 0.07), color: INK.cream, alpha: pulse, cap: "round" });
   }
 
   // ---- the cut being lined up
@@ -556,7 +509,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
         t.position.set(g.ox + (h.x + h.w / 2) * g.cell, g.oy + (h.y + h.h / 2) * g.cell);
         // The number fits inside the side it belongs to.
         t.scale.set(1);
-        const fit = Math.min(1, (h.w * g.cell - 6) / t.width, (h.h * g.cell - 4) / t.height);
+        const fit = Math.min(1, (h.w * g.cell - 18) / t.width, (h.h * g.cell - 8) / t.height);
         t.scale.set(Math.max(0.45, fit));
       });
     }
@@ -577,26 +530,23 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
       const y = g.oy + h.y * g.cell + seam;
       const w = h.w * g.cell - seam * 2;
       const hh = h.h * g.cell - seam * 2;
-      if (h.ore !== null) {
-        // This side would bank: it lights up.
-        l.roundRect(x, y, w, hh, 3).fill({ color: BANK, alpha: 0.2 });
-        l.roundRect(x, y, w, hh, 3).stroke({ width: 3, color: BANK, alpha: 0.95 });
-      } else l.roundRect(x, y, w, hh, 3).fill({ color: INK.black, alpha: 0.22 });
+      const round = Math.max(3, g.cell * 0.1);
+      // A side that would bank is ringed in cream; a side that would stay is dimmed.
+      if (h.ore !== null) l.roundRect(x, y, w, hh, round).stroke({ width: Math.max(2, g.cell * 0.05), color: INK.cream, alignment: 1 });
+      else l.roundRect(x, y, w, hh, round).fill({ color: INK.ground, alpha: 0.4 });
     }
-    const x0 = g.ox + p.line[0] * g.cell;
-    const y0 = g.oy + p.line[1] * g.cell;
-    const x1 = g.ox + p.line[2] * g.cell;
-    const y1 = g.oy + p.line[3] * g.cell;
-    const pulse = this.armed ? 0.7 + 0.3 * Math.sin(this.time / 150) : 1;
-    const width = Math.max(4, g.cell * 0.1);
-    const stroke = (w: number, color: number, alpha: number): void => {
-      l.moveTo(x0, y0).lineTo(x1, y1).stroke({ width: w, color, alpha, cap: "round" });
-    };
-    stroke(width * 2.6, TORCH, 0.25 * pulse);
-    stroke(width, TORCH, 0.95 * pulse);
-    stroke(width * 0.35, INK.white, 0.95);
-    l.circle(x0, y0, width * 0.7).fill({ color: INK.white });
-    l.circle(x1, y1, width * 0.7).fill({ color: INK.white });
+    // What a side would pay sits on a scrim of the ground, so it reads over the cut-outs.
+    for (const t of this.gainTexts) {
+      if (!t.visible) continue;
+      const w = t.width + 10;
+      const hh = t.height + 2;
+      l.roundRect(t.x - w / 2, t.y - hh / 2, w, hh, Math.min(RADIUS, hh / 2)).fill({ color: INK.ground, alpha: 0.7 });
+    }
+    // The cut being lined up is the player's own: one amber line, steady under the finger, breathing while it waits for the second tap.
+    const pulse = this.armed ? 0.75 + 0.25 * Math.sin(this.time / 150) : 1;
+    l.moveTo(g.ox + p.line[0] * g.cell, g.oy + p.line[1] * g.cell)
+      .lineTo(g.ox + p.line[2] * g.cell, g.oy + p.line[3] * g.cell)
+      .stroke({ width: Math.max(4, g.cell * 0.09), color: INK.amber, alpha: pulse, cap: "round" });
   }
 
   private commit(): void {

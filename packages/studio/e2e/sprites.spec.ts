@@ -4,9 +4,9 @@ import { expectViewMatchesState } from "./helpers.js";
 // Exercise the production build: a working dev URL is not enough for shared-package assets. Each
 // atlas is built from its frame files by the build (ADR 0054) and served under its own name.
 // The prototypes not restyled yet load theirs through the board kit (ADR 0037). The seven boards in the game and
-// the restyled prototypes (Overload, Deflectors, Tug, Racks) draw their pieces in code and load no atlas (ADR 0062), so none is listed here.
+// the restyled prototypes (Overload, Deflectors, Tug, Racks, Cutting) draw their pieces in code and load no atlas (ADR 0062), so none is listed here.
 const CORE: string[] = [];
-const PROTOTYPES = ["salvage", "reactor", "scanner", "cutting"];
+const PROTOTYPES = ["salvage", "reactor", "scanner"];
 
 for (const puzzle of [...CORE, ...PROTOTYPES]) {
   test(`${puzzle} atlas loads, draws, and survives a resize`, async ({ page }, testInfo) => {
@@ -262,6 +262,28 @@ test("Racks, a restyled kit board, asks for no atlas and plays on fuel cells dra
   await page.keyboard.press("c");
   await expect(page.getByTestId("hud-moves")).toHaveText("1");
   await expectViewMatchesState(page, "racks");
+  expect(images).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("Cutting, a restyled kit board, asks for no atlas and plays on ores drawn in code", async ({ page }) => {
+  const errors: string[] = [];
+  const images: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (r) => {
+    if (r.url().endsWith(".webp")) images.push(r.url());
+  });
+  await page.goto("/play/cutting?seed=sprite-smoke&start=lab");
+  const canvas = page.getByTestId("cutting-canvas");
+  await expect(canvas).toHaveAttribute("data-view", /.+/);
+  await expect(canvas).toHaveAttribute("data-pieces", "drawn");
+  await expect(canvas).not.toHaveAttribute("data-sprite-atlas");
+  await expectViewMatchesState(page, "cutting");
+  // The first key lines a cut up down the middle of the slab and enter makes it: a cut whatever the deal.
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("hud-moves")).toHaveText("1");
+  await expectViewMatchesState(page, "cutting");
   expect(images).toEqual([]);
   expect(errors).toEqual([]);
 });

@@ -1,5 +1,4 @@
 [
-  "boards/src/cutting/renderer.ts",
   "boards/src/reactor/renderer.ts",
   "boards/src/salvage/renderer.ts",
   "boards/src/scanner/renderer.ts",

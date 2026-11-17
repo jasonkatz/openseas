@@ -28,15 +28,5 @@
     "ping",
     "lock",
     "brackets"
-  ],
-  "cutting": [
-    "ore-gold",
-    "ore-ice",
-    "ore-ember",
-    "ore-moss",
-    "ore-violet",
-    "ore-amber",
-    "ore-bone",
-    "ore-rose"
   ]
 }
