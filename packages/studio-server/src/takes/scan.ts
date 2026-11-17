@@ -5,7 +5,7 @@ import type { TakeKind } from "@openseas/protocol";
 /** A take found in a worktree, in the form it would be committed in. */
 export interface FoundTake {
   kind: TakeKind;
-  /** The frame or the cue. */
+  /** The cue. */
   name: string;
   /** Its number among the worktree's takes of that name. */
   take: number;
@@ -15,38 +15,14 @@ export interface FoundTake {
 }
 
 /**
- * Where the generation scripts leave a take's committed form (`boards/scripts`), under the
- * worktree's `.art/`, which git ignores: a fitted frame, or a mastered sound.
+ * Where the generation script leaves a take's committed form (`boards/scripts`), under the
+ * worktree's `.art/`, which git ignores: a mastered sound. Nothing else is a take: a picture left
+ * under `.art/` is not kept (ADR 0062).
  */
-const KINDS: ReadonlyArray<{ kind: TakeKind; folder: string; file: RegExp; limit: number; looks(b: Buffer): boolean }> = [
-  { kind: "sprite", folder: "sprites", file: /^frame-(\d{1,4})\.webp$/, limit: 512 * 1024, looks: isFrame },
-  { kind: "sound", folder: "sounds", file: /^placed-(\d{1,4})\.mp3$/, limit: 2 * 1024 * 1024, looks: isMp3 },
-];
+const KINDS: ReadonlyArray<{ kind: TakeKind; folder: string; file: RegExp; limit: number; looks(b: Buffer): boolean }> = [{ kind: "sound", folder: "sounds", file: /^placed-(\d{1,4})\.mp3$/, limit: 2 * 1024 * 1024, looks: isMp3 }];
 const NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
-const FRAME = 192;
 /** More than a session's worth: a worktree with more than this is not read past it. */
 const MOST = 400;
-
-/** A WebP picture that says it is one frame's size. Its pixels are never decoded here. */
-export function isFrame(b: Buffer): boolean {
-  if (b.length < 30 || b.toString("latin1", 0, 4) !== "RIFF" || b.toString("latin1", 8, 12) !== "WEBP") return false;
-  const chunk = b.toString("latin1", 12, 16);
-  let w: number;
-  let h: number;
-  if (chunk === "VP8L") {
-    if (b[20] !== 0x2f) return false;
-    const bits = b.readUInt32LE(21);
-    w = (bits & 0x3fff) + 1;
-    h = ((bits >>> 14) & 0x3fff) + 1;
-  } else if (chunk === "VP8X") {
-    w = b.readUIntLE(24, 3) + 1;
-    h = b.readUIntLE(27, 3) + 1;
-  } else if (chunk === "VP8 ") {
-    w = b.readUInt16LE(26) & 0x3fff;
-    h = b.readUInt16LE(28) & 0x3fff;
-  } else return false;
-  return w === FRAME && h === FRAME;
-}
 
 /** An MP3 by its first bytes: a tag, or a frame's sync. */
 export function isMp3(b: Buffer): boolean {
@@ -114,7 +90,7 @@ function promptOf(path: string, inside: string): string | null {
 /**
  * Every take of a puzzle that the generation scripts have left in a worktree. Anything that is
  * not what a script writes is passed over without a word: a link, a folder where a file should
- * be, a file too large, a picture of another size.
+ * be, a file too large, a file that is no sound.
  */
 export function scanTakes(worktree: string, puzzle: string): FoundTake[] {
   const found: FoundTake[] = [];

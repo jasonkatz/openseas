@@ -43,7 +43,7 @@ describe("scenario codec", () => {
       seed: "keg-3",
       roundSeconds: 60,
       overrides: { "specialChancePerMille.charge": 100, bag: [2, 2, 2, 0], decks: [["##B##", "#...C", "#...#", "#...#", "#####"]] },
-      picks: { sprites: { cog: "a".repeat(64), "debris-2": "b".repeat(64) }, sounds: { clear: "synth" as const, clash: "c".repeat(64) } },
+      picks: { sounds: { clear: "synth" as const, clash: "c".repeat(64) } },
       words: { texts: { "cooling.multi_2": "Twofer!", "cooling.how_to": "Swap two, clear three & more = win?" }, category: "crafting" as const },
       speed: 0.5,
       paused: true,
@@ -56,8 +56,17 @@ describe("scenario codec", () => {
 
   it("drops a pick that is not one, and keeps the rest", () => {
     const hash = "d".repeat(64);
-    const s = parseScenario(`?sprite.cog=${hash}&sprite.valve=cut-short&sprite.bolt=synth&sound.clear=synth&sound.pop=${hash.slice(1)}&sprite.=${hash}`);
-    expect(s.picks).toEqual({ sprites: { cog: hash }, sounds: { clear: "synth" } });
+    const s = parseScenario(`?sound.thud=${hash}&sound.clear=synth&sound.pop=${hash.slice(1)}&sound.=${hash}`);
+    expect(s.picks).toEqual({ sounds: { thud: hash, clear: "synth" } });
+  });
+
+  it("opens an address kept with sprite picks, reading past them, and does not write them back (ADR 0062, ADR 0063)", () => {
+    const hash = "d".repeat(64);
+    const s = parseScenario(`?seed=keg-3&c.kinds=6&sprite.debris-gold=${hash}&sprite.crate=cut-short&sound.pop=${hash}`);
+    expect(s.seed).toBe("keg-3");
+    expect(s.overrides).toEqual({ kinds: 6 });
+    expect(s.picks).toEqual({ sounds: { pop: hash } });
+    expect(formatScenario(s)).toBe(`seed=keg-3&c.kinds=6&sound.pop=${hash}`);
   });
 
   it("drops a rewritten string or a category that is not one, and keeps the rest (ADR 0057)", () => {

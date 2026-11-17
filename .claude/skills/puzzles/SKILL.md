@@ -110,13 +110,14 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
     tests are written first; the server replays and scores every round. A puzzle whose game is
     hidden information counts for nothing until the server holds the secret (Scanner, ADR 0036).
 22. **Reads without color.** Each kind has a silhouette of its own and is told from every other by
-    that alone: look at the board with every piece in one colour (`docs/BRAND.md` section 3). There
-    is no marks setting to lean on; a board M10 has not restyled still carries the old one until it is.
+    that alone: look at the board with every piece in one colour (`docs/BRAND.md` section 3). Where
+    the rules fix the outline, each kind carries one cut-out no other has. There is no marks
+    setting to lean on.
 23. **Its own pieces and sounds.** A puzzle's pieces are pictograms of its own subject, drawn in
     code beside its renderer on the shared palette (`docs/BRAND.md` section 3, ADR 0062; Cooling's
     `pieces.ts` is the model), and each moment item 1 asks to be heard has a synthesized cue
-    (`boards/src/audio.ts`). Nothing generated lands in the game. A board M10 has not restyled yet
-    still has its sprite sheet and its briefs; restyling it deletes them.
+    (`boards/src/audio.ts`). Nothing generated lands in the game: no picture is made for a piece,
+    and there is no atlas, frame or sprite tooling to make one with.
 24. **Every string in the message table.**
 25. **Three homes, kept in step.** A studio page with its entry, starting points, a line of
     description on every config key and a place for it in the tuning panel, and a smoke that
@@ -133,8 +134,9 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 3. Set the thresholds: a bot ladder for the first guess where it helps, then by hand in the
    studio (rule 17). Describe every config key and give it its section of the tuning panel (rule
    18). Write the tuning notes.
-4. Write the design file, the guide and its capture, and the sprite and sound briefs; make their
-   takes with `puzzle-sprites` and `puzzle-sounds` for the owner to pick.
+4. Draw its pieces in its `pieces.ts` and look at the board with every piece in one colour (rule
+   22). Write the design file, the guide and its capture, and the sound brief; make its takes
+   with `puzzle-sounds` for the owner to pick.
 5. Report the bar, item by item, with the open questions for play.
 
 ## Changing a puzzle
@@ -148,8 +150,9 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
      `studio/src/tuning/groups/<id>.ts`.
    - **A control:** the design file, the guide's controls, the studio smoke.
    - **A look or a sound:** `pnpm --filter @openseas/docs capture <id>`, and every picture looked at.
-     A look follows `docs/BRAND.md`: every colour from `boards/src/look/tokens.ts`, and the file
-     leaves `studio/test/look.pending.json` when it types none of its own.
+     A look follows `docs/BRAND.md`: a piece is a pictogram in the puzzle's `pieces.ts`, and every
+     colour comes from `boards/src/look/tokens.ts` (`studio/test/look.test.ts` fails on one typed
+     anywhere else).
 3. Done when the studio's tests and smoke and the docs tests are green and the bar items you named are
    reported as still met.
 

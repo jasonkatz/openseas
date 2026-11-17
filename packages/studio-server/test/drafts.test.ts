@@ -103,23 +103,31 @@ describeDb("drafts", () => {
 
   it("keeps a draft's picks with its numbers, and reads a draft kept before picks as having none", async () => {
     const hash = "a".repeat(64);
-    const picks = { sprites: { cog: hash }, sounds: { clear: "synth", "swap-quiet": hash } };
+    const picks = { sounds: { clear: "synth", "swap-quiet": hash } };
     const made = DraftSchema.parse(await (await send("POST", "/drafts", octo, { puzzle: "tug", numbers: { ...numbers, picks } })).json());
     expect(made.numbers.picks).toEqual(picks);
-    const saved = DraftSchema.parse(await (await send("PUT", `/drafts/${made.id}`, octo, { numbers: { ...numbers, picks: { sprites: {}, sounds: { clear: "synth" } } }, revision: 1 })).json());
-    expect(saved.numbers.picks).toEqual({ sprites: {}, sounds: { clear: "synth" } });
+    const saved = DraftSchema.parse(await (await send("PUT", `/drafts/${made.id}`, octo, { numbers: { ...numbers, picks: { sounds: { clear: "synth" } } }, revision: 1 })).json());
+    expect(saved.numbers.picks).toEqual({ sounds: { clear: "synth" } });
     // A page older than picks sends none, and the draft then has none.
     const bare = DraftSchema.parse(await (await send("PUT", `/drafts/${made.id}`, octo, { numbers, revision: 2 })).json());
-    expect(bare.numbers.picks).toEqual({ sprites: {}, sounds: {} });
+    expect(bare.numbers.picks).toEqual({ sounds: {} });
     // A row written before picks holds no such key: it is sent whole all the same.
     await app.db.update(schema.draft).set({ numbers });
-    expect((await list(octo, "?puzzle=tug"))[0]!.numbers.picks).toEqual({ sprites: {}, sounds: {} });
+    expect((await list(octo, "?puzzle=tug"))[0]!.numbers.picks).toEqual({ sounds: {} });
+
+    // A row kept with sprite picks, from before pieces were drawn in code (ADR 0062, ADR 0063): it
+    // still reads, without them, and a page from then that still sends them is taken and they are not kept.
+    await app.db.update(schema.draft).set({ numbers: { ...numbers, picks: { sprites: { cog: hash }, sounds: { clear: "synth" } } } as typeof numbers });
+    expect((await list(octo, "?puzzle=tug"))[0]!.numbers.picks).toEqual({ sounds: { clear: "synth" } });
+    const older = await send("PUT", `/drafts/${made.id}`, octo, { numbers: { ...numbers, picks: { sprites: { cog: hash }, sounds: { clear: hash } } }, revision: 3 });
+    expect(DraftSchema.parse(await older.json()).numbers.picks).toEqual({ sounds: { clear: hash } });
+    const rows = await app.db.select().from(schema.draft);
+    expect(rows.find((r) => r.id === made.id)!.numbers.picks).toEqual({ sounds: { clear: hash } });
 
     // A pick is a take's hash, or `synth` for a cue: nothing else.
-    const bad = (p: unknown): Promise<Response> => send("PUT", `/drafts/${made.id}`, octo, { numbers: { ...numbers, picks: p }, revision: 3 });
-    expect((await bad({ sprites: { cog: "not-a-hash" }, sounds: {} })).status).toBe(400);
-    expect((await bad({ sprites: { cog: "synth" }, sounds: {} })).status).toBe(400);
-    expect((await bad({ sprites: { "../cog": hash }, sounds: {} })).status).toBe(400);
+    const bad = (p: unknown): Promise<Response> => send("PUT", `/drafts/${made.id}`, octo, { numbers: { ...numbers, picks: p }, revision: 4 });
+    expect((await bad({ sounds: { clear: "not-a-hash" } })).status).toBe(400);
+    expect((await bad({ sounds: { "../clear": hash } })).status).toBe(400);
     expect((await send("DELETE", `/drafts/${made.id}`, octo)).status).toBe(200);
   });
 

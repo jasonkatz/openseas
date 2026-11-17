@@ -3,10 +3,10 @@ import type { GroupId } from "../tuning/groups.js";
 /**
  * The studio's modes (DESIGN.md 3.14, ADR 0056): what the rail down the page's left edge switches
  * the panel between. Play holds the round; the three after it hold the puzzle's numbers, split by
- * what they decide; the last three hold its art, its sound and its words (ADR 0057). Names and one line each are in the
+ * what they decide; the last two hold its sound and its words (ADR 0057). (A Sprites mode went when pieces came to be drawn in code, ADR 0062.) Names and one line each are in the
  * message table under `studio.mode.<id>` and `studio.mode_hint.<id>`.
  */
-export const MODE_IDS = ["play", "setup", "tuning", "scoring", "sprites", "sounds", "text"] as const;
+export const MODE_IDS = ["play", "setup", "tuning", "scoring", "sounds", "text"] as const;
 export type ModeId = (typeof MODE_IDS)[number];
 
 export const NUMBER_MODES = ["setup", "tuning", "scoring"] as const;
@@ -15,7 +15,7 @@ export type NumberMode = (typeof NUMBER_MODES)[number];
 export const isNumberMode = (mode: ModeId): mode is NumberMode => (NUMBER_MODES as readonly string[]).includes(mode);
 
 /** The rail, top to bottom; a null is the gap between its three clusters. */
-export const RAIL: readonly (ModeId | null)[] = ["play", null, "setup", "tuning", "scoring", null, "sprites", "sounds", "text"];
+export const RAIL: readonly (ModeId | null)[] = ["play", null, "setup", "tuning", "scoring", null, "sounds", "text"];
 
 /**
  * A section of numbers in a panel: one of the tuning groups (tuning/groups.ts), the keys no group

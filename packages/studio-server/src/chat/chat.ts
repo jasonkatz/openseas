@@ -107,7 +107,6 @@ export function context(numbers: DraftNumbers, refusals: readonly string[], roun
   // The owner picks every take (ADR 0040); the agent is told which, and has no tool that picks.
   const picks = picksOf(numbers);
   const short = (o: Record<string, string>): string => Object.entries(o).map(([name, hash]) => `${name}: ${hash === "synth" ? "the synthesized cue" : hash.slice(0, 12)}`).join(", ");
-  if (Object.keys(picks.sprites).length) lines.push(`Draft picks, sprites (frame: the start of the picked take's sha256, which is that of its \`frame-<n>.webp\`): ${short(picks.sprites)}`);
   if (Object.keys(picks.sounds).length) lines.push(`Draft picks, sounds (cue: the start of the picked take's sha256, which is that of its \`placed-<n>.mp3\`): ${short(picks.sounds)}`);
   // The owner's own rewrites of the puzzle's strings (ADR 0057): Save writes them to the message table, so the agent leaves those keys be.
   const words = wordsOf(numbers);

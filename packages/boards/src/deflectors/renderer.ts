@@ -80,7 +80,6 @@ const STRIP = 0.8;
 
 /** Draws the deflector grid and turns taps into flips and fires. Scores nothing: every number it shows is the engine's. */
 export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
-  protected override readonly drawn = true;
   private readonly grid = new Grid(6, 6);
   private readonly bg = new Graphics();
   /** The waiting beams' routes: redrawn every frame from the engine's trace of the mirrors as they stand. */

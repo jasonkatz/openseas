@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { PuzzleId } from "@openseas/engine";
 import { pickCount, wordCount } from "@openseas/protocol";
-import { isMuted, messageOverrideRevision, setMuted, spriteOverrideRevision, subscribeMessages, subscribeSprites, t, useTierPace } from "@openseas/boards";
+import { isMuted, messageOverrideRevision, setMuted, subscribeMessages, t, useTierPace } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { formatNumber } from "../frame/numbers.js";
 import { ComboMeter, CoreStats } from "../practice/Hud.jsx";
@@ -24,9 +24,7 @@ export function PlayShell(p: ShellProps) {
   const picked = pickCount(scenario);
   const alone = frame.mode === "play";
   const Root = alone ? "main" : "div";
-  // A board bakes its art once, so a frame swapped under it (ADR 0050) makes the board again, on the round as it stands.
-  const art = useSyncExternalStore(subscribeSprites, spriteOverrideRevision, () => 0);
-  // It bakes its words too, so a string rewritten under it (ADR 0057) does the same.
+  // A board bakes its words once, so a string rewritten under it (ADR 0057) makes the board again, on the round as it stands.
   const said = useSyncExternalStore(subscribeMessages, messageOverrideRevision, () => 0);
   const [muted, setMutedState] = useState(isMuted);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -91,7 +89,7 @@ export function PlayShell(p: ShellProps) {
       </header>
 
       <section className={`board-wrap ${lowTime ? "low-time" : ""} ${playing ? "is-playing" : ""}`}>
-        {!refused && <Fragment key={`${art}.${said}`}>{p.board(playing && !sheetOpen)}</Fragment>}
+        {!refused && <Fragment key={said}>{p.board(playing && !sheetOpen)}</Fragment>}
         {frame.comparing && (
           <p className="play-comparing" data-testid="comparing">
             {t("studio.comparing")}
@@ -224,7 +222,7 @@ export function PlayShell(p: ShellProps) {
                     ))}
                   </ul>
                 )}
-                {/* The takes a link picks for frames and cues (ADR 0052), and whether they could be read. */}
+                {/* The takes a link picks for cues (ADR 0052), and whether they could be read. */}
                 {wordCount(scenario) > 0 && (
                   <p className="small" data-testid="play-words">
                     {t("play.words", { count: wordCount(scenario) })}

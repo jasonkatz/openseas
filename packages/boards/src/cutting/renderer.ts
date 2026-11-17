@@ -79,7 +79,6 @@ const BIG_PIECE = 9;
  * (`pieces.ts`), bare ground with one hairline, amber for the cut being lined up and the beat.
  */
 export class CuttingRenderer extends KitBoard<CuttingState> {
-  protected override readonly drawn = true;
   private readonly grid = new Grid(6, 6);
   private readonly bg = new Graphics();
   private readonly stripLayer = new Graphics();

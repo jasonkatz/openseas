@@ -758,7 +758,6 @@
   padding-left: 8px;
 }
 .num-row.is-flash,
-.asset-tile.is-flash,
 .cue.is-flash {
   animation: st-flash 1.3s ease-out;
 }
@@ -931,83 +930,7 @@
   white-space: nowrap;
 }
 
-/* ---- the sprite and sound panels (ADR 0050): a grid of frames or a list of cues, and the one picked out */
-.asset-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
-  gap: 6px;
-}
-.asset-tile {
-  position: relative;
-  display: grid;
-  place-items: center;
-  aspect-ratio: 1;
-  padding: 2px;
-  border: 1px solid var(--st-line);
-  border-radius: 8px;
-  background: #232a3d;
-  cursor: pointer;
-}
-.asset-tile:hover {
-  border-color: var(--st-line-strong);
-}
-.asset-tile[aria-pressed="true"] {
-  border-color: var(--st-accent);
-  box-shadow: 0 0 0 1px var(--st-accent);
-}
-.asset-tile.is-changed::after {
-  content: "";
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--st-mark);
-}
-.asset-views {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
-.asset-view {
-  display: grid;
-  place-items: center;
-  width: 104px;
-  height: 104px;
-  border-radius: 8px;
-  background: #232a3d;
-}
-.asset-view-board {
-  width: 52px;
-  height: 52px;
-}
-/* The page's legend is laid out for the details sheet's grid; here it is one block in a column. */
-.asset-legend .legend {
-  grid-area: auto;
-}
-/* A frame's takes (ADR 0051): each a small picture to tap. */
-.asset-takes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.asset-take {
-  display: grid;
-  justify-items: center;
-  gap: 2px;
-  padding: 4px;
-  border: 1px solid var(--st-line-strong);
-  border-radius: 8px;
-  background: #232a3d;
-  color: var(--st-fg);
-  font-size: 11px;
-  cursor: pointer;
-}
-.asset-take.is-held {
-  border-color: var(--st-accent);
-  box-shadow: 0 0 0 1px var(--st-accent);
-}
+/* ---- the sound panel (ADR 0050): a list of cues, and the one picked out */
 .cue {
   margin: 0 -6px;
   border-radius: var(--st-r);

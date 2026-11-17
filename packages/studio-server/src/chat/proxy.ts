@@ -8,7 +8,8 @@ import { anthropicUsd, ELEVENLABS_USD_PER_CREDIT, openaiUsd, SOUND_UNMETERED_USD
  * The agent's only way to a paid API (ADR 0047, ADR 0059). The agent's process is given this
  * proxy's address and a token made for one turn; the proxy checks the token, puts the real key in
  * its place and passes the request on. Anthropic is at the root, OpenAI under `/openai` and
- * ElevenLabs under `/elevenlabs`, for the sprite and sound scripts. So no key leaves the service
+ * ElevenLabs under `/elevenlabs`: the sound script's API, and an image API that stays open to the
+ * chat for other work now that no piece is generated (ADR 0062 decision 6). So no key leaves the service
  * process, a token is worth nothing once its turn ends, and every response is metered here, by
  * the service, from what the response itself says it billed, before the agent sees it: the spend
  * cap is enforced where the agent cannot reach.
@@ -110,7 +111,7 @@ type Route = { name: "anthropic" | "openai" | "elevenlabs"; upstream: string; pa
 export async function createModelProxy(o: {
   apiKey: string;
   upstream?: string;
-  /** The sprite script's API (ADR 0040). Without it the proxy refuses `/openai`. */
+  /** The image API, once the sprite script's (ADR 0040) and kept for the chat's other work (ADR 0062). Without it the proxy refuses `/openai`. */
   openai?: Provider;
   /** The sound script's API, and what one of its credits costs on the owner's plan. Without it the proxy refuses `/elevenlabs`. */
   elevenlabs?: Provider & { usdPerCredit?: number };

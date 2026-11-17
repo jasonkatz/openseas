@@ -230,7 +230,7 @@ migrates its own `studio` schema as it starts.
       |---|---|
       | `ANTHROPIC_API_KEY` | a key for the chat's turns. It stays in the service process: the agent reaches a model only through the service |
       | `STUDIO_SPEND_CAP_USD` | all the chat may spend, every draft together, in US dollars, such as `20`. A turn that reaches it is stopped where it stands, and no turn starts past it. To carry on, raise it; the meter is never reset |
-      | `OPENAI_API_KEY`, `ELEVENLABS_API_KEY` | optional: the keys the sprite and sound scripts' APIs are paid with (ADR 0040). They stay in the service process: the scripts reach the APIs through the service, which meters each picture and sound (ADR 0059) |
+      | `OPENAI_API_KEY`, `ELEVENLABS_API_KEY` | optional: the keys an image API and the sound script's API are paid with (ADR 0040). They stay in the service process: whatever asks reaches the APIs through the service, which meters each picture and sound (ADR 0059). No script makes a picture any more, since pieces are drawn in code; the image key only keeps that API open to the chat for other work (ADR 0062 decision 6), and can be left unset |
       | `ELEVENLABS_USD_PER_CREDIT` | optional: what one ElevenLabs credit costs on your plan, the plan's monthly price over its credits, such as `0.00022` for 100,000 credits at $22. Unset, a credit is counted at the overage rate, `0.0003` |
       | `STUDIO_AGENT_USER` | optional: the unix user the agent runs as, `studio-agent` by default |
 
@@ -245,8 +245,7 @@ migrates its own `studio` schema as it starts.
       root, or the volume is mounted somewhere that user cannot walk into.
 4d. **Takes** (ADR 0051) are optional and need the chat (4c) first: the agent makes them, and
    the service keeps them in a bucket. Until it is set up the service logs that takes are not
-   kept, the agent's takes stay in the draft's worktree, and the sprite and sound panels list
-   none.
+   kept, the agent's takes stay in the draft's worktree, and the sound panel lists none.
 
    1. **A bucket.** In the same Railway project: **+ New → Bucket**, named such as
       `studio-takes`, in the service's region. Railway's buckets are private; the service reads
@@ -261,13 +260,14 @@ migrates its own `studio` schema as it starts.
       | `STUDIO_BUCKET_ACCESS_KEY_ID`, `STUDIO_BUCKET_SECRET_ACCESS_KEY` | its two keys. They stay in the service process: nothing of the bucket is in the agent's shell |
       | `STUDIO_BUCKET_REGION` | optional, `auto` by default |
 
-   3. Nothing to do for the scripts: `railpack.studio.json` adds `python3`, `python3-pil` and
-      `ffmpeg` to the image. The two script keys of 4c must be set for takes to be made at all.
+   3. Nothing to do for the script: `railpack.studio.json` adds `python3` and `ffmpeg` to the
+      image. The sound key of 4c must be set for takes to be made at all.
 
-   The service logs `takes: true`. To try it, ask the chat for new takes of a frame, wait for the
-   turn to end, and look at that frame's row in the Sprites panel. Tap one to pick it, then Save:
-   the pull request holds it as the frame's own file, which the build packs into the atlas
-   (ADR 0053, ADR 0054). Nothing to set up for that; a Save that cannot read a picked take from the bucket
+   The service logs `takes: true`. To try it, ask the chat for new takes of a cue, wait for the
+   turn to end, and look at that cue's row in the Sounds panel. Tap one to pick it, then Save:
+   the pull request holds it as the cue's sample in the sounds folder (ADR 0053). Sprite takes
+   kept in the bucket before pieces were drawn in code stay there and are listed nowhere (ADR
+   0063). Nothing to set up for that; a Save that cannot read a picked take from the bucket
    fails as "couldn't read the picked takes or place them", and the log says why. Each picture and sound is counted
    against `STUDIO_SPEND_CAP_USD` from what its response says was billed: OpenAI's image tokens at
    its published rates, ElevenLabs's credits at `ELEVENLABS_USD_PER_CREDIT` (ADR 0059).

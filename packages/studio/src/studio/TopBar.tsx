@@ -15,11 +15,10 @@ import { Menu, MenuButton, useMenu } from "./Menu.jsx";
 import { humanize, type ModeId } from "./modes.js";
 import type { TextEntry } from "./TextPanel.jsx";
 
-/** Where a change is made: a number's control by its key, or a frame's or a cue's row. */
+/** Where a change is made: a number's control by its key, a string's, or a cue's row. */
 export type Target =
   | { readonly kind: "number"; readonly key: string }
   | { readonly kind: "text"; readonly key: string }
-  | { readonly kind: "sprites"; readonly name: string }
   | { readonly kind: "sounds"; readonly name: string }
   | { readonly kind: "category" };
 
@@ -102,7 +101,7 @@ function ChangedChip({ sections, texts, onGoto }: { sections: readonly NumberSec
     menu.setOpen(false);
     onGoto(mode, target);
   };
-  const pickRows = (kind: "sprites" | "sounds") =>
+  const pickRows = (kind: "sounds") =>
     Object.keys(picks[kind]).map((name) => (
       <li key={`${kind}/${name}`} data-testid={`change-${kind}-${name}`}>
         <button type="button" className="menu-item" onClick={() => go(kind, { kind, name })}>
@@ -149,7 +148,6 @@ function ChangedChip({ sections, texts, onGoto }: { sections: readonly NumberSec
                 </li>
               );
             })}
-            {pickRows("sprites")}
             {pickRows("sounds")}
             {words.category && (
               <li data-testid="change-category">

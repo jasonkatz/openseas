@@ -4,6 +4,8 @@ Status: Accepted. Builds on [0031](./0031-shared-puzzle-sprite-atlases.md) and
 [0036](./0036-prototype-puzzles.md). Supersedes the placeholder-only art of 0036 decision 4 and the
 order of 0036 decision 5, where sprites came only after a puzzle was kept.
 
+[0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded this ADR at M10's fifth step: the prototypes draw their pieces in code and load no atlas.
+
 ## Context
 
 ADR 0036 gave the eight prototypes code-drawn placeholder art and left the sprite pass for a puzzle

@@ -66,7 +66,6 @@ const LIFT = 1.1;
 
 /** Draws the salvage field and turns a drag into a tether. Scores nothing: every number it shows is the engine's. */
 export class SalvageRenderer extends KitBoard<SalvageState> {
-  protected override readonly drawn = true;
   private readonly grid = new Grid(7, 8);
   private readonly bg = new Graphics();
   private readonly hintLayer = new Graphics();

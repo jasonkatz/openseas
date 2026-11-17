@@ -28,7 +28,7 @@ export interface SdkRunnerOptions {
 }
 
 /** The skills the agent loads from the worktree (ADR 0042 decision 5). */
-const SKILLS = ["puzzles", "puzzle-sprites", "puzzle-sounds"];
+const SKILLS = ["puzzles", "puzzle-sounds"];
 /** Tools that write a file by its path: held to the puzzle's scope before they run. */
 const WRITERS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 /** Tools that reach past the turn: scheduling, other sessions, other worktrees. The agent has no use for them here. */

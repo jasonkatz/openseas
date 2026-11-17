@@ -3,11 +3,11 @@ import { isAbsolute, normalize, relative, sep } from "node:path";
 /**
  * The open puzzle's own files (ADR 0042 decision 8, ADR 0047): what the agent may write without
  * asking. A puzzle's files carry its id: a folder named for it, or a file whose name starts with
- * it, under the packages a puzzle is made of and the two folders of design files. Two shared files
- * are every puzzle's as well, since a puzzle's strings and frames live in them.
+ * it, under the packages a puzzle is made of and the two folders of design files. One shared file
+ * is every puzzle's as well, since a puzzle's strings live in it.
  */
 const ROOTS = ["packages/engine/", "packages/protocol/src/", "packages/content/", "packages/boards/", "packages/docs/", "packages/studio/src/", "packages/studio/e2e/", "docs/puzzles/", "docs/prototypes/"];
-const SHARED = new Set(["packages/content/data/messages/en.json", "packages/boards/src/sprites/frames.json"]);
+const SHARED = new Set(["packages/content/data/messages/en.json"]);
 
 /** `cooling.json`, `cooling.test.ts`, `CoolingBoard.tsx`: the id, then anything but another small letter (`tug` is not `tugboat`). */
 function named(part: string, id: string): boolean {

@@ -10,14 +10,18 @@ import type { Overrides } from "./overrides.js";
  *   c.<path>    a config override; the value is JSON when it parses, a string otherwise
  *   pace        the live tier indicator's window in seconds; absent means content's `paceSeconds`
  *   thresholds  the thresholds the round is rated against, as JSON; absent means content's
- *   sprite.<frame>  a pick (ADR 0052): the hash of the take drawn for that frame
- *   sound.<cue>     a pick: the hash of the take played for that cue, or `synth` for the synthesized cue
+ *   sound.<cue>     a pick (ADR 0052): the hash of the take played for that cue, or `synth` for the synthesized cue
  *   text.<key>      a string of the message table rewritten (ADR 0057), by its key
  *   category        the puzzle's category, where the draft changes it
  *   speed       clock rate (default 1); for a script, the studio has no control for it
  *   paused      1 to start with the clock stopped; for a script, as above
  *   hints       0 to turn idle hints off
  *   start       any value: start the round as soon as the page opens
+ *
+ * An address kept from before pieces were drawn in code may also carry `sprite.<frame>=<hash>`, a
+ * pick of a take for a frame of the puzzle's atlas. Nothing draws a frame now (ADR 0062), so such a
+ * parameter is read past like any the page does not know: the address still opens, on the board as
+ * it is drawn, and the parameter is not written back (ADR 0063).
  */
 export interface Scenario {
   seed: string | null;
@@ -26,7 +30,7 @@ export interface Scenario {
   paceSeconds: number | null;
   /** Unchecked: whatever JSON the link carried. The frame's checks decide whether it can be played. */
   thresholds: unknown;
-  /** The takes picked for frames and cues. Only what has a pick's shape is kept from a link. */
+  /** The takes picked for cues. Only what has a pick's shape is kept from a link. */
   picks: Picks;
   /** The strings rewritten and the category changed (ADR 0057). Only what has their shape is kept from a link. */
   words: Words;
@@ -50,15 +54,11 @@ export function parseScenario(search: string): Scenario {
   const q = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   const overrides: Record<string, unknown> = {};
   for (const [key, raw] of q.entries()) if (key.startsWith("c.") && key.length > 2) overrides[key.slice(2)] = parseValue(raw);
-  const picked = { sprites: {} as Record<string, string>, sounds: {} as Record<string, string> };
-  for (const [key, raw] of q.entries()) {
-    if (key.startsWith("sprite.") && key.length > 7) picked.sprites[key.slice(7)] = raw;
-    else if (key.startsWith("sound.") && key.length > 6) picked.sounds[key.slice(6)] = raw;
-  }
+  const picked: Record<string, string> = {};
+  for (const [key, raw] of q.entries()) if (key.startsWith("sound.") && key.length > 6) picked[key.slice(6)] = raw;
   // A pick that is not one (a hash cut short in a pasted link) is dropped, each on its own.
-  const picks: Picks = { sprites: {}, sounds: {} };
-  for (const [name, hash] of Object.entries(picked.sprites)) if (PicksSchema.safeParse({ sprites: { [name]: hash } }).success) picks.sprites[name] = hash;
-  for (const [name, hash] of Object.entries(picked.sounds)) if (PicksSchema.safeParse({ sounds: { [name]: hash } }).success) picks.sounds[name] = hash as Picks["sounds"][string];
+  const picks: Picks = { sounds: {} };
+  for (const [name, hash] of Object.entries(picked)) if (PicksSchema.safeParse({ sounds: { [name]: hash } }).success) picks.sounds[name] = hash as Picks["sounds"][string];
   // A rewritten string that is not one is dropped likewise.
   const texts: Record<string, string> = {};
   for (const [key, raw] of q.entries()) if (key.startsWith("text.") && key.length > 5 && WordsSchema.safeParse({ texts: { [key.slice(5)]: raw } }).success) texts[key.slice(5)] = raw;
@@ -91,7 +91,6 @@ export function formatScenario(s: Scenario): string {
   for (const [path, value] of Object.entries(s.overrides)) q.set(`c.${path}`, typeof value === "string" ? value : JSON.stringify(value));
   if (s.paceSeconds !== null) q.set("pace", String(s.paceSeconds));
   if (s.thresholds !== null) q.set("thresholds", JSON.stringify(s.thresholds));
-  for (const [name, hash] of Object.entries(s.picks.sprites)) q.set(`sprite.${name}`, hash);
   for (const [name, hash] of Object.entries(s.picks.sounds)) q.set(`sound.${name}`, hash);
   for (const [key, text] of Object.entries(s.words.texts)) q.set(`text.${key}`, text);
   if (s.words.category) q.set("category", s.words.category);

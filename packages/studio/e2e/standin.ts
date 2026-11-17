@@ -13,8 +13,8 @@ export interface Numbers {
   roundSeconds: number | null;
   paceSeconds: number | null;
   thresholds: null;
-  /** Left out, the draft is one kept before picks. */
-  picks?: { sprites: Record<string, string>; sounds: Record<string, string> };
+  /** Left out, the draft is one kept before picks. `sprites` only for a row kept before pieces were drawn in code (ADR 0063). */
+  picks?: { sounds: Record<string, string>; sprites?: Record<string, string> };
   /** Left out, the draft is one kept before words (ADR 0057). */
   words?: { texts: Record<string, string>; category: string | null };
 }
@@ -59,6 +59,7 @@ type Line<K extends Item["kind"]> = Omit<Extract<Item, { kind: K }>, "id" | "tur
 /** A take as the stand-in keeps it: what the service lists, and the bytes it serves under the hash. */
 export interface StandinTake {
   hash: string;
+  /** `sprite` only to stand in for a service older than the site, which may still list one (ADR 0063). */
   kind: "sprite" | "sound";
   puzzle: string;
   name: string;

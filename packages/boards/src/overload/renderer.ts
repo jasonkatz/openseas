@@ -85,7 +85,6 @@ const RING_W = 0.07;
 
 /** Draws the capacitor bank and turns a tap into a move. Scores nothing: every number it shows is the engine's. */
 export class OverloadRenderer extends KitBoard<OverloadState> {
-  protected override readonly drawn = true;
   private readonly grid = new Grid(6, 7);
   private readonly bg = new Graphics();
   private readonly capLayer = new Container();

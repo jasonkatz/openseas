@@ -68,7 +68,6 @@ const BEAT_CHAIN = 3;
 
 /** Draws the racks and the crate, and turns taps, drags and keys into moves. Scores nothing: every number it shows is the engine's. */
 export class RacksRenderer extends KitBoard<RacksState> {
-  protected override readonly drawn = true;
   private readonly bg = new Graphics();
   private readonly under = new Graphics();
   private readonly crateBack = new Graphics();

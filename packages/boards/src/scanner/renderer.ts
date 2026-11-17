@@ -87,7 +87,6 @@ const MARKS: Readonly<Record<string, ScannerPieceId>> = { X: "found", S: "spooke
 
 /** Draws the scanner sector and turns taps into pings and locks. Scores nothing and solves nothing: every number and every cleared cell is the engine's. */
 export class ScannerRenderer extends KitBoard<ScannerState> {
-  protected override readonly drawn = true;
   private readonly grid = new Grid(6, 6);
   private readonly bg = new Graphics();
   /** The dot of every cell proven empty. */

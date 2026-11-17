@@ -68,3 +68,4 @@ that supersedes it.
 | [0060](./0060-a-draft-has-many-chats-and-a-chat-outlasts-its-draft.md) | A draft has many chats, a chat outlasts its draft, and the page lists them |
 | [0061](./0061-the-game-looks-lo-fi-and-minimalist-by-a-brand-book.md) | The game looks lo-fi and minimalist, by a brand book: one palette, one typeface, no frame, no marks |
 | [0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) | Pieces are drawn in code and cues stay synthesized: the generated sprites and sounds retire |
+| [0063](./0063-stored-sprite-picks-and-takes-are-read-and-ignored.md) | Stored sprite picks and sprite takes are kept, read and ignored |

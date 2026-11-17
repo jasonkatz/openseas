@@ -53,7 +53,6 @@ const WANTED_SIZE = 0.66;
 
 /** Draws the cargo bay and turns a swipe into a flick. Scores nothing: every number it shows is the engine's. */
 export class TugRenderer extends KitBoard<TugState> {
-  protected override readonly drawn = true;
   private readonly grid = new Grid(7, 7);
   private readonly bg = new Graphics();
   private readonly blockLayer = new Container();

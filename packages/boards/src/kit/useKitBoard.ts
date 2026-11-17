@@ -6,8 +6,6 @@ export interface KitBoardProps<S> {
   /** Bumps when the same state object must be drawn again (a reset). */
   version?: number;
   interactive: boolean;
-  /** The marks setting of a board not restyled yet. A restyled board has none and leaves this out. */
-  showMarks?: boolean;
 }
 
 /**
@@ -56,10 +54,6 @@ export function useKitBoard<S, R extends KitBoard<S>>(make: (host: HTMLElement) 
   useEffect(() => {
     renderer.current?.setInteractive(props.interactive);
   }, [props.interactive]);
-
-  useEffect(() => {
-    if (props.showMarks !== undefined) renderer.current?.setShowMarks(props.showMarks);
-  }, [props.showMarks]);
 
   return { host, renderer };
 }

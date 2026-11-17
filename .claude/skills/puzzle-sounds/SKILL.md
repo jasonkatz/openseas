@@ -83,4 +83,4 @@ studio and listen for it; if it sits wrong against the other cues, change `level
 again. Commit the brief, the placed files and any wiring together.
 
 The first puzzle to land sounds also gives the studio's smoke a check that its samples are
-delivered and decoded, as `e2e/sprites.spec.ts` does for atlases (ADR 0041).
+delivered and decoded (ADR 0041).

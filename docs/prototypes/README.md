@@ -2,11 +2,9 @@
 
 Eight new puzzles, built to be played and judged in the studio (ADR 0036). None is in the game.
 Each is the game's own design: inspired by the feel of the original's puzzles, ported from none of
-them. Milestone M10 is restyling them to the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062), one
-board at a time. A restyled board (Overload, Deflectors) draws its pieces in code as flat
-pictograms and loads no atlas. A board not restyled yet still draws the owner's sprites from its
-own atlas (ADR 0037), over code-drawn pieces that stand in when the atlas is missing or a lab
-config goes past the sheet.
+them. All eight follow the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): each draws its pieces
+in code as flat pictograms of its own subject, on the game's one palette, and loads no image. The
+generated sprites they first shipped with (ADR 0037) and the tooling that made them are gone.
 
 | Puzzle | The verb | Page | Design |
 |---|---|---|---|
@@ -26,7 +24,7 @@ commit.
 ## What a prototype is made of
 
 One id, a lowercase word (`GLOSSARY.md` naming rule 2), and these files. `Salvage` is the worked
-example for every one of them.
+example for every one of them; for how a board looks, `Overload` and `Tug` are.
 
 | File | What it holds |
 |---|---|
@@ -39,8 +37,7 @@ example for every one of them.
 | `packages/content/data/puzzles/<id>.json` | The config the server deals, the round length, the thresholds, and `paceSeconds` for the live tier indicator (ADR 0039). |
 | `packages/content/data/messages/prototypes/<id>.json` | Every string the puzzle shows. |
 | `packages/boards/src/<id>/renderer.ts` | A `KitBoard` subclass: draws the state, plays the last move, reports input. |
-| `packages/boards/src/<id>/pieces.ts` | A restyled board's pieces: each a `Paint` on the 24 unit square and the palette colour it wears, with an icon component beside it for the legend. `Overload` is the worked example. |
-| `packages/boards/src/sprites/frames/<id>/` | Only for a board not restyled yet: its frames, one lossless 192px file each, listed in order in `frames.json`; the build packs them into its atlas (ADR 0054). Restyling the board deletes them. |
+| `packages/boards/src/<id>/pieces.ts` | The board's pieces: each a `Paint` on the 24 unit square and the palette colour it wears, with an icon component beside it for the legend (`<Id>Icon.tsx`). There are no image files: a piece is this drawing and nothing else. `Overload` and `Tug` are the worked examples. |
 | `packages/boards/src/<id>/<Id>Board.tsx` | The React host: `useKitBoard`, the labels from the message table, `data-board`. |
 | `packages/studio/src/pages/<Id>Practice.tsx` | The page: `usePractice`, `useStudio`, `PracticeShell`, HUD details, legend, result rows. |
 | `packages/studio/src/prototypes/<id>.ts` | The studio's entry: content config, starting points, whether it ticks. |
@@ -73,12 +70,10 @@ These are the project's rules (CLAUDE.md), said for a prototype.
    page's and the server's.
 5. **The board computes no score.** Every number it shows is an engine function's: what a line is
    worth, what a streak multiplies by. The engine exports those; the renderer calls them.
-6. **Kinds read apart without color.** A restyled board gives each kind a silhouette of its own, or
-   one cut-out where the rules fix the outline, and is checked with every piece in one colour
-   (`docs/BRAND.md` section 3). It has no marks setting: a number its rules put on a piece (a
-   charge, a grade) is holes or a mono numeral drawn as part of the piece. A board not restyled
-   yet uses the kit's kinds (a silhouette each) and its pips for the old mark setting, and its
-   sprites keep their kind's silhouette with the pips over them on a plate (`drawMark`).
+6. **Kinds read apart without color.** A board gives each kind a silhouette of its own, or one
+   cut-out where the rules fix the outline, and is checked with every piece in one colour
+   (`docs/BRAND.md` section 3). There is no marks setting: a number its rules put on a piece (a
+   charge, a grade) is holes or a mono numeral drawn as part of the piece.
 7. **Every string is in the message table**, in the puzzle's own file. The renderer takes its
    labels as options; it never holds English.
 8. **A studio round cannot run on a config the server would refuse.** The wire schema and the engine's
@@ -92,9 +87,9 @@ These are the project's rules (CLAUDE.md), said for a prototype.
   pointer events and the test attributes. A renderer implements `build` (make display objects),
   `layout` (geometry, redraw from `this.state`), `onState` (show a state; play the last move when it
   follows from what is drawn, snap otherwise) and `view` (what is drawn, as the string
-  `data-board` also holds). `Grid` lays out square cells. For a restyled board it also gives
-  `piece` (a pictogram as a texture, kept until the next layout), `paintGround` (the playfield:
-  bare ground and one hairline, and where the beat pulses) and `beat`.
+  `data-board` also holds). `Grid` lays out square cells. It also gives `piece` (a pictogram as a
+  texture, kept until the next layout), `paintGround` (the playfield: bare ground and one
+  hairline, and where the beat pulses) and `beat`. Its canvas carries `data-pieces="drawn"`.
 - `pictogram.ts`: what a pictogram is drawn with (`disc`, `rounded`, `soft`, `bar`, `cut`), on a 24
   unit square with Canvas 2D, so the board and the legend share one drawing. `PictogramIcon.tsx`
   shows one in a legend.
@@ -104,46 +99,29 @@ These are the project's rules (CLAUDE.md), said for a prototype.
   exactly as a snap would: end every played move with a snap to the engine's state.
 - `fx.ts`: `Fx`. `popup` (points, mono), `say` (a callout), `ring`, `beam`, and `beat`: one amber
   pulse of the whole board in 420ms, a still flash under reduced motion. There is no shake, flash
-  or burst of particles; those three names are left as empty methods only until the last board
-  that calls them is restyled. Effects never hold the board back.
-- `art.ts`: the `INK` inks by token name, `drawGround`, `drawHairline`, `drawDot` (an empty
-  position that matters). Also what a board not restyled yet draws without its atlas: `KINDS`
-  (eight flat silhouettes in the eight piece colours), `drawPiece`, `drawPips`, `drawMark`.
-- `KindIcon.tsx`: a kit kind as an SVG, for the legend of a board not restyled yet.
-  `SpriteIcon.tsx`: a frame of the atlas, for the same; `KindIcon` takes one as `sprite`.
+  or burst of particles. Effects never hold the board back.
+- `art.ts`: the `INK` inks by token name, the two faces, `mix` for a flat tint, `drawGround`,
+  `drawHairline` and `drawDot` (an empty position that matters).
 - `useKitBoard.ts`: the React hook that hosts a renderer.
 
-### A restyled board
+### How a board looks
 
-A board says it is restyled with one line in its renderer, `protected override readonly drawn =
-true`, and calls `super(host, id, onFrame)` with no marks argument. The kit then never loads an
-atlas for it, `this.sprite(...)` always answers false, the canvas carries `data-pieces="drawn"`
-and no `data-sprite-atlas`, and `setShowMarks` does nothing. Such a board:
+A renderer calls `super(host, id, onFrame)`, and:
 
 - draws every piece as a pictogram of its own subject from `pieces.ts`, through `this.piece(key,
-  size, color, paint)`, and shows the same drawings in its legend with `PictogramIcon`;
+  size, color, paint)`, and shows the same drawings in its legend with `PictogramIcon`. A `piece`
+  texture is destroyed at the next layout, so `layout` gives every sprite its texture again;
 - paints its playfield with `this.paintGround(...)`: no frame, no wells, no grid lines;
-- types no colour: inks are `INK.<token>` or `ink("<token>")`, and its renderer is not in
-  `studio/test/look.pending.json`;
+- types no colour: inks are `INK.<token>` or `ink("<token>")`, and `studio/test/look.test.ts`
+  fails on a literal;
 - keeps `this.beat(strength)` for its named compound move and at most two other rare things, and
   has no other big effect;
-- has no frames folder, no entry in `sprites/frames.json`, no row in `sprites/README.md`, and no
-  `MarksToggle` on its studio page.
-
-A board without the line keeps working as before, atlas and marks and all, until it is restyled.
-It inherits the kit's flat look where the kit draws for it: the ground in place of the old panel,
-a dot in place of a well, flat kinds, plain text, and no shake, flash or particles.
+- has no image file, no marks setting and no toggle for one on its studio page.
 
 A ticked board is handed a new display state every tick. It overrides `keepsPlaying` to say so,
 which stops the kit flushing its tweens ten times a second, and its `onState` plays only the events
 it has not played yet: the engine numbers its events with a rising `seq`, as Navigation's does, and
 the renderer remembers the last one it showed.
-
-Sprites (ADR 0037), for a board not restyled yet: the kit loads the atlas named by the puzzle id. A renderer paints a frame with
-`this.sprite(g, name, x, y, size)`, which returns false when the atlas or the frame is not there, so
-every piece is written `this.sprite(...) || drawPiece(...)`. Frames are named for what the renderer
-asks for (`spriteName("debris", kind)` is `debris-gold`). Keep everything exact in code: marks,
-numerals, counts, outlines, hit areas. `sprites/README.md` says how the sheets are packed.
 
 Sounds are `sfx` in `boards/src/audio.ts`; the renderer plays them at the moment the animation
 shows the thing. The kit registers the puzzle's picked samples (ADR 0041), so a sample named for an
@@ -157,5 +135,4 @@ fallback)`.
 - **Promoting:** its own ADR and milestone. The puzzle gets a role (a station needs a `parScore`
   and station strings), moves from `PROTOTYPE_PUZZLE_IDS` to `CORE_PUZZLE_IDS`, its strings move to
   `en.json`.
-- **Removing:** delete the files in the table and the lines that register the id, with its entry in
-  `sprites/frames.json` if it still has one.
+- **Removing:** delete the files in the table and the lines that register the id.

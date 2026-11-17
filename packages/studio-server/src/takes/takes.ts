@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Take, TakeKind } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import type { Logger } from "../log.js";
 import { scanTakes } from "./scan.js";
 import type { TakeStore } from "./store.js";
 
-/** How each kind of take is served. The type is the service's to say, never the file's. */
+/**
+ * How each kind of take is served. The type is the service's to say, never the file's. A sprite
+ * take is none the service makes or lists any more (ADR 0062), but the table and the bucket still
+ * hold those made before, and one asked for by its hash is still read (ADR 0063).
+ */
 export const TAKE_TYPES: Readonly<Record<TakeKind, string>> = { sprite: "image/webp", sound: "audio/mpeg" };
 
 const keyOf = (hash: string): string => `takes/${hash}`;
@@ -58,7 +62,12 @@ export function createTakes(o: { db: Db; store: TakeStore; log: Logger }): Takes
       return made;
     },
     async list(puzzle) {
-      const rows = await db.select().from(schema.take).where(eq(schema.take.puzzle, puzzle)).orderBy(asc(schema.take.createdAt), asc(schema.take.take));
+      // Only sounds: the sprite takes kept from before pieces were drawn in code stay in the table and are listed nowhere (ADR 0063).
+      const rows = await db
+        .select()
+        .from(schema.take)
+        .where(and(eq(schema.take.puzzle, puzzle), eq(schema.take.kind, "sound")))
+        .orderBy(asc(schema.take.createdAt), asc(schema.take.take));
       return rows.map((r) => ({ hash: r.hash, kind: r.kind, puzzle: r.puzzle as Take["puzzle"], name: r.name, bytes: r.bytes, prompt: r.prompt, draft: r.draftId, take: r.take, createdAt: r.createdAt.toISOString() }));
     },
     async read(hash) {

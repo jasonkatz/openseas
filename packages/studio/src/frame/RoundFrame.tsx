@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { content, isSpritePuzzle, overrideMessages, overrideSample, overrideSprite, shippedMessage } from "@openseas/boards";
+import { content, overrideMessages, overrideSample, shippedMessage } from "@openseas/boards";
 import { isPuzzleText, picksOf, textVars, wordsOf, type Draft, type Picks, type PuzzleCategory, type RoundSummary, type TesterLink, type Words } from "@openseas/protocol";
 import type { StudioPuzzle } from "../puzzles.js";
 import { EMPTY_SCENARIO, formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
@@ -69,11 +69,11 @@ export interface Frame {
   resetNumber(key: string): void;
   resetNumbers(): void;
   /** True while the shipped numbers stand in for the draft, so the same seed can be seen both ways. */
-  /** The takes the draft picks for frames and cues (ADR 0052). The frame puts them on the board. */
+  /** The takes the draft picks for cues (ADR 0052). The frame gives them to the board. */
   readonly picks: Picks;
-  /** Pick a take for a frame or a cue by its hash, `synth` for a cue's synthesized voice, or null for what the build ships. */
+  /** Pick a take for a cue by its hash, `synth` for its synthesized voice, or null for what the build ships. */
   setPick(kind: keyof Picks, name: string, pick: string | null): void;
-  /** The picks whose takes could not be read, as `sprites/<frame>` or `sounds/<cue>`: the board shows those as shipped. */
+  /** The picks whose takes could not be read, as `sounds/<cue>`: the board plays those as shipped. */
   readonly picksMissing: readonly string[];
   /** The strings the draft rewrites and the category it changes (ADR 0057). The frame lays the strings over the message table. */
   readonly words: Words;
@@ -145,25 +145,20 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
     },
     [scenario, setScenario],
   );
-  // The picks go on the board (ADR 0050's swap): each frame and cue as the draft now has it, and
-  // as the build ships it once the draft lets it go. A take is read from the service by its hash;
-  // one that cannot be read leaves that frame or cue as shipped, and the page says so. A home
-  // thumbnail is the shipped board.
+  // The picks go on the board (ADR 0050's swap): each cue as the draft now has it, and as the
+  // build ships it once the draft lets it go. A take is read from the service by its hash; one
+  // that cannot be read leaves that cue as shipped, and the page says so. A home thumbnail is the
+  // shipped board.
   const [picksMissing, setPicksMissing] = useState<readonly string[]>([]);
   const applied = useRef<Record<string, string>>({});
   const id = puzzle.id;
   useEffect(() => {
     if (mode === "thumb") return;
     const want: Record<string, string> = {};
-    for (const [name, hash] of Object.entries(picks.sprites)) want[`sprites/${name}`] = hash;
     for (const [name, hash] of Object.entries(picks.sounds)) want[`sounds/${name}`] = hash;
     const was = applied.current;
     applied.current = want;
-    const put = (key: string, pick: string | null): Promise<boolean> => {
-      const name = key.slice(key.indexOf("/") + 1);
-      if (key.startsWith("sprites/")) return isSpritePuzzle(id) ? overrideSprite(id, name, pick === null ? null : takeUrl(pick)) : Promise.resolve(pick === null);
-      return overrideSample(id, name, pick === null || pick === "synth" ? pick : takeUrl(pick));
-    };
+    const put = (key: string, pick: string | null): Promise<boolean> => overrideSample(id, key.slice(key.indexOf("/") + 1), pick === null || pick === "synth" ? pick : takeUrl(pick));
     for (const key of Object.keys(was)) if (!(key in want)) void put(key, null);
     for (const [key, pick] of Object.entries(want)) {
       if (was[key] === pick) continue;
@@ -178,15 +173,10 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
       return still.length === all.length ? all : still;
     });
   }, [mode, id, picks]);
-  // Leaving the page puts every frame and cue back: a pick is the draft's, not the next page's.
+  // Leaving the page puts every cue back: a pick is the draft's, not the next page's.
   useEffect(
     () => () => {
-      for (const key of Object.keys(applied.current)) {
-        const name = key.slice(key.indexOf("/") + 1);
-        if (key.startsWith("sprites/")) {
-          if (isSpritePuzzle(id)) void overrideSprite(id, name, null);
-        } else void overrideSample(id, name, null);
-      }
+      for (const key of Object.keys(applied.current)) void overrideSample(id, key.slice(key.indexOf("/") + 1), null);
       applied.current = {};
     },
     [id],

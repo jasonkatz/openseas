@@ -6,16 +6,6 @@ import { PlayShell } from "../play/PlayShell.jsx";
 import { StudioShell } from "../studio/StudioShell.jsx";
 import type { PracticeOutcome, PracticePhase } from "./usePractice.js";
 
-const MARKS_KEY = "openseas.markTiles";
-
-export function readMarksFlag(): boolean {
-  try {
-    return window.localStorage.getItem(MARKS_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => window.matchMedia?.(query).matches ?? false);
   useEffect(() => {
@@ -50,19 +40,6 @@ export function useTally(target: number, ms = 450): number {
     return () => cancelAnimationFrame(id);
   }, [target, ms]);
   return shown;
-}
-
-/** The "mark tiles" accessibility setting, shared by every board (rule 6). */
-export function useShowMarks(): [boolean, (on: boolean) => void] {
-  const [showMarks, setShowMarks] = useState(readMarksFlag);
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(MARKS_KEY, showMarks ? "1" : "0");
-    } catch {
-      /* private mode */
-    }
-  }, [showMarks]);
-  return [showMarks, setShowMarks];
 }
 
 export interface ShellProps {
@@ -131,15 +108,4 @@ export function ResultScore({ score }: { score: number }) {
   );
 }
 
-/** The marks toggle every legend ends with. */
-export function MarksToggle({ showMarks, onChange }: { showMarks: boolean; onChange(on: boolean): void }) {
-  return (
-    <label className="toggle">
-      <input type="checkbox" checked={showMarks} onChange={(e) => onChange(e.target.checked)} data-testid="toggle-marks" />
-      <span>
-        {t("practice.setting_marks")} <small className="muted">{t("practice.setting_marks_hint")}</small>
-      </span>
-    </label>
-  );
-}
 

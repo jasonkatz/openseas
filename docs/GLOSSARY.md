@@ -26,8 +26,9 @@ carries it, the identifier.
 3. **Nothing from Puzzle Pirates** (CLAUDE.md rule 3). New words also avoid terms other well-known
    games and shows coined (no "Reavers", no "Star Wolf").
 4. **Rule 6 still holds.** Every kind, look, emblem and figure reads apart without color.
-5. **Piece names follow the art.** The owner's sprite pass drew each piece as what it is named, so
-   the names stand. New art that draws a piece as something else renames it here.
+5. **Piece names follow the art.** Each piece is drawn in code as what it is named (`BRAND.md`
+   section 3, ADR 0062), so the names stand. A drawing that makes a piece something else renames
+   it here.
 6. **Anything not listed** follows these rules. The PR that renames it adds it here.
 
 ## The setting
@@ -401,9 +402,9 @@ The tables above give the identifier for each word. Beyond them:
   columns and stored values take their new names directly (`voyage.route_id` → `lane_id`, the
   ledger's `booty` kind → `plunder`, the look's `coat` and `hat` → `jacket` and `headgear`), and no
   data is mapped.
-- **Sprites**: each atlas is named by its puzzle id (`cooling.webp`, ...) and each frame by the
-  piece's identifier (`bolt`, `turret-jammed`, `tin-h`, ...), and since the owner's sprite pass
-  each frame looks like the piece it names.
+- **Pieces**: each puzzle's pictograms are in a `pieces.ts` beside its renderer, named by the
+  piece's identifier (`bolt`, `crystal`, `drum`, ...). The sprite atlases that once carried those
+  names are gone (ADR 0062).
 - **Tests**: where a test's `mate` was a second pirate rather than a deckhand, it is `crewmate`.
   Fixtures use names the game could deal ("Static Comet", "Gasket-7", "The Rust Comets").
 - **Studio presets**: the message key is the preset's id (`studio.preset.one_injector`,
@@ -426,7 +427,7 @@ The tables above give the identifier for each word. Beyond them:
 Eight puzzles with no former word: they are new (DESIGN.md 3.12, ADR 0036), in the studio only.
 Their words follow the naming rules above. Each puzzle's own words (its pieces, its callouts) are in
 its design file under `docs/prototypes/` and its message file under
-`content/data/messages/prototypes/`; the sprite pass may rename them if the puzzle is kept.
+`content/data/messages/prototypes/`; promoting a puzzle may rename them.
 
 | Puzzle | Puzzle id | What the player does |
 |---|---|---|

@@ -12,22 +12,27 @@ export const TesterLinkIdSchema = z.string().regex(/^[a-z0-9]{10}$/);
 /** A take's address: the SHA-256 of its bytes, in hex. Nobody can guess one, and it never names different bytes. */
 export const TakeHashSchema = z.string().regex(/^[0-9a-f]{64}$/);
 
-/** A frame's or a cue's name, as a brief and the generation scripts spell it. */
+/** A cue's name, as a brief and the generation script spell it. */
 const AssetNameSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/);
 const few = (o: Record<string, unknown>): boolean => Object.keys(o).length <= 128;
 
 /**
- * A draft's picks (ADR 0042 decision 2, ADR 0052): the take chosen for a sprite frame or a sound
- * cue, by the take's hash. A cue may also pick `synth`: the synthesized cue over a bundled sample
- * (ADR 0041). A frame or a cue with no entry is as the build ships it. Only the shape is checked:
- * a hash that names no take the service keeps leaves the board as shipped.
+ * A draft's picks (ADR 0042 decision 2, ADR 0052): the take chosen for a sound cue, by the take's
+ * hash. A cue may also pick `synth`: the synthesized cue over a bundled sample (ADR 0041). A cue
+ * with no entry is as the build ships it. Only the shape is checked: a hash that names no take the
+ * service keeps leaves the board as shipped.
+ *
+ * Picks once held a `sprites` map too, a take for a frame of a puzzle's atlas. Pieces are drawn in
+ * code now and nothing picks a frame (ADR 0062, ADR 0063), but drafts and tester links kept before
+ * then still carry the map. It is read and dropped: this object names no `sprites` key, and an
+ * object schema drops a key it does not name, so stored data parses as it always did and the map
+ * goes no further. Never make this schema strict (a test in `protocol` holds it to that).
  */
 export const PicksSchema = z.object({
-  sprites: z.record(AssetNameSchema, TakeHashSchema).refine(few, "too many picks").default({}),
   sounds: z.record(AssetNameSchema, z.union([TakeHashSchema, z.literal("synth")])).refine(few, "too many picks").default({}),
 });
 export type Picks = z.infer<typeof PicksSchema>;
-export const NO_PICKS: Picks = { sprites: {}, sounds: {} };
+export const NO_PICKS: Picks = { sounds: {} };
 
 /** What kind of puzzle one is, as a label: the content files' own list (`content`'s `PUZZLE_CATEGORIES`; a test in `studio` holds the two to each other). */
 export const PuzzleCategorySchema = z.enum(["duty", "fight", "crafting", "prototype"]);
@@ -58,7 +63,7 @@ export const isPuzzleText = (puzzle: string, key: string): boolean => key.starts
 export const textVars = (text: string): string[] => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!).sort();
 
 /**
- * A draft's numbers, picks and words: what it lays over the puzzle's content file and its art, and the
+ * A draft's numbers, picks and words: what it lays over the puzzle's content file and its sounds, and the
  * seed if it pins one. (The name is older than picks.)
  * Only the shape is checked here. Whether a build will play them is that build's own question,
  * asked on the page that deals the round (ADR 0042 decisions 3 and 11).
@@ -89,9 +94,9 @@ export const wordsOf = (numbers: Pick<DraftNumbers, "words">): Words => ({ texts
 export const wordCount = (numbers: Pick<DraftNumbers, "words">): number => Object.keys(numbers.words?.texts ?? {}).length + (numbers.words?.category ? 1 : 0);
 
 /** A draft's picks, whole: none where it was kept before there were any. */
-export const picksOf = (numbers: Pick<DraftNumbers, "picks">): Picks => ({ sprites: numbers.picks?.sprites ?? {}, sounds: numbers.picks?.sounds ?? {} });
-/** How many frames and cues a draft has picked a take for. */
-export const pickCount = (numbers: Pick<DraftNumbers, "picks">): number => Object.keys(numbers.picks?.sprites ?? {}).length + Object.keys(numbers.picks?.sounds ?? {}).length;
+export const picksOf = (numbers: Pick<DraftNumbers, "picks">): Picks => ({ sounds: numbers.picks?.sounds ?? {} });
+/** How many cues a draft has picked a voice for. */
+export const pickCount = (numbers: Pick<DraftNumbers, "picks">): number => Object.keys(numbers.picks?.sounds ?? {}).length;
 
 /** The numbers a tester link freezes: a copy of a draft's, taken when the link was made. */
 export const TesterLinkDraftSchema = DraftNumbersSchema;
@@ -130,8 +135,8 @@ export const DraftIdSchema = z.string().regex(/^[a-z0-9]{10}$/);
  */
 /**
  * Why a Save or an update did not finish. `nothing`: the draft changes no number or word, picks no take and the chat has edited no file.
- * `unknown_key`: it sets a key the content file has no place for, or rewrites a string that is not the puzzle's or not in the message table. `pick`: a pick cannot be placed: its take is not kept, is of
- * another kind, puzzle, frame or cue, or picks a frame the atlas does not have (ADR 0053). `takes`: the service could not read
+ * `unknown_key`: it sets a key the content file has no place for, or rewrites a string that is not the puzzle's or not in the message table. `pick`: a pick cannot be placed: its take is not kept, or is of
+ * another kind, puzzle or cue (ADR 0053). `takes`: the service could not read
  * the picked takes or place them. `conflict`: the base branch and the draft's changed the same lines. `interrupted`: the service
  * restarted under it.
  */
@@ -151,7 +156,7 @@ export const DraftSaveSchema = z.object({
   behind: z.boolean(),
   /** True once a turn of the chat has committed an edit to the draft's branch: there is something to save even when no number differs (ADR 0049). Defaulted for a service older than the site. */
   edits: z.boolean().default(false),
-  /** What the error is about, where it is about one thing: for `pick`, the frame or cue. Defaulted for a service older than the site. */
+  /** What the error is about, where it is about one thing: for `pick`, the cue. Defaulted for a service older than the site. */
   detail: z.string().max(80).nullable().default(null),
 });
 export type DraftSave = z.infer<typeof DraftSaveSchema>;
@@ -328,20 +333,25 @@ export type ChatEvent = z.infer<typeof ChatEventSchema>;
 export const ChatRevertSchema = z.object({ turn: z.int().min(1) });
 export const ChatAllowSchema = z.object({ item: z.int(), allow: z.boolean() });
 
-/** What a take is of: a sprite frame, or a sound cue. */
+/**
+ * What a take is of: a sound cue. `sprite`, a frame of a puzzle's atlas, is only ever read: the
+ * service's table holds sprite takes made before pieces were drawn in code (ADR 0062, ADR 0063),
+ * and a service older than the site may still list them. Nothing makes, lists, picks or places
+ * one now, and the site passes over any it is sent.
+ */
 export const TakeKindSchema = z.enum(["sprite", "sound"]);
 export type TakeKind = z.infer<typeof TakeKindSchema>;
 
 /**
- * A take (ADR 0040, ADR 0051): one generated candidate for a frame or a cue, kept by the service
- * in the form it would be committed in (a fitted square frame, a mastered sound) under the hash of
- * those bytes. Takes outlast the draft they were made on, so a frame or a cue gathers a library.
+ * A take (ADR 0040, ADR 0051): one generated candidate for a cue, kept by the service in the form
+ * it would be committed in (a mastered sound) under the hash of those bytes. Takes outlast the
+ * draft they were made on, so a cue gathers a library.
  */
 export const TakeSchema = z.object({
   hash: TakeHashSchema,
   kind: TakeKindSchema,
   puzzle: PuzzleIdSchema,
-  /** The frame or the cue it is a take of, as the brief names it. */
+  /** The cue it is a take of, as the brief names it (the frame, for a sprite take kept from before). */
   name: z.string(),
   bytes: z.int().min(0),
   /** What the generator was asked for, where the script kept it. */

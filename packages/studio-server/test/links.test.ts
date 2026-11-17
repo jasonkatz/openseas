@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TesterLinkSchema, type CreateTesterLink, type TesterLink } from "@openseas/protocol";
 import { createApp, type App } from "../src/app.js";
+import { eq } from "drizzle-orm";
 import { schema } from "../src/db/index.js";
 import { loadEnv } from "../src/env.js";
 import type { GitHub } from "../src/github.js";
@@ -104,10 +105,16 @@ describeDb("studio service", () => {
     expect(TesterLinkSchema.parse(await read.json())).toEqual(link);
 
     // A link freezes the draft's picks with its numbers, and one frozen before picks reads as having none.
-    expect(link.draft.picks).toEqual({ sprites: {}, sounds: {} });
-    const picks = { sprites: { cog: "b".repeat(64) }, sounds: { clear: "synth" } };
-    const picked = TesterLinkSchema.parse(await (await post(session, { ...draft, name: "New cog", draft: { ...draft.draft, picks } })).json());
+    expect(link.draft.picks).toEqual({ sounds: {} });
+    const picks = { sounds: { clear: "synth", pop: "b".repeat(64) } };
+    const picked = TesterLinkSchema.parse(await (await post(session, { ...draft, name: "New chime", draft: { ...draft.draft, picks } })).json());
     expect(TesterLinkSchema.parse(await (await fetch(`${base}/links/${picked.id}`)).json()).draft.picks).toEqual(picks);
+    // A link frozen with sprite picks, before pieces were drawn in code (ADR 0062, ADR 0063), still reads, without them.
+    await app.db
+      .update(schema.testerLink)
+      .set({ draft: { ...draft.draft, picks: { sprites: { cog: "b".repeat(64) }, sounds: { clear: "synth" } } } as typeof draft.draft })
+      .where(eq(schema.testerLink.id, picked.id));
+    expect(TesterLinkSchema.parse(await (await fetch(`${base}/links/${picked.id}`)).json()).draft.picks).toEqual({ sounds: { clear: "synth" } });
     expect((await fetch(`${base}/links/${picked.id}`, { method: "DELETE", headers: { cookie: session, origin: STUDIO } })).status).toBe(200);
 
     const listed = await fetch(`${base}/links?puzzle=cooling`, { headers: { cookie: session, origin: STUDIO } });

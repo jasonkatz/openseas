@@ -40,7 +40,7 @@ export const draft = studio.table(
     pullUrl: text(),
     saveState: text().$type<DraftSave["state"]>().notNull().default("idle"),
     saveError: text().$type<DraftSaveError>(),
-    /** What the last failed Save's error is about, where it is about one thing: a pick's frame or cue (ADR 0053). */
+    /** What the last failed Save's error is about, where it is about one thing: a pick's cue (ADR 0053). */
     saveErrorDetail: text(),
     /** The numbers the last Save wrote into the content file: what the next one must put back where the draft no longer changes them. */
     savedNumbers: jsonb().$type<DraftNumbers>(),
@@ -116,9 +116,11 @@ export const meter = studio.table("meter", {
 });
 
 /**
- * A take (ADR 0051): one generated candidate for a sprite frame or a sound cue, by the SHA-256 of
- * its bytes. The bytes are in the bucket under that hash; this row is what the panels list. It
- * names the draft it was made on and is not that draft's: a take is kept when its draft is gone.
+ * A take (ADR 0051): one generated candidate for a sound cue, by the SHA-256 of its bytes. The
+ * bytes are in the bucket under that hash; this row is what the panel lists. It names the draft it
+ * was made on and is not that draft's: a take is kept when its draft is gone. Rows of kind
+ * `sprite`, takes of a frame made before pieces were drawn in code (ADR 0062), are left where they
+ * are and listed nowhere: no migration removes them (ADR 0063).
  */
 export const take = studio.table(
   "take",
@@ -126,7 +128,7 @@ export const take = studio.table(
     hash: text().primaryKey(),
     kind: text().$type<TakeKind>().notNull(),
     puzzle: text().notNull(),
-    /** The frame or the cue, as the brief names it. */
+    /** The cue, as the brief names it (the frame, in a sprite take's row). */
     name: text().notNull(),
     bytes: integer().notNull(),
     /** What the generator was asked for, where the script kept it beside the take. */

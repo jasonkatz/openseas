@@ -183,7 +183,7 @@ export function ChatPanel() {
   const shownChat = chat && chat.chat.id === chatId ? chat : null;
   const running = shownChat?.chat.running ?? false;
   const busy = shownChat?.busy ?? false;
-  // A turn that has ended may have made takes: the sprite and sound panels ask for them again (ADR 0051). The list's money and order move too.
+  // A turn that has ended may have made takes: the sound panel asks for them again (ADR 0051). The list's money and order move too.
   const wasRunning = useRef(false);
   useEffect(() => {
     if (wasRunning.current && !running) {
@@ -198,7 +198,7 @@ export function ChatPanel() {
     if (wasBusy.current !== busy) void refresh();
     wasBusy.current = busy;
   }, [busy, refresh]);
-  // A row of the sprite or sound panel writes the start of a message here, for the owner to finish and send.
+  // A row of the sound panel writes the start of a message here, for the owner to finish and send.
   useEffect(() => {
     const onProposed = (e: Event): void => {
       setText((e as CustomEvent<string>).detail);

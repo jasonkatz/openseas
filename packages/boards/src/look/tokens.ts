@@ -1,7 +1,7 @@
 /**
  * The game's one palette (docs/BRAND.md section 2, ADR 0061). Every colour a board, the chrome,
  * the world or a guide draws comes from here: this is the only file in the game that types a hex
- * value, and `studio/test/look.test.ts` fails on a literal anywhere else that has been restyled.
+ * value, and `studio/test/look.test.ts` fails on a literal anywhere else.
  */
 import { PIECE_COLORS, PLAYER_COLORS } from "@openseas/content";
 

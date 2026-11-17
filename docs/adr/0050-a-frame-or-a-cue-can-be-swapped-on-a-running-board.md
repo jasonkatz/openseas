@@ -6,6 +6,8 @@ on [0031](./0031-shared-puzzle-sprite-atlases.md), [0037](./0037-prototype-sprit
 assets. It supersedes nothing: takes, picks in a draft and Save's placing of them are the parts
 that follow, each with its own ADR.
 
+[0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded its sprite parts at M10's fifth step (the frame swap, the sprite panel and the marks toggle in its legend); it still stands for sounds.
+
 ## Context
 
 ADR 0042 decision 12 says `boards` gains a way to swap a frame or a cue on a running board, and

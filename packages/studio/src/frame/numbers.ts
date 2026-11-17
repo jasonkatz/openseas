@@ -121,7 +121,7 @@ export function withoutNumber<S, M, C>(puzzle: StudioPuzzle<S, M, C>, scenario: 
 
 /** A scenario with every number shipped, every pick cleared and every word as shipped (DESIGN.md 3.14, "Drafts and reset"): the seed and the clock's start are kept. */
 export function withoutNumbers(scenario: Scenario): Scenario {
-  return { ...scenario, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: {}, sounds: {} }, words: { texts: {}, category: null } };
+  return { ...scenario, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sounds: {} }, words: { texts: {}, category: null } };
 }
 
 /**

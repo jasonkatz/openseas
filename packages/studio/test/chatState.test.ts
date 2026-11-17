@@ -3,7 +3,7 @@ import type { ChatItem, ChatState } from "@openseas/protocol";
 import { applyChatEvent, chatToOpen } from "../src/service/chatState.js";
 
 const at = "2026-11-14T12:00:00.000Z";
-const draft = { id: "draftdraft", puzzle: "cooling", owner: "octo", numbers: { seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: {}, sounds: {} } }, revision: 1, createdAt: at, updatedAt: at, save: { state: "idle", error: null, pull: null, savedRevision: null, behind: false, edits: false } } as ChatState["draft"];
+const draft = { id: "draftdraft", puzzle: "cooling", owner: "octo", numbers: { seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sounds: {} } }, revision: 1, createdAt: at, updatedAt: at, save: { state: "idle", error: null, pull: null, savedRevision: null, behind: false, edits: false } } as ChatState["draft"];
 const user: ChatItem = { id: 1, turn: 1, kind: "user", at, text: "Hello", model: "sonnet", steer: false };
 const step: ChatItem = { id: 3, turn: 1, kind: "step", at, tool: "Bash", summary: "pnpm test", detail: null, failed: false };
 const summary = (running: boolean, spentUsd = 0): ChatState["chat"] => ({ id: "chatchatch", puzzle: "cooling", title: "Hello", draft: "draftdraft", turns: 1, spentUsd, running, createdAt: at, updatedAt: at });

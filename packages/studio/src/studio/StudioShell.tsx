@@ -2,7 +2,7 @@ import { useCallback, useState, useSyncExternalStore } from "react";
 import type { PuzzleId } from "@openseas/engine";
 import { wordCount } from "@openseas/protocol";
 import { messageOverrideRevision, subscribeMessages, t } from "@openseas/boards";
-import { ASSET_SELECT, SoundPanel, SpritePanel } from "../assets/AssetPanels.jsx";
+import { ASSET_SELECT, SoundPanel } from "../assets/AssetPanels.jsx";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { PlayShell } from "../play/PlayShell.jsx";
 import type { ShellProps } from "../practice/PracticeShell.jsx";
@@ -38,7 +38,7 @@ function flash(testId: string): void {
  * A puzzle's studio page (DESIGN.md 3.14, ADR 0056), laid out for a desktop as a design tool is.
  * A bar across the top says where the page is and what becomes of the draft. A rail down the left
  * edge picks a mode, and the panel beside it is that mode's: the round, the numbers in three
- * parts, the sprites, the sounds, the words (ADR 0057). The board stands in the middle at a phone's proportions,
+ * parts, the sounds, the words (ADR 0057). The board stands in the middle at a phone's proportions,
  * exactly as `/play` draws it, in every mode. The chat is on the right (ADR 0047). Every panel
  * stays in the page while one shows, so a file being tried or a value half typed outlasts a look
  * at another. A phone never sees this: it gets the puzzle alone (App.tsx).
@@ -60,7 +60,6 @@ export function StudioShell(p: ShellProps) {
   const found = q === "" || anyNumberMatch(sections, q) || texts.some((e) => textMatches(e, scenario.words.texts[e.key] ?? e.shipped, q)) || "category".includes(q);
 
   const changed = new Set<ModeId>(changes.map((c) => modeOfKey(sections, c.key) ?? "tuning"));
-  if (Object.keys(picks.sprites).length > 0) changed.add("sprites");
   if (Object.keys(picks.sounds).length > 0) changed.add("sounds");
   if (wordCount(scenario) > 0) changed.add("text");
 
@@ -68,9 +67,9 @@ export function StudioShell(p: ShellProps) {
     setMode(next);
     setQuery("");
     if (!target) return;
-    if (target.kind === "sprites" || target.kind === "sounds") window.dispatchEvent(new CustomEvent(ASSET_SELECT, { detail: target }));
+    if (target.kind === "sounds") window.dispatchEvent(new CustomEvent(ASSET_SELECT, { detail: target }));
     const id =
-      target.kind === "number" ? `control-${target.key}` : target.kind === "text" ? `text-${target.key}` : target.kind === "category" ? "control-category" : target.kind === "sprites" ? `frame-${target.name}` : `cue-${target.name}`;
+      target.kind === "number" ? `control-${target.key}` : target.kind === "text" ? `text-${target.key}` : target.kind === "category" ? "control-category" : `cue-${target.name}`;
     // After the panel has turned to the mode: a hidden control has no place to scroll to.
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => flash(id)));
   }, []);
@@ -150,9 +149,6 @@ export function StudioShell(p: ShellProps) {
               {t("studio.find_none", { query: query.trim() })}
             </p>
           )}
-          <div hidden={mode !== "sprites"} data-mode-panel="sprites">
-            <SpritePanel puzzle={puzzle} legend={p.legend} active={mode === "sprites"} />
-          </div>
           <div hidden={mode !== "sounds"} data-mode-panel="sounds">
             <SoundPanel puzzle={puzzle} />
           </div>

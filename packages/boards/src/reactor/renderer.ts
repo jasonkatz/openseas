@@ -71,7 +71,6 @@ const portKey = (p: ReactorPort): string => `${p.side}${p.lane}`;
 /** Draws the reactor core and turns a swipe into a move. Scores nothing: every number it shows is the engine's. */
 export class ReactorRenderer extends KitBoard<ReactorState> {
   private readonly grid = new Grid(4, 4);
-  protected override readonly drawn = true;
   private readonly bg = new Graphics();
   private readonly rodLayer = new Container();
   private readonly rodMask = new Graphics();

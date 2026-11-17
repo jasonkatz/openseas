@@ -24,9 +24,9 @@ export interface SaverOptions {
 }
 
 /**
- * Save (ADR 0042 decision 10, ADR 0046, ADR 0049, ADR 0053, ADR 0054), after the tester link, which
+ * Save (ADR 0042 decision 10, ADR 0046, ADR 0049, ADR 0053), after the tester link, which
  * the route makes at once: the draft's numbers written into the puzzle's content file in its worktree
- * and its picks placed as frame files and in the sounds folder, a commit, a push of that and of whatever
+ * and its picks placed in the sounds folder, a commit, a push of that and of whatever
  * the chat's turns committed, and a draft pull request from the studio's GitHub App with the owner
  * named in its body. A later Save adds commits to the same pull
  * request. That is all of Save: the pull request stays a draft for a developer to finish.
@@ -71,9 +71,9 @@ export function commitMessage(puzzle: string, changes: Changes, placed: readonly
 /** How many of the agent's files a pull request's body names before it says how many more there are. */
 const FILES_LISTED = 40;
 
-/** What a draft's pull request is called: by its numbers, and its art when it places picks, more plainly when the chat edited files too. */
+/** What a draft's pull request is called: by its numbers, and its sounds when it places picks, more plainly when the chat edited files too. */
 export const pullTitle = (puzzle: string, edited: readonly string[], picks = false, words = false): string =>
-  edited.length ? `Change ${puzzle} from the studio` : `Tune ${puzzle}: ${picks && words ? "numbers, art and words" : picks ? "numbers and art" : words ? "numbers and words" : "numbers"} from the studio`;
+  edited.length ? `Change ${puzzle} from the studio` : `Tune ${puzzle}: ${picks && words ? "numbers, sounds and words" : picks ? "numbers and sounds" : words ? "numbers and words" : "numbers"} from the studio`;
 
 /**
  * The body of a draft's pull request: who saved it, the numbers it changes, the picks it places,
@@ -90,7 +90,7 @@ export function pullBody(o: { puzzle: string; login: string; changes: Changes; e
   if (o.edited.length > FILES_LISTED) files.push(`- and ${o.edited.length - FILES_LISTED} more`);
   const picks = placed.length
     ? [
-        "| Frame or cue | Take | File |",
+        "| Cue | Take | File |",
         "|---|---|---|",
         ...placed.map((p) => {
           const take = p.pick === "synth" || !o.takeUrl ? takeName(p) : `[${takeName(p)}](${o.takeUrl(p.pick)})`;
@@ -98,13 +98,11 @@ export function pullBody(o: { puzzle: string; login: string; changes: Changes; e
         }),
       ].join("\n")
     : null;
-  const sprites = placed.some((p) => p.kind === "sprite");
-  const sounds = placed.some((p) => p.kind === "sound" && p.pick !== "synth");
+  const sounds = placed.some((p) => p.pick !== "synth");
   const left = [
     "This pull request is a draft, and the studio leaves it there. It holds what was tuned, the takes the owner picked and what the chat's agent edited, and nothing more: the rest of what a changed puzzle needs (its design file, its guide, a capture where the look changed, its strings) is for a developer to finish before marking it ready.",
     ...(texts.length ? [`A string changed: the puzzle's guide and its design file may quote it, so both are re-read (\`packages/docs\`, \`docs/puzzles\` or \`docs/prototypes\`).`] : []),
-    ...(sprites ? [`A frame changed, so the guide's pictures are out of date: re-run \`pnpm --filter @openseas/docs capture ${o.puzzle}\`.`] : []),
-    ...(sounds ? ["A sound is placed. The studio's smoke does not yet check that samples are delivered and decoded, as `e2e/sprites.spec.ts` does for atlases (ADR 0041): that check is still owed."] : []),
+    ...(sounds ? ["A sound is placed. The studio's smoke does not yet check that samples are delivered and decoded (ADR 0041): that check is still owed."] : []),
   ];
   return [
     `Saved from the puzzle studio by [${o.login}](https://github.com/${o.login}).`,

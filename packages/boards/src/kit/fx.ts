@@ -135,13 +135,6 @@ export class Fx {
     this.beatNow = { life: 0, strength: Math.max(s, this.beatNow?.strength ?? 0) };
   }
 
-  /** @deprecated Gone from the look: does nothing. A board not restyled yet still calls it; restyling a board deletes the call. */
-  burst(_x: number, _y: number, _color: number, _count?: number, _speed?: number, _size?: number): void {}
-  /** @deprecated Gone from the look: does nothing. A big moment is `beat`; a bad one is said in danger. */
-  flash(_color: number, _alpha?: number, _ms?: number): void {}
-  /** @deprecated Gone from the look: does nothing. */
-  shake(_magnitude?: number, _ms?: number): void {}
-
   update(dt: number): void {
     for (let i = this.popups.length - 1; i >= 0; i--) {
       const p = this.popups[i]!;

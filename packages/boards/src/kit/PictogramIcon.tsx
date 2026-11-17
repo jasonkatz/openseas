@@ -9,7 +9,7 @@ export interface PictogramIconProps {
   size?: number;
 }
 
-/** One pictogram as an image, for a legend or a HUD row: the same drawing a restyled kit board bakes (ADR 0062). */
+/** One pictogram as an image, for a legend or a HUD row: the same drawing a kit board bakes (ADR 0062). */
 export function PictogramIcon({ name, color, paint, size = 22 }: PictogramIconProps) {
   return <img src={pictogramUrl(name, color, paint, size)} width={size} height={size} alt="" aria-hidden="true" className="kind-icon" draggable={false} />;
 }

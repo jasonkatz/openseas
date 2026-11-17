@@ -20,10 +20,10 @@ import { schema } from "../src/db/index.js";
 import { loadEnv } from "../src/env.js";
 import { createLogger } from "../src/log.js";
 import type { Forge } from "../src/save/forge.js";
-import { isFrame, isMp3, scanTakes } from "../src/takes/scan.js";
+import { isMp3, scanTakes } from "../src/takes/scan.js";
 import { createBucketStore, createMemoryStore } from "../src/takes/store.js";
 
-/** A lossless WebP's first bytes, saying it is `size` pixels square: all the scan reads of a picture. */
+/** A lossless WebP's first bytes, saying it is `size` pixels square: what a sprite take was, before pieces were drawn in code. No scan keeps one now. */
 function frame(size = 192, salt = 0): Buffer {
   const b = Buffer.alloc(40, salt);
   b.write("RIFF", 0, "latin1");
@@ -45,48 +45,46 @@ describe("the scan of a worktree for takes", () => {
   const tmp = mkdtempSync(join(tmpdir(), "studio-scan-"));
   afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
-  it("knows a frame and a sound by their first bytes", () => {
-    expect(isFrame(frame())).toBe(true);
-    expect(isFrame(frame(1024))).toBe(false);
-    expect(isFrame(Buffer.from("not a picture at all, whatever it is called"))).toBe(false);
+  it("knows a sound by its first bytes", () => {
     expect(isMp3(mp3())).toBe(true);
+    expect(isMp3(frame())).toBe(false);
     expect(isMp3(Buffer.from("ID3\u0004rest"))).toBe(true);
     expect(isMp3(Buffer.from("RIFFwave"))).toBe(false);
   });
 
-  it("finds what the scripts leave, with the words each was made from", () => {
+  it("finds what the script leaves, with the words each was made from, and passes over a picture", () => {
     const tree = join(tmp, "found");
+    put(tree, ".art/sounds/cooling/clear/placed-1.mp3", mp3(1));
+    put(tree, ".art/sounds/cooling/clear/take-1.wav", "the raw take is not what is kept");
+    put(tree, ".art/sounds/cooling/clear/take-1.json", JSON.stringify({ model: "m", text: "A soft chime." }));
+    put(tree, ".art/sounds/cooling/clear/placed-2.mp3", mp3(2));
+    put(tree, ".art/sounds/cooling/thud/placed-3.mp3", mp3(3));
+    put(tree, ".art/sounds/engines/hum/placed-1.mp3", mp3(4));
+    // A frame, where the sprite script once left one: no picture is a take any more (ADR 0062).
     put(tree, ".art/sprites/cooling/cog/frame-1.webp", frame(192, 1));
-    put(tree, ".art/sprites/cooling/cog/take-1.png", "the raw take is not what is kept");
-    put(tree, ".art/sprites/cooling/cog/take-1.json", JSON.stringify({ model: "m", prompt: "A brass cog." }));
-    put(tree, ".art/sprites/cooling/cog/frame-2.webp", frame(192, 2));
-    put(tree, ".art/sounds/cooling/clear/placed-3.mp3", mp3(3));
-    put(tree, ".art/sounds/cooling/clear/take-3.json", JSON.stringify({ text: "A soft chime." }));
-    put(tree, ".art/sprites/engines/disc/frame-1.webp", frame(192, 4));
     const found = scanTakes(tree, "cooling");
     expect(found.map((t) => [t.kind, t.name, t.take, t.prompt])).toEqual([
-      ["sprite", "cog", 1, "A brass cog."],
-      ["sprite", "cog", 2, null],
-      ["sound", "clear", 3, "A soft chime."],
+      ["sound", "clear", 1, "A soft chime."],
+      ["sound", "clear", 2, null],
+      ["sound", "thud", 3, null],
     ]);
-    expect(found[0]!.bytes.equals(frame(192, 1))).toBe(true);
+    expect(found[0]!.bytes.equals(mp3(1))).toBe(true);
   });
 
   it("passes over a link, a folder that is a link, a file too large, and a file that is not what its name says", () => {
     const tree = join(tmp, "hostile");
     const secret = join(tmp, "secret");
-    put(secret, "frame-1.webp", frame(192, 9));
-    put(secret, "cog/frame-1.webp", frame(192, 9));
-    put(tree, ".art/sprites/cooling/cog/frame-5.webp", frame(192, 5));
-    // A link to a real frame outside the worktree: never followed.
-    symlinkSync(join(secret, "frame-1.webp"), join(tree, ".art/sprites/cooling/cog/frame-1.webp"));
-    // A frame's folder that is a link to one outside.
-    symlinkSync(join(secret, "cog"), join(tree, ".art/sprites/cooling/valve"));
-    put(tree, ".art/sprites/cooling/cog/frame-2.webp", Buffer.concat([frame(192, 2), Buffer.alloc(600 * 1024)]));
-    put(tree, ".art/sprites/cooling/cog/frame-3.webp", "RIFF but no picture");
-    put(tree, ".art/sprites/cooling/cog/frame-4.webp", frame(1024));
-    put(tree, ".art/sprites/cooling/../cooling/bad name/frame-1.webp", frame(192, 6));
-    expect(scanTakes(tree, "cooling").map((t) => [t.name, t.take])).toEqual([["cog", 5]]);
+    put(secret, "placed-1.mp3", mp3(9));
+    put(secret, "clear/placed-1.mp3", mp3(9));
+    put(tree, ".art/sounds/cooling/clear/placed-5.mp3", mp3(5));
+    // A link to a real sound outside the worktree: never followed.
+    symlinkSync(join(secret, "placed-1.mp3"), join(tree, ".art/sounds/cooling/clear/placed-1.mp3"));
+    // A cue's folder that is a link to one outside.
+    symlinkSync(join(secret, "clear"), join(tree, ".art/sounds/cooling/thud"));
+    put(tree, ".art/sounds/cooling/clear/placed-2.mp3", Buffer.concat([mp3(2), Buffer.alloc(3 * 1024 * 1024)]));
+    put(tree, ".art/sounds/cooling/clear/placed-3.mp3", "RIFF but no sound");
+    put(tree, ".art/sounds/cooling/../cooling/bad name/placed-1.mp3", mp3(6));
+    expect(scanTakes(tree, "cooling").map((t) => [t.name, t.take])).toEqual([["clear", 5]]);
 
     // The whole of `.art` a link elsewhere: nothing is read through it.
     const linked = join(tmp, "linked");
@@ -209,7 +207,7 @@ describeDb("takes, kept when a turn ends", () => {
   let draft: Draft;
   async function turn(does: (r: TurnRequest) => void) {
     script = does;
-    const sent = await send("POST", `/drafts/${draft.id}/chat`, { text: "new takes of the cog", model: "sonnet", rounds: [], refusals: [] });
+    const sent = await send("POST", `/drafts/${draft.id}/chat`, { text: "new takes of the clear cue", model: "sonnet", rounds: [], refusals: [] });
     expect(sent.status).toBe(202);
     const { chat } = (await sent.json()) as { chat: string };
     await app.chat!.idle();
@@ -224,21 +222,23 @@ describeDb("takes, kept when a turn ends", () => {
 
   it("keeps the takes a turn's commands made, lists them for the owner, and counts what they cost", async () => {
     const state = await turn((r) => {
-      put(r.cwd, ".art/sprites/cooling/cog/frame-1.webp", frame(192, 1));
-      put(r.cwd, ".art/sprites/cooling/cog/take-1.json", JSON.stringify({ prompt: "A brass cog." }));
-      put(r.cwd, ".art/sprites/cooling/cog/frame-2.webp", frame(192, 2));
       put(r.cwd, ".art/sounds/cooling/clear/placed-1.mp3", mp3(1));
+      put(r.cwd, ".art/sounds/cooling/clear/take-1.json", JSON.stringify({ text: "A soft chime." }));
+      put(r.cwd, ".art/sounds/cooling/clear/placed-2.mp3", mp3(2));
+      put(r.cwd, ".art/sounds/cooling/thud/placed-1.mp3", mp3(3));
+      // A picture left where the sprite script once left its frames: not a take, and not kept (ADR 0062).
+      put(r.cwd, ".art/sprites/cooling/cog/frame-1.webp", frame(192, 1));
     });
     const takes = await list();
     expect(takes.map((t) => [t.kind, t.name, t.take, t.prompt, t.draft]).sort()).toEqual([
-      ["sound", "clear", 1, null, draft.id],
-      ["sprite", "cog", 1, "A brass cog.", draft.id],
-      ["sprite", "cog", 2, null, draft.id],
+      ["sound", "clear", 1, "A soft chime.", draft.id],
+      ["sound", "clear", 2, null, draft.id],
+      ["sound", "thud", 1, null, draft.id],
     ]);
-    expect(takes.find((t) => t.take === 1 && t.kind === "sprite")!.hash).toBe(sha(frame(192, 1)));
-    // The bucket holds each under its hash, typed by the service.
-    expect(store.objects.get(`takes/${sha(frame(192, 1))}`)).toEqual({ bytes: frame(192, 1), contentType: "image/webp" });
-    expect(store.objects.get(`takes/${sha(mp3(1))}`)!.contentType).toBe("audio/mpeg");
+    expect(takes.find((t) => t.take === 1 && t.name === "clear")!.hash).toBe(sha(mp3(1)));
+    // The bucket holds each under its hash, typed by the service, and no picture.
+    expect(store.objects.get(`takes/${sha(mp3(1))}`)).toEqual({ bytes: mp3(1), contentType: "audio/mpeg" });
+    expect(store.objects.has(`takes/${sha(frame(192, 1))}`)).toBe(false);
     // Keeping takes charges nothing: what they cost was metered as the scripts made them, through the proxy (ADR 0059). Nothing was committed, since `.art/` is ignored.
     const ended = state.items.at(-1)!;
     expect(ended).toMatchObject({ kind: "turn", status: "done", commit: null });
@@ -247,24 +247,35 @@ describeDb("takes, kept when a turn ends", () => {
 
   it("keeps a take once: a later turn adds only what is new", async () => {
     const before = (await list()).length;
-    const state = await turn((r) => put(r.cwd, ".art/sprites/cooling/cog/frame-3.webp", frame(192, 3)));
+    const state = await turn((r) => put(r.cwd, ".art/sounds/cooling/clear/placed-3.mp3", mp3(4)));
     expect((await list()).length).toBe(before + 1);
     const ended = state.items.at(-1)!;
     expect(ended.kind === "turn" && ended.costUsd).toBe(0);
   });
 
   it("serves a take to anyone who has its hash, from any origin, for good", async () => {
-    const hash = sha(frame(192, 1));
+    const hash = sha(mp3(1));
     const res = await fetch(`${base}/takes/${hash}`, { headers: { origin: "https://elsewhere.test" } });
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toBe("image/webp");
+    expect(res.headers.get("content-type")).toBe("audio/mpeg");
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
     expect(res.headers.get("cache-control")).toContain("immutable");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
-    expect(Buffer.from(await res.arrayBuffer()).equals(frame(192, 1))).toBe(true);
-    expect((await fetch(`${base}/takes/${sha(mp3(1))}`)).headers.get("content-type")).toBe("audio/mpeg");
+    expect(Buffer.from(await res.arrayBuffer()).equals(mp3(1))).toBe(true);
     expect((await fetch(`${base}/takes/${"0".repeat(64)}`)).status).toBe(404);
     expect((await fetch(`${base}/takes/not-a-hash`)).status).toBe(404);
+  });
+
+  it("leaves a sprite take kept from before where it is: listed nowhere, still read by its hash", async () => {
+    // A row and its bytes as a turn left them before pieces were drawn in code (ADR 0062, ADR 0063).
+    const old = frame(192, 7);
+    await store.put(`takes/${sha(old)}`, old, "image/webp");
+    await app.db.insert(schema.take).values({ hash: sha(old), kind: "sprite", puzzle: "cooling", name: "cog", bytes: old.length, prompt: "A brass cog.", draftId: "gonedraft1", take: 1, author: "octo" });
+    expect((await list()).map((t) => t.kind)).not.toContain("sprite");
+    const res = await fetch(`${base}/takes/${sha(old)}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/webp");
+    expect((await app.db.select().from(schema.take)).some((r) => r.kind === "sprite")).toBe(true);
   });
 
   it("lists takes for the owner alone", async () => {

@@ -2,8 +2,8 @@
 
 Browser-native, touch-first space pirate puzzle MMO. Spiritual successor to Puzzle Pirates: faithful
 mechanics, original everything else. `openseas` is a codename. The game moved from the sea to space
-in milestone M7 (ADR 0034): its words, its code, its three.js world and its puzzle boards (sprites,
-frames, fallback pieces and sounds) are space. ADRs 0001 to 0033 keep the nautical words they were
+in milestone M7 (ADR 0034): its words, its code, its three.js world and its puzzle boards (pieces
+drawn in code, and sounds) are space. ADRs 0001 to 0033 keep the nautical words they were
 written in.
 
 ## Read first
@@ -13,8 +13,8 @@ written in.
 - `docs/adr/` holds the rationale for every architecture choice. Read the index. Never edit an
   accepted ADR's decision; add a superseding one.
 - `docs/BRAND.md` is the brand book: the game's palette, type, shapes, motion, sound and voice
-  (ADR 0061, ADR 0062). Read it before drawing, styling or wording anything a player sees. Milestone
-  M10 is restyling the game to it, so what is built may still be the older painted look.
+  (ADR 0061, ADR 0062). Read it before drawing, styling or wording anything a player sees. Every
+  board, the chrome and the world follow it; milestone M10's last step, the sound pass, is still to come.
 - `docs/GLOSSARY.md` holds the game's words and the nautical words they replaced, with the
   identifier for each. Name new things by it, and read older ADRs through it.
 - `docs/puzzles/` holds a design file for each puzzle the game deals: its role, its rules and scoring,
@@ -44,7 +44,7 @@ written in.
 ## Stack
 
 TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `protocol` (Zod schemas), `content`,
-`boards` (the PixiJS boards, round runner and server connection both front ends share, ADR 0019, and the Vite plugin that packs each puzzle's atlas from its frame files at build time, ADR 0054),
+`boards` (the PixiJS boards, each drawing its pieces in code, the round runner and server connection both front ends share, ADR 0019, ADR 0062),
 `server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `studio` (the puzzle studio at studio.openseas.online, once the harness, built step by step, ADR 0042: a page a puzzle with its board and a tuning panel built from
 `content` and the wire schema, each puzzle alone at `/play/<id>`, every round local, and the voyage bench for ships and crews, ADR 0027), `studio-server` (the studio's own small service: tester links by id,
 the owner's GitHub sign-in, the owner's drafts, Save for their numbers and picks as a draft pull request, the chat's agent on a draft's worktree, and the takes it makes, kept in a bucket, ADR 0043, ADR 0045 to 0047, ADR 0049, ADR 0051, ADR 0053, ADR 0055, ADR 0057, ADR 0059 and ADR 0060; the studio works without it), `docs` (the puzzle guides at docs.openseas.online: a static site with one guide per puzzle, its

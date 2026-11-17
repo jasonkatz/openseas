@@ -5,7 +5,6 @@
  */
 export { content, messageOverrideRevision, overrideMessages, shippedMessage, subscribeMessages, t } from "./content.js";
 export { sfx, isMuted, setMuted, auditionCue, overrideSample, sampleCues } from "./audio.js";
-export { isSpritePuzzle, overrideSprite, spriteFrames, spriteOverridden, spriteOverrideRevision, subscribeSprites, type SpritePuzzle } from "./sprites/atlas.js";
 export { LatencyMeter } from "./metrics.js";
 export { softwareRendered } from "./surface.js";
 export { SERVER_URL, wsUrl } from "./api/base.js";
@@ -38,12 +37,10 @@ export { battleViewString } from "./battle/renderer.js";
 export { SwordfightBoard, type SwordfightBoardProps } from "./swordfight/SwordfightBoard.jsx";
 export { BlockIcon } from "./swordfight/BlockIcon.jsx";
 export { swordfightViewString, type RemoteBoard as MeleeRemoteBoard, type PlaceAnswer as SwordfightPlaceAnswer } from "./swordfight/renderer.js";
-// The kit prototype boards are built from (ADR 0036): a PixiJS base, tweens, effects and placeholder art.
+// The kit prototype boards are built from (ADR 0036): a PixiJS base, tweens, effects and pictograms.
 export { KitBoard, Grid } from "./kit/board.js";
 export { useKitBoard, type KitBoardProps } from "./kit/useKitBoard.js";
-export { KindIcon, type KindIconProps } from "./kit/KindIcon.jsx";
-export { SpriteIcon, type SpriteIconProps } from "./kit/SpriteIcon.jsx";
-export { INK, KINDS, kindStyle, spriteName, type PlaceholderKind, type Shape } from "./kit/art.js";
+export { INK } from "./kit/art.js";
 export { PictogramIcon, type PictogramIconProps } from "./kit/PictogramIcon.jsx";
 export { pictogramUrl, paintPictogram, type Paint } from "./kit/pictogram.js";
 // Prototype boards (ADR 0036).

@@ -1,6 +1,5 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
-import { atlases } from "@openseas/boards/vite";
 
 /** The commit this build came from: the deploy pipeline sets COMMIT_SHA; local builds say "dev". */
 const commit = process.env.COMMIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? "dev";
@@ -20,7 +19,7 @@ function versionFile(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), atlases(), versionFile()],
+  plugins: [react(), versionFile()],
   define: { __STUDIO_COMMIT__: JSON.stringify(commit) },
   server: {
     port: 5174,

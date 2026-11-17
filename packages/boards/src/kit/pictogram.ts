@@ -1,5 +1,5 @@
 /**
- * What a restyled kit board draws its pieces with (docs/BRAND.md section 3, ADR 0062): a pictogram
+ * What a kit board draws its pieces with (docs/BRAND.md section 3, ADR 0062): a pictogram
  * is one solid silhouette in one palette colour on a 24 unit square, with at most one detail cut
  * out so the ground shows through. It is painted with Canvas 2D so the board (`KitBoard.piece`)
  * and the page's legend (`PictogramIcon`) share one drawing. Cooling's `pieces.ts` is the model;
