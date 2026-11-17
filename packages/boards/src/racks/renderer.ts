@@ -15,9 +15,10 @@ import {
   type RacksState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, INK, drawMark, drawPanel, drawPiece, kindStyle, mix, spriteName } from "../kit/art.js";
+import { MOTION, ink } from "../look/tokens.js";
+import { FONT, FONT_MONO, INK, drawDot } from "../kit/art.js";
 import { KitBoard } from "../kit/board.js";
-import { ease } from "../kit/tween.js";
+import { racksKind, trolleyColor } from "./pieces.js";
 
 export interface RacksCallbacks {
   /** The player set the top of one rack on another, and the engine would take it. */
@@ -45,8 +46,7 @@ export interface RacksLabels {
 }
 
 export interface RacksRendererOptions {
-  showMarks: boolean;
-  /** Pulse an action worth taking after a pause. Off for recorded rounds. */
+  /** Mark an action worth taking after a pause. Off for recorded rounds. */
   hints: boolean;
   labels: RacksLabels;
 }
@@ -57,16 +57,24 @@ interface CellView {
 }
 
 const HINT_AFTER_MS = 6000;
-const CRATE = 0xc98a4b;
-const LIFT = 0x7fd7ff;
-/** A hanging crate's cells are drawn a little smaller than a racked one's. */
+/** A hanging crate's cells are drawn a little smaller than a racked one's, and so are the places they will take. */
 const CRATE_SCALE = 0.8;
+/** How far a lifted group floats over its rack, in cells. */
+const LIFT_RISE = 0.4;
+/** A rack that refused a group, or was smashed, is ringed in danger this long. */
+const REFUSED_MS = 360;
+/** A chain this long is the beat. */
+const BEAT_CHAIN = 3;
 
 /** Draws the racks and the crate, and turns taps, drags and keys into moves. Scores nothing: every number it shows is the engine's. */
 export class RacksRenderer extends KitBoard<RacksState> {
+  protected override readonly drawn = true;
   private readonly bg = new Graphics();
   private readonly under = new Graphics();
   private readonly crateBack = new Graphics();
+  /** Where the crate's cells will sit: each kind's own outline, in the hairline's colour. */
+  private readonly ghostLayer = new Container();
+  private readonly ghosts: Sprite[] = [];
   private readonly pieceLayer = new Container();
   private readonly over = new Graphics();
   private readonly crateBadge = new Container();
@@ -78,11 +86,11 @@ export class RacksRenderer extends KitBoard<RacksState> {
   private previews: Text[] = [];
   private readonly pieces = new Map<number, CellView>();
   /** The layout: how many racks, how tall, and where everything sits, in CSS pixels. */
-  private geo = { cols: 5, rows: 5, crateMax: 3, pitch: 60, cell: 48, wellW: 54, left: 0, panelTop: 0, panelBottom: 0, railY: 0, topY: 0, baseY: 0, r: 18 };
+  private geo = { cols: 5, rows: 5, crateMax: 3, pitch: 60, cell: 48, wellW: 54, left: 0, panelTop: 0, panelBottom: 0, railY: 0, topY: 0, baseY: 0 };
   /** The crate as drawn: the rack it hangs over, how many cells its frame holds and the count on its badge. Null while it is coming down. */
   private hung: { rack: number; size: number; lands: number } | null = null;
   /** The rack whose top group is lifted, the cells in it, and the rack heights it was lifted at. */
-  private lifted: { rack: number; ids: number[] } | null = null;
+  private lifted: { rack: number; ids: number[]; age: number } | null = null;
   private drag: { rack: number; fresh: boolean; moved: boolean; x: number; y: number } | null = null;
   /** The keyboard's rack. Drawn once a key has been used. */
   private cursor = 0;
@@ -91,15 +99,17 @@ export class RacksRenderer extends KitBoard<RacksState> {
   private hint: Extract<RacksMove, { type: "move" | "call" }> | null = null;
   private hintFor: RacksState | null = null;
   private hints: boolean;
-  /** A wash over a rack that fades: its color and how much is left, 1 to 0. */
-  private readonly glow: Array<{ color: number; k: number }> = [];
+  /** The rack ringed in danger for a moment: one that refused a group, or was smashed. */
+  private refused: { rack: number; until: number } | null = null;
+  /** While a move plays: the most cells each rack holds on the way, so no dot shows through a cell still in its slot. */
+  private playing: number[] | null = null;
 
   constructor(
     host: HTMLElement,
     private readonly cb: RacksCallbacks,
     private readonly opts: RacksRendererOptions,
   ) {
-    super(host, "racks", cb.onFrame, opts.showMarks);
+    super(host, "racks", cb.onFrame);
     this.hints = opts.hints;
   }
 
@@ -108,14 +118,14 @@ export class RacksRenderer extends KitBoard<RacksState> {
   }
 
   protected build(): void {
-    this.label = new Text({ text: "", style: { fontFamily: FONT, fontSize: 16, fontWeight: "700", fill: INK.text, letterSpacing: 0.4 } });
+    this.label = new Text({ text: "", style: { fontFamily: FONT, fontSize: 16, fontWeight: "700", fill: INK.cream }, resolution: 2 });
     this.label.anchor.set(0.5);
-    this.badgeText = new Text({ text: "", style: { fontFamily: FONT, fontSize: 18, fontWeight: "900", fill: INK.black } });
+    this.badgeText = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 18, fontWeight: "700", fill: INK.ground }, resolution: 2 });
     this.badgeText.anchor.set(0.5);
     this.crateBadge.addChild(this.badgeBox, this.badgeText);
     this.pieceLayer.sortableChildren = true;
     this.textLayer.addChild(this.label);
-    this.world.addChild(this.bg, this.under, this.crateBack, this.pieceLayer, this.over, this.crateBadge, this.textLayer);
+    this.world.addChild(this.bg, this.under, this.crateBack, this.ghostLayer, this.pieceLayer, this.over, this.crateBadge, this.textLayer);
   }
 
   // ---- geometry
@@ -159,7 +169,6 @@ export class RacksRenderer extends KitBoard<RacksState> {
     g.cell = Math.max(14, Math.min(96, Math.floor(Math.min(innerW / g.cols / 1.04, innerH / (g.rows + gantry + footer)))));
     g.pitch = Math.min(innerW / g.cols, g.cell * 1.6);
     g.wellW = Math.min(g.pitch - 6, g.cell * 1.14);
-    g.r = Math.min(g.cell * 0.4, g.wellW * 0.42);
     const blockW = g.pitch * g.cols;
     const blockH = labelH + (g.rows + gantry + footer) * g.cell;
     g.left = Math.floor((width - blockW) / 2);
@@ -169,25 +178,21 @@ export class RacksRenderer extends KitBoard<RacksState> {
     g.topY = g.panelTop + pad + labelH + gantry * g.cell;
     g.baseY = g.topY + g.rows * g.cell;
 
+    // Bare ground under the strip, the rail and the racks, with one hairline round it.
     this.bg.clear();
-    drawPanel(this.bg, g.left - pad, g.panelTop, blockW + pad * 2, blockH + pad * 2, Math.max(10, g.cell * 0.3));
+    this.paintGround(this.bg, g.left - pad, g.panelTop, blockW + pad * 2, blockH + pad * 2);
     // The rail the crate's trolley hangs from.
-    const railH = Math.max(4, g.cell * 0.1);
-    this.bg.roundRect(g.left + 2, g.railY - railH / 2, blockW - 4, railH, railH / 2).fill({ color: mix(INK.brass, INK.black, 0.35) });
-    this.bg.roundRect(g.left + 2, g.railY - railH / 2, blockW - 4, railH * 0.4, railH / 2).fill({ color: INK.brass, alpha: 0.7 });
-    for (let r = 0; r < g.cols; r++) {
-      const x = this.colX(r) - g.wellW / 2;
-      // A rack: an open-topped well, a tick for each slot, a brass foot.
-      this.bg.roundRect(x, g.topY - 3, g.wellW, g.rows * g.cell + 6, g.cell * 0.2).fill({ color: INK.well });
-      this.bg.roundRect(x, g.topY - 3, g.wellW, g.rows * g.cell + 6, g.cell * 0.2).stroke({ width: 1.5, color: INK.line });
-      for (let i = 1; i < g.rows; i++) this.bg.rect(x + g.wellW * 0.12, g.baseY - i * g.cell - 0.5, g.wellW * 0.76, 1).fill({ color: INK.line, alpha: 0.7 });
-      this.bg.roundRect(x - 2, g.baseY + 2, g.wellW + 4, Math.max(3, g.cell * 0.08), 2).fill({ color: INK.brass, alpha: 0.6 });
-    }
+    const railH = Math.max(3, g.cell * 0.07);
+    this.bg.roundRect(g.left + 2, g.railY - railH / 2, blockW - 4, railH, railH / 2).fill({ color: INK.line });
+    // A rack is the foot its cells stand on; its empty slots are dots, drawn with the overlays.
+    const footH = Math.max(3, g.cell * 0.08);
+    for (let r = 0; r < g.cols; r++) this.bg.roundRect(this.colX(r) - g.wellW / 2, g.baseY + 2, g.wellW, footH, footH / 2).fill({ color: INK.line });
     if (this.label) {
       this.label.style.fontSize = Math.max(12, Math.min(19, Math.round(g.cell * 0.34)));
       this.label.position.set(width / 2, g.panelTop + pad + labelH * 0.46);
       this.label.style.wordWrap = false;
     }
+    this.refused = null;
     if (this.badgeText) this.badgeText.style.fontSize = Math.max(11, Math.round(g.cell * 0.4));
     this.syncTexts();
     this.cursor = Math.min(this.cursor, g.cols - 1);
@@ -201,11 +206,11 @@ export class RacksRenderer extends KitBoard<RacksState> {
   private syncTexts(): void {
     const g = this.geo;
     while (this.digits.length < g.cols) {
-      const d = new Text({ text: String(this.digits.length + 1), style: { fontFamily: FONT, fontSize: 12, fontWeight: "700", fill: INK.dim } });
+      const d = new Text({ text: String(this.digits.length + 1), style: { fontFamily: FONT_MONO, fontSize: 12, fontWeight: "700", fill: INK.dim }, resolution: 2 });
       d.anchor.set(0.5);
       this.digits.push(d);
       this.textLayer.addChild(d);
-      const p = new Text({ text: "", style: { fontFamily: FONT, fontSize: 14, fontWeight: "900", fill: INK.gold, stroke: { color: 0x000000, width: 3 } } });
+      const p = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 14, fontWeight: "700", fill: INK.cream, stroke: { color: INK.ground, width: 3, join: "round" } }, resolution: 2 });
       p.anchor.set(0.5);
       p.visible = false;
       this.previews.push(p);
@@ -223,13 +228,10 @@ export class RacksRenderer extends KitBoard<RacksState> {
     });
   }
 
-  private texture(kind: number): Texture {
-    const g = this.geo;
-    return this.bake(`${kind}:${this.showMarks ? 1 : 0}`, g.cell, (gr) => {
-      if (this.sprite(gr, spriteName("cell", kind), 0, 0, g.r * 2.2)) {
-        if (this.showMarks) drawMark(gr, kind, 0, 0, g.r);
-      } else drawPiece(gr, kind, 0, 0, g.r, { marks: this.showMarks });
-    });
+  /** A fuel cell's picture: its outline says its kind. `ghost` is the same outline in the hairline's colour, for a place a cell will take. */
+  private texture(kind: number, ghost = false): Texture {
+    const k = racksKind(kind);
+    return this.piece(`${ghost ? "ghost" : "cell"}:${k.id}`, this.geo.cell, ghost ? "line" : k.color, k.paint);
   }
 
   // ---- drawing a state
@@ -275,6 +277,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
       this.pieces.delete(id);
     }
     this.lifted = null;
+    this.playing = null;
     this.hang(state.crate, 0, 1);
     this.refreshLabel();
     this.touchView();
@@ -293,11 +296,10 @@ export class RacksRenderer extends KitBoard<RacksState> {
     const trolleyBottom = g.railY + trolleyH * 0.62;
     const b = this.crateBack;
     b.clear();
-    // Two cables from the trolley to the frame, then the frame: an open cage, so the cells in it read.
-    for (const side of [-1, 1]) b.rect(side * w * 0.32 - 1, trolleyBottom - 2, 2, top - trolleyBottom + 4).fill({ color: mix(CRATE, INK.black, 0.3) });
-    b.roundRect(-w / 2, top, w, h, g.cell * 0.14).fill({ color: mix(CRATE, INK.black, 0.72), alpha: 0.85 });
-    b.roundRect(-w / 2, top, w, h, g.cell * 0.14).stroke({ width: Math.max(2, g.cell * 0.06), color: CRATE });
-    for (let j = 1; j < n; j++) b.rect(-w / 2 + 2, bottom - Math.max(2, g.cell * 0.05) - j * g.cell * CRATE_SCALE - 0.5, w - 4, 1).fill({ color: CRATE, alpha: 0.45 });
+    // Two cables from the trolley to the box, then the box: a flat raised panel the cells sit on.
+    const cable = Math.max(2, g.cell * 0.05);
+    for (const side of [-1, 1]) b.rect(side * w * 0.3 - cable / 2, trolleyBottom - 2, cable, top - trolleyBottom + 4).fill({ color: INK.line });
+    b.roundRect(-w / 2, top, w, h, g.cell * 0.18).fill({ color: INK.raised });
     b.position.set(this.colX(crate.rack), dy);
     b.alpha = alpha;
     this.crateBadge.position.set(this.colX(crate.rack), g.railY + dy);
@@ -306,23 +308,17 @@ export class RacksRenderer extends KitBoard<RacksState> {
     this.drawBadge();
   }
 
-  /** The trolley on the rail, with the moves left on it: brass, red when the crate has no room, gold when it will ship its rack. */
+  /** The trolley on the rail, with the moves left on it: dim, danger when the crate has no room, cream when it will ship its rack. */
   private drawBadge(): void {
     const g = this.geo;
     const state = this.state;
     const w = g.cell * 0.86;
     const h = g.cell * 0.56;
-    const tight = state !== null && !racksCrateFits(state);
+    const fits = state === null || racksCrateFits(state);
     const ships = state !== null && racksCrateWouldShip(state);
-    const color = tight ? INK.danger : ships ? INK.gold : INK.brass;
     this.badgeBox.clear();
-    this.badgeBox.roundRect(-w / 2, -h / 2 + 1.5, w, h, h * 0.3).fill({ color: INK.black, alpha: 0.35 });
-    this.badgeBox.roundRect(-w / 2, -h / 2, w, h, h * 0.3).fill({ color });
-    this.badgeBox.roundRect(-w / 2, -h / 2, w, h, h * 0.3).stroke({ width: Math.max(1.5, g.cell * 0.05), color: mix(color, INK.black, 0.5) });
-    if (this.badgeText) {
-      this.badgeText.text = this.hung ? String(this.hung.lands) : "";
-      this.badgeText.style.fill = tight ? INK.white : INK.black;
-    }
+    this.badgeBox.roundRect(-w / 2, -h / 2, w, h, h * 0.3).fill({ color: ink(trolleyColor(fits, ships)) });
+    if (this.badgeText) this.badgeText.text = this.hung ? String(this.hung.lands) : "";
     const at = this.hung ? `${Math.round(this.colX(this.hung.rack))},${Math.round(this.hangY(0))}` : "";
     this.app.canvas.setAttribute("data-crate", at);
   }
@@ -339,13 +335,13 @@ export class RacksRenderer extends KitBoard<RacksState> {
     if (state.combo > 0) {
       const next = racksNextShipment(state);
       this.label.text = l.chainLive(next.chain, next.points);
-      this.label.style.fill = INK.gold;
+      this.label.style.fill = INK.cream;
     } else if (!racksCrateFits(state)) {
       this.label.text = l.noRoom(n);
       this.label.style.fill = INK.danger;
     } else if (racksCrateWouldShip(state)) {
       this.label.text = l.willShip(n);
-      this.label.style.fill = INK.gold;
+      this.label.style.fill = INK.cream;
     } else {
       this.label.text = l.lands(n);
       this.label.style.fill = INK.dim;
@@ -396,6 +392,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
     const g = this.geo;
     const l = this.opts.labels;
     const model = prev.racks.map((r) => r.map((c) => c.id));
+    this.playing = prev.racks.map((r, i) => Math.max(r.length, state.racks[i]!.length));
     const at = (ms: number, fn: () => void): void => {
       if (ms <= 0) fn();
       else this.tweens.after(ms, fn);
@@ -410,35 +407,22 @@ export class RacksRenderer extends KitBoard<RacksState> {
           src.splice(src.length - e.ids.length, e.ids.length);
           const base = model[e.to]!.length;
           model[e.to]!.push(...e.ids);
-          const arc = g.cell * (0.7 + 0.12 * Math.abs(e.to - e.from));
+          // The group goes across as one, straight to its slots.
           e.ids.forEach((id, i) => {
             const v = this.pieces.get(id);
             if (!v) return;
             v.s.zIndex = 3;
-            const x0 = v.s.x;
-            const y0 = v.s.y;
-            const x1 = this.colX(e.to);
-            const y1 = this.slotY(base + i);
-            this.tweens.run(
-              170,
-              (k) => {
-                v.s.position.set(x0 + (x1 - x0) * k, y0 + (y1 - y0) * k - Math.sin(Math.PI * k) * arc);
-                v.s.scale.set(1 + 0.1 * Math.sin(Math.PI * k));
-              },
-              { delay: t + i * 22, ease: ease.inOutCubic, done: () => (v.s.zIndex = 0) },
-            );
+            this.tweens.move(v.s, { x: this.colX(e.to), y: this.slotY(base + i), scale: 1 }, { delay: t, done: () => (v.s.zIndex = 0) });
           });
           at(t, () => (ships ? sfx.swap() : sfx.swapQuiet()));
-          t += 170 + (e.ids.length - 1) * 22 + 10;
+          t += MOTION.move + 10;
           break;
         }
         case "ship": {
           const ids = model[e.rack]!.slice().reverse();
           model[e.rack] = [];
           const x = this.colX(e.rack);
-          const color = kindStyle(e.kind).color;
-          at(t, () => this.flashRack(e.rack, INK.gold));
-          // The cells slide out of the top, top first, on a rising run of notes.
+          // The cells shrink to nothing, top first, on a rising run of notes.
           ids.forEach((id, i) => {
             const v = this.pieces.get(id);
             if (!v) return;
@@ -446,21 +430,19 @@ export class RacksRenderer extends KitBoard<RacksState> {
             v.s.zIndex = 2;
             const start = t + 70 + i * 55;
             this.tweens.after(start, () => sfx.pop(Math.min(9, (e.chain - 1) * 2 + i)));
-            this.tweens.to(v.s, { y: g.panelTop - g.cell, alpha: 0.1 }, 250, { delay: start, ease: ease.inCubic, done: () => v.s.destroy() });
+            this.tweens.remove(v.s, { delay: start, done: () => v.s.destroy() });
           });
           const done = t + 70 + (ids.length - 1) * 55 + 130;
           this.tweens.after(done, () => {
             sfx.clear(e.chain, ids.length);
-            this.fx.popup(x, g.topY + g.cell * 0.4, `+${e.points}`, INK.gold, Math.max(16, g.cell * (e.chain >= 2 ? 0.62 : 0.46)));
-            this.fx.burst(x, g.topY, color, 8 + e.chain * 3, 0.22, 4);
-            this.fx.ring(x, g.topY + g.cell * 0.2, color, g.cell * 0.3, g.cell * (1 + e.chain * 0.3), 420, 3);
+            this.fx.popup(x, g.topY + g.cell * 0.4, `+${e.points}`, INK.cream, Math.max(16, g.cell * (e.chain >= 2 ? 0.62 : 0.46)));
             if (e.chain >= 2) {
-              this.fx.say(l.chain(e.chain), INK.gold);
+              this.fx.say(l.chain(e.chain));
               sfx.multi(e.chain);
-            } else if (e.byCrate) this.fx.say(l.delivered, CRATE);
-            if (e.chain >= 3) {
-              this.fx.shake(Math.min(12, 3 + e.chain * 2), 260);
-              this.fx.flash(INK.gold, 0.14, 260);
+            } else if (e.byCrate) this.fx.say(l.delivered);
+            if (e.chain >= BEAT_CHAIN) {
+              // The beat is the chain's: three shipments in a row, and stronger for each one after.
+              this.beat(0.5 + Math.min(0.5, (e.chain - BEAT_CHAIN) * 0.25));
               sfx.streak(e.chain * 2);
             }
           });
@@ -468,26 +450,22 @@ export class RacksRenderer extends KitBoard<RacksState> {
           break;
         }
         case "spill": {
-          // The crate is already on its way down (the land that follows starts now); the rack bursts as it hits.
+          // The crate is already on its way down (the land that follows starts now); the rack's cells go as it hits.
           const ids = model[e.rack]!.slice();
           model[e.rack] = [];
           const x = this.colX(e.rack);
-          const hit = t + 160;
-          ids.forEach((id, i) => {
+          const hit = t + MOTION.move;
+          ids.forEach((id) => {
             const v = this.pieces.get(id);
             if (!v) return;
             this.pieces.delete(id);
             v.s.zIndex = 2;
-            const dir = (((id * 7 + i * 3) % 5) - 2) / 2 || 0.5;
-            this.tweens.to(v.s, { x: v.s.x + dir * g.cell * 1.8, y: g.panelBottom + g.cell, rotation: dir * 2.6, alpha: 0 }, 430, { delay: hit + i * 16, ease: ease.inCubic, done: () => v.s.destroy() });
+            this.tweens.remove(v.s, { delay: hit, done: () => v.s.destroy() });
           });
           this.tweens.after(hit, () => {
             sfx.crack(true);
-            this.flashRack(e.rack, INK.danger);
-            this.fx.flash(INK.danger, 0.2, 320);
-            this.fx.shake(9, 320);
+            this.refuse(e.rack);
             this.fx.say(l.smashed, INK.danger);
-            this.fx.burst(x, g.baseY - g.cell, INK.danger, 14, 0.3, 4);
             if (e.penalty > 0) this.fx.popup(x, g.topY + g.cell * 0.6, `-${e.penalty}`, INK.danger, Math.max(16, g.cell * 0.5));
           });
           this.tweens.after(hit + 130, () => sfx.bad());
@@ -503,25 +481,21 @@ export class RacksRenderer extends KitBoard<RacksState> {
             const v = this.pieces.get(id);
             if (!v) return;
             v.s.zIndex = 1;
-            this.tweens.to(v.s, { x, y: this.slotY(base + j), scale: 1 }, 190, { delay: start, ease: ease.inCubic, done: () => (v.s.zIndex = 0) });
+            this.tweens.move(v.s, { x, y: this.slotY(base + j), scale: 1 }, { delay: start, done: () => (v.s.zIndex = 0) });
           });
-          // The empty frame is hauled back up the cables.
+          // The empty box and its trolley go.
           at(start, () => (this.hung = null));
-          this.tweens.to(this.crateBack, { alpha: 0, y: -g.cell * 0.4 }, 150, { delay: start });
-          this.tweens.to(this.crateBadge, { alpha: 0 }, 150, { delay: start });
-          this.tweens.after(start + 190, () => {
-            sfx.thud();
-            this.fx.burst(x, this.slotY(base) + g.cell * 0.4, INK.dim, 6, 0.14, 3);
-            if (e.called) this.fx.shake(3, 140);
-          });
+          this.tweens.move(this.crateBack, { alpha: 0 }, { delay: start });
+          this.tweens.move(this.crateBadge, { alpha: 0 }, { delay: start });
+          this.tweens.after(start + MOTION.move, () => sfx.thud());
           landed = true;
-          t = start + 210;
+          t = start + MOTION.move + 20;
           break;
         }
         case "deal": {
-          // The next crate runs out along the rail and drops to the end of its cables.
+          // The next crate comes down to the end of its cables.
           const crate = e.crate;
-          const rise = g.cell * 0.9;
+          const rise = g.cell * 0.5;
           const views = crate.cells.map((c, j) => {
             const v = this.ensure(c);
             this.place(v, this.colX(crate.rack), this.hangY(j) - rise, CRATE_SCALE);
@@ -532,10 +506,10 @@ export class RacksRenderer extends KitBoard<RacksState> {
             this.hang(crate, -rise, 0);
             sfx.tick(false);
           });
-          views.forEach((v, j) => this.tweens.to(v.s, { y: this.hangY(j), alpha: 1 }, 210, { delay: t + 1, ease: ease.outCubic }));
-          this.tweens.to(this.crateBack, { y: 0, alpha: 1 }, 210, { delay: t + 1, ease: ease.outCubic });
-          this.tweens.to(this.crateBadge, { y: g.railY, alpha: 1 }, 210, { delay: t + 1, ease: ease.outCubic });
-          t += 215;
+          views.forEach((v, j) => this.tweens.move(v.s, { y: this.hangY(j), alpha: 1 }, { delay: t + 1 }));
+          this.tweens.move(this.crateBack, { y: 0, alpha: 1 }, { delay: t + 1 });
+          this.tweens.move(this.crateBadge, { y: g.railY, alpha: 1 }, { delay: t + 1 });
+          t += MOTION.move + 5;
           break;
         }
       }
@@ -545,9 +519,8 @@ export class RacksRenderer extends KitBoard<RacksState> {
       const lands = state.crate.lands;
       if (this.hung) this.hung = { ...this.hung, lands };
       this.drawBadge();
-      this.crateBadge.scale.set(1.35);
-      this.tweens.to(this.crateBadge, { scale: 1 }, 220, { ease: ease.outCubic });
       sfx.tick(lands <= 1);
+      this.refreshLabel();
     }
     if (prev.combo >= 2 && state.combo === 0 && !report.events.some((e) => e.type === "spill")) at(t, () => sfx.streakLost());
     // Whatever the tweens did, the racks end as the engine holds them.
@@ -557,8 +530,9 @@ export class RacksRenderer extends KitBoard<RacksState> {
     });
   }
 
-  private flashRack(rack: number, color: number): void {
-    this.glow[rack] = { color, k: 1 };
+  /** Ring a rack in danger for a moment: it would not take the group, or a crate smashed it. */
+  private refuse(rack: number): void {
+    this.refused = { rack, until: this.time + REFUSED_MS };
   }
 
   /** What is drawn, read back off the sprites: the racks column by column, bottom first, then the crate and the count on its badge. */
@@ -592,79 +566,90 @@ export class RacksRenderer extends KitBoard<RacksState> {
     u.clear();
     o.clear();
     for (const p of this.previews) p.visible = false;
+    for (const s of this.ghosts) s.visible = false;
     if (!state) return;
     const well = (rack: number): [number, number, number, number, number] => [this.colX(rack) - g.wellW / 2, g.topY - 3, g.wellW, g.rows * g.cell + 6, g.cell * 0.2];
     const settled = !this.busy;
-    const pulse = 0.5 + 0.5 * Math.sin(this.time / 170);
-
-    this.glow.forEach((f, rack) => {
-      if (!f || f.k <= 0 || rack >= g.cols) return;
-      u.roundRect(...well(rack)).fill({ color: f.color, alpha: 0.45 * f.k });
-    });
+    const ringW = Math.max(2, g.cell * 0.07);
+    const lift = this.lifted;
 
     // The marked rack: where the crate's cells will sit, or a warning that they will not.
-    if (settled && !state.finished && this.hung) {
-      const rack = state.crate.rack;
-      const fits = racksCrateFits(state);
+    const marked = settled && !state.finished && this.hung ? state.crate.rack : -1;
+    const fits = racksCrateFits(state);
+    const ghosted = marked >= 0 && fits && (!lift || lift.rack !== marked) ? state.crate.cells.length : 0;
+
+    // An empty slot is a dot, except where the crate's cells are shown on their way.
+    state.racks.forEach((rack, r) => {
+      for (let i = (this.playing?.[r] ?? rack.length) + (r === marked ? ghosted : 0); i < g.rows; i++) drawDot(u, this.colX(r), this.slotY(i), g.cell);
+    });
+
+    if (this.refused && this.time < this.refused.until && this.refused.rack < g.cols) u.roundRect(...well(this.refused.rack)).stroke({ width: ringW, color: INK.danger });
+
+    if (marked >= 0) {
       const ships = racksCrateWouldShip(state);
-      const color = fits ? (ships ? INK.gold : CRATE) : INK.danger;
-      const x = this.colX(rack);
-      if (!fits) u.roundRect(...well(rack)).fill({ color: INK.danger, alpha: 0.1 + 0.12 * pulse });
-      u.roundRect(...well(rack)).stroke({ width: fits ? 2 : 3, color, alpha: fits ? 0.75 : 0.6 + 0.4 * pulse });
+      const x = this.colX(marked);
+      // Danger round a rack the crate will smash; cream round one it will ship. A rack it only lands on has no ring.
+      if (!fits) u.roundRect(...well(marked)).stroke({ width: ringW, color: INK.danger });
+      else if (ships) u.roundRect(...well(marked)).stroke({ width: ringW, color: INK.cream });
       // A chevron under the crate: this is where it comes down.
-      const cy = g.topY - g.cell * 0.3 + (fits ? 0 : pulse * g.cell * 0.06);
+      const cy = g.topY - g.cell * 0.3;
       const cw = g.cell * 0.2;
-      o.poly([x - cw, cy - cw * 0.5, x + cw, cy - cw * 0.5, x, cy + cw * 0.6]).fill({ color, alpha: 0.9 });
-      const lift = this.lifted;
-      if (fits && (!lift || lift.rack !== rack)) {
-        const base = state.racks[rack]!.length;
-        state.crate.cells.forEach((c, j) => {
-          const y = this.slotY(base + j);
-          if (!this.sprite(u, spriteName("target", c.kind), x, y, g.r * 2, 0.7)) drawPiece(u, c.kind, x, y, g.r * 0.9, { hollow: true, alpha: 0.5 });
-        });
+      o.poly([x - cw, cy - cw * 0.5, x + cw, cy - cw * 0.5, x, cy + cw * 0.6]).fill({ color: ink(trolleyColor(fits, ships)) });
+      const base = state.racks[marked]!.length;
+      for (let j = 0; j < ghosted; j++) {
+        let s = this.ghosts[j];
+        if (!s) {
+          s = new Sprite();
+          s.anchor.set(0.5);
+          this.ghosts[j] = s;
+          this.ghostLayer.addChild(s);
+        }
+        // Textures are dropped at a layout, so a ghost takes its own afresh each time it is shown.
+        s.texture = this.texture(state.crate.cells[j]!.kind, true);
+        s.scale.set(CRATE_SCALE);
+        s.position.set(x, this.slotY(base + j));
+        s.visible = true;
       }
     }
 
-    // The lifted group's rack, and every rack that can take it.
-    const lift = this.lifted;
+    // The lifted group is the player's own: an amber ring round it. Every rack that can take it shows where it would sit.
     if (lift) {
-      u.roundRect(...well(lift.rack)).stroke({ width: 2.5, color: LIFT, alpha: 0.9 });
+      const lowest = this.pieces.get(lift.ids[0]!);
+      if (lowest) {
+        const n = lift.ids.length;
+        o.roundRect(lowest.s.x - g.cell * 0.5, lowest.s.y - (n - 0.5) * g.cell, g.cell, n * g.cell, g.cell * 0.22).stroke({ width: ringW, color: INK.amber });
+      }
       const next = racksNextShipment(state);
       for (let to = 0; to < g.cols; to++) {
         if (to === lift.rack) continue;
-        const n = racksMovable(state, lift.rack, to);
-        if (n === 0) {
-          u.roundRect(...well(to)).fill({ color: INK.black, alpha: 0.28 });
-          continue;
-        }
-        const ships = racksWouldShip(state, lift.rack, to);
-        const color = ships ? INK.gold : LIFT;
-        u.roundRect(...well(to)).fill({ color, alpha: ships ? 0.16 + 0.1 * pulse : 0.1 });
-        u.roundRect(...well(to)).stroke({ width: ships ? 3 : 2, color, alpha: ships ? 0.7 + 0.3 * pulse : 0.55 });
-        if (ships) {
-          const p = this.previews[to];
-          if (p) {
-            p.text = `+${next.points}`;
-            p.visible = true;
-          }
+        if (racksMovable(state, lift.rack, to) === 0) continue;
+        drawDot(o, this.colX(to), this.slotY(state.racks[to]!.length), g.cell * 2, INK.cream);
+        if (!racksWouldShip(state, lift.rack, to)) continue;
+        // A rack the group would complete: ringed in cream, with what the shipment will score.
+        u.roundRect(...well(to)).stroke({ width: ringW, color: INK.cream });
+        const p = this.previews[to];
+        if (p) {
+          p.text = `+${next.points}`;
+          p.visible = true;
         }
       }
     }
 
+    // The keyboard's rack is the player's selection: an amber ring round its number.
     if (this.cursorShown && this.interactive) {
       const x = this.colX(this.cursor);
       const y = g.baseY + g.cell * 0.3;
-      o.roundRect(x - g.cell * 0.3, y - g.cell * 0.2, g.cell * 0.6, g.cell * 0.4, g.cell * 0.12).stroke({ width: 2, color: INK.white, alpha: 0.9 });
+      o.roundRect(x - g.cell * 0.3, y - g.cell * 0.2, g.cell * 0.6, g.cell * 0.4, g.cell * 0.12).stroke({ width: 2, color: INK.amber });
     }
 
+    // A hint is cream, never amber: it is the board's advice, not the player's own mark.
     const hint = this.hint;
     if (hint && settled) {
-      const a = 0.35 + 0.35 * pulse;
+      const a = this.reduced ? 0.8 : 0.55 + 0.4 * Math.sin(this.time / 240);
       if (hint.type === "call" && this.hung) {
         const x = this.colX(this.hung.rack);
-        const top = this.hangY(this.hung.size - 1) - g.cell * 0.5;
-        o.roundRect(x - g.cell * 0.56, top, g.cell * 1.12, g.topY - g.cell * 0.4 - top, g.cell * 0.2).stroke({ width: 3, color: INK.gold, alpha: a });
-        o.circle(x, g.railY, g.cell * 0.56).stroke({ width: 3, color: INK.gold, alpha: a });
+        const top = g.railY - g.cell * 0.4;
+        o.roundRect(x - g.cell * 0.56, top, g.cell * 1.12, g.topY - g.cell * 0.42 - top, g.cell * 0.22).stroke({ width: ringW, color: INK.cream, alpha: a });
       } else if (hint.type === "move") {
         const group = racksTopGroup(state.racks[hint.from]!);
         const n = racksMovable(state, hint.from, hint.to);
@@ -672,27 +657,22 @@ export class RacksRenderer extends KitBoard<RacksState> {
           const len = state.racks[hint.from]!.length;
           const x0 = this.colX(hint.from);
           const yTop = this.slotY(len - 1) - g.cell * 0.5;
-          o.roundRect(x0 - g.wellW / 2 + 2, yTop, g.wellW - 4, n * g.cell, g.cell * 0.2).stroke({ width: 3, color: LIFT, alpha: a });
-          const x1 = this.colX(hint.to);
-          const y1 = this.slotY(state.racks[hint.to]!.length);
-          o.circle(x1, y1, g.r).stroke({ width: 3, color: LIFT, alpha: a });
-          // A line over the tops from the group to where it goes.
-          const peak = g.topY - g.cell * 0.12;
-          o.moveTo(x0, yTop - 2).lineTo(x0, peak).lineTo(x1, peak).lineTo(x1, y1 - g.r - 2).stroke({ width: 2.5, color: LIFT, alpha: a * 0.8, cap: "round", join: "round" });
+          o.roundRect(x0 - g.cell * 0.5, yTop, g.cell, n * g.cell, g.cell * 0.22).stroke({ width: ringW, color: INK.cream, alpha: a });
+          o.circle(this.colX(hint.to), this.slotY(state.racks[hint.to]!.length), g.cell * 0.09).fill({ color: INK.cream, alpha: a });
         }
       }
     }
   }
 
   protected override update(dt: number): void {
-    for (const f of this.glow) if (f && f.k > 0) f.k = Math.max(0, f.k - dt / 420);
-    // The lifted group floats: a slow bob over its rack, or under the finger while it is dragged.
+    // The lifted group floats over its rack, or follows the finger while it is dragged.
     const lift = this.lifted;
     if (lift && this.state) {
       const g = this.geo;
       const len = this.state.racks[lift.rack]!.length;
       const n = lift.ids.length;
-      const bob = Math.sin(this.time / 210) * g.cell * 0.035;
+      lift.age += dt * this.tweens.rate;
+      const k = 1 - (1 - Math.min(1, lift.age / MOTION.move)) ** 3;
       const drag = this.drag && this.drag.moved ? this.drag : null;
       lift.ids.forEach((id, i) => {
         const v = this.pieces.get(id);
@@ -702,12 +682,11 @@ export class RacksRenderer extends KitBoard<RacksState> {
           const x = Math.max(g.left + half, Math.min(g.left + g.pitch * g.cols - half, drag.x));
           const y = Math.max(g.railY + g.cell * n, Math.min(g.baseY - half, drag.y - g.cell * 0.9));
           v.s.position.set(x, y - i * g.cell);
-        } else v.s.position.set(this.colX(lift.rack), this.slotY(len - n + i) - g.cell * 0.4 + bob);
+        } else v.s.position.set(this.colX(lift.rack), this.slotY(len - n + i) - g.cell * LIFT_RISE * k);
       });
     }
-    this.drawBadgePulse();
     this.drawOverlays();
-    // An action worth taking pulses after a pause, in rounds that allow hints.
+    // An action worth taking is marked after a pause, in rounds that allow hints.
     if (!this.interactive || !this.hints || !this.state || this.state.finished || this.lifted || this.busy) {
       this.idle = 0;
       this.hint = null;
@@ -719,15 +698,6 @@ export class RacksRenderer extends KitBoard<RacksState> {
       this.hintFor = this.state;
       this.hint = racksHint(this.state);
     }
-  }
-
-  /** The trolley throbs when the crate has no room, faster on its last move. */
-  private drawBadgePulse(): void {
-    const state = this.state;
-    if (!state || this.busy || !this.hung || state.finished) return;
-    if (racksCrateFits(state)) return;
-    const rate = state.crate.lands <= 1 ? 90 : 170;
-    this.crateBadge.scale.set(1 + 0.08 * (0.5 + 0.5 * Math.sin(this.time / rate)));
   }
 
   // ---- lifting and setting down
@@ -756,12 +726,10 @@ export class RacksRenderer extends KitBoard<RacksState> {
     }
     this.dropLift();
     const ids = cells.slice(cells.length - group.count).map((c) => c.id);
-    this.lifted = { rack, ids };
+    this.lifted = { rack, ids, age: 0 };
     for (const id of ids) {
       const v = this.pieces.get(id);
-      if (!v) continue;
-      v.s.zIndex = 3;
-      v.s.scale.set(1.1);
+      if (v) v.s.zIndex = 3;
     }
     this.idle = 0;
     this.hint = null;
@@ -780,7 +748,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
       return false;
     }
     if (racksMovable(state, lift.rack, to) === 0) {
-      this.flashRack(to, INK.danger);
+      this.refuse(to);
       sfx.bump();
       return false;
     }

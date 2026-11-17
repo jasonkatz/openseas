@@ -8,8 +8,7 @@ export interface RacksBoardProps {
   state: RacksState;
   version?: number;
   interactive: boolean;
-  showMarks: boolean;
-  /** Pulse an action worth taking after a pause: on for practice, off for recorded rounds. */
+  /** Mark an action worth taking after a pause: on for practice, off for recorded rounds. */
   hints: boolean;
   onMove(from: number, to: number): void;
   onCall(): void;
@@ -30,7 +29,6 @@ export function RacksBoard(props: RacksBoardProps) {
           onFrame: () => latest.current.onFrame(),
         },
         {
-          showMarks: props.showMarks,
           hints: props.hints,
           labels: {
             lands: (moves) => t(moves === 1 ? "racks.strip_lands_one" : "racks.strip_lands", { moves }),

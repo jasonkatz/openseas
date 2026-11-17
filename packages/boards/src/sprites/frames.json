@@ -29,16 +29,6 @@
     "lock",
     "brackets"
   ],
-  "racks": [
-    "cell-gold",
-    "cell-ice",
-    "cell-ember",
-    "cell-moss",
-    "target-gold",
-    "target-ice",
-    "target-ember",
-    "target-moss"
-  ],
   "cutting": [
     "ore-gold",
     "ore-ice",

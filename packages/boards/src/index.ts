@@ -59,4 +59,6 @@ export { TugBoard, type TugBoardProps } from "./tug/TugBoard.jsx";
 export { TugBlockIcon, TugClampIcon, TugPodIcon } from "./tug/TugIcon.jsx";
 export { TUG_PODS } from "./tug/pieces.js";
 export { RacksBoard, type RacksBoardProps } from "./racks/RacksBoard.jsx";
+export { RacksCellIcon, RacksCrateIcon } from "./racks/CellIcon.jsx";
+export { RACKS_KINDS } from "./racks/pieces.js";
 export { CuttingBoard, type CuttingBoardProps } from "./cutting/CuttingBoard.jsx";
