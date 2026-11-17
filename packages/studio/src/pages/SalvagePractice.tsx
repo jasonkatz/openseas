@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { SALVAGE_CRATE, salvageStreakPercentAt, summarizeSalvage, type SalvageConfig, type SalvageMove, type SalvageState } from "@openseas/engine";
-import { content, KindIcon, KINDS, SalvageBoard, SpriteIcon, spriteName, t } from "@openseas/boards";
+import { content, SALVAGE_KINDS, SalvageBoard, SalvageCouplerIcon, SalvageCrateIcon, SalvageDebrisIcon, t } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { SALVAGE } from "../prototypes/salvage.js";
 
@@ -10,7 +10,6 @@ const salvage = content.puzzles.salvage;
 
 /** Salvage (prototype, ADR 0036): the shared board in the studio's frame. */
 export function SalvagePractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<SalvageState, SalvageMove, SalvageConfig>({
     puzzle: "salvage",
     def: SALVAGE.def,
@@ -26,7 +25,7 @@ export function SalvagePractice() {
   const onTether = useCallback((cells: readonly number[], loop: boolean) => void api.apply({ type: "tether", cells: [...cells], loop }), [api]);
 
   const crates = shown.cells.filter((p) => p.kind === SALVAGE_CRATE).length;
-  const kinds = KINDS.slice(0, cfg.kinds);
+  const kinds = SALVAGE_KINDS.slice(0, cfg.kinds);
 
   return (
     <PracticeShell
@@ -92,59 +91,28 @@ export function SalvagePractice() {
           <ul className="kinds">
             {kinds.map((k, i) => (
               <li key={k.id}>
-                <KindIcon kind={i} marks={showMarks} sprite={{ puzzle: "salvage", name: spriteName("debris", i) }} />
+                <SalvageDebrisIcon kind={i} />
                 <span>{t(`salvage.kind.${k.id}`)}</span>
               </li>
             ))}
           </ul>
           <ul className="specials">
             <li>
-              <CrateIcon />
+              <SalvageCrateIcon />
               <span>{t("salvage.legend_crate")}</span>
             </li>
             <li>
-              <CouplerIcon />
+              <SalvageCouplerIcon />
               <span>{t("salvage.legend_coupler")}</span>
             </li>
           </ul>
           <p className="muted small proto-note">{t("salvage.legend_floor")}</p>
           <p className="muted small proto-note">{t("salvage.streak_note")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
       board={(interactive) => (
-        <SalvageBoard state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={studio.hints} onTether={onTether} onFrame={api.markRendered} />
+        <SalvageBoard state={shown} version={api.version} interactive={interactive} hints={studio.hints} onTether={onTether} onFrame={api.markRendered} />
       )}
     />
   );
 }
-
-function CrateIcon() {
-  const vector = (
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
-      <rect x="3" y="3" width="18" height="18" rx="2" fill="#b9793c" stroke="#53361b" strokeWidth="1.4" />
-      <path d="M7 3v18M17 3v18" stroke="#5d3e1e" strokeWidth="2.2" />
-      <circle cx="12" cy="12" r="3" fill="#d4a548" stroke="#6a5324" />
-    </svg>
-  );
-  return <SpriteIcon puzzle="salvage" name="crate" fallback={vector} />;
-}
-
-function CouplerIcon() {
-  const vector = (
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
-      {[
-        [6, 6],
-        [18, 6],
-        [6, 18],
-        [18, 18],
-      ].map(([x, y]) => (
-        <circle key={`${x},${y}`} cx={x} cy={y} r="2.6" fill="#e9eef7" stroke="#747a85" />
-      ))}
-      <circle cx="12" cy="12" r="7.5" fill="#e9eef7" stroke="#747a85" strokeWidth="1.2" />
-      <circle cx="12" cy="12" r="3.6" fill="#142642" stroke="#747a85" />
-    </svg>
-  );
-  return <SpriteIcon puzzle="salvage" name="coupler" fallback={vector} />;
-}
-

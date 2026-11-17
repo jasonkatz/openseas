@@ -46,7 +46,6 @@ for (const puzzle of ["salvage"]) {
     await page.goto(`/${puzzle}?seed=assets-1`);
     await page.getByTestId("play-start").click();
     const canvas = page.getByTestId(`${puzzle}-canvas`);
-    await expect(canvas).toHaveAttribute("data-sprite-atlas", puzzle);
     await expectViewMatchesState(page, puzzle);
     const before = await page.getByTestId(`${puzzle}-board`).getAttribute("data-board");
 
@@ -54,10 +53,7 @@ for (const puzzle of ["salvage"]) {
     await expect(page.getByTestId("tuning")).toBeHidden();
     const names = [...frames[puzzle]!];
     for (const name of names) await expect(page.getByTestId(`frame-${name}`)).toHaveCount(1);
-    // The page's own legend, with its marks toggle: each kind seen with marks and without (rule 6).
-    const legend = page.getByTestId("sprite-legend");
-    await legend.getByTestId("toggle-marks").check();
-    await legend.getByTestId("toggle-marks").uncheck();
+    await expect(page.getByTestId("sprite-legend")).toBeVisible();
 
     const frame = names[0]!;
     expect(await href(page, frame)).not.toMatch(/^blob:/);
@@ -69,7 +65,6 @@ for (const puzzle of ["salvage"]) {
     await expect(page.getByTestId(`frame-pick-${frame}`)).toContainText("take.png");
     expect(await href(page, frame)).toMatch(/^blob:/);
     // The board was made again, on the same round, and still draws the engine's board.
-    await expect(canvas).toHaveAttribute("data-sprite-atlas", puzzle);
     await expectViewMatchesState(page, puzzle);
     expect(await page.getByTestId(`${puzzle}-board`).getAttribute("data-board")).toBe(before);
     await testInfo.attach(`${puzzle}-tried`, { body: await page.screenshot(), contentType: "image/png" });
@@ -160,7 +155,6 @@ test("a turn's takes appear in their rows, a tap picks one into the draft and on
   await expect(page.getByTestId(`frame-${frame}`)).toHaveAttribute("data-picked", mine);
   await expect(page.getByTestId(`frame-pick-${frame}`)).toHaveText("Picked: take 1");
   await expect.poll(() => href(page, frame)).toBe(`${SERVICE}/takes/${mine}`);
-  await expect(page.getByTestId("salvage-canvas")).toHaveAttribute("data-sprite-atlas", "salvage");
   await expectViewMatchesState(page, "salvage");
   await expect.poll(() => s.drafts[0]!.numbers.picks).toEqual({ sprites: { [frame]: mine }, sounds: {} });
   // The numbers are untouched, and the address stays bare: the service keeps the draft.
@@ -221,19 +215,14 @@ test("on a service older than picks, a pick stays in the address and the draft i
   expect(s.writes).toEqual([]);
 });
 
-test("a link's pick is loaded and drawn on /play, and a take that cannot be read leaves the shipped art and says so", async ({ page }) => {
+test("a link's pick is loaded on /play, and a take that cannot be read says so", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
   const frame = frames.salvage![0]!;
   const good = "a".repeat(64);
   const gone = "d".repeat(64);
   const asked: string[] = [];
-  // The legend's icons are cut from the same atlas the board draws: how they look with nothing picked.
-  const tiles = (): Promise<string> => page.locator("[data-testid='hud-panel'] svg.kind-icon image").evaluateAll((imgs) => imgs.map((i) => i.getAttribute("href")).join("|"));
-    await page.goto("/play/salvage?seed=picks-1");
-  await expect(page.getByTestId("salvage-canvas")).toHaveAttribute("data-sprite-atlas", "salvage");
-  const shipped = await tiles();
-  expect(shipped).not.toBe("");
+  await page.goto("/play/salvage?seed=picks-1");
   const picture = await page.getByTestId("play-start").screenshot();
   await page.route(`${SERVICE}/**`, (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -243,24 +232,18 @@ test("a link's pick is loaded and drawn on /play, and a take that cannot be read
 
   await page.goto(`/play/salvage?seed=picks-1&sprite.${frame}=${good}`);
   await page.getByTestId("play-start").click();
-  await expect(page.getByTestId("salvage-canvas")).toHaveAttribute("data-sprite-atlas", "salvage");
   await expectViewMatchesState(page, "salvage");
   await page.getByTestId("toggle-details").click();
   await expect(page.getByTestId("play-picks")).toContainText("1");
   await expect(page.getByTestId("play-picks").locator(".error")).toHaveCount(0);
-  // The puzzle alone asks the service for the take it picks, and nothing else. A kit board's page asks
-  // twice, once for the board and once for its legend's icons.
+  // The puzzle alone asks the service for the take it picks, and nothing else.
   expect([...new Set(asked)]).toEqual([`/takes/${good}`]);
-  // The art is painted from the picked take: the legend's tiles are no longer the shipped ones.
-  await expect.poll(tiles).not.toBe(shipped);
 
   await page.goto(`/play/salvage?seed=picks-1&sprite.${frame}=${gone}&sound.pop=${gone}`);
   await page.getByTestId("play-start").click();
   await expectViewMatchesState(page, "salvage");
   await page.getByTestId("toggle-details").click();
   await expect(page.getByTestId("play-picks").locator(".error")).toContainText("2");
-  // Nothing could be read, so the art is the shipped art.
-  expect(await tiles()).toBe(shipped);
   expect(errors).toEqual([]);
 });
 

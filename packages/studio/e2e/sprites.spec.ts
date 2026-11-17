@@ -1,35 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { boardGeom, expectViewMatchesState } from "./helpers.js";
 
-// Exercise the production build: a working dev URL is not enough for shared-package assets. Each
-// atlas is built from its frame files by the build (ADR 0054) and served under its own name.
-// The prototypes not restyled yet load theirs through the board kit (ADR 0037). The seven boards in the game and
-// the restyled prototypes (Overload, Deflectors, Tug, Racks, Cutting, Scanner, Reactor) draw their pieces in code and load no atlas (ADR 0062), so none is listed here.
-const CORE: string[] = [];
-const PROTOTYPES = ["salvage"];
-
-for (const puzzle of [...CORE, ...PROTOTYPES]) {
-  test(`${puzzle} atlas loads, draws, and survives a resize`, async ({ page }, testInfo) => {
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
-    const image = page.waitForResponse((r) => r.url().includes(`/${puzzle}-`) && r.url().endsWith(".webp"));
-    await page.goto(`/play/${puzzle}?seed=sprite-smoke&start=lab&paused=1`);
-    expect((await image).ok()).toBe(true);
-    const canvas = page.getByTestId(`${puzzle}-canvas`);
-    await expect(canvas).toHaveAttribute("data-sprite-atlas", puzzle);
-    await expect(canvas).toBeVisible();
-    // Let the round reach its first drawn state before capturing the art.
-    await expect(canvas).toHaveAttribute("data-view", /.+/);
-    const viewport = page.viewportSize()!;
-    await page.setViewportSize({ width: viewport.width - 12, height: viewport.height - 12 });
-    await expect(canvas).toBeVisible();
-    // A diagnostic capture must not wait for an animated canvas to become a stable element.
-    // The lab clock is paused; viewport capture also avoids element-screenshot scroll/stability waits.
-    await testInfo.attach(`${puzzle}-sprites`, { body: await page.screenshot(), contentType: "image/png" });
-    await page.setViewportSize(viewport);
-    expect(errors).toEqual([]);
-  });
-}
+// Exercise the production build. Every board, the seven in the game and the eight prototypes,
+// draws its pieces in code and loads no atlas (ADR 0062).
 
 test("a restyled board asks for no atlas and plays on pieces drawn in code", async ({ page }) => {
   const errors: string[] = [];
@@ -183,24 +156,18 @@ test("Scanner, a restyled kit board, asks for no atlas and plays on fog plates d
   expect(errors).toEqual([]);
 });
 
-test("an unavailable atlas falls back to playable procedural art", async ({ page }) => {
+test("Salvage, a restyled kit board, asks for no atlas and plays on debris drawn in code", async ({ page }) => {
   const errors: string[] = [];
+  const images: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.route("**/*.webp", (route) => route.abort());
+  page.on("request", (r) => {
+    if (r.url().endsWith(".webp")) images.push(r.url());
+  });
   await page.goto("/play/salvage?seed=sprite-smoke&start=lab");
   const canvas = page.getByTestId("salvage-canvas");
-  await expect(canvas).toHaveAttribute("data-sprite-atlas", "fallback");
-  await expectViewMatchesState(page, "salvage");
-  expect(errors).toEqual([]);
-});
-
-test("a kit board whose atlas is unavailable draws its pieces in code and still plays", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  await page.route("**/*.webp", (route) => route.abort());
-  await page.goto("/play/salvage?seed=sprite-smoke&start=lab");
-  const canvas = page.getByTestId("salvage-canvas");
-  await expect(canvas).toHaveAttribute("data-sprite-atlas", "fallback");
+  await expect(canvas).toHaveAttribute("data-view", /.+/);
+  await expect(canvas).toHaveAttribute("data-pieces", "drawn");
+  await expect(canvas).not.toHaveAttribute("data-sprite-atlas");
   await expectViewMatchesState(page, "salvage");
   // Haul a line of three by drag: the content field is seven wide, and the deal always holds one.
   const W = 7;
@@ -227,6 +194,7 @@ test("a kit board whose atlas is unavailable draws its pieces in code and still 
   await page.mouse.up();
   await expect(page.getByTestId("hud-moves")).toHaveText("1");
   await expectViewMatchesState(page, "salvage");
+  expect(images).toEqual([]);
   expect(errors).toEqual([]);
 });
 

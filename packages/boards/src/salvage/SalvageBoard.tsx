@@ -8,7 +8,6 @@ export interface SalvageBoardProps {
   state: SalvageState;
   version?: number;
   interactive: boolean;
-  showMarks: boolean;
   /** Pulse a line worth drawing after a pause: on for practice, off for recorded rounds. */
   hints: boolean;
   onTether(cells: readonly number[], loop: boolean): void;
@@ -28,7 +27,6 @@ export function SalvageBoard(props: SalvageBoardProps) {
           onFrame: () => latest.current.onFrame(),
         },
         {
-          showMarks: props.showMarks,
           hints: props.hints,
           labels: {
             preview: (pieces, points) => (points > 0 ? t("salvage.preview", { pieces, points }) : t("salvage.preview_short", { pieces })),

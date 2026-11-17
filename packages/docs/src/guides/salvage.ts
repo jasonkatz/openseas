@@ -24,7 +24,7 @@ export const salvage: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Salvage field: ${c.width} columns and ${c.height} rows of debris in ${word(c.kinds)} shapes, with two loot crates adrift among them and a brass line along the floor.`,
+    alt: `The Salvage field: ${c.width} columns and ${c.height} rows of debris in ${word(c.kinds)} shapes, with two loot crates adrift among them and a hairline under the bottom row for the floor.`,
     caption: "The field at the start of a round. Two loot crates are adrift in the debris.",
   },
   theme: {
@@ -50,7 +50,7 @@ export const salvage: Guide = {
   rulesMedia: {
     kind: "clip",
     name: "first-line",
-    alt: "The pointer drags a tether through five touching pieces of one kind, one step of it diagonal. The five are reeled up to the emitter, the pieces above fall and new debris drifts in.",
+    alt: "The pointer drags a tether through five touching pieces of one kind, one step of it diagonal. The five shrink away one after another, the pieces above fall and new debris drifts in.",
     caption: `A line of five, one step of it diagonal: ${line(5)} points. The strip over the field counts it as you draw.`,
   },
   controls: [
@@ -88,11 +88,11 @@ export const salvage: Guide = {
         },
         {
           title: "The smallest net is a square",
-          body: `Four of a kind in a two by two block is a net: drag round the four and back onto the first. The first piece pulses when the line can close. Even this small one hauls every crate adrift.`,
+          body: `Four of a kind in a two by two block is a net: drag round the four and back onto the first. A ring pulses round the first piece when the line can close. Even this small one hauls every crate adrift.`,
           media: {
             kind: "clip",
             name: "net",
-            alt: "The pointer drags round a two by two block of one kind and back onto its first piece. The line turns gold, both crates on the field are ringed, and they fly in together.",
+            alt: "The pointer drags round a two by two block of one kind and back onto its first piece. The line turns cream, both crates on the field are ringed, the board pulses once and they are hauled together.",
             caption: `Four pieces closed into a net. Both crates come in: ${net(2)} for the pair, and ${closed(4)} for the line.`,
           },
         },
@@ -117,7 +117,7 @@ export const salvage: Guide = {
           media: {
             kind: "clip",
             name: "floor",
-            alt: "A short line is hauled that includes the two pieces directly under a crate. The crate drops two rows onto the brass floor line and is taken, with a small plus thirty popping up.",
+            alt: "A short line is hauled that includes the two pieces directly under a crate. The crate drops two rows onto the floor and is taken, with its small score popping up.",
             caption: `Both pieces under the crate hauled in one line. It hits the floor and goes for ${c.crateFloorPoints}.`,
           },
         },
@@ -152,7 +152,7 @@ export const salvage: Guide = {
           media: {
             kind: "clip",
             name: "coupler",
-            alt: "A tether runs through several pieces of one kind, onto the pale ring of a coupler, and on through several pieces of a different kind. The whole line is hauled as one.",
+            alt: "A tether runs through several pieces of one kind, onto the cream ring of a coupler, and on through several pieces of a different kind. The whole line is hauled as one.",
             caption: "One line, two kinds, joined at the coupler.",
           },
         },
@@ -169,7 +169,7 @@ export const salvage: Guide = {
           media: {
             kind: "clip",
             name: "net-three",
-            alt: "With the streak at its top step and three crates adrift, the pointer closes a loop of five or more pieces. The line turns gold, all three crates are ringed and fly in, and a large score pops up.",
+            alt: "With the streak at its top step and three crates adrift, the pointer closes a loop of five or more pieces. The line turns cream, all three crates are ringed and hauled, the board pulses and a large score pops up.",
             caption: `A loop of five or more at full streak with three adrift. The crates alone pay ${net(3) * streakMax}.`,
           },
         },
