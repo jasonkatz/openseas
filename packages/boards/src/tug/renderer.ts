@@ -95,16 +95,6 @@ export class TugRenderer extends KitBoard<TugState> {
     this.hints = opts.hints;
   }
 
-  /**
-   * The strip's text is measured once a string, so the faces it is set in are loaded before the
-   * first one is drawn: a face that arrives later leaves a label cut to the fallback's width.
-   */
-  override async init(): Promise<void> {
-    const faces = [FONT_MONO, FONT].map((family) => document.fonts?.load(`700 16px ${family}`));
-    await Promise.race([Promise.all(faces), new Promise((r) => window.setTimeout(r, 800))]).catch(() => undefined);
-    await super.init();
-  }
-
   setHints(on: boolean): void {
     this.hints = on;
   }

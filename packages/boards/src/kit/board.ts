@@ -19,7 +19,7 @@ import { Application, CanvasSource, Container, Graphics, Rectangle, Texture, typ
 import { drawSprite, hasSprite, isSpritePuzzle, loadPuzzleSprites, spritesReady, type SpritePuzzle } from "../sprites/atlas.js";
 import { soundsFor } from "../audio.js";
 import { boardSurface } from "../surface.js";
-import type { Token } from "../look/tokens.js";
+import { FONT, type Token } from "../look/tokens.js";
 import { drawGround } from "./art.js";
 import { Fx } from "./fx.js";
 import { pictogramCanvas, type Paint } from "./pictogram.js";
@@ -82,6 +82,10 @@ export abstract class KitBoard<S> {
   }
 
   async init(): Promise<void> {
+    // Text is measured when it is drawn, so the faces must be in before the first layout: a label
+    // measured under a fallback face is clipped once the real one arrives. Never wait long for them.
+    const faces = [FONT.mono, FONT.body].map((family) => document.fonts?.load(`700 16px ${family}`));
+    await Promise.race([Promise.all(faces), new Promise((r) => window.setTimeout(r, 800))]).catch(() => undefined);
     // One decode a page (ADR 0037). An atlas that fails or times out leaves the code-drawn pieces.
     if (this.atlas) await loadPuzzleSprites(this.atlas);
     await this.app.init({ resizeTo: this.host, backgroundAlpha: 0, ...boardSurface(), autoDensity: true, preference: "webgl" });
