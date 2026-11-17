@@ -15,7 +15,7 @@ import {
 } from "@openseas/engine";
 import type { NavigationContent, PieceColor } from "@openseas/content";
 import { starCanvas, type StarCutName, type StarShapeName } from "./stars.js";
-import { boardSurface } from "../surface.js";
+import { boardSurface, retireTextures } from "../surface.js";
 import { FONT, MOTION, RADIUS, blend, ink } from "../look/tokens.js";
 
 export interface NavigationCallbacks {
@@ -497,12 +497,12 @@ export class NavigationRenderer {
     return tex;
   }
 
-  /** Every star is baked for one size, so a new size bakes them again. */
-  private rebake(): void {
+  /** Every star is baked for one size, so a new size bakes them again. Returns the old textures, for the layout to retire once it has redrawn. */
+  private rebake(): Texture[] {
     const old = [...this.textures.values()];
     this.textures.clear();
     for (const v of this.stars.values()) v.s.texture = this.texture(v.kind, false);
-    for (const tex of old) tex.destroy(true);
+    return old;
   }
 
   private kill(v: StarView): void {
@@ -569,7 +569,7 @@ export class NavigationRenderer {
     this.app.canvas.setAttribute("data-geom", `${Math.round(this.cx)},${Math.round(this.cy)},${Math.round(R)}`);
     this.ground.clear().rect(0, 0, w, h).fill(COLORS.ground);
     this.layoutControls(w, h, rowH);
-    this.rebake();
+    const stale = this.rebake();
     this.drawSky();
     this.drawMarkers();
     this.drawLines();
@@ -583,6 +583,7 @@ export class NavigationRenderer {
       v.move = 1;
     }
     this.drawNextBadge();
+    retireTextures(this.app.stage, stale);
   }
 
   /** One row per ring, outermost at the top like the chart, each with a turn button either side; a drop button last. */

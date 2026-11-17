@@ -14,7 +14,7 @@
  */
 import { Application, CanvasSource, Container, Graphics, Rectangle, Texture, type FederatedPointerEvent } from "pixi.js";
 import { soundsFor } from "../audio.js";
-import { boardSurface } from "../surface.js";
+import { boardSurface, retireTextures } from "../surface.js";
 import { FONT, type Token } from "../look/tokens.js";
 import { drawGround } from "./art.js";
 import { Fx } from "./fx.js";
@@ -250,8 +250,11 @@ export abstract class KitBoard<S> {
     this.fx.clear();
     const { width, height } = this.app.screen;
     this.fx.resize(width, height);
-    this.dropBaked();
+    // The new size bakes every piece again; the old textures go once nothing is drawn with them.
+    const old = [...this.baked.values()];
+    this.baked.clear();
     this.layout(width, height);
+    retireTextures(this.app.stage, old);
     this.viewStale = true;
   }
 
