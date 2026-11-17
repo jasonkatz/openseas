@@ -1210,7 +1210,7 @@ Maintained as they arise.
 | Gunnery supply | Pieces come into play around the board | One feeder drops a previewed, bag-shuffled stream down the middle; unsteered pieces roll out a hatch | Playtest found random spawns unreadable; a single stream makes every arrow a clear decision |
 | Gunnery collisions | Pieces bounce off each other | Pieces queue behind each other; only head-on meetings turn both back | Bouncing made routes impossible to predict |
 | Gunnery jammed turret | Takes pieces and wastes them | Turns everything but coolant away | A jam costs the load and the combo; it should not also eat the next pieces |
-| Gunnery route preview | None | A piece headed into a turret shows its route, green or red for what it will do there | Makes a busy deck readable; routes for every piece were noise in playtest |
+| Gunnery route preview | None | A piece headed into a turret shows its route, cream dots if it will load and red crosses if it will jam | Makes a busy deck readable; routes for every piece were noise in playtest |
 | Gunnery deck | One board | A random pick from content maps each round, each checked for no built-in loop and every turret in reach | Playtest: on one board, players found the loop and worked off it all round; a new board keeps them reading routes |
 | Gunnery arrows | Limited | No limit, one per deck tile | Playtest: the cap made routing around the crates a chore; the move log is still bounded by `maxMoves` |
 | Gunnery time | Continuous rolling | One cell per tick of `tickMs`, carried in the move log | Pure engine; the client interpolates between ticks (ADR 0015) |
