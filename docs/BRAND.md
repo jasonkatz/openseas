@@ -85,6 +85,10 @@ capsule.
 - **One silhouette a kind.** No two kinds on a board share an outline. A kind is told from every
   other by its silhouette alone, with the colour taken away: the specimen has a switch that shows
   this, and a new piece is checked with it. There is no marks setting.
+- **Where the rules fix the outline, the cut-out tells the kinds apart.** Some pieces cannot have an
+  outline of their own: blocks that fuse into slabs, plates cut to a footprint, a kind that is two
+  things at once (a star's shape and its colour). There each kind carries one cut-out detail no
+  other kind has, and that detail does the outline's job: it must read with the colour taken away.
 - **Solid fill, no outline.** One colour a piece.
 - **At most one inner detail,** cut out of the piece so the ground shows through. Never a second
   colour.
