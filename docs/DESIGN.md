@@ -336,11 +336,10 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
 
 - Browser only, no install. Phones are first-class.
 - Portrait for all duty puzzles. Landscape for Space Battle and the outpost.
-- Every piece type is distinguishable without color: each kind on a board has a silhouette of its
-  own and is told from every other by that alone (`BRAND.md` section 3, ADR 0061), and special
-  tiles carry an icon and a label. There is no marks setting in the rules any more. The setting that
-  drew a mark on each kind is still in the code of every board M10 has not restyled, and goes from
-  each as it is restyled. Keyboard play for all puzzles on desktop. Screen-reader support for puzzle boards is out of scope.
+- Every piece type is distinguishable without color: each kind on a board is told from every other
+  by its outline, or by its one cut-out where the rules fix the outline (`BRAND.md` section 3, ADR
+  0061). There is no marks setting in the game. The eight prototypes in the studio still have their
+  marks toggle until M10 restyles them. Keyboard play for all puzzles on desktop. Screen-reader support for puzzle boards is out of scope.
 - English only. All player-facing strings go through one message table.
 - No music in v1. Sound effects via WebAudio, voiced for space. A cue plays the puzzle's own
   generated sample where the owner has picked one (ADR 0041), and otherwise its minimal synthesized
@@ -357,30 +356,42 @@ words. Milestone M10 (5.2) restyles the game to it in steps. Until a step lands,
 section, 3.9's lines on sprites, marks and sound, and 3.11's on the world describe what is built,
 and each is rewritten in the PR that changes it.
 
-The game's chrome is restyled (M10's second step): its stylesheets read the palette's tokens from
-`boards/src/look/tokens.ts`, in one typeface, with flat panels and no glass, gradient or shadow, and
-the guides' stylesheet wears the same tokens. `boards/src/styles.css` still carries the older variable
-names for the studio's own sheets, which read them (ADR 0058). Cooling is restyled too: its pieces are pictograms drawn in code on the shared
-palette, with no frame, no atlas and no marks setting (`puzzles/cooling.md`). The rest of this
-paragraph describes the other boards, which are still to come. The six other boards in the game use original generated 2D sprite atlases (ADR 0031): dark outlines,
-restrained shading and distinct silhouettes, read at phone scale. Assets live in `boards`, so the
-game and studio render the same pieces. The atlases and their frames carry the space names, and since
-the owner's sprite pass the art inside is space too: Cooling uses machine parts, Engines keeps
-round riveted discs, Plating uses four brushed metals with engine-defined footprints and grain,
-Navigation keeps its three star silhouettes, Swordfighting keeps square armour blocks, and Space
-Battle uses overhead starfighters, asteroids and gravity wells. The boards around them match: every frame
-is riveted gunmetal with cream trim and orange hazard paint from one shared module
-(`boards/src/hull.ts`), Cooling's heat glows, Engines' shelves are lit metal ledges, Plating's hull
-is riveted panels whose breaches open onto stars, Gunnery's deck is steel plate with vents to
-space, and Space Battle's chart is deep space with nebulae and solar currents. Optional marks stay code-drawn; geometry, hit areas and scores stay in
-code. Arbitrarily sized Swordfight slabs, extra lab colors, board backgrounds, targets and effects
-retain procedural drawing. Each frame is a lossless file of its own and the build packs a puzzle's
-atlas from them (ADR 0054). When an atlas cannot load, every piece falls back to a vector version of
-its sprite from one shared module (`boards/src/parts.ts`), in the same contours and silhouettes, so
-play never waits on an image; Engines' extra lab kind always uses it. The world is not sprites at all: it is drawn in code from primitives (3.11), and it was
-redrawn for space in M7. A frame is redrawn or added alone from a brief kept in `boards/briefs`,
-through the OpenAI Images API, and sounds are made the same way through ElevenLabs; the owner picks
-every take that lands (ADR 0040), and a board plays its picked sounds (ADR 0041).
+As built (M10's second and third steps). **The chrome:** the game's stylesheets read the palette's
+tokens from `boards/src/look/tokens.ts`, in one typeface, with flat panels and no glass, gradient or
+shadow, and the guides' stylesheet wears the same tokens. `boards/src/styles.css` still carries the
+older variable names for the studio's own sheets, which read them (ADR 0058).
+
+**The boards in the game** are drawn in code on the shared palette, each from a file of its
+own beside its renderer. None loads an atlas, none has a frame, a grid or a marks setting, and each
+keeps one amber pulse of the whole board, the beat, for its biggest moments. Where a kind can have
+an outline of its own, that is what tells it apart; where the rules fix the outline, each kind
+carries one cut-out no other has (`BRAND.md` section 3). Each puzzle's design file says what it draws:
+
+- **Cooling**: machine parts, a toothed cog, a valve wheel, a hexagon bolt, a capsule fuse, a
+  crystal, a coil and a chip, with a spark, a horseshoe and a lump for the specials. The heat is a
+  flat tint under one red hairline.
+- **Engines**: not restyled yet, the last of the seven. It still draws round discs from its sprite
+  atlas inside the riveted frame (`boards/src/hull.ts`), with its marks setting, until it is.
+- **Plating**: a plate is one slab cut to its footprint, and each metal has a cut-out that lies
+  along its brushing: a slot for tin, a lozenge for copper, a window for steel, a bone for brass.
+- **Gunnery**: a battery cell, a U-shaped sabot, a pointed slug and a frost crystal for coolant, on
+  a deck of dots with turrets as ports in the rail.
+- **Navigation**: a star's shape is its outline (a spark, a star, a comet) and its colour is also
+  a cut-out (a hole, a band, a split), the same on every shape; a marker is the star hollow.
+- **Swordfighting**: each colour has a cut-out; a fused slab is one rounded rectangle with one
+  larger cut-out; a breaker is a square on its point; scrap is slate with clipped corners and pips.
+- **Space Battle**: the captain's ship is an amber dart and a raider a broad two-pronged hull, so
+  friend and foe differ by outline; asteroids are lumps, wells broken rings, currents chevrons, and
+  every open cell has a dot because cells are counted.
+
+Geometry, hit areas and scores stay in code as they were. The world is drawn in code from primitives
+(3.11) and is restyled in M10's fourth step.
+
+**The eight prototypes** are not restyled yet (M10's fifth step). They still use generated 2D sprite
+atlases (ADR 0037), one lossless file a frame, packed by the build (ADR 0054), with a code-drawn
+fallback for every piece and the studio's marks toggle. The sprite and sound tooling (briefs in
+`boards/briefs`, takes through the image and sound APIs, the owner's picks; ADR 0040, ADR 0041)
+serves only them now, and goes when they are restyled and the sounds are retuned (ADR 0062).
 
 ### 3.11 One experience: the shell, navigation and embedded puzzles
 

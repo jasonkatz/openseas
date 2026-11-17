@@ -6,6 +6,9 @@ all seven source sheets with space parts under the same frame names, so the mani
 change. Every frame is now a lossless file of its own, and the build packs each puzzle's atlas from
 them (ADR 0054); the source sheets are not kept.
 
+Since milestone M10 (ADR 0061, ADR 0062) the seven boards in the game are drawn in code and have no
+sprites; what is left here is the eight prototypes', until they are restyled too.
+
 ## Style and coverage
 
 Every sheet is painted to the style line in `../../briefs/sprite-style.txt`. No text is baked into

@@ -23,7 +23,7 @@ The boarding fight, dealt to every pirate aboard when a space battle ends in a b
 
 ## Rules and scoring
 
-Every pirate in a fight has a 6 wide by 14 tall board. Pairs of blocks
+Every pirate in a fight has a 6 wide by 17 tall board. Pairs of blocks
 in four colors (rose, sand, sky, moss, each with a cut-out of its own) slide in
 from above the middle column, vertical; the player steers, turns (a turn that does not fit kicks
 sideways, lifts a row, or, boxed into one column, turns twice so the halves swap ends) and hurries

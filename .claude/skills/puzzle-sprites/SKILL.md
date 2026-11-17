@@ -7,10 +7,15 @@ Sprites are made from a **brief** kept in the repository, one take per image, an
 every take that lands (ADR 0040). The script is `packages/boards/scripts/sprites.py`; the frame files, how the build packs them into
 atlases, and fallbacks are in `packages/boards/src/sprites/README.md`.
 
+**Only the eight prototypes still have sprites.** The seven boards in the game are drawn in code
+(`docs/BRAND.md` section 3, ADR 0062), and this skill goes when milestone M10 restyles the
+prototypes. Do not make sprites for a board in the game.
+
 ## 1. Brief
 
-Write or extend `packages/boards/briefs/sprites/<puzzle>.json`; `swordfight.json` is the worked
-example.
+Write or extend `packages/boards/briefs/sprites/<puzzle>.json`; no brief is left in the
+repository to copy, since every board that had one is now drawn in code; the last worked example is
+in history (`git show c92f2dc^:packages/boards/briefs/sprites/swordfight.json`).
 
 - `frames`: one entry a frame, keyed by the name the renderer asks for (`drawSprite(..., name)` on a
   core board, `this.sprite(g, name, ...)` on a kit board, or the frame already in `frames.json`).
