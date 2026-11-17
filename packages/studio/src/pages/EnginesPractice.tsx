@@ -2,14 +2,13 @@ import { useCallback, useRef, useState } from "react";
 import { summarizeEngines, type Rotation, type EnginesClearRound, type EnginesConfig, type EnginesMove, type EnginesState } from "@openseas/engine";
 import { PelletIcon, EnginesBoard, content, sfx, t } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { ENGINES } from "../puzzles.js";
 
 const engines = content.puzzles.engines;
 
 export function EnginesPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
   const [injectorsCleared, setInjectorsCleared] = useState(0);
   const [wipes, setWipes] = useState(0);
   const cleared = useRef({ injectors: 0, wipes: 0 });
@@ -70,8 +69,8 @@ export function EnginesPractice() {
     <div className="stat stat-wide">
       <span className="stat-label">{t("engines.next")}</span>
       <span className="next-pair" data-testid="hud-next">
-        <PelletIcon color={pieces[shown.next.a]!.color} texture={pieces[shown.next.a]!.texture} mark={showMarks ? pieces[shown.next.a]!.mark : null} size={26} />
-        <PelletIcon color={pieces[shown.next.b]!.color} texture={pieces[shown.next.b]!.texture} mark={showMarks ? pieces[shown.next.b]!.mark : null} size={26} />
+        <PelletIcon shape={pieces[shown.next.a]!.shape} color={pieces[shown.next.a]!.color} size={26} />
+        <PelletIcon shape={pieces[shown.next.b]!.shape} color={pieces[shown.next.b]!.color} size={26} />
       </span>
     </div>
   );
@@ -109,22 +108,20 @@ export function EnginesPractice() {
           <ul className="kinds">
             {pieces.map((p) => (
               <li key={p.nameKey}>
-                <PelletIcon color={p.color} texture={p.texture} mark={showMarks ? p.mark : null} />
+                <PelletIcon shape={p.shape} color={p.color} />
+                <PelletIcon shape={p.shape} color={p.color} hollow />
                 <span>{t(p.nameKey)}</span>
               </li>
             ))}
           </ul>
           <p className="muted small legend-note">{t("engines.legend_injector")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
       board={(interactive) => (
         <EnginesBoard
-         
           state={shown}
           version={api.version}
           interactive={interactive}
-          showMarks={showMarks}
           onPlace={onPlace}
           onFrame={api.markRendered}
           onClear={onClear}

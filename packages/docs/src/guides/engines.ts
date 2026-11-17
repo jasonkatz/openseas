@@ -18,12 +18,12 @@ export const engines: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: "The Engines board: a tall dark core with six injectors of different shapes, some of their ringed targets already holding pellets, and a pair of pellets falling from the top.",
-    caption: "The drive core. Each ring is a target that wants the pellet of its color and mark.",
+    alt: "The Engines board: a tall dark core with six injectors of different shapes, some of their outlined targets already holding pellets, and a pair of pellets falling from the top.",
+    caption: "The drive core. Each outline is a target that wants the pellet of its shape.",
   },
   theme: {
     setting:
-      "You are at the drive console, aft, feeding the **drive core**. Fuel pellets come down the chute in joined pairs. Your hands steer each pair onto the **injectors**, the metal shapes waiting in the core, and an injector fires when it has the fuel it wants.",
+      "You are at the drive console, aft, feeding the **drive core**. Fuel pellets come down the chute in joined pairs. Your hands steer each pair onto the **injectors**, the shapes waiting in the core, and an injector fires when it has the fuel it wants.",
     purpose:
       "Every ship's turn, what you scored here becomes the ship's **movement tokens**: the moves she has to fly with, in a lane and in a space battle. A drive station with nobody at it makes none.",
   },
@@ -35,9 +35,9 @@ export const engines: Guide = {
   ],
   rules: [
     `Pellets fall in joined **pairs** of ${kinds.slice(0, -1).join(", ")} and ${kinds[kinds.length - 1]}. Every pair enters at the middle of the top row. The strip above the core shows the next one.`,
-    `${c.injectorsAtOnce} injectors sit in the core: bars, stacks, L shapes and squares. A ringed cell is a **target** that wants one kind. A plain cell is a blank that holds anything.`,
+    `${c.injectorsAtOnce} injectors sit in the core: bars, stacks, L shapes and squares. An outlined cell is a **target** that wants the pellet of that shape. A dotted cell is a blank that holds anything.`,
     "Fill every target on an injector with its kind and it **fires**. Its target pellets go, the injector goes, and a new one is dealt somewhere else.",
-    "An injector has a **shelf** under its bottom cells. Pellets rest on it, and a pair can slide into a cell from the side.",
+    "An injector has a **shelf** under its bottom cells, drawn as a bar. Pellets rest on it, and a pair can slide into a cell from the side.",
     "Four or more of a kind in a line, across or down, clear as a **run**.",
     "The two halves stay joined while both are in the core. A pair rests as soon as either half is held up, so one half can hang over a gap. When its partner clears, it falls.",
     `If a pellet blocks the entry the core **flames out**: everything is swept away, you lose ${c.flameoutPenalty} points and play goes on. The round ends on the clock.`,
@@ -65,8 +65,8 @@ export const engines: Guide = {
       goal: "Land every pellet on purpose, and hurry every pair.",
       tips: [
         {
-          title: "Read the ring, trust the glow",
-          body: "A target's ring has the color and the mark of the pellet it wants. The thin rings below the falling pair show where it will land. When a half is lined up over a target of its own kind, that landing ring **glows**. Glow, then drop.",
+          title: "Read the outline, trust the fill",
+          body: "A target is the outline of the pellet it wants, in that pellet's color. The thin amber outlines below the falling pair show where it will land. When a half is lined up over a target of its own kind, that landing outline **fills in**. Fill, then drop.",
         },
         {
           title: "Always hurry",
@@ -81,7 +81,7 @@ export const engines: Guide = {
           body: `Only the entry matters for a flameout: the two middle cells of the top row. Build height at the sides if you must. ${c.flameoutPenalty} points is ${Math.ceil(c.flameoutPenalty / c.injectorPoints)} targets' worth.`,
         },
       ],
-      drill: `Play a round where no pair falls free: every one is hurried, and every one puts at least one half on a glowing ring or a blank. You are there when a round passes ${p.thresholds[1]!.score} points.`,
+      drill: `Play a round where no pair falls free: every one is hurried, and every one puts at least one half on a filled outline or a blank. You are there when a round passes ${p.thresholds[1]!.score} points.`,
     },
     {
       level: "intermediate",

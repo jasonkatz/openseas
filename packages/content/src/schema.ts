@@ -130,16 +130,6 @@ export const PlatingPieceStyleSchema = z.object({
   color: PieceColorSchema,
 });
 
-/** Shape and color of one ordinary piece kind, index = kind. Tiles are colored squares, each with
- * its own surface `texture`; `mark` names the symbol drawn inside when the player turns marks on,
- * so kinds stay distinguishable without color (rule 6). */
-export const PieceStyleSchema = z.object({
-  nameKey: MessageKey,
-  mark: z.string(),
-  texture: z.enum(["knurl", "fan", "waves", "grain", "nacre", "fronds", "pores"]),
-  color: z.string().regex(/^#[0-9a-f]{6}$/),
-});
-
 /** The ship simulation's tuning. Mirrors the engine's ShipRules; the engine validates it again. */
 export const ShipRulesSchema = z.object({
   turnSeconds: z.int().min(1).max(600),
@@ -271,12 +261,15 @@ export const CoolingContentSchema = DutyPuzzleBaseSchema.extend({
   }),
 });
 
-/** Engines pieces are pellets with their own surfaces, so they never read as Cooling tiles. */
+/**
+ * One Engines pellet kind, index = kind: the pictogram it is drawn as and the palette colour it
+ * wears. Every kind has a shape of its own, and its hollow target is that shape as an outline, so
+ * kinds and targets are told apart without color (rule 6).
+ */
 export const EnginesPieceStyleSchema = z.object({
   nameKey: MessageKey,
-  mark: z.string(),
-  texture: z.enum(["weave", "coil", "ripple", "speckle"]),
-  color: z.string().regex(/^#[0-9a-f]{6}$/),
+  shape: z.enum(["flame", "cross", "ring", "star"]),
+  color: PieceColorSchema,
 });
 
 export const EnginesContentSchema = DutyPuzzleBaseSchema.extend({
@@ -629,7 +622,6 @@ export type RaiderTier = z.infer<typeof RaiderTierSchema>;
 export type ShipClass = z.infer<typeof ShipClassSchema>;
 export type ShipGrant = z.infer<typeof ShipGrantSchema>;
 export type RatingTier = z.infer<typeof RatingTierSchema>;
-export type PieceStyle = z.infer<typeof PieceStyleSchema>;
 export type CoolingPieceStyle = z.infer<typeof CoolingPieceStyleSchema>;
 export type GunneryPieceStyle = z.infer<typeof GunneryPieceStyleSchema>;
 export type PlatingPieceStyle = z.infer<typeof PlatingPieceStyleSchema>;

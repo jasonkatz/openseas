@@ -13,7 +13,6 @@ sprites. Keep optional accessibility badges and labels in code.
 
 | Puzzle | Runtime use |
 |---|---|
-| engines | Trefoil, ring and three-spoke discs and their hollow targets; the extra lab kind stays procedural |
 | battle | Friendly and raider starfighters, asteroids, gravity wells and slugs |
 
 The eight prototype boards (ADR 0037) each have an atlas too, painted through the board kit:
@@ -34,7 +33,7 @@ code, as is every board when its atlas does not load.
 
 Additional frames from the sheets (damaged ships, current, thrusters, shield, grapple, flash,
 weld, chips, edge, shatter, swipe, ...) are reserved for future effects. Dynamic effects, board
-backgrounds and frames (in the same materials, from `../hull.ts`), Engines targets, and
+backgrounds and frames (in the same materials, from `../hull.ts`), and
 arbitrary-sized Swordfight slabs remain procedural. The atlas is
 presentation only; never derive hit areas or gameplay from its pixels. If an atlas fails or times
 out, each piece is drawn instead by its vector stand-in in `../parts.ts`, in the same contours and

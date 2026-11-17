@@ -22,7 +22,6 @@ export { CoolingBoard, type BoardProps as CoolingBoardProps } from "./cooling/Co
 export { type MoveShown as CoolingMoveShown } from "./cooling/renderer.js";
 export { CoolingPieceIcon } from "./cooling/PieceIcon.jsx";
 export { PALETTE, PIECE_COLORS, PLAYER_COLORS, FONT, MOTION, RADIUS, blend, css, cssVariables, ink, type PieceColor, type PlayerColor, type Token } from "./look/tokens.js";
-export { tileDataUrl, type SpecialName, type TileTexture } from "./cooling/tiles.js";
 export { EnginesBoard, type EnginesBoardProps } from "./engines/EnginesBoard.jsx";
 export { PelletIcon } from "./engines/PelletIcon.jsx";
 export { PlatingBoard, type PlatingBoardProps } from "./plating/PlatingBoard.jsx";

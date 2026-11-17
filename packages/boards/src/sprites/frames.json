@@ -1,15 +1,4 @@
 {
-  "engines": [
-    "weave",
-    "coil",
-    "ripple",
-    "target-weave",
-    "target-coil",
-    "target-ripple",
-    "ledge",
-    "link",
-    "gust"
-  ],
   "battle": [
     "ship0",
     "ship1",

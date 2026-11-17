@@ -39,7 +39,6 @@ import {
   type PlatingContent,
   type GunneryContent,
   type NavigationContent,
-  type PieceStyle,
   type RatingTier,
   type EnginesContent,
   type SwordfightContent,
@@ -249,11 +248,11 @@ export function contentProblems(content: Content): string[] {
   for (const id of Object.keys(puzzles) as PuzzleContentId[]) {
     const p = puzzles[id];
     const where = `puzzles/${id}`;
-    if (id === "cooling") checkCoolingPieces(where, puzzles.cooling.pieces, puzzles.cooling.config.pieceKinds, messages, problems);
+    if (id === "cooling") checkShapedPieces(where, puzzles.cooling.pieces, puzzles.cooling.config.pieceKinds, messages, problems);
+    else if (id === "engines") checkShapedPieces(where, puzzles.engines.pieces, puzzles.engines.config.pieceKinds, messages, problems);
     else if (id === "gunnery") checkGunneryPieces(where, puzzles.gunnery.pieces, messages, problems);
     else if (id === "plating") checkPlatingPieces(where, puzzles.plating.pieces, puzzles.plating.config.pieceKinds, messages, problems);
     else if (id === "swordfight") checkSwordPieces(where, puzzles.swordfight.pieces, puzzles.swordfight.config.colors, messages, problems);
-    else if ("pieces" in p) checkPieces(where, p.pieces as Parameters<typeof checkPieces>[1], "pieceKinds" in p.config ? p.config.pieceKinds : "colors" in p.config ? p.config.colors : p.pieces.length, messages, problems);
     for (const problem of thresholdProblems(p.thresholds, "parScore" in p ? p.parScore : undefined)) problems.push(`${where}: ${problem}`);
     need(`home.practice_${id}`, where);
     need(`home.practice_${id}_blurb`, where);
@@ -320,8 +319,8 @@ export function contentProblems(content: Content): string[] {
   return problems;
 }
 
-/** Every Cooling kind must have a shape and a colour of its own: the shape is what tells kinds apart (rule 6). */
-function checkCoolingPieces(where: string, pieces: ReadonlyArray<{ nameKey: string; shape: string; color: string }>, kinds: number, messages: Record<string, string>, problems: string[]): void {
+/** Every Cooling and Engines kind must have a shape and a colour of its own: the shape is what tells kinds apart (rule 6). */
+function checkShapedPieces(where: string, pieces: ReadonlyArray<{ nameKey: string; shape: string; color: string }>, kinds: number, messages: Record<string, string>, problems: string[]): void {
   if (pieces.length < kinds) problems.push(`${where}: ${kinds} kinds but only ${pieces.length} piece definitions`);
   const shapes = new Set<string>();
   const colors = new Set<string>();
@@ -375,23 +374,6 @@ function checkSwordPieces(where: string, pieces: ReadonlyArray<{ nameKey: string
     if (p.color === "slate") problems.push(`${where}: slate is stone's color; no block may wear it`);
     cuts.add(p.cut);
     colors.add(p.color);
-  }
-}
-
-/** Every kind must differ by mark, color, and texture so pieces stay apart without color (rule 6). */
-function checkPieces(where: string, pieces: ReadonlyArray<Pick<PieceStyle, "nameKey" | "mark" | "color"> & { texture: string }>, kinds: number, messages: Record<string, string>, problems: string[]): void {
-  if (pieces.length < kinds) problems.push(`${where}: ${kinds} kinds but only ${pieces.length} piece definitions`);
-  const marks = new Set<string>();
-  const colors = new Set<string>();
-  const textures = new Set<string>();
-  for (const p of pieces) {
-    if (!(p.nameKey in messages)) problems.push(`${where}: missing message key "${p.nameKey}"`);
-    if (marks.has(p.mark)) problems.push(`${where}: mark "${p.mark}" used twice; every kind must differ by mark (rule 6)`);
-    if (colors.has(p.color)) problems.push(`${where}: color "${p.color}" used twice`);
-    if (textures.has(p.texture)) problems.push(`${where}: texture "${p.texture}" used twice; every kind must differ by texture`);
-    marks.add(p.mark);
-    colors.add(p.color);
-    textures.add(p.texture);
   }
 }
 

@@ -1,10 +1,8 @@
 [
   "boards/src/battle/art.ts",
   "boards/src/battle/renderer.ts",
-  "boards/src/cooling/tiles.ts",
   "boards/src/cutting/renderer.ts",
   "boards/src/deflectors/renderer.ts",
-  "boards/src/engines/renderer.ts",
   "boards/src/hull.ts",
   "boards/src/kit/KindIcon.tsx",
   "boards/src/kit/art.ts",

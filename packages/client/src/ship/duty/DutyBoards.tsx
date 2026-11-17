@@ -116,7 +116,7 @@ function CoolingDuty({ active, children }: DutyProps) {
 }
 
 const engines = content.puzzles.engines;
-function EnginesDuty({ active, showMarks, children }: DutyProps) {
+function EnginesDuty({ active, children }: DutyProps) {
   const api = useDuty<EnginesState, EnginesMove, EnginesConfig>({ puzzle: "engines", def: ENGINES_DEF, config: engines.config, roundSeconds: engines.roundSeconds, active });
   const { state } = api;
   const onPlace = useCallback((col: number, row: number, rot: Rotation) => void api.apply({ type: "place", col, row, rot }), [api]);
@@ -136,7 +136,7 @@ function EnginesDuty({ active, showMarks, children }: DutyProps) {
     score: state.score,
     combo: state.combo,
     board: (interactive) => (
-      <EnginesBoard state={state} version={api.version} interactive={interactive} showMarks={showMarks} onPlace={onPlace} onFrame={api.markRendered} onClear={onClear} onLanded={onLanded} onNudge={onNudge} onWipe={onWipe} />
+      <EnginesBoard state={state} version={api.version} interactive={interactive} onPlace={onPlace} onFrame={api.markRendered} onClear={onClear} onLanded={onLanded} onNudge={onNudge} onWipe={onWipe} />
     ),
   });
 }

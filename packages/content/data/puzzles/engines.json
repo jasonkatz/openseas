@@ -27,9 +27,9 @@
     { "score": 800, "rating": 2100 }
   ],
   "pieces": [
-    { "nameKey": "engines.piece.plasma", "mark": "circle", "texture": "weave", "color": "#e5603c" },
-    { "nameKey": "engines.piece.ion", "mark": "square", "texture": "ripple", "color": "#f5d021" },
-    { "nameKey": "engines.piece.fusion", "mark": "triangle", "texture": "coil", "color": "#3fa7f5" },
-    { "nameKey": "engines.piece.nova", "mark": "hexagon", "texture": "speckle", "color": "#c9a0dc" }
+    { "nameKey": "engines.piece.plasma", "shape": "flame", "color": "rose" },
+    { "nameKey": "engines.piece.ion", "shape": "cross", "color": "sand" },
+    { "nameKey": "engines.piece.fusion", "shape": "ring", "color": "sky" },
+    { "nameKey": "engines.piece.nova", "shape": "star", "color": "lilac" }
   ]
 }
