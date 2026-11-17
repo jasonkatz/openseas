@@ -22,7 +22,6 @@ The eight prototype boards (ADR 0037) each have an atlas too, painted through th
 | Puzzle | Runtime use |
 |---|---|
 | salvage | Six kinds of debris (`debris-<kind>`), the loot crate, the coupler |
-| reactor | Rod casings for grades 1 to 7 (`grade-<n>`); the hot rod, whatever its grade |
 
 `<kind>` is a kit kind's id (`../kit/art.ts`). A kind, charge or grade past its sheet is drawn in
 code, as is every board when its atlas does not load.

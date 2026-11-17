@@ -34,7 +34,7 @@ function wav(): Buffer {
 
 const href = (page: Page, frame: string): Promise<string | null> => page.getByTestId(`frame-${frame}`).locator("image").first().getAttribute("href");
 
-for (const puzzle of ["salvage", "reactor"]) {
+for (const puzzle of ["salvage"]) {
   test(`${puzzle}: every frame has a row, and a file tried in one is drawn on the running board`, async ({ page }, testInfo) => {
     desktopOnly();
     const errors: string[] = [];

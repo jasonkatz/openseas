@@ -208,7 +208,7 @@ describeDb("save places picks", () => {
       // A take of another frame.
       [ice, { sprites: { [ice]: await keep("sprite", gold, frame(5)) }, sounds: {} }],
       // A take of another puzzle.
-      [gold, { sprites: { [gold]: await keep("sprite", gold, frame(6), { puzzle: "reactor" }) }, sounds: {} }],
+      [gold, { sprites: { [gold]: await keep("sprite", gold, frame(6), { puzzle: "overload" }) }, sounds: {} }],
       // A sound picked for a frame.
       [gold, { sprites: { [gold]: await keep("sound", gold, mp3(2)) }, sounds: {} }],
       // A frame the manifest does not list: a new frame is a change to code.
