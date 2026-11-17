@@ -66,3 +66,5 @@ that supersedes it.
 | [0058](./0058-the-studios-chrome-has-a-look-of-its-own.md) | The studio's chrome has a look of its own: floating panels, teal for what acts, amber for what changed |
 | [0059](./0059-the-meter-counts-what-each-api-billed.md) | The meter counts what each API says it billed, and the generation scripts go through the proxy |
 | [0060](./0060-a-draft-has-many-chats-and-a-chat-outlasts-its-draft.md) | A draft has many chats, a chat outlasts its draft, and the page lists them |
+| [0061](./0061-the-game-looks-lo-fi-and-minimalist-by-a-brand-book.md) | The game looks lo-fi and minimalist, by a brand book: one palette, one typeface, no frame, no marks |
+| [0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) | Pieces are drawn in code and cues stay synthesized: the generated sprites and sounds retire |

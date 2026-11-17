@@ -12,6 +12,9 @@ written in.
   feature work. If code and the design doc disagree, fix one in the same PR.
 - `docs/adr/` holds the rationale for every architecture choice. Read the index. Never edit an
   accepted ADR's decision; add a superseding one.
+- `docs/BRAND.md` is the brand book: the game's palette, type, shapes, motion, sound and voice
+  (ADR 0061, ADR 0062). Read it before drawing, styling or wording anything a player sees. Milestone
+  M10 is restyling the game to it, so what is built may still be the older painted look.
 - `docs/GLOSSARY.md` holds the game's words and the nautical words they replaced, with the
   identifier for each. Name new things by it, and read older ADRs through it.
 - `docs/puzzles/` holds a design file for each puzzle the game deals: its role, its rules and scoring,

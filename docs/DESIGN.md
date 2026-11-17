@@ -347,6 +347,14 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
 
 ### 3.10 Art
 
+**Art direction has landed: lo-fi minimalist space** (ADR 0061, ADR 0062). The look, its palette,
+type, shapes, motion, sound and voice are in [`BRAND.md`](./BRAND.md), which is the source of truth
+for them. In short: flat vector on one shared dark palette, pieces drawn in code as pictograms, no
+frame round a board, one typeface, no marks setting, and the scrappy character carried by the
+words. Milestone M10 (5.2) restyles the game to it in steps. Until a step lands, the rest of this
+section, 3.9's lines on sprites, marks and sound, and 3.11's on the world describe what is built,
+and each is rewritten in the PR that changes it.
+
 The seven puzzle boards use original generated 2D sprite atlases (ADR 0031): dark outlines,
 restrained shading and distinct silhouettes, read at phone scale. Assets live in `boards`, so the
 game and studio render the same pieces. The atlases and their frames carry the space names, and since
@@ -994,6 +1002,7 @@ still proven there first, with its tester session, and only then embedded in the
 | M7 | The space reskin (ADR 0034): every word, the three.js world and the codebase move from the sea to space, with the mechanics unchanged and the database wiped. The puzzle boards' art waits for the owner's sprite pass, which has since landed for the sprites |
 | M8 | Prototype puzzles (3.12, ADR 0036): eight new puzzles of the game's own, each a whole engine playable on the harness, in the owner's sprites (ADR 0037). Done when the owner has played all eight and chosen which, if any, go on |
 | M9 | The puzzle studio (3.14, ADR 0042), in three steps, each usable alone. **The shell:** the harness renamed and redrawn, the tuning panel, seed control, the validity and replay guards, tester links on a first studio service, the smoke driving every board through its studio page and `/play`, the guides' capture repointed, the bench tools removed. **Chat and Save** (built): drafts kept by the service, the agent on a worktree, the model picker, per-turn revert, reset, and Save as a draft pull request from a GitHub App that a developer finishes (ADR 0045 to 0047, ADR 0049). The live build of the worktree is not built. **Assets** (built), in four parts: the sprite and sound panels and the swap on a running board (built, ADR 0050); takes kept in a Railway bucket and listed in their rows, with new takes through the chat (built, ADR 0051); picks kept in drafts, frozen in tester links and loaded by `/play` (built, ADR 0052); then Save placing picks (built, ADR 0053), each frame a file of its own and the atlases packed by the build (built, ADR 0054) |
+| M10 | The lo-fi minimalist look (3.10, ADR 0061, ADR 0062, `BRAND.md`), in six steps. **The brand book:** `BRAND.md`, its specimen and the two ADRs, with no game code changed; done when the owner has picked the palette. **The proof:** the token module in `boards` and its hex test, the game's chrome and Cooling, with its guide recaptured and the marks setting gone from it; done when the owner has played it. **The boards:** the other six in the game, one pull request each, each deleting its frames and recapturing its guide. **The world:** recoloured and quietened. **The prototypes:** the eight, then the sprite tooling removed. **Sound:** the synthesized cues retuned and the sample pipeline removed |
 
 Every milestone ends with a tester session and a written retro before the next starts.
 
