@@ -8,8 +8,8 @@ browser. When this file and a board disagree, fix one in the same PR.
 It covers the game, its boards and its guides. The studio's chrome keeps its own look (ADR 0058);
 only the boards inside it follow this book.
 
-**Status.** The direction and the palette are decided. The game is not restyled yet: milestone M10
-(`DESIGN.md` 5.2) does that in steps, and until a step lands `DESIGN.md` describes what is built.
+**Status.** The direction and the palette are decided, and milestone M10 (`DESIGN.md` 5.2) is
+restyling the game to them in steps. `DESIGN.md` 3.10 says what is built so far.
 
 ## 1. The idea
 
@@ -67,7 +67,9 @@ Eight, shared by every puzzle. A puzzle uses as many as it has kinds.
 ### Player colours
 
 A pirate's jacket and a crew's flag take one of twelve: the eight above, and `plum` `#8e6fa8`,
-`olive` `#a3a86a`, `ice` `#a9d3de`, `brick` `#a85f5a`. Content files name them; they hold no hex.
+`olive` `#a3a86a`, `ice` `#a9d3de`, `brick` `#a85f5a`. Content files name them; they hold no hex. A flag's
+field and emblem may also be `cream` or `ground`, for the light and the dark a flag needs. There is
+no black jacket: the darkest is `olive`.
 
 ### Rules
 
@@ -155,6 +157,14 @@ The world is already flat-coloured primitives, and stays so.
   a lit window, a beacon and your own ship's trim are `amber`.
 - The void is `ground` with a sparse field of small `cream` stars. No nebula.
 - One soft key light and an ambient fill. No hard shadows, no rim light, no post-processing.
+- Another pirate's ship has a dark plate band where yours has amber trim. Amber trim is for your
+  own ship and the one you are aboard.
+- A light that is not a lamp (a screen, a hologram, a nav light) is a muted piece colour, never amber.
+- A face turned to the light is its token's colour; a face turned away sits a little under it. That
+  is the only shading.
+- A few things may be translucent because they are glass or air: a helmet, a canopy, a beacon's beam,
+  vapour, and the soft disc under a figure's feet.
+- The world's tints are in one file, `client/src/world/tones.ts`, all made from the tokens.
 - Geometry does not change.
 
 ## 8. Sound
