@@ -142,7 +142,7 @@ function EnginesDuty({ active, showMarks, children }: DutyProps) {
 }
 
 const plating = content.puzzles.plating;
-function PlatingDuty({ active, showMarks, children }: DutyProps) {
+function PlatingDuty({ active, children }: DutyProps) {
   const api = useDuty<PlatingState, PlatingMove, PlatingConfig>({ puzzle: "plating", def: PLATING_DEF, config: plating.config, roundSeconds: plating.roundSeconds, active });
   const { state } = api;
   const onPlace = useCallback((slot: number, rot: number, flip: boolean, col: number, row: number) => void api.apply({ type: "place", slot, rot, flip, col, row }), [api]);
@@ -166,7 +166,6 @@ function PlatingDuty({ active, showMarks, children }: DutyProps) {
         state={state}
         version={api.version}
         interactive={interactive}
-        showMarks={showMarks}
         onPlace={onPlace}
         onFrame={api.markRendered}
         onSealed={onSealed}

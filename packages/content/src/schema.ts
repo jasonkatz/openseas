@@ -119,6 +119,17 @@ export const CoolingPieceStyleSchema = z.object({
   color: PieceColorSchema,
 });
 
+/**
+ * One Plating metal, index = kind: the palette colour its plates wear and the one detail cut out of
+ * every cell of them. A plate's outline is its footprint, fixed by the rules, so the cut-out is what
+ * tells metals apart without color (rule 6, docs/BRAND.md section 3). It lies along the brushing.
+ */
+export const PlatingPieceStyleSchema = z.object({
+  nameKey: MessageKey,
+  cut: z.enum(["slot", "window", "lozenge", "bone"]),
+  color: PieceColorSchema,
+});
+
 /** Shape and color of one ordinary piece kind, index = kind. Tiles are colored squares, each with
  * its own surface `texture`; `mark` names the symbol drawn inside when the player turns marks on,
  * so kinds stay distinguishable without color (rule 6). */
@@ -315,7 +326,7 @@ export const PlatingContentSchema = DutyPuzzleBaseSchema.extend({
     streakPercent: z.array(z.int().min(100)).min(1),
   }),
   /** Metal kinds plates come in. Cosmetic: shape tells plates apart; metal adds variety. */
-  pieces: z.array(PieceStyleSchema).min(1),
+  pieces: z.array(PlatingPieceStyleSchema).min(1),
   /** Display names for the twelve pentominoes, index = engine shape. */
   shapes: z.array(z.object({ nameKey: MessageKey })).length(12),
 });
@@ -606,6 +617,7 @@ export type ShipGrant = z.infer<typeof ShipGrantSchema>;
 export type RatingTier = z.infer<typeof RatingTierSchema>;
 export type PieceStyle = z.infer<typeof PieceStyleSchema>;
 export type CoolingPieceStyle = z.infer<typeof CoolingPieceStyleSchema>;
+export type PlatingPieceStyle = z.infer<typeof PlatingPieceStyleSchema>;
 export type EnginesPieceStyle = z.infer<typeof EnginesPieceStyleSchema>;
 export type CoolingContent = z.infer<typeof CoolingContentSchema>;
 export type EnginesContent = z.infer<typeof EnginesContentSchema>;

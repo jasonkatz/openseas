@@ -1,6 +1,6 @@
 # Plating
 
-Status: in the game. Built in M2. In the studio at `/plating`.
+Status: in the game. Built in M2; restyled to the brand book in M10 (ADR 0061, ADR 0062). In the studio at `/plating`.
 
 ## The puzzle
 
@@ -25,7 +25,14 @@ A duty station: the patch bay. Its output repairs the ship's hull each turn (DES
 A 9 wide by 12 tall stretch of hull with up to three breaches open at once. A breach is
 dealt as one to three pentominoes laid edge to edge, so its area is a multiple of five and a
 perfect fill exists; breaches never touch. Three plates wait in a tray, each one of the twelve
-pentominoes with a metal (tin, copper, steel or brass; cosmetic) and a brushing that turns with it. A plate goes down anywhere
+pentominoes with a metal (tin, copper, steel or brass; cosmetic) and a brushing that turns with it.
+A plate is drawn in code (`boards/src/plating/pieces.ts`, `docs/BRAND.md` section 3) as one solid
+slab in its metal's palette colour. Its outline is its footprint, which the rules fix, so the metal
+is told by the one detail cut out of every cell, through which whatever is under the plate shows: a
+slot for tin in lilac, a lozenge for copper in rust, a window for steel in sky and a bone for brass
+in sand. The cut-out lies along the brushing, side to side on a plate brushed across and up and down
+on one that is not, so one detail says both things a player reads off a plate. Content names each
+metal's cut-out and its palette colour. A plate goes down anywhere
 it covers at least one open cell; it works the breach it covers most of, and cells it lays over hull
 or over another plate are waste. Parts that hang off the board, or lie over a second breach or over
 plated hull, are not laid at all and are waste too, so any breach can be worked from any plate. When every cell of a breach is covered it is sealed, its plates come off and a new breach
@@ -53,9 +60,27 @@ looking the same still answers the press);
 letting go or dragging off the hull sends it back to its slot, and a tap on bare hull brings it
 there. Turning pivots about the
 centre so the ghost stays put. The keyboard picks a slot, moves, turns either way, flips, and jumps
-through the placements with the least waste. Plates drop in and knock; a sealed breach's plates lift
-away; new breaches crack open through the plating; a breach two idle plates from widening pulses amber,
-then red. Numbers live in `content/data/puzzles/plating.json`.
+through the placements with the least waste.
+
+The hull is one flat raised slab inside a hairline, with no frame, panels or grid. A breach is the
+ground showing through it, and each cell still open carries a small dot. The tray is three raised
+panels under the hull, numbered for the keyboard. What the player is doing is drawn in amber: the
+ring round the tray slot in hand and the ring round the plate where it would go. A plate that would
+not go there is faded with a red ring, and a refused weld thickens that ring for a moment; nothing
+shakes. The breach a plate would join is rimmed in a thin grey line. A wasted cell, on the plate in
+hand or on one welded down, is crossed out in red, so it reads without colour. The touch toolbar is
+four flat buttons, and the welder alone is amber while the plate fits.
+
+A welded plate slides to its cells in 120ms; a sealed breach's plates shrink to nothing in 160ms and
+the seal's points rise from the breach, with its rating, the streak and the brushing bonus named in
+callouts. A new breach opens by its cover of hull shrinking away. A breach two idle plates from
+widening has a thin red rim, and one plate from it a thick red rim that beats slowly. When a breach
+widens, the cell it gained is ringed in red for a moment and a callout says so. Nothing sparks or
+glows (`docs/BRAND.md` section 6). **The beat**, one amber pulse of the whole board, is kept for two
+things: a flawless seal that carries a streak of two or more (the compound move, stronger the longer
+the streak), and a flawless seal of a three-plate breach. Each plate is baked with Canvas 2D the
+first time it is shown, and the legend uses the same drawing. Numbers live in
+`content/data/puzzles/plating.json`.
 
 ## Engine
 

@@ -7,7 +7,6 @@ export interface PlatingBoardProps {
   state: PlatingState;
   version: number;
   interactive: boolean;
-  showMarks: boolean;
   onPlace(slot: number, rot: number, flip: boolean, col: number, row: number): void;
   onFrame(): void;
   onSealed(rating: BreachRating, chain: number): void;
@@ -43,7 +42,6 @@ export function PlatingBoard(props: PlatingBoardProps) {
         onBump: () => latest.current.onBump(),
       },
       {
-        showMarks: props.showMarks,
         ratingLabel: (rating) => t(`plating.rating.${rating}`),
         streakLabel: (count) => t("plating.streak_label", { count }),
         brushLabel: t("plating.brush_bonus"),
@@ -79,10 +77,6 @@ export function PlatingBoard(props: PlatingBoardProps) {
     const r = renderer.current;
     if (r && r.app.renderer) r.setInteractive(props.interactive);
   }, [props.interactive]);
-
-  useEffect(() => {
-    renderer.current?.setShowMarks(props.showMarks);
-  }, [props.showMarks]);
 
   const breachCells = new Set(props.state.breaches.flatMap((h) => h.cells));
   const board = props.state.covered.map((n, c) => (n > 0 ? String(n) : breachCells.has(c) ? "h" : ".")).join("");
