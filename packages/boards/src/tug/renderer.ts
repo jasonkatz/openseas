@@ -278,7 +278,7 @@ export class TugRenderer extends KitBoard<TugState> {
         },
       });
       this.tweens.to(sprite, { scale: 0.86 }, 70, { delay: ms, ease: ease.outQuad });
-      this.tweens.to(sprite, { scale: 1 }, 150, { delay: ms + 70, ease: ease.outBack });
+      this.tweens.to(sprite, { scale: 1 }, 150, { delay: ms + 70, ease: ease.outCubic });
       t = ms + 40;
       const d = r.delivered;
       if (d) {
@@ -481,7 +481,7 @@ export class TugRenderer extends KitBoard<TugState> {
         const x = this.grid.x(state.pods[pod]!);
         const y = this.grid.y(state.pods[pod]!);
         this.tweens.to(s, { x: x + DX[dir]! * this.grid.cell * 0.1, y: y + DY[dir]! * this.grid.cell * 0.1 }, 60, { ease: ease.outQuad });
-        this.tweens.to(s, { x, y }, 110, { delay: 60, ease: ease.outBack });
+        this.tweens.to(s, { x, y }, 110, { delay: 60, ease: ease.outCubic });
       }
       sfx.bump();
       return;

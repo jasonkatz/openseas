@@ -1,8 +1,9 @@
 import { useCallback } from "react";
 import { advanceDeflectors, deflectorsOutlook, deflectorsStreakPercentAt, summarizeDeflectors, type DeflectorsConfig, type DeflectorsMove, type DeflectorsState } from "@openseas/engine";
-import { content, DeflectorsBoard, KindIcon, SpriteIcon, t, useTicked } from "@openseas/boards";
+import { content, DEFLECTORS_SIGNS, DeflectorsBoard, DeflectorsMirrorIcon, DeflectorsSignIcon, t, useTicked } from "@openseas/boards";
+import { css, type Token } from "@openseas/boards/look";
 import { useStudio } from "../studio/useStudio.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { DEFLECTORS } from "../prototypes/deflectors.js";
 
@@ -12,7 +13,6 @@ const BEAM_KEYS = ["deflectors.legend_beam_1", "deflectors.legend_beam_2", "defl
 
 /** Deflectors (prototype, ADR 0036): the shared board in the studio's frame. */
 export function DeflectorsPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<DeflectorsState, DeflectorsMove, DeflectorsConfig>({
     puzzle: "deflectors",
     def: DEFLECTORS.def,
@@ -31,8 +31,7 @@ export function DeflectorsPractice() {
 
   // What the waiting volley would do now: the engine's word, as the board's strip shows it.
   const outlook = deflectorsOutlook(shown);
-  const signs = DeflectorsBoard.signs.slice(0, shown.config.maxBeams);
-  const first = signs[0]!;
+  const signs = DEFLECTORS_SIGNS.slice(0, shown.config.maxBeams);
 
   return (
     <PracticeShell
@@ -96,41 +95,40 @@ export function DeflectorsPractice() {
         <>
           <ul className="kinds">
             {signs.map((s, i) => (
-              <li key={s.kind}>
-                <KindIcon kind={s.kind} color={s.color} marks={showMarks} sprite={{ puzzle: "deflectors", name: `sign-${s.id}` }} />
+              <li key={s.shape}>
+                <DeflectorsSignIcon sign={i} />
                 <span>{t(BEAM_KEYS[i]!)}</span>
               </li>
             ))}
           </ul>
           <ul className="specials">
             <li>
-              <KindIcon kind={first.kind} color={first.color} marks={showMarks} sprite={{ puzzle: "deflectors", name: `sign-${first.id}` }} />
+              <DeflectorsSignIcon sign={0} />
               <span>{t("deflectors.legend_entry")}</span>
             </li>
             <li>
-              <KindIcon kind={first.kind} color={first.color} hollow sprite={{ puzzle: "deflectors", name: `target-${first.id}` }} />
+              <DeflectorsSignIcon sign={0} hollow />
               <span>{t("deflectors.legend_exit")}</span>
             </li>
             <li>
-              <MirrorIcon />
+              <DeflectorsMirrorIcon />
               <span>{t("deflectors.legend_mirror")}</span>
             </li>
             <li>
-              <LineIcon look="home" />
+              <LineIcon look="home" color={signs[0]!.color} />
               <span>{t("deflectors.legend_home")}</span>
             </li>
             <li>
-              <LineIcon look="astray" />
+              <LineIcon look="astray" color={signs[0]!.color} />
               <span>{t("deflectors.legend_astray")}</span>
             </li>
             <li>
-              <LineIcon look="back" />
+              <LineIcon look="back" color={signs[0]!.color} />
               <span>{t("deflectors.legend_back")}</span>
             </li>
           </ul>
           <p className="muted small proto-note">{t("deflectors.lines_note")}</p>
           <p className="muted small proto-note">{t("deflectors.streak_note")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
       board={(interactive) => (
@@ -140,7 +138,6 @@ export function DeflectorsPractice() {
           logged={state}
           version={api.version}
           interactive={interactive}
-          showMarks={showMarks}
           hints={studio.hints}
           onFlip={onFlip}
           onFire={onFire}
@@ -151,37 +148,26 @@ export function DeflectorsPractice() {
   );
 }
 
-function MirrorIcon() {
-  const vector = (
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
-      <path d="M5 19L19 5" stroke="#55606e" strokeWidth="6" strokeLinecap="round" />
-      <path d="M5 19L19 5" stroke="#dfe9f5" strokeWidth="3.4" strokeLinecap="round" />
-      <circle cx="12" cy="12" r="2" fill="#d4a548" stroke="#6a5324" />
-    </svg>
-  );
-  return <SpriteIcon puzzle="deflectors" name="mirror-slash" fallback={vector} />;
-}
-
-/** The three looks a waiting beam's lines take, as the board draws them. */
-function LineIcon({ look }: { look: "home" | "astray" | "back" }) {
-  const color = "#f5d021";
+/** The three looks a waiting beam's lines take, as the board draws them: flat, in the beam's colour. */
+function LineIcon({ look, color }: { look: "home" | "astray" | "back"; color: Token }) {
+  const ink = css(color);
   return (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
       {look === "home" && (
         <>
-          <path d="M2 17h10V6h10" fill="none" stroke={color} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="7" cy="17" r="1.5" fill="#fff" />
-          <circle cx="12" cy="10" r="1.5" fill="#fff" />
-          <circle cx="18" cy="6" r="1.5" fill="#fff" />
+          <path d="M2 17h10V6h10" fill="none" stroke={ink} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="7" cy="17" r="2.6" fill={ink} />
+          <circle cx="12" cy="11" r="2.6" fill={ink} />
+          <circle cx="18" cy="6" r="2.6" fill={ink} />
         </>
       )}
       {look === "astray" && (
         <>
-          <path d="M2 17h10V8" fill="none" stroke="#c9b458" strokeWidth="2.4" strokeDasharray="3.5 2.6" strokeLinecap="round" />
-          <path d="M9 2l6 6m0-6l-6 6" stroke="#f0604d" strokeWidth="2.4" strokeLinecap="round" />
+          <path d="M2 17h10V8" fill="none" stroke={ink} strokeWidth="2.4" strokeDasharray="3.5 3" strokeLinecap="round" />
+          <path d="M9 2l6 6m0-6l-6 6" stroke={css("danger")} strokeWidth="2.4" strokeLinecap="round" />
         </>
       )}
-      {look === "back" && <path d="M2 17h10V6h10" fill="none" stroke={color} strokeWidth="2.6" strokeDasharray="0.1 4" strokeLinecap="round" />}
+      {look === "back" && <path d="M2 17h10V6h10" fill="none" stroke={ink} strokeWidth="2.6" strokeDasharray="0.1 4" strokeLinecap="round" />}
     </svg>
   );
 }

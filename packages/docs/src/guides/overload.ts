@@ -23,8 +23,8 @@ export const overload: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Overload board: a bank of capacitors ${c.width} wide and ${c.height} tall, each a ring lit in one, two or three parts, with ${c.tapCap} lamps in a strip above for the taps held. Two capacitors have a second ring with four lugs.`,
-    caption: `The bank. A lit part of the ring is one charge, a bolt means ${hot}, and the lamps on top are your taps.`,
+    alt: `The Overload board: a bank of capacitors ${c.width} wide and ${c.height} tall, each a flat disc with one hole cut in it for each charge it holds, with ${c.tapCap} amber lamps in a strip above for the taps held. The boosters among them are discs with four lugs.`,
+    caption: "The bank. A hole is one charge, and the lamps on top are your taps.",
   },
   theme: {
     setting:
@@ -45,12 +45,12 @@ export const overload: Guide = {
     "A capacitor bursts once in a chain. After that it is spent, and charge passed to it is lost.",
     "When the chain ends, every spent capacitor is swapped for a fresh one with a random charge. The ones that were passed charge and did not burst keep it.",
     `You hold up to ${c.tapCap} taps and one comes back every ${regenSeconds} seconds. A full hand banks nothing.`,
-    `A **booster** has a second ring with four lugs. It passes two charges to each neighbour when it bursts. About one fresh capacitor in ${boosterOneIn} is a booster.`,
+    `A **booster** has four lugs, one towards each neighbour. It passes two charges to each neighbour when it bursts. About one fresh capacitor in ${boosterOneIn} is a booster.`,
   ],
   rulesMedia: {
     kind: "clip",
     name: "first-burst",
-    alt: "A capacitor showing a bolt is tapped and bursts, sparks fly to its four neighbours, and two of them burst in the waves that follow. The strip above counts the chain to three.",
+    alt: "A capacitor with three holes is tapped and bursts, a dot of charge runs to each of its four neighbours, and two of them burst in the waves that follow. The strip above counts the chain to three.",
     caption: `Tap a capacitor at ${hot}. It bursts into its neighbours, and the ones that fill burst next.`,
   },
   controls: [
@@ -71,17 +71,17 @@ export const overload: Guide = {
       goal: "Know what a tap will set off before you make it, and stop spending taps on guesses.",
       tips: [
         {
-          title: "Read the ring",
-          body: `A capacitor's charge is the number of lit parts of its ring, and at ${hot} its core shows a bolt. Only a bolt bursts from one tap. The **marks** setting draws the charge as a digit if you would sooner read numbers.`,
+          title: "Count the holes",
+          body: `A capacitor has one hole for each charge it holds, and its colour steps with the count. Only a capacitor at ${hot} bursts from one tap.`,
         },
         {
-          title: "Touching bolts all go",
-          body: `A burst passes one charge to each neighbour, so a ${hot} beside it goes too, and the ${hot} beside that. Before you tap, trace the bolts that touch. Tap the group with the most in it: any bolt in the group sets off all of it.`,
+          title: `Touching ${hot}s all go`,
+          body: `A burst passes one charge to each neighbour, so a ${hot} beside it goes too, and the ${hot} beside that. Before you tap, trace the ${hot}s that touch. Tap the group with the most in it: any ${hot} in the group sets off all of it.`,
           media: {
             kind: "still",
             name: "read-before",
-            alt: "A bank before a tap, with several capacitors showing bolts side by side in one cluster and others scattered alone.",
-            caption: "Before the tap. Find the bolts that touch, then count what they reach.",
+            alt: "A bank before a tap, with several capacitors at three charges side by side in one cluster and others scattered alone.",
+            caption: `Before the tap. Find the ${hot}s that touch, then count what they reach.`,
           },
         },
         {
@@ -90,7 +90,7 @@ export const overload: Guide = {
           media: {
             kind: "clip",
             name: "read",
-            alt: "The same bank. One bolt is tapped and the chain runs through the cluster wave by wave, taking capacitors with two charges that sat between two bursts. The strip counts the chain up.",
+            alt: "The same bank. One capacitor at three charges is tapped and the chain runs through the cluster wave by wave, taking capacitors with two charges that sat between two bursts. The strip counts the chain up.",
             caption: "The same bank, one tap. The strip counts the bursts and what that many are worth.",
           },
         },
@@ -111,11 +111,11 @@ export const overload: Guide = {
         },
         {
           title: "Charge first",
-          body: `A tap that bursts nothing still adds a charge, and it does not touch the streak. Look for the capacitor at ${hot - 1} that sits against a cluster and tap it up to ${hot}. Or lift the one between two bolts so the first burst carries to the second. Then fire.`,
+          body: `A tap that bursts nothing still adds a charge, and it does not touch the streak. Look for the capacitor at ${hot - 1} that sits against a cluster and tap it up to ${hot}. Or lift the one between two ${hot}s so the first burst carries to the second. Then fire.`,
           media: {
             kind: "clip",
             name: "charge-first",
-            alt: "No tap on the bank reaches four. One capacitor is tapped and only gains a charge. The next tap, on a bolt beside it, sets off a chain that the strip counts past four.",
+            alt: "No tap on the bank reaches four. One capacitor is tapped and only gains a charge. The next tap, on a capacitor at three charges beside it, sets off a chain that the strip counts past four.",
             caption: `One tap to charge, one to fire. The first bursts nothing, so the streak is safe.`,
           },
         },
@@ -150,7 +150,7 @@ export const overload: Guide = {
           media: {
             kind: "clip",
             name: "booster",
-            alt: "A chain reaches a booster, a capacitor with a second ring and four lugs. It bursts with heavier sparks and the capacitors with two charges around it burst in the next wave, carrying the chain on.",
+            alt: "A chain reaches a booster, a capacitor with four lugs. It bursts, a bigger dot of charge runs to each neighbour, and the capacitors with two charges around it burst in the next wave, carrying the chain on.",
             caption: "The chain reaches the booster and the twos around it go at once.",
           },
         },
@@ -190,9 +190,9 @@ export const overload: Guide = {
   mistakes: [
     `**Firing a chain of two or three.** It scores almost nothing and resets the streak to the start. Charge one capacitor and make it ${c.streakMin} or more.`,
     `**Tapping to see what happens.** Every chain can be read before the tap. Guessing empties the hand and then you wait ${regenSeconds} seconds a tap.`,
-    "**Firing the first bolt you see.** The biggest group of touching bolts costs the same one tap. Look once round the bank before you spend it.",
+    `**Firing the first ${hot} you see.** The biggest group of touching ${hot}s costs the same one tap. Look once round the bank before you spend it.`,
     "**Charging for a small gain.** A charge is a turn without a chain. Spend it to reach the streak or to join two real clusters, not to add one burst.",
-    "**Waiting for the chain to finish.** The next tap is allowed at once. Have it picked before the sparks stop.",
+    "**Waiting for the chain to finish.** The next tap is allowed at once. Have it picked before the chain stops.",
   ],
 };
 

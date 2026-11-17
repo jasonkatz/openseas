@@ -1,10 +1,5 @@
 [
   "boards/src/cutting/renderer.ts",
-  "boards/src/deflectors/renderer.ts",
-  "boards/src/kit/KindIcon.tsx",
-  "boards/src/kit/art.ts",
-  "boards/src/kit/fx.ts",
-  "boards/src/overload/renderer.ts",
   "boards/src/racks/renderer.ts",
   "boards/src/reactor/renderer.ts",
   "boards/src/salvage/renderer.ts",

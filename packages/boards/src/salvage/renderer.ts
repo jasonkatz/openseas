@@ -231,7 +231,7 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
       if (!v) return;
       this.pieces.delete(id);
       v.s.zIndex = 2;
-      this.tweens.to(v.s, { x: em.x, y: em.y, scale: 0.25, alpha: 0.2 }, ms, { delay, ease: ease.inBack, done: () => v.s.destroy() });
+      this.tweens.to(v.s, { x: em.x, y: em.y, scale: 0.25, alpha: 0.2 }, ms, { delay, ease: ease.inCubic, done: () => v.s.destroy() });
     };
 
     r.line.forEach((h, i) => {
@@ -301,7 +301,7 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
         const rows = Math.round((f.to - f.from) / g.cols);
         const ms = 150 + rows * 45;
         longest = Math.max(longest, ms);
-        this.tweens.to(v.s, { y: g.y(f.to) }, ms, { delay: t, ease: ease.outBack });
+        this.tweens.to(v.s, { y: g.y(f.to) }, ms, { delay: t, ease: ease.outCubic });
       }
       for (const sp of round.spawned) {
         const piece = { id: sp.id, kind: sp.kind };
@@ -310,7 +310,7 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
         v.s.alpha = 0;
         const ms = 170 + sp.drop * 45;
         longest = Math.max(longest, ms);
-        this.tweens.to(v.s, { y: g.y(sp.cell), alpha: 1 }, ms, { delay: t, ease: ease.outBack });
+        this.tweens.to(v.s, { y: g.y(sp.cell), alpha: 1 }, ms, { delay: t, ease: ease.outCubic });
       }
       t += longest + 30;
     });

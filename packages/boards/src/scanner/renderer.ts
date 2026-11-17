@@ -442,7 +442,7 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       (k) => {
         look.pop = from + (1 - from) * k;
       },
-      { delay: at, ease: ease.outBack },
+      { delay: at, ease: ease.outCubic },
     );
   }
 

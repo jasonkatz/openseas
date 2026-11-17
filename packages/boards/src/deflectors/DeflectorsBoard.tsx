@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { deflectorsViewString, type DeflectorsState } from "@openseas/engine";
 import { t } from "../content.js";
 import { useKitBoard } from "../kit/useKitBoard.js";
-import { DEFLECTORS_SIGNS, DeflectorsRenderer } from "./renderer.js";
+import { DeflectorsRenderer } from "./renderer.js";
 
 export interface DeflectorsBoardProps {
   /** The state as shown: the engine advanced to the current tick. */
@@ -14,7 +14,6 @@ export interface DeflectorsBoardProps {
   logged?: DeflectorsState;
   version?: number;
   interactive: boolean;
-  showMarks: boolean;
   /** Pulse the next mirror to flip after a pause: on for practice, off for recorded rounds. */
   hints?: boolean;
   onFlip?(cell: number): void;
@@ -36,7 +35,6 @@ export function DeflectorsBoard(props: DeflectorsBoardProps) {
           onFrame: () => latest.current.onFrame(),
         },
         {
-          showMarks: props.showMarks,
           hints: props.hints ?? false,
           labels: {
             outlook: (points, best) => t("deflectors.outlook", { points, best }),
@@ -63,6 +61,3 @@ export function DeflectorsBoard(props: DeflectorsBoardProps) {
 
   return <div ref={host} className="board-host" data-testid="deflectors-board" data-board={deflectorsViewString(props.state.mirrors, props.state.volley?.beams ?? [])} />;
 }
-
-/** The sign each beam of a volley wears, for a page's legend: a kit kind and the color it is drawn in. */
-DeflectorsBoard.signs = DEFLECTORS_SIGNS;

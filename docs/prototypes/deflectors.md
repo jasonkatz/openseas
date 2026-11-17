@@ -10,8 +10,8 @@ flips it. That is the one verb. Mirrors never move, and empty cells let a beam p
 
 Beams come in from ports on the edge, in volleys. A volley is one beam for the first 35 seconds
 (`rampTicks`) and two beams after that (`maxBeams`). A volley is announced before it fires: each
-beam's entry port wears its sign, its exit port wears the same sign as an outline, and one count
-runs for the whole volley. The count is 18 seconds at the start of the round and 13 by the end
+beam's entry port wears its sign, its exit port wears the same sign with its middle cut out, and one count
+runs for the whole volley, as a bar over the grid. The count is 18 seconds at the start of the round and 13 by the end
 (`chargeTicks`, `chargeTicksMin`), with 5 more for a second beam (`beamTicks`).
 
 When the count ends every beam fires at once. It runs straight, turns at every mirror it meets, and
@@ -48,18 +48,38 @@ fires (`respawnTicks`), so a quick hand sees more volleys in a round.
 - **Fourth skill:** the long way round. The first route found is worth about a third of the best
   one. Seeing the long route, not stumbling on it, is what the top scores are made of.
 
-## Input
+## Input and feedback
 
 - Tap a mirror to flip it. Tap a lit entry port to fire the volley.
 - Keyboard: arrows or WASD move a cursor, space or enter flips the mirror under it, F fires.
-- The last three seconds of a count tick, and the count's ring turns red.
-- A fired beam draws its whole path, a spark and a rising note at each turn, and its points at the
-  port it leaves by. A perfect volley, a route of eight turns or more and a streak of three or more
-  are called out; a beam into the hull shakes the board.
-- Each beam has its own shape: a circle, a square, a triangle. The beads on a route that is home
-  are that shape. The mark setting adds pips to the signs.
-- Unrated and lab rounds pulse the next mirror to flip after five seconds idle: a flip towards the
-  volley's best setting. Following it keeps it coming.
+- Unrated and lab rounds pulse a cream ring on the next mirror to flip after five seconds idle: a
+  flip towards the volley's best setting. Following it keeps it coming.
+
+The board is restyled to the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws its pieces
+in code (`boards/src/deflectors/pieces.ts`), loads no atlas and has no marks setting.
+
+- **Pieces.** A mirror is a bar on a pivot. A `/` and a `\` are the same picture a quarter turn
+  apart, so the way a mirror is set is its outline. Each beam has a sign with a silhouette of its
+  own: a disc, a square, a triangle, in sand, rose and moss. An entry port wears the sign solid,
+  with a small arrow into the grid; an exit port wears it with its middle cut out, and it fills
+  when the beam is home.
+- **The board.** Bare ground under the strip, the ports and the grid. The one hairline is round
+  the grid, because a beam leaves across it. No frame and no grid lines: a small dot marks every
+  cell, so an empty one a beam runs straight through is seen, and every port.
+- **The strip** over the grid says, in mono, what the volley is worth now and the best it could be,
+  and under it the count is a plain bar that drains. The last three seconds tick and the bar turns
+  to danger.
+- **A waiting beam's lines.** Home, its route is a solid line in its colour, beaded with its own
+  sign so two routes that cross are told apart. Astray, it is a broken line to the port it would
+  leave by, with a cross there in danger, and dots run back from its exit. When every beam is home
+  the entries are ringed in amber: the thing to tap.
+- **A flip** turns the mirror in 120ms. **A fired beam** draws its whole path as one flat line
+  with a cream dot at its head and a rising note at each turn, and its points rise in cream at the
+  port it leaves by. A beam into the hull leaves one ring in danger at that port, its cost, and
+  the callout in danger. A streak of three or more is called out.
+- **The beat**, one amber pulse of the whole board, is kept for two things: the long way round (a
+  route of eight turns or more, stronger the longer it is) and a perfect volley (strongest when it
+  also went the long way). There is no shake, no flash and no sparks.
 
 ## Engine
 

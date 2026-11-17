@@ -9,28 +9,6 @@
     "crate",
     "coupler"
   ],
-  "overload": [
-    "charge-0",
-    "charge-1",
-    "charge-2",
-    "charge-3",
-    "charge-4",
-    "booster-0",
-    "booster-1",
-    "booster-2",
-    "booster-3",
-    "booster-4"
-  ],
-  "deflectors": [
-    "mirror-slash",
-    "mirror-backslash",
-    "sign-gold",
-    "sign-ice",
-    "sign-violet",
-    "target-gold",
-    "target-ice",
-    "target-violet"
-  ],
   "reactor": [
     "grade-1",
     "grade-2",
