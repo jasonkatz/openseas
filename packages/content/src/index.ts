@@ -250,6 +250,7 @@ export function contentProblems(content: Content): string[] {
     const p = puzzles[id];
     const where = `puzzles/${id}`;
     if (id === "cooling") checkCoolingPieces(where, puzzles.cooling.pieces, puzzles.cooling.config.pieceKinds, messages, problems);
+    else if (id === "gunnery") checkGunneryPieces(where, puzzles.gunnery.pieces, messages, problems);
     else if ("pieces" in p) checkPieces(where, p.pieces as Parameters<typeof checkPieces>[1], "pieceKinds" in p.config ? p.config.pieceKinds : "colors" in p.config ? p.config.colors : p.pieces.length, messages, problems);
     for (const problem of thresholdProblems(p.thresholds, "parScore" in p ? p.parScore : undefined)) problems.push(`${where}: ${problem}`);
     need(`home.practice_${id}`, where);
@@ -328,6 +329,18 @@ function checkCoolingPieces(where: string, pieces: ReadonlyArray<{ nameKey: stri
     shapes.add(p.shape);
     colors.add(p.color);
   }
+}
+
+/** Gunnery's four kinds are the engine's, in its order, each in a colour of its own: the shape is what tells kinds apart (rule 6). */
+function checkGunneryPieces(where: string, pieces: ReadonlyArray<{ nameKey: string; shape: string; color: string }>, messages: Record<string, string>, problems: string[]): void {
+  const order = ["cell", "sabot", "slug", "coolant"];
+  const colors = new Set<string>();
+  pieces.forEach((p, kind) => {
+    if (!(p.nameKey in messages)) problems.push(`${where}: missing message key "${p.nameKey}"`);
+    if (p.shape !== order[kind]) problems.push(`${where}: piece ${kind} must be drawn as "${order[kind]}", the engine's kind ${kind}`);
+    if (colors.has(p.color)) problems.push(`${where}: color "${p.color}" used twice`);
+    colors.add(p.color);
+  });
 }
 
 /** Every kind must differ by mark, color, and texture so pieces stay apart without color (rule 6). */

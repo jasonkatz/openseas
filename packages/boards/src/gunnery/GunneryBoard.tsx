@@ -7,7 +7,6 @@ export interface GunneryBoardProps {
   /** The state to show: the engine state advanced to the display tick. */
   state: GunneryState;
   interactive: boolean;
-  showMarks: boolean;
   onArrow(col: number, row: number, dir: Dir | null): void;
   onFrame(): void;
   onEvents(events: readonly GunneryEvent[]): void;
@@ -33,7 +32,6 @@ export function GunneryBoard(props: GunneryBoardProps) {
         onEvents: (events) => latest.current.onEvents(events),
       },
       {
-        showMarks: props.showMarks,
         tickMs: gunnery.config.tickMs,
         labels: { jammed: t("gunnery.jammed_callout"), clean: t("gunnery.clean_callout"), next: t("gunnery.next"), broadside: t("gunnery.broadside_callout") },
       },
@@ -67,10 +65,6 @@ export function GunneryBoard(props: GunneryBoardProps) {
     const r = renderer.current;
     if (r && r.app.renderer) r.setInteractive(props.interactive);
   }, [props.interactive]);
-
-  useEffect(() => {
-    renderer.current?.setShowMarks(props.showMarks);
-  }, [props.showMarks]);
 
   return <div ref={host} className="board-host" data-testid="gunnery-board" data-board={gunneryViewString(props.state)} />;
 }

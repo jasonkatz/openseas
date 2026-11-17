@@ -166,9 +166,9 @@
     { "score": 7800, "rating": 2100 }
   ],
   "pieces": [
-    { "nameKey": "gunnery.piece.cell", "mark": "square", "texture": "grain", "color": "#e8892c" },
-    { "nameKey": "gunnery.piece.sabot", "mark": "circle", "texture": "fan", "color": "#f2f0e6" },
-    { "nameKey": "gunnery.piece.slug", "mark": "diamond", "texture": "knurl", "color": "#5b6470" },
-    { "nameKey": "gunnery.piece.coolant", "mark": "triangle", "texture": "waves", "color": "#3fa7f5" }
+    { "nameKey": "gunnery.piece.cell", "shape": "cell", "color": "sand" },
+    { "nameKey": "gunnery.piece.sabot", "shape": "sabot", "color": "moss" },
+    { "nameKey": "gunnery.piece.slug", "shape": "slug", "color": "lilac" },
+    { "nameKey": "gunnery.piece.coolant", "shape": "coolant", "color": "sky" }
   ]
 }

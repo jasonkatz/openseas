@@ -320,6 +320,16 @@ export const PlatingContentSchema = DutyPuzzleBaseSchema.extend({
   shapes: z.array(z.object({ nameKey: MessageKey })).length(12),
 });
 
+/**
+ * One Gunnery piece kind, index = kind: the pictogram it is drawn as and the palette colour it
+ * wears. Every kind has a shape of its own, so kinds are told apart without color (rule 6).
+ */
+export const GunneryPieceStyleSchema = z.object({
+  nameKey: MessageKey,
+  shape: z.enum(["cell", "sabot", "slug", "coolant"]),
+  color: PieceColorSchema,
+});
+
 export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
   config: z.object({
     /**
@@ -364,7 +374,7 @@ export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
     broadsidePoints: z.int().min(0),
   }),
   /** Cell, sabot, slug, coolant, in that order (the engine's kind numbers). */
-  pieces: z.array(PieceStyleSchema).length(4),
+  pieces: z.array(GunneryPieceStyleSchema).length(4),
 });
 
 /** Star styles: a kind is shape x color, so each axis is listed on its own. */
@@ -606,6 +616,7 @@ export type ShipGrant = z.infer<typeof ShipGrantSchema>;
 export type RatingTier = z.infer<typeof RatingTierSchema>;
 export type PieceStyle = z.infer<typeof PieceStyleSchema>;
 export type CoolingPieceStyle = z.infer<typeof CoolingPieceStyleSchema>;
+export type GunneryPieceStyle = z.infer<typeof GunneryPieceStyleSchema>;
 export type EnginesPieceStyle = z.infer<typeof EnginesPieceStyleSchema>;
 export type CoolingContent = z.infer<typeof CoolingContentSchema>;
 export type EnginesContent = z.infer<typeof EnginesContentSchema>;

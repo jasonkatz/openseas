@@ -1,8 +1,8 @@
-import { useSprites } from "../sprites/useSprites.js";
-import { gunneryPieceUrl } from "./pieces.js";
+import type { PieceColor } from "@openseas/content";
+import { gunneryPieceUrl, type GunneryShape } from "./pieces.js";
 
-export function GunneryPieceIcon(props: { kind: number; mark: string | null; size?: number }) {
-  useSprites("gunnery");
+/** One Gunnery piece as an image, for a legend: the same drawing the board bakes. */
+export function GunneryPieceIcon(props: { shape: GunneryShape; color: PieceColor; size?: number }) {
   const size = props.size ?? 26;
-  return <img src={gunneryPieceUrl(props.kind, props.mark, size)} width={size} height={size} alt="" aria-hidden="true" className="tile-icon" draggable={false} />;
+  return <img src={gunneryPieceUrl(props.shape, props.color, size)} width={size} height={size} alt="" aria-hidden="true" className="tile-icon" draggable={false} />;
 }

@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { advanceGunnery, summarizeGunnery, type Dir, type GunneryConfig, type GunneryEvent, type GunneryMove, type GunneryState } from "@openseas/engine";
 import { GunneryBoard, GunneryPieceIcon, content, sfx, t, useTicked } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { GUNNERY } from "../puzzles.js";
 
@@ -10,7 +10,6 @@ const gunnery = content.puzzles.gunnery;
 const waitAt = (tick: number): GunneryMove => ({ type: "wait", tick });
 
 export function GunneryPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<GunneryState, GunneryMove, GunneryConfig>({
     puzzle: "gunnery",
     def: GUNNERY.def,
@@ -143,9 +142,9 @@ export function GunneryPractice() {
       legend={
         <>
           <ul className="kinds">
-            {pieces.map((p, kind) => (
+            {pieces.map((p) => (
               <li key={p.nameKey}>
-                <GunneryPieceIcon kind={kind} mark={showMarks ? p.mark : null} />
+                <GunneryPieceIcon shape={p.shape} color={p.color} />
                 <span>{t(p.nameKey)}</span>
               </li>
             ))}
@@ -154,11 +153,10 @@ export function GunneryPractice() {
           <p className="muted small legend-note">{t("gunnery.legend_broadside", { points: shown.config.broadsidePoints })}</p>
           <p className="muted small legend-note">{t("gunnery.legend_badges")}</p>
           <p className="muted small legend-note">{t("gunnery.legend_arrow")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
       board={(interactive) => (
-        <GunneryBoard state={shown} interactive={interactive} showMarks={showMarks} onArrow={onArrow} onFrame={api.markRendered} onEvents={onEvents} />
+        <GunneryBoard state={shown} interactive={interactive} onArrow={onArrow} onFrame={api.markRendered} onEvents={onEvents} />
       )}
     />
   );

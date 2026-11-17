@@ -24,20 +24,6 @@
     "edge",
     "sparkle"
   ],
-  "gunnery": [
-    "cell",
-    "sabot",
-    "slug",
-    "coolant",
-    "turret-empty",
-    "turret-loaded",
-    "turret-jammed",
-    "turret-fire",
-    "crate",
-    "arrow",
-    "deck",
-    "smoke"
-  ],
   "navigation": [
     "gold-spark",
     "gold-star",

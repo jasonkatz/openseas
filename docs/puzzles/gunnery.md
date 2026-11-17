@@ -1,6 +1,6 @@
 # Gunnery
 
-Status: in the game. Built in M2, redesigned over several playtests under 3.2. In the studio at `/gunnery`.
+Status: in the game. Built in M2, redesigned over several playtests under 3.2; restyled to the brand book in M10 (ADR 0061, ADR 0062). In the studio at `/gunnery`.
 
 ## The puzzle
 
@@ -54,22 +54,47 @@ The round ends on the clock, `maxMoves` or `maxTick`.
 
 ## Input and feedback
 
-Reading the deck is the point of the QoL: every piece carries a chevron for its heading. A piece
-headed into a turret shows its route as dots, green when the piece is what the turret wants (or
-coolant for a jammed one) and red when it will jam it, and that turret gets a matching ring (the
-"highlight of which drop completes a load" above); pieces headed anywhere else show no route. The
-preview accounts for full turrets firing before the piece arrives. Each turret
-shows the piece it wants next as a badge, with cell, sabot and slug pips below for its load. A
-mouse hovering a deck tile shows a ghost arrow pointing toward the nearest edge, and every trail
-redraws as if it were laid; a click commits it, the same
+Reading the deck is the point of the QoL: every piece carries a small cream chevron on its leading
+edge for the way it will roll next, so a turn at a rail or an arrow shows before it happens. A
+piece headed into a turret shows its route: cream dots when the piece is what the turret wants (or
+coolant for a jammed one) and red crosses when it will jam it, so the two differ by shape as well as
+colour, and that turret's port gets a ring of the same colour (the "highlight of which drop
+completes a load" above); pieces headed anywhere else show no route. The preview accounts for full
+turrets firing before the piece arrives. A mouse hovering a deck tile shows a faint arrow pointing
+toward the nearest edge, and every route redraws as if it were laid; a click commits it, the same
 click again lifts it, and right-click lifts. Touch taps the same way or swipes across a deck tile to
-point an arrow. Keyboard moves a cursor, lays with W, A, S, D and lifts with Space or Backspace.
-Gunnery has its own piece art rather than the coloured tiles of the other puzzles. The cell is an
-upright canister with a glowing orange gauge, the sabot a cream split shell, the slug a pointed
-round with a copper band and the coolant a square jug of blue coolant with a hose. Each has its own
-silhouette (canister, open shell, pointed round, handled jug), so they read apart without colour, and the marks setting adds a
-symbol badge to each. Loads pop their points, a full turret glows and sparks, firing recoils with a muzzle flash, smoke
-and a shake, a jam puffs smoke. Numbers and the deck live in `content/data/puzzles/gunnery.json`.
+point an arrow, and a double tap lifts. Keyboard moves a cursor, lays with W, A, S, D and lifts with
+Space or Backspace.
+
+The board follows the brand book (`docs/BRAND.md`): flat colours from the one palette, no frame, no
+grid, no textures.
+
+- **The deck** is bare ground with one hairline round it. The rails and the crates, the things that
+  turn a piece, are flat blocks a shade lighter. Every tile an arrow can lie on has a small dot. A
+  hatch is a gap in the rail where the hairline breaks, with a chevron pointing out. The feeder is a
+  port in the top rail with a chevron for the way pieces drop, and the next pieces wait in a row
+  above it, soonest largest.
+- **The pieces** are pictograms drawn in code (`boards/src/gunnery/pieces.ts`), each a silhouette of
+  its own, so they read apart with the colour taken away: the cell is a battery on its side with a
+  charge window, in sand; the sabot an open cup, in moss; the slug an upright pointed round with its
+  driving band cut out, in lilac; the coolant a six-armed frost crystal, in sky. Content names each
+  kind's shape and its palette colour. There is no marks setting on this board.
+- **A turret** is a port in a side rail with a short barrel poking out through it. The port shows the
+  piece the turret wants next. A bar of three beside it fills as it loads, and a full turret holds a
+  cream block, its charge, until it fires. A jammed turret's port is tinted red, its barrel is red,
+  and the piece it shows is coolant. Its broadside lamp is a ring on the rail, and a cream dot once
+  the turret has fired.
+- **Amber is the player's own:** the arrows they laid, the faint one the pointer would lay, the
+  keyboard's cursor. Red is only the route that will jam and the jammed turret.
+
+A piece that goes into a turret or out a hatch slides there and shrinks to nothing. Points rise
+from beside the turret that scored them, in the mono face; a jam and a flush are named in a word.
+A shot is the turret's charge shrinking to nothing and its barrel kicking back once; its lamp
+lights. Nothing shakes, smokes, sparks or glows (`docs/BRAND.md` section 6). **The beat**, one amber
+pulse of the whole board, is kept for two things: a broadside (the compound move), which is also
+named in a callout with its points, and the load that fills the combo meter. Reduced motion turns
+the rolls into steps and keeps the beat as a still flash. Numbers and the decks live in
+`content/data/puzzles/gunnery.json`.
 
 ## Engine
 

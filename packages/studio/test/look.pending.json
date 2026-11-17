@@ -5,8 +5,6 @@
   "boards/src/cutting/renderer.ts",
   "boards/src/deflectors/renderer.ts",
   "boards/src/engines/renderer.ts",
-  "boards/src/gunnery/pieces.ts",
-  "boards/src/gunnery/renderer.ts",
   "boards/src/hull.ts",
   "boards/src/kit/KindIcon.tsx",
   "boards/src/kit/art.ts",

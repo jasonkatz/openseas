@@ -182,7 +182,7 @@ function PlatingDuty({ active, showMarks, children }: DutyProps) {
 
 const gunnery = content.puzzles.gunnery;
 const gunneryWait = (tick: number): GunneryMove => ({ type: "wait", tick });
-function GunneryDuty({ active, showMarks, children }: DutyProps) {
+function GunneryDuty({ active, children }: DutyProps) {
   const api = useDuty<GunneryState, GunneryMove, GunneryConfig>({ puzzle: "gunnery", def: GUNNERY_DEF, config: gunnery.config, roundSeconds: gunnery.roundSeconds, active });
   const { shown, moveTick } = useTicked(api, { tickMs: gunnery.config.tickMs, maxTick: gunnery.config.maxTick, advance: advanceGunnery, wait: gunneryWait });
   const onArrow = useCallback(
@@ -205,7 +205,7 @@ function GunneryDuty({ active, showMarks, children }: DutyProps) {
     api,
     score: shown.score,
     combo: shown.combo,
-    board: (interactive) => <GunneryBoard state={shown} interactive={interactive} showMarks={showMarks} onArrow={onArrow} onFrame={api.markRendered} onEvents={onEvents} />,
+    board: (interactive) => <GunneryBoard state={shown} interactive={interactive} onArrow={onArrow} onFrame={api.markRendered} onEvents={onEvents} />,
   });
 }
 

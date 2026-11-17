@@ -15,7 +15,6 @@ sprites. Keep optional accessibility badges and labels in code.
 |---|---|
 | engines | Trefoil, ring and three-spoke discs and their hollow targets; the extra lab kind stays procedural |
 | plating | Tin, copper, steel and brass, brushed horizontally and vertically, composed into exact polyominoes |
-| gunnery | Cell, sabot, slug, coolant jug; empty, loaded, jammed and firing turrets; crate |
 | navigation | Gold, ice and ember spark/star/comet; hollow target silhouettes |
 | swordfight | Four single-cell block and breaker skins, stone and ripening stone |
 | battle | Friendly and raider starfighters, asteroids, gravity wells and slugs |
