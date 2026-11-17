@@ -10,24 +10,6 @@
     "link",
     "gust"
   ],
-  "swordfight": [
-    "facet-block",
-    "rivet-block",
-    "scale-block",
-    "hatch-block",
-    "facet-breaker",
-    "rivet-breaker",
-    "scale-breaker",
-    "hatch-breaker",
-    "facet-hint",
-    "rivet-hint",
-    "scale-hint",
-    "hatch-hint",
-    "stone",
-    "blade",
-    "shatter",
-    "swipe"
-  ],
   "battle": [
     "ship0",
     "ship1",

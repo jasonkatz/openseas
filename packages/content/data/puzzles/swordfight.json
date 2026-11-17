@@ -45,11 +45,11 @@
     { "score": 6600, "rating": 2100 }
   ],
   "pieces": [
-    { "nameKey": "swordfight.piece.crimson", "mark": "circle", "texture": "facet", "color": "#e5355a" },
-    { "nameKey": "swordfight.piece.gold", "mark": "square", "texture": "rivet", "color": "#f5d021" },
-    { "nameKey": "swordfight.piece.cobalt", "mark": "triangle", "texture": "scale", "color": "#3fa7f5" },
-    { "nameKey": "swordfight.piece.lime", "mark": "diamond", "texture": "hatch", "color": "#4ad66d" },
-    { "nameKey": "swordfight.piece.violet", "mark": "hexagon", "texture": "swirl", "color": "#c9a0dc" },
-    { "nameKey": "swordfight.piece.pearl", "mark": "star", "texture": "rings", "color": "#f2f0e6" }
+    { "nameKey": "swordfight.piece.rose", "cut": "dot", "color": "rose" },
+    { "nameKey": "swordfight.piece.sand", "cut": "bar", "color": "sand" },
+    { "nameKey": "swordfight.piece.sky", "cut": "diamond", "color": "sky" },
+    { "nameKey": "swordfight.piece.moss", "cut": "cross", "color": "moss" },
+    { "nameKey": "swordfight.piece.lilac", "cut": "triangle", "color": "lilac" },
+    { "nameKey": "swordfight.piece.teal", "cut": "ring", "color": "teal" }
   ]
 }

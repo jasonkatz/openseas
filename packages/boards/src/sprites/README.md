@@ -14,7 +14,6 @@ sprites. Keep optional accessibility badges and labels in code.
 | Puzzle | Runtime use |
 |---|---|
 | engines | Trefoil, ring and three-spoke discs and their hollow targets; the extra lab kind stays procedural |
-| swordfight | Four single-cell block and breaker skins, stone and ripening stone |
 | battle | Friendly and raider starfighters, asteroids, gravity wells and slugs |
 
 The eight prototype boards (ADR 0037) each have an atlas too, painted through the board kit:

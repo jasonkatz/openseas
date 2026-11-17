@@ -486,12 +486,15 @@ export const BattleContentSchema = z.object({
   }),
 });
 
-/** Swordfight blocks are beveled squares with their own surface per color, so they never read as Cooling tiles. */
+/**
+ * One Swordfighting colour, index = colour: the palette colour its blocks wear and the one detail cut
+ * out of them. Blocks fuse into slabs of any size, so a block has no outline of its own and the
+ * cut-out is what tells colours apart without color (rule 6, docs/BRAND.md section 3).
+ */
 export const SwordPieceStyleSchema = z.object({
   nameKey: MessageKey,
-  mark: z.string(),
-  texture: z.enum(["facet", "rivet", "scale", "hatch", "swirl", "rings"]),
-  color: z.string().regex(/^#[0-9a-f]{6}$/),
+  cut: z.enum(["dot", "bar", "diamond", "cross", "triangle", "ring"]),
+  color: PieceColorSchema,
 });
 
 /** The boarding fight: not a duty board, so no par; rated against thresholds until there is a human opponent (ADR 0022). */

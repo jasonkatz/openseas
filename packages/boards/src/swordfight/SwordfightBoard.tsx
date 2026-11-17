@@ -6,7 +6,6 @@ import { SwordfightRenderer, swordfightViewString, type PlaceAnswer, type Remote
 export interface SwordfightBoardProps {
   state: SwordfightState;
   interactive: boolean;
-  showMarks: boolean;
   /** Boards in the melee that are not in this state: the crew's and the raiders', aboard. */
   remote?: readonly RemoteBoard[];
   /** The player's pair came to rest: taken, "wait" (too soon; the board asks again) or "refused" (the board lifts it clear). */
@@ -37,7 +36,6 @@ export function SwordfightBoard(props: SwordfightBoardProps) {
         onNudge: () => latest.current.onNudge(),
       },
       {
-        showMarks: props.showMarks,
         softDropMs: swordfight.softDropMs,
         labels: {
           you: t("swordfight.you"),
@@ -95,10 +93,6 @@ export function SwordfightBoard(props: SwordfightBoardProps) {
     const r = renderer.current;
     if (r && r.app.renderer) r.setInteractive(props.interactive);
   }, [props.interactive]);
-
-  useEffect(() => {
-    renderer.current?.setShowMarks(props.showMarks);
-  }, [props.showMarks]);
 
   return <div ref={host} className="board-host" data-testid="swordfight-board" data-board={swordfightViewString(props.state)} />;
 }
