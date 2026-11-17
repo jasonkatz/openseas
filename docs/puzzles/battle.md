@@ -1,6 +1,6 @@
 # Space Battle
 
-Status: in the game. Built in M4, ADR 0021. In the studio at `/battle`.
+Status: in the game. Built in M4, ADR 0021; restyled to the brand book in M10 (ADR 0061, ADR 0062). In the studio at `/battle`.
 
 ## The puzzle
 
@@ -50,6 +50,54 @@ turns, plus the loaded turrets and the hull. Raider tiers differ by tokens, relo
 aggression (`raider-tiers.json`): the junker is slow and sloppy, the corsair closes fast, fires
 true and grapples the moment it can. The studio's page fights the content raider with
 presets per tier, per board and for faster or slower turns.
+
+## Look and feedback
+
+Everything on the board is drawn in code as a flat pictogram on the shared palette
+(`boards/src/battle/art.ts`, `docs/BRAND.md` section 3), and every kind has an outline of its own, so
+any two are told apart with the colour taken away. The captain's ship is a dart with one point
+forward and a canopy cut out, in amber. The raider is a broad hull with two prongs forward and a
+square stern with a slot, in lilac: friend and foe differ by outline, and a ship's facing reads
+from her outline alone. An asteroid is a lump in quietened slate, a gravity well a teal ring
+broken by an arrowhead that shows which way it turns a ship, a solar current a dim chevron
+pointing the way it carries, and a slug a small capsule flying nose first. Nothing on the chart
+moves unless the rules move it.
+
+The chart is bare ground inside one hairline: no frame, no grid lines, no nebula and no stars. A
+ship is flown by counting cells, so every open cell carries a small dot.
+
+Amber is the captain's own: the ship, her hull bar and loaded turrets, the plot and the selected
+slot. The plot is drawn as three dots along each move, the dart hollow where the move leaves the
+ship (small along the way, nearly full size where the turn ends), the move's number beside it,
+and the cells each armed broadside reaches as a flat amber tint of the ground. The raider's reach
+from where she stands is outlined in her lilac. Red is kept for what is bad for the captain: a
+plotted move that would cost hull or be stopped is ringed and its number turns red, a cell of the
+raider's reach the captain's ship is standing in is outlined red, a raider's slug that is going to
+strike flies red, the ring round the captain's ship when she is struck and the words that name it
+are red, the captain's hull bar turns red once she can be boarded, the raider's grapple line is
+red, the turn clock's last quarter is red, and a lost fight is named in red. Good news is cream: a
+hit landed, a knock the raider takes, the raider's hull bar once she can be boarded (the Grapple
+button's edge turns cream with it), and a fight won.
+
+The hulls are plain bars and each turret is a dot, lit when it is loaded. In the plot strip a slot
+is a ground field on the panel, a plotted move an amber arrow, and each gun a turret pictogram: an
+armed one is amber, sits in an amber edge and has a slug leaving its barrel, so it reads armed
+without colour. Fly is the one amber button. Grapple, once set, is ground inside an amber ring.
+Type is Atkinson Hyperlegible, numbers in its mono face, bold. On a wide board too short for the
+strip (a phone on its side) the strip's rows are squeezed so Fly stays on it.
+
+A turn plays back segment by segment, at the same pace as before the restyle: moves, then
+currents, then wells, then the guns. Ships ease out to where they are going and never overshoot.
+A slug flies straight down its line, which is the shot's path; a hit rings the ship it struck, a
+miss shrinks to nothing in 160ms where it stopped. A grapple is a line between the two hulls. A
+wrecked ship shrinks to nothing in 160ms. Words rise a little and fade: Hit, Hit taken, Miss,
+Carried, Spun, Asteroids, Rammed, and the outcome in the middle of the chart. Nothing shakes,
+sparks, smokes, trails or glows, and the ships do not bob (`docs/BRAND.md` section 6).
+
+**The beat**, one amber pulse of the whole chart, is kept for three things: a fight won (boarded
+or crippled), at its strongest when the hit and the boarding were flown in one plot (the compound
+move), and the third hit landed in one turn. Reduced motion cuts the playback and keeps the beat
+as a still flash. Every sound is as it was. There is no marks setting on this board.
 
 ## Engine
 

@@ -1,6 +1,5 @@
-import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
 import { soundsFor } from "../audio.js";
-import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, TilingSprite, type FederatedPointerEvent } from "pixi.js";
+import { Application, CanvasSource, Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   BATTLE_PERMILLE,
   battleArcCells,
@@ -17,9 +16,9 @@ import {
   type ShipIndex,
   type Side,
 } from "@openseas/engine";
-import { paintBall, paintTurret, paintCaustic, paintWell, paintSpace, paintShip } from "./art.js";
+import { kindCanvas, type BattleKind, type Paint } from "./art.js";
 import { boardSurface } from "../surface.js";
-import { HULL, hullFrame, hullGradient } from "../hull.js";
+import { FONT, MOTION, RADIUS, blend, ink, type Token } from "../look/tokens.js";
 
 export interface BattleCallbacks {
   /** The captain flew the plot: by the button, the key, or the host's turn clock. */
@@ -34,7 +33,6 @@ export interface BattleCallbacks {
 }
 
 export interface BattleRendererOptions {
-  showMarks: boolean;
   showArcs: boolean;
   labels: {
     you: string;
@@ -67,10 +65,10 @@ interface ShipView {
   y: number;
   rot: number;
   damage: number;
-  /** ms of hit flash left. */
+  /** ms left of the ring that says she was just struck. */
   flash: number;
-  /** True while a tween carries it, for the wake. */
-  moving: boolean;
+  /** ms since a wrecked ship began to shrink away, or -1 while she is whole. */
+  sink: number;
 }
 
 interface Tween {
@@ -87,7 +85,7 @@ interface Shot {
   ball: Sprite;
 }
 
-/** One beat of a resolved turn's playback. */
+/** One step of a resolved turn's playback. */
 interface Step {
   ms: number;
   tweens: Tween[];
@@ -104,28 +102,10 @@ interface Popup {
   y0: number;
 }
 
-interface Particle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  r: number;
-  grow: number;
-  color: number;
-  alpha: number;
+/** A slug that missed, shrinking to nothing where it stopped. */
+interface Spent {
+  s: Sprite;
   life: number;
-  max: number;
-  /** Drawn as an ellipse flattened to the board. */
-  flat?: boolean;
-}
-
-interface Ring {
-  x: number;
-  y: number;
-  life: number;
-  max: number;
-  r: number;
-  color: number;
 }
 
 interface Button {
@@ -136,30 +116,31 @@ interface Button {
   h: number;
 }
 
+/**
+ * Whose is whose, in palette colours (docs/BRAND.md section 2). Amber is the captain's own ship,
+ * plot and selection; the raider is one piece colour and a silhouette of its own; danger is kept
+ * for what is bad for the captain.
+ */
+const OWN: Token = "amber";
+const RAIDER: Token = "lilac";
+/** Rock is inert, so it is slate, and quietened toward the ground: a board has sixty of them round its edge. */
+const ROCK = blend("ground", "slate", 0.5);
+const WELL: Token = "teal";
+const CURRENT: Token = "dim";
+
 const COLORS = {
-  arc: 0xf5d58a,
-  arcEnemy: 0xf0604d,
-  good: 0x6fdc8c,
-  warn: 0xf5d58a,
-  danger: 0xf0604d,
-  brass: 0xd4a548,
-  brassLight: 0xf5d58a,
-  brassDeep: 0x8f6a22,
-  ink: 0x070e1a,
-  inkGlass: 0x121a2b,
-  inkDeep: 0x0b1526,
-  text: 0xefe3c6,
-  muted: 0x9aa7bd,
-  flash: 0xfff3c4,
-  smoke: 0x8a93a3,
-  // A miss puffs pale dust, a hit throws hot metal, a ship's wake is its thrusters' cyan.
-  splash: 0xd8f0ff,
-  foam: 0x8fe9ff,
-  sparks: 0xffb066,
-  current: 0xaae4ff,
-  well: 0xd6f4f0,
+  ground: ink("ground"),
+  raised: ink("raised"),
+  line: ink("line"),
+  cream: ink("cream"),
+  dim: ink("dim"),
+  amber: ink(OWN),
+  danger: ink("danger"),
+  raider: ink(RAIDER),
+  // The cells a plotted broadside reaches: a flat tint of the ground.
+  arc: blend("ground", OWN, 0.26),
 };
-// A turn's playback runs on the same clock the next plot is made against, so its beats are brisk.
+// A turn's playback runs on the same clock the next plot is made against, so its steps are brisk.
 const MOVE_MS = 360;
 const PUSH_MS = 260;
 const SPIN_MS = 220;
@@ -167,9 +148,14 @@ const SHOT_MS = 320;
 const END_MS = 900;
 /** After a turn resolves, a tap on fly with nothing plotted is a double tap, not a turn of holds. */
 const FLY_GUARD_MS = 700;
-const FONT = "Atkinson Hyperlegible, sans-serif";
-const DISPLAY = "Fraunces, Georgia, serif";
-const SHIP_SCALE = 2.1;
+/** How long the ring round a struck ship stays. */
+const STRUCK_MS = 420;
+/** A ship is drawn a little larger than her cell, so she reads over the chart at 24 pixels a cell. */
+const SHIP_SCALE = 1.25;
+/** Hits landed in one turn that earn the beat. */
+const VOLLEY_HITS = 3;
+
+const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
 
 /** What the board shows, for the smoke test: both ships, the turn and the outcome. */
 export function battleViewString(state: BattleState): string {
@@ -183,49 +169,33 @@ function trimTrailingHolds(segments: readonly BattleSegment[]): BattleSegment[] 
   return segs;
 }
 
-function linear(vertical: boolean, stops: number[]): FillGradient {
-  const g = new FillGradient({ type: "linear", start: { x: 0, y: 0 }, end: vertical ? { x: 0, y: 1 } : { x: 1, y: 0 }, textureSpace: "local" });
-  stops.forEach((c, i) => g.addColorStop(i / Math.max(1, stops.length - 1), c));
-  return g;
-}
-
-function texture(canvas: HTMLCanvasElement, resolution: number): Texture {
-  return new Texture({ source: new CanvasSource({ resource: canvas, resolution }) });
-}
-
 export class BattleRenderer {
   readonly app = new Application();
   private readonly world = new Container();
-  private readonly frameG = new Graphics();
-  private readonly spaceLayer = new Container();
-  private spaceSprite: Sprite | null = null;
-  private caustic: TilingSprite | null = null;
-  private readonly wellLayer = new Container();
+  /** The chart's ground, its one hairline and a dot in every open cell. */
+  private readonly chartG = new Graphics();
+  private readonly terrainLayer = new Container();
   private readonly arcG = new Graphics();
   private readonly ghostLayer = new Container();
   private readonly ghostG = new Graphics();
-  private readonly wakeG = new Graphics();
   private readonly shipLayer = new Container();
   private readonly hullG = new Graphics();
   private readonly ballLayer = new Container();
-  private readonly fxG = new Graphics();
+  private readonly beatLayer = new Graphics();
   private readonly fxLayer = new Container();
   private readonly hudG = new Graphics();
   private readonly hudTexts = new Container();
   private readonly stripG = new Graphics();
   private readonly stripIcons = new Container();
   private readonly stripTexts = new Container();
-  private readonly brassFill = linear(true, [0xe9bd63, COLORS.brass, COLORS.brassDeep]);
-  private readonly inkFill = linear(true, [0x1a2438, COLORS.inkDeep]);
-  private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
   private readonly textures = new Map<string, Texture>();
   private shipSprites: [Sprite, Sprite] | null = null;
-  private ghostSprites: Sprite[] = [];
+  private ghostSprites: Array<Sprite | undefined> = [];
   private ghostTexts: Text[] = [];
   private state: BattleState | null = null;
   private ships: [ShipView, ShipView] = [
-    { x: 0, y: 0, rot: 0, damage: 0, flash: 0, moving: false },
-    { x: 0, y: 0, rot: Math.PI, damage: 0, flash: 0, moving: false },
+    { x: 0, y: 0, rot: 0, damage: 0, flash: 0, sink: -1 },
+    { x: 0, y: 0, rot: Math.PI, damage: 0, flash: 0, sink: -1 },
   ];
   private shownTurn = -1;
   private shownOutcome: BattleOutcome | null = null;
@@ -233,8 +203,13 @@ export class BattleRenderer {
   private step: Step | null = null;
   private stepT = 0;
   private popups: Popup[] = [];
-  private particles: Particle[] = [];
-  private rings: Ring[] = [];
+  private spent: Spent[] = [];
+  /** The grapple thrown this turn: whose it is, and how long its line stays (for good once it holds). */
+  private hook: { ship: ShipIndex; ms: number } | null = null;
+  /** Hits the captain has landed in the turn being played back. */
+  private turnHits = 0;
+  /** The beat: one amber pulse of the whole chart for a big moment (docs/BRAND.md section 6). */
+  private beatNow: { life: number; strength: number } | null = null;
   private segments: BattleSegment[] = [];
   private grapple = false;
   /** The slot the next token goes in; -1 when every slot holds a move, so nothing is overwritten unasked. */
@@ -247,9 +222,6 @@ export class BattleRenderer {
   private interactive = false;
   private framePending = false;
   private destroyed = false;
-  private shake = 0;
-  private endFlash = 0;
-  private time = 0;
   private turnLeftMs: number | null = null;
   private turnMs = 1;
   /** Geometry. */
@@ -258,7 +230,6 @@ export class BattleRenderer {
   private gy = 0;
   private cols = 1;
   private rows = 1;
-  private pad = 10;
   private vertical = false;
   private strip = { x: 0, y: 0, w: 0, h: 0 };
   private hud = { x: 0, y: 0, w: 0, h: 0 };
@@ -276,7 +247,9 @@ export class BattleRenderer {
   private readonly releaseSounds = soundsFor("battle");
 
   async init(): Promise<void> {
-    await loadPuzzleSprites("battle");
+    // Every label is drawn as text, so wait (briefly) for the webfont. Before the app exists: the
+    // board hands a state to any renderer that has one, and the layers come after.
+    await Promise.race([document.fonts?.ready, new Promise((r) => window.setTimeout(r, 800))]).catch(() => undefined);
     if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
@@ -289,13 +262,14 @@ export class BattleRenderer {
       this.app.destroy(true);
       return;
     }
-    this.app.canvas.dataset.spriteAtlas = spritesReady("battle") ? "battle" : "fallback";
+    // No atlas to wait for: everything is drawn in code (ADR 0062). The studio's thumbnails read this.
+    this.app.canvas.dataset.pieces = "drawn";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "battle-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.host.appendChild(this.app.canvas);
     this.ghostLayer.addChild(this.ghostG);
-    this.world.addChild(this.frameG, this.spaceLayer, this.wellLayer, this.arcG, this.ghostLayer, this.wakeG, this.shipLayer, this.hullG, this.ballLayer, this.fxG, this.fxLayer);
+    this.world.addChild(this.chartG, this.terrainLayer, this.arcG, this.ghostLayer, this.shipLayer, this.hullG, this.ballLayer, this.beatLayer, this.fxLayer);
     this.app.stage.addChild(this.world, this.hudG, this.hudTexts, this.stripG, this.stripIcons, this.stripTexts);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -311,9 +285,6 @@ export class BattleRenderer {
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const t of this.textures.values()) t.destroy(true);
-      this.brassFill.destroy();
-      this.inkFill.destroy();
-      this.hullFill.destroy();
     }
   }
 
@@ -321,17 +292,6 @@ export class BattleRenderer {
     if (this.interactive === on) return;
     this.interactive = on;
     this.stripDirty = true;
-  }
-
-  setShowMarks(on: boolean): void {
-    if (this.opts.showMarks === on) return;
-    this.opts.showMarks = on;
-    if (this.app.renderer) {
-      this.bakedKey = "";
-      this.bake();
-      this.drawShips();
-      this.drawPreview();
-    }
   }
 
   setShowArcs(on: boolean): void {
@@ -397,13 +357,18 @@ export class BattleRenderer {
       this.clearStep();
       this.popups.forEach((p) => p.t.destroy());
       this.popups = [];
-      this.particles = [];
-      this.rings = [];
+      this.spent.forEach((p) => p.s.destroy());
+      this.spent = [];
+      this.hook = null;
+      this.beatNow = null;
+      this.world.scale.set(1);
+      for (const v of this.ships) v.sink = -1;
       this.snap(state);
       this.shownTurn = state.turn;
       this.shownOutcome = state.outcome;
       this.resetPlan(state);
     } else if (state.turn > this.shownTurn && state.lastTurn) {
+      this.turnHits = 0;
       this.enqueueTurn(state, state.lastTurn.events);
       this.shownTurn = state.turn;
       this.shownOutcome = state.outcome;
@@ -458,10 +423,13 @@ export class BattleRenderer {
     this.cb.onNudge();
   }
 
+  /** Stand both ships where the state has them. A wrecked ship is gone, or goes on shrinking if she is on her way. */
   private snap(state: BattleState): void {
+    const wrecked = state.outcome === "crippled" ? 1 : state.outcome === "crippled_by" ? 0 : -1;
     for (const i of [0, 1] as const) {
       const s = state.ships[i];
-      this.ships[i] = { x: this.cx(s.x), y: this.cy(s.y), rot: (s.heading * Math.PI) / 2, damage: s.damage, flash: 0, moving: false };
+      const sink = wrecked === i ? (this.ships[i].sink >= 0 ? this.ships[i].sink : MOTION.clear) : -1;
+      this.ships[i] = { x: this.cx(s.x), y: this.cy(s.y), rot: (s.heading * Math.PI) / 2, damage: s.damage, flash: 0, sink };
     }
     this.drawShips();
   }
@@ -508,18 +476,16 @@ export class BattleRenderer {
       begin: () => {
         for (const e of events) {
           if (e.type === "spin") {
-            this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 0.9, this.opts.labels.spun, COLORS.well, 0.4);
+            this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 0.9, this.opts.labels.spun, COLORS.dim, 0.4);
             continue;
           }
           if (e.type !== "move" && e.type !== "push") continue;
-          if (e.type === "push" && !e.blocked) this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 0.9, this.opts.labels.blown, COLORS.current, 0.4);
+          if (e.type === "push" && !e.blocked) this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 0.9, this.opts.labels.blown, COLORS.dim, 0.4);
           if (e.damage > 0) {
+            // A knock is bad news when it is the captain's hull, and good news when it is the raider's.
             this.hurt(e.ship, e.damage);
             const t = e.blocked === "ship" ? this.opts.labels.rammed : this.opts.labels.asteroids;
-            this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 1.2, t, COLORS.danger, 0.55);
-            this.shake = Math.max(this.shake, 260);
-            this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.sparks, 10, 0.8);
-            this.burst(this.cx(e.to.x), this.cy(e.to.y), COLORS.foam, 8, 0.7, true);
+            this.popup(this.cx(e.to.x), this.cy(e.to.y) - this.cell * 1.2, t, e.ship === 0 ? COLORS.danger : COLORS.cream, 0.55);
           }
         }
         this.cb.onEvents(events);
@@ -540,26 +506,15 @@ export class BattleRenderer {
           const v = this.ships[e.ship];
           const last = e.cells[e.cells.length - 1];
           const to = last ? { x: this.cx(last.x), y: this.cy(last.y) } : { x: v.x, y: v.y };
-          const ball = new Sprite(this.textures.get("ball") ?? Texture.WHITE);
+          // The captain's slug is amber; the raider's is its own colour, and red when it is about to strike.
+          const ball = new Sprite(this.textures.get(e.ship === 0 ? "slug0" : e.hit ? "slugHit" : "slug1") ?? Texture.WHITE);
           ball.anchor.set(0.5);
           ball.position.set(v.x, v.y);
-          // The slug sprite points up; turn its nose along the line of flight.
+          // The slug is drawn nose up; turn it along the line of flight.
           if (to.x !== v.x || to.y !== v.y) ball.rotation = Math.atan2(to.y - v.y, to.x - v.x) + Math.PI / 2;
           this.ballLayer.addChild(ball);
           step.shots.push({ from: { x: v.x, y: v.y }, to, hit: e.hit, ship: e.ship, ball });
-          // Muzzle flash and smoke off the firing side.
-          const side = e.side === "port" ? -1 : 1;
-          const ang = v.rot - Math.PI / 2 + (side * Math.PI) / 2;
-          const mx = v.x + Math.cos(ang) * this.cell * 0.3;
-          const my = v.y + Math.sin(ang) * this.cell * 0.3;
-          this.particles.push({ x: mx, y: my, vx: 0, vy: 0, r: this.cell * 0.4, grow: 0.05, color: COLORS.flash, alpha: 0.95, life: 0, max: 160 });
-          for (let k = 0; k < (this.reduced ? 0 : 8); k++) {
-            const a = ang + (Math.random() - 0.5) * 0.9;
-            const sp = 0.03 + Math.random() * 0.06;
-            this.particles.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: this.cell * 0.1, grow: 0.012, color: COLORS.smoke, alpha: 0.55, life: 0, max: 700 + Math.random() * 500 });
-          }
         }
-        this.shake = Math.max(this.shake, 140);
         this.cb.onEvents(events);
       },
     };
@@ -574,16 +529,23 @@ export class BattleRenderer {
       events: [e],
       begin: () => {
         if (e.type === "grapple") {
-          const target = this.ships[e.ship === 0 ? 1 : 0];
-          this.burst(target.x, target.y, COLORS.brass, 18, 1.1);
-          this.shake = Math.max(this.shake, 400);
+          // The line goes over; it stays if the boarding holds.
+          this.hook = { ship: e.ship, ms: e.success ? Infinity : END_MS };
         } else if (e.type === "ended") {
-          this.endFlash = 1600;
           const mid = { x: this.gx + (this.cols * this.cell) / 2, y: this.gy + (this.rows * this.cell) / 2 };
           const win = e.outcome === "boarded" || e.outcome === "crippled";
-          this.popup(mid.x, mid.y, this.opts.labels.outcome(e.outcome), win ? COLORS.brassLight : e.outcome === "broke_off" || e.outcome === "disengaged" ? COLORS.muted : COLORS.danger, 1.1, 2600);
-          if (win) this.burst(mid.x, mid.y, COLORS.brass, 30, 1.6);
+          // Good news is cream, a fight lost is red, one that just stopped is quiet.
+          this.popup(mid.x, mid.y, this.opts.labels.outcome(e.outcome), win ? COLORS.cream : e.outcome === "broke_off" || e.outcome === "disengaged" ? COLORS.dim : COLORS.danger, 1.1, 2600);
+          if (win) {
+            // The beat. The hit and the boarding flown in one plot is the bigger moment.
+            const turn = state.lastTurn?.events ?? [];
+            const together = e.outcome === "boarded" && turn.some((x) => x.type === "shot" && x.ship === 0 && x.hit);
+            this.beat(together ? 1 : 0.6);
+          }
           this.snap(state);
+          // A wrecked ship shrinks to nothing.
+          const wrecked = e.outcome === "crippled" ? this.ships[1] : e.outcome === "crippled_by" ? this.ships[0] : null;
+          if (wrecked) wrecked.sink = this.reduced ? MOTION.clear : 0;
         }
         this.cb.onEvents([e]);
       },
@@ -593,7 +555,12 @@ export class BattleRenderer {
   private hurt(ship: ShipIndex, damage: number): void {
     const v = this.ships[ship];
     v.damage = Math.min(BATTLE_PERMILLE, v.damage + damage);
-    v.flash = 420;
+    v.flash = STRUCK_MS;
+  }
+
+  /** Ask for the beat. A stronger moment while one is playing takes it over; it never stacks. */
+  private beat(strength: number): void {
+    this.beatNow = { life: 0, strength: Math.max(strength, this.beatNow?.strength ?? 0) };
   }
 
   private nearRot(target: number, from: number): number {
@@ -622,10 +589,9 @@ export class BattleRenderer {
     const hudH = Math.max(36, Math.min(50, H * 0.08));
     this.vertical = H > W * 1.05;
     const gutter = 8;
+    // Nothing frames the chart, so the cells get all of the room but the hairline.
     const sized = (availW: number, availH: number): void => {
-      // The frame takes half a cell a side; solve for the cell that fits with it.
-      this.cell = Math.max(8, Math.floor(Math.min(availW / (this.cols + 1), availH / (this.rows + 1))));
-      this.pad = Math.max(8, Math.floor(this.cell * 0.5));
+      this.cell = Math.max(8, Math.floor(Math.min((availW - 2) / this.cols, (availH - 2) / this.rows)));
     };
     if (this.vertical) {
       // The grid takes what it needs under a strip of the smallest size; the strip then grows into
@@ -633,7 +599,7 @@ export class BattleRenderer {
       const minStrip = Math.max(156, Math.min(216, H * 0.3));
       const availW = W - gutter * 2;
       sized(availW, H - hudH - minStrip - gutter * 3);
-      const gridH = this.rows * this.cell + this.pad * 2;
+      const gridH = this.rows * this.cell + 2;
       const stripH = Math.max(minStrip, Math.min(320, H - hudH - gridH - gutter * 3));
       const availH = H - hudH - stripH - gutter * 3;
       this.gx = Math.floor((W - this.cols * this.cell) / 2);
@@ -650,103 +616,100 @@ export class BattleRenderer {
       this.hud = { x: gutter, y: 0, w: availW, h: hudH };
       this.strip = { x: W - stripW - gutter, y: gutter, w: stripW, h: H - gutter * 2 };
     }
+    // The chart turns about its own middle, so the beat swells it in place.
+    const midX = this.gx + (this.cols * this.cell) / 2;
+    const midY = this.gy + (this.rows * this.cell) / 2;
+    this.world.pivot.set(midX, midY);
+    this.world.position.set(midX, midY);
     this.app.canvas.setAttribute("data-geom", `${this.gx},${this.gy},${this.cell}`);
     this.bake();
-    this.drawFrame();
-    this.placeSpace();
+    this.drawChart();
+    this.placeTerrain();
     if (this.state) this.snap(this.state);
     this.drawPreview();
     this.drawHud();
     this.stripDirty = true;
   }
 
-  /** Paint every texture for this cell size and board, once. */
+  /** Paint every pictogram for this cell size, once (docs/BRAND.md section 3). */
   private bake(): void {
-    const board = this.state?.board;
-    const key = `${this.cell}:${this.cols}x${this.rows}:${this.state?.boardIndex ?? -1}:${this.opts.showMarks ? 1 : 0}`;
+    const key = `${this.cell}`;
     if (key === this.bakedKey) return;
     this.bakedKey = key;
     const r = this.app.renderer.resolution;
     // Sprites go before their textures, so nothing is destroyed while still bound.
     if (this.shipSprites) for (const s of this.shipSprites) s.destroy();
     this.shipSprites = null;
-    for (const s of this.ghostSprites) s.destroy();
+    for (const s of this.ghostSprites) s?.destroy();
     this.ghostSprites = [];
-    for (const e of this.wellLayer.removeChildren()) e.destroy();
-    if (this.spaceSprite) {
-      this.spaceSprite.destroy();
-      this.spaceSprite = null;
-    }
-    if (this.caustic) {
-      this.caustic.destroy();
-      this.caustic = null;
-    }
+    for (const e of this.terrainLayer.removeChildren()) e.destroy();
+    for (const p of this.spent) p.s.destroy();
+    this.spent = [];
     // Plot-strip gun icons and in-flight shots can still reference the old bake between ticks.
     for (const icon of this.stripIcons.removeChildren()) icon.destroy();
     const oldTextures = [...this.textures.values()];
     this.textures.clear();
+    const paint = (name: string, px: number, kind: BattleKind, color: Paint): void => {
+      this.textures.set(name, new Texture({ source: new CanvasSource({ resource: kindCanvas(px, kind, color, r), resolution: r }) }));
+    };
     const shipPx = Math.ceil(this.cell * SHIP_SCALE);
-    this.textures.set("ship0", texture(paintShip(shipPx, 0, this.opts.showMarks, r), r));
-    this.textures.set("ship1", texture(paintShip(shipPx, 1, this.opts.showMarks, r), r));
-    this.textures.set("well", texture(paintWell(Math.ceil(this.cell * 1.1), r), r));
-    this.textures.set("ball", texture(paintBall(Math.max(6, Math.ceil(this.cell * 0.3)), r), r));
-    this.textures.set("caustic", texture(paintCaustic(128, 1), 1));
+    paint("ship0", shipPx, "ship", OWN);
+    paint("ship1", shipPx, "raider", RAIDER);
+    paint("ghost", shipPx, "ghost", OWN);
+    paint("asteroid", this.cell, "asteroid", ROCK);
+    paint("well", this.cell, "well", WELL);
+    paint("current", this.cell, "current", CURRENT);
+    const slugPx = Math.max(12, Math.ceil(this.cell * 0.75));
+    paint("slug0", slugPx, "slug", OWN);
+    paint("slug1", slugPx, "slug", RAIDER);
+    paint("slugHit", slugPx, "slug", "danger");
     const iconPx = 28;
-    this.textures.set("turret0", texture(paintTurret(iconPx, false, r), r));
-    this.textures.set("turret1", texture(paintTurret(iconPx, true, r), r));
-    if (board) this.textures.set("space", texture(paintSpace(board, this.cell, r), r));
-    if (this.step) for (const shot of this.step.shots) shot.ball.texture = this.textures.get("ball")!;
+    paint("turret", iconPx, "turret", "cream");
+    paint("turretOff", iconPx, "turret", "line");
+    paint("turretArmed", iconPx, "turretArmed", OWN);
+    if (this.step) for (const shot of this.step.shots) shot.ball.texture = this.textures.get(shot.ship === 0 ? "slug0" : shot.hit ? "slugHit" : "slug1")!;
     for (const t of oldTextures) t.destroy(true);
   }
 
-  private drawFrame(): void {
-    const g = this.frameG;
+  /**
+   * The chart is bare ground inside one hairline: no frame, no grid, no nebula (docs/BRAND.md
+   * section 3). A ship is flown by counting cells, so every open cell carries a small dot.
+   */
+  private drawChart(): void {
+    const g = this.chartG;
     g.clear();
-    const W = this.cols * this.cell;
-    const H = this.rows * this.cell;
-    const p = this.pad;
-    const x = this.gx;
-    const y = this.gy;
-    hullFrame(g, this.hullFill, { x: x - p, y: y - p, w: W + p * 2, h: H + p * 2, r: p + 4 }, { x, y, w: W, h: H }, { rivetStep: this.cell * 2 });
-    // The board sits in a recess with a dark lip.
-    g.rect(x, y, W, H).stroke({ width: 3, color: 0x000000, alpha: 0.55, alignment: 1 });
-  }
-
-  private placeSpace(): void {
-    const space = this.textures.get("space");
-    if (!space) return;
-    if (!this.spaceSprite) {
-      this.spaceSprite = new Sprite(space);
-      this.spaceLayer.addChild(this.spaceSprite);
-    } else this.spaceSprite.texture = space;
-    this.spaceSprite.position.set(this.gx, this.gy);
-    const W = this.cols * this.cell;
-    const H = this.rows * this.cell;
-    const caustic = this.textures.get("caustic");
-    if (caustic && !this.reduced) {
-      if (!this.caustic) {
-        this.caustic = new TilingSprite({ texture: caustic, width: W, height: H });
-        this.caustic.alpha = 0.5;
-        this.spaceLayer.addChild(this.caustic);
-      }
-      this.caustic.width = W;
-      this.caustic.height = H;
-      this.caustic.position.set(this.gx, this.gy);
-      this.caustic.tileScale.set(Math.max(0.6, this.cell / 40));
-    }
-    // Wells spin on their own.
-    for (const e of this.wellLayer.removeChildren()) e.destroy();
+    const c = this.cell;
+    const W = this.cols * c;
+    const H = this.rows * c;
+    // The ground is painted, not left clear, so the board is whole wherever it is shown (a thumbnail, a capture).
+    g.rect(this.gx, this.gy, W, H).fill(COLORS.ground);
+    g.rect(this.gx - 0.5, this.gy - 0.5, W + 1, H + 1).stroke({ width: 1, color: COLORS.line });
     const board = this.state?.board;
-    const wellTex = this.textures.get("well");
-    if (!board || !wellTex) return;
+    if (!board) return;
+    const dot = Math.max(1, c * 0.055);
     for (let y = 0; y < board.height; y++) {
       for (let x = 0; x < board.width; x++) {
-        if (battleCellAt(board, x, y)?.kind !== "well") continue;
-        const s = new Sprite(wellTex);
+        if (battleCellAt(board, x, y)?.kind === "space") g.circle(this.cx(x), this.cy(y), dot).fill(COLORS.line);
+      }
+    }
+  }
+
+  /** Asteroids, gravity wells and solar currents: one pictogram a cell, none of them moving. */
+  private placeTerrain(): void {
+    for (const e of this.terrainLayer.removeChildren()) e.destroy();
+    const board = this.state?.board;
+    if (!board) return;
+    for (let y = 0; y < board.height; y++) {
+      for (let x = 0; x < board.width; x++) {
+        const cell = battleCellAt(board, x, y);
+        if (!cell || cell.kind === "space") continue;
+        const s = new Sprite(this.textures.get(cell.kind) ?? Texture.WHITE);
         s.anchor.set(0.5);
         s.position.set(this.cx(x), this.cy(y));
-        s.rotation = (x * 7 + y * 3) % 6;
-        this.wellLayer.addChild(s);
+        // A current points the way it carries; a rock is turned by where it sits, so a field of them is not a stamp.
+        if (cell.kind === "current") s.rotation = (cell.heading * Math.PI) / 2;
+        else if (cell.kind === "asteroid") s.rotation = (((x * 7 + y * 13) % 4) * Math.PI) / 2;
+        this.terrainLayer.addChild(s);
       }
     }
   }
@@ -766,32 +729,52 @@ export class BattleRenderer {
     return this.shipSprites[i];
   }
 
+  /** A hull bar's colour: the ship's own, until she can be boarded. That is red for the captain and cream, good news, for the raider. */
+  private hullColor(who: ShipIndex, damage: number): number {
+    const boardable = damage >= (this.state?.config.grappleDamage ?? BATTLE_PERMILLE);
+    if (who === 0) return boardable ? COLORS.danger : COLORS.amber;
+    return boardable ? COLORS.cream : COLORS.raider;
+  }
+
   private drawShips(): void {
     const g = this.hullG;
     g.clear();
     const c = this.cell;
+    const stroke = Math.max(2, c / 12);
     for (const i of [1, 0] as const) {
       const v = this.ships[i];
       const s = this.shipSprite(i);
-      const bob = v.moving || this.reduced ? 0 : 1;
-      s.position.set(v.x, v.y + Math.sin(this.time / 850 + i * 1.7) * c * 0.025 * bob);
-      s.rotation = v.rot + Math.sin(this.time / 1100 + i * 2.3) * 0.03 * bob;
-      const hurt = v.damage / BATTLE_PERMILLE;
-      s.tint = v.flash > 0 ? 0xffb38a : hurt > 0.5 ? 0xd8c8c0 : 0xffffff;
-      // Hull bar under the ship: rounded, with a dark well, lit brass when she can be boarded.
-      const w = c * 0.95;
-      const h = Math.max(3, c * 0.1);
+      s.position.set(v.x, v.y);
+      s.rotation = v.rot;
+      // A wrecked ship shrinks to nothing.
+      const k = v.sink < 0 ? 1 : 1 - easeOutCubic(Math.min(1, v.sink / MOTION.clear));
+      s.scale.set(k);
+      s.visible = k > 0;
+      if (k <= 0) continue;
+      // The hull under the ship: a plain bar.
+      const w = c * 0.9;
+      const h = Math.max(3, Math.round(c * 0.1));
       const bx = v.x - w / 2;
-      const by = v.y + c * 0.5;
-      const hull = 1 - hurt;
-      g.roundRect(bx - 1, by - 1, w + 2, h + 2, h).fill({ color: COLORS.ink, alpha: 0.85 });
-      g.roundRect(bx, by, Math.max(h, w * hull), h, h / 2).fill(hull > 0.5 ? COLORS.good : hull > 0.25 ? COLORS.warn : COLORS.danger);
-      const grappleAt = this.state ? this.state.config.grappleDamage / BATTLE_PERMILLE : 0.5;
-      if (hurt >= grappleAt) g.roundRect(bx - 1, by - 1, w + 2, h + 2, h).stroke({ width: 1.5, color: COLORS.brassLight, alpha: 0.6 + Math.sin(this.time / 200) * 0.3 });
+      const by = v.y + c * 0.52;
+      const hull = 1 - v.damage / BATTLE_PERMILLE;
+      g.roundRect(bx, by, w, h, h / 2).fill(COLORS.line);
+      if (hull > 0) g.roundRect(bx, by, Math.max(h, w * hull), h, h / 2).fill(this.hullColor(i, v.damage));
+      // Just struck: one ring round her, red when it is the captain's hull.
+      if (v.flash > 0) g.circle(v.x, v.y, c * 0.68).stroke({ width: stroke, color: i === 0 ? COLORS.danger : COLORS.cream, alpha: Math.min(1, v.flash / MOTION.move) });
+    }
+    // A grapple is a line between the two hulls.
+    if (this.hook) {
+      const a = this.ships[this.hook.ship];
+      const b = this.ships[this.hook.ship === 0 ? 1 : 0];
+      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: stroke, color: this.hook.ship === 0 ? COLORS.amber : COLORS.danger, cap: "round" });
     }
   }
 
-  /** The plotted path as ghost ships, and the arcs of the broadsides plotted along it. */
+  /**
+   * The plot, in amber because it is the captain's: the course as dots, the ship hollow where each
+   * move leaves her, numbered, and the cells each plotted broadside reaches as a flat tint. A move
+   * that would cost hull is ringed in red. The raider's reach is outlined in its own colour.
+   */
   private drawPreview(): void {
     const g = this.ghostG;
     const a = this.arcG;
@@ -799,12 +782,13 @@ export class BattleRenderer {
     a.clear();
     for (const t of this.ghostTexts) t.destroy();
     this.ghostTexts = [];
-    for (const s of this.ghostSprites) s.visible = false;
+    for (const s of this.ghostSprites) if (s) s.visible = false;
     const s = this.state;
     if (!s || s.finished) return;
     // Every segment is previewed, plotted or not: a current carries a ship that holds, too.
     const course = previewBattleCourse(s, this.segments);
     const c = this.cell;
+    const stroke = Math.max(2, c / 12);
     let prev: Pose = { x: s.ships[0].x, y: s.ships[0].y, heading: s.ships[0].heading };
     this.segments.forEach((seg, i) => {
       const step = course[i];
@@ -813,63 +797,54 @@ export class BattleRenderer {
       if (this.opts.showArcs) {
         for (const side of ["port", "starboard"] as const) {
           if (!seg[side]) continue;
-          const cells = battleArcCells(s.board, p, side, s.config.turretRange);
-          cells.forEach((cell, k) => {
-            const inset = 3;
-            a.roundRect(this.gx + cell.x * c + inset, this.gy + cell.y * c + inset, c - inset * 2, c - inset * 2, c * 0.18).fill({ color: COLORS.arc, alpha: 0.3 - k * 0.06 });
-          });
+          for (const cell of battleArcCells(s.board, p, side, s.config.turretRange)) {
+            a.roundRect(this.gx + cell.x * c + 2, this.gy + cell.y * c + 2, c - 4, c - 4, c * 0.18).fill(COLORS.arc);
+          }
         }
       }
       const moved = p.x !== prev.x || p.y !== prev.y;
       if (seg.move !== null || moved) {
-        // A dashed course line, then the ghost of the ship where the segment ends, numbered. The
-        // ghosts along the way are small so the course reads; the last stands at nearly full size.
         const x0 = this.cx(prev.x);
         const y0 = this.cy(prev.y);
         const x1 = this.cx(p.x);
         const y1 = this.cy(p.y);
-        const n = 5;
-        for (let k = 0; k < n; k++) {
-          const t0 = k / n;
-          const t1 = (k + 0.5) / n;
-          g.moveTo(x0 + (x1 - x0) * t0, y0 + (y1 - y0) * t0).lineTo(x0 + (x1 - x0) * t1, y0 + (y1 - y0) * t1);
-        }
-        g.stroke({ width: Math.max(1.5, c * 0.07), color: COLORS.text, alpha: 0.55, cap: "round" });
+        if (moved) for (const t of [0.3, 0.5, 0.7]) g.circle(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, Math.max(1.2, c * 0.06)).fill(COLORS.amber);
+        // The ghosts along the way are small so the course reads; the last stands at nearly full size.
         const final = !course.slice(i + 1).some((later, k) => later.pose.x !== p.x || later.pose.y !== p.y || this.segments[i + 1 + k]?.move != null);
         let ghost = this.ghostSprites[i];
         if (!ghost) {
-          ghost = new Sprite(this.textures.get("ship0") ?? Texture.WHITE);
+          ghost = new Sprite(this.textures.get("ghost") ?? Texture.WHITE);
           ghost.anchor.set(0.5);
           this.ghostLayer.addChild(ghost);
           this.ghostSprites[i] = ghost;
         }
-        ghost.texture = this.textures.get("ship0") ?? Texture.WHITE;
         ghost.visible = true;
-        ghost.alpha = final ? 0.6 : 0.45;
-        ghost.scale.set(final ? 0.72 : 0.48);
+        ghost.scale.set(final ? 0.86 : 0.6);
         ghost.position.set(x1, y1);
         ghost.rotation = (p.heading * Math.PI) / 2;
-        // The number rides a badge off the ship's quarter: brass, or red with a ring round the
-        // cell when the segment costs hull (an asteroid, a ram) or the move is stopped.
+        // The segment's number rides off the ship's quarter. A segment that costs hull (an
+        // asteroid, a ram) or is stopped is ringed, and its number is red.
         const bad = step.damage > 0 || step.blocked !== null;
-        if (bad) g.circle(x1, y1, c * 0.48).stroke({ width: Math.max(2, c * 0.09), color: COLORS.danger, alpha: 0.9 });
-        const bx = x1 + c * 0.42;
-        const by = y1 - c * 0.42;
-        g.circle(bx, by, c * 0.24).fill(bad ? COLORS.danger : COLORS.brass).stroke({ width: 1, color: COLORS.ink, alpha: 0.8 });
-        const t = new Text({ text: String(i + 1), style: { fontFamily: FONT, fontSize: Math.max(9, c * 0.34), fontWeight: "700", fill: COLORS.ink } });
+        if (bad) g.circle(x1, y1, c * 0.56).stroke({ width: stroke, color: COLORS.danger });
+        const t = new Text({
+          text: String(i + 1),
+          style: { fontFamily: FONT.mono, fontSize: Math.max(10, c * 0.44), fontWeight: "700", fill: bad ? COLORS.danger : COLORS.amber, stroke: { color: COLORS.ground, width: 3, join: "round" } },
+          resolution: 2,
+        });
         t.anchor.set(0.5);
-        t.position.set(bx, by);
+        t.position.set(x1 + c * 0.44, y1 - c * 0.44);
         this.ghostLayer.addChild(t);
         this.ghostTexts.push(t);
       }
       prev = p;
     });
-    // Where the raider's guns reach from where it stands, so the captain sees the danger.
+    // Where the raider's guns reach from where it stands. A cell the captain's ship is standing in is red.
     if (this.opts.showArcs && s.ships[1].loaded > 0) {
       const them: Pose = { x: s.ships[1].x, y: s.ships[1].y, heading: s.ships[1].heading };
       for (const side of ["port", "starboard"] as const) {
         for (const cell of battleArcCells(s.board, them, side, s.config.turretRange)) {
-          a.roundRect(this.gx + cell.x * c + 5, this.gy + cell.y * c + 5, c - 10, c - 10, c * 0.14).stroke({ width: 1.5, color: COLORS.arcEnemy, alpha: 0.55 });
+          const mine = cell.x === s.ships[0].x && cell.y === s.ships[0].y;
+          a.roundRect(this.gx + cell.x * c + 4, this.gy + cell.y * c + 4, c - 8, c - 8, c * 0.16).stroke({ width: mine ? 2 : 1.5, color: mine ? COLORS.danger : COLORS.raider });
         }
       }
     }
@@ -885,8 +860,8 @@ export class BattleRenderer {
     if (!s) return;
     const { x, y, w, h } = this.hud;
     const half = (w - 8) / 2;
-    const fs = Math.max(10, Math.min(13, h * 0.3));
-    const barH = Math.max(6, h * 0.2);
+    const fs = Math.max(11, Math.min(13, h * 0.3));
+    const barH = Math.max(6, Math.round(h * 0.18));
     const panels: Array<{ px: number; who: ShipIndex; label: string }> = [
       { px: x, who: 0, label: this.opts.labels.you },
       { px: x + half + 8, who: 1, label: this.opts.labels.raider },
@@ -894,30 +869,28 @@ export class BattleRenderer {
     for (const p of panels) {
       const ship = s.ships[p.who];
       const hull = 1 - ship.damage / BATTLE_PERMILLE;
-      g.roundRect(p.px, y + 4, half, h - 4, 8).fill({ color: 0x000000, alpha: 0.35 });
-      g.roundRect(p.px, y + 2, half, h - 4, 8).fill(this.inkFill);
-      g.roundRect(p.px, y + 2, half, h - 4, 8).stroke({ width: 1, color: COLORS.text, alpha: 0.12 });
-      const name = new Text({ text: p.label.toUpperCase(), style: { fontFamily: FONT, fontSize: fs - 1, fontWeight: "700", fill: p.who === 0 ? COLORS.brassLight : COLORS.danger, letterSpacing: 2 } });
+      const own = p.who === 0 ? COLORS.amber : COLORS.raider;
+      g.roundRect(p.px, y + 2, half, h - 4, RADIUS).fill(COLORS.raised);
+      const name = new Text({ text: p.label, style: { fontFamily: FONT.body, fontSize: fs, fontWeight: "700", fill: own }, resolution: 2 });
       name.position.set(p.px + 10, y + 6);
       this.hudTexts.addChild(name);
-      const hullText = new Text({ text: `${this.opts.labels.hull} ${Math.round(hull * 100)}%`, style: { fontFamily: FONT, fontSize: fs - 1, fill: COLORS.muted } });
+      const percent = new Text({ text: `${Math.round(hull * 100)}%`, style: { fontFamily: FONT.mono, fontSize: fs, fontWeight: "700", fill: COLORS.cream }, resolution: 2 });
+      percent.anchor.set(1, 0);
+      percent.position.set(p.px + half - 10, y + 6);
+      this.hudTexts.addChild(percent);
+      const hullText = new Text({ text: this.opts.labels.hull, style: { fontFamily: FONT.body, fontSize: fs, fill: COLORS.dim }, resolution: 2 });
       hullText.anchor.set(1, 0);
-      hullText.position.set(p.px + half - 10, y + 6);
+      hullText.position.set(percent.x - percent.width - 5, y + 6);
       this.hudTexts.addChild(hullText);
+      // A plain bar for the hull, and a dot for each turret, lit when it is loaded.
       const bx = p.px + 10;
       const by = y + h - barH - 7;
       const lampW = ship.turrets > 0 ? ship.turrets * (barH + 4) + 8 : 0;
       const bw = half - 20 - lampW;
-      g.roundRect(bx, by, bw, barH, barH / 2).fill({ color: COLORS.ink, alpha: 0.95 });
-      g.roundRect(bx, by, Math.max(barH, bw * hull), barH, barH / 2).fill(hull > 0.5 ? COLORS.good : hull > 0.25 ? COLORS.warn : COLORS.danger);
-      g.roundRect(bx + 1, by + 1, Math.max(barH, bw * hull) - 2, barH * 0.4, barH / 3).fill({ color: 0xffffff, alpha: 0.18 });
-      if (ship.damage >= s.config.grappleDamage) g.roundRect(bx - 1, by - 1, bw + 2, barH + 2, barH / 2 + 1).stroke({ width: 1.5, color: COLORS.brassLight, alpha: 0.9 });
+      g.roundRect(bx, by, bw, barH, barH / 2).fill(COLORS.ground);
+      if (hull > 0) g.roundRect(bx, by, Math.max(barH, bw * hull), barH, barH / 2).fill(this.hullColor(p.who, ship.damage));
       for (let i = 0; i < ship.turrets; i++) {
-        const lx = bx + bw + 8 + i * (barH + 4) + barH / 2;
-        const ly = by + barH / 2;
-        const lit = i < ship.loaded;
-        if (lit) g.circle(lx, ly, barH * 0.85).fill({ color: COLORS.brassLight, alpha: 0.2 });
-        g.circle(lx, ly, barH / 2).fill(lit ? COLORS.brassLight : COLORS.ink).stroke({ width: 1, color: lit ? COLORS.brassDeep : COLORS.brass, alpha: 0.9 });
+        g.circle(bx + bw + 8 + i * (barH + 4) + barH / 2, by + barH / 2, barH / 2).fill(i < ship.loaded ? own : COLORS.line);
       }
     }
     this.stripDirty = true;
@@ -935,48 +908,37 @@ export class BattleRenderer {
     const s = this.state;
     if (!s) return;
     const { x, y, w, h } = this.strip;
-    g.roundRect(x, y + 3, w, h, 12).fill({ color: 0x000000, alpha: 0.4 });
-    g.roundRect(x, y, w, h, 12).fill(this.inkFill);
-    g.roundRect(x, y, w, h, 12).stroke({ width: 1, color: COLORS.text, alpha: 0.12 });
+    g.roundRect(x, y, w, h, RADIUS).fill(COLORS.raised);
     const me = s.ships[0];
     const n = s.config.segments;
     const live = this.interactive && !s.finished;
-    const fs = Math.max(10, Math.min(13, this.vertical ? h * 0.075 : w * 0.055));
-    const label = (text: string, tx: number, ty: number, color = COLORS.text, size = fs, anchorX = 0.5, weight: "400" | "700" = "700", spacing = 0): Text => {
-      const t = new Text({ text, style: { fontFamily: FONT, fontSize: size, fontWeight: weight, fill: color, letterSpacing: spacing } });
+    const fs = Math.max(11, Math.min(13, this.vertical ? h * 0.075 : w * 0.055));
+    const label = (text: string, tx: number, ty: number, color = COLORS.cream, size = fs, anchorX = 0.5, face: "body" | "mono" = "body", weight: "400" | "700" = "700"): Text => {
+      const t = new Text({ text, style: { fontFamily: FONT[face], fontSize: size, fontWeight: weight, fill: color }, resolution: 2 });
       t.anchor.set(anchorX, 0.5);
       t.position.set(tx, ty);
       this.stripTexts.addChild(t);
       return t;
     };
-    const button = (id: string, bx: number, by: number, bw: number, bh: number, kind: "brass" | "ink" | "ghost", enabled: boolean): void => {
-      const press = this.pressed?.id === id ? 1 - Math.min(1, this.pressed.t / 160) : 0;
-      const alpha = enabled ? 1 : 0.4;
-      const r = 8;
-      if (kind === "brass") {
-        g.roundRect(bx, by + 2, bw, bh, r).fill({ color: COLORS.brass, alpha: 0.35 * alpha });
-        g.roundRect(bx, by + press, bw, bh, r).fill(this.brassFill);
-        if (!enabled) g.roundRect(bx, by, bw, bh, r).fill({ color: COLORS.inkDeep, alpha: 0.55 });
-        g.roundRect(bx + 1, by + 1 + press, bw - 2, bh * 0.45, r - 1).fill({ color: 0xffffff, alpha: 0.18 * alpha });
-      } else if (kind === "ink") {
-        g.roundRect(bx, by + 2, bw, bh, r).fill({ color: 0x000000, alpha: 0.35 });
-        g.roundRect(bx, by + press, bw, bh, r).fill({ color: COLORS.ink, alpha: 0.95 });
-        g.roundRect(bx, by + press, bw, bh, r).stroke({ width: 1, color: COLORS.brass, alpha: 0.55 * alpha });
-        g.roundRect(bx + 1, by + 1 + press, bw - 2, bh * 0.4, r - 1).fill({ color: 0xffffff, alpha: 0.05 });
-      } else {
-        g.roundRect(bx, by + press, bw, bh, r).stroke({ width: 1, color: COLORS.text, alpha: 0.3 * alpha });
-      }
+    // A button on the panel is the panel's colour inside a hairline; the one that goes on is amber;
+    // a toggle that is on is ground inside an amber ring. A press shows for a moment as a flat change.
+    const button = (id: string, bx: number, by: number, bw: number, bh: number, kind: "go" | "plain" | "on", enabled: boolean): void => {
+      const down = this.pressed?.id === id;
+      const r = Math.min(RADIUS, bh / 2);
+      if (kind === "go") g.roundRect(bx, by, bw, bh, r).fill(enabled ? (down ? COLORS.cream : COLORS.amber) : COLORS.line);
+      else if (kind === "on") g.roundRect(bx + 1, by + 1, bw - 2, bh - 2, r).fill(COLORS.ground).stroke({ width: 2, color: COLORS.amber });
+      else g.roundRect(bx, by, bw, bh, r).fill(down ? COLORS.line : COLORS.raised).stroke({ width: 1, color: COLORS.line });
       if (enabled) this.buttons.push({ id, x: bx, y: by, w: bw, h: bh });
     };
-    // Turn clock.
+    // Turn clock: a plain bar, red in its last quarter.
     const top = y + 10;
-    label(this.opts.labels.turn(s.turn + 1, s.config.maxTurns).toUpperCase(), x + 12, top + fs * 0.6, COLORS.muted, fs - 2, 0, "700", 2);
+    label(this.opts.labels.turn(s.turn + 1, s.config.maxTurns), x + 12, top + fs * 0.6, COLORS.dim, fs, 0, "body", "400");
     const clockW = w - 24;
     const clockY = top + fs * 1.5;
-    g.roundRect(x + 12, clockY, clockW, 5, 2.5).fill({ color: COLORS.ink, alpha: 0.95 });
+    g.roundRect(x + 12, clockY, clockW, 5, 2.5).fill(COLORS.ground);
     if (this.turnLeftMs !== null && live) {
       const k = Math.max(0, Math.min(1, this.turnLeftMs / this.turnMs));
-      g.roundRect(x + 12, clockY, Math.max(5, clockW * k), 5, 2.5).fill(k < 0.25 ? COLORS.danger : COLORS.brass);
+      g.roundRect(x + 12, clockY, Math.max(5, clockW * k), 5, 2.5).fill(k < 0.25 ? COLORS.danger : COLORS.cream);
     }
     // Slots. On a tall board each is a card: the move on top, its two guns side by side beneath,
     // each half the card wide. On a wide board each is a row with a gun at either end.
@@ -985,8 +947,10 @@ export class BattleRenderer {
     const tall = this.vertical;
     // What the strip has left for slots, tokens and the bottom row, shared out between them.
     const spare = Math.max(96, y + h - slotTop - 20 - fs * 1.6);
-    const trayH = tall ? Math.max(30, Math.min(50, spare * 0.25)) : 38;
-    const rowH = tall ? Math.max(32, Math.min(54, spare * 0.28)) : 42;
+    let trayH = tall ? Math.max(30, Math.min(50, spare * 0.25)) : 38;
+    let rowH = tall ? Math.max(32, Math.min(54, spare * 0.28)) : 42;
+    /** On a wide board too short for the strip, everything in it is squeezed by this much so Fly stays on it. */
+    let squeeze = 1;
     let slotW: number;
     let slotH: number;
     let slotX = (i: number): number => x + 12 + i * ((w - 24) / n);
@@ -997,55 +961,55 @@ export class BattleRenderer {
     } else {
       slotW = w - 24;
       slotH = Math.max(32, Math.min(52, (h - slotTop + y - 216) / n - gap));
+      const natural = n * (slotH + gap) + 12 + trayH + 10 + rowH + 10 + rowH + 10;
+      squeeze = Math.min(1, (y + h - slotTop) / natural);
+      slotH *= squeeze;
+      trayH *= squeeze;
+      rowH *= squeeze;
+      const pitch = slotH + gap * squeeze;
       slotX = () => x + 12;
-      slotY = (i) => slotTop + i * (slotH + gap);
+      slotY = (i) => slotTop + i * pitch;
     }
     const gunW = tall ? (slotW - 9) / 2 : Math.max(28, Math.min(48, slotW * 0.22));
-    const gunH = tall ? Math.max(24, Math.min(46, slotH * 0.42)) : slotH - 6;
-    const turretTex = (lit: boolean): Texture => this.textures.get(lit ? "turret1" : "turret0") ?? Texture.WHITE;
+    const gunH = tall ? Math.max(24, Math.min(46, slotH * 0.42)) : slotH - 4;
     for (let i = 0; i < n; i++) {
       const seg = this.segments[i] ?? { move: null, port: false, starboard: false };
       const sx = slotX(i);
       const sy = slotY(i);
       const sel = this.selected === i && live;
-      g.roundRect(sx, sy, slotW, slotH, 9).fill({ color: COLORS.ink, alpha: 0.9 });
-      g.roundRect(sx + 1, sy + 1, slotW - 2, slotH - 2, 8).stroke({ width: 1, color: 0xffffff, alpha: 0.05 });
-      if (sel) {
-        g.roundRect(sx - 1, sy - 1, slotW + 2, slotH + 2, 10).stroke({ width: 2, color: COLORS.brassLight, alpha: 0.95 });
-        g.roundRect(sx - 3, sy - 3, slotW + 6, slotH + 6, 12).stroke({ width: 3, color: COLORS.brass, alpha: 0.25 });
-      } else g.roundRect(sx, sy, slotW, slotH, 9).stroke({ width: 1, color: COLORS.brass, alpha: 0.25 });
+      g.roundRect(sx, sy, slotW, slotH, 8).fill(COLORS.ground);
+      // The slot the next token goes in wears the selection: an amber ring just off it.
+      if (sel) g.roundRect(sx - 2, sy - 2, slotW + 4, slotH + 4, 10).stroke({ width: 2, color: COLORS.amber });
       // The move's own area: the card above the guns, or the row between them. Nothing overlaps.
       const move = tall ? { x: sx, y: sy, w: slotW, h: slotH - gunH - 3 } : { x: sx + gunW + 3, y: sy, w: slotW - gunW * 2 - 6, h: slotH };
       if (live) this.buttons.push({ id: `slot:${i}`, ...move });
       const midX = move.x + move.w / 2;
       const midY = move.y + move.h / 2;
-      // The move glyph, lit brass when plotted.
-      this.paintToken(g, seg.move, midX, midY, Math.min(move.h * 0.62, move.w * 0.5, 34), seg.move === null ? COLORS.muted : COLORS.brassLight, seg.move !== null);
-      label(String(i + 1), move.x + 7, sy + fs * 0.75, COLORS.muted, fs - 2, 0, "400");
-      // Port and starboard guns: a turret each, its lamp lit when armed.
+      // The move's glyph, amber once it is plotted.
+      this.paintToken(g, seg.move, midX, midY, Math.min(move.h * 0.62, move.w * 0.5, 34), seg.move === null ? COLORS.line : COLORS.amber);
+      label(String(i + 1), move.x + 7, sy + fs * 0.75, COLORS.dim, fs - 1, 0, "mono");
+      // Port and starboard guns: a turret each. An armed one is amber and has a slug leaving it.
       for (const side of ["port", "starboard"] as const) {
         const bx = side === "port" ? sx + 3 : sx + slotW - gunW - 3;
-        const by = tall ? sy + slotH - gunH - 3 : sy + 3;
+        const by = tall ? sy + slotH - gunH - 3 : sy + 2;
         const on = seg[side];
         const can = live && (on || me.loaded > this.shotsPlanned());
-        g.roundRect(bx, by, gunW, gunH, 7).fill({ color: on ? COLORS.danger : COLORS.inkDeep, alpha: on ? 0.75 : can ? 0.95 : 0.4 });
-        if (on) g.roundRect(bx, by, gunW, gunH, 7).stroke({ width: 1, color: COLORS.flash, alpha: 0.6 });
-        else if (can) g.roundRect(bx, by, gunW, gunH, 7).stroke({ width: 1, color: COLORS.brass, alpha: 0.3 });
-        const icon = new Sprite(turretTex(on));
+        if (on) g.roundRect(bx + 1, by + 1, gunW - 2, gunH - 2, 6).fill(COLORS.raised).stroke({ width: 1.5, color: COLORS.amber });
+        else if (can) g.roundRect(bx, by, gunW, gunH, 7).fill(COLORS.raised);
+        const icon = new Sprite(this.textures.get(on ? "turretArmed" : can ? "turret" : "turretOff") ?? Texture.WHITE);
         icon.anchor.set(0.5);
-        const ip = Math.min(gunW, gunH, 30) * 0.95;
+        const ip = Math.min(gunW, gunH, 30) * 0.9;
         icon.width = ip;
         icon.height = ip;
         icon.position.set(bx + gunW / 2, by + gunH / 2);
         icon.rotation = side === "port" ? -Math.PI / 2 : Math.PI / 2;
-        icon.alpha = can || on ? 1 : 0.45;
         this.stripIcons.addChild(icon);
         // The whole of the gun's end of the slot takes the tap, out to the slot's edge.
         if (can) this.buttons.push(tall ? { id: `fire:${i}:${side}`, x: side === "port" ? sx : sx + slotW / 2, y: by - 1, w: slotW / 2, h: gunH + 4 } : { id: `fire:${i}:${side}`, x: side === "port" ? sx : bx - 1, y: sy, w: gunW + 4, h: slotH });
       }
     }
     // Tokens tray.
-    const trayY = tall ? slotTop + slotH + 10 : slotY(n - 1) + slotH + 12;
+    const trayY = tall ? slotTop + slotH + 10 : slotY(n - 1) + slotH + 12 * squeeze;
     const trayItems: Array<MoveToken | null> = ["left", "forward", "right", null];
     const trayW = (w - 24 - gap * 3) / 4;
     const placing = this.selected >= 0;
@@ -1053,38 +1017,43 @@ export class BattleRenderer {
       const bx = x + 12 + i * (trayW + gap);
       const count = t === null ? null : me.tokens[t];
       const enabled = live && placing && (t === null || (count ?? 0) > this.tokensPlanned(t) - (this.segments[this.selected]?.move === t ? 1 : 0));
-      button(`token:${t ?? "hold"}`, bx, trayY, trayW, trayH, "ink", enabled);
-      this.paintToken(g, t, bx + trayW * 0.34, trayY + trayH / 2, Math.min(trayH * 0.52, 26), enabled ? COLORS.brassLight : COLORS.muted, enabled);
-      if (t !== null && count !== null) label(`×${count - this.tokensPlanned(t)}`, bx + trayW * 0.72, trayY + trayH / 2, enabled ? COLORS.text : COLORS.muted, fs);
-      else label(this.opts.labels.hold, bx + trayW * 0.7, trayY + trayH / 2, enabled ? COLORS.text : COLORS.muted, fs - 2);
+      button(`token:${t ?? "hold"}`, bx, trayY, trayW, trayH, "plain", enabled);
+      const ink = enabled ? COLORS.cream : COLORS.dim;
+      this.paintToken(g, t, bx + trayW * 0.32, trayY + trayH / 2, Math.min(trayH * 0.52, 26), ink);
+      if (t !== null && count !== null) label(`×${count - this.tokensPlanned(t)}`, bx + trayW * 0.72, trayY + trayH / 2, ink, fs, 0.5, "mono");
+      else label(this.opts.labels.hold, bx + trayW * 0.7, trayY + trayH / 2, ink, fs - 1, 0.5, "body", "400");
     });
     // Grapple, clear, fly.
-    const rowY = trayY + trayH + 10;
+    const rowY = trayY + trayH + 10 * squeeze;
     const ready = s.ships[1].damage >= s.config.grappleDamage;
     const plotted = this.segments.some((seg) => seg.move !== null || seg.port || seg.starboard);
     // On a wide board the strip is narrow and tall: fly gets a row of its own under the others.
     const inner = w - 24 - gap * (tall ? 3 : 2);
     const gw = inner * (tall ? 0.3 : 0.46);
-    button("grapple", x + 12, rowY, gw, rowH, this.grapple ? "brass" : "ink", live);
-    if (ready && live && !this.grapple) g.roundRect(x + 12, rowY, gw, rowH, 8).stroke({ width: 2, color: COLORS.brassLight, alpha: 0.5 + Math.sin(this.time / 220) * 0.4 });
-    this.paintHook(g, x + 12 + fs * 1.3, rowY + rowH / 2, fs * 0.9, this.grapple ? COLORS.ink : COLORS.brassLight);
-    label(this.opts.labels.grapple, x + 12 + fs * 2.3, rowY + rowH / 2, this.grapple ? COLORS.ink : COLORS.text, fs - 1, 0);
+    button("grapple", x + 12, rowY, gw, rowH, this.grapple ? "on" : "plain", live);
+    // She can be boarded: good news, so the button's hairline turns cream.
+    if (ready && live && !this.grapple) g.roundRect(x + 12, rowY, gw, rowH, Math.min(RADIUS, rowH / 2)).stroke({ width: 1, color: COLORS.cream });
+    const hookInk = this.grapple ? COLORS.amber : live ? COLORS.cream : COLORS.dim;
+    this.paintHook(g, x + 12 + fs * 1.3, rowY + rowH / 2, fs * 0.9, hookInk);
+    label(this.opts.labels.grapple, x + 12 + fs * 2.3, rowY + rowH / 2, hookInk, fs - 1, 0);
     // Take back the last move, or the whole plot.
     const uw = tall ? Math.max(rowH, inner * 0.13) : inner * 0.24;
     const ux = x + 12 + gw + gap;
-    button("undo", ux, rowY, uw, rowH, "ghost", live && plotted);
-    this.paintBackspace(g, ux + uw / 2, rowY + rowH / 2, fs * 1.1, live && plotted ? COLORS.text : COLORS.muted);
+    const backInk = live && plotted ? COLORS.cream : COLORS.dim;
+    button("undo", ux, rowY, uw, rowH, "plain", live && plotted);
+    this.paintBackspace(g, ux + uw / 2, rowY + rowH / 2, fs * 1.1, backInk);
     const cx = ux + uw + gap;
     const cw = tall ? inner * 0.17 : x + w - 12 - cx;
-    button("clear", cx, rowY, cw, rowH, "ghost", live && plotted);
-    label(this.opts.labels.clear, cx + cw / 2, rowY + rowH / 2, live && plotted ? COLORS.text : COLORS.muted, fs - 2);
+    button("clear", cx, rowY, cw, rowH, "plain", live && plotted);
+    label(this.opts.labels.clear, cx + cw / 2, rowY + rowH / 2, backInk, fs - 1, 0.5, "body", "400");
     const sx = tall ? cx + cw + gap : x + 12;
-    const sy = tall ? rowY : rowY + rowH + 10;
+    const sy = tall ? rowY : rowY + rowH + 10 * squeeze;
     const sw = x + w - 12 - sx;
     const sh = tall ? rowH : Math.max(rowH, Math.min(52, y + h - sy - 12 - fs * 2));
-    button("fly", sx, sy, sw, sh, "brass", live);
-    label(this.opts.labels.fly, sx + sw / 2, sy + sh / 2, 0x1b150c, fs + (tall ? 0 : 1));
-    if (ready && live) label(this.opts.labels.grappleReady, x + w / 2, sy + sh + fs, COLORS.brassLight, fs - 2);
+    const noteY = sy + sh + fs;
+    button("fly", sx, sy, sw, sh, "go", live);
+    label(this.opts.labels.fly, sx + sw / 2, sy + sh / 2, live ? COLORS.ground : COLORS.dim, fs + (tall ? 0 : 1));
+    if (ready && live && noteY + fs * 0.6 < y + h) label(this.opts.labels.grappleReady, x + w / 2, noteY, COLORS.cream, fs - 1, 0.5, "body", "400");
     // Where the strip's buttons are, for the smoke test's taps.
     this.app.canvas.setAttribute("data-buttons", this.buttons.map((b) => `${b.id}=${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)},${Math.round(b.h)}`).join(";"));
   }
@@ -1092,13 +1061,12 @@ export class BattleRenderer {
   /**
    * A move token: forward is a straight arrow; a turn runs up a short shaft, sweeps through a
    * quarter circle and ends in a head pointing the new way. One stroke weight and one head shape
-   * for all three, so they read as a set.
+   * for all three, so they read as a set. A hold is a ring with a dot in it.
    */
-  private paintToken(g: Graphics, t: MoveToken | null, x: number, y: number, size: number, color: number, lit: boolean): void {
+  private paintToken(g: Graphics, t: MoveToken | null, x: number, y: number, size: number, color: number): void {
     const r = size * 0.5;
     const width = Math.max(2, size * 0.16);
     const head = r * 0.42;
-    if (lit) g.circle(x, y, r * 1.1).fill({ color, alpha: 0.12 });
     const arrowhead = (tipX: number, tipY: number, dx: number, dy: number): void => {
       // A filled triangle with its tip at (tipX, tipY), pointing along (dx, dy).
       const bx = tipX - dx * head;
@@ -1328,11 +1296,10 @@ export class BattleRenderer {
   // ---- animation
 
   private tick(dt: number): void {
-    this.time += dt;
     if (this.flyGuard > 0) this.flyGuard -= dt;
     if (this.pressed) {
       this.pressed.t += dt;
-      if (this.pressed.t > 160) this.pressed = null;
+      if (this.pressed.t > MOTION.move) this.pressed = null;
       this.stripDirty = true;
     }
     if (!this.step && this.queue.length) {
@@ -1340,33 +1307,19 @@ export class BattleRenderer {
       this.stepT = 0;
       this.step.begin();
     }
-    // The space moves: light drifts over it, wells turn.
-    if (this.caustic && !this.reduced) {
-      this.caustic.tilePosition.x += dt * 0.006;
-      this.caustic.tilePosition.y += dt * 0.004;
-    }
-    if (!this.reduced) for (const e of this.wellLayer.children) e.rotation += dt * 0.0012;
-    for (const v of this.ships) v.moving = false;
     if (this.step) {
       this.stepT += dt;
       const k = Math.min(1, this.stepT / this.step.ms);
+      // Eased out, never past the mark: nothing bounces (docs/BRAND.md section 6).
       const ease = 1 - (1 - k) ** 2;
       for (const tw of this.step.tweens) {
         const v = this.ships[tw.ship];
         v.x = tw.from.x + (tw.to.x - tw.from.x) * ease;
         v.y = tw.from.y + (tw.to.y - tw.from.y) * ease;
         v.rot = tw.from.rot + (tw.to.rot - tw.from.rot) * ease;
-        v.moving = tw.from.x !== tw.to.x || tw.from.y !== tw.to.y;
-        if (v.moving && !this.reduced && Math.random() < 0.6) this.wake(v);
       }
-      // Slugs in flight, trailing smoke.
-      for (const sh of this.step.shots) {
-        const x = sh.from.x + (sh.to.x - sh.from.x) * k;
-        const y = sh.from.y + (sh.to.y - sh.from.y) * k - Math.sin(k * Math.PI) * this.cell * 0.55;
-        sh.ball.position.set(x, y);
-        sh.ball.scale.set(1 + Math.sin(k * Math.PI) * 0.35);
-        if (!this.reduced && Math.random() < 0.5) this.particles.push({ x, y, vx: 0, vy: -0.004, r: this.cell * 0.06, grow: 0.01, color: COLORS.smoke, alpha: 0.35, life: 0, max: 400 });
-      }
+      // Slugs fly straight down their line: the flight is the shot's path.
+      for (const sh of this.step.shots) sh.ball.position.set(sh.from.x + (sh.to.x - sh.from.x) * k, sh.from.y + (sh.to.y - sh.from.y) * k);
       if (k >= 1) {
         for (const tw of this.step.tweens) {
           const v = this.ships[tw.ship];
@@ -1374,20 +1327,18 @@ export class BattleRenderer {
           v.y = tw.to.y;
           v.rot = tw.to.rot;
         }
-        // Shots land as the step ends.
+        // Shots land as the step ends: a hit rings the ship it struck, a miss shrinks to nothing.
         for (const sh of this.step.shots) {
-          sh.ball.destroy();
           if (sh.hit) {
+            sh.ball.destroy();
             this.hurt(sh.ship === 0 ? 1 : 0, this.state?.config.shotDamage ?? 0);
-            this.popup(sh.to.x, sh.to.y - this.cell * 0.9, sh.ship === 0 ? this.opts.labels.hit : this.opts.labels.hitTaken, sh.ship === 0 ? COLORS.brassLight : COLORS.danger, 0.6);
-            this.particles.push({ x: sh.to.x, y: sh.to.y, vx: 0, vy: 0, r: this.cell * 0.3, grow: 0.06, color: COLORS.flash, alpha: 0.95, life: 0, max: 200 });
-            this.burst(sh.to.x, sh.to.y, COLORS.sparks, 12, 1);
-            this.burst(sh.to.x, sh.to.y, COLORS.smoke, 8, 0.8);
-            this.shake = Math.max(this.shake, 300);
+            this.popup(sh.to.x, sh.to.y - this.cell * 0.9, sh.ship === 0 ? this.opts.labels.hit : this.opts.labels.hitTaken, sh.ship === 0 ? COLORS.cream : COLORS.danger, 0.6);
+            // A whole volley landed in one turn is the beat.
+            if (sh.ship === 0 && ++this.turnHits === VOLLEY_HITS) this.beat(0.4);
           } else {
-            this.popup(sh.to.x, sh.to.y - this.cell * 0.7, this.opts.labels.miss, COLORS.splash, 0.35);
-            this.rings.push({ x: sh.to.x, y: sh.to.y, life: 0, max: 600, r: this.cell * 0.5, color: COLORS.foam });
-            this.burst(sh.to.x, sh.to.y, COLORS.splash, 9, 0.7, true);
+            this.popup(sh.to.x, sh.to.y - this.cell * 0.7, this.opts.labels.miss, COLORS.dim, 0.35);
+            if (this.reduced) sh.ball.destroy();
+            else this.spent.push({ s: sh.ball, life: 0 });
           }
         }
         this.step = null;
@@ -1397,40 +1348,26 @@ export class BattleRenderer {
         }
       }
     }
-    for (const v of this.ships) if (v.flash > 0) v.flash -= dt;
+    for (const v of this.ships) {
+      if (v.flash > 0) v.flash -= dt;
+      if (v.sink >= 0 && v.sink < MOTION.clear) v.sink = Math.min(MOTION.clear, v.sink + dt);
+    }
+    if (this.hook && Number.isFinite(this.hook.ms)) {
+      this.hook.ms -= dt;
+      if (this.hook.ms <= 0) this.hook = null;
+    }
     this.drawShips();
-    // Camera shake.
-    if (this.shake > 0) {
-      this.shake -= dt;
-      const a = this.reduced ? 0 : (this.shake / 400) * 4;
-      this.world.position.set((Math.random() - 0.5) * a, (Math.random() - 0.5) * a);
-    } else this.world.position.set(0, 0);
-    // Wakes, splashes and smoke.
-    const fx = this.fxG;
-    const wk = this.wakeG;
-    fx.clear();
-    wk.clear();
-    this.particles = this.particles.filter((p) => {
+    this.spent = this.spent.filter((p) => {
       p.life += dt;
-      if (p.life >= p.max) return false;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.r += p.grow * dt;
-      const a = p.alpha * (1 - p.life / p.max);
-      const layer = p.flat ? wk : fx;
-      if (p.flat) layer.ellipse(p.x, p.y, Math.max(0.5, p.r) * 1.4, Math.max(0.5, p.r) * 0.7).fill({ color: p.color, alpha: a });
-      else layer.circle(p.x, p.y, Math.max(0.5, p.r)).fill({ color: p.color, alpha: a });
+      const k = p.life / MOTION.clear;
+      if (k >= 1) {
+        p.s.destroy();
+        return false;
+      }
+      p.s.scale.set(1 - easeOutCubic(k));
       return true;
     });
-    this.rings = this.rings.filter((r) => {
-      r.life += dt;
-      const k = r.life / r.max;
-      if (k >= 1) return false;
-      const rad = r.r * (0.3 + k * 1.2);
-      wk.ellipse(r.x, r.y, rad, rad * 0.55).stroke({ width: Math.max(1, this.cell * 0.06 * (1 - k)), color: r.color, alpha: 0.7 * (1 - k) });
-      return true;
-    });
-    // Popups.
+    // Popups rise a little and fade.
     this.popups = this.popups.filter((p) => {
       p.life += dt;
       const k = p.life / p.max;
@@ -1438,15 +1375,11 @@ export class BattleRenderer {
         p.t.destroy();
         return false;
       }
-      p.t.y = p.y0 - k * this.cell * 1.2;
-      p.t.alpha = k < 0.15 ? k / 0.15 : k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
-      p.t.scale.set(k < 0.15 ? 0.6 + (k / 0.15) * 0.4 : 1);
+      p.t.y = p.y0 - (this.reduced ? 0 : easeOutCubic(k) * this.cell * 0.8);
+      p.t.alpha = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
       return true;
     });
-    if (this.endFlash > 0) {
-      this.endFlash -= dt;
-      fx.rect(this.gx, this.gy, this.cols * this.cell, this.rows * this.cell).fill({ color: COLORS.flash, alpha: Math.max(0, this.endFlash / 1600) * 0.18 });
-    }
+    this.drawBeat(dt);
     if (this.stripDirty) this.drawStrip();
     if (this.framePending) {
       this.framePending = false;
@@ -1454,28 +1387,45 @@ export class BattleRenderer {
     }
   }
 
-  /** Foam off the stern of a ship under way. */
-  private wake(v: ShipView): void {
-    const back = v.rot + Math.PI / 2;
-    const sx = v.x + Math.cos(back) * this.cell * 0.38 + (Math.random() - 0.5) * this.cell * 0.25;
-    const sy = v.y + Math.sin(back) * this.cell * 0.38 + (Math.random() - 0.5) * this.cell * 0.25;
-    this.particles.push({ x: sx, y: sy, vx: Math.cos(back) * 0.01, vy: Math.sin(back) * 0.01, r: this.cell * 0.07, grow: 0.012, color: COLORS.foam, alpha: 0.5, life: 0, max: 520 + Math.random() * 300, flat: true });
+  /**
+   * The beat: the whole chart pulses once in amber and swells a hair, in `MOTION.beat`. Reduced
+   * motion keeps it as a still flash.
+   */
+  private drawBeat(dt: number): void {
+    const g = this.beatLayer;
+    g.clear();
+    const b = this.beatNow;
+    if (!b) return;
+    b.life += dt;
+    const t = b.life / MOTION.beat;
+    if (t >= 1) {
+      this.beatNow = null;
+      this.world.scale.set(1);
+      return;
+    }
+    // Up in the first quarter, down over the rest.
+    const env = this.reduced ? 1 : t < 0.25 ? easeOutCubic(t / 0.25) : 1 - easeOutCubic((t - 0.25) / 0.75);
+    g.rect(this.gx, this.gy, this.cols * this.cell, this.rows * this.cell).fill({ color: COLORS.amber, alpha: (0.14 + 0.16 * b.strength) * env });
+    this.world.scale.set(this.reduced ? 1 : 1 + 0.012 * b.strength * env);
   }
 
   private popup(x: number, y: number, text: string, color: number, scale: number, max = 1100): void {
-    const t = new Text({ text, style: { fontFamily: DISPLAY, fontSize: Math.max(11, this.cell * 0.9 * scale), fontWeight: "700", fontStyle: "italic", fill: color, stroke: { color: COLORS.ink, width: 3 } } });
+    const t = new Text({
+      text,
+      style: {
+        fontFamily: FONT.body,
+        fontSize: Math.max(12, this.cell * 0.9 * scale),
+        fontWeight: "700",
+        fill: color,
+        // A ground edge keeps the words readable over a ship or a rock.
+        stroke: { color: COLORS.ground, width: 3, join: "round" },
+      },
+      resolution: 2,
+    });
     t.anchor.set(0.5);
-    t.position.set(x, y);
+    const margin = t.width / 2 + 4;
+    t.position.set(Math.min(Math.max(x, this.gx + margin), this.gx + this.cols * this.cell - margin), Math.max(y, this.gy + t.height / 2));
     this.fxLayer.addChild(t);
-    this.popups.push({ t, life: 0, max, y0: y });
-  }
-
-  private burst(x: number, y: number, color: number, n: number, power: number, flat = false): void {
-    if (this.reduced) return;
-    for (let k = 0; k < n; k++) {
-      const a = Math.random() * Math.PI * 2;
-      const sp = (0.03 + Math.random() * 0.07) * power;
-      this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * (flat ? 0.5 : 1), r: this.cell * 0.06, grow: flat ? 0.006 : 0.003 * power, color, alpha: 0.9, life: 0, max: 360 + Math.random() * 260, flat });
-    }
+    this.popups.push({ t, life: 0, max, y0: t.y });
   }
 }

@@ -58,8 +58,7 @@ function lines(s: BattleState, grapple: boolean): Line[] {
   const her = chooseRaiderPlan(s, s.rng).plan;
   const out: Line[] = [];
   for (const moves of enumerateBattlePlans(s.ships[0].tokens, cfg.segments)) {
-    // Courses that hold only after their last move. Today's board throws while it previews a hold
-    // plotted ahead of a move (its ghost list is left with a hole), so a capture cannot plot one.
+    // Courses that hold only after their last move: the plainest plots to read in a picture.
     if (moves.some((m, i) => m === null && moves.slice(i + 1).some((later) => later !== null))) continue;
     const trace = resolveBattleTurn(s.board, cfg, s.ships, [{ segments: bare(moves), grapple }, her]).trace;
     let loads = s.ships[0].loaded;
@@ -117,7 +116,7 @@ const turn = (s: BattleState, l: Line): Turn => ({ plan: l.plan, after: fly(s, l
 /** What the board publishes (`data-board`), from a state Node holds. */
 const view = (s: BattleState): string => `${s.turn}:${s.ships.map((x) => `${x.x}.${x.y}.${x.heading}.${x.damage}.${x.loaded}`).join("|")}:${s.outcome ?? "-"}`;
 
-/** How long the board takes to play a turn back, from the renderer's beats, with room for a busy machine. */
+/** How long the board takes to play a turn back, from the renderer's steps, with room for a busy machine. */
 function playbackMs(s: BattleState): number {
   const events = s.lastTurn?.events ?? [];
   let ms = 0;
@@ -165,7 +164,8 @@ async function chart(page: Page): Promise<Box> {
   const box = await canvasBox(page, "battle");
   const [, gy, cell] = (await canvasAttr(page, "battle", "data-geom")).split(",").map(Number) as [number, number, number];
   const rows = cfg.boards[0]!.length;
-  return { x: box.x, y: box.y, width: box.width, height: Math.min(box.height, gy + rows * cell + cell * 0.5 + 6) };
+  // Nothing frames the chart: the picture ends a few pixels under its hairline.
+  return { x: box.x, y: box.y, width: box.width, height: Math.min(box.height, gy + rows * cell + 8) };
 }
 
 // ---- the pictures

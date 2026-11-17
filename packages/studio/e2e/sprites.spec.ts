@@ -5,8 +5,8 @@ import { expectViewMatchesState } from "./helpers.js";
 // atlas is built from its frame files by the build (ADR 0054) and served under its own name.
 // The core boards M10 has not restyled yet, then the eight prototypes, which load theirs through the
 // board kit (ADR 0037). A restyled board draws its pieces in code and loads no atlas (ADR 0062): Cooling, Gunnery,
-// Plating, Navigation.
-const CORE = ["engines", "swordfight", "battle"];
+// Plating, Navigation, Space Battle.
+const CORE = ["engines", "swordfight"];
 const PROTOTYPES = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting"];
 
 for (const puzzle of [...CORE, ...PROTOTYPES]) {
@@ -90,6 +90,28 @@ test("Navigation asks for no atlas and plays on stars drawn in code", async ({ p
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
   await expectViewMatchesState(page, "navigation");
+  expect(images).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("Space Battle asks for no atlas and plays on ships drawn in code", async ({ page }) => {
+  const errors: string[] = [];
+  const images: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (r) => {
+    if (r.url().endsWith(".webp")) images.push(r.url());
+  });
+  await page.goto("/play/battle");
+  await page.getByTestId("play-start").click();
+  const canvas = page.getByTestId("battle-canvas");
+  await expect(canvas).toHaveAttribute("data-view", /.+/);
+  await expect(canvas).not.toHaveAttribute("data-sprite-atlas");
+  await expect(canvas).toHaveAttribute("data-pieces", "drawn");
+  await page.keyboard.press("w");
+  await expect(page.getByTestId("battle-plan")).toHaveAttribute("data-plan", /"move":"forward"/);
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("battle-board")).toHaveAttribute("data-board", /^1:/);
+  await expectViewMatchesState(page, "battle");
   expect(images).toEqual([]);
   expect(errors).toEqual([]);
 });
