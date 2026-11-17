@@ -1,18 +1,40 @@
 :root {
-  --ink-900: #070e1a;
-  --ink-800: #0b1526;
-  --ink-700: #121f36;
-  --ink-600: #1c2b48;
-  --parchment: #efe3c6;
-  --parchment-dim: #c9bb9a;
-  --brass: #d4a548;
-  --brass-deep: #9a7320;
-  --foam: #5ed3b8;
-  --tide: #1a7f8a;
-  --danger: #f0604d;
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  /* tokens:start (written from boards/src/look/tokens.ts; the look test holds them equal) */
+  --ground: #0b1220;
+  --raised: #141d30;
+  --line: #27344f;
+  --cream: #ece3cf;
+  --dim: #8f99ad;
+  --amber: #e2a94b;
+  --danger: #e5604e;
+  --sand: #d8c690;
+  --sky: #7fb0d8;
+  --moss: #8ebd88;
+  --lilac: #a99ad4;
+  --rose: #d897b2;
+  --teal: #6dbcb1;
+  --rust: #c27f66;
+  --slate: #7f8ba3;
+  --plum: #8e6fa8;
+  --olive: #a3a86a;
+  --ice: #a9d3de;
+  --brick: #a85f5a;
   --font-body: "Atkinson Hyperlegible", "Avenir Next", "Segoe UI", sans-serif;
-  --radius: 14px;
+  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 10px;
+  /* tokens:end */
+  /* The older names, pointed at the palette until M10 has rewritten every rule that reads them. */
+  --ink-900: var(--ground);
+  --ink-800: var(--ground);
+  --ink-700: var(--raised);
+  --ink-600: var(--line);
+  --parchment: var(--cream);
+  --parchment-dim: var(--dim);
+  --brass: var(--amber);
+  --brass-deep: var(--amber);
+  --foam: var(--cream);
+  --tide: var(--line);
+  --font-display: var(--font-body);
   color-scheme: dark;
 }
 
