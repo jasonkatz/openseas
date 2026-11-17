@@ -9,7 +9,7 @@ pods (`pods`), each its own shape. Nothing stops by itself here: a pod that is f
 straight line until a wall, a block or another pod stops it. A flick that would move nothing is not
 a move.
 
-One clamp is lit on the floor, marked with the outline of the pod it wants. Bring that pod to rest
+One clamp is lit on the floor, drawn as the outline of the pod it wants. Bring that pod to rest
 on the clamp and it is delivered. Sliding over the clamp does not count: the pod has to stop there,
 so the work is finding something to stop against, and when nothing stands in the right place,
 flicking another pod there first. A delivered pod stays where it is, and another clamp lights for
@@ -47,7 +47,7 @@ holds) and the streak. Another lights, never the same one.
   leaving the bay in a shape that suits the next clamp, since the bay left behind is the bay the
   next clamp is dealt on.
 
-## Input
+## Input and feedback
 
 - Pointer: swipe starting on a pod to flick it that way; the flick goes as soon as the swipe has a
   direction. A pod is picked up from anywhere within three quarters of a cell of its centre. With a
@@ -55,13 +55,41 @@ holds) and the streak. Another lights, never the same one.
   that cell. The skip button is in the strip over the bay.
 - Keyboard: 1 to 4 pick a pod and space picks the next; arrows or WASD flick the picked pod; X or
   backspace skips; escape lets go.
-- The picked pod shows where each of its four flicks would carry it (`tugSlide`): a dotted track and
-  the pod's outline at the stop. A green ring there means that flick delivers. It looks one flick
+- The picked pod shows where each of its four flicks would carry it (`tugSlide`). It looks one flick
   ahead and no further, in every round. When a clamp lights, the pod it wants is picked.
-- The strip shows the wanted pod, the clamp's par and the flicks spent on it. A delivery shows its
-  points and the flicks against par; a new clamp calls out its par when it differs from the last.
-- Unrated and lab rounds show the first flick of a par route after seven seconds idle (`tugSolve`),
-  and pulse the skip button when the clamp is more than four flicks away.
+- Unrated and lab rounds show the first flick of a par route after seven seconds idle (`tugSolve`):
+  a cream arrow from the pod to where it would stop. When the clamp is more than four flicks away
+  the skip button is edged in cream instead.
+
+The board is restyled to the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws its pieces
+in code (`boards/src/tug/pieces.ts`), loads no atlas and has no marks setting.
+
+- **Pods.** The bay is seen from above, and each pod is one flat piece of cargo with an outline of
+  its own: the drum a disc, the crate a square, the wedge a triangle, the prism a diamond, and the
+  cell (the fifth pod, in a lab bay) a capsule. Their colours are a second cue: sand, sky, rose,
+  moss and lilac.
+- **The clamp** is the socket its pod drops into: the pod's own outline a size larger, in the pod's
+  colour, with the pod's shape cut out of it. So a clamp is its pod's partner with the colour taken
+  away, a pod is solid and a clamp is hollow, and the rim still shows round another pod that has
+  stopped on it.
+- **A block** is a girder stub seen end on, in slate: two flanges and a web, an outline no pod has.
+- **The board.** Bare ground. The one hairline is the bay's walls, because a wall is a stop. No
+  frame and no grid; a small dot marks every cell, since where a slide ends is the whole game.
+- **The strip** over the bay shows the wanted pod, then the clamp's par and the flicks spent on it
+  in mono, and the skip button, a raised button with cream text.
+- **The picked pod** is ringed in amber: it is the player's own. The dots of the cells each flick
+  would cross light up, and a small copy of the pod sits where it would stop. The flick that
+  delivers lights its dots in cream and its copy sits inside the clamp.
+- **A flick** slides the pod at a pace set by how far it goes (the length is the rule), eased, and
+  it stops dead: no squash, no trail, no puff. A flick into something the pod already rests
+  against leans the pod and brings it back.
+- **A delivery** shrinks the clamp to nothing. The points rise from the pod in cream, with the
+  flicks against par under them, and the grade is called out: cream for clean and full, dim for
+  slow. A skip is said in danger with its penalty. The next clamp grows onto its cell, and calls
+  out its par when that differs from the last.
+- **The beat**, one amber pulse of the whole board, is kept for two things: a clean delivery at par
+  four, the long route read whole, and a streak brought to its top. There is no shake, no flash
+  and no glow.
 
 ## Engine
 

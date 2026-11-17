@@ -24,7 +24,6 @@ The eight prototype boards (ADR 0037) each have an atlas too, painted through th
 | salvage | Six kinds of debris (`debris-<kind>`), the loot crate, the coupler |
 | reactor | Rod casings for grades 1 to 7 (`grade-<n>`); the hot rod, whatever its grade |
 | scanner | Fog and clear plates; found, spooked and miss marks; the ping diamond; lock and bare brackets |
-| tug | Four pods (`pod-<kind>`), their four clamps (`clamp-<kind>`), the block |
 | racks | Four fuel cells (`cell-<kind>`) and their hollow targets (`target-<kind>`) |
 | cutting | Eight ore tiles (`ore-<kind>`), cut to fill a cell |
 

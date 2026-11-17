@@ -8,7 +8,6 @@ export interface TugBoardProps {
   state: TugState;
   version?: number;
   interactive: boolean;
-  showMarks: boolean;
   /** Show the first flick of a par route after a pause: on for practice, off for recorded rounds. */
   hints: boolean;
   onFlick(pod: number, dir: TugDir): void;
@@ -30,7 +29,6 @@ export function TugBoard(props: TugBoardProps) {
           onFrame: () => latest.current.onFrame(),
         },
         {
-          showMarks: props.showMarks,
           hints: props.hints,
           labels: {
             status: (par, flicks) => t("tug.status", { par, flicks }),

@@ -5,7 +5,7 @@ export const TugContentSchema = PrototypeBaseSchema.extend({
   config: z.object({
     width: z.int().min(4).max(10),
     height: z.int().min(4).max(10),
-    /** Cargo pods in the bay. The board draws pod n as the kit's kind n. */
+    /** Cargo pods in the bay. The board has a drawing for each of five (`boards/src/tug/pieces.ts`). */
     pods: z.int().min(2).max(5),
     /** Fixed blocks, off the walls and never touching one another. */
     blocks: z.int().min(0).max(16),

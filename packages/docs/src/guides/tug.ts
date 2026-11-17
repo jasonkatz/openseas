@@ -27,8 +27,8 @@ export const tug: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: "The Tug bay: a seven by seven floor with five grey blocks, four cargo pods of different shapes, and one lit clamp showing the outline of the drum. Dotted tracks show where the drum would slide.",
-    caption: "The bay. The lit clamp wants the drum, and the dotted tracks show where each flick would carry it.",
+    alt: `The Tug bay: a ${c.width} by ${c.height} floor of small dots with ${c.blocks} grey girder blocks, ${c.pods} cargo pods of different shapes, and one lit clamp. The pod the clamp wants is ringed, and small copies of it show where each flick would stop.`,
+    caption: "The bay. The lit clamp is the outline of the pod it wants, and the small copies show where each flick would carry that pod.",
   },
   theme: {
     setting:
@@ -44,7 +44,7 @@ export const tug: Guide = {
   ],
   rules: [
     "Flick a pod and it slides in a straight line until a **wall, a block or another pod** stops it. It cannot stop anywhere else.",
-    "One clamp is lit, with the outline of the pod it wants. Bring that pod to **rest** on it. A pod that slides over the clamp keeps going, and that does not count.",
+    "One clamp is lit. It is the outline of the pod it wants, hollow, in that pod's colour. Bring that pod to **rest** on it. A pod that slides over the clamp keeps going, and that does not count.",
     "A delivered pod stays where it stopped. Another clamp lights, for some pod, somewhere else.",
     "Every clamp has a **par**: the fewest flicks that can deliver it from the bay as it stood when it lit. Every flick counts against it, whichever pod you flick. The strip over the bay shows the par and the flicks you have spent.",
     "A flick into something the pod already rests against moves nothing and costs nothing.",
@@ -77,12 +77,12 @@ export const tug: Guide = {
       tips: [
         {
           title: "Read the ghosts",
-          body: "When a clamp lights, the pod it wants is picked for you. Dotted tracks run from it to where each of its flicks would end. A **green ring** on the clamp means that flick delivers: take it. The ghosts look one flick ahead and no further.",
+          body: "When a clamp lights, the pod it wants is picked for you and ringed. For each of its flicks the dots of the cells it would cross light up, and a small copy of the pod sits where it would stop. A copy **inside the clamp**, at the end of a brighter track, means that flick delivers: take it. The ghosts look one flick ahead and no further.",
           media: {
             kind: "still",
             name: "ghosts",
-            alt: "The crate sits in the top right corner with dotted tracks running left and down. The track running down ends in a green ring on the lit clamp in the bottom right corner.",
-            caption: "One flick in. The green ring says the flick down delivers.",
+            alt: "One flick into a round. The wanted pod is ringed, and lit dots run from it along each way it can slide to a small copy of the pod. One track is brighter and its copy sits inside the lit clamp.",
+            caption: "One flick in. The copy inside the clamp says that flick delivers.",
           },
         },
         {
