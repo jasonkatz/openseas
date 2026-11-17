@@ -26,13 +26,13 @@ const describeDb = url ? describe : describe.skip;
 
 const STUDIO = "http://localhost:5174";
 const PACKAGES = join(fileURLToPath(import.meta.url), "../../..");
-const CONTENT = "packages/content/data/puzzles/cooling.json";
+const CONTENT = "packages/content/data/puzzles/engines.json";
 const FRAMES = "packages/boards/src/sprites/frames.json";
-const framePath = (frame: string): string => `packages/boards/src/sprites/frames/cooling/${frame}.webp`;
-const sound = (cue: string): string => `packages/boards/src/sounds/cooling/${cue}.mp3`;
+const framePath = (frame: string): string => `packages/boards/src/sprites/frames/engines/${frame}.webp`;
+const sound = (cue: string): string => `packages/boards/src/sounds/engines/${cue}.mp3`;
 const sha = (b: Buffer): string => createHash("sha256").update(b).digest("hex");
-const COOLING = (JSON.parse(readFileSync(join(PACKAGES, "boards/src/sprites/frames.json"), "utf8")) as Record<string, string[]>).cooling!;
-const [cog, valve, bolt] = COOLING as [string, string, string];
+const ENGINES = (JSON.parse(readFileSync(join(PACKAGES, "boards/src/sprites/frames.json"), "utf8")) as Record<string, string[]>).engines!;
+const [cog, valve, bolt] = ENGINES as [string, string, string];
 
 /** A lossless WebP's first bytes, saying it is 192 pixels square, and whatever follows. */
 function frame(salt: number): Buffer {
@@ -71,7 +71,7 @@ describeDb("save places picks", () => {
   async function keep(kind: "sprite" | "sound", name: string, bytes: Buffer, o: { puzzle?: string; draft?: string; take?: number } = {}): Promise<string> {
     const hash = sha(bytes);
     await store.put(`takes/${hash}`, bytes, kind === "sprite" ? "image/webp" : "audio/mpeg");
-    await app.db.insert(schema.take).values({ hash, kind, puzzle: o.puzzle ?? "cooling", name, bytes: bytes.length, prompt: null, draftId: o.draft ?? "elsewhere1", take: o.take ?? 1, author: "octo" }).onConflictDoNothing();
+    await app.db.insert(schema.take).values({ hash, kind, puzzle: o.puzzle ?? "engines", name, bytes: bytes.length, prompt: null, draftId: o.draft ?? "elsewhere1", take: o.take ?? 1, author: "octo" }).onConflictDoNothing();
     return hash;
   }
 
@@ -91,10 +91,10 @@ describeDb("save places picks", () => {
     git(tmp, "init", "--quiet", "--bare", "-b", "main", origin);
     git(tmp, "clone", "--quiet", origin, seed);
     for (const [path, from] of [
-      [CONTENT, "content/data/puzzles/cooling.json"],
+      [CONTENT, "content/data/puzzles/engines.json"],
       [FRAMES, "boards/src/sprites/frames.json"],
       // The puzzle's frame files, from which the build packs its atlas (ADR 0054).
-      ...COOLING.map((f) => [framePath(f), `boards/src/sprites/frames/cooling/${f}.webp`] as const),
+      ...ENGINES.map((f) => [framePath(f), `boards/src/sprites/frames/engines/${f}.webp`] as const),
     ]) {
       mkdirSync(dirname(join(seed, path)), { recursive: true });
       writeFileSync(join(seed, path), readFileSync(join(PACKAGES, from)));
@@ -120,8 +120,8 @@ describeDb("save places picks", () => {
 
   const numbers = (picks: DraftNumbers["picks"] = { sprites: {}, sounds: {} }, over: Partial<DraftNumbers> = {}): DraftNumbers => ({ seed: "keg-3", overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks, ...over });
   const send = (method: string, path: string, body?: unknown): Promise<Response> => fetch(`${base}${path}`, { method, headers: { origin: STUDIO, cookie: session }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-  const list = async (): Promise<Draft[]> => DraftListSchema.parse(await (await send("GET", "/drafts?puzzle=cooling")).json()).drafts;
-  const open = async (n: DraftNumbers): Promise<Draft> => DraftSchema.parse(await (await send("POST", "/drafts", { puzzle: "cooling", numbers: n })).json());
+  const list = async (): Promise<Draft[]> => DraftListSchema.parse(await (await send("GET", "/drafts?puzzle=engines")).json()).drafts;
+  const open = async (n: DraftNumbers): Promise<Draft> => DraftSchema.parse(await (await send("POST", "/drafts", { puzzle: "engines", numbers: n })).json());
   const put = async (d: Draft, n: DraftNumbers): Promise<Draft> => DraftSchema.parse(await (await send("PUT", `/drafts/${d.id}`, { numbers: n, revision: d.revision })).json());
   async function save(d: Draft): Promise<Draft> {
     const r = await send("POST", `/drafts/${d.id}/save`, { revision: d.revision, name: "Picks" });
@@ -143,19 +143,19 @@ describeDb("save places picks", () => {
     const saved = await save(await put(draft, numbers({ sprites: { [cog]: redHash }, sounds: { clear: chimeHash } })));
     expect(saved.save).toMatchObject({ state: "idle", error: null, detail: null, pull: { number: 201 } });
 
-    const branch = `studio/cooling-${draft.id}`;
+    const branch = `studio/engines-${draft.id}`;
     expect(remote(branch, framePath(cog))!.equals(red)).toBe(true);
     expect(remote(branch, sound("clear"))!.equals(chime)).toBe(true);
     // A pick is one file written: no atlas is committed to encode again, and no other frame is touched.
     expect(git(origin, "diff", "--name-only", "main", branch).split("\n").sort()).toEqual([framePath(cog), sound("clear")].sort());
     expect(remote(branch, framePath(cog))!.equals(remote("main", framePath(cog))!)).toBe(false);
-    expect(git(origin, "log", "-1", "--format=%B", branch)).toBe(`Place picks for cooling from the studio\n\nsprite ${cog}: take 3\nsound clear: ${chimeHash.slice(0, 10)}`);
+    expect(git(origin, "log", "-1", "--format=%B", branch)).toBe(`Place picks for engines from the studio\n\nsprite ${cog}: take 3\nsound clear: ${chimeHash.slice(0, 10)}`);
 
     const pull = gh.opened.at(-1)!;
-    expect(pull.title).toBe("Tune cooling: numbers and art from the studio");
+    expect(pull.title).toBe("Tune engines: numbers and art from the studio");
     expect(pull.body).toContain(`| sprite \`${cog}\` | [take 3](https://service.test/takes/${redHash}) | \`${framePath(cog)}\` |`);
     expect(pull.body).toContain(`| sound \`clear\` | [${chimeHash.slice(0, 10)}](https://service.test/takes/${chimeHash}) | \`${sound("clear")}\` |`);
-    expect(pull.body).toContain("pnpm --filter @openseas/docs capture cooling");
+    expect(pull.body).toContain("pnpm --filter @openseas/docs capture engines");
     expect(pull.body).toContain("that check is still owed");
     // What Save placed is not the chat's doing.
     expect(pull.body).not.toContain("Files edited by the studio's agent");
@@ -165,7 +165,7 @@ describeDb("save places picks", () => {
     const [draft] = await list();
     const saved = await save(await put(draft!, numbers({ sprites: {}, sounds: { clear: "synth" } })));
     expect(saved.save).toMatchObject({ state: "idle", error: null });
-    const branch = `studio/cooling-${draft!.id}`;
+    const branch = `studio/engines-${draft!.id}`;
     // A frame let go is the base branch's file again.
     expect(remote(branch, framePath(cog))!.equals(remote("main", framePath(cog))!)).toBe(true);
     expect(remote(branch, sound("clear"))).toBeNull();
@@ -185,7 +185,7 @@ describeDb("save places picks", () => {
     const green = frame(3);
     const saved = await save(await put(draft!, numbers({ sprites: { [bolt]: await keep("sprite", bolt, green) }, sounds: {} })));
     expect(saved.save).toMatchObject({ state: "idle", error: null });
-    const branch = `studio/cooling-${draft!.id}`;
+    const branch = `studio/engines-${draft!.id}`;
     expect(remote(branch, framePath(valve))!.equals(blue)).toBe(true);
     expect(remote(branch, framePath(bolt))!.equals(green)).toBe(true);
 
@@ -208,7 +208,7 @@ describeDb("save places picks", () => {
       // A take of another frame.
       [valve, { sprites: { [valve]: await keep("sprite", cog, frame(5)) }, sounds: {} }],
       // A take of another puzzle.
-      [cog, { sprites: { [cog]: await keep("sprite", cog, frame(6), { puzzle: "engines" }) }, sounds: {} }],
+      [cog, { sprites: { [cog]: await keep("sprite", cog, frame(6), { puzzle: "plating" }) }, sounds: {} }],
       // A sound picked for a frame.
       [cog, { sprites: { [cog]: await keep("sound", cog, mp3(2)) }, sounds: {} }],
       // A frame the manifest does not list: a new frame is a change to code.

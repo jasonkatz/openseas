@@ -42,7 +42,8 @@
 
 /* The studio's home and voyage bench lay their own look over these rules by setting the older names
    (studio/src/look.css, ADR 0058). The rules below read the tokens, so on those pages the tokens
-   follow the older names. It goes with the aliases above. */
+   follow the older names. It goes with the aliases above, and so does the block at the foot of this
+   file. */
 .studio-home,
 .vpage,
 .vpage .vboard {
@@ -1169,4 +1170,27 @@ i.dot.pip-off {
 .stat-value .tier-pace,
 .station-numbers .tier-pace {
   margin-left: 6px;
+}
+
+/* ---- the studio's two pages (see the top of this file)
+   What the home grid and the voyage bench took from the rules above as they were, and still draw
+   with. `:where` keeps each at the weight of the rule it stands in for. It goes with the aliases. */
+:where(.studio-home, .vpage) .eyebrow {
+  text-transform: uppercase;
+}
+:where(.studio-home) .tile-title,
+:where(.studio-home) .section-title {
+  font-family: var(--font-display);
+}
+:where(.studio-home) .colophon {
+  font-size: 12px;
+}
+:where(.studio-home, .vpage) .small {
+  font-size: 14px;
+}
+:where(.vpage) .btn {
+  border: 0;
+}
+:where(.vpage) .btn-ghost {
+  background: transparent;
 }

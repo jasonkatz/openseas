@@ -357,7 +357,10 @@ words. Milestone M10 (5.2) restyles the game to it in steps. Until a step lands,
 section, 3.9's lines on sprites, marks and sound, and 3.11's on the world describe what is built,
 and each is rewritten in the PR that changes it.
 
-Cooling is restyled (M10's second step): its pieces are pictograms drawn in code on the shared
+The game's chrome is restyled (M10's second step): its stylesheets read the palette's tokens from
+`boards/src/look/tokens.ts`, in one typeface, with flat panels and no glass, gradient or shadow, and
+the guides' stylesheet wears the same tokens. `boards/src/styles.css` still carries the older variable
+names for the studio's own sheets, which read them (ADR 0058). Cooling is restyled too: its pieces are pictograms drawn in code on the shared
 palette, with no frame, no atlas and no marks setting (`puzzles/cooling.md`). The rest of this
 paragraph describes the other boards, which are still to come. The six other boards in the game use original generated 2D sprite atlases (ADR 0031): dark outlines,
 restrained shading and distinct silhouettes, read at phone scale. Assets live in `boards`, so the

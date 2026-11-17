@@ -201,6 +201,8 @@ export class CoolingRenderer {
       this.app.destroy(true);
       return;
     }
+    // No atlas to wait for: the pieces are drawn in code (ADR 0062). The studio's thumbnails read this.
+    this.app.canvas.dataset.pieces = "drawn";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "cooling-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -558,7 +560,8 @@ export class CoolingRenderer {
   private drawWell(): void {
     const W = this.width * this.cell;
     const H = this.height * this.cell;
-    this.well.clear().rect(-0.5, -0.5, W + 1, H + 1).stroke({ width: 1, color: COLORS.line });
+    // The ground is painted, not left clear, so the board is whole wherever it is shown (a thumbnail, a capture).
+    this.well.clear().rect(0, 0, W, H).fill(COLORS.ground).rect(-0.5, -0.5, W + 1, H + 1).stroke({ width: 1, color: COLORS.line });
   }
 
   /** Bake each kind's pictogram to a texture at the current size. */

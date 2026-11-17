@@ -30,7 +30,8 @@ export function ThumbShell(p: ShellProps) {
       if (done) return;
       const canvas = document.querySelector<HTMLCanvasElement>(`[data-testid="${puzzle}-canvas"]`);
       // Drawn means the renderer has its art (or has fallen back to drawing in code) and has shown a state.
-      if (canvas?.getAttribute("data-sprite-atlas") && canvas.getAttribute("data-view") && canvas.width > 0) {
+      // A board says its art is ready by naming its atlas, or, once restyled (ADR 0062), that its pieces are drawn in code.
+      if (canvas && (canvas.getAttribute("data-sprite-atlas") || canvas.getAttribute("data-pieces")) && canvas.getAttribute("data-view") && canvas.width > 0) {
         frames++;
         const picture = frames > 3 ? copy(canvas) : null;
         if (picture) return post(picture);
