@@ -18,15 +18,5 @@
     "grade-6",
     "grade-7",
     "hot"
-  ],
-  "scanner": [
-    "fog",
-    "clear",
-    "found",
-    "spooked",
-    "miss",
-    "ping",
-    "lock",
-    "brackets"
   ]
 }

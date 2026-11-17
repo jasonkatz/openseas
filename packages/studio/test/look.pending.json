@@ -1,6 +1,5 @@
 [
   "boards/src/reactor/renderer.ts",
   "boards/src/salvage/renderer.ts",
-  "boards/src/scanner/renderer.ts",
   "boards/src/sprites/atlas.ts"
 ]
