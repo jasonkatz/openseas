@@ -3,6 +3,8 @@
  * the world or a guide draws comes from here: this is the only file in the game that types a hex
  * value, and `studio/test/look.test.ts` fails on a literal anywhere else that has been restyled.
  */
+import { PIECE_COLORS, PLAYER_COLORS } from "@openseas/content";
+
 export const PALETTE = {
   ground: "#0b1220",
   raised: "#141d30",
@@ -27,12 +29,9 @@ export const PALETTE = {
 
 export type Token = keyof typeof PALETTE;
 
-/** The eight colours a piece may wear, and `cream` for a special one. Amber and danger are never a piece's. */
-export const PIECE_COLORS = ["sand", "sky", "moss", "lilac", "rose", "teal", "rust", "slate", "cream"] as const;
+/** The names a piece and a player may wear are content's vocabulary; their values are here. */
+export { PIECE_COLORS, PLAYER_COLORS };
 export type PieceColor = (typeof PIECE_COLORS)[number];
-
-/** The twelve colours a jacket or a flag may wear. */
-export const PLAYER_COLORS = ["sand", "sky", "moss", "lilac", "rose", "teal", "rust", "slate", "plum", "olive", "ice", "brick"] as const;
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 
 /** A token as the number PixiJS and three.js take. */
@@ -61,4 +60,12 @@ export function cssVariables(): string {
   const lines = (Object.keys(PALETTE) as Token[]).map((t) => `  --${t}: ${PALETTE[t]};`);
   lines.push(`  --font-body: ${FONT.body};`, `  --font-mono: ${FONT.mono};`, `  --radius: ${RADIUS}px;`);
   return lines.join("\n");
+}
+
+/** Two tokens mixed, as a number: `t` = 0 is `a`, 1 is `b`. For a flat tint, never for a gradient. */
+export function blend(a: Token, b: Token, t: number): number {
+  const x = ink(a);
+  const y = ink(b);
+  const ch = (shift: number): number => Math.round(((x >> shift) & 0xff) * (1 - t) + ((y >> shift) & 0xff) * t);
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 }

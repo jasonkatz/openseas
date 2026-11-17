@@ -61,9 +61,9 @@ describe("the atlases built from frame files (ADR 0054)", () => {
   }
 
   it("a frame in the wrong place fails the comparison", async () => {
-    const names = listed.cooling!;
-    const { files } = sources("cooling", names);
-    const atlas = await pixels(await pack("cooling", names, files));
+    const names = listed.engines!;
+    const { files } = sources("engines", names);
+    const atlas = await pixels(await pack("engines", names, files));
     const [x, y] = layout(names).frames[names[1]!]!;
     const wrong = compare(atlas, await pixels(files[0]!), x, y);
     expect(wrong.alpha > 0 || wrong.psnr <= MIN_PSNR).toBe(true);
@@ -87,29 +87,29 @@ describe("the atlases built from frame files (ADR 0054)", () => {
     };
 
     it("as they do in the repository", () => {
-      expect(Object.keys(listed).length).toBe(15);
-      expect(Object.values(listed).flat().length).toBe(152);
+      expect(Object.keys(listed).length).toBe(14);
+      expect(Object.values(listed).flat().length).toBe(140);
     });
 
     it("refuses a listed frame with no file", () => {
       const at = copy();
-      rmSync(join(at, "frames", "cooling", "cog.webp"));
-      expect(() => check(at)).toThrow(/cooling\/cog is listed but/);
+      rmSync(join(at, "frames", "engines", "weave.webp"));
+      expect(() => check(at)).toThrow(/engines\/weave is listed but/);
     });
 
     it("refuses a file no manifest lists", () => {
       const at = copy();
-      cpSync(join(at, "frames", "cooling", "cog.webp"), join(at, "frames", "cooling", "cog-2.webp"));
-      expect(() => check(at)).toThrow(/frames\/cooling\/cog-2.webp is not listed/);
+      cpSync(join(at, "frames", "engines", "weave.webp"), join(at, "frames", "engines", "weave-2.webp"));
+      expect(() => check(at)).toThrow(/frames\/engines\/weave-2.webp is not listed/);
     });
 
     it("refuses a frame that is not 192px when packing", async () => {
       const at = copy();
-      const names = manifest(at).cooling!;
+      const names = manifest(at).engines!;
       // A transparent image of one pixel.
       const dot = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-      writeFileSync(join(at, "frames", "cooling", "cog.webp"), Buffer.from(dot, "base64"));
-      await expect(pack("cooling", names, sources("cooling", names, at).files)).rejects.toThrow(/cooling\/cog is 1x1/);
+      writeFileSync(join(at, "frames", "engines", "weave.webp"), Buffer.from(dot, "base64"));
+      await expect(pack("engines", names, sources("engines", names, at).files)).rejects.toThrow(/engines\/weave is 1x1/);
     });
   });
 });

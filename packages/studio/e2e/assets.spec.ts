@@ -34,7 +34,7 @@ function wav(): Buffer {
 
 const href = (page: Page, frame: string): Promise<string | null> => page.getByTestId(`frame-${frame}`).locator("image").first().getAttribute("href");
 
-for (const puzzle of ["cooling", "salvage"]) {
+for (const puzzle of ["engines", "salvage"]) {
   test(`${puzzle}: every frame has a row, and a file tried in one is drawn on the running board`, async ({ page }, testInfo) => {
     desktopOnly();
     const errors: string[] = [];
@@ -123,12 +123,12 @@ test("a turn's takes appear in their rows, a tap picks one into the draft and on
   desktopOnly();
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
-  const s = await service(page, { login: "octo", save: true, chat: true, takes: [], picks: true, drafts: [draft({ save: NO_SAVE })] });
-  await page.goto("/cooling");
+  const s = await service(page, { login: "octo", save: true, chat: true, takes: [], picks: true, drafts: [draft({ puzzle: "engines", save: NO_SAVE })] });
+  await page.goto("/engines");
   await page.getByTestId("play-start").click();
-  await expectViewMatchesState(page, "cooling");
+  await expectViewMatchesState(page, "engines");
   await page.getByTestId("tab-sprites").click();
-  const frame = frames.cooling![0]!;
+  const frame = frames.engines![0]!;
   await expect(page.getByTestId(`frame-takes-${frame}`)).toHaveCount(0);
 
   // The row asks the agent, in the chat's own box, for the owner to finish.
@@ -146,22 +146,22 @@ test("a turn's takes appear in their rows, a tap picks one into the draft and on
   const mine = "a".repeat(64);
   const other = "b".repeat(64);
   const sound = "c".repeat(64);
-  s.takes.push({ hash: mine, kind: "sprite", puzzle: "cooling", name: frame, draft: "draftdraft", take: 1, prompt: "A brass cog.", body: picture, contentType: "image/png" });
-  s.takes.push({ hash: other, kind: "sprite", puzzle: "cooling", name: frame, draft: "gonedraft1", take: 4, body: picture, contentType: "image/png" });
-  s.takes.push({ hash: sound, kind: "sound", puzzle: "cooling", name: "clear", draft: "draftdraft", take: 2, body: wav(), contentType: "audio/wav" });
+  s.takes.push({ hash: mine, kind: "sprite", puzzle: "engines", name: frame, draft: "draftdraft", take: 1, prompt: "A riveted disc.", body: picture, contentType: "image/png" });
+  s.takes.push({ hash: other, kind: "sprite", puzzle: "engines", name: frame, draft: "gonedraft1", take: 4, body: picture, contentType: "image/png" });
+  s.takes.push({ hash: sound, kind: "sound", puzzle: "engines", name: "clear", draft: "draftdraft", take: 2, body: wav(), contentType: "audio/wav" });
   s.chat.running = false;
   s.say("turn", { status: "done", commit: null, costUsd: 0.5, reverted: false });
   await expect(page.getByTestId("take-aaaaaaaa")).toHaveText("take 1");
   await expect(page.getByTestId("take-bbbbbbbb")).toHaveText("take bbbbbb");
-  await expect(page.getByTestId("take-aaaaaaaa")).toHaveAttribute("title", "A brass cog.");
+  await expect(page.getByTestId("take-aaaaaaaa")).toHaveAttribute("title", "A riveted disc.");
 
   // A tap is a pick: the draft holds it, the service is sent it, and the board is made again with it.
   await (await shown(page, "take-aaaaaaaa")).click();
   await expect(page.getByTestId(`frame-${frame}`)).toHaveAttribute("data-picked", mine);
   await expect(page.getByTestId(`frame-pick-${frame}`)).toHaveText("Picked: take 1");
   await expect.poll(() => href(page, frame)).toBe(`${SERVICE}/takes/${mine}`);
-  await expect(page.getByTestId("cooling-canvas")).toHaveAttribute("data-sprite-atlas", "cooling");
-  await expectViewMatchesState(page, "cooling");
+  await expect(page.getByTestId("engines-canvas")).toHaveAttribute("data-sprite-atlas", "engines");
+  await expectViewMatchesState(page, "engines");
   await expect.poll(() => s.drafts[0]!.numbers.picks).toEqual({ sprites: { [frame]: mine }, sounds: {} });
   // The numbers are untouched, and the address stays bare: the service keeps the draft.
   expect(s.drafts[0]!.numbers.overrides).toEqual({ pieceKinds: 5 });
@@ -205,12 +205,12 @@ test("a turn's takes appear in their rows, a tap picks one into the draft and on
 
 test("on a service older than picks, a pick stays in the address and the draft is not saved over and over", async ({ page }) => {
   desktopOnly();
-  const frame = frames.cooling![0]!;
+  const frame = frames.engines![0]!;
   const mine = "a".repeat(64);
-  const s = await service(page, { login: "octo", save: true, chat: true, takes: [], drafts: [draft({ save: NO_SAVE })] });
-  await page.goto("/cooling");
+  const s = await service(page, { login: "octo", save: true, chat: true, takes: [], drafts: [draft({ puzzle: "engines", save: NO_SAVE })] });
+  await page.goto("/engines");
   await page.getByTestId("tab-sprites").click();
-  s.takes.push({ hash: mine, kind: "sprite", puzzle: "cooling", name: frame, draft: "draftdraft", take: 1, body: await page.getByTestId("tab-sprites").screenshot(), contentType: "image/png" });
+  s.takes.push({ hash: mine, kind: "sprite", puzzle: "engines", name: frame, draft: "draftdraft", take: 1, body: await page.getByTestId("tab-sprites").screenshot(), contentType: "image/png" });
   await page.reload();
   await page.getByTestId("tab-sprites").click();
   await (await shown(page, "take-aaaaaaaa")).click();
@@ -224,14 +224,15 @@ test("on a service older than picks, a pick stays in the address and the draft i
 test("a link's pick is loaded and drawn on /play, and a take that cannot be read leaves the shipped art and says so", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
-  const frame = frames.cooling![0]!;
+  const frame = frames.engines![0]!;
   const good = "a".repeat(64);
   const gone = "d".repeat(64);
   const asked: string[] = [];
   // The legend's tiles are painted from the same art the board bakes: how they look with nothing picked.
   const tiles = (): Promise<string> => page.locator("[data-testid='hud-panel'] img.tile-icon").evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).src).join("|"));
-  await page.goto("/play/cooling");
-  await expect(page.getByTestId("cooling-canvas")).toHaveAttribute("data-sprite-atlas", "cooling");
+  // The same seed as the rounds below: Engines' panel also shows the next pair, which the seed deals.
+  await page.goto("/play/engines?seed=picks-1");
+  await expect(page.getByTestId("engines-canvas")).toHaveAttribute("data-sprite-atlas", "engines");
   const shipped = await tiles();
   expect(shipped).toContain("data:image/png");
   const picture = await page.getByTestId("play-start").screenshot();
@@ -241,10 +242,10 @@ test("a link's pick is loaded and drawn on /play, and a take that cannot be read
     return path === `/takes/${good}` ? route.fulfill({ status: 200, contentType: "image/png", headers: { "Access-Control-Allow-Origin": "*" }, body: picture }) : route.fulfill({ status: 404, contentType: "application/json", headers: { "Access-Control-Allow-Origin": "*" }, body: '{"error":"not_found"}' });
   });
 
-  await page.goto(`/play/cooling?seed=picks-1&sprite.${frame}=${good}`);
+  await page.goto(`/play/engines?seed=picks-1&sprite.${frame}=${good}`);
   await page.getByTestId("play-start").click();
-  await expect(page.getByTestId("cooling-canvas")).toHaveAttribute("data-sprite-atlas", "cooling");
-  await expectViewMatchesState(page, "cooling");
+  await expect(page.getByTestId("engines-canvas")).toHaveAttribute("data-sprite-atlas", "engines");
+  await expectViewMatchesState(page, "engines");
   await page.getByTestId("toggle-details").click();
   await expect(page.getByTestId("play-picks")).toContainText("1");
   await expect(page.getByTestId("play-picks").locator(".error")).toHaveCount(0);
@@ -253,9 +254,9 @@ test("a link's pick is loaded and drawn on /play, and a take that cannot be read
   // The art is painted from the picked take: the legend's tiles are no longer the shipped ones.
   await expect.poll(tiles).not.toBe(shipped);
 
-  await page.goto(`/play/cooling?seed=picks-1&sprite.${frame}=${gone}&sound.clear=${gone}`);
+  await page.goto(`/play/engines?seed=picks-1&sprite.${frame}=${gone}&sound.clear=${gone}`);
   await page.getByTestId("play-start").click();
-  await expectViewMatchesState(page, "cooling");
+  await expectViewMatchesState(page, "engines");
   await page.getByTestId("toggle-details").click();
   await expect(page.getByTestId("play-picks").locator(".error")).toContainText("2");
   // Nothing could be read, so the art is the shipped art.
@@ -265,10 +266,10 @@ test("a link's pick is loaded and drawn on /play, and a take that cannot be read
 
 test("signed out, or with a service that keeps no takes, the rows list none and ask for none", async ({ page }) => {
   desktopOnly();
-  const s = await service(page, { login: "octo", save: true, chat: true, drafts: [draft({ save: NO_SAVE })] });
-  await page.goto("/cooling");
+  const s = await service(page, { login: "octo", save: true, chat: true, drafts: [draft({ puzzle: "engines", save: NO_SAVE })] });
+  await page.goto("/engines");
   await page.getByTestId("tab-sprites").click();
-  const frame = frames.cooling![0]!;
+  const frame = frames.engines![0]!;
   await expect(page.getByTestId(`frame-${frame}`)).toBeVisible();
   await expect(page.getByTestId(`ask-new-${frame}`)).toBeVisible();
   expect(s.calls.filter((c) => c.includes("/takes"))).toEqual([]);

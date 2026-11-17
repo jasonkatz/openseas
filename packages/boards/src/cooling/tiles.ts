@@ -61,7 +61,8 @@ export function paintTile(ctx: CanvasRenderingContext2D, s: number, style: TileS
   const sprite = style.sprite?.name ?? style.special ?? PART[style.texture ?? "knurl"];
   const inset = style.special ? s * 0.08 : 0;
   const labelled = Boolean(style.special) && s >= 36 && style.label.length > 0;
-  if (!drawSprite(ctx, style.sprite?.puzzle ?? "cooling", sprite, inset, inset, s - inset * 2, s - inset * 2)) {
+  // Cooling draws its own pieces in code now (pieces.ts, ADR 0062); only Plating still asks this file for a sprite.
+  if (!style.sprite || !drawSprite(ctx, style.sprite.puzzle, sprite, inset, inset, s - inset * 2, s - inset * 2)) {
     // The atlas did not load: the same pieces as vector parts, so play never waits on an image.
     if (style.special) paintPart(ctx, SPECIAL_PART[style.special], s / 2, labelled ? s / 2 - s * 0.07 : s / 2, s * 0.78);
     else if (style.sprite) paintMaterial(ctx, s, style.color);

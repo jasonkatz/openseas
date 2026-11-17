@@ -249,7 +249,8 @@ export function contentProblems(content: Content): string[] {
   for (const id of Object.keys(puzzles) as PuzzleContentId[]) {
     const p = puzzles[id];
     const where = `puzzles/${id}`;
-    if ("pieces" in p) checkPieces(where, p.pieces, "pieceKinds" in p.config ? p.config.pieceKinds : "colors" in p.config ? p.config.colors : p.pieces.length, messages, problems);
+    if (id === "cooling") checkCoolingPieces(where, puzzles.cooling.pieces, puzzles.cooling.config.pieceKinds, messages, problems);
+    else if ("pieces" in p) checkPieces(where, p.pieces as Parameters<typeof checkPieces>[1], "pieceKinds" in p.config ? p.config.pieceKinds : "colors" in p.config ? p.config.colors : p.pieces.length, messages, problems);
     for (const problem of thresholdProblems(p.thresholds, "parScore" in p ? p.parScore : undefined)) problems.push(`${where}: ${problem}`);
     need(`home.practice_${id}`, where);
     need(`home.practice_${id}_blurb`, where);
@@ -313,6 +314,20 @@ export function contentProblems(content: Content): string[] {
     }
   }
   return problems;
+}
+
+/** Every Cooling kind must have a shape and a colour of its own: the shape is what tells kinds apart (rule 6). */
+function checkCoolingPieces(where: string, pieces: ReadonlyArray<{ nameKey: string; shape: string; color: string }>, kinds: number, messages: Record<string, string>, problems: string[]): void {
+  if (pieces.length < kinds) problems.push(`${where}: ${kinds} kinds but only ${pieces.length} piece definitions`);
+  const shapes = new Set<string>();
+  const colors = new Set<string>();
+  for (const p of pieces) {
+    if (!(p.nameKey in messages)) problems.push(`${where}: missing message key "${p.nameKey}"`);
+    if (shapes.has(p.shape)) problems.push(`${where}: shape "${p.shape}" used twice; every kind must differ by shape (rule 6)`);
+    if (colors.has(p.color)) problems.push(`${where}: color "${p.color}" used twice`);
+    shapes.add(p.shape);
+    colors.add(p.color);
+  }
 }
 
 /** Every kind must differ by mark, color, and texture so pieces stay apart without color (rule 6). */

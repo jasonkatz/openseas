@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { cssVariables } from "../../boards/src/look/tokens.js";
+import { cssVariables } from "@openseas/boards/look";
 
 /**
  * The game's look is one palette in one file (docs/BRAND.md, ADR 0061). A colour typed anywhere

@@ -1,18 +1,4 @@
 {
-  "cooling": [
-    "cog",
-    "valve",
-    "bolt",
-    "fuse",
-    "crystal",
-    "coil",
-    "chip",
-    "charge",
-    "magnet",
-    "slag",
-    "splash",
-    "glint"
-  ],
   "engines": [
     "weave",
     "coil",

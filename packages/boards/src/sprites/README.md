@@ -13,7 +13,6 @@ sprites. Keep optional accessibility badges and labels in code.
 
 | Puzzle | Runtime use |
 |---|---|
-| cooling | Cog, valve, bolt, fuse, crystal, coil, chip; charge, magnet and slag plates; vent cloud |
 | engines | Trefoil, ring and three-spoke discs and their hollow targets; the extra lab kind stays procedural |
 | plating | Tin, copper, steel and brass, brushed horizontally and vertically, composed into exact polyominoes |
 | gunnery | Cell, sabot, slug, coolant jug; empty, loaded, jammed and firing turrets; crate |

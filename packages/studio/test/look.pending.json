@@ -1,7 +1,6 @@
 [
   "boards/src/battle/art.ts",
   "boards/src/battle/renderer.ts",
-  "boards/src/cooling/renderer.ts",
   "boards/src/cooling/tiles.ts",
   "boards/src/cutting/renderer.ts",
   "boards/src/deflectors/renderer.ts",
@@ -23,18 +22,15 @@
   "boards/src/salvage/renderer.ts",
   "boards/src/scanner/renderer.ts",
   "boards/src/sprites/atlas.ts",
-  "boards/src/styles.css",
   "boards/src/swordfight/art.ts",
   "boards/src/swordfight/renderer.ts",
   "boards/src/tug/renderer.ts",
   "client/src/crew/Flag.tsx",
   "client/src/crew/flag.ts",
-  "client/src/game.css",
   "client/src/pirate/Portrait.tsx",
   "client/src/shell/TopBar.tsx",
   "client/src/world/models.ts",
   "client/src/world/outpost.ts",
   "client/src/world/pirate.ts",
-  "client/src/world/scene.ts",
-  "docs/src/docs.css"
+  "client/src/world/scene.ts"
 ]

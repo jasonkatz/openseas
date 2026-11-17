@@ -10,6 +10,10 @@
       "default": "./src/index.ts"
     },
     "./styles.css": "./src/styles.css",
+    "./look": {
+      "types": "./src/look/tokens.ts",
+      "default": "./src/look/tokens.ts"
+    },
     "./vite": {
       "types": "./build/atlases.d.ts",
       "default": "./build/atlases.js"

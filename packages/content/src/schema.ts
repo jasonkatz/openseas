@@ -101,6 +101,24 @@ export const RatingTierSchema = z.object({
   min: z.number(),
 });
 
+/** The colours a piece may wear, by their names in the game's one palette (docs/BRAND.md section 2). */
+export const PIECE_COLORS = ["sand", "sky", "moss", "lilac", "rose", "teal", "rust", "slate", "cream"] as const;
+export const PieceColorSchema = z.enum(PIECE_COLORS);
+export type PieceColor = z.infer<typeof PieceColorSchema>;
+
+/** The colours a jacket or a flag may wear, by the same names. */
+export const PLAYER_COLORS = ["sand", "sky", "moss", "lilac", "rose", "teal", "rust", "slate", "plum", "olive", "ice", "brick"] as const;
+
+/**
+ * One ordinary Cooling piece kind, index = kind: the pictogram it is drawn as and the palette
+ * colour it wears. Every kind has a shape of its own, so kinds are told apart without color (rule 6).
+ */
+export const CoolingPieceStyleSchema = z.object({
+  nameKey: MessageKey,
+  shape: z.enum(["cog", "valve", "bolt", "fuse", "crystal", "coil", "chip"]),
+  color: PieceColorSchema,
+});
+
 /** Shape and color of one ordinary piece kind, index = kind. Tiles are colored squares, each with
  * its own surface `texture`; `mark` names the symbol drawn inside when the player turns marks on,
  * so kinds stay distinguishable without color (rule 6). */
@@ -234,11 +252,11 @@ export const CoolingContentSchema = DutyPuzzleBaseSchema.extend({
    * until it lands, so working overheated costs time. Client timing only; scores are unaffected.
    */
   overheatSwapMs: z.int().min(0).max(5000),
-  pieces: z.array(PieceStyleSchema).min(3),
+  pieces: z.array(CoolingPieceStyleSchema).min(3),
   specials: z.object({
-    charge: z.object({ nameKey: MessageKey, color: z.string() }),
-    magnet: z.object({ nameKey: MessageKey, color: z.string() }),
-    slag: z.object({ nameKey: MessageKey, color: z.string() }),
+    charge: z.object({ nameKey: MessageKey, color: PieceColorSchema }),
+    magnet: z.object({ nameKey: MessageKey, color: PieceColorSchema }),
+    slag: z.object({ nameKey: MessageKey, color: PieceColorSchema }),
   }),
 });
 
@@ -587,6 +605,7 @@ export type ShipClass = z.infer<typeof ShipClassSchema>;
 export type ShipGrant = z.infer<typeof ShipGrantSchema>;
 export type RatingTier = z.infer<typeof RatingTierSchema>;
 export type PieceStyle = z.infer<typeof PieceStyleSchema>;
+export type CoolingPieceStyle = z.infer<typeof CoolingPieceStyleSchema>;
 export type EnginesPieceStyle = z.infer<typeof EnginesPieceStyleSchema>;
 export type CoolingContent = z.infer<typeof CoolingContentSchema>;
 export type EnginesContent = z.infer<typeof EnginesContentSchema>;

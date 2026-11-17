@@ -20,6 +20,8 @@ export * from "./round/round.js";
 export * from "./round/useTicked.js";
 export { CoolingBoard, type BoardProps as CoolingBoardProps } from "./cooling/CoolingBoard.jsx";
 export { type MoveShown as CoolingMoveShown } from "./cooling/renderer.js";
+export { CoolingPieceIcon } from "./cooling/PieceIcon.jsx";
+export { PALETTE, PIECE_COLORS, PLAYER_COLORS, FONT, MOTION, RADIUS, blend, css, cssVariables, ink, type PieceColor, type PlayerColor, type Token } from "./look/tokens.js";
 export { TileIcon } from "./cooling/TileIcon.jsx";
 export { tileDataUrl, type SpecialName, type TileTexture } from "./cooling/tiles.js";
 export { EnginesBoard, type EnginesBoardProps } from "./engines/EnginesBoard.jsx";

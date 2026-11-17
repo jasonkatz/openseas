@@ -55,7 +55,7 @@ const cooling = content.puzzles.cooling;
 /** The ship's heat arrives as heat events: one with the deal, then one whenever a turn changes it. */
 const dealtHeat = (started: PuzzleStarted): CoolingMove[] => (started.duty?.heat !== undefined ? [{ type: "heat", row: started.duty.heat }] : []);
 const shipHeat = (m: ServerMessage, sessionId: string): CoolingMove | null => (m.type === "duty.heat" && m.sessionId === sessionId ? { type: "heat", row: m.row } : null);
-function CoolingDuty({ active, showMarks, children }: DutyProps) {
+function CoolingDuty({ active, children }: DutyProps) {
   const api = useDuty<CoolingState, CoolingMove, CoolingConfig>({
     puzzle: "cooling",
     def: COOLING_DEF,
@@ -103,7 +103,6 @@ function CoolingDuty({ active, showMarks, children }: DutyProps) {
         report={state.lastMove}
         version={api.version}
         interactive={interactive}
-        showMarks={showMarks}
         onSwap={onSwap}
         preview={preview}
         onFrame={api.markRendered}
