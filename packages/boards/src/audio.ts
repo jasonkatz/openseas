@@ -18,20 +18,81 @@ function readMuted(): boolean {
   }
 }
 
+/**
+ * How much louder the game is than a cue's own level. A cue is tuned quiet and level with the
+ * others (`cues.ts`); this lifts them all to where a phone's small speaker carries them, and the
+ * limiter after it keeps cues that overlap from clipping.
+ */
+const MASTER_GAIN = 2.2;
+
+/** The one context and its output, made on first need. Null when muted or when the browser has no WebAudio. */
 function context(): { ac: AudioContext; out: GainNode } | null {
   if (muted) return null;
   try {
-    ctx ??= new AudioContext();
+    if (!ctx) {
+      // A phone with its ring switch off plays nothing through WebAudio unless the page says its
+      // sound is the point of it, as a game's is. Only some browsers have this; the rest ignore it.
+      const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+      if (session) session.type = "playback";
+      ctx = new AudioContext();
+    }
     if (!master) {
       master = ctx.createGain();
-      master.gain.value = 1;
-      master.connect(ctx.destination);
+      master.gain.value = MASTER_GAIN;
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -6;
+      limiter.knee.value = 6;
+      limiter.ratio.value = 12;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.12;
+      master.connect(limiter);
+      limiter.connect(ctx.destination);
     }
-    if (ctx.state === "suspended") void ctx.resume();
+    // "suspended" before a gesture, and on a phone "interrupted" after a call or a trip to another app.
+    if (ctx.state !== "running") void ctx.resume().catch(() => undefined);
     return { ac: ctx, out: master };
   } catch {
     return null;
   }
+}
+
+/**
+ * A browser, a phone's above all, lets a page make sound only from inside the player's own touch,
+ * click or key press. A board plays its cues a frame or more after the touch that caused them,
+ * which is too late: the context would stay suspended and the game silent for good. So the first
+ * gesture anywhere on the page starts the context itself, and plays one silent sample inside the
+ * gesture, which is what older phones need before they will let anything through.
+ */
+const GESTURES = ["pointerdown", "pointerup", "touchend", "mousedown", "keydown", "click"] as const;
+function unlock(): void {
+  const c = context();
+  if (!c) return;
+  try {
+    const source = c.ac.createBufferSource();
+    source.buffer = c.ac.createBuffer(1, 1, c.ac.sampleRate);
+    source.connect(c.ac.destination);
+    source.start();
+  } catch {
+    /* nothing to unlock with */
+  }
+  // Keep listening until it is running: a first gesture may come while muted, or be refused.
+  if (c.ac.state === "running") for (const type of GESTURES) window.removeEventListener(type, unlock, true);
+  else void c.ac.resume().then(() => {
+    if (c.ac.state === "running") for (const type of GESTURES) window.removeEventListener(type, unlock, true);
+  }).catch(() => undefined);
+}
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  for (const type of GESTURES) window.addEventListener(type, unlock, { capture: true, passive: true });
+  // Coming back to the page after a call or another app leaves the context interrupted; pick it up.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && ctx && ctx.state !== "running" && !muted) void ctx.resume().catch(() => undefined);
+  });
+}
+
+/** Whether sound can be heard right now: "running", "suspended" (no gesture yet), "muted" or "none". For the studio's smoke. */
+export function audioState(): string {
+  if (muted) return "muted";
+  return ctx ? ctx.state : "none";
 }
 
 export function isMuted(): boolean {
@@ -40,6 +101,8 @@ export function isMuted(): boolean {
 
 export function setMuted(m: boolean): void {
   muted = m;
+  // Turning sound on is itself a gesture: start the context inside it.
+  if (!m && typeof window !== "undefined") unlock();
   try {
     window.localStorage.setItem(MUTE_KEY, m ? "1" : "0");
   } catch {
