@@ -1,4 +1,4 @@
-import { sfx, soundsFor } from "../audio.js";
+import { sfx } from "../audio.js";
 import { Application, CanvasSource, Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   ENGINES_ROTATION_KICKS,
@@ -180,9 +180,6 @@ export class EnginesRenderer {
     return this.textures.get(`${kind}:${form}`) ?? Texture.EMPTY;
   }
 
-  /** This puzzle's picked samples play while the board is open (ADR 0041). */
-  private readonly releaseSounds = soundsFor("engines");
-
   async init(): Promise<void> {
     // Points and callouts are drawn as text, so wait (briefly) for the webfont. Before the renderer
     // is made, not after: the board hands over a state as soon as there is one, and by then the layout must be in.
@@ -227,7 +224,6 @@ export class EnginesRenderer {
 
   destroy(): void {
     this.destroyed = true;
-    this.releaseSounds();
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const tex of this.textures.values()) tex.destroy(true);

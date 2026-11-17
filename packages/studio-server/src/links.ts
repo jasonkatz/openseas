@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { PuzzleIdSchema, picksOf, wordsOf, type CreateTesterLink, type TesterLink } from "@openseas/protocol";
+import { PuzzleIdSchema, wordsOf, type CreateTesterLink, type DraftNumbers, type TesterLink, type Words } from "@openseas/protocol";
 import { schema, type Db } from "./db/index.js";
 
 const ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
@@ -17,13 +17,23 @@ export function newLinkId(): string {
 
 type Row = typeof schema.testerLink.$inferSelect;
 
+/**
+ * A stored draft's numbers as they are sent, and as a new link freezes them. A row kept before
+ * words has none: it is sent with none, whole. A row kept before ADR 0062 may still carry `picks`,
+ * the takes chosen for frames and cues: it stays in the row as it was, and is never sent or
+ * copied on (ADR 0063, ADR 0064).
+ */
+export function sentNumbers(numbers: DraftNumbers): DraftNumbers & { words: Words } {
+  const { picks: _picks, ...rest } = numbers as DraftNumbers & { picks?: unknown };
+  return { ...rest, words: wordsOf(numbers) };
+}
+
 const toLink = (r: Row): TesterLink => ({
   id: r.id,
   puzzle: r.puzzle as TesterLink["puzzle"],
   name: r.name,
   author: r.author,
-  // A link frozen before picks or words has none: it is sent with none, whole.
-  draft: { ...r.draft, picks: picksOf(r.draft), words: wordsOf(r.draft) },
+  draft: sentNumbers(r.draft),
   createdAt: r.createdAt.toISOString(),
   withdrawn: r.withdrawnAt !== null,
 });

@@ -7,6 +7,8 @@ M9's third step, assets. It supersedes the words "an S3 bucket" in
 [0042](./0042-the-harness-becomes-the-puzzle-studio.md) decision 12: the bucket is Railway's own,
 which speaks S3 and is private. Picks, and Save's placing of them, are the two parts that follow.
 
+[0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded all of it at M10's sixth step but the reading of a kept take by its hash: no take is made, kept or listed, and [0064](./0064-stored-sound-picks-and-takes-are-read-and-ignored-and-the-beats-sound-stands-alone.md) says what becomes of those the bucket holds.
+
 ## Context
 
 ADR 0042 decision 12 says every generated take goes to object storage under its content hash and

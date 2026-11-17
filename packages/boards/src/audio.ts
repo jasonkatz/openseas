@@ -1,8 +1,7 @@
 /**
  * Sound effects (DESIGN.md 3.9, docs/BRAND.md section 8). Every cue is synthesized here from its
- * definition in `cues.ts`: a few soft voices on the notes of one scale, through a low-pass. A cue
- * plays the open puzzle's own sample where the owner has picked one (`sounds/<puzzle>/<cue>.mp3`,
- * ADR 0040 and 0041), and its synthesized voice otherwise.
+ * definition in `cues.ts`: a few soft voices on the notes of one scale, through a low-pass. There
+ * are no samples and nothing is loaded (ADR 0062 decision 5).
  */
 import { CUE_NAMES, LIMITS, NOTES, PROBES, cueOf, envelope, type Cue, type CueArgs, type CueName } from "./cues.js";
 
@@ -229,144 +228,25 @@ type Synth = { [K in CueName]: (...args: CueArgs<K>) => void };
 
 const synth = Object.fromEntries(CUE_NAMES.map((name) => [name, (...args: unknown[]) => play(name, args as CueArgs<typeof name>)])) as Synth;
 
-// ---- Samples (ADR 0041)
-
-/** Samples are mastered to peak at -1 dB; this sits them level with the synthesized cues. */
-const SAMPLE_GAIN = 0.25;
-const files = import.meta.glob<string>("./sounds/*/*.mp3", { query: "?url", import: "default", eager: true });
-const banks = new Map<string, Map<string, AudioBuffer>>();
-/** The puzzles whose boards are open, the latest last: its samples are the ones that play. */
-const open: string[] = [];
-
-function loadBank(puzzle: string): void {
-  if (banks.has(puzzle)) return;
-  const bank = new Map<string, AudioBuffer>();
-  banks.set(puzzle, bank);
-  if (typeof OfflineAudioContext === "undefined") return;
-  // An offline context decodes without waiting for the player's first touch.
-  const decoder = new OfflineAudioContext(1, 1, 44100);
-  for (const [path, url] of Object.entries(files)) {
-    const m = /^\.\/sounds\/([^/]+)\/([^/]+)\.mp3$/.exec(path);
-    if (!m || m[1] !== puzzle) continue;
-    const cue = m[2]!;
-    void fetch(url)
-      .then((res) => (res.ok ? res.arrayBuffer() : Promise.reject(new Error(String(res.status)))))
-      .then((data) => decoder.decodeAudioData(data))
-      .then(
-        (buffer) => void bank.set(cue, buffer),
-        () => {
-          /* the synthesized cue stays */
-        },
-      );
-  }
-}
-
-/** A cue's voice chosen over the bundled one (ADR 0050), by puzzle then cue: a decoded sample, or the synthesized cue. */
-const picked = new Map<string, Map<string, AudioBuffer | "synth">>();
-
-/** The cues a puzzle has a bundled sample for. */
-export function sampleCues(puzzle: string): string[] {
-  const cues: string[] = [];
-  for (const path of Object.keys(files)) {
-    const m = /^\.\/sounds\/([^/]+)\/([^/]+)\.mp3$/.exec(path);
-    if (m && m[1] === puzzle) cues.push(m[2]!);
-  }
-  return cues;
-}
-
-/**
- * Gives a puzzle's cue another voice (ADR 0050): the sound at a URL, the synthesized cue though a
- * sample is bundled (`"synth"`), or with `null` what the build ships. Presentation only, and it
- * takes hold on the next time the cue plays. False when the sound does not load or decode, and
- * then nothing changes.
- */
-export async function overrideSample(puzzle: string, cue: string, voice: string | null): Promise<boolean> {
-  const mine = picked.get(puzzle) ?? new Map<string, AudioBuffer | "synth">();
-  if (voice === null) mine.delete(cue);
-  else if (voice === "synth") mine.set(cue, "synth");
-  else {
-    if (typeof OfflineAudioContext === "undefined") return false;
-    try {
-      const res = await fetch(voice);
-      if (!res.ok) return false;
-      mine.set(cue, await new OfflineAudioContext(1, 1, 44100).decodeAudioData(await res.arrayBuffer()));
-    } catch {
-      return false;
-    }
-  }
-  picked.set(puzzle, mine);
-  return true;
-}
-
-/** A board opening: its puzzle's samples load and play until the returned release is called. */
-export function soundsFor(puzzle: string): () => void {
-  loadBank(puzzle);
-  open.push(puzzle);
-  let released = false;
-  return () => {
-    if (released) return;
-    released = true;
-    const i = open.lastIndexOf(puzzle);
-    if (i >= 0) open.splice(i, 1);
-  };
-}
-
-/** Plays a puzzle's sample for a cue, pitched by `rate`: the open puzzle's unless one is named. False when there is none, or the synthesized cue was chosen over it. */
-function playSample(cue: string, rate: number, puzzle: string | undefined = open[open.length - 1]): boolean {
-  if (!puzzle) return false;
-  const own = picked.get(puzzle)?.get(cue);
-  const buffer = own === "synth" ? undefined : (own ?? banks.get(puzzle)?.get(cue));
-  if (!buffer) return false;
-  const c = context();
-  if (!c) return true;
-  const src = c.ac.createBufferSource();
-  src.buffer = buffer;
-  src.playbackRate.value = rate;
-  const g = c.ac.createGain();
-  g.gain.value = SAMPLE_GAIN;
-  src.connect(g).connect(c.out);
-  src.start();
-  thisMoment().buses.push(g);
-  return true;
-}
-
-/** How far a cue's sample is pitched by its argument, so a ladder still climbs with a sample. */
-const rates: { [K in CueName]?: (...args: CueArgs<K>) => number } = {
-  clear: (chain) => 2 ** (Math.max(0, chain - 1) / 6),
-  pop: (step) => 2 ** (Math.max(0, step) / 6),
-  ping: (near) => Math.pow(2, -Math.min(8, Math.max(0, near)) / 6),
-};
-
-const voiced = Object.fromEntries(
-  CUE_NAMES.map((cue) => [
-    cue,
-    (...args: unknown[]) => {
-      if (!admit(cue)) return;
-      const rate = (rates[cue] as ((...a: unknown[]) => number) | undefined)?.(...args) ?? 1;
-      if (!playSample(cue, rate)) (synth[cue] as (...a: unknown[]) => void)(...args);
-    },
-  ]),
-) as Synth;
-
 export const sfx = {
-  ...voiced,
-  /** A puzzle's own cue: its sample when there is one, else `fallback`, a synthesized cue. */
-  cue(name: string, fallback: () => void, rate = 1): void {
-    if (!admit(name)) return;
-    if (!playSample(name, rate)) fallback();
+  ...(Object.fromEntries(CUE_NAMES.map((name) => [name, (...args: unknown[]) => void (admit(name) && synth[name](...(args as never[])))])) as Synth),
+  /**
+   * A puzzle's own cue: a moment of its board that has a name of its own (Swordfighting's `clash`)
+   * and is voiced by `fallback`, one or more of the cues above. `rate` is no longer heard: it
+   * pitched a sample, and there are none (ADR 0062); a call may still pass it.
+   */
+  cue(name: string, fallback: () => void, _rate = 1): void {
+    if (admit(name)) fallback();
   },
 };
 
 /**
- * Plays one of a puzzle's cues with no board open, so it can be listened to (ADR 0050): its
- * sample where it has one, else its synthesized voice. `synth` asks for the synthesized voice
- * whatever sample there is. A puzzle's own cue (`sfx.cue`) has no synthesized voice of its name,
- * so `fallback` names the synthesized cues its renderer plays behind it.
+ * Plays one cue with no board open, so it can be listened to (the studio's Sounds list), with the
+ * first row of its `PROBES`. A puzzle's own cue (`sfx.cue`) has no voice of its name, so
+ * `fallback` names the cues its renderer plays for it.
  */
-export function auditionCue(puzzle: string, cue: string, options: { synth?: boolean; fallback?: readonly string[] } = {}): void {
-  loadBank(puzzle);
-  if (!options.synth && playSample(cue, 1, puzzle)) return;
-  for (const name of cue in synth ? [cue] : (options.fallback ?? [])) {
+export function auditionCue(cue: string, fallback: readonly string[] = []): void {
+  for (const name of cue in synth ? [cue] : fallback) {
     const probe = PROBES[name as CueName] as readonly (readonly unknown[])[] | undefined;
     (synth[name as CueName] as ((...a: unknown[]) => void) | undefined)?.(...(probe?.[0] ?? []));
   }

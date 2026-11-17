@@ -17,6 +17,8 @@ supersedes two things:
 
 [0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded its sprite parts at M10's fifth step: Save places no frame; it still stands for a sound's pick.
 
+[0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded its sound parts too at M10's sixth step: Save places no pick of any kind ([0064](./0064-stored-sound-picks-and-takes-are-read-and-ignored-and-the-beats-sound-stands-alone.md)).
+
 ## Context
 
 Since ADR 0052 a pick is the draft's: a take's hash by frame or cue, kept with the numbers and

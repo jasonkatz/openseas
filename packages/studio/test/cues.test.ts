@@ -30,12 +30,12 @@ function sources(id: string): string {
   return files.map((f) => readFileSync(f, "utf8")).join("\n");
 }
 
-describe("the sound panel's cues (DESIGN.md 3.14, ADR 0050)", () => {
+describe("the Sounds list's cues (DESIGN.md 3.14, ADR 0062)", () => {
   for (const id of PUZZLE_IDS) {
     it(`${id}: the list is what its board and its page play`, () => {
       const { shared, own } = played(sources(id));
       expect([...PUZZLE_CUES[id]].sort()).toEqual([...new Set([...shared, ...own])].sort());
-      // Each of the puzzle's own cues names the synthesized cues behind it, so the panel can play them.
+      // Each of the puzzle's own cues names the synthesized cues behind it, so the list can play them.
       expect(Object.keys(OWN_CUE_FALLBACKS[id] ?? {}).sort()).toEqual([...new Set(own)].sort());
       expect(new Set(cuesOf(id)).size).toBe(cuesOf(id).length);
     });

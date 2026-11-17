@@ -6,6 +6,8 @@ supersedes decision 5's last sentence: the boards play the kept sounds.
 [0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) retires this pipeline over
 milestone M10, a puzzle at a time for sprites and at the sound pass for sounds.
 
+[0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded all of it at M10's sixth step: the sound script, the sound briefs and the `puzzle-sounds` skill are removed, as the sprite half was at the fifth.
+
 ## Context
 
 The owner painted every sprite sheet by hand in ChatGPT from a brief an agent wrote in chat, then

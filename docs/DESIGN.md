@@ -351,10 +351,17 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
   0061). There is no marks setting, in the game or in the studio: the eight prototypes lost their
   toggle as M10 restyled them. Keyboard play for all puzzles on desktop. Screen-reader support for puzzle boards is out of scope.
 - English only. All player-facing strings go through one message table.
-- No music in v1. Sound effects via WebAudio, voiced for space. A cue plays the puzzle's own
-  generated sample where the owner has picked one (ADR 0041), and otherwise its minimal synthesized
-  voice: a metal click for a quiet swap, steam for venting, an arc and a clank for a weld, a servo
-  for lifting plates and tearing metal for a breach. The synthesized cues stay as the fallback.
+- No music and no ambient bed. Sound effects via WebAudio, every one synthesized in code: there
+  are no samples (ADR 0062 decision 5, `BRAND.md` section 8). A cue is a few soft voices, a sine,
+  a triangle or a breath of filtered noise, through a low-pass, defined as data in
+  `boards/src/cues.ts`. Every pitched note is a step of one scale, G major pentatonic across three
+  octaves, so any two cues that overlap sound well together. What rises steps up the scale (a
+  cascade, a streak), what falls steps down (a streak lost), and a bad thing is low and soft: the
+  heat alarm is two low notes. Every cue rises from nothing in at least 8ms, is over within 400ms
+  and peaks within 3 dB of one target. The beat (`BRAND.md` section 6) has one sound, the same on
+  every board: a low chord that rings for 700ms, asked for by the beat itself and heard alone,
+  with no other cue of its moment laid over it. A unit test holds the definitions to those rules
+  and the studio's smoke measures every cue as the browser renders it.
 
 ### 3.10 Art
 
@@ -362,10 +369,9 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
 type, shapes, motion, sound and voice are in [`BRAND.md`](./BRAND.md), which is the source of truth
 for them. In short: flat vector on one shared dark palette, pieces drawn in code as pictograms, no
 frame round a board, one typeface, no marks setting, and the scrappy character carried by the
-words. Milestone M10 (5.2) restyles the game to it in steps. Its first five have landed: the
-chrome, the fifteen boards and the world follow the book, and the sprite tooling is gone. The
-sixth, the sound pass, has not: until it lands, what this document says of sound describes what is
-built, and is rewritten in the PR that changes it.
+words. Milestone M10 (5.2) restyled the game to it in six steps, and all six have landed: the
+chrome, the fifteen boards, the world and the sounds follow the book, and the tooling that
+generated sprites and sounds is gone.
 
 As built (M10's second to fifth steps). **The chrome:** the game's stylesheets read the palette's
 tokens from `boards/src/look/tokens.ts`, in one typeface, with flat panels and no glass, gradient or
@@ -414,9 +420,13 @@ puzzle's atlas (ADR 0054), the atlas loader and the code-drawn fallback under it
 script, its style brief and the `puzzle-sprites` skill (ADR 0040), the studio's Sprites mode with
 its takes and picks of frames (ADR 0050, ADR 0052), and Save's placing of a picked frame (ADR
 0053). Sprite picks and sprite takes kept before then stay stored and are read past (ADR 0063).
-The sound half of that tooling (the sound briefs, `scripts/sounds.py`, the `puzzle-sounds` skill,
-the studio's Sounds mode with its takes and picks, sample playback) still stands, and goes at the
-sound pass (ADR 0062 decision 5).
+
+**The sound pass** (ADR 0062 decision 5), M10's sixth step. The cues are retuned to `BRAND.md`
+section 8 and the beat has its sound (3.9). The sound half of the tooling went with it: the sound
+briefs, `scripts/sounds.py`, the `puzzle-sounds` skill, sample playback in `boards`, and in the
+studio the takes and picks of sounds, a file tried in a cue's place, and Save's placing of a
+picked sound. The studio keeps its list of a puzzle's cues (3.14). Sound picks and sound takes
+kept before then stay stored and are read past, as the sprites' are (ADR 0064).
 
 ### 3.11 One experience: the shell, navigation and embedded puzzles
 
@@ -654,7 +664,7 @@ full-screen with one bar of HUD, a start and a result card, and a details sheet 
 restart, a new seed and each changed value beside the shipped one. The link's query string is the
 overlay (`seed`, `seconds`, `c.<path>`, `pace`, `thresholds`); the tier shown, live and on the
 result, is read against the link's own thresholds. The page signs in to nothing and sends nothing;
-since picks (ADR 0052) it reads from the studio's service each take a link picks, and no more.
+it reads a tester link from the studio's service, and no more.
 It holds the numbers to the server's checks and deals nothing when they fail, and it replays every
 round from its seed and speaks only when the replay disagrees. The smoke plays every board there,
 and the guides' capture takes its pictures there.
@@ -708,7 +718,7 @@ and the pull request stays a draft that says so. The home grid's mark says when 
 pull request. A service with no volume or no App keeps drafts and offers no Save.
 
 **The chat** (ADR 0047). Beside the board, for the signed-in owner: an agent on the draft's
-worktree, with `CLAUDE.md` and the three puzzle skills read from it. A message carries the model
+worktree, with `CLAUDE.md` and the `puzzles` skill read from it. A message carries the model
 picked, the draft's numbers, what the build refuses of them, and a line for each of the last five
 rounds played. Asked for a number, the agent uses a tool that moves the draft's numbers, and the
 controls and board follow. Its replies are read as markdown and shown as they are written, its
@@ -739,50 +749,31 @@ panels were never part of it. Until the first exists the board runs the deployed
 draft's numbers and a change to code is seen on its pull request's preview; the agent says so
 when it edits code.
 
-Assets, M9's third step, was built in four parts, for sprites and sounds alike. M10's fifth step
-removed the sprite half (ADR 0062 decision 3): every board draws its pieces in code, so there is
-no frame to show, take, pick or place. What follows is what stands, which is sounds.
+Assets, M9's third step, was built in four parts, for sprites and sounds alike: a panel that
+swapped a frame or a cue on a running board (ADR 0050), takes kept in a bucket (ADR 0051), picks
+of takes in a draft and a tester link (ADR 0052), and Save placing the picks (ADR 0053). M10
+removed all four. Its fifth step took the sprite half (ADR 0062 decision 3) and its sixth the
+sound half (decision 5): every board draws its pieces and synthesizes its cues in code, so there
+is no frame and no sample to show, take, pick or place.
 
-**The panel and the swap** (ADR 0050). The sound panel has a row for every cue the board plays
-and the three every round plays; a tap plays what the board would, and the synthesized cue is a
-pick. `boards` can give a cue another voice on a running board. A row takes a file from the
-owner's machine to try in a cue's place, on that page only: it is not kept, shared or saved.
+**What stands: the Sounds list.** The Sounds mode has a row for every cue the puzzle's board
+plays, the beat's among them, and the three every round plays, each with a button that plays it
+as the board would. One of a puzzle's own cues (Swordfighting's `clash`) says which cues it plays.
+The list is built from `studio/src/assets/cues.ts`, which a test holds to what each board and its
+page ask `sfx` for. It is a list to listen to and nothing more: nothing in it is part of a draft,
+a link or an address, and a cue is changed in `boards/src/cues.ts`, in a pull request.
 
-**Takes** (ADR 0051). The chat's agent makes them with the sound skill's script, which also
-writes each take as the sound it would be committed as. When a turn ends the service keeps those
-in a Railway bucket under the hash of their bytes, with a row saying what each is a take of; what
-each cost was metered as the script made it, through the service (ADR 0059). Takes outlast the
-draft they were made on. For the signed-in owner each cue's row lists its takes, the open
-draft's by the number the agent knows them by. Where there is a chat a row ends with two buttons
-that write the start of a message: new takes of this, and change this. Anyone with a take's hash
-can read it; only the owner can list them. A service with no bucket keeps none and the panel is
-as it was.
-
-**Picks** (ADR 0052). A tap on a take in its row picks it: the pick is the draft's, kept by the
-service beside the numbers, and the round's frame gives it to the running board. A second tap,
-"Put back", or Reset all lets it go. Signed out, a pick is in the address (`sound.<cue>=<hash>`),
-as a number is. A tester link freezes the picks with the numbers, and `/play` loads each picked
-take from the service by its hash; a take that cannot be read leaves that cue as shipped, and the
-details sheet says so. The agent is told the draft's picks under each message and has no tool
-that makes one.
-
-**Save places picks** (ADR 0053). A Save places the draft's picks with its numbers, in one
-commit, each as its take's bytes: a sound's take is copied into the sounds folder, and a `synth`
-pick deletes the sample. Nothing is decoded on the service. A pick let go since the last Save is
-put back as the base branch has it, as a number is. A pick Save cannot place (no such take, a
-take of another cue or puzzle) refuses the Save and names the cue. A draft whose only change is a
-pick can be saved, and its pull request lists each pick and says what it leaves for a developer:
-for the first sound, the smoke's check that samples are delivered. In the studio the agent places
-no take; Save does.
-
-**What was removed, and what is still read** (ADR 0062, ADR 0063). The Sprites mode and its
-panel, a frame swapped on a running board, a file tried in a frame's place, sprite takes (the
-agent no longer makes one, and a picture a turn leaves is not kept), sprite picks in a draft, a
-link and an address (`sprite.<frame>=<hash>`), Save's placing of a frame, and the build's packing
-of atlases are all gone. Data kept before then still loads: a draft or a tester link that carries
-sprite picks is read without them, an address that carries one opens and reads past it, and the
-sprite takes in the service's table and bucket stay where they are, listed nowhere. No migration
-touches them.
+**What was removed, and what is still read** (ADR 0062, ADR 0063, ADR 0064). The Sprites mode and
+its panel, a frame or a cue swapped on a running board, a file tried in a frame's or a cue's
+place, takes (the agent makes none, nothing a turn leaves is kept, and none is listed), picks in
+a draft, a link and an address (`sprite.<frame>=<hash>`, `sound.<cue>=<hash>`), Save's placing of
+a pick, the two buttons that asked the chat for new takes, and the build's packing of atlases are
+all gone. Data kept before then still loads: a draft or a tester link that carries picks is read
+without them, an address that carries one opens and reads past it, a draft whose last Save failed
+on a pick still says so, and the takes in the service's table and bucket stay where they are,
+listed nowhere and still read by their hash. No migration touches them. The chat's agent can
+still reach the image and sound APIs through the service, metered as before (ADR 0059, ADR 0062
+decision 6); nothing it makes with them lands in the game.
 
 That completes the step. What is left of M9 is the live build of a draft's worktree (ADR 0042
 decision 7).
@@ -803,7 +794,7 @@ agent reads:
 | Numbers live in content (rule 18) | The numbers panels are built from the puzzle's content file and bounded by its wire schema |
 | Thresholds and a live pace (rules 16, 17) | `thresholds` and `paceSeconds` are controls, tuned by hand with the HUD's tier in view |
 | Reads without color (rule 22) | Nothing: a piece is drawn in code, and whoever draws it checks the board with every piece in one colour (`BRAND.md` section 3) |
-| Its own pieces and sounds (rule 23) | The sound panel shows each cue's takes, and a pick is one tap; a piece is an edit to the puzzle's `pieces.ts`, which the agent can make |
+| Its own pieces and sounds (rule 23) | The Sounds list plays each of the puzzle's cues; a piece is an edit to the puzzle's `pieces.ts`, which the agent can make, and a cue's voice is an edit to `boards/src/cues.ts` |
 | Every string in the message table (rule 24) | The agent is held to it, and so is the studio itself; the Text mode rewrites the table's strings and writes none elsewhere |
 | Three homes kept in step (rule 25) | The agent can be asked to, in the chat; Save does not, and its pull request stays a draft for a developer to finish (ADR 0049) |
 | Report every bar item as met or broken | The developer who finishes the pull request reports it |
@@ -820,7 +811,7 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
 
 - A bar across the top. On its left, where the page is: the way back to the grid, the puzzle's
   name, which opens a menu of every puzzle, and a count of what the draft changes. The count opens
-  the list: each changed number with its value and the shipped one, each picked take, a way to its
+  the list: each changed number with its value and the shipped one, each word rewritten, a way to its
   control, a button that puts it back, and Reset all. While the server would refuse the draft the
   count says so instead. On its right, what becomes of the draft: whether the service has it, a
   Share menu (the play link, tester links, sign-in, discarding the draft) and Save, with a sheet
@@ -846,8 +837,7 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
 **Look** (ADR 0058). The bar, the rail, the panel and the chat are panels with rounded corners
 floating on a blue-black ground; the board sits on that ground between them, in the game's own
 colors and typefaces, and the status line is plain text under it all. Teal is for what acts and
-what is picked (Save, Send, the mode on the rail, a switch that is on, a frame or take picked
-out). Amber is only for what the draft changes: the count on the bar, a mode's dot, a changed
+what is picked (Save, Send, the mode on the rail, a switch that is on). Amber is only for what the draft changes: the count on the bar, a mode's dot, a changed
 number's dot, name, slider and the button that puts it back, and the band that says nothing is
 saved. Each of those is a shape or a word as well as a color. Titles and the small capital labels
 are set in Space Grotesk, everything else in Inter, and numbers, seeds and the status line in
@@ -894,25 +884,20 @@ sees.
 
 **Sounds.**
 
-- The sound panel is a list of every cue the puzzle's board plays. The cue picked out shows the
-  current pick and the takes kept for it. Sounds play on a tap, and the synthesized cue is listed
-  as a pick (ADR 0041).
-- A pick changes the running board at once: a cue is heard the next time it plays (ADR 0050).
-- A pick is part of the draft, and a tester link carries it (ADR 0052).
-- Each row has two buttons that write the start of a chat message: new takes of this, and change
-  this. New takes are made by the agent through the sound skill, from the brief, and appear in
-  the row.
+- The Sounds mode is a list of every cue the puzzle's board plays, each with a button that plays
+  it. Every cue is synthesized in code (ADR 0062 decision 5): there is no sample, no take and
+  nothing to pick, and the list is no part of a draft.
+- A change to how a cue sounds is an edit to `boards/src/cues.ts`, heard on the pull request's
+  preview; which cue a board plays, and when, is in the puzzle's own renderer.
 - There is no panel for pieces: they are drawn in code (ADR 0062), and a change to one is an edit
   the agent makes in the puzzle's `pieces.ts`, seen on the pull request's preview.
-- Takes are kept in object storage across drafts, in a Railway bucket under the hash of their
-  bytes (ADR 0051). Only a pick is committed.
 
 **The chat.**
 
-- An agent session on the draft's own copy of the repository, with `CLAUDE.md` and the three
-  puzzle skills loaded. Sonnet 5.5 unless Haiku 5.5 or Opus 5.5 is picked, changeable between
+- An agent session on the draft's own copy of the repository, with `CLAUDE.md` and the
+  `puzzles` skill loaded. Sonnet 5.5 unless Haiku 5.5 or Opus 5.5 is picked, changeable between
   messages.
-- It knows the draft's numbers and picks and how the last few rounds went (seed, score, tier,
+- It knows the draft's numbers and words and how the last few rounds went (seed, score, tier,
   length, moves), so "that felt too easy" has something behind it. It reads a whole move log only
   when asked about a round.
 - Asked for a number, it moves the control. Asked for more, it edits the puzzle's files, and the
@@ -929,14 +914,14 @@ sees.
   any of them can be opened and carried on. A reload opens the chat last open.
 
 **Drafts and reset.** One draft a puzzle, kept by the studio service so it follows the owner from
-machine to machine: numbers, picks, words, code changes, chats. Its chats outlast it (ADR 0060). Four ways back: one control to its
-shipped value; all numbers, picks and words cleared; one chat turn's edits reverted; the draft discarded
+machine to machine: numbers, words, code changes, chats. Its chats outlast it (ADR 0060). Four ways back: one control to its
+shipped value; all numbers and words cleared; one chat turn's edits reverted; the draft discarded
 after a confirmation.
 
 **Save.**
 
 1. A tester link, at once.
-2. The numbers written into the content file and the picks placed, committed, pushed with
+2. The numbers written into the content file and the words into the message table, committed, pushed with
    whatever the chat's agent committed, and a draft pull request opened in the studio's name
    with the owner credited.
 
@@ -976,7 +961,7 @@ pnpm monorepo. Packages:
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
 | `studio` | The puzzle studio (sections 3.11 and 3.14), once the harness: a page a puzzle with the shared board and the tuning panel built from content and the wire schema; each puzzle alone at `/play/<puzzle>` on the numbers its link carries; every round local and replayed from its seed; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
-| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers and picks: a clone on a volume, a worktree a draft, picks placed as their takes' bytes, and a draft pull request from a GitHub App (ADR 0046, ADR 0053); and the chat: the Claude Agent SDK on the draft's worktree, as a unix user of its own, behind the service's own proxy to the model (ADR 0047), in as many chats as the owner starts, kept past their draft (ADR 0060). All in a Postgres schema of its own | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
+| `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers and words: a clone on a volume, a worktree a draft, and a draft pull request from a GitHub App (ADR 0046); and the chat: the Claude Agent SDK on the draft's worktree, as a unix user of its own, behind the service's own proxy to the model (ADR 0047), in as many chats as the owner starts, kept past their draft (ADR 0060). All in a Postgres schema of its own | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
 | `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the studio, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
 In M9 the harness became the studio (3.14, ADR 0042): `harness` was renamed `studio` (the deploy pipeline, the

@@ -1,7 +1,7 @@
 import type { PuzzleId } from "@openseas/engine";
 
 /**
- * The cues each puzzle's board plays (DESIGN.md 3.14): what the sound panel lists. A cue is a
+ * The cues each puzzle's board plays (DESIGN.md 3.14, ADR 0062 decision 5): what the Sounds list shows. A cue is a
  * name `sfx` is asked for, by the puzzle's board in `boards` or by its page here, which is where
  * a core board's sounds are played from. test/cues.test.ts reads those sources and holds this
  * list to them, so a cue added to a board without a row here fails.
@@ -28,8 +28,8 @@ export const PUZZLE_CUES: Readonly<Record<PuzzleId, readonly string[]>> = {
 export const ROUND_CUES: readonly string[] = ["start", "tick", "end"];
 
 /**
- * A puzzle's own cues (`sfx.cue`, ADR 0041) have no synthesized voice of their name: each names
- * the synthesized cues its renderer plays behind it, so the panel can play that fallback.
+ * A puzzle's own cues (`sfx.cue`) are moments of its board with a name of their own and no voice
+ * of that name: each names the cues its renderer plays for it, so the list can play them.
  */
 export const OWN_CUE_FALLBACKS: Readonly<Partial<Record<PuzzleId, Readonly<Record<string, readonly string[]>>>>> = {
   swordfight: { drop: ["bump"], clash: ["zap"], heavy: ["zap", "thud"], swing: ["whoosh"], scrap: ["thud"], out: ["bad"], won: ["end"], lost: ["streakLost"] },

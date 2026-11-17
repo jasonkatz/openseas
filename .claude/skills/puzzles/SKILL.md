@@ -115,9 +115,11 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
     setting to lean on.
 23. **Its own pieces and sounds.** A puzzle's pieces are pictograms of its own subject, drawn in
     code beside its renderer on the shared palette (`docs/BRAND.md` section 3, ADR 0062; Cooling's
-    `pieces.ts` is the model), and each moment item 1 asks to be heard has a synthesized cue
-    (`boards/src/audio.ts`). Nothing generated lands in the game: no picture is made for a piece,
-    and there is no atlas, frame or sprite tooling to make one with.
+    `pieces.ts` is the model), and each moment item 1 asks to be heard has a synthesized cue: one
+    of those defined in `boards/src/cues.ts`, in the one key and voice of `docs/BRAND.md` section
+    8, played through `sfx`. The beat has one sound, the same on every board, and a board plays
+    no cue of its own over it. Nothing generated lands in the game: no picture is made for a
+    piece and no sample for a cue, and there is no tooling to make either with (ADR 0062).
 24. **Every string in the message table.**
 25. **Three homes, kept in step.** A studio page with its entry, starting points, a line of
     description on every config key and a place for it in the tuning panel, and a smoke that
@@ -135,8 +137,8 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
    studio (rule 17). Describe every config key and give it its section of the tuning panel (rule
    18). Write the tuning notes.
 4. Draw its pieces in its `pieces.ts` and look at the board with every piece in one colour (rule
-   22). Write the design file, the guide and its capture, and the sound brief; make its takes
-   with `puzzle-sounds` for the owner to pick.
+   22). Give each moment its cue from `boards/src/cues.ts` and list them in
+   `studio/src/assets/cues.ts`. Write the design file, the guide and its capture.
 5. Report the bar, item by item, with the open questions for play.
 
 ## Changing a puzzle

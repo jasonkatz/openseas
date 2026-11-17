@@ -1,4 +1,4 @@
-import { sfx, soundsFor } from "../audio.js";
+import { sfx } from "../audio.js";
 import { Application, CanvasSource, Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   swordfightBoardString,
@@ -294,9 +294,6 @@ export class SwordfightRenderer {
     return { color: st.color, cut: st.cut, kind, ...(ripen === undefined ? {} : { ripen }) };
   }
 
-  /** This puzzle's picked samples play while the board is open (ADR 0041). */
-  private readonly releaseSounds = soundsFor("swordfight");
-
   async init(): Promise<void> {
     // Points and callouts are drawn as text, so wait (briefly) for the webfont. Before the renderer
     // is made, not after: the board hands over a state as soon as there is one, and by then the layout must be in.
@@ -343,7 +340,6 @@ export class SwordfightRenderer {
 
   destroy(): void {
     this.destroyed = true;
-    this.releaseSounds();
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const tex of this.textures.values()) tex.destroy(true);
@@ -495,10 +491,9 @@ export class SwordfightRenderer {
             else if (big) this.callout(this.opts.labels.shatter, COLORS.cream);
             // The beat: a slab of six or more shattered, or a chain. A bigger slab or a longer chain is a stronger pulse.
             if (slabCells >= 6 || ev.chain >= 2) this.beat(0.5 + Math.min(0.5, Math.max((slabCells - 6) / 12, (ev.chain - 2) * 0.25)));
-            // A chain climbs a whole tone a step, so a long one rings higher as it goes.
-            const rate = Math.pow(2, (Math.min(6, ev.chain) - 1) / 6);
-            if (big) sfx.cue("heavy", () => { sfx.zap(); sfx.thud(); }, rate);
-            else sfx.cue("clash", sfx.zap, rate);
+            // The beat has one sound of its own: where this break is the beat, these give way to it.
+            if (big) sfx.cue("heavy", () => { sfx.zap(); sfx.thud(); });
+            else sfx.cue("clash", sfx.zap);
             return this.reduced ? 60 : CLEAR_MS;
           });
           break;

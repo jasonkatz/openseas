@@ -1,4 +1,4 @@
-import { sfx, soundsFor } from "../audio.js";
+import { sfx } from "../audio.js";
 import { Application, CanvasSource, Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent, type FederatedWheelEvent } from "pixi.js";
 import {
   platingCheckPlacement,
@@ -292,9 +292,6 @@ export class PlatingRenderer {
     this.height = content.config.height;
   }
 
-  /** This puzzle's picked samples play while the board is open (ADR 0041). */
-  private readonly releaseSounds = soundsFor("plating");
-
   async init(): Promise<void> {
     // Points and callouts are drawn as text, so wait (briefly) for the webfont. Before the renderer
     // is made, not after: the board hands over a state as soon as there is one, and by then the layout must be in.
@@ -336,7 +333,6 @@ export class PlatingRenderer {
 
   destroy(): void {
     this.destroyed = true;
-    this.releaseSounds();
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const tex of this.baked.values()) tex.destroy(true);

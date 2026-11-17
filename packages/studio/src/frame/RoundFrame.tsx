@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { content, overrideMessages, overrideSample, shippedMessage } from "@openseas/boards";
-import { isPuzzleText, picksOf, textVars, wordsOf, type Draft, type Picks, type PuzzleCategory, type RoundSummary, type TesterLink, type Words } from "@openseas/protocol";
+import { content, overrideMessages, shippedMessage } from "@openseas/boards";
+import { isPuzzleText, textVars, wordsOf, type Draft, type PuzzleCategory, type RoundSummary, type TesterLink, type Words } from "@openseas/protocol";
 import type { StudioPuzzle } from "../puzzles.js";
 import { EMPTY_SCENARIO, formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
-import { SERVICE_URL, takeUrl } from "../service/client.js";
+import { SERVICE_URL } from "../service/client.js";
 import { useStoredDraft, type DraftStore } from "./useStoredDraft.js";
 import { KEEPS_ALL, withoutDraft } from "./draft.js";
 import { changes, refusals, shippedNumbers, tunedNumbers, withNumber, withoutNumber, withoutNumbers, type Change, type Numbers, type Refusal } from "./numbers.js";
@@ -69,12 +69,6 @@ export interface Frame {
   resetNumber(key: string): void;
   resetNumbers(): void;
   /** True while the shipped numbers stand in for the draft, so the same seed can be seen both ways. */
-  /** The takes the draft picks for cues (ADR 0052). The frame gives them to the board. */
-  readonly picks: Picks;
-  /** Pick a take for a cue by its hash, `synth` for its synthesized voice, or null for what the build ships. */
-  setPick(kind: keyof Picks, name: string, pick: string | null): void;
-  /** The picks whose takes could not be read, as `sounds/<cue>`: the board plays those as shipped. */
-  readonly picksMissing: readonly string[];
   /** The strings the draft rewrites and the category it changes (ADR 0057). The frame lays the strings over the message table. */
   readonly words: Words;
   /** Rewrite one of the puzzle's strings by its key; null, or the shipped words, puts it back. */
@@ -92,7 +86,7 @@ export interface Frame {
 /** The draft a tester link froze, as the scenario a page opens on. */
 function linkScenario(link: TesterLink): Scenario {
   const { seed, overrides, roundSeconds, paceSeconds, thresholds } = link.draft;
-  return { ...EMPTY_SCENARIO, seed, overrides, roundSeconds, paceSeconds, thresholds, picks: picksOf(link.draft), words: wordsOf(link.draft) };
+  return { ...EMPTY_SCENARIO, seed, overrides, roundSeconds, paceSeconds, thresholds, words: wordsOf(link.draft) };
 }
 
 const Ctx = createContext<Frame | null>(null);
@@ -123,7 +117,7 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
     const qs = formatScenario({ ...(bare ? withoutDraft(next, kept.current) : next), autostart: null });
     window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
   }, [link]);
-  // Only the owner's page, on a desktop, asks the service about drafts: `/play` reads a tester link and the takes it picks (ADR 0052), and no more.
+  // Only the owner's page, on a desktop, asks the service about drafts: `/play` reads a tester link, and no more.
   const stored = useStoredDraft({ enabled: mode === "studio" && !link && SERVICE_URL !== "", puzzle, scenario, apply });
   kept.current = stored.keeps();
   const { store, bare, keep: keepDraft, open: openDraft, discard: discardDraft, save: saveDraft, update: updateDraft, ensure: ensureDraft, adopt: adoptDraft } = stored;
@@ -137,51 +131,7 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const resetNumber = useCallback((key: string) => setScenario(withoutNumber(puzzle, scenario, key)), [puzzle, scenario, setScenario]);
   const resetNumbers = useCallback(() => setScenario(withoutNumbers(scenario)), [scenario, setScenario]);
 
-  const picks = scenario.picks;
-  const setPick = useCallback(
-    (kind: keyof Picks, name: string, pick: string | null) => {
-      const { [name]: _was, ...rest } = scenario.picks[kind];
-      setScenario({ ...scenario, picks: { ...scenario.picks, [kind]: pick === null ? rest : { ...rest, [name]: pick } } });
-    },
-    [scenario, setScenario],
-  );
-  // The picks go on the board (ADR 0050's swap): each cue as the draft now has it, and as the
-  // build ships it once the draft lets it go. A take is read from the service by its hash; one
-  // that cannot be read leaves that cue as shipped, and the page says so. A home thumbnail is the
-  // shipped board.
-  const [picksMissing, setPicksMissing] = useState<readonly string[]>([]);
-  const applied = useRef<Record<string, string>>({});
   const id = puzzle.id;
-  useEffect(() => {
-    if (mode === "thumb") return;
-    const want: Record<string, string> = {};
-    for (const [name, hash] of Object.entries(picks.sounds)) want[`sounds/${name}`] = hash;
-    const was = applied.current;
-    applied.current = want;
-    const put = (key: string, pick: string | null): Promise<boolean> => overrideSample(id, key.slice(key.indexOf("/") + 1), pick === null || pick === "synth" ? pick : takeUrl(pick));
-    for (const key of Object.keys(was)) if (!(key in want)) void put(key, null);
-    for (const [key, pick] of Object.entries(want)) {
-      if (was[key] === pick) continue;
-      void put(key, pick).then((ok) => {
-        // Only what is still picked is spoken for: the owner may have moved on while it loaded.
-        if (applied.current[key] !== pick) return;
-        setPicksMissing((all) => (ok ? all.filter((k) => k !== key) : all.includes(key) ? all : [...all, key]));
-      });
-    }
-    setPicksMissing((all) => {
-      const still = all.filter((k) => k in want);
-      return still.length === all.length ? all : still;
-    });
-  }, [mode, id, picks]);
-  // Leaving the page puts every cue back: a pick is the draft's, not the next page's.
-  useEffect(
-    () => () => {
-      for (const key of Object.keys(applied.current)) void overrideSample(id, key.slice(key.indexOf("/") + 1), null);
-      applied.current = {};
-    },
-    [id],
-  );
-
   const words = scenario.words;
   const shippedCategory: PuzzleCategory = content.puzzles[puzzle.id].category;
   const setText = useCallback(
@@ -222,8 +172,8 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const changed = useMemo(() => (refused.length ? [] : changes(puzzle, tuned)), [puzzle, tuned, refused]);
   const numbers = comparing ? shipped : tuned;
   const value = useMemo<Frame>(
-    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, picks, setPick, picksMissing, words, setText, setCategory, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound }),
-    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, picks, setPick, picksMissing, words, setText, setCategory, comparing, report, setReport, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound],
+    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, words, setText, setCategory, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound }),
+    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, words, setText, setCategory, comparing, report, setReport, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -1,4 +1,4 @@
-import { sfx, soundsFor } from "../audio.js";
+import { sfx } from "../audio.js";
 import { Application, CanvasSource, Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   BATTLE_PERMILLE,
@@ -243,9 +243,6 @@ export class BattleRenderer {
     private readonly opts: BattleRendererOptions,
   ) {}
 
-  /** This puzzle's picked samples play while the board is open (ADR 0041). */
-  private readonly releaseSounds = soundsFor("battle");
-
   async init(): Promise<void> {
     // Every label is drawn as text, so wait (briefly) for the webfont. Before the app exists: the
     // board hands a state to any renderer that has one, and the layers come after.
@@ -281,7 +278,6 @@ export class BattleRenderer {
 
   destroy(): void {
     this.destroyed = true;
-    this.releaseSounds();
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const t of this.textures.values()) t.destroy(true);

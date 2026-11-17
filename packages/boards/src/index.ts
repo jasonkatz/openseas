@@ -4,7 +4,7 @@
  * Nothing in here is authoritative; the server replays every round (ADR 0003).
  */
 export { content, messageOverrideRevision, overrideMessages, shippedMessage, subscribeMessages, t } from "./content.js";
-export { sfx, isMuted, setMuted, auditionCue, measureCues, overrideSample, sampleCues, type CueMeasure } from "./audio.js";
+export { sfx, isMuted, setMuted, auditionCue, measureCues, type CueMeasure } from "./audio.js";
 export { CUES, CUE_NAMES, LIMITS, NOTES, PROBES, SCALE, type Cue, type CueName, type Voice } from "./cues.js";
 export { LatencyMeter } from "./metrics.js";
 export { softwareRendered } from "./surface.js";

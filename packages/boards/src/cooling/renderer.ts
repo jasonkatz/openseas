@@ -1,4 +1,4 @@
-import { sfx, soundsFor } from "../audio.js";
+import { sfx } from "../audio.js";
 import { Application, CanvasSource, Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import { Special, type CoolingState, type ClearRound, type MoveReport, type Piece } from "@openseas/engine";
 import type { CoolingContent, PieceColor } from "@openseas/content";
@@ -184,9 +184,6 @@ export class CoolingRenderer {
     }
   }
 
-  /** This puzzle's picked samples play while the board is open (ADR 0041). */
-  private readonly releaseSounds = soundsFor("cooling");
-
   async init(): Promise<void> {
     await this.app.init({
       resizeTo: this.host,
@@ -224,7 +221,6 @@ export class CoolingRenderer {
 
   destroy(): void {
     this.destroyed = true;
-    this.releaseSounds();
     if (this.holdTimer !== null) window.clearTimeout(this.holdTimer);
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
@@ -491,7 +487,6 @@ export class CoolingRenderer {
   // ---- effects
 
 
-
   private popup(x: number, y: number, text: string, size: number): void {
     const t = new Text({
       text,
@@ -538,7 +533,6 @@ export class CoolingRenderer {
     sfx.beat(strength);
     this.beatNow = { life: 0, strength: Math.max(strength, this.beatNow?.strength ?? 0) };
   }
-
 
   // ---- layout and baking
 
@@ -627,7 +621,6 @@ export class CoolingRenderer {
     this.hintCheckedAt = this.lastInputAt;
     this.hint = this.cb.findHint();
   }
-
 
   /**
    * Writes the kinds actually on screen, bottom row first, to the canvas once the board settles.

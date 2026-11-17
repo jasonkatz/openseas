@@ -1,39 +1,55 @@
 import { describe, expect, it } from "vitest";
-import { DraftNumbersSchema, DraftSchema, PicksSchema, TakeListSchema, TesterLinkSchema, pickCount, picksOf } from "../src/index.js";
+import { DraftNumbersSchema, DraftSaveSchema, DraftSchema, StudioMeSchema, TakeHashSchema, TakeKindSchema, TesterLinkSchema } from "../src/index.js";
 
 /**
- * Data kept before pieces were drawn in code (ADR 0062) must keep loading (ADR 0063): a draft, a
- * tester link or an address may still carry sprite picks, and the service's table still holds
- * sprite takes. They are read and dropped, never refused.
+ * Data kept before pieces were drawn in code and cues were only synthesized (ADR 0062) must keep
+ * loading (ADR 0063, ADR 0064): a draft or a tester link may still carry picks, of a sprite or a
+ * sound, and the service's table still holds takes. Picks are read and dropped, never refused.
  */
 const HASH = "a".repeat(64);
-const OLD_NUMBERS = { seed: "keg-3", overrides: { kinds: 6 }, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: { "debris-gold": HASH }, sounds: { pop: HASH, thud: "synth" } } };
+const OLD_NUMBERS = { seed: "keg-3", overrides: { kinds: 6 }, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: { "debris-gold": HASH }, sounds: { pop: HASH, thud: "synth" } }, words: { texts: { "salvage.title": "Haul" }, category: null } };
 const at = "2026-01-01T00:00:00.000Z";
 
-describe("stored studio data from before pieces were drawn in code", () => {
-  it("reads a draft's sprite picks and drops them, keeping its sound picks", () => {
+describe("stored studio data from before ADR 0062", () => {
+  it("reads a draft's picks, sprites and sounds, and drops them, keeping its numbers and words", () => {
     const numbers = DraftNumbersSchema.parse(OLD_NUMBERS);
-    expect(numbers.picks).toEqual({ sounds: { pop: HASH, thud: "synth" } });
+    expect(numbers).not.toHaveProperty("picks");
     expect(numbers.overrides).toEqual({ kinds: 6 });
-    expect(pickCount(OLD_NUMBERS)).toBe(2);
-    expect(picksOf(OLD_NUMBERS)).toEqual({ sounds: { pop: HASH, thud: "synth" } });
+    expect(numbers.seed).toBe("keg-3");
+    expect(numbers.words).toEqual({ texts: { "salvage.title": "Haul" }, category: null });
   });
 
-  it("reads picks that are only sprites as no picks", () => {
-    expect(PicksSchema.parse({ sprites: { cog: HASH } })).toEqual({ sounds: {} });
-    expect(pickCount({ picks: { sprites: { cog: HASH } } as never })).toBe(0);
+  it("reads picks of any shape: nothing of them is checked, so nothing of them can refuse a draft", () => {
+    for (const picks of [{ sounds: { pop: "not-a-hash" } }, { sprites: 7 }, "nonsense", null, { sounds: Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`cue${i}`, HASH])) }]) {
+      const read = DraftNumbersSchema.safeParse({ ...OLD_NUMBERS, picks });
+      expect(read.success).toBe(true);
+      expect(read.data).not.toHaveProperty("picks");
+    }
   });
 
-  it("reads a stored draft and a tester link that carry sprite picks", () => {
+  it("reads a stored draft and a tester link that carry picks", () => {
     const draft = DraftSchema.parse({ id: "draftdraft", puzzle: "salvage", owner: "octo", numbers: OLD_NUMBERS, revision: 3, createdAt: at, updatedAt: at });
-    expect(draft.numbers.picks).toEqual({ sounds: { pop: HASH, thud: "synth" } });
+    expect(draft.numbers).not.toHaveProperty("picks");
+    expect(draft.numbers.overrides).toEqual({ kinds: 6 });
     const link = TesterLinkSchema.parse({ id: "linklink12", puzzle: "salvage", name: "Six kinds", author: "octo", draft: OLD_NUMBERS, createdAt: at, withdrawn: false });
-    expect(link.draft.picks).toEqual({ sounds: { pop: HASH, thud: "synth" } });
+    expect(link.draft).not.toHaveProperty("picks");
+    expect(link.draft.overrides).toEqual({ kinds: 6 });
   });
 
-  it("reads a list that still holds a sprite take", () => {
-    const take = { hash: HASH, puzzle: "salvage", bytes: 10, prompt: null, draft: null, take: null, createdAt: at };
-    const { takes } = TakeListSchema.parse({ takes: [{ ...take, kind: "sprite", name: "debris-gold" }, { ...take, kind: "sound", name: "pop" }] });
-    expect(takes.map((t) => t.kind)).toEqual(["sprite", "sound"]);
+  it("reads a draft whose last Save failed on a pick", () => {
+    for (const error of ["pick", "takes"]) {
+      const save = DraftSaveSchema.parse({ state: "failed", error, pull: null, savedRevision: null, behind: false, detail: "pop" });
+      expect(save.error).toBe(error);
+    }
+  });
+
+  it("still knows a take's hash and both kinds a kept take may be of", () => {
+    expect(TakeHashSchema.safeParse(HASH).success).toBe(true);
+    expect(TakeKindSchema.options).toEqual(["sprite", "sound"]);
+  });
+
+  it("reads who the caller is from a service that still says it keeps takes and picks", () => {
+    const me = StudioMeSchema.parse({ login: "octo", signIn: true, dev: false, save: true, chat: true, takes: true, picks: true, words: true });
+    expect(me).toEqual({ login: "octo", signIn: true, dev: false, save: true, chat: true, words: true });
   });
 });

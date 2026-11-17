@@ -16,8 +16,6 @@ if (!app.saver) log.warn("Save is off: it needs STUDIO_REPO_DIR, STUDIO_REPO, GI
 
 if (app.saver && !app.chat) log.warn("the chat is off: it needs ANTHROPIC_API_KEY and STUDIO_SPEND_CAP_USD, and a service that starts as root (docs/DEPLOY.md, step 1b)");
 
-if (app.chat && !app.takes) log.warn("takes are not kept: that needs STUDIO_BUCKET_ENDPOINT, STUDIO_BUCKET_NAME, STUDIO_BUCKET_ACCESS_KEY_ID and STUDIO_BUCKET_SECRET_ACCESS_KEY (docs/DEPLOY.md, step 1b)");
-
 // Railway sends SIGTERM and kills the container after its draining time (RAILWAY_DEPLOYMENT_DRAINING_SECONDS,
 // set above this deadline). Run under tini (railpack config), not pnpm,
 // this process gets the signal itself; it exits 0 once closed, 1 if closing failed or outran the deadline (ADR 0048).

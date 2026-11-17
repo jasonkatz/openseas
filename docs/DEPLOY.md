@@ -230,7 +230,7 @@ migrates its own `studio` schema as it starts.
       |---|---|
       | `ANTHROPIC_API_KEY` | a key for the chat's turns. It stays in the service process: the agent reaches a model only through the service |
       | `STUDIO_SPEND_CAP_USD` | all the chat may spend, every draft together, in US dollars, such as `20`. A turn that reaches it is stopped where it stands, and no turn starts past it. To carry on, raise it; the meter is never reset |
-      | `OPENAI_API_KEY`, `ELEVENLABS_API_KEY` | optional: the keys an image API and the sound script's API are paid with (ADR 0040). They stay in the service process: whatever asks reaches the APIs through the service, which meters each picture and sound (ADR 0059). No script makes a picture any more, since pieces are drawn in code; the image key only keeps that API open to the chat for other work (ADR 0062 decision 6), and can be left unset |
+      | `OPENAI_API_KEY`, `ELEVENLABS_API_KEY` | optional: the keys an image API and a sound API are paid with. They stay in the service process: whatever asks reaches the APIs through the service, which meters each picture and sound (ADR 0059). No script makes a picture or a sound any more, since pieces are drawn in code and cues are synthesized; the keys only keep those APIs open to the chat for other work (ADR 0062 decision 6), and can be left unset |
       | `ELEVENLABS_USD_PER_CREDIT` | optional: what one ElevenLabs credit costs on your plan, the plan's monthly price over its credits, such as `0.00022` for 100,000 credits at $22. Unset, a credit is counted at the overage rate, `0.0003` |
       | `STUDIO_AGENT_USER` | optional: the unix user the agent runs as, `studio-agent` by default |
 
@@ -243,33 +243,28 @@ migrates its own `studio` schema as it starts.
       (Railway's default) and `useradd` (in the image). If the log says the chat is off because
       the service cannot run the agent as a user of its own, the service is not starting as
       root, or the volume is mounted somewhere that user cannot walk into.
-4d. **Takes** (ADR 0051) are optional and need the chat (4c) first: the agent makes them, and
-   the service keeps them in a bucket. Until it is set up the service logs that takes are not
-   kept, the agent's takes stay in the draft's worktree, and the sound panel lists none.
+4d. **The takes kept from before** (ADR 0051, ADR 0064). Nothing makes, lists or picks a take
+   any more: pieces are drawn in code and cues are synthesized (ADR 0062). A service that kept
+   takes before then still serves each to whoever has its hash, from its bucket, which it only
+   reads. A new deployment has none and needs no bucket: skip this step.
 
-   1. **A bucket.** In the same Railway project: **+ New → Bucket**, named such as
-      `studio-takes`, in the service's region. Railway's buckets are private; the service reads
-      and writes it, and serves a take to a browser itself.
-   2. **Variables** on the `studio` service, as references to the bucket's own (its
-      **Credentials** tab lists them):
+   For a service that has them, leave the bucket and its variables on the `studio` service as
+   they are:
 
       | Variable | Value |
       |---|---|
       | `STUDIO_BUCKET_ENDPOINT` | the bucket's endpoint, such as `https://t3.storageapi.dev` |
-      | `STUDIO_BUCKET_NAME` | the bucket's name as its credentials give it (not the name typed above) |
+      | `STUDIO_BUCKET_NAME` | the bucket's name as its credentials give it |
       | `STUDIO_BUCKET_ACCESS_KEY_ID`, `STUDIO_BUCKET_SECRET_ACCESS_KEY` | its two keys. They stay in the service process: nothing of the bucket is in the agent's shell |
       | `STUDIO_BUCKET_REGION` | optional, `auto` by default |
 
-   3. Nothing to do for the script: `railpack.studio.json` adds `python3` and `ffmpeg` to the
-      image. The sound key of 4c must be set for takes to be made at all.
+   The service logs `takes: true` when it has a bucket to read. With the variables removed it
+   serves no take, and nothing else changes. No migration removes the kept takes or the picks
+   stored drafts and links still carry; both are read past. The image no longer carries `python3`
+   or `ffmpeg`, which only the sound script needed.
 
-   The service logs `takes: true`. To try it, ask the chat for new takes of a cue, wait for the
-   turn to end, and look at that cue's row in the Sounds panel. Tap one to pick it, then Save:
-   the pull request holds it as the cue's sample in the sounds folder (ADR 0053). Sprite takes
-   kept in the bucket before pieces were drawn in code stay there and are listed nowhere (ADR
-   0063). Nothing to set up for that; a Save that cannot read a picked take from the bucket
-   fails as "couldn't read the picked takes or place them", and the log says why. Each picture and sound is counted
-   against `STUDIO_SPEND_CAP_USD` from what its response says was billed: OpenAI's image tokens at
+   A picture or a sound the chat's agent asks an API for is counted against
+   `STUDIO_SPEND_CAP_USD` from what its response says was billed: OpenAI's image tokens at
    its published rates, ElevenLabs's credits at `ELEVENLABS_USD_PER_CREDIT` (ADR 0059).
 
    The image grows by the Claude Code executable the SDK ships, a few hundred megabytes. The log

@@ -1,4 +1,4 @@
-import { sfx, soundsFor } from "../audio.js";
+import { sfx } from "../audio.js";
 import { Application, CanvasSource, Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   NAVIGATION_ENTRY_OCTANT,
@@ -190,9 +190,6 @@ export class NavigationRenderer {
     this.selectedRing = Math.min(1, this.rings - 1);
   }
 
-  /** This puzzle's picked samples play while the board is open (ADR 0041). */
-  private readonly releaseSounds = soundsFor("navigation");
-
   async init(): Promise<void> {
     // Callouts and labels are drawn as text, so wait (briefly) for the webfont. Before the app
     // exists: the board hands a state to any renderer that has one, and the layers come after.
@@ -244,7 +241,6 @@ export class NavigationRenderer {
 
   destroy(): void {
     this.destroyed = true;
-    this.releaseSounds();
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const tex of this.textures.values()) tex.destroy(true);

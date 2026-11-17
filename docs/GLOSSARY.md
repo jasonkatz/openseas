@@ -405,6 +405,10 @@ The tables above give the identifier for each word. Beyond them:
 - **Pieces**: each puzzle's pictograms are in a `pieces.ts` beside its renderer, named by the
   piece's identifier (`bolt`, `crystal`, `drum`, ...). The sprite atlases that once carried those
   names are gone (ADR 0062).
+- **Cues**: a sound a board plays is a cue, named for what happened (`clear`, `streakLost`,
+  `vent`), defined in `boards/src/cues.ts` and asked for through `sfx`. The beat's is `beat`. The
+  words of the pipeline that once generated sounds (a brief, a take, a pick, a sample) name
+  nothing now (ADR 0062, ADR 0064); `take` survives only as the service's table of those kept.
 - **Tests**: where a test's `mate` was a second pirate rather than a deckhand, it is `crewmate`.
   Fixtures use names the game could deal ("Static Comet", "Gasket-7", "The Rust Comets").
 - **Studio presets**: the message key is the preset's id (`studio.preset.one_injector`,

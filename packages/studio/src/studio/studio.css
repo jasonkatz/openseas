@@ -725,8 +725,7 @@
   height: 6px;
   border-radius: 50%;
 }
-.is-changed > .num-label .num-dot,
-.is-changed .cue-name .num-dot {
+.is-changed > .num-label .num-dot {
   background: var(--st-mark);
 }
 .is-changed > .num-label .num-name {
@@ -757,8 +756,7 @@
   box-shadow: -3px 0 0 var(--st-danger);
   padding-left: 8px;
 }
-.num-row.is-flash,
-.cue.is-flash {
+.num-row.is-flash {
   animation: st-flash 1.3s ease-out;
 }
 @keyframes st-flash {
@@ -930,13 +928,10 @@
   white-space: nowrap;
 }
 
-/* ---- the sound panel (ADR 0050): a list of cues, and the one picked out */
+/* ---- the Sounds list (ADR 0062): a puzzle's cues, each with a button that plays it */
 .cue {
   margin: 0 -6px;
   border-radius: var(--st-r);
-}
-.cue.is-open {
-  background: var(--st-well);
 }
 .cue-head {
   display: grid;
@@ -967,25 +962,12 @@
   gap: 6px;
   min-width: 0;
   padding: 3px 0;
-  border: 0;
-  background: transparent;
   color: var(--st-fg);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
 }
 .cue-voice {
   margin-left: auto;
   font-size: 11px;
   color: var(--st-faint);
-}
-.cue.is-changed .cue-voice {
-  color: var(--st-mark-text);
-}
-.cue-body {
-  display: grid;
-  gap: 6px;
-  padding: 2px 6px 8px 36px;
 }
 
 /* ---- the board, in the middle */

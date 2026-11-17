@@ -1,4 +1,4 @@
-import { NO_PICKS, NO_WORDS, PicksSchema, WordsSchema, type Picks, type Words } from "@openseas/protocol";
+import { NO_WORDS, WordsSchema, type Words } from "@openseas/protocol";
 import type { Overrides } from "./overrides.js";
 
 /**
@@ -10,7 +10,6 @@ import type { Overrides } from "./overrides.js";
  *   c.<path>    a config override; the value is JSON when it parses, a string otherwise
  *   pace        the live tier indicator's window in seconds; absent means content's `paceSeconds`
  *   thresholds  the thresholds the round is rated against, as JSON; absent means content's
- *   sound.<cue>     a pick (ADR 0052): the hash of the take played for that cue, or `synth` for the synthesized cue
  *   text.<key>      a string of the message table rewritten (ADR 0057), by its key
  *   category        the puzzle's category, where the draft changes it
  *   speed       clock rate (default 1); for a script, the studio has no control for it
@@ -18,10 +17,11 @@ import type { Overrides } from "./overrides.js";
  *   hints       0 to turn idle hints off
  *   start       any value: start the round as soon as the page opens
  *
- * An address kept from before pieces were drawn in code may also carry `sprite.<frame>=<hash>`, a
- * pick of a take for a frame of the puzzle's atlas. Nothing draws a frame now (ADR 0062), so such a
- * parameter is read past like any the page does not know: the address still opens, on the board as
- * it is drawn, and the parameter is not written back (ADR 0063).
+ * An address kept from before ADR 0062 may also carry a pick of a take: `sprite.<frame>=<hash>`,
+ * for a frame of the puzzle's atlas, or `sound.<cue>=<hash>` (or `=synth`), for a cue. Nothing
+ * draws a frame or plays a sample now, so such a parameter is read past like any the page does
+ * not know: the address still opens, on the board as it is drawn and sounded, and the parameter
+ * is not written back (ADR 0063, ADR 0064).
  */
 export interface Scenario {
   seed: string | null;
@@ -30,8 +30,6 @@ export interface Scenario {
   paceSeconds: number | null;
   /** Unchecked: whatever JSON the link carried. The frame's checks decide whether it can be played. */
   thresholds: unknown;
-  /** The takes picked for cues. Only what has a pick's shape is kept from a link. */
-  picks: Picks;
   /** The strings rewritten and the category changed (ADR 0057). Only what has their shape is kept from a link. */
   words: Words;
   speed: number;
@@ -40,7 +38,7 @@ export interface Scenario {
   autostart: boolean | null;
 }
 
-export const EMPTY_SCENARIO: Scenario = { seed: null, roundSeconds: null, overrides: {}, paceSeconds: null, thresholds: null, picks: NO_PICKS, words: NO_WORDS, speed: 1, paused: false, hints: true, autostart: null };
+export const EMPTY_SCENARIO: Scenario = { seed: null, roundSeconds: null, overrides: {}, paceSeconds: null, thresholds: null, words: NO_WORDS, speed: 1, paused: false, hints: true, autostart: null };
 
 function parseValue(raw: string): unknown {
   try {
@@ -54,12 +52,7 @@ export function parseScenario(search: string): Scenario {
   const q = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   const overrides: Record<string, unknown> = {};
   for (const [key, raw] of q.entries()) if (key.startsWith("c.") && key.length > 2) overrides[key.slice(2)] = parseValue(raw);
-  const picked: Record<string, string> = {};
-  for (const [key, raw] of q.entries()) if (key.startsWith("sound.") && key.length > 6) picked[key.slice(6)] = raw;
-  // A pick that is not one (a hash cut short in a pasted link) is dropped, each on its own.
-  const picks: Picks = { sounds: {} };
-  for (const [name, hash] of Object.entries(picked)) if (PicksSchema.safeParse({ sounds: { [name]: hash } }).success) picks.sounds[name] = hash as Picks["sounds"][string];
-  // A rewritten string that is not one is dropped likewise.
+  // A rewritten string that is not one (cut short in a pasted link) is dropped, each on its own.
   const texts: Record<string, string> = {};
   for (const [key, raw] of q.entries()) if (key.startsWith("text.") && key.length > 5 && WordsSchema.safeParse({ texts: { [key.slice(5)]: raw } }).success) texts[key.slice(5)] = raw;
   const category = WordsSchema.safeParse({ category: q.get("category") });
@@ -74,7 +67,6 @@ export function parseScenario(search: string): Scenario {
     overrides,
     paceSeconds: q.has("pace") && Number.isFinite(pace) ? pace : null,
     thresholds: q.has("thresholds") ? parseValue(q.get("thresholds")!) : null,
-    picks,
     words,
     speed: speed > 0 ? speed : 1,
     paused: q.get("paused") === "1",
@@ -91,7 +83,6 @@ export function formatScenario(s: Scenario): string {
   for (const [path, value] of Object.entries(s.overrides)) q.set(`c.${path}`, typeof value === "string" ? value : JSON.stringify(value));
   if (s.paceSeconds !== null) q.set("pace", String(s.paceSeconds));
   if (s.thresholds !== null) q.set("thresholds", JSON.stringify(s.thresholds));
-  for (const [name, hash] of Object.entries(s.picks.sounds)) q.set(`sound.${name}`, hash);
   for (const [key, text] of Object.entries(s.words.texts)) q.set(`text.${key}`, text);
   if (s.words.category) q.set("category", s.words.category);
   if (s.speed !== 1) q.set("speed", String(s.speed));

@@ -169,12 +169,20 @@ The world is already flat-coloured primitives, and stays so.
 
 ## 8. Sound
 
-A later pass (M10 step 6). The direction:
+Built (M10 step 6). Every cue is defined as data in `packages/boards/src/cues.ts` and played by
+`audio.ts` beside it; tests hold both to what follows.
 
-- Cues stay synthesized in code. No samples.
-- Soft and warm: a slow attack, a low-passed tone, nothing sharp or metallic.
-- Every pitched cue is in one pentatonic scale, so any two sound well together.
-- Short: under 400ms, except the beat's, which rings for 700ms.
+- Cues are synthesized in code. No samples.
+- **One voice.** A cue is a few voices from one small set: a sine, a triangle, a breath of
+  filtered noise. Soft and warm: an attack of at least 8ms, everything through a low-pass at
+  2.4kHz or lower, nothing sharp or metallic, mono.
+- **One key.** Every pitched note is a step of G major pentatonic (G, A, B, D, E) across three
+  octaves, G2 to G5: the constant `SCALE`. Any two cues sound well together.
+- **Up is good, down is not.** What rises steps up the scale, what falls steps down. A bad thing
+  is low and soft, never a buzzer: the heat alarm is two low notes.
+- **Short and level.** Under 400ms, and every cue peaks within 3 dB of one quiet target.
+- **The beat** (section 6) has one sound: the root, its fifth and its octave, low, ringing for
+  700ms, a little louder for a stronger beat. It sounds alone: no other cue plays over it.
 - No music and no ambient bed.
 
 ## 9. Words

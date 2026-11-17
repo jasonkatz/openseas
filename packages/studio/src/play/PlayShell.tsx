@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { PuzzleId } from "@openseas/engine";
-import { pickCount, wordCount } from "@openseas/protocol";
+import { wordCount } from "@openseas/protocol";
 import { isMuted, messageOverrideRevision, setMuted, subscribeMessages, t, useTierPace } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { formatNumber } from "../frame/numbers.js";
@@ -20,8 +20,7 @@ import { localSeed } from "../practice/usePractice.js";
  */
 export function PlayShell(p: ShellProps) {
   const frame = useFrame();
-  const { scenario, setScenario, numbers, refusals, changes, report, link, picksMissing } = frame;
-  const picked = pickCount(scenario);
+  const { scenario, setScenario, numbers, refusals, changes, report, link } = frame;
   const alone = frame.mode === "play";
   const Root = alone ? "main" : "div";
   // A board bakes its words once, so a string rewritten under it (ADR 0057) makes the board again, on the round as it stands.
@@ -222,15 +221,9 @@ export function PlayShell(p: ShellProps) {
                     ))}
                   </ul>
                 )}
-                {/* The takes a link picks for cues (ADR 0052), and whether they could be read. */}
                 {wordCount(scenario) > 0 && (
                   <p className="small" data-testid="play-words">
                     {t("play.words", { count: wordCount(scenario) })}
-                  </p>
-                )}
-                {picked > 0 && (
-                  <p className="small" data-testid="play-picks">
-                    {t("play.picks", { count: picked })} {picksMissing.length > 0 && <span className="error">{t("play.picks_missing", { count: picksMissing.length })}</span>}
                   </p>
                 )}
               </section>}

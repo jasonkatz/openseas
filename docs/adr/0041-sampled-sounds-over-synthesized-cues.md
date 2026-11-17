@@ -5,6 +5,8 @@ Status: Accepted. Builds on [0040](./0040-generated-art-and-sound-from-briefs.md
 decision 5. [0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) supersedes this
 at milestone M10's sound pass: cues stay synthesized.
 
+[0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded all of it at M10's sixth step: no board plays a sample, and every cue is synthesized from its definition in `boards/src/cues.ts`.
+
 ## Context
 
 ADR 0040 keeps the owner's picked sounds in `boards/src/sounds/<puzzle>/<cue>.mp3` but left them

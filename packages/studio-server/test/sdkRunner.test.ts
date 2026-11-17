@@ -273,7 +273,7 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
     const turn = createSdkRunner({ identity, scripts: { openai: false, elevenlabs: false }, log: createLogger("silent", false) }).start({
       cwd,
       puzzle: "cooling",
-      prompt: "Make three takes of the clear cue.",
+      prompt: "Soften the clear cue.",
       model: "claude-sonnet-5-5",
       session: "ccf606c8-14e7-41db-b159-f3d46f2a1a17",
       modelUrl: proxy.url,
@@ -286,7 +286,7 @@ describe.skipIf(!hasExecutable)("the real agent, on a scripted model", () => {
     const session = events.find((e) => e.kind === "session");
     expect(session && session.kind === "session" ? session.id : null).not.toBe("ccf606c8-14e7-41db-b159-f3d46f2a1a17");
     expect(api.mainTurns[0]!.said).toContain("could not be resumed");
-    expect(api.mainTurns[0]!.said).toContain("Make three takes of the clear cue.");
+    expect(api.mainTurns[0]!.said).toContain("Soften the clear cue.");
     expect(events.filter((e) => e.kind === "reply").map((e) => (e.kind === "reply" ? e.text : ""))).toEqual(["Fresh start."]);
   }, 120_000);
 

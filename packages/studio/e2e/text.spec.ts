@@ -93,7 +93,7 @@ test("the play link carries the words, and plays the puzzle alone on them", asyn
 test("the service keeps a draft's words with its numbers, and one older than words leaves them in the address", async ({ page }) => {
   desktopOnly();
   const words = { texts: { "cooling.title": "Coolant Run" }, category: null };
-  const s = await service(page, { login: "octo", picks: true, words: true, drafts: [draft({ numbers: { ...numbers({ overrides: { pieceKinds: 5 } }), words } })] });
+  const s = await service(page, { login: "octo", words: true, drafts: [draft({ numbers: { ...numbers({ overrides: { pieceKinds: 5 } }), words } })] });
   await page.goto("/cooling");
   await expect(page.getByTestId("draft-store")).toHaveAttribute("data-status", "saved");
   await expect(page.getByTestId("menu-puzzle")).toContainText("Coolant Run");
@@ -104,7 +104,7 @@ test("the service keeps a draft's words with its numbers, and one older than wor
   await expect(page).toHaveURL(/\/cooling$/);
 
   // A service that keeps no words: the draft is stored without them, they stay in the address, and the draft is not saved over and over.
-  const old = await service(page, { login: "octo", picks: true, drafts: [draft()] });
+  const old = await service(page, { login: "octo", drafts: [draft()] });
   await page.goto("/cooling");
   await expect(page.getByTestId("draft-store")).toHaveAttribute("data-status", "saved");
   await (await shown(page, "input-text-cooling.go")).fill("Chill!");
@@ -115,7 +115,7 @@ test("the service keeps a draft's words with its numbers, and one older than wor
 
 test("a draft whose only change is a word can be saved", async ({ page }) => {
   desktopOnly();
-  await service(page, { login: "octo", save: true, picks: true, words: true, drafts: [draft({ numbers: numbers(), save: { state: "idle", error: null, pull: null, savedRevision: null, behind: false } })] });
+  await service(page, { login: "octo", save: true, words: true, drafts: [draft({ numbers: numbers(), save: { state: "idle", error: null, pull: null, savedRevision: null, behind: false } })] });
   await page.goto("/cooling");
   await expect(page.getByTestId("draft-store")).toHaveAttribute("data-status", "saved");
   await expect(page.getByTestId("save")).toBeDisabled();

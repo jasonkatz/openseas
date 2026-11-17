@@ -2,7 +2,7 @@ import { useCallback, useState, useSyncExternalStore } from "react";
 import type { PuzzleId } from "@openseas/engine";
 import { wordCount } from "@openseas/protocol";
 import { messageOverrideRevision, subscribeMessages, t } from "@openseas/boards";
-import { ASSET_SELECT, SoundPanel } from "../assets/AssetPanels.jsx";
+import { SoundPanel } from "../assets/AssetPanels.jsx";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { PlayShell } from "../play/PlayShell.jsx";
 import type { ShellProps } from "../practice/PracticeShell.jsx";
@@ -49,7 +49,7 @@ export function StudioShell(p: ShellProps) {
   const [hints, setHints] = useState(readHints);
   const [restart, setRestart] = useState(readRestart);
   const puzzle = p.puzzle as PuzzleId;
-  const { changes, picks, refusals, report, scenario, store } = useFrame();
+  const { changes, refusals, report, scenario, store } = useFrame();
   const sections = useNumberSections();
   // The page says the draft's words too (ADR 0057): it is drawn again when they are laid over the message table.
   useSyncExternalStore(subscribeMessages, messageOverrideRevision, () => 0);
@@ -60,16 +60,13 @@ export function StudioShell(p: ShellProps) {
   const found = q === "" || anyNumberMatch(sections, q) || texts.some((e) => textMatches(e, scenario.words.texts[e.key] ?? e.shipped, q)) || "category".includes(q);
 
   const changed = new Set<ModeId>(changes.map((c) => modeOfKey(sections, c.key) ?? "tuning"));
-  if (Object.keys(picks.sounds).length > 0) changed.add("sounds");
   if (wordCount(scenario) > 0) changed.add("text");
 
   const goto = useCallback((next: ModeId, target?: Target) => {
     setMode(next);
     setQuery("");
     if (!target) return;
-    if (target.kind === "sounds") window.dispatchEvent(new CustomEvent(ASSET_SELECT, { detail: target }));
-    const id =
-      target.kind === "number" ? `control-${target.key}` : target.kind === "text" ? `text-${target.key}` : target.kind === "category" ? "control-category" : `cue-${target.name}`;
+    const id = target.kind === "number" ? `control-${target.key}` : target.kind === "text" ? `text-${target.key}` : "control-category";
     // After the panel has turned to the mode: a hidden control has no place to scroll to.
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => flash(id)));
   }, []);

@@ -1,13 +1,13 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ChatAllowSchema, ChatIdSchema, ChatRevertSchema, CreateDraftSchema, RenameChatSchema, CreateTesterLinkSchema, SendChatSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, SaveRequestSchema, TakeHashSchema, TesterLinkIdSchema, picksOf, wordsOf, type ChatEvent, type ChatSent, type ChatState, type ChatStatus, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
+import { ChatAllowSchema, ChatIdSchema, ChatRevertSchema, CreateDraftSchema, RenameChatSchema, CreateTesterLinkSchema, SendChatSchema, DraftIdSchema, PuzzleIdSchema, SaveDraftSchema, SaveRequestSchema, TakeHashSchema, TesterLinkIdSchema, type ChatEvent, type ChatSent, type ChatState, type ChatStatus, type StudioErrorCode, type StudioMe } from "@openseas/protocol";
 import type { Chat, ChatSignal } from "./chat/chat.js";
 import { chatRow, chatRows, deleteChat, renameChat, toSummary, type ChatRow } from "./chat/chats.js";
 import type { Db } from "./db/index.js";
 import { createDraft, discardDraft, draftRow, draftRows, saveDraft, toDraft } from "./drafts.js";
 import type { Env } from "./env.js";
 import type { GitHub } from "./github.js";
-import { createLink, findLink, listLinks, withdrawLink } from "./links.js";
+import { sentNumbers, createLink, findLink, listLinks, withdrawLink } from "./links.js";
 import type { Logger } from "./log.js";
 import type { Saver } from "./save/saver.js";
 import { cookie, readCookie, seal, unseal } from "./session.js";
@@ -22,7 +22,7 @@ export interface HttpDeps {
   saver: Saver | null;
   /** Null when the service has no model key, no cap, or no user of its own for the agent: there is no chat. */
   chat: Chat | null;
-  /** Null when the service has no bucket: no take is kept, listed or served. */
+  /** Null when the service has no bucket: no take kept from before is served. */
   takes: Takes | null;
   log: Logger;
 }
@@ -85,8 +85,7 @@ async function readJson(req: IncomingMessage, limit = 32 * 1024): Promise<unknow
  *   POST   /chats/:id/stop    stop its turn where it stands (owner)
  *   POST   /chats/:id/revert  undo one of its turns' edits with a new commit (owner)
  *   POST   /chats/:id/allow   answer a refused write: allow the path for its draft, or not (owner)
- *   GET    /takes/:hash       a take's bytes, for anyone who has its hash, from any origin (ADR 0051)
- *   GET    /takes?puzzle=     a puzzle's takes (owner)
+ *   GET    /takes/:hash       a kept take's bytes, for anyone who has its hash, from any origin (ADR 0051, ADR 0064)
  *
  * An owner is a signed-in GitHub login on the allowlist. Whatever changes something must also
  * come from one of the studio site's own origins: the cookie alone is not enough.
@@ -152,7 +151,7 @@ export function createHttpHandler(deps: HttpDeps) {
       if (path === "/health" && req.method === "GET") return json(res, 200, { ok: true, commit: env.COMMIT_SHA });
 
       if (path === "/auth/me" && req.method === "GET") {
-        const me: StudioMe = { login: owner(req), signIn: github !== null, dev: env.STUDIO_DEV_LOGIN !== null, save: saver !== null, chat: chat !== null, takes: takes !== null, picks: true, words: true };
+        const me: StudioMe = { login: owner(req), signIn: github !== null, dev: env.STUDIO_DEV_LOGIN !== null, save: saver !== null, chat: chat !== null, words: true };
         return json(res, 200, me);
       }
       if (path === "/auth/github" && req.method === "GET") {
@@ -193,8 +192,8 @@ export function createHttpHandler(deps: HttpDeps) {
         return json(res, 200, link);
       }
 
-      // A take is public by its hash, which nobody can guess and which never names other bytes: a
-      // tester link will load a pick this way, and a browser may keep it for good.
+      // A take is public by its hash, which nobody can guess and which never names other bytes, and a
+      // browser may keep it for good. Nothing makes or picks one now; those kept from before are still read (ADR 0064).
       if (takeHash !== undefined && req.method === "GET") {
         const take = takes && TakeHashSchema.safeParse(takeHash).success ? await takes.read(takeHash) : null;
         if (!take) return fail(res, 404, "not_found");
@@ -212,16 +211,9 @@ export function createHttpHandler(deps: HttpDeps) {
       const isLinks = path === "/links" || linkId !== undefined;
       const isDrafts = path === "/drafts" || draftId !== undefined;
       const isChats = path === "/chats" || chatId !== undefined;
-      if (!isLinks && !isDrafts && !isChats && path !== "/takes") return fail(res, 404, "not_found");
+      if (!isLinks && !isDrafts && !isChats) return fail(res, 404, "not_found");
       const login = owner(req);
       if (!login) return fail(res, 401, "unauthorized");
-      if (path === "/takes") {
-        if (req.method !== "GET") return fail(res, 404, "not_found");
-        if (!takes) return fail(res, 503, "unavailable");
-        const puzzle = PuzzleIdSchema.safeParse(url.searchParams.get("puzzle"));
-        if (!puzzle.success) return fail(res, 400, "bad_request");
-        return json(res, 200, { takes: await takes.list(puzzle.data) });
-      }
       /** The request's body as JSON, or undefined when it is not JSON or is too large. */
       const body = async (): Promise<unknown> => {
         try {
@@ -414,7 +406,7 @@ export function createHttpHandler(deps: HttpDeps) {
         // What is saved is what is on the page: a page behind its draft is told so.
         if (input.data.revision !== row.revision) return fail(res, 409, "conflict");
         // The tester link first, at once (ADR 0042 decision 10); the branch and pull request follow.
-        const link = await createLink(db, login, { puzzle: row.puzzle as never, name: input.data.name, draft: { ...row.numbers, picks: picksOf(row.numbers), words: wordsOf(row.numbers) } });
+        const link = await createLink(db, login, { puzzle: row.puzzle as never, name: input.data.name, draft: sentNumbers(row.numbers) });
         log.info({ id: row.id, link: link.id, login }, "save started");
         return json(res, 202, { draft: toDraft(await saver.save(row, login, link.id)), link });
       }

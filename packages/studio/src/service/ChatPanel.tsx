@@ -4,7 +4,7 @@ import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { Menu, MenuButton, useMenu } from "../studio/Menu.jsx";
 import { applyChatEvent, chatToOpen } from "./chatState.js";
-import { CHAT_PROPOSED, TAKES_CHANGED, answerChat, deleteChat, fetchChat, listChats, renameChat, revertChat, sendChat, stopChat, watchChat } from "./client.js";
+import { answerChat, deleteChat, fetchChat, listChats, renameChat, revertChat, sendChat, stopChat, watchChat } from "./client.js";
 
 const ChatReply = lazy(() => import("./ChatReply.jsx"));
 
@@ -183,13 +183,10 @@ export function ChatPanel() {
   const shownChat = chat && chat.chat.id === chatId ? chat : null;
   const running = shownChat?.chat.running ?? false;
   const busy = shownChat?.busy ?? false;
-  // A turn that has ended may have made takes: the sound panel asks for them again (ADR 0051). The list's money and order move too.
+  // A turn that has ended moves the list's money and order.
   const wasRunning = useRef(false);
   useEffect(() => {
-    if (wasRunning.current && !running) {
-      window.dispatchEvent(new Event(TAKES_CHANGED));
-      void refresh();
-    }
+    if (wasRunning.current && !running) void refresh();
     wasRunning.current = running;
   }, [running, refresh]);
   // A waiting chat learns the draft is free from its stream; the list learns which chat ran.
@@ -198,16 +195,6 @@ export function ChatPanel() {
     if (wasBusy.current !== busy) void refresh();
     wasBusy.current = busy;
   }, [busy, refresh]);
-  // A row of the sound panel writes the start of a message here, for the owner to finish and send.
-  useEffect(() => {
-    const onProposed = (e: Event): void => {
-      setText((e as CustomEvent<string>).detail);
-      setListOpen(false);
-      box.current?.focus();
-    };
-    window.addEventListener(CHAT_PROPOSED, onProposed);
-    return () => window.removeEventListener(CHAT_PROPOSED, onProposed);
-  }, []);
   const shown = shownChat?.items.length ?? 0;
   const live = shownChat?.live ?? "";
   // The log follows what is new while the owner reads its end, and stays put once they scroll back to read.

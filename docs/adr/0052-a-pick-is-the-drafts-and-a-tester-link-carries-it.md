@@ -10,6 +10,8 @@ take now also asks for that take. Save placing picks is the part that follows.
 
 [0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded its sprite parts at M10's fifth step: a draft picks no frame, and [0063](./0063-stored-sprite-picks-and-takes-are-read-and-ignored.md) says how sprite picks kept before then are read; it still stands for sounds.
 
+[0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded its sound parts too at M10's sixth step: a draft picks nothing, and [0064](./0064-stored-sound-picks-and-takes-are-read-and-ignored-and-the-beats-sound-stands-alone.md) says how sound picks kept before then are read.
+
 ## Context
 
 ADR 0042 decision 2 says a draft holds numbers and picks, a pick being a take for a sprite frame

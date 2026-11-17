@@ -22,7 +22,7 @@ describe("a page's draft and the one the service keeps", () => {
 
   it("gives the service a scenario's numbers one override a changed leaf, and drops what equals content", () => {
     const s = parseScenario(`?seed=keg-3&seconds=60&c.pieceKinds=5&c.width=${(cooling.config as { width: number }).width}`);
-    expect(draftNumbers(cooling, s)).toEqual({ seed: "keg-3", overrides: { pieceKinds: 5 }, roundSeconds: 60, paceSeconds: null, thresholds: null, picks: { sounds: {} }, words: { texts: {}, category: null } });
+    expect(draftNumbers(cooling, s)).toEqual({ seed: "keg-3", overrides: { pieceKinds: 5 }, roundSeconds: 60, paceSeconds: null, thresholds: null, words: { texts: {}, category: null } });
   });
 
   it("has nothing to save while a value has no shape the service keeps", () => {
@@ -34,25 +34,12 @@ describe("a page's draft and the one the service keeps", () => {
 
   it("lays a stored draft over a scenario and keeps how its clock starts", () => {
     const s = parseScenario("?seed=mine&c.pieceKinds=4&hints=0&speed=2");
-    const stored = { seed: null, overrides: { pieceKinds: 6 }, roundSeconds: 45, paceSeconds: 20, thresholds: null, picks: { sounds: {} }, words: { texts: {}, category: null } };
+    const stored = { seed: null, overrides: { pieceKinds: 6 }, roundSeconds: 45, paceSeconds: 20, thresholds: null, words: { texts: {}, category: null } };
     const laid = withDraft(s, stored);
     expect(draftNumbers(cooling, laid)).toEqual(stored);
     expect(laid).toMatchObject({ hints: false, speed: 2 });
     expect(formatScenario(withoutDraft(laid))).toBe("speed=2&hints=0");
     expect(carriesDraft(withDraft(s, null))).toBe(false);
-  });
-
-  it("carries a draft's picks with its numbers (ADR 0052)", () => {
-    const hash = "a".repeat(64);
-    const s = parseScenario(`?sound.pop=${hash}&sound.clear=synth`);
-    expect(carriesDraft(s)).toBe(true);
-    expect(draftNumbers(cooling, s)!.picks).toEqual({ sounds: { pop: hash, clear: "synth" } });
-    // A draft kept before picks has none, and is the same draft as one with none.
-    const old = { seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null };
-    expect(withDraft(s, old).picks).toEqual({ sounds: {} });
-    expect(sameNumbers(old, draftNumbers(cooling, withDraft(s, old))!)).toBe(true);
-    expect(sameNumbers(old, draftNumbers(cooling, s)!)).toBe(false);
-    expect(formatScenario(withoutDraft(s))).toBe("");
   });
 
   it("carries a draft's words with its numbers, and leaves them with the page when the service is older than them (ADR 0057)", () => {
@@ -63,34 +50,30 @@ describe("a page's draft and the one the service keeps", () => {
     const old = { seed: null, overrides: { pieceKinds: 5 }, roundSeconds: null, paceSeconds: null, thresholds: null };
     expect(withDraft(s, old).words).toEqual({ texts: {}, category: null });
     expect(sameNumbers(old, draftNumbers(cooling, withDraft(s, old))!)).toBe(true);
-    const keepsPicksOnly = { picks: true, words: false };
-    expect(draftNumbers(cooling, s, keepsPicksOnly)!.words).toEqual({ texts: {}, category: null });
-    expect(withDraft(s, old, keepsPicksOnly).words).toEqual(s.words);
-    expect(formatScenario(withoutDraft(s, keepsPicksOnly))).toBe("text.cooling.multi_2=Twofer%21&category=crafting");
+    const older = { words: false };
+    expect(draftNumbers(cooling, s, older)!.words).toEqual({ texts: {}, category: null });
+    expect(withDraft(s, old, older).words).toEqual(s.words);
+    expect(formatScenario(withoutDraft(s, older))).toBe("text.cooling.multi_2=Twofer%21&category=crafting");
   });
 
-  it("leaves picks with the page when the service is older than them", () => {
-    const OLD = { picks: false, words: false };
+  it("reads a draft kept with picks, of sprites or sounds, as one that picks nothing (ADR 0063, ADR 0064)", () => {
     const hash = "a".repeat(64);
-    const s = parseScenario(`?sound.pop=${hash}`);
-    // Nothing of them is sent or compared, so a save cannot be undone by its own answer for ever.
-    expect(carriesDraft(s, OLD)).toBe(false);
-    expect(draftNumbers(cooling, s, OLD)!.picks).toEqual({ sounds: {} });
-    const stored = { seed: null, overrides: { pieceKinds: 6 }, roundSeconds: null, paceSeconds: null, thresholds: null };
-    expect(withDraft(s, stored, OLD).picks).toEqual({ sounds: { pop: hash } });
-    expect(formatScenario(withoutDraft(s, OLD))).toBe(`sound.pop=${hash}`);
-  });
-
-  it("reads a draft kept with sprite picks as one that picks no frame (ADR 0062, ADR 0063)", () => {
-    const hash = "a".repeat(64);
-    // A row from before pieces were drawn in code: a sprite pick beside a sound's.
-    const stored = { seed: null, overrides: { pieceKinds: 6 }, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: { cog: hash }, sounds: { clear: "synth" } } } as unknown as Parameters<typeof withDraft>[1];
+    // A row from before ADR 0062: a take picked for a frame, and for two cues.
+    const stored = { seed: null, overrides: { pieceKinds: 6 }, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: { cog: hash }, sounds: { clear: "synth", pop: hash } } } as unknown as Parameters<typeof withDraft>[1];
     const laid = withDraft(parseScenario(""), stored);
-    expect(laid.picks).toEqual({ sounds: { clear: "synth" } });
+    expect(laid).not.toHaveProperty("picks");
     expect(laid.overrides).toEqual({ pieceKinds: 6 });
-    // What the page would send back for it holds no sprite pick, and the address carries none.
-    expect(draftNumbers(cooling, laid)!.picks).toEqual({ sounds: { clear: "synth" } });
-    expect(formatScenario(laid)).not.toContain("sprite");
+    // What the page would send back for it holds no pick, and the address carries none.
+    expect(draftNumbers(cooling, laid)).not.toHaveProperty("picks");
+    expect(formatScenario(laid)).toBe("c.pieceKinds=6");
+    // It is the same draft as one that never had any, so opening it does not save it over.
+    expect(sameNumbers(draftNumbers(cooling, laid)!, { seed: null, overrides: { pieceKinds: 6 }, roundSeconds: null, paceSeconds: null, thresholds: null })).toBe(true);
+  });
+
+  it("an address that carries only picks carries no draft", () => {
+    const s = parseScenario(`?sound.pop=${"a".repeat(64)}&sound.clear=synth&sprite.cog=${"b".repeat(64)}`);
+    expect(carriesDraft(s)).toBe(false);
+    expect(formatScenario(withoutDraft(s))).toBe("");
   });
 
   it("compares numbers whatever order the database hands their keys back in", () => {
