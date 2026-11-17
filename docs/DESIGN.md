@@ -849,7 +849,8 @@ sees.
 **Tuning.**
 
 - A control for every key under `config`, for `roundSeconds`, for each threshold and for
-  `paceSeconds`: a slider for a range, a stepper for a small whole number, a curve for a list.
+  `paceSeconds`: a slider for a range, a stepper for a small whole number, a curve for a list
+  (an entry a row down the panel, the buttons that grow and cut it over the list).
   Each is labelled with its key read as words (`heatRisePerMoves` as "Heat rise per moves"), with
   the key as the content file spells it and one line of description kept beside the wire schema
   (`.describe()` on the key in `protocol`) in its title, and a unit read from the name where the

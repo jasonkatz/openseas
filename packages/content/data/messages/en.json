@@ -328,6 +328,7 @@
   "studio.locked": "fixed: the board's timing is built on it",
   "studio.less": "Less {key}",
   "studio.more": "More {key}",
+  "studio.curve_count": "Entries: {count}",
   "studio.curve_shorter": "Cut the last entry of {key}",
   "studio.curve_longer": "Add an entry to {key}",
   "studio.json_invalid": "Not JSON yet. The last value that was stands.",
