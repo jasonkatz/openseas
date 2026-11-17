@@ -54,6 +54,7 @@ export { DeflectorsBoard, type DeflectorsBoardProps } from "./deflectors/Deflect
 export { DeflectorsMirrorIcon, DeflectorsSignIcon } from "./deflectors/SignIcon.jsx";
 export { DEFLECTORS_SIGNS } from "./deflectors/pieces.js";
 export { ReactorBoard, type ReactorBoardProps } from "./reactor/ReactorBoard.jsx";
+export { ReactorPortIcon, ReactorRodIcon } from "./reactor/RodIcon.jsx";
 export { ScannerBoard, type ScannerBoardProps } from "./scanner/ScannerBoard.jsx";
 export { TugBoard, type TugBoardProps } from "./tug/TugBoard.jsx";
 export { TugBlockIcon, TugClampIcon, TugPodIcon } from "./tug/TugIcon.jsx";

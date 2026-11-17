@@ -87,8 +87,8 @@ describe("the atlases built from frame files (ADR 0054)", () => {
     };
 
     it("as they do in the repository", () => {
-      expect(Object.keys(listed).length).toBe(3);
-      expect(Object.values(listed).flat().length).toBe(24);
+      expect(Object.keys(listed).length).toBe(2);
+      expect(Object.values(listed).flat().length).toBe(16);
     });
 
     it("refuses a listed frame with no file", () => {

@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { expectViewMatchesState } from "./helpers.js";
+import { boardGeom, expectViewMatchesState } from "./helpers.js";
 
 // Exercise the production build: a working dev URL is not enough for shared-package assets. Each
 // atlas is built from its frame files by the build (ADR 0054) and served under its own name.
 // The prototypes not restyled yet load theirs through the board kit (ADR 0037). The seven boards in the game and
-// the restyled prototypes (Overload, Deflectors, Tug, Racks, Cutting) draw their pieces in code and load no atlas (ADR 0062), so none is listed here.
+// the restyled prototypes (Overload, Deflectors, Tug, Racks, Cutting, Reactor) draw their pieces in code and load no atlas (ADR 0062), so none is listed here.
 const CORE: string[] = [];
-const PROTOTYPES = ["salvage", "reactor", "scanner"];
+const PROTOTYPES = ["salvage", "scanner"];
 
 for (const puzzle of [...CORE, ...PROTOTYPES]) {
   test(`${puzzle} atlas loads, draws, and survives a resize`, async ({ page }, testInfo) => {
@@ -175,14 +175,35 @@ test("a kit board whose atlas is unavailable draws its pieces in code and still 
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/*.webp", (route) => route.abort());
-  await page.goto("/play/reactor?seed=sprite-smoke&start=lab");
-  const canvas = page.getByTestId("reactor-canvas");
+  await page.goto("/play/salvage?seed=sprite-smoke&start=lab");
+  const canvas = page.getByTestId("salvage-canvas");
   await expect(canvas).toHaveAttribute("data-sprite-atlas", "fallback");
-  await expectViewMatchesState(page, "reactor");
-  // A swipe the board cannot make is refused, so try each way: one of them moves.
-  for (const key of ["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"]) await page.keyboard.press(key);
-  await expect(page.getByTestId("hud-moves")).not.toHaveText("0");
-  await expectViewMatchesState(page, "reactor");
+  await expectViewMatchesState(page, "salvage");
+  // Haul a line of three by drag: the content field is seven wide, and the deal always holds one.
+  const W = 7;
+  const board = (await page.getByTestId("salvage-board").getAttribute("data-board")) ?? "";
+  const touching = (m: number, n: number): boolean => m !== n && Math.abs((m % W) - (n % W)) <= 1 && Math.abs(Math.floor(m / W) - Math.floor(n / W)) <= 1;
+  const walk = (path: number[]): number[] | null => {
+    if (path.length === 3) return path;
+    const last = path[path.length - 1]!;
+    for (let c = 0; c < board.length; c++) {
+      if (path.includes(c) || !touching(last, c) || board[c] !== board[last]) continue;
+      const found = walk([...path, c]);
+      if (found) return found;
+    }
+    return null;
+  };
+  let line: number[] | null = null;
+  for (let c = 0; c < board.length && !line; c++) if (/\d/.test(board[c]!)) line = walk([c]);
+  expect(line, `a line of three on ${board}`).not.toBeNull();
+  const { ox, oy, cell } = await boardGeom(page, "salvage");
+  const at = (c: number): [number, number] => [ox + ((c % W) + 0.5) * cell, oy + (Math.floor(c / W) + 0.5) * cell];
+  await page.mouse.move(...at(line![0]!));
+  await page.mouse.down();
+  for (const c of line!.slice(1)) await page.mouse.move(...at(c), { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByTestId("hud-moves")).toHaveText("1");
+  await expectViewMatchesState(page, "salvage");
   expect(errors).toEqual([]);
 });
 
@@ -284,6 +305,27 @@ test("Cutting, a restyled kit board, asks for no atlas and plays on ores drawn i
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toHaveText("1");
   await expectViewMatchesState(page, "cutting");
+  expect(images).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("Reactor, a restyled kit board, asks for no atlas and plays on rods drawn in code", async ({ page }) => {
+  const errors: string[] = [];
+  const images: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (r) => {
+    if (r.url().endsWith(".webp")) images.push(r.url());
+  });
+  await page.goto("/play/reactor?seed=sprite-smoke&start=lab");
+  const canvas = page.getByTestId("reactor-canvas");
+  await expect(canvas).toHaveAttribute("data-view", /.+/);
+  await expect(canvas).toHaveAttribute("data-pieces", "drawn");
+  await expect(canvas).not.toHaveAttribute("data-sprite-atlas");
+  await expectViewMatchesState(page, "reactor");
+  // A swipe the board cannot make is refused, so try each way: one of them moves.
+  for (const key of ["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"]) await page.keyboard.press(key);
+  await expect(page.getByTestId("hud-moves")).not.toHaveText("0");
+  await expectViewMatchesState(page, "reactor");
   expect(images).toEqual([]);
   expect(errors).toEqual([]);
 });

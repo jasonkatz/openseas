@@ -8,7 +8,6 @@ export interface ReactorBoardProps {
   state: ReactorState;
   version?: number;
   interactive: boolean;
-  showMarks: boolean;
   /** Point at a swipe that would discharge a rod after a pause: on for practice, off for recorded rounds. */
   hints: boolean;
   /** Returns false when the round refused the swipe. */
@@ -29,7 +28,6 @@ export function ReactorBoard(props: ReactorBoardProps) {
           onFrame: () => latest.current.onFrame(),
         },
         {
-          showMarks: props.showMarks,
           hints: props.hints,
           labels: {
             next: t("reactor.next"),

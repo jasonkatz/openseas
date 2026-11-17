@@ -208,7 +208,7 @@ test("reactor: the board", async ({ page }) => {
 });
 
 test("reactor: a swipe fuses", async ({ page }) => {
-  // The opening two grade I rods fuse on the first swipe, and the third swipe fuses again.
+  // The opening two grade 1 rods fuse on the first swipe, and the third swipe fuses again.
   const { seed, found } = findSeed("reactor-fuse", (s) => {
     const g = deal(s);
     for (const a of reactorLegalDirs(g)) {
@@ -230,7 +230,7 @@ test("reactor: a swipe fuses", async ({ page }) => {
 });
 
 test("reactor: a hot rod out through its port", async ({ page }) => {
-  // The round's first hot rod: one swipe fuses two grade IIIs into it, the next pushes it out. Nothing else hot.
+  // The round's first hot rod: one swipe fuses two grade 3s into it, the next pushes it out. Nothing else hot.
   const { seed, found } = findSeed("reactor-out", (s) => {
     const line = lineOf(s, 24);
     for (let k = 1; k < 24; k++) {

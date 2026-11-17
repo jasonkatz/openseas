@@ -4,17 +4,17 @@ Status: built. Prototype (ADR 0036), in the studio at `/reactor`. Untimed moves;
 
 ## The puzzle
 
-A four by four reactor core (`size`) holding fuel rods of grades I, II and III, and hot rods. One
+A four by four reactor core (`size`) holding fuel rods of grades 1, 2 and 3, and hot rods. One
 verb: a swipe slides every rod as far as it will go that way. Two rods of one grade that meet fuse
 into one of the next grade; a rod fuses once a swipe. After every swipe a new rod enters on the edge
-the rods slid away from, in a lane that changed. Its grade is shown beforehand: grade I, or grade II
+the rods slid away from, in a lane that changed. Its grade is shown beforehand: grade 1, or grade 2
 one time in five (`twoPermille`). A swipe that would change nothing is not a move.
 
-A grade IV rod (`hotGrade`) is hot. It fuses with nothing: it takes up room until it is pushed out.
+A grade 4 rod (`hotGrade`) is hot. It fuses with nothing: it takes up room until it is pushed out.
 Two ports (`ports`) are open on the core's rim, each at the end of one row or column. A swipe toward
 a port's wall discharges a hot rod that is first in that lane, for 100 (`dischargePoints`). The port
 then closes and another opens somewhere else on the rim. Fusing scores a little on the way: 2, 5 and
-12 for making a grade II, III and IV (`fusePoints`).
+12 for making a grade 2, 3 and 4 (`fusePoints`).
 
 Three things sit on top of that.
 
@@ -42,21 +42,46 @@ Three things sit on top of that.
 - **Fourth skill:** the salvo. Park a hot rod at its port, bring a second in behind it, and send both.
   It costs swipes, so it strains the pipeline, and it fills the lamps.
 
-## Input
+## Input and feedback
 
 - Pointer: swipe anywhere on the board. The swipe is taken as soon as the finger has travelled a
   quarter of a cell, without lifting.
 - Keyboard: arrows or WASD.
 - A swipe the round refuses makes the rods lean that way and settle back.
-- A port is drawn as a gate in the wall, with a faint band along the lane it serves. A gate shows a
-  dot when idle, a bar when a hot rod is in its lane behind another rod, and pulsing chevrons, one a
-  rod, when a swipe that way would discharge now (`reactorPortStatus`, `reactorPortLoad`).
-- The strip over the core shows the next rod and the heat lamps; the last lamp, a diamond, is the one
-  that scrams the core.
-- Unrated and lab rounds march chevrons across the core after five seconds idle when a swipe would
-  discharge a rod (`reactorHint`). There is no hint for anything else.
-- A rod's grade is one bar a grade on a casing; a hot rod is a toothed disc. The mark setting adds
-  the grade as a numeral.
+- Unrated and lab rounds march cream chevrons across the core after five seconds idle when a swipe
+  would discharge a rod (`reactorHint`). There is no hint for anything else.
+
+The board is restyled to the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws its pieces
+in code (`boards/src/reactor/pieces.ts`), loads no atlas and has no marks setting.
+
+- **A rod** is a fuel rod seen from its end: a rounded casing with its grade cut out of it as a bold
+  mono numeral, so the grade reads with the colour taken away. The colour steps with the grade as a
+  second cue: sky, teal, moss, sand, lilac, rose, rust, slate. No rod is amber.
+- **A hot rod** has an outline of its own: a casing burst into eight blunt points, with its grade's
+  numeral cut out. It is told from any cool rod by that outline alone, and it is the one rod drawn
+  in danger.
+- **The board.** Bare ground under the strip, the core and the bar. No frame and no grid. The one
+  hairline is the core's wall, and an empty cell is a small dot.
+- **A port** is a gap in the wall at the end of the lane it serves. A new port's gap opens in
+  120ms. An idle port is the gap alone. When a hot rod is in its lane behind another rod, a dim bar
+  sits across the gap. When a swipe that way would discharge now, cream chevrons point out through
+  the gap, one a rod (`reactorPortStatus`, `reactorPortLoad`).
+- **The strip** over the core shows the next rod and the heat lamps. A lamp is a ring when out and
+  a danger dot when lit; the last lamp, a diamond, is the one that scrams the core. The label turns
+  danger when one more hot rod would scram.
+- **The bar** under the core is the pipeline: a segment a swipe left, cream while the run is safe
+  and danger for the last two, with what the next discharge is multiplied by.
+- **A swipe** is every rod sliding to its place in 120ms. The new rod comes in through the wall the
+  rods slid away from.
+- **A fusion** is the fused rod taking its new numeral and settling to size, the points rising in
+  cream, and a pop that climbs with the grade. Making a hot rod is called out.
+- **A discharge** is the rod going out through its port and shrinking away in 160ms, with its
+  points in cream. A pipeline run is called out with its count.
+- **A scram** is every rod shrinking away, the cause and the points lost said in danger, and the
+  fresh rods growing in.
+- **The beat**, one amber pulse of the whole board, is kept for two things: a salvo, a little
+  stronger for a third rod, and a pipeline brought to its top percent. There is no shake, no flash,
+  no glow and no particles.
 
 ## Engine
 
@@ -101,11 +126,11 @@ What changed from the brief, and why:
   holding one rod to pair it is a risk a player can see on the lamps.
 - **The pipeline's window is eight.** It is just over the seven swipes a good player needs for a rod,
   so it rewards having the next rod cooking and is lost by one wasted stretch.
-- **Hot at grade IV on a four by four core.** A hot rod every seven or eight swipes gives a strong
+- **Hot at grade 4 on a four by four core.** A hot rod every seven or eight swipes gives a strong
   player about fifteen discharges in a round, and a weak one two or three.
 - **The new rod enters on the trailing edge, in a lane that changed.** Kept from the brief. It is the
   kinder rule, and it gives a player who moves one lane a say in where the rod lands.
-- **A rod fused hot against a port waits a swipe.** Simpler to read: first it glows, then it goes.
+- **A rod fused hot against a port waits a swipe.** Simpler to read: first it turns hot, then it goes.
 
 ## Open questions for play
 
