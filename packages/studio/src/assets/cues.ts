@@ -7,21 +7,21 @@ import type { PuzzleId } from "@openseas/engine";
  * list to them, so a cue added to a board without a row here fails.
  */
 export const PUZZLE_CUES: Readonly<Record<PuzzleId, readonly string[]>> = {
-  cooling: ["swap", "swapQuiet", "clear", "multi", "streak", "streakLost", "charge", "magnet", "slag", "vent", "rise", "alarm"],
-  engines: ["swapQuiet", "clear", "multi", "slag", "streakLost", "alarm", "tick"],
-  plating: ["welder", "plateLift", "clear", "multi", "crack", "streakLost", "bump", "tick"],
-  gunnery: ["swap", "swapQuiet", "clear", "streak", "streakLost", "charge", "vent", "tick"],
-  navigation: ["swap", "swapQuiet", "clear", "multi", "streak", "streakLost", "charge", "slag", "tick"],
-  battle: ["swap", "swapQuiet", "clear", "streak", "streakLost", "charge", "crack", "vent", "alarm", "tick", "end"],
-  swordfight: ["drop", "clash", "heavy", "swing", "scrap", "out", "won", "lost", "swapQuiet", "clear", "multi", "streak", "streakLost", "charge", "slag", "crack", "vent", "alarm", "bump", "thud", "whoosh", "zap", "bad", "tick", "end"],
-  salvage: ["pop", "good", "slag", "streak", "bump", "thud", "whoosh"],
-  overload: ["pop", "power", "charge", "zap", "good", "multi", "slag", "streak", "streakLost", "swapQuiet", "bump", "thud", "whoosh"],
-  deflectors: ["swap", "pop", "power", "zap", "good", "bad", "multi", "streak", "bump", "thud", "tick"],
-  reactor: ["swap", "swapQuiet", "pop", "power", "charge", "clear", "zap", "bad", "streak", "streakLost", "bump", "tick"],
-  scanner: ["ping", "pop", "good", "bad", "streak", "streakLost", "swapQuiet", "bump", "whoosh"],
-  tug: ["pop", "ping", "clear", "good", "bad", "streak", "swapQuiet", "bump", "thud", "whoosh"],
-  racks: ["swap", "swapQuiet", "pop", "clear", "multi", "crack", "bad", "streak", "streakLost", "bump", "thud", "whoosh", "tick"],
-  cutting: ["clear", "crack", "zap", "good", "streak", "streakLost", "bump", "thud", "whoosh", "tick"],
+  cooling: ["swap", "swapQuiet", "clear", "multi", "streak", "streakLost", "charge", "magnet", "slag", "vent", "rise", "alarm", "beat"],
+  engines: ["swapQuiet", "clear", "multi", "slag", "streakLost", "alarm", "tick", "beat"],
+  plating: ["welder", "plateLift", "clear", "multi", "crack", "streakLost", "bump", "tick", "beat"],
+  gunnery: ["swap", "swapQuiet", "clear", "streak", "streakLost", "charge", "vent", "tick", "beat"],
+  navigation: ["swap", "swapQuiet", "clear", "multi", "streak", "streakLost", "charge", "tick", "beat"],
+  battle: ["swap", "swapQuiet", "clear", "streak", "streakLost", "charge", "crack", "vent", "alarm", "tick", "end", "beat"],
+  swordfight: ["drop", "clash", "heavy", "swing", "scrap", "out", "won", "lost", "swapQuiet", "clear", "multi", "streak", "streakLost", "charge", "slag", "crack", "vent", "alarm", "bump", "thud", "whoosh", "zap", "bad", "tick", "end", "beat"],
+  salvage: ["pop", "good", "slag", "bump", "thud", "whoosh", "beat"],
+  overload: ["pop", "power", "zap", "good", "slag", "streak", "streakLost", "swapQuiet", "bump", "whoosh", "beat"],
+  deflectors: ["swap", "pop", "power", "zap", "good", "bad", "multi", "bump", "thud", "tick", "beat"],
+  reactor: ["swap", "swapQuiet", "pop", "power", "charge", "clear", "zap", "bad", "streakLost", "bump", "tick", "beat"],
+  scanner: ["ping", "pop", "good", "bad", "streakLost", "swapQuiet", "bump", "whoosh", "beat"],
+  tug: ["pop", "ping", "clear", "good", "bad", "streak", "swapQuiet", "bump", "thud", "whoosh", "beat"],
+  racks: ["swap", "swapQuiet", "pop", "clear", "multi", "crack", "bad", "streakLost", "bump", "thud", "whoosh", "tick", "beat"],
+  cutting: ["clear", "crack", "zap", "good", "streakLost", "bump", "thud", "whoosh", "tick", "beat"],
 };
 
 /** What every round sounds, whatever the puzzle: the page plays these around the board (practice/usePractice). */

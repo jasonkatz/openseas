@@ -368,16 +368,12 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
       if (huge) {
         this.fx.say(L.hugeChain);
         this.beat(1);
-        sfx.charge();
       } else if (big) {
         this.fx.say(L.bigChain);
         this.beat(0.5 + Math.min(0.4, (e.size - BIG) * 0.04));
-        sfx.thud();
-        sfx.multi(3);
       } else if (top) {
         this.fx.say(L.streakMax);
         this.beat(0.4);
-        sfx.streak(e.streak);
       } else if (long && (e.streak === 3 || e.streak === 6)) {
         this.fx.say(L.streak(e.streak, e.streakPercent));
         sfx.streak(e.streak);

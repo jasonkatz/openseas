@@ -110,8 +110,9 @@ that is out fades and is crossed through. A board seen from outside this fight's
 how far its scrap has ripened, so its scrap is plain slate.
 
 It sounds as it shows: a pair landing, a clash for a break and a heavier one
-for a chain or a big shatter (a chain climbs in pitch), a swing as scrap is sent, a thud as it lands,
-and the board going out, winning or losing (ADR 0041). Touch drags to steer, swipes down or up to turn and presses and holds (60 ms) to hurry the pair in hand; a mouse
+for a chain or a big shatter, a swing as scrap is sent, a thud as it lands,
+and the board going out or losing. A fight won, a slab of six shattered and a chain are the beat, which
+has one sound of its own and sounds alone. Touch drags to steer, swipes down or up to turn and presses and holds (60 ms) to hurry the pair in hand; a mouse
 clicks to turn and holds a downward drag to hurry;
 the keyboard steers with the arrows, turns with up, down, X and Z and hurries with space. Up, X and a swipe up turn the pair
 counter-clockwise; down, Z, a swipe down and a click turn it clockwise. The half at the bottom as the pair enters is the pivot: a turn

@@ -1,4 +1,4 @@
-import { soundsFor } from "../audio.js";
+import { sfx, soundsFor } from "../audio.js";
 import { Application, CanvasSource, Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import { Special, type CoolingState, type ClearRound, type MoveReport, type Piece } from "@openseas/engine";
 import type { CoolingContent, PieceColor } from "@openseas/content";
@@ -534,6 +534,8 @@ export class CoolingRenderer {
 
   /** Ask for the beat. A stronger moment while one is playing takes it over; it never stacks. */
   private beat(strength: number): void {
+    // The pulse and its sound are asked for together, so they cannot drift apart.
+    sfx.beat(strength);
     this.beatNow = { life: 0, strength: Math.max(strength, this.beatNow?.strength ?? 0) };
   }
 

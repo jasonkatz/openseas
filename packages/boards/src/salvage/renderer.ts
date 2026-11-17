@@ -234,10 +234,9 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
       // stronger for each crate, and a mighty line.
       if (r.loop) {
         this.fx.say(netted > 0 ? L.net(netted) : L.netEmpty);
-        if (netted > 0) {
-          this.beat(Math.min(1, 0.35 + netted * 0.2));
-          sfx.streak(netted * 4);
-        } else sfx.good();
+        // The beat has one sound of its own, so a net that brings crates in plays no cue over it.
+        if (netted > 0) this.beat(Math.min(1, 0.35 + netted * 0.2));
+        else sfx.good();
       } else if (n >= MIGHTY) {
         this.fx.say(L.mightyHaul);
         this.beat(0.6);

@@ -581,7 +581,6 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       if (c.clean) {
         // The beat is the clean sector, the move the puzzle pays most for, and a longer streak is a stronger one.
         this.beat(Math.min(1, 0.4 + (0.6 * (c.streak - 1)) / Math.max(1, top - 1)));
-        sfx.streak(c.streak * 3);
         this.fx.say(c.streak >= 2 ? labels.streak(c.streak) : labels.clean, INK.cream);
         if (c.bonus > 0) this.fx.popup(cx, cy + g.cell * 0.4, labels.saved(c.saved, c.bonus), INK.cream, big * 1.15);
       } else {

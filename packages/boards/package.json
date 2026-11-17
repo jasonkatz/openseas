@@ -13,6 +13,14 @@
     "./look": {
       "types": "./src/look/tokens.ts",
       "default": "./src/look/tokens.ts"
+    },
+    "./cues": {
+      "types": "./src/cues.ts",
+      "default": "./src/cues.ts"
+    },
+    "./audio": {
+      "types": "./src/audio.ts",
+      "default": "./src/audio.ts"
     }
   },
   "scripts": {

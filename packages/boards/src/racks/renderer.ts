@@ -433,16 +433,16 @@ export class RacksRenderer extends KitBoard<RacksState> {
           });
           const done = t + 70 + (ids.length - 1) * 55 + 130;
           this.tweens.after(done, () => {
-            sfx.clear(e.chain, ids.length);
             this.fx.popup(x, g.topY + g.cell * 0.4, `+${e.points}`, INK.cream, Math.max(16, g.cell * (e.chain >= 2 ? 0.62 : 0.46)));
-            if (e.chain >= 2) {
-              this.fx.say(l.chain(e.chain));
-              sfx.multi(e.chain);
-            } else if (e.byCrate) this.fx.say(l.delivered);
+            if (e.chain >= 2) this.fx.say(l.chain(e.chain));
+            else if (e.byCrate) this.fx.say(l.delivered);
             if (e.chain >= BEAT_CHAIN) {
               // The beat is the chain's: three shipments in a row, and stronger for each one after.
+              // It has one sound of its own, so the shipment's own cues give way to it.
               this.beat(0.5 + Math.min(0.5, (e.chain - BEAT_CHAIN) * 0.25));
-              sfx.streak(e.chain * 2);
+            } else {
+              sfx.clear(e.chain, ids.length);
+              if (e.chain >= 2) sfx.multi(e.chain);
             }
           });
           t = done + 130;

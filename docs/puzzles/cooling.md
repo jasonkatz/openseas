@@ -77,9 +77,10 @@ personal best are per device; the personal best is display only and never reache
 Clearing two or more runs in one step calls out Double, Triple or Supernova, and bigger steps
 hold a moment longer. **The beat**, one amber pulse of the whole board, is kept for three things:
 a cascade's third step and beyond, two or more slag lifted together (the compound move), and a
-streak milestone (3, 5, 8, 12, then every 5 scoring moves in a row), which also earns a callout
-and a fanfare. Breaking a streak of 3+ sounds a fall; venting the heat hisses through a valve, and
-crossing into the danger half sounds an alarm. What the player is doing is drawn in amber (the
+streak milestone (3, 5, 8, 12, then every 5 scoring moves in a row), which also earns a callout.
+The beat has one sound, the same on every board, and it sounds alone: no other cue plays over it.
+Breaking a streak of 3+ sounds three notes falling; venting the heat is a soft hiss, and
+crossing into the danger half sounds two low notes. What the player is doing is drawn in amber (the
 cursor, the pair under the pointer, a selected piece), what a swap would clear in cream, and a
 refused swap or one still settling in the heat in red. Unrated practice only: after six seconds
 without input the board outlines the swap that clears the most pieces. Rated rounds never hint.

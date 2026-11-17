@@ -301,7 +301,6 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
           this.fx.say(labels.salvo(n));
           this.fx.popup(g.ox + g.width / 2, g.oy + g.height / 2, `+${r.dischargeTotal}`, INK.cream, Math.max(24, g.cell * 0.5));
           this.beat(Math.min(1, 0.6 + (n - 2) * 0.2));
-          sfx.streak(n * 4);
         } else if (last.pipeline >= 2) {
           this.fx.say(labels.run(last.pipeline), INK.cream, Math.max(18, g.cell * 0.3));
           // The one other thing the beat is for: a pipeline brought to its top.

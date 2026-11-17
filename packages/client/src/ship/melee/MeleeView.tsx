@@ -38,7 +38,8 @@ export function MeleeView({ ship, onBack }: MeleeViewProps) {
       else if (e.type === "incoming") sfx.alarm();
       else if (e.type === "landed" && mine) sfx.crack(true);
       else if (e.type === "out" && mine) sfx.streakLost();
-      else if (e.type === "ended") (e.outcome === "won" ? sfx.streak(16) : sfx.streakLost());
+      // A fight won is the beat, and the beat has one sound of its own (the board asks for it).
+      else if (e.type === "ended" && e.outcome !== "won") sfx.streakLost();
     }
   }, []);
   const onNudge = useCallback(() => sfx.tick(false), []);

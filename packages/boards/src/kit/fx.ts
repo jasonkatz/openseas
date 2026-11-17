@@ -7,6 +7,7 @@
  * settled when its tweens are, whatever is still fading here.
  */
 import { Container, Graphics, Text } from "pixi.js";
+import { sfx } from "../audio.js";
 import { MOTION } from "../look/tokens.js";
 import { FONT, FONT_MONO, INK } from "./art.js";
 
@@ -128,10 +129,12 @@ export class Fx {
    * 420ms. `strength` is 0 to 1; a bigger moment is a slightly stronger pulse, never a second
    * effect. A stronger one while one is playing takes it over; it never stacks. Reduced motion
    * keeps it as a still flash. A board reserves it for its named compound move and one or two
-   * other rare things, and asks through `KitBoard.beat`.
+   * other rare things, and asks through `KitBoard.beat`. Its one sound is asked for here, with the
+   * pulse, so the two cannot drift apart; a board plays no cue of its own over it.
    */
   beat(strength = 0.5): void {
     const s = Math.max(0, Math.min(1, strength));
+    sfx.beat(s);
     this.beatNow = { life: 0, strength: Math.max(s, this.beatNow?.strength ?? 0) };
   }
 

@@ -85,8 +85,8 @@ export function SwordfightPractice() {
           } else sfx.charge();
           break;
         case "ended":
-          if (e.outcome === "won") sfx.streak(16);
-          else sfx.streakLost();
+          // A fight won is the beat, and the beat has one sound of its own (the board asks for it).
+          if (e.outcome !== "won") sfx.streakLost();
           break;
         default:
           break;

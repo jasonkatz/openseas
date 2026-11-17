@@ -70,8 +70,8 @@ export function NavigationPractice() {
           break;
         case "charted":
           sfx.clear(e.completion.chain, e.completion.markers.length);
-          if (e.completion.chain >= 3) sfx.streak(e.completion.chain);
-          if (e.completion.efficient) sfx.slag();
+          // Swift charting and a chain at its top are the beat, which has one sound of its own (the board asks for it).
+          if (e.completion.chain >= 3 && !e.completion.efficient && e.completion.chain !== cfg.chainPercent.length) sfx.streak(e.completion.chain);
           break;
         case "run":
           sfx.multi(e.run.slots.length - 1);
@@ -83,7 +83,7 @@ export function NavigationPractice() {
           break;
       }
     }
-  }, []);
+  }, [cfg.chainPercent.length]);
 
   const colors = navigation.colors.slice(0, shown.config.colors);
   const shapes = navigation.shapes.slice(0, shown.config.shapes);

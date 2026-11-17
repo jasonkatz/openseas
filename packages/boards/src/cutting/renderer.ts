@@ -406,7 +406,6 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
         // The beat is kept for this: all of a slab's best, a little stronger with each slab of the streak.
         this.fx.say(labels.flawless(slab.bonus));
         this.beat(Math.min(1, 0.4 + (slab.streak - 1) * 0.15));
-        sfx.streak(slab.streak * 2);
       } else if (slab.grade === "clean") {
         this.fx.say(labels.clean(slab.bonus));
         sfx.good();

@@ -299,8 +299,9 @@ export class TugRenderer extends KitBoard<TugState> {
           this.fx.popup(x1, y1 + g.cell * 0.82, this.opts.labels.tally(d.flicks, d.par), INK.dim, Math.max(12, g.cell * 0.28));
           this.fx.say(d.grade === "clean" ? this.opts.labels.clean(d.streak) : d.grade === "full" ? this.opts.labels.full : this.opts.labels.slow, tone);
           // The beat is for a clean delivery at the top par, and for a streak brought to its top.
+          // The beat has one sound of its own; a delivery that is not the beat plays its cue.
           if (long || top) this.beat(long && top ? 1 : top ? 0.7 : 0.5);
-          if (d.grade === "clean") {
+          else if (d.grade === "clean") {
             sfx.clear(Math.min(6, d.streak), d.par * 2);
             if (d.streak >= 3) sfx.streak(d.streak);
           } else if (d.grade === "full") sfx.good();

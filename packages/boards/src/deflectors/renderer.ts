@@ -396,11 +396,9 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       if (outcome.perfect) {
         this.fx.say(labels.perfect);
         this.beat(longest >= LONG_ROUTE ? 1 : 0.6);
-        sfx.streak(outcome.streak);
       } else if (longest >= LONG_ROUTE) {
         this.fx.say(labels.longRoute(longest));
         this.beat(0.5 + Math.min(0.4, (longest - LONG_ROUTE) * 0.08));
-        sfx.multi(3);
       } else if (outcome.streak >= 3) {
         this.fx.say(labels.streak(outcome.streak));
         sfx.multi(2);
