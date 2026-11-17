@@ -274,27 +274,35 @@ function NumberControl({ control: c, value, onSet }: { control: Control; value: 
   );
 }
 
-/** A list of numbers as the curve it is: a bar an entry, each with its own field, and the end of the list to grow or cut. */
+/**
+ * A list of numbers as the curve it is, down the panel: an entry a row, with its place in the list,
+ * a bar for its size and its own field. The buttons that grow and cut the list sit over it, so
+ * they stay where they are however long it gets.
+ */
 function CurveControl({ control: c, value, onSet }: { control: Control; value: readonly number[]; onSet(v: number[]): void }) {
   const top = Math.max(1, ...value.map((v) => Math.abs(v)));
   return (
     <div className="tune-curve" data-testid={`curve-${c.key}`}>
-      <div className="tune-bars" aria-hidden="true">
-        {value.map((v, i) => (
-          <i key={i} style={{ height: `${Math.max(4, (Math.abs(v) / top) * 100)}%` }} />
-        ))}
-      </div>
-      <div className="tune-cells">
-        {value.map((v, i) => (
-          <NumberBox key={i} value={v} min={c.min} max={c.max} integer={c.integer} onSet={(n) => onSet(value.map((x, j) => (j === i ? n : x)))} testId={`input-${c.key}.${i}`} label={`${c.name} ${i + 1}`} />
-        ))}
-        <button type="button" className="btn btn-mini btn-sq" onClick={() => onSet(value.slice(0, -1))} disabled={value.length <= 1} aria-label={t("studio.curve_shorter", { key: c.name })} data-testid={`shorter-${c.key}`}>
+      <div className="curve-head">
+        <span className="num-unit">{t("studio.curve_count", { count: value.length })}</span>
+        <button type="button" className="btn btn-mini btn-sq" onClick={() => onSet(value.slice(0, -1))} disabled={value.length <= 1} aria-label={t("studio.curve_shorter", { key: c.name })} title={t("studio.curve_shorter", { key: c.name })} data-testid={`shorter-${c.key}`}>
           −
         </button>
-        <button type="button" className="btn btn-mini btn-sq" onClick={() => onSet([...value, value[value.length - 1] ?? 0])} aria-label={t("studio.curve_longer", { key: c.name })} data-testid={`longer-${c.key}`}>
+        <button type="button" className="btn btn-mini btn-sq" onClick={() => onSet([...value, value[value.length - 1] ?? 0])} aria-label={t("studio.curve_longer", { key: c.name })} title={t("studio.curve_longer", { key: c.name })} data-testid={`longer-${c.key}`}>
           +
         </button>
       </div>
+      <ol className="curve-rows">
+        {value.map((v, i) => (
+          <li key={i}>
+            <span className="curve-index mono">{i + 1}</span>
+            <span className="curve-bar" aria-hidden="true">
+              <i style={{ width: `${Math.max(2, (Math.abs(v) / top) * 100)}%` }} />
+            </span>
+            <NumberBox value={v} min={c.min} max={c.max} integer={c.integer} onSet={(n) => onSet(value.map((x, j) => (j === i ? n : x)))} testId={`input-${c.key}.${i}`} label={`${c.name} ${i + 1}`} />
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

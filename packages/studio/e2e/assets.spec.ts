@@ -114,7 +114,7 @@ test("every cue has a row that plays, the synthesized cue is the pick, and a fil
 
   await page.getByTestId("cue-open-thud").click();
   await page.getByTestId("cue-file-thud").setInputFiles({ name: "not.wav", mimeType: "audio/wav", buffer: Buffer.from("no sound") });
-  await expect(page.getByTestId("cue-thud").locator(".tune-refusal")).toBeVisible();
+  await expect(page.getByTestId("cue-detail-thud").locator(".tune-refusal")).toBeVisible();
   await expect(page.getByTestId("cue-thud")).toHaveAttribute("data-voice", "synth");
   expect(errors).toEqual([]);
 });

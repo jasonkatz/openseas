@@ -704,7 +704,7 @@ service with no bucket keeps none and the panels are as they were.
 
 **Picks** (ADR 0052) are built. A tap on a take in its row picks it: the pick is the draft's,
 kept by the service beside the numbers, and the round's frame puts it on the running board. A
-second tap, "Put back", or Reset all lets it go. Signed out, a pick is in the address
+tap on what the build ships, "Put back", or Reset all lets it go. Signed out, a pick is in the address
 (`sprite.<frame>=<hash>`, `sound.<cue>=<hash>`), as a number is. A tester link freezes the picks
 with the numbers, and `/play` loads each picked take from the service by its hash; a take that
 cannot be read leaves that piece as shipped, and the details sheet says so. The agent is told the
@@ -797,7 +797,8 @@ sees.
 **Tuning.**
 
 - A control for every key under `config`, for `roundSeconds`, for each threshold and for
-  `paceSeconds`: a slider for a range, a stepper for a small whole number, a curve for a list.
+  `paceSeconds`: a slider for a range, a stepper for a small whole number, a curve for a list
+  (an entry a row down the panel, the buttons that grow and cut it over the list).
   Each is labelled with its key read as words (`heatRisePerMoves` as "Heat rise per moves"), with
   the key as the content file spells it and one line of description kept beside the wire schema
   (`.describe()` on the key in `protocol`) in its title, and a unit read from the name where the
@@ -833,8 +834,11 @@ sees.
 **Sprites and sounds.**
 
 - The sprite panel is a grid of every frame in the puzzle's atlas, and the sound panel a list of
-  every cue its board plays. The frame or cue picked out shows the current pick and the takes
-  kept for it. Sprites show at board size.
+  every cue its board plays. The frame or cue picked out is held at the foot of its panel while
+  the list scrolls: its versions side by side (what the build ships, a file being tried, each take
+  kept for it), the one picked marked, and under them what can be done to it. Every part of it
+  keeps one height whatever it says, so a pick, a file or a refusal moves nothing on the page.
+  Sprites show at board size.
   Sounds play on a tap, and the synthesized cue is listed as a pick (ADR 0041).
 - A pick changes the running board at once: a frame makes the board again on the round as it
   stands, and a cue is heard the next time it plays (ADR 0050).
