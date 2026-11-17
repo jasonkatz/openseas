@@ -141,6 +141,11 @@ class FakeNode {
   gain = new FakeParam();
   frequency = new FakeParam();
   Q = new FakeParam();
+  threshold = new FakeParam();
+  knee = new FakeParam();
+  ratio = new FakeParam();
+  attack = new FakeParam();
+  release = new FakeParam();
   type = "";
   buffer: unknown = null;
   connect<T>(node: T): T {
@@ -168,13 +173,17 @@ class FakeContext {
   createBiquadFilter = (): FakeNode => this.node();
   createOscillator = (): FakeNode => this.node();
   createBufferSource = (): FakeNode => this.node();
+  createDynamicsCompressor = (): FakeNode => this.node();
+  resume = (): Promise<void> => Promise.resolve();
   createBuffer = (_c: number, n: number): unknown => ({ getChannelData: () => new Float32Array(n) });
 }
 
 describe("the beat's sound stands alone (docs/BRAND.md section 6)", () => {
   /** How many cues are plugged into the master: each cue leaves by one node. */
   const sounding = (): number => {
-    const master = FakeContext.made.find((n) => n.to instanceof FakeNode && !FakeContext.made.includes(n.to));
+    // The master feeds the limiter, and the limiter is the one node plugged into the destination.
+    const limiter = FakeContext.made.find((n) => n.to instanceof FakeNode && !FakeContext.made.includes(n.to));
+    const master = FakeContext.made.find((n) => n.to === limiter);
     return FakeContext.made.filter((n) => n.to === master).length;
   };
   const nextMoment = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
