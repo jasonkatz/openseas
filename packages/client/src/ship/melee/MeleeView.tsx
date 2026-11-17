@@ -8,7 +8,6 @@ import { useMeleeApi } from "./useMelee.js";
 
 export interface MeleeViewProps {
   ship: ShipSnapshot;
-  showMarks: boolean;
   onBack(): void;
 }
 
@@ -22,7 +21,7 @@ function attackRate(s: SwordfightState): number {
   return s.outcome === "won" ? s.score - s.config.winPoints : s.score;
 }
 
-export function MeleeView({ ship, showMarks, onBack }: MeleeViewProps) {
+export function MeleeView({ ship, onBack }: MeleeViewProps) {
   const api = useMeleeApi();
   const back = useCallback(() => {
     api.dismiss();
@@ -79,7 +78,7 @@ export function MeleeView({ ship, showMarks, onBack }: MeleeViewProps) {
         </span>
       </header>
       <div className={`board-wrap ${playing ? "is-playing" : ""}`} data-testid="melee-board-wrap">
-        <SwordfightBoard state={api.state} remote={api.others} interactive={playing} showMarks={showMarks} onPlace={api.place} onFrame={api.markRendered} onEvents={onEvents} onNudge={onNudge} />
+        <SwordfightBoard state={api.state} remote={api.others} interactive={playing} onPlace={api.place} onFrame={api.markRendered} onEvents={onEvents} onNudge={onNudge} />
         {!playing && (
           <div className="board-veil">
             {(api.phase === "idle" || api.phase === "dealing") && (

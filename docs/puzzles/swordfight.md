@@ -1,6 +1,6 @@
 # Swordfighting
 
-Status: in the game. Built in M5, ADR 0022. In the studio at `/swordfight`.
+Status: in the game. Built in M5, ADR 0022; restyled to the brand book in M10 (ADR 0061, ADR 0062). In the studio at `/swordfight`.
 
 ## The puzzle
 
@@ -24,7 +24,7 @@ The boarding fight, dealt to every pirate aboard when a space battle ends in a b
 ## Rules and scoring
 
 Every pirate in a fight has a 6 wide by 14 tall board. Pairs of blocks
-in four colors (crimson, gold, cobalt, lime, each with its own surface and optional mark) slide in
+in four colors (rose, sand, sky, moss, each with a cut-out of its own) slide in
 from above the middle column, vertical; the player steers, turns (a turn that does not fit kicks
 sideways, lifts a row, or, boxed into one column, turns twice so the halves swap ends) and hurries
 them, and the move the
@@ -32,7 +32,7 @@ engine logs is the column and rotation the pair came to rest in, with the tick i
 (ADR 0015); the engine drops each half to the top of its column, so a sideways pair whose columns
 differ lands at two heights. Blocks of one color that make a two-by-two fuse into a slab, and a
 slab grows by a full strip along any side, loose blocks or a slab of the same span, so slabs can
-hang over a hole. A breaker is a block of a color with a blade across it, dealt `breakerPermille`
+hang over a hole. A breaker is a block of a color stood on its point, dealt `breakerPermille`
 of the time; when it comes to rest touching its color, everything of that color joined to it
 shatters, slabs and all, and a breaker that touches nothing of its color waits where it lands
 until its color falls against it. Each step of the cascade multiplies by its chain number, and
@@ -48,9 +48,9 @@ edges and away from the middle: the plasma cutlass the least, the vibro-dirk the
 block is dealt the color it will turn as it lands, and after `ripenMoves` of the board's drops it
 turns into a block of that color (usually one seen around where it lands: the block under it counts
 three times and each neighbour in its row once, `scrapMatchPermille` of the time in content, any
-color otherwise, so an attack mostly turns into something the defender can clear), which fuses and shatters like any other. It carries no number:
-it lands as solid scrap, and with one drop left (the second of two, in content) the scrap takes
-on its color, so a player reads what is coming from the block itself. An upright pair whose column has one
+color otherwise, so an attack mostly turns into something the defender can clear), which fuses and shatters like any other. It counts
+the drops it has left in pips, and with one drop left (the second of two, in content) the scrap takes
+on its color and that color's cut-out, so a player reads what is coming from the block itself. An upright pair whose column has one
 free cell left rests its lower half there and the upper half falls away over the top. A board whose
 entry (the top cell of the column pairs come in down) is covered is out; a side with no board
 standing has lost. The score is the player's attack a minute: every point their board broke,
@@ -71,13 +71,45 @@ raider crew's boards run on the server from the tier's `swordsmen`, and everyone
 
 ## Input and feedback
 
-The pair's landing shows as outlines (bold for a breaker), slabs are darker than loose
-blocks with a heavy light border, and fuse with a flash and a callout for big ones, breaks burst
-and tally, chains and big shatters call out, scrap flies to the board it is sent to, waits as a
-flashing count above the board, and rains in from above, ripening flashes, the
-entry is outlined, and the
-other boards sit beside the player's as small live boards with their names, waiting scrap and a
-cross when they are out. It sounds as it shows: a pair landing, a clash for a break and a heavier one
+The board follows the brand book (`docs/BRAND.md`): flat colours from the one palette, no frame, no
+grid, no atlas and no marks setting. The well is bare ground inside one hairline, with a small dot
+in the entry, the one empty cell that matters.
+
+Blocks fuse into slabs of any size, so a block has no outline of its own. Every block is a solid
+rounded square in its colour, and each colour has one cut-out no other has, which tells the colours
+apart with the colour taken away: a round hole for rose, a bar for sand, a diamond for sky, a cross
+for moss (and a triangle for lilac and a ring for teal, the two colours only the studio turns on).
+Content names each colour's palette colour and its cut-out. A slab is one rounded rectangle with no
+seams and one cut-out at its centre, as large as its shorter side, so it reads as one thing and as
+its colour; loose blocks of one colour that have not fused stay apart, each with its own small
+cut-out. The three kinds that are not blocks each have a silhouette of their own. A breaker is a
+square stood on its point, in its colour, with its colour's cut-out. Scrap is slate with its
+corners cut off, and counts the drops it has left in pips (a number past four). With one drop left
+it is tinted half way to the colour it will turn and shows that colour's cut-out in place of the
+pips. Each is drawn once per layout with Canvas 2D (`boards/src/swordfight/art.ts`), and the legend
+and the small boards use the same drawing.
+
+The pair's landing shows as two amber rings, each in its half's own outline: amber is the player's
+own. The next pair stands above the well. Scrap waiting to land shows above the well as a row of
+small stones and its count in red, and a red callout names it as it is sent; once any column stands
+within three rows of the top, the entry is ringed in red and the well's top edge turns red. Red is
+kept for those: what is coming for the player, the board near its top, going out and losing.
+
+A move is one eased slide of 120 ms with no bounce, however far the block falls. A broken block or
+slab shrinks to nothing in 160 ms and its points rise from where it was. Nothing shakes, sparks,
+flashes or glows. A big slab fusing, a big shatter, a chain, scrap sent and scrap coming are named
+in a callout, cream for the player's good news. Scrap sent or coming is one small stone crossing
+between the boards, the fewest marks that say where it went. **The beat**, one amber pulse of the
+whole board, is kept for three things: a slab of six or more shattered (the compound move: a
+bigger slab is a stronger pulse), a chain of two steps or more, and winning the fight. Reduced
+motion turns the moves into cuts and keeps the beat as a still flash.
+
+The other boards sit beside the player's as the same drawing, smaller and quieter: bare ground
+inside a hairline, their names and waiting scrap in dim text, never tinted for their side. A board
+that is out fades and is crossed through. A board seen from outside this fight's state does not say
+how far its scrap has ripened, so its scrap is plain slate.
+
+It sounds as it shows: a pair landing, a clash for a break and a heavier one
 for a chain or a big shatter (a chain climbs in pitch), a swing as scrap is sent, a thud as it lands,
 and the board going out, winning or losing (ADR 0041). Touch drags to steer, swipes down or up to turn and presses and holds (60 ms) to hurry the pair in hand; a mouse
 clicks to turn and holds a downward drag to hurry;

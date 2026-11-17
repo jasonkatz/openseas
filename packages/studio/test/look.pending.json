@@ -19,8 +19,6 @@
   "boards/src/salvage/renderer.ts",
   "boards/src/scanner/renderer.ts",
   "boards/src/sprites/atlas.ts",
-  "boards/src/swordfight/art.ts",
-  "boards/src/swordfight/renderer.ts",
   "boards/src/tug/renderer.ts",
   "client/src/crew/Flag.tsx",
   "client/src/crew/flag.ts",

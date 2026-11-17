@@ -608,7 +608,7 @@ export function Shell() {
       </aside>
       {stationOpen && ship && <StationView ship={ship} me={me} station={stationOpen} showMarks={showMarks} onBack={() => go({ kind: "home" })} onHelm={onHelm} />}
       {battleOpen && ship && <BattleView ship={ship} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
-      {meleeOpen && ship && <MeleeView ship={ship} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
+      {meleeOpen && ship && <MeleeView ship={ship} onBack={() => go({ kind: "home" })} />}
       <CrewDialog />
       <PirateSheet />
       {menuOpen && <Menu showMarks={showMarks} onShowMarks={setShowMarks} onClose={() => setMenuOpen(false)} />}

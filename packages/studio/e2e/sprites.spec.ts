@@ -4,8 +4,8 @@ import { expectViewMatchesState } from "./helpers.js";
 // Exercise the production build: a working dev URL is not enough for shared-package assets. Each
 // atlas is built from its frame files by the build (ADR 0054) and served under its own name.
 // The core boards M10 has not restyled yet, then the eight prototypes, which load theirs through the
-// board kit (ADR 0037). A restyled board draws its pieces in code and loads no atlas (ADR 0062): Cooling, Gunnery, Plating.
-const CORE = ["engines", "navigation", "swordfight", "battle"];
+// board kit (ADR 0037). A restyled board draws its pieces in code and loads no atlas (ADR 0062): Cooling, Gunnery, Plating, Swordfighting.
+const CORE = ["engines", "navigation", "battle"];
 const PROTOTYPES = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting"];
 
 for (const puzzle of [...CORE, ...PROTOTYPES]) {
@@ -68,6 +68,29 @@ test("Gunnery asks for no atlas and plays on pieces drawn in code", async ({ pag
   await page.keyboard.press("d");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
   await expectViewMatchesState(page, "gunnery");
+  expect(images).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("Swordfighting asks for no atlas and plays on pieces drawn in code", async ({ page }) => {
+  const errors: string[] = [];
+  const images: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (r) => {
+    if (r.url().endsWith(".webp")) images.push(r.url());
+  });
+  await page.goto("/play/swordfight");
+  await page.getByTestId("play-start").click();
+  const canvas = page.getByTestId("swordfight-canvas");
+  await expect(canvas).toHaveAttribute("data-view", /.+/);
+  await expect(canvas).toHaveAttribute("data-pieces", "drawn");
+  await expect(canvas).not.toHaveAttribute("data-sprite-atlas");
+  await expect(canvas).toHaveAttribute("data-falling", /\d/);
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.down(" ");
+  await expect(page.getByTestId("hud-moves")).toContainText("1", { timeout: 30_000 });
+  await page.keyboard.up(" ");
+  await expectViewMatchesState(page, "swordfight");
   expect(images).toEqual([]);
   expect(errors).toEqual([]);
 });
