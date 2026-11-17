@@ -8,7 +8,6 @@ import { useBattleApi } from "./useBattle.js";
 
 export interface BattleViewProps {
   ship: ShipSnapshot;
-  showMarks: boolean;
   onBack(): void;
 }
 
@@ -17,7 +16,7 @@ export interface BattleViewProps {
  * battle where the puzzle would be, the ship's turn clock flying the plot. The crew keep their
  * stations; the hull, the loads and the tokens they make arrive on the board every turn.
  */
-export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
+export function BattleView({ ship, onBack }: BattleViewProps) {
   const api = useBattleApi();
   const back = useCallback(() => {
     api.dismiss();
@@ -65,7 +64,6 @@ export function BattleView({ ship, showMarks, onBack }: BattleViewProps) {
         <BattleBoard
           state={api.state}
           interactive={playing}
-          showMarks={showMarks}
           showArcs
           turnLeftMs={api.turnLeftMs}
           turnMs={api.turnMs}

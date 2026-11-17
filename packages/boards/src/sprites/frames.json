@@ -10,20 +10,6 @@
     "link",
     "gust"
   ],
-  "battle": [
-    "ship0",
-    "ship1",
-    "ship0-damaged",
-    "ship1-damaged",
-    "asteroid",
-    "current",
-    "well",
-    "wake",
-    "ball",
-    "splash",
-    "hook",
-    "flash"
-  ],
   "salvage": [
     "debris-gold",
     "debris-ice",

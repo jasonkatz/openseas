@@ -192,7 +192,6 @@ export function RunView({ setup, crew, stations, autostart }: RunViewProps) {
                   key={`${sim.battles.length}`}
                   state={battleState}
                   interactive={waiting && battleAt === null}
-                  showMarks={false}
                   showArcs
                   turnLeftMs={null}
                   turnMs={cfg.rules.turnSeconds * 1000}

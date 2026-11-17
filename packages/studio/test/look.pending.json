@@ -1,6 +1,4 @@
 [
-  "boards/src/battle/art.ts",
-  "boards/src/battle/renderer.ts",
   "boards/src/cooling/tiles.ts",
   "boards/src/cutting/renderer.ts",
   "boards/src/deflectors/renderer.ts",

@@ -607,7 +607,7 @@ export function Shell() {
         <div className="sheet-body">{card}</div>
       </aside>
       {stationOpen && ship && <StationView ship={ship} me={me} station={stationOpen} showMarks={showMarks} onBack={() => go({ kind: "home" })} onHelm={onHelm} />}
-      {battleOpen && ship && <BattleView ship={ship} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
+      {battleOpen && ship && <BattleView ship={ship} onBack={() => go({ kind: "home" })} />}
       {meleeOpen && ship && <MeleeView ship={ship} onBack={() => go({ kind: "home" })} />}
       <CrewDialog />
       <PirateSheet />

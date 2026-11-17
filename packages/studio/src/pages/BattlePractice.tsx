@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BATTLE_PERMILLE, summarizeBattle, type BattleConfig, type BattleEvent, type BattleMove, type BattlePlan, type BattleState } from "@openseas/engine";
 import { BattleBoard, content, sfx, t } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { BATTLE } from "../puzzles.js";
 
@@ -19,7 +19,6 @@ function readArcsFlag(): boolean {
 
 /** The captain's practice fight: a raider from content, and a turn clock that flies the plot. */
 export function BattlePractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
   const [showArcs, setShowArcsState] = useState(readArcsFlag);
   const setShowArcs = (on: boolean): void => {
     setShowArcsState(on);
@@ -217,7 +216,6 @@ export function BattlePractice() {
               {t("battle.setting_arcs")} <small className="muted">{t("battle.setting_arcs_hint")}</small>
             </span>
           </label>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
       board={(interactive) => (
@@ -225,7 +223,6 @@ export function BattlePractice() {
          
           state={shown}
           interactive={interactive}
-          showMarks={showMarks}
           showArcs={showArcs}
           turnLeftMs={playing ? turnLeftMs : null}
           turnMs={turnMs}

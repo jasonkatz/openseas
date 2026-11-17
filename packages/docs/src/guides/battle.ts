@@ -81,7 +81,7 @@ export const battle: Guide = {
           media: {
             kind: "still",
             name: "ring",
-            alt: "A plotted course of three moves. The third ghost sits beside an asteroid and carries a red numbered badge and a red ring.",
+            alt: "A plotted course of three moves. The third ghost sits beside an asteroid. Its number is red and a red ring circles it.",
             caption: "The third move flies into the asteroid. The board rings it red before you fly it.",
           },
         },
@@ -95,7 +95,7 @@ export const battle: Guide = {
         },
         {
           title: "Finish with the grapple",
-          body: `${hitsToBoard} hits bring a sound raider to ${hull(c.grappleDamage)}% hull. Her hull bar gains a bright outline and the Grapple button pulses. Set the grapple and end any move in one of the four cells next to hers. Setting it costs nothing, and it clears every turn, so set it again.`,
+          body: `${hitsToBoard} hits bring a sound raider to ${hull(c.grappleDamage)}% hull. Her hull bar turns from her colour to cream, and so does the edge of the Grapple button. Set the grapple and end any move in one of the four cells next to hers. Setting it costs nothing, and it clears every turn, so set it again.`,
         },
       ],
       drill: `Fly three fights where no move of yours ever shows a red ring. You are there when you board her and the round ends above ${p.thresholds[2]!.score} points.`,
@@ -139,7 +139,7 @@ export const battle: Guide = {
         },
         {
           title: "Count her lamps",
-          body: `The lamps beside each hull bar are loaded turrets. The practice raider opens with ${herOpeningLoads} and reloads ${c.raider.reloadPerTurn} a turn to your ${supply.turrets}. The red outline is her reach from where she stands, and it vanishes when her lamps are dark. That is the turn to close.`,
+          body: `The lamps beside each hull bar are loaded turrets. The practice raider opens with ${herOpeningLoads} and reloads ${c.raider.reloadPerTurn} a turn to your ${supply.turrets}. The cells outlined in her colour are her reach from where she stands, and a cell you are standing in is outlined red. The outlines vanish when her lamps are dark. That is the turn to close.`,
         },
         {
           title: "Currents and wells are free moves",
