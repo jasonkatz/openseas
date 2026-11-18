@@ -34,7 +34,7 @@ export function validateConfig(cfg: SalvageConfig): void {
     int(cfg.kinds, 2, 8) &&
     int(cfg.minLine, 2, 5) &&
     int(cfg.linePoints, 0, 1000) &&
-    int(cfg.loopMin, 3, 12) &&
+    (cfg.loopMin === 0 || int(cfg.loopMin, 3, 12)) &&
     int(cfg.loopPercent, 100, 1000) &&
     int(cfg.enclosedPoints, 0, 10_000) &&
     int(cfg.startCrates, 0, cfg.width) &&
@@ -94,7 +94,7 @@ export function canExtend(state: SalvageState, cells: readonly number[], next: n
 
 /** True when the line could close back onto its first piece: long enough, its ends touching and linkable. */
 export function canClose(state: SalvageState, cells: readonly number[]): boolean {
-  if (cells.length < state.config.loopMin) return false;
+  if (state.config.loopMin === 0 || cells.length < state.config.loopMin) return false;
   const first = cells[0]!;
   const last = cells[cells.length - 1]!;
   return adjacent(state.config, last, first) && canLink(state.cells[last]!, state.cells[first]!);
@@ -259,6 +259,7 @@ export function hint(state: SalvageState): number[] | null {
  */
 export function findLoop(state: SalvageState): number[] | null {
   const cfg = state.config;
+  if (cfg.loopMin === 0) return null;
   let budget = HINT_BUDGET * 4;
   const path: number[] = [];
   for (let limit = cfg.loopMin; limit <= cfg.loopMin + 3; limit++) {

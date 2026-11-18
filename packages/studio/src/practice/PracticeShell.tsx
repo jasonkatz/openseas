@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
+import { puzzleStages } from "../frame/numbers.js";
 import { ThumbShell } from "../home/ThumbShell.jsx";
 import { PlayShell } from "../play/PlayShell.jsx";
 import { StudioShell } from "../studio/StudioShell.jsx";
@@ -92,8 +93,24 @@ export interface ShellProps {
  * The frame every puzzle's page draws itself in. Which one depends on how the page was opened
  * (frame/RoundFrame): the studio, with the tuning panel beside the board, or the puzzle alone.
  */
-export function PracticeShell(p: ShellProps) {
-  const mode = useFrame().mode;
+export function PracticeShell(props: ShellProps) {
+  const { mode, puzzle, scenario } = useFrame();
+  // A puzzle with a ladder opens each round with the stage's one-line card on the start card (ADR 0065).
+  const stage = scenario.stage ?? "full";
+  const p: ShellProps =
+    puzzleStages(puzzle).length > 0
+      ? {
+          ...props,
+          howTo: (
+            <>
+              <p className="how stage-intro" data-testid="stage-intro" data-stage={stage}>
+                <b>{t(`${puzzle.id}.stage.${stage}`)}.</b> {t(`${puzzle.id}.stage.${stage}_intro`)}
+              </p>
+              {props.howTo}
+            </>
+          ),
+        }
+      : props;
   return mode === "studio" ? <StudioShell {...p} /> : mode === "thumb" ? <ThumbShell {...p} /> : <PlayShell {...p} />;
 }
 

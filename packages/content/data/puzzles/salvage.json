@@ -31,5 +31,60 @@
     { "score": 3100, "rating": 1700 },
     { "score": 4800, "rating": 1900 },
     { "score": 7200, "rating": 2100 }
+  ],
+  "stages": [
+    {
+      "id": "lines",
+      "roundSeconds": 60,
+      "thresholds": [
+        { "score": 50, "rating": 1100 },
+        { "score": 120, "rating": 1300 },
+        { "score": 260, "rating": 1500 },
+        { "score": 450, "rating": 1700 },
+        { "score": 700, "rating": 1900 },
+        { "score": 1050, "rating": 2100 }
+      ],
+      "config": {
+        "streakPercent": [100],
+        "startCrates": 0,
+        "maxCrates": 0,
+        "cratePermille": 0,
+        "loopMin": 0,
+        "orderLength": 0,
+        "volatileEvery": 0
+      }
+    },
+    {
+      "id": "streak",
+      "roundSeconds": 90,
+      "thresholds": [
+        { "score": 120, "rating": 1100 },
+        { "score": 280, "rating": 1300 },
+        { "score": 600, "rating": 1500 },
+        { "score": 1000, "rating": 1700 },
+        { "score": 1600, "rating": 1900 },
+        { "score": 2400, "rating": 2100 }
+      ],
+      "config": {
+        "loopMin": 0,
+        "orderLength": 0,
+        "volatileEvery": 0
+      }
+    },
+    {
+      "id": "nets",
+      "roundSeconds": 120,
+      "thresholds": [
+        { "score": 320, "rating": 1100 },
+        { "score": 780, "rating": 1300 },
+        { "score": 1650, "rating": 1500 },
+        { "score": 2850, "rating": 1700 },
+        { "score": 4400, "rating": 1900 },
+        { "score": 6600, "rating": 2100 }
+      ],
+      "config": {
+        "volatileEvery": 0
+      }
+    }
   ]
 }

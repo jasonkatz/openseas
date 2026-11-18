@@ -35,7 +35,7 @@ export interface SalvageConfig {
   readonly minLine: number;
   /** A line of n pieces scores linePoints * n * n. */
   readonly linePoints: number;
-  /** The fewest pieces a line needs before it may close into a loop. */
+  /** The fewest pieces a line needs before it may close into a loop. 0: no line closes. */
   readonly loopMin: number;
   /** What closing a loop multiplies the line's own points by, in percent. */
   readonly loopPercent: number;

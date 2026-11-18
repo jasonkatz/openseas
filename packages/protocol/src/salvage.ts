@@ -14,7 +14,12 @@ export const SalvageConfigSchema = z.object({
   kinds: z.int().min(2).max(8).describe("Kinds of debris in the deal: more makes long lines harder to find."),
   minLine: z.int().min(2).max(5).describe("The shortest line that can be hauled."),
   linePoints: z.int().min(0).max(1000).describe("Points a line earns, multiplied by its length squared."),
-  loopMin: z.int().min(3).max(12).describe("The fewest pieces a line needs before it may close into a loop."),
+  loopMin: z
+    .int()
+    .min(0)
+    .max(12)
+    .refine((v) => v === 0 || v >= 3, "a loop needs 3 pieces or more, or 0 for none")
+    .describe("The fewest pieces a line needs before it may close into a loop. 0: no line closes, so there are no nets."),
   loopPercent: z.int().min(100).max(1000).describe("Percent a line's own points are multiplied by when it closes into a loop."),
   enclosedPoints: z.int().min(0).max(10_000).describe("Points for each piece of debris hauled from inside a loop."),
   startCrates: z.int().min(0).max(12).describe("Crates on the opening field."),

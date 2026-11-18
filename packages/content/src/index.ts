@@ -121,7 +121,16 @@ export function loadContent(): Content {
 /** Every prototype's content file, parsed against its own schema (ADR 0036). */
 function prototypePuzzles(): PrototypePuzzleContent {
   const out: Partial<Record<keyof PrototypePuzzleContent, unknown>> = {};
-  for (const id of PROTOTYPE_PUZZLE_CONTENT_IDS) out[id] = parse(`puzzles/${id}`, PROTOTYPE_CONTENT[id].schema as z.ZodType<unknown>, PROTOTYPE_CONTENT[id].data);
+  for (const id of PROTOTYPE_PUZZLE_CONTENT_IDS) {
+    const schema = PROTOTYPE_CONTENT[id].schema as z.ZodType<unknown>;
+    const file = parse(`puzzles/${id}`, schema, PROTOTYPE_CONTENT[id].data) as { config: Record<string, unknown>; stages: readonly { id: string; config: Record<string, unknown> }[] };
+    // Each stage's config, laid over the puzzle's, must be one the puzzle's own schema takes (ADR 0065).
+    for (const stage of file.stages) {
+      for (const key of Object.keys(stage.config)) if (!(key in file.config)) throw new ContentError(`puzzles/${id} stage ${stage.id}: no config key ${key}`);
+      parse(`puzzles/${id} stage ${stage.id}`, schema, { ...file, stages: [], config: { ...file.config, ...stage.config } });
+    }
+    out[id] = file;
+  }
   return out as PrototypePuzzleContent;
 }
 
@@ -253,6 +262,19 @@ export function contentProblems(content: Content): string[] {
     else if (id === "plating") checkPlatingPieces(where, puzzles.plating.pieces, puzzles.plating.config.pieceKinds, messages, problems);
     else if (id === "swordfight") checkSwordPieces(where, puzzles.swordfight.pieces, puzzles.swordfight.config.colors, messages, problems);
     for (const problem of thresholdProblems(p.thresholds, "parScore" in p ? p.parScore : undefined)) problems.push(`${where}: ${problem}`);
+    const stages = "stages" in p ? p.stages : [];
+    if (stages.length > 0) {
+      const ids = new Set<string>();
+      for (const stage of stages) {
+        if (ids.has(stage.id)) problems.push(`${where}: stage "${stage.id}" twice`);
+        ids.add(stage.id);
+        for (const problem of thresholdProblems(stage.thresholds, undefined)) problems.push(`${where} stage ${stage.id}: ${problem}`);
+      }
+      for (const stageId of [...ids, "full"]) {
+        need(`${id}.stage.${stageId}`, `${where} stage ${stageId}`);
+        need(`${id}.stage.${stageId}_intro`, `${where} stage ${stageId}`);
+      }
+    }
     need(`home.practice_${id}`, where);
     need(`home.practice_${id}_blurb`, where);
     if (!("parScore" in p)) continue;

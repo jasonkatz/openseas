@@ -10,6 +10,7 @@ import type { Overrides } from "./overrides.js";
  *   c.<path>    a config override; the value is JSON when it parses, a string otherwise
  *   pace        the live tier indicator's window in seconds; absent means content's `paceSeconds`
  *   thresholds  the thresholds the round is rated against, as JSON; absent means content's
+ *   stage       the stage of the puzzle's ladder to deal (ADR 0065), by its id; absent means the whole puzzle
  *   text.<key>      a string of the message table rewritten (ADR 0057), by its key
  *   category        the puzzle's category, where the draft changes it
  *   speed       clock rate (default 1); for a script, the studio has no control for it
@@ -25,6 +26,8 @@ import type { Overrides } from "./overrides.js";
  */
 export interface Scenario {
   seed: string | null;
+  /** The stage of the puzzle's ladder the round is dealt at (ADR 0065); null is the whole puzzle. A play setting, like the seed: a draft's numbers are laid over it and it is not saved with them. */
+  stage: string | null;
   roundSeconds: number | null;
   overrides: Overrides;
   paceSeconds: number | null;
@@ -38,7 +41,7 @@ export interface Scenario {
   autostart: boolean | null;
 }
 
-export const EMPTY_SCENARIO: Scenario = { seed: null, roundSeconds: null, overrides: {}, paceSeconds: null, thresholds: null, words: NO_WORDS, speed: 1, paused: false, hints: true, autostart: null };
+export const EMPTY_SCENARIO: Scenario = { seed: null, stage: null, roundSeconds: null, overrides: {}, paceSeconds: null, thresholds: null, words: NO_WORDS, speed: 1, paused: false, hints: true, autostart: null };
 
 function parseValue(raw: string): unknown {
   try {
@@ -63,6 +66,7 @@ export function parseScenario(search: string): Scenario {
   const start = q.get("start");
   return {
     seed: q.get("seed") || null,
+    stage: /^[a-z]+$/.test(q.get("stage") ?? "") && q.get("stage") !== "full" ? q.get("stage") : null,
     roundSeconds: Number.isInteger(seconds) && seconds > 0 ? seconds : null,
     overrides,
     paceSeconds: q.has("pace") && Number.isFinite(pace) ? pace : null,
@@ -79,6 +83,7 @@ export function parseScenario(search: string): Scenario {
 export function formatScenario(s: Scenario): string {
   const q = new URLSearchParams();
   if (s.seed) q.set("seed", s.seed);
+  if (s.stage) q.set("stage", s.stage);
   if (s.roundSeconds !== null) q.set("seconds", String(s.roundSeconds));
   for (const [path, value] of Object.entries(s.overrides)) q.set(`c.${path}`, typeof value === "string" ? value : JSON.stringify(value));
   if (s.paceSeconds !== null) q.set("pace", String(s.paceSeconds));

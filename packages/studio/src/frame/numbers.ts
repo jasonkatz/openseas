@@ -1,4 +1,4 @@
-import { PuzzleNumbersSchema, thresholdProblems } from "@openseas/content";
+import { PuzzleNumbersSchema, stageNumbers, thresholdProblems, type Stage } from "@openseas/content";
 import { content } from "@openseas/boards";
 import type { StudioPuzzle } from "../puzzles.js";
 import type { Scenario } from "../scenario/codec.js";
@@ -33,10 +33,21 @@ export interface Change {
   readonly value: unknown;
 }
 
-/** What the content file ships: the numbers the server deals. */
-export function shippedNumbers<S, M, C>(puzzle: StudioPuzzle<S, M, C>): Numbers<C> {
+/** The stages of a puzzle's ladder (ADR 0065), simplest first, without the whole puzzle. Empty for a puzzle with none. */
+export function puzzleStages<S, M, C>(puzzle: StudioPuzzle<S, M, C>): readonly Stage[] {
   const file = content.puzzles[puzzle.id];
-  return { config: puzzle.config, roundSeconds: file.roundSeconds, paceSeconds: file.paceSeconds, thresholds: file.thresholds };
+  return "stages" in file ? file.stages : [];
+}
+
+/**
+ * What the content file ships: the numbers the server deals. At a stage of the puzzle's ladder,
+ * the stage's own laid over the whole puzzle's (ADR 0065); an id the file does not list is the
+ * whole puzzle.
+ */
+export function shippedNumbers<S, M, C>(puzzle: StudioPuzzle<S, M, C>, stage: string | null = null): Numbers<C> {
+  const file = content.puzzles[puzzle.id];
+  const at = stageNumbers({ config: puzzle.config as C & object, roundSeconds: file.roundSeconds, thresholds: file.thresholds, stages: puzzleStages(puzzle) }, stage);
+  return { config: at.config, roundSeconds: at.roundSeconds, paceSeconds: file.paceSeconds, thresholds: at.thresholds };
 }
 
 /**
@@ -44,7 +55,7 @@ export function shippedNumbers<S, M, C>(puzzle: StudioPuzzle<S, M, C>): Numbers<
  * anything, and `refusals` says whether the result can be played.
  */
 export function tunedNumbers<S, M, C>(puzzle: StudioPuzzle<S, M, C>, scenario: Scenario): Numbers<C> {
-  const shipped = shippedNumbers(puzzle);
+  const shipped = shippedNumbers(puzzle, scenario.stage);
   return {
     config: applyOverrides(shipped.config, scenario.overrides),
     roundSeconds: scenario.roundSeconds ?? shipped.roundSeconds,
@@ -73,9 +84,9 @@ export function refusals<S, M, C>(puzzle: StudioPuzzle<S, M, C>, numbers: Number
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
-/** Every number that differs from the content file, config keys first, in the file's own order. */
-export function changes<S, M, C>(puzzle: StudioPuzzle<S, M, C>, numbers: Numbers<C>): Change[] {
-  const shipped = shippedNumbers(puzzle);
+/** Every number that differs from the content file at the stage played, config keys first, in the file's own order. */
+export function changes<S, M, C>(puzzle: StudioPuzzle<S, M, C>, numbers: Numbers<C>, stage: string | null = null): Change[] {
+  const shipped = shippedNumbers(puzzle, stage);
   const out: Change[] = Object.entries(diffConfig(shipped.config, numbers.config)).map(([path, value]) => ({ key: `config.${path}`, shipped: getPath(shipped.config, path), value }));
   for (const key of ["roundSeconds", "paceSeconds", "thresholds"] as const) {
     if (!same(shipped[key], numbers[key])) out.push({ key, shipped: shipped[key], value: numbers[key] });
@@ -98,7 +109,7 @@ const CONFIG = "config.";
  * moved back is a control that was never moved.
  */
 export function withNumber<S, M, C>(puzzle: StudioPuzzle<S, M, C>, scenario: Scenario, key: string, value: unknown): Scenario {
-  const shipped = shippedNumbers(puzzle);
+  const shipped = shippedNumbers(puzzle, scenario.stage);
   if (key.startsWith(CONFIG)) {
     const path = key.slice(CONFIG.length);
     const overrides: Record<string, unknown> = { ...leafOverrides(puzzle, scenario) };
@@ -114,7 +125,7 @@ export function withNumber<S, M, C>(puzzle: StudioPuzzle<S, M, C>, scenario: Sce
 
 /** A scenario with one number back at its shipped value. */
 export function withoutNumber<S, M, C>(puzzle: StudioPuzzle<S, M, C>, scenario: Scenario, key: string): Scenario {
-  const shipped = shippedNumbers(puzzle);
+  const shipped = shippedNumbers(puzzle, scenario.stage);
   if (key.startsWith(CONFIG)) return withNumber(puzzle, scenario, key, getPath(shipped.config, key.slice(CONFIG.length)));
   return withNumber(puzzle, scenario, key, shipped[key as "roundSeconds" | "paceSeconds" | "thresholds"]);
 }

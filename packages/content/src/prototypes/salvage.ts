@@ -10,8 +10,8 @@ export const SalvageContentSchema = PrototypeBaseSchema.extend({
     minLine: z.int().min(2).max(5),
     /** A line of n pieces scores linePoints * n * n. */
     linePoints: z.int().min(0),
-    /** The fewest pieces a line needs before it may close into a loop. */
-    loopMin: z.int().min(3).max(12),
+    /** The fewest pieces a line needs before it may close into a loop. 0: no nets. */
+    loopMin: z.int().min(0).max(12).refine((v) => v === 0 || v >= 3),
     /** What closing a loop multiplies the line's points by, in percent. */
     loopPercent: z.int().min(100),
     enclosedPoints: z.int().min(0),

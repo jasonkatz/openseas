@@ -60,3 +60,25 @@ describe("the numbers a link carries (ADR 0042)", () => {
     for (const id of PUZZLE_IDS) expect(refusals(STUDIO_PUZZLES[id], shippedNumbers(STUDIO_PUZZLES[id])), id).toEqual([]);
   });
 });
+
+describe("the numbers at a stage (ADR 0065)", () => {
+  const puzzle = STUDIO_PUZZLES.salvage;
+  const file = content.puzzles.salvage;
+
+  it("lays a stage's numbers under the draft's, and lists only what the draft changes", () => {
+    const stage = file.stages[0]!;
+    const at = shippedNumbers(puzzle, stage.id);
+    expect(at.config).toEqual({ ...file.config, ...stage.config });
+    expect(at.roundSeconds).toBe(stage.roundSeconds);
+    expect(at.thresholds).toEqual(stage.thresholds);
+    const plain = tunedNumbers(puzzle, { ...EMPTY_SCENARIO, stage: stage.id });
+    expect(plain).toEqual(at);
+    expect(refusals(puzzle, plain)).toEqual([]);
+    expect(changes(puzzle, plain, stage.id)).toEqual([]);
+    const tuned = tunedNumbers(puzzle, { ...EMPTY_SCENARIO, stage: stage.id, overrides: { kinds: 4 } });
+    expect(changes(puzzle, tuned, stage.id)).toEqual([{ key: "config.kinds", shipped: file.config.kinds, value: 4 }]);
+    // A stage the file does not list is the whole puzzle.
+    expect(shippedNumbers(puzzle, "nope")).toEqual(shippedNumbers(puzzle));
+  });
+});
+

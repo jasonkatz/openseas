@@ -161,15 +161,15 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   }, [mode, id, words.texts, comparing]);
   useEffect(() => () => overrideMessages({}), [id]);
 
-  const shipped = useMemo(() => shippedNumbers(puzzle), [puzzle]);
+  const shipped = useMemo(() => shippedNumbers(puzzle, scenario.stage), [puzzle, scenario.stage]);
   // Only what makes the numbers: a new seed alone must not hand the page a new config to redraw.
   const tuned = useMemo(
     () => tunedNumbers(puzzle, scenario),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [puzzle, scenario.overrides, scenario.roundSeconds, scenario.paceSeconds, scenario.thresholds],
+    [puzzle, scenario.stage, scenario.overrides, scenario.roundSeconds, scenario.paceSeconds, scenario.thresholds],
   );
   const refused = useMemo(() => refusals(puzzle, tuned), [puzzle, tuned]);
-  const changed = useMemo(() => (refused.length ? [] : changes(puzzle, tuned)), [puzzle, tuned, refused]);
+  const changed = useMemo(() => (refused.length ? [] : changes(puzzle, tuned, scenario.stage)), [puzzle, tuned, refused, scenario.stage]);
   const numbers = comparing ? shipped : tuned;
   const value = useMemo<Frame>(
     () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, words, setText, setCategory, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound }),

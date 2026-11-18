@@ -423,6 +423,15 @@ describe("salvage rules", () => {
     expect(createSalvageGame("vol", { ...cfg, volatileEvery: 0 }).cells.some((p) => p.fuse !== undefined)).toBe(false);
   });
 
+  it("loopMin 0 closes no line: no nets, and the loop finder finds none", () => {
+    const s = field(["C0100", "01210", "20102", "3C303", "23232"], "t", { loopMin: 0 });
+    const cells = [at(s, 2, 0), at(s, 3, 1), at(s, 2, 2), at(s, 1, 1)];
+    expect(salvageCanClose(s, cells)).toBe(false);
+    expect(salvageLineIllegalReason(s, cells, true)).toBe("the line does not close");
+    expect(salvageFindLoop(s)).toBeNull();
+    expect(() => createSalvageGame("x", { ...cfg, loopMin: 2 })).toThrow();
+  });
+
   it("the view string names every cell", () => {
     const s = field(["01C", "R23", "1d4"]);
     expect(salvageViewString(s.cells)).toBe("01CR231d4");
