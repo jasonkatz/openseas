@@ -1,1 +1,69 @@
-{}
+{
+  "sol": {
+    "tint": "sand",
+    "layers": [
+      { "name": "cell", "kind": "disc", "x": 12, "y": 12, "r": 10 },
+      { "name": "gauge", "kind": "rect", "x": 8, "y": 10.5, "w": 8, "h": 3, "r": 1.5, "cut": true }
+    ]
+  },
+  "cryo": {
+    "tint": "sky",
+    "layers": [
+      { "name": "tank", "kind": "rect", "x": 2.5, "y": 2.5, "w": 19, "h": 19, "r": 3.5 },
+      { "name": "gauge", "kind": "rect", "x": 8, "y": 10.5, "w": 8, "h": 3, "r": 1.5, "cut": true }
+    ]
+  },
+  "plasma": {
+    "tint": "rose",
+    "layers": [
+      { "name": "cone", "kind": "poly", "points": [12, 4.6, 20.4, 19, 3.6, 19], "round": 3.2 },
+      { "name": "gauge", "kind": "rect", "x": 8.5, "y": 13.3, "w": 7, "h": 3, "r": 1.5, "cut": true }
+    ]
+  },
+  "bio": {
+    "tint": "moss",
+    "layers": [
+      { "name": "pod", "kind": "poly", "points": [12, 3.4, 20.6, 12, 12, 20.6, 3.4, 12], "round": 2.8 },
+      { "name": "gauge", "kind": "rect", "x": 8, "y": 10.5, "w": 8, "h": 3, "r": 1.5, "cut": true }
+    ]
+  },
+  "ion": {
+    "tint": "lilac",
+    "layers": [
+      { "name": "capsule", "kind": "rect", "x": 2, "y": 6, "w": 20, "h": 12, "r": 6 },
+      { "name": "gauge", "kind": "rect", "x": 8, "y": 10.5, "w": 8, "h": 3, "r": 1.5, "cut": true }
+    ]
+  },
+  "spark": {
+    "tint": "teal",
+    "layers": [
+      { "name": "upright", "kind": "rect", "x": 8, "y": 2, "w": 8, "h": 20, "r": 2.5 },
+      { "name": "crossbar", "kind": "rect", "x": 2, "y": 8, "w": 20, "h": 8, "r": 2.5 },
+      { "name": "gauge", "kind": "rect", "x": 8, "y": 10.5, "w": 8, "h": 3, "r": 1.5, "cut": true }
+    ]
+  },
+  "dry": {
+    "tint": "slate",
+    "layers": [
+      { "name": "terminal", "kind": "rect", "x": 9.5, "y": 2, "w": 5, "h": 6, "r": 1.5 },
+      { "name": "body", "kind": "rect", "x": 5.5, "y": 5.5, "w": 13, "h": 16.5, "r": 2.5 },
+      { "name": "gauge", "kind": "rect", "x": 8.5, "y": 12.3, "w": 7, "h": 3, "r": 1.5, "cut": true }
+    ]
+  },
+  "coolant": {
+    "tint": "cream",
+    "layers": [
+      { "name": "pail", "kind": "poly", "points": [3.6, 5, 20.4, 5, 16.4, 19.4, 7.6, 19.4], "round": 3 },
+      { "name": "gauge", "kind": "rect", "x": 8, "y": 9.9, "w": 8, "h": 3, "r": 1.5, "cut": true }
+    ]
+  },
+  "crate": {
+    "layers": [
+      { "name": "trolley", "kind": "rect", "x": 5, "y": 2, "w": 14, "h": 6, "r": 2 },
+      { "name": "cable", "kind": "rect", "x": 7, "y": 6, "w": 3, "h": 7, "r": 0 },
+      { "name": "cable", "kind": "rect", "x": 14, "y": 6, "w": 3, "h": 7, "r": 0 },
+      { "name": "box", "kind": "rect", "x": 4, "y": 11, "w": 16, "h": 11, "r": 2.5 },
+      { "name": "opening", "kind": "rect", "x": 8, "y": 14.5, "w": 8, "h": 4, "r": 1.5, "cut": true }
+    ]
+  }
+}

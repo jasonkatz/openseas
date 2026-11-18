@@ -1,6 +1,8 @@
 import type { Brush } from "@openseas/engine";
 import type { PieceColor, PlatingPieceStyle } from "@openseas/content";
 import { css } from "../look/tokens.js";
+import { drawingOf, pieceOverrideRevision } from "../look/pieces.js";
+import { paintDrawing } from "../kit/drawing.js";
 
 /**
  * Plating's plates, drawn in code (docs/BRAND.md section 3, ADR 0062). A plate is one solid slab
@@ -8,6 +10,9 @@ import { css } from "../look/tokens.js";
  * metals apart. Each cell instead carries the metal's one cut-out, through which whatever is under
  * the plate shows: a slot, a lozenge, a window or a bone. The cut-out lies along the plate's
  * brushing, so the same detail says both things the player reads off a plate.
+ *
+ * The plate's body is its footprint, so code traces it; each cut-out is a drawing in
+ * `data/pieces/plating.json` (ADR 0065) that code stamps into every cell.
  *
  * Painted with Canvas 2D so the board, which bakes each plate to a texture, and the page's legend
  * share one drawing.
@@ -58,59 +63,22 @@ function traceCell(pen: Pen, x: number, y: number, m: number, has: (dx: number, 
   pen.closePath();
 }
 
-/** A cut-out's outline in units from the cell's centre: `a` along the brushing, `b` across it. */
-function cutOutline(cut: PlateCut): Array<[number, number]> {
-  const pts: Array<[number, number]> = [];
-  const sweep = (ca: number, cb: number, r: number, from: number, to: number): void => {
-    const n = 8;
-    for (let i = 0; i <= n; i++) {
-      const t = from + ((to - from) * i) / n;
-      pts.push([ca + r * Math.cos(t), cb + r * Math.sin(t)]);
-    }
-  };
-  switch (cut) {
-    // A thin slot with round ends.
-    case "slot":
-      sweep(4.6, 0, 1.9, -HALF, HALF);
-      sweep(-4.6, 0, 1.9, HALF, 3 * HALF);
-      break;
-    // A stretched diamond.
-    case "lozenge":
-      pts.push([-7.6, 0], [0, -4.4], [7.6, 0], [0, 4.4]);
-      break;
-    // A broad opening with barely eased corners.
-    case "window":
-      sweep(4.2, 2.6, 1.2, 0, HALF);
-      sweep(-4.2, 2.6, 1.2, HALF, 2 * HALF);
-      sweep(-4.2, -2.6, 1.2, 2 * HALF, 3 * HALF);
-      sweep(4.2, -2.6, 1.2, 3 * HALF, 4 * HALF);
-      break;
-    // Two holes joined by a neck.
-    case "bone": {
-      const neck = Math.asin(1.5 / 3.2);
-      sweep(4.3, 0, 3.2, -(Math.PI - neck), Math.PI - neck);
-      sweep(-4.3, 0, 3.2, neck, 2 * Math.PI - neck);
-      break;
-    }
+/**
+ * Stamps a cell's cut-out: the metal's drawing, `cut-<metal>` in `data/pieces/plating.json`, is
+ * drawn along a horizontal brushing on the 24 unit square, so the cell scales it to its size and
+ * turns it a quarter for a vertical one. The caller has set the context to cut.
+ */
+function stampCut(pen: Pen, x: number, y: number, m: number, cut: PlateCut, brush: Brush): void {
+  pen.save();
+  pen.translate(x, y);
+  pen.scale(m / 24, m / 24);
+  if (brush === "v") {
+    pen.translate(12, 12);
+    pen.rotate(HALF);
+    pen.translate(-12, -12);
   }
-  return pts;
-}
-
-const OUTLINES = new Map<PlateCut, Array<[number, number]>>();
-
-function traceCut(pen: Pen, x: number, y: number, m: number, cut: PlateCut, brush: Brush): void {
-  let pts = OUTLINES.get(cut);
-  if (!pts) OUTLINES.set(cut, (pts = cutOutline(cut)));
-  const u = m / 24;
-  const cx = x + m / 2;
-  const cy = y + m / 2;
-  pts.forEach(([a, b], i) => {
-    const px = cx + (brush === "h" ? a : b) * u;
-    const py = cy + (brush === "h" ? b : a) * u;
-    if (i === 0) pen.moveTo(px, py);
-    else pen.lineTo(px, py);
-  });
-  pen.closePath();
+  paintDrawing(pen, drawingOf("plating", `cut-${cut}`));
+  pen.restore();
 }
 
 function neighbours(cells: PlateCells): (x: number, y: number) => boolean {
@@ -132,9 +100,8 @@ export function paintPlate(ctx: CanvasRenderingContext2D, cells: PlateCells, x0:
   ctx.fill();
   if (cut) {
     ctx.globalCompositeOperation = "destination-out";
-    ctx.beginPath();
-    for (const [dx, dy] of cells) traceCut(ctx, x0 + dx * m, y0 + dy * m, m, cut, brush);
-    ctx.fill();
+    ctx.strokeStyle = ctx.fillStyle;
+    for (const [dx, dy] of cells) stampCut(ctx, x0 + dx * m, y0 + dy * m, m, cut, brush);
   }
   ctx.restore();
 }
@@ -166,7 +133,7 @@ const urlCache = new Map<string, string>();
 
 /** A data URL of a plate centred in a square of `px` pixels, for the page's legend; cached because legends re-render often. */
 export function plateDataUrl(cells: PlateCells, cut: PlateCut | null, brush: Brush, color: PieceColor, px: number): string {
-  const key = `${JSON.stringify(cells)}:${cut}:${brush}:${color}:${px}`;
+  const key = `${JSON.stringify(cells)}:${cut}:${brush}:${color}:${px}:${pieceOverrideRevision()}`;
   let url = urlCache.get(key);
   if (!url) {
     const resolution = 3;

@@ -1,1 +1,48 @@
-{}
+{
+  "fog": {
+    "tint": "raised",
+    "layers": [
+      { "name": "plate", "kind": "rect", "x": 2, "y": 2, "w": 20, "h": 20, "r": 3 }
+    ]
+  },
+  "found": {
+    "tint": "cream",
+    "layers": [
+      { "name": "bracket", "kind": "path", "steps": [{ "x": 3.5, "y": 8 }, { "x": 3.5, "y": 3.5 }, { "x": 8, "y": 3.5 }], "width": 3, "cap": true },
+      { "name": "bracket", "kind": "path", "steps": [{ "x": 20.5, "y": 8 }, { "x": 20.5, "y": 3.5 }, { "x": 16, "y": 3.5 }], "width": 3, "cap": true },
+      { "name": "bracket", "kind": "path", "steps": [{ "x": 20.5, "y": 16 }, { "x": 20.5, "y": 20.5 }, { "x": 16, "y": 20.5 }], "width": 3, "cap": true },
+      { "name": "bracket", "kind": "path", "steps": [{ "x": 3.5, "y": 16 }, { "x": 3.5, "y": 20.5 }, { "x": 8, "y": 20.5 }], "width": 3, "cap": true },
+      { "name": "contact", "kind": "disc", "x": 12, "y": 12, "r": 4 }
+    ]
+  },
+  "spooked": {
+    "tint": "danger",
+    "layers": [
+      { "name": "contact", "kind": "disc", "x": 12, "y": 12, "r": 9.5 },
+      { "name": "strike", "kind": "bar", "x0": 3, "y0": 21, "x1": 21, "y1": 3, "width": 3.6, "cut": true }
+    ]
+  },
+  "miss": {
+    "tint": "danger",
+    "layers": [
+      { "name": "stroke", "kind": "bar", "x0": 5, "y0": 5, "x1": 19, "y1": 19, "width": 4 },
+      { "name": "stroke", "kind": "bar", "x0": 19, "y0": 5, "x1": 5, "y1": 19, "width": 4 }
+    ]
+  },
+  "brackets": {
+    "tint": "cream",
+    "layers": [
+      { "name": "bracket", "kind": "path", "steps": [{ "x": 3.5, "y": 8 }, { "x": 3.5, "y": 3.5 }, { "x": 8, "y": 3.5 }], "width": 3, "cap": true },
+      { "name": "bracket", "kind": "path", "steps": [{ "x": 20.5, "y": 8 }, { "x": 20.5, "y": 3.5 }, { "x": 16, "y": 3.5 }], "width": 3, "cap": true },
+      { "name": "bracket", "kind": "path", "steps": [{ "x": 20.5, "y": 16 }, { "x": 20.5, "y": 20.5 }, { "x": 16, "y": 20.5 }], "width": 3, "cap": true },
+      { "name": "bracket", "kind": "path", "steps": [{ "x": 3.5, "y": 16 }, { "x": 3.5, "y": 20.5 }, { "x": 8, "y": 20.5 }], "width": 3, "cap": true }
+    ]
+  },
+  "ping": {
+    "tint": "cream",
+    "layers": [
+      { "name": "diamond", "kind": "poly", "points": [12, 3.6, 20.4, 12, 12, 20.4, 3.6, 12], "round": 3.2 },
+      { "name": "hole", "kind": "poly", "points": [12, 8.4, 15.6, 12, 12, 15.6, 8.4, 12], "round": 1.6, "cut": true }
+    ]
+  }
+}

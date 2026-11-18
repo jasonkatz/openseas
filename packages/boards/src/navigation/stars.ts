@@ -1,91 +1,59 @@
 import type { PieceColor, StarColor, StarShape } from "@openseas/content";
+import type { Layer } from "@openseas/protocol";
 import { css, type Token } from "../look/tokens.js";
+import { drawingOf, pieceOverrideRevision } from "../look/pieces.js";
+import { paintDrawing } from "../kit/drawing.js";
 
 /**
- * Navigation's stars, drawn in code as pictograms (docs/BRAND.md section 3, ADR 0062). A star is two
+ * Navigation's stars, as pictograms (docs/BRAND.md section 3, ADR 0062). A star is two
  * things at once, a shape and a colour, and both matter to play. The shape is the outline. The
  * colour cannot have an outline of its own, so each colour carries one cut-out, the same on every
  * shape, and that cut-out reads with the colour taken away: any two stars that differ in shape or
  * in colour are told apart in one flat colour. A marker is the same star hollow: its outline as a
  * line, with the colour's cut-out drawn solid inside it. A marker with a star on it has nothing
  * inside to show, so there the cut-out is cut from the line itself.
- * Painted with Canvas 2D so the chart and the page's legend share one drawing.
+ * Each outline, solid and as a line, and each cut-out is drawn from its layers in
+ * `data/pieces/navigation.json` (ADR 0065), by name, with Canvas 2D so the chart and the page's
+ * legend share one drawing.
  */
 export type StarShapeName = StarShape["shape"];
 export type StarCutName = StarColor["cut"];
 
 type Ctx = CanvasRenderingContext2D;
 
-interface Outline {
-  /** Traces the closed outline on the 24 unit square. */
-  trace(ctx: Ctx): void;
-  /** How far the fill is rounded outward past the traced line. */
-  round: number;
-  /** The middle of the body, where the colour's cut-out sits. */
-  cx: number;
-  cy: number;
-}
+/** The middle of each shape's body, where the colour's cut-out sits; its drawing is centred on (12, 12). */
+const MIDDLE: Record<StarShapeName, readonly [number, number]> = { spark: [12, 12], star: [12, 12.7], comet: [14.6, 14.6] };
 
-function points(ctx: Ctx, cx: number, cy: number, n: number, outer: number, inner: number, turn: number): void {
+/** Traces a drawing's first layer, a polygon or a path, as one closed outline, to clip to. */
+function traceOutline(ctx: Ctx, layer: Layer): void {
   ctx.beginPath();
-  for (let i = 0; i < n * 2; i++) {
-    const r = i % 2 === 0 ? outer : inner;
-    const a = turn + (i * Math.PI) / n;
-    if (i === 0) ctx.moveTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
-    else ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+  if (layer.kind === "poly") {
+    const p = layer.points;
+    for (let i = 0; i + 1 < p.length; i += 2) {
+      if (i === 0) ctx.moveTo(p[i]!, p[i + 1]!);
+      else ctx.lineTo(p[i]!, p[i + 1]!);
+    }
+  } else if (layer.kind === "path") {
+    layer.steps.forEach((st, i) => {
+      if ("r" in st) ctx.arc(st.x, st.y, st.r, (st.from * Math.PI) / 180, (st.to * Math.PI) / 180, st.ccw ?? false);
+      else if (i === 0) ctx.moveTo(st.x, st.y);
+      else ctx.lineTo(st.x, st.y);
+    });
   }
   ctx.closePath();
 }
 
-const OUTLINES: Record<StarShapeName, Outline> = {
-  // Four points, set on the diagonals.
-  spark: {
-    trace: (ctx) => points(ctx, 12, 12, 4, 12.4, 4.6, Math.PI / 4),
-    round: 2.4,
-    cx: 12,
-    cy: 12,
-  },
-  // Five points, one up.
-  star: {
-    trace: (ctx) => points(ctx, 12, 12.7, 5, 9.3, 5, -Math.PI / 2),
-    round: 2.4,
-    cx: 12,
-    cy: 12.7,
-  },
-  // A round head low on the right, its tail drawn out to the upper left.
-  comet: {
-    trace(ctx) {
-      const r = 5.6;
-      const k = r * Math.SQRT1_2;
-      ctx.beginPath();
-      ctx.moveTo(4.4, 4.4);
-      ctx.lineTo(14.6 + k, 14.6 - k);
-      ctx.arc(14.6, 14.6, r, -Math.PI / 4, (Math.PI * 3) / 4);
-      ctx.closePath();
-    },
-    round: 2.4,
-    cx: 14.6,
-    cy: 14.6,
-  },
-};
-
-/** Each colour's cut-out, drawn round the middle of the body. */
-const CUTS: Record<StarCutName, (ctx: Ctx, x: number, y: number) => void> = {
-  // A round hole.
-  dot(ctx, x, y) {
-    ctx.beginPath();
-    ctx.arc(x, y, 2.6, 0, Math.PI * 2);
-    ctx.fill();
-  },
-  // A band across, cutting the star in two.
-  band(ctx, _x, y) {
-    ctx.fillRect(0, y - 1.4, 24, 2.8);
-  },
-  // A cut down the middle, from top to bottom.
-  split(ctx, x) {
-    ctx.fillRect(x - 1.4, 0, 2.8, 24);
-  },
-};
+/**
+ * Paints the colour's cut-out round the middle of the body: the dot centred on it, the band
+ * across at its height, the split down at its width.
+ */
+function paintCut(ctx: Ctx, shape: StarShapeName, cut: StarCutName): void {
+  const [cx, cy] = MIDDLE[shape];
+  ctx.save();
+  ctx.translate(cut === "band" ? 0 : cx - 12, cut === "split" ? 0 : cy - 12);
+  paintDrawing(ctx, drawingOf("navigation", cut));
+  ctx.restore();
+}
 
 export interface StarLook {
   shape: StarShapeName;
@@ -101,7 +69,6 @@ export interface StarLook {
 
 /** Paints one star into a cell of size `s` whose top-left corner is the context origin. */
 export function paintStar(ctx: Ctx, s: number, look: StarLook): void {
-  const o = OUTLINES[look.shape];
   ctx.save();
   // The 24 unit square is drawn at 20/24 of the cell, so neighbours never touch.
   const k = (s * (20 / 24)) / 24;
@@ -109,30 +76,25 @@ export function paintStar(ctx: Ctx, s: number, look: StarLook): void {
   ctx.scale(k, k);
   ctx.fillStyle = css(look.color);
   ctx.strokeStyle = css(look.color);
-  ctx.lineJoin = "round";
   if (look.hollow) {
-    o.trace(ctx);
-    ctx.lineWidth = 1.8;
-    ctx.stroke();
+    paintDrawing(ctx, drawingOf("navigation", `${look.shape}-outline`));
     if (look.cut && look.covered) {
       ctx.globalCompositeOperation = "destination-out";
-      CUTS[look.cut](ctx, o.cx, o.cy);
+      paintCut(ctx, look.shape, look.cut);
     } else if (look.cut) {
+      // Solid inside the outline: clipped to the shape's own outline, unrounded.
       ctx.save();
-      o.trace(ctx);
+      traceOutline(ctx, drawingOf("navigation", look.shape).layers[0]!);
       ctx.clip();
-      CUTS[look.cut](ctx, o.cx, o.cy);
+      paintCut(ctx, look.shape, look.cut);
       ctx.restore();
     }
   } else {
-    o.trace(ctx);
-    ctx.lineWidth = o.round;
-    ctx.fill();
-    ctx.stroke();
+    paintDrawing(ctx, drawingOf("navigation", look.shape));
     if (look.cut) {
       // Cut out of what is drawn, so whatever is behind the star shows through.
       ctx.globalCompositeOperation = "destination-out";
-      CUTS[look.cut](ctx, o.cx, o.cy);
+      paintCut(ctx, look.shape, look.cut);
     }
   }
   ctx.restore();
@@ -155,7 +117,7 @@ const urlCache = new Map<string, string>();
 
 /** A data URL of a star for the page's legend; cached because legends re-render often. */
 export function starDataUrl(look: StarLook, px: number): string {
-  const key = `${look.shape}:${look.color}:${look.cut}:${look.hollow ? (look.covered ? 2 : 1) : 0}:${px}`;
+  const key = `${look.shape}:${look.color}:${look.cut}:${look.hollow ? (look.covered ? 2 : 1) : 0}:${px}:${pieceOverrideRevision()}`;
   let url = urlCache.get(key);
   if (!url) {
     url = starCanvas(px, look, 3).toDataURL();

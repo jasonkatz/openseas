@@ -1,1 +1,54 @@
-{}
+{
+  "block": {
+    "layers": [
+      { "name": "body", "kind": "rect", "x": 2, "y": 2, "w": 20, "h": 20, "r": 4 }
+    ]
+  },
+  "breaker": {
+    "layers": [
+      { "name": "body", "kind": "poly", "points": [12, 3.3284, 20.6716, 12, 12, 20.6716, 3.3284, 12], "round": 4 }
+    ]
+  },
+  "stone": {
+    "tint": "slate",
+    "layers": [
+      { "name": "body", "kind": "path", "steps": [{ "x": 8.4971, "y": 3.2, "r": 1.2, "from": -135, "to": -90 }, { "x": 15.5029, "y": 3.2, "r": 1.2, "from": -90, "to": -45 }, { "x": 20.8, "y": 8.4971, "r": 1.2, "from": -45, "to": 0 }, { "x": 20.8, "y": 15.5029, "r": 1.2, "from": 0, "to": 45 }, { "x": 15.5029, "y": 20.8, "r": 1.2, "from": 45, "to": 90 }, { "x": 8.4971, "y": 20.8, "r": 1.2, "from": 90, "to": 135 }, { "x": 3.2, "y": 15.5029, "r": 1.2, "from": 135, "to": 180 }, { "x": 3.2, "y": 8.4971, "r": 1.2, "from": -180, "to": -135 }], "width": 0, "fill": true }
+    ]
+  },
+  "cut-dot": {
+    "detail": true,
+    "layers": [
+      { "name": "hole", "kind": "disc", "x": 12, "y": 12, "r": 3.9 }
+    ]
+  },
+  "cut-bar": {
+    "detail": true,
+    "layers": [
+      { "name": "slot", "kind": "path", "steps": [{ "x": 16.3, "y": 12, "r": 1.9, "from": -90, "to": 0 }, { "x": 16.3, "y": 12, "r": 1.9, "from": 0, "to": 90 }, { "x": 7.7, "y": 12, "r": 1.9, "from": 90, "to": 180 }, { "x": 7.7, "y": 12, "r": 1.9, "from": 180, "to": 270 }], "width": 0, "fill": true }
+    ]
+  },
+  "cut-cross": {
+    "detail": true,
+    "layers": [
+      { "name": "plus", "kind": "path", "steps": [{ "x": 12.7, "y": 7.4, "r": 1, "from": -90, "to": 0 }, { "x": 13.7, "y": 10.3 }, { "x": 16.6, "y": 11.3, "r": 1, "from": -90, "to": 0 }, { "x": 16.6, "y": 12.7, "r": 1, "from": 0, "to": 90 }, { "x": 13.7, "y": 13.7 }, { "x": 12.7, "y": 16.6, "r": 1, "from": 0, "to": 90 }, { "x": 11.3, "y": 16.6, "r": 1, "from": 90, "to": 180 }, { "x": 10.3, "y": 13.7 }, { "x": 7.4, "y": 12.7, "r": 1, "from": 90, "to": 180 }, { "x": 7.4, "y": 11.3, "r": 1, "from": 180, "to": 270 }, { "x": 10.3, "y": 10.3 }, { "x": 11.3, "y": 7.4, "r": 1, "from": 180, "to": 270 }], "width": 0, "fill": true }
+    ]
+  },
+  "cut-diamond": {
+    "detail": true,
+    "layers": [
+      { "name": "diamond", "kind": "path", "steps": [{ "x": 12, "y": 7.6142, "r": 1, "from": -135, "to": -45 }, { "x": 16.3858, "y": 12, "r": 1, "from": -45, "to": 45 }, { "x": 12, "y": 16.3858, "r": 1, "from": 45, "to": 135 }, { "x": 7.6142, "y": 12, "r": 1, "from": 135, "to": 225 }], "width": 0, "fill": true }
+    ]
+  },
+  "cut-triangle": {
+    "detail": true,
+    "layers": [
+      { "name": "wedge", "kind": "path", "steps": [{ "x": 12, "y": 8.7615, "r": 1.2, "from": -149.4594, "to": -30.5406 }, { "x": 15.7987, "y": 15.2, "r": 1.2, "from": -30.5406, "to": 90 }, { "x": 8.2013, "y": 15.2, "r": 1.2, "from": 90, "to": 210.5406 }], "width": 0, "fill": true }
+    ]
+  },
+  "cut-ring": {
+    "detail": true,
+    "layers": [
+      { "name": "ring", "kind": "path", "steps": [{ "x": 12, "y": 12, "r": 6, "from": 0, "to": 360 }, { "x": 12, "y": 12, "r": 2.7, "from": 0, "to": 360, "ccw": true }], "width": 0, "fill": true }
+    ]
+  }
+}

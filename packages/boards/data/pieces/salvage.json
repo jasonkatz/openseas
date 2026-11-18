@@ -1,1 +1,72 @@
-{}
+{
+  "ingot": {
+    "tint": "sand",
+    "layers": [
+      { "name": "bar", "kind": "poly", "points": [7.4, 6.8, 16.6, 6.8, 20.4, 17.2, 3.6, 17.2], "round": 3.2 }
+    ]
+  },
+  "panel": {
+    "tint": "sky",
+    "layers": [
+      { "name": "upright", "kind": "rect", "x": 2.5, "y": 2.5, "w": 9, "h": 19, "r": 2.5 },
+      { "name": "foot", "kind": "rect", "x": 2.5, "y": 12.5, "w": 19, "h": 9, "r": 2.5 }
+    ]
+  },
+  "shard": {
+    "tint": "rose",
+    "layers": [
+      { "name": "sliver", "kind": "poly", "points": [15, 4.2, 20, 14.2, 4.8, 19.8], "round": 3.2 }
+    ]
+  },
+  "crystal": {
+    "tint": "moss",
+    "layers": [
+      { "name": "gem", "kind": "poly", "points": [8.2, 4.2, 15.8, 4.2, 20, 9.4, 12, 20.2, 4, 9.4], "round": 2.4 }
+    ]
+  },
+  "cell": {
+    "tint": "lilac",
+    "layers": [
+      { "name": "capsule", "kind": "rect", "x": 6.5, "y": 2, "w": 11, "h": 20, "r": 5.5 }
+    ]
+  },
+  "spark": {
+    "tint": "teal",
+    "layers": [
+      { "name": "star", "kind": "poly", "points": [12, 3, 14.5, 9.5, 21, 12, 14.5, 14.5, 12, 21, 9.5, 14.5, 3, 12, 9.5, 9.5], "round": 2.2 }
+    ]
+  },
+  "strut": {
+    "tint": "slate",
+    "layers": [
+      { "name": "rod", "kind": "bar", "x0": 6.4, "y0": 17.6, "x1": 17.6, "y1": 6.4, "width": 4 },
+      { "name": "knuckle", "kind": "disc", "x": 6.2, "y": 17.8, "r": 4.2 },
+      { "name": "knuckle", "kind": "disc", "x": 17.8, "y": 6.2, "r": 4.2 }
+    ]
+  },
+  "droplet": {
+    "tint": "rust",
+    "layers": [
+      { "name": "bulb", "kind": "disc", "x": 12, "y": 14.6, "r": 7.4 },
+      { "name": "point", "kind": "poly", "points": [12, 4, 17.2, 11.4, 6.8, 11.4], "round": 2.4 }
+    ]
+  },
+  "crate": {
+    "tint": "cream",
+    "layers": [
+      { "name": "box", "kind": "rect", "x": 2, "y": 2, "w": 20, "h": 20, "r": 3 },
+      { "name": "latch", "kind": "rect", "x": 8, "y": 9.5, "w": 8, "h": 5, "r": 2, "cut": true }
+    ]
+  },
+  "coupler": {
+    "tint": "cream",
+    "layers": [
+      { "name": "lug", "kind": "disc", "x": 5.4, "y": 5.4, "r": 3.2 },
+      { "name": "lug", "kind": "disc", "x": 18.6, "y": 5.4, "r": 3.2 },
+      { "name": "lug", "kind": "disc", "x": 5.4, "y": 18.6, "r": 3.2 },
+      { "name": "lug", "kind": "disc", "x": 18.6, "y": 18.6, "r": 3.2 },
+      { "name": "ring", "kind": "disc", "x": 12, "y": 12, "r": 8.2 },
+      { "name": "bore", "kind": "disc", "x": 12, "y": 12, "r": 3.6, "cut": true }
+    ]
+  }
+}

@@ -1,1 +1,75 @@
-{}
+{
+  "drum": {
+    "tint": "sand",
+    "layers": [
+      { "name": "pod", "kind": "disc", "x": 12, "y": 12, "r": 9.6 }
+    ]
+  },
+  "crate": {
+    "tint": "sky",
+    "layers": [
+      { "name": "pod", "kind": "rect", "x": 3.2, "y": 3.2, "w": 17.6, "h": 17.6, "r": 2.6 }
+    ]
+  },
+  "wedge": {
+    "tint": "rose",
+    "layers": [
+      { "name": "pod", "kind": "poly", "points": [12, 5.4, 19.4, 18.2, 4.6, 18.2], "round": 3.6 }
+    ]
+  },
+  "prism": {
+    "tint": "moss",
+    "layers": [
+      { "name": "pod", "kind": "poly", "points": [12, 3.8, 19.4, 12, 12, 20.2, 4.6, 12], "round": 3.2 }
+    ]
+  },
+  "cell": {
+    "tint": "lilac",
+    "layers": [
+      { "name": "pod", "kind": "rect", "x": 2.2, "y": 7, "w": 19.6, "h": 10, "r": 5 }
+    ]
+  },
+  "clamp-drum": {
+    "tint": "sand",
+    "layers": [
+      { "name": "rim", "kind": "disc", "x": 12, "y": 12, "r": 11.6 },
+      { "name": "socket", "kind": "disc", "x": 12, "y": 12, "r": 8.6, "cut": true }
+    ]
+  },
+  "clamp-crate": {
+    "tint": "sky",
+    "layers": [
+      { "name": "rim", "kind": "rect", "x": 1.2, "y": 1.2, "w": 21.6, "h": 21.6, "r": 4.6 },
+      { "name": "socket", "kind": "rect", "x": 4.2, "y": 4.2, "w": 15.6, "h": 15.6, "r": 1.6, "cut": true }
+    ]
+  },
+  "clamp-wedge": {
+    "tint": "rose",
+    "layers": [
+      { "name": "rim", "kind": "poly", "points": [12, 5.4, 19.4, 18.2, 4.6, 18.2], "round": 7.6 },
+      { "name": "socket", "kind": "poly", "points": [12, 5.4, 19.4, 18.2, 4.6, 18.2], "round": 1.6, "cut": true }
+    ]
+  },
+  "clamp-prism": {
+    "tint": "moss",
+    "layers": [
+      { "name": "rim", "kind": "poly", "points": [12, 3.8, 19.4, 12, 12, 20.2, 4.6, 12], "round": 7.2 },
+      { "name": "socket", "kind": "poly", "points": [12, 3.8, 19.4, 12, 12, 20.2, 4.6, 12], "round": 1.2, "cut": true }
+    ]
+  },
+  "clamp-cell": {
+    "tint": "lilac",
+    "layers": [
+      { "name": "rim", "kind": "rect", "x": 0.2, "y": 5, "w": 23.6, "h": 14, "r": 7 },
+      { "name": "socket", "kind": "rect", "x": 3.2, "y": 8, "w": 17.6, "h": 8, "r": 4, "cut": true }
+    ]
+  },
+  "block": {
+    "tint": "slate",
+    "layers": [
+      { "name": "flange", "kind": "rect", "x": 2, "y": 2, "w": 20, "h": 7.2, "r": 2 },
+      { "name": "flange", "kind": "rect", "x": 2, "y": 14.8, "w": 20, "h": 7.2, "r": 2 },
+      { "name": "web", "kind": "rect", "x": 6.8, "y": 4, "w": 10.4, "h": 16, "r": 1 }
+    ]
+  }
+}

@@ -1,1 +1,62 @@
-{}
+{
+  "ship": {
+    "tint": "amber",
+    "layers": [
+      { "name": "dart", "kind": "poly", "points": [12, 3, 19.6, 19.4, 12, 15.6, 4.4, 19.4], "round": 3 },
+      { "name": "canopy", "kind": "disc", "x": 12, "y": 12.2, "r": 2, "cut": true }
+    ]
+  },
+  "raider": {
+    "tint": "lilac",
+    "layers": [
+      { "name": "hull", "kind": "poly", "points": [4.6, 4, 8.4, 4, 9.6, 11, 14.4, 11, 15.6, 4, 19.4, 4, 20, 19.4, 4, 19.4], "round": 3 },
+      { "name": "slot", "kind": "rect", "x": 8, "y": 14.4, "w": 8, "h": 2.6, "r": 1.3, "cut": true }
+    ]
+  },
+  "asteroid": {
+    "tint": "slate",
+    "layers": [
+      { "name": "rock", "kind": "poly", "points": [5, 13.4, 7.6, 6.6, 14, 4.6, 19.4, 9.6, 17.4, 17.4, 10, 19.4], "round": 3 }
+    ]
+  },
+  "well": {
+    "tint": "teal",
+    "layers": [
+      { "name": "ring", "kind": "arc", "x": 12, "y": 12, "r": 7.2, "from": -75.6, "to": 198, "width": 3.2, "cap": true },
+      { "name": "arrowhead", "kind": "poly", "points": [9.2, 2.6, 15.2, 5.2, 9.8, 8.6], "round": 1.6 }
+    ]
+  },
+  "current": {
+    "tint": "dim",
+    "layers": [
+      { "name": "chevron", "kind": "path", "steps": [{ "x": 6.5, "y": 14.5 }, { "x": 12, "y": 9 }, { "x": 17.5, "y": 14.5 }], "width": 2.6, "cap": true }
+    ]
+  },
+  "slug": {
+    "tint": "amber",
+    "layers": [
+      { "name": "capsule", "kind": "rect", "x": 9, "y": 5, "w": 6, "h": 14, "r": 3 }
+    ]
+  },
+  "ghost": {
+    "tint": "amber",
+    "layers": [
+      { "name": "outline", "kind": "path", "steps": [{ "x": 12, "y": 3 }, { "x": 19.6, "y": 19.4 }, { "x": 12, "y": 15.6 }, { "x": 4.4, "y": 19.4 }, { "x": 12, "y": 3 }, { "x": 19.6, "y": 19.4 }], "width": 2.6 }
+    ]
+  },
+  "turret": {
+    "tint": "cream",
+    "layers": [
+      { "name": "mount", "kind": "rect", "x": 5, "y": 13, "w": 14, "h": 7.5, "r": 2.4 },
+      { "name": "barrel", "kind": "rect", "x": 10, "y": 6.5, "w": 4, "h": 9, "r": 1.6 }
+    ]
+  },
+  "turretArmed": {
+    "tint": "amber",
+    "layers": [
+      { "name": "mount", "kind": "rect", "x": 5, "y": 14.5, "w": 14, "h": 7, "r": 2.4 },
+      { "name": "barrel", "kind": "rect", "x": 10, "y": 9, "w": 4, "h": 8, "r": 1.6 },
+      { "name": "slug", "kind": "disc", "x": 12, "y": 4.2, "r": 2.6 }
+    ]
+  }
+}

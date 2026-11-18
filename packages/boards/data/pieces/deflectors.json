@@ -1,1 +1,49 @@
-{}
+{
+  "mirror": {
+    "tint": "sky",
+    "layers": [
+      { "name": "bar", "kind": "bar", "x0": 5.2, "y0": 18.8, "x1": 18.8, "y1": 5.2, "width": 4.6 },
+      { "name": "boss", "kind": "disc", "x": 12, "y": 12, "r": 4.4 },
+      { "name": "pivot", "kind": "disc", "x": 12, "y": 12, "r": 1.6, "cut": true }
+    ]
+  },
+  "sign-disc": {
+    "tint": "sand",
+    "layers": [
+      { "name": "sign", "kind": "disc", "x": 12, "y": 12, "r": 9.5 }
+    ]
+  },
+  "sign-disc-hollow": {
+    "tint": "sand",
+    "layers": [
+      { "name": "sign", "kind": "disc", "x": 12, "y": 12, "r": 9.5 },
+      { "name": "hole", "kind": "disc", "x": 12, "y": 12, "r": 5.6, "cut": true }
+    ]
+  },
+  "sign-square": {
+    "tint": "rose",
+    "layers": [
+      { "name": "sign", "kind": "rect", "x": 3.2, "y": 3.2, "w": 17.6, "h": 17.6, "r": 3.2 }
+    ]
+  },
+  "sign-square-hollow": {
+    "tint": "rose",
+    "layers": [
+      { "name": "sign", "kind": "rect", "x": 3.2, "y": 3.2, "w": 17.6, "h": 17.6, "r": 3.2 },
+      { "name": "hole", "kind": "rect", "x": 7.2, "y": 7.2, "w": 9.6, "h": 9.6, "r": 1.4, "cut": true }
+    ]
+  },
+  "sign-triangle": {
+    "tint": "moss",
+    "layers": [
+      { "name": "sign", "kind": "poly", "points": [12, 4.4, 20.2, 18.8, 3.8, 18.8], "round": 3.2 }
+    ]
+  },
+  "sign-triangle-hollow": {
+    "tint": "moss",
+    "layers": [
+      { "name": "sign", "kind": "poly", "points": [12, 4.4, 20.2, 18.8, 3.8, 18.8], "round": 3.2 },
+      { "name": "hole", "kind": "poly", "points": [12, 10.4, 15.4, 16.2, 8.6, 16.2], "round": 0.8, "cut": true }
+    ]
+  }
+}
