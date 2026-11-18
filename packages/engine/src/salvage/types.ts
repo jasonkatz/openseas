@@ -7,8 +7,8 @@
  * crate sinks as the debris under it is hauled and is taken for a little when it reaches the floor.
  * Hauled pieces leave gaps; the pieces above fall and new debris drifts in at the top.
  *
- * A contract names one kind: a line of that kind pays contractPercent, and hauling contractQuota
- * pieces of it on lines fills the contract for a bonus and posts another, for a different kind.
+ * An order names one kind: one line of that kind, orderLength pieces or more, fills it for
+ * orderBonus, and another order is posted for a different kind.
  * A volatile is a piece of debris with a fuse: it links as its kind, and hauling it on a line or
  * netting it inside a loop defuses it. Its fuse burns one for every haul that leaves it on the
  * field, and defusing pays volatilePoints for every haul burned and one more, so late pays most.
@@ -50,12 +50,10 @@ export interface SalvageConfig {
   readonly crateFloorPoints: number;
   /** A loop nets every crate on the field: k crates score crateLoopPoints * k * k between them. */
   readonly crateLoopPoints: number;
-  /** Pieces of the contract's kind a contract asks for. 0 posts no contracts. */
-  readonly contractQuota: number;
-  /** What a line of the contract's kind is multiplied by, in percent. */
-  readonly contractPercent: number;
-  /** Paid by the haul that fills a contract. */
-  readonly contractBonus: number;
+  /** The shortest line of the order's kind that fills the order. 0 posts no orders. */
+  readonly orderLength: number;
+  /** Paid by the haul that fills an order. */
+  readonly orderBonus: number;
   /** A volatile drifts in with the debris after every this many hauls. 0 deals none. */
   readonly volatileEvery: number;
   /** Hauls a volatile survives on the field: it blows on the haul that burns its fuse to zero. */
@@ -84,9 +82,8 @@ export const DEFAULT_SALVAGE_CONFIG: SalvageConfig = {
   maxCrates: 3,
   crateFloorPoints: 30,
   crateLoopPoints: 50,
-  contractQuota: 15,
-  contractPercent: 200,
-  contractBonus: 100,
+  orderLength: 7,
+  orderBonus: 200,
   volatileEvery: 8,
   fuse: 6,
   volatilePoints: 60,
@@ -104,10 +101,9 @@ export interface SalvagePiece {
   readonly fuse?: number;
 }
 
-/** The contract posted: the kind it asks for and how many more pieces of it fill it. */
-export interface SalvageContract {
+/** The order posted: the kind it asks for. One line of that kind, orderLength or longer, fills it. */
+export interface SalvageOrder {
   readonly kind: number;
-  readonly left: number;
 }
 
 /** A volatile that blew: where it was, and the cells it turned to rubble, itself included. */
@@ -155,11 +151,9 @@ export interface SalvageValue {
   readonly netted: readonly number[];
   /** Cells of the volatiles the haul defuses, on the line or inside the loop. */
   readonly defused: readonly number[];
-  /** Pieces the line counts toward the contract: the line's length when it is of the contract's kind, else 0. */
-  readonly contract: number;
-  /** True when the line fills the contract. */
+  /** True when the line fills the order. */
   readonly fills: boolean;
-  /** Line, loop, contract, enclosed debris, defused volatiles and netted crates, before the streak. */
+  /** Line, loop, order, enclosed debris, defused volatiles and netted crates, before the streak. */
   readonly base: number;
 }
 
@@ -178,12 +172,11 @@ export interface SalvageMoveReport {
   readonly streakPercent: number;
   /** Volatiles defused by the haul. */
   readonly defused: readonly SalvageHauled[];
-  /** Pieces counted toward the contract, and whether the haul filled it. */
-  readonly contractCounted: number;
-  readonly contractFilled: boolean;
+  /** True when the haul filled the order. */
+  readonly orderFilled: boolean;
   /** Volatiles that blew after the haul, before the field settled. */
   readonly blasts: readonly SalvageBlast[];
-  /** The haul's own points (line, loop, contract, enclosed debris, defused volatiles, netted crates), after the streak. */
+  /** The haul's own points (line, loop, order, enclosed debris, defused volatiles, netted crates), after the streak. */
   readonly haulPoints: number;
   readonly rounds: readonly SalvageRound[];
   /** No line was left on the field, so the debris was dealt again in place. */
@@ -212,9 +205,9 @@ export interface SalvageState {
   readonly cratesNetted: number;
   readonly cratesFloor: number;
   readonly loops: number;
-  /** The contract posted, or null when the config posts none. */
-  readonly contract: SalvageContract | null;
-  readonly contractsFilled: number;
+  /** The order posted, or null when the config posts none. */
+  readonly order: SalvageOrder | null;
+  readonly ordersFilled: number;
   /** Volatiles defused, and volatiles that blew. */
   readonly defused: number;
   readonly blasts: number;

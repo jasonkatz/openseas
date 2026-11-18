@@ -31,6 +31,10 @@ export function SalvageBoard(props: SalvageBoardProps) {
           labels: {
             preview: (pieces, points) => (points > 0 ? t("salvage.preview", { pieces, points }) : t("salvage.preview_short", { pieces })),
             previewNet: (crates, points) => t(crates > 0 ? "salvage.preview_net" : "salvage.preview_net_empty", { crates, points }),
+            previewOrder: (pieces, points) => t("salvage.preview_order", { pieces, points }),
+            orderFilled: t("salvage.order_filled"),
+            defused: (count) => t("salvage.defused", { count }),
+            blast: t("salvage.blast"),
             net: (crates) => t("salvage.net", { crates }),
             netEmpty: t("salvage.net_empty"),
             longHaul: t("salvage.long_haul"),

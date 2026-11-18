@@ -7,7 +7,7 @@ import {
   SALVAGE_RUBBLE,
   type SalvageBlast,
   type SalvageConfig,
-  type SalvageContract,
+  type SalvageOrder,
   type SalvageHauled,
   type SalvageMove,
   type SalvageMoveReport,
@@ -43,9 +43,8 @@ export function validateConfig(cfg: SalvageConfig): void {
     cfg.startCrates <= cfg.maxCrates &&
     int(cfg.crateFloorPoints, 0, 100_000) &&
     int(cfg.crateLoopPoints, 0, 100_000) &&
-    int(cfg.contractQuota, 0, 1000) &&
-    int(cfg.contractPercent, 100, 1000) &&
-    int(cfg.contractBonus, 0, 100_000) &&
+    int(cfg.orderLength, 0, 144) &&
+    int(cfg.orderBonus, 0, 100_000) &&
     int(cfg.volatileEvery, 0, 1000) &&
     int(cfg.fuse, 1, 100) &&
     int(cfg.volatilePoints, 0, 100_000) &&
@@ -161,14 +160,13 @@ export function lineValue(state: SalvageState, cells: readonly number[], loop: b
   const n = cells.length;
   const isLoop = loop && canClose(state, cells);
   const kind = n > 0 ? state.cells[cells[0]!]?.kind : undefined;
-  const contract = state.contract !== null && kind === state.contract.kind ? n : 0;
-  const fills = contract > 0 && contract >= state.contract!.left;
-  // The line's own points: n squared, doubled by a loop, multiplied again when it is of the contract's kind.
-  const line = Math.floor((cfg.linePoints * n * n * (isLoop ? cfg.loopPercent : 100) * (contract > 0 ? cfg.contractPercent : 100)) / 10_000);
-  const bonus = fills ? cfg.contractBonus : 0;
+  const fills = state.order !== null && kind === state.order.kind && n >= cfg.orderLength;
+  // The line's own points: n squared, doubled by a loop.
+  const line = Math.floor((cfg.linePoints * n * n * (isLoop ? cfg.loopPercent : 100)) / 100);
+  const bonus = fills ? cfg.orderBonus : 0;
   const onLine = cells.filter((c) => state.cells[c] !== undefined && isVolatile(state.cells[c]!));
   const defusing = (list: readonly number[]): number => list.reduce((a, c) => a + volatileValue(cfg, state.cells[c]!), 0);
-  if (!isLoop) return { length: n, loop: false, enclosed: [], netted: [], defused: onLine, contract, fills, base: line + bonus + defusing(onLine) };
+  if (!isLoop) return { length: n, loop: false, enclosed: [], netted: [], defused: onLine, fills, base: line + bonus + defusing(onLine) };
   // A crate inside the loop is netted like any other; debris and rubble inside are enclosed.
   const enclosed = enclosedCells(cfg, cells).filter((c) => state.cells[c]!.kind !== SALVAGE_CRATE);
   const netted: number[] = [];
@@ -176,7 +174,7 @@ export function lineValue(state: SalvageState, cells: readonly number[], loop: b
   const defused = [...onLine, ...enclosed.filter((c) => isVolatile(state.cells[c]!))].sort((a, b) => a - b);
   const base =
     line + bonus + enclosed.length * cfg.enclosedPoints + defusing(defused) + cfg.crateLoopPoints * netted.length * netted.length;
-  return { length: n, loop: true, enclosed, netted, defused, contract, fills, base };
+  return { length: n, loop: true, enclosed, netted, defused, fills, base };
 }
 
 /** What the streak multiplies by, in percent, at a streak of `streak` long lines. */
@@ -292,12 +290,12 @@ function count(cells: ReadonlyArray<SalvagePiece | null>, kind: number): number 
   return n;
 }
 
-/** The next contract: a kind other than the last one's, drawn from the stream. Null when the config posts none. */
-function postContract(cfg: SalvageConfig, rng: PrngState, last: number | null): { contract: SalvageContract | null; rng: PrngState } {
-  if (cfg.contractQuota === 0) return { contract: null, rng };
+/** The next order: a kind other than the last one's, drawn from the stream. Null when the config posts none. */
+function postOrder(cfg: SalvageConfig, rng: PrngState, last: number | null): { order: SalvageOrder | null; rng: PrngState } {
+  if (cfg.orderLength === 0) return { order: null, rng };
   const pick = nextInt(rng, last === null ? cfg.kinds : cfg.kinds - 1);
   const kind = last !== null && pick.value >= last ? pick.value + 1 : pick.value;
-  return { contract: { kind, left: cfg.contractQuota }, rng: pick.state };
+  return { order: { kind }, rng: pick.state };
 }
 
 /** Deal debris into every cell that is not a crate, rubble or a volatile, until a line can be drawn. */
@@ -332,7 +330,7 @@ export function createSalvageGame(seed: string, config: SalvageConfig = DEFAULT_
     cells[cell] = { id: nextId++, kind: SALVAGE_CRATE };
   }
   const dealt = dealDebris(config, cells, rng, nextId);
-  const posted = postContract(config, dealt.rng, null);
+  const posted = postOrder(config, dealt.rng, null);
   return {
     config,
     cells,
@@ -347,8 +345,8 @@ export function createSalvageGame(seed: string, config: SalvageConfig = DEFAULT_
     cratesNetted: 0,
     cratesFloor: 0,
     loops: 0,
-    contract: posted.contract,
-    contractsFilled: 0,
+    order: posted.order,
+    ordersFilled: 0,
     defused: 0,
     blasts: 0,
     longest: 0,
@@ -536,14 +534,12 @@ function haul(state: SalvageState, move: Extract<SalvageMove, { type: "tether" }
     shuffled = true;
   }
 
-  // The contract counts the line; a filled one posts the next, for another kind.
-  let contract = state.contract;
-  if (contract !== null && value.contract > 0) {
-    if (value.fills) {
-      const posted = postContract(cfg, rng, contract.kind);
-      rng = posted.rng;
-      contract = posted.contract;
-    } else contract = { kind: contract.kind, left: contract.left - value.contract };
+  // A filled order posts the next, for another kind.
+  let order = state.order;
+  if (order !== null && value.fills) {
+    const posted = postOrder(cfg, rng, order.kind);
+    rng = posted.rng;
+    order = posted.order;
   }
 
   const points = haulPoints + floorPoints;
@@ -554,8 +550,7 @@ function haul(state: SalvageState, move: Extract<SalvageMove, { type: "tether" }
     enclosed,
     netted,
     defused,
-    contractCounted: value.contract,
-    contractFilled: value.fills,
+    orderFilled: value.fills,
     blasts,
     streak: combo,
     streakPercent: percent,
@@ -578,8 +573,8 @@ function haul(state: SalvageState, move: Extract<SalvageMove, { type: "tether" }
     cratesNetted: state.cratesNetted + netted.length,
     cratesFloor: state.cratesFloor + cratesFloor,
     loops: state.loops + (value.loop ? 1 : 0),
-    contract,
-    contractsFilled: state.contractsFilled + (value.fills ? 1 : 0),
+    order,
+    ordersFilled: state.ordersFilled + (value.fills ? 1 : 0),
     defused: state.defused + defused.length,
     blasts: state.blasts + blasts.length,
     longest: Math.max(state.longest, value.length),
@@ -601,7 +596,7 @@ export function hashSalvageState(state: SalvageState): string {
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.nextId).int(state.score).int(state.moveCount).int(state.combo).int(state.bestCombo).int(state.grace ? 1 : 0);
   h.int(state.hauled).int(state.cratesNetted).int(state.cratesFloor).int(state.loops).int(state.longest).int(state.finished ? 1 : 0);
-  h.int(state.contract === null ? -1 : state.contract.kind).int(state.contract?.left ?? 0).int(state.contractsFilled).int(state.defused).int(state.blasts);
+  h.int(state.order === null ? -1 : state.order.kind).int(state.ordersFilled).int(state.defused).int(state.blasts);
   return h.digest();
 }
 

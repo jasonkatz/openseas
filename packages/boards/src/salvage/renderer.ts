@@ -31,6 +31,11 @@ export interface SalvageLabels {
   preview(pieces: number, points: number): string;
   /** A closed line: the crates it will net and what the haul is worth. */
   previewNet(crates: number, points: number): string;
+  /** A line that fills the order: what the haul is worth, bonus included. */
+  previewOrder(pieces: number, points: number): string;
+  orderFilled: string;
+  defused(count: number): string;
+  blast: string;
   net(crates: number): string;
   netEmpty: string;
   longHaul: string;
@@ -243,9 +248,34 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
       } else if (n >= MIGHTY) {
         this.fx.say(L.mightyHaul);
         this.beat(0.6);
+      } else if (r.orderFilled) {
+        this.fx.say(L.orderFilled);
+        sfx.rise();
+      } else if (r.defused.length > 0) {
+        this.fx.say(L.defused(r.defused.length));
+        sfx.good();
       } else if (n >= LONG) this.fx.say(L.longHaul);
       else if (r.streak >= 3) this.fx.say(L.streak(r.streak));
     });
+    // A volatile left on the field that burned out: it and the debris round it turn to rubble where they stand.
+    if (r.blasts.length > 0) {
+      const at = t;
+      this.tweens.after(at, () => {
+        for (const b of r.blasts) {
+          this.fx.ring(g.x(b.cell), g.y(b.cell), INK.danger, g.cell * 0.4, g.cell * 1.5);
+          for (const cell of b.scorched) {
+            const v = this.viewAt(cell);
+            if (!v) continue;
+            v.kind = SALVAGE_RUBBLE;
+            v.fuse = undefined;
+            v.s.texture = this.texture(SALVAGE_RUBBLE);
+          }
+        }
+        this.fx.say(L.blast, INK.danger);
+        sfx.crack(true);
+      });
+      t += MOTION.clear + 60;
+    }
 
     if (r.loop) {
       const cx = r.line.reduce((a, h) => a + g.x(h.cell), 0) / n;
@@ -438,7 +468,11 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     const streak = long ? state.combo + 1 : state.combo > 0 && state.grace ? state.combo : 0;
     const points = Math.floor((value.base * salvageStreakPercentAt(state.config, streak)) / 100);
     const enough = this.path.length >= state.config.minLine;
-    this.setLabel(value.loop ? this.opts.labels.previewNet(value.netted.length, points) : this.opts.labels.preview(value.length, enough ? points : 0), enough ? INK.cream : INK.dim);
+    const L = this.opts.labels;
+    this.setLabel(
+      value.loop ? L.previewNet(value.netted.length, points) : value.fills ? L.previewOrder(value.length, points) : L.preview(value.length, enough ? points : 0),
+      enough ? INK.cream : INK.dim,
+    );
   }
 
   private setLabel(text: string, color: number = INK.cream): void {

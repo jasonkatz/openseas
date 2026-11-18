@@ -21,9 +21,8 @@ export const SalvageContentSchema = PrototypeBaseSchema.extend({
     crateFloorPoints: z.int().min(0),
     /** A loop nets every crate on the field: k crates score crateLoopPoints * k * k between them. */
     crateLoopPoints: z.int().min(0),
-    contractQuota: z.int().min(0),
-    contractPercent: z.int().min(100),
-    contractBonus: z.int().min(0),
+    orderLength: z.int().min(0),
+    orderBonus: z.int().min(0),
     volatileEvery: z.int().min(0),
     fuse: z.int().min(1),
     volatilePoints: z.int().min(0),

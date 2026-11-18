@@ -61,7 +61,7 @@ function playRandom(seed: string, picks: readonly number[], config: SalvageConfi
 
 const picksArb = fc.array(fc.nat({ max: 10_000 }), { minLength: 0, maxLength: 240 });
 
-/** A field from rows of characters: a digit is debris, `C` a crate, `R` rubble, a letter from `a` a volatile of that kind with `fuseFor` left. No contract is posted. */
+/** A field from rows of characters: a digit is debris, `C` a crate, `R` rubble, a letter from `a` a volatile of that kind with `fuseFor` left. No order is posted. */
 function field(rows: readonly string[], seed = "t", over: Partial<SalvageConfig> = {}, fuseFor = cfg.fuse): SalvageState {
   const config: SalvageConfig = { ...cfg, width: rows[0]!.length, height: rows.length, startCrates: 0, ...over };
   const base = createSalvageGame(seed, config);
@@ -75,7 +75,7 @@ function field(rows: readonly string[], seed = "t", over: Partial<SalvageConfig>
       if (ch >= "a" && ch <= "h") return { id: id++, kind: ch.charCodeAt(0) - 97, fuse: fuseFor };
       return { id: id++, kind: Number(ch) };
     });
-  return { ...base, cells, nextId: id, contract: null };
+  return { ...base, cells, nextId: id, order: null };
 }
 
 const at = (s: SalvageState, col: number, row: number): number => row * s.config.width + col;
@@ -297,7 +297,7 @@ describe("salvage rules", () => {
 
   it("deals the debris again when no line is left, keeping crates where they are", () => {
     // After this haul the field would hold no three of a kind touching; the engine deals it afresh.
-    const config: SalvageConfig = { ...cfg, width: 3, height: 3, kinds: 8, startCrates: 0, cratePermille: 0, volatileEvery: 0, contractQuota: 0 };
+    const config: SalvageConfig = { ...cfg, width: 3, height: 3, kinds: 8, startCrates: 0, cratePermille: 0, volatileEvery: 0, orderLength: 0 };
     let found = false;
     for (let i = 0; i < 400 && !found; i++) {
       let s = createSalvageGame(`dry-${i}`, config);
@@ -335,39 +335,28 @@ describe("salvage rules", () => {
     expect(s.finished).toBe(true);
   });
 
-  it("a line of the contract's kind pays contractPercent and counts toward the contract", () => {
-    const s0 = field(["0123", "1111", "2302", "3023"]);
-    const s = { ...s0, contract: { kind: 1, left: 10 } };
+  it("a line of the order's kind, orderLength or longer, fills it for the bonus and posts another kind", () => {
+    const over = { orderLength: 4 };
+    const s0 = field(["0123", "1111", "2302", "3023"], "t", over);
+    const s = { ...s0, order: { kind: 1 } };
     const line = [at(s, 0, 1), at(s, 1, 1), at(s, 2, 1), at(s, 3, 1)];
-    const v = salvageLineValue(s, line, false);
-    expect(v).toMatchObject({ contract: 4, fills: false, base: (16 * cfg.contractPercent) / 100 });
+    expect(salvageLineValue(s, line, false)).toMatchObject({ fills: true, base: 16 + cfg.orderBonus });
+    // Too short, or another kind: plain.
+    expect(salvageLineValue(s, line.slice(0, 3), false)).toMatchObject({ fills: false, base: 9 });
+    expect(salvageLineValue({ ...s0, order: { kind: 2 } }, line, false)).toMatchObject({ fills: false, base: 16 });
     const next = reduceSalvage(s, { type: "tether", cells: line, loop: false });
-    expect(next.contract).toEqual({ kind: 1, left: 6 });
-    expect(next.lastMove!.contractCounted).toBe(4);
-    // Another kind counts nothing and pays plain.
-    const other = { ...s0, contract: { kind: 2, left: 10 } };
-    expect(salvageLineValue(other, line, false)).toMatchObject({ contract: 0, base: 16 });
+    expect(next.lastMove!.orderFilled).toBe(true);
+    expect(next.ordersFilled).toBe(1);
+    expect(next.order!.kind).not.toBe(1);
   });
 
-  it("filling the contract pays the bonus and posts another kind", () => {
-    const s = { ...field(["0123", "1111", "2302", "3023"]), contract: { kind: 1, left: 3 } };
-    const line = [at(s, 0, 1), at(s, 1, 1), at(s, 2, 1), at(s, 3, 1)];
-    expect(salvageLineValue(s, line, false)).toMatchObject({ fills: true, base: (16 * cfg.contractPercent) / 100 + cfg.contractBonus });
-    const next = reduceSalvage(s, { type: "tether", cells: line, loop: false });
-    expect(next.lastMove!.contractFilled).toBe(true);
-    expect(next.contractsFilled).toBe(1);
-    expect(next.contract!.kind).not.toBe(1);
-    expect(next.contract!.left).toBe(cfg.contractQuota);
-  });
-
-  it("a game opens with a contract, or none when the quota is 0", () => {
+  it("a game opens with an order, or none when orderLength is 0", () => {
     fc.assert(
       fc.property(fc.string(), (seed) => {
         const s = createSalvageGame(seed);
-        expect(s.contract!.left).toBe(cfg.contractQuota);
-        expect(s.contract!.kind).toBeGreaterThanOrEqual(0);
-        expect(s.contract!.kind).toBeLessThan(cfg.kinds);
-        expect(createSalvageGame(seed, { ...cfg, contractQuota: 0 }).contract).toBeNull();
+        expect(s.order!.kind).toBeGreaterThanOrEqual(0);
+        expect(s.order!.kind).toBeLessThan(cfg.kinds);
+        expect(createSalvageGame(seed, { ...cfg, orderLength: 0 }).order).toBeNull();
       }),
       { numRuns: 30 },
     );

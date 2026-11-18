@@ -47,6 +47,8 @@ export function SalvagePractice() {
       howTo={
         <>
           <p className="how how-kbd">{t("salvage.streak_note")}</p>
+          <p className="how how-kbd">{t("salvage.order_note")}</p>
+          <p className="how how-kbd">{t("salvage.volatile_note")}</p>
           <p className="how how-kbd">{t("salvage.hint_note")}</p>
         </>
       }
@@ -58,6 +60,14 @@ export function SalvagePractice() {
               {t("salvage.crates_label", { count: crates, max: cfg.maxCrates })}
             </span>
           </div>
+          {shown.order && (
+            <div className="stat stat-wide">
+              <span className="stat-label">{t("salvage.order_stat")}</span>
+              <span className="stat-value" data-testid="hud-order" data-kind={shown.order.kind}>
+                <SalvageDebrisIcon kind={shown.order.kind} size={18} /> {t("salvage.order_value", { kind: t(`salvage.kind.${SALVAGE_KINDS[shown.order.kind]!.id}`), length: cfg.orderLength })}
+              </span>
+            </div>
+          )}
           <div className="stat stat-wide">
             <span className="stat-label">{t("salvage.streak_stat")}</span>
             <span className="stat-value" data-testid="hud-streak">
@@ -84,6 +94,24 @@ export function SalvagePractice() {
             <dt>{t("salvage.result_floor")}</dt>
             <dd>{state.cratesFloor}</dd>
           </div>
+          {state.order && (
+            <div>
+              <dt>{t("salvage.result_orders")}</dt>
+              <dd>{state.ordersFilled}</dd>
+            </div>
+          )}
+          {cfg.volatileEvery > 0 && (
+            <>
+              <div>
+                <dt>{t("salvage.result_defused")}</dt>
+                <dd>{state.defused}</dd>
+              </div>
+              <div>
+                <dt>{t("salvage.result_blasts")}</dt>
+                <dd>{state.blasts}</dd>
+              </div>
+            </>
+          )}
         </>
       }
       legend={

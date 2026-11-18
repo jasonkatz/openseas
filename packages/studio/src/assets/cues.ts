@@ -14,7 +14,7 @@ export const PUZZLE_CUES: Readonly<Record<PuzzleId, readonly string[]>> = {
   navigation: ["swap", "swapQuiet", "clear", "multi", "streak", "streakLost", "charge", "tick", "beat"],
   battle: ["swap", "swapQuiet", "clear", "streak", "streakLost", "charge", "crack", "vent", "alarm", "tick", "end", "beat"],
   swordfight: ["drop", "clash", "heavy", "swing", "scrap", "out", "won", "lost", "swapQuiet", "clear", "multi", "streak", "streakLost", "charge", "slag", "crack", "vent", "alarm", "bump", "thud", "whoosh", "zap", "bad", "tick", "end", "beat"],
-  salvage: ["pop", "good", "slag", "bump", "thud", "whoosh", "beat"],
+  salvage: ["pop", "good", "rise", "slag", "crack", "bump", "thud", "whoosh", "beat"],
   overload: ["pop", "power", "zap", "good", "slag", "streak", "streakLost", "swapQuiet", "bump", "whoosh", "beat"],
   deflectors: ["swap", "pop", "power", "zap", "good", "bad", "multi", "bump", "thud", "tick", "beat"],
   reactor: ["swap", "swapQuiet", "pop", "power", "charge", "clear", "zap", "bad", "streakLost", "bump", "tick", "beat"],
