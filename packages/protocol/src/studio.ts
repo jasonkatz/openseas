@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PuzzleIdSchema } from "./common.js";
+import { LookSchema, NO_LOOK, type Look } from "./look.js";
 
 /**
  * What the puzzle studio and its service say to each other (ADR 0042 decision 4, ADR 0043). Not
@@ -48,8 +49,8 @@ export const isPuzzleText = (puzzle: string, key: string): boolean => key.starts
 export const textVars = (text: string): string[] => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!).sort();
 
 /**
- * A draft's numbers and words: what it lays over the puzzle's content file and the message table,
- * and the seed if it pins one. (The name is older than words.)
+ * A draft's numbers, words and look: what it lays over the puzzle's content file, the message
+ * table and the pieces and cues in `boards/data`, and the seed if it pins one. (The name is older than words.)
  * Only the shape is checked here. Whether a build will play them is that build's own question,
  * asked on the page that deals the round (ADR 0042 decisions 3 and 11).
  *
@@ -75,6 +76,8 @@ export const DraftNumbersSchema = z.object({
     .nullable(),
   /** Defaulted: a draft or a link kept before words has none, and a service older than the site sends none. */
   words: WordsSchema.default(NO_WORDS),
+  /** The pieces it redraws and the cues it revoices (ADR 0065). Defaulted, as `words` is, for a draft or a link kept before there were any. */
+  look: LookSchema.default(NO_LOOK),
 });
 /** As it is kept and sent: `words` may be missing, in a row or a link from before there were any. Read them with `wordsOf`. */
 export type DraftNumbers = z.input<typeof DraftNumbersSchema>;
@@ -83,6 +86,11 @@ export type DraftNumbers = z.input<typeof DraftNumbersSchema>;
 export const wordsOf = (numbers: Pick<DraftNumbers, "words">): Words => ({ texts: numbers.words?.texts ?? {}, category: numbers.words?.category ?? null });
 /** How many strings a draft rewrites, and one more where it changes the category. */
 export const wordCount = (numbers: Pick<DraftNumbers, "words">): number => Object.keys(numbers.words?.texts ?? {}).length + (numbers.words?.category ? 1 : 0);
+
+/** A draft's look, whole: none where it was kept before there was one. */
+export const lookOf = (numbers: Pick<DraftNumbers, "look">): Look => ({ pieces: numbers.look?.pieces ?? {}, cues: numbers.look?.cues ?? {} });
+/** How many pieces a draft redraws and cues it revoices. */
+export const lookCount = (numbers: Pick<DraftNumbers, "look">): number => Object.keys(numbers.look?.pieces ?? {}).length + Object.keys(numbers.look?.cues ?? {}).length;
 
 /** The numbers a tester link freezes: a copy of a draft's, taken when the link was made. */
 export const TesterLinkDraftSchema = DraftNumbersSchema;

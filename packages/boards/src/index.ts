@@ -5,7 +5,7 @@
  */
 export { content, messageOverrideRevision, overrideMessages, shippedMessage, subscribeMessages, t } from "./content.js";
 export { sfx, isMuted, setMuted, auditionCue, audioState, measureCues, type CueMeasure } from "./audio.js";
-export { CUES, CUE_NAMES, LIMITS, NOTES, PROBES, SCALE, type Cue, type CueName, type Voice } from "./cues.js";
+export { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, SCALE, SHIPPED_CUES, cueDataOf, cueFrom, cueLength, cueOf, cueOverrideRevision, overrideCues, subscribeCues, type Cue, type CueArgs, type CueName, type CueParam, type Voice } from "./cues.js";
 export { LatencyMeter } from "./metrics.js";
 export { softwareRendered } from "./surface.js";
 export { SERVER_URL, wsUrl } from "./api/base.js";
