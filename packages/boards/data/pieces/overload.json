@@ -1,0 +1,92 @@
+{
+  "cap-0": {
+    "tint": "slate",
+    "layers": [
+      { "name": "can", "kind": "disc", "x": 12, "y": 12, "r": 10 }
+    ]
+  },
+  "cap-1": {
+    "tint": "sky",
+    "layers": [
+      { "name": "can", "kind": "disc", "x": 12, "y": 12, "r": 10 },
+      { "name": "hole", "kind": "disc", "x": 12, "y": 12, "r": 2.1, "cut": true }
+    ]
+  },
+  "cap-2": {
+    "tint": "sand",
+    "layers": [
+      { "name": "can", "kind": "disc", "x": 12, "y": 12, "r": 10 },
+      { "name": "hole", "kind": "disc", "x": 8.3, "y": 12, "r": 2.1, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 15.7, "y": 12, "r": 2.1, "cut": true }
+    ]
+  },
+  "cap-3": {
+    "tint": "rust",
+    "layers": [
+      { "name": "can", "kind": "disc", "x": 12, "y": 12, "r": 10 },
+      { "name": "hole", "kind": "disc", "x": 12, "y": 8.3, "r": 2.1, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 8.3, "y": 14.96, "r": 2.1, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 15.7, "y": 14.96, "r": 2.1, "cut": true }
+    ]
+  },
+  "cap-4": {
+    "tint": "cream",
+    "layers": [
+      { "name": "can", "kind": "disc", "x": 12, "y": 12, "r": 10 },
+      { "name": "hole", "kind": "disc", "x": 8.3, "y": 8.3, "r": 2.1, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 15.7, "y": 8.3, "r": 2.1, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 8.3, "y": 15.7, "r": 2.1, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 15.7, "y": 15.7, "r": 2.1, "cut": true }
+    ]
+  },
+  "booster-0": {
+    "tint": "slate",
+    "layers": [
+      { "name": "lugs", "kind": "rect", "x": 9, "y": 1.5, "w": 6, "h": 21, "r": 2 },
+      { "name": "lugs", "kind": "rect", "x": 1.5, "y": 9, "w": 21, "h": 6, "r": 2 },
+      { "name": "can", "kind": "disc", "x": 12, "y": 12, "r": 8 }
+    ]
+  },
+  "booster-1": {
+    "tint": "sky",
+    "layers": [
+      { "name": "lugs", "kind": "rect", "x": 9, "y": 1.5, "w": 6, "h": 21, "r": 2 },
+      { "name": "lugs", "kind": "rect", "x": 1.5, "y": 9, "w": 21, "h": 6, "r": 2 },
+      { "name": "can", "kind": "disc", "x": 12, "y": 12, "r": 8 },
+      { "name": "hole", "kind": "disc", "x": 12, "y": 12, "r": 1.8, "cut": true }
+    ]
+  },
+  "booster-2": {
+    "tint": "sand",
+    "layers": [
+      { "name": "lugs", "kind": "rect", "x": 9, "y": 1.5, "w": 6, "h": 21, "r": 2 },
+      { "name": "lugs", "kind": "rect", "x": 1.5, "y": 9, "w": 21, "h": 6, "r": 2 },
+      { "name": "can", "kind": "disc", "x": 12, "y": 12, "r": 8 },
+      { "name": "hole", "kind": "disc", "x": 8.8, "y": 12, "r": 1.8, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 15.2, "y": 12, "r": 1.8, "cut": true }
+    ]
+  },
+  "booster-3": {
+    "tint": "rust",
+    "layers": [
+      { "name": "lugs", "kind": "rect", "x": 9, "y": 1.5, "w": 6, "h": 21, "r": 2 },
+      { "name": "lugs", "kind": "rect", "x": 1.5, "y": 9, "w": 21, "h": 6, "r": 2 },
+      { "name": "can", "kind": "disc", "x": 12, "y": 12, "r": 8 },
+      { "name": "hole", "kind": "disc", "x": 12, "y": 8.8, "r": 1.8, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 8.8, "y": 14.56, "r": 1.8, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 15.2, "y": 14.56, "r": 1.8, "cut": true }
+    ]
+  },
+  "booster-4": {
+    "tint": "cream",
+    "layers": [
+      { "name": "lugs", "kind": "rect", "x": 9, "y": 1.5, "w": 6, "h": 21, "r": 2 },
+      { "name": "lugs", "kind": "rect", "x": 1.5, "y": 9, "w": 21, "h": 6, "r": 2 },
+      { "name": "can", "kind": "disc", "x": 12, "y": 12, "r": 8 },
+      { "name": "hole", "kind": "disc", "x": 8.8, "y": 8.8, "r": 1.8, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 15.2, "y": 8.8, "r": 1.8, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 8.8, "y": 15.2, "r": 1.8, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 15.2, "y": 15.2, "r": 1.8, "cut": true }
+    ]
+  }
+}

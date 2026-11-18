@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { content, overrideMessages, shippedMessage } from "@openseas/boards";
-import { isPuzzleText, textVars, wordsOf, type Draft, type PuzzleCategory, type RoundSummary, type TesterLink, type Words } from "@openseas/protocol";
+import { CUE_NAMES, SHIPPED_CUES, SHIPPED_PIECES, content, cueProblems, overrideCues, overrideMessages, overridePieces, shippedMessage, t, type CueName } from "@openseas/boards";
+import { isPuzzleText, lookOf, textVars, wordsOf, type CueData, type Draft, type Drawing, type Look, type PuzzleCategory, type RoundSummary, type TesterLink, type Words } from "@openseas/protocol";
 import type { StudioPuzzle } from "../puzzles.js";
 import { EMPTY_SCENARIO, formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
 import { SERVICE_URL } from "../service/client.js";
@@ -75,6 +75,14 @@ export interface Frame {
   setText(key: string, text: string | null): void;
   /** Change the puzzle's category; null, or the shipped one, puts it back. */
   setCategory(category: PuzzleCategory | null): void;
+  /** The pieces the draft redraws and the cues it revoices (ADR 0065). The frame lays them over the boards' own. */
+  readonly look: Look;
+  /** Redraw one of the puzzle's pieces by its name; null, or the shipped drawing, puts it back. */
+  setPiece(name: string, drawing: Drawing | null): void;
+  /** Revoice one cue by its name; null, or the shipped cue, puts it back. */
+  setCue(name: string, cue: CueData | null): void;
+  /** The cues the draft revoices that break a rule of the brand book's sound: each plays as shipped, and Save waits, until it is mended. */
+  readonly lookRefusals: readonly Refusal[];
   readonly comparing: boolean;
   setComparing(on: boolean): void;
   readonly report: RoundReport;
@@ -86,7 +94,7 @@ export interface Frame {
 /** The draft a tester link froze, as the scenario a page opens on. */
 function linkScenario(link: TesterLink): Scenario {
   const { seed, overrides, roundSeconds, paceSeconds, thresholds } = link.draft;
-  return { ...EMPTY_SCENARIO, seed, overrides, roundSeconds, paceSeconds, thresholds, words: wordsOf(link.draft) };
+  return { ...EMPTY_SCENARIO, seed, overrides, roundSeconds, paceSeconds, thresholds, words: wordsOf(link.draft), look: lookOf(link.draft) };
 }
 
 const Ctx = createContext<Frame | null>(null);
@@ -161,6 +169,53 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   }, [mode, id, words.texts, comparing]);
   useEffect(() => () => overrideMessages({}), [id]);
 
+  const look = scenario.look;
+  const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+  const setPiece = useCallback(
+    (name: string, drawing: Drawing | null) => {
+      const { [name]: _was, ...rest } = scenario.look.pieces;
+      const back = drawing === null || same(drawing, SHIPPED_PIECES[id][name]);
+      setScenario({ ...scenario, look: { ...scenario.look, pieces: back ? rest : { ...rest, [name]: drawing } } });
+    },
+    [id, scenario, setScenario],
+  );
+  const setCue = useCallback(
+    (name: string, cue: CueData | null) => {
+      const { [name]: _was, ...rest } = scenario.look.cues;
+      const back = cue === null || same(cue, (SHIPPED_CUES as Record<string, CueData>)[name]);
+      setScenario({ ...scenario, look: { ...scenario.look, cues: back ? rest : { ...rest, [name]: cue } } });
+    },
+    [scenario, setScenario],
+  );
+  const lookRefusals = useMemo<Refusal[]>(
+    () =>
+      Object.entries(look.cues).flatMap(([name, cue]) =>
+        (CUE_NAMES as readonly string[]).includes(name) ? cueProblems(name as CueName, cue).map((p) => ({ key: `cue.${name}`, message: t(p.key, p.vars) })) : [{ key: `cue.${name}`, message: t("studio.check.no_cue", { cue: name }) }],
+      ),
+    [look.cues],
+  );
+  // The look goes on the board as the words do (ADR 0065): once the hand stops, the pieces only
+  // under their own puzzle's names, the cues only where they keep the rules, and the shipped look
+  // while the shipped numbers are held up.
+  useEffect(() => {
+    if (mode === "thumb") return;
+    const pieces = comparing ? {} : look.pieces;
+    const cues = comparing ? {} : Object.fromEntries(Object.entries(look.cues).filter(([name]) => !lookRefusals.some((r) => r.key === `cue.${name}`)));
+    const any = Object.keys(pieces).length + Object.keys(cues).length > 0;
+    const at = window.setTimeout(() => {
+      overridePieces(id, pieces);
+      overrideCues(cues);
+    }, any ? WORDS_MS : 0);
+    return () => window.clearTimeout(at);
+  }, [mode, id, look, comparing, lookRefusals]);
+  useEffect(
+    () => () => {
+      overridePieces(id, {});
+      overrideCues({});
+    },
+    [id],
+  );
+
   const shipped = useMemo(() => shippedNumbers(puzzle), [puzzle]);
   // Only what makes the numbers: a new seed alone must not hand the page a new config to redraw.
   const tuned = useMemo(
@@ -172,8 +227,8 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const changed = useMemo(() => (refused.length ? [] : changes(puzzle, tuned)), [puzzle, tuned, refused]);
   const numbers = comparing ? shipped : tuned;
   const value = useMemo<Frame>(
-    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, words, setText, setCategory, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound }),
-    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, words, setText, setCategory, comparing, report, setReport, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound],
+    () => ({ mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refusals: refused, changes: changed, setNumber, resetNumber, resetNumbers, words, setText, setCategory, look, setPiece, setCue, lookRefusals, comparing, setComparing, report, setReport, link, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound }),
+    [link, mode, puzzle, scenario, setScenario, shipped, tuned, numbers, refused, changed, setNumber, resetNumber, resetNumbers, words, setText, setCategory, look, setPiece, setCue, lookRefusals, comparing, report, setReport, store, keepDraft, openDraft, discardDraft, saveDraft, updateDraft, ensureDraft, adoptDraft, rounds, noteRound],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

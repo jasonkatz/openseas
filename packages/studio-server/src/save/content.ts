@@ -102,3 +102,37 @@ export function describeTexts(before: string, texts: Readonly<Record<string, str
   }
   return out;
 }
+
+/** Where a puzzle's pieces live in the repository (ADR 0065). */
+export const piecesPath = (puzzle: string): string => `packages/boards/data/pieces/${puzzle}.json`;
+/** Where every cue lives (ADR 0065): one file for the game, since a cue is played by many boards. */
+export const cuesPath = "packages/boards/data/cues.json";
+
+/**
+ * A look file (a puzzle's pieces, or the cues) with a draft's entries written into it (ADR 0065),
+ * each where it stands and drawn as the one it replaces, so the commit's diff shows those lines and
+ * no others. `saved` is what the Save before this one wrote: an entry the draft has let go since
+ * goes back to what the file held where the draft's branch left the base branch. An entry the file
+ * has no such name for refuses the Save: the page offers only the names the build has, so only a
+ * draft made some other way gets here. Each entry's shape was checked as the draft was read.
+ */
+export function writeLook(text: string, entries: Readonly<Record<string, unknown>>, saved: Readonly<Record<string, unknown>>, base: string | null): string {
+  let out = text;
+  for (const name of Object.keys(saved)) {
+    if (name in entries) continue;
+    const was = base === null ? undefined : getJsonValue(base, [name]);
+    if (was !== undefined && getJsonValue(out, [name]) !== undefined) out = setJsonValue(out, [name], was);
+  }
+  for (const [name, value] of Object.entries(entries)) {
+    if (!/^[a-z][a-zA-Z0-9-]*$/.test(name) || getJsonValue(out, [name]) === undefined) throw new UnknownKeyError(name);
+    out = setJsonValue(out, [name], value);
+  }
+  return out;
+}
+
+/** The names of the entries a draft changes in a look file: those whose value differs from what the file held. */
+export function describeLook(before: string, entries: Readonly<Record<string, unknown>>): string[] {
+  return Object.entries(entries)
+    .filter(([name, value]) => JSON.stringify(getJsonValue(before, [name])) !== JSON.stringify(value))
+    .map(([name]) => name);
+}

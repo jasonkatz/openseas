@@ -20,6 +20,13 @@ const PATHS: Readonly<Record<ModeId, ReactNode>> = {
     </>
   ),
   scoring: <path d="M7 4h10v5a5 5 0 0 1-10 0zM12 14v4M8 20h8M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3" {...stroke} />,
+  sprites: (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="3" {...stroke} />
+      <circle cx="10" cy="10" r="2.4" fill="currentColor" />
+      <path d="M5 18l5-5 3 3 2.5-2.5L20 18" {...stroke} />
+    </>
+  ),
   sounds: <path d="M4 10v4M8 6v12M12 9v6M16 4v16M20 10v4" {...stroke} />,
   text: <path d="M5 7V5h14v2M12 5v14M9 19h6" {...stroke} strokeWidth={2.4} />,
 };

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { wordCount, type Draft, type TesterLink } from "@openseas/protocol";
+import { lookCount, wordCount, type Draft, type TesterLink } from "@openseas/protocol";
 import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { Menu, MenuButton, useMenu } from "../studio/Menu.jsx";
@@ -136,7 +136,7 @@ export function SaveControl() {
  * button says there is something in it to see.
  */
 function SaveRows({ draft, settled }: { draft: Draft; settled: boolean }) {
-  const { saveDraft, updateDraft, refusals, changes } = useFrame();
+  const { saveDraft, updateDraft, refusals, lookRefusals, changes } = useFrame();
   const [name, setName] = useState("");
   const [link, setLink] = useState<TesterLink | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -149,7 +149,7 @@ function SaveRows({ draft, settled }: { draft: Draft; settled: boolean }) {
   const writing = save.state === "saving";
   const current = save.pull !== null && save.savedRevision === draft.revision;
   // With no pull request yet, a draft that changes no number or word and that the chat has not worked on has nothing for one to hold.
-  const nothing = save.pull === null && changes.length === 0 && wordCount(draft.numbers) === 0 && !save.edits;
+  const nothing = save.pull === null && changes.length === 0 && wordCount(draft.numbers) === 0 && lookCount(draft.numbers) === 0 && !save.edits;
   const menu = useMenu();
   const start = async (): Promise<void> => {
     menu.setOpen(true);
@@ -163,7 +163,7 @@ function SaveRows({ draft, settled }: { draft: Draft; settled: boolean }) {
       () => setNote(t("studio.copied")),
       () => setNote(t("studio.copy_failed")),
     );
-  const off = !settled || writing || refusals.length > 0 || nothing;
+  const off = !settled || writing || refusals.length > 0 || lookRefusals.length > 0 || nothing;
   const attention = save.state === "failed" || (save.behind && !writing);
   return (
     <Menu

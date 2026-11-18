@@ -82,7 +82,9 @@ no black jacket: the darkest is `olive`.
 
 Pieces are **drawn in code** (ADR 0062), as **pictograms**: a simplified picture of the thing a
 piece is called, reduced to geometry. A cog is a toothed disc, a bolt is a hexagon, a fuse is a
-capsule.
+capsule. Each is a drawing of a few layers on the 24 unit square, kept as data in
+`packages/boards/data/pieces/<puzzle>.json`, painted by one painter and redrawn in the studio's
+Sprites editor, which notes where a drawing breaks a rule below (ADR 0065).
 
 - **One silhouette a kind.** No two kinds on a board share an outline. A kind is told from every
   other by its silhouette alone, with the colour taken away: the specimen has a switch that shows
@@ -169,8 +171,9 @@ The world is already flat-coloured primitives, and stays so.
 
 ## 8. Sound
 
-Built (M10 step 6). Every cue is defined as data in `packages/boards/src/cues.ts` and played by
-`audio.ts` beside it; tests hold both to what follows.
+Built (M10 step 6). Every cue is defined as data in `packages/boards/data/cues.json`, read by
+`packages/boards/src/cues.ts` and played by `audio.ts` beside it; tests hold all three to what
+follows, and the studio's Sounds editor holds a revoiced cue to it before it plays (ADR 0065).
 
 - Cues are synthesized in code. No samples.
 - **One voice.** A cue is a few voices from one small set: a sine, a triangle, a breath of

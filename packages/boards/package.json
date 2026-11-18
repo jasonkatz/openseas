@@ -21,6 +21,18 @@
     "./audio": {
       "types": "./src/audio.ts",
       "default": "./src/audio.ts"
+    },
+    "./rules": {
+      "types": "./src/look/rules.ts",
+      "default": "./src/look/rules.ts"
+    },
+    "./pieces": {
+      "types": "./src/look/pieces.ts",
+      "default": "./src/look/pieces.ts"
+    },
+    "./drawing": {
+      "types": "./src/kit/drawing.ts",
+      "default": "./src/kit/drawing.ts"
     }
   },
   "scripts": {

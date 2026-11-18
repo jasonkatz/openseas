@@ -99,7 +99,7 @@ export interface Service {
 }
 
 /** A stand-in service: one owner (or nobody), and the drafts the test gives it, kept as the real one keeps them. */
-export async function service(page: Page, o: { login: string | null; drafts?: Draft[]; save?: boolean; chat?: boolean; words?: boolean }): Promise<Service> {
+export async function service(page: Page, o: { login: string | null; drafts?: Draft[]; save?: boolean; chat?: boolean; words?: boolean; look?: boolean }): Promise<Service> {
   const fresh = (over: Partial<StandinChat> & { id: string }): StandinChat => ({ puzzle: "cooling", title: "Chat", draft: "draftdraft", items: [], running: false, turn: 0, live: "", spentUsd: 0, updatedAt: "2026-11-14T12:00:00.000Z", made: true, ...over });
   /** Line ids run across every chat, as the service's do. */
   let lines = 0;
@@ -138,7 +138,7 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
     const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", headers: cors, body: JSON.stringify(body) });
     if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { ...cors, "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS" } });
     s.calls.push(`${req.method()} ${url.pathname}`);
-    if (url.pathname === "/auth/me") return json(200, { login: o.login, signIn: true, dev: false, ...(o.save === undefined ? {} : { save: o.save }), ...(o.chat === undefined ? {} : { chat: o.chat }), ...(o.words === undefined ? {} : { words: o.words }) });
+    if (url.pathname === "/auth/me") return json(200, { login: o.login, signIn: true, dev: false, ...(o.save === undefined ? {} : { save: o.save }), ...(o.chat === undefined ? {} : { chat: o.chat }), ...(o.words === undefined ? {} : { words: o.words }), ...(o.look === undefined ? {} : { look: o.look }) });
     if (url.pathname === "/auth/sign-out") {
       o.login = null;
       return json(200, { ok: true });
@@ -254,6 +254,8 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
       found.numbers = body.numbers;
       // A service older than words keeps none of what it is sent.
       if (!o.words) delete found.numbers.words;
+      // And one older than the look keeps none of that (ADR 0065).
+      if (!o.look) delete (found.numbers as { look?: unknown }).look;
       found.revision += 1;
       return json(200, found);
     }

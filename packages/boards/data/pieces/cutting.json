@@ -1,0 +1,62 @@
+{
+  "nickel": {
+    "tint": "sand",
+    "layers": [
+      { "name": "cell", "kind": "rect", "x": 0.5, "y": 0.5, "w": 23, "h": 23, "r": 2.5 },
+      { "name": "hole", "kind": "disc", "x": 12, "y": 12, "r": 4.4, "cut": true }
+    ]
+  },
+  "cobalt": {
+    "tint": "sky",
+    "layers": [
+      { "name": "cell", "kind": "rect", "x": 0.5, "y": 0.5, "w": 23, "h": 23, "r": 2.5 },
+      { "name": "slot", "kind": "rect", "x": 4.5, "y": 9.9, "w": 15, "h": 4.2, "r": 2.1, "cut": true }
+    ]
+  },
+  "quartz": {
+    "tint": "rose",
+    "layers": [
+      { "name": "cell", "kind": "rect", "x": 0.5, "y": 0.5, "w": 23, "h": 23, "r": 2.5 },
+      { "name": "cross", "kind": "bar", "x0": 12, "y0": 6.6, "x1": 12, "y1": 17.4, "width": 3.6, "cut": true },
+      { "name": "cross", "kind": "bar", "x0": 6.6, "y0": 12, "x1": 17.4, "y1": 12, "width": 3.6, "cut": true }
+    ]
+  },
+  "olivine": {
+    "tint": "moss",
+    "layers": [
+      { "name": "cell", "kind": "rect", "x": 0.5, "y": 0.5, "w": 23, "h": 23, "r": 2.5 },
+      { "name": "wedge", "kind": "poly", "points": [12, 7.4, 17.4, 16.2, 6.6, 16.2], "round": 2.4, "cut": true }
+    ]
+  },
+  "spinel": {
+    "tint": "lilac",
+    "layers": [
+      { "name": "cell", "kind": "rect", "x": 0.5, "y": 0.5, "w": 23, "h": 23, "r": 2.5 },
+      { "name": "lozenge", "kind": "poly", "points": [12, 6.2, 17.8, 12, 12, 17.8, 6.2, 12], "round": 1.8, "cut": true }
+    ]
+  },
+  "beryl": {
+    "tint": "teal",
+    "layers": [
+      { "name": "cell", "kind": "rect", "x": 0.5, "y": 0.5, "w": 23, "h": 23, "r": 2.5 },
+      { "name": "hole", "kind": "disc", "x": 7.6, "y": 12, "r": 2.8, "cut": true },
+      { "name": "hole", "kind": "disc", "x": 16.4, "y": 12, "r": 2.8, "cut": true }
+    ]
+  },
+  "iron": {
+    "tint": "slate",
+    "layers": [
+      { "name": "cell", "kind": "rect", "x": 0.5, "y": 0.5, "w": 23, "h": 23, "r": 2.5 },
+      { "name": "ring", "kind": "disc", "x": 12, "y": 12, "r": 6, "cut": true },
+      { "name": "core", "kind": "disc", "x": 12, "y": 12, "r": 2.6 }
+    ]
+  },
+  "chalk": {
+    "tint": "cream",
+    "layers": [
+      { "name": "cell", "kind": "rect", "x": 0.5, "y": 0.5, "w": 23, "h": 23, "r": 2.5 },
+      { "name": "slot", "kind": "rect", "x": 5, "y": 6.9, "w": 14, "h": 3.6, "r": 1.8, "cut": true },
+      { "name": "slot", "kind": "rect", "x": 5, "y": 13.5, "w": 14, "h": 3.6, "r": 1.8, "cut": true }
+    ]
+  }
+}
