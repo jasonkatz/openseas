@@ -25,11 +25,11 @@
   },
   "roundSeconds": 120,
   "thresholds": [
-    { "score": 300, "rating": 1100 },
-    { "score": 700, "rating": 1300 },
-    { "score": 1500, "rating": 1500 },
-    { "score": 2600, "rating": 1700 },
-    { "score": 4000, "rating": 1900 },
-    { "score": 6000, "rating": 2100 }
+    { "score": 350, "rating": 1100 },
+    { "score": 850, "rating": 1300 },
+    { "score": 1800, "rating": 1500 },
+    { "score": 3100, "rating": 1700 },
+    { "score": 4800, "rating": 1900 },
+    { "score": 7200, "rating": 2100 }
   ]
 }

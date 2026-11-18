@@ -134,6 +134,34 @@ Set from bots, not people (ADR 0036). All at 45 hauls a round.
   about 2,900, and one that waits for three about 3,600: crates are worth a third to a half of a
   good round, and patience pays without being the only thing that does.
 
+- **Orders, not contracts.** The first version of this layer was a contract: lines of a named kind
+  paid double, and fifteen pieces of it paid a bonus. Every bot got its worth without trying, and
+  one that played for it scored no more (a rollout bot scored 7 percent less). An order asks for one
+  line of seven of the kind, which is built, not found: a rollout bot that plans fills 8.7 a round
+  to a one-move bot's 6.4, and scores 8.5 percent more than one that ignores orders, where on the
+  field without orders planning gains nothing. Orders of nine were too rare to plan for (+6 percent).
+- **Volatiles on a beat, and late pays most.** Drawn at random with a cap of one, defusing at once
+  freed the slot and brought the next volatile sooner, and with a flat payment the bait (defuse at
+  once) beat holding. On a beat of eight hauls, paying 60 for every haul burned and one more, and
+  breaking the streak on a blast, the bait scores 4 percent under the rollout bot that holds.
+- **Couplers cut.** A third special piece crowded the field, and a line that changes kind muddied
+  the order.
+
+The bots of this pass, 32 seeds, 45 hauls. One-move bots weigh each line by what it scores now; the
+rollout bot takes the eight best lines, plays each three times five hauls on with a fresh random
+stream (so it never sees what will drift in), and keeps the best.
+
+| Bot | Field without orders or volatiles | With orders | Full |
+|---|---|---|---|
+| Patient netter, blind to orders and volatiles | 7,289 | 9,460 | 9,499 |
+| One move, sees everything | 7,289 | 9,634 | 10,412 |
+| Rollout, defuses every volatile at once (the bait) | | | 10,903 |
+| Rollout | 6,871 | 10,267 | 11,370 |
+
+Planning gains nothing on the old field and 20 percent on the full one. These bots are stronger
+than the ones the thresholds were first set from; the thresholds were raised a fifth for the points
+orders and volatiles add (a blind bot gains about that much) and want setting again by hand.
+
 ## Open questions for play
 
 - Is the streak's grace the right size, or should a net never break the streak?
