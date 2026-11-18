@@ -30,10 +30,11 @@ function context(): { ac: AudioContext; out: GainNode } | null {
   if (muted) return null;
   try {
     if (!ctx) {
-      // A phone with its ring switch off plays nothing through WebAudio unless the page says its
-      // sound is the point of it, as a game's is. Only some browsers have this; the rest ignore it.
+      // The game's sound is incidental, and says so: it obeys a phone's ring switch (on silent the
+      // game is silent), mixes with whatever music is playing, and is not media, so the phone
+      // shows no "now playing" card for it. Only some browsers have this; the rest ignore it.
       const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
-      if (session) session.type = "playback";
+      if (session) session.type = "ambient";
       ctx = new AudioContext();
     }
     if (!master) {
@@ -80,10 +81,9 @@ function unlock(): void {
 }
 if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
   for (const type of GESTURES) window.addEventListener(type, unlock, { capture: true, passive: true });
-  // A page that can be heard with the ring switch off is, to a phone, playing media: it gets a
-  // "now playing" card on the lock screen for as long as its context runs. So the context sleeps
-  // whenever the page is hidden (the phone locked, another app or tab in front) and the card goes
-  // with it; coming back wakes it, or the next touch does where the phone insists on one.
+  // The context sleeps whenever the page is hidden (the phone locked, another app or tab in
+  // front), so the game holds no audio it is not using; coming back wakes it, or the next touch
+  // does where the phone insists on one.
   document.addEventListener("visibilitychange", () => {
     if (!ctx) return;
     if (document.hidden) void ctx.suspend().catch(() => undefined);
