@@ -17,6 +17,8 @@ generated sprites they first shipped with (ADR 0037) and the tooling that made t
 | Racks | Move the top of one stack onto another; ship a full rack of one kind | `/racks` | [racks.md](./racks.md) |
 | Cutting | Slice a slab along its grid; bank the pieces that hold one ore | `/cutting` | [cutting.md](./cutting.md) |
 
+M11's pitches (a layer, a bait and stages for each puzzle but Salvage, with their bot checks) are in [m11-pitches.md](./m11-pitches.md), for the owner to pick from.
+
 Each design file says what the puzzle is, how it scores, what is luck and what is skill, and what was
 tuned and why. Keep it true: when a number or a rule changes, its design file changes in the same
 commit.
