@@ -3,7 +3,8 @@ import { z } from "zod";
 /**
  * The look as data (ADR 0065): every piece a board draws and every cue the game plays is a file
  * of numbers in `boards/data`, and a studio draft may lay its own over them. These schemas are the
- * shape of both. Only the shape and its bounds are checked here; the brand book's rules for a
+ * shape of both, and their order is the order a file's keys are written in: Save writes an entry
+ * as its schema gives it back. Only the shape and its bounds are checked here; the brand book's rules for a
  * piece (docs/BRAND.md section 3) and for a cue (section 8) are checked in `boards` (`lookRules`),
  * where the page shows them, and by the studio's tests over the shipped files.
  */
@@ -19,9 +20,10 @@ const L = num(0, 48);
 /** An angle, in degrees. */
 const DEG = num(-720, 720);
 
+/** What the owner calls a layer in the studio's list; nothing draws it. First, so a file reads by it. */
+const LayerName = { name: z.string().max(32).optional() };
+
 const LayerBase = {
-  /** What the owner calls the layer in the studio's list; nothing draws it. */
-  name: z.string().max(32).optional(),
   /** Cut out of what the layers before it drew, so the ground shows through: the piece's one inner detail. */
   cut: z.boolean().optional(),
   /** Turned about the square's centre, in degrees. */
@@ -32,20 +34,21 @@ const LayerBase = {
 };
 
 /** A rounded rectangle. */
-export const RectLayerSchema = z.object({ kind: z.literal("rect"), x: U, y: U, w: L, h: L, r: L, ...LayerBase });
+export const RectLayerSchema = z.object({ ...LayerName, kind: z.literal("rect"), x: U, y: U, w: L, h: L, r: L, ...LayerBase });
 /** A disc. */
-export const DiscLayerSchema = z.object({ kind: z.literal("disc"), x: U, y: U, r: L, ...LayerBase });
+export const DiscLayerSchema = z.object({ ...LayerName, kind: z.literal("disc"), x: U, y: U, r: L, ...LayerBase });
 /** A filled polygon, corners rounded by `round` (a stroke of its own colour). `points` are x, y pairs. */
-export const PolyLayerSchema = z.object({ kind: z.literal("poly"), points: z.array(U).min(6).max(64).refine((p) => p.length % 2 === 0, "points come in pairs"), round: L, ...LayerBase });
+export const PolyLayerSchema = z.object({ ...LayerName, kind: z.literal("poly"), points: z.array(U).min(6).max(128).refine((p) => p.length % 2 === 0, "points come in pairs"), round: L, ...LayerBase });
 /** A round-ended stroke from one point to another. */
-export const BarLayerSchema = z.object({ kind: z.literal("bar"), x0: U, y0: U, x1: U, y1: U, width: L, ...LayerBase });
+export const BarLayerSchema = z.object({ ...LayerName, kind: z.literal("bar"), x0: U, y0: U, x1: U, y1: U, width: L, ...LayerBase });
 /** A stroked arc about (`x`, `y`), from `from` to `to` degrees clockwise from three o'clock. `cap` rounds its ends. */
-export const ArcLayerSchema = z.object({ kind: z.literal("arc"), x: U, y: U, r: L, from: DEG, to: DEG, width: L, cap: z.boolean().optional(), ...LayerBase });
+export const ArcLayerSchema = z.object({ ...LayerName, kind: z.literal("arc"), x: U, y: U, r: L, from: DEG, to: DEG, width: L, cap: z.boolean().optional(), ...LayerBase });
 /**
  * A stroked line through `points`, joined round: a horseshoe's legs and bow, a hook. An `arc`
  * entry bends it: from the last point, round the circle about (`x`, `y`) to `to` degrees.
  */
 export const PathLayerSchema = z.object({
+  ...LayerName,
   kind: z.literal("path"),
   steps: z
     // The arc first: a point would read an arc as itself, dropping the rest of it.
@@ -95,7 +98,7 @@ export type When = z.infer<typeof WhenSchema>;
 export const RepeatSchema = z.object({ param: z.string().min(1).max(24), min: z.int().min(0).max(8), max: z.int().min(0).max(8), note: z.int().min(-8).max(8), at: num(0, 0.4) });
 export type Repeat = z.infer<typeof RepeatSchema>;
 
-const VoiceBase = {
+const VoiceTiming = {
   /** Seconds after the cue starts. */
   at: num(0, 1),
   /** Seconds from silence to full. */
@@ -103,9 +106,8 @@ const VoiceBase = {
   /** Seconds from full back to silence. */
   release: num(0.001, 1),
   level: num(0.001, 1),
-  when: WhenSchema.optional(),
-  repeat: RepeatSchema.optional(),
 };
+const VoiceRules = { when: WhenSchema.optional(), repeat: RepeatSchema.optional() };
 
 /** A note of the scale, sounded soft. */
 export const ToneVoiceSchema = z.object({
@@ -113,12 +115,13 @@ export const ToneVoiceSchema = z.object({
   /** A step of the scale: 0 is its root, two octaves down. */
   note: z.int().min(0).max(NOTE_COUNT - 1),
   wave: z.enum(["sine", "triangle"]),
+  ...VoiceTiming,
   /** Kept where it is when the cue is shifted. */
   fixed: z.boolean().optional(),
-  ...VoiceBase,
+  ...VoiceRules,
 });
 /** A breath of noise through a filter moving from one cutoff to another: a low-pass, or a band-pass where `band`. */
-export const AirVoiceSchema = z.object({ kind: z.literal("air"), from: num(20, 20_000), to: num(20, 20_000), band: z.boolean(), ...VoiceBase });
+export const AirVoiceSchema = z.object({ kind: z.literal("air"), ...VoiceTiming, from: num(20, 20_000), to: num(20, 20_000), band: z.boolean(), ...VoiceRules });
 
 export const VoiceDataSchema = z.discriminatedUnion("kind", [ToneVoiceSchema, AirVoiceSchema]);
 export type VoiceData = z.infer<typeof VoiceDataSchema>;

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { CORE_PUZZLE_IDS, PROTOTYPE_PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
 import { PUZZLE_CATEGORIES } from "@openseas/content";
-import { wordCount } from "@openseas/protocol";
+import { lookCount, wordCount } from "@openseas/protocol";
 import { content, t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { formatNumber } from "../frame/numbers.js";
@@ -19,7 +19,9 @@ import type { TextEntry } from "./TextPanel.jsx";
 export type Target =
   | { readonly kind: "number"; readonly key: string }
   | { readonly kind: "text"; readonly key: string }
-  | { readonly kind: "category" };
+  | { readonly kind: "category" }
+  | { readonly kind: "piece"; readonly key: string }
+  | { readonly kind: "cue"; readonly key: string };
 
 /**
  * The studio's top bar (DESIGN.md 3.14, ADR 0056). On its left, where the page is: the way back,
@@ -92,8 +94,8 @@ function PuzzleMenu({ title, puzzle }: { title: string; puzzle: PuzzleId }) {
  */
 function ChangedChip({ sections, texts, onGoto }: { sections: readonly NumberSection[]; texts: readonly TextEntry[]; onGoto(mode: ModeId, target?: Target): void }) {
   const menu = useMenu();
-  const { scenario, changes, refusals, words, resetNumber, resetNumbers, setText, setCategory } = useFrame();
-  const count = changes.length + wordCount(scenario);
+  const { scenario, changes, refusals, words, look, resetNumber, resetNumbers, setText, setCategory, setPiece, setCue } = useFrame();
+  const count = changes.length + wordCount(scenario) + lookCount(scenario);
   const refused = refusals.length > 0;
   const go = (mode: ModeId, target: Target): void => {
     menu.setOpen(false);
@@ -153,6 +155,28 @@ function ChangedChip({ sections, texts, onGoto }: { sections: readonly NumberSec
                   <b className="change-words">{text}</b>
                 </button>
                 <button type="button" className="num-reset" onClick={() => setText(key, null)} aria-label={t("studio.put_back")} title={t("studio.put_back")}>
+                  <ResetIcon />
+                </button>
+              </li>
+            ))}
+            {Object.keys(look.pieces).map((name) => (
+              <li key={`piece-${name}`} data-testid={`change-piece-${name}`}>
+                <button type="button" className="menu-item" onClick={() => go("sprites", { kind: "piece", key: name })}>
+                  <ModeIcon mode="sprites" size={15} />
+                  <span className="change-name">{t("studio.sprites.changed", { piece: name })}</span>
+                </button>
+                <button type="button" className="num-reset" onClick={() => setPiece(name, null)} aria-label={t("studio.put_back")} title={t("studio.put_back")}>
+                  <ResetIcon />
+                </button>
+              </li>
+            ))}
+            {Object.keys(look.cues).map((name) => (
+              <li key={`cue-${name}`} data-testid={`change-cue-${name}`}>
+                <button type="button" className="menu-item" onClick={() => go("sounds", { kind: "cue", key: name })}>
+                  <ModeIcon mode="sounds" size={15} />
+                  <span className="change-name">{t("studio.sounds.changed", { cue: name })}</span>
+                </button>
+                <button type="button" className="num-reset" onClick={() => setCue(name, null)} aria-label={t("studio.put_back")} title={t("studio.put_back")}>
                   <ResetIcon />
                 </button>
               </li>

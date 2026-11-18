@@ -1,8 +1,9 @@
 import { useCallback, useState, useSyncExternalStore } from "react";
 import type { PuzzleId } from "@openseas/engine";
 import { wordCount } from "@openseas/protocol";
-import { messageOverrideRevision, subscribeMessages, t } from "@openseas/boards";
-import { SoundPanel } from "../assets/AssetPanels.jsx";
+import { messageOverrideRevision, pieceOverrideRevision, subscribeMessages, subscribePieces, t } from "@openseas/boards";
+import { SoundPanel } from "../assets/SoundPanel.jsx";
+import { SpritePanel } from "../assets/SpritePanel.jsx";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { PlayShell } from "../play/PlayShell.jsx";
 import type { ShellProps } from "../practice/PracticeShell.jsx";
@@ -10,7 +11,7 @@ import { ChatPanel } from "../service/ChatPanel.jsx";
 import { DraftBanner } from "../service/DraftSection.jsx";
 import { LooseRefusals, NumbersPanel, anyNumberMatch, modeOfKey, useNumberSections } from "../tuning/TuningPanel.jsx";
 import { ModeIcon } from "./icons.jsx";
-import { RAIL, isNumberMode, type ModeId } from "./modes.js";
+import { EDITOR_MODES, RAIL, isNumberMode, type ModeId } from "./modes.js";
 import { PlayPanel } from "./PlayPanel.jsx";
 import { TextPanel, textMatches, useTextEntries } from "./TextPanel.jsx";
 import { TopBar, type Target } from "./TopBar.jsx";
@@ -38,7 +39,7 @@ function flash(testId: string): void {
  * A puzzle's studio page (DESIGN.md 3.14, ADR 0056), laid out for a desktop as a design tool is.
  * A bar across the top says where the page is and what becomes of the draft. A rail down the left
  * edge picks a mode, and the panel beside it is that mode's: the round, the numbers in three
- * parts, the sounds, the words (ADR 0057). The board stands in the middle at a phone's proportions,
+ * parts, the pieces and the sounds (ADR 0065), the words (ADR 0057). The board stands in the middle at a phone's proportions,
  * exactly as `/play` draws it, in every mode. The chat is on the right (ADR 0047). Every panel
  * stays in the page while one shows, so a file being tried or a value half typed outlasts a look
  * at another. A phone never sees this: it gets the puzzle alone (App.tsx).
@@ -53,6 +54,10 @@ export function StudioShell(p: ShellProps) {
   const sections = useNumberSections();
   // The page says the draft's words too (ADR 0057): it is drawn again when they are laid over the message table.
   useSyncExternalStore(subscribeMessages, messageOverrideRevision, () => 0);
+  // And its pieces: a legend draws them, and is drawn again when one is redrawn (ADR 0065).
+  useSyncExternalStore(subscribePieces, pieceOverrideRevision, () => 0);
+  const [piece, setPiece] = useState<string | null>(null);
+  const [cue, setCue] = useState<string | null>(null);
   const texts = useTextEntries();
   // One search over everything typed into a panel: the numbers of three modes, and the words.
   const searchable = isNumberMode(mode) || mode === "text";
@@ -61,11 +66,15 @@ export function StudioShell(p: ShellProps) {
 
   const changed = new Set<ModeId>(changes.map((c) => modeOfKey(sections, c.key) ?? "tuning"));
   if (wordCount(scenario) > 0) changed.add("text");
+  if (Object.keys(scenario.look.pieces).length > 0) changed.add("sprites");
+  if (Object.keys(scenario.look.cues).length > 0) changed.add("sounds");
 
   const goto = useCallback((next: ModeId, target?: Target) => {
     setMode(next);
     setQuery("");
     if (!target) return;
+    if (target.kind === "piece") return setPiece(target.key);
+    if (target.kind === "cue") return setCue(target.key);
     const id = target.kind === "number" ? `control-${target.key}` : target.kind === "text" ? `text-${target.key}` : "control-category";
     // After the panel has turned to the mode: a hidden control has no place to scroll to.
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => flash(id)));
@@ -73,7 +82,7 @@ export function StudioShell(p: ShellProps) {
 
   const seed = report.seed ?? scenario.seed;
   return (
-    <main className="studio" data-testid="studio" data-mode={mode}>
+    <main className={`studio ${EDITOR_MODES.includes(mode) ? "is-editing" : ""}`} data-testid="studio" data-mode={mode}>
       <TopBar title={t(`${p.puzzle}.title`)} puzzle={puzzle} sections={sections} texts={texts} onGoto={goto} />
       <DraftBanner />
 
@@ -146,8 +155,11 @@ export function StudioShell(p: ShellProps) {
               {t("studio.find_none", { query: query.trim() })}
             </p>
           )}
+          <div hidden={mode !== "sprites"} data-mode-panel="sprites">
+            <SpritePanel puzzle={puzzle} focus={piece} onFocus={setPiece} />
+          </div>
           <div hidden={mode !== "sounds"} data-mode-panel="sounds">
-            <SoundPanel puzzle={puzzle} />
+            <SoundPanel puzzle={puzzle} focus={cue} onFocus={setCue} />
           </div>
         </div>
       </aside>

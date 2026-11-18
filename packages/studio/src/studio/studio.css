@@ -1674,3 +1674,271 @@
 .chat-head .menu-pop {
   width: 260px;
 }
+
+/* ---- the editors (ADR 0065): Sprites and Sounds take a wider panel */
+.studio.is-editing {
+  grid-template-columns: 48px minmax(380px, 470px) minmax(0, 1fr) minmax(240px, 300px);
+}
+.sprite-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sprite-head .panel-cap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.sprite-tools,
+.layer-add,
+.probe-row,
+.insp-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sprite-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 6px;
+}
+.sprite-tile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 2px 4px;
+  border: 1px solid var(--st-line);
+  border-radius: var(--st-r);
+  background: var(--st-well);
+  color: var(--st-muted);
+  cursor: pointer;
+}
+.sprite-tile:hover {
+  border-color: var(--st-line-strong);
+}
+.sprite-tile[aria-selected="true"] {
+  border-color: var(--st-accent);
+  color: var(--st-fg);
+}
+.sprite-tile .rail-dot {
+  top: 4px;
+  right: 4px;
+}
+.sprite-tile-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+.sprite-stage {
+  position: relative;
+  justify-self: center;
+  border-radius: var(--st-r);
+  background: var(--st-canvas);
+  box-shadow: var(--st-float);
+}
+.sprite-stage > canvas,
+.sprite-over {
+  position: absolute;
+  inset: 0;
+}
+.sprite-over {
+  touch-action: none;
+}
+.sprite-over .grid-minor line {
+  stroke: var(--st-line);
+  stroke-width: 0.03;
+}
+.sprite-over .grid-major line {
+  stroke: var(--st-line-strong);
+  stroke-width: 0.05;
+}
+.sprite-over .grid-frame {
+  fill: none;
+  stroke: var(--st-faint);
+  stroke-width: 0.06;
+  stroke-dasharray: 0.4 0.3;
+}
+.sprite-over .handle {
+  fill: var(--st-canvas);
+  stroke: var(--st-accent-text);
+  stroke-width: 0.18;
+  cursor: grab;
+}
+.sprite-over .handle-body {
+  fill: var(--st-accent-text);
+  cursor: move;
+}
+.sprite-previews {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sprite-previews .switch-label {
+  margin-left: auto;
+}
+.sprite-notes {
+  margin: 0;
+  padding: 8px 10px 8px 26px;
+  border-radius: var(--st-r);
+  background: var(--st-mark-soft);
+  color: var(--st-mark-text);
+  font-size: 12px;
+}
+.sprite-notes.is-hard {
+  color: var(--st-danger);
+}
+.layers {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.layers li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px 28px;
+  gap: 4px;
+  border-radius: var(--st-r);
+}
+.layers li.is-selected {
+  background: var(--st-accent-soft);
+}
+.layer-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: var(--st-fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.layer-kind {
+  width: 58px;
+  color: var(--st-muted);
+  font-size: 11px;
+}
+.layer-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.insp-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 8px;
+}
+.insp-field {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--st-muted);
+}
+.insp-wide {
+  grid-column: 1 / -1;
+}
+.insp-field textarea {
+  height: auto;
+  padding: 6px 8px;
+  font-size: 11.5px;
+}
+.rule {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) repeat(4, minmax(0, 0.8fr));
+  align-items: end;
+  gap: 6px;
+  font-size: 12px;
+}
+.rule-label {
+  align-self: center;
+  color: var(--st-muted);
+}
+.cue.is-selected {
+  background: var(--st-accent-soft);
+}
+.cue-pick {
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cue-pick .rail-dot {
+  position: static;
+  margin-left: auto;
+}
+.chip.probe {
+  font-size: 11px;
+}
+.roll {
+  width: 100%;
+  height: auto;
+  border-radius: var(--st-r);
+  background: var(--st-canvas);
+  touch-action: none;
+}
+.roll .roll-row line {
+  stroke: var(--st-line);
+  stroke-width: 0.5;
+}
+.roll .roll-root line {
+  stroke: var(--st-line-strong);
+  stroke-width: 0.8;
+}
+.roll text {
+  fill: var(--st-faint);
+  font: 7px var(--st-mono);
+}
+.roll .roll-limit {
+  stroke: var(--st-mark);
+  stroke-dasharray: 3 3;
+}
+.roll .roll-heard {
+  fill: var(--st-accent-soft);
+  stroke: var(--st-accent);
+  stroke-width: 0.6;
+  pointer-events: none;
+}
+.roll-voice > rect:first-child {
+  fill: var(--st-raised);
+  stroke: var(--st-line-strong);
+  stroke-width: 0.8;
+  cursor: grab;
+}
+.roll-voice.air > rect:first-child {
+  fill: var(--st-well);
+}
+.roll-voice.is-selected > rect:first-child {
+  stroke: var(--st-accent-text);
+  stroke-width: 1.2;
+}
+.roll-voice > path {
+  fill: var(--st-accent-text);
+  opacity: 0.55;
+}
+.roll-edge {
+  fill: transparent;
+  cursor: ew-resize;
+}
+.assets .cue-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 0 6px;
+}
+.assets .cue {
+  margin: 0;
+}
+.sprite-under {
+  position: absolute;
+  inset: 0;
+}

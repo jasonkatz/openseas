@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DraftListSchema, DraftSchema, SaveStartedSchema, type Draft, type DraftNumbers } from "@openseas/protocol";
+import { DraftListSchema, DraftSchema, SaveStartedSchema, type CueData, type Draft, type DraftNumbers, type Drawing } from "@openseas/protocol";
 import { createApp, type App } from "../src/app.js";
 import { schema } from "../src/db/index.js";
 import { loadEnv } from "../src/env.js";
@@ -24,6 +24,10 @@ const FILE = "packages/content/data/puzzles/cooling.json";
 const shipped = readFileSync(join(fileURLToPath(import.meta.url), "../../../content/data/puzzles/cooling.json"), "utf8");
 const TABLE = "packages/content/data/messages/en.json";
 const table = readFileSync(join(fileURLToPath(import.meta.url), "../../../content/data/messages/en.json"), "utf8");
+const PIECES = "packages/boards/data/pieces/cooling.json";
+const pieces = readFileSync(join(fileURLToPath(import.meta.url), "../../../boards/data/pieces/cooling.json"), "utf8");
+const CUES = "packages/boards/data/cues.json";
+const cues = readFileSync(join(fileURLToPath(import.meta.url), "../../../boards/data/cues.json"), "utf8");
 
 describeDb("save", () => {
   let app: App;
@@ -73,6 +77,9 @@ describeDb("save", () => {
     writeFileSync(join(seed, FILE), shipped);
     mkdirSync(join(seed, "packages/content/data/messages"), { recursive: true });
     writeFileSync(join(seed, TABLE), table);
+    mkdirSync(join(seed, "packages/boards/data/pieces"), { recursive: true });
+    writeFileSync(join(seed, PIECES), pieces);
+    writeFileSync(join(seed, CUES), cues);
     writeFileSync(join(seed, "README.md"), "openseas\n");
     git(seed, "checkout", "--quiet", "-b", "main");
     git(seed, "add", "--all");
@@ -295,6 +302,43 @@ describeDb("save", () => {
       const { draft: refused } = await save(bad, "Bad words");
       expect(refused.save, JSON.stringify(texts)).toMatchObject({ state: "failed", error: "unknown_key" });
     }
+    expect(remoteLog(branch)).toHaveLength(before);
+    await discardAll();
+  });
+
+  it("writes a draft's pieces and cues into boards/data, each where it stands, and puts back what it lets go (ADR 0065)", async () => {
+    const cog: Drawing = { layers: [{ kind: "disc", x: 12, y: 12, r: 9 }, { kind: "disc", x: 12, y: 12, r: 3, cut: true }] };
+    const swap: CueData = { level: 1.07, cutoff: 1800, voices: [{ kind: "tone", note: 12, wave: "triangle", at: 0, attack: 0.012, release: 0.098, level: 1 }] };
+    const draft = await open(numbers({ look: { pieces: { cog }, cues: { swap } } }));
+    const { draft: saved } = await save(draft, "New cog");
+    expect(saved.save).toMatchObject({ state: "idle", error: null });
+    const branch = `studio/cooling-${draft.id}`;
+    // Each file is the shipped one with that entry's lines changed and its neighbours' as they were.
+    const piecesAfter = remote(branch, PIECES);
+    expect(JSON.parse(piecesAfter)).toEqual({ ...JSON.parse(pieces), cog });
+    expect(piecesAfter).toContain('      { "kind": "disc", "x": 12, "y": 12, "r": 9 },\n');
+    expect(piecesAfter.split(pieces.split('"valve"')[1]!).length).toBe(2);
+    expect(JSON.parse(remote(branch, CUES))).toEqual({ ...JSON.parse(cues), swap });
+    expect(remote(branch)).toBe(remote("main"));
+    expect(git(origin, "log", "-1", "--format=%B", branch)).toContain("piece cog redrawn");
+    expect(git(origin, "log", "-1", "--format=%B", branch)).toContain("cue swap revoiced");
+    const pull = gh.opened.at(-1)!;
+    expect(pull.title).toBe("Tune cooling: numbers and look from the studio");
+    expect(pull.body).toContain("Pieces redrawn in `packages/boards/data/pieces/cooling.json`: `cog`");
+    expect(pull.body).toContain("Cues revoiced in `packages/boards/data/cues.json`: `swap`");
+    expect(pull.body).not.toContain("edited by the studio's agent");
+
+    // The cue let go goes back to what main holds; the piece stays.
+    const next = await put(saved, numbers({ look: { pieces: { cog }, cues: {} } }));
+    await save(next, "Cog only");
+    expect(remote(branch, CUES)).toBe(cues);
+    expect(JSON.parse(remote(branch, PIECES)).cog).toEqual(cog);
+
+    // A piece the puzzle has no such name for is refused, and nothing is written.
+    const before = remoteLog(branch).length;
+    const bad = await put((await list())[0]!, numbers({ look: { pieces: { gear: cog }, cues: {} } }));
+    const { draft: refused } = await save(bad, "Bad piece");
+    expect(refused.save).toMatchObject({ state: "failed", error: "unknown_key" });
     expect(remoteLog(branch)).toHaveLength(before);
     await discardAll();
   });

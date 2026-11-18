@@ -1,4 +1,4 @@
-import { NO_WORDS, WordsSchema, type Words } from "@openseas/protocol";
+import { CueDataSchema, DrawingSchema, NO_LOOK, NO_WORDS, WordsSchema, type CueData, type Drawing, type Look, type Words } from "@openseas/protocol";
 import type { Overrides } from "./overrides.js";
 
 /**
@@ -12,6 +12,8 @@ import type { Overrides } from "./overrides.js";
  *   thresholds  the thresholds the round is rated against, as JSON; absent means content's
  *   text.<key>      a string of the message table rewritten (ADR 0057), by its key
  *   category        the puzzle's category, where the draft changes it
+ *   piece.<name>    a piece redrawn (ADR 0065): its drawing, as JSON
+ *   cue.<name>      a cue revoiced (ADR 0065): its voices and rules, as JSON
  *   speed       clock rate (default 1); for a script, the studio has no control for it
  *   paused      1 to start with the clock stopped; for a script, as above
  *   hints       0 to turn idle hints off
@@ -32,13 +34,15 @@ export interface Scenario {
   thresholds: unknown;
   /** The strings rewritten and the category changed (ADR 0057). Only what has their shape is kept from a link. */
   words: Words;
+  /** The pieces redrawn and the cues revoiced (ADR 0065). Only what has their shape is kept from a link. */
+  look: Look;
   speed: number;
   paused: boolean;
   hints: boolean;
   autostart: boolean | null;
 }
 
-export const EMPTY_SCENARIO: Scenario = { seed: null, roundSeconds: null, overrides: {}, paceSeconds: null, thresholds: null, words: NO_WORDS, speed: 1, paused: false, hints: true, autostart: null };
+export const EMPTY_SCENARIO: Scenario = { seed: null, roundSeconds: null, overrides: {}, paceSeconds: null, thresholds: null, words: NO_WORDS, look: NO_LOOK, speed: 1, paused: false, hints: true, autostart: null };
 
 function parseValue(raw: string): unknown {
   try {
@@ -57,6 +61,18 @@ export function parseScenario(search: string): Scenario {
   for (const [key, raw] of q.entries()) if (key.startsWith("text.") && key.length > 5 && WordsSchema.safeParse({ texts: { [key.slice(5)]: raw } }).success) texts[key.slice(5)] = raw;
   const category = WordsSchema.safeParse({ category: q.get("category") });
   const words: Words = { texts, category: category.success ? category.data.category : null };
+  // A drawing or a cue that is not one (cut short in a pasted link) is dropped, each on its own.
+  const pieces: Record<string, Drawing> = {};
+  const cues: Record<string, CueData> = {};
+  for (const [key, raw] of q.entries()) {
+    if (key.startsWith("piece.") && key.length > 6) {
+      const d = DrawingSchema.safeParse(parseValue(raw));
+      if (d.success) pieces[key.slice(6)] = d.data;
+    } else if (key.startsWith("cue.") && key.length > 4) {
+      const c = CueDataSchema.safeParse(parseValue(raw));
+      if (c.success) cues[key.slice(4)] = c.data;
+    }
+  }
   const seconds = Number(q.get("seconds"));
   const pace = Number(q.get("pace"));
   const speed = Number(q.get("speed"));
@@ -68,6 +84,7 @@ export function parseScenario(search: string): Scenario {
     paceSeconds: q.has("pace") && Number.isFinite(pace) ? pace : null,
     thresholds: q.has("thresholds") ? parseValue(q.get("thresholds")!) : null,
     words,
+    look: { pieces, cues },
     speed: speed > 0 ? speed : 1,
     paused: q.get("paused") === "1",
     hints: q.get("hints") !== "0",
@@ -85,6 +102,8 @@ export function formatScenario(s: Scenario): string {
   if (s.thresholds !== null) q.set("thresholds", JSON.stringify(s.thresholds));
   for (const [key, text] of Object.entries(s.words.texts)) q.set(`text.${key}`, text);
   if (s.words.category) q.set("category", s.words.category);
+  for (const [name, d] of Object.entries(s.look.pieces)) q.set(`piece.${name}`, JSON.stringify(d));
+  for (const [name, c] of Object.entries(s.look.cues)) q.set(`cue.${name}`, JSON.stringify(c));
   if (s.speed !== 1) q.set("speed", String(s.speed));
   if (s.paused) q.set("paused", "1");
   if (!s.hints) q.set("hints", "0");

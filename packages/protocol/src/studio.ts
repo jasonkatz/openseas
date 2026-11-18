@@ -347,6 +347,8 @@ export const StudioMeSchema = z.object({
   chat: z.boolean().default(false),
   /** Whether this service keeps a draft's words (ADR 0057). Defaulted likewise. */
   words: z.boolean().default(false),
+  /** Whether this service keeps a draft's look, its pieces and cues (ADR 0065). Defaulted likewise. */
+  look: z.boolean().default(false),
 });
 export type StudioMe = z.infer<typeof StudioMeSchema>;
 

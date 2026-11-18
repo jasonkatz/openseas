@@ -4,8 +4,11 @@
  * Nothing in here is authoritative; the server replays every round (ADR 0003).
  */
 export { content, messageOverrideRevision, overrideMessages, shippedMessage, subscribeMessages, t } from "./content.js";
-export { sfx, isMuted, setMuted, auditionCue, audioState, measureCues, type CueMeasure } from "./audio.js";
+export { sfx, isMuted, setMuted, auditionCue, auditionData, audioState, measureCues, type CueMeasure } from "./audio.js";
 export { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, SCALE, SHIPPED_CUES, cueDataOf, cueFrom, cueLength, cueOf, cueOverrideRevision, overrideCues, subscribeCues, type Cue, type CueArgs, type CueName, type CueParam, type Voice } from "./cues.js";
+export { SHIPPED_PIECES, drawingOf, overridePieces, pieceOverrideRevision, piecePaint, subscribePieces } from "./look/pieces.js";
+export { paintDrawing, paintLayer } from "./kit/drawing.js";
+export { ROUNDEST, THINNEST, cueProblems, drawingProblems, type LookProblem } from "./look/rules.js";
 export { LatencyMeter } from "./metrics.js";
 export { softwareRendered } from "./surface.js";
 export { SERVER_URL, wsUrl } from "./api/base.js";

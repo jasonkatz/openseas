@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, sql } from "drizzle-orm";
-import { wordsOf, type ChatFailure, type ChatItem, type ChatModel, type DraftNumbers, type RoundSummary, type SendChat } from "@openseas/protocol";
+import { lookOf, wordsOf, type ChatFailure, type ChatItem, type ChatModel, type DraftNumbers, type RoundSummary, type SendChat } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import type { DraftRow } from "../drafts.js";
 import { newLinkId } from "../links.js";
@@ -105,6 +105,10 @@ export function context(numbers: DraftNumbers, refusals: readonly string[], roun
   const words = wordsOf(numbers);
   if (Object.keys(words.texts).length) lines.push(`Draft words (message key: the owner's rewrite, which Save writes to the message table; do not edit these keys yourself): ${JSON.stringify(words.texts)}`);
   if (words.category) lines.push(`Draft category: ${words.category}`);
+  // The look the owner is drawing and voicing in the studio's editors (ADR 0065): Save writes it, so the agent leaves those entries alone.
+  const look = lookOf(numbers);
+  if (Object.keys(look.pieces).length) lines.push(`Draft pieces (the owner's drawings, which Save writes to packages/boards/data/pieces; do not edit these entries yourself): ${Object.keys(look.pieces).join(", ")}`);
+  if (Object.keys(look.cues).length) lines.push(`Draft cues (the owner's voicings, which Save writes to packages/boards/data/cues.json; do not edit these entries yourself): ${Object.keys(look.cues).join(", ")}`);
   if (refusals.length) lines.push("The current build refuses these numbers, so nothing is dealt until they are fixed:", ...refusals.map((r) => `- ${r}`));
   if (rounds.length) {
     lines.push("Last rounds played, oldest first:");
