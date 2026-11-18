@@ -1076,6 +1076,7 @@ still proven there first, with its tester session, and only then embedded in the
 | M8 | Prototype puzzles (3.12, ADR 0036): eight new puzzles of the game's own, each a whole engine playable on the harness, in the owner's sprites (ADR 0037). Done when the owner has played all eight and chosen which, if any, go on |
 | M9 | The puzzle studio (3.14, ADR 0042), in three steps, each usable alone. **The shell:** the harness renamed and redrawn, the tuning panel, seed control, the validity and replay guards, tester links on a first studio service, the smoke driving every board through its studio page and `/play`, the guides' capture repointed, the bench tools removed. **Chat and Save** (built): drafts kept by the service, the agent on a worktree, the model picker, per-turn revert, reset, and Save as a draft pull request from a GitHub App that a developer finishes (ADR 0045 to 0047, ADR 0049). The live build of the worktree is not built. **Assets** (built), in four parts: the sprite and sound panels and the swap on a running board (built, ADR 0050); takes kept in a Railway bucket and listed in their rows, with new takes through the chat (built, ADR 0051); picks kept in drafts, frozen in tester links and loaded by `/play` (built, ADR 0052); then Save placing picks (built, ADR 0053), each frame a file of its own and the atlases packed by the build (built, ADR 0054) |
 | M10 | The lo-fi minimalist look (3.10, ADR 0061, ADR 0062, `BRAND.md`), in six steps. **The brand book:** `BRAND.md`, its specimen and the two ADRs, with no game code changed; done when the owner has picked the palette. **The proof:** the token module in `boards` and its hex test, the game's chrome and Cooling, with its guide recaptured and the marks setting gone from it; done when the owner has played it. **The boards:** the other six in the game, one pull request each, each deleting its frames and recapturing its guide. **The world:** recoloured and quietened. **The prototypes:** the eight, then the sprite tooling removed. **Sound:** the synthesized cues retuned and the sample pipeline removed |
+| M11 | Deep prototypes on a ladder (3.12, ADR 0066). Each of the eight prototypes is deepened until mastery takes real skill (each new layer on the one verb, shown by bots to pay for skill, with a bait that loses) and is then learned on a ladder of two to four stages in its content file. **The pilot:** Salvage, with orders and volatiles and four stages, and the ladder in content and the studio (pull request #129). **The bots:** a bot runner in the repository that plays one-move and rollout bots against any engine and prints the ladder table, so every puzzle's numbers can be run again. **The pitches:** one or two candidate layers, the bait and the stages for each of the other seven, picked by the owner in one sitting. **The puzzles:** one pull request each, in the order the owner picks, its design file, guide and pictures in step. Done when the owner has played every ladder and its thresholds are set by hand |
 
 Every milestone ends with a tester session and a written retro before the next starts.
 
@@ -1192,6 +1193,23 @@ outposts and the skiff are redrawn so no outline of the sea is left (3.5, 3.11).
 What M7 leaves for later: the tester sessions and retros; and the codename. No mechanic
 was changed, and none was found that needs to be: a flag still flies and is sewn in a vacuum, and
 pirates walk an open rock bareheaded, which is the tone, not a fault.
+
+M11 plan. Salvage, the pilot, set the way each puzzle goes (ADR 0066, the `puzzles` skill's rule
+26), and taught two things the plan keeps:
+
+- **A one-move bot cannot judge a layer.** Salvage's first layer, contracts, looked like depth and
+  was not: every bot got its worth without trying. It took a rollout bot, which plays its best
+  lines a few hauls on with a fresh random stream, to tell a layer that rewards planning from one
+  that pays for anything. So the bots come before the pitches, kept in the repository rather than
+  in a session's scratch files.
+- **A pitch is the owner's call, and cheap to batch.** The layers are design: each puzzle's are
+  pitched with a quick bot check where one is cheap, and the owner picks for all seven at once.
+
+Then one pull request a puzzle. They touch their own files (engine, content, board, page, guide),
+so two or three can be built side by side once their pitches are picked, and merged one after
+another. The order is the owner's once the pitches are in; Overload and Racks, whose scoring has the
+most room for a layer, are the likely first. The ladder's thresholds are set from bots and are
+guesses: the milestone's tester session plays all eight ladders and sets them by hand.
 
 ### 5.3 Testing and quality
 
