@@ -75,17 +75,19 @@ function unlock(): void {
   } catch {
     /* nothing to unlock with */
   }
-  // Keep listening until it is running: a first gesture may come while muted, or be refused.
-  if (c.ac.state === "running") for (const type of GESTURES) window.removeEventListener(type, unlock, true);
-  else void c.ac.resume().then(() => {
-    if (c.ac.state === "running") for (const type of GESTURES) window.removeEventListener(type, unlock, true);
-  }).catch(() => undefined);
+  // The listeners stay for the life of the page: the context is put to sleep whenever the page is
+  // hidden (below), and on a phone only another gesture may be allowed to wake it.
 }
 if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
   for (const type of GESTURES) window.addEventListener(type, unlock, { capture: true, passive: true });
-  // Coming back to the page after a call or another app leaves the context interrupted; pick it up.
+  // A page that can be heard with the ring switch off is, to a phone, playing media: it gets a
+  // "now playing" card on the lock screen for as long as its context runs. So the context sleeps
+  // whenever the page is hidden (the phone locked, another app or tab in front) and the card goes
+  // with it; coming back wakes it, or the next touch does where the phone insists on one.
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && ctx && ctx.state !== "running" && !muted) void ctx.resume().catch(() => undefined);
+    if (!ctx) return;
+    if (document.hidden) void ctx.suspend().catch(() => undefined);
+    else if (ctx.state !== "running" && !muted) void ctx.resume().catch(() => undefined);
   });
 }
 

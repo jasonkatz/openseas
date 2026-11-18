@@ -361,7 +361,7 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
   and peaks within 3 dB of one target. The beat (`BRAND.md` section 6) has one sound, the same on
   every board: a low chord that rings for 700ms, asked for by the beat itself and heard alone,
   with no other cue of its moment laid over it. A unit test holds the definitions to those rules
-  and the studio's smoke measures every cue as the browser renders it. On a phone the page may make sound only from inside the player's own touch, so the first touch, click or key press anywhere starts the audio (`boards/src/audio.ts`); a board's cues come a frame later and would otherwise never be heard. Where the browser allows it the game's sound plays with the phone's ring switch off, since the game has a sound setting of its own. The whole mix is lifted to carry on a small speaker, behind a limiter.
+  and the studio's smoke measures every cue as the browser renders it. On a phone the page may make sound only from inside the player's own touch, so the first touch, click or key press anywhere starts the audio (`boards/src/audio.ts`); a board's cues come a frame later and would otherwise never be heard. Where the browser allows it the game's sound plays with the phone's ring switch off, since the game has a sound setting of its own. The whole mix is lifted to carry on a small speaker, behind a limiter. A phone treats a page it lets play with the ring switch off as media and shows a "now playing" card for it, so the audio sleeps whenever the page is hidden and the card does not sit on the lock screen.
 
 ### 3.10 Art
 

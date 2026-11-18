@@ -175,6 +175,7 @@ class FakeContext {
   createBufferSource = (): FakeNode => this.node();
   createDynamicsCompressor = (): FakeNode => this.node();
   resume = (): Promise<void> => Promise.resolve();
+  suspend = (): Promise<void> => Promise.resolve();
   createBuffer = (_c: number, n: number): unknown => ({ getChannelData: () => new Float32Array(n) });
 }
 
