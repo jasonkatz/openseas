@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { SALVAGE_CRATE, salvageStreakPercentAt, summarizeSalvage, type SalvageConfig, type SalvageMove, type SalvageState } from "@openseas/engine";
-import { content, SALVAGE_KINDS, SalvageBoard, SalvageCouplerIcon, SalvageCrateIcon, SalvageDebrisIcon, t } from "@openseas/boards";
+import { content, SALVAGE_KINDS, SalvageBoard, SalvageCrateIcon, SalvageDebrisIcon, SalvageRubbleIcon, SalvageVolatileIcon, t } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
@@ -102,8 +102,12 @@ export function SalvagePractice() {
               <span>{t("salvage.legend_crate")}</span>
             </li>
             <li>
-              <SalvageCouplerIcon />
-              <span>{t("salvage.legend_coupler")}</span>
+              <SalvageVolatileIcon kind={0} fuse={3} />
+              <span>{t("salvage.legend_volatile")}</span>
+            </li>
+            <li>
+              <SalvageRubbleIcon />
+              <span>{t("salvage.legend_rubble")}</span>
             </li>
           </ul>
           <p className="muted small proto-note">{t("salvage.legend_floor")}</p>

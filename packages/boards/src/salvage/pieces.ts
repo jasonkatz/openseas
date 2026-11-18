@@ -6,9 +6,10 @@ import { bar, cut, disc, rounded, soft, type Paint } from "../kit/pictogram.js";
  * wreckage adrift, and each kind of debris is one solid piece of it with an outline of its own: an
  * ingot is a trapezoid bar, a panel a hull plate with a corner torn out, a shard a leaning sliver,
  * a crystal a cut gem, a cell an upright capsule, a spark a four pointed star, a strut a rod with a
- * knuckle at each end, a droplet a tear. Debris has no cut-out. The two pieces that are not debris
- * each have one: a loot crate is the one full square, with its latch cut out, and a coupler is a
- * ring with four lugs. Colour is a second cue and never the only one.
+ * knuckle at each end, a droplet a tear. Debris has no cut-out. A volatile is debris with its fuse
+ * on it: its own outline, a hole cut at its heart, and one notch on its crown for each haul left. A
+ * loot crate is the one full square, with its latch cut out, and rubble is a heap of three broken
+ * stones, dim. Colour is a second cue and never the only one.
  */
 
 export interface SalvageKind {
@@ -20,7 +21,7 @@ export interface SalvageKind {
 
 /**
  * The debris, in the order the engine numbers it; a field uses the first n. No kind is amber, which
- * is the tether in the player's hand, and none is cream, which is the crate, the coupler and a net.
+ * is the tether in the player's hand, and none is cream, which is the crate and a net.
  */
 export const SALVAGE_KINDS: readonly SalvageKind[] = [
   // An ingot: a bar, wider at its foot.
@@ -71,19 +72,25 @@ export const SALVAGE_CRATE_PAINT: Paint = (ctx) => {
   cut(ctx, () => rounded(ctx, 8, 9.5, 8, 5, 2));
 };
 
-/** A coupler: a ring with four lugs, a joint and no kind of debris. */
-export const SALVAGE_COUPLER_PAINT: Paint = (ctx) => {
-  for (const [x, y] of [
-    [5.4, 5.4],
-    [18.6, 5.4],
-    [5.4, 18.6],
-    [18.6, 18.6],
-  ] as const)
-    disc(ctx, x, y, 3.2);
-  disc(ctx, 12, 12, 8.2);
-  cut(ctx, () => disc(ctx, 12, 12, 3.6));
+/** Rubble: a heap of three broken stones, left where a volatile blew. */
+export const SALVAGE_RUBBLE_PAINT: Paint = (ctx) => {
+  soft(ctx, [3, 20, 6, 12, 12, 13, 13, 20], 1.6);
+  soft(ctx, [11, 20, 13, 11, 19, 10, 21, 20], 1.6);
+  soft(ctx, [7, 11, 10, 4, 16, 5, 15, 11], 1.6);
 };
 
-/** The crate and the coupler are the field's special pieces: cream. */
+/** A volatile of one kind: that kind's outline with a hole at its heart and a notch on its crown for each haul its fuse has left. */
+export function salvageVolatilePaint(kind: SalvageKind, fuse: number): Paint {
+  return (ctx) => {
+    kind.paint(ctx);
+    cut(ctx, () => disc(ctx, 12, 12.6, 2.6));
+    const n = Math.max(0, Math.min(fuse, 8));
+    const step = 2.6;
+    const x0 = 12 - ((n - 1) * step) / 2;
+    for (let i = 0; i < n; i++) disc(ctx, x0 + i * step, 1.6, 1);
+  };
+}
+
+/** The crate is the field's prize: cream. Rubble is spent: dim. */
 export const SALVAGE_CRATE_COLOR: Token = "cream";
-export const SALVAGE_COUPLER_COLOR: Token = "cream";
+export const SALVAGE_RUBBLE_COLOR: Token = "dim";

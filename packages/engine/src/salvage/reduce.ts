@@ -3,9 +3,11 @@ import { Hasher } from "../hash.js";
 import { nextChance, nextInt, seedFromString, type PrngState } from "../prng.js";
 import {
   DEFAULT_SALVAGE_CONFIG,
-  SALVAGE_COUPLER,
   SALVAGE_CRATE,
+  SALVAGE_RUBBLE,
+  type SalvageBlast,
   type SalvageConfig,
+  type SalvageContract,
   type SalvageHauled,
   type SalvageMove,
   type SalvageMoveReport,
@@ -41,8 +43,12 @@ export function validateConfig(cfg: SalvageConfig): void {
     cfg.startCrates <= cfg.maxCrates &&
     int(cfg.crateFloorPoints, 0, 100_000) &&
     int(cfg.crateLoopPoints, 0, 100_000) &&
-    int(cfg.couplerPermille, 0, 500) &&
-    int(cfg.maxCouplers, 0, 8) &&
+    int(cfg.contractQuota, 0, 1000) &&
+    int(cfg.contractPercent, 100, 1000) &&
+    int(cfg.contractBonus, 0, 100_000) &&
+    int(cfg.volatileEvery, 0, 1000) &&
+    int(cfg.fuse, 1, 100) &&
+    int(cfg.volatilePoints, 0, 100_000) &&
     int(cfg.streakMin, 2, 20) &&
     Array.isArray(cfg.streakPercent) &&
     cfg.streakPercent.length >= 1 &&
@@ -58,10 +64,25 @@ export function adjacent(cfg: SalvageConfig, a: number, b: number): boolean {
   return Math.abs(colOf(cfg, a) - colOf(cfg, b)) <= 1 && Math.abs(rowOf(cfg, a) - rowOf(cfg, b)) <= 1;
 }
 
-/** True when a line may run from one piece to the next: the same kind of debris, or either is a coupler. A crate never links. */
+/** True when a piece can be on a line: debris, volatile or not. A crate and rubble never can. */
+export function tetherable(p: SalvagePiece): boolean {
+  return p.kind !== SALVAGE_CRATE && p.kind !== SALVAGE_RUBBLE;
+}
+
+/** True when a piece is a volatile: debris with a fuse burning. */
+export function isVolatile(p: SalvagePiece): boolean {
+  return p.fuse !== undefined && p.fuse > 0;
+}
+
+/** What defusing a volatile pays: volatilePoints for every haul its fuse has burned, and one more. Late pays most. */
+export function volatileValue(cfg: SalvageConfig, p: SalvagePiece): number {
+  if (!isVolatile(p)) return 0;
+  return cfg.volatilePoints * (cfg.fuse - p.fuse! + 1);
+}
+
+/** True when a line may run from one piece to the next: two pieces of one kind of debris. */
 export function canLink(a: SalvagePiece, b: SalvagePiece): boolean {
-  if (a.kind === SALVAGE_CRATE || b.kind === SALVAGE_CRATE) return false;
-  return a.kind === SALVAGE_COUPLER || b.kind === SALVAGE_COUPLER || a.kind === b.kind;
+  return tetherable(a) && tetherable(b) && a.kind === b.kind;
 }
 
 /** True when the line `cells` could take `next` as its next piece: in the field, touching the last, linkable, and not on the line already. */
@@ -93,6 +114,7 @@ export function lineIllegalReason(state: SalvageState, cells: readonly number[],
     seen.add(c);
     const piece = state.cells[c]!;
     if (piece.kind === SALVAGE_CRATE) return "a crate cannot be tethered";
+    if (piece.kind === SALVAGE_RUBBLE) return "rubble cannot be tethered";
     if (i > 0) {
       const prev = cells[i - 1]!;
       if (!adjacent(state.config, prev, c)) return "pieces do not touch";
@@ -138,14 +160,23 @@ export function lineValue(state: SalvageState, cells: readonly number[], loop: b
   const cfg = state.config;
   const n = cells.length;
   const isLoop = loop && canClose(state, cells);
-  const line = cfg.linePoints * n * n;
-  if (!isLoop) return { length: n, loop: false, enclosed: [], netted: [], base: line };
-  // A crate inside the loop is netted like any other; only debris counts as enclosed.
+  const kind = n > 0 ? state.cells[cells[0]!]?.kind : undefined;
+  const contract = state.contract !== null && kind === state.contract.kind ? n : 0;
+  const fills = contract > 0 && contract >= state.contract!.left;
+  // The line's own points: n squared, doubled by a loop, multiplied again when it is of the contract's kind.
+  const line = Math.floor((cfg.linePoints * n * n * (isLoop ? cfg.loopPercent : 100) * (contract > 0 ? cfg.contractPercent : 100)) / 10_000);
+  const bonus = fills ? cfg.contractBonus : 0;
+  const onLine = cells.filter((c) => state.cells[c] !== undefined && isVolatile(state.cells[c]!));
+  const defusing = (list: readonly number[]): number => list.reduce((a, c) => a + volatileValue(cfg, state.cells[c]!), 0);
+  if (!isLoop) return { length: n, loop: false, enclosed: [], netted: [], defused: onLine, contract, fills, base: line + bonus + defusing(onLine) };
+  // A crate inside the loop is netted like any other; debris and rubble inside are enclosed.
   const enclosed = enclosedCells(cfg, cells).filter((c) => state.cells[c]!.kind !== SALVAGE_CRATE);
   const netted: number[] = [];
   for (let c = 0; c < state.cells.length; c++) if (state.cells[c]!.kind === SALVAGE_CRATE) netted.push(c);
-  const base = Math.floor((line * cfg.loopPercent) / 100) + enclosed.length * cfg.enclosedPoints + cfg.crateLoopPoints * netted.length * netted.length;
-  return { length: n, loop: true, enclosed, netted, base };
+  const defused = [...onLine, ...enclosed.filter((c) => isVolatile(state.cells[c]!))].sort((a, b) => a - b);
+  const base =
+    line + bonus + enclosed.length * cfg.enclosedPoints + defusing(defused) + cfg.crateLoopPoints * netted.length * netted.length;
+  return { length: n, loop: true, enclosed, netted, defused, contract, fills, base };
 }
 
 /** What the streak multiplies by, in percent, at a streak of `streak` long lines. */
@@ -168,7 +199,7 @@ export function hasLine(cfg: SalvageConfig, cells: readonly SalvagePiece[]): boo
     return false;
   };
   for (let c = 0; c < cells.length; c++) {
-    if (cells[c]!.kind === SALVAGE_CRATE) continue;
+    if (!tetherable(cells[c]!)) continue;
     path.length = 0;
     if (walk(c)) return true;
   }
@@ -218,7 +249,7 @@ export function hint(state: SalvageState): number[] | null {
     path.pop();
   };
   for (let c = 0; c < state.cells.length && budget > 0; c++) {
-    if (state.cells[c]!.kind === SALVAGE_CRATE) continue;
+    if (!tetherable(state.cells[c]!)) continue;
     walk(c);
   }
   return best.length >= cfg.minLine ? best : null;
@@ -247,7 +278,7 @@ export function findLoop(state: SalvageState): number[] | null {
       return false;
     };
     for (let c = 0; c < state.cells.length && budget > 0; c++) {
-      if (state.cells[c]!.kind === SALVAGE_CRATE) continue;
+      if (!tetherable(state.cells[c]!)) continue;
       path.length = 0;
       if (walk(c)) return path.slice();
     }
@@ -261,12 +292,20 @@ function count(cells: ReadonlyArray<SalvagePiece | null>, kind: number): number 
   return n;
 }
 
-/** Deal debris into every cell that is not a crate or a coupler, until a line can be drawn. */
+/** The next contract: a kind other than the last one's, drawn from the stream. Null when the config posts none. */
+function postContract(cfg: SalvageConfig, rng: PrngState, last: number | null): { contract: SalvageContract | null; rng: PrngState } {
+  if (cfg.contractQuota === 0) return { contract: null, rng };
+  const pick = nextInt(rng, last === null ? cfg.kinds : cfg.kinds - 1);
+  const kind = last !== null && pick.value >= last ? pick.value + 1 : pick.value;
+  return { contract: { kind, left: cfg.contractQuota }, rng: pick.state };
+}
+
+/** Deal debris into every cell that is not a crate, rubble or a volatile, until a line can be drawn. */
 function dealDebris(cfg: SalvageConfig, cells: SalvagePiece[], rng: PrngState, nextId: number): { rng: PrngState; nextId: number } {
   for (let attempt = 0; attempt < 50; attempt++) {
     for (let c = 0; c < cells.length; c++) {
-      const kind = cells[c]?.kind;
-      if (kind === SALVAGE_CRATE || kind === SALVAGE_COUPLER) continue;
+      const piece = cells[c];
+      if (piece && (!tetherable(piece) || isVolatile(piece))) continue;
       const k = nextInt(rng, cfg.kinds);
       rng = k.state;
       cells[c] = { id: nextId++, kind: k.value };
@@ -293,10 +332,11 @@ export function createSalvageGame(seed: string, config: SalvageConfig = DEFAULT_
     cells[cell] = { id: nextId++, kind: SALVAGE_CRATE };
   }
   const dealt = dealDebris(config, cells, rng, nextId);
+  const posted = postContract(config, dealt.rng, null);
   return {
     config,
     cells,
-    rng: dealt.rng,
+    rng: posted.rng,
     nextId: dealt.nextId,
     score: 0,
     moveCount: 0,
@@ -307,6 +347,10 @@ export function createSalvageGame(seed: string, config: SalvageConfig = DEFAULT_
     cratesNetted: 0,
     cratesFloor: 0,
     loops: 0,
+    contract: posted.contract,
+    contractsFilled: 0,
+    defused: 0,
+    blasts: 0,
     longest: 0,
     lastMove: null,
     finished: false,
@@ -316,20 +360,22 @@ export function createSalvageGame(seed: string, config: SalvageConfig = DEFAULT_
 interface Settled {
   cells: SalvagePiece[];
   falls: Array<{ id: number; from: number; to: number }>;
-  spawned: Array<{ id: number; cell: number; kind: number; drop: number }>;
+  spawned: Array<{ id: number; cell: number; kind: number; fuse?: number; drop: number }>;
   rng: PrngState;
   nextId: number;
 }
 
-/** Let every piece fall into the gaps under it, then fill each column from the top with new debris. */
-function settle(cfg: SalvageConfig, field: ReadonlyArray<SalvagePiece | null>, rngIn: PrngState, nextIdIn: number): Settled {
+/**
+ * Let every piece fall into the gaps under it, then fill each column from the top with new debris.
+ * With `volatile`, one piece of the new debris, drawn from the stream, drifts in with its fuse lit.
+ */
+function settle(cfg: SalvageConfig, field: ReadonlyArray<SalvagePiece | null>, rngIn: PrngState, nextIdIn: number, volatile = false): Settled {
   let rng = rngIn;
   let nextId = nextIdIn;
   const cells = new Array<SalvagePiece>(field.length);
   const falls: Settled["falls"] = [];
   const spawned: Settled["spawned"] = [];
   let crates = count(field, SALVAGE_CRATE);
-  let couplers = count(field, SALVAGE_COUPLER);
   for (let col = 0; col < cfg.width; col++) {
     let row = cfg.height - 1;
     for (let r = cfg.height - 1; r >= 0; r--) {
@@ -342,29 +388,32 @@ function settle(cfg: SalvageConfig, field: ReadonlyArray<SalvagePiece | null>, r
     }
     const gaps = row + 1;
     for (let r = row; r >= 0; r--) {
-      let kind: number;
+      let piece: SalvagePiece;
       // A crate never drifts in onto the floor: it has to be worked for.
       const crate = crates < cfg.maxCrates && r < cfg.height - 1 ? nextChance(rng, cfg.cratePermille, 1000) : null;
       if (crate) rng = crate.state;
       if (crate?.value) {
-        kind = SALVAGE_CRATE;
+        piece = { id: nextId++, kind: SALVAGE_CRATE };
         crates++;
       } else {
-        const coupler = couplers < cfg.maxCouplers ? nextChance(rng, cfg.couplerPermille, 1000) : null;
-        if (coupler) rng = coupler.state;
-        if (coupler?.value) {
-          kind = SALVAGE_COUPLER;
-          couplers++;
-        } else {
-          const k = nextInt(rng, cfg.kinds);
-          rng = k.state;
-          kind = k.value;
-        }
+        const k = nextInt(rng, cfg.kinds);
+        rng = k.state;
+        piece = { id: nextId++, kind: k.value };
       }
       const cell = idx(cfg, col, r);
-      const piece = { id: nextId++, kind };
       cells[cell] = piece;
-      spawned.push({ id: piece.id, cell, kind, drop: gaps });
+      spawned.push({ id: piece.id, cell, kind: piece.kind, drop: gaps });
+    }
+  }
+  if (volatile) {
+    const debris = spawned.filter((p) => p.kind !== SALVAGE_CRATE);
+    if (debris.length > 0) {
+      const pick = nextInt(rng, debris.length);
+      rng = pick.state;
+      const chosen = debris[pick.value]!;
+      const at = spawned.indexOf(chosen);
+      spawned[at] = { ...chosen, fuse: cfg.fuse };
+      cells[chosen.cell] = { id: chosen.id, kind: chosen.kind, fuse: cfg.fuse };
     }
   }
   return { cells, falls, spawned, rng, nextId };
@@ -408,10 +457,40 @@ function haul(state: SalvageState, move: Extract<SalvageMove, { type: "tether" }
   const line = move.cells.map(taken);
   const enclosed = value.enclosed.map(taken);
   const netted = value.netted.map(taken);
+  const defused = value.defused.map(taken);
   let field: Array<SalvagePiece | null> = state.cells.slice();
   for (const h of line) field[h.cell] = null;
   for (const h of enclosed) field[h.cell] = null;
   for (const h of netted) field[h.cell] = null;
+
+  // Every volatile left on the field burns one; those that reach zero blow, before anything falls.
+  const blasts: SalvageBlast[] = [];
+  const blowing: number[] = [];
+  for (let c = 0; c < field.length; c++) {
+    const p = field[c];
+    if (!p || !isVolatile(p)) continue;
+    const fuse = p.fuse! - 1;
+    if (fuse > 0) field[c] = { id: p.id, kind: p.kind, fuse };
+    else blowing.push(c);
+  }
+  for (const c of blowing) {
+    const id = field[c]!.id;
+    const scorched: number[] = [];
+    for (const n of [c, ...neighbours(cfg, c)]) {
+      const p = field[n];
+      if (!p || !tetherable(p)) continue;
+      field[n] = { id: p.id, kind: SALVAGE_RUBBLE };
+      scorched.push(n);
+    }
+    scorched.sort((a, b) => a - b);
+    blasts.push({ cell: c, id, scorched });
+  }
+
+  // A blast breaks the streak, after this haul has been scored at it.
+  if (blasts.length > 0) {
+    combo = 0;
+    grace = false;
+  }
 
   let rng = state.rng;
   let nextId = state.nextId;
@@ -419,21 +498,28 @@ function haul(state: SalvageState, move: Extract<SalvageMove, { type: "tether" }
   let floor: SalvageHauled[] = [];
   let floorPoints = 0;
   let cratesFloor = 0;
+  let rubbleFloor = 0;
   const rounds: SalvageRound[] = [];
+  // Every volatileEvery hauls a volatile drifts in with the first settling's new debris, whatever became of the last.
+  const moveCount = state.moveCount + 1;
+  const volatileDue = cfg.volatileEvery > 0 && moveCount % cfg.volatileEvery === 0;
   for (let n = 0; n < MAX_ROUNDS; n++) {
-    const s = settle(cfg, field, rng, nextId);
+    const s = settle(cfg, field, rng, nextId, volatileDue && n === 0);
     rng = s.rng;
     nextId = s.nextId;
     cells = s.cells;
-    const points = Math.floor((floor.length * cfg.crateFloorPoints * percent) / 100);
+    const crates = floor.filter((h) => h.kind === SALVAGE_CRATE).length;
+    const points = Math.floor((crates * cfg.crateFloorPoints * percent) / 100);
     rounds.push({ floor, points, falls: s.falls, spawned: s.spawned, cells });
     floorPoints += points;
-    cratesFloor += floor.length;
-    // Crates that have sunk to the floor are taken next, and the field settles again.
+    cratesFloor += crates;
+    rubbleFloor += floor.length - crates;
+    // Crates and rubble that have sunk to the floor are taken next, and the field settles again.
     floor = [];
     for (let col = 0; col < cfg.width; col++) {
       const cell = idx(cfg, col, cfg.height - 1);
-      if (cells[cell]!.kind === SALVAGE_CRATE) floor.push({ cell, id: cells[cell]!.id, kind: SALVAGE_CRATE });
+      const kind = cells[cell]!.kind;
+      if (kind === SALVAGE_CRATE || kind === SALVAGE_RUBBLE) floor.push({ cell, id: cells[cell]!.id, kind });
     }
     if (floor.length === 0) break;
     field = cells.slice();
@@ -450,9 +536,34 @@ function haul(state: SalvageState, move: Extract<SalvageMove, { type: "tether" }
     shuffled = true;
   }
 
+  // The contract counts the line; a filled one posts the next, for another kind.
+  let contract = state.contract;
+  if (contract !== null && value.contract > 0) {
+    if (value.fills) {
+      const posted = postContract(cfg, rng, contract.kind);
+      rng = posted.rng;
+      contract = posted.contract;
+    } else contract = { kind: contract.kind, left: contract.left - value.contract };
+  }
+
   const points = haulPoints + floorPoints;
-  const report: SalvageMoveReport = { move, line, loop: value.loop, enclosed, netted, streak: combo, streakPercent: percent, haulPoints, rounds, shuffled, points };
-  const moveCount = state.moveCount + 1;
+  const report: SalvageMoveReport = {
+    move,
+    line,
+    loop: value.loop,
+    enclosed,
+    netted,
+    defused,
+    contractCounted: value.contract,
+    contractFilled: value.fills,
+    blasts,
+    streak: combo,
+    streakPercent: percent,
+    haulPoints,
+    rounds,
+    shuffled,
+    points,
+  };
   return {
     config: cfg,
     cells,
@@ -463,10 +574,14 @@ function haul(state: SalvageState, move: Extract<SalvageMove, { type: "tether" }
     combo,
     bestCombo: Math.max(state.bestCombo, combo),
     grace,
-    hauled: state.hauled + line.length + enclosed.length + netted.length + cratesFloor,
+    hauled: state.hauled + line.length + enclosed.length + netted.length + cratesFloor + rubbleFloor,
     cratesNetted: state.cratesNetted + netted.length,
     cratesFloor: state.cratesFloor + cratesFloor,
     loops: state.loops + (value.loop ? 1 : 0),
+    contract,
+    contractsFilled: state.contractsFilled + (value.fills ? 1 : 0),
+    defused: state.defused + defused.length,
+    blasts: state.blasts + blasts.length,
     longest: Math.max(state.longest, value.length),
     lastMove: report,
     finished: moveCount >= cfg.maxMoves,
@@ -482,10 +597,11 @@ export function replaySalvage(seed: string, config: SalvageConfig, moves: readon
 export function hashSalvageState(state: SalvageState): string {
   const h = new Hasher();
   h.int(state.cells.length);
-  for (const p of state.cells) h.int(p.id).int(p.kind);
+  for (const p of state.cells) h.int(p.id).int(p.kind).int(p.fuse ?? 0);
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.nextId).int(state.score).int(state.moveCount).int(state.combo).int(state.bestCombo).int(state.grace ? 1 : 0);
   h.int(state.hauled).int(state.cratesNetted).int(state.cratesFloor).int(state.loops).int(state.longest).int(state.finished ? 1 : 0);
+  h.int(state.contract === null ? -1 : state.contract.kind).int(state.contract?.left ?? 0).int(state.contractsFilled).int(state.defused).int(state.blasts);
   return h.digest();
 }
 
@@ -499,11 +615,16 @@ export function summarizeSalvage(state: SalvageState): SalvageSummary {
   return { score: state.score, moves: state.moveCount, bestCombo: state.bestCombo };
 }
 
-/** The field as one character a cell, row by row: a digit for debris, `C` for a crate, `W` for a coupler. What the board draws must match it. */
-export function viewString(cells: ReadonlyArray<{ readonly kind: number }>): string {
-  return cells.map((p) => kindChar(p.kind)).join("");
+/**
+ * The field as one character a cell, row by row: a digit for debris, a letter from `a` for a
+ * volatile of that kind (`a` is kind 0), `C` for a crate, `R` for rubble. What the board draws must match it.
+ */
+export function viewString(cells: ReadonlyArray<{ readonly kind: number; readonly fuse?: number }>): string {
+  return cells.map((p) => kindChar(p.kind, p.fuse)).join("");
 }
 
-export function kindChar(kind: number): string {
-  return kind === SALVAGE_CRATE ? "C" : kind === SALVAGE_COUPLER ? "W" : String(kind);
+export function kindChar(kind: number, fuse?: number): string {
+  if (kind === SALVAGE_CRATE) return "C";
+  if (kind === SALVAGE_RUBBLE) return "R";
+  return fuse !== undefined && fuse > 0 ? String.fromCharCode(97 + kind) : String(kind);
 }

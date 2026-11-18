@@ -44,7 +44,6 @@ export const salvage: Guide = {
     "Hauled pieces leave gaps. The pieces above fall into them and new debris drifts in at the top.",
     "A **loot crate** cannot be tethered. It sinks as the debris under it is hauled, and when it reaches the floor it is taken for a small price.",
     `Bring a line of ${word(c.loopMin)} or more back onto its first piece and it closes into a **net**. A net hauls every crate on the field at once, wherever they are.`,
-    "A **coupler** joins any line, and the line may change kind across it.",
     `The round is ${p.roundSeconds} seconds on the clock. Hauls are not limited and there is no undo. A field with no line left is dealt again and the crates stay put.`,
   ],
   rulesMedia: {
@@ -126,7 +125,7 @@ export const salvage: Guide = {
     },
     {
       level: "advanced",
-      goal: "Net crates in pairs and threes, never singly, and use couplers to stretch a line.",
+      goal: "Net crates in pairs and threes, never singly.",
       tips: [
         {
           title: "Wait for the second crate, want the third",
@@ -134,7 +133,7 @@ export const salvage: Guide = {
           media: {
             kind: "still",
             name: "three-adrift",
-            alt: "A field with three loot crates adrift at once in the middle rows, none of them on the floor, and a coupler in the top row.",
+            alt: "A field with three loot crates adrift at once in the middle rows, none of them on the floor.",
             caption: `Three adrift: ${net(3)} in one net, before the streak. Netted one at a time they would be ${3 * net(1)}.`,
           },
         },
@@ -145,16 +144,6 @@ export const salvage: Guide = {
         {
           title: "See loops before you need them",
           body: `Any line whose last piece touches its first can close. Squares, diamonds round a single piece and rings round a crate all work. While you wait on crates, keep one loop in mind and keep your lines off it, so it is still there when the next crate drifts in.`,
-        },
-        {
-          title: "Cross the coupler",
-          body: `A coupler lets one line run through two kinds. Run the longest line of one kind up to it and the longest of another away from it. Two fives joined through it are one line of eleven: ${line(11)} points, where apart they were ${2 * line(5)}.`,
-          media: {
-            kind: "clip",
-            name: "coupler",
-            alt: "A tether runs through several pieces of one kind, onto the cream ring of a coupler, and on through several pieces of a different kind. The whole line is hauled as one.",
-            caption: "One line, two kinds, joined at the coupler.",
-          },
         },
       ],
       drill: `Play rounds where no crate is netted alone. Check the round's summary: crates netted should be well over twice the loops closed. You are there when a round finishes above ${p.thresholds[3]!.score} points.`,

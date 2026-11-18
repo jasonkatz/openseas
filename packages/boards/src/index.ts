@@ -47,7 +47,7 @@ export { pictogramUrl, paintPictogram, type Paint } from "./kit/pictogram.js";
 // Prototype boards (ADR 0036).
 export { SalvageBoard, type SalvageBoardProps } from "./salvage/SalvageBoard.jsx";
 export { SALVAGE_KINDS } from "./salvage/pieces.js";
-export { SalvageCouplerIcon, SalvageCrateIcon, SalvageDebrisIcon } from "./salvage/SalvageIcon.jsx";
+export { SalvageCrateIcon, SalvageDebrisIcon, SalvageRubbleIcon, SalvageVolatileIcon } from "./salvage/SalvageIcon.jsx";
 export { OverloadBoard, type OverloadBoardProps } from "./overload/OverloadBoard.jsx";
 export { CapacitorIcon } from "./overload/CapacitorIcon.jsx";
 export { DeflectorsBoard, type DeflectorsBoardProps } from "./deflectors/DeflectorsBoard.jsx";

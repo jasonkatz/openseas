@@ -3,7 +3,7 @@ import fc from "fast-check";
 import {
   DEFAULT_SALVAGE_CONFIG,
   InvalidMoveError,
-  SALVAGE_COUPLER,
+  SALVAGE_RUBBLE,
   SALVAGE_CRATE,
   createSalvageGame,
   hashSalvageState,
@@ -60,7 +60,7 @@ function playRandom(seed: string, picks: readonly number[], config: SalvageConfi
 
 const picksArb = fc.array(fc.nat({ max: 10_000 }), { minLength: 0, maxLength: 240 });
 
-/** A field from rows of characters: a digit is debris, `C` a crate, `W` a coupler. */
+/** A field from rows of characters: a digit is debris, `C` a crate, `R` rubble. */
 function field(rows: readonly string[], seed = "t"): SalvageState {
   const config: SalvageConfig = { ...cfg, width: rows[0]!.length, height: rows.length, startCrates: 0 };
   const base = createSalvageGame(seed, config);
@@ -68,7 +68,7 @@ function field(rows: readonly string[], seed = "t"): SalvageState {
   const cells: SalvagePiece[] = rows
     .join("")
     .split("")
-    .map((ch) => ({ id: id++, kind: ch === "C" ? SALVAGE_CRATE : ch === "W" ? SALVAGE_COUPLER : Number(ch) }));
+    .map((ch) => ({ id: id++, kind: ch === "C" ? SALVAGE_CRATE : ch === "R" ? SALVAGE_RUBBLE : Number(ch) }));
   return { ...base, cells, nextId: id };
 }
 
@@ -149,12 +149,11 @@ describe("salvage rules", () => {
           if (!m) break;
           const next = reduceSalvage(state, m);
           const r = next.lastMove!;
-          // Full, no piece twice, crates and couplers within their caps, no crate left on the floor.
+          // Full, no piece twice, crates within their cap, no crate or rubble left on the floor.
           expect(next.cells.length).toBe(cfg.width * cfg.height);
           expect(new Set(next.cells.map((p) => p.id)).size).toBe(next.cells.length);
           expect(next.cells.filter((p) => p.kind === SALVAGE_CRATE).length).toBeLessThanOrEqual(cfg.maxCrates);
-          expect(next.cells.filter((p) => p.kind === SALVAGE_COUPLER).length).toBeLessThanOrEqual(cfg.maxCouplers);
-          for (let col = 0; col < cfg.width; col++) expect(next.cells[(cfg.height - 1) * cfg.width + col]!.kind).not.toBe(SALVAGE_CRATE);
+          for (let col = 0; col < cfg.width; col++) expect([SALVAGE_CRATE, SALVAGE_RUBBLE]).not.toContain(next.cells[(cfg.height - 1) * cfg.width + col]!.kind);
           expect(salvageHasLine(cfg, next.cells)).toBe(true);
           // The score is what the report says, and never negative.
           expect(next.score).toBe(state.score + r.points);
@@ -165,7 +164,8 @@ describe("salvage rules", () => {
           if (!r.shuffled) {
             for (const p of state.cells) {
               if (gone.has(p.id)) expect(next.cells.some((q) => q.id === p.id)).toBe(false);
-              else expect(next.cells.find((q) => q.id === p.id)?.kind).toBe(p.kind);
+              else if (!r.blasts.some((b) => b.scorched.includes(state.cells.indexOf(p)))) expect(next.cells.find((q) => q.id === p.id)?.kind).toBe(p.kind);
+              else expect(next.cells.find((q) => q.id === p.id)?.kind).toBe(SALVAGE_RUBBLE);
             }
           }
           // The last round's field is the state's, unless the field was dealt again.
@@ -190,14 +190,12 @@ describe("salvage rules", () => {
     expect(next.cells.slice(8).map((p) => p.kind)).toEqual(s.cells.slice(8).map((p) => p.kind));
   });
 
-  it("lines run diagonally, and a coupler joins two kinds", () => {
-    const s = field(["0123", "2031", "31W2", "2313"]);
-    // 0 at (0,0), 0 at (1,1), then the coupler at (2,2), then a 3 at (3,3): two kinds through the coupler.
-    const cells = [at(s, 0, 0), at(s, 1, 1), at(s, 2, 2), at(s, 3, 3)];
-    expect(salvageLineIllegalReason(s, cells, false)).toBeNull();
-    expect(reduceSalvage(s, { type: "tether", cells, loop: false }).lastMove!.haulPoints).toBe(16);
-    // Without the coupler the kinds do not match.
+  it("lines run diagonally, never across kinds or through rubble", () => {
+    const s = field(["0123", "2031", "31R2", "2313"]);
+    expect(salvageLineIllegalReason(s, [at(s, 0, 0), at(s, 1, 1), at(s, 2, 2)], false)).toBe("rubble cannot be tethered");
     expect(salvageLineIllegalReason(s, [at(s, 0, 0), at(s, 1, 1), at(s, 2, 1)], false)).toBe("pieces do not match");
+    const d = field(["0123", "2031", "3102", "2310"]);
+    expect(salvageLineIllegalReason(d, [at(d, 0, 0), at(d, 1, 1), at(d, 2, 2), at(d, 3, 3)], false)).toBeNull();
   });
 
   it("refuses lines that are short, broken, repeated, mismatched or through a crate", () => {
@@ -293,7 +291,7 @@ describe("salvage rules", () => {
 
   it("deals the debris again when no line is left, keeping crates where they are", () => {
     // After this haul the field would hold no three of a kind touching; the engine deals it afresh.
-    const config: SalvageConfig = { ...cfg, width: 3, height: 3, kinds: 8, startCrates: 0, cratePermille: 0, couplerPermille: 0 };
+    const config: SalvageConfig = { ...cfg, width: 3, height: 3, kinds: 8, startCrates: 0, cratePermille: 0, volatileEvery: 0, contractQuota: 0 };
     let found = false;
     for (let i = 0; i < 400 && !found; i++) {
       let s = createSalvageGame(`dry-${i}`, config);
@@ -332,7 +330,7 @@ describe("salvage rules", () => {
   });
 
   it("the view string names every cell", () => {
-    const s = field(["01C", "W23", "104"]);
-    expect(salvageViewString(s.cells)).toBe("01CW23104");
+    const s = field(["01C", "R23", "104"]);
+    expect(salvageViewString(s.cells)).toBe("01CR23104");
   });
 });

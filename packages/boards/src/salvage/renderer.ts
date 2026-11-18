@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
 import {
-  SALVAGE_COUPLER,
+  SALVAGE_RUBBLE,
   SALVAGE_CRATE,
   salvageCanClose,
   salvageCanExtend,
@@ -17,7 +17,7 @@ import { sfx } from "../audio.js";
 import { MOTION } from "../look/tokens.js";
 import { FONT_MONO, INK } from "../kit/art.js";
 import { Grid, KitBoard } from "../kit/board.js";
-import { SALVAGE_COUPLER_COLOR, SALVAGE_COUPLER_PAINT, SALVAGE_CRATE_COLOR, SALVAGE_CRATE_PAINT, salvageKind } from "./pieces.js";
+import { SALVAGE_CRATE_COLOR, SALVAGE_CRATE_PAINT, SALVAGE_RUBBLE_COLOR, SALVAGE_RUBBLE_PAINT, salvageKind, salvageVolatilePaint } from "./pieces.js";
 
 export interface SalvageCallbacks {
   /** The player let go of a line the engine would take. */
@@ -49,6 +49,7 @@ export interface SalvageRendererOptions {
 interface PieceView {
   s: Sprite;
   kind: number;
+  fuse: number | undefined;
   cell: number;
 }
 
@@ -143,12 +144,13 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     this.drawCursor();
   }
 
-  /** A piece's picture: its outline says which kind of debris it is, or that it is a crate or a coupler. */
-  private texture(kind: number): Texture {
+  /** A piece's picture: its outline says which kind of debris it is, or that it is a crate or rubble; a volatile wears its fuse. */
+  private texture(kind: number, fuse?: number): Texture {
     const cell = this.grid.cell;
     if (kind === SALVAGE_CRATE) return this.piece("crate", cell, SALVAGE_CRATE_COLOR, SALVAGE_CRATE_PAINT);
-    if (kind === SALVAGE_COUPLER) return this.piece("coupler", cell, SALVAGE_COUPLER_COLOR, SALVAGE_COUPLER_PAINT);
+    if (kind === SALVAGE_RUBBLE) return this.piece("rubble", cell, SALVAGE_RUBBLE_COLOR, SALVAGE_RUBBLE_PAINT);
     const k = salvageKind(kind);
+    if (fuse !== undefined && fuse > 0) return this.piece(`volatile:${k.id}:${fuse}`, cell, k.color, salvageVolatilePaint(k, fuse));
     return this.piece(`debris:${k.id}`, cell, k.color, k.paint);
   }
 
@@ -161,7 +163,8 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
       if (!v) v = this.spawn(p, cell);
       v.cell = cell;
       v.kind = p.kind;
-      v.s.texture = this.texture(p.kind);
+      v.fuse = p.fuse;
+      v.s.texture = this.texture(p.kind, p.fuse);
       v.s.position.set(this.grid.x(cell), this.grid.y(cell));
       v.s.scale.set(1);
       v.s.alpha = 1;
@@ -175,11 +178,11 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
   }
 
   private spawn(p: SalvagePiece, cell: number): PieceView {
-    const s = new Sprite(this.texture(p.kind));
+    const s = new Sprite(this.texture(p.kind, p.fuse));
     s.anchor.set(0.5);
     s.position.set(this.grid.x(cell), this.grid.y(cell));
     this.pieceLayer.addChild(s);
-    const v: PieceView = { s, kind: p.kind, cell };
+    const v: PieceView = { s, kind: p.kind, fuse: p.fuse, cell };
     this.pieces.set(p.id, v);
     return v;
   }
@@ -279,7 +282,7 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
         this.tweens.move(v.s, { y: g.y(f.to) }, { delay: t });
       }
       for (const sp of round.spawned) {
-        const v = this.spawn({ id: sp.id, kind: sp.kind }, sp.cell);
+        const v = this.spawn(sp.fuse === undefined ? { id: sp.id, kind: sp.kind } : { id: sp.id, kind: sp.kind, fuse: sp.fuse }, sp.cell);
         // It starts above the field, behind the mask, and drifts in.
         v.s.y = g.y(sp.cell) - sp.drop * g.cell;
         this.tweens.move(v.s, { y: g.y(sp.cell) }, { delay: t });
@@ -303,7 +306,7 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     const chars = new Array<string>(g.cols * g.rows).fill(".");
     for (const v of this.pieces.values()) {
       const at = g.at(v.s.x, v.s.y);
-      if (at) chars[at.index] = salvageKindChar(v.kind);
+      if (at) chars[at.index] = salvageKindChar(v.kind, v.fuse);
     }
     return chars.join("");
   }

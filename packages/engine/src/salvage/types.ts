@@ -7,6 +7,15 @@
  * crate sinks as the debris under it is hauled and is taken for a little when it reaches the floor.
  * Hauled pieces leave gaps; the pieces above fall and new debris drifts in at the top.
  *
+ * A contract names one kind: a line of that kind pays contractPercent, and hauling contractQuota
+ * pieces of it on lines fills the contract for a bonus and posts another, for a different kind.
+ * A volatile is a piece of debris with a fuse: it links as its kind, and hauling it on a line or
+ * netting it inside a loop defuses it. Its fuse burns one for every haul that leaves it on the
+ * field, and defusing pays volatilePoints for every haul burned and one more, so late pays most.
+ * When the fuse reaches zero it blows: it and the debris round it (diagonals too) turn to rubble,
+ * and the streak breaks. Rubble cannot be tethered: it is cleared inside a loop, or taken off the
+ * floor for nothing once it has sunk there.
+ *
  * Cell index = row * width + col. Row 0 is the top row, where debris enters; the floor is the last
  * row. Nothing here reads a clock: the round's length is the page's and the server's business.
  */
@@ -14,8 +23,8 @@ import type { PrngState } from "../prng.js";
 
 /** A loot crate: never part of a line. Hauled inside a loop, or off the floor. */
 export const SALVAGE_CRATE = 100;
-/** A coupler: part of any line, and the line may change kind across it. */
-export const SALVAGE_COUPLER = 101;
+/** Rubble, left by a volatile that blew: never part of a line. Cleared inside a loop, or off the floor. */
+export const SALVAGE_RUBBLE = 102;
 
 export interface SalvageConfig {
   readonly width: number;
@@ -41,9 +50,18 @@ export interface SalvageConfig {
   readonly crateFloorPoints: number;
   /** A loop nets every crate on the field: k crates score crateLoopPoints * k * k between them. */
   readonly crateLoopPoints: number;
-  /** Chance, per thousand, that a piece drifting in is a coupler, while fewer than maxCouplers are on the field. */
-  readonly couplerPermille: number;
-  readonly maxCouplers: number;
+  /** Pieces of the contract's kind a contract asks for. 0 posts no contracts. */
+  readonly contractQuota: number;
+  /** What a line of the contract's kind is multiplied by, in percent. */
+  readonly contractPercent: number;
+  /** Paid by the haul that fills a contract. */
+  readonly contractBonus: number;
+  /** A volatile drifts in with the debris after every this many hauls. 0 deals none. */
+  readonly volatileEvery: number;
+  /** Hauls a volatile survives on the field: it blows on the haul that burns its fuse to zero. */
+  readonly fuse: number;
+  /** A volatile defused (hauled on a line, or netted inside a loop) pays this for every haul its fuse has burned, and one more. */
+  readonly volatilePoints: number;
   /** A line this long or longer builds the streak; a shorter one spends the streak's one grace, then breaks it. */
   readonly streakMin: number;
   /** What the streak multiplies a haul by, in percent: the first long line takes the first entry, a streak past the end takes the last. */
@@ -66,8 +84,12 @@ export const DEFAULT_SALVAGE_CONFIG: SalvageConfig = {
   maxCrates: 3,
   crateFloorPoints: 30,
   crateLoopPoints: 50,
-  couplerPermille: 30,
-  maxCouplers: 2,
+  contractQuota: 15,
+  contractPercent: 200,
+  contractBonus: 100,
+  volatileEvery: 8,
+  fuse: 6,
+  volatilePoints: 60,
   streakMin: 5,
   streakPercent: [100, 115, 130, 145, 160, 180, 200],
   maxMoves: 600,
@@ -76,8 +98,23 @@ export const DEFAULT_SALVAGE_CONFIG: SalvageConfig = {
 export interface SalvagePiece {
   /** Stable identity for animation. Never reused within a game. */
   readonly id: number;
-  /** 0 to kinds - 1 for debris, or SALVAGE_CRATE, or SALVAGE_COUPLER. */
+  /** 0 to kinds - 1 for debris, or SALVAGE_CRATE, or SALVAGE_RUBBLE. */
   readonly kind: number;
+  /** A volatile's fuse: the hauls it has left. Only debris carries one, and only a volatile. */
+  readonly fuse?: number;
+}
+
+/** The contract posted: the kind it asks for and how many more pieces of it fill it. */
+export interface SalvageContract {
+  readonly kind: number;
+  readonly left: number;
+}
+
+/** A volatile that blew: where it was, and the cells it turned to rubble, itself included. */
+export interface SalvageBlast {
+  readonly cell: number;
+  readonly id: number;
+  readonly scorched: readonly number[];
 }
 
 export type SalvageMove =
@@ -92,16 +129,16 @@ export interface SalvageHauled {
   readonly kind: number;
 }
 
-/** One settling of the field: crates taken off the floor first (none in the first round), then the fall and the refill. */
+/** One settling of the field: crates and rubble taken off the floor first (none in the first round), then the fall and the refill. */
 export interface SalvageRound {
-  /** Crates hauled off the floor at the start of this round. */
+  /** Crates and rubble taken off the floor at the start of this round. */
   readonly floor: readonly SalvageHauled[];
   /** What those crates scored, after the streak. */
   readonly points: number;
   /** Pieces that fell: each one's cell before and after. */
   readonly falls: ReadonlyArray<{ readonly id: number; readonly from: number; readonly to: number }>;
   /** Debris that drifted in, with the cell it came to rest in and how many rows above the top it started. */
-  readonly spawned: ReadonlyArray<{ readonly id: number; readonly cell: number; readonly kind: number; readonly drop: number }>;
+  readonly spawned: ReadonlyArray<{ readonly id: number; readonly cell: number; readonly kind: number; readonly fuse?: number; readonly drop: number }>;
   /** The field once this round has settled. */
   readonly cells: readonly SalvagePiece[];
 }
@@ -112,11 +149,17 @@ export interface SalvageValue {
   readonly length: number;
   /** True when the line closes into a loop. */
   readonly loop: boolean;
-  /** Cells of debris inside the loop, in index order. Empty for an open line. */
+  /** Cells of debris and rubble inside the loop, in index order. Empty for an open line. */
   readonly enclosed: readonly number[];
   /** Cells of every crate the loop nets: all of them on the field. Empty for an open line. */
   readonly netted: readonly number[];
-  /** Line, loop, enclosed debris and netted crates, before the streak. */
+  /** Cells of the volatiles the haul defuses, on the line or inside the loop. */
+  readonly defused: readonly number[];
+  /** Pieces the line counts toward the contract: the line's length when it is of the contract's kind, else 0. */
+  readonly contract: number;
+  /** True when the line fills the contract. */
+  readonly fills: boolean;
+  /** Line, loop, contract, enclosed debris, defused volatiles and netted crates, before the streak. */
   readonly base: number;
 }
 
@@ -133,7 +176,14 @@ export interface SalvageMoveReport {
   /** The streak this haul was scored at, and what it multiplied by, in percent. */
   readonly streak: number;
   readonly streakPercent: number;
-  /** The haul's own points (line, loop, enclosed debris, netted crates), after the streak. */
+  /** Volatiles defused by the haul. */
+  readonly defused: readonly SalvageHauled[];
+  /** Pieces counted toward the contract, and whether the haul filled it. */
+  readonly contractCounted: number;
+  readonly contractFilled: boolean;
+  /** Volatiles that blew after the haul, before the field settled. */
+  readonly blasts: readonly SalvageBlast[];
+  /** The haul's own points (line, loop, contract, enclosed debris, defused volatiles, netted crates), after the streak. */
   readonly haulPoints: number;
   readonly rounds: readonly SalvageRound[];
   /** No line was left on the field, so the debris was dealt again in place. */
@@ -162,6 +212,12 @@ export interface SalvageState {
   readonly cratesNetted: number;
   readonly cratesFloor: number;
   readonly loops: number;
+  /** The contract posted, or null when the config posts none. */
+  readonly contract: SalvageContract | null;
+  readonly contractsFilled: number;
+  /** Volatiles defused, and volatiles that blew. */
+  readonly defused: number;
+  readonly blasts: number;
   /** The longest line hauled. */
   readonly longest: number;
   readonly lastMove: SalvageMoveReport | null;
