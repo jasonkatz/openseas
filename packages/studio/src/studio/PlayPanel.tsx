@@ -1,6 +1,6 @@
 import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
-import { withoutNumbers } from "../frame/numbers.js";
+import { puzzleStages, withoutNumbers } from "../frame/numbers.js";
 import { localSeed, type PracticePhase } from "../practice/usePractice.js";
 import type { Preset } from "../scenario/presets.js";
 
@@ -26,9 +26,23 @@ export function PlayPanel({ phase, onStart }: { phase: PracticePhase; onStart(se
     if (p) setScenario({ ...withoutNumbers(scenario), overrides: p.overrides, roundSeconds: p.roundSeconds ?? null });
   };
   const hold = (on: boolean) => (): void => frame.setComparing(on);
+  const stages = puzzleStages(puzzle);
 
   return (
     <div className="tune" data-testid="play-panel">
+      {stages.length > 0 && (
+        <section className="panel-sec">
+          <h3 className="panel-cap">{t("studio.stage")}</h3>
+          <select value={scenario.stage ?? "full"} aria-label={t("studio.stage")} onChange={(e) => setScenario({ ...scenario, stage: e.target.value === "full" ? null : e.target.value })} data-testid="stage-pick">
+            {[...stages.map((s) => s.id), "full"].map((id, i) => (
+              <option key={id} value={id}>
+                {`${i + 1}. ${t(`${puzzle.id}.stage.${id}`)}`}
+              </option>
+            ))}
+          </select>
+          <p className="panel-note">{t("studio.stage_note")}</p>
+        </section>
+      )}
       {presets.length > 0 && (
         <section className="panel-sec">
           <h3 className="panel-cap">{t("studio.start_from")}</h3>

@@ -123,3 +123,28 @@ describe("presets", () => {
     });
   }
 });
+
+describe("stages (ADR 0066)", () => {
+  for (const id of PUZZLE_IDS) {
+    const file = content.puzzles[id];
+    const stages = "stages" in file ? file.stages : [];
+    if (stages.length === 0) continue;
+    it(`${id}: every stage passes the engine's validator and the wire schema, and creates a game`, () => {
+      const base = file.config as Record<string, unknown>;
+      for (const stage of stages) {
+        const cfg = { ...base, ...stage.config };
+        expect(() => PUZZLES[id].validateConfig(cfg), stage.id).not.toThrow();
+        const parsed = PUZZLE_CONFIG_SCHEMAS[id].safeParse(cfg);
+        expect(parsed.success, `${stage.id}: ${parsed.success ? "" : parsed.error.message}`).toBe(true);
+        expect(() => PUZZLES[id].create(`stage-${stage.id}`, cfg), stage.id).not.toThrow();
+      }
+    });
+  }
+
+  it("a stage rides the address, and full or junk is the whole puzzle", () => {
+    expect(parseScenario("?stage=lines").stage).toBe("lines");
+    expect(formatScenario({ ...EMPTY_SCENARIO, stage: "lines" })).toBe("stage=lines");
+    for (const q of ["?stage=full", "?stage=Lines", "?stage=a%20b", ""]) expect(parseScenario(q).stage).toBeNull();
+  });
+});
+

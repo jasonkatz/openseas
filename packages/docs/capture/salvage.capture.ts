@@ -1,7 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { loadContent } from "@openseas/content";
 import {
-  SALVAGE_COUPLER,
   SALVAGE_CRATE,
   createSalvageGame,
   reduceSalvage,
@@ -158,7 +157,7 @@ test("salvage: a long haul", async ({ page }) => {
   const { seed, found } = findSeed("salvage-long", (s) => {
     const g = deal(s);
     const { open } = lines(g);
-    return open.length === 10 && leavesCrates(g, open) && open.every((c) => g.cells[c]!.kind !== SALVAGE_COUPLER) ? open : null;
+    return open.length === 10 && leavesCrates(g, open) ? open : null;
   });
   await openLab(page, "salvage", { seed });
   await hover(page, found);
@@ -243,29 +242,6 @@ function playUntil<T>(seed: string, limit: number, stop: (s: SalvageState) => T 
   return null;
 }
 
-test("salvage: a coupler joins two kinds", async ({ page }) => {
-  // The hauls before the picture are replayed on the page: on a busy machine that is slow, not wrong.
-  test.setTimeout(480_000);
-  // A few hauls in, a coupler has drifted in and the longest line crosses it from one kind to another.
-  const { seed, found } = findSeed("salvage-coupler", (s) =>
-    playUntil(s, 8, (g) => {
-      const { open } = lines(g);
-      const at = open.findIndex((c) => g.cells[c]!.kind === SALVAGE_COUPLER);
-      if (open.length < 9 || open.length > 11 || at < 3 || at > open.length - 4) return null;
-      if (open.filter((c) => g.cells[c]!.kind === SALVAGE_COUPLER).length !== 1) return null;
-      return g.cells[open[0]!]!.kind !== g.cells[open[open.length - 1]!]!.kind && leavesCrates(g, open) ? open : null;
-    }),
-  );
-  await openLab(page, "salvage", { seed, seconds: 600 });
-  await replay(page, seed, found.log);
-  await hover(page, found.found);
-  await page.waitForTimeout(500);
-  await clip(page, "salvage", "coupler", async () => {
-    await draw(page, found.found, false, 220);
-    await settled(page, "salvage");
-  }, { tailMs: 1100, region: await region(page) });
-});
-
 test("salvage: three crates netted at full streak", async ({ page }) => {
   test.setTimeout(480_000);
   // Long lines until the streak is at its last step and three crates are adrift, then a loop of five or more: it builds the streak and nets all three.
@@ -289,4 +265,20 @@ test("salvage: three crates netted at full streak", async ({ page }) => {
     await draw(page, found.found, true, 300);
     await settled(page, "salvage");
   }, { tailMs: 1500, region: await region(page) });
+});
+
+test("salvage: a volatile adrift, its fuse burning", async ({ page }) => {
+  test.setTimeout(480_000);
+  // Long lines until a volatile has drifted in and burned a little, clear of the top row.
+  const { seed, found } = findSeed("salvage-volatile", (s) =>
+    playUntil(s, cfg.volatileEvery + 4, (g) => {
+      const at = g.cells.findIndex((p) => p.fuse !== undefined && p.fuse > 0);
+      return at >= 0 && row(at) >= 1 && g.cells[at]!.fuse! < cfg.fuse && g.cells[at]!.fuse! >= 2 ? at : null;
+    }),
+  );
+  await openLab(page, "salvage", { seed, seconds: 600 });
+  await replay(page, seed, found.log);
+  await page.waitForTimeout(500);
+  await hidePointer(page);
+  await still(page, "salvage", "volatile", { region: await region(page) });
 });

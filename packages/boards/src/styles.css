@@ -884,6 +884,20 @@ i.dot.pip-off {
 .combo-chip.hot {
   background: var(--amber);
 }
+/* The stage of a puzzle's ladder being played (ADR 0066), beside the score's label. */
+.stage-chip {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--dim);
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.stage-intro b {
+  color: var(--cream);
+}
 .details-btn {
   position: relative;
 }

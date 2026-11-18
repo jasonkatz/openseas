@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ContentError, contentProblems, defaultLook, loadContent, msg, pirateLookProblem, WorldSchema } from "../src/index.js";
+import { ContentError, contentProblems, defaultLook, loadContent, msg, pirateLookProblem, stageNumbers, StageSchema, WorldSchema } from "../src/index.js";
 
 describe("content", () => {
   it("loads and cross-validates every file", () => {
@@ -102,5 +102,35 @@ describe("content", () => {
     const problems = contentProblems(bad);
     expect(problems.some((p) => p.includes("unknown puzzle core"))).toBe(true);
     expect(problems.some((p) => p.includes("twice: asks the same"))).toBe(true);
+  });
+
+  it("a stage lays its config over the puzzle's and has its own round and thresholds; full is the file's own", () => {
+    const c = loadContent();
+    const salvage = c.puzzles.salvage;
+    expect(salvage.stages.map((s) => s.id)).toEqual(["lines", "streak", "nets"]);
+    const lines = stageNumbers(salvage, "lines");
+    expect(lines.stage?.id).toBe("lines");
+    expect(lines.config.loopMin).toBe(0);
+    expect(lines.config.width).toBe(salvage.config.width);
+    expect(lines.roundSeconds).toBe(60);
+    // Each stage scores less than the next, so its thresholds sit lower.
+    const tops = [...salvage.stages.map((s) => s.thresholds.at(-1)!.score), salvage.thresholds.at(-1)!.score];
+    expect([...tops].sort((a, b) => a - b)).toEqual(tops);
+    for (const id of [null, "full", "nope"]) {
+      const n = stageNumbers(salvage, id);
+      expect(n.stage).toBeNull();
+      expect(n.config).toBe(salvage.config);
+    }
+    for (const s of [...salvage.stages.map((x) => x.id), "full"]) {
+      expect(c.messages[`salvage.stage.${s}`]).toBeTruthy();
+      expect(c.messages[`salvage.stage.${s}_intro`]).toBeTruthy();
+    }
+  });
+
+  it("a stage is a lowercase word, and never full", () => {
+    const base = { roundSeconds: 60, thresholds: [{ score: 0, rating: 1000 }], config: {} };
+    expect(StageSchema.safeParse({ ...base, id: "lines" }).success).toBe(true);
+    expect(StageSchema.safeParse({ ...base, id: "full" }).success).toBe(false);
+    expect(StageSchema.safeParse({ ...base, id: "Two words" }).success).toBe(false);
   });
 });

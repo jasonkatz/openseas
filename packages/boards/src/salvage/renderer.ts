@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
 import {
-  SALVAGE_COUPLER,
+  SALVAGE_RUBBLE,
   SALVAGE_CRATE,
   salvageCanClose,
   salvageCanExtend,
@@ -17,7 +17,7 @@ import { sfx } from "../audio.js";
 import { MOTION } from "../look/tokens.js";
 import { FONT_MONO, INK } from "../kit/art.js";
 import { Grid, KitBoard } from "../kit/board.js";
-import { SALVAGE_COUPLER_COLOR, SALVAGE_COUPLER_PAINT, SALVAGE_CRATE_COLOR, SALVAGE_CRATE_PAINT, salvageKind } from "./pieces.js";
+import { SALVAGE_CRATE_COLOR, SALVAGE_CRATE_PAINT, SALVAGE_RUBBLE_COLOR, SALVAGE_RUBBLE_PAINT, salvageKind, salvageVolatilePaint } from "./pieces.js";
 
 export interface SalvageCallbacks {
   /** The player let go of a line the engine would take. */
@@ -31,6 +31,11 @@ export interface SalvageLabels {
   preview(pieces: number, points: number): string;
   /** A closed line: the crates it will net and what the haul is worth. */
   previewNet(crates: number, points: number): string;
+  /** A line that fills the order: what the haul is worth, bonus included. */
+  previewOrder(pieces: number, points: number): string;
+  orderFilled: string;
+  defused(count: number): string;
+  blast: string;
   net(crates: number): string;
   netEmpty: string;
   longHaul: string;
@@ -49,6 +54,7 @@ export interface SalvageRendererOptions {
 interface PieceView {
   s: Sprite;
   kind: number;
+  fuse: number | undefined;
   cell: number;
 }
 
@@ -143,12 +149,13 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     this.drawCursor();
   }
 
-  /** A piece's picture: its outline says which kind of debris it is, or that it is a crate or a coupler. */
-  private texture(kind: number): Texture {
+  /** A piece's picture: its outline says which kind of debris it is, or that it is a crate or rubble; a volatile wears its fuse. */
+  private texture(kind: number, fuse?: number): Texture {
     const cell = this.grid.cell;
     if (kind === SALVAGE_CRATE) return this.piece("crate", cell, SALVAGE_CRATE_COLOR, SALVAGE_CRATE_PAINT);
-    if (kind === SALVAGE_COUPLER) return this.piece("coupler", cell, SALVAGE_COUPLER_COLOR, SALVAGE_COUPLER_PAINT);
+    if (kind === SALVAGE_RUBBLE) return this.piece("rubble", cell, SALVAGE_RUBBLE_COLOR, SALVAGE_RUBBLE_PAINT);
     const k = salvageKind(kind);
+    if (fuse !== undefined && fuse > 0) return this.piece(`volatile:${k.id}:${fuse}`, cell, k.color, salvageVolatilePaint(k, fuse));
     return this.piece(`debris:${k.id}`, cell, k.color, k.paint);
   }
 
@@ -161,7 +168,8 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
       if (!v) v = this.spawn(p, cell);
       v.cell = cell;
       v.kind = p.kind;
-      v.s.texture = this.texture(p.kind);
+      v.fuse = p.fuse;
+      v.s.texture = this.texture(p.kind, p.fuse);
       v.s.position.set(this.grid.x(cell), this.grid.y(cell));
       v.s.scale.set(1);
       v.s.alpha = 1;
@@ -175,11 +183,11 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
   }
 
   private spawn(p: SalvagePiece, cell: number): PieceView {
-    const s = new Sprite(this.texture(p.kind));
+    const s = new Sprite(this.texture(p.kind, p.fuse));
     s.anchor.set(0.5);
     s.position.set(this.grid.x(cell), this.grid.y(cell));
     this.pieceLayer.addChild(s);
-    const v: PieceView = { s, kind: p.kind, cell };
+    const v: PieceView = { s, kind: p.kind, fuse: p.fuse, cell };
     this.pieces.set(p.id, v);
     return v;
   }
@@ -240,9 +248,34 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
       } else if (n >= MIGHTY) {
         this.fx.say(L.mightyHaul);
         this.beat(0.6);
+      } else if (r.orderFilled) {
+        this.fx.say(L.orderFilled);
+        sfx.rise();
+      } else if (r.defused.length > 0) {
+        this.fx.say(L.defused(r.defused.length));
+        sfx.good();
       } else if (n >= LONG) this.fx.say(L.longHaul);
       else if (r.streak >= 3) this.fx.say(L.streak(r.streak));
     });
+    // A volatile left on the field that burned out: it and the debris round it turn to rubble where they stand.
+    if (r.blasts.length > 0) {
+      const at = t;
+      this.tweens.after(at, () => {
+        for (const b of r.blasts) {
+          this.fx.ring(g.x(b.cell), g.y(b.cell), INK.danger, g.cell * 0.4, g.cell * 1.5);
+          for (const cell of b.scorched) {
+            const v = this.viewAt(cell);
+            if (!v) continue;
+            v.kind = SALVAGE_RUBBLE;
+            v.fuse = undefined;
+            v.s.texture = this.texture(SALVAGE_RUBBLE);
+          }
+        }
+        this.fx.say(L.blast, INK.danger);
+        sfx.crack(true);
+      });
+      t += MOTION.clear + 60;
+    }
 
     if (r.loop) {
       const cx = r.line.reduce((a, h) => a + g.x(h.cell), 0) / n;
@@ -279,7 +312,7 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
         this.tweens.move(v.s, { y: g.y(f.to) }, { delay: t });
       }
       for (const sp of round.spawned) {
-        const v = this.spawn({ id: sp.id, kind: sp.kind }, sp.cell);
+        const v = this.spawn(sp.fuse === undefined ? { id: sp.id, kind: sp.kind } : { id: sp.id, kind: sp.kind, fuse: sp.fuse }, sp.cell);
         // It starts above the field, behind the mask, and drifts in.
         v.s.y = g.y(sp.cell) - sp.drop * g.cell;
         this.tweens.move(v.s, { y: g.y(sp.cell) }, { delay: t });
@@ -303,7 +336,7 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     const chars = new Array<string>(g.cols * g.rows).fill(".");
     for (const v of this.pieces.values()) {
       const at = g.at(v.s.x, v.s.y);
-      if (at) chars[at.index] = salvageKindChar(v.kind);
+      if (at) chars[at.index] = salvageKindChar(v.kind, v.fuse);
     }
     return chars.join("");
   }
@@ -435,7 +468,11 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     const streak = long ? state.combo + 1 : state.combo > 0 && state.grace ? state.combo : 0;
     const points = Math.floor((value.base * salvageStreakPercentAt(state.config, streak)) / 100);
     const enough = this.path.length >= state.config.minLine;
-    this.setLabel(value.loop ? this.opts.labels.previewNet(value.netted.length, points) : this.opts.labels.preview(value.length, enough ? points : 0), enough ? INK.cream : INK.dim);
+    const L = this.opts.labels;
+    this.setLabel(
+      value.loop ? L.previewNet(value.netted.length, points) : value.fills ? L.previewOrder(value.length, points) : L.preview(value.length, enough ? points : 0),
+      enough ? INK.cream : INK.dim,
+    );
   }
 
   private setLabel(text: string, color: number = INK.cream): void {

@@ -10,8 +10,8 @@ export const SalvageContentSchema = PrototypeBaseSchema.extend({
     minLine: z.int().min(2).max(5),
     /** A line of n pieces scores linePoints * n * n. */
     linePoints: z.int().min(0),
-    /** The fewest pieces a line needs before it may close into a loop. */
-    loopMin: z.int().min(3).max(12),
+    /** The fewest pieces a line needs before it may close into a loop. 0: no nets. */
+    loopMin: z.int().min(0).max(12).refine((v) => v === 0 || v >= 3),
     /** What closing a loop multiplies the line's points by, in percent. */
     loopPercent: z.int().min(100),
     enclosedPoints: z.int().min(0),
@@ -21,8 +21,11 @@ export const SalvageContentSchema = PrototypeBaseSchema.extend({
     crateFloorPoints: z.int().min(0),
     /** A loop nets every crate on the field: k crates score crateLoopPoints * k * k between them. */
     crateLoopPoints: z.int().min(0),
-    couplerPermille: z.int().min(0).max(500),
-    maxCouplers: z.int().min(0),
+    orderLength: z.int().min(0),
+    orderBonus: z.int().min(0),
+    volatileEvery: z.int().min(0),
+    fuse: z.int().min(1),
+    volatilePoints: z.int().min(0),
     streakMin: z.int().min(2),
     streakPercent: z.array(z.int().min(100)).min(1),
     maxMoves: z.int().min(1),

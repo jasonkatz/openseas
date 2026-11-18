@@ -34,7 +34,7 @@ example for every one of them; for how a board looks, `Overload` and `Tug` are.
 | `packages/engine/test/<id>.test.ts` | Property tests for determinism first (ADR 0003), then the rules. |
 | `packages/protocol/src/<id>.ts` | `<Id>MoveSchema`, `<Id>ConfigSchema`. Bounds match the engine's validator. |
 | `packages/content/src/prototypes/<id>.ts` | `<Id>ContentSchema`: the base (round length, thresholds) and the config. |
-| `packages/content/data/puzzles/<id>.json` | The config the server deals, the round length, the thresholds, and `paceSeconds` for the live tier indicator (ADR 0039). |
+| `packages/content/data/puzzles/<id>.json` | The config the server deals, the round length, the thresholds, `paceSeconds` for the live tier indicator (ADR 0039), and `stages`: the ladder a new player climbs, each a config overlay with its own round length and thresholds (ADR 0066). Salvage's is the worked example. |
 | `packages/content/data/messages/prototypes/<id>.json` | Every string the puzzle shows. |
 | `packages/boards/src/<id>/renderer.ts` | A `KitBoard` subclass: draws the state, plays the last move, reports input. |
 | `packages/boards/data/pieces/<id>.json` | The board's pieces as drawings: layers on the 24 unit square, by name, that the studio's Sprites editor redraws and Save writes back (ADR 0065). |
@@ -79,6 +79,11 @@ These are the project's rules (CLAUDE.md), said for a prototype.
    labels as options; it never holds English.
 8. **A studio round cannot run on a config the server would refuse.** The wire schema and the engine's
    validator bound the same fields; the scenario tests hold every preset to both.
+
+9. **Deepened, then laddered** (ADR 0066). A prototype grows layers until mastery takes real
+   skill, each proven by bots and with a bait that loses, then lists its stages in content: the
+   puzzle with layers switched off, simplest first. Each layer has an off value in config. Salvage
+   is laddered; the other seven are next, one at a time.
 
 ## The board kit
 

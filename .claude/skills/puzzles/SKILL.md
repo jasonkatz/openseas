@@ -32,7 +32,8 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
    could have done better, and starts again in one tap. Within a round the loop is tight: act, see
    the payoff, spot the next thing, in a few seconds.
 4. **Never the same round twice.** The seed deals it. There are no levels to memorise; where a
-   fixed layout would let a player work off one trick all round, deal a new one.
+   fixed layout would let a player work off one trick all round, deal a new one. A stage of the
+   puzzle's ladder (rule 26) is no level: it is the same seeded puzzle with layers off.
 5. **A moving skill ceiling.** Competence comes in an evening; mastery is reachable; true expertise
    is rare and visibly different. The design names at least four skills in the order a player
    learns them, each paying clearly more than the last, and the top one is still hard for someone
@@ -54,7 +55,8 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 
 10. **No difficulty setting.** Skill shows as score. The round ramps itself where it suits the
     puzzle (a quicker feed, bigger targets), and a board against an opponent scales by the
-    opponent's tier (`scorePercent`).
+    opponent's tier (`scorePercent`). A stage (rule 26) is onboarding, not a setting: forward
+    only, and its tier is read by nothing.
 11. **Hints teach, never play.** An idle hint in a studio round only. A round that counts never
     hints.
 
@@ -127,6 +129,19 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
     plays by key and by pointer; a guide in `packages/docs` with captured pictures and no typed
     number; and, once it has a role, its place in the game. Plus the design file.
 
+### Depth
+
+26. **Deep enough to need a ladder, and laddered** (ADR 0066). A puzzle grows layers until mastery
+    takes real skill, feel for how scoring works and a sense of what is not worth chasing, and is
+    then learned on a ladder of two to four stages before the whole puzzle. Each layer uses the
+    one verb, has an off value in config, and earns its place with bots: a bot that plays it beats
+    one that ignores it by a measured margin, and at least one bait (a play that looks right) loses
+    to plain good play. Stages are cut from the whole puzzle by switching layers off, never given
+    rules of their own; each lives in the content file's `stages` with its round length,
+    thresholds, name and one-line card (`<puzzle>.stage.<id>`, `_intro`, and the same for `full`).
+    The guide teaches the ladder. A puzzle not yet deepened has no stages and says so in its design
+    file.
+
 ## New puzzle
 
 1. Pitch it against the bar before any code: the verb, the compound move, luck and skill with four
@@ -141,7 +156,9 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
    (the studio's Sprites editor draws them too), and look at the board with every piece in one
    colour (rule 22). Give each moment its cue from `boards/data/cues.json` and list them in
    `studio/src/assets/cues.ts`. Write the design file, the guide and its capture.
-5. Report the bar, item by item, with the open questions for play.
+5. Once it plays whole, cut its ladder (rule 26): stages in content, a bot score for each, the
+   guide's ladder.
+6. Report the bar, item by item, with the open questions for play.
 
 ## Changing a puzzle
 
@@ -149,7 +166,10 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 2. Make the change, and in the same commit:
    - **A rule or a number:** the design file; the guide re-read against the engine; the tiers
      looked at again in the studio and the thresholds moved if they shifted; a `DESIGN.md` section
-     6 row if it departs further from the original.
+     6 row if it departs further from the original. On a puzzle with stages, every stage the
+     change reaches: its overlay still switches the layer off, and its thresholds still fit.
+   - **A new layer:** its off value, the stage it arrives at, and the bots that show it pays for
+     skill and that its bait loses (rule 26).
    - **A new or renamed config key:** its line of description on the wire schema and its place in
      `studio/src/tuning/groups/<id>.ts`.
    - **A control:** the design file, the guide's controls, the studio smoke.
@@ -165,4 +185,6 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 
 Its own ADR and milestone (ADR 0036, `docs/prototypes/README.md`). Before proposing one: the owner
 has played it, people (not only bots) have set its thresholds, its Role section says what each
-tier does for the game, and its design file moves to `docs/puzzles/`.
+tier does for the game, and its design file moves to `docs/puzzles/`. A puzzle with stages also
+needs the ladder's player state, the server dealing a stage, and a result card that says a stage is
+passed (ADR 0066 decision 9).

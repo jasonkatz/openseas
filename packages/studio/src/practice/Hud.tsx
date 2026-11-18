@@ -1,4 +1,6 @@
 import { TierPace, t, type TierPaceValue } from "@openseas/boards";
+import { useFrame } from "../frame/RoundFrame.jsx";
+import { puzzleStages } from "../frame/numbers.js";
 import { useTally, type ShellProps } from "./PracticeShell.jsx";
 
 const COMBO_PIPS = 8;
@@ -6,10 +8,20 @@ const COMBO_PIPS = 8;
 /** Score with the live tier, time and moves: the three stats every shell leads with. */
 export function CoreStats({ p, wide, pace, lowTime }: { p: ShellProps; wide: boolean; pace: TierPaceValue | null; lowTime: boolean }) {
   const score = useTally(p.score);
+  const { puzzle, scenario } = useFrame();
+  // A puzzle with a ladder names the stage being played beside the score (ADR 0066).
+  const staged = puzzleStages(puzzle).length > 0;
   return (
     <>
       <div className="stat stat-score">
-        <span className="stat-label">{p.scoreLabel ?? t("practice.score")}</span>
+        <span className="stat-label">
+          {p.scoreLabel ?? t("practice.score")}
+          {staged && (
+            <span className="stage-chip" data-testid="hud-stage" data-stage={scenario.stage ?? "full"}>
+              {t(`${puzzle.id}.stage.${scenario.stage ?? "full"}`)}
+            </span>
+          )}
+        </span>
         <span className="stat-value" data-testid="hud-score">
           <span key={p.score} className={p.score ? "bump" : undefined}>
             {score}

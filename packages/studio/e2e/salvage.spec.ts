@@ -91,3 +91,27 @@ test("a Salvage line closed into a loop nets the crates on the field", async ({ 
   await expect(page.getByTestId("hud-score")).toHaveText("232");
   await expectViewMatchesState(page, "salvage");
 });
+
+test("a Salvage stage plays from its address: its name in the HUD, its card on the start card, its numbers on the board (ADR 0066)", async ({ page }) => {
+  await page.goto("/play/salvage?stage=lines");
+  await expect(page.getByTestId("stage-intro")).toHaveAttribute("data-stage", "lines");
+  await page.getByTestId("play-start").click();
+  await expect(page.getByTestId("salvage-canvas")).toBeVisible();
+  await expect(page.getByTestId("hud-stage").first()).toHaveAttribute("data-stage", "lines");
+  // The first stage deals lines only: no crate on the field, and a minute on the clock.
+  await expect(page.getByTestId("salvage-board")).toHaveAttribute("data-board", /^[0-9]+$/);
+  await expect(page.getByTestId("hud-time").first()).toHaveText(/^(1:00|0:5\d)$/);
+  await drag(page, findLine(await boardString(page), 3));
+  await expect(page.getByTestId("hud-moves").first()).toHaveText("1");
+  await expectViewMatchesState(page, "salvage");
+});
+
+test("the studio's stage picker deals the stage chosen, and writes it to the address", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "a phone gets the puzzle alone, with no panels");
+  await page.goto("/salvage");
+  const pick = page.getByTestId("stage-pick");
+  await expect(pick).toHaveValue("full");
+  await pick.selectOption("streak");
+  await expect(page).toHaveURL(/stage=streak/);
+  await expect(page.getByTestId("stage-intro").first()).toHaveAttribute("data-stage", "streak");
+});
