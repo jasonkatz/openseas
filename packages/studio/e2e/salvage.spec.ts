@@ -92,7 +92,7 @@ test("a Salvage line closed into a loop nets the crates on the field", async ({ 
   await expectViewMatchesState(page, "salvage");
 });
 
-test("a Salvage stage plays from its address: its name in the HUD, its card on the start card, its numbers on the board (ADR 0065)", async ({ page }) => {
+test("a Salvage stage plays from its address: its name in the HUD, its card on the start card, its numbers on the board (ADR 0066)", async ({ page }) => {
   await page.goto("/play/salvage?stage=lines");
   await expect(page.getByTestId("stage-intro")).toHaveAttribute("data-stage", "lines");
   await page.getByTestId("play-start").click();

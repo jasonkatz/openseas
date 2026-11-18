@@ -1,4 +1,4 @@
-# 0065. A puzzle is learned on a ladder of stages, and only the whole puzzle counts
+# 0066. A puzzle is learned on a ladder of stages, and only the whole puzzle counts
 
 Status: Accepted. Builds on [0036](./0036-prototype-puzzles.md),
 [0039](./0039-five-tiers-and-a-live-pace.md) and [0042](./0042-the-harness-becomes-the-puzzle-studio.md).

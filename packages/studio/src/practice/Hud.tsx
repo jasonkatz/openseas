@@ -9,7 +9,7 @@ const COMBO_PIPS = 8;
 export function CoreStats({ p, wide, pace, lowTime }: { p: ShellProps; wide: boolean; pace: TierPaceValue | null; lowTime: boolean }) {
   const score = useTally(p.score);
   const { puzzle, scenario } = useFrame();
-  // A puzzle with a ladder names the stage being played beside the score (ADR 0065).
+  // A puzzle with a ladder names the stage being played beside the score (ADR 0066).
   const staged = puzzleStages(puzzle).length > 0;
   return (
     <>

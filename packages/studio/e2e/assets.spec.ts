@@ -3,16 +3,16 @@ import { expectViewMatchesState, shown } from "./helpers.js";
 import { NO_SAVE, SERVICE, draft, numbers, service } from "./standin.js";
 
 /**
- * The Sounds mode (DESIGN.md 3.14, ADR 0062 decision 5): a plain list of the puzzle's cues, each
- * with a button that plays it. Desktop only, as the studio is. There is no sample to pick, no
- * take and no file to try, and no Sprites mode: every board draws its pieces and synthesizes its
- * cues in code. What a draft, a link or an address kept of picks before then, of a sprite or a
- * sound, is read and passed over (ADR 0063, ADR 0064), and the later tests here hold the studio
- * to that.
+ * The Sounds mode (DESIGN.md 3.14, ADR 0062 decision 5, ADR 0065): the puzzle's cues, each with a
+ * button that plays it. Desktop only, as the studio is. There is no sample to pick, no take and
+ * no file to try: every cue is synthesized, and the editor beside the list (e2e/editors.spec.ts)
+ * reshapes its voices. What a draft, a link or an address kept of picks before then, of a sprite
+ * or a sound, is read and passed over (ADR 0063, ADR 0064), and the later tests here hold the
+ * studio to that.
  */
 const desktopOnly = (): void => test.skip(test.info().project.name !== "desktop", "the studio is a desktop tool");
 
-test("the Sounds mode lists every cue the puzzle's board plays, each with a button that plays it, and nothing to pick", async ({ page }) => {
+test("the Sounds mode lists every cue the puzzle's board plays, each with a button that plays it, and no sample or take to pick", async ({ page }) => {
   desktopOnly();
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
@@ -41,12 +41,13 @@ test("the Sounds mode lists every cue the puzzle's board plays, each with a butt
     before = await tones();
   }
 
-  // A list to listen to, and nothing more: no file, no take, no voice to choose, no message to the chat.
+  // No file, no take, no sample to choose, no message to the chat.
   const panel = page.getByTestId("sounds");
   await expect(panel.locator("input[type=file]")).toHaveCount(0);
   await expect(panel.locator("[data-testid^=take-], [data-testid^=cue-file-], [data-testid^=cue-shipped-], [data-testid^=cue-synth-], [data-testid^=ask-]")).toHaveCount(0);
-  await expect(panel.locator("button")).toHaveCount(await panel.locator("[data-testid^=cue-play-]").count());
-  await expect(page.getByTestId("tab-sprites")).toHaveCount(0);
+  // A puzzle's own cue has no voice of its own to edit; a cue of the game's does.
+  await expect(panel.getByTestId("cue-edit-clash")).toHaveCount(0);
+  await expect(panel.getByTestId("cue-edit-thud")).toHaveCount(1);
   // Listening changes nothing of the draft or the address.
   await expect(page.getByTestId("changed-count")).not.toContainText("1");
   expect(new URL(page.url()).search).toBe("?seed=assets-2");

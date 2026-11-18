@@ -151,7 +151,7 @@ export function createHttpHandler(deps: HttpDeps) {
       if (path === "/health" && req.method === "GET") return json(res, 200, { ok: true, commit: env.COMMIT_SHA });
 
       if (path === "/auth/me" && req.method === "GET") {
-        const me: StudioMe = { login: owner(req), signIn: github !== null, dev: env.STUDIO_DEV_LOGIN !== null, save: saver !== null, chat: chat !== null, words: true };
+        const me: StudioMe = { login: owner(req), signIn: github !== null, dev: env.STUDIO_DEV_LOGIN !== null, save: saver !== null, chat: chat !== null, words: true, look: true };
         return json(res, 200, me);
       }
       if (path === "/auth/github" && req.method === "GET") {

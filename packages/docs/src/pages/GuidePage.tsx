@@ -33,7 +33,7 @@ export function GuidePage({ id }: { id: PuzzleId }) {
     window.history.replaceState(null, "", `#${l}`);
   };
   const stage = guide.stages.find((s) => s.level === level) ?? guide.stages[0];
-  // The puzzle's own ladder of stages (ADR 0065), from content: a puzzle with none has no such section.
+  // The puzzle's own ladder of stages (ADR 0066), from content: a puzzle with none has no such section.
   const file = content.puzzles[id];
   const opening = "stages" in file && file.stages.length > 0 ? [...file.stages.map((s) => ({ id: s.id, seconds: s.roundSeconds })), { id: "full", seconds: file.roundSeconds }] : [];
   const sections = SECTIONS.filter((s) => s !== "opening" || opening.length > 0);

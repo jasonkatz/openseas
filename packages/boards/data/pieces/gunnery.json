@@ -1,0 +1,25 @@
+{
+  "cell": {
+    "layers": [
+      { "name": "body", "kind": "rect", "x": 2, "y": 6, "w": 16.5, "h": 12, "r": 3 },
+      { "name": "terminal", "kind": "rect", "x": 17, "y": 9.2, "w": 5, "h": 5.6, "r": 1.8 },
+      { "name": "window", "kind": "rect", "x": 5.4, "y": 9.6, "w": 8, "h": 4.8, "r": 1.6, "cut": true }
+    ]
+  },
+  "sabot": {
+    "layers": [
+      { "name": "cup", "kind": "path", "steps": [{ "x": 5.5, "y": 5.5 }, { "x": 5.5, "y": 12 }, { "x": 12, "y": 12, "r": 6.5, "from": 180, "to": 0, "ccw": true }, { "x": 18.5, "y": 5.5 }], "width": 6, "cap": true }
+    ]
+  },
+  "slug": {
+    "layers": [
+      { "name": "round", "kind": "poly", "points": [8, 20.5, 16, 20.5, 16, 10.5, 12, 3.5, 8, 10.5], "round": 3 },
+      { "name": "band", "kind": "rect", "x": 5, "y": 14.4, "w": 14, "h": 3, "r": 0, "cut": true }
+    ]
+  },
+  "coolant": {
+    "layers": [
+      { "name": "arms", "kind": "rect", "x": 9.8, "y": 2, "w": 4.4, "h": 20, "r": 2.2, "copies": 3, "spread": 60 }
+    ]
+  }
+}

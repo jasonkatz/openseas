@@ -22,7 +22,7 @@ describe("a page's draft and the one the service keeps", () => {
 
   it("gives the service a scenario's numbers one override a changed leaf, and drops what equals content", () => {
     const s = parseScenario(`?seed=keg-3&seconds=60&c.pieceKinds=5&c.width=${(cooling.config as { width: number }).width}`);
-    expect(draftNumbers(cooling, s)).toEqual({ seed: "keg-3", overrides: { pieceKinds: 5 }, roundSeconds: 60, paceSeconds: null, thresholds: null, words: { texts: {}, category: null } });
+    expect(draftNumbers(cooling, s)).toEqual({ seed: "keg-3", overrides: { pieceKinds: 5 }, roundSeconds: 60, paceSeconds: null, thresholds: null, words: { texts: {}, category: null }, look: { pieces: {}, cues: {} } });
   });
 
   it("has nothing to save while a value has no shape the service keeps", () => {
@@ -34,7 +34,7 @@ describe("a page's draft and the one the service keeps", () => {
 
   it("lays a stored draft over a scenario and keeps how its clock starts", () => {
     const s = parseScenario("?seed=mine&c.pieceKinds=4&hints=0&speed=2");
-    const stored = { seed: null, overrides: { pieceKinds: 6 }, roundSeconds: 45, paceSeconds: 20, thresholds: null, words: { texts: {}, category: null } };
+    const stored = { seed: null, overrides: { pieceKinds: 6 }, roundSeconds: 45, paceSeconds: 20, thresholds: null, words: { texts: {}, category: null }, look: { pieces: {}, cues: {} } };
     const laid = withDraft(s, stored);
     expect(draftNumbers(cooling, laid)).toEqual(stored);
     expect(laid).toMatchObject({ hints: false, speed: 2 });
@@ -50,10 +50,28 @@ describe("a page's draft and the one the service keeps", () => {
     const old = { seed: null, overrides: { pieceKinds: 5 }, roundSeconds: null, paceSeconds: null, thresholds: null };
     expect(withDraft(s, old).words).toEqual({ texts: {}, category: null });
     expect(sameNumbers(old, draftNumbers(cooling, withDraft(s, old))!)).toBe(true);
-    const older = { words: false };
+    const older = { words: false, look: true };
     expect(draftNumbers(cooling, s, older)!.words).toEqual({ texts: {}, category: null });
     expect(withDraft(s, old, older).words).toEqual(s.words);
     expect(formatScenario(withoutDraft(s, older))).toBe("text.cooling.multi_2=Twofer%21&category=crafting");
+  });
+
+  it("carries a draft's look with its numbers, and leaves it with the page when the service is older than it (ADR 0065)", () => {
+    const drawing = { layers: [{ kind: "disc", x: 12, y: 12, r: 9 }] };
+    const cue = { level: 1, cutoff: 1800, voices: [{ kind: "tone", note: 10, wave: "sine", at: 0, attack: 0.01, release: 0.1, level: 1 }] };
+    const qs = `piece.cog=${encodeURIComponent(JSON.stringify(drawing))}&cue.swap=${encodeURIComponent(JSON.stringify(cue))}&piece.bad=${encodeURIComponent("{\"layers\":[]}")}`;
+    const s = parseScenario(`?${qs}`);
+    // A drawing that is not one is dropped on its own; the rest is kept.
+    expect(Object.keys(s.look.pieces)).toEqual(["cog"]);
+    expect(carriesDraft(s)).toBe(true);
+    expect(draftNumbers(cooling, s)!.look).toEqual({ pieces: { cog: drawing }, cues: { swap: cue } });
+    expect(parseScenario(`?${formatScenario(s)}`).look).toEqual(s.look);
+    const old = { seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null };
+    expect(withDraft(s, old).look).toEqual({ pieces: {}, cues: {} });
+    const older = { words: true, look: false };
+    expect(carriesDraft(s, older)).toBe(false);
+    expect(draftNumbers(cooling, s, older)!.look).toEqual({ pieces: {}, cues: {} });
+    expect(withDraft(s, old, older).look).toEqual(s.look);
   });
 
   it("reads a draft kept with picks, of sprites or sounds, as one that picks nothing (ADR 0063, ADR 0064)", () => {

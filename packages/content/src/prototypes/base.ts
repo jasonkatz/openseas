@@ -4,7 +4,7 @@ import { PuzzleCategorySchema } from "../schema.js";
 const ThresholdsSchema = z.array(z.object({ score: z.int().min(0), rating: z.number() })).min(1);
 
 /**
- * One stage of a puzzle's ladder (ADR 0065): the puzzle with some of its layers switched off, for
+ * One stage of a puzzle's ladder (ADR 0066): the puzzle with some of its layers switched off, for
  * a new player to learn on. `config` is laid over the puzzle's own config, key by key, and the
  * result is held to the puzzle's schema like the config itself. A stage has its own round length
  * and thresholds, since it scores less than the whole puzzle. The whole puzzle is the last stage,
@@ -44,6 +44,6 @@ export const PrototypeBaseSchema = z.object({
   paceSeconds: z.int().min(1).max(120).default(10),
   /** Performance thresholds the round is rated against (ADR 0028). Guesses until testers have played. */
   thresholds: ThresholdsSchema,
-  /** The ladder a new player climbs before the whole puzzle (ADR 0065), simplest first. Empty: the puzzle has none yet. */
+  /** The ladder a new player climbs before the whole puzzle (ADR 0066), simplest first. Empty: the puzzle has none yet. */
   stages: z.array(StageSchema).max(4).default([]),
 });

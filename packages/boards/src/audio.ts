@@ -3,7 +3,8 @@
  * definition in `cues.ts`: a few soft voices on the notes of one scale, through a low-pass. There
  * are no samples and nothing is loaded (ADR 0062 decision 5).
  */
-import { CUE_NAMES, LIMITS, NOTES, PROBES, cueOf, envelope, type Cue, type CueArgs, type CueName } from "./cues.js";
+import type { CueData } from "@openseas/protocol";
+import { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, cueFrom, cueOf, envelope, type Cue, type CueArgs, type CueName } from "./cues.js";
 
 const MUTE_KEY = "openseas.muted";
 let ctx: AudioContext | null = null;
@@ -315,4 +316,14 @@ export function auditionCue(cue: string, fallback: readonly string[] = []): void
     const probe = PROBES[name as CueName] as readonly (readonly unknown[])[] | undefined;
     (synth[name as CueName] as ((...a: unknown[]) => void) | undefined)?.(...(probe?.[0] ?? []));
   }
+}
+
+/**
+ * Plays a cue's data as the board would play it with `args`, before it is laid over the shipped
+ * cue: what the studio's sound editor auditions while a voice is being moved (ADR 0065).
+ */
+export function auditionData(name: CueName, data: CueData, args: readonly unknown[]): void {
+  const c = context();
+  if (!c) return;
+  scheduleCue(c.ac, c.out, cueFrom(data, CUE_PARAMS[name], args), c.ac.currentTime + LEAD);
 }

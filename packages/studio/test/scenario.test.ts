@@ -124,7 +124,7 @@ describe("presets", () => {
   }
 });
 
-describe("stages (ADR 0065)", () => {
+describe("stages (ADR 0066)", () => {
   for (const id of PUZZLE_IDS) {
     const file = content.puzzles[id];
     const stages = "stages" in file ? file.stages : [];

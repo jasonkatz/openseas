@@ -34,10 +34,11 @@ example for every one of them; for how a board looks, `Overload` and `Tug` are.
 | `packages/engine/test/<id>.test.ts` | Property tests for determinism first (ADR 0003), then the rules. |
 | `packages/protocol/src/<id>.ts` | `<Id>MoveSchema`, `<Id>ConfigSchema`. Bounds match the engine's validator. |
 | `packages/content/src/prototypes/<id>.ts` | `<Id>ContentSchema`: the base (round length, thresholds) and the config. |
-| `packages/content/data/puzzles/<id>.json` | The config the server deals, the round length, the thresholds, `paceSeconds` for the live tier indicator (ADR 0039), and `stages`: the ladder a new player climbs, each a config overlay with its own round length and thresholds (ADR 0065). Salvage's is the worked example. |
+| `packages/content/data/puzzles/<id>.json` | The config the server deals, the round length, the thresholds, `paceSeconds` for the live tier indicator (ADR 0039), and `stages`: the ladder a new player climbs, each a config overlay with its own round length and thresholds (ADR 0066). Salvage's is the worked example. |
 | `packages/content/data/messages/prototypes/<id>.json` | Every string the puzzle shows. |
 | `packages/boards/src/<id>/renderer.ts` | A `KitBoard` subclass: draws the state, plays the last move, reports input. |
-| `packages/boards/src/<id>/pieces.ts` | The board's pieces: each a `Paint` on the 24 unit square and the palette colour it wears, with an icon component beside it for the legend (`<Id>Icon.tsx`). There are no image files: a piece is this drawing and nothing else. `Overload` and `Tug` are the worked examples. |
+| `packages/boards/data/pieces/<id>.json` | The board's pieces as drawings: layers on the 24 unit square, by name, that the studio's Sprites editor redraws and Save writes back (ADR 0065). |
+| `packages/boards/src/<id>/pieces.ts` | The board's pieces as it paints them: each a `Paint` of a drawing (`piecePaint`) and the palette colour it wears, picking a drawing by state where a kind has several, with an icon component beside it for the legend (`<Id>Icon.tsx`). There are no image files: a piece is its drawing and nothing else. `Overload` and `Tug` are the worked examples. |
 | `packages/boards/src/<id>/<Id>Board.tsx` | The React host: `useKitBoard`, the labels from the message table, `data-board`. |
 | `packages/studio/src/pages/<Id>Practice.tsx` | The page: `usePractice`, `useStudio`, `PracticeShell`, HUD details, legend, result rows. |
 | `packages/studio/src/prototypes/<id>.ts` | The studio's entry: content config, starting points, whether it ticks. |
@@ -79,7 +80,7 @@ These are the project's rules (CLAUDE.md), said for a prototype.
 8. **A studio round cannot run on a config the server would refuse.** The wire schema and the engine's
    validator bound the same fields; the scenario tests hold every preset to both.
 
-9. **Deepened, then laddered** (ADR 0065). A prototype grows layers until mastery takes real
+9. **Deepened, then laddered** (ADR 0066). A prototype grows layers until mastery takes real
    skill, each proven by bots and with a bait that loses, then lists its stages in content: the
    puzzle with layers switched off, simplest first. Each layer has an off value in config. Salvage
    is laddered; the other seven are next, one at a time.
@@ -129,8 +130,8 @@ it has not played yet: the engine numbers its events with a rising `seq`, as Nav
 the renderer remembers the last one it showed.
 
 Sounds are `sfx` in `boards/src/audio.ts`; the renderer plays them at the moment the animation
-shows the thing. Every cue is synthesized, from its definition in `boards/src/cues.ts`
-(`docs/BRAND.md` section 8, ADR 0062): there are no samples. A cue of the puzzle's own is
+shows the thing. Every cue is synthesized, from its definition in `boards/data/cues.json`
+(`docs/BRAND.md` section 8, ADR 0062, ADR 0065): there are no samples. A cue of the puzzle's own is
 `sfx.cue(name, fallback)`, a name for a moment and the cues that voice it. The beat's sound comes
 with the beat (`this.beat`), and the board plays no cue of its own in that moment.
 

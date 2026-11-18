@@ -6,6 +6,7 @@
  * a puzzle keeps its own drawings in a `pieces.ts` beside its renderer and builds them from these.
  */
 import { css, type Token } from "../look/tokens.js";
+import { pieceOverrideRevision } from "../look/pieces.js";
 
 export type Ctx = CanvasRenderingContext2D;
 
@@ -93,7 +94,8 @@ const urls = new Map<string, string>();
  * names the drawing: everything `paint` depends on (the puzzle, the piece, its state).
  */
 export function pictogramUrl(key: string, color: Token, paint: Paint, px: number): string {
-  const id = `${key}:${color}:${px}`;
+  // A redrawn piece (ADR 0065) is drawn again rather than read from the cache.
+  const id = `${key}:${color}:${px}:${pieceOverrideRevision()}`;
   let url = urls.get(id);
   if (!url) {
     url = pictogramCanvas(px, color, paint, 3, 1).toDataURL();

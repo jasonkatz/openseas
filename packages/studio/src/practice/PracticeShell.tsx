@@ -95,7 +95,7 @@ export interface ShellProps {
  */
 export function PracticeShell(props: ShellProps) {
   const { mode, puzzle, scenario } = useFrame();
-  // A puzzle with a ladder opens each round with the stage's one-line card on the start card (ADR 0065).
+  // A puzzle with a ladder opens each round with the stage's one-line card on the start card (ADR 0066).
   const stage = scenario.stage ?? "full";
   const p: ShellProps =
     puzzleStages(puzzle).length > 0

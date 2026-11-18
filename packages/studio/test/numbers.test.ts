@@ -61,7 +61,7 @@ describe("the numbers a link carries (ADR 0042)", () => {
   });
 });
 
-describe("the numbers at a stage (ADR 0065)", () => {
+describe("the numbers at a stage (ADR 0066)", () => {
   const puzzle = STUDIO_PUZZLES.salvage;
   const file = content.puzzles.salvage;
 

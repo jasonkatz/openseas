@@ -39,3 +39,7 @@ export const OWN_CUE_FALLBACKS: Readonly<Partial<Record<PuzzleId, Readonly<Recor
 export function cuesOf(puzzle: PuzzleId): string[] {
   return [...new Set([...PUZZLE_CUES[puzzle], ...ROUND_CUES])];
 }
+
+const NOTE_NAMES = ["G", "A", "B", "D", "E"];
+/** A step of the one key by name, as the sound editor labels it: 0 is G2, 15 is G5. The octave's number turns at C, so its D and E sit one above its G. */
+export const noteName = (n: number): string => `${NOTE_NAMES[n % 5]}${2 + Math.floor(n / 5) + (n % 5 >= 3 ? 1 : 0)}`;

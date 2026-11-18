@@ -34,7 +34,7 @@ export interface Guide {
   /** How points are made, shortest true version. Two to four. */
   readonly scoring: readonly string[];
   /**
-   * A picture for a stage of the puzzle's own ladder (ADR 0065), by the stage's id (`full` for the
+   * A picture for a stage of the puzzle's own ladder (ADR 0066), by the stage's id (`full` for the
    * whole puzzle). The section that lists the stages reads them from content; this only adds pictures.
    */
   readonly stageMedia?: Readonly<Record<string, Media>>;

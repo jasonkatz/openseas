@@ -33,7 +33,7 @@ export interface Change {
   readonly value: unknown;
 }
 
-/** The stages of a puzzle's ladder (ADR 0065), simplest first, without the whole puzzle. Empty for a puzzle with none. */
+/** The stages of a puzzle's ladder (ADR 0066), simplest first, without the whole puzzle. Empty for a puzzle with none. */
 export function puzzleStages<S, M, C>(puzzle: StudioPuzzle<S, M, C>): readonly Stage[] {
   const file = content.puzzles[puzzle.id];
   return "stages" in file ? file.stages : [];
@@ -41,7 +41,7 @@ export function puzzleStages<S, M, C>(puzzle: StudioPuzzle<S, M, C>): readonly S
 
 /**
  * What the content file ships: the numbers the server deals. At a stage of the puzzle's ladder,
- * the stage's own laid over the whole puzzle's (ADR 0065); an id the file does not list is the
+ * the stage's own laid over the whole puzzle's (ADR 0066); an id the file does not list is the
  * whole puzzle.
  */
 export function shippedNumbers<S, M, C>(puzzle: StudioPuzzle<S, M, C>, stage: string | null = null): Numbers<C> {
@@ -130,9 +130,9 @@ export function withoutNumber<S, M, C>(puzzle: StudioPuzzle<S, M, C>, scenario: 
   return withNumber(puzzle, scenario, key, shipped[key as "roundSeconds" | "paceSeconds" | "thresholds"]);
 }
 
-/** A scenario with every number shipped and every word as shipped (DESIGN.md 3.14, "Drafts and reset"): the seed and the clock's start are kept. */
+/** A scenario with every number, word, piece and cue as shipped (DESIGN.md 3.14, "Drafts and reset"): the seed and the clock's start are kept. */
 export function withoutNumbers(scenario: Scenario): Scenario {
-  return { ...scenario, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, words: { texts: {}, category: null } };
+  return { ...scenario, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, words: { texts: {}, category: null }, look: { pieces: {}, cues: {} } };
 }
 
 /**

@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { PUZZLE_IDS } from "@openseas/engine";
-import { CUES } from "@openseas/boards/cues";
+import { CUE_PARAMS } from "@openseas/boards/cues";
 import { OWN_CUE_FALLBACKS, PUZZLE_CUES, ROUND_CUES, cuesOf } from "../src/assets/cues.js";
 
 const at = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
@@ -47,7 +47,7 @@ describe("the Sounds list's cues (DESIGN.md 3.14, ADR 0062)", () => {
   });
 
   it("a fallback is a synthesized cue", () => {
-    for (const cues of Object.values(OWN_CUE_FALLBACKS)) for (const names of Object.values(cues ?? {})) for (const name of names) expect(Object.keys(CUES), name).toContain(name);
+    for (const cues of Object.values(OWN_CUE_FALLBACKS)) for (const names of Object.values(cues ?? {})) for (const name of names) expect(Object.keys(CUE_PARAMS), name).toContain(name);
   });
 
   it("the beat sounds from the beat itself, on every board", () => {

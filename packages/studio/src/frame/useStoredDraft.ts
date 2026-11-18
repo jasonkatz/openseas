@@ -66,8 +66,10 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: StudioPuz
   const [busy, setBusy] = useState(false);
   // A service older than words drops them from a draft: they are then left out of what is sent and compared, and stay with the page (ADR 0057).
   const words = me !== "loading" && me !== null && me.words;
-  const latest = useRef({ scenario, store, apply, keeps: { words } as Keeps });
-  if (latest.current.keeps.words !== words) latest.current.keeps = { words };
+  // And one older than the look drops a draft's pieces and cues the same way (ADR 0065).
+  const look = me !== "loading" && me !== null && me.look === true;
+  const latest = useRef({ scenario, store, apply, keeps: { words, look } as Keeps });
+  if (latest.current.keeps.words !== words || latest.current.keeps.look !== look) latest.current.keeps = { words, look };
   latest.current.scenario = scenario;
   latest.current.apply = apply;
   const setStore = useCallback((next: Internal) => {
@@ -128,7 +130,7 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: StudioPuz
   const mine = useMemo(
     () => draftNumbers(puzzle, scenario, latest.current.keeps),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [puzzle, scenario.seed, scenario.overrides, scenario.roundSeconds, scenario.paceSeconds, scenario.thresholds, scenario.words, words],
+    [puzzle, scenario.seed, scenario.overrides, scenario.roundSeconds, scenario.paceSeconds, scenario.thresholds, scenario.words, scenario.look, words, look],
   );
   // No row is made for a page nobody has touched: the first change opens the draft.
   const dirty = store.state === "stored" && mine !== null && (store.draft ? !sameNumbers(mine, store.draft.numbers) : carriesDraft(scenario, latest.current.keeps));

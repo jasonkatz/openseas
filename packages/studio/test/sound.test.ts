@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CUES, CUE_NAMES, LIMITS, NOTES, PROBES, SCALE, cueLength, cueOf, envelope, type Cue, type CueName, type Tone } from "@openseas/boards/cues";
+import { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, SCALE, SHIPPED_CUES, cueLength, cueOf, envelope, type Cue, type CueName, type Tone } from "@openseas/boards/cues";
 
 /**
  * The sound rules of the brand book (docs/BRAND.md section 8), held over the cue definitions as
@@ -60,7 +60,21 @@ describe("the cues (docs/BRAND.md section 8, ADR 0062 decision 5)", () => {
     expect([...CUE_NAMES].sort()).toEqual(
       ["alarm", "bad", "beat", "bump", "charge", "clear", "crack", "end", "good", "magnet", "multi", "plateLift", "ping", "pop", "power", "rise", "slag", "start", "streak", "streakLost", "swap", "swapQuiet", "thud", "tick", "vent", "welder", "whoosh", "zap"].sort(),
     );
-    expect(Object.keys(PROBES).sort()).toEqual(Object.keys(CUES).sort());
+    expect(Object.keys(PROBES).sort()).toEqual(Object.keys(CUE_PARAMS).sort());
+  });
+
+  it("voices every cue in data/cues.json, and names no other (ADR 0065)", () => {
+    expect(Object.keys(SHIPPED_CUES).sort()).toEqual([...CUE_NAMES].sort());
+  });
+
+  it("each cue's rules name only parameters its board passes it", () => {
+    for (const name of CUE_NAMES) {
+      const params: readonly { name: string }[] = CUE_PARAMS[name];
+      const known = new Set(params.map((p) => p.name));
+      const d = SHIPPED_CUES[name];
+      const named = [d.shift?.param, d.swell?.param, d.alt?.when.param, ...d.voices.flatMap((v) => [v.when?.param, v.repeat?.param])].filter((p): p is string => p !== undefined);
+      for (const p of named) expect(known, `${name} names ${p}`).toContain(p);
+    }
   });
 
   for (const c of ALL) {

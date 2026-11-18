@@ -59,7 +59,7 @@ If no line of three is left, the debris is dealt again in place and the crates s
 
 ## The ladder
 
-A new player climbs four stages (ADR 0065), each passed with one Steady round. Only the whole
+A new player climbs four stages (ADR 0066), each passed with one Steady round. Only the whole
 puzzle counts. Every stage is the whole puzzle with layers switched off in `stages` in the content
 file; the names and one-line cards are `salvage.stage.<id>` and `_intro`.
 

@@ -66,7 +66,7 @@ describeDb("studio service", () => {
     expect(landed).toBe(`${STUDIO}/cooling`);
     expect(session).toMatch(/^studio_session=.+/);
     const me = await fetch(`${base}/auth/me`, { headers: { cookie: session } });
-    expect(await me.json()).toEqual({ login: "Octo", signIn: true, dev: false, save: false, chat: false, words: true });
+    expect(await me.json()).toEqual({ login: "Octo", signIn: true, dev: false, save: false, chat: false, words: true, look: true });
     expect(await (await fetch(`${base}/auth/me`)).json()).toMatchObject({ login: null });
   });
 

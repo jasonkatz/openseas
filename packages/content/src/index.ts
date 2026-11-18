@@ -124,7 +124,7 @@ function prototypePuzzles(): PrototypePuzzleContent {
   for (const id of PROTOTYPE_PUZZLE_CONTENT_IDS) {
     const schema = PROTOTYPE_CONTENT[id].schema as z.ZodType<unknown>;
     const file = parse(`puzzles/${id}`, schema, PROTOTYPE_CONTENT[id].data) as { config: Record<string, unknown>; stages: readonly { id: string; config: Record<string, unknown> }[] };
-    // Each stage's config, laid over the puzzle's, must be one the puzzle's own schema takes (ADR 0065).
+    // Each stage's config, laid over the puzzle's, must be one the puzzle's own schema takes (ADR 0066).
     for (const stage of file.stages) {
       for (const key of Object.keys(stage.config)) if (!(key in file.config)) throw new ContentError(`puzzles/${id} stage ${stage.id}: no config key ${key}`);
       parse(`puzzles/${id} stage ${stage.id}`, schema, { ...file, stages: [], config: { ...file.config, ...stage.config } });
