@@ -31,7 +31,7 @@ crystal, coil, chip), each a pictogram with a silhouette of its own, drawn in co
 (`boards/src/cooling/pieces.ts`, `docs/BRAND.md` section 3). A kind is told from every other by its
 outline alone: a toothed cog in sand, a four-lobed valve wheel in teal, a hexagon bolt in sky, a
 capsule fuse in rust, a cut crystal in lilac, a coil spring in moss and a chip with pins in rose.
-The three specials are a four-pointed spark and a horseshoe in cream, and a lump of slag in slate.
+The three specials are a long-rayed starburst and a thick horseshoe in cream, and a cracked rock of slag in slate; each is drawn a little larger than the ordinary pieces.
 Content names each kind's shape and its palette colour. Specials are the Spark Charge (swap to clear a 3 by 3), the Magnet (swap with a piece to clear every piece of that kind),
 and the Slag (unmatchable; it rides up with the board and comes off by itself, for a bonus,
 once it is at or above the heat line). A connected cleared group of n pieces scores n(n-2); clearing k groups in

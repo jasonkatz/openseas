@@ -98,25 +98,41 @@ const DRAW: Record<Pictogram, (ctx: Ctx) => void> = {
     rounded(ctx, 2, 13.6, 20, 3, 1.5);
     cut(ctx, () => rounded(ctx, 9.5, 9.5, 5, 5, 1.2));
   },
-  // A four-pointed spark.
+  // A long-rayed starburst with a hollow heart.
   charge(ctx) {
-    soft(ctx, [12, 2.8, 14.4, 9.6, 21.2, 12, 14.4, 14.4, 12, 21.2, 9.6, 14.4, 2.8, 12, 9.6, 9.6], 2.4);
+    const pts: number[] = [];
+    for (let i = 0; i < 16; i++) {
+      const r = i % 2 === 0 ? 11.6 : 5.2;
+      const a = (i * Math.PI) / 8 - Math.PI / 2;
+      pts.push(12 + r * Math.cos(a), 12 + r * Math.sin(a));
+    }
+    soft(ctx, pts, 1.4);
+    cut(ctx, () => disc(ctx, 12, 12, 2.6));
   },
-  // A horseshoe with its poles marked off.
+  // A thick horseshoe, its pole tips cut off from the bend.
   magnet(ctx) {
     ctx.beginPath();
-    ctx.moveTo(6.5, 3.5);
-    ctx.lineTo(6.5, 12);
-    ctx.arc(12, 12, 5.5, Math.PI, 0, true);
-    ctx.lineTo(17.5, 3.5);
-    ctx.lineWidth = 6;
+    ctx.moveTo(5.5, 2.5);
+    ctx.lineTo(5.5, 12);
+    ctx.arc(12, 12, 6.5, Math.PI, 0, true);
+    ctx.lineTo(18.5, 2.5);
+    ctx.lineWidth = 7.4;
     ctx.lineJoin = "round";
     ctx.stroke();
-    cut(ctx, () => ctx.fillRect(2, 6.4, 20, 2.2));
+    cut(ctx, () => ctx.fillRect(0, 6.2, 24, 2.4));
   },
-  // A lump.
+  // A jagged rock split by a crack.
   slag(ctx) {
-    soft(ctx, [5, 15, 8, 8.5, 13.5, 5.5, 19, 10, 18.5, 17, 11, 19], 3);
+    soft(ctx, [2.5, 17, 4.5, 8, 9, 10, 10.5, 2.5, 15, 7.5, 21.5, 5.5, 21, 15, 16, 21.5, 8, 20], 2);
+    cut(ctx, () => {
+      ctx.beginPath();
+      ctx.moveTo(11, 8);
+      ctx.lineTo(13.5, 12);
+      ctx.lineTo(10.5, 15);
+      ctx.lineTo(12.5, 19);
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+    });
   },
 };
 
@@ -124,7 +140,9 @@ const DRAW: Record<Pictogram, (ctx: Ctx) => void> = {
 export function paintPiece(ctx: Ctx, s: number, shape: Pictogram, color: PieceColor): void {
   ctx.save();
   // The 24 unit square is drawn at 20/24 of the cell, so neighbours never touch.
-  const k = (s * (20 / 24)) / 24;
+  // A special stands bigger than the rest: 23/24 of the cell.
+  const special = shape === "charge" || shape === "magnet" || shape === "slag";
+  const k = (s * ((special ? 23 : 20) / 24)) / 24;
   ctx.translate(s / 2 - 12 * k, s / 2 - 12 * k);
   ctx.scale(k, k);
   ctx.fillStyle = css(color);
