@@ -1,7 +1,7 @@
 /**
  * The figures in the world: pirates and bots, the same on an outpost and on a deck. Every kind
  * reads apart by shape before color (rule 6). A pirate is a small jointed person in a jacket and
- * headgear: the player's own stands in a brass ring, and a captain's headgear carries a crest. A
+ * headgear: the player's own stands in an amber ring, and a captain's headgear carries a crest. A
  * bot is not a person at all (ADR 0034): a small round robot on a wheel, with one lamp eye and a
  * tool arm, half a pirate's height, so nobody takes it for a player. A pirate wears the jacket and
  * headgear of the look they picked on their sheet (DESIGN.md 3.6, ADR 0033); a figure given no look
@@ -9,6 +9,8 @@
  */
 import * as THREE from "three";
 import { seedFromString, nextInt, type PrngState } from "@openseas/engine";
+import { blend, ink } from "@openseas/boards/look";
+import { AMBER, CREAM, GROUND, LINE, PLAYER_INKS, SLATE, TONES, mix, muted, plate } from "./tones.js";
 
 /** How tall a pirate stands, headgear and all, in world units. */
 export const PIRATE_HEIGHT = 0.105;
@@ -32,18 +34,20 @@ export interface FigureLook {
 /** How a station is worked: each one moves differently, so a busy deck reads at a glance. */
 export type WorkKind = "vent" | "haul" | "hammer" | "gun" | "chart" | "helm";
 
-const SKIN = [0xe0a57c, 0xc98b5e, 0x9c6644, 0xf1c6a0, 0x7a4b30];
-const JACKETS = [0x2f4b8f, 0x9b2a2f, 0x2f6a3c, 0x5d3470, 0xb07a26, 0x58636e, 0x1f7473];
-const TROUSERS = [0x3b3026, 0x2e3440, 0x564533, 0x40403a];
+/** Skin, hair and trousers are drawn from the seed. All of them are warm or plate tints, so the jacket is the colour a figure is known by. */
+const SKIN = [mix(ink("rust"), CREAM, 0.45), blend("rust", "sand", 0.5), ink("rust"), blend("sand", "cream", 0.5), blend("ground", "rust", 0.6)];
+const TROUSERS = [LINE, plate(0.15), muted("rust", 0.25), plate(0.3)];
 /** The headgear content offers, for a figure that was given no look. */
 const HEADGEAR = ["bubble-helmet", "goggles", "wide-brim", "flight-cap", "beanie"];
-const HAIR = [0x2a2420, 0x5a3a22, 0x8a8a8a, 0xb5803a];
-const BRASS = 0xd4a548;
-const TIN = 0xc3ccd4;
-const STEEL = 0x5d6673;
-const IRON = 0x2e3238;
+const HAIR = [blend("ground", "line", 0.5), blend("ground", "rust", 0.5), SLATE, ink("sand")];
+const BEARD = [blend("ground", "rust", 0.35), blend("ground", "rust", 0.55), SLATE];
+const TIN = TONES.tin;
+const STEEL = TONES.steel;
+const IRON = TONES.iron;
+/** Dark cloth and leather: a strap, a boot, a hat. A step above the floor it stands on. */
+const FELT = plate(0.2);
 /** What a bot's band is painted, so two on a deck are not twins. */
-const BOT_BANDS = [0xc8663a, 0x2f8f8a, 0x3e6f9a, 0xd9a24a];
+const BOT_BANDS = [muted("rust", 0.75), muted("teal", 0.75), muted("sky", 0.75), muted("sand", 0.75)];
 
 class Dice {
   private s: PrngState;
@@ -67,23 +71,26 @@ const lambert = (color: number): THREE.MeshLambertMaterial => new THREE.MeshLamb
 function part(geo: THREE.BufferGeometry, color: number, x = 0, y = 0, z = 0): THREE.Mesh {
   const m = new THREE.Mesh(geo, lambert(color));
   m.position.set(x, y, z);
-  m.castShadow = true;
   return m;
 }
 
-/** Something that gives light or is glass: drawn unlit, and casting no shadow. */
+/** Something that gives light or is glass: drawn unlit, so it is its own colour whichever way it faces. */
 function lit(geo: THREE.BufferGeometry, color: number, x = 0, y = 0, z = 0, opacity = 1): THREE.Mesh {
   const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity, depthWrite: opacity >= 1 }));
   m.position.set(x, y, z);
   return m;
 }
 
-const shade = (hex: number, by: number): number => new THREE.Color(hex).multiplyScalar(by).getHex();
-const tint = (hex: number, by: number): number => new THREE.Color(hex).lerp(new THREE.Color(0xffffff), by).getHex();
+/** A jacket's darker band and its lighter collar: the jacket's own colour, a step toward the ground or toward cream. */
+const shade = (color: number): number => mix(color, GROUND, 0.35);
+const tint = (color: number): number => mix(color, CREAM, 0.3);
 
-/** The soft circle of shade a figure stands on, so it sits on the ground even where no shadow map is drawn. */
+/**
+ * The one shadow in the world: a flat circle of the ground's colour a figure stands on, so it sits
+ * on the floor and does not float. Nothing else casts or takes a shadow (docs/BRAND.md section 7).
+ */
 function shadeUnder(radius: number): THREE.Mesh {
-  const m = new THREE.Mesh(new THREE.CircleGeometry(radius, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }));
+  const m = new THREE.Mesh(new THREE.CircleGeometry(radius, 16), new THREE.MeshBasicMaterial({ color: GROUND, transparent: true, opacity: 0.3, depthWrite: false }));
   m.rotation.x = -Math.PI / 2;
   m.position.y = 0.005;
   m.renderOrder = 1;
@@ -95,8 +102,8 @@ function shadeUnder(radius: number): THREE.Mesh {
  * headgear they picked. Without one, `seed` (their id) picks a look, so a pirate looks the same on
  * every screen. The seed always picks skin and trousers. A bot takes no look: it is a robot.
  */
-export function buildPirate(kind: PirateKind, seed: string, shadows: boolean, look: FigureLook | null = null): PirateFigure {
-  if (kind === "bot") return buildBot(seed, shadows);
+export function buildPirate(kind: PirateKind, seed: string, look: FigureLook | null = null): PirateFigure {
+  if (kind === "bot") return buildBot(seed);
   const dice = new Dice(`pirate:${seed}`);
   const group = new THREE.Group();
   const body = new THREE.Group();
@@ -104,9 +111,8 @@ export function buildPirate(kind: PirateKind, seed: string, shadows: boolean, lo
   const skin = dice.pick(SKIN);
   const trousers = dice.pick(TROUSERS);
   const hair = dice.pick(HAIR);
-  const jacket = look ? look.jacket : kind === "me" ? BRASS : kind === "captain" ? 0x23324f : dice.pick(JACKETS);
+  const jacket = look ? look.jacket : kind === "me" ? AMBER : kind === "captain" ? SLATE : dice.pick(PLAYER_INKS);
   const headgear = look ? look.headgear : dice.pick(HEADGEAR);
-  const cast = (o: THREE.Object3D): void => o.traverse((c) => ((c as THREE.Mesh).castShadow = shadows && (c as THREE.Mesh).castShadow));
 
   // Legs swing from the hip, in boots made for a deck.
   const legs: THREE.Group[] = [];
@@ -114,23 +120,23 @@ export function buildPirate(kind: PirateKind, seed: string, shadows: boolean, lo
     const hip = new THREE.Group();
     hip.position.set(0, 0.034, side * 0.0085);
     const leg = part(new THREE.BoxGeometry(0.012, 0.03, 0.012), trousers, 0, -0.016, 0);
-    const boot = part(new THREE.BoxGeometry(0.019, 0.01, 0.014), 0x23262c, 0.003, -0.029, 0);
+    const boot = part(new THREE.BoxGeometry(0.019, 0.01, 0.014), GROUND, 0.003, -0.029, 0);
     hip.add(leg, boot);
     body.add(hip);
     legs.push(hip);
   }
   // A jacket: short, straight, with a stand collar, a waistband and a zip down the front.
   body.add(part(new THREE.CylinderGeometry(0.0172, 0.0205, 0.036, 8), jacket, 0, 0.051, 0));
-  body.add(part(new THREE.CylinderGeometry(0.0212, 0.0212, 0.006, 8), shade(jacket, 0.62), 0, 0.035, 0));
-  body.add(part(new THREE.CylinderGeometry(0.0125, 0.0165, 0.007, 8), tint(jacket, 0.3), 0, 0.0715, 0));
-  body.add(part(new THREE.BoxGeometry(0.003, 0.03, 0.004), BRASS, 0.0188, 0.052, 0));
+  body.add(part(new THREE.CylinderGeometry(0.0212, 0.0212, 0.006, 8), shade(jacket), 0, 0.035, 0));
+  body.add(part(new THREE.CylinderGeometry(0.0125, 0.0165, 0.007, 8), tint(jacket), 0, 0.0715, 0));
+  body.add(part(new THREE.BoxGeometry(0.003, 0.03, 0.004), shade(jacket), 0.0188, 0.052, 0));
   // Arms swing from the shoulder.
   const arms: THREE.Group[] = [];
   for (const side of [-1, 1]) {
     const shoulder = new THREE.Group();
     shoulder.position.set(0, 0.064, side * 0.021);
     const arm = part(new THREE.BoxGeometry(0.009, 0.028, 0.009), jacket, 0, -0.013, 0);
-    const cuff = part(new THREE.BoxGeometry(0.0098, 0.005, 0.0098), shade(jacket, 0.62), 0, -0.0245, 0);
+    const cuff = part(new THREE.BoxGeometry(0.0098, 0.005, 0.0098), shade(jacket), 0, -0.0245, 0);
     const hand = part(new THREE.SphereGeometry(0.0055, 6, 4), skin, 0, -0.029, 0);
     shoulder.add(arm, cuff, hand);
     body.add(shoulder);
@@ -141,11 +147,11 @@ export function buildPirate(kind: PirateKind, seed: string, shadows: boolean, lo
   head.position.y = 0.081;
   head.add(part(new THREE.SphereGeometry(0.0165, 10, 8), skin));
   for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.004, 0.003), new THREE.MeshBasicMaterial({ color: 0x1a1410 }));
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.004, 0.003), new THREE.MeshBasicMaterial({ color: GROUND }));
     eye.position.set(0.0155, 0.002, side * 0.006);
     head.add(eye);
   }
-  if (kind !== "me" && dice.int(3) === 0) head.add(part(new THREE.BoxGeometry(0.012, 0.012, 0.022), dice.pick([0x3a2414, 0x6b4a2a, 0x9a9a9a]), 0.01, -0.011, 0)); // a beard
+  if (kind !== "me" && dice.int(3) === 0) head.add(part(new THREE.BoxGeometry(0.012, 0.012, 0.022), dice.pick(BEARD), 0.01, -0.011, 0)); // a beard
   body.add(head);
   // What is worn on the head is the silhouette.
   head.add(lookHeadgear(headgear, kind === "captain", hair));
@@ -153,14 +159,13 @@ export function buildPirate(kind: PirateKind, seed: string, shadows: boolean, lo
   let ring: THREE.Mesh | null = null;
   if (kind === "me") {
     // Drawn over everything, so the player finds themself behind a pod or a tail fin.
-    ring = new THREE.Mesh(new THREE.RingGeometry(0.034, 0.044, 28), new THREE.MeshBasicMaterial({ color: BRASS, transparent: true, opacity: 0.95, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+    ring = new THREE.Mesh(new THREE.RingGeometry(0.034, 0.044, 28), new THREE.MeshBasicMaterial({ color: AMBER, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.006;
     ring.renderOrder = 5;
     group.add(ring);
   }
   group.add(shadeUnder(0.024));
-  cast(body);
 
   let stride = dice.int(100) / 16;
   const workPhase = dice.int(100) / 10;
@@ -248,7 +253,7 @@ export function buildPirate(kind: PirateKind, seed: string, shadows: boolean, lo
  * aerial, and a tool arm on its right. It rolls where a pirate walks and works a station with the
  * arm. Half a pirate's height and no head, no legs, no jacket: its shape alone says it is no player.
  */
-function buildBot(seed: string, shadows: boolean): PirateFigure {
+function buildBot(seed: string): PirateFigure {
   const dice = new Dice(`bot:${seed}`);
   const group = new THREE.Group();
   const body = new THREE.Group();
@@ -275,11 +280,11 @@ function buildBot(seed: string, shadows: boolean): PirateFigure {
   const bezel = part(new THREE.CylinderGeometry(0.0098, 0.0098, 0.005, 12), IRON, 0.019, 0.005, 0);
   bezel.rotation.z = Math.PI / 2;
   shell.add(bezel);
-  const lamp = lit(new THREE.CylinderGeometry(0.0068, 0.0068, 0.003, 12), 0xffd36b, 0.0222, 0.005, 0);
+  const lamp = lit(new THREE.CylinderGeometry(0.0068, 0.0068, 0.003, 12), TONES.lamp, 0.0222, 0.005, 0);
   lamp.rotation.z = Math.PI / 2;
   shell.add(lamp);
   shell.add(part(new THREE.CylinderGeometry(0.001, 0.001, 0.02, 4), IRON, -0.006, 0.028, -0.007));
-  const beacon = lit(new THREE.SphereGeometry(0.003, 5, 4), 0xff5a4a, -0.006, 0.039, -0.007);
+  const beacon = lit(new THREE.SphereGeometry(0.003, 5, 4), CREAM, -0.006, 0.039, -0.007);
   shell.add(beacon);
   // The tool arm: an upper arm from the shoulder, a forearm at the elbow, a two-pronged grip, and a spark for welding.
   const shoulder = new THREE.Group();
@@ -290,14 +295,13 @@ function buildBot(seed: string, shadows: boolean): PirateFigure {
   elbow.position.y = -0.02;
   elbow.add(part(new THREE.BoxGeometry(0.018, 0.0045, 0.0045), TIN, 0.009, 0, 0));
   for (const side of [-1, 1]) elbow.add(part(new THREE.BoxGeometry(0.008, 0.003, 0.002), IRON, 0.021, 0, side * 0.003));
-  const spark = lit(new THREE.SphereGeometry(0.0035, 5, 4), 0xbff3ff, 0.027, 0, 0);
+  const spark = lit(new THREE.SphereGeometry(0.0035, 5, 4), TONES.ice, 0.027, 0, 0);
   spark.visible = false;
   elbow.add(spark);
   shoulder.add(elbow);
   shell.add(shoulder);
 
   group.add(shadeUnder(0.022));
-  body.traverse((c) => ((c as THREE.Mesh).castShadow = shadows && (c as THREE.Mesh).castShadow));
 
   const phase = dice.int(100) / 10;
   return {
@@ -346,10 +350,10 @@ function buildBot(seed: string, shadows: boolean): PirateFigure {
   };
 }
 
-/** A captain's crest: a brass band and a red blade standing fore and aft, set on any headgear at `y`. */
+/** A captain's crest: a band and a cream blade standing fore and aft, set on any headgear at `y`. Its shape is the sign, not its colour. */
 function crestOn(g: THREE.Group, y: number): void {
-  g.add(part(new THREE.CylinderGeometry(0.0105, 0.0125, 0.003, 8), BRASS, 0, y, 0));
-  const blade = part(new THREE.CylinderGeometry(0.0145, 0.0145, 0.0035, 10, 1, false, 0, Math.PI), 0xc94a3d, -0.002, y + 0.001, 0);
+  g.add(part(new THREE.CylinderGeometry(0.0105, 0.0125, 0.003, 8), TIN, 0, y, 0));
+  const blade = part(new THREE.CylinderGeometry(0.0145, 0.0145, 0.0035, 10, 1, false, 0, Math.PI), CREAM, -0.002, y + 0.001, 0);
   // Half a disc, stood on its flat edge along the line of the head.
   blade.rotation.set(0, Math.PI / 2, Math.PI / 2);
   g.add(blade);
@@ -365,9 +369,9 @@ function lookHeadgear(id: string, crest: boolean, hair: number): THREE.Group {
   switch (id) {
     case "bubble-helmet": {
       // A clear globe right round the head on a collar ring, with a glint on its brow.
-      g.add(lit(new THREE.SphereGeometry(0.0245, 14, 10), 0xcfefff, 0, 0.003, 0, 0.3));
+      g.add(lit(new THREE.SphereGeometry(0.0245, 14, 10), TONES.ice, 0, 0.003, 0, 0.25));
       g.add(part(new THREE.CylinderGeometry(0.0185, 0.0205, 0.007, 12), TIN, 0, -0.0165, 0));
-      const glint = lit(new THREE.BoxGeometry(0.002, 0.009, 0.004), 0xffffff, 0.017, 0.017, 0.011, 0.8);
+      const glint = lit(new THREE.BoxGeometry(0.002, 0.009, 0.004), CREAM, 0.017, 0.017, 0.011);
       glint.rotation.z = -0.6;
       g.add(glint);
       if (crest) crestOn(g, 0.0275);
@@ -375,15 +379,15 @@ function lookHeadgear(id: string, crest: boolean, hair: number): THREE.Group {
     }
     case "goggles": {
       // A strap round the brow, two lenses pushed up on the forehead, its ends loose behind, over a head of spikes.
-      g.add(part(new THREE.CylinderGeometry(0.0172, 0.0172, 0.0045, 12), 0x3a2a20, 0, 0.0075, 0));
+      g.add(part(new THREE.CylinderGeometry(0.0172, 0.0172, 0.0045, 12), FELT, 0, 0.0075, 0));
       for (const side of [-1, 1]) {
-        const rim = part(new THREE.CylinderGeometry(0.0068, 0.0068, 0.006, 10), BRASS, 0.0155, 0.0085, side * 0.0074);
+        const rim = part(new THREE.CylinderGeometry(0.0068, 0.0068, 0.006, 10), TIN, 0.0155, 0.0085, side * 0.0074);
         rim.rotation.z = Math.PI / 2;
         g.add(rim);
-        const lens = lit(new THREE.CylinderGeometry(0.0048, 0.0048, 0.002, 10), 0x8fe6ff, 0.019, 0.0085, side * 0.0074);
+        const lens = lit(new THREE.CylinderGeometry(0.0048, 0.0048, 0.002, 10), TONES.ice, 0.019, 0.0085, side * 0.0074);
         lens.rotation.z = Math.PI / 2;
         g.add(lens);
-        const tail = part(new THREE.BoxGeometry(0.011, 0.004, 0.002), 0x3a2a20, -0.02, 0.003, side * 0.004);
+        const tail = part(new THREE.BoxGeometry(0.011, 0.004, 0.002), FELT, -0.02, 0.003, side * 0.004);
         tail.rotation.z = 0.5;
         g.add(tail);
       }
@@ -397,25 +401,25 @@ function lookHeadgear(id: string, crest: boolean, hair: number): THREE.Group {
     }
     case "wide-brim": {
       g.position.y = 0.011;
-      g.add(part(new THREE.CylinderGeometry(0.031, 0.031, 0.003, 14), 0x2a2420));
-      g.add(part(new THREE.CylinderGeometry(0.011, 0.0135, 0.014, 10), 0x2a2420, 0, 0.008, 0));
-      g.add(part(new THREE.CylinderGeometry(0.0138, 0.0138, 0.004, 10), BRASS, 0, 0.0035, 0));
+      g.add(part(new THREE.CylinderGeometry(0.031, 0.031, 0.003, 14), FELT));
+      g.add(part(new THREE.CylinderGeometry(0.011, 0.0135, 0.014, 10), FELT, 0, 0.008, 0));
+      g.add(part(new THREE.CylinderGeometry(0.0138, 0.0138, 0.004, 10), ink("sand"), 0, 0.0035, 0));
       if (crest) crestOn(g, 0.0165);
       return g;
     }
     case "beanie": {
       // A knitted dome pulled down to a rolled brim, with a bobble on top.
-      g.add(part(new THREE.SphereGeometry(0.0176, 12, 7, 0, Math.PI * 2, 0, Math.PI * 0.5), 0x4a5a6a, 0, 0.003, 0));
-      g.add(part(new THREE.CylinderGeometry(0.0184, 0.0184, 0.0065, 12), 0x6a7a8a, 0, 0.005, 0));
-      g.add(part(new THREE.SphereGeometry(0.0065, 7, 6), 0xd9c9a8, 0, 0.0235, 0));
+      g.add(part(new THREE.SphereGeometry(0.0176, 12, 7, 0, Math.PI * 2, 0, Math.PI * 0.5), plate(0.5), 0, 0.003, 0));
+      g.add(part(new THREE.CylinderGeometry(0.0184, 0.0184, 0.0065, 12), plate(0.8), 0, 0.005, 0));
+      g.add(part(new THREE.SphereGeometry(0.0065, 7, 6), CREAM, 0, 0.0235, 0));
       if (crest) crestOn(g, 0.0205);
       return g;
     }
     default: {
       // A flight cap: leather close over the skull, a flap down over each ear, a fleece band across the brow.
-      g.add(part(new THREE.SphereGeometry(0.0178, 12, 7, 0, Math.PI * 2, 0, Math.PI * 0.55), 0x6b4a2e, 0, 0.001, 0));
-      for (const side of [-1, 1]) g.add(part(new THREE.BoxGeometry(0.013, 0.018, 0.004), 0x6b4a2e, -0.001, -0.011, side * 0.0172));
-      g.add(part(new THREE.BoxGeometry(0.005, 0.0055, 0.024), 0xd9c9a8, 0.0158, 0.0065, 0));
+      g.add(part(new THREE.SphereGeometry(0.0178, 12, 7, 0, Math.PI * 2, 0, Math.PI * 0.55), TONES.trim, 0, 0.001, 0));
+      for (const side of [-1, 1]) g.add(part(new THREE.BoxGeometry(0.013, 0.018, 0.004), TONES.trim, -0.001, -0.011, side * 0.0172));
+      g.add(part(new THREE.BoxGeometry(0.005, 0.0055, 0.024), CREAM, 0.0158, 0.0065, 0));
       if (crest) crestOn(g, 0.0188);
       return g;
     }

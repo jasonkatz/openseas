@@ -19,7 +19,7 @@ export const racks: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Racks board: ${c.racks} racks in a row, each a stack of up to ${c.height} fuel cells in four shapes. A crate of two cells hangs from a trolley over the first rack, with the number 3 on the trolley and outlines in the rack where its cells will sit.`,
+    alt: `The Racks board: ${c.racks} racks in a row, each a stack of up to ${c.height} fuel cells in four shapes, on bare dark ground with a dot in every empty slot. A crate of two cells hangs from a trolley on a rail over the first rack, with the number 3 on the trolley and dim shapes in the rack where its cells will sit.`,
     caption: "The row. The crate hangs over the marked rack, and the number on its trolley is the moves until it lands.",
   },
   theme: {
@@ -39,14 +39,14 @@ export const racks: Guide = {
     "If the whole group does not fit, as many cells as fit go across and the rest stay.",
     `A rack filled to the top with one kind **ships**: it scores ${c.shipPoints} and comes back empty.`,
     `A **crate** of ${c.crateMin} or ${c.crateMax} new cells always hangs over one rack, the **marked** one. Every move takes one off the count on its trolley, and the move that takes it to zero lands the crate on top of whatever is there. A new crate is hung at once, over any rack.`,
-    `A crate with too little room **smashes** its rack: every cell in it is lost, and ${c.spillPenalty} points with them. The trolley and the rack turn red while that is coming.`,
+    `A crate with too little room **smashes** its rack: every cell in it is lost, and ${c.spillPenalty} points with them. While that is coming the trolley turns red and a red ring goes round the rack.`,
     "You can **call** the crate down at once. A call is an action, like a move.",
-    "A crate that lands to fill its rack with one kind ships it. The trolley turns gold when it will.",
+    "A crate that lands to fill its rack with one kind ships it. The trolley turns cream when it will, and a cream ring goes round the rack.",
   ],
   rulesMedia: {
     kind: "clip",
     name: "ship",
-    alt: "A group of cells of one kind is lifted off the top of a rack and set on a rack that holds the same kind. The rack is now full of one kind, flashes gold and empties, and plus 100 rises from it.",
+    alt: "A group of cells of one kind is lifted off the top of a rack and set on a rack that holds the same kind. The rack is now full of one kind: its cells shrink away, top first, and plus 100 rises from it.",
     caption: `Lift a group, set it on its own kind. The rack fills, ships for ${c.shipPoints} and comes back empty.`,
   },
   controls: [
@@ -82,17 +82,17 @@ export const racks: Guide = {
           media: {
             kind: "still",
             name: "no-room",
-            alt: "A crate hangs over a rack that has too little room left for it. The trolley is red with a 2 on it, the rack is tinted red, and the strip reads: No room under the crate, 2 moves to clear it.",
+            alt: "A crate hangs over a rack that has too little room left for it. The trolley is red with a 2 on it, the rack is ringed in red, and the strip reads: No room under the crate, 2 moves to clear it.",
             caption: "More cells in the rack and the crate than the rack holds, and two moves left. Something has to come off.",
           },
         },
         {
           title: "Make room with a move you wanted anyway",
-          body: "The best way out is a move that also sorts. Look at the top group of the marked rack: if its kind tops another rack, send it there. The trolley turns back to brass as soon as the crate fits.",
+          body: "The best way out is a move that also sorts. Look at the top group of the marked rack: if its kind tops another rack, send it there. The trolley goes back to grey as soon as the crate fits.",
           media: {
             kind: "clip",
             name: "make-room",
-            alt: "The same board. The group on top of the marked rack is lifted onto a rack of their own kind, and the trolley turns from red to brass. One more move is made elsewhere and the crate lands in the room that was made.",
+            alt: "The same board. The group on top of the marked rack is lifted onto a rack of their own kind, and the trolley turns from red to grey. One more move is made elsewhere and the crate lands in the room that was made.",
             caption: "The top group goes to its own kind, the red goes out, and the crate lands safely on the next move.",
           },
         },
@@ -105,7 +105,7 @@ export const racks: Guide = {
       tips: [
         {
           title: "Read what the crate will bury",
-          body: "The outlines in the marked rack show where the crate's cells will sit, lowest first. A crate of one kind costs one move to lift off again, because it is one group. A mixed crate costs a move for each kind in it. So while the count runs, ask what you want under it: its own kind is best, and an empty rack is next.",
+          body: "The dim shapes in the marked rack show where the crate's cells will sit, lowest first. A crate of one kind costs one move to lift off again, because it is one group. A mixed crate costs a move for each kind in it. So while the count runs, ask what you want under it: its own kind is best, and an empty rack is next.",
         },
         {
           title: "Keep off the marked rack",
@@ -147,8 +147,8 @@ export const racks: Guide = {
           },
         },
         {
-          title: "A gold trolley is a link",
-          body: `When the crate would fill its rack with one kind, the trolley turns gold and a call is a shipment. Use it in a chain: ship a rack by hand, then call, and the crate's rack scores ${ship(2)}. A rack that is one crate short is worth building under a crate of its kind.`,
+          title: "A cream trolley is a link",
+          body: `When the crate would fill its rack with one kind, the trolley turns cream and a call is a shipment. Use it in a chain: ship a rack by hand, then call, and the crate's rack scores ${ship(2)}. A rack that is one crate short is worth building under a crate of its kind.`,
         },
         {
           title: "Hold for a move, not for a count",
@@ -171,17 +171,17 @@ export const racks: Guide = {
         },
         {
           title: "The third link",
-          body: `Three shipments in a row score ${chain(3)}, where three apart score ${3 * ship(1)}. Two by hand are rarely enough cells on a row this small. The third is usually the crate: a gold trolley over a rack that waits while you ship the others.`,
+          body: `Three shipments in a row score ${chain(3)}, where three apart score ${3 * ship(1)}. Two by hand are rarely enough cells on a row this small. The third is usually the crate: a cream trolley over a rack that waits while you ship the others.`,
           media: {
             kind: "clip",
             name: "three",
-            alt: "A gold trolley hangs over a rack that its crate will complete. A group is moved to fill one rack, which ships for 100. A second rack is filled and ships for 200. Then the crate is called down, fills its rack and ships for 300 as the board calls out Chain x3.",
+            alt: "A cream trolley hangs over a rack that its crate will complete. A group is moved to fill one rack, which ships for 100. A second rack is filled and ships for 200. Then the crate is called down, fills its rack and ships for 300 as the board calls out Chain x3 and pulses once in amber.",
             caption: `Three actions, three shipments, one of them the crate: ${ship(1)}, ${ship(2)} and ${ship(3)}.`,
           },
         },
         {
           title: "Watch the count inside a chain",
-          body: "A gold crate waits for you only as long as its count. If the count runs out during your set-up, the crate ships its rack on that move, before the others are ready, and the chain ends with the next move. Count the moves your set-up needs against the number on the trolley before you start.",
+          body: "A cream trolley waits for you only as long as its count. If the count runs out during your set-up, the crate ships its rack on that move, before the others are ready, and the chain ends with the next move. Count the moves your set-up needs against the number on the trolley before you start.",
         },
       ],
       drill: `Play a round on the number keys alone and count your actions: the board's panel shows them. You are there when a round has ninety or more, Longest chain reads three now and then, and the score passes ${p.thresholds[4]!.score}.`,

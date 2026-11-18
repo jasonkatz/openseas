@@ -39,17 +39,46 @@ If no line of three is left, the debris is dealt again in place and the crates s
   so the question is when: netting one crate at a time is worth a quarter of waiting for two, and
   waiting means not hauling the debris under the crates you are saving.
 
-## Input
+## Input and feedback
 
 - Pointer: drag from a piece through its neighbours. Dragging back over the previous piece undoes a
-  step. The first piece pulses when the line could close onto it. Releasing hauls a line of three or
-  more and drops a shorter one.
+  step. A ring pulses round the first piece when the line could close onto it. Releasing hauls a
+  line of three or more and drops a shorter one.
 - Keyboard: arrows or WASD move the cursor, Q E Z C move it diagonally. Space starts a line, the
   cursor then draws it, space or enter hauls it, escape drops it.
 - While a line is drawn the strip over the field shows its length and what it will score, streak
   included: the engine's own sum (`salvageLineValue`).
 - Unrated and lab rounds pulse a line worth drawing after six seconds idle: a loop when crates are
   adrift, the longest line found otherwise.
+
+The board is restyled to the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws its pieces
+in code (`boards/src/salvage/pieces.ts`), loads no atlas and has no marks setting.
+
+- **Debris.** Each kind is one flat piece of wreckage with an outline of its own and no cut-out: the
+  ingot a trapezoid bar, the panel a hull plate with a corner torn out, the shard a leaning sliver,
+  the crystal a cut gem, the cell an upright capsule, and in a lab field of more kinds the spark a
+  four pointed star, the strut a rod with a knuckle at each end and the droplet a tear. Their
+  colours are a second cue: sand, sky, rose, moss, lilac, then teal, slate and rust.
+- **A loot crate** is the one full square on the field, in cream, with its latch cut out. **A
+  coupler** is a cream ring with four lugs. They are the field's two special pieces, and neither
+  shares an outline with any debris or with the other.
+- **The board.** Bare ground, no frame and no grid; the field is always full, so no cell needs a
+  dot. The one hairline is the floor under the bottom row, the edge a crate is taken at.
+- **The tether** is one flat line through the pieces on it, amber because it is the line in the
+  player's hand, and the pieces on it stand a little larger. The strip over the field says what it
+  is worth, in mono: cream once it is long enough to haul, dim before.
+- **A closed net** turns the line cream, and every crate it will bring in is ringed in cream. The
+  first piece of a line that could close is ringed in cream too, pulsing. A hint is a cream ring on
+  each piece of the line it suggests. The keyboard's cell is an amber ring.
+- **A haul** shrinks its pieces to nothing where they are, one after another in the order drawn,
+  each pop a step higher. The points rise from the last piece in cream. The pieces above fall in
+  120ms and new debris drifts in from behind the top edge. A net draws one cream line from the loop
+  to each crate before the crate shrinks. A crate on the floor shrinks there, with its points.
+- **Callouts** name a net and its crates, a loop with nothing to net, a long line (eight) and a
+  mighty one (twelve), and the streak; a field dealt again is said in dim.
+- **The beat**, one amber pulse of the whole board, is kept for two things: a net that brings crates
+  in, stronger for each crate, and a mighty line. There is no shake, no flash, no particles and no
+  glow.
 
 ## Engine
 

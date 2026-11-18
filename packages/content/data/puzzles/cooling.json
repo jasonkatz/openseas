@@ -34,59 +34,52 @@
   "pieces": [
     {
       "nameKey": "cooling.piece.cog",
-      "mark": "gear",
-      "texture": "knurl",
-      "color": "#f5d021"
+      "shape": "cog",
+      "color": "sand"
     },
     {
       "nameKey": "cooling.piece.valve",
-      "mark": "circle",
-      "texture": "fan",
-      "color": "#f2f0e6"
+      "shape": "valve",
+      "color": "teal"
     },
     {
       "nameKey": "cooling.piece.bolt",
-      "mark": "triangle",
-      "texture": "waves",
-      "color": "#3fa7f5"
+      "shape": "bolt",
+      "color": "sky"
     },
     {
       "nameKey": "cooling.piece.fuse",
-      "mark": "square",
-      "texture": "grain",
-      "color": "#f3772a"
+      "shape": "fuse",
+      "color": "rust"
     },
     {
       "nameKey": "cooling.piece.crystal",
-      "mark": "diamond",
-      "texture": "nacre",
-      "color": "#a66cf5"
+      "shape": "crystal",
+      "color": "lilac"
     },
     {
       "nameKey": "cooling.piece.coil",
-      "mark": "hexagon",
-      "texture": "fronds",
-      "color": "#2fbf71"
+      "shape": "coil",
+      "color": "moss"
     },
     {
       "nameKey": "cooling.piece.chip",
-      "mark": "star",
-      "texture": "pores",
-      "color": "#e5355a"
+      "shape": "chip",
+      "color": "rose"
     }
   ],
   "specials": {
     "charge": {
       "nameKey": "cooling.special.charge",
-      "color": "#2b2b33"
+      "color": "cream"
     },
     "magnet": {
       "nameKey": "cooling.special.magnet",
-      "color": "#2a1d5e"
+      "color": "cream"
     },
     "slag": {
       "nameKey": "cooling.special.slag",
-      "color": "#5b6470"
+      "color": "slate"
     }
   }
 }

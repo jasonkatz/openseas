@@ -1,11 +1,10 @@
-import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
-import { soundsFor } from "../audio.js";
-import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
+import { sfx } from "../audio.js";
+import { Application, CanvasSource, Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import { Special, type CoolingState, type ClearRound, type MoveReport, type Piece } from "@openseas/engine";
-import type { CoolingContent } from "@openseas/content";
-import { buildFlash, mix, tileCanvas, type TileStyle, type TileTexture } from "./tiles.js";
+import type { CoolingContent, PieceColor } from "@openseas/content";
+import { pieceCanvas, type Pictogram } from "./pieces.js";
 import { boardSurface } from "../surface.js";
-import { HULL, hullFrame, hullGradient } from "../hull.js";
+import { FONT, MOTION, blend, ink } from "../look/tokens.js";
 
 export interface RendererCallbacks {
   /** The player asked to swap (col,row) with (col+1,row). */
@@ -37,9 +36,6 @@ export interface MoveShown {
 }
 
 export interface RendererOptions {
-  showMarks: boolean;
-  /** Labels drawn inside special tiles, from the message table. */
-  labels: { charge: string; magnet: string; slag: string };
   /** Formats the callout shown for cascade step `chain` (2 and up), from the message table. */
   chainLabel(chain: number): string;
   /** Callout for clearing `groups` (2 and up) runs in one step, from the message table. */
@@ -53,7 +49,6 @@ export interface RendererOptions {
 interface PieceView {
   c: Container;
   tile: Sprite;
-  flash: Sprite;
   kind: number;
   x: number;
   y: number;
@@ -67,21 +62,10 @@ interface PieceView {
   slideMs: number;
   /** Overheated slides ease in and out instead of snapping across. */
   slideSlow: boolean;
-  /** Landing squash, 1 right after arriving, decaying to 0. */
-  squash: number;
   /** Ms since this piece started clearing, or null while it lives. */
   dying: number | null;
   /** Clearing is silent when the piece is only being retired by a fast-forward. */
   quiet: boolean;
-}
-
-interface Particle {
-  s: Sprite;
-  vx: number;
-  vy: number;
-  spin: number;
-  life: number;
-  max: number;
 }
 
 interface Popup {
@@ -93,47 +77,24 @@ interface Popup {
   scale: number;
 }
 
-interface Ring {
-  g: Graphics;
-  x: number;
-  y: number;
-  r0: number;
-  r1: number;
-  life: number;
-  max: number;
-  color: number;
-  width: number;
-}
-
-interface Bubble {
-  x: number;
-  y: number;
-  r: number;
-  speed: number;
-  wobble: number;
-}
-
 type Step = () => number | "settle";
 
+/** Every colour the board draws, from the game's one palette (docs/BRAND.md section 2). */
 const COLORS = {
-  wellTop: 0x15253f,
-  wellBottom: 0x070f1c,
-  // The ship's heat: a glowing body under the line, a hot rim, embers and vented steam.
-  heat: 0xd9541f,
-  heatDeep: 0x3a0f0b,
-  glow: 0xffc27a,
-  steam: 0xd8f4ff,
-  danger: 0xf0604d,
-  brass: 0xd4a548,
-  brassLight: 0xf5d58a,
-  select: 0xf2f0e6,
-  preview: 0x5ed3b8,
-  magnet: 0x070e1a,
+  line: ink("line"),
+  cream: ink("cream"),
+  ground: ink("ground"),
+  amber: ink("amber"),
+  danger: ink("danger"),
+  // The ship's heat: a flat tint of the ground under the line, deeper once it is half way up.
+  heat: blend("ground", "danger", 0.2),
+  heatHigh: blend("ground", "danger", 0.34),
 };
 
-const SWAP_MS = 120;
-const CLEAR_MS = 190;
-const DIE_MS = 230;
+const SWAP_MS = MOTION.move;
+const CLEAR_MS = MOTION.clear;
+const DIE_MS = MOTION.clear;
+const BEAT_MS = MOTION.beat;
 /** No input for this long in a hinted round and the board points at a scoring swap. */
 const HINT_IDLE_MS = 6000;
 
@@ -142,22 +103,8 @@ export function streakMilestone(combo: number): boolean {
   return combo === 3 || combo === 5 || combo === 8 || combo === 12 || (combo > 12 && combo % 5 === 0);
 }
 
-const linear = (vertical: boolean, stops: readonly number[]): FillGradient =>
-  new FillGradient({
-    type: "linear",
-    start: { x: 0, y: 0 },
-    end: vertical ? { x: 0, y: 1 } : { x: 1, y: 0 },
-    colorStops: stops.map((color, i) => ({ offset: i / (stops.length - 1), color })),
-    textureSpace: "local",
-  });
-
-const easeOutBack = (t: number): number => {
-  const c = 1.7;
-  return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2;
-};
 const easeInOutSine = (t: number): number => -(Math.cos(Math.PI * t) - 1) / 2;
 const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
-const rand = (a: number, b: number): number => a + Math.random() * (b - a);
 
 /**
  * PixiJS view of a Cooling state. Pure presentation: it never touches the engine. A move plays out
@@ -168,37 +115,22 @@ const rand = (a: number, b: number): number => a + Math.random() * (b - a);
 export class CoolingRenderer {
   readonly app = new Application();
   private readonly board = new Container();
-  /** Frame and well never change between layouts, so they render once into a cached texture. */
-  private readonly staticLayer = new Container();
-  private readonly frame = new Graphics();
-  private readonly glow = new Graphics();
+  /** The playfield's one hairline. There is no frame round a board (docs/BRAND.md section 3). */
   private readonly well = new Graphics();
   private readonly pieceLayer = new Container();
   private readonly heatBack = new Graphics();
   private readonly heatLayer = new Graphics();
-  private readonly gauge = new Graphics();
   private readonly overlay = new Graphics();
+  private readonly beatLayer = new Graphics();
   private readonly fxLayer = new Container();
   private readonly calloutLayer = new Container();
   private readonly pieces = new Map<number, PieceView>();
-  private readonly particles: Particle[] = [];
   private readonly popups: Popup[] = [];
-  private readonly rings: Ring[] = [];
-  private readonly bubbles: Bubble[] = [];
-  private readonly colorByKind = new Map<number, number>();
-  private readonly markByKind = new Map<number, string>();
-  private readonly textureByKind = new Map<number, TileTexture>();
+  private readonly colorByKind = new Map<number, PieceColor>();
+  private readonly shapeByKind = new Map<number, Pictogram>();
   private readonly textures = new Map<number, Texture>();
-  private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
-  private readonly wellFill = linear(true, [COLORS.wellTop, COLORS.wellBottom]);
-  private readonly heatFill = linear(true, [COLORS.heat, COLORS.heatDeep]);
-  private readonly dangerFill = linear(true, [mix(COLORS.heat, 0xff2d2d, 0.6), mix(COLORS.heatDeep, 0xff2d2d, 0.12)]);
-  private flashTex: Texture = Texture.WHITE;
-  private sparkTex: Texture = Texture.WHITE;
   private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  private showMarks: boolean;
   private cell = 48;
-  private pad = 10;
   private ox = 0;
   private oy = 0;
   private width = 6;
@@ -206,7 +138,6 @@ export class CoolingRenderer {
   private heatTarget = 0;
   private heatShown = 0;
   private time = 0;
-  private shake = 0;
   private combo = 0;
   private comboShown = 0;
   private selected: { col: number; row: number } | null = null;
@@ -216,7 +147,7 @@ export class CoolingRenderer {
   private lockedUntil = 0;
   private slowPair: { col: number; row: number } | null = null;
   private denied: { col: number; row: number; at: number } | null = null;
-  private slideMs = SWAP_MS;
+  private slideMs: number = SWAP_MS;
   private previewCells: readonly number[] = [];
   private dragStart: { col: number; row: number; x: number; y: number } | null = null;
   private dragDx = 0;
@@ -230,13 +161,12 @@ export class CoolingRenderer {
   private destroyed = false;
   private state: CoolingState | null = null;
   private interactive = true;
-  /** Board punch: a brief scale-up on big clears, decaying to 0. */
-  private punch = 0;
+  /** The beat: one amber pulse of the whole board for a big moment (docs/BRAND.md section 6). */
+  private beatNow: { life: number; strength: number } | null = null;
   private hints = false;
   private lastInputAt = 0;
   private hint: { col: number; row: number } | null = null;
   private hintCheckedAt = -1;
-  private sparkClock = 0;
 
   constructor(
     private readonly host: HTMLElement,
@@ -244,50 +174,17 @@ export class CoolingRenderer {
     private readonly cb: RendererCallbacks,
     private readonly opts: RendererOptions,
   ) {
-    this.showMarks = opts.showMarks;
     content.pieces.forEach((p, i) => {
-      this.colorByKind.set(i, parseInt(p.color.slice(1), 16));
-      this.markByKind.set(i, p.mark);
-      this.textureByKind.set(i, p.texture);
+      this.colorByKind.set(i, p.color);
+      this.shapeByKind.set(i, p.shape);
     });
-    this.colorByKind.set(Special.Charge, parseInt(content.specials.charge.color.slice(1), 16));
-    this.colorByKind.set(Special.Magnet, parseInt(content.specials.magnet.color.slice(1), 16));
-    this.colorByKind.set(Special.Slag, parseInt(content.specials.slag.color.slice(1), 16));
+    for (const [kind, name] of [[Special.Charge, "charge"], [Special.Magnet, "magnet"], [Special.Slag, "slag"]] as const) {
+      this.colorByKind.set(kind, content.specials[name].color);
+      this.shapeByKind.set(kind, name);
+    }
   }
-
-  private styleFor(kind: number): TileStyle {
-    const color = this.colorByKind.get(kind) ?? 0xffffff;
-    const special = kind === Special.Charge ? "charge" : kind === Special.Magnet ? "magnet" : kind === Special.Slag ? "slag" : null;
-    return {
-      color,
-      texture: special ? null : (this.textureByKind.get(kind) ?? null),
-      mark: special ? null : (this.markByKind.get(kind) ?? null),
-      special,
-      label: special ? this.opts.labels[special] : "",
-      showMarks: this.showMarks,
-    };
-  }
-
-  /** Fx color for a kind: specials burst in their accent rather than their dark body. */
-  private fxColor(kind: number): number {
-    if (kind === Special.Charge) return 0xffb347;
-    if (kind === Special.Magnet) return 0xc084fc;
-    if (kind === Special.Slag) return 0xf2f0e6;
-    return this.colorByKind.get(kind) ?? 0xffffff;
-  }
-
-  setShowMarks(on: boolean): void {
-    if (this.showMarks === on) return;
-    this.showMarks = on;
-    if (this.app.renderer) this.bake();
-  }
-
-  /** This puzzle's picked samples play while the board is open (ADR 0041). */
-  private readonly releaseSounds = soundsFor("cooling");
 
   async init(): Promise<void> {
-    await loadPuzzleSprites("cooling");
-    if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
       backgroundAlpha: 0,
@@ -295,21 +192,20 @@ export class CoolingRenderer {
       autoDensity: true,
       preference: "webgl",
     });
-    // Special labels are baked into textures, so wait (briefly) for the webfont.
+    // Score popups are drawn as text, so wait (briefly) for the webfont.
     await Promise.race([document.fonts?.ready, new Promise((r) => window.setTimeout(r, 800))]).catch(() => undefined);
     if (this.destroyed) {
       this.app.destroy(true);
       return;
     }
-    this.app.canvas.dataset.spriteAtlas = spritesReady("cooling") ? "cooling" : "fallback";
+    // No atlas to wait for: the pieces are drawn in code (ADR 0062). The studio's thumbnails read this.
+    this.app.canvas.dataset.pieces = "drawn";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "cooling-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.host.appendChild(this.app.canvas);
     this.pieceLayer.sortableChildren = true;
-    this.staticLayer.addChild(this.frame, this.well);
-    this.staticLayer.cacheAsTexture({ resolution: this.app.renderer.resolution, antialias: true });
-    this.board.addChild(this.staticLayer, this.glow, this.heatBack, this.pieceLayer, this.heatLayer, this.gauge, this.overlay, this.fxLayer, this.calloutLayer);
+    this.board.addChild(this.well, this.heatBack, this.pieceLayer, this.heatLayer, this.overlay, this.beatLayer, this.fxLayer, this.calloutLayer);
     this.app.stage.addChild(this.board);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -325,14 +221,10 @@ export class CoolingRenderer {
 
   destroy(): void {
     this.destroyed = true;
-    this.releaseSounds();
     if (this.holdTimer !== null) window.clearTimeout(this.holdTimer);
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const tex of this.textures.values()) tex.destroy(true);
-      this.flashTex.destroy(true);
-      this.sparkTex.destroy(true);
-      for (const f of [this.hullFill, this.wellFill, this.heatFill, this.dangerFill]) f.destroy();
     }
   }
 
@@ -420,7 +312,6 @@ export class CoolingRenderer {
     if (slow) {
       this.lockedUntil = this.time + swapMs;
       this.slowPair = { col, row };
-      this.burst(this.cx(col) + this.cell / 2, this.cy(row), COLORS.glow, 5);
     }
     this.steps.push(() => {
       this.slideMs = swapMs;
@@ -460,13 +351,8 @@ export class CoolingRenderer {
       enteredDanger: prev.heatRow < half && state.heatRow >= half,
     };
     if (shown.milestone) {
-      this.callout(this.opts.streakLabel(shown.milestone), 2 + Math.min(4, shown.milestone / 3), 0x8ff0d8);
-      this.ring((this.width * this.cell) / 2, (this.height * this.cell) / 2, this.cell, this.cell * 6, COLORS.brassLight, 700, 0.08);
-    }
-    if (shown.heatRows < 0) {
-      // Vented: the line puffs steam where it settles.
-      const top = (this.height - state.heatRow) * this.cell;
-      for (let k = 0; k < this.width; k++) this.burst(this.cx(k), top, COLORS.steam, this.reduced ? 1 : 3, 0.6);
+      this.callout(this.opts.streakLabel(shown.milestone), 2 + Math.min(4, shown.milestone / 3));
+      this.beat(0.5 + Math.min(0.5, shown.milestone / 24));
     }
     this.cb.onMoveShown(shown);
   }
@@ -516,17 +402,12 @@ export class CoolingRenderer {
 
   private spawn(p: Piece, x: number, y: number): PieceView {
     const c = new Container();
-    const tile = new Sprite(this.textures.get(p.kind) ?? Texture.WHITE);
+    const tile = new Sprite(this.textures.get(p.kind) ?? Texture.EMPTY);
     tile.anchor.set(0.5);
-    const flash = new Sprite(this.flashTex);
-    flash.anchor.set(0.5);
-    // Hidden until the piece clears: an additive sprite on every tile would split the batch per piece.
-    flash.visible = false;
-    flash.blendMode = "add";
-    c.addChild(tile, flash);
+    c.addChild(tile);
     c.position.set(x, y);
     this.pieceLayer.addChild(c);
-    const v: PieceView = { c, tile, flash, kind: p.kind, x, y, tx: x, ty: y, vy: 0, sx: x, slide: 1, slideDir: 0, slideMs: SWAP_MS, slideSlow: false, squash: 0, dying: null, quiet: false };
+    const v: PieceView = { c, tile, kind: p.kind, x, y, tx: x, ty: y, vy: 0, sx: x, slide: 1, slideDir: 0, slideMs: SWAP_MS, slideSlow: false, dying: null, quiet: false };
     this.pieces.set(p.id, v);
     return v;
   }
@@ -542,17 +423,21 @@ export class CoolingRenderer {
   private kill(v: PieceView, quiet: boolean): void {
     v.dying = 0;
     v.quiet = quiet;
-    v.flash.visible = !quiet;
     v.c.zIndex = 10;
   }
 
-  /** One cascade step: pop the cleared pieces with debris, score popups, and a callout for chains. */
+  /**
+   * One cascade step: the cleared pieces shrink away, the step's points rise from where they were,
+   * and a chain or a double is named. A long chain, or slag lifted together, is the beat.
+   */
   private clear(round: ClearRound): void {
     this.cb.onClear(round);
     let sx = 0;
     let sy = 0;
     let n = 0;
+    let slag = 0;
     for (const group of round.groups) {
+      if (group.cause === "slag") slag += group.ids.length;
       for (const id of group.ids) {
         const v = this.pieces.get(id);
         if (!v || v.dying !== null) continue;
@@ -560,42 +445,19 @@ export class CoolingRenderer {
         sx += v.x;
         sy += v.y;
         n++;
-        this.burst(v.x, v.y, this.fxColor(v.kind), group.cause === "match" ? 5 + Math.min(5, group.ids.length - 3) : 9);
-      }
-      if (group.cause === "match" && group.ids.length) {
-        const center = this.centerOf(group.ids);
-        const first = this.pieces.get(group.ids[0]!);
-        const big = group.ids.length >= 5;
-        this.ring(center.x, center.y, this.cell * 0.3, this.cell * (big ? 2.2 : 1.3), first ? this.fxColor(first.kind) : COLORS.select, big ? 480 : 340, big ? 0.1 : 0.06);
-        if (big) this.bump(0.03 + Math.min(0.03, (group.ids.length - 5) * 0.01));
-      }
-      if (group.cause === "charge" && group.ids.length) {
-        const center = this.centerOf(group.ids);
-        this.ring(center.x, center.y, this.cell * 0.3, this.cell * 2.1, 0xffb347, 420, 0.14);
-        this.ring(center.x, center.y, this.cell * 0.2, this.cell * 1.4, 0xfff1c9, 260, 0.08);
-        this.kick(0.22);
-        this.bump(0.05);
-      } else if (group.cause === "magnet" && group.ids.length) {
-        const center = this.centerOf(group.ids);
-        this.ring(center.x, center.y, this.cell * 0.4, this.cell * 4.5, 0xc084fc, 620, 0.1);
-        this.kick(0.12);
-        this.bump(0.04);
-      } else if (group.cause === "slag") {
-        const center = this.centerOf(group.ids);
-        this.ring(center.x, center.y, this.cell * 0.3, this.cell * 0.9, COLORS.select, 360, 0.06);
       }
     }
     const groups = round.groups.length;
-    if (groups > 1 || round.chain > 1) this.kick(0.04 * Math.min(4, groups + round.chain - 1));
     if (n > 0 && round.points > 0) {
       const mult = round.chain > 1 ? ` ×${round.chain}` : groups > 1 ? ` ×${groups}` : "";
-      this.popup(sx / n, sy / n, `+${round.points}${mult}`, round.chain >= 3 ? 0xff9a6b : round.chain === 2 || groups > 1 ? COLORS.brassLight : COLORS.select, 0.46 + Math.min(0.24, round.points / 400));
+      this.popup(sx / n, sy / n, `+${round.points}${mult}`, 0.46 + Math.min(0.24, round.points / 400));
     }
     const runs = round.groups.filter((g) => g.cause === "match" && g.ids.length >= 3).length;
     const lines: string[] = [];
     if (runs >= 2) lines.push(this.opts.multiLabel(runs));
     if (round.chain >= 2) lines.push(this.opts.chainLabel(round.chain));
     if (lines.length) this.callout(lines.join("\n"), round.chain + (runs >= 2 ? runs - 1 : 0));
+    if (round.chain >= 3 || slag >= 2) this.beat(0.5 + Math.min(0.5, Math.max(round.chain - 3, slag - 2) * 0.17));
   }
 
   private centerOf(ids: readonly number[]): { x: number; y: number } {
@@ -624,79 +486,52 @@ export class CoolingRenderer {
 
   // ---- effects
 
-  private burst(x: number, y: number, color: number, count: number, speedScale = 1): void {
-    if (this.reduced) count = Math.ceil(count / 3);
-    for (let k = 0; k < count; k++) {
-      const s = new Sprite(this.sparkTex);
-      s.anchor.set(0.5);
-      s.tint = mix(color, 0xffffff, Math.random() * 0.35);
-      const a = rand(0, Math.PI * 2);
-      const speed = this.cell * rand(0.0025, 0.007) * speedScale;
-      s.position.set(x + Math.cos(a) * this.cell * 0.2, y + Math.sin(a) * this.cell * 0.2);
-      s.scale.set(rand(0.55, 1.1));
-      s.rotation = rand(0, Math.PI);
-      this.fxLayer.addChild(s);
-      this.particles.push({ s, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed - this.cell * 0.002, spin: rand(-0.012, 0.012), life: 0, max: rand(380, 620) });
-    }
-  }
 
-  private ring(x: number, y: number, r0: number, r1: number, color: number, max: number, width: number): void {
-    const g = new Graphics();
-    this.fxLayer.addChild(g);
-    this.rings.push({ g, x, y, r0, r1, life: 0, max, color, width: this.cell * width });
-  }
-
-  private popup(x: number, y: number, text: string, color: number, size: number): void {
+  private popup(x: number, y: number, text: string, size: number): void {
     const t = new Text({
       text,
       style: {
-        fontFamily: "Fraunces, Georgia, serif",
+        fontFamily: FONT.mono,
         fontSize: Math.max(15, this.cell * size),
-        fontWeight: "800",
-        fill: color,
-        stroke: { color: COLORS.magnet, width: Math.max(3, this.cell * 0.09), join: "round" },
-        dropShadow: { color: 0x000000, alpha: 0.5, blur: 4, distance: 2, angle: Math.PI / 2 },
+        fontWeight: "700",
+        fill: COLORS.cream,
+        // A ground edge keeps the number readable over any piece.
+        stroke: { color: COLORS.ground, width: Math.max(3, this.cell * 0.09), join: "round" },
       },
       resolution: 2,
     });
     t.anchor.set(0.5);
     const margin = t.width / 2 + 4;
-    t.position.set(Math.min(Math.max(x, margin - this.pad), this.width * this.cell - margin + this.pad), y);
+    t.position.set(Math.min(Math.max(x, margin), this.width * this.cell - margin), y);
     this.fxLayer.addChild(t);
     this.popups.push({ t, life: 0, max: 950, y0: t.y, rise: this.cell * 0.9, scale: 1 });
   }
 
-  private callout(text: string, chain: number, color?: number): void {
+  private callout(text: string, chain: number): void {
     for (const p of this.popups) if (p.t.parent === this.calloutLayer) p.life = Math.max(p.life, p.max - 120);
     const t = new Text({
       text,
       style: {
-        fontFamily: "Fraunces, Georgia, serif",
-        fontStyle: "italic",
-        fontSize: Math.max(26, this.cell * (0.8 + Math.min(0.5, chain * 0.08))),
-        fontWeight: "900",
-        fill: color ?? (chain >= 4 ? 0xff9a6b : COLORS.brassLight),
+        fontFamily: FONT.body,
+        fontSize: Math.max(22, this.cell * (0.7 + Math.min(0.4, chain * 0.06))),
+        fontWeight: "700",
+        fill: COLORS.cream,
         align: "center",
-        stroke: { color: COLORS.magnet, width: Math.max(4, this.cell * 0.12), join: "round" },
-        dropShadow: { color: 0x000000, alpha: 0.6, blur: 8, distance: 3, angle: Math.PI / 2 },
+        stroke: { color: COLORS.ground, width: Math.max(4, this.cell * 0.12), join: "round" },
       },
       resolution: 2,
     });
     t.anchor.set(0.5);
     t.position.set((this.width * this.cell) / 2, this.height * this.cell * 0.42);
-    t.rotation = -0.06;
     this.calloutLayer.addChild(t);
-    this.popups.push({ t, life: 0, max: 900, y0: t.y, rise: this.cell * 0.4, scale: 1.15 });
+    this.popups.push({ t, life: 0, max: 900, y0: t.y, rise: this.cell * 0.4, scale: 1 });
   }
 
-  private kick(amount: number): void {
-    if (this.reduced) return;
-    this.shake = Math.min(0.35, Math.max(this.shake, amount));
-  }
-
-  private bump(amount: number): void {
-    if (this.reduced) return;
-    this.punch = Math.min(0.07, Math.max(this.punch, amount));
+  /** Ask for the beat. A stronger moment while one is playing takes it over; it never stacks. */
+  private beat(strength: number): void {
+    // The pulse and its sound are asked for together, so they cannot drift apart.
+    sfx.beat(strength);
+    this.beatNow = { life: 0, strength: Math.max(strength, this.beatNow?.strength ?? 0) };
   }
 
   // ---- layout and baking
@@ -705,70 +540,37 @@ export class CoolingRenderer {
     if (!this.app.renderer) return;
     const w = this.app.screen.width;
     const h = this.app.screen.height;
-    // The frame is kept thin so the tiles get as much of the screen as possible.
-    const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.15));
-    let cell = Math.floor(Math.min(w / this.width, h / this.height));
-    cell = Math.floor(Math.min((w - padFor(cell) * 2 - 2) / this.width, (h - padFor(cell) * 2 - 2) / this.height));
-    this.cell = Math.max(12, cell);
-    this.pad = padFor(this.cell);
+    // Nothing frames the board, so the pieces get all of the screen but the hairline.
+    this.cell = Math.max(12, Math.floor(Math.min((w - 2) / this.width, (h - 2) / this.height)));
     this.ox = Math.floor((w - this.cell * this.width) / 2);
     this.oy = Math.floor((h - this.cell * this.height) / 2);
     this.board.pivot.set((this.cell * this.width) / 2, (this.cell * this.height) / 2);
     this.board.position.set(this.ox + this.board.pivot.x, this.oy + this.board.pivot.y);
-    this.drawFrame();
+    this.drawWell();
     this.bake();
     if (this.state) this.place(this.state.cells, true);
     this.steps = [];
-    this.bubbles.length = 0;
   }
 
-  private drawFrame(): void {
-    const g = this.frame;
+  /** The playfield is bare ground with one hairline round it: no frame, no grid (docs/BRAND.md section 3). */
+  private drawWell(): void {
     const W = this.width * this.cell;
     const H = this.height * this.cell;
-    const p = this.pad;
-    g.clear();
-    // A riveted gunmetal frame around the well.
-    hullFrame(g, this.hullFill, { x: -p, y: -p, w: W + p * 2, h: H + p * 2, r: p + 4 }, { x: 0, y: 0, w: W, h: H }, { rivetStep: this.cell * 2 });
-
-    const w = this.well;
-    w.clear();
-    w.rect(0, 0, W, H).fill(this.wellFill);
-    const inset = this.cell * 0.06;
-    for (let r = 0; r < this.height; r++) {
-      for (let c = 0; c < this.width; c++) {
-        w.roundRect(c * this.cell + inset, r * this.cell + inset, this.cell - inset * 2, this.cell - inset * 2, this.cell * 0.16).fill({ color: 0xffffff, alpha: 0.035 });
-      }
-    }
-    w.rect(0, 0, W, H).stroke({ width: 3, color: 0x000000, alpha: 0.55, alignment: 1 });
-    this.staticLayer.updateCacheTexture();
+    // The ground is painted, not left clear, so the board is whole wherever it is shown (a thumbnail, a capture).
+    this.well.clear().rect(0, 0, W, H).fill(COLORS.ground).rect(-0.5, -0.5, W + 1, H + 1).stroke({ width: 1, color: COLORS.line });
   }
 
-  /** Bake each kind's tile, the clear flash, and the debris spark to textures at the current size. */
+  /** Bake each kind's pictogram to a texture at the current size. */
   private bake(): void {
     const r = this.app.renderer;
     if (!r) return;
-    const old = [...this.textures.values(), this.flashTex, this.sparkTex];
-    const s = this.cell;
-    const frame = new Rectangle(-s / 2, -s / 2, s, s);
-    const kinds = [...this.colorByKind.keys()];
-    for (const kind of kinds) {
-      const canvas = tileCanvas(s, this.styleFor(kind), r.resolution);
+    const old = [...this.textures.values()];
+    for (const [kind, shape] of this.shapeByKind) {
+      const canvas = pieceCanvas(this.cell, shape, this.colorByKind.get(kind) ?? "cream", r.resolution);
       this.textures.set(kind, new Texture({ source: new CanvasSource({ resource: canvas, resolution: r.resolution }) }));
     }
-    const flash = buildFlash(s);
-    this.flashTex = r.generateTexture({ target: flash, frame, resolution: r.resolution, antialias: true });
-    flash.destroy();
-    const k = Math.max(3, s * 0.1);
-    const spark = new Graphics().roundRect(-k, -k, k * 2, k * 2, k * 0.5).fill(0xffffff);
-    this.sparkTex = r.generateTexture({ target: spark, frame: new Rectangle(-k, -k, k * 2, k * 2), resolution: r.resolution, antialias: true });
-    spark.destroy();
-    for (const v of this.pieces.values()) {
-      v.tile.texture = this.textures.get(v.kind) ?? Texture.WHITE;
-      v.flash.texture = this.flashTex;
-    }
-    for (const p of this.particles) p.s.texture = this.sparkTex;
-    for (const tex of old) if (tex !== Texture.WHITE) tex.destroy(true);
+    for (const v of this.pieces.values()) v.tile.texture = this.textures.get(v.kind) ?? Texture.EMPTY;
+    for (const tex of old) tex.destroy(true);
   }
 
   private cx(col: number): number {
@@ -793,32 +595,14 @@ export class CoolingRenderer {
     this.movePieces(dt);
     if (this.viewStale && !this.steps.length && !this.moving && this.waitMs <= 0) this.publishView();
     this.moveFx(dt);
-    const bx = this.ox + this.board.pivot.x;
-    const by = this.oy + this.board.pivot.y;
-    if (this.shake > 0.002) {
-      const a = this.shake * this.cell * 0.5;
-      this.board.position.set(bx + rand(-a, a), by + rand(-a, a));
-      this.shake *= Math.pow(0.82, dt / 16.67);
-    } else if (this.shake !== 0) {
-      this.shake = 0;
-      this.board.position.set(bx, by);
-    }
-    if (this.punch > 0.001) {
-      this.board.scale.set(1 + this.punch);
-      this.punch *= Math.pow(0.8, dt / 16.67);
-    } else if (this.punch !== 0) {
-      this.punch = 0;
-      this.board.scale.set(1);
-    }
     this.updateHint();
-    this.emitSparks(dt);
     const k = Math.min(1, dt / 16.67);
     this.heatShown += (this.heatTarget - this.heatShown) * Math.min(1, 0.06 * k);
     if (Math.abs(this.heatTarget - this.heatShown) < 0.003) this.heatShown = this.heatTarget;
     this.comboShown += (Math.min(8, this.combo) - this.comboShown) * Math.min(1, 0.1 * k);
-    this.drawHeat(dt);
-    this.drawGlow();
+    this.drawHeat();
     this.drawOverlay();
+    this.drawBeat(dt);
     if (this.framePending) {
       this.framePending = false;
       this.cb.onFrame();
@@ -836,28 +620,6 @@ export class CoolingRenderer {
     if (this.hint || this.hintCheckedAt === this.lastInputAt) return;
     this.hintCheckedAt = this.lastInputAt;
     this.hint = this.cb.findHint();
-  }
-
-  /** Lit charges throw the odd spark from their fuse, so a charge on the board catches the eye. */
-  private emitSparks(dt: number): void {
-    if (this.reduced) return;
-    this.sparkClock += dt;
-    if (this.sparkClock < 140) return;
-    this.sparkClock = 0;
-    for (const v of this.pieces.values()) {
-      if (v.kind !== Special.Charge || v.dying !== null || Math.random() > 0.3) continue;
-      const fx = v.x + this.cell * 0.18;
-      const fy = v.y - this.cell * (this.cell >= 36 ? 0.26 : 0.19);
-      const s = new Sprite(this.sparkTex);
-      s.anchor.set(0.5);
-      s.tint = Math.random() > 0.5 ? 0xffd27a : 0xffb347;
-      s.scale.set(rand(0.25, 0.45));
-      s.position.set(fx, fy);
-      this.fxLayer.addChild(s);
-      const a = rand(-Math.PI * 0.95, -Math.PI * 0.05);
-      const speed = this.cell * rand(0.0015, 0.0035);
-      this.particles.push({ s, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, spin: rand(-0.02, 0.02), life: 0, max: rand(260, 420) });
-    }
   }
 
   /**
@@ -884,39 +646,27 @@ export class CoolingRenderer {
     for (const [id, v] of this.pieces) {
       if (v.dying !== null) {
         v.dying += dt;
-        const t = v.dying / (v.quiet ? 120 : DIE_MS);
-        if (v.quiet) {
-          v.c.alpha = Math.max(0, 1 - t);
-        } else {
-          const grow = t < 0.3 ? 1 + 0.18 * easeOutCubic(t / 0.3) : 1.18 * (1 - easeOutCubic((t - 0.3) / 0.7) * 0.85);
-          v.c.scale.set(grow);
-          v.flash.alpha = t < 0.3 ? 0.85 * (t / 0.3) : 0.85 * Math.max(0, 1 - (t - 0.3) / 0.4);
-          v.c.alpha = t < 0.45 ? 1 : Math.max(0, 1 - (t - 0.45) / 0.55);
-        }
+        const t = Math.min(1, v.dying / (v.quiet ? 120 : DIE_MS));
+        // A cleared piece shrinks to nothing; one retired by a fast-forward just fades.
+        if (v.quiet) v.c.alpha = 1 - t;
+        else v.c.scale.set(1 - t * t);
         if (t >= 1) this.remove(id);
         continue;
       }
       if (v.y > v.ty) {
         v.vy = Math.min(vmax, v.vy + accel * dt);
         v.y = Math.max(v.ty, v.y - v.vy * dt);
-        if (v.y === v.ty) {
-          v.squash = Math.min(1, v.vy / vmax + 0.25);
-          v.vy = 0;
-        }
+        if (v.y === v.ty) v.vy = 0;
         moving = true;
       } else if (v.y < v.ty) {
         v.y = v.ty;
         v.vy = 0;
       }
-      let arc = 0;
-      let pop = 0;
       if (v.slide < 1) {
         // Reduced motion shortens ordinary slides; an overheated slide is a gameplay cost and stays.
         v.slide = Math.min(1, v.slide + dt / (v.slideSlow || !this.reduced ? v.slideMs : 60));
-        const e = v.slideSlow ? easeInOutSine(v.slide) : easeOutBack(v.slide);
+        const e = v.slideSlow ? easeInOutSine(v.slide) : easeOutCubic(v.slide);
         v.x = v.sx + (v.tx - v.sx) * e;
-        arc = Math.sin(Math.PI * v.slide) * this.cell * (v.slideSlow ? 0.05 : 0.1) * v.slideDir;
-        pop = v.slideSlow ? 0 : Math.sin(Math.PI * v.slide) * 0.08;
         v.c.zIndex = v.slideDir < 0 ? 2 : 1;
         if (v.slide === 1) {
           v.x = v.tx;
@@ -924,8 +674,6 @@ export class CoolingRenderer {
         }
         moving = true;
       } else v.x = v.tx;
-      if (v.squash > 0.01) v.squash *= Math.pow(0.8, dt / 16.67);
-      else v.squash = 0;
 
       let nudge = 0;
       const col = Math.round(v.tx / this.cell - 0.5);
@@ -935,67 +683,22 @@ export class CoolingRenderer {
         if (drag.col === col) nudge = d;
         else if ((d > 0 && col === drag.col + 1) || (d < 0 && col === drag.col - 1)) nudge = -d * 0.5;
       }
-      const lifted = this.selected && this.selected.col === col && this.selected.row === row ? 0.06 + Math.sin(this.time * 0.008) * 0.02 : 0;
-      const sq = v.squash * 0.1;
-      // Submerged pieces sway with the heat; at rest only, so moving pieces stay crisp.
-      let sway = 0;
-      let rot = 0;
-      if (!this.reduced && v.slide === 1 && v.y === v.ty && row < this.heatShown - 0.2) {
-        const ph = this.time * 0.0019 + col * 0.9 + row * 0.6;
-        sway = Math.sin(ph) * this.cell * 0.022;
-        rot = Math.sin(ph + 0.8) * 0.025;
-      }
-      // A hinted pair wiggles in short bursts.
-      if (this.hint && this.hint.row === row && (col === this.hint.col || col === this.hint.col + 1)) {
-        const cycle = (this.time - this.lastInputAt - HINT_IDLE_MS) % 1500;
-        if (cycle < 520) rot += Math.sin(cycle * 0.045) * 0.13 * (1 - cycle / 520);
-      }
-      v.c.rotation = rot;
-      v.c.position.set(v.x + nudge + sway, v.y + arc + sq * this.cell * 0.3);
-      // Pieces rising from below the board fade in out of the murk instead of being masked.
+      v.c.position.set(v.x + nudge, v.y);
+      // Pieces rising from below the board fade in instead of being masked.
       const below = (v.y - (this.height - 0.5) * this.cell) / this.cell;
       v.c.visible = below < 1;
       v.c.alpha = below > 0 ? 1 - below : 1;
-      const breathe = v.kind === Special.Magnet || v.kind === Special.Charge ? Math.sin(this.time * 0.005 + v.tx) * 0.025 : 0;
-      v.c.scale.set(1 + pop + lifted + breathe + sq * 0.5, 1 + pop + lifted + breathe - sq);
+      v.c.scale.set(1);
     }
     this.moving = moving;
   }
 
   private moveFx(dt: number): void {
-    const gravity = this.cell * 0.000012;
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i]!;
-      p.life += dt;
-      p.vx *= Math.pow(0.985, dt / 16.67);
-      p.vy += gravity * dt;
-      p.s.x += p.vx * dt;
-      p.s.y += p.vy * dt;
-      p.s.rotation += p.spin * dt;
-      const t = p.life / p.max;
-      p.s.alpha = 1 - t * t;
-      if (t >= 1) {
-        p.s.destroy();
-        this.particles.splice(i, 1);
-      }
-    }
-    for (let i = this.rings.length - 1; i >= 0; i--) {
-      const r = this.rings[i]!;
-      r.life += dt;
-      const t = Math.min(1, r.life / r.max);
-      const e = easeOutCubic(t);
-      r.g.clear().circle(r.x, r.y, r.r0 + (r.r1 - r.r0) * e).stroke({ width: r.width * (1 - t * 0.7), color: r.color, alpha: 0.85 * (1 - t) });
-      if (t >= 1) {
-        r.g.destroy();
-        this.rings.splice(i, 1);
-      }
-    }
     for (let i = this.popups.length - 1; i >= 0; i--) {
       const p = this.popups[i]!;
       p.life += dt;
       const t = p.life / p.max;
-      const pop = easeOutBack(Math.min(1, p.life / 200));
-      p.t.scale.set(p.scale * (0.4 + 0.6 * pop));
+      p.t.scale.set(p.scale * (0.6 + 0.4 * easeOutCubic(Math.min(1, p.life / MOTION.panel))));
       p.t.y = p.y0 - p.rise * easeOutCubic(Math.min(1, t));
       p.t.alpha = t < 0.65 ? 1 : Math.max(0, 1 - (t - 0.65) / 0.35);
       if (t >= 1) {
@@ -1005,125 +708,69 @@ export class CoolingRenderer {
     }
   }
 
-  private drawHeat(dt: number): void {
-    const g = this.heatLayer;
-    const back = this.heatBack;
-    const gauge = this.gauge;
-    g.clear();
-    back.clear();
-    gauge.clear();
-    const W = this.width * this.cell;
-    const H = this.height * this.cell;
-    const danger = this.heatShown >= this.height * 0.5;
+  /** The heat: a flat tint under the line, which is one danger hairline (docs/BRAND.md section 3). */
+  private drawHeat(): void {
+    const g = this.heatLayer.clear();
+    const back = this.heatBack.clear();
     if (this.heatShown <= 0.01) return;
-    const top = (this.height - this.heatShown) * this.cell;
-    const amp = this.cell * 0.07;
-    const steps = 30;
-    const wave = (i: number, phase: number): number =>
-      Math.max(2, top + Math.sin(this.time * 0.0021 + i * 0.5 + phase) * amp + Math.sin(this.time * 0.0033 + i * 1.15) * amp * 0.45);
-    const pts: number[] = [0, H];
-    const line: number[] = [];
-    for (let i = 0; i <= steps; i++) {
-      const x = (W * i) / steps;
-      const y = wave(i, 0);
-      pts.push(x, y);
-      line.push(x, y);
-    }
-    pts.push(W, H);
-    // The body sits behind the tiles and only a light film in front, so kinds stay readable overheated.
-    back.poly(pts).fill({ fill: danger ? this.dangerFill : this.heatFill, alpha: 0.75 });
-    g.poly(pts).fill({ color: danger ? mix(COLORS.heat, 0xff2d2d, 0.6) : COLORS.heat, alpha: 0.13 });
-    // A lagging second crest gives the surface depth, then a bright foam line on top.
-    const crest: number[] = [];
-    for (let i = 0; i <= steps; i++) crest.push((W * i) / steps, Math.max(2, wave(i, 1.9) - amp * 0.6));
-    g.poly(crest, false).stroke({ width: Math.max(1, this.cell * 0.035), color: COLORS.glow, alpha: 0.22 });
-    g.poly(line, false).stroke({ width: Math.max(3, this.cell * 0.12), color: COLORS.heat, alpha: 0.35 });
-    g.poly(line, false).stroke({ width: Math.max(1.5, this.cell * 0.05), color: COLORS.glow, alpha: 0.85 });
-
-    // Embers drift up through the heat and wink out at the line.
-    const want = this.reduced ? 0 : Math.round(4 + this.heatShown * 1.2);
-    while (this.bubbles.length < want) {
-      this.bubbles.push({ x: rand(0, W), y: rand(top, H), r: this.cell * rand(0.03, 0.08), speed: this.cell * rand(0.0008, 0.002), wobble: rand(0, 6) });
-    }
-    this.bubbles.length = Math.min(this.bubbles.length, want);
-    for (const b of this.bubbles) {
-      b.y -= b.speed * dt;
-      if (b.y < top + b.r) {
-        b.y = H - b.r;
-        b.x = rand(0, W);
-      }
-      const x = b.x + Math.sin(this.time * 0.003 + b.wobble) * this.cell * 0.06;
-      const fade = Math.min(1, (b.y - top) / (this.cell * 0.8));
-      g.circle(x, b.y, b.r * 1.8).fill({ color: COLORS.heat, alpha: 0.18 * fade });
-      g.circle(x, b.y, b.r * 0.7).fill({ color: COLORS.glow, alpha: 0.7 * fade });
-    }
-
-    // Heat-line markers on the planking, red once the heat is half full.
-    const p = this.pad;
-    const mark = danger ? COLORS.danger : COLORS.preview;
-    const m = Math.max(4, p * 0.45);
-    gauge.poly([-p, top - m, -p + m * 1.1, top, -p, top + m]).fill({ color: mark, alpha: danger ? 0.7 + 0.3 * Math.sin(this.time * 0.01) : 0.9 });
-    gauge.poly([W + p, top - m, W + p - m * 1.1, top, W + p, top + m]).fill({ color: mark, alpha: danger ? 0.7 + 0.3 * Math.sin(this.time * 0.01) : 0.9 });
-  }
-
-  /** A brass glow around the well that grows with the combo. */
-  private drawGlow(): void {
-    const g = this.glow;
-    g.clear();
-    const c = this.comboShown;
-    if (c < 0.05) return;
     const W = this.width * this.cell;
     const H = this.height * this.cell;
-    const strength = Math.min(1, c / 6);
-    const pulse = 0.75 + 0.25 * Math.sin(this.time * (0.004 + strength * 0.004));
-    const color = c >= 6 ? 0xff9a6b : COLORS.brass;
-    for (let k = 0; k < 3; k++) {
-      const grow = 2 + k * 3;
-      g.roundRect(-grow, -grow, W + grow * 2, H + grow * 2, 4 + grow).stroke({ width: 3, color, alpha: strength * pulse * (0.55 - k * 0.16) });
-    }
+    const top = (this.height - this.heatShown) * this.cell;
+    // The tint sits behind the pieces, so kinds read the same overheated.
+    back.rect(0, top, W, H - top).fill(this.heatShown >= this.height * 0.5 ? COLORS.heatHigh : COLORS.heat);
+    g.rect(0, top - 1, W, 2).fill(COLORS.danger);
   }
 
+  /**
+   * The beat: the whole board pulses once in amber and swells a hair, in `BEAT_MS`. Reduced motion
+   * keeps it as a still flash.
+   */
+  private drawBeat(dt: number): void {
+    const g = this.beatLayer;
+    g.clear();
+    const b = this.beatNow;
+    if (!b) return;
+    b.life += dt;
+    const t = b.life / BEAT_MS;
+    if (t >= 1) {
+      this.beatNow = null;
+      this.board.scale.set(1);
+      return;
+    }
+    // Up in the first quarter, down over the rest.
+    const env = this.reduced ? 1 : t < 0.25 ? easeOutCubic(t / 0.25) : 1 - easeOutCubic((t - 0.25) / 0.75);
+    g.rect(0, 0, this.width * this.cell, this.height * this.cell).fill({ color: COLORS.amber, alpha: (0.14 + 0.16 * b.strength) * env });
+    this.board.scale.set(this.reduced ? 1 : 1 + 0.012 * b.strength * env);
+  }
+
+  /**
+   * What the player is doing, over the pieces. Amber is the player's own: the selection, the
+   * cursor, the pair under the pointer. Cream shows what a swap would clear, and a hint. Danger is
+   * a refused swap and one still settling in the heat.
+   */
   private drawOverlay(): void {
     const g = this.overlay;
     g.clear();
     const s = this.cell;
-    const pulse = 0.5 + 0.5 * Math.sin(this.time * 0.009);
-    const rr = s * 0.18;
+    const rr = s * 0.2;
+    const width = Math.max(2, s * (2 / 24));
     for (const c of this.previewCells) {
       const col = c % this.width;
       const row = Math.floor(c / this.width);
-      const x = col * s;
-      const y = (this.height - row - 1) * s;
-      g.roundRect(x + 3, y + 3, s - 6, s - 6, rr).fill({ color: COLORS.preview, alpha: 0.12 + 0.12 * pulse });
-      g.roundRect(x + 2, y + 2, s - 4, s - 4, rr).stroke({ width: 2, color: COLORS.preview, alpha: 0.6 + 0.35 * pulse });
+      g.roundRect(col * s + 2, (this.height - row - 1) * s + 2, s - 4, s - 4, rr).stroke({ width, color: COLORS.cream, alpha: 0.7 });
     }
     const pair = (col: number, row: number, color: number, alpha: number): void => {
       const c = Math.max(0, Math.min(this.width - 2, col));
-      const x = c * s;
-      const y = (this.height - row - 1) * s;
-      g.roundRect(x + 1, y + 1, s * 2 - 2, s - 2, rr + 2).stroke({ width: Math.max(2, s * 0.06), color, alpha });
-      // A small swap tick between the two cells.
-      const mx = x + s;
-      const my = y + s / 2;
-      const a = s * 0.09;
-      g.poly([mx - a * 1.6, my, mx - a * 0.4, my - a, mx - a * 0.4, my + a]).fill({ color, alpha });
-      g.poly([mx + a * 1.6, my, mx + a * 0.4, my - a, mx + a * 0.4, my + a]).fill({ color, alpha });
+      g.roundRect(c * s + 1, (this.height - row - 1) * s + 1, s * 2 - 2, s - 2, rr).stroke({ width, color, alpha });
     };
-    if (this.hint) pair(this.hint.col, this.hint.row, COLORS.preview, 0.35 + 0.35 * pulse);
-    if (this.slowPair && this.time < this.lockedUntil) pair(this.slowPair.col, this.slowPair.row, COLORS.glow, 0.45 + 0.4 * pulse);
+    if (this.hint) pair(this.hint.col, this.hint.row, COLORS.cream, 0.4 + 0.4 * (0.5 + 0.5 * Math.sin(this.time * 0.006)));
+    if (this.slowPair && this.time < this.lockedUntil) pair(this.slowPair.col, this.slowPair.row, COLORS.danger, 0.7);
     if (this.denied && this.time - this.denied.at < 260) pair(this.denied.col, this.denied.row, COLORS.danger, 1 - (this.time - this.denied.at) / 260);
-    if (this.hoverPair && !this.selected) pair(this.hoverPair.col, this.hoverPair.row, COLORS.brass, 0.55);
-    if (this.cursor && this.interactive) pair(this.cursor.col, this.cursor.row, COLORS.brass, 0.95);
+    if (this.hoverPair && !this.selected) pair(this.hoverPair.col, this.hoverPair.row, COLORS.amber, 0.55);
+    if (this.cursor && this.interactive) pair(this.cursor.col, this.cursor.row, COLORS.amber, 1);
     if (this.selected) {
       const { col, row } = this.selected;
-      const x = col * s;
-      const y = (this.height - row - 1) * s;
-      g.roundRect(x - 1, y - 1, s + 2, s + 2, rr + 2).stroke({ width: Math.max(2.5, s * 0.07), color: COLORS.select, alpha: 0.7 + 0.3 * pulse });
-      // Chevrons point at the two pieces it can swap with.
-      const a = s * 0.11;
-      const my = y + s / 2;
-      if (col > 0) g.poly([x - a * 0.2, my - a, x - a * 1.2, my, x - a * 0.2, my + a]).fill({ color: COLORS.select, alpha: 0.5 + 0.5 * pulse });
-      if (col < this.width - 1) g.poly([x + s + a * 0.2, my - a, x + s + a * 1.2, my, x + s + a * 0.2, my + a]).fill({ color: COLORS.select, alpha: 0.5 + 0.5 * pulse });
+      g.roundRect(col * s + 1, (this.height - row - 1) * s + 1, s - 2, s - 2, rr).stroke({ width, color: COLORS.amber });
     }
   }
 

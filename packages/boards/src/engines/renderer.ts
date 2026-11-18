@@ -1,6 +1,5 @@
-import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
-import { soundsFor } from "../audio.js";
-import { Application, CanvasSource, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
+import { sfx } from "../audio.js";
+import { Application, CanvasSource, Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   ENGINES_ROTATION_KICKS,
   enginesPlacementKey,
@@ -18,11 +17,10 @@ import {
   type EnginesState,
   type Segment,
 } from "@openseas/engine";
-import type { EnginesContent } from "@openseas/content";
-import { mix } from "../cooling/tiles.js";
-import { pelletCanvas, type PelletStyle, type EnginesTexture } from "./pellets.js";
+import type { EnginesContent, PieceColor } from "@openseas/content";
+import { pelletCanvas, type PelletForm, type PelletShape } from "./pellets.js";
 import { boardSurface } from "../surface.js";
-import { HULL, hazardBand, hullFrame, hullGradient } from "../hull.js";
+import { FONT, MOTION, ink } from "../look/tokens.js";
 
 export interface EnginesCallbacks {
   /** The player's pair came to rest with its anchor at (col, row) in rotation `rot`. */
@@ -40,7 +38,6 @@ export interface EnginesCallbacks {
 }
 
 export interface EnginesRendererOptions {
-  showMarks: boolean;
   /** Ms per row of free fall, and while the pair is hurried (a held swipe or the down key). From content. */
   fallMs: number;
   softDropMs: number;
@@ -60,6 +57,10 @@ interface PieceView {
   y: number;
   tx: number;
   ty: number;
+  /** Where the move to (tx, ty) began, and how far along it is, 0 to 1 (1 is done). */
+  sx: number;
+  sy: number;
+  move: number;
   dying: number | null;
 }
 
@@ -68,61 +69,73 @@ interface Popup {
   life: number;
   max: number;
   y0: number;
+  rise: number;
 }
 
 type Step = () => number | "settle";
 
+/** Every colour the board draws, from the game's one palette (docs/BRAND.md section 2). */
 const COLORS = {
-  skyTop: 0x16294a,
-  skyBottom: 0x0a1424,
-  brass: 0xd4a548,
-  // Injectors: cream trim like the sprites' hull panels, and lit metal ledges under the shelves.
-  trim: HULL.trim,
-  ledge: 0xcfc3a3,
-  ledgeDark: 0x5c5648,
-  ledgeLight: HULL.glow,
-  danger: 0xf0604d,
+  ground: ink("ground"),
+  raised: ink("raised"),
+  line: ink("line"),
+  cream: ink("cream"),
+  dim: ink("dim"),
+  amber: ink("amber"),
+  danger: ink("danger"),
 };
-const CLEAR_MS = 200;
-const DIE_MS = 220;
+const MOVE_MS = MOTION.move;
+const CLEAR_MS = MOTION.clear;
+const DIE_MS = MOTION.clear;
+const BEAT_MS = MOTION.beat;
+/** The board holds this long on a flameout before the fresh injectors are dealt. */
+const WIPE_MS = 420;
 /** How long a pair rests on the floor, a shelf or a stack before it locks. */
 const LOCK_MS = 350;
 /** A finger held still this long hurries the pair: long enough that the start of a swipe or a drag does not. */
 const HOLD_MS = 60;
 /** Slides and turns that restart the lock timer while resting; after that the timer runs on regardless. Falling to a lower row restores them. */
 const MAX_LOCK_RESETS = 3;
+/** The bar that joins the halves of a pair, as a share of a cell. */
+const LINK_WIDTH = 0.16;
+/** How far in from each pellet's centre the bar starts, as a share of a cell. */
+const LINK_INSET = 0.2;
+
+const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
 
 export class EnginesRenderer {
   readonly app = new Application();
   private readonly board = new Container();
-  private readonly staticLayer = new Container();
-  private readonly frame = new Graphics();
+  /** The playfield's ground and its one hairline. There is no frame round a board (docs/BRAND.md section 3). */
   private readonly well = new Graphics();
   private readonly injectorLayer = new Graphics();
-  private readonly ghost = new Graphics();
+  /** Each target's hollow outline, over its injector's body. */
+  private readonly targetLayer = new Container();
+  /** Where the pair in hand would land: a fill and an outline for each half. */
+  private readonly ghostLayer = new Container();
+  private readonly ghostFill: [Sprite, Sprite] = [new Sprite(Texture.EMPTY), new Sprite(Texture.EMPTY)];
+  private readonly ghostLine: [Sprite, Sprite] = [new Sprite(Texture.EMPTY), new Sprite(Texture.EMPTY)];
   private readonly linkLayer = new Graphics();
   private readonly pieceLayer = new Container();
   private readonly fallingLayer = new Container();
+  private readonly beatLayer = new Graphics();
   private readonly fxLayer = new Container();
+  private readonly calloutLayer = new Container();
   /** The next pair, previewed in a strip above the core so it is visible on every layout. */
   private readonly nextLayer = new Container();
-  private readonly nextA = new Sprite(Texture.WHITE);
-  private readonly nextB = new Sprite(Texture.WHITE);
+  private readonly nextA = new Sprite(Texture.EMPTY);
+  private readonly nextB = new Sprite(Texture.EMPTY);
   private readonly nextLink = new Graphics();
   private nextText: Text | null = null;
   private strip = 0;
   private readonly pieces = new Map<number, PieceView>();
   private readonly popups: Popup[] = [];
-  private readonly textures = new Map<number, Texture>();
-  private readonly colorByKind = new Map<number, number>();
-  private readonly markByKind = new Map<number, string>();
-  private readonly textureByKind = new Map<number, EnginesTexture>();
-  private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
-  private readonly skyFill = linear(true, [COLORS.skyTop, COLORS.skyBottom]);
+  /** Each kind baked at the current size, by `kind:form`; `land` is the ghost in cream, for a landing that fills a target. */
+  private readonly textures = new Map<string, Texture>();
+  private readonly colorByKind = new Map<number, PieceColor>();
+  private readonly shapeByKind = new Map<number, PelletShape>();
   private readonly reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  private showMarks: boolean;
   private cell = 40;
-  private pad = 8;
   private ox = 0;
   private oy = 0;
   private width = 6;
@@ -138,6 +151,8 @@ export class EnginesRenderer {
   private destroyed = false;
   private interactive = false;
   private time = 0;
+  /** The beat: one amber pulse of the whole board for a big moment (docs/BRAND.md section 6). */
+  private beatNow: { life: number; strength: number } | null = null;
   /**
    * The pair under the player's control, or null between placements. `row` is the anchor's row as
    * a continuous value: the pair occupies row ceil(row) and is part way down to the row below.
@@ -153,30 +168,22 @@ export class EnginesRenderer {
     private readonly cb: EnginesCallbacks,
     private readonly opts: EnginesRendererOptions,
   ) {
-    this.showMarks = opts.showMarks;
     content.pieces.forEach((p, i) => {
-      this.colorByKind.set(i, parseInt(p.color.slice(1), 16));
-      this.markByKind.set(i, p.mark);
-      this.textureByKind.set(i, p.texture);
+      this.colorByKind.set(i, p.color);
+      this.shapeByKind.set(i, p.shape);
     });
     this.width = content.config.width;
     this.height = content.config.height;
   }
 
-  private styleFor(kind: number): PelletStyle {
-    return {
-      color: this.colorByKind.get(kind) ?? 0xffffff,
-      texture: this.textureByKind.get(kind) ?? "speckle",
-      mark: this.markByKind.get(kind) ?? null,
-      showMarks: this.showMarks,
-    };
+  private tex(kind: number, form: PelletForm | "land" = "solid"): Texture {
+    return this.textures.get(`${kind}:${form}`) ?? Texture.EMPTY;
   }
 
-  /** This puzzle's picked samples play while the board is open (ADR 0041). */
-  private readonly releaseSounds = soundsFor("engines");
-
   async init(): Promise<void> {
-    await loadPuzzleSprites("engines");
+    // Points and callouts are drawn as text, so wait (briefly) for the webfont. Before the renderer
+    // is made, not after: the board hands over a state as soon as there is one, and by then the layout must be in.
+    await Promise.race([document.fonts?.ready, new Promise((r) => window.setTimeout(r, 800))]).catch(() => undefined);
     if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
@@ -189,19 +196,20 @@ export class EnginesRenderer {
       this.app.destroy(true);
       return;
     }
-    this.app.canvas.dataset.spriteAtlas = spritesReady("engines") ? "engines" : "fallback";
+    // No atlas to wait for: the pellets are drawn in code (ADR 0062). The studio's thumbnails read this.
+    this.app.canvas.dataset.pieces = "drawn";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "engines-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.host.appendChild(this.app.canvas);
-    this.staticLayer.addChild(this.frame, this.well);
-    this.staticLayer.cacheAsTexture({ resolution: this.app.renderer.resolution, antialias: true });
-    this.nextA.anchor.set(0.5);
-    this.nextB.anchor.set(0.5);
-    this.nextText = new Text({ text: this.opts.nextLabel, style: { fontFamily: "Atkinson Hyperlegible, Avenir Next, Segoe UI, sans-serif", fontSize: 11, fontWeight: "700", fill: 0xc9bb9a, letterSpacing: 2 } });
+    for (const sprite of [...this.ghostFill, ...this.ghostLine, this.nextA, this.nextB]) sprite.anchor.set(0.5);
+    for (const sprite of this.ghostFill) sprite.alpha = 0.4;
+    this.ghostLayer.addChild(...this.ghostFill, ...this.ghostLine);
+    this.hideGhost();
+    this.nextText = new Text({ text: this.opts.nextLabel, style: { fontFamily: FONT.body, fontSize: 13, fill: COLORS.dim }, resolution: 2 });
     this.nextText.anchor.set(1, 0.5);
     this.nextLayer.addChild(this.nextText, this.nextLink, this.nextA, this.nextB);
-    this.board.addChild(this.staticLayer, this.injectorLayer, this.ghost, this.linkLayer, this.pieceLayer, this.fallingLayer, this.fxLayer, this.nextLayer);
+    this.board.addChild(this.well, this.injectorLayer, this.targetLayer, this.ghostLayer, this.linkLayer, this.pieceLayer, this.fallingLayer, this.beatLayer, this.fxLayer, this.calloutLayer, this.nextLayer);
     this.app.stage.addChild(this.board);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -216,12 +224,9 @@ export class EnginesRenderer {
 
   destroy(): void {
     this.destroyed = true;
-    this.releaseSounds();
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const tex of this.textures.values()) tex.destroy(true);
-      this.hullFill.destroy();
-      this.skyFill.destroy();
     }
   }
 
@@ -232,12 +237,6 @@ export class EnginesRenderer {
       this.softDrop = false;
       this.dropFalling();
     } else if (this.state && !this.falling && this.steps.length === 0 && !this.state.finished) this.spawnFalling();
-  }
-
-  setShowMarks(on: boolean): void {
-    if (this.showMarks === on) return;
-    this.showMarks = on;
-    if (this.app.renderer) this.bake();
   }
 
   /** A new engine state. Plays the last move back step by step; anything still animating fast-forwards. */
@@ -273,10 +272,8 @@ export class EnginesRenderer {
     const pairId = state.nextPair - 1;
     const va = this.spawn({ id: ia, kind: kindA, pair: pairId }, start?.ax ?? this.cx(ca % this.width), start?.ay ?? this.cy(Math.floor(ca / this.width)));
     const vb = this.spawn({ id: ib, kind: kindB, pair: pairId }, start?.bx ?? this.cx(cb % this.width), start?.by ?? this.cy(Math.floor(cb / this.width)));
-    va.tx = this.cx(ca % this.width);
-    va.ty = this.cy(Math.floor(ca / this.width));
-    vb.tx = this.cx(cb % this.width);
-    vb.ty = this.cy(Math.floor(cb / this.width));
+    this.aim(va, this.cx(ca % this.width), this.cy(Math.floor(ca / this.width)));
+    this.aim(vb, this.cx(cb % this.width), this.cy(Math.floor(cb / this.width)));
     if (f) {
       f.a.destroy();
       f.b.destroy();
@@ -289,17 +286,22 @@ export class EnginesRenderer {
     for (const round of report.rounds) {
       this.steps.push(() => {
         this.cb.onClear(round);
+        let fired = 0;
         for (const g of round.groups) {
           for (const id of g.ids) {
             const v = this.pieces.get(id);
             if (v) v.dying = 0;
           }
           const first = g.cells[0]!;
-          const color = g.cause === "injector" ? COLORS.brass : (this.colorByKind.get(this.pieces.get(g.ids[0]!)?.kind ?? 0) ?? 0xffffff);
-          this.popup(this.cx(first % this.width), this.cy(Math.floor(first / this.width)) - this.cell * 0.2, `+${g.points * round.groups.length * round.chain}`, color);
-          if (g.cause === "injector") this.callout(this.opts.injectorLabel, COLORS.brass);
+          this.popup(this.cx(first % this.width), this.cy(Math.floor(first / this.width)) - this.cell * 0.2, `+${g.points * round.groups.length * round.chain}`);
+          if (g.cause === "injector") fired++;
         }
-        if (round.chain >= 2) this.callout(this.opts.chainLabel(round.chain), 0xf5d58a);
+        const lines: string[] = [];
+        if (fired) lines.push(this.opts.injectorLabel);
+        if (round.chain >= 2) lines.push(this.opts.chainLabel(round.chain));
+        if (lines.length) this.callout(lines.join("\n"), COLORS.cream);
+        // The beat is kept for a chain's third step and beyond, and for two injectors fired in one step.
+        if (round.chain >= 3 || fired >= 2) this.beat(0.5 + Math.min(0.5, Math.max(round.chain - 3, fired - 2) * 0.25));
         return this.reduced ? 60 : CLEAR_MS;
       });
       this.steps.push(() => {
@@ -319,7 +321,7 @@ export class EnginesRenderer {
           const v = this.pieces.get(id);
           if (v) v.dying = 0;
         }
-        return this.reduced ? 80 : 420;
+        return this.reduced ? 80 : WIPE_MS;
       });
     }
     this.steps.push(() => {
@@ -338,6 +340,7 @@ export class EnginesRenderer {
     for (const v of this.pieces.values()) {
       v.x = v.tx;
       v.y = v.ty;
+      v.move = 1;
       v.s.position.set(v.x, v.y);
       if (v.dying !== null) this.kill(v);
     }
@@ -354,23 +357,33 @@ export class EnginesRenderer {
       const y = this.cy(Math.floor(i / this.width));
       let v = this.pieces.get(s.id);
       if (!v) v = this.spawn(s, x, snap ? y : y - this.cell * 2);
-      v.tx = x;
-      v.ty = y;
       if (snap) {
-        v.x = x;
-        v.y = y;
+        v.tx = v.x = x;
+        v.ty = v.y = y;
+        v.move = 1;
         v.s.position.set(x, y);
-      } else if (v.x !== x || v.y !== y) this.moving = true;
+      } else this.aim(v, x, y);
     }
     for (const [id, v] of this.pieces) if (!seen.has(id) && v.dying === null) this.kill(v);
   }
 
+  /** Send a piece to (x, y): a short eased move from wherever it is now (docs/BRAND.md section 6). */
+  private aim(v: PieceView, x: number, y: number): void {
+    if (v.tx === x && v.ty === y && v.x === x && v.y === y) return;
+    v.sx = v.x;
+    v.sy = v.y;
+    v.tx = x;
+    v.ty = y;
+    v.move = 0;
+    this.moving = true;
+  }
+
   private spawn(s: Segment, x: number, y: number): PieceView {
-    const sprite = new Sprite(this.textures.get(s.kind) ?? Texture.WHITE);
+    const sprite = new Sprite(this.tex(s.kind));
     sprite.anchor.set(0.5);
     sprite.position.set(x, y);
     this.pieceLayer.addChild(sprite);
-    const v: PieceView = { s: sprite, kind: s.kind, pair: s.pair, x, y, tx: x, ty: y, dying: null };
+    const v: PieceView = { s: sprite, kind: s.kind, pair: s.pair, x, y, tx: x, ty: y, sx: x, sy: y, move: 1, dying: null };
     this.pieces.set(s.id, v);
     return v;
   }
@@ -392,8 +405,8 @@ export class EnginesRenderer {
     if (!this.state || this.falling || this.state.finished) return;
     const s = enginesSpawnPosition(this.state.config);
     if (!enginesFits(this.state, s.col, s.row, s.rot)) return;
-    const a = new Sprite(this.textures.get(this.state.current.a) ?? Texture.WHITE);
-    const b = new Sprite(this.textures.get(this.state.current.b) ?? Texture.WHITE);
+    const a = new Sprite(this.tex(this.state.current.a));
+    const b = new Sprite(this.tex(this.state.current.b));
     a.anchor.set(0.5);
     b.anchor.set(0.5);
     this.fallingLayer.addChild(a, b);
@@ -407,7 +420,11 @@ export class EnginesRenderer {
     this.falling.a.destroy();
     this.falling.b.destroy();
     this.falling = null;
-    this.ghost.clear();
+    this.hideGhost();
+  }
+
+  private hideGhost(): void {
+    for (const sprite of [...this.ghostFill, ...this.ghostLine]) sprite.visible = false;
   }
 
   /** The pair may occupy (col, row, rot) now: it fits there and, mid-fall, in the row it is entering too. */
@@ -518,8 +535,7 @@ export class EnginesRenderer {
 
   private positionFalling(): void {
     const f = this.falling;
-    const g = this.ghost;
-    g.clear();
+    this.hideGhost();
     if (!f || !this.state) return;
     const R = Math.ceil(f.row);
     const dy = (R - f.row) * this.cell;
@@ -534,27 +550,21 @@ export class EnginesRenderer {
     if (land) {
       const wantAt = new Map<number, number | null>();
       for (const p of this.injectors) for (const c of p.cells) wantAt.set(enginesIdx(this.state.config, c.col, c.row), c.want);
-      for (const [c, kind] of [
-        [land.a, this.state.current.a],
-        [land.b, this.state.current.b],
-      ] as const) {
+      // The ghost is amber, the player's own: each half's outline where it would come to rest. A half
+      // that would fill a target of its own kind is filled in and outlined in cream instead.
+      [[land.a, this.state.current.a] as const, [land.b, this.state.current.b] as const].forEach(([c, kind], i) => {
         const x = this.cx(c % this.width);
         const y = this.cy(Math.floor(c / this.width));
-        const color = this.colorByKind.get(kind) ?? 0xffffff;
-        const s = this.cell;
-        if (wantAt.get(c) === kind) {
-          // The landing fills a target of its own kind: a soft glow around the target ring.
-          for (const [r, a] of [
-            [0.62, 0.1],
-            [0.55, 0.18],
-            [0.48, 0.3],
-          ] as const) g.circle(x, y, s * r).fill({ color, alpha: a });
-          g.circle(x, y, s * 0.47).stroke({ width: 2, color: mix(color, 0xffffff, 0.5), alpha: 0.9 });
-        } else {
-          // Plain landing: a thin outer ring, so a target ring underneath stays readable.
-          g.circle(x, y, s * 0.46).stroke({ width: 1.5, color, alpha: 0.6 });
-        }
-      }
+        const fills = wantAt.get(c) === kind;
+        const line = this.ghostLine[i]!;
+        line.texture = this.tex(kind, fills ? "land" : "ghost");
+        line.position.set(x, y);
+        line.visible = true;
+        const fill = this.ghostFill[i]!;
+        fill.texture = this.tex(kind);
+        fill.position.set(x, y);
+        fill.visible = fills;
+      });
     }
   }
 
@@ -564,18 +574,16 @@ export class EnginesRenderer {
     if (!this.app.renderer) return;
     const w = this.app.screen.width;
     const h = this.app.screen.height;
-    const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.15));
-    // One extra row's worth of height is kept above the board for the next-pair strip.
+    // One extra row's worth of height is kept above the board for the next-pair strip. Nothing
+    // frames the board, so the pellets get all of the screen but the hairline.
     const rows = this.height + 1.2;
-    let cell = Math.floor(Math.min(w / this.width, h / rows));
-    cell = Math.floor(Math.min((w - padFor(cell) * 2 - 2) / this.width, (h - padFor(cell) * 2 - 2) / rows));
-    this.cell = Math.max(12, cell);
-    this.pad = padFor(this.cell);
+    this.cell = Math.max(12, Math.floor(Math.min((w - 2) / this.width, (h - 2) / rows)));
     this.strip = Math.round(this.cell * 1.2);
     this.ox = Math.floor((w - this.cell * this.width) / 2);
     this.oy = Math.floor((h - this.cell * this.height - this.strip) / 2) + this.strip;
-    this.board.position.set(this.ox, this.oy);
-    this.drawFrame();
+    this.board.pivot.set((this.cell * this.width) / 2, (this.cell * this.height) / 2);
+    this.board.position.set(this.ox + this.board.pivot.x, this.oy + this.board.pivot.y);
+    this.drawWell();
     this.bake();
     this.drawInjectors();
     this.layoutNext();
@@ -584,110 +592,90 @@ export class EnginesRenderer {
     this.steps = [];
   }
 
-  /** The next-pair strip: caption on the left of two small pellets in the top-right corner of the frame. */
+  /** The next-pair strip: a caption and two small pellets above the playfield's top-right corner. */
   private layoutNext(): void {
     const s = this.cell;
     const W = this.width * s;
-    const y = -this.strip / 2 - 1;
-    const scale = 0.72;
+    const y = -this.strip / 2;
+    const scale = 0.8;
     this.nextA.scale.set(scale);
     this.nextB.scale.set(scale);
-    this.nextB.position.set(W - s * 0.55, y);
-    this.nextA.position.set(W - s * 0.55 - s * scale, y);
+    this.nextB.position.set(W - s * scale * 0.5, y);
+    this.nextA.position.set(this.nextB.x - s * scale, y);
     this.nextLink.clear();
-    const lw = s * 0.26;
-    this.nextLink.roundRect(this.nextA.x, y - lw / 2, this.nextB.x - this.nextA.x, lw, lw / 2).fill({ color: 0x1a2a44, alpha: 0.9 });
+    const lw = s * LINK_WIDTH * scale;
+    const in0 = s * LINK_INSET * scale;
+    this.nextLink.rect(this.nextA.x + in0, y - lw / 2, this.nextB.x - this.nextA.x - in0 * 2, lw).fill(COLORS.dim);
     if (this.nextText) {
-      this.nextText.style.fontSize = Math.max(9, Math.round(s * 0.34));
-      this.nextText.position.set(this.nextA.x - s * scale * 0.6 - 4, y);
+      this.nextText.style.fontSize = Math.max(11, Math.min(13, Math.round(s * 0.45)));
+      this.nextText.position.set(this.nextA.x - s * scale * 0.5 - 6, y);
     }
   }
 
   private updateNext(): void {
     if (!this.state) return;
-    this.nextA.texture = this.textures.get(this.state.next.a) ?? Texture.WHITE;
-    this.nextB.texture = this.textures.get(this.state.next.b) ?? Texture.WHITE;
+    this.nextA.texture = this.tex(this.state.next.a);
+    this.nextB.texture = this.tex(this.state.next.b);
   }
 
-  private drawFrame(): void {
-    const g = this.frame;
+  /** The playfield is bare ground with one hairline round it: no frame, no grid (docs/BRAND.md section 3). */
+  private drawWell(): void {
     const W = this.width * this.cell;
     const H = this.height * this.cell;
-    const p = this.pad;
-    g.clear();
-    const top = -p - this.strip;
-    hullFrame(g, this.hullFill, { x: -p, y: top, w: W + p * 2, h: H + p * 2 + this.strip, r: p + 4 }, { x: 0, y: 0, w: W, h: H }, { rivetStep: this.cell * 2, hazardTop: p });
-    // A darker recess for the next-pair strip, with a hazard stripe under its left end.
-    g.roundRect(0, -this.strip + 2, W, this.strip - 4, 4).fill({ color: 0x000000, alpha: 0.32 });
-    hazardBand(g, 6, -this.strip + 6, Math.min(W * 0.35, W - 12), Math.max(4, (this.strip - 12) * 0.35), 0.45);
-
-    const w = this.well;
-    w.clear();
-    w.rect(0, 0, W, H).fill(this.skyFill);
-    const inset = this.cell * 0.06;
-    for (let r = 0; r < this.height; r++) {
-      for (let c = 0; c < this.width; c++) {
-        w.roundRect(c * this.cell + inset, r * this.cell + inset, this.cell - inset * 2, this.cell - inset * 2, this.cell * 0.16).fill({ color: 0xffffff, alpha: 0.03 });
-      }
-    }
-    // The spawn row is marked so the player knows where topping out happens.
-    w.moveTo(0, this.cell).lineTo(W, this.cell).stroke({ width: 1, color: 0xffffff, alpha: 0.12 });
-    w.rect(0, 0, W, H).stroke({ width: 3, color: 0x000000, alpha: 0.55, alignment: 1 });
-    this.staticLayer.updateCacheTexture();
+    // The ground is painted, not left clear, so the board is whole wherever it is shown (a thumbnail, a capture).
+    this.well.clear().rect(0, 0, W, H).fill(COLORS.ground).rect(-0.5, -0.5, W + 1, H + 1).stroke({ width: 1, color: COLORS.line });
   }
 
   /**
-   * Injectors: one continuous outlined shape per injector, a metal ledge under every cell that has a
-   * shelf, round target outlines in their color and a faint ring for blank cells. Circles sit at
-   * the exact cell centre so the ghost and the landed pellet line up with them.
+   * Injectors: each a flat raised shape, a line bar under every cell that has a shelf, the hollow
+   * outline of its kind in every target and a small dot in every blank. A target's outline sits at
+   * the exact cell centre and a little outside the pellet, so it shows round whatever lands in it.
+   * The two cells a pair enters by are dotted too: a pellet left there flames the core out.
    */
   private drawInjectors(): void {
     const g = this.injectorLayer;
     g.clear();
+    for (const old of this.targetLayer.removeChildren()) old.destroy();
     const s = this.cell;
     if (!this.state) return;
+    const dot = Math.max(1.5, s * 0.07);
+    const spawn = enginesSpawnPosition(this.state.config);
+    for (const col of [spawn.col, spawn.col + 1]) g.circle(this.cx(col), this.cy(spawn.row), dot).fill(COLORS.line);
     const shelf = enginesShelfMask(this.state.config, this.injectors);
+    const r = s * 0.16;
+    const bar = Math.max(2, Math.round(s * 0.12));
     for (const p of this.injectors) {
       const has = (col: number, row: number): boolean => p.cells.some((c) => c.col === col && c.row === row);
-      // Body: the union of the cells.
+      // Body: the union of the cells, rounded where it turns a corner.
       for (const c of p.cells) {
         const x = c.col * s;
         const y = (this.height - c.row - 1) * s;
-        g.rect(x, y, s, s).fill({ color: COLORS.trim, alpha: 0.07 });
+        g.roundRect(x, y, s, s, r).fill(COLORS.raised);
+        if (has(c.col + 1, c.row)) g.rect(x + s / 2, y, s, s).fill(COLORS.raised);
+        if (has(c.col, c.row - 1)) g.rect(x, y + s / 2, s, s).fill(COLORS.raised);
       }
-      // Outline: every cell edge that faces outside the shape.
-      for (const c of p.cells) {
-        const x = c.col * s;
-        const y = (this.height - c.row - 1) * s;
-        if (!has(c.col, c.row + 1)) g.moveTo(x, y).lineTo(x + s, y);
-        if (!has(c.col, c.row - 1)) g.moveTo(x, y + s).lineTo(x + s, y + s);
-        if (!has(c.col - 1, c.row)) g.moveTo(x, y).lineTo(x, y + s);
-        if (!has(c.col + 1, c.row)) g.moveTo(x + s, y).lineTo(x + s, y + s);
-      }
-      g.stroke({ width: Math.max(1.5, s * 0.05), color: COLORS.trim, alpha: 0.55 });
-      // Metal ledges under the shelf cells, each with a small running light.
+      // A shelf is a bar along the bottom of its cell.
       for (const c of p.cells) {
         if (!shelf[enginesIdx(this.state.config, c.col, c.row)]) continue;
         const x = c.col * s;
         const y = (this.height - c.row - 1) * s;
-        g.roundRect(x + 1, y + s - s * 0.14, s - 2, s * 0.16, 3).fill({ color: COLORS.ledgeDark });
-        g.roundRect(x + 1, y + s - s * 0.17, s - 2, s * 0.12, 3).fill({ color: COLORS.ledge });
-        g.roundRect(x + s * 0.38, y + s - s * 0.13, s * 0.24, Math.max(1, s * 0.04), 1).fill({ color: COLORS.ledgeLight, alpha: 0.85 });
+        const left = has(c.col - 1, c.row) && shelf[enginesIdx(this.state.config, c.col - 1, c.row)];
+        const right = has(c.col + 1, c.row) && shelf[enginesIdx(this.state.config, c.col + 1, c.row)];
+        g.roundRect(x, y + s - bar, s, bar, bar / 2).fill(COLORS.line);
+        if (left) g.rect(x, y + s - bar, s / 2, bar).fill(COLORS.line);
+        if (right) g.rect(x + s / 2, y + s - bar, s / 2, bar).fill(COLORS.line);
       }
-      // Targets.
       for (const c of p.cells) {
         const cx = this.cx(c.col);
         const cy = this.cy(c.row);
         if (c.want === null) {
-          g.circle(cx, cy, s * 0.3).stroke({ width: 1, color: COLORS.trim, alpha: 0.3 });
+          g.circle(cx, cy, dot).fill(COLORS.line);
           continue;
         }
-        const color = this.colorByKind.get(c.want) ?? 0xffffff;
-        // The pellet is 0.42 of a cell wide, so a wrong pellet sitting here would hide a smaller ring.
-        // The ring hugs the cell edge instead, so its color stays readable around any pellet.
-        g.circle(cx, cy, s * 0.4).fill({ color, alpha: 0.16 });
-        g.circle(cx, cy, s * 0.46).stroke({ width: Math.max(3, s * 0.08), color, alpha: 0.9 });
-        drawMark(g, cx, cy, s * 0.18, this.markByKind.get(c.want) ?? "circle", color);
+        const target = new Sprite(this.tex(c.want, "target"));
+        target.anchor.set(0.5);
+        target.position.set(cx, cy);
+        this.targetLayer.addChild(target);
       }
     }
   }
@@ -696,15 +684,25 @@ export class EnginesRenderer {
     const r = this.app.renderer;
     if (!r) return;
     const old = [...this.textures.values()];
-    for (const kind of this.colorByKind.keys()) {
-      const canvas = pelletCanvas(this.cell, this.styleFor(kind), r.resolution);
-      this.textures.set(kind, new Texture({ source: new CanvasSource({ resource: canvas, resolution: r.resolution }) }));
+    const next = new Map<string, Texture>();
+    const add = (key: string, canvas: HTMLCanvasElement): void => {
+      next.set(key, new Texture({ source: new CanvasSource({ resource: canvas, resolution: r.resolution }) }));
+    };
+    for (const [kind, shape] of this.shapeByKind) {
+      const color = this.colorByKind.get(kind) ?? "cream";
+      add(`${kind}:solid`, pelletCanvas(this.cell, shape, color, r.resolution));
+      add(`${kind}:target`, pelletCanvas(this.cell, shape, color, r.resolution, "target"));
+      add(`${kind}:ghost`, pelletCanvas(this.cell, shape, "amber", r.resolution, "ghost"));
+      add(`${kind}:land`, pelletCanvas(this.cell, shape, "cream", r.resolution, "ghost"));
     }
-    for (const v of this.pieces.values()) v.s.texture = this.textures.get(v.kind) ?? Texture.WHITE;
+    this.textures.clear();
+    for (const [key, tex] of next) this.textures.set(key, tex);
+    for (const v of this.pieces.values()) v.s.texture = this.tex(v.kind);
+    for (const sprite of [...this.ghostFill, ...this.ghostLine]) sprite.texture = Texture.EMPTY;
     this.updateNext();
     if (this.falling && this.state) {
-      this.falling.a.texture = this.textures.get(this.state.current.a) ?? Texture.WHITE;
-      this.falling.b.texture = this.textures.get(this.state.current.b) ?? Texture.WHITE;
+      this.falling.a.texture = this.tex(this.state.current.a);
+      this.falling.b.texture = this.tex(this.state.current.b);
     }
     for (const tex of old) tex.destroy(true);
   }
@@ -716,26 +714,52 @@ export class EnginesRenderer {
     return (this.height - row - 0.5) * this.cell;
   }
 
-  private popup(x: number, y: number, text: string, color: number): void {
+  private popup(x: number, y: number, text: string): void {
     const t = new Text({
       text,
-      style: { fontFamily: "Fraunces, Georgia, serif", fontSize: Math.max(12, this.cell * 0.5), fontWeight: "700", fill: color, stroke: { color: 0x000000, width: 3 } },
+      style: {
+        fontFamily: FONT.mono,
+        fontSize: Math.max(15, this.cell * 0.56),
+        fontWeight: "700",
+        fill: COLORS.cream,
+        // A ground edge keeps the number readable over any pellet.
+        stroke: { color: COLORS.ground, width: Math.max(3, this.cell * 0.12), join: "round" },
+      },
+      resolution: 2,
     });
     t.anchor.set(0.5);
-    t.position.set(x, y);
+    const margin = t.width / 2 + 4;
+    t.position.set(Math.min(Math.max(x, margin), this.width * this.cell - margin), y);
     this.fxLayer.addChild(t);
-    this.popups.push({ t, life: 0, max: this.reduced ? 300 : 700, y0: y });
+    this.popups.push({ t, life: 0, max: this.reduced ? 300 : 950, y0: y, rise: this.cell * 0.9 });
   }
 
   private callout(text: string, color: number): void {
+    // One callout at a time: the last one is hurried out as the next arrives.
+    for (const p of this.popups) if (p.t.parent === this.calloutLayer) p.life = Math.max(p.life, p.max - 120);
     const t = new Text({
       text,
-      style: { fontFamily: "Fraunces, Georgia, serif", fontSize: Math.max(16, this.cell * 0.8), fontWeight: "900", fill: color, stroke: { color: 0x000000, width: 4 }, letterSpacing: 1 },
+      style: {
+        fontFamily: FONT.body,
+        fontSize: Math.max(22, this.cell * 1.1),
+        fontWeight: "700",
+        fill: color,
+        align: "center",
+        stroke: { color: COLORS.ground, width: Math.max(4, this.cell * 0.18), join: "round" },
+      },
+      resolution: 2,
     });
     t.anchor.set(0.5);
-    t.position.set((this.width * this.cell) / 2, (this.height * this.cell) * 0.35);
-    this.fxLayer.addChild(t);
-    this.popups.push({ t, life: 0, max: this.reduced ? 400 : 900, y0: t.y });
+    t.position.set((this.width * this.cell) / 2, this.height * this.cell * 0.35);
+    this.calloutLayer.addChild(t);
+    this.popups.push({ t, life: 0, max: this.reduced ? 400 : 900, y0: t.y, rise: this.cell * 0.5 });
+  }
+
+  /** Ask for the beat. A stronger moment while one is playing takes it over; it never stacks. */
+  private beat(strength: number): void {
+    // The pulse and its sound are asked for together, so they cannot drift apart.
+    sfx.beat(strength);
+    this.beatNow = { life: 0, strength: Math.max(strength, this.beatNow?.strength ?? 0) };
   }
 
   // ---- per frame
@@ -748,6 +772,7 @@ export class EnginesRenderer {
     this.hold(dt);
     this.fall(dt);
     this.drawLinks();
+    this.drawBeat(dt);
     if (this.framePending && this.steps.length === 0 && !this.moving) {
       this.framePending = false;
       this.cb.onFrame();
@@ -775,22 +800,23 @@ export class EnginesRenderer {
 
   private movePieces(dt: number): void {
     let moving = false;
-    const speed = this.reduced ? 1 : 0.018 * this.cell;
     for (const v of [...this.pieces.values()]) {
       if (v.dying !== null) {
+        // A cleared pellet shrinks to nothing.
         v.dying += dt;
         const k = Math.min(1, v.dying / DIE_MS);
-        v.s.alpha = 1 - k;
-        v.s.scale.set(1 + k * 0.35);
+        v.s.scale.set(1 - k * k);
         if (k >= 1) this.kill(v);
         continue;
       }
-      if (v.y !== v.ty || v.x !== v.tx) {
-        const step = speed * dt;
-        v.y = v.y < v.ty ? Math.min(v.ty, v.y + step) : Math.max(v.ty, v.y - step);
-        v.x = v.x < v.tx ? Math.min(v.tx, v.x + step) : Math.max(v.tx, v.x - step);
+      if (v.move < 1) {
+        // Reduced motion turns a move into a cut.
+        v.move = this.reduced ? 1 : Math.min(1, v.move + dt / MOVE_MS);
+        const e = easeOutCubic(v.move);
+        v.x = v.sx + (v.tx - v.sx) * e;
+        v.y = v.sy + (v.ty - v.sy) * e;
         v.s.position.set(v.x, v.y);
-        if (v.y !== v.ty || v.x !== v.tx) moving = true;
+        if (v.move < 1) moving = true;
       }
     }
     this.moving = moving;
@@ -801,13 +827,35 @@ export class EnginesRenderer {
       const p = this.popups[i]!;
       p.life += dt;
       const k = p.life / p.max;
-      p.t.y = p.y0 - k * this.cell * 0.8;
+      p.t.y = p.y0 - p.rise * easeOutCubic(Math.min(1, k));
       p.t.alpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
       if (k >= 1) {
         p.t.destroy();
         this.popups.splice(i, 1);
       }
     }
+  }
+
+  /**
+   * The beat: the whole board pulses once in amber and swells a hair, in `BEAT_MS`. Reduced motion
+   * keeps it as a still flash.
+   */
+  private drawBeat(dt: number): void {
+    const g = this.beatLayer;
+    g.clear();
+    const b = this.beatNow;
+    if (!b) return;
+    b.life += dt;
+    const t = b.life / BEAT_MS;
+    if (t >= 1) {
+      this.beatNow = null;
+      this.board.scale.set(1);
+      return;
+    }
+    // Up in the first quarter, down over the rest.
+    const env = this.reduced ? 1 : t < 0.25 ? easeOutCubic(t / 0.25) : 1 - easeOutCubic((t - 0.25) / 0.75);
+    g.rect(0, 0, this.width * this.cell, this.height * this.cell).fill({ color: COLORS.amber, alpha: (0.14 + 0.16 * b.strength) * env });
+    this.board.scale.set(this.reduced ? 1 : 1 + 0.012 * b.strength * env);
   }
 
   /** Halves of a pair stay visibly joined: a bar between them while both are on the board and adjacent. */
@@ -821,22 +869,23 @@ export class EnginesRenderer {
       if (list) list.push(v);
       else byPair.set(v.pair, [v]);
     }
-    const bar = (ax: number, ay: number, bx: number, by: number, ka: number, kb: number): void => {
+    const bar = (ax: number, ay: number, bx: number, by: number): void => {
       const dx = bx - ax;
       const dy = by - ay;
       if (Math.hypot(dx, dy) > this.cell * 1.08) return;
-      const w = this.cell * 0.34;
-      const color = mix(mix(this.colorByKind.get(ka) ?? 0xffffff, this.colorByKind.get(kb) ?? 0xffffff, 0.5), 0x000000, 0.45);
-      if (Math.abs(dx) > Math.abs(dy)) g.roundRect(Math.min(ax, bx), ay - w / 2, Math.abs(dx), w, w / 2).fill({ color, alpha: 0.95 });
-      else g.roundRect(ax - w / 2, Math.min(ay, by), w, Math.abs(dy), w / 2).fill({ color, alpha: 0.95 });
+      const w = this.cell * LINK_WIDTH;
+      // The bar starts inside each pellet's edge, short of a cut-out, so the ground still shows through one.
+      const in0 = this.cell * LINK_INSET;
+      if (Math.abs(dx) > Math.abs(dy)) g.rect(Math.min(ax, bx) + in0, ay - w / 2, Math.abs(dx) - in0 * 2, w).fill(COLORS.dim);
+      else g.rect(ax - w / 2, Math.min(ay, by) + in0, w, Math.abs(dy) - in0 * 2).fill(COLORS.dim);
     };
     for (const list of byPair.values()) {
       if (list.length !== 2) continue;
       const [a, b] = list as [PieceView, PieceView];
-      bar(a.s.x, a.s.y, b.s.x, b.s.y, a.kind, b.kind);
+      bar(a.s.x, a.s.y, b.s.x, b.s.y);
     }
     const f = this.falling;
-    if (f && this.state) bar(f.a.x, f.a.y, f.b.x, f.b.y, this.state.current.a, this.state.current.b);
+    if (f && this.state) bar(f.a.x, f.a.y, f.b.x, f.b.y);
   }
 
   /** Gravity on the falling pair: one row per fallMs, softDropMs while hurried, then a short lock once it rests. */
@@ -999,48 +1048,4 @@ export class EnginesRenderer {
         return false;
     }
   }
-}
-
-function linear(vertical: boolean, stops: number[]): FillGradient {
-  const g = new FillGradient({ type: "linear", start: { x: 0, y: 0 }, end: vertical ? { x: 0, y: 1 } : { x: 1, y: 0 }, textureSpace: "local" });
-  stops.forEach((c, i) => g.addColorStop(i / Math.max(1, stops.length - 1), c));
-  return g;
-}
-
-/** The legend's mark symbols, drawn as vector outlines for injector targets. */
-export function drawMark(g: Graphics, x: number, y: number, r: number, mark: string, color: number): void {
-  const poly = (n: number, rot = -Math.PI / 2): void => {
-    const pts: number[] = [];
-    for (let i = 0; i < n; i++) pts.push(x + r * Math.cos(rot + (i * Math.PI * 2) / n), y + r * Math.sin(rot + (i * Math.PI * 2) / n));
-    g.poly(pts);
-  };
-  switch (mark) {
-    case "circle":
-      g.circle(x, y, r);
-      break;
-    case "square":
-      g.rect(x - r * 0.85, y - r * 0.85, r * 1.7, r * 1.7);
-      break;
-    case "triangle":
-      poly(3);
-      break;
-    case "diamond":
-      poly(4);
-      break;
-    case "hexagon":
-      poly(6, 0);
-      break;
-    case "star": {
-      const pts: number[] = [];
-      for (let i = 0; i < 10; i++) {
-        const rr = i % 2 === 0 ? r : r * 0.45;
-        pts.push(x + rr * Math.cos(-Math.PI / 2 + (i * Math.PI) / 5), y + rr * Math.sin(-Math.PI / 2 + (i * Math.PI) / 5));
-      }
-      g.poly(pts);
-      break;
-    }
-    default:
-      g.circle(x, y, r * 0.6);
-  }
-  g.stroke({ width: 2, color: mix(color, 0xffffff, 0.4), alpha: 0.9 });
 }

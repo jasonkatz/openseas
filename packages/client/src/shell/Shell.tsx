@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { PirateLookWire, ShipLocation, StationWire } from "@openseas/protocol";
-import { LINK_FROM_KEY, content, sfx, t, usePirate } from "@openseas/boards";
+import { LINK_FROM_KEY, content, ink, sfx, t, usePirate } from "@openseas/boards";
 import { CrewDialog } from "../crew/CrewDialog.jsx";
 import { ProfileCard } from "../crew/ProfileCard.jsx";
 import { PirateSheet } from "../pirate/PirateSheet.jsx";
-import { jacketHex, lookFor } from "../pirate/look.js";
+import { jacketColor, lookFor } from "../pirate/look.js";
 import { ChartCard } from "../chart/ChartCard.jsx";
 import { OutpostCard } from "../outpost/OutpostCard.jsx";
 import { outpostName, stationName, tierName } from "../names.js";
@@ -20,7 +20,7 @@ import { useSheet } from "../state/SheetProvider.jsx";
 import { useShip } from "../state/ShipProvider.jsx";
 import { useSocial } from "../state/SocialProvider.jsx";
 import { usePlace, type Place } from "../state/place.jsx";
-import { useMediaQuery, useShowMarks } from "../state/settings.js";
+import { useMediaQuery } from "../state/settings.js";
 import { useToasts } from "../state/toasts.jsx";
 import { World, type Deck, type DeckCrew, type Focus, type Insets, type OutpostWalk, type WorldInput, type WorldShip, type WorldShipLocation } from "../world/World.jsx";
 import { HailBanner } from "./HailBanner.jsx";
@@ -44,7 +44,7 @@ function once(key: string): boolean {
 
 /** A look as the world's figures take it: the jacket as a color, the headgear by id. */
 function figureLook(look: PirateLookWire): DeckCrew["look"] {
-  return { jacket: parseInt(jacketHex(look.jacket).slice(1), 16), headgear: look.headgear };
+  return { jacket: ink(jacketColor(look.jacket)), headgear: look.headgear };
 }
 
 function worldLocation(l: ShipLocation): WorldShipLocation {
@@ -85,7 +85,6 @@ export function Shell() {
   const wide = useMediaQuery("(min-width: 900px)");
   const [menuOpen, setMenuOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [showMarks, setShowMarks] = useShowMarks();
   const [shipPick, setShipPick] = useState<string | null>(null);
   const [helmPick, setHelmPick] = useState<string | null>(null);
   const online = socketStatus === "open";
@@ -606,12 +605,12 @@ export function Shell() {
         </div>
         <div className="sheet-body">{card}</div>
       </aside>
-      {stationOpen && ship && <StationView ship={ship} me={me} station={stationOpen} showMarks={showMarks} onBack={() => go({ kind: "home" })} onHelm={onHelm} />}
-      {battleOpen && ship && <BattleView ship={ship} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
-      {meleeOpen && ship && <MeleeView ship={ship} showMarks={showMarks} onBack={() => go({ kind: "home" })} />}
+      {stationOpen && ship && <StationView ship={ship} me={me} station={stationOpen} onBack={() => go({ kind: "home" })} onHelm={onHelm} />}
+      {battleOpen && ship && <BattleView ship={ship} onBack={() => go({ kind: "home" })} />}
+      {meleeOpen && ship && <MeleeView ship={ship} onBack={() => go({ kind: "home" })} />}
       <CrewDialog />
       <PirateSheet />
-      {menuOpen && <Menu showMarks={showMarks} onShowMarks={setShowMarks} onClose={() => setMenuOpen(false)} />}
+      {menuOpen && <Menu onClose={() => setMenuOpen(false)} />}
       <ProfileCard />
       <Toasts />
     </div>

@@ -44,7 +44,7 @@ const inOpen = (s: TugState): boolean => around(s, s.clamp.cell).every((x) => x 
 
 // ---- driving the page
 
-/** The bay with the strip over it, without the canvas's empty margins: the renderer's own panel. */
+/** The bay with the strip over it, without the canvas's empty margins: the ground the renderer paints. */
 async function region(page: Page): Promise<Box> {
   const g = await boardGeom(page, "tug");
   const pad = Math.max(4, g.cell * 0.12) + 6;
@@ -145,7 +145,7 @@ test("tug: a first delivery", async ({ page }) => {
 });
 
 test("tug: the ghosts", async ({ page }) => {
-  // The same round one flick in: the wanted pod's ghosts, and the green ring on the flick that delivers.
+  // The same round one flick in: the wanted pod's ghosts, and the copy inside the clamp on the flick that delivers.
   const { seed, found } = first();
   const s = await open(page, seed);
   await key(page, s, found[0]!);

@@ -4,8 +4,8 @@
  * Nothing in here is authoritative; the server replays every round (ADR 0003).
  */
 export { content, messageOverrideRevision, overrideMessages, shippedMessage, subscribeMessages, t } from "./content.js";
-export { sfx, isMuted, setMuted, auditionCue, overrideSample, sampleCues } from "./audio.js";
-export { isSpritePuzzle, overrideSprite, spriteFrames, spriteOverridden, spriteOverrideRevision, subscribeSprites, type SpritePuzzle } from "./sprites/atlas.js";
+export { sfx, isMuted, setMuted, auditionCue, audioState, measureCues, type CueMeasure } from "./audio.js";
+export { CUES, CUE_NAMES, LIMITS, NOTES, PROBES, SCALE, type Cue, type CueName, type Voice } from "./cues.js";
 export { LatencyMeter } from "./metrics.js";
 export { softwareRendered } from "./surface.js";
 export { SERVER_URL, wsUrl } from "./api/base.js";
@@ -20,11 +20,12 @@ export * from "./round/round.js";
 export * from "./round/useTicked.js";
 export { CoolingBoard, type BoardProps as CoolingBoardProps } from "./cooling/CoolingBoard.jsx";
 export { type MoveShown as CoolingMoveShown } from "./cooling/renderer.js";
-export { TileIcon } from "./cooling/TileIcon.jsx";
-export { tileDataUrl, type SpecialName, type TileTexture } from "./cooling/tiles.js";
+export { CoolingPieceIcon } from "./cooling/PieceIcon.jsx";
+export { PALETTE, PIECE_COLORS, PLAYER_COLORS, FONT, MOTION, RADIUS, blend, css, cssVariables, ink, type PieceColor, type PlayerColor, type Token } from "./look/tokens.js";
 export { EnginesBoard, type EnginesBoardProps } from "./engines/EnginesBoard.jsx";
 export { PelletIcon } from "./engines/PelletIcon.jsx";
 export { PlatingBoard, type PlatingBoardProps } from "./plating/PlatingBoard.jsx";
+export { PlatingPlateIcon } from "./plating/PlateIcon.jsx";
 export { GunneryBoard, type GunneryBoardProps } from "./gunnery/GunneryBoard.jsx";
 export { GunneryPieceIcon } from "./gunnery/PieceIcon.jsx";
 export { gunneryPieceUrl } from "./gunnery/pieces.js";
@@ -37,18 +38,31 @@ export { battleViewString } from "./battle/renderer.js";
 export { SwordfightBoard, type SwordfightBoardProps } from "./swordfight/SwordfightBoard.jsx";
 export { BlockIcon } from "./swordfight/BlockIcon.jsx";
 export { swordfightViewString, type RemoteBoard as MeleeRemoteBoard, type PlaceAnswer as SwordfightPlaceAnswer } from "./swordfight/renderer.js";
-// The kit prototype boards are built from (ADR 0036): a PixiJS base, tweens, effects and placeholder art.
+// The kit prototype boards are built from (ADR 0036): a PixiJS base, tweens, effects and pictograms.
 export { KitBoard, Grid } from "./kit/board.js";
 export { useKitBoard, type KitBoardProps } from "./kit/useKitBoard.js";
-export { KindIcon, type KindIconProps } from "./kit/KindIcon.jsx";
-export { SpriteIcon, type SpriteIconProps } from "./kit/SpriteIcon.jsx";
-export { INK, KINDS, kindStyle, spriteName, type PlaceholderKind, type Shape } from "./kit/art.js";
+export { INK } from "./kit/art.js";
+export { PictogramIcon, type PictogramIconProps } from "./kit/PictogramIcon.jsx";
+export { pictogramUrl, paintPictogram, type Paint } from "./kit/pictogram.js";
 // Prototype boards (ADR 0036).
 export { SalvageBoard, type SalvageBoardProps } from "./salvage/SalvageBoard.jsx";
+export { SALVAGE_KINDS } from "./salvage/pieces.js";
+export { SalvageCouplerIcon, SalvageCrateIcon, SalvageDebrisIcon } from "./salvage/SalvageIcon.jsx";
 export { OverloadBoard, type OverloadBoardProps } from "./overload/OverloadBoard.jsx";
+export { CapacitorIcon } from "./overload/CapacitorIcon.jsx";
 export { DeflectorsBoard, type DeflectorsBoardProps } from "./deflectors/DeflectorsBoard.jsx";
+export { DeflectorsMirrorIcon, DeflectorsSignIcon } from "./deflectors/SignIcon.jsx";
+export { DEFLECTORS_SIGNS } from "./deflectors/pieces.js";
 export { ReactorBoard, type ReactorBoardProps } from "./reactor/ReactorBoard.jsx";
+export { ReactorPortIcon, ReactorRodIcon } from "./reactor/RodIcon.jsx";
 export { ScannerBoard, type ScannerBoardProps } from "./scanner/ScannerBoard.jsx";
+export { ScannerCellIcon, type ScannerCell } from "./scanner/ScannerIcon.jsx";
 export { TugBoard, type TugBoardProps } from "./tug/TugBoard.jsx";
+export { TugBlockIcon, TugClampIcon, TugPodIcon } from "./tug/TugIcon.jsx";
+export { TUG_PODS } from "./tug/pieces.js";
 export { RacksBoard, type RacksBoardProps } from "./racks/RacksBoard.jsx";
+export { RacksCellIcon, RacksCrateIcon } from "./racks/CellIcon.jsx";
+export { RACKS_KINDS } from "./racks/pieces.js";
 export { CuttingBoard, type CuttingBoardProps } from "./cutting/CuttingBoard.jsx";
+export { CuttingOreIcon } from "./cutting/OreIcon.jsx";
+export { CUTTING_ORES } from "./cutting/pieces.js";

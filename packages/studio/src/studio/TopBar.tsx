@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { CORE_PUZZLE_IDS, PROTOTYPE_PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
 import { PUZZLE_CATEGORIES } from "@openseas/content";
-import { pickCount, wordCount } from "@openseas/protocol";
+import { wordCount } from "@openseas/protocol";
 import { content, t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { formatNumber } from "../frame/numbers.js";
@@ -15,12 +15,10 @@ import { Menu, MenuButton, useMenu } from "./Menu.jsx";
 import { humanize, type ModeId } from "./modes.js";
 import type { TextEntry } from "./TextPanel.jsx";
 
-/** Where a change is made: a number's control by its key, or a frame's or a cue's row. */
+/** Where a change is made: a number's control by its key, or a string's. */
 export type Target =
   | { readonly kind: "number"; readonly key: string }
   | { readonly kind: "text"; readonly key: string }
-  | { readonly kind: "sprites"; readonly name: string }
-  | { readonly kind: "sounds"; readonly name: string }
   | { readonly kind: "category" };
 
 /**
@@ -89,32 +87,18 @@ function PuzzleMenu({ title, puzzle }: { title: string; puzzle: PuzzleId }) {
 
 /**
  * What the draft changes from the shipped puzzle, as a count that opens the list: each number
- * with its value and the shipped one, each picked take, a way to its control, a button that puts
+ * with its value and the shipped one, each word rewritten, a way to its control, a button that puts
  * it back, and one that puts everything back. While the server would refuse the draft it says so.
  */
 function ChangedChip({ sections, texts, onGoto }: { sections: readonly NumberSection[]; texts: readonly TextEntry[]; onGoto(mode: ModeId, target?: Target): void }) {
   const menu = useMenu();
-  const { scenario, changes, refusals, picks, words, resetNumber, resetNumbers, setPick, setText, setCategory } = useFrame();
-  const picked = pickCount(scenario);
-  const count = changes.length + picked + wordCount(scenario);
+  const { scenario, changes, refusals, words, resetNumber, resetNumbers, setText, setCategory } = useFrame();
+  const count = changes.length + wordCount(scenario);
   const refused = refusals.length > 0;
   const go = (mode: ModeId, target: Target): void => {
     menu.setOpen(false);
     onGoto(mode, target);
   };
-  const pickRows = (kind: "sprites" | "sounds") =>
-    Object.keys(picks[kind]).map((name) => (
-      <li key={`${kind}/${name}`} data-testid={`change-${kind}-${name}`}>
-        <button type="button" className="menu-item" onClick={() => go(kind, { kind, name })}>
-          <ModeIcon mode={kind} size={15} />
-          <span className="change-name">{name}</span>
-          <span className="muted">{t(`studio.change.${kind}`)}</span>
-        </button>
-        <button type="button" className="num-reset" onClick={() => setPick(kind, name, null)} aria-label={t("studio.assets.put_back")} title={t("studio.assets.put_back")}>
-          <ResetIcon />
-        </button>
-      </li>
-    ));
   return (
     <Menu
       id="changes"
@@ -149,8 +133,6 @@ function ChangedChip({ sections, texts, onGoto }: { sections: readonly NumberSec
                 </li>
               );
             })}
-            {pickRows("sprites")}
-            {pickRows("sounds")}
             {words.category && (
               <li data-testid="change-category">
                 <button type="button" className="menu-item" onClick={() => go("text", { kind: "category" })}>
@@ -158,7 +140,7 @@ function ChangedChip({ sections, texts, onGoto }: { sections: readonly NumberSec
                   <span className="change-name">{t("studio.category")}</span>
                   <b>{t(`studio.category.${words.category}`)}</b>
                 </button>
-                <button type="button" className="num-reset" onClick={() => setCategory(null)} aria-label={t("studio.assets.put_back")} title={t("studio.assets.put_back")}>
+                <button type="button" className="num-reset" onClick={() => setCategory(null)} aria-label={t("studio.put_back")} title={t("studio.put_back")}>
                   <ResetIcon />
                 </button>
               </li>
@@ -170,7 +152,7 @@ function ChangedChip({ sections, texts, onGoto }: { sections: readonly NumberSec
                   <span className="change-name">{texts.find((e) => e.key === key)?.label ?? key}</span>
                   <b className="change-words">{text}</b>
                 </button>
-                <button type="button" className="num-reset" onClick={() => setText(key, null)} aria-label={t("studio.assets.put_back")} title={t("studio.assets.put_back")}>
+                <button type="button" className="num-reset" onClick={() => setText(key, null)} aria-label={t("studio.put_back")} title={t("studio.put_back")}>
                   <ResetIcon />
                 </button>
               </li>

@@ -15,9 +15,10 @@ export interface SdkRunnerOptions {
   /** Null off production, where the service is not root: the agent then runs as the service's own user, with the same scrubbed environment. */
   identity: AgentIdentity | null;
   /**
-   * Which generation scripts' APIs the service holds a key for (ADR 0040, ADR 0059). The scripts
-   * reach them through the proxy, with the turn's token where the key would be, so their spend
-   * is metered like the model's and no key is in the agent's shell.
+   * Which of the image and sound APIs the service holds a key for (ADR 0059): open to the chat for
+   * work that lands nothing generated in the game (ADR 0062 decision 6). A command reaches one
+   * through the proxy, with the turn's token where the key would be, so its spend is metered
+   * like the model's and no key is in the agent's shell.
    */
   scripts: { openai: boolean; elevenlabs: boolean };
   log: Logger;
@@ -28,7 +29,7 @@ export interface SdkRunnerOptions {
 }
 
 /** The skills the agent loads from the worktree (ADR 0042 decision 5). */
-const SKILLS = ["puzzles", "puzzle-sprites", "puzzle-sounds"];
+const SKILLS = ["puzzles"];
 /** Tools that write a file by its path: held to the puzzle's scope before they run. */
 const WRITERS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 /** Tools that reach past the turn: scheduling, other sessions, other worktrees. The agent has no use for them here. */
@@ -39,7 +40,7 @@ const IDLE_MS = 15 * 60 * 1000;
 const LOST = /No conversation found with session ID/i;
 /** What a turn that had to start a new session is told first. */
 const FRESH =
-  "(From the studio: this draft's earlier conversation could not be resumed, so this is a new session. The draft's worktree holds every earlier turn's edits, one commit a turn (`git log`), and any takes made so far. Ask the owner if you need what was said.)";
+  "(From the studio: this draft's earlier conversation could not be resumed, so this is a new session. The draft's worktree holds every earlier turn's edits, one commit a turn (`git log`). Ask the owner if you need what was said.)";
 
 const clip = (text: string, max = DETAIL): string => (text.length > max ? `${text.slice(0, max)}\n… (${text.length - max} more characters)` : text);
 const pathOf = (input: unknown): string | null => {
@@ -97,10 +98,10 @@ const userMessage = (text: string, priority?: "next"): SDKUserMessage => ({ type
 
 /**
  * The chat's agent: the Claude Agent SDK on the draft's worktree (ADR 0042 decision 5, ADR 0047).
- * It loads `CLAUDE.md` and the three puzzle skills from the worktree itself, so a change to a
+ * It loads `CLAUDE.md` and the `puzzles` skill from the worktree itself, so a change to a
  * skill needs no change here. Its process is another unix user's, started with an environment
  * built from nothing: where the model is (the service's proxy), a token for this turn, a home,
- * a path, and where the generation scripts' APIs are (the same proxy, the same token). No other
+ * a path, and where the image and sound APIs are (the same proxy, the same token). No other
  * variable of the service's reaches it, and no key at all.
  */
 export function createSdkRunner(o: SdkRunnerOptions): AgentRunner {

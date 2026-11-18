@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { NO_SAVE, draft, numbers, service } from "./standin.js";
+import { NO_SAVE, SERVICE, draft, numbers, service } from "./standin.js";
 import { shown } from "./helpers.js";
 
 /**
@@ -130,17 +130,19 @@ test.describe("save", () => {
     await expect(page.getByTestId("save-pull")).toContainText("stays a draft for a developer to finish");
   });
 
-  test("a draft whose only change is a pick can be saved, and a pick Save cannot place is named", async ({ page }) => {
-    // Every number as shipped and one take picked: Save places picks (ADR 0053), so there is something to save.
-    const picks = { sprites: { cog: "a".repeat(64) }, sounds: {} };
-    const s = await service(page, { login: "octo", save: true, picks: true, drafts: [draft({ numbers: numbers({ picks }), save: NO_SAVE })] });
+  test("a draft kept with nothing but picks has nothing to save, and one whose last Save failed on a pick says so and can be saved again", async ({ page }) => {
+    // Every number as shipped and one take picked, as a draft was kept before ADR 0062: Save places no pick now, so there is nothing to save.
+    const picks = { sounds: { clear: "a".repeat(64) } };
+    await service(page, { login: "octo", save: true, drafts: [draft({ numbers: numbers({ picks }), save: NO_SAVE })] });
     await page.goto("/cooling");
-    await expect(page.getByTestId("save")).toBeEnabled();
-    await expect(saveRows(page)).toContainText("the takes you picked");
-    await (await shown(page, "save")).click();
-    await expect(page.getByTestId("save-writing")).toBeVisible();
-    s.finish("draftdraft", { state: "failed", error: "pick", detail: "cog" });
-    await expect(page.getByTestId("save-failed")).toContainText("the pick for cog can't be placed");
+    await expect(page.getByTestId("save")).toBeDisabled();
+    await expect(saveRows(page)).not.toContainText("takes");
+
+    // A row whose last Save could not place a pick still reads, says what happened, and Save is offered again (ADR 0064).
+    await page.unroute(`${SERVICE}/**`);
+    await service(page, { login: "octo", save: true, drafts: [draft({ numbers: numbers({ overrides: { pieceKinds: 5 }, picks }), save: { ...NO_SAVE, state: "failed", error: "pick", detail: "clear" } })] });
+    await page.goto("/cooling");
+    await expect(page.getByTestId("save-failed")).toContainText("could not place a picked take for clear");
     await expect(page.getByTestId("save")).toBeEnabled();
   });
 

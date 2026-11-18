@@ -101,14 +101,43 @@ export const RatingTierSchema = z.object({
   min: z.number(),
 });
 
-/** Shape and color of one ordinary piece kind, index = kind. Tiles are colored squares, each with
- * its own surface `texture`; `mark` names the symbol drawn inside when the player turns marks on,
- * so kinds stay distinguishable without color (rule 6). */
-export const PieceStyleSchema = z.object({
+/** The colours a piece may wear, by their names in the game's one palette (docs/BRAND.md section 2). */
+export const PIECE_COLORS = ["sand", "sky", "moss", "lilac", "rose", "teal", "rust", "slate", "cream"] as const;
+export const PieceColorSchema = z.enum(PIECE_COLORS);
+export type PieceColor = z.infer<typeof PieceColorSchema>;
+
+/** The colours a jacket or a flag may wear, by the same names. */
+export const PLAYER_COLORS = ["sand", "sky", "moss", "lilac", "rose", "teal", "rust", "slate", "plum", "olive", "ice", "brick"] as const;
+export const PlayerColorSchema = z.enum(PLAYER_COLORS);
+export type PlayerColor = z.infer<typeof PlayerColorSchema>;
+
+/**
+ * The colours a flag is sewn from: the twelve, and a light and a dark cloth for the field or the
+ * emblem, which are the palette's own `cream` and `ground`. Still names, never values.
+ */
+export const FLAG_COLORS = [...PLAYER_COLORS, "cream", "ground"] as const;
+export const FlagColorSchema = z.enum(FLAG_COLORS);
+export type FlagColor = z.infer<typeof FlagColorSchema>;
+
+/**
+ * One ordinary Cooling piece kind, index = kind: the pictogram it is drawn as and the palette
+ * colour it wears. Every kind has a shape of its own, so kinds are told apart without color (rule 6).
+ */
+export const CoolingPieceStyleSchema = z.object({
   nameKey: MessageKey,
-  mark: z.string(),
-  texture: z.enum(["knurl", "fan", "waves", "grain", "nacre", "fronds", "pores"]),
-  color: z.string().regex(/^#[0-9a-f]{6}$/),
+  shape: z.enum(["cog", "valve", "bolt", "fuse", "crystal", "coil", "chip"]),
+  color: PieceColorSchema,
+});
+
+/**
+ * One Plating metal, index = kind: the palette colour its plates wear and the one detail cut out of
+ * every cell of them. A plate's outline is its footprint, fixed by the rules, so the cut-out is what
+ * tells metals apart without color (rule 6, docs/BRAND.md section 3). It lies along the brushing.
+ */
+export const PlatingPieceStyleSchema = z.object({
+  nameKey: MessageKey,
+  cut: z.enum(["slot", "window", "lozenge", "bone"]),
+  color: PieceColorSchema,
 });
 
 /** The ship simulation's tuning. Mirrors the engine's ShipRules; the engine validates it again. */
@@ -234,20 +263,23 @@ export const CoolingContentSchema = DutyPuzzleBaseSchema.extend({
    * until it lands, so working overheated costs time. Client timing only; scores are unaffected.
    */
   overheatSwapMs: z.int().min(0).max(5000),
-  pieces: z.array(PieceStyleSchema).min(3),
+  pieces: z.array(CoolingPieceStyleSchema).min(3),
   specials: z.object({
-    charge: z.object({ nameKey: MessageKey, color: z.string() }),
-    magnet: z.object({ nameKey: MessageKey, color: z.string() }),
-    slag: z.object({ nameKey: MessageKey, color: z.string() }),
+    charge: z.object({ nameKey: MessageKey, color: PieceColorSchema }),
+    magnet: z.object({ nameKey: MessageKey, color: PieceColorSchema }),
+    slag: z.object({ nameKey: MessageKey, color: PieceColorSchema }),
   }),
 });
 
-/** Engines pieces are pellets with their own surfaces, so they never read as Cooling tiles. */
+/**
+ * One Engines pellet kind, index = kind: the pictogram it is drawn as and the palette colour it
+ * wears. Every kind has a shape of its own, and its hollow target is that shape as an outline, so
+ * kinds and targets are told apart without color (rule 6).
+ */
 export const EnginesPieceStyleSchema = z.object({
   nameKey: MessageKey,
-  mark: z.string(),
-  texture: z.enum(["weave", "coil", "ripple", "speckle"]),
-  color: z.string().regex(/^#[0-9a-f]{6}$/),
+  shape: z.enum(["flame", "cross", "ring", "star"]),
+  color: PieceColorSchema,
 });
 
 export const EnginesContentSchema = DutyPuzzleBaseSchema.extend({
@@ -297,9 +329,19 @@ export const PlatingContentSchema = DutyPuzzleBaseSchema.extend({
     streakPercent: z.array(z.int().min(100)).min(1),
   }),
   /** Metal kinds plates come in. Cosmetic: shape tells plates apart; metal adds variety. */
-  pieces: z.array(PieceStyleSchema).min(1),
+  pieces: z.array(PlatingPieceStyleSchema).min(1),
   /** Display names for the twelve pentominoes, index = engine shape. */
   shapes: z.array(z.object({ nameKey: MessageKey })).length(12),
+});
+
+/**
+ * One Gunnery piece kind, index = kind: the pictogram it is drawn as and the palette colour it
+ * wears. Every kind has a shape of its own, so kinds are told apart without color (rule 6).
+ */
+export const GunneryPieceStyleSchema = z.object({
+  nameKey: MessageKey,
+  shape: z.enum(["cell", "sabot", "slug", "coolant"]),
+  color: PieceColorSchema,
 });
 
 export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
@@ -346,15 +388,16 @@ export const GunneryContentSchema = DutyPuzzleBaseSchema.extend({
     broadsidePoints: z.int().min(0),
   }),
   /** Cell, sabot, slug, coolant, in that order (the engine's kind numbers). */
-  pieces: z.array(PieceStyleSchema).length(4),
+  pieces: z.array(GunneryPieceStyleSchema).length(4),
 });
 
 /** Star styles: a kind is shape x color, so each axis is listed on its own. */
 export const StarColorSchema = z.object({
   nameKey: MessageKey,
-  /** Symbol drawn on the star when marks are on, so colors stay apart without color (rule 6). */
-  mark: z.string(),
-  color: z.string().regex(/^#[0-9a-f]{6}$/),
+  /** A colour of the palette, by name. */
+  color: PieceColorSchema,
+  /** The detail cut out of every star of this colour, so colours stay apart with the colour taken away (rule 6). */
+  cut: z.enum(["dot", "band", "split"]),
 });
 export const StarShapeSchema = z.object({
   nameKey: MessageKey,
@@ -446,12 +489,15 @@ export const BattleContentSchema = z.object({
   }),
 });
 
-/** Swordfight blocks are beveled squares with their own surface per color, so they never read as Cooling tiles. */
+/**
+ * One Swordfighting colour, index = colour: the palette colour its blocks wear and the one detail cut
+ * out of them. Blocks fuse into slabs of any size, so a block has no outline of its own and the
+ * cut-out is what tells colours apart without color (rule 6, docs/BRAND.md section 3).
+ */
 export const SwordPieceStyleSchema = z.object({
   nameKey: MessageKey,
-  mark: z.string(),
-  texture: z.enum(["facet", "rivet", "scale", "hatch", "swirl", "rings"]),
-  color: z.string().regex(/^#[0-9a-f]{6}$/),
+  cut: z.enum(["dot", "bar", "diamond", "cross", "triangle", "ring"]),
+  color: PieceColorSchema,
 });
 
 /** The boarding fight: not a duty board, so no par; rated against thresholds until there is a human opponent (ADR 0022). */
@@ -529,7 +575,8 @@ export const CrewRulesSchema = z.object({
   /** Invitations a crew may have waiting at once. */
   maxInvites: z.int().min(1).max(500),
   name: z.object({ min: z.int().min(1).max(64), max: z.int().min(1).max(64) }),
-  colors: z.array(FlagPart.extend({ hex: z.string().regex(/^#[0-9a-f]{6}$/) })).min(2),
+  /** Each names its colour in the palette (ADR 0061); the id is what a crew's flag stores. */
+  colors: z.array(FlagPart.extend({ color: FlagColorSchema })).min(2),
   patterns: z.array(FlagPart).min(1),
   emblems: z.array(FlagPart).min(1),
   /** The flag a new crew is offered before its founder changes anything. */
@@ -565,7 +612,8 @@ export const TitleSchema = z.object({ id: Id, nameKey: MessageKey, requires: Tit
  * (rule 6), and none of them is a bot's kerchief.
  */
 export const PirateRulesSchema = z.object({
-  jackets: z.array(FlagPart.extend({ hex: z.string().regex(/^#[0-9a-f]{6}$/) })).min(2),
+  /** Each names one of the twelve player colours (ADR 0061); the id is what a pirate's look stores. */
+  jackets: z.array(FlagPart.extend({ color: PlayerColorSchema })).min(2),
   headgear: z.array(FlagPart).min(2),
   titles: z.array(TitleSchema).min(1),
 });
@@ -586,7 +634,9 @@ export type RaiderTier = z.infer<typeof RaiderTierSchema>;
 export type ShipClass = z.infer<typeof ShipClassSchema>;
 export type ShipGrant = z.infer<typeof ShipGrantSchema>;
 export type RatingTier = z.infer<typeof RatingTierSchema>;
-export type PieceStyle = z.infer<typeof PieceStyleSchema>;
+export type CoolingPieceStyle = z.infer<typeof CoolingPieceStyleSchema>;
+export type GunneryPieceStyle = z.infer<typeof GunneryPieceStyleSchema>;
+export type PlatingPieceStyle = z.infer<typeof PlatingPieceStyleSchema>;
 export type EnginesPieceStyle = z.infer<typeof EnginesPieceStyleSchema>;
 export type CoolingContent = z.infer<typeof CoolingContentSchema>;
 export type EnginesContent = z.infer<typeof EnginesContentSchema>;

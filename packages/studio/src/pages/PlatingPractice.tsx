@@ -1,16 +1,14 @@
 import { useCallback } from "react";
 import { PENTOMINO_LETTERS, platingOrient, summarizePlating, type PlatingConfig, type PlatingMove, type PlatingState, type BreachRating } from "@openseas/engine";
-import { PlatingBoard, TileIcon, content, sfx, t } from "@openseas/boards";
+import { PlatingBoard, PlatingPlateIcon, content, sfx, t } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { PLATING } from "../puzzles.js";
 
 const plating = content.puzzles.plating;
 
 export function PlatingPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
-
   const api = usePractice<PlatingState, PlatingMove, PlatingConfig>({
     puzzle: "plating",
     def: PLATING.def,
@@ -76,9 +74,9 @@ export function PlatingPractice() {
       legend={
         <>
           <ul className="kinds">
-            {metals.map((p, kind) => (
+            {metals.map((p) => (
               <li key={p.nameKey}>
-                <TileIcon color={p.color} texture={p.texture} mark={showMarks ? p.mark : null} sprite={{ puzzle: "plating", name: `${["tin", "copper", "steel", "brass"][kind]}-h` }} />
+                <PlatingPlateIcon color={p.color} cut={p.cut} />
                 <span>{t(p.nameKey)}</span>
               </li>
             ))}
@@ -88,21 +86,18 @@ export function PlatingPractice() {
           <ul className="kinds shapes">
             {plating.shapes.map((s, i) => (
               <li key={s.nameKey}>
-                <ShapeIcon shape={i} />
+                <PlatingPlateIcon color="cream" cells={platingOrient(i, 0, false)} size={22} />
                 <span>{PENTOMINO_LETTERS[i]}</span>
               </li>
             ))}
           </ul>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
       board={(interactive) => (
         <PlatingBoard
-         
           state={shown}
           version={api.version}
           interactive={interactive}
-          showMarks={showMarks}
           onPlace={onPlace}
           onFrame={api.markRendered}
           onSealed={onSealed}
@@ -114,22 +109,5 @@ export function PlatingPractice() {
         />
       )}
     />
-  );
-}
-
-/** A tiny SVG of one pentomino for the legend. */
-function ShapeIcon({ shape }: { shape: number }) {
-  const cells = platingOrient(shape, 0, false);
-  const w = Math.max(...cells.map(([x]) => x)) + 1;
-  const h = Math.max(...cells.map(([, y]) => y)) + 1;
-  const u = 20 / Math.max(w, h);
-  const x0 = (22 - w * u) / 2;
-  const y0 = (22 - h * u) / 2;
-  return (
-    <svg viewBox="0 0 22 22" width="22" height="22" aria-hidden="true" className="tile-icon">
-      {cells.map(([x, y]) => (
-        <rect key={`${x},${y}`} x={x0 + x * u + 0.4} y={y0 + y * u + 0.4} width={u - 0.8} height={u - 0.8} rx={1} fill="#c98a4b" stroke="#3a2412" strokeWidth="0.6" />
-      ))}
-    </svg>
   );
 }

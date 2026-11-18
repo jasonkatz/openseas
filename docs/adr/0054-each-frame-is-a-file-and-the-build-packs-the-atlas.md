@@ -15,6 +15,8 @@ ADR 0053's Consequences and last alternative leave for later. It supersedes:
 - ADR 0053 decision 10. With no overrides there is nothing of theirs for the smoke to check;
   a unit test checks the built atlas against every frame file.
 
+[0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded this ADR at M10's fifth step: there are no frame files, and the build packs no atlas.
+
 ## Context
 
 Each puzzle's atlas was a committed WebP at quality 90, with `frames.json` giving each frame's

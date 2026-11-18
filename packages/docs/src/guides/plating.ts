@@ -27,7 +27,7 @@ export const plating: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Plating board: a riveted hull ${c.width} cells wide with three dark breaches open onto space, and a tray of three five-cell metal plates under it.`,
+    alt: `The Plating board: a flat hull ${c.width} cells wide with three dark breaches, a dot in each open cell, and a tray of three five-cell plates under it.`,
     caption: "Three breaches, three plates in the tray. Every plate covers five cells.",
   },
   theme: {
@@ -45,7 +45,7 @@ export const plating: Guide = {
   rules: [
     `Three plates wait in the **tray**. Each covers ${PLATE} cells. Weld one down and a new plate takes its slot.`,
     "A plate goes anywhere it covers at least one open cell of a breach. You can turn it and flip it first.",
-    "Cells that land on sound hull, on another plate or off the board are **waste**. The plate shows them hatched red before you weld.",
+    "Cells that land on sound hull, on another plate or off the board are **waste**. The plate shows them crossed out in red before you weld.",
     "Cover every cell of a breach and it is **sealed**: it scores, its plates lift away and a new breach opens somewhere else.",
     `Up to ${c.breachesAtOnce} breaches are open at once. A breach left alone while ${c.growAfterMoves} plates go elsewhere **widens** by one cell.`,
     `The round is ${p.roundSeconds} seconds on the clock. There is no undo and no way to throw a plate away.`,
@@ -68,7 +68,7 @@ export const plating: Guide = {
   scoring: [
     `A seal pays ${c.basePerCell} points a cell, times its **rating**. The rating counts plates over the fewest that could do it, one for every ${PLATE} cells.`,
     `None over and no waste is ${label("flawless")}, ${times(c.multiplierPercent.flawless)}. None over with waste, or one over, is ${label("solid")}, ${times(c.multiplierPercent.solid)}. Two over is ${times(c.multiplierPercent.holds)}, three ${times(c.multiplierPercent.tape)}, more ${times(c.multiplierPercent.gum)}.`,
-    `If every plate on the breach is **brushed across**, its lines running side to side, the seal pays ${c.brushBonusPercent}% more.`,
+    `If every plate on the breach is **brushed across**, the mark cut in each of its cells lying side to side, the seal pays ${c.brushBonusPercent}% more.`,
     `${label("flawless")} seals in a row build a **streak**: ${streak.map(times).join(", ")}, and ${times(streakCap)} from the ${ordinal(streak.length)} on. Any lesser seal ends it.`,
   ],
   stages: [
@@ -78,12 +78,12 @@ export const plating: Guide = {
       tips: [
         {
           title: "Read the plate before you weld",
-          body: "While you carry a plate it shows what it will do. A green edge means it will go down, and the breach it will join lights up. Red hatching is waste. Slide it a cell or turn it until the red is gone or as small as you can make it.",
+          body: "While you carry a plate it shows what it will do. An amber ring means it will go down, and the breach it will join is outlined. A red cross on a cell is waste. Slide it a cell or turn it until the crosses are gone or as few as you can make them.",
           media: {
             kind: "still",
             name: "waste",
-            alt: "A plate held half over a breach: three of its cells sit in the breach and two, hatched red, lie on sound hull.",
-            caption: "Three cells in the breach, two hatched red on sound hull. That is waste.",
+            alt: "A plate held half over a breach: three of its cells sit in the breach and two, crossed out in red, lie on sound hull.",
+            caption: "Three cells in the breach, two crossed out in red on sound hull. That is waste.",
           },
         },
         {
@@ -103,11 +103,11 @@ export const plating: Guide = {
       tips: [
         {
           title: "Lay every plate across",
-          body: `The brushing bonus is on any seal, ${label("flawless")} or not. A quarter turn swaps a plate's lines between across and up and down. A flip does not change them. When two ways cover the same cells, take the one that lies across. That habit alone is worth about a fifth more points over a round.`,
+          body: `The brushing bonus is on any seal, ${label("flawless")} or not. A quarter turn swaps a plate's marks between across and up and down. A flip does not change them. When two ways cover the same cells, take the one that lies across. That habit alone is worth about a fifth more points over a round.`,
           media: {
             kind: "clip",
             name: "solid-brushed",
-            alt: "Two plates, both with their lines running across, are welded over a five-cell breach with some waste. The board calls out Solid work and Brushed true.",
+            alt: "Two plates, both with their marks lying across, are welded over a five-cell breach with some waste. The board calls out Solid work and Brushed true.",
             caption: `One plate over, so ${label("solid")}. Both brushed across, so ${pays(PLATE, "solid")} becomes ${Math.round(pays(PLATE, "solid") * brushed)}.`,
           },
         },
@@ -136,7 +136,7 @@ export const plating: Guide = {
           media: {
             kind: "clip",
             name: "pair",
-            alt: "Two plates from the tray are turned and welded into a ten-cell breach. They fill it exactly, with no red hatching, and the board calls out Flawless.",
+            alt: "Two plates from the tray are turned and welded into a ten-cell breach. They fill it exactly, with no red crosses, and the board calls out Flawless.",
             caption: `Both plates were in the tray before the first went down. ${two} cells, two plates, ${pays(two, "flawless")} points.`,
           },
         },
@@ -167,12 +167,12 @@ export const plating: Guide = {
         },
         {
           title: `Count to ${word(c.growAfterMoves)}`,
-          body: `Each breach counts the plates laid elsewhere since you last touched it. At ${c.growAfterMoves} it widens, and a widened breach can never be ${label("flawless")}. An amber rim means two plates left. A red rim means the next plate laid elsewhere widens it. So a clean breach waiting for its shape can wait through ${c.growAfterMoves - 1} plates, and any plate laid on it starts the count again.`,
+          body: `Each breach counts the plates laid elsewhere since you last touched it. At ${c.growAfterMoves} it widens, and a widened breach can never be ${label("flawless")}. A thin red rim means two plates left. A thick red rim means the next plate laid elsewhere widens it. So a clean breach waiting for its shape can wait through ${c.growAfterMoves - 1} plates, and any plate laid on it starts the count again.`,
           media: {
             kind: "clip",
             name: "widen",
-            alt: "One breach pulses with a red rim. A plate is welded onto a different breach, the board calls out A breach widened and the red-rimmed breach gains a cell.",
-            caption: "The red rim was the warning. One more plate elsewhere and the breach widens.",
+            alt: "One breach has a thick red rim. A plate is welded onto a different breach, the board calls out A breach widened and the red-rimmed breach gains a cell.",
+            caption: "The thick red rim was the warning. One more plate elsewhere and the breach widens.",
           },
         },
         {
@@ -184,7 +184,7 @@ export const plating: Guide = {
           body: "Most plates show one brushing for each way they can lie. These three do not. An X plate looks the same after a quarter turn, and a V or a W covers the same cells after a turn and a flip. Whatever cells they cover, they can cover them brushed across.",
         },
       ],
-      drill: `Call the streak count out loud before every seal, and call each breach's count when its rim turns amber. You are there when a round passes ${p.thresholds[4]!.score} points.`,
+      drill: `Call the streak count out loud before every seal, and call each breach's count when its rim turns red. You are there when a round passes ${p.thresholds[4]!.score} points.`,
     },
   ],
   mistakes: [
@@ -192,6 +192,6 @@ export const plating: Guide = {
     "**Fearing waste on a spoiled breach.** After the first wasted cell, waste is free. Plates are not.",
     "**Ignoring the brushing.** One plate lying up and down takes the bonus off the whole breach.",
     "**Dumping a misfit on a clean breach.** It was your next Flawless. The scrap breach is there for that.",
-    `**Starving a clean breach.** ${word(c.growAfterMoves).replace(/^./, (ch) => ch.toUpperCase())} plates elsewhere and it widens. Watch for the amber rim.`,
+    `**Starving a clean breach.** ${word(c.growAfterMoves).replace(/^./, (ch) => ch.toUpperCase())} plates elsewhere and it widens. Watch for the thin red rim.`,
   ],
 };

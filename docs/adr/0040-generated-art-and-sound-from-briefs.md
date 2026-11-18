@@ -3,6 +3,10 @@
 Status: Accepted. Builds on [0031](./0031-shared-puzzle-sprite-atlases.md) and
 [0037](./0037-prototype-sprite-atlases.md). [0041](./0041-sampled-sounds-over-synthesized-cues.md)
 supersedes decision 5's last sentence: the boards play the kept sounds.
+[0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) retires this pipeline over
+milestone M10, a puzzle at a time for sprites and at the sound pass for sounds.
+
+[0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded all of it at M10's sixth step: the sound script, the sound briefs and the `puzzle-sounds` skill are removed, as the sprite half was at the fifth.
 
 ## Context
 

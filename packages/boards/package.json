@@ -10,18 +10,22 @@
       "default": "./src/index.ts"
     },
     "./styles.css": "./src/styles.css",
-    "./vite": {
-      "types": "./build/atlases.d.ts",
-      "default": "./build/atlases.js"
+    "./look": {
+      "types": "./src/look/tokens.ts",
+      "default": "./src/look/tokens.ts"
     },
-    "./pack": {
-      "types": "./build/pack.d.ts",
-      "default": "./build/pack.js"
+    "./cues": {
+      "types": "./src/cues.ts",
+      "default": "./src/cues.ts"
+    },
+    "./audio": {
+      "types": "./src/audio.ts",
+      "default": "./src/audio.ts"
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit && tsc --noEmit -p build",
-    "build": "tsc --noEmit && tsc --noEmit -p build",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
     "test": "echo \"boards has no unit tests; the studio smoke drives every board\"",
     "lint": "echo no lint"
   },
@@ -37,12 +41,10 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    "@types/node": "^22.20.5",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "sharp": "^0.35.5",
     "typescript": "~5.9.3",
     "vite": "^7.1.0"
   }

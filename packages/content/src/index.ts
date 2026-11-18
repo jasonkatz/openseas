@@ -39,7 +39,6 @@ import {
   type PlatingContent,
   type GunneryContent,
   type NavigationContent,
-  type PieceStyle,
   type RatingTier,
   type EnginesContent,
   type SwordfightContent,
@@ -212,8 +211,7 @@ export function contentProblems(content: Content): string[] {
         ids.add(p.id);
       }
     }
-    const hexes = new Set(c.colors.map((x) => x.hex));
-    if (hexes.size !== c.colors.length) problems.push("crews: two flag colors share a hex");
+    if (new Set(c.colors.map((x) => x.color)).size !== c.colors.length) problems.push("crews: two flag colors name the same palette color");
     const problem = crewFlagProblem(c, c.defaultFlag);
     if (problem) problems.push(`crews: defaultFlag ${problem}`);
   }
@@ -227,7 +225,7 @@ export function contentProblems(content: Content): string[] {
         ids.add(x.id);
       }
     }
-    if (new Set(p.jackets.map((x) => x.hex)).size !== p.jackets.length) problems.push("pirates: two jackets share a hex");
+    if (new Set(p.jackets.map((x) => x.color)).size !== p.jackets.length) problems.push("pirates: two jackets name the same palette color");
     const puzzleIds = new Set<string>(Object.keys(puzzles));
     const seen = new Set<string>();
     for (const t of p.titles) {
@@ -249,7 +247,11 @@ export function contentProblems(content: Content): string[] {
   for (const id of Object.keys(puzzles) as PuzzleContentId[]) {
     const p = puzzles[id];
     const where = `puzzles/${id}`;
-    if ("pieces" in p) checkPieces(where, p.pieces, "pieceKinds" in p.config ? p.config.pieceKinds : "colors" in p.config ? p.config.colors : p.pieces.length, messages, problems);
+    if (id === "cooling") checkShapedPieces(where, puzzles.cooling.pieces, puzzles.cooling.config.pieceKinds, messages, problems);
+    else if (id === "engines") checkShapedPieces(where, puzzles.engines.pieces, puzzles.engines.config.pieceKinds, messages, problems);
+    else if (id === "gunnery") checkGunneryPieces(where, puzzles.gunnery.pieces, messages, problems);
+    else if (id === "plating") checkPlatingPieces(where, puzzles.plating.pieces, puzzles.plating.config.pieceKinds, messages, problems);
+    else if (id === "swordfight") checkSwordPieces(where, puzzles.swordfight.pieces, puzzles.swordfight.config.colors, messages, problems);
     for (const problem of thresholdProblems(p.thresholds, "parScore" in p ? p.parScore : undefined)) problems.push(`${where}: ${problem}`);
     need(`home.practice_${id}`, where);
     need(`home.practice_${id}_blurb`, where);
@@ -296,14 +298,15 @@ export function contentProblems(content: Content): string[] {
     if (nav.config.maxTick * nav.config.tickMs < nav.roundSeconds * 1000) problems.push("puzzles/navigation: maxTick * tickMs must cover roundSeconds");
     if (nav.config.fallTicksMin > nav.config.fallTicks) problems.push("puzzles/navigation: fallTicksMin above fallTicks");
     if (nav.config.maxStars > nav.config.rings * nav.config.octants) problems.push("puzzles/navigation: maxStars exceeds the chart's slots");
+    // A star's outline is its shape, so the cut-out is all that tells two colours apart with the colour taken away (rule 6).
     const seenColor = new Set<string>();
-    const seenMark = new Set<string>();
+    const seenCut = new Set<string>();
     for (const c of nav.colors) {
       need(c.nameKey, "navigation color");
       if (seenColor.has(c.color)) problems.push(`puzzles/navigation: color "${c.color}" used twice`);
-      if (seenMark.has(c.mark)) problems.push(`puzzles/navigation: mark "${c.mark}" used twice; every color must differ by mark (rule 6)`);
+      if (seenCut.has(c.cut)) problems.push(`puzzles/navigation: cut-out "${c.cut}" used twice; every color must have a cut-out of its own (rule 6)`);
       seenColor.add(c.color);
-      seenMark.add(c.mark);
+      seenCut.add(c.cut);
     }
     const seenShape = new Set<string>();
     for (const sh of nav.shapes) {
@@ -315,20 +318,61 @@ export function contentProblems(content: Content): string[] {
   return problems;
 }
 
-/** Every kind must differ by mark, color, and texture so pieces stay apart without color (rule 6). */
-function checkPieces(where: string, pieces: ReadonlyArray<Pick<PieceStyle, "nameKey" | "mark" | "color"> & { texture: string }>, kinds: number, messages: Record<string, string>, problems: string[]): void {
+/** Every Cooling and Engines kind must have a shape and a colour of its own: the shape is what tells kinds apart (rule 6). */
+function checkShapedPieces(where: string, pieces: ReadonlyArray<{ nameKey: string; shape: string; color: string }>, kinds: number, messages: Record<string, string>, problems: string[]): void {
   if (pieces.length < kinds) problems.push(`${where}: ${kinds} kinds but only ${pieces.length} piece definitions`);
-  const marks = new Set<string>();
+  const shapes = new Set<string>();
   const colors = new Set<string>();
-  const textures = new Set<string>();
   for (const p of pieces) {
     if (!(p.nameKey in messages)) problems.push(`${where}: missing message key "${p.nameKey}"`);
-    if (marks.has(p.mark)) problems.push(`${where}: mark "${p.mark}" used twice; every kind must differ by mark (rule 6)`);
+    if (shapes.has(p.shape)) problems.push(`${where}: shape "${p.shape}" used twice; every kind must differ by shape (rule 6)`);
     if (colors.has(p.color)) problems.push(`${where}: color "${p.color}" used twice`);
-    if (textures.has(p.texture)) problems.push(`${where}: texture "${p.texture}" used twice; every kind must differ by texture`);
-    marks.add(p.mark);
+    shapes.add(p.shape);
     colors.add(p.color);
-    textures.add(p.texture);
+  }
+}
+
+/** Gunnery's four kinds are the engine's, in its order, each in a colour of its own: the shape is what tells kinds apart (rule 6). */
+function checkGunneryPieces(where: string, pieces: ReadonlyArray<{ nameKey: string; shape: string; color: string }>, messages: Record<string, string>, problems: string[]): void {
+  const order = ["cell", "sabot", "slug", "coolant"];
+  const colors = new Set<string>();
+  pieces.forEach((p, kind) => {
+    if (!(p.nameKey in messages)) problems.push(`${where}: missing message key "${p.nameKey}"`);
+    if (p.shape !== order[kind]) problems.push(`${where}: piece ${kind} must be drawn as "${order[kind]}", the engine's kind ${kind}`);
+    if (colors.has(p.color)) problems.push(`${where}: color "${p.color}" used twice`);
+    colors.add(p.color);
+  });
+}
+
+/** Every Plating metal must have a cut-out and a colour of its own: the cut-out is what tells metals apart (rule 6). */
+function checkPlatingPieces(where: string, pieces: ReadonlyArray<{ nameKey: string; cut: string; color: string }>, kinds: number, messages: Record<string, string>, problems: string[]): void {
+  if (pieces.length < kinds) problems.push(`${where}: ${kinds} kinds but only ${pieces.length} piece definitions`);
+  const cuts = new Set<string>();
+  const colors = new Set<string>();
+  for (const p of pieces) {
+    if (!(p.nameKey in messages)) problems.push(`${where}: missing message key "${p.nameKey}"`);
+    if (cuts.has(p.cut)) problems.push(`${where}: cut "${p.cut}" used twice; every metal must differ by its cut-out (rule 6)`);
+    if (colors.has(p.color)) problems.push(`${where}: color "${p.color}" used twice`);
+    cuts.add(p.cut);
+    colors.add(p.color);
+  }
+}
+
+/**
+ * Every Swordfighting colour must have a cut-out and a colour of its own: blocks fuse, so the cut-out
+ * is what tells colours apart (rule 6). Stone is slate, so no block may be.
+ */
+function checkSwordPieces(where: string, pieces: ReadonlyArray<{ nameKey: string; cut: string; color: string }>, kinds: number, messages: Record<string, string>, problems: string[]): void {
+  if (pieces.length < kinds) problems.push(`${where}: ${kinds} colors but only ${pieces.length} piece definitions`);
+  const cuts = new Set<string>();
+  const colors = new Set<string>();
+  for (const p of pieces) {
+    if (!(p.nameKey in messages)) problems.push(`${where}: missing message key "${p.nameKey}"`);
+    if (cuts.has(p.cut)) problems.push(`${where}: cut "${p.cut}" used twice; every color must differ by its cut-out (rule 6)`);
+    if (colors.has(p.color)) problems.push(`${where}: color "${p.color}" used twice`);
+    if (p.color === "slate") problems.push(`${where}: slate is stone's color; no block may wear it`);
+    cuts.add(p.cut);
+    colors.add(p.color);
   }
 }
 

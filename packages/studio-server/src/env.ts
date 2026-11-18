@@ -59,16 +59,16 @@ const EnvSchema = z.object({
   STUDIO_SPEND_CAP_USD: z.coerce.number().positive().optional(),
   /** The unix user the agent's processes run as. Made at startup if it is not there, which takes root. */
   STUDIO_AGENT_USER: z.string().regex(/^[a-z_][a-z0-9_-]*$/).default("studio-agent"),
-  /** The keys the generation scripts' APIs are paid with (ADR 0040). They stay in this process: the scripts reach the APIs through the proxy, which meters them (ADR 0059). */
+  /** The keys the image and sound APIs are paid with, open to the chat for work that lands nothing generated in the game (ADR 0062 decision 6). They stay in this process: the agent reaches the APIs through the proxy, which meters them (ADR 0059). */
   OPENAI_API_KEY: Optional,
   ELEVENLABS_API_KEY: Optional,
   /** US dollars one ElevenLabs credit costs on the owner's plan: the plan's price over its credits. Unset, a credit is counted at the overage rate. */
   ELEVENLABS_USD_PER_CREDIT: z.coerce.number().positive().optional(),
   /**
-   * Takes (ADR 0051): an S3-compatible bucket, on Railway. All four of the endpoint, the bucket's
-   * name and its two keys must be set for the service to keep takes; with any missing the chat
-   * still makes them in the draft's worktree and the panels list none. The keys stay in this
-   * process: nothing of the bucket is in the agent's shell.
+   * The takes kept from before (ADR 0051): an S3-compatible bucket, on Railway. All four of the
+   * endpoint, the bucket's name and its two keys must be set for the service to serve a kept take
+   * by its hash; with any missing it serves none. Nothing is written to the bucket now (ADR 0062,
+   * ADR 0064). The keys stay in this process: nothing of the bucket is in the agent's shell.
    */
   STUDIO_BUCKET_ENDPOINT: Optional,
   STUDIO_BUCKET_NAME: Optional,

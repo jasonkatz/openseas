@@ -1,13 +1,13 @@
 {
   "jackets": [
-    { "id": "navy", "hex": "#2f4b8f", "nameKey": "pirate.jacket.navy" },
-    { "id": "crimson", "hex": "#9b2a2f", "nameKey": "pirate.jacket.crimson" },
-    { "id": "forest", "hex": "#2f6a3c", "nameKey": "pirate.jacket.forest" },
-    { "id": "plum", "hex": "#5d3470", "nameKey": "pirate.jacket.plum" },
-    { "id": "ochre", "hex": "#b07a26", "nameKey": "pirate.jacket.ochre" },
-    { "id": "slate", "hex": "#58636e", "nameKey": "pirate.jacket.slate" },
-    { "id": "teal", "hex": "#1f7473", "nameKey": "pirate.jacket.teal" },
-    { "id": "pitch", "hex": "#26252b", "nameKey": "pirate.jacket.pitch" }
+    { "id": "navy", "color": "sky", "nameKey": "pirate.jacket.navy" },
+    { "id": "crimson", "color": "brick", "nameKey": "pirate.jacket.crimson" },
+    { "id": "forest", "color": "moss", "nameKey": "pirate.jacket.forest" },
+    { "id": "plum", "color": "plum", "nameKey": "pirate.jacket.plum" },
+    { "id": "ochre", "color": "sand", "nameKey": "pirate.jacket.ochre" },
+    { "id": "slate", "color": "slate", "nameKey": "pirate.jacket.slate" },
+    { "id": "teal", "color": "teal", "nameKey": "pirate.jacket.teal" },
+    { "id": "pitch", "color": "olive", "nameKey": "pirate.jacket.pitch" }
   ],
   "headgear": [
     { "id": "bubble-helmet", "nameKey": "pirate.headgear.bubble_helmet" },

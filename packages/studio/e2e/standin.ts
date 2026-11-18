@@ -13,8 +13,8 @@ export interface Numbers {
   roundSeconds: number | null;
   paceSeconds: number | null;
   thresholds: null;
-  /** Left out, the draft is one kept before picks. */
-  picks?: { sprites: Record<string, string>; sounds: Record<string, string> };
+  /** Only for a row kept before ADR 0062, which may carry the takes it picked for frames and cues (ADR 0063, ADR 0064). The page sends none. */
+  picks?: { sounds?: Record<string, string>; sprites?: Record<string, string> };
   /** Left out, the draft is one kept before words (ADR 0057). */
   words?: { texts: Record<string, string>; category: string | null };
 }
@@ -26,7 +26,7 @@ export interface Save {
   behind: boolean;
   /** Left out, the service is one from before the chat's edits counted toward a Save. */
   edits?: boolean;
-  /** Left out, the service is one from before a failed pick was named (ADR 0053). */
+  /** Left out, the service is one from before an error said what it was about. */
   detail?: string | null;
 }
 export interface Draft {
@@ -56,20 +56,6 @@ export type Item = { id: number; turn: number; at: string } & (
 );
 type Line<K extends Item["kind"]> = Omit<Extract<Item, { kind: K }>, "id" | "turn" | "at" | "kind">;
 
-/** A take as the stand-in keeps it: what the service lists, and the bytes it serves under the hash. */
-export interface StandinTake {
-  hash: string;
-  kind: "sprite" | "sound";
-  puzzle: string;
-  name: string;
-  draft: string | null;
-  take: number | null;
-  prompt?: string;
-  body: Buffer;
-  contentType: string;
-}
-
-/** A chat as the stand-in keeps it (ADR 0060): its lines, whether a turn runs, the words of the reply being written, and the money. */
 export interface StandinChat {
   id: string;
   puzzle: string;
@@ -102,8 +88,6 @@ export interface Service {
   drafts: Draft[];
   /** The tester links Save made. */
   links: Array<{ id: string; puzzle: string; name: string }>;
-  /** The takes the service keeps (ADR 0051); a test adds to them as a turn of the chat would. */
-  takes: StandinTake[];
   /** How the Save or update now being written ends, when the test says so: the stand-in holds it at `saving` until then. */
   finish(id: string, save: Partial<Save>): void;
   /** Every request that would change a draft, as `METHOD path`, with its body. */
@@ -115,7 +99,7 @@ export interface Service {
 }
 
 /** A stand-in service: one owner (or nobody), and the drafts the test gives it, kept as the real one keeps them. */
-export async function service(page: Page, o: { login: string | null; drafts?: Draft[]; save?: boolean; chat?: boolean; takes?: StandinTake[]; picks?: boolean; words?: boolean }): Promise<Service> {
+export async function service(page: Page, o: { login: string | null; drafts?: Draft[]; save?: boolean; chat?: boolean; words?: boolean }): Promise<Service> {
   const fresh = (over: Partial<StandinChat> & { id: string }): StandinChat => ({ puzzle: "cooling", title: "Chat", draft: "draftdraft", items: [], running: false, turn: 0, live: "", spentUsd: 0, updatedAt: "2026-11-14T12:00:00.000Z", made: true, ...over });
   /** Line ids run across every chat, as the service's do. */
   let lines = 0;
@@ -139,7 +123,6 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
     },
     drafts: [...(o.drafts ?? [])],
     links: [],
-    takes: [...(o.takes ?? [])],
     writes: [],
     calls: [],
     fail: null,
@@ -155,22 +138,12 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
     const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", headers: cors, body: JSON.stringify(body) });
     if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { ...cors, "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS" } });
     s.calls.push(`${req.method()} ${url.pathname}`);
-    if (url.pathname === "/auth/me") return json(200, { login: o.login, signIn: true, dev: false, ...(o.save === undefined ? {} : { save: o.save }), ...(o.chat === undefined ? {} : { chat: o.chat }), ...(o.takes === undefined ? {} : { takes: true }), ...(o.picks === undefined ? {} : { picks: o.picks }), ...(o.words === undefined ? {} : { words: o.words }) });
+    if (url.pathname === "/auth/me") return json(200, { login: o.login, signIn: true, dev: false, ...(o.save === undefined ? {} : { save: o.save }), ...(o.chat === undefined ? {} : { chat: o.chat }), ...(o.words === undefined ? {} : { words: o.words }) });
     if (url.pathname === "/auth/sign-out") {
       o.login = null;
       return json(200, { ok: true });
     }
-    // A take is anyone's who has its hash.
-    const hash = /^\/takes\/([0-9a-f]{64})$/.exec(url.pathname)?.[1];
-    if (hash) {
-      const take = s.takes.find((t) => t.hash === hash);
-      return take ? route.fulfill({ status: 200, contentType: take.contentType, headers: { "Access-Control-Allow-Origin": "*" }, body: take.body }) : json(404, { error: "not_found" });
-    }
     if (!o.login) return json(401, { error: "unauthorized" });
-    if (url.pathname === "/takes")
-      return json(200, {
-        takes: s.takes.filter((t) => t.puzzle === url.searchParams.get("puzzle")).map((t) => ({ hash: t.hash, kind: t.kind, puzzle: t.puzzle, name: t.name, bytes: t.body.length, prompt: t.prompt ?? null, draft: t.draft, take: t.take, createdAt: "2026-11-15T12:00:00.000Z" })),
-      });
     const link = (l: Service["links"][number]) => ({ ...l, author: o.login, draft: numbers(), createdAt: "2026-11-13T12:00:00.000Z", withdrawn: false });
     if (url.pathname === "/links") return json(200, { links: s.links.filter((l) => l.puzzle === url.searchParams.get("puzzle")).map(link) });
     const parts = /^\/drafts\/([^/]+)(?:\/(save|update|chat))?$/.exec(url.pathname);
@@ -279,9 +252,7 @@ export async function service(page: Page, o: { login: string | null; drafts?: Dr
       const body = req.postDataJSON() as { numbers: Numbers; revision: number };
       if (body.revision !== found.revision) return json(409, { error: "conflict" });
       found.numbers = body.numbers;
-      // A service older than picks keeps none of what it is sent.
-      if (!o.picks) delete found.numbers.picks;
-      // Nor does one older than words.
+      // A service older than words keeps none of what it is sent.
       if (!o.words) delete found.numbers.words;
       found.revision += 1;
       return json(200, found);

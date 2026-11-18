@@ -668,9 +668,6 @@
   display: flex;
   flex-direction: column;
 }
-.panel-body > [data-mode-panel] > .assets {
-  flex: 1 1 auto;
-}
 .panel-sec {
   display: grid;
   gap: 8px;
@@ -739,8 +736,7 @@
   height: 6px;
   border-radius: 50%;
 }
-.is-changed > .num-label .num-dot,
-.is-changed .cue-name .num-dot {
+.is-changed > .num-label .num-dot {
   background: var(--st-mark);
 }
 /* Colour and the dot, never weight: a heavier word is a wider one, and can take a line more. */
@@ -771,9 +767,7 @@
 .num-row.is-refused {
   box-shadow: -9px 0 0 -6px var(--st-danger);
 }
-.num-row.is-flash,
-.asset-tile.is-flash,
-.cue.is-flash {
+.num-row.is-flash {
   animation: st-flash 1.3s ease-out;
 }
 @keyframes st-flash {
@@ -967,270 +961,12 @@
   white-space: nowrap;
 }
 
-/* ---- the sprite and sound panels (ADR 0050): a grid of frames or a list of cues, and the one picked out */
-.asset-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
-  gap: 6px;
-}
-.asset-tile {
-  position: relative;
-  display: grid;
-  place-items: center;
-  aspect-ratio: 1;
-  padding: 2px;
-  border: 1px solid var(--st-line);
-  border-radius: 8px;
-  background: #232a3d;
-  cursor: pointer;
-}
-.asset-tile:hover {
-  border-color: var(--st-line-strong);
-}
-.asset-tile[aria-pressed="true"] {
-  border-color: var(--st-accent);
-  box-shadow: 0 0 0 1px var(--st-accent);
-}
-.asset-tile.is-changed::after {
-  content: "";
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--st-mark);
-}
-.asset-view {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 96px;
-  height: 96px;
-  border-radius: 8px;
-  background: #232a3d;
-}
-.asset-view-board {
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
-}
-/* The page's legend is laid out for the details sheet's grid; here it is one block in a column. */
-.asset-legend .legend {
-  grid-area: auto;
-}
-
-/* The one frame or cue picked out (ADR 0050 to 0052), held at the foot of its panel while the list
-   scrolls under it. Every part of it has a height of its own that nothing it says can change: what
-   is picked, tried or refused is written into places kept for it, so a tap moves nothing. */
-.assets {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-}
-.inspector {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  margin-top: auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-  padding: 12px 16px 14px;
-  border-top: 1px solid var(--st-line-strong);
-  background: var(--st-raised);
-  box-shadow: 0 -8px 16px rgba(0, 0, 0, 0.28);
-}
-.insp-sprite {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 12px;
-}
-.insp-main {
-  display: grid;
-  grid-template-rows: 26px minmax(0, 1fr) 36px;
-  min-width: 0;
-  height: 96px;
-}
-.insp-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  height: 26px;
-}
-.st .insp-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--st-fg);
-}
-.insp-reset {
-  flex: none;
-  width: 20px;
-  height: 20px;
-}
-/* Two lines, always: a longer word is cut, and read whole in its title. */
-.st .insp-status {
-  height: 2.7em;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  font-size: 11.5px;
-  line-height: 1.35;
-  color: var(--st-muted);
-  overflow-wrap: anywhere;
-}
-.st .insp-status.tune-refusal {
-  color: var(--st-danger);
-}
-.insp-board {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--st-faint);
-}
-/* The versions to pick from: what the build ships, each take, a file being tried, and the way to try one. */
-.versions {
-  display: flex;
-  gap: 6px;
-}
-.versions.is-tiles {
-  height: 76px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-}
-.versions-takes {
-  display: contents;
-}
-.versions.is-chips {
-  flex-wrap: wrap;
-  align-content: flex-start;
-  height: 58px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-.asset-take {
-  flex: none;
-  display: grid;
-  grid-template-rows: 40px 14px;
-  justify-items: center;
-  align-items: center;
-  gap: 3px;
-  width: 62px;
-  height: 66px;
-  padding: 4px 2px;
-  border: 1px solid var(--st-line-strong);
-  border-radius: 8px;
-  background: #232a3d;
-  color: var(--st-muted);
-  font: inherit;
-  font-size: 10.5px;
-  line-height: 14px;
-  cursor: pointer;
-}
-.asset-take > span:last-child {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.asset-take img {
-  border-radius: 4px;
-  object-fit: contain;
-}
-.asset-take-art {
-  display: grid;
-  place-items: center;
-}
-.asset-take:hover {
-  border-color: var(--st-muted);
-  color: var(--st-fg);
-}
-.asset-take[aria-pressed="true"],
-.chip-pick[aria-pressed="true"] {
-  border-color: var(--st-accent);
-  box-shadow: inset 0 0 0 1px var(--st-accent);
-  background: var(--st-accent-soft);
-  color: var(--st-accent-text);
-}
-.chip-pick {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  max-width: 100%;
-  height: 26px;
-  padding: 0 10px 0 8px;
-  border: 1px solid var(--st-line-strong);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--st-fg);
-  font: inherit;
-  font-size: 12px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.chip-pick > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.chip-pick:hover {
-  background: var(--st-hover);
-}
-.action-icon {
-  flex: none;
-}
-/* What can be done to it: a mark over a word, side by side. */
-.insp-actions {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: 6px;
-}
-.insp-action {
-  display: grid;
-  justify-items: center;
-  gap: 3px;
-  min-width: 0;
-  height: 46px;
-  padding: 7px 2px 0;
-  align-content: start;
-  border: 1px solid var(--st-line-strong);
-  border-radius: var(--st-r-btn);
-  background: transparent;
-  color: var(--st-fg);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 14px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.insp-action:hover {
-  background: var(--st-hover);
-  border-color: var(--st-muted);
-}
-.insp-action .action-icon {
-  color: var(--st-accent-text);
-}
-
-/* The cues: a row each, all of one height, the one picked out tinted. */
-.cue-list {
-  display: grid;
-  gap: 1px;
-  margin: 0 -8px;
-}
+/* ---- the Sounds list (ADR 0062): a puzzle's cues, each with a button that plays it */
 .cue {
+  margin: 0 -6px;
+  border-radius: var(--st-r);
+}
+.cue-head {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
@@ -1238,13 +974,6 @@
   height: 30px;
   padding: 0 8px;
   border-radius: var(--st-r);
-}
-.cue:hover {
-  background: var(--st-hover);
-}
-.cue.is-open {
-  background: var(--st-accent-soft);
-  box-shadow: inset 2px 0 0 var(--st-accent);
 }
 .cue-play {
   flex: none;
@@ -1263,30 +992,13 @@
   border-color: var(--st-accent);
   color: var(--st-accent-text);
 }
-.cue-play.is-big {
-  width: 26px;
-  height: 26px;
-  border-color: var(--st-accent-bg);
-  background: var(--st-accent-bg);
-  color: var(--st-accent-ink);
-}
-.cue-play.is-big:hover {
-  background: #258380;
-  color: var(--st-accent-ink);
-}
 .cue-name {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: 3px 0;
   color: var(--st-fg);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
 }
 .cue-name code {
   min-width: 0;
@@ -1298,9 +1010,6 @@
   margin-left: auto;
   font-size: 11px;
   color: var(--st-faint);
-}
-.cue.is-changed .cue-voice {
-  color: var(--st-mark-text);
 }
 
 /* ---- the board, in the middle */

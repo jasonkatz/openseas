@@ -13,7 +13,7 @@ import {
 } from "@openseas/engine";
 import { NavigationBoard, StarIcon, content, sfx, t, useTicked } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { NAVIGATION } from "../puzzles.js";
 
@@ -30,7 +30,6 @@ function readMarkersFlag(): boolean {
 }
 
 export function NavigationPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
   const [showMarkers, setShowMarkersState] = useState(readMarkersFlag);
 
   const setShowMarkers = (on: boolean): void => {
@@ -71,8 +70,8 @@ export function NavigationPractice() {
           break;
         case "charted":
           sfx.clear(e.completion.chain, e.completion.markers.length);
-          if (e.completion.chain >= 3) sfx.streak(e.completion.chain);
-          if (e.completion.efficient) sfx.slag();
+          // Swift charting and a chain at its top are the beat, which has one sound of its own (the board asks for it).
+          if (e.completion.chain >= 3 && !e.completion.efficient && e.completion.chain !== cfg.chainPercent.length) sfx.streak(e.completion.chain);
           break;
         case "run":
           sfx.multi(e.run.slots.length - 1);
@@ -84,14 +83,14 @@ export function NavigationPractice() {
           break;
       }
     }
-  }, []);
+  }, [cfg.chainPercent.length]);
 
   const colors = navigation.colors.slice(0, shown.config.colors);
   const shapes = navigation.shapes.slice(0, shown.config.shapes);
   const starOf = (kind: number, size: number, hollow = false) => {
     const c = colors[navigationColorOf(shown.config, kind)]!;
     const s = shapes[navigationShapeOf(shown.config, kind)]!;
-    return <StarIcon shape={s.shape} color={c.color} mark={showMarks ? c.mark : null} hollow={hollow} size={size} />;
+    return <StarIcon shape={s.shape} color={c.color} cut={c.cut} hollow={hollow} size={size} />;
   };
   const filled = shown.markers.filter((m) => navigationMarkerFilled(shown, m)).length;
   const total = shown.markers.length;
@@ -166,7 +165,7 @@ export function NavigationPractice() {
           <ul className="kinds">
             {colors.map((c) => (
               <li key={c.nameKey}>
-                <StarIcon shape="star" color={c.color} mark={showMarks ? c.mark : null} />
+                <StarIcon shape="star" color={c.color} cut={c.cut} />
                 <span>{t(c.nameKey)}</span>
               </li>
             ))}
@@ -174,14 +173,14 @@ export function NavigationPractice() {
           <ul className="kinds">
             {shapes.map((s) => (
               <li key={s.nameKey}>
-                <StarIcon shape={s.shape} color="#efe3c6" />
+                <StarIcon shape={s.shape} color="cream" cut={null} />
                 <span>{t(s.nameKey)}</span>
               </li>
             ))}
           </ul>
           <ul className="kinds">
             <li>
-              <StarIcon shape="star" color={colors[0]!.color} hollow />
+              <StarIcon shape="star" color={colors[0]!.color} cut={colors[0]!.cut} hollow />
               <span>{t("navigation.legend_marker")}</span>
             </li>
           </ul>
@@ -193,15 +192,12 @@ export function NavigationPractice() {
               {t("navigation.setting_markers")} <small className="muted">{t("navigation.setting_markers_hint")}</small>
             </span>
           </label>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
       board={(interactive) => (
         <NavigationBoard
-         
           state={shown}
           interactive={interactive}
-          showMarks={showMarks}
           showMarkers={showMarkers}
           hints={studio.hints}
           onRotate={onRotate}

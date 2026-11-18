@@ -26,8 +26,9 @@ carries it, the identifier.
 3. **Nothing from Puzzle Pirates** (CLAUDE.md rule 3). New words also avoid terms other well-known
    games and shows coined (no "Reavers", no "Star Wolf").
 4. **Rule 6 still holds.** Every kind, look, emblem and figure reads apart without color.
-5. **Piece names follow the art.** The owner's sprite pass drew each piece as what it is named, so
-   the names stand. New art that draws a piece as something else renames it here.
+5. **Piece names follow the art.** Each piece is drawn in code as what it is named (`BRAND.md`
+   section 3, ADR 0062), so the names stand. A drawing that makes a piece something else renames
+   it here.
 6. **Anything not listed** follows these rules. The PR that renames it adds it here.
 
 ## The setting
@@ -275,7 +276,7 @@ brackets.
 | fields of grain by the windmill | solar panels by the dish |
 | a model ship over the shipwright's door, timber stacked beside it | a little rocket over the shipyard's door, hull plates stacked beside it |
 | the tavern's timber frame, gabled roof and chimney smoke | the cantina's ribbed panels, barrel roof of tin, round ports and vent stack steam |
-| the flag on its pole that marks where you are on the chart | a brass diamond turning over a pylon |
+| the flag on its pole that marks where you are on the chart | an amber diamond turning over a pylon |
 | — | warning lamps along the rim's lip |
 | — | the rock's underside, hanging below the rim |
 
@@ -299,7 +300,7 @@ plaza → the pad (still `plaza` in the layout code); chimney smoke → steam.
 | wide brim | wide brim | `wide-brim` |
 | round cap | flight cap | `round-cap` → `flight-cap` |
 | stocking cap | beanie | `stocking-cap` → `beanie` |
-| captain's plume | captain's crest: a brass band and a red blade standing fore and aft | `plume` → `crest` |
+| captain's plume | captain's crest: a band and a cream blade standing fore and aft | `plume` → `crest` |
 | a coat flaring at the hem, with a belt and buckle | a short jacket with a stand collar, a waistband and a zip | |
 
 How each headgear is drawn, on deck and on the likeness: the bubble helmet is a clear globe on a
@@ -312,7 +313,7 @@ knitted dome with a rolled brim and a bobble.
 | Former | Now | Identifier |
 |---|---|---|
 | sailor (rank) | spacer | `sailor` → `spacer` |
-| Deep sea, Kelp (colors) | Deep space, Moss | `deep` stays; `kelp` → `moss` |
+| Deep sea, Kelp (colors) | Sky (Deep space until M10, when the flag colours took the palette's), Moss | `deep` stays; `kelp` → `moss` |
 | anchor, compass rose, kraken, gull, ship's wheel (emblems) | rocket, ringed planet, satellite, crescent moon, gear | `anchor`, `compass`, `kraken`, `gull`, `wheel` → `rocket`, `planet`, `satellite`, `moon`, `gear` |
 
 The skull, star, crossed swords, crown and flame emblems and every pattern (heraldic) stay.
@@ -401,9 +402,13 @@ The tables above give the identifier for each word. Beyond them:
   columns and stored values take their new names directly (`voyage.route_id` → `lane_id`, the
   ledger's `booty` kind → `plunder`, the look's `coat` and `hat` → `jacket` and `headgear`), and no
   data is mapped.
-- **Sprites**: each atlas is named by its puzzle id (`cooling.webp`, ...) and each frame by the
-  piece's identifier (`bolt`, `turret-jammed`, `tin-h`, ...), and since the owner's sprite pass
-  each frame looks like the piece it names.
+- **Pieces**: each puzzle's pictograms are in a `pieces.ts` beside its renderer, named by the
+  piece's identifier (`bolt`, `crystal`, `drum`, ...). The sprite atlases that once carried those
+  names are gone (ADR 0062).
+- **Cues**: a sound a board plays is a cue, named for what happened (`clear`, `streakLost`,
+  `vent`), defined in `boards/src/cues.ts` and asked for through `sfx`. The beat's is `beat`. The
+  words of the pipeline that once generated sounds (a brief, a take, a pick, a sample) name
+  nothing now (ADR 0062, ADR 0064); `take` survives only as the service's table of those kept.
 - **Tests**: where a test's `mate` was a second pirate rather than a deckhand, it is `crewmate`.
   Fixtures use names the game could deal ("Static Comet", "Gasket-7", "The Rust Comets").
 - **Studio presets**: the message key is the preset's id (`studio.preset.one_injector`,
@@ -414,8 +419,8 @@ The tables above give the identifier for each word. Beyond them:
   - Three puzzle engines' PRNG salts keep their old strings (`bilging:`, `sailing:` and
     `carpentry:` in each `reduce.ts`). A new salt would deal a different board from the same
     seed, and the rename changes no behaviour.
-  - Content `texture` keys (`knurl`, `weave`, `facet`, ...) keep their names: they are data keys,
-    never shown, and each now picks a space part (`knurl` → the cog) in `boards/src/parts.ts`.
+  - Content `texture` keys (`knurl`, `weave`, `facet`, ...) kept their names through the reskin. M10
+    since replaced them, on every board in the game, with the name of a shape or a cut-out (ADR 0062).
   - `SHIP_SINK` keeps its name: how far the hull hangs below the lane plane, so the deck meets the
     boarding tube.
 - **Kept for now**: `openseas`, the package scope `@openseas/*`, the domains and the hosting
@@ -426,7 +431,7 @@ The tables above give the identifier for each word. Beyond them:
 Eight puzzles with no former word: they are new (DESIGN.md 3.12, ADR 0036), in the studio only.
 Their words follow the naming rules above. Each puzzle's own words (its pieces, its callouts) are in
 its design file under `docs/prototypes/` and its message file under
-`content/data/messages/prototypes/`; the sprite pass may rename them if the puzzle is kept.
+`content/data/messages/prototypes/`; promoting a puzzle may rename them.
 
 | Puzzle | Puzzle id | What the player does |
 |---|---|---|

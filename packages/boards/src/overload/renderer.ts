@@ -13,9 +13,10 @@ import {
   type OverloadState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, INK, drawPanel, drawWell, mix } from "../kit/art.js";
+import { MOTION } from "../look/tokens.js";
+import { FONT_MONO, INK, drawDot, mix } from "../kit/art.js";
 import { Grid, KitBoard } from "../kit/board.js";
-import { ease } from "../kit/tween.js";
+import { overloadColor, overloadPaint } from "./pieces.js";
 
 export interface OverloadCallbacks {
   /** The player tapped a capacitor. Returns false when the round did not take the tap. */
@@ -37,7 +38,6 @@ export interface OverloadLabels {
 }
 
 export interface OverloadRendererOptions {
-  showMarks: boolean;
   /** Mark a tap worth making after a pause. Off for recorded rounds. */
   hints: boolean;
   labels: OverloadLabels;
@@ -55,6 +55,7 @@ interface CapView {
   live: boolean;
 }
 
+/** A charge on its way from a burst to a neighbour: one dot, there because the rule needs showing. */
 interface Spark {
   x0: number;
   y0: number;
@@ -72,23 +73,20 @@ const HINT_AFTER_MS = 5000;
 /** After a hinted priming tap, the tap it set up is marked this soon. */
 const HINT_FOLLOW_MS = 1200;
 const LABEL_HOLD_MS = 1300;
-/** Chains this long get a callout and a shake. */
+/** Chains this long are called out, and are the beat. */
 const BIG = 10;
 const HUGE = 20;
+/** The lamp of the tap coming back: amber, turned down. */
+const FILLING = mix(INK.ground, INK.amber, 0.45);
 
-/** One color a charge, as a second cue: the lit parts of the ring carry the count. */
-const CHARGE_COLOR = [0x4a5f86, 0x58c4f6, 0xf5d021, 0xff6b5e, 0xffffff] as const;
-const CASE = 0x1a2942;
-const RIM = 0x4d6b9c;
-const UNLIT = 0x2a3d60;
-const SPARK = 0xfff2c4;
-const LAMP = 0x7fd7ff;
+/** The ring round the player's own tap and the keyboard's cell: 2 units wide, 2 units off the piece. */
+const RING_R = 0.45;
+const RING_W = 0.07;
 
 /** Draws the capacitor bank and turns a tap into a move. Scores nothing: every number it shows is the engine's. */
 export class OverloadRenderer extends KitBoard<OverloadState> {
   private readonly grid = new Grid(6, 7);
   private readonly bg = new Graphics();
-  private readonly glow = new Graphics();
   private readonly capLayer = new Container();
   private readonly sparkLayer = new Graphics();
   private readonly hintLayer = new Graphics();
@@ -96,7 +94,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
   private readonly lamps = new Graphics();
   private label: Text | null = null;
   private labelText = "";
-  private labelColor: number = INK.text;
+  private labelColor: number = INK.cream;
   /** The chain's count stays in the strip until this time. */
   private labelHold = 0;
   private views: CapView[] = [];
@@ -108,7 +106,6 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
   private heldBack = 0;
   private litShown = -1;
   private quietLamps = false;
-  private readonly lampLitAt: number[] = [];
   private refusedAt = -10_000;
   private tickAt = 0;
   private sparks: Spark[] = [];
@@ -125,7 +122,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     private readonly cb: OverloadCallbacks,
     private readonly opts: OverloadRendererOptions,
   ) {
-    super(host, "overload", cb.onFrame, opts.showMarks);
+    super(host, "overload", cb.onFrame);
     this.hints = opts.hints;
   }
 
@@ -134,9 +131,9 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
   }
 
   protected build(): void {
-    this.label = new Text({ text: "", style: { fontFamily: FONT, fontSize: 16, fontWeight: "700", fill: INK.text, letterSpacing: 0.5 } });
+    this.label = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 16, fontWeight: "700", fill: INK.cream }, resolution: 2 });
     this.label.anchor.set(1, 0.5);
-    this.world.addChild(this.bg, this.glow, this.capLayer, this.sparkLayer, this.hintLayer, this.cursorLayer, this.lamps, this.label);
+    this.world.addChild(this.bg, this.capLayer, this.sparkLayer, this.hintLayer, this.cursorLayer, this.lamps, this.label);
   }
 
   protected layout(width: number, height: number): void {
@@ -148,10 +145,10 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     g.fit(width, height, { top: STRIP, margin: 8 });
     const pad = Math.max(4, g.cell * 0.12);
     const strip = g.cell * STRIP;
+    // Bare ground under the strip and the bank, one hairline round it, and a dot where a spent capacitor leaves a gap.
     this.bg.clear();
-    drawPanel(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + pad * 2, Math.max(10, g.cell * 0.28));
-    for (let i = 0; i < g.cols * g.rows; i++) drawWell(this.bg, g.x(i) - g.cell / 2, g.y(i) - g.cell / 2, g.cell);
-    this.bg.roundRect(g.ox, g.oy - Math.max(3, pad * 0.6), g.width, 2, 1).fill({ color: INK.edge, alpha: 0.5 });
+    this.paintGround(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + pad * 2);
+    for (let i = 0; i < g.cols * g.rows; i++) drawDot(this.bg, g.x(i), g.y(i), g.cell);
     if (this.label) {
       this.label.style.fontSize = Math.max(12, Math.round(g.cell * 0.34));
       this.label.position.set(g.ox + g.width - pad * 0.5, g.oy - strip * 0.56);
@@ -174,24 +171,10 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     this.drawCursor();
   }
 
+  /** A capacitor's picture: its outline says plain or booster, its holes count the charge. */
   private texture(charge: number, booster: boolean): Texture {
-    const cell = this.grid.cell;
     const c = Math.max(0, Math.min(OVERLOAD_FULL, charge));
-    // The cell size is in the key: a lab bank of another size is laid out without the cache being dropped.
-    return this.bake(`${cell}:${c}:${booster ? 1 : 0}:${this.showMarks ? 1 : 0}`, cell, (g) => {
-      const r = cell * 0.37;
-      // The sheet's arcs count the charge as the code-drawn ring does; the mark setting adds the digit on a plate.
-      if (!this.sprite(g, `${booster ? "booster" : "charge"}-${c}`, 0, 0, cell * (booster ? 0.915 : 0.84))) {
-        drawCapacitor(g, r, c, booster, this.showMarks);
-        return;
-      }
-      if (!this.showMarks) return;
-      const armed = c >= OVERLOAD_FULL - 1;
-      const core = r * 0.5;
-      g.circle(0, 0, core).fill({ color: armed ? CHARGE_COLOR[c]! : INK.bg });
-      g.circle(0, 0, core).stroke({ width: Math.max(1, r * 0.06), color: INK.white, alpha: 0.6 });
-      drawDigit(g, Math.min(OVERLOAD_FULL - 1, c), core * 0.6, armed ? INK.black : INK.white);
-    });
+    return this.piece(`${booster ? "booster" : "cap"}:${c}`, this.grid.cell, overloadColor(c), overloadPaint(c, booster));
   }
 
   /** Put exactly these capacitors on the bank, each on its cell, with nothing in motion. */
@@ -279,17 +262,15 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
       if (e.type === "tap") {
         const v = this.views[e.cell];
         if (!v) continue;
-        // The charge lands at once: the tap is the player's own.
+        // The charge lands at once, and the tap is ringed in amber: it is the player's own.
         this.setCharge(e.cell, e.charge);
-        this.fx.ring(g.x(e.cell), g.y(e.cell), CHARGE_COLOR[Math.min(OVERLOAD_FULL, e.charge)]!, g.cell * 0.3, g.cell * 0.56, 260, 3);
-        if (e.burst) {
-          v.s.scale.set(1.14);
-          t = 90;
-        } else {
+        this.fx.ring(g.x(e.cell), g.y(e.cell), INK.amber, g.cell * RING_R, g.cell * RING_R, 260, Math.max(2, g.cell * RING_W));
+        if (e.burst) t = 90;
+        else {
           sfx.power((e.charge - 1) / 2);
-          v.s.scale.set(1.24);
-          this.tweens.to(v.s, { scale: 1 }, 180, { ease: ease.outBack });
-          t = 180;
+          v.s.scale.set(0.88);
+          this.tweens.move(v.s, { scale: 1 });
+          t = MOTION.move;
         }
       } else t = this.playChain(state, e, t);
     }
@@ -335,18 +316,16 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
           const v = this.views[c];
           if (v) v.live = false;
         }
-        this.setLabel(L.chain(total, overloadChainValue(cfg, total)), INK.gold);
+        this.setLabel(L.chain(total, overloadChainValue(cfg, total)), INK.cream);
         this.labelHold = this.time + (n - k) * step + LABEL_HOLD_MS;
         if (!live) return;
         for (const c of w.bursts) {
           const boosted = w.boosted.includes(c);
           const x = g.x(c);
           const y = g.y(c);
-          this.fx.burst(x, y, boosted ? INK.brass : CHARGE_COLOR[3], boosted ? 10 : 6, 0.2, 3.2);
-          this.fx.ring(x, y, boosted ? INK.brass : SPARK, g.cell * 0.3, g.cell * (boosted ? 1.3 : 0.82), 300, boosted ? 4 : 3);
           if (this.reduced) continue;
           for (const to of gained) {
-            // A spark flies to each neighbour that took charge from this burst.
+            // The charge is seen to pass: one dot to each neighbour that took it from this burst.
             const dc = Math.abs((to % g.cols) - (c % g.cols));
             const dr = Math.abs(Math.floor(to / g.cols) - Math.floor(c / g.cols));
             if (dc + dr === 1) this.sparks.push({ x0: x, y0: y, x1: g.x(to), y1: g.y(to), age: 0, ms: step * 0.62, double: boosted });
@@ -359,26 +338,17 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
       for (const c of w.bursts) {
         const v = this.views[c];
         if (!v) continue;
-        this.tweens.to(v.s, { scale: 1.55, alpha: 0 }, 170, {
+        // A burst capacitor shrinks to nothing.
+        this.tweens.remove(v.s, {
           delay: at,
-          ease: ease.outCubic,
           done: () => {
             v.s.visible = false;
           },
         });
       }
-      // The charge arrives: the neighbours' rings fill, and one that is full now swells before it goes.
+      // The charge arrives: each neighbour gains a hole, and one that is full now turns cream before it goes.
       this.later(arrive, () => {
-        for (const i of gained) {
-          const v = this.views[i];
-          if (!v) continue;
-          this.setCharge(i, w.charges[i]!);
-          if (w.charges[i]! >= OVERLOAD_FULL) v.s.scale.set(1.14);
-          else {
-            v.s.scale.set(1.16);
-            this.tweens.to(v.s, { scale: 1 }, 110, { ease: ease.outCubic });
-          }
-        }
+        for (const i of gained) this.setCharge(i, w.charges[i]!);
       });
     });
 
@@ -392,24 +362,20 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
       const big = e.size >= BIG;
       const huge = e.size >= HUGE;
       const long = e.size >= cfg.streakMin;
-      this.fx.popup(cx, cy - g.cell * 0.1, `+${e.points}`, INK.gold, Math.max(15, g.cell * (huge ? 0.74 : big ? 0.6 : long ? 0.46 : 0.36)));
+      this.fx.popup(cx, cy - g.cell * 0.1, `+${e.points}`, INK.cream, Math.max(15, g.cell * (huge ? 0.74 : big ? 0.6 : long ? 0.46 : 0.36)));
       const top = e.streak === cfg.streakPercent.length && cfg.streakPercent.length > 1;
+      // The beat is for a long chain, stronger for a longer one, and for a streak brought to its top.
       if (huge) {
-        this.fx.say(L.hugeChain, INK.gold);
-        this.fx.flash(SPARK, 0.22, 320);
-        this.fx.shake(12, 400);
-        sfx.charge();
+        this.fx.say(L.hugeChain);
+        this.beat(1);
       } else if (big) {
-        this.fx.say(L.bigChain, INK.gold);
-        this.fx.flash(SPARK, 0.14, 260);
-        this.fx.shake(7, 280);
-        sfx.thud();
-        sfx.multi(3);
+        this.fx.say(L.bigChain);
+        this.beat(0.5 + Math.min(0.4, (e.size - BIG) * 0.04));
       } else if (top) {
-        this.fx.say(L.streakMax, LAMP);
-        sfx.streak(e.streak);
+        this.fx.say(L.streakMax);
+        this.beat(0.4);
       } else if (long && (e.streak === 3 || e.streak === 6)) {
-        this.fx.say(L.streak(e.streak, e.streakPercent), LAMP);
+        this.fx.say(L.streak(e.streak, e.streakPercent));
         sfx.streak(e.streak);
       } else if (long) sfx.good();
       if (e.brokeStreak) {
@@ -417,12 +383,13 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
         sfx.streakLost();
       }
       if (e.refund > 0) {
-        this.fx.popup(g.ox + g.cell * 1.3, g.oy + g.cell * 0.1, L.refund(e.refund), INK.good, Math.max(14, g.cell * 0.36));
+        // A tap given back is the player's own: amber, like the lamps it lights.
+        this.fx.popup(g.ox + g.cell * 1.3, g.oy + g.cell * 0.1, L.refund(e.refund), INK.amber, Math.max(14, g.cell * 0.36));
         sfx.slag();
       }
     });
 
-    // Fresh capacitors drop into the spent wells.
+    // Fresh capacitors grow into the gaps.
     const tFresh = tEnd + 140;
     const gap = Math.min(28, 220 / Math.max(1, e.fresh.length));
     e.fresh.forEach((f, i) => {
@@ -436,15 +403,15 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
         v.live = true;
         v.s.texture = this.texture(f.charge, f.booster);
         v.s.visible = true;
-        v.s.alpha = 0;
-        v.s.scale.set(0.4);
+        v.s.alpha = 1;
+        v.s.scale.set(0);
       });
-      this.tweens.to(v.s, { scale: 1, alpha: 1 }, 200, { delay: at + 1, ease: ease.outBack });
+      this.tweens.move(v.s, { scale: 1 }, { delay: at + 1 });
     });
     this.later(tFresh, (live) => {
       if (live) sfx.whoosh();
     });
-    return tFresh + e.fresh.length * gap + 210;
+    return tFresh + e.fresh.length * gap + MOTION.move + 10;
   }
 
   protected view(): string {
@@ -453,7 +420,6 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
 
   protected override update(dt: number): void {
     this.drawLamps();
-    this.drawGlow();
     this.drawSparks(dt);
     const state = this.state;
     // The strip's text falls back to the streak once a chain's count has had its moment.
@@ -481,18 +447,18 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     const g = this.grid;
     const x = g.x(this.hint.cell);
     const y = g.y(this.hint.cell);
+    // A hint is cream, never amber: it is the board's advice, not the player's own mark.
     const pulse = this.reduced ? 0.8 : 0.55 + 0.4 * Math.sin(this.time / 240);
-    const r = g.cell * (0.46 + (this.reduced ? 0 : 0.025 * Math.sin(this.time / 240)));
-    this.hintLayer.circle(x, y, r).stroke({ width: Math.max(2.5, g.cell * 0.06), color: INK.white, alpha: pulse });
+    this.hintLayer.circle(x, y, g.cell * RING_R).stroke({ width: Math.max(2, g.cell * RING_W), color: INK.cream, alpha: pulse });
     if (this.hint.prime) {
       // A plus: this tap charges, the next one sets the chain off.
       const a = g.cell * 0.17;
       const w = Math.max(3, g.cell * 0.075);
       const px = x + g.cell * 0.3;
       const py = y - g.cell * 0.3;
-      this.hintLayer.circle(px, py, a * 1.25).fill({ color: INK.bg, alpha: 0.85 });
-      this.hintLayer.roundRect(px - a, py - w / 2, a * 2, w, w / 2).fill({ color: INK.white });
-      this.hintLayer.roundRect(px - w / 2, py - a, w, a * 2, w / 2).fill({ color: INK.white });
+      this.hintLayer.circle(px, py, a * 1.35).fill({ color: INK.ground });
+      this.hintLayer.roundRect(px - a, py - w / 2, a * 2, w, w / 2).fill({ color: INK.cream });
+      this.hintLayer.roundRect(px - w / 2, py - a, w, a * 2, w / 2).fill({ color: INK.cream });
     }
   }
 
@@ -506,7 +472,10 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     this.label.style.fill = color;
   }
 
-  /** The taps held, as lamps: a lit one is a filled disc, the one coming back fills like a dial, the rest are empty sockets. */
+  /**
+   * The taps held, as lamps. A light is a dot: a lit one is amber, because the taps are the player's
+   * own; the one coming back fills like a dial in a duller amber; the rest are empty sockets.
+   */
   private drawLamps(): void {
     const l = this.lamps;
     l.clear();
@@ -516,49 +485,30 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     const cfg = state.config;
     const cap = cfg.tapCap;
     const lit = Math.max(0, Math.min(cap, state.taps - this.heldBack));
-    if (this.litShown >= 0 && lit > this.litShown) {
-      for (let i = this.litShown; i < lit; i++) this.lampLitAt[i] = this.time;
-      // A tap came back on the clock: a soft knock. One a chain gave back has its own chime.
-      if (this.interactive && !this.quietLamps) sfx.swapQuiet();
-    }
+    // A tap came back on the clock: a soft knock. One a chain gave back has its own chime.
+    if (this.litShown >= 0 && lit > this.litShown && this.interactive && !this.quietLamps) sfx.swapQuiet();
     this.litShown = lit;
     this.quietLamps = false;
     const gap = Math.min(g.cell * 0.5, (g.width * 0.56) / cap);
     const r = Math.min(g.cell * 0.19, gap * 0.4);
     const y = g.oy - g.cell * STRIP * 0.56;
     const x0 = g.ox + r + Math.max(2, g.cell * 0.06);
+    // A tap the hand could not pay for: the sockets show danger for a moment.
     const refused = this.time - this.refusedAt < 360;
     // How far along the next tap is, eased between the engine's ticks while the round runs.
     const sub = this.interactive ? Math.min(1, (this.time - this.tickAt) / cfg.tickMs) : 0;
     const filling = this.heldBack === 0 && state.taps < cap ? Math.min(1, (overloadRegenProgress(state) + sub) / cfg.tapRegenTicks) : 0;
     for (let i = 0; i < cap; i++) {
-      const x = x0 + i * gap + (refused && !this.reduced ? Math.sin(this.time / 22 + i) * r * 0.25 : 0);
-      l.circle(x, y, r).fill({ color: INK.well });
-      if (i < lit) {
-        const fresh = Math.max(0, 1 - (this.time - (this.lampLitAt[i] ?? -10_000)) / 420);
-        if (fresh > 0) l.circle(x, y, r * (1.3 + fresh * 0.9)).fill({ color: LAMP, alpha: 0.3 * fresh });
-        l.circle(x, y, r * 0.78).fill({ color: mix(LAMP, INK.white, 0.25 + fresh * 0.5) });
-        l.circle(x - r * 0.2, y - r * 0.24, r * 0.26).fill({ color: INK.white, alpha: 0.6 });
-      } else if (i === lit && filling > 0) {
+      const x = x0 + i * gap;
+      if (i < lit) l.circle(x, y, r * 0.78).fill({ color: INK.amber });
+      else if (i === lit && filling > 0) {
         const a0 = -Math.PI / 2;
         l.moveTo(x, y)
           .arc(x, y, r * 0.78, a0, a0 + Math.PI * 2 * filling)
           .closePath()
-          .fill({ color: LAMP, alpha: 0.5 });
+          .fill({ color: FILLING });
       }
-      l.circle(x, y, r).stroke({ width: Math.max(1.5, r * 0.2), color: refused ? INK.danger : i < lit ? mix(LAMP, INK.black, 0.25) : INK.edge });
-    }
-  }
-
-  /** A capacitor at three is armed: a soft halo breathes under it. */
-  private drawGlow(): void {
-    const g = this.grid;
-    this.glow.clear();
-    for (let i = 0; i < this.views.length; i++) {
-      const v = this.views[i]!;
-      if (!v.live || !v.s.visible || v.charge < OVERLOAD_FULL - 1) continue;
-      const a = this.reduced ? 0.14 : 0.11 + 0.07 * Math.sin(this.time / 230 + i * 1.7);
-      this.glow.circle(g.x(i), g.y(i), g.cell * 0.47).fill({ color: CHARGE_COLOR[3], alpha: a });
+      l.circle(x, y, r).stroke({ width: Math.max(1.5, r * 0.2), color: refused ? INK.danger : INK.line });
     }
   }
 
@@ -566,20 +516,15 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     const s = this.sparkLayer;
     s.clear();
     if (this.sparks.length === 0) return;
-    const size = Math.max(2, this.grid.cell * 0.065);
+    const size = Math.max(2.5, this.grid.cell * 0.07);
     const keep: Spark[] = [];
     for (const p of this.sparks) {
       p.age += dt * this.tweens.rate;
       const k = Math.min(1, p.age / p.ms);
       if (k < 1) keep.push(p);
       const e = 1 - (1 - k) ** 2;
-      const tail = Math.max(0, e - 0.28);
-      const x = p.x0 + (p.x1 - p.x0) * e;
-      const y = p.y0 + (p.y1 - p.y0) * e;
-      s.moveTo(p.x0 + (p.x1 - p.x0) * tail, p.y0 + (p.y1 - p.y0) * tail)
-        .lineTo(x, y)
-        .stroke({ width: size * (p.double ? 1.5 : 0.9), color: p.double ? INK.brass : SPARK, alpha: 0.55, cap: "round" });
-      s.circle(x, y, size * (p.double ? 1.5 : 1)).fill({ color: INK.white });
+      // A booster passes two charges: its dot is the bigger one.
+      s.circle(p.x0 + (p.x1 - p.x0) * e, p.y0 + (p.y1 - p.y0) * e, size * (p.double ? 1.5 : 1)).fill({ color: INK.cream });
     }
     this.sparks = keep;
   }
@@ -624,8 +569,8 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     this.cursorLayer.clear();
     this.app.canvas.setAttribute("data-cursor", `${this.cursor % g.cols},${Math.floor(this.cursor / g.cols)}`);
     if (!this.cursorShown) return;
-    const half = g.cell / 2 - 2;
-    this.cursorLayer.roundRect(g.x(this.cursor) - half, g.y(this.cursor) - half, half * 2, half * 2, g.cell * 0.16).stroke({ width: 3, color: INK.white, alpha: 0.9 });
+    // The keyboard's cell is the player's selection: an amber ring round the piece.
+    this.cursorLayer.circle(g.x(this.cursor), g.y(this.cursor), g.cell * RING_R).stroke({ width: Math.max(2, g.cell * RING_W), color: INK.amber });
   }
 
   /** Arrows or WASD move the cursor; space or enter taps the capacitor under it. */
@@ -661,73 +606,4 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     }
     return false;
   }
-}
-
-/**
- * A capacitor of radius `r` centred on (0, 0): a round case, a ring cut in three with one part lit
- * for each charge, and a core that shows a bolt at three (or the charge as a digit, with marks on).
- * A booster has a second ring and four lugs pointing at its neighbours, so it reads by shape.
- */
-function drawCapacitor(g: Graphics, r: number, charge: number, booster: boolean, marks: boolean): void {
-  const color = CHARGE_COLOR[Math.min(OVERLOAD_FULL, charge)]!;
-  const armed = charge >= OVERLOAD_FULL - 1;
-  if (booster) {
-    for (let i = 0; i < 4; i++) {
-      const a = (i * Math.PI) / 2;
-      const dx = Math.cos(a);
-      const dy = Math.sin(a);
-      g.poly([dx * r * 1.3, dy * r * 1.3, dx * r * 0.98 - dy * r * 0.24, dy * r * 0.98 + dx * r * 0.24, dx * r * 0.98 + dy * r * 0.24, dy * r * 0.98 - dx * r * 0.24]).fill({ color: INK.brass });
-    }
-    g.circle(0, 0, r * 1.1).stroke({ width: Math.max(1.5, r * 0.09), color: INK.brass });
-  }
-  g.circle(0, r * 0.09, r).fill({ color: INK.black, alpha: 0.35 });
-  g.circle(0, 0, r).fill({ color: CASE });
-  g.circle(0, 0, r).stroke({ width: Math.max(1.2, r * 0.09), color: booster ? mix(INK.brass, INK.black, 0.2) : RIM });
-  const rr = r * 0.7;
-  for (let i = 0; i < 3; i++) {
-    const a0 = -Math.PI / 2 + (i * Math.PI * 2) / 3 + 0.24;
-    const a1 = a0 + (Math.PI * 2) / 3 - 0.48;
-    g.moveTo(Math.cos(a0) * rr, Math.sin(a0) * rr)
-      .arc(0, 0, rr, a0, a1)
-      .stroke({ width: r * 0.2, color: i < charge ? color : UNLIT, cap: "round" });
-  }
-  // With marks on the core is a plate for the digit; without, it grows a dot for each charge and shows a bolt at three.
-  const core = r * (marks ? 0.48 : 0.42);
-  g.circle(0, 0, core).fill({ color: armed ? color : mix(CASE, INK.black, 0.4) });
-  if (marks) drawDigit(g, Math.min(OVERLOAD_FULL - 1, charge), core * 0.6, armed ? INK.black : INK.white);
-  else if (armed) drawBolt(g, core * 0.78, mix(color, INK.black, 0.8));
-  else if (charge > 0) g.circle(0, 0, core * 0.3 * charge).fill({ color, alpha: 0.85 });
-}
-
-/** A lightning bolt in a box of half-height `s`. */
-function drawBolt(g: Graphics, s: number, color: number): void {
-  g.poly([0.2 * s, -s, -0.58 * s, 0.14 * s, -0.04 * s, 0.14 * s, -0.2 * s, s, 0.58 * s, -0.16 * s, 0.04 * s, -0.16 * s]).fill({ color });
-}
-
-/** The seven segments each digit lights: top, top right, bottom right, bottom, bottom left, top left, middle. */
-const SEGMENTS: readonly string[] = ["abcdef", "bc", "abged", "abgcd"];
-
-/** A digit of 0 to 3 in seven segments, half-height `s`: the charge as a mark that needs no color and no count. */
-function drawDigit(g: Graphics, digit: number, s: number, color: number): void {
-  const w = s * 0.56;
-  const th = Math.max(1.5, s * 0.3);
-  if (digit === 1) {
-    // A one stands in the middle, not on the right-hand segments.
-    g.roundRect(-th / 2, -s - th / 2, th, s * 2 + th, th / 2).fill({ color });
-    return;
-  }
-  const lit = SEGMENTS[digit] ?? "";
-  const h = (y: number): void => {
-    g.roundRect(-w, y - th / 2, w * 2, th, th / 2).fill({ color });
-  };
-  const v = (x: number, y0: number): void => {
-    g.roundRect(x - th / 2, y0, th, s, th / 2).fill({ color });
-  };
-  if (lit.includes("a")) h(-s);
-  if (lit.includes("g")) h(0);
-  if (lit.includes("d")) h(s);
-  if (lit.includes("f")) v(-w, -s);
-  if (lit.includes("b")) v(w, -s);
-  if (lit.includes("e")) v(-w, 0);
-  if (lit.includes("c")) v(w, 0);
 }

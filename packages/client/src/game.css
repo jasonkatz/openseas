@@ -1,13 +1,5 @@
 /* The game shell: the world behind, the bar on top, a card for the place, a station over it all. */
 
-:root {
-  --void-top: #0c1025;
-  --void-bottom: #05070f;
-  --ink-glass: rgba(9, 18, 32, 0.84);
-  --ink-glass-soft: rgba(9, 18, 32, 0.62);
-  --sheet-radius: 22px;
-}
-
 body {
   overflow: hidden;
 }
@@ -17,8 +9,8 @@ body {
   inset: 0;
   overflow: hidden;
   /* The void, before the world has drawn its own and wherever WebGL cannot. */
-  background: radial-gradient(120% 90% at 0% 0%, rgba(120, 70, 30, 0.22), transparent 60%), linear-gradient(160deg, var(--void-top), var(--void-bottom) 70%);
-  color: var(--parchment);
+  background: var(--ground);
+  color: var(--cream);
 }
 
 /* ---- the world */
@@ -27,7 +19,7 @@ body {
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity 0.9s ease;
+  transition: opacity 180ms ease-out;
 }
 .world.is-ready {
   opacity: 1;
@@ -42,12 +34,13 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(7, 14, 26, 0);
-  transition: background 0.4s ease;
+  background: color-mix(in srgb, var(--ground) 70%, transparent);
+  transition: opacity 180ms ease-out;
   pointer-events: none;
+  opacity: 0;
 }
 .world.is-dimmed::after {
-  background: rgba(7, 14, 26, 0.62);
+  opacity: 1;
 }
 .world-fallback {
   position: absolute;
@@ -56,8 +49,7 @@ body {
   top: 50%;
   margin: 0;
   text-align: center;
-  color: var(--parchment);
-  font-style: italic;
+  color: var(--cream);
 }
 .ow-labels {
   position: absolute;
@@ -76,53 +68,55 @@ body {
   top: 0;
   pointer-events: auto;
   cursor: pointer;
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--parchment);
-  background: var(--ink-glass-soft);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cream);
+  background: color-mix(in srgb, var(--ground) 70%, transparent);
   padding: 4px 10px;
   border-radius: 999px;
   white-space: nowrap;
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.18);
   translate: -50% -50%;
   transition:
-    opacity 0.25s ease,
-    background 0.2s ease;
+    opacity 180ms ease-out,
+    background 120ms ease-out;
   touch-action: manipulation;
 }
 .ow-label-outpost {
-  font-size: 17px;
+  font-size: 16px;
 }
 .ow-label-outpost.here::before {
   content: "⚑ ";
-  color: var(--brass);
+  color: var(--amber);
 }
-.ow-label-outpost.selected,
 .ow-label-outpost.reachable {
-  background: rgba(212, 165, 72, 0.9);
-  color: #1b150c;
+  outline: 1px solid var(--cream);
+  outline-offset: -1px;
+}
+.ow-label-outpost.selected {
+  background: var(--amber);
+  color: var(--ground);
+  outline: 0;
 }
 .ow-label-ship {
   font-family: var(--font-body);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   padding: 2px 8px;
   translate: -50% 0;
 }
 .ow-label-yours,
 .ow-label-aboard {
-  color: var(--brass);
+  color: var(--amber);
 }
 .ow-label-board::after {
   content: " · " attr(data-board);
-  color: var(--brass);
+  color: var(--amber);
   font-weight: 700;
 }
 /* Off screen, the player's ship to board waits at the edge with an arrow toward her. */
 .ow-label-board[data-edge]::before {
-  color: var(--brass);
+  color: var(--amber);
   font-weight: 700;
 }
 .ow-label-board[data-edge="left"]::before {
@@ -138,13 +132,12 @@ body {
   content: "↓ ";
 }
 .ow-label-board {
-  color: var(--parchment);
-  background: var(--ink-glass);
-  font-size: 14px;
+  color: var(--cream);
+  background: color-mix(in srgb, var(--ground) 70%, transparent);
+  font-size: 13px;
   padding: 5px 11px;
-  box-shadow:
-    inset 0 0 0 1px rgba(212, 165, 72, 0.6),
-    0 8px 20px -10px rgba(0, 0, 0, 0.8);
+  outline: 1px solid var(--amber);
+  outline-offset: -1px;
 }
 .ow-label-quiet {
   opacity: 0;
@@ -164,7 +157,7 @@ body {
   overflow: visible;
 }
 .ow-leader {
-  stroke: rgba(239, 227, 198, 0.75);
+  stroke: var(--dim);
   stroke-width: 1.5;
 }
 .ow-pin {
@@ -175,44 +168,33 @@ body {
   height: 14px;
   margin: -7px 0 0 -7px;
   border-radius: 50%;
-  background: var(--brass);
-  box-shadow:
-    0 0 0 3px rgba(9, 18, 32, 0.8),
-    0 0 0 5px rgba(239, 227, 198, 0.45),
-    0 4px 10px rgba(0, 0, 0, 0.5);
+  background: var(--sand);
   pointer-events: auto;
   cursor: pointer;
-  animation: pin-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-.ow-pin::after {
-  content: "";
-  position: absolute;
-  inset: -9px;
-  border-radius: 50%;
-  border: 2px solid rgba(239, 227, 198, 0.5);
-  animation: pin-pulse 2.2s ease-out infinite;
+  animation: pin-in 180ms ease-out both;
+  outline: 2px solid var(--ground);
 }
 .ow-pin-cantina {
-  background: #e06a4f;
+  background: var(--rust);
 }
 .ow-pin-notice-board {
-  background: var(--parchment);
+  background: var(--cream);
 }
 .ow-pin-station {
-  background: var(--foam);
+  background: var(--cream);
 }
 .ow-pin-station.ow-pin-cooling,
 .ow-pin-station.ow-pin-engines,
 .ow-pin-station.ow-pin-plating,
 .ow-pin-station.ow-pin-gunnery,
 .ow-pin-station.ow-pin-navigation {
-  background: var(--foam);
+  background: var(--cream);
 }
 .ow-pin-helm {
-  background: var(--brass);
+  background: var(--cream);
 }
 .ow-pin-airlock {
-  background: var(--parchment);
+  background: var(--cream);
 }
 .ow-spot-airlock .ow-spot-name {
   font-size: 13px;
@@ -224,7 +206,7 @@ body {
   .ow-spot-helm,
   .ow-spot-airlock {
     padding: 3px 8px;
-    border-radius: 9px;
+    border-radius: var(--radius);
     margin-top: -11px;
   }
   .ow-spot-station .ow-spot-name,
@@ -249,7 +231,7 @@ body {
   height: 7px;
   margin-right: 5px;
   border-radius: 50%;
-  border: 1.5px dashed var(--parchment-dim);
+  border: 1.5px dashed var(--dim);
   vertical-align: 1px;
 }
 .ow-compact .ow-spot-station.is-taken .ow-spot-name {
@@ -269,7 +251,7 @@ body {
 .ow-spot[data-edge] .ow-spot-name::after {
   font-family: var(--font-body);
   font-weight: 700;
-  color: var(--brass);
+  color: var(--cream);
 }
 .ow-spot[data-edge="left"] .ow-spot-name::after {
   content: "←";
@@ -298,29 +280,18 @@ body {
   margin: 0;
   padding: 1px 7px 2px;
   border-radius: 999px;
-  background: rgba(9, 18, 32, 0.62);
-  color: var(--parchment);
-  font: 600 11px/1.3 var(--font-body);
+  background: color-mix(in srgb, var(--ground) 70%, transparent);
+  color: var(--cream);
+  font: 700 11px/1.3 var(--font-body);
   white-space: nowrap;
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.16);
   touch-action: manipulation;
 }
 .ow-tag:hover {
-  background: rgba(9, 18, 32, 0.85);
+  background: var(--ground);
 }
 @keyframes pin-in {
   from {
     opacity: 0;
-  }
-}
-@keyframes pin-pulse {
-  0% {
-    opacity: 0.9;
-    scale: 0.5;
-  }
-  100% {
-    opacity: 0;
-    scale: 1.3;
   }
 }
 .ow-spot {
@@ -334,48 +305,43 @@ body {
   align-items: center;
   padding: 5px 11px;
   border: 0;
-  border-radius: 12px;
-  background: var(--ink-glass);
-  color: var(--parchment);
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--cream);
   font: inherit;
   text-align: left;
   margin-top: -14px;
-  box-shadow:
-    inset 0 0 0 1px rgba(239, 227, 198, 0.22),
-    0 10px 24px -12px rgba(0, 0, 0, 0.9);
-  animation: spot-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: spot-in 180ms ease-out both;
   touch-action: manipulation;
   white-space: nowrap;
 }
 .ow-spot-name {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 15px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 16px;
   line-height: 1.1;
 }
 .ow-spot-who {
   font-size: 11px;
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .ow-spot-who:empty {
   display: none;
 }
 .ow-spot-station.is-mine {
-  box-shadow:
-    inset 0 0 0 2px var(--brass),
-    0 10px 24px -12px rgba(0, 0, 0, 0.9);
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
 }
 .ow-spot-station.is-taken {
   opacity: 0.8;
 }
 /* A bot's station: open to the viewer, so it reads as takeable, with the hand's dashed ring. */
 .ow-spot-station.is-bot {
-  box-shadow:
-    inset 0 0 0 1px rgba(239, 227, 198, 0.22),
-    0 10px 24px -12px rgba(0, 0, 0, 0.9);
+  outline: 1px dashed var(--dim);
+  outline-offset: -1px;
 }
 .ow-spot-station.is-bot .ow-spot-who {
-  color: var(--parchment);
+  color: var(--cream);
   opacity: 0.85;
 }
 .ow-spot-station.is-bot .ow-spot-who::before {
@@ -385,39 +351,20 @@ body {
   height: 7px;
   margin-right: 5px;
   border-radius: 50%;
-  border: 1.5px dashed var(--parchment-dim);
+  border: 1.5px dashed var(--dim);
   vertical-align: 0;
 }
-.ow-spot-helm {
-  box-shadow:
-    inset 0 0 0 1px rgba(212, 165, 72, 0.7),
-    0 10px 24px -12px rgba(0, 0, 0, 0.9);
-}
 .ow-spot-helm .ow-spot-name {
-  color: var(--brass);
+  color: var(--cream);
 }
 .ow-spot-helm.is-primary {
-  background: linear-gradient(180deg, #e9bd63, var(--brass) 55%, var(--brass-deep));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 10px 24px -10px rgba(212, 165, 72, 0.9);
-  animation: spot-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both, primary-glow 1.6s ease-in-out infinite;
+  background: var(--amber);
 }
 .ow-spot-helm.is-primary .ow-spot-name {
-  color: #1b150c;
+  color: var(--ground);
 }
-@keyframes primary-glow {
-  50% {
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.35),
-      0 0 0 6px rgba(212, 165, 72, 0.25);
-  }
-}
-.ow-spot:hover {
-  filter: brightness(1.12);
-}
-.ow-spot:active {
-  filter: brightness(1.25);
+.ow-spot:hover:not(.is-primary) {
+  background: var(--line);
 }
 @keyframes spot-in {
   from {
@@ -454,8 +401,7 @@ body {
   gap: 8px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: var(--ink-glass);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.14);
+  background: var(--raised);
   min-width: 0;
   flex: 0 1 auto;
 }
@@ -467,18 +413,17 @@ body {
   flex: none;
 }
 .who .dot.pip-live {
-  color: var(--foam);
-  box-shadow: 0 0 8px var(--foam);
+  color: var(--cream);
 }
 .who .dot.pip-wait {
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .who .dot.pip-off {
-  color: var(--brass);
+  color: var(--dim);
 }
 .who-name {
-  font-family: var(--font-display);
-  font-weight: 600;
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: 16px;
   line-height: 1.1;
   white-space: nowrap;
@@ -486,16 +431,14 @@ body {
   text-overflow: ellipsis;
 }
 .who-credits {
-  font-size: 12px;
-  color: var(--brass);
+  font-size: 13px;
+  color: var(--cream);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 .topbar .who-credits {
   padding-left: 6px;
-  border-left: 1px solid rgba(239, 227, 198, 0.2);
-}
-.topbar .icon-btn {
-  background: var(--ink-glass);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.14);
+  border-left: 1px solid var(--line);
 }
 .pill-btn {
   margin-left: auto;
@@ -504,23 +447,23 @@ body {
   gap: 6px;
   height: 44px;
   padding: 0 14px 0 12px;
-  border: 0;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--ink-glass);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.14);
-  color: var(--parchment);
+  background: var(--raised);
+  color: var(--cream);
   font: inherit;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   touch-action: manipulation;
 }
 .pill-btn:hover {
-  background: rgba(9, 18, 32, 0.95);
+  background: var(--line);
 }
 .pill-btn.is-on {
-  color: var(--brass);
-  box-shadow: inset 0 0 0 2px var(--brass);
+  color: var(--amber);
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
 }
 
 /* ---- the sheet: the card for the place, folded to a strip until it is wanted */
@@ -531,13 +474,8 @@ body {
   display: flex;
   flex-direction: column;
   pointer-events: none;
-  background: var(--ink-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow:
-    inset 0 0 0 1px rgba(239, 227, 198, 0.12),
-    0 -10px 40px -20px rgba(0, 0, 0, 0.9);
-  transition: width 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+  background: var(--raised);
+  transition: width 180ms ease-out;
   overflow: hidden;
 }
 .sheet > * {
@@ -556,7 +494,6 @@ body {
 }
 .sheet-back {
   grid-area: back;
-  background: rgba(255, 255, 255, 0.06);
 }
 .sheet-handle {
   grid-area: handle;
@@ -568,7 +505,7 @@ body {
   min-height: 52px;
   padding: 4px 6px 4px 8px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -577,11 +514,11 @@ body {
   touch-action: manipulation;
 }
 .sheet-handle:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--line);
 }
 .sheet-handle .chev {
-  transition: rotate 0.3s ease;
-  color: var(--parchment-dim);
+  transition: rotate 180ms ease-out;
+  color: var(--dim);
 }
 .sheet.is-open .sheet-handle .chev {
   rotate: 180deg;
@@ -591,10 +528,10 @@ body {
   grid-area: next;
   margin: 0;
   padding: 6px 8px 10px 10px;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.3;
-  color: var(--brass);
-  border-top: 1px solid rgba(239, 227, 198, 0.1);
+  color: var(--cream);
+  border-top: 1px solid var(--line);
 }
 .next-step::before {
   content: "\25B8  ";
@@ -605,15 +542,16 @@ body {
   min-width: 0;
 }
 .strip-text b {
-  font-family: var(--font-display);
-  font-size: 17px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 16px;
   line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .strip-text small {
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -634,14 +572,12 @@ body {
 }
 .mini-row small {
   font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .mini-row b {
-  font-family: var(--font-display);
-  font-size: 12px;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -653,18 +589,18 @@ body {
   display: block;
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--line);
   overflow: hidden;
 }
 .mini-meter i,
 .mini-turn i {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--tide), var(--foam));
-  transition: width 0.6s ease;
+  background: var(--cream);
+  transition: width 180ms ease-out;
 }
 .mini-meter i.hull {
-  background: linear-gradient(90deg, #7a5533, var(--brass));
+  background: var(--cream);
 }
 .mini-row.danger .mini-meter i {
   background: var(--danger);
@@ -673,8 +609,8 @@ body {
   height: 4px;
 }
 .mini-turn i {
-  background: var(--parchment-dim);
-  transition: width 0.4s linear;
+  background: var(--dim);
+  transition: width 180ms linear;
 }
 .sheet-body {
   overflow: auto;
@@ -686,13 +622,13 @@ body {
 }
 .sheet-body > .card {
   padding: 0 16px max(16px, env(safe-area-inset-bottom));
-  animation: fade 0.3s ease both;
+  animation: fade 180ms ease-out both;
 }
 .shell-tall .sheet {
   left: 0;
   right: 0;
   bottom: 0;
-  border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
+  border-radius: var(--radius) var(--radius) 0 0;
   max-height: 62vh;
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -704,7 +640,7 @@ body {
   right: 16px;
   width: 340px;
   max-height: calc(100% - 86px);
-  border-radius: 18px;
+  border-radius: var(--radius);
 }
 .shell-wide .sheet.is-open {
   width: min(440px, 38vw);
@@ -724,9 +660,9 @@ body {
 }
 .sheet .card h2 {
   margin: 2px 0 4px;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 24px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 20px;
   line-height: 1.1;
 }
 .visually-hidden {
@@ -750,23 +686,21 @@ body {
 }
 .pick-name {
   margin: 0 0 2px;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 22px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 20px;
 }
 .blurb {
   margin: 0 0 12px;
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .section {
   margin-top: 14px;
 }
 .section-head {
   margin: 0 0 6px;
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  color: var(--dim);
 }
 .row {
   display: flex;
@@ -780,7 +714,7 @@ body {
 }
 .btn-small {
   padding: 9px 14px;
-  font-size: 15px;
+  font-size: 16px;
 }
 .sheet select,
 .sheet input[type="text"],
@@ -789,27 +723,26 @@ body {
   /* Below 16px, iOS zooms the whole page in when the field is focused, and leaves it zoomed. */
   font-size: max(16px, 1em);
   padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(239, 227, 198, 0.25);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--parchment);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--cream);
   min-width: 0;
 }
 .toggle {
   display: flex;
   gap: 10px;
   align-items: center;
-  font-size: 15px;
+  font-size: 16px;
 }
 .toggle input {
   width: 22px;
   height: 22px;
-  accent-color: var(--brass);
+  accent-color: var(--amber);
 }
 .note {
   margin: 0 0 10px;
-  color: var(--brass);
-  font-style: italic;
+  color: var(--cream);
 }
 .error-line {
   position: absolute;
@@ -819,9 +752,9 @@ body {
   z-index: 6;
   font: inherit;
   color: var(--danger);
-  background: var(--ink-glass);
+  background: var(--raised);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 8px 14px;
 }
 
@@ -844,17 +777,16 @@ body {
   align-items: center;
   text-align: left;
   padding: 10px 12px;
-  border: 0;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
   color: inherit;
   font: inherit;
   cursor: pointer;
   touch-action: manipulation;
 }
 .building:hover:not([disabled]) {
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--line);
 }
 .building[disabled] {
   opacity: 0.5;
@@ -865,27 +797,26 @@ body {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: var(--brass);
-  box-shadow: inset 0 0 0 4px rgba(0, 0, 0, 0.25);
+  background: var(--sand);
 }
 .building-cantina .building-glyph {
-  background: #e06a4f;
+  background: var(--rust);
 }
 .building-notice-board .building-glyph {
-  background: var(--parchment);
+  background: var(--cream);
 }
 .building-name {
   grid-area: name;
-  font-family: var(--font-display);
-  font-size: 19px;
-  font-weight: 600;
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 700;
 }
 .building small {
   grid-area: blurb;
   font-size: 13px;
 }
 .panel {
-  animation: fade 0.25s ease both;
+  animation: fade 180ms ease-out both;
 }
 .ships,
 .crew,
@@ -905,18 +836,19 @@ body {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius);
+  background: var(--raised);
+  border: 1px solid var(--line);
 }
 .crew li.away {
   opacity: 0.6;
 }
 .crew li.is-bot {
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
+  background: var(--raised);
+  border: 1px solid var(--line);
 }
 .crew li.is-bot .crew-name {
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .crew .assign {
   max-width: 11rem;
@@ -929,19 +861,17 @@ body {
   align-items: center;
   padding: 3px 9px;
   border-radius: 999px;
-  border: 1px dashed rgba(239, 227, 198, 0.45);
-  color: var(--parchment-dim);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  border: 1px dashed var(--dim);
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 700;
 }
 .crew-role {
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  font-size: 14px;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  color: var(--dim);
 }
 .patrons li {
   padding: 4px 0;
@@ -952,12 +882,12 @@ body {
   gap: 8px;
 }
 .log li {
-  font-size: 14px;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  color: var(--dim);
   padding: 2px 0;
 }
 .pick {
-  animation: fade 0.25s ease both;
+  animation: fade 180ms ease-out both;
 }
 
 /* chat */
@@ -970,18 +900,18 @@ body {
   padding: 8px 10px;
   max-height: 160px;
   overflow: auto;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius);
+  background: var(--ground);
   display: grid;
   gap: 4px;
-  font-size: 14px;
+  font-size: 13px;
 }
 .chat-lines li b {
-  color: var(--brass);
+  color: var(--dim);
   margin-right: 6px;
 }
 .chat-lines li.mine b {
-  color: var(--foam);
+  color: var(--amber);
 }
 .chat-form {
   display: grid;
@@ -995,8 +925,8 @@ body {
   grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 8px 12px;
   padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius);
+  background: var(--ground);
 }
 .meter {
   display: grid;
@@ -1005,36 +935,35 @@ body {
 }
 .meter-label {
   font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--parchment-dim);
+  color: var(--dim);
   white-space: nowrap;
 }
 .meter-bar {
   display: block;
   height: 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--line);
   overflow: hidden;
 }
 .meter-bar i {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--tide), var(--foam));
-  transition: width 0.6s ease;
+  background: var(--cream);
+  transition: width 180ms ease-out;
 }
 .meter.danger .meter-bar i {
-  background: linear-gradient(90deg, #a2341f, var(--danger));
+  background: var(--danger);
 }
 .meter small {
-  font-size: 12px;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  color: var(--dim);
 }
 .meter-value {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 .lamps {
   display: inline-flex;
@@ -1045,32 +974,30 @@ body {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.2);
+  background: var(--line);
 }
 .lamps i.lit {
-  background: var(--brass);
-  box-shadow: 0 0 10px rgba(212, 165, 72, 0.7);
+  background: var(--amber);
 }
 .turn-line {
   grid-column: 1 / -1;
   display: grid;
   gap: 4px;
   font-size: 13px;
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .turn-line .bar {
   height: 4px;
   display: block;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--line);
   overflow: hidden;
 }
 .turn-line .bar i {
   display: block;
   height: 100%;
-  background: var(--brass);
-  transition: width 0.4s linear;
+  background: var(--cream);
+  transition: width 180ms linear;
 }
 .voyage-line {
   display: grid;
@@ -1081,36 +1008,30 @@ body {
   display: block;
   height: 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--line);
   overflow: hidden;
 }
 .progress-meter i {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--brass-deep), var(--brass));
-  transition: width 1.2s ease;
+  background: var(--cream);
+  transition: width 180ms ease-out;
 }
 .hail {
   margin-top: 12px;
   padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(240, 96, 77, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(240, 96, 77, 0.5);
-  animation: pulse-glow 1.2s ease-in-out infinite;
+  border-radius: var(--radius);
+  outline: 2px solid var(--danger);
+  outline-offset: -2px;
 }
 .hail-title {
   margin: 0 0 4px;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
 }
 .hail .btn {
   margin-top: 8px;
-}
-@keyframes pulse-glow {
-  50% {
-    box-shadow: inset 0 0 0 1px rgba(240, 96, 77, 0.9);
-  }
 }
 .stations {
   display: grid;
@@ -1123,26 +1044,24 @@ body {
   gap: 2px;
   text-align: left;
   padding: 10px 12px;
-  border: 0;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.12);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
   color: inherit;
   font: inherit;
   cursor: pointer;
   touch-action: manipulation;
 }
 .station-btn.is-mine {
-  background: rgba(212, 165, 72, 0.16);
-  box-shadow: inset 0 0 0 2px var(--brass);
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
 }
 .station-btn.is-taken {
   opacity: 0.6;
   cursor: not-allowed;
 }
 .station-btn.is-bot {
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.12);
-  background-image: repeating-linear-gradient(135deg, transparent 0 7px, rgba(239, 227, 198, 0.035) 7px 9px);
+  border: 1px dashed var(--dim);
 }
 .station-btn.is-bot .station-who::before {
   content: "";
@@ -1151,20 +1070,20 @@ body {
   height: 7px;
   margin-right: 5px;
   border-radius: 50%;
-  border: 1.5px dashed var(--parchment-dim);
+  border: 1.5px dashed var(--dim);
 }
 .station-name {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 17px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 16px;
 }
 .station-who {
-  font-size: 12px;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  color: var(--dim);
 }
 .station-out {
-  font-size: 12px;
-  color: var(--foam);
+  font-size: 13px;
+  color: var(--cream);
 }
 .dest {
   width: 100%;
@@ -1173,20 +1092,19 @@ body {
   align-items: baseline;
   gap: 10px;
   padding: 12px 14px;
-  border: 0;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.12);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
   color: inherit;
   font: inherit;
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 600;
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 700;
   cursor: pointer;
 }
 .dest.is-picked {
-  background: rgba(212, 165, 72, 0.18);
-  box-shadow: inset 0 0 0 2px var(--brass);
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
 }
 
 .hail-banner {
@@ -1197,16 +1115,14 @@ body {
   z-index: 8;
   width: min(92vw, 380px);
   padding: 10px 14px;
-  border-radius: 14px;
-  background: var(--ink-glass);
-  box-shadow:
-    inset 0 0 0 1px rgba(240, 96, 77, 0.7),
-    0 20px 40px -20px rgba(0, 0, 0, 0.9);
+  border-radius: var(--radius);
+  background: var(--raised);
+  outline: 2px solid var(--danger);
+  outline-offset: -2px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  animation: pulse-glow 1.2s ease-in-out infinite;
 }
 .shell-wide .hail-banner {
   bottom: 24px;
@@ -1215,7 +1131,7 @@ body {
 }
 .hail-banner .hail-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
 }
 .hail-banner p {
   margin: 0;
@@ -1244,7 +1160,7 @@ body {
   padding: max(6px, env(safe-area-inset-top)) 8px max(6px, env(safe-area-inset-bottom));
   margin: 0 auto;
   width: min(100%, 560px);
-  animation: fade 0.3s ease both;
+  animation: fade 180ms ease-out both;
 }
 .shell-wide .station-layer {
   display: grid;
@@ -1290,15 +1206,16 @@ body {
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
+  font-weight: 700;
   font-size: 18px;
-  color: var(--parchment);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  color: var(--cream);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .station-numbers b {
   font-size: 22px;
-  color: var(--brass);
+  color: var(--cream);
 }
 .station-numbers .combo-chip {
   font-style: normal;
@@ -1311,14 +1228,14 @@ body {
   align-items: center;
   padding: 8px 10px;
   border: 0;
-  border-radius: 12px;
-  background: var(--ink-glass);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.14);
+  border-radius: var(--radius);
+  background: var(--raised);
   cursor: pointer;
   touch-action: manipulation;
 }
 .station-ship.is-open {
-  box-shadow: inset 0 0 0 2px var(--brass);
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
 }
 .station-ship .ship-mini {
   width: 118px;
@@ -1326,34 +1243,31 @@ body {
 .station-details {
   display: grid;
   gap: 6px;
-  animation: fade 0.2s ease both;
+  animation: fade 180ms ease-out both;
 }
 .station-details .last-turn {
   margin: 0;
   padding: 0 4px;
 }
 .station-bar .icon-btn {
-  background: var(--ink-glass);
+  background: var(--raised);
 }
 .station-title {
   margin: 0;
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-style: italic;
-  font-size: 22px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 20px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
 .station-ship {
   font-size: 13px;
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 .ship-hud-slim {
   padding: 8px 10px;
-  background: var(--ink-glass);
+  background: var(--raised);
 }
 .ship-hud-slim .meter-value {
   font-size: 16px;
@@ -1361,9 +1275,8 @@ body {
 .station-layer .board-wrap {
   flex: 1 1 auto;
   min-height: 0;
-  border-radius: 14px;
-  background: var(--ink-800);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
+  border-radius: var(--radius);
+  background: var(--ground);
 }
 .veil-card-slim {
   padding: 16px;
@@ -1386,9 +1299,9 @@ body {
   display: grid;
   gap: 6px;
   padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(240, 96, 77, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(240, 96, 77, 0.35);
+  border-radius: var(--radius);
+  outline: 1px solid var(--danger);
+  outline-offset: -1px;
 }
 
 /* ---- the melee layer: the pirate's board with the rest of the rail beside it */
@@ -1418,9 +1331,9 @@ body {
   z-index: 8;
   border: 0;
   padding: 0;
-  background: rgba(7, 14, 26, 0.5);
+  background: color-mix(in srgb, var(--ground) 70%, transparent);
   cursor: pointer;
-  animation: fade 0.2s ease both;
+  animation: fade 180ms ease-out both;
 }
 .menu {
   position: absolute;
@@ -1431,12 +1344,7 @@ body {
   width: min(420px, calc(100% - 32px));
   max-height: calc(100% - 32px);
   overflow: auto;
-  background: var(--ink-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow:
-    inset 0 0 0 1px rgba(239, 227, 198, 0.14),
-    0 30px 60px -30px rgba(0, 0, 0, 0.9);
+  background: var(--raised);
   display: grid;
   gap: 14px;
 }
@@ -1465,18 +1373,17 @@ body {
 }
 .toast {
   padding: 8px 14px;
-  border-radius: 12px;
-  background: var(--ink-glass);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.14);
+  border-radius: var(--radius);
+  background: var(--raised);
   text-align: center;
-  font-size: 14px;
-  animation: toast-in 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  font-size: 13px;
+  animation: toast-in 180ms ease-out both;
 }
 .toast-good {
-  color: var(--foam);
+  color: var(--cream);
 }
 .toast-warn {
-  color: var(--brass);
+  color: var(--danger);
 }
 @keyframes toast-in {
   from {
@@ -1495,12 +1402,8 @@ body {
   flex-direction: column;
   gap: 20px;
   padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
-  /* The void: a warm glow off one corner for the system's star, a nebula low on the other side. */
-  background:
-    radial-gradient(90% 70% at 0% 0%, rgba(150, 86, 36, 0.28), transparent 62%),
-    radial-gradient(80% 60% at 100% 100%, rgba(74, 38, 120, 0.42), transparent 65%),
-    radial-gradient(60% 45% at 70% 85%, rgba(18, 96, 128, 0.3), transparent 70%),
-    linear-gradient(160deg, #0c1025 0%, #070a16 70%);
+  /* The void: the ground and a few stars. No nebula. */
+  background: var(--ground);
 }
 .landing > * {
   position: relative;
@@ -1521,44 +1424,32 @@ body {
   pointer-events: none;
   overflow: hidden;
 }
-/* Three depths of stars: each layer is a tile of dots repeated over the screen, twinkling out of step. */
+/* A sparse field of small cream stars (BRAND.md 7): each layer is a tile of flat dots repeated over the
+   screen. The dots are hard-edged, drawn with the one image function CSS has for a dot. */
 .stars {
   position: absolute;
   inset: 0;
   background-repeat: repeat;
-  animation: twinkle 7s ease-in-out infinite;
 }
 .stars.s1 {
   background-image:
-    radial-gradient(1px 1px at 12% 18%, rgba(205, 220, 255, 0.9) 50%, transparent 51%),
-    radial-gradient(1px 1px at 63% 9%, rgba(205, 220, 255, 0.7) 50%, transparent 51%),
-    radial-gradient(1px 1px at 34% 57%, rgba(205, 220, 255, 0.8) 50%, transparent 51%),
-    radial-gradient(1px 1px at 86% 44%, rgba(205, 220, 255, 0.6) 50%, transparent 51%),
-    radial-gradient(1px 1px at 51% 83%, rgba(205, 220, 255, 0.8) 50%, transparent 51%),
-    radial-gradient(1px 1px at 7% 71%, rgba(205, 220, 255, 0.6) 50%, transparent 51%);
+    radial-gradient(1px 1px at 12% 18%, var(--cream) 50%, transparent 51%),
+    radial-gradient(1px 1px at 63% 9%, var(--cream) 50%, transparent 51%),
+    radial-gradient(1px 1px at 34% 57%, var(--cream) 50%, transparent 51%),
+    radial-gradient(1px 1px at 86% 44%, var(--cream) 50%, transparent 51%);
   background-size: 190px 170px;
+  opacity: 0.5;
 }
 .stars.s2 {
   background-image:
-    radial-gradient(1.5px 1.5px at 22% 31%, rgba(255, 244, 222, 0.95) 50%, transparent 51%),
-    radial-gradient(1.5px 1.5px at 71% 66%, rgba(255, 244, 222, 0.8) 50%, transparent 51%),
-    radial-gradient(1.5px 1.5px at 44% 12%, rgba(190, 232, 255, 0.85) 50%, transparent 51%),
-    radial-gradient(1.5px 1.5px at 91% 88%, rgba(255, 244, 222, 0.7) 50%, transparent 51%);
+    radial-gradient(1.5px 1.5px at 22% 31%, var(--cream) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 71% 66%, var(--cream) 50%, transparent 51%);
   background-size: 310px 290px;
-  animation-duration: 11s;
-  animation-direction: reverse;
+  opacity: 0.7;
 }
 .stars.s3 {
-  background-image:
-    radial-gradient(2.5px 2.5px at 30% 40%, rgba(255, 222, 170, 0.95) 50%, transparent 52%),
-    radial-gradient(2px 2px at 78% 22%, rgba(190, 232, 255, 0.95) 50%, transparent 52%);
+  background-image: radial-gradient(2px 2px at 30% 40%, var(--cream) 50%, transparent 51%);
   background-size: 520px 460px;
-  animation-duration: 15s;
-}
-@keyframes twinkle {
-  50% {
-    opacity: 0.55;
-  }
 }
 .landing .status {
   display: flex;
@@ -1570,8 +1461,7 @@ body {
   .world,
   .sheet > .card,
   .ow-spot,
-  .toast,
-  .stars {
+  .toast {
     animation: none;
     transition: none;
   }
@@ -1583,21 +1473,11 @@ body {
   display: inline-block;
   vertical-align: middle;
   border-radius: 2px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
   flex: none;
 }
 .flag-big {
   border-radius: 4px;
-  box-shadow:
-    0 2px 0 rgba(0, 0, 0, 0.25),
-    0 10px 24px -10px rgba(0, 0, 0, 0.9);
-  animation: flag-wave 4.5s ease-in-out infinite;
   transform-origin: left center;
-}
-@keyframes flag-wave {
-  50% {
-    transform: perspective(160px) rotateY(-9deg) skewY(-1.5deg);
-  }
 }
 .badge {
   display: inline-grid;
@@ -1606,17 +1486,13 @@ body {
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: var(--danger);
-  color: #fff;
+  background: var(--amber);
+  color: var(--ground);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
-  animation: badge-pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both;
-}
-@keyframes badge-pop {
-  from {
-    scale: 0.4;
-  }
+  animation: fade 180ms ease-out both;
+  font-family: var(--font-mono);
 }
 .topbar .crew-btn {
   margin-left: 0;
@@ -1656,14 +1532,14 @@ body {
 .toast-action {
   flex: none;
   font: inherit;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 13px;
-  padding: 7px 12px;
-  border: 0;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
   border-radius: 999px;
   cursor: pointer;
-  color: #1b150c;
-  background: linear-gradient(180deg, #e9bd63, var(--brass));
+  color: var(--cream);
+  background: var(--raised);
   touch-action: manipulation;
 }
 
@@ -1699,10 +1575,10 @@ body {
   background: currentColor;
 }
 .dot.pip-live {
-  color: var(--foam);
+  color: var(--cream);
 }
 .dot.pip-off {
-  color: rgba(239, 227, 198, 0.3);
+  color: var(--dim);
 }
 .profile-crew {
   display: flex;
@@ -1725,11 +1601,11 @@ body {
 }
 .crew-head h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.15;
 }
 .crew-head-none .crew-glyph {
-  color: var(--brass);
+  color: var(--dim);
 }
 .crew-title {
   display: grid;
@@ -1755,19 +1631,21 @@ body {
   display: grid;
   justify-items: center;
   padding: 8px 4px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.08);
+  border-radius: var(--radius);
+  background: var(--raised);
+  border: 1px solid var(--line);
 }
 .crew-stats b {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
+  font-weight: 700;
   font-size: 20px;
-  color: var(--brass);
+  color: var(--cream);
   line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
 .crew-stats small {
   font-size: 11px;
-  color: var(--parchment-dim);
+  color: var(--dim);
   text-align: center;
 }
 
@@ -1775,8 +1653,8 @@ body {
   display: flex;
   gap: 4px;
   padding: 4px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius);
+  background: var(--ground);
 }
 .tab {
   flex: 1;
@@ -1786,19 +1664,18 @@ body {
   gap: 6px;
   min-height: 38px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--radius);
   background: transparent;
-  color: var(--parchment-dim);
+  color: var(--dim);
   font: inherit;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   touch-action: manipulation;
 }
 .tab.is-on {
-  background: rgba(239, 227, 198, 0.12);
-  color: var(--parchment);
-  box-shadow: inset 0 -2px 0 var(--brass);
+  background: var(--line);
+  color: var(--cream);
 }
 
 .rank-chip {
@@ -1807,20 +1684,18 @@ body {
   align-items: center;
   padding: 1px 8px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  border: 1px solid rgba(239, 227, 198, 0.25);
-  color: var(--parchment-dim);
+  border: 1px solid var(--line);
+  color: var(--dim);
   vertical-align: middle;
 }
 .rank-commodore {
-  color: var(--brass);
-  border-color: rgba(212, 165, 72, 0.55);
-  background: rgba(212, 165, 72, 0.12);
+  color: var(--cream);
+  border-color: var(--cream);
 }
 .rank-officer {
-  color: var(--foam);
-  border-color: rgba(94, 211, 184, 0.45);
+  color: var(--cream);
 }
 
 .pirate-link {
@@ -1832,7 +1707,7 @@ body {
   padding: 0;
   cursor: pointer;
   text-decoration: underline;
-  text-decoration-color: rgba(239, 227, 198, 0.3);
+  text-decoration-color: var(--dim);
   text-underline-offset: 3px;
   touch-action: manipulation;
 }
@@ -1840,11 +1715,11 @@ body {
   text-decoration-color: currentColor;
 }
 .chat-lines .chat-who {
-  color: var(--brass);
+  color: var(--dim);
   margin-right: 2px;
 }
 .chat-lines li.mine .chat-who {
-  color: var(--foam);
+  color: var(--amber);
 }
 
 .members,
@@ -1859,12 +1734,13 @@ body {
 }
 .member {
   padding: 8px 10px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.07);
+  border-radius: var(--radius);
+  background: var(--raised);
+  border: 1px solid var(--line);
 }
 .member.is-me {
-  box-shadow: inset 0 0 0 1px rgba(94, 211, 184, 0.35);
+  outline: 1px solid var(--amber);
+  outline-offset: -1px;
 }
 .member.is-offline {
   opacity: 0.7;
@@ -1888,23 +1764,16 @@ body {
   gap: 6px;
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid rgba(239, 227, 198, 0.1);
+  border-top: 1px solid var(--line);
 }
 .icon-btn-small {
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--radius);
 }
 .btn.is-armed {
-  color: #fff;
-  background: rgba(240, 96, 77, 0.85);
-  box-shadow: none;
-  animation: armed 0.6s ease-in-out infinite alternate;
-}
-@keyframes armed {
-  to {
-    filter: brightness(1.15);
-  }
+  color: var(--ground);
+  background: var(--danger);
 }
 .invited li,
 .invite {
@@ -1915,10 +1784,9 @@ body {
 }
 .invite {
   padding: 10px;
-  border-radius: 12px;
-  background: rgba(212, 165, 72, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(212, 165, 72, 0.35);
-  animation: rise 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  border-radius: var(--radius);
+  animation: rise 180ms ease-out both;
+  border: 1px solid var(--line);
 }
 .invite-text {
   flex: 1;
@@ -1938,10 +1806,10 @@ body {
 .found-form .field input {
   font: inherit;
   padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(239, 227, 198, 0.25);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--parchment);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--cream);
 }
 .crew-preview {
   display: flex;
@@ -1960,13 +1828,10 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 14px;
-  border-radius: 14px;
-  background:
-    radial-gradient(120px 60px at 30% 50%, rgba(255, 255, 255, 0.08), transparent),
-    rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius);
+  background: var(--ground);
 }
 .flag-preview .flag {
-  animation: flag-wave 4.5s ease-in-out infinite;
   transform-origin: left center;
 }
 .flag-preview .btn {
@@ -1985,11 +1850,9 @@ body {
 .flag-row legend {
   padding: 0;
   margin-bottom: 6px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .swatches,
 .flag-choices {
@@ -2002,36 +1865,30 @@ body {
   height: 34px;
   display: grid;
   place-items: center;
-  border: 0;
+  border: 1px solid var(--line);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
-    0 0 0 1px rgba(239, 227, 198, 0.12);
   touch-action: manipulation;
-  transition: transform 0.1s ease;
+  transition: transform 120ms ease-out;
 }
 .swatch.is-on {
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
-    0 0 0 2px var(--ink-800),
-    0 0 0 4px var(--brass);
   transform: scale(1.06);
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
 }
 .flag-choice {
   display: grid;
   place-items: center;
   padding: 5px;
-  border: 0;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
   cursor: pointer;
   touch-action: manipulation;
 }
 .flag-choice.is-on {
-  background: rgba(212, 165, 72, 0.16);
-  box-shadow: inset 0 0 0 2px var(--brass);
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
 }
 
 .crew-board li {
@@ -2040,29 +1897,32 @@ body {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius);
+  background: var(--raised);
+  border: 1px solid var(--line);
 }
 .crew-board li.is-mine {
-  box-shadow: inset 0 0 0 1px rgba(212, 165, 72, 0.5);
-  background: rgba(212, 165, 72, 0.08);
+  outline: 1px solid var(--amber);
+  outline-offset: -1px;
 }
 .crew-board .place {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-weight: 700;
-  color: var(--parchment-dim);
+  color: var(--dim);
   text-align: right;
 }
 .crew-board li:nth-child(-n + 3) .place {
-  color: var(--brass);
+  color: var(--cream);
 }
 .crew-board .board-name {
   min-width: 0;
 }
 .crew-board .board-plunder {
-  color: var(--brass);
-  font-size: 14px;
+  color: var(--cream);
+  font-size: 13px;
   white-space: nowrap;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .crew-table {
@@ -2071,9 +1931,9 @@ body {
   align-items: center;
   gap: 10px 12px;
   padding: 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.08);
+  border-radius: var(--radius);
+  background: var(--raised);
+  border: 1px solid var(--line);
 }
 .crew-table > .muted {
   grid-column: 1 / -1;
@@ -2102,14 +1962,13 @@ body {
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--foam);
-  border: 1px solid rgba(94, 211, 184, 0.45);
+  color: var(--cream);
+  border: 1px solid var(--line);
 }
 .crew li.is-crewmate .crew-name {
-  color: var(--foam);
+  color: var(--cream);
 }
 .ships li.is-crewmate {
-  box-shadow: inset 3px 0 0 var(--foam);
   padding-left: 10px;
 }
 .deck-colors {
@@ -2128,23 +1987,14 @@ body {
   justify-content: center;
   align-items: center;
   gap: 8px;
-  font-size: 15px;
+  font-size: 16px;
   padding: 12px 16px;
-  color: var(--parchment);
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.3);
+  color: var(--cream);
+  background: var(--raised);
+  border-color: var(--line);
 }
 .btn-provider:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-.card-parchment .btn-provider {
-  color: #2b2113;
-  background: rgba(255, 255, 255, 0.45);
-  box-shadow: inset 0 0 0 1px rgba(43, 33, 19, 0.3);
-}
-.card-parchment .btn-ghost {
-  color: #2b2113;
-  box-shadow: inset 0 0 0 1px rgba(43, 33, 19, 0.35);
+  background: var(--line);
 }
 .landing .card {
   display: grid;
@@ -2158,7 +2008,7 @@ body {
   display: grid;
   gap: 8px;
   padding-top: 12px;
-  border-top: 1px solid rgba(43, 33, 19, 0.15);
+  border-top: 1px solid var(--line);
 }
 .account {
   display: grid;
@@ -2182,20 +2032,21 @@ body {
   align-items: center;
   gap: 4px;
   white-space: nowrap;
-  color: var(--brass);
+  color: var(--cream);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .crew-dialog,
 .profile-card {
-  background: rgba(9, 18, 32, 0.96);
+  background: var(--raised);
 }
 .panel .chat + .section-head,
 .panel .crew-table + .section-head {
   margin-top: 16px;
 }
 .ow-label-crew {
-  box-shadow: inset 0 0 0 1.5px var(--foam);
+  outline: 1px solid var(--cream);
+  outline-offset: -1px;
 }
 .ow-label-crew::before {
   content: "";
@@ -2204,28 +2055,22 @@ body {
   height: 7px;
   margin-right: 6px;
   border-radius: 50%;
-  background: var(--foam);
+  background: var(--cream);
   vertical-align: 1px;
 }
 
 /* A hail at a station: the bar itself turns, so the board never moves. */
 .station-bar.is-hailed {
-  border-radius: 14px;
-  box-shadow: inset 0 0 0 2px var(--danger);
-  background: rgba(240, 96, 77, 0.16);
-  animation: hail-pulse 1.1s ease-in-out infinite alternate;
-}
-@keyframes hail-pulse {
-  to {
-    background: rgba(240, 96, 77, 0.32);
-  }
+  border-radius: var(--radius);
+  outline: 2px solid var(--danger);
+  outline-offset: -2px;
 }
 .station-hail {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
-  color: #ffd7cf;
+  color: var(--cream);
   font-weight: 700;
 }
 .station-hail span {
@@ -2277,7 +2122,7 @@ body {
 }
 .station-hail-actions .btn-small {
   padding: 8px 11px;
-  font-size: 14px;
+  font-size: 13px;
 }
 /* On a phone the hail has the bar to itself until it passes; score and clock come back after. */
 .shell-tall .station-bar.is-hailed .station-numbers {
@@ -2287,7 +2132,7 @@ body {
   padding-right: 4px;
 }
 .shell-tall .station-hail {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 /* ---- the pirate's own sheet (DESIGN.md 3.6): look, title, record, titles */
@@ -2301,10 +2146,10 @@ body {
   text-align: left;
 }
 .who-btn:hover {
-  background: rgba(9, 18, 32, 0.95);
+  background: var(--line);
 }
 .who-btn:focus-visible {
-  outline: 2px solid var(--brass);
+  outline: 2px solid var(--amber);
   outline-offset: 2px;
 }
 .topbar .who-btn {
@@ -2321,12 +2166,6 @@ body {
   position: absolute;
   right: -1px;
   bottom: 0;
-  box-shadow: 0 0 0 2px var(--ink-800);
-}
-.who-face .dot.pip-live {
-  box-shadow:
-    0 0 0 2px var(--ink-800),
-    0 0 8px var(--foam);
 }
 .portrait {
   flex: none;
@@ -2335,7 +2174,7 @@ body {
 .pirate-sheet {
   width: min(460px, calc(100% - 24px));
   padding-top: 18px;
-  background: rgba(9, 18, 32, 0.96);
+  background: var(--raised);
 }
 .pirate-sheet .error {
   margin: 0;
@@ -2355,7 +2194,7 @@ body {
 }
 .sheet-id h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.15;
   overflow-wrap: anywhere;
 }
@@ -2364,10 +2203,10 @@ body {
 }
 .pirate-title {
   margin: 0;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 15px;
-  color: var(--brass);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--cream);
 }
 .dice-btn {
   display: inline-flex;
@@ -2383,14 +2222,13 @@ body {
   gap: 7px;
   min-height: 38px;
   padding: 0 12px 0 7px;
-  border: 0;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
-  color: var(--parchment);
+  background: var(--raised);
+  color: var(--cream);
   font: inherit;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   touch-action: manipulation;
 }
@@ -2398,14 +2236,11 @@ body {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(239, 227, 198, 0.15);
+  border: 1px solid var(--line);
 }
 .jacket-swatch.is-on {
-  background: rgba(212, 165, 72, 0.16);
-  box-shadow: inset 0 0 0 2px var(--brass);
-  color: var(--brass);
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
 }
 .look-headgear {
   display: grid;
@@ -2417,13 +2252,13 @@ body {
   padding: 6px 2px 5px;
   text-align: center;
   line-height: 1.15;
-  color: var(--parchment-dim);
+  color: var(--dim);
   font: inherit;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
 }
 .headgear-choice.is-on {
-  color: var(--brass);
+  color: var(--amber);
 }
 .title-picks {
   display: flex;
@@ -2433,21 +2268,19 @@ body {
 .title-pick {
   min-height: 38px;
   padding: 0 14px;
-  border: 0;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
-  color: var(--parchment);
+  background: var(--raised);
+  color: var(--cream);
   font: inherit;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
   touch-action: manipulation;
 }
 .title-pick.is-on {
-  background: rgba(212, 165, 72, 0.16);
-  box-shadow: inset 0 0 0 2px var(--brass);
-  color: var(--brass);
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
 }
 .sheet-stats {
   grid-template-columns: repeat(3, 1fr);
@@ -2467,7 +2300,7 @@ body {
   gap: 10px;
   align-items: center;
   padding: 4px 0;
-  border-bottom: 1px solid rgba(239, 227, 198, 0.08);
+  border-bottom: 1px solid var(--line);
 }
 .title-list li {
   display: grid;
@@ -2475,21 +2308,17 @@ body {
   gap: 10px;
   align-items: center;
   padding: 8px 10px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.06);
-}
-.title-list li.is-earned {
-  background: rgba(212, 165, 72, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(212, 165, 72, 0.3);
+  border-radius: var(--radius);
+  background: var(--raised);
+  border: 1px solid var(--line);
 }
 .title-mark {
   display: grid;
   place-items: center;
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .is-earned .title-mark {
-  color: var(--brass);
+  color: var(--cream);
 }
 .title-text {
   display: grid;
@@ -2497,33 +2326,34 @@ body {
   min-width: 0;
 }
 .title-list li:not(.is-earned) .title-text b {
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .title-progress {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  color: var(--dim);
   font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
 }
 .title-bar {
   display: inline-block;
   width: 84px;
   height: 6px;
   border-radius: 3px;
-  background: rgba(239, 227, 198, 0.12);
+  background: var(--line);
   overflow: hidden;
 }
 .title-bar i {
   display: block;
   height: 100%;
-  background: var(--brass);
+  background: var(--cream);
 }
 .title-state {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  color: var(--brass);
+  color: var(--cream);
 }
 .profile-head {
   display: flex;
@@ -2537,4 +2367,15 @@ body {
 }
 .profile-head h2 {
   margin: 0;
+}
+
+/* ---- focus, and a button's edge on a panel */
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+/* A panel is raised and so is a button: on a panel the button gets its hairline. */
+.sheet .icon-btn,
+.menu .icon-btn {
+  border-color: var(--line);
 }

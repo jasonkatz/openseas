@@ -9,7 +9,6 @@ export interface BoardProps {
   /** Monotonic counter so the same state object can be re-applied after a reset. */
   version: number;
   interactive: boolean;
-  showMarks: boolean;
   onSwap(col: number, row: number): void;
   preview(col: number, row: number): readonly number[];
   onFrame(): void;
@@ -41,12 +40,6 @@ export function CoolingBoard(props: BoardProps) {
       onMoveShown: (shown) => latest.current.onMoveShown(shown),
       findHint: () => latest.current.findHint(),
     }, {
-      showMarks: props.showMarks,
-      labels: {
-        charge: t("cooling.special.charge_label"),
-        magnet: t("cooling.special.magnet_label"),
-        slag: t("cooling.special.slag_label"),
-      },
       chainLabel: (chain) => t("cooling.chain_label", { chain }),
       multiLabel: (groups) => t(groups >= 4 ? "cooling.multi_4" : groups === 3 ? "cooling.multi_3" : "cooling.multi_2"),
       streakLabel: (count) => t("cooling.streak_label", { count }),
@@ -88,10 +81,6 @@ export function CoolingBoard(props: BoardProps) {
     const r = renderer.current;
     if (r && r.app.renderer) r.setHints(props.hints);
   }, [props.hints]);
-
-  useEffect(() => {
-    renderer.current?.setShowMarks(props.showMarks);
-  }, [props.showMarks]);
 
   return <div ref={host} className="board-host" data-testid="cooling-board" data-board={props.state?.cells.map((p) => p.kind).join(",")} />;
 }

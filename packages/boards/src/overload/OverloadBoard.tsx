@@ -9,7 +9,6 @@ export interface OverloadBoardProps {
   state: OverloadState;
   version?: number;
   interactive: boolean;
-  showMarks: boolean;
   /** Mark a tap worth making after a pause: on for practice, off for recorded rounds. */
   hints: boolean;
   /** The player tapped a capacitor. Returns false when the round did not take the tap. */
@@ -30,7 +29,6 @@ export function OverloadBoard(props: OverloadBoardProps) {
           onFrame: () => latest.current.onFrame(),
         },
         {
-          showMarks: props.showMarks,
           hints: props.hints,
           labels: {
             chain: (count, points) => t("overload.chain", { count, points }),

@@ -45,7 +45,6 @@ export interface DutyView {
 
 export interface DutyProps {
   active: boolean;
-  showMarks: boolean;
   children(view: DutyView): ReactNode;
 }
 
@@ -55,7 +54,7 @@ const cooling = content.puzzles.cooling;
 /** The ship's heat arrives as heat events: one with the deal, then one whenever a turn changes it. */
 const dealtHeat = (started: PuzzleStarted): CoolingMove[] => (started.duty?.heat !== undefined ? [{ type: "heat", row: started.duty.heat }] : []);
 const shipHeat = (m: ServerMessage, sessionId: string): CoolingMove | null => (m.type === "duty.heat" && m.sessionId === sessionId ? { type: "heat", row: m.row } : null);
-function CoolingDuty({ active, showMarks, children }: DutyProps) {
+function CoolingDuty({ active, children }: DutyProps) {
   const api = useDuty<CoolingState, CoolingMove, CoolingConfig>({
     puzzle: "cooling",
     def: COOLING_DEF,
@@ -103,7 +102,6 @@ function CoolingDuty({ active, showMarks, children }: DutyProps) {
         report={state.lastMove}
         version={api.version}
         interactive={interactive}
-        showMarks={showMarks}
         onSwap={onSwap}
         preview={preview}
         onFrame={api.markRendered}
@@ -117,7 +115,7 @@ function CoolingDuty({ active, showMarks, children }: DutyProps) {
 }
 
 const engines = content.puzzles.engines;
-function EnginesDuty({ active, showMarks, children }: DutyProps) {
+function EnginesDuty({ active, children }: DutyProps) {
   const api = useDuty<EnginesState, EnginesMove, EnginesConfig>({ puzzle: "engines", def: ENGINES_DEF, config: engines.config, roundSeconds: engines.roundSeconds, active });
   const { state } = api;
   const onPlace = useCallback((col: number, row: number, rot: Rotation) => void api.apply({ type: "place", col, row, rot }), [api]);
@@ -137,13 +135,13 @@ function EnginesDuty({ active, showMarks, children }: DutyProps) {
     score: state.score,
     combo: state.combo,
     board: (interactive) => (
-      <EnginesBoard state={state} version={api.version} interactive={interactive} showMarks={showMarks} onPlace={onPlace} onFrame={api.markRendered} onClear={onClear} onLanded={onLanded} onNudge={onNudge} onWipe={onWipe} />
+      <EnginesBoard state={state} version={api.version} interactive={interactive} onPlace={onPlace} onFrame={api.markRendered} onClear={onClear} onLanded={onLanded} onNudge={onNudge} onWipe={onWipe} />
     ),
   });
 }
 
 const plating = content.puzzles.plating;
-function PlatingDuty({ active, showMarks, children }: DutyProps) {
+function PlatingDuty({ active, children }: DutyProps) {
   const api = useDuty<PlatingState, PlatingMove, PlatingConfig>({ puzzle: "plating", def: PLATING_DEF, config: plating.config, roundSeconds: plating.roundSeconds, active });
   const { state } = api;
   const onPlace = useCallback((slot: number, rot: number, flip: boolean, col: number, row: number) => void api.apply({ type: "place", slot, rot, flip, col, row }), [api]);
@@ -167,7 +165,6 @@ function PlatingDuty({ active, showMarks, children }: DutyProps) {
         state={state}
         version={api.version}
         interactive={interactive}
-        showMarks={showMarks}
         onPlace={onPlace}
         onFrame={api.markRendered}
         onSealed={onSealed}
@@ -183,7 +180,7 @@ function PlatingDuty({ active, showMarks, children }: DutyProps) {
 
 const gunnery = content.puzzles.gunnery;
 const gunneryWait = (tick: number): GunneryMove => ({ type: "wait", tick });
-function GunneryDuty({ active, showMarks, children }: DutyProps) {
+function GunneryDuty({ active, children }: DutyProps) {
   const api = useDuty<GunneryState, GunneryMove, GunneryConfig>({ puzzle: "gunnery", def: GUNNERY_DEF, config: gunnery.config, roundSeconds: gunnery.roundSeconds, active });
   const { shown, moveTick } = useTicked(api, { tickMs: gunnery.config.tickMs, maxTick: gunnery.config.maxTick, advance: advanceGunnery, wait: gunneryWait });
   const onArrow = useCallback(
@@ -206,13 +203,13 @@ function GunneryDuty({ active, showMarks, children }: DutyProps) {
     api,
     score: shown.score,
     combo: shown.combo,
-    board: (interactive) => <GunneryBoard state={shown} interactive={interactive} showMarks={showMarks} onArrow={onArrow} onFrame={api.markRendered} onEvents={onEvents} />,
+    board: (interactive) => <GunneryBoard state={shown} interactive={interactive} onArrow={onArrow} onFrame={api.markRendered} onEvents={onEvents} />,
   });
 }
 
 const navigation = content.puzzles.navigation;
 const navigationWait = (tick: number): NavigationMove => ({ type: "wait", tick });
-function NavigationDuty({ active, showMarks, children }: DutyProps) {
+function NavigationDuty({ active, children }: DutyProps) {
   const api = useDuty<NavigationState, NavigationMove, NavigationConfig>({ puzzle: "navigation", def: NAVIGATION_DEF, config: navigation.config, roundSeconds: navigation.roundSeconds, active });
   const { shown, moveTick } = useTicked(api, { tickMs: navigation.config.tickMs, maxTick: navigation.config.maxTick, advance: advanceNavigation, wait: navigationWait });
   const onRotate = useCallback((ring: number, dir: -1 | 1): boolean => api.apply({ type: "rotate", ring, dir, tick: moveTick() }), [api, moveTick]);
@@ -231,7 +228,7 @@ function NavigationDuty({ active, showMarks, children }: DutyProps) {
     score: shown.score,
     combo: shown.combo,
     board: (interactive) => (
-      <NavigationBoard state={shown} interactive={interactive} showMarks={showMarks} showMarkers hints={false} onRotate={onRotate} onDrop={onDrop} onFrame={api.markRendered} onEvents={onEvents} onNudge={onNudge} />
+      <NavigationBoard state={shown} interactive={interactive} showMarkers hints={false} onRotate={onRotate} onDrop={onDrop} onFrame={api.markRendered} onEvents={onEvents} onNudge={onNudge} />
     ),
   });
 }

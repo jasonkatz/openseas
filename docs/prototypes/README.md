@@ -2,8 +2,9 @@
 
 Eight new puzzles, built to be played and judged in the studio (ADR 0036). None is in the game.
 Each is the game's own design: inspired by the feel of the original's puzzles, ported from none of
-them. Each board draws the owner's sprites from its own atlas (ADR 0037), over code-drawn pieces
-that stand in when the atlas is missing or a lab config goes past the sheet.
+them. All eight follow the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): each draws its pieces
+in code as flat pictograms of its own subject, on the game's one palette, and loads no image. The
+generated sprites they first shipped with (ADR 0037) and the tooling that made them are gone.
 
 | Puzzle | The verb | Page | Design |
 |---|---|---|---|
@@ -23,7 +24,7 @@ commit.
 ## What a prototype is made of
 
 One id, a lowercase word (`GLOSSARY.md` naming rule 2), and these files. `Salvage` is the worked
-example for every one of them.
+example for every one of them; for how a board looks, `Overload` and `Tug` are.
 
 | File | What it holds |
 |---|---|
@@ -36,7 +37,7 @@ example for every one of them.
 | `packages/content/data/puzzles/<id>.json` | The config the server deals, the round length, the thresholds, and `paceSeconds` for the live tier indicator (ADR 0039). |
 | `packages/content/data/messages/prototypes/<id>.json` | Every string the puzzle shows. |
 | `packages/boards/src/<id>/renderer.ts` | A `KitBoard` subclass: draws the state, plays the last move, reports input. |
-| `packages/boards/src/sprites/frames/<id>/` | The puzzle's frames, one lossless 192px file each, listed in order in `frames.json`; the build packs them into its atlas (ADR 0054). |
+| `packages/boards/src/<id>/pieces.ts` | The board's pieces: each a `Paint` on the 24 unit square and the palette colour it wears, with an icon component beside it for the legend (`<Id>Icon.tsx`). There are no image files: a piece is this drawing and nothing else. `Overload` and `Tug` are the worked examples. |
 | `packages/boards/src/<id>/<Id>Board.tsx` | The React host: `useKitBoard`, the labels from the message table, `data-board`. |
 | `packages/studio/src/pages/<Id>Practice.tsx` | The page: `usePractice`, `useStudio`, `PracticeShell`, HUD details, legend, result rows. |
 | `packages/studio/src/prototypes/<id>.ts` | The studio's entry: content config, starting points, whether it ticks. |
@@ -69,9 +70,10 @@ These are the project's rules (CLAUDE.md), said for a prototype.
    page's and the server's.
 5. **The board computes no score.** Every number it shows is an engine function's: what a line is
    worth, what a streak multiplies by. The engine exports those; the renderer calls them.
-6. **Kinds read apart without color.** Use the kit's kinds (a silhouette each) and its pips for the
-   mark setting. A special piece gets its own silhouette. A sprite keeps its kind's silhouette, and
-   the pips go over it on a plate (`drawMark`).
+6. **Kinds read apart without color.** A board gives each kind a silhouette of its own, or one
+   cut-out where the rules fix the outline, and is checked with every piece in one colour
+   (`docs/BRAND.md` section 3). There is no marks setting: a number its rules put on a piece (a
+   charge, a grade) is holes or a mono numeral drawn as part of the piece.
 7. **Every string is in the message table**, in the puzzle's own file. The renderer takes its
    labels as options; it never holds English.
 8. **A studio round cannot run on a config the server would refuse.** The wire schema and the engine's
@@ -79,39 +81,53 @@ These are the project's rules (CLAUDE.md), said for a prototype.
 
 ## The board kit
 
-`packages/boards/src/kit/`:
+`packages/boards/src/kit/`. Every colour in it comes from `boards/src/look/tokens.ts`.
 
 - `board.ts`: `KitBoard<S>`, the base class. It owns the PixiJS application, the frame loop, the
   pointer events and the test attributes. A renderer implements `build` (make display objects),
   `layout` (geometry, redraw from `this.state`), `onState` (show a state; play the last move when it
   follows from what is drawn, snap otherwise) and `view` (what is drawn, as the string
-  `data-board` also holds). `bake` makes a texture once per layout. `Grid` lays out square cells.
-- `tween.ts`: `Tweens`. `to`, `run`, `after`; `flush` finishes everything in order. `setState`
+  `data-board` also holds). `Grid` lays out square cells. It also gives `piece` (a pictogram as a
+  texture, kept until the next layout), `paintGround` (the playfield: bare ground and one
+  hairline, and where the beat pulses) and `beat`. Its canvas carries `data-pieces="drawn"`.
+- `pictogram.ts`: what a pictogram is drawn with (`disc`, `rounded`, `soft`, `bar`, `cut`), on a 24
+  unit square with Canvas 2D, so the board and the legend share one drawing. `PictogramIcon.tsx`
+  shows one in a legend.
+- `tween.ts`: `Tweens`. `move` (120ms, eased out), `remove` (a piece shrinks to nothing in 160ms),
+  `to`, `run`, `after`; `flush` finishes everything in order. Nothing overshoots. `setState`
   flushes before every new state, and a layout does too, so an animation must leave the board
   exactly as a snap would: end every played move with a snap to the engine's state.
-- `fx.ts`: `Fx`. `popup` (points), `say` (a callout), `burst`, `ring`, `beam`, `flash`, `shake`.
-  Effects never hold the board back.
-- `art.ts`: `KINDS`, `drawPiece`, `drawPips`, `drawMark`, `drawPanel`, `drawWell`, the `INK`
-  palette. The pieces here are what a board draws without its atlas.
-- `KindIcon.tsx`: a kind as an SVG, for legends. `SpriteIcon.tsx`: a frame of the atlas, for the
-  same; `KindIcon` takes one as `sprite`.
+- `fx.ts`: `Fx`. `popup` (points, mono), `say` (a callout), `ring`, `beam`, and `beat`: one amber
+  pulse of the whole board in 420ms, a still flash under reduced motion. There is no shake, flash
+  or burst of particles. Effects never hold the board back.
+- `art.ts`: the `INK` inks by token name, the two faces, `mix` for a flat tint, `drawGround`,
+  `drawHairline` and `drawDot` (an empty position that matters).
 - `useKitBoard.ts`: the React hook that hosts a renderer.
+
+### How a board looks
+
+A renderer calls `super(host, id, onFrame)`, and:
+
+- draws every piece as a pictogram of its own subject from `pieces.ts`, through `this.piece(key,
+  size, color, paint)`, and shows the same drawings in its legend with `PictogramIcon`. A `piece`
+  texture is destroyed at the next layout, so `layout` gives every sprite its texture again;
+- paints its playfield with `this.paintGround(...)`: no frame, no wells, no grid lines;
+- types no colour: inks are `INK.<token>` or `ink("<token>")`, and `studio/test/look.test.ts`
+  fails on a literal;
+- keeps `this.beat(strength)` for its named compound move and at most two other rare things, and
+  has no other big effect;
+- has no image file, no marks setting and no toggle for one on its studio page.
 
 A ticked board is handed a new display state every tick. It overrides `keepsPlaying` to say so,
 which stops the kit flushing its tweens ten times a second, and its `onState` plays only the events
 it has not played yet: the engine numbers its events with a rising `seq`, as Navigation's does, and
 the renderer remembers the last one it showed.
 
-Sprites (ADR 0037): the kit loads the atlas named by the puzzle id. A renderer paints a frame with
-`this.sprite(g, name, x, y, size)`, which returns false when the atlas or the frame is not there, so
-every piece is written `this.sprite(...) || drawPiece(...)`. Frames are named for what the renderer
-asks for (`spriteName("debris", kind)` is `debris-gold`). Keep everything exact in code: marks,
-numerals, counts, outlines, hit areas. `sprites/README.md` says how the sheets are packed.
-
 Sounds are `sfx` in `boards/src/audio.ts`; the renderer plays them at the moment the animation
-shows the thing. The kit registers the puzzle's picked samples (ADR 0041), so a sample named for an
-`sfx` cue plays in its place on this board, and a cue of the puzzle's own is `sfx.cue(name,
-fallback)`.
+shows the thing. Every cue is synthesized, from its definition in `boards/src/cues.ts`
+(`docs/BRAND.md` section 8, ADR 0062): there are no samples. A cue of the puzzle's own is
+`sfx.cue(name, fallback)`, a name for a moment and the cues that voice it. The beat's sound comes
+with the beat (`this.beat`), and the board plays no cue of its own in that moment.
 
 ## Adding one, promoting one, removing one
 
@@ -120,5 +136,4 @@ fallback)`.
 - **Promoting:** its own ADR and milestone. The puzzle gets a role (a station needs a `parScore`
   and station strings), moves from `PROTOTYPE_PUZZLE_IDS` to `CORE_PUZZLE_IDS`, its strings move to
   `en.json`.
-- **Removing:** delete the files in the table and the lines that register the id, with its entry in
-  `sprites/frames.json`.
+- **Removing:** delete the files in the table and the lines that register the id.

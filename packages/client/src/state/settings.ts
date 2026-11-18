@@ -1,29 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { isMuted, setMuted } from "@openseas/boards";
 
-const MARKS_KEY = "openseas.markTiles";
-
-export function readMarksFlag(): boolean {
-  try {
-    return window.localStorage.getItem(MARKS_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-/** The "mark pieces" accessibility setting, shared by every board (CLAUDE.md rule 6). Per device. */
-export function useShowMarks(): [boolean, (on: boolean) => void] {
-  const [showMarks, setShowMarks] = useState(readMarksFlag);
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(MARKS_KEY, showMarks ? "1" : "0");
-    } catch {
-      /* private mode */
-    }
-  }, [showMarks]);
-  return [showMarks, setShowMarks];
-}
-
 export function useMuted(): [boolean, (muted: boolean) => void] {
   const [muted, setMutedState] = useState(isMuted);
   const set = useCallback((m: boolean) => {

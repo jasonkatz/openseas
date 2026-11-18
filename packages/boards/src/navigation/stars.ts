@@ -1,120 +1,167 @@
-import { drawSprite, paintSprite, spriteRevision } from "../sprites/atlas.js";
-import type { Graphics } from "pixi.js";
+import type { PieceColor, StarColor, StarShape } from "@openseas/content";
+import { css, type Token } from "../look/tokens.js";
 
-export type StarShapeName = "spark" | "star" | "comet";
+/**
+ * Navigation's stars, drawn in code as pictograms (docs/BRAND.md section 3, ADR 0062). A star is two
+ * things at once, a shape and a colour, and both matter to play. The shape is the outline. The
+ * colour cannot have an outline of its own, so each colour carries one cut-out, the same on every
+ * shape, and that cut-out reads with the colour taken away: any two stars that differ in shape or
+ * in colour are told apart in one flat colour. A marker is the same star hollow: its outline as a
+ * line, with the colour's cut-out drawn solid inside it. A marker with a star on it has nothing
+ * inside to show, so there the cut-out is cut from the line itself.
+ * Painted with Canvas 2D so the chart and the page's legend share one drawing.
+ */
+export type StarShapeName = StarShape["shape"];
+export type StarCutName = StarColor["cut"];
 
-/** Outline points for a star silhouette centered on (x, y) with outer radius r. */
-export function starPolygon(shape: StarShapeName, x: number, y: number, r: number): number[] {
-  const pts: number[] = [];
-  if (shape === "spark") {
-    for (let i = 0; i < 8; i++) {
-      const rr = i % 2 === 0 ? r : r * 0.32;
-      const a = -Math.PI / 2 + (i * Math.PI) / 4;
-      pts.push(x + rr * Math.cos(a), y + rr * Math.sin(a));
-    }
-  } else if (shape === "star") {
-    for (let i = 0; i < 10; i++) {
-      const rr = i % 2 === 0 ? r : r * 0.48;
-      const a = -Math.PI / 2 + (i * Math.PI) / 5;
-      pts.push(x + rr * Math.cos(a), y + rr * Math.sin(a));
+type Ctx = CanvasRenderingContext2D;
+
+interface Outline {
+  /** Traces the closed outline on the 24 unit square. */
+  trace(ctx: Ctx): void;
+  /** How far the fill is rounded outward past the traced line. */
+  round: number;
+  /** The middle of the body, where the colour's cut-out sits. */
+  cx: number;
+  cy: number;
+}
+
+function points(ctx: Ctx, cx: number, cy: number, n: number, outer: number, inner: number, turn: number): void {
+  ctx.beginPath();
+  for (let i = 0; i < n * 2; i++) {
+    const r = i % 2 === 0 ? outer : inner;
+    const a = turn + (i * Math.PI) / n;
+    if (i === 0) ctx.moveTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+    else ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+  }
+  ctx.closePath();
+}
+
+const OUTLINES: Record<StarShapeName, Outline> = {
+  // Four points, set on the diagonals.
+  spark: {
+    trace: (ctx) => points(ctx, 12, 12, 4, 12.4, 4.6, Math.PI / 4),
+    round: 2.4,
+    cx: 12,
+    cy: 12,
+  },
+  // Five points, one up.
+  star: {
+    trace: (ctx) => points(ctx, 12, 12.7, 5, 9.3, 5, -Math.PI / 2),
+    round: 2.4,
+    cx: 12,
+    cy: 12.7,
+  },
+  // A round head low on the right, its tail drawn out to the upper left.
+  comet: {
+    trace(ctx) {
+      const r = 5.6;
+      const k = r * Math.SQRT1_2;
+      ctx.beginPath();
+      ctx.moveTo(4.4, 4.4);
+      ctx.lineTo(14.6 + k, 14.6 - k);
+      ctx.arc(14.6, 14.6, r, -Math.PI / 4, (Math.PI * 3) / 4);
+      ctx.closePath();
+    },
+    round: 2.4,
+    cx: 14.6,
+    cy: 14.6,
+  },
+};
+
+/** Each colour's cut-out, drawn round the middle of the body. */
+const CUTS: Record<StarCutName, (ctx: Ctx, x: number, y: number) => void> = {
+  // A round hole.
+  dot(ctx, x, y) {
+    ctx.beginPath();
+    ctx.arc(x, y, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+  },
+  // A band across, cutting the star in two.
+  band(ctx, _x, y) {
+    ctx.fillRect(0, y - 1.4, 24, 2.8);
+  },
+  // A cut down the middle, from top to bottom.
+  split(ctx, x) {
+    ctx.fillRect(x - 1.4, 0, 2.8, 24);
+  },
+};
+
+export interface StarLook {
+  shape: StarShapeName;
+  /** A palette colour. A piece colour for a star; any token for a legend that shows a shape alone. */
+  color: Token;
+  /** The colour's cut-out, or null for a legend that shows a shape alone. */
+  cut: StarCutName | null;
+  /** A marker: the outline as a line, the cut-out solid inside it. */
+  hollow?: boolean;
+  /** A marker with a star on it: the outline alone, the cut-out taken from the line. */
+  covered?: boolean;
+}
+
+/** Paints one star into a cell of size `s` whose top-left corner is the context origin. */
+export function paintStar(ctx: Ctx, s: number, look: StarLook): void {
+  const o = OUTLINES[look.shape];
+  ctx.save();
+  // The 24 unit square is drawn at 20/24 of the cell, so neighbours never touch.
+  const k = (s * (20 / 24)) / 24;
+  ctx.translate(s / 2 - 12 * k, s / 2 - 12 * k);
+  ctx.scale(k, k);
+  ctx.fillStyle = css(look.color);
+  ctx.strokeStyle = css(look.color);
+  ctx.lineJoin = "round";
+  if (look.hollow) {
+    o.trace(ctx);
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+    if (look.cut && look.covered) {
+      ctx.globalCompositeOperation = "destination-out";
+      CUTS[look.cut](ctx, o.cx, o.cy);
+    } else if (look.cut) {
+      ctx.save();
+      o.trace(ctx);
+      ctx.clip();
+      CUTS[look.cut](ctx, o.cx, o.cy);
+      ctx.restore();
     }
   } else {
-    // Comet: a round head with a tail sweeping down-left.
-    const steps = 14;
-    for (let i = 0; i <= steps; i++) {
-      const a = Math.PI * 0.75 + (i / steps) * Math.PI * 1.5;
-      pts.push(x + r * 0.62 * Math.cos(a), y + r * 0.62 * Math.sin(a));
+    o.trace(ctx);
+    ctx.lineWidth = o.round;
+    ctx.fill();
+    ctx.stroke();
+    if (look.cut) {
+      // Cut out of what is drawn, so whatever is behind the star shows through.
+      ctx.globalCompositeOperation = "destination-out";
+      CUTS[look.cut](ctx, o.cx, o.cy);
     }
-    pts.push(x - r * 1.0, y + r * 1.0);
   }
-  return pts;
+  ctx.restore();
 }
 
-/** Same silhouettes as an SVG path string, for React legends. */
-export function starPath(shape: StarShapeName, x: number, y: number, r: number): string {
-  const p = starPolygon(shape, x, y, r);
-  let d = "";
-  for (let i = 0; i < p.length; i += 2) d += `${i === 0 ? "M" : "L"}${p[i]!.toFixed(2)} ${p[i + 1]!.toFixed(2)}`;
-  return d + "Z";
+/** A star as its own canvas, `s` CSS pixels square at `resolution` device pixels per pixel. */
+export function starCanvas(s: number, look: StarLook, resolution: number): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(s * resolution);
+  canvas.height = Math.ceil(s * resolution);
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.scale(resolution, resolution);
+    paintStar(ctx, s, look);
+  }
+  return canvas;
 }
 
-export interface StarPaint {
-  shape: StarShapeName;
-  color: number;
-  /** A hollow marker instead of a solid star. */
-  hollow: boolean;
-  /** The color's mark badge, drawn when the player turns marks on. */
-  mark: string | null;
-  alpha?: number;
-}
+const urlCache = new Map<string, string>();
 
-export function navigationSpriteName(shape: StarShapeName, color: number, hollow: boolean): string {
-  const colorName = ({ [0xf5d021]: "gold", [0x7fd7ff]: "ice", [0xff6b5e]: "ember" } as Record<number, string>)[color];
-  return hollow ? `marker-${shape}` : `${colorName}-${shape}`;
-}
-
-const iconCache = new Map<string, string>();
-export function starSpriteUrl(shape: StarShapeName, color: number, px: number): string | undefined {
-  const name = navigationSpriteName(shape, color, false);
-  const key = `${name}/${px}/${spriteRevision()}`;
-  let url = iconCache.get(key);
+/** A data URL of a star for the page's legend; cached because legends re-render often. */
+export function starDataUrl(look: StarLook, px: number): string {
+  const key = `${look.shape}:${look.color}:${look.cut}:${look.hollow ? (look.covered ? 2 : 1) : 0}:${px}`;
+  let url = urlCache.get(key);
   if (!url) {
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = Math.ceil(px * 3);
-    const ctx = canvas.getContext("2d");
-    if (!ctx || !drawSprite(ctx, "navigation", name, 0, 0, canvas.width, canvas.height)) return undefined;
-    url = canvas.toDataURL();
-    iconCache.set(key, url);
+    url = starCanvas(px, look, 3).toDataURL();
+    urlCache.set(key, url);
   }
   return url;
 }
 
-export function paintStar(g: Graphics, x: number, y: number, r: number, p: StarPaint): void {
-  const alpha = p.alpha ?? 1;
-  const name = navigationSpriteName(p.shape, p.color, p.hollow);
-  if (paintSprite(g, "navigation", name, x - r * 1.12, y - r * 1.12, r * 2.24, r * 2.24, alpha, p.hollow ? p.color : 0xffffff)) {
-    if (p.mark) paintMark(g, x, y, r * 0.3, p.mark, p.hollow ? p.color : 0x0b1526, alpha);
-    return;
-  }
-  const poly = starPolygon(p.shape, x, y, r);
-  if (p.hollow) {
-    g.poly(poly).fill({ color: p.color, alpha: 0.1 * alpha });
-    g.poly(poly).stroke({ width: Math.max(1.5, r * 0.14), color: p.color, alpha: 0.9 * alpha });
-  } else {
-    g.poly(starPolygon(p.shape, x, y + r * 0.08, r)).fill({ color: 0x000000, alpha: 0.35 * alpha });
-    g.poly(poly).fill({ color: p.color, alpha });
-    g.poly(poly).stroke({ width: Math.max(1, r * 0.08), color: 0xffffff, alpha: 0.55 * alpha });
-    // A bright core gives the star some glow without a filter.
-    g.circle(x, y, r * 0.22).fill({ color: 0xffffff, alpha: 0.75 * alpha });
-  }
-  if (p.mark) paintMark(g, x, y, r * 0.3, p.mark, p.hollow ? p.color : 0x0b1526, alpha);
-}
-
-/** The marks vocabulary shared with the tile art: circle, square, triangle, diamond, hexagon, star. */
-export function paintMark(g: Graphics, x: number, y: number, r: number, mark: string, color: number, alpha = 1): void {
-  const regular = (n: number, rot: number): number[] => {
-    const pts: number[] = [];
-    for (let i = 0; i < n; i++) pts.push(x + r * Math.cos(rot + (i * Math.PI * 2) / n), y + r * Math.sin(rot + (i * Math.PI * 2) / n));
-    return pts;
-  };
-  switch (mark) {
-    case "circle":
-      g.circle(x, y, r * 0.85);
-      break;
-    case "square":
-      g.rect(x - r * 0.75, y - r * 0.75, r * 1.5, r * 1.5);
-      break;
-    case "triangle":
-      g.poly(regular(3, -Math.PI / 2));
-      break;
-    case "diamond":
-      g.poly(regular(4, -Math.PI / 2));
-      break;
-    case "hexagon":
-      g.poly(regular(6, 0));
-      break;
-    default:
-      g.circle(x, y, r * 0.5);
-  }
-  g.fill({ color, alpha: 0.9 * alpha });
-}
+export type { PieceColor };

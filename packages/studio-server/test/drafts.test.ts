@@ -101,26 +101,28 @@ describeDb("drafts", () => {
     expect((await fetch(`${base}/drafts`, { method: "OPTIONS", headers: { origin: ELSEWHERE } })).headers.get("access-control-allow-origin")).toBeNull();
   });
 
-  it("keeps a draft's picks with its numbers, and reads a draft kept before picks as having none", async () => {
+  it("reads a draft kept with picks, of sprites or sounds, without them, and keeps none it is sent (ADR 0063, ADR 0064)", async () => {
     const hash = "a".repeat(64);
-    const picks = { sprites: { cog: hash }, sounds: { clear: "synth", "swap-quiet": hash } };
-    const made = DraftSchema.parse(await (await send("POST", "/drafts", octo, { puzzle: "tug", numbers: { ...numbers, picks } })).json());
-    expect(made.numbers.picks).toEqual(picks);
-    const saved = DraftSchema.parse(await (await send("PUT", `/drafts/${made.id}`, octo, { numbers: { ...numbers, picks: { sprites: {}, sounds: { clear: "synth" } } }, revision: 1 })).json());
-    expect(saved.numbers.picks).toEqual({ sprites: {}, sounds: { clear: "synth" } });
-    // A page older than picks sends none, and the draft then has none.
-    const bare = DraftSchema.parse(await (await send("PUT", `/drafts/${made.id}`, octo, { numbers, revision: 2 })).json());
-    expect(bare.numbers.picks).toEqual({ sprites: {}, sounds: {} });
-    // A row written before picks holds no such key: it is sent whole all the same.
-    await app.db.update(schema.draft).set({ numbers });
-    expect((await list(octo, "?puzzle=tug"))[0]!.numbers.picks).toEqual({ sprites: {}, sounds: {} });
+    const made = DraftSchema.parse(await (await send("POST", "/drafts", octo, { puzzle: "tug", numbers })).json());
+    // A row as it was kept before ADR 0062: a take picked for a frame, and for two cues.
+    const old = { ...numbers, overrides: { kinds: 6 }, picks: { sprites: { cog: hash }, sounds: { clear: "synth", "swap-quiet": hash } } };
+    await app.db.update(schema.draft).set({ numbers: old as typeof numbers });
+    const [read] = await list(octo, "?puzzle=tug");
+    expect(read!.numbers).not.toHaveProperty("picks");
+    expect(read!.numbers.overrides).toEqual({ kinds: 6 });
+    // Reading it rewrote nothing: the row is as it was.
+    expect((await app.db.select().from(schema.draft)).find((r) => r.id === made.id)!.numbers).toEqual(old);
 
-    // A pick is a take's hash, or `synth` for a cue: nothing else.
-    const bad = (p: unknown): Promise<Response> => send("PUT", `/drafts/${made.id}`, octo, { numbers: { ...numbers, picks: p }, revision: 3 });
-    expect((await bad({ sprites: { cog: "not-a-hash" }, sounds: {} })).status).toBe(400);
-    expect((await bad({ sprites: { cog: "synth" }, sounds: {} })).status).toBe(400);
-    expect((await bad({ sprites: { "../cog": hash }, sounds: {} })).status).toBe(400);
-    expect((await send("DELETE", `/drafts/${made.id}`, octo)).status).toBe(200);
+    // A page from before still sends picks with a save: the save is taken, and the picks are not kept.
+    const older = await send("PUT", `/drafts/${made.id}`, octo, { numbers: { ...numbers, overrides: { kinds: 7 }, picks: { sprites: { cog: hash }, sounds: { clear: hash } } }, revision: 1 });
+    expect(older.status).toBe(200);
+    expect(DraftSchema.parse(await older.json()).numbers).not.toHaveProperty("picks");
+    const row = (await app.db.select().from(schema.draft)).find((r) => r.id === made.id)!;
+    expect(row.numbers).not.toHaveProperty("picks");
+    expect(row.numbers.overrides).toEqual({ kinds: 7 });
+    // Nothing of a pick is checked any more, so nothing of one can refuse a save.
+    const odd = await send("PUT", `/drafts/${made.id}`, octo, { numbers: { ...numbers, picks: { sounds: { "../clear": "not-a-hash" } } }, revision: 2 });
+    expect(odd.status).toBe(200);
   });
 
   it("refuses what is not a draft", async () => {

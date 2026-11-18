@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TesterLinkSchema, type CreateTesterLink, type TesterLink } from "@openseas/protocol";
 import { createApp, type App } from "../src/app.js";
+import { eq } from "drizzle-orm";
 import { schema } from "../src/db/index.js";
 import { loadEnv } from "../src/env.js";
 import type { GitHub } from "../src/github.js";
@@ -65,7 +66,7 @@ describeDb("studio service", () => {
     expect(landed).toBe(`${STUDIO}/cooling`);
     expect(session).toMatch(/^studio_session=.+/);
     const me = await fetch(`${base}/auth/me`, { headers: { cookie: session } });
-    expect(await me.json()).toEqual({ login: "Octo", signIn: true, dev: false, save: false, chat: false, takes: false, picks: true, words: true });
+    expect(await me.json()).toEqual({ login: "Octo", signIn: true, dev: false, save: false, chat: false, words: true });
     expect(await (await fetch(`${base}/auth/me`)).json()).toMatchObject({ login: null });
   });
 
@@ -103,11 +104,21 @@ describeDb("studio service", () => {
     expect(read.headers.get("access-control-allow-origin")).toBe("*");
     expect(TesterLinkSchema.parse(await read.json())).toEqual(link);
 
-    // A link freezes the draft's picks with its numbers, and one frozen before picks reads as having none.
-    expect(link.draft.picks).toEqual({ sprites: {}, sounds: {} });
-    const picks = { sprites: { cog: "b".repeat(64) }, sounds: { clear: "synth" } };
-    const picked = TesterLinkSchema.parse(await (await post(session, { ...draft, name: "New cog", draft: { ...draft.draft, picks } })).json());
-    expect(TesterLinkSchema.parse(await (await fetch(`${base}/links/${picked.id}`)).json()).draft.picks).toEqual(picks);
+    // A link made by a page from before ADR 0062 may send picks: it is made, and freezes none.
+    const hash = "b".repeat(64);
+    const picked = TesterLinkSchema.parse(await (await post(session, { ...draft, name: "New chime", draft: { ...draft.draft, picks: { sounds: { clear: "synth", pop: hash } } } })).json());
+    expect(picked.draft).not.toHaveProperty("picks");
+    expect((await app.db.select().from(schema.testerLink).where(eq(schema.testerLink.id, picked.id)))[0]!.draft).not.toHaveProperty("picks");
+    // A link frozen with picks, of a sprite or a sound, before then still reads, without them (ADR 0063, ADR 0064), and its row is as it was.
+    const old = { ...draft.draft, picks: { sprites: { cog: hash }, sounds: { clear: "synth", pop: hash } } };
+    await app.db
+      .update(schema.testerLink)
+      .set({ draft: old as typeof draft.draft })
+      .where(eq(schema.testerLink.id, picked.id));
+    const frozen = TesterLinkSchema.parse(await (await fetch(`${base}/links/${picked.id}`)).json());
+    expect(frozen.draft).not.toHaveProperty("picks");
+    expect(frozen.draft.overrides).toEqual(draft.draft.overrides);
+    expect((await app.db.select().from(schema.testerLink).where(eq(schema.testerLink.id, picked.id)))[0]!.draft).toEqual(old);
     expect((await fetch(`${base}/links/${picked.id}`, { method: "DELETE", headers: { cookie: session, origin: STUDIO } })).status).toBe(200);
 
     const listed = await fetch(`${base}/links?puzzle=cooling`, { headers: { cookie: session, origin: STUDIO } });

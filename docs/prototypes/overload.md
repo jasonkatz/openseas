@@ -49,22 +49,39 @@ Three things sit on top of that:
 - **Third skill:** the join. One charge on the capacitor between two clusters about doubles the
   chain, and n × n pays for the tap. Two charges of set-up reach ten to fifteen.
 
-## Input
+## Input and feedback
 
 - Tap a capacitor. The tap lands on press, and a tap during a chain finishes the chain at once.
 - Keyboard: arrows or WASD move a cursor, space or enter taps.
-- The strip over the bank shows the taps held as lamps, with the next one filling like a dial, and
-  beside them the chain as it plays: its bursts so far and what that many are worth (the engine's
-  `overloadChainValue`). Between chains it shows the streak.
-- A chain plays wave by wave: each burst throws a spark to every neighbour it charged, the
-  neighbours' rings fill, and the ones that are full swell and go in the next wave, each wave a
-  note higher. A tap with the hand empty shakes the lamps.
 - No preview of a chain in any round: reading it is the game. Unrated and lab rounds mark a tap
-  after five seconds idle (`overloadHint`): a ring on the tap that sets off the longest chain, or,
-  when that chain is too short for the streak and one charge would make a longer one, a ring with a
-  plus on the capacitor to charge.
-- A capacitor's charge is the count of lit parts of its ring, cut in three; a 3 shows a bolt and a
-  booster has a second ring with four lugs. The marks setting draws the charge as a digit.
+  after five seconds idle (`overloadHint`): a cream ring on the tap that sets off the longest
+  chain, or, when that chain is too short for the streak and one charge would make a longer one, a
+  ring with a plus on the capacitor to charge.
+
+The board is restyled to the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws its pieces
+in code (`boards/src/overload/pieces.ts`), loads no atlas and has no marks setting.
+
+- **Pieces.** A capacitor is a flat disc, seen from above. A booster is a disc with four lugs, one
+  towards each neighbour, so the two are told apart by outline. The charge is a rule's number on
+  the piece, so it is part of the drawing: one hole cut for each charge, the ground showing
+  through. The colour steps with the charge as a second cue (slate at none, sky, sand, rust), and a
+  capacitor at four, full and about to burst, is cream with four holes.
+- **The board.** Bare ground with one hairline round the strip and the bank. No frame and no grid;
+  a small dot marks the gap a burst capacitor leaves.
+- **The strip** over the bank shows the taps held as lamps: a lit one is an amber dot (the taps
+  are the player's own), the next one fills like a dial in a duller amber, the rest are empty
+  sockets. Beside them is the chain as it plays, in mono: its bursts so far and what that many are
+  worth (the engine's `overloadChainValue`). Between chains it shows the streak, dim.
+- **A tap** is ringed in amber for a moment and the capacitor gains its hole at once. A tap with
+  the hand empty turns the sockets to danger and says so.
+- **A chain** plays wave by wave: each burst capacitor shrinks to nothing, one dot of charge runs
+  to every neighbour it charged (a bigger dot from a booster), the neighbours gain their holes,
+  and the ones now full go in the next wave, each wave a note higher. The points rise from the
+  middle of the chain in cream; a tap given back is said in amber by the lamps; a lost streak in
+  danger. Fresh capacitors grow into the gaps.
+- **The beat**, one amber pulse of the whole board, is kept for two things: a chain of ten or more
+  (called out, and stronger the longer the chain, to a chain of twenty), and a streak brought to
+  its top. There is no shake, no flash and no glow.
 
 ## Engine
 

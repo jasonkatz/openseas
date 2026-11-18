@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, sql } from "drizzle-orm";
-import { picksOf, wordsOf, type ChatFailure, type ChatItem, type ChatModel, type DraftNumbers, type RoundSummary, type SendChat } from "@openseas/protocol";
+import { wordsOf, type ChatFailure, type ChatItem, type ChatModel, type DraftNumbers, type RoundSummary, type SendChat } from "@openseas/protocol";
 import { schema, type Db } from "../db/index.js";
 import type { DraftRow } from "../drafts.js";
 import { newLinkId } from "../links.js";
@@ -12,7 +12,6 @@ import type { ModelProxy } from "./proxy.js";
 import type { AgentEvent, AgentRunner, AgentTurn, TurnResult } from "./runner.js";
 import type { AgentIdentity } from "./sdkRunner.js";
 import { mayWrite, repoPath } from "./scope.js";
-import type { Takes } from "../takes/takes.js";
 
 export interface ChatOptions {
   db: Db;
@@ -23,8 +22,6 @@ export interface ChatOptions {
   identity: AgentIdentity | null;
   /** US dollars: all the chat may spend, every draft together (ADR 0047). */
   capUsd: number;
-  /** The library a turn's takes are kept in when it ends (ADR 0051); null when the service has no bucket. */
-  takes: Takes | null;
   log: Logger;
 }
 
@@ -104,11 +101,6 @@ export function context(numbers: DraftNumbers, refusals: readonly string[], roun
   const lines = ["", "---", "From the studio, for this message:"];
   lines.push(changed ? `Draft numbers (what differs from shipped): ${JSON.stringify({ config: numbers.overrides, ...Object.fromEntries(TOPS.filter((k) => numbers[k] !== null).map((k) => [k, numbers[k]])) })}` : "Draft numbers: none changed; the board is on the shipped numbers.");
   if (numbers.seed) lines.push(`Pinned seed: ${numbers.seed}`);
-  // The owner picks every take (ADR 0040); the agent is told which, and has no tool that picks.
-  const picks = picksOf(numbers);
-  const short = (o: Record<string, string>): string => Object.entries(o).map(([name, hash]) => `${name}: ${hash === "synth" ? "the synthesized cue" : hash.slice(0, 12)}`).join(", ");
-  if (Object.keys(picks.sprites).length) lines.push(`Draft picks, sprites (frame: the start of the picked take's sha256, which is that of its \`frame-<n>.webp\`): ${short(picks.sprites)}`);
-  if (Object.keys(picks.sounds).length) lines.push(`Draft picks, sounds (cue: the start of the picked take's sha256, which is that of its \`placed-<n>.mp3\`): ${short(picks.sounds)}`);
   // The owner's own rewrites of the puzzle's strings (ADR 0057): Save writes them to the message table, so the agent leaves those keys be.
   const words = wordsOf(numbers);
   if (Object.keys(words.texts).length) lines.push(`Draft words (message key: the owner's rewrite, which Save writes to the message table; do not edit these keys yourself): ${JSON.stringify(words.texts)}`);
@@ -237,15 +229,6 @@ export function createChat(o: ChatOptions): Chat {
       if (commit) await db.update(schema.draft).set({ chatCommits: sql`${schema.draft.chatCommits} + 1` }).where(eq(schema.draft.id, row.id));
     } catch (err) {
       log.error({ err, draft: row.id }, "could not commit a chat turn");
-    }
-    // Whatever takes the turn's commands made are kept now, so the owner's panels list them (ADR 0051).
-    // What they cost was metered as the scripts made them, through the proxy (ADR 0059).
-    if (o.takes && run.cwd) {
-      try {
-        await o.takes.ingest(run.cwd, { draft: row.id, puzzle: row.puzzle, owner: row.owner });
-      } catch (err) {
-        log.error({ err, draft: row.id }, "could not keep a turn's takes");
-      }
     }
     const status = run.capped ? "capped" : run.stopped ? "stopped" : result.status;
     if (status === "failed") log.warn({ draft: row.id, turn: run.number, error: result.error }, "chat turn failed");

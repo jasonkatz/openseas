@@ -1,6 +1,5 @@
-import { loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
-import { sfx, soundsFor } from "../audio.js";
-import { Application, CanvasSource, Container, FillGradient, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
+import { sfx } from "../audio.js";
+import { Application, CanvasSource, Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from "pixi.js";
 import {
   swordfightBoardString,
   swordfightIdx,
@@ -16,11 +15,9 @@ import {
   type SwordfightState,
 } from "@openseas/engine";
 import type { SwordfightContent } from "@openseas/content";
-import { mix } from "../cooling/tiles.js";
-import { drawMark } from "../engines/renderer.js";
-import { SCRAP_COLOR, blockCanvas, scrapStage, type BlockStyle, type SwordTexture } from "./art.js";
+import { FONT, MOTION, ink, type PieceColor } from "../look/tokens.js";
+import { blockCanvas, paintBlock, scrapStage, type BlockCut, type BlockStyle } from "./art.js";
 import { boardSurface } from "../surface.js";
-import { HULL, hullFrame, hullGradient } from "../hull.js";
 
 /** A board in the melee that is not in this fight's state: another pirate's, or a raider's run by the server. */
 export interface RemoteBoard {
@@ -49,7 +46,6 @@ export interface SwordfightCallbacks {
 }
 
 export interface SwordfightRendererOptions {
-  showMarks: boolean;
   /** Ms per row while the player hurries the pair. Free fall is the config's fallTicks * tickMs. */
   softDropMs: number;
   labels: {
@@ -74,46 +70,59 @@ export function swordfightViewString(state: SwordfightState): string {
   return state.config.player ? swordfightBoardString(state.config, state.boards[0]!.cells) : "";
 }
 
-interface PieceView {
+/** Something that slides to where it belongs: a move is one eased slide of `MOVE_MS`, however far. */
+interface Slider {
+  x: number;
+  y: number;
+  tx: number;
+  ty: number;
+  /** The slide under way: where it began, where it is bound, and how long it has run. */
+  sx: number;
+  sy: number;
+  gx: number;
+  gy: number;
+  t: number;
+}
+
+interface PieceView extends Slider {
   s: Sprite;
   kind: SwordCell["kind"];
   color: number;
   /** Scrap: the drops left before it ripens, which picks its look. 0 otherwise. */
   ripen: number;
-  x: number;
-  y: number;
-  tx: number;
-  ty: number;
   dying: number | null;
-  flash: number;
 }
 
-interface SlabView {
+/** A slab's `x` and `y` are its top-left corner; its sprite is anchored at its middle so it shrinks there. */
+interface SlabView extends Slider {
   s: Sprite;
   color: number;
   w: number;
   h: number;
-  x: number;
-  y: number;
-  tx: number;
-  ty: number;
   dying: number | null;
-  flash: number;
 }
 
-interface Mini {
+/** A board beside the player's as a snapshot: its cells as a string, and its slabs where the fight's state knows them. */
+interface MiniModel {
   key: string;
   name: string;
   side: 0 | 1;
   cells: string;
+  /** Slabs with `row` counted from the top. Absent for a board from outside this state, whose slabs are read off its cells. */
+  slabs?: ReadonlyArray<{ col: number; row: number; w: number; h: number }>;
   pending: number;
   out: boolean;
   points: number;
+}
+
+interface Mini extends MiniModel {
   g: Graphics;
+  s: Sprite;
+  over: Graphics;
   label: Text;
   pendingLabel: Text;
-  flash: number;
-  shake: number;
+  /** What the sprite's texture was painted from, so it is repainted only when the board changed. */
+  painted: string;
   x: number;
   y: number;
   cell: number;
@@ -126,33 +135,32 @@ interface Popup {
   y0: number;
 }
 
-interface Particle {
+/** One mark crossing from a board to another: scrap on its way. */
+interface Mark {
   x: number;
   y: number;
-  vx: number;
-  vy: number;
-  r: number;
-  color: number;
+  to: { x: number; y: number };
   life: number;
-  max: number;
-  /** Flies to a point instead of ballistic. */
-  to?: { x: number; y: number };
 }
 
 type Step = () => number | "settle";
 
+/** Every colour the board draws, from the game's one palette (docs/BRAND.md section 2). */
 const COLORS = {
-  deckTop: 0x1a2438,
-  deckBottom: 0x0b1526,
-  brass: 0xd4a548,
-  bone: 0xf2f0e6,
-  danger: 0xf0604d,
-  good: 0x6fdc8c,
-  muted: 0x9aa7bd,
-  text: 0xefe3c6,
+  ground: ink("ground"),
+  line: ink("line"),
+  cream: ink("cream"),
+  dim: ink("dim"),
+  amber: ink("amber"),
+  danger: ink("danger"),
+  slate: ink("slate"),
 };
-const CLEAR_MS = 240;
-const DIE_MS = 240;
+const MOVE_MS = MOTION.move;
+const CLEAR_MS = MOTION.clear;
+const DIE_MS = MOTION.clear;
+const BEAT_MS = MOTION.beat;
+/** A mark of scrap crossing to another board. */
+const MARK_MS = MOTION.panel * 2;
 const LOCK_MS = 350;
 /** A finger held still this long hurries the pair: long enough that the start of a swipe or a drag does not. */
 const HOLD_MS = 60;
@@ -161,14 +169,10 @@ const MAX_LOCK_RESETS = 3;
 const STRIP_ROWS = 1.6;
 /** A mini board's cell as a share of the player's: the other boards sit small in the margin so the player's board is the thing. */
 const MINI_SCALE = 0.3;
-const FONT = "Atkinson Hyperlegible, Avenir Next, Segoe UI, sans-serif";
-const DISPLAY = "Fraunces, Georgia, serif";
+const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
 
-function linear(vertical: boolean, stops: number[]): FillGradient {
-  const g = new FillGradient({ type: "linear", start: { x: 0, y: 0 }, end: vertical ? { x: 0, y: 1 } : { x: 1, y: 0 }, textureSpace: "local" });
-  stops.forEach((c, i) => g.addColorStop(i / Math.max(1, stops.length - 1), c));
-  return g;
-}
+/** A slider at rest at (`x`, `y`). */
+const at = (x: number, y: number): Slider => ({ x, y, tx: x, ty: y, sx: x, sy: y, gx: x, gy: y, t: 0 });
 
 /** Where the two halves sit for a pivot column (a's column), rotation and a's row. */
 function halves(pc: number, rot: SwordRotation, row: number): { a: [number, number]; b: [number, number] } {
@@ -185,12 +189,37 @@ function halves(pc: number, rot: SwordRotation, row: number): { a: [number, numb
 }
 const anchorOf = (pc: number, rot: SwordRotation): number => (rot === 2 ? pc - 1 : pc);
 
+/**
+ * The slabs in a board seen only as its cells, rows from the top. Blocks of one colour in a two by
+ * two always fuse and a slab takes a full strip beside it, so a rectangle of one colour grown from
+ * its top-left corner is a slab; two slabs of one colour side by side read as one, which is close enough at this size.
+ */
+function slabsIn(rows: string, width: number, height: number): Array<{ col: number; row: number; w: number; h: number }> {
+  const used = new Set<number>();
+  const out: Array<{ col: number; row: number; w: number; h: number }> = [];
+  const is = (c: number, r: number, ch: string): boolean => c < width && r < height && rows[r * width + c] === ch && !used.has(r * width + c);
+  for (let r = 0; r < height - 1; r++) {
+    for (let c = 0; c < width - 1; c++) {
+      const ch = rows[r * width + c]!;
+      if (ch < "0" || ch > "9" || !is(c, r, ch) || !is(c + 1, r, ch) || !is(c, r + 1, ch) || !is(c + 1, r + 1, ch)) continue;
+      let w = 2;
+      let h = 2;
+      while (is(c + w, r, ch) && is(c + w, r + 1, ch)) w++;
+      const full = (rr: number): boolean => Array.from({ length: w }, (_, k) => is(c + k, rr, ch)).every(Boolean);
+      while (full(r + h)) h++;
+      for (let rr = r; rr < r + h; rr++) for (let cc = c; cc < c + w; cc++) used.add(rr * width + cc);
+      out.push({ col: c, row: r, w, h });
+    }
+  }
+  return out;
+}
+
 export class SwordfightRenderer {
   readonly app = new Application();
   private readonly board = new Container();
-  private readonly staticLayer = new Container();
-  private readonly frame = new Graphics();
   private readonly well = new Graphics();
+  /** The entry's warning, over the pieces: a ring once the stack is near it. */
+  private readonly entryG = new Graphics();
   private readonly ghost = new Graphics();
   private readonly pieceLayer = new Container();
   private readonly slabLayer = new Container();
@@ -199,10 +228,9 @@ export class SwordfightRenderer {
   private readonly fxLayer = new Container();
   private readonly stripLayer = new Container();
   private readonly stripG = new Graphics();
-  private readonly warnG = new Graphics();
+  private readonly beatLayer = new Graphics();
   /** The well's shape: the falling pair is clipped to it, so a pair slides in from above the board. */
   private readonly wellMask = new Graphics();
-  private pendingShown = 0;
   /** Ms without a pair in hand while one is due, and ms a taken pair has waited for its state. */
   private idleMs = 0;
   private placedMs = 0;
@@ -211,19 +239,17 @@ export class SwordfightRenderer {
   private nextText: Text | null = null;
   private incomingText: Text | null = null;
   private readonly miniLayer = new Container();
-  private readonly veil = new Graphics();
-  private readonly hullFill = hullGradient(true, [HULL.plateTop, HULL.plateMid, HULL.plateBottom]);
-  private readonly deckFill = linear(true, [COLORS.deckTop, COLORS.deckBottom]);
   private readonly textures = new Map<string, Texture>();
   private readonly pieces = new Map<number, PieceView>();
   private readonly slabs = new Map<number, SlabView>();
   private minis: Mini[] = [];
   private remote: readonly RemoteBoard[] = [];
   private popups: Popup[] = [];
-  private particles: Particle[] = [];
-  private readonly styles: Array<{ color: number; texture: SwordTexture; mark: string }> = [];
+  private marks: Mark[] = [];
+  /** The beat: one amber pulse of the whole board for a big moment (docs/BRAND.md section 6). */
+  private beatNow: { life: number; strength: number } | null = null;
+  private readonly styles: Array<{ color: PieceColor; cut: BlockCut }> = [];
   private readonly reduced = typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
-  private showMarks: boolean;
   private cell = 40;
   private pad = 8;
   private ox = 0;
@@ -243,8 +269,6 @@ export class SwordfightRenderer {
   private viewStale = true;
   private destroyed = false;
   private interactive = false;
-  private time = 0;
-  private shake = 0;
   private shownTick = -1;
   private shownMoves = -1;
   /** Events already shown, per tick and board: how many of that pair's events have been played. */
@@ -260,26 +284,20 @@ export class SwordfightRenderer {
     private readonly cb: SwordfightCallbacks,
     private readonly opts: SwordfightRendererOptions,
   ) {
-    this.showMarks = opts.showMarks;
-    for (const p of content.pieces) this.styles.push({ color: parseInt(p.color.slice(1), 16), texture: p.texture, mark: p.mark });
+    for (const p of content.pieces) this.styles.push({ color: p.color, cut: p.cut });
     this.width = content.config.width;
     this.height = content.config.height;
   }
 
-  private styleFor(color: number, kind: SwordCell["kind"], ripen: number): BlockStyle {
-    const st = this.styles[Math.max(0, color)] ?? { color: 0xffffff, texture: "rings" as const, mark: "circle" };
-    return { color: st.color, texture: st.texture, mark: st.mark, kind, showMarks: this.showMarks, ripen };
+  private styleFor(color: number, kind: SwordCell["kind"], ripen?: number): BlockStyle {
+    const st = this.styles[Math.max(0, color)] ?? { color: "cream" as const, cut: "dot" as const };
+    return { color: st.color, cut: st.cut, kind, ...(ripen === undefined ? {} : { ripen }) };
   }
-
-  private colorOf(color: number): number {
-    return color < 0 ? SCRAP_COLOR : (this.styles[color]?.color ?? 0xffffff);
-  }
-
-  /** This puzzle's picked samples play while the board is open (ADR 0041). */
-  private readonly releaseSounds = soundsFor("swordfight");
 
   async init(): Promise<void> {
-    await loadPuzzleSprites("swordfight");
+    // Points and callouts are drawn as text, so wait (briefly) for the webfont. Before the renderer
+    // is made, not after: the board hands over a state as soon as there is one, and by then the layout must be in.
+    await Promise.race([document.fonts?.ready, new Promise((r) => window.setTimeout(r, 800))]).catch(() => undefined);
     if (this.destroyed) return;
     await this.app.init({
       resizeTo: this.host,
@@ -292,23 +310,22 @@ export class SwordfightRenderer {
       this.app.destroy(true);
       return;
     }
-    this.app.canvas.dataset.spriteAtlas = spritesReady("swordfight") ? "swordfight" : "fallback";
+    // No atlas to wait for: the pieces are drawn in code (ADR 0062). The studio's thumbnails read this.
+    this.app.canvas.dataset.pieces = "drawn";
     this.app.canvas.style.touchAction = "none";
     this.app.canvas.setAttribute("data-testid", "swordfight-canvas");
     this.app.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.host.appendChild(this.app.canvas);
-    this.staticLayer.addChild(this.frame, this.well);
-    this.staticLayer.cacheAsTexture({ resolution: this.app.renderer.resolution, antialias: true });
     this.nextA.anchor.set(0.5);
     this.nextB.anchor.set(0.5);
-    this.nextText = new Text({ text: this.opts.labels.next.toUpperCase(), style: { fontFamily: FONT, fontSize: 11, fontWeight: "700", fill: 0xc9bb9a, letterSpacing: 2 } });
+    this.nextText = new Text({ text: this.opts.labels.next, style: { fontFamily: FONT.body, fontSize: 13, fill: COLORS.dim }, resolution: 2 });
     this.nextText.anchor.set(0, 0.5);
-    this.incomingText = new Text({ text: "", style: { fontFamily: FONT, fontSize: 12, fontWeight: "700", fill: COLORS.bone } });
+    this.incomingText = new Text({ text: "", style: { fontFamily: FONT.mono, fontSize: 16, fontWeight: "700", fill: COLORS.danger }, resolution: 2 });
     this.incomingText.anchor.set(1, 0.5);
-    this.stripLayer.addChild(this.stripG, this.warnG, this.nextText, this.nextA, this.nextB, this.incomingText);
+    this.stripLayer.addChild(this.stripG, this.nextText, this.nextA, this.nextB, this.incomingText);
     this.fallingLayer.mask = this.wellMask;
     this.fxLayer.addChild(this.fxG);
-    this.board.addChild(this.staticLayer, this.ghost, this.pieceLayer, this.slabLayer, this.wellMask, this.fallingLayer, this.fxLayer, this.stripLayer, this.veil);
+    this.board.addChild(this.well, this.ghost, this.pieceLayer, this.slabLayer, this.wellMask, this.fallingLayer, this.entryG, this.beatLayer, this.fxLayer, this.stripLayer);
     this.app.stage.addChild(this.board, this.miniLayer);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -323,12 +340,9 @@ export class SwordfightRenderer {
 
   destroy(): void {
     this.destroyed = true;
-    this.releaseSounds();
     if (this.app.renderer) {
       this.app.destroy(true, { children: true });
       for (const tex of this.textures.values()) tex.destroy(true);
-      this.hullFill.destroy();
-      this.deckFill.destroy();
     }
   }
 
@@ -339,15 +353,6 @@ export class SwordfightRenderer {
       this.softDrop = false;
       this.dropFalling();
     } else if (this.state && !this.falling && this.steps.length === 0) this.spawnFalling();
-  }
-
-  setShowMarks(on: boolean): void {
-    if (this.showMarks === on) return;
-    this.showMarks = on;
-    if (this.app.renderer) {
-      this.bake();
-      this.drawMinis();
-    }
   }
 
   /** Boards from outside this fight's state, beside the player's. */
@@ -383,7 +388,8 @@ export class SwordfightRenderer {
       this.seen.clear();
       this.popups.forEach((p) => p.t.destroy());
       this.popups = [];
-      this.particles = [];
+      this.marks = [];
+      this.beatNow = null;
       this.cells = player ? player.cells.slice() : [];
       this.shownSlabs = player ? player.slabs.slice() : [];
       this.place(true);
@@ -412,13 +418,6 @@ export class SwordfightRenderer {
     if (fresh.length) this.cb.onEvents(fresh);
     this.enqueue(state, fresh);
     this.syncMinis();
-    for (const e of fresh) {
-      if (e.board === 0 && player) continue;
-      const mini = this.minis.find((m) => m.key === `board:${e.board}`);
-      if (!mini) continue;
-      if (e.type === "broke") mini.flash = 1;
-      else if (e.type === "out") mini.shake = 1;
-    }
     this.updateStrip();
   }
 
@@ -460,18 +459,16 @@ export class SwordfightRenderer {
               }
             }
             this.place(false);
-            for (const s of ev.slabs) {
-              const v = this.slabs.get(s.id);
-              if (v) v.flash = 1;
-              if (s.w * s.h >= 6) this.callout(this.opts.labels.slab, this.colorOf(s.color));
-            }
-            return this.reduced ? 40 : 120;
+            if (ev.slabs.some((s) => s.w * s.h >= 6)) this.callout(this.opts.labels.slab, COLORS.cream);
+            return this.reduced ? 40 : MOVE_MS;
           });
           break;
         }
         case "broke": {
           const ev = e;
           this.steps.push(() => {
+            // The largest slab this break takes: the puzzle's compound move is a big one shattered.
+            let slabCells = 0;
             for (const g of ev.groups) {
               const slabsHit = new Set<number>();
               for (let k = 0; k < g.cells.length; k++) {
@@ -479,23 +476,24 @@ export class SwordfightRenderer {
                 if (cell?.slab) slabsHit.add(cell.slab);
                 const v = this.pieces.get(g.ids[k]!);
                 if (v) v.dying = 0;
-                this.burst(this.cx(g.cells[k]! % this.width), this.cy(Math.floor(g.cells[k]! / this.width)), this.colorOf(g.color), cell?.slab ? 2 : 4);
               }
               for (const id of slabsHit) {
                 const v = this.slabs.get(id);
-                if (v) v.dying = 0;
+                if (!v) continue;
+                v.dying = 0;
+                slabCells = Math.max(slabCells, v.w * v.h);
               }
               const mid = g.cells[Math.floor(g.cells.length / 2)]!;
-              this.popup(this.cx(mid % this.width), this.cy(Math.floor(mid / this.width)) - this.cell * 0.2, `+${Math.round((g.points * ev.groups.length * ev.chain) || g.points)}`, this.colorOf(g.color));
+              this.popup(this.cx(mid % this.width), this.cy(Math.floor(mid / this.width)) - this.cell * 0.2, `+${Math.round((g.points * ev.groups.length * ev.chain) || g.points)}`);
             }
             const big = ev.chain >= 2 || ev.groups.reduce((n, g) => n + g.cells.length, 0) >= 6;
-            if (ev.chain >= 2) this.callout(this.opts.labels.chain(ev.chain), 0xf5d58a);
-            else if (big) this.callout(this.opts.labels.shatter, COLORS.bone);
-            // A chain climbs a whole tone a step, so a long one rings higher as it goes.
-            const rate = Math.pow(2, (Math.min(6, ev.chain) - 1) / 6);
-            if (big) sfx.cue("heavy", () => { sfx.zap(); sfx.thud(); }, rate);
-            else sfx.cue("clash", sfx.zap, rate);
-            this.shake = Math.min(1, 0.3 + ev.chain * 0.2);
+            if (ev.chain >= 2) this.callout(this.opts.labels.chain(ev.chain), COLORS.cream);
+            else if (big) this.callout(this.opts.labels.shatter, COLORS.cream);
+            // The beat: a slab of six or more shattered, or a chain. A bigger slab or a longer chain is a stronger pulse.
+            if (slabCells >= 6 || ev.chain >= 2) this.beat(0.5 + Math.min(0.5, Math.max((slabCells - 6) / 12, (ev.chain - 2) * 0.25)));
+            // The beat has one sound of its own: where this break is the beat, these give way to it.
+            if (big) sfx.cue("heavy", () => { sfx.zap(); sfx.thud(); });
+            else sfx.cue("clash", sfx.zap);
             return this.reduced ? 60 : CLEAR_MS;
           });
           break;
@@ -526,10 +524,9 @@ export class SwordfightRenderer {
                 v.color = color;
                 v.ripen = 0;
                 v.s.texture = this.texture(color, "block", 1, 1);
-                v.flash = 1;
               }
             }
-            return this.reduced ? 40 : 160;
+            return this.reduced ? 40 : CLEAR_MS;
           });
           break;
         }
@@ -540,18 +537,18 @@ export class SwordfightRenderer {
             this.steps.push(() => {
               this.callout(this.opts.labels.scrapIn, COLORS.danger);
               const from = this.minis.find((m) => m.key === `board:${ev.board}`);
-              if (from) this.fly(from.x + (from.cell * this.width) / 2 - this.ox, from.y - this.oy, (this.width * this.cell) / 2, -this.strip / 2, SCRAP_COLOR, Math.min(12, ev.scrap));
+              if (from) this.fly(from.x + (from.cell * this.width) / 2 - this.ox, from.y - this.oy, this.width * this.cell * 0.8, -this.strip / 2);
               return 0;
             });
             break;
           }
           this.steps.push(() => {
             if (ev.scrap > 0) {
-              this.callout(this.opts.labels.scrapOver(ev.scrap), COLORS.good);
+              this.callout(this.opts.labels.scrapOver(ev.scrap), COLORS.cream, true);
               sfx.cue("swing", sfx.whoosh);
               const to = ev.to >= 0 ? this.minis.find((m) => m.key === `board:${ev.to}`) : null;
               const target = to ? { x: to.x + (to.cell * this.width) / 2 - this.ox, y: to.y + (to.cell * this.height) / 2 - this.oy } : { x: (this.width * this.cell) / 2, y: -this.strip * 3 };
-              this.fly((this.width * this.cell) / 2, (this.height * this.cell) * 0.4, target.x, target.y, COLORS.bone, Math.min(14, ev.scrap));
+              this.fly((this.width * this.cell) / 2, (this.height * this.cell) * 0.4, target.x, target.y);
             }
             return 0;
           });
@@ -571,7 +568,7 @@ export class SwordfightRenderer {
               v.ty = this.cy(row);
             }
             this.moving = true;
-            this.shake = Math.max(this.shake, 0.35);
+            this.drawEntry();
             sfx.cue("scrap", sfx.thud);
             return "settle";
           });
@@ -580,7 +577,6 @@ export class SwordfightRenderer {
         case "out": {
           this.steps.push(() => {
             this.callout(this.opts.labels.out, COLORS.danger);
-            this.shake = 1;
             sfx.cue("out", sfx.bad);
             this.dropFalling();
             return this.reduced ? 100 : 500;
@@ -590,7 +586,9 @@ export class SwordfightRenderer {
         case "ended": {
           const ev = e;
           this.steps.push(() => {
-            this.callout(ev.outcome === "won" ? this.opts.labels.won : this.opts.labels.lost, ev.outcome === "won" ? COLORS.good : COLORS.danger);
+            this.callout(ev.outcome === "won" ? this.opts.labels.won : this.opts.labels.lost, ev.outcome === "won" ? COLORS.cream : COLORS.danger);
+            // Winning the fight is the beat at its strongest.
+            if (ev.outcome === "won") this.beat(1);
             if (ev.outcome === "won") sfx.cue("won", sfx.end);
             else sfx.cue("lost", sfx.streakLost);
             this.dropFalling();
@@ -626,7 +624,7 @@ export class SwordfightRenderer {
     for (const v of this.slabs.values()) {
       v.x = v.tx;
       v.y = v.ty;
-      v.s.position.set(v.x, v.y);
+      this.putSlab(v);
       if (v.dying !== null) this.killSlab(v);
     }
   }
@@ -643,9 +641,9 @@ export class SwordfightRenderer {
       const x = this.cx(i % this.width);
       const y = this.cy(Math.floor(i / this.width));
       let v = this.pieces.get(c.id);
-      if (!v) v = this.spawn(c, x, snap ? y : y - this.cell * 2);
+      if (!v) v = this.spawn(c, x, y);
       else if (v.kind !== c.kind || v.color !== c.color || v.ripen !== c.ripen) {
-        // Scrap a drop closer to ripening changes its look: the texture is keyed on the stage too.
+        // Scrap a drop closer to ripening changes its look: the texture is keyed on the drops left too.
         v.kind = c.kind;
         v.color = c.color;
         v.ripen = c.ripen;
@@ -667,11 +665,13 @@ export class SwordfightRenderer {
       const y = (this.height - s.row - s.h) * this.cell;
       let v = this.slabs.get(s.id);
       if (!v) {
+        // A slab that has just fused appears where its blocks were.
         const sprite = new Sprite(this.texture(s.color, "block", s.w, s.h));
-        sprite.position.set(x, snap ? y : y - this.cell);
+        sprite.anchor.set(0.5);
         this.slabLayer.addChild(sprite);
-        v = { s: sprite, color: s.color, w: s.w, h: s.h, x, y: snap ? y : y - this.cell, tx: x, ty: y, dying: null, flash: 0 };
+        v = { ...at(x, y), s: sprite, color: s.color, w: s.w, h: s.h, dying: null };
         this.slabs.set(s.id, v);
+        this.putSlab(v);
       } else if (v.w !== s.w || v.h !== s.h || v.color !== s.color) {
         v.w = s.w;
         v.h = s.h;
@@ -683,10 +683,15 @@ export class SwordfightRenderer {
       if (snap) {
         v.x = x;
         v.y = y;
-        v.s.position.set(x, y);
+        this.putSlab(v);
       } else if (v.x !== x || v.y !== y) this.moving = true;
     }
     for (const [id, v] of this.slabs) if (!seenSlabs.has(id) && v.dying === null) this.killSlab(v);
+    this.drawEntry();
+  }
+
+  private putSlab(v: SlabView): void {
+    v.s.position.set(v.x + (v.w * this.cell) / 2, v.y + (v.h * this.cell) / 2);
   }
 
   private spawn(c: SwordCell, x: number, y: number): PieceView {
@@ -694,7 +699,7 @@ export class SwordfightRenderer {
     sprite.anchor.set(0.5);
     sprite.position.set(x, y);
     this.pieceLayer.addChild(sprite);
-    const v: PieceView = { s: sprite, kind: c.kind, color: c.color, ripen: c.ripen, x, y, tx: x, ty: y, dying: null, flash: 0 };
+    const v: PieceView = { ...at(x, y), s: sprite, kind: c.kind, color: c.color, ripen: c.ripen, dying: null };
     this.pieces.set(c.id, v);
     return v;
   }
@@ -709,21 +714,23 @@ export class SwordfightRenderer {
     v.s.destroy();
   }
 
-  /** The texture for a block; `ripen` is the drops left on scrap, which picks its stage. */
+  /** The texture for a block; `ripen` is the drops left on scrap, which picks its look. */
   private texture(color: number, kind: SwordCell["kind"], w: number, h: number, ripen = 0): Texture {
-    const stage = kind === "scrap" ? scrapStage(ripen) : "";
-    const key = `${color}:${kind}:${stage}:${w}x${h}:${this.showMarks ? 1 : 0}:${this.cell}`;
+    const scrap = kind === "scrap";
+    const stage = !scrap ? "" : scrapStage(ripen) === "hint" ? "hint" : `stone${ripen}`;
+    // Stone counting down has no colour yet, so one texture serves every colour.
+    const key = `${scrap && stage !== "hint" ? "" : color}:${kind}:${stage}:${w}x${h}:${this.cell}`;
     let t = this.textures.get(key);
     if (!t) {
       const r = this.app.renderer;
-      const canvas = blockCanvas(this.cell, w, h, this.styleFor(color, kind, ripen), r.resolution);
+      const canvas = blockCanvas(this.cell, w, h, this.styleFor(color, kind, scrap ? ripen : undefined), r.resolution);
       t = new Texture({ source: new CanvasSource({ resource: canvas, resolution: r.resolution }) });
       this.textures.set(key, t);
     }
     return t;
   }
 
-  /** Repaint every sprite with the current cell size and marks setting. */
+  /** Repaint every sprite at the current cell size. */
   private bake(): void {
     const old = [...this.textures.values()];
     this.textures.clear();
@@ -983,10 +990,14 @@ export class SwordfightRenderer {
       if (i < 0) continue;
       const x = i % this.width;
       const y = Math.floor(i / this.width);
-      const color = this.colorOf(piece.color);
+      // Where the pair will land: an amber ring a half, in the half's own outline. Amber is the player's own.
       const s = this.cell;
-      g.roundRect(x * s + s * 0.1, (this.height - y - 1) * s + s * 0.1, s * 0.8, s * 0.8, s * 0.14).fill({ color, alpha: 0.14 });
-      g.roundRect(x * s + s * 0.1, (this.height - y - 1) * s + s * 0.1, s * 0.8, s * 0.8, s * 0.14).stroke({ width: piece.breaker ? 2.5 : 1.5, color: mix(color, 0xffffff, 0.3), alpha: piece.breaker ? 0.95 : 0.7 });
+      const u = s / 24;
+      const width = Math.max(1.5, 2 * u);
+      const left = x * s;
+      const top = (this.height - y - 1) * s;
+      if (piece.breaker) g.poly([left + s / 2, top + 2 * u, left + s - 2 * u, top + s / 2, left + s / 2, top + s - 2 * u, left + 2 * u, top + s / 2]).stroke({ width, color: COLORS.amber, join: "round" });
+      else g.roundRect(left + 3 * u, top + 3 * u, 18 * u, 18 * u, 3 * u).stroke({ width, color: COLORS.amber });
     }
   }
 
@@ -1012,9 +1023,11 @@ export class SwordfightRenderer {
     const boardW = this.cell * this.width;
     this.ox = Math.floor((w - boardW) / 2);
     this.oy = Math.floor((h - this.cell * this.height - this.strip) / 2) + this.strip;
-    this.board.position.set(this.ox, this.oy);
-    this.wellMask.clear().rect(0, 0, this.cell * this.width, this.cell * this.height).fill(0xffffff);
-    this.drawFrame();
+    // The board turns about the middle of its well, so the beat swells from there.
+    this.board.pivot.set(boardW / 2, (this.cell * this.height) / 2);
+    this.board.position.set(this.ox + this.board.pivot.x, this.oy + this.board.pivot.y);
+    this.wellMask.clear().rect(0, 0, this.cell * this.width, this.cell * this.height).fill(COLORS.cream);
+    this.drawWell();
     this.bake();
     this.layoutStrip();
     this.layoutMinis(w, h);
@@ -1030,16 +1043,16 @@ export class SwordfightRenderer {
     const scale = 0.62;
     this.nextA.scale.set(scale);
     this.nextB.scale.set(scale);
-    const x = this.nextText ? s * 0.15 + this.nextText.width + s * 0.5 : s * 0.5;
     if (this.nextText) {
-      this.nextText.style.fontSize = Math.max(9, Math.round(s * 0.3));
-      this.nextText.position.set(s * 0.15, y);
+      this.nextText.style.fontSize = Math.max(11, Math.min(13, Math.round(s * 0.45)));
+      this.nextText.position.set(0, y);
     }
+    const x = this.nextText ? this.nextText.width + s * 0.6 : s * 0.5;
     this.nextB.position.set(x, y - (s * scale) / 2 - 1);
     this.nextA.position.set(x, y + (s * scale) / 2 + 1);
     if (this.incomingText) {
-      this.incomingText.style.fontSize = Math.max(9, Math.round(s * 0.32));
-      this.incomingText.position.set(this.width * s - s * 0.15, y);
+      this.incomingText.style.fontSize = Math.max(13, Math.round(s * 0.6));
+      this.incomingText.position.set(this.width * s, y);
     }
   }
 
@@ -1054,62 +1067,50 @@ export class SwordfightRenderer {
     g.clear();
     const cs = this.cell;
     const y = -this.strip / 2 - 1;
-    // Pending scrap as a row of small grey blocks, right of centre, capped with a count.
-    const show = Math.min(pending, 8);
-    const bw = cs * 0.3;
-    const right = this.width * cs - cs * 0.15 - (this.incomingText ? this.incomingText.width + cs * 0.2 : 0);
-    for (let i = 0; i < show; i++) {
-      const x = right - (i + 1) * (bw + 2);
-      g.roundRect(x, y - bw / 2, bw, bw, bw * 0.2).fill({ color: SCRAP_COLOR });
-      g.roundRect(x, y - bw / 2, bw, bw, bw * 0.2).stroke({ width: 1, color: 0xffffff, alpha: 0.25 });
-    }
-    if (this.incomingText) {
-      this.incomingText.text = pending > 0 ? String(pending) : "";
-      this.incomingText.style.fill = pending >= this.width * 2 ? COLORS.danger : COLORS.bone;
-      this.incomingText.style.fontSize = Math.max(9, Math.round(cs * 0.34));
-    }
-    if (pending > 0) {
-      const heat = Math.min(1, pending / (this.width * 3));
-      this.warnG.clear().rect(0, -this.strip + 2, this.width * cs, this.strip - 4).fill({ color: COLORS.danger, alpha: 0.06 + heat * 0.16 });
-    } else this.warnG.clear();
-    this.pendingShown = pending;
-    this.drawWarn();
+    // Scrap waiting to land: a row of small stones and their count. It is coming for the player, so the count is danger.
+    if (this.incomingText) this.incomingText.text = pending > 0 ? String(pending) : "";
+    const show = Math.min(pending, 6);
+    const bw = cs * 0.34;
+    const right = this.width * cs - (this.incomingText && pending > 0 ? this.incomingText.width + cs * 0.25 : 0);
+    for (let i = 0; i < show; i++) this.stone(g, right - (i + 0.5) * (bw + 3), y, bw);
   }
 
-  /** Scrap on its way: the count, its blocks and the tint flash so they are not missed, quicker the more there is. */
-  private drawWarn(): void {
-    const pending = this.pendingShown;
-    const on = pending > 0;
-    const pulse = on ? 0.55 + 0.45 * Math.max(0, Math.sin(this.time / (pending >= this.width ? 120 : 200))) : 1;
-    this.stripG.alpha = pulse;
-    this.warnG.alpha = pulse;
-    if (this.incomingText) this.incomingText.alpha = pulse;
+  /** A small stone, as a mark: stone's cut-cornered outline in slate. */
+  private stone(g: Graphics, cx: number, cy: number, size: number): void {
+    const h = size / 2;
+    const c = size * 0.3;
+    g.poly([cx - h + c, cy - h, cx + h - c, cy - h, cx + h, cy - h + c, cx + h, cy + h - c, cx + h - c, cy + h, cx - h + c, cy + h, cx - h, cy + h - c, cx - h, cy - h + c]).fill(COLORS.slate);
   }
 
-  private drawFrame(): void {
-    const g = this.frame;
+  /** The playfield is bare ground with one hairline round it: no frame, no grid (docs/BRAND.md section 3). */
+  private drawWell(): void {
     const W = this.width * this.cell;
     const H = this.height * this.cell;
-    const p = this.pad;
+    // The ground is painted, not left clear, so the board is whole wherever it is shown (a thumbnail, a capture).
+    this.well.clear().rect(0, 0, W, H).fill(COLORS.ground).rect(-0.5, -0.5, W + 1, H + 1).stroke({ width: 1, color: COLORS.line });
+    // The entry, the one empty cell that matters: the top of the column pairs come in down.
+    const col = swordfightSpawnCol({ width: this.width } as SwordfightConfig);
+    this.well.circle((col + 0.5) * this.cell, this.cell / 2, Math.max(2, (2 * this.cell) / 24)).fill(COLORS.line);
+    this.drawEntry();
+  }
+
+  /**
+   * The board near its top is the one thing on it that is bad for the player: once any column
+   * stands within three rows of the top, the entry is ringed in danger, over the pair coming in,
+   * and the well's top edge is drawn in danger too.
+   */
+  private drawEntry(): void {
+    const g = this.entryG;
     g.clear();
-    const top = -p - this.strip;
-    hullFrame(g, this.hullFill, { x: -p, y: top, w: W + p * 2, h: H + p * 2 + this.strip, r: p + 4 }, { x: 0, y: 0, w: W, h: H }, { rivetStep: this.cell * 2, hazardTop: p });
-    g.roundRect(0, -this.strip + 2, W, this.strip - 4, 4).fill({ color: 0x000000, alpha: 0.32 });
-    const w = this.well;
-    w.clear();
-    w.rect(0, 0, W, H).fill(this.deckFill);
-    const inset = this.cell * 0.06;
-    for (let r = 0; r < this.height; r++) {
-      for (let c = 0; c < this.width; c++) {
-        w.roundRect(c * this.cell + inset, r * this.cell + inset, this.cell - inset * 2, this.cell - inset * 2, this.cell * 0.16).fill({ color: 0xffffff, alpha: 0.03 });
-      }
-    }
-    // The entry: the top cell of the column pairs come in down, marked so covering it reads as the end.
-    const sc = swordfightSpawnCol({ width: this.width } as SwordfightConfig);
-    w.roundRect(sc * this.cell + 2, 2, this.cell - 4, this.cell - 4, 6).stroke({ width: 1.5, color: COLORS.danger, alpha: 0.35 });
-    w.moveTo(0, this.cell).lineTo(W, this.cell).stroke({ width: 1, color: 0xffffff, alpha: 0.12 });
-    w.rect(0, 0, W, H).stroke({ width: 3, color: 0x000000, alpha: 0.55, alignment: 1 });
-    this.staticLayer.updateCacheTexture();
+    const s = this.cell;
+    const u = s / 24;
+    const col = swordfightSpawnCol({ width: this.width } as SwordfightConfig);
+    let top = 0;
+    for (let i = 0; i < this.cells.length; i++) if (this.cells[i]) top = Math.max(top, Math.floor(i / this.width) + 1);
+    if (top < this.height - 3) return;
+    const width = Math.max(1.5, 2 * u);
+    g.roundRect(col * s + u, u, 22 * u, 22 * u, 5 * u).stroke({ width, color: COLORS.danger });
+    g.rect(0, -width, this.width * s, width).fill(COLORS.danger);
   }
 
   private cx(col: number): number {
@@ -1128,16 +1129,17 @@ export class SwordfightRenderer {
   }
 
   /** The boards beside the player's, as snapshots: foes first, then allies. */
-  private miniModels(): Array<Omit<Mini, "g" | "label" | "pendingLabel" | "flash" | "shake" | "x" | "y" | "cell">> {
+  private miniModels(): MiniModel[] {
     const s = this.state;
-    const out: Array<Omit<Mini, "g" | "label" | "pendingLabel" | "flash" | "shake" | "x" | "y" | "cell">> = [];
+    const out: MiniModel[] = [];
     if (s) {
       let foe = 0;
       let ally = 0;
       s.boards.forEach((b, i) => {
         if (s.config.player && i === 0) return;
         const name = b.side === 1 ? this.opts.labels.foe(++foe) : this.opts.labels.ally(++ally);
-        out.push({ key: `board:${i}`, name, side: b.side, cells: swordfightBoardString(s.config, b.cells), pending: b.pending.reduce((n, p) => n + p.scrap, 0), out: b.out, points: b.points });
+        const slabs = b.slabs.map((sl) => ({ col: sl.col, row: s.config.height - sl.row - sl.h, w: sl.w, h: sl.h }));
+        out.push({ key: `board:${i}`, name, side: b.side, cells: swordfightBoardString(s.config, b.cells), slabs, pending: b.pending.reduce((n, p) => n + p.scrap, 0), out: b.out, points: b.points });
       });
     }
     for (const r of this.remote) out.push({ key: r.key, name: r.name, side: r.side, cells: r.cells, pending: r.pending, out: r.out, points: r.points });
@@ -1154,22 +1156,27 @@ export class SwordfightRenderer {
       let mini = keep.get(m.key);
       if (!mini) {
         const g = new Graphics();
-        const label = new Text({ text: m.name, style: { fontFamily: FONT, fontSize: 11, fontWeight: "700", fill: COLORS.text } });
+        const sprite = new Sprite(Texture.EMPTY);
+        const over = new Graphics();
+        const label = new Text({ text: m.name, style: { fontFamily: FONT.body, fontSize: 11, fill: COLORS.dim }, resolution: 2 });
         label.anchor.set(0, 1);
-        const pendingLabel = new Text({ text: "", style: { fontFamily: FONT, fontSize: 11, fontWeight: "700", fill: COLORS.danger } });
-        pendingLabel.anchor.set(1, 1);
-        this.miniLayer.addChild(g, label, pendingLabel);
-        mini = { ...m, g, label, pendingLabel, flash: 0, shake: 0, x: 0, y: 0, cell: 8 };
+        const pendingLabel = new Text({ text: "", style: { fontFamily: FONT.mono, fontSize: 11, fontWeight: "700", fill: COLORS.dim }, resolution: 2 });
+        pendingLabel.anchor.set(1, 0);
+        this.miniLayer.addChild(g, sprite, over, label, pendingLabel);
+        mini = { ...m, g, s: sprite, over, label, pendingLabel, painted: "", x: 0, y: 0, cell: 8 };
       } else {
-        const changed = mini.cells !== m.cells;
+        // A board whose slabs are no longer known must not keep the last ones it had.
+        delete mini.slabs;
         Object.assign(mini, m);
-        if (changed) mini.flash = Math.max(mini.flash, 0.001);
       }
       keep.delete(m.key);
       next.push(mini);
     }
     for (const gone of keep.values()) {
       gone.g.destroy();
+      if (gone.s.texture !== Texture.EMPTY) gone.s.texture.destroy(true);
+      gone.s.destroy();
+      gone.over.destroy();
       gone.label.destroy();
       gone.pendingLabel.destroy();
     }
@@ -1189,11 +1196,13 @@ export class SwordfightRenderer {
     const left = this.ox + this.width * this.cell + this.pad + 6;
     const avail = Math.max(10, w - left - this.pad);
     const gap = 8;
-    const label = 16;
+    // A name above each board and its waiting scrap below it, so neither crowds the other on a narrow board.
+    const label = 18;
+    const foot = 14;
     const want = Math.max(5, Math.floor(this.cell * MINI_SCALE));
     const perRow = Math.max(1, Math.min(n, Math.floor((avail + gap) / (want * this.width + gap))));
     const rowsN = Math.ceil(n / perRow);
-    let mc = Math.floor(Math.min(want, (avail - (perRow - 1) * gap) / perRow / this.width, (h - this.oy - this.pad - rowsN * label - (rowsN - 1) * gap) / rowsN / this.height));
+    let mc = Math.floor(Math.min(want, (avail - (perRow - 1) * gap) / perRow / this.width, (h - this.oy - this.pad - rowsN * (label + foot) - (rowsN - 1) * gap) / rowsN / this.height));
     mc = Math.max(5, mc);
     const bw = mc * this.width;
     const bh = mc * this.height;
@@ -1202,129 +1211,150 @@ export class SwordfightRenderer {
       const r = Math.floor(i / perRow);
       const c = i % perRow;
       m.x = left + c * (bw + gap);
-      m.y = y0 + r * (bh + label + gap);
+      m.y = y0 + r * (bh + label + foot + gap);
       m.cell = mc;
-      m.label.style.fontSize = Math.max(8, Math.min(11, mc * 1.1));
+      m.label.style.fontSize = Math.max(9, Math.min(13, mc * 1.3));
       m.pendingLabel.style.fontSize = m.label.style.fontSize;
-      m.label.position.set(m.x, m.y - 2);
-      m.pendingLabel.position.set(m.x + bw, m.y - 2);
+      m.label.position.set(m.x, m.y - 4);
+      m.pendingLabel.position.set(m.x + bw, m.y + bh + 3);
     });
     this.drawMinis();
   }
 
+  /**
+   * The other boards are the player's board again, smaller and quieter: the same pieces from the
+   * same painter on bare ground inside a hairline, with their names in dim. None is tinted for its
+   * side; a board that is out fades and is crossed through.
+   */
   private drawMinis(): void {
     for (const m of this.minis) {
-      const g = m.g;
       const s = m.cell;
       const W = s * this.width;
       const H = s * this.height;
-      g.clear();
-      g.position.set(m.x, m.y);
-      g.roundRect(-3, -3, W + 6, H + 6, 5).fill({ color: m.side === 1 ? 0x3a1a1a : 0x1f2a1f });
-      g.roundRect(-3, -3, W + 6, H + 6, 5).stroke({ width: 1, color: m.side === 1 ? COLORS.danger : COLORS.good, alpha: 0.5 });
-      g.rect(0, 0, W, H).fill({ color: COLORS.deckBottom });
-      const sc = swordfightSpawnCol({ width: this.width } as SwordfightConfig);
-      g.rect(sc * s, 0, s, s).fill({ color: COLORS.danger, alpha: 0.12 });
-      // Slabs read as one block in a snapshot too: adjacent cells of one color in a rectangle are drawn without seams.
-      const rows = m.cells.length === this.width * this.height ? m.cells : "";
-      for (let r = 0; r < this.height; r++) {
-        for (let c = 0; c < this.width; c++) {
-          const ch = rows[r * this.width + c] ?? ".";
-          if (ch === ".") continue;
-          const x = c * s;
-          const y = r * s;
-          if (ch === "#") {
-            g.roundRect(x + 0.5, y + 0.5, s - 1, s - 1, s * 0.15).fill({ color: SCRAP_COLOR });
-            continue;
-          }
-          const breaker = ch >= "A" && ch <= "F";
-          const color = breaker ? ch.charCodeAt(0) - 65 : Number(ch);
-          const fill = this.colorOf(color);
-          const same = (cc: number, rr: number): boolean => rr >= 0 && rr < this.height && cc >= 0 && cc < this.width && rows[rr * this.width + cc] === ch && !breaker;
-          const l = same(c - 1, r) ? 0 : 0.5;
-          const t = same(c, r - 1) ? 0 : 0.5;
-          const rgt = same(c + 1, r) ? 0 : 0.5;
-          const btm = same(c, r + 1) ? 0 : 0.5;
-          g.rect(x + l, y + t, s - l - rgt, s - t - btm).fill({ color: breaker ? mix(fill, 0x000000, 0.15) : fill });
-          if (breaker) {
-            g.moveTo(x + s * 0.2, y + s * 0.8).lineTo(x + s * 0.8, y + s * 0.2).stroke({ width: Math.max(1, s * 0.18), color: COLORS.bone, alpha: 0.95 });
-          } else if (this.showMarks && s >= 9) {
-            drawMark(g, x + s / 2, y + s / 2, s * 0.25, this.styles[color]?.mark ?? "circle", fill);
-          }
-        }
+      m.g.clear().rect(0, 0, W, H).fill(COLORS.ground).rect(-0.5, -0.5, W + 1, H + 1).stroke({ width: 1, color: COLORS.line });
+      m.g.position.set(m.x, m.y);
+      m.s.position.set(m.x, m.y);
+      m.over.position.set(m.x, m.y);
+      const key = `${s}:${m.cells}:${JSON.stringify(m.slabs ?? null)}`;
+      if (m.painted !== key) {
+        m.painted = key;
+        const old = m.s.texture;
+        const r = this.app.renderer;
+        m.s.texture = new Texture({ source: new CanvasSource({ resource: this.miniCanvas(m, r.resolution), resolution: r.resolution }) });
+        if (old !== Texture.EMPTY) old.destroy(true);
       }
-      if (m.flash > 0) g.rect(0, 0, W, H).fill({ color: 0xffffff, alpha: Math.min(0.5, m.flash * 0.5) });
-      if (m.out) {
-        g.rect(0, 0, W, H).fill({ color: 0x000000, alpha: 0.6 });
-        g.moveTo(W * 0.25, H * 0.42).lineTo(W * 0.75, H * 0.58).moveTo(W * 0.75, H * 0.42).lineTo(W * 0.25, H * 0.58).stroke({ width: Math.max(2, s * 0.3), color: COLORS.danger });
-      }
+      m.s.alpha = m.out ? 0.3 : 1;
+      m.over.clear();
+      if (m.out) m.over.moveTo(W * 0.25, H * 0.42).lineTo(W * 0.75, H * 0.58).moveTo(W * 0.75, H * 0.42).lineTo(W * 0.25, H * 0.58).stroke({ width: Math.max(2, s * 0.3), color: COLORS.dim, cap: "round" });
       m.label.text = m.name;
       m.pendingLabel.text = m.pending > 0 ? `+${m.pending}` : "";
     }
   }
 
+  /** A board's snapshot painted with the pieces' own drawing, at its small cell size. */
+  private miniCanvas(m: Mini, resolution: number): HTMLCanvasElement {
+    const s = m.cell;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(s * this.width * resolution);
+    canvas.height = Math.ceil(s * this.height * resolution);
+    const ctx = canvas.getContext("2d");
+    const rows = m.cells.length === this.width * this.height ? m.cells : "";
+    if (!ctx || !rows) return canvas;
+    ctx.scale(resolution, resolution);
+    const slabs = m.slabs ?? slabsIn(rows, this.width, this.height);
+    const inSlab = new Set<number>();
+    for (const sl of slabs) {
+      for (let r = sl.row; r < sl.row + sl.h; r++) for (let c = sl.col; c < sl.col + sl.w; c++) inSlab.add(r * this.width + c);
+      const color = Number(rows[sl.row * this.width + sl.col]);
+      ctx.save();
+      ctx.translate(sl.col * s, sl.row * s);
+      paintBlock(ctx, s, sl.w, sl.h, this.styleFor(Number.isFinite(color) ? color : 0, "block"));
+      ctx.restore();
+    }
+    for (let i = 0; i < rows.length; i++) {
+      const ch = rows[i]!;
+      if (ch === "." || inSlab.has(i)) continue;
+      const breaker = ch >= "A" && ch <= "F";
+      ctx.save();
+      ctx.translate((i % this.width) * s, Math.floor(i / this.width) * s);
+      // A snapshot does not say how far stone has ripened, so it is plain stone.
+      paintBlock(ctx, s, 1, 1, ch === "#" ? this.styleFor(0, "scrap") : this.styleFor(breaker ? ch.charCodeAt(0) - 65 : Number(ch), breaker ? "breaker" : "block"));
+      ctx.restore();
+    }
+    return canvas;
+  }
+
   // ---- fx
 
-  private popup(x: number, y: number, text: string, color: number): void {
-    const t = new Text({ text, style: { fontFamily: DISPLAY, fontSize: Math.max(12, this.cell * 0.5), fontWeight: "700", fill: color, stroke: { color: 0x000000, width: 3 } } });
+  private popup(x: number, y: number, text: string): void {
+    const t = new Text({
+      text,
+      style: {
+        fontFamily: FONT.mono,
+        fontSize: Math.max(14, this.cell * 0.55),
+        fontWeight: "700",
+        fill: COLORS.cream,
+        // A ground edge keeps the number readable over any piece.
+        stroke: { color: COLORS.ground, width: Math.max(3, this.cell * 0.09), join: "round" },
+      },
+      resolution: 2,
+    });
     t.anchor.set(0.5);
-    t.position.set(x, y);
+    const margin = t.width / 2 + 4;
+    t.position.set(Math.min(Math.max(x, margin), this.width * this.cell - margin), y);
     this.fxLayer.addChild(t);
     this.popups.push({ t, life: 0, max: this.reduced ? 300 : 700, y0: y });
   }
 
-  private callout(text: string, color: number): void {
-    const t = new Text({ text, style: { fontFamily: DISPLAY, fontSize: Math.max(16, this.cell * 0.75), fontWeight: "900", fill: color, stroke: { color: 0x000000, width: 4 }, letterSpacing: 1 } });
+  /**
+   * A moment named over the board: cream for the player's good news, danger for what is bad for
+   * them. What a break sent over is said on a second, smaller line under the break's own name.
+   */
+  private callout(text: string, color: number, second = false): void {
+    const t = new Text({
+      text,
+      style: {
+        fontFamily: FONT.body,
+        fontSize: second ? Math.max(15, this.cell * 0.6) : Math.max(18, this.cell * 0.8),
+        fontWeight: "700",
+        fill: color,
+        align: "center",
+        stroke: { color: COLORS.ground, width: Math.max(4, this.cell * 0.12), join: "round" },
+      },
+      resolution: 2,
+    });
     t.anchor.set(0.5);
-    t.position.set((this.width * this.cell) / 2, this.height * this.cell * 0.35);
+    t.position.set((this.width * this.cell) / 2, this.height * this.cell * 0.35 + (second ? this.cell * 1.1 : 0));
     this.fxLayer.addChild(t);
     this.popups.push({ t, life: 0, max: this.reduced ? 400 : 900, y0: t.y });
   }
 
-  private burst(x: number, y: number, color: number, n: number): void {
-    if (this.reduced) return;
-    for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const sp = this.cell * (0.004 + Math.random() * 0.008);
-      this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - this.cell * 0.004, r: this.cell * (0.06 + Math.random() * 0.1), color: Math.random() < 0.3 ? 0xffffff : color, life: 0, max: 400 + Math.random() * 300 });
-    }
+  /** Ask for the beat. A stronger moment while one is playing takes it over; it never stacks. */
+  private beat(strength: number): void {
+    // The pulse and its sound are asked for together, so they cannot drift apart.
+    sfx.beat(strength);
+    this.beatNow = { life: 0, strength: Math.max(strength, this.beatNow?.strength ?? 0) };
   }
 
-  /** Blocks of scrap flying from one place to another, in board coordinates. */
-  private fly(x0: number, y0: number, x1: number, y1: number, color: number, n: number): void {
+  /**
+   * Scrap crossing from one board to another, in board coordinates: one mark an attack, the fewest
+   * that say where it went (docs/BRAND.md section 6).
+   */
+  private fly(x0: number, y0: number, x1: number, y1: number): void {
     if (this.reduced) return;
-    for (let i = 0; i < n; i++) {
-      const jx = (Math.random() - 0.5) * this.cell;
-      const jy = (Math.random() - 0.5) * this.cell;
-      this.particles.push({ x: x0 + jx, y: y0 + jy, vx: 0, vy: 0, r: this.cell * 0.14, color, life: -i * 30, max: 520, to: { x: x1 + jx * 0.4, y: y1 + jy * 0.4 } });
-    }
+    this.marks.push({ x: x0, y: y0, to: { x: x1, y: y1 }, life: 0 });
   }
 
   // ---- per frame
 
   private tick(dt: number): void {
-    this.time += dt;
     this.runSteps(dt);
     this.movePieces(dt);
     this.moveFx(dt);
     this.hold(dt);
     this.fall(dt);
-    this.drawShake();
-    if (this.pendingShown > 0) this.drawWarn();
+    this.drawBeat(dt);
     this.watch(dt);
-    let miniDirty = false;
-    for (const m of this.minis) {
-      if (m.flash > 0) {
-        m.flash = Math.max(0, m.flash - dt / 220);
-        miniDirty = true;
-      }
-      if (m.shake > 0) {
-        m.shake = Math.max(0, m.shake - dt / 400);
-        m.g.position.set(m.x + (Math.random() - 0.5) * m.shake * 6, m.y + (Math.random() - 0.5) * m.shake * 6);
-        if (m.shake === 0) m.g.position.set(m.x, m.y);
-      }
-    }
-    if (miniDirty) this.drawMinis();
     if (this.framePending && this.steps.length === 0 && !this.moving) {
       this.framePending = false;
       this.cb.onFrame();
@@ -1393,52 +1423,51 @@ export class SwordfightRenderer {
     }
   }
 
+  /** Slides are `MOVE_MS`, eased out, with no overshoot; a broken block shrinks to nothing in `DIE_MS`. Reduced motion cuts both. */
   private movePieces(dt: number): void {
     let moving = false;
-    const speed = this.reduced ? 1 : 0.02 * this.cell;
-    const step = (v: { x: number; y: number; tx: number; ty: number }): boolean => {
+    const step = (v: Slider): boolean => {
       if (!Number.isFinite(v.tx) || !Number.isFinite(v.ty) || !Number.isFinite(v.x) || !Number.isFinite(v.y)) {
         v.x = Number.isFinite(v.tx) ? v.tx : 0;
         v.y = Number.isFinite(v.ty) ? v.ty : 0;
         return false;
       }
       if (v.y === v.ty && v.x === v.tx) return false;
-      const d = speed * dt;
-      v.y = v.y < v.ty ? Math.min(v.ty, v.y + d) : Math.max(v.ty, v.y - d);
-      v.x = v.x < v.tx ? Math.min(v.tx, v.x + d) : Math.max(v.tx, v.x - d);
-      return v.y !== v.ty || v.x !== v.tx;
+      if (v.gx !== v.tx || v.gy !== v.ty) {
+        v.sx = v.x;
+        v.sy = v.y;
+        v.gx = v.tx;
+        v.gy = v.ty;
+        v.t = 0;
+      }
+      v.t += dt;
+      const k = this.reduced ? 1 : Math.min(1, v.t / MOVE_MS);
+      const e = easeOutCubic(k);
+      v.x = k >= 1 ? v.tx : v.sx + (v.gx - v.sx) * e;
+      v.y = k >= 1 ? v.ty : v.sy + (v.gy - v.sy) * e;
+      return k < 1;
+    };
+    const shrink = (v: { dying: number | null; s: Sprite }): boolean => {
+      v.dying = (v.dying ?? 0) + dt;
+      const k = this.reduced ? 1 : Math.min(1, v.dying / DIE_MS);
+      v.s.scale.set(1 - k);
+      return k >= 1;
     };
     for (const v of [...this.pieces.values()]) {
       if (v.dying !== null) {
-        v.dying += dt;
-        const k = Math.min(1, v.dying / DIE_MS);
-        v.s.alpha = 1 - k;
-        v.s.scale.set(1 + k * 0.4);
-        if (k >= 1) this.kill(v);
+        if (shrink(v)) this.kill(v);
         continue;
-      }
-      if (v.flash > 0) {
-        v.flash = Math.max(0, v.flash - dt / 240);
-        v.s.tint = mix(0xffffff, 0xffffff, 0);
-        v.s.alpha = 1 - v.flash * 0.35;
       }
       if (step(v)) moving = true;
       v.s.position.set(v.x, v.y);
     }
     for (const v of [...this.slabs.values()]) {
       if (v.dying !== null) {
-        v.dying += dt;
-        const k = Math.min(1, v.dying / DIE_MS);
-        v.s.alpha = 1 - k;
-        if (k >= 1) this.killSlab(v);
+        if (shrink(v)) this.killSlab(v);
         continue;
       }
-      if (v.flash > 0) {
-        v.flash = Math.max(0, v.flash - dt / 260);
-        v.s.alpha = 1 - v.flash * 0.4;
-      }
       if (step(v)) moving = true;
-      v.s.position.set(v.x, v.y);
+      this.putSlab(v);
     }
     this.moving = moving;
   }
@@ -1448,7 +1477,7 @@ export class SwordfightRenderer {
       const p = this.popups[i]!;
       p.life += dt;
       const k = p.life / p.max;
-      p.t.y = p.y0 - k * this.cell * 0.8;
+      p.t.y = p.y0 - easeOutCubic(Math.min(1, k)) * this.cell * 0.6;
       p.t.alpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
       if (k >= 1) {
         p.t.destroy();
@@ -1457,37 +1486,39 @@ export class SwordfightRenderer {
     }
     const g = this.fxG;
     g.clear();
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i]!;
-      p.life += dt;
-      if (p.life < 0) continue;
-      const k = p.life / p.max;
+    for (let i = this.marks.length - 1; i >= 0; i--) {
+      const m = this.marks[i]!;
+      m.life += dt;
+      const k = m.life / MARK_MS;
       if (k >= 1) {
-        this.particles.splice(i, 1);
+        this.marks.splice(i, 1);
         continue;
       }
-      if (p.to) {
-        const e = 1 - (1 - k) * (1 - k);
-        const x = p.x + (p.to.x - p.x) * e;
-        const y = p.y + (p.to.y - p.y) * e - Math.sin(k * Math.PI) * this.cell * 1.5;
-        g.roundRect(x - p.r, y - p.r, p.r * 2, p.r * 2, p.r * 0.3).fill({ color: p.color, alpha: 0.9 });
-      } else {
-        p.vy += this.cell * 0.00002 * dt;
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        g.circle(p.x, p.y, p.r * (1 - k * 0.5)).fill({ color: p.color, alpha: 1 - k });
-      }
+      const e = easeOutCubic(k);
+      this.stone(g, m.x + (m.to.x - m.x) * e, m.y + (m.to.y - m.y) * e, this.cell * 0.4);
     }
   }
 
-  private drawShake(): void {
-    if (this.shake <= 0) {
-      this.board.position.set(this.ox, this.oy);
+  /**
+   * The beat: the whole board pulses once in amber and swells a hair, in `BEAT_MS`. Reduced motion
+   * keeps it as a still flash.
+   */
+  private drawBeat(dt: number): void {
+    const g = this.beatLayer;
+    g.clear();
+    const b = this.beatNow;
+    if (!b) return;
+    b.life += dt;
+    const t = b.life / BEAT_MS;
+    if (t >= 1) {
+      this.beatNow = null;
+      this.board.scale.set(1);
       return;
     }
-    this.shake = Math.max(0, this.shake - 0.04);
-    const a = this.reduced ? 0 : this.shake * this.cell * 0.12;
-    this.board.position.set(this.ox + (Math.random() - 0.5) * a, this.oy + (Math.random() - 0.5) * a);
+    // Up in the first quarter, down over the rest.
+    const env = this.reduced ? 1 : t < 0.25 ? easeOutCubic(t / 0.25) : 1 - easeOutCubic((t - 0.25) / 0.75);
+    g.rect(0, 0, this.width * this.cell, this.height * this.cell).fill({ color: COLORS.amber, alpha: (0.14 + 0.16 * b.strength) * env });
+    this.board.scale.set(this.reduced ? 1 : 1 + 0.012 * b.strength * env);
   }
 
   /** Gravity on the falling pair; a short lock once it rests, then the engine is asked. */

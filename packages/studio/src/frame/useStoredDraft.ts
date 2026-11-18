@@ -30,7 +30,7 @@ export interface StoredDraft {
   readonly store: DraftStore;
   /** True while the service keeps the draft, so the address must not carry it. Read at the moment of a change, not of a render. */
   bare(): boolean;
-  /** What the service keeps of a draft beside its numbers: what one older than picks or words does not keep stays in the address though the draft is stored. */
+  /** What the service keeps of a draft beside its numbers: what one older than words does not keep stays in the address though the draft is stored. */
   keeps(): Keeps;
   /** On an address's numbers: make them the stored draft. False when the service would not. */
   keep(): Promise<boolean>;
@@ -64,11 +64,10 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: StudioPuz
   const login = me !== "loading" && me !== null ? me.login : null;
   const [store, setStoreState] = useState<Internal>({ state: enabled ? "loading" : "off" });
   const [busy, setBusy] = useState(false);
-  // A service older than picks drops them from a draft: they are then left out of what is sent and compared, and stay with the page (ADR 0052).
-  const picks = me !== "loading" && me !== null && me.picks;
+  // A service older than words drops them from a draft: they are then left out of what is sent and compared, and stay with the page (ADR 0057).
   const words = me !== "loading" && me !== null && me.words;
-  const latest = useRef({ scenario, store, apply, keeps: { picks, words } as Keeps });
-  if (latest.current.keeps.picks !== picks || latest.current.keeps.words !== words) latest.current.keeps = { picks, words };
+  const latest = useRef({ scenario, store, apply, keeps: { words } as Keeps });
+  if (latest.current.keeps.words !== words) latest.current.keeps = { words };
   latest.current.scenario = scenario;
   latest.current.apply = apply;
   const setStore = useCallback((next: Internal) => {
@@ -129,7 +128,7 @@ export function useStoredDraft<S, M, C>(o: { enabled: boolean; puzzle: StudioPuz
   const mine = useMemo(
     () => draftNumbers(puzzle, scenario, latest.current.keeps),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [puzzle, scenario.seed, scenario.overrides, scenario.roundSeconds, scenario.paceSeconds, scenario.thresholds, scenario.picks, scenario.words, picks, words],
+    [puzzle, scenario.seed, scenario.overrides, scenario.roundSeconds, scenario.paceSeconds, scenario.thresholds, scenario.words, words],
   );
   // No row is made for a page nobody has touched: the first change opens the draft.
   const dirty = store.state === "stored" && mine !== null && (store.draft ? !sameNumbers(mine, store.draft.numbers) : carriesDraft(scenario, latest.current.keeps));

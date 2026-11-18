@@ -1,6 +1,6 @@
 # Cooling
 
-Status: in the game. Built in M1, sprite art pass ADR 0031. In the studio at `/cooling`.
+Status: in the game. Built in M1; restyled to the brand book in M10 (ADR 0061, ADR 0062). In the studio at `/cooling`.
 
 ## The puzzle
 
@@ -27,10 +27,12 @@ A duty station: the heat sinks. Its output vents the ship's heat each turn (DESI
 ## Rules and scoring
 
 Seven ordinary piece kinds (cog, valve, bolt, fuse,
-crystal, coil, chip), each with its own silhouette and surface texture and its own optional mark.
-Since the owner's sprite pass they are drawn as what they are named: a yellow cog, a cream valve
-wheel, a blue hex bolt, an orange glowing fuse, a violet crystal, a green coil spring and a red
-chip with pins. Specials are the Spark Charge (swap to clear a 3 by 3), the Magnet (swap with a piece to clear every piece of that kind),
+crystal, coil, chip), each a pictogram with a silhouette of its own, drawn in code
+(`boards/src/cooling/pieces.ts`, `docs/BRAND.md` section 3). A kind is told from every other by its
+outline alone: a toothed cog in sand, a four-lobed valve wheel in teal, a hexagon bolt in sky, a
+capsule fuse in rust, a cut crystal in lilac, a coil spring in moss and a chip with pins in rose.
+The three specials are a four-pointed spark and a horseshoe in cream, and a lump of slag in slate.
+Content names each kind's shape and its palette colour. Specials are the Spark Charge (swap to clear a 3 by 3), the Magnet (swap with a piece to clear every piece of that kind),
 and the Slag (unmatchable; it rides up with the board and comes off by itself, for a bonus,
 once it is at or above the heat line). A connected cleared group of n pieces scores n(n-2); clearing k groups in
 one step multiplies by k, with no cap, because a planned double is the skill; cascade step c
@@ -67,19 +69,24 @@ only, like the original's; scores never depend on it. All numbers live in
 Each move plays back step by step, swap then every cascade step clearing and
 rising in turn, from the per-step boards the engine's move report carries. A new move
 fast-forwards whatever is still animating, so input never waits, except behind an overheated
-swap. Clears burst with debris, score
-popups and a callout for chains; charges and magnets shake the board; the frame glows with the
-combo; overheated pieces stay readable because the body of heat (a glowing orange
-body with a hot rim and drifting embers, redder once it is half full) sits behind them. Sound and the
+swap. A cleared piece shrinks to nothing and the step's points rise from where it was; a chain
+or a double is named in a callout. Nothing shakes, sparks or glows (`docs/BRAND.md` section 6). The
+heat is a flat tint of the ground under one red hairline, deeper once it is half full, and it
+sits behind the pieces so they read the same overheated. Sound and the
 personal best are per device; the personal best is display only and never reaches the server.
-Juice on top of that, all presentation only: clearing two or more runs in one step calls out
-Double, Triple or Supernova; bigger steps hold a beat longer and punch the board; streak
-milestones (3, 5, 8, 12, then every 5 scoring moves in a row) earn a callout and a fanfare, and
-breaking a streak of 3+ sounds a fall; venting the heat puffs steam along the line with a hiss through a valve,
-crossing into the danger half sounds an alarm; overheated pieces sway, charges spark and specials
-breathe. Unrated practice only: after six seconds without input the board wiggles the swap that
-clears the most pieces. Rated rounds never hint. The result card adds rows vented, counted on the
-client for display. Tile sprites are baked once per layout from the shared atlas, with Canvas 2D overlays for labels and optional marks; the legend uses the same art.
+Clearing two or more runs in one step calls out Double, Triple or Supernova, and bigger steps
+hold a moment longer. **The beat**, one amber pulse of the whole board, is kept for three things:
+a cascade's third step and beyond, two or more slag lifted together (the compound move), and a
+streak milestone (3, 5, 8, 12, then every 5 scoring moves in a row), which also earns a callout.
+The beat has one sound, the same on every board, and it sounds alone: no other cue plays over it.
+Breaking a streak of 3+ sounds three notes falling; venting the heat is a soft hiss, and
+crossing into the danger half sounds two low notes. What the player is doing is drawn in amber (the
+cursor, the pair under the pointer, a selected piece), what a swap would clear in cream, and a
+refused swap or one still settling in the heat in red. Unrated practice only: after six seconds
+without input the board outlines the swap that clears the most pieces. Rated rounds never hint.
+The result card adds rows vented, counted on the client for display. Each kind's pictogram is
+baked once per layout with Canvas 2D, and the legend uses the same drawing. There is no frame
+round the board and no grid: the playfield is bare ground inside one hairline.
 On phones the top bar is the whole HUD (score, time, moves, a combo chip) and the board takes the
 rest of the screen; combo, heat, connection and the piece legend open in a panel over the board.
 

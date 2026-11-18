@@ -21,7 +21,7 @@ export const deflectors: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: "The Deflectors board: a six by six grid with fourteen slanted mirrors, a lit entry port with a count ring on the top edge, an outlined exit port on the bottom edge, a broken line showing where the beam would go now and dots running back from the exit.",
+    alt: "The Deflectors board: a six by six grid with fourteen slanted mirrors, a solid sign at the beam's entry port, the same sign with its middle cut out at its exit port, the count as a bar over the grid, a broken line showing where the beam would go now and dots running back from the exit.",
     caption: "One beam waiting. The broken line is where it would go now. The dots run back from its exit.",
   },
   theme: {
@@ -38,7 +38,7 @@ export const deflectors: Guide = {
   ],
   rules: [
     "Every mirror is set one of two ways. **Tap a mirror to flip it.** Mirrors never move, and a beam passes straight through an empty cell.",
-    "Beams come in **volleys**. A beam's entry port wears a solid sign with the count round it. Its exit port wears the same sign as an outline.",
+    "Beams come in **volleys**. A beam's entry port wears a solid sign. Its exit port wears the same sign with its middle cut out. One count runs for the whole volley, as a bar over the grid.",
     "When the count ends every beam fires at once. A beam runs straight, turns at every mirror it meets, and leaves by some port. Out through its own exit it is **home**. Out anywhere else it hits the hull.",
     "While a beam waits, a broken line shows where it would go now and dots run back from its exit. No beam is dealt home already: a volley left alone hits the hull.",
     `A volley is one beam for the first ${secs(c.rampTicks)} seconds and two after that. Two beams fire together, so both must be home on the same setting of the mirrors.`,
@@ -47,7 +47,7 @@ export const deflectors: Guide = {
   rulesMedia: {
     kind: "clip",
     name: "join",
-    alt: "A beam's broken line and the dots from its exit cross at one mirror. That mirror is tapped, the line becomes one lit route from entry to exit, and a tap on the entry port fires the beam home.",
+    alt: "A beam's broken line and the dots from its exit cross at one mirror. That mirror is tapped, the line becomes one solid route from entry to exit, and a tap on the entry port fires the beam home.",
     caption: "Flip the mirror where the two lines cross and the beam is home. A tap on its entry fires it.",
   },
   controls: [
@@ -69,7 +69,7 @@ export const deflectors: Guide = {
       tips: [
         {
           title: "Flip where the lines cross",
-          body: "Follow the broken line from the entry and the dots back from the exit. Where they cross **at a mirror**, flip that mirror: the first half of one joins the second half of the other, and the beam is home. The line turns solid with beads on it when it is.",
+          body: "Follow the broken line from the entry and the dots back from the exit. Where they cross **at a mirror**, flip that mirror: the first half of one joins the second half of the other, and the beam is home. The line turns solid, beaded with the beam's sign, when it is.",
         },
         {
           title: "No crossing? Move a line",
@@ -92,13 +92,13 @@ export const deflectors: Guide = {
           media: {
             kind: "clip",
             name: "two-beams",
-            alt: "Two beams wait, a circle and a square, both astray. One mirror is flipped and the circle's route lights up home. A second mirror is flipped and the square's route lights up too. A tap on an entry fires both.",
+            alt: "Two beams wait, a circle and a square, both astray. One mirror is flipped and the circle's route turns solid, home. A second mirror is flipped and the square's route turns solid too. A tap on an entry fires both.",
             caption: "One flip brings the circle home, a second brings the square. Both are home on one setting, so the volley is clean.",
           },
         },
         {
           title: "The streak is worth more than any one volley",
-          body: `From the ${nth(streak.length)} clean volley in a row everything pays ×${streakMax}. One beam into the hull costs ${c.hullPenalty} and sends you back to the start of the climb, which gives up about ${climb} volleys' worth of points on the way back up. When the ring turns red and a beam is still astray, stop improving and get it home.`,
+          body: `From the ${nth(streak.length)} clean volley in a row everything pays ×${streakMax}. One beam into the hull costs ${c.hullPenalty} and sends you back to the start of the climb, which gives up about ${climb} volleys' worth of points on the way back up. When the count turns red and a beam is still astray, stop improving and get it home.`,
         },
         {
           title: "Of two ways home, take the longer",
@@ -152,7 +152,7 @@ export const deflectors: Guide = {
           media: {
             kind: "clip",
             name: "perfect-pair",
-            alt: "Two beams wait, both astray. A handful of mirrors are flipped and both routes light up, each winding through many turns. The strip says Perfect, the volley is fired and both beams run their long routes home.",
+            alt: "Two beams wait, both astray. A handful of mirrors are flipped and both routes turn solid, each winding through many turns. The strip says Perfect, the volley is fired and both beams run their long routes home.",
             caption: "Two beams, both by the long way, on one setting. The strip says Perfect before the tap.",
           },
         },

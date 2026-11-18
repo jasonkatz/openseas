@@ -16,18 +16,16 @@ describe("the puzzle's own files", () => {
       "packages/protocol/src/cooling.ts",
       "packages/content/data/puzzles/cooling.json",
       "packages/boards/src/cooling/CoolingBoard.tsx",
-      "packages/boards/src/sprites/cooling.webp",
-      "packages/boards/briefs/sprites/cooling.json",
+      "packages/boards/src/cooling/pieces.ts",
+      "packages/boards/briefs/sounds/cooling.json",
       "packages/docs/src/guides/cooling.ts",
       "packages/docs/capture/cooling.capture.ts",
       "packages/docs/public/media/cooling/cascade.mp4",
       "packages/studio/src/pages/CoolingPractice.tsx",
-      "packages/boards/src/sprites/frames/cooling/cog.webp",
       "packages/studio/src/tuning/groups/cooling.ts",
       "docs/puzzles/cooling.md",
-      // Two files every puzzle shares: its strings and its frames are in them.
+      // The one file every puzzle shares: its strings are in it.
       "packages/content/data/messages/en.json",
-      "packages/boards/src/sprites/frames.json",
     ])
       expect(ownFile("cooling", path), path).toBe(true);
     for (const path of [
@@ -94,12 +92,12 @@ describe("what a message carries under the owner's words", () => {
     expect(bare).toContain("No round has been played");
     expect(bare).not.toContain("Draft picks");
   });
-  it("gives the draft's picks, and keeps them when a number is set", () => {
-    const picked = { seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: { cog: `abcdef012345${"0".repeat(52)}` }, sounds: { clear: "synth" } } };
-    const text = context(picked, [], [], []);
-    expect(text).toContain("cog: abcdef012345");
-    expect(text).toContain("clear: the synthesized cue");
-    expect(withNumbers(picked, { paceSeconds: 12 }, []).picks).toEqual(picked.picks);
+  it("says nothing of picks a draft was kept with: nothing picks a take now (ADR 0062, ADR 0064)", () => {
+    const hash = `abcdef012345${"0".repeat(52)}`;
+    const old = { seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: { cog: hash }, sounds: { pop: hash, clear: "synth" } } };
+    const text = context(old as never, [], [], []);
+    expect(text).not.toContain("Draft picks");
+    expect(text).not.toContain("abcdef012345");
   });
   it("gives the draft's words, and keeps them when a number is set (ADR 0057)", () => {
     const worded = { seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, words: { texts: { "cooling.multi_2": "Twofer!" }, category: "crafting" as const } };

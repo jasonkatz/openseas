@@ -32,8 +32,8 @@ export const swordfight: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: "The Swordfighting board: a tall well six blocks wide with crimson, gold, cobalt and lime blocks stacked at the bottom, a fused slab, a breaker with a blade on it, grey scrap showing the colors it will turn, the next pair above the well and the raider's small board to the right.",
-    caption: "Your board, the next pair above it, and the raider's board beside it. The outlined cell at the top is the entry.",
+    alt: "The Swordfighting board: a tall well with rose, sand, sky and moss blocks stacked at the bottom, each color with a cut-out of its own, a fused slab, breakers standing on their points, cut-cornered scrap tinted with the colors it will turn, the next pair above the well and the raider's small board to the right.",
+    caption: "Your board, the next pair above it, and the raider's board beside it. The pair in hand is coming in through the entry.",
   },
   theme: {
     setting:
@@ -49,9 +49,9 @@ export const swordfight: Guide = {
   rules: [
     `Pairs of blocks fall from the **entry**, the top of the ${nth(entryCol)} column. Steer and turn the pair. When it lands, each half drops to the top of its own column.`,
     "Four blocks of one color in a two by two square fuse into a **slab**. A slab grows a whole row or a whole column at a time.",
-    "A **breaker** is a block with a blade on it. When it comes to rest touching its own color, everything of that color joined to it shatters, slabs and all. Touching nothing of its color, it waits.",
+    "A **breaker** is a block stood on its point. When it comes to rest touching its own color, everything of that color joined to it shatters, slabs and all. Touching nothing of its color, it waits.",
     "Whatever sat on the shattered blocks falls. If that brings a color against a waiting breaker, it shatters too: a **chain**.",
-    `Shattering sends scrap to the raider, one block for every ${c.attackPoints} points. Scrap is grey and cannot be broken. After ${words(c.ripenMoves)} of that board's drops it ripens into colored blocks.`,
+    `Shattering sends scrap to the raider, one block for every ${c.attackPoints} points. Scrap is grey, with its corners cut off, and cannot be broken. After ${words(c.ripenMoves)} of that board's drops it ripens into colored blocks.`,
     "Scrap you send first cancels scrap waiting to land on you. Only what is left goes over.",
     `A board is out when its entry is covered. Cover the raider's and you win. If nobody is out after ${p.roundSeconds} seconds, nobody wins.`,
   ],
@@ -83,7 +83,7 @@ export const swordfight: Guide = {
         },
         {
           title: "Put like with like",
-          body: `A breaker takes **everything** of its color that is joined to it. Three cobalt in a clump go with one breaker. Three cobalt scattered need three. About one block in ${breakerOneIn} is a breaker, so there are never enough to waste.`,
+          body: `A breaker takes **everything** of its color that is joined to it. Three sky blocks in a clump go with one breaker. Three scattered need three. About one block in ${breakerOneIn} is a breaker, so there are never enough to waste.`,
         },
         {
           title: "Guard the entry",
@@ -112,8 +112,8 @@ export const swordfight: Guide = {
           media: {
             kind: "clip",
             name: "big-break",
-            alt: "A breaker is dropped against a tall slab of its color. The whole slab shatters at once and a shower of scrap flies across to the raider's board.",
-            caption: "One breaker, one slab of eight. The scrap flies over and lands on the raider.",
+            alt: "A breaker is dropped against a tall slab of its color. The whole slab shatters at once and its scrap goes across to the raider's board.",
+            caption: "One breaker, one slab of eight. The scrap goes over and lands on the raider.",
           },
         },
         {
@@ -143,11 +143,11 @@ export const swordfight: Guide = {
         },
         {
           title: "Scrap is blocks you have not got yet",
-          body: `An attack waits over your board as a count, then lands with your next drop, or after ${landSeconds} seconds. One drop before it ripens it shows its color. ${c.scrapMatchPermille / 10}% of the time that is a color it landed beside, most often the block under it. So scrap on your slab's color mostly feeds your next break. Drop fast to ripen it.`,
+          body: `An attack waits over your board as a count, then lands with your next drop, or after ${landSeconds} seconds. Its pips count the drops it has left. One drop before it ripens it shows its color. ${c.scrapMatchPermille / 10}% of the time that is a color it landed beside, most often the block under it. So scrap on your slab's color mostly feeds your next break. Drop fast to ripen it.`,
           media: {
             kind: "clip",
             name: "scrap",
-            alt: "A count appears over the board. With the next drop grey scrap rains onto the stacks, one drop later each piece shows a color, and one drop after that they turn into colored blocks.",
+            alt: "A count appears over the board. With the next drop grey scrap lands on the stacks, each piece counting its drops in pips. One drop later each piece shows a color and its cut-out, and one drop after that they turn into colored blocks.",
             caption: "Scrap lands grey, shows its color a drop later, and ripens into blocks.",
           },
         },
@@ -164,7 +164,7 @@ export const swordfight: Guide = {
           media: {
             kind: "clip",
             name: "parry",
-            alt: "A count of incoming scrap flashes over the board. A breaker is hurried down onto a slab, the slab shatters, and the count is gone with nothing landing.",
+            alt: "A count of incoming scrap shows over the board. A breaker is hurried down onto a slab, the slab shatters, and the count is gone with nothing landing.",
             caption: "The count shows, the held break goes off, and the attack is cancelled.",
           },
         },

@@ -44,21 +44,49 @@ three cells of each kind, spread over the racks.
   and 200 shipped apart, so the order of moves matters, and so does holding a finished rack for one
   more move while the mark and the count allow it.
 
-## Input
+## Input and feedback
 
 - Tap a rack to lift its top group, tap another to set it down; tapping the same rack puts it back.
   Or drag from rack to rack. Tap the crate to call it.
 - Keyboard: 1 to 5 lift and set down. Left and right move a cursor, space or enter lifts and sets
   down, escape puts the group back. C calls the crate.
-- The lifted group floats over its rack. Racks that can take it light up, and a rack it would
-  complete lights gold with what the shipment will score (`racksNextShipment`). Full racks dim.
-- The marked rack is outlined, with outlines in its free slots where the crate's cells will sit.
-  When the crate has no room its trolley and the rack turn red and throb. When it would complete
-  the rack they turn gold.
-- A strip over the racks says the same in words: how many moves until the crate lands, that it has
-  no room, or that a chain is running and what the next shipment scores.
-- Unrated and lab rounds pulse an action worth taking after six seconds idle (`racksHint`): a
-  shipment, room under a crate that will not fit, a tidying move, or the call.
+- Unrated and lab rounds mark an action worth taking after six seconds idle (`racksHint`): a
+  shipment, room under a crate that will not fit, a tidying move, or the call. The mark is a cream
+  ring round the group to lift and a cream dot where it goes, or a cream ring round the crate.
+
+The board is restyled to the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws its pieces
+in code (`boards/src/racks/pieces.ts`), loads no atlas and has no marks setting.
+
+- **Pieces.** A fuel cell is a vessel with a gauge window cut in it. Each kind is a vessel of its
+  own outline, so a kind is told from every other by its silhouette alone; the window is the same
+  on all of them. The four in play are a round cell (sand), a square tank (sky), a cone (rose) and
+  a pod on its point (moss). A lab's fifth to eighth kinds are a capsule on its side (lilac), a
+  cross (teal), a battery (slate) and a pail (cream). No kind is amber, and none is rust, which
+  would sit beside the danger of a crate with no room.
+- **The board.** Bare ground with one hairline round the strip, the rail and the racks. No frame
+  and no grid. A rack is the foot its cells stand on and its number; an empty slot is a small dot.
+- **The crate** hangs from a trolley on a rail: two cables and a raised box with its cells in it,
+  a little smaller than racked ones, and a chevron under it at the marked rack. The count is a
+  number on the trolley. The trolley is dim while the crate fits, and the slots its cells will
+  take show each cell's outline in the hairline's colour.
+- **No room** is danger: the trolley, the chevron, a ring round the marked rack and the strip.
+  A crate that will complete its rack is cream in the same places.
+- **A strip** over the rail says the same in words: how many moves until the crate lands, that it
+  has no room, that it will ship its rack, or that a chain is running and what the next shipment
+  scores (`racksNextShipment`).
+- **A lifted group** floats over its rack with an amber ring round it: it is the player's own. A
+  cream dot marks the slot it would take on every rack that has room. A rack it would complete is
+  ringed in cream with what the shipment will score. The keyboard's rack has an amber ring round
+  its number. A rack that refuses the group is ringed in danger for a moment.
+- **A move** is the group going straight to its slots in 120ms. A landing crate's cells drop into
+  the rack the same way, and the next crate comes down its cables.
+- **A shipment** is the rack's cells shrinking to nothing, top first, on a rising run of notes,
+  and the points rising in cream. A second shipment in a chain is called out; so is a crate that
+  ships its rack.
+- **A smash** is the rack's cells shrinking away as the crate lands, the word and the points lost
+  in danger, and a danger ring round the rack for a moment.
+- **The beat**, one amber pulse of the whole board, is kept for one thing: the third shipment of a
+  chain, and each one after it a little stronger. There is no shake, no flash and no glow.
 
 ## Engine
 

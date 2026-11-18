@@ -1,7 +1,7 @@
 /**
  * The pieces of the world besides the outposts (outpost.ts): ships, drifting dust, drones and nav
  * buoys as chunky low-poly groups built from primitives. No art files; everything is geometry and
- * flat color, so it stays placeholder-art honest (DESIGN.md 3.10) while reading as a toy diorama. A
+ * flat color from the one palette (tones.ts, docs/BRAND.md section 7). A
  * ship's static plates are merged into a few meshes (batch.ts): her tub, each side wall and her
  * roof, so she can be cut away aboard. The parts that move or change stay their own. Where a crew
  * walks inside her is laid out in deck.ts, which draws nothing.
@@ -11,7 +11,9 @@ import type { CrewFlagWire } from "@openseas/protocol";
 import { drawEmblem, drawFlag, flagColor, flagKey } from "../crew/flag.js";
 import { nextInt, seedFromString, type PrngState } from "@openseas/engine";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { blend, ink } from "@openseas/boards/look";
 import { Batch, unseen, type Vec3 } from "./batch.js";
+import { AMBER, CREAM, GROUND, LINE, RAISED, SLATE, TONES, cssOf, muted, plate } from "./tones.js";
 import {
   AIRLOCK_X,
   BOW_X,
@@ -44,49 +46,58 @@ export { HULL_HALF, STATION_ORDER, type DeckPost, type ShipDeck, type Station } 
 
 export type { Building } from "./outpost.js";
 
-export const PALETTE = {
-  hull: 0xd6cfbf,
-  hullDark: 0x9d968a,
-  keel: 0x4a4f5a,
-  seam: 0x7d776c,
-  stripe: 0xc8663a,
-  patch: 0x6f9aa6,
-  patchWarm: 0xd9a24a,
-  deck: 0x9299a6,
-  deckSeam: 0x6c7380,
-  walkway: 0xaab1bd,
-  bridge: 0x848b99,
-  lining: 0x4d5870,
-  fin: 0xe4dccb,
-  tin: 0xc3ccd4,
-  tinDark: 0x8a94a0,
-  steel: 0x5d6673,
-  rail: 0x8f98a4,
-  iron: 0x2e3238,
-  rust: 0xc8663a,
-  blue: 0x3e6f9a,
-  panel: 0x2c5d8a,
-  brass: 0xd4a548,
-  parchment: 0xefe3c6,
-  lamp: 0xffd36b,
-  lampOff: 0x6b5a2a,
-  window: 0xffe9a8,
-  glow: 0x7fe3ff,
-  heat: 0xff8a3d,
-  portLamp: 0xff5a4a,
-  starboardLamp: 0x6fe08a,
-  canopy: 0xbfefff,
-} as const;
+/**
+ * What a ship and the small things round her are painted (docs/BRAND.md section 7): plate from
+ * `line` up to `slate`, a few muted colours on her stores and patches, and amber for what is lit.
+ * Her `stripe`, the band round her and the flash on her nose, is the one part that says whose she
+ * is: see `paintFor`.
+ */
+const PAINT = {
+  hull: plate(0.85),
+  hullDark: plate(0.55),
+  keel: LINE,
+  seam: plate(0.45),
+  stripe: TONES.trim,
+  patch: muted("teal", 0.5),
+  patchWarm: muted("sand", 0.55),
+  deck: plate(0.42),
+  deckSeam: plate(0.25),
+  walkway: plate(0.58),
+  bridge: plate(0.34),
+  lining: blend("raised", "line", 0.6),
+  fin: SLATE,
+  tin: TONES.tin,
+  tinDark: TONES.tinDark,
+  steel: TONES.steel,
+  rail: plate(0.7),
+  iron: TONES.iron,
+  pitch: RAISED,
+  rust: TONES.trim,
+  blue: TONES.blue,
+  panel: TONES.panel,
+  slug: TONES.foil,
+  lamp: TONES.lamp,
+  lampOff: TONES.lampOff,
+  window: TONES.window,
+  glow: TONES.glow,
+  screen: TONES.screen,
+  heat: TONES.ember,
+  nozzle: TONES.trimDark,
+  portLamp: ink("rose"),
+  starboardLamp: ink("moss"),
+  canopy: TONES.ice,
+  /** A port seen from inside: the void through it. */
+  port: GROUND,
+  /** The panel on her roof where a crew's flag goes, when she flies none. */
+  bare: plate(0.45),
+  plume: CREAM,
+};
+
+/** A ship's paint: the player's own, and the one they are aboard, wear amber trim. Nobody else's does. */
+const paintFor = (mine: boolean): typeof PAINT => ({ ...PAINT, stripe: mine ? AMBER : plate(0.12), bare: mine ? AMBER : PAINT.bare });
 
 const mat = (color: number, extra: Partial<THREE.MeshLambertMaterialParameters> = {}): THREE.MeshLambertMaterial =>
   new THREE.MeshLambertMaterial({ color, ...extra });
-
-const shaded = (geometry: THREE.BufferGeometry, material: THREE.Material): THREE.Mesh => {
-  const m = new THREE.Mesh(geometry, material);
-  m.castShadow = true;
-  m.receiveShadow = true;
-  return m;
-};
 
 /** A tiny deterministic random source for decoration. */
 class Dice {
@@ -209,7 +220,7 @@ function loft(sections: readonly { x: number; pts: Outline }[]): THREE.BufferGeo
  * either side of the airlocks; the heat sinks to port and the patch bay to starboard; the drive
  * console at the core, aft.
  */
-export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): ShipModel {
+export function buildShip(kind: "yours" | "aboard" | "other"): ShipModel {
   const group = new THREE.Group();
   const body = new THREE.Group();
   body.scale.setScalar(SHIP_SCALE);
@@ -217,7 +228,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   group.add(body);
   // The tub: everything that is there whether or not she is cut away.
   const b = new Batch();
-  const P = PALETTE;
+  const P = paintFor(kind !== "other");
   const box = (w: number, h: number, d: number): THREE.BufferGeometry => new THREE.BoxGeometry(w, h, d);
   const cyl = (rt: number, rb: number, h: number, seg = 8): THREE.BufferGeometry => new THREE.CylinderGeometry(rt, rb, h, seg);
   const ball = (r: number, w = 6, h = 5): THREE.BufferGeometry => new THREE.SphereGeometry(r, w, h);
@@ -278,7 +289,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   for (const z of nozzles) {
     b.add(cyl(0.078, 0.086, 0.05, 10), P.steel, { p: [STERN_X - 0.05, NOZZLE_Y, z], r: [0, 0, Math.PI / 2] });
     b.add(cyl(0.092, 0.06, 0.08, 10), P.iron, { p: [STERN_X - 0.105, NOZZLE_Y, z], r: [0, 0, Math.PI / 2] });
-    b.addGlow(cyl(0.056, 0.056, 0.004, 10), 0x6a3a22, { p: [STERN_X - 0.146, NOZZLE_Y, z], r: [0, 0, Math.PI / 2] });
+    b.addGlow(cyl(0.056, 0.056, 0.004, 10), P.nozzle, { p: [STERN_X - 0.146, NOZZLE_Y, z], r: [0, 0, Math.PI / 2] });
   }
 
   // ---- the deck: plates with a seam every so often, a strip of light along the foot of each wall
@@ -290,14 +301,14 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   for (const side of [-1, 1]) b.addGlow(box(BRIDGE_X - STERN_X - 0.06, 0.003, 0.006), P.glow, { p: [(BRIDGE_X + STERN_X) / 2, DECK_Y + 0.002, side * (WALL_Z - 0.012)] });
   // A grating amidships, and a mat of warning stripes inside each airlock.
   b.add(box(0.08, 0.006, 0.07), P.steel, { p: [-0.02, DECK_Y + 0.003, 0] });
-  for (let i = 0; i < 4; i++) b.add(box(0.004, 0.003, 0.066), 0x1a1d22, { p: [-0.05 + i * 0.02, DECK_Y + 0.0065, 0] });
+  for (let i = 0; i < 4; i++) b.add(box(0.004, 0.003, 0.066), P.pitch, { p: [-0.05 + i * 0.02, DECK_Y + 0.0065, 0] });
   for (const side of [-1, 1]) {
     b.add(box(0.07, 0.004, 0.04), P.iron, { p: [AIRLOCK_X, DECK_Y + 0.002, side * (WALL_Z - 0.03)] });
     for (let i = 0; i < 3; i++) b.add(box(0.012, 0.005, 0.04), P.patchWarm, { p: [AIRLOCK_X - 0.024 + i * 0.024, DECK_Y + 0.0025, side * (WALL_Z - 0.03)] });
   }
   // The stern bulkhead: the engine room's hatch in it, a lamp over the hatch.
   b.add(box(0.025, WALL_TOP - SILL_Y, HULL_Z * 2), P.hullDark, { p: [STERN_X + 0.0125, (WALL_TOP + SILL_Y) / 2, 0] });
-  b.add(box(0.004, 0.085, 0.07), 0x1a1d22, { p: [STERN_X + 0.027, DECK_Y + 0.0425, 0.09] });
+  b.add(box(0.004, 0.085, 0.07), P.pitch, { p: [STERN_X + 0.027, DECK_Y + 0.0425, 0.09] });
   b.addGlow(box(0.004, 0.008, 0.03), P.heat, { p: [STERN_X + 0.028, DECK_Y + 0.096, 0.09] });
 
   // ---- the bridge: two steps up, forward, a low screen across its aft edge either side of the steps
@@ -324,7 +335,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   b.add(box(0.03, 0.012, WALL_Z * 2 - 0.05), P.iron, { p: [BOW_X - 0.04, BRIDGE_Y + 0.054, 0], r: [0, 0, 0.5] });
   for (const [z, c] of [
     [-0.13, P.glow],
-    [-0.065, 0x2f86a8],
+    [-0.065, P.screen],
     [0.065, P.lamp],
     [0.13, P.glow],
   ] as const)
@@ -340,7 +351,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   for (const z of [-0.036, 0.036]) b.add(ball(0.009), P.stripe, { p: [helmAt.x - 0.012, helmAt.y - 0.012, z] });
   // A console with a star chart glowing on its top, and a little globe of the system standing over it.
   b.add(box(0.075, 0.05, 0.055), P.steel, { p: [NAV.x, BRIDGE_Y + 0.025, NAV.z] });
-  b.addGlow(box(0.066, 0.004, 0.046), 0x2f86a8, { p: [NAV.x, BRIDGE_Y + 0.052, NAV.z] });
+  b.addGlow(box(0.066, 0.004, 0.046), P.screen, { p: [NAV.x, BRIDGE_Y + 0.052, NAV.z] });
   for (const [dx, dz] of [
     [-0.02, -0.012],
     [0.012, 0.01],
@@ -386,11 +397,11 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
       b.add(new THREE.SphereGeometry(0.025, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), P.tinDark, { p: [x, DECK_Y + 0.02, side * 0.168] });
       for (const dx of [-0.009, 0.009]) b.add(cyl(0.006, 0.007, 0.11, 6), P.iron, { p: [x + dx, DECK_Y + 0.035, side * 0.225], r: [Math.PI / 2, 0, 0] });
       b.addGlow(box(0.008, 0.005, 0.005), P.glow, { p: [x, DECK_Y + 0.046, side * 0.165] });
-      b.add(new THREE.SphereGeometry(0.034, 8, 5), 0x1a1d22, { p: [x, DECK_Y + 0.035, side * (HULL_Z - 0.004)], s: [1, 0.8, 0.5] });
+      b.add(new THREE.SphereGeometry(0.034, 8, 5), P.pitch, { p: [x, DECK_Y + 0.035, side * (HULL_Z - 0.004)], s: [1, 0.8, 0.5] });
     }
   }
   // Slugs in a rack by the starboard aft turret.
-  for (let i = 0; i < 3; i++) b.add(cyl(0.007, 0.007, 0.018, 6), P.brass, { p: [TURRETS_X[0] - 0.06 + i * 0.019, DECK_Y + 0.009, 0.185] });
+  for (let i = 0; i < 3; i++) b.add(cyl(0.007, 0.007, 0.018, 6), P.slug, { p: [TURRETS_X[0] - 0.06 + i * 0.019, DECK_Y + 0.009, 0.185] });
 
   // ---- the patch bay: a bench with a hull plate on it and a welder beside the plate, spare plates stacked at its foot
   b.add(box(0.1, 0.045, 0.05), P.steel, { p: [PATCH.x, DECK_Y + 0.0225, PATCH.z] });
@@ -411,7 +422,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   b.add(box(0.05, 0.085, 0.038), P.blue, { p: [LOCKER.x, DECK_Y + 0.0425, LOCKER.z] });
   b.add(box(0.003, 0.07, 0.03), P.tinDark, { p: [LOCKER.x + 0.026, DECK_Y + 0.045, LOCKER.z] });
   b.addGlow(box(0.003, 0.006, 0.006), P.lamp, { p: [LOCKER.x + 0.027, DECK_Y + 0.07, LOCKER.z - 0.008] });
-  body.add(b.build(shadows));
+  body.add(b.build());
 
   // ---- the side walls: plate outside with lit ports and the airlock's frame; inside, what the crew looks at
   const wall = (side: number): THREE.Group => {
@@ -437,7 +448,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
     for (const x of [-0.39, -0.29, -0.13, 0.22, 0.31, 0.4]) {
       w.addGlow(cyl(0.017, 0.017, 0.004, 10), P.window, { p: [x, y + 0.006, out], r: [Math.PI / 2, 0, 0] });
       w.add(new THREE.TorusGeometry(0.019, 0.004, 4, 10), P.steel, { p: [x, y + 0.006, out] });
-      w.addGlow(cyl(0.017, 0.017, 0.004, 10), 0x141c38, { p: [x, y + 0.006, inn], r: [Math.PI / 2, 0, 0] });
+      w.addGlow(cyl(0.017, 0.017, 0.004, 10), P.port, { p: [x, y + 0.006, inn], r: [Math.PI / 2, 0, 0] });
       w.add(new THREE.TorusGeometry(0.019, 0.004, 4, 10), P.rail, { p: [x, y + 0.006, inn] });
     }
     // Inside: a strip of light under the roof, a pipe along the foot of the wall, panels and a couple of screens.
@@ -445,11 +456,11 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
     w.add(cyl(0.006, 0.006, door[0] - STERN_X - 0.04, 5), P.rust, { p: [(door[0] + STERN_X) / 2, SILL_Y + 0.012, side * (WALL_Z - 0.007)], r: [0, 0, Math.PI / 2] });
     for (const x of [-0.34, -0.21, -0.06]) w.add(box(0.05, 0.05, 0.004), P.tinDark, { p: [x, y - 0.008, inn] });
     for (const [x, c] of [
-      [-0.21, 0x2f86a8],
+      [-0.21, P.screen],
       [-0.06, P.lamp],
     ] as const)
       w.addGlow(box(0.03, 0.02, 0.005), c, { p: [x, y, side * (WALL_Z - 0.006)] });
-    const g = w.build(shadows);
+    const g = w.build();
     body.add(g);
     return g;
   };
@@ -484,7 +495,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
     for (const side of [-1, 1]) r.add(box(0.014, 0.01, slopeLen), P.steel, { p: [x, onSlope(side)[1], onSlope(side)[2]], r: [side * slope, 0, 0] });
   }
   r.add(box(0.014, 0.012, 0.41), P.steel, { p: [BOW_X - 0.004, WALL_TOP + 0.018, 0] });
-  // A hatch, two vents, a dish and a whip aerial; running lights at the stern, red to port and green to starboard.
+  // A hatch, two vents, a dish and a whip aerial; running lights at the stern, rose to port and moss to starboard.
   r.add(cyl(0.035, 0.038, 0.012, 10), P.steel, { p: [0.03, ROOF_Y + 0.008, 0] });
   r.add(box(0.03, 0.006, 0.008), P.iron, { p: [0.03, ROOF_Y + 0.017, 0] });
   for (const z of [-0.09, 0.09]) {
@@ -498,7 +509,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   for (const side of [-1, 1]) r.addGlow(ball(0.012, 8, 6), side < 0 ? P.portLamp : P.starboardLamp, { p: [STERN_X + 0.03, WALL_TOP + 0.02, side * (HULL_Z - 0.015)] });
   // The fin's root.
   r.add(box(FIN[0][0] - FIN[1][0] + 0.03, 0.03, 0.03), P.steel, { p: [(FIN[0][0] + FIN[1][0]) / 2, ROOF_Y + 0.012, 0] });
-  shell.add(r.build(shadows));
+  shell.add(r.build());
   const glassPane = new THREE.Mesh(
     loft([{ x: BRIDGE_X, pts: roofLine }, { x: 0.36, pts: roofLine }, { x: BOW_X, pts: windscreen }]),
     new THREE.MeshBasicMaterial({ color: P.canopy, transparent: true, opacity: 0.3, depthWrite: false }),
@@ -521,16 +532,16 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
     const at = finGeo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, (at.getX(i) - x0) / (Math.max(...xs) - x0), (at.getY(i) - y0) / (Math.max(...ys) - y0));
   }
-  const fin = shaded(finGeo, mat(P.fin, { side: THREE.DoubleSide }));
+  const fin = new THREE.Mesh(finGeo, mat(P.fin, { side: THREE.DoubleSide }));
   shell.add(fin);
   // A stripe along its leading edge, the hull's own.
-  const edge = shaded(new THREE.BoxGeometry(Math.hypot(FIN[3][0] - FIN[0][0], FIN[3][1] - FIN[0][1]), 0.022, 0.008), mat(P.stripe));
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(FIN[3][0] - FIN[0][0], FIN[3][1] - FIN[0][1]), 0.022, 0.008), mat(P.stripe));
   edge.position.set((FIN[0][0] + FIN[3][0]) / 2, (FIN[0][1] + FIN[3][1]) / 2, 0);
   edge.rotation.z = Math.atan2(FIN[3][1] - FIN[0][1], FIN[3][0] - FIN[0][0]);
   shell.add(edge);
 
   // ---- her colors: a panel painted on each slope of the roof, the crew's flag when she flies one
-  const plainFlag = kind === "other" ? PALETTE.parchment : PALETTE.brass;
+  const plainFlag = P.bare;
   const flagMat = new THREE.MeshBasicMaterial({ color: plainFlag });
   const flags = [-1, 1].map((side) => {
     const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.07), flagMat);
@@ -549,7 +560,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   const engineGlow = new THREE.Group();
   engineGlow.position.set(STERN_X - 0.148, NOZZLE_Y, 0);
   for (const z of nozzles) {
-    const throat = new THREE.Mesh(new THREE.CircleGeometry(0.056, 10), new THREE.MeshBasicMaterial({ color: 0xd8f6ff }));
+    const throat = new THREE.Mesh(new THREE.CircleGeometry(0.056, 10), new THREE.MeshBasicMaterial({ color: P.plume }));
     throat.rotation.y = -Math.PI / 2;
     throat.position.set(-0.001, 0, z);
     engineGlow.add(throat);
@@ -557,7 +568,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
     for (const turn of [0, Math.PI / 2]) {
       const plume = new THREE.Mesh(
         new THREE.PlaneGeometry(0.62, 0.15),
-        new THREE.MeshBasicMaterial({ map: plumeTexture(), transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }),
+        new THREE.MeshBasicMaterial({ map: plumeTexture(), color: P.plume, transparent: true, depthWrite: false, side: THREE.DoubleSide }),
       );
       plume.rotation.x = turn;
       plume.position.set(-0.31, 0, z);
@@ -567,7 +578,7 @@ export function buildShip(kind: "yours" | "aboard" | "other", shadows = true): S
   engineGlow.visible = false;
   body.add(engineGlow);
 
-  const marker = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.22, 4), new THREE.MeshBasicMaterial({ color: PALETTE.brass }));
+  const marker = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.22, 4), new THREE.MeshBasicMaterial({ color: AMBER }));
   marker.rotation.x = Math.PI;
   marker.position.set(0, MARKER_Y, 0);
   marker.visible = kind !== "other";
@@ -631,17 +642,17 @@ export function buildBoardingTube(from: THREE.Vector3, to: THREE.Vector3): THREE
   g.rotation.y = -Math.atan2(span.z, span.x);
   g.rotation.z = Math.atan2(span.y, Math.hypot(span.x, span.z));
   const R = 0.05;
-  const floor = shaded(new THREE.BoxGeometry(length, 0.012, 0.064), mat(PALETTE.tinDark));
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(length, 0.012, 0.064), mat(PAINT.tinDark));
   g.add(floor);
   const sleeve = new THREE.Mesh(
     new THREE.CylinderGeometry(R, R, length, 10, 1, true),
-    new THREE.MeshBasicMaterial({ color: PALETTE.canopy, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: PAINT.canopy, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide }),
   );
   sleeve.rotation.z = Math.PI / 2;
   sleeve.position.y = R * 0.55;
   g.add(sleeve);
   for (let i = 0; i < 4; i++) {
-    const hoop = new THREE.Mesh(new THREE.TorusGeometry(R, 0.006, 4, 12), mat(i === 0 || i === 3 ? PALETTE.stripe : PALETTE.tin));
+    const hoop = new THREE.Mesh(new THREE.TorusGeometry(R, 0.006, 4, 12), mat(i === 0 || i === 3 ? PAINT.stripe : PAINT.tin));
     hoop.rotation.y = Math.PI / 2;
     hoop.position.set(-length / 2 + (i * length) / 3, R * 0.55, 0);
     g.add(hoop);
@@ -666,7 +677,9 @@ function setMap(mesh: THREE.Mesh, map: THREE.Texture | null, color: number): voi
   const m = mesh.material as THREE.MeshBasicMaterial | THREE.MeshLambertMaterial;
   m.map?.dispose();
   m.map = map;
-  m.color.setHex(map ? 0xffffff : color);
+  // A map is drawn as painted: the material under it is white.
+  if (map) m.color.setScalar(1);
+  else m.color.setHex(color);
   m.needsUpdate = true;
 }
 
@@ -684,13 +697,13 @@ export function dressShip(model: ShipModel, colors: CrewFlagWire | null): void {
   if (!colors) {
     setMap(panel, null, model.plainFlag);
     for (const f of model.flags) f.scale.set(1, 1, 1);
-    setMap(model.fin, null, PALETTE.fin);
+    setMap(model.fin, null, PAINT.fin);
     return;
   }
   setMap(panel, canvasTexture(96, 64, (ctx) => drawFlag(ctx, colors, 96, 64)), model.plainFlag);
   // A panel is two by one; a crew flag is three by two.
   for (const f of model.flags) f.scale.set(1, 4 / 3, 1);
-  const finHex = `#${PALETTE.fin.toString(16).padStart(6, "0")}`;
+  const finHex = cssOf(PAINT.fin);
   setMap(
     model.fin,
     // The canvas is the shape of the fin's own box, so the emblem is not stretched.
@@ -700,43 +713,37 @@ export function dressShip(model: ShipModel, colors: CrewFlagWire | null): void {
       // The middle of the blade, clear of its swept edges.
       drawEmblem(ctx, colors.emblem, 66, 60, 62, flagColor(colors.field), finHex);
     }),
-    PALETTE.fin,
+    PAINT.fin,
   );
 }
 
 let plumeTex: THREE.Texture | null = null;
-/** An engine's plume: white hot at the nozzle (the texture's right edge), blue and gone by its tail, soft at its sides. */
+/** An engine's plume: a flat blade, as wide as the nozzle at its mouth (the texture's right edge) and drawn to a point at its tail. */
 function plumeTexture(): THREE.Texture {
   if (plumeTex) return plumeTex;
   const c = document.createElement("canvas");
   c.width = 128;
   c.height = 32;
   const g = c.getContext("2d")!;
-  const along = g.createLinearGradient(128, 0, 0, 0);
-  along.addColorStop(0, "rgba(255,255,255,1)");
-  along.addColorStop(0.2, "rgba(170,236,255,0.9)");
-  along.addColorStop(0.6, "rgba(90,170,255,0.35)");
-  along.addColorStop(1, "rgba(70,120,255,0)");
-  g.fillStyle = along;
-  g.fillRect(0, 0, 128, 32);
-  g.globalCompositeOperation = "destination-in";
-  const across = g.createLinearGradient(0, 0, 0, 32);
-  across.addColorStop(0, "rgba(0,0,0,0)");
-  across.addColorStop(0.5, "rgba(0,0,0,1)");
-  across.addColorStop(1, "rgba(0,0,0,0)");
-  g.fillStyle = across;
-  g.fillRect(0, 0, 128, 32);
+  // White, so the material's own colour is the plume's.
+  g.fillStyle = "white";
+  g.beginPath();
+  g.moveTo(128, 6);
+  g.lineTo(128, 26);
+  g.lineTo(8, 16);
+  g.closePath();
+  g.fill();
   plumeTex = new THREE.CanvasTexture(c);
   plumeTex.colorSpace = THREE.SRGBColorSpace;
   return plumeTex;
 }
 
-/** A drift of dust over the chart: a loose string of small rocks in a thin haze. */
+/** A drift of dust over the chart: a loose string of small rocks over a flat patch of haze. */
 export function buildDust(seed: string): THREE.Group {
   const dice = new Dice(`dust:${seed}`);
   const g = new THREE.Group();
   const rocks = 9 + dice.int(6);
-  const tones = [0x8d86a3, 0x756f8c, 0xa39cb8, 0x5f5a73];
+  const tones = [plate(0.35), plate(0.2), plate(0.5), LINE];
   const b = new Batch();
   for (let i = 0; i < rocks; i++) {
     const r = 0.03 + dice.range(0, 0.06);
@@ -746,10 +753,10 @@ export function buildDust(seed: string): THREE.Group {
       s: [1, 0.6 + dice.range(0, 0.5), 0.7 + dice.range(0, 0.5)],
     });
   }
-  g.add(b.build(false));
-  // A soft haze round the rocks: sprites, so it has no edge from any side.
+  g.add(b.build());
+  // The haze round the rocks: flat discs a shade over the void, sprites so they face the eye from any side.
   for (let i = 0; i < 3; i++) {
-    const haze = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDot(), color: 0xa99ad6, transparent: true, opacity: 0.2, depthWrite: false }));
+    const haze = new THREE.Sprite(new THREE.SpriteMaterial({ map: flatDot(), color: blend("ground", "raised", 0.5), transparent: true, depthWrite: false }));
     haze.scale.set(1.5 + dice.range(0, 0.6), 0.7 + dice.range(0, 0.3), 1);
     haze.position.set(i * 0.6 - 0.6 + dice.range(-0.1, 0.1), dice.range(-0.05, 0.05), dice.range(-0.12, 0.12));
     g.add(haze);
@@ -757,23 +764,21 @@ export function buildDust(seed: string): THREE.Group {
   return g;
 }
 
-let softDotTex: THREE.Texture | null = null;
-/** A white dot fading to nothing at its edge, for haze and glows. */
-function softDot(): THREE.Texture {
-  if (softDotTex) return softDotTex;
+let flatDotTex: THREE.Texture | null = null;
+/** A white disc with a clean edge: the material's own colour is the haze's. */
+function flatDot(): THREE.Texture {
+  if (flatDotTex) return flatDotTex;
   const c = document.createElement("canvas");
   c.width = 64;
   c.height = 64;
   const g = c.getContext("2d")!;
-  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  grad.addColorStop(0, "rgba(255,255,255,1)");
-  grad.addColorStop(0.5, "rgba(255,255,255,0.35)");
-  grad.addColorStop(1, "rgba(255,255,255,0)");
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 64, 64);
-  softDotTex = new THREE.CanvasTexture(c);
-  softDotTex.colorSpace = THREE.SRGBColorSpace;
-  return softDotTex;
+  g.fillStyle = "white";
+  g.beginPath();
+  g.arc(32, 32, 31, 0, Math.PI * 2);
+  g.fill();
+  flatDotTex = new THREE.CanvasTexture(c);
+  flatDotTex.colorSpace = THREE.SRGBColorSpace;
+  return flatDotTex;
 }
 
 export interface DroneModel {
@@ -787,22 +792,22 @@ export interface DroneModel {
 /** A courier drone circling an outpost: a pill of a body, a pod either side, a light. */
 export function buildDrone(): DroneModel {
   const group = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.035, 0.05), mat(PALETTE.tin));
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.05, 4), mat(PALETTE.rust));
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.035, 0.05), mat(PAINT.tin));
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.05, 4), mat(PAINT.rust));
   nose.rotation.z = -Math.PI / 2;
   nose.rotation.x = Math.PI / 4;
   nose.position.x = 0.078;
   group.add(body, nose);
   const pods: THREE.Mesh[] = [];
   for (const side of [-1, 1]) {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.012, 0.06), mat(PALETTE.iron));
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.012, 0.06), mat(PAINT.iron));
     arm.position.set(-0.01, 0, side * 0.05);
-    const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.018, 8), new THREE.MeshBasicMaterial({ color: PALETTE.glow }));
+    const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.018, 8), new THREE.MeshBasicMaterial({ color: PAINT.glow }));
     pod.position.set(-0.01, -0.012, side * 0.085);
     group.add(arm, pod);
     pods.push(pod);
   }
-  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 5), new THREE.MeshBasicMaterial({ color: PALETTE.lamp }));
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 5), new THREE.MeshBasicMaterial({ color: PAINT.lamp }));
   lamp.position.set(-0.03, 0.026, 0);
   group.add(lamp);
   return { group, lamp, pods };
@@ -816,24 +821,24 @@ export interface BuoyModel {
 /** A nav buoy marking a lane's midpoint: a spindle that hangs in the void and turns, a lamp at its tip. */
 export function buildBuoy(): BuoyModel {
   const group = new THREE.Group();
-  const upper = shaded(new THREE.ConeGeometry(0.075, 0.13, 6), mat(PALETTE.rust));
+  const upper = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.13, 6), mat(PAINT.rust));
   upper.position.y = 0.145;
-  const lower = shaded(new THREE.ConeGeometry(0.075, 0.2, 6), mat(PALETTE.tinDark));
+  const lower = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.2, 6), mat(PAINT.tinDark));
   lower.rotation.x = Math.PI;
   lower.position.y = -0.02;
-  const band = shaded(new THREE.CylinderGeometry(0.08, 0.08, 0.025, 6), mat(PALETTE.tin));
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.025, 6), mat(PAINT.tin));
   band.position.y = 0.08;
   group.add(upper, lower, band);
   // Two little panels, so it reads as a made thing from far off.
   for (const side of [-1, 1]) {
-    const panel = shaded(new THREE.BoxGeometry(0.09, 0.006, 0.05), mat(PALETTE.panel));
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.006, 0.05), mat(PAINT.panel));
     panel.position.set(side * 0.13, 0.08, 0);
     group.add(panel);
   }
-  const post = shaded(new THREE.CylinderGeometry(0.006, 0.006, 0.12, 5), mat(PALETTE.iron));
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.12, 5), mat(PAINT.iron));
   post.position.y = 0.27;
   group.add(post);
-  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 5), new THREE.MeshBasicMaterial({ color: PALETTE.lamp }));
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 5), new THREE.MeshBasicMaterial({ color: PAINT.lamp }));
   lamp.position.y = 0.34;
   group.add(lamp);
   return { group, lamp };

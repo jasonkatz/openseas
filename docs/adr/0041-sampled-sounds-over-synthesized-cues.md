@@ -2,7 +2,10 @@
 
 Status: Accepted. Builds on [0040](./0040-generated-art-and-sound-from-briefs.md) and
 [0019](./0019-boards-package-and-harness-bench.md). Supersedes the last sentence of 0040's
-decision 5.
+decision 5. [0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) supersedes this
+at milestone M10's sound pass: cues stay synthesized.
+
+[0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded all of it at M10's sixth step: no board plays a sample, and every cue is synthesized from its definition in `boards/src/cues.ts`.
 
 ## Context
 

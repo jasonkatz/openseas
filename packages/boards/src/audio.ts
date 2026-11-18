@@ -1,8 +1,10 @@
 /**
- * Sound effects (DESIGN.md 3.9). A cue plays the open puzzle's own sample where the owner has picked
- * one (`sounds/<puzzle>/<cue>.mp3`, ADR 0040 and 0041), and its minimal synthesized voice otherwise:
- * while the samples load, when one fails, and for every cue no sample was made for.
+ * Sound effects (DESIGN.md 3.9, docs/BRAND.md section 8). Every cue is synthesized here from its
+ * definition in `cues.ts`: a few soft voices on the notes of one scale, through a low-pass. There
+ * are no samples and nothing is loaded (ADR 0062 decision 5).
  */
+import { CUE_NAMES, LIMITS, NOTES, PROBES, cueOf, envelope, type Cue, type CueArgs, type CueName } from "./cues.js";
+
 const MUTE_KEY = "openseas.muted";
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -16,20 +18,83 @@ function readMuted(): boolean {
   }
 }
 
+/**
+ * How much louder the game is than a cue's own level. A cue is tuned quiet and level with the
+ * others (`cues.ts`); this lifts them all to where a phone's small speaker carries them, and the
+ * limiter after it keeps cues that overlap from clipping.
+ */
+const MASTER_GAIN = 2.2;
+
+/** The one context and its output, made on first need. Null when muted or when the browser has no WebAudio. */
 function context(): { ac: AudioContext; out: GainNode } | null {
   if (muted) return null;
   try {
-    ctx ??= new AudioContext();
+    if (!ctx) {
+      // The game's sound is incidental, and says so: it obeys a phone's ring switch (on silent the
+      // game is silent), mixes with whatever music is playing, and is not media, so the phone
+      // shows no "now playing" card for it. Only some browsers have this; the rest ignore it.
+      const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+      if (session) session.type = "ambient";
+      ctx = new AudioContext();
+    }
     if (!master) {
       master = ctx.createGain();
-      master.gain.value = 0.9;
-      master.connect(ctx.destination);
+      master.gain.value = MASTER_GAIN;
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -6;
+      limiter.knee.value = 6;
+      limiter.ratio.value = 12;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.12;
+      master.connect(limiter);
+      limiter.connect(ctx.destination);
     }
-    if (ctx.state === "suspended") void ctx.resume();
+    // "suspended" before a gesture, and on a phone "interrupted" after a call or a trip to another app.
+    if (ctx.state !== "running") void ctx.resume().catch(() => undefined);
     return { ac: ctx, out: master };
   } catch {
     return null;
   }
+}
+
+/**
+ * A browser, a phone's above all, lets a page make sound only from inside the player's own touch,
+ * click or key press. A board plays its cues a frame or more after the touch that caused them,
+ * which is too late: the context would stay suspended and the game silent for good. So the first
+ * gesture anywhere on the page starts the context itself, and plays one silent sample inside the
+ * gesture, which is what older phones need before they will let anything through.
+ */
+const GESTURES = ["pointerdown", "pointerup", "touchend", "mousedown", "keydown", "click"] as const;
+function unlock(): void {
+  const c = context();
+  if (!c) return;
+  try {
+    const source = c.ac.createBufferSource();
+    source.buffer = c.ac.createBuffer(1, 1, c.ac.sampleRate);
+    source.connect(c.ac.destination);
+    source.start();
+  } catch {
+    /* nothing to unlock with */
+  }
+  // The listeners stay for the life of the page: the context is put to sleep whenever the page is
+  // hidden (below), and on a phone only another gesture may be allowed to wake it.
+}
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  for (const type of GESTURES) window.addEventListener(type, unlock, { capture: true, passive: true });
+  // The context sleeps whenever the page is hidden (the phone locked, another app or tab in
+  // front), so the game holds no audio it is not using; coming back wakes it, or the next touch
+  // does where the phone insists on one.
+  document.addEventListener("visibilitychange", () => {
+    if (!ctx) return;
+    if (document.hidden) void ctx.suspend().catch(() => undefined);
+    else if (ctx.state !== "running" && !muted) void ctx.resume().catch(() => undefined);
+  });
+}
+
+/** Whether sound can be heard right now: "running", "suspended" (no gesture yet), "muted" or "none". For the studio's smoke. */
+export function audioState(): string {
+  if (muted) return "muted";
+  return ctx ? ctx.state : "none";
 }
 
 export function isMuted(): boolean {
@@ -38,6 +103,8 @@ export function isMuted(): boolean {
 
 export function setMuted(m: boolean): void {
   muted = m;
+  // Turning sound on is itself a gesture: start the context inside it.
+  if (!m && typeof window !== "undefined") unlock();
   try {
     window.localStorage.setItem(MUTE_KEY, m ? "1" : "0");
   } catch {
@@ -45,332 +112,207 @@ export function setMuted(m: boolean): void {
   }
 }
 
-interface Tone {
-  freq: number;
-  to?: number;
-  duration: number;
-  type: OscillatorType;
-  gain: number;
-  delay?: number;
-  attack?: number;
-}
-
-function tone({ freq, to, duration, type, gain, delay = 0, attack = 0.005 }: Tone): void {
-  const c = context();
-  if (!c) return;
-  const t0 = c.ac.currentTime + delay;
-  const osc = c.ac.createOscillator();
-  const g = c.ac.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, t0);
-  if (to) osc.frequency.exponentialRampToValueAtTime(to, t0 + duration);
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(gain, t0 + attack);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-  osc.connect(g).connect(c.out);
-  osc.start(t0);
-  osc.stop(t0 + duration + 0.02);
-}
-
-/** Filtered noise: hisses, booms and whooshes. */
-function noise(duration: number, gain: number, from: number, to: number, type: BiquadFilterType = "lowpass"): void {
-  const c = context();
-  if (!c) return;
-  const t0 = c.ac.currentTime;
-  const len = Math.ceil(c.ac.sampleRate * duration);
-  const buf = c.ac.createBuffer(1, len, c.ac.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-  const src = c.ac.createBufferSource();
-  src.buffer = buf;
-  const f = c.ac.createBiquadFilter();
-  f.type = type;
-  f.frequency.setValueAtTime(from, t0);
-  f.frequency.exponentialRampToValueAtTime(to, t0 + duration);
-  const g = c.ac.createGain();
-  g.gain.setValueAtTime(gain, t0);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-  src.connect(f).connect(g).connect(c.out);
-  src.start(t0);
-}
-
-/** A major pentatonic ladder, so longer cascades climb without ever sounding wrong. */
-const LADDER = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
-const note = (step: number): number => 392 * Math.pow(2, LADDER[Math.min(LADDER.length - 1, step)]! / 12);
-
-const synth = {
-  swap: () => tone({ freq: 520, to: 380, duration: 0.07, type: "triangle", gain: 0.05 }),
-  /** A swap that clears nothing: a soft metal click so scoring swaps stand out. */
-  swapQuiet: () => {
-    tone({ freq: 880, to: 620, duration: 0.04, type: "triangle", gain: 0.022 });
-    noise(0.025, 0.02, 5200, 2600, "highpass");
-  },
-  /** One cascade step. `chain` 1 is the swap's own clear; each later step climbs the ladder. */
-  clear: (chain: number, pieces: number) => {
-    const f = note(chain - 1);
-    tone({ freq: f, duration: 0.22, type: "sine", gain: 0.09 });
-    tone({ freq: f * 1.5, duration: 0.18, type: "triangle", gain: 0.03, delay: 0.02 });
-    if (pieces >= 5) tone({ freq: f * 2, duration: 0.3, type: "sine", gain: 0.04, delay: 0.06 });
-    // Deep steps land with a low thump under the chime.
-    if (chain >= 3) tone({ freq: 140, to: 70, duration: 0.25, type: "sine", gain: 0.12 });
-    noise(0.12, 0.04, 2400, 600);
-  },
-  /** Clearing two or more runs at once: a quick bright arpeggio over the clear. */
-  multi: (groups: number) => {
-    for (let i = 0; i < Math.min(4, groups); i++) tone({ freq: note(4 + i * 2), duration: 0.16, type: "triangle", gain: 0.035, delay: 0.05 + i * 0.05 });
-  },
-  /** A streak milestone: a short rising fanfare, higher for longer streaks. */
-  streak: (count: number) => {
-    const lift = Math.min(4, Math.floor(count / 4));
-    [0, 2, 4, 5].forEach((step, i) => tone({ freq: note(step + lift), duration: 0.22, type: "square", gain: 0.022, delay: i * 0.07 }));
-    tone({ freq: note(7 + lift), duration: 0.5, type: "triangle", gain: 0.05, delay: 0.28 });
-  },
-  /** A streak of three or more just ended. */
-  streakLost: () => tone({ freq: 330, to: 180, duration: 0.3, type: "sine", gain: 0.04 }),
-  /** The heat dropped a row: a burst of steam through a valve, a falling whistle a row. */
-  vent: (rows: number) => {
-    noise(0.32, 0.07, 6000, 1800, "highpass");
-    for (let i = 0; i < Math.min(3, rows); i++) tone({ freq: 1400 - i * 120, to: 700 - i * 60, duration: 0.18, type: "sine", gain: 0.018, delay: 0.04 + i * 0.09 });
-  },
-  /** The heat rose a row. */
-  rise: () => tone({ freq: 260, to: 150, duration: 0.25, type: "sine", gain: 0.035 }),
-  /** The heat crossed into the danger half. */
-  alarm: () => {
-    tone({ freq: 620, duration: 0.14, type: "square", gain: 0.03 });
-    tone({ freq: 460, duration: 0.18, type: "square", gain: 0.03, delay: 0.16 });
-  },
-  charge: () => {
-    noise(0.5, 0.22, 900, 60);
-    tone({ freq: 90, to: 38, duration: 0.45, type: "sine", gain: 0.22 });
-  },
-  magnet: () => {
-    noise(0.45, 0.08, 300, 3200, "bandpass");
-    tone({ freq: 220, to: 660, duration: 0.35, type: "sine", gain: 0.04 });
-  },
-  slag: () => {
-    tone({ freq: 700, to: 1400, duration: 0.09, type: "square", gain: 0.025 });
-    tone({ freq: 1050, duration: 0.18, type: "sine", gain: 0.05, delay: 0.06 });
-  },
-  /** Plating: a plate welded down. A crackle of arc and a ringing clank, duller when the plate hangs over sound hull. */
-  welder: (waste: boolean) => {
-    noise(0.09, waste ? 0.035 : 0.06, 7000, 3000, "highpass");
-    tone({ freq: 95, duration: 0.08, type: "sawtooth", gain: waste ? 0.02 : 0.03 });
-    tone({ freq: waste ? 330 : 520, to: waste ? 260 : 470, duration: waste ? 0.12 : 0.22, type: "triangle", gain: waste ? 0.05 : 0.07, delay: 0.06 });
-    // Inharmonic partials make it ring like a plate rather than a bell.
-    if (!waste) tone({ freq: 1370, to: 1290, duration: 0.16, type: "sine", gain: 0.018, delay: 0.06 });
-  },
-  /** Plating: a sealed breach's plates lift away. A pneumatic hiss under a rising servo whine. */
-  plateLift: () => {
-    noise(0.3, 0.045, 2600, 900, "bandpass");
-    tone({ freq: 300, to: 720, duration: 0.3, type: "square", gain: 0.012 });
-    tone({ freq: 600, to: 1440, duration: 0.3, type: "sine", gain: 0.02 });
-  },
-  /** Plating: hull plating tears open. A shriek of metal and a low structural groan. */
-  crack: (loud: boolean) => {
-    noise(0.14, loud ? 0.09 : 0.055, 4200, 900, "highpass");
-    tone({ freq: loud ? 1900 : 1500, to: loud ? 700 : 600, duration: loud ? 0.18 : 0.1, type: "sawtooth", gain: loud ? 0.015 : 0.01 });
-    tone({ freq: 95, to: 48, duration: loud ? 0.4 : 0.22, type: "sawtooth", gain: loud ? 0.05 : 0.03, delay: 0.04 });
-  },
-  /** A plate will not go there. A short dead thunk on metal. */
-  bump: () => {
-    noise(0.04, 0.03, 900, 250);
-    tone({ freq: 140, to: 95, duration: 0.08, type: "triangle", gain: 0.05 });
-  },
-  // ---- placeholder sounds for prototype boards (ADR 0036), generic on purpose
-  /** A piece picked, stepped onto or added to a line: `step` climbs the ladder, so a long line sings upward. */
-  pop: (step: number) => tone({ freq: note(step), duration: 0.1, type: "sine", gain: 0.06 }),
-  /** A discharge: a bright crackle falling away. */
-  zap: () => {
-    noise(0.16, 0.07, 5200, 900, "bandpass");
-    tone({ freq: 980, to: 240, duration: 0.14, type: "sawtooth", gain: 0.035 });
-  },
-  /** Something sliding or flying off. */
-  whoosh: () => noise(0.24, 0.05, 500, 2600, "bandpass"),
-  /** Something heavy stopping. */
-  thud: () => {
-    noise(0.06, 0.05, 700, 180);
-    tone({ freq: 140, to: 62, duration: 0.13, type: "sine", gain: 0.14 });
-  },
-  /** A sonar ping; `near` 0 (close) to 6 (far) lowers the pitch. */
-  ping: (near: number) => {
-    const f = 1320 * Math.pow(2, -Math.min(8, Math.max(0, near)) / 6);
-    tone({ freq: f, duration: 0.5, type: "sine", gain: 0.055, attack: 0.002 });
-    tone({ freq: f * 2, duration: 0.2, type: "sine", gain: 0.015, delay: 0.01 });
-  },
-  /** A small right answer. */
-  good: () => {
-    tone({ freq: 660, duration: 0.1, type: "triangle", gain: 0.05 });
-    tone({ freq: 990, duration: 0.18, type: "triangle", gain: 0.05, delay: 0.08 });
-  },
-  /** A wrong answer or a penalty. */
-  bad: () => {
-    tone({ freq: 220, duration: 0.14, type: "square", gain: 0.035 });
-    tone({ freq: 156, duration: 0.24, type: "square", gain: 0.035, delay: 0.12 });
-  },
-  /** Power building: `level` 0 to 1 raises the sweep. */
-  power: (level: number) => tone({ freq: 180 + level * 220, to: 360 + level * 520, duration: 0.2, type: "sawtooth", gain: 0.03 }),
-  tick: (urgent: boolean) => tone({ freq: urgent ? 1180 : 880, duration: 0.05, type: "square", gain: 0.018 }),
-  start: () => {
-    tone({ freq: 392, duration: 0.14, type: "triangle", gain: 0.06 });
-    tone({ freq: 587, duration: 0.22, type: "triangle", gain: 0.06, delay: 0.1 });
-  },
-  end: () => {
-    [523, 659, 784, 1047].forEach((freq, i) => tone({ freq, duration: 0.4, type: "triangle", gain: 0.05, delay: i * 0.09 }));
-  },
-};
-
-// ---- Samples (ADR 0041)
-
-/** Samples are mastered to peak at -1 dB; this sits them level with the synthesized cues. */
-const SAMPLE_GAIN = 0.25;
-const files = import.meta.glob<string>("./sounds/*/*.mp3", { query: "?url", import: "default", eager: true });
-const banks = new Map<string, Map<string, AudioBuffer>>();
-/** The puzzles whose boards are open, the latest last: its samples are the ones that play. */
-const open: string[] = [];
-
-function loadBank(puzzle: string): void {
-  if (banks.has(puzzle)) return;
-  const bank = new Map<string, AudioBuffer>();
-  banks.set(puzzle, bank);
-  if (typeof OfflineAudioContext === "undefined") return;
-  // An offline context decodes without waiting for the player's first touch.
-  const decoder = new OfflineAudioContext(1, 1, 44100);
-  for (const [path, url] of Object.entries(files)) {
-    const m = /^\.\/sounds\/([^/]+)\/([^/]+)\.mp3$/.exec(path);
-    if (!m || m[1] !== puzzle) continue;
-    const cue = m[2]!;
-    void fetch(url)
-      .then((res) => (res.ok ? res.arrayBuffer() : Promise.reject(new Error(String(res.status)))))
-      .then((data) => decoder.decodeAudioData(data))
-      .then(
-        (buffer) => void bank.set(cue, buffer),
-        () => {
-          /* the synthesized cue stays */
-        },
-      );
+/** Soft noise, a second of it, made once for each context: what every breath is cut from. */
+const noiseOf = new WeakMap<BaseAudioContext, AudioBuffer>();
+function noiseBuffer(ac: BaseAudioContext): AudioBuffer {
+  let buf = noiseOf.get(ac);
+  if (!buf) {
+    buf = ac.createBuffer(1, Math.ceil(ac.sampleRate), ac.sampleRate);
+    const data = buf.getChannelData(0);
+    // A fixed sequence, not a random one: a cue sounds, and measures, the same every time.
+    let x = 0x2f6e2b1;
+    for (let i = 0; i < data.length; i++) {
+      x = (Math.imul(x, 1664525) + 1013904223) | 0;
+      data[i] = x / 0x80000000;
+    }
+    noiseOf.set(ac, buf);
   }
-}
-
-/** A cue's voice chosen over the bundled one (ADR 0050), by puzzle then cue: a decoded sample, or the synthesized cue. */
-const picked = new Map<string, Map<string, AudioBuffer | "synth">>();
-
-/** The cues a puzzle has a bundled sample for. */
-export function sampleCues(puzzle: string): string[] {
-  const cues: string[] = [];
-  for (const path of Object.keys(files)) {
-    const m = /^\.\/sounds\/([^/]+)\/([^/]+)\.mp3$/.exec(path);
-    if (m && m[1] === puzzle) cues.push(m[2]!);
-  }
-  return cues;
+  return buf;
 }
 
 /**
- * Gives a puzzle's cue another voice (ADR 0050): the sound at a URL, the synthesized cue though a
- * sample is bundled (`"synth"`), or with `null` what the build ships. Presentation only, and it
- * takes hold on the next time the cue plays. False when the sound does not load or decode, and
- * then nothing changes.
+ * Builds a cue's voices on a context, to start at `t0`, and returns the node they all leave by.
+ * The one place a cue becomes sound: each voice rises from zero and falls back to it on the shared
+ * envelope, and the whole cue passes one low-pass. Mono throughout. Any context will do, so the
+ * same code plays a cue live and renders it offline to be measured.
  */
-export async function overrideSample(puzzle: string, cue: string, voice: string | null): Promise<boolean> {
-  const mine = picked.get(puzzle) ?? new Map<string, AudioBuffer | "synth">();
-  if (voice === null) mine.delete(cue);
-  else if (voice === "synth") mine.set(cue, "synth");
-  else {
-    if (typeof OfflineAudioContext === "undefined") return false;
-    try {
-      const res = await fetch(voice);
-      if (!res.ok) return false;
-      mine.set(cue, await new OfflineAudioContext(1, 1, 44100).decodeAudioData(await res.arrayBuffer()));
-    } catch {
-      return false;
+export function scheduleCue(ac: BaseAudioContext, out: AudioNode, cue: Cue, t0: number): GainNode {
+  const bus = ac.createGain();
+  bus.gain.value = cue.gain;
+  const lowpass = ac.createBiquadFilter();
+  lowpass.type = "lowpass";
+  lowpass.frequency.value = Math.min(LIMITS.cutoff, cue.cutoff);
+  lowpass.Q.value = 0;
+  lowpass.connect(bus).connect(out);
+  for (const v of cue.voices) {
+    const start = t0 + v.at;
+    const length = v.attack + v.release;
+    const g = ac.createGain();
+    g.gain.value = 0;
+    g.gain.setValueCurveAtTime(
+      envelope(v.attack, v.release).map((x) => x * v.level),
+      start,
+      length,
+    );
+    g.connect(lowpass);
+    if (v.kind === "tone") {
+      const osc = ac.createOscillator();
+      osc.type = v.wave;
+      osc.frequency.value = NOTES[v.note]!;
+      osc.connect(g);
+      osc.start(start);
+      osc.stop(start + length + 0.01);
+    } else {
+      const src = ac.createBufferSource();
+      src.buffer = noiseBuffer(ac);
+      const f = ac.createBiquadFilter();
+      f.type = v.band ? "bandpass" : "lowpass";
+      f.Q.value = v.band ? 0.8 : 0;
+      f.frequency.setValueAtTime(Math.min(LIMITS.cutoff, v.from), start);
+      f.frequency.exponentialRampToValueAtTime(Math.min(LIMITS.cutoff, v.to), start + length);
+      src.connect(f).connect(g);
+      src.start(start);
+      src.stop(start + length + 0.01);
     }
   }
-  picked.set(puzzle, mine);
-  return true;
+  return bus;
 }
 
-/** A board opening: its puzzle's samples load and play until the returned release is called. */
-export function soundsFor(puzzle: string): () => void {
-  loadBank(puzzle);
-  open.push(puzzle);
-  let released = false;
-  return () => {
-    if (released) return;
-    released = true;
-    const i = open.lastIndexOf(puzzle);
-    if (i >= 0) open.splice(i, 1);
-  };
+/**
+ * Renders one cue offline and returns its samples (mono, 48kHz), for `seconds` from its start.
+ * The studio's smoke measures every cue with this in a real browser (studio/e2e/sound.spec.ts).
+ */
+export async function renderCue<K extends CueName>(name: K, args: CueArgs<K>, seconds = 1): Promise<Float32Array> {
+  const ac = new OfflineAudioContext(1, Math.ceil(48000 * seconds), 48000);
+  scheduleCue(ac, ac.destination, cueOf(name, args), 0);
+  return (await ac.startRendering()).getChannelData(0);
 }
 
-/** Plays a puzzle's sample for a cue, pitched by `rate`: the open puzzle's unless one is named. False when there is none, or the synthesized cue was chosen over it. */
-function playSample(cue: string, rate: number, puzzle: string | undefined = open[open.length - 1]): boolean {
-  if (!puzzle) return false;
-  const own = picked.get(puzzle)?.get(cue);
-  const buffer = own === "synth" ? undefined : (own ?? banks.get(puzzle)?.get(cue));
-  if (!buffer) return false;
+/** What one cue measured as, rendered offline. */
+export interface CueMeasure {
+  cue: CueName;
+  args: readonly unknown[];
+  /** Seconds from its start to its last sample above silence (-80 dBFS). */
+  length: number;
+  /** Its loudest sample, of full scale 1. */
+  peak: number;
+  /** Its first sample, and its loudest over the millisecond after its length: both should be nothing. */
+  first: number;
+  tail: number;
+  /** The biggest jump from one sample to the next: a click would show here. */
+  step: number;
+}
+
+/** Renders every cue, with every row of its `PROBES`, and measures each. */
+export async function measureCues(): Promise<CueMeasure[]> {
+  const rows: CueMeasure[] = [];
+  for (const cue of CUE_NAMES) {
+    for (const args of PROBES[cue] as readonly CueArgs<typeof cue>[]) {
+      const x = await renderCue(cue, args, 1);
+      let last = -1;
+      let peak = 0;
+      let step = 0;
+      for (let i = 0; i < x.length; i++) {
+        const a = Math.abs(x[i]!);
+        if (a > 1e-4) last = i;
+        if (a > peak) peak = a;
+        if (i > 0) step = Math.max(step, Math.abs(x[i]! - x[i - 1]!));
+      }
+      let tail = 0;
+      for (let i = last + 1; i < Math.min(x.length, last + 49); i++) tail = Math.max(tail, Math.abs(x[i]!));
+      rows.push({ cue, args, length: (last + 1) / 48000, peak, first: Math.abs(x[0]!), tail, step });
+    }
+  }
+  return rows;
+}
+
+/**
+ * One moment: the cues asked for in one turn of the page's code (a frame of a board, an event's
+ * handler). The beat's sound stands alone (docs/BRAND.md section 6): when the beat sounds, every
+ * other cue of its moment is dropped, whether it was asked for before the beat or after, so a
+ * fanfare or a sting a board or its page plays for the same event is never laid over it.
+ */
+interface Moment {
+  buses: AudioNode[];
+  beat: boolean;
+  /** The beat that sounded in this moment. */
+  rang: { bus: GainNode; strength: number } | null;
+}
+let moment: Moment | null = null;
+function thisMoment(): Moment {
+  if (!moment) {
+    moment = { buses: [], beat: false, rang: null };
+    queueMicrotask(() => (moment = null));
+  }
+  return moment;
+}
+
+/** How long before a cue starts, so its first voice is never scheduled in the past. */
+const LEAD = 0.004;
+
+/** Takes the beat's place in this moment, or says another cue may not sound in it. */
+function admit(name: string): boolean {
+  const m = thisMoment();
+  if (name === "beat") {
+    // Nothing of this moment has sounded yet: its cues are unplugged before a sample of them is heard.
+    for (const bus of m.buses) bus.disconnect();
+    m.buses.length = 0;
+    m.beat = true;
+    return true;
+  }
+  return !m.beat;
+}
+
+/** The beat that is ringing, if one is: a new beat takes it over, as the pulse does, and never stacks on it. */
+let ringing: GainNode | null = null;
+
+function play<K extends CueName>(name: K, args: CueArgs<K>): void {
   const c = context();
-  if (!c) return true;
-  const src = c.ac.createBufferSource();
-  src.buffer = buffer;
-  src.playbackRate.value = rate;
-  const g = c.ac.createGain();
-  g.gain.value = SAMPLE_GAIN;
-  src.connect(g).connect(c.out);
-  src.start();
-  return true;
+  if (!c) return;
+  const now = c.ac.currentTime;
+  const m = thisMoment();
+  if (name === "beat") {
+    const strength = Number(args[0] ?? 0);
+    if (m.rang) {
+      // Two beats asked for in one moment are one beat, the stronger: the other was never heard.
+      if (strength <= m.rang.strength) return;
+      m.rang.bus.disconnect();
+    } else if (ringing) {
+      // An earlier beat still ringing falls away as the new one rises.
+      ringing.gain.setValueAtTime(ringing.gain.value, now);
+      ringing.gain.linearRampToValueAtTime(0, now + 0.03);
+    }
+    ringing = scheduleCue(c.ac, c.out, cueOf(name, args), now + LEAD);
+    m.rang = { bus: ringing, strength };
+    return;
+  }
+  m.buses.push(scheduleCue(c.ac, c.out, cueOf(name, args), now + LEAD));
 }
 
-type Synth = typeof synth;
+type Synth = { [K in CueName]: (...args: CueArgs<K>) => void };
 
-/** How far a cue's sample is pitched by its argument, so a ladder still climbs with a sample. */
-const rates: { [K in keyof Synth]?: (...args: Parameters<Synth[K]>) => number } = {
-  clear: (chain) => note(chain - 1) / note(0),
-  pop: (step) => note(step) / note(0),
-  ping: (near) => Math.pow(2, -Math.min(8, Math.max(0, near)) / 6),
-};
-
-const voiced = Object.fromEntries(
-  Object.entries(synth).map(([cue, play]) => [
-    cue,
-    (...args: unknown[]) => {
-      const rate = (rates[cue as keyof Synth] as ((...a: unknown[]) => number) | undefined)?.(...args) ?? 1;
-      if (!playSample(cue, rate)) (play as (...a: unknown[]) => void)(...args);
-    },
-  ]),
-) as Synth;
+const synth = Object.fromEntries(CUE_NAMES.map((name) => [name, (...args: unknown[]) => play(name, args as CueArgs<typeof name>)])) as Synth;
 
 export const sfx = {
-  ...voiced,
-  /** A puzzle's own cue: its sample when there is one, else `fallback`, a synthesized cue. */
-  cue(name: string, fallback: () => void, rate = 1): void {
-    if (!playSample(name, rate)) fallback();
+  ...(Object.fromEntries(CUE_NAMES.map((name) => [name, (...args: unknown[]) => void (admit(name) && synth[name](...(args as never[])))])) as Synth),
+  /**
+   * A puzzle's own cue: a moment of its board that has a name of its own (Swordfighting's `clash`)
+   * and is voiced by `fallback`, one or more of the cues above. `rate` is no longer heard: it
+   * pitched a sample, and there are none (ADR 0062); a call may still pass it.
+   */
+  cue(name: string, fallback: () => void, _rate = 1): void {
+    if (admit(name)) fallback();
   },
 };
 
-/** What a synthesized cue is played with when it is only being listened to: a first step, a small clear. */
-const AUDITION: { [K in keyof Synth]?: Parameters<Synth[K]> } = {
-  clear: [1, 3],
-  multi: [2],
-  streak: [4],
-  vent: [1],
-  welder: [false],
-  crack: [true],
-  pop: [0],
-  ping: [0],
-  power: [0.5],
-  tick: [false],
-};
-
 /**
- * Plays one of a puzzle's cues with no board open, so it can be listened to (ADR 0050): its
- * sample where it has one, else its synthesized voice. `synth` asks for the synthesized voice
- * whatever sample there is. A puzzle's own cue (`sfx.cue`) has no synthesized voice of its name,
- * so `fallback` names the synthesized cues its renderer plays behind it.
+ * Plays one cue with no board open, so it can be listened to (the studio's Sounds list), with the
+ * first row of its `PROBES`. A puzzle's own cue (`sfx.cue`) has no voice of its name, so
+ * `fallback` names the cues its renderer plays for it.
  */
-export function auditionCue(puzzle: string, cue: string, options: { synth?: boolean; fallback?: readonly string[] } = {}): void {
-  loadBank(puzzle);
-  if (!options.synth && playSample(cue, 1, puzzle)) return;
-  for (const name of cue in synth ? [cue] : (options.fallback ?? [])) {
-    const play = synth[name as keyof Synth] as ((...a: unknown[]) => void) | undefined;
-    play?.(...((AUDITION[name as keyof Synth] as unknown[] | undefined) ?? []));
+export function auditionCue(cue: string, fallback: readonly string[] = []): void {
+  for (const name of cue in synth ? [cue] : fallback) {
+    const probe = PROBES[name as CueName] as readonly (readonly unknown[])[] | undefined;
+    (synth[name as CueName] as ((...a: unknown[]) => void) | undefined)?.(...(probe?.[0] ?? []));
   }
 }

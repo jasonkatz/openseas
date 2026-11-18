@@ -2,8 +2,8 @@
 
 Browser-native, touch-first space pirate puzzle MMO. Spiritual successor to Puzzle Pirates: faithful
 mechanics, original everything else. `openseas` is a codename. The game moved from the sea to space
-in milestone M7 (ADR 0034): its words, its code, its three.js world and its puzzle boards (sprites,
-frames, fallback pieces and sounds) are space. ADRs 0001 to 0033 keep the nautical words they were
+in milestone M7 (ADR 0034): its words, its code, its three.js world and its puzzle boards (pieces
+drawn in code, and sounds) are space. ADRs 0001 to 0033 keep the nautical words they were
 written in.
 
 ## Read first
@@ -12,6 +12,9 @@ written in.
   feature work. If code and the design doc disagree, fix one in the same PR.
 - `docs/adr/` holds the rationale for every architecture choice. Read the index. Never edit an
   accepted ADR's decision; add a superseding one.
+- `docs/BRAND.md` is the brand book: the game's palette, type, shapes, motion, sound and voice
+  (ADR 0061, ADR 0062). Read it before drawing, styling or wording anything a player sees. Every
+  board, the chrome, the world and the sounds follow it.
 - `docs/GLOSSARY.md` holds the game's words and the nautical words they replaced, with the
   identifier for each. Name new things by it, and read older ADRs through it.
 - `docs/puzzles/` holds a design file for each puzzle the game deals: its role, its rules and scoring,
@@ -35,16 +38,16 @@ written in.
    `content` as JSON validated at startup (ADR 0009). Player state lives in Postgres.
 5. **Every player-facing string goes through the message table.** English only, but never
    hardcode UI text.
-6. **Every piece type is distinguishable without color.** Sprites have distinct silhouettes and surfaces; a player
-   setting draws a distinct mark on every kind. Accessibility is not retrofitted.
+6. **Every piece type is distinguishable without color.** Each kind on a board has a silhouette of its own and is
+   told from every other by that alone (`docs/BRAND.md` section 3). Accessibility is not retrofitted.
 
 ## Stack
 
 TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `protocol` (Zod schemas), `content`,
-`boards` (the PixiJS boards, round runner and server connection both front ends share, ADR 0019, and the Vite plugin that packs each puzzle's atlas from its frame files at build time, ADR 0054),
+`boards` (the PixiJS boards, each drawing its pieces in code, the round runner and server connection both front ends share, ADR 0019, ADR 0062),
 `server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `studio` (the puzzle studio at studio.openseas.online, once the harness, built step by step, ADR 0042: a page a puzzle with its board and a tuning panel built from
 `content` and the wire schema, each puzzle alone at `/play/<id>`, every round local, and the voyage bench for ships and crews, ADR 0027), `studio-server` (the studio's own small service: tester links by id,
-the owner's GitHub sign-in, the owner's drafts, Save for their numbers and picks as a draft pull request, the chat's agent on a draft's worktree, and the takes it makes, kept in a bucket, ADR 0043, ADR 0045 to 0047, ADR 0049, ADR 0051, ADR 0053, ADR 0055, ADR 0057, ADR 0059 and ADR 0060; the studio works without it), `docs` (the puzzle guides at docs.openseas.online: a static site with one guide per puzzle, its
+the owner's GitHub sign-in, the owner's drafts, Save for their numbers and words as a draft pull request, and the chat's agent on a draft's worktree, ADR 0043, ADR 0045 to 0047, ADR 0049, ADR 0055, ADR 0057, ADR 0059 and ADR 0060; the studio works without it), `docs` (the puzzle guides at docs.openseas.online: a static site with one guide per puzzle, its
 pictures captured from the real boards in the studio, ADR 0038).
 Postgres. Railway for server, the studio's service and database, Vercel for the game, the studio and the guides as three projects.
 Vitest with property-based determinism tests on engines, Playwright smoke on all three front ends.
@@ -68,8 +71,11 @@ Vitest with property-based determinism tests on engines, Playwright smoke on all
 - A string a puzzle says is keyed `<puzzle>.<name>` in the message table: the studio's Text mode offers every
   such key for rewriting (ADR 0057), and Save writes a draft's rewrites back to the table.
 - Every puzzle's content file has a `category`. It is a label for the studio's grid and decides nothing else.
-- A cue a board newly plays gets its place in `studio/src/assets/cues.ts`: the studio's sound panel
-  lists a puzzle's cues from it (ADR 0050), and its test fails without it.
+- A cue a board newly plays gets its place in `studio/src/assets/cues.ts`: the studio's Sounds list
+  shows a puzzle's cues from it (ADR 0062), and its test fails without it.
+- Every cue is synthesized, from its definition in `boards/src/cues.ts`, by `docs/BRAND.md` section 8:
+  one scale, soft, short. `studio/test/sound.test.ts` and `studio/e2e/sound.spec.ts` fail on one that is not.
+  There are no samples and nothing generated lands in the game (ADR 0062).
 - Any puzzle work, a new puzzle or a change to one, starts with the `puzzles` skill
   (`.claude/skills/puzzles/SKILL.md`): the rules every puzzle is held to.
 - A pull request saved from the studio is a draft holding numbers and the chat agent's edits (ADR 0049). Whoever

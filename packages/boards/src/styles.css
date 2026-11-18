@@ -1,19 +1,58 @@
 :root {
-  --ink-900: #070e1a;
-  --ink-800: #0b1526;
-  --ink-700: #121f36;
-  --ink-600: #1c2b48;
-  --parchment: #efe3c6;
-  --parchment-dim: #c9bb9a;
-  --brass: #d4a548;
-  --brass-deep: #9a7320;
-  --foam: #5ed3b8;
-  --tide: #1a7f8a;
-  --danger: #f0604d;
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  /* tokens:start (written from boards/src/look/tokens.ts; the look test holds them equal) */
+  --ground: #0b1220;
+  --raised: #141d30;
+  --line: #27344f;
+  --cream: #ece3cf;
+  --dim: #8f99ad;
+  --amber: #e2a94b;
+  --danger: #e5604e;
+  --sand: #d8c690;
+  --sky: #7fb0d8;
+  --moss: #8ebd88;
+  --lilac: #a99ad4;
+  --rose: #d897b2;
+  --teal: #6dbcb1;
+  --rust: #c27f66;
+  --slate: #7f8ba3;
+  --plum: #8e6fa8;
+  --olive: #a3a86a;
+  --ice: #a9d3de;
+  --brick: #a85f5a;
   --font-body: "Atkinson Hyperlegible", "Avenir Next", "Segoe UI", sans-serif;
-  --radius: 14px;
+  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 10px;
+  /* tokens:end */
+  /* The older names. No rule in the game, its boards or its guides reads them any more. They stay
+     because the studio's own stylesheets still do (studio/src, ADR 0058); they go when those are
+     rewritten. */
+  --ink-900: var(--ground);
+  --ink-800: var(--ground);
+  --ink-700: var(--raised);
+  --ink-600: var(--line);
+  --parchment: var(--cream);
+  --parchment-dim: var(--dim);
+  --brass: var(--amber);
+  --brass-deep: var(--amber);
+  --foam: var(--cream);
+  --tide: var(--line);
+  --font-display: var(--font-body);
   color-scheme: dark;
+}
+
+/* The studio's home and voyage bench lay their own look over these rules by setting the older names
+   (studio/src/look.css, ADR 0058). The rules below read the tokens, so on those pages the tokens
+   follow the older names. It goes with the aliases above, and so does the block at the foot of this
+   file. */
+.studio-home,
+.vpage,
+.vpage .vboard {
+  --ground: var(--ink-900);
+  --raised: var(--ink-800);
+  --line: var(--ink-600);
+  --cream: var(--parchment);
+  --dim: var(--parchment-dim);
+  --amber: var(--brass);
 }
 
 * {
@@ -28,13 +67,8 @@ body,
 }
 
 body {
-  background:
-    radial-gradient(1200px 600px at 80% -10%, rgba(26, 127, 138, 0.28), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(212, 165, 72, 0.14), transparent 60%),
-    repeating-linear-gradient(0deg, transparent 0 46px, rgba(255, 255, 255, 0.025) 46px 47px),
-    repeating-linear-gradient(90deg, transparent 0 46px, rgba(255, 255, 255, 0.025) 46px 47px),
-    var(--ink-900);
-  color: var(--parchment);
+  background: var(--ground);
+  color: var(--cream);
   font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.45;
@@ -58,7 +92,7 @@ pre {
 }
 
 a {
-  color: var(--foam);
+  color: var(--cream);
 }
 
 .page {
@@ -75,33 +109,24 @@ a {
 
 .masthead {
   padding-top: 24px;
-  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: rise 180ms ease-out both;
 }
 .eyebrow {
   margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  color: var(--dim);
 }
 .wordmark {
   margin: 4px 0 10px;
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-style: italic;
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: clamp(56px, 14vw, 104px);
   line-height: 0.9;
-  letter-spacing: -0.03em;
-  color: var(--parchment);
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
-}
-.wordmark::first-letter {
-  color: var(--brass);
-  font-style: normal;
+  color: var(--cream);
 }
 .rule {
-  height: 2px;
-  background: linear-gradient(90deg, var(--brass), transparent 70%);
+  height: 1px;
+  background: var(--line);
 }
 
 /* ---- cards */
@@ -109,33 +134,25 @@ a {
 .card {
   border-radius: var(--radius);
   padding: 20px;
-  animation: rise 0.6s 0.1s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: rise 180ms ease-out both;
 }
 .card h2 {
   margin: 0 0 6px;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 26px;
-  letter-spacing: -0.01em;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 20px;
 }
 .card-parchment {
-  background: linear-gradient(160deg, #f3e8cd, #e2d2ab);
-  color: #2b2113;
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.1),
-    0 20px 40px -24px rgba(0, 0, 0, 0.8);
+  background: var(--raised);
+  color: var(--cream);
 }
 .card-parchment .error {
-  color: #9b2d1f;
+  color: var(--danger);
 }
 .card-ink {
-  background: linear-gradient(160deg, var(--ink-700), var(--ink-800));
-  box-shadow:
-    inset 0 0 0 1px rgba(239, 227, 198, 0.08),
-    0 20px 40px -24px rgba(0, 0, 0, 0.9);
+  background: var(--raised);
 }
 .hail-name {
-  font-style: italic;
   font-weight: 400;
 }
 .ledger {
@@ -144,10 +161,8 @@ a {
   gap: 10px;
 }
 .ledger dt {
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  color: var(--dim);
 }
 .ledger dd {
   margin: 2px 0 0;
@@ -161,27 +176,25 @@ a {
   align-items: baseline;
   padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(212, 165, 72, 0.14);
-  border: 1px solid rgba(212, 165, 72, 0.4);
-  color: var(--brass);
+  border: 1px solid var(--line);
+  color: var(--cream);
 }
 .tier-chip small {
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 
 .muted {
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .small {
-  font-size: 14px;
+  font-size: 13px;
 }
 .status {
   margin: 0;
-  color: var(--parchment-dim);
-  font-style: italic;
+  color: var(--dim);
 }
 .status-warn {
-  color: var(--brass);
+  color: var(--cream);
 }
 .error {
   color: var(--danger);
@@ -196,16 +209,16 @@ a {
 .field {
   display: grid;
   gap: 6px;
-  font-size: 14px;
+  font-size: 13px;
 }
 .field input {
   font: inherit;
   font-size: 18px;
   padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.25);
-  background: rgba(255, 255, 255, 0.6);
-  color: #1b150c;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--cream);
 }
 
 /* ---- buttons */
@@ -213,49 +226,48 @@ a {
 .btn {
   font: inherit;
   font-weight: 700;
-  font-size: 17px;
-  padding: 14px 18px;
-  border-radius: 12px;
-  border: 0;
+  font-size: 16px;
+  padding: 13px 17px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
   cursor: pointer;
   text-align: center;
   text-decoration: none;
   transition:
-    transform 0.08s ease,
-    filter 0.15s ease;
+    transform 120ms ease-out,
+    background-color 120ms ease-out;
   touch-action: manipulation;
 }
 .btn:active {
-  transform: translateY(1px) scale(0.99);
+  transform: translateY(1px);
 }
 .btn[disabled] {
   opacity: 0.45;
   cursor: not-allowed;
 }
+/* The one button that goes on. */
 .btn-brass {
-  background: linear-gradient(180deg, #e9bd63, var(--brass) 55%, var(--brass-deep));
-  color: #1b150c;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 10px 24px -12px rgba(212, 165, 72, 0.9);
+  background: var(--amber);
+  color: var(--ground);
 }
-.btn-brass:hover:not([disabled]) {
-  filter: brightness(1.06);
-}
+/* Every other button. Its hairline is what shows it on a panel. */
 .btn-ghost {
-  background: transparent;
-  color: var(--parchment);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.3);
+  background: var(--raised);
+  color: var(--cream);
+  border-color: var(--line);
+}
+.btn-ghost:hover:not([disabled]) {
+  background: var(--line);
 }
 
 /* ---- practice grid */
 
 .section-title {
   margin: 0 0 10px;
-  font-family: var(--font-display);
-  font-weight: 500;
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: 20px;
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .practice-grid {
   list-style: none;
@@ -285,22 +297,22 @@ a {
   min-height: 92px;
   position: relative;
   overflow: hidden;
-  animation: rise 0.6s 0.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: rise 180ms ease-out both;
 }
 .practice-tile.live {
-  background: linear-gradient(135deg, rgba(26, 127, 138, 0.45), rgba(11, 21, 38, 0.9) 60%);
-  box-shadow: inset 0 0 0 1px rgba(94, 211, 184, 0.35);
+  background: var(--raised);
+  transition: background-color 120ms ease-out;
 }
 .practice-tile.live:hover {
-  box-shadow: inset 0 0 0 1px var(--foam);
+  background: var(--line);
 }
 .practice-tile.soon {
   grid-template-areas:
     "title title"
     "blurb blurb";
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.1);
-  color: var(--parchment-dim);
+  padding: 15px;
+  border: 1px solid var(--line);
+  color: var(--dim);
 }
 .tile-glyph {
   grid-area: glyph;
@@ -309,20 +321,20 @@ a {
 .tile-title {
   grid-area: title;
   min-width: 0;
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 600;
+  font-family: var(--font-body);
+  font-size: 20px;
+  font-weight: 700;
   overflow-wrap: anywhere;
 }
 .tile-blurb {
   grid-area: blurb;
-  font-size: 14px;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  color: var(--dim);
 }
 .colophon {
   margin-top: auto;
-  font-size: 12px;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  color: var(--dim);
   text-align: center;
   padding-top: 20px;
 }
@@ -348,32 +360,30 @@ a {
   width: 44px;
   height: 44px;
   padding: 0;
-  border: 0;
-  border-radius: 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
   text-decoration: none;
-  color: var(--parchment);
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.08);
+  color: var(--cream);
+  background: var(--raised);
   cursor: pointer;
   transition:
-    background 0.15s ease,
-    transform 0.08s ease;
+    background-color 120ms ease-out,
+    transform 120ms ease-out;
   touch-action: manipulation;
 }
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--line);
 }
 .icon-btn:active {
   transform: scale(0.95);
 }
 .icon-btn[aria-pressed="true"] {
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .puzzle-title {
   margin: 0;
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-style: italic;
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: 28px;
   line-height: 1;
 }
@@ -381,11 +391,11 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   padding: 5px 11px 5px 9px;
   border-radius: 999px;
-  letter-spacing: 0.04em;
+  background: var(--raised);
   white-space: nowrap;
 }
 .pip i {
@@ -395,23 +405,22 @@ a {
   background: currentColor;
 }
 .pip-live {
-  color: var(--foam);
-  background: rgba(94, 211, 184, 0.12);
-}
-.pip-live i {
-  box-shadow: 0 0 0 0 rgba(94, 211, 184, 0.6);
-  animation: ping 2.4s ease-out infinite;
+  color: var(--cream);
 }
 .pip-wait {
-  color: var(--parchment-dim);
-  background: rgba(239, 227, 198, 0.08);
+  color: var(--dim);
 }
 .pip-wait i {
   animation: pulse 0.9s ease-in-out infinite;
 }
 .pip-off {
-  color: var(--brass);
-  background: rgba(212, 165, 72, 0.12);
+  color: var(--dim);
+}
+/* Off is a ring where live is a dot, so the two are told apart without their colour. */
+.pip-off i,
+i.dot.pip-off {
+  background: transparent;
+  border: 1.5px solid currentColor;
 }
 
 /* HUD: score, clock and moves on top, combo and heat below. */
@@ -421,10 +430,7 @@ a {
   gap: 10px 14px;
   padding: 12px 14px;
   border-radius: var(--radius);
-  background: linear-gradient(160deg, rgba(28, 43, 72, 0.75), rgba(11, 21, 38, 0.75));
-  box-shadow:
-    inset 0 0 0 1px rgba(239, 227, 198, 0.07),
-    0 14px 30px -20px rgba(0, 0, 0, 0.9);
+  background: var(--raised);
 }
 .stat {
   display: grid;
@@ -438,52 +444,50 @@ a {
   align-items: center;
 }
 .stat-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--dim);
 }
 .stat-value {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 28px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
 }
 .stat-score .stat-value {
   font-size: 34px;
-  color: #fff6dc;
+  color: var(--cream);
 }
 .stat-value small {
-  font-size: 14px;
-  color: var(--parchment-dim);
+  font-size: 13px;
+  color: var(--dim);
   font-weight: 400;
 }
 .bump {
   display: inline-block;
-  animation: bump 0.32s cubic-bezier(0.3, 1.6, 0.5, 1);
+  animation: bump 120ms ease-out;
 }
 .bar {
   display: block;
   height: 4px;
   margin-top: 3px;
   border-radius: 999px;
-  background: rgba(239, 227, 198, 0.1);
+  background: var(--line);
   overflow: hidden;
 }
 .bar i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--parchment-dim);
+  background: var(--dim);
   transition: width 0.25s linear;
 }
 .stat-urgent .bar i {
   background: var(--danger);
 }
 .bar-moves i {
-  background: rgba(212, 165, 72, 0.75);
+  background: var(--cream);
 }
 .urgent {
   color: var(--danger);
@@ -499,49 +503,44 @@ a {
   width: 16px;
   height: 10px;
   border-radius: 3px;
-  background: rgba(239, 227, 198, 0.12);
+  background: var(--line);
   transform: skewX(-14deg);
-  transition:
-    background 0.15s ease,
-    box-shadow 0.15s ease;
+  transition: background-color 120ms ease-out;
 }
 .combo-meter i.lit {
-  background: linear-gradient(180deg, #ffe39a, var(--brass));
-  box-shadow: 0 0 10px rgba(212, 165, 72, 0.7);
-  animation: pip-in 0.25s cubic-bezier(0.3, 1.6, 0.5, 1);
+  background: var(--cream);
 }
 .combo-meter.hot i.lit {
-  background: linear-gradient(180deg, #ffd1a8, #ff8a5b);
-  box-shadow: 0 0 12px rgba(255, 138, 91, 0.8);
+  background: var(--amber);
 }
 .combo-meter b {
   margin-left: 8px;
   font-size: 13px;
-  color: var(--brass);
+  color: var(--cream);
   white-space: nowrap;
-  animation: bump 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+  animation: bump 120ms ease-out;
 }
 .combo-meter.hot b {
-  color: #ff9a6b;
+  color: var(--amber);
 }
 .heat-meter {
   display: block;
   height: 10px;
   border-radius: 999px;
-  background: rgba(239, 227, 198, 0.1);
+  background: var(--line);
   overflow: hidden;
 }
 .heat-meter i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--tide), var(--foam));
+  background: var(--cream);
   transition:
-    width 0.5s ease,
-    background 0.3s ease;
+    width 180ms ease-out,
+    background-color 180ms ease-out;
 }
 .heat-meter.danger i {
-  background: linear-gradient(90deg, var(--tide), var(--danger));
+  background: var(--danger);
   animation: pulse 1s ease-in-out infinite;
 }
 .heat-row {
@@ -556,10 +555,8 @@ a {
   font-style: normal;
   white-space: nowrap;
   animation: pulse 1s ease-in-out infinite;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--danger);
 }
 
@@ -567,7 +564,7 @@ a {
   position: relative;
   flex: 1 1 auto;
   min-height: 360px;
-  border-radius: 18px;
+  border-radius: var(--radius);
   overflow: hidden;
 }
 .board-wrap::after {
@@ -576,8 +573,8 @@ a {
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 0 rgba(240, 96, 77, 0);
-  transition: box-shadow 0.3s ease;
+  border: 2px solid var(--danger);
+  opacity: 0;
 }
 .board-wrap.low-time::after {
   animation: low-time 1s ease-in-out infinite;
@@ -597,16 +594,11 @@ a {
   display: grid;
   place-items: center;
   pointer-events: none;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 900;
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: clamp(48px, 16vw, 84px);
-  color: #ffe39a;
-  text-shadow:
-    0 3px 0 #070e1a,
-    0 0 24px rgba(212, 165, 72, 0.6);
-  -webkit-text-stroke: 2px #070e1a;
-  animation: splash 0.9s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  color: var(--amber);
+  animation: splash 0.9s ease-out both;
 }
 .board-veil {
   position: absolute;
@@ -614,9 +606,8 @@ a {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: radial-gradient(circle at 50% 40%, rgba(7, 14, 26, 0.55), rgba(7, 14, 26, 0.85));
-  backdrop-filter: blur(5px);
-  animation: fade 0.25s ease both;
+  background: color-mix(in srgb, var(--ground) 70%, transparent);
+  animation: fade 180ms ease-out both;
 }
 .veil-card {
   width: min(100%, 380px);
@@ -624,26 +615,19 @@ a {
   overflow: auto;
   padding: 22px;
   border-radius: var(--radius);
-  background:
-    radial-gradient(120% 80% at 0% 0%, rgba(255, 255, 255, 0.35), transparent 60%),
-    linear-gradient(160deg, #f3e8cd, #e2d2ab);
-  color: #2b2113;
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
-    inset 0 -3px 0 rgba(0, 0, 0, 0.08),
-    0 30px 60px -30px rgba(0, 0, 0, 0.9);
-  animation: rise 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  background: var(--raised);
+  color: var(--cream);
+  animation: rise 180ms ease-out both;
 }
 .veil-card .eyebrow {
-  color: #8a6a2a;
-  font-weight: 700;
-  font-size: 11px;
+  color: var(--dim);
+  font-size: 13px;
 }
 .veil-card h2 {
   margin: 2px 0 10px;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 30px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 28px;
   line-height: 1.05;
 }
 .veil-card .how {
@@ -656,72 +640,61 @@ a {
 }
 .tile-row span {
   display: block;
-  animation: bob 2.4s ease-in-out infinite;
 }
 .tile-row img {
   width: 30px;
   height: 30px;
 }
 .how-kbd {
-  color: #6b5a3a;
-  font-size: 14px;
+  color: var(--dim);
+  font-size: 13px;
 }
 .best-line {
   margin: 4px 0 0;
   font-weight: 700;
-  color: var(--brass-deep);
+  color: var(--cream);
 }
 .note {
   margin: 8px 0 0;
   padding: 8px 10px;
-  border-radius: 10px;
-  font-size: 14px;
-  background: rgba(154, 115, 32, 0.14);
-  color: #6b4f15;
-}
-.veil-card .btn-ghost {
-  color: #2b2113;
-  box-shadow: inset 0 0 0 1px rgba(43, 33, 19, 0.35);
-}
-.veil-card .muted {
-  color: #6b5a3a;
-}
-.veil-card .error {
-  color: #9b2d1f;
+  border-radius: var(--radius);
+  font-size: 13px;
+  background: var(--ground);
+  color: var(--dim);
 }
 /* A fight's result leads with who won (DESIGN.md 3.3); the word carries it, the color only backs it up. */
 .fight-outcome {
   margin: 0 0 6px;
-  font-family: var(--font-display);
-  font-size: 22px;
-  color: #2b2113;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--cream);
 }
 .fight-outcome.won {
-  color: #2f6b2a;
+  color: var(--amber);
 }
 .fight-outcome.lost {
-  color: #9b2d1f;
+  color: var(--danger);
 }
 .result-score {
   margin: 0;
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 64px;
+  font-size: 40px;
   line-height: 1;
-  letter-spacing: -0.02em;
-  color: #2b2113;
+  color: var(--cream);
 }
 .best-badge {
   display: inline-block;
   margin: 8px 0 0;
-  padding: 4px 10px;
+  padding: 3px 9px;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 700;
-  background: linear-gradient(180deg, #e9bd63, var(--brass));
-  color: #2b2113;
-  animation: bump 0.5s 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  border: 1px solid var(--amber);
+  color: var(--amber);
+  animation: fade 180ms 0.6s ease-out both;
 }
 .result-stats {
   display: grid;
@@ -731,32 +704,30 @@ a {
 }
 .result-stats div {
   padding: 8px 10px;
-  border-radius: 10px;
-  background: rgba(43, 33, 19, 0.07);
+  border-radius: var(--radius);
+  background: var(--ground);
 }
 .result-stats dt {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #6b5a3a;
+  font-size: 13px;
+  color: var(--dim);
 }
 .result-stats dd {
   margin: 2px 0 0;
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 20px;
+  font-weight: 700;
 }
 .tier-line {
   margin: 0 0 4px;
-  color: var(--brass-deep);
+  color: var(--cream);
   font-weight: 700;
 }
 .tier-up {
-  color: #1f7a4d;
+  color: var(--cream);
 }
 .tier-down {
-  color: #9b2d1f;
+  color: var(--danger);
 }
 .veil-card p.small {
   margin: 0;
@@ -770,24 +741,22 @@ a {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid rgba(239, 227, 198, 0.25);
-  border-top-color: var(--brass);
+  border: 2px solid var(--line);
+  border-top-color: var(--cream);
   animation: spin 0.8s linear infinite;
 }
 
 .legend {
   font-size: 13px;
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: inset 0 0 0 1px rgba(239, 227, 198, 0.07);
+  background: var(--raised);
 }
 .legend summary {
   padding: 10px 14px;
   cursor: pointer;
   font-weight: 700;
   font-size: 13px;
-  letter-spacing: 0.06em;
-  color: var(--parchment-dim);
+  color: var(--dim);
   list-style: none;
   display: flex;
   align-items: center;
@@ -803,7 +772,7 @@ a {
   border-right: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   transform: rotate(-45deg);
-  transition: transform 0.15s ease;
+  transition: transform 120ms ease-out;
 }
 .legend[open] summary::before {
   transform: rotate(45deg);
@@ -843,7 +812,7 @@ a {
   margin-top: 1px;
 }
 .legend .specials b {
-  color: var(--brass);
+  color: var(--cream);
 }
 .legend .toggle {
   display: flex;
@@ -855,7 +824,7 @@ a {
 .legend .toggle input {
   width: 20px;
   height: 20px;
-  accent-color: var(--brass);
+  accent-color: var(--amber);
 }
 /* Phones: one bar carries the HUD and the board takes the rest of the screen. */
 .puzzle-compact {
@@ -882,9 +851,10 @@ a {
 .hud-strip .stat {
   gap: 1px;
 }
+/* The one label under the scale's 13px: the bar it sits in is 40px tall. */
 .hud-strip .stat-label {
-  font-size: 9px;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  line-height: 1.1;
 }
 .hud-strip .stat-value,
 .hud-strip .stat-score .stat-value {
@@ -902,17 +872,17 @@ a {
   display: inline-block;
   margin-left: 5px;
   padding: 1px 5px;
-  border-radius: 6px;
+  border-radius: 999px;
   vertical-align: 3px;
-  font-family: var(--font-body);
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
-  color: #1b150c;
-  background: linear-gradient(180deg, #ffe39a, var(--brass));
-  animation: bump 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+  color: var(--ground);
+  background: var(--cream);
+  animation: bump 120ms ease-out;
 }
 .combo-chip.hot {
-  background: linear-gradient(180deg, #ffd1a8, #ff8a5b);
+  background: var(--amber);
 }
 .details-btn {
   position: relative;
@@ -927,21 +897,20 @@ a {
   background: currentColor;
 }
 .details-btn .dot.pip-live {
-  color: var(--foam);
+  color: var(--cream);
 }
 .details-btn .dot.pip-wait {
-  color: var(--parchment-dim);
+  color: var(--dim);
 }
 .details-btn .dot.pip-off {
-  color: var(--brass);
+  color: var(--dim);
 }
 .details-btn.warn {
   color: var(--danger);
-  box-shadow: inset 0 0 0 1px rgba(240, 96, 77, 0.5);
+  border-color: var(--danger);
 }
 .puzzle-compact .board-wrap {
   min-height: 0;
-  border-radius: 12px;
 }
 .hud-scrim {
   position: absolute;
@@ -949,9 +918,9 @@ a {
   z-index: 4;
   border: 0;
   padding: 0;
-  background: rgba(7, 14, 26, 0.45);
+  background: color-mix(in srgb, var(--ground) 70%, transparent);
   cursor: pointer;
-  animation: fade 0.2s ease both;
+  animation: fade 120ms ease-out both;
 }
 .hud-panel {
   position: absolute;
@@ -965,12 +934,9 @@ a {
   gap: 10px;
   justify-items: start;
   padding: 14px;
-  border-radius: 12px;
-  background: linear-gradient(160deg, rgba(28, 43, 72, 0.97), rgba(11, 21, 38, 0.97));
-  box-shadow:
-    inset 0 0 0 1px rgba(239, 227, 198, 0.1),
-    0 20px 40px -16px rgba(0, 0, 0, 0.9);
-  animation: drop 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  border-radius: var(--radius);
+  background: var(--raised);
+  animation: drop 180ms ease-out both;
 }
 .hud-panel .stat-wide {
   width: 100%;
@@ -979,7 +945,6 @@ a {
 .legend-inline {
   width: 100%;
   background: none;
-  box-shadow: none;
 }
 .legend-inline ul,
 .legend-inline .toggle {
@@ -1069,34 +1034,10 @@ a {
     opacity: 0.55;
   }
 }
-@keyframes ping {
-  0% {
-    box-shadow: 0 0 0 0 rgba(94, 211, 184, 0.6);
-  }
-  70%,
-  100% {
-    box-shadow: 0 0 0 7px rgba(94, 211, 184, 0);
-  }
-}
+/* A number that just changed: it comes up from dim, and never grows. */
 @keyframes bump {
-  0% {
-    transform: scale(1);
-  }
-  40% {
-    transform: scale(1.18);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-@keyframes pip-in {
   from {
-    transform: skewX(-14deg) scale(1.6);
-  }
-}
-@keyframes bob {
-  50% {
-    transform: translateY(-3px);
+    opacity: 0.4;
   }
 }
 @keyframes spin {
@@ -1107,24 +1048,20 @@ a {
 @keyframes splash {
   0% {
     opacity: 0;
-    transform: scale(0.4) rotate(-8deg);
+    transform: scale(0.9);
   }
-  25% {
-    opacity: 1;
-    transform: scale(1.08) rotate(-4deg);
-  }
+  20%,
   70% {
     opacity: 1;
-    transform: scale(1) rotate(-4deg);
+    transform: none;
   }
   100% {
     opacity: 0;
-    transform: scale(1.25) rotate(-4deg);
   }
 }
 @keyframes low-time {
   50% {
-    box-shadow: inset 0 0 40px 6px rgba(240, 96, 77, 0.45);
+    opacity: 1;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1167,17 +1104,13 @@ a {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #1a120a;
-  box-shadow: inset 0 0 0 2px var(--brass);
+  background: var(--line);
 }
 .broadside-lamps i.lit {
-  background: #ffd27a;
-  box-shadow:
-    inset 0 0 0 2px var(--brass),
-    0 0 8px rgba(255, 210, 122, 0.7);
+  background: var(--amber);
 }
 .progress-meter i {
-  background: linear-gradient(90deg, var(--brass-deep), var(--brass));
+  background: var(--cream);
 }
 
 /* ---- prototype boards (ADR 0036) */
@@ -1205,19 +1138,16 @@ a {
 .pace-pips i {
   width: 4px;
   border-radius: 1px;
-  background: transparent;
-  box-shadow: inset 0 0 0 1px rgba(212, 165, 72, 0.55);
+  background: var(--line);
 }
 .pace-pips i.on {
-  background: var(--brass);
-  box-shadow: none;
+  background: var(--amber);
 }
 .pace-name {
-  font-size: 0.8rem;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--brass);
-  animation: pace-in 240ms ease-out;
+  color: var(--cream);
+  animation: pace-in 180ms ease-out;
 }
 @keyframes pace-in {
   from {
@@ -1227,9 +1157,9 @@ a {
 }
 .result-tier {
   margin: 0;
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--brass);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--cream);
 }
 @media (prefers-reduced-motion: reduce) {
   .pace-name {
@@ -1240,4 +1170,27 @@ a {
 .stat-value .tier-pace,
 .station-numbers .tier-pace {
   margin-left: 6px;
+}
+
+/* ---- the studio's two pages (see the top of this file)
+   What the home grid and the voyage bench took from the rules above as they were, and still draw
+   with. `:where` keeps each at the weight of the rule it stands in for. It goes with the aliases. */
+:where(.studio-home, .vpage) .eyebrow {
+  text-transform: uppercase;
+}
+:where(.studio-home) .tile-title,
+:where(.studio-home) .section-title {
+  font-family: var(--font-display);
+}
+:where(.studio-home) .colophon {
+  font-size: 12px;
+}
+:where(.studio-home, .vpage) .small {
+  font-size: 14px;
+}
+:where(.vpage) .btn {
+  border: 0;
+}
+:where(.vpage) .btn-ghost {
+  background: transparent;
 }

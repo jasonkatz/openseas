@@ -14,7 +14,7 @@ import {
 } from "@openseas/engine";
 import { BlockIcon, SwordfightBoard, content, sfx, t, useTicked, type SwordfightPlaceAnswer } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { SWORDFIGHT } from "../puzzles.js";
 
@@ -28,7 +28,6 @@ function attackRate(s: SwordfightState): number {
 }
 
 export function SwordfightPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<SwordfightState, SwordfightMove, SwordfightConfig>({
     puzzle: "swordfight",
     def: SWORDFIGHT.def,
@@ -86,8 +85,8 @@ export function SwordfightPractice() {
           } else sfx.charge();
           break;
         case "ended":
-          if (e.outcome === "won") sfx.streak(16);
-          else sfx.streakLost();
+          // A fight won is the beat, and the beat has one sound of its own (the board asks for it).
+          if (e.outcome !== "won") sfx.streakLost();
           break;
         default:
           break;
@@ -99,7 +98,7 @@ export function SwordfightPractice() {
   const pieces = swordfight.pieces.slice(0, shown.config.colors);
   const piece = (p: { color: number; breaker: boolean }, size = 26) => {
     const st = swordfight.pieces[p.color]!;
-    return <BlockIcon color={st.color} texture={st.texture} mark={showMarks ? st.mark : null} kind={p.breaker ? "breaker" : "block"} size={size} />;
+    return <BlockIcon color={st.color} cut={st.cut} kind={p.breaker ? "breaker" : "block"} size={size} />;
   };
   const pending = player.pending.reduce((n, p) => n + p.scrap, 0);
   const yoursStanding = swordfightStanding(shown, 0);
@@ -212,30 +211,33 @@ export function SwordfightPractice() {
           <ul className="kinds">
             {pieces.map((p) => (
               <li key={p.nameKey}>
-                <BlockIcon color={p.color} texture={p.texture} mark={showMarks ? p.mark : null} />
+                <BlockIcon color={p.color} cut={p.cut} />
                 <span>{t(p.nameKey)}</span>
               </li>
             ))}
             <li>
-              <BlockIcon color={pieces[0]!.color} texture={pieces[0]!.texture} mark={showMarks ? pieces[0]!.mark : null} kind="breaker" />
+              <BlockIcon color={pieces[0]!.color} cut={pieces[0]!.cut} kind="breaker" />
               <span>{t("swordfight.legend_breaker")}</span>
             </li>
             <li>
               <span className="stages">
-                {[2, 1].map((ripen) => (
-                  <BlockIcon key={ripen} color={pieces[0]!.color} texture={pieces[0]!.texture} mark={showMarks ? pieces[0]!.mark : null} kind="scrap" ripen={ripen} />
+                {/* Stone as it lands, counting its drops, then with one left. */}
+                {[shown.config.ripenMoves, 1].map((ripen, i) => (
+                  <BlockIcon key={i} color={pieces[0]!.color} cut={pieces[0]!.cut} kind="scrap" ripen={ripen} />
                 ))}
               </span>
               <span>{t("swordfight.legend_scrap")}</span>
             </li>
+            <li>
+              <BlockIcon color={pieces[0]!.color} cut={pieces[0]!.cut} w={2} h={2} />
+              <span>{t("swordfight.legend_slab")}</span>
+            </li>
           </ul>
-          <p className="muted small legend-note">{t("swordfight.legend_slab")}</p>
           <p className="muted small legend-note">{t("swordfight.legend_blades")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
       board={(interactive) => (
-        <SwordfightBoard state={shown} interactive={interactive} showMarks={showMarks} onPlace={onPlace} onFrame={api.markRendered} onEvents={onEvents} onNudge={onNudge} />
+        <SwordfightBoard state={shown} interactive={interactive} onPlace={onPlace} onFrame={api.markRendered} onEvents={onEvents} onNudge={onNudge} />
       )}
     />
   );

@@ -22,55 +22,21 @@
 import * as THREE from "three";
 import type { OutpostLandmark } from "@openseas/content";
 import { nextInt, seedFromString, type PrngState } from "@openseas/engine";
+import { blend } from "@openseas/boards/look";
 import { Batch, unseen, type Put, type Vec3 } from "./batch.js";
+import { AMBER, CREAM, LINE, RAISED, TONES, mix, plate } from "./tones.js";
 import { WalkGrid, type Obstacle, type Spot } from "./walk.js";
 
 export type Building = "dock" | "cantina" | "notice-board";
 
-export const OUTPOST_PALETTE = {
-  tin: 0xc3ccd4,
-  tinDark: 0x8a94a0,
-  steel: 0x5d6673,
-  iron: 0x2e3238,
-  cream: 0xe6dcc3,
-  creamDark: 0xb8ad93,
-  rust: 0xc8663a,
-  rustDark: 0x8f4526,
-  teal: 0x2f8f8a,
-  tealDark: 0x216a66,
-  blue: 0x3e6f9a,
-  blueDark: 0x2c5277,
-  panel: 0x24507a,
-  panelLight: 0x2f6a9e,
-  rock: 0x8a8399,
-  rockDark: 0x4c465c,
-  paving: 0xb9b4c4,
-  pavingDark: 0x9590a4,
-  cable: 0x3a3f4a,
-  foil: 0xe8c56a,
-  foilLight: 0xf2dc9a,
-  brass: 0xd4a548,
-  parchment: 0xefe3c6,
-  walk: 0x7c8494,
-  lamp: 0xffd36b,
-  lampOff: 0x6b5a2a,
-  window: 0xffe9a8,
-  glow: 0x7fe3ff,
-  grow: 0xd68cff,
-  heat: 0xff8a3d,
-  ice: 0xd7f1ff,
-  iceBlue: 0x8fd0f0,
-  iceDeep: 0x4f9fca,
-  vapor: 0xeaf7ff,
-  leaf: 0x4aa874,
-  leafDark: 0x2f7a55,
-  crystal: 0x8fe0e8,
-  crystalViolet: 0xb79cf0,
-  beacon: 0xff5a4a,
-  holo: 0x7fe3ff,
-} as const;
-const C = OUTPOST_PALETTE;
-const FROST = new THREE.Color(OUTPOST_PALETTE.iceBlue);
+/**
+ * What an outpost is painted (tones.ts, docs/BRAND.md section 7): plate and rock from `raised` up
+ * to `slate`, a muted colour on a few props, amber for a lamp, a lit window and a beacon.
+ */
+const C = TONES;
+/** A bill pasted up: paler than any plate, short of the cream that text and markers are. */
+const PAPER = blend("slate", "cream", 0.45);
+const FROST = new THREE.Color(C.iceBlue);
 
 /** What an outpost's ground is made of: its floor, the rim round it, the rim's lip, the rock under it, its pebbles. */
 interface Ground {
@@ -80,13 +46,24 @@ interface Ground {
   under: readonly [number, number, number];
   pebble: readonly [number, number];
 }
+/** Rock, a step from `raised` (0) up to `line` (1): darker than any plate, so what is built stands off it. */
+const rock = (t: number): number => mix(RAISED, LINE, t);
+/**
+ * Every outpost's ground is the same dark rock: a floor near `raised`, a rim and a face near
+ * `line`. The three kinds differ by a breath of colour and by how dark the rim is, enough to say
+ * which rock this is and no more.
+ */
+function ground(tint: (c: number) => number, rim: readonly [number, number, number]): Ground {
+  const t3 = (a: number, b: number, c: number): [number, number, number] => [tint(a), tint(b), tint(c)];
+  return { floor: t3(rock(0.1), rock(0.2), rock(0.3)), rim: t3(...rim), lip: tint(plate(0.22)), under: t3(rock(0.6), rock(0.72), rock(0.84)), pebble: [tint(rock(0.7)), tint(plate(0.3))] };
+}
 const GROUNDS: Record<"plain" | "ochre" | "frost", Ground> = {
-  // Lilac-grey regolith inside a rim of darker slate.
-  plain: { floor: [0x8e88a6, 0x847e9c, 0x9891b0], rim: [0x6d6887, 0x645f7d, 0x767191], lip: 0x9a94b2, under: [0x5a5470, 0x4e4963, 0x66607c], pebble: [0x6f6a85, 0xa9a2bd] },
-  // Burnt-ochre regolith inside a rim of rust.
-  ochre: { floor: [0xc48d52, 0xb8824a, 0xcd985c], rim: [0x9c5f3a, 0x915634, 0xa76942], lip: 0xbf7b4c, under: [0x6b4a3a, 0x5c3f32, 0x7a5644], pebble: [0x8f6238, 0x8f6238] },
-  // Frozen blue-grey ground inside a rim of black rock.
-  frost: { floor: [0x5d667e, 0x545c73, 0x68728c], rim: [0x2f2d38, 0x353340, 0x292731], lip: 0x3d3a4a, under: [0x2a2833, 0x23212b, 0x33313d], pebble: [0x6b7388, 0x6b7388] },
+  // Plain rock inside a rim a shade lighter.
+  plain: ground((c) => c, [LINE, plate(0.06), plate(0.12)]),
+  // The same rock warmed a little with rust.
+  ochre: ground((c) => mix(c, TONES.ember, 0.16), [LINE, plate(0.06), plate(0.12)]),
+  // Cooled a little with ice, inside a rim of the darkest rock.
+  frost: ground((c) => mix(c, TONES.ice, 0.1), [rock(0.35), rock(0.5), rock(0.2)]),
 };
 
 /** The outpost's floor, and how far the crater's rim stands over it. */
@@ -205,7 +182,11 @@ const onBuilding = (center: Spot, yaw: number, lx: number, lz: number): Spot => 
   z: center.z - lx * Math.sin(yaw) + lz * Math.cos(yaw),
 });
 
-export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: OutpostLandmark, opts: { lowQuality: boolean }): OutpostModel {
+/**
+ * `lowQuality` is the scene's word that it draws on a software renderer. Nothing built here turns
+ * on it now that nothing casts a shadow; it stays so the layout's test can go on proving that.
+ */
+export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: OutpostLandmark, _opts: { lowQuality: boolean }): OutpostModel {
   const dice = new Dice(`outpost:${id}`);
   // The geyser's outpost is frozen ground in black dust; the dish's is ochre.
   const frozen = landmark === "geyser";
@@ -291,7 +272,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     for (const du of [-0.45, 0.5]) {
       const u = BERTH_U + du;
       solidAt(box(0.03, 0.022, 0.08), C.iron, { p: [u, dockTop - 0.025, side * (DOCK.half + 0.03)] });
-      solidAt(box(0.06, 0.06, 0.012), C.rust, { p: [u, dockTop - 0.01, side * (DOCK.half + 0.072)] });
+      solidAt(box(0.06, 0.06, 0.012), C.trim, { p: [u, dockTop - 0.01, side * (DOCK.half + 0.072)] });
       b.addGlow(box(0.012, 0.012, 0.014), C.lamp, { p: [u, dockTop + 0.028, side * (DOCK.half + 0.072)] });
     }
   }
@@ -315,7 +296,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     solidAt(box(0.032, 0.02, 0.032), C.iron, { p: [gateU, dockTop + 0.01, side * (DOCK.half + 0.014)] });
     circle(gateU, side * (DOCK.half + 0.014), 0.012);
   }
-  solidAt(box(0.024, 0.022, DOCK.half * 2 + 0.06), C.rust, { p: [gateU, dockTop + 0.205, 0] });
+  solidAt(box(0.024, 0.022, DOCK.half * 2 + 0.06), C.trim, { p: [gateU, dockTop + 0.205, 0] });
   b.addGlow(box(0.008, 0.006, DOCK.half * 2 - 0.02), C.glow, { p: [gateU, dockTop + 0.191, 0] });
   // Cargo boxes, a drum and a power cell at the root of the dock; a beacon at its end.
   const cargo = [
@@ -329,7 +310,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     if (kind === "crate") {
       solidAt(box(0.06, 0.05, 0.06), C.teal, { p: [u, dockTop + 0.025, w], r: [0, 0.2, 0] });
       solidAt(box(0.062, 0.008, 0.062), C.tealDark, { p: [u, dockTop + 0.026, w], r: [0, 0.2, 0] });
-    } else if (kind === "crate2") solidAt(box(0.045, 0.04, 0.045), C.rust, { p: [u, dockTop + 0.07, w], r: [0, -0.3, 0] });
+    } else if (kind === "crate2") solidAt(box(0.045, 0.04, 0.045), C.trim, { p: [u, dockTop + 0.07, w], r: [0, -0.3, 0] });
     else if (kind === "drum") drum(b, [u, dockTop, w], C.blue);
     else {
       solidAt(box(0.044, 0.034, 0.034), C.steel, { p: [u, dockTop + 0.017, w] });
@@ -396,13 +377,13 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   b.frame({ p: [plaza.x, plazaTop, plaza.z] }, () => {
     b.add(cyl(0.05, 0.058, 0.02, 10), C.steel, { p: [0, 0.01, 0] });
     b.add(cyl(0.03, 0.04, 0.032, 10), C.iron, { p: [0, 0.036, 0] });
-    b.addGlow(cyl(0.024, 0.024, 0.004, 10), C.holo, { p: [0, 0.054, 0] });
-    for (let k = 0; k < 3; k++) b.add(box(0.014, 0.012, 0.008), C.brass, { p: [Math.cos(k * 2.1 + 0.4) * 0.046, 0.026, Math.sin(k * 2.1 + 0.4) * 0.046], r: [0, -(k * 2.1 + 0.4) + Math.PI / 2, 0] });
+    b.addGlow(cyl(0.024, 0.024, 0.004, 10), C.glow, { p: [0, 0.054, 0] });
+    for (let k = 0; k < 3; k++) b.add(box(0.014, 0.012, 0.008), C.foil, { p: [Math.cos(k * 2.1 + 0.4) * 0.046, 0.026, Math.sin(k * 2.1 + 0.4) * 0.046], r: [0, -(k * 2.1 + 0.4) + Math.PI / 2, 0] });
   });
   const globe = new THREE.Group();
   globe.position.set(plaza.x, plazaTop + 0.125, plaza.z);
-  globe.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.046, 1), new THREE.MeshBasicMaterial({ color: C.holo, wireframe: true, transparent: true, opacity: 0.9 })));
-  globe.add(new THREE.Mesh(ball(0.042, 10, 8), new THREE.MeshBasicMaterial({ color: C.holo, transparent: true, opacity: 0.18, depthWrite: false })));
+  globe.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.046, 1), new THREE.MeshBasicMaterial({ color: C.glow, wireframe: true, transparent: true, opacity: 0.9 })));
+  globe.add(new THREE.Mesh(ball(0.042, 10, 8), new THREE.MeshBasicMaterial({ color: C.glow, transparent: true, opacity: 0.18, depthWrite: false })));
   const orbit = new THREE.Mesh(new THREE.TorusGeometry(0.064, 0.003, 4, 24), new THREE.MeshBasicMaterial({ color: C.lamp }));
   orbit.rotation.x = Math.PI / 2 - 0.4;
   globe.add(orbit);
@@ -437,7 +418,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     for (let i = 0; i < 11; i++) {
       const a = (i / 11) * Math.PI * 2 + dice.range(-0.15, 0.15);
       const y = 0.08 + (i % 3) * 0.05 + dice.range(0, 0.02);
-      const c = dice.pick([C.parchment, C.parchment, C.glow, 0xf2e2b8, C.rust, C.window]);
+      const c = dice.pick([PAPER, PAPER, C.glow, C.foilLight, C.trim, C.window]);
       const put: Put = { p: [Math.cos(a) * 0.052, y, Math.sin(a) * 0.052], r: [0, -a, dice.range(-0.12, 0.12)] };
       if (c === C.glow || c === C.window) b.addGlow(box(0.004, 0.05, 0.034), c, put);
       else b.add(box(0.004, 0.05, 0.034), c, put);
@@ -476,20 +457,20 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     b.add(cyl(0.004, 0.005, 0.04, 5), C.iron, { p: [0.11, SH + 0.04, -0.06] });
     b.add(cyl(0.035, 0.008, 0.016, 10), C.tin, { p: [0.11, SH + 0.066, -0.06], r: [0.5, 0, 0.3] });
     // The doorway (its door swings, below), and the workshop's shutter beside it, half up.
-    b.add(box(0.068, 0.112, 0.004), 0x14181d, { p: [yardDoorX, 0.056, SD / 2 + 0.002] });
+    b.add(box(0.068, 0.112, 0.004), C.pitch, { p: [yardDoorX, 0.056, SD / 2 + 0.002] });
     b.add(box(0.08, 0.012, 0.012), C.steel, { p: [yardDoorX, 0.117, SD / 2 + 0.004] });
-    b.add(box(0.1, 0.1, 0.004), 0x14181d, { p: [0.075, 0.05, SD / 2 + 0.002] });
+    b.add(box(0.1, 0.1, 0.004), C.pitch, { p: [0.075, 0.05, SD / 2 + 0.002] });
     for (let i = 0; i < 4; i++) b.add(box(0.1, 0.012, 0.006), i % 2 ? C.steel : C.tinDark, { p: [0.075, 0.094 - i * 0.013, SD / 2 + 0.004] });
     b.add(box(0.1, 0.008, 0.007), C.foil, { p: [0.075, 0.041, SD / 2 + 0.005] });
-    b.addGlow(box(0.07, 0.012, 0.004), C.heat, { p: [0.075, 0.012, SD / 2 + 0.003] });
+    b.addGlow(box(0.07, 0.012, 0.004), C.ember, { p: [0.075, 0.012, SD / 2 + 0.003] });
     b.add(box(0.112, 0.01, 0.012), C.steel, { p: [0.075, 0.106, SD / 2 + 0.005] });
     // A little rocket hung over the door for a sign.
     b.add(box(0.05, 0.004, 0.004), C.iron, { p: [yardDoorX + 0.01, 0.145, SD / 2 + 0.025] });
-    b.add(cyl(0.009, 0.009, 0.034, 7), C.cream, { p: [yardDoorX + 0.008, 0.13, SD / 2 + 0.04], r: [0, 0, Math.PI / 2] });
-    b.add(cone(0.009, 0.018, 7), C.rust, { p: [yardDoorX + 0.034, 0.13, SD / 2 + 0.04], r: [0, 0, -Math.PI / 2] });
-    b.add(box(0.012, 0.03, 0.003), C.rust, { p: [yardDoorX - 0.008, 0.13, SD / 2 + 0.04] });
+    b.add(cyl(0.009, 0.009, 0.034, 7), C.wall, { p: [yardDoorX + 0.008, 0.13, SD / 2 + 0.04], r: [0, 0, Math.PI / 2] });
+    b.add(cone(0.009, 0.018, 7), C.trim, { p: [yardDoorX + 0.034, 0.13, SD / 2 + 0.04], r: [0, 0, -Math.PI / 2] });
+    b.add(box(0.012, 0.03, 0.003), C.trim, { p: [yardDoorX - 0.008, 0.13, SD / 2 + 0.04] });
     // Hull plates stacked against one side.
-    for (let i = 0; i < 4; i++) b.add(box(0.03, 0.025, 0.2), i % 2 ? C.tinDark : C.rust, { p: [SW / 2 + 0.03 + (i % 2) * 0.03, 0.012 + Math.floor(i / 2) * 0.025, 0], r: [0, 0.05 * i, 0] });
+    for (let i = 0; i < 4; i++) b.add(box(0.03, 0.025, 0.2), i % 2 ? C.tinDark : C.trim, { p: [SW / 2 + 0.03 + (i % 2) * 0.03, 0.012 + Math.floor(i / 2) * 0.025, 0], r: [0, 0.05 * i, 0] });
     // A hull in frame on stands by the other: a spine, its ribs and the first plates, under a crane with its hook down.
     b.frame({ p: [-SW / 2 - 0.1, 0, 0.02] }, () => {
       for (const z of [-0.06, 0.06]) {
@@ -498,9 +479,9 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       }
       b.add(box(0.012, 0.012, 0.2), C.iron, { p: [0, 0.064, 0] });
       for (let i = 0; i < 5; i++) b.add(new THREE.TorusGeometry(0.035, 0.0035, 4, 10), C.tinDark, { p: [0, 0.1, -0.08 + i * 0.04] });
-      for (const side of [-1, 1]) b.add(box(0.006, 0.012, 0.16), C.cream, { p: [side * 0.035, 0.1, 0] });
-      for (const z of [-0.105, 0.105]) b.add(box(0.012, 0.22, 0.012), C.rust, { p: [0.055, 0.11, z] });
-      b.add(box(0.016, 0.016, 0.24), C.rust, { p: [0.055, 0.224, 0] });
+      for (const side of [-1, 1]) b.add(box(0.006, 0.012, 0.16), C.wall, { p: [side * 0.035, 0.1, 0] });
+      for (const z of [-0.105, 0.105]) b.add(box(0.012, 0.22, 0.012), C.trim, { p: [0.055, 0.11, z] });
+      b.add(box(0.016, 0.016, 0.24), C.trim, { p: [0.055, 0.224, 0] });
       b.add(box(0.07, 0.012, 0.014), C.steel, { p: [0.025, 0.21, 0.02] });
       b.add(cyl(0.002, 0.002, 0.05, 4), C.iron, { p: [0.0, 0.18, 0.02] });
       b.add(new THREE.TorusGeometry(0.008, 0.003, 4, 8, Math.PI), C.iron, { p: [0.0, 0.152, 0.02], r: [0, 0, Math.PI] });
@@ -530,35 +511,35 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     const D = 0.3;
     const H = 0.2;
     b.add(box(W + 0.03, 0.05, D + 0.03), C.pavingDark, { p: [0, -0.01, 0] });
-    b.add(box(W, H, D), C.cream, { p: [0, H / 2, 0] });
+    b.add(box(W, H, D), C.wall, { p: [0, H / 2, 0] });
     // Ribs on the front.
-    for (const x of [-W / 2 + 0.005, -0.07, 0.07, W / 2 - 0.005]) b.add(box(0.014, H, 0.01), C.rustDark, { p: [x, H / 2, D / 2 + 0.002] });
-    b.add(box(W, 0.014, 0.01), C.rustDark, { p: [0, H * 0.55, D / 2 + 0.002] });
-    b.add(box(W, 0.014, 0.01), C.rustDark, { p: [0, H - 0.007, D / 2 + 0.002] });
+    for (const x of [-W / 2 + 0.005, -0.07, 0.07, W / 2 - 0.005]) b.add(box(0.014, H, 0.01), C.trimDark, { p: [x, H / 2, D / 2 + 0.002] });
+    b.add(box(W, 0.014, 0.01), C.trimDark, { p: [0, H * 0.55, D / 2 + 0.002] });
+    b.add(box(W, 0.014, 0.01), C.trimDark, { p: [0, H - 0.007, D / 2 + 0.002] });
     // A barrel roof, its ridge along the front: half a drum on its side, hoops over it, a half-moon wall at each end.
     const arch = D / 2 + 0.02;
     const rise = 0.72;
     b.add(new THREE.CylinderGeometry(arch, arch, W + 0.06, 12, 1, false, 0, Math.PI), C.tin, { p: [0, H, 0], r: [0, 0, Math.PI / 2], s: [rise, 1, 1] });
     for (const x of [-W / 2 - 0.02, -0.105, 0, 0.105, W / 2 + 0.02]) b.add(new THREE.CylinderGeometry(arch + 0.006, arch + 0.006, 0.016, 12, 1, false, 0, Math.PI), C.tinDark, { p: [x, H, 0], r: [0, 0, Math.PI / 2], s: [rise, 1, 1] });
-    for (const side of [-1, 1]) b.add(new THREE.CircleGeometry(arch - 0.02, 12, 0, Math.PI), C.cream, { p: [side * (W / 2 + 0.001), H, 0], r: [0, (side * Math.PI) / 2, 0], s: [1, rise, 1] });
+    for (const side of [-1, 1]) b.add(new THREE.CircleGeometry(arch - 0.02, 12, 0, Math.PI), C.wall, { p: [side * (W / 2 + 0.001), H, 0], r: [0, (side * Math.PI) / 2, 0], s: [1, rise, 1] });
     // The vent stack, through the roof.
     b.add(cyl(0.02, 0.024, 0.15, 8), C.steel, { p: [W * 0.3, H + 0.1, -0.06] });
     b.add(cyl(0.028, 0.028, 0.012, 8), C.iron, { p: [W * 0.3, H + 0.17, -0.06] });
     // The doorway (its door swings, below), lit windows and lamps either side of it, a strip of light over it.
-    b.add(box(0.075, 0.122, 0.004), 0x14181d, { p: [0, 0.061, D / 2 + 0.002] });
-    b.add(box(0.088, 0.012, 0.014), C.rustDark, { p: [0, 0.128, D / 2 + 0.006] });
+    b.add(box(0.075, 0.122, 0.004), C.pitch, { p: [0, 0.061, D / 2 + 0.002] });
+    b.add(box(0.088, 0.012, 0.014), C.trimDark, { p: [0, 0.128, D / 2 + 0.006] });
     b.addGlow(box(0.1, 0.006, 0.006), C.glow, { p: [0, 0.142, D / 2 + 0.008] });
     for (const x of [-0.14, 0.14]) {
       // Round ports either side of the door, a slit of light above each.
       b.addGlow(cyl(0.026, 0.026, 0.008, 12), C.window, { p: [x, 0.085, D / 2 + 0.004], r: [Math.PI / 2, 0, 0] });
-      b.add(new THREE.TorusGeometry(0.028, 0.005, 4, 12), C.rustDark, { p: [x, 0.085, D / 2 + 0.006] });
+      b.add(new THREE.TorusGeometry(0.028, 0.005, 4, 12), C.trimDark, { p: [x, 0.085, D / 2 + 0.006] });
       b.addGlow(box(0.06, 0.012, 0.008), C.window, { p: [x * 0.9, 0.16, D / 2 + 0.004] });
     }
     for (const side of [-1, 1]) b.addGlow(box(0.014, 0.02, 0.014), C.lamp, { p: [side * 0.055, 0.13, D / 2 + 0.02] });
     // A bench and drums outside.
     b.add(box(0.12, 0.012, 0.03), C.tinDark, { p: [-0.16, 0.032, D / 2 + 0.06] });
     for (const x of [-0.21, -0.11]) b.add(box(0.01, 0.03, 0.025), C.steel, { p: [x, 0.015, D / 2 + 0.06] });
-    drum(b, [0.17, 0, D / 2 + 0.05], C.rust);
+    drum(b, [0.17, 0, D / 2 + 0.05], C.trim);
     drum(b, [0.2, 0, D / 2 + 0.09], C.teal);
     steamTop.copy(b.point(W * 0.3, H + 0.17, -0.06));
   });
@@ -591,7 +572,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   // Steam off the vent stack.
   const steam: THREE.Mesh[] = [];
   for (let i = 0; i < 4; i++) {
-    const puff = new THREE.Mesh(ball(0.02, 8, 6), new THREE.MeshBasicMaterial({ color: C.vapor, transparent: true, opacity: 0.5, depthWrite: false }));
+    const puff = new THREE.Mesh(ball(0.02, 8, 6), new THREE.MeshBasicMaterial({ color: C.ice, transparent: true, opacity: 0.5, depthWrite: false }));
     puff.userData.phase = i / 4;
     frame.add(puff);
     steam.push(puff);
@@ -605,21 +586,20 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     pivot.rotation.y = yaw;
     const leaf = new THREE.Mesh(box(w, h, 0.008), new THREE.MeshLambertMaterial({ color }));
     leaf.position.set(w / 2, h / 2, 0);
-    leaf.castShadow = !opts.lowQuality;
-    const knob = new THREE.Mesh(ball(0.0045, 6, 4), new THREE.MeshBasicMaterial({ color: C.brass }));
+    const knob = new THREE.Mesh(ball(0.0045, 6, 4), new THREE.MeshBasicMaterial({ color: C.foil }));
     knob.position.set(w - 0.012, h * 0.48, 0.006);
     // A porthole in it, and a seam across.
     const port = new THREE.Mesh(cyl(0.011, 0.011, 0.01, 10), new THREE.MeshBasicMaterial({ color: C.window }));
     port.rotation.x = Math.PI / 2;
     port.position.set(w / 2, h * 0.72, 0);
-    const seam = new THREE.Mesh(box(w, 0.003, 0.009), new THREE.MeshLambertMaterial({ color: 0x1f2329 }));
+    const seam = new THREE.Mesh(box(w, 0.003, 0.009), new THREE.MeshLambertMaterial({ color: C.pitch }));
     seam.position.set(w / 2, h * 0.42, 0);
     pivot.add(leaf, knob, port, seam);
     frame.add(pivot);
     return { pivot, yaw, open: 0 };
   };
   const doorways: Partial<Record<Building, Doorway>> = {
-    cantina: doorLeaf(cantinaAt, cantinaY, cantinaYaw, 0, 0.15, 0.072, 0.118, C.rustDark),
+    cantina: doorLeaf(cantinaAt, cantinaY, cantinaYaw, 0, 0.15, 0.072, 0.118, C.trimDark),
     dock: doorLeaf(yardAt, yardY, yardYaw, yardDoorX, SD / 2, 0.066, 0.11, C.steel),
   };
 
@@ -628,13 +608,13 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     if (!home) continue;
     const y = heightAt(home.x, home.z);
     const yaw = yawFacing(towardPlaza(home));
-    const paint = dice.int(2) ? C.rust : C.blue;
+    const paint = dice.int(2) ? C.trim : C.blue;
     // Tinwick's roofs are bare tin; elsewhere they are painted.
     const roof = landmark === "beacon" ? C.tin : paint;
     b.frame({ p: [home.x, y, home.z], r: [0, yaw, 0] }, () => {
       b.add(box(0.26, 0.05, 0.22), C.pavingDark, { p: [0, -0.012, 0] });
       // The pod: a drum of painted panels under a dome.
-      b.add(cyl(0.105, 0.11, 0.11, 12), C.cream, { p: [0, 0.055, 0] });
+      b.add(cyl(0.105, 0.11, 0.11, 12), C.wall, { p: [0, 0.055, 0] });
       b.add(cyl(0.109, 0.109, 0.014, 12), paint, { p: [0, 0.03, 0] });
       b.add(new THREE.SphereGeometry(0.106, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2), roof, { p: [0, 0.11, 0], s: [1, 0.78, 1] });
       b.add(cyl(0.02, 0.02, 0.012, 8), C.tinDark, { p: [0, 0.195, 0] });
@@ -674,15 +654,15 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       b.add(box(0.15, 0.006, 0.07), C.steel, { p: [0, 0.047, 0] });
       // Three bowls on the counter and a pot on the boil behind them.
       for (const x of [-0.045, 0, 0.045]) {
-        b.add(cyl(0.013, 0.008, 0.01, 8), C.cream, { p: [x, 0.055, 0.012] });
-        b.add(cyl(0.011, 0.011, 0.003, 8), 0xe8c56a, { p: [x, 0.061, 0.012] });
+        b.add(cyl(0.013, 0.008, 0.01, 8), C.wall, { p: [x, 0.055, 0.012] });
+        b.add(cyl(0.011, 0.011, 0.003, 8), C.foil, { p: [x, 0.061, 0.012] });
       }
       b.add(cyl(0.016, 0.014, 0.022, 8), C.iron, { p: [-0.03, 0.061, -0.016] });
-      b.add(ball(0.012, 6, 4), C.vapor, { p: [-0.03, 0.085, -0.016] });
+      b.add(ball(0.012, 6, 4), C.ice, { p: [-0.03, 0.085, -0.016] });
       for (const side of [-1, 1]) b.add(box(0.008, 0.13, 0.008), C.steel, { p: [side * 0.065, 0.065, -0.025] });
-      b.add(box(0.17, 0.006, 0.09), dice.int(2) ? C.rust : 0xdba53a, { p: [0, 0.13, 0.005], r: [0.28, 0, 0] });
+      b.add(box(0.17, 0.006, 0.09), dice.int(2) ? C.trim : C.foil, { p: [0, 0.13, 0.005], r: [0.28, 0, 0] });
       // A paper lantern off the awning's corner.
-      b.addGlow(ball(0.012, 7, 5), C.heat, { p: [0.07, 0.1, 0.04] });
+      b.addGlow(ball(0.012, 7, 5), C.ember, { p: [0.07, 0.1, 0.04] });
     });
     block(u, w, 0.08, 0.04, yaw);
     keepClear.push({ x: u, z: w, r: 0.12 });
@@ -712,7 +692,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
         b.add(box(0.03, 0.02, 0.03), C.iron, { p: [corner(k, 0)[0], 0.03, corner(k, 0)[2]] });
         for (let i = 1; i < levels.length; i++) {
           // A ring at each level, and a brace across each face leaning the other way level by level.
-          strut(b, corner(k, levels[i]!), corner(k + 1, levels[i]!), 0.008, i % 2 ? C.rust : C.tinDark);
+          strut(b, corner(k, levels[i]!), corner(k + 1, levels[i]!), 0.008, i % 2 ? C.trim : C.tinDark);
           strut(b, corner(k + (i % 2), levels[i - 1]!), corner(k + 1 - (i % 2), levels[i]!), 0.006, C.steel);
         }
       }
@@ -726,7 +706,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       b.add(cyl(0.045, 0.06, 0.03, 8), C.tinDark, { p: [0, H + 0.135, 0] });
       b.add(cyl(0.004, 0.005, 0.16, 5), C.iron, { p: [0, H + 0.23, 0] });
       b.add(box(0.07, 0.005, 0.005), C.iron, { p: [0, H + 0.25, 0] });
-      b.addGlow(ball(0.012, 6, 5), C.beacon, { p: [0, H + 0.315, 0] });
+      b.addGlow(ball(0.012, 6, 5), C.lamp, { p: [0, H + 0.315, 0] });
       // Two dishes on its side, and the hut at its foot with its door toward the pad.
       const face = towardPlaza(landmarkAt);
       for (const [y, turn] of [
@@ -735,7 +715,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       ] as const) {
         const a = face + turn;
         const r = foot + (head - foot) * (y / H) + 0.03;
-        b.add(cyl(0.04, 0.01, 0.018, 10), C.cream, { p: [Math.cos(a) * r, y, Math.sin(a) * r], r: [0, -a, -Math.PI / 2 + 0.3] });
+        b.add(cyl(0.04, 0.01, 0.018, 10), C.wall, { p: [Math.cos(a) * r, y, Math.sin(a) * r], r: [0, -a, -Math.PI / 2 + 0.3] });
       }
       b.add(box(0.09, 0.07, 0.07), C.tin, { p: [Math.cos(face) * 0.03, 0.055, Math.sin(face) * 0.03], r: [0, yawFacing(face), 0] });
       b.add(box(0.1, 0.01, 0.08), C.blueDark, { p: [Math.cos(face) * 0.03, 0.095, Math.sin(face) * 0.03], r: [0, yawFacing(face), 0] });
@@ -762,8 +742,8 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     // A radar dish turning on a column over a squat drum of a station, with a field of solar panels beside it.
     const yaw = yawFacing(towardPlaza(landmarkAt));
     b.frame({ p: [landmarkAt.x, landmarkY, landmarkAt.z], r: [0, yaw, 0] }, () => {
-      b.add(cyl(0.16, 0.17, 0.2, 8), C.cream, { p: [0, 0.1, 0] });
-      b.add(cyl(0.163, 0.166, 0.03, 8), C.rust, { p: [0, 0.14, 0] });
+      b.add(cyl(0.16, 0.17, 0.2, 8), C.wall, { p: [0, 0.1, 0] });
+      b.add(cyl(0.163, 0.166, 0.03, 8), C.trim, { p: [0, 0.14, 0] });
       b.add(cyl(0.13, 0.165, 0.03, 8), C.tinDark, { p: [0, 0.215, 0] });
       b.add(cyl(0.05, 0.06, 0.28, 8), C.steel, { p: [0, 0.37, 0] });
       for (let k = 0; k < 3; k++) {
@@ -793,7 +773,6 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     const lift = 0.62;
     const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.3, 14, 5, 0, Math.PI * 2, 0, 0.72), new THREE.MeshLambertMaterial({ color: C.tin, side: THREE.DoubleSide }));
     bowl.geometry.translate(0, -0.3, 0);
-    bowl.castShadow = !opts.lowQuality;
     const head = new THREE.Group();
     head.position.y = 0.11;
     // The bowl's own up runs back along the way it points, so it opens toward the sky ahead.
@@ -801,7 +780,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     head.add(bowl);
     const feed = new THREE.Mesh(cyl(0.005, 0.005, 0.2, 5), new THREE.MeshLambertMaterial({ color: C.iron }));
     feed.position.y = -0.1;
-    const horn = new THREE.Mesh(ball(0.02, 7, 5), new THREE.MeshLambertMaterial({ color: C.rust }));
+    const horn = new THREE.Mesh(ball(0.02, 7, 5), new THREE.MeshLambertMaterial({ color: C.trim }));
     horn.position.y = -0.2;
     head.add(feed, horn);
     const yoke = new THREE.Mesh(box(0.05, 0.11, 0.07), new THREE.MeshLambertMaterial({ color: C.steel }));
@@ -815,10 +794,10 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   } else if (landmark === "geyser") {
     // An ice geyser: a cone of dark rock sheathed in ice toward the top, lit fissures, and a plume of vapor.
     b.frame({ p: [landmarkAt.x, landmarkY - 0.06, landmarkAt.z] }, () => {
-      b.add(cyl(0.4, 0.6, 0.36, 9), 0x3d3a4a, { p: [0, 0.18, 0] });
+      b.add(cyl(0.4, 0.6, 0.36, 9), C.cable, { p: [0, 0.18, 0] });
       b.add(cyl(0.17, 0.4, 0.42, 9), C.iceBlue, { p: [0, 0.57, 0] });
       b.add(cyl(0.2, 0.17, 0.03, 9), C.ice, { p: [0, 0.78, 0] });
-      b.add(cyl(0.6, 0.66, 0.06, 9), 0x26242e, { p: [0, 0.03, 0] });
+      b.add(cyl(0.6, 0.66, 0.06, 9), C.rockDark, { p: [0, 0.03, 0] });
       for (let i = 0; i < 3; i++) b.addGlow(box(0.035, 0.42, 0.02), C.glow, { p: [0.2 + i * 0.04, 0.42, 0.15 - i * 0.14], r: [0.1 * i, 0.4 + i * 0.6, 0.55] });
       // Shards of ice standing round its shoulders and its foot.
       for (let i = 0; i < 7; i++) {
@@ -832,7 +811,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     frame.add(crater);
     const puffs: THREE.Mesh[] = [];
     for (let i = 0; i < 6; i++) {
-      const puff = new THREE.Mesh(ball(0.07, 10, 7), new THREE.MeshBasicMaterial({ color: C.vapor, transparent: true, opacity: 0.6, depthWrite: false }));
+      const puff = new THREE.Mesh(ball(0.07, 10, 7), new THREE.MeshBasicMaterial({ color: C.ice, transparent: true, opacity: 0.6, depthWrite: false }));
       puff.userData.phase = i / 6;
       frame.add(puff);
       puffs.push(puff);
@@ -874,13 +853,13 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     const yaw = yawFacing(-0.95 * mirror) + Math.PI / 2;
     b.frame({ p: at(p.x, p.z, 0.01), r: [0, yaw, 0] }, () => {
       for (const x of [-0.05, 0.05]) b.add(box(0.03, 0.022, 0.08), C.steel, { p: [x, 0.011, 0] });
-      b.add(cyl(0.04, 0.04, 0.19, 8), C.cream, { p: [0, 0.062, 0], r: [0, 0, Math.PI / 2] });
-      b.add(cyl(0.0405, 0.0405, 0.02, 8), C.rust, { p: [-0.03, 0.062, 0], r: [0, 0, Math.PI / 2] });
-      b.add(cone(0.04, 0.075, 8), C.rust, { p: [0.132, 0.062, 0], r: [0, 0, -Math.PI / 2] });
+      b.add(cyl(0.04, 0.04, 0.19, 8), C.wall, { p: [0, 0.062, 0], r: [0, 0, Math.PI / 2] });
+      b.add(cyl(0.0405, 0.0405, 0.02, 8), C.trim, { p: [-0.03, 0.062, 0], r: [0, 0, Math.PI / 2] });
+      b.add(cone(0.04, 0.075, 8), C.trim, { p: [0.132, 0.062, 0], r: [0, 0, -Math.PI / 2] });
       b.add(cyl(0.022, 0.032, 0.03, 8), C.iron, { p: [-0.11, 0.062, 0], r: [0, 0, Math.PI / 2] });
       b.addGlow(box(0.04, 0.014, 0.034), C.glow, { p: [0.055, 0.096, 0] });
       for (const side of [-1, 1]) b.add(box(0.06, 0.006, 0.05), C.tinDark, { p: [-0.06, 0.055, side * 0.058], r: [0, side * -0.35, 0] });
-      b.add(box(0.05, 0.05, 0.006), C.rust, { p: [-0.075, 0.115, 0], r: [0, 0, 0.3] });
+      b.add(box(0.05, 0.05, 0.006), C.trim, { p: [-0.075, 0.115, 0], r: [0, 0, 0.3] });
     });
     circle(p.x, p.z, 0.11);
     keepClear.push({ x: p.x, z: p.z, r: 0.18 });
@@ -912,8 +891,8 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     b.frame({ p: at(p.x, p.z), r: [0, -a, 0] }, () => {
       for (let k = 0; k < 3; k++) strut(b, [0, 0.07, 0], [Math.cos(k * 2.094) * 0.035, 0, Math.sin(k * 2.094) * 0.035], 0.006, C.steel);
       b.add(ball(0.01, 6, 5), C.iron, { p: [0, 0.072, 0] });
-      b.add(cyl(0.014, 0.017, 0.11, 8), C.cream, { p: [0.012, 0.092, 0], r: [0, 0, -0.95] });
-      b.add(cyl(0.019, 0.019, 0.014, 8), C.brass, { p: [0.052, 0.12, 0], r: [0, 0, -0.95] });
+      b.add(cyl(0.014, 0.017, 0.11, 8), C.wall, { p: [0.012, 0.092, 0], r: [0, 0, -0.95] });
+      b.add(cyl(0.019, 0.019, 0.014, 8), C.foil, { p: [0.052, 0.12, 0], r: [0, 0, -0.95] });
       b.add(cyl(0.006, 0.006, 0.024, 5), C.iron, { p: [-0.04, 0.056, 0], r: [0, 0, -0.95] });
       b.add(box(0.045, 0.026, 0.032), C.teal, { p: [-0.09, 0.013, 0.01], r: [0, 0.3, 0] });
     });
@@ -926,7 +905,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     const a = dice.range(-Math.PI, Math.PI);
     if (Math.abs(a) < 0.5) continue;
     const p = rimSpot(a, dice.range(0.84, 0.9));
-    b.add(box(0.15, 0.055, 0.006), i ? C.tinDark : C.rustDark, { p: at(p.x, p.z, 0.008), r: [Math.PI / 2, 0, dice.range(0, 3)] });
+    b.add(box(0.15, 0.055, 0.006), i ? C.tinDark : C.trimDark, { p: at(p.x, p.z, 0.008), r: [Math.PI / 2, 0, dice.range(0, 3)] });
     circle(p.x, p.z, 0.04);
   }
   // Pebbles, lost washers and stones round the rim.
@@ -935,8 +914,8 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     const p = rimSpot(a, dice.range(0.74, 0.93));
     if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < 0.2) continue;
     const kind = dice.int(3);
-    if (kind === 0) b.add(cyl(0.008, 0.01, 0.004, 5), dice.pick([0xd9d2e6, 0xc9c2d9, 0xb8b0cc]), { p: at(p.x, p.z, 0.002) });
-    else if (kind === 1) b.add(new THREE.TorusGeometry(0.008, 0.003, 4, 8), C.brass, { p: at(p.x, p.z, 0.003), r: [Math.PI / 2, 0, dice.range(0, 3)] });
+    if (kind === 0) b.add(cyl(0.008, 0.01, 0.004, 5), dice.pick([plate(0.6), plate(0.5), plate(0.4)]), { p: at(p.x, p.z, 0.002) });
+    else if (kind === 1) b.add(new THREE.TorusGeometry(0.008, 0.003, 4, 8), C.foil, { p: at(p.x, p.z, 0.003), r: [Math.PI / 2, 0, dice.range(0, 3)] });
     else b.add(new THREE.DodecahedronGeometry(0.014 + dice.range(0, 0.02)), frozen ? C.rockDark : C.rock, { p: at(p.x, p.z, 0.004), r: [dice.range(0, 3), dice.range(0, 3), 0] });
   }
   // Rocks adrift just off the rim, some a little below it.
@@ -947,14 +926,14 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     b.add(new THREE.DodecahedronGeometry(0.04 + dice.range(0, 0.07)), frozen ? C.rockDark : C.rock, { p: [p.x, 0.04 - (i % 3) * 0.16, p.z], r: [dice.range(0, 3), dice.range(0, 3), 0] });
   }
 
-  // ---- warning lamps along the rim's lip, either side of the dock's gap: a post and a red light, beyond where anyone walks
+  // ---- warning lamps along the rim's lip, either side of the dock's gap: a post and an amber light, beyond where anyone walks
   for (let i = 0; i < 20; i++) {
     const a = (i / 20) * Math.PI * 2;
     if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < 0.4) continue;
     const p = rimSpot(a, 0.962);
     const y = groundAt(p.x, p.z);
     b.add(box(0.008, 0.036, 0.008), C.iron, { p: [p.x, y + 0.016, p.z] });
-    b.addGlow(box(0.013, 0.011, 0.013), C.beacon, { p: [p.x, y + 0.04, p.z] });
+    b.addGlow(box(0.013, 0.011, 0.013), C.lamp, { p: [p.x, y + 0.04, p.z] });
   }
 
   // ---- what stands on the ground: masts, dishes and panels round the rim, the outpost's plant on the floor, never on a walkway or a building
@@ -1015,7 +994,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       const pebble = dice.int(2) ? tones.pebble[0] : tones.pebble[1];
       for (let k = 0; k < 3; k++) b.add(new THREE.DodecahedronGeometry(0.006 + k * 0.002), pebble, { p: [p.x + (k - 1) * 0.012, y + 0.004, p.z + ((k % 2) - 0.5) * 0.012], r: [dice.range(-0.3, 0.3), 0, dice.range(-0.3, 0.3)] });
     } else if (kind === 3 && !frozen) {
-      const c = dice.pick([C.crystal, C.crystalViolet, C.lamp, C.heat]);
+      const c = dice.pick([C.crystal, C.crystalViolet, C.grow, C.ember]);
       for (let k = 0; k < 3; k++) b.addGlow(new THREE.OctahedronGeometry(0.006), c, { p: [p.x + dice.range(-0.015, 0.015), y + 0.008, p.z + dice.range(-0.015, 0.015)] });
     } else if (s < 0.8) {
       b.add(new THREE.DodecahedronGeometry(0.026 + dice.range(0, 0.02)), frozen ? C.rockDark : tones.under[2], { p: [p.x, y + 0.012, p.z], s: [1, 0.75, 1] });
@@ -1023,7 +1002,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
     }
   }
 
-  const statics = b.build(!opts.lowQuality);
+  const statics = b.build();
   frame.add(statics);
 
   // ---- survey rovers, trundling out along the rim and back
@@ -1059,12 +1038,12 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   for (const o of obstacles) grid.block(o, BODY);
 
   // ---- rings, the "you are here" flag, the chart's hit disc
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.05, 6, 48), new THREE.MeshBasicMaterial({ color: C.brass, transparent: true, opacity: 0.95 }));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.05, 6, 48), new THREE.MeshBasicMaterial({ color: AMBER, transparent: true, opacity: 0.95 }));
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.3;
   ring.visible = false;
   group.add(ring);
-  const reachRing = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.03, 6, 48), new THREE.MeshBasicMaterial({ color: C.parchment, transparent: true, opacity: 0.6 }));
+  const reachRing = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.03, 6, 48), new THREE.MeshBasicMaterial({ color: CREAM, transparent: true, opacity: 0.6 }));
   reachRing.rotation.x = -Math.PI / 2;
   reachRing.position.y = 0.3;
   reachRing.visible = false;
@@ -1072,11 +1051,11 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
   const flag = new THREE.Group();
   const flagAt: Spot = { x: plaza.x + 0.2, z: -0.22 * mirror };
   flag.position.set(flagAt.x, heightAt(flagAt.x, flagAt.z), flagAt.z);
-  // A marker for the chart: a pylon, and a brass diamond turning over it.
-  const pole = new THREE.Mesh(cyl(0.008, 0.01, 0.3, 5), new THREE.MeshLambertMaterial({ color: C.parchment }));
+  // A marker for the chart: a pylon, and an amber diamond turning over it.
+  const pole = new THREE.Mesh(cyl(0.008, 0.01, 0.3, 5), new THREE.MeshLambertMaterial({ color: CREAM }));
   pole.position.y = 0.15;
   flag.add(pole);
-  const cloth = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0), new THREE.MeshBasicMaterial({ color: C.brass }));
+  const cloth = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0), new THREE.MeshBasicMaterial({ color: AMBER }));
   cloth.scale.set(0.7, 1, 0.7);
   cloth.position.set(0, 0.39, 0);
   flag.add(cloth);
@@ -1154,7 +1133,7 @@ export function buildOutpost(id: string, dockToward: THREE.Vector2, landmark: Ou
       if (flag.visible) cloth.rotation.y = t * 1.6;
       // The dock's beacon blinks: two short flashes and a rest.
       (dockBeacon.material as THREE.MeshBasicMaterial).color.setHex((t * 1.2) % 1 < 0.12 || ((t * 1.2) % 1 > 0.24 && (t * 1.2) % 1 < 0.36) ? C.lamp : C.lampOff);
-      for (const [i, l] of lamps.entries()) (l.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 9 + i * 2.3) > -0.85 ? C.lamp : 0xe8c060);
+      for (const [i, l] of lamps.entries()) (l.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 9 + i * 2.3) > -0.85 ? C.lamp : C.lampLow);
       sign.rotation.x = Math.sin(t * 1.3) * 0.18;
       globe.rotation.y = t * 0.45;
       orbit.rotation.z = t * 0.9;
@@ -1251,9 +1230,7 @@ function buildGround(
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
   geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
-  mesh.receiveShadow = true;
-  return mesh;
+  return new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
 }
 
 /**
@@ -1362,7 +1339,7 @@ function strut(b: Batch, from: Vec3, to: Vec3, thick: number, color: number): vo
   b.add(box(thick, length, thick), color, { p: [a.x + along.x / 2, a.y + along.y / 2, a.z + along.z / 2], r: [turn.x, turn.y, turn.z] });
 }
 
-/** A light mast on the rim: a slim pole, two floodlights at its head turned in on the settlement, a red lamp on its tip. */
+/** A light mast on the rim: a slim pole, two floodlights at its head turned in on the settlement, an amber lamp on its tip. */
 function lightMast(b: Batch, dice: Dice, p: [number, number, number], outward: number): void {
   const height = 0.3 + dice.range(0, 0.16);
   b.frame({ p, r: [0, -outward, 0] }, () => {
@@ -1373,7 +1350,7 @@ function lightMast(b: Batch, dice: Dice, p: [number, number, number], outward: n
       b.add(box(0.03, 0.022, 0.03), C.iron, { p: [-0.012, height - 0.03, z], r: [0, 0, 0.5] });
       b.addGlow(box(0.006, 0.018, 0.024), C.lamp, { p: [-0.027, height - 0.039, z], r: [0, 0, 0.5] });
     }
-    b.addGlow(ball(0.008, 5, 4), C.beacon, { p: [0, height + 0.008, 0] });
+    b.addGlow(ball(0.008, 5, 4), C.lamp, { p: [0, height + 0.008, 0] });
   });
 }
 
@@ -1384,10 +1361,10 @@ function dishPost(b: Batch, dice: Dice, p: [number, number, number]): void {
     b.add(cyl(0.02, 0.026, 0.02, 6), C.steel, { p: [0, 0.01, 0] });
     b.add(cyl(0.007, 0.009, height, 5), C.tinDark, { p: [0, height / 2, 0] });
     b.frame({ p: [0, height + 0.012, 0], r: [0, 0, -0.75] }, () => {
-      b.add(cyl(0.06, 0.012, 0.022, 10), C.cream, { p: [0, 0.011, 0] });
+      b.add(cyl(0.06, 0.012, 0.022, 10), C.wall, { p: [0, 0.011, 0] });
       b.add(cyl(0.062, 0.062, 0.004, 10), C.tinDark, { p: [0, 0.023, 0] });
       b.add(cyl(0.003, 0.003, 0.05, 4), C.iron, { p: [0, 0.047, 0] });
-      b.add(ball(0.008, 6, 4), C.rust, { p: [0, 0.074, 0] });
+      b.add(ball(0.008, 6, 4), C.trim, { p: [0, 0.074, 0] });
     });
   });
 }
@@ -1415,20 +1392,20 @@ function tankCluster(b: Batch, dice: Dice, p: [number, number, number]): void {
     for (let i = 0; i < n; i++) {
       const x = (i - (n - 1) / 2) * 0.05;
       const tall = 0.08 + dice.range(0, 0.05);
-      const paint = dice.pick([C.tin, C.cream, C.blue, C.teal]);
+      const paint = dice.pick([C.tin, C.wall, C.blue, C.teal]);
       b.add(cyl(0.021, 0.021, tall, 8), paint, { p: [x, 0.012 + tall / 2, 0] });
       b.add(cyl(0.011, 0.021, 0.014, 8), paint, { p: [x, 0.019 + tall, 0] });
-      b.add(cyl(0.006, 0.006, 0.012, 6), C.rust, { p: [x, 0.032 + tall, 0] });
+      b.add(cyl(0.006, 0.006, 0.012, 6), C.trim, { p: [x, 0.032 + tall, 0] });
       b.add(cyl(0.0225, 0.0225, 0.008, 8), C.iron, { p: [x, 0.012 + tall * 0.4, 0] });
     }
-    b.add(cyl(0.005, 0.005, 0.05 * n, 5), C.rust, { p: [0, 0.03, -0.026], r: [0, 0, Math.PI / 2] });
+    b.add(cyl(0.005, 0.005, 0.05 * n, 5), C.trim, { p: [0, 0.03, -0.026], r: [0, 0, Math.PI / 2] });
     b.addGlow(box(0.01, 0.01, 0.004), C.glow, { p: [(n - 1) * 0.025 + 0.02, 0.022, 0.028] });
   });
 }
 
 /** Cargo left where it was unloaded: containers stacked two high, none square to another. */
 function cargoStack(b: Batch, dice: Dice, p: [number, number, number]): void {
-  const paints = [C.rust, C.teal, C.blue, C.foil] as const;
+  const paints = [C.trim, C.teal, C.blue, C.foil] as const;
   const container = (x: number, y: number, z: number, yaw: number): void => {
     b.add(box(0.09, 0.045, 0.045), dice.pick(paints), { p: [x, y + 0.0225, z], r: [0, yaw, 0] });
     for (const dx of [-0.03, 0.03]) b.add(box(0.006, 0.047, 0.047), C.iron, { p: [x + dx * Math.cos(yaw), y + 0.0225, z - dx * Math.sin(yaw)], r: [0, yaw, 0] });
@@ -1447,8 +1424,8 @@ function ventStack(b: Batch, dice: Dice, p: [number, number, number]): void {
     b.add(box(0.06, 0.02, 0.06), C.steel, { p: [0, 0.01, 0] });
     b.add(cyl(0.016, 0.02, tall, 7), C.tinDark, { p: [0, tall / 2 + 0.02, 0] });
     b.add(cyl(0.027, 0.02, 0.016, 7), C.iron, { p: [0, tall + 0.028, 0] });
-    b.addGlow(cyl(0.015, 0.015, 0.004, 7), C.heat, { p: [0, tall + 0.037, 0] });
-    b.add(box(0.03, 0.034, 0.022), C.rust, { p: [0.034, 0.037, 0] });
+    b.addGlow(cyl(0.015, 0.015, 0.004, 7), C.ember, { p: [0, tall + 0.037, 0] });
+    b.add(box(0.03, 0.034, 0.022), C.trim, { p: [0.034, 0.037, 0] });
     b.addGlow(box(0.004, 0.008, 0.008), C.lamp, { p: [0.05, 0.042, 0] });
   });
 }

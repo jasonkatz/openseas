@@ -1,9 +1,11 @@
 import { Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
 import { tugFlickIllegalReason, tugSlide, tugSolve, tugViewString, type TugClamp, type TugDir, type TugMoveReport, type TugState } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, INK, drawMark, drawPanel, drawPiece, drawWell, kindStyle, mix, spriteName } from "../kit/art.js";
+import { RADIUS } from "../look/tokens.js";
+import { FONT, FONT_MONO, INK, drawDot, drawHairline } from "../kit/art.js";
 import { Grid, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
+import { TUG_BLOCK_COLOR, TUG_BLOCK_PAINT, tugClampPaint, tugPodColor, tugPodPaint } from "./pieces.js";
 
 export interface TugCallbacks {
   /** The player flicked a pod a way the engine allows. */
@@ -30,7 +32,6 @@ export interface TugLabels {
 }
 
 export interface TugRendererOptions {
-  showMarks: boolean;
   /** Show the first flick of a par route after a pause. Off for recorded rounds. */
   hints: boolean;
   labels: TugLabels;
@@ -41,26 +42,36 @@ const DX = [0, 1, 0, -1] as const;
 const DY = [-1, 0, 1, 0] as const;
 const DIRS: readonly TugDir[] = [0, 1, 2, 3];
 const HINT_AFTER_MS = 7000;
-const STEEL = 0x33435f;
+/** A clean delivery at this par or above is the beat: the long route, read whole. */
+const BEAT_PAR = 4;
+/** The ring round the picked pod: 2 units wide, 2 units off the piece. */
+const RING_R = 0.45;
+const RING_W = 0.07;
+/** A ghost's pod, where a flick would stop, and the wanted pod in the strip, as shares of a cell. */
+const GHOST_SIZE = 0.42;
+const WANTED_SIZE = 0.66;
 
 /** Draws the cargo bay and turns a swipe into a flick. Scores nothing: every number it shows is the engine's. */
 export class TugRenderer extends KitBoard<TugState> {
   private readonly grid = new Grid(7, 7);
   private readonly bg = new Graphics();
-  private readonly blockLayer = new Graphics();
-  private readonly clampLayer = new Graphics();
+  private readonly blockLayer = new Container();
+  private readonly clampSprite = new Sprite();
   private readonly ghostLayer = new Graphics();
+  private readonly ghostPods = new Container();
   private readonly podLayer = new Container();
   private readonly hintLayer = new Graphics();
   private readonly strip = new Graphics();
+  private readonly wanted = new Sprite();
   private label: Text | null = null;
   private skipText: Text | null = null;
   private skipBox = { x: 0, y: 0, w: 0, h: 0 };
   private sprites: Sprite[] = [];
+  private blockSprites: Sprite[] = [];
+  private ghostSprites: Sprite[] = [];
   /** What is drawn: the blocks, the lit clamp (null between a delivery and the next lighting) and the flicks shown. */
   private drawnBlocks: readonly number[] = [];
   private drawnClamp: TugClamp | null = null;
-  private clampLit = 0;
   private lastPar = 0;
   private shownFlicks = 0;
   /** The pod the keyboard flicks and the ghosts are drawn for; -1 for none. */
@@ -79,7 +90,7 @@ export class TugRenderer extends KitBoard<TugState> {
     private readonly cb: TugCallbacks,
     private readonly opts: TugRendererOptions,
   ) {
-    super(host, "tug", cb.onFrame, opts.showMarks);
+    super(host, "tug", cb.onFrame);
     this.hints = opts.hints;
   }
 
@@ -88,11 +99,15 @@ export class TugRenderer extends KitBoard<TugState> {
   }
 
   protected build(): void {
-    this.label = new Text({ text: "", style: { fontFamily: FONT, fontSize: 16, fontWeight: "700", fill: INK.text, letterSpacing: 0.5 } });
+    this.label = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 16, fontWeight: "700", fill: INK.cream }, resolution: 2 });
     this.label.anchor.set(0, 0.5);
-    this.skipText = new Text({ text: this.opts.labels.skip, style: { fontFamily: FONT, fontSize: 14, fontWeight: "700", fill: INK.text, letterSpacing: 0.5 } });
+    this.skipText = new Text({ text: this.opts.labels.skip, style: { fontFamily: FONT, fontSize: 14, fontWeight: "700", fill: INK.cream }, resolution: 2 });
     this.skipText.anchor.set(0.5);
-    this.world.addChild(this.bg, this.blockLayer, this.clampLayer, this.ghostLayer, this.podLayer, this.hintLayer, this.strip, this.label, this.skipText);
+    this.clampSprite.anchor.set(0.5);
+    this.clampSprite.visible = false;
+    this.wanted.anchor.set(0.5);
+    this.wanted.visible = false;
+    this.world.addChild(this.bg, this.blockLayer, this.clampSprite, this.ghostLayer, this.ghostPods, this.podLayer, this.hintLayer, this.strip, this.wanted, this.label, this.skipText);
   }
 
   protected layout(width: number, height: number): void {
@@ -104,16 +119,17 @@ export class TugRenderer extends KitBoard<TugState> {
     g.fit(width, height, { top: 1, margin: 8 });
     const pad = Math.max(4, g.cell * 0.12);
     const strip = g.cell;
+    // Bare ground under the strip and the bay. The one hairline is the bay's walls, since a wall is
+    // a stop like any other; a dot marks every cell, because where a slide ends is the whole game.
     this.bg.clear();
-    drawPanel(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + pad * 2, Math.max(10, g.cell * 0.28));
-    for (let i = 0; i < g.cols * g.rows; i++) drawWell(this.bg, g.x(i) - g.cell / 2, g.y(i) - g.cell / 2, g.cell);
-    // The bay's walls: a brass rail all round, since a wall is a stop like any other.
-    this.bg.roundRect(g.ox - 2, g.oy - 2, g.width + 4, g.height + 4, g.cell * 0.14).stroke({ width: 3, color: INK.brass, alpha: 0.6 });
+    this.paintGround(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + pad * 2, false);
+    drawHairline(this.bg, g.ox, g.oy, g.width, g.height);
+    for (let i = 0; i < g.cols * g.rows; i++) drawDot(this.bg, g.x(i), g.y(i), g.cell);
     const bw = Math.max(56, g.cell * 1.5);
     const bh = strip * 0.6;
     this.skipBox = { x: g.ox + g.width - bw, y: g.oy - pad - strip * 0.5 - bh / 2, w: bw, h: bh };
     if (this.label) {
-      this.label.style.fontSize = Math.max(12, Math.round(g.cell * 0.34));
+      this.label.style.fontSize = Math.max(12, Math.round(g.cell * 0.32));
       this.label.position.set(g.ox + g.cell * 0.86, g.oy - pad - strip * 0.5);
     }
     if (this.skipText) {
@@ -126,51 +142,48 @@ export class TugRenderer extends KitBoard<TugState> {
     else this.drawStrip();
   }
 
-  private podTexture(pod: number): Texture {
-    const cell = this.grid.cell;
-    return this.bake(`pod:${pod}:${this.showMarks ? 1 : 0}`, cell, (g) => {
-      // A pod is a round tray with its own shape riding on it: the tray says "cargo", the shape says which.
-      if (this.sprite(g, spriteName("pod", pod), 0, 0, cell * 0.9)) {
-        if (this.showMarks) drawMark(g, pod, 0, -cell * 0.04, cell * 0.3);
-        return;
+  /** A pod's picture: its outline says which. */
+  private podTexture(pod: number, size = this.grid.cell): Texture {
+    return this.piece(`pod:${pod}`, size, tugPodColor(pod), tugPodPaint(pod));
+  }
+
+  /** The blocks, each a girder stub on its cell. */
+  private drawBlocks(): void {
+    const g = this.grid;
+    const cells = this.drawnBlocks;
+    while (this.blockSprites.length > cells.length) this.blockSprites.pop()!.destroy();
+    cells.forEach((cell, i) => {
+      let s = this.blockSprites[i];
+      if (!s) {
+        s = new Sprite();
+        s.anchor.set(0.5);
+        this.blockLayer.addChild(s);
+        this.blockSprites[i] = s;
       }
-      const tray = cell * 0.43;
-      const color = kindStyle(pod).color;
-      g.circle(0, tray * 0.1, tray).fill({ color: INK.black, alpha: 0.4 });
-      g.circle(0, 0, tray).fill({ color: mix(INK.wellLit, color, 0.18) });
-      g.circle(0, 0, tray).stroke({ width: Math.max(1.5, cell * 0.05), color: mix(color, INK.black, 0.25) });
-      for (let i = 0; i < 4; i++) {
-        const a = Math.PI / 4 + (i * Math.PI) / 2;
-        g.circle(Math.cos(a) * tray * 0.82, Math.sin(a) * tray * 0.82, Math.max(1, cell * 0.028)).fill({ color: mix(color, INK.white, 0.3), alpha: 0.8 });
-      }
-      drawPiece(g, pod, 0, 0, cell * 0.25, { marks: this.showMarks });
+      s.texture = this.piece("block", g.cell, TUG_BLOCK_COLOR, TUG_BLOCK_PAINT);
+      s.position.set(g.x(cell), g.y(cell));
     });
   }
 
-  private drawBlocks(): void {
+  /** The lit clamp on its cell, whole: the socket of the pod it wants. */
+  private showClamp(clamp: TugClamp): void {
     const g = this.grid;
-    const b = this.blockLayer;
-    b.clear();
-    for (const cell of this.drawnBlocks) {
-      if (this.sprite(b, "block", g.x(cell), g.y(cell), g.cell * 0.9)) continue;
-      const x = g.x(cell) - g.cell / 2;
-      const y = g.y(cell) - g.cell / 2;
-      const inset = g.cell * 0.07;
-      const s = g.cell - inset * 2;
-      b.roundRect(x + inset, y + inset + s * 0.06, s, s, g.cell * 0.14).fill({ color: INK.black, alpha: 0.4 });
-      b.roundRect(x + inset, y + inset, s, s, g.cell * 0.14).fill({ color: STEEL });
-      b.roundRect(x + inset, y + inset, s, s, g.cell * 0.14).stroke({ width: Math.max(1.5, g.cell * 0.05), color: mix(STEEL, INK.white, 0.28) });
-      // A cross brace and four rivets: a fixed thing, nothing like a pod.
-      const m = inset + s * 0.22;
-      b.moveTo(x + m, y + m).lineTo(x + g.cell - m, y + g.cell - m).moveTo(x + g.cell - m, y + m).lineTo(x + m, y + g.cell - m);
-      b.stroke({ width: Math.max(2, g.cell * 0.07), color: mix(STEEL, INK.black, 0.45), cap: "round" });
-      for (const [dx, dy] of [
-        [m, m],
-        [g.cell - m, m],
-        [m, g.cell - m],
-        [g.cell - m, g.cell - m],
-      ] as const) b.circle(x + dx, y + dy, Math.max(1.5, g.cell * 0.045)).fill({ color: mix(STEEL, INK.white, 0.45) });
-    }
+    const s = this.clampSprite;
+    s.texture = this.piece(`clamp:${clamp.pod}`, g.cell, tugPodColor(clamp.pod), tugClampPaint(clamp.pod));
+    s.position.set(g.x(clamp.cell), g.y(clamp.cell));
+    s.scale.set(1);
+    s.visible = true;
+  }
+
+  /** The clamp is done with, delivered or given up: it shrinks to nothing. */
+  private dropClamp(): void {
+    this.drawnClamp = null;
+    this.drawStrip();
+    this.tweens.remove(this.clampSprite, {
+      done: () => {
+        if (!this.drawnClamp) this.clampSprite.visible = false;
+      },
+    });
   }
 
   /** The strip over the bay: the pod the clamp wants, the par and the flicks, and the skip button. */
@@ -179,16 +192,15 @@ export class TugRenderer extends KitBoard<TugState> {
     const s = this.strip;
     s.clear();
     const box = this.skipBox;
-    const pulse = this.hint === "skip" ? 0.5 + 0.5 * Math.sin(this.time / 200) : 0;
-    s.roundRect(box.x, box.y, box.w, box.h, box.h * 0.4).fill({ color: mix(INK.well, INK.danger, 0.12 + pulse * 0.35) });
-    s.roundRect(box.x, box.y, box.w, box.h, box.h * 0.4).stroke({ width: 1.5, color: mix(INK.edge, INK.danger, 0.3 + pulse * 0.6) });
+    const r = Math.min(RADIUS, box.h / 2);
+    s.roundRect(box.x, box.y, box.w, box.h, r).fill({ color: INK.raised });
+    // The board's advice to give the clamp up is cream, like every hint.
+    if (this.hint === "skip") s.roundRect(box.x, box.y, box.w, box.h, r).stroke({ width: 2, color: INK.cream, alpha: this.reduced ? 0.8 : 0.55 + 0.4 * Math.sin(this.time / 240) });
     const clamp = this.drawnClamp;
+    this.wanted.visible = clamp !== null;
     if (clamp) {
-      const x = g.ox + g.cell * 0.42;
-      const y = this.label?.y ?? g.oy - g.cell * 0.5;
-      if (this.sprite(s, spriteName("pod", clamp.pod), x, y, g.cell * 0.62)) {
-        if (this.showMarks) drawMark(s, clamp.pod, x, y - g.cell * 0.03, g.cell * 0.2);
-      } else drawPiece(s, clamp.pod, x, y, g.cell * 0.24, { marks: this.showMarks });
+      this.wanted.texture = this.podTexture(clamp.pod, Math.round(g.cell * WANTED_SIZE));
+      this.wanted.position.set(g.ox + g.cell * 0.42, this.label?.y ?? g.oy - g.cell * 0.5);
     }
     if (this.label) this.label.text = clamp ? this.opts.labels.status(clamp.par, this.shownFlicks) : "";
   }
@@ -212,6 +224,7 @@ export class TugRenderer extends KitBoard<TugState> {
     this.drawnBlocks = state.blocks;
     this.drawBlocks();
     this.drawnClamp = state.clamp;
+    this.showClamp(state.clamp);
     this.lastPar = state.clamp.par;
     this.shownFlicks = state.flicks;
     if (this.selected >= state.pods.length) this.selected = -1;
@@ -262,38 +275,33 @@ export class TugRenderer extends KitBoard<TugState> {
       const x1 = g.x(to);
       const y1 = g.y(to);
       const cells = Math.round((Math.abs(x1 - x0) + Math.abs(y1 - y0)) / g.cell);
+      // The slide's length is the rule, so it takes the time its length asks, eased and with no give at the stop.
       const ms = 90 + cells * 52;
-      const color = kindStyle(pod).color;
-      const dir = r.move.type === "flick" ? r.move.dir : 0;
       sfx.whoosh();
-      this.fx.beam([x0, y0, x1, y1], color, Math.max(2, g.cell * 0.07), ms + 140);
       this.tweens.to(sprite, { x: x1, y: y1 }, ms, {
         ease: ease.outQuad,
         done: () => {
-          // The stop: a thud, a puff where it hit, and the pod gives a little.
           sfx.thud();
-          this.fx.burst(x1 + DX[dir]! * g.cell * 0.46, y1 + DY[dir]! * g.cell * 0.46, stop === "pod" ? INK.gold : INK.dim, 5, 0.12, 2.5);
           this.shownFlicks = r.delivered ? r.delivered.flicks : state.flicks;
           this.drawStrip();
         },
       });
-      this.tweens.to(sprite, { scale: 0.86 }, 70, { delay: ms, ease: ease.outQuad });
-      this.tweens.to(sprite, { scale: 1 }, 150, { delay: ms + 70, ease: ease.outBack });
       t = ms + 40;
       const d = r.delivered;
       if (d) {
-        const tone = d.grade === "clean" ? INK.good : d.grade === "full" ? INK.gold : INK.dim;
+        // Good news is cream; a slow delivery is said quietly.
+        const tone = d.grade === "slow" ? INK.dim : INK.cream;
+        const top = d.grade === "clean" && d.streak === state.config.streakPercent.length && state.config.streakPercent.length > 1;
+        const long = d.grade === "clean" && d.par >= BEAT_PAR;
         this.tweens.after(t, () => {
-          this.drawnClamp = null;
-          this.drawStrip();
-          this.fx.ring(x1, y1, tone, g.cell * 0.3, g.cell * (d.grade === "clean" ? 1.7 : 1.2), 480, 4);
-          this.fx.burst(x1, y1, color, d.grade === "clean" ? 16 : 8, 0.26, 4);
+          this.dropClamp();
           this.fx.popup(x1, y1 - g.cell * 0.3, `+${d.points}`, tone, Math.max(16, g.cell * (d.grade === "clean" ? 0.56 : 0.44)));
-          this.fx.popup(x1, y1 + g.cell * 0.82, this.opts.labels.tally(d.flicks, d.par), INK.text, Math.max(12, g.cell * 0.28));
+          this.fx.popup(x1, y1 + g.cell * 0.82, this.opts.labels.tally(d.flicks, d.par), INK.dim, Math.max(12, g.cell * 0.28));
           this.fx.say(d.grade === "clean" ? this.opts.labels.clean(d.streak) : d.grade === "full" ? this.opts.labels.full : this.opts.labels.slow, tone);
-          if (d.grade === "clean") {
-            this.fx.flash(INK.good, 0.1, 240);
-            this.fx.shake(2 + d.par * 1.6, 220);
+          // The beat is for a clean delivery at the top par, and for a streak brought to its top.
+          // The beat has one sound of its own; a delivery that is not the beat plays its cue.
+          if (long || top) this.beat(long && top ? 1 : top ? 0.7 : 0.5);
+          else if (d.grade === "clean") {
             sfx.clear(Math.min(6, d.streak), d.par * 2);
             if (d.streak >= 3) sfx.streak(d.streak);
           } else if (d.grade === "full") sfx.good();
@@ -304,11 +312,9 @@ export class TugRenderer extends KitBoard<TugState> {
     } else if (r.skipped) {
       const gone = r.skipped.clamp;
       sfx.bad();
-      this.drawnClamp = null;
-      this.drawStrip();
+      this.dropClamp();
       this.fx.say(this.opts.labels.skipped, INK.danger);
       if (r.skipped.penalty > 0) this.fx.popup(g.x(gone.cell), g.y(gone.cell) - g.cell * 0.2, `-${r.skipped.penalty}`, INK.danger, Math.max(16, g.cell * 0.46));
-      this.fx.ring(g.x(gone.cell), g.y(gone.cell), INK.danger, g.cell * 0.5, g.cell * 0.1, 300, 3);
       t = 280;
     }
     if (r.clamp) {
@@ -320,20 +326,18 @@ export class TugRenderer extends KitBoard<TugState> {
     this.tweens.after(t + 20, () => this.snap(state));
   }
 
-  /** A clamp lights: it is drawn from now on, it rings in, and the pod it wants is picked. */
+  /** A clamp lights: it grows onto its cell, it is drawn from now on, and the pod it wants is picked. */
   private light(clamp: TugClamp): void {
     const g = this.grid;
     // The par is called out only when it is not the last clamp's: that is the news.
     const news = clamp.par !== this.lastPar;
     this.lastPar = clamp.par;
     this.drawnClamp = clamp;
-    this.clampLit = this.time;
     this.shownFlicks = 0;
-    const x = g.x(clamp.cell);
-    const y = g.y(clamp.cell);
-    const color = kindStyle(clamp.pod).color;
-    this.fx.ring(x, y, color, g.cell * 1.3, g.cell * 0.46, 420, 3);
-    if (news) this.fx.popup(x, y - g.cell * 0.55, this.opts.labels.par(clamp.par), color, Math.max(13, g.cell * 0.34));
+    this.showClamp(clamp);
+    this.clampSprite.scale.set(0);
+    this.tweens.move(this.clampSprite, { scale: 1 });
+    if (news) this.fx.popup(g.x(clamp.cell), g.y(clamp.cell) - g.cell * 0.55, this.opts.labels.par(clamp.par), INK.cream, Math.max(13, g.cell * 0.34));
     sfx.ping(5 - clamp.par);
     this.select(clamp.pod);
     this.drawStrip();
@@ -347,7 +351,6 @@ export class TugRenderer extends KitBoard<TugState> {
   }
 
   protected override update(dt: number): void {
-    this.drawClamp();
     this.drawGhosts();
     if (this.hint === "skip") this.drawStrip();
     // The first flick of a par route shows after a pause, in rounds that allow hints.
@@ -373,40 +376,9 @@ export class TugRenderer extends KitBoard<TugState> {
     const g = this.grid;
     const h = this.hint;
     const from = this.state.pods[h.pod]!;
-    const pulse = 0.45 + 0.4 * Math.sin(this.time / 240);
-    const color = kindStyle(h.pod).color;
-    this.hintLayer.circle(g.x(from), g.y(from), g.cell * 0.5).stroke({ width: 3, color: INK.white, alpha: pulse });
-    arrow(this.hintLayer, g.x(from), g.y(from), g.x(h.to), g.y(h.to), g.cell, color, pulse);
-  }
-
-  /** The lit clamp: four jaws in the wanted pod's color round the outline of the pod it wants. */
-  private drawClamp(): void {
-    const g = this.grid;
-    const c = this.clampLayer;
-    c.clear();
-    const clamp = this.drawnClamp;
-    if (!clamp) return;
-    const x = g.x(clamp.cell);
-    const y = g.y(clamp.cell);
-    const color = kindStyle(clamp.pod).color;
-    const pulse = 0.5 + 0.5 * Math.sin(this.time / 300);
-    const born = Math.min(1, (this.time - this.clampLit) / 260);
-    const half = g.cell * (0.46 + (1 - born) * 0.3);
-    c.roundRect(x - g.cell * 0.46, y - g.cell * 0.46, g.cell * 0.92, g.cell * 0.92, g.cell * 0.16).fill({ color, alpha: 0.1 + pulse * 0.1 });
-    // The sheet's clamp is a frame round the outline of the pod it wants: it closes in as it lights, then breathes.
-    const art = g.cell * 0.94;
-    if (this.sprite(c, spriteName("clamp", clamp.pod), x, y, art * (1 + (1 - born) * 0.5), 0.7 + pulse * 0.3, art)) return;
-    const jaw = g.cell * 0.26;
-    for (const [sx, sy] of [
-      [-1, -1],
-      [1, -1],
-      [1, 1],
-      [-1, 1],
-    ] as const) {
-      c.moveTo(x + sx * half, y + sy * (half - jaw)).lineTo(x + sx * half, y + sy * half).lineTo(x + sx * (half - jaw), y + sy * half);
-    }
-    c.stroke({ width: Math.max(3, g.cell * 0.09), color: mix(color, INK.white, 0.15 + pulse * 0.3), alpha: 0.95, cap: "round", join: "round" });
-    drawPiece(c, clamp.pod, x, y, g.cell * 0.24, { hollow: true, alpha: 0.65 + pulse * 0.35 });
+    // A hint is cream, never amber: it is the board's advice, not the player's own mark.
+    const pulse = this.reduced ? 0.8 : 0.55 + 0.4 * Math.sin(this.time / 240);
+    arrow(this.hintLayer, g.x(from), g.y(from), g.x(h.to), g.y(h.to), g.cell, INK.cream, pulse);
   }
 
   // ---- the picked pod
@@ -428,9 +400,17 @@ export class TugRenderer extends KitBoard<TugState> {
     const l = this.ghostLayer;
     const state = this.state;
     const show = state !== null && this.interactive && this.selected >= 0 && this.selected < state.pods.length && !this.busy && !state.finished;
+    while (this.ghostSprites.length < DIRS.length) {
+      const s = new Sprite();
+      s.anchor.set(0.5);
+      s.visible = false;
+      this.ghostPods.addChild(s);
+      this.ghostSprites.push(s);
+    }
     if (!show) {
       if (this.ghostsFor !== null || this.ghostsPod !== -1) {
         l.clear();
+        for (const s of this.ghostSprites) s.visible = false;
         this.ghostsFor = null;
         this.ghostsPod = -1;
       }
@@ -446,26 +426,22 @@ export class TugRenderer extends KitBoard<TugState> {
     const from = state.pods[pod]!;
     const x0 = g.x(from);
     const y0 = g.y(from);
-    const color = kindStyle(pod).color;
-    l.circle(x0, y0, g.cell * 0.49).stroke({ width: Math.max(2, g.cell * 0.05), color: INK.white, alpha: 0.85 });
-    for (const ghost of this.ghosts) {
+    // The picked pod is the player's own: an amber ring round it.
+    l.circle(x0, y0, g.cell * RING_R).stroke({ width: Math.max(2, g.cell * RING_W), color: INK.amber });
+    this.ghosts.forEach((ghost, i) => {
       const x1 = g.x(ghost.to);
       const y1 = g.y(ghost.to);
       const delivers = pod === state.clamp.pod && ghost.to === state.clamp.cell;
-      // A dotted track, a chevron leaving the pod, and the pod's outline where it would stop.
+      // The track: the dots of the cells the pod would cross light up, in cream when the flick delivers.
+      // Then a small copy of the pod where it would stop, which for the flick that delivers is inside the clamp.
       const steps = Math.round((Math.abs(x1 - x0) + Math.abs(y1 - y0)) / g.cell);
-      for (let i = 1; i < steps * 2; i++) {
-        const k = i / (steps * 2);
-        l.circle(x0 + (x1 - x0) * k, y0 + (y1 - y0) * k, Math.max(1.2, g.cell * 0.03)).fill({ color: delivers ? INK.good : color, alpha: 0.5 });
-      }
-      const dx = DX[ghost.dir]!;
-      const dy = DY[ghost.dir]!;
-      const tip = g.cell * 0.66;
-      const wing = g.cell * 0.1;
-      l.poly([x0 + dx * tip, y0 + dy * tip, x0 + dx * (tip - wing * 1.3) - dy * wing, y0 + dy * (tip - wing * 1.3) + dx * wing, x0 + dx * (tip - wing * 1.3) + dy * wing, y0 + dy * (tip - wing * 1.3) - dx * wing]).fill({ color: delivers ? INK.good : INK.white, alpha: 0.8 });
-      if (delivers) l.circle(x1, y1, g.cell * (0.4 + 0.04 * Math.sin(this.time / 160))).stroke({ width: 3, color: INK.good, alpha: 0.9 });
-      else drawPiece(l, pod, x1, y1, g.cell * 0.2, { hollow: true, alpha: 0.6 });
-    }
+      for (let at = 1; at < steps; at++) drawDot(l, x0 + DX[ghost.dir]! * at * g.cell, y0 + DY[ghost.dir]! * at * g.cell, g.cell, delivers ? INK.cream : INK.dim);
+      const s = this.ghostSprites[i]!;
+      s.texture = this.podTexture(pod, Math.round(g.cell * GHOST_SIZE));
+      s.position.set(x1, y1);
+      s.visible = true;
+    });
+    for (let i = this.ghosts.length; i < this.ghostSprites.length; i++) this.ghostSprites[i]!.visible = false;
   }
 
   private flick(pod: number, dir: TugDir): void {
@@ -481,7 +457,7 @@ export class TugRenderer extends KitBoard<TugState> {
         const x = this.grid.x(state.pods[pod]!);
         const y = this.grid.y(state.pods[pod]!);
         this.tweens.to(s, { x: x + DX[dir]! * this.grid.cell * 0.1, y: y + DY[dir]! * this.grid.cell * 0.1 }, 60, { ease: ease.outQuad });
-        this.tweens.to(s, { x, y }, 110, { delay: 60, ease: ease.outBack });
+        this.tweens.move(s, { x, y }, { delay: 60 });
       }
       sfx.bump();
       return;
@@ -598,16 +574,16 @@ export class TugRenderer extends KitBoard<TugState> {
   }
 }
 
-/** A stout arrow from one cell's centre toward another's, for the hint. */
+/** An arrow from one cell's centre toward another's, for the hint. */
 function arrow(g: Graphics, x0: number, y0: number, x1: number, y1: number, cell: number, color: number, alpha: number): void {
   const len = Math.hypot(x1 - x0, y1 - y0);
   if (len < 1) return;
   const ux = (x1 - x0) / len;
   const uy = (y1 - y0) / len;
-  const head = cell * 0.26;
-  const tx = x1 - ux * cell * 0.1;
-  const ty = y1 - uy * cell * 0.1;
+  const head = cell * 0.2;
+  const tx = x1 - ux * cell * 0.24;
+  const ty = y1 - uy * cell * 0.24;
   g.moveTo(x0 + ux * cell * 0.5, y0 + uy * cell * 0.5).lineTo(tx - ux * head, ty - uy * head);
-  g.stroke({ width: Math.max(4, cell * 0.12), color, alpha, cap: "round" });
+  g.stroke({ width: Math.max(3, cell * 0.07), color, alpha, cap: "round" });
   g.poly([tx, ty, tx - ux * head - uy * head * 0.7, ty - uy * head + ux * head * 0.7, tx - ux * head + uy * head * 0.7, ty - uy * head - ux * head * 0.7]).fill({ color, alpha });
 }

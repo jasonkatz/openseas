@@ -1,6 +1,5 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
-import { atlases } from "@openseas/boards/vite";
 
 /**
  * Emits `dist/version.json` with the commit the build came from, so the deploy pipeline
@@ -21,7 +20,7 @@ function versionFile(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), atlases(), versionFile()],
+  plugins: [react(), versionFile()],
   server: {
     port: 5173,
     strictPort: true,

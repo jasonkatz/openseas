@@ -9,16 +9,16 @@ sector gains a contact every two cleared, up to five (`startContacts`, `growEver
 
 A ping on a cell answers with one number: how many steps (up, down, left, right) the nearest hidden
 contact is. The number says two things. Nothing hidden lies nearer, so every cell closer than the
-number is empty, and the board shades it. And one contact lies exactly that far, somewhere on the
-diamond-shaped ring of cells at that distance. When the shading leaves a ring one cell, the contact
-is there.
+number is empty, and the fog lifts from it. And one contact lies exactly that far, somewhere on the
+diamond-shaped ring of cells at that distance. When the clear cells leave a ring one cell, the
+contact is there.
 
 A lock on a cell says "a contact is here". A right lock finds it for 40 (`contactPoints`).
 
 Both verbs can go wrong, and either mistake costs 60 and the streak (`wrongPenalty`,
 `spookPenalty`). A lock on empty space is a miss. A ping that lands on a contact spooks it: the
-contact is given away for no bounty. So a ping belongs on a shaded cell and a lock on a proven one.
-A lock on a shaded cell is refused, not punished.
+contact is given away for no bounty. So a ping belongs on a clear cell and a lock on a proven one.
+A lock on a clear cell is refused, not punished.
 
 The numbers are live. When a contact is found or spooked, every ping that was hearing it sounds
 again and shows how far the nearest contact still hidden is. A number on the board is always true of
@@ -38,21 +38,21 @@ The score never goes below zero.
 ## Luck and skill
 
 - **Luck:** where the contacts are, and how much the opening ping gives away.
-- **First skill:** reading one ring. Ping where it is shaded, watch the shading grow, and lock when a
+- **First skill:** reading one ring. Ping where it is clear, watch the fog lift, and lock when a
   ring is down to one cell. This alone clears every sector, about one time in two within par.
 - **Second skill:** crossing rings. Two rings that share one fog cell prove it without a third ping.
-- **Third skill:** choosing the ping. A shaded cell near a lot of fog, or one that tells two
+- **Third skill:** choosing the ping. A clear cell near a lot of fog, or one that tells two
   candidates apart, saves the pings that the streak is built from. Cells that sit diagonally from
   each other are the same distance from half the sector: only a ping to one side splits them.
 - Nothing is left to a guess, so nothing is won by one: a mistake is always the player's.
 
-## Input
+## Input and feedback
 
-- A tap on fog or on a shaded cell pings or locks it, as the switch under the sector says. The
-  switch is two halves the width of the sector: the live one is filled and carries a notch, each has
-  its own glyph, and the lock half shows what a lock pays now (`scannerLockValue`).
+- A tap on fog or on a clear cell pings or locks it, as the switch under the sector says. The
+  switch is two halves the width of the sector, each with its own glyph, and the lock half shows
+  what a lock pays now (`scannerLockValue`).
 - A long press (420 ms) always locks; brackets close on the cell while it is held.
-- A tap on a pinged cell lights its ring: the diamond, and bright on it the cells where the contact
+- A tap on a pinged cell lights its ring: the diamond, and marked on it the cells where the contact
   it hears can still be (`scannerPingCandidates`). It is never a move.
 - Keyboard: arrows or WASD move the cursor, space pings, enter or L locks, X flips the switch,
   escape puts a lit ring out.
@@ -60,7 +60,45 @@ The score never goes below zero.
 - When a sector is cleared the board holds taps for about a second, until the next sector is on
   screen: a second tap aimed at the old sector must not land on the new one.
 - Unrated and lab rounds pulse a safe move after six seconds idle (`scannerHint`): brackets where a
-  lock is proven, a diamond on a shaded cell worth pinging.
+  lock is proven, a diamond on a clear cell worth pinging.
+
+The board is restyled to the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws its pieces
+in code (`boards/src/scanner/pieces.ts`), loads no atlas and has no marks setting.
+
+- **Fog** is a flat plate in `raised`, one a cell. The plates are the grid: there are no lines
+  between them.
+- **A clear cell** is the bare ground with a small dot, since an empty cell here matters: it is
+  where a ping is safe.
+- **A ping** is its number, mono and bold in cream, on bare ground. Every number is one colour:
+  the digit is the signal.
+- **A found contact** is a dot held in four brackets, in cream. **A spooked contact** is a disc
+  struck through and **a miss** is a cross, both in danger. So the six things a cell can show are
+  a plate, a dot, a digit, a bracketed dot, a struck disc and a cross, and each is told from the
+  others with the colour taken away.
+- **The board.** Bare ground under the strip, the sector and the switch, with one hairline round
+  it. No frame and no grid.
+- **The strip** over the sector is mono: pings left of par, the sector, contacts hidden. Pings past
+  par are counted in danger.
+- **The switch.** The live half is amber with ground text and a notch that points at the sector:
+  it is the player's choice. The other half is a raised button with cream text. The ping half
+  carries a hollow diamond and the lock half a bracketed dot.
+- **A ping going out** is one plain diamond that grows from the cell to its distance, at a pace set
+  by how far it goes (the reach is the rule), and fades where it stops. It is amber for the
+  player's own ping and cream for the one a sector opens on. The number grows onto its cell at
+  once, and each fog plate the ping proves empty shrinks to nothing as the diamond passes it.
+- **A lock** being held closes amber brackets on the cell. A find grows onto the cell and its
+  bounty rises in cream. A spook and a miss are called out in danger with their cost. Nothing
+  shakes or flashes.
+- **A number that sounds again** is set anew and grows back onto its cell, and the fog its new
+  number proves empty lifts.
+- **A lit ring** is the player's pick: an amber ring round the ping and its diamond in amber. Each
+  fog plate on the diamond where the contact can be carries a cream pip, and the dot of each clear
+  cell on it is lit. The keyboard's cell has the same amber ring.
+- **A hint** is cream, never amber: bare brackets or a hollow diamond that fades in and out.
+- **A cleared sector** is called out, and the pings it saved are paid in cream. The marks and the
+  numbers shrink away, a fog plate grows back on every cell, and the next sector opens on its ping.
+- **The beat**, one amber pulse of the whole board, is kept for one thing: a clean sector. It is
+  stronger the longer the streak. A sector cleared that is not clean is said quietly, in dim.
 
 ## Engine
 
@@ -69,7 +107,7 @@ The score never goes below zero.
 spooked, which pings sounded again and what they say now, what it scored and cost, and the cleared
 sector's sum when it cleared one. The board plays the report and ends on the engine's view.
 
-What the board draws is `scannerViewString`: fog, shaded, a ping's number, found, spooked, missed.
+What the board draws is `scannerViewString`: fog, clear, a ping's number, found, spooked, missed.
 It shows fog over every hidden contact, and `data-board` holds nothing else. Every argument the
 engine makes for the board (`clearCells`, `pingCandidates`, `provenCells`, `hint`) is made from what
 the player can see. `plainlySolvable` reads the hidden contacts and is for the dealer and the tests.
@@ -83,7 +121,7 @@ round counted for anything.
 Set from bots, not people (ADR 0036). Scores are the mean of 24 rounds of 120 seconds unless said.
 The bots: a sweeper that taps through the fog in reading order (0.4 s a tap); a random pinger; a
 plain player that follows the idle hint and nothing else; a splitter that knows every placement the
-numbers allow, locks only what holds in all of them and pings the shaded cell that splits them most
+numbers allow, locks only what holds in all of them and pings the clear cell that splits them most
 evenly; a gambler that locks at six chances in ten.
 
 - **A ping on a contact costs; it does not find.** The brief asked. Under its rules (a ping that

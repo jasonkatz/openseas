@@ -21,8 +21,9 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 ### Feel
 
 1. **It feels great in the hand.** The first move of a first round is satisfying before the player
-   understands the scoring: the input lands at once, every move plays back, clears burst, big moves
-   get a callout, a shake and a sound. Feedback is part of the design, built with the first
+   understands the scoring: the input lands at once, every move plays back, a clear is seen and
+   heard, and a big move gets a callout, a sound and the beat (`docs/BRAND.md` section 6: one amber
+   pulse of the board, never a shake or a shower of particles). Feedback is part of the design, built with the first
    playable, and it never holds input back.
 2. **One verb, learned in a minute.** Touch-first, one thumb, portrait (landscape only where the
    board is a map). A new player makes a scoring move in their first ten seconds. Keyboard plays
@@ -108,14 +109,17 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 21. **Pure engine, server authority.** Deterministic from seed and move log; determinism property
     tests are written first; the server replays and scores every round. A puzzle whose game is
     hidden information counts for nothing until the server holds the secret (Scanner, ADR 0036).
-22. **Reads without color.** Each kind has its own silhouette, and the mark setting draws a distinct
-    mark on each.
-23. **Its own sprites and sounds.** Each frame, named as the renderer asks for it, is described in
-    the puzzle's sprite brief and made with the `puzzle-sprites` skill; each moment item 1 asks to
-    be heard has a cue in its sound brief, made with the `puzzle-sounds` skill. The owner picks
-    every take. Every piece keeps a code-drawn fallback and every cue a synthesized one
-    (`boards/src/audio.ts`, ADR 0041), and marks, numerals and hit areas stay in code. A puzzle
-    without its sheet is not finished; say so.
+22. **Reads without color.** Each kind has a silhouette of its own and is told from every other by
+    that alone: look at the board with every piece in one colour (`docs/BRAND.md` section 3). Where
+    the rules fix the outline, each kind carries one cut-out no other has. There is no marks
+    setting to lean on.
+23. **Its own pieces and sounds.** A puzzle's pieces are pictograms of its own subject, drawn in
+    code beside its renderer on the shared palette (`docs/BRAND.md` section 3, ADR 0062; Cooling's
+    `pieces.ts` is the model), and each moment item 1 asks to be heard has a synthesized cue: one
+    of those defined in `boards/src/cues.ts`, in the one key and voice of `docs/BRAND.md` section
+    8, played through `sfx`. The beat has one sound, the same on every board, and a board plays
+    no cue of its own over it. Nothing generated lands in the game: no picture is made for a
+    piece and no sample for a cue, and there is no tooling to make either with (ADR 0062).
 24. **Every string in the message table.**
 25. **Three homes, kept in step.** A studio page with its entry, starting points, a line of
     description on every config key and a place for it in the tuning panel, and a smoke that
@@ -132,8 +136,9 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 3. Set the thresholds: a bot ladder for the first guess where it helps, then by hand in the
    studio (rule 17). Describe every config key and give it its section of the tuning panel (rule
    18). Write the tuning notes.
-4. Write the design file, the guide and its capture, and the sprite and sound briefs; make their
-   takes with `puzzle-sprites` and `puzzle-sounds` for the owner to pick.
+4. Draw its pieces in its `pieces.ts` and look at the board with every piece in one colour (rule
+   22). Give each moment its cue from `boards/src/cues.ts` and list them in
+   `studio/src/assets/cues.ts`. Write the design file, the guide and its capture.
 5. Report the bar, item by item, with the open questions for play.
 
 ## Changing a puzzle
@@ -147,8 +152,9 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
      `studio/src/tuning/groups/<id>.ts`.
    - **A control:** the design file, the guide's controls, the studio smoke.
    - **A look or a sound:** `pnpm --filter @openseas/docs capture <id>`, and every picture looked at.
-     New pieces need new frames and new feedback new cues: add them to the briefs and make their
-     takes with `puzzle-sprites` and `puzzle-sounds`.
+     A look follows `docs/BRAND.md`: a piece is a pictogram in the puzzle's `pieces.ts`, and every
+     colour comes from `boards/src/look/tokens.ts` (`studio/test/look.test.ts` fails on one typed
+     anywhere else).
 3. Done when the studio's tests and smoke and the docs tests are green and the bar items you named are
    reported as still met.
 

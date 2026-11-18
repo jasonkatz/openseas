@@ -175,15 +175,13 @@ interface Geom {
 /** Where the renderer lays the core out inside its canvas (the same sums as its `layout`). */
 async function geom(page: Page): Promise<Geom> {
   const box = await canvasBox(page, "engines");
-  const padFor = (cell: number): number => Math.max(6, Math.round(cell * 0.15));
   const rows = H + 1.2;
-  let cell = Math.floor(Math.min(box.width / W, box.height / rows));
-  cell = Math.max(12, Math.floor(Math.min((box.width - padFor(cell) * 2 - 2) / W, (box.height - padFor(cell) * 2 - 2) / rows)));
+  const cell = Math.max(12, Math.floor(Math.min((box.width - 2) / W, (box.height - 2) / rows)));
   const strip = Math.round(cell * 1.2);
   return { ox: box.x + Math.floor((box.width - cell * W) / 2), oy: box.y + Math.floor((box.height - cell * H - strip) / 2) + strip, cell, strip, box };
 }
 
-/** The core with its frame and the next-pair strip above it. */
+/** The core and the next-pair strip above it. */
 async function region(page: Page): Promise<Box> {
   const g = await geom(page);
   return padded({ x: g.ox, y: g.oy - g.strip, width: g.cell * W, height: g.cell * H + g.strip }, 14, g.box);

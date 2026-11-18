@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import { previewSwap, summarizeCooling, type CoolingConfig, type CoolingMove, type CoolingState, type ClearRound } from "@openseas/engine";
-import { CoolingBoard, TileIcon, content, sfx, t, type CoolingMoveShown } from "@openseas/boards";
+import { CoolingBoard, CoolingPieceIcon, content, sfx, t, type CoolingMoveShown } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { useSoloHeat } from "../practice/useSoloHeat.js";
 import { COOLING } from "../puzzles.js";
@@ -10,7 +10,6 @@ import { COOLING } from "../puzzles.js";
 const cooling = content.puzzles.cooling;
 
 export function CoolingPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
   const [vented, setVented] = useState(0);
   /** Rows vented down this round, counted on the client for the result card only. */
   const ventedRef = useRef(0);
@@ -124,7 +123,7 @@ export function CoolingPractice() {
         <div className="tile-row" aria-hidden="true">
           {pieces.map((p, i) => (
             <span key={p.nameKey} style={{ animationDelay: `${i * 70}ms` }}>
-              <TileIcon color={p.color} texture={p.texture} mark={showMarks ? p.mark : null} size={30} />
+              <CoolingPieceIcon shape={p.shape} color={p.color} size={30} />
             </span>
           ))}
         </div>
@@ -142,7 +141,7 @@ export function CoolingPractice() {
           <ul className="specials">
             {(["charge", "magnet", "slag"] as const).map((k) => (
               <li key={k}>
-                <TileIcon color={cooling.specials[k].color} special={k} label={t(`cooling.special.${k}_label`)} />
+                <CoolingPieceIcon shape={k} color={cooling.specials[k].color} />
                 <span>
                   <b>{t(cooling.specials[k].nameKey)}</b> {t(`cooling.special.${k}_help`)}
                 </span>
@@ -152,12 +151,11 @@ export function CoolingPractice() {
           <ul className="kinds">
             {pieces.map((p) => (
               <li key={p.nameKey}>
-                <TileIcon color={p.color} texture={p.texture} mark={showMarks ? p.mark : null} />
+                <CoolingPieceIcon shape={p.shape} color={p.color} />
                 <span>{t(p.nameKey)}</span>
               </li>
             ))}
           </ul>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
       board={(interactive) => (
@@ -167,7 +165,6 @@ export function CoolingPractice() {
           report={shown.lastMove}
           version={api.version}
           interactive={interactive}
-          showMarks={showMarks}
           onSwap={onSwap}
           preview={preview}
           onFrame={api.markRendered}

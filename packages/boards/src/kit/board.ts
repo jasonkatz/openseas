@@ -2,29 +2,33 @@
  * The base every prototype board's renderer extends (ADR 0036). It owns the PixiJS application, the
  * frame loop, the tween clock, the effects layer and the pointer plumbing, and it speaks the same
  * contract to the page and the smoke test as the game's hand-built boards: `setState`,
- * `setInteractive`, `setShowMarks`, `keyboard`, a `data-testid="<id>-canvas"` canvas, and a
- * `data-view` attribute that says what is drawn once the board has settled.
+ * `setInteractive`, `keyboard`, a `data-testid="<id>-canvas"` canvas, and a `data-view` attribute
+ * that says what is drawn once the board has settled.
+ *
+ * A board follows the brand book (docs/BRAND.md, ADR 0061, ADR 0062): it draws its pieces in code
+ * as pictograms (`piece`, `pictogram.ts`), sits on the bare ground (`paintGround`) and marks a big
+ * moment with `beat`. It loads no image, and its canvas says so with `data-pieces="drawn"`.
  *
  * A renderer draws and reports input. It never scores and never decides what a move does: it asks
  * the engine (CLAUDE.md, "boards is presentation and transport only").
  */
-import { Application, Container, Graphics, Rectangle, Texture, type FederatedPointerEvent } from "pixi.js";
-import { drawSprite, hasSprite, isSpritePuzzle, loadPuzzleSprites, spritesReady } from "../sprites/atlas.js";
-import { soundsFor } from "../audio.js";
-import { boardSurface } from "../surface.js";
+import { Application, CanvasSource, Container, Graphics, Rectangle, Texture, type FederatedPointerEvent } from "pixi.js";
+import { boardSurface, retireTextures } from "../surface.js";
+import { FONT, type Token } from "../look/tokens.js";
+import { drawGround } from "./art.js";
 import { Fx } from "./fx.js";
+import { pictogramCanvas, type Paint } from "./pictogram.js";
 import { Tweens } from "./tween.js";
 
 export abstract class KitBoard<S> {
   readonly app = new Application();
-  /** Everything the board draws. A shake moves it as one. */
+  /** Everything the board draws. The beat swells it as one. */
   protected readonly world = new Container();
   protected readonly tweens = new Tweens();
   protected readonly reduced = typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
   protected readonly fx = new Fx(this.world, this.reduced);
   protected state: S | null = null;
   protected interactive = false;
-  protected showMarks: boolean;
   /** Ms since the board was made, for idle motion (a pulse, a shimmer). */
   protected time = 0;
   private ready = false;
@@ -32,30 +36,18 @@ export abstract class KitBoard<S> {
   private framePending = false;
   private viewStale = false;
   private readonly baked = new Map<string, Texture>();
-  /**
-   * Atlas frames drawn down to the size they are shown at. Kept for the board's life, not dropped at
-   * a layout: a layer the layout does not redraw still holds its fills, and a freed texture under a
-   * fill is a crash at the next frame. Sizes are rounded up to a step, so a resize makes few of them.
-   */
-  private readonly frames = new Map<string, Texture>();
-
-  private readonly releaseSounds: () => void;
 
   /**
    * @param host the element the canvas fills.
-   * @param id the puzzle id: the canvas is `data-testid="<id>-canvas"`, and the board's sprites are the atlas of that name.
+   * @param id the puzzle id: the canvas is `data-testid="<id>-canvas"`.
    * @param onFrame called on the first settled frame after each new state, for the latency meter.
    */
   constructor(
     protected readonly host: HTMLElement,
     private readonly id: string,
     private readonly onFrame: () => void,
-    showMarks: boolean,
   ) {
-    this.showMarks = showMarks;
     if (this.reduced) this.tweens.rate = 4;
-    // The puzzle's picked samples play while the board is open (ADR 0041).
-    this.releaseSounds = soundsFor(id);
   }
 
   /** True once the canvas exists. Before that, state and settings are held until `init` resolves. */
@@ -64,8 +56,10 @@ export abstract class KitBoard<S> {
   }
 
   async init(): Promise<void> {
-    // One decode a page (ADR 0037). An atlas that fails or times out leaves the code-drawn pieces.
-    if (isSpritePuzzle(this.id)) await loadPuzzleSprites(this.id);
+    // Text is measured when it is drawn, so the faces must be in before the first layout: a label
+    // measured under a fallback face is clipped once the real one arrives. Never wait long for them.
+    const faces = [FONT.mono, FONT.body].map((family) => document.fonts?.load(`700 16px ${family}`));
+    await Promise.race([Promise.all(faces), new Promise((r) => window.setTimeout(r, 800))]).catch(() => undefined);
     await this.app.init({ resizeTo: this.host, backgroundAlpha: 0, ...boardSurface(), autoDensity: true, preference: "webgl" });
     if (this.destroyed) {
       this.app.destroy(true);
@@ -74,7 +68,8 @@ export abstract class KitBoard<S> {
     const canvas = this.app.canvas;
     canvas.style.touchAction = "none";
     canvas.setAttribute("data-testid", `${this.id}-canvas`);
-    canvas.setAttribute("data-sprite-atlas", isSpritePuzzle(this.id) && spritesReady(this.id) ? this.id : "fallback");
+    // The pieces are drawn in code: the page and the smoke read this to know the board has its art.
+    canvas.dataset.pieces = "drawn";
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.host.appendChild(canvas);
     this.app.stage.addChild(this.world);
@@ -98,15 +93,12 @@ export abstract class KitBoard<S> {
 
   destroy(): void {
     this.destroyed = true;
-    this.releaseSounds();
     this.tweens.clear();
     if (this.ready) {
       this.ready = false;
       this.dispose();
       this.app.destroy(true, { children: true });
       this.dropBaked();
-      for (const t of this.frames.values()) t.destroy(true);
-      this.frames.clear();
     }
   }
 
@@ -130,12 +122,6 @@ export abstract class KitBoard<S> {
     this.interactive = on;
     if (!on) this.pointerCancel();
     if (this.ready) this.onInteractive(on);
-  }
-
-  setShowMarks(on: boolean): void {
-    if (this.showMarks === on) return;
-    this.showMarks = on;
-    if (this.ready) this.relayout();
   }
 
   /** A key went down. Return true when the board used it, so the page does not scroll. */
@@ -187,7 +173,7 @@ export abstract class KitBoard<S> {
   /**
    * A texture drawn once and kept until the next layout: `draw` paints into a square of `size`
    * pixels centred on (0, 0). Pieces are sprites of these, so a board of them costs one draw each.
-   * Include in `key` everything the drawing depends on besides the size (the kind, marks on or off).
+   * Include in `key` everything the drawing depends on besides the size (the kind, its state).
    */
   protected bake(key: string, size: number, draw: (g: Graphics) => void): Texture {
     const hit = this.baked.get(key);
@@ -206,40 +192,40 @@ export abstract class KitBoard<S> {
     this.baked.clear();
   }
 
-  /** True when the board's atlas is loaded and holds `name`. A kind or a lab setting past the sheet has no frame. */
-  protected hasSprite(name: string): boolean {
-    return isSpritePuzzle(this.id) && hasSprite(this.id, name);
+  /**
+   * A pictogram as a texture, kept until the next layout like `bake`: `paint` draws on the 24 unit
+   * square in `color`, and the texture is `size` CSS pixels square with the art at `fit` of it
+   * (20/24 by default). Put everything the drawing depends on in `key` (the piece, its state);
+   * the colour and the size are added. This is how a board makes every piece.
+   */
+  protected piece(key: string, size: number, color: Token, paint: Paint, fit?: number): Texture {
+    const id = `piece:${key}:${color}:${size}:${fit ?? ""}`;
+    const hit = this.baked.get(id);
+    if (hit) return hit;
+    const resolution = this.app.renderer.resolution;
+    const texture = new Texture({ source: new CanvasSource({ resource: pictogramCanvas(size, color, paint, resolution, fit), resolution }) });
+    this.baked.set(id, texture);
+    return texture;
   }
 
   /**
-   * Paint the atlas frame `name` into `g`, its art fitted in a square of `size` centred on (x, y).
-   * Returns false, having drawn nothing, when there is no such frame: the caller then draws the
-   * piece in code, so `this.sprite(...) || drawPiece(...)` is the whole of a fallback.
-   *
-   * The frame is drawn down once to about the pixels it is shown at, since a 192px frame sampled
-   * straight into a 40px cell shimmers. `natural` is the size to draw it down for when `size` is animated.
-   * `turns` draws the art that many quarter turns clockwise, for a sprite that is itself turned back.
+   * Paint the playfield into `g`: bare ground with one hairline round it, no frame and no grid
+   * (docs/BRAND.md section 3). The rectangle is also where the beat pulses, so give it the whole
+   * board: the grid and any strip drawn with it. Pass `hairline` false where the edge that matters
+   * is inside it (a grid with ports round it) and draw that one with `drawHairline`.
    */
-  protected sprite(g: Graphics, name: string, x: number, y: number, size: number, alpha = 1, natural = size, turns = 0): boolean {
-    if (!isSpritePuzzle(this.id) || !hasSprite(this.id, name) || size <= 0.5) return false;
-    const full = size * FRAME_FIT;
-    const px = Math.max(FRAME_STEP, Math.ceil((natural * FRAME_FIT * this.app.renderer.resolution) / FRAME_STEP) * FRAME_STEP);
-    const key = `${name}@${px}@${turns}`;
-    let texture = this.frames.get(key);
-    if (!texture) {
-      const canvas = document.createElement("canvas");
-      canvas.width = canvas.height = px;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return false;
-      ctx.imageSmoothingQuality = "high";
-      ctx.translate(px / 2, px / 2);
-      ctx.rotate((turns * Math.PI) / 2);
-      drawSprite(ctx, this.id, name, -px / 2, -px / 2, px, px);
-      texture = Texture.from(canvas);
-      this.frames.set(key, texture);
-    }
-    g.rect(x - full / 2, y - full / 2, full, full).fill({ texture, textureSpace: "local", alpha });
-    return true;
+  protected paintGround(g: Graphics, x: number, y: number, w: number, h: number, hairline = true): void {
+    drawGround(g, x, y, w, h, hairline);
+    this.fx.setFrame(x, y, w, h);
+  }
+
+  /**
+   * The beat (docs/BRAND.md section 6): one amber pulse of the whole board, 420ms, a still flash
+   * under reduced motion. `strength` is 0 to 1. Reserve it for the puzzle's named compound move and
+   * at most two other rare things; it is the only big effect a board has.
+   */
+  protected beat(strength = 0.5): void {
+    this.fx.beat(strength);
   }
 
   /** Tell the smoke test where the grid sits on the canvas, in CSS pixels: `data-geom="ox,oy,cell"`. */
@@ -258,8 +244,11 @@ export abstract class KitBoard<S> {
     this.fx.clear();
     const { width, height } = this.app.screen;
     this.fx.resize(width, height);
-    this.dropBaked();
+    // The new size bakes every piece again; the old textures go once nothing is drawn with them.
+    const old = [...this.baked.values()];
+    this.baked.clear();
     this.layout(width, height);
+    retireTextures(this.app.stage, old);
     this.viewStale = true;
   }
 
@@ -279,11 +268,6 @@ export abstract class KitBoard<S> {
     }
   }
 }
-
-/** A frame is 192 pixels and its art is fitted in the middle 176 (`sprites/README.md`). */
-export const FRAME_FIT = 192 / 176;
-/** Drawn-down frames come in sizes this many pixels apart. */
-const FRAME_STEP = 8;
 
 /** A rectangular grid of square cells laid out in the canvas: where each cell is, and which cell a point is in. Row 0 is the top row. */
 export class Grid {

@@ -6,7 +6,6 @@ import { BattleRenderer, battleViewString } from "./renderer.js";
 export interface BattleBoardProps {
   state: BattleState;
   interactive: boolean;
-  showMarks: boolean;
   showArcs: boolean;
   /** Ms left on the turn clock, or null when the clock is not running; and a turn's length. */
   turnLeftMs: number | null;
@@ -46,7 +45,6 @@ export function BattleBoard(props: BattleBoardProps) {
         onNudge: () => latest.current.onNudge(),
       },
       {
-        showMarks: props.showMarks,
         showArcs: props.showArcs,
         labels: {
           you: t("battle.you"),
@@ -104,10 +102,6 @@ export function BattleBoard(props: BattleBoardProps) {
     const r = renderer.current;
     if (r && r.app.renderer) r.setInteractive(props.interactive);
   }, [props.interactive]);
-
-  useEffect(() => {
-    renderer.current?.setShowMarks(props.showMarks);
-  }, [props.showMarks]);
 
   useEffect(() => {
     renderer.current?.setShowArcs(props.showArcs);

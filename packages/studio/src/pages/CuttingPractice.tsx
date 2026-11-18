@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { summarizeCutting, type CuttingConfig, type CuttingMove, type CuttingState } from "@openseas/engine";
-import { content, CuttingBoard, KindIcon, KINDS, spriteName, t } from "@openseas/boards";
+import { content, CUTTING_ORES, CuttingBoard, CuttingOreIcon, t } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
-import { MarksToggle, PracticeShell, useShowMarks } from "../practice/PracticeShell.jsx";
+import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { CUTTING } from "../prototypes/cutting.js";
 
@@ -15,7 +15,6 @@ function yieldPercent(state: CuttingState): number | null {
 
 /** Cutting (prototype, ADR 0036): the shared board in the studio's frame. */
 export function CuttingPractice() {
-  const [showMarks, setShowMarks] = useShowMarks();
   const api = usePractice<CuttingState, CuttingMove, CuttingConfig>({
     puzzle: "cutting",
     def: CUTTING.def,
@@ -31,7 +30,7 @@ export function CuttingPractice() {
   const onCut = useCallback((piece: number, vertical: boolean, at: number) => void api.apply({ type: "cut", piece, vertical, at }), [api]);
   const onDone = useCallback(() => void api.apply({ type: "done" }), [api]);
 
-  const ores = KINDS.slice(0, cfg.ores);
+  const ores = CUTTING_ORES.slice(0, cfg.ores);
   const roundYield = yieldPercent(shown);
   const finalYield = yieldPercent(state);
 
@@ -106,7 +105,7 @@ export function CuttingPractice() {
           <ul className="kinds">
             {ores.map((k, i) => (
               <li key={k.id}>
-                <KindIcon kind={i} marks={showMarks} sprite={{ puzzle: "cutting", name: spriteName("ore", i), fill: true }} />
+                <CuttingOreIcon kind={i} />
                 <span>{t(`cutting.ore.${k.id}`)}</span>
               </li>
             ))}
@@ -115,11 +114,10 @@ export function CuttingPractice() {
           <p className="muted small proto-note">{t("cutting.legend_cut")}</p>
           <p className="muted small proto-note">{t("cutting.legend_strip")}</p>
           <p className="muted small proto-note">{t("cutting.grade_note")}</p>
-          <MarksToggle showMarks={showMarks} onChange={setShowMarks} />
         </>
       }
       board={(interactive) => (
-        <CuttingBoard state={shown} version={api.version} interactive={interactive} showMarks={showMarks} hints={studio.hints} onCut={onCut} onDone={onDone} onFrame={api.markRendered} />
+        <CuttingBoard state={shown} version={api.version} interactive={interactive} hints={studio.hints} onCut={onCut} onDone={onDone} onFrame={api.markRendered} />
       )}
     />
   );

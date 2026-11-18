@@ -23,8 +23,7 @@ export function PlayPanel({ phase, onStart }: { phase: PracticePhase; onStart(se
   const presets = puzzle.presets.filter((p: Preset) => Object.keys(p.overrides).length > 0 || p.roundSeconds !== undefined);
   const applyPreset = (id: string): void => {
     const p = presets.find((x) => x.id === id);
-    // A starting point is numbers: the draft's picks stay.
-    if (p) setScenario({ ...withoutNumbers(scenario), picks: scenario.picks, overrides: p.overrides, roundSeconds: p.roundSeconds ?? null });
+    if (p) setScenario({ ...withoutNumbers(scenario), overrides: p.overrides, roundSeconds: p.roundSeconds ?? null });
   };
   const hold = (on: boolean) => (): void => frame.setComparing(on);
 

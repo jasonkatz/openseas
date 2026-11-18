@@ -167,12 +167,13 @@ async function spot(page: Page, col: number, row: number, dir: Dir | null = null
   return [g.ox + (col + 0.5 + (dir === null ? 0 : DX[dir]!) * lean) * g.cell, g.oy + (row + 0.5 + (dir === null ? 0 : DY[dir]!) * lean) * g.cell];
 }
 
-/** The deck with its rails and the feeder's queue above it. */
+/** The deck with its rails, the turrets' barrels poking out of its sides and the feeder's queue above it. */
 async function region(page: Page): Promise<Box> {
   const box = await canvasBox(page, "gunnery");
   const g = await boardGeom(page, "gunnery");
   const w = cfg.decks[0]![0]!.length;
-  return padded({ x: g.ox, y: box.y, width: w * g.cell, height: box.height }, 10, box);
+  // Nothing frames the board now: a third of a tile each side takes in the barrels.
+  return padded({ x: g.ox - g.cell / 3, y: box.y, width: (w + 2 / 3) * g.cell, height: box.height }, 4, box);
 }
 
 /** A lab round with its clock stopped at the start. */

@@ -1,6 +1,6 @@
 # Engines
 
-Status: in the game. Built in M2. In the studio at `/engines`.
+Status: in the game. Built in M2; restyled to the brand book in M10 (ADR 0061, ADR 0062). In the studio at `/engines`.
 
 ## The puzzle
 
@@ -23,14 +23,18 @@ A duty station: the drive console. Its output becomes the ship's movement tokens
 ## Rules and scoring
 
 A 12 wide by 20 tall drive core; the cells are small because nothing is tapped
-individually, so the whole board fits a phone screen with room to work in. Pieces are fuel pellets, round discs rather than tiles, so Engines
-never reads as Cooling: conjoined pairs of two pellets in three kinds (plasma, ion and fusion; drawn as riveted
-discs: a red trefoil, a yellow three-spoke and cyan rings, each target ring in its piece's color),
-each with an optional mark, and the two halves of
-a pair stay visibly joined while both are on the board. Six injectors sit in the board at a time,
+individually, so the whole board fits a phone screen with room to work in. Pieces are fuel pellets:
+conjoined pairs of two pellets in three kinds (plasma, ion and fusion), each a pictogram with a
+silhouette of its own, drawn in code (`boards/src/engines/pellets.ts`, `docs/BRAND.md` section 3).
+A kind is told from every other by its outline alone: plasma is a flame in rose, ion a plus in sand,
+fusion a ring in sky, and the studio's extra lab kind, nova, a star in lilac. A kind's target is the
+same outline drawn hollow and a little larger, in the kind's colour, so it shows round whatever
+lands in it. Content names each kind's shape and its palette colour. The two halves of
+a pair stay visibly joined, by a short bar, while both are on the board. Six injectors sit in the board at a time,
 never touching. An injector is a connected shape of cells: a bar of two to four, a stack of two or
-three, an L of three, or a two-by-two square; some cells are outlined round targets that want a
-kind, the rest are blanks that hold anything. An injector cell has a shelf under it when no cell of
+three, an L of three, or a two-by-two square; some cells are targets that want a
+kind, the rest are blanks that hold anything. An injector is drawn as a flat raised shape with a bar
+along the bottom of every cell that has a shelf and a small dot in every blank. An injector cell has a shelf under it when no cell of
 the same injector is directly beneath, so a pellet rests in a bar's cells or a stack's bottom cell
 and the cells above fill by falling in, while any cell can be entered from the side. When every
 target on an injector holds its kind the injector fires, its target pellets go, the shape is gone and
@@ -65,10 +69,21 @@ was, and the other half swings around it. Turned upright in the top row, the oth
 the board until the pair has sunk a row. Only a turn that does not fit moves the pivot, a column aside.
 The next pair is under the player's control the moment the last one lands, while the board below
 plays out its clears, each cascade step waiting for the pieces to land before the next clear; the
-pair after it is previewed in a strip above the core on every layout. The landing ghost is a
-thin ring so the target under it stays readable, and glows when the pellet would fill a target of
-its own kind. Sliding into a spot that rests (a shelf or a stack beneath) mid-fall sits the pair up
+pair after it is previewed in a strip above the core on every layout. The landing ghost is each
+half's outline in amber, the player's own, so the target under it stays readable; a half that would
+fill a target of its own kind is filled in and outlined in cream instead. Sliding into a spot that rests (a shelf or a stack beneath) mid-fall sits the pair up
 on it rather than letting it sink past.
+A pellet that falls after a clear moves to its place in a short eased move; a cleared pellet shrinks
+to nothing and its points rise from where it was. An injector firing and each step of a chain past
+the first are named in one cream callout; a flameout's is red. Nothing shakes, sparks or glows
+(`docs/BRAND.md` section 6). **The beat**, one amber pulse of the whole board, is kept for two
+things: a chain's third step and beyond (the compound move), stronger the longer the chain, and two
+or more injectors fired in one step. Reduced motion turns moves into cuts and keeps the beat as a
+still flash; the fall, the hurry and the lock are the puzzle's timing and do not change. There is no
+frame round the board and no grid: the playfield is bare ground inside one hairline, with a dot in
+each of the two cells a pair enters by, where a pellet left standing flames the core out. Each
+kind's pellet, target and ghost are baked once per layout with Canvas 2D, and the legend and the
+next-pair preview use the same drawing. There is no marks setting on this board.
 Numbers live in `content/data/puzzles/engines.json`.
 
 ## Engine

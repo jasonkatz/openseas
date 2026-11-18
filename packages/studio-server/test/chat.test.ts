@@ -159,7 +159,7 @@ describeDb("chat", () => {
     rmSync(tmp, { recursive: true, force: true });
   });
 
-  const numbers = (over: Partial<DraftNumbers> = {}): DraftNumbers => ({ seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, picks: { sprites: {}, sounds: {} }, words: { texts: {}, category: null }, ...over });
+  const numbers = (over: Partial<DraftNumbers> = {}): DraftNumbers => ({ seed: null, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null, words: { texts: {}, category: null }, ...over });
   const send = (method: string, path: string, body?: unknown): Promise<Response> => fetch(`${base}${path}`, { method, headers: { origin: STUDIO, cookie: session }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const open = async (n: DraftNumbers): Promise<Draft> => DraftSchema.parse(await (await send("POST", "/drafts", { puzzle: "cooling", numbers: n })).json());
   /** The chat each draft's tests talk in (ADR 0060): the first message to a draft starts one, and the ones after go to it. */

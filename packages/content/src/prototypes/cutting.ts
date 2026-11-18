@@ -5,7 +5,7 @@ export const CuttingContentSchema = PrototypeBaseSchema.extend({
   config: z.object({
     width: z.int().min(2).max(8),
     height: z.int().min(2).max(8),
-    /** Kinds of ore. The board draws the first `ores` placeholder kinds. */
+    /** Kinds of ore. The board draws the first `ores` of its eight (`boards/src/cutting/pieces.ts`). */
     ores: z.int().min(2).max(8),
     /** Blocks the first slab is dealt from; one more every `growEvery` slabs, up to `partsMax`. */
     partsStart: z.int().min(2),

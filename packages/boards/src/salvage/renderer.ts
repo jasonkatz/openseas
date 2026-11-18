@@ -14,9 +14,10 @@ import {
   type SalvageState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT, INK, drawMark, drawPanel, drawPiece, drawWell, kindStyle, mix, spriteName } from "../kit/art.js";
+import { MOTION } from "../look/tokens.js";
+import { FONT_MONO, INK } from "../kit/art.js";
 import { Grid, KitBoard } from "../kit/board.js";
-import { ease } from "../kit/tween.js";
+import { SALVAGE_COUPLER_COLOR, SALVAGE_COUPLER_PAINT, SALVAGE_CRATE_COLOR, SALVAGE_CRATE_PAINT, salvageKind } from "./pieces.js";
 
 export interface SalvageCallbacks {
   /** The player let go of a line the engine would take. */
@@ -40,7 +41,6 @@ export interface SalvageLabels {
 }
 
 export interface SalvageRendererOptions {
-  showMarks: boolean;
   /** Pulse a line worth drawing after a pause. Off for recorded rounds. */
   hints: boolean;
   labels: SalvageLabels;
@@ -52,9 +52,17 @@ interface PieceView {
   cell: number;
 }
 
+/** The strip over the field, in cells: what the line being drawn is worth. */
+const STRIP = 0.95;
 const HINT_AFTER_MS = 6000;
-const TETHER = 0x7fd7ff;
-const NET = 0xf5d58a;
+/** Lines this long are called out; the longer one is the beat. */
+const LONG = 8;
+const MIGHTY = 12;
+/** A ring round a piece: 2 units wide, 2 units off it. */
+const RING_R = 0.45;
+const RING_W = 0.07;
+/** A piece on the line stands a little larger than the rest. */
+const LIFT = 1.1;
 
 /** Draws the salvage field and turns a drag into a tether. Scores nothing: every number it shows is the engine's. */
 export class SalvageRenderer extends KitBoard<SalvageState> {
@@ -62,11 +70,10 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
   private readonly bg = new Graphics();
   private readonly hintLayer = new Graphics();
   private readonly pieceLayer = new Container();
-  /** Pieces drifting in from above are hidden until they are inside the panel. */
+  /** Pieces drifting in from above are hidden until they are inside the field. */
   private readonly pieceMask = new Graphics();
   private readonly lineLayer = new Graphics();
   private readonly cursorLayer = new Graphics();
-  private readonly emitter = new Graphics();
   private label: Text | null = null;
   private readonly pieces = new Map<number, PieceView>();
   /** The line being drawn, as cell indexes, and whether it has been closed back onto its first piece. */
@@ -87,7 +94,7 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     private readonly cb: SalvageCallbacks,
     private readonly opts: SalvageRendererOptions,
   ) {
-    super(host, "salvage", cb.onFrame, opts.showMarks);
+    super(host, "salvage", cb.onFrame);
     this.hints = opts.hints;
   }
 
@@ -96,11 +103,11 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
   }
 
   protected build(): void {
-    this.label = new Text({ text: "", style: { fontFamily: FONT, fontSize: 16, fontWeight: "700", fill: INK.text, letterSpacing: 0.5 } });
+    this.label = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 16, fontWeight: "700", fill: INK.cream }, resolution: 2 });
     this.label.anchor.set(0.5);
     this.pieceLayer.sortableChildren = true;
     this.pieceLayer.mask = this.pieceMask;
-    this.world.addChild(this.pieceMask, this.bg, this.emitter, this.hintLayer, this.pieceLayer, this.lineLayer, this.cursorLayer, this.label);
+    this.world.addChild(this.pieceMask, this.bg, this.hintLayer, this.pieceLayer, this.lineLayer, this.cursorLayer, this.label);
   }
 
   protected layout(width: number, height: number): void {
@@ -109,19 +116,25 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
       g.cols = this.state.config.width;
       g.rows = this.state.config.height;
     }
-    g.fit(width, height, { top: 0.95, margin: 8 });
+    g.fit(width, height, { top: STRIP, margin: 8 });
     const pad = Math.max(4, g.cell * 0.12);
-    const strip = g.cell * 0.95;
+    const strip = g.cell * STRIP;
+    // Bare ground under the strip and the field. The field is always full, so no cell needs a dot,
+    // and the one hairline is the edge that matters: the floor, where a crate that has sunk is taken.
     this.bg.clear();
-    drawPanel(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + pad * 2, Math.max(10, g.cell * 0.28));
-    for (let i = 0; i < g.cols * g.rows; i++) drawWell(this.bg, g.x(i) - g.cell / 2, g.y(i) - g.cell / 2, g.cell);
-    // The floor: where a crate that has sunk is taken.
-    this.bg.roundRect(g.ox, g.oy + g.height - 3, g.width, 4, 2).fill({ color: INK.brass, alpha: 0.55 });
-    this.pieceMask.clear().rect(g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + pad * 2).fill({ color: 0xffffff });
-    this.drawEmitter(false);
+    this.paintGround(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + pad * 2, false);
+    const floor = g.oy + g.height + pad / 2;
+    this.bg
+      .moveTo(g.ox, floor)
+      .lineTo(g.ox + g.width, floor)
+      .stroke({ width: 1, color: INK.line });
+    this.pieceMask
+      .clear()
+      .rect(g.ox - pad, g.oy, g.width + pad * 2, g.height + pad)
+      .fill({ color: INK.cream });
     if (this.label) {
-      this.label.style.fontSize = Math.max(12, Math.round(g.cell * 0.36));
-      this.label.position.set(g.ox + g.width / 2, g.oy - strip * 0.34);
+      this.label.style.fontSize = Math.max(12, Math.round(g.cell * 0.34));
+      this.label.position.set(g.ox + g.width / 2, g.oy - strip * 0.5);
     }
     this.cursor = Math.min(this.cursor, g.cols * g.rows - 1);
     this.publishGeom(g.ox, g.oy, g.cell);
@@ -130,38 +143,13 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     this.drawCursor();
   }
 
-  /** The tractor emitter in the strip over the field: where hauled pieces fly to. */
-  private drawEmitter(active: boolean): void {
-    const g = this.grid;
-    const { x, y } = this.emitterAt();
-    const r = g.cell * 0.2;
-    this.emitter.clear();
-    this.emitter.roundRect(x - r * 2.4, y - r * 0.5, r * 4.8, r, r * 0.5).fill({ color: active ? mix(INK.brass, INK.white, 0.25) : INK.brass, alpha: active ? 1 : 0.75 });
-    this.emitter.circle(x, y, r * 0.55).fill({ color: active ? TETHER : INK.edge });
-    if (active) this.emitter.circle(x, y, r * 1.1).fill({ color: TETHER, alpha: 0.18 });
-  }
-
-  private emitterAt(): { x: number; y: number } {
-    const g = this.grid;
-    return { x: g.ox + g.width / 2, y: g.oy - g.cell * 0.95 * 0.82 };
-  }
-
+  /** A piece's picture: its outline says which kind of debris it is, or that it is a crate or a coupler. */
   private texture(kind: number): Texture {
     const cell = this.grid.cell;
-    return this.bake(`${kind}:${this.showMarks ? 1 : 0}`, cell, (g) => {
-      const r = cell * 0.36;
-      // The painted piece where the sheet has one, the code-drawn one where it does not.
-      const art = cell * 0.84;
-      if (kind === SALVAGE_CRATE) this.sprite(g, "crate", 0, 0, art) || drawCrate(g, cell * 0.34);
-      else if (kind === SALVAGE_COUPLER) this.sprite(g, "coupler", 0, 0, art) || drawCoupler(g, r);
-      else if (this.sprite(g, spriteName("debris", kind), 0, 0, art)) {
-        if (this.showMarks) drawMark(g, kind, 0, 0, r);
-      } else drawPiece(g, kind, 0, 0, r, { marks: this.showMarks });
-    });
-  }
-
-  private colorOf(kind: number): number {
-    return kind === SALVAGE_CRATE ? 0xc98a4b : kind === SALVAGE_COUPLER ? INK.white : kindStyle(kind).color;
+    if (kind === SALVAGE_CRATE) return this.piece("crate", cell, SALVAGE_CRATE_COLOR, SALVAGE_CRATE_PAINT);
+    if (kind === SALVAGE_COUPLER) return this.piece("coupler", cell, SALVAGE_COUPLER_COLOR, SALVAGE_COUPLER_PAINT);
+    const k = salvageKind(kind);
+    return this.piece(`debris:${k.id}`, cell, k.color, k.paint);
   }
 
   /** Put exactly these pieces on the field, each on its cell, with nothing in motion. */
@@ -177,7 +165,6 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
       v.s.position.set(this.grid.x(cell), this.grid.y(cell));
       v.s.scale.set(1);
       v.s.alpha = 1;
-      v.s.rotation = 0;
     });
     for (const [id, v] of this.pieces) {
       if (seen.has(id)) continue;
@@ -218,115 +205,97 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     this.play(state, report);
   }
 
-  /** Play a haul out: the line reeled in, the net, then each round of falling and floor crates. */
+  /** Play a haul out: the line hauled piece by piece, the net, then each round of falling and floor crates. */
   private play(state: SalvageState, r: SalvageMoveReport): void {
     const g = this.grid;
-    const em = this.emitterAt();
+    const L = this.opts.labels;
     const n = r.line.length;
     const step = Math.min(46, 340 / n);
-    this.drawEmitter(true);
 
-    const reel = (id: number, delay: number, ms = 240): void => {
+    /** A hauled piece shrinks to nothing where it is. */
+    const haul = (id: number, delay: number): void => {
       const v = this.pieces.get(id);
       if (!v) return;
       this.pieces.delete(id);
-      v.s.zIndex = 2;
-      this.tweens.to(v.s, { x: em.x, y: em.y, scale: 0.25, alpha: 0.2 }, ms, { delay, ease: ease.inBack, done: () => v.s.destroy() });
+      this.tweens.remove(v.s, { delay, done: () => v.s.destroy() });
     };
 
+    // The line goes in the order it was drawn, each piece a step higher than the last.
     r.line.forEach((h, i) => {
-      const x = g.x(h.cell);
-      const y = g.y(h.cell);
-      this.tweens.after(i * step, () => {
-        sfx.pop(Math.min(9, i));
-        this.fx.burst(x, y, this.colorOf(h.kind), 4, 0.16, 3);
-      });
-      reel(h.id, i * step);
+      this.tweens.after(i * step, () => sfx.pop(Math.min(9, i)));
+      haul(h.id, i * step);
     });
-    let t = (n - 1) * step + 150;
+    let t = (n - 1) * step + MOTION.clear;
     const last = r.line[n - 1]!;
+    const netted = r.netted.length;
     this.tweens.after(t - 60, () => {
-      this.fx.popup(g.x(last.cell), g.y(last.cell) - g.cell * 0.2, `+${r.haulPoints}`, r.loop ? NET : INK.gold, Math.max(16, g.cell * (n >= 8 ? 0.6 : 0.46)));
-      if (n >= 12) this.fx.say(this.opts.labels.mightyHaul, INK.gold);
-      else if (n >= 8) this.fx.say(this.opts.labels.longHaul, INK.gold);
-      else if (r.streak >= 3 && !r.loop) this.fx.say(this.opts.labels.streak(r.streak), TETHER);
-      if (n >= 8) this.fx.shake(Math.min(10, n * 0.6), 220);
+      this.fx.popup(g.x(last.cell), g.y(last.cell) - g.cell * 0.2, `+${r.haulPoints}`, INK.cream, Math.max(16, g.cell * (n >= LONG ? 0.6 : 0.46)));
+      // One callout a haul, and the beat for the two rare things: a net that brings crates in,
+      // stronger for each crate, and a mighty line.
+      if (r.loop) {
+        this.fx.say(netted > 0 ? L.net(netted) : L.netEmpty);
+        // The beat has one sound of its own, so a net that brings crates in plays no cue over it.
+        if (netted > 0) this.beat(Math.min(1, 0.35 + netted * 0.2));
+        else sfx.good();
+      } else if (n >= MIGHTY) {
+        this.fx.say(L.mightyHaul);
+        this.beat(0.6);
+      } else if (n >= LONG) this.fx.say(L.longHaul);
+      else if (r.streak >= 3) this.fx.say(L.streak(r.streak));
     });
 
     if (r.loop) {
       const cx = r.line.reduce((a, h) => a + g.x(h.cell), 0) / n;
       const cy = r.line.reduce((a, h) => a + g.y(h.cell), 0) / n;
-      this.tweens.after(t - 40, () => {
-        this.fx.ring(cx, cy, NET, g.cell * 0.4, g.cell * 2.6, 520, 4);
-        this.fx.flash(NET, 0.14, 260);
-        this.fx.say(r.netted.length > 0 ? this.opts.labels.net(r.netted.length) : this.opts.labels.netEmpty, NET);
-        if (r.netted.length > 0) sfx.streak(r.netted.length * 4);
-        else sfx.good();
-      });
-      r.enclosed.forEach((h, i) => reel(h.id, t + i * 40));
+      r.enclosed.forEach((h, i) => haul(h.id, t + i * 40));
       r.netted.forEach((h, i) => {
         const x = g.x(h.cell);
         const y = g.y(h.cell);
         this.tweens.after(t + i * 110, () => {
-          this.fx.beam([cx, cy, x, y], NET, 3, 300);
-          this.fx.burst(x, y, 0xc98a4b, 10, 0.24, 4);
+          // The net reaches each crate wherever it is: one line from the loop to it.
+          this.fx.beam([cx, cy, x, y], INK.cream, Math.max(2, g.cell * RING_W), 300);
           sfx.slag();
         });
-        reel(h.id, t + i * 110 + 60, 300);
+        haul(h.id, t + i * 110 + 60);
       });
-      t += 200 + r.netted.length * 110 + r.enclosed.length * 40;
+      t += 200 + netted * 110 + r.enclosed.length * 40;
     }
 
     r.rounds.forEach((round) => {
       if (round.floor.length > 0) {
         const at = t;
-        for (const h of round.floor) {
-          const v = this.pieces.get(h.id);
-          if (!v) continue;
-          this.pieces.delete(h.id);
-          this.tweens.to(v.s, { y: g.oy + g.height + g.cell * 0.6, alpha: 0 }, 220, { delay: at, ease: ease.inCubic, done: () => v.s.destroy() });
-        }
+        for (const h of round.floor) haul(h.id, at);
         this.tweens.after(at, () => {
           sfx.thud();
           const each = Math.round(round.points / round.floor.length);
-          for (const h of round.floor) this.fx.popup(g.x(h.cell), g.oy + g.height - g.cell * 0.3, `+${each}`, 0xc98a4b, Math.max(14, g.cell * 0.4));
+          for (const h of round.floor) this.fx.popup(g.x(h.cell), g.oy + g.height - g.cell * 0.3, `+${each}`, INK.cream, Math.max(14, g.cell * 0.4));
         });
-        t += 200;
+        t += MOTION.clear + 40;
       }
-      let longest = 0;
       for (const f of round.falls) {
         const v = this.pieces.get(f.id);
         if (!v) continue;
         v.cell = f.to;
-        const rows = Math.round((f.to - f.from) / g.cols);
-        const ms = 150 + rows * 45;
-        longest = Math.max(longest, ms);
-        this.tweens.to(v.s, { y: g.y(f.to) }, ms, { delay: t, ease: ease.outBack });
+        this.tweens.move(v.s, { y: g.y(f.to) }, { delay: t });
       }
       for (const sp of round.spawned) {
-        const piece = { id: sp.id, kind: sp.kind };
-        const v = this.spawn(piece, sp.cell);
+        const v = this.spawn({ id: sp.id, kind: sp.kind }, sp.cell);
+        // It starts above the field, behind the mask, and drifts in.
         v.s.y = g.y(sp.cell) - sp.drop * g.cell;
-        v.s.alpha = 0;
-        const ms = 170 + sp.drop * 45;
-        longest = Math.max(longest, ms);
-        this.tweens.to(v.s, { y: g.y(sp.cell), alpha: 1 }, ms, { delay: t, ease: ease.outBack });
+        this.tweens.move(v.s, { y: g.y(sp.cell) }, { delay: t });
       }
-      t += longest + 30;
+      t += MOTION.move + 30;
     });
 
     if (r.shuffled) {
       this.tweens.after(t, () => {
-        this.fx.say(this.opts.labels.scrambled, INK.dim);
+        this.fx.say(L.scrambled, INK.dim);
         sfx.whoosh();
       });
       t += 120;
     }
     // Whatever the tweens did, the field ends as the engine holds it.
-    this.tweens.after(t, () => {
-      this.snap(state.cells);
-      this.drawEmitter(false);
-    });
+    this.tweens.after(t, () => this.snap(state.cells));
   }
 
   protected view(): string {
@@ -362,9 +331,10 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     }
     this.hintLayer.clear();
     if (!this.hint) return;
-    const pulse = 0.35 + 0.3 * Math.sin(this.time / 260);
+    // A hint is cream, never amber: it is the board's advice, not the player's own line.
+    const pulse = this.reduced ? 0.8 : 0.55 + 0.4 * Math.sin(this.time / 240);
     const g = this.grid;
-    for (const cell of this.hint.cells) this.hintLayer.circle(g.x(cell), g.y(cell), g.cell * 0.44).stroke({ width: 2.5, color: this.hint.loop ? NET : TETHER, alpha: pulse });
+    for (const cell of this.hint.cells) this.hintLayer.circle(g.x(cell), g.y(cell), g.cell * RING_R).stroke({ width: Math.max(2, g.cell * RING_W), color: INK.cream, alpha: pulse });
   }
 
   // ---- the line
@@ -377,7 +347,6 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     this.dragging = false;
     this.lineLayer.clear();
     this.setLabel("");
-    this.drawEmitter(false);
   }
 
   private viewAt(cell: number): PieceView | null {
@@ -387,7 +356,7 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
 
   private lift(cell: number, up: boolean): void {
     const v = this.viewAt(cell);
-    if (v) v.s.scale.set(up ? 1.14 : 1);
+    if (v) v.s.scale.set(up ? LIFT : 1);
   }
 
   private begin(cell: number): boolean {
@@ -402,7 +371,6 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     this.lift(cell, true);
     this.idle = 0;
     sfx.pop(0);
-    this.drawEmitter(true);
     this.refreshLine();
     return true;
   }
@@ -467,15 +435,19 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     const streak = long ? state.combo + 1 : state.combo > 0 && state.grace ? state.combo : 0;
     const points = Math.floor((value.base * salvageStreakPercentAt(state.config, streak)) / 100);
     const enough = this.path.length >= state.config.minLine;
-    this.setLabel(value.loop ? this.opts.labels.previewNet(value.netted.length, points) : this.opts.labels.preview(value.length, enough ? points : 0), value.loop ? NET : enough ? INK.text : INK.dim);
+    this.setLabel(value.loop ? this.opts.labels.previewNet(value.netted.length, points) : this.opts.labels.preview(value.length, enough ? points : 0), enough ? INK.cream : INK.dim);
   }
 
-  private setLabel(text: string, color: number = INK.text): void {
+  private setLabel(text: string, color: number = INK.cream): void {
     if (!this.label) return;
     this.label.text = text;
     this.label.style.fill = color;
   }
 
+  /**
+   * The tether: one flat line through the pieces on it. It is amber while it is the line in the
+   * player's hand, and cream once it is closed into a net, with a ring on every crate it will bring in.
+   */
   private drawLine(): void {
     const g = this.grid;
     const l = this.lineLayer;
@@ -485,34 +457,21 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     for (const cell of this.path) pts.push(g.x(cell), g.y(cell));
     if (this.closed) pts.push(g.x(this.path[0]!), g.y(this.path[0]!));
     else if (this.dragging) pts.push(this.pointer.x, this.pointer.y);
-    const color = this.closed ? NET : TETHER;
-    const width = Math.max(4, g.cell * 0.16);
-    if (this.closed) {
-      // The net: a wash inside the loop, and a ring on every crate it will bring in.
-      const poly: number[] = [];
-      for (const cell of this.path) poly.push(g.x(cell), g.y(cell));
-      l.poly(poly).fill({ color: NET, alpha: 0.16 });
-      const value = salvageLineValue(this.state, this.path, true);
-      const pulse = 0.6 + 0.4 * Math.sin(this.time / 140);
-      for (const cell of value.netted) l.circle(g.x(cell), g.y(cell), g.cell * 0.46).stroke({ width: 3, color: NET, alpha: pulse });
-      for (const cell of value.enclosed) l.circle(g.x(cell), g.y(cell), g.cell * 0.4).stroke({ width: 2, color: NET, alpha: 0.7 });
-    }
-    const stroke = (w: number, c: number, a: number): void => {
+    const ring = Math.max(2, g.cell * RING_W);
+    if (pts.length >= 4) {
       l.moveTo(pts[0]!, pts[1]!);
       for (let i = 2; i + 1 < pts.length; i += 2) l.lineTo(pts[i]!, pts[i + 1]!);
-      l.stroke({ width: w, color: c, alpha: a, cap: "round", join: "round" });
-    };
-    stroke(width * 2.2, color, 0.22);
-    stroke(width, color, 0.95);
-    stroke(width * 0.35, INK.white, 0.9);
-    for (let i = 0; i < this.path.length; i++) {
-      const cell = this.path[i]!;
-      l.circle(g.x(cell), g.y(cell), g.cell * 0.13).fill({ color: i === 0 ? INK.white : color });
-    }
-    // The first piece shows it can be closed onto.
-    if (!this.closed && salvageCanClose(this.state, this.path)) {
+      l.stroke({ width: Math.max(4, g.cell * 0.13), color: this.closed ? INK.cream : INK.amber, cap: "round", join: "round" });
+    } else l.circle(pts[0]!, pts[1]!, g.cell * RING_R).stroke({ width: ring, color: INK.amber });
+    if (this.closed) {
+      // A crate is square, so its ring is: the same 2 units off it.
+      const half = g.cell * RING_R;
+      for (const cell of salvageLineValue(this.state, this.path, true).netted) l.roundRect(g.x(cell) - half, g.y(cell) - half, half * 2, half * 2, g.cell * 0.2).stroke({ width: ring, color: INK.cream });
+    } else if (salvageCanClose(this.state, this.path)) {
+      // The first piece shows it can be closed onto.
       const first = this.path[0]!;
-      l.circle(g.x(first), g.y(first), g.cell * 0.46).stroke({ width: 2.5, color: NET, alpha: 0.5 + 0.4 * Math.sin(this.time / 160) });
+      const pulse = this.reduced ? 0.9 : 0.6 + 0.4 * Math.sin(this.time / 160);
+      l.circle(g.x(first), g.y(first), g.cell * RING_R).stroke({ width: ring, color: INK.cream, alpha: pulse });
     }
   }
 
@@ -567,8 +526,8 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     this.cursorLayer.clear();
     this.app.canvas.setAttribute("data-cursor", `${this.cursor % g.cols},${Math.floor(this.cursor / g.cols)}`);
     if (!this.cursorShown) return;
-    const half = g.cell / 2 - 2;
-    this.cursorLayer.roundRect(g.x(this.cursor) - half, g.y(this.cursor) - half, half * 2, half * 2, g.cell * 0.16).stroke({ width: 3, color: INK.white, alpha: 0.9 });
+    // The keyboard's cell is the player's selection: an amber ring round the piece.
+    this.cursorLayer.circle(g.x(this.cursor), g.y(this.cursor), g.cell * RING_R).stroke({ width: Math.max(2, g.cell * RING_W), color: INK.amber });
   }
 
   /**
@@ -622,33 +581,4 @@ export class SalvageRenderer extends KitBoard<SalvageState> {
     }
     return false;
   }
-}
-
-/** A loot crate: a strapped box with a brass lock, nothing like any debris. */
-function drawCrate(g: Graphics, r: number): void {
-  const wood = 0xb9793c;
-  g.roundRect(-r, -r + r * 0.12, r * 2, r * 2, r * 0.18).fill({ color: INK.black, alpha: 0.35 });
-  g.roundRect(-r, -r, r * 2, r * 2, r * 0.18).fill({ color: wood });
-  g.roundRect(-r, -r, r * 2, r * 2, r * 0.18).stroke({ width: Math.max(1.5, r * 0.14), color: mix(wood, INK.black, 0.55) });
-  // Planks, then two straps.
-  for (const y of [-r * 0.36, r * 0.36]) g.rect(-r * 0.9, y - 0.75, r * 1.8, 1.5).fill({ color: mix(wood, INK.black, 0.4), alpha: 0.8 });
-  for (const x of [-r * 0.52, r * 0.52]) g.rect(x - r * 0.12, -r, r * 0.24, r * 2).fill({ color: mix(wood, INK.black, 0.5) });
-  g.circle(0, 0, r * 0.3).fill({ color: INK.brass });
-  g.circle(0, 0, r * 0.3).stroke({ width: Math.max(1, r * 0.08), color: mix(INK.brass, INK.black, 0.5) });
-  g.rect(-r * 0.06, -r * 0.14, r * 0.12, r * 0.3).fill({ color: mix(INK.brass, INK.black, 0.6) });
-}
-
-/** A coupler: a pale ring with four lugs, so it reads as a joint and as no kind of debris. */
-function drawCoupler(g: Graphics, r: number): void {
-  const pale = 0xe9eef7;
-  for (let i = 0; i < 4; i++) {
-    const a = (i * Math.PI) / 2 + Math.PI / 4;
-    g.circle(Math.cos(a) * r * 0.86, Math.sin(a) * r * 0.86, r * 0.26).fill({ color: pale });
-    g.circle(Math.cos(a) * r * 0.86, Math.sin(a) * r * 0.86, r * 0.26).stroke({ width: Math.max(1, r * 0.08), color: mix(pale, INK.black, 0.5) });
-  }
-  g.circle(0, r * 0.1, r * 0.8).fill({ color: INK.black, alpha: 0.3 });
-  g.circle(0, 0, r * 0.8).fill({ color: pale });
-  g.circle(0, 0, r * 0.8).stroke({ width: Math.max(1.2, r * 0.11), color: mix(pale, INK.black, 0.5) });
-  g.circle(0, 0, r * 0.42).fill({ color: INK.well });
-  g.circle(0, 0, r * 0.42).stroke({ width: Math.max(1, r * 0.09), color: mix(pale, INK.black, 0.5) });
 }

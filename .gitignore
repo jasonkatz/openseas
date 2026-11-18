@@ -14,4 +14,3 @@ packages/client/playwright-report/
 packages/docs/test-results/
 packages/docs/playwright-report/
 .art/
-__pycache__/

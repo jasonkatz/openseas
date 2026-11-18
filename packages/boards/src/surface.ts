@@ -1,3 +1,5 @@
+import { Sprite, Texture, type Container } from "pixi.js";
+
 /**
  * How a canvas is drawn on the machine in front of us. A GPU gets the screen's own pixels, up to
  * two each way, and antialiasing. A software renderer (a headless browser, a machine without a
@@ -33,4 +35,22 @@ export function softwareRendered(): boolean {
 /** The antialiasing and resolution a board's PixiJS application starts with. */
 export function boardSurface(): { antialias: boolean; resolution: number } {
   return softwareRendered() ? { antialias: false, resolution: 1 } : { antialias: true, resolution: Math.min(2, window.devicePixelRatio || 1) };
+}
+
+/**
+ * Destroy textures a board baked for a size it no longer has. A board bakes its pieces again after
+ * a resize and hands the new textures to the sprites it is drawing, but a sprite it only sets when
+ * the state changes (a preview, a ghost, a piece still leaving) may be holding an old one, and
+ * PixiJS throws when it draws a sprite whose texture is gone. So any sprite under `root` still on
+ * one of `old` is blanked first; the board sets it again the next time it draws that thing.
+ */
+export function retireTextures(root: Container, old: Iterable<Texture>): void {
+  const gone = new Set(old);
+  if (gone.size === 0) return;
+  const walk = (node: Container): void => {
+    if (node instanceof Sprite && gone.has(node.texture)) node.texture = Texture.EMPTY;
+    for (const child of node.children) walk(child as Container);
+  };
+  walk(root);
+  for (const texture of gone) texture.destroy(true);
 }

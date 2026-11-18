@@ -10,8 +10,8 @@ import { shown } from "./helpers.js";
 const store = (page: Page) => page.getByTestId("draft-store");
 const kinds = (page: Page) => page.getByTestId("input-config.pieceKinds");
 
-/** What the page sends for a draft: its numbers, and since picks (ADR 0052) and words (ADR 0057) those too, here none. */
-const sent = (over: Parameters<typeof numbers>[0] = {}) => ({ ...numbers(over), picks: { sprites: {}, sounds: {} }, words: { texts: {}, category: null } });
+/** What the page sends for a draft: its numbers, and since words (ADR 0057) those too, here none. */
+const sent = (over: Parameters<typeof numbers>[0] = {}) => ({ ...numbers(over), words: { texts: {}, category: null } });
 
 test.describe("drafts in the service", () => {
   test.beforeEach(() => test.skip(test.info().project.name !== "desktop", "the studio is a desktop tool"));

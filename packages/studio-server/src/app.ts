@@ -13,7 +13,6 @@ import { createChat, type Chat } from "./chat/chat.js";
 import { createModelProxy, type ModelProxy } from "./chat/proxy.js";
 import type { AgentRunner } from "./chat/runner.js";
 import { createSdkRunner } from "./chat/sdkRunner.js";
-import { createPlacer } from "./save/picks.js";
 import { createRepo, type Repo } from "./save/repo.js";
 import { createSaver, type Saver } from "./save/saver.js";
 import { createBucketStore, type TakeStore } from "./takes/store.js";
@@ -25,7 +24,7 @@ export interface App {
   saver: Saver | null;
   /** Null when this service has no chat. */
   chat: Chat | null;
-  /** Null when this service has no bucket to keep takes in. */
+  /** Null when this service has no bucket: it then serves no take kept from before. */
   takes: Takes | null;
   listen(port: number): Promise<number>;
   close(): Promise<void>;
@@ -36,7 +35,7 @@ export interface App {
  * opens pull requests (ADR 0046). Short of any of them the service still keeps drafts and links.
  * A test hands in its own forge and a repository on its own disk.
  */
-function createSaverFor(env: Env, db: Db, log: Logger, forge: Forge | null | undefined, takes: Takes | null): { saver: Saver; repo: Repo } | null {
+function createSaverFor(env: Env, db: Db, log: Logger, forge: Forge | null | undefined): { saver: Saver; repo: Repo } | null {
   if (!env.STUDIO_REPO_DIR || !env.STUDIO_REPO) return null;
   let app: Forge | null = forge ?? null;
   if (forge === undefined && env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE_KEY) {
@@ -56,9 +55,7 @@ function createSaverFor(env: Env, db: Db, log: Logger, forge: Forge | null | und
   }
   const url = env.STUDIO_REPO_URL ?? `https://github.com/${env.STUDIO_REPO}.git`;
   const repo = createRepo({ dir: env.STUDIO_REPO_DIR, url, base: env.STUDIO_BASE_BRANCH, author: { name: env.STUDIO_GIT_NAME, email: env.STUDIO_GIT_EMAIL }, token: () => (url.startsWith("https:") ? app.token() : Promise.resolve(null)), log });
-  // Picks are placed as their takes' bytes (ADR 0053): nothing is decoded.
-  const placer = createPlacer({ repo, takes, log });
-  return { repo, saver: createSaver({ db, repo, forge: app, log, base: env.STUDIO_BASE_BRANCH, studioOrigin: env.STUDIO_ORIGINS[0] ?? env.STUDIO_PUBLIC_URL, serviceOrigin: env.STUDIO_PUBLIC_URL, placer }) };
+  return { repo, saver: createSaver({ db, repo, forge: app, log, base: env.STUDIO_BASE_BRANCH, studioOrigin: env.STUDIO_ORIGINS[0] ?? env.STUDIO_PUBLIC_URL }) };
 }
 
 /**
@@ -66,7 +63,7 @@ function createSaverFor(env: Env, db: Db, log: Logger, forge: Forge | null | und
  * production, a unix user of its own for the agent (ADR 0047). Short of any of them the service
  * says it has no chat. A test hands in its own runner in place of the Claude Agent SDK.
  */
-async function createChatFor(env: Env, db: Db, log: Logger, repo: Repo, runner: AgentRunner | undefined, takes: Takes | null): Promise<{ chat: Chat; proxy: ModelProxy } | null> {
+async function createChatFor(env: Env, db: Db, log: Logger, repo: Repo, runner: AgentRunner | undefined): Promise<{ chat: Chat; proxy: ModelProxy } | null> {
   const capUsd = env.STUDIO_SPEND_CAP_USD;
   if (capUsd === undefined || (!runner && !env.ANTHROPIC_API_KEY)) return null;
   const identity = runner ? null : ensureAgentUser(env.STUDIO_AGENT_USER, env.STUDIO_REPO_DIR!, log);
@@ -77,7 +74,7 @@ async function createChatFor(env: Env, db: Db, log: Logger, repo: Repo, runner: 
     }
     log.warn("the agent runs as the service's own user: there is no separation between them off production");
   }
-  // The generation scripts' keys stay in this process too: the scripts reach their APIs through the proxy, which meters them (ADR 0059).
+  // The image and sound APIs' keys stay in this process too: the agent reaches those APIs through the proxy, which meters them (ADR 0059).
   const proxy = await createModelProxy({
     apiKey: env.ANTHROPIC_API_KEY ?? "none",
     log,
@@ -86,14 +83,14 @@ async function createChatFor(env: Env, db: Db, log: Logger, repo: Repo, runner: 
     ...(env.ELEVENLABS_API_KEY ? { elevenlabs: { key: env.ELEVENLABS_API_KEY, ...(env.ELEVENLABS_USD_PER_CREDIT ? { usdPerCredit: env.ELEVENLABS_USD_PER_CREDIT } : {}) } } : {}),
   });
   const scripts = { openai: Boolean(env.OPENAI_API_KEY), elevenlabs: Boolean(env.ELEVENLABS_API_KEY) };
-  const chat = createChat({ db, repo, runner: runner ?? createSdkRunner({ identity, scripts, log }), proxy, identity, capUsd, takes, log });
+  const chat = createChat({ db, repo, runner: runner ?? createSdkRunner({ identity, scripts, log }), proxy, identity, capUsd, log });
   return { chat, proxy };
 }
 
 /**
- * Takes need a bucket: its endpoint, its name and its two keys (ADR 0051). Short of any the
- * service keeps none, and the chat's takes stay in the draft's worktree. A test hands in a store
- * of its own.
+ * The takes kept from before are in a bucket: its endpoint, its name and its two keys (ADR 0051).
+ * Short of any the service serves none. Nothing is written to it (ADR 0064). A test hands in a
+ * store of its own.
  */
 function createStoreFor(env: Env): TakeStore | null {
   const { STUDIO_BUCKET_ENDPOINT: endpoint, STUDIO_BUCKET_NAME: bucket, STUDIO_BUCKET_ACCESS_KEY_ID: accessKeyId, STUDIO_BUCKET_SECRET_ACCESS_KEY: secretAccessKey } = env;
@@ -107,11 +104,11 @@ export async function createApp(env: Env, log: Logger, github?: GitHub | null, f
   await runMigrations(db);
   const gh = github !== undefined ? github : env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET ? createGitHub(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET) : null;
   const bucket = store !== undefined ? store : createStoreFor(env);
-  const takes = bucket ? createTakes({ db, store: bucket, log }) : null;
-  const saving = createSaverFor(env, db, log, forge, takes);
+  const takes = bucket ? createTakes({ db, store: bucket }) : null;
+  const saving = createSaverFor(env, db, log, forge);
   const saver = saving?.saver ?? null;
   await saver?.start();
-  const chatting = saving ? await createChatFor(env, db, log, saving.repo, runner, takes) : null;
+  const chatting = saving ? await createChatFor(env, db, log, saving.repo, runner) : null;
   const chat = chatting?.chat ?? null;
   await chat?.start();
   const handler = createHttpHandler({ env, db, github: gh, saver, chat, takes, log });

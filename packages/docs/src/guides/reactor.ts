@@ -3,12 +3,11 @@ import type { Guide } from "./types.js";
 
 const p = content.puzzles.reactor;
 const c = p.config;
-const roman = (grade: number): string => ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"][grade] ?? String(grade);
 /** The grade two of which fuse into a hot rod. */
-const top = roman(c.hotGrade - 1);
-/** Grade I rods in one hot rod. */
+const top = String(c.hotGrade - 1);
+/** Grade 1 rods in one hot rod. */
 const rodsInHot = 2 ** (c.hotGrade - 1);
-/** What fusing one hot rod up from grade I scores on the way. */
+/** What fusing one hot rod up from grade 1 scores on the way. */
 const fuseAll = c.fusePoints.reduce((sum, pts, i) => sum + pts * 2 ** (c.fusePoints.length - 1 - i), 0);
 /** The most hot rods the core holds without a scram. */
 const holdMax = c.criticalHot - 1;
@@ -27,8 +26,8 @@ export const reactor: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Reactor board: a core ${c.size} cells wide and ${c.size} tall holding fuel rods with one, two or three bars on their casings and one hot rod, a glowing toothed disc, beside a gate in the right wall that shows a chevron. A second gate in the left wall shows a dot. A strip above shows the next rod and ${c.criticalHot} heat lamps with one lit. A bar below reads pipeline.`,
-    caption: "The core. Bars on a casing are its grade, the toothed disc is a hot rod, and the gates in the wall are the ports.",
+    alt: `The Reactor board: a core ${c.size} cells wide and ${c.size} tall holding fuel rods, each a rounded casing with its grade cut out of it as a numeral, and one hot rod, a casing burst into eight points, beside a gap in the wall with a chevron pointing out through it. A second gap in the wall is empty. A strip above shows the next rod and ${c.criticalHot} heat lamps with one lit. A bar below reads pipeline.`,
+    caption: "The core. The numeral on a casing is its grade, the burst casing is a hot rod, and the gaps in the wall are the ports.",
   },
   theme: {
     setting:
@@ -45,8 +44,8 @@ export const reactor: Guide = {
   rules: [
     "A swipe slides every rod as far as it will go that way. A swipe that would change nothing is not taken: the rods lean and settle back.",
     "Two rods of one grade that meet **fuse** into one rod of the next grade. A rod fuses once a swipe.",
-    `After every swipe a new rod enters on the edge the rods slid away from, in a lane where something moved. The strip over the core shows its grade beforehand: grade I, or grade II about one time in ${twoOneIn}.`,
-    `A grade ${roman(c.hotGrade)} rod is **hot**. It fuses with nothing and takes up room until it leaves.`,
+    `After every swipe a new rod enters on the edge the rods slid away from, in a lane where something moved. The strip over the core shows its grade beforehand: grade 1, or grade 2 about one time in ${twoOneIn}.`,
+    `A grade ${c.hotGrade} rod is **hot**. It fuses with nothing and takes up room until it leaves.`,
     `${c.ports} **ports** are open in the core's wall, each at the end of one row or column. Swipe toward a port's wall when a hot rod is the first rod in that lane and it is **discharged**. That port closes and another opens somewhere else on the rim.`,
     "A rod fused hot right at a port stays for that swipe. The next swipe that way sends it out.",
     `${c.criticalHot} hot rods in the core at once, or a core where no swipe can change anything, is a **scram**: the core is emptied, you lose ${c.scramPenalty} points, and it starts again with ${c.startRods} rods.`,
@@ -54,7 +53,7 @@ export const reactor: Guide = {
   rulesMedia: {
     kind: "clip",
     name: "fuse",
-    alt: "A core with two grade I rods. A swipe right slides both to the right wall where they fuse into a grade II, and a new rod enters on the left edge. Two more swipes follow, and the last fuses two grade II rods into a grade III.",
+    alt: "A core with two grade 1 rods. A swipe right slides both to the right wall where they fuse into a grade 2, and a new rod enters on the left edge. Two more swipes follow, and the last fuses two grade 2 rods into a grade 3.",
     caption: "Every rod slides, like grades fuse, and a new rod comes in on the edge they left.",
   },
   controls: [
@@ -62,7 +61,7 @@ export const reactor: Guide = {
     { action: "Swipe again", touch: "Lift and swipe again. One touch is one swipe", desktop: "Release and drag again, or press the next key" },
   ],
   scoring: [
-    `**Discharging a hot rod is the score:** ${c.dischargePoints} points. Fusing pays ${c.fusePoints.join(", ")} for making a grade ${c.fusePoints.map((_, i) => roman(i + 2)).join(", ")}, so fusing a whole hot rod up from grade I is ${fuseAll} in all.`,
+    `**Discharging a hot rod is the score:** ${c.dischargePoints} points. Fusing pays ${c.fusePoints.join(", ")} for making a grade ${c.fusePoints.map((_, i) => i + 2).join(", ")}, so fusing a whole hot rod up from grade 1 is ${fuseAll} in all.`,
     `**The pipeline.** A discharge within ${c.pipelineSwipes} swipes of the last one builds a run. The rods of a run are worth ${c.pipelinePercent.join(", ")} percent, so from the ${ordinal(atTop)} on each is ${single(atTop)}. ${c.pipelineSwipes} swipes with no discharge and the run is lost.`,
     `**The salvo.** Hot rods that leave in one swipe multiply each other: two score ${salvoTimes(2)} times what they would apart, three score ${salvoTimes(3)} times.`,
     `A scram costs ${c.scramPenalty}, the whole core and the pipeline. The score never goes below zero.`,
@@ -74,16 +73,16 @@ export const reactor: Guide = {
       tips: [
         {
           title: "Every swipe should fuse",
-          body: `Each swipe brings one rod in and each fusion takes one away. So a swipe that fuses nothing leaves the core one rod fuller, and a full core scrams. A hot rod is ${rodsInHot} grade I rods and the core has ${c.size * c.size} cells: there is no room to drift. Before you swipe, find the two like rods it will bring together.`,
+          body: `Each swipe brings one rod in and each fusion takes one away. So a swipe that fuses nothing leaves the core one rod fuller, and a full core scrams. A hot rod is ${rodsInHot} grade 1 rods and the core has ${c.size * c.size} cells: there is no room to drift. Before you swipe, find the two like rods it will bring together.`,
         },
         {
-          title: "Read the gate",
-          body: "A port is a gate in the wall, with a faint band along its lane. A dot means nothing is ready. A bar means a hot rod is in the lane with another rod in its way. Chevrons mean swipe that way now, one chevron for each rod that will leave.",
+          title: "Read the port",
+          body: "A port is a gap in the wall at the end of its lane. An empty gap means nothing is ready. A bar across it means a hot rod is in the lane with another rod in its way. Chevrons pointing out mean swipe that way now, one chevron for each rod that will leave.",
           media: {
             kind: "still",
             name: "gates",
-            alt: "A core with two hot rods and a grade III rod stacked in the left column. The gate at the bottom of that column shows two chevrons. The gate at the top of the same column shows a bar, because the grade III rod is between it and the hot rods. Two heat lamps are lit.",
-            caption: "Two gates on one column. The bottom one shows chevrons: swipe down. The top one shows a bar: the grade III is in the way.",
+            alt: "A core with two hot rods and a grade 3 rod stacked in the left column. The port at the bottom of that column shows two chevrons. The port at the top of the same column shows a bar, because the grade 3 rod is between it and the hot rods. Two heat lamps are lit.",
+            caption: "Two ports on one column. The bottom one shows chevrons: swipe down. The top one shows a bar: the grade 3 is in the way.",
           },
         },
         {
@@ -92,7 +91,7 @@ export const reactor: Guide = {
           media: {
             kind: "clip",
             name: "discharge",
-            alt: "Two grade III rods sit one over the other at the top of the left column, beside a gate in the left wall. A swipe up fuses them into a hot rod in the top left corner and the gate shows a chevron. A swipe left sends the hot rod out through the gate for 100 points, and a new gate opens elsewhere.",
+            alt: "Two grade 3 rods sit one over the other at the top of the left column, beside a port in the left wall. A swipe up fuses them into a hot rod in the top left corner and the port shows a chevron. A swipe left sends the hot rod out through the port for 100 points, and a new port opens elsewhere.",
             caption: `Fuse two grade ${top} rods, then push the hot rod at the chevron. The port it used closes and another opens.`,
           },
         },
@@ -117,7 +116,7 @@ export const reactor: Guide = {
           media: {
             kind: "clip",
             name: "inner",
-            alt: "A hot rod sits in the bottom right corner and a gate is open in the bottom wall under the second column. A swipe left fuses two grade I rods in the bottom row into one rod at the left wall, and the hot rod stops against it in the second column. The gate shows a chevron, and a swipe down sends the hot rod out.",
+            alt: "A hot rod sits in the bottom right corner and a port is open in the bottom wall under the second column. A swipe left fuses two grade 1 rods in the bottom row into one rod at the left wall, and the hot rod stops against it in the second column. The port shows a chevron, and a swipe down sends the hot rod out.",
             caption: "The swipe left leaves one rod ahead of the hot rod, so it stops in the second column, over the port.",
           },
         },
@@ -138,7 +137,7 @@ export const reactor: Guide = {
       tips: [
         {
           title: `${c.pipelineSwipes} swipes, and a rod takes about seven`,
-          body: `The bar under the core counts the swipes left to discharge again. A hot rod is ${rodsInHot} grade I rods and one rod enters a swipe, so even a clean player needs about seven swipes a rod. That leaves one spare. Two swipes that fuse nothing and the run is gone.`,
+          body: `The bar under the core counts the swipes left to discharge again. A hot rod is ${rodsInHot} grade 1 rods and one rod enters a swipe, so even a clean player needs about seven swipes a rod. That leaves one spare. Two swipes that fuse nothing and the run is gone.`,
         },
         {
           title: "What a run is worth",
@@ -146,11 +145,11 @@ export const reactor: Guide = {
         },
         {
           title: "Cook the next rod first",
-          body: `The run survives only if the next hot rod is nearly made when this one leaves. Before you deliver, look for the next pair of grade ${top} rods, or the grade II rods that will make one. The best delivery swipes fuse something as well, so no swipe of the window goes on delivery alone.`,
+          body: `The run survives only if the next hot rod is nearly made when this one leaves. Before you deliver, look for the next pair of grade ${top} rods, or the grade 2 rods that will make one. The best delivery swipes fuse something as well, so no swipe of the window goes on delivery alone.`,
           media: {
             kind: "clip",
             name: "pipeline",
-            alt: "A pipeline run is going and the bar under the core is nearly empty. A hot rod is swiped out through the top wall for 125 points and the bar refills. A grade III rod and the grade II rods for another are already in the left column. A few swipes fuse them into a hot rod at the top wall, and it goes out for 150.",
+            alt: "A pipeline run is going and the bar under the core is nearly empty. A hot rod is swiped out through the top wall for 125 points and the bar refills. A grade 3 rod and the grade 2 rods for another are already in the left column. A few swipes fuse them into a hot rod at the top wall, and it goes out for 150.",
             caption: "One rod out and the bar refills. The next follows a few swipes later because its rods were already cooking.",
           },
         },
@@ -163,11 +162,11 @@ export const reactor: Guide = {
       tips: [
         {
           title: "Park one, bring one",
-          body: `Leave the first hot rod standing at its port with the chevron showing. Cook a second and slide it into the same lane right behind the first, with nothing between them. The gate shows two chevrons, and one swipe sends both for ${salvoTimes(2)} times their worth.`,
+          body: `Leave the first hot rod standing at its port with the chevron showing. Cook a second and slide it into the same lane right behind the first, with nothing between them. The port shows two chevrons, and one swipe sends both for ${salvoTimes(2)} times their worth.`,
           media: {
             kind: "clip",
             name: "salvo",
-            alt: "A hot rod is parked in the top left corner under a gate in the top wall, with two grade III rods below it in the same column. Two swipes fuse those into a second hot rod, stacked against the first with nothing between. The pipeline lapses on the way. The gate shows two chevrons, a swipe up sends both rods out, and the board calls Salvo x2 for 562 points.",
+            alt: "A hot rod is parked in the top left corner under a port in the top wall, with two grade 3 rods below it in the same column. Two swipes fuse those into a second hot rod, stacked against the first with nothing between. The pipeline lapses on the way. The port shows two chevrons, a swipe up sends both rods out, and the board calls Salvo x2 for 562 points.",
             caption: `The first rod waits at its port while the second is made. The wait loses the pipeline and the pair still pays ${pair(1)}.`,
           },
         },
@@ -189,7 +188,7 @@ export const reactor: Guide = {
   ],
   mistakes: [
     "**Sweeping to one corner.** The ports move all round the rim. Keep hot rods at the front of a lane where they can still travel.",
-    "**Swiping at a gate that shows a bar.** Nothing leaves, and a new rod enters anyway. Clear the rod in the way first, or go to the other port.",
+    "**Swiping at a port that shows a bar.** Nothing leaves, and a new rod enters anyway. Clear the rod in the way first, or go to the other port.",
     `**Making a hot rod with no way out.** Before you fuse two grade ${top} rods, count the lamps. If the fusion lights the diamond, discharge first.`,
     "**Swipes that fuse nothing.** Each one fills a cell and uses up the pipeline bar. If no swipe fuses, pick the one that sets up a fusion on the next.",
     "**Sending one rod when a second is nearly made.** Two swipes of waiting more than doubles what the pair pays.",

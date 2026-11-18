@@ -3,6 +3,8 @@
 Status: Accepted. Builds on [0019](./0019-boards-package-and-harness-bench.md).
 Supersedes the placeholder-only art choice in DESIGN 3.10; engine rules and authority are unchanged.
 
+[0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) superseded this ADR at M10's fifth step: every board draws its pieces in code, and the atlases, their loader and the marks setting are gone.
+
 ## Context
 
 The owner requested generated sprites for all seven puzzles and their integration. The boards

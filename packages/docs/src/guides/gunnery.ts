@@ -39,12 +39,12 @@ export const gunnery: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: "The Gunnery deck: a feeder at the top, crates in the middle, a turret in each side rail. Arrows lie on six tiles. A sabot follows a green dotted route to the lower right turret and a slug rolls into the lower left one.",
-    caption: "The gun deck mid-round. Two lamps are lit, and the sabot's route shows green: its turret wants it.",
+    alt: "The Gunnery deck: a feeder at the top, crates in the middle, a turret in each side rail. Amber arrows lie on seven tiles. A sabot follows a route of dots to the lower right turret and a slug rolls into the lower left one.",
+    caption: "The gun deck mid-round. Two lamps are lit, and the sabot's route shows as dots: its turret wants it.",
   },
   theme: {
     setting:
-      "You are the gunner on the ammunition deck. A **feeder** drops cells, sabots, slugs and coolant onto the plates and they roll until something turns them. You do not carry anything. You lay arrows on the deck and the rounds find the turrets.",
+      "You are the gunner on the ammunition deck. A **feeder** drops cells, sabots, slugs and coolant onto the deck and they roll until something turns them. You do not carry anything. You lay arrows on the deck and the rounds find the turrets.",
     purpose:
       "The points you make here load the ship's turrets, turn after turn. In a space battle the captain can only fire turrets that are loaded, so a ship with a good gunner hits back and a ship without one cannot.",
   },
@@ -57,9 +57,9 @@ export const gunnery: Guide = {
   rules: [
     `Pieces drop from the feeder one at a time and roll one tile every ${secs(1)} seconds. A wall or a crate turns them. Left alone, each one rolls out a **hatch** and is gone.`,
     "An **arrow** turns every piece that rolls onto it. Lay as many as you like, one to a tile.",
-    "A turret takes a **cell**, then a **sabot**, then a **slug**. The badge on it is the piece it wants next. When it is full it fires and comes back empty.",
+    "A turret takes a **cell**, then a **sabot**, then a **slug**. The piece drawn in it is the one it wants next. When it is full it fires and comes back empty.",
     "A wrong piece **jams** the turret and its load is lost. A jammed turret turns everything away except **coolant**, which flushes it clear.",
-    "A piece headed into a turret shows its route: green if the turret wants it, red if it will jam.",
+    "A piece headed into a turret shows its route: dots if the turret wants it, red crosses if it will jam.",
     `The round is ${p.roundSeconds} seconds on one of ${c.decks.length} decks, a different one each round. The feeder shows its next ${word(c.queueLength)} pieces.`,
   ],
   rulesMedia: {
@@ -91,12 +91,12 @@ export const gunnery: Guide = {
         },
         {
           title: "Lift it for the wrong piece",
-          body: "Look at the turret's badge, then at the piece coming. If they differ, lift the arrow and let the piece go. A piece out the hatch costs nothing. A red route means you have a moment left to lift.",
+          body: "Look at the piece drawn in the turret, then at the piece coming. If they differ, lift the arrow and let the piece go. A piece out the hatch costs nothing. A route of red crosses means you have a moment left to lift.",
           media: {
             kind: "clip",
             name: "gate",
-            alt: "A turret holds a cell and wants a sabot. A slug rolls toward the arrow with a red route. The arrow is lifted, the slug rolls past and out a hatch, the arrow is laid again and the sabot behind it goes in on a green route.",
-            caption: "Red route: lift the arrow. The slug rolls out, the arrow goes back, the sabot loads.",
+            alt: "A turret holds a cell and wants a sabot. A slug rolls toward the arrow on a route of red crosses. The arrow is lifted, the slug rolls past and out a hatch, the arrow is laid again and the sabot behind it goes in on a route of dots.",
+            caption: "Red crosses: lift the arrow. The slug rolls out, the arrow goes back, the sabot loads.",
           },
         },
         {
@@ -104,7 +104,7 @@ export const gunnery: Guide = {
           body: "Coolant in a clear turret splashes and does nothing. You do not need to lift the gate for it. You only need it when a turret is jammed, and then it is the one piece that gets in.",
         },
       ],
-      drill: `Play a round on one turret with no jams at all. Say the badge out loud before each piece arrives. You are there when a round ends above ${p.thresholds[1]!.score} points with the jam count at zero.`,
+      drill: `Play a round on one turret with no jams at all. Say what the turret wants out loud before each piece arrives. You are there when a round ends above ${p.thresholds[1]!.score} points with the jam count at zero.`,
     },
     {
       level: "intermediate",
@@ -129,11 +129,11 @@ export const gunnery: Guide = {
           },
         },
         {
-          title: "Read NEXT, not the deck",
+          title: "Read Next, not the deck",
           body: `The feeder shows ${word(c.queueLength)} pieces ahead. Decide where a piece goes while it is still in the queue. Then turn the switch as soon as the piece before it has rolled off the tile. An arrow only acts when a piece is on it, so early is safe and calm.`,
         },
       ],
-      drill: `Work one pair of turrets from a single tile, and call each piece from the NEXT strip before it drops. You are there when the combo meter fills and stays full, and a round passes ${p.parScore}.`,
+      drill: `Work one pair of turrets from a single tile, and call each piece from the Next row before it drops. You are there when the combo meter fills and stays full, and a round passes ${p.parScore}.`,
     },
     {
       level: "advanced",
@@ -145,7 +145,7 @@ export const gunnery: Guide = {
           media: {
             kind: "clip",
             name: "broadside",
-            alt: "Three turrets have lit lamps. A slug rolls the length of the deck, turns at an arrow into the fourth turret and fills it. The turret fires, all four turrets flash and the board shows Broadside, plus 300.",
+            alt: "Three turrets have lit lamps. A slug rolls the length of the deck, turns at an arrow into the fourth turret and fills it. The turret fires, the whole board pulses once and shows Broadside with its points.",
             caption: "Three lamps lit. The slug goes to the fourth turret, not the nearest, and the ship fires a broadside.",
           },
         },
@@ -193,8 +193,8 @@ export const gunnery: Guide = {
   mistakes: [
     `**Sending a piece in to see what happens.** A jam at full combo costs ${jamCost} points. A piece out the hatch costs none.`,
     "**Feeding the nearest turret all round.** Its lamp is already lit. The broadside needs the other ones.",
-    "**Leaving the gate down and looking away.** Every piece takes the arrow, right or wrong. Watch the NEXT strip.",
-    "**Waiting on coolant with a jammed turret in your main route.** Turn the stream to another turret until the coolant shows in NEXT.",
+    "**Leaving the gate down and looking away.** Every piece takes the arrow, right or wrong. Watch the Next row.",
+    "**Waiting on coolant with a jammed turret in your main route.** Turn the stream to another turret until the coolant shows in Next.",
     "**Filling the deck with held pieces.** The feeder stops, and the fast end of the round is where the points are.",
   ],
 };

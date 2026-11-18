@@ -4,14 +4,14 @@
   "maxInvites": 20,
   "name": { "min": 3, "max": 24 },
   "colors": [
-    { "id": "pitch", "hex": "#1d1c22", "nameKey": "crew.color.pitch" },
-    { "id": "bone", "hex": "#efe6cf", "nameKey": "crew.color.bone" },
-    { "id": "crimson", "hex": "#a8262f", "nameKey": "crew.color.crimson" },
-    { "id": "gold", "hex": "#dba53a", "nameKey": "crew.color.gold" },
-    { "id": "deep", "hex": "#1f5c8a", "nameKey": "crew.color.deep" },
-    { "id": "moss", "hex": "#3c7a3e", "nameKey": "crew.color.moss" },
-    { "id": "plum", "hex": "#5f2f6c", "nameKey": "crew.color.plum" },
-    { "id": "rust", "hex": "#b75b24", "nameKey": "crew.color.rust" }
+    { "id": "pitch", "color": "ground", "nameKey": "crew.color.pitch" },
+    { "id": "bone", "color": "cream", "nameKey": "crew.color.bone" },
+    { "id": "crimson", "color": "brick", "nameKey": "crew.color.crimson" },
+    { "id": "gold", "color": "sand", "nameKey": "crew.color.gold" },
+    { "id": "deep", "color": "sky", "nameKey": "crew.color.deep" },
+    { "id": "moss", "color": "moss", "nameKey": "crew.color.moss" },
+    { "id": "plum", "color": "plum", "nameKey": "crew.color.plum" },
+    { "id": "rust", "color": "rust", "nameKey": "crew.color.rust" }
   ],
   "patterns": [
     { "id": "plain", "nameKey": "crew.pattern.plain" },

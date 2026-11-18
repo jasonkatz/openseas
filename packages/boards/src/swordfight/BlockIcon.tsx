@@ -1,10 +1,13 @@
-import { useSprites } from "../sprites/useSprites.js";
-import { blockDataUrl, type SwordTexture } from "./art.js";
+import type { PieceColor } from "@openseas/content";
+import { blockDataUrl, type BlockCut } from "./art.js";
 
-/** A legend block: the same painted art the Swordfight board uses, as an image. For scrap, `ripen` is the drops left before it ripens. */
-export function BlockIcon(props: { color: string; texture: SwordTexture; mark?: string | null; kind?: "block" | "breaker" | "scrap"; ripen?: number; size?: number }) {
-  useSprites("swordfight");
+/**
+ * A legend block: the same drawing the Swordfighting board makes, as an image. `w` and `h` make it a
+ * slab, fitted in the same square. For stone, `ripen` is the drops left before it ripens.
+ */
+export function BlockIcon(props: { color: PieceColor; cut: BlockCut; kind?: "block" | "breaker" | "scrap"; ripen?: number; w?: number; h?: number; size?: number }) {
   const size = props.size ?? 22;
-  const src = blockDataUrl({ color: parseInt(props.color.slice(1), 16), texture: props.texture, mark: props.mark ?? null, kind: props.kind ?? "block", showMarks: Boolean(props.mark), ripen: props.ripen ?? 0 }, size);
+  const kind = props.kind ?? "block";
+  const src = blockDataUrl({ color: props.color, cut: props.cut, kind, ...(kind === "scrap" ? { ripen: props.ripen ?? 0 } : {}) }, size, props.w ?? 1, props.h ?? 1);
   return <img src={src} width={size} height={size} alt="" aria-hidden="true" className="tile-icon" draggable={false} />;
 }
