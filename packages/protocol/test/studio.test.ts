@@ -50,6 +50,29 @@ describe("stored studio data from before ADR 0062", () => {
 
   it("reads who the caller is from a service that still says it keeps takes and picks", () => {
     const me = StudioMeSchema.parse({ login: "octo", signIn: true, dev: false, save: true, chat: true, takes: true, picks: true, words: true });
-    expect(me).toEqual({ login: "octo", signIn: true, dev: false, save: true, chat: true, words: true });
+    expect(me).toEqual({ login: "octo", signIn: true, dev: false, save: true, chat: true, words: true, look: false });
+  });
+});
+
+describe("a draft's look (ADR 0065)", () => {
+  const drawing = { layers: [{ kind: "disc", x: 12, y: 12, r: 9 }] };
+  const cue = { level: 1, cutoff: 1800, voices: [{ kind: "tone", note: 10, wave: "sine", at: 0, attack: 0.01, release: 0.1, level: 1 }] };
+
+  it("reads a draft kept before there was a look as one with none", () => {
+    const { picks: _picks, ...old } = OLD_NUMBERS;
+    expect(DraftNumbersSchema.parse(old).look).toEqual({ pieces: {}, cues: {} });
+  });
+
+  it("keeps a draft's pieces and cues, and refuses one that is not a drawing or a cue", () => {
+    const look = { pieces: { cog: drawing }, cues: { swap: cue } };
+    expect(DraftNumbersSchema.parse({ ...OLD_NUMBERS, look }).look).toEqual(look);
+    expect(DraftNumbersSchema.safeParse({ ...OLD_NUMBERS, look: { pieces: { cog: { layers: [] } }, cues: {} } }).success).toBe(false);
+    expect(DraftNumbersSchema.safeParse({ ...OLD_NUMBERS, look: { pieces: {}, cues: { swap: { ...cue, voices: [{ ...cue.voices[0], note: 40 }] } } } }).success).toBe(false);
+  });
+
+  it("reads an arc step of a path as an arc, not as a point", async () => {
+    const { DrawingSchema } = await import("../src/index.js");
+    const path = { kind: "path", steps: [{ x: 6, y: 4 }, { x: 12, y: 12, r: 5, from: 180, to: 0, ccw: true }], width: 6 };
+    expect(DrawingSchema.parse({ layers: [path] }).layers[0]).toEqual(path);
   });
 });

@@ -1,4 +1,4 @@
-import { paintDrawing } from "@openseas/boards";
+import { paintDrawing } from "@openseas/boards/drawing";
 import { css, type Token } from "@openseas/boards/look";
 import type { Drawing, Layer, LayerKind } from "@openseas/protocol";
 

@@ -37,7 +37,8 @@ example for every one of them; for how a board looks, `Overload` and `Tug` are.
 | `packages/content/data/puzzles/<id>.json` | The config the server deals, the round length, the thresholds, and `paceSeconds` for the live tier indicator (ADR 0039). |
 | `packages/content/data/messages/prototypes/<id>.json` | Every string the puzzle shows. |
 | `packages/boards/src/<id>/renderer.ts` | A `KitBoard` subclass: draws the state, plays the last move, reports input. |
-| `packages/boards/src/<id>/pieces.ts` | The board's pieces: each a `Paint` on the 24 unit square and the palette colour it wears, with an icon component beside it for the legend (`<Id>Icon.tsx`). There are no image files: a piece is this drawing and nothing else. `Overload` and `Tug` are the worked examples. |
+| `packages/boards/data/pieces/<id>.json` | The board's pieces as drawings: layers on the 24 unit square, by name, that the studio's Sprites editor redraws and Save writes back (ADR 0065). |
+| `packages/boards/src/<id>/pieces.ts` | The board's pieces as it paints them: each a `Paint` of a drawing (`piecePaint`) and the palette colour it wears, picking a drawing by state where a kind has several, with an icon component beside it for the legend (`<Id>Icon.tsx`). There are no image files: a piece is its drawing and nothing else. `Overload` and `Tug` are the worked examples. |
 | `packages/boards/src/<id>/<Id>Board.tsx` | The React host: `useKitBoard`, the labels from the message table, `data-board`. |
 | `packages/studio/src/pages/<Id>Practice.tsx` | The page: `usePractice`, `useStudio`, `PracticeShell`, HUD details, legend, result rows. |
 | `packages/studio/src/prototypes/<id>.ts` | The studio's entry: content config, starting points, whether it ticks. |
@@ -124,8 +125,8 @@ it has not played yet: the engine numbers its events with a rising `seq`, as Nav
 the renderer remembers the last one it showed.
 
 Sounds are `sfx` in `boards/src/audio.ts`; the renderer plays them at the moment the animation
-shows the thing. Every cue is synthesized, from its definition in `boards/src/cues.ts`
-(`docs/BRAND.md` section 8, ADR 0062): there are no samples. A cue of the puzzle's own is
+shows the thing. Every cue is synthesized, from its definition in `boards/data/cues.json`
+(`docs/BRAND.md` section 8, ADR 0062, ADR 0065): there are no samples. A cue of the puzzle's own is
 `sfx.cue(name, fallback)`, a name for a moment and the cues that voice it. The beat's sound comes
 with the beat (`this.beat`), and the board plays no cue of its own in that moment.
 

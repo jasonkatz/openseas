@@ -354,8 +354,8 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
 - No music and no ambient bed. Sound effects via WebAudio, every one synthesized in code: there
   are no samples (ADR 0062 decision 5, `BRAND.md` section 8). A cue is a few soft voices, a sine,
   a triangle or a breath of filtered noise, through a low-pass, defined as data in
-  `boards/src/cues.ts`. Every pitched note is a step of one scale, G major pentatonic across three
-  octaves, so any two cues that overlap sound well together. What rises steps up the scale (a
+  `boards/data/cues.json` and read by `boards/src/cues.ts` (ADR 0065). Every pitched note is a step
+  of one scale, G major pentatonic across three octaves, so any two cues that overlap sound well together. What rises steps up the scale (a
   cascade, a streak), what falls steps down (a streak lost), and a bad thing is low and soft: the
   heat alarm is two low notes. Every cue rises from nothing in at least 8ms, is over within 400ms
   and peaks within 3 dB of one target. The beat (`BRAND.md` section 6) has one sound, the same on
@@ -625,9 +625,9 @@ What holds for all eight:
   home page lists them apart from the game's puzzles.
 - **A round is 120 seconds** on the clock, scored against thresholds set from bots playing the
   engine. They are guesses until testers have played.
-- **Pieces drawn in code, on a shared kit** (ADR 0062). Boards are built from a shared kit
+- **Pieces drawn in code, on a shared kit** (ADR 0062, ADR 0065). Boards are built from a shared kit
   (`boards/src/kit`). Each draws its pieces as flat pictograms of its own subject from a
-  `pieces.ts` beside its renderer, one silhouette a kind on the game's palette, and keeps drawing
+  `pieces.ts` beside its renderer, which paints the drawings of `boards/data/pieces/<puzzle>.json`, one silhouette a kind on the game's palette, and keeps drawing
   them when a lab config asks for more kinds than the content deals. The generated sprite atlases
   the prototypes first drew from (ADR 0037) were deleted as M10 restyled each board.
 - **Each owns its files**, so a puzzle is promoted or dropped without touching the others.
@@ -756,12 +756,12 @@ removed all four. Its fifth step took the sprite half (ADR 0062 decision 3) and 
 sound half (decision 5): every board draws its pieces and synthesizes its cues in code, so there
 is no frame and no sample to show, take, pick or place.
 
-**What stands: the Sounds list.** The Sounds mode has a row for every cue the puzzle's board
-plays, the beat's among them, and the three every round plays, each with a button that plays it
-as the board would. One of a puzzle's own cues (Swordfighting's `clash`) says which cues it plays.
-The list is built from `studio/src/assets/cues.ts`, which a test holds to what each board and its
-page ask `sfx` for. It is a list to listen to and nothing more: nothing in it is part of a draft,
-a link or an address, and a cue is changed in `boards/src/cues.ts`, in a pull request.
+**What stands: the Sounds list, and the editors that came after** (ADR 0065). The Sounds mode has
+a row for every cue the puzzle's board plays, the beat's among them, and the three every round
+plays, each with a button that plays it as the board would. One of a puzzle's own cues
+(Swordfighting's `clash`) says which cues it plays. The list is built from
+`studio/src/assets/cues.ts`, which a test holds to what each board and its page ask `sfx` for.
+Pieces and cues have since become data the studio edits: **Sprites** and **Sounds** below.
 
 **What was removed, and what is still read** (ADR 0062, ADR 0063, ADR 0064). The Sprites mode and
 its panel, a frame or a cue swapped on a running board, a file tried in a frame's or a cue's
@@ -793,8 +793,8 @@ agent reads:
 |---|---|
 | Numbers live in content (rule 18) | The numbers panels are built from the puzzle's content file and bounded by its wire schema |
 | Thresholds and a live pace (rules 16, 17) | `thresholds` and `paceSeconds` are controls, tuned by hand with the HUD's tier in view |
-| Reads without color (rule 22) | Nothing: a piece is drawn in code, and whoever draws it checks the board with every piece in one colour (`BRAND.md` section 3) |
-| Its own pieces and sounds (rule 23) | The Sounds list plays each of the puzzle's cues; a piece is an edit to the puzzle's `pieces.ts`, which the agent can make, and a cue's voice is an edit to `boards/src/cues.ts` |
+| Reads without color (rule 22) | The Sprites mode shows every piece in one colour, and notes a silhouette too like another (`BRAND.md` section 3) |
+| Its own pieces and sounds (rule 23) | The Sprites mode redraws the puzzle's pieces and the Sounds mode revoices its cues, both as data Save writes (ADR 0065); a new kind of piece or a new cue is code, which the agent can write |
 | Every string in the message table (rule 24) | The agent is held to it, and so is the studio itself; the Text mode rewrites the table's strings and writes none elsewhere |
 | Three homes kept in step (rule 25) | The agent can be asked to, in the chat; Save does not, and its pull request stays a draft for a developer to finish (ADR 0049) |
 | Report every bar item as met or broken | The developer who finishes the pull request reports it |
@@ -816,10 +816,11 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   count says so instead. On its right, what becomes of the draft: whether the service has it, a
   Share menu (the play link, tester links, sign-in, discarding the draft) and Save, with a sheet
   beside it that holds a name for the tester link and how the draft stands with its pull request.
-- A rail of six modes down the left edge, as icons with their names on hover, in three
+- A rail of seven modes down the left edge, as icons with their names on hover, in three
   clusters: **Play**; then **Setup**, **Tuning** and **Scoring**, the puzzle's numbers; then
-  **Sounds** and **Text** (ADR 0057). A mode that holds a change carries a dot. (A seventh,
-  Sprites, went with the sprite tooling at M10's fifth step, ADR 0062.)
+  **Sprites**, **Sounds** (ADR 0065) and **Text** (ADR 0057). A mode that holds a change carries a
+  dot. (Sprites went with the sprite tooling at M10's fifth step, ADR 0062, and came back as an
+  editor of the pieces drawn in code, ADR 0065.) The two editors take a wider panel.
 - One panel beside the rail, which is the mode's. It is always there, so the board never moves.
   Play holds the round: a starting point, the seed, the round dealt again, the shipped numbers
   held against the draft's, and the last five rounds finished on the page (seed, which numbers,
@@ -883,15 +884,41 @@ sees.
   changed here. It is a label for the grid and the menu of puzzles and decides nothing else: a
   prototype is promoted by its own ADR and milestone, never by its label.
 
-**Sounds.**
+**Sprites** (ADR 0065).
 
-- The Sounds mode is a list of every cue the puzzle's board plays, each with a button that plays
-  it. Every cue is synthesized in code (ADR 0062 decision 5): there is no sample, no take and
-  nothing to pick, and the list is no part of a draft.
-- A change to how a cue sounds is an edit to `boards/src/cues.ts`, heard on the pull request's
-  preview; which cue a board plays, and when, is in the puzzle's own renderer.
-- There is no panel for pieces: they are drawn in code (ADR 0062), and a change to one is an edit
-  the agent makes in the puzzle's `pieces.ts`, seen on the pull request's preview.
+- Every piece the puzzle's board draws, as a tile: the named drawings of
+  `boards/data/pieces/<puzzle>.json`, in their colours or all in one colour, the brand book's
+  check that kinds are told apart by outline alone. A `detail` (a cut-out the board stamps into
+  another shape, as Plating's metals) is shown cut out of a tile.
+- One piece in the editor: the 24 unit square with its grid and the 20 units a piece fills,
+  handles to drag (half a unit a step, a tenth with Alt), the layers as a list to select, add,
+  reorder and remove, every number of the selected layer in an inspector, undo, and the piece at
+  the sizes the board draws it.
+- Notes say where a drawing breaks a rule of `BRAND.md` section 3: a part too thin, a corner too
+  sharp, more than one kind of cut-out, reaching past the square, a silhouette too like another of
+  the puzzle's. They are notes; the owner decides.
+- A redrawn piece is part of the draft, as a word is: the board is made again with it once the
+  hand stops, the address carries it (`piece.<name>=`), a tester link freezes it, the top bar lists
+  it, Reset all clears it, and Save writes it into the pieces file. What only code can say (a
+  plate's footprint, a rod's numeral, a slab's size) is not here: it stays in the puzzle's
+  `pieces.ts`, which composes the drawings.
+
+**Sounds** (ADR 0065).
+
+- The list of every cue the puzzle's board plays, each with a button that plays it. Every cue
+  is synthesized (ADR 0062 decision 5): there is no sample, no take and nothing to pick.
+- One cue in the editor: its voices on a roll of the scale's sixteen notes over time, dragged to
+  move in time and up or down the scale or to lengthen; each voice's sound (sine, triangle or
+  air), note, start, rise, fall, level and filter; its rules (climb the scale by a parameter,
+  sound a voice only when one is in a range, repeat a voice by one, another level while one
+  holds, swell by one); a button for every row a board may ask it with, and what that row sounds
+  drawn faint behind; undo.
+- A cue that breaks a rule of `BRAND.md` section 8 (too long, too sharp a rise, too bright, a rule
+  naming what the board does not pass) is said to, plays as shipped, and holds Save until it is
+  mended. The editor's fields are bounded by those rules, so most edits cannot break them.
+- A cue is the game's: a revoiced cue is heard on every board that plays it, and the editor says
+  how many. It is part of the draft as a piece is (`cue.<name>=`), and Save writes it into
+  `boards/data/cues.json`. Which cue a board plays, and when, is in the puzzle's own renderer.
 
 **The chat.**
 
@@ -958,7 +985,7 @@ pnpm monorepo. Packages:
 | `protocol` | Zod schemas for every client-server message | Shared by client and server |
 | `content` | World content JSON and its schemas | Validated at server start |
 | `server` | Node 22, `ws`, Drizzle, Better Auth | Owns all authority |
-| `boards` | What both applications render with: the PixiJS boards and their art and sound, the round runner that streams move logs, the tick clock, the server connection, the shared stylesheet and the palette's tokens (ADR 0019, ADR 0061); every piece is drawn in code here, and no image is built or loaded (ADR 0062) | Presentation and transport only; computes nothing the server does not recompute; no pages or routes; its build step writes into no app's folders |
+| `boards` | What both applications render with: the PixiJS boards and their art and sound, the round runner that streams move logs, the tick clock, the server connection, the shared stylesheet and the palette's tokens (ADR 0019, ADR 0061); every piece is painted in code here from its drawing in `boards/data`, beside the cues, and no image is built or loaded (ADR 0062, ADR 0065) | Presentation and transport only; computes nothing the server does not recompute; no pages or routes; its build step writes into no app's folders |
 | `client` | The game: one graphical experience (DESIGN.md 3.11). Vite, React, three.js, the boards through `boards` | Renders; never authoritative |
 | `studio` | The puzzle studio (sections 3.11 and 3.14), once the harness: a page a puzzle with the shared board and the tuning panel built from content and the wire schema; each puzzle alone at `/play/<puzzle>` on the numbers its link carries; every round local and replayed from its seed; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 

@@ -3,7 +3,7 @@ import type { PuzzleId } from "@openseas/engine";
 import { CUE_PARAMS, LIMITS, NOTES, PROBES, SHIPPED_CUES, auditionCue, auditionData, cueFrom, cueProblems, t, type CueName, type CueParam } from "@openseas/boards";
 import { CueDataSchema, type CueData, type VoiceData, type When } from "@openseas/protocol";
 import { useFrame } from "../frame/RoundFrame.jsx";
-import { OWN_CUE_FALLBACKS, PUZZLE_CUES, cuesOf } from "./cues.js";
+import { OWN_CUE_FALLBACKS, PUZZLE_CUES, cuesOf, noteName } from "./cues.js";
 
 /**
  * The Sounds mode (DESIGN.md 3.14, ADR 0065): every cue the puzzle's board plays, each with a
@@ -16,10 +16,6 @@ import { OWN_CUE_FALLBACKS, PUZZLE_CUES, cuesOf } from "./cues.js";
  */
 
 const isCue = (name: string): name is CueName => name in CUE_PARAMS;
-const NAMES = ["G", "A", "B", "D", "E"];
-/** A step of the scale by name: 0 is G2, 15 is G5. The octave's number turns at C, so its D and E sit one above its G. */
-export const noteName = (n: number): string => `${NAMES[n % 5]}${2 + Math.floor(n / 5) + (n % 5 >= 3 ? 1 : 0)}`;
-
 /** The puzzles that play a cue: who else hears a change to it. */
 const playedBy = (cue: string): PuzzleId[] => (Object.keys(PUZZLE_CUES) as PuzzleId[]).filter((p) => PUZZLE_CUES[p].includes(cue));
 

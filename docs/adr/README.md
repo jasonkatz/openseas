@@ -70,3 +70,4 @@ that supersedes it.
 | [0062](./0062-pieces-are-drawn-in-code-and-cues-stay-synthesized.md) | Pieces are drawn in code and cues stay synthesized: the generated sprites and sounds retire |
 | [0063](./0063-stored-sprite-picks-and-takes-are-read-and-ignored.md) | Stored sprite picks and sprite takes are kept, read and ignored |
 | [0064](./0064-stored-sound-picks-and-takes-are-read-and-ignored-and-the-beats-sound-stands-alone.md) | Stored sound picks and takes are kept, read and ignored, and the beat's sound stands alone |
+| [0065](./0065-pieces-and-cues-are-data-the-studio-edits.md) | Pieces and cues are data the studio edits: a Sprites editor, a Sounds editor, and Save writes both |

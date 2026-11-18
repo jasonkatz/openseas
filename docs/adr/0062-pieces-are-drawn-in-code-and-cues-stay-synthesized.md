@@ -8,6 +8,9 @@ It supersedes, puzzle by puzzle as M10 restyles each, the sprite decisions of
 [0054](./0054-each-frame-is-a-file-and-the-build-packs-the-atlas.md). At M10's sound pass it
 supersedes [0041](./0041-sampled-sounds-over-synthesized-cues.md) and the sound decisions of 0040.
 Until a puzzle is restyled, those ADRs still describe it.
+[0065](./0065-pieces-and-cues-are-data-the-studio-edits.md) supersedes how a piece or a cue is
+changed: both are data in `boards/data`, edited in the studio and written by Save. Nothing generated
+comes back.
 
 ## Context
 
