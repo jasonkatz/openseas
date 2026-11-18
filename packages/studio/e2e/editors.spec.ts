@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { draft, numbers, service } from "./standin.js";
 
 /**
  * The Sprites and Sounds editors (DESIGN.md 3.14, ADR 0065). A piece is redrawn by dragging a
@@ -123,4 +124,27 @@ test("the Sounds mode revoices a cue: plays it as it is edited, holds it to the 
   await expect.poll(() => new URL(page.url()).searchParams.get("cue.clear")).toBeNull();
   await expect(page.getByTestId("tab-dot-sounds")).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test("the service keeps a draft's look; a draft whose only change is a cue can be saved, and one that breaks a rule cannot", async ({ page }) => {
+  desktopOnly();
+  const s = await service(page, { login: "octo", save: true, words: true, look: true, drafts: [draft({ numbers: numbers(), save: { state: "idle", error: null, pull: null, savedRevision: null, behind: false } })] });
+  await page.goto("/cooling");
+  await expect(page.getByTestId("draft-store")).toHaveAttribute("data-status", "saved");
+  await expect(page.getByTestId("save")).toBeDisabled();
+  await page.getByTestId("tab-sounds").click();
+  await page.getByTestId("cue-edit-swap").click();
+  await page.getByTestId("cue-level").fill("0.8");
+  await expect(page.getByTestId("draft-store")).toHaveAttribute("data-revision", "4");
+  expect((s.drafts[0]!.numbers as { look?: { cues: Record<string, { level: number }> } }).look?.cues.swap?.level).toBe(0.8);
+  // The service keeps it, so the address does not.
+  await expect(page).toHaveURL(/\/cooling$/);
+  await expect(page.getByTestId("save")).toBeEnabled();
+
+  // A cue that runs too long holds Save until it is mended.
+  await page.getByTestId("voice-release").fill("0.9");
+  await expect(page.getByTestId("cue-problems")).toBeVisible();
+  await expect(page.getByTestId("save")).toBeDisabled();
+  await page.getByTestId("voice-release").fill("0.1");
+  await expect(page.getByTestId("save")).toBeEnabled();
 });
