@@ -18,6 +18,7 @@ import {
   salvageLineIllegalReason,
   salvageLineValue,
   salvageViewString,
+  salvageVolatileValue,
   type SalvageConfig,
   type SalvageMove,
   type SalvagePiece,
@@ -60,16 +61,21 @@ function playRandom(seed: string, picks: readonly number[], config: SalvageConfi
 
 const picksArb = fc.array(fc.nat({ max: 10_000 }), { minLength: 0, maxLength: 240 });
 
-/** A field from rows of characters: a digit is debris, `C` a crate, `R` rubble. */
-function field(rows: readonly string[], seed = "t"): SalvageState {
-  const config: SalvageConfig = { ...cfg, width: rows[0]!.length, height: rows.length, startCrates: 0 };
+/** A field from rows of characters: a digit is debris, `C` a crate, `R` rubble, a letter from `a` a volatile of that kind with `fuseFor` left. No contract is posted. */
+function field(rows: readonly string[], seed = "t", over: Partial<SalvageConfig> = {}, fuseFor = cfg.fuse): SalvageState {
+  const config: SalvageConfig = { ...cfg, width: rows[0]!.length, height: rows.length, startCrates: 0, ...over };
   const base = createSalvageGame(seed, config);
   let id = 1000;
   const cells: SalvagePiece[] = rows
     .join("")
     .split("")
-    .map((ch) => ({ id: id++, kind: ch === "C" ? SALVAGE_CRATE : ch === "R" ? SALVAGE_RUBBLE : Number(ch) }));
-  return { ...base, cells, nextId: id };
+    .map((ch): SalvagePiece => {
+      if (ch === "C") return { id: id++, kind: SALVAGE_CRATE };
+      if (ch === "R") return { id: id++, kind: SALVAGE_RUBBLE };
+      if (ch >= "a" && ch <= "h") return { id: id++, kind: ch.charCodeAt(0) - 97, fuse: fuseFor };
+      return { id: id++, kind: Number(ch) };
+    });
+  return { ...base, cells, nextId: id, contract: null };
 }
 
 const at = (s: SalvageState, col: number, row: number): number => row * s.config.width + col;
@@ -329,8 +335,107 @@ describe("salvage rules", () => {
     expect(s.finished).toBe(true);
   });
 
+  it("a line of the contract's kind pays contractPercent and counts toward the contract", () => {
+    const s0 = field(["0123", "1111", "2302", "3023"]);
+    const s = { ...s0, contract: { kind: 1, left: 10 } };
+    const line = [at(s, 0, 1), at(s, 1, 1), at(s, 2, 1), at(s, 3, 1)];
+    const v = salvageLineValue(s, line, false);
+    expect(v).toMatchObject({ contract: 4, fills: false, base: (16 * cfg.contractPercent) / 100 });
+    const next = reduceSalvage(s, { type: "tether", cells: line, loop: false });
+    expect(next.contract).toEqual({ kind: 1, left: 6 });
+    expect(next.lastMove!.contractCounted).toBe(4);
+    // Another kind counts nothing and pays plain.
+    const other = { ...s0, contract: { kind: 2, left: 10 } };
+    expect(salvageLineValue(other, line, false)).toMatchObject({ contract: 0, base: 16 });
+  });
+
+  it("filling the contract pays the bonus and posts another kind", () => {
+    const s = { ...field(["0123", "1111", "2302", "3023"]), contract: { kind: 1, left: 3 } };
+    const line = [at(s, 0, 1), at(s, 1, 1), at(s, 2, 1), at(s, 3, 1)];
+    expect(salvageLineValue(s, line, false)).toMatchObject({ fills: true, base: (16 * cfg.contractPercent) / 100 + cfg.contractBonus });
+    const next = reduceSalvage(s, { type: "tether", cells: line, loop: false });
+    expect(next.lastMove!.contractFilled).toBe(true);
+    expect(next.contractsFilled).toBe(1);
+    expect(next.contract!.kind).not.toBe(1);
+    expect(next.contract!.left).toBe(cfg.contractQuota);
+  });
+
+  it("a game opens with a contract, or none when the quota is 0", () => {
+    fc.assert(
+      fc.property(fc.string(), (seed) => {
+        const s = createSalvageGame(seed);
+        expect(s.contract!.left).toBe(cfg.contractQuota);
+        expect(s.contract!.kind).toBeGreaterThanOrEqual(0);
+        expect(s.contract!.kind).toBeLessThan(cfg.kinds);
+        expect(createSalvageGame(seed, { ...cfg, contractQuota: 0 }).contract).toBeNull();
+      }),
+      { numRuns: 30 },
+    );
+  });
+
+  it("a volatile links as its kind, and defusing it pays more the longer it burned", () => {
+    const fresh = field(["0123", "1b11", "2302", "3023"]);
+    const late = field(["0123", "1b11", "2302", "3023"], "t", {}, 1);
+    const line = [at(fresh, 0, 1), at(fresh, 1, 1), at(fresh, 2, 1), at(fresh, 3, 1)];
+    expect(salvageLineIllegalReason(fresh, line, false)).toBeNull();
+    expect(salvageVolatileValue(cfg, fresh.cells[at(fresh, 1, 1)]!)).toBe(cfg.volatilePoints);
+    expect(salvageVolatileValue(cfg, late.cells[at(late, 1, 1)]!)).toBe(cfg.volatilePoints * cfg.fuse);
+    const v = salvageLineValue(late, line, false);
+    expect(v.defused).toEqual([at(late, 1, 1)]);
+    expect(v.base).toBe(16 + cfg.volatilePoints * cfg.fuse);
+    const next = reduceSalvage(late, { type: "tether", cells: line, loop: false });
+    expect(next.defused).toBe(1);
+    expect(next.lastMove!.blasts).toEqual([]);
+  });
+
+  it("a volatile left on the field burns down, then blows: it and the debris round it turn to rubble, crates untouched, and the streak breaks", () => {
+    // A volatile 3 with one haul left in the corner, a crate beside it; the haul is the bottom row of 2s.
+    const s0 = field(["a3C0", "3311", "0101", "2222"], "t", {}, 1);
+    const s = { ...s0, combo: 3, grace: true };
+    const next = reduceSalvage(s, { type: "tether", cells: [at(s, 0, 3), at(s, 1, 3), at(s, 2, 3), at(s, 3, 3)], loop: false });
+    const r = next.lastMove!;
+    expect(r.blasts.length).toBe(1);
+    expect(r.blasts[0]!.cell).toBe(at(s, 0, 0));
+    // The volatile, the 3 beside it and the two under it; the crate at (2,0) is not touched.
+    expect(r.blasts[0]!.scorched).toEqual([at(s, 0, 0), at(s, 1, 0), at(s, 0, 1), at(s, 1, 1)]);
+    expect(next.blasts).toBe(1);
+    expect(next.combo).toBe(0);
+    expect(next.cells.filter((p) => p.kind === SALVAGE_RUBBLE).length).toBe(4);
+    // A volatile with more fuse just burns one.
+    const slow = field(["a3C0", "3311", "0101", "2222"], "t", {}, 4);
+    const after = reduceSalvage(slow, { type: "tether", cells: [at(slow, 0, 3), at(slow, 1, 3), at(slow, 2, 3), at(slow, 3, 3)], loop: false });
+    expect(after.lastMove!.blasts).toEqual([]);
+    expect(after.cells.find((p) => p.id === slow.cells[0]!.id)!.fuse).toBe(3);
+  });
+
+  it("rubble cannot be tethered; a loop clears it as enclosed, and the floor takes it for nothing", () => {
+    const s = field(["01000", "1R101", "01020", "32323"], "t", { cratePermille: 0 });
+    expect(salvageLineIllegalReason(s, [at(s, 1, 1), at(s, 2, 1), at(s, 3, 1)], false)).toBe("rubble cannot be tethered");
+    const ring = [at(s, 1, 0), at(s, 2, 1), at(s, 1, 2), at(s, 0, 1)];
+    const v = salvageLineValue(s, ring, true);
+    expect(v.enclosed).toEqual([at(s, 1, 1)]);
+    // Rubble on the floor row after a settle is taken off for no points.
+    const low = field(["0123", "1230", "2R01", "3111"], "t", { cratePermille: 0 });
+    const next = reduceSalvage(low, { type: "tether", cells: [at(low, 1, 3), at(low, 2, 3), at(low, 3, 3)], loop: false });
+    const floor = next.lastMove!.rounds.flatMap((x) => x.floor);
+    expect(floor.map((h) => h.kind)).toEqual([SALVAGE_RUBBLE]);
+    expect(next.lastMove!.points).toBe(9);
+  });
+
+  it("a volatile drifts in every volatileEvery hauls, with its fuse lit", () => {
+    const config: SalvageConfig = { ...cfg, volatileEvery: 2 };
+    let s = createSalvageGame("vol", config);
+    s = reduceSalvage(s, { type: "tether", cells: salvageHint(s)!.slice(0, 3), loop: false });
+    expect(s.lastMove!.rounds[0]!.spawned.some((p) => p.fuse !== undefined)).toBe(false);
+    s = reduceSalvage(s, { type: "tether", cells: salvageHint(s)!.slice(0, 3), loop: false });
+    const lit = s.lastMove!.rounds[0]!.spawned.filter((p) => p.fuse !== undefined);
+    expect(lit.length).toBe(1);
+    expect(lit[0]!.fuse).toBe(config.fuse);
+    expect(createSalvageGame("vol", { ...cfg, volatileEvery: 0 }).cells.some((p) => p.fuse !== undefined)).toBe(false);
+  });
+
   it("the view string names every cell", () => {
-    const s = field(["01C", "R23", "104"]);
-    expect(salvageViewString(s.cells)).toBe("01CR23104");
+    const s = field(["01C", "R23", "1d4"]);
+    expect(salvageViewString(s.cells)).toBe("01CR231d4");
   });
 });
