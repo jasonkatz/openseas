@@ -85,9 +85,9 @@ export function salvageVolatilePaint(kind: SalvageKind, fuse: number): Paint {
     kind.paint(ctx);
     cut(ctx, () => disc(ctx, 12, 12.6, 2.6));
     const n = Math.max(0, Math.min(fuse, 8));
-    const step = 2.6;
+    const step = 3.3;
     const x0 = 12 - ((n - 1) * step) / 2;
-    for (let i = 0; i < n; i++) disc(ctx, x0 + i * step, 1.6, 1);
+    for (let i = 0; i < n; i++) disc(ctx, x0 + i * step, 1.7, 1.25);
   };
 }
 

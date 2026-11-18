@@ -266,3 +266,19 @@ test("salvage: three crates netted at full streak", async ({ page }) => {
     await settled(page, "salvage");
   }, { tailMs: 1500, region: await region(page) });
 });
+
+test("salvage: a volatile adrift, its fuse burning", async ({ page }) => {
+  test.setTimeout(480_000);
+  // Long lines until a volatile has drifted in and burned a little, clear of the top row.
+  const { seed, found } = findSeed("salvage-volatile", (s) =>
+    playUntil(s, cfg.volatileEvery + 4, (g) => {
+      const at = g.cells.findIndex((p) => p.fuse !== undefined && p.fuse > 0);
+      return at >= 0 && row(at) >= 1 && g.cells[at]!.fuse! < cfg.fuse && g.cells[at]!.fuse! >= 2 ? at : null;
+    }),
+  );
+  await openLab(page, "salvage", { seed, seconds: 600 });
+  await replay(page, seed, found.log);
+  await page.waitForTimeout(500);
+  await hidePointer(page);
+  await still(page, "salvage", "volatile", { region: await region(page) });
+});

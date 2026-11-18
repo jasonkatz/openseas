@@ -57,6 +57,24 @@ If no line of three is left, the debris is dealt again in place and the crates s
   so the question is when: netting one crate at a time is worth a quarter of waiting for two, and
   waiting means not hauling the debris under the crates you are saving.
 
+## The ladder
+
+A new player climbs four stages (ADR 0065), each passed with one Steady round. Only the whole
+puzzle counts. Every stage is the whole puzzle with layers switched off in `stages` in the content
+file; the names and one-line cards are `salvage.stage.<id>` and `_intro`.
+
+| Stage | Round | What is on | Switched off |
+|---|---|---|---|
+| Lines | 60s | Lines, n × n | The streak (`streakPercent: [100]`), crates, nets (`loopMin: 0`), orders, volatiles |
+| Streak and crates | 90s | The streak, crates taken off the floor | Nets, orders, volatiles |
+| Nets and orders | 120s | Nets, orders | Volatiles |
+| Full salvage | 120s | Everything | |
+
+Volatiles come last because rubble is cleared by a net, so nets want to be second nature first.
+Orders come with nets because both ask which line to draw, not only how long. Each stage's
+thresholds are the whole puzzle's scaled by what a one-move bot scores at that stage in that time
+(lines 15 percent of the whole, streak and crates 33, nets and orders 93), and want setting by hand.
+
 ## Input and feedback
 
 - Pointer: drag from a piece through its neighbours. Dragging back over the previous piece undoes a

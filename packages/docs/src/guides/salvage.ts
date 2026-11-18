@@ -70,6 +70,14 @@ export const salvage: Guide = {
     `**A filled order pays ${c.orderBonus}** on top of the line. **A volatile pays more the longer it burned:** defused fresh it is ${defuse(c.fuse)}, with one notch left ${defuse(1)}. One that blows pays nothing and breaks the streak.`,
     `A line of ${word(c.streakMin)} or more builds a **streak** that multiplies the whole haul, crates, orders and volatiles included: ${c.streakPercent.map(times).join(", ")}. One shorter line is forgiven. A second in a row breaks it.`,
   ],
+  stageMedia: {
+    full: {
+      kind: "still",
+      name: "volatile",
+      alt: "A Salvage field a few hauls in. One piece of debris has a round hole cut at its heart and a row of small notches over it: a volatile, its fuse partly burned.",
+      caption: "A volatile adrift. Count the notches: one burns with every haul that leaves it there.",
+    },
+  },
   stages: [
     {
       level: "beginner",

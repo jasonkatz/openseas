@@ -33,6 +33,11 @@ export interface Guide {
   readonly controls: readonly Control[];
   /** How points are made, shortest true version. Two to four. */
   readonly scoring: readonly string[];
+  /**
+   * A picture for a stage of the puzzle's own ladder (ADR 0065), by the stage's id (`full` for the
+   * whole puzzle). The section that lists the stages reads them from content; this only adds pictures.
+   */
+  readonly stageMedia?: Readonly<Record<string, Media>>;
   /** The ladder, in this order: beginner, intermediate, advanced, expert. */
   readonly stages: readonly [Stage, Stage, Stage, Stage];
   /** What goes wrong, and what to do about it. Three to five. */

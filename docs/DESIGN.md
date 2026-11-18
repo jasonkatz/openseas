@@ -623,7 +623,7 @@ What holds for all eight:
   any other. Since M9 the studio sends it none (ADR 0042): a prototype is held to replay by its
   property tests and the studio's replay check. None is a station: no par, no place aboard, no standing (ADR 0028). The studio
   home page lists them apart from the game's puzzles.
-- **A round is 120 seconds** on the clock, scored against thresholds set from bots playing the
+- **A round is 120 seconds** on the clock (a stage may be shorter), scored against thresholds set from bots playing the
   engine. They are guesses until testers have played.
 - **Pieces drawn in code, on a shared kit** (ADR 0062). Boards are built from a shared kit
   (`boards/src/kit`). Each draws its pieces as flat pictograms of its own subject from a
@@ -632,6 +632,12 @@ What holds for all eight:
   the prototypes first drew from (ADR 0037) were deleted as M10 restyled each board.
 - **Each owns its files**, so a puzzle is promoted or dropped without touching the others.
 - **Promotion is its own decision:** a role in the game, an ADR, a milestone.
+- **Learned on a ladder** (ADR 0065). A prototype deepened past what a new player can take in at
+  once has stages in its content file: the puzzle with layers switched off, two to four of them,
+  simplest first, then the whole puzzle. A player climbs forward only, by one Steady round a stage;
+  only the whole puzzle's tier is read by anything. The studio deals any stage from its Play panel
+  or the address (`?stage=`). Salvage is the first: lines, then streak and crates, then nets and
+  orders, then volatiles. The other seven are deepened and laddered one at a time.
 
 ### 3.13 Puzzle guides
 

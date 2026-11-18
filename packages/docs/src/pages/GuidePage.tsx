@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { PROTOTYPE_PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
-import { t } from "../content.js";
+import { content, t } from "../content.js";
 import { Figure } from "../Figure.jsx";
 import { GUIDES, GUIDE_ORDER, LEVELS, type Level, type Stage } from "../guides/index.js";
 import { Rich } from "../Rich.jsx";
 import { Link } from "../router.jsx";
 
-const SECTIONS = ["theme", "rules", "controls", "scoring", "ladder", "mistakes"] as const;
+const SECTIONS = ["theme", "rules", "controls", "scoring", "opening", "ladder", "mistakes"] as const;
 
 /** The rung the address names (`#expert`), or the first. */
 function levelFromHash(): Level {
@@ -33,6 +33,10 @@ export function GuidePage({ id }: { id: PuzzleId }) {
     window.history.replaceState(null, "", `#${l}`);
   };
   const stage = guide.stages.find((s) => s.level === level) ?? guide.stages[0];
+  // The puzzle's own ladder of stages (ADR 0065), from content: a puzzle with none has no such section.
+  const file = content.puzzles[id];
+  const opening = "stages" in file && file.stages.length > 0 ? [...file.stages.map((s) => ({ id: s.id, seconds: s.roundSeconds })), { id: "full", seconds: file.roundSeconds }] : [];
+  const sections = SECTIONS.filter((s) => s !== "opening" || opening.length > 0);
 
   return (
     <main className="page guide" data-testid={`guide-page-${id}`}>
@@ -56,7 +60,7 @@ export function GuidePage({ id }: { id: PuzzleId }) {
             ))}
           </dl>
           <nav className="jump" aria-label={t("docs.jump")}>
-            {SECTIONS.map((s) => (
+            {sections.map((s) => (
               <a key={s} href={`#${s}`}>
                 {t(`docs.section_${s}`)}
               </a>
@@ -125,6 +129,21 @@ export function GuidePage({ id }: { id: PuzzleId }) {
           ))}
         </ul>
       </section>
+
+      {opening.length > 0 && (
+        <section id="opening" className="block" data-testid="guide-opening">
+          <h2>{t("docs.section_opening")}</h2>
+          <p className="muted">{t("docs.opening_blurb")}</p>
+          <ol className="rules">
+            {opening.map((s) => (
+              <li key={s.id} data-stage={s.id}>
+                <b>{t(`${id}.stage.${s.id}`)}</b> <span className="muted">{t("docs.opening_seconds", { seconds: s.seconds })}</span>. {t(`${id}.stage.${s.id}_intro`)}
+                {guide.stageMedia?.[s.id] && <Figure puzzle={id} media={guide.stageMedia[s.id]!} />}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <section id="ladder" className="block ladder">
         <h2>{t("docs.section_ladder")}</h2>
