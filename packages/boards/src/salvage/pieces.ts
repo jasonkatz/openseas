@@ -74,9 +74,9 @@ export const SALVAGE_CRATE_PAINT: Paint = (ctx) => {
 
 /** Rubble: a heap of three broken stones, left where a volatile blew. */
 export const SALVAGE_RUBBLE_PAINT: Paint = (ctx) => {
-  soft(ctx, [3, 20, 6, 12, 12, 13, 13, 20], 1.6);
-  soft(ctx, [11, 20, 13, 11, 19, 10, 21, 20], 1.6);
-  soft(ctx, [7, 11, 10, 4, 16, 5, 15, 11], 1.6);
+  soft(ctx, [2.5, 21, 3.5, 13.5, 10, 12.5, 11, 21], 1.4);
+  soft(ctx, [13, 21, 13.5, 12, 20.5, 13, 21.5, 21], 1.4);
+  soft(ctx, [7.5, 10.5, 8.5, 3.5, 15, 3, 16, 10.5], 1.4);
 };
 
 /** A volatile of one kind: that kind's outline with a hole at its heart and a notch on its crown for each haul its fuse has left. */
