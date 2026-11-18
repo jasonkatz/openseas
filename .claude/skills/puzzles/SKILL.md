@@ -169,7 +169,8 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
      6 row if it departs further from the original. On a puzzle with stages, every stage the
      change reaches: its overlay still switches the layer off, and its thresholds still fit.
    - **A new layer:** its off value, the stage it arrives at, and the bots that show it pays for
-     skill and that its bait loses (rule 26).
+     skill and that its bait loses (rule 26). The bots live in `packages/bots/src/games/<id>.ts`;
+     `pnpm --filter @openseas/bots ladder <id>` prints the table for the tuning notes (ADR 0067).
    - **A new or renamed config key:** its line of description on the wire schema and its place in
      `studio/src/tuning/groups/<id>.ts`.
    - **A control:** the design file, the guide's controls, the studio smoke.

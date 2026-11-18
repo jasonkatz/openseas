@@ -1,0 +1,30 @@
+{
+  "name": "@openseas/bots",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bots that play any prototype engine and print its ladder table (M11, ADR 0067). A tool, never shipped.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "ladder": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "echo no lint"
+  },
+  "dependencies": {
+    "@openseas/content": "workspace:*",
+    "@openseas/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
