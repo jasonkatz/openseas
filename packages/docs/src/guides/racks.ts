@@ -12,6 +12,8 @@ const chain = (n: number): number => Array.from({ length: n }, (_, i) => ship(i 
 const chainTop = c.chainPercent.length;
 /** A rack this full has no room for any crate. */
 const noRoomAt = c.height - c.crateMin + 1;
+/** The manifest's kinds, in words. */
+const manifestKinds = word(c.manifestLength);
 
 export const racks: Guide = {
   id: "racks",
@@ -19,29 +21,29 @@ export const racks: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Racks board: ${c.racks} racks in a row, each a stack of up to ${c.height} fuel cells in four shapes, on bare dark ground with a dot in every empty slot. A crate of two cells hangs from a trolley on a rail over the first rack, with the number 3 on the trolley and dim shapes in the rack where its cells will sit.`,
-    caption: "The row. The crate hangs over the marked rack, and the number on its trolley is the moves until it lands.",
+    alt: `The Racks board: ${c.racks} racks in a row, each a stack of up to ${c.height} fuel cells in four shapes, on bare dark ground with a dot in every empty slot. A crate of two cells hangs from a trolley on a rail over the first rack, with the number 3 on the trolley and dim shapes in the rack where its cells will sit. Under the rack numbers the manifest shows ${manifestKinds} cell shapes with a chevron between them, the first ringed in cream, and plus ${c.manifestPoints}.`,
+    caption: "The row. The crate hangs over the marked rack, and the number on its trolley is the moves until it lands. The manifest sits under the racks.",
   },
   theme: {
     setting:
       "The fuel bay is a row of racks and a gantry that never stops delivering. You are the pirate on the bay floor, lifting cells off one rack and onto another until a rack holds one kind and can go to the engines. The next crate is already over your head.",
     purpose:
-      "Racks is a **prototype**: it is played on the test bench and is in no ship yet. It is trying out sorting under a deadline you can see coming, where you choose when the next load arrives. The skill it asks for is keeping the row in order, then timing shipments so they land back to back.",
+      "Racks is a **prototype**: it is played on the test bench and is in no ship yet. It is trying out sorting under a deadline you can see coming, where you choose when the next load arrives. The skill it asks for is keeping the row in order, then timing shipments so they land back to back, in the order the manifest asks for.",
   },
   facts: [
     { label: "Row", value: `${c.racks} racks, ${c.height} cells tall, ${c.kinds} kinds` },
     { label: "Round", value: `${p.roundSeconds} seconds` },
     { label: "Crate", value: `${c.crateMin} or ${c.crateMax} cells, lands after ${c.landEvery} moves` },
-    { label: "Status", value: "Prototype, on the test bench" },
+    { label: "Manifest", value: `${capital(manifestKinds)} kinds in order, +${c.manifestPoints}` },
   ],
   rules: [
-    `A move lifts the top of one rack and sets it on another that has room. Cells of one kind sitting together at the top are a **group** and move as one. Any cell may sit on any other.`,
-    "If the whole group does not fit, as many cells as fit go across and the rest stay.",
+    `A move lifts the top of one rack and sets it on another that has room. Cells of one kind sitting together at the top are a **group** and move as one, as many as fit. Any cell may sit on any other.`,
     `A rack filled to the top with one kind **ships**: it scores ${c.shipPoints} and comes back empty.`,
     `A **crate** of ${c.crateMin} or ${c.crateMax} new cells always hangs over one rack, the **marked** one. Every move takes one off the count on its trolley, and the move that takes it to zero lands the crate on top of whatever is there. A new crate is hung at once, over any rack.`,
     `A crate with too little room **smashes** its rack: every cell in it is lost, and ${c.spillPenalty} points with them. While that is coming the trolley turns red and a red ring goes round the rack.`,
     "You can **call** the crate down at once. A call is an action, like a move.",
     "A crate that lands to fill its rack with one kind ships it. The trolley turns cream when it will, and a cream ring goes round the rack.",
+    `Under the racks hangs the **manifest**: ${manifestKinds} different kinds in an order. Ship a rack of each, in that order, on actions in a row, and it is filled. A new one is posted at once.`,
   ],
   rulesMedia: {
     kind: "clip",
@@ -59,8 +61,8 @@ export const racks: Guide = {
   ],
   scoring: [
     `A shipment scores ${c.shipPoints}.`,
-    `A shipment on the action straight after another is a **chain**: the second scores ${ship(2)}, the third ${ship(3)}, up to ${ship(chainTop)} from the ${ordinal(chainTop)}. Any action that ships nothing ends the chain, a call too.`,
-    "A crate that ships its rack counts in the chain like any other shipment.",
+    `A shipment on the action straight after another is a **chain**: the second scores ${ship(2)}, the third ${ship(3)}, up to ${ship(chainTop)} from the ${ordinal(chainTop)}. A crate that ships its rack counts like any other shipment. Any action that ships nothing ends the chain, a call too.`,
+    `A filled manifest pays **${c.manifestPoints}** on top of the shipment that fills it. A shipment of another kind, or an action that ships nothing, starts it again from its first kind.`,
     `A smashed rack costs ${c.spillPenalty} points and every cell in it, and ends the chain. The score never goes below zero.`,
   ],
   stages: [
@@ -142,7 +144,7 @@ export const racks: Guide = {
           media: {
             kind: "clip",
             name: "hold",
-            alt: "One rack could ship at once with part of a group. Instead a single cell is moved off the top of the middle rack onto its own kind. The group under it then fills one rack, which ships for 100, and the cell under that fills another, which ships for 200 as the board calls out Chain x2.",
+            alt: "One rack could ship at once with part of a group. Instead a single cell is moved off the top of a rack onto its own kind. The group under it then fills one rack, which ships for 100, and the cell under that fills another, which ships for 200 as the board calls out Chain x2.",
             caption: `One tidy move first, then two shipments in a row: ${ship(1)} and ${ship(2)}.`,
           },
         },
@@ -159,19 +161,15 @@ export const racks: Guide = {
     },
     {
       level: "expert",
-      goal: "Make more actions in the round, and turn pairs into chains of three.",
+      goal: "Make more actions in the round, turn pairs into chains of three, and ship the manifest in its order.",
       tips: [
         {
           title: "Actions are the score",
-          body: `The crate counts moves, not seconds, so a faster hand simply plays a longer game. A tidy bot's score grows in step with its actions: a hundred actions score nearly half as much again as seventy. You do not have to wait for a move to finish before you start the next one.`,
-        },
-        {
-          title: "Use the numbers",
-          body: `On a keyboard a move is two keys: the rack to lift from and the rack to set down on. C calls the crate. Both hands stay still and your eyes stay on the trolley. On touch, a drag is one stroke where tap and tap is two.`,
+          body: `The crate counts moves, not seconds, so a faster hand simply plays a longer game. A tidy bot's score grows in step with its actions: a hundred actions score nearly half as much again as seventy. On a keyboard a move is two keys and C calls the crate, so your eyes stay on the trolley. On touch, a drag is one stroke where tap and tap is two.`,
         },
         {
           title: "The third link",
-          body: `Three shipments in a row score ${chain(3)}, where three apart score ${3 * ship(1)}. Two by hand are rarely enough cells on a row this small. The third is usually the crate: a cream trolley over a rack that waits while you ship the others.`,
+          body: `Three shipments in a row score ${chain(3)}, where three apart score ${3 * ship(1)}. The third is usually the crate: a cream trolley over a rack that waits while you ship the others. It waits only as long as its count, so count the moves your set-up needs against the number on the trolley before you start.`,
           media: {
             kind: "clip",
             name: "three",
@@ -180,11 +178,21 @@ export const racks: Guide = {
           },
         },
         {
-          title: "Watch the count inside a chain",
-          body: "A cream trolley waits for you only as long as its count. If the count runs out during your set-up, the crate ships its rack on that move, before the others are ready, and the chain ends with the next move. Count the moves your set-up needs against the number on the trolley before you start.",
+          title: "The manifest is a chain with an order",
+          body: `The manifest pays ${c.manifestPoints} on top for its ${manifestKinds} kinds shipped in its order on actions in a row. Build a rack of each one move from full, keep the crate's mark off them, then ship the first and the second back to back. The strip names the kind it wants next, and a rack the lifted group would fill shows both prices.`,
+          media: {
+            kind: "clip",
+            name: "manifest",
+            alt: "A rack of the manifest's first kind is filled and ships, and the first shape in the manifest under the racks dims while a cream ring moves to the second. The strip names the second kind. A group is lifted, the rack it would fill shows two prices, and it is set down: the rack ships and the board calls out Manifest filled as a new manifest is posted.",
+            caption: `The manifest's kinds in its order, back to back: the chain's points and ${c.manifestPoints} on top.`,
+          },
+        },
+        {
+          title: "Take it when it comes your way",
+          body: `Chasing the manifest loses. A bot that counted every other shipment as nothing shipped fewer racks, had more of them smashed and scored less than one that took the manifest only when its kinds were already close. Keep shipping what is ready, and turn to the manifest when its racks are near full.`,
         },
       ],
-      drill: `Play a round on the number keys alone and count your actions: the board's panel shows them. You are there when a round has ninety or more, Longest chain reads three now and then, and the score passes ${p.thresholds[4]!.score}.`,
+      drill: `Play a round on the number keys alone and count your actions: the board's panel shows them. You are there when a round has ninety or more, Manifests filled reads one or more most rounds, and the score passes ${p.thresholds[4]!.score}.`,
     },
   ],
   mistakes: [
@@ -192,9 +200,17 @@ export const racks: Guide = {
     `**Calling into a crowded row.** The next crate can be hung over any rack, a full one too. Call when the row is sorted and no rack is stuck near the top with mixed cells.`,
     "**Splitting a group.** A group that only partly fits leaves cells of one kind on two racks. Unless the part that fits ships the rack, find it a rack with room for all of it.",
     `**Shipping the moment a rack is ready.** If a second rack is one move from full, that move comes first. The pair is worth ${chain(2)} together and ${2 * ship(1)} apart.`,
-    `**Filling the spare rack.** With no empty rack you cannot reach a buried cell without burying another. Keep one rack free for digging.`,
+    `**Breaking a chain for the manifest.** A shipment of another kind is still worth its points, and it only starts the manifest again. Holding back a ready rack to wait for the manifest's kind costs more than the manifest pays back.`,
   ],
 };
+
+function word(n: number): string {
+  return ["no", "one", "two", "three", "four"][n] ?? String(n);
+}
+
+function capital(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 function ordinal(n: number): string {
   return ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"][n] ?? `${n}th`;

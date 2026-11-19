@@ -25,7 +25,7 @@ type Act = Extract<RacksMove, { type: "move" | "call" }>;
 const deal = (seed: string): RacksState => createRacksGame(seed, cfg);
 const view = (s: RacksState): string => racksViewString(s.racks, s.crate);
 const shipsIn = (s: RacksState): number => s.lastMove?.events.filter((e) => e.type === "ship").length ?? 0;
-const did = (s: RacksState, type: "land" | "spill"): boolean => s.lastMove?.events.some((e) => e.type === type) ?? false;
+const did = (s: RacksState, type: "land" | "spill" | "manifest"): boolean => s.lastMove?.events.some((e) => e.type === type) ?? false;
 const pure = (s: RacksState, rack: number): boolean => s.racks[rack]!.every((c) => c.kind === s.racks[rack]![0]!.kind);
 
 /** Every move the engine takes, and the call when the crate has room. */
@@ -164,7 +164,8 @@ test("racks: the board", async ({ page }) => {
       const cells = s.racks.reduce((n, r) => n + r.length, 0);
       const kinds = new Set(s.racks.flatMap((r) => r.map((c) => c.kind))).size;
       const crateKinds = new Set(s.crate.cells.map((c) => c.kind)).size;
-      const ok = sorted >= 2 && cells >= 13 && cells <= 17 && kinds === cfg.kinds && crateKinds >= 2 && s.crate.lands === 3;
+      // No chain is running, so the manifest under the row waits on its first kind.
+      const ok = sorted >= 2 && cells >= 13 && cells <= 17 && kinds === cfg.kinds && crateKinds >= 2 && s.crate.lands === 3 && s.combo === 0;
       return ok && racksCrateFits(s) && !racksCrateWouldShip(s) && s.racks[s.crate.rack]!.length >= 1 ? true : null;
     }),
   );
@@ -181,7 +182,8 @@ test("racks: a shipment", async ({ page }) => {
       if (!h || h.type !== "move" || !racksWouldShip(s, h.from, h.to)) return null;
       const group = racksTopGroup(s.racks[h.from]!)!;
       const clear = s.crate.lands >= 2 && s.crate.rack !== h.from && s.crate.rack !== h.to && racksCrateFits(s);
-      return group.count >= 2 && group.count === s.racks[h.from]!.length && clear ? h : null;
+      // A plain shipment: it fills no manifest, so the picture is about the rack alone.
+      return group.count >= 2 && group.count === s.racks[h.from]!.length && clear && !did(reduceRacks(s, h), "manifest") ? h : null;
     }),
   );
   let s = await open(page, seed, found.pre);
@@ -224,7 +226,8 @@ test("racks: calling the crate", async ({ page }) => {
   const { seed, found } = findSeed("racks-call", (seed) =>
     along(seed, 3, 30, (s) => {
       const h = racksHint(s);
-      if (!h || h.type !== "call" || s.crate.lands < 3 || racksCrateWouldShip(s)) return null;
+      // No chain is running either, so nothing is still rising when the clip starts.
+      if (!h || h.type !== "call" || s.crate.lands < 3 || racksCrateWouldShip(s) || s.combo > 0) return null;
       const under = s.racks[s.crate.rack]!;
       const joins = under.length >= 2 && pure(s, s.crate.rack) && s.crate.cells.every((c) => c.kind === under[0]!.kind);
       // The crate hung next has room as well.
@@ -268,7 +271,12 @@ test("racks: one more move before the shipment", async ({ page }) => {
           if (a.type !== "move") continue;
           const s1 = reduceRacks(sx, a);
           if (shipsIn(s1) !== 1) continue;
-          for (const b of acts(s1)) if (b.type === "move" && shipsIn(reduceRacks(s1, b)) === 1 && racksCrateFits(reduceRacks(s1, b))) return [x, a, b];
+          for (const b of acts(s1)) {
+            if (b.type !== "move") continue;
+            const s2 = reduceRacks(s1, b);
+            // The chain alone: the pair fills no manifest, so its callout is the chain's.
+            if (shipsIn(s2) === 1 && racksCrateFits(s2) && !did(s1, "manifest") && !did(s2, "manifest")) return [x, a, b];
+          }
         }
       }
       return null;
@@ -293,7 +301,8 @@ test("racks: a chain of three with the crate as a link", async ({ page }) => {
         for (const a of acts(st)) {
           if (a.type === "call" && called) continue;
           const next = reduceRacks(st, a);
-          if (shipsIn(next) !== 1 || did(next, "spill")) continue;
+          // Three plain links: none of them fills the manifest, so the callouts are the chain's.
+          if (shipsIn(next) !== 1 || did(next, "spill") || did(next, "manifest")) continue;
           // The crate comes down only when it is called.
           if (a.type === "move" && did(next, "land")) continue;
           if (a.type === "move" && called) {
@@ -315,4 +324,32 @@ test("racks: a chain of three with the crate as a link", async ({ page }) => {
       await page.waitForTimeout(150);
     }
   }, { leadMs: 700, tailMs: 1200, region: await region(page) });
+});
+
+test("racks: the manifest filled", async ({ page }) => {
+  // No chain is running. One move ships the manifest's first kind; the next, on the very next
+  // action, ships its second and fills it. The crate stays up for both, and nothing is smashed.
+  const { seed, found } = findSeed("racks-manifest", (seed) =>
+    along(seed, 4, 60, (s) => {
+      if (s.combo > 0 || s.crate.lands < 3) return null;
+      for (const a of acts(s)) {
+        if (a.type !== "move") continue;
+        const s1 = reduceRacks(s, a);
+        if (shipsIn(s1) !== 1 || s1.manifestDone !== 1 || did(s1, "land")) continue;
+        for (const b of acts(s1)) {
+          if (b.type !== "move") continue;
+          const s2 = reduceRacks(s1, b);
+          if (did(s2, "manifest") && shipsIn(s2) === 1 && !did(s2, "land") && !did(s2, "spill")) return [a, b];
+        }
+      }
+      return null;
+    }),
+  );
+  let s = await open(page, seed, found.pre);
+  await clip(page, "racks", "manifest", async () => {
+    s = await play(page, s, found.plan[0]!, 400);
+    // The strip names the kind the manifest wants now; the lifted group's rack shows both prices.
+    await page.waitForTimeout(500);
+    s = await play(page, s, found.plan[1]!, 900);
+  }, { leadMs: 700, tailMs: 1400, region: await region(page) });
 });
