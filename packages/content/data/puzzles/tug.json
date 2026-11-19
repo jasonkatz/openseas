@@ -32,12 +32,12 @@
       "id": "glide",
       "roundSeconds": 60,
       "thresholds": [
-        { "score": 100, "rating": 1100 },
-        { "score": 200, "rating": 1300 },
-        { "score": 350, "rating": 1500 },
-        { "score": 550, "rating": 1700 },
-        { "score": 800, "rating": 1900 },
-        { "score": 1100, "rating": 2100 }
+        { "score": 75, "rating": 1100 },
+        { "score": 150, "rating": 1300 },
+        { "score": 300, "rating": 1500 },
+        { "score": 500, "rating": 1700 },
+        { "score": 650, "rating": 1900 },
+        { "score": 820, "rating": 2100 }
       ],
       "config": {
         "startPar": 1,
@@ -50,12 +50,12 @@
       "id": "stops",
       "roundSeconds": 90,
       "thresholds": [
-        { "score": 150, "rating": 1100 },
-        { "score": 300, "rating": 1300 },
-        { "score": 500, "rating": 1500 },
-        { "score": 800, "rating": 1700 },
-        { "score": 1300, "rating": 1900 },
-        { "score": 2000, "rating": 2100 }
+        { "score": 240, "rating": 1100 },
+        { "score": 480, "rating": 1300 },
+        { "score": 950, "rating": 1500 },
+        { "score": 1250, "rating": 1700 },
+        { "score": 1400, "rating": 1900 },
+        { "score": 1670, "rating": 2100 }
       ],
       "config": {
         "maxPar": 3,
@@ -66,12 +66,12 @@
       "id": "pairs",
       "roundSeconds": 120,
       "thresholds": [
-        { "score": 200, "rating": 1100 },
-        { "score": 400, "rating": 1300 },
-        { "score": 700, "rating": 1500 },
-        { "score": 1100, "rating": 1700 },
-        { "score": 1800, "rating": 1900 },
-        { "score": 2800, "rating": 2100 }
+        { "score": 350, "rating": 1100 },
+        { "score": 700, "rating": 1300 },
+        { "score": 1300, "rating": 1500 },
+        { "score": 1820, "rating": 1700 },
+        { "score": 2100, "rating": 1900 },
+        { "score": 2530, "rating": 2100 }
       ],
       "config": {
         "maxPar": 3
