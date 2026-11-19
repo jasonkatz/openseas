@@ -26,5 +26,6 @@ export const CuttingConfigSchema = z.object({
   flawlessBonus: z.int().min(0).max(100_000).describe("Bonus points for a flawless slab, before the streak."),
   streakPercent: z.array(z.int().min(100).max(1000)).min(1).max(16).describe("Percent the streak of clean and flawless slabs multiplies the bonus by; a streak past the end takes the last."),
   maxMoves: z.int().min(1).max(1_000_000).describe("Longest move log the server accepts: the round ends there."),
+  orderBonus: z.int().min(0).max(100_000).describe("Points a pure piece of the slab's order size, either way round, banks on top of its area squared. 0 deals no order."),
 });
 export type CuttingConfigWire = z.infer<typeof CuttingConfigSchema>;

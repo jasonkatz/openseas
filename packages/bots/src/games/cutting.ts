@@ -2,12 +2,17 @@
  * Cutting for the bots: a choice is one cut, any piece on the table along any grid line inside it,
  * or giving the slab up. The moves are untimed, so a person's pace is modelled per cut. The four
  * cutters of the tuning notes are here: random is the careless bot every puzzle gets, and greedy,
- * one cut ahead and the best plan are the puzzle's own, read from the engine's own sums.
+ * one cut ahead and the best plan are the puzzle's own, read from the engine's own sums. Then the
+ * order's bots (M11): the best plan blind to the order, the order chaser (a bait), and the cutter
+ * that moves on from a slab once its next cut is not worth a cut's share of the round.
  */
 import {
   CUTTING_DEF,
   cuttingBestCut,
+  cuttingBestRemaining,
   cuttingCutPreview,
+  cuttingGrade,
+  cuttingStreakPercentAt,
   type CuttingConfig,
   type CuttingMove,
   type CuttingState,
@@ -94,6 +99,60 @@ function bestPlanBot(): Bot<CuttingState, CuttingMove> {
   };
 }
 
+/**
+ * The best plan made with the order's bonus scaled by `scale` in its own sums: at 0 it is blind to
+ * the order and cuts for area alone; above 1 it frees the order's plate even where that costs a
+ * block worth more. The cut it makes is real, so the engine pays it what it truly banks.
+ */
+function scaledPlanBot(name: string, about: string, scale: number): Bot<CuttingState, CuttingMove> {
+  return {
+    name,
+    about,
+    choose(state) {
+      const seen: CuttingState = { ...state, config: { ...state.config, orderBonus: Math.round(state.config.orderBonus * scale) } };
+      const c = cuttingBestCut(seen);
+      if (c) return { moves: [{ type: "cut", ...c }] };
+      // Its own sums see nothing more on this slab: give it up for the next.
+      return cuttingBestCut(state) ? { moves: [{ type: "done" }] } : null;
+    },
+  };
+}
+
+/**
+ * Moves on: before each cut it weighs every number of cuts k it could still spend on the slab by
+ * what the best plan banks with k, the grade's bonus at the streak it would reach, less `cutWorth`
+ * points for each cut (a cut's share of a good round: about 90 points in 4 s). It makes the first
+ * cut of the best plan with the best k, and gives the slab up when that k is 0.
+ */
+function moveOnBot(name: string, cutWorth: number): Bot<CuttingState, CuttingMove> {
+  return {
+    name,
+    about: `The best plan, but each cut must earn ${cutWorth} points (its share of a good round): it gives a slab up once the rest of it would not.`,
+    choose(state) {
+      if (state.finished) return null;
+      const cfg = state.config;
+      let bestK = 0;
+      let bestValue = -Infinity;
+      for (let k = 0; k <= state.cutsLeft; k++) {
+        const got = state.slabGot + cuttingBestRemaining(state, k);
+        const g = cuttingGrade(cfg, got, state.slabBest);
+        const base = g === "flawless" ? cfg.flawlessBonus : g === "clean" ? cfg.cleanBonus : 0;
+        const bonus = g === "rough" ? 0 : (base * cuttingStreakPercentAt(cfg, state.combo + 1)) / 100;
+        const value = got + bonus - cutWorth * k;
+        if (value > bestValue + 1e-9) {
+          bestValue = value;
+          bestK = k;
+        }
+      }
+      const c = bestK > 0 ? cuttingBestCut(state, bestK) : null;
+      return c ? { moves: [{ type: "cut", ...c }] } : { moves: [{ type: "done" }] };
+    },
+  };
+}
+
+/** A cut's worth to the bot that moves on: a good round's points over its cuts, about 2,900 over 30. */
+const CUT_WORTH = 90;
+
 export const CUTTING_BOTS: BotGame<CuttingState, CuttingMove, CuttingConfig> = {
   id: "cutting",
   def: CUTTING_DEF,
@@ -102,5 +161,16 @@ export const CUTTING_BOTS: BotGame<CuttingState, CuttingMove, CuttingConfig> = {
   choices: (s): Choice<CuttingMove>[] => [...cuttingCuts(s).map((c) => ({ moves: [c] })), { moves: [{ type: "done" }] }],
   end: () => ({ type: "end" }),
   open: true,
-  bots: [greedyBot(), oneAheadBot(), bestPlanBot()],
+  bots: [
+    greedyBot(),
+    oneAheadBot(),
+    bestPlanBot(),
+    scaledPlanBot("order blind", "The best plan by area alone: it never sees the order.", 0),
+    scaledPlanBot("order chaser", "The best plan with the order counted three times over: it frees the plate whatever it costs (the bait).", 3),
+    moveOnBot("move on", CUT_WORTH),
+  ],
+  baits: [
+    { bait: "order chaser", beats: "best plan" },
+    { bait: "best plan", beats: "move on" },
+  ],
 };
