@@ -13,7 +13,11 @@ import {
   scannerDistance,
   scannerHint,
   scannerLockIllegalReason,
+  scannerLitPings,
   scannerLockValue,
+  scannerMarkOn,
+  scannerMarkOpen,
+  scannerMarkValue,
   scannerParFor,
   scannerPingCandidates,
   scannerPingIllegalReason,
@@ -55,14 +59,22 @@ function playRandom(seed: string, picks: readonly number[], config: ScannerConfi
 
 const picksArb = fc.array(fc.nat({ max: 10_000 }), { minLength: 0, maxLength: 160 });
 
-/** A sector from rows of characters: `C` a hidden contact, `p` the opening ping, `.` nothing. */
+/**
+ * A sector from rows of characters: `C` a hidden contact, `M` the marked one, `p` the opening ping,
+ * `.` nothing. With no `M` the mark is off.
+ */
 function sector(rows: readonly string[], over: Partial<ScannerConfig> = {}): ScannerState {
   const text = rows.join("");
-  const contacts = [...text].flatMap((ch, i) => (ch === "C" ? [i] : []));
-  const config: ScannerConfig = { ...cfg, width: rows[0]!.length, height: rows.length, startContacts: contacts.length, maxContacts: contacts.length, ...over };
+  const contacts = [...text].flatMap((ch, i) => (ch === "C" || ch === "M" ? [i] : []));
+  const mark = text.indexOf("M");
+  const config: ScannerConfig = { ...cfg, width: rows[0]!.length, height: rows.length, startContacts: contacts.length, maxContacts: contacts.length, markPercent: mark >= 0 ? cfg.markPercent : 100, ...over };
   const base = createScannerGame("t", config);
-  const pings = [...text].flatMap((ch, i) => (ch === "p" ? [{ cell: i, distance: Math.min(...contacts.map((c) => scannerDistance(config, i, c))), opening: true }] : []));
-  return { ...base, contacts, pings };
+  const pings = [...text].flatMap((ch, i) => {
+    if (ch !== "p") return [];
+    const distance = Math.min(...contacts.map((c) => scannerDistance(config, i, c)));
+    return [{ cell: i, distance, opening: true, lit: mark >= 0 && scannerDistance(config, i, mark) === distance }];
+  });
+  return { ...base, contacts, pings, mark };
 }
 
 const hidden = (s: ScannerState): number[] => s.contacts.filter((c) => !s.found.includes(c) && !s.spooked.includes(c));
@@ -109,6 +121,9 @@ describe("scanner sector", () => {
     expect(() => createScannerGame("x", { ...cfg, parBase: 0, parPerContact: 0 })).toThrow();
     expect(() => createScannerGame("x", { ...cfg, dealTries: 0 })).toThrow();
     expect(() => createScannerGame("x", { ...cfg, streakPercent: [] })).toThrow();
+    expect(() => createScannerGame("x", { ...cfg, markPercent: 99 })).toThrow();
+    expect(() => createScannerGame("x", { ...cfg, markPercent: 1001 })).toThrow();
+    expect(() => createScannerGame("x", { ...cfg, markPercent: 250.5 })).toThrow();
   });
 });
 
@@ -123,6 +138,77 @@ describe("scanner determinism (ADR 0003)", () => {
       }),
       { numRuns: 60 },
     );
+  });
+
+  it("same seed and same move log give the same state and hash with the mark off, and at 400 and 1000", () => {
+    for (const markPercent of [100, 400, 1000]) {
+      const config = { ...cfg, markPercent };
+      fc.assert(
+        fc.property(fc.string(), picksArb, (seed, picks) => {
+          const { moves, state } = playRandom(seed, picks, config);
+          const replayed = replayScanner(seed, config, moves);
+          expect(hashScannerState(replayed)).toBe(hashScannerState(state));
+          expect(replayed).toEqual(state);
+        }),
+        { numRuns: 30 },
+      );
+    }
+  });
+
+  it("with the mark off a seed deals and plays as it did before there was one, hash and all", () => {
+    // Hashes taken from the engine before the mark: the opening, and the state after forty of the hint's moves.
+    const off = { ...cfg, markPercent: 100 };
+    const golden = [
+      { seed: "golden-1", opening: "751489fb", after40: "c27784bc", score: 270 },
+      { seed: "golden-2", opening: "bd2cd8dc", after40: "e8030317", score: 746 },
+      { seed: "golden-3", opening: "58509e9c", after40: "2c999165", score: 452 },
+    ];
+    for (const g of golden) {
+      let s = createScannerGame(g.seed, off);
+      expect(s.mark).toBe(-1);
+      expect(hashScannerState(s)).toBe(g.opening);
+      for (let i = 0; i < 40; i++) s = reduceScanner(s, scannerHint(s)!);
+      expect(hashScannerState(s)).toBe(g.after40);
+      expect(s.score).toBe(g.score);
+      expect({ marksPaid: s.marksPaid, markScore: s.markScore, lit: s.pings.some((p) => p.lit) }).toEqual({ marksPaid: 0, markScore: 0, lit: false });
+    }
+  });
+
+  it("the mark is drawn from a stream of its own, so every sector deals the same with it on or off", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        // The same moves on both: the deals and the numbers must agree throughout, and only the score may differ, by what the mark paid.
+        const { moves } = playRandom(seed, picks, { ...cfg, markPercent: 100 });
+        let off = createScannerGame(seed, { ...cfg, markPercent: 100 });
+        let on = createScannerGame(seed, { ...cfg, markPercent: 400 });
+        const same = (): void => {
+          expect(on.contacts).toEqual(off.contacts);
+          expect(on.rng).toEqual(off.rng);
+          expect(on.pings.map((p) => [p.cell, p.distance, p.opening])).toEqual(off.pings.map((p) => [p.cell, p.distance, p.opening]));
+          expect(scannerViewString(on)).toBe(scannerViewString(off));
+          expect(on.contacts).toContain(on.mark);
+        };
+        same();
+        for (const m of moves) {
+          off = reduceScanner(off, m);
+          on = reduceScanner(on, m);
+          same();
+          expect(on.score - on.markScore).toBeLessThanOrEqual(off.score);
+        }
+      }),
+      { numRuns: 60 },
+    );
+  });
+
+  it("the mark, its stream, what it paid and every lit flag are part of the hash", () => {
+    const s = createScannerGame("m", { ...cfg, markPercent: 400 });
+    const h = hashScannerState(s);
+    const other = s.contacts.find((c) => c !== s.mark)!;
+    expect(hashScannerState({ ...s, mark: other })).not.toBe(h);
+    expect(hashScannerState({ ...s, markRng: { ...s.markRng, a: (s.markRng.a + 1) >>> 0 } })).not.toBe(h);
+    expect(hashScannerState({ ...s, marksPaid: 1 })).not.toBe(h);
+    expect(hashScannerState({ ...s, markScore: 120 })).not.toBe(h);
+    expect(hashScannerState({ ...s, pings: s.pings.map((p) => ({ ...p, lit: !p.lit })) })).not.toBe(h);
   });
 
   it("different seeds deal different openings", () => {
@@ -198,14 +284,14 @@ describe("scanner rules", () => {
 
   it("a ping answers with the steps to the nearest hidden contact, and shades what that proves empty", () => {
     const s0 = sector([".C...", ".....", ".....", "...p.", "....C"]);
-    expect(s0.pings[0]).toEqual({ cell: 18, distance: 2, opening: true });
+    expect(s0.pings[0]).toEqual({ cell: 18, distance: 2, opening: true, lit: false });
     expect(scannerRingCells(s0.config, 18, 2)).toEqual([8, 12, 14, 16, 22, 24]);
     // Everything nearer than two steps is empty, the pinged cell included.
     expect(scannerClearCells(s0).flatMap((c, i) => (c ? [i] : []))).toEqual([13, 17, 18, 19, 23]);
     expect(scannerViewString(s0)).toBe("....." + "....." + "...-." + "..-2-" + "...-.");
     const s1 = reduceScanner(s0, { type: "ping", cell: 19 });
     expect(s1.lastMove).toMatchObject({ distance: 1, found: false, wrong: false, spooked: false, cost: 0, points: 0, resound: [], cleared: null });
-    expect(s1.pings[1]).toEqual({ cell: 19, distance: 1, opening: false });
+    expect(s1.pings[1]).toEqual({ cell: 19, distance: 1, opening: false, lit: false });
     expect(s1.spent).toBe(1);
     expect(scannerPingsLeft(s1)).toBe(3);
     // Two cells of its ring could still hold the contact it hears: nothing is proven yet.
@@ -261,7 +347,7 @@ describe("scanner rules", () => {
     s = reduceScanner(s, { type: "lock", cell: 1 });
     const r = s.lastMove!;
     // Three pings of a par of four: one saved.
-    expect(r.cleared).toEqual({ sector: 0, contacts: [1, 24], pings: 3, par: 4, saved: 1, bonus: cfg.savePoints, clean: true, streak: 1 });
+    expect(r.cleared).toEqual({ sector: 0, contacts: [1, 24], pings: 3, par: 4, saved: 1, bonus: cfg.savePoints, clean: true, streak: 1, mark: -1 });
     expect(r.resound).toEqual([]);
     expect(r.points).toBe(cfg.contactPoints + cfg.savePoints);
     expect(s.score).toBe(2 * cfg.contactPoints + cfg.savePoints);
@@ -413,5 +499,128 @@ describe("scanner rules", () => {
     s = reduceScanner(s, { type: "lock", cell: 24 });
     // A wrong lock, the two pings saying how far the contact left is, the cells they prove empty, and the found contact.
     expect(scannerViewString(s)).toBe("!.---" + ".----" + "-----" + "---56" + "----X");
+  });
+});
+
+describe("scanner mark", () => {
+  const markCfg = { ...cfg, markPercent: 400 };
+  /** The mark at 1, a contact at 24, the opening ping at 18 hearing 24 only. */
+  const rows = [".M...", ".....", ".....", "...p.", "....C"];
+
+  it("a ping is lit while it hears the mark among its nearest, and the queries say what the mark pays", () => {
+    let s = sector(rows);
+    expect(scannerMarkOn(s.config)).toBe(true);
+    expect(s.pings[0]).toMatchObject({ cell: 18, distance: 2, lit: false });
+    expect(scannerMarkOpen(s)).toBe(true);
+    expect(scannerMarkValue(s)).toBe(Math.floor((cfg.contactPoints * markCfg.markPercent) / 100));
+    // Cell 3 is two from the mark and four from 24: it hears the mark.
+    s = reduceScanner(s, { type: "ping", cell: 3 });
+    expect(s.pings[1]).toMatchObject({ cell: 3, distance: 2, lit: true });
+    // Cell 19 hears 24 alone.
+    s = reduceScanner(s, { type: "ping", cell: 19 });
+    expect(s.pings[2]).toMatchObject({ cell: 19, distance: 1, lit: false });
+    expect(scannerLitPings(s)).toEqual([3]);
+    // A ping as far from both as from each other hears both, and is lit.
+    const tie = reduceScanner(sector(["M...C", ".....", "..p..", ".....", "....."]), { type: "ping", cell: 7 });
+    expect(tie.pings[1]).toMatchObject({ cell: 7, distance: 3, lit: true });
+  });
+
+  it("locked as the sector's first find, the mark pays markPercent of a bounty, the streak included", () => {
+    let s = { ...sector(rows), combo: 1 };
+    const pct = cfg.streakPercent[1]!;
+    s = reduceScanner(s, { type: "lock", cell: 1 });
+    const r = s.lastMove!;
+    const bounty = Math.floor((cfg.contactPoints * pct) / 100);
+    const pay = Math.floor((cfg.contactPoints * pct * markCfg.markPercent) / 10_000);
+    expect(r).toMatchObject({ found: true, markPaid: true, findPoints: pay, markPoints: pay - bounty, points: pay });
+    expect({ marksPaid: s.marksPaid, markScore: s.markScore }).toEqual({ marksPaid: 1, markScore: pay - bounty });
+    // The mark is known now: nothing hears it, nothing is lit, and it can be paid no more this sector.
+    expect(scannerLitPings(s)).toEqual([]);
+    expect(scannerMarkOpen(s)).toBe(false);
+    expect(scannerMarkValue(s)).toBeNull();
+  });
+
+  it("found after another contact, or after a spook, the mark pays a plain bounty", () => {
+    // Another contact first.
+    let s = sector(rows);
+    s = reduceScanner(s, { type: "ping", cell: 19 });
+    s = reduceScanner(s, { type: "ping", cell: 14 });
+    s = reduceScanner(s, { type: "lock", cell: 24 });
+    expect(s.lastMove).toMatchObject({ markPaid: false, markPoints: 0, findPoints: cfg.contactPoints });
+    expect(scannerMarkOpen(s)).toBe(false);
+    expect(scannerMarkValue(s)).toBeNull();
+    s = reduceScanner(s, { type: "ping", cell: 2 });
+    s = reduceScanner(s, { type: "lock", cell: 1 });
+    expect(s.lastMove).toMatchObject({ found: true, markPaid: false, markPoints: 0, findPoints: cfg.contactPoints });
+    expect(s.lastMove!.cleared).toMatchObject({ mark: 1, clean: true });
+    expect(s.marksPaid).toBe(0);
+    // A spook first: the mark then pays a plain bounty.
+    let t = sector(rows);
+    t = reduceScanner(t, { type: "ping", cell: 24 });
+    expect(t.lastMove!.spooked).toBe(true);
+    t = reduceScanner(t, { type: "lock", cell: 1 });
+    expect(t.lastMove).toMatchObject({ found: true, markPaid: false, markPoints: 0, findPoints: cfg.contactPoints });
+  });
+
+  it("every ping is lit afresh when a contact becomes known", () => {
+    // The mark at 0 and a contact at 2.
+    let s = sector(["M.C..", ".....", ".....", ".....", "....p"]);
+    // Cell 7 hears 2 at one step and the mark at three: unlit.
+    s = reduceScanner(s, { type: "ping", cell: 7 });
+    expect(s.pings[1]).toMatchObject({ cell: 7, distance: 1, lit: false });
+    // Cell 1 hears both at one step: lit.
+    s = reduceScanner(s, { type: "ping", cell: 1 });
+    expect(s.pings[2]).toMatchObject({ cell: 1, distance: 1, lit: true });
+    // Find 2: cell 7 sounds again at three, hearing the mark now, and is lit; cell 1 still hears it.
+    s = reduceScanner(s, { type: "lock", cell: 2 });
+    expect(s.lastMove!.resound).toContainEqual({ cell: 7, from: 1, to: 3 });
+    expect(s.pings.find((p) => p.cell === 7)).toMatchObject({ distance: 3, lit: true });
+    expect(s.pings.find((p) => p.cell === 1)).toMatchObject({ distance: 1, lit: true });
+    expect(scannerLitPings(s)).toEqual(s.pings.filter((p) => p.lit).map((p) => p.cell));
+  });
+
+  it("the lit flags are always true of the hidden mark, and the mark is paid only as a sector's first find", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        let state = createScannerGame(seed, markCfg);
+        for (let i = 0; i + 2 <= picks.length; i += 2) {
+          const m = randomMove(state, picks[i]!, picks[i + 1]!);
+          if (!m) break;
+          const next = reduceScanner(state, m);
+          const r = next.lastMove!;
+          expect(next.contacts).toContain(next.mark);
+          const markHidden = hidden(next).includes(next.mark);
+          for (const p of next.pings) expect(p.lit).toBe(markHidden && scannerDistance(next.config, p.cell, next.mark) === p.distance);
+          const first = state.found.length === 0 && state.spooked.length === 0;
+          expect(r.markPaid).toBe(r.found && r.cell === state.mark && first);
+          if (!r.markPaid) expect(r.markPoints).toBe(0);
+          else expect(r.findPoints).toBe(Math.floor((cfg.contactPoints * r.streakPercent * markCfg.markPercent) / 10_000));
+          expect(next.markScore - state.markScore).toBe(r.markPoints);
+          state = next;
+        }
+      }),
+      { numRuns: 60 },
+    );
+  });
+
+  it("with the mark on every sector can still be cleared with no guess", () => {
+    for (let i = 0; i < 6; i++) {
+      let s = createScannerGame(`mark-plain-${i}`, markCfg);
+      for (let n = 0; n < 200; n++) {
+        if (s.lastMove === null || s.lastMove.cleared !== null) expect(scannerPlainlySolvable(s)).toBe(true);
+        s = reduceScanner(s, scannerHint(s)!);
+      }
+      expect({ wrong: s.wrongLocks, spooked: s.contactsSpooked }).toEqual({ wrong: 0, spooked: 0 });
+    }
+  });
+
+  it("off, nothing is marked, nothing lit and nothing paid", () => {
+    const s = createScannerGame("off", { ...cfg, markPercent: 100 });
+    expect(scannerMarkOn(s.config)).toBe(false);
+    expect(scannerMarkOpen(s)).toBe(false);
+    expect(scannerMarkValue(s)).toBeNull();
+    expect(s.mark).toBe(-1);
+    const after = reduceScanner(s, scannerHint(s)!);
+    expect(scannerLitPings(after)).toEqual([]);
   });
 });

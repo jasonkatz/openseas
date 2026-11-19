@@ -22,6 +22,12 @@
  *
  * Cell index = row * width + col. Row 0 is the top row. Nothing here reads a clock.
  *
+ * One contact a sector is the mark, drawn from a stream of its own so the deal is the same with the
+ * layer on or off. Which one it is stays hidden, but a ping whose number hears it (the mark is one
+ * of the nearest hidden contacts) is lit, and every ping is lit afresh when its number sounds again.
+ * Locked as the sector's first find, with nothing found or spooked before it, the mark pays
+ * markPercent of a bounty; found later it pays a bounty like any other.
+ *
  * The contacts sit in the state, which the client holds: a prototype's score counts for nothing
  * (ADR 0036), and a Scanner that did count would need the server to answer pings.
  */
@@ -60,6 +66,11 @@ export interface ScannerConfig {
   readonly spookPenalty: number;
   /** What the streak multiplies a contact and a sector's savings by, in percent: no streak takes the first entry, a streak past the end takes the last. */
   readonly streakPercent: readonly number[];
+  /**
+   * What the mark pays, in percent of a bounty, when it is locked as the sector's first find. 100
+   * marks nothing: the layer is off, no ping is lit and the state hashes as it did before the mark.
+   */
+  readonly markPercent: number;
   /** Longest move log the server accepts. */
   readonly maxMoves: number;
 }
@@ -80,6 +91,7 @@ export const DEFAULT_SCANNER_CONFIG: ScannerConfig = {
   wrongPenalty: 60,
   spookPenalty: 60,
   streakPercent: [100, 120, 140, 160, 180, 200],
+  markPercent: 400,
   maxMoves: 2000,
 };
 
@@ -97,6 +109,8 @@ export interface ScannerPing {
   readonly distance: number;
   /** True for the ping the sector opened with: it was not the player's and is not counted against par. */
   readonly opening: boolean;
+  /** True while the mark is hidden and is one of the nearest contacts this ping hears. Always false with the mark off. */
+  readonly lit: boolean;
 }
 
 /** A ping whose number changed because the contact it was hearing became known. */
@@ -123,6 +137,8 @@ export interface ScannerClear {
   readonly clean: boolean;
   /** The streak after this sector. */
   readonly streak: number;
+  /** The mark's cell, or -1 with the mark off. */
+  readonly mark: number;
 }
 
 export interface ScannerMoveReport {
@@ -138,8 +154,12 @@ export interface ScannerMoveReport {
   readonly spooked: boolean;
   /** Pings that sounded again because this move made a contact known, in the order they were made. Empty when the sector was cleared. */
   readonly resound: readonly ScannerResound[];
-  /** Points for the contact found, after the streak; 0 when none was. */
+  /** Points for the contact found, after the streak, the mark's included; 0 when none was. */
   readonly findPoints: number;
+  /** True when this move locked the mark as the sector's first find, and it paid. */
+  readonly markPaid: boolean;
+  /** What the mark paid on top of a bounty; 0 unless it was paid. */
+  readonly markPoints: number;
   /** What the move cost: a ping past par, a spooked contact, a wrong lock. 0 or less. */
   readonly cost: number;
   /** What the streak multiplied by, in percent, when the move was made. */
@@ -181,6 +201,14 @@ export interface ScannerState {
   readonly pingsSaved: number;
   readonly wrongLocks: number;
   readonly contactsSpooked: number;
+  /** Hidden from the player: the marked contact's cell this sector, or -1 with the mark off. */
+  readonly mark: number;
+  /** The stream the mark is drawn from, one draw a sector, apart from the deal's own. */
+  readonly markRng: PrngState;
+  /** Marks paid, all sectors. */
+  readonly marksPaid: number;
+  /** What the marks paid on top of their bounties, all sectors. */
+  readonly markScore: number;
   readonly lastMove: ScannerMoveReport | null;
   readonly finished: boolean;
 }

@@ -45,6 +45,7 @@ export function validateConfig(cfg: ScannerConfig): void {
     cfg.streakPercent.length >= 1 &&
     cfg.streakPercent.length <= 16 &&
     cfg.streakPercent.every((p) => Number.isInteger(p) && p >= 100 && p <= 1000) &&
+    int(cfg.markPercent, 100, 1000) &&
     int(cfg.maxMoves, 1, 1_000_000);
   if (!ok) throw new Error("invalid scanner config");
 }
@@ -72,6 +73,30 @@ export function lockValue(state: ScannerState): number {
 /** What each ping left over would pay if the sector were cleared now, the streak included. */
 export function saveValue(state: ScannerState): number {
   return Math.floor((state.config.savePoints * streakPercentAt(state.config, state.combo)) / 100);
+}
+
+/** True when the mark is on: one contact a sector is marked and the pings that hear it are lit. */
+export function markOn(cfg: ScannerConfig): boolean {
+  return cfg.markPercent > 100;
+}
+
+/** True while the mark can still be paid: the layer is on and nothing has been found or spooked this sector. */
+export function markOpen(state: ScannerState): boolean {
+  return markOn(state.config) && state.found.length === 0 && state.spooked.length === 0 && !state.finished;
+}
+
+/** What a lock on the mark pays now, the streak included, while it can still be paid; null when it cannot. */
+export function markValue(state: ScannerState): number | null {
+  if (!markOpen(state)) return null;
+  return markPay(state.config, streakPercentAt(state.config, state.combo));
+}
+
+/** A bounty at `percent` of streak, the mark's share on it. */
+const markPay = (cfg: ScannerConfig, percent: number): number => Math.floor((cfg.contactPoints * percent * cfg.markPercent) / 10_000);
+
+/** The cells of the pings that are lit now: those that hear the mark. In the order they were made. */
+export function litPings(state: ScannerState): number[] {
+  return state.pings.filter((p) => p.lit).map((p) => p.cell);
 }
 
 /** Pings left of the sector's allowance; below zero once the player is past par. */
@@ -215,7 +240,7 @@ function solvableFrom(cfg: ScannerConfig, contacts: readonly number[], knownIn: 
   let hidden = contacts.filter((c) => !known.includes(c));
   for (;;) {
     if (hidden.length === 0) return true;
-    const sight: Sight = { pings: pinged.map((cell) => ({ cell, distance: nearest(cfg, hidden, cell), opening: false })), known, misses, left: hidden.length };
+    const sight: Sight = { pings: pinged.map((cell) => ({ cell, distance: nearest(cfg, hidden, cell), opening: false, lit: false })), known, misses, left: hidden.length };
     const proven = provenOf(cfg, sight);
     if (proven.length > 0) {
       known.push(...proven);
@@ -272,17 +297,33 @@ function dealSector(cfg: ScannerConfig, rngIn: PrngState, count: number): Dealt 
       const pick = nextInt(rng, spots.length);
       rng = pick.state;
       const cell = spots[pick.value]!;
-      pings.push({ cell, distance: nearest(cfg, contacts, cell), opening: true });
+      pings.push({ cell, distance: nearest(cfg, contacts, cell), opening: true, lit: false });
     }
     // With no opening ping there is nothing to reason from, and no deal is better than another.
     if (cfg.openingMin === 0 || attempt >= cfg.dealTries || solvableFrom(cfg, contacts, [], [pings[0]!.cell], [])) return { contacts, pings, rng };
   }
 }
 
+/** True when the mark is hidden and lies `d` from `cell`: a ping there, answering `d`, hears it among its nearest. */
+const hearsMark = (cfg: ScannerConfig, mark: number, hidden: readonly number[], cell: number, d: number): boolean => mark >= 0 && hidden.includes(mark) && distance(cfg, cell, mark) === d;
+
+/**
+ * Mark one of a sector's contacts, drawn from the mark's own stream so the deal's is untouched:
+ * every sector deals the same with the layer on or off. With it off nothing is drawn.
+ */
+function markSector(cfg: ScannerConfig, dealt: Dealt, markRng: PrngState): { mark: number; markRng: PrngState; pings: ScannerPing[] } {
+  if (!markOn(cfg)) return { mark: -1, markRng, pings: dealt.pings };
+  const pick = nextInt(markRng, dealt.contacts.length);
+  const mark = dealt.contacts[pick.value]!;
+  const pings = dealt.pings.map((p) => ({ ...p, lit: hearsMark(cfg, mark, dealt.contacts, p.cell, p.distance) }));
+  return { mark, markRng: pick.state, pings };
+}
+
 export function createScannerGame(seed: string, config: ScannerConfig = DEFAULT_SCANNER_CONFIG): ScannerState {
   validateConfig(config);
   const count = contactsFor(config, 0);
   const dealt = dealSector(config, seedFromString(`scanner:${seed}`), count);
+  const marked = markSector(config, dealt, seedFromString(`scanner:mark:${seed}`));
   return {
     config,
     rng: dealt.rng,
@@ -290,7 +331,7 @@ export function createScannerGame(seed: string, config: ScannerConfig = DEFAULT_
     contacts: dealt.contacts,
     found: [],
     spooked: [],
-    pings: dealt.pings,
+    pings: marked.pings,
     spent: 0,
     misses: [],
     par: parFor(config, count),
@@ -305,6 +346,10 @@ export function createScannerGame(seed: string, config: ScannerConfig = DEFAULT_
     pingsSaved: 0,
     wrongLocks: 0,
     contactsSpooked: 0,
+    mark: marked.mark,
+    markRng: marked.markRng,
+    marksPaid: 0,
+    markScore: 0,
     lastMove: null,
     finished: false,
   };
@@ -365,7 +410,11 @@ function act(state: ScannerState, move: ScannerMove, cell: number, ping: boolean
   const hidden = state.contacts.filter((c) => !found.includes(c) && !spooked.includes(c));
   const answer = !ping ? null : isContact ? 0 : nearest(cfg, hidden, cell);
 
-  const findPoints = hit ? Math.floor((cfg.contactPoints * percent) / 100) : 0;
+  // The mark pays only as the sector's first find: nothing found or spooked before it.
+  const markPaid = hit && cell === state.mark && state.found.length === 0 && state.spooked.length === 0;
+  const bounty = hit ? Math.floor((cfg.contactPoints * percent) / 100) : 0;
+  const markPoints = markPaid ? markPay(cfg, percent) - bounty : 0;
+  const findPoints = bounty + markPoints;
   const cost = 0 - (wrong ? cfg.wrongPenalty : 0) - (spook ? cfg.spookPenalty : 0) - (ping && spent > state.par ? cfg.overPenalty : 0);
   // Either mistake breaks the streak at once.
   let combo = wrong || spook ? 0 : state.combo;
@@ -374,35 +423,38 @@ function act(state: ScannerState, move: ScannerMove, cell: number, ping: boolean
   let bonus = 0;
   let saved = 0;
   const resound: ScannerResound[] = [];
-  let sector: Pick<ScannerState, "rng" | "sector" | "contacts" | "found" | "spooked" | "pings" | "spent" | "misses" | "par">;
+  let sector: Pick<ScannerState, "rng" | "sector" | "contacts" | "found" | "spooked" | "pings" | "spent" | "misses" | "par" | "mark" | "markRng">;
   if (hidden.length === 0) {
     const clean = spent <= state.par && misses.length === 0 && spooked.length === 0;
     // Only a clean sector pays for the pings it left: a contact spooked early must not look like a ping saved.
     saved = clean ? state.par - spent : 0;
     bonus = Math.floor((saved * cfg.savePoints * percent) / 100);
     combo = clean ? combo + 1 : 0;
-    cleared = { sector: state.sector, contacts: state.contacts, pings: spent, par: state.par, saved, bonus, clean, streak: combo };
+    cleared = { sector: state.sector, contacts: state.contacts, pings: spent, par: state.par, saved, bonus, clean, streak: combo, mark: state.mark };
     const count = contactsFor(cfg, state.sectorsCleared + 1);
     const dealt = dealSector(cfg, state.rng, count);
-    sector = { rng: dealt.rng, sector: state.sector + 1, contacts: dealt.contacts, found: [], spooked: [], pings: dealt.pings, spent: 0, misses: [], par: parFor(cfg, count) };
+    const marked = markSector(cfg, dealt, state.markRng);
+    sector = { rng: dealt.rng, sector: state.sector + 1, contacts: dealt.contacts, found: [], spooked: [], pings: marked.pings, spent: 0, misses: [], par: parFor(cfg, count), mark: marked.mark, markRng: marked.markRng };
   } else {
-    // A contact that became known is heard no longer: every ping says how far the nearest hidden one is.
+    // A contact that became known is heard no longer: every ping says how far the nearest hidden one is,
+    // and is lit afresh by whether the mark is among those nearest.
     let pings: readonly ScannerPing[] = state.pings;
     if (hit || spook) {
       pings = state.pings.map((p) => {
         const d = nearest(cfg, hidden, p.cell);
-        if (d === p.distance) return p;
-        resound.push({ cell: p.cell, from: p.distance, to: d });
-        return { ...p, distance: d };
+        const lit = hearsMark(cfg, state.mark, hidden, p.cell, d);
+        if (d === p.distance && lit === p.lit) return p;
+        if (d !== p.distance) resound.push({ cell: p.cell, from: p.distance, to: d });
+        return { ...p, distance: d, lit };
       });
     } else if (ping) {
-      pings = [...state.pings, { cell, distance: answer!, opening: false }];
+      pings = [...state.pings, { cell, distance: answer!, opening: false, lit: hearsMark(cfg, state.mark, hidden, cell, answer!) }];
     }
-    sector = { rng: state.rng, sector: state.sector, contacts: state.contacts, found, spooked, pings, spent, misses, par: state.par };
+    sector = { rng: state.rng, sector: state.sector, contacts: state.contacts, found, spooked, pings, spent, misses, par: state.par, mark: state.mark, markRng: state.markRng };
   }
 
   const score = Math.max(0, state.score + findPoints + cost + bonus);
-  const report: ScannerMoveReport = { move, cell, distance: answer, found: hit, wrong, spooked: spook, resound, findPoints, cost, streakPercent: percent, cleared, points: score - state.score };
+  const report: ScannerMoveReport = { move, cell, distance: answer, found: hit, wrong, spooked: spook, resound, findPoints, markPaid, markPoints, cost, streakPercent: percent, cleared, points: score - state.score };
   const moveCount = state.moveCount + 1;
   return {
     config: cfg,
@@ -418,6 +470,8 @@ function act(state: ScannerState, move: ScannerMove, cell: number, ping: boolean
     pingsSaved: state.pingsSaved + saved,
     wrongLocks: state.wrongLocks + (wrong ? 1 : 0),
     contactsSpooked: state.contactsSpooked + (spook ? 1 : 0),
+    marksPaid: state.marksPaid + (markPaid ? 1 : 0),
+    markScore: state.markScore + markPoints,
     lastMove: report,
     finished: moveCount >= cfg.maxMoves,
   };
@@ -446,6 +500,12 @@ export function hashScannerState(state: ScannerState): string {
   h.int(state.score).int(state.moveCount).int(state.combo).int(state.bestCombo);
   h.int(state.sectorsCleared).int(state.cleanSectors).int(state.contactsFound).int(state.pingsMade).int(state.pingsSaved).int(state.wrongLocks).int(state.contactsSpooked);
   h.int(state.finished ? 1 : 0);
+  // The mark, only when it is on: a round with it off hashes as it did before there was one.
+  if (markOn(state.config)) {
+    h.int(state.mark).int(state.markRng.a).int(state.markRng.b).int(state.markRng.c).int(state.markRng.d);
+    h.int(state.marksPaid).int(state.markScore);
+    for (const p of state.pings) h.int(p.lit ? 1 : 0);
+  }
   return h.digest();
 }
 
