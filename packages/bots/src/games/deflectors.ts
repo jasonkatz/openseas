@@ -4,6 +4,10 @@
  * (the best setting, `volleyRoute`) and from the rule the board teaches (join a beam's line to the
  * dots running back from its exit). Beside them are the single flips a person might try on a drawn
  * line, firing now, and waiting out the count. With no volley up, the one thing to do is wait.
+ *
+ * Every bot respects locks: a locked mirror is never flipped, and the search is asked for the best
+ * with the locks as they stand. Only the rollout bot looks past the volley in hand, so only it plays
+ * for which mirrors the next volley will find locked.
  */
 import {
   DEFLECTORS_DEF,
@@ -70,19 +74,22 @@ function pacedPlan(state: DeflectorsState, flips: readonly number[]): Choice<Def
 function longestPlan(state: DeflectorsState, secondsPerBeam = SECONDS_PER_BEAM): Choice<DeflectorsMove> | null {
   const volley = state.volley;
   if (!volley) return null;
-  const route = deflectorsVolleyRoute(state.config, state.mirrors, volley.beams);
+  const route = deflectorsVolleyRoute(state.config, state.mirrors, volley.beams, state.locked);
   if (!route) return null;
   const total = ticks(state.config, secondsPerBeam * volley.beams.length);
   const n = route.flips.length;
   return planMoves(state, route.flips, route.flips.map((_, i) => Math.round((total * (i + 1)) / (n + 1))), total);
 }
 
-/** The mirrors on any waiting beam's drawn lines: its route as it stands and the dots back from its exit. */
-function drawnMirrors(cfg: DeflectorsConfig, mirrors: readonly number[], volley: DeflectorsVolley): number[] {
+/** A mirror the player may flip: not locked. */
+const free = (locked: readonly number[], cell: number): boolean => !((locked[cell] ?? 0) > 0);
+
+/** The free mirrors on any waiting beam's drawn lines: its route as it stands and the dots back from its exit. */
+function drawnMirrors(cfg: DeflectorsConfig, mirrors: readonly number[], volley: DeflectorsVolley, locked: readonly number[]): number[] {
   const out: number[] = [];
   for (const b of volley.beams) {
-    for (const cell of deflectorsTrace(cfg, mirrors, b.entry).turns) if (!out.includes(cell)) out.push(cell);
-    for (const cell of deflectorsTrace(cfg, mirrors, b.exit).turns) if (!out.includes(cell)) out.push(cell);
+    for (const cell of deflectorsTrace(cfg, mirrors, b.entry).turns) if (!out.includes(cell) && free(locked, cell)) out.push(cell);
+    for (const cell of deflectorsTrace(cfg, mirrors, b.exit).turns) if (!out.includes(cell) && free(locked, cell)) out.push(cell);
   }
   return out.sort((a, b) => a - b);
 }
@@ -91,9 +98,9 @@ function drawnMirrors(cfg: DeflectorsConfig, mirrors: readonly number[], volley:
  * The joining rule, played on a copy of the mirrors: for the first beam astray, flip a mirror where
  * its line and the way back from its exit cross (one that leaves the other beams as they are, when
  * there is one), and otherwise any mirror on either line, then look again. `pick` chooses among
- * equals. Returns the flips and the mirrors they leave.
+ * equals. A locked mirror is never flipped. Returns the flips and the mirrors they leave.
  */
-function join(cfg: DeflectorsConfig, start: readonly number[], volley: DeflectorsVolley, pick: (n: number) => number): { flips: number[]; mirrors: number[] } {
+function join(cfg: DeflectorsConfig, start: readonly number[], volley: DeflectorsVolley, pick: (n: number) => number, locked: readonly number[]): { flips: number[]; mirrors: number[] } {
   const mirrors = start.slice();
   const flips: number[] = [];
   let last = -1;
@@ -109,7 +116,7 @@ function join(cfg: DeflectorsConfig, start: readonly number[], volley: Deflector
     const beam = volley.beams[astray]!;
     const line = deflectorsTrace(cfg, mirrors, beam.entry).turns;
     const back = deflectorsTrace(cfg, mirrors, beam.exit).turns;
-    const crossings = [...new Set(line.filter((c) => back.includes(c)))].sort((a, b) => a - b);
+    const crossings = [...new Set(line.filter((c) => back.includes(c) && free(locked, c)))].sort((a, b) => a - b);
     if (crossings.length) {
       // Of the crossings, those that keep every other beam home stay home.
       const keeps = crossings.filter((c) => {
@@ -122,7 +129,7 @@ function join(cfg: DeflectorsConfig, start: readonly number[], volley: Deflector
       flip(from[pick(from.length)]!);
       continue;
     }
-    let either = [...new Set([...line, ...back])].sort((a, b) => a - b);
+    let either = [...new Set([...line, ...back])].filter((c) => free(locked, c)).sort((a, b) => a - b);
     if (either.length > 1) either = either.filter((c) => c !== last);
     if (either.length === 0) break;
     // Looking again: a flip that makes the two lines cross, when one does.
@@ -160,12 +167,13 @@ function choices(state: DeflectorsState): Choice<DeflectorsMove>[] {
     if (c) out.push(c);
   };
   push(longestPlan(state));
-  const joined = join(cfg, state.mirrors, volley, () => 0);
+  const joined = join(cfg, state.mirrors, volley, () => 0, state.locked);
   if (joined.flips.length && homes(cfg, joined.mirrors, volley).every(Boolean)) push(pacedPlan(state, joined.flips));
   const step = ticks(cfg, SECONDS_PER_FLIP);
-  for (const cell of drawnMirrors(cfg, state.mirrors, volley)) {
+  for (const cell of drawnMirrors(cfg, state.mirrors, volley, state.locked)) {
     const tick = state.tick + step;
-    if (tick <= cfg.maxTick) out.push({ moves: [{ type: "flip", cell, tick }] });
+    // A flip after the count would land on the next volley's grid, where this mirror may be locked.
+    if (tick < volley.fireTick && tick <= cfg.maxTick) out.push({ moves: [{ type: "flip", cell, tick }] });
   }
   push(pacedPlan(state, []));
   push(planMoves(state, [], [], Infinity));
@@ -186,7 +194,7 @@ function joinerBot(): Bot<DeflectorsState, DeflectorsMove> {
     choose(state, ctx) {
       const volley = state.volley;
       if (!volley) return waitForDeal(state);
-      const { flips } = join(state.config, state.mirrors, volley, (n) => ctx.rng.int(n));
+      const { flips } = join(state.config, state.mirrors, volley, (n) => ctx.rng.int(n), state.locked);
       return pacedPlan(state, flips);
     },
   };
@@ -204,9 +212,9 @@ function longestBot(): Bot<DeflectorsState, DeflectorsMove> {
 }
 
 /** One try at a longer route from a home one: flip a mirror on a route and keep it if every beam is still home and worth more. */
-function lengthen(cfg: DeflectorsConfig, mirrors: number[], volley: DeflectorsVolley, rng: Rng, flips: number[]): void {
+function lengthen(cfg: DeflectorsConfig, mirrors: number[], volley: DeflectorsVolley, rng: Rng, flips: number[], locked: readonly number[]): void {
   const route: number[] = [];
-  for (const b of volley.beams) for (const c of deflectorsTrace(cfg, mirrors, b.entry).turns) if (!route.includes(c)) route.push(c);
+  for (const b of volley.beams) for (const c of deflectorsTrace(cfg, mirrors, b.entry).turns) if (!route.includes(c) && free(locked, c)) route.push(c);
   if (route.length === 0) return;
   const cell = rng.pick(route.sort((a, b) => a - b));
   const before = deflectorsResolve(cfg, mirrors, volley, 0, 0).base;
@@ -227,9 +235,9 @@ function lengthenerBot(): Bot<DeflectorsState, DeflectorsMove> {
       const volley = state.volley;
       if (!volley) return waitForDeal(state);
       const cfg = state.config;
-      const joined = join(cfg, state.mirrors, volley, (n) => ctx.rng.int(n));
+      const joined = join(cfg, state.mirrors, volley, (n) => ctx.rng.int(n), state.locked);
       const flips = joined.flips;
-      if (homes(cfg, joined.mirrors, volley).every(Boolean)) for (let t = 0; t < LENGTHEN_TRIES; t++) lengthen(cfg, joined.mirrors, volley, ctx.rng, flips);
+      if (homes(cfg, joined.mirrors, volley).every(Boolean)) for (let t = 0; t < LENGTHEN_TRIES; t++) lengthen(cfg, joined.mirrors, volley, ctx.rng, flips, state.locked);
       return pacedPlan(state, flips);
     },
   };
@@ -245,5 +253,9 @@ export const DEFLECTORS_BOTS: BotGame<DeflectorsState, DeflectorsMove, Deflector
   worth: (before, after) => after.score + pending(after) - (before.score + pending(before)),
   open: true,
   bots: [joinerBot(), longestBot(), lengthenerBot()],
-  baits: [{ bait: "lengthener", beats: "joiner" }],
+  baits: [
+    { bait: "lengthener", beats: "joiner" },
+    // Under locks, the best route every volley (the one-move bot) loses to the planner that keeps the next grid open.
+    { bait: "one move", beats: "rollout" },
+  ],
 };
