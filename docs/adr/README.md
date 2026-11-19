@@ -72,3 +72,4 @@ that supersedes it.
 | [0064](./0064-stored-sound-picks-and-takes-are-read-and-ignored-and-the-beats-sound-stands-alone.md) | Stored sound picks and takes are kept, read and ignored, and the beat's sound stands alone |
 | [0065](./0065-pieces-and-cues-are-data-the-studio-edits.md) | Pieces and cues are data the studio edits: a Sprites editor, a Sounds editor, and Save writes both |
 | [0066](./0066-a-puzzle-is-learned-on-a-ladder-of-stages.md) | A puzzle is learned on a ladder of stages, forward only, and only the whole puzzle counts |
+| [0067](./0067-the-bots-live-in-the-repository.md) | The bots live in the repository and play any prototype through one seam, printing its ladder table |
