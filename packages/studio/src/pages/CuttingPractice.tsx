@@ -55,6 +55,7 @@ export function CuttingPractice() {
         <>
           <p className="how how-kbd">{t("cutting.tap_note")}</p>
           <p className="how how-kbd">{t("cutting.grade_note")}</p>
+          {cfg.orderBonus > 0 && <p className="how how-kbd">{t("cutting.order_note", { bonus: cfg.orderBonus })}</p>}
           <p className="how how-kbd">{t("cutting.hint_note")}</p>
         </>
       }
@@ -72,6 +73,14 @@ export function CuttingPractice() {
               {t("cutting.yield_value", { got: shown.slabGot, best: shown.slabBest })}
             </span>
           </div>
+          {shown.order && (
+            <div className="stat stat-wide">
+              <span className="stat-label">{t("cutting.order_stat")}</span>
+              <span className="stat-value" data-testid="hud-order" data-order={`${shown.order.w}x${shown.order.h}`}>
+                {t("cutting.order_value", { w: shown.order.w, h: shown.order.h, bonus: cfg.orderBonus })}
+              </span>
+            </div>
+          )}
           <div className="stat stat-wide">
             <span className="stat-label">{t("cutting.round_yield_stat")}</span>
             <span className="stat-value" data-testid="hud-round-yield">
@@ -94,6 +103,12 @@ export function CuttingPractice() {
             <dt>{t("cutting.result_yield")}</dt>
             <dd>{finalYield === null ? t("cutting.round_yield_none") : t("cutting.result_yield_value", { percent: finalYield })}</dd>
           </div>
+          {state.order && (
+            <div>
+              <dt>{t("cutting.result_orders")}</dt>
+              <dd>{state.ordersFilled}</dd>
+            </div>
+          )}
           <div>
             <dt>{t("cutting.result_biggest")}</dt>
             <dd>{t("cutting.result_biggest_value", { cells: state.biggest })}</dd>
@@ -113,6 +128,7 @@ export function CuttingPractice() {
           <p className="muted small proto-note">{t("cutting.legend_ores")}</p>
           <p className="muted small proto-note">{t("cutting.legend_cut")}</p>
           <p className="muted small proto-note">{t("cutting.legend_strip")}</p>
+          {cfg.orderBonus > 0 && <p className="muted small proto-note">{t("cutting.legend_order")}</p>}
           <p className="muted small proto-note">{t("cutting.grade_note")}</p>
         </>
       }

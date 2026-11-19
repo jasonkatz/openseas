@@ -5,6 +5,7 @@ import {
   cuttingPieceAt,
   cuttingViewString,
   type CuttingMoveReport,
+  type CuttingOrder,
   type CuttingPiece,
   type CuttingPreview,
   type CuttingRect,
@@ -37,6 +38,10 @@ export interface CuttingLabels {
   clean(bonus: number): string;
   rough: string;
   streak(count: number): string;
+  /** Under the slab, beside the plate drawn to scale: what a piece of the order's size pays more. */
+  order(bonus: number): string;
+  /** Called out when a banked piece fills the order. */
+  orderFilled(bonus: number): string;
 }
 
 export interface CuttingRendererOptions {
@@ -72,6 +77,8 @@ interface Strip {
 const HINT_AFTER_MS = 7000;
 /** A banked piece this big gets a bigger number. */
 const BIG_PIECE = 9;
+/** The row under the slab that shows the order, in cells. */
+const ORDER_ROW = 0.8;
 
 /**
  * Draws the slab and turns a swipe along a grid line into a cut. Scores nothing: every number it
@@ -85,6 +92,10 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
   private readonly pieceLayer = new Container();
   private readonly hintLayer = new Graphics();
   private readonly lineLayer = new Graphics();
+  private readonly orderLayer = new Graphics();
+  private orderText: Text | null = null;
+  /** True while the slab's layout holds the order's row: a lab that turns orders on or off lays out afresh. */
+  private orderRow = false;
   private cutsText: Text | null = null;
   private yieldText: Text | null = null;
   private nextText: Text | null = null;
@@ -131,12 +142,13 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     this.cutsText = text(FONT, "400", INK.dim);
     this.yieldText = text(FONT_MONO, "700", INK.cream);
     this.nextText = text(FONT, "400", INK.cream);
+    this.orderText = text(FONT_MONO, "700", INK.dim);
     for (let i = 0; i < 2; i++) {
       const t = text(FONT_MONO, "700", INK.cream);
             t.visible = false;
       this.gainTexts.push(t);
     }
-    this.world.addChild(this.bg, this.stripLayer, this.pieceLayer, this.hintLayer, this.lineLayer, this.cutsText, this.yieldText, this.nextText, ...this.gainTexts);
+    this.world.addChild(this.bg, this.stripLayer, this.orderLayer, this.pieceLayer, this.hintLayer, this.lineLayer, this.cutsText, this.yieldText, this.nextText, this.orderText, ...this.gainTexts);
   }
 
   /** The gap left round every piece, so a cut shows as a seam. */
@@ -154,14 +166,17 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
       g.cols = this.state.config.width;
       g.rows = this.state.config.height;
     }
-    g.fit(width, height, { top: 1.05, margin: 8 });
+    // With orders on, a row under the slab shows the slab's order.
+    this.orderRow = this.state?.order != null;
+    const below = this.orderRow ? ORDER_ROW : 0;
+    g.fit(width, height, { top: 1.05, bottom: below, margin: 8 });
     const pad = Math.max(4, g.cell * 0.12);
     const strip = this.stripHeight;
     this.bg.clear();
-    // Bare ground with one hairline round the strip and the slab. The slab's grid is the gaps between its cells.
-    this.paintGround(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + pad * 2);
+    // Bare ground with one hairline round the strip, the slab and the order's row. The slab's grid is the gaps between its cells.
+    this.paintGround(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + below * g.cell + pad * 2);
     const font = Math.max(12, Math.round(g.cell * 0.26));
-    for (const t of [this.cutsText, this.yieldText, this.nextText]) if (t) t.style.fontSize = font;
+    for (const t of [this.cutsText, this.yieldText, this.nextText, this.orderText]) if (t) t.style.fontSize = font;
     for (const t of this.gainTexts) t.style.fontSize = Math.max(14, Math.round(g.cell * 0.46));
     this.publishGeom(g.ox, g.oy, g.cell);
     this.clearAim();
@@ -221,6 +236,59 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
       const mid = (lampsX + Math.max(0, s.cutsAllowed - 1) * gap + r + this.chip.x) / 2;
       this.yieldText.position.set(mid, rowY);
     }
+  }
+
+  // ---- the order, under the slab: the plate drawn to scale and what it pays more
+
+  /**
+   * The order's row: a plate of the order's size, long side across, in small cells, and what a
+   * piece of that size pays more. The plate is dim, and cream while the cut lined up would fill it.
+   */
+  private drawOrder(): void {
+    const l = this.orderLayer;
+    l.clear();
+    const order: CuttingOrder | null = this.state?.order ?? null;
+    if (this.orderText) this.orderText.visible = order !== null && this.orderRow;
+    if (!order || !this.orderRow || !this.state) return;
+    const g = this.grid;
+    const lit = this.preview?.halves.some((h) => h.filled) ?? false;
+    const rowH = ORDER_ROW * g.cell;
+    const midY = g.oy + g.height + rowH * 0.55;
+    const long = Math.max(order.w, order.h);
+    const short = Math.min(order.w, order.h);
+    const mini = Math.min(g.cell * 0.2, (rowH * 0.62) / short);
+    const gap = Math.max(1, mini * 0.12);
+    const x0 = g.ox + 2;
+    const y0 = midY - (short * mini) / 2;
+    for (let i = 0; i < long; i++) {
+      for (let j = 0; j < short; j++) l.roundRect(x0 + i * mini + gap / 2, y0 + j * mini + gap / 2, mini - gap, mini - gap, Math.max(1, mini * 0.15)).fill({ color: lit ? INK.cream : INK.dim });
+    }
+    if (this.orderText) {
+      this.orderText.text = this.opts.labels.order(this.state.config.orderBonus);
+      this.orderText.anchor.set(0, 0.5);
+      this.orderText.style.fill = lit ? INK.cream : INK.dim;
+      this.orderText.position.set(x0 + long * mini + mini * 0.8, midY);
+    }
+  }
+
+  /**
+   * A piece that fills the order is marked by its corners: a short stroke along each edge from every
+   * corner, just outside it, like the corners of a plate marked out for the torch. Read without colour.
+   */
+  private corners(l: Graphics, x: number, y: number, w: number, h: number): void {
+    const g = this.grid;
+    const off = Math.max(2, g.cell * 0.05);
+    const len = Math.max(6, Math.min(w, h) * 0.22);
+    const width = Math.max(2, g.cell * 0.05);
+    const x0 = x - off;
+    const y0 = y - off;
+    const x1 = x + w + off;
+    const y1 = y + h + off;
+    l.moveTo(x0, y0 + len).lineTo(x0, y0).lineTo(x0 + len, y0);
+    l.moveTo(x1 - len, y0).lineTo(x1, y0).lineTo(x1, y0 + len);
+    l.moveTo(x1, y1 - len).lineTo(x1, y1).lineTo(x1 - len, y1);
+    l.moveTo(x0 + len, y1).lineTo(x0, y1).lineTo(x0, y1 - len);
+    l.stroke({ width, color: INK.cream, cap: "round", join: "round" });
   }
 
   // ---- pieces
@@ -294,6 +362,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     }
     this.shownOres = state.ores;
     this.showStrip({ cutsLeft: state.cutsLeft, cutsAllowed: state.cutsAllowed, got: state.slabGot, best: state.slabBest });
+    this.drawOrder();
     this.touchView();
   }
 
@@ -304,8 +373,8 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     this.hintLayer.clear();
     this.idle = 0;
     const g = this.grid;
-    if (g.cols !== state.config.width || g.rows !== state.config.height) {
-      // A different slab size (a lab config): lay it out afresh.
+    if (g.cols !== state.config.width || g.rows !== state.config.height || this.orderRow !== (state.order !== null)) {
+      // A different slab size, or orders turned on or off (a lab config): lay it out afresh.
       this.layout(this.app.screen.width, this.app.screen.height);
       return;
     }
@@ -357,14 +426,23 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
         this.views.set(half.piece.id, v);
         return;
       }
-      // A pure side: it pays, and shrinks away.
+      // A pure side: it pays, and shrinks away. One that fills the order keeps its corners marked as it goes.
       this.leaving.add(v.root);
       const area = half.piece.w * half.piece.h;
       const delay = MOTION.move + 60 + banked * 110;
       const nth = prev.banked.length + banked;
       banked++;
+      if (half.filled) {
+        const mark = new Graphics();
+        this.corners(mark, 0, 0, half.piece.w * g.cell, half.piece.h * g.cell);
+        v.root.addChild(mark);
+      }
       this.tweens.after(delay, () => {
-        sfx.clear(Math.min(7, nth + 1), area);
+        if (half.filled) {
+          // The order filled: called out, on the rising cue.
+          sfx.rise();
+          this.fx.say(this.opts.labels.orderFilled(prev.config.orderBonus));
+        } else sfx.clear(Math.min(7, nth + 1), area);
         this.fx.popup(v.x, v.y, `+${half.points}`, INK.cream, Math.max(16, g.cell * (area >= BIG_PIECE ? 0.62 : 0.42)));
         this.showStrip({ ...this.strip, got: this.strip.got + half.points });
       });
@@ -480,6 +558,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     this.lineLayer.clear();
     for (const t of this.gainTexts) t.visible = false;
     this.publishAim();
+    this.drawOrder();
   }
 
   private publishAim(): void {
@@ -513,6 +592,7 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
     }
     this.publishAim();
     this.drawAim();
+    if (moved) this.drawOrder();
     return true;
   }
 
@@ -529,9 +609,10 @@ export class CuttingRenderer extends KitBoard<CuttingState> {
       const w = h.w * g.cell - seam * 2;
       const hh = h.h * g.cell - seam * 2;
       const round = Math.max(3, g.cell * 0.1);
-      // A side that would bank is ringed in cream; a side that would stay is dimmed.
+      // A side that would bank is ringed in cream, and marked by its corners when it fills the order; a side that would stay is dimmed.
       if (h.ore !== null) l.roundRect(x, y, w, hh, round).stroke({ width: Math.max(2, g.cell * 0.05), color: INK.cream, alignment: 1 });
       else l.roundRect(x, y, w, hh, round).fill({ color: INK.ground, alpha: 0.4 });
+      if (h.filled) this.corners(l, x, y, w, hh);
     }
     // What a side would pay sits on a scrim of the ground, so it reads over the cut-outs.
     for (const t of this.gainTexts) {

@@ -93,3 +93,28 @@ test("a Cutting slab given up is graded and the next one is dealt", async ({ pag
   expect(await board.getAttribute("data-board")).not.toBe(first);
   expect(await pieces(page)).toEqual([{ x: 0, y: 0, w: W, h: W }]);
 });
+
+test("the whole puzzle deals each slab an order, shown on the board and in the HUD", async ({ page }) => {
+  await page.goto("/play/cutting?seed=smoke-1&start=lab");
+  await expect(page.getByTestId("cutting-canvas")).toBeVisible();
+  const board = page.getByTestId("cutting-board");
+  await expect(board).toHaveAttribute("data-order", /^[23]x[234]$/);
+  const order = await board.getAttribute("data-order");
+  await expect(page.getByTestId("hud-order").first()).toHaveAttribute("data-order", order!);
+  await expectViewMatchesState(page, "cutting");
+});
+
+test("a Cutting stage plays from its address: blocks deals no order and a minute on the clock (ADR 0066)", async ({ page }) => {
+  await page.goto("/play/cutting?stage=blocks");
+  await expect(page.getByTestId("stage-intro")).toHaveAttribute("data-stage", "blocks");
+  await page.getByTestId("play-start").click();
+  await expect(page.getByTestId("cutting-canvas")).toBeVisible();
+  await expect(page.getByTestId("hud-stage").first()).toHaveAttribute("data-stage", "blocks");
+  await expect(page.getByTestId("cutting-board")).toHaveAttribute("data-order", "");
+  await expect(page.getByTestId("hud-order")).toHaveCount(0);
+  await expect(page.getByTestId("hud-time").first()).toHaveText(/^(1:00|0:5\d)$/);
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("hud-moves").first()).toHaveText("1");
+  await expectViewMatchesState(page, "cutting");
+});
