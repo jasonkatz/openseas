@@ -114,7 +114,8 @@ async function region(page: Page): Promise<Box> {
   const g = await boardGeom(page, "reactor");
   const rim = Math.max(7, g.cell * 0.16);
   const pad = rim + Math.max(4, g.cell * 0.06);
-  const strip = g.cell * 0.72;
+  // The strip grows a second row for the pressure gauge when the core has one.
+  const strip = g.cell * (cfg.pressureLimit > 0 ? 1.1 : 0.72);
   const bar = g.cell * 0.5;
   const panel = { x: g.ox - pad, y: g.oy - strip - pad * 0.4, width: g.cell * N + pad * 2, height: g.cell * N + strip + bar + pad * 1.4 };
   return padded(panel, 8, await canvasBox(page, "reactor"));
@@ -205,6 +206,24 @@ test("reactor: the board", async ({ page }) => {
   await hidePointer(page);
   await page.waitForTimeout(400);
   await still(page, "reactor", "board", { region: await region(page) });
+});
+
+test("reactor: the pressure gauge", async ({ page }) => {
+  // Two hot rods held, one ready at its port: the gauge under the lamps has climbed a few marks and
+  // shows, hollow, the mark the next swipe adds if both stay. It is not yet warning.
+  const { seed, found } = findSeed("reactor-pressure", (s) => {
+    const line = lineOf(s, 70, true);
+    for (let k = 10; k < 70; k++) {
+      const g = line.states[k]!;
+      const ready = g.ports.filter((p) => reactorPortStatus(g, p) === "ready").length;
+      if (hot(g) === 2 && ready >= 1 && g.pressure >= 3 && g.pressure <= cfg.pressureLimit - 4 && rods(g) <= 10) return { line, from: k, to: k };
+    }
+    return null;
+  });
+  await setUp(page, seed, found);
+  await hidePointer(page);
+  await page.waitForTimeout(400);
+  await still(page, "reactor", "pressure", { region: await region(page) });
 });
 
 test("reactor: a swipe fuses", async ({ page }) => {
