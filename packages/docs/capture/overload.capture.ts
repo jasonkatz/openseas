@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { loadContent } from "@openseas/content";
-import { createOverloadGame, overloadChainSize, overloadViewString, reduceOverload, type OverloadState } from "@openseas/engine";
+import { createOverloadGame, overloadChainSize, overloadDrawMet, overloadViewString, reduceOverload, type OverloadState } from "@openseas/engine";
 import { boardGeom, boardString, canvasBox, clip, findSeed, hidePointer, openLab, padded, settled, still, tapAt, type Box } from "./lib.js";
 
 const cfg = loadContent().puzzles.overload.config;
@@ -9,6 +9,8 @@ const H = cfg.height;
 const N = W * H;
 /** The strip over the bank (the taps held, the chain, the streak), in cells: the renderer's own layout. */
 const STRIP = 0.95;
+/** The draw's row under the bank, in cells, while there is a draw: the renderer's own layout. */
+const DRAW_ROW = cfg.drawSizes.length > 0 ? 0.8 : 0;
 
 const deal = (seed: string): OverloadState => createOverloadGame(seed, cfg);
 /** A tap in Node. The bank is a pure function of the taps: the clock only brings taps back. */
@@ -59,11 +61,11 @@ const inner = (cell: number): boolean => cell % W > 0 && cell % W < W - 1 && Mat
 
 // ---- driving the page
 
-/** The bank and the strip over it, without the canvas's empty margins. */
+/** The bank, the strip over it and the draw's row under it, without the canvas's empty margins. */
 async function region(page: Page): Promise<Box> {
   const g = await boardGeom(page, "overload");
   const top = g.oy - g.cell * STRIP;
-  return padded({ x: g.ox, y: top, width: g.cell * W, height: g.cell * H + g.cell * STRIP }, 10, await canvasBox(page, "overload"));
+  return padded({ x: g.ox, y: top, width: g.cell * W, height: g.cell * (H + STRIP + DRAW_ROW) }, 10, await canvasBox(page, "overload"));
 }
 
 /** Tap a capacitor with the pointer and keep the Node state in step. */
@@ -206,4 +208,32 @@ test("overload: a streak at pace", async ({ page }) => {
       await page.waitForTimeout(150);
     }
   }, { leadMs: 500, tailMs: 1300, region: await region(page) });
+});
+
+test("overload: the draw", async ({ page }) => {
+  // An opening with no booster where one tap, off the rim, sets off a chain that meets the first draw.
+  const { seed, found } = findSeed("over-draw", (s) => {
+    const g = deal(s);
+    if (boosters(g) > 0) return null;
+    for (let c = 0; c < N; c++) {
+      const ch = inner(c) ? chainOf(g, c) : null;
+      if (ch && overloadDrawMet(g, ch.size) && ch.waves >= 3) return ch;
+    }
+    return null;
+  });
+  let s = deal(seed);
+  await openLab(page, "overload", { seed });
+  await hidePointer(page);
+  await clip(page, "overload", "draw", async () => {
+    // The cursor walks to the capacitor: the row under the bank counts its chain against the draw.
+    const col = found.cell % W;
+    const row = Math.floor(found.cell / W);
+    for (let c = 0; c < col; c++) await page.keyboard.press("ArrowRight");
+    for (let r = 0; r < row; r++) await page.keyboard.press("ArrowDown");
+    await expect(page.getByTestId("overload-canvas")).toHaveAttribute("data-preview", `${found.size}:met`);
+    await page.waitForTimeout(1300);
+    await page.keyboard.press(" ");
+    s = tap(s, found.cell);
+    await landed(page, s);
+  }, { leadMs: 600, tailMs: 1600, region: await region(page) });
 });

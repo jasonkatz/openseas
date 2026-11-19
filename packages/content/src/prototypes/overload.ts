@@ -22,6 +22,14 @@ export const OverloadContentSchema = PrototypeBaseSchema.extend({
     tapRegenTicks: z.int().min(1),
     /** A chain gives one tap back for every this many bursts; 0 gives none. */
     refundEvery: z.int().min(0),
+    /** The draw: the smallest chain of each draw, asked for in turn (or at random); empty asks for none. */
+    drawSizes: z.array(z.int().min(1)).max(16),
+    /** A draw is met by a chain of its size to that plus drawSpan. */
+    drawSpan: z.int().min(0),
+    /** What a chain that meets the draw scores, in percent. */
+    drawPercent: z.int().min(100).max(1000),
+    /** True picks each next draw at random from drawSizes; false takes them in order. */
+    drawRandom: z.boolean(),
     tickMs: z.int().min(20).max(5000),
     maxTick: z.int().min(1),
     maxMoves: z.int().min(1),

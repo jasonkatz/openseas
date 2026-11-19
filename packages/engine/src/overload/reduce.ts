@@ -39,6 +39,12 @@ export function validateConfig(cfg: OverloadConfig): void {
     int(cfg.startTaps, 0, cfg.tapCap) &&
     int(cfg.tapRegenTicks, 1, 10_000) &&
     int(cfg.refundEvery, 0, 1000) &&
+    Array.isArray(cfg.drawSizes) &&
+    cfg.drawSizes.length <= 16 &&
+    cfg.drawSizes.every((d) => int(d, 1, cfg.width * cfg.height)) &&
+    int(cfg.drawSpan, 0, 100) &&
+    int(cfg.drawPercent, 100, 1000) &&
+    typeof cfg.drawRandom === "boolean" &&
     int(cfg.tickMs, 20, 5000) &&
     int(cfg.maxTick, 1, 100_000) &&
     int(cfg.maxMoves, 1, 1_000_000);
@@ -83,6 +89,8 @@ export function createOverloadGame(seed: string, config: OverloadConfig = DEFAUL
     rng = f.rng;
     cells.push({ id: c + 1, charge: f.charge, booster: f.booster });
   }
+  // The draw has a stream of its own, so turning it on deals the same bank.
+  const first = nextDraw(config, seedFromString(`overload-draw:${seed}`), -1);
   return {
     config,
     tick: 0,
@@ -101,9 +109,55 @@ export function createOverloadGame(seed: string, config: OverloadConfig = DEFAUL
     bestChain: 0,
     bursts: 0,
     refunds: 0,
+    draw: first.draw,
+    drawIndex: first.index,
+    drawRng: first.rng,
+    draws: 0,
+    drawScore: 0,
     lastMove: null,
     finished: false,
   };
+}
+
+/**
+ * The draw after draw `index` (-1 for the first): the next in the list, or one picked at random from
+ * it on the draw's own stream when `drawRandom`. Draws nothing with no draw.
+ */
+function nextDraw(cfg: OverloadConfig, rng: PrngState, index: number): { draw: number; index: number; rng: PrngState } {
+  const n = cfg.drawSizes.length;
+  if (n === 0) return { draw: 0, index: 0, rng };
+  if (!cfg.drawRandom) {
+    const i = (index + 1) % n;
+    return { draw: cfg.drawSizes[i]!, index: i, rng };
+  }
+  const r = nextInt(rng, n);
+  return { draw: cfg.drawSizes[r.value]!, index: r.value, rng: r.state };
+}
+
+/** The draw asked for now, as the band of chain sizes that meets it and what it multiplies by. Null with no draw. */
+export function drawBand(state: OverloadState): { min: number; max: number; percent: number } | null {
+  if (state.config.drawSizes.length === 0) return null;
+  return { min: state.draw, max: state.draw + state.config.drawSpan, percent: state.config.drawPercent };
+}
+
+/** True when a chain of `size` bursts meets the draw asked for now. Never with no draw. */
+export function drawMet(state: OverloadState, size: number): boolean {
+  const band = drawBand(state);
+  return band !== null && size >= band.min && size <= band.max;
+}
+
+/**
+ * What a chain of `size` set off now scores, and what the draw adds to it: the streak it would build
+ * or break and the draw it would meet, as the engine scores the tap. Uses no randomness.
+ */
+export function chainPoints(state: OverloadState, size: number): { points: number; drawPoints: number; met: boolean } {
+  if (size <= 0) return { points: 0, drawPoints: 0, met: false };
+  const cfg = state.config;
+  const combo = size >= cfg.streakMin ? state.combo + 1 : 0;
+  const streaked = Math.floor((chainValue(cfg, size) * streakPercentAt(cfg, combo)) / 100);
+  const met = drawMet(state, size);
+  const points = met ? Math.floor((streaked * cfg.drawPercent) / 100) : streaked;
+  return { points, drawPoints: points - streaked, met };
 }
 
 /** The taps held at a later tick, and the tick the tap then coming back started from. */
@@ -187,6 +241,15 @@ export function refundFor(cfg: OverloadConfig, size: number): number {
  */
 export function chainSize(state: OverloadState, cell: number): number {
   return chainSizeOn(state.config, state.cells.map((c) => c.charge), state.cells.map((c) => c.booster), cell);
+}
+
+/** The capacitors a tap on `cell` would burst right now, in index order: empty when it only charges. Uses no randomness. */
+export function chainCells(state: OverloadState, cell: number): number[] {
+  const charges = state.cells.map((c) => c.charge);
+  if (charges[cell]! + 1 < OVERLOAD_FULL) return [];
+  charges[cell] = charges[cell]! + 1;
+  const r = runChain(state.config, charges, state.cells.map((c) => c.booster));
+  return r.spent.flatMap((s, c) => (s ? [c] : []));
 }
 
 function chainSizeOn(cfg: OverloadConfig, charges: readonly number[], boosters: readonly boolean[], cell: number): number {
@@ -301,7 +364,9 @@ function tap(state: OverloadState, cell: number): { state: OverloadState; events
   const combo = long ? state.combo + 1 : 0;
   const percent = streakPercentAt(cfg, combo);
   const base = chainValue(cfg, chain.size);
-  const points = Math.floor((base * percent) / 100);
+  const scored = chainPoints(state, chain.size);
+  const points = scored.points;
+  const drew = scored.met ? nextDraw(cfg, state.drawRng, state.drawIndex) : { draw: state.draw, index: state.drawIndex, rng: state.drawRng };
   const refund = Math.min(refundFor(cfg, chain.size), cfg.tapCap - taps);
   taps += refund;
 
@@ -320,7 +385,7 @@ function tap(state: OverloadState, cell: number): { state: OverloadState; events
       swapped.push({ cell: c, ...made });
     } else cells.push({ ...state.cells[c]!, charge: Math.min(OVERLOAD_FULL - 1, settled[c]!) });
   }
-  events.push({ seq: ++seq, tick, type: "chain", cell, waves: chain.waves, size: chain.size, base, streak: combo, streakPercent: percent, brokeStreak, refund, fresh: swapped, points });
+  events.push({ seq: ++seq, tick, type: "chain", cell, waves: chain.waves, size: chain.size, base, streak: combo, streakPercent: percent, brokeStreak, refund, drawMet: scored.met, drawPoints: scored.drawPoints, draw: drew.draw, fresh: swapped, points });
   return {
     state: {
       ...state,
@@ -339,6 +404,11 @@ function tap(state: OverloadState, cell: number): { state: OverloadState; events
       bestChain: Math.max(state.bestChain, chain.size),
       bursts: state.bursts + chain.size,
       refunds: state.refunds + refund,
+      draw: drew.draw,
+      drawIndex: drew.index,
+      drawRng: drew.rng,
+      draws: state.draws + (scored.met ? 1 : 0),
+      drawScore: state.drawScore + scored.drawPoints,
     },
     events,
   };
@@ -358,6 +428,11 @@ export function hashOverloadState(state: OverloadState): string {
   h.int(state.nextId).int(state.taps).int(state.regenFrom).int(state.eventSeq);
   h.int(state.score).int(state.moveCount).int(state.logLength).int(state.combo).int(state.bestCombo);
   h.int(state.chains).int(state.bestChain).int(state.bursts).int(state.refunds).int(state.finished ? 1 : 0);
+  // The draw, only when it is on: a round with no draw hashes as it did before there was one.
+  if (state.config.drawSizes.length > 0) {
+    h.int(state.draw).int(state.drawIndex).int(state.draws).int(state.drawScore);
+    h.int(state.drawRng.a).int(state.drawRng.b).int(state.drawRng.c).int(state.drawRng.d);
+  }
   return h.digest();
 }
 

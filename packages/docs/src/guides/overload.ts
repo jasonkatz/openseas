@@ -16,6 +16,23 @@ const streakFull = c.streakPercent.length;
 const boosterOneIn = Math.round(1000 / c.boosterPermille);
 /** The shortest chain that gives back two taps: its own and the charge that set it up. */
 const paysForTwo = c.refundEvery * 2;
+/** The draw: the first band, the last, and what a chain in it pays, as a multiple. */
+const drawFirst = c.drawSizes[0]!;
+const drawLast = c.drawSizes[c.drawSizes.length - 1]!;
+const band = (min: number): string => (c.drawSpan > 0 ? `${min} to ${min + c.drawSpan}` : `${min}`);
+const drawTimes = c.drawPercent / 100;
+/** One chain on the first draw's top size: what it pays plain, and in the band. */
+const drawTop = drawFirst + c.drawSpan;
+const drawPays = Math.floor(v(drawTop) * drawTimes);
+/** The longest chain out of the band that pays no more than that. */
+const drawWorth = Math.floor(Math.sqrt(drawPays));
+/** How the next draw is picked, in words: in turn, a step up each time, or at random. */
+const drawStep = c.drawSizes.length > 1 ? c.drawSizes[1]! - drawFirst : 0;
+const drawNext = c.drawRandom
+  ? `the next is picked at random, from ${band(Math.min(...c.drawSizes))} up to ${band(Math.max(...c.drawSizes))}`
+  : drawStep > 0
+    ? `the next asks for ${drawStep === 1 ? "one" : drawStep} more, up to ${band(drawLast)} and then round again from ${band(drawFirst)}`
+    : "the same draw is asked for again";
 
 export const overload: Guide = {
   id: "overload",
@@ -23,29 +40,29 @@ export const overload: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Overload board: a bank of capacitors ${c.width} wide and ${c.height} tall, each a flat disc with one hole cut in it for each charge it holds, with ${c.tapCap} amber lamps in a strip above for the taps held. The boosters among them are discs with four lugs.`,
-    caption: "The bank. A hole is one charge, and the lamps on top are your taps.",
+    alt: `The Overload board: a bank of capacitors ${c.width} wide and ${c.height} tall, each a flat disc with one hole cut in it for each charge it holds, with ${c.tapCap} amber lamps in a strip above for the taps held. The boosters among them are discs with four lugs. A row under the bank reads Draw ${drawFirst} to ${drawTop} ×${drawTimes}.`,
+    caption: "The bank. A hole is one charge, the lamps on top are your taps, and the row under it is the draw.",
   },
   theme: {
     setting:
       "The ship's capacitor bank is charged past what it can hold. You are the pirate at the panel with a few spare charges in hand, picking the one capacitor that tips a whole cluster over. Each one that bursts dumps its charge into the ones beside it.",
     purpose:
-      "Overload is a **prototype**: it is played on the test bench and is in no ship yet. It is trying out a chain reaction you can read in full before you touch it, with taps too scarce to spend on guesses. The skill it asks for is reading, then holding back until the chain is worth it.",
+      "Overload is a **prototype**: it is played on the test bench and is in no ship yet. It is trying out a chain reaction you can read in full before you touch it, with taps too scarce to spend on guesses, and a ship that asks for chains of a size. The skill it asks for is reading, holding back until the chain is worth it, and knowing when a bigger chain is worth less.",
   },
   facts: [
     { label: "Bank", value: `${c.width} wide, ${c.height} tall` },
     { label: "Round", value: `${p.roundSeconds} seconds` },
     { label: "Taps", value: `Hold ${c.tapCap}, one back every ${regenSeconds} seconds` },
-    { label: "Status", value: "Prototype, on the test bench" },
+    { label: "Draw", value: `Chains of ${band(drawFirst)} to begin with, ×${drawTimes}` },
   ],
   rules: [
     `Every capacitor holds 0 to ${hot} charges. A tap adds one, and costs one of the taps you hold.`,
     `A capacitor that reaches ${OVERLOAD_FULL} **bursts**: it empties and passes one charge to each neighbour above, below, left and right. Charge passed off the edge of the bank is lost.`,
-    `A neighbour that reaches ${OVERLOAD_FULL} bursts in the next wave, and so on. Everything one tap sets off is one **chain**.`,
-    "A capacitor bursts once in a chain. After that it is spent, and charge passed to it is lost.",
+    `A neighbour that reaches ${OVERLOAD_FULL} bursts in the next wave, and so on. Everything one tap sets off is one **chain**. A capacitor bursts once in a chain: after that it is spent, and charge passed to it is lost.`,
     "When the chain ends, every spent capacitor is swapped for a fresh one with a random charge. The ones that were passed charge and did not burst keep it.",
     `You hold up to ${c.tapCap} taps and one comes back every ${regenSeconds} seconds. A full hand banks nothing.`,
     `A **booster** has four lugs, one towards each neighbour. It passes two charges to each neighbour when it bursts. About one fresh capacitor in ${boosterOneIn} is a booster.`,
+    `Under the bank the ship asks for a **draw**: a chain of ${band(drawFirst)} bursts to begin with. A chain that lands in it meets the draw, and ${drawNext}.`,
   ],
   rulesMedia: {
     kind: "clip",
@@ -58,12 +75,13 @@ export const overload: Guide = {
     { action: "Move the cursor", touch: "", desktop: "Arrow keys or WASD" },
     { action: "Charge at the cursor", touch: "", desktop: "Space or Enter" },
     { action: "Finish a chain that is still playing", touch: "Tap the next capacitor", desktop: "Click the next capacitor, or press Space" },
+    { action: "Count a chain against the draw", touch: "", desktop: "Point at a capacitor at 3, or move the cursor onto it" },
   ],
   scoring: [
-    `**A chain scores its length times itself.** ${[2, 4, 6, 10].map((n) => `${n} bursts is ${v(n)}`).join(", ")}. One chain of ten beats two of five by ${v(10)} to ${2 * v(5)}.`,
+    `**A chain scores its length times itself.** ${[2, 4, 6, 10].map((n) => `${n} bursts is ${v(n)}`).join(", ")}. One chain of ten beats two of five by ${v(10)} to ${2 * v(5)}. Past ${c.chainCap} bursts each further one adds a flat ${c.chainCap}.`,
     `A chain of ${c.streakMin} or more builds a **streak** that multiplies the chain: +${streakStep}% each, up to ×${streakMax} from the ${ordinal(streakFull)} in a row. A shorter chain breaks it. A tap that bursts nothing does not.`,
     `Every ${c.refundEvery} bursts in a chain give a tap back, up to a full hand. A chain of ${c.refundEvery} pays for its own tap.`,
-    `Past ${c.chainCap} bursts a chain stops growing so fast: each further burst adds ${c.chainCap}.`,
+    `A chain that meets the **draw** scores ×${drawTimes} on top of the streak. A chain of ${drawTop} pays ${v(drawTop)} plain and ${drawPays} in a draw of ${band(drawFirst)}. One burst past the band is only a chain.`,
   ],
   stages: [
     {
@@ -145,6 +163,16 @@ export const overload: Guide = {
           body: `A charge is a turn that scores nothing, and a very long chain leaves a cold patch of fresh capacitors behind it. In bot rounds, charging for every small gain scored at least a fifth less than never joining. Charging only when it about doubles a chain of six or more scored a little more. If a chain of ${c.streakMin} or more is ready and the join is small, fire.`,
         },
         {
+          title: "Build to the draw",
+          body: `The draw turns the join into a target. Count the chain the best tap makes, then find the charge that brings it into the band. A chain of ${drawTop} in the draw pays ${drawPays}, ${drawWorth * drawWorth < drawPays ? "more than" : "as much as"} a chain of ${drawWorth} out of it. On a desktop, point at a capacitor at ${hot} or put the cursor on it and the row under the bank counts its chain and says whether it meets the draw.`,
+          media: {
+            kind: "clip",
+            name: "draw",
+            alt: `The cursor rests on a capacitor at three and the row under the bank reads its chain and that it meets the draw. Space sets it off, the chain runs, the board calls out Draw met, and the row asks for the next draw.`,
+            caption: `The row counts the chain at the cursor. In the band, it pays ×${drawTimes}, and the next draw is asked for.`,
+          },
+        },
+        {
           title: "Boosters carry a chain through twos",
           body: `A booster passes two charges, so the ${hot - 1}s beside it go from that burst alone, and a ${hot - 2} beside it needs only one more bursting neighbour. Find the boosters first on every new bank. A booster at ${hot - 1} against a cluster is a charge worth making: lift it to ${hot} and the cluster sets it off.`,
           media: {
@@ -155,7 +183,7 @@ export const overload: Guide = {
           },
         },
       ],
-      drill: `Each time a chain ends, find the two biggest clusters and the capacitor between them before you look at anything else. You are there when a round has two or three chains of ten or more without the streak breaking, and passes ${p.thresholds[4]!.score}.`,
+      drill: `Each time a chain ends, find the two biggest clusters and the capacitor between them before you look at anything else, then count what they make against the draw. You are there when a round meets the draw most times you set one up without the streak breaking, and passes ${p.thresholds[4]!.score}.`,
     },
     {
       level: "expert",
@@ -180,8 +208,8 @@ export const overload: Guide = {
           body: `The streak counts chains, not their length. Take quick chains of ${c.streakMin} to ${c.streakMin + 2} until the strip reads ×${streakMax}, which takes ${streakFull} of them. Save the joins for after: a chain of twelve is ${v(12)} on the first step of the streak and ${Math.floor(v(12) * streakMax)} at the top.`,
         },
         {
-          title: `Past ${c.chainCap} it flattens`,
-          body: `Up to ${c.chainCap} bursts each one is worth more than the last. Past that each adds a flat ${c.chainCap}, and a chain that takes most of the bank leaves nothing hot to follow it. Do not spend charges stretching a chain beyond ${c.chainCap}. Start the next one.`,
+          title: "Stop at the band",
+          body: `When the best tap already meets the draw, fire it. One more charge that makes it longer looks right, since the square is bigger, but it overshoots the band and loses the ×${drawTimes}. In bot rounds, a player that charged for any longer chain once it had the draw scored more than a third less than one that stopped. A chain that takes most of the bank leaves nothing hot to follow it either.`,
         },
       ],
       drill: `Play rounds where you tap the next chain before the last one has finished playing, and never break the streak to do it. You are there when a round passes ${p.thresholds[5]!.score} points.`,
@@ -191,7 +219,7 @@ export const overload: Guide = {
     `**Firing a chain of two or three.** It scores almost nothing and resets the streak to the start. Charge one capacitor and make it ${c.streakMin} or more.`,
     `**Tapping to see what happens.** Every chain can be read before the tap. Guessing empties the hand and then you wait ${regenSeconds} seconds a tap.`,
     `**Firing the first ${hot} you see.** The biggest group of touching ${hot}s costs the same one tap. Look once round the bank before you spend it.`,
-    "**Charging for a small gain.** A charge is a turn without a chain. Spend it to reach the streak or to join two real clusters, not to add one burst.",
+    "**Charging for a small gain, or past the draw.** A charge is a turn without a chain. Spend it to reach the streak, to join two real clusters or to bring a chain into the draw. A chain in the band pays more than a longer one out of it, so count before the extra charge.",
     "**Waiting for the chain to finish.** The next tap is allowed at once. Have it picked before the chain stops.",
   ],
 };

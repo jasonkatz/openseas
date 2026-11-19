@@ -5,6 +5,6 @@ export const groups: TuningGroups = {
   board: ["width", "height"],
   deal: ["refill", "boosterPermille", "startTaps", "tapCap"],
   pace: ["tickMs", "tapRegenTicks"],
-  scoring: ["burstPoints", "chainCap", "streakMin", "streakPercent", "refundEvery"],
+  scoring: ["burstPoints", "chainCap", "streakMin", "streakPercent", "refundEvery", "drawSizes", "drawSpan", "drawPercent", "drawRandom"],
   limits: ["maxTick", "maxMoves"],
 };

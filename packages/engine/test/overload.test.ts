@@ -8,8 +8,12 @@ import {
   advanceOverload,
   createOverloadGame,
   hashOverloadState,
+  overloadChainCells,
+  overloadChainPoints,
   overloadChainSize,
   overloadChainValue,
+  overloadDrawBand,
+  overloadDrawMet,
   overloadHint,
   overloadNeighbours,
   overloadRefundFor,
@@ -488,5 +492,164 @@ describe("overload rules", () => {
 
   it("the view string names every cell", () => {
     expect(overloadViewString(bank(["012", "3ab", "cd0"]).cells)).toBe("0123abcd0");
+  });
+});
+
+/** The draw on: chains of 8 to 9 at double, and the same with each next draw picked at random. */
+const drawFixed: OverloadConfig = { ...cfg, drawSizes: [8], drawSpan: 1, drawPercent: 200, drawRandom: false };
+const drawMoving: OverloadConfig = { ...cfg, drawSizes: [6, 8, 10], drawSpan: 1, drawPercent: 175, drawRandom: true };
+
+describe("overload determinism with the draw (ADR 0003)", () => {
+  it("same seed and same move log give the same state and hash with the draw off, fixed and drawn at random", () => {
+    for (const config of [{ ...cfg, drawSizes: [] }, drawFixed, drawMoving]) {
+      fc.assert(
+        fc.property(fc.string(), picksArb, (seed, picks) => {
+          const { moves, state } = playRandom(seed, picks, config);
+          const replayed = replayOverload(seed, config, moves);
+          expect(hashOverloadState(replayed)).toBe(hashOverloadState(state));
+          expect(replayed).toEqual(state);
+        }),
+        { numRuns: 40 },
+      );
+    }
+  });
+
+  it("with the draw off a seed deals and plays as it did before there was one, hash and all", () => {
+    // Hashes taken from the engine before the draw: the opening, and the state after forty of the hint's taps, one every 25 ticks.
+    const off: OverloadConfig = { ...cfg, drawSizes: [], drawSpan: 0, drawPercent: 100, drawRandom: false };
+    const golden = [
+      { seed: "golden-1", opening: "21a82faf", after40: "9c721f9c", score: 1895 },
+      { seed: "golden-2", opening: "a74bbdbc", after40: "9b06e753", score: 2052 },
+      { seed: "golden-3", opening: "a93d7cf9", after40: "0b49b217", score: 875 },
+    ];
+    for (const g of golden) {
+      let s = createOverloadGame(g.seed, off);
+      expect(s.draw).toBe(0);
+      expect(hashOverloadState(s)).toBe(g.opening);
+      for (let i = 0; i < 40; i++) s = reduceOverload(s, { type: "tap", cell: overloadHint(s)!.cell, tick: (i + 1) * 25 });
+      expect(hashOverloadState(s)).toBe(g.after40);
+      expect(s.score).toBe(g.score);
+      expect(s.draws).toBe(0);
+      expect(s.drawScore).toBe(0);
+    }
+  });
+
+  it("the draw has a stream of its own: turning it on deals the same bank for the same taps", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        const { moves, state } = playRandom(seed, picks, { ...cfg, drawSizes: [] });
+        let on = createOverloadGame(seed, drawMoving);
+        for (const m of moves) on = reduceOverload(on, m);
+        expect(on.cells).toEqual(state.cells);
+        expect(on.rng).toEqual(state.rng);
+        expect({ chains: on.chains, bursts: on.bursts, combo: on.combo, taps: on.taps }).toEqual({ chains: state.chains, bursts: state.bursts, combo: state.combo, taps: state.taps });
+        // Only the draw's points differ.
+        expect(on.score - on.drawScore).toBe(state.score);
+      }),
+      { numRuns: 40 },
+    );
+  });
+});
+
+describe("overload draw", () => {
+  it("rejects a draw it cannot ask for", () => {
+    expect(() => createOverloadGame("x", { ...cfg, drawSizes: [0] })).toThrow();
+    expect(() => createOverloadGame("x", { ...cfg, drawSizes: [cfg.width * cfg.height + 1] })).toThrow();
+    expect(() => createOverloadGame("x", { ...cfg, drawSizes: [8], drawSpan: -1 })).toThrow();
+    expect(() => createOverloadGame("x", { ...cfg, drawSizes: [8], drawPercent: 99 })).toThrow();
+    expect(() => createOverloadGame("x", { ...cfg, drawSizes: [8], drawRandom: 1 as unknown as boolean })).toThrow();
+    expect(() => createOverloadGame("x", { ...cfg, drawSizes: new Array<number>(17).fill(8) })).toThrow();
+    expect(() => OVERLOAD_DEF.validateConfig(drawMoving)).not.toThrow();
+  });
+
+  it("asks for nothing with no draw: no band, nothing met, nothing added", () => {
+    const s = bank(["333", "333", "333"], { drawSizes: [] });
+    expect(overloadDrawBand(s)).toBeNull();
+    expect(overloadDrawMet(s, 9)).toBe(false);
+    const after = tap(s, 0);
+    expect(chainOf(after)).toMatchObject({ drawMet: false, drawPoints: 0, draw: 0 });
+    expect(after.draws).toBe(0);
+  });
+
+  it("a chain inside the band meets the draw: it scores drawPercent on top of the streak, and the next draw is asked for", () => {
+    const hot: Partial<OverloadConfig> = { refill: [0, 0, 0, 1], boosterPermille: 0, refundEvery: 0, tapCap: 12, startTaps: 12 };
+    let s = bank(["333", "333", "333"], { ...hot, drawSizes: [9, 4], drawSpan: 0, drawPercent: 150, drawRandom: false });
+    expect(overloadDrawBand(s)).toEqual({ min: 9, max: 9, percent: 150 });
+    expect(overloadDrawMet(s, 9)).toBe(true);
+    expect(overloadDrawMet(s, 8)).toBe(false);
+    expect(overloadDrawMet(s, 10)).toBe(false);
+    expect(overloadChainPoints(s, 9)).toEqual({ points: Math.floor(81 * 1.5), drawPoints: Math.floor(81 * 1.5) - 81, met: true });
+    s = tap(s, 0);
+    expect(chainOf(s)).toMatchObject({ size: 9, drawMet: true, drawPoints: 40, draw: 4, points: 121 });
+    expect(s.score).toBe(121);
+    expect({ draw: s.draw, draws: s.draws, drawScore: s.drawScore }).toEqual({ draw: 4, draws: 1, drawScore: 40 });
+    // The next draw asks for 4: a chain of nine overshoots it, and pays the streak alone.
+    const streaked = Math.floor((81 * cfg.streakPercent[1]!) / 100);
+    expect(overloadChainPoints(s, 9)).toEqual({ points: streaked, drawPoints: 0, met: false });
+    s = tap(s, 0);
+    expect(chainOf(s)).toMatchObject({ drawMet: false, drawPoints: 0, draw: 4, points: streaked });
+    expect(s.draws).toBe(1);
+  });
+
+  it("the band runs from the draw to the draw plus drawSpan, and the list goes round", () => {
+    const s0 = bank(["000", "000", "000"], { drawSizes: [3, 5], drawSpan: 2, drawPercent: 200, drawRandom: false });
+    expect(overloadDrawBand(s0)).toEqual({ min: 3, max: 5, percent: 200 });
+    expect([2, 3, 4, 5, 6].map((n) => overloadDrawMet(s0, n))).toEqual([false, true, true, true, false]);
+    // A short chain counts against the band too: three below the streak meets a draw of three.
+    expect(overloadChainPoints(s0, 3)).toEqual({ points: 18, drawPoints: 9, met: true });
+    const s = bank(["333", "000", "000"], { drawSizes: [3, 5], drawSpan: 0, drawPercent: 200, drawRandom: false, refill: [1, 0, 0, 0], boosterPermille: 0 });
+    const a = tap(s, 0);
+    expect(chainOf(a)).toMatchObject({ size: 3, drawMet: true, draw: 5 });
+    expect(a.drawIndex).toBe(1);
+    const back = { ...a, cells: a.cells.map((c, k) => ({ ...c, charge: k < 3 || k === 3 || k === 6 ? 3 : 0 })) };
+    const b = tap(back, 0);
+    expect(chainOf(b)).toMatchObject({ size: 5, drawMet: true, draw: 3 });
+    expect(b.drawIndex).toBe(0);
+  });
+
+  it("a draw drawn at random is one of the sizes, from the draw's own stream", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        const { state } = playRandom(seed, picks, drawMoving);
+        expect(drawMoving.drawSizes).toContain(state.draw);
+        expect(drawMoving.drawSizes[state.drawIndex]).toBe(state.draw);
+        expect(state.draws).toBeLessThanOrEqual(state.chains);
+        expect(state.drawScore).toBeGreaterThanOrEqual(0);
+      }),
+      { numRuns: 40 },
+    );
+    const firsts = new Set<number>();
+    for (let i = 0; i < 40; i++) firsts.add(createOverloadGame(`d-${i}`, drawMoving).draw);
+    expect([...firsts].sort((x, y) => x - y)).toEqual([6, 8, 10]);
+  });
+
+  it("every chain's draw points are the engine's own query, and the cells a tap bursts are its chain", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        let s = createOverloadGame(seed, drawFixed);
+        let tick = 0;
+        for (let i = 0; i + 2 <= picks.length && !s.finished; i += 2) {
+          tick = Math.min(drawFixed.maxTick, tick + (picks[i]! % 30));
+          const cell = picks[i + 1]! % s.cells.length;
+          if (overloadTapIllegalReason(s, cell, tick) !== null) continue;
+          const at = advanceOverload(s, tick);
+          const size = overloadChainSize(at, cell);
+          const cells = overloadChainCells(at, cell);
+          const asked = overloadChainPoints(at, size);
+          s = reduceOverload(s, { type: "tap", cell, tick });
+          const ch = chainOf(s);
+          expect(cells.length).toBe(size);
+          if (!ch) {
+            expect(size).toBe(0);
+            continue;
+          }
+          expect(ch.size).toBe(size);
+          expect(ch.waves.flatMap((w) => [...w.bursts]).sort((x, y) => x - y)).toEqual(cells);
+          expect({ points: ch.points, drawPoints: ch.drawPoints, met: ch.drawMet }).toEqual(asked);
+        }
+        expect(s.score).toBeGreaterThanOrEqual(s.drawScore);
+      }),
+      { numRuns: 40 },
+    );
   });
 });

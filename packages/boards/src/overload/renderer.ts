@@ -1,8 +1,11 @@
-import { Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
+import { Container, Graphics, Sprite, Text, type FederatedPointerEvent, type Texture } from "pixi.js";
 import {
   OVERLOAD_FULL,
   overloadCellChar,
+  overloadChainSize,
   overloadChainValue,
+  overloadDrawBand,
+  overloadDrawMet,
   overloadHint,
   overloadRegenProgress,
   overloadStreakPercentAt,
@@ -35,6 +38,14 @@ export interface OverloadLabels {
   hugeChain: string;
   refund(count: number): string;
   noTaps: string;
+  /** Under the bank: the draw asked for, as the band of chain sizes that meets it and what it pays. */
+  draw(min: number, max: number, percent: number): string;
+  /** Under the bank, for the capacitor at the cursor: the chain a tap there sets off, and whether it meets the draw, falls short of it or runs past it. */
+  previewMet(count: number): string;
+  previewShort(count: number): string;
+  previewOver(count: number): string;
+  /** Called out when a chain meets the draw. */
+  drawMet: string;
 }
 
 export interface OverloadRendererOptions {
@@ -68,6 +79,8 @@ interface Spark {
 
 /** The strip over the bank, in cells: the tap lamps and the chain count. */
 const STRIP = 0.95;
+/** The row under the bank that shows the draw, in cells, while there is one. */
+const DRAW_ROW = 0.8;
 const WAVE_MS = 190;
 const HINT_AFTER_MS = 5000;
 /** After a hinted priming tap, the tap it set up is marked this soon. */
@@ -92,7 +105,18 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
   private readonly hintLayer = new Graphics();
   private readonly cursorLayer = new Graphics();
   private readonly lamps = new Graphics();
+  private readonly drawMark = new Graphics();
   private label: Text | null = null;
+  private drawText: Text | null = null;
+  private previewText: Text | null = null;
+  /** True while the layout holds the draw's row: a lab that turns the draw on or off lays out afresh. */
+  private drawRow = false;
+  /** The capacitor under a mouse pointer, for the draw's preview. Touch has no hover. */
+  private hover: number | null = null;
+  /** What the draw's row shows, so it is only redrawn when it changes. */
+  private drawShown = "";
+  /** The draw a chain met, kept in the row until the chain has played and the callout says so. */
+  private drawHeld: { min: number; max: number; percent: number } | null = null;
   private labelText = "";
   private labelColor: number = INK.cream;
   /** The chain's count stays in the strip until this time. */
@@ -133,7 +157,11 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
   protected build(): void {
     this.label = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 16, fontWeight: "700", fill: INK.cream }, resolution: 2 });
     this.label.anchor.set(1, 0.5);
-    this.world.addChild(this.bg, this.capLayer, this.sparkLayer, this.hintLayer, this.cursorLayer, this.lamps, this.label);
+    this.drawText = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 14, fontWeight: "700", fill: INK.dim }, resolution: 2 });
+    this.drawText.anchor.set(0, 0.5);
+    this.previewText = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 14, fontWeight: "700", fill: INK.dim }, resolution: 2 });
+    this.previewText.anchor.set(1, 0.5);
+    this.world.addChild(this.bg, this.capLayer, this.sparkLayer, this.hintLayer, this.cursorLayer, this.lamps, this.label, this.drawMark, this.drawText, this.previewText);
   }
 
   protected layout(width: number, height: number): void {
@@ -142,17 +170,25 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
       g.cols = this.state.config.width;
       g.rows = this.state.config.height;
     }
-    g.fit(width, height, { top: STRIP, margin: 8 });
+    // With the draw on, a row under the bank shows it.
+    this.drawRow = this.state !== null && overloadDrawBand(this.state) !== null;
+    const below = this.drawRow ? DRAW_ROW : 0;
+    g.fit(width, height, { top: STRIP, bottom: below, margin: 8 });
     const pad = Math.max(4, g.cell * 0.12);
     const strip = g.cell * STRIP;
-    // Bare ground under the strip and the bank, one hairline round it, and a dot where a spent capacitor leaves a gap.
+    // Bare ground under the strip, the bank and the draw's row, one hairline round it, and a dot where a spent capacitor leaves a gap.
     this.bg.clear();
-    this.paintGround(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + pad * 2);
+    this.paintGround(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + below * g.cell + pad * 2);
     for (let i = 0; i < g.cols * g.rows; i++) drawDot(this.bg, g.x(i), g.y(i), g.cell);
     if (this.label) {
       this.label.style.fontSize = Math.max(12, Math.round(g.cell * 0.34));
       this.label.position.set(g.ox + g.width - pad * 0.5, g.oy - strip * 0.56);
     }
+    const rowY = g.oy + g.height + DRAW_ROW * g.cell * 0.5;
+    for (const t of [this.drawText, this.previewText]) if (t) t.style.fontSize = Math.max(11, Math.round(g.cell * 0.27));
+    this.drawText?.position.set(g.ox + pad * 0.5, rowY);
+    this.previewText?.position.set(g.ox + g.width - pad * 0.5, rowY);
+    this.drawShown = "";
     this.cursor = Math.min(this.cursor, g.cols * g.rows - 1);
     this.publishGeom(g.ox, g.oy, g.cell);
     this.sparks = [];
@@ -160,6 +196,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     this.hint = null;
     this.hintLayer.clear();
     this.heldBack = 0;
+    this.drawHeld = null;
     this.litShown = -1;
     this.labelHold = 0;
     if (this.state) {
@@ -169,6 +206,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     }
     this.drawLamps();
     this.drawCursor();
+    this.drawDraw();
   }
 
   /** A capacitor's picture: its outline says plain or booster, its holes count the charge. */
@@ -210,8 +248,8 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
 
   protected onState(state: OverloadState, prev: OverloadState | null): void {
     const g = this.grid;
-    if (g.cols !== state.config.width || g.rows !== state.config.height) {
-      // A different bank (a lab config): lay it out afresh.
+    if (g.cols !== state.config.width || g.rows !== state.config.height || this.drawRow !== (overloadDrawBand(state) !== null)) {
+      // A different bank, or the draw turned on or off (a lab config): lay it out afresh.
       g.cols = state.config.width;
       g.rows = state.config.height;
       this.layout(this.app.screen.width, this.app.screen.height);
@@ -227,6 +265,8 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     this.shownSeq = state.eventSeq;
     this.hint = null;
     this.hintLayer.clear();
+    // A chain that met the draw: the row keeps the draw it met until the chain has played.
+    this.drawHeld = follows && prev && events.some((e) => e.type === "chain" && e.drawMet) ? overloadDrawBand(prev) : null;
     if (!follows) {
       this.heldBack = 0;
       this.litShown = -1;
@@ -357,6 +397,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     const cy = sumY / Math.max(1, e.size);
     this.later(tEnd, (live) => {
       this.heldBack = 0;
+      this.drawHeld = null;
       this.quietLamps = e.refund > 0;
       if (!live) return;
       const big = e.size >= BIG;
@@ -364,17 +405,20 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
       const long = e.size >= cfg.streakMin;
       this.fx.popup(cx, cy - g.cell * 0.1, `+${e.points}`, INK.cream, Math.max(15, g.cell * (huge ? 0.74 : big ? 0.6 : long ? 0.46 : 0.36)));
       const top = e.streak === cfg.streakPercent.length && cfg.streakPercent.length > 1;
+      // A chain that meets the draw is called out, over any other callout, on the rising cue. Under the beat it makes no sound of its own.
+      if (e.drawMet) this.fx.say(L.drawMet);
       // The beat is for a long chain, stronger for a longer one, and for a streak brought to its top.
       if (huge) {
-        this.fx.say(L.hugeChain);
+        if (!e.drawMet) this.fx.say(L.hugeChain);
         this.beat(1);
       } else if (big) {
-        this.fx.say(L.bigChain);
+        if (!e.drawMet) this.fx.say(L.bigChain);
         this.beat(0.5 + Math.min(0.4, (e.size - BIG) * 0.04));
       } else if (top) {
-        this.fx.say(L.streakMax);
+        if (!e.drawMet) this.fx.say(L.streakMax);
         this.beat(0.4);
-      } else if (long && (e.streak === 3 || e.streak === 6)) {
+      } else if (e.drawMet) sfx.rise();
+      else if (long && (e.streak === 3 || e.streak === 6)) {
         this.fx.say(L.streak(e.streak, e.streakPercent));
         sfx.streak(e.streak);
       } else if (long) sfx.good();
@@ -420,6 +464,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
 
   protected override update(dt: number): void {
     this.drawLamps();
+    this.drawDraw();
     this.drawSparks(dt);
     const state = this.state;
     // The strip's text falls back to the streak once a chain's count has had its moment.
@@ -459,6 +504,69 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
       this.hintLayer.circle(px, py, a * 1.35).fill({ color: INK.ground });
       this.hintLayer.roundRect(px - a, py - w / 2, a * 2, w, w / 2).fill({ color: INK.cream });
       this.hintLayer.roundRect(px - w / 2, py - a, w, a * 2, w / 2).fill({ color: INK.cream });
+    }
+  }
+
+  // ---- the draw, under the bank
+
+  /** The capacitor the preview reads: the one under a mouse pointer, else the keyboard's once a key is used. */
+  private previewCell(): number | null {
+    if (this.hover !== null) return this.hover;
+    return this.cursorShown ? this.cursor : null;
+  }
+
+  /**
+   * The draw's row: on the left the draw asked for, the band of chain sizes and what a chain in it
+   * pays; on the right, for the capacitor at the cursor, the chain a tap there sets off and whether
+   * it meets the draw. Both are the engine's numbers. A chain that meets it lights the row cream and
+   * gains a tick; one that does not is dim and says why in words, so it reads without colour.
+   */
+  private drawDraw(): void {
+    const state = this.state;
+    const band = state ? (this.drawHeld ?? overloadDrawBand(state)) : null;
+    if (!this.drawRow || !band || !state) {
+      this.app.canvas.setAttribute("data-draw", "");
+      this.app.canvas.setAttribute("data-preview", "");
+      if (this.drawShown !== "") {
+        this.drawShown = "";
+        this.drawMark.clear();
+        if (this.drawText) this.drawText.visible = false;
+        if (this.previewText) this.previewText.visible = false;
+      }
+      return;
+    }
+    let size = 0;
+    const at = this.previewCell();
+    if (this.interactive && !this.busy && at !== null && !state.finished && state.cells[at]!.charge + 1 >= OVERLOAD_FULL) size = overloadChainSize(state, at);
+    const met = size > 0 && overloadDrawMet(state, size);
+    const key = `${band.min}:${band.max}:${band.percent}:${size}:${met}`;
+    if (key === this.drawShown) return;
+    this.drawShown = key;
+    this.app.canvas.setAttribute("data-draw", `${band.min}-${band.max}`);
+    this.app.canvas.setAttribute("data-preview", size > 0 ? `${size}:${met ? "met" : "no"}` : "");
+    const L = this.opts.labels;
+    const mark = this.drawMark;
+    mark.clear();
+    if (this.drawText) {
+      this.drawText.visible = true;
+      this.drawText.text = L.draw(band.min, band.max, band.percent);
+      this.drawText.style.fill = met ? INK.cream : INK.dim;
+    }
+    if (this.previewText) {
+      this.previewText.visible = size > 0;
+      if (size > 0) {
+        this.previewText.text = met ? L.previewMet(size) : size < band.min ? L.previewShort(size) : L.previewOver(size);
+        this.previewText.style.fill = met ? INK.cream : INK.dim;
+      }
+      if (met) {
+        // A tick before the words: the tap at the cursor meets the draw.
+        const g = this.grid;
+        const h = Math.max(6, g.cell * 0.16);
+        const x = this.previewText.x - this.previewText.width - h * 1.4;
+        const y = this.previewText.y;
+        mark.moveTo(x - h * 0.6, y).lineTo(x - h * 0.15, y + h * 0.5).lineTo(x + h * 0.7, y - h * 0.55);
+        mark.stroke({ width: Math.max(2, g.cell * 0.06), color: INK.cream, cap: "round", join: "round" });
+      }
     }
   }
 
@@ -553,6 +661,15 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
       this.fx.popup(g.ox + g.cell * 1.3, g.oy + g.cell * 0.1, this.opts.labels.noTaps, INK.danger, Math.max(13, g.cell * 0.32));
     }
     this.refusedAt = this.time;
+  }
+
+  protected override pointerMove(x: number, y: number, e: FederatedPointerEvent): void {
+    // Only a mouse hovers: a touch is a tap, and lands at once.
+    this.hover = e.pointerType === "mouse" ? (this.grid.at(x, y)?.index ?? null) : null;
+  }
+
+  protected override pointerCancel(): void {
+    this.hover = null;
   }
 
   protected override pointerDown(x: number, y: number): void {
