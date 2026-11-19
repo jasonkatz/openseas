@@ -276,7 +276,7 @@ test("the transport bar under the board plays the round from any mode: pause hol
   await expect(page.getByTestId("held")).toBeVisible();
 });
 
-test("a mode's panel opens wide over the middle, the board moves above the chat and keeps its round, and Play never widens", async ({ page }) => {
+test("the panels open wide over the middle, in every mode at once, the board moves above the chat and keeps its round, and Play never widens", async ({ page }) => {
   desktopOnly();
   await page.goto("/cooling?seed=studio-8");
   await expect(page.getByTestId("panel-wide")).toHaveCount(0);
@@ -289,21 +289,17 @@ test("a mode's panel opens wide over the middle, the board moves above the chat 
   const before = await page.getByTestId("cooling-canvas").boundingBox();
   await page.getByTestId("panel-wide").click();
   await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "1");
-  const after = await page.getByTestId("cooling-canvas").boundingBox();
-  expect(after!.x).toBeGreaterThan(before!.x);
+  // Once it has flown there.
+  await expect.poll(async () => (await page.getByTestId("cooling-canvas").boundingBox())!.x).toBeGreaterThan(before!.x + 200);
   // The same round, not a new one.
   await expect(page.getByTestId("hud-moves")).toContainText("1");
 
-  // Each mode remembers its own, unless the switch shares it.
-  await page.getByTestId("tab-scoring").click();
-  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "0");
-  await page.getByTestId("tab-tuning").click();
-  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "1");
-  await page.getByTestId("panel-wide-scope").check();
+  // One switch for every mode but Play.
   await page.getByTestId("tab-scoring").click();
   await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "1");
   await page.getByTestId("tab-play").click();
   await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "0");
+  await expect(page.getByTestId("hud-moves")).toContainText("1");
 
   // Remembered across a reload.
   await page.reload();

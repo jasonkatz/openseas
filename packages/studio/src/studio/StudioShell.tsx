@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import type { PuzzleId } from "@openseas/engine";
 import { wordCount } from "@openseas/protocol";
 import { messageOverrideRevision, pieceOverrideRevision, subscribeMessages, subscribePieces, t } from "@openseas/boards";
@@ -11,14 +11,15 @@ import { ChatPanel } from "../service/ChatPanel.jsx";
 import { DraftBanner } from "../service/DraftSection.jsx";
 import { LooseRefusals, NumbersPanel, anyNumberMatch, modeOfKey, useNumberSections } from "../tuning/TuningPanel.jsx";
 import { ModeIcon, Tool } from "./icons.jsx";
-import { EDITOR_MODES, RAIL, isNumberMode, type ModeId } from "./modes.js";
+import { RAIL, isNumberMode, type ModeId } from "./modes.js";
 import { PlayPanel } from "./PlayPanel.jsx";
 import { TextPanel, textMatches, useTextEntries } from "./TextPanel.jsx";
 import { TopBar, type Target } from "./TopBar.jsx";
 import { Transport, useAltKey } from "./Transport.jsx";
 import { useRoundClock } from "./roundClock.js";
 import { readRestart, writeRestart } from "./useStudio.js";
-import { canWiden, isWide, readWide, scopeWide, toggleWide, writeWide, type Wide } from "./wide.js";
+import { canWiden, isWide, readWide, writeWide } from "./wide.js";
+import { useWideMotion } from "./wideMotion.js";
 
 const HINTS_KEY = "openseas.studio.hints";
 function readHints(): boolean {
@@ -55,20 +56,18 @@ export function StudioShell(p: ShellProps) {
   const [query, setQuery] = useState("");
   const [hints, setHints] = useState(readHints);
   const [restart, setRestart] = useState(readRestart);
-  const [wide, setWideState] = useState<Wide>(readWide);
-  const setWide = useCallback((next: Wide) => {
-    setWideState(next);
-    writeWide(next);
-  }, []);
+  const [wide, setWideState] = useState(readWide);
   const widened = isWide(wide, mode);
-  useAltKey("Backslash", () => setWide(toggleWide(wide, mode)));
-  // A board sizes itself to its box on the window's resize alone (Pixi's resizeTo), and a panel
-  // opened wide or an editor's wider column moves the box without one: tell it, once laid out.
-  const editing = EDITOR_MODES.includes(mode);
-  useEffect(() => {
-    const id = window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
-    return () => window.cancelAnimationFrame(id);
-  }, [widened, editing]);
+  const toggleWide = (): void => {
+    if (!canWiden(mode)) return;
+    setWideState(!wide);
+    writeWide(!wide);
+  };
+  useAltKey("Backslash", toggleWide);
+  const stage = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  const rest = useRef<HTMLElement>(null);
+  useWideMotion(widened, panel, stage, rest);
   const { paused, clock } = useRoundClock();
   const held = p.phase === "playing" && paused;
   const puzzle = p.puzzle as PuzzleId;
@@ -104,7 +103,7 @@ export function StudioShell(p: ShellProps) {
 
   const seed = report.seed ?? scenario.seed;
   return (
-    <main className={`studio ${EDITOR_MODES.includes(mode) ? "is-editing" : ""} ${widened ? "is-wide" : ""}`} data-testid="studio" data-mode={mode} data-wide={widened ? "1" : "0"}>
+    <main className={`studio ${widened ? "is-wide" : ""}`} data-testid="studio" data-mode={mode} data-wide={widened ? "1" : "0"}>
       <TopBar title={t(`${p.puzzle}.title`)} puzzle={puzzle} sections={sections} texts={texts} onGoto={goto} />
       <DraftBanner />
 
@@ -121,7 +120,7 @@ export function StudioShell(p: ShellProps) {
         )}
       </nav>
 
-      <aside className="studio-panel st" aria-label={t(`studio.mode.${mode}`)}>
+      <aside ref={panel} className="studio-panel st" aria-label={t(`studio.mode.${mode}`)}>
         <header className="panel-head">
           <div className="panel-title">
             <div>
@@ -135,19 +134,13 @@ export function StudioShell(p: ShellProps) {
                 aria-pressed={widened}
                 aria-label={widened ? t("studio.wide.close") : t("studio.wide.open")}
                 title={`${widened ? t("studio.wide.close") : t("studio.wide.open")} · Alt \\`}
-                onClick={() => setWide(toggleWide(wide, mode))}
+                onClick={toggleWide}
                 data-testid="panel-wide"
               >
                 <Tool icon={widened ? "collapse" : "expand"} />
               </button>
             )}
           </div>
-          {widened && (
-            <label className="switch-label panel-wide-scope" title={t("studio.wide.every_note")}>
-              {t("studio.wide.every")}
-              <input type="checkbox" role="switch" className="switch" checked={wide.scope === "all"} onChange={(e) => setWide(scopeWide(wide, e.target.checked ? "all" : "mode", mode))} data-testid="panel-wide-scope" />
-            </label>
-          )}
           <div className="panel-tools" hidden={!searchable} data-mode-panel="setup">
             <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("studio.find")} aria-label={t("studio.find")} data-testid="find" />
             <button
@@ -207,7 +200,7 @@ export function StudioShell(p: ShellProps) {
         </div>
       </aside>
 
-      <div className="studio-stage">
+      <div ref={stage} className="studio-stage">
         <div className="studio-device">
           <PlayShell {...p} />
           {held && (
@@ -219,7 +212,7 @@ export function StudioShell(p: ShellProps) {
         <Transport phase={p.phase} onStart={p.onStart} ready={p.ready} />
       </div>
 
-      <aside className="studio-rest st">{store.state === "stored" && store.canChat ? <ChatPanel /> : <p className="chat-off">{t("studio.chat.off")}</p>}</aside>
+      <aside ref={rest} className="studio-rest st">{store.state === "stored" && store.canChat ? <ChatPanel /> : <p className="chat-off">{t("studio.chat.off")}</p>}</aside>
 
       <footer className="studio-status st" data-testid="studio-status">
         <span className={refusals.length > 0 ? "is-refused" : ""}>

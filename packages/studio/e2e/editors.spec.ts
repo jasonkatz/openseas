@@ -99,6 +99,8 @@ test("the Sounds mode revoices a cue: plays it as it is edited, holds it to the 
   await expect.poll(tones).toBeGreaterThan(before);
 
   // A voice moved on the roll is the draft's.
+  // The narrow panel holds the roll below the fold.
+  await editor.getByTestId("voice-0").scrollIntoViewIfNeeded();
   const voice = (await editor.getByTestId("voice-0").locator("rect").first().boundingBox())!;
   await page.mouse.move(voice.x + 8, voice.y + voice.height / 2);
   await page.mouse.down();

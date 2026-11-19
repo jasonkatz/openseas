@@ -834,12 +834,12 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   clusters: **Play**; then **Setup**, **Tuning** and **Scoring**, the puzzle's numbers; then
   **Sprites**, **Sounds** (ADR 0065) and **Text** (ADR 0057). A mode that holds a change carries a
   dot. (Sprites went with the sprite tooling at M10's fifth step, ADR 0062, and came back as an
-  editor of the pieces drawn in code, ADR 0065.) The two editors take a wider panel.
-- One panel beside the rail, which is the mode's. Any mode but Play can open its panel wide over
-  the middle, from a button in its head: the board then moves to the top of the right-hand column,
-  still live and playable, and the chat takes its bottom. A switch in the wide panel says whether
-  each mode remembers its own width or one width is shared by every mode; it is kept in the
-  browser. The board is one element in every layout, so the round on it carries on.
+  editor of the pieces drawn in code, ADR 0065.) The two editors open wide when they want room.
+- One panel beside the rail, which is the mode's, as wide in every mode. Any mode but Play can
+  open its panel wide over the middle, from a button in its head: the board then moves to the
+  top of the right-hand column, still live and playable, and the chat takes its bottom. One
+  switch serves every mode and is kept in the browser, and the change is one eased motion. The
+  board is one element in every layout, so the round on it carries on.
   Play holds what the next round is dealt on (a stage, a starting point, the seed) and the last
   twenty rounds finished on the page, newest first, kept for the tab's session. Each says its
   score, tier, length and moves, how its score stands against the round before or against a

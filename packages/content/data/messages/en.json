@@ -298,8 +298,6 @@
   "studio.transport.speed": "Clock speed",
   "studio.wide.open": "Open the panel wide",
   "studio.wide.close": "Put the panel back beside the board",
-  "studio.wide.every": "Wide in every mode",
-  "studio.wide.every_note": "On, one switch opens every mode's panel wide. Off, each mode remembers its own.",
   "studio.seed_pinned_note": "Every round deals this seed.",
   "studio.seed_fresh_note": "A fresh seed each round.",
   "studio.chip_none": "Shipped numbers",

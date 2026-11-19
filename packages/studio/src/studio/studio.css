@@ -1671,10 +1671,7 @@
   width: 260px;
 }
 
-/* ---- the editors (ADR 0065): Sprites and Sounds take a wider panel */
-.studio.is-editing {
-  grid-template-columns: 48px minmax(380px, 470px) minmax(0, 1fr) minmax(240px, 300px);
-}
+/* ---- the editors (ADR 0065): Sprites and Sounds, in a panel as wide as every other until it is opened wide (ADR 0067) */
 .sprite-head {
   display: flex;
   align-items: center;
@@ -2058,9 +2055,6 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
-}
-.panel-wide-scope {
-  justify-self: start;
 }
 .studio.is-wide {
   grid-template-columns: 48px minmax(0, 1fr) minmax(280px, 360px);

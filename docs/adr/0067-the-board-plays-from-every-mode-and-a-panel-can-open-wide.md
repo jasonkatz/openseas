@@ -44,15 +44,22 @@ under the board in every mode.
    round in play carries on through a change of width or mode. Play never widens: its panel is
    short, and the board is what Play is for.
 
-5. **Width is remembered per mode, or shared, as the owner picks.** A switch in a wide panel
-   says whether each mode keeps its own width or one width serves every mode. Both are kept in
-   the browser's local storage (`studio/wide.ts`); a new page opens as the owner left it.
+5. **One width for every mode, and the change is one motion.** Opening the panel wide in one
+   mode opens it in every mode but Play; the choice is kept in the browser's local storage
+   (`studio/wide.ts`), and a new page opens as the owner left it. The grid snaps to its new
+   layout and each region then eases from where it was (`studio/wideMotion.ts`): the board and
+   its bar fly and scale between the middle and the top of the right column, the chat slides
+   between the column's top and its lower half, and the panel's edge sweeps open. Only transforms
+   and a clip move, so the board keeps playing on the way; nothing moves for someone who asked
+   for less motion. A choice of each mode's own width was tried and dropped as one more thing to
+   set.
 
 6. **A wide panel gets room before it gets features.** This step lays the numbers panels'
    sections out in columns when wide, and nothing more. Richer wide panels (the numbers in two
    columns with curves drawn large, the Sprites grid beside a larger editor, a cue's voices on a
    timeline, the shipped and draft words side by side) are the next step and need no decision
-   beyond this one.
+   beyond this one. Sprites and Sounds lose the wider column ADR 0065 gave them: closed, every
+   panel is as wide as every other, and an editor that wants room opens wide.
 
 7. **The Play panel's last rounds grow.** ADR 0056 had the Play panel record nothing new. Now
    each finished round keeps, beside the summary the agent was already told, its best combo and
@@ -88,7 +95,7 @@ under the board in every mode.
   the chat sends `toldRounds` of them.
 - The smoke deals again with `transport-restart` and `transport-deal`, and holds the shipped
   numbers with `compare` on the bar.
-- The page tells a board to size itself again when a panel opens wide or an editor's column
-  widens, since a board sizes itself on the window's resize alone.
+- The page tells a board to size itself again when a panel opens or shuts wide, since a board
+  sizes itself on the window's resize alone.
 - The strings for the Play panel's Round and Compare sections are gone; the bar, the wide panel
   and the round list have strings of their own.

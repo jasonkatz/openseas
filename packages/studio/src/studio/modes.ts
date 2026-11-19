@@ -12,9 +12,6 @@ export type ModeId = (typeof MODE_IDS)[number];
 export const NUMBER_MODES = ["setup", "tuning", "scoring"] as const;
 export type NumberMode = (typeof NUMBER_MODES)[number];
 
-/** The modes whose panel is an editor, and wide. */
-export const EDITOR_MODES: readonly ModeId[] = ["sprites", "sounds"];
-
 export const isNumberMode = (mode: ModeId): mode is NumberMode => (NUMBER_MODES as readonly string[]).includes(mode);
 
 /** The rail, top to bottom; a null is the gap between its three clusters. */
