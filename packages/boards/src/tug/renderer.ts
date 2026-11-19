@@ -420,7 +420,8 @@ export class TugRenderer extends KitBoard<TugState> {
             if (keptSlot >= 0) this.drawnClamps[keptSlot] = kept;
             this.drawStrip();
             const x = g.x(kept.cell);
-            const y = g.y(kept.cell) - g.cell * 0.55;
+            // Over the clamp, or under it on the top row, where over it is the strip.
+            const y = g.y(kept.cell) + g.cell * (kept.cell < g.cols ? 0.6 : -0.55);
             if (kept.par < was) {
               this.fx.popup(x, y, this.opts.labels.handoff(kept.par), INK.cream, Math.max(14, g.cell * 0.36));
               sfx.ping(5 - Math.min(4, kept.par));
