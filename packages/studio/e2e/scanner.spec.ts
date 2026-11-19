@@ -186,3 +186,46 @@ test("a Scanner ping on a contact spooks it, a lock on empty space misses, and a
   // Sector 2, untouched. Two mistakes: the first sector was not clean, so no streak lifts the bounty.
   await expect(canvas).toHaveAttribute("data-strip", "2,6,6,3,3,40");
 });
+
+test("the Scanner mark: a ping that hears it carries a tab, and the mark locked first pays and is called out", async ({ page }) => {
+  // A pinned lab seed whose safe walk pings 15 and 9, both hearing the mark, then locks the mark at 17 as the sector's first find.
+  await page.goto("/play/scanner?seed=smoke-mark-11&start=lab");
+  const canvas = page.getByTestId("scanner-canvas");
+  await expect(canvas).toBeVisible();
+  await expectViewMatchesState(page, "scanner");
+  // The opening ping does not hear the mark: no tab, and the mark can still be paid, four bounties.
+  await expect(canvas).toHaveAttribute("data-lit", ":open");
+  await expect(page.getByTestId("hud-mark").first()).toHaveAttribute("data-mark", "160");
+  for (const [cell, lit] of [
+    [15, "15:open"],
+    [9, "15,9:open"],
+  ] as const) {
+    expect(safeMove(await boardString(page))).toEqual({ type: "ping", cell });
+    await tap(page, cell);
+    await expectViewMatchesState(page, "scanner");
+    await expect(canvas).toHaveAttribute("data-lit", lit);
+  }
+  expect(safeMove(await boardString(page))).toEqual({ type: "lock", cell: 17 });
+  await longPress(page, 17);
+  await expectViewMatchesState(page, "scanner");
+  await expect(page.getByTestId("hud-score")).toHaveText("160");
+  // The mark is known: no ping hears it any more, and it is gone for this sector.
+  await expect(canvas).toHaveAttribute("data-lit", ":gone");
+  await expect(page.getByTestId("hud-mark").first()).toHaveAttribute("data-mark", "");
+});
+
+test("a Scanner stage plays from its address: rings marks nothing and has a minute on the clock (ADR 0066)", async ({ page }) => {
+  await page.goto("/play/scanner?stage=rings");
+  await expect(page.getByTestId("stage-intro")).toHaveAttribute("data-stage", "rings");
+  await page.getByTestId("play-start").click();
+  const canvas = page.getByTestId("scanner-canvas");
+  await expect(canvas).toBeVisible();
+  await expect(page.getByTestId("hud-stage").first()).toHaveAttribute("data-stage", "rings");
+  await expect(canvas).toHaveAttribute("data-lit", "");
+  await expect(page.getByTestId("hud-mark")).toHaveCount(0);
+  await expect(page.getByTestId("hud-time").first()).toHaveText(/^(1:00|0:5\d)$/);
+  const move = safeMove(await boardString(page));
+  await tap(page, move.cell);
+  await expect(page.getByTestId("hud-moves").first()).toHaveText("1");
+  await expectViewMatchesState(page, "scanner");
+});

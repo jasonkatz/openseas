@@ -8,7 +8,7 @@ import { piecePaint } from "../look/pieces.js";
  * a solid plate, a clear cell is bare ground with a dot, a ping is its number, a found contact is a
  * dot held in four brackets, a spooked one is a disc struck through, and a miss is a cross. A lock
  * is four brackets, bare until they hold something; a ping is a hollow diamond, the shape of its
- * ring. Each is drawn from its layers in `data/pieces/scanner.json` (ADR 0065), by its id here.
+ * ring. A ping that hears the mark carries a solid tab in its top corner. Each is drawn from its layers in `data/pieces/scanner.json` (ADR 0065), by its id here.
  */
 
 export interface ScannerPiece {
@@ -27,6 +27,11 @@ export const SCANNER_PIECES = {
   miss: { color: "danger", paint: piecePaint("scanner", "miss") },
   /** A lock that holds nothing yet: the brackets closing under a held finger, and a hint to lock. */
   brackets: { color: "cream", paint: piecePaint("scanner", "brackets") },
+  /**
+   * The tab a lit ping carries in its cell's top corner: the ping hears the mark. A solid corner and
+   * nothing else, so a lit ping is told from an unlit one by shape, with the colour taken away.
+   */
+  tab: { color: "cream", paint: piecePaint("scanner", "tab") },
   /** A ping: a hollow diamond, the shape of the ring it sounds. The switch's glyph and a hint to ping. */
   ping: { color: "cream", paint: piecePaint("scanner", "ping") },
 } as const satisfies Record<string, ScannerPiece>;

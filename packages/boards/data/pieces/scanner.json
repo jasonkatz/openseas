@@ -38,6 +38,12 @@
       { "name": "bracket", "kind": "path", "steps": [{ "x": 3.5, "y": 16 }, { "x": 3.5, "y": 20.5 }, { "x": 8, "y": 20.5 }], "width": 3, "cap": true }
     ]
   },
+  "tab": {
+    "tint": "cream",
+    "layers": [
+      { "name": "corner", "kind": "poly", "points": [12.5, 3, 21, 3, 21, 11.5], "round": 2.4 }
+    ]
+  },
   "ping": {
     "tint": "cream",
     "layers": [
