@@ -10,6 +10,8 @@ import {
   racksCrateWouldShip,
   racksHint,
   racksIsShipment,
+  racksManifestAfter,
+  racksManifestView,
   racksMovable,
   racksMoveIllegalReason,
   racksNextShipment,
@@ -51,19 +53,20 @@ const picksArb = fc.array(fc.nat({ max: 10_000 }), { minLength: 0, maxLength: 24
 
 /**
  * Racks from strings of kinds, bottom first, with the crate given as its kinds, its rack and its
- * count: `set(["000", "11", "", "2", ""], "01", 2, 3)`.
+ * count: `set(["000", "11", "", "2", ""], "01", 2, 3)`. The manifest is off unless one is given,
+ * as its kinds in order.
  */
-function set(racks: readonly string[], crate: string, rack: number, lands: number, config: Partial<RacksConfig> = {}): RacksState {
-  const full: RacksConfig = { ...cfg, racks: racks.length, startCells: 0, ...config };
+function set(racks: readonly string[], crate: string, rack: number, lands: number, config: Partial<RacksConfig> = {}, manifest: readonly number[] = []): RacksState {
+  const full: RacksConfig = { ...cfg, racks: racks.length, startCells: 0, manifestLength: manifest.length, ...config };
   const base = createRacksGame("t", full);
   let id = 1000;
   const cells = (s: string): RacksCell[] => s.split("").map((ch) => ({ id: id++, kind: Number(ch) }));
-  return { ...base, racks: racks.map(cells), crate: { cells: cells(crate), rack, lands }, nextId: id };
+  return { ...base, racks: racks.map(cells), crate: { cells: cells(crate), rack, lands }, nextId: id, manifest: full.manifestLength > 0 ? manifest : [] };
 }
 
 const kinds = (s: RacksState): string[] => s.racks.map((r) => r.map((c) => c.kind).join(""));
 const count = (s: RacksState): number => s.racks.reduce((a, r) => a + r.length, 0);
-const move = (from: number, to: number): RacksMove => ({ type: "move", from, to });
+const move = (from: number, to: number): Extract<RacksMove, { type: "move" }> => ({ type: "move", from, to });
 
 describe("racks opening", () => {
   it("deals the opening cells low and even, and hangs a crate with a full count", () => {
@@ -96,6 +99,10 @@ describe("racks opening", () => {
     expect(() => createRacksGame("x", { ...cfg, chainPercent: [] })).toThrow();
     expect(() => createRacksGame("x", { ...cfg, crateMixPercent: 101 })).toThrow();
     expect(() => createRacksGame("x", { ...cfg, markRoom: 1 as unknown as boolean })).toThrow();
+    expect(() => createRacksGame("x", { ...cfg, manifestLength: -1 })).toThrow();
+    expect(() => createRacksGame("x", { ...cfg, manifestLength: 5, kinds: 6 })).toThrow();
+    expect(() => createRacksGame("x", { ...cfg, manifestLength: 3, kinds: 2 })).toThrow();
+    expect(() => createRacksGame("x", { ...cfg, manifestPoints: 1.5 })).toThrow();
   });
 });
 
@@ -110,6 +117,63 @@ describe("racks determinism (ADR 0003)", () => {
       }),
       { numRuns: 80 },
     );
+  });
+
+  it("same seed and same move log give the same state and hash with the manifest off, and with one of three", () => {
+    for (const manifestLength of [0, 3]) {
+      const config = { ...cfg, manifestLength };
+      fc.assert(
+        fc.property(fc.string(), picksArb, (seed, picks) => {
+          const { moves, state } = playRandom(seed, picks, config);
+          const replayed = replayRacks(seed, config, moves);
+          expect(hashRacksState(replayed)).toBe(hashRacksState(state));
+          expect(replayed).toEqual(state);
+        }),
+        { numRuns: 40 },
+      );
+    }
+  });
+
+  it("with the manifest off a seed deals and plays as it did before there was one, hash and all", () => {
+    // Hashes taken from the engine before the manifest: the opening, and the state after forty of the hint's actions.
+    const off = { ...cfg, manifestLength: 0 };
+    const golden = [
+      { seed: "golden-1", opening: "da3ecc20", after40: "0dd14fc1", score: 600 },
+      { seed: "golden-2", opening: "1ec6dbd0", after40: "e87ccef0", score: 900 },
+      { seed: "golden-3", opening: "60e9b042", after40: "09264f3f", score: 800 },
+    ];
+    for (const g of golden) {
+      let s = createRacksGame(g.seed, off);
+      expect(s.manifest).toEqual([]);
+      expect(hashRacksState(s)).toBe(g.opening);
+      for (let i = 0; i < 40; i++) s = reduceRacks(s, racksHint(s)!);
+      expect(hashRacksState(s)).toBe(g.after40);
+      expect(s.score).toBe(g.score);
+      expect(s.manifestsFilled).toBe(0);
+    }
+  });
+
+  it("the manifest is drawn after the opening and the crate, so turning it on changes only what comes after", () => {
+    fc.assert(
+      fc.property(fc.string(), (seed) => {
+        const off = createRacksGame(seed, { ...cfg, manifestLength: 0 });
+        const on = createRacksGame(seed, { ...cfg, manifestLength: 2 });
+        expect(on.racks).toEqual(off.racks);
+        expect(on.crate).toEqual(off.crate);
+        expect(on.bag).toEqual(off.bag);
+        expect(on.rng).not.toEqual(off.rng);
+      }),
+      { numRuns: 40 },
+    );
+  });
+
+  it("the manifest and how far through it the chain is are part of the hash", () => {
+    const s = createRacksGame("m", { ...cfg, manifestLength: 2 });
+    const h = hashRacksState(s);
+    expect(hashRacksState({ ...s, manifest: [...s.manifest].reverse() })).not.toBe(h);
+    expect(hashRacksState({ ...s, manifestDone: 1 })).not.toBe(h);
+    expect(hashRacksState({ ...s, manifestsFilled: 1 })).not.toBe(h);
+    expect(hashRacksState({ ...s, manifestScore: 300 })).not.toBe(h);
   });
 
   it("different seeds deal different openings", () => {
@@ -175,7 +239,19 @@ describe("racks rules", () => {
               gone += e.ids.length;
             }
             if (e.type === "land") landed += e.ids.length;
+            if (e.type === "manifest") {
+              points += e.points;
+              expect(e.points).toBe(cfg.manifestPoints);
+              expect(e.kinds.length).toBe(cfg.manifestLength);
+            }
           }
+          // The manifest: its own kinds, all different, and progress only while a chain runs.
+          expect(next.manifest.length).toBe(cfg.manifestLength);
+          expect(new Set(next.manifest).size).toBe(next.manifest.length);
+          expect(next.manifest.every((k) => k >= 0 && k < cfg.kinds)).toBe(true);
+          expect(next.manifestDone).toBeLessThan(next.manifest.length);
+          if (next.combo === 0) expect(next.manifestDone).toBe(0);
+          expect(next.manifestScore).toBe(next.manifestsFilled * cfg.manifestPoints);
           expect(r.points).toBe(points);
           expect(next.score).toBe(state.score + r.points);
           expect(next.score).toBeGreaterThanOrEqual(0);
@@ -464,5 +540,136 @@ describe("racks rules", () => {
   it("the view string names every rack and the crate", () => {
     const s = set(["012", "", "33", "1", ""], "20", 3, 2);
     expect(racksViewString(s.racks, s.crate)).toBe("012||33|1|;3:20:2");
+  });
+});
+
+describe("racks manifest", () => {
+  const order = [0, 1];
+
+  it("two kinds shipped in its order on back-to-back actions fill it for its points on top, and a new one is drawn", () => {
+    const s = set(["0000", "0", "1111", "1", "33"], "2", 4, 4, {}, order);
+    expect(racksManifestView(s)).toEqual({ kinds: [0, 1], done: 0, next: 0, points: cfg.manifestPoints });
+    let next = reduceRacks(s, move(1, 0));
+    expect(next.manifestDone).toBe(1);
+    expect(next.lastMove!.events.find((e) => e.type === "ship")).toMatchObject({ kind: 0, chain: 1, manifest: 1 });
+    expect(racksManifestView(next)).toMatchObject({ done: 1, next: 1 });
+    next = reduceRacks(next, move(3, 2));
+    expect(next.lastMove!.events.map((e) => e.type)).toEqual(["move", "ship", "manifest"]);
+    expect(next.lastMove!.events[2]).toEqual({ type: "manifest", kinds: [0, 1], points: cfg.manifestPoints, next: next.manifest });
+    expect(next.lastMove!.events[1]).toMatchObject({ kind: 1, chain: 2, points: 200, manifest: 2 });
+    expect(next.score).toBe(100 + 200 + cfg.manifestPoints);
+    expect(next.lastMove!.points).toBe(200 + cfg.manifestPoints);
+    expect(next.manifestsFilled).toBe(1);
+    expect(next.manifestScore).toBe(cfg.manifestPoints);
+    expect(next.manifestDone).toBe(0);
+    expect(next.manifest.length).toBe(2);
+    expect(new Set(next.manifest).size).toBe(2);
+  });
+
+  it("the wrong order fills nothing, and a shipment of its first kind starts it again", () => {
+    let s = reduceRacks(set(["0000", "0", "1111", "1", "33"], "2", 4, 4, {}, [1, 0]), move(1, 0));
+    expect(s.manifestDone).toBe(0);
+    s = reduceRacks(s, move(3, 2));
+    expect(s.manifestDone).toBe(1);
+    expect(s.score).toBe(300);
+    expect(s.manifestsFilled).toBe(0);
+    // The first kind twice: the second starts it again from one.
+    s = reduceRacks(set(["0000", "0", "0000", "0", "33"], "2", 4, 4, {}, order), move(1, 0));
+    s = reduceRacks(s, move(3, 2));
+    expect(s.combo).toBe(2);
+    expect(s.manifestDone).toBe(1);
+    expect(s.manifestsFilled).toBe(0);
+  });
+
+  it("an action that ships nothing breaks it, as it breaks the chain", () => {
+    let s = reduceRacks(set(["0000", "0", "1111", "1", "33"], "2", 4, 4, {}, order), move(1, 0));
+    expect(s.manifestDone).toBe(1);
+    s = reduceRacks(s, move(4, 0));
+    expect(s.combo).toBe(0);
+    expect(s.manifestDone).toBe(0);
+    s = reduceRacks(s, move(3, 2));
+    expect(s.manifestDone).toBe(0);
+    expect(s.manifestsFilled).toBe(0);
+    expect(s.score).toBe(200);
+  });
+
+  it("a crate that lands to complete its rack counts, by a call or by its count, in the same action or the next", () => {
+    let s = reduceRacks(set(["0000", "0", "1111", "", ""], "1", 2, 3, {}, order), move(1, 0));
+    expect(racksManifestAfter(s, { type: "call" })).toEqual({ done: 2, fills: true, points: cfg.manifestPoints });
+    s = reduceRacks(s, { type: "call" });
+    expect(s.lastMove!.events.map((e) => e.type)).toEqual(["land", "ship", "manifest", "deal"]);
+    expect(s.lastMove!.events[1]).toMatchObject({ byCrate: true, chain: 2, manifest: 2 });
+    expect(s.score).toBe(100 + 200 + cfg.manifestPoints);
+    // The move's own shipment and the crate's, in one action.
+    const both = reduceRacks(set(["0000", "0", "1111", "", ""], "1", 2, 1, {}, order), move(1, 0));
+    expect(both.lastMove!.events.map((e) => e.type)).toEqual(["move", "ship", "land", "ship", "manifest", "deal"]);
+    expect(both.manifestsFilled).toBe(1);
+    expect(both.score).toBe(100 + 200 + cfg.manifestPoints);
+  });
+
+  it("a smash ends it with the chain", () => {
+    // The move ships the first kind, and the crate smashes a rack on the same action.
+    let s = reduceRacks(set(["0000", "0", "1111", "1", "2222"], "33", 4, 1, {}, order), move(1, 0));
+    expect(s.lastMove!.events.map((e) => e.type)).toEqual(["move", "ship", "spill", "land", "deal"]);
+    expect(s.manifestDone).toBe(0);
+    s = reduceRacks(s, move(3, 2));
+    expect(s.combo).toBe(1);
+    expect(s.manifestsFilled).toBe(0);
+  });
+
+  it("off means none: no manifest, no event, no points, and the queries say so", () => {
+    let s = set(["0000", "0", "1111", "1", "33"], "2", 4, 4);
+    expect(s.manifest).toEqual([]);
+    expect(racksManifestView(s)).toBeNull();
+    expect(racksManifestAfter(s, move(1, 0))).toBeNull();
+    s = reduceRacks(reduceRacks(s, move(1, 0)), move(3, 2));
+    expect(s.score).toBe(300);
+    expect(s.lastMove!.events.some((e) => e.type === "manifest")).toBe(false);
+    expect(s.lastMove!.events.find((e) => e.type === "ship")).toMatchObject({ manifest: 0 });
+    expect(s.manifestsFilled).toBe(0);
+  });
+
+  it("says what a move would do to it, and is right about every action of a random round", () => {
+    const s = set(["0000", "0", "1111", "1", "33"], "2", 4, 4, {}, order);
+    expect(racksManifestAfter(s, move(1, 0))).toEqual({ done: 1, fills: false, points: 0 });
+    expect(racksManifestAfter(s, move(4, 1))).toEqual({ done: 0, fills: false, points: 0 });
+    expect(racksManifestAfter(s, move(2, 2))).toBeNull();
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        let state = createRacksGame(seed);
+        for (let i = 0; i + 2 <= picks.length && !state.finished; i += 2) {
+          const m = randomAction(state, picks[i]!, picks[i + 1]!) as Extract<RacksMove, { type: "move" | "call" }>;
+          const said = racksManifestAfter(state, m)!;
+          const next = reduceRacks(state, m);
+          // The rule, written out once more from the events: a chain just begun starts the manifest afresh.
+          let done = state.manifestDone;
+          let manifest = state.manifest;
+          let fills = 0;
+          for (const e of next.lastMove!.events) {
+            if (e.type === "spill") done = 0;
+            if (e.type === "ship") {
+              const from = e.chain === 1 ? 0 : done;
+              done = e.kind === manifest[from] ? from + 1 : e.kind === manifest[0] ? 1 : 0;
+              expect(e.manifest).toBe(done);
+            }
+            if (e.type === "manifest") {
+              expect(done).toBe(manifest.length);
+              expect(e.kinds).toEqual(manifest);
+              manifest = e.next;
+              done = 0;
+              fills++;
+            }
+          }
+          if (next.combo === 0) done = 0;
+          expect(next.manifestDone).toBe(done);
+          expect(next.manifest).toEqual(manifest);
+          expect(said.fills).toBe(fills > 0);
+          expect(said.points).toBe(next.manifestScore - state.manifestScore);
+          if (!said.fills) expect(said.done).toBe(next.manifestDone);
+          state = next;
+        }
+      }),
+      { numRuns: 60 },
+    );
   });
 });

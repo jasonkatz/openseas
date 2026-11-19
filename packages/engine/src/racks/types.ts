@@ -14,6 +14,11 @@
  * ships double, the third triple. A crate that lands to complete its rack ships it and counts in
  * the chain like any other, so a call can be a link.
  *
+ * Over the row hangs a manifest: a few different kinds in order. Shipping them one after another,
+ * in that order, within one chain fills it for a bonus on top, and a new one is drawn. A shipment
+ * of the wrong kind, or an action that ships nothing, breaks it, and it starts again from its
+ * first kind. A crate that lands to complete its rack counts like any other shipment.
+ *
  * A rack is listed bottom first. Nothing here reads a clock: the crate's count runs on moves, and
  * the round's length is the page's and the server's business.
  */
@@ -50,6 +55,13 @@ export interface RacksConfig {
    * mark from the racks that have room for the crate when it is hung, while any has.
    */
   readonly markRoom: boolean;
+  /**
+   * Kinds on the manifest, all different, to be shipped in its order one after another within one
+   * chain. 0 hangs no manifest: the layer is off, and nothing is drawn for it.
+   */
+  readonly manifestLength: number;
+  /** Paid on top of the shipment that fills the manifest. */
+  readonly manifestPoints: number;
   /** Longest move log the server accepts. */
   readonly maxMoves: number;
 }
@@ -69,6 +81,8 @@ export const DEFAULT_RACKS_CONFIG: RacksConfig = {
   chainPercent: [100, 200, 300, 400, 500],
   spillPenalty: 50,
   markRoom: false,
+  manifestLength: 2,
+  manifestPoints: 300,
   maxMoves: 600,
 };
 
@@ -108,11 +122,15 @@ export type RacksEvent =
       readonly chainPercent: number;
       readonly points: number;
       readonly byCrate: boolean;
+      /** How far through the manifest the chain is after this shipment: its length when it filled it, 0 when the layer is off or it broke. */
+      readonly manifest: number;
     }
   /** The crate found too little room: the rack's cells were dumped before it landed. */
   | { readonly type: "spill"; readonly rack: number; readonly ids: readonly number[]; readonly penalty: number }
   /** The crate landed on its rack. `called` when the player brought it down. */
   | { readonly type: "land"; readonly rack: number; readonly ids: readonly number[]; readonly called: boolean }
+  /** The shipment just before it filled the manifest: `kinds` paid `points`, and `next` is the one drawn in its place. */
+  | { readonly type: "manifest"; readonly kinds: readonly number[]; readonly points: number; readonly next: readonly number[] }
   /** The next crate was hung over its rack. */
   | { readonly type: "deal"; readonly crate: RacksCrate };
 
@@ -146,6 +164,13 @@ export interface RacksState {
   readonly shippedByCrate: number;
   readonly spills: number;
   readonly calls: number;
+  /** The kinds the manifest asks for, in order. Empty when the layer is off. */
+  readonly manifest: readonly number[];
+  /** How many of the manifest's kinds the running chain has shipped in order; 0 once the chain lapses. */
+  readonly manifestDone: number;
+  readonly manifestsFilled: number;
+  /** Points the manifest has paid this round. */
+  readonly manifestScore: number;
   readonly lastMove: RacksMoveReport | null;
   readonly finished: boolean;
 }
