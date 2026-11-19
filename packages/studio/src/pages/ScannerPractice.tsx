@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { scannerContactsLeft, scannerPingsLeft, scannerStreakPercentAt, summarizeScanner, type ScannerConfig, type ScannerMove, type ScannerState } from "@openseas/engine";
+import { scannerContactsLeft, scannerMarkOn, scannerMarkValue, scannerPingsLeft, scannerStreakPercentAt, summarizeScanner, type ScannerConfig, type ScannerMove, type ScannerState } from "@openseas/engine";
 import { content, ScannerBoard, ScannerCellIcon, t } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
@@ -26,6 +26,8 @@ export function ScannerPractice() {
   const onLock = useCallback((cell: number) => void api.apply({ type: "lock", cell }), [api]);
 
   const pingsLeft = scannerPingsLeft(shown);
+  const marked = scannerMarkOn(cfg);
+  const markValue = scannerMarkValue(shown);
 
   return (
     <PracticeShell
@@ -48,6 +50,7 @@ export function ScannerPractice() {
         <>
           <p className="how how-kbd">{t("scanner.live_note")}</p>
           <p className="how how-kbd">{t("scanner.par_note")}</p>
+          {marked && <p className="how how-kbd">{t("scanner.mark_note", { percent: cfg.markPercent })}</p>}
           <p className="how how-kbd">{t("scanner.hint_note")}</p>
         </>
       }
@@ -71,6 +74,14 @@ export function ScannerPractice() {
               {shown.combo > 0 ? t("scanner.streak_value", { count: shown.combo, percent: scannerStreakPercentAt(cfg, shown.combo) }) : t("scanner.streak_none")}
             </span>
           </div>
+          {marked && (
+            <div className="stat stat-wide">
+              <span className="stat-label">{t("scanner.mark_stat")}</span>
+              <span className="stat-value" data-testid="hud-mark" data-mark={markValue ?? ""}>
+                {markValue !== null ? t("scanner.mark_value", { points: markValue }) : t("scanner.mark_gone")}
+              </span>
+            </div>
+          )}
         </>
       }
       resultRows={
@@ -87,6 +98,12 @@ export function ScannerPractice() {
             <dt>{t("scanner.result_found")}</dt>
             <dd>{state.contactsFound}</dd>
           </div>
+          {marked && (
+            <div>
+              <dt>{t("scanner.result_marks")}</dt>
+              <dd>{state.marksPaid}</dd>
+            </div>
+          )}
           <div>
             <dt>{t("scanner.result_saved")}</dt>
             <dd>{state.pingsSaved}</dd>
@@ -116,6 +133,12 @@ export function ScannerPractice() {
               <ScannerCellIcon cell="ping" />
               <span>{t("scanner.legend_ping")}</span>
             </li>
+            {marked && (
+              <li>
+                <ScannerCellIcon cell="lit" />
+                <span>{t("scanner.legend_lit")}</span>
+              </li>
+            )}
             <li>
               <ScannerCellIcon cell="found" />
               <span>{t("scanner.legend_found")}</span>
@@ -131,6 +154,7 @@ export function ScannerPractice() {
           </ul>
           <p className="muted small proto-note">{t("scanner.live_note")}</p>
           <p className="muted small proto-note">{t("scanner.par_note")}</p>
+          {marked && <p className="muted small proto-note">{t("scanner.mark_note", { percent: cfg.markPercent })}</p>}
           <p className="muted small proto-note">{t("scanner.fair_note")}</p>
         </>
       }

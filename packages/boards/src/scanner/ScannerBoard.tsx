@@ -50,6 +50,7 @@ export function ScannerBoard(props: ScannerBoardProps) {
             saved: (pings, points) => t("scanner.saved", { pings, points }),
             streak: (count) => t("scanner.streak", { count }),
             streakLost: t("scanner.streak_lost"),
+            markFound: t("scanner.mark_found"),
           },
         },
       ),
