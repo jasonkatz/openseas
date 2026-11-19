@@ -115,6 +115,8 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
   private hover: number | null = null;
   /** What the draw's row shows, so it is only redrawn when it changes. */
   private drawShown = "";
+  /** The draw a chain met, kept in the row until the chain has played and the callout says so. */
+  private drawHeld: { min: number; max: number; percent: number } | null = null;
   private labelText = "";
   private labelColor: number = INK.cream;
   /** The chain's count stays in the strip until this time. */
@@ -183,7 +185,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
       this.label.position.set(g.ox + g.width - pad * 0.5, g.oy - strip * 0.56);
     }
     const rowY = g.oy + g.height + DRAW_ROW * g.cell * 0.5;
-    for (const t of [this.drawText, this.previewText]) if (t) t.style.fontSize = Math.max(12, Math.round(g.cell * 0.3));
+    for (const t of [this.drawText, this.previewText]) if (t) t.style.fontSize = Math.max(11, Math.round(g.cell * 0.27));
     this.drawText?.position.set(g.ox + pad * 0.5, rowY);
     this.previewText?.position.set(g.ox + g.width - pad * 0.5, rowY);
     this.drawShown = "";
@@ -194,6 +196,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     this.hint = null;
     this.hintLayer.clear();
     this.heldBack = 0;
+    this.drawHeld = null;
     this.litShown = -1;
     this.labelHold = 0;
     if (this.state) {
@@ -262,6 +265,8 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     this.shownSeq = state.eventSeq;
     this.hint = null;
     this.hintLayer.clear();
+    // A chain that met the draw: the row keeps the draw it met until the chain has played.
+    this.drawHeld = follows && prev && events.some((e) => e.type === "chain" && e.drawMet) ? overloadDrawBand(prev) : null;
     if (!follows) {
       this.heldBack = 0;
       this.litShown = -1;
@@ -392,6 +397,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
     const cy = sumY / Math.max(1, e.size);
     this.later(tEnd, (live) => {
       this.heldBack = 0;
+      this.drawHeld = null;
       this.quietLamps = e.refund > 0;
       if (!live) return;
       const big = e.size >= BIG;
@@ -517,7 +523,7 @@ export class OverloadRenderer extends KitBoard<OverloadState> {
    */
   private drawDraw(): void {
     const state = this.state;
-    const band = state ? overloadDrawBand(state) : null;
+    const band = state ? (this.drawHeld ?? overloadDrawBand(state)) : null;
     if (!this.drawRow || !band || !state) {
       this.app.canvas.setAttribute("data-draw", "");
       this.app.canvas.setAttribute("data-preview", "");
