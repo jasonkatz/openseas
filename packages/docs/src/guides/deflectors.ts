@@ -169,18 +169,14 @@ export const deflectors: Guide = {
           },
         },
         {
-          title: "Finish where the next beam will not turn",
-          body: `Every route you fire takes a mirror away from ${lockedFor}: ${lockedEnd}. Two routes home are often worth about the same now and very different later, because one ends on a mirror in the middle of the grid that half the next routes need, and the other ends on one by the edge that few beams meet. When two ways home are close in value, prefer the one that leaves the mirrors at the heart of this grid's loops free.`,
+          title: "Learn this round's grid, and leave it open",
+          body: `The mirrors stay put all round, so by the second minute you should know where this grid's loops are. Every route you fire locks ${lockedEnd} for ${lockedFor}. Two routes home worth about the same now can differ later: one ends on a mirror at the heart of a loop the next beams need, the other on one few beams meet. When they are close, fire the one that leaves the loops free.`,
           media: {
             kind: "clip",
             name: "locked-tap",
             alt: "A mirror drawn grey on a square bolt is tapped. It does not turn: a ring in danger shows round it and the word Locked rises over it.",
             caption: "A locked mirror refuses the tap. It frees once this volley fires.",
           },
-        },
-        {
-          title: "Learn this round's grid",
-          body: "The mirrors stay where they are for the whole round, and they stay as you left them. A loop you found for one beam is still there for the next beam that passes near it. By the second minute you should know where this grid's loops are and steer beams into them without tracing them again.",
         },
         {
           title: "Fire the last volley",
@@ -195,7 +191,5 @@ export const deflectors: Guide = {
     "**Fixing the second beam and breaking the first.** Look at both routes after every flip. A clean volley needs both solid.",
     "**Poking mirrors to make the number go up.** It costs more time than it finds. Trace the route first.",
     `**Chasing Perfect into the red.** A beam in the hull costs ${c.hullPenalty} and the whole streak. Go back to a route that is home.`,
-    "**Leaving a volley on the board at the end.** It does not fire when the round ends. Fire it yourself.",
-    "**Ending every route on the grid's best mirror.** It locks, and the next volley's long way round is gone before you have seen it. Look at where a route ends, not only at what it pays.",
-  ],
+    "**Leaving a volley on the board at the end.** It does not fire when the round ends. Fire it yourself.",  ],
 };
