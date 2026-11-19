@@ -1215,8 +1215,8 @@ guesses: the milestone's tester session plays all eight ladders and sets them by
 M11's pitches as picked (`docs/prototypes/m11-pitches.md`): Cutting's order, Racks' manifest and
 Deflectors' locks are built first, side by side; then Overload's draw (tuned down until it is no
 longer half a free gain), Reactor's core pressure and Tug's pairs (with the runner letting a puzzle
-name its plain bot). Scanner's lead failed a second look and was dropped; Scanner gets a new
-pitch.
+name its plain bot). Scanner's lead failed a second look and was dropped; its new pitch, the mark,
+was picked and is built with the second wave.
 
 M11's bots as built (ADR 0067): `packages/bots`, run as `pnpm --filter @openseas/bots ladder
 <puzzle|all>`. Each prototype teaches the runner its choices, its pace and its end in one file,

@@ -22,7 +22,7 @@ Reactor); the closest ones were run at 64 or 128 seeds.
 | Overload | The draw, tuned down in its pull request: a narrower band and a lower multiplier until blind bots' free gain shrinks and the draw stays under half a good score (rule 14) | Second |
 | Reactor | Core pressure, its limit between 12 and 14 | Second |
 | Tug | Pairs, with the runner letting a puzzle name the plain bot the careless check compares against (a two-flick bot for Tug) | Second |
-| Scanner | Dropped: the lead failed its second look (below). A new layer is to be pitched | Once a new pitch is picked |
+| Scanner | The mark at 4× (below); the lead was dropped after its second look | Second |
 
 ## At a glance
 
@@ -293,6 +293,30 @@ lead off); a wrong guess at 100 only brought them level. Paying the lead only wi
 the free share and kept the gap at 2 to 4 percent. Every deal still needed no guess at every setting.
 The owner dropped the lead; Scanner gets a new pitch (carrying saved pings into the next sector's par
 is the untried idea).
+
+**The new pitch, picked: the mark** (64 seeds, the bots' pace). One contact a sector is marked. A
+ping whose number hears the marked contact is drawn lit, and every ping is lit again when a number
+sounds again. Locking the mark as the sector's first find pays `markPercent` of a bounty. Off:
+`markPercent: 100`. The mark is drawn from a side stream, so deals are the same with it on or off.
+The skill is choosing what to chase and when to give it up: hold proven contacts, aim pings at the
+lit rings, and drop the chase once it would cost the clean sector (never giving up scores 2,717 at
+400; giving up two pings short of par, 2,961). The bait is locking the likeliest cell for the mark
+at even odds.
+
+| Bot (64 seeds) | Off | 300 | 400 | 500 |
+|---|---|---|---|---|
+| plain player | 665 | 769 | 821 | 873 |
+| splitter (blind to it) | 2,328 | 2,546 | 2,655 | 2,764 |
+| thrifty hunter (plays it) | 2,312 | 2,663 | **2,961** | 3,258 |
+| mark gambler (the bait) | 2,316 | 1,800 | 2,061 | 2,322 |
+| gambler | 2,189 | 2,387 | 2,487 | 2,586 |
+
+At 400 the hunter leads the splitter by 11.5 percent (9.9 at 128 seeds), the bait loses 30, guessing
+still loses to careful play by about 6, and the mark is 30 percent of a good score. The splitter takes
+30 percent of marks without trying (the lead gave it 61) and still gains 14 percent: the risk. The
+lit flag must read without colour on a phone. **The bank** (saved pings carry into the next par) was
+measured and failed: a careful player has nothing to spend it on, so it was a tax of 1.5 to 8
+percent.
 
 ---
 
