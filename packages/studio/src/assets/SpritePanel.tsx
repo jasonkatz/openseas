@@ -4,6 +4,7 @@ import { SHIPPED_PIECES, drawingProblems, t } from "@openseas/boards";
 import { PALETTE, type Token } from "@openseas/boards/look";
 import { DrawingSchema, type Drawing, type Layer, type LayerKind } from "@openseas/protocol";
 import { useFrame } from "../frame/RoundFrame.jsx";
+import { useBox } from "../studio/useBox.js";
 import { useWidePanel } from "../studio/wide.js";
 import { ALIKE, NUMBER_FIELDS, dragged, extent, fresh, handles, mask, overlap, paintPreview, snap } from "./sprite.js";
 
@@ -17,8 +18,8 @@ import { ALIKE, NUMBER_FIELDS, dragged, extent, fresh, handles, mask, overlap, p
 
 const KINDS: readonly LayerKind[] = ["rect", "disc", "poly", "bar", "arc", "path"];
 const STAGE = 288;
-/** The stage in a panel opened wide (ADR 0068): a piece large enough to place a handle by eye. */
-const WIDE_STAGE = 520;
+/** The stage in a panel opened wide (ADR 0068): a piece large enough to place a handle by eye, as large as the room allows up to this. */
+const WIDE_STAGE = 560;
 const isToken = (v: unknown): v is Token => typeof v === "string" && v in PALETTE;
 const tintOf = (d: Drawing): Token => (isToken(d.tint) ? d.tint : "cream");
 
@@ -80,7 +81,12 @@ export function SpritePanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focu
 }
 
 function SpriteEditor({ puzzle, name, drawing, shipped, others, onChange }: { puzzle: PuzzleId; name: string; drawing: Drawing; shipped: Drawing; others: ReadonlyArray<readonly [string, Drawing]>; onChange(d: Drawing | null): void }) {
-  const stage = useWidePanel() ? WIDE_STAGE : STAGE;
+  const wide = useWidePanel();
+  const room = useRef<HTMLElement>(null);
+  const box = useBox(room, wide);
+  // Wide, the stage takes the section's width and leaves the panel's height for the tools under it.
+  const fit = Math.floor(Math.min(WIDE_STAGE, box.width - 32, (room.current?.closest(".panel-body")?.clientHeight ?? WIDE_STAGE) - 150));
+  const stage = wide && box.width > 0 ? Math.max(STAGE, fit) : STAGE;
   const [sel, setSel] = useState(0);
   // What the stage shows while a handle is held: the draft is written when it is let go.
   const [held, setHeld] = useState<Drawing | null>(null);
@@ -163,7 +169,7 @@ function SpriteEditor({ puzzle, name, drawing, shipped, others, onChange }: { pu
 
   return (
     <>
-      <section className="panel-sec sprite-edit" data-testid="sprite-editor">
+      <section ref={room} className="panel-sec sprite-edit" data-testid="sprite-editor">
         <div className="sprite-head">
           <h3 className="panel-cap">
             <code className="mono">{name}</code>

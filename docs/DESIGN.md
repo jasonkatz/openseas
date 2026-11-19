@@ -843,10 +843,12 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   board is one element in every layout, so the round on it carries on. A wide panel draws more:
   the numbers modes lay their sections out in columns, draw each curve as a chart whose steps are
   pressed or dragged to their height, and draw the thresholds as a scale with each tier marked
-  and the page's rounds as dots on it (filled on the draft, hollow on the shipped numbers);
-  Sprites puts the pieces, layers and inspector down the left and the stage large on the right;
-  Sounds puts the cues down the left and the open cue on a timeline with a ruler of milliseconds;
-  Text sets the shipped words beside each field.
+  and the page's rounds as dots on it (filled on the draft, hollow on the shipped numbers); a
+  step or threshold the draft has moved is outlined, with the shipped value dashed beside it.
+  Sprites puts the pieces, layers and inspector down the left and the stage, as large as the
+  panel's room allows, on the right; Sounds puts the cues down the left and the open cue on a
+  timeline as long as its room, with a ruler of milliseconds; Text sets the shipped words beside
+  each field, under a head that names the two columns.
   Play holds what the next round is dealt on (a stage, a starting point, the seed) and the last
   twenty rounds finished on the page, newest first, kept for the tab's session. Each says its
   score, tier, length and moves, how its score stands against the round before or against a

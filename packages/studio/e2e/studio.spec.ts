@@ -379,7 +379,8 @@ test("a panel opened wide draws more: a curve as a chart drawn by hand, the rati
 
   await page.getByTestId("tab-sprites").click();
   const stage = (await page.getByTestId("sprite-stage").boundingBox())!;
-  expect(stage.width).toBeGreaterThan(400);
+  // Larger than the closed panel's 288, as large as the panel's room allows.
+  expect(stage.width).toBeGreaterThan(320);
 
   await page.getByTestId("tab-sounds").click();
   await page.getByTestId("sounds").locator('[data-testid^="cue-edit-"]').first().click();

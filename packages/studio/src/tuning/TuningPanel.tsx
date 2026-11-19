@@ -295,7 +295,7 @@ function CurveControl({ control: c, value, onSet }: { control: Control; value: r
           +
         </button>
       </div>
-      {wide && <CurveChart name={c.name} value={value} min={c.min} max={c.max} integer={c.integer} onSet={onSet} testId={`chart-${c.key}`} />}
+      {wide && <CurveChart name={c.name} value={value} shipped={Array.isArray(c.shipped) ? (c.shipped as number[]) : []} min={c.min} max={c.max} integer={c.integer} onSet={onSet} testId={`chart-${c.key}`} />}
       <ol className="curve-rows">
         {value.map((v, i) => (
           <li key={i}>
@@ -356,7 +356,7 @@ function ThresholdsControl({ shipped, value, refusals, hints, hidden, onSet, onR
   const { rounds } = useFrame();
   return (
     <Row name="thresholds" branch={null} unit="points" changed={!same(value, shipped)} shipped={formatNumber("thresholds", shipped)} description={t("studio.desc.thresholds")} refusals={refusals} block hints={hints} hidden={hidden} onReset={onReset} testKey="thresholds">
-      {rows && wide && <RatingScale thresholds={value} rounds={rounds} />}
+      {rows && wide && <RatingScale thresholds={value} shipped={shipped} rounds={rounds} />}
       {rows ? (
         <ol className="tune-thresholds">
           {value.map((th, i) => (

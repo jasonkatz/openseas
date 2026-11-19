@@ -2058,7 +2058,7 @@
 }
 .studio.is-wide {
   grid-template-columns: 48px minmax(0, 1fr) minmax(280px, 360px);
-  grid-template-rows: auto auto minmax(0, 1.15fr) minmax(0, 0.85fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) minmax(200px, 0.62fr) auto;
   grid-template-areas:
     "top top top"
     "banner banner banner"
@@ -2138,41 +2138,103 @@
 }
 
 /* ---- what a panel opened wide draws with its room (ADR 0068) */
-/* A curve as a chart over its fields. */
+/* A curve as a chart over its fields: a bar a step with its value on it, the shipped value a dashed mark where the draft moved it. */
 .curve-chart {
-  display: block;
-  width: 100%;
-  height: 132px;
-  margin: 4px 0 8px;
+  margin: 4px 0 10px;
+  padding: 18px 10px 6px;
   border-radius: var(--st-r);
   background: var(--st-canvas);
-  cursor: crosshair;
+}
+.chart-plot {
+  position: relative;
+  display: flex;
+  gap: 6px;
+  height: 120px;
+  cursor: ns-resize;
   touch-action: none;
 }
-.chart-axis {
-  stroke: var(--st-line-strong);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
+.chart-zero {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--st-line-strong);
+}
+.chart-col {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
 }
 .chart-bar {
-  fill: var(--st-accent);
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 3px 3px 1px 1px;
+  background: var(--st-accent);
+  transition: height 90ms ease-out, bottom 90ms ease-out;
 }
-.chart-bar:hover {
-  fill: var(--st-accent-text);
+.chart-col:hover .chart-bar {
+  background: var(--st-accent-text);
+}
+.chart-bar.is-changed {
+  box-shadow: inset 0 0 0 1.5px var(--st-mark-text);
+}
+.chart-val {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding-bottom: 2px;
+  color: var(--st-fg);
+  font-size: 10.5px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.chart-ghost {
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  height: 0;
+  border-top: 1.5px dashed var(--st-mark-text);
+  pointer-events: none;
+}
+.chart-index {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.chart-index span {
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--st-faint);
+  font-size: 10px;
+  text-align: center;
 }
 .tune-curve.is-wide .curve-rows {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  column-gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  column-gap: 10px;
+}
+/* The chart draws the bars: the fields under it need only their numbers. */
+.tune-curve.is-wide .curve-bar {
+  display: none;
+}
+.tune-curve.is-wide .curve-rows li {
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 6px;
 }
 /* The rating scale: each threshold's tier above the line and its score under it; the page's rounds as dots, filled on the draft and hollow on the shipped numbers. */
-.rating-scale {
-  display: block;
-  width: 100%;
-  height: auto;
+.rating-room {
   margin: 4px 0 8px;
+  overflow: hidden;
   border-radius: var(--st-r);
   background: var(--st-canvas);
+}
+.rating-scale {
+  display: block;
+}
+.rating-scale .chart-axis {
+  stroke: var(--st-faint);
 }
 .rating-scale text {
   fill: var(--st-muted);
@@ -2185,6 +2247,14 @@
 .scale-mark line {
   stroke: var(--st-fg);
   stroke-width: 1.5;
+}
+.scale-mark.is-changed line {
+  stroke: var(--st-mark-text);
+}
+.scale-ghost {
+  stroke: var(--st-mark-text);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 2;
 }
 .scale-round {
   fill: var(--st-canvas);
@@ -2241,7 +2311,23 @@
   stroke: var(--st-line-strong);
   stroke-width: 0.6;
 }
-/* Text: one column, the shipped words beside the field that rewrites them. */
+/* Text: one column, the shipped words beside the field that rewrites them, under a head that names the two. */
+.text-cols {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--st-surface);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 20px;
+  gap: 6px;
+  padding: 10px 16px 6px 28px;
+  border-bottom: 1px solid var(--st-line);
+  color: var(--st-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .studio.is-wide .tune[data-mode-panel="text"] {
   column-width: auto;
 }

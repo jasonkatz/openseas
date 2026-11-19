@@ -18,6 +18,7 @@ export { textMatches, type TextEntry };
  */
 export function TextPanel({ entries, query, shown }: { entries: readonly TextEntry[]; query: string; shown: boolean }) {
   const { puzzle, words, setText, setCategory } = useFrame();
+  const wide = useWidePanel();
   const q = query.trim().toLowerCase();
   const shippedCategory = content.puzzles[puzzle.id].category;
   const category = words.category ?? shippedCategory;
@@ -26,6 +27,12 @@ export function TextPanel({ entries, query, shown }: { entries: readonly TextEnt
   const categoryHit = q === "" || `category ${t("studio.category")} ${t(`studio.category.${category}`)}`.toLowerCase().includes(q);
   return (
     <div className="tune" data-testid="text-panel" data-mode-panel="text" hidden={!shown}>
+      {wide && (
+        <div className="text-cols" aria-hidden="true">
+          <span>{t("studio.text_shipped")}</span>
+          <span>{t("studio.text_draft")}</span>
+        </div>
+      )}
       {groups.map((g) => {
         const any = g.entries.some(hit) || (g.id === "identity" && categoryHit);
         return (
