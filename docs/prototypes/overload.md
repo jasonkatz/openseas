@@ -1,6 +1,6 @@
 # Overload
 
-Status: built. Prototype (ADR 0036), in the studio at `/overload`. Ticked (ADR 0015): taps come
+Status: built, with the draw (M11) and a ladder of three stages. Prototype (ADR 0036), in the studio at `/overload`. Ticked (ADR 0015): taps come
 back on the engine's clock. A 120 second round.
 
 ## The puzzle
@@ -27,7 +27,7 @@ Taps are scarce. The player holds up to five (`tapCap`) and one comes back every
 seconds (`tapRegenTicks`). Nothing is banked while the hand is full. A tap that sets nothing off is
 not wasted: it charges a capacitor, and one charge in the right place joins two clusters.
 
-Three things sit on top of that:
+Four things sit on top of that:
 
 - **Streak.** A chain of four or more (`streakMin`) builds a streak that multiplies the chain: 100,
   125, 150 and so on up to 300 percent at nine in a row (`streakPercent`). A shorter chain breaks
@@ -36,10 +36,19 @@ Three things sit on top of that:
   chain of four pays for its own tap; a chain of eight pays for the charge that set it up too.
 - **Booster.** About one fresh capacitor in twenty-five (`boosterPermille`) is a booster. It passes
   two charges to each neighbour when it bursts, so it carries a chain through capacitors at 2.
+- **The draw** (M11). Under the bank the ship asks for a chain of a size: a band from a draw
+  (`drawSizes`) to one more (`drawSpan`). A chain whose bursts land in the band meets the draw and
+  scores double (`drawPercent`) on top of the streak, and the next draw is asked for. The draws come
+  in turn, 8 to 9, 9 to 10 and so on up to 12 to 13, then round again from 8 to 9; `drawRandom` picks
+  each next one at random from the list instead. A chain past the band is only a chain. Any chain
+  counts against it, a short one too. The draw has a stream of its own (`overload-draw:<seed>`), so
+  turning it on deals the same bank. Off: `drawSizes: []`, and a round hashes as it did before.
 
 ## Luck and skill
 
-- **Luck:** the fresh charges after a chain, and where the boosters land.
+- **Luck:** the fresh charges after a chain, and where the boosters land. The draws are not luck
+  while they come in turn: the next is always one more. A chain in the band by chance is luck, and
+  the bots show it is small (below).
 - **First skill:** reading. A 3 bursts. Touching 3s all go. A 2 between two bursting capacitors
   goes too. The best single tap is worth about a quarter more than tapping any 3.
 - **Second skill:** the streak. No tap reaching four is the usual case (the best single tap
@@ -48,12 +57,25 @@ Three things sit on top of that:
   times one that only ever takes the best single tap.
 - **Third skill:** the join. One charge on the capacitor between two clusters about doubles the
   chain, and n × n pays for the tap. Two charges of set-up reach ten to fifteen.
+- **Fourth skill:** the draw (M11), the join with a ceiling. Count the chain the best tap makes, then
+  find the charge, or two, that brings it into the band, and stop there: a chain of 9 in a draw of 8
+  to 9 pays 162, more than a chain of 12 out of it. It is planned (two charges ahead pays most), it
+  moves (each met draw asks for one more), and it adds the sense of what is not worth chasing: one
+  more charge that makes a longer chain looks right and loses the double.
+- **The compound move:** the join into the draw. Two clusters, one charge between them, set off
+  as one chain that lands in the band, on a running streak.
 
 ## Input and feedback
 
 - Tap a capacitor. The tap lands on press, and a tap during a chain finishes the chain at once.
 - Keyboard: arrows or WASD move a cursor, space or enter taps.
-- No preview of a chain in any round: reading it is the game. Unrated and lab rounds mark a tap
+- **The draw's row**, under the bank while the draw is on: `Draw 8 to 9 ×2` on the left, dim. On a
+  desktop, with the mouse over a capacitor at 3 or the keyboard's cursor on it, the right of the row
+  counts the chain a tap there sets off and says whether it meets the draw (`8 meets it`, cream, with
+  a tick), falls short (`5 is short`) or runs past it (`12 is past it`), dim: the engine's
+  `overloadChainSize` and `overloadDrawMet`, read in words, so the row reads without colour. A
+  touch has no hover: on a phone the chain is counted by eye (an open question, below).
+- No preview of a chain on the bank: reading it is the game. Unrated and lab rounds mark a tap
   after five seconds idle (`overloadHint`): a cream ring on the tap that sets off the longest
   chain, or, when that chain is too short for the streak and one charge would make a longer one, a
   ring with a plus on the capacitor to charge.
@@ -82,10 +104,18 @@ in code (`boards/src/overload/pieces.ts`), loads no atlas and has no marks setti
 - **The beat**, one amber pulse of the whole board, is kept for two things: a chain of ten or more
   (called out, and stronger the longer the chain, to a chain of twenty), and a streak brought to
   its top. There is no shake, no flash and no glow.
+- **A met draw** is called out (`Draw met`, over any other callout) on the rising cue (`rise`), or
+  under the beat with no cue of its own when the chain is ten or more. The row keeps the draw the
+  chain met until then, and steps to the next as the callout lands.
 
 ## Engine
 
-`packages/engine/src/overload/`. Moves: `{ type: "tap", cell, tick }`, `{ type: "wait", tick }` and
+`packages/engine/src/overload/`. The draw's queries: `overloadDrawBand` (the band now and what it
+pays), `overloadDrawMet` (whether a chain of n meets it), `overloadChainPoints` (what a chain of n
+set off now scores, the streak and the draw in), `overloadChainCells` (the capacitors a tap bursts)
+beside `overloadChainSize`. A chain event carries `drawMet`, `drawPoints` and the next `draw`; the
+state holds `draw`, `drawIndex`, the draw's own stream, `draws` and `drawScore`, all hashed only when
+the draw is on (three seeds' hashes from before the draw are pinned in the tests). Moves: `{ type: "tap", cell, tick }`, `{ type: "wait", tick }` and
 `{ type: "end", tick }`. The state holds the taps and the tick the next one is counted from, and the
 reducer counts the taps that have come back by a move's tick before it applies the move;
 `advanceOverload(state, tick)` does the same for display without logging anything. A tap's report
@@ -140,7 +170,139 @@ ahead.
   2,000 reading at an easy pace, 3,000 the best single tap at a brisk one, 4,500 and 6,500 one
   charge ahead from an easy pace to a brisk one.
 
+## The ladder
+
+A new player climbs two stages before the whole puzzle (ADR 0066), each the puzzle with layers
+switched off in `stages` in the content file; names and cards are `overload.stage.<id>` and `_intro`.
+
+| Stage | Round | What is on | Switched off |
+|---|---|---|---|
+| Bursts | 60 s | Reading chains, n × n, refunds | The streak (`streakPercent: [100]`), boosters (`boosterPermille: 0`), the draw (`drawSizes: []`) |
+| Streak | 90 s | The streak, boosters | The draw |
+| The draw (full) | 120 s | The draw, 8 to 12 rising, ×2 | |
+
+Each stage also ends its clock at its round (`maxTick` 600 and 900). On bursts, charging pays
+nothing (there is no streak to keep), so reading is the whole stage and the one-move bot is the
+best; on streak, charging to four takes a bot from Sharp to Masterful, the stage's lesson.
+
+## Tuning notes: the draw (M11)
+
+Set from bots (ADR 0067), `pnpm --filter @openseas/bots ladder overload --seeds 32`, at a tap every
+1.5 seconds. The new bots: **joiner** (blind to the draw: charges to reach four, and when one charge
+doubles the best tap); **seeker** (blind: looks two charges ahead, a charge's chain worth half, two
+charges' a third); **draw joiner** and **draw seeker** (the same, every tap weighed by what the engine
+would pay for it with the draw: `overloadChainPoints`); **biggest chain** (the bait: the draw joiner,
+but once the best tap meets the draw it charges for any longer chain).
+
+32 seeds a cell (seeds `ladder-0` to `ladder-31`); each cell is the mean score and the tier it reads as on that stage.
+
+| Bot | Bursts (60 s) | Streak (90 s) | Full (120 s) |
+|---|---|---|---|
+| careless | 119 Green | 542 Green | 1,068 Green |
+| one move | 676 Sharp | 2,426 Sharp | 3,879 Sharp |
+| rollout | 748 Sharp | 2,395 Sharp | 4,378 Sharp |
+| any 3 | 607 Steady | 1,624 Steady | 2,601 Steady |
+| biggest clump | 563 Steady | 1,680 Steady | 3,020 Sharp |
+| charge to four | 478 Steady | 3,621 Masterful | 6,129 Masterful |
+| one charge ahead | 497 Steady | 3,588 Masterful | 5,361 Masterful |
+| joiner | 454 Steady | 2,995 Sharp | 5,350 Masterful |
+| seeker | 498 Steady | 2,878 Sharp | 5,451 Masterful |
+| draw joiner | 454 Steady | 2,995 Sharp | 6,829 Masterful |
+| draw seeker | 498 Steady | 2,878 Sharp | 7,371 Masterful |
+| biggest chain (bait) | 454 Steady | 2,995 Sharp | 4,408 Sharp |
+| greedy charge (bait) | 318 Steady | 1,215 Steady | 2,245 Steady |
+| *Steady from* | *300* | *799* | *1,299* |
+| *Sharp from* | *625* | *1,749* | *2,748* |
+| *Masterful from* | *1,000* | *3,198* | *4,996* |
+| *Legendary from* | *1,599* | *5,447* | *8,744* |
+
+The checks: careless lands a tier below one move on every stage; the greedy charge loses to one
+charge ahead by 58 percent; the biggest chain loses to the draw seeker by 40 percent.
+
+The key gaps at 64 seeds, the draw on and off (`--set 'drawSizes=[]'`):
+
+| Bot (full, 64 seeds) | No draw | The draw |
+|---|---|---|
+| charge to four (blind) | 5,521 | 6,215 (+12.6%) |
+| one charge ahead (blind) | 5,364 | 5,659 (+5.5%) |
+| joiner (blind) | 4,834 | 5,541 |
+| seeker (blind) | 4,858 | 5,743 |
+| draw joiner (plays it) | | 7,150 |
+| **draw seeker** (plays it) | | **7,644** |
+| biggest chain (the bait) | | 4,628 |
+
+The draw seeker beats the best bot blind to the draw (charge to four) by **23.0 percent**; the best
+blind bot gains 12.6 percent without trying (the pitch's 8 to 10 at ×3 gave it 44 to 50); the draw is
+**37 percent** of the seeker's score (rule 14: under 40); the bait loses 39.5 percent. Looking two
+charges ahead gains nothing blind (seeker 4,858 to charge to four's 5,521 with no draw) and 7 percent
+with the draw (draw seeker over draw joiner): the draw is what makes planning pay.
+
+**The search.** The owner asked for the pitch's draw tuned down: a narrower band, a lower multiplier,
+and a band that moves, until the bot that plays it beats the best blind one by 15 percent or more, the
+blind bots' free gain shrinks well below 50 percent, the draw is under about 40 percent of a good
+score, and the bait still loses. The playing bot is the best of draw joiner, a draw grower (charges to
+grow a chain short of the band while it holds three taps) and draw seeker; the blind bot is the best
+of charge to four, one charge ahead, joiner and seeker. Every row at ×2 or less loses to the first
+condition or passes all four; the closest are listed.
+
+| Band (seeds) | ×   | Plays it vs best blind | Blind free gain | Draw's share | Bait |
+|---|---|---|---|---|---|
+| 8 to 10 fixed, the pitch (32) | 3 | +38.2% | +44.3% | 57.3% | −60% |
+| 8 to 9 fixed (32) | 2 | +10.5% | +16.5% | 34.5% | −36% |
+| 8 to 9 fixed (32) | 1.75 | +4.0% | +12.4% | 27.8% | −28% |
+| 8 fixed (32) | 2 | +11.1% | +9.9% | 29.1% | −33% |
+| 9 to 10 fixed (32) | 2 | +17.7% | +12.2% | 37.4% | −38% |
+| 9 fixed (32) | 2 | +13.9% | +6.6% | 30.1% | −32% |
+| 10 to 11 fixed (32) | 2 | +26.5% | +9.3% | 37.7% | −40% |
+| 10 to 11 fixed (64) | 2 | +25.4% | +10.6% | 37.8% | −37% |
+| 10 to 11 fixed (32) | 1.75 | +13.4% | +7.0% | 29.1% | −34% |
+| 10 fixed (32) | 2 | +21.1% | +5.7% | 32.7% | −36% |
+| 10 to 12 fixed (32) | 1.75 | +12.0% | +11.6% | 32.2% | −35% |
+| 11 to 12 fixed (32) | 2 | +21.4% | +9.7% | 36.6% | −39% |
+| 11 fixed (32) | 2 | +12.9% | +3.7% | 30.6% | −30% |
+| **8 to 12 rising by one, span 1 (64)** | **2** | **+23.0%** | **+12.6%** | **37.0%** | **−40%** |
+| 8 to 12 rising by one, span 1 (32) | 1.75 | +8.2% | +9.1% | 30.2% | −31% |
+| 8 to 12 rising by one, span 0 (32) | 2 | +19.0% | +6.2% | 33.2% | −36% |
+| 8, 10, 12 rising, span 1 (64) | 2 | +19.0% | +12.9% | 38.0% | −36% |
+| 8 to 12 at random, span 1 (64) | 2 | +20.3% | +12.8% | 36.4% | −38% |
+| 9 to 12 at random, span 0 (32) | 2 | +16.6% | +6.5% | 31.0% | −34% |
+| 6 to 11 at random, span 0 (16) | 2.5 | +16.2% | +8.5% | 35.3% | −40% |
+
+- **×2, not ×3 and not ×1.75.** At ×3 (the pitch's 8 to 10) the draw is more than half a good score, and at ×2.5 it passed 40 percent in most bands. At
+  ×1.75 and below, no band gave the playing bot 15 percent: the double is the least that pays for
+  the charges it takes to build into a band.
+- **A band of two.** A band of three (8 to 10) is the pitch's free gain: blind bots' chains of 8 to
+  11 happen by luck, the contracts trap. A band of one (exactly 10) has the smallest free gain and
+  still a gap, but asks a player to count to the burst; a band of two forgives one.
+- **Rising, picked over fixed 10 to 11.** Fixed 10 to 11 has the widest gap (+25 percent), but it is
+  the same target all round and once learned is a rule of thumb. Rising by one from 8 to 9 to 12 to
+  13, then round again, keeps a gap almost as wide (+23), moves (each met draw asks for a harder
+  one, and the easy one returns), and keeps the free gain at an eighth. At random it does about the
+  same (+20); in turn, the next draw is a thing to plan for, which is the skill.
+- **The bait.** Charging for a longer chain once the best tap meets the draw scores 40 percent less
+  than stopping, and lands a tier lower (Sharp). The greedy charge, the old bait, still loses.
+- **Thresholds** for the whole puzzle rose with the draw: 550, 1,300, 2,200, 3,300, 5,000 and 7,500
+  (were 500, 1,200, 2,000, 3,000, 4,500, 6,500). Plain play gains about a tenth from chains that
+  land in the band by luck (one move 3,511 to 3,879), so the lower ones rose a tenth; the top two
+  rose with the draw seeker, which now sits high in Masterful. The stages' thresholds are first
+  guesses from their bots: bursts puts the best reader at Sharp, streak puts charging to four at
+  Masterful. All of them want setting by hand in the studio.
+- **Tried and failed** (the pitch's measures, kept as negatives): surge, a long chain moving the
+  streak a step per four bursts (careless gained 55 percent and every bot alike), and the load, one
+  marked capacitor paying double when burst (sprawling lucky chains hit it, blind bots gained 27
+  percent and the bot that sought it scored less). Neither is in the engine.
+
 ## Open questions for play
+
+- **Is counting a chain against the band fair on a phone?** A desktop has the row's count at the
+  cursor; a touch lands at once and has no hover, so a phone player counts 9 against 12 bursts by
+  eye. The bots count perfectly. If people miss the band by one too often, the choices are a
+  touch preview (a press that shows the count before a second tap fires, which costs the one-tap
+  verb), a band of three, or the count shown on the bank for every 3. Play-test first.
+- Do people feel the rising draw as a ladder within the round, or as noise? Fixed 10 to 11 is the
+  fallback with the widest gap.
+- The draw makes the long chains matter again, which the open question below asked for. Do people
+  now join, or still play steady fours and take the draw when it comes?
 
 - The streak pays more than the join. A bot that charges only to reach four scores 5,505, about a
   twentieth under the one that also charges for bigger chains (5,804). Both bots' chains are mostly
