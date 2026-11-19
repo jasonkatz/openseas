@@ -92,8 +92,36 @@ function order(state: RacksState, chain: boolean): number {
   return v;
 }
 
+/**
+ * How a planner weighs the manifest. It sees it (the manifest's points are points like any other),
+ * is blind to it (they are worth nothing to it, so it fills one only by chance), chases it (the
+ * bait), or sees it and calls the crate the moment it fits (the eager caller, the other bait). The
+ * chain blind planner counts shipments alone, so it is blind to the manifest too.
+ */
+type ManifestEye = "sees" | "blind" | "chases" | "eager";
+
+/** What a state is worth to the planner over `root`, as its eye on the manifest reads it. */
+function planValue(root: RacksState, leaf: RacksState, chain: boolean, eye: ManifestEye = "sees"): number {
+  const base = planValueCore(root, leaf, chain);
+  if (eye === "blind") return base - (leaf.manifestScore - root.manifestScore);
+  if (eye !== "chases") return base;
+  // The chaser counts the manifest three times over, a shipment it does not ask for as nothing, a
+  // step of it as worth keeping, and a full rack of the kind it wants next as half shipped.
+  const filled = leaf.manifestScore - root.manifestScore;
+  const offManifest = leaf.shipped - root.shipped - (leaf.manifestsFilled - root.manifestsFilled) * leaf.manifest.length;
+  let ready = 0;
+  if (leaf.manifest.length > 0) {
+    const want = leaf.manifest[leaf.manifestDone]!;
+    for (const rack of leaf.racks) {
+      const top = racksTopGroup(rack);
+      if (top && top.kind === want && top.count === rack.length) ready += rack.length;
+    }
+  }
+  return base + 2 * filled - leaf.config.shipPoints * Math.max(0, offManifest) + 40 * leaf.manifestDone + 12 * ready;
+}
+
 /** What a state is worth to the planner over `root`: points made, smashes, cells taken in, and the order left. */
-function planValue(root: RacksState, leaf: RacksState, chain: boolean): number {
+function planValueCore(root: RacksState, leaf: RacksState, chain: boolean): number {
   const smashes = leaf.spills - root.spills;
   // Cells dealt are cells that can ship: calling brings them sooner.
   const dealt = leaf.nextId - root.nextId;
@@ -106,21 +134,23 @@ function planValue(root: RacksState, leaf: RacksState, chain: boolean): number {
  * The tuning notes' planner: every run of three actions on a fresh random stream (it sees the crate
  * that hangs, never the next), and the first action of the run that ends best is taken.
  */
-function plannerBot(name: string, about: string, chain: boolean): Bot<RacksState, RacksMove> {
+function plannerBot(name: string, about: string, chain: boolean, eye: ManifestEye = "sees"): Bot<RacksState, RacksMove> {
   return {
     name,
     about,
     choose(root, ctx) {
+      // The eager caller calls the moment the crate fits, whatever the racks look like.
+      if (eye === "eager" && racksCrateFits(root) && !root.finished) return CALL;
       const start = reseed(root, `plan:${ctx.rng.int(0x7fffffff)}`);
       const search = (s: RacksState, depth: number): number => {
-        if (depth === 0 || s.finished) return planValue(root, s, chain);
+        if (depth === 0 || s.finished) return planValue(root, s, chain, eye);
         let top = -Infinity;
         for (const c of actions(s)) {
           const next = ctx.apply(s, c);
           if (next === null) continue;
           top = Math.max(top, search(next, depth - 1));
         }
-        return top === -Infinity ? planValue(root, s, chain) : top;
+        return top === -Infinity ? planValue(root, s, chain, eye) : top;
       };
       let best: Choice<RacksMove>[] = [];
       let bestValue = -Infinity;
@@ -153,6 +183,10 @@ export const RACKS_BOTS: BotGame<RacksState, RacksMove, RacksConfig> = {
     hintBot(),
     plannerBot("planner", "Looks three actions ahead, sees the crate but not the next, calls when the racks are ready and counts the chain.", true),
     plannerBot("chain blind planner", "The planner, but every shipment is worth the same to it: it never plays for the chain.", false),
+    plannerBot("manifest blind planner", "The planner, but the manifest is worth nothing to it: it fills one only by chance.", true, "blind"),
+    plannerBot("manifest chaser", "The bait: the planner, but it counts the manifest three times over and an off-manifest shipment as nothing.", true, "chases"),
+    plannerBot("eager caller", "The bait: the planner, but it calls the crate the moment it fits.", true, "eager"),
   ],
-  slow: ["planner", "chain blind planner"],
+  baits: [{ bait: "manifest chaser", beats: "planner" }, { bait: "eager caller", beats: "planner" }],
+  slow: ["planner", "chain blind planner", "manifest blind planner", "manifest chaser", "eager caller"],
 };
