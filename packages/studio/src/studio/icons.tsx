@@ -47,3 +47,29 @@ export function Caret() {
     </svg>
   );
 }
+
+/** The transport bar's marks (ADR 0067), and the panel's expand and collapse. */
+export type ToolIcon = "play" | "pause" | "restart" | "deal" | "compare" | "step" | "expand" | "collapse";
+const TOOLS: Readonly<Record<ToolIcon, ReactNode>> = {
+  play: <path d="M7 4.5v15l12-7.5z" fill="currentColor" />,
+  pause: <path d="M8 5v14M16 5v14" {...stroke} strokeWidth={3} />,
+  restart: <path d="M5 12a7 7 0 1 0 2.1-5M5 4v4h4" {...stroke} />,
+  deal: <path d="M4 8h11l-3-3M20 16H9l3 3M15 8l5 0M4 16h5" {...stroke} />,
+  compare: (
+    <>
+      <circle cx="12" cy="12" r="8" {...stroke} />
+      <path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" />
+    </>
+  ),
+  step: <path d="M6 5l9 7-9 7zM18 5v14" {...stroke} />,
+  expand: <path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" {...stroke} />,
+  collapse: <path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7" {...stroke} />,
+};
+
+export function Tool({ icon, size = 16 }: { icon: ToolIcon; size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+      {TOOLS[icon]}
+    </svg>
+  );
+}

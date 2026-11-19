@@ -1,4 +1,4 @@
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { PuzzleId } from "@openseas/engine";
 import { wordCount } from "@openseas/protocol";
 import { messageOverrideRevision, pieceOverrideRevision, subscribeMessages, subscribePieces, t } from "@openseas/boards";
@@ -10,12 +10,15 @@ import type { ShellProps } from "../practice/PracticeShell.jsx";
 import { ChatPanel } from "../service/ChatPanel.jsx";
 import { DraftBanner } from "../service/DraftSection.jsx";
 import { LooseRefusals, NumbersPanel, anyNumberMatch, modeOfKey, useNumberSections } from "../tuning/TuningPanel.jsx";
-import { ModeIcon } from "./icons.jsx";
+import { ModeIcon, Tool } from "./icons.jsx";
 import { EDITOR_MODES, RAIL, isNumberMode, type ModeId } from "./modes.js";
 import { PlayPanel } from "./PlayPanel.jsx";
 import { TextPanel, textMatches, useTextEntries } from "./TextPanel.jsx";
 import { TopBar, type Target } from "./TopBar.jsx";
+import { Transport, useAltKey } from "./Transport.jsx";
+import { useRoundClock } from "./roundClock.js";
 import { readRestart, writeRestart } from "./useStudio.js";
+import { canWiden, isWide, readWide, scopeWide, toggleWide, writeWide, type Wide } from "./wide.js";
 
 const HINTS_KEY = "openseas.studio.hints";
 function readHints(): boolean {
@@ -36,11 +39,14 @@ function flash(testId: string): void {
 }
 
 /**
- * A puzzle's studio page (DESIGN.md 3.14, ADR 0056), laid out for a desktop as a design tool is.
+ * A puzzle's studio page (DESIGN.md 3.14, ADR 0056, ADR 0067), laid out for a desktop as a design tool is.
  * A bar across the top says where the page is and what becomes of the draft. A rail down the left
  * edge picks a mode, and the panel beside it is that mode's: the round, the numbers in three
  * parts, the pieces and the sounds (ADR 0065), the words (ADR 0057). The board stands in the middle at a phone's proportions,
- * exactly as `/play` draws it, in every mode. The chat is on the right (ADR 0047). Every panel
+ * exactly as `/play` draws it, with the transport bar under it that plays the round from any mode.
+ * Any mode but Play can open its panel wide over the middle: the board then moves to the top of the
+ * right-hand column, still live, and the chat takes the bottom. The board is one element in every
+ * layout, so the round on it carries on through a change of mode or width. The chat is on the right (ADR 0047). Every panel
  * stays in the page while one shows, so a file being tried or a value half typed outlasts a look
  * at another. A phone never sees this: it gets the puzzle alone (App.tsx).
  */
@@ -49,6 +55,22 @@ export function StudioShell(p: ShellProps) {
   const [query, setQuery] = useState("");
   const [hints, setHints] = useState(readHints);
   const [restart, setRestart] = useState(readRestart);
+  const [wide, setWideState] = useState<Wide>(readWide);
+  const setWide = useCallback((next: Wide) => {
+    setWideState(next);
+    writeWide(next);
+  }, []);
+  const widened = isWide(wide, mode);
+  useAltKey("Backslash", () => setWide(toggleWide(wide, mode)));
+  // A board sizes itself to its box on the window's resize alone (Pixi's resizeTo), and a panel
+  // opened wide or an editor's wider column moves the box without one: tell it, once laid out.
+  const editing = EDITOR_MODES.includes(mode);
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+    return () => window.cancelAnimationFrame(id);
+  }, [widened, editing]);
+  const { paused, clock } = useRoundClock();
+  const held = p.phase === "playing" && paused;
   const puzzle = p.puzzle as PuzzleId;
   const { changes, refusals, report, scenario, store } = useFrame();
   const sections = useNumberSections();
@@ -82,7 +104,7 @@ export function StudioShell(p: ShellProps) {
 
   const seed = report.seed ?? scenario.seed;
   return (
-    <main className={`studio ${EDITOR_MODES.includes(mode) ? "is-editing" : ""}`} data-testid="studio" data-mode={mode}>
+    <main className={`studio ${EDITOR_MODES.includes(mode) ? "is-editing" : ""} ${widened ? "is-wide" : ""}`} data-testid="studio" data-mode={mode} data-wide={widened ? "1" : "0"}>
       <TopBar title={t(`${p.puzzle}.title`)} puzzle={puzzle} sections={sections} texts={texts} onGoto={goto} />
       <DraftBanner />
 
@@ -101,10 +123,31 @@ export function StudioShell(p: ShellProps) {
 
       <aside className="studio-panel st" aria-label={t(`studio.mode.${mode}`)}>
         <header className="panel-head">
-          <div>
-            <h2>{t(`studio.mode.${mode}`)}</h2>
-            <p>{t(`studio.mode_hint.${mode}`)}</p>
+          <div className="panel-title">
+            <div>
+              <h2>{t(`studio.mode.${mode}`)}</h2>
+              <p>{t(`studio.mode_hint.${mode}`)}</p>
+            </div>
+            {canWiden(mode) && (
+              <button
+                type="button"
+                className="btn btn-mini btn-sq btn-quiet"
+                aria-pressed={widened}
+                aria-label={widened ? t("studio.wide.close") : t("studio.wide.open")}
+                title={`${widened ? t("studio.wide.close") : t("studio.wide.open")} · Alt \\`}
+                onClick={() => setWide(toggleWide(wide, mode))}
+                data-testid="panel-wide"
+              >
+                <Tool icon={widened ? "collapse" : "expand"} />
+              </button>
+            )}
           </div>
+          {widened && (
+            <label className="switch-label panel-wide-scope" title={t("studio.wide.every_note")}>
+              {t("studio.wide.every")}
+              <input type="checkbox" role="switch" className="switch" checked={wide.scope === "all"} onChange={(e) => setWide(scopeWide(wide, e.target.checked ? "all" : "mode", mode))} data-testid="panel-wide-scope" />
+            </label>
+          )}
           <div className="panel-tools" hidden={!searchable} data-mode-panel="setup">
             <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("studio.find")} aria-label={t("studio.find")} data-testid="find" />
             <button
@@ -146,7 +189,7 @@ export function StudioShell(p: ShellProps) {
         <div className="panel-body">
           <LooseRefusals sections={sections} />
           <div hidden={mode !== "play"} data-mode-panel="play">
-            <PlayPanel phase={p.phase} onStart={p.onStart} />
+            <PlayPanel onStart={p.onStart} />
           </div>
           <NumbersPanel sections={sections} mode={mode} query={q} hints={hints} shown={isNumberMode(mode) || (mode === "text" && q !== "")} />
           <TextPanel entries={texts} query={q} shown={mode === "text" || (isNumberMode(mode) && q !== "")} />
@@ -167,7 +210,13 @@ export function StudioShell(p: ShellProps) {
       <div className="studio-stage">
         <div className="studio-device">
           <PlayShell {...p} />
+          {held && (
+            <button type="button" className="studio-held" onClick={() => clock?.resume()} aria-label={t("studio.transport.resume")} data-testid="held">
+              <span>{t("studio.transport.held")}</span>
+            </button>
+          )}
         </div>
+        <Transport phase={p.phase} onStart={p.onStart} ready={p.ready} />
       </div>
 
       <aside className="studio-rest st">{store.state === "stored" && store.canChat ? <ChatPanel /> : <p className="chat-off">{t("studio.chat.off")}</p>}</aside>

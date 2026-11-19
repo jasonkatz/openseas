@@ -1,6 +1,7 @@
 import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ChatEvent, ChatItem, ChatList, ChatModel, ChatState, ChatSummary } from "@openseas/protocol";
 import { t } from "@openseas/boards";
+import { toldRounds } from "../frame/rounds.js";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { Menu, MenuButton, useMenu } from "../studio/Menu.jsx";
 import { applyChatEvent, chatToOpen } from "./chatState.js";
@@ -232,7 +233,7 @@ export function ChatPanel() {
     setSending(true);
     // A chat is a draft's: one is opened for it if the page has none, with whatever numbers are on the page.
     const draft = stored.draft ?? (await ensureDraft());
-    const sent = draft ? await sendChat(draft.id, { chat: chatId, text: words, model, rounds: [...rounds], refusals: refusals.map((r) => `${r.key}: ${r.message}`).slice(0, 16) }) : ({ ok: false, reason: "failed" } as const);
+    const sent = draft ? await sendChat(draft.id, { chat: chatId, text: words, model, rounds: toldRounds(rounds), refusals: refusals.map((r) => `${r.key}: ${r.message}`).slice(0, 16) }) : ({ ok: false, reason: "failed" } as const);
     setSending(false);
     if (!sent.ok) return setNote(t(`studio.chat.${sent.reason}`));
     setText("");

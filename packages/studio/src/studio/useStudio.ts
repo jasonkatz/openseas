@@ -3,6 +3,8 @@ import { useFrame } from "../frame/RoundFrame.jsx";
 import { localSeed, type PracticeApi } from "../practice/usePractice.js";
 import type { StudioPuzzle } from "../puzzles.js";
 import { replayAgrees, replayRound } from "./replay.js";
+import { publishRoundClock } from "./roundClock.js";
+import { numbersOf, type RoundNote, type RoundNumbers } from "../frame/rounds.js";
 
 export interface StudioRound {
   /** Start a round on the frame's numbers. With no seed given: the pinned one, or a fresh one when none is pinned. */
@@ -15,8 +17,8 @@ export interface StudioRound {
 
 /**
  * A round's clock, reachable from a script and from nowhere on screen. The guides' capture holds
- * a round still and steps it a tick at a time so each frame lands where it is planned (ADR 0038);
- * the studio has no control for that (ADR 0042), so the capture drives this.
+ * a round still and steps it a tick at a time so each frame lands where it is planned (ADR 0038).
+ * The studio's transport bar drives the same clock (ADR 0067, studio/roundClock).
  */
 export interface RoundClockHandle {
   pause(): void;
@@ -66,9 +68,15 @@ export function useStudio<S, M, C>(puzzle: StudioPuzzle<S, M, C>, api: PracticeA
   const ready = comparing || frame.refusals.length === 0;
   const config = numbers.config as C;
 
+  // What the round on the board was dealt on, read as it is dealt: a number changed mid-round with
+  // dealing again pinned off does not change what that round was played on (frame/rounds).
+  const dealtOn = useRef<{ tuned: boolean; changes: RoundNote["changes"]; numbers: RoundNumbers }>({ tuned: true, changes: [], numbers: numbersOf(scenario) });
   const start = useCallback(
     (seed?: string) => {
       if (!ready) return;
+      dealtOn.current = comparing
+        ? { tuned: false, changes: [], numbers: { stage: scenario.stage, overrides: {}, roundSeconds: null, paceSeconds: null, thresholds: null } }
+        : { tuned: true, changes: frame.changes, numbers: numbersOf(scenario) };
       api.start({
         seed: seed ?? scenario.seed ?? localSeed(),
         config,
@@ -78,7 +86,7 @@ export function useStudio<S, M, C>(puzzle: StudioPuzzle<S, M, C>, api: PracticeA
         paused: scenario.paused,
       });
     },
-    [api, config, numbers, ready, scenario.seed, scenario.speed, scenario.paused],
+    [api, config, numbers, ready, scenario, comparing, frame.changes],
   );
 
   // The board behind the start card shows the draft: its seed and config. Only the stable parts
@@ -151,7 +159,13 @@ export function useStudio<S, M, C>(puzzle: StudioPuzzle<S, M, C>, api: PracticeA
     const { round, outcome } = api;
     if (api.phase !== "result" || !round || !outcome || noted.current === round) return;
     noted.current = round;
-    noteRound({ seed: round.seed, score: outcome.score, tier: outcome.performance.tier, seconds: Math.max(0, api.roundSeconds - api.timeLeft), moves: outcome.moves, tuned: !comparing });
+    const on = dealtOn.current;
+    noteRound({
+      summary: { seed: round.seed, score: outcome.score, tier: outcome.performance.tier, seconds: Math.max(0, api.roundSeconds - api.timeLeft), moves: outcome.moves, tuned: on.tuned },
+      bestCombo: outcome.bestCombo,
+      changes: on.changes,
+      numbers: on.numbers,
+    });
     // The round's own fields are read once, as it ends.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api.phase, api.round, api.outcome, noteRound]);
@@ -174,8 +188,11 @@ export function useStudio<S, M, C>(puzzle: StudioPuzzle<S, M, C>, api: PracticeA
       },
     };
     window.openseasRoundClock = handle;
+    // And for the transport bar under the board (ADR 0067).
+    publishRoundClock(clock, tickMs);
     return () => {
       if (window.openseasRoundClock === handle) delete window.openseasRoundClock;
+      publishRoundClock(null, null);
     };
     // api.current is stable; the round it reads changes with the clock.
     // eslint-disable-next-line react-hooks/exhaustive-deps

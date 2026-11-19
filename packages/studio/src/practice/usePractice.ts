@@ -36,7 +36,7 @@ export interface RoundStart<C> {
   roundSeconds: number;
   /** What the round's score is rated against. */
   thresholds: readonly Threshold[];
-  /** Clock rate at the start; 1 is real time. For a script: the studio has no control for it. */
+  /** Clock rate at the start; 1 is real time. The transport bar sets it (ADR 0067). */
   speed?: number;
   /** Start with the clock stopped. For a script, as above. */
   paused?: boolean;

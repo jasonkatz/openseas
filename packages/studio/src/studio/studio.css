@@ -944,15 +944,7 @@
   padding: 0;
   list-style: none;
 }
-.rounds li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
-  align-items: baseline;
-  gap: 8px;
-  padding: 4px 0;
-  font-size: 12px;
-}
-.rounds li + li {
+.rounds > li + li {
   border-top: 1px solid var(--st-line);
 }
 .rounds-seed {
@@ -1017,11 +1009,15 @@
   grid-area: stage;
   min-width: 0;
   min-height: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   padding: 6px;
 }
 .studio-device {
+  position: relative;
+  flex: 1 1 auto;
   width: 100%;
   max-width: 460px;
   height: 100%;
@@ -1941,4 +1937,208 @@
 .sprite-under {
   position: absolute;
   inset: 0;
+}
+
+/* ---- the transport bar (ADR 0067): under the board in every mode */
+.transport {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--st-surface);
+  box-shadow: var(--st-float);
+}
+.tp-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--st-fg);
+  cursor: pointer;
+}
+.tp-btn:hover:not(:disabled),
+.tp-btn:focus-visible {
+  background: var(--st-hover);
+}
+.tp-btn:disabled {
+  color: var(--st-faint);
+  cursor: default;
+}
+.tp-main:not(:disabled) {
+  background: var(--st-accent-bg);
+  color: var(--st-accent-ink);
+}
+.tp-btn.is-held {
+  background: var(--st-accent-bg);
+  color: var(--st-accent-ink);
+}
+.tp-gap {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--st-line);
+}
+.tp-speed {
+  display: flex;
+  gap: 1px;
+  padding: 0 2px;
+}
+.tp-seg {
+  height: 24px;
+  min-width: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--st-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.tp-seg[aria-checked="true"] {
+  background: var(--st-accent-bg);
+  color: var(--st-accent-ink);
+}
+.tp-btn[data-tip],
+.tp-seg {
+  position: relative;
+}
+.tp-btn[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 3px 8px;
+  border-radius: var(--st-r);
+  background: var(--st-surface);
+  box-shadow: var(--st-float);
+  color: var(--st-fg);
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.tp-btn[data-tip]:hover::after,
+.tp-btn[data-tip]:focus-visible::after {
+  opacity: 1;
+}
+/* A held round: the board under a veil that takes every press, so no move lands on a stopped clock. */
+.studio-held {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 18px;
+  background: rgba(8, 12, 18, 0.55);
+  cursor: pointer;
+}
+.studio-held span {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--st-accent-bg);
+  color: var(--st-accent-ink);
+  font-family: var(--st-ui);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ---- the panel opened wide (ADR 0067): it takes the middle, the board the top of the right column, the chat its bottom */
+.panel-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.panel-wide-scope {
+  justify-self: start;
+}
+.studio.is-wide {
+  grid-template-columns: 48px minmax(0, 1fr) minmax(280px, 360px);
+  grid-template-rows: auto auto minmax(0, 1.15fr) minmax(0, 0.85fr) auto;
+  grid-template-areas:
+    "top top top"
+    "banner banner banner"
+    "rail panel stage"
+    "rail panel rest"
+    "status status status";
+}
+.studio.is-wide .studio-rest {
+  margin-top: 10px;
+}
+.studio.is-wide .studio-device {
+  max-width: 300px;
+}
+.studio.is-wide .tune {
+  column-width: 380px;
+  column-gap: 0;
+}
+.studio.is-wide .tune > * {
+  break-inside: avoid;
+}
+
+/* ---- the last rounds (ADR 0067): each with how it went and the numbers it was dealt on */
+.round {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0;
+}
+.round.is-base {
+  margin: 0 -8px;
+  padding: 8px;
+  border-radius: var(--st-r);
+  background: var(--st-accent-soft);
+}
+.round-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.round-score {
+  font-size: 15px;
+}
+.round-tag {
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--st-line-strong);
+  font-size: 10.5px;
+}
+.round-tag.is-draft {
+  border-color: var(--st-mark);
+  color: var(--st-mark-text);
+}
+.round-delta {
+  margin-left: auto;
+}
+.round-delta.is-up {
+  color: var(--st-ok-text);
+}
+.round-delta.is-down {
+  color: var(--st-danger);
+}
+.round-changes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11.5px;
+}
+.round-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.round-actions.is-asking span {
+  flex-basis: 100%;
 }
