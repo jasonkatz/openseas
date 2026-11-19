@@ -108,7 +108,7 @@ test("the round is left alone when dealing again is pinned off", async ({ page }
   await page.waitForTimeout(900);
   await expect(page.getByTestId("hud-moves")).toContainText("1");
   // The next deal is on the draft.
-  await (await shown(page, "seed-replay")).click();
+  await (await shown(page, "transport-restart")).click();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
 });
 
@@ -125,13 +125,13 @@ test("a seed can be pinned, replayed and dealt afresh", async ({ page }) => {
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
-  await (await shown(page, "seed-replay")).click();
+  await (await shown(page, "transport-restart")).click();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
   await expectViewMatchesState(page, "cooling");
   expect(await board(page)).toBe(first);
 
   const pinned = page.url();
-  await (await shown(page, "seed-new")).click();
+  await (await shown(page, "transport-deal")).click();
   await expect(page).not.toHaveURL(pinned);
   await expect.poll(() => board(page)).not.toBe(first);
 
@@ -243,7 +243,109 @@ test("the Play panel keeps the last rounds finished on the page, and says which 
   await finish();
   await expect(page.getByTestId("last-round")).toHaveCount(1);
   await expect(page.getByTestId("last-round").first()).toContainText("studio-6");
-  await page.getByTestId("seed-replay").click();
+  await page.getByTestId("transport-restart").click();
   await finish();
   await expect(page.getByTestId("last-round")).toHaveCount(2);
+});
+
+test("the transport bar under the board plays the round from any mode: pause holds it under a veil, a step moves the held clock, and the speed sticks", async ({ page }) => {
+  desktopOnly();
+  await page.goto("/cooling?seed=studio-7");
+  await page.getByTestId("tab-tuning").click();
+  const play = page.getByTestId("transport-play");
+  await play.click();
+  await expectViewMatchesState(page, "cooling");
+  await expect(page.getByTestId("transport-step")).toBeDisabled();
+
+  await play.click();
+  await expect(page.getByTestId("held")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.openseasRoundClock?.paused)).toBe(true);
+  const left = await page.getByTestId("hud-time").textContent();
+  await page.getByTestId("transport-step").click();
+  await page.waitForTimeout(1200);
+  expect(await page.getByTestId("hud-time").textContent()).not.toBe(left);
+  await page.getByTestId("held").click();
+  await expect(page.getByTestId("held")).toHaveCount(0);
+
+  await page.getByTestId("transport-speed-2").click();
+  await expect(page).toHaveURL(/speed=2/);
+  await expect(page.getByTestId("transport-speed-2")).toHaveAttribute("aria-checked", "true");
+
+  // Alt and a key: the boards keep their own letters.
+  await page.keyboard.press("Alt+KeyP");
+  await expect(page.getByTestId("held")).toBeVisible();
+});
+
+test("the panels open wide over the middle, in every mode at once, the board moves above the chat and keeps its round, and Play never widens", async ({ page }) => {
+  desktopOnly();
+  await page.goto("/cooling?seed=studio-8");
+  await expect(page.getByTestId("panel-wide")).toHaveCount(0);
+  await page.getByTestId("transport-play").click();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("hud-moves")).toContainText("1");
+
+  await page.getByTestId("tab-tuning").click();
+  const before = await page.getByTestId("cooling-canvas").boundingBox();
+  await page.getByTestId("panel-wide").click();
+  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "1");
+  // Once it has flown there.
+  await expect.poll(async () => (await page.getByTestId("cooling-canvas").boundingBox())!.x).toBeGreaterThan(before!.x + 200);
+  // The same round, not a new one.
+  await expect(page.getByTestId("hud-moves")).toContainText("1");
+
+  // One switch for every mode but Play.
+  await page.getByTestId("tab-scoring").click();
+  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "1");
+  await page.getByTestId("tab-play").click();
+  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "0");
+  await expect(page.getByTestId("hud-moves")).toContainText("1");
+
+  // Remembered across a reload.
+  await page.reload();
+  await page.getByTestId("tab-text").click();
+  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "1");
+  await page.keyboard.press("Alt+Backslash");
+  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "0");
+});
+
+test("a finished round keeps the numbers it was dealt on, can be the baseline, and lays its numbers back over the draft when asked", async ({ page }) => {
+  desktopOnly();
+  await page.goto("/cooling?seed=studio-9");
+  const finish = async (): Promise<void> => {
+    await expect(page.getByTestId("cooling-canvas")).toBeVisible();
+    await page.evaluate(() => {
+      window.openseasRoundClock!.pause();
+      window.openseasRoundClock!.step(10 * 60 * 1000);
+    });
+    await expect(page.getByTestId("result-tier")).toBeVisible();
+  };
+  await (await shown(page, "more-config.pieceKinds")).click();
+  await page.getByTestId("transport-play").click();
+  await finish();
+  await page.getByTestId("tab-play").click();
+  const first = page.getByTestId("last-round").first();
+  await expect(first.getByTestId("round-changes")).toContainText("Piece kinds");
+
+  // Back to the shipped numbers, and a second round on them.
+  await (await shown(page, "reset-all")).click();
+  await page.getByTestId("transport-restart").click();
+  await finish();
+  await page.getByTestId("tab-play").click();
+  await expect(page.getByTestId("last-round")).toHaveCount(2);
+  await expect(page.getByTestId("last-round").first().getByTestId("round-changes")).toHaveCount(0);
+  await expect(page.getByTestId("last-round").first().getByTestId("round-delta")).toBeVisible();
+
+  // The older round's numbers, back over the draft once the owner says so.
+  const older = page.getByTestId("last-round").nth(1);
+  await older.getByTestId("round-use").click();
+  await older.getByTestId("round-use-yes").click();
+  await expect(page).toHaveURL(/c\.pieceKinds=8/);
+  await expect(older.getByTestId("round-use")).toBeHidden();
+
+  // Kept for the tab's session.
+  await older.getByTestId("round-baseline").click();
+  await page.reload();
+  await expect(page.getByTestId("last-round")).toHaveCount(2);
+  await expect(page.getByTestId("last-round").nth(1)).toHaveClass(/is-base/);
 });

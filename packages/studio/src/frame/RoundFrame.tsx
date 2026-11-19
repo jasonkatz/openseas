@@ -1,11 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CUE_NAMES, SHIPPED_CUES, SHIPPED_PIECES, content, cueProblems, overrideCues, overrideMessages, overridePieces, shippedMessage, t, type CueName } from "@openseas/boards";
-import { isPuzzleText, lookOf, textVars, wordsOf, type CueData, type Draft, type Drawing, type Look, type PuzzleCategory, type RoundSummary, type TesterLink, type Words } from "@openseas/protocol";
+import { isPuzzleText, lookOf, textVars, wordsOf, type CueData, type Draft, type Drawing, type Look, type PuzzleCategory, type TesterLink, type Words } from "@openseas/protocol";
 import type { StudioPuzzle } from "../puzzles.js";
 import { EMPTY_SCENARIO, formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
 import { SERVICE_URL } from "../service/client.js";
 import { useStoredDraft, type DraftStore } from "./useStoredDraft.js";
 import { KEEPS_ALL, withoutDraft } from "./draft.js";
+import { keepRound, readRounds, writeRounds, type PlayedRound, type RoundNote } from "./rounds.js";
 import { changes, refusals, shippedNumbers, tunedNumbers, withNumber, withoutNumber, withoutNumbers, type Change, type Numbers, type Refusal } from "./numbers.js";
 
 /**
@@ -22,9 +23,6 @@ export interface RoundReport {
   /** True when replaying the finished round's log from its seed did not give the hashes the round made (ADR 0042 decision 3). */
   readonly replayMismatch: boolean;
 }
-
-/** How many finished rounds a message to the agent carries. */
-const ROUNDS_KEPT = 5;
 
 /** How long the hand must rest on a string before the board is made again with it. */
 const WORDS_MS = 300;
@@ -51,9 +49,9 @@ export interface Frame {
   ensureDraft(): Promise<Draft | null>;
   /** Follow the draft as the service now holds it: the agent's tool moves its numbers. */
   adoptDraft(draft: Draft): void;
-  /** The last few rounds finished on this page, oldest first: what a message to the agent carries (ADR 0042 decision 5). */
-  readonly rounds: readonly RoundSummary[];
-  noteRound(round: RoundSummary): void;
+  /** The rounds finished on this page, oldest first, with the numbers each was dealt on (frame/rounds, ADR 0068). The last few are what a message to the agent carries (ADR 0042 decision 5). */
+  readonly rounds: readonly PlayedRound[];
+  noteRound(round: RoundNote): void;
   /** The content file's numbers. */
   readonly shipped: Numbers<unknown>;
   /** Content with the scenario's numbers laid over it: the draft. */
@@ -130,8 +128,18 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   kept.current = stored.keeps();
   const { store, bare, keep: keepDraft, open: openDraft, discard: discardDraft, save: saveDraft, update: updateDraft, ensure: ensureDraft, adopt: adoptDraft } = stored;
   const setScenario = useCallback((next: Scenario) => apply(next, bare()), [apply, bare]);
-  const [rounds, setRounds] = useState<readonly RoundSummary[]>([]);
-  const noteRound = useCallback((round: RoundSummary) => setRounds((all) => [...all, round].slice(-ROUNDS_KEPT)), []);
+  // The studio keeps its rounds for the tab's session; `/play` only for the page.
+  const keeps = mode === "studio";
+  const [rounds, setRounds] = useState<readonly PlayedRound[]>(() => (keeps ? readRounds(puzzle.id) : []));
+  const noteRound = useCallback(
+    (round: RoundNote) =>
+      setRounds((all) => {
+        const next = keepRound(all, round);
+        if (keeps) writeRounds(puzzle.id, next);
+        return next;
+      }),
+    [keeps, puzzle.id],
+  );
   const setReport = useCallback((next: RoundReport) => {
     setReportState((prev) => (prev.seed === next.seed && prev.replayMismatch === next.replayMismatch ? prev : next));
   }, []);

@@ -1,23 +1,22 @@
 import { t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { puzzleStages, withoutNumbers } from "../frame/numbers.js";
-import { localSeed, type PracticePhase } from "../practice/usePractice.js";
+import { RoundList } from "./RoundList.jsx";
 import type { Preset } from "../scenario/presets.js";
 
 const presetName = (id: string): string =>
   id.startsWith("deck_") ? t("studio.preset.deck", { n: id.slice(5) }) : id.startsWith("board_") ? t("studio.preset.board", { n: id.slice(6) }) : t(`studio.preset.${id}`);
 
-const clock = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(Math.round(seconds) % 60).padStart(2, "0")}`;
-
 /**
- * The Play panel (DESIGN.md 3.14, ADR 0056): everything about the round on the board and nothing
- * about the puzzle's numbers. A starting point to play from, the seed, the round dealt again, the
- * shipped numbers held against the draft's on the same seed, and the last few rounds finished on
- * this page, so a change can be judged against the round before it.
+ * The Play panel (DESIGN.md 3.14, ADR 0056, ADR 0068): what the next round is dealt on, and the
+ * rounds finished on this page. A stage and a starting point to play from and the seed above; the
+ * rounds below, each with the numbers it was dealt on, so a change can be judged against the round
+ * before it or against one picked out. Dealing again and holding up the shipped numbers are on the
+ * transport bar under the board, where every mode reaches them.
  */
-export function PlayPanel({ phase, onStart }: { phase: PracticePhase; onStart(seed?: string): void }) {
+export function PlayPanel({ onStart }: { onStart(seed?: string): void }) {
   const frame = useFrame();
-  const { puzzle, scenario, setScenario, refusals, changes, report, rounds } = frame;
+  const { puzzle, scenario, setScenario, refusals, report } = frame;
   const seed = report.seed ?? scenario.seed;
   const pinned = scenario.seed !== null;
   const presets = puzzle.presets.filter((p: Preset) => Object.keys(p.overrides).length > 0 || p.roundSeconds !== undefined);
@@ -25,7 +24,6 @@ export function PlayPanel({ phase, onStart }: { phase: PracticePhase; onStart(se
     const p = presets.find((x) => x.id === id);
     if (p) setScenario({ ...withoutNumbers(scenario), overrides: p.overrides, roundSeconds: p.roundSeconds ?? null });
   };
-  const hold = (on: boolean) => (): void => frame.setComparing(on);
   const stages = puzzleStages(puzzle);
 
   return (
@@ -86,71 +84,7 @@ export function PlayPanel({ phase, onStart }: { phase: PracticePhase; onStart(se
         <p className="panel-note">{pinned ? t("studio.seed_pinned_note") : t("studio.seed_fresh_note")}</p>
       </section>
 
-      <section className="panel-sec">
-        <h3 className="panel-cap">{t("studio.round")}</h3>
-        <div className="tune-actions">
-          <button type="button" className="btn btn-mini btn-brass" disabled={!seed || refusals.length > 0} onClick={() => onStart(seed ?? undefined)} data-testid="seed-replay">
-            {t("studio.seed_replay")}
-          </button>
-          <button
-            type="button"
-            className="btn btn-mini"
-            disabled={refusals.length > 0}
-            onClick={() => {
-              const next = localSeed();
-              if (pinned) setScenario({ ...scenario, seed: next });
-              onStart(next);
-            }}
-            data-testid="seed-new"
-          >
-            {t("studio.seed_new")}
-          </button>
-        </div>
-      </section>
-
-      <section className="panel-sec">
-        <h3 className="panel-cap">{t("studio.compare_title")}</h3>
-        <div className="tune-actions">
-          <button
-            type="button"
-            className={`btn btn-mini ${frame.comparing ? "is-held" : ""}`}
-            disabled={changes.length === 0 || phase === "idle"}
-            onPointerDown={hold(true)}
-            onPointerUp={hold(false)}
-            onPointerLeave={hold(false)}
-            onPointerCancel={hold(false)}
-            onKeyDown={(e) => (e.key === " " || e.key === "Enter") && !e.repeat && frame.setComparing(true)}
-            onKeyUp={hold(false)}
-            onBlur={hold(false)}
-            aria-pressed={frame.comparing}
-            data-testid="compare"
-          >
-            {t("studio.compare")}
-          </button>
-        </div>
-        <p className="panel-note">{t("studio.compare_hint")}</p>
-      </section>
-
-      <section className="panel-sec" data-testid="last-rounds">
-        <h3 className="panel-cap">{t("studio.rounds")}</h3>
-        {rounds.length === 0 ? (
-          <p className="panel-note">{t("studio.rounds_none")}</p>
-        ) : (
-          <ol className="rounds">
-            {[...rounds].reverse().map((r, i) => (
-              <li key={rounds.length - i} data-testid="last-round" data-tuned={r.tuned ? "1" : "0"}>
-                <code className="mono rounds-seed" title={r.seed}>
-                  {r.seed}
-                </code>
-                <span className="muted">{r.tuned ? t("studio.rounds_draft") : t("studio.rounds_shipped")}</span>
-                <span className="muted mono">{clock(r.seconds)}</span>
-                <span className="muted">{r.tier ? t(`tier.${r.tier}`) : ""}</span>
-                <b className="mono">{r.score}</b>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+      <RoundList onStart={onStart} ready={refusals.length === 0} />
     </div>
   );
 }
