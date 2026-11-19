@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { racksCrateFits, racksCrateWouldShip, racksNextShipment, summarizeRacks, type RacksConfig, type RacksMove, type RacksState } from "@openseas/engine";
+import { racksCrateFits, racksCrateWouldShip, racksManifestView, racksNextShipment, summarizeRacks, type RacksConfig, type RacksMove, type RacksState } from "@openseas/engine";
 import { content, RACKS_KINDS, RacksBoard, RacksCellIcon, RacksCrateIcon, t } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
@@ -27,6 +27,7 @@ export function RacksPractice() {
 
   const fits = racksCrateFits(shown);
   const next = racksNextShipment(shown);
+  const manifest = racksManifestView(shown);
   const moves = shown.crate.lands;
   const kinds = RACKS_KINDS.slice(0, cfg.kinds);
 
@@ -51,6 +52,7 @@ export function RacksPractice() {
       howTo={
         <>
           <p className="how">{t("racks.chain_note")}</p>
+          {manifest && <p className="how">{t("racks.manifest_note")}</p>}
           <p className="how how-kbd">{t("racks.hint_note")}</p>
         </>
       }
@@ -68,6 +70,17 @@ export function RacksPractice() {
               {shown.combo > 0 ? t("racks.chain_value", { count: next.chain, points: next.points }) : t("racks.chain_none")}
             </span>
           </div>
+          {manifest && (
+            <div className="stat stat-wide">
+              <span className="stat-label">{t("racks.manifest_stat")}</span>
+              <span className="stat-value" data-testid="hud-manifest" data-manifest={`${manifest.kinds.join("")}:${manifest.done}`}>
+                {manifest.kinds.map((k, i) => (
+                  <RacksCellIcon key={i} kind={k} size={18} />
+                ))}{" "}
+                {t("racks.manifest_value", { done: manifest.done, length: manifest.kinds.length, points: manifest.points })}
+              </span>
+            </div>
+          )}
           <div className="stat">
             <span className="stat-label">{t("racks.shipped_stat")}</span>
             <span className="stat-value" data-testid="hud-shipped">
@@ -86,6 +99,12 @@ export function RacksPractice() {
             <dt>{t("racks.result_chain")}</dt>
             <dd>{state.bestCombo}</dd>
           </div>
+          {state.manifest.length > 0 && (
+            <div>
+              <dt>{t("racks.result_manifests")}</dt>
+              <dd>{state.manifestsFilled}</dd>
+            </div>
+          )}
           <div>
             <dt>{t("racks.result_by_crate")}</dt>
             <dd>{state.shippedByCrate}</dd>
@@ -122,6 +141,7 @@ export function RacksPractice() {
           </ul>
           <p className="muted small proto-note">{t("racks.legend_ghost")}</p>
           <p className="muted small proto-note">{t("racks.chain_note")}</p>
+          {manifest && <p className="muted small proto-note">{t("racks.legend_manifest")}</p>}
         </>
       }
       board={(interactive) => (
