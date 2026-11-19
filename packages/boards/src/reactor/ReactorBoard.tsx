@@ -40,6 +40,9 @@ export function ReactorBoard(props: ReactorBoardProps) {
             hotRod: t("reactor.hot_rod"),
             critical: (penalty) => t("reactor.scram_critical", { penalty }),
             jammed: (penalty) => t("reactor.scram_jammed", { penalty }),
+            overpressure: (penalty) => t("reactor.scram_pressure", { penalty }),
+            pressure: t("reactor.pressure"),
+            pressureWarn: t("reactor.pressure_warn"),
           },
         },
       ),
@@ -50,7 +53,8 @@ export function ReactorBoard(props: ReactorBoardProps) {
     renderer.current?.setHints(props.hints);
   }, [props.hints, renderer]);
 
-  // The legal swipes ride along for the smoke test: which ways the core will take right now.
+  // The legal swipes ride along for the smoke test: which ways the core will take right now. So do
+  // the pressure gauge's reading and the cause of a scram on the last swipe.
   return (
     <div
       ref={host}
@@ -58,6 +62,8 @@ export function ReactorBoard(props: ReactorBoardProps) {
       data-testid="reactor-board"
       data-board={reactorViewString(props.state.cells, props.state.ports)}
       data-legal={reactorLegalDirs(props.state).join("")}
+      data-pressure={props.state.config.pressureLimit > 0 ? `${props.state.pressure}:${props.state.config.pressureLimit}` : ""}
+      data-scram={props.state.lastMove?.scram?.cause ?? ""}
     />
   );
 }
