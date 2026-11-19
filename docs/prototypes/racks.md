@@ -1,6 +1,7 @@
 # Racks
 
-Status: built. Prototype (ADR 0036), in the studio at `/racks`. Untimed moves; a 120 second round.
+Status: built, and deepened in M11 with the manifest and a ladder of four stages (ADR 0066).
+Prototype (ADR 0036), in the studio at `/racks`. Untimed moves; a 120 second round.
 
 ## The puzzle
 
@@ -28,13 +29,24 @@ crate that lands to complete its rack ships it, and that counts in the chain lik
 shipment. So a rack one crate short of full, with that crate hanging over it, is a shipment waiting
 for a call, and a call can be a link in a chain.
 
+Under the row hangs a **manifest**: two different kinds in an order (`manifestLength`), say a cone
+then a tank. A chain that ships a rack of the first and then, on the very next action, a rack of
+the second fills it, and it pays 300 on top of the second shipment (`manifestPoints`); a new one is
+drawn at once. A shipment of any other kind, or an action that ships nothing, starts it again from
+its first kind (a shipment of the first kind counts as its first step). A crate that lands to
+complete its rack counts like any other shipment, so a call can be the second step. It is filled
+inside one chain, so `chainWindow` decides what "the very next action" means. Off:
+`manifestLength: 0`, which draws nothing from the random stream, so a seed deals what it dealt
+before there was a manifest.
+
 About half the crates hold one kind: each cell after the first repeats the one under it half the
 time (`crateMixPercent`), and is drawn from a shuffled bag otherwise. The opening is one whole bag,
 three cells of each kind, spread over the racks.
 
 ## Luck and skill
 
-- **Luck:** what is in the next crate and which rack it is marked for.
+- **Luck:** what is in the next crate, which rack it is marked for, and which kinds the next
+  manifest names. The manifest on show is always seen in full; only the one after it is unknown.
 - **First skill:** sorting. Like onto like, whole groups, the shorter stack onto the taller.
 - **Second skill:** reading the mark. Will the crate fit? If not, there are four moves to make room.
   If it fits, is the rack under it the one that wants those cells, and can it be made so?
@@ -43,6 +55,37 @@ three cells of each kind, spread over the racks.
 - **Fourth skill:** the chain. Two racks each one move from full are worth 300 shipped back to back
   and 200 shipped apart, so the order of moves matters, and so does holding a finished rack for one
   more move while the mark and the count allow it.
+- **Fifth skill:** the manifest, a chain with a named order. Build a rack of each of its kinds one
+  move from full, keep the crate's mark off them, and ship them in its order back to back while
+  the count runs. It makes holding pay, which the old open question asked for: the planner that
+  plays for it has a chain of three or more in 18 rounds of 32, against 8 for the same planner
+  blind to it. Knowing when not to chase it is the same skill: a planner that counts every other
+  shipment as nothing ships 9.3 racks a round instead of 12.6, has 0.94 smashed instead of 0.53,
+  and scores less. So is calling the moment the crate fits, the eager caller, the puzzle's older
+  bait.
+
+The compound move is the manifest's chain: two racks of the named kinds, each one move from full,
+shipped in its order on consecutive actions, ideally with a cream trolley as a third link.
+
+## The ladder
+
+A new player climbs four stages (ADR 0066), each passed with one Steady round. Only the whole
+puzzle counts. Every stage is the whole puzzle with layers switched off in `stages` in the content
+file; the names and one-line cards are `racks.stage.<id>` and `_intro`.
+
+| Stage | Round | What is on | Switched off |
+|---|---|---|---|
+| Sorting (`sort`) | 60s | Sorting, the crate on a rack with room, the call | The deadline (`markRoom: true`), the chain (`chainPercent: [100]`), the manifest (`manifestLength: 0`) |
+| The mark (`mark`) | 90s | The deadline: any rack may be marked, so smashes happen | The chain, the manifest |
+| Chains (`chain`) | 120s | The chain, the crate as a link | The manifest |
+| Full racks (`full`) | 120s | The manifest | |
+
+The `chain` stage is the puzzle as it was before M11, so it keeps the old thresholds, which were set
+on exactly those rules. The other two are those thresholds scaled by what the hint's rules score at
+each stage in its time, against what they score on `chain` (sort 48 percent, mark 69), and rounded.
+The hint's rules are the yardstick because they play no chain, so a stage without one does not
+shrink their score for a reason the player cannot see. They are first guesses from bots and want
+setting by hand in the studio.
 
 ## Input and feedback
 
@@ -52,7 +95,9 @@ three cells of each kind, spread over the racks.
   down, escape puts the group back. C calls the crate.
 - Unrated and lab rounds mark an action worth taking after six seconds idle (`racksHint`): a
   shipment, room under a crate that will not fit, a tidying move, or the call. The mark is a cream
-  ring round the group to lift and a cream dot where it goes, or a cream ring round the crate.
+  ring round the group to lift and a cream dot where it goes, or a cream ring round the crate. The
+  hint is blind to the manifest: it teaches the tidy game, and the manifest is the player's to find
+  (its rules fill 0.03 manifests a round).
 
 The board is restyled to the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws its pieces
 in code (`boards/src/racks/pieces.ts`), loads no atlas and has no marks setting.
@@ -85,6 +130,18 @@ in code (`boards/src/racks/pieces.ts`), loads no atlas and has no marks setting.
   ships its rack.
 - **A smash** is the rack's cells shrinking away as the crate lands, the word and the points lost
   in danger, and a danger ring round the rack for a moment.
+- **The manifest** is a row under the rack numbers: the word, its kinds as their own pieces a little
+  smaller than racked ones, left to right with a dim chevron between them, and what it pays in
+  cream mono. The kind it wants next has a cream ring round it; a kind the running chain has
+  shipped is drawn in `dim`. Each kind is its own silhouette, so the row reads without colour like
+  the racks. While a chain is part way through it, the strip names the kind it wants on this very
+  action and what filling it pays (`racksManifestView`). A rack the lifted group would complete,
+  where that shipment would fill the manifest, shows both prices, the shipment's and the
+  manifest's (`racksManifestAfter`).
+- **A filled manifest** is called out ("Manifest filled", in place of the chain's callout), its
+  points rise from the row in cream, and it plays the rising cue (`rise`, the one Salvage's order
+  plays). The filled row shows whole for a moment, then the new one is posted. When the filling
+  shipment is the third of a chain the beat plays instead, and no cue over it.
 - **The beat**, one amber pulse of the whole board, is kept for one thing: the third shipment of a
   chain, and each one after it a little stronger. There is no shake, no flash and no glow.
 
@@ -92,10 +149,14 @@ in code (`boards/src/racks/pieces.ts`), loads no atlas and has no marks setting.
 
 `packages/engine/src/racks/`. Moves: `{ type: "move", from, to }`, `{ type: "call" }` and
 `{ type: "end" }`. A move's report is a list of events in order, for the board to play: `move` (the
-cells carried), `ship` (the rack, its place in the chain, its points, whether a crate did it),
-`spill` (the cells dumped and the penalty), `land` (the crate's cells, whether it was called) and
-`deal` (the next crate and its rack). A move's own shipment comes before the crate lands, so
-shipping the marked rack on the last move lets the crate land in an empty rack.
+cells carried), `ship` (the rack, its place in the chain, its points, whether a crate did it, and how far through
+the manifest the chain is after it), `manifest` (straight after the shipment that filled it: its
+kinds, its points and the one drawn in its place), `spill` (the cells dumped and the penalty),
+`land` (the crate's cells, whether it was called) and `deal` (the next crate and its rack). A
+move's own shipment comes before the crate lands, so shipping the marked rack on the last move lets
+the crate land in an empty rack. The manifest is drawn after the opening and the first crate, so
+turning it on changes nothing dealt before it; with it off nothing is drawn and the state hashes as
+it did before the layer, which a test pins.
 
 ## Tuning notes
 
@@ -156,6 +217,62 @@ What the other numbers showed:
   all it scored 1,273 against 1,667 (measured with fully mixed crates): the lost cells and the
   broken chain are a cost of their own. The 50 is there to be felt, not to balance anything.
 
+### M11: the manifest and the ladder
+
+Set from the bot runner (`packages/bots`, ADR 0067; `pnpm --filter @openseas/bots ladder racks`),
+32 seeds a cell (`ladder-0` to `ladder-31`), a person's pace modelled as 70 actions in 120 s. Each
+cell is the mean score and the tier it reads as against that stage's thresholds. The bots are the
+notes' bots above, rebuilt in the runner, with three more: the planner blind to the manifest (its
+points are worth nothing to it), and two baits.
+
+| Bot | Sort (60 s) | Mark (90 s) | Chain (120 s) | Full (120 s) |
+|---|---|---|---|---|
+| careless | 8 Green | 23 Green | 5 Green | 31 Green |
+| one move | 553 Steady | 763 Steady | 1,258 Sharp | 1,373 Sharp |
+| rollout | 584 Sharp | 798 Steady | 1,400 Sharp | 1,692 Sharp |
+| blind sorter | 552 Steady | 559 Steady | 788 Steady | 748 Steady |
+| hint rules | 663 Sharp | 948 Sharp | 1,383 Sharp | 1,377 Sharp |
+| planner | 619 Sharp | 861 Sharp | 1,636 Sharp | 2,070 Sharp |
+| chain blind planner | 644 Sharp | 883 Sharp | 1,266 Sharp | 1,270 Sharp |
+| manifest blind planner | 625 Sharp | 823 Steady | 1,584 Sharp | 1,814 Sharp |
+| manifest chaser (the bait) | 364 Steady | 555 Steady | 1,294 Sharp | 1,783 Sharp |
+| eager caller (the bait) | 186 Green | 788 Steady | 1,406 Sharp | 1,492 Sharp |
+| *Steady from* | *300* | *400* | *600* | *600* |
+| *Sharp from* | *575* | *850* | *1,249* | *1,249* |
+| *Masterful from* | *1,000* | *1,449* | *2,099* | *2,099* |
+| *Legendary from* | *1,525* | *2,124* | *3,149* | *3,149* |
+
+The runner's checks all met: careless play lands a tier below the one-move bot on every stage, and
+on the whole puzzle the manifest chaser loses to the planner by 13.9 percent and the eager caller
+by 27.9. The chain blind planner counts shipments alone, so it is blind to the manifest too.
+
+- **The layer pays for skill.** On the whole puzzle the planner that plays the manifest scores
+  2,070 against 1,814 for the same planner blind to it, 14 percent; at 64 seeds (`ladder-0` to
+  `ladder-63`) it is 1,960 against 1,755, 12 percent. It fills 0.94 manifests a round to the blind
+  planner's 0.41. The hint's rules, which ignore it, gain nothing (1,383 off, 1,377 on), and fill
+  0.03.
+- **Rule 14: the manifest is 14 percent of a good score** (the planner's: 282 of 2,070). Rollout,
+  which sees it only through play, fills 0.84 and takes 15 percent of its score from it.
+- **The baits lose.** The manifest chaser (the planner, counting the manifest three times over and
+  every other shipment as nothing) scores 1,783 at 32 seeds, 14 percent under the planner, and
+  1,810 at 64, 8 percent under: it fills the most manifests (1.44 a round) but ships 9.3 racks to
+  12.6 and has 0.94 smashed to 0.53. The eager caller (calls the moment the crate fits) scores
+  1,492, 28 percent under, with 2.8 racks smashed a round. A milder lean toward the manifest than
+  the chaser's was about right in the pitch's runs, so the judgement is real.
+- **Two kinds in order, not one.** One kind (`manifestLength: 1`, +100) is the contracts trap,
+  measured in the pitch: the hint's rules gain 490 points without trying (1,383 to 1,875). Two
+  different kinds in order inside one chain is what makes it built rather than found. +300 is the
+  pick over +200 (planner 1,948, blind 1,773, a 10 percent gap).
+- **Stage thresholds** are first guesses from these bots (see The ladder). Careless play lands a
+  tier below the one-move bot on every stage. On `sort` and `mark` the hint's rules beat the
+  planner, which plays for a chain those stages do not pay; the eager caller is worst on `sort`
+  (186), where `markRoom` means a crate always fits and calling clogs the row.
+- **The whole puzzle's thresholds are the owner's and are not moved here.** With the manifest the
+  planner rose from 1,636 to 2,070, a hair under Masterful (2,100), where the notes put the
+  planner at 90 actions. If they are to keep naming the same play, the top three want raising by
+  about a sixth (about 1,750, 2,450 and 3,250); that is for the owner in the studio, with a
+  person's rounds.
+
 Thresholds are for a 120 second round. A move is two taps and a call one, so a new player makes
 about 45 actions, a steady one 70 and a quick one 90 to 110.
 
@@ -170,9 +287,17 @@ about 45 actions, a steady one 70 and a quick one 90 to 110.
 
 ## Open questions for play
 
-- The holding planner beats the plain planner by one percent. Bots hold badly, so this may be the
-  bots; if people also find that holding a full rack never pays, the chain wants a third step that
-  is worth the wait.
+- The holding planner beat the plain planner by one percent, and this list asked whether the chain
+  wanted something worth the wait. The manifest is the answer, measured: holding now pays. The planner that plays it chains three or more in 18 rounds of 32 (8 when blind to it)
+  and scores 14 percent more. Whether people find the hold, and not only bots, is the new question.
+- Can a person read two kinds in order on a phone, under the racks, while also watching the
+  trolley? If not, the manifest may want to sit over the rail, beside the strip.
+- At under one manifest a round for a good bot, does it feel like a plan or a treat? Three kinds,
+  or +400, are cheap to try (`manifestLength`, `manifestPoints` in the studio).
+- Should the hint learn the manifest? Today it is blind to it, so practice does not teach it; the
+  callout and the strip are its only lessons.
+- Are the stage thresholds right for hands? They are scaled from the hint's rules, which sort far
+  faster than a new player does.
 - Chains of three came up about once in three rounds for the best bot. Is that a treat or too rare
   to aim for?
 - Is a count of four right for hands, or does the last move before a landing come too fast to read?
