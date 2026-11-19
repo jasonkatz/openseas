@@ -22,7 +22,7 @@ Reactor); the closest ones were run at 64 or 128 seeds.
 | Overload | The draw, tuned down in its pull request: a narrower band and a lower multiplier until blind bots' free gain shrinks and the draw stays under half a good score (rule 14) | Second |
 | Reactor | Core pressure, its limit between 12 and 14 | Second |
 | Tug | Pairs, with the runner letting a puzzle name the plain bot the careless check compares against (a two-flick bot for Tug) | Second |
-| Scanner | Not yet: the lead is measured again with the opening ping further out (`openingMin`), to see whether the free share drops and the gap widens, and comes back to the owner | Once its retry is back |
+| Scanner | Dropped: the lead failed its second look (below). A new layer is to be pitched | Once a new pitch is picked |
 
 ## At a glance
 
@@ -282,6 +282,17 @@ guessing.
 only from 400; at 400 the lead is 43 percent of a good score, at 500 about half. A wider opening ring
 (`openingMin: 4`) may cut the free share and is untried. It adds no secret: the server still holds
 the contacts (rule 21), and a missed lead only goes unpaid (rule 8).
+
+**The second look, and the lead dropped** (64 seeds, the bots' pace). A wider opening ring made it
+worse: the opening tells the splitter more, so its free share of leads rose from 60 to 68 percent and
+the hunter fell behind it (−6 percent with the opening at least 4 out, −10 at 5), and the splitter
+gained 14 to 17 percent even with the lead off. A narrower ring (2 out, the lead at 250) was the only
+setting with a gap (+12 percent, the lead 38 percent of the hunter's score, the gambler 19 percent
+under), but it weakened the base puzzle and let guessing beat careful play (1,909 to 1,875 with the
+lead off); a wrong guess at 100 only brought them level. Paying the lead only within a few pings cut
+the free share and kept the gap at 2 to 4 percent. Every deal still needed no guess at every setting.
+The owner dropped the lead; Scanner gets a new pitch (carrying saved pings into the next sector's par
+is the untried idea).
 
 ---
 
