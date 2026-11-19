@@ -4,6 +4,6 @@ import type { TuningGroups } from "../groups.js";
 export const groups: TuningGroups = {
   board: ["size", "hotGrade", "ports", "criticalHot"],
   deal: ["startRods", "twoPermille"],
-  scoring: ["fusePoints", "dischargePoints", "salvoPercent", "pipelineSwipes", "pipelinePercent", "scramPenalty"],
+  scoring: ["fusePoints", "dischargePoints", "salvoPercent", "pipelineSwipes", "pipelinePercent", "pressureLimit", "scramPenalty"],
   limits: ["maxMoves"],
 };

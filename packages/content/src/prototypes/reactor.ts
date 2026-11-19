@@ -23,6 +23,8 @@ export const ReactorContentSchema = PrototypeBaseSchema.extend({
     pipelineSwipes: z.int().min(1),
     /** What the pipeline multiplies a discharge by, in percent; past the end, the last entry (the cap). */
     pipelinePercent: z.array(z.int().min(100)).min(1),
+    /** Core pressure the core scrams at: two or more hot rods held build it, one or none lets it off. 0 is off. */
+    pressureLimit: z.int().min(0),
     scramPenalty: z.int().min(0),
     maxMoves: z.int().min(1),
   }),
