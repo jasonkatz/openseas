@@ -10,6 +10,14 @@
  * is always deliverable and par is exact. Delivering at par is clean and builds a streak; clean
  * deliveries make the clamps harder, slow ones and skips make them easier.
  *
+ * Pairs (a layer, ADR 0066): with `clamps` at 2, two clamps are lit at once, each for a different
+ * pod. When one is delivered, the other is measured again from the bay the delivery leaves: its par
+ * becomes the fewest flicks from there, its flicks count from there, and it keeps the worth it lit
+ * at. A new clamp lights in the delivered one's place, never for the pod the other wants nor on its
+ * cell. So a delivery can bring the other clamp closer (the handoff): a clamp that lit at par four
+ * may then be a flick away and still pay as a par four. A skip gives up both, and two new ones
+ * light. At 1 the layer is off and the bay plays exactly as it did before there were pairs.
+ *
  * Cell index = row * width + col. Row 0 is the top row. Nothing here reads a clock: the round's
  * length is the page's and the server's business.
  */
@@ -42,6 +50,12 @@ export interface TugConfig {
   readonly skipPenalty: number;
   /** Longest log of flicks and skips the server accepts. */
   readonly maxMoves: number;
+  /**
+   * Clamps lit at once, each for a different pod. 1 is off. With 2 (pairs), a delivery measures the
+   * other clamp's par again from the bay it leaves, the other keeps the worth it lit at, and a skip
+   * gives up both.
+   */
+  readonly clamps: number;
 }
 
 export const DEFAULT_TUG_CONFIG: TugConfig = {
@@ -59,6 +73,7 @@ export const DEFAULT_TUG_CONFIG: TugConfig = {
   streakPercent: [100, 115, 130, 145, 160, 180, 200],
   skipPenalty: 15,
   maxMoves: 600,
+  clamps: 2,
 };
 
 /** The directions a pod can be flicked: 0 up, 1 right, 2 down, 3 left. */
@@ -75,8 +90,13 @@ export interface TugClamp {
   /** The pod it wants. */
   readonly pod: number;
   readonly cell: number;
-  /** The fewest flicks that could deliver it when it lit. */
+  /**
+   * The fewest flicks that could deliver it when it lit, or, with pairs, since the other clamp was
+   * last delivered: the par its delivery is graded against.
+   */
   readonly par: number;
+  /** The par it lit at, which sets what it pays (`parPoints`). Always its par with one clamp. */
+  readonly worth: number;
 }
 
 /** How a delivery measured up to par: at it, within the slack, or slower. */
@@ -88,9 +108,10 @@ export type TugStop = "wall" | "block" | "pod";
 export interface TugDelivery {
   readonly pod: number;
   readonly cell: number;
-  /** Flicks it took since the clamp lit, and the clamp's par. */
+  /** Flicks it took since the clamp lit (or was last measured), the par it was graded against, and the worth it paid at. */
   readonly flicks: number;
   readonly par: number;
+  readonly worth: number;
   readonly grade: TugGrade;
   /** The streak this delivery was scored at (0 unless clean), and what it multiplied by, in percent. */
   readonly streak: number;
@@ -103,10 +124,20 @@ export interface TugMoveReport {
   /** The slide a flick made: which pod, from where to where, and what stopped it. Null for a skip. */
   readonly slide: { readonly pod: number; readonly from: number; readonly to: number; readonly stop: TugStop } | null;
   readonly delivered: TugDelivery | null;
-  /** A skip: the clamp given up and what it cost (less than the penalty when the score had less to lose). */
-  readonly skipped: { readonly clamp: TugClamp; readonly penalty: number } | null;
+  /**
+   * A skip: the clamp given up (with pairs, the second one too) and what it cost (less than the
+   * penalty when the score had less to lose).
+   */
+  readonly skipped: { readonly clamp: TugClamp; readonly clamp2: TugClamp | null; readonly penalty: number } | null;
   /** The clamp lit by this move, after a delivery or a skip. Null when the same clamp stays lit. */
   readonly clamp: TugClamp | null;
+  /** With pairs, the second clamp a skip lit. Null otherwise. */
+  readonly clamp2: TugClamp | null;
+  /**
+   * With pairs, the clamp a delivery left lit, measured again from the bay it left: its new par and
+   * the worth it keeps. A handoff when its par came down. Null otherwise.
+   */
+  readonly kept: TugClamp | null;
   /** What the move scored: a delivery's points, or a skip's penalty as a negative number. */
   readonly points: number;
 }
@@ -117,8 +148,11 @@ export interface TugState {
   readonly blocks: readonly number[];
   /** Each pod's cell: entry n is pod n. */
   readonly pods: readonly number[];
+  /** The lit clamp; with pairs, the one that has been lit longer. */
   readonly clamp: TugClamp;
-  /** Flicks made since the clamp lit. */
+  /** With pairs, the other lit clamp, for another pod on another cell; null with one clamp. */
+  readonly clamp2: TugClamp | null;
+  /** Flicks made since the clamp lit: with pairs, since either clamp was last delivered or skipped. */
   readonly flicks: number;
   /** Rises with clean deliveries and falls with slow ones and skips; sets the next clamp's par. */
   readonly level: number;
