@@ -792,7 +792,7 @@ studio does; where each thing sits does, and where this section's account of the
 tuning panel" or "the side panel", **Layout and modes** below says where that now is. The one
 thing added is that the Play panel lists the last rounds finished on the page.
 
-**The board plays from every mode, and a panel can open wide** (ADR 0067), built. A transport
+**The board plays from every mode, and a panel can open wide** (ADR 0068), built. A transport
 bar under the board plays the round without turning the rail back to Play; any other mode can
 open its panel over the middle while the board, still live, moves above the chat; and the Play
 panel's last rounds keep the numbers each was dealt on. Richer wide panels (the numbers in two
@@ -821,7 +821,7 @@ studio, only play.
 live thumbnail and a mark for an open draft or pull request. Each puzzle keeps its path
 (`/cooling`, `/salvage`), and the old query string (`seed`, `c.<path>`) still opens a tuned round.
 
-**Layout and modes** (ADR 0056, ADR 0067).
+**Layout and modes** (ADR 0056, ADR 0068).
 
 - A bar across the top. On its left, where the page is: the way back to the grid, the puzzle's
   name, which opens a menu of every puzzle, and a count of what the draft changes. The count opens
@@ -1015,6 +1015,7 @@ pnpm monorepo. Packages:
 | `studio` | The puzzle studio (sections 3.11 and 3.14), once the harness: a page a puzzle with the shared board and the tuning panel built from content and the wire schema; each puzzle alone at `/play/<puzzle>` on the numbers its link carries; every round local and replayed from its seed; and the voyage bench for the ship and crew | A developer and tester tool; never linked from the game; renders, never authoritative |
 
 | `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers and words: a clone on a volume, a worktree a draft, and a draft pull request from a GitHub App (ADR 0046); and the chat: the Claude Agent SDK on the draft's worktree, as a unix user of its own, behind the service's own proxy to the model (ADR 0047), in as many chats as the owner starts, kept past their draft (ADR 0060). All in a Postgres schema of its own | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
+| `bots` | The bot runner (ADR 0067): careless, one-move and rollout bots and each prototype's own, played against the real engines through one file a puzzle, and the ladder table they print from `content` | A tool: nothing deployed, nothing imports it. Plays only through `reduce`; its logs replay on the server's engine |
 | `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the studio, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
 In M9 the harness became the studio (3.14, ADR 0042): `harness` was renamed `studio` (the deploy pipeline, the
@@ -1095,7 +1096,7 @@ still proven there first, with its tester session, and only then embedded in the
 | M8 | Prototype puzzles (3.12, ADR 0036): eight new puzzles of the game's own, each a whole engine playable on the harness, in the owner's sprites (ADR 0037). Done when the owner has played all eight and chosen which, if any, go on |
 | M9 | The puzzle studio (3.14, ADR 0042), in three steps, each usable alone. **The shell:** the harness renamed and redrawn, the tuning panel, seed control, the validity and replay guards, tester links on a first studio service, the smoke driving every board through its studio page and `/play`, the guides' capture repointed, the bench tools removed. **Chat and Save** (built): drafts kept by the service, the agent on a worktree, the model picker, per-turn revert, reset, and Save as a draft pull request from a GitHub App that a developer finishes (ADR 0045 to 0047, ADR 0049). The live build of the worktree is not built. **Assets** (built), in four parts: the sprite and sound panels and the swap on a running board (built, ADR 0050); takes kept in a Railway bucket and listed in their rows, with new takes through the chat (built, ADR 0051); picks kept in drafts, frozen in tester links and loaded by `/play` (built, ADR 0052); then Save placing picks (built, ADR 0053), each frame a file of its own and the atlases packed by the build (built, ADR 0054) |
 | M10 | The lo-fi minimalist look (3.10, ADR 0061, ADR 0062, `BRAND.md`), in six steps. **The brand book:** `BRAND.md`, its specimen and the two ADRs, with no game code changed; done when the owner has picked the palette. **The proof:** the token module in `boards` and its hex test, the game's chrome and Cooling, with its guide recaptured and the marks setting gone from it; done when the owner has played it. **The boards:** the other six in the game, one pull request each, each deleting its frames and recapturing its guide. **The world:** recoloured and quietened. **The prototypes:** the eight, then the sprite tooling removed. **Sound:** the synthesized cues retuned and the sample pipeline removed |
-| M11 | Deep prototypes on a ladder (3.12, ADR 0066). Each of the eight prototypes is deepened until mastery takes real skill (each new layer on the one verb, shown by bots to pay for skill, with a bait that loses) and is then learned on a ladder of two to four stages in its content file. **The pilot:** Salvage, with orders and volatiles and four stages, and the ladder in content and the studio (pull request #129). **The bots:** a bot runner in the repository that plays one-move and rollout bots against any engine and prints the ladder table, so every puzzle's numbers can be run again. **The pitches:** one or two candidate layers, the bait and the stages for each of the other seven, picked by the owner in one sitting. **The puzzles:** one pull request each, in the order the owner picks, its design file, guide and pictures in step. Done when the owner has played every ladder and its thresholds are set by hand |
+| M11 | Deep prototypes on a ladder (3.12, ADR 0066). Each of the eight prototypes is deepened until mastery takes real skill (each new layer on the one verb, shown by bots to pay for skill, with a bait that loses) and is then learned on a ladder of two to four stages in its content file. **The pilot:** Salvage, with orders and volatiles and four stages, and the ladder in content and the studio (pull request #129). **The bots** (built, ADR 0067): a bot runner in the repository that plays one-move and rollout bots against any engine and prints the ladder table, so every puzzle's numbers can be run again. **The pitches** (picked, `docs/prototypes/m11-pitches.md`): one or two candidate layers, the bait and the stages for each of the other seven, picked by the owner in one sitting. **The puzzles:** one pull request each, in the order the owner picks, its design file, guide and pictures in step. Done when the owner has played every ladder and its thresholds are set by hand |
 
 Every milestone ends with a tester session and a written retro before the next starts.
 
@@ -1229,6 +1230,20 @@ so two or three can be built side by side once their pitches are picked, and mer
 another. The order is the owner's once the pitches are in; Overload and Racks, whose scoring has the
 most room for a layer, are the likely first. The ladder's thresholds are set from bots and are
 guesses: the milestone's tester session plays all eight ladders and sets them by hand.
+
+M11's pitches as picked (`docs/prototypes/m11-pitches.md`): Cutting's order, Racks' manifest and
+Deflectors' locks are built first, side by side; then Overload's draw (tuned down until it is no
+longer half a free gain), Reactor's core pressure and Tug's pairs (with the runner letting a puzzle
+name its plain bot). Scanner's lead failed a second look and was dropped; its new pitch, the mark,
+was picked and is built with the second wave.
+
+M11's bots as built (ADR 0067): `packages/bots`, run as `pnpm --filter @openseas/bots ladder
+<puzzle|all>`. Each prototype teaches the runner its choices, its pace and its end in one file,
+`bots/src/games/<id>.ts`, and brings the bots its tuning notes were set with and its baits. Every
+puzzle gets a careless bot, a one-move bot and a rollout bot; Scanner, whose contacts are hidden,
+gets only bots that read the board. The table runs every bot on every stage from the content file
+and checks that careless play lands a tier below plain play and that each bait loses. The tests
+replay every bot's log as the server would.
 
 ### 5.3 Testing and quality
 

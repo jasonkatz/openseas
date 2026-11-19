@@ -10,7 +10,7 @@ const note = (score: number, overrides: Record<string, unknown> = {}): RoundNote
 
 const played = (...scores: number[]): PlayedRound[] => scores.reduce<PlayedRound[]>((all, s) => keepRound(all, note(s)), []);
 
-describe("the rounds a studio page keeps (ADR 0067)", () => {
+describe("the rounds a studio page keeps (ADR 0068)", () => {
   it("keeps the last twenty with ids that count up, and tells the agent only the last five summaries", () => {
     const all = played(...Array.from({ length: 30 }, (_, i) => i));
     expect(all).toHaveLength(ROUNDS_KEPT);

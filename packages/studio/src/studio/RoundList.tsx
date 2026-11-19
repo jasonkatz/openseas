@@ -28,7 +28,7 @@ function writeBaseline(puzzle: string, id: number | null): void {
 }
 
 /**
- * The rounds finished on this page, newest first (DESIGN.md 3.14, ADR 0067): the main thing in the
+ * The rounds finished on this page, newest first (DESIGN.md 3.14, ADR 0068): the main thing in the
  * Play panel. Each says how it went, how its score stands against the round before or against the
  * one picked as the baseline, and which numbers it was dealt on; it can be played again on its
  * seed, and its numbers laid back over the draft once the owner says so.

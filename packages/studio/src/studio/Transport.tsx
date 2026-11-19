@@ -14,7 +14,7 @@ export function typing(target: EventTarget | null): boolean {
 
 /**
  * Run `fn` on Alt and a key, wherever focus is but a field. The boards take plain letters and the
- * space bar for play (ADR 0067), so the studio's own keys all carry Alt, and are caught before a
+ * space bar for play (ADR 0068), so the studio's own keys all carry Alt, and are caught before a
  * board hears them. Matched on the key's place (`KeyP`), which Alt does not change on any layout.
  */
 export function useAltKey(code: string, fn: () => void): void {
@@ -35,7 +35,7 @@ export function useAltKey(code: string, fn: () => void): void {
 const speedLabel = (s: number): string => (s === 0.5 ? "½×" : `${s}×`);
 
 /**
- * The transport bar under the board (DESIGN.md 3.14, ADR 0067): the round played from any mode,
+ * The transport bar under the board (DESIGN.md 3.14, ADR 0068): the round played from any mode,
  * so a number can be tried without turning the rail back to Play. Start or go on, pause, step a
  * held round on, deal the same seed again, deal a fresh one, hold up the shipped numbers, and the
  * clock's speed. It drives the round's clock and the frame's own start, and nothing else: no move

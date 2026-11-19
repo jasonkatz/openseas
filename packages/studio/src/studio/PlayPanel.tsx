@@ -8,7 +8,7 @@ const presetName = (id: string): string =>
   id.startsWith("deck_") ? t("studio.preset.deck", { n: id.slice(5) }) : id.startsWith("board_") ? t("studio.preset.board", { n: id.slice(6) }) : t(`studio.preset.${id}`);
 
 /**
- * The Play panel (DESIGN.md 3.14, ADR 0056, ADR 0067): what the next round is dealt on, and the
+ * The Play panel (DESIGN.md 3.14, ADR 0056, ADR 0068): what the next round is dealt on, and the
  * rounds finished on this page. A stage and a starting point to play from and the seed above; the
  * rounds below, each with the numbers it was dealt on, so a change can be judged against the round
  * before it or against one picked out. Dealing again and holding up the shipped numbers are on the

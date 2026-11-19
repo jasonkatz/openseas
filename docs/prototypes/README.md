@@ -17,6 +17,8 @@ generated sprites they first shipped with (ADR 0037) and the tooling that made t
 | Racks | Move the top of one stack onto another; ship a full rack of one kind | `/racks` | [racks.md](./racks.md) |
 | Cutting | Slice a slab along its grid; bank the pieces that hold one ore | `/cutting` | [cutting.md](./cutting.md) |
 
+M11's pitches (a layer, a bait and stages for each puzzle but Salvage, with their bot checks) are in [m11-pitches.md](./m11-pitches.md), for the owner to pick from.
+
 Each design file says what the puzzle is, how it scores, what is luck and what is skill, and what was
 tuned and why. Keep it true: when a number or a rule changes, its design file changes in the same
 commit.
@@ -45,11 +47,12 @@ example for every one of them; for how a board looks, `Overload` and `Tug` are.
 | `packages/studio/src/scenario/prototypes/<id>.ts` | Starting points for a draft (the old lab presets). Pure: no boards import. |
 | `packages/studio/src/tuning/groups/<id>.ts` | Which section of the tuning panel each config key is tuned in. Every key also carries one line of `.describe()` on its wire schema. |
 | `packages/studio/e2e/<id>.spec.ts` | The smoke: reach the page from home, play by key and by pointer, the canvas matches the engine. |
+| `packages/bots/src/games/<id>.ts` | How the bots play it (ADR 0067): its choices, a person's pace, its end, the bots its tuning notes were set with and its baits. `pnpm --filter @openseas/bots ladder <id>` prints its ladder table. |
 | `docs/prototypes/<id>.md` | The design. |
 
 The lines that register a prototype are in `engine/src/registry.ts` and `engine/src/index.ts`,
 `protocol/src/{common,puzzles,ws,index}.ts`, `content/src/prototypes/index.ts`,
-`boards/src/index.ts`, and `studio/src/{App.tsx,puzzles.ts,home/Home.tsx,scenario/presets.ts,tuning/groups/index.ts}`.
+`boards/src/index.ts`, `bots/src/games/index.ts`, and `studio/src/{App.tsx,puzzles.ts,home/Home.tsx,scenario/presets.ts,tuning/groups/index.ts}`.
 
 ## Rules every prototype keeps
 

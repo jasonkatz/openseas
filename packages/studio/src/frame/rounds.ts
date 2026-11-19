@@ -3,7 +3,7 @@ import type { Scenario } from "../scenario/codec.js";
 import type { Change } from "./numbers.js";
 
 /**
- * The rounds finished on a puzzle's studio page (DESIGN.md 3.14, ADR 0067): what the Play panel
+ * The rounds finished on a puzzle's studio page (DESIGN.md 3.14, ADR 0068): what the Play panel
  * lists, each with the numbers it was dealt on. They stay in this browser for the session and go
  * nowhere else, except the last few summaries a message to the agent carries (ADR 0042 decision 5).
  */

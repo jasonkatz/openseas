@@ -18,7 +18,7 @@ export interface StudioRound {
 /**
  * A round's clock, reachable from a script and from nowhere on screen. The guides' capture holds
  * a round still and steps it a tick at a time so each frame lands where it is planned (ADR 0038).
- * The studio's transport bar drives the same clock (ADR 0067, studio/roundClock).
+ * The studio's transport bar drives the same clock (ADR 0068, studio/roundClock).
  */
 export interface RoundClockHandle {
   pause(): void;
@@ -188,7 +188,7 @@ export function useStudio<S, M, C>(puzzle: StudioPuzzle<S, M, C>, api: PracticeA
       },
     };
     window.openseasRoundClock = handle;
-    // And for the transport bar under the board (ADR 0067).
+    // And for the transport bar under the board (ADR 0068).
     publishRoundClock(clock, tickMs);
     return () => {
       if (window.openseasRoundClock === handle) delete window.openseasRoundClock;

@@ -10,7 +10,7 @@ interface Boxes {
 }
 
 /**
- * Opens and shuts the wide panel as one motion (ADR 0067). The grid snaps to its new layout at
+ * Opens and shuts the wide panel as one motion (ADR 0068). The grid snaps to its new layout at
  * once; each region then starts drawn where it was and eases into its new place, so nothing jumps.
  * The board, with the bar under it, flies and scales between the middle and the top of the right
  * column; the chat slides between that column's top and its lower half; the panel's edge sweeps

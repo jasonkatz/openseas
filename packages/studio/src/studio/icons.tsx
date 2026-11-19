@@ -48,7 +48,7 @@ export function Caret() {
   );
 }
 
-/** The transport bar's marks (ADR 0067), and the panel's expand and collapse. */
+/** The transport bar's marks (ADR 0068), and the panel's expand and collapse. */
 export type ToolIcon = "play" | "pause" | "restart" | "deal" | "compare" | "step" | "expand" | "collapse";
 const TOOLS: Readonly<Record<ToolIcon, ReactNode>> = {
   play: <path d="M7 4.5v15l12-7.5z" fill="currentColor" />,

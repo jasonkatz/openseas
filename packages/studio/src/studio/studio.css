@@ -1671,7 +1671,7 @@
   width: 260px;
 }
 
-/* ---- the editors (ADR 0065): Sprites and Sounds, in a panel as wide as every other until it is opened wide (ADR 0067) */
+/* ---- the editors (ADR 0065): Sprites and Sounds, in a panel as wide as every other until it is opened wide (ADR 0068) */
 .sprite-head {
   display: flex;
   align-items: center;
@@ -1936,7 +1936,7 @@
   inset: 0;
 }
 
-/* ---- the transport bar (ADR 0067): under the board in every mode */
+/* ---- the transport bar (ADR 0068): under the board in every mode */
 .transport {
   flex: none;
   display: flex;
@@ -2049,7 +2049,7 @@
   font-weight: 500;
 }
 
-/* ---- the panel opened wide (ADR 0067): it takes the middle, the board the top of the right column, the chat its bottom */
+/* ---- the panel opened wide (ADR 0068): it takes the middle, the board the top of the right column, the chat its bottom */
 .panel-title {
   display: flex;
   align-items: flex-start;
@@ -2080,7 +2080,7 @@
   break-inside: avoid;
 }
 
-/* ---- the last rounds (ADR 0067): each with how it went and the numbers it was dealt on */
+/* ---- the last rounds (ADR 0068): each with how it went and the numbers it was dealt on */
 .round {
   display: grid;
   gap: 4px;

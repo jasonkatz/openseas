@@ -15,7 +15,7 @@ import type { Overrides } from "./overrides.js";
  *   category        the puzzle's category, where the draft changes it
  *   piece.<name>    a piece redrawn (ADR 0065): its drawing, as JSON
  *   cue.<name>      a cue revoiced (ADR 0065): its voices and rules, as JSON
- *   speed       clock rate (default 1); the transport bar sets it (ADR 0067)
+ *   speed       clock rate (default 1); the transport bar sets it (ADR 0068)
  *   paused      1 to start with the clock stopped; for a script, as above
  *   hints       0 to turn idle hints off
  *   start       any value: start the round as soon as the page opens

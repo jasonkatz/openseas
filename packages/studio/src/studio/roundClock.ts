@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import type { LabClock } from "@openseas/boards";
 
 /**
- * The clock of the round on the board, where the transport bar under it can reach it (ADR 0067).
+ * The clock of the round on the board, where the transport bar under it can reach it (ADR 0068).
  * The puzzle's page owns the round (studio/useStudio) and publishes its clock here; the studio's
  * shell reads it to pause, step and change speed from any mode. Nothing here is a score or a
  * move: the bar only drives time, as a script could through `window.openseasRoundClock`.

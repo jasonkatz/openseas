@@ -1,7 +1,7 @@
 import type { ModeId } from "./modes.js";
 
 /**
- * Whether the panels are opened wide, over the middle of the page (DESIGN.md 3.14, ADR 0067).
+ * Whether the panels are opened wide, over the middle of the page (DESIGN.md 3.14, ADR 0068).
  * One switch for every mode, kept in the browser. Play is never wide: its panel is short, and the
  * board is what it is for.
  */

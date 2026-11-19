@@ -49,7 +49,7 @@ export interface Frame {
   ensureDraft(): Promise<Draft | null>;
   /** Follow the draft as the service now holds it: the agent's tool moves its numbers. */
   adoptDraft(draft: Draft): void;
-  /** The rounds finished on this page, oldest first, with the numbers each was dealt on (frame/rounds, ADR 0067). The last few are what a message to the agent carries (ADR 0042 decision 5). */
+  /** The rounds finished on this page, oldest first, with the numbers each was dealt on (frame/rounds, ADR 0068). The last few are what a message to the agent carries (ADR 0042 decision 5). */
   readonly rounds: readonly PlayedRound[];
   noteRound(round: RoundNote): void;
   /** The content file's numbers. */

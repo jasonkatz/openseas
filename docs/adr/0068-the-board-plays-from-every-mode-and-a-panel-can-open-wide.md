@@ -1,4 +1,4 @@
-# 0067. The board plays from every mode, and a mode's panel can open wide over the middle
+# 0068. The board plays from every mode, and a mode's panel can open wide over the middle
 
 Status: Accepted. Supersedes decisions 1, 4 and 5 of
 [0056](./0056-the-studio-is-laid-out-as-a-design-tool.md) where they say the board never moves,
