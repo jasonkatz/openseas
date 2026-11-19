@@ -22,5 +22,6 @@ export const TugConfigSchema = z.object({
   streakPercent: z.array(z.int().min(100).max(1000)).min(1).max(16).describe("Percent the streak of clean deliveries multiplies a clean one by; a streak past the end takes the last."),
   skipPenalty: z.int().min(0).max(100_000).describe("Points lost when a clamp is skipped."),
   maxMoves: z.int().min(1).max(1_000_000).describe("Longest log of flicks and skips the server accepts: the round ends there."),
+  clamps: z.int().min(1).max(2).describe("Clamps lit at once, one pod each; 1 is off. With 2, a delivery measures the other again, which keeps the worth it lit at."),
 });
 export type TugConfigWire = z.infer<typeof TugConfigSchema>;
