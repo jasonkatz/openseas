@@ -1258,8 +1258,10 @@ M11's bots as built (ADR 0067): `packages/bots`, run as `pnpm --filter @openseas
 `bots/src/games/<id>.ts`, and brings the bots its tuning notes were set with and its baits. Every
 puzzle gets a careless bot, a one-move bot and a rollout bot; Scanner, whose contacts are hidden,
 gets only bots that read the board. The table runs every bot on every stage from the content file
-and checks that careless play lands a tier below plain play and that each bait loses. The tests
-replay every bot's log as the server would.
+and checks that careless play lands a tier below plain play and that each bait loses. Plain play is
+the one-move bot, or a closed game's first bot, unless the puzzle names its own (`plain` on its
+`BotGame`): Tug names `two flicks`, since no single flick of it pays. The tests replay every bot's
+log as the server would.
 
 ### 5.3 Testing and quality
 
