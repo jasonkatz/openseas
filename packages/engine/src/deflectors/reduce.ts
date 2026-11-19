@@ -82,6 +82,8 @@ export function validateConfig(cfg: DeflectorsConfig): void {
     int(cfg.minBest, 0, 64) &&
     int(cfg.bouncePoints, 0, 1000) &&
     int(cfg.bounceCap, 1, 64) &&
+    int(cfg.hotVolleys, 0, 4) &&
+    int(cfg.hotTurns, 1, 8) &&
     int(cfg.perfectPercent, 100, 1000) &&
     int(cfg.hullPenalty, 0, 100_000) &&
     Array.isArray(cfg.streakPercent) &&
@@ -141,12 +143,19 @@ export function trace(cfg: DeflectorsConfig, mirrors: readonly number[], entry: 
  * Every way beams from `entries` could leave together, over every setting of the mirrors they
  * could meet: `visit` is called with each beam's port and turns, and the settings those routes use
  * (0 for a mirror no beam meets). A mirror one beam has set stays set for the beams after it, so
- * what is visited is what one grid can do. The order is fixed and the work bounded, so every
- * machine sees the same.
+ * what is visited is what one grid can do. A locked mirror (`locked[cell] > 0`) is set already,
+ * the way it stands. The order is fixed and the work bounded, so every machine sees the same.
  */
-function explore(cfg: DeflectorsConfig, mirrors: readonly number[], entries: readonly number[], visit: (outs: readonly number[], bounces: readonly number[], setting: readonly number[]) => void): void {
+function explore(
+  cfg: DeflectorsConfig,
+  mirrors: readonly number[],
+  entries: readonly number[],
+  visit: (outs: readonly number[], bounces: readonly number[], setting: readonly number[]) => void,
+  locked: readonly number[] = [],
+): void {
   const n = cfg.size;
   const setting = new Array<number>(n * n).fill(0);
+  for (let c = 0; c < setting.length; c++) if ((locked[c] ?? 0) > 0 && mirrors[c] !== DEFLECTORS_EMPTY) setting[c] = mirrors[c]!;
   const outs: number[] = [];
   const bounces: number[] = [];
   let budget = SEARCH_BUDGET;
@@ -181,7 +190,7 @@ function explore(cfg: DeflectorsConfig, mirrors: readonly number[], entries: rea
       if (--budget < 0) return;
       const set = setting[cell]!;
       if (set !== 0) {
-        // Met before, by this beam or one before it: it is set already.
+        // Met before, by this beam or one before it, or locked: it is set already.
         dir = turn(set, dir);
         count++;
         col += DX[dir]!;
@@ -226,12 +235,12 @@ export interface DeflectorsOption {
 }
 
 /**
- * Every set of exits beams from `entries` can reach together, whatever the mirrors are set to: an
- * exit is a port no beam of the volley comes in by, and no two beams share one. Only where the
- * mirrors are matters, not how they are set. In a fixed order: by the first beam's exit, then the
- * next.
+ * Every set of exits beams from `entries` can reach together, whatever the free mirrors are set to:
+ * an exit is a port no beam of the volley comes in by, and no two beams share one. Only where the
+ * mirrors are matters, and how the locked ones (`locked[cell] > 0`) are set. In a fixed order: by
+ * the first beam's exit, then the next.
  */
-export function volleyOptions(cfg: DeflectorsConfig, mirrors: readonly number[], entries: readonly number[]): DeflectorsOption[] {
+export function volleyOptions(cfg: DeflectorsConfig, mirrors: readonly number[], entries: readonly number[], locked: readonly number[] = []): DeflectorsOption[] {
   const ports = portCount(cfg);
   const found = new Map<number, { best: number; least: number }>();
   explore(cfg, mirrors, entries, (outs, bounces) => {
@@ -250,7 +259,7 @@ export function volleyOptions(cfg: DeflectorsConfig, mirrors: readonly number[],
       if (total > seen.best) seen.best = total;
       if (total < seen.least) seen.least = total;
     }
-  });
+  }, locked);
   return [...found.keys()]
     .sort((a, b) => a - b)
     .map((key) => {
@@ -267,10 +276,11 @@ export function volleyOptions(cfg: DeflectorsConfig, mirrors: readonly number[],
 /**
  * A setting of the mirrors worth the most there is with every beam out through its exit: the beams'
  * own points under it, and the mirrors to flip, in the order the beams meet them, to get there from
- * `mirrors` as they stand. Of the settings worth that much, the one the fewest flips away. Null
- * when no setting sends every beam home.
+ * `mirrors` as they stand. Of the settings worth that much, the one the fewest flips away. A locked
+ * mirror (`locked[cell] > 0`) stays as it stands, so it is never among the flips. Null when no
+ * setting sends every beam home.
  */
-export function volleyRoute(cfg: DeflectorsConfig, mirrors: readonly number[], beams: readonly DeflectorsBeam[]): { base: number; flips: number[] } | null {
+export function volleyRoute(cfg: DeflectorsConfig, mirrors: readonly number[], beams: readonly DeflectorsBeam[], locked: readonly number[] = []): { base: number; flips: number[] } | null {
   const entries = beams.map((b) => b.entry);
   let bestBase = -1;
   let bestFlips = 0;
@@ -288,7 +298,7 @@ export function volleyRoute(cfg: DeflectorsConfig, mirrors: readonly number[], b
     bestBase = base;
     bestFlips = flips;
     bestSetting = setting.slice();
-  });
+  }, locked);
   if (bestSetting === null) return null;
   const want: number[] = bestSetting;
   const set = mirrors.map((m, cell) => (want[cell] !== 0 ? want[cell]! : m));
@@ -298,8 +308,8 @@ export function volleyRoute(cfg: DeflectorsConfig, mirrors: readonly number[], b
 }
 
 /** The most the beams' own points come to over every setting that sends each out through its exit, or -1 when none does. */
-export function volleyBest(cfg: DeflectorsConfig, mirrors: readonly number[], beams: readonly DeflectorsBeam[]): number {
-  return volleyRoute(cfg, mirrors, beams)?.base ?? -1;
+export function volleyBest(cfg: DeflectorsConfig, mirrors: readonly number[], beams: readonly DeflectorsBeam[], locked: readonly number[] = []): number {
+  return volleyRoute(cfg, mirrors, beams, locked)?.base ?? -1;
 }
 
 /**
@@ -354,7 +364,27 @@ export function flipIllegalReason(state: DeflectorsState, cell: number): string 
   if (state.finished) return "game is finished";
   if (!Number.isInteger(cell) || cell < 0 || cell >= state.mirrors.length) return "no such cell";
   if (state.mirrors[cell] === DEFLECTORS_EMPTY) return "no mirror there";
+  if ((state.locked[cell] ?? 0) > 0) return "mirror is locked";
   return null;
+}
+
+/** The cells locked as the state stands, in order: mirrors that cannot be flipped until the waiting volley has fired. */
+export function lockedCells(state: DeflectorsState): number[] {
+  const out: number[] = [];
+  for (let c = 0; c < state.locked.length; c++) if (state.locked[c]! > 0) out.push(c);
+  return out;
+}
+
+/**
+ * The locks once a volley has fired: what was locked is held one volley less, then the last
+ * hotTurns mirrors each beam turned at are locked for hotVolleys volleys. Unchanged when locks are off.
+ */
+export function lockAfter(cfg: DeflectorsConfig, locked: readonly number[], shots: ReadonlyArray<{ readonly turns: readonly number[] }>): number[] {
+  const next = locked.slice();
+  if (cfg.hotVolleys <= 0) return next;
+  for (let c = 0; c < next.length; c++) if (next[c]! > 0) next[c] = next[c]! - 1;
+  for (const shot of shots) for (const cell of shot.turns.slice(-cfg.hotTurns)) next[cell] = cfg.hotVolleys;
+  return next;
 }
 
 export function createDeflectorsGame(seed: string, config: DeflectorsConfig = DEFAULT_DEFLECTORS_CONFIG): DeflectorsState {
@@ -376,6 +406,7 @@ export function createDeflectorsGame(seed: string, config: DeflectorsConfig = DE
     config,
     tick: 0,
     mirrors,
+    locked: new Array<number>(cells).fill(0),
     volley: null,
     nextDealTick: config.openingTicks,
     rng,
@@ -401,6 +432,7 @@ interface Work {
   cfg: DeflectorsConfig;
   tick: number;
   mirrors: number[];
+  locked: number[];
   volley: DeflectorsVolley | null;
   nextDealTick: number;
   rng: PrngState;
@@ -424,6 +456,7 @@ function startWork(state: DeflectorsState): Work {
     cfg: state.config,
     tick: state.tick,
     mirrors: state.mirrors.slice(),
+    locked: state.locked.slice(),
     volley: state.volley,
     nextDealTick: state.nextDealTick,
     rng: state.rng,
@@ -448,6 +481,7 @@ function finishWork(state: DeflectorsState, w: Work): DeflectorsState {
     ...state,
     tick: w.tick,
     mirrors: w.mirrors,
+    locked: w.locked,
     volley: w.volley,
     nextDealTick: w.nextDealTick,
     rng: w.rng,
@@ -489,7 +523,8 @@ function deal(w: Work, tick: number): void {
     for (let attempt = 0; attempt < DEAL_TRIES && (attempt + 1) * size <= ports.length; attempt++) {
       const entries = ports.slice(attempt * size, attempt * size + size);
       const now = entries.map((entry) => trace(cfg, w.mirrors, entry).out);
-      const options = volleyOptions(cfg, w.mirrors, entries);
+      // Locked mirrors stand as they are, so the exits dealt are ones the free mirrors can still reach.
+      const options = volleyOptions(cfg, w.mirrors, entries, w.locked);
       // Worth routing to: a long way round, a cheaper way that is not it, and no beam home already.
       const rich = options.filter((o) => o.best >= floor && o.least < o.best && o.exits.every((exit, i) => exit !== now[i]));
       if (rich.length > 0) {
@@ -521,10 +556,14 @@ function fire(w: Work, volley: DeflectorsVolley, tick: number, early: boolean): 
   w.misses += outcome.shots.length - outcome.hits;
   if (outcome.perfect) w.perfects++;
   for (const shot of outcome.shots) if (shot.hit) w.longest = Math.max(w.longest, shot.bounces);
+  // Locks: the end of each beam's route is held for the next volley.
+  w.locked = lockAfter(w.cfg, w.locked, outcome.shots);
+  const locked: number[] = [];
+  for (let c = 0; c < w.locked.length; c++) if (w.locked[c]! > 0) locked.push(c);
   w.combo = outcome.streak;
   w.bestCombo = Math.max(w.bestCombo, w.combo);
   w.score += outcome.points;
-  w.events.push({ seq: ++w.eventSeq, tick, type: "fire", volley, early, outcome });
+  w.events.push({ seq: ++w.eventSeq, tick, type: "fire", volley, early, outcome, locked });
   // The next volley follows closely, so a quick hand sees more of them.
   w.nextDealTick = tick + w.cfg.respawnTicks;
 }
@@ -555,7 +594,8 @@ export function reduceDeflectors(state: DeflectorsState, move: DeflectorsMove): 
       w.finished = true;
       break;
     case "flip": {
-      const reason = flipIllegalReason(state, move.cell);
+      // Asked of the grid at the move's tick: a volley fired on the way there may have locked the mirror.
+      const reason = flipIllegalReason({ ...state, locked: w.locked }, move.cell);
       if (reason !== null) throw new InvalidMoveError(reason, move);
       w.mirrors[move.cell] = w.mirrors[move.cell] === DEFLECTORS_SLASH ? DEFLECTORS_BACKSLASH : DEFLECTORS_SLASH;
       w.flips++;
@@ -599,6 +639,8 @@ export function hashDeflectorsState(state: DeflectorsState): string {
   const h = new Hasher();
   h.int(state.config.size).int(state.tick);
   for (const m of state.mirrors) h.int(m);
+  // With locks off every cell is free, and the hash is what it was before locks.
+  if (state.config.hotVolleys > 0) for (const l of state.locked) h.int(l);
   const v = state.volley;
   h.int(v ? v.beams.length : -1);
   if (v) {
@@ -633,7 +675,7 @@ export function hint(state: DeflectorsState): { cell: number } | null {
   const volley = state.volley;
   if (!volley || state.finished) return null;
   if (resolve(state.config, state.mirrors, volley, state.combo, state.score).perfect) return null;
-  const cell = volleyRoute(state.config, state.mirrors, volley.beams)?.flips[0];
+  const cell = volleyRoute(state.config, state.mirrors, volley.beams, state.locked)?.flips[0];
   return cell === undefined ? null : { cell };
 }
 
