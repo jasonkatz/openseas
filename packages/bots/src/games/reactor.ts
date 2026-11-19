@@ -3,6 +3,8 @@
  * untimed, so the clock is the tuning notes' pace, 110 swipes in a 120 second round. The puzzle's
  * own bots are the notes' corner habit, planner and stacker, and a hoarder that piles hot rods up
  * for a big salvo: the bait, set against the one-move bot, since four hot rods at once scram the core.
+ * Core pressure adds three: the stacker blind to it, the stacker that reads the gauge, and the
+ * planning hoarder, who parks a rod at a port and waits for a triple (its bait).
  */
 import {
   REACTOR_DEF,
@@ -46,6 +48,8 @@ interface Weights {
   readonly brink: number;
   /** Each scram so far, beyond the points it took. */
   readonly scram: number;
+  /** Reads the pressure gauge: each mark past half its limit costs this much. Absent: the gauge is only seen through a scram the lookahead meets. */
+  readonly press?: number;
 }
 
 /** The planner's reading: a ready rod is worth a little under what it pays, and the brink is feared. */
@@ -78,6 +82,7 @@ function evaluate(state: ReactorState, w: Weights): number {
   }
   v += w.loose * Math.max(0, hot - placed);
   if (hot >= cfg.criticalHot - 1) v += w.brink;
+  if (w.press && cfg.pressureLimit > 0) v -= w.press * Math.max(0, state.pressure - cfg.pressureLimit / 2);
   return v;
 }
 
@@ -95,13 +100,22 @@ function lookahead(state: ReactorState, depth: number, w: Weights, seed: string)
 }
 
 /** The swipe whose best plan `PLAN_DEPTH` swipes on reads highest by `w`, over a few fresh streams, of `dirs`. */
-function planSwipe(state: ReactorState, ctx: BotContext<ReactorState, ReactorMove>, w: Weights, dirs = reactorLegalDirs(state), depth = PLAN_DEPTH): Choice<ReactorMove> | null {
+function planSwipe(
+  real: ReactorState,
+  ctx: BotContext<ReactorState, ReactorMove>,
+  w: Weights,
+  dirs = reactorLegalDirs(real),
+  depth = PLAN_DEPTH,
+  blind?: Partial<ReactorConfig>,
+): Choice<ReactorMove> | null {
+  // A bot blind to a layer plans on a core where that layer is off.
+  const state: ReactorState = blind ? { ...real, config: { ...real.config, ...blind } } : real;
   let best: Choice<ReactorMove>[] = [];
   let top = -Infinity;
   const seeds = Array.from({ length: PLAN_SAMPLES }, () => `plan:${ctx.rng.int(0x7fffffff)}`);
   for (const d of dirs) {
     const choice = swipe(d);
-    if (ctx.apply(state, choice) === null) continue;
+    if (ctx.apply(real, choice) === null) continue;
     let total = 0;
     for (const seed of seeds) {
       const after = REACTOR_DEF.reduce(reseed(state, `${seed}:${d}`), { type: "swipe", dir: d });
@@ -115,9 +129,12 @@ function planSwipe(state: ReactorState, ctx: BotContext<ReactorState, ReactorMov
   return best.length ? ctx.rng.pick(best) : null;
 }
 
-function plannerBot(name: string, about: string, w: Weights): Bot<ReactorState, ReactorMove> {
-  return { name, about, choose: (state, ctx) => planSwipe(state, ctx, w) };
+function plannerBot(name: string, about: string, w: Weights, blind?: Partial<ReactorConfig>): Bot<ReactorState, ReactorMove> {
+  return { name, about, choose: (state, ctx) => planSwipe(state, ctx, w, undefined, undefined, blind) };
 }
+
+/** How much the gauge stacker fears each mark of pressure past half the limit. */
+const GAUGE_FEAR = 40;
 
 /**
  * The bait: the hoard the tuning notes' critical core was set against. A one-swipe player like the
@@ -132,6 +149,23 @@ function hoarderBot(): Bot<ReactorState, ReactorMove> {
       const legal = reactorLegalDirs(state);
       const held = legal.filter((d) => reactorSwipeOutcome(state, d).discharges !== 1);
       return planSwipe(state, ctx, HOARDER, held.length ? held : legal, HOARD_DEPTH);
+    },
+  };
+}
+
+/**
+ * The pressure bait: the hoard with the stacker's eyes. Three swipes ahead, it parks a hot rod at
+ * a port and waits for more to join it, never sending one out alone while it has another swipe;
+ * it reads the lamps and the gauge only through a scram its lookahead meets.
+ */
+function planningHoarderBot(): Bot<ReactorState, ReactorMove> {
+  return {
+    name: "planning hoarder",
+    about: "Looks three swipes ahead, parks a hot rod at a port and waits for a salvo, never sending one out alone while it has another swipe; blind to the gauge but for a scram it can see coming (the bait).",
+    choose(state, ctx) {
+      const legal = reactorLegalDirs(state);
+      const held = legal.filter((d) => reactorSwipeOutcome(state, d).discharges !== 1);
+      return planSwipe(state, ctx, HOARDER, held.length ? held : legal);
     },
   };
 }
@@ -166,7 +200,13 @@ export const REACTOR_BOTS: BotGame<ReactorState, ReactorMove, ReactorConfig> = {
     plannerBot("planner", "Looks three swipes ahead on fresh streams, weighing points, room, hot rods at ports and the lamps.", PLANNER),
     plannerBot("stacker", "The planner, but a hot rod at a port is held for a second to join it in a salvo.", STACKER),
     hoarderBot(),
+    plannerBot("blind stacker", "The stacker, planning as if the core had no pressure: it holds as long as the lamps allow.", STACKER, { pressureLimit: 0 }),
+    plannerBot("gauge stacker", "The stacker, reading the gauge: each mark of pressure past half the limit is feared.", { ...STACKER, press: GAUGE_FEAR }),
+    planningHoarderBot(),
   ],
-  slow: ["planner", "stacker"],
-  baits: [{ bait: "hoarder", beats: "one move" }],
+  slow: ["planner", "stacker", "blind stacker", "gauge stacker", "planning hoarder"],
+  baits: [
+    { bait: "hoarder", beats: "one move" },
+    { bait: "planning hoarder", beats: "gauge stacker" },
+  ],
 };
