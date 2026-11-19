@@ -14,6 +14,9 @@ const perfect = c.perfectPercent / 100;
 const nth = (n: number): string => ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"][n] ?? `${n}th`;
 /** What the climb back to a full streak gives up, counted in volleys at no multiplier. */
 const climb = Math.round(streak.reduce((n, pc) => n + (streak[streak.length - 1]! - pc), 0) / 100);
+/** What locks hold, in words: the last mirror (or mirrors) each beam turns at, for the next volley (or volleys). */
+const lockedEnd = c.hotTurns === 1 ? "the last mirror each beam turned at" : `the last ${c.hotTurns} mirrors each beam turned at`;
+const lockedFor = c.hotVolleys === 1 ? "the next volley" : `the next ${c.hotVolleys} volleys`;
 
 export const deflectors: Guide = {
   id: "deflectors",
@@ -28,7 +31,7 @@ export const deflectors: Guide = {
     setting:
       "The ship's deflector array is a grid of mirrors behind the hull. Beams come in through the ports on its edge, and you are the pirate turning mirrors so each beam leaves by the port it is meant for. A beam that leaves anywhere else burns into the **hull**.",
     purpose:
-      "Deflectors is a prototype. It is on the test bench and in no ship yet. It tries out routing on a clock: one verb, a grid that never changes, and a choice every volley between the first route home and the long way round. It asks you to read a path fast, and later to see the long one before the count runs out.",
+      "Deflectors is a prototype. It is on the test bench and in no ship yet. It tries out routing on a clock: one verb, a grid whose mirrors never move, and a choice every volley between the first route home and the long way round. It asks you to read a path fast, later to see the long one before the count runs out, and last to see what the route you fire now leaves locked for the next.",
   },
   facts: [
     { label: "Board", value: `${c.size} by ${c.size}, ${c.mirrors} mirrors` },
@@ -41,6 +44,7 @@ export const deflectors: Guide = {
     "Beams come in **volleys**. A beam's entry port wears a solid sign. Its exit port wears the same sign with its middle cut out. One count runs for the whole volley, as a bar over the grid.",
     "When the count ends every beam fires at once. A beam runs straight, turns at every mirror it meets, and leaves by some port. Out through its own exit it is **home**. Out anywhere else it hits the hull.",
     "While a beam waits, a broken line shows where it would go now and dots run back from its exit. No beam is dealt home already: a volley left alone hits the hull.",
+    `When a volley fires, ${lockedEnd} **locks** for ${lockedFor}. A locked mirror is drawn grey, its round pivot turned to a square bolt with a slot across it, and a tap on it is refused. The next volley is always one the free mirrors can bring home, and the best it could be is counted with the locks as they stand.`,
     `A volley is one beam for the first ${secs(c.rampTicks)} seconds and two after that. Two beams fire together, so both must be home on the same setting of the mirrors.`,
     `The count is ${secs(c.chargeTicks)} seconds at the start of the round and ${secs(c.chargeTicksMin)} by the end, with ${secs(c.beamTicks)} more for a second beam. Tap a lit entry to fire now. The next volley comes ${secs(c.respawnTicks)} seconds after one fires.`,
   ],
@@ -62,6 +66,14 @@ export const deflectors: Guide = {
     `A volley with every beam home is **clean**. Clean volleys in a row build a streak: the first pays ${streak[0]}%, the second ${streak[1]}%, and it climbs to ×${streakMax} from the ${nth(streak.length)}. One beam into the hull ends it.`,
     `The strip over the grid shows the best the volley could be. A clean volley worth its best is **perfect** and pays ×${perfect} on top of the streak.`,
   ],
+  stageMedia: {
+    full: {
+      kind: "still",
+      name: "locked",
+      alt: "The Deflectors board after a volley has fired. One mirror is drawn grey on a square bolt with a slot cut across it: locked. The next beam waits, its broken line running past the locked mirror.",
+      caption: "The last mirror the beam before turned at is locked for this volley. Route round it.",
+    },
+  },
   stages: [
     {
       level: "beginner",
@@ -157,6 +169,16 @@ export const deflectors: Guide = {
           },
         },
         {
+          title: "Finish where the next beam will not turn",
+          body: `Every route you fire takes a mirror away from ${lockedFor}: ${lockedEnd}. Two routes home are often worth about the same now and very different later, because one ends on a mirror in the middle of the grid that half the next routes need, and the other ends on one by the edge that few beams meet. When two ways home are close in value, prefer the one that leaves the mirrors at the heart of this grid's loops free.`,
+          media: {
+            kind: "clip",
+            name: "locked-tap",
+            alt: "A mirror drawn grey on a square bolt is tapped. It does not turn: a ring in danger shows round it and the word Locked rises over it.",
+            caption: "A locked mirror refuses the tap. It frees once this volley fires.",
+          },
+        },
+        {
           title: "Learn this round's grid",
           body: "The mirrors stay where they are for the whole round, and they stay as you left them. A loop you found for one beam is still there for the next beam that passes near it. By the second minute you should know where this grid's loops are and steer beams into them without tracing them again.",
         },
@@ -174,5 +196,6 @@ export const deflectors: Guide = {
     "**Poking mirrors to make the number go up.** It costs more time than it finds. Trace the route first.",
     `**Chasing Perfect into the red.** A beam in the hull costs ${c.hullPenalty} and the whole streak. Go back to a route that is home.`,
     "**Leaving a volley on the board at the end.** It does not fire when the round ends. Fire it yourself.",
+    "**Ending every route on the grid's best mirror.** It locks, and the next volley's long way round is gone before you have seen it. Look at where a route ends, not only at what it pays.",
   ],
 };
