@@ -39,7 +39,7 @@ export function OverloadBoard(props: OverloadBoardProps) {
             hugeChain: t("overload.huge_chain"),
             refund: (count) => t("overload.refund", { count }),
             noTaps: t("overload.no_taps"),
-            draw: (min, max, percent) => (min === max ? t("overload.draw_one", { min, percent }) : t("overload.draw", { min, max, percent })),
+            draw: (min, max, percent) => (min === max ? t("overload.draw_one", { min, times: percent / 100 }) : t("overload.draw", { min, max, times: percent / 100 })),
             previewMet: (count) => t("overload.preview_met", { count }),
             previewShort: (count) => t("overload.preview_short", { count }),
             previewOver: (count) => t("overload.preview_over", { count }),
