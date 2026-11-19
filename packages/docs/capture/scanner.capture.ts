@@ -6,6 +6,7 @@ import {
   scannerClearCells,
   scannerContactsLeft,
   scannerDistance,
+  scannerLitPings,
   scannerPingCandidates,
   scannerProvenCells,
   scannerSafePing,
@@ -278,6 +279,30 @@ test("scanner: the numbers are live", async ({ page }) => {
     s = await hold(page, s, found.at.lock);
     await landed(page, s);
   }, { leadMs: 1100, tailMs: 1600, region: await region(page) });
+});
+
+test("scanner: the mark", async ({ page }) => {
+  // The careful player's line, up to a ping that carries the mark's tab with another tab already on
+  // the board; the move after it locks the mark as the sector's first find.
+  const { seed, found } = findSeed("scan-mark", (seed) =>
+    walk(seed, (s, line) => {
+      if (line.length < 2 || line.length > 6 || s.found.length > 0) return null;
+      const last = line[line.length - 1]!;
+      const proven = scannerProvenCells(s);
+      if (last.type !== "ping" || proven[0] !== s.mark || !inner(proven[0]!)) return null;
+      const lit = scannerLitPings(s);
+      return lit.includes(last.cell) && lit.length >= 2 ? { ping: last.cell, lock: proven[0]! } : null;
+    }),
+  );
+  await open(page, seed);
+  let s = await lead(page, seed, found.line.slice(0, -1));
+  await clip(page, "scanner", "mark", async () => {
+    s = await ping(page, s, found.at.ping);
+    await page.waitForTimeout(1000);
+    s = await hold(page, s, found.at.lock);
+    await landed(page, s);
+  }, { leadMs: 900, tailMs: 1400, region: await region(page) });
+  expect(replay(seed, [...found.line, { type: "lock", cell: found.at.lock }]).lastMove!.markPaid).toBe(true);
 });
 
 test("scanner: one ping, two locks", async ({ page }) => {

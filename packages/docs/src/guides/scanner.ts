@@ -17,6 +17,12 @@ const sectorsToMax = (c.maxContacts - c.startContacts) * c.growEvery;
 const bigSector = (saved: number, times: number): number => (c.maxContacts * c.contactPoints + saved * c.savePoints) * times;
 /** A lock at even odds, with no streak: half a bounty against half a miss. */
 const coinFlip = (c.contactPoints - c.wrongPenalty) / 2;
+/** The mark, locked first: this many bounties. */
+const markTimes = c.markPercent / 100;
+/** What the mark adds to a bounty, with no streak. */
+const markExtra = (c.contactPoints * (c.markPercent - 100)) / 100;
+/** A lock on the mark at even odds, with no streak: half the mark's pay against half a miss. */
+const markFlip = (c.contactPoints * markTimes - c.wrongPenalty) / 2;
 
 export const scanner: Guide = {
   id: "scanner",
@@ -24,8 +30,8 @@ export const scanner: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Scanner board: a sector ${c.width} cells wide and ${c.height} tall, most of it flat fog plates. One cell holds a ping showing the number 3, and the cells around it are bare ground, each with a small dot. A strip above counts pings, the sector and hidden contacts, and a switch below reads Ping and Lock.`,
-    caption: "A new sector. One ping is made for you: its number is the steps to the nearest contact, and the cells where the fog has lifted are proven empty.",
+    alt: `The Scanner board: a sector ${c.width} cells wide and ${c.height} tall, most of it flat fog plates. One cell holds a ping showing the number 3 with a small solid tab in its top corner, and the cells around it are bare ground, each with a small dot. A strip above counts pings, the sector and hidden contacts, and a switch below reads Ping and Lock.`,
+    caption: "A new sector. One ping is made for you: its number is the steps to the nearest contact, and the cells where the fog has lifted are proven empty. Its tab says it hears the mark.",
   },
   theme: {
     setting:
@@ -37,21 +43,21 @@ export const scanner: Guide = {
     { label: "Sector", value: `${c.width} wide, ${c.height} tall` },
     { label: "Round", value: `${p.roundSeconds} seconds` },
     { label: "Contacts", value: `${c.startContacts} a sector, growing to ${c.maxContacts}` },
-    { label: "Status", value: "Prototype, on the test bench" },
+    { label: "Mark", value: `×${markTimes} a bounty, locked first` },
   ],
   rules: [
-    `A sector of fog hides ${c.startContacts} contacts. It opens with one ping already made for you, at least ${c.openingMin} steps from every contact.`,
+    `A sector of fog hides ${c.startContacts} contacts. It opens with one ping already made for you, at least ${c.openingMin} steps from every contact, and can be cleared from there with no guess.`,
     "A **ping** on a cell answers with one number: how many steps up, down, left or right, never diagonal, the nearest hidden contact is.",
     "Nothing hides nearer than the number, so the fog **lifts** from every cell closer than that: a clear cell is bare ground with a dot. One contact sits exactly that far away, somewhere on the diamond of cells at that distance: the ping's **ring**.",
     `A **lock** says a contact is here. A right lock finds it and pays. A lock on empty space is a miss, and a ping that lands on a contact **spooks** it for no pay. Either costs ${c.wrongPenalty} and your streak.`,
     "The numbers are live. When a contact is found, every ping that was hearing it sounds again and shows the nearest one still hidden.",
     `Find them all and the next sector is dealt. Every ${c.growEvery} sectors cleared add a contact, up to ${c.maxContacts}.`,
-    "Every sector can be cleared from its opening ping with no guess.",
+    "One contact a sector is the **mark**. You never see which, but a ping that hears it, with the mark among the contacts nearest it, carries a small **tab** in its top corner. Every tab is set afresh when the numbers sound again.",
   ],
   rulesMedia: {
     kind: "clip",
     name: "first-lock",
-    alt: "A clear cell is pinged and answers 2, and the fog lifts from more cells around it. The number is tapped and its ring lights with a pip on the one fog plate it crosses. That plate is held, brackets close on it, and a contact is found there.",
+    alt: "A clear cell is pinged and answers 2 with a tab in its corner, and the fog lifts from more cells around it. The number is tapped and its ring lights with a pip on the one fog plate it crosses. That plate is held, brackets close on it, and a contact is found there: the mark, called out as Mark found.",
     caption: "Ping a clear cell, tap its number to light the ring, and lock the one cell left on it.",
   },
   controls: [
@@ -62,7 +68,7 @@ export const scanner: Guide = {
     { action: "Move the cursor", touch: "", desktop: "Arrow keys or WASD" },
   ],
   scoring: [
-    `A lock on a contact pays **${c.contactPoints}**.`,
+    `A lock on a contact pays **${c.contactPoints}**. The mark locked as the sector's first find, before any other contact is found or spooked, pays ${markTimes} bounties. Found later it pays one.`,
     `A sector allows ${c.parPerContact} pings a contact: its **par**. The opening ping is free. Each ping past par costs ${c.overPenalty}.`,
     `A sector cleared within par with no mistake is **clean**. Every ping left over pays ${c.savePoints}, and clean sectors in a row build a streak that multiplies bounties and savings: +${streakStep}% each, up to ×${streakMax} after ${streakFull} in a row. A sector that is not clean ends it.`,
     `A spooked contact or a missed lock costs ${c.wrongPenalty} and ends the streak at once. The score never goes below zero.`,
@@ -112,6 +118,10 @@ export const scanner: Guide = {
           },
         },
         {
+          title: "Count the fog",
+          body: "The strip says how many contacts are hidden. When the fog is down to that many cells, every one of them holds a contact. Lock them all without another ping.",
+        },
+        {
           title: "Read again after every lock",
           body: "A found contact stops answering. Every ping that heard it jumps to a bigger number, and a bigger number lifts more fog. The new clear ground often leaves another ring with one cell, for no ping at all. A number that did not move is still hearing a contact at that distance.",
           media: {
@@ -126,8 +136,18 @@ export const scanner: Guide = {
     },
     {
       level: "advanced",
-      goal: "Make one ping answer for every ring, and lock what no single ring proves.",
+      goal: "Make one ping answer for every ring, lock what no single ring proves, and find the mark first.",
       tips: [
+        {
+          title: "Find the mark first",
+          body: `The mark pays ${markTimes} bounties, but only as the sector's first find. So when a ring proves a contact, do not lock it yet: it will wait. Aim your pings at the tabbed rings instead. The mark lies on every tabbed ring and on no untabbed one, at that ring's distance. When those cells leave it one place, lock it, then the contacts you held back, one after another.`,
+          media: {
+            kind: "clip",
+            name: "mark",
+            alt: `Two pings already carry a tab. One more clear cell is pinged and answers 5, and it carries a tab too. A fog cell the rings now prove is held, a contact is found there, and the board calls Mark found and pays ${c.contactPoints * markTimes}. The tabs are gone.`,
+            caption: `Every tabbed ring hears the mark. Pinned down and locked first, it pays ${markTimes} bounties.`,
+          },
+        },
         {
           title: "One ping, every ring",
           body: `There is usually more than one open ring. Before you ping, check the cell against all of them, and take the one that splits the marked cells of two rings at once. Played this way almost every sector comes in clean, in four to six pings where par allows ${firstPar} to ${lastPar}.`,
@@ -147,10 +167,6 @@ export const scanner: Guide = {
             alt: "Two contacts are found and one is hidden. One ping is tapped and its ring marks two cells. Another is tapped and its ring marks three. One cell is on both. It is held, the contact is found, and the board calls a clean sweep.",
             caption: "One contact left. Two rings share a single cell, so no ping is needed.",
           },
-        },
-        {
-          title: "Count the fog",
-          body: "The strip says how many contacts are hidden. When the fog is down to that many cells, every one of them holds a contact. Lock them all without another ping.",
         },
         {
           title: "Spare pings are bounties",
@@ -178,8 +194,8 @@ export const scanner: Guide = {
           body: `Sectors reach ${c.maxContacts} contacts after ${sectorsToMax} cleared, about when the streak fills. So every second you save early is spent later on the richest sectors at double pay. The same play made one second a ping faster scores about half as much again.`,
         },
         {
-          title: "Think on the last ping of par",
-          body: `Inside par, a spare ping costs only its saving: ${c.savePoints} times the streak. The ping past par costs the streak itself. So with pings in hand and no quick read, ping and move on. On the last ping of par, stop and count steps until you are sure.`,
+          title: "Know when to let the mark go",
+          body: `The mark adds ${markExtra} to a bounty, times the streak. A ping past par costs the streak itself, which is worth more. So chase the mark while you have pings in hand, and once a ping would leave you fewer than two of par, give it up: lock what is proven and clear the sector clean. A bot that never gave up scored less than one that did.`,
         },
         {
           title: "A broken sector is a cheap one",
@@ -191,7 +207,7 @@ export const scanner: Guide = {
   ],
   mistakes: [
     `**Pinging fog to check a cell.** A ping on clear ground asks the same question with no risk. The fog ping can cost ${c.spookPenalty}, the contact's bounty and the streak.`,
-    `**Locking on a hunch.** At even odds a lock is ${c.contactPoints} against ${c.wrongPenalty}, so it loses ${-coinFlip} a try before the streak is counted. No sector needs it.`,
+    `**Locking on a hunch, even for the mark.** At even odds a lock is ${c.contactPoints} against ${c.wrongPenalty}, so it loses ${-coinFlip} a try before the streak is counted. On the mark it wins ${markFlip}, but a miss ends the streak and the clean sector with it: bots that gambled on the mark lost about a fifth of their score. No sector needs a guess.`,
     "**Crossing rings too early.** Two rings that share a cell prove it only when one contact is left. With more hidden, each ring may hear its own.",
     "**Trusting an old read.** After a lock the numbers change. A ring you lit a moment ago may have moved, so look again before the next move.",
     "**Following the practice hint as a plan.** The move it shows is safe, not good. Its pings are not aimed, and about half its sectors end over par.",
