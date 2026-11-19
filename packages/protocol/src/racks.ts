@@ -24,6 +24,8 @@ export const RacksConfigSchema = z.object({
   chainPercent: z.array(z.int().min(100).max(2000)).min(1).max(16).describe("Percent the chain multiplies a shipment by; a chain past the end takes the last entry."),
   spillPenalty: z.int().min(0).max(100_000).describe("Points lost when a crate lands on a rack with no room for it and spills the rack."),
   markRoom: z.boolean().describe("On: a new crate is marked for a rack with room for it while any has. Off: any rack, a full one too."),
+  manifestLength: z.int().min(0).max(4).describe("Different kinds on the manifest, shipped in its order in one chain to fill it; at most kinds, and 0 hangs none."),
+  manifestPoints: z.int().min(0).max(100_000).describe("Points paid on top of the shipment that fills the manifest."),
   maxMoves: z.int().min(1).max(1_000_000).describe("Longest move log the server accepts: the round ends there."),
 });
 export type RacksConfigWire = z.infer<typeof RacksConfigSchema>;
