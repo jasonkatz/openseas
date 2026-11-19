@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { summarizeTug, type TugConfig, type TugDir, type TugMove, type TugState } from "@openseas/engine";
+import { summarizeTug, tugLitClamps, type TugConfig, type TugDir, type TugMove, type TugState } from "@openseas/engine";
 import { content, t, TUG_PODS, TugBlockIcon, TugBoard, TugClampIcon, TugPodIcon } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
@@ -26,6 +26,8 @@ export function TugPractice() {
   const onSkip = useCallback(() => void api.apply({ type: "skip" }), [api]);
 
   const pods = TUG_PODS.slice(0, cfg.pods);
+  const lit = tugLitClamps(shown);
+  const pairs = shown.clamp2 !== null;
 
   return (
     <PracticeShell
@@ -47,17 +49,36 @@ export function TugPractice() {
       howTo={
         <>
           <p className="how how-kbd">{t("tug.par_note")}</p>
+          {pairs && <p className="how">{t("tug.pairs_note")}</p>}
           <p className="how how-kbd">{t("tug.hint_note")}</p>
         </>
       }
       details={
         <>
-          <div className="stat stat-wide">
-            <span className="stat-label">{t("tug.clamp")}</span>
-            <span className="stat-value" data-testid="hud-clamp">
-              {t("tug.clamp_value", { par: shown.clamp.par, flicks: shown.flicks })}
-            </span>
-          </div>
+          {pairs ? (
+            <div className="stat stat-wide">
+              <span className="stat-label">{t("tug.clamps")}</span>
+              <span
+                className="stat-value"
+                data-testid="hud-clamp"
+                data-clamps={lit.map((c) => `${c.pod}:${c.par}:${c.worth}`).join("|")}
+              >
+                {lit.map((c, i) => (
+                  <span key={i}>
+                    <TugPodIcon pod={c.pod} size={18} /> {c.worth === c.par ? t("tug.clamp_par", { par: c.par }) : t("tug.clamp_par_worth", { par: c.par, worth: c.worth })}{" "}
+                  </span>
+                ))}
+                {t("tug.flick_count", { flicks: shown.flicks })}
+              </span>
+            </div>
+          ) : (
+            <div className="stat stat-wide">
+              <span className="stat-label">{t("tug.clamp")}</span>
+              <span className="stat-value" data-testid="hud-clamp" data-clamps={`${shown.clamp.pod}:${shown.clamp.par}:${shown.clamp.worth}`}>
+                {t("tug.clamp_value", { par: shown.clamp.par, flicks: shown.flicks })}
+              </span>
+            </div>
+          )}
           <div className="stat stat-wide">
             <span className="stat-label">{t("tug.delivered")}</span>
             <span className="stat-value" data-testid="hud-delivered">
@@ -101,6 +122,12 @@ export function TugPractice() {
               <TugClampIcon pod={shown.clamp.pod} />
               <span>{t("tug.legend_clamp")}</span>
             </li>
+            {shown.clamp2 && (
+              <li>
+                <TugClampIcon pod={shown.clamp2.pod} />
+                <span>{t("tug.legend_pairs")}</span>
+              </li>
+            )}
             <li>
               <TugBlockIcon />
               <span>{t("tug.legend_block")}</span>
@@ -109,6 +136,7 @@ export function TugPractice() {
           <p className="muted small proto-note">{t("tug.legend_pods")}</p>
           <p className="muted small proto-note">{t("tug.legend_ghosts")}</p>
           <p className="muted small proto-note">{t("tug.par_note")}</p>
+          {pairs && <p className="muted small proto-note">{t("tug.pairs_note")}</p>}
           <p className="muted small proto-note">{t("tug.skip_note")}</p>
         </>
       }
