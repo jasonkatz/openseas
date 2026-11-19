@@ -12,7 +12,9 @@ import {
   deflectorsBeamsAt,
   deflectorsBestPoints,
   deflectorsChargeTicksAt,
+  deflectorsFlipIllegalReason,
   deflectorsHint,
+  deflectorsLockedCells,
   deflectorsOutlook,
   deflectorsPortCount,
   deflectorsStreakPercentAt,
@@ -44,8 +46,9 @@ function playRandom(seed: string, picks: readonly number[], config: DeflectorsCo
     const at = advanceDeflectors(state, tick);
     const kind = picks[i + 1]! % 5;
     let move: DeflectorsMove;
-    if (kind <= 2) {
-      const cells = at.mirrors.flatMap((m, c) => (m === DEFLECTORS_EMPTY ? [] : [c]));
+    // A random flip picks a mirror that is free to flip at that tick: locked ones are refused.
+    const cells = at.mirrors.flatMap((m, c) => (m === DEFLECTORS_EMPTY || at.locked[c]! > 0 ? [] : [c]));
+    if (kind <= 2 && cells.length > 0) {
       move = { type: "flip", cell: cells[picks[i + 2]! % cells.length]!, tick };
     } else if (kind === 3 && at.volley) move = { type: "fire", volley: at.volley.id, tick };
     else move = { type: "wait", tick };
@@ -56,6 +59,25 @@ function playRandom(seed: string, picks: readonly number[], config: DeflectorsCo
 }
 
 const picksArb = fc.array(fc.nat({ max: 10_000 }), { minLength: 0, maxLength: 240 });
+
+/** Locks on, as content has them, and two wider settings a lab might try. */
+const LOCKS: DeflectorsConfig = { ...cfg, hotVolleys: 1, hotTurns: 1 };
+const configArb = fc.constantFrom<DeflectorsConfig>(cfg, LOCKS, { ...cfg, hotVolleys: 2, hotTurns: 2 }, { ...cfg, hotVolleys: 1, hotTurns: 3, maxBeams: 3, rampTicks: 100 });
+
+/** A round played the best route every volley, every 30 ticks: flips towards the best setting with locks as they stand, then fire. */
+function bestEveryVolley(seed: string, config: DeflectorsConfig): DeflectorsState {
+  let s = createDeflectorsGame(seed, config);
+  for (let t = 30; t < config.maxTick - 1 && !s.finished; t += 30) {
+    const at = advanceDeflectors(s, t);
+    if (!at.volley) {
+      s = reduceDeflectors(s, { type: "wait", tick: t });
+      continue;
+    }
+    for (const cell of deflectorsVolleyRoute(config, at.mirrors, at.volley.beams, at.locked)?.flips ?? []) s = reduceDeflectors(s, { type: "flip", cell, tick: t });
+    s = reduceDeflectors(s, { type: "fire", volley: at.volley.id, tick: t });
+  }
+  return s;
+}
 
 /** A grid from rows of characters: `.` empty, `/` and `\` mirrors. No volley is waiting and none is due for a long while. */
 function grid(rows: readonly string[], over: Partial<DeflectorsConfig> = {}): DeflectorsState {
@@ -117,6 +139,40 @@ describe("deflectors determinism (ADR 0003)", () => {
       }),
       { numRuns: 60 },
     );
+  });
+
+  it("with locks on, the same seed and move log still give the same state and hash", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, configArb, (seed, picks, config) => {
+        const { moves, state } = playRandom(seed, picks, config);
+        const replayed = replayDeflectors(seed, config, moves);
+        expect(hashDeflectorsState(replayed)).toBe(hashDeflectorsState(state));
+        expect(replayed).toEqual(state);
+      }),
+      { numRuns: 60 },
+    );
+  });
+
+  it("the hash reads the locks when they are on", () => {
+    const s = advanceDeflectors(createDeflectorsGame("hash", LOCKS), 50);
+    const cell = s.mirrors.findIndex((m) => m !== DEFLECTORS_EMPTY);
+    const locked = s.locked.map((l, c) => (c === cell ? 1 : l));
+    expect(hashDeflectorsState({ ...s, locked })).not.toBe(hashDeflectorsState(s));
+  });
+
+  it("locks off change nothing: today's seeds deal and score as they did before locks", () => {
+    // Scores and hashes taken from the engine before locks were added, played the best route every volley.
+    const before: ReadonlyArray<readonly [string, number, number, string]> = [
+      ["a", 11382, 39, "21902f04"],
+      ["b", 11845, 39, "35841260"],
+      ["golden", 13025, 39, "d79405db"],
+      ["42", 12216, 39, "94971f76"],
+    ];
+    for (const [seed, score, volleys, hash] of before) {
+      const s = bestEveryVolley(seed, cfg);
+      expect([s.score, s.volleys, hashDeflectorsState(s)]).toEqual([score, volleys, hash]);
+      expect(s.locked.every((l) => l === 0)).toBe(true);
+    }
   });
 
   it("time passing in one step or in many comes to the same grid", () => {
@@ -314,7 +370,11 @@ describe("deflectors beams and mirrors", () => {
 describe("deflectors rounds", () => {
   it("every volley is dealt ports of its own, exits one setting reaches together, and the most they are worth", () => {
     fc.assert(
-      fc.property(fc.string(), picksArb, fc.constantFrom<Partial<DeflectorsConfig>>({}, { maxBeams: 3, rampTicks: 100 }), (seed, picks, over) => {
+      fc.property(
+        fc.string(),
+        picksArb,
+        fc.constantFrom<Partial<DeflectorsConfig>>({}, { maxBeams: 3, rampTicks: 100 }, { hotVolleys: 1 }, { hotVolleys: 2, hotTurns: 3, maxBeams: 3, rampTicks: 100 }),
+        (seed, picks, over) => {
         const config = { ...cfg, ...over };
         let state = createDeflectorsGame(seed, config);
         let seq = 0;
@@ -336,7 +396,13 @@ describe("deflectors rounds", () => {
             const ports = v.beams.flatMap((b) => [b.entry, b.exit]);
             expect(new Set(ports).size).toBe(ports.length);
             expect(v.best).toBeGreaterThan(0);
-            expect(deflectorsVolleyBest(config, state.mirrors, v.beams)).toBe(v.best);
+            // The best is found with the locks as they stood at the deal, and the free mirrors reach it.
+            const dealt = advanceDeflectors(before, e.tick);
+            expect(deflectorsVolleyBest(config, state.mirrors, v.beams, dealt.locked)).toBe(v.best);
+            const route = deflectorsVolleyRoute(config, state.mirrors, v.beams, dealt.locked)!;
+            expect(route.flips.every((c) => dealt.locked[c] === 0)).toBe(true);
+            const set = state.mirrors.map((m, c) => (route.flips.includes(c) ? 3 - m : m));
+            expect(deflectorsOutlook({ ...dealt, mirrors: set })!.perfect).toBe(true);
             expect(v.dealTick).toBe(e.tick);
             expect(v.fireTick).toBe(v.dealTick + deflectorsChargeTicksAt(config, v.dealTick, v.beams.length));
           }
@@ -586,5 +652,102 @@ describe("deflectors rounds", () => {
     const s = grid(["/..", ".\\.", "..."]);
     expect(deflectorsViewString(s.mirrors, [])).toBe("/...\\....|");
     expect(deflectorsViewString(s.mirrors, [{ sign: 1, entry: 3, exit: 7 }, { sign: 0, entry: 10, exit: 1 }])).toBe("/...\\....|0:10>1,1:3>7");
+  });
+});
+
+describe("deflectors locks", () => {
+  // Port 9 is the left edge, row 0, heading right: it turns down at cell 0 and leaves by port 6, the bottom of column 0.
+  // Port 5 is the right edge, row 2, heading left: it turns up at cell 8 and leaves by port 2, the top of column 2.
+  const twoMirrors = (over: Partial<DeflectorsConfig> = {}): DeflectorsState => grid(["\\..", "...", "..\\"], { hotVolleys: 1, ...over });
+  const fireAt = (s: DeflectorsState, tick: number): DeflectorsState => reduceDeflectors(s, { type: "fire", volley: s.volley!.id, tick });
+
+  it("when a volley fires, the last mirror each beam turned at locks, and the fire says so", () => {
+    const s = fireAt(waiting(twoMirrors(), [[9, 6]], 4), 0);
+    expect(deflectorsLockedCells(s)).toEqual([0]);
+    expect(fires(s)[0]!.locked).toEqual([0]);
+    expect(deflectorsFlipIllegalReason(s, 0)).toBe("mirror is locked");
+    expect(deflectorsFlipIllegalReason(s, 8)).toBeNull();
+  });
+
+  it("a flip on a locked mirror is refused, also when the volley that locked it fired on the way to the flip", () => {
+    const s = fireAt(waiting(twoMirrors(), [[9, 6]], 4), 0);
+    expect(() => reduceDeflectors(s, { type: "flip", cell: 0, tick: 1 })).toThrow("mirror is locked");
+    expect(() => reduceDeflectors(s, { type: "flip", cell: 8, tick: 1 })).not.toThrow();
+    // Left to its count, the volley fires at tick 100: a flip on tick 99 is free, one on tick 100 is not.
+    const left = waiting(twoMirrors(), [[9, 6]], 4);
+    expect(() => reduceDeflectors(left, { type: "flip", cell: 0, tick: 99 })).not.toThrow();
+    expect(() => reduceDeflectors(left, { type: "flip", cell: 0, tick: 100 })).toThrow(InvalidMoveError);
+  });
+
+  it("a lock lasts exactly one volley, and the next volley's beams lock their own", () => {
+    const one = fireAt(waiting(twoMirrors(), [[9, 6]], 4), 0);
+    const two = fireAt(waiting(one, [[5, 2]], 4), 1);
+    expect(deflectorsLockedCells(two)).toEqual([8]);
+    expect(() => reduceDeflectors(two, { type: "flip", cell: 0, tick: 2 })).not.toThrow();
+    // Held for two volleys, the first lock outlasts the second volley.
+    const held = fireAt(waiting(fireAt(waiting(twoMirrors({ hotVolleys: 2 }), [[9, 6]], 4), 0), [[5, 2]], 4), 1);
+    expect(deflectorsLockedCells(held)).toEqual([0, 8]);
+  });
+
+  it("a beam into the hull locks the end of its route too; locks off lock nothing", () => {
+    const missed = fireAt(waiting(twoMirrors(), [[9, 7]], 4), 0);
+    expect(fires(missed)[0]!.outcome.clean).toBe(false);
+    expect(deflectorsLockedCells(missed)).toEqual([0]);
+    const off = fireAt(waiting(twoMirrors({ hotVolleys: 0 }), [[9, 6]], 4), 0);
+    expect(deflectorsLockedCells(off)).toEqual([]);
+    expect(fires(off)[0]!.locked).toEqual([]);
+  });
+
+  it("over whole rounds, every fire locks the last turns of its beams and releases what came before", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, configArb, (seed, picks, config) => {
+        const { moves, state } = playRandom(seed, picks, config);
+        // Replayed move by move, every fire is checked against the volleys before it.
+        let s = createDeflectorsGame(seed, config);
+        const history: number[][] = [];
+        for (const m of moves) {
+          s = reduceDeflectors(s, m);
+          for (const e of fires(s)) {
+            if (config.hotVolleys === 0) {
+              expect(e.locked).toEqual([]);
+              continue;
+            }
+            history.push(e.outcome.shots.flatMap((shot) => shot.turns.slice(-config.hotTurns)));
+            const want = [...new Set(history.slice(-config.hotVolleys).flat())].sort((a, b) => a - b);
+            expect(e.locked).toEqual(want);
+          }
+        }
+        expect(s).toEqual(state);
+        expect(deflectorsLockedCells(s)).toEqual(config.hotVolleys === 0 ? [] : [...new Set(history.slice(-config.hotVolleys).flat())].sort((a, b) => a - b));
+      }),
+      { numRuns: 40 },
+    );
+  });
+
+  it("the hint never points at a locked mirror, and following it still makes the volley perfect", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        const { state } = playRandom(seed, picks.slice(0, 90), LOCKS);
+        if (state.finished || !state.volley) return;
+        let s = state;
+        for (let n = 0; n < 40; n++) {
+          const h = deflectorsHint(s);
+          if (!h) break;
+          expect(s.locked[h.cell]).toBe(0);
+          s = reduceDeflectors(s, { type: "flip", cell: h.cell, tick: s.tick });
+        }
+        expect(deflectorsOutlook(s)!.perfect).toBe(true);
+      }),
+      { numRuns: 40 },
+    );
+  });
+
+  it("the best route every volley still plays whole rounds with locks on, every volley perfect", () => {
+    for (const seed of ["a", "b", "golden"]) {
+      const s = bestEveryVolley(seed, LOCKS);
+      expect(s.volleys).toBeGreaterThan(30);
+      expect(s.perfects).toBe(s.volleys);
+      expect(s.misses).toBe(0);
+    }
   });
 });
