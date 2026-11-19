@@ -8,6 +8,8 @@
     "minBest": 4,
     "bouncePoints": 1,
     "bounceCap": 16,
+    "hotVolleys": 1,
+    "hotTurns": 1,
     "perfectPercent": 150,
     "hullPenalty": 40,
     "streakPercent": [100, 110, 120, 130, 140, 150, 160, 180, 200],
@@ -29,5 +31,57 @@
     { "score": 1500, "rating": 1700 },
     { "score": 2600, "rating": 1900 },
     { "score": 4000, "rating": 2100 }
+  ],
+  "stages": [
+    {
+      "id": "route",
+      "roundSeconds": 60,
+      "thresholds": [
+        { "score": 60, "rating": 1100 },
+        { "score": 150, "rating": 1300 },
+        { "score": 300, "rating": 1500 },
+        { "score": 575, "rating": 1700 },
+        { "score": 1000, "rating": 1900 },
+        { "score": 1525, "rating": 2100 }
+      ],
+      "config": {
+        "maxBeams": 1,
+        "maxTick": 600,
+        "perfectPercent": 100,
+        "hotVolleys": 0
+      }
+    },
+    {
+      "id": "pairs",
+      "roundSeconds": 90,
+      "thresholds": [
+        { "score": 80, "rating": 1100 },
+        { "score": 200, "rating": 1300 },
+        { "score": 400, "rating": 1500 },
+        { "score": 750, "rating": 1700 },
+        { "score": 1300, "rating": 1900 },
+        { "score": 2000, "rating": 2100 }
+      ],
+      "config": {
+        "maxTick": 900,
+        "perfectPercent": 100,
+        "hotVolleys": 0
+      }
+    },
+    {
+      "id": "long",
+      "roundSeconds": 120,
+      "thresholds": [
+        { "score": 150, "rating": 1100 },
+        { "score": 400, "rating": 1300 },
+        { "score": 800, "rating": 1500 },
+        { "score": 1500, "rating": 1700 },
+        { "score": 2600, "rating": 1900 },
+        { "score": 4000, "rating": 2100 }
+      ],
+      "config": {
+        "hotVolleys": 0
+      }
+    }
   ]
 }

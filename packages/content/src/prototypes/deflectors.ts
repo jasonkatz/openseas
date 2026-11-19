@@ -16,6 +16,9 @@ export const DeflectorsContentSchema = PrototypeBaseSchema.extend({
     /** A beam out through its exit after b turns scores bouncePoints * (b + 1) * (b + 1), b counted up to bounceCap. */
     bouncePoints: z.int().min(0),
     bounceCap: z.int().min(1).max(64),
+    /** Volleys the last hotTurns mirrors each fired beam turned at stay locked. 0 switches locks off. */
+    hotVolleys: z.int().min(0).max(4),
+    hotTurns: z.int().min(1).max(8),
     /** What a perfect volley is multiplied by, in percent. */
     perfectPercent: z.int().min(100),
     /** Lost for every beam that leaves by the wrong port. */
