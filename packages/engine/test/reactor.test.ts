@@ -16,6 +16,9 @@ import {
   reactorPortCell,
   reactorPortLoad,
   reactorPortStatus,
+  reactorPressureAfter,
+  reactorPressureHeld,
+  reactorPressureWarning,
   reactorSwipeOutcome,
   reactorViewString,
   reduceReactor,
@@ -43,6 +46,34 @@ function playRandom(seed: string, picks: readonly number[], config: ReactorConfi
     const legal = reactorLegalDirs(state);
     if (legal.length === 0) break;
     const m = swipeTo(legal[p % legal.length]!);
+    moves.push(m);
+    state = reduceReactor(state, m);
+  }
+  return { moves, state };
+}
+
+/** A fixed habit that holds hot rods: the hint every third swipe, else a legal swipe by turn. */
+function habit(state: ReactorState, i: number): ReactorDir {
+  const legal = reactorLegalDirs(state);
+  const h = reactorHint(state);
+  return h !== null && i % 3 === 0 ? h : legal[(i * 7) % legal.length]!;
+}
+
+/** A random swipe that keeps hot rods in the core when it can: one that discharges is taken one time in four. */
+function heldPick(state: ReactorState, p: number): ReactorDir {
+  const legal = reactorLegalDirs(state);
+  const held = legal.filter((d) => reactorSwipeOutcome(state, d).discharges === 0);
+  const from = held.length > 0 && p % 4 !== 0 ? held : legal;
+  return from[Math.floor(p / 4) % from.length]!;
+}
+
+/** Random play that holds hot rods, so pressure builds. */
+function playHeld(seed: string, picks: readonly number[], config: ReactorConfig): { moves: ReactorMove[]; state: ReactorState } {
+  let state = createReactorGame(seed, config);
+  const moves: ReactorMove[] = [];
+  for (const p of picks) {
+    if (state.finished || reactorLegalDirs(state).length === 0) break;
+    const m = swipeTo(heldPick(state, p));
     moves.push(m);
     state = reduceReactor(state, m);
   }
@@ -95,6 +126,8 @@ describe("reactor core", () => {
     expect(() => createReactorGame("x", { ...cfg, size: 3, ports: 12 })).toThrow();
     expect(() => createReactorGame("x", { ...cfg, salvoPercent: [] })).toThrow();
     expect(() => createReactorGame("x", { ...cfg, criticalHot: 1 })).toThrow();
+    expect(() => createReactorGame("x", { ...cfg, pressureLimit: -1 })).toThrow();
+    expect(() => createReactorGame("x", { ...cfg, pressureLimit: 2.5 })).toThrow();
   });
 });
 
@@ -109,6 +142,69 @@ describe("reactor determinism (ADR 0003)", () => {
       }),
       { numRuns: 60 },
     );
+  });
+
+  it("same seed and same move log give the same state and hash with pressure off, on, and tight", () => {
+    for (const pressureLimit of [0, cfg.pressureLimit, 3]) {
+      const config = { ...cfg, pressureLimit };
+      fc.assert(
+        fc.property(fc.string(), picksArb, (seed, picks) => {
+          const { moves, state } = playHeld(seed, picks, config);
+          const replayed = replayReactor(seed, config, moves);
+          expect(hashReactorState(replayed)).toBe(hashReactorState(state));
+          expect(replayed).toEqual(state);
+        }),
+        { numRuns: 30 },
+      );
+    }
+  });
+
+  it("with pressure off a seed deals and plays as it did before there was any, hash and all", () => {
+    // Hashes taken from the engine before core pressure: the opening, and the state after 400 swipes
+    // of a fixed habit that holds hot rods (the hint every third swipe, else a legal swipe by turn).
+    const off = { ...cfg, pressureLimit: 0 };
+    const golden = [
+      { seed: "golden-1", opening: "d1f74a37", after400: "7067c43e", score: 1790, scrams: 9 },
+      { seed: "golden-2", opening: "002a3ff2", after400: "ae181df6", score: 118, scrams: 10 },
+      { seed: "golden-3", opening: "913baab0", after400: "fdd1e212", score: 1105, scrams: 9 },
+    ];
+    for (const g of golden) {
+      let s = createReactorGame(g.seed, off);
+      expect(hashReactorState(s)).toBe(g.opening);
+      for (let i = 0; i < 400 && !s.finished; i++) s = reduceReactor(s, swipeTo(habit(s, i)));
+      expect(hashReactorState(s)).toBe(g.after400);
+      expect(s.score).toBe(g.score);
+      expect(s.scrams).toBe(g.scrams);
+      expect(s.pressure).toBe(0);
+      expect(s.pressureScrams).toBe(0);
+    }
+  });
+
+  it("turning pressure on changes nothing but the gauge until the core scrams on it", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        let off = createReactorGame(seed, { ...cfg, pressureLimit: 0 });
+        let on = createReactorGame(seed, { ...cfg, pressureLimit: 5 });
+        for (const p of picks) {
+          if (reactorLegalDirs(off).length === 0) break;
+          const m = swipeTo(heldPick(off, p));
+          off = reduceReactor(off, m);
+          on = reduceReactor(on, m);
+          if (on.lastMove!.scram?.cause === "pressure") return;
+          const { config: _a, pressure: _b, lastMove: _c, ...restOn } = on;
+          const { config: _d, pressure: _e, lastMove: _f, ...restOff } = off;
+          expect(restOn).toEqual(restOff);
+          expect(off.pressure).toBe(0);
+        }
+      }),
+      { numRuns: 40 },
+    );
+  });
+
+  it("the gauge is part of the hash when pressure is on", () => {
+    const s = createReactorGame("p", { ...cfg, pressureLimit: 12 });
+    expect(hashReactorState({ ...s, pressure: 3 })).not.toBe(hashReactorState(s));
+    expect(hashReactorState({ ...s, pressureScrams: 1 })).not.toBe(hashReactorState(s));
   });
 
   it("different seeds deal different openings", () => {
@@ -175,6 +271,11 @@ describe("reactor rules", () => {
           if (!r.scram) expect(next.cells[r.entered!.cell]?.id).toBe(r.entered!.id);
           // A pipeline is running exactly while swipes are left in it.
           expect(reactorPipelineLeft(next) > 0).toBe(next.combo > 0);
+          // The gauge stays under its limit, and the report says what the swipe did to it.
+          expect(next.pressure).toBeGreaterThanOrEqual(0);
+          expect(next.pressure).toBeLessThan(cfg.pressureLimit);
+          if (!r.scram) expect(next.pressure).toBe(state.pressure + r.pressureChange);
+          else expect(next.pressure).toBe(0);
           state = next;
         }
       }),
@@ -414,5 +515,125 @@ describe("reactor rules", () => {
       { side: UP, lane: 0 },
     ]);
     expect(reactorViewString(s.cells, s.ports)).toBe("1..2.....4.....3|00,32");
+  });
+});
+
+describe("reactor core pressure", () => {
+  const limit = 6;
+  const on: Partial<ReactorConfig> = { pressureLimit: limit };
+  const port: ReactorPort = { side: UP, lane: 3 };
+
+  it("a swipe that ends with two or more hot rods adds one for each past the first", () => {
+    // Two hot rods held: one a swipe.
+    const s = reduceReactor(core(["4...", "....", "...4", "1..."], [port], {}, on), swipeTo(RIGHT));
+    expect(reactorHotCount(s.config, s.cells)).toBe(2);
+    expect(s.lastMove!.pressureChange).toBe(1);
+    expect(s.pressure).toBe(1);
+    // Three held: two a swipe.
+    const three = reduceReactor(core(["4...", "4...", "...4", "1..."], [], { pressure: 2 }, on), swipeTo(RIGHT));
+    expect(three.lastMove!.pressureChange).toBe(2);
+    expect(three.pressure).toBe(4);
+    // A fusion that makes the second hot rod counts on the swipe it is made.
+    const made = reduceReactor(core(["33..", "....", "...4", "...."], [], {}, on), swipeTo(LEFT));
+    expect(reactorHotCount(made.config, made.cells)).toBe(2);
+    expect(made.pressure).toBe(1);
+  });
+
+  it("a swipe that ends with one hot rod or none lets one off, never below empty", () => {
+    const one = reduceReactor(core(["4...", "....", "....", "1..."], [], { pressure: 3 }, on), swipeTo(RIGHT));
+    expect(one.lastMove!.pressureChange).toBe(-1);
+    expect(one.pressure).toBe(2);
+    // A discharge that leaves one in the core lets one off on that swipe.
+    const sent = reduceReactor(core(["...4", "....", "4...", "...."], [port], { pressure: 4 }, on), swipeTo(UP));
+    expect(sent.lastMove!.discharges.length).toBe(1);
+    expect(sent.pressure).toBe(3);
+    const empty = reduceReactor(core(["1...", "....", "....", "...."], [], {}, on), swipeTo(RIGHT));
+    expect(empty.lastMove!.pressureChange).toBe(0);
+    expect(empty.pressure).toBe(0);
+  });
+
+  it("at the limit the core scrams on pressure, for the same penalty as a lamp scram, and the gauge empties", () => {
+    const s = core(["4...", "....", "...4", "1..."], [], { pressure: limit - 1, score: 400, combo: 2, sinceDischarge: 1 }, on);
+    expect(reactorPressureWarning(s)).toBe(true);
+    const next = reduceReactor(s, swipeTo(RIGHT));
+    const r = next.lastMove!;
+    expect(r.pressureChange).toBe(1);
+    expect(r.scram).toMatchObject({ cause: "pressure", penalty: cfg.scramPenalty });
+    expect(next.score).toBe(400 - cfg.scramPenalty);
+    expect(next.scrams).toBe(1);
+    expect(next.pressureScrams).toBe(1);
+    expect(next.pressure).toBe(0);
+    expect(next.combo).toBe(0);
+    expect(next.cells.filter((x) => x !== null).length).toBe(cfg.startRods);
+    for (const f of r.scram!.fresh) expect(next.cells[f.cell]).toEqual({ id: f.id, grade: 1 });
+  });
+
+  it("a lamp scram is still a lamp scram with the gauge full too, and any scram empties the gauge", () => {
+    const s = core(["4..4", "....", "4...", "33.."], [], { pressure: limit - 1 }, on);
+    const next = reduceReactor(s, swipeTo(LEFT));
+    expect(next.lastMove!.scram!.cause).toBe("critical");
+    expect(next.pressure).toBe(0);
+    expect(next.pressureScrams).toBe(0);
+    // A jam empties it too.
+    const jam = reduceReactor(core(["121", "212", ".12"], [], { next: 3, pressure: 2 }, on), swipeTo(LEFT));
+    expect(jam.lastMove!.scram!.cause).toBe("jammed");
+    expect(jam.pressure).toBe(0);
+  });
+
+  it("off means none: the gauge stays empty, the report says no change, and nothing scrams on it", () => {
+    const off: Partial<ReactorConfig> = { pressureLimit: 0 };
+    let s = core(["4...", "....", "...4", "1..."], [], {}, off);
+    for (let i = 0; i < 30; i++) {
+      const legal = reactorLegalDirs(s).filter((d) => reactorSwipeOutcome(s, d).discharges === 0);
+      if (legal.length === 0) break;
+      s = reduceReactor(s, swipeTo(legal[i % legal.length]!));
+      expect(s.pressure).toBe(0);
+      expect(s.lastMove!.pressureChange).toBe(0);
+      expect(s.lastMove!.scram?.cause).not.toBe("pressure");
+    }
+    expect(reactorPressureHeld(s)).toBe(0);
+    expect(reactorPressureWarning(s)).toBe(false);
+    expect(reactorSwipeOutcome(s, reactorLegalDirs(s)[0]!)).toMatchObject({ pressure: 0, overpressure: false });
+  });
+
+  it("says what holding would do, and warns one swipe before the limit", () => {
+    const two = core(["4...", "....", "...4", "1..."], [], { pressure: limit - 3 }, on);
+    expect(reactorPressureHeld(two)).toBe(limit - 2);
+    expect(reactorPressureWarning(two)).toBe(false);
+    expect(reactorPressureWarning({ ...two, pressure: limit - 1 })).toBe(true);
+    // Three held climb two a swipe, so the warning comes a mark sooner.
+    const three = core(["4...", "4...", "...4", "1..."], [], { pressure: limit - 2 }, on);
+    expect(reactorPressureHeld(three)).toBe(limit);
+    expect(reactorPressureWarning(three)).toBe(true);
+    // One hot rod is venting: no warning, however high the gauge.
+    const one = core(["4...", "....", "....", "1..."], [], { pressure: limit - 1 }, on);
+    expect(reactorPressureHeld(one)).toBe(limit - 2);
+    expect(reactorPressureWarning(one)).toBe(false);
+    expect(reactorPressureAfter(one.config, 0, 0)).toBe(0);
+    expect(reactorPressureAfter(one.config, 2, 4)).toBe(5);
+  });
+
+  it("a swipe's outcome says what it would leave the gauge at, and is right about every swipe of a round", () => {
+    const s = core(["...4", "....", "4...", "...."], [port], { pressure: 2 }, on);
+    expect(reactorSwipeOutcome(s, UP)).toMatchObject({ discharges: 1, pressure: 1, overpressure: false });
+    expect(reactorSwipeOutcome(s, DOWN)).toMatchObject({ discharges: 0, pressure: 3, overpressure: false });
+    expect(reactorSwipeOutcome({ ...s, pressure: limit - 1 }, DOWN)).toMatchObject({ pressure: limit, overpressure: true });
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        let state = createReactorGame(seed, { ...cfg, pressureLimit: 4 });
+        for (const p of picks) {
+          if (reactorLegalDirs(state).length === 0) break;
+          const dir = heldPick(state, p);
+          const said = reactorSwipeOutcome(state, dir);
+          const next = reduceReactor(state, swipeTo(dir));
+          expect(said.pressure).toBe(state.pressure + next.lastMove!.pressureChange);
+          expect(said.overpressure).toBe(said.pressure >= 4);
+          if (said.overpressure && next.lastMove!.scram?.cause !== "critical") expect(next.lastMove!.scram?.cause).toBe("pressure");
+          if (next.lastMove!.scram?.cause === "pressure") expect(said.overpressure).toBe(true);
+          state = next;
+        }
+      }),
+      { numRuns: 40 },
+    );
   });
 });
