@@ -14,7 +14,8 @@
     "slowPercent": 50,
     "streakPercent": [100, 115, 130, 145, 160, 180, 200],
     "skipPenalty": 15,
-    "maxMoves": 600
+    "maxMoves": 600,
+    "clamps": 2
   },
   "paceSeconds": 20,
   "roundSeconds": 120,
@@ -25,5 +26,56 @@
     { "score": 1100, "rating": 1700 },
     { "score": 1800, "rating": 1900 },
     { "score": 2800, "rating": 2100 }
+  ],
+  "stages": [
+    {
+      "id": "glide",
+      "roundSeconds": 60,
+      "thresholds": [
+        { "score": 100, "rating": 1100 },
+        { "score": 200, "rating": 1300 },
+        { "score": 350, "rating": 1500 },
+        { "score": 550, "rating": 1700 },
+        { "score": 800, "rating": 1900 },
+        { "score": 1100, "rating": 2100 }
+      ],
+      "config": {
+        "startPar": 1,
+        "maxPar": 2,
+        "streakPercent": [100],
+        "clamps": 1
+      }
+    },
+    {
+      "id": "stops",
+      "roundSeconds": 90,
+      "thresholds": [
+        { "score": 150, "rating": 1100 },
+        { "score": 300, "rating": 1300 },
+        { "score": 500, "rating": 1500 },
+        { "score": 800, "rating": 1700 },
+        { "score": 1300, "rating": 1900 },
+        { "score": 2000, "rating": 2100 }
+      ],
+      "config": {
+        "maxPar": 3,
+        "clamps": 1
+      }
+    },
+    {
+      "id": "pairs",
+      "roundSeconds": 120,
+      "thresholds": [
+        { "score": 200, "rating": 1100 },
+        { "score": 400, "rating": 1300 },
+        { "score": 700, "rating": 1500 },
+        { "score": 1100, "rating": 1700 },
+        { "score": 1800, "rating": 1900 },
+        { "score": 2800, "rating": 2100 }
+      ],
+      "config": {
+        "maxPar": 3
+      }
+    }
   ]
 }

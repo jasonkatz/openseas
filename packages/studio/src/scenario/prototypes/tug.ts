@@ -7,5 +7,6 @@ export const TUG_PRESETS: readonly Preset[] = [
   { id: "tug_big_bay", overrides: { width: 9, height: 9, blocks: 8 } },
   { id: "tug_easy_clamps", overrides: { maxPar: 2 } },
   { id: "tug_hard_clamps", overrides: { startPar: 4 } },
+  { id: "tug_one_clamp", overrides: { clamps: 1 } },
   { id: "tug_ten_moves", overrides: { maxMoves: 10 }, roundSeconds: 60 },
 ];
