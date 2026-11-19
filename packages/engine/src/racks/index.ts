@@ -20,6 +20,8 @@ export {
   chainPercentAt as racksChainPercentAt,
   shipmentPoints as racksShipmentPoints,
   nextShipment as racksNextShipment,
+  manifestView as racksManifestView,
+  manifestAfter as racksManifestAfter,
   hint as racksHint,
   viewString as racksViewString,
   type RacksSummary,
