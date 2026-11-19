@@ -1,6 +1,6 @@
 # M11 pitches
 
-Status: for the owner to pick from, in one sitting (DESIGN.md 5.2, M11's third step). Nothing here
+Status: picked by the owner on 2026-11-19 (DESIGN.md 5.2, M11's third step); the picks are below. Nothing here
 is built into the game or the studio. Each puzzle's layer, once picked, is its own pull request by
 the `puzzles` skill's "Changing a puzzle", with its design file, guide and pictures in step.
 
@@ -11,6 +11,18 @@ layer's own. A bait is a play that looks right and loses to plain good play. All
 means at the runner's pace for the puzzle (in `packages/bots/README.md`), over the seeds stated.
 Gaps under about 10 percent at 32 seeds can be noise (two bots that play alike differed by 230 on
 Reactor); the closest ones were run at 64 or 128 seeds.
+
+## The picks
+
+| Puzzle | Decision | Build order |
+|---|---|---|
+| Cutting | The order, its bonus tuned between 40 and 60 | First, side by side with Racks and Deflectors |
+| Racks | The manifest as pitched: two kinds in order, +300 | First |
+| Deflectors | Locks for one volley, one mirror a beam | First |
+| Overload | The draw, tuned down in its pull request: a narrower band and a lower multiplier until blind bots' free gain shrinks and the draw stays under half a good score (rule 14) | Second |
+| Reactor | Core pressure, its limit between 12 and 14 | Second |
+| Tug | Pairs, with the runner letting a puzzle name the plain bot the careless check compares against (a two-flick bot for Tug) | Second |
+| Scanner | Not yet: the lead is measured again with the opening ping further out (`openingMin`), to see whether the free share drops and the gap widens, and comes back to the owner | Once its retry is back |
 
 ## At a glance
 
