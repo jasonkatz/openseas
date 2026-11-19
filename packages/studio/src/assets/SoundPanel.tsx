@@ -3,6 +3,7 @@ import type { PuzzleId } from "@openseas/engine";
 import { CUE_PARAMS, LIMITS, NOTES, PROBES, SHIPPED_CUES, auditionCue, auditionData, cueFrom, cueProblems, t, type CueName, type CueParam } from "@openseas/boards";
 import { CueDataSchema, type CueData, type VoiceData, type When } from "@openseas/protocol";
 import { useFrame } from "../frame/RoundFrame.jsx";
+import { useWidePanel } from "../studio/wide.js";
 import { OWN_CUE_FALLBACKS, PUZZLE_CUES, cuesOf, noteName } from "./cues.js";
 
 /**
@@ -37,7 +38,7 @@ export function SoundPanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focus
   const name = focus && isCue(focus) && cues.includes(focus) ? focus : (editable[0] ?? null);
   return (
     <div className="tune assets" data-testid="sounds">
-      <section className="panel-sec">
+      <section className="panel-sec cue-list-sec">
         <h3 className="panel-cap">{t("studio.sounds.cues", { count: cues.length })}</h3>
         <div className="cue-list">
           {cues.map((cue) => (
@@ -67,14 +68,15 @@ export function SoundPanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focus
   );
 }
 
-const W = 420;
-const ROW = 11;
-const AIR = 22;
-const TOP = 4;
-const H = TOP + 16 * ROW + 6 + AIR + 4;
+/** The roll's measures: beside the list, and as a timeline in a panel opened wide (ADR 0068), with a ruler of milliseconds over it. */
+const NARROW_ROLL = { W: 420, ROW: 11, AIR: 22, TOP: 4 } as const;
+const WIDE_ROLL = { W: 760, ROW: 15, AIR: 30, TOP: 18 } as const;
 const voiceEnd = (v: VoiceData): number => v.at + v.attack + v.release;
 
 function CueEditor({ name }: { name: CueName }) {
+  const wide = useWidePanel();
+  const { W, ROW, AIR, TOP } = wide ? WIDE_ROLL : NARROW_ROLL;
+  const H = TOP + 16 * ROW + 6 + AIR + 4;
   const { look, setCue } = useFrame();
   const shipped = SHIPPED_CUES[name];
   const data = look.cues[name] ?? shipped;
@@ -190,7 +192,7 @@ function CueEditor({ name }: { name: CueName }) {
             </button>
           ))}
         </div>
-        <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className="roll" onPointerMove={move} onPointerUp={up} onPointerCancel={up} data-testid="roll" aria-label={t("studio.sounds.roll", { cue: name })}>
+        <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className={`roll ${wide ? "is-wide" : ""}`} onPointerMove={move} onPointerUp={up} onPointerCancel={up} data-testid="roll" aria-label={t("studio.sounds.roll", { cue: name })}>
           {Array.from({ length: 16 }, (_, n) => (
             <g key={n} className={n % 5 === 0 ? "roll-root" : "roll-row"}>
               <line x1={0} x2={W} y1={y(n) + ROW - 0.5} y2={y(n) + ROW - 0.5} />
@@ -204,6 +206,20 @@ function CueEditor({ name }: { name: CueName }) {
           <text x={2} y={TOP + 16 * ROW + 6 + AIR - 6} className="roll-label">
             {t("studio.sounds.air")}
           </text>
+          {wide && (
+            <g className="roll-ruler" data-testid="roll-ruler">
+              {Array.from({ length: Math.floor((span * 1000) / 50) + 1 }, (_, k) => k * 50).map((ms) => (
+                <g key={ms}>
+                  <line x1={x(ms / 1000)} x2={x(ms / 1000)} y1={ms % 100 === 0 ? 8 : 12} y2={TOP} />
+                  {ms % 100 === 0 && (
+                    <text x={x(ms / 1000) + 2} y={8}>
+                      {ms}
+                    </text>
+                  )}
+                </g>
+              ))}
+            </g>
+          )}
           {/* How long a cue may last. */}
           <line x1={x(limit)} x2={x(limit)} y1={0} y2={H} className="roll-limit" />
           {heard.voices.map((v, i) => block(v as VoiceData, i, true))}

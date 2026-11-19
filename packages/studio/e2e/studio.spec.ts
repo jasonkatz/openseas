@@ -349,3 +349,48 @@ test("a finished round keeps the numbers it was dealt on, can be the baseline, a
   await expect(page.getByTestId("last-round")).toHaveCount(2);
   await expect(page.getByTestId("last-round").nth(1)).toHaveClass(/is-base/);
 });
+
+test("a panel opened wide draws more: a curve as a chart drawn by hand, the rating scale with the page's rounds, a larger stage, a timeline and the shipped words", async ({ page }) => {
+  desktopOnly();
+  await page.goto("/reactor?seed=studio-10");
+  await page.getByTestId("transport-play").click();
+  await expect(page.getByTestId("reactor-canvas")).toBeVisible();
+  await page.evaluate(() => {
+    window.openseasRoundClock!.pause();
+    window.openseasRoundClock!.step(10 * 60 * 1000);
+  });
+  await expect(page.getByTestId("result-tier")).toBeVisible();
+
+  await page.getByTestId("tab-scoring").click();
+  await expect(page.getByTestId("chart-config.fusePoints")).toHaveCount(0);
+  await page.getByTestId("panel-wide").click();
+
+  // A press near the top of the first bar draws that step taller.
+  const chart = page.getByTestId("chart-config.fusePoints");
+  await expect(chart).toBeVisible();
+  const was = Number(await page.getByTestId("input-config.fusePoints.0").inputValue());
+  const box = (await chart.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 6, box.y + 20);
+  await expect.poll(async () => Number(await page.getByTestId("input-config.fusePoints.0").inputValue())).toBeGreaterThan(was);
+  await expect(page).toHaveURL(/c\.fusePoints/);
+
+  await expect(page.getByTestId("rating-scale")).toBeVisible();
+  await expect(page.getByTestId("scale-round")).toHaveCount(1);
+
+  await page.getByTestId("tab-sprites").click();
+  const stage = (await page.getByTestId("sprite-stage").boundingBox())!;
+  expect(stage.width).toBeGreaterThan(400);
+
+  await page.getByTestId("tab-sounds").click();
+  await page.getByTestId("sounds").locator('[data-testid^="cue-edit-"]').first().click();
+  await expect(page.getByTestId("roll-ruler")).toBeVisible();
+
+  await page.getByTestId("tab-text").click();
+  await expect(page.getByTestId("shipped-text-reactor.title")).toHaveText("Reactor");
+
+  // Shut, the panels draw as they did.
+  await page.getByTestId("panel-wide").click();
+  await expect(page.getByTestId("shipped-text-reactor.title")).toHaveCount(0);
+  await page.getByTestId("tab-scoring").click();
+  await expect(page.getByTestId("rating-scale")).toHaveCount(0);
+});

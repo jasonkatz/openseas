@@ -795,9 +795,10 @@ thing added is that the Play panel lists the last rounds finished on the page.
 **The board plays from every mode, and a panel can open wide** (ADR 0068), built. A transport
 bar under the board plays the round without turning the rail back to Play; any other mode can
 open its panel over the middle while the board, still live, moves above the chat; and the Play
-panel's last rounds keep the numbers each was dealt on. Richer wide panels (the numbers in two
-columns with curves drawn large, the Sprites grid beside a larger editor, a cue's voices on a
-timeline, the shipped and draft words side by side) are the next step.
+panel's last rounds keep the numbers each was dealt on. The wide panels then drew more with the
+room (built): the numbers in columns with each curve drawn as a chart, the thresholds as a scale
+with the page's rounds on it, the Sprites stage large beside the pieces, a cue's voices on a
+timeline, and the shipped words beside the draft's.
 
 The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
 agent reads:
@@ -839,7 +840,13 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   open its panel wide over the middle, from a button in its head: the board then moves to the
   top of the right-hand column, still live and playable, and the chat takes its bottom. One
   switch serves every mode and is kept in the browser, and the change is one eased motion. The
-  board is one element in every layout, so the round on it carries on.
+  board is one element in every layout, so the round on it carries on. A wide panel draws more:
+  the numbers modes lay their sections out in columns, draw each curve as a chart whose steps are
+  pressed or dragged to their height, and draw the thresholds as a scale with each tier marked
+  and the page's rounds as dots on it (filled on the draft, hollow on the shipped numbers);
+  Sprites puts the pieces, layers and inspector down the left and the stage large on the right;
+  Sounds puts the cues down the left and the open cue on a timeline with a ruler of milliseconds;
+  Text sets the shipped words beside each field.
   Play holds what the next round is dealt on (a stage, a starting point, the seed) and the last
   twenty rounds finished on the page, newest first, kept for the tab's session. Each says its
   score, tier, length and moves, how its score stands against the round before or against a

@@ -1,3 +1,4 @@
+import { createContext, useContext } from "react";
 import type { ModeId } from "./modes.js";
 
 /**
@@ -26,3 +27,7 @@ export function writeWide(wide: boolean): void {
     /* private mode */
   }
 }
+
+/** True inside a panel opened wide: a panel draws more where it has the room (a curve as a chart, the rating scale, the Sprites stage). */
+export const WidePanel = createContext(false);
+export const useWidePanel = (): boolean => useContext(WidePanel);

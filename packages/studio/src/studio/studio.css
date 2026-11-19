@@ -2136,3 +2136,135 @@
 .round-actions.is-asking span {
   flex-basis: 100%;
 }
+
+/* ---- what a panel opened wide draws with its room (ADR 0068) */
+/* A curve as a chart over its fields. */
+.curve-chart {
+  display: block;
+  width: 100%;
+  height: 132px;
+  margin: 4px 0 8px;
+  border-radius: var(--st-r);
+  background: var(--st-canvas);
+  cursor: crosshair;
+  touch-action: none;
+}
+.chart-axis {
+  stroke: var(--st-line-strong);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.chart-bar {
+  fill: var(--st-accent);
+}
+.chart-bar:hover {
+  fill: var(--st-accent-text);
+}
+.tune-curve.is-wide .curve-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  column-gap: 12px;
+}
+/* The rating scale: each threshold's tier above the line and its score under it; the page's rounds as dots, filled on the draft and hollow on the shipped numbers. */
+.rating-scale {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 4px 0 8px;
+  border-radius: var(--st-r);
+  background: var(--st-canvas);
+}
+.rating-scale text {
+  fill: var(--st-muted);
+  font: 11px var(--st-ui);
+}
+.rating-scale .scale-score {
+  fill: var(--st-faint);
+  font-family: var(--st-mono);
+}
+.scale-mark line {
+  stroke: var(--st-fg);
+  stroke-width: 1.5;
+}
+.scale-round {
+  fill: var(--st-canvas);
+  stroke: var(--st-mark-text);
+  stroke-width: 1.5;
+}
+.scale-round.is-draft {
+  fill: var(--st-mark-text);
+}
+/* Sprites: the pieces, the layers and the inspector down the left, the stage large on the right. */
+.studio.is-wide .sprites {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  align-items: start;
+}
+.studio.is-wide .sprites > .sprite-pieces,
+.studio.is-wide .sprites > .sprite-layers,
+.studio.is-wide .sprites > .sprite-insp {
+  grid-column: 1;
+}
+.studio.is-wide .sprites > .sprite-edit {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  border-left: 1px solid var(--st-line);
+  border-bottom: 0;
+}
+.studio.is-wide .sprites > .sprite-pieces .sprite-grid {
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+}
+/* Sounds: the cues down the left, the open cue's timeline and voices on the right. */
+.studio.is-wide .tune.assets {
+  column-width: auto;
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  align-items: start;
+}
+.studio.is-wide .tune.assets > * {
+  grid-column: 2;
+}
+.studio.is-wide .tune.assets > .cue-list-sec {
+  grid-column: 1;
+  grid-row: 1 / span 12;
+  border-right: 1px solid var(--st-line);
+  border-bottom: 0;
+}
+.studio.is-wide .assets .cue-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+.roll.is-wide text {
+  font-size: 9px;
+}
+.roll-ruler line {
+  stroke: var(--st-line-strong);
+  stroke-width: 0.6;
+}
+/* Text: one column, the shipped words beside the field that rewrites them. */
+.studio.is-wide .tune[data-mode-panel="text"] {
+  column-width: auto;
+}
+.num-row.is-side {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 20px;
+  align-items: start;
+}
+.num-row.is-side > .num-label {
+  grid-area: 1 / 1 / 2 / 3;
+}
+.num-row.is-side > .text-shipped {
+  grid-area: 2 / 1;
+  margin: 0;
+  padding: 6px 8px 4px 12px;
+  color: var(--st-muted);
+  white-space: pre-wrap;
+  pointer-events: auto;
+  user-select: text;
+}
+.num-row.is-side > .num-ctl {
+  grid-area: 2 / 2 / 3 / -1;
+  padding-left: 0;
+}
+.num-row.is-side > .tune-refusal {
+  grid-column: 2 / -1;
+}

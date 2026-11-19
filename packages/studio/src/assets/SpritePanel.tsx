@@ -4,6 +4,7 @@ import { SHIPPED_PIECES, drawingProblems, t } from "@openseas/boards";
 import { PALETTE, type Token } from "@openseas/boards/look";
 import { DrawingSchema, type Drawing, type Layer, type LayerKind } from "@openseas/protocol";
 import { useFrame } from "../frame/RoundFrame.jsx";
+import { useWidePanel } from "../studio/wide.js";
 import { ALIKE, NUMBER_FIELDS, dragged, extent, fresh, handles, mask, overlap, paintPreview, snap } from "./sprite.js";
 
 /**
@@ -16,6 +17,8 @@ import { ALIKE, NUMBER_FIELDS, dragged, extent, fresh, handles, mask, overlap, p
 
 const KINDS: readonly LayerKind[] = ["rect", "disc", "poly", "bar", "arc", "path"];
 const STAGE = 288;
+/** The stage in a panel opened wide (ADR 0068): a piece large enough to place a handle by eye. */
+const WIDE_STAGE = 520;
 const isToken = (v: unknown): v is Token => typeof v === "string" && v in PALETTE;
 const tintOf = (d: Drawing): Token => (isToken(d.tint) ? d.tint : "cream");
 
@@ -50,7 +53,7 @@ export function SpritePanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focu
   if (!name) return <p className="panel-empty">{t("studio.sprites.none")}</p>;
   return (
     <div className="sprites" data-testid="sprites">
-      <section className="panel-sec">
+      <section className="panel-sec sprite-pieces">
         <div className="sprite-head">
           <h3 className="panel-cap">{t("studio.sprites.pieces", { count: names.length })}</h3>
           <label className="switch-label" title={t("studio.sprites.mono_hint")}>
@@ -77,6 +80,7 @@ export function SpritePanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focu
 }
 
 function SpriteEditor({ puzzle, name, drawing, shipped, others, onChange }: { puzzle: PuzzleId; name: string; drawing: Drawing; shipped: Drawing; others: ReadonlyArray<readonly [string, Drawing]>; onChange(d: Drawing | null): void }) {
+  const stage = useWidePanel() ? WIDE_STAGE : STAGE;
   const [sel, setSel] = useState(0);
   // What the stage shows while a handle is held: the draft is written when it is let go.
   const [held, setHeld] = useState<Drawing | null>(null);
@@ -174,9 +178,9 @@ function SpriteEditor({ puzzle, name, drawing, shipped, others, onChange }: { pu
           </div>
         </div>
         {shown.detail && <p className="panel-note small">{t("studio.sprites.detail")}</p>}
-        <div className="sprite-stage" style={{ width: STAGE, height: STAGE }}>
+        <div className="sprite-stage" style={{ width: stage, height: stage }}>
           {/* The grid lies under the piece, the handles over it. */}
-          <svg viewBox="0 0 24 24" width={STAGE} height={STAGE} className="sprite-over sprite-under" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width={stage} height={stage} className="sprite-over sprite-under" aria-hidden="true">
             {Array.from({ length: 23 }, (_, i) => (
               <g key={i} className={i % 6 === 5 ? "grid-major" : "grid-minor"}>
                 <line x1={i + 1} y1={0} x2={i + 1} y2={24} />
@@ -186,8 +190,8 @@ function SpriteEditor({ puzzle, name, drawing, shipped, others, onChange }: { pu
             {/* The 20 units a piece fills. */}
             <rect x={2} y={2} width={20} height={20} className="grid-frame" />
           </svg>
-          <Picture drawing={shown} px={STAGE} color={color} />
-          <svg ref={svg} viewBox="0 0 24 24" width={STAGE} height={STAGE} className="sprite-over" onPointerMove={move} onPointerUp={up} onPointerCancel={up} data-testid="sprite-stage" aria-label={t("studio.sprites.stage", { piece: name })}>
+          <Picture drawing={shown} px={stage} color={color} />
+          <svg ref={svg} viewBox="0 0 24 24" width={stage} height={stage} className="sprite-over" onPointerMove={move} onPointerUp={up} onPointerCancel={up} data-testid="sprite-stage" aria-label={t("studio.sprites.stage", { piece: name })}>
             {layer &&
               handles(layer).map((h) => (
                 <circle key={h.id} cx={h.x} cy={h.y} r={h.body ? 0.85 : 0.65} className={h.body ? "handle handle-body" : "handle"} onPointerDown={(e) => down(e, h.id)} data-testid={`handle-${h.id}`} />
@@ -212,7 +216,7 @@ function SpriteEditor({ puzzle, name, drawing, shipped, others, onChange }: { pu
         )}
       </section>
 
-      <section className="panel-sec">
+      <section className="panel-sec sprite-layers">
         <h3 className="panel-cap">{t("studio.sprites.layers", { count: shown.layers.length })}</h3>
         <ol className="layers" data-testid="layers">
           {shown.layers.map((l, i) => (
@@ -275,7 +279,7 @@ function Inspector({ layer, onChange }: { layer: Layer; onChange(l: Layer): void
   const listed = layer.kind === "poly" ? pairsText(layer.points) : layer.kind === "path" ? JSON.stringify(layer.steps) : "";
   useEffect(() => setPointsText(listed), [listed]);
   return (
-    <section className="panel-sec" data-testid="inspector">
+    <section className="panel-sec sprite-insp" data-testid="inspector">
       <h3 className="panel-cap">{t("studio.sprites.layer", { kind: t(`studio.sprites.kind.${layer.kind}`) })}</h3>
       <label className="insp-field insp-wide">
         <span>{t("studio.sprites.name")}</span>
