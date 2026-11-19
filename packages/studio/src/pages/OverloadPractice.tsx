@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { advanceOverload, overloadStreakPercentAt, summarizeOverload, type OverloadConfig, type OverloadMove, type OverloadState } from "@openseas/engine";
+import { advanceOverload, overloadDrawBand, overloadStreakPercentAt, summarizeOverload, type OverloadConfig, type OverloadMove, type OverloadState } from "@openseas/engine";
 import { CapacitorIcon, content, OverloadBoard, t, useTicked } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
@@ -24,6 +24,7 @@ export function OverloadPractice() {
   const ticked = useTicked(api, { tickMs: roundCfg.tickMs, maxTick: roundCfg.maxTick, advance: advanceOverload, wait: waitAt });
   const shown = ticked.shown;
   const cfg = shown.config;
+  const band = overloadDrawBand(shown);
 
   const onTap = useCallback((cell: number): boolean => api.apply({ type: "tap", cell, tick: ticked.moveTick() }), [api, ticked]);
 
@@ -45,6 +46,7 @@ export function OverloadPractice() {
       howTo={
         <>
           <p className="how how-kbd">{t("overload.streak_note")}</p>
+          {band && <p className="how">{t("overload.draw_note")}</p>}
           <p className="how how-kbd">{t("overload.hint_note")}</p>
         </>
       }
@@ -62,6 +64,14 @@ export function OverloadPractice() {
               {shown.combo > 0 ? t("overload.streak_value", { count: shown.combo, percent: overloadStreakPercentAt(cfg, shown.combo) }) : t("overload.streak_none")}
             </span>
           </div>
+          {band && (
+            <div className="stat stat-wide">
+              <span className="stat-label">{t("overload.draw_stat")}</span>
+              <span className="stat-value" data-testid="hud-draw" data-draw={`${band.min}-${band.max}`}>
+                {band.min === band.max ? t("overload.draw_value_one", { min: band.min, percent: band.percent }) : t("overload.draw_value", { min: band.min, max: band.max, percent: band.percent })}
+              </span>
+            </div>
+          )}
           <div className="stat stat-wide">
             <span className="stat-label">{t("overload.best_chain")}</span>
             <span className="stat-value" data-testid="hud-best-chain">
@@ -88,6 +98,12 @@ export function OverloadPractice() {
             <dt>{t("overload.result_refunds")}</dt>
             <dd>{state.refunds}</dd>
           </div>
+          {state.config.drawSizes.length > 0 && (
+            <div>
+              <dt>{t("overload.result_draws")}</dt>
+              <dd data-testid="result-draws">{state.draws}</dd>
+            </div>
+          )}
         </>
       }
       legend={
@@ -113,6 +129,7 @@ export function OverloadPractice() {
           <p className="muted small proto-note">{t("overload.legend_ring")}</p>
           <p className="muted small proto-note">{t("overload.streak_note")}</p>
           <p className="muted small proto-note">{t("overload.refund_note")}</p>
+          {band && <p className="muted small proto-note">{t("overload.legend_draw")}</p>}
         </>
       }
       board={(interactive) => (
