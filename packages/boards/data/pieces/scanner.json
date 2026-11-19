@@ -41,7 +41,7 @@
   "tab": {
     "tint": "cream",
     "layers": [
-      { "name": "corner", "kind": "poly", "points": [12.5, 3, 21, 3, 21, 11.5], "round": 2.4 }
+      { "name": "corner", "kind": "poly", "points": [15, 3, 21, 3, 21, 9], "round": 2 }
     ]
   },
   "ping": {
