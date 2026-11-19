@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { reactorHotCount, reactorPipelineLeft, summarizeReactor, type ReactorConfig, type ReactorDir, type ReactorMove, type ReactorState } from "@openseas/engine";
+import { reactorHotCount, reactorPipelineLeft, reactorPressureWarning, summarizeReactor, type ReactorConfig, type ReactorDir, type ReactorMove, type ReactorState } from "@openseas/engine";
 import { content, ReactorBoard, ReactorPortIcon, ReactorRodIcon, t } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
@@ -27,6 +27,11 @@ export function ReactorPractice() {
   const hot = reactorHotCount(cfg, shown.cells);
   const left = reactorPipelineLeft(shown);
   const grades = Array.from({ length: cfg.hotGrade - 1 }, (_, i) => i + 1);
+  // A stage before a layer switches it off (ADR 0066): its notes and its line of the HUD go with it.
+  const salvoOn = cfg.salvoPercent.some((p) => p > 100);
+  const pipelineOn = cfg.pipelinePercent.some((p) => p > 100);
+  const gauged = cfg.pressureLimit > 0;
+  const venting = reactorPressureWarning(shown);
 
   return (
     <PracticeShell
@@ -45,11 +50,12 @@ export function ReactorPractice() {
       onStart={studio.start}
       ready={studio.ready}
       splash={t("reactor.go")}
-      warn={hot >= cfg.criticalHot - 1}
+      warn={hot >= cfg.criticalHot - 1 || venting}
       howTo={
         <>
-          <p className="how how-kbd">{t("reactor.salvo_note")}</p>
-          <p className="how how-kbd">{t("reactor.pipeline_note")}</p>
+          {salvoOn && <p className="how how-kbd">{t("reactor.salvo_note")}</p>}
+          {pipelineOn && <p className="how how-kbd">{t("reactor.pipeline_note")}</p>}
+          {gauged && <p className="how how-kbd">{t("reactor.pressure_note")}</p>}
           <p className="how how-kbd">{t("reactor.hint_note")}</p>
         </>
       }
@@ -67,12 +73,22 @@ export function ReactorPractice() {
               {t("reactor.stat_hot_value", { count: hot, max: cfg.criticalHot })}
             </span>
           </div>
-          <div className="stat stat-wide">
-            <span className="stat-label">{t("reactor.stat_pipeline")}</span>
-            <span className="stat-value" data-testid="hud-pipeline">
-              {left > 0 ? t("reactor.stat_pipeline_value", { count: shown.combo, left }) : t("reactor.stat_pipeline_none")}
-            </span>
-          </div>
+          {gauged && (
+            <div className="stat stat-wide">
+              <span className="stat-label">{t("reactor.stat_pressure")}</span>
+              <span className={`stat-value ${venting ? "urgent" : ""}`} data-testid="hud-pressure" data-pressure={`${shown.pressure}:${cfg.pressureLimit}`}>
+                {t(venting ? "reactor.stat_pressure_warn" : "reactor.stat_pressure_value", { count: shown.pressure, max: cfg.pressureLimit })}
+              </span>
+            </div>
+          )}
+          {pipelineOn && (
+            <div className="stat stat-wide">
+              <span className="stat-label">{t("reactor.stat_pipeline")}</span>
+              <span className="stat-value" data-testid="hud-pipeline">
+                {left > 0 ? t("reactor.stat_pipeline_value", { count: shown.combo, left }) : t("reactor.stat_pipeline_none")}
+              </span>
+            </div>
+          )}
         </>
       }
       resultRows={
@@ -89,6 +105,12 @@ export function ReactorPractice() {
             <dt>{t("reactor.result_scrams")}</dt>
             <dd>{state.scrams}</dd>
           </div>
+          {gauged && (
+            <div>
+              <dt>{t("reactor.result_pressure")}</dt>
+              <dd>{state.pressureScrams}</dd>
+            </div>
+          )}
         </>
       }
       legend={
@@ -120,8 +142,9 @@ export function ReactorPractice() {
             </li>
           </ul>
           <p className="muted small proto-note">{t("reactor.legend_heat")}</p>
-          <p className="muted small proto-note">{t("reactor.salvo_note")}</p>
-          <p className="muted small proto-note">{t("reactor.pipeline_note")}</p>
+          {gauged && <p className="muted small proto-note">{t("reactor.legend_pressure")}</p>}
+          {salvoOn && <p className="muted small proto-note">{t("reactor.salvo_note")}</p>}
+          {pipelineOn && <p className="muted small proto-note">{t("reactor.pipeline_note")}</p>}
         </>
       }
       board={(interactive) => (
