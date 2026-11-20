@@ -4,7 +4,7 @@ import { SHIPPED_PIECES, drawingProblems, t } from "@openseas/boards";
 import { PALETTE, type Token } from "@openseas/boards/look";
 import { DrawingSchema, type Drawing, type Layer, type LayerKind } from "@openseas/protocol";
 import { useFrame } from "../frame/RoundFrame.jsx";
-import { useBox } from "../studio/useBox.js";
+import { useBodyHeight, useBox } from "../studio/useBox.js";
 import { useWidePanel } from "../studio/wide.js";
 import { ALIKE, NUMBER_FIELDS, dragged, extent, fresh, handles, mask, overlap, paintPreview, snap } from "./sprite.js";
 
@@ -84,9 +84,11 @@ function SpriteEditor({ puzzle, name, drawing, shipped, others, onChange }: { pu
   const wide = useWidePanel();
   const room = useRef<HTMLElement>(null);
   const box = useBox(room, wide);
-  // Wide, the stage takes the section's width and leaves the panel's height for the tools under it.
-  const fit = Math.floor(Math.min(WIDE_STAGE, box.width - 32, (room.current?.closest(".panel-body")?.clientHeight ?? WIDE_STAGE) - 150));
-  const stage = wide && box.width > 0 ? Math.max(STAGE, fit) : STAGE;
+  // Wide, the editor is pinned in the panel's view, as tall as it, while the column beside it scrolls;
+  // the stage takes the editor's width and leaves its height for the tools over and under it.
+  const bodyH = useBodyHeight(room, wide);
+  const fit = Math.floor(Math.min(WIDE_STAGE, box.width - 32, bodyH - 150));
+  const stage = wide && box.width > 0 && bodyH > 0 ? Math.max(STAGE, fit) : STAGE;
   const [sel, setSel] = useState(0);
   // What the stage shows while a handle is held: the draft is written when it is let go.
   const [held, setHeld] = useState<Drawing | null>(null);
@@ -169,7 +171,7 @@ function SpriteEditor({ puzzle, name, drawing, shipped, others, onChange }: { pu
 
   return (
     <>
-      <section ref={room} className="panel-sec sprite-edit" data-testid="sprite-editor">
+      <section ref={room} className="panel-sec sprite-edit" style={wide && bodyH > 0 ? { height: bodyH } : undefined} data-testid="sprite-editor">
         <div className="sprite-head">
           <h3 className="panel-cap">
             <code className="mono">{name}</code>

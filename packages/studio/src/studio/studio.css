@@ -2072,12 +2072,105 @@
 .studio.is-wide .studio-device {
   max-width: 300px;
 }
-.studio.is-wide .tune {
-  column-width: 380px;
-  column-gap: 0;
+/* The numbers, wide: each section a card on a grid, every control in one column of one width, so
+   a stepper and a slider line up, and each number says what it does under its name. */
+.studio.is-wide .tune[data-testid="tuning"] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  align-items: start;
+  gap: 14px;
+  padding: 16px;
 }
-.studio.is-wide .tune > * {
-  break-inside: avoid;
+.studio.is-wide .tune-group {
+  gap: 0;
+  padding: 14px 16px 8px;
+  border: 1px solid var(--st-line);
+  border-radius: 10px;
+  background: var(--st-raised);
+}
+.studio.is-wide .tune-group:last-child {
+  border-bottom: 1px solid var(--st-line);
+}
+.studio.is-wide .tune-group > .panel-cap {
+  margin-bottom: 4px;
+}
+.studio.is-wide .tune-group > .num-row {
+  grid-template-columns: minmax(0, 1fr) 176px 20px;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  padding: 10px 0;
+  border-top: 1px solid var(--st-line);
+}
+.studio.is-wide .tune-group > .panel-cap + .num-row,
+.studio.is-wide .tune-group > .tune-branch + .num-row {
+  border-top: 0;
+}
+.studio.is-wide .num-row > .num-label {
+  grid-area: 1 / 1;
+}
+.studio.is-wide .num-row > .num-ctl {
+  grid-area: 1 / 2 / span 2;
+}
+.studio.is-wide .num-row > .num-reset {
+  grid-area: 1 / 3 / span 2;
+}
+.studio.is-wide .num-row > .tune-desc {
+  grid-area: 2 / 1;
+  padding-left: 12px;
+  font-size: 11px;
+  color: var(--st-faint);
+}
+.studio.is-wide .num-row > .tune-refusal {
+  grid-column: 1 / -1;
+}
+/* A curve, the thresholds, JSON: the card's whole width, under the label. */
+.studio.is-wide .num-row.is-block > .num-label {
+  grid-area: 1 / 1 / 2 / 3;
+}
+.studio.is-wide .num-row.is-block > .tune-desc {
+  grid-area: 2 / 1 / 3 / 3;
+}
+.studio.is-wide .num-row.is-block > .num-ctl {
+  grid-area: 3 / 1 / 4 / -1;
+  padding: 6px 0 0;
+}
+.studio.is-wide .tune-stepper {
+  grid-template-columns: 28px minmax(0, 1fr) 28px;
+}
+.studio.is-wide .tune-slider {
+  grid-template-columns: minmax(0, 1fr) 64px;
+  gap: 10px;
+}
+.studio.is-wide .num-ctl > .tune-value,
+.studio.is-wide .num-ctl > select {
+  justify-self: end;
+}
+.studio.is-wide .num-ctl > select {
+  width: 100%;
+}
+.studio.is-wide .num-ctl > .switch {
+  justify-self: end;
+}
+.studio.is-wide .num-ctl {
+  display: grid;
+}
+/* A run of keys under one branch, headed once. */
+.tune-branch {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--st-line);
+  color: var(--st-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.tune-group > .panel-cap + .tune-branch {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 2px;
 }
 
 /* ---- the last rounds (ADR 0068): each with how it went and the numbers it was dealt on */
@@ -2276,11 +2369,19 @@
 .studio.is-wide .sprites > .sprite-insp {
   grid-column: 1;
 }
+/* The editor stays put in the panel's view, its stage in the middle, while the pieces, layers and inspector scroll beside it. */
 .studio.is-wide .sprites > .sprite-edit {
+  position: sticky;
+  top: 0;
   grid-column: 2;
   grid-row: 1 / span 3;
+  align-self: start;
+  align-content: center;
   border-left: 1px solid var(--st-line);
   border-bottom: 0;
+}
+.studio.is-wide .sprites > .sprite-edit .sprite-stage {
+  justify-self: center;
 }
 .studio.is-wide .sprites > .sprite-pieces .sprite-grid {
   grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
@@ -2353,4 +2454,94 @@
 }
 .num-row.is-side > .tune-refusal {
   grid-column: 2 / -1;
+}
+
+/* Rating, wide: the thresholds card takes the whole width, its scale drawn long, each threshold a tile under it. */
+.studio.is-wide .tune-group[data-testid="group-rating"] {
+  grid-column: 1 / -1;
+}
+.studio.is-wide .tune-thresholds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+.studio.is-wide .tune-thresholds li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--st-line);
+  border-radius: var(--st-r);
+  background: var(--st-surface);
+}
+
+/* Sounds, wide: the open cue pinned in the panel's view, its roll grown to fill it, and the picked
+   voice, the cue's own numbers and its rules as one strip of tabs under the roll. */
+.studio.is-wide .tune.assets > .cue-stage {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 0;
+  overflow: hidden;
+}
+.studio.is-wide .tune.assets > .panel-foot {
+  display: none;
+}
+.cue-stage-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cue-stage > .roll {
+  flex: none;
+}
+.cue-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
+  border-bottom: 1px solid var(--st-line);
+}
+.cue-tab {
+  padding: 6px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--st-muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.cue-tab[aria-selected="true"] {
+  border-bottom-color: var(--st-accent);
+  color: var(--st-fg);
+}
+.cue-tabs-gap {
+  flex: 1;
+}
+.cue-tabs .layer-add {
+  padding-bottom: 4px;
+}
+.cue-tab-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* In a tab, an inspector is the tab: no head, no frame, its fields in rows across the width. */
+.cue-tab-body > .panel-sec {
+  padding: 4px 0 0;
+  border-bottom: 0;
+}
+.cue-tab-body > .panel-sec > .panel-cap {
+  display: none;
+}
+.cue-tab-body .insp-grid {
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+}
+.cue-tab-body > .insp-grid {
+  padding-top: 8px;
 }

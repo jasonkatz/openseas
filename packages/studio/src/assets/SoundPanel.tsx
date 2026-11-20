@@ -3,7 +3,7 @@ import type { PuzzleId } from "@openseas/engine";
 import { CUE_PARAMS, LIMITS, NOTES, PROBES, SHIPPED_CUES, auditionCue, auditionData, cueFrom, cueProblems, t, type CueName, type CueParam } from "@openseas/boards";
 import { CueDataSchema, type CueData, type VoiceData, type When } from "@openseas/protocol";
 import { useFrame } from "../frame/RoundFrame.jsx";
-import { useBox } from "../studio/useBox.js";
+import { useBodyHeight, useBox } from "../studio/useBox.js";
 import { useWidePanel } from "../studio/wide.js";
 import { OWN_CUE_FALLBACKS, PUZZLE_CUES, cuesOf, noteName } from "./cues.js";
 
@@ -73,6 +73,8 @@ export function SoundPanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focus
 const NARROW_ROLL = { W: 420, ROW: 11, AIR: 22, TOP: 4 } as const;
 const WIDE_ROLL = { W: 760, ROW: 15, AIR: 30, TOP: 18 } as const;
 const ROLL_MIN = 420;
+/** What the pinned editor holds besides the roll: its head, the rows to play, and the tabs under it. */
+const ROLL_CHROME = 330;
 const voiceEnd = (v: VoiceData): number => v.at + v.attack + v.release;
 
 function CueEditor({ name }: { name: CueName }) {
@@ -80,7 +82,11 @@ function CueEditor({ name }: { name: CueName }) {
   const room = useRef<HTMLElement>(null);
   const box = useBox(room, wide);
   // Wide, a unit of the roll is a pixel: the timeline is as long as its room, and its labels keep their size.
-  const geo = wide ? { ...WIDE_ROLL, W: box.width > 0 ? Math.max(ROLL_MIN, Math.round(box.width - 32)) : WIDE_ROLL.W } : NARROW_ROLL;
+  // And the roll's rows grow to fill the height the pinned editor leaves them, over the tabs.
+  const bodyH = useBodyHeight(room, wide);
+  const rowFit = bodyH > 0 ? Math.floor((bodyH - ROLL_CHROME - WIDE_ROLL.TOP - WIDE_ROLL.AIR - 10) / 16) : WIDE_ROLL.ROW;
+  const geo = wide ? { ...WIDE_ROLL, W: box.width > 0 ? Math.max(ROLL_MIN, Math.round(box.width - 32)) : WIDE_ROLL.W, ROW: Math.max(11, Math.min(26, rowFit)) } : NARROW_ROLL;
+  const [tab, setTab] = useState<"voice" | "cue" | "rules">("voice");
   const { W, ROW, AIR, TOP } = geo;
   const H = TOP + 16 * ROW + 6 + AIR + 4;
   const { look, setCue } = useFrame();
@@ -128,6 +134,7 @@ function CueEditor({ name }: { name: CueName }) {
   const down = (e: ReactPointerEvent, i: number, edge: boolean): void => {
     e.stopPropagation();
     setSel(i);
+    setTab("voice");
     (e.target as Element).setPointerCapture(e.pointerId);
     const [px, py] = at(e);
     drag.current = { edge, start: data.voices[i]!, ox: px, oy: py };
@@ -174,89 +181,140 @@ function CueEditor({ name }: { name: CueName }) {
     );
   };
 
-  return (
-    <>
-      <section ref={room} className="panel-sec" data-testid="cue-editor">
-        <div className="sprite-head">
-          <h3 className="panel-cap">
-            <code className="mono">{name}</code>
-          </h3>
-          <div className="sprite-tools">
-            <button type="button" className="btn btn-mini" disabled={past.length === 0} onClick={undo} data-testid="cue-undo">
-              {t("studio.sprites.undo")}
-            </button>
-            <button type="button" className="btn btn-mini" disabled={!changed} onClick={() => setCue(name, null)} data-testid="cue-reset">
-              {t("studio.put_back")}
-            </button>
-          </div>
-        </div>
-        <p className="panel-note small" data-testid="cue-shared">{t("studio.sounds.shared", { count: others })}</p>
-        <div className="probe-row">
-          {probes.map((p, i) => (
-            <button key={i} type="button" className={`chip probe ${i === probe ? "is-changed" : ""}`} onClick={() => { setProbe(i); play(i); }} data-testid={`probe-${i}`}>
-              ▶ {params.length === 0 ? t("studio.sounds.as_is") : params.map((q, k) => `${q.name} ${String(p[k])}`).join(", ")}
-            </button>
-          ))}
-        </div>
-        <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className={`roll ${wide ? "is-wide" : ""}`} onPointerMove={move} onPointerUp={up} onPointerCancel={up} data-testid="roll" aria-label={t("studio.sounds.roll", { cue: name })}>
-          {Array.from({ length: 16 }, (_, n) => (
-            <g key={n} className={n % 5 === 0 ? "roll-root" : "roll-row"}>
-              <line x1={0} x2={W} y1={y(n) + ROW - 0.5} y2={y(n) + ROW - 0.5} />
-              {n % 5 === 0 && (
-                <text x={2} y={y(n) + ROW - 2}>
-                  {noteName(n)}
+  const head = (
+    <div className="sprite-head">
+      <h3 className="panel-cap">
+        <code className="mono">{name}</code>
+      </h3>
+      <div className="sprite-tools">
+        <button type="button" className="btn btn-mini" disabled={past.length === 0} onClick={undo} data-testid="cue-undo">
+          {t("studio.sprites.undo")}
+        </button>
+        <button type="button" className="btn btn-mini" disabled={!changed} onClick={() => setCue(name, null)} data-testid="cue-reset">
+          {t("studio.put_back")}
+        </button>
+      </div>
+    </div>
+  );
+  const probeRow = (
+    <div className="probe-row">
+      {probes.map((p, i) => (
+        <button key={i} type="button" className={`chip probe ${i === probe ? "is-changed" : ""}`} onClick={() => { setProbe(i); play(i); }} data-testid={`probe-${i}`}>
+          ▶ {params.length === 0 ? t("studio.sounds.as_is") : params.map((q, k) => `${q.name} ${String(p[k])}`).join(", ")}
+        </button>
+      ))}
+    </div>
+  );
+  const roll = (
+    <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className={`roll ${wide ? "is-wide" : ""}`} onPointerMove={move} onPointerUp={up} onPointerCancel={up} data-testid="roll" aria-label={t("studio.sounds.roll", { cue: name })}>
+      {Array.from({ length: 16 }, (_, n) => (
+        <g key={n} className={n % 5 === 0 ? "roll-root" : "roll-row"}>
+          <line x1={0} x2={W} y1={y(n) + ROW - 0.5} y2={y(n) + ROW - 0.5} />
+          {n % 5 === 0 && (
+            <text x={2} y={y(n) + ROW - 2}>
+              {noteName(n)}
+            </text>
+          )}
+        </g>
+      ))}
+      <text x={2} y={TOP + 16 * ROW + 6 + AIR - 6} className="roll-label">
+        {t("studio.sounds.air")}
+      </text>
+      {wide && (
+        <g className="roll-ruler" data-testid="roll-ruler">
+          {Array.from({ length: Math.floor((span * 1000) / 50) + 1 }, (_, k) => k * 50).map((ms) => (
+            <g key={ms}>
+              <line x1={x(ms / 1000)} x2={x(ms / 1000)} y1={ms % 100 === 0 ? 8 : 12} y2={TOP} />
+              {ms % 100 === 0 && (
+                <text x={x(ms / 1000) + 2} y={8}>
+                  {ms === 0 ? t("studio.sounds.ms", { ms }) : ms}
                 </text>
               )}
             </g>
           ))}
-          <text x={2} y={TOP + 16 * ROW + 6 + AIR - 6} className="roll-label">
-            {t("studio.sounds.air")}
-          </text>
-          {wide && (
-            <g className="roll-ruler" data-testid="roll-ruler">
-              {Array.from({ length: Math.floor((span * 1000) / 50) + 1 }, (_, k) => k * 50).map((ms) => (
-                <g key={ms}>
-                  <line x1={x(ms / 1000)} x2={x(ms / 1000)} y1={ms % 100 === 0 ? 8 : 12} y2={TOP} />
-                  {ms % 100 === 0 && (
-                    <text x={x(ms / 1000) + 2} y={8}>
-                      {ms === 0 ? t("studio.sounds.ms", { ms }) : ms}
-                    </text>
-                  )}
-                </g>
-              ))}
-            </g>
-          )}
-          {/* How long a cue may last. */}
-          <line x1={x(limit)} x2={x(limit)} y1={0} y2={H} className="roll-limit" />
-          {heard.voices.map((v, i) => block(v as VoiceData, i, true))}
-          {shown.voices.map((v, i) => block(v, i, false))}
-        </svg>
-        <p className="panel-note small">{t("studio.sounds.roll_hint")}</p>
-        {problems.length > 0 && (
-          <ul className="sprite-notes is-hard" role="alert" data-testid="cue-problems">
-            {problems.map((p, i) => (
-              <li key={i}>{p}</li>
-            ))}
-          </ul>
-        )}
-        <div className="insp-grid">
-          <Num label={t("studio.sounds.level")} value={data.level} min={0.01} max={4} step={0.01} onSet={(v) => commit({ ...data, level: v })} testId="cue-level" />
-          <Num label={t("studio.sounds.cutoff")} value={data.cutoff} min={100} max={LIMITS.cutoff} step={50} onSet={(v) => commit({ ...data, cutoff: v })} testId="cue-cutoff" />
+        </g>
+      )}
+      {/* How long a cue may last. */}
+      <line x1={x(limit)} x2={x(limit)} y1={0} y2={H} className="roll-limit" />
+      {heard.voices.map((v, i) => block(v as VoiceData, i, true))}
+      {shown.voices.map((v, i) => block(v, i, false))}
+    </svg>
+  );
+  const problemList = problems.length > 0 && (
+    <ul className="sprite-notes is-hard" role="alert" data-testid="cue-problems">
+      {problems.map((p, i) => (
+        <li key={i}>{p}</li>
+      ))}
+    </ul>
+  );
+  const cueFields = (
+    <div className="insp-grid">
+      <Num label={t("studio.sounds.level")} value={data.level} min={0.01} max={4} step={0.01} onSet={(v) => commit({ ...data, level: v })} testId="cue-level" />
+      <Num label={t("studio.sounds.cutoff")} value={data.cutoff} min={100} max={LIMITS.cutoff} step={50} onSet={(v) => commit({ ...data, cutoff: v })} testId="cue-cutoff" />
+    </div>
+  );
+  const voiceButtons = (
+    <div className="layer-add">
+      <button type="button" className="btn btn-mini" onClick={() => { commit({ ...data, voices: [...data.voices, { kind: "tone", note: 10, wave: "sine", at: 0, attack: 0.01, release: 0.1, level: 0.8 }] }); setSel(data.voices.length); setTab("voice"); }} data-testid="voice-add-tone">
+        + {t("studio.sounds.tone")}
+      </button>
+      <button type="button" className="btn btn-mini" onClick={() => { commit({ ...data, voices: [...data.voices, { kind: "air", at: 0, attack: 0.015, release: 0.1, level: 0.5, from: 1600, to: 500, band: false }] }); setSel(data.voices.length); setTab("voice"); }} data-testid="voice-add-air">
+        + {t("studio.sounds.air")}
+      </button>
+      <button type="button" className="btn btn-mini" disabled={data.voices.length <= 1} onClick={() => { commit({ ...data, voices: data.voices.filter((_, k) => k !== sel) }); setSel(Math.max(0, sel - 1)); }} data-testid="voice-remove">
+        {t("studio.sounds.remove_voice")}
+      </button>
+    </div>
+  );
+  const inspector = voice && <VoiceInspector key={`${name}.${sel}`} index={sel} voice={voice} params={params} onChange={(v) => setVoice(sel, v)} />;
+  const rules = <Rules data={data} params={params} onChange={commit} />;
+
+  // Wide (ADR 0068): the roll is the centrepiece, pinned in the panel's view and grown to fill it; what
+  // was stacked under it (the picked voice, the cue's own numbers, its rules) is one strip of tabs, so
+  // picking a voice turns a tab instead of lengthening the page.
+  if (wide) {
+    const tabs = (["voice", "cue", ...(params.length > 0 ? (["rules"] as const) : [])] as const).filter((k) => k !== "voice" || voice);
+    return (
+      <section ref={room} className="panel-sec cue-stage" style={bodyH > 0 ? { height: bodyH } : undefined} data-testid="cue-editor">
+        {head}
+        <div className="cue-stage-sub">
+          <p className="panel-note small" data-testid="cue-shared">{t("studio.sounds.shared", { count: others })}</p>
+          {probeRow}
         </div>
-        <div className="layer-add">
-          <button type="button" className="btn btn-mini" onClick={() => { commit({ ...data, voices: [...data.voices, { kind: "tone", note: 10, wave: "sine", at: 0, attack: 0.01, release: 0.1, level: 0.8 }] }); setSel(data.voices.length); }} data-testid="voice-add-tone">
-            + {t("studio.sounds.tone")}
-          </button>
-          <button type="button" className="btn btn-mini" onClick={() => { commit({ ...data, voices: [...data.voices, { kind: "air", at: 0, attack: 0.015, release: 0.1, level: 0.5, from: 1600, to: 500, band: false }] }); setSel(data.voices.length); }} data-testid="voice-add-air">
-            + {t("studio.sounds.air")}
-          </button>
-          <button type="button" className="btn btn-mini" disabled={data.voices.length <= 1} onClick={() => { commit({ ...data, voices: data.voices.filter((_, k) => k !== sel) }); setSel(Math.max(0, sel - 1)); }} data-testid="voice-remove">
-            {t("studio.sounds.remove_voice")}
-          </button>
+        {roll}
+        {problemList}
+        <div className="cue-tabs" role="tablist" aria-label={t("studio.sounds.details")}>
+          {tabs.map((k) => (
+            <button key={k} type="button" role="tab" className="cue-tab" aria-selected={tab === k} onClick={() => setTab(k)} data-testid={`cue-tab-${k}`}>
+              {k === "voice" ? t("studio.sounds.voice", { n: sel + 1 }) : k === "cue" ? t("studio.sounds.cue_tab") : t("studio.sounds.rules")}
+            </button>
+          ))}
+          <span className="cue-tabs-gap" />
+          {voiceButtons}
+        </div>
+        <div className="cue-tab-body" role="tabpanel">
+          {tab === "voice" && inspector}
+          {tab === "cue" && cueFields}
+          {tab === "rules" && rules}
         </div>
       </section>
-      {voice && <VoiceInspector key={`${name}.${sel}`} index={sel} voice={voice} params={params} onChange={(v) => setVoice(sel, v)} />}
-      <Rules data={data} params={params} onChange={commit} />
+    );
+  }
+
+  return (
+    <>
+      <section ref={room} className="panel-sec" data-testid="cue-editor">
+        {head}
+        <p className="panel-note small" data-testid="cue-shared">{t("studio.sounds.shared", { count: others })}</p>
+        {probeRow}
+        {roll}
+        <p className="panel-note small">{t("studio.sounds.roll_hint")}</p>
+        {problemList}
+        {cueFields}
+        {voiceButtons}
+      </section>
+      {inspector}
+      {rules}
     </>
   );
 }

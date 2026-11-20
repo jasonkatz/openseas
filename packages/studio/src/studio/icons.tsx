@@ -20,6 +20,8 @@ const PATHS: Readonly<Record<ModeId, ReactNode>> = {
     </>
   ),
   scoring: <path d="M7 4h10v5a5 5 0 0 1-10 0zM12 14v4M8 20h8M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3" {...stroke} />,
+  // A ladder of ratings: three rungs, rising.
+  rating: <path d="M4 19h4v-5H4zM10 19h4V9h-4zM16 19h4V4h-4z" {...stroke} />,
   sprites: (
     <>
       <rect x="4" y="4" width="16" height="16" rx="3" {...stroke} />

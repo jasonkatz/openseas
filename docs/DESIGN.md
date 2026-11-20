@@ -831,8 +831,8 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   count says so instead. On its right, what becomes of the draft: whether the service has it, a
   Share menu (the play link, tester links, sign-in, discarding the draft) and Save, with a sheet
   beside it that holds a name for the tester link and how the draft stands with its pull request.
-- A rail of seven modes down the left edge, as icons with their names on hover, in three
-  clusters: **Play**; then **Setup**, **Tuning** and **Scoring**, the puzzle's numbers; then
+- A rail of eight modes down the left edge, as icons with their names on hover, in three
+  clusters: **Play**; then **Setup**, **Tuning**, **Scoring** and **Rating** (ADR 0069), the puzzle's numbers; then
   **Sprites**, **Sounds** (ADR 0065) and **Text** (ADR 0057). A mode that holds a change carries a
   dot. (Sprites went with the sprite tooling at M10's fifth step, ADR 0062, and came back as an
   editor of the pieces drawn in code, ADR 0065.) The two editors open wide when they want room.
@@ -841,22 +841,26 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   top of the right-hand column, still live and playable, and the chat takes its bottom. One
   switch serves every mode and is kept in the browser, and the change is one eased motion. The
   board is one element in every layout, so the round on it carries on. A wide panel draws more:
-  the numbers modes lay their sections out in columns, draw each curve as a chart whose steps are
+  the numbers modes lay each section out as a card on a grid, with every control in one column
+  of one width, each number's line of description under its name, and a run of keys under one
+  branch headed once by it; they draw each curve as a chart whose steps are
   pressed or dragged to their height, and draw the thresholds as a scale with each tier marked
   and the page's rounds as dots on it (filled on the draft, hollow on the shipped numbers); a
   step or threshold the draft has moved is outlined, with the shipped value dashed beside it.
-  Sprites puts the pieces, layers and inspector down the left and the stage, as large as the
-  panel's room allows, on the right; Sounds puts the cues down the left and the open cue on a
-  timeline as long as its room, with a ruler of milliseconds; Text sets the shipped words beside
-  each field, under a head that names the two columns.
+  Sprites puts the pieces, in their boards' colours, the layers and the inspector down the left,
+  and the stage, as large as the panel's room allows, on the right, pinned in the panel's view
+  while the left scrolls; Sounds puts the cues down the left and the open cue pinned on the
+  right, its timeline grown to fill the view, with a ruler of milliseconds, and the picked
+  voice, the cue's own numbers and its rules as tabs under it, so nothing lengthens the page;
+  Text sets the shipped words beside each field, under a head that names the two columns.
   Play holds what the next round is dealt on (a stage, a starting point, the seed) and the last
   twenty rounds finished on the page, newest first, kept for the tab's session. Each says its
   score, tier, length and moves, how its score stands against the round before or against a
   round picked as the baseline, its seed and stage, and which numbers it was dealt on; it can be
   played again on its seed, and its numbers laid back over the draft once the owner says so. The
   agent is still told the last five, as summaries. Setup holds the board group, the round's length and the limits group;
-  Tuning the deal and pace groups; Scoring the scoring group, the live tier's window and the
-  thresholds. The three share a search that shows the matching numbers from all of them and
+  Tuning the deal and pace groups; Scoring the scoring group; Rating the live tier's window and
+  the thresholds. The four share a search that shows the matching numbers from all of them and
   the matching words from Text, a switch that shows each number's line of description, and the
   switch that deals the round again on a change.
 - The board in the middle, exactly as `/play` draws it, and under it in every mode a transport

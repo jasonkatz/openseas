@@ -146,7 +146,7 @@ export function StudioShell(p: ShellProps) {
             <button
               type="button"
               className="btn btn-mini btn-sq"
-              hidden={mode === "text"}
+              hidden={mode === "text" || widened}
               aria-pressed={hints}
               aria-label={t("studio.hints")}
               title={t("studio.hints")}

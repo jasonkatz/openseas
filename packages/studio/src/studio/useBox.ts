@@ -17,3 +17,18 @@ export function useBox(ref: RefObject<Element | null>, on = true): { width: numb
   }, [ref, on]);
   return box;
 }
+
+/** The height of the panel's scrolling body that holds this element: what a wide panel's pinned centrepiece fills. */
+export function useBodyHeight(ref: RefObject<Element | null>, on = true): number {
+  const [h, setH] = useState(0);
+  useLayoutEffect(() => {
+    const body = ref.current?.closest(".panel-body");
+    if (!on || !body) return;
+    const read = (): void => setH(Math.round(body.clientHeight));
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(body);
+    return () => ro.disconnect();
+  }, [ref, on]);
+  return h;
+}
