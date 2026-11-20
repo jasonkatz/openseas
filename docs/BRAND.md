@@ -171,7 +171,8 @@ The world is already flat-coloured primitives, and stays so.
 
 ## 8. Sound
 
-Built (M10 step 6). Every cue is defined as data in `packages/boards/data/cues.json`, read by
+Built (M10 step 6). Every cue is defined as data, a copy for each puzzle in `packages/boards/data/cues/<puzzle>.json`
+and the game's own in `packages/boards/data/cues.json` (ADR 0070), read by
 `packages/boards/src/cues.ts` and played by `audio.ts` beside it; tests hold all three to what
 follows, and the studio's Sounds editor holds a revoiced cue to it before it plays (ADR 0065).
 

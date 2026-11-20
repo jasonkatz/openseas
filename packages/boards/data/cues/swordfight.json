@@ -1,0 +1,162 @@
+{
+  "swapQuiet": {
+    "level": 0.86,
+    "cutoff": 1200,
+    "voices": [
+      { "kind": "tone", "note": 8, "wave": "sine", "at": 0, "attack": 0.01, "release": 0.06, "level": 1 },
+      { "kind": "air", "at": 0, "attack": 0.015, "release": 0.035, "level": 0.3, "from": 900, "to": 500, "band": false }
+    ]
+  },
+  "clear": {
+    "level": 0.82,
+    "cutoff": 2200,
+    "voices": [
+      { "kind": "tone", "note": 7, "wave": "sine", "at": 0, "attack": 0.01, "release": 0.21, "level": 1 },
+      { "kind": "tone", "note": 9, "wave": "triangle", "at": 0.02, "attack": 0.012, "release": 0.168, "level": 0.35 },
+      { "kind": "air", "at": 0, "attack": 0.015, "release": 0.105, "level": 0.3, "from": 1600, "to": 500, "band": false },
+      { "kind": "tone", "note": 12, "wave": "sine", "at": 0.06, "attack": 0.01, "release": 0.29, "level": 0.4, "when": { "param": "pieces", "from": 5 } },
+      { "kind": "tone", "note": 0, "wave": "sine", "at": 0, "attack": 0.02, "release": 0.23, "level": 0.8, "fixed": true, "when": { "param": "chain", "from": 3 } }
+    ],
+    "shift": { "param": "chain", "per": 1, "offset": -1, "min": 0, "max": 16, "round": "floor" }
+  },
+  "multi": {
+    "level": 0.9,
+    "cutoff": 2200,
+    "voices": [
+      { "kind": "tone", "note": 10, "wave": "triangle", "at": 0.05, "attack": 0.012, "release": 0.148, "level": 1, "repeat": { "param": "groups", "min": 1, "max": 4, "note": 1, "at": 0.05 } }
+    ]
+  },
+  "streak": {
+    "level": 0.98,
+    "cutoff": 2200,
+    "voices": [
+      { "kind": "tone", "note": 5, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.128, "level": 0.55 },
+      { "kind": "tone", "note": 7, "wave": "triangle", "at": 0.05, "attack": 0.012, "release": 0.128, "level": 0.55 },
+      { "kind": "tone", "note": 8, "wave": "triangle", "at": 0.1, "attack": 0.012, "release": 0.128, "level": 0.55 },
+      { "kind": "tone", "note": 10, "wave": "triangle", "at": 0.15, "attack": 0.012, "release": 0.128, "level": 0.55 },
+      { "kind": "tone", "note": 11, "wave": "triangle", "at": 0.2, "attack": 0.012, "release": 0.188, "level": 1 }
+    ],
+    "shift": { "param": "count", "per": 0.25, "offset": 0, "min": 0, "max": 4, "round": "floor" }
+  },
+  "streakLost": {
+    "level": 1,
+    "cutoff": 1400,
+    "voices": [
+      { "kind": "tone", "note": 8, "wave": "sine", "at": 0, "attack": 0.01, "release": 0.13, "level": 0.8 },
+      { "kind": "tone", "note": 6, "wave": "sine", "at": 0.09, "attack": 0.01, "release": 0.15, "level": 0.8 },
+      { "kind": "tone", "note": 5, "wave": "sine", "at": 0.18, "attack": 0.01, "release": 0.19, "level": 0.9 }
+    ]
+  },
+  "charge": {
+    "level": 0.86,
+    "cutoff": 1400,
+    "voices": [
+      { "kind": "air", "at": 0, "attack": 0.015, "release": 0.365, "level": 0.9, "from": 900, "to": 120, "band": false },
+      { "kind": "tone", "note": 0, "wave": "sine", "at": 0, "attack": 0.02, "release": 0.36, "level": 1 },
+      { "kind": "tone", "note": 5, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.288, "level": 0.25 }
+    ]
+  },
+  "slag": {
+    "level": 1.1,
+    "cutoff": 2400,
+    "voices": [
+      { "kind": "tone", "note": 12, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.108, "level": 0.7 },
+      { "kind": "tone", "note": 15, "wave": "sine", "at": 0.06, "attack": 0.01, "release": 0.19, "level": 0.8 }
+    ]
+  },
+  "crack": {
+    "level": 1.55,
+    "cutoff": 1600,
+    "voices": [
+      { "kind": "air", "at": 0, "attack": 0.015, "release": 0.125, "level": 0.9, "from": 1900, "to": 400, "band": false, "when": { "param": "loud", "from": 1 } },
+      { "kind": "air", "at": 0, "attack": 0.015, "release": 0.125, "level": 0.6, "from": 1900, "to": 400, "band": false, "when": { "param": "loud", "to": 0 } },
+      { "kind": "tone", "note": 4, "wave": "triangle", "at": 0.02, "attack": 0.012, "release": 0.188, "level": 0.6, "when": { "param": "loud", "from": 1 } },
+      { "kind": "tone", "note": 4, "wave": "triangle", "at": 0.02, "attack": 0.012, "release": 0.108, "level": 0.6, "when": { "param": "loud", "to": 0 } },
+      { "kind": "tone", "note": 1, "wave": "sine", "at": 0.08, "attack": 0.02, "release": 0.28, "level": 0.8, "when": { "param": "loud", "from": 1 } }
+    ],
+    "alt": { "when": { "param": "loud", "from": 1 }, "level": 1.08, "cutoff": 1600 }
+  },
+  "vent": {
+    "level": 1.45,
+    "cutoff": 2000,
+    "voices": [
+      { "kind": "air", "at": 0, "attack": 0.015, "release": 0.305, "level": 1, "from": 1900, "to": 600, "band": false },
+      { "kind": "tone", "note": 12, "wave": "sine", "at": 0.04, "attack": 0.01, "release": 0.15, "level": 0.3, "repeat": { "param": "rows", "min": 0, "max": 3, "note": -1, "at": 0.08 } }
+    ]
+  },
+  "alarm": {
+    "level": 1,
+    "cutoff": 900,
+    "voices": [
+      { "kind": "tone", "note": 5, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.168, "level": 1 },
+      { "kind": "tone", "note": 3, "wave": "triangle", "at": 0.17, "attack": 0.012, "release": 0.208, "level": 1 }
+    ]
+  },
+  "bump": {
+    "level": 0.95,
+    "cutoff": 800,
+    "voices": [
+      { "kind": "air", "at": 0, "attack": 0.015, "release": 0.035, "level": 0.5, "from": 700, "to": 250, "band": false },
+      { "kind": "tone", "note": 3, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.078, "level": 1 }
+    ]
+  },
+  "thud": {
+    "level": 0.74,
+    "cutoff": 700,
+    "voices": [
+      { "kind": "air", "at": 0, "attack": 0.015, "release": 0.045, "level": 0.5, "from": 600, "to": 180, "band": false },
+      { "kind": "tone", "note": 1, "wave": "sine", "at": 0, "attack": 0.012, "release": 0.128, "level": 1 },
+      { "kind": "tone", "note": 1, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.088, "level": 0.4 }
+    ]
+  },
+  "whoosh": {
+    "level": 2.6,
+    "cutoff": 2000,
+    "voices": [
+      { "kind": "air", "at": 0, "attack": 0.06, "release": 0.18, "level": 1, "from": 400, "to": 1800, "band": true }
+    ]
+  },
+  "zap": {
+    "level": 1.5,
+    "cutoff": 2200,
+    "voices": [
+      { "kind": "air", "at": 0, "attack": 0.015, "release": 0.145, "level": 0.8, "from": 1900, "to": 500, "band": true },
+      { "kind": "tone", "note": 13, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.058, "level": 0.5 },
+      { "kind": "tone", "note": 10, "wave": "triangle", "at": 0.05, "attack": 0.012, "release": 0.088, "level": 0.5 }
+    ]
+  },
+  "bad": {
+    "level": 1,
+    "cutoff": 900,
+    "voices": [
+      { "kind": "tone", "note": 6, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.138, "level": 0.8 },
+      { "kind": "tone", "note": 3, "wave": "triangle", "at": 0.12, "attack": 0.012, "release": 0.228, "level": 0.9 }
+    ]
+  },
+  "tick": {
+    "level": 1,
+    "cutoff": 2200,
+    "voices": [
+      { "kind": "tone", "note": 11, "wave": "sine", "at": 0, "attack": 0.01, "release": 0.045, "level": 1, "when": { "param": "urgent", "to": 0 } },
+      { "kind": "tone", "note": 13, "wave": "sine", "at": 0, "attack": 0.01, "release": 0.045, "level": 1, "when": { "param": "urgent", "from": 1 } }
+    ]
+  },
+  "end": {
+    "level": 0.95,
+    "cutoff": 2200,
+    "voices": [
+      { "kind": "tone", "note": 5, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.188, "level": 0.7 },
+      { "kind": "tone", "note": 8, "wave": "triangle", "at": 0.06, "attack": 0.012, "release": 0.188, "level": 0.7 },
+      { "kind": "tone", "note": 10, "wave": "triangle", "at": 0.12, "attack": 0.012, "release": 0.188, "level": 0.8 },
+      { "kind": "tone", "note": 13, "wave": "triangle", "at": 0.18, "attack": 0.012, "release": 0.208, "level": 1 }
+    ]
+  },
+  "start": {
+    "level": 1,
+    "cutoff": 2000,
+    "voices": [
+      { "kind": "tone", "note": 5, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.128, "level": 0.8 },
+      { "kind": "tone", "note": 10, "wave": "triangle", "at": 0.1, "attack": 0.012, "release": 0.208, "level": 1 }
+    ]
+  }
+}

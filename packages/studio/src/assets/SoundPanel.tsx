@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { PuzzleId } from "@openseas/engine";
-import { CUE_PARAMS, LIMITS, NOTES, PROBES, SHIPPED_CUES, auditionCue, auditionData, cueFrom, cueProblems, t, type CueName, type CueParam } from "@openseas/boards";
+import { CUE_PARAMS, LIMITS, NOTES, GAME_ONLY_CUES, PROBES, auditionCue, auditionData, cueFrom, cueProblems, shippedCueOf, t, type CueName, type CueParam } from "@openseas/boards";
 import { CueDataSchema, type CueData, type VoiceData, type When } from "@openseas/protocol";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { useBodyHeight, useBox } from "../studio/useBox.js";
 import { useWidePanel } from "../studio/wide.js";
-import { OWN_CUE_FALLBACKS, PUZZLE_CUES, cuesOf, noteName } from "./cues.js";
+import { OWN_CUE_FALLBACKS, cuesOf, noteName } from "./cues.js";
 
 /**
  * The Sounds mode (DESIGN.md 3.14, ADR 0065): every cue the puzzle's board plays, each with a
@@ -18,8 +18,9 @@ import { OWN_CUE_FALLBACKS, PUZZLE_CUES, cuesOf, noteName } from "./cues.js";
  */
 
 const isCue = (name: string): name is CueName => name in CUE_PARAMS;
+/** A cue this puzzle has its own copy of, and so can revoice (ADR 0070): every cue but the game's alone, the beat. */
+const isOwn = (name: string): name is CueName => isCue(name) && !GAME_ONLY_CUES.includes(name);
 /** The puzzles that play a cue: who else hears a change to it. */
-const playedBy = (cue: string): PuzzleId[] => (Object.keys(PUZZLE_CUES) as PuzzleId[]).filter((p) => PUZZLE_CUES[p].includes(cue));
 
 function Play({ label, onPlay, testId }: { label: string; onPlay(): void; testId?: string }) {
   return (
@@ -35,8 +36,8 @@ export function SoundPanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focus
   const { look } = useFrame();
   const fallbacks = OWN_CUE_FALLBACKS[puzzle] ?? {};
   const cues = cuesOf(puzzle);
-  const editable = cues.filter(isCue);
-  const name = focus && isCue(focus) && cues.includes(focus) ? focus : (editable[0] ?? null);
+  const editable = cues.filter(isOwn);
+  const name = focus && isOwn(focus) && cues.includes(focus) ? focus : (editable[0] ?? null);
   return (
     <div className="tune assets" data-testid="sounds">
       <section className="panel-sec cue-list-sec">
@@ -46,7 +47,7 @@ export function SoundPanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focus
             <div key={cue} className={`cue ${cue === name ? "is-selected" : ""}`} data-testid={`cue-${cue}`}>
               <div className="cue-head">
                 <Play label={t("studio.sounds.play", { cue })} onPlay={() => (isCue(cue) && look.cues[cue] ? auditionData(cue, look.cues[cue]!, PROBES[cue][0] ?? []) : auditionCue(cue, fallbacks[cue]))} testId={`cue-play-${cue}`} />
-                {isCue(cue) ? (
+                {isOwn(cue) ? (
                   <button type="button" className="cue-name cue-pick" onClick={() => onFocus(cue)} aria-pressed={cue === name} data-testid={`cue-edit-${cue}`}>
                     <code className="mono">{cue}</code>
                     {cue in look.cues && <i className="rail-dot" data-testid={`cue-dot-${cue}`} />}
@@ -56,6 +57,8 @@ export function SoundPanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focus
                     <code className="mono">{cue}</code>
                     {/* A puzzle's own cue has no voice of its name: it says which cues it plays. */}
                     {fallbacks[cue] && <span className="cue-voice">{t("studio.sounds.own", { fallback: fallbacks[cue].join(" + ") })}</span>}
+                    {/* The beat is the game's alone: one sound on every board (docs/BRAND.md section 6). */}
+                    {isCue(cue) && !isOwn(cue) && <span className="cue-voice" data-testid={`cue-game-${cue}`}>{t("studio.sounds.game_only")}</span>}
                   </span>
                 )}
               </div>
@@ -89,8 +92,10 @@ function CueEditor({ name }: { name: CueName }) {
   const [tab, setTab] = useState<"voice" | "cue" | "rules">("voice");
   const { W, ROW, AIR, TOP } = geo;
   const H = TOP + 16 * ROW + 6 + AIR + 4;
-  const { look, setCue } = useFrame();
-  const shipped = SHIPPED_CUES[name];
+  const { look, setCue, puzzle } = useFrame();
+  // The puzzle's own copy of the cue (ADR 0070): a change here is heard on its board and no other.
+  const own = puzzle.id as PuzzleId;
+  const shipped = shippedCueOf(own, name);
   const data = look.cues[name] ?? shipped;
   const params: readonly CueParam[] = CUE_PARAMS[name];
   const probes = PROBES[name] as readonly (readonly unknown[])[];
@@ -110,7 +115,6 @@ function CueEditor({ name }: { name: CueName }) {
   const heard = useMemo(() => cueFrom(shown, params, args), [shown, params, args]);
   const problems = useMemo(() => cueProblems(name, shown).map((p) => t(p.key, p.vars)), [name, shown]);
   const changed = JSON.stringify(data) !== JSON.stringify(shipped);
-  const others = playedBy(name).length;
 
   const commit = (next: CueData): void => {
     const ok = CueDataSchema.safeParse(next);
@@ -278,7 +282,7 @@ function CueEditor({ name }: { name: CueName }) {
       <section ref={room} className="panel-sec cue-stage" style={bodyH > 0 ? { height: bodyH } : undefined} data-testid="cue-editor">
         {head}
         <div className="cue-stage-sub">
-          <p className="panel-note small" data-testid="cue-shared">{t("studio.sounds.shared", { count: others })}</p>
+          <p className="panel-note small" data-testid="cue-shared">{t("studio.sounds.own_copy", { puzzle: t(`${own}.title`) })}</p>
           {probeRow}
         </div>
         {roll}
@@ -305,7 +309,7 @@ function CueEditor({ name }: { name: CueName }) {
     <>
       <section ref={room} className="panel-sec" data-testid="cue-editor">
         {head}
-        <p className="panel-note small" data-testid="cue-shared">{t("studio.sounds.shared", { count: others })}</p>
+        <p className="panel-note small" data-testid="cue-shared">{t("studio.sounds.own_copy", { puzzle: t(`${own}.title`) })}</p>
         {probeRow}
         {roll}
         <p className="panel-note small">{t("studio.sounds.roll_hint")}</p>
