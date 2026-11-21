@@ -2,7 +2,8 @@
  * Scanner for the bots: a choice is one ping or one lock, on any cell the engine takes it on. The
  * sector holds contacts the player cannot see, so the game is not open: the one-move and rollout
  * bots would read them by trying a move, and are not run. Every bot here decides from what a player
- * sees: the pings and what they say now, the misses, the contacts known, and how many are left.
+ * sees: the pings and what they say now and whether each is lit, the misses, the contacts known, and
+ * how many are left.
  */
 import {
   SCANNER_DEF,
@@ -12,10 +13,12 @@ import {
   scannerHint,
   scannerKnownContacts,
   scannerLockIllegalReason,
+  scannerMarkOpen,
   scannerPingAt,
   scannerPingCandidates,
   scannerPingIllegalReason,
   scannerProvenCells,
+  scannerPingsLeft,
   type ScannerConfig,
   type ScannerMove,
   type ScannerState,
@@ -219,6 +222,80 @@ function placementBot(name: string, about: string, nerve: number): Bot<ScannerSt
   };
 }
 
+/**
+ * Every (placement, marked contact) pair that agrees with what the board shows: a lit ping hears
+ * the mark among its nearest, an unlit one does not. Null past the limit.
+ */
+function markPairs(s: ScannerState, limit: number): { place: number[]; mark: number }[] | null {
+  const places = placements(s, limit);
+  if (places === null) return null;
+  const cfg = s.config;
+  const out: { place: number[]; mark: number }[] = [];
+  for (const place of places) for (const m of place) if (s.pings.every((p) => (scannerDistance(cfg, p.cell, m) === p.distance) === p.lit)) out.push({ place, mark: m });
+  return out;
+}
+
+/**
+ * The mark hunter, or with `nerve` under 1 the mark gambler. While the mark can still be paid it
+ * holds every proven contact, pings the safe cell that best splits where the mark can be, and locks
+ * the mark once it is proven (the gambler: once it holds it in `nerve` of the pairs). With no safe
+ * ping left, or once a ping would leave `reserve` or fewer of par (the thrifty hunter, which gives
+ * the chase up rather than lose the clean sector), it plays the splitter.
+ */
+function markBot(name: string, about: string, nerve: number, reserve = -Infinity): Bot<ScannerState, ScannerMove> {
+  const splitter = placementBot("splitter", "", 1);
+  return {
+    name,
+    about,
+    choose(state, ctx) {
+      if (state.finished || scannerContactsLeft(state) === 0) return null;
+      if (!scannerMarkOpen(state) || scannerPingsLeft(state) <= reserve) return splitter.choose(state, ctx);
+      const pairs = markPairs(state, PLACEMENT_LIMIT);
+      if (pairs === null || pairs.length === 0) return splitter.choose(state, ctx);
+      const markCount = new Map<number, number>();
+      for (const p of pairs) markCount.set(p.mark, (markCount.get(p.mark) ?? 0) + 1);
+      let top = 0;
+      for (const n of markCount.values()) top = Math.max(top, n);
+      const topCells = [...markCount.entries()].filter(([, n]) => n === top).map(([c]) => c);
+      if (top === pairs.length || top >= nerve * pairs.length) return lock(ctx.rng.pick(topCells));
+      // Ping the safe cell that splits the mark's cell most evenly: answers grouped by number and light.
+      const cfg = state.config;
+      const inAny = new Set<number>();
+      for (const p of pairs) for (const c of p.place) inAny.add(c);
+      let best: number[] = [];
+      let bestCost = Infinity;
+      for (let c = 0; c < cellCount(state); c++) {
+        if (inAny.has(c) || scannerPingIllegalReason(state, c) !== null) continue;
+        const groups = new Map<string, Map<number, number>>();
+        for (const p of pairs) {
+          let d = Infinity;
+          for (const k of p.place) d = Math.min(d, scannerDistance(cfg, c, k));
+          const key = `${d}:${scannerDistance(cfg, c, p.mark) === d ? 1 : 0}`;
+          const g = groups.get(key) ?? new Map<number, number>();
+          g.set(p.mark, (g.get(p.mark) ?? 0) + 1);
+          groups.set(key, g);
+        }
+        // The expected number of cells the mark could still be in after the answer, then the pairs left as a tie-break.
+        let cost = 0;
+        let spread = 0;
+        for (const g of groups.values()) {
+          let n = 0;
+          for (const v of g.values()) n += v;
+          cost += n * g.size;
+          spread += n * n;
+        }
+        cost = cost * pairs.length * pairs.length + spread;
+        if (cost < bestCost) {
+          bestCost = cost;
+          best = [c];
+        } else if (cost === bestCost) best.push(c);
+      }
+      if (best.length > 0) return ping(ctx.rng.pick(best));
+      return splitter.choose(state, ctx);
+    },
+  };
+}
+
 export const SCANNER_BOTS: BotGame<ScannerState, ScannerMove, ScannerConfig> = {
   id: "scanner",
   def: SCANNER_DEF,
@@ -233,7 +310,13 @@ export const SCANNER_BOTS: BotGame<ScannerState, ScannerMove, ScannerConfig> = {
     randomPingerBot(),
     placementBot("splitter", "Knows every placement the numbers allow, locks only a cell held in all, and pings the safe cell that splits them most evenly.", 1),
     placementBot("gambler", "The splitter, but locks the likeliest cell once it holds a contact in six placements of ten (the bait).", 0.6),
+    markBot("mark hunter", "While the mark can be paid, holds proven contacts and pings to pin the mark down, then locks it first; never gives the chase up.", 1),
+    markBot("thrifty hunter", "The mark hunter, but gives the mark up once a ping would leave fewer than two of par, to keep the sector clean.", 1, 2),
+    markBot("mark gambler", "The mark hunter, but locks the likeliest cell for the mark at even odds (the bait).", 0.5),
   ],
-  slow: ["splitter", "gambler"],
-  baits: [{ bait: "gambler", beats: "splitter" }],
+  slow: ["splitter", "gambler", "mark hunter", "thrifty hunter", "mark gambler"],
+  baits: [
+    { bait: "gambler", beats: "splitter" },
+    { bait: "mark gambler", beats: "thrifty hunter" },
+  ],
 };

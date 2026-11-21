@@ -23,6 +23,8 @@ export const ScannerContentSchema = PrototypeBaseSchema.extend({
     wrongPenalty: z.int().min(0),
     spookPenalty: z.int().min(0),
     streakPercent: z.array(z.int().min(100)).min(1),
+    /** What the mark pays, in percent of a bounty, locked as its sector's first find. 100: no mark. */
+    markPercent: z.int().min(100).max(1000),
     maxMoves: z.int().min(1),
   }),
 });
