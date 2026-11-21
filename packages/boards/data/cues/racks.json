@@ -119,5 +119,16 @@
       { "kind": "tone", "note": 10, "wave": "triangle", "at": 0.12, "attack": 0.012, "release": 0.188, "level": 0.8 },
       { "kind": "tone", "note": 13, "wave": "triangle", "at": 0.18, "attack": 0.012, "release": 0.208, "level": 1 }
     ]
+  },
+  "beat": {
+    "level": 0.62,
+    "cutoff": 1600,
+    "voices": [
+      { "kind": "tone", "note": 0, "wave": "sine", "at": 0, "attack": 0.03, "release": 0.67, "level": 1 },
+      { "kind": "tone", "note": 3, "wave": "triangle", "at": 0, "attack": 0.03, "release": 0.63, "level": 0.55 },
+      { "kind": "tone", "note": 5, "wave": "sine", "at": 0.01, "attack": 0.03, "release": 0.57, "level": 0.5 },
+      { "kind": "tone", "note": 7, "wave": "sine", "at": 0.03, "attack": 0.03, "release": 0.47, "level": 0.2 }
+    ],
+    "swell": { "param": "strength", "from": 0.75, "to": 1 }
   }
 }

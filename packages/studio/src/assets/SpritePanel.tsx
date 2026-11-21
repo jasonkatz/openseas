@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { PuzzleId } from "@openseas/engine";
 import { SHIPPED_PIECES, drawingProblems, t } from "@openseas/boards";
 import { PALETTE, type Token } from "@openseas/boards/look";
@@ -52,8 +52,7 @@ export function SpritePanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focu
   const current = (n: string): Drawing => look.pieces[n] ?? shipped[n]!;
 
   if (!name) return <p className="panel-empty">{t("studio.sprites.none")}</p>;
-  return (
-    <div className="sprites" data-testid="sprites">
+  const piecesSec = (
       <section className="panel-sec sprite-pieces">
         <div className="sprite-head">
           <h3 className="panel-cap">{t("studio.sprites.pieces", { count: names.length })}</h3>
@@ -75,12 +74,15 @@ export function SpritePanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focu
           })}
         </div>
       </section>
-      <SpriteEditor key={name} puzzle={puzzle} name={name} drawing={current(name)} shipped={shipped[name]!} others={names.filter((n) => n !== name).map((n) => [n, current(n)] as const)} onChange={(d) => setPiece(name, d)} />
+  );
+  return (
+    <div className="sprites" data-testid="sprites">
+      <SpriteEditor key={name} pieces={piecesSec} puzzle={puzzle} name={name} drawing={current(name)} shipped={shipped[name]!} others={names.filter((n) => n !== name).map((n) => [n, current(n)] as const)} onChange={(d) => setPiece(name, d)} />
     </div>
   );
 }
 
-function SpriteEditor({ puzzle, name, drawing, shipped, others, onChange }: { puzzle: PuzzleId; name: string; drawing: Drawing; shipped: Drawing; others: ReadonlyArray<readonly [string, Drawing]>; onChange(d: Drawing | null): void }) {
+function SpriteEditor({ puzzle, name, drawing, shipped, others, pieces, onChange }: { puzzle: PuzzleId; name: string; drawing: Drawing; shipped: Drawing; others: ReadonlyArray<readonly [string, Drawing]>; pieces: ReactNode; onChange(d: Drawing | null): void }) {
   const wide = useWidePanel();
   const room = useRef<HTMLElement>(null);
   const box = useBox(room, wide);
@@ -169,9 +171,8 @@ function SpriteEditor({ puzzle, name, drawing, shipped, others, onChange }: { pu
     return out;
   }, [shown, others, name]);
 
-  return (
-    <>
-      <section ref={room} className="panel-sec sprite-edit" style={wide && bodyH > 0 ? { height: bodyH } : undefined} data-testid="sprite-editor">
+  const editSec = (
+      <section ref={room} className="panel-sec sprite-edit" data-testid="sprite-editor">
         <div className="sprite-head">
           <h3 className="panel-cap">
             <code className="mono">{name}</code>
@@ -223,7 +224,8 @@ function SpriteEditor({ puzzle, name, drawing, shipped, others, onChange }: { pu
           </ul>
         )}
       </section>
-
+  );
+  const layersSec = (
       <section className="panel-sec sprite-layers">
         <h3 className="panel-cap">{t("studio.sprites.layers", { count: shown.layers.length })}</h3>
         <ol className="layers" data-testid="layers">
@@ -251,8 +253,27 @@ function SpriteEditor({ puzzle, name, drawing, shipped, others, onChange }: { pu
           ))}
         </div>
       </section>
-
-      {layer && <Inspector key={`${puzzle}.${name}.${sel}`} layer={layer} onChange={(l) => setLayer(sel, l)} />}
+  );
+  const inspector = layer && <Inspector key={`${puzzle}.${name}.${sel}`} layer={layer} onChange={(l) => setLayer(sel, l)} />;
+  // Wide (ADR 0068): the controls are one column that scrolls on its own, and the stage a pane
+  // beside it that never moves, as the board stands still beside a closed panel.
+  if (wide)
+    return (
+      <>
+        <div className="sprite-side" data-testid="sprite-side">
+          {pieces}
+          {layersSec}
+          {inspector}
+        </div>
+        {editSec}
+      </>
+    );
+  return (
+    <>
+      {pieces}
+      {editSec}
+      {layersSec}
+      {inspector}
     </>
   );
 }

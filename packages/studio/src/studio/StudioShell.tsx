@@ -180,7 +180,7 @@ export function StudioShell(p: ShellProps) {
           </div>
         </header>
         <WidePanel.Provider value={widened}>
-          <div className="panel-body">
+          <div className={`panel-body ${widened && (mode === "sprites" || mode === "sounds") ? "is-split" : ""}`}>
             <LooseRefusals sections={sections} />
             <div hidden={mode !== "play"} data-mode-panel="play">
               <PlayPanel onStart={p.onStart} />

@@ -2106,53 +2106,53 @@
 .studio.is-wide .tune-group > .tune-branch + .num-row {
   border-top: 0;
 }
-.studio.is-wide .num-row > .num-label {
+.studio.is-wide [data-testid="tuning"] .num-row > .num-label {
   grid-area: 1 / 1;
 }
-.studio.is-wide .num-row > .num-ctl {
+.studio.is-wide [data-testid="tuning"] .num-row > .num-ctl {
   grid-area: 1 / 2 / span 2;
 }
-.studio.is-wide .num-row > .num-reset {
+.studio.is-wide [data-testid="tuning"] .num-row > .num-reset {
   grid-area: 1 / 3 / span 2;
 }
-.studio.is-wide .num-row > .tune-desc {
+.studio.is-wide [data-testid="tuning"] .num-row > .tune-desc {
   grid-area: 2 / 1;
   padding-left: 12px;
   font-size: 11px;
   color: var(--st-faint);
 }
-.studio.is-wide .num-row > .tune-refusal {
+.studio.is-wide [data-testid="tuning"] .num-row > .tune-refusal {
   grid-column: 1 / -1;
 }
 /* A curve, the thresholds, JSON: the card's whole width, under the label. */
-.studio.is-wide .num-row.is-block > .num-label {
+.studio.is-wide [data-testid="tuning"] .num-row.is-block > .num-label {
   grid-area: 1 / 1 / 2 / 3;
 }
-.studio.is-wide .num-row.is-block > .tune-desc {
+.studio.is-wide [data-testid="tuning"] .num-row.is-block > .tune-desc {
   grid-area: 2 / 1 / 3 / 3;
 }
-.studio.is-wide .num-row.is-block > .num-ctl {
+.studio.is-wide [data-testid="tuning"] .num-row.is-block > .num-ctl {
   grid-area: 3 / 1 / 4 / -1;
   padding: 6px 0 0;
 }
-.studio.is-wide .tune-stepper {
+.studio.is-wide [data-testid="tuning"] .tune-stepper {
   grid-template-columns: 28px minmax(0, 1fr) 28px;
 }
-.studio.is-wide .tune-slider {
+.studio.is-wide [data-testid="tuning"] .tune-slider {
   grid-template-columns: minmax(0, 1fr) 64px;
   gap: 10px;
 }
-.studio.is-wide .num-ctl > .tune-value,
-.studio.is-wide .num-ctl > select {
+.studio.is-wide [data-testid="tuning"] .num-ctl > .tune-value,
+.studio.is-wide [data-testid="tuning"] .num-ctl > select {
   justify-self: end;
 }
-.studio.is-wide .num-ctl > select {
+.studio.is-wide [data-testid="tuning"] .num-ctl > select {
   width: 100%;
 }
-.studio.is-wide .num-ctl > .switch {
+.studio.is-wide [data-testid="tuning"] .num-ctl > .switch {
   justify-self: end;
 }
-.studio.is-wide .num-ctl {
+.studio.is-wide [data-testid="tuning"] .num-ctl {
   display: grid;
 }
 /* A run of keys under one branch, headed once. */
@@ -2357,50 +2357,64 @@
 .scale-round.is-draft {
   fill: var(--st-mark-text);
 }
-/* Sprites: the pieces, the layers and the inspector down the left, the stage large on the right. */
+/* Sprites and Sounds, wide: the panel's body does not scroll. Its controls are a column that scrolls
+   on its own on the left, and the stage or the open cue a pane beside it that never moves. */
+.studio.is-wide .panel-body.is-split {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+.panel-body.is-split > [data-mode-panel]:not([hidden]) {
+  height: 100%;
+  min-height: 0;
+}
 .studio.is-wide .sprites {
+  height: 100%;
   display: grid;
   grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
-  grid-template-rows: auto auto minmax(0, 1fr);
-  align-items: start;
+  grid-template-rows: minmax(0, 1fr);
 }
-.studio.is-wide .sprites > .sprite-pieces,
-.studio.is-wide .sprites > .sprite-layers,
-.studio.is-wide .sprites > .sprite-insp {
-  grid-column: 1;
+.sprite-side {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--st-line-strong) transparent;
+  border-right: 1px solid var(--st-line);
 }
-/* The editor stays put in the panel's view, its stage in the middle, while the pieces, layers and inspector scroll beside it. */
-.studio.is-wide .sprites > .sprite-edit {
-  position: sticky;
-  top: 0;
-  grid-column: 2;
-  grid-row: 1 / span 3;
-  align-self: start;
-  align-content: center;
-  border-left: 1px solid var(--st-line);
+.sprite-side > .panel-sec:last-child {
   border-bottom: 0;
+}
+.studio.is-wide .sprites > .sprite-edit {
+  min-height: 0;
+  align-content: center;
+  border-bottom: 0;
+  overflow: hidden;
 }
 .studio.is-wide .sprites > .sprite-edit .sprite-stage {
   justify-self: center;
 }
-.studio.is-wide .sprites > .sprite-pieces .sprite-grid {
+.studio.is-wide .sprite-side .sprite-grid {
   grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
 }
-/* Sounds: the cues down the left, the open cue's timeline and voices on the right. */
+/* Sounds: the cues down the left, scrolling on their own; the open cue on the right, still. */
 .studio.is-wide .tune.assets {
+  height: 100%;
   column-width: auto;
   display: grid;
   grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
-  align-items: start;
-}
-.studio.is-wide .tune.assets > * {
-  grid-column: 2;
+  grid-template-rows: minmax(0, 1fr);
 }
 .studio.is-wide .tune.assets > .cue-list-sec {
   grid-column: 1;
-  grid-row: 1 / span 12;
+  align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--st-line-strong) transparent;
   border-right: 1px solid var(--st-line);
   border-bottom: 0;
+}
+.studio.is-wide .tune.assets > .cue-stage {
+  grid-column: 2;
 }
 .studio.is-wide .assets .cue-list {
   grid-template-columns: minmax(0, 1fr);
@@ -2478,8 +2492,7 @@
 /* Sounds, wide: the open cue pinned in the panel's view, its roll grown to fill it, and the picked
    voice, the cue's own numbers and its rules as one strip of tabs under the roll. */
 .studio.is-wide .tune.assets > .cue-stage {
-  position: sticky;
-  top: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2544,4 +2557,12 @@
 }
 .cue-tab-body > .insp-grid {
   padding-top: 8px;
+}
+/* Text, wide: every row on the same two columns, the category's picker in the draft's. */
+.studio.is-wide [data-testid="text-panel"] .num-row:not(.is-side) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 20px;
+}
+.studio.is-wide [data-testid="text-panel"] .num-row:not(.is-side) > .num-ctl {
+  grid-column: 2;
+  justify-self: start;
 }

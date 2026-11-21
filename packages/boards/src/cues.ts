@@ -192,17 +192,11 @@ const PUZZLE_FILES: Readonly<Record<PuzzleId, unknown>> = {
 };
 /**
  * Each puzzle's own cues as the build ships them: `data/cues/<puzzle>.json`, checked as they load,
- * a copy of every cue that puzzle's board and its round play but those in `GAME_ONLY_CUES` (ADR 0070).
+ * a copy of every cue that puzzle's board and its round play, the beat's among them (ADR 0070, ADR 0071).
  */
 export const PUZZLE_SHIPPED_CUES: Readonly<Record<PuzzleId, Readonly<Partial<Record<CueName, CueData>>>>> = Object.fromEntries(
   Object.entries(PUZZLE_FILES).map(([id, file]) => [id, CuesFileSchema.parse(file)]),
 ) as Record<PuzzleId, Partial<Record<CueName, CueData>>>;
-
-/**
- * Cues that are the game's alone and never a puzzle's copy: the beat has one sound, the same on
- * every board (docs/BRAND.md section 6, ADR 0064), so no puzzle can revoice it (ADR 0070).
- */
-export const GAME_ONLY_CUES: readonly CueName[] = ["beat"];
 
 /** Which set of cues sounds: the puzzle on screen, or the game's own around the boards. */
 let playing: PuzzleId | null = null;

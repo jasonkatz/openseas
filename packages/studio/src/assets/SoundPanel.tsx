@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { PuzzleId } from "@openseas/engine";
-import { CUE_PARAMS, LIMITS, NOTES, GAME_ONLY_CUES, PROBES, auditionCue, auditionData, cueFrom, cueProblems, shippedCueOf, t, type CueName, type CueParam } from "@openseas/boards";
+import { CUE_PARAMS, LIMITS, NOTES, PROBES, auditionCue, auditionData, cueFrom, cueProblems, shippedCueOf, t, type CueName, type CueParam } from "@openseas/boards";
 import { CueDataSchema, type CueData, type VoiceData, type When } from "@openseas/protocol";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { useBodyHeight, useBox } from "../studio/useBox.js";
@@ -18,8 +18,6 @@ import { OWN_CUE_FALLBACKS, cuesOf, noteName } from "./cues.js";
  */
 
 const isCue = (name: string): name is CueName => name in CUE_PARAMS;
-/** A cue this puzzle has its own copy of, and so can revoice (ADR 0070): every cue but the game's alone, the beat. */
-const isOwn = (name: string): name is CueName => isCue(name) && !GAME_ONLY_CUES.includes(name);
 /** The puzzles that play a cue: who else hears a change to it. */
 
 function Play({ label, onPlay, testId }: { label: string; onPlay(): void; testId?: string }) {
@@ -36,8 +34,8 @@ export function SoundPanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focus
   const { look } = useFrame();
   const fallbacks = OWN_CUE_FALLBACKS[puzzle] ?? {};
   const cues = cuesOf(puzzle);
-  const editable = cues.filter(isOwn);
-  const name = focus && isOwn(focus) && cues.includes(focus) ? focus : (editable[0] ?? null);
+  const editable = cues.filter(isCue);
+  const name = focus && isCue(focus) && cues.includes(focus) ? focus : (editable[0] ?? null);
   return (
     <div className="tune assets" data-testid="sounds">
       <section className="panel-sec cue-list-sec">
@@ -47,7 +45,7 @@ export function SoundPanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focus
             <div key={cue} className={`cue ${cue === name ? "is-selected" : ""}`} data-testid={`cue-${cue}`}>
               <div className="cue-head">
                 <Play label={t("studio.sounds.play", { cue })} onPlay={() => (isCue(cue) && look.cues[cue] ? auditionData(cue, look.cues[cue]!, PROBES[cue][0] ?? []) : auditionCue(cue, fallbacks[cue]))} testId={`cue-play-${cue}`} />
-                {isOwn(cue) ? (
+                {isCue(cue) ? (
                   <button type="button" className="cue-name cue-pick" onClick={() => onFocus(cue)} aria-pressed={cue === name} data-testid={`cue-edit-${cue}`}>
                     <code className="mono">{cue}</code>
                     {cue in look.cues && <i className="rail-dot" data-testid={`cue-dot-${cue}`} />}
@@ -57,8 +55,6 @@ export function SoundPanel({ puzzle, focus, onFocus }: { puzzle: PuzzleId; focus
                     <code className="mono">{cue}</code>
                     {/* A puzzle's own cue has no voice of its name: it says which cues it plays. */}
                     {fallbacks[cue] && <span className="cue-voice">{t("studio.sounds.own", { fallback: fallbacks[cue].join(" + ") })}</span>}
-                    {/* The beat is the game's alone: one sound on every board (docs/BRAND.md section 6). */}
-                    {isCue(cue) && !isOwn(cue) && <span className="cue-voice" data-testid={`cue-game-${cue}`}>{t("studio.sounds.game_only")}</span>}
                   </span>
                 )}
               </div>
@@ -279,7 +275,7 @@ function CueEditor({ name }: { name: CueName }) {
   if (wide) {
     const tabs = (["voice", "cue", ...(params.length > 0 ? (["rules"] as const) : [])] as const).filter((k) => k !== "voice" || voice);
     return (
-      <section ref={room} className="panel-sec cue-stage" style={bodyH > 0 ? { height: bodyH } : undefined} data-testid="cue-editor">
+      <section ref={room} className="panel-sec cue-stage" data-testid="cue-editor">
         {head}
         <div className="cue-stage-sub">
           <p className="panel-note small" data-testid="cue-shared">{t("studio.sounds.own_copy", { puzzle: t(`${own}.title`) })}</p>

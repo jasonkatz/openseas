@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { PUZZLE_IDS } from "@openseas/engine";
-import { CUE_PARAMS, GAME_ONLY_CUES, PUZZLE_SHIPPED_CUES } from "@openseas/boards/cues";
+import { CUE_PARAMS, PUZZLE_SHIPPED_CUES } from "@openseas/boards/cues";
 import { OWN_CUE_FALLBACKS, PUZZLE_CUES, ROUND_CUES, cuesOf } from "../src/assets/cues.js";
 
 const at = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
@@ -63,9 +63,9 @@ describe("the Sounds list's cues (DESIGN.md 3.14, ADR 0062)", () => {
 });
 
 describe("each puzzle's own cues (ADR 0070)", () => {
-  it("every puzzle has its own copy of every cue its board and its round play but the beat, and no other", () => {
+  it("every puzzle has its own copy of every cue its board and its round play, the beat's too, and no other (ADR 0071)", () => {
     for (const id of PUZZLE_IDS) {
-      const voiced = cuesOf(id).filter((c) => c in CUE_PARAMS && !(GAME_ONLY_CUES as readonly string[]).includes(c));
+      const voiced = cuesOf(id).filter((c) => c in CUE_PARAMS);
       expect(Object.keys(PUZZLE_SHIPPED_CUES[id]).sort(), id).toEqual([...voiced].sort());
     }
   });

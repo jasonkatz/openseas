@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CUE_NAMES, GAME_ONLY_CUES, SHIPPED_PIECES, content, cueProblems, overrideCues, overrideMessages, playCuesOf, overridePieces, shippedCueOf, shippedMessage, t, type CueName } from "@openseas/boards";
+import { CUE_NAMES, SHIPPED_PIECES, content, cueProblems, overrideCues, overrideMessages, playCuesOf, overridePieces, shippedCueOf, shippedMessage, t, type CueName } from "@openseas/boards";
 import { isPuzzleText, lookOf, textVars, wordsOf, type CueData, type Draft, type Drawing, type Look, type PuzzleCategory, type TesterLink, type Words } from "@openseas/protocol";
 import type { PuzzleId } from "@openseas/engine";
 import type { StudioPuzzle } from "../puzzles.js";
@@ -199,12 +199,7 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const lookRefusals = useMemo<Refusal[]>(
     () =>
       Object.entries(look.cues).flatMap(([name, cue]) =>
-        !(CUE_NAMES as readonly string[]).includes(name)
-          ? [{ key: `cue.${name}`, message: t("studio.check.no_cue", { cue: name }) }]
-          : // The beat is the game's alone (ADR 0070): no puzzle's draft revoices it.
-            GAME_ONLY_CUES.includes(name as CueName)
-            ? [{ key: `cue.${name}`, message: t("studio.check.game_cue", { cue: name }) }]
-            : cueProblems(name as CueName, cue).map((p) => ({ key: `cue.${name}`, message: t(p.key, p.vars) })),
+        (CUE_NAMES as readonly string[]).includes(name) ? cueProblems(name as CueName, cue).map((p) => ({ key: `cue.${name}`, message: t(p.key, p.vars) })) : [{ key: `cue.${name}`, message: t("studio.check.no_cue", { cue: name }) }],
       ),
     [look.cues],
   );

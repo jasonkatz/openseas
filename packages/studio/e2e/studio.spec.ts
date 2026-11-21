@@ -286,7 +286,12 @@ test("the panels open wide over the middle, in every mode at once, the board mov
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
 
+  // A mode's panel opens wide by default; shut, the board comes back to the middle.
   await page.getByTestId("tab-tuning").click();
+  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "1");
+  await page.getByTestId("panel-wide").click();
+  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "0");
+  await expect.poll(async () => (await page.getByTestId("cooling-canvas").boundingBox())!.x).toBeLessThan(800);
   const before = await page.getByTestId("cooling-canvas").boundingBox();
   await page.getByTestId("panel-wide").click();
   await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "1");
@@ -363,9 +368,9 @@ test("a panel opened wide draws more: a curve as a chart drawn by hand, the rati
   });
   await expect(page.getByTestId("result-tier")).toBeVisible();
 
+  // Wide is where a mode opens.
   await page.getByTestId("tab-scoring").click();
-  await expect(page.getByTestId("chart-config.fusePoints")).toHaveCount(0);
-  await page.getByTestId("panel-wide").click();
+  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "1");
 
   // A press near the top of the first bar draws that step taller.
   const chart = page.getByTestId("chart-config.fusePoints");
@@ -382,8 +387,10 @@ test("a panel opened wide draws more: a curve as a chart drawn by hand, the rati
 
   await page.getByTestId("tab-sprites").click();
   const stage = (await page.getByTestId("sprite-stage").boundingBox())!;
-  // The stage stays where it is while the column beside it scrolls.
-  await page.locator(".panel-body").evaluate((e) => (e.scrollTop = 300));
+  // Only the controls scroll, in a column of their own; the stage beside it is a pane that never moves.
+  expect(await page.locator(".panel-body").evaluate((e) => e.scrollHeight <= e.clientHeight + 1)).toBe(true);
+  await page.getByTestId("sprite-side").evaluate((e) => (e.scrollTop = 300));
+  expect(await page.getByTestId("sprite-side").evaluate((e) => e.scrollTop)).toBeGreaterThan(0);
   expect((await page.getByTestId("sprite-stage").boundingBox())!.y).toBeCloseTo(stage.y, 0);
   // Larger than the closed panel's 288, as large as the panel's room allows.
   expect(stage.width).toBeGreaterThan(320);

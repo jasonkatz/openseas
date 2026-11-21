@@ -359,8 +359,8 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
   of one scale, G major pentatonic across three octaves, so any two cues that overlap sound well together. What rises steps up the scale (a
   cascade, a streak), what falls steps down (a streak lost), and a bad thing is low and soft: the
   heat alarm is two low notes. Every cue rises from nothing in at least 8ms, is over within 400ms
-  and peaks within 3 dB of one target. The beat (`BRAND.md` section 6) has one sound, the same on
-  every board: a low chord that rings for 700ms, asked for by the beat itself and heard alone,
+  and peaks within 3 dB of one target. The beat (`BRAND.md` section 6) has one sound on a board,
+  each puzzle's own copy (ADR 0071), shipped as a low chord that rings for 700ms, asked for by the beat itself and heard alone,
   with no other cue of its moment laid over it. A unit test holds the definitions to those rules
   and the studio's smoke measures every cue as the browser renders it. On a phone the page may make sound only from inside the player's own touch, so the first touch, click or key press anywhere starts the audio (`boards/src/audio.ts`); a board's cues come a frame later and would otherwise never be heard. The game's sound obeys a phone's ring switch: on silent the game is silent, it mixes with music already playing, and the phone shows no "now playing" card for it (the owner chose this over sound that plays through the switch). The whole mix is lifted to carry on a small speaker, behind a limiter, and the audio sleeps whenever the page is hidden.
 
@@ -840,7 +840,8 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
 - One panel beside the rail, which is the mode's, as wide in every mode. Any mode but Play can
   open its panel wide over the middle, from a button in its head: the board then moves to the
   top of the right-hand column, still live and playable, and the chat takes its bottom. One
-  switch serves every mode and is kept in the browser, and the change is one eased motion. The
+  switch serves every mode, is on until the owner shuts it (a mode opens wide), and is kept in the
+  browser; the change is one eased motion. The
   board is one element in every layout, so the round on it carries on. A wide panel draws more:
   the numbers modes lay each section out as a card on a grid, with every control in one column
   of one width, each number's line of description under its name, and a run of keys under one
@@ -849,9 +850,9 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   and the page's rounds as dots on it (filled on the draft, hollow on the shipped numbers); a
   step or threshold the draft has moved is outlined, with the shipped value dashed beside it.
   Sprites puts the pieces, in their boards' colours, the layers and the inspector down the left,
-  and the stage, as large as the panel's room allows, on the right, pinned in the panel's view
-  while the left scrolls; Sounds puts the cues down the left and the open cue pinned on the
-  right, its timeline grown to fill the view, with a ruler of milliseconds, and the picked
+  and the stage, as large as the panel's room allows, on the right, a pane that never moves while
+  the controls scroll in a column of their own; Sounds puts the cues down the left, scrolling on
+  their own, and the open cue a still pane on the right, its timeline grown to fill the view, with a ruler of milliseconds, and the picked
   voice, the cue's own numbers and its rules as tabs under it, so nothing lengthens the page;
   Text sets the shipped words beside each field, under a head that names the two columns.
   Play holds what the next round is dealt on (a stage, a starting point, the seed) and the last
@@ -955,10 +956,10 @@ sees.
 - A cue that breaks a rule of `BRAND.md` section 8 (too long, too sharp a rise, too bright, a rule
   naming what the board does not pass) is said to, plays as shipped, and holds Save until it is
   mended. The editor's fields are bounded by those rules, so most edits cannot break them.
-- A cue is the puzzle's own (ADR 0070): every puzzle has a copy of each cue its board plays, so a
+- A cue is the puzzle's own (ADR 0070, ADR 0071): every puzzle has a copy of each cue its board plays, so a
   revoiced cue is heard on that puzzle's board and no other. It is part of the draft as a piece is
-  (`cue.<name>=`), and Save writes it into `boards/data/cues/<puzzle>.json`. The beat is the game's
-  alone, one sound on every board, and is not revoiced. Which cue a board plays, and when, is in the puzzle's own renderer.
+  (`cue.<name>=`), and Save writes it into `boards/data/cues/<puzzle>.json`. The beat is a copy
+  too, each puzzle's own (ADR 0071). Which cue a board plays, and when, is in the puzzle's own renderer.
 
 **The chat.**
 

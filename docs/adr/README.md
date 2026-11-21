@@ -76,3 +76,4 @@ that supersedes it.
 | [0068](./0068-the-board-plays-from-every-mode-and-a-panel-can-open-wide.md) | The board plays from every mode on a transport bar, and a mode's panel can open wide over the middle |
 | [0069](./0069-rating-is-a-mode-of-its-own.md) | Rating is a mode of its own, beside Scoring |
 | [0070](./0070-each-puzzle-has-its-own-copy-of-its-cues.md) | Each puzzle has its own copy of its cues; the beat stays the game's alone |
+| [0071](./0071-the-beat-is-each-puzzles-own-too.md) | The beat is each puzzle's own too; its pulse stays the same on every board |
