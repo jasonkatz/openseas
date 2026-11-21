@@ -92,8 +92,8 @@ test("the Sounds mode revoices a cue: plays it as it is edited, holds it to the 
   const panel = page.getByTestId("sounds");
   await panel.getByTestId("cue-edit-clear").click();
   const editor = panel.getByTestId("cue-editor");
-  // A cue of the game's says who else plays it, and plays each row a board may ask it with.
-  await expect(editor.getByTestId("cue-shared")).toContainText(/\d+/);
+  // A cue here is the puzzle's own copy (ADR 0070), and plays each row a board may ask it with.
+  await expect(editor.getByTestId("cue-shared")).toContainText("Cooling");
   const before = await tones();
   await editor.getByTestId("probe-3").click();
   await expect.poll(tones).toBeGreaterThan(before);

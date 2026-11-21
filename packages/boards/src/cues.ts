@@ -1,10 +1,26 @@
 import { CuesFileSchema, type CueData, type When } from "@openseas/protocol";
+import type { PuzzleId } from "@openseas/engine";
 import shippedCues from "../data/cues.json" with { type: "json" };
+import coolingCues from "../data/cues/cooling.json" with { type: "json" };
+import enginesCues from "../data/cues/engines.json" with { type: "json" };
+import platingCues from "../data/cues/plating.json" with { type: "json" };
+import gunneryCues from "../data/cues/gunnery.json" with { type: "json" };
+import navigationCues from "../data/cues/navigation.json" with { type: "json" };
+import battleCues from "../data/cues/battle.json" with { type: "json" };
+import swordfightCues from "../data/cues/swordfight.json" with { type: "json" };
+import salvageCues from "../data/cues/salvage.json" with { type: "json" };
+import overloadCues from "../data/cues/overload.json" with { type: "json" };
+import deflectorsCues from "../data/cues/deflectors.json" with { type: "json" };
+import reactorCues from "../data/cues/reactor.json" with { type: "json" };
+import scannerCues from "../data/cues/scanner.json" with { type: "json" };
+import tugCues from "../data/cues/tug.json" with { type: "json" };
+import racksCues from "../data/cues/racks.json" with { type: "json" };
+import cuttingCues from "../data/cues/cutting.json" with { type: "json" };
 
 /**
  * Every cue the game plays, as data (docs/BRAND.md section 8, ADR 0062 decision 5). A cue is a
  * few voices from one small set: a tone on a note of the scale, or a breath of soft noise, written
- * in `data/cues.json` with the rules that vary them by what the board says (ADR 0065), so the
+ * with the rules that vary them by what the board says (ADR 0065), so the
  * studio can revoice one and its Save can write it back. Nothing here touches WebAudio: `audio.ts` plays these, and `studio/test/sound.test.ts` reads them and
  * holds every one to the rules below, so a cue cannot leave the key, sharpen its attack or outstay
  * its length without a test failing.
@@ -15,6 +31,11 @@ import shippedCues from "../data/cues.json" with { type: "json" };
  * - Short: a cue is over within `LIMITS.cue`, the beat's within `LIMITS.beat`.
  * - Level: a cue peaks within `LIMITS.band` dB of `LIMITS.peak` (measured in a real browser by
  *   `studio/e2e/sound.spec.ts`; `gain` on each cue is what was tuned to get there).
+ *
+ * Each puzzle has its own copy of every cue its board plays, in `data/cues/<puzzle>.json`, so a
+ * cue revoiced for one puzzle is heard on that puzzle's board and no other (ADR 0070). The game's
+ * own cues, played around the boards (the chart, a crew, a sheet), are `data/cues.json`. Which set
+ * sounds is the puzzle on screen: the page that shows a board says so with `playCuesOf`.
  */
 
 /** The one key: G major pentatonic, three octaves up from G2, and the G above them. */
@@ -163,15 +184,48 @@ type ArgOf<P> = P extends { kind: "flag" } ? boolean : number;
 type ArgsOf<T extends readonly CueParam[]> = T extends readonly [infer H, ...infer R extends readonly CueParam[]] ? [ArgOf<H>, ...ArgsOf<R>] : [];
 export type CueArgs<K extends CueName> = ArgsOf<(typeof CUE_PARAMS)[K]>;
 
-/** How every cue sounds as the build ships it: `data/cues.json`, checked as it loads. */
+/** How the game's own cues sound as the build ships them: `data/cues.json`, checked as it loads. Every cue has one here. */
 export const SHIPPED_CUES: Readonly<Record<CueName, CueData>> = CuesFileSchema.parse(shippedCues) as Record<CueName, CueData>;
+
+const PUZZLE_FILES: Readonly<Record<PuzzleId, unknown>> = {
+  cooling: coolingCues, engines: enginesCues, plating: platingCues, gunnery: gunneryCues, navigation: navigationCues, battle: battleCues, swordfight: swordfightCues, salvage: salvageCues, overload: overloadCues, deflectors: deflectorsCues, reactor: reactorCues, scanner: scannerCues, tug: tugCues, racks: racksCues, cutting: cuttingCues,
+};
+/**
+ * Each puzzle's own cues as the build ships them: `data/cues/<puzzle>.json`, checked as they load,
+ * a copy of every cue that puzzle's board and its round play but those in `GAME_ONLY_CUES` (ADR 0070).
+ */
+export const PUZZLE_SHIPPED_CUES: Readonly<Record<PuzzleId, Readonly<Partial<Record<CueName, CueData>>>>> = Object.fromEntries(
+  Object.entries(PUZZLE_FILES).map(([id, file]) => [id, CuesFileSchema.parse(file)]),
+) as Record<PuzzleId, Partial<Record<CueName, CueData>>>;
+
+/**
+ * Cues that are the game's alone and never a puzzle's copy: the beat has one sound, the same on
+ * every board (docs/BRAND.md section 6, ADR 0064), so no puzzle can revoice it (ADR 0070).
+ */
+export const GAME_ONLY_CUES: readonly CueName[] = ["beat"];
+
+/** Which set of cues sounds: the puzzle on screen, or the game's own around the boards. */
+let playing: PuzzleId | null = null;
+
+/**
+ * Say which puzzle is on screen, so its own cues are the ones heard; null for the game around the
+ * boards. The page that shows a board calls it as the board comes, and with null as it goes.
+ */
+export function playCuesOf(puzzle: PuzzleId | null): void {
+  playing = puzzle;
+}
+
+/** How a cue sounds as shipped for a puzzle, or for the game when no puzzle is named: the puzzle's own copy, where it has one. */
+export function shippedCueOf(puzzle: PuzzleId | null, name: CueName): CueData {
+  return (puzzle ? PUZZLE_SHIPPED_CUES[puzzle][name] : undefined) ?? SHIPPED_CUES[name];
+}
 
 let over: Readonly<Partial<Record<CueName, CueData>>> = {};
 let revision = 0;
 const listeners = new Set<() => void>();
 
 /**
- * Cues laid over the shipped ones on this page: the studio's draft revoices them and the board
+ * Cues laid over the shipped ones on this page, the puzzle on screen's: the studio's draft revoices them and the board
  * plays them at once. Presentation only, as a draft's words are. The game never sets one. An empty
  * set puts every cue back.
  */
@@ -188,8 +242,8 @@ export function subscribeCues(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/** How a cue sounds on this page: the draft's, where it revoices it, else the shipped. */
-export const cueDataOf = (name: CueName): CueData => over[name] ?? SHIPPED_CUES[name];
+/** How a cue sounds on this page: the draft's, where it revoices it, else the puzzle on screen's own as shipped. */
+export const cueDataOf = (name: CueName): CueData => over[name] ?? shippedCueOf(playing, name);
 
 /** The number a parameter reads as: a flag is 1 or 0, anything not a number 0. */
 function paramValue(params: readonly CueParam[], args: readonly unknown[], name: string): number {
@@ -266,6 +320,11 @@ export const CUE_NAMES = Object.keys(CUE_PARAMS) as CueName[];
 /** The cue for a name and its arguments, as it sounds on this page. */
 export function cueOf<K extends CueName>(name: K, args: CueArgs<K>): Cue {
   return cueFrom(cueDataOf(name), CUE_PARAMS[name], args);
+}
+
+/** The cue for a name and its arguments as shipped for a puzzle (or the game, for null), whatever is on screen: for the sound tests, which hold every copy to the rules. */
+export function shippedCue<K extends CueName>(puzzle: PuzzleId | null, name: K, args: CueArgs<K>): Cue {
+  return cueFrom(shippedCueOf(puzzle, name), CUE_PARAMS[name], args);
 }
 
 /** How long a voice lasts from the cue's start, in seconds. */

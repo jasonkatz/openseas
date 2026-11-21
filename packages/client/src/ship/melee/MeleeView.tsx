@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { swordfightPaceScore, swordfightStanding, type SwordfightEvent, type SwordfightState } from "@openseas/engine";
 import type { ShipSnapshot } from "@openseas/protocol";
-import { SwordfightBoard, TierPace, sfx, t, useTierPace } from "@openseas/boards";
+import { SwordfightBoard, TierPace, sfx, t, usePuzzleCues, useTierPace } from "@openseas/boards";
 import { tierName } from "../../names.js";
 import { ShipHud } from "../ShipHud.jsx";
 import { useMeleeApi } from "./useMelee.js";
@@ -22,6 +22,8 @@ function attackRate(s: SwordfightState): number {
 }
 
 export function MeleeView({ ship, onBack }: MeleeViewProps) {
+  // The fight's own cues while it is on screen (ADR 0070).
+  usePuzzleCues("swordfight");
   const api = useMeleeApi();
   const back = useCallback(() => {
     api.dismiss();

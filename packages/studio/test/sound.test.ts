@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, SCALE, SHIPPED_CUES, cueLength, cueOf, envelope, type Cue, type CueName, type Tone } from "@openseas/boards/cues";
+import { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, PUZZLE_SHIPPED_CUES, SCALE, SHIPPED_CUES, cueFrom, cueLength, cueOf, envelope, type Cue, type CueName, type Tone } from "@openseas/boards/cues";
+import type { CueData } from "@openseas/protocol";
 
 /**
  * The sound rules of the brand book (docs/BRAND.md section 8), held over the cue definitions as
@@ -9,9 +10,30 @@ import { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, SCALE, SHIPPED_CUES, cueL
  * comes out and whether it clicks, is measured in a real browser by e2e/sound.spec.ts.
  */
 
-/** Every cue with every row of its probes: the whole range a board may ask for. */
-const ALL: { name: CueName; args: readonly unknown[]; cue: Cue }[] = CUE_NAMES.flatMap((name) => (PROBES[name] as readonly (readonly unknown[])[]).map((args) => ({ name, args, cue: cueOf(name, args as never) })));
-const label = (c: { name: string; args: readonly unknown[] }): string => `${c.name}(${c.args.join(", ")})`;
+/**
+ * Every copy of every cue: the game's own (`data/cues.json`) and each puzzle's (`data/cues/<puzzle>.json`,
+ * ADR 0070). Copies that are alike are held once, under every set that has them.
+ */
+const COPIES: { name: CueName; data: CueData; sets: string[] }[] = (() => {
+  const seen = new Map<string, { name: CueName; data: CueData; sets: string[] }>();
+  const add = (set: string, name: CueName, data: CueData | undefined): void => {
+    if (!data) return;
+    const key = `${name}:${JSON.stringify(data)}`;
+    const was = seen.get(key);
+    if (was) was.sets.push(set);
+    else seen.set(key, { name, data, sets: [set] });
+  };
+  for (const name of CUE_NAMES) add("game", name, SHIPPED_CUES[name]);
+  for (const [id, cues] of Object.entries(PUZZLE_SHIPPED_CUES)) for (const name of CUE_NAMES) add(id, name, cues[name]);
+  return [...seen.values()];
+})();
+/** Every copy of every cue with every row of its probes: the whole range a board may ask for. */
+const ALL: { name: CueName; args: readonly unknown[]; cue: Cue; sets: string[] }[] = COPIES.flatMap(({ name, data, sets }) =>
+  (PROBES[name] as readonly (readonly unknown[])[]).map((args) => ({ name, args, sets, cue: cueFrom(data, CUE_PARAMS[name], args) })),
+);
+/** Every copy of one cue, at one row of arguments. */
+const copiesOf = (name: CueName, args: readonly unknown[]): Cue[] => COPIES.filter((c) => c.name === name).map((c) => cueFrom(c.data, CUE_PARAMS[name], args));
+const label = (c: { name: string; args: readonly unknown[]; sets?: readonly string[] }): string => `${c.name}(${c.args.join(", ")})${c.sets ? ` in ${c.sets.length > 2 ? `${c.sets.slice(0, 2).join(", ")} and ${c.sets.length - 2} more` : c.sets.join(", ")}` : ""}`;
 const tones = (cue: Cue): Tone[] => cue.voices.filter((v): v is Tone => v.kind === "tone");
 /** A cue's notes in the order they start. */
 const melody = (cue: Cue): number[] =>
@@ -67,11 +89,10 @@ describe("the cues (docs/BRAND.md section 8, ADR 0062 decision 5)", () => {
     expect(Object.keys(SHIPPED_CUES).sort()).toEqual([...CUE_NAMES].sort());
   });
 
-  it("each cue's rules name only parameters its board passes it", () => {
-    for (const name of CUE_NAMES) {
+  it("each cue's rules name only parameters its board passes it, in every copy", () => {
+    for (const { name, data: d } of COPIES) {
       const params: readonly { name: string }[] = CUE_PARAMS[name];
       const known = new Set(params.map((p) => p.name));
-      const d = SHIPPED_CUES[name];
       const named = [d.shift?.param, d.swell?.param, d.alt?.when.param, ...d.voices.flatMap((v) => [v.when?.param, v.repeat?.param])].filter((p): p is string => p !== undefined);
       for (const p of named) expect(known, `${name} names ${p}`).toContain(p);
     }
@@ -132,12 +153,12 @@ describe("the cues (docs/BRAND.md section 8, ADR 0062 decision 5)", () => {
   });
 
   it("a bad thing is low and soft: never a buzzer", () => {
-    for (const name of ["alarm", "bad", "rise", "bump"] as const) {
-      const cue = cueOf(name, []);
-      // At or under the A below middle C, through a low-pass well under the brightest.
-      expect(Math.max(...melody(cue)), name).toBeLessThanOrEqual(6);
-      expect(cue.cutoff, name).toBeLessThanOrEqual(1000);
-    }
+    for (const name of ["alarm", "bad", "rise", "bump"] as const)
+      for (const cue of copiesOf(name, [])) {
+        // At or under the A below middle C, through a low-pass well under the brightest.
+        expect(Math.max(...melody(cue)), name).toBeLessThanOrEqual(6);
+        expect(cue.cutoff, name).toBeLessThanOrEqual(1000);
+      }
     expect(tones(cueOf("alarm", []))).toHaveLength(2);
   });
 });

@@ -26,8 +26,8 @@ const TABLE = "packages/content/data/messages/en.json";
 const table = readFileSync(join(fileURLToPath(import.meta.url), "../../../content/data/messages/en.json"), "utf8");
 const PIECES = "packages/boards/data/pieces/cooling.json";
 const pieces = readFileSync(join(fileURLToPath(import.meta.url), "../../../boards/data/pieces/cooling.json"), "utf8");
-const CUES = "packages/boards/data/cues.json";
-const cues = readFileSync(join(fileURLToPath(import.meta.url), "../../../boards/data/cues.json"), "utf8");
+const CUES = "packages/boards/data/cues/cooling.json";
+const cues = readFileSync(join(fileURLToPath(import.meta.url), "../../../boards/data/cues/cooling.json"), "utf8");
 
 describeDb("save", () => {
   let app: App;
@@ -79,6 +79,7 @@ describeDb("save", () => {
     writeFileSync(join(seed, TABLE), table);
     mkdirSync(join(seed, "packages/boards/data/pieces"), { recursive: true });
     writeFileSync(join(seed, PIECES), pieces);
+    mkdirSync(join(seed, "packages/boards/data/cues"), { recursive: true });
     writeFileSync(join(seed, CUES), cues);
     writeFileSync(join(seed, "README.md"), "openseas\n");
     git(seed, "checkout", "--quiet", "-b", "main");
@@ -306,7 +307,7 @@ describeDb("save", () => {
     await discardAll();
   });
 
-  it("writes a draft's pieces and cues into boards/data, each where it stands, and puts back what it lets go (ADR 0065)", async () => {
+  it("writes a draft's pieces and cues into boards/data, each where it stands, and puts back what it lets go (ADR 0065, ADR 0070)", async () => {
     const cog: Drawing = { layers: [{ kind: "disc", x: 12, y: 12, r: 9 }, { kind: "disc", x: 12, y: 12, r: 3, cut: true }] };
     const swap: CueData = { level: 1.07, cutoff: 1800, voices: [{ kind: "tone", note: 12, wave: "triangle", at: 0, attack: 0.012, release: 0.098, level: 1 }] };
     const draft = await open(numbers({ look: { pieces: { cog }, cues: { swap } } }));
@@ -325,7 +326,8 @@ describeDb("save", () => {
     const pull = gh.opened.at(-1)!;
     expect(pull.title).toBe("Tune cooling: numbers and look from the studio");
     expect(pull.body).toContain("Pieces redrawn in `packages/boards/data/pieces/cooling.json`: `cog`");
-    expect(pull.body).toContain("Cues revoiced in `packages/boards/data/cues.json`: `swap`");
+    // The puzzle's own copy (ADR 0070): no other puzzle's cues are touched.
+    expect(pull.body).toContain("Cues revoiced in `packages/boards/data/cues/cooling.json`: `swap`");
     expect(pull.body).not.toContain("edited by the studio's agent");
 
     // The cue let go goes back to what main holds; the piece stays.

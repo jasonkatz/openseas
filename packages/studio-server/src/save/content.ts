@@ -105,11 +105,11 @@ export function describeTexts(before: string, texts: Readonly<Record<string, str
 
 /** Where a puzzle's pieces live in the repository (ADR 0065). */
 export const piecesPath = (puzzle: string): string => `packages/boards/data/pieces/${puzzle}.json`;
-/** Where every cue lives (ADR 0065): one file for the game, since a cue is played by many boards. */
-export const cuesPath = "packages/boards/data/cues.json";
+/** Where a puzzle's cues live (ADR 0070): its own copy of every cue its board plays, so a revoiced cue is heard on that puzzle's board and no other. */
+export const cuesPath = (puzzle: string): string => `packages/boards/data/cues/${puzzle}.json`;
 
 /**
- * A look file (a puzzle's pieces, or the cues) with a draft's entries written into it (ADR 0065),
+ * A look file (a puzzle's pieces, or its cues) with a draft's entries written into it (ADR 0065),
  * each where it stands and drawn as the one it replaces, so the commit's diff shows those lines and
  * no others. `saved` is what the Save before this one wrote: an entry the draft has let go since
  * goes back to what the file held where the draft's branch left the base branch. An entry the file

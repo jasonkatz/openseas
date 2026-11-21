@@ -354,7 +354,8 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
 - No music and no ambient bed. Sound effects via WebAudio, every one synthesized in code: there
   are no samples (ADR 0062 decision 5, `BRAND.md` section 8). A cue is a few soft voices, a sine,
   a triangle or a breath of filtered noise, through a low-pass, defined as data in
-  `boards/data/cues.json` and read by `boards/src/cues.ts` (ADR 0065). Every pitched note is a step
+  `boards/data/cues/<puzzle>.json`, each puzzle's own copy, or `boards/data/cues.json`, the game's
+  around the boards, and read by `boards/src/cues.ts` (ADR 0065, ADR 0070). Every pitched note is a step
   of one scale, G major pentatonic across three octaves, so any two cues that overlap sound well together. What rises steps up the scale (a
   cascade, a streak), what falls steps down (a streak lost), and a bad thing is low and soft: the
   heat alarm is two low notes. Every cue rises from nothing in at least 8ms, is over within 400ms
@@ -954,9 +955,10 @@ sees.
 - A cue that breaks a rule of `BRAND.md` section 8 (too long, too sharp a rise, too bright, a rule
   naming what the board does not pass) is said to, plays as shipped, and holds Save until it is
   mended. The editor's fields are bounded by those rules, so most edits cannot break them.
-- A cue is the game's: a revoiced cue is heard on every board that plays it, and the editor says
-  how many. It is part of the draft as a piece is (`cue.<name>=`), and Save writes it into
-  `boards/data/cues.json`. Which cue a board plays, and when, is in the puzzle's own renderer.
+- A cue is the puzzle's own (ADR 0070): every puzzle has a copy of each cue its board plays, so a
+  revoiced cue is heard on that puzzle's board and no other. It is part of the draft as a piece is
+  (`cue.<name>=`), and Save writes it into `boards/data/cues/<puzzle>.json`. The beat is the game's
+  alone, one sound on every board, and is not revoiced. Which cue a board plays, and when, is in the puzzle's own renderer.
 
 **The chat.**
 

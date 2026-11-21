@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { PUZZLE_IDS } from "@openseas/engine";
-import { CUE_PARAMS } from "@openseas/boards/cues";
+import { CUE_PARAMS, GAME_ONLY_CUES, PUZZLE_SHIPPED_CUES } from "@openseas/boards/cues";
 import { OWN_CUE_FALLBACKS, PUZZLE_CUES, ROUND_CUES, cuesOf } from "../src/assets/cues.js";
 
 const at = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
@@ -59,5 +59,32 @@ describe("the Sounds list's cues (DESIGN.md 3.14, ADR 0062)", () => {
       if (/private beat\(/.test(renderer)) expect(renderer, id).toMatch(/private beat\(strength: number\): void \{[^}]*sfx\.beat\(strength\)/);
       else expect(renderer, id).toMatch(/extends KitBoard</);
     }
+  });
+});
+
+describe("each puzzle's own cues (ADR 0070)", () => {
+  it("every puzzle has its own copy of every cue its board and its round play but the beat, and no other", () => {
+    for (const id of PUZZLE_IDS) {
+      const voiced = cuesOf(id).filter((c) => c in CUE_PARAMS && !(GAME_ONLY_CUES as readonly string[]).includes(c));
+      expect(Object.keys(PUZZLE_SHIPPED_CUES[id]).sort(), id).toEqual([...voiced].sort());
+    }
+  });
+
+  it("a puzzle's copies are files of its own in boards/data/cues", () => {
+    const files = readdirSync(at("../../boards/data/cues")).filter((f) => f.endsWith(".json"));
+    expect(files.map((f) => f.replace(/\.json$/, "")).sort()).toEqual([...PUZZLE_IDS].sort());
+  });
+});
+
+describe("the puzzle on screen plays its own copies (ADR 0070)", () => {
+  it("its own cue is the one heard, and the game's come back when it goes", async () => {
+    const { SHIPPED_CUES, cueDataOf, playCuesOf } = await import("@openseas/boards/cues");
+    playCuesOf("reactor");
+    expect(cueDataOf("pop")).toBe(PUZZLE_SHIPPED_CUES.reactor.pop);
+    expect(cueDataOf("pop")).not.toBe(PUZZLE_SHIPPED_CUES.salvage.pop);
+    playCuesOf("salvage");
+    expect(cueDataOf("pop")).toBe(PUZZLE_SHIPPED_CUES.salvage.pop);
+    playCuesOf(null);
+    expect(cueDataOf("pop")).toBe(SHIPPED_CUES.pop);
   });
 });

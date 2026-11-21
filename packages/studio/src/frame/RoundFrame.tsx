@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CUE_NAMES, SHIPPED_CUES, SHIPPED_PIECES, content, cueProblems, overrideCues, overrideMessages, overridePieces, shippedMessage, t, type CueName } from "@openseas/boards";
+import { CUE_NAMES, GAME_ONLY_CUES, SHIPPED_PIECES, content, cueProblems, overrideCues, overrideMessages, playCuesOf, overridePieces, shippedCueOf, shippedMessage, t, type CueName } from "@openseas/boards";
 import { isPuzzleText, lookOf, textVars, wordsOf, type CueData, type Draft, type Drawing, type Look, type PuzzleCategory, type TesterLink, type Words } from "@openseas/protocol";
+import type { PuzzleId } from "@openseas/engine";
 import type { StudioPuzzle } from "../puzzles.js";
 import { EMPTY_SCENARIO, formatScenario, parseScenario, type Scenario } from "../scenario/codec.js";
 import { SERVICE_URL } from "../service/client.js";
@@ -190,15 +191,20 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
   const setCue = useCallback(
     (name: string, cue: CueData | null) => {
       const { [name]: _was, ...rest } = scenario.look.cues;
-      const back = cue === null || same(cue, (SHIPPED_CUES as Record<string, CueData>)[name]);
+      const back = cue === null || same(cue, shippedCueOf(puzzle.id as PuzzleId, name as CueName));
       setScenario({ ...scenario, look: { ...scenario.look, cues: back ? rest : { ...rest, [name]: cue } } });
     },
-    [scenario, setScenario],
+    [scenario, setScenario, puzzle.id],
   );
   const lookRefusals = useMemo<Refusal[]>(
     () =>
       Object.entries(look.cues).flatMap(([name, cue]) =>
-        (CUE_NAMES as readonly string[]).includes(name) ? cueProblems(name as CueName, cue).map((p) => ({ key: `cue.${name}`, message: t(p.key, p.vars) })) : [{ key: `cue.${name}`, message: t("studio.check.no_cue", { cue: name }) }],
+        !(CUE_NAMES as readonly string[]).includes(name)
+          ? [{ key: `cue.${name}`, message: t("studio.check.no_cue", { cue: name }) }]
+          : // The beat is the game's alone (ADR 0070): no puzzle's draft revoices it.
+            GAME_ONLY_CUES.includes(name as CueName)
+            ? [{ key: `cue.${name}`, message: t("studio.check.game_cue", { cue: name }) }]
+            : cueProblems(name as CueName, cue).map((p) => ({ key: `cue.${name}`, message: t(p.key, p.vars) })),
       ),
     [look.cues],
   );
@@ -223,6 +229,12 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
     },
     [id],
   );
+  // The puzzle's own cues are the ones heard on its page (ADR 0070); a thumbnail on the home grid plays none.
+  useEffect(() => {
+    if (mode === "thumb") return;
+    playCuesOf(puzzle.id);
+    return () => playCuesOf(null);
+  }, [mode, puzzle.id]);
 
   const shipped = useMemo(() => shippedNumbers(puzzle, scenario.stage), [puzzle, scenario.stage]);
   // Only what makes the numbers: a new seed alone must not hand the page a new config to redraw.
