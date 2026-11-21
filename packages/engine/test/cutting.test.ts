@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import {
+  CUTTING_ORDER_SIZES,
   DEFAULT_CUTTING_CONFIG,
   InvalidMoveError,
   createCuttingGame,
@@ -8,8 +9,10 @@ import {
   cuttingBestRemaining,
   cuttingCutIllegalReason,
   cuttingCutPreview,
+  cuttingFillsOrder,
   cuttingGrade,
   cuttingPieceAt,
+  cuttingPiecePoints,
   cuttingPureOre,
   cuttingSlabBest,
   cuttingSlabShape,
@@ -20,10 +23,13 @@ import {
   replayCutting,
   type CuttingConfig,
   type CuttingMove,
+  type CuttingOrder,
   type CuttingState,
 } from "../src/index.js";
 
 const cfg = DEFAULT_CUTTING_CONFIG;
+/** The puzzle with its order layer off: the rules as they were before it. */
+const plain: CuttingConfig = { ...cfg, orderBonus: 0 };
 
 type Cut = Extract<CuttingMove, { type: "cut" }>;
 
@@ -44,6 +50,7 @@ function randomMove(state: CuttingState, pick: number): CuttingMove {
 }
 
 function playRandom(seed: string, picks: readonly number[], config: CuttingConfig = cfg): { moves: CuttingMove[]; state: CuttingState } {
+  // Moves are picked from the state as it stands, so the same picks make a log on any config.
   let state = createCuttingGame(seed, config);
   const moves: CuttingMove[] = [];
   for (const p of picks) {
@@ -57,12 +64,34 @@ function playRandom(seed: string, picks: readonly number[], config: CuttingConfi
 
 const picksArb = fc.array(fc.nat({ max: 10_000 }), { minLength: 0, maxLength: 60 });
 
-/** A slab on the table from rows of ore digits, with `cuts` cuts and its true best. */
-function slab(rows: readonly string[], cuts: number, extra: Partial<CuttingConfig> = {}): CuttingState {
+/** A slab on the table from rows of ore digits, with `cuts` cuts, the order given (none by default) and its true best. */
+function slab(rows: readonly string[], cuts: number, extra: Partial<CuttingConfig> = {}, order: CuttingOrder | null = null): CuttingState {
   const config: CuttingConfig = { ...cfg, width: rows[0]!.length, height: rows.length, minCuts: Math.min(cuts, cfg.minCuts), maxCuts: Math.max(cuts, cfg.maxCuts), ...extra };
   const base = createCuttingGame("t", config);
   const ores = rows.join("").split("").map(Number);
-  return { ...base, ores, pieces: [{ id: 1, x: 0, y: 0, w: config.width, h: config.height }], banked: [], cutsAllowed: cuts, cutsLeft: cuts, slabGot: 0, slabBest: cuttingSlabBest(config, ores, cuts), nextId: 2 };
+  return { ...base, ores, order, pieces: [{ id: 1, x: 0, y: 0, w: config.width, h: config.height }], banked: [], cutsAllowed: cuts, cutsLeft: cuts, slabGot: 0, slabBest: cuttingSlabBest(config, ores, cuts, order), nextId: 2 };
+}
+
+/** Hashes of seeded random play on the base commit, before the order layer: with it off, every one is the same. */
+const BEFORE_ORDERS = [
+  ["golden-0", "dcfd825e", 281, 10],
+  ["golden-1", "cd0df28d", 427, 11],
+  ["golden-2", "feff7f5b", 188, 11],
+  ["golden-3", "9d358676", 454, 9],
+  ["golden-4", "5e853daa", 274, 9],
+  ["golden-5", "8676d153", 96, 11],
+] as const;
+
+/** The play the hashes above were taken from: 40 moves picked by a fixed stream from the state as it stands. */
+function goldenPlay(seed: string, i: number, config: CuttingConfig): CuttingState {
+  let s = createCuttingGame(seed, config);
+  let pick = 7 + i;
+  for (let m = 0; m < 40; m++) {
+    const cuts = legalCuts(s);
+    pick = (pick * 1103515245 + 12345) % 2147483648;
+    s = reduceCutting(s, cuts.length === 0 || pick % 13 === 0 ? { type: "done" } : cuts[pick % cuts.length]!);
+  }
+  return s;
 }
 
 /** The most any order of cuts banks from the slab on the table: every legal sequence tried. */
@@ -89,7 +118,7 @@ describe("cutting table", () => {
         expect(s.cutsAllowed).toBeLessThanOrEqual(cfg.maxCuts);
         expect(s.cutsLeft).toBe(s.cutsAllowed);
         expect(s.slabBest).toBeGreaterThan(0);
-        expect(s.slabBest).toBe(cuttingSlabBest(cfg, s.ores, s.cutsAllowed));
+        expect(s.slabBest).toBe(cuttingSlabBest(cfg, s.ores, s.cutsAllowed, s.order));
         expect(s.score).toBe(0);
         expect(s.finished).toBe(false);
       }),
@@ -146,6 +175,40 @@ describe("cutting determinism (ADR 0003)", () => {
     );
   });
 
+  it("with orders off or on, at any bonus, the same seed and log give the same state and hash", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, fc.constantFrom(0, 1, 50, 400), (seed, picks, orderBonus) => {
+        const config = { ...cfg, orderBonus };
+        const { moves, state } = playRandom(seed, picks, config);
+        const replayed = replayCutting(seed, config, moves);
+        expect(hashCuttingState(replayed)).toBe(hashCuttingState(state));
+        expect(replayed).toEqual(state);
+        expect(state.order === null).toBe(orderBonus === 0);
+      }),
+      { numRuns: 60 },
+    );
+  });
+
+  it("with orders off, today's seeds deal the slabs and the hashes they did before the layer", () => {
+    BEFORE_ORDERS.forEach(([seed, hash, score, slabNo], i) => {
+      const s = goldenPlay(seed, i, plain);
+      expect([hashCuttingState(s), s.score, s.slab]).toEqual([hash, score, slabNo]);
+    });
+  });
+
+  it("with orders on, the first slab's ores are the slab dealt with them off: the order is drawn after it", () => {
+    fc.assert(
+      fc.property(fc.string(), (seed) => {
+        const off = createCuttingGame(seed, plain);
+        const on = createCuttingGame(seed, cfg);
+        expect(on.ores).toEqual(off.ores);
+        expect(off.order).toBeNull();
+        expect(CUTTING_ORDER_SIZES).toContainEqual(on.order);
+      }),
+      { numRuns: 60 },
+    );
+  });
+
   it("different seeds deal different slabs", () => {
     const hashes = new Set<string>();
     for (let i = 0; i < 50; i++) hashes.add(hashCuttingState(createCuttingGame(`seed-${i}`)));
@@ -193,7 +256,10 @@ describe("cutting rules", () => {
           }
           for (const b of next.banked) {
             expect(cuttingPureOre(next, b)).toBe(b.ore);
-            expect(b.points).toBe(cfg.cellPoints * (b.w * b.h) ** 2);
+            // A banked piece pays its area squared, and the bonus when it is the order's size.
+            expect(b.filled).toBe(cuttingFillsOrder(next, b));
+            expect(b.points).toBe(cfg.cellPoints * (b.w * b.h) ** 2 + (b.filled ? cfg.orderBonus : 0));
+            expect(cuttingPiecePoints(next, b)).toBe(b.points);
             for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) covered[y * cfg.width + x]!++;
           }
           expect(covered.every((n) => n === 1)).toBe(true);
@@ -224,21 +290,47 @@ describe("cutting rules", () => {
     );
   });
 
-  it("the best is exactly what the best order of cuts banks: every sequence tried on small slabs", () => {
-    for (let i = 0; i < 12; i++) {
-      const small = createCuttingGame(`brute-${i}`, { ...cfg, width: 4, height: 3, partsStart: 4, partsMax: 4, minCuts: 3, maxCuts: 3 });
-      expect(bruteBest(small)).toBe(small.slabBest);
-    }
-    for (let i = 0; i < 4; i++) {
-      const s = createCuttingGame(`brute-wide-${i}`, { ...cfg, width: 4, height: 4, partsStart: 5, partsMax: 5, minCuts: 3, maxCuts: 3 });
-      expect(bruteBest(s)).toBe(s.slabBest);
+  it("the best is exactly what the best order of cuts banks, the order counted: every sequence tried on small slabs", () => {
+    for (const orderBonus of [0, cfg.orderBonus, 300]) {
+      for (let i = 0; i < 12; i++) {
+        const small = createCuttingGame(`brute-${i}`, { ...cfg, orderBonus, width: 4, height: 3, partsStart: 4, partsMax: 4, minCuts: 3, maxCuts: 3 });
+        expect(bruteBest(small)).toBe(small.slabBest);
+      }
+      for (let i = 0; i < 4; i++) {
+        const s = createCuttingGame(`brute-wide-${i}`, { ...cfg, orderBonus, width: 4, height: 4, partsStart: 5, partsMax: 5, minCuts: 3, maxCuts: 3 });
+        expect(bruteBest(s)).toBe(s.slabBest);
+      }
     }
   });
 
-  it("following the best cut banks the best, and the slab is flawless", () => {
+  it("every order size, on hand-made slabs: the solver is exact, and the best plan carves the plate only when it pays", () => {
+    // A 3x3 of ore 0 in a 4x4 slab: whole it is 81; a 3x2 plate and a 3x1 are 36 + 9.
+    const rows = ["0001", "0001", "0001", "1111"];
+    for (const order of CUTTING_ORDER_SIZES) {
+      for (const orderBonus of [0, 20, 60, 200]) {
+        const s = slab(rows, 3, { orderBonus }, order);
+        expect(bruteBest(s)).toBe(s.slabBest);
+      }
+    }
+    const small = slab(rows, 3, { orderBonus: 20 }, { w: 2, h: 3 });
+    const big = slab(rows, 3, { orderBonus: 60 }, { w: 2, h: 3 });
+    // Whole, the block and the L in two banks 81 + 16 + 9 = 106 in two cuts. The plate takes the third: 36 + 9 + 16 + 9 = 70 and the bonus,
+    // which at 20 is less than whole (90) and at 60 more (130).
+    const cutAll = (t: CuttingState): CuttingState => {
+      let u = t;
+      while (u.slab === t.slab) u = reduceCutting(u, { type: "cut", ...cuttingBestCut(u)! });
+      return u;
+    };
+    expect(cutAll(small).lastMove!.slab!.got).toBe(small.slabBest);
+    expect(cutAll(small).ordersFilled).toBe(0);
+    expect(cutAll(big).ordersFilled).toBe(1);
+    expect(cutAll(big).lastMove!.slab!.got).toBe(big.slabBest);
+  });
+
+  it("following the best cut banks the best, and the slab is flawless, with orders off and on", () => {
     fc.assert(
-      fc.property(fc.string(), fc.nat({ max: 6 }), (seed, skips) => {
-        let s = createCuttingGame(seed);
+      fc.property(fc.string(), fc.nat({ max: 6 }), fc.constantFrom(0, cfg.orderBonus, 300), (seed, skips, orderBonus) => {
+        let s = createCuttingGame(seed, { ...cfg, orderBonus });
         for (let i = 0; i < skips; i++) s = reduceCutting(s, { type: "done" });
         const n = s.slab;
         const want = s.slabBest;
@@ -252,6 +344,86 @@ describe("cutting rules", () => {
       }),
       { numRuns: 40 },
     );
+  });
+
+  it("a piece of the order's size, either way round, fills the order and banks the bonus on top", () => {
+    // Ore 0 in a 2x3 block on the left, the rest mixed. The order is three by two: the block is it, stood on its end.
+    const s = slab(["0012", "0012", "0021"], 3, { orderBonus: 50 }, { w: 2, h: 3 });
+    expect(cuttingFillsOrder(s, { w: 2, h: 3 })).toBe(true);
+    expect(cuttingFillsOrder(s, { w: 3, h: 2 })).toBe(true);
+    expect(cuttingFillsOrder(s, { w: 2, h: 2 })).toBe(false);
+    expect(cuttingPiecePoints(s, { w: 3, h: 2 })).toBe(36 + 50);
+    expect(cuttingPiecePoints(s, { w: 2, h: 2 })).toBe(16);
+    const preview = cuttingCutPreview(s, 1, true, 2)!;
+    expect(preview.halves[0]).toMatchObject({ ore: 0, points: 86, filled: true });
+    expect(preview.halves[1]).toMatchObject({ ore: null, points: 0, filled: false });
+    const next = reduceCutting(s, { type: "cut", piece: 1, vertical: true, at: 2 });
+    expect(next.lastMove!.points).toBe(86);
+    expect(next.lastMove!.cut!.halves[0]).toMatchObject({ ore: 0, points: 86, filled: true });
+    expect(next.banked).toEqual([{ id: 2, x: 0, y: 0, w: 2, h: 3, ore: 0, points: 86, filled: true }]);
+    expect(next.ordersFilled).toBe(1);
+    expect(next.score).toBe(86);
+    // A second plate of the size fills it again: the order stands until the slab ends.
+    const two = slab(["0011", "0011", "0011"], 3, { orderBonus: 50 }, { w: 2, h: 3 });
+    const after = reduceCutting(two, { type: "cut", piece: 1, vertical: true, at: 2 });
+    expect(after.lastMove!.cut!.halves.map((h) => [h.points, h.filled])).toEqual([[86, true], [86, true]]);
+    expect(after.ordersFilled).toBe(2);
+    expect(after.lastMove!.slab).toMatchObject({ got: 172, best: 172, grade: "flawless" });
+  });
+
+  it("with orders off nothing fills one: the same cut banks its area squared alone", () => {
+    const s = slab(["0012", "0012", "0021"], 3, { orderBonus: 0 }, null);
+    expect(s.order).toBeNull();
+    expect(cuttingFillsOrder(s, { w: 2, h: 3 })).toBe(false);
+    const next = reduceCutting(s, { type: "cut", piece: 1, vertical: true, at: 2 });
+    expect(next.lastMove!.cut!.halves[0]).toMatchObject({ points: 36, filled: false });
+    expect(next.ordersFilled).toBe(0);
+    // A stale order on a state with the bonus at 0 pays nothing either.
+    const stale = slab(["0012", "0012", "0021"], 3, { orderBonus: 0 }, { w: 2, h: 3 });
+    expect(cuttingPiecePoints(stale, { w: 2, h: 3 })).toBe(36);
+  });
+
+  it("the order is a size the slab holds pure somewhere, whenever it holds one", () => {
+    fc.assert(
+      fc.property(fc.string(), fc.nat({ max: 8 }), (seed, skips) => {
+        let s = createCuttingGame(seed);
+        for (let i = 0; i < skips; i++) s = reduceCutting(s, { type: "done" });
+        const holds = (o: CuttingOrder): boolean => {
+          for (const [w, h] of [[o.w, o.h], [o.h, o.w]] as const) {
+            for (let x = 0; x + w <= cfg.width; x++) for (let y = 0; y + h <= cfg.height; y++) if (cuttingPureOre(s, { x, y, w, h }) !== null) return true;
+          }
+          return false;
+        };
+        if (CUTTING_ORDER_SIZES.some(holds)) expect(holds(s.order!)).toBe(true);
+        expect(s.slabBest).toBe(cuttingSlabBest(cfg, s.ores, s.cutsAllowed, s.order));
+      }),
+      { numRuns: 60 },
+    );
+  });
+
+  it("the best within fewer cuts: never more than with all of them, and its first cut is one the engine takes", () => {
+    fc.assert(
+      fc.property(fc.string(), (seed) => {
+        const s = createCuttingGame(seed);
+        let last = 0;
+        for (let k = 0; k <= s.cutsLeft; k++) {
+          const best = cuttingBestRemaining(s, k);
+          expect(best).toBeGreaterThanOrEqual(last);
+          last = best;
+          const c = cuttingBestCut(s, k);
+          if (k === 0) expect(c).toBeNull();
+          else if (c) expect(cuttingCutIllegalReason(s, c.piece, c.vertical, c.at)).toBeNull();
+        }
+        expect(last).toBe(s.slabBest);
+      }),
+      { numRuns: 30 },
+    );
+  });
+
+  it("rejects an order bonus out of bounds", () => {
+    expect(() => createCuttingGame("x", { ...cfg, orderBonus: -1 })).toThrow();
+    expect(() => createCuttingGame("x", { ...cfg, orderBonus: 100_001 })).toThrow();
+    expect(() => createCuttingGame("x", { ...cfg, orderBonus: 1.5 })).toThrow();
   });
 
   it("a cut splits a piece, banks each pure side for its area squared and leaves the mixed side", () => {
@@ -268,7 +440,7 @@ describe("cutting rules", () => {
     expect(r.cut!.halves[0]).toMatchObject({ ore: 0, points: 36 });
     expect(r.slab).toBeNull();
     expect(next.pieces).toEqual([{ id: 3, x: 2, y: 0, w: 2, h: 3 }]);
-    expect(next.banked).toEqual([{ id: 2, x: 0, y: 0, w: 2, h: 3, ore: 0, points: 36 }]);
+    expect(next.banked).toEqual([{ id: 2, x: 0, y: 0, w: 2, h: 3, ore: 0, points: 36, filled: false }]);
     expect(next.cutsLeft).toBe(2);
     expect(next.biggest).toBe(6);
     expect(cuttingPieceAt(next, 0, 0)).toBeNull();
@@ -377,8 +549,8 @@ describe("cutting rules", () => {
       fc.property(fc.string(), (seed) => {
         const s = createCuttingGame(seed);
         // One cut short of a cut for every cell is as good as no limit at all.
-        const unlimited = cuttingSlabBest(cfg, s.ores, cfg.width * cfg.height - 1);
-        const reaches = (cuts: number): boolean => cuttingSlabBest(cfg, s.ores, cuts) * 100 >= cfg.budgetPercent * unlimited;
+        const unlimited = cuttingSlabBest(cfg, s.ores, cfg.width * cfg.height - 1, s.order);
+        const reaches = (cuts: number): boolean => cuttingSlabBest(cfg, s.ores, cuts, s.order) * 100 >= cfg.budgetPercent * unlimited;
         if (s.cutsAllowed > cfg.minCuts) expect(reaches(s.cutsAllowed - 1)).toBe(false);
         if (s.cutsAllowed < cfg.maxCuts) expect(reaches(s.cutsAllowed)).toBe(true);
       }),

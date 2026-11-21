@@ -18,7 +18,8 @@
     "cleanBonus": 40,
     "flawlessBonus": 100,
     "streakPercent": [100, 125, 150, 175, 200],
-    "maxMoves": 600
+    "maxMoves": 600,
+    "orderBonus": 50
   },
   "paceSeconds": 20,
   "roundSeconds": 120,
@@ -29,5 +30,33 @@
     { "score": 1900, "rating": 1700 },
     { "score": 2500, "rating": 1900 },
     { "score": 3300, "rating": 2100 }
+  ],
+  "stages": [
+    {
+      "id": "blocks",
+      "roundSeconds": 60,
+      "thresholds": [
+        { "score": 200, "rating": 1100 },
+        { "score": 450, "rating": 1300 },
+        { "score": 700, "rating": 1500 },
+        { "score": 1050, "rating": 1700 },
+        { "score": 1350, "rating": 1900 },
+        { "score": 1800, "rating": 2100 }
+      ],
+      "config": { "flawsStart": 0, "flawsMax": 0, "budgetPercent": 100, "streakPercent": [100], "orderBonus": 0 }
+    },
+    {
+      "id": "flaws",
+      "roundSeconds": 90,
+      "thresholds": [
+        { "score": 250, "rating": 1100 },
+        { "score": 600, "rating": 1300 },
+        { "score": 950, "rating": 1500 },
+        { "score": 1400, "rating": 1700 },
+        { "score": 1850, "rating": 1900 },
+        { "score": 2450, "rating": 2100 }
+      ],
+      "config": { "orderBonus": 0 }
+    }
   ]
 }

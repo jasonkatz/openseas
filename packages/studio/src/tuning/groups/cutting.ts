@@ -5,6 +5,6 @@ export const groups: TuningGroups = {
   board: ["width", "height", "ores"],
   deal: ["partsStart", "partsMax", "flawsStart", "flawsMax", "maxBlockPercent", "budgetPercent", "minCuts", "maxCuts"],
   pace: ["growEvery"],
-  scoring: ["cellPoints", "cleanPercent", "cleanBonus", "flawlessBonus", "streakPercent"],
+  scoring: ["cellPoints", "cleanPercent", "cleanBonus", "flawlessBonus", "streakPercent", "orderBonus"],
   limits: ["maxMoves"],
 };

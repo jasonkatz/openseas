@@ -7,6 +7,10 @@
  * more can be banked, the slab is graded against the best any plan could have made of it and the
  * next slab is dealt.
  *
+ * Each slab is dealt an order (a layer, ADR 0066): a plate size, two by two to three by four. A pure
+ * piece of exactly that size, either way round, banks `orderBonus` more. The order tempts a player
+ * to carve a plate out of a block that would pay more whole, so it is a question, not a gift.
+ *
  * Cell index = y * width + x. Row 0 is the top row. A vertical cut `at` runs down the grid line
  * between columns at - 1 and at; a horizontal one runs between rows at - 1 and at. Nothing here
  * reads a clock: the round's length is the page's and the server's business.
@@ -50,6 +54,12 @@ export interface CuttingConfig {
   readonly streakPercent: readonly number[];
   /** Longest move log the server accepts. */
   readonly maxMoves: number;
+  /**
+   * The order: what a pure piece of the slab's order size banks on top of its area squared. 0 is
+   * off: no order is dealt, nothing is drawn from the random stream for one, and slabs are dealt
+   * exactly as they were before the layer.
+   */
+  readonly orderBonus: number;
 }
 
 export const DEFAULT_CUTTING_CONFIG: CuttingConfig = {
@@ -71,7 +81,23 @@ export const DEFAULT_CUTTING_CONFIG: CuttingConfig = {
   flawlessBonus: 100,
   streakPercent: [100, 125, 150, 175, 200],
   maxMoves: 600,
+  orderBonus: 50,
 };
+
+/** The plate sizes an order is dealt from, the short side first; a piece fills one either way round. */
+export const CUTTING_ORDER_SIZES: readonly CuttingOrder[] = [
+  { w: 2, h: 2 },
+  { w: 2, h: 3 },
+  { w: 2, h: 4 },
+  { w: 3, h: 3 },
+  { w: 3, h: 4 },
+];
+
+/** A slab's order: the plate size, the short side first. A pure piece w by h or h by w fills it. */
+export interface CuttingOrder {
+  readonly w: number;
+  readonly h: number;
+}
 
 /** A rectangle of the slab: its top-left cell and its size in cells. */
 export interface CuttingRect {
@@ -90,6 +116,8 @@ export interface CuttingPiece extends CuttingRect {
 export interface CuttingBanked extends CuttingPiece {
   readonly ore: number;
   readonly points: number;
+  /** True when it filled the slab's order: its points hold the bonus. */
+  readonly filled: boolean;
 }
 
 export type CuttingMove =
@@ -106,8 +134,10 @@ export interface CuttingHalf {
   readonly piece: CuttingPiece;
   /** The ore the piece is all of, or null when it is mixed and stays on the table. */
   readonly ore: number | null;
-  /** What it banked: 0 for a mixed piece. */
+  /** What it banked: 0 for a mixed piece. The order's bonus is in it when it filled the order. */
   readonly points: number;
+  /** True when it banked and is the slab's order size. */
+  readonly filled: boolean;
 }
 
 /** What a cut would do, before it is made: the engine's own sum, so the board can show it while the cut is lined up. */
@@ -122,6 +152,8 @@ export interface CuttingPreview {
 export interface CuttingPreviewHalf extends CuttingRect {
   readonly ore: number | null;
   readonly points: number;
+  /** True when it would bank and fill the slab's order. */
+  readonly filled: boolean;
 }
 
 /** How a slab ended. */
@@ -175,6 +207,8 @@ export interface CuttingState {
   /** Banked from this slab so far, and the best any plan could bank from it with its cuts. */
   readonly slabGot: number;
   readonly slabBest: number;
+  /** The slab's order, or null when orders are off (`orderBonus` 0). */
+  readonly order: CuttingOrder | null;
   readonly rng: PrngState;
   readonly nextId: number;
   readonly score: number;
@@ -194,6 +228,8 @@ export interface CuttingState {
   readonly totalBest: number;
   /** The largest piece banked, in cells. */
   readonly biggest: number;
+  /** Pieces banked that filled their slab's order. */
+  readonly ordersFilled: number;
   readonly lastMove: CuttingMoveReport | null;
   readonly finished: boolean;
 }

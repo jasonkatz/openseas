@@ -19,6 +19,8 @@ const W = cfg.width;
 const H = cfg.height;
 /** The strip over the slab (cuts left, banked of best, the next-slab chip), in cells: the renderer's own layout. */
 const STRIP = 1.05;
+/** The order's row under the slab, in cells, when orders are on: the renderer's own layout. */
+const ORDER_ROW = cfg.orderBonus > 0 ? 0.8 : 0;
 
 interface Cut {
   piece: number;
@@ -84,10 +86,10 @@ function plan(s: CuttingState): { line: Cut[]; pays: number[]; end: NonNullable<
 
 // ---- driving the page
 
-/** The slab and the strip over it, without the canvas's empty margins. */
+/** The slab, the strip over it and the order's row under it, without the canvas's empty margins. */
 async function region(page: Page): Promise<Box> {
   const g = await boardGeom(page, "cutting");
-  return padded({ x: g.ox, y: g.oy - g.cell * STRIP, width: g.cell * W, height: g.cell * (H + STRIP) }, Math.ceil(g.cell * 0.12) + 6, await canvasBox(page, "cutting"));
+  return padded({ x: g.ox, y: g.oy - g.cell * STRIP, width: g.cell * W, height: g.cell * (H + STRIP + ORDER_ROW) }, Math.ceil(g.cell * 0.12) + 6, await canvasBox(page, "cutting"));
 }
 
 const pointer = new WeakMap<Page, [number, number]>();
@@ -200,6 +202,37 @@ test("cutting: lining a cut up", async ({ page }) => {
   await lineUp(page, s, found);
   await page.waitForTimeout(250);
   await still(page, "cutting", "preview", { region: await region(page) });
+});
+
+test("cutting: a cut that fills the order", async ({ page }) => {
+  // A first slab whose best plan carves the order's plate out of the biggest block on it. The cuts
+  // before are made off camera; then the plate's cut is lined up: its pure side is ringed, marked by
+  // its corners and shows what it pays, and the plate under the slab is lit.
+  const { seed, found } = findSeed("cut-order", (s) => {
+    const g = deal(s);
+    if (!g.order) return null;
+    const big = biggest(g);
+    const p = plan(g);
+    let t = g;
+    for (let i = 0; i < p.line.length; i++) {
+      const c = p.line[i]!;
+      const halves = cuttingCutPreview(t, c.piece, c.vertical, c.at)!.halves;
+      const filled = halves.find((h) => h.filled);
+      const inside = filled && filled.x >= big.x && filled.y >= big.y && filled.x + filled.w <= big.x + big.w && filled.y + filled.h <= big.y + big.h;
+      if (filled && inside && big.area > filled.w * filled.h && halves.every((h) => h === filled || h.ore === null)) return { before: p.line.slice(0, i), cut: c };
+      t = make(t, c);
+    }
+    return null;
+  });
+  let s = await open(page, seed);
+  const g = await boardGeom(page, "cutting");
+  for (const c of found.before) {
+    s = await swipe(page, g, s, c, 60);
+    await landed(page, s);
+  }
+  await lineUp(page, s, found.cut);
+  await page.waitForTimeout(250);
+  await still(page, "cutting", "order", { region: await region(page) });
 });
 
 /**
