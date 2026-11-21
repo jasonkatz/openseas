@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { deflectorsViewString, type DeflectorsState } from "@openseas/engine";
+import { deflectorsLockedCells, deflectorsViewString, type DeflectorsState } from "@openseas/engine";
 import { t } from "../content.js";
 import { useKitBoard } from "../kit/useKitBoard.js";
 import { DeflectorsRenderer } from "./renderer.js";
@@ -44,6 +44,7 @@ export function DeflectorsBoard(props: DeflectorsBoardProps) {
             streak: (count) => t("deflectors.streak", { count }),
             longRoute: (turns) => t("deflectors.long_route", { turns }),
             hull: t("deflectors.hull"),
+            locked: t("deflectors.locked"),
           },
         },
       ),
@@ -59,5 +60,13 @@ export function DeflectorsBoard(props: DeflectorsBoardProps) {
     if (events) renderer.current?.noteEvents(events);
   }, [props.logged, renderer]);
 
-  return <div ref={host} className="board-host" data-testid="deflectors-board" data-board={deflectorsViewString(props.state.mirrors, props.state.volley?.beams ?? [])} />;
+  return (
+    <div
+      ref={host}
+      className="board-host"
+      data-testid="deflectors-board"
+      data-board={deflectorsViewString(props.state.mirrors, props.state.volley?.beams ?? [])}
+      data-locked={deflectorsLockedCells(props.state).join(",")}
+    />
+  );
 }

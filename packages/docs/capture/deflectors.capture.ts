@@ -3,8 +3,10 @@ import { loadContent } from "@openseas/content";
 import {
   createDeflectorsGame,
   deflectorsBeamPoints,
+  deflectorsLockedCells,
   deflectorsTrace,
   deflectorsViewString,
+  deflectorsVolleyRoute,
   reduceDeflectors,
   type DeflectorsConfig,
   type DeflectorsState,
@@ -213,6 +215,47 @@ test("deflectors: the long way round", async ({ page }) => {
     await page.waitForTimeout(500);
     await fire(page, s);
   }, { tailMs: 2200, region: await region(page) });
+});
+
+test("deflectors: a locked mirror", async ({ page }) => {
+  // Locks, the whole puzzle's layer: the first volley is routed home and fired, the last mirror its
+  // beam turned at locks, and the next beam waits with its lines running past it. A tap on the
+  // locked mirror is refused.
+  const { seed, found } = findSeed("deflect-lock", (seed) => {
+    const o = opened(seed);
+    if (!o || o.v.beams.length !== 1) return null;
+    const route = deflectorsVolleyRoute(cfg, o.s.mirrors, o.v.beams, o.s.locked);
+    if (!route || route.flips.length < 1 || route.flips.length > 2) return null;
+    let s = o.s;
+    for (const cell of route.flips) s = flip(s, cell);
+    s = reduceDeflectors(s, { type: "fire", volley: o.v.id, tick: s.tick });
+    const next = reduceDeflectors(s, { type: "wait", tick: s.nextDealTick });
+    const locked = deflectorsLockedCells(next);
+    const v = next.volley;
+    if (!v || v.beams.length !== 1 || locked.length !== 1) return null;
+    // The locked mirror sits on the next beam's broken line, so it is plain why it matters.
+    const line = deflectorsTrace(cfg, next.mirrors, v.beams[0]!.entry).turns;
+    if (!line.includes(locked[0]!) || line.length < 2) return null;
+    return { ...o, flips: route.flips, next, cell: locked[0]! };
+  });
+  await openOn(page, seed, found.s);
+  let s = found.s;
+  for (const cell of found.flips) s = await tapMirror(page, s, cell);
+  await fire(page, s);
+  const board = page.getByTestId("deflectors-board");
+  await expect(board).toHaveAttribute("data-board", view(found.next));
+  await expect(board).toHaveAttribute("data-locked", String(found.cell));
+  await hidePointer(page);
+  hand = [2, 2];
+  await page.waitForTimeout(900);
+  await still(page, "deflectors", "locked", { region: await region(page) });
+  await clip(page, "deflectors", "locked-tap", async () => {
+    const g = await boardGeom(page, "deflectors");
+    await tap(page, g.ox + ((found.cell % N) + 0.5) * g.cell, g.oy + (Math.floor(found.cell / N) + 0.5) * g.cell);
+    await page.waitForTimeout(300);
+    // Refused: the grid is as it was.
+    await expect(board).toHaveAttribute("data-board", view(found.next));
+  }, { tailMs: 1200, region: await region(page) });
 });
 
 test("deflectors: a perfect pair", async ({ page }) => {

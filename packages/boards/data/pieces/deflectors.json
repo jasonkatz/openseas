@@ -7,6 +7,14 @@
       { "name": "pivot", "kind": "disc", "x": 12, "y": 12, "r": 1.6, "cut": true }
     ]
   },
+  "mirror-locked": {
+    "tint": "slate",
+    "layers": [
+      { "name": "bar", "kind": "bar", "x0": 5.2, "y0": 18.8, "x1": 18.8, "y1": 5.2, "width": 4.6 },
+      { "name": "bolt", "kind": "rect", "x": 6.2, "y": 6.2, "w": 11.6, "h": 11.6, "r": 2.4 },
+      { "name": "slot", "kind": "rect", "x": 9.4, "y": 10.5, "w": 5.2, "h": 3, "r": 1, "cut": true }
+    ]
+  },
   "sign-disc": {
     "tint": "sand",
     "layers": [

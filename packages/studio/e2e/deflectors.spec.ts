@@ -121,3 +121,49 @@ test("a Deflectors beam routed home and fired from its port scores, and the F ke
     expect(Number(await page.getByTestId("hud-moves").textContent())).toBeGreaterThanOrEqual(2);
   }).toPass({ timeout: 10_000 });
 });
+
+/** The cells the page says are locked. */
+async function locked(page: Page): Promise<number[]> {
+  const text = (await page.getByTestId("deflectors-board").getAttribute("data-locked")) ?? "";
+  return text === "" ? [] : text.split(",").map(Number);
+}
+
+/** Route the waiting volley home by the fewest flips and fire it from its first entry. */
+async function routeAndFire(page: Page): Promise<void> {
+  await expect.poll(async () => (await board(page)).beams.length).toBeGreaterThan(0);
+  const { grid, beams } = await board(page);
+  for (const cell of solve(grid, beams)) await tapCell(page, cell);
+  const moves = Number(await page.getByTestId("hud-moves").first().textContent());
+  await tapPort(page, beams[0]!.entry);
+  await expect(page.getByTestId("hud-moves").first()).toHaveText(String(moves + 1));
+}
+
+test("a fired beam locks the last mirror it turned at, and a tap on that mirror is refused", async ({ page }) => {
+  await page.goto("/play/deflectors?seed=smoke-9&start=lab");
+  await expect(page.getByTestId("deflectors-canvas")).toBeVisible();
+  expect(await locked(page)).toEqual([]);
+  await routeAndFire(page);
+  // The next volley waits with one mirror locked: the end of the route just fired.
+  await expect.poll(async () => (await board(page)).beams.length).toBeGreaterThan(0);
+  const held = await locked(page);
+  expect(held.length).toBe(1);
+  const { grid } = await board(page);
+  expect(grid[held[0]!]).not.toBe(".");
+  await tapCell(page, held[0]!);
+  await page.waitForTimeout(300);
+  expect((await board(page)).grid).toBe(grid);
+  await expectViewMatchesState(page, "deflectors");
+});
+
+test("a Deflectors stage plays from its address: the first deals one beam a minute and no locks (ADR 0066)", async ({ page }) => {
+  await page.goto("/play/deflectors?stage=route&seed=smoke-9");
+  await expect(page.getByTestId("stage-intro")).toHaveAttribute("data-stage", "route");
+  await page.getByTestId("play-start").click();
+  await expect(page.getByTestId("deflectors-canvas")).toBeVisible();
+  await expect(page.getByTestId("hud-stage").first()).toHaveAttribute("data-stage", "route");
+  await expect(page.getByTestId("hud-time").first()).toHaveText(/^(1:00|0:5\d)$/);
+  await routeAndFire(page);
+  await expect.poll(async () => (await board(page)).beams.length).toBe(1);
+  expect(await locked(page)).toEqual([]);
+  await expectViewMatchesState(page, "deflectors");
+});

@@ -1,5 +1,5 @@
 import { PictogramIcon } from "../kit/PictogramIcon.jsx";
-import { MIRROR_COLOR, MIRROR_PAINT, signOf, signPaint } from "./pieces.js";
+import { LOCKED_MIRROR_COLOR, LOCKED_MIRROR_PAINT, MIRROR_COLOR, MIRROR_PAINT, signOf, signPaint } from "./pieces.js";
 
 /** A beam's sign as an image, for a legend: solid as an entry wears it, hollow as a waiting exit does. */
 export function DeflectorsSignIcon({ sign, hollow = false, size = 22 }: { sign: number; hollow?: boolean; size?: number }) {
@@ -8,6 +8,7 @@ export function DeflectorsSignIcon({ sign, hollow = false, size = 22 }: { sign: 
 }
 
 /** A mirror as an image, for a legend: the same drawing the board bakes. */
-export function DeflectorsMirrorIcon({ size = 22 }: { size?: number }) {
+export function DeflectorsMirrorIcon({ size = 22, locked = false }: { size?: number; locked?: boolean }) {
+  if (locked) return <PictogramIcon name="deflectors:mirror-locked" color={LOCKED_MIRROR_COLOR} paint={LOCKED_MIRROR_PAINT} size={size} />;
   return <PictogramIcon name="deflectors:mirror" color={MIRROR_COLOR} paint={MIRROR_PAINT} size={size} />;
 }

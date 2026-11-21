@@ -32,6 +32,8 @@ export function DeflectorsPractice() {
   // What the waiting volley would do now: the engine's word, as the board's strip shows it.
   const outlook = deflectorsOutlook(shown);
   const signs = DEFLECTORS_SIGNS.slice(0, shown.config.maxBeams);
+  // Locks are taught only where the round deals them: a stage with locks off says nothing of them.
+  const locks = shown.config.hotVolleys > 0;
 
   return (
     <PracticeShell
@@ -53,6 +55,7 @@ export function DeflectorsPractice() {
         <>
           <p className="how how-kbd">{t("deflectors.lines_note")}</p>
           <p className="how how-kbd">{t("deflectors.hint_note")}</p>
+          {locks && <p className="how how-kbd">{t("deflectors.locks_note")}</p>}
         </>
       }
       details={
@@ -114,6 +117,12 @@ export function DeflectorsPractice() {
               <DeflectorsMirrorIcon />
               <span>{t("deflectors.legend_mirror")}</span>
             </li>
+            {locks && (
+              <li>
+                <DeflectorsMirrorIcon locked />
+                <span>{t("deflectors.legend_locked")}</span>
+              </li>
+            )}
             <li>
               <LineIcon look="home" color={signs[0]!.color} />
               <span>{t("deflectors.legend_home")}</span>
@@ -129,6 +138,7 @@ export function DeflectorsPractice() {
           </ul>
           <p className="muted small proto-note">{t("deflectors.lines_note")}</p>
           <p className="muted small proto-note">{t("deflectors.streak_note")}</p>
+          {locks && <p className="muted small proto-note">{t("deflectors.locks_note")}</p>}
         </>
       }
       board={(interactive) => (
