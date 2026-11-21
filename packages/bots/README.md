@@ -10,6 +10,12 @@ Every bot plays every stage of the puzzle from its content file over the same se
 the mean score and the tier it reads as against that stage's thresholds. Under the table are the
 scores each tier starts at, and two checks: careless play lands a tier below plain play on every
 stage (rule 17 of the `puzzles` skill), and each bait loses on the whole puzzle (rule 26).
+
+Plain play is the one-move bot for a puzzle whose board is open, and the first of its own bots for
+one that hides something (Scanner). A puzzle where neither is plain thinking play names its own in
+its `BotGame` (`plain`): in Tug no single flick pays, since nothing scores until a pod is
+delivered, so one move is barely above careless and its plain bot is `two flicks`, which plays any
+route of two flicks or fewer.
 `--set` lays a number over every stage so you can try it before writing it into content.
 Progress goes to stderr.
 
@@ -17,7 +23,7 @@ Progress goes to stderr.
   careless, one move, and rollout. Rollout plays on with the engine's stream reseeded, so it never
   sees what will be dealt.
 - `src/games/<id>.ts`: one file a puzzle. It gives the puzzle's choices, a person's pace (from its
-  tuning notes), its end, its own bots and its baits.
+  tuning notes), its end, its own bots, its baits, and the plain bot when one move is not it.
 - `src/ladder.ts`: the table and the checks.
 
 The bots are not people. Their pace is a model, and they see every line on the board in the time
@@ -211,6 +217,9 @@ Checks:
 Checks:
 
 - **broken**: full: careless (green, 2) lands a tier below one move (green, 36)
+
+(Since then Tug names `two flicks` as its plain bot and has pairs; its table now is in
+`docs/prototypes/tug.md`.)
 
 ### Racks
 

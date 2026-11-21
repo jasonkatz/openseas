@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { loadContent, stageNumbers } from "@openseas/content";
 import { PROTOTYPE_PUZZLE_IDS } from "@openseas/engine";
-import { BOT_GAMES, botsFor, playRound, rolloutBot, runLadder, scoreForRating, stageIds, type AnyBotGame, type LadderFile } from "../src/index.js";
+import { BOT_GAMES, botsFor, plainBotName, playRound, rolloutBot, runLadder, scoreForRating, stageIds, type AnyBotGame, type LadderFile } from "../src/index.js";
 
 const content = loadContent();
 const fileOf = (id: string): LadderFile => content.puzzles[id as keyof typeof content.puzzles] as unknown as LadderFile;
@@ -70,6 +70,27 @@ describe("the ladder", () => {
     expect(b).toEqual(a);
     expect(a.stages.map((s) => s.id)).toEqual(["lines", "full"]);
     expect(a.checks.length).toBeGreaterThan(0);
+  });
+
+  it("compares careless against the plain bot a game names, and by default against one move, or a closed game's first bot", () => {
+    for (const game of Object.values(BOT_GAMES) as AnyBotGame[]) {
+      const plain = plainBotName(game);
+      expect(plain).not.toBeNull();
+      expect(botsFor(game).map((b) => b.name)).toContain(plain);
+    }
+    expect(plainBotName(BOT_GAMES["salvage"]!)).toBe("one move");
+    expect(plainBotName(BOT_GAMES["scanner"]!)).toBe(BOT_GAMES["scanner"]!.bots![0]!.name);
+    // Tug names its own: no single flick pays, so one move is not plain play.
+    expect(BOT_GAMES["tug"]!.plain).toBe("two flicks");
+    const options = { seeds: 1, stages: ["glide"], bots: ["careless", "one move", "two flicks"] };
+    const tug = runLadder(BOT_GAMES["tug"]!, fileOf("tug"), content.ratingTiers, options);
+    expect(tug.checks[0]!.text).toMatch(/^glide: careless \(.*\) lands a tier below two flicks \(/);
+    // The same game with no plain bot named falls back on one move.
+    const copy: Record<string, unknown> = { ...BOT_GAMES["tug"]! };
+    delete copy["plain"];
+    const plainless = copy as unknown as AnyBotGame;
+    const fallback = runLadder(plainless, fileOf("tug"), content.ratingTiers, options);
+    expect(fallback.checks[0]!.text).toMatch(/lands a tier below one move \(/);
   });
 
   it("reads a tier's first score back from the thresholds", () => {

@@ -1,9 +1,11 @@
 import { test, type Page } from "@playwright/test";
 import { loadContent } from "@openseas/content";
-import { createTugGame, reduceTug, tugSolve, tugStateViewString, type TugConfig, type TugMove, type TugState } from "@openseas/engine";
+import { createTugGame, reduceTug, tugHint, tugSolve, tugStateViewString, type TugConfig, type TugMove, type TugState } from "@openseas/engine";
 import { boardGeom, canvasBox, clip, findSeed, hidePointer, openLab, padded, still, type Box } from "./lib.js";
 
 const cfg = loadContent().puzzles.tug.config;
+/** The ladder's first two stages light one clamp at a time: the beginner's and intermediate pictures are taken so. */
+const ONE = { clamps: 1 } as const;
 const W = cfg.width;
 const H = cfg.height;
 const DX = [0, 1, 0, -1] as const;
@@ -25,14 +27,18 @@ function around(s: TugState, cell: number): ("wall" | "block" | "pod" | "free")[
   });
 }
 
-/** A par route for the lit clamp, each flick with the slide it makes. */
-function route(s: TugState): { move: Flick; cells: number; stop: string }[] | null {
-  const moves = tugSolve(s);
+/**
+ * A par route, each flick with the slide it makes: to the first lit clamp, or with `moves` given,
+ * those flicks. Null unless only its last flick delivers, so with two clamps lit the other is not
+ * delivered on the way.
+ */
+function route(s: TugState, moves: readonly Flick[] | null = tugSolve(s)): { move: Flick; cells: number; stop: string }[] | null {
   if (!moves) return null;
   const out: { move: Flick; cells: number; stop: string }[] = [];
   let g = s;
-  for (const move of moves) {
+  for (const [i, move] of moves.entries()) {
     g = reduceTug(g, move);
+    if ((g.lastMove!.delivered !== null) !== (i === moves.length - 1)) return null;
     const sl = g.lastMove!.slide!;
     out.push({ move, cells: Math.abs((sl.to % W) - (sl.from % W)) + Math.abs(Math.floor(sl.to / W) - Math.floor(sl.from / W)), stop: sl.stop });
   }
@@ -112,10 +118,10 @@ async function open(page: Page, seed: string, over: Partial<TugConfig> = {}): Pr
   return s;
 }
 
-/** A first clamp the wanted pod reaches by itself in two long flicks, the last against a wall or a block. */
+/** A first clamp the wanted pod reaches by itself in two long flicks, the last against a wall or a block: one clamp lit, as the ladder starts. */
 const first = () =>
   findSeed("tug-first", (seed) => {
-    const s = createTugGame(seed, cfg);
+    const s = createTugGame(seed, { ...cfg, ...ONE });
     const r = route(s);
     if (!r || r.length !== 2 || s.clamp.par !== 2) return null;
     if (r.some((f) => f.move.pod !== s.clamp.pod || f.cells < 2) || r[1]!.stop === "pod") return null;
@@ -123,12 +129,14 @@ const first = () =>
   }, 2000);
 
 test("tug: the board", async ({ page }) => {
-  // A clamp out in the bay, and no two pods side by side, so every shape reads.
+  // Both clamps out in the bay, and no two pods side by side, so every shape reads.
   const { seed } = findSeed("tug-hero", (s) => {
     const g = createTugGame(s, cfg);
-    const col = g.clamp.cell % W;
-    const row = Math.floor(g.clamp.cell / W);
-    if (col < 1 || col > W - 2 || row < 1 || row > H - 2) return null;
+    for (const c of [g.clamp, g.clamp2!]) {
+      const col = c.cell % W;
+      const row = Math.floor(c.cell / W);
+      if (col < 1 || col > W - 2 || row < 1 || row > H - 2) return null;
+    }
     return g.pods.every((p) => around(g, p).every((x) => x !== "pod")) ? true : null;
   }, 2000);
   await open(page, seed);
@@ -138,7 +146,7 @@ test("tug: the board", async ({ page }) => {
 
 test("tug: a first delivery", async ({ page }) => {
   const { seed, found } = first();
-  let s = await open(page, seed);
+  let s = await open(page, seed, ONE);
   await clip(page, "tug", "first-delivery", async () => {
     for (const m of found) s = await swipe(page, s, m);
   }, { tailMs: 1300, region: await region(page) });
@@ -147,7 +155,7 @@ test("tug: a first delivery", async ({ page }) => {
 test("tug: the ghosts", async ({ page }) => {
   // The same round one flick in: the wanted pod's ghosts, and the copy inside the clamp on the flick that delivers.
   const { seed, found } = first();
-  const s = await open(page, seed);
+  const s = await open(page, seed, ONE);
   await key(page, s, found[0]!);
   await hidePointer(page);
   await page.waitForTimeout(500);
@@ -156,7 +164,7 @@ test("tug: the ghosts", async ({ page }) => {
 
 test("tug: parking a stop", async ({ page }) => {
   // Par three, the clamp in the open: one other pod is flicked beside it first, and the cargo stops against that pod.
-  const over = { startPar: 3 };
+  const over = { startPar: 3, ...ONE };
   const { seed, found } = findSeed("tug-park", (seed) => {
     const s = createTugGame(seed, { ...cfg, ...over });
     if (s.clamp.par !== 3 || !inOpen(s)) return null;
@@ -189,18 +197,21 @@ test("tug: a par four", async ({ page }) => {
 });
 
 test("tug: a streak", async ({ page }) => {
-  // Four clean deliveries by key bring the clamps to par four; the clip is the fifth, at a streak of five.
+  // Four clean deliveries by key, each to the nearer clamp, bring the clamps to par four; the clip is
+  // the fifth, a par four at a streak of five.
   const { seed, found } = findSeed("tug-streak", (seed) => {
     let s = createTugGame(seed, cfg);
     const before: Flick[] = [];
-    for (let n = 0; n < 4; n++) {
-      const r = tugSolve(s);
-      if (!r) return null;
-      for (const m of r) s = reduceTug(s, m);
-      before.push(...r);
+    while (s.delivered < 4) {
+      const m = tugHint(s)?.route[0];
+      if (!m) return null;
+      s = reduceTug(s, m);
+      before.push(m);
     }
-    const r = route(s);
-    if (s.clamp.par !== 4 || !r || r.some((f) => f.cells < 2)) return null;
+    if (s.combo !== 4) return null;
+    const h = tugHint(s);
+    const r = h ? route(s, h.route) : null;
+    if (!h || h.route.length !== 4 || h.clamp.worth !== 4 || !r || r.some((f) => f.cells < 2)) return null;
     return { before, last: r.map((f) => f.move) };
   }, 2000);
   let s = await open(page, seed);
@@ -208,5 +219,33 @@ test("tug: a streak", async ({ page }) => {
   await page.waitForTimeout(1500);
   await clip(page, "tug", "streak", async () => {
     for (const m of found.last) s = await swipe(page, s, m, 300);
+  }, { tailMs: 1400, region: await region(page) });
+});
+
+test("tug: a handoff", async ({ page }) => {
+  // Two clamps lit. The nearer is delivered so that the pod it leaves is the other's stop: the other
+  // comes down to a flick or two and still pays as the par it lit at, and is delivered clean.
+  const { seed, found } = findSeed("tug-handoff", (seed) => {
+    const s = createTugGame(seed, cfg);
+    const h = tugHint(s);
+    const r = h ? route(s, h.route) : null;
+    if (!h || !r || r.some((f) => f.cells < 2)) return null;
+    let g = s;
+    for (const f of r) g = reduceTug(g, f.move);
+    const kept = g.lastMove!.kept!;
+    if (kept.par >= kept.worth || kept.par > 2) return null;
+    const next = route(g, tugSolve(g, kept.par, g.clamp));
+    if (!next || next.some((f) => f.cells < 2) || g.lastMove!.delivered!.grade !== "clean") return null;
+    // The second leg's last slide stops against the pod the first delivery left: the handoff itself.
+    const last = next[next.length - 1]!;
+    const beyond = kept.cell + DX[last.move.dir]! + DY[last.move.dir]! * W;
+    if (last.stop !== "pod" || beyond !== g.lastMove!.delivered!.cell) return null;
+    return { first: r.map((f) => f.move), then: next.map((f) => f.move) };
+  }, 4000);
+  let s = await open(page, seed);
+  await clip(page, "tug", "handoff", async () => {
+    for (const m of found.first) s = await swipe(page, s, m, 300);
+    await page.waitForTimeout(700);
+    for (const m of found.then) s = await swipe(page, s, m, 300);
   }, { tailMs: 1400, region: await region(page) });
 });

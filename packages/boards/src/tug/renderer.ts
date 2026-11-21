@@ -1,5 +1,16 @@
 import { Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
-import { tugFlickIllegalReason, tugSlide, tugSolve, tugViewString, type TugClamp, type TugDir, type TugMoveReport, type TugState } from "@openseas/engine";
+import {
+  tugClampDelivered,
+  tugFlickIllegalReason,
+  tugHint,
+  tugLitClamps,
+  tugSlide,
+  tugViewString,
+  type TugClamp,
+  type TugDir,
+  type TugMoveReport,
+  type TugState,
+} from "@openseas/engine";
 import { sfx } from "../audio.js";
 import { RADIUS } from "../look/tokens.js";
 import { FONT, FONT_MONO, INK, drawDot, drawHairline } from "../kit/art.js";
@@ -27,8 +38,14 @@ export interface TugLabels {
   skipped: string;
   /** Under a delivery's points: the flicks it took against par. */
   tally(flicks: number, par: number): string;
-  /** Over a clamp as it lights. */
+  /** Over a clamp as it lights, and beside each lit clamp's pod in the strip with pairs. */
   par(par: number): string;
+  /** With pairs, under a clamp's par in the strip when it pays as another: the par it lit at. */
+  worth(worth: number): string;
+  /** With pairs, under the flicks in the strip. */
+  flicks: string;
+  /** With pairs, over the clamp a delivery left lit when it brought it closer. */
+  handoff(par: number): string;
 }
 
 export interface TugRendererOptions {
@@ -56,22 +73,29 @@ export class TugRenderer extends KitBoard<TugState> {
   private readonly grid = new Grid(7, 7);
   private readonly bg = new Graphics();
   private readonly blockLayer = new Container();
-  private readonly clampSprite = new Sprite();
+  /** The lit clamps' sprites: the first, and with pairs the second. */
+  private readonly clampSprites = [new Sprite(), new Sprite()] as const;
   private readonly ghostLayer = new Graphics();
   private readonly ghostPods = new Container();
   private readonly podLayer = new Container();
   private readonly hintLayer = new Graphics();
   private readonly strip = new Graphics();
-  private readonly wanted = new Sprite();
-  private label: Text | null = null;
+  /** The strip: the pod each lit clamp wants, its par, and with pairs the worth it pays as and the flicks. */
+  private readonly wanted = [new Sprite(), new Sprite()] as const;
+  private labels: Text[] = [];
+  private worths: Text[] = [];
+  private flicksText: Text | null = null;
+  private flicksLabel: Text | null = null;
   private skipText: Text | null = null;
   private skipBox = { x: 0, y: 0, w: 0, h: 0 };
   private sprites: Sprite[] = [];
   private blockSprites: Sprite[] = [];
   private ghostSprites: Sprite[] = [];
-  /** What is drawn: the blocks, the lit clamp (null between a delivery and the next lighting) and the flicks shown. */
+  /** What is drawn: the blocks, the lit clamps by slot (null between a delivery and the next lighting) and the flicks shown. */
   private drawnBlocks: readonly number[] = [];
-  private drawnClamp: TugClamp | null = null;
+  private drawnClamps: Array<TugClamp | null> = [null, null];
+  /** Pairs are on: two slots in the strip. */
+  private pairs = false;
   private lastPar = 0;
   private shownFlicks = 0;
   /** The pod the keyboard flicks and the ghosts are drawn for; -1 for none. */
@@ -99,15 +123,41 @@ export class TugRenderer extends KitBoard<TugState> {
   }
 
   protected build(): void {
-    this.label = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 16, fontWeight: "700", fill: INK.cream }, resolution: 2 });
-    this.label.anchor.set(0, 0.5);
+    const mono = (size: number, fill: number): Text => new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: size, fontWeight: "700", fill }, resolution: 2 });
+    for (let i = 0; i < 2; i++) {
+      const label = mono(16, INK.cream);
+      label.anchor.set(0, 0.5);
+      const worth = new Text({ text: "", style: { fontFamily: FONT, fontSize: 12, fill: INK.dim }, resolution: 2 });
+      worth.anchor.set(0, 0.5);
+      this.labels.push(label);
+      this.worths.push(worth);
+      this.wanted[i]!.anchor.set(0.5);
+      this.wanted[i]!.visible = false;
+      this.clampSprites[i]!.anchor.set(0.5);
+      this.clampSprites[i]!.visible = false;
+    }
+    this.flicksText = mono(16, INK.cream);
+    this.flicksText.anchor.set(0.5);
+    this.flicksLabel = new Text({ text: this.opts.labels.flicks, style: { fontFamily: FONT, fontSize: 12, fill: INK.dim }, resolution: 2 });
+    this.flicksLabel.anchor.set(0.5);
     this.skipText = new Text({ text: this.opts.labels.skip, style: { fontFamily: FONT, fontSize: 14, fontWeight: "700", fill: INK.cream }, resolution: 2 });
     this.skipText.anchor.set(0.5);
-    this.clampSprite.anchor.set(0.5);
-    this.clampSprite.visible = false;
-    this.wanted.anchor.set(0.5);
-    this.wanted.visible = false;
-    this.world.addChild(this.bg, this.blockLayer, this.clampSprite, this.ghostLayer, this.ghostPods, this.podLayer, this.hintLayer, this.strip, this.wanted, this.label, this.skipText);
+    this.world.addChild(
+      this.bg,
+      this.blockLayer,
+      ...this.clampSprites,
+      this.ghostLayer,
+      this.ghostPods,
+      this.podLayer,
+      this.hintLayer,
+      this.strip,
+      ...this.wanted,
+      ...this.labels,
+      ...this.worths,
+      this.flicksText,
+      this.flicksLabel,
+      this.skipText,
+    );
   }
 
   protected layout(width: number, height: number): void {
@@ -115,6 +165,7 @@ export class TugRenderer extends KitBoard<TugState> {
     if (this.state) {
       g.cols = this.state.config.width;
       g.rows = this.state.config.height;
+      this.pairs = this.state.config.clamps >= 2;
     }
     g.fit(width, height, { top: 1, margin: 8 });
     const pad = Math.max(4, g.cell * 0.12);
@@ -128,9 +179,29 @@ export class TugRenderer extends KitBoard<TugState> {
     const bw = Math.max(56, g.cell * 1.5);
     const bh = strip * 0.6;
     this.skipBox = { x: g.ox + g.width - bw, y: g.oy - pad - strip * 0.5 - bh / 2, w: bw, h: bh };
-    if (this.label) {
-      this.label.style.fontSize = Math.max(12, Math.round(g.cell * 0.32));
-      this.label.position.set(g.ox + g.cell * 0.86, g.oy - pad - strip * 0.5);
+    // The strip, left to right: each lit clamp's pod and its par (with pairs, the par it pays as under
+    // it when that differs), then with pairs the flicks, then the skip button.
+    const mid = g.oy - pad - strip * 0.5;
+    const big = Math.max(12, Math.round(g.cell * 0.32));
+    const small = Math.max(10, Math.round(g.cell * 0.22));
+    // With pairs a slot is 2.3 cells: the pod, then its par over its worth.
+    const slot = this.pairs ? g.cell * 2.3 : 0;
+    for (let i = 0; i < 2; i++) {
+      const x = g.ox + slot * i;
+      this.wanted[i]!.position.set(x + g.cell * 0.42, mid);
+      const label = this.labels[i]!;
+      label.style.fontSize = big;
+      label.position.set(x + g.cell * 0.86, this.pairs ? mid - strip * 0.14 : mid);
+      const worth = this.worths[i]!;
+      worth.style.fontSize = small;
+      worth.position.set(x + g.cell * 0.86, mid + strip * 0.22);
+    }
+    if (this.flicksText && this.flicksLabel) {
+      const x = g.ox + slot * 2 + (this.skipBox.x - g.ox - slot * 2) / 2;
+      this.flicksText.style.fontSize = big;
+      this.flicksText.position.set(x, mid - strip * 0.14);
+      this.flicksLabel.style.fontSize = small;
+      this.flicksLabel.position.set(x, mid + strip * 0.22);
     }
     if (this.skipText) {
       this.skipText.style.fontSize = Math.max(11, Math.round(g.cell * 0.3));
@@ -165,28 +236,38 @@ export class TugRenderer extends KitBoard<TugState> {
     });
   }
 
-  /** The lit clamp on its cell, whole: the socket of the pod it wants. */
-  private showClamp(clamp: TugClamp): void {
+  /** A lit clamp on its cell, whole, in its slot's sprite: the socket of the pod it wants. */
+  private showClamp(slot: number, clamp: TugClamp): void {
     const g = this.grid;
-    const s = this.clampSprite;
+    const s = this.clampSprites[slot]!;
     s.texture = this.piece(`clamp:${clamp.pod}`, g.cell, tugPodColor(clamp.pod), tugClampPaint(clamp.pod));
     s.position.set(g.x(clamp.cell), g.y(clamp.cell));
     s.scale.set(1);
     s.visible = true;
   }
 
-  /** The clamp is done with, delivered or given up: it shrinks to nothing. */
-  private dropClamp(): void {
-    this.drawnClamp = null;
+  /** A clamp is done with, delivered or given up: it shrinks to nothing. */
+  private dropClamp(slot: number): void {
+    const sprite = this.clampSprites[slot]!;
+    this.drawnClamps[slot] = null;
     this.drawStrip();
-    this.tweens.remove(this.clampSprite, {
+    this.tweens.remove(sprite, {
       done: () => {
-        if (!this.drawnClamp) this.clampSprite.visible = false;
+        if (!this.drawnClamps[slot]) sprite.visible = false;
       },
     });
   }
 
-  /** The strip over the bay: the pod the clamp wants, the par and the flicks, and the skip button. */
+  /** The slot a lit clamp is drawn in, found by the pod it wants (two lit clamps never want one pod), or -1. */
+  private slotOf(clamp: TugClamp): number {
+    return this.drawnClamps.findIndex((c) => c !== null && c.pod === clamp.pod && c.cell === clamp.cell);
+  }
+
+  /**
+   * The strip over the bay: the pod each lit clamp wants and its par, and the skip button. With one
+   * clamp the flicks share its line; with pairs each clamp has a slot, the par it pays as under its
+   * par when that differs, and the flicks stand alone.
+   */
   private drawStrip(): void {
     const g = this.grid;
     const s = this.strip;
@@ -194,15 +275,20 @@ export class TugRenderer extends KitBoard<TugState> {
     const box = this.skipBox;
     const r = Math.min(RADIUS, box.h / 2);
     s.roundRect(box.x, box.y, box.w, box.h, r).fill({ color: INK.raised });
-    // The board's advice to give the clamp up is cream, like every hint.
+    // The board's advice to give the clamps up is cream, like every hint.
     if (this.hint === "skip") s.roundRect(box.x, box.y, box.w, box.h, r).stroke({ width: 2, color: INK.cream, alpha: this.reduced ? 0.8 : 0.55 + 0.4 * Math.sin(this.time / 240) });
-    const clamp = this.drawnClamp;
-    this.wanted.visible = clamp !== null;
-    if (clamp) {
-      this.wanted.texture = this.podTexture(clamp.pod, Math.round(g.cell * WANTED_SIZE));
-      this.wanted.position.set(g.ox + g.cell * 0.42, this.label?.y ?? g.oy - g.cell * 0.5);
+    for (let i = 0; i < 2; i++) {
+      const clamp = this.drawnClamps[i] ?? null;
+      const shown = clamp !== null && (i === 0 || this.pairs);
+      this.wanted[i]!.visible = shown;
+      if (clamp && shown) this.wanted[i]!.texture = this.podTexture(clamp.pod, Math.round(g.cell * WANTED_SIZE));
+      const label = this.labels[i];
+      const worth = this.worths[i];
+      if (label) label.text = !clamp || !shown ? "" : this.pairs ? this.opts.labels.par(clamp.par) : this.opts.labels.status(clamp.par, this.shownFlicks);
+      if (worth) worth.text = clamp && shown && this.pairs && clamp.worth !== clamp.par ? this.opts.labels.worth(clamp.worth) : "";
     }
-    if (this.label) this.label.text = clamp ? this.opts.labels.status(clamp.par, this.shownFlicks) : "";
+    if (this.flicksText) this.flicksText.text = this.pairs ? String(this.shownFlicks) : "";
+    if (this.flicksLabel) this.flicksLabel.visible = this.pairs;
   }
 
   /** Put the bay exactly as the engine holds it, with nothing in motion. */
@@ -223,9 +309,22 @@ export class TugRenderer extends KitBoard<TugState> {
     });
     this.drawnBlocks = state.blocks;
     this.drawBlocks();
-    this.drawnClamp = state.clamp;
-    this.showClamp(state.clamp);
-    this.lastPar = state.clamp.par;
+    // A lit clamp keeps the slot it is drawn in, so one still growing in is not swapped for the other.
+    const lit = tugLitClamps(state);
+    const slots: Array<TugClamp | null> = [null, null];
+    const rest: TugClamp[] = [];
+    for (const c of lit) {
+      const at = this.slotOf(c);
+      if (at >= 0 && !slots[at]) slots[at] = c;
+      else rest.push(c);
+    }
+    for (const c of rest) slots[slots[0] ? 1 : 0] = c;
+    this.drawnClamps = slots;
+    slots.forEach((c, i) => {
+      if (c) this.showClamp(i, c);
+      else this.clampSprites[i]!.visible = false;
+    });
+    this.lastPar = lit[lit.length - 1]!.par;
     this.shownFlicks = state.flicks;
     if (this.selected >= state.pods.length) this.selected = -1;
     this.ghostsFor = null;
@@ -235,8 +334,9 @@ export class TugRenderer extends KitBoard<TugState> {
   }
 
   private matches(prev: TugState): boolean {
-    const c = this.drawnClamp;
-    if (!c || c.pod !== prev.clamp.pod || c.cell !== prev.clamp.cell) return false;
+    // The lit clamps drawn, in whichever slots, are the ones the last state held.
+    const lit = tugLitClamps(prev);
+    if (this.drawnClamps.filter((c) => c !== null).length !== lit.length || lit.some((c) => this.slotOf(c) < 0)) return false;
     if (this.sprites.length !== prev.pods.length || this.drawnBlocks.length !== prev.blocks.length) return false;
     return prev.pods.every((cell, pod) => this.grid.at(this.sprites[pod]!.x, this.sprites[pod]!.y)?.index === cell) && prev.blocks.every((b, i) => this.drawnBlocks[i] === b);
   }
@@ -246,8 +346,8 @@ export class TugRenderer extends KitBoard<TugState> {
     this.hint = null;
     this.hintLayer.clear();
     const g = this.grid;
-    if (g.cols !== state.config.width || g.rows !== state.config.height) {
-      // A different bay (a lab config): lay it out afresh.
+    if (g.cols !== state.config.width || g.rows !== state.config.height || this.pairs !== state.config.clamps >= 2) {
+      // A different bay (a lab config or a stage): lay it out afresh.
       g.cols = state.config.width;
       g.rows = state.config.height;
       this.layout(this.app.screen.width, this.app.screen.height);
@@ -292,9 +392,11 @@ export class TugRenderer extends KitBoard<TugState> {
         // Good news is cream; a slow delivery is said quietly.
         const tone = d.grade === "slow" ? INK.dim : INK.cream;
         const top = d.grade === "clean" && d.streak === state.config.streakPercent.length && state.config.streakPercent.length > 1;
-        const long = d.grade === "clean" && d.par >= BEAT_PAR;
+        // The long route read whole: a clean delivery at the top par, or one that pays as the top par.
+        const long = d.grade === "clean" && Math.max(d.par, d.worth) >= BEAT_PAR;
+        const slot = this.drawnClamps.findIndex((c) => c !== null && c.pod === d.pod && c.cell === d.cell);
         this.tweens.after(t, () => {
-          this.dropClamp();
+          this.dropClamp(Math.max(0, slot));
           this.fx.popup(x1, y1 - g.cell * 0.3, `+${d.points}`, tone, Math.max(16, g.cell * (d.grade === "clean" ? 0.56 : 0.44)));
           this.fx.popup(x1, y1 + g.cell * 0.82, this.opts.labels.tally(d.flicks, d.par), INK.dim, Math.max(12, g.cell * 0.28));
           this.fx.say(d.grade === "clean" ? this.opts.labels.clean(d.streak) : d.grade === "full" ? this.opts.labels.full : this.opts.labels.slow, tone);
@@ -308,38 +410,73 @@ export class TugRenderer extends KitBoard<TugState> {
           else sfx.swapQuiet();
         });
         t += 340;
+        // Pairs: the clamp left lit was measured again from this bay. Its new par is news, and a
+        // handoff (it came closer, and still pays as the par it lit at) is called out over it.
+        const kept = r.kept;
+        if (kept) {
+          const keptSlot = this.drawnClamps.findIndex((c) => c !== null && c.pod === kept.pod && c.cell === kept.cell);
+          const was = keptSlot >= 0 ? this.drawnClamps[keptSlot]!.par : kept.par;
+          this.tweens.after(t, () => {
+            if (keptSlot >= 0) this.drawnClamps[keptSlot] = kept;
+            this.drawStrip();
+            const x = g.x(kept.cell);
+            // Over the clamp, or under it on the top row, where over it is the strip.
+            const y = g.y(kept.cell) + g.cell * (kept.cell < g.cols ? 0.6 : -0.55);
+            if (kept.par < was) {
+              this.fx.popup(x, y, this.opts.labels.handoff(kept.par), INK.cream, Math.max(14, g.cell * 0.36));
+              sfx.ping(5 - Math.min(4, kept.par));
+            } else if (kept.par !== was) this.fx.popup(x, y, this.opts.labels.par(kept.par), INK.dim, Math.max(13, g.cell * 0.32));
+          });
+          t += 200;
+        }
+        if (r.clamp) {
+          const next = r.clamp;
+          const into = Math.max(0, slot);
+          this.tweens.after(t, () => this.light(into, next, kept));
+          t += 60;
+        }
       }
     } else if (r.skipped) {
       const gone = r.skipped.clamp;
       sfx.bad();
-      this.dropClamp();
+      this.dropClamp(0);
+      if (r.skipped.clamp2) this.dropClamp(1);
       this.fx.say(this.opts.labels.skipped, INK.danger);
       if (r.skipped.penalty > 0) this.fx.popup(g.x(gone.cell), g.y(gone.cell) - g.cell * 0.2, `-${r.skipped.penalty}`, INK.danger, Math.max(16, g.cell * 0.46));
       t = 280;
-    }
-    if (r.clamp) {
-      const next = r.clamp;
-      this.tweens.after(t, () => this.light(next));
-      t += 60;
+      if (r.clamp) {
+        const first = r.clamp;
+        const second = r.clamp2;
+        this.tweens.after(t, () => {
+          this.light(0, first, null);
+          if (second) this.light(1, second, null, false);
+        });
+        t += 60;
+      }
     }
     // Whatever the tweens did, the bay ends as the engine holds it.
     this.tweens.after(t + 20, () => this.snap(state));
   }
 
-  /** A clamp lights: it grows onto its cell, it is drawn from now on, and the pod it wants is picked. */
-  private light(clamp: TugClamp): void {
+  /**
+   * A clamp lights in a slot: it grows onto its cell and is drawn from now on. The pod to look at
+   * next is picked: the one it wants, or with pairs after a delivery, the nearer of the two (the
+   * one left lit on a tie). `sound` is off for the second of two lit at once.
+   */
+  private light(slot: number, clamp: TugClamp, kept: TugClamp | null, sound = true): void {
     const g = this.grid;
     // The par is called out only when it is not the last clamp's: that is the news.
     const news = clamp.par !== this.lastPar;
     this.lastPar = clamp.par;
-    this.drawnClamp = clamp;
+    this.drawnClamps[slot] = clamp;
     this.shownFlicks = 0;
-    this.showClamp(clamp);
-    this.clampSprite.scale.set(0);
-    this.tweens.move(this.clampSprite, { scale: 1 });
+    this.showClamp(slot, clamp);
+    const sprite = this.clampSprites[slot]!;
+    sprite.scale.set(0);
+    this.tweens.move(sprite, { scale: 1 });
     if (news) this.fx.popup(g.x(clamp.cell), g.y(clamp.cell) - g.cell * 0.55, this.opts.labels.par(clamp.par), INK.cream, Math.max(13, g.cell * 0.34));
-    sfx.ping(5 - clamp.par);
-    this.select(clamp.pod);
+    if (sound) sfx.ping(5 - Math.min(4, clamp.par));
+    if (sound) this.select(kept && kept.par <= clamp.par ? kept.pod : clamp.pod);
     this.drawStrip();
     this.touchView();
   }
@@ -347,7 +484,12 @@ export class TugRenderer extends KitBoard<TugState> {
   protected view(): string {
     const g = this.grid;
     const pods = this.sprites.map((s) => g.at(s.x, s.y)?.index ?? -1);
-    return tugViewString(g.cols, g.rows, this.drawnBlocks, pods, this.drawnClamp?.cell ?? -1, this.drawnClamp?.pod ?? -1);
+    // In the engine's order: the clamp lit longer first, whichever slot it is drawn in.
+    let [first, second] = this.drawnClamps;
+    const older = this.state?.clamp;
+    if (second && older && second.pod === older.pod && second.cell === older.cell) [first, second] = [second, first ?? null];
+    if (!first && second) [first, second] = [second, null];
+    return tugViewString(g.cols, g.rows, this.drawnBlocks, pods, first?.cell ?? -1, first?.pod ?? -1, second ?? null);
   }
 
   protected override update(dt: number): void {
@@ -367,8 +509,7 @@ export class TugRenderer extends KitBoard<TugState> {
     if (this.idle < HINT_AFTER_MS) return;
     if (this.hintFor !== this.state || !this.hint) {
       this.hintFor = this.state;
-      const route = tugSolve(this.state);
-      const first = route?.[0];
+      const first = tugHint(this.state)?.route[0];
       this.hint = first ? { pod: first.pod, dir: first.dir, to: tugSlide(this.state, first.pod, first.dir).to } : "skip";
     }
     this.hintLayer.clear();
@@ -431,7 +572,7 @@ export class TugRenderer extends KitBoard<TugState> {
     this.ghosts.forEach((ghost, i) => {
       const x1 = g.x(ghost.to);
       const y1 = g.y(ghost.to);
-      const delivers = pod === state.clamp.pod && ghost.to === state.clamp.cell;
+      const delivers = tugClampDelivered(state, pod, ghost.to) !== null;
       // The track: the dots of the cells the pod would cross light up, in cream when the flick delivers.
       // Then a small copy of the pod where it would stop, which for the flick that delivers is inside the clamp.
       const steps = Math.round((Math.abs(x1 - x0) + Math.abs(y1 - y0)) / g.cell);

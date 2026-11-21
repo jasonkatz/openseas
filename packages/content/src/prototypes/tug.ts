@@ -23,6 +23,8 @@ export const TugContentSchema = PrototypeBaseSchema.extend({
     streakPercent: z.array(z.int().min(100)).min(1),
     skipPenalty: z.int().min(0),
     maxMoves: z.int().min(1),
+    /** Clamps lit at once, each for a different pod: 1 is off, 2 is pairs (a delivery measures the other again; it keeps its worth). */
+    clamps: z.int().min(1).max(2),
   }),
 });
 export type TugContent = z.infer<typeof TugContentSchema>;
