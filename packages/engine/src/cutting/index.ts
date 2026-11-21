@@ -18,6 +18,8 @@ export {
   pieceAt as cuttingPieceAt,
   pureOre as cuttingPureOre,
   pieceValue as cuttingPieceValue,
+  piecePoints as cuttingPiecePoints,
+  fillsOrder as cuttingFillsOrder,
   grade as cuttingGrade,
   slabShape as cuttingSlabShape,
   streakPercentAt as cuttingStreakPercentAt,

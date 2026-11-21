@@ -39,6 +39,8 @@ export function CuttingBoard(props: CuttingBoardProps) {
             clean: (bonus) => t("cutting.clean", { bonus }),
             rough: t("cutting.rough"),
             streak: (count) => t("cutting.streak", { count }),
+            order: (bonus) => t("cutting.order", { bonus }),
+            orderFilled: (bonus) => t("cutting.order_filled", { bonus }),
           },
         },
       ),
@@ -57,6 +59,7 @@ export function CuttingBoard(props: CuttingBoardProps) {
       data-board={cuttingViewString(props.state.ores, props.state.config.width, props.state.pieces)}
       data-slab={props.state.slab}
       data-cuts={props.state.cutsLeft}
+      data-order={props.state.order ? `${props.state.order.w}x${props.state.order.h}` : ""}
     />
   );
 }

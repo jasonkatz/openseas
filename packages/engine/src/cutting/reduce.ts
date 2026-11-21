@@ -2,6 +2,7 @@ import { InvalidMoveError } from "../errors.js";
 import { Hasher } from "../hash.js";
 import { nextInt, seedFromString, type PrngState } from "../prng.js";
 import {
+  CUTTING_ORDER_SIZES,
   DEFAULT_CUTTING_CONFIG,
   type CuttingBanked,
   type CuttingConfig,
@@ -9,6 +10,7 @@ import {
   type CuttingHalf,
   type CuttingMove,
   type CuttingMoveReport,
+  type CuttingOrder,
   type CuttingPiece,
   type CuttingPreview,
   type CuttingRect,
@@ -42,7 +44,8 @@ export function validateConfig(cfg: CuttingConfig): void {
     cfg.streakPercent.length >= 1 &&
     cfg.streakPercent.length <= 16 &&
     cfg.streakPercent.every((p) => Number.isInteger(p) && p >= 100 && p <= 1000) &&
-    int(cfg.maxMoves, 1, 1_000_000);
+    int(cfg.maxMoves, 1, 1_000_000) &&
+    int(cfg.orderBonus, 0, 100_000);
   if (!ok) throw new Error("invalid cutting config");
 }
 
@@ -51,9 +54,10 @@ export function validateConfig(cfg: CuttingConfig): void {
 /**
  * For one slab: for every rectangle of it, the ore it is all of (if any), what an unlimited torch
  * could bank from it, and what the best plan banks from it with at most k cuts, for k up to the
- * most cuts a slab is ever given. Values are in cells squared; `cellPoints` is applied by callers.
+ * most cuts a slab is ever given. Values are in points.
  *
- * A pure rectangle is worth its area squared and wants no cut. Any other is worth the best split:
+ * A pure rectangle is worth what it banks (its area squared, and the order's bonus when it is the
+ * order's size) and wants no cut: it banks the moment it is made, so it is never cut again. Any other is worth the best split:
  * every cut line, and every way to share the remaining cuts between the two sides. Rectangles are
  * filled in from small to large, so both sides of every split are already known.
  */
@@ -72,7 +76,18 @@ function rectIndex(t: { width: number; height: number }, x: number, y: number, w
   return ((x * t.height + y) * t.width + (w - 1)) * t.height + (h - 1);
 }
 
-function buildTable(width: number, height: number, ores: readonly number[], maxCuts: number): Table {
+/** True when a piece w by h, either way round, is the order's size and orders pay. */
+function fills(cfg: CuttingConfig, order: CuttingOrder | null, w: number, h: number): boolean {
+  return order !== null && cfg.orderBonus > 0 && ((w === order.w && h === order.h) || (w === order.h && h === order.w));
+}
+
+/** What a pure piece w by h banks, in points: its area squared, and the bonus when it fills the order. */
+function pureValue(cfg: CuttingConfig, order: CuttingOrder | null, w: number, h: number): number {
+  return cfg.cellPoints * w * h * w * h + (fills(cfg, order, w, h) ? cfg.orderBonus : 0);
+}
+
+function buildTable(cfg: CuttingConfig, ores: readonly number[], maxCuts: number, order: CuttingOrder | null): Table {
+  const { width, height } = cfg;
   const n = width * height * width * height;
   const t: Table = { width, height, maxCuts, ore: new Int8Array(n), free: new Int32Array(n), best: new Int32Array(n * (maxCuts + 1)) };
   const K = maxCuts + 1;
@@ -93,7 +108,7 @@ function buildTable(width: number, height: number, ores: readonly number[], maxC
           }
           t.ore[id] = pure ? first : -1;
           if (pure) {
-            const value = w * h * w * h;
+            const value = pureValue(cfg, order, w, h);
             t.free[id] = value;
             for (let k = 0; k <= maxCuts; k++) t.best[id * K + k] = value;
             continue;
@@ -150,6 +165,14 @@ function tableOre(t: Table, r: CuttingRect): number {
   return t.ore[rectIndex(t, r.x, r.y, r.w, r.h)]!;
 }
 
+/** True when the slab holds a pure rectangle of the order's size somewhere, either way round. */
+function holds(t: Table, o: CuttingOrder): boolean {
+  for (const [w, h] of [[o.w, o.h], [o.h, o.w]] as const) {
+    for (let x = 0; x + w <= t.width; x++) for (let y = 0; y + h <= t.height; y++) if (t.ore[rectIndex(t, x, y, w, h)] !== -1) return true;
+  }
+  return false;
+}
+
 /** The best the pieces on a table can bank between them with `cuts` cuts, for every number of cuts up to it: index = cuts used at most. */
 function tableShare(t: Table, pieces: readonly CuttingRect[], cuts: number): number[][] {
   // rows[i][k] = the best from the first i pieces with at most k cuts.
@@ -189,9 +212,19 @@ export function pureOre(state: CuttingState, r: CuttingRect): number | null {
   return first;
 }
 
-/** What a pure piece of this size banks. */
+/** What a pure piece of this size banks by its area alone: the order's bonus is not in it (`piecePoints` adds it). */
 export function pieceValue(cfg: CuttingConfig, r: CuttingRect): number {
   return cfg.cellPoints * r.w * r.h * r.w * r.h;
+}
+
+/** True when a pure piece of this size would fill the slab's order (`state.order`, null when orders are off). */
+export function fillsOrder(state: CuttingState, r: { readonly w: number; readonly h: number }): boolean {
+  return fills(state.config, state.order, r.w, r.h);
+}
+
+/** What a pure piece of this size banks on the slab on the table: its area squared, and the order's bonus when it fills the order. */
+export function piecePoints(state: CuttingState, r: { readonly w: number; readonly h: number }): number {
+  return pureValue(state.config, state.order, r.w, r.h);
 }
 
 /** The piece on the table that covers cell (x, y), or null when that cell has been banked or is off the slab. */
@@ -218,7 +251,7 @@ export function cutPreview(state: CuttingState, pieceId: number, vertical: boole
   const [a, b] = split(piece, vertical, at);
   const side = (r: CuttingRect): CuttingPreview["halves"][number] => {
     const ore = pureOre(state, r);
-    return { ...r, ore, points: ore === null ? 0 : pieceValue(state.config, r) };
+    return { ...r, ore, points: ore === null ? 0 : piecePoints(state, r), filled: ore !== null && fillsOrder(state, r) };
   };
   const halves = [side(a), side(b)] as const;
   const line: CuttingPreview["line"] = vertical ? [at, piece.y, at, piece.y + piece.h] : [piece.x, at, piece.x + piece.w, at];
@@ -237,28 +270,34 @@ export function grade(cfg: CuttingConfig, got: number, best: number): CuttingGra
   return got * 100 >= cfg.cleanPercent * best ? "clean" : "rough";
 }
 
-/** The best any plan can bank from a whole slab of these ores with `cuts` cuts, in points. */
-export function slabBest(cfg: CuttingConfig, ores: readonly number[], cuts: number): number {
-  const t = buildTable(cfg.width, cfg.height, ores, Math.max(0, cuts));
-  return tableBest(t, { x: 0, y: 0, w: cfg.width, h: cfg.height }, cuts) * cfg.cellPoints;
-}
-
-/** The most the pieces still on the table can bank with the cuts that are left. Zero means the slab is over. */
-export function bestRemaining(state: CuttingState): number {
-  if (state.pieces.length === 0 || state.cutsLeft <= 0) return 0;
-  const t = buildTable(state.config.width, state.config.height, state.ores, state.cutsLeft);
-  const rows = tableShare(t, state.pieces, state.cutsLeft);
-  return rows[rows.length - 1]![state.cutsLeft]! * state.config.cellPoints;
+/** The best any plan can bank from a whole slab of these ores with `cuts` cuts, in points, the order's bonus counted when an order is given. */
+export function slabBest(cfg: CuttingConfig, ores: readonly number[], cuts: number, order: CuttingOrder | null = null): number {
+  const t = buildTable(cfg, ores, Math.max(0, cuts), order);
+  return tableBest(t, { x: 0, y: 0, w: cfg.width, h: cfg.height }, cuts);
 }
 
 /**
- * The first cut of a best plan for what is on the table, or null when nothing more can be banked.
- * For the idle hint in practice, and for bots: following it cut after cut banks the slab's best.
+ * The most the pieces still on the table can bank with the cuts that are left, or with `within` of
+ * them when that is fewer, the order counted. Zero, with every cut, means the slab is over.
  */
-export function bestCut(state: CuttingState): { piece: number; vertical: boolean; at: number } | null {
-  if (state.finished || state.pieces.length === 0 || state.cutsLeft <= 0) return null;
-  const cuts = state.cutsLeft;
-  const t = buildTable(state.config.width, state.config.height, state.ores, cuts);
+export function bestRemaining(state: CuttingState, within: number = state.cutsLeft): number {
+  const cuts = Math.min(within, state.cutsLeft);
+  if (state.pieces.length === 0 || cuts <= 0) return 0;
+  const t = buildTable(state.config, state.ores, cuts, state.order);
+  const rows = tableShare(t, state.pieces, cuts);
+  return rows[rows.length - 1]![cuts]!;
+}
+
+/**
+ * The first cut of a best plan for what is on the table, the order counted, or null when nothing
+ * more can be banked. For the idle hint in practice, and for bots: following it cut after cut banks
+ * the slab's best. With `within` under the cuts left, the first cut of a best plan that spends no
+ * more than that many.
+ */
+export function bestCut(state: CuttingState, within: number = state.cutsLeft): { piece: number; vertical: boolean; at: number } | null {
+  const cuts = Math.min(within, state.cutsLeft);
+  if (state.finished || state.pieces.length === 0 || cuts <= 0) return null;
+  const t = buildTable(state.config, state.ores, cuts, state.order);
   const rows = tableShare(t, state.pieces, cuts);
   if (rows[rows.length - 1]![cuts]! === 0) return null;
   // Walk the shares back to find how many cuts each piece gets in one best plan.
@@ -298,6 +337,7 @@ export function bestCut(state: CuttingState): { piece: number; vertical: boolean
 
 interface Dealt {
   ores: number[];
+  order: CuttingOrder | null;
   cutsAllowed: number;
   /** In points. */
   best: number;
@@ -314,8 +354,11 @@ export function slabShape(cfg: CuttingConfig, slab: number): { parts: number; fl
  * Deal a slab: split the rectangle at random into blocks, a bigger block more likely to be split
  * and more often across its longer side; give each block an ore; then turn a few cells into flaws.
  * Blocks that share an ore run together, so the shapes on the slab are not all rectangles; a slab
- * where they run into one block bigger than `maxBlockPercent` of it is dealt again. The slab's cuts
- * are the fewest that let the best plan bank `budgetPercent` of what an unlimited torch could.
+ * where they run into one block bigger than `maxBlockPercent` of it is dealt again. With orders on,
+ * the order is drawn next, from the slab's own stream, among the plate sizes the slab holds pure
+ * somewhere (any size when it holds none); with them off nothing is drawn, so every slab is the slab
+ * dealt before orders were made. The slab's cuts are the fewest that let the best plan bank
+ * `budgetPercent` of what an unlimited torch could, the order counted.
  */
 function dealSlab(cfg: CuttingConfig, rngIn: PrngState, slab: number): Dealt {
   let rng = rngIn;
@@ -354,22 +397,30 @@ function dealSlab(cfg: CuttingConfig, rngIn: PrngState, slab: number): Dealt {
       const cell = roll(width * height);
       ores[cell] = (ores[cell]! + 1 + roll(cfg.ores - 1)) % cfg.ores;
     }
-    const t = buildTable(width, height, ores, cfg.maxCuts);
+    const plain = buildTable(cfg, ores, cfg.maxCuts, null);
     // A slab of one ore asks nothing; neither does one no plan can bank from. One huge block is a windfall.
-    if (tableOre(t, whole) !== -1) continue;
-    if (largestBlock(t) * 100 > cfg.maxBlockPercent * width * height) continue;
+    if (tableOre(plain, whole) !== -1) continue;
+    if (largestBlock(plain) * 100 > cfg.maxBlockPercent * width * height) continue;
+    let order: CuttingOrder | null = null;
+    if (cfg.orderBonus > 0) {
+      const held = CUTTING_ORDER_SIZES.filter((o) => holds(plain, o));
+      const from = held.length > 0 ? held : CUTTING_ORDER_SIZES;
+      order = from[roll(from.length)]!;
+    }
+    const t = order === null ? plain : buildTable(cfg, ores, cfg.maxCuts, order);
     const free = t.free[rectIndex(t, 0, 0, width, height)]!;
     let cuts = cfg.minCuts;
     while (cuts < cfg.maxCuts && tableBest(t, whole, cuts) * 100 < cfg.budgetPercent * free) cuts++;
     const best = tableBest(t, whole, cuts);
-    if (best > 0) return { ores, cutsAllowed: cuts, best: best * cfg.cellPoints, rng };
+    if (best > 0) return { ores, order, cutsAllowed: cuts, best, rng };
   }
   // No deal worked (a tiny board, or a config at its limits): two halves of two ores, one cut apart.
   const ores = new Array<number>(width * height).fill(0);
   const half = Math.floor(width / 2);
   for (let y = 0; y < height; y++) for (let x = half; x < width; x++) ores[y * width + x] = 1;
-  const t = buildTable(width, height, ores, cfg.maxCuts);
-  return { ores, cutsAllowed: cfg.minCuts, best: tableBest(t, whole, cfg.minCuts) * cfg.cellPoints, rng };
+  const order = cfg.orderBonus > 0 ? CUTTING_ORDER_SIZES[0]! : null;
+  const t = buildTable(cfg, ores, cfg.maxCuts, order);
+  return { ores, order, cutsAllowed: cfg.minCuts, best: tableBest(t, whole, cfg.minCuts), rng };
 }
 
 export function createCuttingGame(seed: string, config: CuttingConfig = DEFAULT_CUTTING_CONFIG): CuttingState {
@@ -385,6 +436,7 @@ export function createCuttingGame(seed: string, config: CuttingConfig = DEFAULT_
     cutsLeft: dealt.cutsAllowed,
     slabGot: 0,
     slabBest: dealt.best,
+    order: dealt.order,
     rng: dealt.rng,
     nextId: 2,
     score: 0,
@@ -399,6 +451,7 @@ export function createCuttingGame(seed: string, config: CuttingConfig = DEFAULT_
     totalGot: 0,
     totalBest: 0,
     biggest: 0,
+    ordersFilled: 0,
     lastMove: null,
     finished: false,
   };
@@ -431,17 +484,19 @@ function cut(state: CuttingState, move: Extract<CuttingMove, { type: "cut" }>): 
   let nextId = state.nextId;
   const side = (r: CuttingRect): CuttingHalf => {
     const ore = pureOre(state, r);
-    return { piece: { id: nextId++, ...r }, ore, points: ore === null ? 0 : pieceValue(cfg, r) };
+    return { piece: { id: nextId++, ...r }, ore, points: ore === null ? 0 : piecePoints(state, r), filled: ore !== null && fillsOrder(state, r) };
   };
   const halves: [CuttingHalf, CuttingHalf] = [side(ra), side(rb)];
   const pieces = state.pieces.filter((p) => p.id !== piece.id);
   const banked: CuttingBanked[] = state.banked.slice();
   let biggest = state.biggest;
+  let ordersFilled = state.ordersFilled;
   for (const h of halves) {
     if (h.ore === null) pieces.push(h.piece);
     else {
-      banked.push({ ...h.piece, ore: h.ore, points: h.points });
+      banked.push({ ...h.piece, ore: h.ore, points: h.points, filled: h.filled });
       biggest = Math.max(biggest, h.piece.w * h.piece.h);
+      if (h.filled) ordersFilled++;
     }
   }
   const points = halves[0].points + halves[1].points;
@@ -455,6 +510,7 @@ function cut(state: CuttingState, move: Extract<CuttingMove, { type: "cut" }>): 
     score: state.score + points,
     moveCount: state.moveCount + 1,
     biggest,
+    ordersFilled,
   };
   const report = { piece, vertical: move.vertical, at: move.at, halves } as const;
   // The slab is over when the table is bare, the cuts are spent, or no cut left could bank anything.
@@ -486,6 +542,7 @@ function finishSlab(state: CuttingState, move: CuttingMove, cutReport: CuttingMo
     cutsLeft: dealt.cutsAllowed,
     slabGot: 0,
     slabBest: dealt.best,
+    order: dealt.order,
     rng: dealt.rng,
     nextId: state.nextId + 1,
     score: state.score + bonus,
@@ -522,6 +579,8 @@ export function hashCuttingState(state: CuttingState): string {
   h.int(state.nextId).int(state.score).int(state.moveCount).int(state.logLength).int(state.combo).int(state.bestCombo);
   h.int(state.slabsDone).int(state.flawless).int(state.clean).int(state.rough).int(state.totalGot).int(state.totalBest).int(state.biggest);
   h.int(state.finished ? 1 : 0);
+  // Hashed only when orders are on, so a round with them off hashes as it did before the layer.
+  if (state.order !== null) h.int(state.order.w).int(state.order.h).int(state.ordersFilled);
   return h.digest();
 }
 

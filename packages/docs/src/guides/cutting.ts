@@ -18,6 +18,8 @@ const roughCost = flawlessTop + Array.from({ length: streakFull - 1 }, (_, i) =>
 let busiest = 0;
 while (cuttingSlabShape(c, busiest).parts < c.partsMax || cuttingSlabShape(c, busiest).flaws < c.flawsMax) busiest++;
 busiest += 1;
+/** What a plate of the order's size banks, w by h, bonus included. */
+const plate = (w: number, h: number): number => v(w * h) + c.orderBonus;
 const cleanShare = c.cleanPercent % 20 === 0 ? `${["no", "one", "two", "three", "four"][c.cleanPercent / 20]} fifths` : `${c.cleanPercent} percent`;
 
 export const cutting: Guide = {
@@ -26,8 +28,8 @@ export const cutting: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Cutting board: a slab ${c.width} cells wide and ${c.height} tall made of blocks of ore, each ore a flat colour with a cut-out of its own in every cell. A strip above shows a dot for each cut left, what is banked against the slab's best, and a chip that reads Next slab.`,
-    caption: "A fresh slab. The dots are your cuts, and the number is what you have banked against the best this slab can pay.",
+    alt: `The Cutting board: a slab ${c.width} cells wide and ${c.height} tall made of blocks of ore, each ore a flat colour with a cut-out of its own in every cell. A strip above shows a dot for each cut left, what is banked against the slab's best, and a chip that reads Next slab. Under the slab, the order: a small plate of cells and what it pays more.`,
+    caption: "A fresh slab. The dots are your cuts, the number is what you have banked against the best this slab can pay, and under it is the slab's order.",
   },
   theme: {
     setting:
@@ -43,12 +45,12 @@ export const cutting: Guide = {
   ],
   rules: [
     "A slab is made of blocks of ore. A **flaw** is a single cell of the wrong ore sitting in a block.",
-    "A cut runs along a grid line, the whole way across the piece it is made in, and splits that piece in two. So every piece is a rectangle.",
-    "A piece that holds one ore only is **pure**. It is banked at once and leaves the table. A mixed piece stays.",
+    "A cut runs along a grid line, the whole way across the piece it is made in, and splits that piece in two, so every piece is a rectangle. A piece that holds one ore only is **pure**: it is banked at once and leaves the table. A mixed piece stays.",
     `Each slab comes with ${c.minCuts} to ${c.maxCuts} cuts, shown as dots. It is always about one cut fewer than the slab wants.`,
     "A slab ends when the table is bare, when the cuts are spent, or when no cut left could bank anything. What is still on the table is **scrap** and pays nothing.",
     `The slab is then graded against the best any plan could have banked from it with its cuts. All of the best is **flawless**, ${cleanShare} of it is **clean**, less is **rough**. The next slab is dealt at once.`,
     `Slabs get busier: ${c.partsStart} blocks and ${c.flawsStart} flaw at first, ${c.partsMax} blocks and ${c.flawsMax} flaws from slab ${busiest} on.`,
+    "Each slab names an **order**, shown under it: a plate of one size, drawn small. A pure piece of exactly that size, either way round, fills it and pays more. It can be filled more than once.",
   ],
   rulesMedia: {
     kind: "clip",
@@ -69,7 +71,16 @@ export const cutting: Guide = {
     `**A pure piece pays its cells times its cells.** ${[2, 4, 6, 12].map((n) => `${n} cells is ${v(n)}`).join(", ")}. One piece of twelve pays ${v(12) / (2 * v(6)) === 2 ? "twice" : `${v(12)} against the ${2 * v(6)} of`} two pieces of six.`,
     `A flawless slab pays a bonus of ${c.flawlessBonus} and a clean one ${c.cleanBonus}. A rough slab pays none.`,
     `Clean and flawless slabs in a row build a **streak** that multiplies the bonus, up to ×${streakMax} from the ${ordinal(streakFull)} in a row. A rough slab breaks it.`,
+    `**A piece that fills the order pays ${c.orderBonus} more**: a plate of two by three is ${plate(2, 3)}, not ${v(6)}. The slab's best counts the order, so the grade does too.`,
   ],
+  stageMedia: {
+    full: {
+      kind: "still",
+      name: "order",
+      alt: "A fresh slab with a cut lined up through a big block of one ore. The side it frees is the order's size: it is ringed, shows its points, and has a short mark at each corner. Under the slab the order's small plate is lit.",
+      caption: "The cut carves the order's plate out of a bigger block. The marked corners say it fills the order; here the bonus pays for the block.",
+    },
+  },
   stages: [
     {
       level: "beginner",
@@ -137,7 +148,7 @@ export const cutting: Guide = {
       tips: [
         {
           title: "Decide what to give up",
-          body: `There is always a cut too few, so the best plan leaves scrap on almost every slab: about a fifth of a first slab and more than a quarter of a busy one. Give up what is small. Two cells pay ${v(2)}, and a best plan almost never spends a cut to bank a piece that size.`,
+          body: `There is always a cut too few, so the best plan leaves scrap on almost every slab: about a fifth of a first slab and more than a quarter of a busy one. Give up what is small. Two cells pay ${v(2)}, and a best plan almost never spends a cut to bank a piece that size. Go round a flaw: cutting it out takes cuts you do not have, and a flaw on the edge of a block of ${4 * 4} still leaves a rectangle of ${3 * 4} for ${v(3 * 4)}.`,
           media: {
             kind: "clip",
             name: "budget",
@@ -146,16 +157,16 @@ export const cutting: Guide = {
           },
         },
         {
-          title: "Go round a flaw",
-          body: `Cutting a flaw out of a block takes cuts you do not have. Bank the biggest pure rectangle beside it. A flaw on the edge of a block of ${4 * 4} still leaves a rectangle of ${3 * 4} for ${v(3 * 4)}. The strip with the flaw in it is scrap.`,
-        },
-        {
           title: "One line, two blocks",
           body: "Where two wanted blocks share an edge, one cut is a side of both. Where their edges line up across the piece, one cut trims both at once. These shared lines are how a plan fits the budget. Look for them before you count a block as too dear.",
         },
         {
+          title: "Weigh the plate against its block",
+          body: `The order tempts you to carve its plate out of a bigger block, and size is squared. A block of three by three is ${v(9)} whole. Carved into the plate of two by three and a strip, it is ${plate(2, 3)} and ${v(3)}, and it costs a cut. Sometimes the plate sits in a block for free, sometimes it costs the block: count both before you cut. A bot that carves every plate it can scores about a fifth less than one that weighs it.`,
+        },
+        {
           title: "Add it up against the strip",
-          body: "The strip shows the slab's best from the start. Square each piece of your plan and add them up. If the sum is the best, cut. If it is short, there is a better plan on the table, and you know it before a cut is spent.",
+          body: `The strip shows the slab's best from the start, and it counts the order. Square each piece of your plan, add ${c.orderBonus} for each plate of the order's size, and add them up. If the sum is the best, cut. If it is short, there is a better plan on the table, and you know it before a cut is spent.`,
         },
       ],
       drill: `On every slab, say which blocks you will scrap before the first cut, and add your plan up against the best. You are there when most slabs are flawless, none is rough, and a round passes ${p.thresholds[4]!.score} points.`,
@@ -166,7 +177,7 @@ export const cutting: Guide = {
       tips: [
         {
           title: "The bonus is the round",
-          body: `At full streak a flawless slab pays ${flawlessTop} on top, about what a busy slab banks in all. A clean one pays ${cleanTop}. For a bot on the best plan the bonuses are two fifths of the round. The streak is full on the ${ordinal(streakFull)} slab, so the easy early slabs are where it is built.`,
+          body: `At full streak a flawless slab pays ${flawlessTop} on top, about what a busy slab banks in all. A clean one pays ${cleanTop}. For a bot on the best plan the bonuses are about a third of the round. The streak is full on the ${ordinal(streakFull)} slab, so the easy early slabs are where it is built.`,
         },
         {
           title: "Never rough",
@@ -174,7 +185,7 @@ export const cutting: Guide = {
         },
         {
           title: "Pace is score",
-          body: "Moves are not timed but the round is, and a bot on the best plan scores in step with the slabs it finishes. A flawless slab at full streak is worth about half as much again as a clean one. So it is worth about half as long again of looking, and no more.",
+          body: "Moves are not timed but the round is. A flawless slab at full streak is worth about half as much again as a clean one, so it is worth about half as long again of looking, and no more. The last cut of a plan often banks a small piece, where a fresh slab pays more for its first. Bots that give a slab up once its next cut earns less than a cut's share of a good round beat the plan followed to its end. Give up only above the notch.",
           media: {
             kind: "clip",
             name: "streak",
@@ -195,7 +206,7 @@ export const cutting: Guide = {
     "**Cutting through the big block.** A small piece banked today is paid for with the block it split. Halves of a block pay half of what it paid whole.",
     `**Spending a cut on a flaw.** A single cell pays ${v(1)}. Go round it and let the strip it sits in be scrap.`,
     "**Tapping Next slab below the notch.** A slab given up is graded as it stands. Under the notch it is rough, and the streak goes with it.",
-    "**Cutting while still looking.** Every cut narrows what is left. Finish the plan first: the round's clock allows it, and the slab cannot be put back.",
+    "**Carving every order.** The plate pays more than its size, not more than the block it comes out of. Fill it where it sits, and leave it where it would split a big block.",
   ],
 };
 

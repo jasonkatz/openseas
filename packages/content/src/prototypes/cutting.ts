@@ -29,6 +29,8 @@ export const CuttingContentSchema = PrototypeBaseSchema.extend({
     /** What the streak of clean and flawless slabs multiplies the bonus by, in percent; past the end, the last entry. */
     streakPercent: z.array(z.int().min(100)).min(1),
     maxMoves: z.int().min(1),
+    /** What a pure piece of the slab's order size banks on top of its area squared; 0 deals no order (the layer off). */
+    orderBonus: z.int().min(0).max(100_000),
   }),
 });
 export type CuttingContent = z.infer<typeof CuttingContentSchema>;
