@@ -5,6 +5,6 @@ export const groups: TuningGroups = {
   board: ["racks", "height", "kinds"],
   deal: ["startCells", "crateMin", "crateMax", "crateMixPercent", "bagCopies"],
   pace: ["landEvery"],
-  scoring: ["shipPoints", "chainWindow", "chainPercent", "spillPenalty"],
+  scoring: ["shipPoints", "chainWindow", "chainPercent", "spillPenalty", "manifestLength", "manifestPoints"],
   limits: ["markRoom", "maxMoves"],
 };

@@ -112,7 +112,7 @@ test("a Racks rack filled with one kind ships", async ({ page }) => {
   await expectViewMatchesState(page, "racks");
   await expect(page.getByTestId("racks-board")).toHaveAttribute("data-board", "00|3|212|123|013;1:33:4");
   await tapCrate(page);
-  await expect(page.getByTestId("racks-board")).toHaveAttribute("data-board", "00|333|212|123|013;4:11:4");
+  await expect(page.getByTestId("racks-board")).toHaveAttribute("data-board", "00|333|212|123|013;2:13:4");
   await dragRack(page, 3, 1);
   await expect(page.getByTestId("hud-moves")).toHaveText("2");
   await expect(page.getByTestId("hud-score")).toHaveText("0");
@@ -121,6 +121,38 @@ test("a Racks rack filled with one kind ships", async ({ page }) => {
   await tapRack(page, 1);
   await expect(page.getByTestId("hud-moves")).toHaveText("3");
   await expect(page.getByTestId("hud-score")).toHaveText("100");
-  await expect(page.getByTestId("racks-board")).toHaveAttribute("data-board", "00||212|12|01;4:11:2");
+  await expect(page.getByTestId("racks-board")).toHaveAttribute("data-board", "00||212|12|01;2:13:2");
+  await expectViewMatchesState(page, "racks");
+});
+
+test("the Racks manifest under the row is the engine's, action after action", async ({ page }) => {
+  await page.goto("/play/racks?seed=manifest-1");
+  await page.getByTestId("play-start").click();
+  const canvas = page.getByTestId("racks-canvas");
+  await expect(canvas).toBeVisible();
+  const hud = page.getByTestId("hud-manifest");
+  // Two different kinds, none shipped yet.
+  await expect(hud).toHaveAttribute("data-manifest", /^(\d)(?!\1)\d:0$/);
+  await expect(canvas).toHaveAttribute("data-manifest", (await hud.getAttribute("data-manifest"))!);
+  for (let n = 1; n <= 4; n++) {
+    const [from, to] = legalMove(await board(page));
+    await page.keyboard.press(String(from + 1));
+    await page.keyboard.press(String(to + 1));
+    await expect(page.getByTestId("hud-moves")).toHaveText(String(n));
+    await expectViewMatchesState(page, "racks");
+    await expect(canvas).toHaveAttribute("data-manifest", (await hud.getAttribute("data-manifest"))!);
+  }
+});
+
+test("a Racks stage before the whole puzzle plays from its address with no manifest (ADR 0066)", async ({ page }) => {
+  await page.goto("/play/racks?stage=chain");
+  await expect(page.getByTestId("stage-intro")).toHaveAttribute("data-stage", "chain");
+  await page.getByTestId("play-start").click();
+  await expect(page.getByTestId("racks-canvas")).toBeVisible();
+  await expect(page.getByTestId("hud-stage").first()).toHaveAttribute("data-stage", "chain");
+  await expect(page.getByTestId("racks-canvas")).toHaveAttribute("data-manifest", "");
+  await expect(page.getByTestId("hud-manifest")).toHaveCount(0);
+  await page.keyboard.press("c");
+  await expect(page.getByTestId("hud-moves").first()).toHaveText("1");
   await expectViewMatchesState(page, "racks");
 });

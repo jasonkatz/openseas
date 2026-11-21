@@ -23,6 +23,10 @@ export const RacksContentSchema = PrototypeBaseSchema.extend({
     spillPenalty: z.int().min(0),
     /** False marks any rack for a crate, a full one too. True keeps the mark to racks with room. */
     markRoom: z.boolean(),
+    /** Different kinds on the manifest, shipped in its order in one chain to fill it. 0: no manifest. */
+    manifestLength: z.int().min(0).max(4),
+    /** Paid on top of the shipment that fills the manifest. */
+    manifestPoints: z.int().min(0),
     maxMoves: z.int().min(1),
   }),
 });
