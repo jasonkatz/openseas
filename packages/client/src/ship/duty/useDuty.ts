@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PuzzleDef, PuzzleId } from "@openseas/engine";
 import type { PuzzleResult, PuzzleStarted, ServerMessage } from "@openseas/protocol";
-import { PuzzleRound, sfx, usePirate, wallClock, type TickedHost } from "@openseas/boards";
+import { PuzzleRound, sfx, usePirate, usePuzzleCues, wallClock, type TickedHost } from "@openseas/boards";
 
 export type DutyPhase = "idle" | "dealing" | "playing" | "waiting" | "result";
 export type DutyOutcome = { kind: "scored"; result: PuzzleResult } | { kind: "rejected"; reason: string };
@@ -45,6 +45,8 @@ const RETRY_MS = 3000;
  */
 export function useDuty<S, M, C>(opts: DutyOptions<S, M, C>): DutyApi<S, M> {
   const { puzzle, def, config, roundSeconds, active } = opts;
+  // The duty's own cues while it is the one on screen (ADR 0070).
+  usePuzzleCues(puzzle, active);
   const { socket, socketStatus } = usePirate();
   const [phase, setPhase] = useState<DutyPhase>("idle");
   const [state, setState] = useState<S>(() => def.create("deck", config));

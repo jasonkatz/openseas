@@ -4,6 +4,7 @@ import { TEXT_MAX, textVars, type PuzzleCategory } from "@openseas/protocol";
 import { content, shippedMessage, t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { ResetIcon } from "../tuning/TuningPanel.jsx";
+import { useWidePanel } from "./wide.js";
 import { TEXT_GROUPS, textEntries, textMatches, textProblem, type TextEntry } from "./texts.js";
 
 export { textMatches, type TextEntry };
@@ -17,6 +18,7 @@ export { textMatches, type TextEntry };
  */
 export function TextPanel({ entries, query, shown }: { entries: readonly TextEntry[]; query: string; shown: boolean }) {
   const { puzzle, words, setText, setCategory } = useFrame();
+  const wide = useWidePanel();
   const q = query.trim().toLowerCase();
   const shippedCategory = content.puzzles[puzzle.id].category;
   const category = words.category ?? shippedCategory;
@@ -25,6 +27,12 @@ export function TextPanel({ entries, query, shown }: { entries: readonly TextEnt
   const categoryHit = q === "" || `category ${t("studio.category")} ${t(`studio.category.${category}`)}`.toLowerCase().includes(q);
   return (
     <div className="tune" data-testid="text-panel" data-mode-panel="text" hidden={!shown}>
+      {wide && (
+        <div className="text-cols" aria-hidden="true">
+          <span>{t("studio.text_shipped")}</span>
+          <span>{t("studio.text_draft")}</span>
+        </div>
+      )}
       {groups.map((g) => {
         const any = g.entries.some(hit) || (g.id === "identity" && categoryHit);
         return (
@@ -85,8 +93,10 @@ function TextRow({ entry: e, value, hidden, onSet }: { entry: TextEntry; value: 
     onSet(next);
   };
   const field = { value: text, maxLength: TEXT_MAX + 50, "aria-label": e.label, "data-testid": `input-text-${e.key}` } as const;
+  // Opened wide, the shipped words stand beside the field, so a rewrite is read against what it replaces (ADR 0068).
+  const wide = useWidePanel();
   return (
-    <div className={`num-row is-block ${changed ? "is-changed" : ""} ${problem ? "is-refused" : ""}`} hidden={hidden} data-testid={`text-${e.key}`} data-changed={changed ? "1" : "0"}>
+    <div className={`num-row is-block ${wide ? "is-side" : ""} ${changed ? "is-changed" : ""} ${problem ? "is-refused" : ""}`} hidden={hidden} data-testid={`text-${e.key}`} data-changed={changed ? "1" : "0"}>
       <div className="num-label" title={`${e.key}: ${e.shipped}`}>
         <i className="num-dot" aria-hidden="true" />
         <span className="num-name">{e.label}</span>
@@ -94,6 +104,11 @@ function TextRow({ entry: e, value, hidden, onSet }: { entry: TextEntry; value: 
           <code key={v} className="num-unit">{`{${v}}`}</code>
         ))}
       </div>
+      {wide && (
+        <p className="text-shipped" aria-label={t("studio.text_shipped")} data-testid={`shipped-text-${e.key}`}>
+          {e.shipped}
+        </p>
+      )}
       <div className="num-ctl">{long ? <textarea rows={Math.min(6, Math.ceil(text.length / 38) + 1)} onChange={(ev) => change(ev.target.value)} {...field} /> : <input type="text" onChange={(ev) => change(ev.target.value)} {...field} />}</div>
       {changed && (
         <button

@@ -1,8 +1,9 @@
+import { createContext, useContext } from "react";
 import type { ModeId } from "./modes.js";
 
 /**
  * Whether the panels are opened wide, over the middle of the page (DESIGN.md 3.14, ADR 0068).
- * One switch for every mode, kept in the browser. Play is never wide: its panel is short, and the
+ * One switch for every mode, kept in the browser, and on until the owner shuts it. Play is never wide: its panel is short, and the
  * board is what it is for.
  */
 export const canWiden = (mode: ModeId): boolean => mode !== "play";
@@ -13,9 +14,10 @@ const KEY = "openseas.studio.wide";
 
 export function readWide(): boolean {
   try {
-    return window.localStorage.getItem(KEY) === "1";
+    // Wide unless the owner shut it: a mode's panel opens over the middle by default (ADR 0068, as the owner asked).
+    return window.localStorage.getItem(KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -26,3 +28,7 @@ export function writeWide(wide: boolean): void {
     /* private mode */
   }
 }
+
+/** True inside a panel opened wide: a panel draws more where it has the room (a curve as a chart, the rating scale, the Sprites stage). */
+export const WidePanel = createContext(false);
+export const useWidePanel = (): boolean => useContext(WidePanel);

@@ -148,7 +148,7 @@ display face.
   showing (venting, a breach); the fewest that say it.
 - **The beat.** A big moment, a large combo or a won fight, gets one thing: the whole board pulses
   once in `amber`, 420ms, with one sound. A bigger moment is a slightly stronger pulse, never a
-  second effect. It is the same on every board.
+  second effect. The pulse is the same on every board; its sound is each puzzle's own (section 8).
 - Reduced motion turns moves into cuts and keeps the beat as a still flash.
 
 ## 7. The world
@@ -171,7 +171,8 @@ The world is already flat-coloured primitives, and stays so.
 
 ## 8. Sound
 
-Built (M10 step 6). Every cue is defined as data in `packages/boards/data/cues.json`, read by
+Built (M10 step 6). Every cue is defined as data, a copy for each puzzle in `packages/boards/data/cues/<puzzle>.json`
+and the game's own in `packages/boards/data/cues.json` (ADR 0070), read by
 `packages/boards/src/cues.ts` and played by `audio.ts` beside it; tests hold all three to what
 follows, and the studio's Sounds editor holds a revoiced cue to it before it plays (ADR 0065).
 
@@ -184,8 +185,10 @@ follows, and the studio's Sounds editor holds a revoiced cue to it before it pla
 - **Up is good, down is not.** What rises steps up the scale, what falls steps down. A bad thing
   is low and soft, never a buzzer: the heat alarm is two low notes.
 - **Short and level.** Under 400ms, and every cue peaks within 3 dB of one quiet target.
-- **The beat** (section 6) has one sound: the root, its fifth and its octave, low, ringing for
-  700ms, a little louder for a stronger beat. It sounds alone: no other cue plays over it.
+- **The beat** (section 6) has one sound on a board: as shipped, the root, its fifth and its
+  octave, low, ringing for 700ms, a little louder for a stronger beat. Each puzzle has its own copy
+  and may revoice it, keeping it low and ringing (ADR 0071). It sounds alone: no other cue plays
+  over it.
 - No music and no ambient bed.
 
 ## 9. Words
