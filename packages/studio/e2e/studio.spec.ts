@@ -21,13 +21,13 @@ for (const puzzle of PUZZLES) {
     const panel = page.getByTestId("tuning");
     // Every key is in a section, each with its line from beside the wire schema.
     await expect(panel.getByTestId("group-other")).toHaveCount(0);
-    // The numbers are split over three modes (ADR 0056): the board and the round, the deal and the pace, the scoring and the rating.
+    // The numbers are split over four modes (ADR 0056, ADR 0069): the board and the round, the deal and the pace, the scoring, and the rating.
     await page.getByTestId("tab-setup").click();
     await expect(control(page, "config.maxMoves")).toBeVisible();
     await expect(control(page, "config.maxMoves").locator(".tune-desc")).not.toBeEmpty();
     await expect(control(page, "roundSeconds")).toBeVisible();
     await expect(control(page, "paceSeconds")).toBeHidden();
-    await page.getByTestId("tab-scoring").click();
+    await page.getByTestId("tab-rating").click();
     await expect(control(page, "paceSeconds")).toBeVisible();
     await expect(control(page, "thresholds")).toBeVisible();
     await expect(control(page, "roundSeconds")).toBeHidden();
@@ -237,7 +237,8 @@ test("the Play panel keeps the last rounds finished on the page, and says which 
       window.openseasRoundClock!.pause();
       window.openseasRoundClock!.step(10 * 60 * 1000);
     });
-    await expect(page.getByTestId("result-tier")).toBeVisible();
+    // The round ends on the page's next look at its clock: a loaded runner can take a while to get there.
+    await expect(page.getByTestId("result-tier")).toBeVisible({ timeout: 15_000 });
   };
   await page.getByTestId("play-start").click();
   await finish();
@@ -285,7 +286,12 @@ test("the panels open wide over the middle, in every mode at once, the board mov
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("hud-moves")).toContainText("1");
 
+  // A mode's panel opens wide by default; shut, the board comes back to the middle.
   await page.getByTestId("tab-tuning").click();
+  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "1");
+  await page.getByTestId("panel-wide").click();
+  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "0");
+  await expect.poll(async () => (await page.getByTestId("cooling-canvas").boundingBox())!.x).toBeLessThan(800);
   const before = await page.getByTestId("cooling-canvas").boundingBox();
   await page.getByTestId("panel-wide").click();
   await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "1");
@@ -318,7 +324,8 @@ test("a finished round keeps the numbers it was dealt on, can be the baseline, a
       window.openseasRoundClock!.pause();
       window.openseasRoundClock!.step(10 * 60 * 1000);
     });
-    await expect(page.getByTestId("result-tier")).toBeVisible();
+    // The round ends on the page's next look at its clock: a loaded runner can take a while to get there.
+    await expect(page.getByTestId("result-tier")).toBeVisible({ timeout: 15_000 });
   };
   await (await shown(page, "more-config.pieceKinds")).click();
   await page.getByTestId("transport-play").click();
@@ -348,4 +355,63 @@ test("a finished round keeps the numbers it was dealt on, can be the baseline, a
   await page.reload();
   await expect(page.getByTestId("last-round")).toHaveCount(2);
   await expect(page.getByTestId("last-round").nth(1)).toHaveClass(/is-base/);
+});
+
+test("a panel opened wide draws more: a curve as a chart drawn by hand, the rating scale with the page's rounds, a larger stage, a timeline and the shipped words", async ({ page }) => {
+  desktopOnly();
+  await page.goto("/reactor?seed=studio-10");
+  await page.getByTestId("transport-play").click();
+  await expect(page.getByTestId("reactor-canvas")).toBeVisible();
+  await page.evaluate(() => {
+    window.openseasRoundClock!.pause();
+    window.openseasRoundClock!.step(10 * 60 * 1000);
+  });
+  await expect(page.getByTestId("result-tier")).toBeVisible();
+
+  // Wide is where a mode opens.
+  await page.getByTestId("tab-scoring").click();
+  await expect(page.getByTestId("studio")).toHaveAttribute("data-wide", "1");
+
+  // A press near the top of the first bar draws that step taller.
+  const chart = page.getByTestId("chart-config.fusePoints");
+  await expect(chart).toBeVisible();
+  const was = Number(await page.getByTestId("input-config.fusePoints.0").inputValue());
+  const box = (await chart.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 6, box.y + 20);
+  await expect.poll(async () => Number(await page.getByTestId("input-config.fusePoints.0").inputValue())).toBeGreaterThan(was);
+  await expect(page).toHaveURL(/c\.fusePoints/);
+
+  await page.getByTestId("tab-rating").click();
+  await expect(page.getByTestId("rating-scale")).toBeVisible();
+  await expect(page.getByTestId("scale-round")).toHaveCount(1);
+
+  await page.getByTestId("tab-sprites").click();
+  const stage = (await page.getByTestId("sprite-stage").boundingBox())!;
+  // Only the controls scroll, in a column of their own; the stage beside it is a pane that never moves.
+  expect(await page.locator(".panel-body").evaluate((e) => e.scrollHeight <= e.clientHeight + 1)).toBe(true);
+  await page.getByTestId("sprite-side").evaluate((e) => (e.scrollTop = 300));
+  expect(await page.getByTestId("sprite-side").evaluate((e) => e.scrollTop)).toBeGreaterThan(0);
+  expect((await page.getByTestId("sprite-stage").boundingBox())!.y).toBeCloseTo(stage.y, 0);
+  // Larger than the closed panel's 288, as large as the panel's room allows.
+  expect(stage.width).toBeGreaterThan(320);
+
+  await page.getByTestId("tab-sounds").click();
+  await page.getByTestId("sounds").locator('[data-testid^="cue-edit-"]').first().click();
+  await expect(page.getByTestId("roll-ruler")).toBeVisible();
+  // The open cue's details are tabs under the roll: a voice picked on it turns to its own, nothing grows the page.
+  await expect(page.getByTestId("voice-inspector")).toBeVisible();
+  await page.getByTestId("cue-tab-cue").click();
+  await expect(page.getByTestId("cue-level")).toBeVisible();
+  await expect(page.getByTestId("voice-inspector")).toHaveCount(0);
+  const body = page.locator(".panel-body");
+  expect(await body.evaluate((e) => e.scrollHeight <= e.clientHeight + 1)).toBe(true);
+
+  await page.getByTestId("tab-text").click();
+  await expect(page.getByTestId("shipped-text-reactor.title")).toHaveText("Reactor");
+
+  // Shut, the panels draw as they did.
+  await page.getByTestId("panel-wide").click();
+  await expect(page.getByTestId("shipped-text-reactor.title")).toHaveCount(0);
+  await page.getByTestId("tab-rating").click();
+  await expect(page.getByTestId("rating-scale")).toHaveCount(0);
 });

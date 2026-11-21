@@ -118,9 +118,9 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 23. **Its own pieces and sounds.** A puzzle's pieces are pictograms of its own subject, drawings
     in `boards/data/pieces/<id>.json` painted in code by its `pieces.ts` on the shared palette
     (`docs/BRAND.md` section 3, ADR 0062, ADR 0065; Cooling's is the model), and each moment item 1
-    asks to be heard has a synthesized cue: one of those in `boards/data/cues.json`, with its
+    asks to be heard has a synthesized cue: one of those in its own `boards/data/cues/<id>.json` (ADR 0070), with its
     parameters in `boards/src/cues.ts`, in the one key and voice of `docs/BRAND.md` section
-    8, played through `sfx`. The beat has one sound, the same on every board, and a board plays
+    8, played through `sfx`. The beat has one sound on a board, the puzzle's own copy (ADR 0071), and a board plays
     no cue of its own over it. Nothing generated lands in the game: no picture is made for a
     piece and no sample for a cue, and there is no tooling to make either with (ADR 0062).
 24. **Every string in the message table.**
@@ -154,8 +154,8 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
    18). Write the tuning notes.
 4. Draw its pieces as drawings in `boards/data/pieces/<id>.json`, painted by its `pieces.ts`
    (the studio's Sprites editor draws them too), and look at the board with every piece in one
-   colour (rule 22). Give each moment its cue from `boards/data/cues.json` and list them in
-   `studio/src/assets/cues.ts`. Write the design file, the guide and its capture.
+   colour (rule 22). Give each moment its cue, copied into its own `boards/data/cues/<id>.json` from
+   `boards/data/cues.json`, and list them in `studio/src/assets/cues.ts`. Write the design file, the guide and its capture.
 5. Once it plays whole, cut its ladder (rule 26): stages in content, a bot score for each, the
    guide's ladder.
 6. Report the bar, item by item, with the open questions for play.
@@ -176,7 +176,7 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
    - **A control:** the design file, the guide's controls, the studio smoke.
    - **A look or a sound:** `pnpm --filter @openseas/docs capture <id>`, and every picture looked at.
      A look follows `docs/BRAND.md`: a piece is a pictogram drawn in `boards/data/pieces/<id>.json`
-     and painted by the puzzle's `pieces.ts`, a cue is voiced in `boards/data/cues.json`, and every
+     and painted by the puzzle's `pieces.ts`, a cue is voiced in the puzzle's own `boards/data/cues/<id>.json`, and every
      colour comes from `boards/src/look/tokens.ts` (`studio/test/look.test.ts` fails on one typed
      anywhere else).
 3. Done when the studio's tests and smoke and the docs tests are green and the bar items you named are

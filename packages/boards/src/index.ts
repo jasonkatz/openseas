@@ -5,7 +5,8 @@
  */
 export { content, messageOverrideRevision, overrideMessages, shippedMessage, subscribeMessages, t } from "./content.js";
 export { sfx, isMuted, setMuted, auditionCue, auditionData, audioState, measureCues, type CueMeasure } from "./audio.js";
-export { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, SCALE, SHIPPED_CUES, cueDataOf, cueFrom, cueLength, cueOf, cueOverrideRevision, overrideCues, subscribeCues, type Cue, type CueArgs, type CueName, type CueParam, type Voice } from "./cues.js";
+export { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, SCALE, PUZZLE_SHIPPED_CUES, SHIPPED_CUES, cueDataOf, cueFrom, cueLength, cueOf, playCuesOf, shippedCue, shippedCueOf, cueOverrideRevision, overrideCues, subscribeCues, type Cue, type CueArgs, type CueName, type CueParam, type Voice } from "./cues.js";
+export { usePuzzleCues } from "./usePuzzleCues.js";
 export { SHIPPED_PIECES, drawingOf, overridePieces, pieceOverrideRevision, piecePaint, subscribePieces } from "./look/pieces.js";
 export { paintDrawing, paintLayer } from "./kit/drawing.js";
 export { ROUNDEST, THINNEST, cueProblems, drawingProblems, type LookProblem } from "./look/rules.js";

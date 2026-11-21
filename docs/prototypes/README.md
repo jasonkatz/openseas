@@ -133,7 +133,7 @@ it has not played yet: the engine numbers its events with a rising `seq`, as Nav
 the renderer remembers the last one it showed.
 
 Sounds are `sfx` in `boards/src/audio.ts`; the renderer plays them at the moment the animation
-shows the thing. Every cue is synthesized, from its definition in `boards/data/cues.json`
+shows the thing. Every cue is synthesized, from its definition in the puzzle's own `boards/data/cues/<id>.json`
 (`docs/BRAND.md` section 8, ADR 0062, ADR 0065): there are no samples. A cue of the puzzle's own is
 `sfx.cue(name, fallback)`, a name for a moment and the cues that voice it. The beat's sound comes
 with the beat (`this.beat`), and the board plays no cue of its own in that moment.

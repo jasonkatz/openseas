@@ -4,7 +4,7 @@
  * are no samples and nothing is loaded (ADR 0062 decision 5).
  */
 import type { CueData } from "@openseas/protocol";
-import { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, cueFrom, cueOf, envelope, type Cue, type CueArgs, type CueName } from "./cues.js";
+import { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, PUZZLE_SHIPPED_CUES, SHIPPED_CUES, cueFrom, cueOf, envelope, type Cue, type CueArgs, type CueName } from "./cues.js";
 
 const MUTE_KEY = "openseas.muted";
 let ctx: AudioContext | null = null;
@@ -183,9 +183,9 @@ export function scheduleCue(ac: BaseAudioContext, out: AudioNode, cue: Cue, t0: 
  * Renders one cue offline and returns its samples (mono, 48kHz), for `seconds` from its start.
  * The studio's smoke measures every cue with this in a real browser (studio/e2e/sound.spec.ts).
  */
-export async function renderCue<K extends CueName>(name: K, args: CueArgs<K>, seconds = 1): Promise<Float32Array> {
+export async function renderCue<K extends CueName>(name: K, args: CueArgs<K>, seconds = 1, data?: CueData): Promise<Float32Array> {
   const ac = new OfflineAudioContext(1, Math.ceil(48000 * seconds), 48000);
-  scheduleCue(ac, ac.destination, cueOf(name, args), 0);
+  scheduleCue(ac, ac.destination, data ? cueFrom(data, CUE_PARAMS[name], args) : cueOf(name, args), 0);
   return (await ac.startRendering()).getChannelData(0);
 }
 
@@ -193,6 +193,8 @@ export async function renderCue<K extends CueName>(name: K, args: CueArgs<K>, se
 export interface CueMeasure {
   cue: CueName;
   args: readonly unknown[];
+  /** Whose copies of the cue sound this way: "game" for the game's own, else each puzzle's id (ADR 0070). */
+  sets: string[];
   /** Seconds from its start to its last sample above silence (-80 dBFS). */
   length: number;
   /** Its loudest sample, of full scale 1. */
@@ -206,10 +208,21 @@ export interface CueMeasure {
 
 /** Renders every cue, with every row of its `PROBES`, and measures each. */
 export async function measureCues(): Promise<CueMeasure[]> {
+  // Every copy of every cue, the game's and each puzzle's (ADR 0070); copies that are alike are rendered once.
+  const copies = new Map<string, { cue: CueName; data: CueData; sets: string[] }>();
+  const add = (set: string, cue: CueName, data: CueData | undefined): void => {
+    if (!data) return;
+    const key = `${cue}:${JSON.stringify(data)}`;
+    const was = copies.get(key);
+    if (was) was.sets.push(set);
+    else copies.set(key, { cue, data, sets: [set] });
+  };
+  for (const cue of CUE_NAMES) add("game", cue, SHIPPED_CUES[cue]);
+  for (const [id, cues] of Object.entries(PUZZLE_SHIPPED_CUES)) for (const cue of CUE_NAMES) add(id, cue, cues[cue]);
   const rows: CueMeasure[] = [];
-  for (const cue of CUE_NAMES) {
+  for (const { cue, data, sets } of copies.values()) {
     for (const args of PROBES[cue] as readonly CueArgs<typeof cue>[]) {
-      const x = await renderCue(cue, args, 1);
+      const x = await renderCue(cue, args, 1, data);
       let last = -1;
       let peak = 0;
       let step = 0;
@@ -221,7 +234,7 @@ export async function measureCues(): Promise<CueMeasure[]> {
       }
       let tail = 0;
       for (let i = last + 1; i < Math.min(x.length, last + 49); i++) tail = Math.max(tail, Math.abs(x[i]!));
-      rows.push({ cue, args, length: (last + 1) / 48000, peak, first: Math.abs(x[0]!), tail, step });
+      rows.push({ cue, args, sets, length: (last + 1) / 48000, peak, first: Math.abs(x[0]!), tail, step });
     }
   }
   return rows;

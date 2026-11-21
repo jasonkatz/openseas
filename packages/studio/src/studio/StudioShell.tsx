@@ -18,7 +18,7 @@ import { TopBar, type Target } from "./TopBar.jsx";
 import { Transport, useAltKey } from "./Transport.jsx";
 import { useRoundClock } from "./roundClock.js";
 import { readRestart, writeRestart } from "./useStudio.js";
-import { canWiden, isWide, readWide, writeWide } from "./wide.js";
+import { WidePanel, canWiden, isWide, readWide, writeWide } from "./wide.js";
 import { useWideMotion } from "./wideMotion.js";
 
 const HINTS_KEY = "openseas.studio.hints";
@@ -146,7 +146,7 @@ export function StudioShell(p: ShellProps) {
             <button
               type="button"
               className="btn btn-mini btn-sq"
-              hidden={mode === "text"}
+              hidden={mode === "text" || widened}
               aria-pressed={hints}
               aria-label={t("studio.hints")}
               title={t("studio.hints")}
@@ -179,25 +179,27 @@ export function StudioShell(p: ShellProps) {
             </label>
           </div>
         </header>
-        <div className="panel-body">
-          <LooseRefusals sections={sections} />
-          <div hidden={mode !== "play"} data-mode-panel="play">
-            <PlayPanel onStart={p.onStart} />
+        <WidePanel.Provider value={widened}>
+          <div className={`panel-body ${widened && (mode === "sprites" || mode === "sounds") ? "is-split" : ""}`}>
+            <LooseRefusals sections={sections} />
+            <div hidden={mode !== "play"} data-mode-panel="play">
+              <PlayPanel onStart={p.onStart} />
+            </div>
+            <NumbersPanel sections={sections} mode={mode} query={q} hints={hints} shown={isNumberMode(mode) || (mode === "text" && q !== "")} />
+            <TextPanel entries={texts} query={q} shown={mode === "text" || (isNumberMode(mode) && q !== "")} />
+            {!found && (
+              <p className="panel-empty" data-testid="find-none">
+                {t("studio.find_none", { query: query.trim() })}
+              </p>
+            )}
+            <div hidden={mode !== "sprites"} data-mode-panel="sprites">
+              <SpritePanel puzzle={puzzle} focus={piece} onFocus={setPiece} />
+            </div>
+            <div hidden={mode !== "sounds"} data-mode-panel="sounds">
+              <SoundPanel puzzle={puzzle} focus={cue} onFocus={setCue} />
+            </div>
           </div>
-          <NumbersPanel sections={sections} mode={mode} query={q} hints={hints} shown={isNumberMode(mode) || (mode === "text" && q !== "")} />
-          <TextPanel entries={texts} query={q} shown={mode === "text" || (isNumberMode(mode) && q !== "")} />
-          {!found && (
-            <p className="panel-empty" data-testid="find-none">
-              {t("studio.find_none", { query: query.trim() })}
-            </p>
-          )}
-          <div hidden={mode !== "sprites"} data-mode-panel="sprites">
-            <SpritePanel puzzle={puzzle} focus={piece} onFocus={setPiece} />
-          </div>
-          <div hidden={mode !== "sounds"} data-mode-panel="sounds">
-            <SoundPanel puzzle={puzzle} focus={cue} onFocus={setCue} />
-          </div>
-        </div>
+        </WidePanel.Provider>
       </aside>
 
       <div ref={stage} className="studio-stage">

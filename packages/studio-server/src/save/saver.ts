@@ -105,7 +105,7 @@ export function pullBody(o: { puzzle: string; login: string; changes: Changes; e
     "This pull request is a draft, and the studio leaves it there. It holds what was tuned and what the chat's agent edited, and nothing more: the rest of what a changed puzzle needs (its design file, its guide, a capture where the look changed, its strings) is for a developer to finish before marking it ready.",
     ...(texts.length ? [`A string changed: the puzzle's guide and its design file may quote it, so both are re-read (\`packages/docs\`, \`docs/puzzles\` or \`docs/prototypes\`).`] : []),
     ...(look.pieces.length ? [`A piece was redrawn: the guide's pictures are captured again (\`pnpm --filter @openseas/docs capture ${o.puzzle}\`), and the board is looked at with every piece in one colour (\`docs/BRAND.md\` section 3).`] : []),
-    ...(look.cues.length ? ["A cue was revoiced: it is heard on every board that plays it, and the studio's sound tests hold it to `docs/BRAND.md` section 8."] : []),
+    ...(look.cues.length ? ["A cue was revoiced in this puzzle's own copy: it is heard on this puzzle's board and no other, and the studio's sound tests hold it to `docs/BRAND.md` section 8."] : []),
   ];
   return [
     `Saved from the puzzle studio by [${o.login}](https://github.com/${o.login}).`,
@@ -113,7 +113,7 @@ export function pullBody(o: { puzzle: string; login: string; changes: Changes; e
     table,
     ...(texts.length ? [`Strings rewritten in \`${messagesPath}\`:`, ["| Key | Shipped | Draft |", "|---|---|---|", ...texts.map((x) => `| \`${x.key}\` | ${cell(x.from)} | ${cell(x.to)} |`)].join("\n")] : []),
     ...(look.pieces.length ? [`Pieces redrawn in \`${piecesPath(o.puzzle)}\`: ${look.pieces.map((n) => `\`${n}\``).join(", ")}`] : []),
-    ...(look.cues.length ? [`Cues revoiced in \`${cuesPath}\`: ${look.cues.map((n) => `\`${n}\``).join(", ")}`] : []),
+    ...(look.cues.length ? [`Cues revoiced in \`${cuesPath(o.puzzle)}\`: ${look.cues.map((n) => `\`${n}\``).join(", ")}`] : []),
     ...(o.edited.length ? ["Files edited by the studio's agent, in the chat, a commit a turn:", files.join("\n")] : []),
     `Play the numbers${texts.length ? " and words" : ""}${restyled ? " and look" : ""}: ${o.linkUrl}${o.edited.length ? " (the link plays the deployed build; the edits above are seen on this pull request's preview)" : ""}`,
     ...left,
@@ -181,7 +181,7 @@ export function createSaver(o: SaverOptions): Saver {
     const looks: Array<{ path: string; entries: Record<string, unknown>; before: string; base: string | null; after: string }> = [];
     for (const [file, entries, saved] of [
       [piecesPath(row.puzzle), look.pieces, savedLook.pieces],
-      [cuesPath, look.cues, savedLook.cues],
+      [cuesPath(row.puzzle), look.cues, savedLook.cues],
     ] as const) {
       if (Object.keys(entries).length === 0 && Object.keys(saved).length === 0) continue;
       const was = await repo.read(id, file);
@@ -202,7 +202,7 @@ export function createSaver(o: SaverOptions): Saver {
       const f = looks.find((x) => x.path === file);
       return f ? describeLook(f.before, f.entries) : [];
     };
-    await repo.commit(id, commitMessage(row.puzzle, describeNumbers(before, row.numbers), describeTexts(tableBefore, texts), { pieces: lookOfFile(piecesPath(row.puzzle)), cues: lookOfFile(cuesPath) }));
+    await repo.commit(id, commitMessage(row.puzzle, describeNumbers(before, row.numbers), describeTexts(tableBefore, texts), { pieces: lookOfFile(piecesPath(row.puzzle)), cues: lookOfFile(cuesPath(row.puzzle)) }));
     // Recorded before the push: if that fails, the next Save still knows what this one wrote.
     await mark(id, { branch, savedNumbers: row.numbers });
     if ((await repo.ahead(id)) === 0) throw new SaveRefused("nothing");
@@ -216,7 +216,7 @@ export function createSaver(o: SaverOptions): Saver {
       const f = looks.find((x) => x.path === file);
       return f ? describeLook(f.base ?? f.before, f.entries) : [];
     };
-    const restyled: LookChanges = { pieces: lookAgainstBase(piecesPath(row.puzzle)), cues: lookAgainstBase(cuesPath) };
+    const restyled: LookChanges = { pieces: lookAgainstBase(piecesPath(row.puzzle)), cues: lookAgainstBase(cuesPath(row.puzzle)) };
     const title = pullTitle(row.puzzle, edited, reworded.length > 0, restyled.pieces.length + restyled.cues.length > 0);
     const body = pullBody({ puzzle: row.puzzle, login, changes: describeNumbers(base ?? before, row.numbers), edited, linkUrl: `${o.studioOrigin}/play/${linkId}`, texts: reworded, look: restyled });
     if (row.pullNumber === null) {

@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import type { BattleEvent } from "@openseas/engine";
 import type { ShipSnapshot } from "@openseas/protocol";
-import { BattleBoard, TierPace, sfx, t, useTierPace } from "@openseas/boards";
+import { BattleBoard, TierPace, sfx, t, usePuzzleCues, useTierPace } from "@openseas/boards";
 import { tierName } from "../../names.js";
 import { ShipHud } from "../ShipHud.jsx";
 import { useBattleApi } from "./useBattle.js";
@@ -17,6 +17,8 @@ export interface BattleViewProps {
  * stations; the hull, the loads and the tokens they make arrive on the board every turn.
  */
 export function BattleView({ ship, onBack }: BattleViewProps) {
+  // The fight's own cues while it is on screen (ADR 0070).
+  usePuzzleCues("battle");
   const api = useBattleApi();
   const back = useCallback(() => {
     api.dismiss();
