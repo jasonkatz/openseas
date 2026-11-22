@@ -143,7 +143,8 @@ and slow.
 _Avoid_: rating (a player has standing), rank
 
 **Par**:
-The fewest moves that can finish a task, worked out by the rules when the task is dealt.
+The fewest moves that can finish a task, worked out by the rules when the task is dealt and shown to
+the player.
 
 **Best**:
 The most any play could score from a task, worked out by the rules when the task is dealt to grade

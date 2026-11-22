@@ -77,3 +77,4 @@ that supersedes it.
 | [0069](./0069-rating-is-a-mode-of-its-own.md) | Rating is a mode of its own, beside Scoring |
 | [0070](./0070-each-puzzle-has-its-own-copy-of-its-cues.md) | Each puzzle has its own copy of its cues; the beat stays the game's alone |
 | [0071](./0071-the-beat-is-each-puzzles-own-too.md) | The beat is each puzzle's own too; its pulse stays the same on every board |
+| [0072](./0072-a-round-keeps-one-difficulty-and-the-stage-sets-it.md) | A round keeps one difficulty, and the stage sets it: no ramp within a round |
