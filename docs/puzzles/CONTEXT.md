@@ -57,6 +57,16 @@ How a player makes a move by touch, such as a tap on a cell or a path drawn thro
 follow from the gesture.
 _Avoid_: input, interaction
 
+**In hand**:
+What a player holds and adjusts before making a move with it, such as a plate taken from a tray.
+Adjusting it is never a move; setting it down is.
+_Avoid_: held piece, cursor piece
+
+**Control**:
+A button a puzzle declares for a move that has no place, such as a skip, or for switching what a tap
+does.
+_Avoid_: action, button (that is how a control looks)
+
 **Setting**:
 A named number a puzzle is tuned by, with its bounds and a line saying what it does.
 _Avoid_: config, knob, parameter, number
@@ -88,7 +98,7 @@ A count the rules keep about a round, such as the longest path, shown when it en
 
 **Gauge**:
 A named number a player watches while a round is played, besides the score, such as moves left or a
-rising line.
+rising line. It may have a most, and a point past which it means danger.
 _Avoid_: meter, counter, indicator
 
 **Outcome**:
@@ -149,7 +159,7 @@ Where pieces can be on a puzzle's board and which places touch. It is part of th
 _Avoid_: layout (which also covers arrangement)
 
 **Shape**:
-The kind of board a puzzle declares, such as a grid or rings, from which its cells come.
+The kind of board a puzzle declares, a grid or rings, from which its cells come.
 _Avoid_: topology
 
 **Cell**:
@@ -162,13 +172,29 @@ What a cell is, as opposed to the piece on it, such as a wall or a port. A cell 
 plain unless the puzzle says otherwise.
 _Avoid_: fixture, obstacle, feature
 
+**Rim**:
+A ring of cells just outside a grid's playing area, holding terrain such as ports.
+_Avoid_: edge, border
+
+**Map**:
+Terrain drawn by hand for a whole board. A puzzle with maps has a list of them, and the seed picks one.
+_Avoid_: level, layout
+
 **Zone**:
 A named place beside the board that holds a fixed number of pieces, such as the next piece or a tray.
+A player either only watches a zone or takes pieces from it.
 _Avoid_: queue, tray, preview area
+
+**Place**:
+A cell on a board, or a numbered spot in a zone: what a move or an event points at.
+_Avoid_: position, location
 
 **Piece**:
 A thing on the board that the rules know by its id.
 _Avoid_: tile, sprite, token
+
+**Footprint**:
+The cells a piece covers: one, or several together.
 
 **Family**:
 A numbered set of interchangeable pieces, of which a setting decides how many are dealt.
