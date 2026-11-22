@@ -52,6 +52,11 @@ _Avoid_: mechanic, action
 One act a player makes in a round: the verb, or a lesser act such as a skip.
 _Avoid_: action, input, command
 
+**Gesture**:
+How a player makes a move by touch, such as a tap on a cell or a path drawn through cells. Keys
+follow from the gesture.
+_Avoid_: input, interaction
+
 **Setting**:
 A named number a puzzle is tuned by, with its bounds and a line saying what it does.
 _Avoid_: config, knob, parameter, number
@@ -80,6 +85,11 @@ The sum of a round's points. It never goes below zero.
 
 **Stat**:
 A count the rules keep about a round, such as the longest path, shown when it ends.
+
+**Gauge**:
+A named number a player watches while a round is played, besides the score, such as moves left or a
+rising line.
+_Avoid_: meter, counter, indicator
 
 **Outcome**:
 Who won a round played between sides.
@@ -132,7 +142,29 @@ _Avoid_: stretch, sample window
 A player's level at a puzzle across rounds, built from their performances and shown as a tier.
 _Avoid_: rating, rank, Elo, MMR
 
-## On the board
+## The board
+
+**Geometry**:
+Where pieces can be on a puzzle's board and which places touch. It is part of the rules.
+_Avoid_: layout (which also covers arrangement)
+
+**Shape**:
+The kind of board a puzzle declares, such as a grid or rings, from which its cells come.
+_Avoid_: topology
+
+**Cell**:
+One place on a board where a piece can be, whatever the board's shape. Every board counts its rows
+from the top and its columns from the left.
+_Avoid_: space, slot, square, tile
+
+**Terrain**:
+What a cell is, as opposed to the piece on it, such as a wall or a port. A cell has one terrain,
+plain unless the puzzle says otherwise.
+_Avoid_: fixture, obstacle, feature
+
+**Zone**:
+A named place beside the board that holds a fixed number of pieces, such as the next piece or a tray.
+_Avoid_: queue, tray, preview area
 
 **Piece**:
 A thing on the board that the rules know by its id.
@@ -214,3 +246,8 @@ _Avoid_: context, purpose
 **Countdown**:
 The host's moment that marks a round's last seconds.
 _Avoid_: tick
+
+**Arrangement**:
+Where things sit on a screen and how big they are: the board, its zones, the score. It belongs to
+whatever draws the board, never to the puzzle.
+_Avoid_: layout
