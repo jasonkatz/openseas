@@ -2,7 +2,8 @@
 
 ## Contexts
 
-- [The puzzle](./docs/puzzles/CONTEXT.md): the pure puzzle, with nothing from the game's world in it
+- [The puzzle](./docs/puzzles/CONTEXT.md): the pure puzzle, with nothing from the game's world in it.
+  Its [domain guide](./docs/puzzles/DOMAIN.md) says how the words fit together.
 - [The game](./docs/GLOSSARY.md): the space game's words: its world, ships, crews, stations and
   the words they replaced
 

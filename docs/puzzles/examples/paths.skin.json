@@ -1,0 +1,515 @@
+{
+  "puzzle": "paths",
+  "pieces": {
+    "kind_1": {
+      "tint": "sand",
+      "layers": [
+        {
+          "name": "bar",
+          "kind": "poly",
+          "points": [7.4, 6.8, 16.6, 6.8, 20.4, 17.2, 3.6, 17.2],
+          "round": 3.2
+        }
+      ]
+    },
+    "kind_2": {
+      "tint": "sky",
+      "layers": [
+        {"name": "upright", "kind": "rect", "x": 2.5, "y": 2.5, "w": 9, "h": 19, "r": 2.5},
+        {"name": "foot", "kind": "rect", "x": 2.5, "y": 12.5, "w": 19, "h": 9, "r": 2.5}
+      ]
+    },
+    "kind_3": {
+      "tint": "rose",
+      "layers": [{"name": "sliver", "kind": "poly", "points": [15, 4.2, 20, 14.2, 4.8, 19.8], "round": 3.2}]
+    },
+    "kind_4": {
+      "tint": "moss",
+      "layers": [
+        {
+          "name": "gem",
+          "kind": "poly",
+          "points": [8.2, 4.2, 15.8, 4.2, 20, 9.4, 12, 20.2, 4, 9.4],
+          "round": 2.4
+        }
+      ]
+    },
+    "kind_5": {
+      "tint": "lilac",
+      "layers": [{"name": "capsule", "kind": "rect", "x": 6.5, "y": 2, "w": 11, "h": 20, "r": 5.5}]
+    },
+    "kind_6": {
+      "tint": "teal",
+      "layers": [
+        {
+          "name": "star",
+          "kind": "poly",
+          "points": [12, 3, 14.5, 9.5, 21, 12, 14.5, 14.5, 12, 21, 9.5, 14.5, 3, 12, 9.5, 9.5],
+          "round": 2.2
+        }
+      ]
+    },
+    "kind_7": {
+      "tint": "slate",
+      "layers": [
+        {"name": "rod", "kind": "bar", "x0": 6.4, "y0": 17.6, "x1": 17.6, "y1": 6.4, "width": 4},
+        {"name": "knuckle", "kind": "disc", "x": 6.2, "y": 17.8, "r": 4.2},
+        {"name": "knuckle", "kind": "disc", "x": 17.8, "y": 6.2, "r": 4.2}
+      ]
+    },
+    "kind_8": {
+      "tint": "rust",
+      "layers": [
+        {"name": "bulb", "kind": "disc", "x": 12, "y": 14.6, "r": 7.4},
+        {"name": "point", "kind": "poly", "points": [12, 4, 17.2, 11.4, 6.8, 11.4], "round": 2.4}
+      ]
+    },
+    "prize": {
+      "tint": "cream",
+      "layers": [
+        {"name": "box", "kind": "rect", "x": 2, "y": 2, "w": 20, "h": 20, "r": 3},
+        {"name": "latch", "kind": "rect", "x": 8, "y": 9.5, "w": 8, "h": 5, "r": 2, "cut": true}
+      ]
+    },
+    "ruined": {
+      "tint": "dim",
+      "layers": [
+        {
+          "name": "left",
+          "kind": "poly",
+          "points": [2.5, 21, 3.5, 13.5, 10, 12.5, 11, 21],
+          "round": 1.4
+        },
+        {
+          "name": "right",
+          "kind": "poly",
+          "points": [13, 21, 13.5, 12, 20.5, 13, 21.5, 21],
+          "round": 1.4
+        },
+        {
+          "name": "top",
+          "kind": "poly",
+          "points": [7.5, 10.5, 8.5, 3.5, 15, 3, 16, 10.5],
+          "round": 1.4
+        }
+      ]
+    },
+    "timed": {
+      "over": "kind",
+      "layers": [{"name": "heart", "kind": "disc", "x": 12, "y": 12.6, "r": 2.6, "cut": true}],
+      "count": {"layer": {"name": "notch", "kind": "disc", "y": 1.7, "r": 1.25}, "step": 3.3}
+    }
+  },
+  "cues": {
+    "pop": {
+      "level": 1,
+      "cutoff": 2200,
+      "voices": [
+        {
+          "kind": "tone",
+          "note": 8,
+          "wave": "sine",
+          "at": 0,
+          "attack": 0.01,
+          "release": 0.09,
+          "level": 1
+        }
+      ],
+      "shift": {"param": "steps", "per": 1, "offset": 0, "min": 0, "max": 16, "round": "floor"}
+    },
+    "good": {
+      "level": 1,
+      "cutoff": 2200,
+      "voices": [
+        {
+          "kind": "tone",
+          "note": 10,
+          "wave": "triangle",
+          "at": 0,
+          "attack": 0.012,
+          "release": 0.088,
+          "level": 0.8
+        },
+        {
+          "kind": "tone",
+          "note": 13,
+          "wave": "triangle",
+          "at": 0.08,
+          "attack": 0.012,
+          "release": 0.168,
+          "level": 1
+        }
+      ]
+    },
+    "rise": {
+      "level": 1,
+      "cutoff": 1000,
+      "voices": [
+        {
+          "kind": "tone",
+          "note": 3,
+          "wave": "triangle",
+          "at": 0,
+          "attack": 0.012,
+          "release": 0.128,
+          "level": 0.8
+        },
+        {
+          "kind": "tone",
+          "note": 4,
+          "wave": "triangle",
+          "at": 0.09,
+          "attack": 0.012,
+          "release": 0.158,
+          "level": 0.9
+        }
+      ]
+    },
+    "slag": {
+      "level": 1.1,
+      "cutoff": 2400,
+      "voices": [
+        {
+          "kind": "tone",
+          "note": 12,
+          "wave": "triangle",
+          "at": 0,
+          "attack": 0.012,
+          "release": 0.108,
+          "level": 0.7
+        },
+        {
+          "kind": "tone",
+          "note": 15,
+          "wave": "sine",
+          "at": 0.06,
+          "attack": 0.01,
+          "release": 0.19,
+          "level": 0.8
+        }
+      ]
+    },
+    "crack": {
+      "level": 1.55,
+      "cutoff": 1600,
+      "voices": [
+        {
+          "kind": "air",
+          "at": 0,
+          "attack": 0.015,
+          "release": 0.125,
+          "level": 0.9,
+          "from": 1900,
+          "to": 400,
+          "band": false,
+          "when": {"param": "loud", "from": 1}
+        },
+        {
+          "kind": "air",
+          "at": 0,
+          "attack": 0.015,
+          "release": 0.125,
+          "level": 0.6,
+          "from": 1900,
+          "to": 400,
+          "band": false,
+          "when": {"param": "loud", "to": 0}
+        },
+        {
+          "kind": "tone",
+          "note": 4,
+          "wave": "triangle",
+          "at": 0.02,
+          "attack": 0.012,
+          "release": 0.188,
+          "level": 0.6,
+          "when": {"param": "loud", "from": 1}
+        },
+        {
+          "kind": "tone",
+          "note": 4,
+          "wave": "triangle",
+          "at": 0.02,
+          "attack": 0.012,
+          "release": 0.108,
+          "level": 0.6,
+          "when": {"param": "loud", "to": 0}
+        },
+        {
+          "kind": "tone",
+          "note": 1,
+          "wave": "sine",
+          "at": 0.08,
+          "attack": 0.02,
+          "release": 0.28,
+          "level": 0.8,
+          "when": {"param": "loud", "from": 1}
+        }
+      ],
+      "alt": {"when": {"param": "loud", "from": 1}, "level": 1.08, "cutoff": 1600}
+    },
+    "bump": {
+      "level": 0.95,
+      "cutoff": 800,
+      "voices": [
+        {
+          "kind": "air",
+          "at": 0,
+          "attack": 0.015,
+          "release": 0.035,
+          "level": 0.5,
+          "from": 700,
+          "to": 250,
+          "band": false
+        },
+        {
+          "kind": "tone",
+          "note": 3,
+          "wave": "triangle",
+          "at": 0,
+          "attack": 0.012,
+          "release": 0.078,
+          "level": 1
+        }
+      ]
+    },
+    "thud": {
+      "level": 0.74,
+      "cutoff": 700,
+      "voices": [
+        {
+          "kind": "air",
+          "at": 0,
+          "attack": 0.015,
+          "release": 0.045,
+          "level": 0.5,
+          "from": 600,
+          "to": 180,
+          "band": false
+        },
+        {
+          "kind": "tone",
+          "note": 1,
+          "wave": "sine",
+          "at": 0,
+          "attack": 0.012,
+          "release": 0.128,
+          "level": 1
+        },
+        {
+          "kind": "tone",
+          "note": 1,
+          "wave": "triangle",
+          "at": 0,
+          "attack": 0.012,
+          "release": 0.088,
+          "level": 0.4
+        }
+      ]
+    },
+    "whoosh": {
+      "level": 2.6,
+      "cutoff": 2000,
+      "voices": [
+        {
+          "kind": "air",
+          "at": 0,
+          "attack": 0.06,
+          "release": 0.18,
+          "level": 1,
+          "from": 400,
+          "to": 1800,
+          "band": true
+        }
+      ]
+    },
+    "start": {
+      "level": 1,
+      "cutoff": 2000,
+      "voices": [
+        {
+          "kind": "tone",
+          "note": 5,
+          "wave": "triangle",
+          "at": 0,
+          "attack": 0.012,
+          "release": 0.128,
+          "level": 0.8
+        },
+        {
+          "kind": "tone",
+          "note": 10,
+          "wave": "triangle",
+          "at": 0.1,
+          "attack": 0.012,
+          "release": 0.208,
+          "level": 1
+        }
+      ]
+    },
+    "countdown": {
+      "level": 1,
+      "cutoff": 2200,
+      "voices": [
+        {
+          "kind": "tone",
+          "note": 11,
+          "wave": "sine",
+          "at": 0,
+          "attack": 0.01,
+          "release": 0.045,
+          "level": 1,
+          "when": {"param": "urgent", "to": 0}
+        },
+        {
+          "kind": "tone",
+          "note": 13,
+          "wave": "sine",
+          "at": 0,
+          "attack": 0.01,
+          "release": 0.045,
+          "level": 1,
+          "when": {"param": "urgent", "from": 1}
+        }
+      ]
+    },
+    "end": {
+      "level": 0.95,
+      "cutoff": 2200,
+      "voices": [
+        {
+          "kind": "tone",
+          "note": 5,
+          "wave": "triangle",
+          "at": 0,
+          "attack": 0.012,
+          "release": 0.188,
+          "level": 0.7
+        },
+        {
+          "kind": "tone",
+          "note": 8,
+          "wave": "triangle",
+          "at": 0.06,
+          "attack": 0.012,
+          "release": 0.188,
+          "level": 0.7
+        },
+        {
+          "kind": "tone",
+          "note": 10,
+          "wave": "triangle",
+          "at": 0.12,
+          "attack": 0.012,
+          "release": 0.188,
+          "level": 0.8
+        },
+        {
+          "kind": "tone",
+          "note": 13,
+          "wave": "triangle",
+          "at": 0.18,
+          "attack": 0.012,
+          "release": 0.208,
+          "level": 1
+        }
+      ]
+    },
+    "beat": {
+      "level": 0.62,
+      "cutoff": 1600,
+      "voices": [
+        {
+          "kind": "tone",
+          "note": 0,
+          "wave": "sine",
+          "at": 0,
+          "attack": 0.03,
+          "release": 0.67,
+          "level": 1
+        },
+        {
+          "kind": "tone",
+          "note": 3,
+          "wave": "triangle",
+          "at": 0,
+          "attack": 0.03,
+          "release": 0.63,
+          "level": 0.55
+        },
+        {
+          "kind": "tone",
+          "note": 5,
+          "wave": "sine",
+          "at": 0.01,
+          "attack": 0.03,
+          "release": 0.57,
+          "level": 0.5
+        },
+        {
+          "kind": "tone",
+          "note": 7,
+          "wave": "sine",
+          "at": 0.03,
+          "attack": 0.03,
+          "release": 0.47,
+          "level": 0.2
+        }
+      ],
+      "swell": {"param": "strength", "from": 0.75, "to": 1}
+    }
+  },
+  "events": {
+    "clear": {"cues": ["pop"]},
+    "settle": {"cues": []},
+    "reshuffle": {"cues": ["whoosh"]},
+    "streak": {"cues": []},
+    "prize_floor": {"cues": ["thud"]},
+    "loop": {"cues": ["slag"], "beat": true},
+    "bounty": {"cues": ["rise"]},
+    "defuse": {"cues": ["good"]},
+    "blowup": {"cues": ["crack"]},
+    "start": {"cues": ["start"]},
+    "countdown": {"cues": ["countdown"]},
+    "end": {"cues": ["end"]}
+  },
+  "texts": {
+    "name": "Salvage",
+    "blurb": "Drag a tether through matching debris and haul it in. Close the line into a loop to net every crate adrift.",
+    "how_to": "Drag a line through touching debris of one kind, diagonals included, and let go to haul it: a line of n pieces scores n times n. Loot crates cannot be tethered. A crate that sinks to the floor is taken for a little; to take crates for what they are worth, bring the line back onto its first piece. A closed line is a net: it hauls every crate on the field at once, and crates are worth far more together than apart.",
+    "stage.paths": "Lines",
+    "stage.paths_intro": "Drag through touching debris of one kind and let go. The longer the line, the more each piece is worth.",
+    "stage.streak": "Streak and crates",
+    "stage.streak_intro": "Lines of five or more build a streak. Loot crates are adrift: dig under one to sink it to the floor.",
+    "stage.loops": "Nets and orders",
+    "stage.loops_intro": "Close a line onto its first piece to net every crate at once. Fill the order with one long line of its kind.",
+    "stage.full": "Full salvage",
+    "stage.full_intro": "Volatiles drift in. Defuse them late for more, but never let one burn out.",
+    "piece.kind_1": "Ingot",
+    "piece.kind_2": "Panel",
+    "piece.kind_3": "Shard",
+    "piece.kind_4": "Crystal",
+    "piece.kind_5": "Cell",
+    "piece.kind_6": "Spark",
+    "piece.kind_7": "Strut",
+    "piece.kind_8": "Droplet",
+    "piece.prize": "Loot crate",
+    "piece.timed": "Volatile",
+    "piece.ruined": "Rubble",
+    "event.loop": "Netted {prizes}",
+    "event.streak": "Streak x{count}",
+    "event.prize_floor": "Crate",
+    "event.bounty": "Order filled",
+    "event.defuse": "Defused",
+    "event.blowup": "Blast",
+    "event.reshuffle": "Field scrambled",
+    "stat.paths": "Hauls",
+    "stat.longest": "Longest line",
+    "stat.loops": "Loops closed",
+    "stat.prizes_netted": "Crates netted",
+    "stat.prizes_floor": "Crates off the floor",
+    "stat.bounties": "Orders filled",
+    "stat.defused": "Volatiles defused",
+    "stat.blowups": "Volatiles blown"
+  }
+}
