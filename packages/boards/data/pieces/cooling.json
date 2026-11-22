@@ -1,5 +1,6 @@
 {
   "cog": {
+    "tint": "sand",
     "layers": [
       { "name": "teeth", "kind": "rect", "x": 9.5, "y": 2, "w": 5, "h": 20, "r": 1.6, "copies": 4, "spread": 45 },
       { "name": "disc", "kind": "disc", "x": 12, "y": 12, "r": 7.6 },
@@ -7,6 +8,7 @@
     ]
   },
   "valve": {
+    "tint": "teal",
     "layers": [
       { "kind": "disc", "x": 12, "y": 6.6, "r": 4.6 },
       { "kind": "disc", "x": 12, "y": 17.4, "r": 4.6 },
@@ -17,23 +19,27 @@
     ]
   },
   "bolt": {
+    "tint": "sky",
     "layers": [
       { "name": "head", "kind": "poly", "points": [12, 3.6, 19.3, 7.8, 19.3, 16.2, 12, 20.4, 4.7, 16.2, 4.7, 7.8], "round": 3 },
       { "name": "slot", "kind": "rect", "x": 7.5, "y": 10.5, "w": 9, "h": 3, "r": 1.5, "cut": true }
     ]
   },
   "fuse": {
+    "tint": "rust",
     "layers": [
       { "name": "capsule", "kind": "rect", "x": 7, "y": 2, "w": 10, "h": 20, "r": 5 },
       { "name": "band", "kind": "rect", "x": 6, "y": 10.5, "w": 12, "h": 3, "r": 0, "cut": true }
     ]
   },
   "crystal": {
+    "tint": "lilac",
     "layers": [
       { "name": "gem", "kind": "poly", "points": [12, 3.5, 19, 10, 12, 20.5, 5, 10], "round": 3 }
     ]
   },
   "coil": {
+    "tint": "moss",
     "layers": [
       { "kind": "rect", "x": 3, "y": 3, "w": 18, "h": 4.6, "r": 2.3 },
       { "kind": "rect", "x": 3, "y": 9.7, "w": 18, "h": 4.6, "r": 2.3 },
@@ -43,6 +49,7 @@
     ]
   },
   "chip": {
+    "tint": "rose",
     "layers": [
       { "name": "package", "kind": "rect", "x": 5, "y": 5, "w": 14, "h": 14, "r": 2.4 },
       { "name": "pins", "kind": "rect", "x": 2, "y": 7.4, "w": 20, "h": 3, "r": 1.5 },
@@ -51,17 +58,20 @@
     ]
   },
   "charge": {
+    "tint": "cream",
     "layers": [
       { "name": "spark", "kind": "poly", "points": [12, 2.8, 14.4, 9.6, 21.2, 12, 14.4, 14.4, 12, 21.2, 9.6, 14.4, 2.8, 12, 9.6, 9.6], "round": 2.4 }
     ]
   },
   "magnet": {
+    "tint": "cream",
     "layers": [
       { "name": "horseshoe", "kind": "path", "steps": [{ "x": 6.5, "y": 3.5 }, { "x": 6.5, "y": 12 }, { "x": 12, "y": 12, "r": 5.5, "from": 180, "to": 0, "ccw": true }, { "x": 17.5, "y": 3.5 }], "width": 6 },
       { "name": "poles", "kind": "rect", "x": 2, "y": 6.4, "w": 20, "h": 2.2, "r": 0, "cut": true }
     ]
   },
   "slag": {
+    "tint": "slate",
     "layers": [
       { "name": "lump", "kind": "poly", "points": [5, 15, 8, 8.5, 13.5, 5.5, 19, 10, 18.5, 17, 11, 19], "round": 3 }
     ]

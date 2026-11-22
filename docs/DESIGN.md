@@ -354,12 +354,13 @@ instead of making a new guest; the invite-gated landing offers sign-in to return
 - No music and no ambient bed. Sound effects via WebAudio, every one synthesized in code: there
   are no samples (ADR 0062 decision 5, `BRAND.md` section 8). A cue is a few soft voices, a sine,
   a triangle or a breath of filtered noise, through a low-pass, defined as data in
-  `boards/data/cues.json` and read by `boards/src/cues.ts` (ADR 0065). Every pitched note is a step
+  `boards/data/cues/<puzzle>.json`, each puzzle's own copy, or `boards/data/cues.json`, the game's
+  around the boards, and read by `boards/src/cues.ts` (ADR 0065, ADR 0070). Every pitched note is a step
   of one scale, G major pentatonic across three octaves, so any two cues that overlap sound well together. What rises steps up the scale (a
   cascade, a streak), what falls steps down (a streak lost), and a bad thing is low and soft: the
   heat alarm is two low notes. Every cue rises from nothing in at least 8ms, is over within 400ms
-  and peaks within 3 dB of one target. The beat (`BRAND.md` section 6) has one sound, the same on
-  every board: a low chord that rings for 700ms, asked for by the beat itself and heard alone,
+  and peaks within 3 dB of one target. The beat (`BRAND.md` section 6) has one sound on a board,
+  each puzzle's own copy (ADR 0071), shipped as a low chord that rings for 700ms, asked for by the beat itself and heard alone,
   with no other cue of its moment laid over it. A unit test holds the definitions to those rules
   and the studio's smoke measures every cue as the browser renders it. On a phone the page may make sound only from inside the player's own touch, so the first touch, click or key press anywhere starts the audio (`boards/src/audio.ts`); a board's cues come a frame later and would otherwise never be heard. The game's sound obeys a phone's ring switch: on silent the game is silent, it mixes with music already playing, and the phone shows no "now playing" card for it (the owner chose this over sound that plays through the switch). The whole mix is lifted to carry on a small speaker, behind a limiter, and the audio sleeps whenever the page is hidden.
 
@@ -792,6 +793,14 @@ studio does; where each thing sits does, and where this section's account of the
 tuning panel" or "the side panel", **Layout and modes** below says where that now is. The one
 thing added is that the Play panel lists the last rounds finished on the page.
 
+**The board plays from every mode, and a panel can open wide** (ADR 0068), built. A transport
+bar under the board plays the round without turning the rail back to Play; any other mode can
+open its panel over the middle while the board, still live, moves above the chat; and the Play
+panel's last rounds keep the numbers each was dealt on. The wide panels then drew more with the
+room (built): the numbers in columns with each curve drawn as a chart, the thresholds as a scale
+with the page's rounds on it, the Sprites stage large beside the pieces, a cue's voices on a
+timeline, and the shipped words beside the draft's.
+
 The studio follows the puzzles skill (`.claude/skills/puzzles/SKILL.md`), which is also what its
 agent reads:
 
@@ -806,14 +815,15 @@ agent reads:
 | Report every bar item as met or broken | The developer who finishes the pull request reports it |
 
 **Who and where.** The owner signs in with GitHub. Tester links are public. The studio is laid out
-for a desktop: the board in the middle at a phone's proportions, a rail of modes and the mode's
-panel to its left, the chat to its right. On a phone there is no studio, only play.
+for a desktop: the board in the middle at a phone's proportions with a transport bar under it, a
+rail of modes and the mode's panel to its left, the chat to its right. On a phone there is no
+studio, only play.
 
 **Home.** A grid of all fifteen puzzles, the game's and the prototypes treated alike, each with a
 live thumbnail and a mark for an open draft or pull request. Each puzzle keeps its path
 (`/cooling`, `/salvage`), and the old query string (`seed`, `c.<path>`) still opens a tuned round.
 
-**Layout and modes** (ADR 0056).
+**Layout and modes** (ADR 0056, ADR 0068).
 
 - A bar across the top. On its left, where the page is: the way back to the grid, the puzzle's
   name, which opens a menu of every puzzle, and a count of what the draft changes. The count opens
@@ -822,20 +832,44 @@ live thumbnail and a mark for an open draft or pull request. Each puzzle keeps i
   count says so instead. On its right, what becomes of the draft: whether the service has it, a
   Share menu (the play link, tester links, sign-in, discarding the draft) and Save, with a sheet
   beside it that holds a name for the tester link and how the draft stands with its pull request.
-- A rail of seven modes down the left edge, as icons with their names on hover, in three
-  clusters: **Play**; then **Setup**, **Tuning** and **Scoring**, the puzzle's numbers; then
+- A rail of eight modes down the left edge, as icons with their names on hover, in three
+  clusters: **Play**; then **Setup**, **Tuning**, **Scoring** and **Rating** (ADR 0069), the puzzle's numbers; then
   **Sprites**, **Sounds** (ADR 0065) and **Text** (ADR 0057). A mode that holds a change carries a
   dot. (Sprites went with the sprite tooling at M10's fifth step, ADR 0062, and came back as an
-  editor of the pieces drawn in code, ADR 0065.) The two editors take a wider panel.
-- One panel beside the rail, which is the mode's. It is always there, so the board never moves.
-  Play holds the round: a starting point, the seed, the round dealt again, the shipped numbers
-  held against the draft's, and the last five rounds finished on the page (seed, which numbers,
-  length, tier, score). Setup holds the board group, the round's length and the limits group;
-  Tuning the deal and pace groups; Scoring the scoring group, the live tier's window and the
-  thresholds. The three share a search that shows the matching numbers from all of them and
+  editor of the pieces drawn in code, ADR 0065.) The two editors open wide when they want room.
+- One panel beside the rail, which is the mode's, as wide in every mode. Any mode but Play can
+  open its panel wide over the middle, from a button in its head: the board then moves to the
+  top of the right-hand column, still live and playable, and the chat takes its bottom. One
+  switch serves every mode, is on until the owner shuts it (a mode opens wide), and is kept in the
+  browser; the change is one eased motion. The
+  board is one element in every layout, so the round on it carries on. A wide panel draws more:
+  the numbers modes lay each section out as a card on a grid, with every control in one column
+  of one width, each number's line of description under its name, and a run of keys under one
+  branch headed once by it; they draw each curve as a chart whose steps are
+  pressed or dragged to their height, and draw the thresholds as a scale with each tier marked
+  and the page's rounds as dots on it (filled on the draft, hollow on the shipped numbers); a
+  step or threshold the draft has moved is outlined, with the shipped value dashed beside it.
+  Sprites puts the pieces, in their boards' colours, the layers and the inspector down the left,
+  and the stage, as large as the panel's room allows, on the right, a pane that never moves while
+  the controls scroll in a column of their own; Sounds puts the cues down the left, scrolling on
+  their own, and the open cue a still pane on the right, its timeline grown to fill the view, with a ruler of milliseconds, and the picked
+  voice, the cue's own numbers and its rules as tabs under it, so nothing lengthens the page;
+  Text sets the shipped words beside each field, under a head that names the two columns.
+  Play holds what the next round is dealt on (a stage, a starting point, the seed) and the last
+  twenty rounds finished on the page, newest first, kept for the tab's session. Each says its
+  score, tier, length and moves, how its score stands against the round before or against a
+  round picked as the baseline, its seed and stage, and which numbers it was dealt on; it can be
+  played again on its seed, and its numbers laid back over the draft once the owner says so. The
+  agent is still told the last five, as summaries. Setup holds the board group, the round's length and the limits group;
+  Tuning the deal and pace groups; Scoring the scoring group; Rating the live tier's window and
+  the thresholds. The four share a search that shows the matching numbers from all of them and
   the matching words from Text, a switch that shows each number's line of description, and the
   switch that deals the round again on a change.
-- The board in the middle, in every mode, exactly as `/play` draws it.
+- The board in the middle, exactly as `/play` draws it, and under it in every mode a transport
+  bar: start or go on, pause (the board under a veil that takes every press), step a paused clock
+  on, deal the same seed again, deal a fresh one, hold up the shipped numbers, and the clock at
+  half, normal or double speed. Its keys carry Alt (P, R, N, and `\` for the wide panel), because
+  the boards take plain letters and the space bar. There is no undo.
 - The chat on the right, and a line along the bottom that says whether the server would accept
   the draft's numbers and which seed is on the board.
 - While the page is on an address's numbers and not on the owner's draft, a band under the top
@@ -922,9 +956,10 @@ sees.
 - A cue that breaks a rule of `BRAND.md` section 8 (too long, too sharp a rise, too bright, a rule
   naming what the board does not pass) is said to, plays as shipped, and holds Save until it is
   mended. The editor's fields are bounded by those rules, so most edits cannot break them.
-- A cue is the game's: a revoiced cue is heard on every board that plays it, and the editor says
-  how many. It is part of the draft as a piece is (`cue.<name>=`), and Save writes it into
-  `boards/data/cues.json`. Which cue a board plays, and when, is in the puzzle's own renderer.
+- A cue is the puzzle's own (ADR 0070, ADR 0071): every puzzle has a copy of each cue its board plays, so a
+  revoiced cue is heard on that puzzle's board and no other. It is part of the draft as a piece is
+  (`cue.<name>=`), and Save writes it into `boards/data/cues/<puzzle>.json`. The beat is a copy
+  too, each puzzle's own (ADR 0071). Which cue a board plays, and when, is in the puzzle's own renderer.
 
 **The chat.**
 

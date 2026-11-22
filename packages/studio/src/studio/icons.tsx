@@ -20,6 +20,8 @@ const PATHS: Readonly<Record<ModeId, ReactNode>> = {
     </>
   ),
   scoring: <path d="M7 4h10v5a5 5 0 0 1-10 0zM12 14v4M8 20h8M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3" {...stroke} />,
+  // A ladder of ratings: three rungs, rising.
+  rating: <path d="M4 19h4v-5H4zM10 19h4V9h-4zM16 19h4V4h-4z" {...stroke} />,
   sprites: (
     <>
       <rect x="4" y="4" width="16" height="16" rx="3" {...stroke} />
@@ -44,6 +46,32 @@ export function Caret() {
   return (
     <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" className="caret">
       <path d="M6 9l6 6 6-6" {...stroke} strokeWidth={2.6} />
+    </svg>
+  );
+}
+
+/** The transport bar's marks (ADR 0068), and the panel's expand and collapse. */
+export type ToolIcon = "play" | "pause" | "restart" | "deal" | "compare" | "step" | "expand" | "collapse";
+const TOOLS: Readonly<Record<ToolIcon, ReactNode>> = {
+  play: <path d="M7 4.5v15l12-7.5z" fill="currentColor" />,
+  pause: <path d="M8 5v14M16 5v14" {...stroke} strokeWidth={3} />,
+  restart: <path d="M5 12a7 7 0 1 0 2.1-5M5 4v4h4" {...stroke} />,
+  deal: <path d="M4 8h11l-3-3M20 16H9l3 3M15 8l5 0M4 16h5" {...stroke} />,
+  compare: (
+    <>
+      <circle cx="12" cy="12" r="8" {...stroke} />
+      <path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" />
+    </>
+  ),
+  step: <path d="M6 5l9 7-9 7zM18 5v14" {...stroke} />,
+  expand: <path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" {...stroke} />,
+  collapse: <path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7" {...stroke} />,
+};
+
+export function Tool({ icon, size = 16 }: { icon: ToolIcon; size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+      {TOOLS[icon]}
     </svg>
   );
 }

@@ -49,7 +49,7 @@ written in.
 ## Stack
 
 TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `protocol` (Zod schemas), `content`,
-`boards` (the PixiJS boards, each painting its pieces in code from drawings in `boards/data/pieces`, the cues in `boards/data/cues.json`, the round runner and server connection both front ends share, ADR 0019, ADR 0062, ADR 0065),
+`boards` (the PixiJS boards, each painting its pieces in code from drawings in `boards/data/pieces`, each puzzle's own cues in `boards/data/cues/<puzzle>.json` and the game's in `boards/data/cues.json`, the round runner and server connection both front ends share, ADR 0019, ADR 0062, ADR 0065),
 `server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `studio` (the puzzle studio at studio.openseas.online, once the harness, built step by step, ADR 0042: a page a puzzle with its board and a tuning panel built from
 `content` and the wire schema, each puzzle alone at `/play/<id>`, every round local, and the voyage bench for ships and crews, ADR 0027), `studio-server` (the studio's own small service: tester links by id,
 the owner's GitHub sign-in, the owner's drafts, Save for their numbers, words and look as a draft pull request, and the chat's agent on a draft's worktree, ADR 0043, ADR 0045 to 0047, ADR 0049, ADR 0055, ADR 0057, ADR 0059, ADR 0060 and ADR 0065; the studio works without it), `bots` (the bot runner: bots that play any prototype engine and print its ladder table, `pnpm --filter @openseas/bots ladder <puzzle>`, a tool never deployed, ADR 0067), `docs` (the puzzle guides at docs.openseas.online: a static site with one guide per puzzle, its
@@ -76,12 +76,12 @@ Vitest with property-based determinism tests on engines, Playwright smoke on all
 - A string a puzzle says is keyed `<puzzle>.<name>` in the message table: the studio's Text mode offers every
   such key for rewriting (ADR 0057), and Save writes a draft's rewrites back to the table.
 - Every puzzle's content file has a `category`. It is a label for the studio's grid and decides nothing else.
-- A piece's drawing is data in `boards/data/pieces/<puzzle>.json`, a cue's voices in `boards/data/cues.json`
-  (ADR 0065): the studio's Sprites and Sounds editors change them in a draft and Save writes them. A
+- A piece's drawing is data in `boards/data/pieces/<puzzle>.json`, a cue's voices in the puzzle's own copy,
+  `boards/data/cues/<puzzle>.json` (ADR 0065, ADR 0070): the studio's Sprites and Sounds editors change them in a draft and Save writes them. A
   puzzle's `pieces.ts` keeps only what code must say (a footprint, a numeral) and composes the drawings.
 - A cue a board newly plays gets its place in `studio/src/assets/cues.ts`: the studio's Sounds list
   shows a puzzle's cues from it (ADR 0062), and its test fails without it.
-- Every cue is synthesized, from its definition in `boards/data/cues.json`, by `docs/BRAND.md` section 8:
+- Every cue is synthesized, from its definition in `boards/data/cues/<puzzle>.json` or the game's `boards/data/cues.json`, by `docs/BRAND.md` section 8:
   one scale, soft, short. `studio/test/sound.test.ts` and `studio/e2e/sound.spec.ts` fail on one that is not.
   There are no samples and nothing generated lands in the game (ADR 0062).
 - Any puzzle work, a new puzzle or a change to one, starts with the `puzzles` skill

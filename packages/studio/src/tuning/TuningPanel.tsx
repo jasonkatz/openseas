@@ -5,6 +5,8 @@ import { content, t } from "@openseas/boards";
 import { useFrame } from "../frame/RoundFrame.jsx";
 import { formatNumber, type Refusal, type Threshold } from "../frame/numbers.js";
 import { MODE_SECTIONS, NUMBER_MODES, humanize, labelOf, type ModeId, type NumberMode, type SectionId } from "../studio/modes.js";
+import { useWidePanel } from "../studio/wide.js";
+import { CurveChart, RatingScale } from "./charts.jsx";
 import { configControls, roundControls, sliderRange, valueAt, type Control } from "./controls.js";
 import { TUNING_GROUPS } from "./groups/index.js";
 
@@ -99,6 +101,20 @@ export function NumbersPanel({ sections, mode, query, hints, shown: visible }: {
   const hit = (c: Control): boolean => q === "" || words(c).includes(q);
   const ratingHit = q === "" || `thresholds ${t("studio.group.rating")}`.toLowerCase().includes(q);
   const shown = (s: NumberSection): boolean => (q === "" ? s.mode === mode : s.controls.some(hit) || (s.thresholds && ratingHit));
+  const wide = useWidePanel();
+  /** Wide, a run of keys under one branch (`specialChancePerMille.*`) is headed once by it. */
+  const head = (s: NumberSection, i: number): ReactNode => {
+    const c = s.controls[i]!;
+    if (!wide || !c.branch || s.controls[i - 1]?.branch === c.branch) return null;
+    const said = labelOf(c.branch.split(".").at(-1) ?? c.branch, null, c.unit);
+    const shown = s.controls.slice(i).filter((x, k, all) => all.slice(0, k + 1).every((y) => y.branch === c.branch)).some(hit);
+    return (
+      <h4 key={`branch-${c.key}`} className="tune-branch" hidden={!shown}>
+        {said.label}
+        {said.unit && <span className="num-unit">{t(`studio.unit.${said.unit}`)}</span>}
+      </h4>
+    );
+  };
   const row = (c: Control, value: unknown): ReactNode => (
     <ControlRow key={c.key} control={c} value={value} hints={hints} hidden={!hit(c)} refusals={refusals.filter((r) => owns(c.key, r))} onSet={(v) => frame.setNumber(c.key, v)} onReset={() => frame.resetNumber(c.key)} />
   );
@@ -110,7 +126,7 @@ export function NumbersPanel({ sections, mode, query, hints, shown: visible }: {
             {q !== "" && <span className="panel-cap-mode">{t(`studio.mode.${s.mode}`)}</span>}
             {t(`studio.group.${s.id}`)}
           </h3>
-          {s.controls.map((c) => row(c, c.key.startsWith("config.") ? valueAt(tuned.config, c.key) : tuned[c.key as "roundSeconds" | "paceSeconds"]))}
+          {s.controls.map((c, i) => [head(s, i), row(c, c.key.startsWith("config.") ? valueAt(tuned.config, c.key) : tuned[c.key as "roundSeconds" | "paceSeconds"])])}
           {s.thresholds && (
             <ThresholdsControl
               shipped={shipped.thresholds}
@@ -151,7 +167,9 @@ function Row({ name, branch, unit, changed, shipped, description, refusals, lock
   children: ReactNode;
   testKey: string;
 }) {
-  const said = labelOf(name, branch, unit);
+  const wide = useWidePanel();
+  // Wide, a branch is said once over its keys (NumbersPanel), so a row names only its own key.
+  const said = wide ? labelOf(name, null, unit) : labelOf(name, branch, unit);
   return (
     <div className={`num-row ${block ? "is-block" : ""} ${changed ? "is-changed" : ""} ${refusals.length ? "is-refused" : ""}`} hidden={hidden} data-testid={`control-${testKey}`} data-changed={changed ? "1" : "0"}>
       <div className="num-label" title={description ? `${testKey}: ${description}` : testKey}>
@@ -169,7 +187,8 @@ function Row({ name, branch, unit, changed, shipped, description, refusals, lock
           <ResetIcon />
         </button>
       )}
-      {description && <p className={`tune-desc ${hints ? "" : "sr-only"}`}>{description}</p>}
+      {/* Wide, there is room to say what every number does. */}
+      {description && <p className={`tune-desc ${hints || wide ? "" : "sr-only"}`}>{description}</p>}
       {refusals.map((r, i) => (
         <p key={i} className="tune-refusal" role="alert" data-testid={`refusal-${testKey}`}>
           {r.message}
@@ -281,8 +300,9 @@ function NumberControl({ control: c, value, onSet }: { control: Control; value: 
  */
 function CurveControl({ control: c, value, onSet }: { control: Control; value: readonly number[]; onSet(v: number[]): void }) {
   const top = Math.max(1, ...value.map((v) => Math.abs(v)));
+  const wide = useWidePanel();
   return (
-    <div className="tune-curve" data-testid={`curve-${c.key}`}>
+    <div className={`tune-curve ${wide ? "is-wide" : ""}`} data-testid={`curve-${c.key}`}>
       <div className="curve-head">
         <span className="num-unit">{t("studio.curve_count", { count: value.length })}</span>
         <button type="button" className="btn btn-mini btn-sq" onClick={() => onSet(value.slice(0, -1))} disabled={value.length <= 1} aria-label={t("studio.curve_shorter", { key: c.name })} title={t("studio.curve_shorter", { key: c.name })} data-testid={`shorter-${c.key}`}>
@@ -292,6 +312,7 @@ function CurveControl({ control: c, value, onSet }: { control: Control; value: r
           +
         </button>
       </div>
+      {wide && <CurveChart name={c.name} value={value} shipped={Array.isArray(c.shipped) ? (c.shipped as number[]) : []} min={c.min} max={c.max} integer={c.integer} onSet={onSet} testId={`chart-${c.key}`} />}
       <ol className="curve-rows">
         {value.map((v, i) => (
           <li key={i}>
@@ -348,8 +369,11 @@ function JsonControl({ testKey, value, onSet }: { testKey: string; value: unknow
 /** The thresholds: the score each rating is reached at, one field a threshold, with the tier that rating falls in beside it. */
 function ThresholdsControl({ shipped, value, refusals, hints, hidden, onSet, onReset }: { shipped: readonly Threshold[]; value: readonly Threshold[]; refusals: readonly Refusal[]; hints: boolean; hidden: boolean; onSet(v: unknown): void; onReset(): void }) {
   const rows = Array.isArray(value) && value.every((x) => x && typeof x.score === "number" && typeof x.rating === "number");
+  const wide = useWidePanel();
+  const { rounds } = useFrame();
   return (
     <Row name="thresholds" branch={null} unit="points" changed={!same(value, shipped)} shipped={formatNumber("thresholds", shipped)} description={t("studio.desc.thresholds")} refusals={refusals} block hints={hints} hidden={hidden} onReset={onReset} testKey="thresholds">
+      {rows && wide && <RatingScale thresholds={value} shipped={shipped} rounds={rounds} />}
       {rows ? (
         <ol className="tune-thresholds">
           {value.map((th, i) => (

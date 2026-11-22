@@ -1,5 +1,6 @@
 {
   "rod": {
+    "tint": "sky",
     "layers": [
       { "name": "casing", "kind": "rect", "x": 2, "y": 2, "w": 20, "h": 20, "r": 5 }
     ]

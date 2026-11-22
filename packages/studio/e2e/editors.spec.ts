@@ -76,6 +76,8 @@ test("the Sprites mode redraws a piece: on the board, in the address and the cha
 
 test("the Sounds mode revoices a cue: plays it as it is edited, holds it to the brand book, and puts it back", async ({ page }) => {
   desktopOnly();
+  // The editor as a closed panel draws it, every field in one column: the wide panel's tabs are the wide-panels smoke's.
+  await page.addInitScript(() => window.localStorage.setItem("openseas.studio.wide", "0"));
   const errors = watch(page);
   await page.addInitScript(() => {
     const w = window as unknown as { tones: number };
@@ -92,13 +94,15 @@ test("the Sounds mode revoices a cue: plays it as it is edited, holds it to the 
   const panel = page.getByTestId("sounds");
   await panel.getByTestId("cue-edit-clear").click();
   const editor = panel.getByTestId("cue-editor");
-  // A cue of the game's says who else plays it, and plays each row a board may ask it with.
-  await expect(editor.getByTestId("cue-shared")).toContainText(/\d+/);
+  // A cue here is the puzzle's own copy (ADR 0070), and plays each row a board may ask it with.
+  await expect(editor.getByTestId("cue-shared")).toContainText("Cooling");
   const before = await tones();
   await editor.getByTestId("probe-3").click();
   await expect.poll(tones).toBeGreaterThan(before);
 
   // A voice moved on the roll is the draft's.
+  // The narrow panel holds the roll below the fold.
+  await editor.getByTestId("voice-0").scrollIntoViewIfNeeded();
   const voice = (await editor.getByTestId("voice-0").locator("rect").first().boundingBox())!;
   await page.mouse.move(voice.x + 8, voice.y + voice.height / 2);
   await page.mouse.down();
@@ -128,6 +132,8 @@ test("the Sounds mode revoices a cue: plays it as it is edited, holds it to the 
 
 test("the service keeps a draft's look; a draft whose only change is a cue can be saved, and one that breaks a rule cannot", async ({ page }) => {
   desktopOnly();
+  // The editor as a closed panel draws it, every field in one column: the wide panel's tabs are the wide-panels smoke's.
+  await page.addInitScript(() => window.localStorage.setItem("openseas.studio.wide", "0"));
   const s = await service(page, { login: "octo", save: true, words: true, look: true, drafts: [draft({ numbers: numbers(), save: { state: "idle", error: null, pull: null, savedRevision: null, behind: false } })] });
   await page.goto("/cooling");
   await expect(page.getByTestId("draft-store")).toHaveAttribute("data-status", "saved");

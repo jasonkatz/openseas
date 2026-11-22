@@ -14,6 +14,7 @@ const LIMITS = { cue: 0.4, beat: 0.7, peak: 0.14, band: 3 };
 interface Row {
   cue: string;
   args: unknown[];
+  sets: string[];
   length: number;
   peak: number;
   first: number;
@@ -31,6 +32,8 @@ test("every cue is short, level with the others, and starts and ends at nothing"
   });
   expect(rows.length).toBeGreaterThan(28);
   expect(new Set(rows.map((r) => r.cue)).size).toBe(28);
+  // The game's own cues and every puzzle's copies are measured (ADR 0070).
+  expect(new Set(rows.flatMap((r) => r.sets)).size).toBe(16);
 
   const db = (peak: number): number => 20 * Math.log10(peak / LIMITS.peak);
   const table = rows.map((r) => `${`${r.cue}(${r.args.join(", ")})`.padEnd(18)} ${String(Math.round(r.length * 1000)).padStart(4)}ms  peak ${r.peak.toFixed(3)}  ${db(r.peak) >= 0 ? "+" : ""}${db(r.peak).toFixed(1)}dB`);
