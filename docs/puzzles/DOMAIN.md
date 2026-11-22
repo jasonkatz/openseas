@@ -166,15 +166,32 @@ role asks for it.
 
 ## Pieces
 
-A **piece** is a thing on the board that the rules know by its id.
+A **piece** is anything on the board the rules know about: something a player can join, move, clear
+or has to work around. The rules know each piece by its id. How it looks and what it is called belong
+to the skin.
 
-- A **family** is a numbered set of interchangeable pieces. A setting decides how many of its **kinds**
-  are dealt.
-- A piece can be in one of several **states**: named forms, or a count it shows.
-- A piece can mark another: it is that piece, with its own states on top.
+Three ideas describe a puzzle's pieces.
 
-> Paths declares `kind`, a family counted by `kinds`; `prize`; `timed`, which marks a kind and counts
-> the moves its fuse has left; and `ruined`.
+- **Families and kinds.** Many puzzles deal pieces that are alike except for which one they are, such
+  as the debris in Paths: a path joins pieces of one kind, and any kind works the same way. Those
+  pieces are one **family**, and each member is a **kind**. The puzzle does not list its kinds one by
+  one. A setting says how many are dealt, and the kinds are numbered from 1. The skin needs a drawing
+  for every kind that setting allows.
+- **States.** A piece can change while it is on the board. Its **state** is either one of a few named
+  forms, such as a rod that is cold or hot, or a number it shows, such as the moves a fuse has left.
+  Each named state has a drawing of its own. A number is drawn by repeating one mark on the piece,
+  such as one notch for each move left.
+- **Pieces based on others.** A piece can be an ordinary piece with something added. It behaves as
+  the piece it is based on, and has rules and states of its own on top.
+
+> Paths' pieces:
+>
+> | Piece | On the board | How the puzzle declares it | In the space theme |
+> |---|---|---|---|
+> | `kind` | What a path is drawn through. A path joins touching pieces of one kind | A family. The `kinds` setting deals 2 to 8 kinds | Debris: an ingot, a panel, a shard, a crystal, a cell |
+> | `prize` | A piece no path can join. It sinks as the pieces under it clear, and a closed path takes it | A plain piece | A loot crate |
+> | `timed` | A kind with a fuse. It joins paths as its kind; if the fuse runs out, it ruins the pieces around it | Based on `kind`. Its state is a number: the moves its fuse has left | A volatile |
+> | `ruined` | What a timed piece leaves around it when its fuse runs out. No path can join it | A plain piece | Rubble |
 
 ## Depth
 
@@ -310,7 +327,7 @@ round. The rules are the only part of a puzzle that is code.
   "ladder": [{ "stage": "", "adds": ["layer ids"], "advance": { "measure": "best-round | average-of-last | wins-over-stand-in | rounds-played", "threshold": "in the measure's unit" } }],
   "evaluation": { "tierStarts": "solo: { steady, sharp, masterful, legendary }", "by": "versus: outcome", "paceWindowSeconds": "" },
   "signals": { "in": [{ "id": "", "type": "number | flag | outcome", "when": "on-change | sampled | at-end" }], "out": [] },
-  "pieces": [{ "id": "", "family": "the setting that counts its kinds", "of": "the piece it marks", "states": "names, or { count }" }],
+  "pieces": [{ "id": "", "family": "the setting that counts its kinds", "of": "the piece it is based on", "states": "names, or { count }" }],
   "moves": [{ "id": "", "line": "", "fields": { "<name>": "cell | cells | direction | piece | number | flag" } }],
   "events": [{ "id": "", "line": "", "fields": { "<name>": "cell | cells | piece | player | number | points" } }],
   "stats": [{ "id": "", "line": "" }],
