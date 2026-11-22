@@ -8,6 +8,8 @@
 
 ## Relationships
 
-- **The game → the puzzle**: the game runs rounds of puzzles, dresses each with a skin, wires a
-  puzzle's signals to its world, and reads each round's tier and outcome. The puzzle knows nothing of
-  the game.
+- **The game → the puzzle**: the game is a host. It runs rounds, keeps each player's standing and
+  place on a ladder, dresses every puzzle with a skin from its theme, and gives a puzzle a role in
+  its world, which wires the puzzle's signals and turns tiers and outcomes into rewards. The puzzle
+  knows nothing of the game.
+- **The studio → the puzzle**: the studio is a host too, with no roles: its rounds count for nothing.
