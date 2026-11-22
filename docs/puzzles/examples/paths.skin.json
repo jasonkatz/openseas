@@ -505,6 +505,7 @@
     "event.reshuffle": "Field scrambled",
     "gauge.prizes": "Crates adrift: {count} of {max}",
     "gauge.streak": "Streak x{count}",
+    "stat.best_streak": "Best streak",
     "stat.paths": "Hauls",
     "stat.longest": "Longest line",
     "stat.loops": "Loops closed",

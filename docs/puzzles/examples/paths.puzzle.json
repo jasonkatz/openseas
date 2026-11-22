@@ -197,7 +197,7 @@
       "default": 60,
       "min": 0,
       "max": 100000,
-      "line": "points for clearing a timed piece, per move burned and one more",
+      "line": "points for clearing a timed piece, for each move its fuse burned and one more",
       "group": "scoring"
     }
   ],
@@ -208,13 +208,19 @@
       "brings": {
         "pieces": ["kind"],
         "events": ["clear", "settle", "reshuffle"],
-        "settings": ["pathMin", "pathPoints"]
+        "settings": ["pathMin", "pathPoints"],
+        "payouts": ["path"]
       }
     },
     {
       "id": "streak",
       "rule": "long paths in a row multiply",
-      "brings": {"events": ["streak"], "settings": ["streakMin", "streakPercent"], "gauges": ["streak"]}
+      "brings": {
+        "events": ["streak"],
+        "settings": ["streakMin", "streakPercent"],
+        "gauges": ["streak"],
+        "multipliers": ["streak"]
+      }
     },
     {
       "id": "prizes",
@@ -223,7 +229,8 @@
         "pieces": ["prize"],
         "events": ["prize_floor"],
         "settings": ["startPrizes", "prizePermille", "maxPrizes", "prizeFloorPoints"],
-        "gauges": ["prizes"]
+        "gauges": ["prizes"],
+        "payouts": ["prize_floor"]
       }
     },
     {
@@ -231,13 +238,20 @@
       "rule": "a closed path takes every prize at once",
       "brings": {
         "events": ["loop"],
-        "settings": ["loopMin", "loopPercent", "insidePoints", "prizeLoopPoints"]
+        "settings": ["loopMin", "loopPercent", "insidePoints", "prizeLoopPoints"],
+        "payouts": ["inside", "prize_loop"],
+        "multipliers": ["loop"]
       }
     },
     {
       "id": "bounty",
       "rule": "a posted kind pays a bonus for a long path of it",
-      "brings": {"events": ["bounty"], "settings": ["bountyLength", "bountyBonus"]}
+      "brings": {
+        "events": ["bounty"],
+        "settings": ["bountyLength", "bountyBonus"],
+        "payouts": ["bounty"],
+        "tasks": ["bounty"]
+      }
     },
     {
       "id": "timers",
@@ -245,7 +259,8 @@
       "brings": {
         "pieces": ["timed", "ruined"],
         "events": ["defuse", "blowup"],
-        "settings": ["timerEvery", "timerFuse", "timerPoints"]
+        "settings": ["timerEvery", "timerFuse", "timerPoints"],
+        "payouts": ["defuse"]
       }
     }
   ],
@@ -310,12 +325,92 @@
     {
       "id": "defuse",
       "line": "a timed piece was cleared",
-      "fields": {"places": "places", "points": "points"}
+      "fields": {"place": "place", "late": "number", "points": "points"}
     },
     {
       "id": "blowup",
       "line": "a timed piece ran out and ruined its neighbours",
-      "fields": {"place": "place", "ruined": "places"}
+      "fields": {"place": "place", "ruined": "places"},
+      "mistake": true
+    }
+  ],
+  "payouts": [
+    {
+      "id": "path",
+      "line": "a path pays its length squared",
+      "on": ["clear", "loop"],
+      "counts": "path",
+      "growth": "superlinear",
+      "reads": ["pathPoints"]
+    },
+    {
+      "id": "inside",
+      "line": "a loop pays for each piece inside it",
+      "on": ["loop"],
+      "counts": "inside",
+      "growth": "linear",
+      "reads": ["insidePoints"]
+    },
+    {
+      "id": "prize_loop",
+      "line": "a loop pays for its prizes, their number squared",
+      "on": ["loop"],
+      "counts": "prizes",
+      "growth": "superlinear",
+      "reads": ["prizeLoopPoints"]
+    },
+    {
+      "id": "prize_floor",
+      "line": "a prize that reaches the floor pays",
+      "on": ["prize_floor"],
+      "growth": "flat",
+      "reads": ["prizeFloorPoints"]
+    },
+    {
+      "id": "defuse",
+      "line": "a timed piece pays more the later it is cleared",
+      "on": ["defuse"],
+      "counts": "late",
+      "growth": "linear",
+      "reads": ["timerPoints"]
+    },
+    {
+      "id": "bounty",
+      "line": "filling the bounty pays a bonus",
+      "on": ["bounty"],
+      "growth": "flat",
+      "reads": ["bountyBonus"]
+    }
+  ],
+  "multipliers": [
+    {
+      "id": "loop",
+      "line": "closing a path multiplies its own points",
+      "scales": ["path"],
+      "on": "loop",
+      "by": {"percent": "loopPercent"}
+    },
+    {
+      "id": "streak",
+      "line": "long paths in a row multiply everything",
+      "scales": ["path", "inside", "prize_loop", "prize_floor", "defuse", "bounty"],
+      "on": "every event of a move and its cascade",
+      "by": {"table": "streakPercent", "index": "streak"}
+    }
+  ],
+  "streak": {
+    "builds": {"event": "clear or loop", "when": "the path is streakMin long or more"},
+    "grace": 1,
+    "breaksOn": ["blowup"]
+  },
+  "tasks": [
+    {
+      "id": "bounty",
+      "line": "a path of the posted kind, bountyLength or longer, fills it; another kind is posted",
+      "open": 1,
+      "ends": ["done"],
+      "graded": "none",
+      "grades": []
     }
   ],
   "gauges": [
@@ -323,6 +418,7 @@
     {"id": "streak", "line": "long paths in a row"}
   ],
   "stats": [
+    {"id": "best_streak", "line": "the longest streak"},
     {"id": "paths", "line": "paths cleared"},
     {"id": "longest", "line": "the longest path"},
     {"id": "loops", "line": "loops closed"},
@@ -364,6 +460,7 @@
     {"key": "event.reshuffle"},
     {"key": "gauge.prizes", "placeholders": ["count", "max"]},
     {"key": "gauge.streak", "placeholders": ["count"]},
+    {"key": "stat.best_streak"},
     {"key": "stat.paths"},
     {"key": "stat.longest"},
     {"key": "stat.loops"},

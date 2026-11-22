@@ -185,8 +185,8 @@ declares only its own events.
 
 ### Points and score
 
-**Points** are what one event adds. The **score** is the sum of a round's points, and it never goes
-below zero.
+**Points** are what one event adds, each point belonging to a payout ([Scoring](#scoring)). The
+**score** is the sum of a round's points, and it never goes below zero.
 
 ### Stats
 
@@ -210,6 +210,119 @@ role asks for it.
 
 > A duty station reads its puzzle's pace at every ship's turn. A boarding fight reads its puzzle's
 > outcome once.
+
+## Scoring
+
+The rules work out every point from events. Nothing outside them adds, scales or checks a score.
+
+### Payouts
+
+Every point belongs to a **payout**: a named way the puzzle pays, such as a path or a loop. A puzzle
+declares each payout with:
+
+| Field | Holds |
+|---|---|
+| id | A neutral word |
+| line | One plain sentence on what it pays for |
+| on | The event or events it pays on |
+| counts | The event's field it grows from: a number, or places, counted, such as a path's cells. Absent for a flat payout |
+| growth | Flat, linear, superlinear or stepped |
+| cap | The count past which it grows no faster, a number or a setting, absent when it has none |
+| reads | The settings that size it |
+
+A payout's **growth** says how its points rise with what it counts:
+
+| Growth | Points | Example |
+|---|---|---|
+| Flat | The same every time | Paths' bounty: 200 points |
+| Linear | A setting times the count | Paths' inside: 10 points for each piece inside a loop |
+| Superlinear | A setting times the count squared | Paths' path: a path of n pieces scores n × n |
+| Stepped | A list of points, an entry for each count, whose last entry holds | A clear of 1, 2, 3 or 4 rows paying 100, 250, 450 or 700 |
+
+A penalty is a payout whose points are taken away. A score still never goes below zero.
+
+An event's points are split by payout, so a round can always be broken down: what each payout paid,
+and what share of the score each one made. The puzzle bar's rule that no single mechanic is the whole
+round is read from that split.
+
+A layer brings the payouts that exist only while it is on.
+
+### Multipliers
+
+A **multiplier** scales named payouts on an event by a percent. The percent is either a setting, or an
+entry in a table: a list setting indexed by the streak or by a cascade's step.
+
+Multipliers that meet on one event multiply together, and the result is rounded down once, for the
+event, never once for each multiplier.
+
+> Paths' loop multiplier doubles the path payout when the path closes (`loopPercent`, 200). Its streak
+> multiplies every payout. A closed path of 6 on a streak at 130%: 6 × 6 = 36, doubled to 72, then 72
+> × 130% = 93.6, rounded down to 93.
+
+### Cascades
+
+A **cascade** is everything one move sets off as the board settles, such as clears that cause more
+clears, or prizes that reach the floor once the pieces under them go. Each link of it is a **step**.
+Every event in a cascade belongs to the move that started it, so a multiplier that holds for that move,
+such as the streak, holds for the whole cascade. A table indexed by step makes later links pay more.
+
+### The streak
+
+A puzzle has at most one **streak**: a run of successes that raises a multiplier. It declares:
+
+- what **builds** it: an event, with a condition on it, such as a path of five or more, or a task's
+  grade, such as clean;
+- its **grace**: how many **misses** in a row it forgives before it breaks, where a miss is a move or a
+  task that builds nothing;
+- which **mistakes** break it at once.
+
+What it raises is a multiplier whose table is indexed by the streak: a list setting with an entry for
+each success in a row, whose last entry holds.
+
+The rules keep the round's best streak as the stat `best_streak`, and the streak's count as a gauge.
+
+### Mistakes
+
+A **mistake** is an event the puzzle marks as one, such as a wrong lock or a fuse that runs out. It costs
+points (through a penalty payout), the streak, or both. A mistake never ends a round: an ending that
+does is a fail. A player who plays well can always avoid every mistake; one that luck alone deals is
+not a mistake.
+
+### Tasks
+
+A **task** is a unit of work the deal sets within a round, such as a slab to cut, a clamp to fill or a
+posted bounty. A puzzle declares each task with:
+
+| Field | Holds |
+|---|---|
+| id | A neutral word |
+| line | One plain sentence on what finishes it |
+| open | How many can be open at once |
+| ends | Done, given up (with the control that gives it up), or out of time (with the setting that times it) |
+| graded | By par, by best, or by nothing |
+| grades | Its grades, in order from best, such as clean, full and slow |
+
+**Par** is the fewest moves that can finish a task. **Best** is the most any play could score from it.
+The rules work out both when the task is dealt. Par is shown to the player, as a target. Best is never
+shown, since it would show what expertise takes; the player learns how well they did from the task's
+grade when it ends.
+
+A task's grade can build the streak, and a payout can pay on a task ending with a given grade.
+
+### Difficulty
+
+Difficulty holds for a whole round, and the stage sets it (ADR 0072). Every task in a round is dealt
+from the same settings, from the first second to the last: no quicker feed, no growing target, no par
+that climbs with clean play. A rule that answers play, such as heat that rises with moves and falls
+with points, is not a ramp.
+
+### Between sides
+
+A round played between sides keeps a score, for the player to watch and for the result, but its
+performance comes only from its outcome ([Versus](#versus)). No score is scaled by the opponent.
+
+The puzzle bar's own rules for scoring, such as how long a round runs and how big a share one payout
+may take, are kept in the `puzzles` skill. This guide gives the words they are checked with.
 
 ## The board
 
@@ -304,7 +417,7 @@ Three more ideas describe a puzzle's pieces.
 ### Layers
 
 A **layer** is a named group of rules that is either on or off. It brings the pieces, events,
-settings, zones, gauges and controls that exist only while it is on. What a layer's rules cause elsewhere, such as a par rising
+settings, zones, gauges, controls, payouts, multipliers and tasks that exist only while it is on. What a layer's rules cause elsewhere, such as a par rising
 because there is more to plan around, is not the layer's concern.
 
 ### The ladder
@@ -435,7 +548,8 @@ round. The rules are the only part of a puzzle that is code.
   "terrain": [{ "id": "", "states": "names, if it has any" }],
   "zones": [{ "id": "", "holds": "how many pieces", "player": "watches | takes" }],
   "settings": [{ "id": "", "type": "whole | percent | permille | list | flag | maps", "default": "", "min": "", "max": "", "line": "", "group": "board | deal | tempo | scoring" }],
-  "layers": [{ "id": "", "rule": "one line", "brings": { "pieces": [], "events": [], "settings": [], "zones": [], "gauges": [], "controls": [] } }],
+  "layers": [{ "id": "", "rule": "one line", "brings": { "pieces": [], "events": [], "settings": [], "zones": [], "gauges": [], "controls": [],
+             "payouts": [], "multipliers": [], "tasks": [] } }],
   "ladder": [{ "stage": "", "adds": ["layer ids"], "advance": { "measure": "best-round | average-of-last | wins-over-stand-in | rounds-played", "threshold": "in the measure's unit" } }],
   "evaluation": { "tierStarts": "solo: { steady, sharp, masterful, legendary }", "by": "versus: outcome", "paceWindowSeconds": "" },
   "signals": { "in": [{ "id": "", "type": "number | flag | outcome", "when": "on-change | sampled | at-end" }], "out": [] },
@@ -443,7 +557,14 @@ round. The rules are the only part of a puzzle that is code.
   "moves": [{ "id": "", "line": "", "gesture": "tap | long-press | draw | drag | swipe | slice | turn | hold", "inHand": "true when built in hand",
               "fields": { "<name>": "place | places | direction | piece | number | flag" } }],
   "controls": [{ "id": "", "move": "the move it makes, or none for a switch", "key": "its letter" }],
-  "events": [{ "id": "", "line": "", "fields": { "<name>": "place | places | piece | player | number | points" } }],
+  "events": [{ "id": "", "line": "", "fields": { "<name>": "place | places | piece | player | number | points" }, "mistake": "true when it is one" }],
+  "payouts": [{ "id": "", "line": "", "on": ["event ids"], "counts": "the event's field it grows from", "growth": "flat | linear | superlinear | stepped",
+                "cap": "a number or a setting", "reads": ["setting ids"] }],
+  "multipliers": [{ "id": "", "line": "", "scales": ["payout ids"], "on": "the event, and the condition, it applies on",
+                    "by": "{ percent: setting }, or { table: list setting, index: streak | step }" }],
+  "streak": "absent, or { builds: { event, when } or { grade }, grace, breaksOn: [mistake event ids] }",
+  "tasks": [{ "id": "", "line": "", "open": "how many at once", "ends": ["done | given-up | out-of-time"], "control": "given-up only", "setting": "out-of-time only",
+              "graded": "par | best | none", "grades": ["from best"] }],
   "gauges": [{ "id": "", "line": "", "most": "a number or a setting", "danger": "the value past which it means danger" }],
   "stats": [{ "id": "", "line": "" }],
   "texts": [{ "key": "", "placeholders": [] }],
@@ -469,8 +590,8 @@ A board's sizes, a zone's capacity and a gauge's most are each a number, or the 
 
 - Every part of the puzzle is filled in.
 - The ladder has two to four stages, each layer is added by exactly one, and the last is `full`.
-- The rules know every layer, setting, terrain, zone, piece, state, move, control, event, gauge and
-  signal the puzzle declares, and declare nothing it lacks. A host checks this before it runs a round.
+- The rules know every layer, setting, terrain, zone, piece, state, move, control, event, gauge,
+  payout, multiplier, task and signal the puzzle declares, and declare nothing it lacks. A host checks this before it runs a round.
 - The skin has a drawing for every piece, state and kind, a cue for every cue an event names, a text
   for every key with its placeholders kept, and the beat on exactly one event.
 
@@ -505,4 +626,3 @@ An excerpt of the puzzle:
 ## Not yet covered
 
 - **Motion:** how each event plays on the board, and how the beat looks.
-- **Scoring:** how the rules work points out from events, with their curves, multipliers and streaks.

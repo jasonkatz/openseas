@@ -111,12 +111,14 @@ _Avoid_: chain (a streak is not a cascade), combo
 The sum of a round's points. It never goes below zero.
 
 **Multiplier**:
-A percent that scales some of an event's points. Multipliers that meet multiply together, and the
-result is rounded down once.
+A percent that scales named payouts on an event: a setting, or an entry in a table indexed by the
+streak or by a cascade's step. Multipliers that meet multiply together, and the result is rounded
+down once for the event.
 _Avoid_: bonus (a bonus is a flat amount), factor
 
 **Streak**:
-A run of successes that raises a multiplier through a table whose last entry holds. A puzzle has at
+A run of successes that raises a multiplier through a table whose last entry holds. It builds on a
+declared event or grade, and breaks on a mistake or on more misses than its grace. A puzzle has at
 most one.
 _Avoid_: combo, chain, pipeline
 
@@ -134,7 +136,7 @@ _Avoid_: error, fail (a fail is an ending)
 
 **Task**:
 A unit of work the deal sets within a round, such as a slab to cut or a clamp to fill, which ends when
-it is done or given up.
+it is done, given up or out of time.
 _Avoid_: goal, objective, job
 
 **Grade**:
