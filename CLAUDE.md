@@ -17,6 +17,11 @@ written in.
   board, the chrome, the world and the sounds follow it.
 - `docs/GLOSSARY.md` holds the game's words and the nautical words they replaced, with the
   identifier for each. Name new things by it, and read older ADRs through it.
+- `docs/puzzles/DOMAIN.md` is the puzzle domain guide, the source of truth for what a puzzle is apart
+  from any world: its round, depth, judgement, sides and skin, and the two documents that define one.
+  Its words are in `docs/puzzles/CONTEXT.md`, and `CONTEXT-MAP.md` says how they meet the game's. Read
+  it before shaping or naming anything about a puzzle. It is the target: where the code differs, a
+  change to either is made in step with the other.
 - `docs/puzzles/` holds a design file for each puzzle the game deals: its role, its rules and scoring,
   its luck and its skills. It changes in the same commit as the puzzle's rules or numbers.
 - `docs/prototypes/` holds the prototype puzzles (ADR 0036): eight new puzzles in the studio, none in
