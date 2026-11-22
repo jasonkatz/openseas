@@ -93,6 +93,35 @@ What one event adds to the score.
 **Score**:
 The sum of a round's points. It never goes below zero.
 
+**Multiplier**:
+A percent that scales some of an event's points. Multipliers that meet multiply together, and the
+result is rounded down once.
+_Avoid_: bonus (a bonus is a flat amount), factor
+
+**Streak**:
+A run of successes that raises a multiplier through a table whose last entry holds. A puzzle has at
+most one.
+_Avoid_: combo, chain, pipeline
+
+**Grace**:
+How many misses in a row a streak forgives before it breaks.
+_Avoid_: window
+
+**Mistake**:
+An event a puzzle declares as one, such as a wrong lock: it costs points, the streak, or both, and
+never ends the round.
+_Avoid_: error, fail (a fail is an ending)
+
+**Task**:
+A unit of work the deal sets within a round, such as a slab to cut or a clamp to fill, which ends when
+it is done or given up.
+_Avoid_: goal, objective, job
+
+**Grade**:
+How well a task was done, one of the puzzle's named grades in order from best, such as clean, full
+and slow.
+_Avoid_: rating (a player has standing), rank
+
 **Stat**:
 A count the rules keep about a round, such as the longest path, shown when it ends.
 
