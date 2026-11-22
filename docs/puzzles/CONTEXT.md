@@ -88,7 +88,24 @@ Something the rules report happened during a round, carrying what a player needs
 _Avoid_: report, effect
 
 **Points**:
-What one event adds to the score.
+What one event adds to the score, each point belonging to a payout.
+
+**Payout**:
+A named way a puzzle pays points, such as a path or a loop, paid on an event and grown from what that
+event counts.
+_Avoid_: term, component, source
+
+**Growth**:
+How a payout's points rise with what it counts: flat, linear, superlinear or stepped.
+_Avoid_: curve, formula
+
+**Cap**:
+The count past which a payout grows no faster.
+
+**Cascade**:
+Everything one move sets off as the board settles, such as clears that cause more clears. Each link
+is a step, and every event in a cascade belongs to the move that started it.
+_Avoid_: chain (a streak is not a cascade), combo
 
 **Score**:
 The sum of a round's points. It never goes below zero.
@@ -107,6 +124,9 @@ _Avoid_: combo, chain, pipeline
 How many misses in a row a streak forgives before it breaks.
 _Avoid_: window
 
+**Miss**:
+A move, or a task, that builds nothing for the streak.
+
 **Mistake**:
 An event a puzzle declares as one, such as a wrong lock: it costs points, the streak, or both, and
 never ends the round.
@@ -121,6 +141,14 @@ _Avoid_: goal, objective, job
 How well a task was done, one of the puzzle's named grades in order from best, such as clean, full
 and slow.
 _Avoid_: rating (a player has standing), rank
+
+**Par**:
+The fewest moves that can finish a task, worked out by the rules when the task is dealt.
+
+**Best**:
+The most any play could score from a task, worked out by the rules when the task is dealt to grade
+it. It is never shown to the player.
+_Avoid_: optimum, max score
 
 **Stat**:
 A count the rules keep about a round, such as the longest path, shown when it ends.
