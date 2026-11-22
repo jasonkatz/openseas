@@ -15,7 +15,7 @@ around it, and each owns what the puzzle does not.
 
 | | What it holds | What it never does |
 |---|---|---|
-| **Puzzle** | Rules, round, layers and ladder, evaluation, settings, pieces, moves, events, stats, signals, text keys | Name a world thing, draw, sound, or hold a text's content |
+| **Puzzle** | Rules, round, board, pieces, layers and ladder, evaluation, settings, moves, events, gauges, stats, signals, text keys | Name a world thing, draw, sound, hold a text's content, or decide where anything sits on a screen |
 | **Skin** | The drawings, cues and texts that dress one puzzle | Set or change a number |
 | **Host** | Runs rounds, replays logs, keeps each player's standing and place on a ladder, owns the tier scale | Change a puzzle's rules or tier starts |
 | **Role** | What a puzzle does in a world: wires its signals, decides whether a round counts, turns tiers and outcomes into rewards | Move a tier |
@@ -101,8 +101,45 @@ player makes: the verb, or a lesser act.
 > top of one rack onto another, and *call* brings the next crate down early. Flick (Tug): the verb
 > flicks a pod, and *skip* gives up the lit clamp.
 
-A puzzle declares each move with an id, one line, and its typed fields: cell, cells, direction, piece,
-number or flag.
+A puzzle declares each move with an id, one line, its typed fields (place, places, direction, piece,
+number or flag) and the gesture that makes it.
+
+### How a move is made
+
+Every move names one **gesture**, the way a player makes it by touch:
+
+| Gesture | The player | Example |
+|---|---|---|
+| Tap | Taps a place or a control | Overload: tap a capacitor to charge it |
+| Long press | Presses and holds a place | Scanner: a long press locks a cell |
+| Draw | Draws a path through touching cells | Paths: trace a path through one kind |
+| Drag | Drags from one place to another | Racks: drag the top of one rack onto another |
+| Swipe | Swipes a direction, anywhere or starting on a piece | Reactor: swipe the whole core; Tug: flick a pod |
+| Slice | Slices along a line of the grid | Cutting: cut a piece along a grid line |
+| Turn | Turns around the board's centre | Navigation: turn a ring |
+| Hold | Keeps pressing to hurry what is happening | Engines: hold to drop the pair faster |
+
+Some moves are built **in hand** before they are made. The player takes a piece, such as a plate from a
+tray or the pair that is falling, then moves, turns or flips it, and only setting it down is the move.
+Adjusting what is in hand never reaches the log.
+
+A move with no place, such as a skip or calling the next crate, is made with a **control**: a button the
+puzzle declares for it. A control can also switch what a tap does without being a move itself, as
+Scanner's switch between pinging and locking does.
+
+Every puzzle is played by keys with one scheme, so no puzzle has keys of its own:
+
+| Key | Does |
+|---|---|
+| Arrows or WASD | Move the cursor from place to place |
+| Space or Enter | Make the gesture at the cursor |
+| Escape | Let go of what is in hand |
+| Digits | Pick a spot in a zone |
+| Q and E | Turn what is in hand |
+| F | Flip what is in hand |
+| A control's own letter | Use that control |
+
+On a grid whose cells touch by diagonals, Q, E, Z and C also move the cursor diagonally.
 
 ### Settings
 
@@ -111,7 +148,7 @@ A **setting** is a named number a puzzle is tuned by. Each declares:
 | Field | Holds |
 |---|---|
 | id | A neutral word |
-| type | Whole number, percent, permille, list of numbers, or flag |
+| type | Whole number, percent, permille, list of numbers, flag, or a list of maps |
 | default | The number the puzzle ships with |
 | min, max | The bounds every host holds it to |
 | line | One plain sentence on what it does |
@@ -137,11 +174,11 @@ it flows (on change, sampled, or at the end).
 ### Events
 
 An **event** is something the rules report happened. A puzzle declares each with an id, one line, and
-its typed fields: cell, cells, piece, player, number or points. Every number a player sees counted on
-the board arrives on an event, so nothing outside the rules works out a score.
+its typed fields: place, places, piece, player, number or points. Every number a player sees counted
+on the board arrives on an event, so nothing outside the rules works out a score.
 
-> Paths' `loop`: "a closed path took every prize", carrying the path's cells, the cells inside it, the
-> number of prizes and its points.
+> Paths' `loop`: "a closed path took every prize", carrying the path's places, the places inside it,
+> the number of prizes and its points.
 
 A round's start, its countdown and its end are the host's, the same for every puzzle. A puzzle
 declares only its own events.
@@ -155,6 +192,16 @@ below zero.
 
 A **stat** is a count the rules keep about a round, shown when it ends: the longest path, loops closed.
 
+### Gauges
+
+A **gauge** is a number a player watches while the round is played, besides the score: taps left, a
+rising line, cuts left, a crate's countdown. A puzzle declares each gauge with an id, one line, its
+most where it has one (a number or a setting), and the point past which it means danger, such as heat
+past half or pings past par. `read(round)` gives every gauge's value.
+
+> Paths watches `prizes`, the prizes on the board out of at most `maxPrizes`, and `streak`, the long
+> paths in a row.
+
 ### Signals out
 
 A **signal out** is a value the puzzle gives to whatever is outside it. The two common ones are the
@@ -164,13 +211,72 @@ role asks for it.
 > A duty station reads its puzzle's pace at every ship's turn. A boarding fight reads its puzzle's
 > outcome once.
 
+## The board
+
+A puzzle's **geometry** is where pieces can be and which places touch. It is part of the rules. Where
+the board, its zones and the score sit on a screen, and how big they are, is its **arrangement**, which
+belongs to whatever draws the board and never to the puzzle.
+
+### Shape and cells
+
+A board is made of **cells**, and its **shape** says which cells there are and which touch.
+
+| Shape | Size | Cells touch | Example |
+|---|---|---|---|
+| Grid | Width by height | On four sides, or on eight where the puzzle counts diagonals | Paths: a 7 by 8 grid touching on eight |
+| Rings | Rings by sectors | Around a ring, and in and out along a sector | Navigation: 3 rings of 8 sectors |
+
+Every board counts its rows from the top and its columns from the left. On rings, ring 0 is innermost,
+sector 0 is at the top, and sectors count clockwise. Which way pieces fall or float is a rule, never a
+way of counting.
+
+A grid may have a **rim**: a ring of cells just outside its playing area, for ports, feeders, hatches and
+turrets. Rim cells are cells like any other.
+
+> Racks is a grid of five columns whose pieces settle to the bottom of each column. Deflectors' 24
+> ports are the rim of its 6 by 6 grid.
+
+### Terrain and maps
+
+Each cell has one **terrain**: what the cell is, as opposed to the piece on it, such as a wall, a block,
+a port or a current. Terrain is plain unless the puzzle says otherwise, and it may have states, as a
+mirror that flips does. A cell holds at most one piece.
+
+A puzzle either deals its terrain, as it deals pieces, or draws it by hand as **maps**. A puzzle with
+maps has a setting holding a list of them, and the seed picks one for each round.
+
+> Deflectors deals its mirrors, and Tug its blocks. Gunnery's decks and Space Battle's fields are maps.
+
+### One board, or one each
+
+A puzzle played between sides has either one board all sides share, or one board for each seat, all of
+the same shape.
+
+> Space Battle's two ships share one board. In Swordfighting every player has a board of their own and
+> sees everyone else's.
+
+### Zones
+
+A **zone** is a named place beside the board that holds a fixed number of pieces. A player either only
+watches a zone or takes pieces from it.
+
+> The next pair in Engines is a watched zone of one. Plating's tray is a zone of three that each move
+> takes a plate from.
+
+### Places
+
+A **place** is a cell on a board or a numbered spot in a zone. Moves and events point at places.
+
 ## Pieces
 
 A **piece** is anything on the board the rules know about: something a player can join, move, clear
 or has to work around. The rules know each piece by its id. How it looks and what it is called belong
 to the skin.
 
-Three ideas describe a puzzle's pieces.
+Most pieces sit in one cell. A piece's **footprint** may cover several cells together, as a plate of
+five cells or a rectangle cut from a slab does.
+
+Three more ideas describe a puzzle's pieces.
 
 - **Families and kinds.** Many puzzles deal pieces that are alike except for which one they are, such
   as the debris in Paths: a path joins pieces of one kind, and any kind works the same way. Those
@@ -197,8 +303,8 @@ Three ideas describe a puzzle's pieces.
 
 ### Layers
 
-A **layer** is a named group of rules that is either on or off. It brings the pieces, events and
-settings that exist only while it is on. What a layer's rules cause elsewhere, such as a par rising
+A **layer** is a named group of rules that is either on or off. It brings the pieces, events,
+settings, zones, gauges and controls that exist only while it is on. What a layer's rules cause elsewhere, such as a par rising
 because there is more to plan around, is not the layer's concern.
 
 ### The ladder
@@ -303,6 +409,8 @@ Every puzzle declares these text keys, and may declare more:
 | `piece.<id>` | Each piece's name |
 | `event.<id>` | An event's **callout**, for each event that has one |
 | `stat.<id>` | Each stat's label on the result |
+| `gauge.<id>` | Each gauge's label |
+| `control.<id>` | Each control's label |
 
 ## The two documents
 
@@ -322,19 +430,28 @@ round. The rules are the only part of a puzzle that is code.
     "logLimit": "the fixed cap on the log"
   },
   "opponents": "absent when solo, or { sides, seatsPerSide: [least, most], standIn: { standing } }",
-  "settings": [{ "id": "", "type": "", "default": "", "min": "", "max": "", "line": "", "group": "board | deal | tempo | scoring" }],
-  "layers": [{ "id": "", "rule": "one line", "brings": { "pieces": [], "events": [], "settings": [] } }],
+  "board": { "shape": "grid | rings", "width": "grid", "height": "grid", "touch": "grid: 4 | 8", "rim": "grid: true or false",
+             "rings": "rings", "sectors": "rings", "shared": "between sides: true, or one board a seat" },
+  "terrain": [{ "id": "", "states": "names, if it has any" }],
+  "zones": [{ "id": "", "holds": "how many pieces", "player": "watches | takes" }],
+  "settings": [{ "id": "", "type": "whole | percent | permille | list | flag | maps", "default": "", "min": "", "max": "", "line": "", "group": "board | deal | tempo | scoring" }],
+  "layers": [{ "id": "", "rule": "one line", "brings": { "pieces": [], "events": [], "settings": [], "zones": [], "gauges": [], "controls": [] } }],
   "ladder": [{ "stage": "", "adds": ["layer ids"], "advance": { "measure": "best-round | average-of-last | wins-over-stand-in | rounds-played", "threshold": "in the measure's unit" } }],
   "evaluation": { "tierStarts": "solo: { steady, sharp, masterful, legendary }", "by": "versus: outcome", "paceWindowSeconds": "" },
   "signals": { "in": [{ "id": "", "type": "number | flag | outcome", "when": "on-change | sampled | at-end" }], "out": [] },
-  "pieces": [{ "id": "", "family": "the setting that counts its kinds", "of": "the piece it is based on", "states": "names, or { count }" }],
-  "moves": [{ "id": "", "line": "", "fields": { "<name>": "cell | cells | direction | piece | number | flag" } }],
-  "events": [{ "id": "", "line": "", "fields": { "<name>": "cell | cells | piece | player | number | points" } }],
+  "pieces": [{ "id": "", "footprint": "one cell, or the cells it covers", "family": "the setting that counts its kinds", "of": "the piece it is based on", "states": "names, or { count }" }],
+  "moves": [{ "id": "", "line": "", "gesture": "tap | long-press | draw | drag | swipe | slice | turn | hold", "inHand": "true when built in hand",
+              "fields": { "<name>": "place | places | direction | piece | number | flag" } }],
+  "controls": [{ "id": "", "move": "the move it makes, or none for a switch", "key": "its letter" }],
+  "events": [{ "id": "", "line": "", "fields": { "<name>": "place | places | piece | player | number | points" } }],
+  "gauges": [{ "id": "", "line": "", "most": "a number or a setting", "danger": "the value past which it means danger" }],
   "stats": [{ "id": "", "line": "" }],
   "texts": [{ "key": "", "placeholders": [] }],
   "teaching": { "preview": "true or false", "hint": "true or false" }
 }
 ```
+
+A board's sizes, a zone's capacity and a gauge's most are each a number, or the setting that holds it.
 
 ### The skin
 
@@ -352,8 +469,8 @@ round. The rules are the only part of a puzzle that is code.
 
 - Every part of the puzzle is filled in.
 - The ladder has two to four stages, each layer is added by exactly one, and the last is `full`.
-- The rules know every layer, setting, piece, state, move, event and signal the puzzle declares, and
-  declare nothing it lacks. A host checks this before it runs a round.
+- The rules know every layer, setting, terrain, zone, piece, state, move, control, event, gauge and
+  signal the puzzle declares, and declare nothing it lacks. A host checks this before it runs a round.
 - The skin has a drawing for every piece, state and kind, a cue for every cue an event names, a text
   for every key with its placeholders kept, and the beat on exactly one event.
 
@@ -372,19 +489,20 @@ An excerpt of the puzzle:
   "mechanic": "Draw a path through touching pieces of one kind to clear them",
   "verb": "trace",
   "round": { "tempo": { "kind": "still" }, "ends": [{ "by": "clock", "setting": "roundSeconds" }], "logLimit": 600 },
+  "board": { "shape": "grid", "width": "width", "height": "height", "touch": 8, "rim": false },
   "layers": [
     { "id": "loops", "rule": "a closed path takes every prize at once",
       "brings": { "events": ["loop"], "settings": ["loopMin", "loopPercent", "insidePoints", "prizeLoopPoints"] } }
   ],
-  "moves": [{ "id": "trace", "line": "draw a path through touching pieces, closed or open", "fields": { "cells": "cells", "closed": "flag" } }],
-  "events": [{ "id": "loop", "line": "a closed path took every prize", "fields": { "cells": "cells", "inside": "cells", "prizes": "number", "points": "points" } }],
+  "moves": [{ "id": "trace", "line": "draw a path through touching pieces, closed or open", "gesture": "draw",
+              "fields": { "path": "places", "closed": "flag" } }],
+  "events": [{ "id": "loop", "line": "a closed path took every prize", "fields": { "path": "places", "inside": "places", "prizes": "number", "points": "points" } }],
+  "gauges": [{ "id": "prizes", "line": "prizes on the board", "most": "maxPrizes" }],
   "evaluation": { "tierStarts": { "steady": 850, "sharp": 2450, "masterful": 4800, "legendary": 8400 }, "paceWindowSeconds": 10 }
 }
 ```
 
 ## Not yet covered
 
-- **Layout:** the board's geometry, how a move is made by touch and keys, and settings with a shape of
-  their own, such as a deck's map.
 - **Motion:** how each event plays on the board, and how the beat looks.
 - **Scoring:** how the rules work points out from events, with their curves, multipliers and streaks.

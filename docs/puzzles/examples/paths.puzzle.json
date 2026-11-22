@@ -7,6 +7,9 @@
     "ends": [{"by": "clock", "setting": "roundSeconds"}],
     "logLimit": 600
   },
+  "board": {"shape": "grid", "width": "width", "height": "height", "touch": 8, "rim": false},
+  "terrain": [],
+  "zones": [],
   "settings": [
     {
       "id": "roundSeconds",
@@ -211,7 +214,7 @@
     {
       "id": "streak",
       "rule": "long paths in a row multiply",
-      "brings": {"events": ["streak"], "settings": ["streakMin", "streakPercent"]}
+      "brings": {"events": ["streak"], "settings": ["streakMin", "streakPercent"], "gauges": ["streak"]}
     },
     {
       "id": "prizes",
@@ -219,7 +222,8 @@
       "brings": {
         "pieces": ["prize"],
         "events": ["prize_floor"],
-        "settings": ["startPrizes", "prizePermille", "maxPrizes", "prizeFloorPoints"]
+        "settings": ["startPrizes", "prizePermille", "maxPrizes", "prizeFloorPoints"],
+        "gauges": ["prizes"]
       }
     },
     {
@@ -274,27 +278,29 @@
     {
       "id": "trace",
       "line": "draw a path through touching pieces, closed or open",
-      "fields": {"cells": "cells", "closed": "flag"}
+      "gesture": "draw",
+      "fields": {"path": "places", "closed": "flag"}
     }
   ],
+  "controls": [],
   "events": [
-    {"id": "clear", "line": "a path cleared", "fields": {"cells": "cells", "points": "points"}},
+    {"id": "clear", "line": "a path cleared", "fields": {"path": "places", "points": "points"}},
     {
       "id": "settle",
       "line": "pieces fell and new ones arrived",
-      "fields": {"fell": "cells", "arrived": "cells"}
+      "fields": {"fell": "places", "arrived": "places"}
     },
     {"id": "reshuffle", "line": "no path was left, so the board was dealt again", "fields": {}},
     {"id": "streak", "line": "the streak grew", "fields": {"count": "number"}},
     {
       "id": "prize_floor",
       "line": "a prize reached the floor and was taken",
-      "fields": {"cell": "cell", "points": "points"}
+      "fields": {"place": "place", "points": "points"}
     },
     {
       "id": "loop",
       "line": "a closed path took every prize",
-      "fields": {"cells": "cells", "inside": "cells", "prizes": "number", "points": "points"}
+      "fields": {"path": "places", "inside": "places", "prizes": "number", "points": "points"}
     },
     {
       "id": "bounty",
@@ -304,13 +310,17 @@
     {
       "id": "defuse",
       "line": "a timed piece was cleared",
-      "fields": {"cells": "cells", "points": "points"}
+      "fields": {"places": "places", "points": "points"}
     },
     {
       "id": "blowup",
       "line": "a timed piece ran out and ruined its neighbours",
-      "fields": {"cell": "cell", "ruined": "cells"}
+      "fields": {"place": "place", "ruined": "places"}
     }
+  ],
+  "gauges": [
+    {"id": "prizes", "line": "prizes on the board", "most": "maxPrizes"},
+    {"id": "streak", "line": "long paths in a row"}
   ],
   "stats": [
     {"id": "paths", "line": "paths cleared"},
@@ -352,6 +362,8 @@
     {"key": "event.defuse"},
     {"key": "event.blowup"},
     {"key": "event.reshuffle"},
+    {"key": "gauge.prizes", "placeholders": ["count", "max"]},
+    {"key": "gauge.streak", "placeholders": ["count"]},
     {"key": "stat.paths"},
     {"key": "stat.longest"},
     {"key": "stat.loops"},

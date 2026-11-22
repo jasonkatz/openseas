@@ -503,6 +503,8 @@
     "event.defuse": "Defused",
     "event.blowup": "Blast",
     "event.reshuffle": "Field scrambled",
+    "gauge.prizes": "Crates adrift: {count} of {max}",
+    "gauge.streak": "Streak x{count}",
     "stat.paths": "Hauls",
     "stat.longest": "Longest line",
     "stat.loops": "Loops closed",
