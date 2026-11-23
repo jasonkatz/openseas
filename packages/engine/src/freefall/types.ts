@@ -1,5 +1,5 @@
 /**
- * Freefall (prototype, ADR 0036, ADR 0079): cargo pods dropped down a shaft of rockers into the
+ * Freefall (prototype, ADR 0036, ADR 0080): cargo pods dropped down a shaft of rockers into the
  * berths at its foot. A successor to the original's Treasure Drop, faithful to its mechanics.
  *
  * The one verb is a drop: pick one of the `width` lanes at the top and let a pod fall. The shaft
