@@ -41,9 +41,10 @@ own way, while what happens on the board stays a fact of the rules.
    is. The skin plays the beat on it: one pulse over the whole board on top of every other motion,
    stronger for a bigger moment and never a second effect, with one cue of its own heard alone.
 9. **Reduced motion is the skin's.** The host passes on the player's ask; each skin says what it does.
-10. **A theme's motion is copied.** Each skin holds its whole motion, copied from its theme's when it
-    is made, as its cues are. The brand book's numbers (a move of 120ms, a clear of 160ms, a pulse of
-    420ms in `amber`) are the space theme's motion.
+10. **Motion is copied, as cues are.** Each skin holds its whole motion. A new skin starts from a copy
+    of the game's, which is the space theme's, as a new skin's cues do. A theme stays a set of skins
+    with no document of its own: what a theme holds is left for its own decision. The brand book's
+    numbers (a move of 120ms, a clear of 160ms, a pulse of 420ms in `amber`) are the game's motion.
 
 ## Alternatives considered
 
@@ -60,6 +61,7 @@ own way, while what happens on the board stays a fact of the rules.
 
 - The domain guide gains a Motion section; the glossary gains board change, arrive, leave, travel,
   change, moment, motion, mark, reduced motion, settle and ceiling, and a sharper beat.
+- The domain guide's "Not yet covered" gains what a theme holds.
 - The puzzle document gains a `moment` and board changes on its events; the skin document gains
   `motion`, and loses `beat` from its events.
 - Rule 1 of the `puzzles` skill says a move plays out before the next is taken, within the ceiling.

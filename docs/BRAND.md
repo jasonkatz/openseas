@@ -151,7 +151,7 @@ display face.
   second effect. This is the space theme's pulse: each skin keeps its own copy, as it does its
   sound (section 8, ADR 0073).
 - Reduced motion turns moves into cuts and keeps the beat as a still flash.
-- These numbers are the space theme's motion. Each skin starts from a copy of them, and a
+- These numbers are the game's motion, the space theme's. A new skin starts from a copy of them, and a
   board settles before it takes the next touch (ADR 0073).
 
 ## 7. The world

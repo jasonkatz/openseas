@@ -337,8 +337,8 @@ them.
 
 **Motion**:
 How a skin plays what happens on the board: each board change's length and easing, the stagger along
-an event's places, its marks, where points rise from, and the beat's pulse. A skin's motion starts as
-a copy of its theme's.
+an event's places, its marks, where points rise from, and the beat's pulse. A new skin's motion starts
+as a copy of the game's, as its cues do.
 _Avoid_: animation, tween, juice
 
 **Mark**:
