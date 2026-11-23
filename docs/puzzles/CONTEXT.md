@@ -153,6 +153,11 @@ The most any play could score from a task, worked out by the rules when the task
 it. It is never shown to the player.
 _Avoid_: optimum, max score
 
+**Moment**:
+The event the puzzle names as its biggest, with an optional condition on it, and the number field that
+says how big each one is. The skin plays the beat on it.
+_Avoid_: climax, highlight
+
 **Stat**:
 A count the rules keep about a round, such as the longest path, shown when it ends.
 
@@ -250,7 +255,8 @@ A cell on a board, or a numbered spot in a zone: what a move or an event points 
 _Avoid_: position, location
 
 **Piece**:
-A thing on the board that the rules know by its id.
+A thing on the board that the rules know by its id: a number unique within the round, kept from the
+moment the piece is dealt until it leaves.
 _Avoid_: tile, sprite, token
 
 **Footprint**:
@@ -264,6 +270,28 @@ One member of a family.
 
 **State**:
 A form a piece can be in: one of several named forms, or a count it shows.
+
+**Board change**:
+One thing that happens on the board: a piece arrives, leaves or travels, or a piece or a cell's terrain
+changes. Every board change is carried on an event.
+_Avoid_: animation, diff
+
+**Arrive**:
+A board change: a piece comes onto the board, in place, from a spot in a zone, or from off the board
+in a direction.
+_Avoid_: spawn
+
+**Leave**:
+A board change: a piece goes from the board, cleared or taken to a zone.
+_Avoid_: despawn, destroy
+
+**Travel**:
+A board change: a piece goes from one cell to another, by a route of cells when it passes through
+others.
+_Avoid_: move (a move is the player's), slide
+
+**Change**:
+A board change: a piece's state or kind, or a cell's terrain, becomes another where it stands.
 
 ## Sides
 
@@ -304,10 +332,26 @@ A piece of writing a player reads, found by its key.
 _Avoid_: word, string, message, copy
 
 **Callout**:
-The text an event shows on the board when it happens.
+The text an event shows on the board when it happens. At most one shows for each entry: the skin ranks
+them.
+
+**Motion**:
+How a skin plays what happens on the board: each board change's length and easing, the stagger along
+an event's places, its marks, where points rise from, and the beat's pulse. A skin's motion starts as
+a copy of its theme's.
+_Avoid_: animation, tween, juice
+
+**Mark**:
+A ring or a line the skin draws from an event's places, to show a rule at work rather than a piece.
+_Avoid_: particle, effect
 
 **Beat**:
-The one pulse of the whole board, kept for a puzzle's biggest moment.
+The skin's one effect for the puzzle's moment: a single pulse over the whole board, played on top of
+every other motion, stronger for a bigger moment and never a second effect, with one cue of its own
+heard alone.
+
+**Reduced motion**:
+A player's ask for less motion. The host passes it on, and each skin answers it in its own way.
 
 ## Teaching
 
@@ -332,6 +376,16 @@ _Avoid_: context, purpose
 **Countdown**:
 The host's moment that marks a round's last seconds.
 _Avoid_: tick
+
+**Settle**:
+A board settles when everything an entry set off has finished playing. It takes no touch until then.
+Motion from ticks never holds it, and the rules never wait on it.
+_Avoid_: idle, ready
+
+**Ceiling**:
+The host's fixed limit, about a second, on how long what one entry sets off may play. Past it, the host
+snaps whatever is still playing to its end.
+_Avoid_: timeout, cap (a cap is a payout's)
 
 **Arrangement**:
 Where things sit on a screen and how big they are: the board, its zones, the score. It belongs to

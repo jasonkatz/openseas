@@ -148,8 +148,11 @@ display face.
   showing (venting, a breach); the fewest that say it.
 - **The beat.** A big moment, a large combo or a won fight, gets one thing: the whole board pulses
   once in `amber`, 420ms, with one sound. A bigger moment is a slightly stronger pulse, never a
-  second effect. The pulse is the same on every board; its sound is each puzzle's own (section 8).
+  second effect. This is the space theme's pulse: each skin keeps its own copy, as it does its
+  sound (section 8, ADR 0073).
 - Reduced motion turns moves into cuts and keeps the beat as a still flash.
+- These numbers are the space theme's motion. Each skin starts from a copy of them, and a
+  board settles before it takes the next touch (ADR 0073).
 
 ## 7. The world
 

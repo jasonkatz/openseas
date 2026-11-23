@@ -24,7 +24,8 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
    understands the scoring: the input lands at once, every move plays back, a clear is seen and
    heard, and a big move gets a callout, a sound and the beat (`docs/BRAND.md` section 6: one amber
    pulse of the board, never a shake or a shower of particles). Feedback is part of the design, built with the first
-   playable, and it never holds input back.
+   playable. A move plays out before the next is taken, so it is short: what one move sets off ends
+   within the host's ceiling of about a second (ADR 0073).
 2. **One verb, learned in a minute.** Touch-first, one thumb, portrait (landscape only where the
    board is a map). A new player makes a scoring move in their first ten seconds. Keyboard plays
    every puzzle on desktop.
