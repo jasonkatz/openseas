@@ -34,7 +34,8 @@ changes.
 6. **A judged round is final.** It is never judged again, even when a later version would score its log
    differently. The standing and ladder places built from it stand.
 7. **A round is played and judged on the version it was dealt on.** Every new round is dealt on the
-   current version, so the sides of a versus round always share one. The host keeps the previous
+   current version, so the sides of a versus round always share one, and a ghost is drawn only from
+   rounds of the same version. The host keeps the previous
    major's rules until every round dealt on it could have ended, as the log cap and the clock bound,
    then refuses logs for it.
 8. **Replay is promised for the current and previous major only.** A round from an older major still
