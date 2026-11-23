@@ -9,7 +9,7 @@ import { REFINING } from "../prototypes/refining.js";
 const refining = content.puzzles.refining;
 const waitAt = (tick: number): RefiningMove => ({ type: "wait", tick });
 
-/** Refining (prototype, ADR 0036, ADR 0079): the shared board in the studio's frame. The outlet is drawn on the engine's clock (ADR 0015). */
+/** Refining (prototype, ADR 0036, ADR 0080): the shared board in the studio's frame. The outlet is drawn on the engine's clock (ADR 0015). */
 export function RefiningPractice() {
   const api = usePractice<RefiningState, RefiningMove, RefiningConfig>({
     puzzle: "refining",

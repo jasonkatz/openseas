@@ -1,6 +1,6 @@
 # Refining
 
-Status: built. Prototype (ADR 0036, ADR 0079), in the studio at `/refining`. Ticked (ADR 0015): the
+Status: built. Prototype (ADR 0036, ADR 0080), in the studio at `/refining`. Ticked (ADR 0015): the
 outlet is drawn on the engine's clock. A 120 second round.
 
 Refining is a successor, not one of the game's own new designs: it follows the original's

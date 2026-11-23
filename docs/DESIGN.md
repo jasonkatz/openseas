@@ -60,7 +60,7 @@ Puzzle Pirates is a live trademarked product. The distance we keep:
 Explicitly later: Rigging, Treasure Haul, Rumble, all crafting puzzles, parlor games, Treasure Drop.
 Treasure Haul's successor, Tractor, is built early as a prototype in the studio (ADR 0078); its role,
 the haul after a won fight, stays later. Distilling's successor, Refining, is built early the same
-way (ADR 0079); crafting, its role, stays later.
+way (ADR 0080); crafting, its role, stays later.
 
 Eight puzzles of the game's own design are prototypes in the studio (3.12, ADR 0036). None is in
 v1, and none has a role in the game until it is chosen for one.
@@ -624,7 +624,7 @@ are in [`prototypes/`](./prototypes/README.md), one file a puzzle, kept true as 
 
 Tractor is a ninth prototype of another kind (ADR 0078): a successor to Treasure Haul, faithful to
 its mechanics, built early so it can be played before the haul after a fight exists. Refining is a
-tenth of that kind (ADR 0079): a successor to Distilling, built early before crafting exists.
+tenth of that kind (ADR 0080): a successor to Distilling, built early before crafting exists.
 
 What holds for all eight:
 
@@ -1299,7 +1299,7 @@ Maintained as they arise.
 |---|---|---|---|
 | Setting | Pirates on the sea | Space pirates in one star system: asteroid outposts joined by lanes, a skiff, raiders, plunder paid in credits. Every mechanic is unchanged | The owner's choice of look and feel; it also puts the game further from the original (ADR 0034) |
 | New puzzles | None of these | Eight prototypes in the studio (3.12): Salvage, Overload, Deflectors, Reactor, Scanner, Tug, Racks, Cutting. None is a port of an original puzzle | The owner wants puzzles that are the game's own; they are tried in the studio before any gets a role (ADR 0036) |
-| Distilling | A crafting batch that ends after twelve columns rise, scored by the average of the columns sent up; any column that is not pure light ends the run | Refining, a prototype in the studio on a 120 second round, ticked (ADR 0079). A round is points on the clock, not an average; a column that sinks with no vapour (a dump) leaves the run alone; a rising column with tar or smoke costs points; swaps follow the cycle on a square grid, down a column and along a row alike; every second spilled vapour comes back as smoke on the vapour nearest the outlet | More of the score on planning: sorting the feed into clear columns and dumps is what the run pays for, and drawing early on luck does not pay (rules 7, 13 and 17 of the `puzzles` skill); no crafting yet to tie a batch to |
+| Distilling | A crafting batch that ends after twelve columns rise, scored by the average of the columns sent up; any column that is not pure light ends the run | Refining, a prototype in the studio on a 120 second round, ticked (ADR 0080). A round is points on the clock, not an average; a column that sinks with no vapour (a dump) leaves the run alone; a rising column with tar or smoke costs points; swaps follow the cycle on a square grid, down a column and along a row alike; every second spilled vapour comes back as smoke on the vapour nearest the outlet | More of the score on planning: sorting the feed into clear columns and dumps is what the run pays for, and drawing early on luck does not pay (rules 7, 13 and 17 of the `puzzles` skill); no crafting yet to tie a batch to |
 | Treasure Haul | A haul after a won fight, played while the ship stays by the wreck; gems dealt with the coins; any run a cascade | Tractor, a prototype in the studio on a 90 second round (ADR 0078). New loot never completes a run as it arrives, so every later wave was on the field to be seen; caches brought aboard in one swap pay by their number squared; beacons (the gems) arrive after every five scoring swaps | More of the score on planning than on the refill (rules 7 and 13 of the `puzzles` skill); no role yet to tie the round to a wreck |
 | Ship ownership | Individuals and crews | Individuals only in v1 | Simpler model; owner likes personal ships |
 | Crew ranks | A long ladder of ranks with fine-grained permissions | Three: commodore, officer, spacer | A crew of friends needs a leader, recruiters and everyone else; more can be added to the enum |

@@ -1,4 +1,4 @@
-# 0079. Distilling's successor starts as a prototype: Refining
+# 0080. Distilling's successor starts as a prototype: Refining
 
 Status: Accepted. Builds on [0001](./0001-spiritual-successor.md), [0036](./0036-prototype-puzzles.md),
 [0066](./0066-a-puzzle-is-learned-on-a-ladder-of-stages.md), [0075](./0075-a-puzzle-declares-its-deal.md)

@@ -15,7 +15,7 @@ export interface RefiningBoardProps {
   onFrame(): void;
 }
 
-/** Hosts the Refining canvas (prototype, ADR 0036, ADR 0079). All drawing lives in the renderer; every number shown is the engine's. */
+/** Hosts the Refining canvas (prototype, ADR 0036, ADR 0080). All drawing lives in the renderer; every number shown is the engine's. */
 export function RefiningBoard(props: RefiningBoardProps) {
   const latest = useRef(props);
   latest.current = props;

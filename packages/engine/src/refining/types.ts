@@ -1,5 +1,5 @@
 /**
- * Refining (prototype, ADR 0036, ADR 0079): a successor to the original's Distilling, faithful to
+ * Refining (prototype, ADR 0036, ADR 0080): a successor to the original's Distilling, faithful to
  * its mechanics and the game's own in everything a player sees and hears.
  *
  * The board is a refinery's tower: columns of fractions, `width` wide and `height` tall, always
