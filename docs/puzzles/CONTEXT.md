@@ -73,6 +73,36 @@ _Avoid_: pace, clock, speed
 One step of time in a ticking puzzle.
 _Avoid_: frame, step
 
+**Version**:
+Which form of a puzzle's rules and numbers a round was dealt on, written `major.minor`. It rises once
+for each change that merges, and a skin's changes never raise it.
+_Avoid_: release, revision, build
+
+**Major**:
+The first part of a version. It rises when a change can make a stored round replay differently from
+the same seed, settings and log, and the minor goes back to 0.
+_Avoid_: breaking change
+
+**Minor**:
+The second part of a version. It rises for any other change to a number in the puzzle, such as a
+default, a bound or a tier start, which changes new rounds but never how a stored round replays.
+_Avoid_: patch
+
+**History**:
+One plain line for each of a puzzle's versions, saying what changed.
+_Avoid_: changelog, release notes
+
+**Stored round**:
+What a host keeps of a judged round: the puzzle and its version, the seed, every setting's value and
+the layers on, the log, and the score, performance and tier. A judged round is final: it is never
+judged again.
+_Avoid_: replay, record
+
+**Witness round**:
+A recorded round a puzzle keeps with the read it must give. A change that alters one without raising
+the major fails the checks.
+_Avoid_: fixture, golden, snapshot
+
 ## What goes in
 
 **Verb**:
@@ -114,7 +144,7 @@ _Avoid_: injected move, external input
 
 **Log**:
 The ordered record of a round's moves and signals, each stamped with its time, closed by a final
-time mark. A round is replayed from its seed, settings and log.
+time mark. A round is replayed from its seed, settings and log, on the version it was dealt on.
 _Avoid_: move list, history
 
 ## What comes out
