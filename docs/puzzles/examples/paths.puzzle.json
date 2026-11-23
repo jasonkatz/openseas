@@ -1,5 +1,7 @@
 {
   "id": "paths",
+  "version": "0.1",
+  "history": [{"version": "0.1", "line": "First version"}],
   "mechanic": "Draw a path through touching pieces of one kind to clear them",
   "verb": "trace",
   "round": {

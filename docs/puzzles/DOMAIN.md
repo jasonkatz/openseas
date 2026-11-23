@@ -72,8 +72,8 @@ No ending is required. A puzzle without a clock lets a player take their time be
 ### The log
 
 The **log** is the ordered record of a round's moves and signals, each stamped with its time, closed by
-a final time mark. A host replays a round from its seed, settings and log, and gets the same round
-every time. The end of a round is never written into the log: it follows from the endings.
+a final time mark. A host replays a round from its seed, settings and log, on the version it was
+dealt on ([Versions](#versions)), and gets the same round every time. The end of a round is never written into the log: it follows from the endings.
 
 Every puzzle declares a fixed cap on the length of its log. It guards the host against a runaway
 round and is never a setting.
@@ -571,6 +571,60 @@ down for a loss.
 
 > Beating a Sharp opponent is a Masterful round. Losing to a Steady stand-in is a Green one.
 
+## Versions
+
+A log only replays the same on the rules it was played on, so a puzzle carries a **version**, written
+`major.minor`: one for its rules and its document together. Every puzzle starts at `0.1`, a prototype
+too, and a puzzle promoted into a world keeps its version running.
+
+### What raises it
+
+| Part | Rises when | Then |
+|---|---|---|
+| **Major** | A change can make a stored round replay differently from the same seed, settings and log: the rules, the deal, the board, pieces, moves, events, tempo, endings or the log cap | The minor goes back to 0 |
+| **Minor** | Any other number in the puzzle changes: a setting's default or bounds, a relation, tier starts, the ladder, the pace window | |
+
+Wording raises nothing: a setting's line or the mechanic. Skins raise nothing either, since a drawing,
+cue, text or motion changes no round. A skin has no version of its own; it must be ready against the
+puzzle's current version, and that is checked whenever the version rises.
+
+The version rises once for each change that merges, never at each save of a draft. The puzzle's
+**history** keeps one plain line for each version, and a host may show the newest line when a player
+first meets a new version.
+
+> Say Paths is at `2.3` and retunes `loopPercent`'s default: `2.4`, "loops pay 10% more". It then deals its
+> prizes on a stream of their own, which changes what a seed deals: `3.0`.
+
+### Stored rounds
+
+A **stored round** is what a host keeps of a judged round: the puzzle and its version, the seed, every
+setting's value (not only those changed from a default) and the layers on, the log, and the score,
+performance and tier it judged. Because every value is kept, a later change to a default never changes
+what an old round was.
+
+A judged round is final. It is never judged again, even when a later version would score its log
+differently, and the standing and ladder places built from it stand.
+
+### When a version changes
+
+- **Rounds in flight** are played and judged on the version they were dealt on. Every new round is
+  dealt on the current version, so the sides of a versus round always share one, and a ghost is drawn
+  only from rounds of the same version.
+- **Replay** is promised for the current and previous major. The host keeps the previous major's rules
+  until every round dealt on it could have ended, as the log cap and the clock bound, then refuses logs
+  for it. A round from an older major still shows its score and tier, but cannot be watched again. A
+  host may keep more.
+- **Standing** carries over unchanged: tier starts already put every version on the one scale. The host
+  may widen how unsure it is of a standing after a change, and never resets it.
+- **Ladder places** are kept by stage id. A player whose stage is gone moves to the next stage that
+  still exists, never back. Rounds already played at a stage count toward its threshold.
+
+### Witness rounds
+
+Each puzzle keeps a few **witness rounds**: recorded rounds, each a seed, settings, log and the read
+it must give. A change that alters any of them without raising the major fails the checks, so the rule
+above does not rest on anyone noticing. Raising the major records them again.
+
 ## Sides
 
 A puzzle played between sides declares how many **sides** a round has and how many **seats** each holds,
@@ -589,7 +643,7 @@ Stand-ins come in four **types**, the same for every puzzle:
 | Careless | Any move the rules allow, at random |
 | Greedy | The move worth the most now |
 | Planner | The move whose best few moves after it are worth the most |
-| Ghost | A player's own round, replayed from its log on the same deal |
+| Ghost | A player's own round, replayed from its log on the same deal and version |
 
 Each takes two **dials**: its **delay**, the time it takes over a move, and its **slip**, the share of
 its moves made at random instead. A stand-in is a type and its dials. A host or a role picks the
@@ -781,6 +835,8 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
 ```json
 {
   "id": "a neutral word for the mechanic",
+  "version": "major.minor",
+  "history": [{ "version": "major.minor", "line": "what changed, in one plain line" }],
   "mechanic": "one line, plain English",
   "verb": "the id of the move the puzzle is built around",
   "round": {
@@ -881,6 +937,8 @@ A board's sizes, a zone's capacity and a gauge's most are each a number, or the 
   revealed by an event.
 - A puzzle between sides can list the moves a round allows and say what each is worth, so it takes
   every type of stand-in.
+- The puzzle keeps witness rounds, each still giving the read recorded for it, and a history line for
+  its current version.
 - The skin has a drawing for every piece, state and kind, a cue for every cue an event names, a text
   for every key with its placeholders kept, a beat cue, and a motion for every board change.
 
@@ -901,6 +959,7 @@ An excerpt of the puzzle:
 ```json
 {
   "id": "paths",
+  "version": "0.1",
   "mechanic": "Draw a path through touching pieces of one kind to clear them",
   "verb": "trace",
   "round": { "tempo": { "kind": "still" }, "ends": [{ "by": "clock", "setting": "roundSeconds" }], "logLimit": 600 },
@@ -921,7 +980,5 @@ An excerpt of the puzzle:
 
 ## Not yet covered
 
-- **Rule versions:** what becomes of stored logs and standing when a puzzle's rules change, since a log
-  only replays on the rules it was played on.
 - **Versus details:** a drawn round, how each seat is judged when a side holds several, and what a turn
   does when its time runs out with no orders.
