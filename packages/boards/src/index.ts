@@ -70,3 +70,6 @@ export { RACKS_KINDS } from "./racks/pieces.js";
 export { CuttingBoard, type CuttingBoardProps } from "./cutting/CuttingBoard.jsx";
 export { CuttingOreIcon } from "./cutting/OreIcon.jsx";
 export { CUTTING_ORES } from "./cutting/pieces.js";
+export { TractorBoard, type TractorBoardProps } from "./tractor/TractorBoard.jsx";
+export { TractorBeaconIcon, TractorCacheIcon, TractorLootIcon } from "./tractor/TractorIcon.jsx";
+export { TRACTOR_KINDS } from "./tractor/pieces.js";

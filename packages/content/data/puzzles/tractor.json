@@ -1,0 +1,62 @@
+{
+  "category": "prototype",
+  "config": {
+    "width": 6,
+    "height": 9,
+    "kinds": 5,
+    "runPoints": 5,
+    "cascadePercent": [100, 150, 200],
+    "startCaches": 1,
+    "cachePermille": 25,
+    "maxCaches": 3,
+    "cachePoints": 150,
+    "beaconEvery": 5,
+    "sweepPoints": 10,
+    "maxMoves": 800
+  },
+  "paceSeconds": 12,
+  "roundSeconds": 90,
+  "thresholds": [
+    { "score": 400, "rating": 1100 },
+    { "score": 1000, "rating": 1300 },
+    { "score": 2200, "rating": 1500 },
+    { "score": 3600, "rating": 1700 },
+    { "score": 5000, "rating": 1900 },
+    { "score": 6800, "rating": 2100 }
+  ],
+  "stages": [
+    {
+      "id": "runs",
+      "roundSeconds": 60,
+      "thresholds": [
+        { "score": 150, "rating": 1100 },
+        { "score": 400, "rating": 1300 },
+        { "score": 900, "rating": 1500 },
+        { "score": 1500, "rating": 1700 },
+        { "score": 2200, "rating": 1900 },
+        { "score": 3000, "rating": 2100 }
+      ],
+      "config": {
+        "startCaches": 0,
+        "maxCaches": 0,
+        "cachePermille": 0,
+        "beaconEvery": 0
+      }
+    },
+    {
+      "id": "caches",
+      "roundSeconds": 90,
+      "thresholds": [
+        { "score": 250, "rating": 1100 },
+        { "score": 700, "rating": 1300 },
+        { "score": 1500, "rating": 1500 },
+        { "score": 2500, "rating": 1700 },
+        { "score": 3600, "rating": 1900 },
+        { "score": 4900, "rating": 2100 }
+      ],
+      "config": {
+        "beaconEvery": 0
+      }
+    }
+  ]
+}

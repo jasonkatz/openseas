@@ -27,6 +27,9 @@ import { RacksContentSchema, type RacksContent } from "./racks.js";
 import cuttingData from "../../data/puzzles/cutting.json" with { type: "json" };
 import cuttingMessages from "../../data/messages/prototypes/cutting.json" with { type: "json" };
 import { CuttingContentSchema, type CuttingContent } from "./cutting.js";
+import tractorData from "../../data/puzzles/tractor.json" with { type: "json" };
+import tractorMessages from "../../data/messages/prototypes/tractor.json" with { type: "json" };
+import { TractorContentSchema, type TractorContent } from "./tractor.js";
 
 export * from "./base.js";
 export * from "./salvage.js";
@@ -37,6 +40,7 @@ export * from "./scanner.js";
 export * from "./tug.js";
 export * from "./racks.js";
 export * from "./cutting.js";
+export * from "./tractor.js";
 
 /** Content for every prototype puzzle, keyed by puzzle id. */
 export interface PrototypePuzzleContent {
@@ -48,6 +52,7 @@ export interface PrototypePuzzleContent {
   readonly tug: TugContent;
   readonly racks: RacksContent;
   readonly cutting: CuttingContent;
+  readonly tractor: TractorContent;
 }
 export type PrototypePuzzleContentId = keyof PrototypePuzzleContent;
 
@@ -61,5 +66,6 @@ export const PROTOTYPE_CONTENT: { readonly [K in PrototypePuzzleContentId]: { re
   tug: { schema: TugContentSchema, data: tugData, messages: tugMessages },
   racks: { schema: RacksContentSchema, data: racksData, messages: racksMessages },
   cutting: { schema: CuttingContentSchema, data: cuttingData, messages: cuttingMessages },
+  tractor: { schema: TractorContentSchema, data: tractorData, messages: tractorMessages },
 };
 export const PROTOTYPE_PUZZLE_CONTENT_IDS = Object.keys(PROTOTYPE_CONTENT) as PrototypePuzzleContentId[];

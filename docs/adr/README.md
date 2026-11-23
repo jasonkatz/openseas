@@ -83,3 +83,4 @@ that supersedes it.
 | [0075](./0075-a-puzzle-declares-its-deal.md) | A puzzle declares its deal: draws on streams of their own, checks that always pass, and secrets |
 | [0076](./0076-stand-ins-are-four-types-on-two-dials.md) | Stand-ins are four types on two dials, the same for every puzzle |
 | [0077](./0077-a-theme-is-a-document-its-skins-read.md) | A theme is a document its skins read: a palette and type they name, and the cues and motion they copy |
+| [0078](./0078-treasure-hauls-successor-starts-as-a-prototype.md) | Treasure Haul's successor starts as a prototype: Tractor, dealt only in the studio |
