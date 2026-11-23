@@ -4,7 +4,10 @@ import {
   refiningHint,
   refiningKindChar,
   refiningLinked,
+  refiningPairOf,
+  refiningPartner,
   refiningSwapIllegalReason,
+  REFINING_DIRS,
   type RefiningDir,
   type RefiningEvent,
   type RefiningGrade,
@@ -15,11 +18,12 @@ import {
 import { sfx } from "../audio.js";
 import { MOTION } from "../look/tokens.js";
 import { FONT_MONO, INK } from "../kit/art.js";
-import { Grid, KitBoard } from "../kit/board.js";
+import { KitBoard } from "../kit/board.js";
+import { HexGrid } from "./hex.js";
 import { refiningKind } from "./pieces.js";
 
 export interface RefiningCallbacks {
-  /** The player swapped the piece at `cell` with the one below it or to its right. */
+  /** The player swapped the piece at `cell` with the one below it, or one of the two in the column to its right. */
   onSwap(cell: number, dir: RefiningDir): void;
   /** The player drew the outlet early. */
   onDraw(): void;
@@ -56,19 +60,18 @@ interface PieceView {
 const STRIP = 0.95;
 const HINT_AFTER_MS = 6000;
 const RING_W = 0.07;
-/** A drag this far, in cells, towards a neighbour swaps with it. */
-const DRAG = 0.38;
 /** A clear run this long is the puzzle's named compound move: it gets the beat. */
 const BEAT_RUN = 3;
 
 /**
- * Draws the refinery's tower and turns a drag, two taps or a key into a swap, and a tap on the
+ * Draws the refinery's tower, a honeycomb, and turns a drag, two taps or a key into a swap (a drag
+ * carries its piece through as many swaps as it is dragged over), and a tap on the
  * outlet's lamp or enter into an early draw. Scores nothing: every number it shows is the engine's.
  * It is ticked (ADR 0015): it is handed a display state every tick and plays only the events it has
  * not shown, by their rising `seq`.
  */
 export class RefiningRenderer extends KitBoard<RefiningState> {
-  private readonly grid = new Grid(6, 5);
+  private readonly grid = new HexGrid(6, 5);
   private readonly bg = new Graphics();
   private readonly linkLayer = new Graphics();
   private readonly hintLayer = new Graphics();
@@ -81,7 +84,8 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
   /** The `seq` of the last engine event played. */
   private shownSeq = 0;
   private selected: number | null = null;
-  private drag: { cell: number; x: number; y: number } | null = null;
+  /** A drag in progress: the dragged piece's cell, whether it has swapped or bumped yet, and the event it waits on before its next swap. */
+  private drag: { cell: number; moved: boolean; bumped: number | null; waitSeq: number | null } | null = null;
   private cursor = 0;
   private cursorShown = false;
   /** Space picked the piece under the cursor: the next arrow swaps it that way. */
@@ -121,23 +125,27 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
     g.fit(width, height, { top: STRIP, margin: 8 });
     const pad = Math.max(4, g.cell * 0.12);
     const strip = g.cell * STRIP;
-    // Bare ground under the strip and the tower, and one hairline: the outlet's edge, where columns leave.
+    // Bare ground under the strip and the tower. The outlet is a raised panel from its lamp down the
+    // whole rightmost column, with one hairline down its far edge, where columns leave.
     this.bg.clear();
     this.paintGround(this.bg, g.ox - pad, g.oy - strip - pad, g.width + pad * 2, g.height + strip + pad * 2, false);
+    const ow = g.cell + pad;
+    const ox = g.cx(g.cols - 1) - ow / 2;
+    this.bg.roundRect(ox, g.oy - strip, ow, g.height + strip, 10).fill({ color: INK.raised });
     const edge = g.ox + g.width + pad / 2;
     this.bg
-      .moveTo(edge, g.oy)
+      .moveTo(edge, g.oy - strip)
       .lineTo(edge, g.oy + g.height)
       .stroke({ width: 1, color: INK.line });
     if (this.label) {
       this.label.style.fontSize = Math.max(12, Math.round(g.cell * 0.32));
-      this.label.position.set(g.ox + g.width - g.cell * 1.05, g.oy - strip * 0.5);
+      this.label.position.set(g.cx(g.cols - 1) - ow / 2 - g.cell * 0.12, g.oy - strip * 0.5);
     }
     this.cursor = Math.min(this.cursor, g.cols * g.rows - 1);
     this.publishGeom(g.ox, g.oy, g.cell);
     this.select(null);
     this.lampDrawn = "";
-    if (this.state) this.snap(this.state.cells);
+    if (this.state) this.snap(this.state);
     this.drawCursor();
   }
 
@@ -146,8 +154,10 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
     return this.piece(k.id, this.grid.cell, k.color, k.paint);
   }
 
-  /** Put exactly these pieces on the tower, each on its cell, with nothing in motion. */
-  private snap(cells: readonly RefiningPiece[]): void {
+  /** Put exactly this tower's pieces on the board, each on its cell, with nothing in motion. */
+  private snap(state: RefiningState): void {
+    const cells = state.cells;
+    this.setPhase(state.draws);
     const seen = new Set<number>();
     cells.forEach((p, cell) => {
       seen.add(p.id);
@@ -165,8 +175,14 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
       v.s.destroy();
       this.pieces.delete(id);
     }
-    this.drawLinks(cells);
+    this.drawLinks(state);
     this.touchView();
+  }
+
+  /** Which columns sit low: the parity of the draws so far, as the engine has it. Published for the smoke. */
+  private setPhase(draws: number): void {
+    this.grid.phase = draws & 1;
+    this.app.canvas.setAttribute("data-phase", String(this.grid.phase));
   }
 
   private spawn(p: RefiningPiece, cell: number): PieceView {
@@ -180,16 +196,17 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
   }
 
   /** A small dot on the edge between every two pieces that can swap: the links, so a player sees every move there is. */
-  private drawLinks(cells: readonly RefiningPiece[]): void {
+  private drawLinks(state: RefiningState): void {
     const g = this.grid;
     const l = this.linkLayer;
+    const cells = state.cells;
     l.clear();
     const r = Math.max(2, g.cell * 0.06);
     for (let c = 0; c < cells.length; c++) {
-      const col = c % g.cols;
-      const row = Math.floor(c / g.cols);
-      if (col < g.cols - 1 && refiningLinked(cells[c]!.kind, cells[c + 1]!.kind)) l.circle(g.x(c) + g.cell / 2, g.y(c), r);
-      if (row < g.rows - 1 && refiningLinked(cells[c]!.kind, cells[c + g.cols]!.kind)) l.circle(g.x(c), g.y(c) + g.cell / 2, r);
+      for (const dir of REFINING_DIRS) {
+        const o = refiningPartner(state, c, dir);
+        if (o !== null && refiningLinked(cells[c]!.kind, cells[o]!.kind)) l.circle((g.x(c) + g.x(o)) / 2, (g.y(c) + g.y(o)) / 2, r);
+      }
     }
     l.fill({ color: INK.dim });
   }
@@ -217,6 +234,8 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
     // Played when the first new event follows what is drawn; anything else (a new round, a jump) is shown as it stands.
     const follows = prev !== null && events.length > 0 && events[0]!.seq === this.shownSeq + 1 && this.drawnMatches(prev.cells);
     this.shownSeq = state.eventSeq;
+    // A draw moves every piece: a drag in progress lets go rather than swap a piece it did not pick up.
+    if (events.some((e) => e.type === "draw")) this.drag = null;
     this.select(null);
     this.picked = false;
     this.drawCursor();
@@ -224,7 +243,7 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
     this.hintLayer.clear();
     this.idle = 0;
     if (!follows) {
-      this.snap(state.cells);
+      this.snap(state);
       this.refreshLabel();
       return;
     }
@@ -243,6 +262,7 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
     let run = prev.run;
     let t = 0;
     this.linkLayer.clear();
+    this.setPhase(prev.draws);
     for (const e of events) {
       if (e.type === "swap") {
         const ia = ids[e.a]!;
@@ -271,6 +291,8 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
         this.pieces.delete(p.id);
         this.tweens.to(v.s, { y: v.s.y + (up ? -1 : 1) * g.cell * 0.7, alpha: 0 }, MOTION.clear + 60, { delay: at, done: () => v.s.destroy() });
       }
+      // Each column keeps its height as it moves right: which columns sit low turns over.
+      this.grid.phase ^= 1;
       const next = new Array<number>(ids.length);
       for (let r = 0; r < g.rows; r++) {
         next[r * g.cols] = e.fresh[r]!.id;
@@ -281,12 +303,13 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
         const v = this.pieces.get(next[c]!);
         if (!v) continue;
         v.cell = c;
-        this.tweens.move(v.s, { x: g.x(c) }, { delay: at + 60 });
+        this.tweens.move(v.s, { x: g.x(c), y: g.y(c) }, { delay: at + 60 });
       }
       e.fresh.forEach((p, r) => {
         const cell = r * g.cols;
         const v = this.spawn(p, cell);
         v.s.x = g.x(cell) - g.cell * 0.6;
+        v.s.y = g.y(cell);
         v.s.alpha = 0;
         this.tweens.to(v.s, { x: g.x(cell), alpha: 1 }, MOTION.move, { delay: at + 60 });
       });
@@ -310,7 +333,7 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
     }
     // Whatever the tweens did, the tower ends as the engine holds it.
     this.tweens.after(t, () => {
-      this.snap(state.cells);
+      this.snap(state);
       this.refreshLabel();
     });
   }
@@ -434,35 +457,46 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
     this.lampDrawn = "";
   }
 
-  /** A rounded frame round a pair: `cell` and the piece below it or to its right. */
+  /** A capsule round a pair: `cell` and its partner going `dir`. */
   private framePair(l: Graphics, cell: number, dir: RefiningDir, color: number, alpha = 1): void {
     const g = this.grid;
-    const pad = g.cell * 0.06;
-    const x = g.x(cell) - g.cell / 2 + pad;
-    const y = g.y(cell) - g.cell / 2 + pad;
-    const w = (dir === "right" ? g.cell * 2 : g.cell) - pad * 2;
-    const h = (dir === "down" ? g.cell * 2 : g.cell) - pad * 2;
-    l.roundRect(x, y, w, h, g.cell * 0.22).stroke({ width: Math.max(2, g.cell * RING_W), color, alpha });
+    const state = this.state;
+    const other = state ? refiningPartner(state, cell, dir) : null;
+    if (other === null) return;
+    const ax = g.x(cell);
+    const ay = g.y(cell);
+    const bx = g.x(other);
+    const by = g.y(other);
+    const r = g.cell * 0.46;
+    const th = Math.atan2(by - ay, bx - ax);
+    l.moveTo(ax + Math.cos(th + Math.PI / 2) * r, ay + Math.sin(th + Math.PI / 2) * r)
+      .arc(ax, ay, r, th + Math.PI / 2, th + (Math.PI * 3) / 2)
+      .lineTo(bx + Math.cos(th - Math.PI / 2) * r, by + Math.sin(th - Math.PI / 2) * r)
+      .arc(bx, by, r, th - Math.PI / 2, th + Math.PI / 2)
+      .closePath()
+      .stroke({ width: Math.max(2, g.cell * RING_W), color, alpha });
   }
 
   // ---- moves
 
-  /** Swap `a` with its neighbour `b`, whichever way round they lie. */
-  private trySwapPair(a: number, b: number): void {
+  /** Swap `a` with its neighbour `b`, whichever way round they lie. True when the swap was made. */
+  private trySwapPair(a: number, b: number): boolean {
     const state = this.state;
-    if (!state || state.finished) return;
+    if (!state || state.finished) return false;
     if (this.busy) this.tweens.flush();
     this.select(null);
     this.idle = 0;
-    const cols = this.grid.cols;
-    const first = Math.min(a, b);
-    const second = Math.max(a, b);
-    const dir: RefiningDir | null = second - first === 1 && first % cols !== cols - 1 ? "right" : second - first === cols ? "down" : null;
-    if (dir === null || refiningSwapIllegalReason(state, first, dir) !== null) {
+    const pair = refiningPairOf(state, a, b);
+    if (pair === null || refiningSwapIllegalReason(state, pair.cell, pair.dir) !== null) {
       sfx.bump();
-      return;
+      return false;
     }
-    this.cb.onSwap(first, dir);
+    this.cb.onSwap(pair.cell, pair.dir);
+    return true;
+  }
+
+  private touching(a: number, b: number): boolean {
+    return this.state !== null && refiningPairOf(this.state, a, b) !== null;
   }
 
   private tryDraw(): void {
@@ -503,39 +537,45 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
     this.cursorShown = false;
     this.picked = false;
     this.drawCursor();
-    this.drag = { cell: at.index, x, y };
+    this.drag = { cell: at.index, moved: false, bumped: null, waitSeq: null };
   }
 
+  /**
+   * A drag carries its piece: each time the pointer comes over a neighbour the piece can swap with,
+   * it swaps and goes on from there. A neighbour it cannot swap with bumps once, and the piece stays.
+   */
   protected override pointerMove(x: number, y: number): void {
     const d = this.drag;
-    if (!d) return;
-    const dx = x - d.x;
-    const dy = y - d.y;
-    const g = this.grid;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < g.cell * DRAG) return;
-    this.drag = null;
-    const col = d.cell % g.cols;
-    const row = Math.floor(d.cell / g.cols);
-    let to: number | null;
-    if (Math.abs(dx) > Math.abs(dy)) to = dx > 0 ? (col < g.cols - 1 ? d.cell + 1 : null) : col > 0 ? d.cell - 1 : null;
-    else to = dy > 0 ? (row < g.rows - 1 ? d.cell + g.cols : null) : row > 0 ? d.cell - g.cols : null;
-    if (to === null) {
-      sfx.bump();
-      return;
+    const state = this.state;
+    if (!d || !state || state.finished) return;
+    // The last swap has not come back yet: the tower as held is not the one the piece is on.
+    if (d.waitSeq !== null) {
+      if (state.eventSeq === d.waitSeq) return;
+      d.waitSeq = null;
     }
-    this.trySwapPair(d.cell, to);
+    const at = this.grid.at(x, y);
+    if (!at || at.index === d.cell || !this.touching(d.cell, at.index)) return;
+    if (d.bumped === at.index) return;
+    d.moved = true;
+    const seq = state.eventSeq;
+    if (this.trySwapPair(d.cell, at.index)) {
+      d.cell = at.index;
+      d.bumped = null;
+      d.waitSeq = seq;
+    } else {
+      d.bumped = at.index;
+    }
   }
 
   protected override pointerUp(x: number, y: number): void {
     const d = this.drag;
     this.drag = null;
-    if (!d) return;
+    if (!d || d.moved) return;
     const at = this.grid.at(x, y);
     if (!at || at.index !== d.cell) return;
     // A tap picks a piece; a tap on a neighbour swaps the two.
     const s = this.selected;
-    const cols = this.grid.cols;
-    if (s !== null && (Math.abs(at.index - s) === cols || (Math.abs(at.index - s) === 1 && Math.floor(at.index / cols) === Math.floor(s / cols)))) {
+    if (s !== null && this.touching(s, at.index)) {
       this.trySwapPair(s, at.index);
       return;
     }
@@ -571,25 +611,35 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
     this.cursorLayer.roundRect(x, y, g.cell - pad * 2, g.cell - pad * 2, g.cell * 0.22).stroke({ width: Math.max(2, g.cell * RING_W), color: INK.amber });
   }
 
-  /** Arrows or WASD move the cursor; space picks its piece and the next arrow swaps it that way. Enter draws now. */
+  /**
+   * Arrows move the cursor: up and down within a column, left and right to the same row of the next.
+   * Q, E, A and D step up-left, up-right, down-left and down-right across the honeycomb, W and S up
+   * and down. Space picks the piece under the cursor and the next step swaps it that way. Enter draws now.
+   */
   override keyboard(key: string): boolean {
     if (!this.interactive || !this.state) return false;
     const g = this.grid;
     const k = key.length === 1 ? key.toLowerCase() : key;
+    const c0 = this.cursor % g.cols;
+    const r0 = Math.floor(this.cursor / g.cols);
+    const low = g.lowered(c0);
+    const diag = (dc: number, up: boolean): readonly [number, number] => [dc, up ? (low ? 0 : -1) : low ? 1 : 0];
     const steps: Record<string, readonly [number, number]> = {
       ArrowLeft: [-1, 0],
       ArrowRight: [1, 0],
       ArrowUp: [0, -1],
       ArrowDown: [0, 1],
-      a: [-1, 0],
-      d: [1, 0],
       w: [0, -1],
       s: [0, 1],
+      q: diag(-1, true),
+      e: diag(1, true),
+      a: diag(-1, false),
+      d: diag(1, false),
     };
     const step = steps[k];
     if (step) {
-      const col = (this.cursor % g.cols) + step[0];
-      const row = Math.floor(this.cursor / g.cols) + step[1];
+      const col = c0 + step[0];
+      const row = r0 + step[1];
       this.cursorShown = true;
       this.idle = 0;
       this.select(null);

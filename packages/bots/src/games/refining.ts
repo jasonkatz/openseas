@@ -14,6 +14,7 @@ import {
   refiningLinks,
   refiningSortedness,
   type RefiningConfig,
+  type RefiningDir,
   type RefiningMove,
   type RefiningState,
 } from "@openseas/engine";
@@ -73,10 +74,10 @@ function sorterBot(name: string, about: string, drawWhen: ((s: RefiningState) =>
 }
 
 /** The best first swap of the best two swaps by the tower's sorting: a player who sees one swap set up the next. */
-function bestPair(s: RefiningState, near = false): { cell: number; dir: "down" | "right" } | null {
+function bestPair(s: RefiningState, near = false): { cell: number; dir: RefiningDir } | null {
   const base = refiningSortedness(s);
   const w = s.config.width;
-  let best: { cell: number; dir: "down" | "right"; value: number } | null = null;
+  let best: { cell: number; dir: RefiningDir; value: number } | null = null;
   // `near` keeps to the outlet and the column beside it: the pieces about to be drawn.
   for (const a of refiningLinks(s).filter((l) => !near || l.cell % w >= w - 2)) {
     const one = refiningAfterSwap(s, a.cell, a.dir)!;

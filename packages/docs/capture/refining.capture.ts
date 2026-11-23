@@ -8,6 +8,7 @@ import {
   reduceRefining,
   refiningDrawValue,
   refiningLinks,
+  refiningPartner,
   refiningViewString,
   type RefiningDir,
   type RefiningState,
@@ -17,8 +18,9 @@ import { boardGeom, boardString, canvasBox, clip, findSeed, hidePointer, openLab
 const cfg = loadContent().puzzles.refining.config;
 const W = cfg.width;
 const H = cfg.height;
-/** The strip over the tower (the outlet's lamp and its grade), in cells: the renderer's own layout. */
+/** The strip over the tower (the outlet's lamp and its grade), in cells, and the honeycomb's column spacing: the renderer's own layout. */
 const STRIP = 0.95;
+const DX = 0.88;
 
 interface Swap {
   cell: number;
@@ -48,33 +50,40 @@ function reach(s: RefiningState, grade: "clear" | "dump", depth: number): Swap[]
 async function region(page: Page): Promise<Box> {
   const g = await boardGeom(page, "refining");
   const pad = Math.max(4, g.cell * 0.12) + 10;
-  return padded({ x: g.ox, y: g.oy - g.cell * STRIP, width: g.cell * W, height: g.cell * (H + STRIP) }, pad, await canvasBox(page, "refining"));
+  return padded({ x: g.ox, y: g.oy - g.cell * STRIP, width: g.cell * (1 + (W - 1) * DX), height: g.cell * (H + 0.5 + STRIP) }, pad, await canvasBox(page, "refining"));
 }
 
-const centre = (g: { ox: number; oy: number; cell: number }, c: number): [number, number] => [g.ox + ((c % W) + 0.5) * g.cell, g.oy + (Math.floor(c / W) + 0.5) * g.cell];
+/** A cell's centre on the page: every other column sits half a piece low, as the canvas's `data-phase` says. */
+async function centre(page: Page, c: number): Promise<[number, number]> {
+  const g = await boardGeom(page, "refining");
+  const phase = Number(await page.getByTestId("refining-canvas").getAttribute("data-phase"));
+  const col = c % W;
+  const low = ((col + phase) & 1) === 1;
+  return [g.ox + (0.5 + col * DX) * g.cell, g.oy + (Math.floor(c / W) + 0.5 + (low ? 0.5 : 0)) * g.cell];
+}
 
 /** Drag the piece at a swap's first cell onto its partner, over `ms`. */
-async function drag(page: Page, m: Swap, ms = 320): Promise<void> {
-  const g = await boardGeom(page, "refining");
-  const [x, y] = centre(g, m.cell);
+async function drag(page: Page, s: RefiningState, m: Swap, ms = 320): Promise<void> {
+  const [x, y] = await centre(page, m.cell);
+  const [tx, ty] = await centre(page, refiningPartner(s, m.cell, m.dir)!);
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.waitForTimeout(Math.min(90, ms / 3));
   const steps = Math.max(2, Math.round(ms / 16));
-  await page.mouse.move(x + (m.dir === "right" ? g.cell * 0.8 : 0), y + (m.dir === "down" ? g.cell * 0.8 : 0), { steps });
+  await page.mouse.move(tx, ty, { steps });
   await page.mouse.up();
 }
 
 async function hover(page: Page, cell: number): Promise<void> {
   const g = await boardGeom(page, "refining");
-  const [x, y] = centre(g, cell);
+  const [x, y] = await centre(page, cell);
   await page.mouse.move(x - g.cell * 0.3, y - g.cell * 0.3, { steps: 4 });
 }
 
 /** Tap the outlet's lamp: an early draw. */
 async function tapLamp(page: Page): Promise<void> {
   const g = await boardGeom(page, "refining");
-  const x = g.ox + (W - 0.5) * g.cell;
+  const x = g.ox + (0.5 + (W - 1) * DX) * g.cell;
   const y = g.oy - g.cell * STRIP * 0.5;
   await page.mouse.move(x - g.cell * 0.4, y + g.cell * 0.2, { steps: 6 });
   await page.waitForTimeout(160);
@@ -85,7 +94,7 @@ async function tapLamp(page: Page): Promise<void> {
 async function replay(page: Page, s: RefiningState, path: readonly Swap[]): Promise<RefiningState> {
   let at = s;
   for (const m of path) {
-    await drag(page, m, 40);
+    await drag(page, at, m, 40);
     at = swap(at, m);
     await expect(page.getByTestId("hud-moves")).toHaveText(String(at.moveCount));
     await settled(page, "refining");
@@ -111,13 +120,13 @@ test("refining: a swap", async ({ page }) => {
   // A vapour that moves right past the oil beside it.
   const { seed, found } = findSeed("refining-swap", (s) => {
     const g = deal(s);
-    const m = swaps(g).find((x) => x.dir === "right" && g.cells[x.cell]!.kind === REFINING_VAPOUR && x.cell % W >= 1 && x.cell % W <= W - 3);
+    const m = swaps(g).find((x) => x.dir !== "down" && g.cells[x.cell]!.kind === REFINING_VAPOUR && x.cell % W >= 1 && x.cell % W <= W - 3);
     return m ?? null;
   });
   await openLab(page, "refining", { seed, paused: true });
   await hover(page, found.cell);
   await clip(page, "refining", "swap", async () => {
-    await drag(page, found);
+    await drag(page, deal(seed), found);
     await settled(page, "refining");
   }, { region: await region(page) });
 });
@@ -133,7 +142,7 @@ test("refining: a clear column drawn early", async ({ page }) => {
   const last = found[found.length - 1]!;
   await hover(page, last.cell);
   await clip(page, "refining", "clear", async () => {
-    await drag(page, last);
+    await drag(page, before, last);
     await settled(page, "refining");
     await page.waitForTimeout(300);
     await tapLamp(page);

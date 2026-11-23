@@ -11,13 +11,16 @@ from the original is listed in DESIGN.md section 6.
 ## The puzzle
 
 Out on a refinery rock, the feed comes up in three fractions and is sorted in a tower before the
-burners draw it off. The tower is six columns wide and five tall, always full.
+burners draw it off. The tower is six columns wide and five tall, always full, and packed as a
+honeycomb: every other column sits half a piece lower, so a piece touches six neighbours, one above,
+one below and two in each column beside it. A column keeps its height as it moves towards the
+outlet, so which columns sit low turns over with every draw (`refiningLowered`).
 
 - **Three fractions in a cycle.** Vapour (light), oil (middling) and tar (heavy) stand in a cycle:
   vapour, oil, tar, and back to vapour.
 - **The verb is a swap along a link.** Two neighbours swap when the lower one is next in the cycle
-  after the upper: vapour over oil, oil over tar, tar over vapour. Read left to right, the same:
-  vapour left of oil, and so on. The pair a swap leaves is the cycle the wrong way round, so no swap
+  after the upper: vapour over oil, oil over tar, tar over vapour. Between columns it reads left to
+  right, the same: vapour left of oil, up or down a half step, and so on. The pair a swap leaves is the cycle the wrong way round, so no swap
   is undone straight away. The board draws a dot on the edge between every pair that can swap.
 - **The clock draws the outlet.** Every eight seconds (`pulseTicks`) the outlet, the rightmost
   column, leaves the tower. Every other column moves one place right and a fresh column of feed
@@ -74,10 +77,14 @@ name and one-line card are `refining.stage.<id>` and `_intro`.
 
 ## Input and feedback
 
-- Pointer: drag a piece onto a neighbour to swap the two along their link. Or tap a piece (an amber
-  ring picks it) and tap its neighbour. Tap the lamp over the outlet to draw now.
-- Keyboard: arrows or WASD move the cursor (an amber frame); space picks its piece and the next
-  arrow swaps it that way; enter draws now.
+- Pointer: drag a piece onto a neighbour to swap the two along their link, and keep dragging: the
+  piece goes on swapping with each neighbour it is dragged over that it links with, one swap a
+  neighbour. A neighbour it cannot swap with bumps once and the piece stays. Or tap a piece (an
+  amber ring picks it) and tap its neighbour. Tap the lamp over the outlet to draw now.
+- Keyboard: arrows move the cursor (an amber frame), up and down a column and left and right to the
+  same row of the next; Q, E, A and D step up-left, up-right, down-left and down-right across the
+  honeycomb, W and S up and down. Space picks the piece under the cursor and the next step swaps it
+  that way; enter draws now.
 - The strip over the tower says how the outlet would go if drawn now and what it would score, from
   the engine's `refiningDrawValue`: clear (with its place in the run), smooth, plain, foul, dump or
   spill.
@@ -91,8 +98,9 @@ The board follows the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws
   drop (sand), tar a heavy square block (rust), smoke a cloud (slate), and a catalyst a hexagonal
   crystal with its core cut out (lilac). Five outlines, so they read apart in one colour.
 - **Links.** A small dim dot on the edge between every two pieces that can swap.
-- **The board.** Bare ground, no frame and no grid. The one hairline is down the outlet's right
-  edge, where columns leave.
+- **The board.** Bare ground, no frame and no grid; the pieces nest as a honeycomb. The outlet is a
+  `raised` panel from its lamp down the whole rightmost column, so the column about to be drawn
+  stands apart, with the one hairline down its far edge, where columns leave.
 - **The lamp** over the outlet is a ring that fills in cream as the clock comes round to its draw.
   Its heart lights cream when the outlet is clear.
 - **A swap** slides the two pieces past each other in 120ms, with the swap cue.
@@ -109,7 +117,8 @@ The board follows the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws
 ## Engine
 
 `packages/engine/src/refining/`. Moves: `{ type: "swap", cell, dir, tick }` (the piece at `cell`
-and the one below it or to its right), `{ type: "draw", tick }`, `{ type: "wait", tick }` and
+and the one below it, `down`, or one of the two in the column to its right, `upRight` and
+`downRight`), `{ type: "draw", tick }`, `{ type: "wait", tick }` and
 `{ type: "end" }`. Every move first makes the draws the clock owes by its tick. A draw event carries
 the column that left, its grade and value, what the score moved by, the fresh feed and any smoke
 placed. The state keeps the events since the last logged move began (`events`, numbered by a rising
@@ -135,18 +144,18 @@ The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder ref
 
 | Bot | Clears (90 s) | Runs (120 s) | Full (120 s) |
 |---|---|---|---|
-| careless | 29 Green | 25 Green | 38 Green |
-| one move | 333 Steady | 490 Steady | 434 Steady |
-| rollout | 520 Sharp | 795 Sharp | 797 Sharp |
-| sorter | 119 Green | 148 Green | 136 Green |
-| early sorter | 144 Green | 173 Green | 158 Green |
-| two ahead | 385 Steady | 712 Sharp | 689 Sharp |
-| cash in | 399 Steady | 737 Sharp | 677 Sharp |
-| outlet only | 403 Steady | 623 Sharp | 511 Steady |
-| *Steady from* | *200* | *250* | *250* |
-| *Sharp from* | *450* | *575* | *575* |
-| *Masterful from* | *800* | *1,000* | *1,000* |
-| *Legendary from* | *1,250* | *1,599* | *1,599* |
+| careless | 38 Green | 47 Green | 73 Green |
+| one move | 398 Steady | 566 Steady | 586 Steady |
+| rollout | 618 Steady | 1,056 Sharp | 949 Steady |
+| sorter | 156 Green | 218 Green | 216 Green |
+| early sorter | 246 Green | 351 Green | 343 Green |
+| two ahead | 715 Steady | 1,528 Sharp | 1,399 Sharp |
+| cash in | 695 Steady | 1,291 Sharp | 1,260 Sharp |
+| outlet only | 563 Steady | 1,065 Sharp | 930 Steady |
+| *Steady from* | *350* | *450* | *450* |
+| *Sharp from* | *825* | *1,024* | *1,024* |
+| *Masterful from* | *1,449* | *1,799* | *1,799* |
+| *Legendary from* | *2,274* | *2,849* | *2,849* |
 
 - **careless**: any choice at random, early draws included.
 - **one move**: the choice worth most now, with how much better sorted it leaves the tower as a
@@ -161,7 +170,7 @@ The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder ref
 - **outlet only** (the bait): two ahead, working only the outlet and the column beside it.
 
 Checks: careless lands a tier below one move on every stage, and the bait loses to two ahead on the
-whole puzzle by 25.8 percent.
+whole puzzle by 33.5 percent.
 
 Open questions for play:
 
@@ -172,6 +181,8 @@ Open questions for play:
 - **The run and smoke layers are not yet proven by bots.** The Runs stage scores about what the full
   puzzle does, and no bot plays smoke or catalysts on purpose, so rule 26's margin for each layer is
   still to show; that wants a bot that sorts into dumps, or people.
-- **The links.** Swaps follow the cycle down columns and along rows alike. Whether a person reads the
-  dots fast enough at a draw every eight seconds is the first thing to watch.
+- **The links.** Swaps follow the cycle down columns and across them alike, six neighbours a piece.
+  Whether a person reads the dots fast enough at a draw every eight seconds is the first thing to
+  watch. The honeycomb roughly doubled what bots score on the square tower that came first; the
+  thresholds were scaled to match.
 - **The pace.** A swap a second is a guess, and the bots see every link at once.

@@ -4,6 +4,7 @@ import { nextChance, nextInt, seedFromString, type PrngState } from "../prng.js"
 import {
   DEFAULT_REFINING_CONFIG,
   REFINING_CATALYST,
+  REFINING_DIRS,
   REFINING_OIL,
   REFINING_SMOKE,
   REFINING_TAR,
@@ -53,10 +54,51 @@ export function cyclePos(kind: RefiningKind): number | null {
   return kind === REFINING_SMOKE ? 0 : kind;
 }
 
+/**
+ * True when column `col` sits half a piece low. A column keeps its height as it moves right, so the
+ * answer turns over with every draw: the column at the outlet is the one that entered `width - 1`
+ * draws ago.
+ */
+export function lowered(state: Pick<RefiningState, "draws">, col: number): boolean {
+  return ((col + state.draws) & 1) === 1;
+}
+
 /** The cell a swap from `cell` going `dir` pairs it with, or null off the board. */
-export function partner(cfg: RefiningConfig, cell: number, dir: RefiningDir): number | null {
-  if (dir === "down") return rowOf(cfg, cell) < cfg.height - 1 ? cell + cfg.width : null;
-  return colOf(cfg, cell) < cfg.width - 1 ? cell + 1 : null;
+export function partner(state: Pick<RefiningState, "config" | "draws">, cell: number, dir: RefiningDir): number | null {
+  const cfg = state.config;
+  const col = colOf(cfg, cell);
+  const row = rowOf(cfg, cell);
+  if (dir === "down") return row < cfg.height - 1 ? cell + cfg.width : null;
+  if (col >= cfg.width - 1) return null;
+  // From a low column the right-hand neighbours are rows `row` (up) and `row + 1` (down); from a high one, `row - 1` and `row`.
+  const low = lowered(state, col);
+  const r = dir === "upRight" ? (low ? row : row - 1) : low ? row + 1 : row;
+  return r >= 0 && r < cfg.height ? idx(cfg, col + 1, r) : null;
+}
+
+/** Every neighbour of `cell`, as the pair a swap would make: the first cell (above, or to the left) and its direction. */
+export function neighbours(state: Pick<RefiningState, "config" | "draws">, cell: number): Array<{ other: number; first: number; dir: RefiningDir }> {
+  const out: Array<{ other: number; first: number; dir: RefiningDir }> = [];
+  const n = state.config.width * state.config.height;
+  for (const dir of REFINING_DIRS) {
+    const o = partner(state, cell, dir);
+    if (o !== null) out.push({ other: o, first: cell, dir });
+  }
+  // The pairs where `cell` is the second: found from each candidate's own side.
+  for (let c = 0; c < n; c++) {
+    if (c === cell) continue;
+    for (const dir of REFINING_DIRS) if (partner(state, c, dir) === cell) out.push({ other: c, first: c, dir });
+  }
+  return out;
+}
+
+/** The pair two neighbouring cells make, as its first cell and direction; null when they do not touch. */
+export function pairOf(state: Pick<RefiningState, "config" | "draws">, a: number, b: number): { cell: number; dir: RefiningDir } | null {
+  for (const dir of REFINING_DIRS) {
+    if (partner(state, a, dir) === b) return { cell: a, dir };
+    if (partner(state, b, dir) === a) return { cell: b, dir };
+  }
+  return null;
 }
 
 /** True when the pair (first above or left, second below or right) may swap: the second is next in the cycle after the first. */
@@ -69,8 +111,8 @@ export function linked(first: RefiningKind, second: RefiningKind): boolean {
 export function swapIllegalReason(state: RefiningState, cell: number, dir: RefiningDir): string | null {
   if (state.finished) return "game is finished";
   if (!Number.isInteger(cell) || cell < 0 || cell >= state.cells.length) return "no such cell";
-  if (dir !== "down" && dir !== "right") return "no such direction";
-  const other = partner(state.config, cell, dir);
+  if (!REFINING_DIRS.includes(dir)) return "no such direction";
+  const other = partner(state, cell, dir);
   if (other === null) return "off the tower";
   if (!linked(state.cells[cell]!.kind, state.cells[other]!.kind)) return "not linked";
   return null;
@@ -80,8 +122,8 @@ export function swapIllegalReason(state: RefiningState, cell: number, dir: Refin
 export function links(state: RefiningState): Array<{ cell: number; dir: RefiningDir }> {
   const out: Array<{ cell: number; dir: RefiningDir }> = [];
   for (let c = 0; c < state.cells.length; c++) {
-    for (const dir of ["down", "right"] as const) {
-      const o = partner(state.config, c, dir);
+    for (const dir of REFINING_DIRS) {
+      const o = partner(state, c, dir);
       if (o !== null && linked(state.cells[c]!.kind, state.cells[o]!.kind)) out.push({ cell: c, dir });
     }
   }
@@ -316,7 +358,7 @@ export function reduceRefining(state: RefiningState, move: RefiningMove): Refini
     case "swap": {
       const reason = swapIllegalReason(next, move.cell, move.dir);
       if (reason !== null) throw new InvalidMoveError(reason, move);
-      const other = partner(cfg, move.cell, move.dir)!;
+      const other = partner(next, move.cell, move.dir)!;
       const cells = next.cells.slice();
       cells[move.cell] = next.cells[other]!;
       cells[other] = next.cells[move.cell]!;
@@ -365,7 +407,7 @@ export function sortedness(state: Pick<RefiningState, "config" | "cells">): numb
 /** The board after a swap, without logging it. Null when the swap is illegal. */
 export function afterSwap(state: RefiningState, cell: number, dir: RefiningDir): RefiningState | null {
   if (swapIllegalReason(state, cell, dir) !== null) return null;
-  const other = partner(state.config, cell, dir)!;
+  const other = partner(state, cell, dir)!;
   const cells = state.cells.slice();
   cells[cell] = state.cells[other]!;
   cells[other] = state.cells[cell]!;

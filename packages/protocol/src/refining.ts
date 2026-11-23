@@ -3,7 +3,7 @@ import { z } from "zod";
 const Tick = z.int().min(0).max(100_000);
 
 export const RefiningMoveSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("swap"), cell: z.int().min(0).max(99), dir: z.enum(["down", "right"]), tick: Tick }),
+  z.object({ type: z.literal("swap"), cell: z.int().min(0).max(99), dir: z.enum(["down", "upRight", "downRight"]), tick: Tick }),
   z.object({ type: z.literal("draw"), tick: Tick }),
   z.object({ type: z.literal("wait"), tick: Tick }),
   // An end may come without a tick: the round then ends at the tick it has reached.

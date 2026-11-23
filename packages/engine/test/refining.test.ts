@@ -17,6 +17,10 @@ import {
   refiningGradeColumn,
   refiningHint,
   refiningLinked,
+  refiningLowered,
+  refiningNeighbours,
+  refiningPairOf,
+  refiningPartner,
   refiningLinks,
   refiningSortedness,
   refiningSwapIllegalReason,
@@ -203,20 +207,44 @@ describe("refining rules", () => {
 
   it("a swap trades the two pieces, and cannot be undone straight away", () => {
     const s = tower(["vo*", "tt*", "***"]);
-    const after = reduceRefining(s, { type: "swap", cell: 0, dir: "right", tick: 1 });
+    const after = reduceRefining(s, { type: "swap", cell: 0, dir: "downRight", tick: 1 });
     expect(refiningViewString(after.cells)).toBe("ov*tt****");
-    expect(refiningSwapIllegalReason(after, 0, "right")).toBe("not linked");
+    expect(refiningSwapIllegalReason(after, 0, "downRight")).toBe("not linked");
     // Vapour over tar: not linked; tar over vapour would be.
     expect(refiningSwapIllegalReason(after, 1, "down")).toBe("not linked");
     expect(refiningSwapIllegalReason(after, 0, "down")).toBe(null);
     expect(refiningSwapIllegalReason(s, 0, "down")).toBe("not linked");
   });
 
+  it("packs the tower as a honeycomb: every other column sits low, and which ones turns over with every draw", () => {
+    const s = tower(["vov", "ovo", "vov"]);
+    // Column 0 sits high, column 1 low: from a high column the right-hand neighbours are a row up and level.
+    expect(refiningLowered(s, 0)).toBe(false);
+    expect(refiningLowered(s, 1)).toBe(true);
+    expect(refiningPartner(s, 3, "upRight")).toBe(1);
+    expect(refiningPartner(s, 3, "downRight")).toBe(4);
+    expect(refiningPartner(s, 0, "upRight")).toBe(null);
+    // From a low column they are level and a row down.
+    expect(refiningPartner(s, 4, "upRight")).toBe(5);
+    expect(refiningPartner(s, 4, "downRight")).toBe(8);
+    expect(refiningPartner(s, 7, "downRight")).toBe(null);
+    expect(refiningPartner(s, 5, "upRight")).toBe(null);
+    // An inner piece touches six.
+    expect(refiningNeighbours(s, 4).map((n) => n.other).sort((a, b) => a - b)).toEqual([1, 3, 5, 6, 7, 8]);
+    expect(refiningPairOf(s, 5, 4)).toEqual({ cell: 4, dir: "upRight" });
+    expect(refiningPairOf(s, 0, 4)).toBe(null);
+    // A draw moves every column right, each keeping its height: column 1 now holds what was column 0, and sits high.
+    const drawn = reduceRefining(s, { type: "draw", tick: 0 });
+    expect(refiningLowered(drawn, 1)).toBe(false);
+    expect(refiningLowered(drawn, 0)).toBe(true);
+    expect(refiningPartner(drawn, 3, "upRight")).toBe(4);
+  });
+
   it("refuses a swap off the tower, an unlinked one and a tick that goes backwards or past the round", () => {
     const s = tower(["vov", "ot*", "***"]);
-    expect(() => reduceRefining(s, { type: "swap", cell: 8, dir: "right", tick: 0 })).toThrow(InvalidMoveError);
+    expect(() => reduceRefining(s, { type: "swap", cell: 8, dir: "downRight", tick: 0 })).toThrow(InvalidMoveError);
     expect(() => reduceRefining(s, { type: "swap", cell: 6, dir: "down", tick: 0 })).toThrow(InvalidMoveError);
-    expect(() => reduceRefining(s, { type: "swap", cell: 3, dir: "right", tick: 0 })).not.toThrow();
+    expect(() => reduceRefining(s, { type: "swap", cell: 3, dir: "downRight", tick: 0 })).not.toThrow();
     expect(() => reduceRefining(s, { type: "swap", cell: 2, dir: "down", tick: 0 })).toThrow(InvalidMoveError);
     const later = reduceRefining(s, { type: "wait", tick: 5 });
     expect(() => reduceRefining(later, { type: "wait", tick: 4 })).toThrow(InvalidMoveError);

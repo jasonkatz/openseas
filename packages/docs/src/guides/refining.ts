@@ -18,7 +18,7 @@ export const refining: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Refining tower: ${word(c.width)} columns of ${word(c.height)} pieces, plumes of vapour, round drops of oil and square blocks of tar, with small dots between the pairs that can swap, a hairline down the right edge for the outlet and a round lamp over the outlet column.`,
+    alt: `The Refining tower: ${word(c.width)} columns of ${word(c.height)} pieces packed as a honeycomb, plumes of vapour, round drops of oil and square blocks of tar, with small dots between the pairs that can swap, and the outlet column on a raised panel of its own under a round lamp.`,
     caption: "The tower at the start of a round. The dots between pieces are the links: every swap there is.",
   },
   theme: {
@@ -35,7 +35,7 @@ export const refining: Guide = {
   ],
   rules: [
     "The tower holds three fractions: **vapour**, **oil** and **tar**. They stand in a cycle: vapour, oil, tar, and back to vapour.",
-    "Two neighbours swap when the lower one is next in the cycle after the upper: vapour over oil, oil over tar, tar over vapour. Read left to right, the same. A small dot between two pieces marks every pair that can swap, and no swap can be undone straight away.",
+    "Two neighbours swap when the lower one is next in the cycle after the upper: vapour over oil, oil over tar, tar over vapour. Between columns it reads left to right, the same, so a piece has six neighbours. A small dot between two pieces marks every pair that can swap, and no swap can be undone straight away.",
     `Every ${seconds(c.pulseTicks)} seconds the **outlet**, the rightmost column, is drawn. Every other column moves one place right and fresh feed comes in on the left. You can draw early, and the clock starts again from there.`,
     "A drawn column with more tar than vapour **sinks** to the sump. Anything else **rises** to the tank.",
     "A column of nothing but vapour is **clear**. Clear columns in a row make a **run**, and each pays more than the last.",
@@ -44,14 +44,14 @@ export const refining: Guide = {
   rulesMedia: {
     kind: "clip",
     name: "swap",
-    alt: "The pointer drags a vapour plume sideways onto the oil drop beside it. The two trade places along the dot that linked them, and the dots around them move to show the swaps there are now.",
+    alt: "The pointer drags a vapour plume across onto the oil drop beside it. The two trade places along the dot that linked them, and the dots around them move to show the swaps there are now.",
     caption: "Vapour moves right past oil. The dots show every swap on the tower.",
   },
   controls: [
-    { action: "Swap two neighbours", touch: "Drag a piece onto its neighbour", desktop: "Drag with the mouse, or click a piece and then its neighbour" },
+    { action: "Swap two neighbours", touch: "Drag a piece onto its neighbour, and on over the next to keep swapping", desktop: "Drag with the mouse, and on to keep swapping, or click a piece and then its neighbour" },
     { action: "Draw the outlet now", touch: "Tap the lamp over the outlet", desktop: "Click the lamp, or press Enter" },
-    { action: "Move the cursor", touch: "", desktop: "Arrow keys or WASD" },
-    { action: "Swap with the keyboard", touch: "", desktop: "Space picks the piece under the cursor; an arrow then swaps it that way" },
+    { action: "Move the cursor", touch: "", desktop: "Arrow keys, or Q, W, E, A, S and D round the honeycomb" },
+    { action: "Swap with the keyboard", touch: "", desktop: "Space picks the piece under the cursor; the next step swaps it that way" },
   ],
   scoring: [
     `**A clear column pays ${c.clearPoints} times its place in the run**, up to the ${nth(c.runCap)}: ${Array.from({ length: c.runCap }, (_, i) => clear(i + 1)).join(", ")}. A column that sinks with no vapour in it, a **dump**, leaves the run alone. Anything else ends it.`,
@@ -69,7 +69,7 @@ export const refining: Guide = {
         },
         {
           title: "Vapour comes in past oil",
-          body: "Vapour moves right only by swapping with oil on its right. To bring vapour into the outlet, first get oil into the outlet beside it. Tar moves left out of the outlet by swapping with oil on its left.",
+          body: "Vapour moves right only by swapping with oil beside it on its right, a half step up or down. One drag can carry it across several columns. To bring vapour into the outlet, first get oil into the outlet beside it. Tar moves left out of the outlet by swapping with oil on its left.",
         },
         {
           title: "Watch the lamp",

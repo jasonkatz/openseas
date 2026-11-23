@@ -1,9 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { boardGeom, expectViewMatchesState } from "./helpers.js";
 
-/** The content tower: six wide, five tall. */
+/** The content tower: six wide, five tall, packed as a honeycomb whose columns stand DX cells apart. */
 const W = 6;
 const H = 5;
+const DX = 0.88;
 
 /** Where a board character stands in the cycle vapour, oil, tar: smoke stands as vapour, a catalyst nowhere. */
 const pos = (ch: string): number | null => ({ v: 0, s: 0, o: 1, t: 2 })[ch] ?? null;
@@ -13,13 +14,59 @@ const linked = (a: string, b: string): boolean => {
   return x !== null && y !== null && y === (x + 1) % 3;
 };
 
-/** A legal swap read off the board string the page publishes: its first cell and its neighbour. */
-function findSwap(board: string, dir: "down" | "right"): { a: number; b: number } {
-  for (let c = 0; c < W * H; c++) {
-    const b = dir === "right" ? (c % W < W - 1 ? c + 1 : -1) : c + W < W * H ? c + W : -1;
-    if (b >= 0 && linked(board[c]!, board[b]!)) return { a: c, b };
+type Dir = "down" | "upRight" | "downRight";
+const low = (col: number, phase: number): boolean => ((col + phase) & 1) === 1;
+
+/** The cell a swap from `c` going `dir` pairs it with, or -1: every other column sits half a piece low, as `data-phase` says. */
+function partner(c: number, dir: Dir, phase: number): number {
+  const col = c % W;
+  const row = Math.floor(c / W);
+  if (dir === "down") return row < H - 1 ? c + W : -1;
+  if (col >= W - 1) return -1;
+  const r = dir === "upRight" ? (low(col, phase) ? row : row - 1) : low(col, phase) ? row + 1 : row;
+  return r >= 0 && r < H ? r * W + col + 1 : -1;
+}
+
+/** Whether the pieces at `a` and `b` touch and may swap, whichever way round they lie. */
+function canSwap(board: string, a: number, b: number, phase: number): boolean {
+  for (const dir of ["down", "upRight", "downRight"] as const) {
+    if (partner(a, dir, phase) === b) return linked(board[a]!, board[b]!);
+    if (partner(b, dir, phase) === a) return linked(board[b]!, board[a]!);
   }
-  throw new Error(`no ${dir} swap on ${board}`);
+  return false;
+}
+
+/** A legal swap read off the board string the page publishes: its first cell and its neighbour. */
+function findSwap(board: string, dirs: readonly Dir[], phase: number): { a: number; b: number } {
+  for (let c = 0; c < W * H; c++) {
+    for (const dir of dirs) {
+      const b = partner(c, dir, phase);
+      if (b >= 0 && linked(board[c]!, board[b]!)) return { a: c, b };
+    }
+  }
+  throw new Error(`no ${dirs.join("/")} swap on ${board}`);
+}
+
+/** A piece that one drag can carry through two swaps: a to b, then on from b to c. */
+function findChain(board: string, phase: number): [number, number, number] | null {
+  for (let a = 0; a < W * H; a++) {
+    for (let b = 0; b < W * H; b++) {
+      if (!canSwap(board, a, b, phase)) continue;
+      const once = swapped(board, a, b);
+      for (let c = 0; c < W * H; c++) if (c !== a && c !== b && canSwap(once, b, c, phase)) return [a, b, c];
+    }
+  }
+  return null;
+}
+
+async function phaseOf(page: Page): Promise<number> {
+  return Number(await page.getByTestId("refining-canvas").getAttribute("data-phase"));
+}
+
+/** A cell's centre on the page. */
+function centre(g: { ox: number; oy: number; cell: number }, c: number, phase: number): [number, number] {
+  const col = c % W;
+  return [g.ox + (0.5 + col * DX) * g.cell, g.oy + (Math.floor(c / W) + 0.5 + (low(col, phase) ? 0.5 : 0)) * g.cell];
 }
 
 async function boardString(page: Page): Promise<string> {
@@ -50,7 +97,7 @@ test("Refining plays alone on /play: a swap by key and by pointer, and early dra
 
   // Keyboard: walk the cursor to a swap down, pick with space, swap with the arrow.
   const before = await boardString(page);
-  const down = findSwap(before, "down");
+  const down = findSwap(before, ["down"], await phaseOf(page));
   const [col, row] = ((await canvas.getAttribute("data-cursor")) ?? "0,0").split(",").map(Number) as [number, number];
   for (let c = col; c < down.a % W; c++) await page.keyboard.press("ArrowRight");
   for (let c = col; c > down.a % W; c--) await page.keyboard.press("ArrowLeft");
@@ -63,15 +110,16 @@ test("Refining plays alone on /play: a swap by key and by pointer, and early dra
   expect(await boardString(page)).toBe(swapped(before, down.a, down.b));
   await expectViewMatchesState(page, "refining");
 
-  // Pointer: drag a piece right onto the neighbour it is linked to.
+  // Pointer: drag a piece across the honeycomb onto the neighbour it is linked to.
   const mid = await boardString(page);
-  const right = findSwap(mid, "right");
+  const phase = await phaseOf(page);
+  const right = findSwap(mid, ["upRight", "downRight"], phase);
   const g = await boardGeom(page, "refining");
-  const x = g.ox + ((right.a % W) + 0.5) * g.cell;
-  const y = g.oy + (Math.floor(right.a / W) + 0.5) * g.cell;
+  const [x, y] = centre(g, right.a, phase);
+  const [tx, ty] = centre(g, right.b, phase);
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(x + g.cell * 0.8, y, { steps: 6 });
+  await page.mouse.move(tx, ty, { steps: 6 });
   await page.mouse.up();
   await expect(page.getByTestId("hud-moves")).toHaveText("2");
   expect(await boardString(page)).toBe(swapped(mid, right.a, right.b));
@@ -86,7 +134,7 @@ test("Refining plays alone on /play: a swap by key and by pointer, and early dra
 
   // The lamp over the outlet draws too.
   const preLamp = await boardString(page);
-  await page.mouse.click(g.ox + (W - 0.5) * g.cell, g.oy - g.cell * 0.95 * 0.5);
+  await page.mouse.click(g.ox + (0.5 + (W - 1) * DX) * g.cell, g.oy - g.cell * 0.95 * 0.5);
   await expect(page.getByTestId("hud-moves")).toHaveText("4");
   expect(shiftedRight(preLamp, await boardString(page))).toBe(true);
   await expectViewMatchesState(page, "refining");
@@ -98,5 +146,28 @@ test("the Refining clock draws the outlet by itself", async ({ page }) => {
   const before = await boardString(page);
   await expect.poll(() => boardString(page), { timeout: 10_000 }).not.toBe(before);
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
+  await expectViewMatchesState(page, "refining");
+});
+
+test("one Refining drag carries its piece through every swap it is dragged over", async ({ page }) => {
+  await page.goto("/play/refining?seed=chain&start=1&paused=1&hints=0");
+  await expect(page.getByTestId("refining-canvas")).toBeVisible();
+  const before = await boardString(page);
+  const phase = await phaseOf(page);
+  const chain = findChain(before, phase);
+  if (!chain) throw new Error(`no chain on ${before}`);
+  const [a, b, c] = chain;
+  const g = await boardGeom(page, "refining");
+  const [x, y] = centre(g, a, phase);
+  const [bx, by] = centre(g, b, phase);
+  const [cx, cy] = centre(g, c, phase);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(bx, by, { steps: 6 });
+  await expect(page.getByTestId("hud-moves")).toHaveText("1");
+  await page.mouse.move(cx, cy, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByTestId("hud-moves")).toHaveText("2");
+  expect(await boardString(page)).toBe(swapped(swapped(before, a, b), b, c));
   await expectViewMatchesState(page, "refining");
 });

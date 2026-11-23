@@ -3,10 +3,12 @@
  * its mechanics and the game's own in everything a player sees and hears.
  *
  * The board is a refinery's tower: columns of fractions, `width` wide and `height` tall, always
- * full. Three fractions make up the feed: vapour (light), oil (middling) and tar (heavy). They stand
+ * full, packed as a honeycomb. Every other column sits half a piece lower (`lowered`), so a piece
+ * touches six neighbours: one above, one below, and two in each column beside it. A column keeps
+ * its height as it moves towards the outlet, so which columns sit low turns over with every draw. Three fractions make up the feed: vapour (light), oil (middling) and tar (heavy). They stand
  * in a cycle, vapour, oil, tar, and back to vapour. Two neighbouring pieces swap when the one below
- * (or to the right) is the next in that cycle after the one above (or to the left): vapour over oil,
- * oil over tar, tar over vapour; and the same read left to right. A swap is never directly undone,
+ * (or, between columns, the one to the right) is the next in that cycle after the one above (or to
+ * the left): vapour over oil, oil over tar, tar over vapour; and the same read left to right. A swap is never directly undone,
  * since the pair it leaves is the cycle the wrong way round. A catalyst is fixed where it lies and
  * swaps with nothing. Smoke counts as vapour for weight and for swapping.
  *
@@ -98,11 +100,13 @@ export interface RefiningPiece {
   readonly kind: RefiningKind;
 }
 
-/** Which way a swap goes from its first cell: with the piece below it, or the piece to its right. */
-export type RefiningDir = "down" | "right";
+/** Which way a swap goes from its first cell: with the piece below it, or one of the two in the column to its right. */
+export type RefiningDir = "down" | "upRight" | "downRight";
+
+export const REFINING_DIRS: readonly RefiningDir[] = ["down", "upRight", "downRight"];
 
 export type RefiningMove =
-  /** Swap the piece at `cell` with the one below it or to its right. */
+  /** Swap the piece at `cell` with the one below it, or above or below it to its right. */
   | { readonly type: "swap"; readonly cell: number; readonly dir: RefiningDir; readonly tick: number }
   /** Draw the outlet now, before the clock does. The clock starts again from here. */
   | { readonly type: "draw"; readonly tick: number }
