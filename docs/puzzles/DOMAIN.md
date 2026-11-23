@@ -15,9 +15,9 @@ around it, and each owns what the puzzle does not.
 
 | | What it holds | What it never does |
 |---|---|---|
-| **Puzzle** | Rules, round, board, pieces, layers and ladder, evaluation, settings, moves, events, gauges, stats, signals, text keys | Name a world thing, draw, sound, hold a text's content, or decide where anything sits on a screen |
-| **Skin** | The drawings, cues and texts that dress one puzzle | Set or change a number |
-| **Host** | Runs rounds, replays logs, keeps each player's standing and place on a ladder, owns the tier scale | Change a puzzle's rules or tier starts |
+| **Puzzle** | Rules, round, board, pieces, layers and ladder, evaluation, settings, moves, events and the board changes they carry, its moment, gauges, stats, signals, text keys | Name a world thing, draw, sound, hold a text's content, or decide where anything sits on a screen |
+| **Skin** | The drawings, cues, texts and motion that dress one puzzle | Set or change a number, or change a round |
+| **Host** | Runs rounds, replays logs, keeps each player's standing and place on a ladder, owns the tier scale, holds the ceiling on motion | Change a puzzle's rules or tier starts |
 | **Role** | What a puzzle does in a world: wires its signals, decides whether a round counts, turns tiers and outcomes into rewards | Move a tier |
 
 A **theme** is a set of skins, one for each puzzle, that dresses them all in one look.
@@ -174,8 +174,9 @@ it flows (on change, sampled, or at the end).
 ### Events
 
 An **event** is something the rules report happened. A puzzle declares each with an id, one line, and
-its typed fields: place, places, piece, player, number or points. Every number a player sees counted
-on the board arrives on an event, so nothing outside the rules works out a score.
+its typed fields: place, places, piece, player, number or points, and the board changes it can carry
+([Motion](#motion)). Every number a player sees counted on the board arrives on an event, so nothing
+outside the rules works out a score, and every change to the board arrives on one too.
 
 > Paths' `loop`: "a closed path took every prize", carrying the path's places, the places inside it,
 > the number of prizes and its points.
@@ -261,7 +262,7 @@ event, never once for each multiplier.
 
 ### Cascades
 
-A **cascade** is everything one move sets off as the board settles, such as clears that cause more
+A **cascade** is everything one move sets off, such as clears that cause more
 clears, or prizes that reach the floor once the pieces under them go. Each link of it is a **step**.
 Every event in a cascade belongs to the move that started it, so a multiplier that holds for that move,
 such as the streak, holds for the whole cascade. A table indexed by step makes later links pay more.
@@ -346,7 +347,7 @@ way of counting.
 A grid may have a **rim**: a ring of cells just outside its playing area, for ports, feeders, hatches and
 turrets. Rim cells are cells like any other.
 
-> Racks is a grid of five columns whose pieces settle to the bottom of each column. Deflectors' 24
+> Racks is a grid of five columns whose pieces fall to the bottom of each column. Deflectors' 24
 > ports are the rim of its 6 by 6 grid.
 
 ### Terrain and maps
@@ -383,7 +384,8 @@ A **place** is a cell on a board or a numbered spot in a zone. Moves and events 
 ## Pieces
 
 A **piece** is anything on the board the rules know about: something a player can join, move, clear
-or has to work around. The rules know each piece by its id. How it looks and what it is called belong
+or has to work around. The rules know each piece by its id, a number unique within the round from the
+moment it is dealt until it leaves. How it looks and what it is called belong
 to the skin.
 
 Most pieces sit in one cell. A piece's **footprint** may cover several cells together, as a plate of
@@ -497,6 +499,80 @@ A puzzle may offer **teaching**, and declares whether it does:
 - A **preview** tells what a move would do before it is made.
 - A **hint** offers a move worth making to a player who is stuck. A round that counts never hints.
 
+## Motion
+
+**Motion** is how what happens on the board plays out on a screen. The puzzle says what changes, the
+skin says how it plays, and the host holds where motion meets play (ADR 0073). Motion never reaches the
+rules, so no skin can change a round.
+
+### Board changes
+
+Everything that happens on the board is one of four **board changes**:
+
+| Change | What happens | It says |
+|---|---|---|
+| Arrive | A piece comes onto the board | The piece, the place it lands, and where it comes from: in place, a spot in a zone, or off the board in a direction |
+| Leave | A piece goes from the board | The piece, and whether it is cleared or taken to a spot in a zone |
+| Travel | A piece goes from one cell to another | The piece, where it starts and ends, and its route when it passes through other cells |
+| Change | A piece's state or kind, or a cell's terrain, becomes another where it stands | The piece or the cell, and what it becomes |
+
+Every board change is carried on an event, and a puzzle declares which changes each event can carry. A
+board drawn from a round's start and its events alone matches the round, and a test checks that it
+does. A board plays from events, never by comparing one state with the next.
+
+> Paths: `clear` and `loop` carry the leaves of the pieces they take. `refill` carries the travels of
+> pieces falling and the arrivals of new ones from above the board. `blowup` carries the changes of a
+> timed piece and its neighbours to `ruined`.
+
+### Playing it out
+
+One entry's events play in the order the rules report them. Everything in one cascade step plays
+together, and the next step starts once it is done. How long each takes is the skin's: no length of
+motion is a setting or written in the puzzle.
+
+A board **settles** when everything an entry set off has finished playing. Until then it takes no touch:
+a touch is dropped, and a gesture already under way, such as a path being drawn, waits to finish.
+Motion from ticks never holds a board, and the host plays ticks as they fall due, so their events reach
+the board as they happen.
+
+The clock and the ticks keep running while a board settles. The host's **ceiling** caps what that can
+cost: whatever one entry sets off plays for at most about a second, and past it the host snaps it to
+its end. Settling is the board's rule alone. The rules and the server never depend on it, and accept
+any entry with a good time.
+
+### The moment and the beat
+
+A puzzle names its **moment**: the one event that is its biggest, an optional condition on it, and the
+number field that says how big each one is, with the value that counts as biggest. Which moment is
+biggest follows from scoring, so every skin of a puzzle agrees on it.
+
+The skin plays the **beat** on the moment: one pulse over the whole board, on top of every other
+motion. A bigger moment is a stronger pulse, never a second effect. The beat has one cue of its own,
+heard alone, with no other cue over it.
+
+> Paths' moment is `loop` when `prizes` is above 0, sized by `prizes` out of `maxPrizes`. A long path
+> gets a callout, but no beat.
+
+### The skin's motion
+
+A skin's **motion** says how everything plays:
+
+- each board change's length and easing, and how a piece leaves, shrinking or fading;
+- the **stagger** between the places of one event, such as a path played in the order it was drawn;
+- for each event, its **marks**, rings at places or lines through places, drawn from the event's own
+  place fields to show a rule at work, and the place its points rise from;
+- a rank for callouts: an entry shows at most one, the highest it earned;
+- the beat's pulse;
+- what it does for **reduced motion**, which the host passes on from the player.
+
+Motion the player makes, and motion while nothing happens, such as a path being drawn, a piece in hand,
+a fuse that flickers or a gauge rolling up, is the skin's too. It is read from the round's state and
+never holds a board.
+
+A new skin's motion starts as a copy of the game's, as its cues do. The game's motion is the space
+theme's, in `docs/BRAND.md` section 6: a travel of 120ms, a clear of 160ms, ease-out, and a pulse of
+420ms in `amber`.
+
 ## The skin
 
 A **skin** dresses one puzzle with looks and sound, and never sets a number: not even how many kinds a
@@ -507,8 +583,10 @@ board deals.
   drawing for every kind its setting allows.
 - **Cues.** The skin holds its own copy of every **cue** it plays, each a short synthesized sound in the
   one scale of the brand book. A new skin starts from a copy of the game's cues.
-- **Events.** For each event, the skin names the cues it plays, which may be none. It gives the
-  **beat** to exactly one event. It also voices the host's start, countdown and end.
+- **Events.** For each event, the skin names the cues it plays, which may be none, its marks, where its
+  points rise from, and its callout's rank. It also voices the host's start, countdown and end.
+- **Motion.** How each board change plays, the stagger, the beat's pulse on the puzzle's moment, and
+  what reduced motion does ([Motion](#motion)).
 - **Texts.** The skin holds a **text** for every key the puzzle declares, keeping that key's
   placeholders.
 
@@ -557,7 +635,9 @@ round. The rules are the only part of a puzzle that is code.
   "moves": [{ "id": "", "line": "", "gesture": "tap | long-press | draw | drag | swipe | slice | turn | hold", "inHand": "true when built in hand",
               "fields": { "<name>": "place | places | direction | piece | number | flag" } }],
   "controls": [{ "id": "", "move": "the move it makes, or none for a switch", "key": "its letter" }],
-  "events": [{ "id": "", "line": "", "fields": { "<name>": "place | places | piece | player | number | points" }, "mistake": "true when it is one" }],
+  "events": [{ "id": "", "line": "", "fields": { "<name>": "place | places | piece | player | number | points" }, "mistake": "true when it is one",
+              "changes": ["arrive | leave | travel | change: the board changes it can carry"] }],
+  "moment": { "event": "the event id", "when": "an optional condition on it", "size": "its number field", "most": "a number or a setting: the biggest" },
   "payouts": [{ "id": "", "line": "", "on": ["event ids"], "counts": "the event's field it grows from", "growth": "flat | linear | superlinear | stepped",
                 "cap": "a number or a setting", "reads": ["setting ids"] }],
   "multipliers": [{ "id": "", "line": "", "scales": ["payout ids"], "on": "the event, and the condition, it applies on",
@@ -581,7 +661,14 @@ A board's sizes, a zone's capacity and a gauge's most are each a number, or the 
   "puzzle": "the puzzle's id",
   "pieces": { "<piece id, or family_kind>": "a drawing, or one per named state, or a drawing with a count layer" },
   "cues": { "<name>": "a whole cue" },
-  "events": { "<event id, or start | countdown | end>": { "cues": ["cue names"], "beat": "true on exactly one event" } },
+  "motion": {
+    "changes": { "<arrive | leave | travel | change>": { "ms": "", "ease": "linear | in | out | in-out", "as": "leave only: shrink | fade" } },
+    "stagger": "ms between the places of one event",
+    "beat": { "ms": "", "color": "a palette token", "strength": { "from": "", "to": "" } },
+    "reduced": { "changes": "cut | as-is", "beat": "still | as-is" }
+  },
+  "events": { "<event id, or start | countdown | end>": { "cues": ["cue names"], "marks": [{ "ring | line": "a place or places field" }],
+              "points": "the place field they rise from", "callout": "its rank, 1 the highest" } },
   "texts": { "<key>": "the text, keeping the key's placeholders" }
 }
 ```
@@ -592,8 +679,9 @@ A board's sizes, a zone's capacity and a gauge's most are each a number, or the 
 - The ladder has two to four stages, each layer is added by exactly one, and the last is `full`.
 - The rules know every layer, setting, terrain, zone, piece, state, move, control, event, gauge,
   payout, multiplier, task and signal the puzzle declares, and declare nothing it lacks. A host checks this before it runs a round.
+- The moment names one of the puzzle's events and a number field of it.
 - The skin has a drawing for every piece, state and kind, a cue for every cue an event names, a text
-  for every key with its placeholders kept, and the beat on exactly one event.
+  for every key with its placeholders kept, a beat cue, and a motion for every board change.
 
 A puzzle that is not ready can still be edited and dressed. A puzzle with no rules yet cannot be
 played.
@@ -617,7 +705,9 @@ An excerpt of the puzzle:
   ],
   "moves": [{ "id": "trace", "line": "draw a path through touching pieces, closed or open", "gesture": "draw",
               "fields": { "path": "places", "closed": "flag" } }],
-  "events": [{ "id": "loop", "line": "a closed path took every prize", "fields": { "path": "places", "inside": "places", "prizes": "number", "points": "points" } }],
+  "events": [{ "id": "loop", "line": "a closed path took every prize", "fields": { "path": "places", "inside": "places", "prizes": "number", "points": "points" },
+               "changes": ["leave"] }],
+  "moment": { "event": "loop", "when": "prizes > 0", "size": "prizes", "most": "maxPrizes" },
   "gauges": [{ "id": "prizes", "line": "prizes on the board", "most": "maxPrizes" }],
   "evaluation": { "tierStarts": { "steady": 850, "sharp": 2450, "masterful": 4800, "legendary": 8400 }, "paceWindowSeconds": 10 }
 }
@@ -625,4 +715,5 @@ An excerpt of the puzzle:
 
 ## Not yet covered
 
-- **Motion:** how each event plays on the board, and how the beat looks.
+- **Themes:** what a theme holds beyond its skins. For now a theme is a set of skins, and a new skin
+  copies the game's cues and motion.

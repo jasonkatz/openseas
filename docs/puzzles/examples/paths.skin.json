@@ -459,16 +459,27 @@
       "swell": {"param": "strength", "from": 0.75, "to": 1}
     }
   },
+  "motion": {
+    "changes": {
+      "arrive": {"ms": 120, "ease": "out"},
+      "leave": {"ms": 160, "ease": "out", "as": "shrink"},
+      "travel": {"ms": 120, "ease": "out"},
+      "change": {"ms": 0}
+    },
+    "stagger": 46,
+    "beat": {"ms": 420, "color": "amber", "strength": {"from": 0.14, "to": 0.3}},
+    "reduced": {"changes": "cut", "beat": "still"}
+  },
   "events": {
-    "clear": {"cues": ["pop"]},
-    "settle": {"cues": []},
-    "reshuffle": {"cues": ["whoosh"]},
-    "streak": {"cues": []},
-    "prize_floor": {"cues": ["thud"]},
-    "loop": {"cues": ["slag"], "beat": true},
-    "bounty": {"cues": ["rise"]},
-    "defuse": {"cues": ["good"]},
-    "blowup": {"cues": ["crack"]},
+    "clear": {"cues": ["pop"], "points": "path"},
+    "refill": {"cues": []},
+    "reshuffle": {"cues": ["whoosh"], "callout": 7},
+    "streak": {"cues": [], "callout": 5},
+    "prize_floor": {"cues": ["thud"], "points": "place", "callout": 6},
+    "loop": {"cues": ["slag"], "marks": [{"line": "path"}], "points": "path", "callout": 2},
+    "bounty": {"cues": ["rise"], "callout": 3},
+    "defuse": {"cues": ["good"], "points": "place", "callout": 4},
+    "blowup": {"cues": ["crack"], "marks": [{"ring": "place"}], "callout": 1},
     "start": {"cues": ["start"]},
     "countdown": {"cues": ["countdown"]},
     "end": {"cues": ["end"]}
