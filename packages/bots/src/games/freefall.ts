@@ -2,7 +2,7 @@
  * Freefall for the bots: a choice is one drop, down any lane. The rival's answer is part of the
  * move, so a bot sees what it scored and, if it looks, what it left the rival.
  */
-import { FREEFALL_DEF, freefallFall, type FreefallConfig, type FreefallMove, type FreefallState } from "@openseas/engine";
+import { FREEFALL_DEF, freefallEntryLanes, freefallFall, type FreefallConfig, type FreefallMove, type FreefallState } from "@openseas/engine";
 import type { Bot, BotGame, Choice } from "../core.js";
 
 /** A person's pace, from the tuning notes: a drop every 3 seconds, the rival's answer played out included. */
@@ -10,14 +10,16 @@ const SECONDS_PER_DROP = 3;
 
 function drops(state: FreefallState): FreefallMove[] {
   const out: FreefallMove[] = [];
-  for (let l = 0; l < state.config.width; l++) out.push({ type: "drop", lane: l });
+  const [lo, hi] = freefallEntryLanes(state.config);
+  for (let l = lo; l <= hi; l++) out.push({ type: "drop", lane: l });
   return out;
 }
 
 /** What the best drop on `state`'s shaft would score, for whoever drops next. */
 function bestReply(state: FreefallState, rockers: FreefallState["rockers"], leg: number): number {
   let best = 0;
-  for (let l = 0; l < state.config.width; l++) best = Math.max(best, freefallFall(state.config, rockers, leg, l, 1_000_000).points);
+  const [lo, hi] = freefallEntryLanes(state.config);
+  for (let l = lo; l <= hi; l++) best = Math.max(best, freefallFall(state.config, rockers, leg, l, 1_000_000).points);
   return best;
 }
 
@@ -44,16 +46,17 @@ function denierBot(weight = 1): Bot<FreefallState, FreefallMove> {
   };
 }
 
-/** The bait: always down the lane over the richest berth, as if the berth were the whole puzzle. */
+/** The bait: always down the entry lane over the richest berth it could fall straight into, as if the berth were the whole puzzle. */
 function edgeBot(): Bot<FreefallState, FreefallMove> {
   return {
     name: "edge chaser",
-    about: "Drops down a lane over the richest berth, whatever the rockers above it hold (a bait).",
+    about: "Drops down the entry lane over the richest berth, whatever the rockers below it hold (a bait).",
     choose(state, ctx) {
       const cfg = state.config;
-      const values = Array.from({ length: cfg.width }, (_, l) => freefallFall(cfg, [], state.leg, l, 1).points);
+      const [lo] = freefallEntryLanes(cfg);
+      const values = Array.from({ length: cfg.entry }, (_, i) => freefallFall(cfg, [], state.leg, lo + i, 1).points);
       const top = Math.max(...values);
-      const lanes = values.flatMap((v, l) => (v === top ? [l] : []));
+      const lanes = values.flatMap((v, i) => (v === top ? [lo + i] : []));
       return { moves: [{ type: "drop", lane: ctx.rng.pick(lanes) }] };
     },
   };

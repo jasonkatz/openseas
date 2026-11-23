@@ -17,11 +17,11 @@ const legs = ["first", "second", "third", "fourth"];
 
 export const freefall: Guide = {
   id: "freefall",
-  tagline: "Drop pods down a shaft of rockers. Tip the full cradles so they fall together.",
+  tagline: "Drop pods into a widening shaft of rockers. Tip the full cradles so they fall together.",
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Freefall shaft: ${c.width} lanes across and ${c.rows} rows of rockers in a brick pattern, each rocker a cup on one side and a lever on the other, over a row of berths with their values written in them.`,
+    alt: `The Freefall shaft: ${c.entry} drop lanes at the top, widening over ${c.rows} rows of rockers in a brick pattern to ${c.width} lanes at the foot, each rocker a cup on one side and a lever on the other, over a row of berths with their values written in them.`,
     caption: "The shaft at the start of a round, every cradle empty.",
   },
   theme: {
@@ -31,12 +31,12 @@ export const freefall: Guide = {
       "Freefall is a prototype. It is on no ship yet. It tries out a race against another crew where reading what you leave behind matters as much as what you take.",
   },
   facts: [
-    { label: "Shaft", value: `${c.width} lanes, ${c.rows} rows of rockers` },
+    { label: "Shaft", value: `${c.entry} lanes in, ${c.width} berths out, ${c.rows} rows of rockers` },
     { label: "Round", value: `Four legs, at most ${p.roundSeconds} seconds` },
     { label: "Rated against", value: "Your lead over the rival" },
   ],
   rules: [
-    "Tap a lane to drop a **pod**. It falls straight down, a row at a time.",
+    `The shaft is narrow at the top and wide at the foot: ${c.entry} lanes to drop down, marked by dots, over ${c.width} berths. Tap one of the top lanes to drop a **pod**. It falls straight down, a row at a time, and rockers lower down spread it outward.`,
     "A **rocker** spans two lanes: a cup on one side, its **cradle**, and a lever on the other, its **arm**. A pod that lands in an empty cradle stays there.",
     "A pod that lands on a full cradle rolls over to the arm. A pod that passes an arm flips the rocker: the cradle swings to the other side and the pod resting in it is tipped out and falls.",
     "Pods that reach the same lane in the same row fuse into a **cluster** and fall as one. Two pods passing an arm flip it twice, so a resting pod lands back.",
@@ -50,8 +50,8 @@ export const freefall: Guide = {
     caption: "A pod past an arm flips its rocker and tips out the pod resting in the cup.",
   },
   controls: [
-    { action: "Drop a pod", touch: "Tap anywhere down a lane", desktop: "Click a lane" },
-    { action: "See what a drop is worth", touch: "", desktop: "Hover a lane, or pick one with the arrow keys or A and D. The strip over the shaft shows its points" },
+    { action: "Drop a pod", touch: "Tap anywhere down one of the top lanes", desktop: "Click one of the top lanes" },
+    { action: "See what a drop is worth", touch: "", desktop: "Hover a top lane, or pick one with the arrow keys or A and D. The strip over the shaft shows its points" },
     { action: "Drop down the lane in hand", touch: "", desktop: "Space or Enter" },
   ],
   scoring: [
@@ -150,7 +150,7 @@ export const freefall: Guide = {
     },
   ],
   mistakes: [
-    "**Chasing the richest berth.** A pod dropped over the edge berth usually rests in a cradle on the way, and the rival tips it.",
+    "**Chasing the richest berth.** No lane drops straight onto the edge berths: a pod only gets there by flips on the way, and one that rests short of it is the rival's to tip.",
     "**Filling cradles for the rival.** Every pod you leave at rest is one the next drop can take, and the next drop is the rival's.",
     "**Ignoring the last drop.** When the rival reaches a quota you get one more drop. Use it on the best tip on the shaft.",
   ],

@@ -7,6 +7,8 @@ import {
   freefallBayValue,
   freefallBayValues,
   freefallDropValue,
+  freefallEntryLanes,
+  freefallRowSpan,
   freefallFall,
   freefallHint,
   freefallViewString,
@@ -22,14 +24,16 @@ import {
 } from "../src/index.js";
 
 const cfg = DEFAULT_FREEFALL_CONFIG;
-const lanesArb = fc.array(fc.nat({ max: 7 }), { minLength: 0, maxLength: 60 });
+const lanesArb = fc.array(fc.nat({ max: 31 }), { minLength: 0, maxLength: 60 });
+/** An entry lane from any number. */
+const entry = (n: number, config: FreefallConfig = cfg): number => freefallEntryLanes(config)[0] + (n % config.entry);
 
 function play(seed: string, lanes: readonly number[], config: FreefallConfig = cfg): { moves: FreefallMove[]; state: FreefallState } {
   let state = createFreefallGame(seed, config);
   const moves: FreefallMove[] = [];
   for (const lane of lanes) {
     if (state.finished) break;
-    const m: FreefallMove = { type: "drop", lane: lane % config.width };
+    const m: FreefallMove = { type: "drop", lane: entry(lane, config) };
     moves.push(m);
     state = reduceFreefall(state, m);
   }
@@ -40,6 +44,7 @@ function play(seed: string, lanes: readonly number[], config: FreefallConfig = c
 const small: FreefallConfig = {
   ...cfg,
   width: 4,
+  entry: 4,
   rows: 2,
   gapPermille: 0,
   rival: false,
@@ -67,7 +72,7 @@ describe("freefall determinism (ADR 0003)", () => {
         const { state } = play(seed, lanes);
         if (state.finished) return;
         const before = JSON.stringify(state);
-        reduceFreefall(state, { type: "drop", lane });
+        reduceFreefall(state, { type: "drop", lane: entry(lane) });
         expect(JSON.stringify(state)).toBe(before);
       }),
       { numRuns: 60 },
@@ -93,7 +98,7 @@ describe("freefall determinism (ADR 0003)", () => {
         let landed = 0;
         for (const lane of lanes) {
           if (state.finished) break;
-          state = reduceFreefall(state, { type: "drop", lane });
+          state = reduceFreefall(state, { type: "drop", lane: entry(lane) });
           for (const d of state.lastMove!.drops) for (const l of d.landed) landed += l.ids.length;
         }
         const resting = state.rockers.filter((r) => r.pod !== 0).length;
@@ -108,8 +113,8 @@ describe("freefall determinism (ADR 0003)", () => {
       fc.property(fc.string(), lanesArb, fc.nat({ max: 7 }), (seed, lanes, lane) => {
         const { state } = play(seed, lanes, { ...cfg, rival: false });
         if (state.finished) return;
-        const v = freefallDropValue(state, lane);
-        const next = reduceFreefall(state, { type: "drop", lane });
+        const v = freefallDropValue(state, entry(lane));
+        const next = reduceFreefall(state, { type: "drop", lane: entry(lane) });
         expect(next.lastMove!.drops[0]!.points).toBe(v.points);
       }),
       { numRuns: 60 },
@@ -119,8 +124,21 @@ describe("freefall determinism (ADR 0003)", () => {
 
 describe("freefall rules", () => {
   it("berths mirror about the middle", () => {
-    expect(freefallBayValues(cfg, 1)).toEqual([8, 4, 2, 1, 1, 2, 4, 8]);
-    expect(freefallBayValue(cfg, 3, 0)).toBe(10);
+    expect(freefallBayValues(cfg, 1)).toEqual([...[...cfg.bays.second].reverse(), ...cfg.bays.second]);
+    expect(freefallBayValue(cfg, 3, 0)).toBe(cfg.bays.fourth[cfg.width / 2 - 1]);
+  });
+
+  it("the shaft widens like a tree: the entry lanes at the top, the whole width at the foot", () => {
+    expect(freefallRowSpan(cfg, 0)).toEqual(freefallEntryLanes(cfg));
+    expect(freefallRowSpan(cfg, cfg.rows - 1)).toEqual([0, cfg.width - 1]);
+    for (let r = 1; r < cfg.rows; r++) expect(freefallRowSpan(cfg, r)[0]).toBeLessThanOrEqual(freefallRowSpan(cfg, r - 1)[0]);
+    const s = createFreefallGame("tree", cfg);
+    for (const k of s.rockers) {
+      const [lo, hi] = freefallRowSpan(cfg, k.row);
+      expect(k.lane).toBeGreaterThanOrEqual(lo);
+      expect(k.lane + 1).toBeLessThanOrEqual(hi);
+    }
+    expect(() => reduceFreefall(s, { type: "drop", lane: 0 })).toThrow(InvalidMoveError);
   });
 
   it("a pod comes to rest in an empty cradle, and the rocker does not move", () => {
@@ -190,7 +208,7 @@ describe("freefall rules", () => {
     let s = createFreefallGame("legs", { ...cfg, rival: false, quotas: [1, 1, 1, 1] });
     let lane = 0;
     while (!s.finished && s.moveCount < 300) {
-      s = reduceFreefall(s, { type: "drop", lane: lane++ % cfg.width });
+      s = reduceFreefall(s, { type: "drop", lane: entry(lane++) });
     }
     expect(s.finished).toBe(true);
     expect(s.legsWon).toBe(4);
@@ -203,7 +221,7 @@ describe("freefall rules", () => {
         for (const lane of lanes) {
           if (s.finished) break;
           const before = s;
-          s = reduceFreefall(s, { type: "drop", lane });
+          s = reduceFreefall(s, { type: "drop", lane: entry(lane) });
           const drops = s.lastMove!.drops;
           // A player's drop that closes a leg the rival reached is followed by the rival opening the next.
           if (before.closing === 1) expect(drops[0]!.legEnded).toBe(true);
@@ -221,13 +239,14 @@ describe("freefall rules", () => {
 
   it("rejects a lane off the shaft and a move after the end", () => {
     const s = createFreefallGame("x", cfg);
-    expect(() => reduceFreefall(s, { type: "drop", lane: 8 })).toThrow(InvalidMoveError);
+    expect(() => reduceFreefall(s, { type: "drop", lane: cfg.width })).toThrow(InvalidMoveError);
     const done = reduceFreefall(s, { type: "end" });
     expect(() => reduceFreefall(done, { type: "drop", lane: 0 })).toThrow(InvalidMoveError);
   });
 
   it("validates its config", () => {
     expect(() => validateFreefallConfig({ ...cfg, width: 7 })).toThrow();
+    expect(() => validateFreefallConfig({ ...cfg, entry: cfg.width + 2 })).toThrow();
     expect(() => validateFreefallConfig({ ...cfg, quotas: [1, 2, 3] })).toThrow();
     expect(() => validateFreefallConfig({ ...cfg, bays: { ...cfg.bays, first: [1, 2] } })).toThrow();
     expect(() => validateFreefallConfig(cfg)).not.toThrow();

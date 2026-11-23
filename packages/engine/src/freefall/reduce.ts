@@ -19,8 +19,10 @@ import {
 export function validateConfig(cfg: FreefallConfig): void {
   const int = (n: unknown, lo: number, hi: number): boolean => typeof n === "number" && Number.isInteger(n) && n >= lo && n <= hi;
   const ok =
-    int(cfg.width, 4, 12) &&
+    int(cfg.width, 4, 20) &&
     cfg.width % 2 === 0 &&
+    int(cfg.entry, 2, cfg.width) &&
+    cfg.entry % 2 === 0 &&
     int(cfg.rows, 2, 10) &&
     int(cfg.gapPermille, 0, 600) &&
     Array.isArray(cfg.quotas) &&
@@ -30,13 +32,27 @@ export function validateConfig(cfg: FreefallConfig): void {
     cfg.bays !== null &&
     FREEFALL_LEGS.every((leg) => {
       const b = cfg.bays[leg];
-      return Array.isArray(b) && b.length === cfg.width / 2 && b.every((v) => int(v, 0, 1000));
+      return Array.isArray(b) && b.length === cfg.width / 2 && b.every((v) => int(v, 0, 10_000));
     }) &&
     typeof cfg.squareClusters === "boolean" &&
     typeof cfg.rival === "boolean" &&
     int(cfg.rivalSkill, 0, 100) &&
     int(cfg.maxMoves, 1, 1_000_000);
   if (!ok) throw new Error("invalid freefall config");
+}
+
+/** The lanes row `row` spans, first and last: the entry lanes at the top, widening to the whole width at the foot. */
+export function rowSpan(cfg: FreefallConfig, row: number): readonly [number, number] {
+  const grow = (cfg.width - cfg.entry) / 2;
+  const extra = cfg.rows > 1 ? Math.round((row * grow) / (cfg.rows - 1)) : grow;
+  const lo = grow - extra;
+  return [lo, cfg.width - 1 - lo];
+}
+
+/** The lanes a pod can be dropped down, first and last: the top row's. */
+export function entryLanes(cfg: FreefallConfig): readonly [number, number] {
+  const lo = (cfg.width - cfg.entry) / 2;
+  return [lo, lo + cfg.entry - 1];
 }
 
 /** What the berth under `lane` pays in leg `leg`. */
@@ -166,7 +182,8 @@ export function fall(cfg: FreefallConfig, rockersIn: readonly FreefallRocker[], 
 /** Why dropping down `lane` is not allowed now, or null when it is. */
 export function dropIllegalReason(state: FreefallState, lane: number): string | null {
   if (state.finished) return "game is finished";
-  if (!Number.isInteger(lane) || lane < 0 || lane >= state.config.width) return "no such lane";
+  const [lo, hi] = entryLanes(state.config);
+  if (!Number.isInteger(lane) || lane < lo || lane > hi) return "no such lane";
   return null;
 }
 
@@ -182,10 +199,11 @@ export function dropValue(state: FreefallState, lane: number): FreefallDropValue
   return { lane, points: f.points, pods, cluster };
 }
 
-/** Every lane's drop value, left to right. */
+/** Every entry lane's drop value, left to right. */
 export function dropValues(state: FreefallState): FreefallDropValue[] {
   const out: FreefallDropValue[] = [];
-  for (let l = 0; l < state.config.width; l++) out.push(dropValue(state, l));
+  const [lo, hi] = entryLanes(state.config);
+  for (let l = lo; l <= hi; l++) out.push(dropValue(state, l));
   return out;
 }
 
@@ -193,7 +211,7 @@ export function dropValues(state: FreefallState): FreefallDropValue[] {
 export function hint(state: FreefallState): number | null {
   if (state.finished) return null;
   let best = -1;
-  let lane = 0;
+  let lane = entryLanes(state.config)[0];
   for (const v of dropValues(state)) {
     if (v.points > best) {
       best = v.points;
@@ -208,7 +226,8 @@ export function createFreefallGame(seed: string, config: FreefallConfig = DEFAUL
   let rng = seedFromString(`freefall:${seed}`);
   const rockers: FreefallRocker[] = [];
   for (let row = 0; row < config.rows; row++) {
-    for (let lane = row % 2; lane + 1 < config.width; lane += 2) {
+    const [lo, hi] = rowSpan(config, row);
+    for (let lane = lo + (row % 2); lane + 1 <= hi; lane += 2) {
       const gap = nextChance(rng, config.gapPermille, 1000);
       const side = nextInt(gap.state, 2);
       rng = side.state;
@@ -314,8 +333,9 @@ export function rivalLane(state: FreefallState): { lane: number; rng: PrngState 
     const pick = nextInt(skilled.state, ties.length);
     return { lane: ties[pick.value]!.lane, rng: pick.state };
   }
-  const pick = nextInt(skilled.state, cfg.width);
-  return { lane: pick.value, rng: pick.state };
+  const [lo] = entryLanes(cfg);
+  const pick = nextInt(skilled.state, cfg.entry);
+  return { lane: lo + pick.value, rng: pick.state };
 }
 
 function playerDrop(state: FreefallState, move: Extract<FreefallMove, { type: "drop" }>): FreefallState {
@@ -363,7 +383,8 @@ export function summarizeFreefall(state: FreefallState): FreefallSummary {
 
 /**
  * The shaft as text, a line a row, `|` between rows: for each lane `.` where it is open, `C` an
- * empty cradle, `P` a cradle holding a pod, `a` an arm. What the board draws must match it.
+ * empty cradle, `P` a cradle holding a pod, `a` an arm, and ` ` outside the row's span. What the
+ * board draws must match it.
  */
 export function viewString(cfg: FreefallConfig, rockers: readonly FreefallRocker[]): string {
   const rows: string[] = [];
@@ -372,7 +393,9 @@ export function viewString(cfg: FreefallConfig, rockers: readonly FreefallRocker
     let line = "";
     for (let l = 0; l < cfg.width; l++) {
       const ri = table[row]![l]!;
-      if (ri < 0) line += ".";
+      const [lo, hi] = rowSpan(cfg, row);
+      if (l < lo || l > hi) line += " ";
+      else if (ri < 0) line += ".";
       else {
         const k = rockers[ri]!;
         line += l === k.lane + k.cradle ? (k.pod !== 0 ? "P" : "C") : "a";

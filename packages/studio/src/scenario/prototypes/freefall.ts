@@ -8,13 +8,15 @@ export const FREEFALL_PRESETS: readonly Preset[] = [
   {
     id: "freefall_deep_shaft",
     overrides: {
-      width: 10,
-      rows: 8,
-      "bays.first": [2, 2, 2, 2, 2],
-      "bays.second": [1, 2, 4, 8, 16],
-      "bays.third": [1, 2, 3, 4, 5],
-      "bays.fourth": [1, 3, 6, 10, 15],
+      width: 20,
+      entry: 10,
+      rows: 10,
+      "bays.first": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+      "bays.second": [1, 1, 2, 2, 4, 5, 8, 12, 16, 20],
+      "bays.third": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      "bays.fourth": [1, 2, 4, 6, 9, 12, 16, 20, 25, 30],
     },
   },
   { id: "freefall_open_shaft", overrides: { gapPermille: 330 } },
+  { id: "freefall_straight_shaft", overrides: { entry: 16 } },
 ];

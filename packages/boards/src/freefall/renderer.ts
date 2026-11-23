@@ -3,6 +3,7 @@ import {
   freefallBayValues,
   freefallDropIllegalReason,
   freefallDropValue,
+  freefallEntryLanes,
   freefallHint,
   freefallViewString,
   type FreefallDrop,
@@ -10,7 +11,7 @@ import {
   type FreefallState,
 } from "@openseas/engine";
 import { sfx } from "../audio.js";
-import { FONT_MONO, INK } from "../kit/art.js";
+import { FONT_MONO, INK, drawDot } from "../kit/art.js";
 import { MOTION, ink } from "../look/tokens.js";
 import { Grid, KitBoard } from "../kit/board.js";
 import { FREEFALL_ARM, FREEFALL_BERTH, FREEFALL_CRADLE, FREEFALL_POD } from "./pieces.js";
@@ -127,11 +128,16 @@ export class FreefallRenderer extends KitBoard<FreefallState> {
       .moveTo(g.ox, foot)
       .lineTo(g.ox + g.width, foot)
       .stroke({ width: 1, color: INK.line });
+    // The shaft is a tree: only its top row's lanes take a drop. A dot over each says where a pod can go in.
+    if (this.state) {
+      const [lo, hi] = freefallEntryLanes(this.state.config);
+      for (let l = lo; l <= hi; l++) drawDot(this.bg, g.cx(l), this.hangY(), g.cell * 1.6, INK.dim);
+    }
     if (this.label) {
       this.label.style.fontSize = Math.max(12, Math.round(g.cell * 0.34));
       this.label.position.set(g.ox + g.width / 2, g.oy - strip + g.cell * 0.32);
     }
-    this.cursor = Math.min(this.cursor, g.cols - 1);
+    this.cursor = this.clampLane(this.cursor);
     this.publishGeom(g.ox, g.oy, g.cell);
     this.buildBerths();
     if (this.state) this.snap(this.state);
@@ -485,11 +491,20 @@ export class FreefallRenderer extends KitBoard<FreefallState> {
     this.label.style.fill = color;
   }
 
+  /** The nearest entry lane to `lane`. */
+  private clampLane(lane: number): number {
+    if (!this.state) return lane;
+    const [lo, hi] = freefallEntryLanes(this.state.config);
+    return Math.min(hi, Math.max(lo, lane));
+  }
+
+  /** The entry lane under a point, or null off the shaft or outside the top row's lanes. */
   private laneAt(x: number, y: number): number | null {
     const g = this.grid;
-    if (y < g.oy - g.cell * STRIP || y > g.oy + g.height) return null;
+    if (!this.state || y < g.oy - g.cell * STRIP || y > g.oy + g.height) return null;
     const lane = Math.floor((x - g.ox) / g.cell);
-    return lane >= 0 && lane < g.cols ? lane : null;
+    const [lo, hi] = freefallEntryLanes(this.state.config);
+    return lane >= lo && lane <= hi ? lane : null;
   }
 
   // ---- pointer: a tap anywhere down a lane drops a pod down it; a hover shows what it is worth
@@ -540,7 +555,8 @@ export class FreefallRenderer extends KitBoard<FreefallState> {
     const step = steps[k];
     if (step !== undefined) {
       const lane = this.cursor + step;
-      if (this.cursorShown && lane >= 0 && lane < g.cols) this.cursor = lane;
+      if (!this.cursorShown) this.cursor = this.clampLane(this.cursor);
+      else if (this.clampLane(lane) === lane) this.cursor = lane;
       else if (this.cursorShown) sfx.bump();
       this.cursorShown = true;
       this.idle = 0;

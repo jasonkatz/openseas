@@ -1,7 +1,7 @@
 # Freefall
 
-Status: built. Prototype (ADR 0036, ADR 0080), in the studio at `/freefall`. Untimed drops; a round
-is four legs, bounded by a 120 second clock.
+Status: built. Prototype (ADR 0036, ADR 0081), in the studio at `/freefall`. Untimed drops; a round
+is four legs, bounded by a 150 second clock.
 
 Freefall is a successor, not one of the game's own new designs: it follows the original's Treasure
 Drop, the parlor game of dropping coins through a board of seesaws (DESIGN.md section 3 lists it as
@@ -10,12 +10,16 @@ own form. Where it departs from the original is listed in DESIGN.md section 6.
 
 ## The puzzle
 
-A salvage station drops its cargo down a shaft into the berths at its foot. The shaft is eight
-lanes wide (`width`) and holds six rows of rockers (`rows`) in a brick pattern: an even row's
-rockers start at the left wall, an odd row's one lane in, so an odd row's outer lanes are open. The
-deal flips each rocker to a side at random and leaves 12 places in a hundred open (`gapPermille`).
+A salvage station drops its cargo down a shaft into the berths at its foot. The shaft is a tree,
+as the original's board is: narrow at the top and wide at the foot. Pods are dropped down the
+middle eight lanes (`entry`); eight rows of rockers (`rows`) widen evenly from those eight lanes to
+sixteen at the foot (`width`), a berth under every one. The rockers lie in a brick pattern: an even
+row's start at its left edge, an odd row's one lane in, so an odd row's outer lanes are open. The
+deal flips each rocker to a side at random and leaves 6 places in a hundred open (`gapPermille`).
+No lane drops straight onto the outer berths: a pod reaches them only by being turned outward by
+rockers on the way.
 
-- **The verb is a drop.** Pick a lane at the top; a pod falls straight down it, a row at a time.
+- **The verb is a drop.** Pick one of the top lanes; a pod falls straight down it, a row at a time.
 - **Rockers.** A rocker spans two lanes: its cradle on one side, its arm on the other.
   - Onto an empty cradle, a pod comes to rest. The rocker does not move.
   - Onto a full cradle, a pod rolls over to the arm side.
@@ -28,12 +32,12 @@ deal flips each rocker to a side at random and leaves 12 places in a hundred ope
 - **Berths.** A pod past the last row lands in the berth under its lane. A cluster of n in a berth
   worth v scores v × n × n (`squareClusters`; off, v × n).
 - **Legs.** A round is four legs. Each has a quota (`quotas`) and its own berth values (`bays`,
-  listed from the middle lane outward and mirrored): flat 2 in the first, doubling to 8 at the edge
-  in the second, 1 to 4 in the third, 1 to 10 in the fourth. Pods at rest stay from one leg to the
+  listed from the middle lane outward and mirrored): flat 2 in the first, 1 rising to 12 at the
+  edge in the second, 1 to 8 in the third, 1 to 20 in the fourth. Pods at rest stay from one leg to the
   next.
 - **The rival.** Points go to whoever dropped the pod that set them off. A rival drops after every
   drop of the player's (`rival`), from the round's own seeded stream: the drop worth most at once 70
-  times in a hundred (`rivalSkill`), a lane at random otherwise. When either side's points in a leg
+  times in a hundred (`rivalSkill`), a top lane at random otherwise. When either side's points in a leg
   reach its quota, the other drops once more and the leg ends. With no rival, a leg ends at the
   quota.
 - **The score is the lead**: the player's points less the rival's, never below zero. With no rival
@@ -65,10 +69,10 @@ no better than at random. A first stage wants a solo rule that pays for planning
 
 ## Input and feedback
 
-- Pointer: tap anywhere down a lane to drop a pod down it. On desktop a hover picks the lane, and
+- Pointer: tap anywhere down one of the top lanes (each marked by a dot over the shaft) to drop a pod down it; a tap outside them drops nothing. On desktop a hover picks the lane, and
   the strip over the shaft says what a drop down it pays (`freefallDropValue`), or that it only
   rests.
-- Keyboard: left and right, or A and D, move the lane in hand (an amber chevron); space or enter
+- Keyboard: left and right, or A and D, move the lane in hand among the top lanes (an amber chevron); space or enter
   drops.
 - Unrated and lab rounds frame the lane worth most at once after six seconds idle (`freefallHint`).
 
@@ -100,11 +104,11 @@ after.
 ## Tuning notes
 
 Set from bots, not people (ADR 0036). A person's pace is modelled as a drop every 3 seconds, the
-rival's answer played out included. A round is about 30 drops, so the legs, not the clock, end it.
+rival's answer played out included. A round is about 38 drops, so the legs, not the clock, end it.
 
 - **The score is the lead, not the points.** A leg ends at its quota, so a player's own points sit
-  near the quotas' sum however well they play: the denier bot scored 163 points, one move 152.
-  Read as the lead, the same bots score 85 and 55, and careless play is zero.
+  near the quotas' sum however well they play: the bots' points sit close together.
+  Read as the lead, the denier scores 123, one move 96 and careless play about zero.
 - **Clusters pay n × n.** The original pays a multi-coin its slot times its count; squaring is what
   makes planning a cluster worth more than two lucky singles (rule 13).
 - **The rival at 70.** Sharp enough that a pod left at rest over a rich lane is usually taken, loose
@@ -115,26 +119,26 @@ rival's answer played out included. A round is about 30 drops, so the legs, not 
 
 The bots of this pass, 32 seeds (`pnpm --filter @openseas/bots ladder freefall`):
 
-| Bot | Full (120 s) |
+| Bot | Full (150 s) |
 |---|---|
-| careless | 0 Green |
-| one move | 56 Steady |
-| rollout | 96 Sharp |
-| denier | 90 Sharp |
-| edge chaser | 0 Green |
-| *Steady from* | *30* |
-| *Sharp from* | *75* |
-| *Masterful from* | *125* |
-| *Legendary from* | *193* |
+| careless | 2 Green |
+| one move | 96 Steady |
+| rollout | 147 Sharp |
+| denier | 123 Sharp |
+| edge chaser | 2 Green |
+| *Steady from* | *50* |
+| *Sharp from* | *118* |
+| *Masterful from* | *185* |
+| *Legendary from* | *268* |
 
-- **careless**: any lane at random.
+- **careless**: any top lane at random.
 - **one move**: the drop worth most now.
 - **rollout**: the eight best drops, each played five drops on, three times, on a fresh random stream.
 - **denier**: points now less the best drop it leaves the rival.
-- **edge chaser** (a bait): always the lane over the richest berth.
+- **edge chaser** (a bait): always the top lane over the richest berth it can reach straight down.
 
 Checks: careless lands a tier below one move; the edge chaser loses to one move; and one move,
-the plain greedy play that looks right, loses to the denier by 38 percent.
+the plain greedy play that looks right, loses to the denier by 22 percent.
 
 Open questions for play:
 

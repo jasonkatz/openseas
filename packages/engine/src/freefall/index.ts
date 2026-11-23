@@ -10,6 +10,8 @@ export {
   hashFreefallState,
   summarizeFreefall,
   validateConfig as validateFreefallConfig,
+  rowSpan as freefallRowSpan,
+  entryLanes as freefallEntryLanes,
   bayValue as freefallBayValue,
   bayValues as freefallBayValues,
   landingPoints as freefallLandingPoints,

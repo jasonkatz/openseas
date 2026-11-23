@@ -431,7 +431,7 @@ The tables above give the identifier for each word. Beyond them:
 
 Eight puzzles with no former word: they are new (DESIGN.md 3.12, ADR 0036), in the studio only.
 Tractor is a ninth, in the studio only too, with a former word: it succeeds Treasure Haul (ADR 0078).
-Freefall is a tenth, the same kind: it succeeds Treasure Drop (ADR 0080).
+Freefall is a tenth, the same kind: it succeeds Treasure Drop (ADR 0081).
 Their words follow the naming rules above. Each puzzle's own words (its pieces, its callouts) are in
 its design file under `docs/prototypes/` and its message file under
 `content/data/messages/prototypes/`; promoting a puzzle may rename them.

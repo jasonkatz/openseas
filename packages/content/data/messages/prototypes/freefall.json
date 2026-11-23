@@ -2,8 +2,8 @@
   "home.practice_freefall": "Freefall",
   "home.practice_freefall_blurb": "Drop cargo pods down a shaft of rockers into the berths below. Set pods up in cradles, tip them down together, and leave your rival nothing.",
   "freefall.title": "Freefall",
-  "freefall.how_to": "Tap a lane to drop a pod. A pod rests in an empty cradle; onto a full cradle it rolls to the arm, and a pod past an arm flips the rocker, tipping out whatever lay in its cradle. Pods that meet in a lane fuse and fall as one, and a cluster of n pays its berth n times n. Whatever your drop brings down is yours.",
-  "freefall.how_to_keyboard": "Left and right, or A and D, pick a lane. Space or enter drops.",
+  "freefall.how_to": "Tap one of the top lanes to drop a pod. The shaft widens as it falls. A pod rests in an empty cradle; onto a full cradle it rolls to the arm, and a pod past an arm flips the rocker, tipping out whatever lay in its cradle. Pods that meet in a lane fuse and fall as one, and a cluster of n pays its berth n times n. Whatever your drop brings down is yours.",
+  "freefall.how_to_keyboard": "Left and right, or A and D, pick one of the top lanes. Space or enter drops.",
   "freefall.go": "Drop.",
   "freefall.legs_note": "Four legs, each with its own berth values. The first side to its quota ends the leg, and the other side drops once more.",
   "freefall.rival_note": "Your rival drops after you, down whatever lane pays it most. Every pod you leave in a cradle is one it can tip.",
@@ -42,6 +42,7 @@
   "studio.preset.freefall_solo": "Solo: no rival",
   "studio.preset.freefall_sharp_rival": "A sharp rival: always takes the most",
   "studio.preset.freefall_linear": "Linear clusters: n pods pay n times",
-  "studio.preset.freefall_deep_shaft": "A deep shaft: ten lanes, eight rows",
-  "studio.preset.freefall_open_shaft": "An open shaft: a third of rockers missing"
+  "studio.preset.freefall_deep_shaft": "A deep shaft: ten lanes in, twenty berths, ten rows",
+  "studio.preset.freefall_open_shaft": "An open shaft: a third of rockers missing",
+  "studio.preset.freefall_straight_shaft": "A straight shaft: every lane takes a drop"
 }

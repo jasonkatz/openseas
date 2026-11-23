@@ -1,15 +1,16 @@
 import { z } from "zod";
 
-const Bays = z.array(z.int().min(0).max(1000)).min(2).max(6);
+const Bays = z.array(z.int().min(0).max(10_000)).min(2).max(10);
 
 export const FreefallMoveSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("drop"), lane: z.int().min(0).max(11) }),
+  z.object({ type: z.literal("drop"), lane: z.int().min(0).max(19) }),
   z.object({ type: z.literal("end") }),
 ]);
 export type FreefallMoveWire = z.infer<typeof FreefallMoveSchema>;
 
 export const FreefallConfigSchema = z.object({
-  width: z.int().min(4).max(12).multipleOf(2).describe("Lanes across the shaft, and berths at its foot. Even, since the berths mirror."),
+  width: z.int().min(4).max(20).multipleOf(2).describe("Lanes across the foot of the shaft, a berth under each. Even, since the berths mirror."),
+  entry: z.int().min(2).max(20).multipleOf(2).describe("Lanes across the top, the ones a pod is dropped down. The shaft widens from these to the full width at its foot."),
   rows: z.int().min(2).max(10).describe("Rows of rockers a pod falls through."),
   gapPermille: z.int().min(0).max(600).describe("Chance, per mille, that a rocker's place is left open in the deal."),
   quotas: z

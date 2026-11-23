@@ -1,4 +1,4 @@
-# 0080. Treasure Drop's successor starts as a prototype: Freefall
+# 0081. Treasure Drop's successor starts as a prototype: Freefall
 
 Status: Accepted. Builds on [0001](./0001-spiritual-successor.md), [0036](./0036-prototype-puzzles.md)
 and [0078](./0078-treasure-hauls-successor-starts-as-a-prototype.md).
@@ -34,7 +34,7 @@ that lives inside the engine.
    player's own points say little about how well they played; the lead says who won and by how
    much.
 5. **Its departures are about planning.** A cluster pays its berth by the square of its count, not
-   its count; each column has one berth under it; the berth values are its own. Each departure is a
+   its count; the berth values are its own. The shaft keeps the original's tree, a few drop lanes at the top widening row by row to a berth under every lane at the foot, with its widths and rows as tuning numbers. Each departure is a
    row in DESIGN.md section 6.
 6. **Treasure Drop stays on the later list as a parlor game.** Two people at one shaft, with a
    wager, is decided with the parlors, with the promotion.

@@ -1,10 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import { loadContent } from "@openseas/content";
-import { createFreefallGame, freefallDropValue, freefallViewString, reduceFreefall, type FreefallDrop, type FreefallState } from "@openseas/engine";
+import { createFreefallGame, freefallDropValue, freefallEntryLanes, freefallRowSpan, freefallViewString, reduceFreefall, type FreefallDrop, type FreefallState } from "@openseas/engine";
 import { boardGeom, boardString, canvasBox, clip, findSeed, hidePointer, openLab, padded, settled, still, type Box } from "./lib.js";
 
 const cfg = loadContent().puzzles.freefall.config;
 const W = cfg.width;
+/** The lanes a pod may be dropped down: the top of the tree. */
+const [IN_LO, IN_HI] = freefallEntryLanes(cfg);
 /** Rows on the board's grid: the rockers and the berths under them. */
 const H = cfg.rows + 1;
 /** The strip over the shaft, in cells (the renderer's). */
@@ -15,9 +17,9 @@ const drop = (s: FreefallState, lane: number): FreefallState => reduceFreefall(s
 
 /** The drop worth most at once, the leftmost of equals: a plain player's choice. */
 function bestDrop(s: FreefallState): number {
-  let best = 0;
+  let best = IN_LO;
   let value = -1;
-  for (let l = 0; l < W; l++) {
+  for (let l = IN_LO; l <= IN_HI; l++) {
     const v = freefallDropValue(s, l).points;
     if (v > value) {
       value = v;
@@ -32,7 +34,7 @@ function playUntil(seed: string, limit: number, shows: (d: FreefallDrop, rival: 
   let s = deal(seed);
   const log: number[] = [];
   for (let n = 0; n < limit && !s.finished; n++) {
-    for (let l = 0; l < W; l++) if (shows(drop(s, l).lastMove!.drops[0]!, drop(s, l).lastMove!.drops[1])) return { log, lane: l };
+    for (let l = IN_LO; l <= IN_HI; l++) if (shows(drop(s, l).lastMove!.drops[0]!, drop(s, l).lastMove!.drops[1])) return { log, lane: l };
     const m = bestDrop(s);
     log.push(m);
     s = drop(s, m);
@@ -74,7 +76,10 @@ async function replay(page: Page, seed: string, log: readonly number[]): Promise
 test("freefall: the board", async ({ page }) => {
   // An opening shaft with no more than one open place, so the brick pattern reads.
   let places = 0;
-  for (let r = 0; r < cfg.rows; r++) for (let l = r % 2; l + 1 < W; l += 2) places++;
+  for (let r = 0; r < cfg.rows; r++) {
+    const [lo, hi] = freefallRowSpan(cfg, r);
+    for (let l = lo + (r % 2); l + 1 <= hi; l += 2) places++;
+  }
   const { seed } = findSeed("freefall-hero", (s) => (deal(s).rockers.length >= places - 1 ? true : null));
   await openLab(page, "freefall", { seed });
   await hidePointer(page);

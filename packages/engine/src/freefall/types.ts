@@ -1,10 +1,12 @@
 /**
- * Freefall (prototype, ADR 0036, ADR 0080): cargo pods dropped down a shaft of rockers into the
+ * Freefall (prototype, ADR 0036, ADR 0081): cargo pods dropped down a shaft of rockers into the
  * berths at its foot. A successor to the original's Treasure Drop, faithful to its mechanics.
  *
- * The one verb is a drop: pick one of the `width` lanes at the top and let a pod fall. The shaft
- * holds `rows` rows of rockers in a brick pattern: a rocker spans two neighbouring lanes, one side
- * its cradle and the other its arm. A pod falls straight down its lane, a row at a time:
+ * The one verb is a drop: pick one of the `entry` lanes at the top and let a pod fall. The shaft
+ * widens as it falls, like a tree: its top row spans the `entry` lanes in the middle, and each row
+ * down spans a little more, until the last spans all `width` lanes, one berth under each. It holds
+ * `rows` rows of rockers in a brick pattern: a rocker spans two neighbouring lanes, one side its
+ * cradle and the other its arm. A pod falls straight down its lane, a row at a time:
  *
  * - Onto an empty cradle: it comes to rest there. The rocker does not move.
  * - Onto a cradle that holds a pod: it rolls over to the arm side.
@@ -28,8 +30,10 @@
  * player's lead: their points less the rival's, never below zero. Without a rival it is their
  * points.
  *
- * Lanes are 0..width-1 left to right; rows 0..rows-1 top to bottom. Rows alternate: an even row's
- * rockers start at lane 0, an odd row's at lane 1, so an odd row's outer lanes are open.
+ * Lanes are 0..width-1 left to right across the foot; rows 0..rows-1 top to bottom. A row spans
+ * `rowSpan` lanes, centred. Rows alternate: an even row's rockers start at its first lane, an odd
+ * row's one lane in, so an odd row's outer lanes are open. A drop names its lane across the foot;
+ * only the entry lanes in the middle take one.
  */
 import type { PrngState } from "../prng.js";
 
@@ -38,8 +42,10 @@ export const FREEFALL_LEGS = ["first", "second", "third", "fourth"] as const;
 export type FreefallLeg = (typeof FREEFALL_LEGS)[number];
 
 export interface FreefallConfig {
-  /** Lanes across the shaft, and berths at its foot. Even. */
+  /** Lanes across the foot of the shaft, a berth under each. Even. */
   readonly width: number;
+  /** Lanes across the top, the ones a pod is dropped down: the middle of the width. Even, and no more than it. */
+  readonly entry: number;
   /** Rows of rockers. */
   readonly rows: number;
   /** Chance, per thousand, that a rocker's place is left open in the deal. */
@@ -59,15 +65,16 @@ export interface FreefallConfig {
 }
 
 export const DEFAULT_FREEFALL_CONFIG: FreefallConfig = {
-  width: 8,
-  rows: 6,
-  gapPermille: 120,
+  width: 16,
+  entry: 8,
+  rows: 8,
+  gapPermille: 60,
   quotas: [12, 40, 24, 70],
   bays: {
-    first: [2, 2, 2, 2],
-    second: [1, 2, 4, 8],
-    third: [1, 2, 3, 4],
-    fourth: [1, 3, 6, 10],
+    first: [2, 2, 2, 2, 2, 2, 2, 2],
+    second: [1, 1, 2, 2, 4, 5, 8, 12],
+    third: [1, 2, 3, 4, 5, 6, 7, 8],
+    fourth: [1, 2, 4, 6, 9, 12, 16, 20],
   },
   squareClusters: true,
   rival: true,

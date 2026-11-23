@@ -8,7 +8,7 @@ import { FREEFALL } from "../prototypes/freefall.js";
 
 const freefall = content.puzzles.freefall;
 
-/** Freefall (prototype, ADR 0036, ADR 0080): the shared board in the studio's frame. */
+/** Freefall (prototype, ADR 0036, ADR 0081): the shared board in the studio's frame. */
 export function FreefallPractice() {
   const api = usePractice<FreefallState, FreefallMove, FreefallConfig>({
     puzzle: "freefall",
