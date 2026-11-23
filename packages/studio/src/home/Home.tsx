@@ -194,6 +194,18 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
       <path d="M6 32h30" stroke="#fff3c4" strokeWidth="2.5" strokeDasharray="5 3" />
     </svg>
   ),
+  tractor: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <path d="M10 12h44" stroke="#efe3c6" strokeWidth="2" />
+      <circle cx="18" cy="24" r="5" fill="#f5d021" />
+      <circle cx="18" cy="36" r="5" fill="#f5d021" />
+      <circle cx="18" cy="48" r="5" fill="#f5d021" />
+      <path d="M32 19l6 6-6 6-6-6z" fill="#ff6b5e" />
+      <rect x="40" y="32" width="14" height="12" rx="2" fill="#efe3c6" />
+      <path d="M47 30v-14m0 0l-4 4m4-4l4 4" fill="none" stroke="#7fd7ff" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  ),
 };
 
 
