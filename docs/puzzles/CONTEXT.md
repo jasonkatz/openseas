@@ -360,11 +360,39 @@ _Avoid_: difficulty, accuracy
 
 **Skin**:
 The looks and sound that dress one puzzle. It never changes a number.
-_Avoid_: reskin, theme (a theme is a set of skins)
+_Avoid_: reskin, theme (a theme holds a skin for each puzzle)
 
 **Theme**:
-A set of skins, one for each puzzle, that dresses them all in one look, such as space.
-_Avoid_: world, setting
+A look for every puzzle: a document holding a palette, type, a sound frame, the cues and motion a new
+skin starts from, and host texts, with a skin for each puzzle, such as space. Skins read its palette and
+type, and copy its cues and motion.
+_Avoid_: world, setting, brand
+
+**Palette**:
+A theme's colours, each a name and a value: the seven fixed colours and its piece colours. A skin names
+a colour and the theme says what it is.
+_Avoid_: tokens, swatches
+
+**Fixed colour**:
+One of the seven colours every theme fills, so a host and any skin work under any theme: `ground`,
+`raised`, `line`, `text`, `dim`, `yours` (what is the player's or active) and `danger` (what is bad).
+_Avoid_: role (a role is a puzzle's place in a world), brand colour
+
+**Piece colour**:
+One of a theme's freely named colours for pieces, at least eight, because a family can deal eight kinds.
+_Avoid_: tint, kind colour
+
+**Type**:
+A theme's typefaces and their sizes.
+_Avoid_: font, typography
+
+**Sound frame**:
+A theme's scale, which every cue's notes come from, and its limits: the longest cue and the highest
+cutoff. The checks read it.
+_Avoid_: key, sound palette
+
+**Host text**:
+A text the host says in a theme: a tier's name, start, countdown, end.
 
 **Drawing**:
 A piece's picture, made of shapes on a square, for each of its states.
@@ -385,7 +413,7 @@ them.
 **Motion**:
 How a skin plays what happens on the board: each board change's length and easing, the stagger along
 an event's places, its marks, where points rise from, and the beat's pulse. A new skin's motion starts
-as a copy of the game's, as its cues do.
+as a copy of its theme's, as its cues do.
 _Avoid_: animation, tween, juice
 
 **Mark**:

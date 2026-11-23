@@ -82,3 +82,4 @@ that supersedes it.
 | [0074](./0074-a-stage-only-switches-layers.md) | A stage only switches layers: its round length, settings and tier starts are the whole puzzle's |
 | [0075](./0075-a-puzzle-declares-its-deal.md) | A puzzle declares its deal: draws on streams of their own, checks that always pass, and secrets |
 | [0076](./0076-stand-ins-are-four-types-on-two-dials.md) | Stand-ins are four types on two dials, the same for every puzzle |
+| [0077](./0077-a-theme-is-a-document-its-skins-read.md) | A theme is a document its skins read: a palette and type they name, and the cues and motion they copy |
