@@ -15,9 +15,9 @@ around it, and each owns what the puzzle does not.
 
 | | What it holds | What it never does |
 |---|---|---|
-| **Puzzle** | Rules, round, board, pieces, layers and ladder, evaluation, settings, moves, events and the board changes they carry, its moment, gauges, stats, signals, text keys | Name a world thing, draw, sound, hold a text's content, or decide where anything sits on a screen |
+| **Puzzle** | Rules, round, board, pieces, deal, layers and ladder, evaluation, settings, moves, events and the board changes they carry, its moment, gauges, stats, signals, text keys | Name a world thing, draw, sound, hold a text's content, or decide where anything sits on a screen |
 | **Skin** | The drawings, cues, texts and motion that dress one puzzle | Set or change a number, or change a round |
-| **Host** | Runs rounds, replays logs, keeps each player's standing and place on a ladder, owns the tier scale, holds the ceiling on motion | Change a puzzle's rules or tier starts |
+| **Host** | Runs rounds, replays logs, keeps each player's standing and place on a ladder, owns the tier scale, holds the ceiling on motion, keeps a round's secrets, measures each stand-in | Change a puzzle's rules or tier starts |
 | **Role** | What a puzzle does in a world: wires its signals, decides whether a round counts, turns tiers and outcomes into rewards | Move a tier |
 
 A **theme** is a set of skins, one for each puzzle, that dresses them all in one look.
@@ -34,7 +34,7 @@ text key carries a word from a theme; the skin names everything a player sees.
 
 A round starts from a seed and settings: `start(seed, settings)`. The **settings** are a value for each
 of the puzzle's settings and the set of layers that are on. The **seed** fixes the **deal**, the luck in
-the round.
+the round ([The deal](#the-deal)).
 
 ### Tempo
 
@@ -153,12 +153,30 @@ A **setting** is a named number a puzzle is tuned by. Each declares:
 | min, max | The bounds every host holds it to |
 | line | One plain sentence on what it does |
 | group | Board, deal, tempo or scoring |
+| unit | What it counts: seconds, ticks, moves, cells, pieces or points. Absent for a plain count, a percent, a permille or a flag |
+| entries | A list only: the least and most entries, or the setting or count that fixes how many, and the bounds of each entry |
+| map | Maps only: the board each map fills and the check every map must pass, such as every port reachable |
+| role | True when a role may set it for a round, within its bounds. Absent otherwise |
 
 The default is the only place a setting's number lives. A setting a layer brings exists only while
-that layer is on.
+that layer is on, so switching a layer off needs no value of its own.
 
 > `kinds`: whole number, default 5, from 2 to 8, "kinds dealt; more makes long paths harder to find",
 > group board.
+
+A puzzle also declares the **relations** its settings keep with one another, which no setting's bounds
+can say alone:
+
+| Relation | Holds when | Example |
+|---|---|---|
+| At most | One setting is no more than another | Paths' `startPrizes` at most `maxPrizes`, and `maxPrizes` at most `width` |
+| Below | One setting is less than another | A short path's length below a long one's |
+| Ascending | A list's entries never fall | A cascade table that pays more at every step |
+| Fits | A count fits the board | No more pieces dealt at the start than the board has cells |
+
+Every host holds a round's settings to their bounds and relations before it starts, so the studio and
+the server refuse the same settings. A relation with a setting that a layer brings holds only while
+that layer is on.
 
 ### Signals in
 
@@ -414,12 +432,83 @@ Three more ideas describe a puzzle's pieces.
 > | `timed` | A kind with a fuse. It joins paths as its kind; if the fuse runs out, it ruins the pieces around it | Based on `kind`. Its state is a number: the moves its fuse has left | A volatile |
 > | `ruined` | What a timed piece leaves around it when its fuse runs out. No path can join it | A plain piece | Rubble |
 
+## The deal
+
+The **deal** is everything luck puts in a round. The seed fixes it, and the puzzle declares it in
+full, so a reader of the puzzle knows what is luck and what is skill without reading the rules.
+
+### Draws
+
+A **draw** is one source of luck. A puzzle declares each with:
+
+| Field | Holds |
+|---|---|
+| id | A neutral word |
+| line | One plain sentence on what it decides |
+| gives | What it decides: a kind, a piece, a place, a map, a task, or a number |
+| by | How: an even roll, a weighted roll, a bag, or a pick from a list |
+| when | When it is drawn: at the start, on a refill, for a new task, on a tick, or every so many moves |
+| reads | The settings that size it |
+
+| By | Draws | Example |
+|---|---|---|
+| Even roll | Each item alike, every time | Paths' debris: any of the `kinds` |
+| Weighted roll | Each item by its weight, or yes or no by a chance | Paths' prizes: `prizePermille` |
+| Bag | A shuffled set dealt out in order, then shuffled again | Gunnery's feed: every seven pieces hold the same seven |
+| Pick | One entry of a list setting | Gunnery's deck, one of its maps |
+
+A draw belongs to a layer when only that layer's rules call for it.
+
+### Streams
+
+Every draw has a **stream** of its own, made from the seed and the draw's id. Nothing a draw gives
+depends on another draw, so a move that changes what one draw is asked for never changes what the
+others give. Two rounds on one seed meet the same luck for as long as they ask for it alike.
+
+A puzzle played between sides says, for each draw, whether every seat reads one shared stream or each
+has its own. On a shared stream every seat meets the same items in the same order, so nobody is dealt
+luckier than another.
+
+> Swordfighting's pairs are a shared stream: every board in a fight is dealt the same pairs, in the
+> same order.
+
+### Checks
+
+A **check** is a test a deal must pass before a player sees it: a move can be made, or the task can be
+solved from what is shown. A puzzle declares each check with the draws it covers, how many **tries**
+the rules make, and a **fallback** for when every try fails. A fallback always passes, so no round is
+ever dealt one that fails. A deal that would force a guess fails its check.
+
+A check can also hold during play. When the board has no move left, the rules deal it again, and an
+event says so.
+
+> Paths checks that a path can be drawn, at the start and after every refill, in up to 50 tries. Its
+> fallback lays a path of `pathMin` pieces of one kind. When no path is left during play, the board is
+> dealt again and `reshuffle` says so.
+
+### Bounds
+
+A **bound** is a setting that caps what one draw can give, so no round is made by one windfall. A
+puzzle names the draw each bound caps.
+
+> Cutting's `maxBlockPercent` keeps any block to 45 percent of its slab.
+
+### Secrets
+
+A **secret** is part of the deal a player does not see: where Scanner's contacts lie, or a side's
+orders before a turn resolves. A puzzle declares each secret with the draw or the moves it hides and
+the events that reveal it. A secret only ever comes out on an event.
+
+A round with a secret is run by its host, who keeps the seed and plays every entry. A player's board
+gets the round without the secret and plays from events, so a move that can reveal something waits on
+the host. Nothing a player is shown is ever false.
+
 ## Depth
 
 ### Layers
 
 A **layer** is a named group of rules that is either on or off. It brings the pieces, events,
-settings, zones, gauges, controls, payouts, multipliers and tasks that exist only while it is on. What a layer's rules cause elsewhere, such as a par rising
+settings, zones, gauges, controls, payouts, multipliers, tasks and draws that exist only while it is on. What a layer's rules cause elsewhere, such as a par rising
 because there is more to plan around, is not the layer's concern.
 
 ### The ladder
@@ -427,14 +516,15 @@ because there is more to plan around, is not the layer's concern.
 A **ladder** is a puzzle's stages in order. It has two to four stages; each layer is added by exactly
 one stage; no stage switches a layer off; and the last stage, `full`, is the whole puzzle.
 
-A **stage** is its layers and one **threshold**: the bar a player clears to move to the next stage. The
-threshold's measure is one of:
+A **stage** is its layers and one **threshold**: the bar a player clears to move to the next stage. A
+stage changes nothing but which layers are on. Its round length, settings and tier starts are the whole
+puzzle's. The threshold's measure is one of:
 
 | Measure | Counted in |
 |---|---|
 | Best round at this stage | Points |
 | Average of the last few rounds at this stage | Points |
-| Wins over the stand-in at this stage | Wins |
+| Wins over a stand-in at this stage | Wins |
 | Rounds played at this stage | Rounds |
 
 The host keeps each player's place on a ladder, and a player only moves forward. A strong player
@@ -483,16 +573,41 @@ down for a loss.
 
 A puzzle played between sides declares how many **sides** a round has and how many **seats** each holds,
 as a least and a most. An **opponent** is whoever holds a seat on another side. A **stand-in** is an
-opponent the rules play themselves, in a seat no player holds. A puzzle has one stand-in for now, with
-a standing set by hand.
+opponent the rules play themselves, in a seat no player holds.
 
 Opponents, and everything they do to each other, are inside the puzzle. An attack from one board to
 another is part of the rules, not a signal.
 
+### Stand-ins
+
+Stand-ins come in four **types**, the same for every puzzle:
+
+| Type | Plays |
+|---|---|
+| Careless | Any move the rules allow, at random |
+| Greedy | The move worth the most now |
+| Planner | The move whose best few moves after it are worth the most |
+| Ghost | A player's own round, replayed from its log on the same deal |
+
+Each takes two **dials**: its **delay**, the time it takes over a move, and its **slip**, the share of
+its moves made at random instead. A stand-in is a type and its dials. A host or a role picks the
+stand-in for a seat.
+
+A puzzle between sides takes every type when its rules can list the moves a round allows and say what
+each is worth now. A ghost also needs boards the other side cannot touch, since a replayed move must
+still be one the rules allow; a puzzle says whether it takes ghosts. A puzzle may add stand-ins of
+its own, beside the four.
+
+A stand-in's standing is measured, never set by hand: the host starts it where it lands against the
+other stand-ins and moves it with its results against players, as it moves a player's.
+
+> A raider tier aboard a ship is a stand-in: a junker is greedy with a long delay and a large slip; the
+> fiercest is a planner with a short delay and none.
+
 ## What a player sees
 
-A player sees everything the rules know about the board. Nothing on it is hidden. What the deal brings
-next may still be luck.
+A player sees everything the rules know about the board, except a declared secret
+([Secrets](#secrets)). What the deal brings next may still be luck.
 
 A puzzle may offer **teaching**, and declares whether it does:
 
@@ -620,14 +735,24 @@ round. The rules are the only part of a puzzle that is code.
     "ends": [{ "by": "clock | budget | stock | fail | outcome", "setting": "what sizes it", "event": "what names it" }],
     "logLimit": "the fixed cap on the log"
   },
-  "opponents": "absent when solo, or { sides, seatsPerSide: [least, most], standIn: { standing } }",
+  "opponents": "absent when solo, or { sides, seatsPerSide: [least, most], ghosts: true or false, standIns: [{ id, line }]: its own, beside the four }",
   "board": { "shape": "grid | rings", "width": "grid", "height": "grid", "touch": "grid: 4 | 8", "rim": "grid: true or false",
              "rings": "rings", "sectors": "rings", "shared": "between sides: true, or one board a seat" },
   "terrain": [{ "id": "", "states": "names, if it has any" }],
   "zones": [{ "id": "", "holds": "how many pieces", "player": "watches | takes" }],
-  "settings": [{ "id": "", "type": "whole | percent | permille | list | flag | maps", "default": "", "min": "", "max": "", "line": "", "group": "board | deal | tempo | scoring" }],
+  "settings": [{ "id": "", "type": "whole | percent | permille | list | flag | maps", "default": "", "min": "", "max": "", "line": "", "group": "board | deal | tempo | scoring",
+                 "unit": "seconds | ticks | moves | cells | pieces | points", "entries": "list: { least, most } or { count }, and { min, max } each",
+                 "map": "maps: { board, check }", "role": "true when a role may set it" }],
+  "relations": [{ "is": "at-most | below | ascending | fits", "a": "a setting", "b": "a setting, or the board" }],
+  "deal": {
+    "draws": [{ "id": "", "line": "", "gives": "kind | piece | place | map | task | number", "by": "even | weighted | bag | pick",
+                "when": "start | refill | task | tick | every: a setting", "reads": ["setting ids"], "shared": "between sides: true, or a stream a seat" }],
+    "checks": [{ "id": "", "line": "", "draws": ["draw ids"], "tries": "a number", "fallback": "one line: what is dealt, and why it passes", "during": "the event that says the board was dealt again, if it holds during play" }],
+    "bounds": [{ "setting": "", "caps": "a draw id" }],
+    "secrets": [{ "id": "", "line": "", "hides": "a draw id, or turn orders", "revealedBy": ["event ids"] }]
+  },
   "layers": [{ "id": "", "rule": "one line", "brings": { "pieces": [], "events": [], "settings": [], "zones": [], "gauges": [], "controls": [],
-             "payouts": [], "multipliers": [], "tasks": [] } }],
+             "payouts": [], "multipliers": [], "tasks": [], "draws": [] } }],
   "ladder": [{ "stage": "", "adds": ["layer ids"], "advance": { "measure": "best-round | average-of-last | wins-over-stand-in | rounds-played", "threshold": "in the measure's unit" } }],
   "evaluation": { "tierStarts": "solo: { steady, sharp, masterful, legendary }", "by": "versus: outcome", "paceWindowSeconds": "" },
   "signals": { "in": [{ "id": "", "type": "number | flag | outcome", "when": "on-change | sampled | at-end" }], "out": [] },
@@ -677,9 +802,13 @@ A board's sizes, a zone's capacity and a gauge's most are each a number, or the 
 
 - Every part of the puzzle is filled in.
 - The ladder has two to four stages, each layer is added by exactly one, and the last is `full`.
-- The rules know every layer, setting, terrain, zone, piece, state, move, control, event, gauge,
-  payout, multiplier, task and signal the puzzle declares, and declare nothing it lacks. A host checks this before it runs a round.
+- The rules know every layer, setting, relation, terrain, zone, piece, state, move, control, event,
+  gauge, payout, multiplier, task, draw, check, secret and signal the puzzle declares, and declare nothing it lacks. A host checks this before it runs a round.
 - The moment names one of the puzzle's events and a number field of it.
+- Every draw has a stream of its own, every check has a fallback that passes, and every secret is
+  revealed by an event.
+- A puzzle between sides can list the moves a round allows and say what each is worth, so it takes
+  every type of stand-in.
 - The skin has a drawing for every piece, state and kind, a cue for every cue an event names, a text
   for every key with its placeholders kept, a beat cue, and a motion for every board change.
 
@@ -717,3 +846,7 @@ An excerpt of the puzzle:
 
 - **Themes:** what a theme holds beyond its skins. For now a theme is a set of skins, and a new skin
   copies the game's cues and motion.
+- **Rule versions:** what becomes of stored logs and standing when a puzzle's rules change, since a log
+  only replays on the rules it was played on.
+- **Versus details:** a drawn round, how each seat is judged when a side holds several, and what a turn
+  does when its time runs out with no orders.
