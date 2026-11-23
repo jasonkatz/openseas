@@ -207,7 +207,7 @@
       "rule": "a path of n pieces scores n × n",
       "brings": {
         "pieces": ["kind"],
-        "events": ["clear", "settle", "reshuffle"],
+        "events": ["clear", "refill", "reshuffle"],
         "settings": ["pathMin", "pathPoints"],
         "payouts": ["path"]
       }
@@ -299,23 +299,31 @@
   ],
   "controls": [],
   "events": [
-    {"id": "clear", "line": "a path cleared", "fields": {"path": "places", "points": "points"}},
+    {"id": "clear", "line": "a path cleared", "fields": {"path": "places", "points": "points"}, "changes": ["leave"]},
     {
-      "id": "settle",
-      "line": "pieces fell and new ones arrived",
-      "fields": {"fell": "places", "arrived": "places"}
+      "id": "refill",
+      "line": "pieces fell and new ones arrived from above",
+      "fields": {},
+      "changes": ["travel", "arrive"]
     },
-    {"id": "reshuffle", "line": "no path was left, so the board was dealt again", "fields": {}},
+    {
+      "id": "reshuffle",
+      "line": "no path was left, so the board was dealt again",
+      "fields": {},
+      "changes": ["leave", "arrive"]
+    },
     {"id": "streak", "line": "the streak grew", "fields": {"count": "number"}},
     {
       "id": "prize_floor",
       "line": "a prize reached the floor and was taken",
-      "fields": {"place": "place", "points": "points"}
+      "fields": {"place": "place", "points": "points"},
+      "changes": ["leave"]
     },
     {
       "id": "loop",
       "line": "a closed path took every prize",
-      "fields": {"path": "places", "inside": "places", "prizes": "number", "points": "points"}
+      "fields": {"path": "places", "inside": "places", "prizes": "number", "points": "points"},
+      "changes": ["leave"]
     },
     {
       "id": "bounty",
@@ -331,9 +339,11 @@
       "id": "blowup",
       "line": "a timed piece ran out and ruined its neighbours",
       "fields": {"place": "place", "ruined": "places"},
-      "mistake": true
+      "mistake": true,
+      "changes": ["change"]
     }
   ],
+  "moment": {"event": "loop", "when": "prizes > 0", "size": "prizes", "most": "maxPrizes"},
   "payouts": [
     {
       "id": "path",
