@@ -24,7 +24,38 @@ _Avoid_: game, session, run
 What fixes a round's luck, so the round can be played again exactly.
 
 **Deal**:
-What the seed puts in front of the player: the luck in a round.
+What the seed puts in front of the player: the luck in a round, declared in full as its draws, checks,
+bounds and secrets.
+
+**Draw**:
+One source of a round's luck, such as the kind of each new piece: what it gives, how (an even roll, a
+weighted roll, a bag or a pick) and when.
+_Avoid_: spawn, generator, random
+
+**Bag**:
+A shuffled set dealt out in order, then shuffled again, so every so many items hold the same ones.
+
+**Stream**:
+The run of luck one draw reads, made from the seed and the draw's id, so no draw changes another.
+Between sides, a draw's stream is shared by every seat or one a seat.
+_Avoid_: rng, PRNG (that is how a stream is made)
+
+**Check**:
+A test a deal must pass before a player sees it, such as a move being possible, with its tries and a
+fallback that always passes.
+_Avoid_: validation
+
+**Fallback**:
+What a check deals when every try fails. It always passes.
+
+**Bound**:
+A setting that caps what one draw can give, so no round is made by one windfall.
+_Avoid_: limit, cap (a cap is a payout's)
+
+**Secret**:
+Part of the deal a player does not see, such as where contacts lie, revealed only by events. A round
+with one is run by its host.
+_Avoid_: hidden state, fog (that is how a skin shows one)
 
 **Stock**:
 A fixed amount of deal a round works through, such as five slabs.
@@ -70,6 +101,11 @@ _Avoid_: action, button (that is how a control looks)
 **Setting**:
 A named number a puzzle is tuned by, with its bounds and a line saying what it does.
 _Avoid_: config, knob, parameter, number
+
+**Relation**:
+A rule two settings keep with one another, such as one at most the other, which no setting's bounds
+can say alone.
+_Avoid_: constraint, validation
 
 **Signal in**:
 A value from outside the puzzle that steers what it does, such as how hot a ship is running. It is
@@ -181,7 +217,7 @@ _Avoid_: feature, mode, level
 
 **Stage**:
 One step of a ladder: the puzzle with some of its layers on, played until the player clears its
-threshold.
+threshold. It changes nothing but which layers are on.
 _Avoid_: level, difficulty
 
 **Ladder**:
@@ -306,8 +342,19 @@ A place on a side for one player.
 Whoever holds a seat on another side: a player or a stand-in.
 
 **Stand-in**:
-An opponent the rules play themselves, in a seat no player holds.
+An opponent the rules play themselves, in a seat no player holds: a type and its dials. Its standing
+is measured, never set by hand.
 _Avoid_: bot, AI, NPC
+
+**Stand-in type**:
+How a stand-in chooses, the same for every puzzle: careless (any allowed move), greedy (the move worth
+most now), planner (the move whose next few are worth most) or ghost (a player's round replayed on the
+same deal).
+_Avoid_: difficulty, level
+
+**Dials**:
+A stand-in's delay, the time it takes over a move, and its slip, the share of its moves made at random.
+_Avoid_: difficulty, accuracy
 
 ## Dressing
 
