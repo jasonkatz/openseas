@@ -73,3 +73,6 @@ export { CUTTING_ORES } from "./cutting/pieces.js";
 export { TractorBoard, type TractorBoardProps } from "./tractor/TractorBoard.jsx";
 export { TractorBeaconIcon, TractorCacheIcon, TractorLootIcon } from "./tractor/TractorIcon.jsx";
 export { TRACTOR_KINDS } from "./tractor/pieces.js";
+export { RefiningBoard, type RefiningBoardProps } from "./refining/RefiningBoard.jsx";
+export { RefiningIcon } from "./refining/RefiningIcon.jsx";
+export { REFINING_KINDS } from "./refining/pieces.js";
