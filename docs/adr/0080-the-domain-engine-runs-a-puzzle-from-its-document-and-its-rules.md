@@ -5,8 +5,8 @@ keeps, [0072](./0072-a-round-keeps-one-difficulty-and-the-stage-sets-it.md) to
 [0077](./0077-a-theme-is-a-document-its-skins-read.md), whose decisions about stages, motion, the deal
 and themes it runs as written, and
 [0079](./0079-a-puzzle-has-a-version-and-a-judged-round-is-final.md), whose versions, stored rounds and
-witness rounds it implements. It replaces nothing: the game's puzzles and the prototypes keep the
-engines they have ([0036](./0036-prototype-puzzles.md)).
+witness rounds it implements. It moves no puzzle: the game's puzzles and the prototypes keep the
+engines they have ([0036](./0036-prototype-puzzles.md)) until each is moved by a decision of its own.
 
 ## Context
 
@@ -89,8 +89,12 @@ Writing Swap from the guide alone found these. None is settled here; each needs 
 
 ## Consequences
 
-- There are two ways to write a puzzle. New puzzles should wait for the choice between them, which is
-  its own decision once more than one puzzle runs on the domain engine.
+- There are two ways to write a puzzle for now. Whether the old engines move onto this one, in what
+  order, and what the rules share between puzzles are being settled as the engine's vision and are
+  recorded in ADRs of their own. This one moves nothing and stands in the way of none of it.
+- Not yet as that vision has them: the rules' types are written by hand, not generated from the
+  document; the theme is built in code in `boards`, not a document in a folder with its skins; and
+  the host's functions take no storage or clock, because nothing here stores a round.
 - Swap's tier starts, ladder thresholds and its own heat line (`riseMoves`, `ventPoints`) are untuned
   guesses. No bot has measured them.
 - The server does not know the domain engine. Dealing a domain puzzle for standing needs the server
