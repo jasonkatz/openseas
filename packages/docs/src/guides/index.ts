@@ -16,11 +16,12 @@ import { tug } from "./tug.js";
 import { racks } from "./racks.js";
 import { cutting } from "./cutting.js";
 import { tractor } from "./tractor.js";
+import { freefall } from "./freefall.js";
 
 export * from "./types.js";
 
 /** Every puzzle's guide. A puzzle the engine registers has one: `test/guides.test.ts` holds that. */
-export const GUIDES: Readonly<Record<PuzzleId, Guide>> = { cooling, engines, plating, gunnery, navigation, battle, swordfight, salvage, overload, deflectors, reactor, scanner, tug, racks, cutting, tractor };
+export const GUIDES: Readonly<Record<PuzzleId, Guide>> = { cooling, engines, plating, gunnery, navigation, battle, swordfight, salvage, overload, deflectors, reactor, scanner, tug, racks, cutting, tractor, freefall };
 
 /** The guides in the order the site lists them: the game's own puzzles, then the prototypes. */
 export const GUIDE_ORDER: readonly PuzzleId[] = PUZZLE_IDS;

@@ -20,6 +20,7 @@ import { TugPractice } from "./pages/TugPractice.jsx";
 import { RacksPractice } from "./pages/RacksPractice.jsx";
 import { CuttingPractice } from "./pages/CuttingPractice.jsx";
 import { TractorPractice } from "./pages/TractorPractice.jsx";
+import { FreefallPractice } from "./pages/FreefallPractice.jsx";
 import { RoundFrame, type FrameMode } from "./frame/RoundFrame.jsx";
 import { useMediaQuery } from "./practice/PracticeShell.jsx";
 import { STUDIO_PUZZLES } from "./puzzles.js";
@@ -46,6 +47,7 @@ const PAGES: Readonly<Record<PuzzleId, ComponentType>> = {
   racks: RacksPractice,
   cutting: CuttingPractice,
   tractor: TractorPractice,
+  freefall: FreefallPractice,
 };
 
 const isPuzzle = (id: string): id is PuzzleId => Object.hasOwn(PAGES, id);
