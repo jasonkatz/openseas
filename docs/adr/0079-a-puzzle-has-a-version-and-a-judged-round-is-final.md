@@ -17,7 +17,7 @@ changes.
 ## Decision
 
 1. **A puzzle has a version, `major.minor`,** one for the rules and the puzzle document together.
-   Every puzzle starts at `1.0`, prototypes too, and promoting a prototype into the game keeps its
+   Every puzzle starts at `0.1`, prototypes too, and promoting a prototype into the game keeps its
    version running.
 2. **The major rises when a change can make a stored round replay differently** from the same seed,
    settings and log: the rules, the deal, the board, pieces, moves, events, tempo, endings or the log

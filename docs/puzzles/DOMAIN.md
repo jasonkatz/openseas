@@ -574,7 +574,7 @@ down for a loss.
 ## Versions
 
 A log only replays the same on the rules it was played on, so a puzzle carries a **version**, written
-`major.minor`: one for its rules and its document together. Every puzzle starts at `1.0`, a prototype
+`major.minor`: one for its rules and its document together. Every puzzle starts at `0.1`, a prototype
 too, and a puzzle promoted into a world keeps its version running.
 
 ### What raises it
@@ -959,7 +959,7 @@ An excerpt of the puzzle:
 ```json
 {
   "id": "paths",
-  "version": "1.0",
+  "version": "0.1",
   "mechanic": "Draw a path through touching pieces of one kind to clear them",
   "verb": "trace",
   "round": { "tempo": { "kind": "still" }, "ends": [{ "by": "clock", "setting": "roundSeconds" }], "logLimit": 600 },
