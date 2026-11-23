@@ -1029,6 +1029,7 @@ pnpm monorepo. Packages:
 | Package | Contents | Constraints |
 |---|---|---|
 | `engine` | Puzzle engines, ship simulation and how the boards aboard are wired to it, space battle reducer, raider AI | Pure TypeScript. Zero runtime dependencies. Deterministic. No I/O, no timers, no randomness except from an injected seeded PRNG. |
+| `puzzle` | The domain engine (ADR 0080): runs any puzzle written as a puzzle document and its rules by `docs/puzzles/DOMAIN.md`, with the host's replay, judging and witness checks. Swap, Cooling written again, is its first puzzle, shown in the studio at `/play/swap` and dealt nowhere else | Pure TypeScript, as `engine` is. Zero runtime dependencies |
 | `protocol` | Zod schemas for every client-server message | Shared by client and server |
 | `content` | World content JSON and its schemas | Validated at server start |
 | `server` | Node 22, `ws`, Drizzle, Better Auth | Owns all authority |

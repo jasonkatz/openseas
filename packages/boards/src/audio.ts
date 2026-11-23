@@ -303,6 +303,35 @@ function play<K extends CueName>(name: K, args: CueArgs<K>): void {
   m.buses.push(scheduleCue(c.ac, c.out, cueOf(name, args), now + LEAD));
 }
 
+/**
+ * Plays a cue that is data of a skin (ADR 0080), with the values its rules name: the domain
+ * board's cues are its skin's own and have no place in `CUE_PARAMS`. A cue named `beat` is the
+ * beat's: it is heard alone in its moment and takes over a beat still ringing, as the game's is.
+ */
+export function playCueData(name: string, data: CueData, values: Readonly<Record<string, number>> = {}): void {
+  if (!admit(name)) return;
+  const c = context();
+  if (!c) return;
+  const names = Object.keys(values);
+  const cue = cueFrom(data, names.map((n) => ({ name: n, kind: "amount" as const })), names.map((n) => values[n]));
+  const now = c.ac.currentTime;
+  const m = thisMoment();
+  if (name !== "beat") {
+    m.buses.push(scheduleCue(c.ac, c.out, cue, now + LEAD));
+    return;
+  }
+  const strength = values["strength"] ?? 0;
+  if (m.rang) {
+    if (strength <= m.rang.strength) return;
+    m.rang.bus.disconnect();
+  } else if (ringing) {
+    ringing.gain.setValueAtTime(ringing.gain.value, now);
+    ringing.gain.linearRampToValueAtTime(0, now + 0.03);
+  }
+  ringing = scheduleCue(c.ac, c.out, cue, now + LEAD);
+  m.rang = { bus: ringing, strength };
+}
+
 type Synth = { [K in CueName]: (...args: CueArgs<K>) => void };
 
 const synth = Object.fromEntries(CUE_NAMES.map((name) => [name, (...args: unknown[]) => play(name, args as CueArgs<typeof name>)])) as Synth;

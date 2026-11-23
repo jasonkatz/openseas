@@ -80,8 +80,9 @@ jobs:
           base=(pnpm-lock.yaml pnpm-workspace.yaml package.json .github/workflows/deploy.yml .github/scripts .github/actions)
           shared=(packages/engine packages/protocol packages/content "${base[@]}")
           side server "$FORCE_SERVER" packages/server railpack.json "${shared[@]}"
-          side client "$FORCE_CLIENT" packages/client packages/boards vercel.json "${shared[@]}"
-          side studio "$FORCE_STUDIO" packages/studio packages/boards "${shared[@]}"
+          # The boards hold the domain board, which runs the domain engine (ADR 0080).
+          side client "$FORCE_CLIENT" packages/client packages/boards packages/puzzle vercel.json "${shared[@]}"
+          side studio "$FORCE_STUDIO" packages/studio packages/boards packages/puzzle "${shared[@]}"
           # The guides read content and the engine's puzzle list; they share no code with the boards.
           side docs "$FORCE_DOCS" packages/docs packages/engine packages/content "${base[@]}"
           # The studio's service (ADR 0043) shares only the protocol with the rest. Until it has a

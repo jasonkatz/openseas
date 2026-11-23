@@ -33,6 +33,10 @@
     "./drawing": {
       "types": "./src/kit/drawing.ts",
       "default": "./src/kit/drawing.ts"
+    },
+    "./play": {
+      "types": "./src/play/theme.ts",
+      "default": "./src/play/theme.ts"
     }
   },
   "scripts": {
@@ -45,6 +49,7 @@
     "@openseas/content": "workspace:*",
     "@openseas/engine": "workspace:*",
     "@openseas/protocol": "workspace:*",
+    "@openseas/puzzle": "workspace:*",
     "better-auth": "^1.4.0",
     "pixi.js": "^8.6.0"
   },

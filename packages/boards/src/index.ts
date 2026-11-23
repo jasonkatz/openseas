@@ -4,7 +4,7 @@
  * Nothing in here is authoritative; the server replays every round (ADR 0003).
  */
 export { content, messageOverrideRevision, overrideMessages, shippedMessage, subscribeMessages, t } from "./content.js";
-export { sfx, isMuted, setMuted, auditionCue, auditionData, audioState, measureCues, type CueMeasure } from "./audio.js";
+export { sfx, isMuted, setMuted, auditionCue, auditionData, playCueData, audioState, measureCues, type CueMeasure } from "./audio.js";
 export { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, SCALE, PUZZLE_SHIPPED_CUES, SHIPPED_CUES, cueDataOf, cueFrom, cueLength, cueOf, playCuesOf, shippedCue, shippedCueOf, cueOverrideRevision, overrideCues, subscribeCues, type Cue, type CueArgs, type CueName, type CueParam, type Voice } from "./cues.js";
 export { usePuzzleCues } from "./usePuzzleCues.js";
 export { SHIPPED_PIECES, drawingOf, overridePieces, pieceOverrideRevision, piecePaint, subscribePieces } from "./look/pieces.js";
@@ -73,3 +73,8 @@ export { CUTTING_ORES } from "./cutting/pieces.js";
 export { TractorBoard, type TractorBoardProps } from "./tractor/TractorBoard.jsx";
 export { TractorBeaconIcon, TractorCacheIcon, TractorLootIcon } from "./tractor/TractorIcon.jsx";
 export { TRACTOR_KINDS } from "./tractor/pieces.js";
+// The domain board (ADR 0080): one board for any puzzle of the domain engine, dressed by a skin and the game's theme.
+export { PlayBoard, PlayPieceIcon, type PlayBoardProps } from "./play/PlayBoard.jsx";
+export { type PlayFrame } from "./play/renderer.js";
+export { fill, skinOf, spaceTheme } from "./play/theme.js";
+export { hostScale, usePlayRound, type PlayResult, type PlayRound } from "./play/useRound.js";

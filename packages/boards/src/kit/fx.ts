@@ -50,7 +50,7 @@ export class Fx {
   private height = 0;
   /** Where the board is on the canvas: what the beat pulses. The whole canvas until a board says. */
   private frame: { x: number; y: number; w: number; h: number } | null = null;
-  private beatNow: { life: number; strength: number } | null = null;
+  private beatNow: { life: number; strength: number; ms: number; color: number; from: number; to: number } | null = null;
 
   /**
    * @param world everything the board draws: the beat swells it a hair.
@@ -135,7 +135,22 @@ export class Fx {
   beat(strength = 0.5): void {
     const s = Math.max(0, Math.min(1, strength));
     sfx.beat(s);
-    this.beatNow = { life: 0, strength: Math.max(s, this.beatNow?.strength ?? 0) };
+    this.pulse(s, MOTION.beat, INK.amber, 0.14, 0.3);
+  }
+
+  /**
+   * The beat of a board dressed by a skin (ADR 0080): the same one pulse, with the length, the
+   * colour, the strength and the cue the skin gives it. `sound` plays the skin's beat cue, with the pulse.
+   */
+  beatAs(strength: number, own: { readonly ms: number; readonly color: number; readonly from: number; readonly to: number; readonly sound: (strength: number) => void }): void {
+    const s = Math.max(0, Math.min(1, strength));
+    own.sound(s);
+    this.pulse(s, own.ms, own.color, own.from, own.to);
+  }
+
+  /** One pulse: `from` and `to` are how strongly it covers the board at strength 0 and at 1. */
+  private pulse(s: number, ms: number, color: number, from: number, to: number): void {
+    this.beatNow = { life: 0, strength: Math.max(s, this.beatNow?.strength ?? 0), ms, color, from, to };
   }
 
   update(dt: number): void {
@@ -178,7 +193,7 @@ export class Fx {
     const b = this.beatNow;
     if (!b) return;
     b.life += dt;
-    const t = b.life / MOTION.beat;
+    const t = b.life / b.ms;
     const f = this.frame ?? { x: 0, y: 0, w: this.width, h: this.height };
     const cx = f.x + f.w / 2;
     const cy = f.y + f.h / 2;
@@ -193,7 +208,7 @@ export class Fx {
     }
     // Up in the first quarter, down over the rest.
     const env = this.reduced ? 1 : t < 0.25 ? outCubic(t / 0.25) : 1 - outCubic((t - 0.25) / 0.75);
-    this.beatRect.clear().rect(f.x, f.y, f.w, f.h).fill({ color: INK.amber, alpha: (0.14 + 0.16 * b.strength) * env });
+    this.beatRect.clear().rect(f.x, f.y, f.w, f.h).fill({ color: b.color, alpha: (b.from + (b.to - b.from) * b.strength) * env });
     this.beatRect.visible = true;
     this.world.scale.set(this.reduced ? 1 : 1 + 0.012 * b.strength * env);
   }

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { CORE_PUZZLE_IDS, PROTOTYPE_PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
-import { content, t } from "@openseas/boards";
+import { PlayPieceIcon, content, skinOf, t } from "@openseas/boards";
+import { SWAP, type PuzzleDoc } from "@openseas/puzzle";
 import { Link } from "../router.jsx";
 import { listDrafts } from "../service/client.js";
 import { useMe } from "../service/me.js";
@@ -209,6 +210,33 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
 };
 
 
+/** The puzzles of the domain engine (ADR 0080), shown in the grid beside the others for now. */
+const DOMAIN: readonly PuzzleDoc[] = [SWAP];
+
+/** A domain puzzle's tile: its pieces as its skin draws them, and one link, to the puzzle alone. */
+function DomainTile({ doc }: { doc: PuzzleDoc }) {
+  const skin = skinOf(doc);
+  if (!skin) return null;
+  const drawn = Object.keys(skin.pieces).slice(0, 8);
+  return (
+    <li className="studio-tile">
+      <Link to={`/play/${doc.id}`} className="studio-tile-main" data-testid={`tile-${doc.id}`}>
+        <span className="studio-thumb domain-thumb" aria-hidden="true">
+          {drawn.map((piece) => (
+            <PlayPieceIcon key={piece} skin={skin} piece={piece} size={30} />
+          ))}
+        </span>
+        <span className="eyebrow">{t("domain.eyebrow")}</span>
+        <span className="tile-title">{t(`${doc.id}.name`)}</span>
+        <span className="tile-blurb">{t(`${doc.id}.blurb`)}</span>
+      </Link>
+      <Link to={`/play/${doc.id}`} className="studio-tile-play" data-testid={`tile-play-${doc.id}`}>
+        {t("studio.home.play_alone")}
+      </Link>
+    </li>
+  );
+}
+
 /** The puzzles the signed-in owner has a draft open on, and whether each has a pull request. Empty signed out, and when the service does not answer. */
 function useOpenDrafts(): ReadonlyMap<PuzzleId, { pull: boolean }> {
   const me = useMe();
@@ -268,6 +296,9 @@ export function Home() {
                 {t("studio.home.play_alone")}
               </Link>
             </li>
+          ))}
+          {DOMAIN.map((doc) => (
+            <DomainTile key={doc.id} doc={doc} />
           ))}
         </ul>
       </section>

@@ -85,3 +85,4 @@ that supersedes it.
 | [0077](./0077-a-theme-is-a-document-its-skins-read.md) | A theme is a document its skins read: a palette and type they name, and the cues and motion they copy |
 | [0078](./0078-treasure-hauls-successor-starts-as-a-prototype.md) | Treasure Haul's successor starts as a prototype: Tractor, dealt only in the studio |
 | [0079](./0079-a-puzzle-has-a-version-and-a-judged-round-is-final.md) | A puzzle has a version, `major.minor`, and a judged round is final: the major marks a change to how a round replays |
+| [0080](./0080-the-domain-engine-runs-a-puzzle-from-its-document-and-its-rules.md) | The domain engine runs a puzzle from its document and its rules: a pure package of its own, one board that draws from events, and Swap, Cooling written again, as its first puzzle |

@@ -14,6 +14,12 @@ faithful core in a paragraph and points here.
 | Space Battle | The captain's board against a raider | [battle.md](./battle.md) |
 | Swordfighting | The boarding fight | [swordfight.md](./swordfight.md) |
 
+On the domain engine (ADR 0080), shown in the studio and not dealt by the game:
+
+| Puzzle | Role | Design |
+|---|---|---|
+| Swap | None yet: Cooling written again as a puzzle document and its rules | [swap.md](./swap.md) |
+
 ## What a design file holds
 
 The same sections in the same order, so any puzzle is read the same way:

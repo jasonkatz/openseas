@@ -17,6 +17,7 @@ import swordfight from "../data/puzzles/swordfight.json" with { type: "json" };
 import ratingTiers from "../data/rating-tiers.json" with { type: "json" };
 import names from "../data/names.json" with { type: "json" };
 import en from "../data/messages/en.json" with { type: "json" };
+import domainSwap from "../data/messages/domain/swap.json" with { type: "json" };
 import {
   BattleContentSchema,
   CoolingContentSchema,
@@ -135,7 +136,7 @@ function prototypePuzzles(): PrototypePuzzleContent {
 }
 
 /**
- * The one message table (CLAUDE.md rule 5): `en.json` and each prototype's own file, which holds
+ * The one message table (CLAUDE.md rule 5): `en.json`, each domain puzzle's file and each prototype's own file, which holds
  * that puzzle's strings so the prototype is removed or promoted by its own files. A key may live in
  * one file only.
  */
@@ -145,6 +146,13 @@ function mergeMessages(base: Readonly<Record<string, string>>): Readonly<Record<
     const file = `messages/prototypes/${id}`;
     const own = parse(file, MessagesSchema, PROTOTYPE_CONTENT[id].messages);
     for (const [key, text] of Object.entries(own)) {
+      if (key in out) throw new ContentError(`${file}: "${key}" is already in the message table`);
+      out[key] = text;
+    }
+  }
+  // The domain engine's puzzles (ADR 0080): each puzzle's skin texts and the words its host says.
+  for (const [file, data] of [["messages/domain/swap", domainSwap]] as const) {
+    for (const [key, text] of Object.entries(parse(file, MessagesSchema, data))) {
       if (key in out) throw new ContentError(`${file}: "${key}" is already in the message table`);
       out[key] = text;
     }

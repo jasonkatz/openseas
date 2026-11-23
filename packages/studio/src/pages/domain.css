@@ -1,0 +1,37 @@
+/* A domain puzzle's page (ADR 0080): the stage picker and the legend on its start card. */
+.domain-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin: 10px 0 4px;
+}
+.domain-stages .btn.is-on {
+  box-shadow: inset 0 0 0 2px var(--amber);
+  color: var(--cream);
+}
+.domain-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  justify-content: center;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  color: var(--dim);
+}
+.domain-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.studio-thumb.domain-thumb {
+  grid-template-columns: repeat(4, auto);
+  place-content: center;
+  gap: 12px 8px;
+}
+.studio-thumb.domain-thumb img {
+  width: 34px;
+  height: 34px;
+}

@@ -18,6 +18,7 @@
     "@openseas/content": "workspace:*",
     "@openseas/engine": "workspace:*",
     "@openseas/protocol": "workspace:*",
+    "@openseas/puzzle": "workspace:*",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "streamdown": "2.7.1",
