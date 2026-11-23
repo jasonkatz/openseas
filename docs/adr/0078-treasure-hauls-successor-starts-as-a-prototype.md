@@ -1,4 +1,4 @@
-# 0074. Treasure Haul's successor starts as a prototype: Tractor
+# 0078. Treasure Haul's successor starts as a prototype: Tractor
 
 Status: Accepted. Builds on [0001](./0001-spiritual-successor.md), [0036](./0036-prototype-puzzles.md)
 and [0066](./0066-a-puzzle-is-learned-on-a-ladder-of-stages.md).

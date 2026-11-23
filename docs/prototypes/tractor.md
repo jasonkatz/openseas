@@ -1,6 +1,6 @@
 # Tractor
 
-Status: built. Prototype (ADR 0036, ADR 0074), in the studio at `/tractor`. Untimed moves; a 90
+Status: built. Prototype (ADR 0036, ADR 0078), in the studio at `/tractor`. Untimed moves; a 90
 second round.
 
 Tractor is a successor, not one of the game's own new designs: it follows the original's Treasure

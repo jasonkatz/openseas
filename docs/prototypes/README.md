@@ -20,7 +20,7 @@ generated sprites they first shipped with (ADR 0037) and the tooling that made t
 
 Tractor is the ninth and of another kind: a successor to one of the original's later puzzles,
 Treasure Haul, faithful to its mechanics and original in everything else, built early as a
-prototype (ADR 0074).
+prototype (ADR 0078).
 
 M11's pitches (a layer, a bait and stages for each puzzle but Salvage, with their bot checks) are in [m11-pitches.md](./m11-pitches.md), for the owner to pick from.
 
