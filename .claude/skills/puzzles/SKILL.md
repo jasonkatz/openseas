@@ -53,10 +53,13 @@ The puzzle's **design file** is `docs/puzzles/<id>.md` (in the game) or `docs/pr
 
 ### Difficulty
 
-10. **No difficulty setting.** Skill shows as score. The round ramps itself where it suits the
-    puzzle (a quicker feed, bigger targets), and a board against an opponent scales by the
-    opponent's tier (`scorePercent`). A stage (rule 26) is onboarding, not a setting: forward
-    only, and its tier is read by nothing.
+10. **No difficulty setting, and no ramp.** Skill shows as score. Difficulty holds for a whole
+    round, and the stage sets it (ADR 0072): every task is dealt from the same settings from the
+    first second to the last, nothing grows harder by itself as time passes or tasks are done, and
+    the whole puzzle, every layer on, is the puzzle at its hardest. A rule that answers play (heat
+    rising with moves, a breach widening when left alone) is no ramp. A board against an opponent
+    scales by the opponent's tier (`scorePercent`). A stage (rule 26) is onboarding, not a setting:
+    forward only, and its tier is read by nothing.
 11. **Hints teach, never play.** An idle hint in a studio round only. A round that counts never
     hints.
 
