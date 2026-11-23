@@ -79,4 +79,4 @@ that supersedes it.
 | [0071](./0071-the-beat-is-each-puzzles-own-too.md) | The beat is each puzzle's own too; its pulse stays the same on every board |
 | [0072](./0072-a-round-keeps-one-difficulty-and-the-stage-sets-it.md) | A round keeps one difficulty, and the stage sets it: no ramp within a round |
 | [0073](./0073-motion-is-the-skins-and-the-puzzle-names-its-moment.md) | Motion is the skin's, and the puzzle names its moment: events carry board changes, and the board settles before the next touch |
-| [0074](./0074-a-theme-is-a-document-its-skins-read.md) | A theme is a document its skins read: a palette and type they name, and the cues and motion they copy |
+| [0077](./0077-a-theme-is-a-document-its-skins-read.md) | A theme is a document its skins read: a palette and type they name, and the cues and motion they copy |

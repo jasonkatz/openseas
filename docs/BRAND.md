@@ -3,7 +3,7 @@
 The game's look and feel: **lo-fi minimalist space**. Flat, dark, warm and quiet. This file is the
 source of truth for how anything in the game looks, moves and sounds (ADR 0061, ADR 0062). It is the
 space theme's book: the space theme's document is made from its palette, type, motion and sound
-(ADR 0074), and its sections on the world and the chrome are the game's. The
+(ADR 0077), and its sections on the world and the chrome are the game's. The
 pictures that go with it are in [`brand/specimen.html`](./brand/specimen.html): open it in a
 browser. When this file and a board disagree, fix one in the same PR.
 
@@ -44,7 +44,7 @@ The owner's pick, Night watch: the old navy, parchment and brass, muted and narr
 | `amber` | `#e2a94b` | **Yours and active**, and the beat |
 | `danger` | `#e5604e` | **Bad**: heat, damage, a refusal |
 
-Every theme fills seven **fixed colours** (ADR 0074). Here `ground`, `raised`, `line` and `dim` fill
+Every theme fills seven **fixed colours** (ADR 0077). Here `ground`, `raised`, `line` and `dim` fill
 their own, `cream` fills `text`, `amber` fills `yours`, and `danger` fills `danger`. The eight piece
 colours below are the space theme's.
 
@@ -79,7 +79,7 @@ no black jacket: the darkest is `olive`.
 
 ### Rules
 
-- Dark only. A light look would be a theme of its own (ADR 0074).
+- Dark only. A light look would be a theme of its own (ADR 0077).
 - A colour is never the only signal (section 3, rule 6 of the project).
 - No hex value is typed in a renderer, a scene or a stylesheet. Every colour comes from the token
   module in `boards`, and a test fails on a literal.
@@ -158,7 +158,7 @@ display face.
   sound (section 8, ADR 0073).
 - Reduced motion turns moves into cuts and keeps the beat as a still flash.
 - These numbers are the space theme's motion. A new skin starts from a copy of them, and a board
-  settles before it takes the next touch (ADR 0073, ADR 0074).
+  settles before it takes the next touch (ADR 0073, ADR 0077).
 
 ## 7. The world
 

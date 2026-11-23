@@ -1,4 +1,4 @@
-# 0074. A theme is a document its skins read
+# 0077. A theme is a document its skins read
 
 Status: Accepted. Supersedes the line of [0073](./0073-motion-is-the-skins-and-the-puzzle-names-its-moment.md)
 decision 10 that a theme stays a set of skins with no document of its own, and the words "the game's"
