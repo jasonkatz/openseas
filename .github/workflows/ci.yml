@@ -36,6 +36,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Engine purity lint
         run: pnpm --filter @openseas/engine lint
+      - name: Domain engine purity lint
+        run: pnpm --filter @openseas/puzzle lint
       - run: pnpm typecheck
       - name: Unit and integration tests
         run: pnpm test
