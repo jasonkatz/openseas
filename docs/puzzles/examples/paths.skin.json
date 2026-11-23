@@ -1,5 +1,6 @@
 {
   "puzzle": "paths",
+  "theme": "space",
   "pieces": {
     "kind_1": {
       "tint": "sand",
@@ -467,7 +468,7 @@
       "change": {"ms": 0}
     },
     "stagger": 46,
-    "beat": {"ms": 420, "color": "amber", "strength": {"from": 0.14, "to": 0.3}},
+    "beat": {"ms": 420, "color": "yours", "strength": {"from": 0.14, "to": 0.3}},
     "reduced": {"changes": "cut", "beat": "still"}
   },
   "events": {

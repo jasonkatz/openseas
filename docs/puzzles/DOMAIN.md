@@ -18,9 +18,11 @@ around it, and each owns what the puzzle does not.
 | **Puzzle** | Rules, round, board, pieces, deal, layers and ladder, evaluation, settings, moves, events and the board changes they carry, its moment, gauges, stats, signals, text keys | Name a world thing, draw, sound, hold a text's content, or decide where anything sits on a screen |
 | **Skin** | The drawings, cues, texts and motion that dress one puzzle | Set or change a number, or change a round |
 | **Host** | Runs rounds, replays logs, keeps each player's standing and place on a ladder, owns the tier scale, holds the ceiling on motion, keeps a round's secrets, measures each stand-in | Change a puzzle's rules or tier starts |
+| **Theme** | A palette and type its skins name, the cues and motion a new skin starts from, its host texts, and a skin for each puzzle | Change a puzzle, or set a number a skin plays |
 | **Role** | What a puzzle does in a world: wires its signals, decides whether a round counts, turns tiers and outcomes into rewards | Move a tier |
 
-A **theme** is a set of skins, one for each puzzle, that dresses them all in one look.
+A **theme** dresses every puzzle in one look: it holds what its skins share, and a skin for each
+puzzle ([Themes](#themes)).
 
 > The game and the studio are hosts. A duty station aboard a ship is a role. Space is a theme. A
 > puzzle dealt in the studio has a host and no role, so its rounds count for nothing.
@@ -684,8 +686,7 @@ Motion the player makes, and motion while nothing happens, such as a path being 
 a fuse that flickers or a gauge rolling up, is the skin's too. It is read from the round's state and
 never holds a board.
 
-A new skin's motion starts as a copy of the game's, as its cues do. The game's motion is the space
-theme's, in `docs/BRAND.md` section 6: a travel of 120ms, a clear of 160ms, ease-out, and a pulse of
+A new skin's motion starts as a copy of its theme's, as its cues do. The space theme's motion is in `docs/BRAND.md` section 6: a travel of 120ms, a clear of 160ms, ease-out, and a pulse of
 420ms in `amber`.
 
 ## The skin
@@ -693,11 +694,12 @@ theme's, in `docs/BRAND.md` section 6: a travel of 120ms, a clear of 160ms, ease
 A **skin** dresses one puzzle with looks and sound, and never sets a number: not even how many kinds a
 board deals.
 
+- **Theme.** The skin names its one theme, and every colour it uses is one of that theme's.
 - **Drawings.** Every piece has a **drawing**, made of shapes on a 24-unit square. A piece with named
   states has one for each; a count is drawn by repeating one layer of the drawing. A family needs a
   drawing for every kind its setting allows.
 - **Cues.** The skin holds its own copy of every **cue** it plays, each a short synthesized sound in the
-  one scale of the brand book. A new skin starts from a copy of the game's cues.
+  scale of its theme's sound frame. A new skin starts from a copy of its theme's cues.
 - **Events.** For each event, the skin names the cues it plays, which may be none, its marks, where its
   points rise from, and its callout's rank. It also voices the host's start, countdown and end.
 - **Motion.** How each board change plays, the stagger, the beat's pulse on the puzzle's moment, and
@@ -718,10 +720,61 @@ Every puzzle declares these text keys, and may declare more:
 | `gauge.<id>` | Each gauge's label |
 | `control.<id>` | Each control's label |
 
-## The two documents
+## Themes
 
-Each puzzle is two documents: the **puzzle** and its default **skin**. A host reads both when it runs a
-round. The rules are the only part of a puzzle that is code.
+A **theme** dresses every puzzle in one look, such as space (ADR 0077). It is a document of its own,
+beside the puzzle and the skin, and holds what its skins share:
+
+- **Palette.** Every colour, a name and a value. Every theme fills the seven **fixed colours**:
+  `ground`, `raised`, `line`, `text`, `dim`, `yours` (what is the player's, or active) and `danger` (what
+  is bad), so a host and any skin work under any theme. Its **piece colours** are a list it names
+  freely, at least eight, because a family can deal eight kinds.
+- **Type.** Its typefaces and their sizes.
+- **Sound frame.** The scale every cue's notes come from, and its limits: the longest cue and the
+  highest cutoff.
+- **Starting cues and motion.** What a new skin copies.
+- **Host texts.** The words the host says in this theme: a name for each tier, and its start, countdown
+  and end.
+
+Arrangement, the chrome's shapes and a host's world stay the host's.
+
+### Read, and copied
+
+A skin reads its theme's palette and type: it names a colour, and the theme says what it is, so
+recolouring a theme recolours every board in it. A skin copies its theme's cues and motion when it is
+made, so each puzzle can revoice its own without a change heard on other boards.
+
+Changing a theme's starting cues or motion changes no skin by itself. Whoever changes it can carry the
+change to every skin of the theme in one step, or to one skin at a time, and is shown which skins had
+changed their own copy before those are overwritten.
+
+### What every theme keeps
+
+What access and the painter need holds in every theme: each kind is told from every other by its
+silhouette alone, colour is never the only signal, and a drawing is made on the 24-unit square. Taste
+is each theme's: its sound frame is data the checks read, and the rest is prose in its own brand book.
+
+### Skins, hosts and new themes
+
+A skin names its one theme. A host runs one theme at a time and picks it; the player does not. A
+puzzle's default skin is its skin in the default theme.
+
+A new theme starts as a copy of another, skins and all, so every board plays from the first minute.
+Its skins may then redraw any piece as a different subject, within what every theme keeps. A theme has
+one palette: a light look is a theme of its own.
+
+The studio edits a theme, its palette, type, sound frame, starting cues and motion, and host texts, in
+a draft, as it edits a skin.
+
+> Space is the first theme, and the default. Its document is made from the brand book (`docs/BRAND.md`):
+> `cream` fills `text`, `amber` fills `yours`, and its eight piece colours run from `sand` to `slate`.
+> Its type is Atkinson Hyperlegible, its sound frame is G major pentatonic from G2 to G5 with no cue over
+> 400ms and no cutoff over 2.4kHz, and its starting cues are those in `boards/data/cues.json`.
+
+## The documents
+
+Each puzzle is two documents: the **puzzle** and its default **skin**. Every skin belongs to a
+**theme**, the third document. A host reads all three when it runs a round. The rules are the only part of a puzzle that is code.
 
 ### The puzzle
 
@@ -784,17 +837,36 @@ A board's sizes, a zone's capacity and a gauge's most are each a number, or the 
 ```json
 {
   "puzzle": "the puzzle's id",
+  "theme": "the theme's id",
   "pieces": { "<piece id, or family_kind>": "a drawing, or one per named state, or a drawing with a count layer" },
   "cues": { "<name>": "a whole cue" },
   "motion": {
     "changes": { "<arrive | leave | travel | change>": { "ms": "", "ease": "linear | in | out | in-out", "as": "leave only: shrink | fade" } },
     "stagger": "ms between the places of one event",
-    "beat": { "ms": "", "color": "a palette token", "strength": { "from": "", "to": "" } },
+    "beat": { "ms": "", "color": "one of the theme's colours", "strength": { "from": "", "to": "" } },
     "reduced": { "changes": "cut | as-is", "beat": "still | as-is" }
   },
   "events": { "<event id, or start | countdown | end>": { "cues": ["cue names"], "marks": [{ "ring | line": "a place or places field" }],
               "points": "the place field they rise from", "callout": "its rank, 1 the highest" } },
   "texts": { "<key>": "the text, keeping the key's placeholders" }
+}
+```
+
+### The theme
+
+```json
+{
+  "id": "the theme's id",
+  "palette": {
+    "fixed": { "ground": "", "raised": "", "line": "", "text": "", "dim": "", "yours": "", "danger": "" },
+    "pieces": { "<name>": "a value: eight or more" },
+    "names": { "<fixed colour>": "the theme's own name for it, if it has one" }
+  },
+  "type": { "faces": { "text": "", "numbers": "" }, "sizes": { "<step>": { "px": "", "weight": "regular | bold" } } },
+  "sound": { "scale": ["the notes every cue's notes come from"], "longestMs": "", "cutoff": "the highest, in Hz" },
+  "cues": { "<name>": "a whole cue: what a new skin copies" },
+  "motion": "a whole motion, as a skin's: what a new skin copies",
+  "texts": { "tier.<id> | start | countdown | end": "the text" }
 }
 ```
 
@@ -811,6 +883,11 @@ A board's sizes, a zone's capacity and a gauge's most are each a number, or the 
   every type of stand-in.
 - The skin has a drawing for every piece, state and kind, a cue for every cue an event names, a text
   for every key with its placeholders kept, a beat cue, and a motion for every board change.
+
+A theme is ready when every fixed colour is filled, it has at least eight piece colours, every skin's
+colours name its palette, every starting cue's notes are in its scale and within its limits, its type
+names its faces and sizes, it has a text for every host key, and it has a skin for every puzzle the
+host deals. A host checks this before it uses a theme.
 
 A puzzle that is not ready can still be edited and dressed. A puzzle with no rules yet cannot be
 played.
@@ -844,8 +921,6 @@ An excerpt of the puzzle:
 
 ## Not yet covered
 
-- **Themes:** what a theme holds beyond its skins. For now a theme is a set of skins, and a new skin
-  copies the game's cues and motion.
 - **Rule versions:** what becomes of stored logs and standing when a puzzle's rules change, since a log
   only replays on the rules it was played on.
 - **Versus details:** a drawn round, how each seat is judged when a side holds several, and what a turn
