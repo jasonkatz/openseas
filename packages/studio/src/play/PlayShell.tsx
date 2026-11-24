@@ -36,7 +36,8 @@ export function PlayShell(p: ShellProps) {
   const refused = alone && refusals.length > 0;
   // Between rounds the page still knows the content length; the tuned one is what the next round runs.
   const shown: ShellProps = idle ? { ...p, roundSeconds: numbers.roundSeconds, timeLeft: numbers.roundSeconds } : p;
-  const lowTime = playing && p.timeLeft <= 10;
+  // A turn clock is short, so only its last five seconds are urgent.
+  const lowTime = playing && (p.turn ? p.turn.left <= 5 : p.timeLeft <= 10);
   const pace = useTierPace({ puzzle: p.puzzle as PuzzleId, points: p.pacePoints ?? p.score, playing, elapsed: p.roundSeconds - p.timeLeft, project: p.paceProject, numbers });
 
   useEffect(() => {

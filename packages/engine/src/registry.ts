@@ -92,6 +92,7 @@ import { RACKS_DEF } from "./racks/index.js";
 import { CUTTING_DEF } from "./cutting/index.js";
 import { TRACTOR_DEF } from "./tractor/index.js";
 import { REFINING_DEF } from "./refining/index.js";
+import { FREEFALL_DEF } from "./freefall/index.js";
 
 export type { PuzzleDef, PuzzleSummary } from "./def.js";
 
@@ -102,7 +103,7 @@ export type CorePuzzleId = (typeof CORE_PUZZLE_IDS)[number];
  * Prototype puzzles (ADR 0036): whole engines the server verifies like any other, dealt only on the
  * studio. Nothing in the game deals one until it is promoted, which is a decision of its own.
  */
-export const PROTOTYPE_PUZZLE_IDS = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting", "tractor", "refining"] as const;
+export const PROTOTYPE_PUZZLE_IDS = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting", "tractor", "refining", "freefall"] as const;
 export type PrototypePuzzleId = (typeof PROTOTYPE_PUZZLE_IDS)[number];
 /** Every puzzle the engine knows about. */
 export const PUZZLE_IDS = [...CORE_PUZZLE_IDS, ...PROTOTYPE_PUZZLE_IDS] as const;
@@ -218,6 +219,7 @@ export const PUZZLES: Readonly<Record<PuzzleId, AnyPuzzleDef>> = {
   cutting: CUTTING_DEF as unknown as AnyPuzzleDef,
   tractor: TRACTOR_DEF as unknown as AnyPuzzleDef,
   refining: REFINING_DEF as unknown as AnyPuzzleDef,
+  freefall: FREEFALL_DEF as unknown as AnyPuzzleDef,
 };
 
 export function isPuzzleId(x: unknown): x is PuzzleId {

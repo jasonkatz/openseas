@@ -76,3 +76,5 @@ export { TRACTOR_KINDS } from "./tractor/pieces.js";
 export { RefiningBoard, type RefiningBoardProps } from "./refining/RefiningBoard.jsx";
 export { RefiningIcon } from "./refining/RefiningIcon.jsx";
 export { REFINING_KINDS } from "./refining/pieces.js";
+export { FreefallBoard, type FreefallBoardProps } from "./freefall/FreefallBoard.jsx";
+export { FreefallIcon } from "./freefall/FreefallIcon.jsx";

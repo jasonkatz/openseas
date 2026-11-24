@@ -36,12 +36,12 @@ export function CoreStats({ p, wide, pace, lowTime }: { p: ShellProps; wide: boo
         {wide && <TierPace pace={pace} />}
       </div>
       <div className={`stat ${lowTime ? "stat-urgent" : ""}`}>
-        <span className="stat-label">{t("practice.time")}</span>
-        <span className={`stat-value ${lowTime ? "urgent" : ""}`} data-testid="hud-time">
-          {fmt(p.timeLeft)}
+        <span className="stat-label">{p.turn ? t("practice.turn_time") : t("practice.time")}</span>
+        <span className={`stat-value ${lowTime ? "urgent" : ""}`} data-testid="hud-time" data-turn={p.turn ? "" : undefined}>
+          {fmt(p.turn ? p.turn.left : p.timeLeft)}
         </span>
         <span className="bar" aria-hidden="true">
-          <i style={{ width: `${Math.min(100, (p.timeLeft / Math.max(1, p.roundSeconds)) * 100)}%` }} />
+          <i style={{ width: `${Math.min(100, p.turn ? (p.turn.left / Math.max(1, p.turn.seconds)) * 100 : (p.timeLeft / Math.max(1, p.roundSeconds)) * 100)}%` }} />
         </span>
       </div>
       <div className="stat">
