@@ -38,8 +38,8 @@ ADR 0078 built Treasure Haul's successor, Tractor, early as a prototype. The sam
 
 ## Consequences
 
-- The prototype count is eleven, with Freefall (ADR 0081). Documents that say ten (CLAUDE.md, DESIGN.md 3.12, the glossary, the
-  prototypes README) say eleven, and count Forging with Tractor and Freefall as successors.
+- The prototype count is twelve, with Refining (ADR 0080) and Freefall (ADR 0081). Documents that say eleven (CLAUDE.md, DESIGN.md 3.12, the glossary, the
+  prototypes README) say twelve, and count Forging with Tractor, Refining and Freefall as successors.
 - Its thresholds are set from bots, like every prototype's, until people have played it.
 - Crafting stays on the later list as a game role: what a tier of a forged plate makes for a ship
   is decided when crafting is built, with the promotion.
