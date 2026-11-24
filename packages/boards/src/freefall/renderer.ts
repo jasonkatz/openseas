@@ -43,6 +43,8 @@ export interface FreefallRendererOptions {
 }
 
 interface RockerView {
+  /** Both halves, turned about the pivot between them when the rocker tips. */
+  box: Container;
   cradle: Sprite;
   arm: Sprite;
 }
@@ -55,8 +57,12 @@ interface PodView {
 /** The strip over the shaft, in cells: the preview line, then the lane the next pod hangs over. */
 const STRIP = 1.4;
 const HINT_AFTER_MS = 6000;
-/** How long a pod takes to fall one row: a drop of six rows plays out in about half a second. */
-const STEP = 55;
+/** How long a pod takes to fall one row: slow enough to follow a pod down the shaft, and the rocker it tips. */
+const STEP = 130;
+/** The beam's slope in the drawings, as an angle: a tip turns it level, swaps sides, and turns it back. */
+const TILT = Math.atan2(3, 7);
+/** The rockers are drawn edge to edge, so the beam runs unbroken from cup to knob across the two lanes. */
+const ROCKER_FIT = 1;
 /** A pod is drawn at this share of a cell, falling or at rest. */
 const POD = 0.62;
 /** A cluster this big is the puzzle's compound move: called out and given the beat. */
@@ -149,9 +155,9 @@ export class FreefallRenderer extends KitBoard<FreefallState> {
     return this.grid.oy - this.grid.cell * 0.55;
   }
 
-  /** Where a pod rests in a cradle: in the cup, a little above the row's middle. */
+  /** Where a pod rests in a cradle: down in the cup, a little below the row's middle. */
   private restY(row: number): number {
-    return this.grid.cy(row) - this.grid.cell * 0.1;
+    return this.grid.cy(row) + this.grid.cell * 0.06;
   }
 
   private buildBerths(): void {
@@ -188,24 +194,48 @@ export class FreefallRenderer extends KitBoard<FreefallState> {
     const g = this.grid;
     let v = this.rockers[i];
     if (!v) {
+      const box = new Container();
       const cradle = new Sprite();
       const arm = new Sprite();
       cradle.anchor.set(0.5);
       arm.anchor.set(0.5);
-      this.rockerLayer.addChild(cradle, arm);
-      v = { cradle, arm };
+      box.addChild(cradle, arm);
+      this.rockerLayer.addChild(box);
+      v = { box, cradle, arm };
       this.rockers[i] = v;
     }
-    v.cradle.texture = this.piece(FREEFALL_CRADLE.id, g.cell, FREEFALL_CRADLE.color, FREEFALL_CRADLE.paint);
-    v.arm.texture = this.piece(FREEFALL_ARM.id, g.cell, FREEFALL_ARM.color, FREEFALL_ARM.paint);
-    const cl = r.lane + r.cradle;
-    const al = r.lane + 1 - r.cradle;
-    v.cradle.position.set(g.cx(cl), g.cy(r.row));
-    v.arm.position.set(g.cx(al), g.cy(r.row));
-    // Drawn with the cup's stub to the right and the lever's hub to the left: mirrored when the cradle is the right-hand lane.
+    v.cradle.texture = this.piece(FREEFALL_CRADLE.id, g.cell, FREEFALL_CRADLE.color, FREEFALL_CRADLE.paint, ROCKER_FIT);
+    v.arm.texture = this.piece(FREEFALL_ARM.id, g.cell, FREEFALL_ARM.color, FREEFALL_ARM.paint, ROCKER_FIT);
+    // The box sits on the pivot, the edge between the rocker's two lanes; each half a half-cell to its side.
+    v.box.position.set(g.cx(r.lane) + g.cell / 2, g.cy(r.row));
+    v.box.rotation = 0;
+    // Drawn with the cup on the left and the beam rising to the right: mirrored when the cradle is the right-hand lane.
     const flip = r.cradle === 1 ? -1 : 1;
+    v.cradle.position.set((-flip * g.cell) / 2, 0);
+    v.arm.position.set((flip * g.cell) / 2, 0);
     v.cradle.scale.set(flip, 1);
     v.arm.scale.set(flip, 1);
+  }
+
+  /**
+   * Tip a rocker the engine flipped: the beam swings level, the halves change sides, and it swings
+   * on down, the arm side dropping where the cup was. In `ms`, ending on the engine's rocker.
+   */
+  private tipRocker(i: number, r: FreefallRocker, ms: number): void {
+    const v = this.rockers[i];
+    if (!v) {
+      this.placeRocker(i, r);
+      return;
+    }
+    // The pose it is leaving: the cup side was the other one, so the beam rose the other way.
+    const was = r.cradle === 1 ? 1 : -1;
+    this.tweens.to(v.box, { rotation: was * TILT }, ms / 2, {
+      done: () => {
+        this.placeRocker(i, r);
+        v.box.rotation = -was * TILT;
+        this.tweens.to(v.box, { rotation: 0 }, ms / 2);
+      },
+    });
   }
 
   private podSprite(id: number): PodView {
@@ -248,8 +278,7 @@ export class FreefallRenderer extends KitBoard<FreefallState> {
     const g = this.grid;
     while (this.rockers.length > state.rockers.length) {
       const v = this.rockers.pop()!;
-      v.cradle.destroy();
-      v.arm.destroy();
+      v.box.destroy({ children: true });
     }
     this.drawn = state.rockers.map((r) => ({ ...r }));
     state.rockers.forEach((r, i) => this.placeRocker(i, r));
@@ -349,8 +378,10 @@ export class FreefallRenderer extends KitBoard<FreefallState> {
         for (const f of step.flipped) {
           const r = this.drawn[f.rocker];
           if (!r) continue;
-          if (f.times % 2 === 1) r.cradle = (1 - r.cradle) as 0 | 1;
-          this.placeRocker(f.rocker, r);
+          if (f.times % 2 === 1) {
+            r.cradle = (1 - r.cradle) as 0 | 1;
+            this.tipRocker(f.rocker, r, STEP);
+          } else this.placeRocker(f.rocker, r);
         }
         if (step.flipped.length > 0) sfx.thud();
         for (const x of step.tossed) {

@@ -65,16 +65,16 @@ export interface FreefallConfig {
 }
 
 export const DEFAULT_FREEFALL_CONFIG: FreefallConfig = {
-  width: 16,
-  entry: 8,
-  rows: 8,
+  width: 8,
+  entry: 4,
+  rows: 7,
   gapPermille: 60,
   quotas: [12, 40, 24, 70],
   bays: {
-    first: [2, 2, 2, 2, 2, 2, 2, 2],
-    second: [1, 1, 2, 2, 4, 5, 8, 12],
-    third: [1, 2, 3, 4, 5, 6, 7, 8],
-    fourth: [1, 2, 4, 6, 9, 12, 16, 20],
+    first: [2, 2, 2, 2],
+    second: [1, 2, 5, 12],
+    third: [1, 3, 5, 8],
+    fourth: [1, 4, 10, 20],
   },
   squareClusters: true,
   rival: true,

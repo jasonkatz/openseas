@@ -18,5 +18,5 @@ export const FREEFALL_PRESETS: readonly Preset[] = [
     },
   },
   { id: "freefall_open_shaft", overrides: { gapPermille: 330 } },
-  { id: "freefall_straight_shaft", overrides: { entry: 16 } },
+  { id: "freefall_straight_shaft", overrides: { entry: 8 } },
 ];

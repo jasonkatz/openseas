@@ -12,8 +12,8 @@ own form. Where it departs from the original is listed in DESIGN.md section 6.
 
 A salvage station drops its cargo down a shaft into the berths at its foot. The shaft is a tree,
 as the original's board is: narrow at the top and wide at the foot. Pods are dropped down the
-middle eight lanes (`entry`); eight rows of rockers (`rows`) widen evenly from those eight lanes to
-sixteen at the foot (`width`), a berth under every one. The rockers lie in a brick pattern: an even
+middle four lanes (`entry`); seven rows of rockers (`rows`) widen evenly from those four lanes to
+eight at the foot (`width`), a berth under every one. The rockers lie in a brick pattern: an even
 row's start at its left edge, an odd row's one lane in, so an odd row's outer lanes are open. The
 deal flips each rocker to a side at random and leaves 6 places in a hundred open (`gapPermille`).
 No lane drops straight onto the outer berths: a pod reaches them only by being turned outward by
@@ -81,13 +81,16 @@ The board follows the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws
 
 - **A pod** is an upright capsule with its porthole cut out, in sand. A cluster carries its count on
   it in mono.
-- **A cradle** is an open cup, **an arm** a lever sloping down from its hub, both slate; the board
-  turns each towards the hub between them, so a rocker reads as one piece.
+- **A rocker** is one seesaw across its two lanes, slate: **a cradle** is an open cup with the beam
+  rising from it, **an arm** the rest of the beam on its pivot post, up to a knob. The two are
+  drawn edge to edge, so the beam runs unbroken from cup to knob, with the cup low and the arm
+  raised for a pod to strike.
 - **A berth** is a tray open at the top, dim, with its value in cream mono.
 - **The board.** Bare ground, no frame and no grid. The one hairline is the line over the berths,
   where a fall ends and is paid.
-- **A drop** falls a row every 55 ms. A pod coming to rest pops a step higher each row down; a
-  rocker flips with the thud. What lands shrinks into its berth with its points in cream, the ping
+- **A drop** falls a row every 130 ms, slow enough to follow a pod down and see what it tips. A
+  pod coming to rest pops a step higher each row down. A rocker that flips swings on its pivot
+  with the thud: level, then down the other way, the arm side dropping where the cup was. What lands shrinks into its berth with its points in cream, the ping
   higher the more the berth pays and the multi for a cluster.
 - **The rival's drop** follows: its pod appears in a rose ring with a whoosh, and its points rise in
   rose.
@@ -104,11 +107,11 @@ after.
 ## Tuning notes
 
 Set from bots, not people (ADR 0036). A person's pace is modelled as a drop every 3 seconds, the
-rival's answer played out included. A round is about 38 drops, so the legs, not the clock, end it.
+rival's answer played out included. A round is a few dozen drops, so the legs, not the clock, end it.
 
 - **The score is the lead, not the points.** A leg ends at its quota, so a player's own points sit
   near the quotas' sum however well they play: the bots' points sit close together.
-  Read as the lead, the denier scores 123, one move 96 and careless play about zero.
+  Read as the lead, the denier scores 147, one move 114 and careless play about zero.
 - **Clusters pay n × n.** The original pays a multi-coin its slot times its count; squaring is what
   makes planning a cluster worth more than two lucky singles (rule 13).
 - **The rival at 70.** Sharp enough that a pod left at rest over a rich lane is usually taken, loose
@@ -121,15 +124,15 @@ The bots of this pass, 32 seeds (`pnpm --filter @openseas/bots ladder freefall`)
 
 | Bot | Full (150 s) |
 |---|---|
-| careless | 2 Green |
-| one move | 96 Steady |
-| rollout | 147 Sharp |
-| denier | 123 Sharp |
-| edge chaser | 2 Green |
-| *Steady from* | *50* |
-| *Sharp from* | *118* |
-| *Masterful from* | *185* |
-| *Legendary from* | *268* |
+| careless | 1 Green |
+| one move | 114 Steady |
+| rollout | 166 Sharp |
+| denier | 147 Sharp |
+| edge chaser | 11 Green |
+| *Steady from* | *55* |
+| *Sharp from* | *135* |
+| *Masterful from* | *210* |
+| *Legendary from* | *308* |
 
 - **careless**: any top lane at random.
 - **one move**: the drop worth most now.

@@ -21,7 +21,7 @@ export const freefall: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Freefall shaft: ${c.entry} drop lanes at the top, widening over ${c.rows} rows of rockers in a brick pattern to ${c.width} lanes at the foot, each rocker a cup on one side and a lever on the other, over a row of berths with their values written in them.`,
+    alt: `The Freefall shaft: ${c.entry} drop lanes at the top, widening over ${c.rows} rows of rockers in a brick pattern to ${c.width} lanes at the foot, each rocker a seesaw on a pivot with a cup low on one side and a raised arm on the other, over a row of berths with their values written in them.`,
     caption: "The shaft at the start of a round, every cradle empty.",
   },
   theme: {
@@ -37,7 +37,7 @@ export const freefall: Guide = {
   ],
   rules: [
     `The shaft is narrow at the top and wide at the foot: ${c.entry} lanes to drop down, marked by dots, over ${c.width} berths. Tap one of the top lanes to drop a **pod**. It falls straight down, a row at a time, and rockers lower down spread it outward.`,
-    "A **rocker** spans two lanes: a cup on one side, its **cradle**, and a lever on the other, its **arm**. A pod that lands in an empty cradle stays there.",
+    "A **rocker** is a seesaw across two lanes: a cup on one side, its **cradle**, and a raised lever on the other, its **arm**. A pod that lands in an empty cradle stays there.",
     "A pod that lands on a full cradle rolls over to the arm. A pod that passes an arm flips the rocker: the cradle swings to the other side and the pod resting in it is tipped out and falls.",
     "Pods that reach the same lane in the same row fuse into a **cluster** and fall as one. Two pods passing an arm flip it twice, so a resting pod lands back.",
     `Whatever reaches the **berths** at the foot on your drop is yours. ${c.rival ? "A rival drops after every drop of yours, down whatever lane pays it most at once." : ""}`.trim(),
