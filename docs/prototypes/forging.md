@@ -104,7 +104,7 @@ Each stage has its own thresholds in content; every stage is the same untimed pl
 - **Heat reads without colour.** A spot's tile shrinks a step with each strike (full, then about
   three quarters, then about two thirds), and colour follows as a second cue: rust, sand, sky. A set
   spot is the kit's empty dot.
-- **A strike plays in under half a second:** the tile squashes and comes back a step smaller with its
+- **A strike plays in under a fifth of a second (170 ms), then the next strike is open:** the tile squashes and comes back a step smaller with its
   new mark, a pop pitched by the blow, the points pop up. A chain shows its count in the strip; a
   set is called out (Count, Span) with a good chime; a stall is called out in danger (Out of
   moves) and ends the round; an earned spark is called out with a zap; a set lost is a quiet note. The beat is for a

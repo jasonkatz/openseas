@@ -58,8 +58,12 @@ const RING_R = 0.47;
 const RING_W = 0.06;
 /** A spot the press cannot reach is drawn this faint while it has somewhere to go. */
 const UNLIT = 0.38;
-/** How long a strike takes to play, before the plate is shown as the engine holds it. */
-const PLAY_MS = 420;
+/**
+ * How long a strike takes to play, before the plate is shown as the engine holds it and the next
+ * strike is taken. Short, so play flows: the squash and the new mark are done well inside it, and the
+ * callouts and popups run on after it without holding the press.
+ */
+const PLAY_MS = 170;
 
 /** Draws the plate and turns a tap or a key into a strike. Scores nothing: every number it shows is the engine's. */
 export class ForgingRenderer extends KitBoard<ForgingState> {
@@ -289,15 +293,15 @@ export class ForgingRenderer extends KitBoard<ForgingState> {
     } else {
       // The press squashes the tile; it comes back a step smaller with its new mark.
       v.s.scale.set(0.8);
-      this.tweens.after(60, () => this.show(v, { heat: r.heat, mark: r.next ?? v.mark }));
-      this.tweens.move(v.s, { scale: 1 }, { delay: 60 });
+      this.tweens.after(40, () => this.show(v, { heat: r.heat, mark: r.next ?? v.mark }));
+      this.tweens.move(v.s, { scale: 1 }, { delay: 40 });
     }
     const gained = r.points;
-    this.tweens.after(90, () => this.fx.popup(x, y - g.cell * 0.25, `+${gained}`, INK.cream, Math.max(14, g.cell * (r.set ? 0.46 : 0.34))));
-    if (r.chain >= 2) this.tweens.after(90, () => this.setLabel(L.chain(r.chain, r.chainPoints), INK.cream));
+    this.tweens.after(30, () => this.fx.popup(x, y - g.cell * 0.25, `+${gained}`, INK.cream, Math.max(14, g.cell * (r.set ? 0.46 : 0.34))));
+    if (r.chain >= 2) this.tweens.after(30, () => this.setLabel(L.chain(r.chain, r.chainPoints), INK.cream));
 
     // One callout a strike, the rarest first; the beat for a weave and for the plate set.
-    this.tweens.after(180, () => {
+    this.tweens.after(60, () => {
       if (r.done) {
         this.fx.say(L.done);
         this.beat(1);
