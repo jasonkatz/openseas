@@ -37,6 +37,7 @@ export function validateConfig(cfg: FreefallConfig): void {
     typeof cfg.squareClusters === "boolean" &&
     typeof cfg.rival === "boolean" &&
     int(cfg.rivalSkill, 0, 100) &&
+    int(cfg.turnSeconds, 5, 120) &&
     int(cfg.maxMoves, 1, 1_000_000);
   if (!ok) throw new Error("invalid freefall config");
 }

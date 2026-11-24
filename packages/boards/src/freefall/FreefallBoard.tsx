@@ -10,6 +10,8 @@ export interface FreefallBoardProps {
   interactive: boolean;
   /** Pulse a drop worth making after a pause: on for practice, off for recorded rounds. */
   hints: boolean;
+  /** Bumped when the turn clock runs out: the board drops down the lane in hand. */
+  dropSignal?: number;
   onDrop(lane: number): void;
   onFrame(): void;
 }
@@ -46,6 +48,13 @@ export function FreefallBoard(props: FreefallBoardProps) {
   useEffect(() => {
     renderer.current?.setHints(props.hints);
   }, [props.hints, renderer]);
+
+  const firstSignal = useRef(props.dropSignal);
+  useEffect(() => {
+    if (props.dropSignal === firstSignal.current) return;
+    const r = renderer.current;
+    if (r && r.app.renderer) r.dropInHand();
+  }, [props.dropSignal, renderer]);
 
   return <div ref={host} className="board-host" data-testid="freefall-board" data-board={freefallViewString(props.state.config, props.state.rockers)} />;
 }

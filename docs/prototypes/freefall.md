@@ -1,7 +1,7 @@
 # Freefall
 
-Status: built. Prototype (ADR 0036, ADR 0081), in the studio at `/freefall`. Untimed drops; a round
-is four legs, bounded by a 150 second clock.
+Status: built. Prototype (ADR 0036, ADR 0081), in the studio at `/freefall`. Each drop has its own
+30 second clock (`turnSeconds`); a round is four legs, with no clock of its own.
 
 Freefall is a successor, not one of the game's own new designs: it follows the original's Treasure
 Drop, the parlor game of dropping coins through a board of seesaws (DESIGN.md section 3 lists it as
@@ -107,7 +107,14 @@ after.
 ## Tuning notes
 
 Set from bots, not people (ADR 0036). A person's pace is modelled as a drop every 3 seconds, the
-rival's answer played out included. A round is a few dozen drops, so the legs, not the clock, end it.
+rival's answer played out included. A round is a few dozen drops (under fifty in 200 seeds of random or greedy play), so the legs end it.
+
+- **A clock on each drop, not on the round** (the owner's call). Each drop has 30 seconds
+  (`turnSeconds`, which the reducer never reads); when they run out the board drops down the lane
+  in hand, as space would, with a tick for each of the last five seconds. The round's own clock
+  (`roundSeconds`) is only a cap, 60 drops (`maxMoves`) of a whole turn each, which content checks
+  it covers. The pace indicator reads a stretch of play as a 150 second round of brisk play, the
+  round the bots' ladder plays.
 
 - **The score is the lead, not the points.** A leg ends at its quota, so a player's own points sit
   near the quotas' sum however well they play: the bots' points sit close together.
@@ -122,7 +129,7 @@ rival's answer played out included. A round is a few dozen drops, so the legs, n
 
 The bots of this pass, 32 seeds (`pnpm --filter @openseas/bots ladder freefall`):
 
-| Bot | Full (150 s) |
+| Bot | Full |
 |---|---|
 | careless | 1 Green |
 | one move | 114 Steady |

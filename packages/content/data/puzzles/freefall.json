@@ -15,10 +15,11 @@
     "squareClusters": true,
     "rival": true,
     "rivalSkill": 70,
-    "maxMoves": 400
+    "turnSeconds": 30,
+    "maxMoves": 60
   },
   "paceSeconds": 15,
-  "roundSeconds": 150,
+  "roundSeconds": 1800,
   "thresholds": [
     { "score": 15, "rating": 1100 },
     { "score": 55, "rating": 1300 },

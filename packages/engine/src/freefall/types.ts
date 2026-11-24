@@ -60,6 +60,8 @@ export interface FreefallConfig {
   readonly rival: boolean;
   /** Percent of the rival's drops that are the drop worth most at once; the rest are a lane at random. */
   readonly rivalSkill: number;
+  /** Seconds the player has for each drop; when they run out the board drops down the lane in hand. The reducer never reads it. */
+  readonly turnSeconds: number;
   /** Longest move log the server accepts. */
   readonly maxMoves: number;
 }
@@ -79,7 +81,8 @@ export const DEFAULT_FREEFALL_CONFIG: FreefallConfig = {
   squareClusters: true,
   rival: true,
   rivalSkill: 70,
-  maxMoves: 400,
+  turnSeconds: 30,
+  maxMoves: 60,
 };
 
 /** Who dropped a pod: the player (0) or the rival (1). */

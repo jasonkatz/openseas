@@ -28,6 +28,7 @@ export const FreefallConfigSchema = z.object({
   squareClusters: z.boolean().describe("A cluster of n pods scores its berth n times n (on), or n times (off)."),
   rival: z.boolean().describe("A rival drops after each of your drops and races you to each quota. Off: you play the shaft alone."),
   rivalSkill: z.int().min(0).max(100).describe("Percent of the rival's drops that take the most points at once; the rest are a lane at random."),
+  turnSeconds: z.int().min(5).max(120).describe("Seconds you have for each drop; when they run out, the lane in hand drops."),
   maxMoves: z.int().min(1).max(1_000_000).describe("Longest move log the server accepts."),
 });
 export type FreefallConfigWire = z.infer<typeof FreefallConfigSchema>;

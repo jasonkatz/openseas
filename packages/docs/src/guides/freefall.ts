@@ -32,7 +32,7 @@ export const freefall: Guide = {
   },
   facts: [
     { label: "Shaft", value: `${c.entry} lanes in, ${c.width} berths out, ${c.rows} rows of rockers` },
-    { label: "Round", value: `Four legs, at most ${p.roundSeconds} seconds` },
+    { label: "Round", value: `Four legs, ${c.turnSeconds} seconds a drop` },
     { label: "Rated against", value: "Your lead over the rival" },
   ],
   rules: [
@@ -53,6 +53,7 @@ export const freefall: Guide = {
     { action: "Drop a pod", touch: "Tap anywhere down one of the top lanes", desktop: "Click one of the top lanes" },
     { action: "See what a drop is worth", touch: "", desktop: "Hover a top lane, or pick one with the arrow keys or A and D. The strip over the shaft shows its points" },
     { action: "Drop down the lane in hand", touch: "", desktop: "Space or Enter" },
+    { action: "Run out of time", touch: "The lane in hand drops for you", desktop: "The lane in hand drops for you" },
   ],
   scoring: [
     `**A pod pays the berth it lands in.** The first leg pays ${top(0)} in every berth. Later legs pay most at the edges: up to ${top(1)}, ${top(2)} and ${top(3)}, down to ${low(3)} in the middle.`,

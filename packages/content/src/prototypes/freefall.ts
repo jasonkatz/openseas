@@ -19,6 +19,8 @@ export const FreefallContentSchema = PrototypeBaseSchema.extend({
       squareClusters: z.boolean(),
       rival: z.boolean(),
       rivalSkill: z.int().min(0).max(100),
+      /** Seconds for each drop; the round's own clock is only a cap over every turn. */
+      turnSeconds: z.int().min(5).max(120),
       maxMoves: z.int().min(1),
     })
     .refine((c) => c.width % 2 === 0 && c.entry % 2 === 0 && c.entry <= c.width, "width and entry are even, entry no more than width")

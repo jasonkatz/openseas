@@ -491,6 +491,11 @@ export class FreefallRenderer extends KitBoard<FreefallState> {
 
   // ---- the drop
 
+  /** The turn ran out: drop down the lane in hand, as space would. */
+  dropInHand(): void {
+    this.tryDrop(this.clampLane(this.cursor));
+  }
+
   private tryDrop(lane: number): void {
     const state = this.state;
     if (!state || state.finished) return;

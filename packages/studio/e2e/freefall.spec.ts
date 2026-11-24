@@ -46,3 +46,14 @@ test("Freefall plays alone on /play: a round drops by key and by tap", async ({ 
   await expect(page.getByTestId("hud-moves")).toHaveText("6");
   await expect(page.getByTestId("hud-leg")).toHaveText(/^[1-4] of 4$/);
 });
+
+test("Freefall's turn clock drops the lane in hand when a turn runs out", async ({ page }) => {
+  // The shortest turn the schema takes, so the test waits five seconds, not thirty.
+  await page.goto("/play/freefall?seed=turn-1&c.turnSeconds=5");
+  await page.getByTestId("play-start").click();
+  await expect(page.getByTestId("freefall-canvas")).toBeVisible();
+  await expect(page.getByTestId("hud-time")).toHaveAttribute("data-turn", "");
+  await expect(page.getByTestId("hud-moves")).toHaveText("0");
+  await expect(page.getByTestId("hud-moves")).toHaveText("1", { timeout: 9_000 });
+  await expectViewMatchesState(page, "freefall");
+});
