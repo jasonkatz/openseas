@@ -16,6 +16,7 @@ import { TugConfigSchema, TugMoveSchema } from "./tug.js";
 import { RacksConfigSchema, RacksMoveSchema } from "./racks.js";
 import { CuttingConfigSchema, CuttingMoveSchema } from "./cutting.js";
 import { TractorConfigSchema, TractorMoveSchema } from "./tractor.js";
+import { AssemblyConfigSchema, AssemblyMoveSchema } from "./assembly.js";
 
 /**
  * Per-puzzle wire schemas. The server validates a move against the schema of the session's puzzle,
@@ -38,6 +39,7 @@ export const PUZZLE_MOVE_SCHEMAS = {
   racks: RacksMoveSchema,
   cutting: CuttingMoveSchema,
   tractor: TractorMoveSchema,
+  assembly: AssemblyMoveSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
 export const PUZZLE_CONFIG_SCHEMAS = {
@@ -57,6 +59,7 @@ export const PUZZLE_CONFIG_SCHEMAS = {
   racks: RacksConfigSchema,
   cutting: CuttingConfigSchema,
   tractor: TractorConfigSchema,
+  assembly: AssemblyConfigSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
 /** Every puzzle's move shapes, for consumers that want the union type. Not used on the wire (see ws.ts). */
@@ -77,6 +80,7 @@ export const AnyMoveSchema = z.union([
   RacksMoveSchema,
   CuttingMoveSchema,
   TractorMoveSchema,
+  AssemblyMoveSchema,
 ]);
 export type AnyMoveWire = z.infer<typeof AnyMoveSchema>;
 

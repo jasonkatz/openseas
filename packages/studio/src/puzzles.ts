@@ -45,6 +45,7 @@ import { TUG } from "./prototypes/tug.js";
 import { RACKS } from "./prototypes/racks.js";
 import { CUTTING } from "./prototypes/cutting.js";
 import { TRACTOR } from "./prototypes/tractor.js";
+import { ASSEMBLY } from "./prototypes/assembly.js";
 
 /** What the studio needs to know about a puzzle beyond its engine definition. */
 export interface StudioPuzzle<S, M, C> {
@@ -160,4 +161,5 @@ export const STUDIO_PUZZLES: Readonly<Record<PuzzleId, StudioPuzzle<unknown, unk
   racks: RACKS as unknown as StudioPuzzle<unknown, unknown, unknown>,
   cutting: CUTTING as unknown as StudioPuzzle<unknown, unknown, unknown>,
   tractor: TRACTOR as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  assembly: ASSEMBLY as unknown as StudioPuzzle<unknown, unknown, unknown>,
 };

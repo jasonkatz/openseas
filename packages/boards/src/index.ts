@@ -73,3 +73,6 @@ export { CUTTING_ORES } from "./cutting/pieces.js";
 export { TractorBoard, type TractorBoardProps } from "./tractor/TractorBoard.jsx";
 export { TractorBeaconIcon, TractorCacheIcon, TractorLootIcon } from "./tractor/TractorIcon.jsx";
 export { TRACTOR_KINDS } from "./tractor/pieces.js";
+export { AssemblyBoard, assemblyBoardString, type AssemblyBoardProps } from "./assembly/AssemblyBoard.jsx";
+export { AssemblyPartIcon } from "./assembly/AssemblyIcon.jsx";
+export { ASSEMBLY_KINDS, ASSEMBLY_CORE_KIND } from "./assembly/pieces.js";

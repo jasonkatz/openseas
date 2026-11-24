@@ -9,6 +9,7 @@ import { TUG_PRESETS } from "./prototypes/tug.js";
 import { RACKS_PRESETS } from "./prototypes/racks.js";
 import { CUTTING_PRESETS } from "./prototypes/cutting.js";
 import { TRACTOR_PRESETS } from "./prototypes/tractor.js";
+import { ASSEMBLY_PRESETS } from "./prototypes/assembly.js";
 
 /** A named starting point for a draft (DESIGN.md 3.14): numbers worth tuning from. Names live in the message table under `studio.preset.<id>`. */
 export interface Preset {
@@ -112,6 +113,7 @@ export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
   racks: RACKS_PRESETS,
   cutting: CUTTING_PRESETS,
   tractor: TRACTOR_PRESETS,
+  assembly: ASSEMBLY_PRESETS,
 };
 
 /** One preset per Space Battle board, so a fight can be pinned to a board the seed would not have picked. */

@@ -82,6 +82,11 @@ export interface BotGame<S, M, C> {
   readonly baits?: readonly Bait[];
   /** Names of the puzzle's own bots that take seconds a round (they plan ahead): the tests play them less. */
   readonly slow?: readonly string[];
+  /**
+   * A state with what comes next drawn afresh, for an engine that keeps its draws on streams of
+   * their own (ADR 0075) rather than one `rng`. Left out, `reseed` replaces `rng`.
+   */
+  reseed?(state: S, seed: string): S;
 }
 
 export type AnyBotGame<S = unknown, M = unknown> = BotGame<S, M, unknown>;
@@ -231,7 +236,8 @@ export function rolloutBot<S, M>(options: RolloutOptions = DEFAULT_ROLLOUT, name
       for (const w of weighed.slice(0, options.width)) {
         let total = 0;
         for (let t = 0; t < options.tries; t++) {
-          let s = reseed(w.after, `rollout:${ctx.rng.int(0x7fffffff)}`);
+          const fresh = `rollout:${ctx.rng.int(0x7fffffff)}`;
+          let s = ctx.game.reseed ? ctx.game.reseed(w.after, fresh) : reseed(w.after, fresh);
           for (let d = 0; d < options.depth && !ctx.game.def.isFinished(s); d++) {
             const c = inner.choose(s, ctx);
             if (!c) break;

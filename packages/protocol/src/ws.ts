@@ -14,6 +14,7 @@ import { TugConfigSchema } from "./tug.js";
 import { RacksConfigSchema } from "./racks.js";
 import { CuttingConfigSchema } from "./cutting.js";
 import { TractorConfigSchema } from "./tractor.js";
+import { AssemblyConfigSchema } from "./assembly.js";
 import { EnginesConfigSchema } from "./engines.js";
 import { GunneryConfigSchema } from "./gunnery.js";
 import { MeleeBoardSchema, SwordfightConfigSchema } from "./swordfight.js";
@@ -174,6 +175,7 @@ export const PuzzleStartedSchema = z.discriminatedUnion("puzzle", [
   PuzzleStartedBase.extend({ puzzle: z.literal("racks"), config: RacksConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("cutting"), config: CuttingConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("tractor"), config: TractorConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("assembly"), config: AssemblyConfigSchema }),
 ]);
 
 export const PuzzleResultSchema = z.object({

@@ -431,6 +431,7 @@ The tables above give the identifier for each word. Beyond them:
 
 Eight puzzles with no former word: they are new (DESIGN.md 3.12, ADR 0036), in the studio only.
 Tractor is a ninth, in the studio only too, with a former word: it succeeds Treasure Haul (ADR 0078).
+Assembly is a tenth, the same way: it succeeds Shipwrightry (ADR 0082).
 Their words follow the naming rules above. Each puzzle's own words (its pieces, its callouts) are in
 its design file under `docs/prototypes/` and its message file under
 `content/data/messages/prototypes/`; promoting a puzzle may rename them.
@@ -446,6 +447,7 @@ its design file under `docs/prototypes/` and its message file under
 | Racks | `racks` | Sorts fuel cells between racks and ships a rack of one kind |
 | Cutting | `cutting` | Cuts a slab of salvage into pieces and banks the ones that hold one ore |
 | Tractor (formerly Treasure Haul) | `tractor` | Swaps loot up or down to line up three and pulls it aboard on the tractor beam; sealed caches are hauled at the hatch |
+| Assembly (formerly Shipwrightry) | `assembly` | Swaps parts in a shipyard's bay, each kind its own way (girders sideways, struts up and down, cables corner to corner, panels only when pushed), and fits them to blueprints; fits made with no swap between are a chain |
 
 Words shared by all of them: a **prototype** is one of these puzzles; the **kit** is the shared
 board code they are drawn with (`boards/src/kit`). A **kind** is one member of a family of pieces, as
