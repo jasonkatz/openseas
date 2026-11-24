@@ -65,7 +65,7 @@ export interface AssemblyConfig {
 
 export const DEFAULT_ASSEMBLY_CONFIG: AssemblyConfig = {
   width: 6,
-  height: 8,
+  height: 6,
   kindWeights: [22, 26, 26, 26],
   traySize: 6,
   sizeWeights: [5, 4, 2],

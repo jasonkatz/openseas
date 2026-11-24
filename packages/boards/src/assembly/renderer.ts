@@ -146,7 +146,7 @@ export class AssemblyRenderer extends KitBoard<AssemblyState> {
       g.cols = this.state.config.width;
       g.rows = this.state.config.height;
     }
-    g.fit(width, height, { top: STRIP, bottom: TRAY, margin: Math.max(12, Math.min(width, height) * 0.05), maxCell: 48 });
+    g.fit(width, height, { top: STRIP, bottom: TRAY, margin: 8 });
     const pad = Math.max(4, g.cell * 0.12);
     const strip = g.cell * STRIP;
     this.bg.clear();

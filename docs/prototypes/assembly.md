@@ -11,7 +11,7 @@ departs from the original is listed in DESIGN.md section 6.
 
 ## The puzzle
 
-A shipyard's parts bay, six wide and eight tall, always full. Under it, the tray holds six
+A shipyard's parts bay, six wide and six tall, always full. Under it, the tray holds six
 blueprints for the next sections of hull.
 
 - **Each kind of part moves its own way.** A **girder** swaps sideways, a **strut** up or down, a
@@ -53,7 +53,7 @@ another as one chain, each on cells of its own.**
 - **Third skill:** holding back. Fitting the moment something fits pays each fit at the first place.
   Setting two or three up and fitting them in a row pays the second double and the third triple.
   Fitting the moment one fits is the bait: it feels like steady work, and it loses to plain set-up
-  play by about a third (the bot table below).
+  play by about a quarter (the bot table below).
 - **Fourth skill:** room. Two blueprints set up over the same cells cannot both be fitted, and a
   fit's new parts are drawn at random, so a player sets blueprints up side by side, each on cells of
   its own, and reads the new parts a fit leaves for a blueprint they already nearly make.
@@ -123,16 +123,16 @@ The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder ass
 
 | Bot | Parts (60 s) | Chains (90 s) | Full (120 s) |
 |---|---|---|---|
-| careless | 13 Green | 18 Green | 41 Green |
-| one move | 327 Sharp | 765 Sharp | 1,106 Sharp |
-| rollout | 327 Sharp | 1,193 Masterful | 1,684 Masterful |
-| fit at once | 332 Sharp | 770 Sharp | 1,215 Sharp |
-| chain builder | 315 Sharp | 1,093 Masterful | 1,909 Masterful |
-| builder of 3 | 312 Sharp | 1,059 Masterful | 1,734 Masterful |
-| *Steady from* | *100* | *200* | *300* |
-| *Sharp from* | *250* | *550* | *799* |
-| *Masterful from* | *400* | *1,000* | *1,499* |
-| *Legendary from* | *625* | *1,599* | *2,399* |
+| careless | 14 Green | 21 Green | 57 Green |
+| one move | 283 Sharp | 585 Sharp | 817 Sharp |
+| rollout | 282 Sharp | 830 Masterful | 1,215 Masterful |
+| fit at once | 287 Sharp | 594 Sharp | 958 Sharp |
+| chain builder | 290 Sharp | 881 Masterful | 1,278 Masterful |
+| builder of 3 | 289 Sharp | 790 Masterful | 1,257 Masterful |
+| *Steady from* | *90* | *155* | *210* |
+| *Sharp from* | *220* | *427* | *560* |
+| *Masterful from* | *350* | *780* | *1,050* |
+| *Legendary from* | *545* | *1,245* | *1,679* |
 
 - **careless**: any legal move at random.
 - **one move**: the move worth most now, and no further look.
@@ -144,13 +144,13 @@ The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder ass
 - **builder of 3**: the chain builder, but it starts a chain only once three blueprints are ready.
 
 Checks: careless lands a tier below one move on every stage, and the bait loses to the chain builder
-on the whole puzzle by 36.4 percent.
+on the whole puzzle by 25 percent.
 
-- **Chains are earned, not given.** On the Chains stage the planning bots score about two fifths
-  more than one move does; on Parts, with chains off, every thinking bot scores the same. The chain is the
+- **Chains are earned, not given.** On the Chains stage the planning bots score about half again
+  what one move does; on Parts, with chains off, every thinking bot scores the same. The chain is the
   layer that sorts players.
-- **Cores earn their place.** With cores off on the whole puzzle the chain builder scores 1,396
-  and the bait 968; cores add about 37 percent to the planner.
+- **Cores earn their place.** With cores off on the whole puzzle the chain builder scores 1,041
+  and the bait 745; cores add about 23 percent to the planner.
 - **No bot reaches Legendary.** The bots read the whole bay in the time a person reads one
   blueprint, so the top tier is left for play that sets up longer chains than these bots do. It
   wants setting by hand once people have played.

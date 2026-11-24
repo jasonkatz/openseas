@@ -8,5 +8,5 @@ export const ASSEMBLY_PRESETS: readonly Preset[] = [
   { id: "assembly_big_prints", overrides: { sizeWeights: [1, 2, 6] } },
   { id: "assembly_three_tray", overrides: { traySize: 3 } },
   { id: "assembly_core_rush", overrides: { corePermille: 120, maxCores: 6, startCores: 4 } },
-  { id: "assembly_wide_bay", overrides: { width: 8, height: 10 } },
+  { id: "assembly_wide_bay", overrides: { width: 8, height: 8 } },
 ];

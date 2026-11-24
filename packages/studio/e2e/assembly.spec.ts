@@ -1,9 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 import { boardGeom, expectViewMatchesState } from "./helpers.js";
 
-/** The content bay: six wide, eight tall. */
+/** The content bay: six wide, six tall. */
 const W = 6;
-const H = 8;
+const H = 6;
 const CORE = "@";
 /** The way each kind moves by itself: girder sideways, strut up or down, cable corner to corner. */
 const WAY: Record<string, "side" | "up" | "diagonal" | undefined> = { "1": "side", "2": "up", "3": "diagonal" };
