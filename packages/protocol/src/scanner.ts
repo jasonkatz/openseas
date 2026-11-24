@@ -25,6 +25,7 @@ export const ScannerConfigSchema = z.object({
   wrongPenalty: z.int().min(0).max(100_000).describe("Points lost for a lock on empty space."),
   spookPenalty: z.int().min(0).max(100_000).describe("Points lost for a ping that lands on a contact."),
   streakPercent: z.array(z.int().min(100).max(1000)).min(1).max(16).describe("Percent the streak of clean sectors multiplies contacts and savings by; a streak past the end takes the last."),
+  markPercent: z.int().min(100).max(1000).describe("Percent of a bounty the marked contact pays when locked as its sector's first find; 100 marks no contact and lights no ping."),
   maxMoves: z.int().min(1).max(1_000_000).describe("Longest move log the server accepts: the round ends there."),
 });
 export type ScannerConfigWire = z.infer<typeof ScannerConfigSchema>;

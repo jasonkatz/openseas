@@ -4,7 +4,10 @@ import {
   scannerDistance,
   scannerHint,
   scannerLockIllegalReason,
+  scannerLitPings,
   scannerLockValue,
+  scannerMarkOn,
+  scannerMarkOpen,
   scannerPingAt,
   scannerPingCandidates,
   scannerPingIllegalReason,
@@ -52,6 +55,8 @@ export interface ScannerLabels {
   saved(pings: number, points: number): string;
   streak(count: number): string;
   streakLost: string;
+  /** Called out when the mark is locked as the sector's first find. */
+  markFound: string;
 }
 
 export interface ScannerRendererOptions {
@@ -99,6 +104,8 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
   private readonly pulseLayer = new Graphics();
   private readonly markLayer = new Container();
   private readonly numberLayer = new Container();
+  /** The tab in the corner of each ping that hears the mark. */
+  private readonly tabLayer = new Container();
   /** What a lit ring puts on the cells it crosses, and the ring round its own cell. */
   private readonly candidateLayer = new Graphics();
   private readonly hintSprite = new Sprite();
@@ -109,6 +116,7 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
   private readonly plates: Sprite[] = [];
   private readonly marks: Sprite[] = [];
   private readonly numbers: Text[] = [];
+  private readonly tabs: Sprite[] = [];
   private stripPings: Text | null = null;
   private stripSector: Text | null = null;
   private stripHidden: Text | null = null;
@@ -182,6 +190,7 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       this.overlay,
       this.markLayer,
       this.numberLayer,
+      this.tabLayer,
       this.candidateLayer,
       this.hintSprite,
       this.pressSprite,
@@ -223,10 +232,12 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     };
     sized(this.plates, this.plateLayer, () => new Sprite());
     sized(this.marks, this.markLayer, () => new Sprite());
+    sized(this.tabs, this.tabLayer, () => new Sprite());
     sized(this.numbers, this.numberLayer, () => new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 20, fontWeight: "700", fill: INK.cream }, resolution: 2 }));
     for (let i = 0; i < n; i++) {
       this.plates[i]!.position.set(g.x(i), g.y(i));
       this.marks[i]!.position.set(g.x(i), g.y(i));
+      this.tabs[i]!.position.set(g.x(i), g.y(i));
       this.numbers[i]!.position.set(g.x(i), g.y(i));
       this.numbers[i]!.style.fontSize = Math.max(12, Math.round(g.cell * 0.5));
     }
@@ -283,10 +294,31 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
     number.scale.set(1);
   }
 
+  /**
+   * The tab on `cell`: shown when its ping hears the mark, cream while the mark can still be paid and
+   * dim once it cannot. The tab is a shape of its own, so it reads with the colour taken away.
+   */
+  private setTab(cell: number, lit: boolean, open: boolean): void {
+    const tab = this.tabs[cell];
+    if (!tab) return;
+    tab.visible = lit;
+    if (lit) tab.texture = this.texture("tab", open ? "cream" : "dim");
+    tab.scale.set(1);
+  }
+
+  /** Every tab as `state` has it, at once, and the same for the smoke test: the lit pings' cells, and whether the mark can still be paid. */
+  private drawTabs(state: ScannerState): void {
+    const open = scannerMarkOpen(state);
+    const lit = new Set(scannerLitPings(state));
+    this.tabs.forEach((_, cell) => this.setTab(cell, lit.has(cell), open));
+    this.app.canvas.setAttribute("data-lit", scannerMarkOn(state.config) ? `${[...lit].join(",")}:${open ? "open" : "gone"}` : "");
+  }
+
   /** Show exactly this view, with nothing in motion, and the strip for `state`. A ping's ring still fading from the move just played may be kept. */
   private snap(view: string, state: ScannerState, keepRings = false): void {
     this.cells = [...view];
     this.cells.forEach((ch, i) => this.show(i, ch));
+    this.drawTabs(state);
     this.pulses = keepRings ? this.pulses.filter((p) => p.fade !== null) : [];
     this.holding = false;
     this.stripFor = state;
@@ -515,6 +547,8 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       sfx.ping(d);
       const ms = this.sound(r.cell, d, INK.amber, 0);
       this.land(r.cell, d.toString(36), 0);
+      const made = r.cleared === null ? state.pings.find((p) => p.cell === r.cell) : undefined;
+      if (made?.lit) this.setTab(r.cell, true, scannerMarkOpen(state));
       this.shade(after, r.cell, 0, ms / Math.max(1, d));
       if (r.cost < 0) {
         this.tweens.after(MOTION.move, () => {
@@ -537,11 +571,15 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       });
       t = 380;
     } else if (r.found) {
-      // A lock on a contact: the brackets hold it and the bounty rises, in cream.
+      // A lock on a contact: the brackets hold it and the bounty rises, in cream. The mark found
+      // first is called out, and rises.
       this.land(r.cell, "X", 0);
       this.tweens.after(60, () => {
-        sfx.good();
-        this.fx.popup(x, y - g.cell * 0.45, `+${r.findPoints}`, INK.cream, big * (r.streakPercent > 100 ? 1.2 : 1));
+        if (r.markPaid) {
+          sfx.rise();
+          this.fx.say(labels.markFound, INK.cream);
+        } else sfx.good();
+        this.fx.popup(x, y - g.cell * 0.45, `+${r.findPoints}`, INK.cream, big * (r.markPaid ? 1.35 : r.streakPercent > 100 ? 1.2 : 1));
       });
       t = 300;
     } else if (r.wrong) {
@@ -555,11 +593,22 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       t = 300;
     }
 
+    // A contact made known: the tabs that stay put change at once (all go when the mark is found, and
+    // all dim when it can no longer be paid). A ping that sounds again takes its tab with its number.
+    const markOpen = scannerMarkOpen(state);
+    const again = new Set(r.resound.map((e) => e.cell));
+    if (r.cleared === null && (r.found || r.spooked)) {
+      this.tweens.after(0, () => {
+        for (const p of state.pings) if (!again.has(p.cell)) this.setTab(p.cell, p.lit, markOpen);
+      });
+    }
     // Every ping that was hearing the contact sounds again and shows its new number.
     r.resound.forEach((e, i) => {
       const at = t + i * 70;
       this.tweens.after(at, () => sfx.pop(Math.min(9, 2 + i)));
       this.land(e.cell, e.to.toString(36), at, 0.5);
+      const lit = state.pings.find((p) => p.cell === e.cell)?.lit ?? false;
+      this.tweens.after(at, () => this.setTab(e.cell, lit, markOpen));
     });
     if (r.resound.length > 0) {
       this.shade(after, r.cell, t + 60, 30);
@@ -589,7 +638,8 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       }
     });
     t = Math.max(t, this.until) + 620;
-    // The fog closes over everything: the marks and the numbers shrink away and a plate grows back on every open cell.
+    // The fog closes over everything: the marks, the numbers and their tabs shrink away and a plate grows back on every open cell.
+    this.tabs.forEach((tab) => this.tweens.remove(tab, { delay: t }));
     this.tweens.after(t, () => {
       this.cells.forEach((ch, cell) => {
         const plate = this.plates[cell];
@@ -626,6 +676,7 @@ export class ScannerRenderer extends KitBoard<ScannerState> {
       this.tweens.after(t, () => sfx.ping(open.distance));
       const ms = this.sound(open.cell, open.distance, INK.cream, t);
       this.land(open.cell, open.distance.toString(36), t);
+      if (open.lit) this.tweens.after(t, () => this.setTab(open.cell, true, scannerMarkOpen(state)));
       this.shade(next, open.cell, t, ms / Math.max(1, open.distance), true);
     }
     // Whatever the tweens did, the sector ends as the engine holds it.
