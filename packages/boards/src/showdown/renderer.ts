@@ -113,7 +113,8 @@ interface ButtonView {
   enabled: boolean;
 }
 
-const RANKS = "23456789TJQKA";
+/** The ranks as a card prints them: a ten is 10. */
+const RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 /** The board's own pace for a rival's turn, or cards turned with no betting: long enough to read what the last seat did. */
 const TABLE_PACE = 1400;
 /** The same once the player has folded: the rest of the hand is only to be seen. */
