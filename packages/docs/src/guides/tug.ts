@@ -20,35 +20,36 @@ const cleansToTop = (c.maxPar - c.startPar) * c.cleanPerStep;
 const pars = Array.from({ length: c.maxPar - c.startPar + 1 }, (_, i) => c.startPar + i);
 const list = (xs: readonly (string | number)[]): string => `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]!}`;
 const topMark = p.thresholds[p.thresholds.length - 1]!.score;
+/** Clamps lit at once on the whole puzzle, in words. */
+const lit = ["no", "one", "two"][c.clamps] ?? String(c.clamps);
 
 export const tug: Guide = {
   id: "tug",
-  tagline: "Flick a pod and it slides until something stops it. Park the right one on the lit clamp.",
+  tagline: "Flick a pod and it slides until something stops it. Park the right ones on the lit clamps.",
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Tug bay: a ${c.width} by ${c.height} floor of small dots with ${c.blocks} grey girder blocks, ${c.pods} cargo pods of different shapes, and one lit clamp. The pod the clamp wants is ringed, and small copies of it show where each flick would stop.`,
-    caption: "The bay. The lit clamp is the outline of the pod it wants, and the small copies show where each flick would carry that pod.",
+    alt: `The Tug bay: a ${c.width} by ${c.height} floor of small dots with ${c.blocks} grey girder blocks, ${c.pods} cargo pods of different shapes, and ${lit} lit clamps, each the outline of a different pod. The strip over the bay shows each wanted pod with its par, then the flicks and the skip button. One wanted pod is ringed, and small copies of it show where each flick would stop.`,
+    caption: "The bay. Each lit clamp is the outline of the pod it wants, and the small copies show where each flick would carry the ringed pod.",
   },
   theme: {
     setting:
-      "The cargo bay has no gravity, so nothing in it stops by itself. You are the pirate stowing cargo: you flick a pod and it sails across the bay until a wall, a block or another pod gets in its way. One floor **clamp** is lit at a time, and it wants one pod at rest on it.",
+      "The cargo bay has no gravity, so nothing in it stops by itself. You are the pirate stowing cargo: you flick a pod and it sails across the bay until a wall, a block or another pod gets in its way. Floor **clamps** light up, two at a time, and each wants one pod at rest on it.",
     purpose:
-      "Tug is a prototype. It is on the test bench only and belongs to no ship yet. It is trying out a puzzle with almost no luck in it: the only thing dealt is the next clamp. The skill it asks for is seeing where a slide will end, and building the stop that is not there yet.",
+      "Tug is a prototype. It is on the test bench only and belongs to no ship yet. It is trying out a puzzle with almost no luck in it: the only thing dealt is the next clamp. The skill it asks for is seeing where a slide will end, building the stop that is not there yet, and making one delivery set up the next.",
   },
   facts: [
     { label: "Bay", value: `${c.width} by ${c.height}, ${c.pods} pods, ${c.blocks} blocks` },
     { label: "Round", value: `${p.roundSeconds} seconds` },
-    { label: "Rated against", value: "The puzzle" },
+    { label: "Clamps", value: `${lit[0]!.toUpperCase()}${lit.slice(1)} lit at once` },
     { label: "A solid round", value: `${p.thresholds[2]!.score} points` },
   ],
   rules: [
     "Flick a pod and it slides in a straight line until a **wall, a block or another pod** stops it. It cannot stop anywhere else.",
-    "One clamp is lit. It is the outline of the pod it wants, hollow, in that pod's colour. Bring that pod to **rest** on it. A pod that slides over the clamp keeps going, and that does not count.",
-    "A delivered pod stays where it stopped. Another clamp lights, for some pod, somewhere else.",
-    "Every clamp has a **par**: the fewest flicks that can deliver it from the bay as it stood when it lit. Every flick counts against it, whichever pod you flick. The strip over the bay shows the par and the flicks you have spent.",
-    "A flick into something the pod already rests against moves nothing and costs nothing.",
-    `**Skip** gives the clamp up for ${c.skipPenalty} points and lights another.`,
+    `${lit[0]!.toUpperCase()}${lit.slice(1)} clamps are lit, each for a different pod. A clamp is the outline of the pod it wants, hollow, in that pod's colour. Bring that pod to **rest** on it. A pod that slides over a clamp keeps going, and that does not count.`,
+    "A delivered pod stays where it stopped. A new clamp lights in its place, for a pod the other clamp does not want.",
+    "Every clamp has a **par**: the fewest flicks that can deliver it from the bay as it stood when it lit. When you deliver one, the other is **measured again** from the bay you leave: its par can come down or go up, but it keeps the **worth** of the par it lit at. Every flick counts, whichever pod you flick. The strip shows each wanted pod and its par, the par it pays as under it when that differs, and the flicks you have spent.",
+    `A flick into something the pod already rests against moves nothing and costs nothing. **Skip** gives up both clamps for ${c.skipPenalty} points, and two more light.`,
     `The round is ${p.roundSeconds} seconds on the clock. The blocks stay put for the whole round, and there is no undo.`,
   ],
   rulesMedia: {
@@ -61,11 +62,11 @@ export const tug: Guide = {
     { action: "Flick a pod", touch: "Swipe starting on the pod. It goes as soon as the swipe has a direction", desktop: "Drag from the pod the same way" },
     { action: "Pick a pod and see its ghosts", touch: "Tap the pod", desktop: `Click the pod, or press 1 to ${c.pods}. Space picks the next one` },
     { action: "Flick the picked pod", touch: "Swipe anywhere, or tap a cell in its row or column", desktop: "Arrow keys or W A S D, or click a cell in its row or column" },
-    { action: "Skip the clamp", touch: "Tap Skip over the bay", desktop: "X or Backspace" },
+    { action: "Skip both clamps", touch: "Tap Skip over the bay", desktop: "X or Backspace" },
     { action: "Let go of the pod", touch: "", desktop: "Escape" },
   ],
   scoring: [
-    `A clamp is worth more the higher its par: ${list(pars.map((n) => `${worth(n)} at par ${n}`))}.`,
+    `A clamp is worth more the higher the par it lit at: ${list(pars.map((n) => `${worth(n)} at par ${n}`))}. It keeps that worth when the other clamp's delivery brings it closer.`,
     `Delivered **at par** it is **clean** and pays double. Up to ${c.slack} flicks over par it pays its plain worth. Slower than that it pays half.`,
     `Clean deliveries in a row build a **streak** that multiplies them: ${c.streakPercent.map((x) => `×${x / 100}`).join(", ")}. Any other delivery, or a skip, ends it.`,
     `**The clamps follow you.** Every ${c.cleanPerStep} clean deliveries raise the par of the clamps to come by one, up to par ${c.maxPar}. A slow delivery or a skip takes one clean delivery back.`,
@@ -133,7 +134,7 @@ export const tug: Guide = {
     },
     {
       level: "advanced",
-      goal: `Read a par ${c.maxPar} route whole, and carry the streak through it.`,
+      goal: `Read a par ${c.maxPar} route whole, carry the streak through it, and make one delivery set up the next.`,
       tips: [
         {
           title: "The cargo rarely goes first",
@@ -141,13 +142,23 @@ export const tug: Guide = {
           media: {
             kind: "clip",
             name: "par-four",
-            alt: "On a par four the crate is flicked right and then down, sliding over the clamp to park against the wall below it. Then the wedge is flicked left and down, and stops on the clamp against the crate. The board says Clean.",
+            alt: "Two clamps are lit at par four. The crate is flicked right and then down, sliding over the wedge's clamp to park against the wall below it. Then the wedge is flicked left and down, and stops on its clamp against the crate. The board says Clean, and the crate's own clamp stays lit beside it.",
             caption: "Par four. Two flicks park the crate under the clamp. Then two bring the wedge onto it.",
           },
         },
         {
+          title: "Two clamps: the handoff",
+          body: "Before you flick, look at both pars. The nearer clamp is usually the one to take first. Better still, deliver it so the pod it leaves is the stop the other one needs: that is the **handoff**. The other comes closer, its par falls, and it still pays as the par it lit at.",
+          media: {
+            kind: "clip",
+            name: "handoff",
+            alt: "Two clamps are lit. A pod is flicked onto the nearer one and delivered clean, and where it stops it stands beside the other clamp. The board calls out Handoff and the other clamp's new, lower par, and the strip shows the par it still pays as under it. The other pod is flicked and stops on its clamp against the first.",
+            caption: "One delivery sets up the next: the second clamp comes closer and still pays as it lit.",
+          },
+        },
+        {
           title: "Use par as a check",
-          body: "Par is exact. If your route is shorter than par you have misread a slide: something stops the pod early, or nothing stops it at all. If it is longer, a shorter one exists. Keep looking until your count matches the strip.",
+          body: "Par is exact. If your route is shorter than par you have misread a slide: something stops the pod early, or nothing stops it at all. If it is longer, a shorter one exists. Keep looking until your count matches the strip. A clamp a delivery has pushed far away shows a par beyond any it is lit at: skip, or bring it back.",
         },
         {
           title: "What the streak pays",
@@ -166,7 +177,7 @@ export const tug: Guide = {
           media: {
             kind: "clip",
             name: "streak",
-            alt: "With four clean deliveries already made, a par four clamp is delivered in four flicks: the drum goes up and right into the top corner, then the crate goes up and right and stops on the clamp against it. The board says Clean times five.",
+            alt: "With four clean deliveries already made, the prism's par four clamp is delivered in four flicks: the drum goes down out of the way, the wedge left to the wall, then the prism left and down, and it stops on its clamp against the wedge. The board says Clean times five and pulses once. The drum's clamp, which an earlier delivery had pushed far off, is called out as a handoff at par two.",
             caption: `The fifth clean delivery in a row, a par ${c.maxPar}: ${clean(c.maxPar, 5)} points.`,
           },
         },
@@ -180,7 +191,7 @@ export const tug: Guide = {
         },
         {
           title: "Skip only when you are lost",
-          body: `A skip costs ${c.skipPenalty} points and takes one clean delivery back, the same step down as a slow delivery, which at least pays. So if you can see the finish, finish. Skip when you can see no route at all: the seconds are worth more than the ${c.skipPenalty} points.`,
+          body: `A skip costs ${c.skipPenalty} points, both clamps and one clean delivery back, the same step down as a slow delivery, which at least pays. So if you can see a finish for either clamp, take it: the other is measured again after. Skip when you can see no route to either.`,
         },
       ],
       drill: `Play rounds where you may not touch a pod until you can say the whole route. You are there when a round passes ${p.thresholds[4]!.score} points.`,
@@ -190,7 +201,7 @@ export const tug: Guide = {
     "**Flicking to see what happens.** Every flick counts against par. The ghosts show the same thing for nothing.",
     "**Aiming at a clamp with nothing beyond it.** The pod slides over. Find the stop first.",
     "**Moving the cargo first on a hard clamp.** At par three and four the first flick usually belongs to another pod.",
-    "**Skipping a clamp you could still finish.** Any delivery pays something. A skip only costs.",
+    "**Finishing what you started.** Playing out the clamp you began while the other waits loses to taking the nearer one each time, and more to planning the handoff. Look at both pars before every delivery.",
     "**Rushing the first flick on a long streak.** That one flick is worth more than the seconds it saves.",
   ],
 };

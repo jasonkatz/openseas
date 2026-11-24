@@ -80,6 +80,13 @@ export interface BotGame<S, M, C> {
   /** The puzzle's own bots, beside the three every puzzle gets. */
   readonly bots?: readonly Bot<S, M>[];
   readonly baits?: readonly Bait[];
+  /**
+   * The bot that stands for plain thinking play in the careless check (rule 17): careless must land
+   * a tier below it. When absent, the one-move bot for an open game and the first of the game's own
+   * bots for a closed one. A puzzle where one move is not plain play names its own (Tug, where no
+   * single flick pays, names a bot that sees two flicks ahead).
+   */
+  readonly plain?: string;
   /** Names of the puzzle's own bots that take seconds a round (they plan ahead): the tests play them less. */
   readonly slow?: readonly string[];
 }
@@ -253,6 +260,11 @@ export function rolloutBot<S, M>(options: RolloutOptions = DEFAULT_ROLLOUT, name
 }
 
 /** The bots a ladder runs for a puzzle: careless, one move and rollout where the game is open, then its own. */
+/** The name of the bot the careless check compares against: the game's own pick, or the default. */
+export function plainBotName<S, M>(game: AnyBotGame<S, M>): string | null {
+  return game.plain ?? (game.open ? "one move" : (game.bots?.[0]?.name ?? null));
+}
+
 export function botsFor<S, M>(game: AnyBotGame<S, M>): Bot<S, M>[] {
   const generic: Bot<S, M>[] = game.open ? [carelessBot(), oneMoveBot(), rolloutBot()] : [carelessBot()];
   return [...generic, ...(game.bots ?? [])];

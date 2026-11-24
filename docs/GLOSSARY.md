@@ -445,7 +445,7 @@ its design file under `docs/prototypes/` and its message file under
 | Deflectors | `deflectors` | Flips mirrors so each beam leaves by its own exit port |
 | Reactor | `reactor` | Swipes fuel rods together to fuse them and pushes hot rods out through ports |
 | Scanner | `scanner` | Pings a fogged sector and locks the contacts the pings give away |
-| Tug | `tug` | Flicks cargo pods, which slide until stopped, onto the lit clamp |
+| Tug | `tug` | Flicks cargo pods, which slide until stopped, onto the lit clamps, two at a time |
 | Racks | `racks` | Sorts fuel cells between racks and ships a rack of one kind |
 | Cutting | `cutting` | Cuts a slab of salvage into pieces and banks the ones that hold one ore |
 | Tractor (formerly Treasure Haul) | `tractor` | Swaps loot up or down to line up three and pulls it aboard on the tractor beam; sealed caches are hauled at the hatch |

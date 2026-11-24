@@ -45,7 +45,10 @@ export function validateConfig(cfg: TugConfig): void {
     cfg.streakPercent.length <= 16 &&
     cfg.streakPercent.every((p) => int(p, 100, 1000)) &&
     int(cfg.skipPenalty, 0, 100_000) &&
-    int(cfg.maxMoves, 1, 1_000_000);
+    int(cfg.maxMoves, 1, 1_000_000) &&
+    // Each lit clamp wants a pod of its own.
+    int(cfg.clamps, 1, 2) &&
+    cfg.clamps <= cfg.pods;
   if (!ok) throw new Error("invalid tug config");
 }
 
@@ -182,9 +185,18 @@ function reach(cfg: TugConfig, mask: Uint8Array, start: readonly number[], depth
 /**
  * Light a clamp: a pod and a cell that pod can be brought to rest on in exactly `want` flicks and
  * no fewer, drawn evenly from every such pair. An empty cell is preferred; when no pair needs that
- * many flicks the nearest lower par is dealt. `avoid` is a clamp just skipped, never dealt again at once.
+ * many flicks the nearest lower par is dealt. `avoid` are clamps just skipped, never dealt again at
+ * once. `busy` is the other lit clamp, with pairs: its pod and its cell are not dealt.
  */
-function dealClamp(cfg: TugConfig, mask: Uint8Array, pods: readonly number[], rngIn: PrngState, want: number, avoid: TugClamp | null): { clamp: TugClamp; rng: PrngState } {
+function dealClamp(
+  cfg: TugConfig,
+  mask: Uint8Array,
+  pods: readonly number[],
+  rngIn: PrngState,
+  want: number,
+  avoid: readonly TugClamp[],
+  busy: TugClamp | null = null,
+): { clamp: TugClamp; rng: PrngState } {
   const cells = cfg.width * cfg.height;
   const best = reach(cfg, mask, pods, want);
   for (const emptyOnly of [true, false]) {
@@ -194,28 +206,34 @@ function dealClamp(cfg: TugConfig, mask: Uint8Array, pods: readonly number[], rn
         for (let cell = 0; cell < cells; cell++) {
           if (best[p * cells + cell] !== par) continue;
           if (emptyOnly && pods.includes(cell)) continue;
-          if (avoid && avoid.pod === p && avoid.cell === cell) continue;
+          if (avoid.some((a) => a.pod === p && a.cell === cell)) continue;
+          if (busy && (busy.pod === p || busy.cell === cell)) continue;
           options.push(p * cells + cell);
         }
       }
       if (options.length === 0) continue;
       const pick = nextInt(rngIn, options.length);
       const chosen = options[pick.value]!;
-      return { clamp: { pod: Math.floor(chosen / cells), cell: chosen % cells, par }, rng: pick.state };
+      return { clamp: { pod: Math.floor(chosen / cells), cell: chosen % cells, par, worth: par }, rng: pick.state };
     }
   }
   // No pod can move at all: a bay no sane config deals. The round is stuck; say so with a clamp on the first free cell.
   let cell = 0;
-  while (cell < cells - 1 && (mask[cell] === 1 || pods.includes(cell))) cell++;
-  return { clamp: { pod: 0, cell, par: want }, rng: rngIn };
+  while (cell < cells - 1 && (mask[cell] === 1 || pods.includes(cell) || busy?.cell === cell)) cell++;
+  return { clamp: { pod: busy?.pod === 0 ? 1 : 0, cell, par: want, worth: want }, rng: rngIn };
 }
 
 /**
- * The shortest way to deliver the lit clamp from the bay as it stands, as flicks, or null when it
- * takes more than `maxDepth` (the bay has been pushed out of reach: skip, or shuffle the pods about).
- * For the idle hint and for bots; the same breadth-first order as the search that deals a clamp.
+ * The shortest way to deliver a lit clamp (`target`, the first by default) from the bay as it
+ * stands, as flicks, or null when it takes more than `maxDepth` (the bay has been pushed out of
+ * reach: skip, or shuffle the pods about). For the idle hint, for bots, and to measure the clamp a
+ * delivery leaves lit; the same breadth-first order as the search that deals a clamp.
  */
-export function solve(state: TugState, maxDepth: number = state.config.maxPar): Array<Extract<TugMove, { type: "flick" }>> | null {
+export function solve(
+  state: TugState,
+  maxDepth: number = state.config.maxPar,
+  target: TugClamp = state.clamp,
+): Array<Extract<TugMove, { type: "flick" }>> | null {
   const cfg = state.config;
   const cells = cfg.width * cfg.height;
   const n = state.pods.length;
@@ -239,7 +257,7 @@ export function solve(state: TugState, maxDepth: number = state.config.maxPar): 
         for (let dir = 0; dir < 4; dir++) {
           const to = glide(cfg, mask, occ, at, dir);
           if (to === at) continue;
-          if (p === state.clamp.pod && to === state.clamp.cell) {
+          if (p === target.pod && to === target.cell) {
             const moves: Array<Extract<TugMove, { type: "flick" }>> = [{ type: "flick", pod: p, dir: dir as TugDir }];
             for (let k = i; parent[k]! >= 0; k = parent[k]!) moves.push({ type: "flick", pod: Math.floor(via[k]! / 4), dir: (via[k]! % 4) as TugDir });
             for (let q = 0; q < n; q++) occ[s[q]!] = 0;
@@ -261,6 +279,47 @@ export function solve(state: TugState, maxDepth: number = state.config.maxPar): 
     if (from === states.length) break;
   }
   return null;
+}
+
+/** The lit clamps: one, or two with pairs, the one lit longer first. */
+export function litClamps(state: TugState): TugClamp[] {
+  return state.clamp2 ? [state.clamp, state.clamp2] : [state.clamp];
+}
+
+/**
+ * The idle hint: the shortest route to whichever lit clamp is nearest (the first on a tie), and that
+ * clamp, or null when every lit clamp is more than `maxDepth` flicks away.
+ */
+export function hint(
+  state: TugState,
+  maxDepth: number = state.config.maxPar,
+): { clamp: TugClamp; route: Array<Extract<TugMove, { type: "flick" }>> } | null {
+  let best: { clamp: TugClamp; route: Array<Extract<TugMove, { type: "flick" }>> } | null = null;
+  for (const clamp of litClamps(state)) {
+    const depth = best ? Math.min(maxDepth, best.route.length - 1) : maxDepth;
+    if (depth < 1) break;
+    const route = solve(state, depth, clamp);
+    if (route && (!best || route.length < best.route.length)) best = { clamp, route };
+  }
+  return best;
+}
+
+/** The lit clamp a flick of `pod` to `to` delivers, or null: only a wanted pod resting on its own clamp's cell delivers. */
+export function clampDelivered(state: TugState, pod: number, to: number): TugClamp | null {
+  for (const c of litClamps(state)) if (c.pod === pod && c.cell === to) return c;
+  return null;
+}
+
+/**
+ * The clamp a delivery leaves lit, with pairs, measured again from the bay `pods` the delivery left:
+ * its par becomes the fewest flicks from there, searched as deep as `maxPar + 2` (a delivery can push
+ * it further than a clamp is ever dealt). When it takes more than that, the bay has been pushed out
+ * of reach, and the par is set at `maxPar + 2`: a skip is the way out. It keeps its worth.
+ */
+function measure(state: TugState, pods: readonly number[], clamp: TugClamp): TugClamp {
+  const depth = state.config.maxPar + 2;
+  const route = solve({ ...state, pods }, depth, clamp);
+  return { pod: clamp.pod, cell: clamp.cell, par: route ? route.length : depth, worth: clamp.worth };
 }
 
 /**
@@ -308,15 +367,18 @@ export function createTugGame(seed: string, config: TugConfig = DEFAULT_TUG_CONF
     rng = pick.state;
     pods.push(free.splice(pick.value, 1)[0]!);
   }
-  const dealt = dealClamp(config, mask, pods, rng, wantPar(config, 0), null);
+  const dealt = dealClamp(config, mask, pods, rng, wantPar(config, 0), []);
+  // With pairs the second is dealt after the first, so turning the layer on changes nothing before it.
+  const second = config.clamps >= 2 ? dealClamp(config, mask, pods, dealt.rng, wantPar(config, 0), [], dealt.clamp) : null;
   return {
     config,
     blocks: placed.blocks,
     pods,
     clamp: dealt.clamp,
+    clamp2: second?.clamp ?? null,
     flicks: 0,
     level: 0,
-    rng: dealt.rng,
+    rng: second?.rng ?? dealt.rng,
     score: 0,
     moveCount: 0,
     logLength: 0,
@@ -360,24 +422,29 @@ function flick(state: TugState, move: Extract<TugMove, { type: "flick" }>): TugS
   const logLength = state.logLength + 1;
   const finished = logLength >= cfg.maxMoves;
   const slid = { pod: move.pod, from, to, stop };
-  if (move.pod !== state.clamp.pod || to !== state.clamp.cell) {
-    const report: TugMoveReport = { move, slide: slid, delivered: null, skipped: null, clamp: null, points: 0 };
+  const target = clampDelivered(state, move.pod, to);
+  if (!target) {
+    const report: TugMoveReport = { move, slide: slid, delivered: null, skipped: null, clamp: null, clamp2: null, kept: null, points: 0 };
     return { ...state, pods, flicks, moveCount, logLength, lastMove: report, finished };
   }
 
-  // The wanted pod came to rest on the clamp: grade it against par, score it, and light the next.
-  const par = state.clamp.par;
+  // The wanted pod came to rest on its clamp: grade it against par, score it at its worth, and light the next.
+  const { par, worth } = target;
   const grade = gradeAt(cfg, par, flicks);
   const combo = grade === "clean" ? state.combo + 1 : 0;
-  const points = deliveryPoints(cfg, par, grade, combo);
+  const points = deliveryPoints(cfg, worth, grade, combo);
   const level = grade === "clean" ? Math.min(levelCap(cfg), state.level + 1) : grade === "slow" ? Math.max(0, state.level - 1) : state.level;
-  const delivered: TugDelivery = { pod: move.pod, cell: to, flicks, par, grade, streak: combo, streakPercent: grade === "clean" ? streakPercentAt(cfg, combo) : 100, points };
-  const dealt = dealClamp(cfg, blockMask(cfg, state.blocks), pods, state.rng, wantPar(cfg, level), null);
-  const report: TugMoveReport = { move, slide: slid, delivered, skipped: null, clamp: dealt.clamp, points };
+  const delivered: TugDelivery = { pod: move.pod, cell: to, flicks, par, worth, grade, streak: combo, streakPercent: grade === "clean" ? streakPercentAt(cfg, combo) : 100, points };
+  // With pairs, the clamp left lit is measured again from this bay, and the new one is dealt around it.
+  const other = target === state.clamp ? state.clamp2 : state.clamp;
+  const kept = other ? measure(state, pods, other) : null;
+  const dealt = dealClamp(cfg, blockMask(cfg, state.blocks), pods, state.rng, wantPar(cfg, level), [], kept);
+  const report: TugMoveReport = { move, slide: slid, delivered, skipped: null, clamp: dealt.clamp, clamp2: null, kept, points };
   return {
     ...state,
     pods,
-    clamp: dealt.clamp,
+    clamp: kept ?? dealt.clamp,
+    clamp2: kept ? dealt.clamp : null,
     flicks: 0,
     level,
     rng: dealt.rng,
@@ -398,15 +465,29 @@ function skip(state: TugState, move: Extract<TugMove, { type: "skip" }>): TugSta
   const cfg = state.config;
   const penalty = Math.min(state.score, cfg.skipPenalty);
   const level = Math.max(0, state.level - 1);
-  const dealt = dealClamp(cfg, blockMask(cfg, state.blocks), state.pods, state.rng, wantPar(cfg, level), state.clamp);
+  const mask = blockMask(cfg, state.blocks);
+  // With pairs a skip gives up both lit clamps, and two new ones light, neither the same as either.
+  const gone = litClamps(state);
+  const dealt = dealClamp(cfg, mask, state.pods, state.rng, wantPar(cfg, level), gone);
+  const second = state.clamp2 ? dealClamp(cfg, mask, state.pods, dealt.rng, wantPar(cfg, level), gone, dealt.clamp) : null;
   const logLength = state.logLength + 1;
-  const report: TugMoveReport = { move, slide: null, delivered: null, skipped: { clamp: state.clamp, penalty }, clamp: dealt.clamp, points: 0 - penalty };
+  const report: TugMoveReport = {
+    move,
+    slide: null,
+    delivered: null,
+    skipped: { clamp: state.clamp, clamp2: state.clamp2, penalty },
+    clamp: dealt.clamp,
+    clamp2: second?.clamp ?? null,
+    kept: null,
+    points: 0 - penalty,
+  };
   return {
     ...state,
     clamp: dealt.clamp,
+    clamp2: second?.clamp ?? null,
     flicks: 0,
     level,
-    rng: dealt.rng,
+    rng: second?.rng ?? dealt.rng,
     score: state.score - penalty,
     logLength,
     skipped: state.skipped + 1,
@@ -429,6 +510,13 @@ export function hashTugState(state: TugState): string {
   h.int(state.pods.length);
   for (const p of state.pods) h.int(p);
   h.int(state.clamp.pod).int(state.clamp.cell).int(state.clamp.par);
+  // Pairs: hashed only with the layer on, so a round with one clamp hashes as it did before pairs.
+  if (state.config.clamps >= 2) {
+    h.int(state.clamp.worth);
+    const c2 = state.clamp2;
+    if (c2) h.int(1).int(c2.pod).int(c2.cell).int(c2.par).int(c2.worth);
+    else h.int(0);
+  }
   h.int(state.flicks).int(state.level);
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.score).int(state.moveCount).int(state.logLength).int(state.delivered).int(state.clean).int(state.skipped);
@@ -448,17 +536,26 @@ export function summarizeTug(state: TugState): TugSummary {
 
 /**
  * The bay as one character a cell, row by row (`.` empty, `#` a block, a digit a pod), then the lit
- * clamp as `|cell:pod`. What the board draws must match it.
+ * clamp as `|cell:pod`, and with pairs the second as another `|cell:pod`. What the board draws must
+ * match it.
  */
-export function viewString(width: number, height: number, blocks: readonly number[], pods: readonly number[], clampCell: number, clampPod: number): string {
+export function viewString(
+  width: number,
+  height: number,
+  blocks: readonly number[],
+  pods: readonly number[],
+  clampCell: number,
+  clampPod: number,
+  second: { readonly cell: number; readonly pod: number } | null = null,
+): string {
   const chars = new Array<string>(width * height).fill(".");
   for (const b of blocks) chars[b] = "#";
   pods.forEach((cell, pod) => {
     chars[cell] = String(pod);
   });
-  return `${chars.join("")}|${clampCell}:${clampPod}`;
+  return `${chars.join("")}|${clampCell}:${clampPod}${second ? `|${second.cell}:${second.pod}` : ""}`;
 }
 
 export function stateViewString(state: TugState): string {
-  return viewString(state.config.width, state.config.height, state.blocks, state.pods, state.clamp.cell, state.clamp.pod);
+  return viewString(state.config.width, state.config.height, state.blocks, state.pods, state.clamp.cell, state.clamp.pod, state.clamp2);
 }

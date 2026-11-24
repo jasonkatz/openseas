@@ -6,7 +6,7 @@
  */
 import { FULL_STAGE, stageNumbers, type Stage } from "@openseas/content";
 import { performanceRating, tierFor, type RatingTier } from "@openseas/engine";
-import { botsFor, playRound, type AnyBotGame, type Bot } from "./core.js";
+import { botsFor, plainBotName, playRound, type AnyBotGame, type Bot } from "./core.js";
 
 /** What the table needs of a puzzle's content file. */
 export interface LadderFile {
@@ -109,7 +109,7 @@ export function runLadder<S, M>(game: AnyBotGame<S, M>, file: LadderFile, tiers:
 function checks<S, M>(game: AnyBotGame<S, M>, stages: readonly LadderStage[], tiers: readonly RatingTier[]): LadderCheck[] {
   const out: LadderCheck[] = [];
   const rank = (key: string): number => tiers.findIndex((t) => t.key === key);
-  const plain = game.open ? "one move" : (game.bots?.[0]?.name ?? null);
+  const plain = plainBotName(game);
   for (const stage of stages) {
     const careless = stage.cells["careless"];
     const thinking = plain ? stage.cells[plain] : undefined;
