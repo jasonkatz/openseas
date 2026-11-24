@@ -18,6 +18,7 @@ import { CuttingConfigSchema, CuttingMoveSchema } from "./cutting.js";
 import { TractorConfigSchema, TractorMoveSchema } from "./tractor.js";
 import { RefiningConfigSchema, RefiningMoveSchema } from "./refining.js";
 import { FreefallConfigSchema, FreefallMoveSchema } from "./freefall.js";
+import { PactConfigSchema, PactMoveSchema } from "./pact.js";
 
 /**
  * Per-puzzle wire schemas. The server validates a move against the schema of the session's puzzle,
@@ -42,6 +43,7 @@ export const PUZZLE_MOVE_SCHEMAS = {
   tractor: TractorMoveSchema,
   refining: RefiningMoveSchema,
   freefall: FreefallMoveSchema,
+  pact: PactMoveSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
 export const PUZZLE_CONFIG_SCHEMAS = {
@@ -63,6 +65,7 @@ export const PUZZLE_CONFIG_SCHEMAS = {
   tractor: TractorConfigSchema,
   refining: RefiningConfigSchema,
   freefall: FreefallConfigSchema,
+  pact: PactConfigSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
 /** Every puzzle's move shapes, for consumers that want the union type. Not used on the wire (see ws.ts). */
@@ -85,6 +88,7 @@ export const AnyMoveSchema = z.union([
   TractorMoveSchema,
   RefiningMoveSchema,
   FreefallMoveSchema,
+  PactMoveSchema,
 ]);
 export type AnyMoveWire = z.infer<typeof AnyMoveSchema>;
 
