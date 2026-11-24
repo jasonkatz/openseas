@@ -1,0 +1,254 @@
+{
+  "star": {
+    "tint": "sand",
+    "layers": [
+      {
+        "name": "points",
+        "kind": "poly",
+        "points": [
+          12,
+          2,
+          15,
+          9,
+          22,
+          12,
+          15,
+          15,
+          12,
+          22,
+          9,
+          15,
+          2,
+          12,
+          9,
+          9
+        ],
+        "round": 1.2
+      }
+    ]
+  },
+  "moon": {
+    "tint": "sky",
+    "layers": [
+      {
+        "name": "disc",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 9.5
+      },
+      {
+        "name": "shadow",
+        "kind": "disc",
+        "x": 16.5,
+        "y": 9,
+        "r": 7.5,
+        "cut": true
+      }
+    ]
+  },
+  "ring": {
+    "tint": "lilac",
+    "layers": [
+      {
+        "name": "planet",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 6.5
+      },
+      {
+        "name": "ring",
+        "kind": "bar",
+        "x0": 2,
+        "y0": 16,
+        "x1": 22,
+        "y1": 8,
+        "width": 3.2
+      }
+    ]
+  },
+  "comet": {
+    "tint": "rose",
+    "layers": [
+      {
+        "name": "tail",
+        "kind": "poly",
+        "points": [
+          2.5,
+          21.5,
+          12,
+          5.5,
+          18.5,
+          12
+        ],
+        "round": 1.5
+      },
+      {
+        "name": "head",
+        "kind": "disc",
+        "x": 16.5,
+        "y": 7.5,
+        "r": 5.5
+      }
+    ]
+  },
+  "back": {
+    "tint": "slate",
+    "layers": [
+      {
+        "name": "seal",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 9
+      },
+      {
+        "name": "eye",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 4,
+        "cut": true
+      }
+    ]
+  },
+  "chip": {
+    "tint": "cream",
+    "layers": [
+      {
+        "name": "rim",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 9.5
+      },
+      {
+        "name": "inlay",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 4.5,
+        "cut": true
+      }
+    ]
+  },
+  "button": {
+    "tint": "cream",
+    "layers": [
+      {
+        "name": "puck",
+        "kind": "rect",
+        "x": 2.5,
+        "y": 2.5,
+        "w": 19,
+        "h": 19,
+        "r": 5
+      },
+      {
+        "name": "slot",
+        "kind": "bar",
+        "x0": 7.5,
+        "y0": 12,
+        "x1": 16.5,
+        "y1": 12,
+        "width": 3,
+        "cut": true
+      }
+    ]
+  },
+  "brick": {
+    "tint": "slate",
+    "layers": [
+      {
+        "name": "block",
+        "kind": "rect",
+        "x": 2,
+        "y": 5.5,
+        "w": 20,
+        "h": 13,
+        "r": 2.5
+      },
+      {
+        "name": "mortar",
+        "kind": "bar",
+        "x0": 2,
+        "y0": 12,
+        "x1": 22,
+        "y1": 12,
+        "width": 3,
+        "cut": true
+      }
+    ]
+  },
+  "sponge": {
+    "tint": "moss",
+    "layers": [
+      {
+        "name": "body",
+        "kind": "rect",
+        "x": 3,
+        "y": 3,
+        "w": 18,
+        "h": 18,
+        "r": 6
+      },
+      {
+        "name": "hole",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 3.5,
+        "cut": true
+      }
+    ]
+  },
+  "hothead": {
+    "tint": "rust",
+    "layers": [
+      {
+        "name": "flame",
+        "kind": "poly",
+        "points": [
+          12,
+          2,
+          19.5,
+          12,
+          18,
+          21,
+          6,
+          21,
+          4.5,
+          12
+        ],
+        "round": 3
+      },
+      {
+        "name": "core",
+        "kind": "disc",
+        "x": 12,
+        "y": 15.5,
+        "r": 2.6,
+        "cut": true
+      }
+    ]
+  },
+  "shark": {
+    "tint": "teal",
+    "layers": [
+      {
+        "name": "fin",
+        "kind": "poly",
+        "points": [
+          3,
+          21,
+          15,
+          3,
+          21,
+          21
+        ],
+        "round": 2.2
+      }
+    ]
+  }
+}
