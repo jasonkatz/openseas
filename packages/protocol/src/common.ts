@@ -19,6 +19,7 @@ export const PuzzleIdSchema = z.enum([
   "racks",
   "cutting",
   "tractor",
+  "freefall",
   "assembly",
 ]);
 export type PuzzleIdWire = z.infer<typeof PuzzleIdSchema>;

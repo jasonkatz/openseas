@@ -431,7 +431,8 @@ The tables above give the identifier for each word. Beyond them:
 
 Eight puzzles with no former word: they are new (DESIGN.md 3.12, ADR 0036), in the studio only.
 Tractor is a ninth, in the studio only too, with a former word: it succeeds Treasure Haul (ADR 0078).
-Assembly is a tenth, the same way: it succeeds Shipwrightry (ADR 0082).
+Freefall is a tenth, the same kind: it succeeds Treasure Drop (ADR 0081).
+Assembly is an eleventh, the same kind: it succeeds Shipwrightry (ADR 0082).
 Their words follow the naming rules above. Each puzzle's own words (its pieces, its callouts) are in
 its design file under `docs/prototypes/` and its message file under
 `content/data/messages/prototypes/`; promoting a puzzle may rename them.
@@ -447,6 +448,7 @@ its design file under `docs/prototypes/` and its message file under
 | Racks | `racks` | Sorts fuel cells between racks and ships a rack of one kind |
 | Cutting | `cutting` | Cuts a slab of salvage into pieces and banks the ones that hold one ore |
 | Tractor (formerly Treasure Haul) | `tractor` | Swaps loot up or down to line up three and pulls it aboard on the tractor beam; sealed caches are hauled at the hatch |
+| Freefall (formerly Treasure Drop) | `freefall` | Drops cargo pods down a shaft of rockers into berths, racing a rival to each leg's quota; a pod at rest in a cradle is tipped out when its rocker flips (the original's coins, switches, pads and levers are pods, rockers, cradles and arms; its slots are berths, its rounds legs and its targets quotas) |
 | Assembly (formerly Shipwrightry) | `assembly` | Swaps parts in a shipyard's bay, each kind its own way (girders sideways, struts up and down, cables corner to corner, panels only when pushed), and fits them to blueprints; fits made with no swap between are a chain |
 
 Words shared by all of them: a **prototype** is one of these puzzles; the **kit** is the shared

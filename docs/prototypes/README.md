@@ -1,6 +1,6 @@
 # Prototype puzzles
 
-Ten puzzles, built to be played and judged in the studio (ADR 0036). None is in the game.
+Eleven puzzles, built to be played and judged in the studio (ADR 0036). None is in the game.
 Eight are the game's own design: inspired by the feel of the original's puzzles, ported from none of
 them. All eight follow the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): each draws its pieces
 in code as flat pictograms of its own subject, on the game's one palette, and loads no image. The
@@ -17,12 +17,15 @@ generated sprites they first shipped with (ADR 0037) and the tooling that made t
 | Racks | Move the top of one stack onto another; ship a full rack of one kind | `/racks` | [racks.md](./racks.md) |
 | Cutting | Slice a slab along its grid; bank the pieces that hold one ore | `/cutting` | [cutting.md](./cutting.md) |
 | Tractor | Swap loot up or down to line up three; lift sealed caches to the hatch | `/tractor` | [tractor.md](./tractor.md) |
+| Freefall | Drop a pod down a shaft of rockers; tip loaded cradles into the berths, and leave the rival nothing | `/freefall` | [freefall.md](./freefall.md) |
 | Assembly | Swap each part its own way; fit blueprints, several in a chain | `/assembly` | [assembly.md](./assembly.md) |
 
 Tractor is the ninth and of another kind: a successor to one of the original's later puzzles,
 Treasure Haul, faithful to its mechanics and original in everything else, built early as a
-prototype (ADR 0078). Assembly is the tenth, of the same kind: a successor to Shipwrightry, the
-original's shipyard crafting puzzle (ADR 0082).
+prototype (ADR 0078). Freefall is the tenth, the same kind: a successor to Treasure Drop, played
+against a rival the engine drops for (ADR 0081). Assembly is the
+eleventh, the same kind: a successor to Shipwrightry, the original's shipyard crafting puzzle
+(ADR 0082).
 
 M11's pitches (a layer, a bait and stages for each puzzle but Salvage, with their bot checks) are in [m11-pitches.md](./m11-pitches.md), for the owner to pick from.
 

@@ -16,7 +16,8 @@ import { groups as tug } from "./tug.js";
 import { groups as racks } from "./racks.js";
 import { groups as cutting } from "./cutting.js";
 import { groups as tractor } from "./tractor.js";
+import { groups as freefall } from "./freefall.js";
 import { groups as assembly } from "./assembly.js";
 
 /** Every puzzle's sections, by id. A new puzzle adds its file and its line here. */
-export const TUNING_GROUPS: Readonly<Record<PuzzleId, TuningGroups>> = { cooling, engines, plating, gunnery, navigation, battle, swordfight, salvage, overload, deflectors, reactor, scanner, tug, racks, cutting, tractor, assembly };
+export const TUNING_GROUPS: Readonly<Record<PuzzleId, TuningGroups>> = { cooling, engines, plating, gunnery, navigation, battle, swordfight, salvage, overload, deflectors, reactor, scanner, tug, racks, cutting, tractor, freefall, assembly };
