@@ -24,8 +24,9 @@ written in.
   change to either is made in step with the other.
 - `docs/puzzles/` holds a design file for each puzzle the game deals: its role, its rules and scoring,
   its luck and its skills. It changes in the same commit as the puzzle's rules or numbers.
-- `docs/prototypes/` holds the prototype puzzles (ADR 0036): eleven puzzles in the studio, none in
-  the game yet (eight of the game's own, and three successors: Tractor to Treasure Haul, ADR 0078, Freefall to Treasure Drop, ADR 0081, and Assembly to Shipwrightry, ADR 0082). Its README says what a prototype is made of and the rules it keeps; each puzzle has
+- `docs/prototypes/` holds the prototype puzzles (ADR 0036): twelve puzzles in the studio, none in
+  the game yet (eight of the game's own, and four successors: Tractor to Treasure Haul, ADR 0078,
+  Refining to Distilling, ADR 0080, Freefall to Treasure Drop, ADR 0081, and Assembly to Shipwrightry, ADR 0082). Its README says what a prototype is made of and the rules it keeps; each puzzle has
   a design file there that changes in the same commit as its rules or numbers.
 - `packages/docs/README.md` says how a puzzle guide is written and how its pictures are captured
   (ADR 0038).

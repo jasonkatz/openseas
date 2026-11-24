@@ -20,7 +20,7 @@ only in the studio.
 
 ## Decision
 
-1. **It is built as a prototype.** Assembly (`assembly`) is an eleventh entry in `PROTOTYPE_PUZZLE_IDS`,
+1. **It is built as a prototype.** Assembly (`assembly`) is a twelfth entry in `PROTOTYPE_PUZZLE_IDS`,
    with every file ADR 0036 lists. It is dealt only in the studio and has no role; promoting it is its
    own ADR and milestone.
 2. **It is a successor, and says so.** Its design file names Shipwrightry as what it follows and keeps

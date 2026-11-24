@@ -1,0 +1,66 @@
+{
+  "category": "prototype",
+  "config": {
+    "width": 6,
+    "height": 5,
+    "vapourPermille": 450,
+    "oilPermille": 275,
+    "catalystPermille": 30,
+    "clearPoints": 100,
+    "runCap": 5,
+    "smoothPoints": 20,
+    "catalystPoints": 50,
+    "foulPoints": 10,
+    "smokeEvery": 2,
+    "pulseTicks": 80,
+    "tickMs": 100,
+    "maxTick": 1200,
+    "maxMoves": 2000
+  },
+  "paceSeconds": 20,
+  "roundSeconds": 120,
+  "thresholds": [
+    { "score": 130, "rating": 1100 },
+    { "score": 330, "rating": 1300 },
+    { "score": 600, "rating": 1500 },
+    { "score": 940, "rating": 1700 },
+    { "score": 1350, "rating": 1900 },
+    { "score": 1900, "rating": 2100 }
+  ],
+  "stages": [
+    {
+      "id": "clears",
+      "roundSeconds": 90,
+      "thresholds": [
+        { "score": 110, "rating": 1100 },
+        { "score": 260, "rating": 1300 },
+        { "score": 490, "rating": 1500 },
+        { "score": 750, "rating": 1700 },
+        { "score": 1090, "rating": 1900 },
+        { "score": 1500, "rating": 2100 }
+      ],
+      "config": {
+        "runCap": 1,
+        "smokeEvery": 0,
+        "catalystPermille": 0,
+        "maxTick": 900
+      }
+    },
+    {
+      "id": "runs",
+      "roundSeconds": 120,
+      "thresholds": [
+        { "score": 130, "rating": 1100 },
+        { "score": 330, "rating": 1300 },
+        { "score": 600, "rating": 1500 },
+        { "score": 940, "rating": 1700 },
+        { "score": 1350, "rating": 1900 },
+        { "score": 1900, "rating": 2100 }
+      ],
+      "config": {
+        "smokeEvery": 0,
+        "catalystPermille": 0
+      }
+    }
+  ]
+}
