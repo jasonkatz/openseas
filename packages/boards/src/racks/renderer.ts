@@ -3,6 +3,8 @@ import {
   racksCrateFits,
   racksCrateWouldShip,
   racksHint,
+  racksManifestAfter,
+  racksManifestView,
   racksMovable,
   racksNextShipment,
   racksTopGroup,
@@ -43,6 +45,14 @@ export interface RacksLabels {
   /** A crate landed and completed its rack. */
   delivered: string;
   smashed: string;
+  /** The word beside the manifest under the racks. */
+  manifest: string;
+  /** The callout for a shipment that fills the manifest. */
+  manifestFilled: string;
+  /** The strip while the chain is part way through the manifest: the kind it wants now, and what filling it pays. */
+  manifestLive(kind: number, points: number): string;
+  /** Over a rack the lifted group would complete and so fill the manifest: the shipment's points and the manifest's. */
+  previewManifest(points: number, bonus: number): string;
 }
 
 export interface RacksRendererOptions {
@@ -65,6 +75,9 @@ const LIFT_RISE = 0.4;
 const REFUSED_MS = 360;
 /** A chain this long is the beat. */
 const BEAT_CHAIN = 3;
+/** The manifest's row under the rack numbers, in cells, and how big its pieces are drawn. */
+const MANIFEST_ROW = 0.9;
+const MANIFEST_SCALE = 0.62;
 
 /** Draws the racks and the crate, and turns taps, drags and keys into moves. Scores nothing: every number it shows is the engine's. */
 export class RacksRenderer extends KitBoard<RacksState> {
@@ -79,13 +92,21 @@ export class RacksRenderer extends KitBoard<RacksState> {
   private readonly crateBadge = new Container();
   private readonly badgeBox = new Graphics();
   private readonly textLayer = new Container();
+  /** The manifest under the racks: its kinds in order, the next one ringed, those shipped dimmed. */
+  private readonly manifestLayer = new Container();
+  private readonly manifestMarks = new Graphics();
+  private readonly manifestSprites: Sprite[] = [];
+  private manifestWord: Text | null = null;
+  private manifestPoints: Text | null = null;
+  /** The manifest as drawn: the engine's, except while a move plays, when it steps with the shipments. */
+  private manifestShown: { kinds: readonly number[]; done: number } | null = null;
   private label: Text | null = null;
   private badgeText: Text | null = null;
   private digits: Text[] = [];
   private previews: Text[] = [];
   private readonly pieces = new Map<number, CellView>();
   /** The layout: how many racks, how tall, and where everything sits, in CSS pixels. */
-  private geo = { cols: 5, rows: 5, crateMax: 3, pitch: 60, cell: 48, wellW: 54, left: 0, panelTop: 0, panelBottom: 0, railY: 0, topY: 0, baseY: 0 };
+  private geo = { cols: 5, rows: 5, crateMax: 3, manifest: 0, pitch: 60, cell: 48, wellW: 54, left: 0, panelTop: 0, panelBottom: 0, railY: 0, topY: 0, baseY: 0, manifestY: 0 };
   /** The crate as drawn: the rack it hangs over, how many cells its frame holds and the count on its badge. Null while it is coming down. */
   private hung: { rack: number; size: number; lands: number } | null = null;
   /** The rack whose top group is lifted, the cells in it, and the rack heights it was lifted at. */
@@ -124,7 +145,12 @@ export class RacksRenderer extends KitBoard<RacksState> {
     this.crateBadge.addChild(this.badgeBox, this.badgeText);
     this.pieceLayer.sortableChildren = true;
     this.textLayer.addChild(this.label);
-    this.world.addChild(this.bg, this.under, this.crateBack, this.ghostLayer, this.pieceLayer, this.over, this.crateBadge, this.textLayer);
+    this.manifestWord = new Text({ text: this.opts.labels.manifest, style: { fontFamily: FONT, fontSize: 13, fill: INK.dim }, resolution: 2 });
+    this.manifestWord.anchor.set(0, 0.5);
+    this.manifestPoints = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 14, fontWeight: "700", fill: INK.cream }, resolution: 2 });
+    this.manifestPoints.anchor.set(0, 0.5);
+    this.manifestLayer.addChild(this.manifestMarks, this.manifestWord, this.manifestPoints);
+    this.world.addChild(this.bg, this.under, this.crateBack, this.ghostLayer, this.pieceLayer, this.over, this.crateBadge, this.manifestLayer, this.textLayer);
   }
 
   // ---- geometry
@@ -156,13 +182,14 @@ export class RacksRenderer extends KitBoard<RacksState> {
       g.cols = this.state.config.racks;
       g.rows = this.state.config.height;
       g.crateMax = this.state.config.crateMax;
+      g.manifest = this.state.config.manifestLength;
     }
     const margin = 6;
     const pad = 8;
     const labelH = Math.max(22, Math.min(36, height * 0.06));
-    // Above the racks: the trolley on its rail, the cables, the crate and a gap; below them: the rack numbers.
+    // Above the racks: the trolley on its rail, the cables, the crate and a gap; below them: the rack numbers, and the manifest's row when there is one.
     const gantry = 0.62 + 0.14 + g.crateMax * CRATE_SCALE + 0.5;
-    const footer = 0.46;
+    const footer = 0.46 + (g.manifest > 0 ? MANIFEST_ROW : 0);
     const innerW = width - (margin + pad) * 2;
     const innerH = height - (margin + pad) * 2 - labelH;
     g.cell = Math.max(14, Math.min(96, Math.floor(Math.min(innerW / g.cols / 1.04, innerH / (g.rows + gantry + footer)))));
@@ -176,6 +203,9 @@ export class RacksRenderer extends KitBoard<RacksState> {
     g.railY = g.panelTop + pad + labelH + g.cell * 0.31;
     g.topY = g.panelTop + pad + labelH + gantry * g.cell;
     g.baseY = g.topY + g.rows * g.cell;
+    g.manifestY = g.baseY + g.cell * (0.46 + MANIFEST_ROW / 2);
+    if (this.manifestWord) this.manifestWord.style.fontSize = Math.max(11, Math.round(g.cell * 0.27));
+    if (this.manifestPoints) this.manifestPoints.style.fontSize = Math.max(12, Math.round(g.cell * 0.32));
 
     // Bare ground under the strip, the rail and the racks, with one hairline round it.
     this.bg.clear();
@@ -277,6 +307,8 @@ export class RacksRenderer extends KitBoard<RacksState> {
     }
     this.lifted = null;
     this.playing = null;
+    const manifest = racksManifestView(state);
+    this.manifestShown = manifest ? { kinds: manifest.kinds, done: manifest.done } : null;
     this.hang(state.crate, 0, 1);
     this.refreshLabel();
     this.touchView();
@@ -331,7 +363,12 @@ export class RacksRenderer extends KitBoard<RacksState> {
     }
     const l = this.opts.labels;
     const n = state.crate.lands;
-    if (state.combo > 0) {
+    const manifest = racksManifestView(state);
+    if (manifest && manifest.done > 0) {
+      // Part way through the manifest: the kind it wants on this very action.
+      this.label.text = l.manifestLive(manifest.next, manifest.points);
+      this.label.style.fill = INK.cream;
+    } else if (state.combo > 0) {
       const next = racksNextShipment(state);
       this.label.text = l.chainLive(next.chain, next.points);
       this.label.style.fill = INK.cream;
@@ -357,7 +394,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
     this.idle = 0;
     const g = this.geo;
     const c = state.config;
-    if (g.cols !== c.racks || g.rows !== c.height || g.crateMax !== c.crateMax) {
+    if (g.cols !== c.racks || g.rows !== c.height || g.crateMax !== c.crateMax || g.manifest !== c.manifestLength) {
       // Different racks (a lab config): lay them out afresh.
       this.layout(this.app.screen.width, this.app.screen.height);
       return;
@@ -398,7 +435,9 @@ export class RacksRenderer extends KitBoard<RacksState> {
     };
     let t = 0;
     let landed = false;
-    for (const e of report.events) {
+    // The manifest steps with the shipments as they play, from where it stood.
+    this.manifestShown = prev.manifest.length ? { kinds: prev.manifest, done: prev.manifestDone } : null;
+    report.events.forEach((e, at_) => {
       switch (e.type) {
         case "move": {
           const ships = report.events.some((x) => x.type === "ship" && x.rack === e.to && !x.byCrate);
@@ -432,9 +471,17 @@ export class RacksRenderer extends KitBoard<RacksState> {
             this.tweens.remove(v.s, { delay: start, done: () => v.s.destroy() });
           });
           const done = t + 70 + (ids.length - 1) * 55 + 130;
+          // The manifest event, when this shipment filled it, comes straight after it.
+          const next = report.events[at_ + 1];
+          const filled = next?.type === "manifest" ? next : null;
           this.tweens.after(done, () => {
             this.fx.popup(x, g.topY + g.cell * 0.4, `+${e.points}`, INK.cream, Math.max(16, g.cell * (e.chain >= 2 ? 0.62 : 0.46)));
-            if (e.chain >= 2) this.fx.say(l.chain(e.chain));
+            if (this.manifestShown) this.manifestShown = { ...this.manifestShown, done: e.manifest };
+            if (filled) {
+              // The manifest's own points rise from the manifest's row, and its callout is the shipment's.
+              this.fx.popup(this.manifestCentre(), g.manifestY - g.cell * 0.5, `+${filled.points}`, INK.cream, Math.max(16, g.cell * 0.62));
+              this.fx.say(l.manifestFilled);
+            } else if (e.chain >= 2) this.fx.say(l.chain(e.chain));
             else if (e.byCrate) this.fx.say(l.delivered);
             if (e.chain >= BEAT_CHAIN) {
               // The beat is the chain's: three shipments in a row, and stronger for each one after.
@@ -442,7 +489,8 @@ export class RacksRenderer extends KitBoard<RacksState> {
               this.beat(0.5 + Math.min(0.5, (e.chain - BEAT_CHAIN) * 0.25));
             } else {
               sfx.clear(e.chain, ids.length);
-              if (e.chain >= 2) sfx.multi(e.chain);
+              if (filled) sfx.rise();
+              else if (e.chain >= 2) sfx.multi(e.chain);
             }
           });
           t = done + 130;
@@ -511,8 +559,15 @@ export class RacksRenderer extends KitBoard<RacksState> {
           t += MOTION.move + 5;
           break;
         }
+        case "manifest": {
+          // The filled manifest shows whole for a moment, then the new one is posted in its place.
+          const kinds = e.next;
+          t += MOTION.panel;
+          at(t, () => (this.manifestShown = { kinds, done: 0 }));
+          break;
+        }
       }
-    }
+    });
     if (!landed) {
       // The crate only came a step nearer: its count ticks down.
       const lands = state.crate.lands;
@@ -555,6 +610,79 @@ export class RacksRenderer extends KitBoard<RacksState> {
     );
   }
 
+  // ---- the manifest
+
+  private manifestCentre(): number {
+    return this.geo.left + (this.geo.pitch * this.geo.cols) / 2;
+  }
+
+  private manifestSeen: string | null = null;
+
+  /**
+   * The manifest's row under the rack numbers: its word, its kinds in order with a chevron between
+   * them, the one it wants next ringed in cream, those the chain has shipped dimmed, and what it
+   * pays. Each kind is its own piece, so the row reads by silhouette like the racks.
+   */
+  private drawManifest(): void {
+    const g = this.geo;
+    const m = this.manifestShown;
+    const word = this.manifestWord;
+    const pts = this.manifestPoints;
+    const marks = this.manifestMarks;
+    marks.clear();
+    for (const s of this.manifestSprites) s.visible = false;
+    const view = this.state ? racksManifestView(this.state) : null;
+    if (!m || !view || !word || !pts || g.manifest === 0) {
+      if (word) word.visible = false;
+      if (pts) pts.visible = false;
+      this.publishManifest("");
+      return;
+    }
+    const size = g.cell * MANIFEST_SCALE;
+    const step = size * 1.7;
+    const gap = g.cell * 0.24;
+    const y = g.manifestY;
+    pts.text = `+${view.points}`;
+    const width = word.width + gap + (m.kinds.length - 1) * step + size + gap + pts.width;
+    let x = this.manifestCentre() - width / 2;
+    word.visible = true;
+    word.position.set(x, y);
+    x += word.width + gap;
+    m.kinds.forEach((kind, i) => {
+      const cx = x + size / 2 + i * step;
+      let s = this.manifestSprites[i];
+      if (!s) {
+        s = new Sprite();
+        s.anchor.set(0.5);
+        this.manifestSprites[i] = s;
+        this.manifestLayer.addChild(s);
+      }
+      const k = racksKind(kind);
+      // Textures are dropped at a layout, so each sprite takes its own afresh.
+      s.texture = i < m.done ? this.piece(`cell:${k.id}`, g.cell, "dim", k.paint) : this.texture(kind);
+      s.scale.set(MANIFEST_SCALE);
+      s.position.set(cx, y);
+      s.visible = true;
+      if (i === m.done) marks.roundRect(cx - size / 2 - 3, y - size / 2 - 3, size + 6, size + 6, size * 0.28).stroke({ width: 2, color: INK.cream });
+      if (i < m.kinds.length - 1) {
+        // A chevron to the next: the order is left to right.
+        const c = g.cell * 0.09;
+        const mid = cx + step / 2;
+        marks.poly([mid - c * 0.5, y - c, mid + c * 0.6, y, mid - c * 0.5, y + c]).fill({ color: INK.dim });
+      }
+    });
+    pts.visible = true;
+    pts.position.set(x + (m.kinds.length - 1) * step + size + gap, y);
+    this.publishManifest(`${m.kinds.join("")}:${m.done}`);
+  }
+
+  /** Tell the smoke test what the manifest row shows: its kinds and how many are shipped, `"01:1"`. */
+  private publishManifest(seen: string): void {
+    if (seen === this.manifestSeen) return;
+    this.manifestSeen = seen;
+    this.app.canvas.setAttribute("data-manifest", seen);
+  }
+
   // ---- overlays: the mark, the lifted group, the racks that can take it, the cursor, the hint
 
   private drawOverlays(): void {
@@ -566,6 +694,7 @@ export class RacksRenderer extends KitBoard<RacksState> {
     o.clear();
     for (const p of this.previews) p.visible = false;
     for (const s of this.ghosts) s.visible = false;
+    this.drawManifest();
     if (!state) return;
     const well = (rack: number): [number, number, number, number, number] => [this.colX(rack) - g.wellW / 2, g.topY - 3, g.wellW, g.rows * g.cell + 6, g.cell * 0.2];
     const settled = !this.busy;
@@ -628,7 +757,9 @@ export class RacksRenderer extends KitBoard<RacksState> {
         u.roundRect(...well(to)).stroke({ width: ringW, color: INK.cream });
         const p = this.previews[to];
         if (p) {
-          p.text = `+${next.points}`;
+          // A shipment that would fill the manifest says so: its own points, then the manifest's.
+          const m = racksManifestAfter(state, { type: "move", from: lift.rack, to });
+          p.text = m?.fills ? this.opts.labels.previewManifest(next.points, m.points) : `+${next.points}`;
           p.visible = true;
         }
       }

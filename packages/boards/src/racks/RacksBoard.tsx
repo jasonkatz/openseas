@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { racksViewString, type RacksState } from "@openseas/engine";
 import { t } from "../content.js";
 import { useKitBoard } from "../kit/useKitBoard.js";
+import { racksKind } from "./pieces.js";
 import { RacksRenderer } from "./renderer.js";
 
 export interface RacksBoardProps {
@@ -38,6 +39,10 @@ export function RacksBoard(props: RacksBoardProps) {
             chain: (count) => t("racks.chain", { count }),
             delivered: t("racks.delivered"),
             smashed: t("racks.smashed"),
+            manifest: t("racks.manifest"),
+            manifestFilled: t("racks.manifest_filled"),
+            manifestLive: (kind, points) => t("racks.strip_manifest", { kind: t(`racks.kind.${racksKind(kind).id}`).toLowerCase(), points }),
+            previewManifest: (points, bonus) => t("racks.preview_manifest", { points, bonus }),
           },
         },
       ),

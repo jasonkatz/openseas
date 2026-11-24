@@ -23,6 +23,8 @@ export function validateConfig(cfg: RacksConfig): void {
     cfg.chainPercent.every((p) => Number.isInteger(p) && p >= 100 && p <= 2000) &&
     int(cfg.spillPenalty, 0, 100_000) &&
     typeof cfg.markRoom === "boolean" &&
+    int(cfg.manifestLength, 0, Math.min(4, cfg.kinds)) &&
+    int(cfg.manifestPoints, 0, 100_000) &&
     int(cfg.maxMoves, 1, 1_000_000);
   if (!ok) throw new Error("invalid racks config");
 }
@@ -95,6 +97,34 @@ export function nextShipment(state: RacksState): { chain: number; percent: numbe
   return { chain, percent: chainPercentAt(state.config, chain), points: shipmentPoints(state.config, chain) };
 }
 
+/** What the manifest asks for: its kinds in order, how far the running chain is through them, the kind it wants next and what it pays. Null when the layer is off. */
+export function manifestView(state: RacksState): { kinds: readonly number[]; done: number; next: number; points: number } | null {
+  if (state.manifest.length === 0) return null;
+  return { kinds: state.manifest, done: state.manifestDone, next: state.manifest[state.manifestDone]!, points: state.config.manifestPoints };
+}
+
+/**
+ * How far through the manifest the chain is after shipping `kind`, from `done` (already 0 when the
+ * chain has lapsed). The right kind steps on; any other starts again, from one if it is the first.
+ */
+function manifestStep(manifest: readonly number[], done: number, kind: number): number {
+  if (kind === manifest[done]) return done + 1;
+  return kind === manifest[0] ? 1 : 0;
+}
+
+/**
+ * What an action would do to the manifest, crate and all: how far through it the chain would be
+ * (its length when the action fills it), whether it fills it and what that pays. Null when the
+ * layer is off or the engine would refuse the action.
+ */
+export function manifestAfter(state: RacksState, move: Extract<RacksMove, { type: "move" | "call" }>): { done: number; fills: boolean; points: number } | null {
+  if (state.manifest.length === 0 || state.finished) return null;
+  if (move.type === "move" && moveIllegalReason(state, move.from, move.to) !== null) return null;
+  const after = act(state, move);
+  const fills = after.manifestsFilled > state.manifestsFilled;
+  return { done: fills ? state.manifest.length : after.manifestDone, fills, points: after.manifestScore - state.manifestScore };
+}
+
 interface Work {
   racks: RacksCell[][];
   bag: number[];
@@ -145,6 +175,19 @@ function dealCrate(cfg: RacksConfig, w: Work): RacksCrate {
   return { cells, rack: open[pick.value]!, lands: cfg.landEvery };
 }
 
+/** A new manifest: `manifestLength` different kinds in a random order. Draws nothing from the stream when the layer is off. */
+function dealManifest(cfg: RacksConfig, w: Work): number[] {
+  const pool: number[] = [];
+  for (let k = 0; k < cfg.kinds; k++) pool.push(k);
+  const out: number[] = [];
+  for (let i = 0; i < cfg.manifestLength; i++) {
+    const r = nextInt(w.rng, pool.length);
+    w.rng = r.state;
+    out.push(pool.splice(r.value, 1)[0]!);
+  }
+  return out;
+}
+
 export function createRacksGame(seed: string, config: RacksConfig = DEFAULT_RACKS_CONFIG): RacksState {
   validateConfig(config);
   const w: Work = { racks: Array.from({ length: config.racks }, () => []), bag: [], rng: seedFromString(`racks:${seed}`), nextId: 1 };
@@ -159,6 +202,7 @@ export function createRacksGame(seed: string, config: RacksConfig = DEFAULT_RACK
     w.racks[open[pick.value]!]!.push({ id: w.nextId++, kind: draw(config, w) });
   }
   const crate = dealCrate(config, w);
+  const manifest = dealManifest(config, w);
   return {
     config,
     racks: w.racks,
@@ -175,6 +219,10 @@ export function createRacksGame(seed: string, config: RacksConfig = DEFAULT_RACK
     shippedByCrate: 0,
     spills: 0,
     calls: 0,
+    manifest,
+    manifestDone: 0,
+    manifestsFilled: 0,
+    manifestScore: 0,
     lastMove: null,
     finished: false,
   };
@@ -212,6 +260,10 @@ function act(state: RacksState, move: Extract<RacksMove, { type: "move" | "call"
   let shippedByCrate = state.shippedByCrate;
   let spills = state.spills;
   let crate = state.crate;
+  let manifest = state.manifest;
+  let manifestDone = state.manifestDone;
+  let manifestsFilled = state.manifestsFilled;
+  let manifestScore = state.manifestScore;
 
   const shipIfFull = (rack: number, byCrate: boolean): void => {
     const cells = w.racks[rack]!;
@@ -224,8 +276,23 @@ function act(state: RacksState, move: Extract<RacksMove, { type: "move" | "call"
     score += points;
     shipped++;
     if (byCrate) shippedByCrate++;
-    events.push({ type: "ship", rack, kind: cells[0]!.kind, ids: cells.map((c) => c.id), chain: combo, chainPercent: chainPercentAt(cfg, combo), points, byCrate });
+    const kind = cells[0]!.kind;
+    let filled: readonly number[] | null = null;
+    if (manifest.length > 0) {
+      // A chain just begun starts the manifest afresh.
+      manifestDone = manifestStep(manifest, combo === 1 ? 0 : manifestDone, kind);
+      if (manifestDone === manifest.length) filled = manifest;
+    }
+    events.push({ type: "ship", rack, kind, ids: cells.map((c) => c.id), chain: combo, chainPercent: chainPercentAt(cfg, combo), points, byCrate, manifest: manifestDone });
     w.racks[rack] = [];
+    if (filled) {
+      score += cfg.manifestPoints;
+      manifestScore += cfg.manifestPoints;
+      manifestsFilled++;
+      manifest = dealManifest(cfg, w);
+      manifestDone = 0;
+      events.push({ type: "manifest", kinds: filled, points: cfg.manifestPoints, next: manifest });
+    }
   };
 
   if (move.type === "move") {
@@ -248,6 +315,7 @@ function act(state: RacksState, move: Extract<RacksMove, { type: "move" | "call"
       score -= penalty;
       spills++;
       combo = 0;
+      manifestDone = 0;
       events.push({ type: "spill", rack, ids: dumped.map((c) => c.id), penalty });
       w.racks[rack] = [];
     }
@@ -260,6 +328,8 @@ function act(state: RacksState, move: Extract<RacksMove, { type: "move" | "call"
 
   // A chain is over once the next action would come too late to carry it on.
   if (combo > 0 && action - lastShipAt >= cfg.chainWindow) combo = 0;
+  // The manifest is filled within one chain: a chain that ends takes its progress with it.
+  if (combo === 0) manifestDone = 0;
 
   const report: RacksMoveReport = { move, events, points: score - state.score };
   return {
@@ -278,6 +348,10 @@ function act(state: RacksState, move: Extract<RacksMove, { type: "move" | "call"
     shippedByCrate,
     spills,
     calls: state.calls + (move.type === "call" ? 1 : 0),
+    manifest,
+    manifestDone,
+    manifestsFilled,
+    manifestScore,
     lastMove: report,
     finished: action >= cfg.maxMoves,
   };
@@ -375,6 +449,12 @@ export function hashRacksState(state: RacksState): string {
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.nextId).int(state.score).int(state.moveCount).int(state.combo).int(state.bestCombo).int(state.lastShipAt);
   h.int(state.shipped).int(state.shippedByCrate).int(state.spills).int(state.calls).int(state.finished ? 1 : 0);
+  // The manifest, only when the layer is on: a round with it off hashes as it did before there was one.
+  if (state.config.manifestLength > 0) {
+    h.int(state.manifest.length);
+    for (const k of state.manifest) h.int(k);
+    h.int(state.manifestDone).int(state.manifestsFilled).int(state.manifestScore);
+  }
   return h.digest();
 }
 

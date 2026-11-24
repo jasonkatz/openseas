@@ -15,6 +15,8 @@
     "chainPercent": [100, 200, 300, 400, 500],
     "spillPenalty": 50,
     "markRoom": false,
+    "manifestLength": 2,
+    "manifestPoints": 300,
     "maxMoves": 600
   },
   "paceSeconds": 20,
@@ -26,5 +28,55 @@
     { "score": 1500, "rating": 1700 },
     { "score": 2100, "rating": 1900 },
     { "score": 2800, "rating": 2100 }
+  ],
+  "stages": [
+    {
+      "id": "sort",
+      "roundSeconds": 60,
+      "thresholds": [
+        { "score": 150, "rating": 1100 },
+        { "score": 300, "rating": 1300 },
+        { "score": 450, "rating": 1500 },
+        { "score": 700, "rating": 1700 },
+        { "score": 1000, "rating": 1900 },
+        { "score": 1350, "rating": 2100 }
+      ],
+      "config": {
+        "markRoom": true,
+        "chainPercent": [100],
+        "manifestLength": 0
+      }
+    },
+    {
+      "id": "mark",
+      "roundSeconds": 90,
+      "thresholds": [
+        { "score": 200, "rating": 1100 },
+        { "score": 400, "rating": 1300 },
+        { "score": 700, "rating": 1500 },
+        { "score": 1000, "rating": 1700 },
+        { "score": 1450, "rating": 1900 },
+        { "score": 1900, "rating": 2100 }
+      ],
+      "config": {
+        "chainPercent": [100],
+        "manifestLength": 0
+      }
+    },
+    {
+      "id": "chain",
+      "roundSeconds": 120,
+      "thresholds": [
+        { "score": 300, "rating": 1100 },
+        { "score": 600, "rating": 1300 },
+        { "score": 1000, "rating": 1500 },
+        { "score": 1500, "rating": 1700 },
+        { "score": 2100, "rating": 1900 },
+        { "score": 2800, "rating": 2100 }
+      ],
+      "config": {
+        "manifestLength": 0
+      }
+    }
   ]
 }
