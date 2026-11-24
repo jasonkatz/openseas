@@ -82,7 +82,10 @@ export { ShowdownBoard, type ShowdownBoardProps } from "./showdown/ShowdownBoard
 export { ShowdownIcon, type ShowdownIconPiece } from "./showdown/ShowdownIcon.jsx";
 export { ForgingBoard, type ForgingBoardProps } from "./forging/ForgingBoard.jsx";
 export { ForgingMarkIcon } from "./forging/ForgingIcon.jsx";
-// The domain board (ADR 0084): one board for any puzzle of the domain engine, dressed by a skin and the game's theme.
+export { AssemblyBoard, assemblyBoardString, type AssemblyBoardProps } from "./assembly/AssemblyBoard.jsx";
+export { AssemblyPartIcon } from "./assembly/AssemblyIcon.jsx";
+export { ASSEMBLY_KINDS, ASSEMBLY_CORE_KIND } from "./assembly/pieces.js";
+// The domain board (ADR 0085): one board for any puzzle of the domain engine, dressed by a skin and the game's theme.
 export { PlayBoard, PlayPieceIcon, type PlayBoardProps } from "./play/PlayBoard.jsx";
 export { type PlayFrame } from "./play/renderer.js";
 export { fill, skinOf, spaceTheme } from "./play/theme.js";

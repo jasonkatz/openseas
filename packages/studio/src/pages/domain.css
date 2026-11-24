@@ -1,4 +1,4 @@
-/* A domain puzzle's page (ADR 0084): the stage picker and the legend on its start card. */
+/* A domain puzzle's page (ADR 0085): the stage picker and the legend on its start card. */
 .domain-stages {
   display: flex;
   flex-wrap: wrap;
