@@ -2,7 +2,7 @@
   "home.practice_assembly": "Assembly",
   "home.practice_assembly_blurb": "Move parts the way each one moves and fit them to blueprints. Set several up, then fit them one after another for a chain.",
   "assembly.title": "Assembly",
-  "assembly.how_to": "Each part moves its own way: a girder swaps sideways, a strut up or down, a cable corner to corner. A panel moves only when a part beside it swaps with it, and a core never moves. Drag a part onto a neighbour to swap them. Then pick a blueprint in the tray and drop it where the bay holds its parts: they are fitted, the parts above fall and new ones drop in. A fit of n parts scores 10 for each part over two.",
+  "assembly.how_to": "Each part moves its own way: a girder swaps sideways, a strut up or down, a cable corner to corner. A panel moves only when a part beside it swaps with it, and a core never moves. Drag a part onto a neighbour to swap them. Then pick a blueprint in the tray and drop it where the bay holds its parts: they are fitted and new parts appear in their place. A fit of n parts scores 10 for each part over two.",
   "assembly.how_to_keyboard": "Arrows move the cursor. Space picks the part under it, then an arrow, or Q, E, Z or C for a corner, swaps it that way. Number keys pick a blueprint; space or enter fits it with its top left on the cursor.",
   "assembly.go": "Start the build.",
   "assembly.chain_note": "Fits made one after another with no swap between are a chain: the second pays double, the third triple, up to six times. A swap ends the chain.",
@@ -43,6 +43,6 @@
   "studio.preset.assembly_small_prints": "Small blueprints: three parts only",
   "studio.preset.assembly_big_prints": "Big blueprints: mostly five parts",
   "studio.preset.assembly_three_tray": "Three blueprints in the tray",
-  "studio.preset.assembly_core_rush": "Core rush: cores drop in often, up to six",
+  "studio.preset.assembly_core_rush": "Core rush: cores appear often, up to six",
   "studio.preset.assembly_wide_bay": "A wide bay: eight by ten"
 }

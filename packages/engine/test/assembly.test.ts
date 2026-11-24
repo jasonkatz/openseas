@@ -223,7 +223,7 @@ describe("assembly fits", () => {
     expect(assemblyFitIllegalReason(cored, 0, 0)).toBeNull();
   });
 
-  it("a fit takes its parts, scores (n - 2) by its place, the parts above fall and new ones drop in", () => {
+  it("a fit takes its parts, scores (n - 2) by its place, and new parts appear where they were", () => {
     const s = bay(["0000", "1200", "3000", "0000"], [ell]);
     const next = reduceAssembly(s, { type: "fit", slot: 0, cell: 4 });
     const f = next.lastMove!.fit!;
@@ -231,14 +231,12 @@ describe("assembly fits", () => {
     expect(f.points).toBe(cfg.fitPoints * 1);
     expect(next.score).toBe(cfg.fitPoints);
     expect(next.cells).toHaveLength(16);
-    // The panel over the girder fell two rows; the one over the strut fell one.
-    expect(f.falls).toEqual(
-      expect.arrayContaining([
-        { id: s.cells[0]!.id, from: 0, to: 8 },
-        { id: s.cells[1]!.id, from: 1, to: 5 },
-      ]),
-    );
-    expect(f.spawned).toHaveLength(3);
+    // New parts in the three cells taken, in reading order; every other part where it was.
+    expect(f.spawned.map((p) => p.cell)).toEqual([4, 5, 8]);
+    for (const p of f.spawned) expect(next.cells[p.cell]!.id).toBe(p.id);
+    s.cells.forEach((p, c) => {
+      if (![4, 5, 8].includes(c)) expect(next.cells[c]).toBe(p);
+    });
     expect(next.tray[0]!.id).not.toBe(ell.id);
     expect(next.chain).toBe(1);
     expect(next.fits).toBe(1);
@@ -255,13 +253,12 @@ describe("assembly fits", () => {
     expect(reduceAssembly(s, { type: "fit", slot: 0, cell: 0 }).bestChain).toBe(3);
   });
 
-  it("a core holds its place while what is above it falls past it", () => {
+  it("a core outside a fit stays where it is", () => {
     const line = print(["000"]);
-    const s = bay(["1230", "0@00", "0000", "0000"].map((r) => r.replace("0@00", "1@11")), [line]);
-    // Rows: 1230 / 1@11 / 0000 / 0000. Fitting row 2 lets column 1's strut fall past its core.
+    const s = bay(["1230", "1@11", "0000", "0000"], [line]);
     const next = reduceAssembly(s, { type: "fit", slot: 0, cell: 8 });
-    expect(next.cells[5]!.kind).toBe(ASSEMBLY_CORE);
-    expect(next.cells[9]!.kind).toBe(ASSEMBLY_STRUT);
+    expect(next.cells[5]).toBe(s.cells[5]);
+    expect(next.cells[1]).toBe(s.cells[1]);
     expect(next.cells.every((p) => p !== undefined)).toBe(true);
   });
 

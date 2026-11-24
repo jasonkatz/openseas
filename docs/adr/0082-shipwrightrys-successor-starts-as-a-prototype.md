@@ -32,7 +32,7 @@ only in the studio.
    the job after a set number of patterns. Here a round is a clock like every prototype's, and a
    chain ends only on a swap. The clock is the pressure: setting up a long chain costs time a player
    could have spent fitting.
-4. **Its draws are on streams of their own** (ADR 0075): the parts dropping in, the cores and the
+4. **Its draws are on streams of their own** (ADR 0075): the new parts, the cores and the
    blueprints each have one, so playing differently never changes which blueprints come next.
 5. **The bot runner learns to reseed an engine with several streams.** A `BotGame` may give its own
    `reseed`; the rollout bot uses it, and falls back to replacing `rng` as before. Every other game is

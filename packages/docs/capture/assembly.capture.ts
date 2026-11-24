@@ -160,7 +160,7 @@ function planChain(seed: string): { setup: AssemblyMove[]; fits: AssemblyMove[] 
   if (ready(s) < 3) return null;
   const fits: AssemblyMove[] = [];
   for (let k = 0; k < 3; k++) {
-    // The highest fit first, so what falls does not spoil the ones below it.
+    // The highest fit first, so the clip reads top to bottom.
     const options = assemblyLegalFits(s).sort((a, b) => row(a.cell) - row(b.cell));
     const f = options.find((o) => ready(play(s, { type: "fit", ...o })) >= 2 - k);
     if (!f) return null;

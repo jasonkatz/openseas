@@ -417,60 +417,35 @@ function fit(state: AssemblyState, move: Extract<AssemblyMove, { type: "fit" }>)
   const place = nextPlace(state);
   const points = fitValue(cfg, cover.length, cores, place);
 
-  // The bay settles. In each column the cells that are not a standing core are the slots; what is
-  // left falls to the lowest slots in order, and new parts drop into the slots over it.
-  const gone = new Set(cover);
-  const field: Array<AssemblyPiece | null> = state.cells.map((p, c) => (gone.has(c) ? null : p));
-  const cells: AssemblyPiece[] = new Array<AssemblyPiece>(field.length);
-  const falls: Array<{ id: number; from: number; to: number }> = [];
-  const spawned: Array<{ id: number; cell: number; kind: number; drop: number }> = [];
+  // The bay refills in place: each cell a fit took gets a new part, in reading order, and every
+  // other part, cores among them, stays where it is.
+  const cells = state.cells.slice();
+  const spawned: Array<{ id: number; cell: number; kind: number }> = [];
   let { parts, cores: coreRng, prints } = state.streams;
   let nextId = state.nextId;
-  let standing = field.filter((p) => p?.kind === ASSEMBLY_CORE).length;
-  for (let col = 0; col < cfg.width; col++) {
-    const slots: number[] = [];
-    const movers: Array<{ piece: AssemblyPiece; from: number }> = [];
-    for (let r = 0; r < cfg.height; r++) {
-      const c = idx(cfg, col, r);
-      const p = field[c];
-      if (p && p.kind === ASSEMBLY_CORE) {
-        cells[c] = p;
-        continue;
-      }
-      slots.push(c);
-      if (p) movers.push({ piece: p, from: c });
+  let standing = cells.filter((p, c) => p.kind === ASSEMBLY_CORE && !cover.includes(c)).length;
+  for (const cell of [...cover].sort((a, b) => a - b)) {
+    let kind: number;
+    const core = standing < cfg.maxCores && cfg.corePermille > 0 ? nextChance(coreRng, cfg.corePermille, 1000) : null;
+    if (core) coreRng = core.state;
+    if (core?.value) {
+      kind = ASSEMBLY_CORE;
+      standing++;
+    } else {
+      const k = weighted(parts, cfg.kindWeights);
+      parts = k.state;
+      kind = k.value;
     }
-    const fresh = slots.length - movers.length;
-    movers.forEach((m, i) => {
-      const to = slots[fresh + i]!;
-      cells[to] = m.piece;
-      if (to !== m.from) falls.push({ id: m.piece.id, from: m.from, to });
-    });
-    for (let j = 0; j < fresh; j++) {
-      const cell = slots[j]!;
-      let kind: number;
-      const core = standing < cfg.maxCores && cfg.corePermille > 0 ? nextChance(coreRng, cfg.corePermille, 1000) : null;
-      if (core) coreRng = core.state;
-      if (core?.value) {
-        kind = ASSEMBLY_CORE;
-        standing++;
-      } else {
-        const k = weighted(parts, cfg.kindWeights);
-        parts = k.state;
-        kind = k.value;
-      }
-      const piece = { id: nextId++, kind };
-      cells[cell] = piece;
-      // It starts above the top, the lowest of the new parts nearest, and falls into place.
-      spawned.push({ id: piece.id, cell, kind, drop: rowOf(cfg, cell) + fresh - j });
-    }
+    const piece = { id: nextId++, kind };
+    cells[cell] = piece;
+    spawned.push({ id: piece.id, cell, kind });
   }
   const d = drawBlueprint(cfg, prints, nextId++);
   prints = d.rng;
   const tray = state.tray.slice();
   tray[move.slot] = d.bp;
 
-  const fitReport: AssemblyFitReport = { slot: move.slot, blueprint: bp, taken, place, cores, points, falls, spawned, next: d.bp };
+  const fitReport: AssemblyFitReport = { slot: move.slot, blueprint: bp, taken, place, cores, points, spawned, next: d.bp };
   const moveCount = state.moveCount + 1;
   const chain = state.chain + 1;
   return {

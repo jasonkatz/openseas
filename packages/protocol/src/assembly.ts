@@ -29,7 +29,7 @@ export const AssemblyConfigSchema = z.object({
   chainCap: z.int().min(1).max(20).describe("The place in a chain counts up to this and holds. 1 switches chains off: every fit counts as the first."),
   corePoints: z.int().min(0).max(1000).describe("Points for each core a fit takes, times its place in the chain."),
   startCores: z.int().min(0).max(10).describe("Cores in the opening bay. No more than the most cores."),
-  corePermille: z.int().min(0).max(500).describe("Chance, per mille, that a part dropping in is a core, while the bay holds fewer than its most."),
+  corePermille: z.int().min(0).max(500).describe("Chance, per mille, that a new part is a core, while the bay holds fewer than its most."),
   maxCores: z.int().min(0).max(10).describe("The most cores in the bay at once. 0, with no start cores: no cores."),
   maxMoves: z.int().min(1).max(1_000_000).describe("Longest move log the server accepts."),
 });

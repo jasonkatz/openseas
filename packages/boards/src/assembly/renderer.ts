@@ -94,7 +94,7 @@ export class AssemblyRenderer extends KitBoard<AssemblyState> {
   private readonly trayBg = new Graphics();
   private readonly hintLayer = new Graphics();
   private readonly pieceLayer = new Container();
-  /** Parts dropping in from above are hidden until they are inside the bay. */
+  /** Keeps the bay's parts inside its edges while they move. */
   private readonly pieceMask = new Graphics();
   private readonly trayLayer = new Container();
   private readonly ghostLayer = new Graphics();
@@ -146,7 +146,7 @@ export class AssemblyRenderer extends KitBoard<AssemblyState> {
       g.cols = this.state.config.width;
       g.rows = this.state.config.height;
     }
-    g.fit(width, height, { top: STRIP, bottom: TRAY, margin: 8 });
+    g.fit(width, height, { top: STRIP, bottom: TRAY, margin: Math.max(12, Math.min(width, height) * 0.05), maxCell: 48 });
     const pad = Math.max(4, g.cell * 0.12);
     const strip = g.cell * STRIP;
     this.bg.clear();
@@ -348,16 +348,11 @@ export class AssemblyRenderer extends KitBoard<AssemblyState> {
       if (f.place >= CALL_CHAIN) sfx.clear(f.place, f.taken.length);
       this.fx.popup(cx, cy - g.cell * 0.2, `+${f.points}`, INK.cream, Math.max(16, g.cell * (f.place >= CALL_CHAIN ? 0.5 : 0.42)));
       t = MOTION.clear;
-      for (const fl of f.falls) {
-        const v = this.pieces.get(fl.id);
-        if (!v) continue;
-        v.cell = fl.to;
-        this.tweens.move(v.s, { y: g.y(fl.to) }, { delay: t });
-      }
+      // New parts grow in where the fitted ones stood; nothing else in the bay moves.
       for (const sp of f.spawned) {
         const v = this.spawn({ id: sp.id, kind: sp.kind }, sp.cell);
-        v.s.y = g.y(sp.cell) - sp.drop * g.cell;
-        this.tweens.move(v.s, { y: g.y(sp.cell) }, { delay: t });
+        v.s.scale.set(0);
+        this.tweens.run(MOTION.move, (k) => v.s.scale.set(k), { delay: t });
       }
       t += MOTION.move + 30;
       // One callout a fit: the chain, then five parts, then a core. The beat is the chain's, from its fourth fit.

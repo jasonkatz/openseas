@@ -26,24 +26,23 @@ blueprints for the next sections of hull.
   each square's kind by the same weights as the bay's (`kindWeights`: panels 22, the others 26).
   Blueprints never turn: a shape and its turn are two shapes.
 - **A fit.** Drop a blueprint where the bay holds its parts in its shape, a core standing for any
-  one. Those parts are taken. In each column the parts above fall to close the gap; a core holds its
-  place and what is over it falls past it. New parts drop in at the top, and a new blueprint takes
-  the used one's place in the tray.
+  one. Those parts are taken, and a new part appears in each cell they left, in reading order.
+  Nothing else in the bay moves. A new blueprint takes the used one's place in the tray.
 - **Chains.** Fits made one after another with no swap between are a chain. A fit of n parts scores
   `fitPoints` × (n − 2) × its place in the chain: 10, 20, 30 for three, four, five parts at the first
   place, double at the second, and so on. The place counts up to `chainCap` (6) and holds there.
-- **Cores.** Two cores open the round (`startCores`). A part dropping in is a core 30 times in a
+- **Cores.** Two cores open the round (`startCores`). A new part is a core 30 times in a
   thousand (`corePermille`) while fewer than three stand in the bay (`maxCores`). Each core a fit
   takes adds `corePoints` (10) × its place in the chain.
 - The opening bay always holds a fit, or a fit one swap away; the deal tries again until it does,
   and after forty tries lays the first blueprint's parts into the top left so it fits by construction.
 
 The compound move the puzzle pays most for: **several blueprints set up, then fitted one after
-another as one chain, in an order that keeps the rest standing.**
+another as one chain, each on cells of its own.**
 
 ## Luck and skill
 
-- **Luck:** the opening bay and its cores, the parts that drop in after each fit, whether one is a
+- **Luck:** the opening bay and its cores, the parts that appear after each fit, whether one is a
   core, and each new blueprint. Each is drawn from its own stream (ADR 0075): the parts, the cores
   and the blueprints, so playing differently never changes which blueprints come next. Everything a
   player plans around is shown: the whole bay and all six blueprints.
@@ -54,10 +53,10 @@ another as one chain, in an order that keeps the rest standing.**
 - **Third skill:** holding back. Fitting the moment something fits pays each fit at the first place.
   Setting two or three up and fitting them in a row pays the second double and the third triple.
   Fitting the moment one fits is the bait: it feels like steady work, and it loses to plain set-up
-  play by about a quarter (the bot table below).
-- **Fourth skill:** the order. A fit drops everything above it, so a blueprint set up over another
-  falls apart if the lower one goes first. A player fits from the top down, sets blueprints side by
-  side, or sets one up a row too high so the fit below drops it into place.
+  play by about a third (the bot table below).
+- **Fourth skill:** room. Two blueprints set up over the same cells cannot both be fitted, and a
+  fit's new parts are drawn at random, so a player sets blueprints up side by side, each on cells of
+  its own, and reads the new parts a fit leaves for a blueprint they already nearly make.
 - **Fifth skill:** knowing when to stop. Only the clock limits a chain. Six blueprints set up take a
   long time; a round that ends mid-setup scores nothing for it.
 
@@ -100,7 +99,7 @@ The board follows the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws
 - **A swap** slides the two parts past each other in 120ms with the swap cue.
 - **A fit** shrinks its parts to nothing where they stood, with a pop a step higher for each place
   in the chain and the clear cue from the second place on; its points rise from where it was, in
-  cream. The parts above fall in 120ms and new parts fall in from over the top edge.
+  cream. New parts grow in where they stood in 120ms; nothing else moves.
 - **Callouts**, one a fit, in this order: the chain from its second fit ("Chain x2"), five parts,
   a core. A swap that ends a chain of two or more says so in dim.
 - **The beat**, one amber pulse of the whole board, is the chain's: from its fourth fit, stronger for
@@ -111,8 +110,8 @@ The board follows the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws
 `packages/engine/src/assembly/`. Moves: `{ type: "swap", a, b }`, `{ type: "fit", slot, cell }`
 (`cell` is where the top left of the blueprint's box goes) and `{ type: "end" }`. A swap's report
 gives its two cells and the chain it ended. A fit's report gives the blueprint, the parts it took,
-its place, its cores and points, every fall, every part that dropped in and how far above the top
-it started, and the blueprint that took its slot. The board plays the report and ends on the
+its place, its cores and points, the new part in each cell it took, and the blueprint that took its
+slot. The board plays the report and ends on the
 engine's bay and tray.
 
 ## Tuning notes
@@ -124,12 +123,12 @@ The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder ass
 
 | Bot | Parts (60 s) | Chains (90 s) | Full (120 s) |
 |---|---|---|---|
-| careless | 12 Green | 22 Green | 55 Green |
-| one move | 332 Sharp | 790 Sharp | 1,231 Sharp |
-| rollout | 346 Sharp | 1,230 Masterful | 1,716 Masterful |
-| fit at once | 326 Sharp | 871 Sharp | 1,345 Sharp |
-| chain builder | 318 Sharp | 1,200 Masterful | 1,872 Masterful |
-| builder of 3 | 322 Sharp | 1,183 Masterful | 1,878 Masterful |
+| careless | 13 Green | 18 Green | 41 Green |
+| one move | 327 Sharp | 765 Sharp | 1,106 Sharp |
+| rollout | 327 Sharp | 1,193 Masterful | 1,684 Masterful |
+| fit at once | 332 Sharp | 770 Sharp | 1,215 Sharp |
+| chain builder | 315 Sharp | 1,093 Masterful | 1,909 Masterful |
+| builder of 3 | 312 Sharp | 1,059 Masterful | 1,734 Masterful |
 | *Steady from* | *100* | *200* | *300* |
 | *Sharp from* | *250* | *550* | *799* |
 | *Masterful from* | *400* | *1,000* | *1,499* |
@@ -145,15 +144,15 @@ The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder ass
 - **builder of 3**: the chain builder, but it starts a chain only once three blueprints are ready.
 
 Checks: careless lands a tier below one move on every stage, and the bait loses to the chain builder
-on the whole puzzle by 28.2 percent.
+on the whole puzzle by 36.4 percent.
 
-- **Chains are earned, not given.** On the Chains stage the planning bots score half again what
-  one move does; on Parts, with chains off, every thinking bot scores the same. The chain is the
+- **Chains are earned, not given.** On the Chains stage the planning bots score about two fifths
+  more than one move does; on Parts, with chains off, every thinking bot scores the same. The chain is the
   layer that sorts players.
-- **Cores earn their place.** With cores off on the whole puzzle the chain builder scores 1,446
-  and the bait 1,088; cores add about 29 percent to the planner and widen the gap a little.
+- **Cores earn their place.** With cores off on the whole puzzle the chain builder scores 1,396
+  and the bait 968; cores add about 37 percent to the planner.
 - **No bot reaches Legendary.** The bots read the whole bay in the time a person reads one
-  blueprint, so the top tier is left for play that orders its fits better than these bots do. It
+  blueprint, so the top tier is left for play that sets up longer chains than these bots do. It
   wants setting by hand once people have played.
 
 Open questions for play:

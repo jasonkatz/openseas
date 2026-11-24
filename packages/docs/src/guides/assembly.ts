@@ -36,14 +36,14 @@ export const assembly: Guide = {
     "The bay is full of parts, and **each kind moves its own way**. A **girder** swaps sideways. A **strut** swaps up or down. A **cable** swaps corner to corner. Its shape shows the way.",
     "Two neighbouring parts can swap when **either one** moves that way. A **panel** has no way of its own: it moves only when a part beside it swaps with it. Two parts of one kind never swap.",
     "The tray holds the **blueprints**: shapes of three, four or five parts, each square asking for one kind. Pick one and drop it where the bay holds exactly those parts, in that shape. Blueprints never turn.",
-    "The parts are **fitted** and taken away. The parts above fall to close the gap, new parts drop in at the top, and a new blueprint takes the old one's place.",
-    "A **core** never moves. In a blueprint it stands for any part, and parts above it fall past it.",
+    "The parts are **fitted** and taken away. New parts appear in the cells they left, nothing else in the bay moves, and a new blueprint takes the old one's place.",
+    "A **core** never moves. In a blueprint it stands for any part.",
     `A swap scores nothing. The round is ${p.roundSeconds} seconds on the clock, with no undo.`,
   ],
   rulesMedia: {
     kind: "clip",
     name: "first-fit",
-    alt: "A blueprint is picked from the tray and dropped on the bay where its parts sit. They shrink away, the parts above fall and new ones drop in from the top.",
+    alt: "A blueprint is picked from the tray and dropped on the bay where its parts sit. They shrink away and new parts grow in where they stood.",
     caption: `A first fit of three parts: ${fit(3)} points.`,
   },
   controls: [
@@ -101,8 +101,8 @@ export const assembly: Guide = {
           body: `Fitting the moment something fits gives you ${fit(4)} for each four-part blueprint. Holding back until three are ready and fitting them in a row gives ${chain(4, 3)}. The swaps cost the same either way.`,
         },
         {
-          title: "Fit the top one first",
-          body: "When a blueprint is fitted, everything above it falls. A blueprint set up higher in the bay falls apart if you fit one below it first. Fit from the top down and the rest stay where they are.",
+          title: "Set up, then fit them all",
+          body: "A fit changes only the cells it takes. Every other blueprint you set up stays ready, so set up two or three, then fit them one after another.",
           media: {
             kind: "clip",
             name: "chain",
@@ -111,8 +111,8 @@ export const assembly: Guide = {
           },
         },
         {
-          title: "Look at what drops in",
-          body: "After each fit, new parts drop in at the top and a new blueprint arrives. Sometimes it fits already. Check before you swap: a fit with no swap keeps the chain going.",
+          title: "Look at what appears",
+          body: "After each fit, new parts appear where it was and a new blueprint arrives. Sometimes it fits already. Check before you swap: a fit with no swap keeps the chain going.",
         },
       ],
       drill: `Play the Chains stage and never fit alone. You are there when a round finishes above ${stage("chains").thresholds[2]!.score} points.`,
@@ -123,7 +123,7 @@ export const assembly: Guide = {
       tips: [
         {
           title: "Keep blueprints apart",
-          body: "Two blueprints set up over the same columns spoil each other when the lower one goes. Set them up side by side, or one above the other with the top one fitted first.",
+          body: "Two blueprints set up over the same cells cannot both be fitted. Give each one cells of its own, side by side or one above the other.",
         },
         {
           title: "Use cores late",
@@ -141,8 +141,8 @@ export const assembly: Guide = {
       goal: `Chains of ${word(c.chainCap)}, every round.`,
       tips: [
         {
-          title: "Plan the falls",
-          body: "Every fit drops the parts above it. An expert sets a blueprint up one row too high on purpose, so that the fit below it drops it into place.",
+          title: "Read the new parts",
+          body: "A fit leaves new parts where it stood. An expert sets the next blueprint up beside a fit, so the parts that appear have a chance to finish it.",
         },
         {
           title: "Know when to stop setting up",
@@ -154,7 +154,7 @@ export const assembly: Guide = {
   ],
   mistakes: [
     `**Fitting the moment something fits.** ${fit(4)} a time, where the same fits in a chain of four pay ${chain(4, 4)}.`,
-    "**Fitting from the bottom.** Everything above falls, and the blueprints you set up there fall apart.",
+    "**Setting two blueprints up on the same cells.** Only one of them can be fitted, and the swaps spent on the other are lost.",
     "**Dragging panels across the bay.** Each step needs a neighbour that moves that way. Build round the panels where they are.",
     "**Swapping in the middle of a chain.** It ends the chain. Fit everything ready first.",
   ],

@@ -13,13 +13,13 @@
  * Two neighbouring parts may swap when either one moves that way. A swap scores nothing; it sets the
  * bay up. The tray holds `traySize` blueprints, each a shape of three to five parts drawn on a grid.
  * Fitting a blueprint takes every part under it, when each is the part the blueprint asks for or a
- * core; the parts above fall to close the gaps (a core holds its place, and what is over it falls
- * past it), new parts drop in at the top, and a new blueprint takes the used one's place in the tray.
+ * core; a new part appears in each cell it took, every other part stays where it is, and a new
+ * blueprint takes the used one's place in the tray.
  *
  * Fits made one after another, with no swap between, are a chain. A fit of n parts scores
  * fitPoints * (n - 2) * its place in the chain, and each core in it corePoints * its place; the place
  * counts up to chainCap and holds there. A swap ends the chain. Setting several blueprints up and
- * then fitting them all, top first so nothing set up falls apart, is the move the puzzle pays most for.
+ * then fitting them all as one chain is the move the puzzle pays most for.
  *
  * Cell index = row * width + col; row 0 is the top. Nothing here reads a clock: the round's length
  * is the page's and the server's business.
@@ -56,7 +56,7 @@ export interface AssemblyConfig {
   readonly corePoints: number;
   /** Cores in the opening bay. */
   readonly startCores: number;
-  /** Chance, per thousand, that a part dropping in is a core, while fewer than maxCores are in the bay. */
+  /** Chance, per thousand, that a new part is a core, while fewer than maxCores are in the bay. */
   readonly corePermille: number;
   readonly maxCores: number;
   /** Longest move log the server accepts. */
@@ -128,10 +128,8 @@ export interface AssemblyFitReport {
   /** Cores among what it took. */
   readonly cores: number;
   readonly points: number;
-  /** Pieces that fell: each one's cell before and after. */
-  readonly falls: ReadonlyArray<{ readonly id: number; readonly from: number; readonly to: number }>;
-  /** Pieces that dropped in, with the cell each came to rest in and how many rows above the top it started. */
-  readonly spawned: ReadonlyArray<{ readonly id: number; readonly cell: number; readonly kind: number; readonly drop: number }>;
+  /** The new parts, one in each cell the fit took, in reading order. */
+  readonly spawned: ReadonlyArray<{ readonly id: number; readonly cell: number; readonly kind: number }>;
   /** The blueprint that took the slot. */
   readonly next: AssemblyBlueprint;
 }
@@ -148,9 +146,9 @@ export interface AssemblyMoveReport {
 
 /** The streams the deal draws from (ADR 0075): no draw changes what another gives. */
 export interface AssemblyStreams {
-  /** The kind of each part dealt or dropping in. */
+  /** The kind of each part dealt or refilled. */
   readonly parts: PrngState;
-  /** Whether a part dropping in is a core, and where the opening cores sit. */
+  /** Whether a new part is a core, and where the opening cores sit. */
   readonly cores: PrngState;
   /** Each blueprint's shape and kinds. */
   readonly prints: PrngState;
