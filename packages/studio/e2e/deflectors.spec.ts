@@ -9,38 +9,49 @@ const DY = [-1, 0, 1, 0];
 interface Beam {
   entry: number;
   exit: number;
+  /** The lens kinds it must pass, as a mask: bit 0 is lens `a`. */
+  recipe: number;
 }
 
-/** What the page publishes: the grid, one character a cell, and the waiting beams as sign:entry>exit. */
+/** What the page publishes: the grid, one character a cell, and the waiting beams as sign:entry>exit~recipe. */
 async function board(page: Page): Promise<{ grid: string; beams: Beam[] }> {
   const text = (await page.getByTestId("deflectors-board").getAttribute("data-board")) ?? "";
   const [grid = "", waiting = ""] = text.split("|");
   if (grid.length !== N * N) throw new Error(`unexpected board ${text}`);
-  const beams = waiting === "" ? [] : waiting.split(",").map((b) => ({ entry: Number(b.split(":")[1]!.split(">")[0]), exit: Number(b.split(">")[1]) }));
+  const beams = waiting === "" ? [] : waiting.split(",").map((b) => ({ entry: Number(b.split(":")[1]!.split(">")[0]), exit: Number(b.split(">")[1]!.split("~")[0]), recipe: Number(b.split("~")[1]) }));
   return { grid, beams };
 }
 
-/** The port a beam from `entry` leaves by, as the rules have it: ports run along the top, the right, the bottom, then the left. */
-function leavesBy(grid: string, entry: number): number {
+/** The port a beam from `entry` leaves by, and the lenses it passes, as the rules have it: ports run along the top, the right, the bottom, then the left. */
+function leavesBy(grid: string, entry: number): { out: number; lenses: number } {
   const i = entry % N;
   let [col, row, dir] = [[i, 0, 2], [N - 1, i, 3], [i, N - 1, 0], [0, i, 1]][Math.floor(entry / N)] as [number, number, number];
+  let lenses = 0;
   for (let step = 0; step < 200; step++) {
     if (col < 0 || col >= N || row < 0 || row >= N) break;
-    const ch = grid[row * N + col];
+    const ch = grid[row * N + col]!;
     if (ch === "/") dir ^= 1;
     else if (ch === "\\") dir = 3 - dir;
+    else if (ch >= "a" && ch <= "c") lenses |= 1 << (ch.charCodeAt(0) - 97);
     col += DX[dir]!;
     row += DY[dir]!;
   }
-  return [col - DX[dir]!, N + row - DY[dir]!, 2 * N + col - DX[dir]!, 3 * N + row - DY[dir]!][dir]!;
+  return { out: [col - DX[dir]!, N + row - DY[dir]!, 2 * N + col - DX[dir]!, 3 * N + row - DY[dir]!][dir]!, lenses };
 }
+
+/** A beam is home at its exit through exactly its recipe. */
+const isHome = (grid: string, b: Beam): boolean => {
+  const t = leavesBy(grid, b.entry);
+  return t.out === b.exit && t.lenses === b.recipe;
+};
+const isMirror = (ch: string): boolean => ch === "/" || ch === "\\";
 
 const flipped = (grid: string, cell: number): string => grid.slice(0, cell) + (grid[cell] === "/" ? "\\" : "/") + grid.slice(cell + 1);
 
-/** The fewest mirrors to flip so every beam leaves by its exit. */
+/** The fewest mirrors to flip so every beam is home. */
 function solve(grid: string, beams: readonly Beam[]): number[] {
-  const mirrors = [...grid].flatMap((ch, c) => (ch === "." ? [] : [c]));
-  const home = (g: string): boolean => beams.every((b) => leavesBy(g, b.entry) === b.exit);
+  const mirrors = [...grid].flatMap((ch, c) => (isMirror(ch) ? [c] : []));
+  const home = (g: string): boolean => beams.every((b) => isHome(g, b));
   let frontier: { grid: string; flips: number[] }[] = [{ grid, flips: [] }];
   for (let depth = 0; depth <= 5; depth++) {
     const found = frontier.find((f) => home(f.grid));
@@ -72,7 +83,7 @@ test("Deflectors plays alone on /play: a round flips a mirror by key and by tap"
 
   // Keyboard: walk the cursor to a mirror and flip it.
   const { grid } = await board(page);
-  const mirrors = [...grid].flatMap((ch, c) => (ch === "." ? [] : [c]));
+  const mirrors = [...grid].flatMap((ch, c) => (isMirror(ch) ? [c] : []));
   const first = mirrors[0]!;
   const [col, row] = ((await canvas.getAttribute("data-cursor")) ?? "0,0").split(",").map(Number) as [number, number];
   for (let c = col; c < first % N; c++) await page.keyboard.press("ArrowRight");
@@ -83,38 +94,48 @@ test("Deflectors plays alone on /play: a round flips a mirror by key and by tap"
   await expect.poll(async () => (await board(page)).grid).toBe(flipped(grid, first));
   await expectViewMatchesState(page, "deflectors");
 
-  // Pointer: tap another mirror, and an empty cell, which does nothing.
+  // Pointer: tap another mirror, then an empty cell and a lens, which do nothing.
   const second = mirrors[mirrors.length - 1]!;
   await tapCell(page, second);
   await expect.poll(async () => (await board(page)).grid).toBe(flipped(flipped(grid, first), second));
   await tapCell(page, [...grid].findIndex((ch) => ch === "."));
+  await tapCell(page, [...grid].findIndex((ch) => ch >= "a" && ch <= "c"));
   await expectViewMatchesState(page, "deflectors");
   expect((await board(page)).grid).toBe(flipped(flipped(grid, first), second));
 });
 
-test("a Deflectors beam routed home and fired from its port scores, and the F key fires the next volley as it stands", async ({ page }) => {
-  // A pinned lab seed whose first beam is one flip from home.
+test("a Deflectors volley routed home through its recipes and fired from its port scores, the grid settles, and the F key fires the next volley as it stands", async ({ page }) => {
+  // A pinned lab seed.
   await page.goto("/play/deflectors?seed=smoke-9&start=lab");
   await expect(page.getByTestId("deflectors-canvas")).toBeVisible();
-  // The first volley is announced within a second: one beam, not home as the mirrors stand.
-  await expect.poll(async () => (await board(page)).beams.length).toBe(1);
+  // The first volley is announced within a second: two beams, each with a recipe, not home as the mirrors stand.
+  await expect.poll(async () => (await board(page)).beams.length).toBe(2);
   const { grid, beams } = await board(page);
-  const home = (b: { grid: string; beams: Beam[] }): boolean => b.beams.length > 0 && b.beams.every((x) => leavesBy(b.grid, x.entry) === x.exit);
+  for (const b of beams) expect(b.recipe).toBeGreaterThan(0);
+  const home = (b: { grid: string; beams: Beam[] }): boolean => b.beams.length > 0 && b.beams.every((x) => isHome(b.grid, x));
   expect(home({ grid, beams })).toBe(false);
   const flips = solve(grid, beams);
-  expect(flips.length).toBe(1);
+  expect(flips.length).toBeGreaterThan(0);
   for (const cell of flips) await tapCell(page, cell);
   await expect.poll(async () => home(await board(page))).toBe(true);
   await expectViewMatchesState(page, "deflectors");
   await expect(page.getByTestId("hud-score")).toHaveText("0");
 
-  // A tap on the lit entry fires the volley before its count ends.
+  // There is no count: the volley waits. A tap on the lit entry fires it.
+  await page.waitForTimeout(1500);
+  await expect(page.getByTestId("hud-moves")).toHaveText("0");
   await tapPort(page, beams[0]!.entry);
   await expect(page.getByTestId("hud-moves")).toHaveText("1");
   await expect.poll(async () => Number(await page.getByTestId("hud-score").textContent())).toBeGreaterThan(0);
 
-  // The next volley comes after a short pause; F fires it where it stands.
+  // The mirrors the beams turned at were spent and the grid settled: as many mirrors and lenses, not all where they were.
+  const count = (g: string, f: (ch: string) => boolean): number => [...g].filter(f).length;
   await expect.poll(async () => (await board(page)).beams.length).toBeGreaterThan(0);
+  const after = await board(page);
+  expect(count(after.grid, isMirror)).toBe(count(grid, isMirror));
+  expect(count(after.grid, (ch) => ch >= "a" && ch <= "c")).toBe(count(grid, (ch) => ch >= "a" && ch <= "c"));
+  expect([...after.grid].map((ch) => isMirror(ch))).not.toEqual([...grid].map((ch) => isMirror(ch)));
+  // The next volley comes once the grid has settled; F fires it where it stands.
   await expectViewMatchesState(page, "deflectors");
   await expect(async () => {
     await page.keyboard.press("f");
