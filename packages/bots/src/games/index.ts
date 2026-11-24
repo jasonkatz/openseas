@@ -15,6 +15,7 @@ import { SHOWDOWN_BOTS } from "./showdown.js";
 import { FORGING_BOTS } from "./forging.js";
 import { ASSEMBLY_BOTS } from "./assembly.js";
 import { PACT_BOTS } from "./pact.js";
+import { POURING_BOTS } from "./pouring.js";
 
 export const BOT_GAMES: Readonly<Record<string, AnyBotGame>> = {
   salvage: SALVAGE_BOTS as unknown as AnyBotGame,
@@ -32,4 +33,5 @@ export const BOT_GAMES: Readonly<Record<string, AnyBotGame>> = {
   forging: FORGING_BOTS as unknown as AnyBotGame,
   assembly: ASSEMBLY_BOTS as unknown as AnyBotGame,
   pact: PACT_BOTS as unknown as AnyBotGame,
+  pouring: POURING_BOTS as unknown as AnyBotGame,
 };

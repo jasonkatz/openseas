@@ -87,3 +87,6 @@ export { AssemblyBoard, assemblyBoardString, type AssemblyBoardProps } from "./a
 export { AssemblyPartIcon } from "./assembly/AssemblyIcon.jsx";
 export { ASSEMBLY_KINDS, ASSEMBLY_CORE_KIND } from "./assembly/pieces.js";
 export { PactIcon, type PactIconPiece } from "./pact/PactIcon.jsx";
+export { PouringBoard, type PouringBoardProps } from "./pouring/PouringBoard.jsx";
+export { PouringGlassIcon, PouringPieceIcon, PouringRingIcon } from "./pouring/PouringIcon.jsx";
+export { POURING_BREWS, POURING_GLASSES, pouringSeatRing } from "./pouring/pieces.js";

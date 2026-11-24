@@ -23,6 +23,7 @@ export * from "./showdown/index.js";
 export * from "./forging/index.js";
 export * from "./assembly/index.js";
 export * from "./pact/index.js";
+export * from "./pouring/index.js";
 export * from "./rating/index.js";
 export * from "./registry.js";
 export * from "./ship/index.js";

@@ -290,6 +290,21 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
       <path d="M12.6 31.2h10.8L18 38z" fill="#d897b2" />
     </svg>
   ),
+  pouring: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <rect x="10" y="10" width="44" height="44" fill="none" stroke="#27344f" strokeWidth="1.5" />
+      <circle cx="21" cy="21" r="8" fill="none" stroke="#e2a94b" strokeWidth="1.5" />
+      <path d="M16 15h10l-1.5 12h-7z" fill="#d897b2" />
+      <circle cx="43" cy="21" r="8" fill="none" stroke="#e2a94b" strokeWidth="1.5" />
+      <path d="M37 16h12l-4 7h-4z" fill="#7fb0d8" />
+      <rect x="42" y="22" width="2" height="5" fill="#7fb0d8" />
+      <rect x="16" y="37" width="10" height="11" rx="1.5" fill="#8ebd88" />
+      <path d="M26 39.5a3 3 0 0 1 0 6" fill="none" stroke="#8ebd88" strokeWidth="1.8" />
+      <path d="M37 37h12l-6 9z" fill="#d8c690" />
+      <rect x="42" y="45" width="2" height="4" fill="#d8c690" />
+    </svg>
+  ),
 };
 
 /** The puzzles the signed-in owner has a draft open on, and whether each has a pull request. Empty signed out, and when the service does not answer. */

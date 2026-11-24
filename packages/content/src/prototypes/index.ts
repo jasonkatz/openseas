@@ -48,6 +48,9 @@ import assemblyMessages from "../../data/messages/prototypes/assembly.json" with
 import pactMessages from "../../data/messages/prototypes/pact.json" with { type: "json" };
 import { AssemblyContentSchema, type AssemblyContent } from "./assembly.js";
 import { PactContentSchema, type PactContent } from "./pact.js";
+import pouringData from "../../data/puzzles/pouring.json" with { type: "json" };
+import pouringMessages from "../../data/messages/prototypes/pouring.json" with { type: "json" };
+import { PouringContentSchema, type PouringContent } from "./pouring.js";
 
 export * from "./base.js";
 export * from "./salvage.js";
@@ -65,6 +68,7 @@ export * from "./showdown.js";
 export * from "./forging.js";
 export * from "./assembly.js";
 export * from "./pact.js";
+export * from "./pouring.js";
 
 /** Content for every prototype puzzle, keyed by puzzle id. */
 export interface PrototypePuzzleContent {
@@ -83,6 +87,7 @@ export interface PrototypePuzzleContent {
   readonly forging: ForgingContent;
   readonly assembly: AssemblyContent;
   readonly pact: PactContent;
+  readonly pouring: PouringContent;
 }
 export type PrototypePuzzleContentId = keyof PrototypePuzzleContent;
 
@@ -103,5 +108,6 @@ export const PROTOTYPE_CONTENT: { readonly [K in PrototypePuzzleContentId]: { re
   forging: { schema: ForgingContentSchema, data: forgingData, messages: forgingMessages },
   assembly: { schema: AssemblyContentSchema, data: assemblyData, messages: assemblyMessages },
   pact: { schema: PactContentSchema, data: pactData, messages: pactMessages },
+  pouring: { schema: PouringContentSchema, data: pouringData, messages: pouringMessages },
 };
 export const PROTOTYPE_PUZZLE_CONTENT_IDS = Object.keys(PROTOTYPE_CONTENT) as PrototypePuzzleContentId[];

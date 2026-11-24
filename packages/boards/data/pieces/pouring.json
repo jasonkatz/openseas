@@ -1,0 +1,363 @@
+{
+  "tumbler": {
+    "tint": "slate",
+    "layers": [
+      {
+        "name": "glass",
+        "kind": "poly",
+        "points": [
+          4.6,
+          3.6,
+          19.4,
+          3.6,
+          17.6,
+          21,
+          6.4,
+          21
+        ],
+        "round": 1.8
+      }
+    ]
+  },
+  "flute": {
+    "tint": "slate",
+    "layers": [
+      {
+        "name": "bowl",
+        "kind": "poly",
+        "points": [
+          8,
+          1.8,
+          16,
+          1.8,
+          15,
+          13.6,
+          9,
+          13.6
+        ],
+        "round": 1.8
+      },
+      {
+        "name": "stem",
+        "kind": "rect",
+        "x": 11,
+        "y": 12.5,
+        "w": 2,
+        "h": 6.5,
+        "r": 0.6
+      },
+      {
+        "name": "foot",
+        "kind": "rect",
+        "x": 6.6,
+        "y": 18.6,
+        "w": 10.8,
+        "h": 2.8,
+        "r": 1.3
+      }
+    ]
+  },
+  "mug": {
+    "tint": "slate",
+    "layers": [
+      {
+        "name": "body",
+        "kind": "rect",
+        "x": 3.2,
+        "y": 4.4,
+        "w": 13.2,
+        "h": 16.8,
+        "r": 2.4
+      },
+      {
+        "name": "handle",
+        "kind": "arc",
+        "x": 16.2,
+        "y": 12.8,
+        "r": 4.4,
+        "from": -80,
+        "to": 80,
+        "width": 2.8,
+        "cap": true
+      }
+    ]
+  },
+  "coupe": {
+    "tint": "slate",
+    "layers": [
+      {
+        "name": "bowl",
+        "kind": "poly",
+        "points": [
+          2.2,
+          4.4,
+          21.8,
+          4.4,
+          16.4,
+          13,
+          7.6,
+          13
+        ],
+        "round": 2.2
+      },
+      {
+        "name": "stem",
+        "kind": "rect",
+        "x": 11,
+        "y": 12.5,
+        "w": 2,
+        "h": 6.5,
+        "r": 0.6
+      },
+      {
+        "name": "foot",
+        "kind": "rect",
+        "x": 6.6,
+        "y": 18.6,
+        "w": 10.8,
+        "h": 2.8,
+        "r": 1.3
+      }
+    ]
+  },
+  "bulb": {
+    "tint": "slate",
+    "layers": [
+      {
+        "name": "bulb",
+        "kind": "disc",
+        "x": 12,
+        "y": 14.2,
+        "r": 8.2
+      },
+      {
+        "name": "neck",
+        "kind": "rect",
+        "x": 9.8,
+        "y": 2.2,
+        "w": 4.4,
+        "h": 6.6,
+        "r": 1.2
+      }
+    ]
+  },
+  "cone": {
+    "tint": "slate",
+    "layers": [
+      {
+        "name": "bowl",
+        "kind": "poly",
+        "points": [
+          2.6,
+          2.4,
+          21.4,
+          2.4,
+          12,
+          14.2
+        ],
+        "round": 1.8
+      },
+      {
+        "name": "stem",
+        "kind": "rect",
+        "x": 11,
+        "y": 12.5,
+        "w": 2,
+        "h": 6.5,
+        "r": 0.6
+      },
+      {
+        "name": "foot",
+        "kind": "rect",
+        "x": 6.6,
+        "y": 18.6,
+        "w": 10.8,
+        "h": 2.8,
+        "r": 1.3
+      }
+    ]
+  },
+  "fizz": {
+    "tint": "slate",
+    "detail": true,
+    "layers": [
+      {
+        "name": "bead",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 2.5
+      }
+    ]
+  },
+  "halo": {
+    "tint": "slate",
+    "detail": true,
+    "layers": [
+      {
+        "name": "ring",
+        "kind": "arc",
+        "x": 12,
+        "y": 12,
+        "r": 2.4,
+        "from": 0,
+        "to": 360,
+        "width": 1.5
+      }
+    ]
+  },
+  "ribbon": {
+    "tint": "slate",
+    "detail": true,
+    "layers": [
+      {
+        "name": "band",
+        "kind": "bar",
+        "x0": 8.6,
+        "y0": 12,
+        "x1": 15.4,
+        "y1": 12,
+        "width": 2.2
+      }
+    ]
+  },
+  "spark": {
+    "tint": "slate",
+    "detail": true,
+    "layers": [
+      {
+        "name": "upright",
+        "kind": "bar",
+        "x0": 12,
+        "y0": 8.6,
+        "x1": 12,
+        "y1": 15.4,
+        "width": 1.9
+      },
+      {
+        "name": "across",
+        "kind": "bar",
+        "x0": 8.6,
+        "y0": 12,
+        "x1": 15.4,
+        "y1": 12,
+        "width": 1.9
+      }
+    ]
+  },
+  "ember": {
+    "tint": "slate",
+    "detail": true,
+    "layers": [
+      {
+        "name": "one",
+        "kind": "bar",
+        "x0": 9.4,
+        "y0": 9.4,
+        "x1": 14.6,
+        "y1": 14.6,
+        "width": 1.9
+      },
+      {
+        "name": "two",
+        "kind": "bar",
+        "x0": 14.6,
+        "y0": 9.4,
+        "x1": 9.4,
+        "y1": 14.6,
+        "width": 1.9
+      }
+    ]
+  },
+  "drop": {
+    "tint": "slate",
+    "detail": true,
+    "layers": [
+      {
+        "name": "drop",
+        "kind": "poly",
+        "points": [
+          12,
+          8.6,
+          15.4,
+          14.6,
+          8.6,
+          14.6
+        ],
+        "round": 1.0
+      }
+    ]
+  },
+  "ice": {
+    "tint": "ice",
+    "layers": [
+      {
+        "name": "cube",
+        "kind": "rect",
+        "x": 4,
+        "y": 4,
+        "w": 16,
+        "h": 16,
+        "r": 3.4
+      },
+      {
+        "name": "glint",
+        "kind": "bar",
+        "x0": 8,
+        "y0": 8.4,
+        "x1": 8,
+        "y1": 12.4,
+        "width": 1.8,
+        "cut": true
+      },
+      {
+        "name": "glint-top",
+        "kind": "bar",
+        "x0": 8,
+        "y0": 8.4,
+        "x1": 11.6,
+        "y1": 8.4,
+        "width": 1.8,
+        "cut": true
+      }
+    ]
+  },
+  "rag": {
+    "tint": "dim",
+    "layers": [
+      {
+        "name": "cloth",
+        "kind": "poly",
+        "points": [
+          3.4,
+          6.2,
+          9,
+          4.4,
+          15,
+          6.4,
+          20.6,
+          4.6,
+          20.6,
+          17.8,
+          15,
+          19.6,
+          9,
+          17.6,
+          3.4,
+          19.4
+        ],
+        "round": 1.6
+      },
+      {
+        "name": "hem",
+        "kind": "bar",
+        "x0": 6.2,
+        "y0": 14.4,
+        "x1": 17.8,
+        "y1": 14.4,
+        "width": 1.4,
+        "cut": true
+      }
+    ]
+  }
+}

@@ -66,6 +66,8 @@ parlor game between people stays later. Blacksmithing's successor,
 Forging, is built early the same way too (ADR 0083); crafting stays later for it as well.
 Shipwrightry's successor, Assembly, is built early the same way (ADR 0084); its role, building a
 ship in a shipyard, stays later with the other crafting puzzles.
+Drinking's successor, Pouring, is built early the same way (ADR 0085); a game between pirates at an
+outpost's bar, its role, stays later with the parlor games.
 
 Eight puzzles of the game's own design are prototypes in the studio (3.12, ADR 0036). None is in
 v1, and none has a role in the game until it is chosen for one.
@@ -631,6 +633,7 @@ are in [`prototypes/`](./prototypes/README.md), one file a puzzle, kept true as 
 | Forging | Strike a spot the press can reach | A weave: counts and spans struck back to back, each set begun where the last one left the press |
 | Assembly | Swap a part its own way; fit a blueprint | Several blueprints set up side by side, then fitted one after another as one chain |
 | Pact | Bid, then play a card to each trick | A nil made: a hand bid to take no trick, and taken through |
+| Pouring | Set a drink down where it suits its neighbours | The clean double: a row and a column served by one pour on a clean square |
 
 Tractor is a ninth prototype of another kind (ADR 0078): a successor to Treasure Haul, faithful to
 its mechanics, built early so it can be played before the haul after a fight exists. Refining is a
@@ -642,6 +645,8 @@ Forging is a thirteenth (ADR 0083): a successor to Blacksmithing, built before c
 Assembly is a fourteenth (ADR 0084): a successor to Shipwrightry, the shipyard's crafting puzzle.
 Pact is a fifteenth (ADR 0087): a successor to Spades, played with a partner and against two
 rivals the engine plays.
+Pouring is a sixteenth (ADR 0085): a successor to Drinking, played against rivals whose turns the
+engine takes, so a round still replays from the player's moves alone.
 
 What holds for all eight:
 
@@ -1323,6 +1328,7 @@ Maintained as they arise.
 | Blacksmithing | A crafting puzzle; a session ends the moment the hammer has nowhere to land, scored by the squares left unstruck; the next symbols are hidden | Forging, a prototype in the studio, untimed: the round ends when the plate is set or the press has nowhere to land, as in the original (ADR 0082). The next three marks are shown. The score is mostly how far into the plate the round got, as the original's is, but in points: the n-th strike scores n and a whole plate a bonus, with chains, sets and weaves on top, a weave's k-th set paying k times | What the player plans around is shown (rule 7 of the `puzzles` skill), and points reward the chains and sets the original's symbols make; no role yet to tie the plate to crafting |
 | Shipwrightry | A shipyard job: the tide rises, closes the chain window and sweeps a pattern away; a flag counts the patterns and ends the job; chain names by length | Assembly, a prototype in the studio on a 240 second round (ADR 0084). The round's clock replaces the tide and the flag, and a chain ends only on a swap; a chain's place is capped at six; callouts say the chain's number; a fit's parts are replaced where they stood, and nothing falls; blueprints come from a fixed pool of sixteen, dealt from a shuffled bag | One clock like every prototype's; a bay that keeps its shape, and a pool a player can learn, let a player plan; no role yet to tie a round to a ship being built; the original's chain names are its own |
 | Spades | Four people in two partnerships, playing to a target score; a set contract and a broken nil lose points, so a side's score can fall below zero | Pact, a prototype in the studio (ADR 0087): the player and a partner against two rivals, all three played by one rule in the engine that sees only its own seat; a sitting of four hands; a hand never scores below zero for a side, so the total only climbs; a side whose rivals fall short of their pact scores 10 a trick of it; four-colour traditional suits drawn in code | A round played alone needs a partner and rivals; a total that only climbs reads at a glance and keeps a bad hand from wiping out a sitting, while a missed pact still costs the hand; with no race to a target, a set is paid to the side that made it |
+| Drinking | Two to six pirates around one grid; a round runs to a score or until every square is stained; every line pays the same however many are made at once; the other pirates' choices hidden | Pouring, a prototype in the studio against rivals the engine plays (ADR 0085). A round is a fixed number of turns each; lines served by one pour pay by their number squared, so a row and a column at once are four times a line; every rival's hand is on show; a drink waiting in hand gains value for a few turns only | A round that ends where a player can see it coming, and more of the score on a planned cross than on a lucky fill (rules 7 and 13 of the `puzzles` skill); no role yet to put pirates at one bar |
 | Ship ownership | Individuals and crews | Individuals only in v1 | Simpler model; owner likes personal ships |
 | Crew ranks | A long ladder of ranks with fine-grained permissions | Three: commodore, officer, spacer | A crew of friends needs a leader, recruiters and everyone else; more can be added to the enum |
 | Flags | A flag is an alliance of crews | A flag is a crew's own banner; no alliances | Alliances need more crews than the design point has; the word reads naturally on a ship |
