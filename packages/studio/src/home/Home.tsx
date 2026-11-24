@@ -206,6 +206,18 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
       <path d="M47 30v-14m0 0l-4 4m4-4l4 4" fill="none" stroke="#7fd7ff" strokeWidth="2.5" strokeLinecap="round" />
     </svg>
   ),
+  refining: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <path d="M52 10v44" stroke="#efe3c6" strokeWidth="2" />
+      <rect x="10" y="40" width="10" height="10" rx="1.5" fill="#c27f66" />
+      <circle cx="31" cy="45" r="5" fill="#d8c690" />
+      <rect x="26" y="26" width="10" height="10" rx="1.5" fill="#c27f66" />
+      <path d="M44 12l4 7a4.5 4.5 0 1 1-8 0z" fill="#a9d3de" />
+      <path d="M44 25l4 7a4.5 4.5 0 1 1-8 0z" fill="#a9d3de" />
+      <path d="M44 38l4 7a4.5 4.5 0 1 1-8 0z" fill="#a9d3de" />
+    </svg>
+  ),
   freefall: (
     <svg viewBox="0 0 64 64" width="56" height="56">
       <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
@@ -234,7 +246,6 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
     </svg>
   ),
 };
-
 
 /** The puzzles the signed-in owner has a draft open on, and whether each has a pull request. Empty signed out, and when the service does not answer. */
 function useOpenDrafts(): ReadonlyMap<PuzzleId, { pull: boolean }> {

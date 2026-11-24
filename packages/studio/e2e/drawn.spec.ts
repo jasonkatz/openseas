@@ -6,7 +6,7 @@ import { expectViewMatchesState } from "./helpers.js";
  * Exercised on the production build, alone on `/play`: the board says its pieces are drawn, asks
  * the network for no image, shows the engine's board, and survives a resize. Each puzzle's own spec plays it.
  */
-const PUZZLES = ["cooling", "engines", "plating", "gunnery", "navigation", "battle", "swordfight", "salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting", "tractor", "freefall", "pouring"];
+const PUZZLES = ["cooling", "engines", "plating", "gunnery", "navigation", "battle", "swordfight", "salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting", "tractor", "refining", "freefall", "pouring"];
 
 for (const puzzle of PUZZLES) {
   test(`${puzzle} draws its pieces in code, asks for no image and survives a resize`, async ({ page }) => {
