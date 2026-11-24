@@ -456,17 +456,18 @@ describe("deflectors rounds", () => {
     expect(needFlip).toBeGreaterThanOrEqual(19);
   });
 
-  it("a beam out through its exit scores by its turns, and a perfect volley is worth half as much again", () => {
+  it("a beam out through its exit scores by its turns, and a perfect volley is worth more", () => {
+    const perfect = Math.floor((4 * cfg.perfectPercent) / 100);
     // One mirror in the middle: from the left edge it sends the beam up as `/`, down as `\`.
     const s = waiting(grid(["...", "./.", "..."]), [[10, 1]], 4);
-    expect(deflectorsOutlook(s)).toMatchObject({ hits: 1, clean: true, perfect: true, base: 4, streak: 1, streakPercent: cfg.streakPercent[0], gained: 6, lost: 0, points: 6 });
+    expect(deflectorsOutlook(s)).toMatchObject({ hits: 1, clean: true, perfect: true, base: 4, streak: 1, streakPercent: cfg.streakPercent[0], gained: perfect, lost: 0, points: perfect });
     const hit = reduceDeflectors(s, { type: "fire", volley: 1, tick: 5 });
     const e = fires(hit)[0]!;
     expect(e).toMatchObject({ tick: 5, spent: [] });
     expect(e.outcome.shots).toEqual([{ sign: 0, entry: 10, exit: 1, recipe: 0, out: 1, bounces: 1, turns: [4], lenses: 0, lensCells: [], atExit: true, hit: true, points: 4 }]);
     expect(e.outcome.gained).toBe(Math.floor((deflectorsBeamPoints(s.config, 1) * cfg.perfectPercent) / 100));
-    expect(hit).toMatchObject({ score: 6, volleys: 1, hits: 1, misses: 0, perfects: 1, combo: 1, bestCombo: 1, longest: 1, volley: null });
-    expect(summarizeDeflectors(hit)).toEqual({ score: 6, moves: 1, bestCombo: 1 });
+    expect(hit).toMatchObject({ score: perfect, volleys: 1, hits: 1, misses: 0, perfects: 1, combo: 1, bestCombo: 1, longest: 1, volley: null });
+    expect(summarizeDeflectors(hit)).toEqual({ score: perfect, moves: 1, bestCombo: 1 });
     // Firing brings the next volley after the short pause.
     expect(hit.nextDealTick).toBe(5 + cfg.respawnTicks);
     // The same route with a longer one left unfound is clean and not perfect.
