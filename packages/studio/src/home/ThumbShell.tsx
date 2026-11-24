@@ -9,7 +9,7 @@ const WIDTH = 480;
 const TRIES = 90;
 
 /**
- * A puzzle's board and nothing else, for the home grid's hidden frame (home/thumbs). Once the
+ * A puzzle's board and nothing else, for the home list's hidden frame (home/thumbs). Once the
  * board has drawn its opening state it copies the canvas into a picture and posts it to the page
  * that framed it. Opened any other way it is just a still board.
  */

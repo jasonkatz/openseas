@@ -1187,7 +1187,7 @@ i.dot.pip-off {
 }
 
 /* ---- the studio's two pages (see the top of this file)
-   What the home grid and the voyage bench took from the rules above as they were, and still draw
+   What the home list and the voyage bench took from the rules above as they were, and still draw
    with. `:where` keeps each at the weight of the rule it stands in for. It goes with the aliases. */
 :where(.studio-home, .vpage) .eyebrow {
   text-transform: uppercase;
