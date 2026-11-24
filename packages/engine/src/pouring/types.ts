@@ -1,5 +1,5 @@
 /**
- * Pouring (prototype, ADR 0083): a successor to the original's tavern puzzle, Drinking. A few
+ * Pouring (prototype, ADR 0084): a successor to the original's tavern puzzle, Drinking. A few
  * pirates share one bar top in a dockside bar and take turns setting drinks down on it.
  *
  * The bar is a `size` by `size` grid. Every drink has a glass (its outline) and a brew (its colour

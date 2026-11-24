@@ -8,7 +8,7 @@ import { POURING } from "../prototypes/pouring.js";
 
 const pouring = content.puzzles.pouring;
 
-/** Pouring (prototype, ADR 0083): the shared board in the studio's frame. */
+/** Pouring (prototype, ADR 0084): the shared board in the studio's frame. */
 export function PouringPractice() {
   const api = usePractice<PouringState, PouringMove, PouringConfig>({
     puzzle: "pouring",

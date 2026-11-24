@@ -62,8 +62,10 @@ Treasure Haul's successor, Tractor, is built early as a prototype in the studio 
 the haul after a won fight, stays later. Distilling's successor, Refining, is built early the same
 way (ADR 0080); crafting, its role, stays later. Treasure Drop's successor, Freefall, is built early
 the same way (ADR 0081), and Poker's, Showdown, too (ADR 0082); a parlor game between people
-stays later. Drinking's successor, Pouring, is built early the same way (ADR 0083); a game between
-pirates at an outpost's bar, its role, stays later with the parlor games.
+stays later. Blacksmithing's successor,
+Forging, is built early the same way too (ADR 0083); crafting stays later for it as well.
+Drinking's successor, Pouring, is built early the same way (ADR 0084); a game between pirates at an
+outpost's bar, its role, stays later with the parlor games.
 
 Eight puzzles of the game's own design are prototypes in the studio (3.12, ADR 0036). None is in
 v1, and none has a role in the game until it is chosen for one.
@@ -626,6 +628,7 @@ are in [`prototypes/`](./prototypes/README.md), one file a puzzle, kept true as 
 | Refining | Swap two linked fractions in a tower drawn on a clock | A run of clear columns kept going through dumps, to the run's cap |
 | Freefall | Drop a pod down a lane | Loaded cradles tipped so their pods meet as one cluster in a rich berth |
 | Showdown | Fold, call or raise | A check-raise that takes the pot: a strong hand checked to a rival who bets, then raised |
+| Forging | Strike a spot the press can reach | A weave: counts and spans struck back to back, each set begun where the last one left the press |
 | Pouring | Set a drink down where it suits its neighbours | The clean double: a row and a column served by one pour on a clean square |
 
 Tractor is a ninth prototype of another kind (ADR 0078): a successor to Treasure Haul, faithful to
@@ -634,7 +637,8 @@ tenth of that kind (ADR 0080): a successor to Distilling, built early before cra
 Freefall is an eleventh of the same kind (ADR 0081): a successor to Treasure Drop, played against
 a rival the engine drops for.
 Showdown is a twelfth (ADR 0082): a successor to Poker, played against rivals the engine plays.
-Pouring is a thirteenth (ADR 0083): a successor to Drinking, played against rivals whose turns the
+Forging is a thirteenth (ADR 0083): a successor to Blacksmithing, built before crafting exists.
+Pouring is a fourteenth (ADR 0084): a successor to Drinking, played against rivals whose turns the
 engine takes, so a round still replays from the player's moves alone.
 
 What holds for all eight:
@@ -1314,7 +1318,8 @@ Maintained as they arise.
 | Poker | Hold'em between people at a parlor table, for coins, played on as long as they like | Showdown, a prototype in the studio (ADR 0082): fixed-limit hold'em against three rivals in the engine, each dealt a style it plays all game and shown at its seat; a knockout from ten chips each, with all ins and side pots, won when every rival is out; scored on the rivals outlasted and how fast the table is won | One verb with three costed choices reads at a glance and plays one-thumbed; a round played alone needs opponents it can be read and rated against, and an end; a score that only grows never pays leaving and never goes below nothing |
 | Treasure Haul | A haul after a won fight, played while the ship stays by the wreck; gems dealt with the coins; any run a cascade | Tractor, a prototype in the studio on a 90 second round (ADR 0078). New loot never completes a run as it arrives, so every later wave was on the field to be seen; caches brought aboard in one swap pay by their number squared; beacons (the gems) arrive after every five scoring swaps | More of the score on planning than on the refill (rules 7 and 13 of the `puzzles` skill); no role yet to tie the round to a wreck |
 | Treasure Drop | A parlor game for two people; a multi-coin pays its slot times its count; the original's slot values and targets | Freefall, a prototype in the studio against a rival the engine drops for, rated on the player's lead (ADR 0081). A cluster pays its berth by its count squared, so a planned cluster beats lucky singles. The shaft keeps the original's widening tree, a few drop lanes over many berths, but its widths and rows are tuning numbers; five legs where the original plays four; its own berth values and quotas | Planning pays more than luck (the `puzzles` skill, rule 13), and a round played alone needs an opponent it can be rated against |
-| Drinking | Two to six pirates around one grid; a round runs to a score or until every square is stained; every line pays the same however many are made at once; the other pirates' choices hidden | Pouring, a prototype in the studio against rivals the engine plays (ADR 0083). A round is a fixed number of turns each; lines served by one pour pay by their number squared, so a row and a column at once are four times a line; every rival's hand is on show; a drink waiting in hand gains value for a few turns only | A round that ends where a player can see it coming, and more of the score on a planned cross than on a lucky fill (rules 7 and 13 of the `puzzles` skill); no role yet to put pirates at one bar |
+| Blacksmithing | A crafting puzzle; a session ends the moment the hammer has nowhere to land, scored by the squares left unstruck; the next symbols are hidden | Forging, a prototype in the studio, untimed: the round ends when the plate is set or the press has nowhere to land, as in the original (ADR 0082). The next three marks are shown. The score is mostly how far into the plate the round got, as the original's is, but in points: the n-th strike scores n and a whole plate a bonus, with chains, sets and weaves on top, a weave's k-th set paying k times | What the player plans around is shown (rule 7 of the `puzzles` skill), and points reward the chains and sets the original's symbols make; no role yet to tie the plate to crafting |
+| Drinking | Two to six pirates around one grid; a round runs to a score or until every square is stained; every line pays the same however many are made at once; the other pirates' choices hidden | Pouring, a prototype in the studio against rivals the engine plays (ADR 0084). A round is a fixed number of turns each; lines served by one pour pay by their number squared, so a row and a column at once are four times a line; every rival's hand is on show; a drink waiting in hand gains value for a few turns only | A round that ends where a player can see it coming, and more of the score on a planned cross than on a lucky fill (rules 7 and 13 of the `puzzles` skill); no role yet to put pirates at one bar |
 | Ship ownership | Individuals and crews | Individuals only in v1 | Simpler model; owner likes personal ships |
 | Crew ranks | A long ladder of ranks with fine-grained permissions | Three: commodore, officer, spacer | A crew of friends needs a leader, recruiters and everyone else; more can be added to the enum |
 | Flags | A flag is an alliance of crews | A flag is a crew's own banner; no alliances | Alliances need more crews than the design point has; the word reads naturally on a ship |

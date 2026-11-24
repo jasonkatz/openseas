@@ -23,6 +23,7 @@ export * from "./tractor.js";
 export * from "./refining.js";
 export * from "./freefall.js";
 export * from "./showdown.js";
+export * from "./forging.js";
 export * from "./pouring.js";
 export * from "./ws.js";
 export * from "./studio.js";
