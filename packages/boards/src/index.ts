@@ -78,7 +78,9 @@ export { RefiningIcon } from "./refining/RefiningIcon.jsx";
 export { REFINING_KINDS } from "./refining/pieces.js";
 export { FreefallBoard, type FreefallBoardProps } from "./freefall/FreefallBoard.jsx";
 export { FreefallIcon } from "./freefall/FreefallIcon.jsx";
-// The domain board (ADR 0082): one board for any puzzle of the domain engine, dressed by a skin and the game's theme.
+export { ShowdownBoard, type ShowdownBoardProps } from "./showdown/ShowdownBoard.jsx";
+export { ShowdownIcon, type ShowdownIconPiece } from "./showdown/ShowdownIcon.jsx";
+// The domain board (ADR 0083): one board for any puzzle of the domain engine, dressed by a skin and the game's theme.
 export { PlayBoard, PlayPieceIcon, type PlayBoardProps } from "./play/PlayBoard.jsx";
 export { type PlayFrame } from "./play/renderer.js";
 export { fill, skinOf, spaceTheme } from "./play/theme.js";

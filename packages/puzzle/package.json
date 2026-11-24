@@ -2,7 +2,7 @@
   "name": "@openseas/puzzle",
   "version": "0.1.0",
   "private": true,
-  "description": "The puzzle domain engine (ADR 0082): runs any puzzle written as a puzzle document and its rules, by docs/puzzles/DOMAIN.md. Pure, with zero runtime dependencies.",
+  "description": "The puzzle domain engine (ADR 0083): runs any puzzle written as a puzzle document and its rules, by docs/puzzles/DOMAIN.md. Pure, with zero runtime dependencies.",
   "type": "module",
   "exports": {
     ".": {

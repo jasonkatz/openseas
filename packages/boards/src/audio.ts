@@ -304,7 +304,7 @@ function play<K extends CueName>(name: K, args: CueArgs<K>): void {
 }
 
 /**
- * Plays a cue that is data of a skin (ADR 0082), with the values its rules name: the domain
+ * Plays a cue that is data of a skin (ADR 0083), with the values its rules name: the domain
  * board's cues are its skin's own and have no place in `CUE_PARAMS`. A cue named `beat` is the
  * beat's: it is heard alone in its moment and takes over a beat still ringing, as the game's is.
  */
