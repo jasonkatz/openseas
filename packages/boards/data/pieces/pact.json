@@ -1,0 +1,215 @@
+{
+  "spade": {
+    "tint": "cream",
+    "layers": [
+      {
+        "name": "blade",
+        "kind": "path",
+        "steps": [
+          {
+            "x": 12,
+            "y": 2.4
+          },
+          {
+            "x": 20.41,
+            "y": 10.39
+          },
+          {
+            "x": 16.6,
+            "y": 14.2,
+            "r": 5.3,
+            "from": 314.0,
+            "to": 510.2
+          },
+          {
+            "x": 7.4,
+            "y": 14.2,
+            "r": 5.3,
+            "from": 29.8,
+            "to": 226.0
+          }
+        ],
+        "width": 1.6,
+        "fill": true
+      },
+      {
+        "name": "stem",
+        "kind": "poly",
+        "points": [
+          12,
+          13.5,
+          15.4,
+          21.6,
+          8.6,
+          21.6
+        ],
+        "round": 1.6
+      }
+    ]
+  },
+  "heart": {
+    "tint": "rose",
+    "layers": [
+      {
+        "name": "heart",
+        "kind": "path",
+        "steps": [
+          {
+            "x": 12,
+            "y": 21.2
+          },
+          {
+            "x": 3.55,
+            "y": 12.24
+          },
+          {
+            "x": 7.4,
+            "y": 8.6,
+            "r": 5.3,
+            "from": 136.6,
+            "to": 330.2
+          },
+          {
+            "x": 16.6,
+            "y": 8.6,
+            "r": 5.3,
+            "from": 209.8,
+            "to": 403.4
+          }
+        ],
+        "width": 1.6,
+        "fill": true
+      }
+    ]
+  },
+  "diamond": {
+    "tint": "sand",
+    "layers": [
+      {
+        "name": "stone",
+        "kind": "poly",
+        "points": [
+          12,
+          2.2,
+          19.8,
+          12,
+          12,
+          21.8,
+          4.2,
+          12
+        ],
+        "round": 2
+      }
+    ]
+  },
+  "club": {
+    "tint": "moss",
+    "layers": [
+      {
+        "name": "top",
+        "kind": "disc",
+        "x": 12,
+        "y": 7.3,
+        "r": 4.9
+      },
+      {
+        "name": "left",
+        "kind": "disc",
+        "x": 7.1,
+        "y": 13.6,
+        "r": 4.9
+      },
+      {
+        "name": "right",
+        "kind": "disc",
+        "x": 16.9,
+        "y": 13.6,
+        "r": 4.9
+      },
+      {
+        "name": "heart",
+        "kind": "disc",
+        "x": 12,
+        "y": 11.8,
+        "r": 3.2
+      },
+      {
+        "name": "stem",
+        "kind": "poly",
+        "points": [
+          12,
+          12.5,
+          15.4,
+          21.6,
+          8.6,
+          21.6
+        ],
+        "round": 1.6
+      }
+    ]
+  },
+  "back": {
+    "tint": "slate",
+    "layers": [
+      {
+        "name": "seal",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 9
+      },
+      {
+        "name": "eye",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 4,
+        "cut": true
+      }
+    ]
+  },
+  "trick": {
+    "tint": "cream",
+    "layers": [
+      {
+        "name": "stack",
+        "kind": "rect",
+        "x": 4,
+        "y": 3,
+        "w": 16,
+        "h": 18,
+        "r": 3
+      },
+      {
+        "name": "fold",
+        "kind": "bar",
+        "x0": 4,
+        "y0": 8,
+        "x1": 20,
+        "y1": 8,
+        "width": 3,
+        "cut": true
+      }
+    ]
+  },
+  "nil": {
+    "tint": "lilac",
+    "layers": [
+      {
+        "name": "ring",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 9.5
+      },
+      {
+        "name": "hole",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 5.5,
+        "cut": true
+      }
+    ]
+  }
+}

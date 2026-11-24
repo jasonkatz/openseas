@@ -1,0 +1,25 @@
+{
+  "category": "prototype",
+  "config": {
+    "hands": 4,
+    "trickValue": 10,
+    "bagValue": 1,
+    "nilBonus": 100,
+    "bagLimit": 10,
+    "bagPenalty": 100,
+    "setBonus": 10,
+    "seatLean": 4,
+    "handSeconds": 100,
+    "maxMoves": 2000
+  },
+  "paceSeconds": 120,
+  "roundSeconds": 600,
+  "thresholds": [
+    { "score": 60, "rating": 1100 },
+    { "score": 180, "rating": 1300 },
+    { "score": 255, "rating": 1600 },
+    { "score": 320, "rating": 1900 },
+    { "score": 400, "rating": 2200 },
+    { "score": 500, "rating": 2500 }
+  ]
+}

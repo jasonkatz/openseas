@@ -55,8 +55,8 @@ export { SalvageCrateIcon, SalvageDebrisIcon, SalvageRubbleIcon, SalvageVolatile
 export { OverloadBoard, type OverloadBoardProps } from "./overload/OverloadBoard.jsx";
 export { CapacitorIcon } from "./overload/CapacitorIcon.jsx";
 export { DeflectorsBoard, type DeflectorsBoardProps } from "./deflectors/DeflectorsBoard.jsx";
-export { DeflectorsMirrorIcon, DeflectorsSignIcon } from "./deflectors/SignIcon.jsx";
-export { DEFLECTORS_SIGNS } from "./deflectors/pieces.js";
+export { DeflectorsLensIcon, DeflectorsMirrorIcon, DeflectorsSignIcon, DeflectorsSplitterIcon, DeflectorsTargetIcon } from "./deflectors/SignIcon.jsx";
+export { DEFLECTORS_LENSES, DEFLECTORS_SIGNS } from "./deflectors/pieces.js";
 export { ReactorBoard, type ReactorBoardProps } from "./reactor/ReactorBoard.jsx";
 export { ReactorPortIcon, ReactorRodIcon } from "./reactor/RodIcon.jsx";
 export { ScannerBoard, type ScannerBoardProps } from "./scanner/ScannerBoard.jsx";
@@ -81,10 +81,12 @@ export { FreefallIcon } from "./freefall/FreefallIcon.jsx";
 export { ShowdownBoard, type ShowdownBoardProps } from "./showdown/ShowdownBoard.jsx";
 export { ShowdownIcon, type ShowdownIconPiece } from "./showdown/ShowdownIcon.jsx";
 export { ForgingBoard, type ForgingBoardProps } from "./forging/ForgingBoard.jsx";
+export { PactBoard, type PactBoardProps } from "./pact/PactBoard.jsx";
 export { ForgingMarkIcon } from "./forging/ForgingIcon.jsx";
 export { AssemblyBoard, assemblyBoardString, type AssemblyBoardProps } from "./assembly/AssemblyBoard.jsx";
 export { AssemblyPartIcon } from "./assembly/AssemblyIcon.jsx";
 export { ASSEMBLY_KINDS, ASSEMBLY_CORE_KIND } from "./assembly/pieces.js";
+export { PactIcon, type PactIconPiece } from "./pact/PactIcon.jsx";
 // The domain board (ADR 0085): one board for any puzzle of the domain engine, dressed by a skin and the game's theme.
 export { PlayBoard, PlayPieceIcon, type PlayBoardProps } from "./play/PlayBoard.jsx";
 export { type PlayFrame } from "./play/renderer.js";

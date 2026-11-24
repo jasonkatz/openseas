@@ -5,7 +5,7 @@ import { expectViewMatchesState, shown } from "./helpers.js";
  * A puzzle's studio page (DESIGN.md 3.14, ADR 0042): the board with the tuning panel beside it.
  * The studio is a desktop tool, so all but the last test run on the desktop profile only.
  */
-const PUZZLES = ["cooling", "engines", "plating", "gunnery", "navigation", "battle", "swordfight", "salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting", "tractor", "refining", "freefall", "showdown", "forging", "assembly"];
+const PUZZLES = ["cooling", "engines", "plating", "gunnery", "navigation", "battle", "swordfight", "salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting", "tractor", "refining", "freefall", "showdown", "forging", "assembly", "pact"];
 
 const desktopOnly = (): void => test.skip(test.info().project.name !== "desktop", "the studio is a desktop tool");
 const board = (page: Page): Promise<string | null> => page.getByTestId("cooling-board").getAttribute("data-board");
@@ -325,7 +325,7 @@ test("a finished round keeps the numbers it was dealt on, can be the baseline, a
       window.openseasRoundClock!.step(10 * 60 * 1000);
     });
     // The round ends on the page's next look at its clock: a loaded runner can take a while to get there.
-    await expect(page.getByTestId("result-tier")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("result-tier")).toBeVisible({ timeout: 30_000 });
   };
   await (await shown(page, "more-config.pieceKinds")).click();
   await page.getByTestId("transport-play").click();

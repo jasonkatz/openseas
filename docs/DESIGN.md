@@ -61,8 +61,8 @@ Explicitly later: Rigging, Treasure Haul, Rumble, all crafting puzzles, parlor g
 Treasure Haul's successor, Tractor, is built early as a prototype in the studio (ADR 0078); its role,
 the haul after a won fight, stays later. Distilling's successor, Refining, is built early the same
 way (ADR 0080); crafting, its role, stays later. Treasure Drop's successor, Freefall, is built early
-the same way (ADR 0081), and Poker's, Showdown, too (ADR 0082); a parlor game between people
-stays later. Blacksmithing's successor,
+the same way (ADR 0081), and so are Poker's, Showdown (ADR 0082), and Spades', Pact (ADR 0087); a
+parlor game between people stays later. Blacksmithing's successor,
 Forging, is built early the same way too (ADR 0083); crafting stays later for it as well.
 Shipwrightry's successor, Assembly, is built early the same way (ADR 0084); its role, building a
 ship in a shipyard, stays later with the other crafting puzzles.
@@ -417,7 +417,7 @@ between them (`client/src/world/tones.ts`), and no file in the game's client typ
 
 **The eight prototypes** are restyled too (M10's fifth step). Each draws its pieces in code from a
 `pieces.ts` beside its renderer, on the board kit (3.12): Salvage's wreckage, Overload's
-capacitors with a hole for each charge, Deflectors' mirrors and port signs, Reactor's rods with
+capacitors with a hole for each charge, Deflectors' mirrors, emitters and targets, Reactor's rods with
 their grade cut out as a numeral, Scanner's fog plates, Tug's pods and the clamps cut to them,
 Racks' fuel cells and Cutting's ores. None loads an image and none has a marks toggle; each
 prototype's design file says what it draws.
@@ -618,7 +618,7 @@ are in [`prototypes/`](./prototypes/README.md), one file a puzzle, kept true as 
 |---|---|---|
 | Salvage | Drag a tether through touching debris of one kind | Close the line into a net and haul every crate adrift at once |
 | Overload | Tap a capacitor to charge it | Prime the bank so one tap bursts across it |
-| Deflectors | Flip mirrors | One layout that sends a whole volley of beams home, each the long way round |
+| Deflectors | Place pieces | A grid built to light three targets in one shot, each the long way round, fired at the right moment |
 | Reactor | Swipe the whole core | Hot rods stacked at one port and sent out together as a salvo |
 | Scanner | Ping the fog | A sector cleared under par with no contact pinged and no wrong lock |
 | Tug | Flick a pod in zero gravity | A delivery at par, using another pod as the stop |
@@ -630,6 +630,7 @@ are in [`prototypes/`](./prototypes/README.md), one file a puzzle, kept true as 
 | Showdown | Fold, call or raise | A check-raise that takes the pot: a strong hand checked to a rival who bets, then raised |
 | Forging | Strike a spot the press can reach | A weave: counts and spans struck back to back, each set begun where the last one left the press |
 | Assembly | Swap a part its own way; fit a blueprint | Several blueprints set up side by side, then fitted one after another as one chain |
+| Pact | Bid, then play a card to each trick | A nil made: a hand bid to take no trick, and taken through |
 
 Tractor is a ninth prototype of another kind (ADR 0078): a successor to Treasure Haul, faithful to
 its mechanics, built early so it can be played before the haul after a fight exists. Refining is a
@@ -639,6 +640,8 @@ a rival the engine drops for.
 Showdown is a twelfth (ADR 0082): a successor to Poker, played against rivals the engine plays.
 Forging is a thirteenth (ADR 0083): a successor to Blacksmithing, built before crafting exists.
 Assembly is a fourteenth (ADR 0084): a successor to Shipwrightry, the shipyard's crafting puzzle.
+Pact is a fifteenth (ADR 0087): a successor to Spades, played with a partner and against two
+rivals the engine plays.
 
 What holds for all eight:
 
@@ -1320,6 +1323,7 @@ Maintained as they arise.
 | Treasure Drop | A parlor game for two people; a multi-coin pays its slot times its count; the original's slot values and targets | Freefall, a prototype in the studio against a rival the engine drops for, rated on the player's lead (ADR 0081). A cluster pays its berth by its count squared, so a planned cluster beats lucky singles. The shaft keeps the original's widening tree, a few drop lanes over many berths, but its widths and rows are tuning numbers; five legs where the original plays four; its own berth values and quotas | Planning pays more than luck (the `puzzles` skill, rule 13), and a round played alone needs an opponent it can be rated against |
 | Blacksmithing | A crafting puzzle; a session ends the moment the hammer has nowhere to land, scored by the squares left unstruck; the next symbols are hidden | Forging, a prototype in the studio, untimed: the round ends when the plate is set or the press has nowhere to land, as in the original (ADR 0082). The next three marks are shown. The score is mostly how far into the plate the round got, as the original's is, but in points: the n-th strike scores n and a whole plate a bonus, with chains, sets and weaves on top, a weave's k-th set paying k times | What the player plans around is shown (rule 7 of the `puzzles` skill), and points reward the chains and sets the original's symbols make; no role yet to tie the plate to crafting |
 | Shipwrightry | A shipyard job: the tide rises, closes the chain window and sweeps a pattern away; a flag counts the patterns and ends the job; chain names by length | Assembly, a prototype in the studio on a 240 second round (ADR 0084). The round's clock replaces the tide and the flag, and a chain ends only on a swap; a chain's place is capped at six; callouts say the chain's number; a fit's parts are replaced where they stood, and nothing falls; blueprints come from a fixed pool of sixteen, dealt from a shuffled bag | One clock like every prototype's; a bay that keeps its shape, and a pool a player can learn, let a player plan; no role yet to tie a round to a ship being built; the original's chain names are its own |
+| Spades | Four people in two partnerships, playing to a target score; a set contract and a broken nil lose points, so a side's score can fall below zero | Pact, a prototype in the studio (ADR 0087): the player and a partner against two rivals, all three played by one rule in the engine that sees only its own seat; a sitting of four hands; a hand never scores below zero for a side, so the total only climbs; a side whose rivals fall short of their pact scores 10 a trick of it; four-colour traditional suits drawn in code | A round played alone needs a partner and rivals; a total that only climbs reads at a glance and keeps a bad hand from wiping out a sitting, while a missed pact still costs the hand; with no race to a target, a set is paid to the side that made it |
 | Ship ownership | Individuals and crews | Individuals only in v1 | Simpler model; owner likes personal ships |
 | Crew ranks | A long ladder of ranks with fine-grained permissions | Three: commodore, officer, spacer | A crew of friends needs a leader, recruiters and everyone else; more can be added to the enum |
 | Flags | A flag is an alliance of crews | A flag is a crew's own banner; no alliances | Alliances need more crews than the design point has; the word reads naturally on a ship |

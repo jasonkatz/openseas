@@ -8,16 +8,18 @@ export interface DeflectorsBoardProps {
   /** The state as shown: the engine advanced to the current tick. */
   state: DeflectorsState;
   /**
-   * The engine's last logged state. Its report is played as well as the shown state's, so a volley
+   * The engine's last logged state. Its report is played as well as the shown state's, so a shot
    * fired on the last instant of a tick is still seen to fire once the shown state has moved on.
    */
   logged?: DeflectorsState;
   version?: number;
   interactive: boolean;
-  /** Pulse the next mirror to flip after a pause: on for practice, off for recorded rounds. */
+  /** Pulse where the next piece would make the shot worth more, after a pause: on for practice, off for recorded rounds. */
   hints?: boolean;
-  onFlip?(cell: number): void;
-  onFire?(volley: number): void;
+  onPlace?(cell: number): void;
+  onTurn?(): void;
+  onBin?(): void;
+  onFire?(): void;
   onFrame(): void;
 }
 
@@ -30,20 +32,20 @@ export function DeflectorsBoard(props: DeflectorsBoardProps) {
       new DeflectorsRenderer(
         el,
         {
-          onFlip: (cell) => latest.current.onFlip?.(cell),
-          onFire: (volley) => latest.current.onFire?.(volley),
+          onPlace: (cell) => latest.current.onPlace?.(cell),
+          onTurn: () => latest.current.onTurn?.(),
+          onBin: () => latest.current.onBin?.(),
+          onFire: () => latest.current.onFire?.(),
           onFrame: () => latest.current.onFrame(),
         },
         {
           hints: props.hints ?? false,
           labels: {
-            outlook: (points, best) => t("deflectors.outlook", { points, best }),
-            outlookPerfect: (points) => t("deflectors.outlook_perfect", { points }),
-            outlookAstray: (home, beams, best) => t("deflectors.outlook_astray", { home, beams, best }),
-            perfect: t("deflectors.perfect"),
-            streak: (count) => t("deflectors.streak", { count }),
+            outlook: (points, lit, percent) => (lit > 1 ? t("deflectors.outlook", { points, lit, times: percent / 100 }) : t("deflectors.outlook_one", { points })),
+            outlookNone: t("deflectors.outlook_none"),
+            lit: (count, percent) => t("deflectors.lit", { count, times: percent / 100 }),
             longRoute: (turns) => t("deflectors.long_route", { turns }),
-            hull: t("deflectors.hull"),
+            left: (count) => t("deflectors.left", { count }),
           },
         },
       ),
@@ -59,5 +61,6 @@ export function DeflectorsBoard(props: DeflectorsBoardProps) {
     if (events) renderer.current?.noteEvents(events);
   }, [props.logged, renderer]);
 
-  return <div ref={host} className="board-host" data-testid="deflectors-board" data-board={deflectorsViewString(props.state.mirrors, props.state.volley?.beams ?? [])} />;
+  const s = props.state;
+  return <div ref={host} className="board-host" data-testid="deflectors-board" data-board={deflectorsViewString(s.mirrors, s.targets, s.queue)} />;
 }
