@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { advanceDeflectors, deflectorsOutlook, deflectorsStreakPercentAt, summarizeDeflectors, type DeflectorsConfig, type DeflectorsMove, type DeflectorsState } from "@openseas/engine";
-import { content, DEFLECTORS_SIGNS, DeflectorsBoard, DeflectorsMirrorIcon, DeflectorsSignIcon, t, useTicked } from "@openseas/boards";
+import { content, DEFLECTORS_LENSES, DEFLECTORS_SIGNS, DeflectorsBoard, DeflectorsLensIcon, DeflectorsMirrorIcon, DeflectorsSignIcon, t, useTicked } from "@openseas/boards";
 import { css, type Token } from "@openseas/boards/look";
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
@@ -10,6 +10,7 @@ import { DEFLECTORS } from "../prototypes/deflectors.js";
 const deflectors = content.puzzles.deflectors;
 const waitAt = (tick: number): DeflectorsMove => ({ type: "wait", tick });
 const BEAM_KEYS = ["deflectors.legend_beam_1", "deflectors.legend_beam_2", "deflectors.legend_beam_3"];
+const LENS_KEYS = ["deflectors.legend_lens_1", "deflectors.legend_lens_2", "deflectors.legend_lens_3"];
 
 /** Deflectors (prototype, ADR 0036): the shared board in the studio's frame. */
 export function DeflectorsPractice() {
@@ -31,7 +32,8 @@ export function DeflectorsPractice() {
 
   // What the waiting volley would do now: the engine's word, as the board's strip shows it.
   const outlook = deflectorsOutlook(shown);
-  const signs = DEFLECTORS_SIGNS.slice(0, shown.config.maxBeams);
+  const signs = DEFLECTORS_SIGNS.slice(0, shown.config.beams);
+  const lenses = shown.config.recipeLenses > 0 ? DEFLECTORS_LENSES.slice(0, Math.min(DEFLECTORS_LENSES.length, shown.config.lenses)) : [];
 
   return (
     <PracticeShell
@@ -48,10 +50,11 @@ export function DeflectorsPractice() {
       onStart={studio.start}
       ready={studio.ready}
       splash={t("deflectors.go")}
-      warn={api.phase === "playing" && outlook !== null && !outlook.clean && shown.volley !== null && (shown.volley.fireTick - shown.tick) * shown.config.tickMs <= 3000}
+      warn={false}
       howTo={
         <>
           <p className="how how-kbd">{t("deflectors.lines_note")}</p>
+          <p className="how how-kbd">{t("deflectors.recipe_note")}</p>
           <p className="how how-kbd">{t("deflectors.hint_note")}</p>
         </>
       }
@@ -82,6 +85,10 @@ export function DeflectorsPractice() {
             <dd>{state.misses}</dd>
           </div>
           <div>
+            <dt>{t("deflectors.result_spent")}</dt>
+            <dd>{state.spent}</dd>
+          </div>
+          <div>
             <dt>{t("deflectors.result_perfect")}</dt>
             <dd>{state.perfects}</dd>
           </div>
@@ -100,6 +107,12 @@ export function DeflectorsPractice() {
                 <span>{t(BEAM_KEYS[i]!)}</span>
               </li>
             ))}
+            {lenses.map((l, i) => (
+              <li key={l.shape}>
+                <DeflectorsLensIcon kind={i} />
+                <span>{t(LENS_KEYS[i]!)}</span>
+              </li>
+            ))}
           </ul>
           <ul className="specials">
             <li>
@@ -114,6 +127,12 @@ export function DeflectorsPractice() {
               <DeflectorsMirrorIcon />
               <span>{t("deflectors.legend_mirror")}</span>
             </li>
+            {lenses.length > 0 && (
+              <li>
+                <DeflectorsLensIcon kind={0} />
+                <span>{t("deflectors.legend_recipe")}</span>
+              </li>
+            )}
             <li>
               <LineIcon look="home" color={signs[0]!.color} />
               <span>{t("deflectors.legend_home")}</span>
@@ -128,6 +147,8 @@ export function DeflectorsPractice() {
             </li>
           </ul>
           <p className="muted small proto-note">{t("deflectors.lines_note")}</p>
+          {lenses.length > 0 && <p className="muted small proto-note">{t("deflectors.recipe_note")}</p>}
+          {shown.config.spend && <p className="muted small proto-note">{t("deflectors.spend_note")}</p>}
           <p className="muted small proto-note">{t("deflectors.streak_note")}</p>
         </>
       }

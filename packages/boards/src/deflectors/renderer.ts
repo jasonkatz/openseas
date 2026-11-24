@@ -2,9 +2,12 @@ import { Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
 import {
   DEFLECTORS_BACKSLASH,
   DEFLECTORS_EMPTY,
+  DEFLECTORS_LENS,
+  DEFLECTORS_LENS_KINDS,
   DEFLECTORS_SLASH,
   deflectorsBestPoints,
   deflectorsHint,
+  deflectorsIsMirror,
   deflectorsOutlook,
   deflectorsTrace,
   deflectorsViewString,
@@ -20,7 +23,7 @@ import { MOTION, ink } from "../look/tokens.js";
 import { FONT_MONO, INK, drawDot, drawHairline, mix } from "../kit/art.js";
 import { Grid, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
-import { MIRROR_COLOR, MIRROR_PAINT, signOf, signPaint, type SignShape } from "./pieces.js";
+import { MIRROR_COLOR, MIRROR_PAINT, lensOf, lensPaint, signOf, signPaint, type SignShape } from "./pieces.js";
 
 export interface DeflectorsCallbacks {
   /** The player tapped the mirror at `cell`. */
@@ -65,6 +68,8 @@ interface Flight {
 }
 
 const HINT_AFTER_MS = 5000;
+/** How long the grid takes to settle once spent mirrors have gone, in ms. */
+const SETTLE_MS = 200;
 /** A fire tap this soon after a volley appears was meant for the one before it. */
 const FIRE_GUARD_MS = 350;
 /** A route this long is called out. */
@@ -75,8 +80,13 @@ const BACKSLASH_ROTATION = Math.PI / 2;
 const SIGN = 0.7;
 /** How far outside the grid a port's centre sits, in cells. */
 const PORT_OUT = 0.5;
-/** The strip over the grid, in cells: what the volley is worth, and the count as a bar under it. */
-const STRIP = 0.8;
+/** How far outside the grid a recipe's glasses sit, and how big they are, in cells. */
+const RECIPE_OUT = 1.02;
+const RECIPE = 0.34;
+/** The ring round the grid, in cells: the ports, and the recipes outside them. */
+const RING = 1.25;
+/** The strip over the grid, in cells: what the volley is worth. */
+const STRIP = 0.7;
 
 /** Draws the deflector grid and turns taps into flips and fires. Scores nothing: every number it shows is the engine's. */
 export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
@@ -85,23 +95,24 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   /** The waiting beams' routes: redrawn every frame from the engine's trace of the mirrors as they stand. */
   private readonly routeLayer = new Graphics();
   private readonly mirrorLayer = new Container();
-  /** The signs at the ports: a sprite for each beam's entry and one for its exit. */
+  /** The signs at the ports: a sprite for each beam's entry and one for its exit, and the glasses of each recipe. */
   private readonly signLayer = new Container();
   private readonly signs: Sprite[] = [];
-  /** The count, the arrows into the grid, the cross where a beam would leave, the hint. */
+  /** The arrows into the grid, the cross where a beam would leave, the hint. */
   private readonly markLayer = new Graphics();
   private readonly flightLayer = new Graphics();
   private readonly cursorLayer = new Graphics();
   private label: Text | null = null;
   private labelText = "";
+  /** A sprite for every cell that holds a mirror or a lens. */
   private readonly mirrors = new Map<number, Sprite>();
   /** What each cell is drawn as, once any turn in progress ends. */
   private shownMirrors: number[] = [];
+  /** A fired volley spent mirrors: the grid settles once its beams have landed. Until then the cells stay as they were. */
+  private settling: { fell: readonly number[]; spent: readonly number[] } | null = null;
   private readonly flights: Flight[] = [];
   /** The last engine event played: a ticked board is handed every event more than once. */
   private lastSeq = 0;
-  /** When the state's tick last changed, so the count runs smoothly between ticks. */
-  private tickAt = 0;
   /** The volley that last appeared, and when: its signs pop in. */
   private appeared = { id: 0, at: 0 };
   /** The beams whose signs were drawn this frame: what `view` reports. */
@@ -118,7 +129,6 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   private hint: { volley: number; flips: number; cell: number | null } | null = null;
   /** Flips seen, so a hint is asked for once a setting, not once a frame. */
   private flipsSeen = 0;
-  private warned = 0;
 
   constructor(
     host: HTMLElement,
@@ -154,16 +164,16 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     const n = this.state?.config.size ?? g.cols;
     g.cols = n;
     g.rows = n;
-    // The grid, a ring of ports round it, and the strip above.
+    // The grid, a ring of ports and recipes round it, and the strip above.
     const margin = 6;
-    const cell = Math.floor(Math.min((width - margin * 2) / (n + 2), (height - margin * 2) / (n + 2 + STRIP)));
+    const cell = Math.floor(Math.min((width - margin * 2) / (n + RING * 2), (height - margin * 2) / (n + RING * 2 + STRIP)));
     g.cell = Math.max(12, Math.min(84, cell));
     g.ox = Math.floor((width - g.cell * n) / 2);
-    g.oy = Math.floor((height - g.cell * (n + 2 + STRIP)) / 2 + g.cell * (STRIP + 1));
+    g.oy = Math.floor((height - g.cell * (n + RING * 2 + STRIP)) / 2 + g.cell * (STRIP + RING));
     const c = g.cell;
     // Bare ground under the strip, the ports and the grid. The one hairline is round the grid: a beam leaves across it.
     this.bg.clear();
-    this.paintGround(this.bg, g.ox - c, g.oy - c - c * STRIP, g.width + c * 2, g.height + c * 2 + c * STRIP, false);
+    this.paintGround(this.bg, g.ox - c * RING, g.oy - c * RING - c * STRIP, g.width + c * RING * 2, g.height + c * RING * 2 + c * STRIP, false);
     drawHairline(this.bg, g.ox, g.oy, g.width, g.height);
     // A dot in every cell, so an empty one a beam runs straight through is seen, and one at each port.
     for (let i = 0; i < n * n; i++) drawDot(this.bg, g.x(i), g.y(i), c);
@@ -173,7 +183,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     }
     if (this.label) {
       this.label.style.fontSize = Math.max(12, Math.round(c * 0.33));
-      this.label.position.set(g.ox + g.width / 2, g.oy - c - c * STRIP * 0.55);
+      this.label.position.set(g.ox + g.width / 2, g.oy - c * RING - c * STRIP * 0.5);
     }
     this.flights.length = 0;
     this.cursor = Math.min(this.cursor, n * n - 1);
@@ -184,12 +194,12 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     this.drawCursor();
   }
 
-  /** The centre of a port's socket. Ports run along the top, the right, the bottom, then the left, as the engine numbers them. */
-  private portXY(port: number): { x: number; y: number } {
+  /** The centre of a port's socket, or of what sits `outCells` out past it. Ports run along the top, the right, the bottom, then the left, as the engine numbers them. */
+  private portXY(port: number, outCells = PORT_OUT): { x: number; y: number } {
     const g = this.grid;
     const n = g.cols;
     const i = port % n;
-    const out = g.cell * PORT_OUT;
+    const out = g.cell * outCells;
     switch (Math.floor(port / n)) {
       case 0:
         return { x: g.cx(i), y: g.oy - out };
@@ -246,27 +256,61 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     return pts;
   }
 
-  /** A mirror's picture, drawn as a `/`. A `\\` is the same sprite a quarter turn on. */
-  private mirrorTexture(): Texture {
-    return this.piece("mirror", this.grid.cell, MIRROR_COLOR, MIRROR_PAINT);
+  /** A cell's picture: a mirror drawn as a `/` (a `\\` is the same sprite a quarter turn on), or a lens. */
+  private cellTexture(m: number): Texture {
+    if (deflectorsIsMirror(m)) return this.piece("mirror", this.grid.cell, MIRROR_COLOR, MIRROR_PAINT);
+    const lens = lensOf(m - DEFLECTORS_LENS);
+    return this.piece(`lens:${lens.shape}`, Math.round(this.grid.cell * 0.78), lens.color, lensPaint(lens.shape));
   }
 
-  /** Put exactly the state's mirrors on the grid, each as it is set, with nothing in motion. */
-  private snapMirrors(state: DeflectorsState): void {
+  /**
+   * Put exactly the state's mirrors and lenses on the grid, each as it is set. With `fell`, each
+   * starts that many rows up and drops into place: the grid settling after a volley spent mirrors.
+   */
+  private snapMirrors(state: DeflectorsState, fell?: readonly number[]): void {
     for (const s of this.mirrors.values()) s.destroy();
     this.mirrors.clear();
+    const c = this.grid.cell;
     state.mirrors.forEach((m, cell) => {
       if (m === DEFLECTORS_EMPTY) return;
-      const s = new Sprite(this.mirrorTexture());
+      const s = new Sprite(this.cellTexture(m));
       s.anchor.set(0.5);
-      s.position.set(this.grid.x(cell), this.grid.y(cell));
-      s.rotation = m === DEFLECTORS_SLASH ? SLASH_ROTATION : BACKSLASH_ROTATION;
+      const x = this.grid.x(cell);
+      const y = this.grid.y(cell);
+      s.position.set(x, y);
+      s.rotation = m === DEFLECTORS_BACKSLASH ? BACKSLASH_ROTATION : SLASH_ROTATION;
+      const drop = fell?.[cell] ?? 0;
+      if (drop > 0 && !this.reduced) {
+        // A fresh mirror comes in from above the grid; it fades in as it crosses the edge.
+        const from = y - drop * c;
+        s.y = from;
+        if (from < this.grid.oy) s.alpha = 0;
+        this.tweens.to(s, { y, alpha: 1 }, SETTLE_MS, { ease: ease.inQuad });
+      }
       this.mirrorLayer.addChild(s);
       this.mirrors.set(cell, s);
     });
     this.shownMirrors = state.mirrors.slice();
     this.flipsSeen++;
     this.touchView();
+  }
+
+  /** The beams have landed: the spent mirrors go, and the grid settles into the state as it stands now. */
+  private settle(): void {
+    const pending = this.settling;
+    this.settling = null;
+    const state = this.state;
+    if (!pending || !state) return;
+    for (const cell of pending.spent) {
+      const s = this.mirrors.get(cell);
+      if (!s) continue;
+      this.mirrors.delete(cell);
+      this.tweens.remove(s, { done: () => s.destroy() });
+    }
+    if (pending.spent.length) sfx.whoosh();
+    this.tweens.after(this.reduced ? 0 : MOTION.clear, () => {
+      if (this.state) this.snapMirrors(this.state, pending.fell);
+    });
   }
 
   /** Turn the mirror at `cell` over to `way`. */
@@ -284,7 +328,9 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     if (!prev) return true;
     if (state.tick === 0 && state.eventSeq === 0 && state.logLength === 0) return true;
     if (state.eventSeq < prev.eventSeq || state.tick < prev.tick || state.mirrors.length !== prev.mirrors.length) return true;
-    for (let c = 0; c < state.mirrors.length; c++) if ((state.mirrors[c] === DEFLECTORS_EMPTY) !== (prev.mirrors[c] === DEFLECTORS_EMPTY)) return true;
+    // A fired volley may have spent mirrors and moved the grid; with no new event, a grid that moved is another grid.
+    if (state.eventSeq > prev.eventSeq) return false;
+    for (let c = 0; c < state.mirrors.length; c++) if (!sameKind(state.mirrors[c]!, prev.mirrors[c]!)) return true;
     return false;
   }
 
@@ -293,10 +339,10 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   }
 
   protected onState(state: DeflectorsState, prev: DeflectorsState | null): void {
-    if (!prev || state.tick !== prev.tick) this.tickAt = this.time;
     if (this.isReset(state, prev)) {
       this.lastSeq = state.eventSeq;
       this.flights.length = 0;
+      this.settling = null;
       this.appeared = { id: state.volley?.id ?? 0, at: this.time - 1000 };
       this.idle = 0;
       this.hintHot = false;
@@ -305,8 +351,16 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       else this.snapMirrors(state);
       return;
     }
-    for (let c = 0; c < state.mirrors.length; c++) if (state.mirrors[c] !== this.shownMirrors[c]) this.turnMirror(c, state.mirrors[c]!);
     this.play(state.lastMove?.events ?? []);
+    // While the grid waits to settle, it is drawn as it was; the settle puts it right.
+    if (this.settling) return;
+    let moved = false;
+    for (let c = 0; c < state.mirrors.length; c++) if (!sameKind(state.mirrors[c]!, this.shownMirrors[c]!)) moved = true;
+    if (moved) {
+      this.snapMirrors(state);
+      return;
+    }
+    for (let c = 0; c < state.mirrors.length; c++) if (state.mirrors[c] !== this.shownMirrors[c]) this.turnMirror(c, state.mirrors[c]!);
   }
 
   private play(events: readonly DeflectorsEvent[]): void {
@@ -314,7 +368,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       if (e.seq <= this.lastSeq) continue;
       this.lastSeq = e.seq;
       if (e.type === "deal") this.playDeal(e.volley);
-      else this.playFire(e.outcome);
+      else this.playFire(e.outcome, e.spent, e.fell);
     }
   }
 
@@ -323,12 +377,14 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     this.appeared = { id: volley.id, at: this.time };
     this.idle = 0;
     this.hintHot = false;
-    this.warned = 0;
     sfx.power(0.15 + 0.25 * volley.beams.length);
   }
 
-  /** A volley fires: every beam runs its whole path, a note at each turn, and lands where the engine says. */
-  private playFire(outcome: DeflectorsOutcome): void {
+  /**
+   * A volley fires: every beam runs its whole path, a note at each turn, and lands where the engine
+   * says. Once every beam has landed, the mirrors it spent go and the grid settles.
+   */
+  private playFire(outcome: DeflectorsOutcome, spent: readonly number[], fell: readonly number[]): void {
     const g = this.grid;
     const c = g.cell;
     sfx.zap();
@@ -383,6 +439,10 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
         },
       );
     });
+    if (spent.length) {
+      this.settling = { spent, fell };
+      this.tweens.after(end + 40, () => this.settle());
+    }
     // Once every beam has landed: what the volley came to, and the name of what happened.
     this.tweens.after(end + 60, () => {
       const labels = this.opts.labels;
@@ -409,7 +469,11 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   protected view(): string {
     // Read off the sprites and the signs drawn, not the state: a mirror stuck half way would show here.
     const cells = new Array<number>(this.grid.cols * this.grid.rows).fill(DEFLECTORS_EMPTY);
-    for (const [cell, s] of this.mirrors) cells[cell] = Math.abs(Math.round(s.rotation / (Math.PI / 2))) % 2 === 0 ? DEFLECTORS_SLASH : DEFLECTORS_BACKSLASH;
+    for (const [cell, s] of this.mirrors) {
+      const shown = this.shownMirrors[cell]!;
+      if (!deflectorsIsMirror(shown)) cells[cell] = shown;
+      else cells[cell] = Math.abs(Math.round(s.rotation / (Math.PI / 2))) % 2 === 0 ? DEFLECTORS_SLASH : DEFLECTORS_BACKSLASH;
+    }
     return deflectorsViewString(cells, this.shownBeams);
   }
 
@@ -429,19 +493,13 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     return this.told;
   }
 
-  /** Ms left on the waiting volley's count, running smoothly between the engine's ticks. */
-  private msLeft(state: DeflectorsState, volley: DeflectorsVolley): number {
-    const tickMs = state.config.tickMs;
-    const into = this.interactive ? Math.min(tickMs, this.time - this.tickAt) : 0;
-    return Math.max(0, (volley.fireTick - state.tick) * tickMs - into);
-  }
-
   protected override update(dt: number): void {
     const state = this.state;
     this.routeLayer.clear();
     this.markLayer.clear();
     this.flightLayer.clear();
-    const volley = state?.volley ?? null;
+    // A volley dealt while the grid still settles waits to be drawn until it has.
+    const volley = this.settling ? null : (state?.volley ?? null);
     this.shownBeams = volley ? volley.beams : [];
     let used = 0;
     if (state && volley) used = this.drawVolley(state, volley);
@@ -451,8 +509,8 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     this.updateHint(state, dt);
   }
 
-  /** A sign at a port: the sprite at `index` of the pool, wearing `shape` solid or hollow. */
-  private placeSign(index: number, sign: number, hollow: boolean, x: number, y: number, scale: number): void {
+  /** The sprite at `index` of the pool, shown. */
+  private poolSprite(index: number): Sprite {
     let sp = this.signs[index];
     if (!sp) {
       sp = new Sprite();
@@ -460,16 +518,33 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       this.signLayer.addChild(sp);
       this.signs[index] = sp;
     }
+    sp.visible = true;
+    sp.alpha = 1;
+    return sp;
+  }
+
+  /** A sign at a port: the sprite at `index` of the pool, wearing `shape` solid or hollow. */
+  private placeSign(index: number, sign: number, hollow: boolean, x: number, y: number, scale: number): void {
+    const sp = this.poolSprite(index);
     const s = signOf(sign);
     sp.texture = this.piece(`sign:${s.shape}:${hollow ? 1 : 0}`, Math.round(this.grid.cell * SIGN), s.color, signPaint(s.shape, hollow));
     sp.position.set(x, y);
     sp.scale.set(scale);
-    sp.visible = true;
+  }
+
+  /** One glass of a recipe beside an exit: solid while the beam's route passes a lens of its kind, faint until it does. */
+  private placeGlass(index: number, kind: number, passed: boolean, x: number, y: number, scale: number): void {
+    const sp = this.poolSprite(index);
+    const lens = lensOf(kind);
+    sp.texture = this.piece(`lens:${lens.shape}:small`, Math.round(this.grid.cell * RECIPE), lens.color, lensPaint(lens.shape), 1);
+    sp.position.set(x, y);
+    sp.scale.set(scale);
+    sp.alpha = passed ? 1 : 0.38;
   }
 
   /**
-   * The waiting volley: each beam's route as the mirrors stand, its signs at both ports, and the
-   * count as a bar in the strip. Returns how many sign sprites it used.
+   * The waiting volley: each beam's route as the mirrors stand, its signs at both ports, and its
+   * recipe outside its exit. Returns how many sprites it used.
    */
   private drawVolley(state: DeflectorsState, volley: DeflectorsVolley): number {
     const g = this.grid;
@@ -479,23 +554,10 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     if (!out) return 0;
     const lines = this.routeLayer;
     const marks = this.markLayer;
-    const left = this.msLeft(state, volley);
-    const whole = Math.max(1, (volley.fireTick - volley.dealTick) * state.config.tickMs);
     const pop = volley.id === this.appeared.id && !this.reduced ? ease.outCubic(Math.min(1, (this.time - this.appeared.at) / MOTION.move)) : 1;
-    const urgent = left <= 3000;
-    // A tick for each of the last three seconds of the count.
-    const secs = Math.ceil(left / 1000);
-    if (this.interactive && urgent && secs > 0 && secs !== this.warned) {
-      this.warned = secs;
-      sfx.tick(secs === 1);
-    }
-    // The count: a plain bar that drains, in danger for its last three seconds.
-    const barH = Math.max(3, c * 0.07);
-    const barY = g.oy - c - c * STRIP * 0.14;
-    marks.roundRect(g.ox, barY, g.width, barH, barH / 2).fill({ color: INK.line });
-    const frac = Math.max(0, Math.min(1, left / whole));
-    if (frac > 0) marks.roundRect(g.ox, barY, Math.max(barH, g.width * frac), barH, barH / 2).fill({ color: urgent ? INK.danger : INK.cream });
     let used = 0;
+    // A lens a beam passes that is not in its recipe spoils it: a ring in danger round that lens.
+    const spoiled = new Set<number>();
     out.shots.forEach((shot, i) => {
       const sign = signOf(shot.sign);
       const color = ink(sign.color);
@@ -513,7 +575,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
         }
         lines.fill({ color });
       } else {
-        // Astray: a broken line to the port it would leave by, and a cross there in danger.
+        // Astray: a broken line to the port it would leave by, and a cross there in danger. At its own exit through the wrong lenses, the cross is on the exit.
         dashPath(lines, pts, c * 0.17, c * 0.15, 0);
         lines.stroke({ width: Math.max(2, c * 0.07), color, cap: "round" });
         const wrong = this.portXY(shot.out);
@@ -544,7 +606,21 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       if (out.clean) marks.circle(entry.x, entry.y, c * 0.4).stroke({ width: Math.max(2, c * 0.06), color: INK.amber });
       // The exit: the same sign with its middle cut out, filled once the beam is home.
       this.placeSign(used++, shot.sign, !shot.hit, exit.x, exit.y, pop);
+      // The recipe: its glasses outside the exit, side by side along the edge.
+      if (state.config.recipeLenses > 0) {
+        const kinds: number[] = [];
+        for (let k = 0; k < DEFLECTORS_LENS_KINDS; k++) if (shot.recipe & (1 << k)) kinds.push(k);
+        const inward = this.portInward(shot.exit);
+        const along = { x: -inward.y, y: inward.x };
+        const at = this.portXY(shot.exit, RECIPE_OUT);
+        kinds.forEach((k, j) => {
+          const off = (j - (kinds.length - 1) / 2) * c * RECIPE * 1.12;
+          this.placeGlass(used++, k, (shot.lenses & (1 << k)) !== 0, at.x + along.x * off, at.y + along.y * off, pop);
+        });
+        for (const cell of shot.lensCells) if (!(shot.recipe & (1 << (state.mirrors[cell]! - DEFLECTORS_LENS)))) spoiled.add(cell);
+      }
     });
+    for (const cell of spoiled) marks.circle(g.x(cell), g.y(cell), c * 0.42).stroke({ width: Math.max(2, c * 0.06), color: INK.danger });
     return used;
   }
 
@@ -622,7 +698,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   private flip(cell: number): void {
     const state = this.state;
     if (!state || state.finished) return;
-    if (state.mirrors[cell] === DEFLECTORS_EMPTY) {
+    if (!deflectorsIsMirror(state.mirrors[cell]!) || this.settling) {
       sfx.bump();
       return;
     }
@@ -634,7 +710,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
 
   private fire(): void {
     const volley = this.state?.volley;
-    if (!volley || this.state?.finished) return;
+    if (!volley || this.state?.finished || this.settling) return;
     if (volley.id === this.appeared.id && this.time - this.appeared.at < FIRE_GUARD_MS) return;
     this.cb.onFire(volley.id);
   }
@@ -690,6 +766,11 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     }
     return false;
   }
+}
+
+/** True when two cells hold the same kind of thing: nothing, a mirror either way, or the same lens. */
+function sameKind(a: number, b: number): boolean {
+  return deflectorsIsMirror(a) ? deflectorsIsMirror(b) : a === b;
 }
 
 /** One bead of a beam's shape centred on (x, y), added to `g` as a path; the caller fills it. */

@@ -45,5 +45,27 @@
       { "name": "sign", "kind": "poly", "points": [12, 4.4, 20.2, 18.8, 3.8, 18.8], "round": 3.2 },
       { "name": "hole", "kind": "poly", "points": [12, 10.4, 15.4, 16.2, 8.6, 16.2], "round": 0.8, "cut": true }
     ]
+  },
+  "lens-diamond": {
+    "tint": "lilac",
+    "layers": [
+      { "name": "glass", "kind": "poly", "points": [12, 2.6, 21.4, 12, 12, 21.4, 2.6, 12], "round": 2.4 },
+      { "name": "window", "kind": "poly", "points": [12, 8.2, 15.8, 12, 12, 15.8, 8.2, 12], "round": 0.8, "cut": true }
+    ]
+  },
+  "lens-hexagon": {
+    "tint": "teal",
+    "layers": [
+      { "name": "glass", "kind": "poly", "points": [12, 2.8, 20, 7.4, 20, 16.6, 12, 21.2, 4, 16.6, 4, 7.4], "round": 2.4 },
+      { "name": "window", "kind": "poly", "points": [12, 8.4, 15.2, 10.2, 15.2, 13.8, 12, 15.6, 8.8, 13.8, 8.8, 10.2], "round": 0.8, "cut": true }
+    ]
+  },
+  "lens-cross": {
+    "tint": "rust",
+    "layers": [
+      { "name": "upright", "kind": "bar", "x0": 12, "y0": 3.6, "x1": 12, "y1": 20.4, "width": 6.2 },
+      { "name": "arm", "kind": "bar", "x0": 3.6, "y0": 12, "x1": 20.4, "y1": 12, "width": 6.2 },
+      { "name": "window", "kind": "disc", "x": 12, "y": 12, "r": 1.9, "cut": true }
+    ]
   }
 }

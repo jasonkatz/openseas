@@ -17,7 +17,7 @@ export const DeflectorsConfigSchema = z.object({
   beams: z.int().min(1).max(3).describe("Beams in every volley, from the first second to the last."),
   recipeLenses: z.int().min(0).max(3).describe("The most lenses a beam's recipe asks for. 0 turns recipes off: a beam is home at its exit whatever it passed."),
   lensPercent: z.int().min(0).max(1000).describe("Percent each lens in a beam's recipe adds to its points."),
-  spend: z.boolean().describe("On, every mirror a fired beam turned at is spent: what stood above it drops, and a fresh mirror comes in at the top. Off, mirrors never move."),
+  spend: z.boolean().describe("On, every mirror a fired beam turned at is spent: what stood above drops and a fresh mirror comes in at the top. Off, mirrors stay."),
   minBest: z.int().min(0).max(64).describe("A volley is dealt exits whose best setting is worth at least a beam of this many turns, when any are free."),
   bouncePoints: z.int().min(0).max(1000).describe("Points a beam earns home, multiplied by the square of its turns plus one, before its lenses."),
   bounceCap: z.int().min(1).max(64).describe("Turns past this many add nothing to a beam's points."),

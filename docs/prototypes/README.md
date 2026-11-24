@@ -10,7 +10,7 @@ generated sprites they first shipped with (ADR 0037) and the tooling that made t
 |---|---|---|---|
 | Salvage | Drag a tether through matching debris; close it into a net | `/salvage` | [salvage.md](./salvage.md) |
 | Overload | Tap a capacitor to charge it; a full one bursts into its neighbours | `/overload` | [overload.md](./overload.md) |
-| Deflectors | Tap a mirror to flip it; route each beam to its exit | `/deflectors` | [deflectors.md](./deflectors.md) |
+| Deflectors | Tap a mirror to flip it; route each beam to its exit through its recipe of lenses | `/deflectors` | [deflectors.md](./deflectors.md) |
 | Reactor | Swipe the whole board; fuse rods and push hot ones out a port | `/reactor` | [reactor.md](./reactor.md) |
 | Scanner | Ping the fog and work out where the contacts are | `/scanner` | [scanner.md](./scanner.md) |
 | Tug | Flick a pod; it slides until something stops it | `/tug` | [tug.md](./tug.md) |

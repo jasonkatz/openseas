@@ -72,6 +72,13 @@
       { "kind": "tone", "note": 1, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.088, "level": 0.4 }
     ]
   },
+  "whoosh": {
+    "level": 2.6,
+    "cutoff": 2000,
+    "voices": [
+      { "kind": "air", "at": 0, "attack": 0.06, "release": 0.18, "level": 1, "from": 400, "to": 1800, "band": true }
+    ]
+  },
   "tick": {
     "level": 1,
     "cutoff": 2200,
