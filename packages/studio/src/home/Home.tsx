@@ -206,6 +206,19 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
       <path d="M47 30v-14m0 0l-4 4m4-4l4 4" fill="none" stroke="#7fd7ff" strokeWidth="2.5" strokeLinecap="round" />
     </svg>
   ),
+  showdown: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <rect x="12" y="16" width="18" height="26" rx="3" fill="#141d30" stroke="#27344f" transform="rotate(-10 21 29)" />
+      <rect x="32" y="16" width="18" height="26" rx="3" fill="#141d30" stroke="#27344f" transform="rotate(10 41 29)" />
+      <path d="M20 24l1.6 3.4 3.4 1.6-3.4 1.6-1.6 3.4-1.6-3.4-3.4-1.6 3.4-1.6z" fill="#d8c690" />
+      <circle cx="42" cy="29" r="5" fill="#7fb0d8" />
+      <circle cx="44.5" cy="27.5" r="4" fill="#141d30" />
+      <circle cx="22" cy="50" r="4" fill="#ece3cf" />
+      <circle cx="32" cy="50" r="4" fill="#ece3cf" />
+      <circle cx="42" cy="50" r="4" fill="#ece3cf" />
+    </svg>
+  ),
 };
 
 

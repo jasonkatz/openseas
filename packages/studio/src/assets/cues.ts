@@ -23,6 +23,7 @@ export const PUZZLE_CUES: Readonly<Record<PuzzleId, readonly string[]>> = {
   racks: ["swap", "swapQuiet", "pop", "clear", "multi", "crack", "bad", "streakLost", "bump", "thud", "whoosh", "tick", "beat"],
   cutting: ["clear", "crack", "zap", "good", "streakLost", "bump", "thud", "whoosh", "tick", "beat"],
   tractor: ["swap", "swapQuiet", "pop", "clear", "zap", "good", "rise", "thud", "bump", "whoosh", "beat"],
+  showdown: ["swapQuiet", "tick", "pop", "whoosh", "bump", "good", "bad", "beat"],
 };
 
 /** What every round sounds, whatever the puzzle: the page plays these around the board (practice/usePractice). */

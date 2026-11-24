@@ -1,0 +1,32 @@
+{
+  "category": "prototype",
+  "config": {
+    "rivals": 3,
+    "hands": 12,
+    "bank": 100,
+    "smallBlind": 1,
+    "bigBlind": 2,
+    "smallBet": 2,
+    "bigBet": 4,
+    "raiseCap": 4,
+    "styles": ["brick", "sponge", "hothead", "shark"],
+    "play": {
+      "brick": { "slack": -900, "raiseAt": 1900, "bluff": 0 },
+      "sponge": { "slack": 200, "raiseAt": 2200, "bluff": 20 },
+      "hothead": { "slack": -100, "raiseAt": 1100, "bluff": 350 },
+      "shark": { "slack": -500, "raiseAt": 1400, "bluff": 120 }
+    },
+    "samples": 120,
+    "maxMoves": 1500
+  },
+  "paceSeconds": 60,
+  "roundSeconds": 600,
+  "thresholds": [
+    { "score": 70, "rating": 1100 },
+    { "score": 92, "rating": 1300 },
+    { "score": 112, "rating": 1600 },
+    { "score": 140, "rating": 1900 },
+    { "score": 175, "rating": 2200 },
+    { "score": 220, "rating": 2500 }
+  ]
+}
