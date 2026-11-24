@@ -8,7 +8,7 @@ import { FORGING } from "../prototypes/forging.js";
 
 const forging = content.puzzles.forging;
 
-/** Forging (prototype, ADR 0036, ADR 0081): the shared board in the studio's frame. */
+/** Forging (prototype, ADR 0036, ADR 0082): the shared board in the studio's frame. */
 export function ForgingPractice() {
   const api = usePractice<ForgingState, ForgingMove, ForgingConfig>({
     puzzle: "forging",

@@ -282,6 +282,10 @@ export function contentProblems(content: Content): string[] {
     need(`station.${id}_blurb`, where);
   }
   {
+    const f = puzzles.freefall;
+    if (f.config.maxMoves * f.config.turnSeconds > f.roundSeconds) problems.push("puzzles/freefall: roundSeconds must cover maxMoves turns of turnSeconds");
+  }
+  {
     const b = puzzles.battle;
     if (b.config.maxTurns * b.config.turnSeconds > b.roundSeconds) problems.push("puzzles/battle: roundSeconds must cover maxTurns turns of turnSeconds");
     if (b.config.startLoaded > b.config.turrets) problems.push("puzzles/battle: startLoaded exceeds turrets");

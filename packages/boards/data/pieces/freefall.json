@@ -1,0 +1,35 @@
+{
+  "pod": {
+    "tint": "sand",
+    "layers": [
+      { "name": "hull", "kind": "rect", "x": 6.6, "y": 2.8, "w": 10.8, "h": 18.4, "r": 5.4 },
+      { "name": "port", "kind": "disc", "x": 12, "y": 8.6, "r": 2.2, "cut": true }
+    ]
+  },
+  "cradle": {
+    "tint": "slate",
+    "layers": [
+      { "name": "cup", "kind": "arc", "x": 10, "y": 12.6, "r": 7, "from": 0, "to": 180, "width": 3.2, "cap": true },
+      { "name": "beam", "kind": "bar", "x0": 17, "y0": 13.6, "x1": 24, "y1": 10.6, "width": 3.2 }
+    ]
+  },
+  "arm": {
+    "tint": "slate",
+    "layers": [
+      { "name": "post", "kind": "bar", "x0": 2.6, "y0": 10.6, "x1": 2.6, "y1": 20, "width": 3 },
+      { "name": "foot", "kind": "bar", "x0": 0, "y0": 20, "x1": 6, "y1": 20, "width": 3 },
+      { "name": "beam", "kind": "bar", "x0": 0, "y0": 10.6, "x1": 18.4, "y1": 2.8, "width": 3.2 },
+      { "name": "hub", "kind": "disc", "x": 2.6, "y": 10.6, "r": 3.4 },
+      { "name": "pin", "kind": "disc", "x": 2.6, "y": 10.6, "r": 1.2, "cut": true },
+      { "name": "knob", "kind": "disc", "x": 18.4, "y": 3.4, "r": 2.6 }
+    ]
+  },
+  "berth": {
+    "tint": "dim",
+    "layers": [
+      { "name": "left", "kind": "bar", "x0": 3.4, "y0": 9, "x1": 3.4, "y1": 19.4, "width": 2.4 },
+      { "name": "floor", "kind": "bar", "x0": 3.4, "y0": 19.4, "x1": 20.6, "y1": 19.4, "width": 2.4 },
+      { "name": "right", "kind": "bar", "x0": 20.6, "y0": 9, "x1": 20.6, "y1": 19.4, "width": 2.4 }
+    ]
+  }
+}

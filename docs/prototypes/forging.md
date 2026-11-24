@@ -1,6 +1,6 @@
 # Forging
 
-Status: built. Prototype (ADR 0036, ADR 0081), in the studio at `/play/forging`. Untimed moves; the
+Status: built. Prototype (ADR 0036, ADR 0082), in the studio at `/play/forging`. Untimed moves; the
 round is the plate, with a five minute clock behind it.
 
 Forging is a successor, not one of the game's own new designs: it follows the original's

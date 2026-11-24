@@ -1,5 +1,5 @@
 /**
- * Forging (prototype, ADR 0036 and ADR 0081): a successor to the original's crafting puzzle
+ * Forging (prototype, ADR 0036 and ADR 0082): a successor to the original's crafting puzzle
  * Blacksmithing. A hot billet lies on the anvil as a grid of spots, and the press strikes it one
  * spot at a time. Every spot takes `blows` strikes before it is set; a set spot is out of play.
  *
