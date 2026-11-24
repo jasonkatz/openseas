@@ -189,6 +189,8 @@ half-built route. Spending at the fire keeps that view: the grid never moves whi
   recipes? `beams: 1` is a preset.
 - Does anyone plan the next grid, or is the drop only noise? If noise, spending should go.
 - Is exact the right recipe, or is a lens too many too harsh?
+- Fresh mirrors come in at the top, so after a few long routes the top rows are crowded and the
+  bottom rows bare. Is that a shape to play with, or should a fresh mirror come in elsewhere?
 - Is the careless reading a sign that the deal makes volleys too forgiving?
 - No ladder yet (rule 26): the obvious stages are recipes off, then one lens, then the whole
   puzzle.

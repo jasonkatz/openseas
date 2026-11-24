@@ -21,7 +21,7 @@ const ONE = { beams: 1 };
 const oneCfg: DeflectorsConfig = { ...cfg, ...ONE };
 /** The strip over the grid and the ring of ports and recipes round it, in cells: the renderer's own layout. */
 const STRIP = 0.7;
-const RING = 1.25;
+const RING = 1.36;
 
 /** A round with its first volley announced. Nothing before it depends on the clock, so the page deals the same one. */
 function opened(seed: string, config: DeflectorsConfig = cfg): { s: DeflectorsState; v: DeflectorsVolley } | null {

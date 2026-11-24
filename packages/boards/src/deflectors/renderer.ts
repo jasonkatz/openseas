@@ -81,10 +81,10 @@ const SIGN = 0.7;
 /** How far outside the grid a port's centre sits, in cells. */
 const PORT_OUT = 0.5;
 /** How far outside the grid a recipe's glasses sit, and how big they are, in cells. */
-const RECIPE_OUT = 1.02;
-const RECIPE = 0.34;
+const RECIPE_OUT = 1.06;
+const RECIPE = 0.42;
 /** The ring round the grid, in cells: the ports, and the recipes outside them. */
-const RING = 1.25;
+const RING = 1.36;
 /** The strip over the grid, in cells: what the volley is worth. */
 const STRIP = 0.7;
 
@@ -539,7 +539,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     sp.texture = this.piece(`lens:${lens.shape}:small`, Math.round(this.grid.cell * RECIPE), lens.color, lensPaint(lens.shape), 1);
     sp.position.set(x, y);
     sp.scale.set(scale);
-    sp.alpha = passed ? 1 : 0.38;
+    sp.alpha = passed ? 1 : 0.5;
   }
 
   /**
