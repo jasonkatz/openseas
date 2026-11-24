@@ -30,6 +30,9 @@ import { CuttingContentSchema, type CuttingContent } from "./cutting.js";
 import tractorData from "../../data/puzzles/tractor.json" with { type: "json" };
 import tractorMessages from "../../data/messages/prototypes/tractor.json" with { type: "json" };
 import { TractorContentSchema, type TractorContent } from "./tractor.js";
+import refiningData from "../../data/puzzles/refining.json" with { type: "json" };
+import refiningMessages from "../../data/messages/prototypes/refining.json" with { type: "json" };
+import { RefiningContentSchema, type RefiningContent } from "./refining.js";
 import freefallData from "../../data/puzzles/freefall.json" with { type: "json" };
 import freefallMessages from "../../data/messages/prototypes/freefall.json" with { type: "json" };
 import { FreefallContentSchema, type FreefallContent } from "./freefall.js";
@@ -47,6 +50,7 @@ export * from "./tug.js";
 export * from "./racks.js";
 export * from "./cutting.js";
 export * from "./tractor.js";
+export * from "./refining.js";
 export * from "./freefall.js";
 export * from "./showdown.js";
 
@@ -61,6 +65,7 @@ export interface PrototypePuzzleContent {
   readonly racks: RacksContent;
   readonly cutting: CuttingContent;
   readonly tractor: TractorContent;
+  readonly refining: RefiningContent;
   readonly freefall: FreefallContent;
   readonly showdown: ShowdownContent;
 }
@@ -77,6 +82,7 @@ export const PROTOTYPE_CONTENT: { readonly [K in PrototypePuzzleContentId]: { re
   racks: { schema: RacksContentSchema, data: racksData, messages: racksMessages },
   cutting: { schema: CuttingContentSchema, data: cuttingData, messages: cuttingMessages },
   tractor: { schema: TractorContentSchema, data: tractorData, messages: tractorMessages },
+  refining: { schema: RefiningContentSchema, data: refiningData, messages: refiningMessages },
   freefall: { schema: FreefallContentSchema, data: freefallData, messages: freefallMessages },
   showdown: { schema: ShowdownContentSchema, data: showdownData, messages: showdownMessages },
 };

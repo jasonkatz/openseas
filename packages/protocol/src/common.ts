@@ -19,6 +19,7 @@ export const PuzzleIdSchema = z.enum([
   "racks",
   "cutting",
   "tractor",
+  "refining",
   "freefall",
   "showdown",
 ]);

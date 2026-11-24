@@ -20,6 +20,7 @@ import { TugPractice } from "./pages/TugPractice.jsx";
 import { RacksPractice } from "./pages/RacksPractice.jsx";
 import { CuttingPractice } from "./pages/CuttingPractice.jsx";
 import { TractorPractice } from "./pages/TractorPractice.jsx";
+import { RefiningPractice } from "./pages/RefiningPractice.jsx";
 import { FreefallPractice } from "./pages/FreefallPractice.jsx";
 import { ShowdownPractice } from "./pages/ShowdownPractice.jsx";
 import { RoundFrame, type FrameMode } from "./frame/RoundFrame.jsx";
@@ -48,6 +49,7 @@ const PAGES: Readonly<Record<PuzzleId, ComponentType>> = {
   racks: RacksPractice,
   cutting: CuttingPractice,
   tractor: TractorPractice,
+  refining: RefiningPractice,
   freefall: FreefallPractice,
   showdown: ShowdownPractice,
 };

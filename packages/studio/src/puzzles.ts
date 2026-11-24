@@ -45,6 +45,7 @@ import { TUG } from "./prototypes/tug.js";
 import { RACKS } from "./prototypes/racks.js";
 import { CUTTING } from "./prototypes/cutting.js";
 import { TRACTOR } from "./prototypes/tractor.js";
+import { REFINING } from "./prototypes/refining.js";
 import { FREEFALL } from "./prototypes/freefall.js";
 import { SHOWDOWN } from "./prototypes/showdown.js";
 
@@ -162,6 +163,7 @@ export const STUDIO_PUZZLES: Readonly<Record<PuzzleId, StudioPuzzle<unknown, unk
   racks: RACKS as unknown as StudioPuzzle<unknown, unknown, unknown>,
   cutting: CUTTING as unknown as StudioPuzzle<unknown, unknown, unknown>,
   tractor: TRACTOR as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  refining: REFINING as unknown as StudioPuzzle<unknown, unknown, unknown>,
   freefall: FREEFALL as unknown as StudioPuzzle<unknown, unknown, unknown>,
   showdown: SHOWDOWN as unknown as StudioPuzzle<unknown, unknown, unknown>,
 };
