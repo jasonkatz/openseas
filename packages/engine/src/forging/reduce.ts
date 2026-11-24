@@ -111,6 +111,19 @@ function draw(cfg: ForgingConfig, rng: PrngState): { mark: ForgingMark; rng: Prn
   return { mark: "one", rng: r.state };
 }
 
+/**
+ * The mark a spot shows when `mark` is dealt to it. A step too long to land anywhere from that spot,
+ * even on an empty plate (a four in the middle of a six by six), would be a dead end whatever the
+ * player did, so it is cut to the longest step that lands. Every other mark always reaches somewhere.
+ */
+export function fitMark(cfg: ForgingConfig, cell: number, mark: ForgingMark): ForgingMark {
+  let n = STEP[mark];
+  if (n === undefined) return mark;
+  const steps = ["one", "two", "three", "four"] as const;
+  while (n > 1 && reach(cfg, cell, steps[n - 1]!).length === 0) n--;
+  return steps[n - 1]!;
+}
+
 /** The next `n` marks the stream will deal, in order: the preview. Reads the stream without spending it. */
 export function upcoming(state: ForgingState, n: number): ForgingMark[] {
   const out: ForgingMark[] = [];
@@ -130,7 +143,7 @@ export function createForgingGame(seed: string, config: ForgingConfig = DEFAULT_
   for (let i = 0; i < config.width * config.height; i++) {
     const d = draw(config, rng);
     rng = d.rng;
-    cells.push({ heat: config.blows, mark: d.mark });
+    cells.push({ heat: config.blows, mark: fitMark(config, cells.length, d.mark) });
   }
   return {
     config,
@@ -294,7 +307,7 @@ function strike(state: ForgingState, move: Extract<ForgingMove, { type: "strike"
     if (sparked) next = "spark";
     else {
       const d = draw(cfg, rng);
-      next = d.mark;
+      next = fitMark(cfg, cell, d.mark);
       rng = d.rng;
     }
   }

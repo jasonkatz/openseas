@@ -21,7 +21,7 @@
   "roundSeconds": 1800,
   "thresholds": [
     { "score": 800, "rating": 1100 },
-    { "score": 1500, "rating": 1300 },
+    { "score": 1900, "rating": 1300 },
     { "score": 3000, "rating": 1500 },
     { "score": 4000, "rating": 1700 },
     { "score": 5000, "rating": 1900 },
@@ -59,7 +59,7 @@
       "roundSeconds": 1800,
       "thresholds": [
         { "score": 800, "rating": 1100 },
-        { "score": 1500, "rating": 1300 },
+        { "score": 1900, "rating": 1300 },
         { "score": 3000, "rating": 1500 },
         { "score": 4000, "rating": 1700 },
         { "score": 5000, "rating": 1900 },

@@ -36,7 +36,7 @@ export const forging: Guide = {
     `Tap a spot to **strike** it. Every spot takes ${word(c.blows)} strikes, shrinking a step each time, and then it is **set**: a dot the press can no longer land on. Setting the whole plate, all ${blows} strikes, ends the round.`,
     "Every live spot shows a **mark**, and the mark you strike says where the next strike may land. The struck spot turns up a new mark at once, so the strip over the plate keeps the one you struck, framed. The spots it reaches are ringed; the rest go faint. The first strike may land anywhere.",
     "A **step** of one, two, three or four lands exactly that far in a straight line, any of eight ways, jumping what is between. A **rail** lands on the plate's edge along its row or column, a **slant** on the edge along a diagonal, a **star** on either. A **hook** lands two along and one across.",
-    "New marks come from the deal in order, whatever you strike, and the strip over the plate shows the next ones: the first is what your next strike turns up.",
+    "New marks come from the deal in order, whatever you strike, and the strip over the plate shows the next ones: the first is what your next strike turns up. A step too long to land anywhere from its spot, like a four in the middle of the plate, turns up a step shorter.",
     "A strike that leaves the press nowhere to land is a **stall**, and the round ends there. There is no clock: take as long as you like over each strike.",
     "When the whole plate has been struck once, the last spot you struck shows a **spark**, and again when it has all been struck twice. A spark lands on any live spot.",
   ],

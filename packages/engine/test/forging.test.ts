@@ -4,6 +4,7 @@ import {
   DEFAULT_FORGING_CONFIG,
   InvalidMoveError,
   createForgingGame,
+  forgingFitMark,
   forgingHint,
   forgingReach,
   forgingStrikeIllegalReason,
@@ -91,7 +92,31 @@ describe("forging determinism (ADR 0003)", () => {
     );
   });
 
-  it("the marks dealt do not depend on where the player strikes: the preview always comes true", () => {
+  it("no spot ever shows a step too long to land anywhere from it: a four in the middle is cut to a three", () => {
+    fc.assert(
+      fc.property(fc.string(), picksArb, (seed, picks) => {
+        let state = createForgingGame(seed, { ...cfg, sparks: false });
+        const check = (): void => {
+          state.cells.forEach((c, i) => {
+            if (c.heat > 0) expect(forgingReach(state.config, i, c.mark).length, `${c.mark} at ${i}`).toBeGreaterThan(0);
+          });
+        };
+        check();
+        for (const p of picks) {
+          if (state.finished) break;
+          state = reduceForging(state, randomStrike(state, p)!);
+          check();
+        }
+      }),
+      { numRuns: 40 },
+    );
+    // The middle four of a six by six: a four reaches nothing there, a three does.
+    for (const cell of [14, 15, 20, 21]) expect(forgingFitMark(cfg, cell, "four")).toBe("three");
+    expect(forgingFitMark(cfg, 0, "four")).toBe("four");
+    expect(forgingFitMark(cfg, 14, "rail")).toBe("rail");
+  });
+
+  it("the marks dealt do not depend on where the player strikes: the preview always comes true, a step cut to fit its spot", () => {
     fc.assert(
       fc.property(fc.string(), picksArb, (seed, picks) => {
         let state = createForgingGame(seed, { ...cfg, sparks: false });
@@ -101,7 +126,7 @@ describe("forging determinism (ADR 0003)", () => {
           const m = randomStrike(state, p)!;
           state = reduceForging(state, m);
           const r = state.lastMove!;
-          if (r.next !== null) expect(r.next).toBe(ahead[0]);
+          if (r.next !== null) expect(r.next).toBe(forgingFitMark(state.config, r.cell, ahead[0]!));
           else expect(forgingUpcoming(state, 3)).toEqual(ahead);
         }
       }),

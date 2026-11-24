@@ -30,7 +30,10 @@ six spots.
   The first strike of a round lands anywhere. A target must be live.
 - **The deal.** A struck spot that is still live turns up a new mark at once. Marks are drawn by
   weight (`weights`) from one stream in a fixed order whatever the player strikes, so the next ones
-  are known: the strip over the plate shows three (`preview`).
+  are known: the strip over the plate shows three (`preview`). A step too long to land anywhere from
+  the spot it is dealt to, even on an empty plate, is cut to the longest step that lands
+  (`forgingFitMark`): on a six by six that is a four in the middle four spots, which turns up a
+  three. Such a spot was a dead end whatever the player did (the owner's call from play).
 - **Sparks.** The last spot at the plate's highest heat, struck and still live, shows a spark
   instead of a drawn mark: once when the whole plate has been struck once, again when it has all
   been struck twice.
@@ -157,13 +160,13 @@ The bots of this pass, 32 seeds a cell (`pnpm --filter @openseas/bots ladder for
 
 | Bot | Steps | Jumps | Sets | Full |
 |---|---|---|---|---|
-| careless | 2,654 Green | 2,612 Green | 1,231 Green | 1,231 Green |
-| one move | 4,261 Steady | 2,730 Steady | 1,707 Steady | 1,707 Steady |
-| rollout | 5,512 Sharp | 4,130 Sharp | 3,811 Sharp | 3,817 Sharp |
-| keeper | 4,217 Steady | 3,539 Steady | 2,657 Steady | 2,657 Steady |
-| chain chaser | 4,860 Sharp | 3,540 Steady | 3,142 Steady | 3,142 Steady |
-| planner | 5,282 Sharp | 3,940 Sharp | 4,126 Sharp | 4,133 Sharp |
-| *Steady from* | *3,196* | *2,697* | *1,499* | *1,499* |
+| careless | 2,654 Green | 2,612 Green | 1,683 Green | 1,683 Green |
+| one move | 4,261 Steady | 2,730 Steady | 2,161 Steady | 2,156 Steady |
+| rollout | 5,512 Sharp | 4,130 Sharp | 3,875 Sharp | 3,870 Sharp |
+| keeper | 4,217 Steady | 3,539 Steady | 2,886 Steady | 2,886 Steady |
+| chain chaser | 4,860 Sharp | 3,540 Steady | 3,236 Steady | 3,236 Steady |
+| planner | 5,282 Sharp | 3,940 Sharp | 4,174 Sharp | 4,166 Sharp |
+| *Steady from* | *3,196* | *2,697* | *1,898* | *1,898* |
 | *Sharp from* | *4,598* | *3,598* | *3,498* | *3,498* |
 | *Masterful from* | *5,798* | *4,998* | *4,998* | *4,998* |
 | *Legendary from* | *6,399* | *6,498* | *6,498* | *6,498* |
@@ -178,7 +181,7 @@ The bots of this pass, 32 seeds a cell (`pnpm --filter @openseas/bots ladder for
   plus 4 a landing place at the end.
 
 Checks: careless lands a tier below one move on every stage, and the bait loses to the planner on
-the whole puzzle by 24 percent. On the whole puzzle Masterful starts about 97 strikes in and
+the whole puzzle by 22 percent. On the whole puzzle Masterful starts about 97 strikes in and
 Legendary asks for a whole plate with a few sets.
 
 Open questions for play:

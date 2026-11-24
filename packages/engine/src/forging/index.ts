@@ -15,6 +15,7 @@ export {
   dealt as forgingDealt,
   upcoming as forgingUpcoming,
   reach as forgingReach,
+  fitMark as forgingFitMark,
   targets as forgingTargets,
   targetsFrom as forgingTargetsFrom,
   strikeIllegalReason as forgingStrikeIllegalReason,
