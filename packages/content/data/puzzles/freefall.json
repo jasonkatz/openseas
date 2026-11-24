@@ -5,27 +5,28 @@
     "entry": 4,
     "rows": 7,
     "gapPermille": 60,
-    "quotas": [12, 40, 24, 70],
+    "quotas": [12, 40, 24, 70, 90],
     "bays": {
       "first": [2, 2, 2, 2],
       "second": [1, 2, 5, 12],
       "third": [1, 3, 5, 8],
-      "fourth": [1, 4, 10, 20]
+      "fourth": [1, 4, 10, 20],
+      "fifth": [2, 5, 10, 25]
     },
     "squareClusters": true,
     "rival": true,
     "rivalSkill": 70,
     "turnSeconds": 30,
-    "maxMoves": 60
+    "maxMoves": 100
   },
   "paceSeconds": 15,
-  "roundSeconds": 1800,
+  "roundSeconds": 3000,
   "thresholds": [
-    { "score": 15, "rating": 1100 },
-    { "score": 55, "rating": 1300 },
-    { "score": 110, "rating": 1500 },
-    { "score": 160, "rating": 1700 },
-    { "score": 210, "rating": 1900 },
-    { "score": 275, "rating": 2100 }
+    { "score": 25, "rating": 1100 },
+    { "score": 90, "rating": 1300 },
+    { "score": 180, "rating": 1500 },
+    { "score": 265, "rating": 1700 },
+    { "score": 345, "rating": 1900 },
+    { "score": 450, "rating": 2100 }
   ]
 }

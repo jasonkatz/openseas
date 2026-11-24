@@ -15,6 +15,7 @@ export const FREEFALL_PRESETS: readonly Preset[] = [
       "bays.second": [1, 1, 2, 2, 4, 5, 8, 12, 16, 20],
       "bays.third": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
       "bays.fourth": [1, 2, 4, 6, 9, 12, 16, 20, 25, 30],
+      "bays.fifth": [2, 3, 5, 8, 10, 14, 18, 22, 28, 35],
     },
   },
   { id: "freefall_open_shaft", overrides: { gapPermille: 330 } },

@@ -26,7 +26,7 @@
  * same PRNG, picking the drop worth most at once `rivalSkill` percent of the time and a lane at
  * random otherwise. When either side's points in a leg reach the quota, the other side drops once
  * more and the leg ends; without a rival, it ends at once. Pods at rest stay where they are from
- * one leg to the next. The round ends after the fourth leg, or on `end`. The score is the
+ * one leg to the next. The round ends after the fifth leg, or on `end`. The score is the
  * player's lead: their points less the rival's, never below zero. Without a rival it is their
  * points.
  *
@@ -38,7 +38,7 @@
 import type { PrngState } from "../prng.js";
 
 /** The four legs of a round, in order. */
-export const FREEFALL_LEGS = ["first", "second", "third", "fourth"] as const;
+export const FREEFALL_LEGS = ["first", "second", "third", "fourth", "fifth"] as const;
 export type FreefallLeg = (typeof FREEFALL_LEGS)[number];
 
 export interface FreefallConfig {
@@ -71,18 +71,19 @@ export const DEFAULT_FREEFALL_CONFIG: FreefallConfig = {
   entry: 4,
   rows: 7,
   gapPermille: 60,
-  quotas: [12, 40, 24, 70],
+  quotas: [12, 40, 24, 70, 90],
   bays: {
     first: [2, 2, 2, 2],
     second: [1, 2, 5, 12],
     third: [1, 3, 5, 8],
     fourth: [1, 4, 10, 20],
+    fifth: [2, 5, 10, 25],
   },
   squareClusters: true,
   rival: true,
   rivalSkill: 70,
   turnSeconds: 30,
-  maxMoves: 60,
+  maxMoves: 100,
 };
 
 /** Who dropped a pod: the player (0) or the rival (1). */

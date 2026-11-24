@@ -39,7 +39,8 @@ export function stageNumbers<C extends object>(
 export const PrototypeBaseSchema = z.object({
   /** Wall-clock length of a round on the studio, enforced by the server for a recorded one. */
   category: PuzzleCategorySchema,
-  roundSeconds: z.int().min(10).max(1800),
+  /** Up to an hour: a puzzle with a clock on each turn (Freefall) caps its round at every turn taken whole. */
+  roundSeconds: z.int().min(10).max(3600),
   /** The stretch of recent play, in seconds, the live tier indicator reads (ADR 0039). Longer for a puzzle that scores in lumps. */
   paceSeconds: z.int().min(1).max(120).default(10),
   /** Performance thresholds the round is rated against (ADR 0028). Guesses until testers have played. */

@@ -44,7 +44,7 @@ test("Freefall plays alone on /play: a round drops by key and by tap", async ({ 
     await expectViewMatchesState(page, "freefall");
   }
   await expect(page.getByTestId("hud-moves")).toHaveText("6");
-  await expect(page.getByTestId("hud-leg")).toHaveText(/^[1-4] of 4$/);
+  await expect(page.getByTestId("hud-leg")).toHaveText(/^[1-5] of 5$/);
 });
 
 test("Freefall's turn clock drops the lane in hand when a turn runs out", async ({ page }) => {

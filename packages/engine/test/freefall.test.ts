@@ -48,8 +48,8 @@ const small: FreefallConfig = {
   rows: 2,
   gapPermille: 0,
   rival: false,
-  quotas: [1000, 1000, 1000, 1000],
-  bays: { first: [1, 1], second: [1, 1], third: [1, 1], fourth: [1, 1] },
+  quotas: [1000, 1000, 1000, 1000, 1000],
+  bays: { first: [1, 1], second: [1, 1], third: [1, 1], fourth: [1, 1], fifth: [1, 1] },
 };
 function shaft(rockers: FreefallRocker[], over: Partial<FreefallConfig> = {}): FreefallState {
   return { ...createFreefallGame("hand", { ...small, ...over }), rockers };
@@ -204,14 +204,14 @@ describe("freefall rules", () => {
     expect(n.lastMove!.drops[0]!.landed.map((l) => l.lane)).toEqual([1, 2]);
   });
 
-  it("without a rival a leg ends at its quota, and the round after four", () => {
-    let s = createFreefallGame("legs", { ...cfg, rival: false, quotas: [1, 1, 1, 1] });
+  it("without a rival a leg ends at its quota, and the round after five", () => {
+    let s = createFreefallGame("legs", { ...cfg, rival: false, quotas: [1, 1, 1, 1, 1] });
     let lane = 0;
     while (!s.finished && s.moveCount < 300) {
       s = reduceFreefall(s, { type: "drop", lane: entry(lane++) });
     }
     expect(s.finished).toBe(true);
-    expect(s.legsWon).toBe(4);
+    expect(s.legsWon).toBe(5);
   });
 
   it("with a rival, the other side drops once more after a quota is reached", () => {

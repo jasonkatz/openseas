@@ -15,14 +15,15 @@ export const FreefallConfigSchema = z.object({
   gapPermille: z.int().min(0).max(600).describe("Chance, per mille, that a rocker's place is left open in the deal."),
   quotas: z
     .array(z.int().min(1).max(100_000))
-    .length(4)
-    .describe("Points a side must reach within each of the four legs to end it. The other side drops once more."),
+    .length(5)
+    .describe("Points a side must reach within each of the five legs to end it. The other side drops once more."),
   bays: z
     .object({
       first: Bays.describe("The first leg's berth values, from the middle lane outward, mirrored."),
       second: Bays.describe("The second leg's berth values, from the middle lane outward, mirrored."),
       third: Bays.describe("The third leg's berth values, from the middle lane outward, mirrored."),
       fourth: Bays.describe("The fourth leg's berth values, from the middle lane outward, mirrored."),
+      fifth: Bays.describe("The fifth and last leg's berth values, from the middle lane outward, mirrored."),
     })
     .describe("What each berth pays, a list a leg, from the middle lane outward."),
   squareClusters: z.boolean().describe("A cluster of n pods scores its berth n times n (on), or n times (off)."),

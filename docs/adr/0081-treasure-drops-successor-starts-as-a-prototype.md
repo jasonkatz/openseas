@@ -22,8 +22,7 @@ that lives inside the engine.
    role. Nothing in the game links to it until it is promoted, which stays its own ADR and milestone.
 2. **It is a successor, and says so.** Its design file names Treasure Drop as what it follows,
    keeps the original's mechanics (a drop down a column, rockers whose cradle holds one pod and
-   whose arm flips them, a pod tipped out on an odd number of flips, pods that meet fusing, four
-   rounds with their own slot values and targets, the other side's one last drop), and gives its own
+   whose arm flips them, a pod tipped out on an odd number of flips, pods that meet fusing, legs with their own slot values and targets, the other side's one last drop), and gives its own
    words, art, sounds and numbers.
 3. **The opponent is a rival inside the engine.** After each of the player's drops the reducer drops
    for the rival from the round's seeded stream, as Swordfighting's raiders act, so a round replays
@@ -34,7 +33,7 @@ that lives inside the engine.
    player's own points say little about how well they played; the lead says who won and by how
    much.
 5. **Its departures are about planning.** A cluster pays its berth by the square of its count, not
-   its count; the berth values are its own. The shaft keeps the original's tree, a few drop lanes at the top widening row by row to a berth under every lane at the foot, with its widths and rows as tuning numbers. Each departure is a
+   its count; the berth values are its own; a round is five legs where the original plays four. The shaft keeps the original's tree, a few drop lanes at the top widening row by row to a berth under every lane at the foot, with its widths and rows as tuning numbers. Each departure is a
    row in DESIGN.md section 6.
 6. **Treasure Drop stays on the later list as a parlor game.** Two people at one shaft, with a
    wager, is decided with the parlors, with the promotion.

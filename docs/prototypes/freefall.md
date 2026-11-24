@@ -1,7 +1,8 @@
 # Freefall
 
 Status: built. Prototype (ADR 0036, ADR 0081), in the studio at `/freefall`. Each drop has its own
-30 second clock (`turnSeconds`); a round is four legs, with no clock of its own.
+30 second clock (`turnSeconds`); a round is five legs, a fixed end the
+owner asked for, with no clock of its own.
 
 Freefall is a successor, not one of the game's own new designs: it follows the original's Treasure
 Drop, the parlor game of dropping coins through a board of seesaws (DESIGN.md section 3 lists it as
@@ -31,9 +32,9 @@ rockers on the way.
   rolls the rest to the arm.
 - **Berths.** A pod past the last row lands in the berth under its lane. A cluster of n in a berth
   worth v scores v × n × n (`squareClusters`; off, v × n).
-- **Legs.** A round is four legs. Each has a quota (`quotas`) and its own berth values (`bays`,
+- **Legs.** A round is five legs, and ends after the fifth. Each has a quota (`quotas`) and its own berth values (`bays`,
   listed from the middle lane outward and mirrored): flat 2 in the first, 1 rising to 12 at the
-  edge in the second, 1 to 8 in the third, 1 to 20 in the fourth. Pods at rest stay from one leg to the
+  edge in the second, 1 to 8 in the third, 1 to 20 in the fourth, 2 to 25 in the fifth. Pods at rest stay from one leg to the
   next.
 - **The rival.** Points go to whoever dropped the pod that set them off. A rival drops after every
   drop of the player's (`rival`), from the round's own seeded stream: the drop worth most at once 70
@@ -44,7 +45,7 @@ rockers on the way.
   it is the player's points.
 
 The compound move the puzzle pays most for: **a cluster landed in a rich berth**, two loaded
-cradles tipped so their pods meet in one lane, ideally saved for the fourth leg's edges.
+cradles tipped so their pods meet in one lane, ideally saved for the last legs' edges.
 
 ## Luck and skill
 
@@ -107,18 +108,18 @@ after.
 ## Tuning notes
 
 Set from bots, not people (ADR 0036). A person's pace is modelled as a drop every 3 seconds, the
-rival's answer played out included. A round is a few dozen drops (under fifty in 200 seeds of random or greedy play), so the legs end it.
+rival's answer played out included. A round is a few dozen drops (about 37 on average, at most 60, in 200 seeds of random or greedy play), so the legs end it.
 
 - **A clock on each drop, not on the round** (the owner's call). Each drop has 30 seconds
   (`turnSeconds`, which the reducer never reads); when they run out the board drops down the lane
   in hand, as space would, with a tick for each of the last five seconds. The round's own clock
-  (`roundSeconds`) is only a cap, 60 drops (`maxMoves`) of a whole turn each, which content checks
+  (`roundSeconds`) is only a cap, 100 drops (`maxMoves`) of a whole turn each, which content checks
   it covers. The pace indicator reads a stretch of play as a 150 second round of brisk play, the
   round the bots' ladder plays.
 
 - **The score is the lead, not the points.** A leg ends at its quota, so a player's own points sit
   near the quotas' sum however well they play: the bots' points sit close together.
-  Read as the lead, the denier scores 147, one move 114 and careless play about zero.
+  Read as the lead, the denier scores 237, one move 189 and careless play about zero.
 - **Clusters pay n × n.** The original pays a multi-coin its slot times its count; squaring is what
   makes planning a cluster worth more than two lucky singles (rule 13).
 - **The rival at 70.** Sharp enough that a pod left at rest over a rich lane is usually taken, loose
@@ -132,14 +133,14 @@ The bots of this pass, 32 seeds (`pnpm --filter @openseas/bots ladder freefall`)
 | Bot | Full |
 |---|---|
 | careless | 1 Green |
-| one move | 114 Steady |
-| rollout | 166 Sharp |
-| denier | 147 Sharp |
-| edge chaser | 11 Green |
-| *Steady from* | *55* |
-| *Sharp from* | *135* |
-| *Masterful from* | *210* |
-| *Legendary from* | *308* |
+| one move | 189 Steady |
+| rollout | 277 Sharp |
+| denier | 237 Sharp |
+| edge chaser | 4 Green |
+| *Steady from* | *90* |
+| *Sharp from* | *223* |
+| *Masterful from* | *345* |
+| *Legendary from* | *503* |
 
 - **careless**: any top lane at random.
 - **one move**: the drop worth most now.
@@ -148,7 +149,7 @@ The bots of this pass, 32 seeds (`pnpm --filter @openseas/bots ladder freefall`)
 - **edge chaser** (a bait): always the top lane over the richest berth it can reach straight down.
 
 Checks: careless lands a tier below one move; the edge chaser loses to one move; and one move,
-the plain greedy play that looks right, loses to the denier by 22 percent.
+the plain greedy play that looks right, loses to the denier by 20 percent.
 
 Open questions for play:
 

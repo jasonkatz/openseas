@@ -13,7 +13,7 @@ const top = (leg: number): number => Math.max(...berths(leg));
 const low = (leg: number): number => Math.min(...berths(leg));
 /** What a cluster of n pays in a berth worth v. */
 const cluster = (v: number, n: number): number => (c.squareClusters ? v * n * n : v * n);
-const legs = ["first", "second", "third", "fourth"];
+const legs = ["first", "second", "third", "fourth", "fifth"];
 
 export const freefall: Guide = {
   id: "freefall",
@@ -32,7 +32,7 @@ export const freefall: Guide = {
   },
   facts: [
     { label: "Shaft", value: `${c.entry} lanes in, ${c.width} berths out, ${c.rows} rows of rockers` },
-    { label: "Round", value: `Four legs, ${c.turnSeconds} seconds a drop` },
+    { label: "Round", value: `${FREEFALL_LEGS.length} legs, ${c.turnSeconds} seconds a drop` },
     { label: "Rated against", value: "Your lead over the rival" },
   ],
   rules: [
@@ -41,7 +41,7 @@ export const freefall: Guide = {
     "A pod that lands on a full cradle rolls over to the arm. A pod that passes an arm flips the rocker: the cradle swings to the other side and the pod resting in it is tipped out and falls.",
     "Pods that reach the same lane in the same row fuse into a **cluster** and fall as one. Two pods passing an arm flip it twice, so a resting pod lands back.",
     `Whatever reaches the **berths** at the foot on your drop is yours. ${c.rival ? "A rival drops after every drop of yours, down whatever lane pays it most at once." : ""}`.trim(),
-    `A round is four legs, each with its own berth values and its own **quota**. When either side reaches the quota, the other drops once more and the leg ends. Pods at rest stay for the next leg.`,
+    `A round is ${FREEFALL_LEGS.length} legs, and it ends after the last, each with its own berth values and its own **quota**. When either side reaches the quota, the other drops once more and the leg ends. Pods at rest stay for the next leg.`,
   ],
   rulesMedia: {
     kind: "clip",
@@ -56,9 +56,9 @@ export const freefall: Guide = {
     { action: "Run out of time", touch: "The lane in hand drops for you", desktop: "The lane in hand drops for you" },
   ],
   scoring: [
-    `**A pod pays the berth it lands in.** The first leg pays ${top(0)} in every berth. Later legs pay most at the edges: up to ${top(1)}, ${top(2)} and ${top(3)}, down to ${low(3)} in the middle.`,
+    `**A pod pays the berth it lands in.** The first leg pays ${top(0)} in every berth. Later legs pay most at the edges: up to ${top(1)}, ${top(2)}, ${top(3)} and ${top(4)}, down to ${low(4)} in the middle.`,
     c.squareClusters
-      ? `**A cluster of n pays its berth n × n times.** Two pods fused in a berth worth ${top(3)} pay ${cluster(top(3), 2)}, where two apart pay ${2 * top(3)}.`
+      ? `**A cluster of n pays its berth n × n times.** Two pods fused in a berth worth ${top(4)} pay ${cluster(top(4), 2)}, where two apart pay ${2 * top(4)}.`
       : `**A cluster of n pays its berth n times.**`,
     c.rival
       ? "**Your score is your lead.** Your points less the rival's at the end, and never below zero. Points the rival takes count against you."
@@ -125,7 +125,7 @@ export const freefall: Guide = {
         },
         {
           title: "Save the big setups",
-          body: `Pods at rest stay from one leg to the next. A cluster in the first leg pays ${cluster(top(0), 2)}; the same cluster at the edge of the fourth pays ${cluster(top(3), 2)}. Fill cradles late in a leg the rival is winning anyway.`,
+          body: `Pods at rest stay from one leg to the next. A cluster in the first leg pays ${cluster(top(0), 2)}; the same cluster at the edge of the last pays ${cluster(top(FREEFALL_LEGS.length - 1), 2)}. Fill cradles late in a leg the rival is winning anyway.`,
         },
       ],
       drill: `Check the summary for your largest cluster. Aim for a cluster of two in every round. You are there when a round finishes above ${p.thresholds[3]!.score}.`,
@@ -144,7 +144,7 @@ export const freefall: Guide = {
         },
         {
           title: "Race the legs you can win",
-          body: `The legs pay differently. The ${legs[1]} and ${legs[3]} reward the edges far more than the ${legs[0]} and ${legs[2]}. Win the rich legs by a lot, and close the poor ones fast.`,
+          body: `The legs pay differently. The ${legs[1]}, ${legs[3]} and ${legs[4]} reward the edges far more than the ${legs[0]} and ${legs[2]}. Win the rich legs by a lot, and close the poor ones fast.`,
         },
       ],
       drill: `Play rounds where the rival never scores more than you in one drop. You are there when a round passes ${p.thresholds[4]!.score}.`,
