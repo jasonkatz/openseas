@@ -1,5 +1,5 @@
 /**
- * Pact (prototype, ADR 0036, ADR 0083): partnership trick-taking with bids, the player and a partner
+ * Pact (prototype, ADR 0036, ADR 0087): partnership trick-taking with bids, the player and a partner
  * the engine plays against two opponents it plays too. A successor to the original's Spades, faithful
  * to its mechanics.
  *
@@ -55,6 +55,8 @@ export interface PactConfig {
   readonly setBonus: number;
   /** How far the other seats lean their bids over the tricks their cards count to, in tenths of a trick. */
   readonly seatLean: number;
+  /** About how long a hand takes at a person's pace, in seconds: the live tier indicator reads a stretch of play as a sitting of hands this long. */
+  readonly handSeconds: number;
   /** Longest move log the server accepts. */
   readonly maxMoves: number;
 }
@@ -68,6 +70,7 @@ export const DEFAULT_PACT_CONFIG: PactConfig = {
   bagPenalty: 100,
   setBonus: 10,
   seatLean: 4,
+  handSeconds: 100,
   maxMoves: 2000,
 };
 

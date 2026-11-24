@@ -78,3 +78,5 @@ export { RefiningIcon } from "./refining/RefiningIcon.jsx";
 export { REFINING_KINDS } from "./refining/pieces.js";
 export { FreefallBoard, type FreefallBoardProps } from "./freefall/FreefallBoard.jsx";
 export { FreefallIcon } from "./freefall/FreefallIcon.jsx";
+export { PactBoard, type PactBoardProps } from "./pact/PactBoard.jsx";
+export { PactIcon, type PactIconPiece } from "./pact/PactIcon.jsx";

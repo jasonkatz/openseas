@@ -87,3 +87,4 @@ that supersedes it.
 | [0079](./0079-a-puzzle-has-a-version-and-a-judged-round-is-final.md) | A puzzle has a version, `major.minor`, and a judged round is final: the major marks a change to how a round replays |
 | [0080](./0080-distillings-successor-starts-as-a-prototype.md) | Distilling's successor starts as a prototype: Refining, dealt only in the studio |
 | [0081](./0081-treasure-drops-successor-starts-as-a-prototype.md) | Treasure Drop's successor starts as a prototype: Freefall, dealt only in the studio, against a rival in the engine |
+| [0087](./0087-spades-successor-starts-as-a-prototype.md) | Spades' successor starts as a prototype: Pact, dealt only in the studio, with a partner and two rivals the engine plays, a hand never scoring below zero |

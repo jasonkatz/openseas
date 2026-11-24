@@ -16,6 +16,7 @@ export function validateConfig(cfg: PactConfig): void {
     int(cfg.bagPenalty, 0, 10_000) &&
     int(cfg.setBonus, 0, 1000) &&
     int(cfg.seatLean, -50, 50) &&
+    int(cfg.handSeconds, 10, 900) &&
     int(cfg.maxMoves, 1, 1_000_000);
   if (!ok) throw new Error("invalid pact config");
 }
@@ -288,11 +289,11 @@ export function summarizePact(state: PactState): PactSummary {
 
 /**
  * A stretch of play read as a whole sitting, for the live tier indicator: the points made in
- * `seconds` of play, kept up for the round's `roundSeconds`. Never below zero.
+ * `seconds` of play, kept up for a sitting of `hands` hands of `handSeconds` each. Never below zero.
  */
-export function paceScore(made: number, seconds: number, roundSeconds: number): number {
+export function paceScore(config: PactConfig, made: number, seconds: number): number {
   if (seconds <= 0) return 0;
-  return Math.max(0, Math.round((made * roundSeconds) / seconds));
+  return Math.max(0, Math.round((made * config.hands * config.handSeconds) / seconds));
 }
 
 /** Each side's bid and tricks so far this hand: the pact, the tricks toward it, and nils still alive. */

@@ -18,6 +18,7 @@ export const PactConfigSchema = z.object({
   bagPenalty: z.int().min(0).max(10_000).describe("What a side loses each time its bags reach the limit."),
   setBonus: z.int().min(0).max(1000).describe("Points a side scores for each trick of the rivals' pact when the rivals fall short. 0: none."),
   seatLean: z.int().min(-50).max(50).describe("How far the other seats lean their bids over what their cards count to, in tenths of a trick. Higher bids bolder."),
+  handSeconds: z.int().min(10).max(900).describe("About how long a hand takes, in seconds: the live tier indicator reads a stretch of play as a sitting of hands this long."),
   maxMoves: z.int().min(1).max(1_000_000).describe("Longest move log the server accepts."),
 });
 export type PactConfigWire = z.infer<typeof PactConfigSchema>;

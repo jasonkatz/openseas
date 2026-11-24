@@ -9,6 +9,7 @@
     "bagPenalty": 100,
     "setBonus": 10,
     "seatLean": 4,
+    "handSeconds": 100,
     "maxMoves": 2000
   },
   "paceSeconds": 120,

@@ -13,6 +13,7 @@ export const PactContentSchema = PrototypeBaseSchema.extend({
     bagPenalty: z.int().min(0).max(10_000),
     setBonus: z.int().min(0).max(1000),
     seatLean: z.int().min(-50).max(50),
+    handSeconds: z.int().min(10).max(900),
     maxMoves: z.int().min(1),
   }),
 });
