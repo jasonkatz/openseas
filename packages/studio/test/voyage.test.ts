@@ -63,7 +63,8 @@ describe("a voyage flies as the server would fly it", () => {
       }),
       { numRuns: 12 },
     );
-  });
+    // Twelve whole voyages: under a second on a quiet machine, past the default five on a busy runner.
+  }, 30_000);
 
   it("boots up bots up to the class's minimum crew", () => {
     const sim = startVoyage(setup({ crew: [pirate("navigation")], world: CLEAR }));
