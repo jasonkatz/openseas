@@ -444,7 +444,7 @@ its design file under `docs/prototypes/` and its message file under
 |---|---|---|
 | Salvage | `salvage` | Tethers a line of debris and hauls it; a closed line is a net that brings in every crate |
 | Overload | `overload` | Charges capacitors with taps; a full one bursts into its neighbours |
-| Deflectors | `deflectors` | Flips mirrors so each beam leaves by its own exit port |
+| Deflectors | `deflectors` | Places mirrors and lenses from a queue so beams from three emitters light targets through exactly the lenses of their recipes; a shot is multiplied by the targets it lights and spends what it used |
 | Reactor | `reactor` | Swipes fuel rods together to fuse them and pushes hot rods out through ports |
 | Scanner | `scanner` | Pings a fogged sector and locks the contacts the pings give away |
 | Tug | `tug` | Flicks cargo pods, which slide until stopped, onto the lit clamp |

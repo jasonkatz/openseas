@@ -1,27 +1,39 @@
 /**
- * Deflectors (prototype, ADR 0036): a square grid of two-sided mirrors, each set as `/` or `\`, and
- * beams that come in from ports on the edge. The player's one verb is flipping a mirror.
+ * Deflectors (prototype, ADR 0036): a square grid the player builds, mirror by mirror, and beams
+ * that run through it to light targets on its edge.
  *
- * Beams come in volleys: one beam at first, more later in the round. A volley is announced before
- * it fires: every beam's entry port and exit port are marked, and one count runs for the volley.
- * When the count ends, or the player fires early, every beam runs straight, turns at every mirror
- * it meets, and leaves by some port. A beam out through its own exit scores by the mirrors it
- * turned at, (turns + 1) squared; a beam out anywhere else hits the hull. A volley with every beam
- * home is clean: it builds the streak, and the streak multiplies it. A clean volley worth as much as
- * any setting of the mirrors could make it is perfect, and is multiplied again.
+ * A round deals a set supply of pieces (`pieces`): mirrors, and now and then a lens. The next few
+ * wait in a queue the player can see (`queueSize`). The player puts the next piece on any cell,
+ * empty or not; a piece put on another replaces it. A mirror can be turned between `/` and `\`
+ * before it goes down. A piece the player does not want can be binned, which uses it up. Nothing
+ * comes on a timer and nothing is placed for the player: the clock only bounds the round, so pace
+ * counts, but every piece is the player's own choice.
  *
- * Mirrors never move. Every volley is dealt exits that one setting of the mirrors reaches together:
- * the engine searches the settings when it deals, and keeps the most they can score as the volley's
- * `best`. No beam is dealt the exit it would leave by as the mirrors stand, so every beam asks for
- * a flip.
+ * Emitters sit on the left edge, targets on the other three. Every target asks for a recipe: the
+ * lens kinds a beam must pass on the way, exactly those and no other, and none for a plain target.
+ * The player fires when they choose, and every emitter fires at once. Each beam runs straight,
+ * turns at every mirror it meets, passes straight through a lens, and leaves by some port. A beam
+ * that leaves by a target, having passed exactly its recipe, lights it: it scores (turns + 1)
+ * squared, and half as much again for each lens in the recipe. A target lights once a shot. The
+ * shot is multiplied by how many targets it lit (`litPercent`). A beam that lights nothing scores
+ * nothing.
+ *
+ * Every mirror a fired beam turned at is spent, and so is every lens a lighting beam passed: they
+ * leave the grid. A lit target asks for a new recipe. So there is no one route to find: the
+ * player chooses which targets to build towards, where to put a piece that fits nothing, and when a
+ * shot is worth firing rather than built on.
  *
  * Cell index = row * size + col, row 0 at the top. Port index = side * size + i: side 0 is the top
  * edge (i counts columns, the beam enters heading down), side 1 the right edge (i counts rows,
  * heading left), side 2 the bottom edge (columns, heading up), side 3 the left edge (rows, heading
- * right). Directions: 0 up, 1 right, 2 down, 3 left.
+ * right). Directions: 0 up, 1 right, 2 down, 3 left. A recipe is a mask of lens kinds: bit k is
+ * kind k.
  *
- * Time is data: every move carries the integer `tick` it happens at, and the reducer fires and
- * deals whatever is due by that tick first. Nothing here reads a clock (ADR 0003, ADR 0015).
+ * The round ends when the clock runs out, or once the supply is used up and the grid lights
+ * nothing more.
+ *
+ * Time is data: every move carries the integer `tick` it happens at. Nothing here reads a clock
+ * (ADR 0003, ADR 0015).
  */
 import type { PrngState } from "../prng.js";
 
@@ -31,149 +43,156 @@ export const DEFLECTORS_EMPTY = 0;
 export const DEFLECTORS_SLASH = 1;
 /** A mirror set as `\`: a beam heading right turns down. */
 export const DEFLECTORS_BACKSLASH = 2;
+/** A lens of kind k is DEFLECTORS_LENS + k. A beam runs straight through it. */
+export const DEFLECTORS_LENS = 3;
+/** How many kinds of lens there are. */
+export const DEFLECTORS_LENS_KINDS = 3;
+/**
+ * A splitter: a beam that meets it stops, and two beams go on from it, one each way across the way
+ * it came. It has no setting. Each of the two counts the split as one of its turns.
+ */
+export const DEFLECTORS_SPLITTER = DEFLECTORS_LENS + DEFLECTORS_LENS_KINDS;
 
 export interface DeflectorsConfig {
   /** The grid is size by size. */
   readonly size: number;
-  /** Mirrors on the grid. They are dealt once and never move. */
+  /** Emitters on the left edge, spread down it. */
+  readonly emitters: number;
+  /** Targets on the top, right and bottom edges, dealt at the start. */
+  readonly targets: number;
+  /** Mirrors on the grid at the start, set at random. */
   readonly mirrors: number;
-  /** The most beams in a volley, late in the round. */
-  readonly maxBeams: number;
-  /** The round opens with one beam a volley; a volley gets one more every rampTicks, up to maxBeams. */
-  readonly rampTicks: number;
-  /**
-   * A volley is dealt exits whose best setting is worth at least what minBest turns a beam would
-   * score, and which a cheaper setting reaches too, when such exits are free: every volley then has
-   * a long way round worth finding.
-   */
-  readonly minBest: number;
-  /** A beam out through its exit after b turns scores bouncePoints * (b + 1) * (b + 1), with b counted up to bounceCap. */
+  /** Lenses on the grid at the start, of kind 0, 1, 2, 0 and so on. */
+  readonly lenses: number;
+  /** How often a recipe asks for no lens, one, two and so on, as weights. One entry turns recipes off. */
+  readonly recipeWeights: readonly number[];
+  /** What each lens in a target's recipe adds to a beam's points, in percent. */
+  readonly lensPercent: number;
+  /** A beam lighting a target after b turns scores bouncePoints * (b + 1) * (b + 1), with b counted up to bounceCap, before its lenses. */
   readonly bouncePoints: number;
   readonly bounceCap: number;
-  /** What a perfect volley is multiplied by, in percent. */
-  readonly perfectPercent: number;
-  /** Lost for every beam that leaves by the wrong port. Score never goes below zero. */
-  readonly hullPenalty: number;
-  /** What the streak of clean volleys multiplies a clean volley by, in percent: the first takes the first entry, a streak past the end takes the last. */
-  readonly streakPercent: readonly number[];
+  /** What a shot is multiplied by, in percent, for lighting one target, two, three and so on; past the last, the last. */
+  readonly litPercent: readonly number[];
+  /** Mirrors a fired beam turned at, and lenses a lighting beam passed, leave the grid. Off, the grid stays as built. */
+  readonly spend: boolean;
+  /** Pieces the round deals, placed or binned. */
+  readonly pieces: number;
+  /** How many pieces the queue shows, the next first. */
+  readonly queueSize: number;
+  /** How often a piece is a lens rather than a mirror, in percent. */
+  readonly lensChance: number;
+  /** How often a piece is a splitter, in percent. */
+  readonly splitterChance: number;
+  /** Ticks after a shot before the emitters can fire again. */
+  readonly fireTicks: number;
   /** Wall-clock ms per tick on the client; the server uses it to bound claimed ticks. */
   readonly tickMs: number;
   /** No move may claim a tick beyond this; the round is over by then. */
   readonly maxTick: number;
-  /** Longest move log the server accepts: flips, fires and waits. */
+  /** Longest move log the server accepts: places, turns, fires and waits. */
   readonly maxMoves: number;
-  /** The first volley is dealt this many ticks in. */
-  readonly openingTicks: number;
-  /** Ticks a volley waits before it fires at the start of the round, and by the end; the wait shortens evenly. */
-  readonly chargeTicks: number;
-  readonly chargeTicksMin: number;
-  /** Ticks more a volley waits for every beam in it after the first. */
-  readonly beamTicks: number;
-  /** Ticks from a volley firing to the next being dealt: firing early brings the next one sooner. */
-  readonly respawnTicks: number;
 }
 
 export const DEFAULT_DEFLECTORS_CONFIG: DeflectorsConfig = {
   size: 6,
-  mirrors: 14,
-  maxBeams: 2,
-  rampTicks: 350,
-  minBest: 4,
+  emitters: 3,
+  targets: 5,
+  mirrors: 5,
+  lenses: 2,
+  recipeWeights: [25, 45, 30],
+  lensPercent: 50,
   bouncePoints: 1,
   bounceCap: 16,
-  perfectPercent: 150,
-  hullPenalty: 40,
-  streakPercent: [100, 110, 120, 130, 140, 150, 160, 180, 200],
+  litPercent: [100, 200, 400],
+  spend: true,
+  pieces: 50,
+  queueSize: 3,
+  lensChance: 22,
+  splitterChance: 8,
+  fireTicks: 10,
   tickMs: 100,
-  maxTick: 1200,
+  maxTick: 1800,
   maxMoves: 4000,
-  openingTicks: 8,
-  chargeTicks: 180,
-  chargeTicksMin: 130,
-  beamTicks: 50,
-  respawnTicks: 6,
 };
 
-/** One beam of a volley. */
-export interface DeflectorsBeam {
-  /** Its place in the volley, and the sign it wears: 0 to maxBeams - 1. */
-  readonly sign: number;
-  /** The port it comes in by, and the port it must leave by. */
-  readonly entry: number;
-  readonly exit: number;
-}
-
-/** Beams that wait together and fire together. */
-export interface DeflectorsVolley {
-  /** Stable identity for animation. Never reused within a game. */
+/** A target on the edge, and the lenses a beam must pass to light it. */
+export interface DeflectorsTarget {
+  /** Its place in the deal, fixed for the round. */
   readonly id: number;
-  readonly beams: readonly DeflectorsBeam[];
-  readonly dealTick: number;
-  readonly fireTick: number;
-  /** The most the beams' own points come to, over every setting of the mirrors that sends each beam out through its exit. */
-  readonly best: number;
+  readonly port: number;
+  /** The lens kinds a beam must pass, as a mask, and no others. 0 asks for none. */
+  readonly recipe: number;
 }
 
 export type DeflectorsMove =
-  /** Flip the mirror at `cell` between `/` and `\`. */
-  | { readonly type: "flip"; readonly cell: number; readonly tick: number }
-  /** Fire the waiting volley `volley` now instead of waiting out its count. */
-  | { readonly type: "fire"; readonly volley: number; readonly tick: number }
-  /** Nothing but time passing, so volleys that fired by themselves reach the server. */
+  /** Put the next piece in the queue on `cell`, replacing whatever is there. */
+  | { readonly type: "place"; readonly cell: number; readonly tick: number }
+  /** Turn the next piece in the queue, a mirror, between `/` and `\`. */
+  | { readonly type: "turn"; readonly tick: number }
+  /** Bin the next piece in the queue: it is used up and put nowhere. */
+  | { readonly type: "bin"; readonly tick: number }
+  /** Fire every emitter. */
+  | { readonly type: "fire"; readonly tick: number }
+  /** Nothing but time passing. */
   | { readonly type: "wait"; readonly tick: number }
   | { readonly type: "end"; readonly tick: number };
 
-/** The way a beam runs through the mirrors as they stand. */
+/** The way a beam runs through the grid as it stands: from its emitter, through every split, to where this branch ends. */
 export interface DeflectorsTrace {
-  /** The port it leaves by. */
+  /** The port it leaves by, or -1 when it ran into a way a beam of its emitter had already gone, and stopped there. */
   readonly out: number;
-  /** Mirrors it turns at, counting a mirror met twice twice. */
+  /** Where it stopped when `out` is -1: the cell it would have entered again. */
+  readonly stop: number;
+  /** Mirrors it turns at and splits it came through, counting one met twice twice. */
   readonly bounces: number;
   /** The cell of every turn, in order. The beam runs straight from port to turn to turn to port. */
   readonly turns: readonly number[];
+  /** The lens kinds it passed through, as a mask. */
+  readonly lenses: number;
+  /** The cell of every lens it passed, in order. */
+  readonly lensCells: readonly number[];
 }
 
-/** One beam of a volley as it fired, or as it would fire now. */
-export interface DeflectorsShot extends DeflectorsBeam, DeflectorsTrace {
-  /** It left by its own exit. */
-  readonly hit: boolean;
-  /** A hit's own points, before the volley is multiplied; or what the hull took, as a negative. */
+/** One beam of a shot, as it fired or would fire now: one branch, when a splitter split it. */
+export interface DeflectorsShot extends DeflectorsTrace {
+  /** The port it came in by. */
+  readonly entry: number;
+  /** Its emitter, by place, top first. */
+  readonly emitter: number;
+  /** The target it lit, by id, or -1. */
+  readonly target: number;
+  /** The beam's own points, before the shot is multiplied: 0 when it lit nothing. */
   readonly points: number;
 }
 
-/** What a volley did, or would do if it fired now. The board previews with it and the reducer scores with it. */
+/** What a shot did, or would do if fired now. The board previews with it and the reducer scores with it. */
 export interface DeflectorsOutcome {
   readonly shots: readonly DeflectorsShot[];
-  readonly hits: number;
-  /** Every beam left by its own exit. */
-  readonly clean: boolean;
-  /** Clean, and worth as much as any setting of the mirrors could make it. */
-  readonly perfect: boolean;
-  /** The hits' own points added up. */
+  /** Targets lit. */
+  readonly lit: number;
+  /** The beams' own points added up. */
   readonly base: number;
-  /** The streak after this volley, and what it multiplied the volley by, in percent. */
-  readonly streak: number;
-  readonly streakPercent: number;
-  /** What the hits came to once multiplied. */
-  readonly gained: number;
-  /** What the hull took, as a positive. */
-  readonly lost: number;
-  /** What the volley did to the score: gained less lost. */
+  /** What the shot is multiplied by, in percent. */
+  readonly litPercent: number;
+  /** What the shot scores. */
   readonly points: number;
 }
 
 export type DeflectorsEvent =
-  /** A volley was announced. */
-  | { readonly seq: number; readonly tick: number; readonly type: "deal"; readonly volley: DeflectorsVolley }
-  /** A volley fired, at the end of its count or early. */
+  /** A piece came into the queue from the supply. */
+  | { readonly seq: number; readonly tick: number; readonly type: "piece"; readonly piece: number }
+  /** The next piece was binned. */
+  | { readonly seq: number; readonly tick: number; readonly type: "bin"; readonly piece: number }
+  /** The emitters fired. */
   | {
       readonly seq: number;
       readonly tick: number;
       readonly type: "fire";
-      readonly volley: DeflectorsVolley;
-      /** True when the player fired it before its count ended. */
-      readonly early: boolean;
       readonly outcome: DeflectorsOutcome;
+      /** The cells it spent, in order: empty when spending is off. */
+      readonly spent: readonly number[];
+      /** The targets after the shot, lit ones with their new recipes. */
+      readonly targets: readonly DeflectorsTarget[];
     };
 
 export interface DeflectorsMoveReport {
@@ -186,31 +205,35 @@ export interface DeflectorsMoveReport {
 export interface DeflectorsState {
   readonly config: DeflectorsConfig;
   readonly tick: number;
-  /** One entry a cell: DEFLECTORS_EMPTY, DEFLECTORS_SLASH or DEFLECTORS_BACKSLASH. */
+  /** One entry a cell: DEFLECTORS_EMPTY, DEFLECTORS_SLASH, DEFLECTORS_BACKSLASH, a lens (DEFLECTORS_LENS + kind) or DEFLECTORS_SPLITTER. */
   readonly mirrors: readonly number[];
-  /** The volley waiting to fire, or null between volleys. */
-  readonly volley: DeflectorsVolley | null;
-  /** The tick the next volley is dealt at, once none is waiting. */
-  readonly nextDealTick: number;
+  /** The emitters' ports, top to bottom. */
+  readonly emitters: readonly number[];
+  readonly targets: readonly DeflectorsTarget[];
+  /** The pieces waiting, next first, as the cell each would become. */
+  readonly queue: readonly number[];
+  /** Pieces still to come into the queue. */
+  readonly left: number;
+  /** The first tick the emitters can fire at. */
+  readonly fireTick: number;
   readonly rng: PrngState;
-  readonly nextVolleyId: number;
   readonly eventSeq: number;
   /** Every move in the log, waits included. */
   readonly logLength: number;
-  readonly flips: number;
-  /** Volleys that have fired. */
-  readonly volleys: number;
-  /** Beams out through their exits, and beams into the hull. */
-  readonly hits: number;
-  readonly misses: number;
-  /** Perfect volleys. */
-  readonly perfects: number;
-  /** The most turns any hit made. */
+  /** Pieces put down, and pieces binned. */
+  readonly placed: number;
+  readonly binned: number;
+  /** Shots fired, and targets lit. */
+  readonly shots: number;
+  readonly lit: number;
+  /** Cells spent. */
+  readonly spent: number;
+  /** The most any one shot scored, and the most targets any one shot lit. */
+  readonly bestShot: number;
+  readonly bestLit: number;
+  /** The most turns any lighting beam made. */
   readonly longest: number;
   readonly score: number;
-  /** Clean volleys in a row. */
-  readonly combo: number;
-  readonly bestCombo: number;
   readonly lastMove: DeflectorsMoveReport | null;
   readonly finished: boolean;
 }

@@ -2,12 +2,15 @@ import type { Preset } from "../presets.js";
 
 /** Lab presets for Deflectors. Every one must pass the engine's validator and the wire schema (test/scenario.test.ts). */
 export const DEFLECTORS_PRESETS: readonly Preset[] = [
-  { id: "deflectors_one_beam", overrides: { maxBeams: 1 } },
-  { id: "deflectors_two_from_start", overrides: { rampTicks: 1 } },
-  { id: "deflectors_three_beams", overrides: { maxBeams: 3, rampTicks: 300 } },
-  { id: "deflectors_sparse", overrides: { mirrors: 10 } },
-  { id: "deflectors_dense", overrides: { mirrors: 18 } },
-  { id: "deflectors_big_grid", overrides: { size: 8, mirrors: 24 } },
-  { id: "deflectors_long_count", overrides: { chargeTicks: 400, chargeTicksMin: 400 } },
+  { id: "deflectors_two_emitters", overrides: { emitters: 2, litPercent: [100, 200] } },
+  { id: "deflectors_flat_shots", overrides: { litPercent: [100, 100, 100] } },
+  { id: "deflectors_no_recipes", overrides: { recipeWeights: [1], lenses: 0, lensChance: 0 } },
+  { id: "deflectors_one_lens", overrides: { recipeWeights: [30, 70] } },
+  { id: "deflectors_still", overrides: { spend: false } },
+  { id: "deflectors_no_splitters", overrides: { splitterChance: 0 } },
+  { id: "deflectors_few_pieces", overrides: { pieces: 40 } },
+  { id: "deflectors_many_pieces", overrides: { pieces: 100 } },
+  { id: "deflectors_long_view", overrides: { queueSize: 5 } },
+  { id: "deflectors_big_grid", overrides: { size: 8, emitters: 4, targets: 7, mirrors: 8, lenses: 3, litPercent: [100, 200, 400, 800] } },
   { id: "deflectors_short_round", overrides: { maxTick: 600 }, roundSeconds: 60 },
 ];
