@@ -100,8 +100,9 @@ The board follows the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws
 
 - **A card** is a raised tile with a hairline, its rank in cream mono over its suit's pictogram.
   Face down, it shows the back's slate seal.
-- **The suits** are the traditional four, each its own outline: spades and clubs cream, hearts and
-  diamonds rose.
+- **The suits** each have an outline of their own: a four-pointed star (sand), a crescent moon
+  (sky), a planet crossed by its ring (lilac), a comet's head and tail (rose). The owner tried the
+  traditional four and kept these: they read cleaner as pictograms.
 - **The rivals' emblems**: a brick with its mortar line (slate), a sponge with its hole (moss), a
   flame (rust), a fin (teal).
 - **A chip** is a cream disc with its inlay cut out; **the button** a cream puck with a slot. Each

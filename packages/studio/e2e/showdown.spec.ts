@@ -24,7 +24,7 @@ test("Showdown plays alone on /play: a game plays by key and by tap", async ({ p
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
   // hand:street:pot | your two cards and chips | the middle | each rival, in, folded or out, with its chips.
-  await expect(page.getByTestId("showdown-board")).toHaveAttribute("data-board", /^1:0:\d+\|([2-9TJQKA][shdc]){2}\/\d+\|\|(i\d+\|){2}i\d+$/);
+  await expect(page.getByTestId("showdown-board")).toHaveAttribute("data-board", /^1:0:\d+\|([2-9TJQKA][smrc]){2}\/\d+\|\|(i\d+\|){2}i\d+$/);
 
   // The rivals act on the board's own pace until it is the player's turn.
   let phase = await waitFor(page, "act|over|finished");

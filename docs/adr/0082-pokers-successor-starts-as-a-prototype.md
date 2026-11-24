@@ -23,8 +23,7 @@ what the player must not see.
    mechanics of hold'em (two cards each, five shared turned three, one and one, the best five of
    seven, blinds and a button, a round of betting before the flop and after each turn, the pot to
    the last seat in or the best hand shown, stacks, all ins and side pots), and gives its own
-   words, art, sounds and numbers. Its cards keep the traditional suits, spades, hearts, diamonds
-   and clubs: they belong to no game, and a player reads them at a glance.
+   words, art, sounds and numbers, its suits among them: stars, moons, rings and comets.
 3. **The opponents are rivals inside the engine.** Each rival is dealt a style and plays by one
    rule with its style's numbers, reckoning its share of the pot from deals of the cards it cannot
    see, on a seeded stream of its own. A rival sees only its own cards, the cards turned and the

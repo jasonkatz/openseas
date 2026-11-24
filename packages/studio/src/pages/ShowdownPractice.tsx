@@ -113,7 +113,7 @@ export function ShowdownPractice() {
       legend={
         <>
           <ul className="kinds">
-            {(["spade", "heart", "diamond", "club"] as const).map((suit) => (
+            {(["star", "moon", "ring", "comet"] as const).map((suit) => (
               <li key={suit}>
                 <ShowdownIcon piece={suit} />
                 <span>{t(`showdown.legend_${suit}`)}</span>

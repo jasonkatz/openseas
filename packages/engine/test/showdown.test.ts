@@ -57,7 +57,7 @@ function sitting(seed: string, pick: number, config: ShowdownConfig = cfg): Show
   return state;
 }
 
-/** Cards by name: rank then suit (`s` spades, `h` hearts, `d` diamonds, `c` clubs). */
+/** Cards by name: rank then suit, the suits 0 to 3 as `s`, `h`, `d`, `c`. */
 const card = (name: string): number => "23456789TJQKA".indexOf(name[0]!) + 13 * "shdc".indexOf(name[1]!);
 const cards = (names: string): number[] => names.split(" ").map(card);
 
@@ -353,7 +353,7 @@ describe("showdown knockouts", () => {
     const s = createShowdownGame("view", cfg);
     const parts = showdownViewString(s).split("|");
     expect(parts).toHaveLength(3 + cfg.rivals);
-    expect(parts[1]).toMatch(/^([2-9TJQKA][shdc]){2}\/\d+$/);
+    expect(parts[1]).toMatch(/^([2-9TJQKA][smrc]){2}\/\d+$/);
     expect(parts.slice(3).every((p) => /^i\d+$/.test(p))).toBe(true);
   });
 });

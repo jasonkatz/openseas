@@ -37,7 +37,7 @@
  * pace). When a hand is over the only move is `deal`.
  *
  * Seats are 0 (the player) to `rivals`, clockwise. Cards are 0..51: rank `card % 13` (0 is a two,
- * 12 an ace) and suit `floor(card / 13)`: spades, hearts, diamonds, clubs.
+ * 12 an ace) and suit `floor(card / 13)`: stars, moons, rings, comets.
  */
 import type { PrngState } from "../prng.js";
 

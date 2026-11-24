@@ -481,10 +481,10 @@ export function summarizeShowdown(state: ShowdownState): ShowdownSummary {
 }
 
 const RANKS = "23456789TJQKA";
-/** Suits: spades, hearts, diamonds, clubs. */
-const SUITS = "shdc";
+/** Suits by their pictograms: star, moon, ring, comet. */
+const SUITS = "smrc";
 
-/** A card as two letters, its rank and its suit: `As` the ace of spades, `Th` the ten of hearts. */
+/** A card as two letters, its rank and its suit: `As` the ace of stars, `Tm` the ten of moons. */
 export function cardName(card: number): string {
   return `${RANKS[rankOf(card)]}${SUITS[suitOf(card)]}`;
 }

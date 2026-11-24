@@ -451,7 +451,7 @@ its design file under `docs/prototypes/` and its message file under
 | Tractor (formerly Treasure Haul) | `tractor` | Swaps loot up or down to line up three and pulls it aboard on the tractor beam; sealed caches are hauled at the hatch |
 | Refining (formerly Distilling) | `refining` | Sorts vapour, oil and tar in a refinery's tower so the columns drawn off at the outlet rise clear to the tank; tar sinks to the sump |
 | Freefall (formerly Treasure Drop) | `freefall` | Drops cargo pods down a shaft of rockers into berths, racing a rival to each leg's quota; a pod at rest in a cradle is tipped out when its rocker flips (the original's coins, switches, pads and levers are pods, rockers, cradles and arms; its slots are berths, its rounds legs and its targets quotas) |
-| Showdown (formerly Poker) | `showdown` | Folds, calls or raises at a fixed-limit hold'em table against rivals who each play one style (brick, sponge, hothead, shark), from a stack of chips until one player holds them all. Card words (hand, pot, blind, button, fold, call, raise, all in, side pot, stack) and the suits (spades, hearts, diamonds, clubs) are not of the sea and stay |
+| Showdown (formerly Poker) | `showdown` | Folds, calls or raises at a fixed-limit hold'em table against rivals who each play one style (brick, sponge, hothead, shark), from a stack of chips until one player holds them all. Card words (hand, pot, blind, button, fold, call, raise, all in, side pot, stack) are not of the sea and stay; the suits are its own: stars, moons, rings and comets |
 
 Words shared by all of them: a **prototype** is one of these puzzles; the **kit** is the shared
 board code they are drawn with (`boards/src/kit`). A **kind** is one member of a family of pieces, as
