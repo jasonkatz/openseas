@@ -72,3 +72,51 @@ test("an Overload chain plays out and scores its length squared", async ({ page 
   await expect(page.getByTestId("overload-board")).toHaveAttribute("data-board", "12312121223202b311222311022b131011c1002010");
   await expectViewMatchesState(page, "overload");
 });
+
+/** Walk the keyboard's cursor to `cell`. */
+async function cursorTo(page: Page, cell: number): Promise<void> {
+  const canvas = page.getByTestId("overload-canvas");
+  const [col, row] = ((await canvas.getAttribute("data-cursor")) ?? "0,0").split(",").map(Number) as [number, number];
+  for (let c = col; c < cell % W; c++) await page.keyboard.press("ArrowRight");
+  for (let c = col; c > cell % W; c--) await page.keyboard.press("ArrowLeft");
+  for (let r = row; r < Math.floor(cell / W); r++) await page.keyboard.press("ArrowDown");
+  for (let r = row; r > Math.floor(cell / W); r--) await page.keyboard.press("ArrowUp");
+  await expect(canvas).toHaveAttribute("data-cursor", `${cell % W},${Math.floor(cell / W)}`);
+}
+
+test("the Overload draw under the bank is the engine's, the cursor's preview reads its chain, and a chain in the band scores double", async ({ page }) => {
+  // A pinned seed with no booster: a tap on cell 2 sets off eight, inside the first draw of 8 to 9; one on cell 21 sets off two.
+  await page.goto("/play/overload?seed=draw-1154");
+  await page.getByTestId("play-start").click();
+  const canvas = page.getByTestId("overload-canvas");
+  await expect(canvas).toBeVisible();
+  await expect(page.getByTestId("overload-board")).toHaveAttribute("data-board", "103330033032032011111301002320323001200131");
+  await expect(canvas).toHaveAttribute("data-draw", "8-9");
+  await expect(page.getByTestId("hud-draw")).toHaveAttribute("data-draw", "8-9");
+  await cursorTo(page, 21);
+  await expect(canvas).toHaveAttribute("data-preview", "2:no");
+  await cursorTo(page, 2);
+  await expect(canvas).toHaveAttribute("data-preview", "8:met");
+  await page.keyboard.press(" ");
+  await expect(page.getByTestId("hud-moves")).toHaveText("1");
+  // Eight bursts, eight a burst, at the streak's first step, doubled for the draw.
+  await expect(page.getByTestId("hud-score")).toHaveText("128");
+  // The next draw is asked for: one higher.
+  await expect(canvas).toHaveAttribute("data-draw", "9-10");
+  await expect(page.getByTestId("hud-draw")).toHaveAttribute("data-draw", "9-10");
+  await expectViewMatchesState(page, "overload");
+});
+
+test("an Overload stage before the whole puzzle plays from its address with no draw (ADR 0066)", async ({ page }) => {
+  await page.goto("/play/overload?stage=streak");
+  await expect(page.getByTestId("stage-intro")).toHaveAttribute("data-stage", "streak");
+  await page.getByTestId("play-start").click();
+  const canvas = page.getByTestId("overload-canvas");
+  await expect(canvas).toBeVisible();
+  await expect(page.getByTestId("hud-stage").first()).toHaveAttribute("data-stage", "streak");
+  await expect(canvas).toHaveAttribute("data-draw", "");
+  await expect(page.getByTestId("hud-draw")).toHaveCount(0);
+  await page.keyboard.press(" ");
+  await expect(page.getByTestId("hud-moves").first()).toHaveText("1");
+  await expectViewMatchesState(page, "overload");
+});

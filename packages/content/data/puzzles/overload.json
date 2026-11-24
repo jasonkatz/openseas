@@ -13,17 +13,57 @@
     "startTaps": 5,
     "tapRegenTicks": 25,
     "refundEvery": 4,
+    "drawSizes": [8, 9, 10, 11, 12],
+    "drawSpan": 1,
+    "drawPercent": 200,
+    "drawRandom": false,
     "tickMs": 100,
     "maxTick": 1200,
     "maxMoves": 1000
   },
   "roundSeconds": 120,
   "thresholds": [
-    { "score": 500, "rating": 1100 },
-    { "score": 1200, "rating": 1300 },
-    { "score": 2000, "rating": 1500 },
-    { "score": 3000, "rating": 1700 },
-    { "score": 4500, "rating": 1900 },
-    { "score": 6500, "rating": 2100 }
+    { "score": 550, "rating": 1100 },
+    { "score": 1300, "rating": 1300 },
+    { "score": 2200, "rating": 1500 },
+    { "score": 3300, "rating": 1700 },
+    { "score": 5000, "rating": 1900 },
+    { "score": 7500, "rating": 2100 }
+  ],
+  "stages": [
+    {
+      "id": "bursts",
+      "roundSeconds": 60,
+      "thresholds": [
+        { "score": 150, "rating": 1100 },
+        { "score": 300, "rating": 1300 },
+        { "score": 500, "rating": 1500 },
+        { "score": 750, "rating": 1700 },
+        { "score": 1000, "rating": 1900 },
+        { "score": 1400, "rating": 2100 }
+      ],
+      "config": {
+        "maxTick": 600,
+        "streakPercent": [100],
+        "boosterPermille": 0,
+        "drawSizes": []
+      }
+    },
+    {
+      "id": "streak",
+      "roundSeconds": 90,
+      "thresholds": [
+        { "score": 350, "rating": 1100 },
+        { "score": 800, "rating": 1300 },
+        { "score": 1400, "rating": 1500 },
+        { "score": 2100, "rating": 1700 },
+        { "score": 3200, "rating": 1900 },
+        { "score": 4700, "rating": 2100 }
+      ],
+      "config": {
+        "maxTick": 900,
+        "drawSizes": []
+      }
+    }
   ]
 }

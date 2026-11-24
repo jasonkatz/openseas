@@ -15,6 +15,12 @@
  * sets them off is the skill. A long chain gives taps back. A booster is a rare capacitor that
  * passes two charges to each neighbour when it bursts.
  *
+ * The draw (M11): the ship asks for a chain of a size, a band from `drawSizes[i]` to that plus
+ * `drawSpan` bursts. A chain whose bursts land in the band meets the draw, scores `drawPercent` on
+ * top of the streak, and the next draw is asked for. A chain past the band is only a chain. The draw
+ * has a stream of its own, so turning it on deals the same bank; with `drawSizes` empty nothing is
+ * drawn and a round hashes as it did before there was a draw.
+ *
  * Cell index = row * width + col. Row 0 is the top row.
  *
  * Time is data: every move carries the integer `tick` it happens at, and the reducer counts the
@@ -46,6 +52,16 @@ export interface OverloadConfig {
   readonly tapRegenTicks: number;
   /** A chain gives one tap back for every `refundEvery` bursts in it. 0 gives none back. */
   readonly refundEvery: number;
+  /**
+   * The draw (M11): the ship asks for a chain of `drawSizes[i]` to that plus `drawSpan` bursts. A
+   * chain in that band meets the draw: it scores `drawPercent` and the next draw is asked for, picked
+   * from `drawSizes` from a stream of its own when `drawRandom`, else the next in the list, round and
+   * round. Empty: no draw, and nothing is drawn for it.
+   */
+  readonly drawSizes: readonly number[];
+  readonly drawSpan: number;
+  readonly drawPercent: number;
+  readonly drawRandom: boolean;
   /** Wall-clock ms per tick on the client; the server uses it to bound claimed ticks. */
   readonly tickMs: number;
   /** No move may claim a tick beyond this; the round is over by then. */
@@ -67,6 +83,10 @@ export const DEFAULT_OVERLOAD_CONFIG: OverloadConfig = {
   startTaps: 5,
   tapRegenTicks: 25,
   refundEvery: 4,
+  drawSizes: [],
+  drawSpan: 0,
+  drawPercent: 100,
+  drawRandom: false,
   tickMs: 100,
   maxTick: 1200,
   maxMoves: 1000,
@@ -128,6 +148,10 @@ export type OverloadEvent =
       readonly brokeStreak: boolean;
       /** Taps given back. */
       readonly refund: number;
+      /** True when the chain met the draw; what the draw added to its points; the draw asked for after it (its smallest chain), 0 with no draw. */
+      readonly drawMet: boolean;
+      readonly drawPoints: number;
+      readonly draw: number;
       /** The fresh capacitors swapped in for the spent ones, in index order. */
       readonly fresh: readonly OverloadFresh[];
       readonly points: number;
@@ -168,6 +192,14 @@ export interface OverloadState {
   readonly bursts: number;
   /** Taps given back by long chains. */
   readonly refunds: number;
+  /** The draw asked for now: the smallest chain that meets it, and which of `drawSizes` it is. 0 and 0 with no draw. */
+  readonly draw: number;
+  readonly drawIndex: number;
+  /** The draw's own stream, apart from the bank's, so a draw changes nothing that is dealt. Unused with no draw. */
+  readonly drawRng: PrngState;
+  /** Draws met, and the points the draw added. */
+  readonly draws: number;
+  readonly drawScore: number;
   readonly lastMove: OverloadMoveReport | null;
   readonly finished: boolean;
 }

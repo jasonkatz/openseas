@@ -121,5 +121,13 @@
       { "kind": "tone", "note": 7, "wave": "sine", "at": 0.03, "attack": 0.03, "release": 0.47, "level": 0.2 }
     ],
     "swell": { "param": "strength", "from": 0.75, "to": 1 }
+  },
+  "rise": {
+    "level": 1,
+    "cutoff": 1000,
+    "voices": [
+      { "kind": "tone", "note": 3, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.128, "level": 0.8 },
+      { "kind": "tone", "note": 4, "wave": "triangle", "at": 0.09, "attack": 0.012, "release": 0.158, "level": 0.9 }
+    ]
   }
 }
