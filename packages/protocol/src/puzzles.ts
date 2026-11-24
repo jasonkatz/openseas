@@ -16,6 +16,7 @@ import { TugConfigSchema, TugMoveSchema } from "./tug.js";
 import { RacksConfigSchema, RacksMoveSchema } from "./racks.js";
 import { CuttingConfigSchema, CuttingMoveSchema } from "./cutting.js";
 import { TractorConfigSchema, TractorMoveSchema } from "./tractor.js";
+import { FreefallConfigSchema, FreefallMoveSchema } from "./freefall.js";
 import { ShowdownConfigSchema, ShowdownMoveSchema } from "./showdown.js";
 
 /**
@@ -39,6 +40,7 @@ export const PUZZLE_MOVE_SCHEMAS = {
   racks: RacksMoveSchema,
   cutting: CuttingMoveSchema,
   tractor: TractorMoveSchema,
+  freefall: FreefallMoveSchema,
   showdown: ShowdownMoveSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
@@ -59,6 +61,7 @@ export const PUZZLE_CONFIG_SCHEMAS = {
   racks: RacksConfigSchema,
   cutting: CuttingConfigSchema,
   tractor: TractorConfigSchema,
+  freefall: FreefallConfigSchema,
   showdown: ShowdownConfigSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
@@ -80,6 +83,7 @@ export const AnyMoveSchema = z.union([
   RacksMoveSchema,
   CuttingMoveSchema,
   TractorMoveSchema,
+  FreefallMoveSchema,
   ShowdownMoveSchema,
 ]);
 export type AnyMoveWire = z.infer<typeof AnyMoveSchema>;

@@ -206,6 +206,18 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
       <path d="M47 30v-14m0 0l-4 4m4-4l4 4" fill="none" stroke="#7fd7ff" strokeWidth="2.5" strokeLinecap="round" />
     </svg>
   ),
+  freefall: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <path d="M12 22a6 6 0 0 0 12 0" fill="none" stroke="#7f8ba3" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M24 22l10 5" stroke="#7f8ba3" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M40 36a6 6 0 0 0 12 0" fill="none" stroke="#7f8ba3" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M40 36l-10 5" stroke="#7f8ba3" strokeWidth="2.5" strokeLinecap="round" />
+      <rect x="15" y="12" width="6" height="10" rx="3" fill="#d8c690" />
+      <rect x="27" y="42" width="6" height="10" rx="3" fill="#d8c690" />
+      <path d="M10 56h44" stroke="#efe3c6" strokeWidth="2" />
+    </svg>
+  ),
   showdown: (
     <svg viewBox="0 0 64 64" width="56" height="56">
       <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
