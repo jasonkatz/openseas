@@ -30,6 +30,9 @@ import { CuttingContentSchema, type CuttingContent } from "./cutting.js";
 import tractorData from "../../data/puzzles/tractor.json" with { type: "json" };
 import tractorMessages from "../../data/messages/prototypes/tractor.json" with { type: "json" };
 import { TractorContentSchema, type TractorContent } from "./tractor.js";
+import freefallData from "../../data/puzzles/freefall.json" with { type: "json" };
+import freefallMessages from "../../data/messages/prototypes/freefall.json" with { type: "json" };
+import { FreefallContentSchema, type FreefallContent } from "./freefall.js";
 import pouringData from "../../data/puzzles/pouring.json" with { type: "json" };
 import pouringMessages from "../../data/messages/prototypes/pouring.json" with { type: "json" };
 import { PouringContentSchema, type PouringContent } from "./pouring.js";
@@ -44,6 +47,7 @@ export * from "./tug.js";
 export * from "./racks.js";
 export * from "./cutting.js";
 export * from "./tractor.js";
+export * from "./freefall.js";
 export * from "./pouring.js";
 
 /** Content for every prototype puzzle, keyed by puzzle id. */
@@ -57,6 +61,7 @@ export interface PrototypePuzzleContent {
   readonly racks: RacksContent;
   readonly cutting: CuttingContent;
   readonly tractor: TractorContent;
+  readonly freefall: FreefallContent;
   readonly pouring: PouringContent;
 }
 export type PrototypePuzzleContentId = keyof PrototypePuzzleContent;
@@ -72,6 +77,7 @@ export const PROTOTYPE_CONTENT: { readonly [K in PrototypePuzzleContentId]: { re
   racks: { schema: RacksContentSchema, data: racksData, messages: racksMessages },
   cutting: { schema: CuttingContentSchema, data: cuttingData, messages: cuttingMessages },
   tractor: { schema: TractorContentSchema, data: tractorData, messages: tractorMessages },
+  freefall: { schema: FreefallContentSchema, data: freefallData, messages: freefallMessages },
   pouring: { schema: PouringContentSchema, data: pouringData, messages: pouringMessages },
 };
 export const PROTOTYPE_PUZZLE_CONTENT_IDS = Object.keys(PROTOTYPE_CONTENT) as PrototypePuzzleContentId[];

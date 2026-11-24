@@ -45,6 +45,7 @@ import { TUG } from "./prototypes/tug.js";
 import { RACKS } from "./prototypes/racks.js";
 import { CUTTING } from "./prototypes/cutting.js";
 import { TRACTOR } from "./prototypes/tractor.js";
+import { FREEFALL } from "./prototypes/freefall.js";
 import { POURING } from "./prototypes/pouring.js";
 
 /** What the studio needs to know about a puzzle beyond its engine definition. */
@@ -161,5 +162,6 @@ export const STUDIO_PUZZLES: Readonly<Record<PuzzleId, StudioPuzzle<unknown, unk
   racks: RACKS as unknown as StudioPuzzle<unknown, unknown, unknown>,
   cutting: CUTTING as unknown as StudioPuzzle<unknown, unknown, unknown>,
   tractor: TRACTOR as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  freefall: FREEFALL as unknown as StudioPuzzle<unknown, unknown, unknown>,
   pouring: POURING as unknown as StudioPuzzle<unknown, unknown, unknown>,
 };

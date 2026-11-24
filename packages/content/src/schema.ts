@@ -211,7 +211,8 @@ export const DutyPuzzleBaseSchema = z.object({
  * is: a duty board, a fight or a prototype. The studio holds a tuned round's numbers to this
  * (ADR 0042), so a draft can never carry a length, a pace or thresholds a content file could not.
  */
-export const PuzzleNumbersSchema = DutyPuzzleBaseSchema.pick({ roundSeconds: true, paceSeconds: true, thresholds: true });
+/** A round's numbers as the studio tunes them, any puzzle's: up to an hour, the longest a prototype's file allows (prototypes/base.ts). */
+export const PuzzleNumbersSchema = DutyPuzzleBaseSchema.pick({ paceSeconds: true, thresholds: true }).extend({ roundSeconds: z.int().min(10).max(3600) });
 export type PuzzleNumbers = z.infer<typeof PuzzleNumbersSchema>;
 
 /**

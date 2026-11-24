@@ -73,6 +73,8 @@ export { CUTTING_ORES } from "./cutting/pieces.js";
 export { TractorBoard, type TractorBoardProps } from "./tractor/TractorBoard.jsx";
 export { TractorBeaconIcon, TractorCacheIcon, TractorLootIcon } from "./tractor/TractorIcon.jsx";
 export { TRACTOR_KINDS } from "./tractor/pieces.js";
+export { FreefallBoard, type FreefallBoardProps } from "./freefall/FreefallBoard.jsx";
+export { FreefallIcon } from "./freefall/FreefallIcon.jsx";
 export { PouringBoard, type PouringBoardProps } from "./pouring/PouringBoard.jsx";
 export { PouringGlassIcon, PouringPieceIcon, PouringRingIcon } from "./pouring/PouringIcon.jsx";
 export { POURING_BREWS, POURING_GLASSES, pouringSeatRing } from "./pouring/pieces.js";

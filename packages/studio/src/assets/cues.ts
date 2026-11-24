@@ -23,6 +23,7 @@ export const PUZZLE_CUES: Readonly<Record<PuzzleId, readonly string[]>> = {
   racks: ["swap", "swapQuiet", "pop", "clear", "multi", "crack", "bad", "streakLost", "bump", "thud", "whoosh", "tick", "beat"],
   cutting: ["clear", "crack", "zap", "good", "streakLost", "bump", "thud", "whoosh", "tick", "beat"],
   tractor: ["swap", "swapQuiet", "pop", "clear", "zap", "good", "rise", "thud", "bump", "whoosh", "beat"],
+  freefall: ["pop", "thud", "ping", "multi", "whoosh", "good", "bad", "bump", "tick", "beat"],
   pouring: ["pop", "clear", "good", "bad", "rise", "thud", "bump", "whoosh", "beat"],
 };
 
