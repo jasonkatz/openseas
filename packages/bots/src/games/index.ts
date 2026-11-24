@@ -11,6 +11,7 @@ import { CUTTING_BOTS } from "./cutting.js";
 import { TRACTOR_BOTS } from "./tractor.js";
 import { REFINING_BOTS } from "./refining.js";
 import { FREEFALL_BOTS } from "./freefall.js";
+import { SHOWDOWN_BOTS } from "./showdown.js";
 
 export const BOT_GAMES: Readonly<Record<string, AnyBotGame>> = {
   salvage: SALVAGE_BOTS as unknown as AnyBotGame,
@@ -24,4 +25,5 @@ export const BOT_GAMES: Readonly<Record<string, AnyBotGame>> = {
   tractor: TRACTOR_BOTS as unknown as AnyBotGame,
   refining: REFINING_BOTS as unknown as AnyBotGame,
   freefall: FREEFALL_BOTS as unknown as AnyBotGame,
+  showdown: SHOWDOWN_BOTS as unknown as AnyBotGame,
 };

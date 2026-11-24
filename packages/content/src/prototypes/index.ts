@@ -36,6 +36,9 @@ import { RefiningContentSchema, type RefiningContent } from "./refining.js";
 import freefallData from "../../data/puzzles/freefall.json" with { type: "json" };
 import freefallMessages from "../../data/messages/prototypes/freefall.json" with { type: "json" };
 import { FreefallContentSchema, type FreefallContent } from "./freefall.js";
+import showdownData from "../../data/puzzles/showdown.json" with { type: "json" };
+import showdownMessages from "../../data/messages/prototypes/showdown.json" with { type: "json" };
+import { ShowdownContentSchema, type ShowdownContent } from "./showdown.js";
 
 export * from "./base.js";
 export * from "./salvage.js";
@@ -49,6 +52,7 @@ export * from "./cutting.js";
 export * from "./tractor.js";
 export * from "./refining.js";
 export * from "./freefall.js";
+export * from "./showdown.js";
 
 /** Content for every prototype puzzle, keyed by puzzle id. */
 export interface PrototypePuzzleContent {
@@ -63,6 +67,7 @@ export interface PrototypePuzzleContent {
   readonly tractor: TractorContent;
   readonly refining: RefiningContent;
   readonly freefall: FreefallContent;
+  readonly showdown: ShowdownContent;
 }
 export type PrototypePuzzleContentId = keyof PrototypePuzzleContent;
 
@@ -79,5 +84,6 @@ export const PROTOTYPE_CONTENT: { readonly [K in PrototypePuzzleContentId]: { re
   tractor: { schema: TractorContentSchema, data: tractorData, messages: tractorMessages },
   refining: { schema: RefiningContentSchema, data: refiningData, messages: refiningMessages },
   freefall: { schema: FreefallContentSchema, data: freefallData, messages: freefallMessages },
+  showdown: { schema: ShowdownContentSchema, data: showdownData, messages: showdownMessages },
 };
 export const PROTOTYPE_PUZZLE_CONTENT_IDS = Object.keys(PROTOTYPE_CONTENT) as PrototypePuzzleContentId[];

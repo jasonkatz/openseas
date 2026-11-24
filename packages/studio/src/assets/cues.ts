@@ -25,6 +25,7 @@ export const PUZZLE_CUES: Readonly<Record<PuzzleId, readonly string[]>> = {
   tractor: ["swap", "swapQuiet", "pop", "clear", "zap", "good", "rise", "thud", "bump", "whoosh", "beat"],
   refining: ["swap", "pop", "clear", "streak", "streakLost", "good", "bad", "thud", "whoosh", "bump", "beat"],
   freefall: ["pop", "thud", "ping", "multi", "whoosh", "good", "bad", "bump", "tick", "beat"],
+  showdown: ["swapQuiet", "tick", "pop", "whoosh", "bump", "good", "bad", "beat"],
 };
 
 /** What every round sounds, whatever the puzzle: the page plays these around the board (practice/usePractice). */
