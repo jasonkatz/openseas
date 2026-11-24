@@ -1,16 +1,18 @@
 # Deflectors
 
-Status: built. Prototype (ADR 0036), in the studio at `/deflectors`. Ticked (ADR 0015): pieces come
-on the engine's clock, and a shot waits until it is fired. A 120 second round.
+Status: built. Prototype (ADR 0036), in the studio at `/deflectors`. Ticked (ADR 0015): the round runs on
+the engine's clock, but nothing comes on it: every piece waits for the player. A 120 second round.
 
 Version 1.0 (ADR 0079). History:
 
-- **1.0:** pieces from a queue, placed anywhere; three emitters that all fire at once; targets with
+- **1.0:** a set supply of pieces, seen a few ahead and placed anywhere or binned; three emitters that all fire at once; targets with
   lens recipes; a shot multiplied by the targets it lights; what a shot used is spent. An open
   building puzzle with no right move, after the owner asked for one in the spirit of the original's
   potion puzzle: strategy and decisions, not finding the one answer. An earlier draft of 1.0 (never
   merged) kept a fixed grid of mirrors to flip, each volley dealt with one best setting the engine
-  searched for. It was rigorous, but it was a puzzle with a solution, and it was replaced.
+  searched for. It was rigorous, but it was a puzzle with a solution, and it was replaced. A second
+  draft dealt pieces on a timer into a queue that dropped its oldest on the grid when full; the
+  owner found that too much pressure, and asked for strategy first and pace second.
 - **0.1:** beams in volleys on a count, a grid that never changed, one beam at first and two later.
 
 ## The puzzle
@@ -19,12 +21,18 @@ A six by six grid (`size`) that starts with a few mirrors (`mirrors`) and lenses
 **emitters** (`emitters`) sit on the left edge, each with a sign: a disc, a square, a triangle.
 Five **targets** (`targets`) sit at ports on the other three edges.
 
-**Pieces.** A piece comes into the **queue** under the grid every 1.5 seconds (`pieceTicks`): a
-mirror set as `/` or `\`, or now and then a lens of one of three kinds (`lensChance`, 22 percent):
-a diamond, a hexagon, a cross. The player puts the next piece on any cell, empty or not; it replaces
-what was there. A mirror can be turned before it goes down. The queue holds four (`queueSize`): when
-a piece comes to a full queue, the oldest **drops** on a cell of the engine's choosing (an empty
-one if there is any), a cost the player sees coming because the queue is ringed in danger when full.
+**Pieces.** A round deals fifty pieces (`pieces`): mirrors set as `/` or `\`, and now and then a
+lens of one of three kinds (`lensChance`, 22 percent): a diamond, a hexagon, a cross. The **queue**
+under the grid shows the next three (`queueSize`). The player puts the next piece on any cell, empty
+or not; it replaces what was there. A mirror can be turned before it goes down. A piece the player
+does not want goes in the **bin**: it is used up and put nowhere. Nothing comes on a timer and
+nothing is ever placed for the player. The round ends when the clock runs out, or once the pieces
+are all used and the grid lights nothing.
+
+Fifty pieces in 120 seconds is 2.4 seconds a piece. That is the balance: a player who thinks at
+that pace uses every piece, one who rushes gains nothing for the spare time, and one who dwells
+leaves pieces unplaced. Strategy decides what each piece is worth; pace only decides whether the
+last few get played.
 
 **Recipes.** Each target asks for a set of lens kinds, drawn small outside it: none, one or two
 (`recipeWeights`, 25, 45 and 30). A beam that leaves by a target **lights** it if it passed exactly
@@ -51,26 +59,29 @@ says only what a shot now would be worth.
 ## Luck and skill
 
 - **Luck:** the starting grid, the order of pieces (mirror or lens, which lens, which way a mirror
-  comes), the recipes dealt, and where a dropped piece lands. A mirror's way is not much luck, since
+  comes), and the recipes dealt. A mirror's way is not much luck, since
   the player can turn it.
 - **First skill:** placing a piece so a beam reaches a target through its recipe. The board draws
   every beam's route as the grid stands, so this is reading, not search.
 - **Second skill:** when to fire. A shot that lights one target is worth the least it can be; two is
-  double and three is four times. Each piece placed while holding can break a lit route, and the
-  queue will not wait. The ladder below shows the best threshold is in the middle: holding for 800
+  double and three is four times. Each piece placed while holding can break a lit route, and
+  pieces are few. The ladder below shows the best threshold is in the middle: holding for 800
   beats firing at 150 or at 1,500.
 - **Third skill:** length. Turns are squared, so lengthening a lit route with one more mirror is
   often worth more than lighting another target.
+- **Third and a half:** the queue. Three pieces ahead is enough to see that a useless mirror now is
+  the one the piece after it needs, and to choose between a corner and the bin.
 - **Fourth skill:** the next shot. What a shot spends is what clears the grid. A player who keeps the
   next build off this shot's routes, and keeps a lens no shot spends until a recipe wants it, starts
   the next shot half built. No bot plays this; it is the top of the ceiling.
 
 ## Input and feedback
 
-- Tap a cell to put the next piece there. Tap the next piece in the queue to turn it. Tap the
+- Tap a cell to put the next piece there. Tap the next piece in the queue to turn it. Tap the bin, left of
+  the queue, to bin the next piece. Tap the
   emitters to fire.
 - Keyboard: arrows or WASD move a cursor, space or enter puts the piece at the cursor, R turns it,
-  F fires.
+  X bins it, F fires.
 - Unrated and lab rounds pulse a cream ring after six seconds idle on a cell where the next piece
   would make the shot worth more (`deflectorsHint`, one ply). It is a suggestion, not the answer.
 
@@ -89,8 +100,9 @@ The board follows the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws
   way to a target. A recipe glass is faint until the route into that target passes it.
 - **The strip** over the grid says, in mono, what a shot now is worth and how many it lights.
 - **The emitters** dim while recharging, and are ringed in amber when a shot would light something.
-- **The queue** sits under the grid, the next piece large on the left. When full it is ringed in
-  danger; a drop rings the landing cell in danger and calls out "Queue full!".
+- **The queue** sits under the grid: the bin on the left, an open tub under a lid in hairline ink,
+  then the next piece large in its slot, the two after it smaller, and the count of pieces left in
+  mono. A binned piece leaves a dim ring at the bin and a soft thud.
 - **A shot** draws each beam as one flat line with a cream dot at its head and a rising note at each
   turn; points rise in cream at a lit target, and two or three lit are called out with the
   multiplier. Then the spent cells shrink away with a soft rush of air.
@@ -99,16 +111,16 @@ The board follows the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws
 
 ## Engine
 
-`packages/engine/src/deflectors/`. Moves: `{ type: "place", cell, tick }`, `{ type: "turn", tick }`,
+`packages/engine/src/deflectors/`. Moves: `{ type: "place", cell, tick }`, `{ type: "turn", tick }`, `{ type: "bin", tick }`,
 `{ type: "fire", tick }`, `{ type: "wait", tick }`, `{ type: "end", tick }`. A cell is empty (0), a
 mirror (1 for `/`, 2 for `\`) or a lens (3 + kind). Ports are numbered side by side, top, right,
 bottom, left, `side × size + i`; the emitters sit on rows spread evenly down the left.
 
-The reducer first carries the round to the move's tick (`simulate`): pieces arrive, and a full queue
-drops its oldest. `trace` runs one beam and returns its port, turns and lens mask. `resolve` is what
+The reducer first carries the round to the move's tick (`simulate`); nothing happens on the clock.
+A place or a bin takes the next piece, and the supply (`left`) refills the queue behind it. `trace` runs one beam and returns its port, turns and lens mask. `resolve` is what
 a shot does fired now, each target lit once in emitter order; the board previews with it
 (`deflectorsOutlook`) and the reducer scores with it. `fire` spends, deals new recipes to lit
-targets and starts the recharge. Events are `piece`, `drop` and `fire`, numbered with a rising `seq`.
+targets and starts the recharge. Events are `piece`, `bin` and `fire`, numbered with a rising `seq`.
 
 There is no search. The engine never knows a best shot, and nothing is scored against one.
 
@@ -119,41 +131,47 @@ on the content config, a person's pace modelled as 1 s a piece and 0.5 s to fire
 
 | Bot | Score | Tier |
 |---|---|---|
-| careless | 18 | Green |
-| one move | 280 | Steady |
-| rollout | 337 | Steady |
-| eager, fires at the first light (the bait) | 232 | Green |
-| builder, fires at 1 | 751 | Steady |
-| builder, fires at 150 | 1,931 | Sharp |
-| builder, fires at 800 | 2,840 | Sharp |
-| builder, fires at 1,500 | 1,687 | Sharp |
+| careless | 2 | Green |
+| one move | 206 | Steady |
+| rollout | 990 | Steady |
+| eager, fires at the first light (the bait) | 198 | Green |
+| builder, fires at 1 | 376 | Steady |
+| builder, fires at 150 | 1,211 | Sharp |
+| builder, fires at 800 | 1,978 | Sharp |
+| builder, fires at 1,500 | 1,309 | Sharp |
+| builder, fires at 800, 2.5 s a piece | 1,900 | Sharp |
 
 The eager bot puts each piece where the shot is worth most now and fires as soon as anything lights.
-A builder puts each piece where the grid is worth most counting one mirror more, and fires when a
-shot reaches its threshold, or near the end. One move and rollout play the generic choice list,
-which fires too early.
+A builder puts each piece where the grid is worth most counting one mirror more, bins a piece that
+would make it worth less anywhere, and fires when a shot reaches its threshold, when the pieces run
+out, or near the end. One move and rollout play the generic choice list, which fires too early.
 
 - **There is no right threshold, but there is a better one.** Holding too little and holding too
-  much both lose: 1,931 at 150, 2,840 at 800, 1,687 at 1,500. That interior optimum is what the
+  much both lose: 1,211 at 150, 1,978 at 800, 1,309 at 1,500. That interior optimum is what the
   owner asked for: a choice that matters, with no answer handed over.
-- **The multiplier makes holding pay.** With every shot at ×1 (`litPercent` 100, 100, 100, 12
-  seeds) the builders top out at 1,387 at 150, and holding for 800 falls to 633. Without the
-  multiplier the game is fire-early, and the decision is gone.
-- **Spending keeps it hard.** With nothing spent (`spend: false`, 12 seeds) a built grid keeps
-  scoring: builders reach 9,393 and the eager bot 324, a thirtyfold gap that would make the round
-  one long build. Spending turns each shot into a trade between this shot and the next.
-- **Thresholds.** 100, 260, 1,000, 2,000, 3,000 and 4,200 for ratings 1100 to 2100. The bait reads
+- **Strategy first, pace second.** The same builder at 2.5 s a piece scores 1,900 against 1,978 at
+  1 s: four percent for thinking two and a half times as long. Choosing when to fire is worth more than half
+  again. With sixty pieces (8 seeds) the gap was 31 percent, because the fast bot had pieces the
+  careful one never reached; with forty-five it was none. Fifty keeps pace in the game without
+  letting it lead.
+- **The bin must be used with care.** A builder that bins every piece that adds nothing now scores
+  under half of one that bins only what would make the grid worse: the supply is small, and a
+  mirror in a corner often pays later.
+- **The multiplier makes holding pay, and spending keeps it hard.** Measured on the timed draft
+  (12 seeds): with every shot at ×1 the best builder fell by a third and holding for 800 by
+  four fifths; with nothing spent builders reached 9,393 against the eager bot's 324, a round that
+  is one long build. Both still hold with a supply: they do not depend on how pieces come.
+- **Thresholds.** 60, 200, 800, 1,500, 2,400 and 3,400 for ratings 1100 to 2100. The bait reads
   Green, a player who builds before firing Steady to Sharp, a well-timed builder high Sharp, and
   Masterful and above wait for planning the next shot, which no bot does.
-- **The queue is a clock.** At 1.5 s a piece a person has time to read every route; faster
-  (`fast_pieces`) the drop starts to decide shots. Both are presets.
 
 ## Open questions for play
 
 - Is three targets lit ever reached by a person, or does the ×4 only tempt? If never, ×3 may read
   better.
-- Does a dropped piece feel fair? It lands on an empty cell if any, but a crowded grid makes it a
-  route-breaker.
+- Is fifty the right supply for a person? The bots say a careful pace costs little; a person may
+  think slower than 2.5 s a piece. `few_pieces` and `many_pieces` are presets.
+- Is three pieces ahead enough to plan with, or too much to read? `long_view` shows five.
 - Are three emitters too many routes to read at once? `two_emitters` is a preset.
 - Do players plan the next shot through what this one spends, or does it feel like noise?
 - No ladder yet (rule 26): the obvious stages are recipes off (`no_recipes`), one lens, then the

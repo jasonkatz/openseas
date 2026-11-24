@@ -77,7 +77,7 @@ function grid(rows: readonly string[], targets: ReadonlyArray<readonly [port: nu
     ...base,
     mirrors: rows.join("").split("").map(cell),
     targets: targets.map(([port, recipe], id) => ({ id, port, recipe })),
-    nextPieceTick: config.maxTick,
+    left: 0,
   };
 }
 
@@ -103,8 +103,8 @@ describe("deflectors grid", () => {
           expect(deflectorsRecipeSize(t.recipe)).toBeLessThanOrEqual(cfg.recipeWeights.length - 1);
           expect(t.recipe).toBeLessThan(8);
         }
-        expect(s.queue.length).toBe(1);
-        expect(s.nextPieceTick).toBe(cfg.pieceTicks);
+        expect(s.queue.length).toBe(cfg.queueSize);
+        expect(s.left).toBe(cfg.pieces - cfg.queueSize);
         expect(s.fireTick).toBe(0);
         expect(s.score).toBe(0);
         expect(s.finished).toBe(false);
@@ -134,7 +134,8 @@ describe("deflectors grid", () => {
     expect(() => createDeflectorsGame("x", { ...cfg, lensChance: 0 })).toThrow();
     expect(() => createDeflectorsGame("x", { ...cfg, recipeWeights: [1], lensChance: 0 })).not.toThrow();
     expect(() => createDeflectorsGame("x", { ...cfg, queueSize: 0 })).toThrow();
-    expect(() => createDeflectorsGame("x", { ...cfg, pieceTicks: 0 })).toThrow();
+    expect(() => createDeflectorsGame("x", { ...cfg, pieces: 0 })).toThrow();
+    expect(createDeflectorsGame("x", { ...cfg, pieces: 2 }).queue.length).toBe(2);
     expect(() => createDeflectorsGame("x", { ...cfg, spend: 1 as unknown as boolean })).toThrow();
   });
 });
@@ -246,36 +247,51 @@ describe("deflectors beams and mirrors", () => {
 });
 
 describe("deflectors pieces", () => {
-  it("a piece comes every pieceTicks, and a full queue drops its oldest on an empty cell", () => {
+  it("nothing comes on the clock: placing or binning the next piece draws one from the supply", () => {
     fc.assert(
       fc.property(fc.string(), (seed) => {
         const s = createDeflectorsGame(seed);
-        const one = advanceDeflectors(s, cfg.pieceTicks - 1);
-        expect(one.queue.length).toBe(1);
-        const two = advanceDeflectors(s, cfg.pieceTicks);
-        expect(two.queue.length).toBe(2);
-        expect(two.queue[0]).toBe(s.queue[0]);
-        expect(two.lastMove!.events).toEqual([{ seq: 1, tick: cfg.pieceTicks, type: "piece", piece: two.queue[1] }]);
-        const full = advanceDeflectors(s, cfg.pieceTicks * (cfg.queueSize - 1));
-        expect(full.queue.length).toBe(cfg.queueSize);
-        const over = advanceDeflectors(full, cfg.pieceTicks * cfg.queueSize);
-        expect(over.queue).toEqual([...full.queue.slice(1), over.queue[cfg.queueSize - 1]]);
-        const drop = over.lastMove!.events.find((e) => e.type === "drop");
-        expect(drop).toMatchObject({ type: "drop", piece: full.queue[0] });
-        const cell = (drop as Extract<DeflectorsEvent, { type: "drop" }>).cell;
-        expect(full.mirrors[cell]).toBe(DEFLECTORS_EMPTY);
-        expect(over.mirrors[cell]).toBe(full.queue[0]);
-        expect(over.dropped).toBe(1);
+        const later = advanceDeflectors(s, 600);
+        expect(later.queue).toEqual(s.queue);
+        expect(later.mirrors).toEqual(s.mirrors);
+        const placed = reduceDeflectors(later, { type: "place", cell: 0, tick: 600 });
+        expect(placed.mirrors[0]).toBe(s.queue[0]);
+        expect(placed.queue.slice(0, -1)).toEqual(s.queue.slice(1));
+        expect(placed.queue.length).toBe(cfg.queueSize);
+        expect(placed.left).toBe(s.left - 1);
+        expect(placed.lastMove!.events).toEqual([{ seq: 1, tick: 600, type: "piece", piece: placed.queue[cfg.queueSize - 1] }]);
+        const binned = reduceDeflectors(placed, { type: "bin", tick: 610 });
+        expect(binned.mirrors).toEqual(placed.mirrors);
+        expect(binned.queue.slice(0, -1)).toEqual(placed.queue.slice(1));
+        expect(binned.left).toBe(s.left - 2);
+        expect(binned.binned).toBe(1);
+        expect(binned.lastMove!.events.at(-1)).toMatchObject({ type: "bin", piece: placed.queue[0] });
       }),
       { numRuns: 30 },
     );
+  });
+
+  it("the supply runs out, and the round ends once it has and the grid lights nothing", () => {
+    let s = createDeflectorsGame("supply", { ...cfg, pieces: 4, queueSize: 3 });
+    expect(s.left).toBe(1);
+    s = reduceDeflectors(s, { type: "bin", tick: 1 });
+    expect(s.queue.length).toBe(3);
+    expect(s.left).toBe(0);
+    s = reduceDeflectors(s, { type: "bin", tick: 2 });
+    expect(s.queue.length).toBe(2);
+    s = reduceDeflectors(s, { type: "bin", tick: 3 });
+    // Binning the last piece leaves the grid as it is: the round ends only if it lights nothing.
+    s = reduceDeflectors({ ...s, mirrors: s.mirrors.map(() => DEFLECTORS_EMPTY) }, { type: "bin", tick: 4 });
+    expect(s.queue).toEqual([]);
+    expect(s.finished).toBe(true);
+    expect(() => reduceDeflectors({ ...s, finished: false }, { type: "bin", tick: 5 })).toThrow();
   });
 
   it("pieces are mirrors either way, or lenses about lensChance in a hundred", () => {
     let lenses = 0;
     let all = 0;
     for (let i = 0; i < 40; i++) {
-      const s = advanceDeflectors(createDeflectorsGame(`p-${i}`, { ...cfg, queueSize: 8 }), cfg.pieceTicks * 7);
+      const s = createDeflectorsGame(`p-${i}`, { ...cfg, queueSize: 8 });
       for (const p of s.queue) {
         all++;
         if (p >= DEFLECTORS_LENS) lenses++;

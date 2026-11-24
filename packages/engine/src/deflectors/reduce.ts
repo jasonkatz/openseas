@@ -106,7 +106,7 @@ export function validateConfig(cfg: DeflectorsConfig): void {
     cfg.litPercent.length === cfg.emitters &&
     cfg.litPercent.every((p) => int(p, 0, 10_000)) &&
     typeof cfg.spend === "boolean" &&
-    int(cfg.pieceTicks, 1, 10_000) &&
+    int(cfg.pieces, 1, 1000) &&
     int(cfg.queueSize, 1, 8) &&
     int(cfg.lensChance, 0, 100) &&
     // A recipe asking for lenses needs lenses to keep coming.
@@ -254,21 +254,27 @@ export function createDeflectorsGame(seed: string, config: DeflectorsConfig = DE
     rng = r.rng;
   }
   targets.sort((a, b) => a.port - b.port);
-  const first = drawPiece(config, rng);
+  const queue: number[] = [];
+  const shown = Math.min(config.queueSize, config.pieces);
+  for (let i = 0; i < shown; i++) {
+    const d = drawPiece(config, rng);
+    queue.push(d.piece);
+    rng = d.rng;
+  }
   return {
     config,
     tick: 0,
     mirrors,
     emitters: emitterPorts(config),
     targets: targets.map((t, id) => ({ ...t, id })),
-    queue: [first.piece],
-    nextPieceTick: config.pieceTicks,
+    queue,
+    left: config.pieces - shown,
     fireTick: 0,
-    rng: first.rng,
+    rng,
     eventSeq: 0,
     logLength: 0,
     placed: 0,
-    dropped: 0,
+    binned: 0,
     shots: 0,
     lit: 0,
     spent: 0,
@@ -288,12 +294,12 @@ interface Work {
   mirrors: number[];
   targets: DeflectorsTarget[];
   queue: number[];
-  nextPieceTick: number;
+  left: number;
   fireTick: number;
   rng: PrngState;
   eventSeq: number;
   placed: number;
-  dropped: number;
+  binned: number;
   shots: number;
   lit: number;
   spent: number;
@@ -311,12 +317,12 @@ function startWork(s: DeflectorsState): Work {
     mirrors: [...s.mirrors],
     targets: [...s.targets],
     queue: [...s.queue],
-    nextPieceTick: s.nextPieceTick,
+    left: s.left,
     fireTick: s.fireTick,
     rng: s.rng,
     eventSeq: s.eventSeq,
     placed: s.placed,
-    dropped: s.dropped,
+    binned: s.binned,
     shots: s.shots,
     lit: s.lit,
     spent: s.spent,
@@ -335,12 +341,12 @@ function finishWork(s: DeflectorsState, w: Work): DeflectorsState {
     mirrors: w.mirrors,
     targets: w.targets,
     queue: w.queue,
-    nextPieceTick: w.nextPieceTick,
+    left: w.left,
     fireTick: w.fireTick,
     rng: w.rng,
     eventSeq: w.eventSeq,
     placed: w.placed,
-    dropped: w.dropped,
+    binned: w.binned,
     shots: w.shots,
     lit: w.lit,
     spent: w.spent,
@@ -351,27 +357,24 @@ function finishWork(s: DeflectorsState, w: Work): DeflectorsState {
   };
 }
 
-/** Carry the queue forward to `tick`: every piece due comes, and a full queue drops its oldest. */
+/** Carry the round forward to `tick`. Nothing comes on the clock, so only the tick moves. */
 function simulate(state: DeflectorsState, tick: number): Work {
   const w = startWork(state);
-  while (w.nextPieceTick <= tick) {
-    const at = w.nextPieceTick;
+  w.tick = Math.max(w.tick, tick);
+  return w;
+}
+
+/** The next piece leaves the queue, and the supply refills it if any is left. */
+function takeNext(w: Work, tick: number): number {
+  const piece = w.queue.shift()!;
+  if (w.left > 0) {
     const d = drawPiece(w.cfg, w.rng);
     w.rng = d.rng;
     w.queue.push(d.piece);
-    w.events.push({ seq: ++w.eventSeq, tick: at, type: "piece", piece: d.piece });
-    if (w.queue.length > w.cfg.queueSize) {
-      const piece = w.queue.shift()!;
-      const c = pickCell(w.mirrors, w.rng);
-      w.rng = c.rng;
-      w.mirrors[c.cell] = piece;
-      w.dropped++;
-      w.events.push({ seq: ++w.eventSeq, tick: at, type: "drop", piece, cell: c.cell });
-    }
-    w.nextPieceTick = at + w.cfg.pieceTicks;
+    w.left--;
+    w.events.push({ seq: ++w.eventSeq, tick, type: "piece", piece: d.piece });
   }
-  w.tick = Math.max(w.tick, tick);
-  return w;
+  return piece;
 }
 
 /** Fire every emitter at `tick`: score the shot, spend what it used, and give lit targets new recipes. */
@@ -419,8 +422,15 @@ export function reduceDeflectors(state: DeflectorsState, move: DeflectorsMove): 
     case "place": {
       const reason = placeIllegalReason(now, move.cell);
       if (reason !== null) throw new InvalidMoveError(reason, move);
-      w.mirrors[move.cell] = w.queue.shift()!;
+      w.mirrors[move.cell] = takeNext(w, move.tick);
       w.placed++;
+      break;
+    }
+    case "bin": {
+      if (w.queue.length === 0) throw new InvalidMoveError("no piece waiting", move);
+      const piece = takeNext(w, move.tick);
+      w.binned++;
+      w.events.push({ seq: ++w.eventSeq, tick: move.tick, type: "bin", piece });
       break;
     }
     case "turn": {
@@ -442,11 +452,14 @@ export function reduceDeflectors(state: DeflectorsState, move: DeflectorsMove): 
   }
   const logLength = state.logLength + 1;
   const report: DeflectorsMoveReport = { move, events: w.events, points: w.score - state.score };
+  const next = finishWork(state, w);
+  // With the supply used up, a grid that lights nothing has nothing left to give.
+  const spentOut = w.queue.length === 0 && outlook(next).lit === 0;
   return {
-    ...finishWork(state, w),
+    ...next,
     logLength,
     lastMove: report,
-    finished: move.type === "end" || logLength >= state.config.maxMoves || w.tick >= state.config.maxTick,
+    finished: move.type === "end" || spentOut || logLength >= state.config.maxMoves || w.tick >= state.config.maxTick,
   };
 }
 
@@ -473,8 +486,8 @@ export function hashDeflectorsState(state: DeflectorsState): string {
   for (const t of state.targets) h.int(t.id).int(t.port).int(t.recipe);
   h.int(state.queue.length);
   for (const q of state.queue) h.int(q);
-  h.int(state.nextPieceTick).int(state.fireTick).int(state.eventSeq).int(state.logLength);
-  h.int(state.placed).int(state.dropped).int(state.shots).int(state.lit).int(state.spent);
+  h.int(state.left).int(state.fireTick).int(state.eventSeq).int(state.logLength);
+  h.int(state.placed).int(state.binned).int(state.shots).int(state.lit).int(state.spent);
   h.int(state.bestShot).int(state.bestLit).int(state.longest).int(state.score);
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.finished ? 1 : 0);

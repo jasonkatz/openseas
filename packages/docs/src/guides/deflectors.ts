@@ -6,6 +6,8 @@ const p = content.puzzles.deflectors;
 const c = p.config;
 /** Ticks as seconds on the round's clock. */
 const secs = (ticks: number): number => (ticks * c.tickMs) / 1000;
+/** The pace at which a round's pieces last its clock, in seconds a piece, to a tenth. */
+const pace = Math.round((p.roundSeconds / c.pieces) * 10) / 10;
 const lensPct = c.lensPercent;
 /** A beam's own points for lighting a target after this many turns, through a recipe of this many lenses. */
 const pts = (turns: number, lenses = 0): number => deflectorsBeamPoints(c, turns, (1 << lenses) - 1);
@@ -26,19 +28,19 @@ export const deflectors: Guide = {
   },
   theme: {
     setting:
-      "The ship's deflector array is a grid you build behind the hull. Mirrors and lenses come off the rack one at a time, and you are the pirate setting each one down. Three emitters wait on one edge; targets wait on the others. Fire, and every beam that reaches a target through the right lenses lights it.",
+      "The ship's deflector array is a grid you build behind the hull. Mirrors and lenses come off a rack of limited stock, and you are the pirate setting each one down. Three emitters wait on one edge; targets wait on the others. Fire, and every beam that reaches a target through the right lenses lights it.",
     purpose:
       "Deflectors is a prototype. It is on the test bench and in no ship yet. It tries out building as strategy: there is no one right route, only a grid you shape piece by piece and a choice of when a shot is worth firing.",
   },
   facts: [
     { label: "Board", value: `${c.size} by ${c.size}, ${c.emitters} emitters, ${c.targets} targets` },
-    { label: "Round", value: `${p.roundSeconds} seconds` },
+    { label: "Round", value: `${p.roundSeconds} seconds, ${c.pieces} pieces` },
     { label: "Rated against", value: "The puzzle" },
     { label: "A solid round", value: `${p.thresholds[2]!.score} points` },
   ],
   rules: [
-    `Pieces come into the **queue** under the grid, one every ${secs(c.pieceTicks)} seconds: mirrors, and now and then a lens. **Tap a cell to put the next piece there**, on an empty cell or over whatever is there. Tap the next piece to turn a mirror the other way first.`,
-    `The queue holds ${c.queueSize}. When a piece comes to a full queue, the oldest one **drops** on a cell of its own choosing.`,
+    `A round deals **${c.pieces} pieces**: mirrors, and now and then a lens. The **queue** under the grid shows the next ${say(c.queueSize)}. **Tap a cell to put the next piece there**, on an empty cell or over whatever is there. Tap the next piece to turn a mirror the other way first.`,
+    "Nothing comes on a timer and nothing is put down for you. A piece you do not want goes in the **bin**, left of the queue: it is used up all the same. The count beside the queue says how many pieces are left.",
     `${say(c.emitters).replace(/^./, (x) => x.toUpperCase())} **emitters** sit on the left edge. **Tap them to fire**, and every one fires at once. Each beam runs straight, turns at every mirror it meets, passes straight through a lens, and leaves by some port.`,
     "**Targets** sit on the other edges. A beam that leaves by a target **lights** it if it passed exactly the lenses drawn outside that target: every one of them, and no other kind. A target with none drawn wants a beam through no lens at all.",
     "The board always draws each beam's route as the grid stands: solid into a target it would light, thin and broken anywhere else. A lens ringed in danger is spoiling a beam on its way to a target.",
@@ -53,6 +55,7 @@ export const deflectors: Guide = {
   controls: [
     { action: "Put the next piece down", touch: "Tap a cell", desktop: "Click a cell" },
     { action: "Turn the next mirror", touch: "Tap it in the queue", desktop: "Click it in the queue, or press R" },
+    { action: "Bin the next piece", touch: "Tap the bin", desktop: "Click the bin, or press X" },
     { action: "Fire", touch: "Tap the emitters", desktop: "Click the emitters, or press F" },
     { action: "Move the cursor", touch: "", desktop: "Arrow keys or WASD" },
     { action: "Put the piece at the cursor", touch: "", desktop: "Space or Enter" },
@@ -101,13 +104,13 @@ export const deflectors: Guide = {
           body: "Every beam fires every shot. A piece you put down for one beam may sit on another's solid route and break it. Look at every route after each piece.",
         },
         {
-          title: "Use the drop",
-          body: "Not every piece fits. A lens no target wants, or a mirror that would break a route, still has to go somewhere. Put it where no beam runs now, in a corner you are not building in, before the queue fills and drops it somewhere worse.",
+          title: "Read the queue, then the bin",
+          body: "Not every piece fits. Look at the pieces after the next one before you put it down: a mirror that is useless now may be the one the piece after it needs. A piece that fits nothing goes in a corner you are not building in, or in the bin. Both use it up; only the corner might pay later.",
           media: {
             kind: "still",
             name: "queue",
-            alt: "The queue under the grid holds four pieces and its next slot is ringed in danger: the next piece to come will drop the oldest on the grid.",
-            caption: "A full queue, ringed in danger. Put a piece down before the next one comes, or the oldest drops on its own.",
+            alt: "Under the grid, the bin on the left, the next piece large in its slot, two smaller pieces after it, and a count of pieces left.",
+            caption: "The bin, the next piece, the two after it to plan with, and how many the round has left.",
           },
         },
       ],
@@ -146,7 +149,7 @@ export const deflectors: Guide = {
         },
         {
           title: "Pace the round",
-          body: "The round ends with whatever is on the grid unfired. Plan the last build so its shot lands in the last seconds, and fire it whatever it lights.",
+          body: `The pieces last the clock at about ${pace} seconds a piece. Slower, and some are never placed; faster, and the spare time buys nothing. Think at that pace, no slower, and plan the last build so it uses the last piece and fires.`,
         },
       ],
       drill: `Time yourself on the last shot of the round. You are there when a round passes ${p.thresholds[5]!.score} points.`,
@@ -156,7 +159,7 @@ export const deflectors: Guide = {
     "**Firing every time something lights.** A shot that lights one target is worth the least it can be. Build towards two or three first.",
     "**Waiting for a perfect shot that never comes.** Each piece you put down can break a lit route. Fire when the shot is good, not when it is the best you can imagine.",
     "**Forgetting the recipe.** A beam out through a target with the wrong lenses lights nothing. Check the small glasses are solid.",
-    "**Letting the queue drop pieces.** A dropped piece lands where the engine chooses, often on a route you built. Put awkward pieces down yourself, out of the way.",
-    "**Ending the round with an unfired build.** Whatever is on the grid at the end scores nothing. Fire before the clock runs out.",
+    "**Binning without looking ahead.** A binned piece is gone from a small supply. Check the pieces after it first: a mirror can wait in a corner for a route that needs it.",
+    "**Ending the round with an unfired build.** Whatever is on the grid at the end scores nothing. Fire before the clock runs out, and before the last piece is gone.",
   ],
 };

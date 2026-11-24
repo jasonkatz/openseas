@@ -28,6 +28,8 @@ export interface DeflectorsCallbacks {
   onPlace(cell: number): void;
   /** The player turned the next piece, a mirror. */
   onTurn(): void;
+  /** The player binned the next piece. */
+  onBin(): void;
   /** The player fired the emitters. */
   onFire(): void;
   /** First settled frame after a new state. */
@@ -42,8 +44,8 @@ export interface DeflectorsLabels {
   /** Called out after a shot that lit more than one target. */
   lit(count: number, percent: number): string;
   longRoute(turns: number): string;
-  /** Called out when a full queue drops a piece on the grid. */
-  dropped: string;
+  /** Beside the queue: how many pieces the round has left, the queue's own included. */
+  left(count: number): string;
 }
 
 export interface DeflectorsRendererOptions {
@@ -104,6 +106,9 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   private readonly cursorLayer = new Graphics();
   private label: Text | null = null;
   private labelText = "";
+  /** Beside the queue: the pieces left. */
+  private leftLabel: Text | null = null;
+  private leftText = "";
   /** A sprite for every cell that holds a mirror or a lens. */
   private readonly cells = new Map<number, Sprite>();
   /** What each cell is drawn as. */
@@ -153,7 +158,9 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   protected build(): void {
     this.label = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 16, fontWeight: "700", fill: INK.cream }, resolution: 2 });
     this.label.anchor.set(0.5);
-    this.world.addChild(this.bg, this.routeLayer, this.mirrorLayer, this.portLayer, this.markLayer, this.flightLayer, this.cursorLayer, this.label);
+    this.leftLabel = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 14, fontWeight: "700", fill: INK.dim }, resolution: 2 });
+    this.leftLabel.anchor.set(0, 0.5);
+    this.world.addChild(this.bg, this.routeLayer, this.mirrorLayer, this.portLayer, this.markLayer, this.flightLayer, this.cursorLayer, this.label, this.leftLabel);
   }
 
   protected layout(width: number, height: number): void {
@@ -182,9 +189,15 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     const slot = this.queueXY(0);
     const half = (c * (NEXT + 0.2)) / 2;
     this.bg.roundRect(slot.x - half, slot.y - half, half * 2, half * 2, c * 0.16).stroke({ width: 1, color: INK.line });
+    this.paintBin(this.binXY(), c);
     if (this.label) {
       this.label.style.fontSize = Math.max(12, Math.round(c * 0.33));
       this.label.position.set(g.ox + g.width / 2, g.oy - c * RING - c * STRIP * 0.5);
+    }
+    if (this.leftLabel) {
+      this.leftLabel.style.fontSize = Math.max(11, Math.round(c * 0.28));
+      const last = this.queueXY(Math.max(1, (this.state?.config.queueSize ?? 3) - 1));
+      this.leftLabel.position.set(last.x + c * (AFTER / 2 + 0.35), last.y);
     }
     this.flights.length = 0;
     this.cursor = Math.min(this.cursor, n * n - 1);
@@ -234,6 +247,30 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     const y = g.oy + g.height + c * RING + (c * QUEUE) / 2;
     const first = g.ox + g.width / 2 - c * 1.2;
     return { x: i === 0 ? first : first + c * (NEXT / 2 + 0.35 + (i - 1) * (AFTER + 0.18) + AFTER / 2), y };
+  }
+
+  /** The centre of the bin, left of the next piece's slot. */
+  private binXY(): { x: number; y: number } {
+    const p = this.queueXY(0);
+    return { x: p.x - this.grid.cell * 1.25, y: p.y };
+  }
+
+  /** True when a point is on the bin, with room for a thumb. */
+  private onBin(x: number, y: number): boolean {
+    const p = this.binXY();
+    return Math.abs(x - p.x) <= this.grid.cell * 0.55 && Math.abs(y - p.y) <= this.grid.cell * 0.6;
+  }
+
+  /** The bin: an open tub under a lid, in hairline ink. A control, not a piece. */
+  private paintBin(at: { x: number; y: number }, c: number): void {
+    const w = c * 0.42;
+    const h = c * 0.5;
+    const top = at.y - h / 2 + c * 0.08;
+    const stroke = { width: Math.max(1.5, c * 0.04), color: INK.dim };
+    this.bg.poly([at.x - w / 2, top, at.x + w / 2, top, at.x + w * 0.38, at.y + h / 2, at.x - w * 0.38, at.y + h / 2], true).stroke(stroke);
+    this.bg.moveTo(at.x - w * 0.62, top - c * 0.06).lineTo(at.x + w * 0.62, top - c * 0.06).stroke(stroke);
+    this.bg.moveTo(at.x - w * 0.16, top - c * 0.06).lineTo(at.x - w * 0.16, top - c * 0.13).lineTo(at.x + w * 0.16, top - c * 0.13).lineTo(at.x + w * 0.16, top - c * 0.06).stroke(stroke);
+    for (const f of [-0.17, 0, 0.17]) this.bg.moveTo(at.x + w * f, top + h * 0.2).lineTo(at.x + w * f * 0.85, at.y + h / 2 - h * 0.14).stroke({ width: Math.max(1, c * 0.03), color: INK.dim });
   }
 
   /** True when a point is on the next piece in the queue, with room for a thumb. */
@@ -367,16 +404,15 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     for (const e of events) {
       if (e.seq <= this.lastSeq) continue;
       this.lastSeq = e.seq;
-      if (e.type === "drop") this.playDrop(e.cell);
+      if (e.type === "bin") this.playBin();
       else if (e.type === "fire") this.playFire(e.outcome, e.spent);
     }
   }
 
-  /** A full queue dropped a piece: where it landed is ringed in danger. */
-  private playDrop(cell: number): void {
-    const g = this.grid;
-    this.fx.ring(g.x(cell), g.y(cell), INK.danger, g.cell * 0.3, g.cell * 0.5, 420, Math.max(2, g.cell * 0.07));
-    this.fx.say(this.opts.labels.dropped, INK.danger);
+  /** A piece binned: a dim ring at the bin, and a soft thud. */
+  private playBin(): void {
+    const p = this.binXY();
+    this.fx.ring(p.x, p.y, INK.dim, this.grid.cell * 0.25, this.grid.cell * 0.45, 320, Math.max(1.5, this.grid.cell * 0.05));
     sfx.thud();
   }
 
@@ -602,7 +638,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   private drawQueue(state: DeflectorsState, start: number, dt: number): number {
     let used = start;
     const head = state.queue[0];
-    const count = state.placed + state.dropped;
+    const count = state.placed + state.binned;
     const want = head === DEFLECTORS_BACKSLASH ? BACKSLASH_ROTATION : SLASH_ROTATION;
     if (count !== this.headCount || this.reduced) this.headRotation = want;
     else this.headRotation += (want - this.headRotation) * Math.min(1, dt / 60);
@@ -615,11 +651,10 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       sp.rotation = i === 0 ? this.headRotation : piece === DEFLECTORS_BACKSLASH ? BACKSLASH_ROTATION : SLASH_ROTATION;
       sp.alpha = i === 0 ? 1 : 0.7;
     });
-    // A full queue: the slot of the piece that drops next is ringed in danger.
-    if (state.queue.length >= state.config.queueSize && head !== undefined) {
-      const p = this.queueXY(0);
-      const half = (this.grid.cell * (NEXT + 0.2)) / 2;
-      this.markLayer.roundRect(p.x - half, p.y - half, half * 2, half * 2, this.grid.cell * 0.16).stroke({ width: Math.max(2, this.grid.cell * 0.05), color: INK.danger });
+    const left = this.opts.labels.left(state.left + state.queue.length);
+    if (this.leftLabel && left !== this.leftText) {
+      this.leftText = left;
+      this.leftLabel.text = left;
     }
     return used;
   }
@@ -714,6 +749,17 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     this.cb.onTurn();
   }
 
+  private bin(): void {
+    const state = this.state;
+    if (!state || state.finished) return;
+    if (state.queue.length === 0 || this.settling) {
+      sfx.bump();
+      return;
+    }
+    this.idle = 0;
+    this.cb.onBin();
+  }
+
   private fire(): void {
     const state = this.state;
     if (!state || state.finished || this.settling) return;
@@ -735,6 +781,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       return;
     }
     if (this.onQueueHead(x, y)) this.turnHead();
+    else if (this.onBin(x, y)) this.bin();
     else if (this.onEmitters(x, y)) this.fire();
   }
 
@@ -747,7 +794,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     this.cursorLayer.roundRect(g.x(this.cursor) - half, g.y(this.cursor) - half, half * 2, half * 2, g.cell * 0.16).stroke({ width: Math.max(2, g.cell * 0.07), color: INK.amber });
   }
 
-  /** Arrows or WASD move the cursor, space or enter puts the next piece under it, R turns the next piece, F fires. */
+  /** Arrows or WASD move the cursor, space or enter puts the next piece under it, R turns the next piece, X bins it, F fires. */
   override keyboard(key: string): boolean {
     if (!this.interactive || !this.state) return false;
     const g = this.grid;
@@ -770,6 +817,10 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     }
     if (k === "r") {
       this.turnHead();
+      return true;
+    }
+    if (k === "x" || k === "Backspace" || k === "Delete") {
+      this.bin();
       return true;
     }
     if (k === "f") {

@@ -2,10 +2,12 @@
  * Deflectors (prototype, ADR 0036): a square grid the player builds, mirror by mirror, and beams
  * that run through it to light targets on its edge.
  *
- * Pieces come one at a time into a short queue: a mirror, or now and then a lens. The player puts
- * the next piece on any cell, empty or not; a piece put on another replaces it. A mirror in the
- * queue can be turned between `/` and `\` before it goes down. A piece comes every `pieceTicks`; a
- * queue already full when one comes drops its oldest piece on a cell of the engine's choosing.
+ * A round deals a set supply of pieces (`pieces`): mirrors, and now and then a lens. The next few
+ * wait in a queue the player can see (`queueSize`). The player puts the next piece on any cell,
+ * empty or not; a piece put on another replaces it. A mirror can be turned between `/` and `\`
+ * before it goes down. A piece the player does not want can be binned, which uses it up. Nothing
+ * comes on a timer and nothing is placed for the player: the clock only bounds the round, so pace
+ * counts, but every piece is the player's own choice.
  *
  * Emitters sit on the left edge, targets on the other three. Every target asks for a recipe: the
  * lens kinds a beam must pass on the way, exactly those and no other, and none for a plain target.
@@ -27,8 +29,11 @@
  * right). Directions: 0 up, 1 right, 2 down, 3 left. A recipe is a mask of lens kinds: bit k is
  * kind k.
  *
- * Time is data: every move carries the integer `tick` it happens at, and the reducer brings in
- * whatever pieces are due by that tick first. Nothing here reads a clock (ADR 0003, ADR 0015).
+ * The round ends when the clock runs out, or once the supply is used up and the grid lights
+ * nothing more.
+ *
+ * Time is data: every move carries the integer `tick` it happens at. Nothing here reads a clock
+ * (ADR 0003, ADR 0015).
  */
 import type { PrngState } from "../prng.js";
 
@@ -65,9 +70,9 @@ export interface DeflectorsConfig {
   readonly litPercent: readonly number[];
   /** Mirrors a fired beam turned at, and lenses a lighting beam passed, leave the grid. Off, the grid stays as built. */
   readonly spend: boolean;
-  /** Ticks between one piece coming and the next. */
-  readonly pieceTicks: number;
-  /** The most pieces the queue holds. A piece that comes to a full queue drops the oldest on the grid. */
+  /** Pieces the round deals, placed or binned. */
+  readonly pieces: number;
+  /** How many pieces the queue shows, the next first. */
   readonly queueSize: number;
   /** How often a piece is a lens rather than a mirror, in percent. */
   readonly lensChance: number;
@@ -93,8 +98,8 @@ export const DEFAULT_DEFLECTORS_CONFIG: DeflectorsConfig = {
   bounceCap: 16,
   litPercent: [100, 200, 400],
   spend: true,
-  pieceTicks: 15,
-  queueSize: 4,
+  pieces: 50,
+  queueSize: 3,
   lensChance: 22,
   fireTicks: 10,
   tickMs: 100,
@@ -116,9 +121,11 @@ export type DeflectorsMove =
   | { readonly type: "place"; readonly cell: number; readonly tick: number }
   /** Turn the next piece in the queue, a mirror, between `/` and `\`. */
   | { readonly type: "turn"; readonly tick: number }
+  /** Bin the next piece in the queue: it is used up and put nowhere. */
+  | { readonly type: "bin"; readonly tick: number }
   /** Fire every emitter. */
   | { readonly type: "fire"; readonly tick: number }
-  /** Nothing but time passing, so pieces that came meanwhile reach the server. */
+  /** Nothing but time passing. */
   | { readonly type: "wait"; readonly tick: number }
   | { readonly type: "end"; readonly tick: number };
 
@@ -160,10 +167,10 @@ export interface DeflectorsOutcome {
 }
 
 export type DeflectorsEvent =
-  /** A piece came into the queue. */
+  /** A piece came into the queue from the supply. */
   | { readonly seq: number; readonly tick: number; readonly type: "piece"; readonly piece: number }
-  /** The queue was full: its oldest piece dropped on `cell`. */
-  | { readonly seq: number; readonly tick: number; readonly type: "drop"; readonly piece: number; readonly cell: number }
+  /** The next piece was binned. */
+  | { readonly seq: number; readonly tick: number; readonly type: "bin"; readonly piece: number }
   /** The emitters fired. */
   | {
       readonly seq: number;
@@ -193,17 +200,17 @@ export interface DeflectorsState {
   readonly targets: readonly DeflectorsTarget[];
   /** The pieces waiting, next first, as the cell each would become. */
   readonly queue: readonly number[];
-  /** The tick the next piece comes at. */
-  readonly nextPieceTick: number;
+  /** Pieces still to come into the queue. */
+  readonly left: number;
   /** The first tick the emitters can fire at. */
   readonly fireTick: number;
   readonly rng: PrngState;
   readonly eventSeq: number;
   /** Every move in the log, waits included. */
   readonly logLength: number;
-  /** Pieces put down, and pieces the queue dropped. */
+  /** Pieces put down, and pieces binned. */
   readonly placed: number;
-  readonly dropped: number;
+  readonly binned: number;
   /** Shots fired, and targets lit. */
   readonly shots: number;
   readonly lit: number;

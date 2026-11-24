@@ -5,6 +5,7 @@ const Tick = z.int().min(0).max(100_000);
 export const DeflectorsMoveSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("place"), cell: z.int().min(0).max(99), tick: Tick }),
   z.object({ type: z.literal("turn"), tick: Tick }),
+  z.object({ type: z.literal("bin"), tick: Tick }),
   z.object({ type: z.literal("fire"), tick: Tick }),
   z.object({ type: z.literal("wait"), tick: Tick }),
   z.object({ type: z.literal("end"), tick: Tick }),
@@ -23,8 +24,8 @@ export const DeflectorsConfigSchema = z.object({
   bounceCap: z.int().min(1).max(64).describe("Turns past this many add nothing to a beam's points."),
   litPercent: z.array(z.int().min(0).max(10_000)).min(1).max(10).describe("Percent a shot is multiplied by for one target lit, two, three: one entry for each emitter."),
   spend: z.boolean().describe("On, a shot clears every mirror a beam turned at and every lens a lighting beam passed. Off, the grid stays as built."),
-  pieceTicks: z.int().min(1).max(10_000).describe("Ticks between one piece coming into the queue and the next."),
-  queueSize: z.int().min(1).max(8).describe("Pieces the queue holds. One more drops the oldest on a cell of the engine's choosing."),
+  pieces: z.int().min(1).max(1000).describe("Pieces the round deals. Each one placed or binned uses one up."),
+  queueSize: z.int().min(1).max(8).describe("Pieces the queue shows ahead, the next first."),
   lensChance: z.int().min(0).max(100).describe("Percent of pieces that are lenses rather than mirrors."),
   fireTicks: z.int().min(0).max(10_000).describe("Ticks after a shot before the emitters can fire again."),
   tickMs: z.int().min(20).max(5000).describe("Milliseconds a tick lasts: lower runs the round's clock in ticks faster."),

@@ -146,15 +146,14 @@ test("deflectors: two at once", async ({ page }) => {
   }, { tailMs: 2200, region: await region(page) });
 });
 
-test("deflectors: a full queue", async ({ page }) => {
-  // Left alone, the queue fills: its next slot is ringed in danger, and the next piece to come drops the oldest on the grid.
+test("deflectors: the queue and the bin", async ({ page }) => {
+  // The queue as a round opens: the bin, the next piece, the pieces after it, and the count left.
   const { seed, found } = findSeed("deflect-queue", (seed) => {
     const s = createDeflectorsGame(seed, cfg);
-    return deflectorsOutlook(s).lit === 0 ? s : null;
+    return deflectorsOutlook(s).lit === 0 && deflectorsIsMirror(s.queue[0]!) && s.queue.some((q) => !deflectorsIsMirror(q)) ? s : null;
   });
   await openOn(page, seed, found);
   await hidePointer(page);
-  await expect.poll(async () => ((await page.getByTestId("deflectors-board").getAttribute("data-board")) ?? "").split("|")[2]!.length, { timeout: 10_000 }).toBe(cfg.queueSize);
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(500);
   await still(page, "deflectors", "queue", { region: await region(page) });
 });

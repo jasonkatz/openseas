@@ -18,6 +18,7 @@ export interface DeflectorsBoardProps {
   hints?: boolean;
   onPlace?(cell: number): void;
   onTurn?(): void;
+  onBin?(): void;
   onFire?(): void;
   onFrame(): void;
 }
@@ -33,6 +34,7 @@ export function DeflectorsBoard(props: DeflectorsBoardProps) {
         {
           onPlace: (cell) => latest.current.onPlace?.(cell),
           onTurn: () => latest.current.onTurn?.(),
+          onBin: () => latest.current.onBin?.(),
           onFire: () => latest.current.onFire?.(),
           onFrame: () => latest.current.onFrame(),
         },
@@ -43,7 +45,7 @@ export function DeflectorsBoard(props: DeflectorsBoardProps) {
             outlookNone: t("deflectors.outlook_none"),
             lit: (count, percent) => t("deflectors.lit", { count, times: percent / 100 }),
             longRoute: (turns) => t("deflectors.long_route", { turns }),
-            dropped: t("deflectors.dropped"),
+            left: (count) => t("deflectors.left", { count }),
           },
         },
       ),

@@ -24,9 +24,9 @@ export const DeflectorsContentSchema = PrototypeBaseSchema.extend({
     litPercent: z.array(z.int().min(0)).min(1).max(10),
     /** Mirrors a fired beam turned at, and lenses a lighting beam passed, leave the grid. */
     spend: z.boolean(),
-    /** Ticks between one piece coming and the next. */
-    pieceTicks: z.int().min(1),
-    /** The most pieces the queue holds before the oldest drops. */
+    /** Pieces the round deals, placed or binned. */
+    pieces: z.int().min(1).max(1000),
+    /** How many pieces the queue shows ahead. */
     queueSize: z.int().min(1).max(8),
     /** How often a piece is a lens, in percent. */
     lensChance: z.int().min(0).max(100),

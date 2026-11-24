@@ -29,6 +29,7 @@ export function DeflectorsPractice() {
 
   const onPlace = useCallback((cell: number) => void api.apply({ type: "place", cell, tick: ticked.moveTick() }), [api, ticked]);
   const onTurn = useCallback(() => void api.apply({ type: "turn", tick: ticked.moveTick() }), [api, ticked]);
+  const onBin = useCallback(() => void api.apply({ type: "bin", tick: ticked.moveTick() }), [api, ticked]);
   const onFire = useCallback(() => void api.apply({ type: "fire", tick: ticked.moveTick() }), [api, ticked]);
 
   // What a shot now would do: the engine's word, as the board's strip shows it.
@@ -71,7 +72,7 @@ export function DeflectorsPractice() {
           <div className="stat stat-wide">
             <span className="stat-label">{t("deflectors.queue_stat")}</span>
             <span className="stat-value" data-testid="hud-queue">
-              {t("deflectors.queue_value", { count: shown.queue.length, size: shown.config.queueSize })}
+              {t("deflectors.queue_value", { count: shown.left + shown.queue.length, size: shown.config.pieces })}
             </span>
           </div>
         </>
@@ -91,8 +92,8 @@ export function DeflectorsPractice() {
             <dd>{state.bestLit}</dd>
           </div>
           <div>
-            <dt>{t("deflectors.result_dropped")}</dt>
-            <dd>{state.dropped}</dd>
+            <dt>{t("deflectors.result_binned")}</dt>
+            <dd>{state.binned}</dd>
           </div>
           <div>
             <dt>{t("deflectors.result_longest")}</dt>
@@ -140,6 +141,10 @@ export function DeflectorsPractice() {
               <span>{t("deflectors.legend_queue")}</span>
             </li>
             <li>
+              <BinIcon />
+              <span>{t("deflectors.legend_bin")}</span>
+            </li>
+            <li>
               <LineIcon look="lit" color={signs[0]!.color} />
               <span>{t("deflectors.legend_lit")}</span>
             </li>
@@ -163,6 +168,7 @@ export function DeflectorsPractice() {
           hints={studio.hints}
           onPlace={onPlace}
           onTurn={onTurn}
+          onBin={onBin}
           onFire={onFire}
           onFrame={api.markRendered}
         />
@@ -185,6 +191,18 @@ function LineIcon({ look, color }: { look: "lit" | "miss"; color: Token }) {
         </>
       )}
       {look === "miss" && <path d="M2 17h10V6h10" fill="none" stroke={ink} strokeWidth="1.8" strokeDasharray="3.5 3" strokeLinecap="round" />}
+    </svg>
+  );
+}
+
+/** The bin beside the queue, as the board draws it: an open tub under a lid. */
+function BinIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
+      <g fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" opacity="0.75">
+        <path d="M6 8h12l-1.6 12H7.6z" />
+        <path d="M4 6h16M10 6V4h4v2M10 11v6M14 11v6" />
+      </g>
     </svg>
   );
 }

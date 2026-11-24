@@ -65,7 +65,7 @@ async function tapEmitters(page: Page): Promise<void> {
   await page.mouse.click(ox - 0.5 * size, oy + 3.5 * size);
 }
 
-test("Deflectors plays alone on /play: a round puts pieces down by key and by tap", async ({ page }) => {
+test("Deflectors plays alone on /play: a round puts pieces down by key and by tap, and bins them", async ({ page }) => {
   await page.goto("/play/deflectors");
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("deflectors-canvas");
@@ -86,8 +86,15 @@ test("Deflectors plays alone on /play: a round puts pieces down by key and by ta
   await expect.poll(async () => (await board(page)).grid[empty]).toBe(start.queue[0]);
   await expectViewMatchesState(page, "deflectors");
 
-  // A mirror comes, and R turns it before it goes down; a tap puts it on another cell, over what is there.
-  await expect.poll(async () => isMirror((await board(page)).queue[0] ?? ""), { timeout: 15_000 }).toBe(true);
+  // X bins the next piece until a mirror is next: the queue moves up and the grid stays as it was.
+  for (let i = 0; i < 12 && !isMirror((await board(page)).queue[0] ?? ""); i++) {
+    const was = await board(page);
+    await page.keyboard.press("x");
+    await expect.poll(async () => (await board(page)).queue.slice(0, -1)).toBe(was.queue.slice(1));
+    expect((await board(page)).grid).toBe(was.grid);
+  }
+  // A mirror is next, and R turns it before it goes down; a tap puts it on another cell, over what is there.
+  expect(isMirror((await board(page)).queue[0] ?? "")).toBe(true);
   const before = await board(page);
   await page.keyboard.press("r");
   await expect.poll(async () => (await board(page)).queue[0]).toBe(turned(before.queue[0]!));
@@ -102,7 +109,7 @@ test("a Deflectors shot built to light a target and fired from the emitters scor
   await page.goto("/play/deflectors?seed=smoke-9&start=lab");
   await expect(page.getByTestId("deflectors-canvas")).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
-  // The round is under way once a second piece has come into the queue.
+  // The round is under way once the queue shows its pieces.
   await expect.poll(async () => (await board(page)).queue.length, { timeout: 5_000 }).toBeGreaterThan(1);
   // Put each piece where it makes a shot light something, as soon as one does; until then where it lights nothing new.
   let found = false;
