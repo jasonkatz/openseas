@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
 import {
+  ASSEMBLY_CORE,
   ASSEMBLY_POOL,
   assemblyFitIllegalReason,
   assemblyFitPoints,
@@ -104,6 +105,9 @@ export class AssemblyRenderer extends KitBoard<AssemblyState> {
   private readonly pieceMask = new Graphics();
   private readonly trayLayer = new Container();
   private readonly ghostLayer = new Graphics();
+  /** The blueprint in hand drawn small over the bay: on each cell it would take, the part it wants there. */
+  private readonly ghostParts = new Container();
+  private readonly ghostPool: Sprite[] = [];
   private readonly selectLayer = new Graphics();
   private readonly cursorLayer = new Graphics();
   private label: Text | null = null;
@@ -143,7 +147,7 @@ export class AssemblyRenderer extends KitBoard<AssemblyState> {
     this.label = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 16, fontWeight: "700", fill: INK.cream }, resolution: 2 });
     this.label.anchor.set(0.5);
     this.pieceLayer.mask = this.pieceMask;
-    this.world.addChild(this.pieceMask, this.bg, this.trayBg, this.hintLayer, this.pieceLayer, this.trayLayer, this.ghostLayer, this.selectLayer, this.cursorLayer, this.label);
+    this.world.addChild(this.pieceMask, this.bg, this.trayBg, this.hintLayer, this.pieceLayer, this.trayLayer, this.ghostLayer, this.ghostParts, this.selectLayer, this.cursorLayer, this.label);
   }
 
   protected layout(width: number, height: number): void {
@@ -493,14 +497,53 @@ export class AssemblyRenderer extends KitBoard<AssemblyState> {
       this.selectLayer.circle(g.x(this.held), g.y(this.held), g.cell * 0.45).stroke({ width: Math.max(2, g.cell * RING_W), color: INK.amber });
     }
     if (!state || this.picked === null || this.anchor === null || state.finished) {
+      this.ghostPool.forEach((s) => (s.visible = false));
       this.setLabel("");
       return;
     }
     const ok = assemblyFitIllegalReason(state, this.picked, this.anchor) === null;
     this.frameCells(this.ghostLayer, this.cellsOf(this.picked, this.anchor), ok ? INK.amber : INK.dim, ok ? 1 : 0.8);
+    this.drawGhostParts(state, this.picked, this.anchor, ok ? INK.amber : INK.dim);
     const L = this.opts.labels;
     if (ok) this.setLabel(L.preview(assemblyFitPoints(state, this.picked, this.anchor)), INK.cream);
     else this.setLabel(L.previewNone, INK.dim);
+  }
+
+  /**
+   * On each cell the blueprint in hand would take, the part it wants there, small in the cell's top
+   * right corner on a raised disc, so a player reads the match on the bay without looking back at
+   * the tray. A cell that already holds what it wants (or a core) shows its part faded.
+   */
+  private drawGhostParts(state: AssemblyState, slot: number, anchor: number, ring: number): void {
+    const bp = state.tray[slot];
+    const cells = bp ? this.cellsOf(slot, anchor) : [];
+    const g = this.grid;
+    const r = g.cell * 0.27;
+    const size = Math.max(8, Math.round(r * 1.5));
+    for (let i = 0; i < Math.max(cells.length, this.ghostPool.length); i++) {
+      let s = this.ghostPool[i];
+      const cell = cells[i];
+      const part = bp?.parts[i];
+      if (cell === undefined || !part) {
+        if (s) s.visible = false;
+        continue;
+      }
+      if (!s) {
+        s = new Sprite();
+        s.anchor.set(0.5);
+        this.ghostPool.push(s);
+        this.ghostParts.addChild(s);
+      }
+      const x = g.x(cell) + g.cell * 0.5 - r + g.cell * 0.02;
+      const y = g.y(cell) - g.cell * 0.5 + r - g.cell * 0.02;
+      const have = state.cells[cell]?.kind;
+      const met = have === part.kind || have === ASSEMBLY_CORE;
+      this.ghostLayer.circle(x, y, r).fill({ color: INK.raised, alpha: met ? 0.7 : 0.95 }).stroke({ width: Math.max(1, g.cell * 0.03), color: ring, alpha: met ? 0.5 : 1 });
+      s.texture = this.texture(part.kind, size);
+      s.position.set(x, y);
+      s.alpha = met ? 0.45 : 1;
+      s.visible = true;
+    }
   }
 
   private setLabel(text: string, color: number = INK.cream): void {

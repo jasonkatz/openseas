@@ -80,7 +80,8 @@ its name and one-line card are `assembly.stage.<id>` and `_intro`.
   a corner, as far as its way allows, with a bump where a swap is not allowed. Or tap a part (an
   amber ring holds it) and then a neighbour. Drag a blueprint from the
   tray onto the bay, or tap it (an amber ring round its slot) and then tap the bay; its box centres on
-  the pointer, and amber frames show the cells it would cover, grey where it does not fit. The strip
+  the pointer, and amber frames show the cells it would cover, grey where it does not fit, and in each
+  cell's corner the part the blueprint wants there, faded where the bay already holds it. The strip
   over the bay says what it would score there (`assemblyFitPoints`), or that it does not fit.
 - Keyboard: arrows or WASD move the cursor. Space or enter holds the part under it; then an arrow,
   or Q, E, Z or C for a corner, swaps it that way. A number key picks that blueprint, its box's top
