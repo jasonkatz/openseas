@@ -1,5 +1,5 @@
 /**
- * Assembly (prototype, ADR 0036, ADR 0082): a shipyard's parts bay, where a ship is put together
+ * Assembly (prototype, ADR 0036, ADR 0083): a shipyard's parts bay, where a ship is put together
  * from blueprints. A successor to the original's Shipwrightry: its mechanics, its own everything else.
  *
  * The bay is a full grid of parts. Each kind of part moves its own way, and that is the puzzle:

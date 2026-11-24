@@ -1,11 +1,10 @@
-# 0082. Shipwrightry's successor starts as a prototype: Assembly
+# 0083. Shipwrightry's successor starts as a prototype: Assembly
 
 Status: Accepted. Builds on [0001](./0001-spiritual-successor.md), [0036](./0036-prototype-puzzles.md),
 [0066](./0066-a-puzzle-is-learned-on-a-ladder-of-stages.md), [0075](./0075-a-puzzle-declares-its-deal.md)
 and [0078](./0078-treasure-hauls-successor-starts-as-a-prototype.md).
 
-Numbered 0082 because two open pull requests (Freefall and Refining) each take 0080 for a prototype of
-their own; whichever lands second takes 0081.
+Numbered 0083: Refining, Freefall and Showdown took 0080 to 0082 while this was open.
 
 ## Context
 
@@ -20,7 +19,7 @@ only in the studio.
 
 ## Decision
 
-1. **It is built as a prototype.** Assembly (`assembly`) is a twelfth entry in `PROTOTYPE_PUZZLE_IDS`,
+1. **It is built as a prototype.** Assembly (`assembly`) is a thirteenth entry in `PROTOTYPE_PUZZLE_IDS`,
    with every file ADR 0036 lists. It is dealt only in the studio and has no role; promoting it is its
    own ADR and milestone.
 2. **It is a successor, and says so.** Its design file names Shipwrightry as what it follows and keeps

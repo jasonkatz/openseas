@@ -1,6 +1,6 @@
 # Assembly
 
-Status: built. Prototype (ADR 0036, ADR 0082), in the studio at `/assembly`. Untimed moves; a 120
+Status: built. Prototype (ADR 0036, ADR 0083), in the studio at `/assembly`. Untimed moves; a 120
 second round.
 
 Assembly is a successor, not one of the game's own new designs: it follows the original's
@@ -126,16 +126,16 @@ The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder ass
 
 | Bot | Parts (60 s) | Chains (90 s) | Full (120 s) |
 |---|---|---|---|
-| careless | 14 Green | 21 Green | 57 Green |
-| one move | 283 Sharp | 585 Sharp | 817 Sharp |
-| rollout | 282 Sharp | 830 Masterful | 1,215 Masterful |
-| fit at once | 287 Sharp | 594 Sharp | 958 Sharp |
-| chain builder | 290 Sharp | 881 Masterful | 1,278 Masterful |
-| builder of 3 | 289 Sharp | 790 Masterful | 1,257 Masterful |
+| careless | 16 Green | 26 Green | 66 Green |
+| one move | 275 Sharp | 465 Sharp | 604 Sharp |
+| rollout | 283 Sharp | 711 Masterful | 1,154 Masterful |
+| fit at once | 283 Sharp | 522 Sharp | 664 Sharp |
+| chain builder | 270 Sharp | 633 Masterful | 880 Masterful |
+| builder of 3 | 275 Sharp | 655 Masterful | 920 Masterful |
 | *Steady from* | *90* | *155* | *210* |
-| *Sharp from* | *220* | *427* | *560* |
-| *Masterful from* | *350* | *780* | *1,050* |
-| *Legendary from* | *545* | *1,245* | *1,679* |
+| *Sharp from* | *220* | *375* | *510* |
+| *Masterful from* | *350* | *610* | *850* |
+| *Legendary from* | *545* | *985* | *1,375* |
 
 - **careless**: any legal move at random.
 - **one move**: the move worth most now, and no further look.
@@ -149,11 +149,11 @@ The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder ass
 Checks: careless lands a tier below one move on every stage, and the bait loses to the chain builder
 on the whole puzzle by 25 percent.
 
-- **Chains are earned, not given.** On the Chains stage the planning bots score about half again
-  what one move does; on Parts, with chains off, every thinking bot scores the same. The chain is the
+- **Chains are earned, not given.** On the Chains stage the planning bots score a third to a half
+  more than one move does; on Parts, with chains off, every thinking bot scores the same. The chain is the
   layer that sorts players.
-- **Cores earn their place.** With cores off on the whole puzzle the chain builder scores 1,041
-  and the bait 745; cores add about 23 percent to the planner.
+- **Cores earn their place.** With cores off on the whole puzzle the chain builder scores 721
+  and the bait 623; cores add about 22 percent to the planner.
 - **No bot reaches Legendary.** The bots read the whole bay in the time a person reads one
   blueprint, so the top tier is left for play that sets up longer chains than these bots do. It
   wants setting by hand once people have played.

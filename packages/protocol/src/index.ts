@@ -22,6 +22,7 @@ export * from "./cutting.js";
 export * from "./tractor.js";
 export * from "./refining.js";
 export * from "./freefall.js";
+export * from "./showdown.js";
 export * from "./assembly.js";
 export * from "./ws.js";
 export * from "./studio.js";

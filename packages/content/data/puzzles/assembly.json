@@ -18,10 +18,10 @@
   "thresholds": [
     { "score": 70, "rating": 1100 },
     { "score": 210, "rating": 1300 },
-    { "score": 420, "rating": 1500 },
-    { "score": 700, "rating": 1700 },
-    { "score": 1050, "rating": 1900 },
-    { "score": 1470, "rating": 2100 }
+    { "score": 400, "rating": 1500 },
+    { "score": 620, "rating": 1700 },
+    { "score": 850, "rating": 1900 },
+    { "score": 1200, "rating": 2100 }
   ],
   "stages": [
     {
@@ -48,10 +48,10 @@
       "thresholds": [
         { "score": 60, "rating": 1100 },
         { "score": 155, "rating": 1300 },
-        { "score": 310, "rating": 1500 },
-        { "score": 545, "rating": 1700 },
-        { "score": 780, "rating": 1900 },
-        { "score": 1090, "rating": 2100 }
+        { "score": 300, "rating": 1500 },
+        { "score": 450, "rating": 1700 },
+        { "score": 610, "rating": 1900 },
+        { "score": 860, "rating": 2100 }
       ],
       "config": {
         "startCores": 0,

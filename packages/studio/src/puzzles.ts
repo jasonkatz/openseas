@@ -47,6 +47,7 @@ import { CUTTING } from "./prototypes/cutting.js";
 import { TRACTOR } from "./prototypes/tractor.js";
 import { REFINING } from "./prototypes/refining.js";
 import { FREEFALL } from "./prototypes/freefall.js";
+import { SHOWDOWN } from "./prototypes/showdown.js";
 import { ASSEMBLY } from "./prototypes/assembly.js";
 
 /** What the studio needs to know about a puzzle beyond its engine definition. */
@@ -165,5 +166,6 @@ export const STUDIO_PUZZLES: Readonly<Record<PuzzleId, StudioPuzzle<unknown, unk
   tractor: TRACTOR as unknown as StudioPuzzle<unknown, unknown, unknown>,
   refining: REFINING as unknown as StudioPuzzle<unknown, unknown, unknown>,
   freefall: FREEFALL as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  showdown: SHOWDOWN as unknown as StudioPuzzle<unknown, unknown, unknown>,
   assembly: ASSEMBLY as unknown as StudioPuzzle<unknown, unknown, unknown>,
 };
