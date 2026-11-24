@@ -82,3 +82,6 @@ export { ShowdownBoard, type ShowdownBoardProps } from "./showdown/ShowdownBoard
 export { ShowdownIcon, type ShowdownIconPiece } from "./showdown/ShowdownIcon.jsx";
 export { ForgingBoard, type ForgingBoardProps } from "./forging/ForgingBoard.jsx";
 export { ForgingMarkIcon } from "./forging/ForgingIcon.jsx";
+export { AssemblyBoard, assemblyBoardString, type AssemblyBoardProps } from "./assembly/AssemblyBoard.jsx";
+export { AssemblyPartIcon } from "./assembly/AssemblyIcon.jsx";
+export { ASSEMBLY_KINDS, ASSEMBLY_CORE_KIND } from "./assembly/pieces.js";

@@ -42,6 +42,9 @@ import showdownData from "../../data/puzzles/showdown.json" with { type: "json" 
 import showdownMessages from "../../data/messages/prototypes/showdown.json" with { type: "json" };
 import { ShowdownContentSchema, type ShowdownContent } from "./showdown.js";
 import { ForgingContentSchema, type ForgingContent } from "./forging.js";
+import assemblyData from "../../data/puzzles/assembly.json" with { type: "json" };
+import assemblyMessages from "../../data/messages/prototypes/assembly.json" with { type: "json" };
+import { AssemblyContentSchema, type AssemblyContent } from "./assembly.js";
 
 export * from "./base.js";
 export * from "./salvage.js";
@@ -57,6 +60,7 @@ export * from "./refining.js";
 export * from "./freefall.js";
 export * from "./showdown.js";
 export * from "./forging.js";
+export * from "./assembly.js";
 
 /** Content for every prototype puzzle, keyed by puzzle id. */
 export interface PrototypePuzzleContent {
@@ -73,6 +77,7 @@ export interface PrototypePuzzleContent {
   readonly freefall: FreefallContent;
   readonly showdown: ShowdownContent;
   readonly forging: ForgingContent;
+  readonly assembly: AssemblyContent;
 }
 export type PrototypePuzzleContentId = keyof PrototypePuzzleContent;
 
@@ -91,5 +96,6 @@ export const PROTOTYPE_CONTENT: { readonly [K in PrototypePuzzleContentId]: { re
   freefall: { schema: FreefallContentSchema, data: freefallData, messages: freefallMessages },
   showdown: { schema: ShowdownContentSchema, data: showdownData, messages: showdownMessages },
   forging: { schema: ForgingContentSchema, data: forgingData, messages: forgingMessages },
+  assembly: { schema: AssemblyContentSchema, data: assemblyData, messages: assemblyMessages },
 };
 export const PROTOTYPE_PUZZLE_CONTENT_IDS = Object.keys(PROTOTYPE_CONTENT) as PrototypePuzzleContentId[];
