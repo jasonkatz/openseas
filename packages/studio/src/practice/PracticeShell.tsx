@@ -54,6 +54,8 @@ export interface ShellProps {
   timeLeft: number;
   /** A clock on each turn instead of the round's: the time stat counts down the turn in hand, and the round's clock is only a cap. */
   turn?: { readonly left: number; readonly seconds: number } | undefined;
+  /** No clock to play against: the round ends on the board, the clock is only the server's cap, and neither it nor a pace (which reads time) is shown. */
+  untimed?: boolean;
   score: number;
   moves: number;
   /** The move cap for the HUD bar; leave it out for puzzles whose count is not against a cap. */

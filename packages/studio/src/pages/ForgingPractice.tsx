@@ -35,10 +35,13 @@ export function ForgingPractice() {
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
+      // No clock to play against: the round ends when the press has nowhere to land, or the plate is set.
+      untimed
+      resultHeadline={api.phase === "result" ? (state.stalled ? t("forging.stall") : left === 0 ? t("forging.plate_done") : undefined) : undefined}
       score={state.score}
       moves={state.moveCount}
       movesLabel={t("forging.moves")}
-      // The move bound only keeps the log sane; the plate or the clock ends a round. A lab's tighter cap is shown.
+      // The move bound only keeps the log sane; the plate or a stall ends a round. A lab's tighter cap is shown.
       maxMoves={cfg.maxMoves < FORGING.config.maxMoves ? cfg.maxMoves : undefined}
       combo={state.weave}
       onStart={studio.start}
@@ -94,10 +97,6 @@ export function ForgingPractice() {
           <div>
             <dt>{t("forging.result_chain")}</dt>
             <dd>{state.bestChain}</dd>
-          </div>
-          <div>
-            <dt>{t("forging.result_stalls")}</dt>
-            <dd>{state.stalls}</dd>
           </div>
           <div>
             <dt>{t("forging.result_left")}</dt>

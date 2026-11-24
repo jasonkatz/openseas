@@ -7,5 +7,4 @@ export const FORGING_PRESETS: readonly Preset[] = [
   { id: "forging_small_plate", overrides: { width: 5, height: 5 } },
   { id: "forging_blind", overrides: { preview: 0 } },
   { id: "forging_flat_weave", overrides: { weaveCap: 1 } },
-  { id: "forging_harsh_stalls", overrides: { stallCost: 750 } },
 ];

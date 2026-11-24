@@ -27,10 +27,10 @@
  * at weaveCap. A spark stands in for any mark, in a chain and in a set. Weaving counts and spans is
  * the move the puzzle pays most for.
  *
- * A strike that leaves the press nowhere to land is a stall: it costs stallCost times the share of the
- * plate's blows still to strike, rounded down (the score never goes below zero), breaks the chain,
- * the set and the weave, and the next strike may land on any live spot. The round ends when every spot is set, or on the clock, which is the page's and the
- * server's: nothing here reads one.
+ * A strike that leaves the press nowhere to land is a stall, and the round ends on it: the strike
+ * scores, and every blow left on the plate is lost. The round also ends when every spot is set.
+ * There is no clock to play against: the page's and the server's is only a cap, and nothing here
+ * reads one.
  *
  * Cell index = row * width + col. Row 0 is the top row.
  */
@@ -65,8 +65,6 @@ export interface ForgingConfig {
   readonly setPoints: number;
   /** The k-th set of a weave scores setPoints * min(k, weaveCap). 1: sets never link. */
   readonly weaveCap: number;
-  /** What a stall costs with the whole plate still to strike; it costs that times the share of blows left. */
-  readonly stallCost: number;
   /** Longest move log the server accepts. */
   readonly maxMoves: number;
 }
@@ -85,7 +83,6 @@ export const DEFAULT_FORGING_CONFIG: ForgingConfig = {
   chainCap: 3,
   setPoints: 50,
   weaveCap: 5,
-  stallCost: 300,
   maxMoves: 400,
 };
 
@@ -119,13 +116,11 @@ export interface ForgingStrike {
   readonly set: { readonly family: ForgingFamily; readonly weave: number; readonly points: number } | null;
   /** A set in the making that this strike broke (two or more strikes long), or a weave it cut. */
   readonly broke: boolean;
-  /** The press has nowhere to land: the next strike may go anywhere, and this one cost stallCost. */
+  /** The press has nowhere to land: the round ends on this strike. */
   readonly stalled: boolean;
-  /** What the stall took, after the floor at zero. */
-  readonly stallPoints: number;
   /** The whole plate is set. */
   readonly done: boolean;
-  /** Everything the strike scored, the stall taken off. */
+  /** Everything the strike scored. */
   readonly points: number;
 }
 
@@ -136,7 +131,7 @@ export interface ForgingState {
   readonly rng: PrngState;
   /** The spot last struck, null before the first strike. */
   readonly at: number | null;
-  /** The mark last struck: where the next strike may land. Null before the first and after a stall. */
+  /** The mark last struck: where the next strike may land. Null before the first. */
   readonly lead: ForgingMark | null;
   readonly score: number;
   /** Strikes made. */
@@ -152,7 +147,8 @@ export interface ForgingState {
   readonly sets: number;
   readonly bestWeave: number;
   readonly bestChain: number;
-  readonly stalls: number;
+  /** The round ended on a stall, with blows left on the plate. */
+  readonly stalled: boolean;
   readonly sparksEarned: number;
   readonly lastMove: ForgingStrike | null;
   readonly finished: boolean;

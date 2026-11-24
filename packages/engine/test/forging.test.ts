@@ -116,13 +116,14 @@ describe("forging determinism (ADR 0003)", () => {
     expect(() => reduceForging(s, { type: "end" })).toThrow(InvalidMoveError);
   });
 
-  it("any line of play strikes the whole plate set, and the score never goes below zero", () => {
+  it("any line of play ends, on a set plate or a stall, and a stall is the only way to leave blows unstruck", () => {
     fc.assert(
       fc.property(fc.string(), fc.array(fc.nat({ max: 10_000 }), { minLength: 200, maxLength: 200 }), (seed, picks) => {
         const { state } = playRandom(seed, picks);
         expect(state.finished).toBe(true);
-        expect(state.cells.every((c) => c.heat === 0)).toBe(true);
-        expect(state.moveCount).toBe(cfg.width * cfg.height * cfg.blows);
+        const left = state.cells.reduce((n, c) => n + c.heat, 0);
+        expect(state.stalled).toBe(left > 0);
+        expect(state.moveCount).toBe(cfg.width * cfg.height * cfg.blows - left);
         expect(state.score).toBeGreaterThanOrEqual(0);
       }),
       { numRuns: 30 },
@@ -193,7 +194,7 @@ describe("forging marks", () => {
 
 describe("forging scoring", () => {
   const at = (col: number, row: number): number => row * 6 + col;
-  const quiet = { sparks: false, stallCost: 0 };
+  const quiet = { sparks: false };
 
   it("every strike scores, and a spot is set after its blows", () => {
     let s = plate(["11....", "11....", "......", "......", "......", "......"], { ...quiet, blows: 1 });
@@ -251,24 +252,27 @@ describe("forging scoring", () => {
     expect(s.lastMove!.broke).toBe(true);
   });
 
-  it("a strike with nowhere to land next is a stall: it costs by the share of the plate left, and the next may go anywhere", () => {
-    // Two spots of one blow on 36: after the first strike one blow of 36 is left, so the stall costs 3600 / 36.
-    let s = plate(["4.....", "......", "......", "......", "......", ".....1"], { sparks: false, blows: 1, stallCost: 3600, strikePoints: 200 });
+  it("a strike with nowhere to land next is a stall: it scores, and the round ends on it with blows left", () => {
+    let s = plate(["4.....", "......", "......", "......", "......", ".....1"], { sparks: false, blows: 1 });
     s = strike(s, at(0, 0));
     expect(s.lastMove!.stalled).toBe(true);
-    expect(s.lastMove!.stallPoints).toBe(100);
-    expect(s.score).toBe(100);
-    expect(s.stalls).toBe(1);
-    expect(forgingTargets(s)).toEqual([at(5, 5)]);
-    s = strike(s, at(5, 5));
+    expect(s.lastMove!.done).toBe(false);
+    expect(s.score).toBe(cfg.strikePoints);
+    expect(s.stalled).toBe(true);
     expect(s.finished).toBe(true);
+    expect(s.cells[at(5, 5)]!.heat).toBe(1);
+    expect(forgingTargets(s)).toEqual([]);
+    expect(() => strike(s, at(5, 5))).toThrow(InvalidMoveError);
   });
 
-  it("a stall never takes the score below zero", () => {
-    let s = plate(["4.....", "......", "......", "......", "......", ".....1"], { sparks: false, blows: 1, stallCost: 3600 });
+  it("setting the last spot ends the round without a stall", () => {
+    let s = plate(["1.....", "......", "......", "......", "......", "......"], { sparks: false, blows: 1 });
+    s = { ...s, cells: s.cells.map((c, i) => (i === 0 ? c : { heat: 0, mark: "one" })) };
     s = strike(s, at(0, 0));
-    expect(s.score).toBe(0);
-    expect(s.lastMove!.stallPoints).toBe(cfg.strikePoints);
+    expect(s.lastMove!.done).toBe(true);
+    expect(s.lastMove!.stalled).toBe(false);
+    expect(s.stalled).toBe(false);
+    expect(s.finished).toBe(true);
   });
 
   it("the last spot at the plate's highest heat earns a spark", () => {

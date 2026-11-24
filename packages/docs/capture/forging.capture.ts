@@ -93,7 +93,7 @@ test("forging: a count", async ({ page }) => {
 });
 
 test("forging: a stall", async ({ page }) => {
-  // Plain play, the hint's strike each time, until a strike on offer stalls with a good part of the plate left.
+  // Plain play, the hint's strike each time, until a strike on offer stalls, and ends the round, with a good part of the plate left.
   const { seed, found } = findSeed(
     "forging-stall",
     (s) => {
@@ -105,7 +105,8 @@ test("forging: a stall", async ({ page }) => {
           if (bad !== undefined && g.score > 60) return { log, cell: bad };
         }
         const h = forgingHint(g);
-        if (h === null) return null;
+        // A stall ends the round, so the line played up to the one shown must never stall.
+        if (h === null || strike(g, h).lastMove!.stalled) return null;
         log.push(h);
         g = strike(g, h);
       }

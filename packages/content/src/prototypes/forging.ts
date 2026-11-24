@@ -19,7 +19,6 @@ export const ForgingContentSchema = PrototypeBaseSchema.extend({
     /** A count or a span. 0: no sets. */
     setPoints: z.int().min(0),
     weaveCap: z.int().min(1),
-    stallCost: z.int().min(0),
     maxMoves: z.int().min(1),
   }),
 });

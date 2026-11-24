@@ -32,8 +32,8 @@ export interface ForgingLabels {
   span: string;
   weave(count: number): string;
   setLost: string;
-  stall(points: number): string;
-  free: string;
+  /** The press has nowhere to land: the round is over. */
+  stall: string;
   spark: string;
   done: string;
 }
@@ -199,7 +199,7 @@ export class ForgingRenderer extends KitBoard<ForgingState> {
   /**
    * The dots of set spots, and what the press can reach: each spot it can land on ringed in cream
    * and the rest drawn faint, the press itself ringed in amber, the player's own. Before the first
-   * strike and after a stall every live spot is open, and nothing is ringed.
+   * strike every live spot is open, and nothing is ringed.
    */
   private drawPlate(state: ForgingState): void {
     const g = this.grid;
@@ -292,7 +292,7 @@ export class ForgingRenderer extends KitBoard<ForgingState> {
       this.tweens.after(60, () => this.show(v, { heat: r.heat, mark: r.next ?? v.mark }));
       this.tweens.move(v.s, { scale: 1 }, { delay: 60 });
     }
-    const gained = r.points + r.stallPoints;
+    const gained = r.points;
     this.tweens.after(90, () => this.fx.popup(x, y - g.cell * 0.25, `+${gained}`, INK.cream, Math.max(14, g.cell * (r.set ? 0.46 : 0.34))));
     if (r.chain >= 2) this.tweens.after(90, () => this.setLabel(L.chain(r.chain, r.chainPoints), INK.cream));
 
@@ -308,7 +308,7 @@ export class ForgingRenderer extends KitBoard<ForgingState> {
         this.fx.say(r.set.family === "count" ? L.count : L.span);
         sfx.good();
       } else if (r.stalled) {
-        this.fx.say(L.stall(r.stallPoints), INK.danger);
+        this.fx.say(L.stall, INK.danger);
         sfx.bad();
       } else if (r.sparked) {
         this.fx.say(L.spark);
@@ -329,9 +329,8 @@ export class ForgingRenderer extends KitBoard<ForgingState> {
   protected override update(dt: number): void {
     const state = this.state;
     if (state && !this.busy) {
-      // The strip says what the press is doing: free after a stall, else the chain running.
+      // The strip says what the press is doing: the chain running.
       if (state.finished) this.setLabel("", INK.dim);
-      else if (state.at !== null && state.lead === null) this.setLabel(this.opts.labels.free, INK.amber);
       else if (state.chain >= 2) this.setLabel(this.opts.labels.chainRunning(state.chain), INK.dim);
       else this.setLabel("", INK.dim);
     }

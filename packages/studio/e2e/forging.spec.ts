@@ -52,6 +52,8 @@ test("Forging plays alone on /play: a round strikes by key and by tap, and refus
   const canvas = page.getByTestId("forging-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
+  // No clock: the board ends the round, so the HUD shows no time.
+  await expect(page.getByTestId("hud-time")).toHaveCount(0);
   await expectViewMatchesState(page, "forging");
 
   // Keyboard: the first strike may land anywhere. Move one right and strike.

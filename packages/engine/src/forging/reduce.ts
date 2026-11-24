@@ -75,7 +75,6 @@ export function validateConfig(cfg: ForgingConfig): void {
     int(cfg.chainCap, 1, 20) &&
     int(cfg.setPoints, 0, 10_000) &&
     int(cfg.weaveCap, 1, 20) &&
-    int(cfg.stallCost, 0, 10_000) &&
     int(cfg.maxMoves, 1, 1_000_000);
   if (!ok) throw new Error("invalid forging config");
 }
@@ -148,7 +147,7 @@ export function createForgingGame(seed: string, config: ForgingConfig = DEFAULT_
     sets: 0,
     bestWeave: 0,
     bestChain: 0,
-    stalls: 0,
+    stalled: false,
     sparksEarned: 0,
     lastMove: null,
     finished: false,
@@ -198,7 +197,7 @@ export function reach(cfg: ForgingConfig, cell: number, mark: ForgingMark): numb
   return out;
 }
 
-/** Where the next strike may land, in cell order. Every live spot before the first strike and after a stall. */
+/** Where the next strike may land, in cell order. Every live spot before the first strike. */
 export function targetsFrom(cfg: ForgingConfig, cells: readonly ForgingSpot[], at: number | null, lead: ForgingMark | null): number[] {
   if (at === null || lead === null) {
     const out: number[] = [];
@@ -242,16 +241,6 @@ function runFamily(run: readonly ForgingMark[]): ForgingFamily | null {
     if (f !== null) return f;
   }
   return null;
-}
-
-/**
- * What a stall costs on this plate: stallCost with every blow still to strike, less as the plate is
- * set, rounded down. A stall early is a mistake; one with three spots left is close to bad luck.
- */
-export function stallValue(cfg: ForgingConfig, cells: readonly ForgingSpot[]): number {
-  let left = 0;
-  for (const s of cells) left += s.heat;
-  return Math.floor((cfg.stallCost * left) / (cells.length * cfg.blows));
 }
 
 /** What the n-th strike of a chain adds. */
@@ -358,22 +347,9 @@ function strike(state: ForgingState, move: Extract<ForgingMove, { type: "strike"
   const done = cells.every((s) => s.heat === 0);
   const moveCount = state.moveCount + 1;
   const gained = cfg.strikePoints + chainPts + (set?.points ?? 0);
-  let score = state.score + gained;
-  let stalled = false;
-  let stallPoints = 0;
-  let lead: ForgingMark | null = mark;
-  if (!done && targetsFrom(cfg, cells, cell, mark).length === 0) {
-    stalled = true;
-    stallPoints = Math.min(stallValue(cfg, cells), score);
-    score -= stallPoints;
-    lead = null;
-    if (run.length >= 2 || weave >= 2) broke = true;
-    chain = 0;
-    chainMark = null;
-    run = [];
-    weave = 0;
-    weaveFamily = null;
-  }
+  const score = state.score + gained;
+  // Nowhere left for the press to land: the round ends here, with the blows left on the plate lost.
+  const stalled = !done && targetsFrom(cfg, cells, cell, mark).length === 0;
 
   const report: ForgingStrike = {
     cell,
@@ -381,21 +357,20 @@ function strike(state: ForgingState, move: Extract<ForgingMove, { type: "strike"
     heat,
     next,
     sparked: next === "spark",
-    chain: stalled ? 0 : chain,
+    chain,
     chainPoints: chainPts,
     set,
     broke,
     stalled,
-    stallPoints,
     done,
-    points: gained - stallPoints,
+    points: gained,
   };
   return {
     config: cfg,
     cells,
     rng,
     at: cell,
-    lead,
+    lead: mark,
     score,
     moveCount,
     chain,
@@ -406,10 +381,10 @@ function strike(state: ForgingState, move: Extract<ForgingMove, { type: "strike"
     sets,
     bestWeave: Math.max(state.bestWeave, set?.weave ?? 0),
     bestChain: Math.max(state.bestChain, chainStruck),
-    stalls: state.stalls + (stalled ? 1 : 0),
+    stalled,
     sparksEarned: state.sparksEarned + (next === "spark" ? 1 : 0),
     lastMove: report,
-    finished: done || moveCount >= cfg.maxMoves,
+    finished: done || stalled || moveCount >= cfg.maxMoves,
   };
 }
 
@@ -427,7 +402,7 @@ export function strikeValue(state: ForgingState, cell: number): ForgingStrike | 
 
 /**
  * A strike worth making, for an idle practice round: the one that scores most now without
- * stalling, ties broken by how many places the press could land after it. Advice, never a move.
+ * ending the round on a stall, ties broken by how many places the press could land after it. Advice, never a move.
  */
 export function hint(state: ForgingState): number | null {
   let best: number | null = null;
@@ -457,7 +432,7 @@ export function hashForgingState(state: ForgingState): string {
   h.int(state.run.length);
   for (const m of state.run) h.int(MARK_CODE[m]);
   h.int(state.weave).int(FAMILY_CODE(state.weaveFamily)).int(state.sets).int(state.bestWeave).int(state.bestChain);
-  h.int(state.stalls).int(state.sparksEarned).int(state.finished ? 1 : 0);
+  h.int(state.stalled ? 1 : 0).int(state.sparksEarned).int(state.finished ? 1 : 0);
   return h.digest();
 }
 

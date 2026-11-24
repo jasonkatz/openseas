@@ -26,11 +26,13 @@ ADR 0078 built Treasure Haul's successor, Tractor, early as a prototype. The sam
    struck once and again when twice, chains of one symbol and sets of the numbers or the moves,
    and alternating sets as the compound move. Its names, marks, drawings, sounds and numbers are
    its own. Where it departs from the original, the departure is a row in DESIGN.md section 6.
-3. **A stall costs; it does not end the round.** The original ends a session when the hammer has
-   nowhere to land. The bar (rule 8 of the `puzzles` skill) says a mistake costs and does not end
-   the round, so a stall costs points scaled by the share of the plate still to strike, and the
-   next strike may land anywhere. An early stall costs much and a late one little, which keeps the
-   original's measure of how much was struck cleanly.
+3. **A stall ends the round, and there is no clock.** As in the original, the round ends when the
+   press has nowhere to land, and every blow left on the plate is score never made. This is the
+   owner's call against rule 8 of the `puzzles` skill (a mistake costs and does not end the
+   round): a first build charged a stall points and played on, and the owner chose the original's
+   rule. With the board deciding when a round ends, there is no clock to play against either. The
+   page shows no time and no pace; the round's `roundSeconds` is only the server's cap on a round
+   left open, at the most content allows (1800).
 4. **The deal is shown.** New marks come from one stream in an order play cannot change, and the
    next three are shown (rule 7). The original shows none.
 5. **Its ladder is the original's difficulty levels.** Steps, then jumps, then the far marks with

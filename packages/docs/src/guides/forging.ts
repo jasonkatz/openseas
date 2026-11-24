@@ -10,8 +10,6 @@ const chain = (n: number): number => c.chainPoints * Math.min(n - 1, c.chainCap)
 /** What the k-th set of a weave scores. */
 const set = (k: number): number => c.setPoints * Math.min(k, c.weaveCap);
 const blows = c.width * c.height * c.blows;
-/** A stall with this many blows of the plate left. */
-const stall = (left: number): number => Math.floor((c.stallCost * left) / blows);
 
 export const forging: Guide = {
   id: "forging",
@@ -30,16 +28,16 @@ export const forging: Guide = {
   },
   facts: [
     { label: "Plate", value: `${c.width} by ${c.height}, ${word(c.blows)} strikes a spot` },
-    { label: "Round", value: `The plate, or ${p.roundSeconds / 60} minutes` },
+    { label: "Round", value: "Until the plate is set or the press is stuck. No clock" },
     { label: "Rated against", value: "The puzzle" },
     { label: "Preview", value: `The next ${word(c.preview)} marks` },
   ],
   rules: [
-    `Tap a spot to **strike** it. Every spot takes ${word(c.blows)} strikes, shrinking a step each time, and then it is **set**: a dot the press can no longer land on. Setting the whole plate ends the round.`,
+    `Tap a spot to **strike** it. Every spot takes ${word(c.blows)} strikes, shrinking a step each time, and then it is **set**: a dot the press can no longer land on. Setting the whole plate, all ${blows} strikes, ends the round.`,
     "Every live spot shows a **mark**, and the mark you strike says where the next strike may land. The struck spot turns up a new mark at once, so the strip over the plate keeps the one you struck, framed. The spots it reaches are ringed; the rest go faint. The first strike may land anywhere.",
     "A **step** of one, two, three or four lands exactly that far in a straight line, any of eight ways, jumping what is between. A **rail** lands on the plate's edge along its row or column, a **slant** on the edge along a diagonal, a **star** on either. A **hook** lands two along and one across.",
     "New marks come from the deal in order, whatever you strike, and the strip over the plate shows the next ones: the first is what your next strike turns up.",
-    "A strike that leaves the press nowhere to land is a **stall**. It costs points, then the next strike may land on any live spot.",
+    "A strike that leaves the press nowhere to land is a **stall**, and the round ends there. There is no clock: take as long as you like over each strike.",
     "When the whole plate has been struck once, the last spot you struck shows a **spark**, and again when it has all been struck twice. A spark lands on any live spot.",
   ],
   rulesMedia: {
@@ -57,12 +55,12 @@ export const forging: Guide = {
     `**Every strike scores ${c.strikePoints}.** The same mark struck twice in a row makes a **chain**: its second strike adds ${chain(2)}, its third ${chain(3)}, and from the ${word(c.chainCap + 1)}th on ${chain(c.chainCap + 1)} each. A spark stands in for any mark.`,
     `**Four strikes in a row holding each step once (one, two, three, four) are a count.** Four holding rail, slant, star and hook once each are a **span**. Either scores ${set(1)}.`,
     `**A set begun right after a set of the other kind links into a weave.** The second set of a weave scores ${set(2)}, the third ${set(3)}, up to ${set(c.weaveCap)}. Weaving counts and spans is the move the puzzle pays most for.`,
-    `**A stall costs more the more plate is left.** With the whole plate to strike it would cost ${c.stallCost}; halfway, ${stall(blows / 2)}; with ten strikes left, ${stall(10)}. The score never goes below zero.`,
+    `**A stall ends the round, and every strike left on the plate is score you never make.** Each strike you keep the press moving is ${c.strikePoints} more, and the chance of another set.`,
   ],
   stages: [
     {
       level: "beginner",
-      goal: "Strike the whole plate without stalling before the last few spots.",
+      goal: "Keep the press moving until most of the plate is set.",
       tips: [
         {
           title: "Look at where you land, not where you are",
@@ -70,8 +68,8 @@ export const forging: Guide = {
           media: {
             kind: "clip",
             name: "stall",
-            alt: "The pointer strikes a spot with four pips near the middle of the plate. Four spots away in every direction is off the plate, so nothing lights up. Stalled and the points it cost rise in red, and the strip says Strike anywhere.",
-            caption: "A step of four from the middle reaches nothing: a stall. The next strike may land anywhere.",
+            alt: "The pointer strikes a spot with four pips near the middle of the plate. Four spots away in every direction is off the plate, so nothing lights up. Out of moves rises in red over the plate, and the round-over card opens on the score.",
+            caption: "A step of four from the middle reaches nothing: a stall, and the round is over.",
           },
         },
         {
@@ -83,7 +81,7 @@ export const forging: Guide = {
           body: "A step of one almost always has somewhere to go. A step of four from the middle of the plate reaches nothing. Save the far steps for spots near the edge, where they reach across.",
         },
       ],
-      drill: `Play a round on the Steps stage with no stall until the last ten strikes. You are there when a round finishes above ${p.thresholds[1]!.score} points.`,
+      drill: `Play rounds on the Steps stage until you set all but the last ten strikes. You are there when a round finishes above ${p.thresholds[1]!.score} points.`,
     },
     {
       level: "intermediate",
@@ -131,7 +129,7 @@ export const forging: Guide = {
     },
     {
       level: "expert",
-      goal: "Weave counts and spans, and finish the plate with few stalls.",
+      goal: "Weave counts and spans, and still set the whole plate.",
       tips: [
         {
           title: "End a count where a span can start",
@@ -139,7 +137,7 @@ export const forging: Guide = {
         },
         {
           title: "Keep the endgame alive",
-          body: "Stalls come at the end, when few spots are left and they sit far apart. Leave the last spots where steps and hooks can reach each other, not scattered on the edges, and keep the second spark for the last few strikes.",
+          body: "Stalls come at the end, when few spots are left and they sit far apart. Leave the last spots where steps and hooks can reach each other, not scattered on the edges, and keep the second spark for the last few strikes: it can always land.",
         },
         {
           title: "Not every set is worth chasing",
@@ -153,6 +151,6 @@ export const forging: Guide = {
     "**Landing on a spot that leads nowhere.** Check where the mark you are about to strike reaches before you strike it.",
     "**Using up the edges early.** Rails, slants and stars can only land there.",
     "**Chasing chains through a set.** A repeated mark scores a little and breaks a set worth far more.",
-    "**Spending the spark at once.** A spark anywhere in the middle of the round is one strike. Near the end it saves a stall.",
+    "**Spending the spark at once.** A spark anywhere in the middle of the round is one strike. Near the end it is the strike that keeps the round going.",
   ],
 };

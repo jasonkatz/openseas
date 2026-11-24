@@ -25,7 +25,6 @@ export const ForgingConfigSchema = z.object({
   chainCap: z.int().min(1).max(20).describe("The most times a chain's step is paid."),
   setPoints: z.int().min(0).max(10_000).describe("Points for a count (each step once) or a span (each jump once). 0 switches sets off."),
   weaveCap: z.int().min(1).max(20).describe("The k-th set of a weave scores setPoints times k, up to this. 1: sets never link."),
-  stallCost: z.int().min(0).max(10_000).describe("What a stall costs with the whole plate to strike: it costs that times the share of blows left."),
   maxMoves: z.int().min(1).max(1_000_000).describe("Longest move log the server accepts."),
 });
 export type ForgingConfigWire = z.infer<typeof ForgingConfigSchema>;

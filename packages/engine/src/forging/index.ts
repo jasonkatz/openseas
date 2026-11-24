@@ -21,7 +21,6 @@ export {
   strikeValue as forgingStrikeValue,
   chainValue as forgingChainValue,
   setValue as forgingSetValue,
-  stallValue as forgingStallValue,
   hint as forgingHint,
   viewString as forgingViewString,
   markChar as forgingMarkChar,

@@ -1,7 +1,7 @@
 # Forging
 
-Status: built. Prototype (ADR 0036, ADR 0082), in the studio at `/play/forging`. Untimed moves; the
-round is the plate, with a five minute clock behind it.
+Status: built. Prototype (ADR 0036, ADR 0082), in the studio at `/play/forging`. Untimed: the
+round ends when the plate is set or the press has nowhere to land, and no clock is shown.
 
 Forging is a successor, not one of the game's own new designs: it follows the original's
 Blacksmithing, the crafting puzzle in which a hot piece of metal is struck square by square and each
@@ -34,10 +34,9 @@ six spots.
 - **Sparks.** The last spot at the plate's highest heat, struck and still live, shows a spark
   instead of a drawn mark: once when the whole plate has been struck once, again when it has all
   been struck twice.
-- **Stalls.** A strike that leaves the press nowhere to land is a stall. It costs `stallCost` (300)
-  times the share of the plate's blows still to strike, rounded down: 150 halfway, 27 with ten
-  strikes left. The score never goes below zero. A stall breaks the chain, the set in the making
-  and the weave, and the next strike may land on any live spot.
+- **Stalls.** A strike that leaves the press nowhere to land is a stall, and the round ends on it,
+  as the original's session does. The strike scores; every blow left on the plate is score never
+  made. The owner's call, against rule 8 (ADR 0082 decision 3).
 
 ## Scoring
 
@@ -69,7 +68,7 @@ Skill, in the order a player learns it:
 3. **Build sets on purpose.** Plan four strikes ahead along the lit spots, choosing between a chain
    (a little every strike) and a set (more, all at once).
 4. **Weave and shape the endgame.** End a count where a span can begin, and leave the last spots
-   close enough together, with a spark in hand, that the plate is finished with few stalls.
+   close enough together, with a spark in hand, that the press never runs out of places to land.
 
 What is luck and what is skill, in one line: the deal gives the marks; where the press goes, and
 which spot turns them up, is the player's.
@@ -85,7 +84,7 @@ Cut from the whole puzzle by switching layers off (ADR 0066), the original's own
 | Sets | Steps of four and stars; counts, spans and weaves | `sparks` |
 | Full plate | Sparks | |
 
-Each stage has its own thresholds in content; every stage is the same five minute plate.
+Each stage has its own thresholds in content; every stage is the same untimed plate.
 
 ## Input and feedback
 
@@ -94,18 +93,21 @@ Each stage has its own thresholds in content; every stage is the same five minut
 - **What can be reached is always drawn.** Every spot the press can land on is ringed in cream and
   every other live spot is faint. The press itself, the spot last struck, is framed in amber. The
   struck spot turns up its new mark at once, so the mark that was struck, the one the rings follow,
-  is shown framed in amber at the strip's right end. Before the first strike and after a stall
-  nothing is ringed: every live spot is open.
+  is shown framed in amber at the strip's right end. Before the first strike nothing is ringed:
+  every live spot is open.
 - **Heat reads without colour.** A spot's tile shrinks a step with each strike (full, then about
   three quarters, then about two thirds), and colour follows as a second cue: rust, sand, sky. A set
   spot is the kit's empty dot.
 - **A strike plays in under half a second:** the tile squashes and comes back a step smaller with its
   new mark, a pop pitched by the blow, the points pop up. A chain shows its count in the strip; a
-  set is called out (Count, Span) with a good chime; a stall is called out in danger with what it
-  cost; an earned spark is called out with a zap; a set lost is a quiet note. The beat is for a
+  set is called out (Count, Span) with a good chime; a stall is called out in danger (Out of
+  moves) and ends the round; an earned spark is called out with a zap; a set lost is a quiet note. The beat is for a
   weave's second set or later (stronger with each link) and for the plate set.
 - **Hints.** In a practice round, after six idle seconds a strike worth making breathes in a thicker
   cream ring: the one that scores most now without stalling.
+- **No clock.** The page shows no time and no live tier pace, since a pace reads points over time.
+  The round's `roundSeconds` (1800, the most content allows) is only the server's cap on a round
+  left open. The result card leads with how the round ended: Plate set, or Out of moves.
 
 ## Pieces
 
@@ -117,57 +119,58 @@ colour, each is told apart by its cut-out, and heat by the tile's size.
 
 ## Engine
 
-`packages/engine/src/forging/`. No clock of its own: a round ends when the plate is set, on the
-page's clock, or on `{ type: "end" }`. `forgingTargets` is what the board rings, `forgingUpcoming`
+`packages/engine/src/forging/`. No clock of its own: a round ends when the plate is set, on a
+stall, or on `{ type: "end" }` (the server's cap). `forgingTargets` is what the board rings, `forgingUpcoming`
 the preview, `forgingStrikeValue` what a strike would do, `forgingHint` the practice hint.
 Determinism tests come first in `packages/engine/test/forging.test.ts`, among them that the preview
-always comes true and that any line of play sets the whole plate.
+always comes true and that any line of play ends, on a set plate or a stall.
 
 ## Tuning notes
 
-Set from bots, not people (ADR 0036). A person's pace is modelled as a strike every 2.5 seconds, so
-a plate of 108 strikes takes 270 of the round's 300.
+Set from bots, not people (ADR 0036). A person's pace is modelled as a strike every 2.5 seconds;
+with no clock it only times the ladder.
 
-- **Stalls cost by the share of plate left.** A flat cost per stall made the round a list of stalls:
-  even a bot that searches three strikes ahead stalls about ten times a plate, nearly all in its
-  last third, where few spots are left and they sit apart. Early stalls are the mistakes the
-  original punishes by ending the round; late ones are close to unavoidable. Scaling the cost by
-  the blows left keeps an early stall expensive (150 halfway) and a late one small, so the
-  original's measure, how much of the plate was struck cleanly, is what the stall cost reads.
+- **A stall ends the round.** It was first a cost scaled by the plate left, with play going on; the
+  owner chose the original's rule instead. Bots now strike 40 to 80 of the plate's 108 before the
+  press is stuck (the planner about 80, random striking about 44), and none sets a whole plate in
+  16 seeds, so setting the plate is the expert's mark.
 - **Strikes at 2.** At 5 a strike, the 108 strikes every finished plate scores were more than half
-  of a good score (rule 14). At 2 they are about a fifth of a good player's gains.
+  of a good score (rule 14). At 2 they are a smaller part of a good player's gains.
 - **Sets at 50, weaves to five.** A set takes four strikes and gives up the chain, so it pays more
   than three chain steps. The planner bot makes about seven sets a plate and links two at best;
   a weave of three or more is the expert's.
 - **Thresholds** sit so that random striking is Green, the one-move bot Steady on the whole puzzle,
-  and the bots that plan Sharp. Masterful and Legendary are left for weaves of three and more,
-  which no bot here plays on purpose; those tiers want setting by hand once people have.
+  and the bots that plan Sharp. Masterful and Legendary are left for weaves of three and more and
+  a plate struck nearly to the end, which no bot here plays; those tiers want setting by hand once
+  people have.
 
-The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder forging`):
+The bots of this pass, 32 seeds a cell (`pnpm --filter @openseas/bots ladder forging`). The round's
+1800 seconds is the cap, not a clock: every round here ends on the board.
 
-| Bot | Steps (300 s) | Jumps (300 s) | Sets (300 s) | Full (300 s) |
+| Bot | Steps | Jumps | Sets | Full |
 |---|---|---|---|---|
-| careless | 189 Green | 55 Green | 14 Green | 26 Green |
-| one move | 1,306 Sharp | 467 Sharp | 197 Steady | 233 Steady |
-| rollout | 1,393 Sharp | 505 Sharp | 602 Sharp | 654 Sharp |
-| keeper | 931 Steady | 322 Steady | 118 Green | 145 Green |
-| chain chaser | 1,158 Sharp | 372 Steady | 134 Green | 154 Steady |
-| planner | 1,374 Sharp | 472 Sharp | 637 Sharp | 687 Sharp |
-| *Steady from* | *400* | *150* | *150* | *150* |
-| *Sharp from* | *999* | *400* | *475* | *475* |
-| *Masterful from* | *1,599* | *800* | *900* | *900* |
-| *Legendary from* | *2,199* | *1,250* | *1,499* | *1,499* |
+| careless | 422 Green | 255 Steady | 165 Green | 165 Green |
+| one move | 1,211 Sharp | 535 Sharp | 357 Steady | 357 Steady |
+| rollout | 1,425 Sharp | 681 Sharp | 704 Sharp | 704 Sharp |
+| keeper | 1,109 Sharp | 577 Sharp | 420 Steady | 420 Steady |
+| chain chaser | 1,259 Sharp | 602 Sharp | 466 Steady | 466 Steady |
+| planner | 1,429 Sharp | 663 Sharp | 815 Sharp | 818 Sharp |
+| *Steady from* | *500* | *150* | *250* | *250* |
+| *Sharp from* | *999* | *400* | *650* | *650* |
+| *Masterful from* | *1,599* | *800* | *1,100* | *1,100* |
+| *Legendary from* | *2,199* | *1,250* | *1,699* | *1,699* |
 
 - **careless**: any spot the press can reach, at random.
-- **one move**: the strike worth most now, stall included.
+- **one move**: the strike worth most now.
 - **rollout**: the eight best strikes, each played five strikes on, three times, on a fresh stream.
-- **keeper**: points now plus 4 for each place the press could land next, up to six.
+- **keeper**: points now plus 4 for each place the press could land next, up to six; a stall is
+  the worst line there is.
 - **chain chaser** (the bait): strikes the same mark again whenever it can, else the keeper.
 - **planner**: every line three strikes deep on the marks the preview shows; the best by points
   plus 4 a landing place at the end.
 
 Checks: careless lands a tier below one move on every stage, and the bait loses to the planner on
-the whole puzzle by 77.6 percent.
+the whole puzzle by 43 percent.
 
 Open questions for play:
 
@@ -176,9 +179,9 @@ Open questions for play:
 - **The jumps layer is a harder deal, not a skill a bot shows.** Rails and slants only land on
   edges, so the Jumps stage scores less than Steps for every bot. Whether people find the edge
   discipline the skill it is in the original wants play.
-- **Endgame stalls.** Even small, ten stalls in the last thirty strikes may read as noise. If it
-  does, the stall's callout could be dropped below a cost.
-- **Round length.** A plate is 108 strikes, about four and a half minutes at the modelled pace,
-  long for rule 3. Two blows a spot (a preset) is 72 strikes; it is the first thing to try if a
-  round feels long.
+- **The round ends early for everyone.** Even the planner is stuck with about a quarter of the
+  plate left. If that feels harsh, the first things to try are two blows a spot (a preset) and
+  more sparks.
+- **Round length.** A whole plate is 108 strikes, long for rule 3; a round that ends on a stall is
+  shorter, 40 to 80 strikes for the bots. Two blows a spot (a preset) is 72 strikes.
 - **The pace.** A strike every 2.5 seconds is a guess for a puzzle that rewards reading ahead.

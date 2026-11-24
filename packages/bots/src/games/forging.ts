@@ -5,16 +5,18 @@
 import { FORGING_DEF, forgingTargets, reduceForging, type ForgingConfig, type ForgingMove, type ForgingState } from "@openseas/engine";
 import type { Bot, BotGame, Choice } from "../core.js";
 
-/** A person's pace, from the tuning notes: a strike every 2.5 seconds, so a plate of 108 takes 270. */
+/** A person's pace, from the tuning notes: a strike every 2.5 seconds, so a plate of 108 takes 270. The round has no clock; this only times the ladder. */
 const SECONDS_PER_STRIKE = 2.5;
 
 const strikes = (state: ForgingState): ForgingMove[] => forgingTargets(state).map((cell) => ({ type: "strike", cell }));
 
 /**
  * How good a position is to play on from: what has been scored, and how many places the press can
- * land next (a press with few places is close to a stall). A stall reads as the stall it is.
+ * land next (a press with few places is close to a stall). A stall ends the round with the rest
+ * of the plate unstruck, so it reads as far worse than any line that keeps going.
  */
 function standing(s: ForgingState, mobility: number): number {
+  if (s.stalled) return s.score - 1000;
   if (s.finished) return s.score;
   return s.score + mobility * Math.min(6, forgingTargets(s).length);
 }

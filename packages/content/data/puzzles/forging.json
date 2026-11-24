@@ -14,26 +14,25 @@
     "chainCap": 3,
     "setPoints": 50,
     "weaveCap": 5,
-    "stallCost": 300,
     "maxMoves": 400
   },
   "paceSeconds": 30,
-  "roundSeconds": 300,
+  "roundSeconds": 1800,
   "thresholds": [
-    { "score": 50, "rating": 1100 },
-    { "score": 150, "rating": 1300 },
-    { "score": 350, "rating": 1500 },
-    { "score": 600, "rating": 1700 },
-    { "score": 900, "rating": 1900 },
-    { "score": 1300, "rating": 2100 }
+    { "score": 100, "rating": 1100 },
+    { "score": 250, "rating": 1300 },
+    { "score": 500, "rating": 1500 },
+    { "score": 800, "rating": 1700 },
+    { "score": 1100, "rating": 1900 },
+    { "score": 1500, "rating": 2100 }
   ],
   "stages": [
     {
       "id": "steps",
-      "roundSeconds": 300,
+      "roundSeconds": 1800,
       "thresholds": [
         { "score": 150, "rating": 1100 },
-        { "score": 400, "rating": 1300 },
+        { "score": 500, "rating": 1300 },
         { "score": 800, "rating": 1500 },
         { "score": 1200, "rating": 1700 },
         { "score": 1600, "rating": 1900 },
@@ -43,7 +42,7 @@
     },
     {
       "id": "jumps",
-      "roundSeconds": 300,
+      "roundSeconds": 1800,
       "thresholds": [
         { "score": 50, "rating": 1100 },
         { "score": 150, "rating": 1300 },
@@ -56,14 +55,14 @@
     },
     {
       "id": "sets",
-      "roundSeconds": 300,
+      "roundSeconds": 1800,
       "thresholds": [
-        { "score": 50, "rating": 1100 },
-        { "score": 150, "rating": 1300 },
-        { "score": 350, "rating": 1500 },
-        { "score": 600, "rating": 1700 },
-        { "score": 900, "rating": 1900 },
-        { "score": 1300, "rating": 2100 }
+        { "score": 100, "rating": 1100 },
+        { "score": 250, "rating": 1300 },
+        { "score": 500, "rating": 1500 },
+        { "score": 800, "rating": 1700 },
+        { "score": 1100, "rating": 1900 },
+        { "score": 1500, "rating": 2100 }
       ],
       "config": { "sparks": false }
     }
