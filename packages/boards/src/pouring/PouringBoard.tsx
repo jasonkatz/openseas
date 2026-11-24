@@ -15,7 +15,7 @@ export interface PouringBoardProps {
   onFrame(): void;
 }
 
-/** Hosts the Pouring canvas (prototype, ADR 0084). All drawing lives in the renderer; every number shown is the engine's. */
+/** Hosts the Pouring canvas (prototype, ADR 0085). All drawing lives in the renderer; every number shown is the engine's. */
 export function PouringBoard(props: PouringBoardProps) {
   const latest = useRef(props);
   latest.current = props;

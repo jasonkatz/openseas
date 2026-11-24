@@ -18,6 +18,7 @@ import { RefiningConfigSchema } from "./refining.js";
 import { FreefallConfigSchema } from "./freefall.js";
 import { ShowdownConfigSchema } from "./showdown.js";
 import { ForgingConfigSchema } from "./forging.js";
+import { AssemblyConfigSchema } from "./assembly.js";
 import { PouringConfigSchema } from "./pouring.js";
 import { EnginesConfigSchema } from "./engines.js";
 import { GunneryConfigSchema } from "./gunnery.js";
@@ -183,6 +184,7 @@ export const PuzzleStartedSchema = z.discriminatedUnion("puzzle", [
   PuzzleStartedBase.extend({ puzzle: z.literal("freefall"), config: FreefallConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("showdown"), config: ShowdownConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("forging"), config: ForgingConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("assembly"), config: AssemblyConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("pouring"), config: PouringConfigSchema }),
 ]);
 

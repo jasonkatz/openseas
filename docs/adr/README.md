@@ -89,4 +89,5 @@ that supersedes it.
 | [0081](./0081-treasure-drops-successor-starts-as-a-prototype.md) | Treasure Drop's successor starts as a prototype: Freefall, dealt only in the studio, against a rival in the engine |
 | [0082](./0082-pokers-successor-starts-as-a-prototype.md) | Poker's successor starts as a prototype: Showdown, dealt only in the studio, against rivals in the engine at a fixed limit |
 | [0083](./0083-blacksmithings-successor-starts-as-a-prototype.md) | Blacksmithing's successor starts as a prototype: Forging, dealt only in the studio |
-| [0084](./0084-drinkings-successor-starts-as-a-prototype.md) | Drinking's successor starts as a prototype: Pouring, with its rivals in the engine |
+| [0084](./0084-shipwrightrys-successor-starts-as-a-prototype.md) | Shipwrightry's successor starts as a prototype: Assembly, dealt only in the studio |
+| [0085](./0085-drinkings-successor-starts-as-a-prototype.md) | Drinking's successor starts as a prototype: Pouring, with its rivals in the engine |

@@ -23,6 +23,7 @@ export const PuzzleIdSchema = z.enum([
   "freefall",
   "showdown",
   "forging",
+  "assembly",
   "pouring",
 ]);
 export type PuzzleIdWire = z.infer<typeof PuzzleIdSchema>;
